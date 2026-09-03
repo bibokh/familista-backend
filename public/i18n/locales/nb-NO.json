@@ -13,7 +13,8 @@
     "clubs": "Klubber",
     "dashboard": "Oversikt",
     "back": "Tilbake",
-    "familistaLeague": "Familista League"
+    "familistaLeague": "Familista League",
+    "matchCenter": "Kampsenter"
   },
   "common": {
     "search": "Søk",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "Administrer ligadeltakere"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "Alt den andre klubben bør vite"
   }
 }

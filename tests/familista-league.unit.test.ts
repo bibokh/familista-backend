@@ -69,18 +69,21 @@ describe('Familista League — navigation', () => {
   it('opens the profiles that already exist instead of building its own', () => {
     // A player opens the canonical player record…
     expect(APP).toMatch(/act === 'flPlayer'[\s\S]{0,400}openPlayerModal\(pid\)/);
-    // …and a match hands over to the Match Centre, focused on that fixture.
+    // …and a match hands over to the Match Center, which is the module that
+    // owns match preparation for every competition. The League does not draw a
+    // match screen of its own.
     expect(APP).toMatch(/act === 'flMatch'[\s\S]{0,700}_flOpenPreview\(fid\)/);
-    // The hand-over reuses the payload the preview already loaded rather than
-    // asking for it a second time, and opens the Match Centre where the reader
-    // already is — a section of this workspace, not a page to be sent to.
-    expect(APP).toMatch(/async function _flOpenMatch[\s\S]{0,900}_flHandOver\(/);
-    expect(APP).toMatch(/function _flHandOver[\s\S]{0,400}_flTabTo\('match'\)/);
-    expect(APP).toMatch(/function _flHandOver[\s\S]{0,400}window\._MC_FOCUS = _mcFocusFromLeague\(d\)/);
-    expect(APP).toMatch(/async function _flOpenMatch[\s\S]{0,400}_FL\.preview\.fixtureId === fixtureId/);
+    expect(APP).toMatch(/function _flOpenMatch[\s\S]{0,600}navTo\('match-center'\)/);
+    expect(APP).toMatch(/function _flOpenMatch[\s\S]{0,700}_mccOpen\(fixtureId, back\)/);
+    // And the section and round it was launched from travel with it, so closing
+    // the workspace returns the reader exactly here.
+    expect(APP).toMatch(/function _flOpenMatch[\s\S]{0,500}page: 'familista-league'[\s\S]{0,120}round: _FL\.round/);
     // No second player profile or match centre is defined by this module.
     expect(APP).not.toContain('function _flPlayerProfile');
     expect(APP).not.toContain('function _flMatchCenter');
+    // And the Match Center is no longer a section of this workspace at all.
+    expect(APP).not.toContain('function _flMatchHostHtml');
+    expect(APP).not.toContain("['match', 'Match Center']");
   });
 
   it('never writes a colour as an inline style attribute', () => {
@@ -313,12 +316,15 @@ describe('Familista League — a result arrives from the Match Centre', () => {
   });
 });
 
-describe('Familista League — the Match Centre it opens', () => {
-  it('is the existing one, focused on a match', () => {
-    // No second render function; the same one draws a different match.
+describe('Familista League — the Match Center it opens', () => {
+  it('is the one canonical module, focused on a fixture', () => {
+    // No second render function; the same module draws a different fixture.
     expect(APP).not.toContain('function renderLeagueMatchCenter');
-    expect(APP).toMatch(/function _mcNextMatch\(\)[\s\S]{0,400}if \(f && f\.next\) return f\.next/);
-    expect(APP).toContain('window._MC_FOCUS = _mcFocusFromLeague(d)');
+    expect(APP).toMatch(/function _mcFocusFromDetail\(d\)/);
+    expect(APP).toContain('window._MC_FOCUS = _mcFocusFromDetail(d)');
+    // And there is exactly one place that translates a match record into the
+    // shape the workspace reads.
+    expect(APP.match(/function _mcFocusFrom/g) || []).toHaveLength(1);
   });
 
   it('knows which competition the match belongs to', () => {
@@ -329,8 +335,9 @@ describe('Familista League — the Match Centre it opens', () => {
     }
   });
 
-  it('lets go of the focus when the Match Centre is opened any other way', () => {
+  it('lets go of the open match when the Match Center is reached any other way', () => {
     expect(APP).toMatch(/data-page="match-center"[\s\S]{0,400}window\._MC_FOCUS = null/);
+    expect(APP).toMatch(/data-page="match-center"[\s\S]{0,400}_MCC\.open = null/);
   });
 
   it('shows what was recorded, and an honest nothing when there is none', () => {

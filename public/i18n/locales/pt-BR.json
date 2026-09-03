@@ -13,7 +13,8 @@
     "clubs": "Clubes",
     "dashboard": "Painel",
     "back": "Voltar",
-    "familistaLeague": "Familista League"
+    "familistaLeague": "Familista League",
+    "matchCenter": "Centro de Partida"
   },
   "common": {
     "search": "Buscar",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "Gerenciar participantes da liga"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "O que o outro clube precisa saber"
   }
 }

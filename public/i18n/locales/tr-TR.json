@@ -13,7 +13,8 @@
     "clubs": "Kulüpler",
     "dashboard": "Panel",
     "back": "Geri",
-    "familistaLeague": "Familista Ligi"
+    "familistaLeague": "Familista Ligi",
+    "matchCenter": "Maç Merkezi"
   },
   "common": {
     "search": "Ara",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "Lig katılımcılarını yönet"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "Diğer kulübün bilmesi gereken her şey"
   }
 }

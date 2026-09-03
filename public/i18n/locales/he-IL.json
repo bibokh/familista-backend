@@ -13,7 +13,8 @@
     "clubs": "מועדונים",
     "dashboard": "לוח בקרה",
     "back": "חזרה",
-    "familistaLeague": "Familista League"
+    "familistaLeague": "Familista League",
+    "matchCenter": "מרכז המשחקים"
   },
   "common": {
     "search": "חיפוש",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "ניהול משתתפות הליגה"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "כל מה שהמועדון השני צריך לדעת"
   }
 }

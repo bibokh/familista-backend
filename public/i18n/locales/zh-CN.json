@@ -13,7 +13,8 @@
     "clubs": "俱乐部",
     "dashboard": "仪表盘",
     "back": "返回",
-    "familistaLeague": "Familista 联赛"
+    "familistaLeague": "Familista 联赛",
+    "matchCenter": "比赛中心"
   },
   "common": {
     "search": "搜索",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "管理联赛参赛球队"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "对方俱乐部需要知道的任何信息"
   }
 }

@@ -13,7 +13,8 @@
     "clubs": "Klub",
     "dashboard": "Dasbor",
     "back": "Kembali",
-    "familistaLeague": "Liga Familista"
+    "familistaLeague": "Liga Familista",
+    "matchCenter": "Pusat Pertandingan"
   },
   "common": {
     "search": "Cari",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "Kelola peserta liga"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "Apa pun yang perlu diketahui klub lawan"
   }
 }

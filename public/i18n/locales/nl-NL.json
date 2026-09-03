@@ -13,7 +13,8 @@
     "clubs": "Clubs",
     "dashboard": "Dashboard",
     "back": "Terug",
-    "familistaLeague": "Familista League"
+    "familistaLeague": "Familista League",
+    "matchCenter": "Wedstrijdcentrum"
   },
   "common": {
     "search": "Zoeken",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "Competitiedeelnemers beheren"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "Alles wat de andere club moet weten"
   }
 }

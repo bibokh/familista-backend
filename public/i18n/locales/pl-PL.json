@@ -13,7 +13,8 @@
     "clubs": "Kluby",
     "dashboard": "Pulpit",
     "back": "Wstecz",
-    "familistaLeague": "Familista League"
+    "familistaLeague": "Familista League",
+    "matchCenter": "Centrum Meczowe"
   },
   "common": {
     "search": "Szukaj",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "Zarządzaj uczestnikami ligi"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "Wszystko, co powinien wiedzieć drugi klub"
   }
 }

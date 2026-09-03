@@ -13,7 +13,8 @@
     "clubs": "Клубы",
     "dashboard": "Панель",
     "back": "Назад",
-    "familistaLeague": "Familista League"
+    "familistaLeague": "Familista League",
+    "matchCenter": "Центр матчей"
   },
   "common": {
     "search": "Поиск",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "Управление участниками лиги"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "Всё, что нужно знать другому клубу"
   }
 }

@@ -13,7 +13,8 @@
     "clubs": "สโมสร",
     "dashboard": "แดชบอร์ด",
     "back": "ย้อนกลับ",
-    "familistaLeague": "ลีกฟามิลิสตา"
+    "familistaLeague": "ลีกฟามิลิสตา",
+    "matchCenter": "ศูนย์การแข่งขัน"
   },
   "common": {
     "search": "ค้นหา",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "จัดการทีมที่เข้าร่วมลีก"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "สิ่งที่สโมสรอีกฝ่ายควรทราบ"
   }
 }

@@ -147,6 +147,22 @@ async function requireLeague(competitionId: string) {
   return comp;
 }
 
+/**
+ * The competition a fixture belongs to, whichever kind it is.
+ *
+ * The match reader below is shared with the Match Center, which opens fixtures
+ * from every competition a club plays in — a cup tie, a friendly, a pre-season
+ * game — and those are owned by a club rather than by the platform, so
+ * `requireLeague` would refuse all of them. Nothing about the league's own
+ * access rule changes: its routes resolve the platform league before they call
+ * in, which is where that rule is decided.
+ */
+async function requireCompetition(competitionId: string) {
+  const comp = await prisma.competition.findUnique({ where: { id: competitionId } });
+  if (!comp) throw new NotFoundError('Competition');
+  return comp;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Identity — resolved once, for every team in the league
 // ─────────────────────────────────────────────────────────────────────────────
@@ -165,24 +181,32 @@ export interface LeagueTeamIdentity {
  * the whole league rather than one per row. The standings, the fixtures and the
  * leaderboards all need the same identities, so they all call this.
  */
-async function teamIdentities(competitionId: string): Promise<Map<string, LeagueTeamIdentity>> {
+async function teamIdentities(
+  competitionId: string,
+  alsoTeamIds: string[] = [],
+): Promise<Map<string, LeagueTeamIdentity>> {
   const participants = await prisma.competitionTeam.findMany({
     where: { competitionId },
     select: { teamId: true, clubId: true },
   });
-  const teamIds = participants.map((p) => p.teamId);
+  // A friendly or a cup tie may name a team that was never registered as a
+  // participant row. Those are identified from the Team table directly, so a
+  // fixture always knows who is playing in it — the alternative is a nameless,
+  // crestless side on the Match Center.
+  const extra = alsoTeamIds.filter((id) => !!id && !participants.some((p) => p.teamId === id));
+  const teamIds = [...new Set([...participants.map((p) => p.teamId), ...extra])];
   if (teamIds.length === 0) return new Map();
 
-  const [teams, clubs] = await Promise.all([
-    prisma.team.findMany({
-      where: { id: { in: teamIds } },
-      select: { id: true, name: true, shortName: true, clubId: true },
-    }),
-    prisma.club.findMany({
-      where: { id: { in: [...new Set(participants.map((p) => p.clubId))] } },
-      select: { id: true, name: true, crestUrl: true, emblem: true },
-    }),
-  ]);
+  const teams = await prisma.team.findMany({
+    where: { id: { in: teamIds } },
+    select: { id: true, name: true, shortName: true, clubId: true },
+  });
+  // Derived from the teams themselves as well as from the participant rows, so
+  // a team added above by id brings its club's name and crest with it.
+  const clubs = await prisma.club.findMany({
+    where: { id: { in: [...new Set([...participants.map((p) => p.clubId), ...teams.map((t) => t.clubId)])] } },
+    select: { id: true, name: true, crestUrl: true, emblem: true },
+  });
 
   const clubById = new Map(clubs.map((c) => [c.id, c]));
   const out = new Map<string, LeagueTeamIdentity>();
@@ -512,7 +536,7 @@ async function matchSides(
   awayTeamId: string,
   identities: Map<string, LeagueTeamIdentity>,
 ): Promise<Pick<LeagueMatchDetail, 'standings' | 'squads' | 'staff'>> {
-  const rules = readRules((await requireLeague(competitionId)).rules);
+  const rules = readRules((await requireCompetition(competitionId)).rules);
   const zoneFor = (position: number): LeagueZone | null =>
     (rules.zones ?? []).find((z) => position >= z.from && position <= z.to) ?? null;
 
@@ -663,12 +687,12 @@ async function matchSides(
 }
 
 export async function getMatchDetail(competitionId: string, fixtureId: string): Promise<LeagueMatchDetail> {
-  const comp = await requireLeague(competitionId);
+  const comp = await requireCompetition(competitionId);
 
   const fixture = await prisma.fixture.findFirst({ where: { id: fixtureId, competitionId } });
   if (!fixture) throw new NotFoundError('Fixture');
 
-  const identities = await teamIdentities(competitionId);
+  const identities = await teamIdentities(competitionId, [fixture.homeTeamId, fixture.awayTeamId]);
   const row: LeagueMatchRow = {
     fixtureId: fixture.id,
     matchId: fixture.matchId ?? null,

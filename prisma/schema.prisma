@@ -136,6 +136,14 @@ model Club {
   websiteUrl   String?
   socialLinks  Json?
 
+  /// The club's own IANA time zone, e.g. "Europe/Berlin".
+  ///
+  /// A kickoff is legal or not by the clock at the venue, and the venue is this
+  /// club's. Null means the club has not recorded one, and the scheduler falls
+  /// back to the competition's zone, then to the country above, then to UTC —
+  /// see resolveVenueTimeZone in src/competition/match-scheduling.ts.
+  timezone     String?
+
   stripeCustomerId     String?            @unique
   stripeSubscriptionId String?            @unique
   plan                 SubscriptionPlan   @default(BASIC)
@@ -9359,6 +9367,10 @@ model Fixture {
   matchId String?
   match   Match?  @relation(fields: [matchId], references: [id])
 
+  /// Every request to move this fixture, in every state. One canonical fixture
+  /// row; the requests are the workflow around it, never a second copy of it.
+  changeRequests FixtureChangeRequest[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -9390,6 +9402,84 @@ model StandingsEntry {
 
   @@unique([competitionId, teamId])
   @@index([competitionId, position])
+}
+
+// ── Fixture reschedule workflow ───────────────────────────────────────────────
+//
+// A club may ask for a different kickoff. It may not simply take one: an
+// official fixture is an agreement between two clubs and a competition, so the
+// change moves through a workflow and the fixture itself is written only at the
+// end of it. Both clubs read the same canonical Fixture row throughout; what
+// differs before approval is only the request beside it.
+
+enum FixtureChangeStatus {
+  DRAFT
+  REQUESTED
+  AWAITING_OPPONENT
+  OPPONENT_ACCEPTED
+  OPPONENT_REJECTED
+  AWAITING_COMPETITION_APPROVAL
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model FixtureChangeRequest {
+  id        String  @id @default(uuid())
+  fixtureId String
+  fixture   Fixture @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+
+  /// The club that asked, and the club that must answer. Both are stored so the
+  /// workflow does not have to re-derive who is who from the fixture's sides
+  /// every time it is read.
+  requestedByClubId String
+  requestedByUserId String?
+  opponentClubId    String?
+
+  /// The kickoff as it stood when the request was made, kept so the audit trail
+  /// still reads correctly after the fixture has moved.
+  currentKickoff  DateTime
+  proposedKickoff DateTime
+  /// The venue-local zone the proposal was judged in, as resolved at the time.
+  timeZone        String
+
+  reason String
+  note   String? @db.Text
+
+  status FixtureChangeStatus @default(DRAFT)
+
+  decidedByOpponentAt    DateTime?
+  decidedByCompetitionAt DateTime?
+  appliedAt              DateTime?
+
+  events FixtureChangeEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([fixtureId])
+  @@index([status])
+  @@index([requestedByClubId])
+  @@index([opponentClubId])
+}
+
+/// One line of the audit history: who moved the request to which state, when,
+/// and what they said about it. Append-only — nothing here is ever rewritten.
+model FixtureChangeEvent {
+  id        String               @id @default(uuid())
+  requestId String
+  request   FixtureChangeRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  status      FixtureChangeStatus
+  actorUserId String?
+  actorClubId String?
+  actorRole   String?
+  note        String?             @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([requestId])
+  @@index([createdAt])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

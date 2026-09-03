@@ -206,14 +206,19 @@ describe('teams inherit the club crest; they do not own one', () => {
 
 describe('an opponent never wears the reader\'s crest', () => {
   it('the fixture draws each side from its own club id', () => {
-    // A league match knows both clubs, so each side is drawn from its own id.
-    const mc = APP.slice(APP.indexOf('var homeCrest = focus'), APP.indexOf('var homeCrest = focus') + 400);
-    expect(mc).toContain('crest(focus.next.homeClubId');
-    expect(mc).toContain('crest(focus.next.awayClubId');
-    // A club's own fixture knows only one club — ours — and it is drawn on the
-    // side we are actually on. The other side gets nothing rather than ours.
-    expect(mc).toMatch(/homeCrest[\s\S]{0,120}isHome \? crest\(_famActiveClubId\(\), 40\) : ''/);
-    expect(mc).toMatch(/awayCrest[\s\S]{0,120}!isHome \? crest\(_famActiveClubId\(\), 40\) : ''/);
+    // The Match Workspace knows both clubs, so each side is drawn from its own
+    // id — never from "which side are we on", which is how a reader's crest
+    // ended up on an opponent in the first place.
+    const mc = APP.slice(APP.indexOf('var homeCrest = next'), APP.indexOf('var homeCrest = next') + 300);
+    expect(mc).toContain('crest(next.homeClubId');
+    expect(mc).toContain('crest(next.awayClubId');
+    expect(mc).not.toContain('_famActiveClubId()');
+    // The calendar draws each row the same way, from each side's own club id.
+    const row = APP.slice(APP.indexOf('function _mccSide('), APP.indexOf('function _mccRowHtml('));
+    expect(row).toContain('_lgCrest(id, name, 26)');
+    const cell = APP.slice(APP.indexOf('function _mccRowHtml('), APP.indexOf('function _mccListHtml('));
+    expect(cell).toContain("_mccSide(home.clubId, hName, 'home'");
+    expect(cell).toContain("_mccSide(away.clubId, aName, 'away'");
     // The old forms — our crest chosen by which side we are on, and an
     // opponent id that could still be ours — are gone.
     expect(APP).not.toContain('var awayEmblemHTML = clubEmblem && !isHome');

@@ -13,7 +13,8 @@
     "clubs": "Club",
     "dashboard": "Cruscotto",
     "back": "Indietro",
-    "familistaLeague": "Familista League"
+    "familistaLeague": "Familista League",
+    "matchCenter": "Match Center"
   },
   "common": {
     "search": "Cerca",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "Gestisci i partecipanti al campionato"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "Qualsiasi cosa l’altro club debba sapere"
   }
 }

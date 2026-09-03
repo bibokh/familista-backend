@@ -1528,6 +1528,18 @@ var CLUB_NAV_ITEMS = [
     enabled: true,
     order:   5.7,
   },
+  {
+    // The club's whole match calendar, for every competition it plays in.
+    // Directly below Familista League and NOT inside it: the league is one
+    // competition, and match preparation is not a league screen.
+    slug:    'match-center',
+    i18nKey: 'navigation.matchCenter',
+    label:   'Match Center',
+    svgPath: 'M5.75 3A2.75 2.75 0 003 5.75v8.5A2.75 2.75 0 005.75 17h8.5A2.75 2.75 0 0017 14.25v-8.5A2.75 2.75 0 0014.25 3h-8.5zM4.5 7.5h11v6.75c0 .69-.56 1.25-1.25 1.25h-8.5c-.69 0-1.25-.56-1.25-1.25V7.5zM7 9.75a.75.75 0 000 1.5h6a.75.75 0 000-1.5H7zm0 2.75a.75.75 0 000 1.5h3.5a.75.75 0 000-1.5H7z',
+    color:   '#7dd3fc',
+    enabled: true,
+    order:   5.8,
+  },
 ];
 
 // Render CLUB_NAV_ITEMS into #workspace-nav-items in the sidebar.
@@ -2065,10 +2077,9 @@ function navTo(page, el, _opts) {
     // CLUB WORKSPACE (11)
     'club-home': 1, 'squad': 1, 'training': 1, 'academy': 1, 'academy-team': 1, 'video-intelligence': 1,
     'transfers': 1, 'coach-market': 1, 'coaches': 1, 'familista-league': 1,
-    // The Match Centre. It has no navigation item of its own — it is reached by
-    // opening a match, from the League's fixtures or from the fixture card on
-    // Home — but it must be allowed to become the active page, or opening a
-    // match silently lands on Owner Control instead.
+    // The Match Center: a module of its own, directly beneath Familista League
+    // in the sidebar, holding every competition's fixtures rather than one
+    // competition's.
     'match-center': 1,
     // Club Settings (reachable via Quick Actions on Home)
     'settings': 1,
@@ -2079,11 +2090,12 @@ function navTo(page, el, _opts) {
     el = null;
   }
 
-  // A match focused from a competition belongs to that visit to the Match
-  // Centre and to no other. Leaving for any other page releases it, so arriving
-  // at the Match Centre by any route except opening a match — which sets the
-  // focus immediately before navigating — shows the club's own next match.
-  if (page !== 'match-center') { try { window._MC_FOCUS = null; } catch (_) {} }
+  // The open match belongs to the Match Center's workspace and to nothing else.
+  // Leaving the module closes it, so returning lands on the calendar rather than
+  // on a panel somebody opened three screens ago.
+  if (page !== 'match-center') {
+    try { window._MC_FOCUS = null; _MCC.open = null; _MCC.change = null; _MC.cmp = null; } catch (_) {}
+  }
 
   // Step 1 lazy-mount — ensure the target page's template is in the DOM
   // before we try to activate it. Idempotent for already-mounted pages.
@@ -14893,16 +14905,29 @@ function _mcPaintComputed(root) {
 
 // `cmp` is the open player comparison: whose token was clicked, and which
 // opponent it is being read against when the coach has chosen one himself.
-// `host` and `embed` remember where the workspace was last drawn, so a section
-// switch or a comparison redraws the board the reader is actually looking at
-// rather than hunting for the standalone page's node.
-var _MC = { tab: 'overview', cmp: null, host: null, embed: false };
+// `tab` is the workspace's section. Neither survives closing the workspace.
+var _MC = { tab: 'overview', cmp: null };
 
-// Redraw the workspace where it stands.
-function _mcRedraw() {
-  var el = (_MC.host && _MC.host.isConnected) ? _MC.host : null;
-  try { renderMatchCenter(el, { embedded: el ? _MC.embed : false }); } catch (_) {}
-}
+// The Match Center itself: the club's calendar, the workspace open on top of
+// it, and the reschedule workflow open on top of that.
+//
+// `returnTo` is how requirement 20 is kept: a fixture opened from the Familista
+// League remembers the League section and round it came from, so closing the
+// workspace puts the reader back exactly where they were rather than on a
+// default screen.
+var _MCC = {
+  loading: false,
+  error: false,
+  data: null,
+  filter: { competitionId: '', venue: 'all', state: 'all', from: '', to: '' },
+  open: null,       // { fixtureId, loading, error, data }
+  change: null,     // the reschedule workflow, when one is open
+  returnTo: null,   // { page, tab, round } — where the workspace was opened from
+};
+
+// Redraw the workspace where it stands: the floating layer only, so the
+// calendar underneath does not move, reflow or lose its scroll position.
+function _mcRedraw() { try { _mccPaintWorkspace(); } catch (_) {} }
 
 // The tab's `id` is a code identifier and the `label` is what a reader sees, so
 // they are named apart: the extractor catalogues the label and leaves the id
@@ -14924,51 +14949,28 @@ function _mcLocale() {
 
 // ── reading one side ────────────────────────────────────────────────────────
 
-// Everything known about one team in this match, from whichever source this
-// page was opened with. `focus` is a league match and carries both sides; a
-// club's own fixture carries only its own squad, and the opponent side comes
-// back empty rather than guessed at.
+// Everything known about one team in this match, read from the fixture record
+// the workspace was opened with. Both sides come from the same document, so
+// neither is guessed at and neither borrows the other's players.
+//
+// With no record — the workspace is never drawn in that state, but a caller may
+// still ask — every field comes back empty rather than filled in from whatever
+// squad happens to be loaded. An empty side is an answer; the wrong club's
+// players would not be.
 function _mcSideData(focus, which) {
-  if (focus) {
-    var id = which === 'home' ? focus.home : focus.away;
-    return {
-      identity: id || null,
-      standing: (focus.standings || {})[which] || null,
-      squad: ((focus.squads || {})[which] || []),
-      coach: (focus.staff || {})[which] || null,
-      isOurs: !!(id && id.clubId && id.clubId === _famActiveClubId()),
-    };
+  if (!focus) {
+    return { identity: null, standing: null, squad: [], coach: null, isOurs: false };
   }
-  // The club's own fixture: our side is the squad already loaded, the other
-  // side is a name on a fixture and nothing more.
-  var ours = which === (window._MC_HOME_SIDE || 'home');
+  var id = which === 'home' ? focus.home : focus.away;
   return {
-    identity: null,
-    standing: null,
-    squad: ours ? (State.players || []).map(_mcPlayerFromState) : [],
-    coach: null,
-    isOurs: ours,
+    identity: id || null,
+    standing: (focus.standings || {})[which] || null,
+    squad: ((focus.squads || {})[which] || []),
+    coach: (focus.staff || {})[which] || null,
+    isOurs: !!(id && id.clubId && id.clubId === _famActiveClubId()),
   };
 }
 
-function _mcPlayerFromState(p) {
-  return {
-    playerId: p.id,
-    name: ((p.firstName || '') + ' ' + (p.lastName || '')).trim(),
-    number: p.number == null ? null : p.number,
-    position: p.position || null,
-    overallRating: p.overallRating == null ? null : p.overallRating,
-    form: p.form == null ? null : p.form,
-    morale: p.morale || null,
-    isInjured: !!p.isInjured,
-    medicalStatus: p.medicalStatus || (p.isInjured ? 'INJURED' : 'HEALTHY'),
-    // A club's own fixture is not a competition, so there is no competition
-    // total to read. Left null rather than shown as a zero somebody could
-    // mistake for a record.
-    goals: null,
-    assists: null,
-  };
-}
 
 // Availability, counted from each player's own medical status. Never estimated:
 // a club that records nothing has a squad of zero and the panel says so.
@@ -15129,42 +15131,446 @@ function _mcPitchPro(xi, opts) {
     + '</div>';
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  THE FIXTURE CALENDAR — the Match Center's own screen
+// ─────────────────────────────────────────────────────────────────────────────
+// Every first-team fixture the club has, in every competition it plays in, in
+// the order they will be played. The League is one competition on this list and
+// has no special place on it.
+//
+// Nothing here is a copy. Each row is a Fixture the competition engine already
+// owns, read through /match-center/calendar; the League's Matches tab reads the
+// same rows through its own endpoint. Two readers, one record.
+
+// A date is data; the words around it are not. They come from the locale the
+// reader chose, so a French session reads a French calendar.
+function _mccFmt(iso, opts) {
+  try { return new Date(iso).toLocaleDateString(_mcLocale(), opts); } catch (_) { return ''; }
+}
+
+// The Monday-anchored week a date falls in, counted inside its own month — the
+// heading a coach reads as "the first week of September" rather than as the
+// thirty-sixth week of the year.
+function _mccWeekOfMonth(ymd) {
+  var d = new Date(ymd + 'T12:00:00Z');
+  if (isNaN(d.getTime())) return 1;
+  var dow = (d.getUTCDay() + 6) % 7;            // Monday = 0
+  return Math.floor((d.getUTCDate() + 6 - dow) / 7) + 1;
+}
+
+function _mccTodayKey() {
+  var n = new Date();
+  return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0')
+    + '-' + String(n.getDate()).padStart(2, '0');
+}
+
+// Completed, live or still to come — read from the record rather than from the
+// clock, so a match that was never finished does not silently become "played".
+function _mccState(f) {
+  var s = String(f.status || '').toUpperCase();
+  if (s === 'LIVE' || s === 'HALFTIME') return 'live';
+  if (f.homeScore != null && f.awayScore != null) return 'done';
+  if (s === 'PLAYED' || s === 'FT') return 'done';
+  if (s === 'CANCELLED' || s === 'ABANDONED' || s === 'POSTPONED') return 'off';
+  return 'up';
+}
+
+var _MCC_KIND_ICON = {
+  LEAGUE: 'trophy', CUP: 'cup', FRIENDLY: 'friendly',
+  PRESEASON: 'preseason', PREPARATION: 'preparation', OTHER: 'fixture',
+};
+var _MCC_KIND_LABEL = {
+  LEAGUE: 'League', CUP: 'Cup', FRIENDLY: 'Friendly',
+  PRESEASON: 'Pre-season', PREPARATION: 'Preparation', OTHER: 'Competition',
+};
+
+// The rows the filters leave. `all` is the default and does nothing.
+function _mccVisible() {
+  var d = _MCC.data;
+  if (!d || !Array.isArray(d.fixtures)) return [];
+  var f = _MCC.filter;
+  return d.fixtures.filter(function (r) {
+    if (f.competitionId && r.competition.id !== f.competitionId) return false;
+    if (f.venue === 'home' && r.isHome !== true) return false;
+    if (f.venue === 'away' && r.isHome !== false) return false;
+    if (f.state !== 'all') {
+      var st = _mccState(r);
+      if (f.state === 'done' && st !== 'done') return false;
+      if (f.state === 'up' && st !== 'up' && st !== 'live') return false;
+    }
+    if (f.from && r.localDate < f.from) return false;
+    if (f.to && r.localDate > f.to) return false;
+    return true;
+  });
+}
+
+// Month → week → day, in the order the matches are played. Built as a list of
+// bands rather than nested objects so the painter walks it once.
+function _mccGroup(rows) {
+  var out = [];
+  var month = null, week = null, day = null;
+  rows.forEach(function (r) {
+    var ym = r.localDate.slice(0, 7);
+    if (ym !== month) { month = ym; week = null; day = null; out.push({ band: 'month', key: ym }); }
+    var wk = _mccWeekOfMonth(r.localDate);
+    if (wk !== week) { week = wk; day = null; out.push({ band: 'week', key: wk }); }
+    if (r.localDate !== day) { day = r.localDate; out.push({ band: 'day', key: r.localDate }); }
+    out.push({ band: 'fixture', row: r });
+  });
+  return out;
+}
+
+// One side of a fixture row: the crest the platform already stores, and the
+// club's own name. Never a coloured circle standing in for a crest.
+function _mccSide(id, name, side, lead) {
+  return '<span class="mcc-team mcc-team--' + side + (lead ? ' is-lead' : '') + '">'
+    + '<span class="mcc-team-n" data-user-content>' + _esc(name || '') + '</span>'
+    + _lgCrest(id, name, 26)
+    + '</span>';
+}
+
+function _mccRowHtml(r) {
+  var st = _mccState(r);
+  var home = r.home || {};
+  var away = r.away || {};
+  var hName = home.clubName || home.teamName || '';
+  var aName = away.clubName || away.teamName || '';
+  var done = st === 'done' && r.homeScore != null && r.awayScore != null;
+  var hLead = done && r.homeScore > r.awayScore;
+  var aLead = done && r.awayScore > r.homeScore;
+  var kind = r.competition.kind || 'OTHER';
+
+  // The middle column: a result once there is one, the kickoff until then.
+  var centre = done
+    ? '<span class="mcc-score"><b>' + r.homeScore + '</b><i>–</i><b>' + r.awayScore + '</b></span>'
+    : '<span class="mcc-kick" data-no-i18n>' + _esc(r.localKickoff) + '</span>';
+
+  // Weather is shown when a provider answered and said to be unavailable when
+  // none did. A temperature nobody measured is never drawn.
+  var wx = r.weather
+    ? '<span class="mcc-wx" title="' + _esc(r.weather.summary || '') + '">'
+      + _lgIcon('weather') + '<b data-no-i18n>' + Math.round(r.weather.temperatureC) + '°</b></span>'
+    : '<span class="mcc-wx is-none">' + _lgIcon('weather') + '<i>Weather unavailable</i></span>';
+
+  var place = [];
+  if (r.venue) place.push('<span data-user-content>' + _esc(r.venue) + '</span>');
+  if (r.city) place.push('<span data-user-content>' + _esc(r.city) + '</span>');
+
+  return '<div class="mcc-row mcc-row--' + kind.toLowerCase() + ' is-' + st + '"'
+    + ' data-action="mccOpen" data-fixture-id="' + _esc(r.fixtureId) + '"'
+    + ' role="button" tabindex="0">'
+    + '<span class="mcc-comp">'
+    + '  <span class="mcc-comp-ic" aria-hidden="true">' + _lgIcon(_MCC_KIND_ICON[kind] || 'fixture') + '</span>'
+    + '  <span class="mcc-comp-t">'
+    + '    <b data-user-content>' + _esc(r.competition.name) + '</b>'
+    + '    <i>' + (_MCC_KIND_LABEL[kind] || 'Competition')
+    + (r.round != null ? '<span class="mcc-dot">·</span><span>Round</span> <span data-no-i18n>' + r.round + '</span>' : '')
+    + '</i>'
+    + '  </span>'
+    + '</span>'
+    + '<span class="mcc-fix">'
+    + _mccSide(home.clubId, hName, 'home', hLead)
+    + '<span class="mcc-mid' + (done ? ' is-done' : '') + '">' + centre + '</span>'
+    + _mccSide(away.clubId, aName, 'away', aLead)
+    + '</span>'
+    + '<span class="mcc-meta">'
+    + (r.isHome == null ? '' : '<span class="mcc-ha mcc-ha--' + (r.isHome ? 'h' : 'a') + '">'
+        + (r.isHome ? 'Home' : 'Away') + '</span>')
+    + (place.length ? '<span class="mcc-place">' + place.join('<span class="mcc-dot">·</span>') + '</span>' : '')
+    + wx
+    + '</span>'
+    + '<span class="mcc-state">'
+    + (r.reschedule ? '<span class="lg-chip lg-chip--warn">Time change requested</span>' : '')
+    + _lgStatusChip(r.status)
+    + '<span class="fl-go" aria-hidden="true">›</span>'
+    + '</span>'
+    + '</div>';
+}
+
+function _mccListHtml() {
+  if (_MCC.loading && !_MCC.data) return _flSkeleton('cards');
+  if (_MCC.error) {
+    return '<div class="lg-empty lg-empty--error">'
+      + '<div class="lg-empty-ic">⚠️</div>'
+      + '<div class="lg-empty-t">Could not load the match calendar</div>'
+      + '<div class="lg-empty-s">The request did not complete.</div>'
+      + '<button class="fl-retry" data-action="mccRetry" type="button">Try again</button>'
+      + '</div>';
+  }
+  var all = (_MCC.data && _MCC.data.fixtures) || [];
+  if (!all.length) {
+    return _lgEmpty('No fixtures for the first team yet',
+      'Every match this club plays — league, cup, friendly or pre-season — appears here as soon as the fixture exists.');
+  }
+  var rows = _mccVisible();
+  if (!rows.length) {
+    return _lgEmpty('No match matches these filters',
+      'Clear a filter, or widen the dates, to see the rest of the calendar.');
+  }
+
+  var today = _mccTodayKey();
+  return '<div class="mcc-cal">' + _mccGroup(rows).map(function (b) {
+    if (b.band === 'month') {
+      return '<div class="mcc-month"><span data-no-i18n>'
+        + _esc(_mccFmt(b.key + '-01', { month: 'long', year: 'numeric' }).toUpperCase())
+        + '</span><i></i></div>';
+    }
+    if (b.band === 'week') return '<div class="mcc-week"><span>Week</span> <span data-no-i18n>' + b.key + '</span></div>';
+    if (b.band === 'day') {
+      var isToday = b.key === today;
+      return '<div class="mcc-day' + (isToday ? ' is-today' : '') + '">'
+        + '<span class="mcc-day-t" data-no-i18n>'
+        + _esc(_mccFmt(b.key, { weekday: 'long' })) + ' · '
+        + _esc(_mccFmt(b.key, { day: 'numeric', month: 'long' }))
+        + '</span>'
+        + (isToday ? '<span class="mcc-today">Today</span>' : '')
+        + '</div>';
+    }
+    return _mccRowHtml(b.row);
+  }).join('') + '</div>';
+}
+
+function _mccFiltersHtml() {
+  var d = _MCC.data;
+  var comps = (d && d.competitions) || [];
+  var f = _MCC.filter;
+  var seg = function (value, label) {
+    return '<button class="mcc-seg' + (f.state === value ? ' is-on' : '') + '" type="button"'
+      + ' data-action="mccState" data-state="' + value + '">' + label + '</button>';
+  };
+  return '<div class="mcc-filters">'
+    + '<div class="mcc-segs" role="group">'
+    + seg('all', 'All matches') + seg('up', 'Upcoming') + seg('done', 'Completed')
+    + '</div>'
+    + '<label class="mcc-sel"><span class="mcc-sel-l">Competition</span>'
+    + '<select data-action="mccComp">'
+    + '<option value="">All competitions</option>'
+    + comps.map(function (c) {
+        return '<option data-user-content value="' + _esc(c.id) + '"'
+          + (f.competitionId === c.id ? ' selected' : '') + '>' + _esc(c.name) + '</option>';
+      }).join('')
+    + '</select></label>'
+    + '<label class="mcc-sel"><span class="mcc-sel-l">Venue</span>'
+    + '<select data-action="mccVenue">'
+    + '<option value="all"' + (f.venue === 'all' ? ' selected' : '') + '>Home and away</option>'
+    + '<option value="home"' + (f.venue === 'home' ? ' selected' : '') + '>Home</option>'
+    + '<option value="away"' + (f.venue === 'away' ? ' selected' : '') + '>Away</option>'
+    + '</select></label>'
+    + '<label class="mcc-sel mcc-sel--date"><span class="mcc-sel-l">Earliest date</span>'
+    + '<input type="date" data-action="mccFrom" value="' + _esc(f.from) + '"></label>'
+    + '<label class="mcc-sel mcc-sel--date"><span class="mcc-sel-l">Latest date</span>'
+    + '<input type="date" data-action="mccTo" value="' + _esc(f.to) + '"></label>'
+    + (f.competitionId || f.venue !== 'all' || f.state !== 'all' || f.from || f.to
+        ? '<button class="mcc-clear" type="button" data-action="mccClear">Clear filters</button>' : '')
+    + '</div>';
+}
+
+function _mccHeadHtml() {
+  var rows = (_MCC.data && _MCC.data.fixtures) || [];
+  var up = rows.filter(function (r) { return _mccState(r) === 'up'; }).length;
+  var done = rows.filter(function (r) { return _mccState(r) === 'done'; }).length;
+  var comps = ((_MCC.data && _MCC.data.competitions) || []).length;
+  return '<header class="mcc-head">'
+    + '<div class="mcc-head-top">'
+    + '  <button class="mcx-back" type="button" data-action="navTo" data-page="club-home">'
+    + _lgIcon('back') + '<span>Club Workspace</span></button>'
+    + '  <div class="mcc-title-wrap">'
+    + '    <div class="mcc-eyebrow">First Team</div>'
+    + '    <h1 class="mcc-h1">Match Center</h1>'
+    + '  </div>'
+    + '  <dl class="fl-facts">'
+    + '    <div class="fl-fact"><dt>Upcoming</dt><dd data-no-i18n>' + up + '</dd></div>'
+    + '    <div class="fl-fact"><dt>Completed</dt><dd data-no-i18n>' + done + '</dd></div>'
+    + '    <div class="fl-fact"><dt>Competitions</dt><dd data-no-i18n>' + comps + '</dd></div>'
+    + '  </dl>'
+    + '</div>'
+    + _mccFiltersHtml()
+    + '</header>';
+}
+
+// ── painting, in independent regions ────────────────────────────────────────
+//
+// The header, the list and the floating layer are painted apart. Switching a
+// filter repaints the list and nothing else; opening the workspace paints the
+// floating layer and nothing else. That is what keeps the calendar's scroll
+// position and the page's geometry exactly where the reader left them.
+
+function _mccPaintHead() {
+  var h = document.getElementById('mcc-head');
+  if (!h) return;
+  h.innerHTML = _mccHeadHtml();
+  _mcPaintComputed(h);
+  try { if (window.I18N_APPLY) I18N_APPLY.translateDOM(h); } catch (_) {}
+}
+
+function _mccPaintList() {
+  var b = document.getElementById('mcc-list');
+  if (!b) return;
+  b.innerHTML = _mccListHtml();
+  _mcPaintComputed(b);
+  try { if (window.I18N_APPLY) I18N_APPLY.translateDOM(b); } catch (_) {}
+}
+
+// The floating layer: the Match Workspace, and the reschedule workflow above
+// it. Both are `position: fixed`, so neither can move the calendar.
+function _mccPaintWorkspace() {
+  var host = document.getElementById('mcx-workspace');
+  if (!host) return;
+  var on = !!_MCC.open;
+  host.innerHTML = on ? _mcWorkspaceHtml() : '';
+  host.classList.toggle('is-on', on);
+  if (on) {
+    _mcPaintComputed(host);
+    if (typeof _pcWirePhotoErrors === 'function') { try { _pcWirePhotoErrors(host); } catch (_) {} }
+    try { if (window.I18N_APPLY) I18N_APPLY.translateDOM(host); } catch (_) {}
+  }
+  _mcPaintCmp();
+  _mccPaintChange();
+}
+
+function _mccPaintChange() {
+  var host = document.getElementById('mcx-change');
+  if (!host) return;
+  var on = !!_MCC.change;
+  host.innerHTML = on ? _mccChangeHtml() : '';
+  host.classList.toggle('is-on', on);
+  if (on) {
+    _mcPaintComputed(host);
+    try { if (window.I18N_APPLY) I18N_APPLY.translateDOM(host); } catch (_) {}
+  }
+}
+
+// ── the page ────────────────────────────────────────────────────────────────
+
+function renderMatchCenter() {
+  var el = document.getElementById('match-center-content');
+  if (!el) return;
+  try {
+    // Painted before anything is read, like every other workspace page, so
+    // arriving here is a navigation rather than a wait.
+    if (!el.querySelector('#mcc-list')) {
+      el.innerHTML = '<div class="mcc">'
+        + '<div id="mcc-head"></div>'
+        + '<div class="mcc-body" id="mcc-list">' + _flSkeleton('cards') + '</div>'
+        + '</div>'
+        // Two layers, outside the calendar's flow: the workspace, and whatever
+        // opens on top of it. Neither can reflow what is underneath.
+        + '<div class="mcx-layer" id="mcx-workspace"></div>'
+        + '<div class="mcx-layer mcx-layer--top" id="mcx-change"></div>';
+    }
+    _mccPaintHead();
+    _mccPaintList();
+    _mccPaintWorkspace();
+    if (!_MCC.data && !_MCC.loading) _mccLoad();
+  } catch (err) {
+    try { console.error('[match-center] renderMatchCenter() failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div class="mcx-err">'
+      + '<div class="mcx-err-t">Match Center could not be drawn</div>'
+      + '<div class="mcx-err-m">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div>'
+      + '</div>';
+  }
+}
+
+async function _mccLoad() {
+  _MCC.loading = true; _MCC.error = false;
+  _mccPaintList();
+  try {
+    var r = await api('/match-center/calendar');
+    _MCC.data = (r && r.data) || null;
+  } catch (e) {
+    _MCC.error = true;
+  }
+  _MCC.loading = false;
+  _mccPaintHead();
+  _mccPaintList();
+}
+
+// ── opening one fixture ─────────────────────────────────────────────────────
+
+// The workspace opens ON TOP of the calendar. Nothing navigates, no route is
+// replaced, and the fixture row the coach clicked is still behind the panel —
+// which is the whole reason this is a layer rather than a page.
+async function _mccOpen(fixtureId, returnTo) {
+  if (!fixtureId) return;
+  if (returnTo !== undefined) _MCC.returnTo = returnTo;
+  _MC.tab = 'overview';
+  _MC.cmp = null;
+  _MCC.change = null;
+  _MCC.open = { fixtureId: fixtureId, loading: true, error: false, data: null };
+  _mccPaintWorkspace();
+  try {
+    var r = await api('/match-center/fixtures/' + encodeURIComponent(fixtureId));
+    var d = (r && r.data) || null;
+    if (!d) throw new Error('empty');
+    _MCC.open = { fixtureId: fixtureId, loading: false, error: false, data: d };
+    window._MC_FOCUS = _mcFocusFromDetail(d);
+  } catch (e) {
+    _MCC.open = { fixtureId: fixtureId, loading: false, error: true, data: null };
+    window._MC_FOCUS = null;
+  }
+  _mccPaintWorkspace();
+}
+
+// Closing returns the reader exactly where they came from: to the calendar when
+// the fixture was opened from it, and to the League's own section and round when
+// it was opened from there.
+function _mccClose() {
+  var back = _MCC.returnTo;
+  _MCC.open = null; _MCC.change = null; _MC.cmp = null;
+  window._MC_FOCUS = null;
+  _MCC.returnTo = null;
+  _mccPaintWorkspace();
+  if (back && back.page === 'familista-league') {
+    try {
+      // Order matters. Entering the League resets its section and round — that
+      // is what entering a workspace means — so the state the fixture was
+      // launched from is restored AFTER that reset, not before it. The
+      // overview load already in flight then draws the section we asked for.
+      navTo('familista-league');
+      _FL.tab = back.tab || 'matches';
+      if (back.round != null) _FL.round = back.round;
+      _flPaintHead(); _flPaintBody();
+    } catch (_) {}
+  }
+}
+
 // ── the workspace ───────────────────────────────────────────────────────────
 
-// One control room, not a document. The page is a fixed-height flex column —
-// a thin context bar, a compact match header, the section rail, and a desk that
-// takes whatever height is left. Only the selected section is drawn, and what
-// scrolls is a panel inside the desk rather than the page itself, which is the
-// same shape the Training Centre uses.
-// The Match Center draws into whichever host it is given. On its own page that
-// is #match-center-content; inside the Familista League workspace it is the
-// League's own body, so a coach reading the table and a coach reading the match
-// are in one place rather than two. `embedded` drops the parts the League shell
-// already provides — the back link, the breadcrumb and the page title — and
-// keeps everything that is about the match itself.
-function renderMatchCenter(host, opts) {
-  const el = host || document.getElementById('match-center-content');
-  if (!el) return;
-  var embedded = !!(opts && opts.embedded);
-  _MC.host = el; _MC.embed = embedded;
-  if (!Array.isArray(State.players) && !Array.isArray(State.matches) && !window._MC_FOCUS) {
-    el.innerHTML = '<div class="mcx-boot">Loading Match Center…</div>';
-    return;
+// One control room for one match, floating over the calendar: a compact match
+// header, the section rail, and a desk that takes whatever height is left.
+// Only the selected section is drawn, and what scrolls is the desk rather than
+// the page — the same shape the Training Centre uses.
+function _mcWorkspaceHtml() {
+  var open = _MCC.open;
+  if (!open) return '';
+  if (open.loading) {
+    return '<div class="mcx-float-bg" data-action="mccClose">'
+      + '<div class="mcx-float" role="dialog" aria-modal="true">'
+      + '<div class="mcx"><div class="mcx-desk">' + _flSkeleton('cards') + '</div></div>'
+      + '</div></div>';
   }
-  try {
-    var focus = window._MC_FOCUS || null;
-    var next = _mcNextMatch();
-    var isHome = next ? _mcIsHome(next) : true;
-    window._MC_HOME_SIDE = isHome ? 'home' : 'away';
+  if (open.error || !open.data) {
+    return '<div class="mcx-float-bg" data-action="mccClose">'
+      + '<div class="mcx-float" role="dialog" aria-modal="true">'
+      + '<div class="mcx"><div class="mcx-desk">'
+      + _lgEmpty('That match could not be opened',
+          'The fixture exists, but the record behind it could not be read just now.')
+      + '<div class="lg-act-row"><button class="lg-act" type="button" data-action="mccClose">Close</button></div>'
+      + '</div></div></div></div>';
+  }
 
+  try {
+    var d = open.data;
+    var focus = window._MC_FOCUS || null;
+    var next = focus && focus.next ? focus.next : null;
     var home = _mcSideData(focus, 'home');
     var away = _mcSideData(focus, 'away');
     var ctx = focus && focus.context ? focus.context : null;
+    var sched = d.scheduling || {};
+    var row = _mccRowFor(open.fixtureId);
 
-    var homeName = focus ? (home.identity && (home.identity.clubName || home.identity.teamName)) || ''
-      : (next && next.homeTeam) || ((State.club && State.club.name) || '');
-    var awayName = focus ? (away.identity && (away.identity.clubName || away.identity.teamName)) || ''
-      : (next && next.awayTeam) || '';
+    var homeName = (home.identity && (home.identity.clubName || home.identity.teamName)) || '';
+    var awayName = (away.identity && (away.identity.clubName || away.identity.teamName)) || '';
 
     var played = !!(next && next.homeScore != null && next.awayScore != null);
     var status = !next ? 'NO FIXTURE'
@@ -15172,48 +15578,25 @@ function renderMatchCenter(host, opts) {
       : (next.status === 'LIVE' || next.status === 'HALFTIME') ? String(next.status)
       : 'UPCOMING';
     var when = next && next.scheduledAt
-      ? new Date(next.scheduledAt).toLocaleString(_mcLocale(), { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+      ? new Date(next.scheduledAt).toLocaleString(_mcLocale(),
+          { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
       : '';
 
     var crest = function (id, size) {
       try { return _clubCrestUrl(id) ? clubLogoHtml(id, { size: size || 40, cls: 'club-logo--plain', title: false }) : ''; } catch (_) { return ''; }
     };
-    var homeCrest = focus ? crest(focus.next.homeClubId, 40) : (isHome ? crest(_famActiveClubId(), 40) : '');
-    var awayCrest = focus ? crest(focus.next.awayClubId, 40) : (!isHome ? crest(_famActiveClubId(), 40) : '');
+    var homeCrest = next ? crest(next.homeClubId, 40) : '';
+    var awayCrest = next ? crest(next.awayClubId, 40) : '';
 
-    // ── context bar: one thin row, back on the left and the table on the right
-    // Embedded, none of it is needed: the League header is directly above, its
-    // tab strip already says where the reader is, and there is nowhere to go
-    // back to because nothing was left.
-    var crumb = (ctx && !embedded)
-      ? '<nav class="mcx-topbar">'
-        + '<button class="mcx-back" type="button" data-action="navTo" data-page="familista-league">'
-        + _lgIcon('back') + '<span>Back to League</span></button>'
-        + '<span class="mcx-crumb">'
-        + '<span class="mcx-crumb-i" data-user-content>' + _esc(ctx.name) + '</span>'
-        + '<span class="mcx-crumb-arrow">›</span>'
-        + '<span class="mcx-crumb-i"><span>Season</span> <span data-user-content>' + _esc(ctx.season) + '</span></span>'
-        + (ctx.round != null ? '<span class="mcx-crumb-arrow">›</span><span class="mcx-crumb-i">Round ' + ctx.round + '</span>' : '')
-        + '<span class="mcx-crumb-arrow">›</span>'
-        + '<span class="mcx-crumb-i is-now">Match Center</span>'
-        + '</span>'
-        + '<button class="mcx-crumb-btn" type="button" data-action="mcStandings">Standings</button>'
-        + '</nav>'
-      : '';
-
-    // ── header: title and fixture on one band ────────────────────────────────
-    // A club with no crest gets its own initials rather than a symbol that means
-    // nothing — the mark still identifies the club it stands for.
     var initials = function (n) {
       return String(n || '').split(/\s+/).filter(Boolean).slice(0, 2)
         .map(function (w) { return w.charAt(0); }).join('').toUpperCase() || '—';
     };
+    // The side reads top to bottom: who they are, then the three facts a coach
+    // checks before anything else — where they sit, how they have been going,
+    // how many of them are fit.
     var sideBlock = function (name, crestHtml, side, data) {
       var av = _mcAvailability(data.squad);
-      // The side reads top to bottom: who they are, then the three facts a
-      // coach checks before anything else — where they sit, how they have been
-      // going, how many of them are fit. Strung along one line those three
-      // competed with the club's own name for the first glance.
       return '<div class="mcx-side ' + side + '">'
         + '<div class="mcx-side-crest">'
         + (crestHtml || '<span class="mcx-side-noc" data-user-content>' + _esc(initials(name)) + '</span>')
@@ -15234,34 +15617,39 @@ function renderMatchCenter(host, opts) {
         + '</div>';
     };
 
-    // Standalone the page names itself; embedded the League header has already
-    // done that, so the identity block names the MATCH instead and offers the
-    // one control the reader now wants — a different match.
-    var ident = embedded
-      ? '<div class="mcx-head-id mcx-head-id--embed">'
-        + '  <button class="mcx-back mcx-back--embed" type="button" data-action="flBack">'
-        + _lgIcon('back') + '<span>Back to Familista League</span></button>'
-        + '  <div class="mcx-eyebrow">Match Center</div>'
-        + '  <div class="mcx-head-chips">'
-        + (ctx && ctx.round != null ? _lgChip('Round', ctx.round) : '')
-        + '<span class="lg-chip lg-chip--' + (next ? _lgStatus(next.status)[1] : 'up') + '">' + status + '</span>'
-        + (when ? _lgChip('', _esc(when), 'when') : '')
-        + '  </div>'
-        + '  <button class="mcx-swap" type="button" data-action="flPick">'
-        + _lgIcon('swap') + '<span>Change match</span></button>'
-        + '</div>'
-      : '<div class="mcx-head-id">'
-        + '  <div class="mcx-eyebrow">' + (ctx ? '<span data-user-content>' + _esc(ctx.name) + '</span>' : 'Familista') + '</div>'
-        + '  <h1 class="mcx-h1">Match Center</h1>'
-        + '  <div class="mcx-head-chips">'
-        + (ctx ? _lgChip('Season', '<span data-user-content>' + _esc(ctx.season) + '</span>') : '')
-        + (ctx && ctx.round != null ? _lgChip('Round', ctx.round) : '')
-        + '<span class="lg-chip lg-chip--' + (next ? _lgStatus(next.status)[1] : 'up') + '">' + status + '</span>'
-        + (when ? _lgChip('', _esc(when), 'when') : '')
-        + '  </div>'
-        + '</div>';
+    // Weather is drawn from a reading or said to be unavailable. Never invented.
+    var wx = d.weather
+      ? _lgChip('', _lgIcon('weather') + ' <span data-no-i18n>' + Math.round(d.weather.temperatureC) + '°</span>', 'when')
+      : '<span class="lg-chip lg-chip--none">' + _lgIcon('weather') + '<span>Weather unavailable</span></span>';
 
-    var head = '<header class="mcx-head' + (embedded ? ' mcx-head--embed' : '') + '">'
+    var canAsk = next && !played && String(next.status || '').toUpperCase() !== 'CANCELLED';
+
+    var ident = '<div class="mcx-head-id">'
+      + '  <button class="mcx-back" type="button" data-action="mccClose">'
+      + _lgIcon('back') + '<span>' + (_MCC.returnTo && _MCC.returnTo.page === 'familista-league'
+          ? 'Back to Familista League' : 'Back to the calendar') + '</span></button>'
+      + '  <div class="mcx-eyebrow">'
+      + (ctx ? '<span data-user-content>' + _esc(ctx.name) + '</span>' : 'Match')
+      + '</div>'
+      + '  <div class="mcx-head-chips">'
+      + (ctx ? _lgChip('Season', '<span data-user-content>' + _esc(ctx.season) + '</span>') : '')
+      + (ctx && ctx.round != null ? _lgChip('Round', ctx.round) : '')
+      + '<span class="lg-chip lg-chip--' + (next ? _lgStatus(next.status)[1] : 'up') + '">' + status + '</span>'
+      + (when ? _lgChip('', _esc(when), 'when') : '')
+      + (sched.timeZone ? _lgChip('', '<span data-no-i18n>' + _esc(sched.localKickoff || '') + ' '
+          + _esc(sched.timeZone) + '</span>', 'when') : '')
+      + (row && row.city ? _lgChip('', '<span data-user-content>' + _esc(row.city) + '</span>', 'when') : '')
+      + wx
+      + '  </div>'
+      + (canAsk
+        ? '  <button class="mcx-swap" type="button" data-action="mccChangeOpen">'
+          + _lgIcon('clock') + '<span>Request time change</span></button>'
+        : '')
+      + '  <button class="mcx-x" type="button" data-action="mccClose" aria-label="Close"'
+      + '          data-i18n-aria="common.close">✕</button>'
+      + '</div>';
+
+    var head = '<header class="mcx-head">'
       + ident
       + '<div class="mcx-fixture">'
       + sideBlock(homeName, homeCrest, 'home', home)
@@ -15275,7 +15663,6 @@ function renderMatchCenter(host, opts) {
       + '</div>'
       + '</header>';
 
-    // ── the rail, and the one section it selects ─────────────────────────────
     var rail = '<nav class="mcx-rail" role="tablist">'
       + _MC_TABS.map(function (t) {
           return '<button class="mcx-tab' + (_MC.tab === t.id ? ' is-on' : '') + '" role="tab"'
@@ -15284,33 +15671,403 @@ function renderMatchCenter(host, opts) {
         }).join('')
       + '</nav>';
 
-    var body = _MC.tab === 'preparation' ? _mcPreparationHtml(focus, home, away, next)
-      : _MC.tab === 'opponent' ? _mcOpponentHtml(focus, home, away)
-      : _MC.tab === 'feed' ? _mcFeedHtml(focus, next, played, home, away)
-      : _mcOverviewHtml(focus, home, away, homeName, awayName, next);
+    var body = _mcSectionHtml(_MC.tab);
 
-    // Only the standalone page carries the ids: embedded, the workspace is
-    // addressed through the host it was drawn into, and two nodes sharing an
-    // id in one document is a defect whoever looks them up.
-    var deskId = embedded ? '' : ' id="mcx-desk"';
-    var ovId = embedded ? '' : ' id="mcx-overlay"';
-    el.innerHTML = '<div class="mcx' + (embedded ? ' mcx--embed' : '') + '">' + crumb + head + rail
-      + '<div class="mcx-desk"' + deskId + '>' + body + '</div></div>'
-      // Floating panels live outside the workspace's flow, so opening one
-      // cannot move, resize or reflow the board underneath it.
-      + '<div class="mcx-overlay"' + ovId + '></div>';
-    if (_MC.cmp) setTimeout(function () { try { _mcPaintCmp(); } catch (_) {} }, 0);
-
-    _mcPaintComputed(el);
-    if (typeof _pcWirePhotoErrors === 'function') { try { _pcWirePhotoErrors(el); } catch (_) {} }
-    try { if (window.I18N_APPLY) I18N_APPLY.translateDOM(el); } catch (_) {}
-    return;
+    return '<div class="mcx-float-bg" data-action="mccClose">'
+      + '<div class="mcx-float" role="dialog" aria-modal="true">'
+      + '<div class="mcx mcx--float">' + head + rail
+      + '<div class="mcx-desk" id="mcx-desk">' + body + '</div></div>'
+      // The comparison card lives inside the workspace's own layer, above the
+      // desk, so opening it cannot move the pitch the coach clicked on.
+      + '<div class="mcx-overlay" id="mcx-overlay"></div>'
+      + '</div></div>';
   } catch (err) {
-    try { console.error('[match-center] renderMatchCenter() failed:', err && err.stack || err); } catch (_) {}
-    el.innerHTML = '<div class="mcx-err">'
-      + '<div class="mcx-err-t">Match Center could not be drawn</div>'
-      + '<div class="mcx-err-m">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div>'
-      + '</div>';
+    try { console.error('[match-center] workspace failed:', err && err.stack || err); } catch (_) {}
+    return '<div class="mcx-float-bg" data-action="mccClose">'
+      + '<div class="mcx-float" role="dialog" aria-modal="true"><div class="mcx"><div class="mcx-desk">'
+      + '<div class="mcx-err"><div class="mcx-err-t">Match Center could not be drawn</div>'
+      + '<div class="mcx-err-m">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div></div>'
+      + '</div></div></div></div>';
+  }
+}
+
+// The calendar row behind the open workspace, for the facts the match record
+// does not carry itself — the city, and the state of any time-change request.
+function _mccRowFor(fixtureId) {
+  var rows = (_MCC.data && _MCC.data.fixtures) || [];
+  for (var i = 0; i < rows.length; i++) if (rows[i].fixtureId === fixtureId) return rows[i];
+  return null;
+}
+
+// One section of the workspace. Named apart from the painter so switching a
+// section and drawing the workspace ask the same function for the same markup.
+function _mcSectionHtml(tab) {
+  var focus = window._MC_FOCUS || null;
+  var next = focus && focus.next ? focus.next : null;
+  var home = _mcSideData(focus, 'home');
+  var away = _mcSideData(focus, 'away');
+  var played = !!(next && next.homeScore != null && next.awayScore != null);
+  var hn = (home.identity && (home.identity.clubName || home.identity.teamName)) || (next && next.homeTeam) || '';
+  var an = (away.identity && (away.identity.clubName || away.identity.teamName)) || (next && next.awayTeam) || '';
+  return tab === 'preparation' ? _mcPreparationHtml(focus, home, away, next)
+    : tab === 'opponent' ? _mcOpponentHtml(focus, home, away)
+    : tab === 'feed' ? _mcFeedHtml(focus, next, played, home, away)
+    : _mcOverviewHtml(focus, home, away, hn, an, next);
+}
+
+// Translate a match record into the shape the workspace reads, so nothing in
+// those sections has to learn about competitions. The Match Center endpoint
+// returns the same document the League's own fixture endpoint does.
+function _mcFocusFromDetail(d) {
+  var m = d.match || {};
+  var home = d.home || {};
+  var away = d.away || {};
+  var mine = _famActiveClubId();
+  var isHome = !!(mine && home.clubId === mine);
+  var fx = d.fixture || {};
+  return {
+    source: 'match-center',
+    context: d.context || null,
+    isHome: isHome,
+    home: home,
+    away: away,
+    players: Array.isArray(d.players) ? d.players : [],
+    analysis: d.analysis || null,
+    // The rest of the record, so the sections read the same payload rather than
+    // asking again: both squads, both league rows, both head coaches.
+    standings: d.standings || { home: null, away: null },
+    squads: d.squads || { home: [], away: [] },
+    staff: d.staff || { home: null, away: null },
+    lineups: Array.isArray(d.lineups) ? d.lineups : [],
+    fixture: d.fixture || null,
+    scheduling: d.scheduling || null,
+    weather: d.weather || null,
+    requests: Array.isArray(d.requests) ? d.requests : [],
+    events: (Array.isArray(d.timeline) ? d.timeline : []).map(function (t) {
+      return { minute: t.minute, kind: t.kind, player: t.playerName || t.opponentName || '' };
+    }),
+    next: {
+      // A fixture whose Match has not been staged yet still opens: the fixture
+      // itself carries the kickoff, the venue, the sides and the result.
+      id: m.id || null,
+      homeTeam: home.clubName || home.teamName || '',
+      awayTeam: away.clubName || away.teamName || '',
+      homeClubId: home.clubId || null,
+      awayClubId: away.clubId || null,
+      opponentClubId: isHome ? (away.clubId || null) : (home.clubId || null),
+      scheduledAt: m.scheduledAt || fx.scheduledAt || null,
+      venue: m.venue != null ? m.venue : (fx.venue || null),
+      status: m.status || fx.status || 'SCHEDULED',
+      homeScore: m.homeScore != null ? m.homeScore : (fx.homeScore != null ? fx.homeScore : null),
+      awayScore: m.awayScore != null ? m.awayScore : (fx.awayScore != null ? fx.awayScore : null),
+      formationHome: m.formationHome || null,
+      formationAway: m.formationAway || null,
+      competitionName: (d.context && d.context.name) || null,
+      possession: m.possession,
+      shots: m.shots,
+      shotsOnTarget: m.shotsOnTarget,
+      corners: m.corners,
+      fouls: m.fouls,
+      yellowCards: m.yellowCards,
+      redCards: m.redCards,
+    },
+  };
+}
+
+// ── asking for a different kickoff ──────────────────────────────────────────
+//
+// A club asks; it does not take. The panel collects a proposal and a reason and
+// sends it into the workflow, and it shows the audit history of everything that
+// has already happened to this fixture's kickoff.
+
+var _MCC_CHANGE_REASONS = [
+  'Pitch unavailable',
+  'Travel conflict',
+  'Competition clash',
+  'Weather conditions',
+  'Player availability',
+  'Broadcast request',
+  'Other reason',
+];
+
+var _MCC_REQ_LABEL = {
+  DRAFT: 'Draft request',
+  REQUESTED: 'Requested',
+  AWAITING_OPPONENT: 'Awaiting opponent',
+  OPPONENT_ACCEPTED: 'Opponent accepted',
+  OPPONENT_REJECTED: 'Opponent rejected',
+  AWAITING_COMPETITION_APPROVAL: 'Awaiting competition approval',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
+  CANCELLED: 'Cancelled',
+};
+
+// How far ahead of UTC the venue's zone is at a given instant, from the
+// runtime's own zone database. Never an offset of our own: a fixture that
+// crosses a daylight-saving boundary has to be judged by the clock on the wall
+// that day, and only the zone database knows what that was.
+function _mccZoneOffset(at, tz) {
+  try {
+    var parts = {};
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: tz, hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).formatToParts(at).forEach(function (p) { parts[p.type] = p.value; });
+    var asUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+      Number(parts.hour) % 24, Number(parts.minute), Number(parts.second));
+    return asUtc - at.getTime();
+  } catch (_) { return 0; }
+}
+
+// The instant a wall clock at the venue names. The coach types 18:30 meaning
+// half past six AT THE GROUND, and that is what is sent — not half past six
+// wherever the browser happens to be.
+//
+// Two passes: the first offset is read at the naive instant, the second at the
+// corrected one, which is what makes a proposal on a clock-change weekend land
+// on the hour the coach meant.
+function _mccVenueInstant(day, time, tz) {
+  var naive = Date.parse(day + 'T' + time + ':00Z');
+  if (isNaN(naive)) return null;
+  var at = new Date(naive);
+  for (var i = 0; i < 2; i++) at = new Date(naive - _mccZoneOffset(at, tz));
+  return at;
+}
+
+function _mccChangeOpen() {
+  var d = _MCC.open && _MCC.open.data;
+  if (!d) return;
+  var sched = d.scheduling || {};
+  var row = _mccRowFor(_MCC.open.fixtureId);
+  // Prefilled with the kickoff as it stands AT THE VENUE, so a coach edits
+  // rather than retypes — and so the panel can refuse a proposal identical to
+  // it. Both halves come from the server's own resolution of that clock.
+  _MCC.change = {
+    day: (row && row.localDate) || '',
+    time: sched.localKickoff || '',
+    reason: _MCC_CHANGE_REASONS[0], note: '',
+    busy: false, error: '', policy: sched.policy || null, timeZone: sched.timeZone || 'UTC',
+  };
+  _mccPaintChange();
+}
+
+// The states a request is still moving through. A fixture with one of these
+// open cannot take a second proposal, so the panel offers decisions instead of
+// a form.
+var _MCC_OPEN_STATES = ['DRAFT', 'REQUESTED', 'AWAITING_OPPONENT', 'OPPONENT_ACCEPTED',
+                        'AWAITING_COMPETITION_APPROVAL'];
+
+function _mccOpenRequest(requests) {
+  for (var i = 0; i < (requests || []).length; i++) {
+    if (_MCC_OPEN_STATES.indexOf(requests[i].status) >= 0) return requests[i];
+  }
+  return null;
+}
+
+// What this club may do about the request in front of it. Decided from the
+// record — who raised it, who must answer — and confirmed again by the server,
+// which is where the rule actually lives.
+function _mccRequestActions(r) {
+  if (!r) return [];
+  var mine = _famActiveClubId();
+  var out = [];
+  if (r.requestedByClubId === mine) {
+    if (r.status === 'DRAFT') out.push(['SUBMIT', 'Send to opponent', 'primary']);
+    out.push(['CANCEL', 'Withdraw request', 'ghost']);
+  }
+  if (r.opponentClubId && r.opponentClubId === mine && r.status === 'AWAITING_OPPONENT') {
+    out.push(['ACCEPT', 'Accept new time', 'primary']);
+    out.push(['REJECT', 'Reject new time', 'ghost']);
+  }
+  return out;
+}
+
+function _mccChangeHtml() {
+  var c = _MCC.change;
+  if (!c) return '';
+  var d = (_MCC.open && _MCC.open.data) || {};
+  var sched = d.scheduling || {};
+  var policy = c.policy || sched.policy || {};
+  var requests = Array.isArray(d.requests) ? d.requests : [];
+  var current = (d.match && d.match.scheduledAt) || (d.fixture && d.fixture.scheduledAt) || null;
+  var live = _mccOpenRequest(requests);
+
+  var history = requests.length
+    ? '<ol class="mcc-hist">' + requests.map(function (r) {
+        return '<li class="mcc-hist-i">'
+          + '<div class="mcc-hist-h">'
+          + '<span class="lg-chip lg-chip--' + _mccReqTone(r.status) + '">'
+          + (_MCC_REQ_LABEL[r.status] || _esc(r.status)) + '</span>'
+          + '<span class="mcc-hist-when" data-no-i18n>'
+          + _esc(new Date(r.proposedKickoff).toLocaleString(_mcLocale(),
+              { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + '</span>'
+          + '</div>'
+          + '<div class="mcc-hist-r" data-user-content>' + _esc(r.reason) + '</div>'
+          + (r.note ? '<div class="mcc-hist-n" data-user-content>' + _esc(r.note) + '</div>' : '')
+          + '<div class="mcc-hist-tl">' + r.history.map(function (h) {
+              return '<span class="mcc-hist-s">'
+                + '<b>' + (_MCC_REQ_LABEL[h.status] || _esc(h.status)) + '</b>'
+                + '<i data-no-i18n>' + _esc(new Date(h.at).toLocaleDateString(_mcLocale(),
+                    { day: 'numeric', month: 'short' })) + '</i></span>';
+            }).join('') + '</div>'
+          + '</li>';
+      }).join('') + '</ol>'
+    : _lgEmpty('No time change has been requested', 'Every request and every decision on this fixture is kept here.');
+
+  // A fixture already carrying a live proposal takes decisions, not a second
+  // proposal: two racing through the approvals would leave whichever landed
+  // last silently in charge of the calendar.
+  var form = live
+    ? '<div class="mcc-chg-live">'
+      + '<div class="mcc-chg-live-h">'
+      + '<span class="lg-chip lg-chip--' + _mccReqTone(live.status) + '">'
+      + (_MCC_REQ_LABEL[live.status] || _esc(live.status)) + '</span>'
+      + '<b data-no-i18n>' + _esc(new Date(live.proposedKickoff).toLocaleString(_mcLocale(),
+          { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + '</b>'
+      + '</div>'
+      + '<div class="mcc-chg-live-r" data-user-content>' + _esc(live.reason) + '</div>'
+      + (live.note ? '<div class="mcc-hist-n" data-user-content>' + _esc(live.note) + '</div>' : '')
+      + (_mccRequestActions(live).length
+        ? '<div class="mcc-chg-acts">' + _mccRequestActions(live).map(function (a) {
+            return '<button class="lg-act lg-act--' + a[2] + '" type="button"'
+              + ' data-action="mccReqAct" data-req-id="' + _esc(live.id) + '" data-req="' + a[0] + '"'
+              + (c.busy ? ' disabled' : '') + '>' + a[1] + '</button>';
+          }).join('') + '</div>'
+        : '<div class="mcc-chg-wait">This request is with the other club and the competition.</div>')
+      + '</div>'
+    : '<div class="mcc-chg-grid">'
+    + '<label class="mcc-fld"><span>Proposed date</span>'
+    + '<input type="date" data-action="mccChgDay" value="' + _esc(c.day) + '"></label>'
+    + '<label class="mcc-fld"><span>Proposed kickoff</span>'
+    + '<input type="time" data-action="mccChgTime" value="' + _esc(c.time) + '"></label>'
+    + '<label class="mcc-fld"><span>Reason for the change</span>'
+    + '<select data-action="mccChgReason">'
+    + _MCC_CHANGE_REASONS.map(function (r) {
+        return '<option value="' + _esc(r) + '"' + (c.reason === r ? ' selected' : '') + '>' + r + '</option>';
+      }).join('')
+    + '</select></label>'
+    + '<label class="mcc-fld mcc-fld--wide"><span>Note (optional)</span>'
+    + '<textarea rows="3" data-action="mccChgNote" data-i18n-placeholder="matchCenter.notePlaceholder">'
+    + _esc(c.note) + '</textarea></label>'
+    + '</div>';
+
+  var body = '<div class="mcc-chg">'
+    + '<div class="mcc-chg-now">'
+    + '<span class="mcc-chg-l">Current kickoff</span>'
+    + '<b data-no-i18n>' + _esc(current
+        ? new Date(current).toLocaleString(_mcLocale(),
+            { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+        : '—') + '</b>'
+    + '<i data-no-i18n>' + _esc((sched.localKickoff || '') + ' ' + (sched.timeZone || '')) + '</i>'
+    + '</div>'
+    + form
+    + '<p class="mcc-chg-policy">'
+    + '<span>Allowed kickoff window</span>'
+    + ' <b data-no-i18n>' + _esc(policy.earliestKickoff || '09:00') + '–'
+    + _esc(policy.latestKickoff || '21:30') + '</b> '
+    + '<span>venue local time</span>'
+    + ' <b data-no-i18n>' + _esc(sched.timeZone || 'UTC') + '</b>'
+    + '</p>'
+    + (c.error ? '<div class="mcc-chg-err" data-user-content>' + _esc(c.error) + '</div>' : '')
+    + '<div class="mcc-chg-hist"><h4>Request history</h4>' + history + '</div>'
+    + '</div>';
+
+  // Built above rather than written into the `head:` property: the string
+  // extractor reads that property as a label and would catalogue the markup
+  // around the phrase instead of the phrase.
+  var chgHead = '<span class="lg-float-t">Request time change</span>';
+  return _lgFloat({
+    close: 'mccChangeClose',
+    cls: 'lg-float--md mcc-chg-float',
+    head: chgHead,
+    body: body,
+    foot: '<button class="lg-act lg-act--ghost" type="button" data-action="mccChangeClose">Close</button>'
+      + (live ? ''
+          : '<button class="lg-act lg-act--primary" type="button" data-action="mccChgSubmit"'
+            + (c.busy ? ' disabled' : '') + '>Submit request</button>'),
+  });
+}
+
+function _mccReqTone(status) {
+  if (status === 'APPROVED') return 'done';
+  if (status === 'REJECTED' || status === 'OPPONENT_REJECTED' || status === 'CANCELLED') return 'cancel';
+  if (status === 'DRAFT') return 'up';
+  return 'warn';
+}
+
+// The same rule the server applies, applied here first so a coach is told
+// before he submits rather than after. The server is still the authority: this
+// never decides that something is allowed, only that something is not.
+function _mccCheckProposal(c, policy) {
+  if (!c.day || !c.time) return 'Choose a date and a kickoff time.';
+  var m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(c.time);
+  if (!m) return 'That is not a valid kickoff time.';
+  // The typed time IS the venue's wall clock, so it is compared with the
+  // competition's window directly — the same comparison the server makes.
+  var mins = Number(m[1]) * 60 + Number(m[2]);
+  var lim = function (hhmm, fallback) {
+    var x = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm || fallback);
+    return x ? Number(x[1]) * 60 + Number(x[2]) : 0;
+  };
+  var early = lim(policy && policy.earliestKickoff, '09:00');
+  var late = lim(policy && policy.latestKickoff, '21:30');
+  if (mins < early || mins > late) return 'That kickoff is outside the window this competition allows.';
+  var when = _mccVenueInstant(c.day, c.time, c.timeZone || 'UTC');
+  if (!when || isNaN(when.getTime())) return 'That is not a valid date and time.';
+  if (when.getTime() <= Date.now()) return 'A kickoff must be in the future.';
+  return '';
+}
+
+async function _mccReqAct(requestId, action) {
+  var c = _MCC.change;
+  var open = _MCC.open;
+  if (!c || !open || !requestId || !action) return;
+  c.busy = true; c.error = ''; _mccPaintChange();
+  try {
+    await api('/match-center/change-requests/' + encodeURIComponent(requestId) + '/action', {
+      method: 'POST', body: JSON.stringify({ action: action }),
+    });
+    // The fixture's own record now carries the decision — and, on an approval,
+    // a different kickoff — so both the workspace and the calendar are re-read
+    // rather than patched by hand.
+    _MCC.change = null;
+    await _mccOpen(open.fixtureId);
+    _mccLoad();
+  } catch (e) {
+    c.busy = false;
+    c.error = (e && e.message) || 'The request could not be sent.';
+    _mccPaintChange();
+  }
+}
+
+async function _mccChgSubmit() {
+  var c = _MCC.change;
+  var open = _MCC.open;
+  if (!c || !open || !open.data) return;
+  var sched = open.data.scheduling || {};
+  var policy = c.policy || sched.policy || {};
+  var problem = _mccCheckProposal(c, policy);
+  if (problem) { c.error = problem; _mccPaintChange(); return; }
+
+  c.busy = true; c.error = ''; _mccPaintChange();
+  try {
+    var iso = _mccVenueInstant(c.day, c.time, c.timeZone || 'UTC').toISOString();
+    await api('/match-center/fixtures/' + encodeURIComponent(open.fixtureId) + '/change-requests', {
+      method: 'POST',
+      body: JSON.stringify({ proposedKickoff: iso, reason: c.reason, note: c.note || null, submit: true }),
+    });
+    _MCC.change = null;
+    _mccPaintChange();
+    try { showToast('Time change requested', 'success'); } catch (_) {}
+    // The fixture's own record now carries the request, so both the workspace
+    // and the calendar row are re-read rather than patched by hand.
+    await _mccOpen(open.fixtureId);
+    _mccLoad();
+  } catch (e) {
+    c.busy = false;
+    c.error = (e && e.message) || 'The request could not be sent.';
+    _mccPaintChange();
   }
 }
 
@@ -16150,10 +16907,10 @@ function _mcComparisonHtml() {
 }
 
 function _mcPaintCmp() {
-  // Scoped to where the workspace was drawn: the standalone page's overlay may
-  // still be in the document when the League is the one on screen.
-  var root = (_MC.host && _MC.host.isConnected) ? _MC.host : document;
-  var host = root.querySelector ? root.querySelector('.mcx-overlay') : null;
+  // Scoped to the workspace's own layer: the comparison belongs to the match
+  // that is open, and nothing outside that layer may be touched by opening it.
+  var root = document.getElementById('mcx-workspace');
+  var host = root ? root.querySelector('.mcx-overlay') : null;
   if (!host) return;
   var on = !!_MC.cmp;
   host.innerHTML = on ? _mcComparisonHtml() : '';
@@ -16185,23 +16942,11 @@ document.addEventListener('click', function (ev) {
         bs[i].setAttribute('aria-selected', on ? 'true' : 'false');
       }
     }
-    var deskRoot = (_MC.host && _MC.host.isConnected) ? _MC.host : document;
-    var desk = deskRoot.querySelector ? deskRoot.querySelector('.mcx-desk') : null;
+    var deskRoot = document.getElementById('mcx-workspace');
+    var desk = deskRoot ? deskRoot.querySelector('.mcx-desk') : null;
     if (!desk) { _mcRedraw(); return; }
     try {
-      var focus = window._MC_FOCUS || null;
-      var next = _mcNextMatch();
-      var home = _mcSideData(focus, 'home');
-      var away = _mcSideData(focus, 'away');
-      var played = !!(next && next.homeScore != null && next.awayScore != null);
-      var hn = focus ? (home.identity && (home.identity.clubName || home.identity.teamName)) || ''
-        : (next && next.homeTeam) || ((State.club && State.club.name) || '');
-      var an = focus ? (away.identity && (away.identity.clubName || away.identity.teamName)) || ''
-        : (next && next.awayTeam) || '';
-      desk.innerHTML = tab === 'preparation' ? _mcPreparationHtml(focus, home, away, next)
-        : tab === 'opponent' ? _mcOpponentHtml(focus, home, away)
-        : tab === 'feed' ? _mcFeedHtml(focus, next, played, home, away)
-        : _mcOverviewHtml(focus, home, away, hn, an, next);
+      desk.innerHTML = _mcSectionHtml(tab);
       // A new section starts at its own beginning. Keeping the last section's
       // scroll offset drops the reader into the middle of a panel whose
       // heading is already above the fold.
@@ -16211,10 +16956,12 @@ document.addEventListener('click', function (ev) {
       try { if (window.I18N_APPLY) I18N_APPLY.translateDOM(desk); } catch (_) {}
     } catch (_) { _mcRedraw(); }
   } else if (act === 'mcStandings') {
-    // Embedded, the table is one tab away in the same shell; there is no page
-    // to navigate to and nothing to leave.
-    if (_MC.embed) { try { _flTabTo('standings'); } catch (_) {} }
-    else { try { navTo('familista-league'); } catch (_) {} }
+    // The table belongs to the competition, so it is read there. The workspace
+    // is closed first, which is what makes this a navigation rather than a
+    // panel left open behind a page.
+    try { _MCC.open = null; _MCC.change = null; _MC.cmp = null; window._MC_FOCUS = null; } catch (_) {}
+    try { _FL.tab = 'standings'; } catch (_) {}
+    try { navTo('familista-league'); } catch (_) {}
   } else if (act === 'mcTactics') {
     // The tactical board lives in Squad, which is where it has always lived.
     try { navTo('squad'); } catch (_) {}
@@ -16230,7 +16977,71 @@ document.addEventListener('click', function (ev) {
     if (cid) { _MC.cmp = { playerId: cid, againstId: null }; _mcPaintCmp(); }
   } else if (act === 'mcCmpClose') {
     if (ev.target === el || el.tagName === 'BUTTON') { _MC.cmp = null; _mcPaintCmp(); }
+  } else if (act === 'mccOpen') {
+    // A fixture row opens the workspace on top of the calendar. Nothing
+    // navigates, so the row the coach clicked is still there behind it.
+    var fid = el.getAttribute('data-fixture-id');
+    if (fid) _mccOpen(fid, null);
+  } else if (act === 'mccClose') {
+    // The backdrop closes; a click inside the panel does not.
+    if (ev.target === el || el.tagName === 'BUTTON') _mccClose();
+  } else if (act === 'mccRetry') {
+    _mccLoad();
+  } else if (act === 'mccState') {
+    var st = el.getAttribute('data-state') || 'all';
+    if (st === _MCC.filter.state) return;
+    _MCC.filter.state = st;
+    // Only the two regions that actually changed: the segmented control's own
+    // lit state, and the list. The page does not move.
+    _mccPaintHead(); _mccPaintList();
+  } else if (act === 'mccClear') {
+    _MCC.filter = { competitionId: '', venue: 'all', state: 'all', from: '', to: '' };
+    _mccPaintHead(); _mccPaintList();
+  } else if (act === 'mccChangeOpen') {
+    _mccChangeOpen();
+  } else if (act === 'mccChangeClose') {
+    if (ev.target === el || el.tagName === 'BUTTON') { _MCC.change = null; _mccPaintChange(); }
+  } else if (act === 'mccChgSubmit') {
+    _mccChgSubmit();
+  } else if (act === 'mccReqAct') {
+    _mccReqAct(el.getAttribute('data-req-id'), el.getAttribute('data-req'));
   }
+});
+
+// A fixture row is a button, so it answers the keyboard like one.
+document.addEventListener('keydown', function (ev) {
+  if (ev.key !== 'Enter' && ev.key !== ' ') return;
+  var el = ev.target && ev.target.closest ? ev.target.closest('[data-action="mccOpen"]') : null;
+  if (!el) return;
+  ev.preventDefault();
+  var fid = el.getAttribute('data-fixture-id');
+  if (fid) _mccOpen(fid, null);
+});
+
+// The calendar's own controls. Each one repaints the list and nothing else.
+document.addEventListener('change', function (ev) {
+  var el = ev.target;
+  if (!el || !el.getAttribute) return;
+  var act = el.getAttribute('data-action');
+  if (act === 'mccComp') { _MCC.filter.competitionId = el.value || ''; _mccPaintHead(); _mccPaintList(); }
+  else if (act === 'mccVenue') { _MCC.filter.venue = el.value || 'all'; _mccPaintHead(); _mccPaintList(); }
+  else if (act === 'mccFrom') { _MCC.filter.from = el.value || ''; _mccPaintHead(); _mccPaintList(); }
+  else if (act === 'mccTo') { _MCC.filter.to = el.value || ''; _mccPaintHead(); _mccPaintList(); }
+  // The reschedule form keeps its own state as it is typed, so a repaint of the
+  // panel never loses what the coach has already entered.
+  else if (act === 'mccChgDay' && _MCC.change) { _MCC.change.day = el.value || ''; }
+  else if (act === 'mccChgTime' && _MCC.change) { _MCC.change.time = el.value || ''; }
+  else if (act === 'mccChgReason' && _MCC.change) { _MCC.change.reason = el.value || ''; }
+  else if (act === 'mccChgNote' && _MCC.change) { _MCC.change.note = el.value || ''; }
+});
+
+document.addEventListener('input', function (ev) {
+  var el = ev.target;
+  if (!el || !el.getAttribute || !_MCC.change) return;
+  var act = el.getAttribute('data-action');
+  if (act === 'mccChgDay') _MCC.change.day = el.value || '';
+  else if (act === 'mccChgTime') _MCC.change.time = el.value || '';
+  else if (act === 'mccChgNote') _MCC.change.note = el.value || '';
 });
 
 // Choosing a different opponent to read against: the same panel, redrawn.
@@ -16243,7 +17054,12 @@ document.addEventListener('change', function (ev) {
 });
 
 document.addEventListener('keydown', function (ev) {
-  if (ev.key === 'Escape' && _MC.cmp) { _MC.cmp = null; _mcPaintCmp(); }
+  if (ev.key !== 'Escape') return;
+  // One layer at a time, innermost first: the comparison, then the reschedule
+  // workflow, then the workspace itself.
+  if (_MC.cmp) { _MC.cmp = null; _mcPaintCmp(); return; }
+  if (_MCC.change) { _MCC.change = null; _mccPaintChange(); return; }
+  if (_MCC.open) { _mccClose(); }
 });
 
 
@@ -43384,10 +44200,10 @@ document.addEventListener('click', (e) => {
   // Defensive: ensure renderMatchCenter runs even if navTo's branch is
   // bypassed for any reason. Same pattern as the Training entry above.
   if (e.target.closest('[data-page="match-center"]')) {
-    // Reaching the Match Centre through the navigation means "my next match",
-    // so a match focused earlier from a competition is released here. Opening a
-    // fixture sets it again, and does not come through this path.
-    try { window._MC_FOCUS = null; } catch (_) {}
+    // Reaching the Match Center through the sidebar means the calendar, so any
+    // workspace left open is closed here. Opening a fixture sets it again, and
+    // does not come through this path.
+    try { window._MC_FOCUS = null; _MCC.open = null; _MCC.change = null; _MC.cmp = null; } catch (_) {}
     setTimeout(function () { try { renderMatchCenter(); } catch (err) { try { console.error('[match-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
   if (e.target.closest('[data-page="ai-scouting"]')) {
@@ -63853,10 +64669,18 @@ function _lgCrest(clubId, name, size) {
 // 1.75 stroke, round caps, and inherits the colour of the control it sits in.
 var _LG_ICON = {
   back:  '<path d="M12.5 15.5 7 10l5.5-5.5"/>',
-  swap:  '<path d="M4 7.5h12M13 4.5l3 3M16 12.5H4M7 15.5l-3-3"/>',
   info:  '<circle cx="10" cy="10" r="7"/><path d="M10 9.2v4.3M10 6.6h.01"/>',
   teams: '<path d="M7.6 9.4a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8ZM3 15.4c0-2.1 2-3.5 4.6-3.5s4.6 1.4 4.6 3.5"/><path d="M13.4 9.2a2 2 0 1 0 0-4M14.2 11.9c1.7.3 2.8 1.4 2.8 3"/>',
   trophy: '<path d="M6.5 3.2h7v3.9a3.5 3.5 0 0 1-7 0V3.2Z"/><path d="M6.5 4.6H4.3v1.1a2.4 2.4 0 0 0 2.2 2.4M13.5 4.6h2.2v1.1a2.4 2.4 0 0 1-2.2 2.4"/><path d="M10 10.6v3.1M7.4 16.8h5.2l-.5-3.1H7.9l-.5 3.1Z"/>',
+  // The competition marks the calendar identifies a fixture by. Restrained on
+  // purpose: a line glyph and a hairline accent, never a block of colour.
+  cup: '<path d="M7 3.4h6v4.2a3 3 0 0 1-6 0V3.4Z"/><path d="M7 4.8H5.2v.9a2 2 0 0 0 1.8 2M13 4.8h1.8v.9a2 2 0 0 1-1.8 2"/><path d="M10 10.6v2.6M7.8 16.6h4.4l-.4-3.4H8.2l-.4 3.4Z"/>',
+  friendly: '<path d="M4 9.6 7.2 6.4a1.6 1.6 0 0 1 2.2 0L10 7l.6-.6a1.6 1.6 0 0 1 2.2 0L16 9.6"/><path d="M6.4 11.2 8.8 13.6M9.2 13.2l1.6 1.6M12 12.4l1.6 1.6"/>',
+  preseason: '<circle cx="10" cy="10" r="3.2"/><path d="M10 3.2v1.6M10 15.2v1.6M3.2 10h1.6M15.2 10h1.6M5.2 5.2l1.1 1.1M13.7 13.7l1.1 1.1M14.8 5.2l-1.1 1.1M6.3 13.7l-1.1 1.1"/>',
+  preparation: '<path d="M6.4 4.4h7.2a1 1 0 0 1 1 1v10.2a1 1 0 0 1-1 1H6.4a1 1 0 0 1-1-1V5.4a1 1 0 0 1 1-1Z"/><path d="M8.2 3.2h3.6v2.4H8.2V3.2Z"/><path d="M7.8 9.2h4.4M7.8 12.2h3"/>',
+  fixture: '<circle cx="10" cy="10" r="6.6"/><path d="M10 3.4v3M10 13.6v3M3.4 10h3M13.6 10h3"/>',
+  clock: '<circle cx="10" cy="10" r="6.8"/><path d="M10 6v4.2l2.8 1.7"/>',
+  weather: '<path d="M6.6 15.2a3.4 3.4 0 0 1-.3-6.8 4.2 4.2 0 0 1 8.1-.7 3 3 0 0 1 .3 6 3 3 0 0 1-.4 0H6.6Z"/>',
 };
 
 function _lgIcon(name) {
@@ -63999,18 +64823,15 @@ function _lgVersus(label, a, b, opts) {
 }
 
 
+// The Familista League is the COMPETITION and nothing else: its table, its own
+// fixtures, its player rankings and its rules. The Match Center is a module of
+// its own, one level up in the Club Workspace, and it holds every competition's
+// fixtures rather than this one's. Clicking a fixture here opens it there —
+// the same canonical Fixture row, read by the module that owns match
+// preparation.
 var _FL = {
-  tab: 'standings',        // standings | matches | players | match
+  tab: 'standings',        // standings | matches | players
   league: null,
-  // The match the workspace is focused on. Set by opening a fixture, and kept
-  // for the rest of the visit, so the Match Center tab always has something to
-  // draw and the reader never has to find the fixture again.
-  match: null,             // { fixtureId, data }
-  pick: null,              // the lightweight match selector, when one is needed
-  opening: false,          // a match is being loaded into the workspace
-  // The section the reader was on before opening the Match Center, so going
-  // back goes back to where they were rather than to a default.
-  back: 'standings',
   myTeamIds: [],
   standings: null,
   zones: [],
@@ -64051,7 +64872,6 @@ function renderFamilistaLeagueHTML() {
 function renderFamilistaLeaguePage() {
   var host = document.getElementById('fl-shell'); if (!host) return;
   _FL.tab = 'standings'; _FL.team = null; _FL.preview = null; _FL.rules = false; _FL.round = null;
-  _FL.match = null; _FL.pick = null; _FL.opening = false;
   host.innerHTML = '<div id="fl-head"></div><div class="fl-body" id="fl-body">' + _flSkeleton('table') + '</div>';
   _flPaintHead();
   _flLoadOverview();
@@ -64111,15 +64931,6 @@ function _flPaintBody() {
   b.innerHTML = _flBodyHtml();
   _flPaintZones(b);
   _flPaintI18n(b);
-  // The Match Center section is drawn by the Match Center, into the host the
-  // body just made for it. It paints and translates itself.
-  var mc = b.querySelector('#fl-mc');
-  // The body keeps scrolling whatever is in it. It is the workspace's one
-  // scroll region, and a section taller than the window scrolls inside it
-  // rather than being clipped by it.
-  b.classList.toggle('is-mc', !!mc);
-  if (mc) { try { renderMatchCenter(mc, { embedded: true }); } catch (_) {} }
-  else if (_MC.embed) { _MC.host = null; _MC.embed = false; }
 }
 
 function _flPaintOverlay() {
@@ -64128,9 +64939,8 @@ function _flPaintOverlay() {
   var html = (_FL.rules ? _flRulesHtml() : '')
     + (_FL.team ? _flTeamHtml() : '')
     + (_FL.preview ? _flPreviewHtml() : '')
-    + (_FL.pick ? _flPickHtml() : '')
     + (_FL.manage ? _flManageHtml() : '');
-  var on = !!(_FL.rules || _FL.team || _FL.preview || _FL.pick || _FL.manage);
+  var on = !!(_FL.rules || _FL.team || _FL.preview || _FL.manage);
   ov.innerHTML = on ? html : '';
   ov.classList.toggle('is-on', on);
   _flPaintZones(ov);
@@ -64152,11 +64962,10 @@ function _flHeaderHtml() {
   var titleHtml = lg
     ? '<span data-user-content>' + _esc(lg.name) + '</span>'
     : '<span>Season not started</span>';
-  // The Match Center is one of the workspace's own sections, beside the table
-  // and the fixtures, rather than a page reached by going into a list and
-  // clicking again from inside it.
-  var tabs = [['standings', 'Standings'], ['matches', 'Matches'], ['players', 'Player Stats'],
-              ['match', 'Match Center']];
+  // Three sections, all of them about the competition. The Match Center used to
+  // be a fourth, and it is not one: a club's match preparation is not a league
+  // screen, and it is now its own module in the Club Workspace.
+  var tabs = [['standings', 'Standings'], ['matches', 'Matches'], ['players', 'Player Stats']];
   // ── the masthead ──
   // A trophy mark, the competition's name, and the season read as a spine of
   // facts down the right. The chips this replaced said the same thing in two
@@ -64279,8 +65088,6 @@ async function _flLoadTab() {
   if (_FL.tab === 'standings') return _flLoadStandings();
   if (_FL.tab === 'matches')   return _flLoadMatches(_FL.round);
   if (_FL.tab === 'players')   return _flLoadBoards();
-  // The Match Center section draws from the match already in hand; there is
-  // nothing further to fetch when it is opened.
 }
 
 async function _flLoadStandings() {
@@ -64299,7 +65106,7 @@ async function _flLoadStandings() {
 async function _flLoadMatches(round) {
   // The fixtures are drawn in the Matches tab and, when one is being chosen,
   // in the selector panel. Repaint whichever is showing them and nothing else.
-  var paint = function () { if (_FL.pick) _flPaintOverlay(); else _flPaintBody(); };
+  var paint = function () { _flPaintBody(); };
   _FL.loading.matches = true; _FL.error.matches = false; paint();
   try {
     var r = await api('/familista-league/matches' + _flSeasonQ(round != null ? 'round=' + round : ''));
@@ -64330,25 +65137,7 @@ function _flBodyHtml() {
   }
   if (_FL.tab === 'standings') return _flStandingsHtml();
   if (_FL.tab === 'matches')   return _flMatchesHtml();
-  if (_FL.tab === 'match')     return _flMatchHostHtml();
   return _flPlayersHtml();
-}
-
-// The Match Center's own host, inside the League body. It is drawn empty and
-// then filled by the Match Center renderer, so the two modules stay separate
-// pieces of code sharing one screen.
-function _flMatchHostHtml() {
-  if (_FL.opening) return _flSkeleton('cards');
-  if (!_FL.match || !_FL.match.data) {
-    return _lgPanel('Match Center', '',
-      _lgEmpty('No match chosen yet',
-        'Choose a fixture and it opens here, inside the league workspace.', '⚽')
-      + '<div class="lg-act-row">'
-      + '<button class="lg-act lg-act--primary" type="button" data-action="flPick">Choose a match</button>'
-      + '<button class="lg-act" type="button" data-action="flTab" data-tab="matches">See the fixtures</button>'
-      + '</div>', 'lg-panel--fill');
-  }
-  return '<div class="fl-mc" id="fl-mc"></div>';
 }
 
 // ── tab 1 · standings ───────────────────────────────────────────────────────
@@ -64855,200 +65644,35 @@ async function _flOpenPreview(fixtureId) {
   _flPaintOverlay();
 }
 
-// ── opening a league match in the Match Centre ──────────────────────────────
-
-// A league match is one Match, and the Match Centre is the only place it is
-// played. Clicking a fixture loads that match's record — both sides, the
-// lineups, the timeline, the player statistics — and hands it to the Match
-// Centre with the competition context attached, so it draws the match somebody
-// clicked rather than the club's own next one.
+// ── handing a league fixture to the Match Center ────────────────────────────
 //
-// The record has to come from the league endpoint rather than from the club's
-// own match list, because only one of the two clubs owns the Match row and the
-// other would otherwise find nothing to open.
-// The match becomes the workspace's context and the Match Center section is
-// drawn in place. Nothing navigates: the reader stays in the league shell,
-// which is the whole point of having one.
-function _flHandOver(d, fixtureId) {
-  window._MC_FOCUS = _mcFocusFromLeague(d);
-  _MC.tab = 'overview';
-  _MC.cmp = null;
-  _FL.match = { fixtureId: fixtureId || (d.fixture && d.fixture.id) || null, data: d };
-  _FL.pick = null;
+// The League shows the competition; the Match Center prepares the match. They
+// are two modules over ONE Fixture row, so clicking a fixture here does not copy
+// anything and does not draw a second match screen: it opens the Match Center on
+// that fixture, and remembers the section and round the reader came from so
+// closing the workspace puts them back exactly here.
+
+function _flOpenMatch(fixtureId) {
+  if (!fixtureId) return;
   _FL.preview = null;
-  _flTabTo('match');
+  _flPaintOverlay();
+  var back = { page: 'familista-league', tab: _FL.tab === 'standings' ? 'matches' : _FL.tab, round: _FL.round };
+  try { navTo('match-center'); } catch (_) {}
+  // After the navigation, so the workspace opens over a calendar that is
+  // already on screen rather than behind one that is still mounting.
+  _mccOpen(fixtureId, back);
 }
 
 // Switching section inside the League: the header's tab strip is repainted and
 // the body swapped, and nothing else on the page moves.
 function _flTabTo(tab) {
   if (!tab) return;
-  // Remember where we were, so the Match Center's back control returns there.
-  if (tab === 'match' && _FL.tab !== 'match') _FL.back = _FL.tab;
   _FL.tab = tab;
   _flPaintHead();
   _flPaintBody();
   _flPaintOverlay();
   if (tab === 'matches' && !_FL.matches && !_FL.loading.matches) _flLoadMatches();
   if (tab === 'players' && !_FL.boards && !_FL.loading.boards) _flLoadBoards();
-}
-
-async function _flOpenMatch(fixtureId) {
-  // Already loaded by the preview, or already the workspace's match: use what
-  // is in hand rather than asking the server for it a second time.
-  if (_FL.preview && !_FL.preview.loading && _FL.preview.fixtureId === fixtureId && _FL.preview.data) {
-    _flHandOver(_FL.preview.data, fixtureId);
-    return;
-  }
-  if (_FL.match && _FL.match.fixtureId === fixtureId && _FL.match.data) {
-    _flHandOver(_FL.match.data, fixtureId);
-    return;
-  }
-  _FL.opening = true; _FL.pick = null; _FL.preview = null;
-  _flTabTo('match');
-  try {
-    var r = await api('/familista-league/fixtures/' + encodeURIComponent(fixtureId) + '/match' + _flSeasonQ());
-    var d = (r && r.data) || null;
-    _FL.opening = false;
-    if (!d || !d.match) {
-      _flPaintBody();
-      try { showToast('This fixture has not been set up in the Match Centre yet', 'info'); } catch (_) {}
-      return;
-    }
-    _flHandOver(d, fixtureId);
-  } catch (e) {
-    _FL.opening = false;
-    _flPaintBody();
-    try { showToast('Could not open that match', 'error'); } catch (_) {}
-  }
-}
-
-// ── choosing which match the workspace is about ─────────────────────────────
-
-// The one a coach means by "the match": his own club's fixture in the round the
-// season is currently on. Only ever a fixture that exists in the record — when
-// there is no obvious answer this returns null and the reader is asked rather
-// than given a match somebody guessed at.
-function _flPrimaryFixture() {
-  var m = _FL.matches;
-  if (!m || !Array.isArray(m.matches) || !m.matches.length) return null;
-  var playable = m.matches.filter(function (x) { return !!x.matchId; });
-  if (!playable.length) return null;
-  var mine = playable.filter(function (x) {
-    return _flMine(x.home && x.home.teamId) || _flMine(x.away && x.away.teamId);
-  });
-  if (mine.length === 1) return mine[0];
-  if (mine.length > 1) return null;              // more than one of ours: ask
-  return playable.length === 1 ? playable[0] : null;
-}
-
-// The top-level action. It opens the match the workspace is already about, or
-// the current round's own fixture, and asks only when neither is obvious.
-async function _flEnterMatchCenter() {
-  if (_FL.match && _FL.match.data) { _flTabTo('match'); return; }
-  if (!_FL.matches && !_FL.loading.matches) {
-    _FL.opening = true;
-    _flTabTo('match');
-    await _flLoadMatches();
-    _FL.opening = false;
-  }
-  var pick = _flPrimaryFixture();
-  if (pick) { _flOpenMatch(pick.fixtureId); return; }
-  _FL.opening = false;
-  _flTabTo('match');
-  _flOpenPick();
-}
-
-// The lightweight selector: the round's fixtures, in the same row the Matches
-// tab draws, so choosing one is the same gesture as reading one.
-function _flOpenPick() {
-  _FL.pick = true;
-  _flPaintOverlay();
-  if (!_FL.matches && !_FL.loading.matches) _flLoadMatches();
-}
-
-function _flPickHtml() {
-  var m = _FL.matches;
-  var body;
-  if (_FL.loading.matches || !m) body = _flSkeleton('cards');
-  else {
-    var playable = (m.matches || []).filter(function (x) { return !!x.matchId; });
-    body = playable.length
-      ? '<div class="fl-matches fl-matches--sm">'
-        + playable.map(function (x) { return _flMatchRow(x, true); }).join('')
-        + '</div>'
-      : _lgEmpty('No match in this round is set up yet',
-          'A fixture opens in the Match Center once the match behind it exists.', '⚽');
-  }
-  var idx = m && m.rounds ? m.rounds.indexOf(m.round) : -1;
-  var prev = idx > 0 ? m.rounds[idx - 1] : null;
-  var nxt = m && m.rounds && idx >= 0 && idx < m.rounds.length - 1 ? m.rounds[idx + 1] : null;
-  var nav = m && m.rounds && m.rounds.length > 1
-    ? '<div class="fl-rnav fl-rnav--sm">'
-      + '<button class="fl-rnav-btn" type="button"' + (prev == null ? ' disabled' : ' data-action="flRound" data-round="' + prev + '"') + '>'
-      + '<span aria-hidden="true">←</span> ' + (prev == null ? 'Round' : 'Round ' + prev) + '</button>'
-      + '<div class="fl-rnav-now">ROUND ' + (m.round == null ? '—' : m.round) + '</div>'
-      + '<button class="fl-rnav-btn" type="button"' + (nxt == null ? ' disabled' : ' data-action="flRound" data-round="' + nxt + '"') + '>'
-      + (nxt == null ? 'Round' : 'Round ' + nxt) + ' <span aria-hidden="true">→</span></button>'
-      + '</div>'
-    : '';
-  // Built above rather than written into the `head:` property: the string
-  // extractor reads that property as a label and would catalogue the markup
-  // around the phrase instead of the phrase.
-  var pickHead = '<span class="lg-float-t">Choose a match</span>';
-  return _lgFloat({
-    close: 'flClosePick',
-    cls: 'lg-float--md',
-    head: pickHead,
-    body: '<div class="fl-pick-s">Pick the fixture the workspace should be about.</div>' + nav + body,
-    foot: '<button class="lg-act lg-act--ghost" type="button" data-action="flClosePick">Close</button>',
-  });
-}
-
-// Translate the league's match record into the shape the Match Centre already
-// reads, so nothing in that screen has to learn about competitions.
-function _mcFocusFromLeague(d) {
-  var m = d.match || {};
-  var home = d.home || {};
-  var away = d.away || {};
-  var mine = _famActiveClubId();
-  var isHome = !!(mine && home.clubId === mine);
-  return {
-    source: 'familista-league',
-    context: d.context || null,
-    isHome: isHome,
-    home: home,
-    away: away,
-    players: Array.isArray(d.players) ? d.players : [],
-    analysis: d.analysis || null,
-    // The rest of the record, so the tabs read the same payload rather than
-    // asking again: both squads, both league rows, both head coaches.
-    standings: d.standings || { home: null, away: null },
-    squads: d.squads || { home: [], away: [] },
-    staff: d.staff || { home: null, away: null },
-    lineups: Array.isArray(d.lineups) ? d.lineups : [],
-    fixture: d.fixture || null,
-    events: (Array.isArray(d.timeline) ? d.timeline : []).map(function (t) {
-      return { minute: t.minute, kind: t.kind, player: t.playerName || t.opponentName || '' };
-    }),
-    next: {
-      id: m.id,
-      homeTeam: home.clubName || home.teamName || '',
-      awayTeam: away.clubName || away.teamName || '',
-      homeClubId: home.clubId || null,
-      awayClubId: away.clubId || null,
-      opponentClubId: isHome ? (away.clubId || null) : (home.clubId || null),
-      scheduledAt: m.scheduledAt,
-      venue: m.venue,
-      status: m.status,
-      homeScore: m.homeScore,
-      awayScore: m.awayScore,
-      competitionName: (d.context && d.context.name) || null,
-      possession: m.possession,
-      shots: m.shots,
-      shotsOnTarget: m.shotsOnTarget,
-    },
-  };
 }
 
 // ── managing participants ───────────────────────────────────────────────────
@@ -65189,20 +65813,7 @@ document.addEventListener('click', function (ev) {
   if (act === 'flTab') {
     var tab = el.getAttribute('data-tab');
     if (!tab || tab === _FL.tab) return;
-    // The Match Center section needs a match to be about. Asking for it is the
-    // same act as opening it, so the tab does the choosing rather than showing
-    // an empty screen and leaving the reader to work it out.
-    if (tab === 'match' && !(_FL.match && _FL.match.data)) { _flEnterMatchCenter(); return; }
     _FL.tab = tab; _flPaintHead(); _flPaintBody(); _flLoadTab();
-  } else if (act === 'flBack') {
-    // Back to the League section the reader came from. Nothing reloads and
-    // nothing is thrown away: the season, the round and the chosen match are
-    // all still here when they return.
-    _flTabTo(_FL.back === 'match' ? 'standings' : _FL.back);
-  } else if (act === 'flPick') {
-    _flOpenPick();
-  } else if (act === 'flClosePick') {
-    if (ev.target === el || el.tagName === 'BUTTON') { _FL.pick = null; _flPaintOverlay(); }
   } else if (act === 'flRules') {
     _FL.rules = true; _flPaintOverlay();
   } else if (act === 'flCloseRules') {
@@ -65233,15 +65844,13 @@ document.addEventListener('click', function (ev) {
     var pid = el.getAttribute('data-player-id');
     if (pid && typeof openPlayerModal === 'function') openPlayerModal(pid);
   } else if (act === 'flMatch') {
-    // The row opens the preview; the preview's own button opens the Match
-    // Centre with what it already loaded. A fixture with no Match behind it
-    // has nothing to open yet.
+    // The row opens the quick preview; the preview's button hands the fixture
+    // to the Match Center, which owns match preparation. A fixture with no
+    // Match behind it has nothing to open yet. Clicked inside a panel that is
+    // already open, the row IS the answer and the preview is skipped.
     var fid = el.getAttribute('data-fixture-id');
     var mid = el.getAttribute('data-match-id');
     if (!fid || !mid) { try { showToast('This fixture has not been set up in the Match Centre yet', 'info'); } catch (_) {} return; }
-    // Clicked inside a panel that is already open — the selector, or a club's
-    // fixtures — the row IS the answer. Stacking a preview on top of it would
-    // be a second click for nothing.
     if (el.closest && el.closest('.lg-float')) _flOpenMatch(fid);
     else _flOpenPreview(fid);
   } else if (act === 'flManage') {
@@ -65265,7 +65874,6 @@ document.addEventListener('keydown', function (ev) {
   if (ev.key !== 'Escape') return;
   if (!document.getElementById('fl-shell')) return;
   if (_FL.preview) { _FL.preview = null; _flPaintOverlay(); }
-  else if (_FL.pick) { _FL.pick = null; _flPaintOverlay(); }
   else if (_FL.team) { _FL.team = null; _flPaintOverlay(); }
   else if (_FL.rules) { _FL.rules = false; _flPaintOverlay(); }
   else if (_FL.manage) { _FL.manage = null; _flPaintOverlay(); }

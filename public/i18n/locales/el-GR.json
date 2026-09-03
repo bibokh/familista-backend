@@ -13,7 +13,8 @@
     "clubs": "Σύλλογοι",
     "dashboard": "Πίνακας",
     "back": "Πίσω",
-    "familistaLeague": "Familista League"
+    "familistaLeague": "Familista League",
+    "matchCenter": "Κέντρο Αγώνα"
   },
   "common": {
     "search": "Αναζήτηση",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "Διαχείριση συμμετεχόντων πρωταθλήματος"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "Ό,τι πρέπει να γνωρίζει ο άλλος σύλλογος"
   }
 }

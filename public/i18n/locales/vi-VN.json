@@ -13,7 +13,8 @@
     "clubs": "Câu lạc bộ",
     "dashboard": "Bảng điều khiển",
     "back": "Quay lại",
-    "familistaLeague": "Giải Familista"
+    "familistaLeague": "Giải Familista",
+    "matchCenter": "Trung tâm Trận đấu"
   },
   "common": {
     "search": "Tìm kiếm",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "Quản lý các đội tham dự"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "Bất cứ điều gì câu lạc bộ kia cần biết"
   }
 }

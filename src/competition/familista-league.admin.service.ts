@@ -39,6 +39,8 @@ import {
   rebuildStandingsUnchecked,
   type CompActor,
 } from './competition.service';
+import { validateKickoff } from './match-scheduling';
+import { schedulingContextFor } from './match-center.service';
 
 export interface LeagueActor {
   userId: string;
@@ -469,6 +471,18 @@ export async function rescheduleFixture(
 
   const when = new Date(scheduledAt);
   if (Number.isNaN(when.getTime())) throw new BadRequestError('scheduledAt is not a date');
+
+  // The same window a club's reschedule request is judged against. An
+  // administrator sets the calendar, but 05:00 is not a kickoff for anybody:
+  // the rule lives in one module and both write paths ask it, so neither can
+  // drift from the other.
+  const ctx = await schedulingContextFor(fixtureId);
+  const check = validateKickoff({
+    at: when,
+    timeZone: ctx.timeZone,
+    policy: ctx.policy,
+  });
+  if (!check.ok && check.verdict !== 'UNCHANGED') throw new BadRequestError(check.message);
 
   await prisma.fixture.update({
     where: { id: fixtureId },

@@ -13,7 +13,8 @@
     "clubs": "Klubovi",
     "dashboard": "Kontrolna tabla",
     "back": "Nazad",
-    "familistaLeague": "Familista League"
+    "familistaLeague": "Familista League",
+    "matchCenter": "Centar utakmice"
   },
   "common": {
     "search": "Pretraga",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "Upravljanje učesnicima lige"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "Sve što drugi klub treba da zna"
   }
 }

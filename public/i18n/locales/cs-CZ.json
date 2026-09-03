@@ -13,7 +13,8 @@
     "clubs": "Kluby",
     "dashboard": "Přehled",
     "back": "Zpět",
-    "familistaLeague": "Familista League"
+    "familistaLeague": "Familista League",
+    "matchCenter": "Zápasové centrum"
   },
   "common": {
     "search": "Hledat",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "Spravovat účastníky ligy"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "Cokoli, co by měl druhý klub vědět"
   }
 }

@@ -13,7 +13,8 @@
     "clubs": "Cluburi",
     "dashboard": "Panou",
     "back": "Înapoi",
-    "familistaLeague": "Familista League"
+    "familistaLeague": "Familista League",
+    "matchCenter": "Centrul de Meci"
   },
   "common": {
     "search": "Caută",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "Gestionează participanții ligii"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "Orice ar trebui să știe celălalt club"
   }
 }

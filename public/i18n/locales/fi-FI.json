@@ -13,7 +13,8 @@
     "clubs": "Seurat",
     "dashboard": "Kojelauta",
     "back": "Takaisin",
-    "familistaLeague": "Familista League"
+    "familistaLeague": "Familista League",
+    "matchCenter": "Ottelukeskus"
   },
   "common": {
     "search": "Hae",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "Hallinnoi sarjan osallistujia"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "Kaikki, mitä toisen seuran pitäisi tietää"
   }
 }

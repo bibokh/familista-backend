@@ -13,7 +13,8 @@
     "clubs": "클럽",
     "dashboard": "대시보드",
     "back": "뒤로",
-    "familistaLeague": "Familista 리그"
+    "familistaLeague": "Familista 리그",
+    "matchCenter": "경기 센터"
   },
   "common": {
     "search": "검색",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "리그 참가 팀 관리"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "상대 구단이 알아야 할 내용"
   }
 }

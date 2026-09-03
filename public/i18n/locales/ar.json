@@ -13,7 +13,8 @@
     "clubs": "الأندية",
     "dashboard": "لوحة المعلومات",
     "back": "رجوع",
-    "familistaLeague": "دوري فاميليستا"
+    "familistaLeague": "دوري فاميليستا",
+    "matchCenter": "مركز المباريات"
   },
   "common": {
     "search": "بحث",
@@ -158,5 +159,8 @@
     "manage": {
       "tooltip": "إدارة فرق الدوري"
     }
+  },
+  "matchCenter": {
+    "notePlaceholder": "أي شيء ينبغي أن يعرفه النادي الآخر"
   }
 }
