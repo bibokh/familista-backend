@@ -73,11 +73,14 @@ describe('Familista League — navigation', () => {
     // owns match preparation for every competition. The League does not draw a
     // match screen of its own.
     expect(APP).toMatch(/act === 'flMatch'[\s\S]{0,700}_flOpenPreview\(fid\)/);
-    expect(APP).toMatch(/function _flOpenMatch[\s\S]{0,600}navTo\('match-center'\)/);
-    expect(APP).toMatch(/function _flOpenMatch[\s\S]{0,700}_mccOpen\(fixtureId, back\)/);
+    expect(APP).toMatch(/function _flOpenMatch[\s\S]{0,1500}navTo\('match-center'\)/);
+    expect(APP).toMatch(/function _flOpenMatch[\s\S]{0,1600}_mccOpen\(fixtureId, back\)/);
     // And the section and round it was launched from travel with it, so closing
     // the workspace returns the reader exactly here.
-    expect(APP).toMatch(/function _flOpenMatch[\s\S]{0,500}page: 'familista-league'[\s\S]{0,120}round: _FL\.round/);
+    expect(APP).toMatch(/function _flOpenMatch[\s\S]{0,1400}page: 'familista-league'[\s\S]{0,120}round: _FL\.round/);
+    // Inside an age group's workspace the fixture opens in that workspace's own
+    // Match Center section, so the reader never leaves the team they are in.
+    expect(APP).toMatch(/function _flOpenMatch[\s\S]{0,700}_atGo\('matchCenter'\)/);
     // No second player profile or match centre is defined by this module.
     expect(APP).not.toContain('function _flPlayerProfile');
     expect(APP).not.toContain('function _flMatchCenter');

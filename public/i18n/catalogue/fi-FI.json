@@ -1332,5 +1332,8 @@
   "Not assigned to manage this team": "Ei määrätty johtamaan tätä joukkuetta",
   "This age group is not linked to a team record yet": "Tätä ikäluokkaa ei ole vielä liitetty joukkuetietueeseen",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Joukkueen Ottelukeskus lukee sille joukkueelle kirjatut ottelut. Se ilmestyy tähän heti kun seuran joukkueet on ladattu.",
-  "You do not have access to that team": "Sinulla ei ole oikeuksia tähän joukkueeseen"
+  "You do not have access to that team": "Sinulla ei ole oikeuksia tähän joukkueeseen",
+  "No active Familista League competition for this team": "Tälle joukkueelle ei ole aktiivista Familista League -kilpailua",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Tätä joukkuetta ei ole vielä ilmoitettu sarjakauteen. Sarjataulukko, ottelut ja pelaajalistat ilmestyvät tähän heti kun se on.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Joukkueen Familista League lukee sen kilpailun, johon joukkue on ilmoitettu. Se ilmestyy tähän heti kun seuran joukkueet on ladattu."
 }

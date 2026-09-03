@@ -1332,5 +1332,8 @@
   "Not assigned to manage this team": "Nepřiřazen ke správě tohoto týmu",
   "This age group is not linked to a team record yet": "Tato věková kategorie zatím není propojena se záznamem týmu",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Zápasové centrum týmu čte utkání zapsaná na tento tým. Objeví se tady, jakmile se načtou týmy klubu.",
-  "You do not have access to that team": "K tomuto týmu nemáš přístup"
+  "You do not have access to that team": "K tomuto týmu nemáš přístup",
+  "No active Familista League competition for this team": "Pro tento tým není aktivní žádná soutěž Familista League",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Tento tým zatím není přihlášen do ligové sezony. Tabulka, zápasy a žebříčky hráčů se tu objeví, jakmile bude.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League týmu čte soutěž, do které je tým přihlášen. Objeví se tady, jakmile se načtou týmy klubu."
 }

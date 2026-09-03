@@ -1332,5 +1332,8 @@
   "Not assigned to manage this team": "Not assigned to manage this team",
   "This age group is not linked to a team record yet": "This age group is not linked to a team record yet",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.",
-  "You do not have access to that team": "You do not have access to that team"
+  "You do not have access to that team": "You do not have access to that team",
+  "No active Familista League competition for this team": "No active Familista League competition for this team",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded."
 }

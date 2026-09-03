@@ -1332,5 +1332,8 @@
   "Not assigned to manage this team": "Δεν έχεις οριστεί να διαχειρίζεσαι αυτή την ομάδα",
   "This age group is not linked to a team record yet": "Αυτή η ηλικιακή κατηγορία δεν έχει συνδεθεί ακόμη με εγγραφή ομάδας",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Το Κέντρο Αγώνα μιας ομάδας διαβάζει τους αγώνες που έχουν καταχωρηθεί σε αυτήν. Εμφανίζεται εδώ μόλις φορτωθούν οι ομάδες του συλλόγου.",
-  "You do not have access to that team": "Δεν έχεις πρόσβαση σε αυτή την ομάδα"
+  "You do not have access to that team": "Δεν έχεις πρόσβαση σε αυτή την ομάδα",
+  "No active Familista League competition for this team": "Καμία ενεργή διοργάνωση Familista League για αυτή την ομάδα",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Αυτή η ομάδα δεν έχει δηλωθεί ακόμη σε σεζόν πρωταθλήματος. Η βαθμολογία, οι αγώνες και οι κατατάξεις παικτών εμφανίζονται εδώ μόλις δηλωθεί.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Η Familista League μιας ομάδας διαβάζει τη διοργάνωση στην οποία έχει δηλωθεί η ομάδα. Εμφανίζεται εδώ μόλις φορτωθούν οι ομάδες του συλλόγου."
 }

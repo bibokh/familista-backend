@@ -1332,5 +1332,8 @@
   "Not assigned to manage this team": "Bu takımı yönetmek üzere atanmadı",
   "This age group is not linked to a team record yet": "Bu yaş grubu henüz bir takım kaydına bağlı değil",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Bir takımın Maç Merkezi, o takıma kaydedilmiş maçları okur. Kulübün takımları yüklenir yüklenmez burada görünür.",
-  "You do not have access to that team": "Bu takıma erişimin yok"
+  "You do not have access to that team": "Bu takıma erişimin yok",
+  "No active Familista League competition for this team": "Bu takım için etkin bir Familista League turnuvası yok",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Bu takım henüz bir lig sezonuna kaydedilmedi. Puan durumu, maçlar ve oyuncu sıralamaları kaydedilir kaydedilmez burada görünür.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Bir takımın Familista League’i, o takımın kayıtlı olduğu turnuvayı okur. Kulübün takımları yüklenir yüklenmez burada görünür."
 }

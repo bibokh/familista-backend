@@ -1332,5 +1332,8 @@
   "Not assigned to manage this team": "Inte tilldelad att styra det här laget",
   "This age group is not linked to a team record yet": "Den här åldersgruppen är ännu inte kopplad till ett lag",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Ett lags Matchcenter läser de matcher som är registrerade på det laget. Det visas här så snart klubbens lag har laddats.",
-  "You do not have access to that team": "Du har inte åtkomst till det laget"
+  "You do not have access to that team": "Du har inte åtkomst till det laget",
+  "No active Familista League competition for this team": "Ingen aktiv Familista League-tävling för det här laget",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Det här laget är ännu inte anmält till en ligasäsong. Tabell, matcher och spelarrankningar visas här så snart det är det.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Ett lags Familista League läser den tävling laget är anmält till. Den visas här så snart klubbens lag har laddats."
 }

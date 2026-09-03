@@ -1332,5 +1332,8 @@
   "Not assigned to manage this team": "Nije zadužen za vođenje ovog tima",
   "This age group is not linked to a team record yet": "Ova uzrasna kategorija još nije povezana sa zapisom tima",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Centar utakmice jednog tima čita mečeve zavedene na taj tim. Pojavljuje se ovde čim se timovi kluba učitaju.",
-  "You do not have access to that team": "Nemaš pristup tom timu"
+  "You do not have access to that team": "Nemaš pristup tom timu",
+  "No active Familista League competition for this team": "Nema aktivnog takmičenja Familista League za ovaj tim",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Ovaj tim još nije prijavljen za ligašku sezonu. Tabela, utakmice i rang-liste igrača pojavljuju se ovde čim bude.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League jednog tima čita takmičenje u koje je taj tim prijavljen. Pojavljuje se ovde čim se timovi kluba učitaju."
 }

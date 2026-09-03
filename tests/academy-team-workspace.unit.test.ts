@@ -224,6 +224,126 @@ describe('the academy workspace is one module per age group, not one flat page',
   });
 });
 
+describe('each team has its own Familista League, on the same engine', () => {
+  const FLS = read('src/competition/familista-league.service.ts');
+  const FLC = read('src/controllers/familista-league.controller.ts');
+
+  it('the league a team plays in is the competition it was ENTERED in', () => {
+    expect(FLS).toContain('export async function getLeagueForTeam');
+    const fn = codeOnly(FLS.slice(FLS.indexOf('export async function getLeagueForTeam'),
+                                  FLS.indexOf('async function requireLeague')));
+    // The CompetitionTeam row that entered them — not an age band, not a name.
+    expect(fn).toContain('prisma.competitionTeam.findMany');
+    expect(fn).toContain('teamId,');
+    expect(fn).toContain("format: 'LEAGUE'");
+    expect(fn).not.toMatch(/ageMin|ageMax|ACADEMY_/);
+  });
+
+  it('and the First Team path — no team named — is untouched', () => {
+    // getLeague still resolves the platform league by code and season, and the
+    // team-scoped resolver is a separate function that calls it.
+    const fn = codeOnly(FLS.slice(FLS.indexOf('export async function getLeague('),
+                                  FLS.indexOf('export async function getLeagueForTeam')));
+    expect(fn).toContain("const where: Record<string, unknown> = { clubId: null, format: 'LEAGUE' };");
+    expect(fn).not.toContain('teamId');
+  });
+
+  it('the team is checked before it is used to find a competition', () => {
+    const fn = codeOnly(FLC.slice(FLC.indexOf('async function resolveScope'),
+                                  FLC.indexOf('async function resolveLeague')));
+    expect(fn).toMatch(/await teamAccess\.assertCanViewTeam\(actorOf2\(req\), q\.teamId\);[\s\S]{0,180}getLeagueForTeam/);
+    // And every other handler resolves through the same place, so none of them
+    // can be reached with a team this caller may not read.
+    expect(FLC).toContain('const { found } = await resolveScope(req);');
+  });
+
+  it('a scoped table highlights that team rather than its club\'s other sides', () => {
+    const fn = FLC.slice(FLC.indexOf('export async function getStandings'),
+                         FLC.indexOf('const roundSchema'));
+    expect(fn).toContain('teamId ? Promise.resolve([teamId]) : league.getMyTeamIds(');
+  });
+
+  it('the engine is reused: standings, matches and rankings all take a competition', () => {
+    for (const fn of ['getStandings', 'getRound', 'getLeaderboards', 'getTeamStats']) {
+      expect(FLS).toMatch(new RegExp('export async function ' + fn + '\\(competitionId: string'));
+    }
+    // There is no second league engine for the academy.
+    expect(FLS.match(/export async function getStandings\(/g) || []).toHaveLength(1);
+    expect(APP.match(/function _flStandingsHtml\(/g) || []).toHaveLength(1);
+    expect(APP).not.toContain('function _atLeagueStandingsHtml');
+  });
+
+  it('every request carries the team, so the server scopes the answer', () => {
+    const q = APP.slice(APP.indexOf('function _flSeasonQ('), APP.indexOf('async function _flLoadOverview('));
+    expect(q).toContain('var team = _flTeamQ()');
+    expect(APP).toContain("function _flTeamQ() { return _FL.teamId ? 'teamId=' + encodeURIComponent(_FL.teamId) : ''; }");
+    // Including the overview, which is fetched before _flSeasonQ has a season.
+    const ov = APP.slice(APP.indexOf('async function _flLoadOverview('), APP.indexOf('async function _flLoadTab('));
+    expect(ov).toContain("api('/familista-league/overview' + (team ? '?' + team : ''))");
+    expect(ov).toContain('if (_FL.teamId !== asked) return;');
+  });
+
+  it('the age group workspace carries League and Match Center as two modules', () => {
+    const sections = APP.slice(APP.indexOf('var AT_SECTIONS = ['), APP.indexOf('var AT_REDIRECT'));
+    expect(sections).toContain("['familistaLeague', 'Familista League', '🏆']");
+    expect(sections).toContain("['matchCenter', 'Match Center', '🗓']");
+    expect(APP).toContain("case 'familistaLeague':      return _atSecLeague(id);");
+    // The League does not contain the Match Center: that separation stands.
+    const head = APP.slice(APP.indexOf('function _flHeaderHtml('), APP.indexOf('function _flTeamName('));
+    expect(head).not.toContain("['match', 'Match Center']");
+  });
+
+  it('and it draws the First Team\'s league module rather than a second one', () => {
+    expect(APP.match(/^function renderFamilistaLeaguePage\(opts\)/gm) || []).toHaveLength(1);
+    const paint = APP.slice(APP.indexOf('function _atPaintLeague('), APP.indexOf('function _atSecMatchCenter('));
+    expect(paint).toContain('renderFamilistaLeaguePage({ host: host, teamId: teamId, access: acc })');
+    // Switching team throws away the table that belonged to the last one.
+    const render = APP.slice(APP.indexOf('function renderFamilistaLeaguePage(opts)'),
+                             APP.indexOf('function _flPaintZones('));
+    expect(render).toContain('if (_FL.host !== host || _FL.teamId !== teamId)');
+    expect(render).toContain('_FL.standings = null');
+    expect(render).toContain('_FL.matches = null');
+    expect(render).toContain('_FL.boards = null');
+  });
+
+  it('two league hosts in one document never fight over one id', () => {
+    const shell = APP.slice(APP.indexOf('function _flShellHtml('), APP.indexOf('function renderFamilistaLeaguePage(opts)'));
+    for (const id of ['fl-head', 'fl-body']) {
+      expect(shell).toContain("(standalone ? ' id=\"" + id + "\"' : '')");
+    }
+    expect(APP).toContain('function _flRoot()');
+    expect(APP).toContain('function _flNode(sel)');
+    const paints = APP.slice(APP.indexOf('function _flPaintHead()'), APP.indexOf('function _flRepaint()'));
+    expect(paints).not.toMatch(/document\.getElementById\('fl-(head|body)'\)/);
+  });
+
+  it('a fixture opened from an age group\'s league stays inside that workspace', () => {
+    const open = codeOnly(APP.slice(APP.indexOf('function _flOpenMatch('),
+                                    APP.indexOf('function _flOpenMatch(') + 1700));
+    expect(open).toContain("_atGo('matchCenter')");
+    expect(open).toContain("page: 'academy-team'");
+    // One fixture, two views of it: the League hands over the id and the Match
+    // Center reads the same record. Nothing is duplicated.
+    expect(open).not.toContain('prisma');
+    expect(open).toContain('_mccOpen(fixtureId,');
+  });
+
+  it('a team entered in no competition says so rather than showing the platform\'s', () => {
+    const body = APP.slice(APP.indexOf('function _flBodyHtml()'), APP.indexOf('// ── tab 1 · standings'));
+    expect(body).toContain('No active Familista League competition for this team');
+    expect(body).toContain('_FL.teamId');
+    // And the platform's own sentence is still there for the unscoped case.
+    expect(body).toContain('No active Familista League season');
+  });
+
+  it('and its write control is gated by the team as well as the platform role', () => {
+    expect(APP).toContain('function _flCanManageTeam()');
+    const head = APP.slice(APP.indexOf('function _flHeaderHtml('), APP.indexOf('function _flTeamName('));
+    expect(head).toContain('_FL.canManage && _flCanManageTeam()');
+    expect(head).toContain('_flAccessNoteHtml()');
+  });
+});
+
 describe('a team you do not run says so, in the same words everywhere', () => {
   it('the screen reads the answer rather than deciding for itself', () => {
     const fn = APP.slice(APP.indexOf('function _mccCanManage()'), APP.indexOf('function _mccAccessNoteHtml()'));

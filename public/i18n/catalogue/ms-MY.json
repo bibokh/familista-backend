@@ -1329,5 +1329,8 @@
   "Not assigned to manage this team": "Tidak ditugaskan untuk mengurus pasukan ini",
   "This age group is not linked to a team record yet": "Kumpulan umur ini belum dipautkan kepada rekod pasukan",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Pusat Perlawanan sesebuah pasukan membaca perlawanan yang direkodkan untuk pasukan itu. Ia muncul di sini sebaik sahaja pasukan kelab dimuatkan.",
-  "You do not have access to that team": "Anda tiada akses kepada pasukan itu"
+  "You do not have access to that team": "Anda tiada akses kepada pasukan itu",
+  "No active Familista League competition for this team": "Tiada pertandingan Familista League yang aktif untuk pasukan ini",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Pasukan ini belum didaftarkan dalam musim liga. Kedudukan, perlawanan dan kedudukan pemain muncul di sini sebaik sahaja didaftarkan.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League sesebuah pasukan membaca pertandingan yang disertai pasukan itu. Ia muncul di sini sebaik sahaja pasukan kelab dimuatkan."
 }

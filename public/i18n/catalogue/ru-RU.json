@@ -1332,5 +1332,8 @@
   "Not assigned to manage this team": "Не назначен управлять этой командой",
   "This age group is not linked to a team record yet": "Эта возрастная группа ещё не связана с записью команды",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Центр матчей команды читает матчи, записанные за этой командой. Он появится здесь, как только команды клуба будут загружены.",
-  "You do not have access to that team": "У вас нет доступа к этой команде"
+  "You do not have access to that team": "У вас нет доступа к этой команде",
+  "No active Familista League competition for this team": "Для этой команды нет активного турнира Familista League",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Эта команда ещё не заявлена в сезон лиги. Таблица, матчи и рейтинги игроков появятся здесь, как только будет.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League команды читает турнир, в который эта команда заявлена. Он появится здесь, как только команды клуба будут загружены."
 }

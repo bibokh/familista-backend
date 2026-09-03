@@ -17119,6 +17119,18 @@ body.club-theme .set-panel .settings-wrap{ padding:0; max-width:none; }
 
 .lg-act-row{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; padding:0 14px 14px; }
 
+/* ── the Familista League inside an academy team's workspace ──
+   The same module, a different host. It keeps its masthead — the competition
+   has a name and a season the age-group header does not carry — and gives up
+   nothing else. Its overlay lives inside the host so a panel is positioned
+   against the league the reader is looking at, not the page behind it. */
+.at-lg{ display:flex; flex-direction:column; flex:1 1 auto; min-height:min(720px, 68vh); min-width:0; position:relative; }
+.at-lg > .fl-head-host{ flex:0 0 auto; }
+.at-lg > .fl-body{ flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; scrollbar-gutter:stable; }
+.at-lg .fl-head{ padding-top:0; }
+.at-lg .fl-title{ font-size:20px; }
+.fl-overlay-host--own{ position:static; }
+
 /* ── the Match Center inside an academy team's workspace ──
    The same module, a different host. It gives up the page's own back control
    and its own title — the age-group workspace above it already carries both —

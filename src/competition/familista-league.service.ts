@@ -16,6 +16,7 @@
 
 import { prisma } from '../config/database';
 import { NotFoundError } from '../utils/errors';
+import { LEAGUE_CODE } from './familista-league.bootstrap';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Rules — configuration, not branching
@@ -112,10 +113,23 @@ export async function getLeague(opts: { season?: string; code?: string } = {}): 
   if (opts.code) where.code = opts.code;
   if (opts.season) where.season = opts.season;
 
-  const comp = await prisma.competition.findFirst({
+  let comp = await prisma.competition.findFirst({
     where,
     orderBy: [{ season: 'desc' }, { createdAt: 'desc' }],
   });
+
+  // Asked for no competition in particular, this means THE Familista League —
+  // the club-facing one the First Team plays in. Once academy age groups have
+  // leagues of their own, those are platform LEAGUE competitions too, and the
+  // ordering above would hand back whichever happened to be created last. The
+  // canonical code decides, and only when nothing was asked for by name.
+  if (!opts.code) {
+    const canonical = await prisma.competition.findFirst({
+      where: { ...where, code: LEAGUE_CODE },
+      orderBy: [{ season: 'desc' }, { createdAt: 'desc' }],
+    });
+    if (canonical) comp = canonical;
+  }
   if (!comp) return null;
 
   const [teamCount, seasonRows] = await Promise.all([
@@ -139,6 +153,44 @@ export async function getLeague(opts: { season?: string; code?: string } = {}): 
     teamCount,
     seasons: seasonRows.map((s) => s.season),
   };
+}
+
+/**
+ * The league a given TEAM plays in.
+ *
+ * A club is a First Team and a set of academy age groups, and each of them
+ * plays its own competition — the Under-17s are not in the senior league and
+ * the senior side is not in the youth one. Which league a team is in is not a
+ * guess: it is the CompetitionTeam row that entered them, so this reads that
+ * row rather than deriving anything from an age band or a name.
+ *
+ * Nothing about `getLeague` changes. The First Team's screens still resolve the
+ * platform league by code and season exactly as they did, which is why nothing
+ * on that path had to move for the academy to gain one of its own.
+ */
+export async function getLeagueForTeam(teamId: string, opts: { season?: string } = {}): Promise<LeagueSummary | null> {
+  if (!teamId) return null;
+  const entries = await prisma.competitionTeam.findMany({
+    where: {
+      teamId,
+      competition: {
+        // Platform-owned, like the First Team's: a league between clubs belongs
+        // to the competition, not to either club in it.
+        clubId: null,
+        format: 'LEAGUE',
+        ...(opts.season ? { season: opts.season } : {}),
+      },
+    },
+    select: { competition: { select: { id: true, code: true, season: true } } },
+  });
+  if (!entries.length) return null;
+
+  // The newest season this team is entered in, so a team carried across seasons
+  // opens on the one it is currently playing.
+  const newest = entries
+    .map((e) => e.competition)
+    .sort((a, b) => (a.season < b.season ? 1 : a.season > b.season ? -1 : 0))[0];
+  return getLeague({ code: newest.code, season: newest.season });
 }
 
 async function requireLeague(competitionId: string) {

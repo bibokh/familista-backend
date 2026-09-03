@@ -1332,5 +1332,8 @@
   "Not assigned to manage this team": "Ikke tildelt at styre dette hold",
   "This age group is not linked to a team record yet": "Denne aldersgruppe er endnu ikke knyttet til et hold",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Et holds Kampcenter læser de kampe, der er registreret på det hold. Det vises her, så snart klubbens hold er indlæst.",
-  "You do not have access to that team": "Du har ikke adgang til det hold"
+  "You do not have access to that team": "Du har ikke adgang til det hold",
+  "No active Familista League competition for this team": "Ingen aktiv Familista League-turnering for dette hold",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Dette hold er endnu ikke tilmeldt en ligasæson. Tabel, kampe og spillerrangeringer vises her, så snart det er.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Et holds Familista League læser den turnering, holdet er tilmeldt. Den vises her, så snart klubbens hold er indlæst."
 }

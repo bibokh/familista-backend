@@ -1329,5 +1329,8 @@
   "Not assigned to manage this team": "Không được phân công quản lý đội này",
   "This age group is not linked to a team record yet": "Lứa tuổi này chưa được liên kết với hồ sơ đội",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Trung tâm Trận đấu của một đội đọc các trận được ghi cho đội đó. Nó xuất hiện ở đây ngay khi các đội của câu lạc bộ được tải.",
-  "You do not have access to that team": "Bạn không có quyền truy cập đội đó"
+  "You do not have access to that team": "Bạn không có quyền truy cập đội đó",
+  "No active Familista League competition for this team": "Không có giải Familista League nào đang diễn ra cho đội này",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Đội này chưa được đăng ký vào một mùa giải. Bảng xếp hạng, các trận đấu và bảng xếp hạng cầu thủ sẽ xuất hiện ở đây khi đã đăng ký.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League của một đội đọc giải đấu mà đội đó được đăng ký. Nó xuất hiện ở đây ngay khi các đội của câu lạc bộ được tải."
 }

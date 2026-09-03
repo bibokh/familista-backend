@@ -1332,5 +1332,8 @@
   "Not assigned to manage this team": "Não designado para gerenciar este time",
   "This age group is not linked to a team record yet": "Esta categoria ainda não está vinculada a um registro de time",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "O Centro de Partida de um time lê os jogos registrados para aquele time. Aparece aqui assim que os times do clube forem carregados.",
-  "You do not have access to that team": "Você não tem acesso a esse time"
+  "You do not have access to that team": "Você não tem acesso a esse time",
+  "No active Familista League competition for this team": "Não há competição da Familista League ativa para este time",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Este time ainda não está inscrito em uma temporada de liga. Sua tabela, seus jogos e os rankings de jogadores aparecem aqui quando estiver.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "A Familista League de um time lê a competição em que aquele time está inscrito. Aparece aqui assim que os times do clube forem carregados."
 }

@@ -1329,5 +1329,8 @@
   "Not assigned to manage this team": "未被指派管理這支球隊",
   "This age group is not linked to a team record yet": "此年齡層尚未關聯到球隊紀錄",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "球隊的比賽中心讀取記錄在該隊名下的比賽。俱樂部球隊載入完成後即會顯示在這裡。",
-  "You do not have access to that team": "你沒有該球隊的存取權限"
+  "You do not have access to that team": "你沒有該球隊的存取權限",
+  "No active Familista League competition for this team": "該球隊暫無進行中的 Familista League 賽事",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "該球隊尚未報名參加聯賽賽季。報名後，積分榜、賽程與球員排行榜會顯示在這裡。",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "球隊的 Familista League 讀取該隊報名參加的賽事。俱樂部球隊載入完成後即會顯示在這裡。"
 }

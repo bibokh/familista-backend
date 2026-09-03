@@ -10,11 +10,19 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import * as league from '../competition/familista-league.service';
 import * as admin from '../competition/familista-league.admin.service';
+import * as teamAccess from '../identity/team-access.service';
 import { NotFoundError } from '../utils/errors';
 
 const querySchema = z.object({
   season: z.string().trim().min(1).max(32).optional(),
   code: z.string().trim().min(1).max(64).optional(),
+  /**
+   * The team whose league this is. Naming one scopes every answer below to the
+   * competition THAT team is entered in — which is how an academy age group
+   * reads its own league. Omitting it is the First Team's path, unchanged: the
+   * platform league by code and season, exactly as before.
+   */
+  teamId: z.string().uuid().optional(),
 });
 
 /** The caller's active club, as the auth layer resolved it. Never from input. */
@@ -23,9 +31,42 @@ function callerClubId(req: Request): string | null {
   return u?.currentClubId ?? u?.clubId ?? null;
 }
 
-async function resolveLeague(req: Request) {
+function actorOf2(req: Request): teamAccess.TeamActor {
+  const u = (req as Request & {
+    user?: { id?: string; userId?: string; role?: string; currentClubId?: string; clubId?: string };
+  }).user;
+  return {
+    userId: u?.id ?? u?.userId ?? '',
+    clubId: u?.currentClubId ?? u?.clubId ?? '',
+    role: u?.role,
+  };
+}
+
+/**
+ * The league a request is about, and — when it named a team — what the caller
+ * may do with that team.
+ *
+ * A team id is checked against this caller's assignments BEFORE it is used to
+ * find a competition, so a team id typed into a URL is refused here rather than
+ * quietly answered with somebody else's league.
+ */
+async function resolveScope(req: Request): Promise<{
+  found: league.LeagueSummary | null;
+  teamId: string | null;
+  access: teamAccess.TeamAccess | null;
+}> {
   const q = querySchema.parse(req.query);
+  if (q.teamId) {
+    const access = await teamAccess.assertCanViewTeam(actorOf2(req), q.teamId);
+    const found = await league.getLeagueForTeam(q.teamId, { season: q.season });
+    return { found, teamId: q.teamId, access };
+  }
   const found = await league.getLeague({ season: q.season, code: q.code });
+  return { found, teamId: null, access: null };
+}
+
+async function resolveLeague(req: Request) {
+  const { found } = await resolveScope(req);
   if (!found) throw new NotFoundError('Familista League');
   return found;
 }
@@ -36,25 +77,29 @@ async function resolveLeague(req: Request) {
  */
 export async function getOverview(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const q = querySchema.parse(req.query);
-    const found = await league.getLeague({ season: q.season, code: q.code });
-    // A platform with no league yet is a normal state, not an error: the screen
-    // has an empty state for it and says so rather than failing.
+    const { found, teamId, access } = await resolveScope(req);
+    // A platform with no league yet — or a team not entered in one — is a
+    // normal state, not an error: the screen has an empty state for it and
+    // says so rather than failing.
     if (!found) {
-      res.json({ success: true, data: { league: null, myTeamIds: [] } });
+      res.json({ success: true, data: { league: null, myTeamIds: [], teamId, access } });
       return;
     }
-    const myTeamIds = await league.getMyTeamIds(found.id, callerClubId(req));
-    res.json({ success: true, data: { league: found, myTeamIds } });
+    // Scoped to a team, "my teams in this league" is that team and nothing
+    // else — an age group's table highlights its own row, not its club's
+    // senior side sitting in a different competition.
+    const myTeamIds = teamId ? [teamId] : await league.getMyTeamIds(found.id, callerClubId(req));
+    res.json({ success: true, data: { league: found, myTeamIds, teamId, access } });
   } catch (err) { next(err); }
 }
 
 export async function getStandings(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const found = await resolveLeague(req);
+    const { found, teamId } = await resolveScope(req);
+    if (!found) throw new NotFoundError('Familista League');
     const [table, myTeamIds] = await Promise.all([
       league.getStandings(found.id),
-      league.getMyTeamIds(found.id, callerClubId(req)),
+      teamId ? Promise.resolve([teamId]) : league.getMyTeamIds(found.id, callerClubId(req)),
     ]);
     res.json({ success: true, data: { ...table, myTeamIds, season: found.season } });
   } catch (err) { next(err); }
@@ -147,18 +192,24 @@ function actorOf(req: Request): admin.LeagueActor {
  */
 export async function getManageContext(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const q = querySchema.parse(req.query);
-    const found = await league.getLeague({ season: q.season, code: q.code });
+    // Through the same resolver every other handler uses, so the screen asking
+    // from an age group's workspace is told about THAT team's competition — not
+    // the First Team's, which is what a direct getLeague() call answered and
+    // would have had an administrator editing the wrong league's participants.
+    const { found, teamId, access } = await resolveScope(req);
     let canManage = true;
     try { admin.assertLeagueAdmin(actorOf(req)); } catch (_) { canManage = false; }
     const participants = canManage && found ? await admin.listParticipants(found.id) : [];
     res.json({
       success: true,
       data: {
-        canManage,
+        // A platform administrator still decides who is in a league; scoped to
+        // a team, they must also be able to read that team at all.
+        canManage: canManage && (!teamId || !!access?.canView),
         participants,
         season: found?.season ?? null,
         competitionId: found?.id ?? null,
+        teamId,
         // No competition means no season has been created yet. The panel says
         // so rather than showing an empty list that looks like a lost one.
         hasSeason: !!found,

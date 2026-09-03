@@ -1332,5 +1332,8 @@
   "Not assigned to manage this team": "غير مُسنَد لإدارة هذا الفريق",
   "This age group is not linked to a team record yet": "هذه الفئة العمرية غير مرتبطة بعد بسجل فريق",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "مركز مباريات الفريق يقرأ المباريات المسجَّلة على ذلك الفريق. سيظهر هنا فور تحميل فرق النادي.",
-  "You do not have access to that team": "ليس لديك وصول إلى هذا الفريق"
+  "You do not have access to that team": "ليس لديك وصول إلى هذا الفريق",
+  "No active Familista League competition for this team": "لا توجد مسابقة Familista League نشطة لهذا الفريق",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "هذا الفريق غير مسجَّل بعد في موسم دوري. سيظهر هنا جدول الترتيب والمباريات وتصنيفات اللاعبين فور تسجيله.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "تقرأ Familista League الخاصة بفريقٍ ما المسابقةَ المسجَّل فيها ذلك الفريق. وتظهر هنا فور تحميل فرق النادي."
 }

@@ -111,12 +111,17 @@ describe('a panel never shakes the page under it', () => {
 describe('the League hands a fixture over rather than opening a match itself', () => {
   it('one Fixture row, read by the module that owns match preparation', () => {
     const open = codeOnly(APP.slice(APP.indexOf('function _flOpenMatch('),
-                                    APP.indexOf('function _flOpenMatch(') + 900));
-    // The League navigates to the Match Center and hands it the fixture id. It
-    // does not fetch the match, does not hold it, and does not draw it.
+                                    APP.indexOf('function _flOpenMatch(') + 1700));
+    // The League hands the Match Center the fixture id. It does not fetch the
+    // match, does not hold it, and does not draw it.
     expect(open).toContain("navTo('match-center')");
     expect(open).toContain('_mccOpen(fixtureId, back)');
     expect(open).not.toContain("api('/familista-league/fixtures/");
+    // Inside an age group's workspace the Match Center is a section of the SAME
+    // workspace, so the fixture opens there rather than sending the reader to
+    // the club's First Team page.
+    expect(open).toContain("_atGo('matchCenter')");
+    expect(open).toContain("page: 'academy-team'");
     // The section and the round travel with it, so closing the workspace
     // returns the reader to the League state that launched it.
     expect(open).toContain("page: 'familista-league'");

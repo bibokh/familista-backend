@@ -1332,5 +1332,8 @@
   "Not assigned to manage this team": "לא הוקצה לנהל את הקבוצה הזו",
   "This age group is not linked to a team record yet": "שכבת הגיל הזו עדיין אינה מקושרת לרשומת קבוצה",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "מרכז המשחקים של קבוצה קורא את המשחקים הרשומים על אותה קבוצה. הוא יופיע כאן ברגע שקבוצות המועדון ייטענו.",
-  "You do not have access to that team": "אין לך גישה לקבוצה הזו"
+  "You do not have access to that team": "אין לך גישה לקבוצה הזו",
+  "No active Familista League competition for this team": "אין תחרות Familista League פעילה לקבוצה הזו",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "הקבוצה הזו עדיין לא רשומה לעונת ליגה. הטבלה, המשחקים ודירוגי השחקנים יופיעו כאן ברגע שתירשם.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "ה-Familista League של קבוצה קוראת את התחרות שאליה הקבוצה רשומה. היא תופיע כאן ברגע שקבוצות המועדון ייטענו."
 }

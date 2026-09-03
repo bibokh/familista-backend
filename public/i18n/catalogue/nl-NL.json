@@ -1332,5 +1332,8 @@
   "Not assigned to manage this team": "Niet toegewezen om dit team te beheren",
   "This age group is not linked to a team record yet": "Deze leeftijdsgroep is nog niet gekoppeld aan een teamrecord",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Het Wedstrijdcentrum van een team leest de duels die op dat team staan. Het verschijnt hier zodra de teams van de club zijn geladen.",
-  "You do not have access to that team": "Je hebt geen toegang tot dat team"
+  "You do not have access to that team": "Je hebt geen toegang tot dat team",
+  "No active Familista League competition for this team": "Geen actieve Familista League-competitie voor dit team",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Dit team is nog niet ingeschreven voor een competitieseizoen. De stand, de wedstrijden en de spelersranglijsten verschijnen hier zodra dat wel zo is.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "De Familista League van een team leest de competitie waarvoor dat team is ingeschreven. Die verschijnt hier zodra de teams van de club zijn geladen."
 }

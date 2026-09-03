@@ -15617,6 +15617,14 @@ function _mccClose() {
   window._MC_FOCUS = null;
   _MCC.returnTo = null;
   _mccPaintWorkspace();
+  if (back && back.page === 'academy-team') {
+    // Back into the age group's own workspace, on the section that launched it.
+    try {
+      if (back.stage) AT.active = back.stage;
+      _atGo(back.section || 'familistaLeague');
+    } catch (_) {}
+    return;
+  }
   if (back && back.page === 'familista-league') {
     try {
       // Order matters. Entering the League resets its section and round — that
@@ -49014,8 +49022,11 @@ var AT_SECTIONS = [
   ['dashboard', 'Dashboard', '📊'],
   ['squad', 'Players / Squad', '👥'],
   ['training', 'Training', '🏃'],
-  // This age group's own Match Center: its fixtures, in every competition it
-  // plays in, drawn by the module the First Team uses rather than a second one.
+  // Two separate modules, and they stay separate. The league is the
+  // COMPETITION this age group is entered in — its table, its own fixtures,
+  // its player rankings. The Match Center is every match this age group plays,
+  // in that league and in anything else.
+  ['familistaLeague', 'Familista League', '🏆'],
   ['matchCenter', 'Match Center', '🗓']
 ];
 // Sections that are no longer part of the age-group workspace. A stale state —
@@ -49079,7 +49090,7 @@ function renderAcademyTeamPage() {
           return '<button class="at-nav-item' + (AT.section === s[0] ? ' is-on' : '') + '" type="button" data-at-go="' + s[0] + '"><span class="at-nav-ic">' + s[2] + '</span>' + s[1] + '</button>';
         }).join('') + '</nav>'
       + '<div class="at-content' + (AT.section === 'training' ? ' at-content--full' : '')
-        + (AT.section === 'matchCenter' ? ' at-content--mc' : '') + '" id="at-content">'
+        + (AT.section === 'matchCenter' || AT.section === 'familistaLeague' ? ' at-content--mc' : '') + '" id="at-content">'
         + _atSection(id, AT.section) + '</div>'
     + '</div>'
     // The modal lives in its own host, written separately. It used to be
@@ -49091,11 +49102,41 @@ function renderAcademyTeamPage() {
     // lifecycle here now.
     + '<div id="at-modal-host"></div>';
   _atRenderPlayerModal();
-  // The Match Center draws itself into the host this section just made, scoped
-  // to THIS age group's own team. It is the same module the First Team uses —
-  // the same calendar, the same workspace, the same four views — reading a
+  // Each module draws itself into the host its section just made, scoped to
+  // THIS age group's own team. They are the same modules the First Team uses —
+  // the same table, the same calendar, the same match workspace — reading a
   // different team, which is the whole point of having one implementation.
+  _atPaintLeague(id);
   _atPaintMatchCenter(id);
+}
+
+// ── this age group's Familista League ───────────────────────────────────────
+//
+// The competition this team is ENTERED in, which is a CompetitionTeam row and
+// not an inference from an age band. A team entered in nothing gets the empty
+// state that says so rather than the platform league's table.
+function _atSecLeague(id) {
+  var teamId = _atServerTeamId(id);
+  if (!teamId) {
+    return '<div class="at-card at-mc-none">'
+      + _lgEmpty('This age group is not linked to a team record yet',
+          'A team\'s Familista League reads the competition that team is entered in. It appears here as soon as the club\'s teams have loaded.')
+      + '</div>';
+  }
+  return '<div class="at-lg" data-at-lg-team="' + _viEscSafe(teamId) + '"></div>';
+}
+
+function _atPaintLeague(id) {
+  if (AT.section !== 'familistaLeague') return;
+  var host = document.querySelector('#at-content .at-lg');
+  if (!host) return;
+  var teamId = host.getAttribute('data-at-lg-team');
+  if (!teamId) return;
+  var acc = null;
+  try { var a = _acAccess(id); acc = { canView: a.canView, canManage: a.canManage }; } catch (_) {}
+  try { renderFamilistaLeaguePage({ host: host, teamId: teamId, access: acc }); } catch (e) {
+    try { console.error('[academy] familista league failed:', e); } catch (_) {}
+  }
 }
 
 // ── this age group's Match Center ───────────────────────────────────────────
@@ -49189,7 +49230,8 @@ function _atNextEvent(id) {
 function _atResolveSection() {
   var sec = AT.section;
   if (AT_REDIRECT[sec]) sec = AT_REDIRECT[sec];
-  if (sec !== 'dashboard' && sec !== 'squad' && sec !== 'training' && sec !== 'matchCenter') sec = 'dashboard';
+  if (sec !== 'dashboard' && sec !== 'squad' && sec !== 'training'
+      && sec !== 'familistaLeague' && sec !== 'matchCenter') sec = 'dashboard';
   if (sec !== AT.section) { AT.section = sec; AT.luView = null; }
   return sec;
 }
@@ -49199,6 +49241,7 @@ function _atSection(id, sec) {
     case 'dashboard':  return _atSecDashboard(id);
     case 'squad':      return _atSecSquadHub(id);
     case 'training':   return _atSecTraining(id);
+    case 'familistaLeague':      return _atSecLeague(id);
     case 'matchCenter': return _atSecMatchCenter(id);
     default:           AT.section = 'dashboard'; return _atSecDashboard(id);
   }
@@ -65082,6 +65125,15 @@ var _FL = {
   tab: 'standings',        // standings | matches | players
   league: null,
   myTeamIds: [],
+  // WHICH team's league this is, and WHERE it is drawn. The First Team's own
+  // page leaves both null: that is the module's default — the platform league
+  // by code and season — and nothing about it changed when the academy gained
+  // a league of its own. An academy age group sets its real team id and its
+  // own host, and the same engine draws that team's competition instead.
+  teamId: null,
+  host: null,
+  // What this reader may do with that team, as the server answered it.
+  access: null,
   standings: null,
   zones: [],
   matches: null,
@@ -65102,6 +65154,25 @@ function _flMine(teamId) {
   return !!teamId && _FL.myTeamIds.indexOf(teamId) >= 0;
 }
 
+// The element this League is drawn inside. The First Team's page owns
+// #fl-shell; an academy team workspace passes its own node. Every lookup goes
+// through here, so two hosts can never fight over one id.
+function _flRoot() {
+  if (_FL.host && _FL.host.isConnected) return _FL.host;
+  return document.getElementById('fl-shell');
+}
+function _flNode(sel) { var r = _flRoot(); return r ? r.querySelector(sel) : null; }
+
+// May this reader change this team's league operations? The server answered it.
+function _flCanManageTeam() {
+  if (!_FL.teamId) return true;              // the First Team's own page
+  return !!(_FL.access && _FL.access.canManage);
+}
+
+// The team travels with every request, so the SERVER scopes the answer rather
+// than the screen filtering one it should never have been handed.
+function _flTeamQ() { return _FL.teamId ? 'teamId=' + encodeURIComponent(_FL.teamId) : ''; }
+
 // A crest by club id, using the one primitive the whole platform draws crests
 // with. Falls back to the neutral shield when a club has none.
 function _flCrest(clubId, size) {
@@ -65118,10 +65189,42 @@ function renderFamilistaLeagueHTML() {
     + '</div>';
 }
 
-function renderFamilistaLeaguePage() {
-  var host = document.getElementById('fl-shell'); if (!host) return;
+// The markup a League is drawn into. One definition, so the First Team's page
+// and an academy team's workspace get the same three regions rather than two
+// arrangements that have to be kept in step. Ids belong to the standalone page
+// only — an academy host is addressed through the node it was handed, so two
+// hosts in one document can never share one id.
+function _flShellHtml(standalone) {
+  return '<div class="fl-head-host"' + (standalone ? ' id="fl-head"' : '') + '></div>'
+    + '<div class="fl-body"' + (standalone ? ' id="fl-body"' : '') + '>' + _flSkeleton('table') + '</div>'
+    + '<div class="fl-overlay-host fl-overlay-host--own"' + (standalone ? '' : '') + '></div>';
+}
+
+/**
+ * Draw the Familista League.
+ *
+ * `opts.host` is the node to draw into and `opts.teamId` the team whose league
+ * it is. The First Team's own page passes neither: it is the module's default —
+ * the platform league by code and season — and nothing about it changed when
+ * the academy gained a league of its own. An academy age group passes both, and
+ * the same engine draws the competition THAT team is entered in.
+ */
+function renderFamilistaLeaguePage(opts) {
+  var o = opts || {};
+  var standalone = !o.host;
+  var host = o.host || document.getElementById('fl-shell');
+  if (!host) return;
+  var teamId = o.teamId || null;
+  // Switching team is switching competition: what is held belongs to the team
+  // it was read for, and carrying it across would show one team another's table.
+  if (_FL.host !== host || _FL.teamId !== teamId) {
+    _FL.host = host; _FL.teamId = teamId; _FL.access = o.access || null;
+    _FL.league = null; _FL.standings = null; _FL.matches = null; _FL.boards = null;
+    _FL.canManage = false; _FL.hasSeason = false;
+    _FL.loading = {}; _FL.error = {};
+  }
   _FL.tab = 'standings'; _FL.team = null; _FL.preview = null; _FL.rules = false; _FL.round = null;
-  host.innerHTML = '<div id="fl-head"></div><div class="fl-body" id="fl-body">' + _flSkeleton('table') + '</div>';
+  host.innerHTML = _flShellHtml(standalone);
   _flPaintHead();
   _flLoadOverview();
 }
@@ -65165,7 +65268,7 @@ function _flPaintI18n(el) {
 }
 
 function _flPaintHead() {
-  var head = document.getElementById('fl-head');
+  var head = _flNode('.fl-head-host');
   if (!head) return;
   // innerHTML, not outerHTML: replacing the node itself destroys and rebuilds
   // the tab strip on every paint, which is a layout pass nobody asked for.
@@ -65175,7 +65278,7 @@ function _flPaintHead() {
 }
 
 function _flPaintBody() {
-  var b = document.getElementById('fl-body');
+  var b = _flNode('.fl-body');
   if (!b) return;
   b.innerHTML = _flBodyHtml();
   _flPaintZones(b);
@@ -65183,7 +65286,11 @@ function _flPaintBody() {
 }
 
 function _flPaintOverlay() {
-  var ov = document.getElementById('fl-overlay');
+  // The standalone page keeps its overlay outside the shell so a panel is never
+  // clipped by it; an embedded League carries its own inside the host it was
+  // handed. Whichever exists for the League being drawn is the one painted.
+  var ov = (_FL.teamId ? _flNode('.fl-overlay-host--own') : null)
+    || document.getElementById('fl-overlay');
   if (!ov) return;
   var html = (_FL.rules ? _flRulesHtml() : '')
     + (_FL.team ? _flTeamHtml() : '')
@@ -65228,15 +65335,23 @@ function _flHeaderHtml() {
       + '</dl>'
     : '';
 
-  return '<header class="fl-head">'
+  // Whose competition this is. An academy age group is inside its own
+  // workspace, which already carries the club and the age band, so the eyebrow
+  // names the TEAM and the title stays the competition's own name.
+  var scoped = !!_FL.teamId;
+  var eyebrow = scoped
+    ? '<span data-user-content>' + _esc(_flTeamName()) + '</span>'
+    : 'Familista League';
+  return '<header class="fl-head' + (scoped ? ' fl-head--scoped' : '') + '">'
     + '<div class="fl-head-top">'
     + '  <div class="fl-mark" aria-hidden="true">' + _lgIcon('trophy') + '</div>'
     + '  <div class="fl-title-wrap">'
-    + '    <div class="fl-eyebrow">Familista League</div>'
+    + '    <div class="fl-eyebrow">' + eyebrow + '</div>'
     + '    <h1 class="fl-title">' + titleHtml + '</h1>'
     + '  </div>'
     + facts
     + '</div>'
+    + _flAccessNoteHtml()
     // One control bar: the sections on the left as an underlined nav, what the
     // workspace can do on the right. Filled pills made four equal buttons of
     // which one happened to be lit; a rule under the live one states where the
@@ -65253,9 +65368,10 @@ function _flHeaderHtml() {
     + '  <div class="fl-head-actions">'
     // One Match Center entry, and it is the tab. A second call to action beside
     // the tab that already does it is one control too many.
-    + (_FL.canManage
-      // Shown only to somebody the server says may use it. A control that is
-      // there and then refuses is worse than one that was never offered.
+    + (_FL.canManage && _flCanManageTeam()
+      // Shown only to somebody the server says may use it — for the platform
+      // league AND, when this is a team's own competition, for that team. A
+      // control that is there and then refuses is worse than one never offered.
       ? '  <button class="fl-manage-btn" data-action="flManage" type="button"'
         + '          title="Manage league participants" data-i18n-title="league.manage.tooltip">'
         + _lgIcon('teams') + '<span>Manage Teams</span>'
@@ -65269,6 +65385,30 @@ function _flHeaderHtml() {
     + '  </div>'
     + '</div>'
     + '</header>';
+}
+
+// The team this league is about, as the server named it in the table.
+function _flTeamName() {
+  var rows = _FL.standings || [];
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].teamId === _FL.teamId) return rows[i].teamName || rows[i].clubName || '';
+  }
+  // Before the table has landed, the workspace around it already knows.
+  try {
+    if (typeof AT !== 'undefined' && AT.active && typeof _acStage === 'function') return _acStage(AT.active).label;
+  } catch (_) {}
+  return '';
+}
+
+// The band that says what a reader may do with the team whose league this is.
+// The same sentence the Match Center uses, because it is the same fact.
+function _flAccessNoteHtml() {
+  if (!_FL.teamId || _flCanManageTeam()) return '';
+  return '<div class="mcc-ro">'
+    + '<span class="mcc-ro-ic" aria-hidden="true">' + _lgIcon('lock') + '</span>'
+    + '<span class="mcc-ro-t">You are not assigned to manage this team</span>'
+    + '<span class="mcc-ro-s">Read-only access. Contact a club admin for team access.</span>'
+    + '</div>';
 }
 
 // ── loading, empty and error states ─────────────────────────────────────────
@@ -65301,6 +65441,8 @@ function _flError(sentence) {
 function _flSeasonQ(extra) {
   var q = [];
   if (_FL.league && _FL.league.season) q.push('season=' + encodeURIComponent(_FL.league.season));
+  var team = _flTeamQ();
+  if (team) q.push(team);
   if (extra) q.push(extra);
   return q.length ? '?' + q.join('&') : '';
 }
@@ -65308,10 +65450,16 @@ function _flSeasonQ(extra) {
 async function _flLoadOverview() {
   _FL.loading.overview = true; _FL.error.overview = false;
   try {
-    var r = await api('/familista-league/overview');
+    var team = _flTeamQ();
+    var asked = _FL.teamId;
+    var r = await api('/familista-league/overview' + (team ? '?' + team : ''));
+    // A slower answer for a team the reader has since left is dropped rather
+    // than painted over the one they are looking at now.
+    if (_FL.teamId !== asked) return;
     var d = (r && r.data) || {};
     _FL.league = d.league || null;
     _FL.myTeamIds = Array.isArray(d.myTeamIds) ? d.myTeamIds : [];
+    if (d.access) _FL.access = d.access;
     // Whether this reader may manage the league is the server's answer, asked
     // once. A club user gets false and never sees the control.
     //
@@ -65381,8 +65529,14 @@ function _flBodyHtml() {
   if (_FL.loading.overview) return _flSkeleton('table');
   if (_FL.error.overview)   return _flError('Could not load the league');
   if (!_FL.league) {
-    return _flEmpty('No active Familista League season',
-      'When a league season is created for the platform, its table, fixtures and player rankings appear here.');
+    // Scoped to a team, "no league" means THIS team is not entered in one —
+    // not that the platform has none. Saying the platform's sentence here
+    // would be wrong, and inventing a season to fill the screen would be worse.
+    return _FL.teamId
+      ? _flEmpty('No active Familista League competition for this team',
+          'This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.')
+      : _flEmpty('No active Familista League season',
+          'When a league season is created for the platform, its table, fixtures and player rankings appear here.');
   }
   if (_FL.tab === 'standings') return _flStandingsHtml();
   if (_FL.tab === 'matches')   return _flMatchesHtml();
@@ -65905,6 +66059,18 @@ function _flOpenMatch(fixtureId) {
   if (!fixtureId) return;
   _FL.preview = null;
   _flPaintOverlay();
+  // Inside an age group's workspace the Match Center is a section of the SAME
+  // workspace, so the fixture opens there rather than sending the reader to the
+  // club's First Team page. One fixture, two views of it, and no navigation
+  // out of the team the reader is inside.
+  if (_FL.teamId && typeof AT !== 'undefined' && AT.active) {
+    var stage = AT.active;
+    try { _atGo('matchCenter'); } catch (_) {}
+    setTimeout(function () {
+      try { _mccOpen(fixtureId, { page: 'academy-team', stage: stage, section: 'familistaLeague' }); } catch (_) {}
+    }, 0);
+    return;
+  }
   var back = { page: 'familista-league', tab: _FL.tab === 'standings' ? 'matches' : _FL.tab, round: _FL.round };
   try { navTo('match-center'); } catch (_) {}
   // After the navigation, so the workspace opens over a calendar that is
@@ -66121,7 +66287,7 @@ document.addEventListener('click', function (ev) {
 // Escape closes whichever panel is open, innermost first.
 document.addEventListener('keydown', function (ev) {
   if (ev.key !== 'Escape') return;
-  if (!document.getElementById('fl-shell')) return;
+  if (!_flRoot()) return;
   if (_FL.preview) { _FL.preview = null; _flPaintOverlay(); }
   else if (_FL.team) { _FL.team = null; _flPaintOverlay(); }
   else if (_FL.rules) { _FL.rules = false; _flPaintOverlay(); }
@@ -66136,7 +66302,7 @@ document.addEventListener('keydown', function (ev) {
     try {
       if (!window.I18N_APPLY) return false;
       I18N_APPLY.registerRepaint(function () {
-        if (document.getElementById('fl-shell')) { try { _flRepaint(); } catch (_) {} }
+        if (_flRoot()) { try { _flRepaint(); } catch (_) {} }
       });
       return true;
     } catch (_) { return false; }

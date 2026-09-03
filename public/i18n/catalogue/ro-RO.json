@@ -1332,5 +1332,8 @@
   "Not assigned to manage this team": "Nedesemnat să gestionezi această echipă",
   "This age group is not linked to a team record yet": "Această grupă de vârstă nu este încă legată de o înregistrare de echipă",
   "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Centrul de Meci al unei echipe citește partidele înregistrate pentru acea echipă. Apare aici imediat ce echipele clubului sunt încărcate.",
-  "You do not have access to that team": "Nu ai acces la acea echipă"
+  "You do not have access to that team": "Nu ai acces la acea echipă",
+  "No active Familista League competition for this team": "Nicio competiție Familista League activă pentru această echipă",
+  "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Această echipă nu este încă înscrisă într-un sezon de ligă. Clasamentul, meciurile și clasamentele jucătorilor apar aici de îndată ce va fi.",
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League a unei echipe citește competiția în care acea echipă este înscrisă. Apare aici imediat ce echipele clubului sunt încărcate."
 }
