@@ -1320,5 +1320,14 @@
   "Withdraw request": "ถอนคำขอ",
   "Accept new time": "ยอมรับเวลาใหม่",
   "Reject new time": "ปฏิเสธเวลาใหม่",
-  "This request is with the other club and the competition.": "คำขอนี้อยู่ที่สโมสรอีกฝ่ายและฝ่ายจัดการแข่งขัน"
+  "This request is with the other club and the competition.": "คำขอนี้อยู่ที่สโมสรอีกฝ่ายและฝ่ายจัดการแข่งขัน",
+  "Read-only access. Contact a club admin for team access.": "สิทธิ์อ่านอย่างเดียว ติดต่อผู้ดูแลสโมสรเพื่อขอสิทธิ์เข้าถึงทีม",
+  "You are not assigned to manage this team": "คุณไม่ได้รับมอบหมายให้ดูแลทีมนี้",
+  "No access": "ไม่มีสิทธิ์เข้าถึง",
+  "Open read-only": "เปิดแบบอ่านอย่างเดียว",
+  "Contact club admin for team access": "ติดต่อผู้ดูแลสโมสรเพื่อขอสิทธิ์เข้าถึงทีม",
+  "Not assigned to manage this team": "ไม่ได้รับมอบหมายให้ดูแลทีมนี้",
+  "This age group is not linked to a team record yet": "รุ่นอายุนี้ยังไม่ได้เชื่อมกับข้อมูลทีม",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "ศูนย์การแข่งขันของทีมจะอ่านนัดที่บันทึกไว้กับทีมนั้น และจะปรากฏที่นี่ทันทีที่ข้อมูลทีมของสโมสรถูกโหลด",
+  "You do not have access to that team": "คุณไม่มีสิทธิ์เข้าถึงทีมนั้น"
 }

@@ -1323,5 +1323,14 @@
   "Withdraw request": "Verzoek intrekken",
   "Accept new time": "Nieuwe tijd accepteren",
   "Reject new time": "Nieuwe tijd weigeren",
-  "This request is with the other club and the competition.": "Dit verzoek ligt bij de andere club en bij de competitie."
+  "This request is with the other club and the competition.": "Dit verzoek ligt bij de andere club en bij de competitie.",
+  "Read-only access. Contact a club admin for team access.": "Alleen-lezen toegang. Neem contact op met een clubbeheerder voor teamtoegang.",
+  "You are not assigned to manage this team": "Je bent niet toegewezen om dit team te beheren",
+  "No access": "Geen toegang",
+  "Open read-only": "Openen als alleen-lezen",
+  "Contact club admin for team access": "Neem contact op met de clubbeheerder voor teamtoegang",
+  "Not assigned to manage this team": "Niet toegewezen om dit team te beheren",
+  "This age group is not linked to a team record yet": "Deze leeftijdsgroep is nog niet gekoppeld aan een teamrecord",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Het Wedstrijdcentrum van een team leest de duels die op dat team staan. Het verschijnt hier zodra de teams van de club zijn geladen.",
+  "You do not have access to that team": "Je hebt geen toegang tot dat team"
 }

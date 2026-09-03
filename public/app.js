@@ -14923,7 +14923,25 @@ var _MCC = {
   open: null,       // { fixtureId, loading, error, data }
   change: null,     // the reschedule workflow, when one is open
   returnTo: null,   // { page, tab, round } — where the workspace was opened from
+  // WHICH team's calendar this is, and WHERE it is drawn. The First Team's own
+  // page leaves both null: it is the module's default and nothing about it
+  // changed when the academy gained a calendar of its own. An academy age group
+  // sets its real team id and its own host, and the same code draws it.
+  teamId: null,
+  host: null,
+  // What this reader may do with that team, as the server answered it. The
+  // screen draws its read-only state from this rather than deciding for itself.
+  access: null,
 };
+
+// The element this Match Center is drawn inside. The First Team's page owns
+// #match-center-content; an academy team workspace passes its own node. Every
+// lookup below goes through here, so two hosts can never fight over one id.
+function _mccRoot() {
+  if (_MCC.host && _MCC.host.isConnected) return _MCC.host;
+  return document.getElementById('match-center-content');
+}
+function _mccNode(sel) { var r = _mccRoot(); return r ? r.querySelector(sel) : null; }
 
 // Redraw the workspace where it stands: the floating layer only, so the
 // calendar underneath does not move, reflow or lose its scroll position.
@@ -15365,17 +15383,43 @@ function _mccFiltersHtml() {
     + '</div>';
 }
 
+// May this reader change this team's calendar? The server answered it; the
+// screen never decides for itself, and a `false` here is the same `false` the
+// write route enforces.
+function _mccCanManage() {
+  if (!_MCC.teamId) return true;             // the First Team's own page
+  return !!(_MCC.access && _MCC.access.canManage);
+}
+
+// The band that says what a reader may do with the team they are looking at.
+// Never ambiguous: either nothing is drawn because they run this team, or it
+// says plainly that they do not and what to do about it.
+function _mccAccessNoteHtml() {
+  if (!_MCC.teamId || _mccCanManage()) return '';
+  return '<div class="mcc-ro">'
+    + '<span class="mcc-ro-ic" aria-hidden="true">' + _lgIcon('lock') + '</span>'
+    + '<span class="mcc-ro-t">You are not assigned to manage this team</span>'
+    + '<span class="mcc-ro-s">Read-only access. Contact a club admin for team access.</span>'
+    + '</div>';
+}
+
 function _mccHeadHtml() {
   var rows = (_MCC.data && _MCC.data.fixtures) || [];
   var up = rows.filter(function (r) { return _mccState(r) === 'up'; }).length;
   var done = rows.filter(function (r) { return _mccState(r) === 'done'; }).length;
   var comps = ((_MCC.data && _MCC.data.competitions) || []).length;
-  return '<header class="mcc-head">'
+  // Whose calendar this is. An academy age group is inside its own workspace,
+  // which already carries a back control and a name, so the module says the
+  // team and leaves the shell alone.
+  var scoped = !!_MCC.teamId;
+  var teamName = scoped ? _mccTeamName() : '';
+  return '<header class="mcc-head' + (scoped ? ' mcc-head--scoped' : '') + '">'
     + '<div class="mcc-head-top">'
-    + '  <button class="mcx-back" type="button" data-action="navTo" data-page="club-home">'
-    + _lgIcon('back') + '<span>Club Workspace</span></button>'
+    + (scoped ? '' : '  <button class="mcx-back" type="button" data-action="navTo" data-page="club-home">'
+        + _lgIcon('back') + '<span>Club Workspace</span></button>')
     + '  <div class="mcc-title-wrap">'
-    + '    <div class="mcc-eyebrow">First Team</div>'
+    + '    <div class="mcc-eyebrow"' + (scoped ? ' data-user-content' : '') + '>'
+    + (scoped ? _esc(teamName) : 'First Team') + '</div>'
     + '    <h1 class="mcc-h1">Match Center</h1>'
     + '  </div>'
     + '  <dl class="fl-facts">'
@@ -15384,8 +15428,23 @@ function _mccHeadHtml() {
     + '    <div class="fl-fact"><dt>Competitions</dt><dd data-no-i18n>' + comps + '</dd></div>'
     + '  </dl>'
     + '</div>'
+    + _mccAccessNoteHtml()
     + _mccFiltersHtml()
     + '</header>';
+}
+
+// The team this calendar is about, as the server named it.
+function _mccTeamName() {
+  var a = _MCC.access;
+  var d = _MCC.data;
+  if (d && Array.isArray(d.fixtures)) {
+    for (var i = 0; i < d.fixtures.length; i++) {
+      var f = d.fixtures[i];
+      var side = f.ourSide === 'away' ? f.away : f.home;
+      if (side && side.teamId === _MCC.teamId) return side.teamName || side.clubName || '';
+    }
+  }
+  return (a && a.teamName) || '';
 }
 
 // ── painting, in independent regions ────────────────────────────────────────
@@ -15396,7 +15455,7 @@ function _mccHeadHtml() {
 // position and the page's geometry exactly where the reader left them.
 
 function _mccPaintHead() {
-  var h = document.getElementById('mcc-head');
+  var h = _mccNode('.mcc-head-host');
   if (!h) return;
   h.innerHTML = _mccHeadHtml();
   _mcPaintComputed(h);
@@ -15404,7 +15463,7 @@ function _mccPaintHead() {
 }
 
 function _mccPaintList() {
-  var b = document.getElementById('mcc-list');
+  var b = _mccNode('.mcc-body');
   if (!b) return;
   b.innerHTML = _mccListHtml();
   _mcPaintComputed(b);
@@ -15414,7 +15473,7 @@ function _mccPaintList() {
 // The floating layer: the Match Workspace, and the reschedule workflow above
 // it. Both are `position: fixed`, so neither can move the calendar.
 function _mccPaintWorkspace() {
-  var host = document.getElementById('mcx-workspace');
+  var host = _mccNode('.mcx-layer--workspace');
   if (!host) return;
   var on = !!_MCC.open;
   host.innerHTML = on ? _mcWorkspaceHtml() : '';
@@ -15429,7 +15488,7 @@ function _mccPaintWorkspace() {
 }
 
 function _mccPaintChange() {
-  var host = document.getElementById('mcx-change');
+  var host = _mccNode('.mcx-layer--change');
   if (!host) return;
   var on = !!_MCC.change;
   host.innerHTML = on ? _mccChangeHtml() : '';
@@ -15442,22 +15501,51 @@ function _mccPaintChange() {
 
 // ── the page ────────────────────────────────────────────────────────────────
 
-function renderMatchCenter() {
-  var el = document.getElementById('match-center-content');
+// The markup a Match Center is drawn into. One definition, so the First Team's
+// page and an academy team's workspace get the same three regions rather than
+// two arrangements that have to be kept in step. Ids belong to the standalone
+// page only — an academy host is addressed through the node it was handed, so
+// two hosts in one document can never share one id.
+function _mccShellHtml(standalone) {
+  return '<div class="mcc">'
+    + '<div class="mcc-head-host"' + (standalone ? ' id="mcc-head"' : '') + '></div>'
+    + '<div class="mcc-body"' + (standalone ? ' id="mcc-list"' : '') + '>' + _flSkeleton('cards') + '</div>'
+    + '</div>'
+    // Two layers, outside the calendar's flow: the workspace, and whatever
+    // opens on top of it. Neither can reflow what is underneath.
+    + '<div class="mcx-layer mcx-layer--workspace"' + (standalone ? ' id="mcx-workspace"' : '') + '></div>'
+    + '<div class="mcx-layer mcx-layer--top mcx-layer--change"' + (standalone ? ' id="mcx-change"' : '') + '></div>';
+}
+
+/**
+ * Draw the Match Center.
+ *
+ * `opts.host` is the node to draw into and `opts.teamId` the team whose
+ * calendar it is. The First Team's own page passes neither: it is the module's
+ * default, and nothing about it changed when the academy gained a Match Center
+ * of its own. An academy age group passes both, and the same code — the same
+ * calendar, the same workspace, the same four views — draws that team instead.
+ */
+function renderMatchCenter(opts) {
+  var o = opts || {};
+  var standalone = !o.host;
+  var el = o.host || document.getElementById('match-center-content');
   if (!el) return;
+  // Switching team is switching calendar: what is held belongs to the team it
+  // was read for, and carrying it across would show one team another's matches.
+  var teamId = o.teamId || null;
+  if (_MCC.host !== el || _MCC.teamId !== teamId) {
+    _MCC.host = el; _MCC.teamId = teamId;
+    _MCC.data = null; _MCC.access = null; _MCC.error = false;
+    _MCC.open = null; _MCC.change = null; _MCC.returnTo = null;
+    _MCC.filter = { competitionId: '', venue: 'all', state: 'all', from: '', to: '' };
+    try { window._MC_FOCUS = null; } catch (_) {}
+    el.innerHTML = '';
+  }
   try {
     // Painted before anything is read, like every other workspace page, so
     // arriving here is a navigation rather than a wait.
-    if (!el.querySelector('#mcc-list')) {
-      el.innerHTML = '<div class="mcc">'
-        + '<div id="mcc-head"></div>'
-        + '<div class="mcc-body" id="mcc-list">' + _flSkeleton('cards') + '</div>'
-        + '</div>'
-        // Two layers, outside the calendar's flow: the workspace, and whatever
-        // opens on top of it. Neither can reflow what is underneath.
-        + '<div class="mcx-layer" id="mcx-workspace"></div>'
-        + '<div class="mcx-layer mcx-layer--top" id="mcx-change"></div>';
-    }
+    if (!el.querySelector('.mcc-body')) el.innerHTML = _mccShellHtml(standalone);
     _mccPaintHead();
     _mccPaintList();
     _mccPaintWorkspace();
@@ -15474,10 +15562,19 @@ function renderMatchCenter() {
 async function _mccLoad() {
   _MCC.loading = true; _MCC.error = false;
   _mccPaintList();
+  // The team travels with the request, so the server scopes the answer rather
+  // than the screen filtering one it should never have been given.
+  var q = _MCC.teamId ? '?teamId=' + encodeURIComponent(_MCC.teamId) : '';
+  var asked = _MCC.teamId;
   try {
-    var r = await api('/match-center/calendar');
+    var r = await api('/match-center/calendar' + q);
+    // A slower answer for a team the reader has since left is dropped rather
+    // than painted over the one they are looking at now.
+    if (_MCC.teamId !== asked) return;
     _MCC.data = (r && r.data) || null;
+    _MCC.access = (_MCC.data && _MCC.data.access) || null;
   } catch (e) {
+    if (_MCC.teamId !== asked) return;
     _MCC.error = true;
   }
   _MCC.loading = false;
@@ -15622,7 +15719,11 @@ function _mcWorkspaceHtml() {
       ? _lgChip('', _lgIcon('weather') + ' <span data-no-i18n>' + Math.round(d.weather.temperatureC) + '°</span>', 'when')
       : '<span class="lg-chip lg-chip--none">' + _lgIcon('weather') + '<span>Weather unavailable</span></span>';
 
-    var canAsk = next && !played && String(next.status || '').toUpperCase() !== 'CANCELLED';
+    // Offered only to somebody assigned to manage this team. The server refuses
+    // it either way; not drawing it is how the screen stays honest rather than
+    // inviting a click that will be turned down.
+    var canAsk = next && !played && String(next.status || '').toUpperCase() !== 'CANCELLED'
+      && _mccCanManage();
 
     var ident = '<div class="mcx-head-id">'
       + '  <button class="mcx-back" type="button" data-action="mccClose">'
@@ -16909,7 +17010,7 @@ function _mcComparisonHtml() {
 function _mcPaintCmp() {
   // Scoped to the workspace's own layer: the comparison belongs to the match
   // that is open, and nothing outside that layer may be touched by opening it.
-  var root = document.getElementById('mcx-workspace');
+  var root = _mccNode('.mcx-layer--workspace');
   var host = root ? root.querySelector('.mcx-overlay') : null;
   if (!host) return;
   var on = !!_MC.cmp;
@@ -16942,7 +17043,7 @@ document.addEventListener('click', function (ev) {
         bs[i].setAttribute('aria-selected', on ? 'true' : 'false');
       }
     }
-    var deskRoot = document.getElementById('mcx-workspace');
+    var deskRoot = _mccNode('.mcx-layer--workspace');
     var desk = deskRoot ? deskRoot.querySelector('.mcx-desk') : null;
     if (!desk) { _mcRedraw(); return; }
     try {
@@ -48439,15 +48540,77 @@ function _acResponsible(id) { return AC_COACHES[id] || '—'; }
 function _acRole() { try { return String((window.State && State.user && State.user.role) || '').toUpperCase(); } catch (e) { return ''; } }
 function _acIsManager() { return /ADMIN|MANAGER|OWNER|DIRECTOR|SUPER|HEAD|PRESIDENT/.test(_acRole()); }
 function _acMyName() { try { var u = window.State && State.user; return u ? ([u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email || '') : ''; } catch (e) { return ''; } }
-// Responsibility-based access: managers oversee all; a coach opens only their own team.
-function _acCanOpen(id) { if (_acIsManager()) return true; var me = _acMyName().toLowerCase(); return !!me && _acResponsible(id).toLowerCase() === me; }
+
+// ── who may run which team, as the server answers it ────────────────────────
+//
+// A club is a First Team and a set of academy age groups, and an assignment to
+// one of them is not an assignment to the others. That decision belongs to the
+// server — identity/team-access.service.ts — and this is the client's copy of
+// its answer, read once per club entry. The screen never decides for itself:
+// hiding a control is a courtesy, and the route refuses the action regardless.
+var _TA = { state: 'idle', byTeamId: {}, teams: [] };
+
+async function _taLoad(force) {
+  if (_TA.state === 'loading') return _TA;
+  if (_TA.state === 'ready' && !force) return _TA;
+  _TA.state = 'loading';
+  try {
+    var r = await api('/match-center/teams');
+    var teams = ((r && r.data) || {}).teams || [];
+    var by = {};
+    teams.forEach(function (t) { by[t.teamId] = t; });
+    _TA.teams = teams; _TA.byTeamId = by; _TA.state = 'ready';
+  } catch (e) {
+    // Unreachable is not "denied": the local rule below keeps working, and the
+    // server still refuses anything it should.
+    _TA.state = 'failed';
+  }
+  try { if (document.getElementById('ac-portal-slot')) renderAcademyPage(); } catch (_) {}
+  try { if (AT.active && document.getElementById('at-shell')) renderAcademyTeamPage(); } catch (_) {}
+  return _TA;
+}
+window._taLoad = _taLoad;
+
+// What this person may do with one age group, by its real team row.
+function _acAccess(id) {
+  var teamId = null;
+  try { teamId = _atServerTeamId(id); } catch (_) {}
+  if (_TA.state === 'ready' && teamId && _TA.byTeamId[teamId]) {
+    var a = _TA.byTeamId[teamId].access || {};
+    return { known: true, teamId: teamId, canView: !!a.canView, canManage: !!a.canManage, reason: a.reason || '' };
+  }
+  if (_TA.state === 'ready') {
+    // The server answered, and this age group has no team row behind it. There
+    // is nothing on the server to control, so nobody is said to control it —
+    // falling back to the old local rule here is exactly how a First Team coach
+    // would end up "managing" an academy side they were never assigned to.
+    return { known: true, teamId: null, canView: true, canManage: false, reason: 'NO_TEAM_RECORD' };
+  }
+  // Not hydrated yet — the pre-existing local rule, unchanged, so a session
+  // that has not loaded its teams behaves exactly as it did before.
+  var local = _acIsManager() || (function () {
+    var me = _acMyName().toLowerCase();
+    return !!me && _acResponsible(id).toLowerCase() === me;
+  })();
+  return { known: false, teamId: teamId, canView: local, canManage: local, reason: '' };
+}
+
+// Opening a team is reading it. Control is a separate question, asked below.
+function _acCanOpen(id) { return _acAccess(id).canView; }
+function _acCanManage(id) { return _acAccess(id).canManage; }
 
 function renderAcademyHTML() {
   _acLoad();
   if (typeof document !== 'undefined') setTimeout(function () { try { renderAcademyPage(); } catch (e) {} }, 0);
   return '<div class="page" id="pg-academy">' + _famBackBtn() + '<div id="ac-portal-slot">' + _acPortal() + '</div></div>';
 }
-function renderAcademyPage() { var el = document.getElementById('ac-portal-slot'); if (el) el.innerHTML = _acPortal(); }
+function renderAcademyPage() {
+  var el = document.getElementById('ac-portal-slot'); if (!el) return;
+  el.innerHTML = _acPortal();
+  // Asked once, and repainted when it lands. A card drawn before the answer
+  // arrives uses the local rule and is corrected in place.
+  if (_TA.state === 'idle' || _TA.state === 'failed') { try { _taLoad(); } catch (_) {} }
+}
 
 function _acPortal() {
   var cards = AC_STAGES.map(_acTeamCard).join('');
@@ -48480,12 +48643,16 @@ function _teamClubBadgeHtml() {
     + '<span>' + _viEscSafe(name) + '</span></span>';
 }
 function _acTeamCard(s) {
-  var pl = _acInStage(s.id).length, can = _acCanOpen(s.id), resp = _acResponsible(s.id), avg = _acStageAvg(s.id);
+  var pl = _acInStage(s.id).length, acc = _acAccess(s.id), can = acc.canView, resp = _acResponsible(s.id), avg = _acStageAvg(s.id);
   var crest = s.label.replace(/U/g, '').split('–')[0];
   var status = _acCardStatus(s.id);
-  var cta = can
-    ? '<span class="ac-tcard-cta-btn"><span>Open Workspace</span><b class="ac-tcard-cta-arrow">→</b></span>'
-    : '<span class="ac-tcard-cta-btn ac-tcard-cta-btn--locked"><span class="ac-lockic">🔒</span><span>Locked</span><i>Not your responsibility</i></span>';
+  // Three states, and none of them is ambiguous: this team is yours to run,
+  // this team is yours to read, or it is not yours at all.
+  var cta = !can
+    ? '<span class="ac-tcard-cta-btn ac-tcard-cta-btn--locked"><span class="ac-lockic">🔒</span><span>No access</span><i>Contact club admin for team access</i></span>'
+    : acc.canManage
+      ? '<span class="ac-tcard-cta-btn"><span>Open Workspace</span><b class="ac-tcard-cta-arrow">→</b></span>'
+      : '<span class="ac-tcard-cta-btn ac-tcard-cta-btn--ro"><span class="ac-lockic">👁</span><span>Open read-only</span><i>Not assigned to manage this team</i></span>';
   return '<' + (can ? 'button' : 'div') + ' class="ac-tcard' + (can ? '' : ' is-locked') + '"' + (can ? ' data-ac-open="' + s.id + '" type="button"' : '') + ' style="--acc:' + s.accent + '">'
     + '<div class="ac-tcard-hero">'
       + '<span class="ac-tcard-badge">' + _viEscSafe(crest) + '</span>'
@@ -48846,7 +49013,10 @@ function _atShowPromotion(id) { return !!_atStageCfg(id).promotion; }
 var AT_SECTIONS = [
   ['dashboard', 'Dashboard', '📊'],
   ['squad', 'Players / Squad', '👥'],
-  ['training', 'Training', '🏃']
+  ['training', 'Training', '🏃'],
+  // This age group's own Match Center: its fixtures, in every competition it
+  // plays in, drawn by the module the First Team uses rather than a second one.
+  ['matchCenter', 'Match Center', '🗓']
 ];
 // Sections that are no longer part of the age-group workspace. A stale state —
 // a bookmarked view, a saved section, an old deep link — lands on the page that
@@ -48860,7 +49030,7 @@ var AT_REDIRECT = {
 
 // ── Enter / leave ──
 function _atEnter(id) {
-  if (!_acCanOpen(id)) { try { showToast('Locked — not your responsibility', 'error'); } catch (e) {} return; }
+  if (!_acCanOpen(id)) { try { showToast('You do not have access to that team', 'error'); } catch (e) {} return; }
   _atTeam(id);                 // ensure isolated store exists
   AT.active = id; AT.section = 'dashboard';
   AT.openPlayer = null; AT.profileTab = 'overview'; AT.q = ''; AT.posF = 'ALL'; AT.availF = 'ALL'; AT.staffEdit = null; AT.luSel = null; AT.luView = null;
@@ -48891,6 +49061,11 @@ function renderAcademyTeamPage() {
         + '<b>' + _viEscSafe(c.label) + '</b>'
         + '<i>' + _viEscSafe(c.name) + ' Stage · Responsible Coach: ' + _viEscSafe(_acResponsible(id)) + '</i></div>'
       + '</div>'
+      + (_acCanManage(id) ? '' : '<div class="at-ro">'
+          + '<span class="at-ro-ic" aria-hidden="true">' + _lgIcon('lock') + '</span>'
+          + '<span class="at-ro-t">You are not assigned to manage this team</span>'
+          + '<span class="at-ro-s">Read-only access. Contact a club admin for team access.</span>'
+          + '</div>')
       + '<div class="at-head-meta">'
         + '<span>' + _acInStage(id).length + ' players</span>'
         + '<span>' + (c.stage.coachN || 0) + ' coaches</span>'
@@ -48903,7 +49078,9 @@ function renderAcademyTeamPage() {
       + '<nav class="at-nav">' + AT_SECTIONS.map(function (s) {
           return '<button class="at-nav-item' + (AT.section === s[0] ? ' is-on' : '') + '" type="button" data-at-go="' + s[0] + '"><span class="at-nav-ic">' + s[2] + '</span>' + s[1] + '</button>';
         }).join('') + '</nav>'
-      + '<div class="at-content' + (AT.section === 'training' ? ' at-content--full' : '') + '" id="at-content">' + _atSection(id, AT.section) + '</div>'
+      + '<div class="at-content' + (AT.section === 'training' ? ' at-content--full' : '')
+        + (AT.section === 'matchCenter' ? ' at-content--mc' : '') + '" id="at-content">'
+        + _atSection(id, AT.section) + '</div>'
     + '</div>'
     // The modal lives in its own host, written separately. It used to be
     // concatenated into this string, which meant opening a player card,
@@ -48914,6 +49091,76 @@ function renderAcademyTeamPage() {
     // lifecycle here now.
     + '<div id="at-modal-host"></div>';
   _atRenderPlayerModal();
+  // The Match Center draws itself into the host this section just made, scoped
+  // to THIS age group's own team. It is the same module the First Team uses —
+  // the same calendar, the same workspace, the same four views — reading a
+  // different team, which is the whole point of having one implementation.
+  _atPaintMatchCenter(id);
+}
+
+// ── this age group's Match Center ───────────────────────────────────────────
+//
+// The team a card stands for is a real Team row, and its id is what scopes the
+// calendar. Until the session has hydrated its teams there is no id to scope
+// with, and the section says so rather than showing the First Team's fixtures —
+// which is what an unscoped call would have returned.
+function _atServerTeamId(id) {
+  try {
+    var stage = _acStage(id);
+    if (!stage) return null;
+    // The name the bootstrap wrote, when this club was set up through it.
+    if (typeof _thTeamIdFor === 'function'
+        && (typeof _thIsHydrated !== 'function' || _thIsHydrated())) {
+      var byName = _thTeamIdFor(stage.label);
+      if (byName) return byName;
+    }
+    // A club that existed before that bootstrap names its age groups whatever
+    // it names them — "FC Familista — U17" rather than "U17–U19" — and files
+    // them under whichever ACADEMY_U* kind it chose. The AGE is the fact both
+    // sides agree on, so the team whose kind names an age inside this stage's
+    // band is this stage's team. Without this the section would fall back to an
+    // unscoped call, which is the First Team's calendar — the leak this exists
+    // to prevent.
+    if (_TA.state === 'ready' && typeof _atStageRange === 'function') {
+      var band = _atStageRange(id);
+      var best = null;
+      for (var i = 0; i < _TA.teams.length; i++) {
+        var tm = _TA.teams[i];
+        if (!tm.isAcademy) continue;
+        var age = parseInt(String(tm.kind).replace(/\D+/g, ''), 10);
+        if (isNaN(age) || age < band[0] || age > band[1]) continue;
+        // The oldest age the band covers is the one it is named for, so the
+        // nearest to the top of the band wins when a band spans several kinds.
+        if (!best || age > best.age) best = { age: age, teamId: tm.teamId };
+      }
+      if (best) return best.teamId;
+    }
+    return null;
+  } catch (_) { return null; }
+}
+
+function _atSecMatchCenter(id) {
+  var teamId = _atServerTeamId(id);
+  if (!teamId) {
+    return '<div class="at-card at-mc-none">'
+      + _lgEmpty('This age group is not linked to a team record yet',
+          'A team\'s Match Center reads the fixtures filed against that team. It appears here as soon as the club\'s teams have loaded.')
+      + '</div>';
+  }
+  // An empty host. The module fills it, and only it — nothing around it is
+  // redrawn when a filter changes or a fixture opens.
+  return '<div class="at-mc" data-at-mc-team="' + _viEscSafe(teamId) + '"></div>';
+}
+
+function _atPaintMatchCenter(id) {
+  if (AT.section !== 'matchCenter') return;
+  var host = document.querySelector('#at-content .at-mc');
+  if (!host) return;
+  var teamId = host.getAttribute('data-at-mc-team');
+  if (!teamId) return;
+  try { renderMatchCenter({ host: host, teamId: teamId }); } catch (e) {
+    try { console.error('[academy] match center failed:', e); } catch (_) {}
+  }
 }
 
 // The panel, and only the panel. Every path that opens a player, moves between
@@ -48942,7 +49189,7 @@ function _atNextEvent(id) {
 function _atResolveSection() {
   var sec = AT.section;
   if (AT_REDIRECT[sec]) sec = AT_REDIRECT[sec];
-  if (sec !== 'dashboard' && sec !== 'squad' && sec !== 'training') sec = 'dashboard';
+  if (sec !== 'dashboard' && sec !== 'squad' && sec !== 'training' && sec !== 'matchCenter') sec = 'dashboard';
   if (sec !== AT.section) { AT.section = sec; AT.luView = null; }
   return sec;
 }
@@ -48952,6 +49199,7 @@ function _atSection(id, sec) {
     case 'dashboard':  return _atSecDashboard(id);
     case 'squad':      return _atSecSquadHub(id);
     case 'training':   return _atSecTraining(id);
+    case 'matchCenter': return _atSecMatchCenter(id);
     default:           AT.section = 'dashboard'; return _atSecDashboard(id);
   }
 }
@@ -64680,6 +64928,7 @@ var _LG_ICON = {
   preparation: '<path d="M6.4 4.4h7.2a1 1 0 0 1 1 1v10.2a1 1 0 0 1-1 1H6.4a1 1 0 0 1-1-1V5.4a1 1 0 0 1 1-1Z"/><path d="M8.2 3.2h3.6v2.4H8.2V3.2Z"/><path d="M7.8 9.2h4.4M7.8 12.2h3"/>',
   fixture: '<circle cx="10" cy="10" r="6.6"/><path d="M10 3.4v3M10 13.6v3M3.4 10h3M13.6 10h3"/>',
   clock: '<circle cx="10" cy="10" r="6.8"/><path d="M10 6v4.2l2.8 1.7"/>',
+  lock: '<rect x="4.6" y="8.8" width="10.8" height="7.4" rx="1.6"/><path d="M7.2 8.8V6.9a2.8 2.8 0 0 1 5.6 0v1.9"/>',
   weather: '<path d="M6.6 15.2a3.4 3.4 0 0 1-.3-6.8 4.2 4.2 0 0 1 8.1-.7 3 3 0 0 1 .3 6 3 3 0 0 1-.4 0H6.6Z"/>',
 };
 

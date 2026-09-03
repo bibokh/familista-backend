@@ -32,7 +32,7 @@ const MC = APP.slice(APP.indexOf('var _MC_TABS = ['), APP.indexOf('// ─── 
 
 describe('one Match Center, not two', () => {
   it('there is a single renderer and a single page', () => {
-    expect(APP.match(/^function renderMatchCenter\(\)/gm) || []).toHaveLength(1);
+    expect(APP.match(/^function renderMatchCenter\(opts\)/gm) || []).toHaveLength(1);
     expect(APP.match(/id="pg-match-center"/g) || []).toHaveLength(1);
     expect(APP.match(/id="match-center-content"/g) || []).toHaveLength(1);
     // The embedded second instance the League used to draw is gone entirely.
@@ -62,11 +62,15 @@ describe('one Match Center, not two', () => {
 
 describe('the calendar is every competition, and first teams only', () => {
   it('one endpoint answers the whole calendar, and the League is one row source on it', () => {
-    expect(APP).toContain("api('/match-center/calendar')");
+    expect(APP).toContain("api('/match-center/calendar' + q)");
     expect(ROUTES).toContain("router.get('/calendar', ctrl.getCalendar)");
-    // Scoped to the club's FIRST TEAMS, through the rule that already exists.
+    // The team travels with the request, so the SERVER scopes the answer rather
+    // than the screen filtering one it should never have been handed.
+    const load = APP.slice(APP.indexOf('async function _mccLoad('), APP.indexOf('// ── opening one fixture'));
+    expect(load).toContain("var q = _MCC.teamId ? '?teamId=' + encodeURIComponent(_MCC.teamId) : ''");
+    // Naming no team still means the first teams, through the rule that exists.
     expect(MCS).toContain("import { FIRST_TEAM_KINDS } from './league-eligibility'");
-    expect(MCS).toContain('kind: { in: FIRST_TEAM_KINDS as TeamKind[] }');
+    expect(MCS).toContain('FIRST_TEAM_KINDS.includes(c.kind)');
     // No academy side is named, included or excluded by hand — the rule decides.
     expect(MCS).not.toMatch(/ACADEMY_U\d/);
   });
@@ -125,8 +129,9 @@ describe('the page announces itself and its place in the competition', () => {
   it('carries a Match Center title', () => {
     const head = APP.slice(APP.indexOf('function _mccHeadHtml('), APP.indexOf('function _mccPaintHead('));
     expect(head).toContain('<h1 class="mcc-h1">Match Center</h1>');
-    // And it says whose calendar it is, which is the whole point of the module.
-    expect(head).toContain('<div class="mcc-eyebrow">First Team</div>');
+    // And it says whose calendar it is, which is the whole point of the module:
+    // the First Team by default, and the age group's own name when scoped.
+    expect(head).toContain("(scoped ? _esc(teamName) : 'First Team')");
   });
 
   it('and a back action to the Club Workspace that is always there', () => {
@@ -190,9 +195,10 @@ describe('four tabs, and each one is drawn', () => {
     // Training-style: the header, the fixture band and the rail stay where they
     // are and only the desk's contents are replaced.
     const handler = codeOnly(MC).slice(codeOnly(MC).indexOf("act === 'mcTab'"));
-    // Scoped to the workspace layer, so a section switch touches the desk and
-    // nothing else on the page.
-    expect(handler).toContain("document.getElementById('mcx-workspace')");
+    // Scoped to the workspace layer inside this module's own host, so a section
+    // switch touches the desk and nothing else on the page — and the First
+    // Team's page and an academy team's workspace never reach into each other.
+    expect(handler).toContain("_mccNode('.mcx-layer--workspace')");
     expect(handler).toContain("deskRoot.querySelector('.mcx-desk')");
     expect(handler).toContain('desk.innerHTML =');
     expect(handler).toContain('_mcPaintComputed(desk)');

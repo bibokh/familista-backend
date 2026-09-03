@@ -1323,5 +1323,14 @@
   "Withdraw request": "Retrage cererea",
   "Accept new time": "Acceptă noua oră",
   "Reject new time": "Respinge noua oră",
-  "This request is with the other club and the competition.": "Această cerere este la celălalt club și la competiție."
+  "This request is with the other club and the competition.": "Această cerere este la celălalt club și la competiție.",
+  "Read-only access. Contact a club admin for team access.": "Acces doar pentru citire. Contactează un administrator al clubului pentru acces la echipă.",
+  "You are not assigned to manage this team": "Nu ești desemnat să gestionezi această echipă",
+  "No access": "Fără acces",
+  "Open read-only": "Deschide doar pentru citire",
+  "Contact club admin for team access": "Contactează administratorul clubului pentru acces la echipă",
+  "Not assigned to manage this team": "Nedesemnat să gestionezi această echipă",
+  "This age group is not linked to a team record yet": "Această grupă de vârstă nu este încă legată de o înregistrare de echipă",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Centrul de Meci al unei echipe citește partidele înregistrate pentru acea echipă. Apare aici imediat ce echipele clubului sunt încărcate.",
+  "You do not have access to that team": "Nu ai acces la acea echipă"
 }

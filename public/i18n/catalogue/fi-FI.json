@@ -1323,5 +1323,14 @@
   "Withdraw request": "Peru pyyntö",
   "Accept new time": "Hyväksy uusi aika",
   "Reject new time": "Hylkää uusi aika",
-  "This request is with the other club and the competition.": "Tämä pyyntö on toisella seuralla ja kilpailulla."
+  "This request is with the other club and the competition.": "Tämä pyyntö on toisella seuralla ja kilpailulla.",
+  "Read-only access. Contact a club admin for team access.": "Vain luku -oikeus. Pyydä joukkueoikeudet seuran ylläpitäjältä.",
+  "You are not assigned to manage this team": "Sinua ei ole määrätty johtamaan tätä joukkuetta",
+  "No access": "Ei oikeuksia",
+  "Open read-only": "Avaa vain luettavaksi",
+  "Contact club admin for team access": "Pyydä joukkueoikeudet seuran ylläpitäjältä",
+  "Not assigned to manage this team": "Ei määrätty johtamaan tätä joukkuetta",
+  "This age group is not linked to a team record yet": "Tätä ikäluokkaa ei ole vielä liitetty joukkuetietueeseen",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Joukkueen Ottelukeskus lukee sille joukkueelle kirjatut ottelut. Se ilmestyy tähän heti kun seuran joukkueet on ladattu.",
+  "You do not have access to that team": "Sinulla ei ole oikeuksia tähän joukkueeseen"
 }

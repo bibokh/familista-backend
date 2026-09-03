@@ -1323,5 +1323,14 @@
   "Withdraw request": "Talebi geri çek",
   "Accept new time": "Yeni saati kabul et",
   "Reject new time": "Yeni saati reddet",
-  "This request is with the other club and the competition.": "Bu talep diğer kulüpte ve turnuvada bekliyor."
+  "This request is with the other club and the competition.": "Bu talep diğer kulüpte ve turnuvada bekliyor.",
+  "Read-only access. Contact a club admin for team access.": "Salt okunur erişim. Takım erişimi için kulüp yöneticisiyle iletişime geç.",
+  "You are not assigned to manage this team": "Bu takımı yönetmek üzere atanmadın",
+  "No access": "Erişim yok",
+  "Open read-only": "Salt okunur aç",
+  "Contact club admin for team access": "Takım erişimi için kulüp yöneticisiyle iletişime geç",
+  "Not assigned to manage this team": "Bu takımı yönetmek üzere atanmadı",
+  "This age group is not linked to a team record yet": "Bu yaş grubu henüz bir takım kaydına bağlı değil",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Bir takımın Maç Merkezi, o takıma kaydedilmiş maçları okur. Kulübün takımları yüklenir yüklenmez burada görünür.",
+  "You do not have access to that team": "Bu takıma erişimin yok"
 }

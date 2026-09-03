@@ -1323,5 +1323,14 @@
   "Withdraw request": "سحب الطلب",
   "Accept new time": "قبول الموعد الجديد",
   "Reject new time": "رفض الموعد الجديد",
-  "This request is with the other club and the competition.": "هذا الطلب لدى النادي الآخر ولدى المسابقة."
+  "This request is with the other club and the competition.": "هذا الطلب لدى النادي الآخر ولدى المسابقة.",
+  "Read-only access. Contact a club admin for team access.": "وصول للقراءة فقط. تواصل مع مسؤول النادي للحصول على صلاحية الفريق.",
+  "You are not assigned to manage this team": "لم تُسنَد إليك إدارة هذا الفريق",
+  "No access": "لا يوجد وصول",
+  "Open read-only": "فتح للقراءة فقط",
+  "Contact club admin for team access": "تواصل مع مسؤول النادي للحصول على صلاحية الفريق",
+  "Not assigned to manage this team": "غير مُسنَد لإدارة هذا الفريق",
+  "This age group is not linked to a team record yet": "هذه الفئة العمرية غير مرتبطة بعد بسجل فريق",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "مركز مباريات الفريق يقرأ المباريات المسجَّلة على ذلك الفريق. سيظهر هنا فور تحميل فرق النادي.",
+  "You do not have access to that team": "ليس لديك وصول إلى هذا الفريق"
 }

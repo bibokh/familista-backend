@@ -1323,5 +1323,14 @@
   "Withdraw request": "Dra tillbaka förfrågan",
   "Accept new time": "Acceptera den nya tiden",
   "Reject new time": "Avböj den nya tiden",
-  "This request is with the other club and the competition.": "Den här förfrågan ligger hos den andra klubben och tävlingen."
+  "This request is with the other club and the competition.": "Den här förfrågan ligger hos den andra klubben och tävlingen.",
+  "Read-only access. Contact a club admin for team access.": "Skrivskyddad åtkomst. Kontakta en klubbadministratör för lagåtkomst.",
+  "You are not assigned to manage this team": "Du är inte tilldelad att styra det här laget",
+  "No access": "Ingen åtkomst",
+  "Open read-only": "Öppna skrivskyddat",
+  "Contact club admin for team access": "Kontakta klubbadministratören för lagåtkomst",
+  "Not assigned to manage this team": "Inte tilldelad att styra det här laget",
+  "This age group is not linked to a team record yet": "Den här åldersgruppen är ännu inte kopplad till ett lag",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Ett lags Matchcenter läser de matcher som är registrerade på det laget. Det visas här så snart klubbens lag har laddats.",
+  "You do not have access to that team": "Du har inte åtkomst till det laget"
 }

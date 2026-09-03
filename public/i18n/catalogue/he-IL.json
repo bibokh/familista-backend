@@ -1323,5 +1323,14 @@
   "Withdraw request": "משיכת הבקשה",
   "Accept new time": "אישור המועד החדש",
   "Reject new time": "דחיית המועד החדש",
-  "This request is with the other club and the competition.": "הבקשה הזו נמצאת אצל המועדון השני ואצל התחרות."
+  "This request is with the other club and the competition.": "הבקשה הזו נמצאת אצל המועדון השני ואצל התחרות.",
+  "Read-only access. Contact a club admin for team access.": "גישת קריאה בלבד. פנה למנהל המועדון לקבלת גישה לקבוצה.",
+  "You are not assigned to manage this team": "לא הוקצית לנהל את הקבוצה הזו",
+  "No access": "אין גישה",
+  "Open read-only": "פתיחה לקריאה בלבד",
+  "Contact club admin for team access": "פנה למנהל המועדון לקבלת גישה לקבוצה",
+  "Not assigned to manage this team": "לא הוקצה לנהל את הקבוצה הזו",
+  "This age group is not linked to a team record yet": "שכבת הגיל הזו עדיין אינה מקושרת לרשומת קבוצה",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "מרכז המשחקים של קבוצה קורא את המשחקים הרשומים על אותה קבוצה. הוא יופיע כאן ברגע שקבוצות המועדון ייטענו.",
+  "You do not have access to that team": "אין לך גישה לקבוצה הזו"
 }

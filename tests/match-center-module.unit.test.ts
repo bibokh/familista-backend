@@ -33,6 +33,7 @@ const codeOnly = (src: string) =>
 
 const APP = read('public/app.js');
 const MCS = read('src/competition/match-center.service.ts');
+const TAS = read('src/identity/team-access.service.ts');
 const ROUTES = read('src/routes/match-center.routes.ts');
 const CTRL = read('src/controllers/match-center.controller.ts');
 const INDEX = read('src/routes/index.ts');
@@ -238,29 +239,97 @@ describe('one fixture is one record', () => {
   });
 });
 
-describe('first teams only, and no academy leakage', () => {
-  it('the calendar asks the eligibility rule rather than naming teams', () => {
+describe('the calendar is one team\'s, and the First Team is the default', () => {
+  it('naming no team still means the first teams, through the rule that already exists', () => {
     expect(MCS).toContain("import { FIRST_TEAM_KINDS } from './league-eligibility'");
-    expect(MCS).toContain('kind: { in: FIRST_TEAM_KINDS as TeamKind[] }');
+    const scope = MCS.slice(MCS.indexOf('export async function resolveTeamScope'),
+                            MCS.indexOf('// ─────────────────────────────────────────────────────────────────────────────\n// The calendar'));
+    expect(scope).toContain('FIRST_TEAM_KINDS.includes(c.kind)');
+    // No age group is named, included or excluded by hand — the rule decides.
     expect(MCS).not.toMatch(/ACADEMY_U\d|RESERVES/);
+  });
+
+  it('and naming a team scopes to that team, after team-access has allowed it', () => {
+    const scope = codeOnly(MCS.slice(MCS.indexOf('export async function resolveTeamScope'),
+                                     MCS.indexOf('export type MatchCenterCompetitionKind')));
+    // The check comes BEFORE the scope is built, so a team id typed into a URL
+    // is refused rather than quietly filtered out downstream.
+    expect(scope).toMatch(/const access = await assertCanViewTeam\(actor, teamId\);[\s\S]{0,120}return \{ teamIds: \[teamId\]/);
   });
 
   it('and every fixture is matched against those team ids, not against a club name', () => {
     const cal = MCS.slice(MCS.indexOf('export async function getCalendar'),
                           MCS.indexOf('export async function getFixtureDetail'));
-    expect(cal).toContain('const teamIds = await firstTeamIdsForClub(clubId)');
+    expect(cal).toContain('const scope = await resolveTeamScope(actor, q.teamId ?? null)');
+    expect(cal).toContain('const teamIds = scope.teamIds');
     expect(cal).toContain('OR: [{ homeTeamId: { in: teamIds } }, { awayTeamId: { in: teamIds } }]');
     // Which side is ours is decided by team id too — never by a name test.
     expect(cal).toContain("teamIds.includes(f.homeTeamId) ? 'home'");
     expect(cal).not.toMatch(/familista/i);
   });
 
-  it('and a fixture neither of our first teams is in cannot be opened', () => {
-    const guard = MCS.slice(MCS.indexOf('async function assertOurFixture'),
-                            MCS.indexOf('async function assertOurFixture') + 500);
-    expect(guard).toContain('const ours = await firstTeamIdsForClub(actor.clubId)');
+  it('and a fixture with no team this caller may read cannot be opened', () => {
+    const at = MCS.indexOf('async function fixtureAccess');
+    const guard = MCS.slice(at, MCS.indexOf('\n}', at));
+    expect(guard).toContain('await accessForTeam(actor, teamId)');
+    expect(guard).toContain('if (!access.canView) continue;');
     expect(guard).toContain('throw new ForbiddenError');
-    expect(MCS).toContain('await assertOurFixture(actor, fixture.homeTeamId, fixture.awayTeamId)');
+    expect(MCS).toContain('const ours = await fixtureAccess(actor, fixture.homeTeamId, fixture.awayTeamId)');
+  });
+});
+
+describe('one club, many teams, and control does not spill between them', () => {
+  it('a membership says what it says: club-wide reaches all, a team reaches one', () => {
+    const fn = codeOnly(TAS.slice(TAS.indexOf('export async function accessForTeam'),
+                                  TAS.indexOf('export interface TeamContext')));
+    // Club-wide managers manage everything; a team assignment is that team only.
+    expect(fn).toContain('const clubWide = rows.filter((r) => !r.teamId)');
+    expect(fn).toContain('const onThisTeam = rows.filter((r) => r.teamId === teamId)');
+    expect(fn).toMatch(/onThisTeam[\s\S]{0,200}'TEAM_ASSIGNMENT'/);
+    // Somebody in the club with no assignment to THIS team reads it and does
+    // not run it — never MANAGE by falling through.
+    expect(fn).toMatch(/return pack\(team\.id, team\.clubId, 'VIEW'/);
+  });
+
+  it('only the coaching and administrative roles control a team', () => {
+    const set = TAS.slice(TAS.indexOf('export const TEAM_MANAGING_ROLES'),
+                          TAS.indexOf('/** The kinds of team that are academy age groups'));
+    for (const role of ['CLUB_OWNER', 'CLUB_ADMIN', 'HEAD_COACH', 'ASSISTANT_COACH', 'YOUTH_COACH']) {
+      expect(set).toContain('MembershipRole.' + role);
+    }
+    // A parent, a player, a scout or an analyst is on a team without running it.
+    for (const role of ['PARENT', 'PLAYER', 'SCOUT', 'FINANCE_MANAGER']) {
+      expect(set).not.toContain('MembershipRole.' + role);
+    }
+  });
+
+  it('reading a fixture takes sight of a team; changing one takes an assignment', () => {
+    const create = MCS.slice(MCS.indexOf('export async function createRequest'),
+                             MCS.indexOf('export type RequestAction'));
+    expect(create).toContain('const ours = await fixtureAccess(actor, ctx.fixture.homeTeamId, ctx.fixture.awayTeamId)');
+    expect(create).toContain("if (!ours.access?.canManage)");
+    expect(create).toContain('throw new ForbiddenError');
+    // And a decision on a request is a change too, so it is gated the same way.
+    const act = MCS.slice(MCS.indexOf('export async function actOnRequest'));
+    expect(act).toContain('manages = !!ours.access?.canManage');
+    expect(act).toContain('const isRequester = manages && actor.clubId === req.requestedByClubId');
+    expect(act).toContain('const isOpponent = manages &&');
+  });
+
+  it('and the guard that backs it up is decided by the assignment, not by a role name', () => {
+    const GUARD = read('src/middleware/tenant-guard.middleware.ts');
+    expect(GUARD).not.toContain('TEAM_BOUND_ROLES');
+    expect(GUARD).toContain('function isTeamScoped(role: UserRole | undefined): boolean');
+    expect(GUARD).toContain("return role !== ('SUPER_ADMIN' as UserRole);");
+    // A legacy account with no memberships at all stays club-wide: a migration
+    // must not lock out users it was never about.
+    expect(GUARD).toContain('const hasClubWide = memberships.length === 0 || memberships.some((m) => !m.teamId);');
+  });
+
+  it('the club\'s teams and what may be done with each are one answer', () => {
+    expect(TAS).toContain('export async function listTeamContexts');
+    expect(ROUTES).toContain("router.get('/teams', ctrl.getTeamContexts)");
+    expect(APP).toContain("api('/match-center/teams')");
   });
 });
 

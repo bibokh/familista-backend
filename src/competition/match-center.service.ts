@@ -7,15 +7,27 @@
 // One fixture is one record; the League and the Match Center are two readers of
 // it, never two copies.
 //
-// Scope, deliberately: FIRST TEAMS ONLY. The eligibility rule lives in
-// league-eligibility.ts and is imported rather than restated, so the day academy
-// fixtures are wanted here, one file changes. Nothing below names an academy age
-// group, and nothing below excludes one by name either — it asks the rule.
+// Scope is a TEAM, not a club. A club is a First Team and a set of academy age
+// groups, each of which is a team with its own squad and its own fixtures, and
+// the calendar below is one team's. Naming no team means the First Team, which
+// is what this module meant before the academy had one of its own — so nothing
+// about the First Team changed when the academy arrived.
+//
+// Which team a caller may read, and which they may change, is decided in
+// identity/team-access.service.ts and asked here. Nothing below names an age
+// group, and nothing below excludes one by name either.
 
 import { Prisma, TeamKind } from '@prisma/client';
 import { prisma } from '../config/database';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { FIRST_TEAM_KINDS } from './league-eligibility';
+import {
+  TeamAccess,
+  TeamActor,
+  accessForTeam,
+  assertCanViewTeam,
+  listTeamContexts,
+} from '../identity/team-access.service';
 import * as league from './familista-league.service';
 import {
   DEFAULT_SCHEDULING_POLICY,
@@ -31,11 +43,11 @@ import * as weather from './match-weather.service';
 // Who "we" are
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface MatchCenterActor {
-  userId: string;
-  clubId: string;
-  role?: string;
-}
+/**
+ * The Match Center's actor is the team-access actor. One shape, so the module
+ * cannot end up asking a different question than the one team-access answers.
+ */
+export type MatchCenterActor = TeamActor;
 
 /**
  * The club's first teams. Plural because a club may keep more than one senior
@@ -48,6 +60,39 @@ export async function firstTeamIdsForClub(clubId: string): Promise<string[]> {
     select: { id: true },
   });
   return teams.map((t) => t.id);
+}
+
+/**
+ * The team context a request is about, and what this person may do with it.
+ *
+ * Named `teamId` and nothing else: the calendar is one team's calendar, and an
+ * academy age group asking for its own fixtures asks the same way the First
+ * Team does. Omitting it means the First Team, which is what the module meant
+ * before academy teams had one — the default is preserved exactly.
+ *
+ * Every branch goes through team-access, so a team id typed into a URL is
+ * refused here rather than filtered out somewhere downstream.
+ */
+export interface TeamScope {
+  /** The teams whose fixtures this request may read. */
+  teamIds: string[];
+  /** The single team asked for, or null for the First Team default. */
+  teamId: string | null;
+  /** What the caller may do with that team. Null for the multi-team default. */
+  access: TeamAccess | null;
+}
+
+export async function resolveTeamScope(actor: MatchCenterActor, teamId?: string | null): Promise<TeamScope> {
+  if (teamId) {
+    const access = await assertCanViewTeam(actor, teamId);
+    return { teamIds: [teamId], teamId, access };
+  }
+  // No team named: the club's first teams, and only those the caller may read.
+  const contexts = await listTeamContexts(actor);
+  const teamIds = contexts
+    .filter((c) => FIRST_TEAM_KINDS.includes(c.kind) && c.access.canView)
+    .map((c) => c.teamId);
+  return { teamIds, teamId: null, access: null };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -102,6 +147,10 @@ export interface MatchCenterFixtureRow {
 export interface MatchCenterCalendar {
   clubId: string;
   teamIds: string[];
+  /** The team this calendar is scoped to, or null for the First Team default. */
+  teamId: string | null;
+  /** What the reader may do with that team — the UI draws its state from this. */
+  access: TeamAccess | null;
   competitions: MatchCenterCompetition[];
   fixtures: MatchCenterFixtureRow[];
   /** Whether the platform can answer weather at all, so the UI can say why. */
@@ -147,6 +196,11 @@ export interface CalendarQuery {
   from?: string;
   to?: string;
   competitionId?: string;
+  /**
+   * The team whose calendar this is. Omitted means the First Team, which is
+   * what this module meant before academy teams had one of their own.
+   */
+  teamId?: string;
 }
 
 /**
@@ -160,9 +214,16 @@ export async function getCalendar(actor: MatchCenterActor, q: CalendarQuery = {}
   const clubId = actor.clubId;
   if (!clubId) throw new ForbiddenError('No club is active for this session');
 
-  const teamIds = await firstTeamIdsForClub(clubId);
+  // One team, or the First Team by default. Either way the scope is decided by
+  // team-access before a single fixture is read, so a calendar can never carry
+  // a team this person may not see.
+  const scope = await resolveTeamScope(actor, q.teamId ?? null);
+  const teamIds = scope.teamIds;
   if (!teamIds.length) {
-    return { clubId, teamIds: [], competitions: [], fixtures: [], weatherAvailable: weather.isConfigured() };
+    return {
+      clubId, teamIds: [], teamId: scope.teamId, access: scope.access,
+      competitions: [], fixtures: [], weatherAvailable: weather.isConfigured(),
+    };
   }
 
   const where: Prisma.FixtureWhereInput = {
@@ -184,7 +245,10 @@ export async function getCalendar(actor: MatchCenterActor, q: CalendarQuery = {}
     include: { competition: { select: { id: true, name: true, code: true, season: true, format: true, clubId: true, rules: true } } },
   });
   if (!fixtures.length) {
-    return { clubId, teamIds, competitions: [], fixtures: [], weatherAvailable: weather.isConfigured() };
+    return {
+      clubId, teamIds, teamId: scope.teamId, access: scope.access,
+      competitions: [], fixtures: [], weatherAvailable: weather.isConfigured(),
+    };
   }
 
   // Identity for every team on every fixture, in one read rather than one per
@@ -311,6 +375,8 @@ export async function getCalendar(actor: MatchCenterActor, q: CalendarQuery = {}
   return {
     clubId,
     teamIds,
+    teamId: scope.teamId,
+    access: scope.access,
     competitions: [...competitions.values()].sort((a, b) => a.name.localeCompare(b.name)),
     fixtures: rows,
     weatherAvailable: weather.isConfigured(),
@@ -344,6 +410,9 @@ export async function getFixtureDetail(actor: MatchCenterActor, fixtureId: strin
   weather: weather.WeatherReading | null;
   weatherAvailable: boolean;
   requests: FixtureChangeRequestView[];
+  /** The caller's own side of this fixture, and what they may do with it. */
+  teamId: string | null;
+  access: TeamAccess | null;
 }> {
   const fixture = await prisma.fixture.findUnique({
     where: { id: fixtureId },
@@ -351,7 +420,7 @@ export async function getFixtureDetail(actor: MatchCenterActor, fixtureId: strin
   });
   if (!fixture) throw new NotFoundError('Fixture');
 
-  await assertOurFixture(actor, fixture.homeTeamId, fixture.awayTeamId);
+  const ours = await fixtureAccess(actor, fixture.homeTeamId, fixture.awayTeamId);
 
   const detail = await league.getMatchDetail(fixture.competitionId, fixture.id);
 
@@ -384,16 +453,39 @@ export async function getFixtureDetail(actor: MatchCenterActor, fixtureId: strin
     }),
     weatherAvailable: weather.isConfigured(),
     requests: await listRequests(fixtureId),
+    teamId: ours.ourTeamId,
+    access: ours.access,
   };
 }
 
-/** Is this fixture one of the caller's club's? Asked of the teams, not the name. */
-async function assertOurFixture(actor: MatchCenterActor, homeTeamId: string, awayTeamId: string): Promise<void> {
-  if (actor.role === 'SUPER_ADMIN') return;
-  const ours = await firstTeamIdsForClub(actor.clubId);
-  if (!ours.includes(homeTeamId) && !ours.includes(awayTeamId)) {
-    throw new ForbiddenError('That fixture does not belong to this club');
+/**
+ * Which side of this fixture is the caller's own, and what they may do with it.
+ *
+ * A fixture is readable when one of its two teams is one the caller may read,
+ * and it is WRITABLE only through the team they are assigned to manage. That is
+ * the whole of the separation the brief asks for: a First Team coach reading an
+ * academy fixture gets the board and no controls, and an Under-14 coach may move
+ * an Under-14 kickoff and nobody else's.
+ *
+ * Asked of the team rows, never of a club name.
+ */
+async function fixtureAccess(
+  actor: MatchCenterActor,
+  homeTeamId: string,
+  awayTeamId: string,
+): Promise<{ ourTeamId: string | null; access: TeamAccess | null }> {
+  const sides = [homeTeamId, awayTeamId];
+  let best: { ourTeamId: string; access: TeamAccess } | null = null;
+  for (const teamId of sides) {
+    let access: TeamAccess;
+    try { access = await accessForTeam(actor, teamId); } catch { continue; }
+    if (!access.canView) continue;
+    // A team this person manages wins over one they merely read, so a fixture
+    // between two of the club's own teams is writable from the right side.
+    if (!best || (access.canManage && !best.access.canManage)) best = { ourTeamId: teamId, access };
   }
+  if (!best) throw new ForbiddenError('That fixture does not belong to a team you have access to');
+  return best;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -515,7 +607,13 @@ export async function schedulingContextFor(fixtureId: string): Promise<{
 
 export async function createRequest(actor: MatchCenterActor, input: CreateRequestInput): Promise<FixtureChangeRequestView> {
   const ctx = await schedulingContextFor(input.fixtureId);
-  await assertOurFixture(actor, ctx.fixture.homeTeamId, ctx.fixture.awayTeamId);
+  // Asking for a fixture to be moved is a change to that team's calendar, so it
+  // takes an assignment to that team — not merely membership of the club that
+  // owns it. A curl from the wrong context is refused right here.
+  const ours = await fixtureAccess(actor, ctx.fixture.homeTeamId, ctx.fixture.awayTeamId);
+  if (!ours.access?.canManage) {
+    throw new ForbiddenError('You are not assigned to manage either team in this fixture');
+  }
 
   if (ctx.fixture.status === 'PLAYED' || ctx.fixture.status === 'CANCELLED') {
     throw new BadRequestError('That match can no longer be rescheduled');
@@ -596,9 +694,21 @@ export async function actOnRequest(
   const req = await prisma.fixtureChangeRequest.findUnique({ where: { id: requestId } });
   if (!req) throw new NotFoundError('Change request');
 
-  const isRequester = actor.clubId === req.requestedByClubId;
-  const isOpponent = !!req.opponentClubId && actor.clubId === req.opponentClubId;
   const isAdmin = actor.role === 'SUPER_ADMIN';
+
+  // Deciding a request changes a fixture, so it takes the same assignment
+  // asking for one does. The club still says WHICH side of the request this
+  // person is on; the team assignment says whether they may answer for it at
+  // all. Without this a club-mate with no team could accept on the Under-14s'
+  // behalf simply by being in the same club.
+  let manages = isAdmin;
+  if (!isAdmin) {
+    const ctx = await schedulingContextFor(req.fixtureId);
+    const ours = await fixtureAccess(actor, ctx.fixture.homeTeamId, ctx.fixture.awayTeamId);
+    manages = !!ours.access?.canManage;
+  }
+  const isRequester = manages && actor.clubId === req.requestedByClubId;
+  const isOpponent = manages && !!req.opponentClubId && actor.clubId === req.opponentClubId;
 
   let next: string;
   // A step the history records before the one the status moves to, when a
@@ -720,15 +830,17 @@ export async function policyFor(actor: MatchCenterActor, fixtureId: string): Pro
   timeZone: string;
   currentKickoff: string;
   currentLocalKickoff: string;
+  canManage: boolean;
 }> {
   const ctx = await schedulingContextFor(fixtureId);
-  await assertOurFixture(actor, ctx.fixture.homeTeamId, ctx.fixture.awayTeamId);
+  const ours = await fixtureAccess(actor, ctx.fixture.homeTeamId, ctx.fixture.awayTeamId);
   const clock = localClockAt(ctx.fixture.scheduledAt, ctx.timeZone);
   return {
     policy: ctx.policy,
     timeZone: ctx.timeZone,
     currentKickoff: ctx.fixture.scheduledAt.toISOString(),
     currentLocalKickoff: `${String(clock.hour).padStart(2, '0')}:${String(clock.minute).padStart(2, '0')}`,
+    canManage: !!ours.access?.canManage,
   };
 }
 

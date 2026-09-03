@@ -1320,5 +1320,14 @@
   "Withdraw request": "Rút lại yêu cầu",
   "Accept new time": "Chấp nhận giờ mới",
   "Reject new time": "Từ chối giờ mới",
-  "This request is with the other club and the competition.": "Yêu cầu này đang ở phía câu lạc bộ kia và ban tổ chức giải."
+  "This request is with the other club and the competition.": "Yêu cầu này đang ở phía câu lạc bộ kia và ban tổ chức giải.",
+  "Read-only access. Contact a club admin for team access.": "Quyền chỉ đọc. Liên hệ quản trị viên câu lạc bộ để được cấp quyền cho đội.",
+  "You are not assigned to manage this team": "Bạn không được phân công quản lý đội này",
+  "No access": "Không có quyền truy cập",
+  "Open read-only": "Mở ở chế độ chỉ đọc",
+  "Contact club admin for team access": "Liên hệ quản trị viên câu lạc bộ để được cấp quyền cho đội",
+  "Not assigned to manage this team": "Không được phân công quản lý đội này",
+  "This age group is not linked to a team record yet": "Lứa tuổi này chưa được liên kết với hồ sơ đội",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Trung tâm Trận đấu của một đội đọc các trận được ghi cho đội đó. Nó xuất hiện ở đây ngay khi các đội của câu lạc bộ được tải.",
+  "You do not have access to that team": "Bạn không có quyền truy cập đội đó"
 }

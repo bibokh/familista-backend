@@ -194,7 +194,9 @@ describe('player against player', () => {
     // that is open, and only that layer is repainted to show it.
     const paint = APP.slice(APP.indexOf('function _mcPaintCmp('), APP.indexOf('function _mcPaintCmp(') + 700);
     expect(paint).toContain("root.querySelector('.mcx-overlay')");
-    expect(paint).toContain("document.getElementById('mcx-workspace')");
+    // Scoped through the module's own host, so the First Team's page and an
+    // academy team's workspace cannot reach into one another.
+    expect(paint).toContain("_mccNode('.mcx-layer--workspace')");
     expect(paint).toContain('host.innerHTML =');
     expect(paint).not.toContain('renderMatchCenter');
     expect(CSS).toContain('.mcx-overlay{ display:none; }');
@@ -370,12 +372,15 @@ describe('the Match Center is a module, not a section of the League', () => {
   });
 
   it('the module has one renderer, and it draws the calendar', () => {
-    expect(APP.match(/^function renderMatchCenter\(\)/gm) || []).toHaveLength(1);
+    expect(APP.match(/^function renderMatchCenter\(opts\)/gm) || []).toHaveLength(1);
     expect(APP).not.toContain('function renderMatchCenter(host, opts)');
-    const fn = APP.slice(APP.indexOf('function renderMatchCenter()'), APP.indexOf('async function _mccLoad('));
+    const fn = APP.slice(APP.indexOf('function renderMatchCenter(opts)'), APP.indexOf('async function _mccLoad('));
+    // The First Team's page is the default host, and its shell keeps the ids.
     expect(fn).toContain("document.getElementById('match-center-content')");
-    expect(fn).toContain('id="mcc-list"');
-    expect(fn).toContain('id="mcx-workspace"');
+    expect(fn).toContain('_mccShellHtml(standalone)');
+    const shell = APP.slice(APP.indexOf('function _mccShellHtml('), APP.indexOf('function renderMatchCenter(opts)'));
+    expect(shell).toContain("(standalone ? ' id=\"mcc-list\"' : '')");
+    expect(shell).toContain("(standalone ? ' id=\"mcx-workspace\"' : '')");
   });
 
   it('and it is a first-class item in the Club Workspace sidebar, below the League', () => {
@@ -405,7 +410,7 @@ describe('the workspace opens over the calendar rather than replacing it', () =>
   it('opening one repaints the layer and nothing else', () => {
     const paint = APP.slice(APP.indexOf('function _mccPaintWorkspace('),
                             APP.indexOf('function _mccPaintChange('));
-    expect(paint).toContain("document.getElementById('mcx-workspace')");
+    expect(paint).toContain("_mccNode('.mcx-layer--workspace')");
     expect(paint).toContain('host.innerHTML =');
     // Never the calendar: the list and the masthead are painted by their own
     // functions, and opening a match does not call either.
@@ -416,7 +421,7 @@ describe('the workspace opens over the calendar rather than replacing it', () =>
   it('and a filter repaints the list rather than the page', () => {
     const list = APP.slice(APP.indexOf('function _mccPaintList('),
                            APP.indexOf('function _mccPaintWorkspace('));
-    expect(list).toContain("document.getElementById('mcc-list')");
+    expect(list).toContain("_mccNode('.mcc-body')");
     expect(list).toContain('b.innerHTML = _mccListHtml()');
     // The list reserves its scrollbar, so filtering cannot shift the page.
     expect(CSS).toMatch(/\.mcc-body\{[^}]*scrollbar-gutter:stable/);

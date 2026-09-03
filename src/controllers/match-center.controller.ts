@@ -12,6 +12,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import * as mc from '../competition/match-center.service';
+import * as teamAccess from '../identity/team-access.service';
 
 function actorOf(req: Request): mc.MatchCenterActor {
   const u = (req as Request & {
@@ -28,6 +29,10 @@ const calendarSchema = z.object({
   from: z.string().trim().min(4).max(40).optional(),
   to: z.string().trim().min(4).max(40).optional(),
   competitionId: z.string().uuid().optional(),
+  // The team whose calendar this is. Validated as a uuid here and checked
+  // against this caller's assignments in the service — the parse says the shape
+  // is possible, team-access says the answer is theirs to have.
+  teamId: z.string().uuid().optional(),
 });
 
 export async function getCalendar(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -35,6 +40,21 @@ export async function getCalendar(req: Request, res: Response, next: NextFunctio
     const q = calendarSchema.parse(req.query);
     const data = await mc.getCalendar(actorOf(req), q);
     res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+/**
+ * The club's team contexts and what this caller may do with each — the First
+ * Team and every academy age group, in one answer.
+ *
+ * A workspace picker reads this: a team the caller cannot manage is still shown,
+ * because a locked card is information, and the level on it is what the screen
+ * turns into a read-only state rather than an ambiguous one.
+ */
+export async function getTeamContexts(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const teams = await teamAccess.listTeamContexts(actorOf(req));
+    res.json({ success: true, data: { teams } });
   } catch (err) { next(err); }
 }
 

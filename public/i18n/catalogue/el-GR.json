@@ -1323,5 +1323,14 @@
   "Withdraw request": "Απόσυρση αιτήματος",
   "Accept new time": "Αποδοχή νέας ώρας",
   "Reject new time": "Απόρριψη νέας ώρας",
-  "This request is with the other club and the competition.": "Αυτό το αίτημα βρίσκεται στον άλλο σύλλογο και στη διοργάνωση."
+  "This request is with the other club and the competition.": "Αυτό το αίτημα βρίσκεται στον άλλο σύλλογο και στη διοργάνωση.",
+  "Read-only access. Contact a club admin for team access.": "Πρόσβαση μόνο για ανάγνωση. Επικοινώνησε με διαχειριστή του συλλόγου για πρόσβαση στην ομάδα.",
+  "You are not assigned to manage this team": "Δεν έχεις οριστεί να διαχειρίζεσαι αυτή την ομάδα",
+  "No access": "Καμία πρόσβαση",
+  "Open read-only": "Άνοιγμα μόνο για ανάγνωση",
+  "Contact club admin for team access": "Επικοινώνησε με τον διαχειριστή του συλλόγου για πρόσβαση στην ομάδα",
+  "Not assigned to manage this team": "Δεν έχεις οριστεί να διαχειρίζεσαι αυτή την ομάδα",
+  "This age group is not linked to a team record yet": "Αυτή η ηλικιακή κατηγορία δεν έχει συνδεθεί ακόμη με εγγραφή ομάδας",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Το Κέντρο Αγώνα μιας ομάδας διαβάζει τους αγώνες που έχουν καταχωρηθεί σε αυτήν. Εμφανίζεται εδώ μόλις φορτωθούν οι ομάδες του συλλόγου.",
+  "You do not have access to that team": "Δεν έχεις πρόσβαση σε αυτή την ομάδα"
 }

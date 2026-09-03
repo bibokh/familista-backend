@@ -13,14 +13,16 @@
 //      requested resource also has a teamId, the two must match. This
 //      prevents a youth-team coach from reading senior squad data.
 //
-//      Team scope is enforced for roles that are typically team-bound:
-//      ASSISTANT_COACH, COACH, MEDICAL_STAFF, PHYSIO, PLAYER, PARENT.
-//      It is BYPASSED for club-wide roles: SUPER_ADMIN, CLUB_ADMIN,
-//      CLUB_OWNER, MANAGER, HEAD_COACH, ANALYST, SCOUT, FINANCE_MANAGER.
+//      Team scope is decided by the MEMBERSHIP, not by the account role.
+//      A club is a First Team and a set of academy age groups, and a person
+//      assigned to one of them is not thereby assigned to the others — so
+//      whichever role the account carries, a membership pinned to a team is
+//      enforced as pinned. A role-name allow-list could only ever disagree
+//      with the assignment it was meant to describe.
 //
-//      A user with NO team-scoped membership (legacy users with only
-//      User.role) is treated as club-wide and bypasses team scope —
-//      additive migration: no existing behaviour breaks.
+//      A user with NO team-scoped membership — a club-wide membership, or a
+//      legacy user with only User.role — is club-wide and bypasses team
+//      scope, so no existing behaviour breaks.
 //
 //      A mismatch logs TENANT_MISMATCH (severity HIGH) and refuses 403.
 //
@@ -50,11 +52,13 @@ const LOOKUPS: Lookup[] = [
   { param: 'approvalId',      loader: (id) => prisma.aIApprovalRequest.findUnique({ where: { id }, select: { clubId: true } }) },
 ];
 
-// Roles that should be constrained by team scope when their membership
-// pins them to a specific team. Other roles operate club-wide.
-const TEAM_BOUND_ROLES: ReadonlySet<UserRole> = new Set<UserRole>([
-  'ASSISTANT_COACH', 'COACH', 'MEDICAL_STAFF', 'PLAYER', 'PARENT',
-]);
+// Only the platform administrator stands outside a club's team structure.
+// Everybody else is scoped by what their memberships actually say, which is
+// what `loadTeamScope` reads: null for a club-wide membership, a set for
+// assignments to particular teams.
+function isTeamScoped(role: UserRole | undefined): boolean {
+  return role !== ('SUPER_ADMIN' as UserRole);
+}
 
 // Cache the team-scope decision per (userId, clubId) for 30s so we don't
 // pay a DB hit per request. Invalidation is lazy; worst case a recent
@@ -75,7 +79,11 @@ async function loadTeamScope(userId: string, clubId: string): Promise<Set<string
       select: { teamId: true },
     });
     // If ANY membership is club-wide (teamId=null), the user is club-wide.
-    const hasClubWide = memberships.some((m) => !m.teamId);
+    // So is a user with NO membership rows at all: a legacy account carrying
+    // only User.role has never been assigned to a team, and refusing it every
+    // team-scoped resource would be a migration breaking existing users rather
+    // than a boundary protecting anybody. Only an ACTUAL assignment narrows.
+    const hasClubWide = memberships.length === 0 || memberships.some((m) => !m.teamId);
     const teamIds = hasClubWide
       ? null                                          // null = no team scope (full club)
       : new Set(memberships.map((m) => m.teamId!).filter(Boolean));
@@ -110,7 +118,7 @@ export async function tenantGuard(req: Request, res: Response, next: NextFunctio
     // Load team scope ONCE per request — if the user has no team-bound role,
     // skip the call entirely so the guard adds zero DB hits for admins.
     const teamScope: Set<string> | null | undefined =
-      u.role && TEAM_BOUND_ROLES.has(u.role) && u.role !== ('SUPER_ADMIN' as UserRole)
+      isTeamScoped(u.role)
         ? await loadTeamScope(u.id, u.clubId)
         : undefined;
 

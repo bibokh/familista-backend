@@ -1320,5 +1320,14 @@
   "Withdraw request": "申請を取り下げる",
   "Accept new time": "新しい時刻を承諾",
   "Reject new time": "新しい時刻を拒否",
-  "This request is with the other club and the competition.": "この申請は相手クラブと大会の側にあります。"
+  "This request is with the other club and the competition.": "この申請は相手クラブと大会の側にあります。",
+  "Read-only access. Contact a club admin for team access.": "閲覧のみの権限です。チームへのアクセスはクラブ管理者にご連絡ください。",
+  "You are not assigned to manage this team": "あなたはこのチームの管理担当ではありません",
+  "No access": "アクセス権がありません",
+  "Open read-only": "閲覧のみで開く",
+  "Contact club admin for team access": "チームへのアクセスはクラブ管理者にご連絡ください",
+  "Not assigned to manage this team": "このチームの管理担当ではありません",
+  "This age group is not linked to a team record yet": "この年代はまだチームの記録に紐づいていません",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "チームのマッチセンターは、そのチームに登録された試合を読み込みます。クラブのチームが読み込まれ次第ここに表示されます。",
+  "You do not have access to that team": "このチームへのアクセス権がありません"
 }

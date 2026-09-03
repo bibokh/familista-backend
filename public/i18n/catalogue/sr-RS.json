@@ -1323,5 +1323,14 @@
   "Withdraw request": "Povuci zahtev",
   "Accept new time": "Prihvati novi termin",
   "Reject new time": "Odbij novi termin",
-  "This request is with the other club and the competition.": "Ovaj zahtev je kod drugog kluba i kod takmičenja."
+  "This request is with the other club and the competition.": "Ovaj zahtev je kod drugog kluba i kod takmičenja.",
+  "Read-only access. Contact a club admin for team access.": "Pristup samo za čitanje. Obrati se administratoru kluba za pristup timu.",
+  "You are not assigned to manage this team": "Nisi zadužen za vođenje ovog tima",
+  "No access": "Nema pristupa",
+  "Open read-only": "Otvori samo za čitanje",
+  "Contact club admin for team access": "Obrati se administratoru kluba za pristup timu",
+  "Not assigned to manage this team": "Nije zadužen za vođenje ovog tima",
+  "This age group is not linked to a team record yet": "Ova uzrasna kategorija još nije povezana sa zapisom tima",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Centar utakmice jednog tima čita mečeve zavedene na taj tim. Pojavljuje se ovde čim se timovi kluba učitaju.",
+  "You do not have access to that team": "Nemaš pristup tom timu"
 }

@@ -1320,5 +1320,14 @@
   "Withdraw request": "Tarik balik permohonan",
   "Accept new time": "Terima waktu baharu",
   "Reject new time": "Tolak waktu baharu",
-  "This request is with the other club and the competition.": "Permohonan ini berada dengan kelab satu lagi dan pihak pertandingan."
+  "This request is with the other club and the competition.": "Permohonan ini berada dengan kelab satu lagi dan pihak pertandingan.",
+  "Read-only access. Contact a club admin for team access.": "Akses baca sahaja. Hubungi pentadbir kelab untuk akses pasukan.",
+  "You are not assigned to manage this team": "Anda tidak ditugaskan untuk mengurus pasukan ini",
+  "No access": "Tiada akses",
+  "Open read-only": "Buka baca sahaja",
+  "Contact club admin for team access": "Hubungi pentadbir kelab untuk akses pasukan",
+  "Not assigned to manage this team": "Tidak ditugaskan untuk mengurus pasukan ini",
+  "This age group is not linked to a team record yet": "Kumpulan umur ini belum dipautkan kepada rekod pasukan",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Pusat Perlawanan sesebuah pasukan membaca perlawanan yang direkodkan untuk pasukan itu. Ia muncul di sini sebaik sahaja pasukan kelab dimuatkan.",
+  "You do not have access to that team": "Anda tiada akses kepada pasukan itu"
 }

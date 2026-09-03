@@ -1323,5 +1323,14 @@
   "Withdraw request": "Stáhnout žádost",
   "Accept new time": "Přijmout nový čas",
   "Reject new time": "Odmítnout nový čas",
-  "This request is with the other club and the competition.": "Tato žádost je u druhého klubu a u soutěže."
+  "This request is with the other club and the competition.": "Tato žádost je u druhého klubu a u soutěže.",
+  "Read-only access. Contact a club admin for team access.": "Přístup pouze pro čtení. O přístup k týmu požádej správce klubu.",
+  "You are not assigned to manage this team": "Nejsi přiřazen ke správě tohoto týmu",
+  "No access": "Bez přístupu",
+  "Open read-only": "Otevřít jen pro čtení",
+  "Contact club admin for team access": "O přístup k týmu požádej správce klubu",
+  "Not assigned to manage this team": "Nepřiřazen ke správě tohoto týmu",
+  "This age group is not linked to a team record yet": "Tato věková kategorie zatím není propojena se záznamem týmu",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Zápasové centrum týmu čte utkání zapsaná na tento tým. Objeví se tady, jakmile se načtou týmy klubu.",
+  "You do not have access to that team": "K tomuto týmu nemáš přístup"
 }

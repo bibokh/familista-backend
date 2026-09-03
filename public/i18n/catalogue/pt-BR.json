@@ -1323,5 +1323,14 @@
   "Withdraw request": "Retirar a solicitação",
   "Accept new time": "Aceitar o novo horário",
   "Reject new time": "Recusar o novo horário",
-  "This request is with the other club and the competition.": "Esta solicitação está com o outro clube e com a competição."
+  "This request is with the other club and the competition.": "Esta solicitação está com o outro clube e com a competição.",
+  "Read-only access. Contact a club admin for team access.": "Acesso somente leitura. Fale com um administrador do clube para obter acesso ao time.",
+  "You are not assigned to manage this team": "Você não está designado para gerenciar este time",
+  "No access": "Sem acesso",
+  "Open read-only": "Abrir somente leitura",
+  "Contact club admin for team access": "Fale com o administrador do clube para obter acesso ao time",
+  "Not assigned to manage this team": "Não designado para gerenciar este time",
+  "This age group is not linked to a team record yet": "Esta categoria ainda não está vinculada a um registro de time",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "O Centro de Partida de um time lê os jogos registrados para aquele time. Aparece aqui assim que os times do clube forem carregados.",
+  "You do not have access to that team": "Você não tem acesso a esse time"
 }

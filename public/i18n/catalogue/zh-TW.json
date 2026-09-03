@@ -1320,5 +1320,14 @@
   "Withdraw request": "撤回申請",
   "Accept new time": "接受新時間",
   "Reject new time": "拒絕新時間",
-  "This request is with the other club and the competition.": "該申請正由對方俱樂部與賽事方處理。"
+  "This request is with the other club and the competition.": "該申請正由對方俱樂部與賽事方處理。",
+  "Read-only access. Contact a club admin for team access.": "唯讀存取。如需球隊權限，請聯絡俱樂部管理員。",
+  "You are not assigned to manage this team": "你未被指派管理這支球隊",
+  "No access": "無存取權限",
+  "Open read-only": "以唯讀方式開啟",
+  "Contact club admin for team access": "如需球隊權限，請聯絡俱樂部管理員",
+  "Not assigned to manage this team": "未被指派管理這支球隊",
+  "This age group is not linked to a team record yet": "此年齡層尚未關聯到球隊紀錄",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "球隊的比賽中心讀取記錄在該隊名下的比賽。俱樂部球隊載入完成後即會顯示在這裡。",
+  "You do not have access to that team": "你沒有該球隊的存取權限"
 }

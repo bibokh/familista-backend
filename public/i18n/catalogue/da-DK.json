@@ -1323,5 +1323,14 @@
   "Withdraw request": "Træk anmodningen tilbage",
   "Accept new time": "Accepter det nye tidspunkt",
   "Reject new time": "Afvis det nye tidspunkt",
-  "This request is with the other club and the competition.": "Denne anmodning ligger hos den anden klub og turneringen."
+  "This request is with the other club and the competition.": "Denne anmodning ligger hos den anden klub og turneringen.",
+  "Read-only access. Contact a club admin for team access.": "Skrivebeskyttet adgang. Kontakt en klubadministrator for holdadgang.",
+  "You are not assigned to manage this team": "Du er ikke tildelt at styre dette hold",
+  "No access": "Ingen adgang",
+  "Open read-only": "Åbn skrivebeskyttet",
+  "Contact club admin for team access": "Kontakt klubadministratoren for holdadgang",
+  "Not assigned to manage this team": "Ikke tildelt at styre dette hold",
+  "This age group is not linked to a team record yet": "Denne aldersgruppe er endnu ikke knyttet til et hold",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Et holds Kampcenter læser de kampe, der er registreret på det hold. Det vises her, så snart klubbens hold er indlæst.",
+  "You do not have access to that team": "Du har ikke adgang til det hold"
 }

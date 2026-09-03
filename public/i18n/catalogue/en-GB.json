@@ -1323,5 +1323,14 @@
   "Withdraw request": "Withdraw request",
   "Accept new time": "Accept new time",
   "Reject new time": "Reject new time",
-  "This request is with the other club and the competition.": "This request is with the other club and the competition."
+  "This request is with the other club and the competition.": "This request is with the other club and the competition.",
+  "Read-only access. Contact a club admin for team access.": "Read-only access. Contact a club admin for team access.",
+  "You are not assigned to manage this team": "You are not assigned to manage this team",
+  "No access": "No access",
+  "Open read-only": "Open read-only",
+  "Contact club admin for team access": "Contact club admin for team access",
+  "Not assigned to manage this team": "Not assigned to manage this team",
+  "This age group is not linked to a team record yet": "This age group is not linked to a team record yet",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.",
+  "You do not have access to that team": "You do not have access to that team"
 }

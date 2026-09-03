@@ -1323,5 +1323,14 @@
   "Withdraw request": "Отозвать заявку",
   "Accept new time": "Принять новое время",
   "Reject new time": "Отклонить новое время",
-  "This request is with the other club and the competition.": "Эта заявка находится у другого клуба и у турнира."
+  "This request is with the other club and the competition.": "Эта заявка находится у другого клуба и у турнира.",
+  "Read-only access. Contact a club admin for team access.": "Доступ только для чтения. Обратитесь к администратору клуба за доступом к команде.",
+  "You are not assigned to manage this team": "Вы не назначены управлять этой командой",
+  "No access": "Нет доступа",
+  "Open read-only": "Открыть только для чтения",
+  "Contact club admin for team access": "Обратитесь к администратору клуба за доступом к команде",
+  "Not assigned to manage this team": "Не назначен управлять этой командой",
+  "This age group is not linked to a team record yet": "Эта возрастная группа ещё не связана с записью команды",
+  "A team's Match Center reads the fixtures filed against that team. It appears here as soon as the club's teams have loaded.": "Центр матчей команды читает матчи, записанные за этой командой. Он появится здесь, как только команды клуба будут загружены.",
+  "You do not have access to that team": "У вас нет доступа к этой команде"
 }
