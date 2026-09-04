@@ -318,37 +318,51 @@ if [ -n "${ACADEMY_LEAGUE_INIT:-}" ]; then
     1|true|TRUE|yes|YES) SEASON_ARG="" ;;
     *) SEASON_ARG="--season=${ACADEMY_LEAGUE_INIT}" ;;
   esac
+  BEFORE_SNAPSHOT="/tmp/familista-first-team-before.json"
 
+  # ── is it already done? ────────────────────────────────────────────────────
+  # The verifier in check mode reads the season and reports an exit code. A
+  # season already in place is not initialised a second time, so leaving the
+  # variable set does not mean re-running this on every future boot: after the
+  # first success this branch prints one line and falls through to the server.
   set +e
-  if [ -n "$SEASON_ARG" ]; then
-    node dist/scripts/init-academy-league-season.js "$SEASON_ARG"
-  else
-    node dist/scripts/init-academy-league-season.js
-  fi
-  INIT_RC=$?
+  node dist/scripts/verify-academy-league.js $SEASON_ARG --quiet
+  ALREADY=$?
   set -e
-  if [ "$INIT_RC" -ne 0 ]; then
-    echo "❌ academy initialisation exited $INIT_RC — nothing further was attempted."
-    echo "   The API starts anyway; the database is unchanged beyond whatever the"
-    echo "   run had already committed, and the initialiser is safe to run again."
-  fi
 
-  # The proof, read back from the database in a separate process: what is
-  # actually there, band by band, rather than what the run believed it did.
-  echo ""
-  set +e
-  if [ -n "$SEASON_ARG" ]; then
-    node dist/scripts/verify-academy-league.js "$SEASON_ARG"
+  if [ "$ALREADY" -eq 0 ]; then
+    echo "✅ this season is already initialised and verified — nothing to do"
+    echo "   (ACADEMY_LEAGUE_INIT can be removed from the environment)"
   else
-    node dist/scripts/verify-academy-league.js
+    # ── the First Team, counted BEFORE anything runs ─────────────────────────
+    set +e
+    node dist/scripts/verify-academy-league.js --snapshot-first-team="$BEFORE_SNAPSHOT"
+    set -e
+
+    set +e
+    node dist/scripts/init-academy-league-season.js $SEASON_ARG
+    INIT_RC=$?
+    set -e
+    if [ "$INIT_RC" -ne 0 ]; then
+      echo "❌ academy initialisation exited $INIT_RC — nothing further was attempted."
+      echo "   The API starts anyway; the database is unchanged beyond whatever the"
+      echo "   run had already committed, and the initialiser is safe to run again."
+    fi
+
+    # The proof, read back from the database in a separate process: what is
+    # actually there, band by band, rather than what the run believed it did —
+    # and the First Team's own numbers again, compared against the snapshot.
+    echo ""
+    set +e
+    node dist/scripts/verify-academy-league.js $SEASON_ARG --compare-first-team="$BEFORE_SNAPSHOT"
+    VERIFY_RC=$?
+    set -e
+    if [ "$VERIFY_RC" -ne 0 ]; then
+      echo "⚠  verification did not pass (exit $VERIFY_RC) — read the report above."
+    fi
+    echo ""
+    echo "── remove ACADEMY_LEAGUE_INIT from the environment once you have read the above ──"
   fi
-  VERIFY_RC=$?
-  set -e
-  if [ "$VERIFY_RC" -ne 0 ]; then
-    echo "⚠  verification could not complete (exit $VERIFY_RC)"
-  fi
-  echo ""
-  echo "── remove ACADEMY_LEAGUE_INIT from the environment once you have read the above ──"
 fi
 
 # ── 5 · the server ───────────────────────────────────────────────────────────

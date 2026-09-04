@@ -76,6 +76,46 @@ describe('the boot that initialises a season', () => {
     expect(INIT).not.toMatch(/initCurrentSeason|FIRST_TEAM_CATEGORY/);
   });
 
+  it('does not re-initialise a season that is already in place', () => {
+    const hook = START.slice(START.indexOf('if [ -n "${ACADEMY_LEAGUE_INIT:-}" ]; then'),
+                             START.indexOf('# ── 5 · the server'));
+    // The check runs FIRST, and the initialiser only runs when it fails — so a
+    // variable left set does not mean a season re-initialised on every boot.
+    expect(hook.indexOf('--quiet')).toBeLessThan(hook.indexOf('init-academy-league-season.js'));
+    expect(hook).toContain('if [ "$ALREADY" -eq 0 ]; then');
+    expect(hook).toContain('already initialised and verified — nothing to do');
+    // Check mode prints nothing and answers with an exit code.
+    expect(VERIFY).toContain("const quiet = process.argv.includes('--quiet')");
+    expect(VERIFY).toContain('process.exit(report.ok ? 0 : 1)');
+  });
+
+  it('counts the First Team before, and compares it after', () => {
+    const hook = START.slice(START.indexOf('if [ -n "${ACADEMY_LEAGUE_INIT:-}" ]; then'),
+                             START.indexOf('# ── 5 · the server'));
+    expect(hook).toContain('--snapshot-first-team="$BEFORE_SNAPSHOT"');
+    expect(hook).toContain('--compare-first-team="$BEFORE_SNAPSHOT"');
+    // Before the initialiser, compared after it — that order and no other.
+    expect(hook.indexOf('--snapshot-first-team')).toBeLessThan(hook.indexOf('init-academy-league-season.js'));
+    expect(hook.indexOf('init-academy-league-season.js')).toBeLessThan(hook.indexOf('--compare-first-team'));
+    expect(VERIFY).toContain('First Team Familista League — BEFORE');
+    expect(VERIFY).toContain('First Team Familista League — AFTER');
+    expect(VERIFY).toContain('FIRST TEAM UNCHANGED');
+    // The snapshot is a read: it counts the competition and writes a file, and
+    // touches no database row.
+    expect(VERIFY).toContain('export async function readFirstTeam');
+  });
+
+  it('and reports the four totals the approval was given on', () => {
+    for (const line of ['CROSS-AGE PARTICIPANTS', 'FIRST-TEAM PARTICIPANTS',
+                        'DUPLICATE PARTICIPANTS', 'DUPLICATE FIXTURES']) {
+      expect(VERIFY).toContain(line);
+    }
+    // The verdict is derived from those totals and the per-band checks, never
+    // asserted on its own.
+    expect(VERIFY).toMatch(/const verified = report\.ok && totals\.cross === 0 && totals\.senior === 0/);
+    expect(VERIFY).toContain('firstTeamUnchanged !== false');
+  });
+
   it('the verifier checks each band against what a full calendar should be', () => {
     expect(VERIFY).toContain('plannedCalendar(entries.length)');
     expect(VERIFY).toContain('standings rows ${standingsRows} ≠ participants');
