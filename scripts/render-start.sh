@@ -158,6 +158,11 @@ const REQUIRED_COLUMNS = [
   ['Player', 'trainedPositions', 'ALTER TABLE "Player" ADD COLUMN IF NOT EXISTS "trainedPositions" TEXT'],
   // 20260812010000_add_player_form
   ['Player', 'form',             'ALTER TABLE "Player" ADD COLUMN IF NOT EXISTS "form" INTEGER'],
+  // 20260904090000_training_session_team — the column every training read now
+  // selects. Its migration is idempotent, but the reconciliation above can mark
+  // a migration applied without running it, and a TrainingSession without its
+  // team would be a P2022 on the first session the Training screen asks for.
+  ['TrainingSession', 'teamId',  'ALTER TABLE "TrainingSession" ADD COLUMN IF NOT EXISTS "teamId" TEXT'],
 ];
 
 // 20260812000000_add_club_transfer_balance
