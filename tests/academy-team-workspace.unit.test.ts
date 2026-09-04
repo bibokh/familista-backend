@@ -110,7 +110,7 @@ describe('each team has its own Match Center, and the data is scoped on the serv
     expect(MCS).toContain('export async function resolveTeamScope');
     const scope = codeOnly(MCS.slice(MCS.indexOf('export async function resolveTeamScope'),
                                      MCS.indexOf('export type MatchCenterCompetitionKind')));
-    expect(scope).toMatch(/const access = await assertCanViewTeam\(actor, teamId\);[\s\S]{0,140}teamIds: \[teamId\]/);
+    expect(scope).toMatch(/const access = await assertCanViewTeamPrivate\(actor, teamId\);[\s\S]{0,140}teamIds: \[teamId\]/);
     // Naming no team is the First Team, exactly as before academy teams existed.
     expect(scope).toContain('FIRST_TEAM_KINDS.includes(c.kind)');
   });
@@ -221,6 +221,58 @@ describe('the academy workspace is one module per age group, not one flat page',
     expect(APP).toContain('function _mccNode(sel)');
     const mcc = APP.slice(APP.indexOf('function _mccRoot()'), APP.indexOf('// ── the page ──'));
     expect(mcc).not.toMatch(/document\.getElementById\('mc[cx]-/);
+  });
+});
+
+describe('a team you do not work on is a different screen, not a disabled one', () => {
+  it('the client carries the server\'s three answers rather than deriving a fourth', () => {
+    const fn = APP.slice(APP.indexOf('function _acAccess(id)'), APP.indexOf('function _acCanOpen('));
+    expect(fn).toContain('canViewPrivate: !!a.canViewPrivate');
+    expect(fn).toContain('canView: !!a.canView');
+    expect(fn).toContain('canManage: !!a.canManage');
+    expect(APP).toContain('function _acCanSeeInside(id) { return _acAccess(id).canViewPrivate !== false; }');
+  });
+
+  it('and the private modules are not drawn at all when it says no', () => {
+    const fn = APP.slice(APP.indexOf('function renderAcademyTeamPage()'),
+                         APP.indexOf('function _atLockedBodyHtml('));
+    expect(fn).toContain('var locked = !_acCanSeeInside(id);');
+    // The nav, the sections and the two server-backed modules are all behind it:
+    // a locked workspace never renders a squad and then hides a button.
+    expect(fn).toMatch(/locked\s*\?\s*_atLockedBodyHtml\(id\)/);
+    expect(fn).toContain('if (locked) return;');
+    expect(fn).toMatch(/if \(locked\) return;[\s\S]{0,80}_atPaintLeague\(id\)/);
+    // And the header carries identity without the team's own numbers.
+    expect(fn).toContain("+ (locked ? '' : '<div class=\"at-head-meta\">'");
+  });
+
+  it('the locked screen says what it is standing in for, and shows the shell', () => {
+    const fn = APP.slice(APP.indexOf('function _atLockedBodyHtml('),
+                         APP.indexOf('// ── this age group\'s Familista League'));
+    expect(fn).toContain('You are not assigned to manage this team');
+    for (const line of ['Squad and player profiles', 'Lineup, formation and tactics',
+                        'Training and attendance', 'Match Center and preparation',
+                        'Video Intelligence and private analytics']) {
+      expect(fn).toContain(line);
+    }
+    // The shell it may see: the age group and who is responsible for it.
+    expect(fn).toContain("t('academy.ageGroup')");
+    expect(fn).toContain('_acResponsible(id)');
+    // Built from the shared components, not from markup invented beside them.
+    expect(fn).toContain('_lgPanel(');
+    expect(fn).toContain('_lgEmpty(');
+    expect(fn).toContain('_lgIdent(');
+  });
+
+  it('and every string on it is in the catalogue', () => {
+    const en = JSON.parse(read('public/i18n/catalogue/en-GB.json')) as Record<string, string>;
+    for (const line of ['Team access', 'Responsible coach', 'Private to this team',
+                        'Squad and player profiles', 'Lineup, formation and tactics',
+                        'Training and attendance', 'Match Center and preparation',
+                        'Familista League administration', 'Video Intelligence and private analytics',
+                        "This team's workspace is private to the people assigned to it. Contact a club admin for team access."]) {
+      expect(en[line]).toBeTruthy();
+    }
   });
 });
 

@@ -1332,5 +1332,15 @@
   "You do not have access to that team": "このチームへのアクセス権がありません",
   "No active Familista League competition for this team": "このチームに進行中の Familista League 大会はありません",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "このチームはまだリーグシーズンに登録されていません。登録され次第、順位表・日程・選手ランキングがここに表示されます。",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "チームの Familista League は、そのチームが登録されている大会を読み込みます。クラブのチームが読み込まれ次第ここに表示されます。"
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "チームの Familista League は、そのチームが登録されている大会を読み込みます。クラブのチームが読み込まれ次第ここに表示されます。",
+  "Team access": "チームへのアクセス",
+  "Responsible coach": "担当コーチ",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "このチームのワークスペースは、割り当てられたメンバーのみが利用できます。アクセスについてはクラブ管理者にお問い合わせください。",
+  "Private to this team": "このチーム限定",
+  "Squad and player profiles": "スカッドと選手プロフィール",
+  "Lineup, formation and tactics": "スタメン、フォーメーション、戦術",
+  "Training and attendance": "トレーニングと出席",
+  "Match Center and preparation": "Match Center と試合準備",
+  "Familista League administration": "Familista League の管理",
+  "Video Intelligence and private analytics": "Video Intelligence とプライベート分析"
 }

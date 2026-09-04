@@ -16,8 +16,16 @@
 import { Router } from 'express';
 import * as C from '../controllers/phase-q.controller';
 import { authenticate } from '../middleware/auth.middleware';
+import { requirePlayerTeamAccess, requireTeamPrivate } from '../middleware/team-scope.middleware';
 
 const router = Router();
+
+// A player's workload, his medical profile and his statistics are his team's
+// private content. Every route here addressed by :playerId passes through the
+// same gate the Squad does — reading takes private sight of his team, writing
+// takes an assignment to manage it — so none of them can be reached with a
+// player id belonging to a team the caller does not work on.
+router.param('playerId', (req, res, next) => requirePlayerTeamAccess('playerId')(req, res, next));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PUBLIC routes — no JWT required (share token IS the credential).
@@ -81,8 +89,10 @@ router.post  ('/workload/gps',                       C.ingestGPSSession);
 // ATL/CTL/TSB recompute for a player
 router.post  ('/workload/players/:playerId/recompute', C.recomputeWorkload);
 
-// Squad readiness dashboard
-router.get   ('/workload/teams/:teamId/readiness',   C.squadReadiness);
+// Squad readiness dashboard — a team's own availability, which is private to
+// the people who work on that team. The team named in the URL is checked
+// against the caller's assignments before the dashboard is read.
+router.get   ('/workload/teams/:teamId/readiness',   requireTeamPrivate({ keys: ['teamId'], required: true }), C.squadReadiness);
 
 // Injuries — CRUD
 router.post  ('/workload/injuries',                   C.recordInjury);

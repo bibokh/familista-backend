@@ -1335,5 +1335,15 @@
   "You do not have access to that team": "K tomuto týmu nemáš přístup",
   "No active Familista League competition for this team": "Pro tento tým není aktivní žádná soutěž Familista League",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Tento tým zatím není přihlášen do ligové sezony. Tabulka, zápasy a žebříčky hráčů se tu objeví, jakmile bude.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League týmu čte soutěž, do které je tým přihlášen. Objeví se tady, jakmile se načtou týmy klubu."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League týmu čte soutěž, do které je tým přihlášen. Objeví se tady, jakmile se načtou týmy klubu.",
+  "Team access": "Přístup k týmu",
+  "Responsible coach": "Odpovědný trenér",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "Pracovní prostor tohoto týmu je přístupný jen lidem, kteří jsou k němu přiřazeni. O přístup požádejte správce klubu.",
+  "Private to this team": "Soukromé pro tento tým",
+  "Squad and player profiles": "Kádr a profily hráčů",
+  "Lineup, formation and tactics": "Sestava, rozestavení a taktika",
+  "Training and attendance": "Tréninky a docházka",
+  "Match Center and preparation": "Match Center a příprava",
+  "Familista League administration": "Správa Familista League",
+  "Video Intelligence and private analytics": "Video Intelligence a soukromé analýzy"
 }

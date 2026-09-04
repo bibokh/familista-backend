@@ -1335,5 +1335,15 @@
   "You do not have access to that team": "Du har ikke adgang til det hold",
   "No active Familista League competition for this team": "Ingen aktiv Familista League-turnering for dette hold",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Dette hold er endnu ikke tilmeldt en ligasæson. Tabel, kampe og spillerrangeringer vises her, så snart det er.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Et holds Familista League læser den turnering, holdet er tilmeldt. Den vises her, så snart klubbens hold er indlæst."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Et holds Familista League læser den turnering, holdet er tilmeldt. Den vises her, så snart klubbens hold er indlæst.",
+  "Team access": "Holdadgang",
+  "Responsible coach": "Ansvarlig træner",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "Dette holds arbejdsområde er privat for de personer, der er tilknyttet holdet. Kontakt en klubadministrator for at få adgang.",
+  "Private to this team": "Privat for dette hold",
+  "Squad and player profiles": "Trup og spillerprofiler",
+  "Lineup, formation and tactics": "Startopstilling, formation og taktik",
+  "Training and attendance": "Træning og fremmøde",
+  "Match Center and preparation": "Match Center og forberedelse",
+  "Familista League administration": "Administration af Familista League",
+  "Video Intelligence and private analytics": "Video Intelligence og privat analyse"
 }

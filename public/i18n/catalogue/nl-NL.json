@@ -1335,5 +1335,15 @@
   "You do not have access to that team": "Je hebt geen toegang tot dat team",
   "No active Familista League competition for this team": "Geen actieve Familista League-competitie voor dit team",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Dit team is nog niet ingeschreven voor een competitieseizoen. De stand, de wedstrijden en de spelersranglijsten verschijnen hier zodra dat wel zo is.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "De Familista League van een team leest de competitie waarvoor dat team is ingeschreven. Die verschijnt hier zodra de teams van de club zijn geladen."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "De Familista League van een team leest de competitie waarvoor dat team is ingeschreven. Die verschijnt hier zodra de teams van de club zijn geladen.",
+  "Team access": "Teamtoegang",
+  "Responsible coach": "Verantwoordelijke trainer",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "De werkruimte van dit team is alleen zichtbaar voor de toegewezen personen. Neem contact op met een clubbeheerder voor teamtoegang.",
+  "Private to this team": "Privé voor dit team",
+  "Squad and player profiles": "Selectie en spelersprofielen",
+  "Lineup, formation and tactics": "Opstelling, formatie en tactiek",
+  "Training and attendance": "Training en aanwezigheid",
+  "Match Center and preparation": "Match Center en voorbereiding",
+  "Familista League administration": "Beheer van de Familista League",
+  "Video Intelligence and private analytics": "Video Intelligence en privéanalyses"
 }

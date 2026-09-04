@@ -1332,5 +1332,15 @@
   "You do not have access to that team": "Bạn không có quyền truy cập đội đó",
   "No active Familista League competition for this team": "Không có giải Familista League nào đang diễn ra cho đội này",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Đội này chưa được đăng ký vào một mùa giải. Bảng xếp hạng, các trận đấu và bảng xếp hạng cầu thủ sẽ xuất hiện ở đây khi đã đăng ký.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League của một đội đọc giải đấu mà đội đó được đăng ký. Nó xuất hiện ở đây ngay khi các đội của câu lạc bộ được tải."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League của một đội đọc giải đấu mà đội đó được đăng ký. Nó xuất hiện ở đây ngay khi các đội của câu lạc bộ được tải.",
+  "Team access": "Quyền truy cập đội",
+  "Responsible coach": "Huấn luyện viên phụ trách",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "Không gian làm việc của đội này chỉ dành cho những người được phân công. Hãy liên hệ quản trị viên câu lạc bộ để được cấp quyền.",
+  "Private to this team": "Riêng của đội này",
+  "Squad and player profiles": "Đội hình và hồ sơ cầu thủ",
+  "Lineup, formation and tactics": "Đội hình xuất phát, sơ đồ và chiến thuật",
+  "Training and attendance": "Tập luyện và điểm danh",
+  "Match Center and preparation": "Match Center và chuẩn bị trận đấu",
+  "Familista League administration": "Quản trị Familista League",
+  "Video Intelligence and private analytics": "Video Intelligence và phân tích riêng"
 }

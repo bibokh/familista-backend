@@ -25,7 +25,7 @@
 
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
-import { eligibleTeamWhere } from './league-eligibility';
+import { allAgeGroups, eligibleTeamWhereFor } from './league-eligibility';
 import {
   generateRoundRobinFixtures,
   rebuildStandingsUnchecked,
@@ -46,6 +46,44 @@ export function currentSeason(now: Date = new Date()): string {
   const year = now.getUTCFullYear();
   const start = now.getUTCMonth() + 1 >= 7 ? year : year - 1;
   return `${start}/${String((start + 1) % 100).padStart(2, '0')}`;
+}
+
+/**
+ * The competition a run creates, as data.
+ *
+ * The First Team's league and an age group's league are the same competition
+ * shape with a different category, and this is the difference between them.
+ * There is no second engine, no second bootstrap and no second set of rules —
+ * only a code, a name and an age group.
+ */
+export interface LeagueCategory {
+  code: string;
+  name: string;
+  /** Null for the First Team's league; `U15` for an age group's. */
+  ageGroup: string | null;
+  description: string;
+  /** What the participants are called in this run's notes and errors. */
+  participantLabel: string;
+}
+
+export const FIRST_TEAM_CATEGORY: LeagueCategory = {
+  code: LEAGUE_CODE,
+  name: LEAGUE_NAME,
+  ageGroup: null,
+  description: 'The competition between the clubs on the Familista platform.',
+  participantLabel: 'first team',
+};
+
+/** `U15` → the U15 Familista League. Derived, so a new age group needs no edit. */
+export function academyCategory(ageGroup: string): LeagueCategory {
+  const token = String(ageGroup).trim().toUpperCase();
+  return {
+    code: `${LEAGUE_CODE}-${token}`,
+    name: `${LEAGUE_NAME} ${token}`,
+    ageGroup: token,
+    description: `The ${token} competition between the academies on the Familista platform.`,
+    participantLabel: `${token} team`,
+  };
 }
 
 export interface InitOptions {
@@ -95,7 +133,16 @@ const INITIAL_RULES = {
   prizes: { enabled: false },
 };
 
-export async function initCurrentSeason(opts: InitOptions = {}): Promise<InitResult> {
+/**
+ * Start one league season, for one category.
+ *
+ * Everything below is category-agnostic: who is eligible comes from
+ * league-eligibility asked about THIS competition, the calendar comes from the
+ * competition engine's round-robin, and every fixture becomes the same Match
+ * the Match Centre opens. The First Team's league and an academy age group's
+ * league differ by their category argument and by nothing else.
+ */
+export async function initSeasonFor(category: LeagueCategory, opts: InitOptions = {}): Promise<InitResult> {
   const season = opts.season ?? currentSeason();
   const notes: string[] = [];
   const result: InitResult = {
@@ -118,7 +165,7 @@ export async function initCurrentSeason(opts: InitOptions = {}): Promise<InitRes
   // The eligibility rule is not restated here. It comes from league-eligibility,
   // so a first team is discovered because it is one — never because of its name.
   const where: Prisma.TeamWhereInput = {
-    ...eligibleTeamWhere(),
+    ...eligibleTeamWhereFor(category.ageGroup),
     ...(opts.teamIds?.length ? { id: { in: opts.teamIds } } : {}),
   };
   const eligible = await prisma.team.findMany({
@@ -132,29 +179,31 @@ export async function initCurrentSeason(opts: InitOptions = {}): Promise<InitRes
 
   if (opts.teamIds?.length && eligible.length !== opts.teamIds.length) {
     throw new Error(
-      `${opts.teamIds.length} team(s) named but ${eligible.length} are eligible first teams. An ineligible team cannot be entered.`,
+      `${opts.teamIds.length} team(s) named but ${eligible.length} are eligible ${category.participantLabel}s. An ineligible team cannot be entered.`,
     );
   }
   if (eligible.length < 2) {
-    throw new Error('A league needs at least two eligible first teams. Register the clubs first.');
+    // No invented opponent, ever. A category with one real team has no
+    // competition, and the screen says exactly that.
+    throw new Error(`A league needs at least two eligible ${category.participantLabel}s. Register the clubs first.`);
   }
   const cap = opts.maxDiscovered ?? 32;
   if (!opts.teamIds?.length && eligible.length > cap) {
     throw new Error(
-      `${eligible.length} eligible first teams found, which is more than the safety limit of ${cap}. `
+      `${eligible.length} eligible ${category.participantLabel}s found, which is more than the safety limit of ${cap}. `
       + 'Name the participants explicitly, or raise the limit deliberately.',
     );
   }
-  notes.push(`${eligible.length} eligible first team(s)${opts.teamIds?.length ? ' (named explicitly)' : ' (discovered)'}`);
+  notes.push(`${eligible.length} eligible ${category.participantLabel}(s)${opts.teamIds?.length ? ' (named explicitly)' : ' (discovered)'}`);
 
   // ── the competition ────────────────────────────────────────────────────────
   let comp = await prisma.competition.findFirst({
-    where: { clubId: null, code: LEAGUE_CODE, season },
+    where: { clubId: null, code: category.code, season },
   });
 
   if (!comp) {
     if (opts.dryRun) {
-      notes.push(`would create the ${LEAGUE_NAME} competition for ${season}`);
+      notes.push(`would create the ${category.name} competition for ${season}`);
     } else {
       comp = await prisma.competition.create({
         data: {
@@ -162,11 +211,14 @@ export async function initCurrentSeason(opts: InitOptions = {}): Promise<InitRes
           // is what makes it readable by every participant and editable by none
           // of them — see the ownership checks in competition.service.ts.
           clubId: null,
-          code: LEAGUE_CODE,
+          code: category.code,
           season,
-          name: LEAGUE_NAME,
+          name: category.name,
           format: 'LEAGUE',
-          description: 'The competition between the clubs on the Familista platform.',
+          // The category, stored rather than inferred. Every eligibility
+          // question about this competition is answered from this column.
+          ageGroup: category.ageGroup,
+          description: category.description,
           rules: INITIAL_RULES as Prisma.InputJsonValue,
         },
       });
@@ -266,6 +318,88 @@ export async function initCurrentSeason(opts: InitOptions = {}): Promise<InitRes
   if (!result.fixturesCreated) result.fixturesReused = fixtures.length;
 
   return result;
+}
+
+/**
+ * The Familista League — the First Team's competition.
+ *
+ * Unchanged in behaviour and in signature: the same discovery, the same
+ * calendar, the same safety. It is now one call to the shared runner rather
+ * than its own copy of it, which is what stops the academy's league and the
+ * First Team's ever drifting apart.
+ */
+export async function initCurrentSeason(opts: InitOptions = {}): Promise<InitResult> {
+  return initSeasonFor(FIRST_TEAM_CATEGORY, opts);
+}
+
+export interface AcademyGroupOutcome {
+  ageGroup: string;
+  /** Real teams of this age group on the platform. Never invented. */
+  teamCount: number;
+  /** Null when the group was skipped — there was no competition to create. */
+  result: InitResult | null;
+  skipped: boolean;
+  /** Why it was skipped, as a sentence for the operator running this. */
+  note: string;
+}
+
+export interface AcademyInitResult {
+  season: string;
+  groups: AcademyGroupOutcome[];
+  competitionsCreated: number;
+  fixturesCreated: number;
+}
+
+/**
+ * Start the season for every academy age group that has a real competition to
+ * play.
+ *
+ * "Real" is doing the work in that sentence. An age group is given a league
+ * when at least two teams of that age group exist on the platform, and those
+ * teams are the ones already in the database — no club is created, no opponent
+ * is invented, and an age group with one team is skipped and SAID to be
+ * skipped. The screen shows that as an honest empty state; it never shows a
+ * fixture against a team that does not exist.
+ *
+ * Age groups are never mixed: each competition is created with its own
+ * `ageGroup`, and `league-eligibility` refuses anything else at the door.
+ */
+export async function initAcademySeasons(
+  opts: InitOptions & { ageGroups?: string[]; minTeams?: number } = {},
+): Promise<AcademyInitResult> {
+  const season = opts.season ?? currentSeason();
+  const minTeams = Math.max(2, opts.minTeams ?? 2);
+  const wanted = opts.ageGroups?.length
+    ? opts.ageGroups.map((g) => String(g).trim().toUpperCase())
+    : allAgeGroups();
+
+  const groups: AcademyGroupOutcome[] = [];
+  for (const ageGroup of wanted) {
+    const category = academyCategory(ageGroup);
+    const teamCount = await prisma.team.count({ where: eligibleTeamWhereFor(ageGroup) });
+    if (teamCount < minTeams) {
+      groups.push({
+        ageGroup,
+        teamCount,
+        result: null,
+        skipped: true,
+        note: `${teamCount} active ${ageGroup} team(s) on the platform — a competition needs ${minTeams}. Nothing was created.`,
+      });
+      continue;
+    }
+    const { ageGroups: _groups, minTeams: _min, ...base } = opts;
+    // Every group runs for the SAME season, resolved once above, so a run that
+    // straddles midnight on the 1st of July cannot file two of them differently.
+    const result = await initSeasonFor(category, { ...base, season });
+    groups.push({ ageGroup, teamCount, result, skipped: false, note: result.notes.join('; ') });
+  }
+
+  return {
+    season,
+    groups,
+    competitionsCreated: groups.filter((g) => g.result?.competitionCreated).length,
+    fixturesCreated: groups.reduce((n, g) => n + (g.result?.fixturesCreated ?? 0), 0),
+  };
 }
 
 /** The actor a command-line run acts as. There is no session to take it from,

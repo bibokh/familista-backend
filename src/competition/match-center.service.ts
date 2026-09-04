@@ -25,7 +25,7 @@ import {
   TeamAccess,
   TeamActor,
   accessForTeam,
-  assertCanViewTeam,
+  assertCanViewTeamPrivate,
   listTeamContexts,
 } from '../identity/team-access.service';
 import * as league from './familista-league.service';
@@ -84,13 +84,18 @@ export interface TeamScope {
 
 export async function resolveTeamScope(actor: MatchCenterActor, teamId?: string | null): Promise<TeamScope> {
   if (teamId) {
-    const access = await assertCanViewTeam(actor, teamId);
+    // A team's calendar is that team's operational content, not the club's
+    // noticeboard: it says who they play, when, and what was prepared for it.
+    // Being in the same club is therefore not enough — the reader must work on
+    // the team. `assertCanViewTeamPrivate` refuses everybody else with a 403,
+    // whatever team id was typed into the URL.
+    const access = await assertCanViewTeamPrivate(actor, teamId);
     return { teamIds: [teamId], teamId, access };
   }
   // No team named: the club's first teams, and only those the caller may read.
   const contexts = await listTeamContexts(actor);
   const teamIds = contexts
-    .filter((c) => FIRST_TEAM_KINDS.includes(c.kind) && c.access.canView)
+    .filter((c) => FIRST_TEAM_KINDS.includes(c.kind) && c.access.canViewPrivate)
     .map((c) => c.teamId);
   return { teamIds, teamId: null, access: null };
 }
@@ -480,6 +485,9 @@ async function fixtureAccess(
     let access: TeamAccess;
     try { access = await accessForTeam(actor, teamId); } catch { continue; }
     if (!access.canView) continue;
+    // Seeing that a team exists is not seeing what it prepared for a match.
+    // A fixture opens from a side the reader actually works on.
+    if (!access.canViewPrivate) continue;
     // A team this person manages wins over one they merely read, so a fixture
     // between two of the club's own teams is writable from the right side.
     if (!best || (access.canManage && !best.access.canManage)) best = { ourTeamId: teamId, access };

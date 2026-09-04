@@ -253,8 +253,10 @@ describe('the calendar is one team\'s, and the First Team is the default', () =>
     const scope = codeOnly(MCS.slice(MCS.indexOf('export async function resolveTeamScope'),
                                      MCS.indexOf('export type MatchCenterCompetitionKind')));
     // The check comes BEFORE the scope is built, so a team id typed into a URL
-    // is refused rather than quietly filtered out downstream.
-    expect(scope).toMatch(/const access = await assertCanViewTeam\(actor, teamId\);[\s\S]{0,120}return \{ teamIds: \[teamId\]/);
+    // is refused rather than quietly filtered out downstream — and what it
+    // checks is PRIVATE sight: a team's calendar is that team's operational
+    // content, not the club's noticeboard.
+    expect(scope).toMatch(/const access = await assertCanViewTeamPrivate\(actor, teamId\);[\s\S]{0,120}return \{ teamIds: \[teamId\]/);
   });
 
   it('and every fixture is matched against those team ids, not against a club name', () => {
@@ -293,7 +295,7 @@ describe('one club, many teams, and control does not spill between them', () => 
 
   it('only the coaching and administrative roles control a team', () => {
     const set = TAS.slice(TAS.indexOf('export const TEAM_MANAGING_ROLES'),
-                          TAS.indexOf('/** The kinds of team that are academy age groups'));
+                          TAS.indexOf('/**\n * The membership roles that are NOT club staff'));
     for (const role of ['CLUB_OWNER', 'CLUB_ADMIN', 'HEAD_COACH', 'ASSISTANT_COACH', 'YOUTH_COACH']) {
       expect(set).toContain('MembershipRole.' + role);
     }

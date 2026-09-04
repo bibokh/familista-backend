@@ -1335,5 +1335,15 @@
   "You do not have access to that team": "У вас нет доступа к этой команде",
   "No active Familista League competition for this team": "Для этой команды нет активного турнира Familista League",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Эта команда ещё не заявлена в сезон лиги. Таблица, матчи и рейтинги игроков появятся здесь, как только будет.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League команды читает турнир, в который эта команда заявлена. Он появится здесь, как только команды клуба будут загружены."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League команды читает турнир, в который эта команда заявлена. Он появится здесь, как только команды клуба будут загружены.",
+  "Team access": "Доступ к команде",
+  "Responsible coach": "Ответственный тренер",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "Рабочее пространство этой команды доступно только назначенным в неё людям. Обратитесь к администратору клуба за доступом.",
+  "Private to this team": "Только для этой команды",
+  "Squad and player profiles": "Состав и профили игроков",
+  "Lineup, formation and tactics": "Стартовый состав, схема и тактика",
+  "Training and attendance": "Тренировки и посещаемость",
+  "Match Center and preparation": "Match Center и подготовка к матчу",
+  "Familista League administration": "Управление Familista League",
+  "Video Intelligence and private analytics": "Video Intelligence и закрытая аналитика"
 }

@@ -1332,5 +1332,15 @@
   "You do not have access to that team": "Anda tiada akses kepada pasukan itu",
   "No active Familista League competition for this team": "Tiada pertandingan Familista League yang aktif untuk pasukan ini",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Pasukan ini belum didaftarkan dalam musim liga. Kedudukan, perlawanan dan kedudukan pemain muncul di sini sebaik sahaja didaftarkan.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League sesebuah pasukan membaca pertandingan yang disertai pasukan itu. Ia muncul di sini sebaik sahaja pasukan kelab dimuatkan."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League sesebuah pasukan membaca pertandingan yang disertai pasukan itu. Ia muncul di sini sebaik sahaja pasukan kelab dimuatkan.",
+  "Team access": "Akses pasukan",
+  "Responsible coach": "Jurulatih bertanggungjawab",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "Ruang kerja pasukan ini adalah persendirian untuk mereka yang ditugaskan kepadanya. Hubungi pentadbir kelab untuk mendapatkan akses.",
+  "Private to this team": "Persendirian untuk pasukan ini",
+  "Squad and player profiles": "Skuad dan profil pemain",
+  "Lineup, formation and tactics": "Barisan pemain, formasi dan taktik",
+  "Training and attendance": "Latihan dan kehadiran",
+  "Match Center and preparation": "Match Center dan persediaan perlawanan",
+  "Familista League administration": "Pentadbiran Familista League",
+  "Video Intelligence and private analytics": "Video Intelligence dan analitik persendirian"
 }

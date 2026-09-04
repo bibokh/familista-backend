@@ -1335,5 +1335,15 @@
   "You do not have access to that team": "ليس لديك وصول إلى هذا الفريق",
   "No active Familista League competition for this team": "لا توجد مسابقة Familista League نشطة لهذا الفريق",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "هذا الفريق غير مسجَّل بعد في موسم دوري. سيظهر هنا جدول الترتيب والمباريات وتصنيفات اللاعبين فور تسجيله.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "تقرأ Familista League الخاصة بفريقٍ ما المسابقةَ المسجَّل فيها ذلك الفريق. وتظهر هنا فور تحميل فرق النادي."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "تقرأ Familista League الخاصة بفريقٍ ما المسابقةَ المسجَّل فيها ذلك الفريق. وتظهر هنا فور تحميل فرق النادي.",
+  "Team access": "الوصول إلى الفريق",
+  "Responsible coach": "المدرب المسؤول",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "مساحة عمل هذا الفريق خاصة بالأشخاص المعيَّنين له. تواصل مع مسؤول النادي للحصول على الوصول.",
+  "Private to this team": "خاص بهذا الفريق",
+  "Squad and player profiles": "التشكيلة وملفات اللاعبين",
+  "Lineup, formation and tactics": "التشكيل الأساسي والخطة والتكتيك",
+  "Training and attendance": "التدريب والحضور",
+  "Match Center and preparation": "Match Center والتحضير للمباراة",
+  "Familista League administration": "إدارة Familista League",
+  "Video Intelligence and private analytics": "Video Intelligence والتحليلات الخاصة"
 }

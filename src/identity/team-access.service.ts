@@ -48,6 +48,19 @@ export interface TeamAccess {
   clubId: string;
   level: TeamAccessLevel;
   canView: boolean;
+  /**
+   * Whether this person may see the team's PRIVATE operational content — the
+   * squad, a player's own record, the lineup, the formation, the tactics, the
+   * training week, the match preparation, the analysis.
+   *
+   * `canView` and `canViewPrivate` are two different questions and the club
+   * boundary is not the answer to the second one. Being in the club buys the
+   * team's shell: its name, its age group, its crest, who is responsible for
+   * it. Working on the team — an assignment to it, or a club-wide role that
+   * runs the club's teams — buys what is inside. That is the separation the
+   * business rule draws, and every private read goes through it.
+   */
+  canViewPrivate: boolean;
   canManage: boolean;
   reason: TeamAccessReason;
   /** The roles this person actually holds over this team, for the UI to show. */
@@ -74,6 +87,32 @@ export const TEAM_MANAGING_ROLES: ReadonlySet<MembershipRole> = new Set<Membersh
   MembershipRole.YOUTH_COACH,
   MembershipRole.PERFORMANCE_COACH,
 ]);
+
+/**
+ * The membership roles that are NOT club staff: the people a club carries on
+ * its books without their working on any of its teams.
+ *
+ * A parent, a player and a device are in the club — they sign in, they see the
+ * club's shell, they belong to it — and none of them thereby works on a team.
+ * Everything else a club grants a person is staff of some kind: a coach, an
+ * analyst, a scout, a physio, a finance manager. So a club-wide membership in
+ * one of THOSE reaches the club's teams, and a club-wide membership in one of
+ * these does not.
+ *
+ * Stated as an exclusion list on purpose: a role added to the platform is staff
+ * by default, which is the direction that fails loudly (somebody sees a screen
+ * they should not, and it is fixed) rather than silently (a coach is locked out
+ * of their own team and nobody knows why).
+ */
+export const ORDINARY_MEMBER_ROLES: ReadonlySet<MembershipRole> = new Set<MembershipRole>([
+  MembershipRole.PARENT,
+  MembershipRole.PLAYER,
+  MembershipRole.DEVICE,
+]);
+
+export function isClubStaffRole(role: MembershipRole): boolean {
+  return !ORDINARY_MEMBER_ROLES.has(role);
+}
 
 /** The kinds of team that are academy age groups rather than the first team. */
 export function isAcademyKind(kind: TeamKind | string): boolean {
@@ -110,6 +149,16 @@ function pack(teamId: string, clubId: string, level: TeamAccessLevel, reason: Te
     // difference the brief draws between club-wide visibility and team control,
     // and it is drawn here once rather than in every screen.
     canView: level !== 'NONE',
+    // Derived rather than passed, so the two can never be set inconsistently
+    // by a caller. Private sight comes from exactly two places: running the
+    // team (a platform administrator, or a club-wide managing membership), or
+    // being ON it (an assignment to this team, whatever the role). A club-wide
+    // membership that does not manage — a parent, a player, an ordinary
+    // member — is in the club and not on this team, and reads the shell only.
+    canViewPrivate:
+      level === 'MANAGE'
+      || reason === 'TEAM_ASSIGNMENT'
+      || (reason === 'CLUB_WIDE' && roles.some(isClubStaffRole)),
     canManage: level === 'MANAGE',
     reason,
     roles,
@@ -235,6 +284,73 @@ export async function assertCanViewTeam(actor: TeamActor, teamId: string): Promi
   const access = await accessForTeam(actor, teamId);
   if (!access.canView) throw new ForbiddenError('You do not have access to that team');
   return access;
+}
+
+/**
+ * The private-read gate.
+ *
+ * Everything a team keeps to itself goes through this: the squad, a player's
+ * record, the lineup, the formation, the tactics, the training week, the match
+ * preparation and its analysis, the video, the private analytics, the medical
+ * availability. Being in the same club is not enough — an assignment is.
+ */
+export async function assertCanViewTeamPrivate(actor: TeamActor, teamId: string): Promise<TeamAccess> {
+  const access = await accessForTeam(actor, teamId);
+  if (!access.canViewPrivate) {
+    throw new ForbiddenError('You are not assigned to manage this team');
+  }
+  return access;
+}
+
+/**
+ * The teams whose private content this person may read, as a query scope.
+ *
+ * `unrestricted` is not a convenience: it is the legacy path, and it must stay.
+ * A platform administrator, and an account that has never been given a
+ * membership at all, are club-wide — narrowing those would be a migration that
+ * locks existing users out of their own club rather than a boundary that
+ * protects anybody. Only an ACTUAL assignment narrows, which is the same
+ * decision `tenant-guard` makes about the same question.
+ */
+export interface PrivateTeamScope {
+  unrestricted: boolean;
+  teamIds: string[];
+}
+
+export async function privateTeamScope(actor: TeamActor): Promise<PrivateTeamScope> {
+  if (actor.role === 'SUPER_ADMIN') return { unrestricted: true, teamIds: [] };
+  if (!actor.userId || !actor.clubId) return { unrestricted: false, teamIds: [] };
+
+  const rows = await membershipsOf(actor);
+  // Never assigned to anything: club-wide, as it has always been.
+  if (!rows.length) return { unrestricted: true, teamIds: [] };
+  // A club-wide staff membership works across the club's teams; a club-wide
+  // parent or player is in the club without working on any of them.
+  const clubWide = rows.filter((r) => !r.teamId);
+  if (clubWide.some((r) => isClubStaffRole(r.role))) return { unrestricted: true, teamIds: [] };
+
+  const teamIds = [...new Set(rows.filter((r) => r.teamId).map((r) => r.teamId as string))];
+  return { unrestricted: false, teamIds };
+}
+
+/**
+ * Whether this person works on ANY team of the club.
+ *
+ * The gate for a module that is private to the club's teams but which the
+ * schema keeps against the club rather than against one team — the training
+ * calendar is the case today. It refuses the ordinary club member, which is
+ * the boundary that exists to be drawn, and it does not pretend to a per-team
+ * separation the data cannot express.
+ */
+export async function hasAnyTeamPrivateAccess(actor: TeamActor): Promise<boolean> {
+  const scope = await privateTeamScope(actor);
+  return scope.unrestricted || scope.teamIds.length > 0;
+}
+
+export async function assertAnyTeamPrivateAccess(actor: TeamActor): Promise<void> {
+  if (!(await hasAnyTeamPrivateAccess(actor))) {
+    throw new ForbiddenError('You are not assigned to a team in this club');
+  }
 }
 
 /**

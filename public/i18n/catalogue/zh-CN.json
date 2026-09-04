@@ -1332,5 +1332,15 @@
   "You do not have access to that team": "你没有该球队的访问权限",
   "No active Familista League competition for this team": "该球队暂无进行中的 Familista League 赛事",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "该球队尚未报名参加联赛赛季。报名后，积分榜、赛程和球员排行榜会显示在这里。",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "球队的 Familista League 读取该队报名参加的赛事。俱乐部球队加载完成后即会显示在这里。"
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "球队的 Familista League 读取该队报名参加的赛事。俱乐部球队加载完成后即会显示在这里。",
+  "Team access": "球队访问权限",
+  "Responsible coach": "负责教练",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "该球队的工作区仅对被指派到该队的人员开放。请联系俱乐部管理员获取访问权限。",
+  "Private to this team": "仅限本队",
+  "Squad and player profiles": "阵容与球员档案",
+  "Lineup, formation and tactics": "首发、阵型与战术",
+  "Training and attendance": "训练与出勤",
+  "Match Center and preparation": "Match Center 与赛前准备",
+  "Familista League administration": "Familista League 管理",
+  "Video Intelligence and private analytics": "Video Intelligence 与私有分析"
 }

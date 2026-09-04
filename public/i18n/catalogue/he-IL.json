@@ -1335,5 +1335,15 @@
   "You do not have access to that team": "אין לך גישה לקבוצה הזו",
   "No active Familista League competition for this team": "אין תחרות Familista League פעילה לקבוצה הזו",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "הקבוצה הזו עדיין לא רשומה לעונת ליגה. הטבלה, המשחקים ודירוגי השחקנים יופיעו כאן ברגע שתירשם.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "ה-Familista League של קבוצה קוראת את התחרות שאליה הקבוצה רשומה. היא תופיע כאן ברגע שקבוצות המועדון ייטענו."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "ה-Familista League של קבוצה קוראת את התחרות שאליה הקבוצה רשומה. היא תופיע כאן ברגע שקבוצות המועדון ייטענו.",
+  "Team access": "גישה לקבוצה",
+  "Responsible coach": "מאמן אחראי",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "סביבת העבודה של קבוצה זו פרטית לאנשים המשויכים אליה. פנו למנהל המועדון לקבלת גישה.",
+  "Private to this team": "פרטי לקבוצה זו",
+  "Squad and player profiles": "סגל ופרופילי שחקנים",
+  "Lineup, formation and tactics": "הרכב, מערך וטקטיקה",
+  "Training and attendance": "אימונים ונוכחות",
+  "Match Center and preparation": "Match Center והכנה למשחק",
+  "Familista League administration": "ניהול Familista League",
+  "Video Intelligence and private analytics": "Video Intelligence וניתוחים פרטיים"
 }

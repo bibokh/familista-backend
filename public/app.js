@@ -48585,14 +48585,25 @@ function _acAccess(id) {
   try { teamId = _atServerTeamId(id); } catch (_) {}
   if (_TA.state === 'ready' && teamId && _TA.byTeamId[teamId]) {
     var a = _TA.byTeamId[teamId].access || {};
-    return { known: true, teamId: teamId, canView: !!a.canView, canManage: !!a.canManage, reason: a.reason || '' };
+    // Three answers, not two. canView opens the team's shell — its name, its
+    // age group, its crest, who is responsible for it. canViewPrivate opens
+    // what is inside it: the squad, the training week, the preparation, the
+    // analysis. canManage changes any of it. The server decides all three; this
+    // is its answer, and the screen never substitutes its own.
+    return {
+      known: true, teamId: teamId,
+      canView: !!a.canView,
+      canViewPrivate: !!a.canViewPrivate,
+      canManage: !!a.canManage,
+      reason: a.reason || '',
+    };
   }
   if (_TA.state === 'ready') {
     // The server answered, and this age group has no team row behind it. There
     // is nothing on the server to control, so nobody is said to control it —
     // falling back to the old local rule here is exactly how a First Team coach
     // would end up "managing" an academy side they were never assigned to.
-    return { known: true, teamId: null, canView: true, canManage: false, reason: 'NO_TEAM_RECORD' };
+    return { known: true, teamId: null, canView: true, canViewPrivate: true, canManage: false, reason: 'NO_TEAM_RECORD' };
   }
   // Not hydrated yet — the pre-existing local rule, unchanged, so a session
   // that has not loaded its teams behaves exactly as it did before.
@@ -48600,11 +48611,15 @@ function _acAccess(id) {
     var me = _acMyName().toLowerCase();
     return !!me && _acResponsible(id).toLowerCase() === me;
   })();
-  return { known: false, teamId: teamId, canView: local, canManage: local, reason: '' };
+  return { known: false, teamId: teamId, canView: local, canViewPrivate: local, canManage: local, reason: '' };
 }
 
 // Opening a team is reading it. Control is a separate question, asked below.
 function _acCanOpen(id) { return _acAccess(id).canView; }
+// Whether the workspace draws its private modules at all. False is not a
+// disabled button: it is a different screen, because a disabled button on top
+// of somebody else's squad is still somebody else's squad on the page.
+function _acCanSeeInside(id) { return _acAccess(id).canViewPrivate !== false; }
 function _acCanManage(id) { return _acAccess(id).canManage; }
 
 function renderAcademyHTML() {
@@ -49063,6 +49078,11 @@ function renderAcademyTeamPage() {
   if (!id || !_acStage(id) || !_acCanOpen(id)) { _atBack(); return; }
   _atResolveSection();          // settle a retired/unknown section before the nav is built
   var c = _atCtx(id);
+  // Being in the club opens the team's shell. Working on the team opens what is
+  // inside it. When the server says this reader is not on this team, the
+  // workspace is not drawn and then disabled — it is not drawn: the private
+  // modules are never rendered, never requested and never in the document.
+  var locked = !_acCanSeeInside(id);
   el.innerHTML =
     '<div class="at-head" style="--acc:' + c.accent + '">'
       + '<button class="at-back" type="button" data-at-back>← ' + t('academy.backToAcademy') + '</button>'
@@ -49077,22 +49097,27 @@ function renderAcademyTeamPage() {
           + '<span class="at-ro-t">You are not assigned to manage this team</span>'
           + '<span class="at-ro-s">Read-only access. Contact a club admin for team access.</span>'
           + '</div>')
-      + '<div class="at-head-meta">'
+      // A squad size, a development average, a formation and the next session
+      // are the team's own numbers. They belong to the people who work on it,
+      // so a locked header carries the identity and not the operation.
+      + (locked ? '' : '<div class="at-head-meta">'
         + '<span>' + _acInStage(id).length + ' players</span>'
         + '<span>' + (c.stage.coachN || 0) + ' coaches</span>'
         + '<span>Dev ' + (_acStageAvg(id) || '—') + '</span>'
         + '<span>' + _viEscSafe(_atTeam(id).formation.name) + ' · ' + _atFormatLabel(id) + '</span>'
         + '<span>Next: ' + _viEscSafe(_atNextEvent(id)) + '</span>'
-      + '</div>'
+      + '</div>')
     + '</div>'
-    + '<div class="at-body">'
+    + (locked
+      ? _atLockedBodyHtml(id)
+      : '<div class="at-body">'
       + '<nav class="at-nav">' + AT_SECTIONS.map(function (s) {
           return '<button class="at-nav-item' + (AT.section === s[0] ? ' is-on' : '') + '" type="button" data-at-go="' + s[0] + '"><span class="at-nav-ic">' + s[2] + '</span>' + s[1] + '</button>';
         }).join('') + '</nav>'
       + '<div class="at-content' + (AT.section === 'training' ? ' at-content--full' : '')
         + (AT.section === 'matchCenter' || AT.section === 'familistaLeague' ? ' at-content--mc' : '') + '" id="at-content">'
         + _atSection(id, AT.section) + '</div>'
-    + '</div>'
+    + '</div>')
     // The modal lives in its own host, written separately. It used to be
     // concatenated into this string, which meant opening a player card,
     // switching one of his profile tabs or closing him rebuilt the entire age
@@ -49106,8 +49131,48 @@ function renderAcademyTeamPage() {
   // THIS age group's own team. They are the same modules the First Team uses —
   // the same table, the same calendar, the same match workspace — reading a
   // different team, which is the whole point of having one implementation.
+  if (locked) return;
   _atPaintLeague(id);
   _atPaintMatchCenter(id);
+}
+
+// The locked workspace.
+//
+// What a club member may see of a team they do not work on: that it exists,
+// what it is called, which age group it is, whose it is, and how to get access.
+// Nothing operational — no squad, no roster count that is really a squad, no
+// fixture, no training week, no analysis. The panel says which of those it is
+// standing in for, so the state reads as a boundary rather than as a failure.
+function _atLockedBodyHtml(id) {
+  var c = _atCtx(id);
+  var priv = [
+    'Squad and player profiles',
+    'Lineup, formation and tactics',
+    'Training and attendance',
+    'Match Center and preparation',
+    'Familista League administration',
+    'Video Intelligence and private analytics',
+  ].map(function (line) {
+    return '<li><span class="at-lk-ic" aria-hidden="true">' + _lgIcon('lock') + '</span>'
+      + '<span>' + line + '</span></li>';
+  }).join('');
+
+  return '<div class="at-body at-body--locked">'
+    + '<div class="at-content at-content--locked">'
+    + _lgPanel('Team access', '',
+        '<div class="at-lk">'
+        + '<div class="at-lk-head">'
+        + _lgIdent({ clubId: _famActiveClubId(), name: c.label, sub: _clubNameOf(_famActiveClubId(), '') || '', size: 34 })
+        + '<div class="at-lk-facts">'
+        + '<div class="at-lk-fact"><span data-no-i18n>' + t('academy.ageGroup') + '</span><b data-user-content>' + _viEscSafe(c.label) + '</b></div>'
+        + '<div class="at-lk-fact"><span>Responsible coach</span><b data-user-content>' + _viEscSafe(_acResponsible(id)) + '</b></div>'
+        + '</div></div>'
+        + _lgEmpty('You are not assigned to manage this team',
+            'This team\'s workspace is private to the people assigned to it. Contact a club admin for team access.')
+        + '<div class="at-lk-list-h">Private to this team</div>'
+        + '<ul class="at-lk-list">' + priv + '</ul>'
+        + '</div>')
+    + '</div></div>';
 }
 
 // ── this age group's Familista League ───────────────────────────────────────

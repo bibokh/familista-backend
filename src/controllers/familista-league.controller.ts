@@ -204,8 +204,11 @@ export async function getManageContext(req: Request, res: Response, next: NextFu
       success: true,
       data: {
         // A platform administrator still decides who is in a league; scoped to
-        // a team, they must also be able to read that team at all.
-        canManage: canManage && (!teamId || !!access?.canView),
+        // a team, they must also work on that team. Administering a team's
+        // competition — its participants, its calendar, its kickoffs — is the
+        // team's own business, so it takes private sight of it and not merely
+        // membership of the club it belongs to.
+        canManage: canManage && (!teamId || !!access?.canViewPrivate),
         participants,
         season: found?.season ?? null,
         competitionId: found?.id ?? null,

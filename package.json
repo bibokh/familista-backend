@@ -29,6 +29,7 @@
     "db:resolve:all": "npm run db:resolve:baseline && prisma migrate resolve --applied 20250525000000_add_phase_q_and_password_reset --schema=prisma/schema.prisma",
     "preflight": "bash scripts/preflight-prod.sh",
     "league:init-current-season": "node dist/scripts/init-league-season.js",
+    "league:init-academy-season": "node dist/scripts/init-academy-league-season.js",
     "i18n:check": "node scripts/i18n-check.js",
     "i18n:sync": "node scripts/i18n-sync.js",
     "i18n:audit": "node scripts/i18n-audit.js",

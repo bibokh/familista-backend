@@ -7,10 +7,17 @@ import { Router } from 'express';
 import * as ctrl from '../controllers/team.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { requireMembership } from '../middleware/tenant.middleware';
+import { requireTeamRowAccess } from '../middleware/team-scope.middleware';
 
 const router = Router();
 
 router.use(authenticate);
+
+// A team's own row is the club's shell — its name, its age group, its crest —
+// and every member of the club may read it. Changing it is team control, and
+// takes an assignment to manage THIS team: a First Team coach does not rename
+// the Under-15s, and an Under-15 coach does not archive the First Team.
+router.param('id', (req, res, next) => requireTeamRowAccess('id')(req, res, next));
 
 router.get('/',                                                   ctrl.list);
 router.get('/:id',                                                ctrl.get);

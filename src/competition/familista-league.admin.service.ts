@@ -33,7 +33,7 @@
 import { MatchStatus, Prisma, CompetitionType } from '@prisma/client';
 import { prisma } from '../config/database';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
-import { eligibilityOf, eligibleTeamWhere } from './league-eligibility';
+import { eligibilityFor, eligibleTeamWhereFor } from './league-eligibility';
 import {
   generateRoundRobinFixtures,
   rebuildStandingsUnchecked,
@@ -88,7 +88,7 @@ export interface EligibleTeamRow {
 }
 
 export async function listParticipants(competitionId: string): Promise<ParticipantRow[]> {
-  await requirePlatformLeague(competitionId);
+  const comp = await requirePlatformLeague(competitionId);
 
   const entries = await prisma.competitionTeam.findMany({
     where: { competitionId },
@@ -125,7 +125,7 @@ export async function listParticipants(competitionId: string): Promise<Participa
       clubName: t.club?.name ?? t.name,
       crestUrl: t.club?.crestUrl ?? t.club?.emblem ?? null,
       playedMatches: playCount.get(t.id) ?? 0,
-      stillEligible: eligibilityOf({ kind: t.kind, isActive: t.isActive }).eligible,
+      stillEligible: eligibilityFor(comp, { kind: t.kind, isActive: t.isActive }).eligible,
     }))
     .sort((a, b) => a.clubName.localeCompare(b.clubName));
 }
@@ -143,11 +143,14 @@ export async function listEligibleTeams(
   competitionId: string,
   opts: { search?: string; limit?: number } = {},
 ): Promise<EligibleTeamRow[]> {
-  await requirePlatformLeague(competitionId);
+  const comp = await requirePlatformLeague(competitionId);
 
   const search = (opts.search ?? '').trim();
   const where: Prisma.TeamWhereInput = {
-    ...eligibleTeamWhere(),
+    // The competition's own category decides who could join it: the first
+    // team's league offers first teams, an age group's league offers that age
+    // group. One rule, asked of this competition.
+    ...eligibleTeamWhereFor(comp.ageGroup),
     ...(search
       ? {
           OR: [
@@ -194,7 +197,7 @@ export async function addParticipant(
   teamId: string,
 ): Promise<ParticipantRow[]> {
   assertLeagueAdmin(actor);
-  await requirePlatformLeague(competitionId);
+  const comp = await requirePlatformLeague(competitionId);
 
   const team = await prisma.team.findUnique({
     where: { id: teamId },
@@ -202,12 +205,14 @@ export async function addParticipant(
   });
   if (!team) throw new NotFoundError('Team');
 
-  const verdict = eligibilityOf({ kind: team.kind, isActive: team.isActive });
+  const verdict = eligibilityFor(comp, { kind: team.kind, isActive: team.isActive });
   if (!verdict.eligible) {
     throw new BadRequestError(
       verdict.reason === 'NOT_FIRST_TEAM'
         ? 'Only a club first team can play in the Familista League'
-        : 'That team is not active',
+        : verdict.reason === 'WRONG_AGE_GROUP'
+          ? `Only a ${comp.ageGroup} team can play in this competition`
+          : 'That team is not active',
     );
   }
 

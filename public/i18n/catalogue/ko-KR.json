@@ -1332,5 +1332,15 @@
   "You do not have access to that team": "그 팀에 접근할 권한이 없습니다",
   "No active Familista League competition for this team": "이 팀에 진행 중인 Familista League 대회가 없습니다",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "이 팀은 아직 리그 시즌에 등록되지 않았습니다. 등록되면 순위표, 경기, 선수 순위가 여기에 표시됩니다.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "팀의 Familista League는 그 팀이 등록된 대회를 읽습니다. 구단의 팀이 불러와지면 여기에 표시됩니다."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "팀의 Familista League는 그 팀이 등록된 대회를 읽습니다. 구단의 팀이 불러와지면 여기에 표시됩니다.",
+  "Team access": "팀 접근 권한",
+  "Responsible coach": "담당 코치",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "이 팀의 워크스페이스는 배정된 인원에게만 공개됩니다. 접근 권한은 클럽 관리자에게 문의하세요.",
+  "Private to this team": "이 팀 전용",
+  "Squad and player profiles": "스쿼드 및 선수 프로필",
+  "Lineup, formation and tactics": "라인업, 포메이션, 전술",
+  "Training and attendance": "훈련 및 출석",
+  "Match Center and preparation": "Match Center 및 경기 준비",
+  "Familista League administration": "Familista League 관리",
+  "Video Intelligence and private analytics": "Video Intelligence 및 비공개 분석"
 }

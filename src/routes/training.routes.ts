@@ -1,9 +1,21 @@
 import { Router } from 'express';
 import * as ctrl from '../controllers/training.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
+import { requireAnyTeamPrivate } from '../middleware/team-scope.middleware';
 
 const router = Router();
 router.use(authenticate);
+
+// The training week — the plan, the attendance, the per-player performance — is
+// private to the people who work on the club's teams. It is refused to the
+// ordinary club member, who sees the club's shell and nothing operational.
+//
+// The gate is club-wide rather than per-team because a TrainingSession carries a
+// clubId and no teamId: the schema cannot say which team a session belongs to,
+// so neither can this. It refuses the boundary that exists to be drawn and does
+// not pretend to one the data cannot express. When a session gains a team, this
+// becomes `requireTeamPrivate` and nothing else here changes.
+router.use(requireAnyTeamPrivate());
 
 router.get('/',                  ctrl.getSessions);
 router.get('/form',              ctrl.getForm);

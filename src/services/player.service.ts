@@ -81,6 +81,14 @@ export interface PlayerFilters {
   limit?:         number;
   // Phase A — scope by team
   teamId?:        string | 'NULL';   // 'NULL' = unassigned (no team)
+  /**
+   * The teams whose players this caller may read, when they may not read all of
+   * them. Resolved from the caller's memberships by the controller — never from
+   * the request — so a search cannot return a squad the searcher is not on.
+   * Undefined means unrestricted, which is what a platform administrator, a
+   * club-wide staff membership and a legacy account with no memberships get.
+   */
+  teamScope?:     string[];
 }
 
 // Actor passed in by the controller for audit attribution.
@@ -174,6 +182,17 @@ export async function getPlayers(clubId: string, filters: PlayerFilters = {}) {
     // Callers wanting archived rows pass ?isActive=false explicitly.
     isActive: isActive === undefined ? true : isActive,
     ...(filters.teamId === 'NULL' ? { teamId: null } : filters.teamId ? { teamId: filters.teamId } : {}),
+    // A player belongs to a team, and a team's squad is that team's private
+    // content. A caller who works on some of the club's teams sees the players
+    // of those teams — and the club's players who are on no team at all, who
+    // belong to no team workspace and are therefore nobody's private data.
+    // A caller who works on none of them never reaches here: the route refuses
+    // them before the query is built.
+    // Written as AND rather than as a second OR: the search below is already an
+    // OR, and two of them in one object would silently replace each other.
+    ...(filters.teamScope
+      ? { AND: [{ OR: [{ teamId: { in: filters.teamScope } }, { teamId: null }] }] }
+      : {}),
     ...((minRating != null || maxRating != null) && {
       overallRating: {
         ...(minRating != null ? { gte: minRating } : {}),

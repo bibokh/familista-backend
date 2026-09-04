@@ -41,7 +41,9 @@ describe('the season a date falls in', () => {
 describe('what it uses', () => {
   it('discovers first teams through the one eligibility rule', () => {
     expect(BOOT).toContain("from './league-eligibility'");
-    expect(BOOT).toContain('...eligibleTeamWhere()');
+    // Asked about THIS competition's category: with no age group it is the
+    // first-team rule, unchanged and shared with the First Team's own run.
+    expect(BOOT).toContain('...eligibleTeamWhereFor(category.ageGroup)');
     // No team is chosen by its name, and no academy kind is named here.
     expect(BOOT).not.toMatch(/ACADEMY|name: \{ contains/);
   });

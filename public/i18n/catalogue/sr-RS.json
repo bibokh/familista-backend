@@ -1335,5 +1335,15 @@
   "You do not have access to that team": "Nemaš pristup tom timu",
   "No active Familista League competition for this team": "Nema aktivnog takmičenja Familista League za ovaj tim",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Ovaj tim još nije prijavljen za ligašku sezonu. Tabela, utakmice i rang-liste igrača pojavljuju se ovde čim bude.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League jednog tima čita takmičenje u koje je taj tim prijavljen. Pojavljuje se ovde čim se timovi kluba učitaju."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League jednog tima čita takmičenje u koje je taj tim prijavljen. Pojavljuje se ovde čim se timovi kluba učitaju.",
+  "Team access": "Pristup timu",
+  "Responsible coach": "Odgovorni trener",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "Radni prostor ovog tima je privatan i dostupan samo osobama koje su mu dodeljene. Obratite se administratoru kluba za pristup.",
+  "Private to this team": "Privatno za ovaj tim",
+  "Squad and player profiles": "Sastav i profili igrača",
+  "Lineup, formation and tactics": "Postava, formacija i taktika",
+  "Training and attendance": "Treninzi i prisustvo",
+  "Match Center and preparation": "Match Center i priprema za utakmicu",
+  "Familista League administration": "Administracija Familista League",
+  "Video Intelligence and private analytics": "Video Intelligence i privatna analitika"
 }

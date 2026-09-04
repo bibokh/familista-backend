@@ -1332,5 +1332,15 @@
   "You do not have access to that team": "คุณไม่มีสิทธิ์เข้าถึงทีมนั้น",
   "No active Familista League competition for this team": "ยังไม่มีรายการ Familista League ที่กำลังดำเนินอยู่สำหรับทีมนี้",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "ทีมนี้ยังไม่ได้ลงทะเบียนในฤดูกาลลีก ตารางคะแนน นัดการแข่งขัน และอันดับผู้เล่นจะปรากฏที่นี่ทันทีที่ลงทะเบียนแล้ว",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League ของทีมจะอ่านรายการที่ทีมนั้นลงทะเบียนไว้ และจะปรากฏที่นี่ทันทีที่ข้อมูลทีมของสโมสรถูกโหลด"
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League ของทีมจะอ่านรายการที่ทีมนั้นลงทะเบียนไว้ และจะปรากฏที่นี่ทันทีที่ข้อมูลทีมของสโมสรถูกโหลด",
+  "Team access": "การเข้าถึงทีม",
+  "Responsible coach": "โค้ชผู้รับผิดชอบ",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "พื้นที่ทำงานของทีมนี้เป็นข้อมูลส่วนตัวสำหรับผู้ที่ได้รับมอบหมายเท่านั้น ติดต่อผู้ดูแลสโมสรเพื่อขอสิทธิ์เข้าถึง",
+  "Private to this team": "เฉพาะทีมนี้",
+  "Squad and player profiles": "ผู้เล่นในทีมและโปรไฟล์นักเตะ",
+  "Lineup, formation and tactics": "ตัวจริง แผนการเล่น และแท็กติก",
+  "Training and attendance": "การฝึกซ้อมและการเข้าร่วม",
+  "Match Center and preparation": "Match Center และการเตรียมแมตช์",
+  "Familista League administration": "การจัดการ Familista League",
+  "Video Intelligence and private analytics": "Video Intelligence และการวิเคราะห์ส่วนตัว"
 }

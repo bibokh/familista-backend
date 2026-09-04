@@ -1335,5 +1335,15 @@
   "You do not have access to that team": "You do not have access to that team",
   "No active Familista League competition for this team": "No active Familista League competition for this team",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.",
+  "Team access": "Team access",
+  "Responsible coach": "Responsible coach",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "This team's workspace is private to the people assigned to it. Contact a club admin for team access.",
+  "Private to this team": "Private to this team",
+  "Squad and player profiles": "Squad and player profiles",
+  "Lineup, formation and tactics": "Lineup, formation and tactics",
+  "Training and attendance": "Training and attendance",
+  "Match Center and preparation": "Match Center and preparation",
+  "Familista League administration": "Familista League administration",
+  "Video Intelligence and private analytics": "Video Intelligence and private analytics"
 }

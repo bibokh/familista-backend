@@ -1335,5 +1335,15 @@
   "You do not have access to that team": "Sinulla ei ole oikeuksia tähän joukkueeseen",
   "No active Familista League competition for this team": "Tälle joukkueelle ei ole aktiivista Familista League -kilpailua",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Tätä joukkuetta ei ole vielä ilmoitettu sarjakauteen. Sarjataulukko, ottelut ja pelaajalistat ilmestyvät tähän heti kun se on.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Joukkueen Familista League lukee sen kilpailun, johon joukkue on ilmoitettu. Se ilmestyy tähän heti kun seuran joukkueet on ladattu."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Joukkueen Familista League lukee sen kilpailun, johon joukkue on ilmoitettu. Se ilmestyy tähän heti kun seuran joukkueet on ladattu.",
+  "Team access": "Joukkueen käyttöoikeus",
+  "Responsible coach": "Vastuuvalmentaja",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "Tämän joukkueen työtila on vain siihen nimettyjen henkilöiden käytössä. Pyydä käyttöoikeutta seuran ylläpitäjältä.",
+  "Private to this team": "Vain tälle joukkueelle",
+  "Squad and player profiles": "Kokoonpano ja pelaajaprofiilit",
+  "Lineup, formation and tactics": "Avauskokoonpano, pelijärjestelmä ja taktiikka",
+  "Training and attendance": "Harjoittelu ja läsnäolo",
+  "Match Center and preparation": "Match Center ja valmistautuminen",
+  "Familista League administration": "Familista Leaguen hallinta",
+  "Video Intelligence and private analytics": "Video Intelligence ja yksityiset analyysit"
 }

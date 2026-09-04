@@ -1335,5 +1335,15 @@
   "You do not have access to that team": "Du har inte åtkomst till det laget",
   "No active Familista League competition for this team": "Ingen aktiv Familista League-tävling för det här laget",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Det här laget är ännu inte anmält till en ligasäsong. Tabell, matcher och spelarrankningar visas här så snart det är det.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Ett lags Familista League läser den tävling laget är anmält till. Den visas här så snart klubbens lag har laddats."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Ett lags Familista League läser den tävling laget är anmält till. Den visas här så snart klubbens lag har laddats.",
+  "Team access": "Lagåtkomst",
+  "Responsible coach": "Ansvarig tränare",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "Det här lagets arbetsyta är privat för de personer som är tilldelade laget. Kontakta en klubbadministratör för åtkomst.",
+  "Private to this team": "Privat för det här laget",
+  "Squad and player profiles": "Trupp och spelarprofiler",
+  "Lineup, formation and tactics": "Startelva, formation och taktik",
+  "Training and attendance": "Träning och närvaro",
+  "Match Center and preparation": "Match Center och förberedelser",
+  "Familista League administration": "Administration av Familista League",
+  "Video Intelligence and private analytics": "Video Intelligence och privat analys"
 }

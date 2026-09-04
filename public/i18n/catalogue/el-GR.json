@@ -1335,5 +1335,15 @@
   "You do not have access to that team": "Δεν έχεις πρόσβαση σε αυτή την ομάδα",
   "No active Familista League competition for this team": "Καμία ενεργή διοργάνωση Familista League για αυτή την ομάδα",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Αυτή η ομάδα δεν έχει δηλωθεί ακόμη σε σεζόν πρωταθλήματος. Η βαθμολογία, οι αγώνες και οι κατατάξεις παικτών εμφανίζονται εδώ μόλις δηλωθεί.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Η Familista League μιας ομάδας διαβάζει τη διοργάνωση στην οποία έχει δηλωθεί η ομάδα. Εμφανίζεται εδώ μόλις φορτωθούν οι ομάδες του συλλόγου."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Η Familista League μιας ομάδας διαβάζει τη διοργάνωση στην οποία έχει δηλωθεί η ομάδα. Εμφανίζεται εδώ μόλις φορτωθούν οι ομάδες του συλλόγου.",
+  "Team access": "Πρόσβαση στην ομάδα",
+  "Responsible coach": "Υπεύθυνος προπονητής",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "Ο χώρος εργασίας αυτής της ομάδας είναι ιδιωτικός για τα άτομα που έχουν οριστεί σε αυτήν. Επικοινωνήστε με έναν διαχειριστή του συλλόγου για πρόσβαση.",
+  "Private to this team": "Ιδιωτικό για αυτήν την ομάδα",
+  "Squad and player profiles": "Ρόστερ και προφίλ παικτών",
+  "Lineup, formation and tactics": "Ενδεκάδα, σχηματισμός και τακτική",
+  "Training and attendance": "Προπόνηση και παρουσίες",
+  "Match Center and preparation": "Match Center και προετοιμασία",
+  "Familista League administration": "Διαχείριση του Familista League",
+  "Video Intelligence and private analytics": "Video Intelligence και ιδιωτικά αναλυτικά στοιχεία"
 }

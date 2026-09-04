@@ -7,6 +7,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import * as playerService from '../services/player.service';
+import * as teamAccess from '../identity/team-access.service';
 import * as aiService from '../services/ai.service';
 import { sendSuccess, sendCreated, sendNoContent, sendPaginated } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
@@ -141,12 +142,33 @@ function stripEmptyStrings<T extends Record<string, unknown>>(obj: T): T {
 // Handlers
 // ─────────────────────────────────────────────────────────────────────────
 
+/** The team-access actor, from the session and never from the request. */
+function teamActorOf(req: Request): teamAccess.TeamActor {
+  const u = req.user as unknown as { id?: string; userId?: string; role?: string; currentClubId?: string; clubId?: string } | undefined;
+  return {
+    userId: u?.id ?? u?.userId ?? '',
+    clubId: u?.currentClubId ?? u?.clubId ?? '',
+    role: u?.role,
+  };
+}
+
 export async function getPlayers(req: Request, res: Response, next: NextFunction) {
   try {
     const parsed = listPlayersQuerySchema.safeParse({ query: req.query });
     if (!parsed.success) throw zerr(parsed.error);
     const q = parsed.data.query;
+    // Searching the club is not searching every team in it. A caller who works
+    // on some of the club's teams gets those teams' players; one who names a
+    // team they are not on is refused outright rather than answered with an
+    // empty list, because an empty list is an answer about somebody else's
+    // squad. A club-wide staff membership, a platform administrator and a
+    // legacy account with no memberships are unrestricted, exactly as before.
+    const scope = await teamAccess.privateTeamScope(teamActorOf(req));
+    if (!scope.unrestricted && q.teamId && q.teamId !== 'NULL' && !scope.teamIds.includes(q.teamId)) {
+      await teamAccess.assertCanViewTeamPrivate(teamActorOf(req), q.teamId);
+    }
     const result = await playerService.getPlayers(req.user!.clubId, {
+      teamScope:     scope.unrestricted ? undefined : scope.teamIds,
       position:      q.position,
       isInjured:     q.isInjured     === undefined ? undefined : q.isInjured     === 'true',
       isActive:      q.isActive      === undefined ? undefined : q.isActive      === 'true',
@@ -167,6 +189,9 @@ export async function getPlayers(req: Request, res: Response, next: NextFunction
 
 export async function getPlayer(req: Request, res: Response, next: NextFunction) {
   try {
+    // The player's own team is checked by requirePlayerTeamAccess before this
+    // handler runs — see player.routes.ts — so by here the record is one this
+    // caller is allowed to have.
     const player = await playerService.getPlayerById(req.params.id, req.user!.clubId);
     return sendSuccess(res, player);
   } catch (err) { return next(err); }

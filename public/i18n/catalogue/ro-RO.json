@@ -1335,5 +1335,15 @@
   "You do not have access to that team": "Nu ai acces la acea echipă",
   "No active Familista League competition for this team": "Nicio competiție Familista League activă pentru această echipă",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Această echipă nu este încă înscrisă într-un sezon de ligă. Clasamentul, meciurile și clasamentele jucătorilor apar aici de îndată ce va fi.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League a unei echipe citește competiția în care acea echipă este înscrisă. Apare aici imediat ce echipele clubului sunt încărcate."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "Familista League a unei echipe citește competiția în care acea echipă este înscrisă. Apare aici imediat ce echipele clubului sunt încărcate.",
+  "Team access": "Acces la echipă",
+  "Responsible coach": "Antrenor responsabil",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "Spațiul de lucru al acestei echipe este privat pentru persoanele desemnate. Contactează un administrator al clubului pentru acces.",
+  "Private to this team": "Privat pentru această echipă",
+  "Squad and player profiles": "Lot și profiluri de jucători",
+  "Lineup, formation and tactics": "Primul unsprezece, formație și tactică",
+  "Training and attendance": "Antrenamente și prezență",
+  "Match Center and preparation": "Match Center și pregătire",
+  "Familista League administration": "Administrarea Familista League",
+  "Video Intelligence and private analytics": "Video Intelligence și analize private"
 }

@@ -1335,5 +1335,15 @@
   "You do not have access to that team": "No tienes acceso a ese equipo",
   "No active Familista League competition for this team": "No hay competencia de la Familista League activa para este equipo",
   "This team is not entered in a league season yet. Its table, fixtures and player rankings appear here once it is.": "Este equipo aún no está inscrito en una temporada de liga. Su tabla, sus partidos y sus rankings de jugadores aparecen aquí cuando lo esté.",
-  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "La Familista League de un equipo lee la competencia en la que ese equipo está inscrito. Aparece aquí en cuanto se cargan los equipos del club."
+  "A team's Familista League reads the competition that team is entered in. It appears here as soon as the club's teams have loaded.": "La Familista League de un equipo lee la competencia en la que ese equipo está inscrito. Aparece aquí en cuanto se cargan los equipos del club.",
+  "Team access": "Acceso al equipo",
+  "Responsible coach": "Entrenador responsable",
+  "This team's workspace is private to the people assigned to it. Contact a club admin for team access.": "El espacio de trabajo de este equipo es privado para las personas asignadas a él. Contacta a un administrador del club para obtener acceso.",
+  "Private to this team": "Privado de este equipo",
+  "Squad and player profiles": "Plantel y perfiles de jugadores",
+  "Lineup, formation and tactics": "Alineación, formación y táctica",
+  "Training and attendance": "Entrenamiento y asistencia",
+  "Match Center and preparation": "Match Center y preparación",
+  "Familista League administration": "Administración de la Familista League",
+  "Video Intelligence and private analytics": "Video Intelligence y analítica privada"
 }

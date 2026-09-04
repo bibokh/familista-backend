@@ -17156,6 +17156,36 @@ body.club-theme .set-panel .settings-wrap{ padding:0; max-width:none; }
 .mcc-ro-s, .at-ro-s{ font-size:10.5px; color:var(--tx-3,#8b93a7); }
 .at-ro{ grid-column:1 / -1; margin-top:8px; }
 
+/* ── the locked workspace ──
+   Not a disabled version of the team's own screens: a different screen, drawn
+   from the club's shell alone. One panel on the same dark surface every other
+   Familista workspace uses, the same 16px radius and the same hairline, so the
+   boundary reads as part of the product rather than as a failure of it. */
+.at-body--locked{ display:block; padding:0; }
+.at-content--locked{ display:block; max-width:720px; margin:0 auto; padding:18px 16px 26px; }
+.at-lk{ display:flex; flex-direction:column; gap:14px; }
+.at-lk-head{
+  display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  padding-bottom:12px; border-bottom:1px solid var(--lg-line,rgba(255,255,255,.08));
+}
+.at-lk-facts{ display:flex; gap:18px; flex-wrap:wrap; }
+.at-lk-fact{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+.at-lk-fact span{ font-size:9.5px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--tx-3,#8b93a7); }
+.at-lk-fact b{ font-size:13px; font-weight:700; color:var(--tx-1,#e8ecf5); }
+.at-lk-list-h{ font-size:9.5px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--tx-3,#8b93a7); }
+.at-lk-list{ list-style:none; margin:0; padding:0; display:grid; gap:7px; }
+.at-lk-list li{
+  display:flex; align-items:center; gap:9px;
+  padding:9px 11px; border-radius:10px;
+  background:rgba(255,255,255,.02); border:1px solid var(--lg-line,rgba(255,255,255,.07));
+  font-size:12px; color:var(--tx-2,#b7bfd0);
+}
+.at-lk-ic{ display:inline-flex; color:var(--tx-3,#8b93a7); }
+@media (max-width:980px){
+  .at-content--locked{ padding:14px 12px 22px; }
+  .at-lk-head{ align-items:flex-start; }
+}
+
 /* A card for a team this person may read but not run: the same card, one state
    quieter, and it says which. */
 .ac-tcard-cta-btn--ro{ opacity:.9; }
