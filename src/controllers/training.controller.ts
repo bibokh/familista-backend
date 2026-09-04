@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import * as trainingService from '../services/training.service';
+import * as teamAccess from '../identity/team-access.service';
 import { importSquadForClub, verifyForClub } from '../services/squad-import.service';
 import { prisma } from '../config/database';
 import { sendSuccess, sendCreated, sendNoContent, sendPaginated } from '../utils/response';
@@ -24,6 +25,8 @@ const createSchema = z.object({
     duration:    z.number().int().min(1).max(480),
     drills:      z.array(z.enum(DRILLS)).optional(),
     playerIds:   z.array(z.string().uuid()).optional(),
+    // The team whose session this is. Parsed here; authorized in the route.
+    teamId:      z.string().uuid().nullable().optional(),
   }),
 });
 
@@ -36,6 +39,7 @@ const updateSchema = z.object({
     duration:    z.number().int().min(1).max(480).optional(),
     drills:      z.array(z.enum(DRILLS)).optional(),
     playerIds:   z.array(z.string().uuid()).optional(),
+    teamId:      z.string().uuid().nullable().optional(),
   }).refine((b) => Object.keys(b).length > 0, { message: 'No fields supplied to update' }),
 });
 
@@ -49,6 +53,34 @@ const attendanceSchema = z.object({
     })).min(1),
   }),
 });
+
+/** The team-access actor, from the session and never from the request body. */
+function teamActorOf(req: Request): teamAccess.TeamActor {
+  const u = req.user as unknown as { id?: string; userId?: string; role?: string; currentClubId?: string; clubId?: string } | undefined;
+  return {
+    userId: u?.id ?? u?.userId ?? '',
+    clubId: u?.currentClubId ?? u?.clubId ?? '',
+    role: u?.role,
+  };
+}
+
+/**
+ * The team this request is about, and the scope every read is narrowed by.
+ *
+ * A named team is checked here — `assertCanViewTeamPrivate` throws 403 — so a
+ * team id typed into a query string is refused before a session is read. With
+ * no team named, the answer is every session the caller works on, which for a
+ * coach assigned to one team is that team's week and not the club's calendar.
+ */
+async function trainingScope(req: Request, named?: string | null): Promise<{
+  teamId: string | null;
+  scope: teamAccess.PrivateTeamScope;
+}> {
+  const actor = teamActorOf(req);
+  const teamId = named ?? (typeof req.query.teamId === 'string' && req.query.teamId ? req.query.teamId : null);
+  if (teamId) await teamAccess.assertCanViewTeamPrivate(actor, teamId);
+  return { teamId, scope: await teamAccess.privateTeamScope(actor) };
+}
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
@@ -68,6 +100,7 @@ const newSessionSchema = z.object({
     notes:         z.string().max(4000).optional(),
     drills:        z.array(z.enum(DRILLS)).optional(),
     playerIds:     z.array(z.string().uuid()).optional(),
+    teamId:        z.string().uuid().nullable().optional(),
     startTime:     z.string().trim().max(10).optional(),
     sessionType:   z.string().trim().max(40).optional(),
     objective:     z.string().trim().max(500).optional(),
@@ -136,7 +169,8 @@ export async function getReport(req: Request, res: Response, next: NextFunction)
   try {
     const parsed = reportSchema.safeParse({ query: req.query });
     if (!parsed.success) throw zerr(parsed.error);
-    const report = await trainingService.getTrainingReport(req.user!.clubId, parsed.data.query.range ?? 'weekly');
+    const { teamId, scope } = await trainingScope(req);
+    const report = await trainingService.getTrainingReport(req.user!.clubId, parsed.data.query.range ?? 'weekly', { teamId, scope });
     return sendSuccess(res, report);
   } catch (err) { return next(err); }
 }
@@ -184,7 +218,11 @@ export async function createNewSession(req: Request, res: Response, next: NextFu
     if (!req.user?.clubId) throw new BadRequestError('No active club context');
     const parsed = newSessionSchema.safeParse({ body: req.body });
     if (!parsed.success) throw zerr(parsed.error);
-    const session = await trainingService.createCleanSession(req.user.clubId, parsed.data.body);
+    // The team this session belongs to: the one named, or — for somebody who
+    // manages exactly one team — theirs. Resolved from their memberships, not
+    // from the request, and authorised by the route before this ran.
+    const teamId = parsed.data.body.teamId ?? await teamAccess.soleManagedTeamId(teamActorOf(req));
+    const session = await trainingService.createCleanSession(req.user.clubId, { ...parsed.data.body, teamId });
     return sendCreated(res, session, 'Training session created');
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError) {
@@ -205,9 +243,12 @@ export async function createNewSession(req: Request, res: Response, next: NextFu
 export async function getSessions(req: Request, res: Response, next: NextFunction) {
   try {
     const { page, limit } = req.query;
+    const { teamId, scope } = await trainingScope(req);
     const result = await trainingService.getTrainingSessions(req.user!.clubId, {
       page:  page  ? parseInt(page  as string) : undefined,
       limit: limit ? parseInt(limit as string) : undefined,
+      teamId,
+      scope,
     });
     return sendPaginated(res, result.sessions, result.total, result.page, result.limit);
   } catch (err) { return next(err); }
@@ -224,7 +265,8 @@ export async function createSession(req: Request, res: Response, next: NextFunct
   try {
     const parsed = createSchema.safeParse({ body: req.body });
     if (!parsed.success) throw zerr(parsed.error);
-    const session = await trainingService.createTrainingSession(req.user!.clubId, parsed.data.body);
+    const teamId = parsed.data.body.teamId ?? await teamAccess.soleManagedTeamId(teamActorOf(req));
+    const session = await trainingService.createTrainingSession(req.user!.clubId, { ...parsed.data.body, teamId });
     return sendCreated(res, session, 'Training session created');
   } catch (err) {
     // Endpoint-scoped surfacing: any Prisma known-request error (P2002 unique,
@@ -268,7 +310,8 @@ export async function deleteSession(req: Request, res: Response, next: NextFunct
 
 export async function getForm(req: Request, res: Response, next: NextFunction) {
   try {
-    const form = await trainingService.getTrainingForm(req.user!.clubId);
+    const { teamId, scope } = await trainingScope(req);
+    const form = await trainingService.getTrainingForm(req.user!.clubId, { teamId, scope });
     return sendSuccess(res, form);
   } catch (err) { return next(err); }
 }

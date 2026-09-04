@@ -431,6 +431,7 @@ model Team {
   memberships  Membership[]
   currentUsers User[]       @relation("UserCurrentTeam")
   matches      Match[]
+  trainingSessions TrainingSession[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -5056,6 +5057,25 @@ model TrainingSession {
   clubId String
   club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
 
+  /// The team whose session this is.
+  ///
+  /// A training week belongs to a team, not to a club: the First Team trains
+  /// apart from the Under-15s, and each of them is private to the people
+  /// assigned to it. This column is what makes that true in the data rather
+  /// than only on a screen — `identity/team-access.service.ts` reads it on
+  /// every path that lists, opens, changes or deletes a session.
+  ///
+  /// Nullable, and deliberately so. Sessions recorded before teams owned them
+  /// cannot all be attributed honestly: a session whose squad spans two teams,
+  /// or whose players carry no team at all, belongs to nobody in particular and
+  /// guessing would file a First Team session under an academy side. Those rows
+  /// keep a null team and are treated as the club's own: readable by the club's
+  /// staff, editable only by a club-wide administrator, and adoptable by naming
+  /// a team — which takes an assignment to manage that team. The backfill in
+  /// 20260904090000_training_session_team assigns only what it can prove.
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
   title         String
   description   String?
   location      String?
@@ -5096,6 +5116,8 @@ model TrainingSession {
   updatedAt DateTime @updatedAt
 
   @@index([clubId])
+  @@index([clubId, teamId])
+  @@index([teamId])
   @@index([scheduledAt])
   @@index([status])
 }

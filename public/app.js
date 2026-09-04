@@ -181,6 +181,31 @@ function _famActiveClubId() {
   } catch (_) { return null; }
 }
 
+// The team being acted for, and the query string that carries it.
+//
+// A club is a First Team and a set of age groups, and a module that reads one
+// team's private work — the squad, the training week — must say WHICH team it
+// is asking about. The server narrows the answer to the teams this person
+// works on either way; naming the team is what makes the answer the one the
+// screen is showing rather than everything the reader happens to be allowed.
+function _famActiveTeamId() {
+  try {
+    return (window.State && State.context && State.context.teamId) || null;
+  } catch (_) { return null; }
+}
+function _famTeamQ() {
+  var id = _famActiveTeamId();
+  return id ? 'teamId=' + encodeURIComponent(id) : '';
+}
+function _famTeamQAmp() {
+  var q = _famTeamQ();
+  return q ? '&' + q : '';
+}
+function _famTeamQFirst() {
+  var q = _famTeamQ();
+  return q ? '?' + q : '';
+}
+
 // The neutral placeholder — a plain crest silhouette, shown for a club that
 // has not uploaded one and for an image that fails to load. It is deliberately
 // not a club's initials: initials read as identity, and a club without a crest
@@ -1071,8 +1096,8 @@ async function loadAllData(opts) {
       api('/analytics/overview'),
       SquadAPI.list('limit=50' + (State.context && State.context.teamId ? '&teamId=' + encodeURIComponent(State.context.teamId) : '')),
       api('/matches?limit=20'),
-      api('/training?limit=10'),
-      api('/training/form'),
+      api('/training?limit=10' + _famTeamQAmp()),
+      api('/training/form' + _famTeamQFirst()),
     ]);
 
     if (analytics.status === 'fulfilled' && analytics.value?.data) State.analytics = analytics.value.data;
@@ -34615,6 +34640,13 @@ const AppContext = (function () {
       // the previous team's and the held read is dropped before the new one — a
       // page opened after this must not join the answer for the team just left.
       _FAM_CLUB_DATA = { for: null, p: null };
+      // And what has already landed belongs to the team being left. A training
+      // week is one team's; leaving it behind on the page would show the
+      // previous team's sessions under the new team's name until the reload
+      // returned. Cleared here, refilled by the reload below.
+      State.training = [];
+      State.trainingForm = null;
+      try { _famResetPageVersions(); } catch (_) {}
       if (typeof loadAllData === 'function') await _famEnsureClubData();
     } catch (e) { showToast(e?.userMessage || 'Switch failed', 'error'); }
   }
@@ -38323,22 +38355,42 @@ function hideAITyping() { if(aiTypingEl){aiTypingEl.remove();aiTypingEl=null;} }
 
 // ── TRAINING ──
 
+// Every read carries the team whose week is on screen, and every session
+// created is created FOR that team. A training session belongs to a team, so
+// an unscoped call would ask for a club's whole calendar — which the server
+// now narrows to the caller's own teams anyway, and which would still be the
+// wrong question to ask from a team's workspace.
 const TrainingAPI = {
-  list(query)              { return FamilistaAPI.get('/training' + (query ? '?' + query : '')); },
+  list(query)              {
+    var q = [query || '', _famTeamQ()].filter(Boolean).join('&');
+    return FamilistaAPI.get('/training' + (q ? '?' + q : ''));
+  },
   get(id)                  { return FamilistaAPI.get('/training/' + id); },
-  form()                   { return FamilistaAPI.get('/training/form'); },
-  create(body)             { return FamilistaAPI.post('/training', body); },
+  form()                   { return FamilistaAPI.get('/training/form' + _famTeamQFirst()); },
+  create(body)             { return FamilistaAPI.post('/training', _trWithTeam(body)); },
   update(id, body)         { return FamilistaAPI.patch('/training/' + id, body); },
   remove(id)               { return FamilistaAPI.delete('/training/' + id); },
   // Training Attendance MVP
   getAttendance(id)        { return FamilistaAPI.get('/training/' + id + '/attendance'); },
   saveAttendance(id, body) { return FamilistaAPI.put('/training/' + id + '/attendance', body); },
   // Stage 2 — full lifecycle persistence + PostgreSQL reports.
-  createSession(body)      { return FamilistaAPI.post('/training/sessions', body); },
+  createSession(body)      { return FamilistaAPI.post('/training/sessions', _trWithTeam(body)); },
   savePerformance(id, body){ return FamilistaAPI.put('/training/' + id + '/performance', body); },
   complete(id, body)       { return FamilistaAPI.post('/training/' + id + '/complete', body); },
-  report(range)            { return FamilistaAPI.get('/training/reports?range=' + encodeURIComponent(range || 'weekly')); },
+  report(range)            {
+    return FamilistaAPI.get('/training/reports?range=' + encodeURIComponent(range || 'weekly') + _famTeamQAmp());
+  },
 };
+
+// The team a new session belongs to. Added to the body rather than to the URL
+// because it is ownership, not a filter — and the server checks it against the
+// caller's assignments before the row is written.
+function _trWithTeam(body) {
+  var out = body || {};
+  var teamId = _famActiveTeamId();
+  if (teamId && !out.teamId) out = Object.assign({}, out, { teamId: teamId });
+  return out;
+}
 
 // In-memory draft for the Attendance panel — keyed by sessionId so a stale
 // draft from one session can't leak into another. Marks are saved on
@@ -40390,7 +40442,7 @@ async function submitNewSession(ev) {
   btn.disabled = true; btn.textContent = 'Creating…';
 
   try {
-    const saved = await FamilistaAPI.post('/training/sessions', body);
+    const saved = await FamilistaAPI.post('/training/sessions', _trWithTeam(body));
     if (saved && saved.id) State.training = [saved, ...(State.training || [])];
     // BUG #1 fix: the Form tab reads State.trainingForm, which is hydrated
     // once at login from GET /training/form (the latest-session rating row).
@@ -40400,7 +40452,7 @@ async function submitNewSession(ev) {
     // update State.trainingForm. Failure is non-fatal: the tab keeps showing
     // the previous values, same as before this fix.
     try {
-      const form = await FamilistaAPI.get('/training/form');
+      const form = await FamilistaAPI.get('/training/form' + _famTeamQFirst());
       const formData = (form && (form.data || form)) || null;
       if (formData) State.trainingForm = formData;
     } catch (_) { /* leave State.trainingForm as-is */ }
@@ -40554,7 +40606,7 @@ async function submitTrainingForm(ev) {
       // hard reload. Re-fetch so the cache matches the server. Failure is
       // non-fatal: the tab keeps showing the previous values, same as before.
       try {
-        const form = await FamilistaAPI.get('/training/form');
+        const form = await FamilistaAPI.get('/training/form' + _famTeamQFirst());
         const formData = (form && (form.data || form)) || null;
         if (formData) State.trainingForm = formData;
       } catch (_) { /* leave State.trainingForm as-is */ }
@@ -40599,7 +40651,7 @@ async function confirmDeleteTraining(id) {
     // rings until a hard reload. Re-fetch so the cache matches the server.
     // Failure is non-fatal: the tab keeps showing the previous values.
     try {
-      const form = await FamilistaAPI.get('/training/form');
+      const form = await FamilistaAPI.get('/training/form' + _famTeamQFirst());
       const formData = (form && (form.data || form)) || null;
       if (formData) State.trainingForm = formData;
     } catch (_) { /* leave State.trainingForm as-is */ }

@@ -2,6 +2,82 @@ import { AttendanceMark, DrillType, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
 
+// ─────────────────────────────────────────────────────────────────────────
+// Whose training week is this?
+// ─────────────────────────────────────────────────────────────────────────
+//
+// A session belongs to a TEAM. The First Team trains apart from the
+// Under-15s, and each week is private to the people assigned to that team, so
+// every read below is filtered by the team the caller works on and every write
+// is refused for a team they do not.
+//
+// A session with NO team is a legacy club session: one recorded before teams
+// owned them, which the migration could not attribute without guessing. Those
+// stay readable by the club's staff — they are nobody else's team's week — and
+// only a club-wide administrator may change one, or adopt it by naming a team.
+
+export interface TrainingTeamScope {
+  /** A platform administrator, or a club-wide staff membership. */
+  unrestricted: boolean;
+  /** The teams this caller works on, when they do not work on all of them. */
+  teamIds: string[];
+}
+
+/**
+ * The team filter for one caller, as a where fragment.
+ *
+ * Returns `{}` for an unrestricted caller so the query is exactly the one it
+ * always was, and an OR over their own teams plus the club's unattributed
+ * sessions for everybody else.
+ */
+export function trainingTeamWhere(scope?: TrainingTeamScope | null): Prisma.TrainingSessionWhereInput {
+  if (!scope || scope.unrestricted) return {};
+  return { OR: [{ teamId: { in: scope.teamIds } }, { teamId: null }] };
+}
+
+/**
+ * The team a session belongs to, and the club that owns it. Read by the route
+ * gate before the handler runs, so a session id from another team's week is
+ * refused rather than answered.
+ */
+export async function sessionOwnership(sessionId: string): Promise<{ clubId: string; teamId: string | null } | null> {
+  return prisma.trainingSession.findUnique({
+    where: { id: sessionId },
+    select: { clubId: true, teamId: true },
+  });
+}
+
+/**
+ * The players a session may name: its team's squad, or — for a legacy session
+ * with no team — the club's. A session can never carry a player from another
+ * team, which is what stops one team's roster leaking into another's week.
+ */
+async function assertPlayersOfTeam(clubId: string, teamId: string | null, playerIds: string[]): Promise<void> {
+  if (!playerIds.length) return;
+  const ids = [...new Set(playerIds)];
+  const owned = await prisma.player.findMany({
+    where: { id: { in: ids }, clubId, ...(teamId ? { teamId } : {}) },
+    select: { id: true },
+  });
+  if (owned.length !== ids.length) {
+    const ownedSet = new Set(owned.map((p) => p.id));
+    const missing = ids.filter((id) => !ownedSet.has(id));
+    throw new BadRequestError(
+      teamId
+        ? `Players not in this team's squad: ${missing.join(', ')}`
+        : `Players not in active squad: ${missing.join(', ')}`,
+    );
+  }
+}
+
+/** A team named on a write must be a real team of the caller's own club. */
+async function assertTeamOfClub(clubId: string, teamId: string | null | undefined): Promise<string | null> {
+  if (!teamId) return null;
+  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { clubId: true } });
+  if (!team || team.clubId !== clubId) throw new ForbiddenError();
+  return teamId;
+}
+
 export interface CreateTrainingDto {
   title:        string;
   description?: string;
@@ -10,6 +86,9 @@ export interface CreateTrainingDto {
   duration:     number;
   drills?:      DrillType[];
   playerIds?:   string[];
+  /** The team whose session this is. Checked against the caller's assignments
+   *  by the route before the service is reached. */
+  teamId?:      string | null;
 }
 
 export interface AttendanceMarkDto {
@@ -33,6 +112,8 @@ export interface CleanCreateSessionDto {
   notes?:        string;
   drills?:       DrillType[];
   playerIds?:    string[];
+  /** The team whose session this is. */
+  teamId?:       string | null;
   // Stage 2 planning metadata (additive, all optional).
   startTime?:    string;
   sessionType?:  string;
@@ -51,17 +132,25 @@ export interface CleanCreateSessionDto {
 export async function createCleanSession(clubId: string, dto: CleanCreateSessionDto) {
   if (!clubId) throw new BadRequestError('No active club context');
 
+  // The team this session belongs to, verified as this club's. Whether the
+  // caller may create a session for it was decided by the route.
+  const teamId = await assertTeamOfClub(clubId, dto.teamId ?? null);
+
   let validPlayerIds: string[] = [];
   if (dto.playerIds && dto.playerIds.length > 0) {
     const owned = await prisma.player.findMany({
-      where:  { id: { in: dto.playerIds }, clubId, isActive: true },
+      where:  { id: { in: dto.playerIds }, clubId, isActive: true, ...(teamId ? { teamId } : {}) },
       select: { id: true },
     });
     validPlayerIds = owned.map((p) => p.id);
     if (validPlayerIds.length !== dto.playerIds.length) {
       const ownedSet = new Set(validPlayerIds);
       const missing  = dto.playerIds.filter((id) => !ownedSet.has(id));
-      throw new BadRequestError(`Players not in active squad: ${missing.join(', ')}`);
+      throw new BadRequestError(
+        teamId
+          ? `Players not in this team's squad: ${missing.join(', ')}`
+          : `Players not in active squad: ${missing.join(', ')}`,
+      );
     }
   }
 
@@ -75,6 +164,7 @@ export async function createCleanSession(clubId: string, dto: CleanCreateSession
   return prisma.trainingSession.create({
     data: {
       clubId,
+      teamId,
       title:         dto.title,
       description:   dto.notes ?? null,
       location:      dto.location ?? null,
@@ -107,14 +197,23 @@ export async function createCleanSession(clubId: string, dto: CleanCreateSession
 
 export async function getTrainingSessions(
   clubId: string,
-  filters: { page?: number; limit?: number } = {}
+  filters: { page?: number; limit?: number; teamId?: string | null; scope?: TrainingTeamScope | null } = {}
 ) {
   const { page = 1, limit = 20 } = filters;
   const skip = (page - 1) * limit;
 
+  // One team's week when a team is named — the route checked it — and
+  // otherwise every session this caller works on. Never the club's whole
+  // calendar for somebody assigned to one team of it.
+  const where: Prisma.TrainingSessionWhereInput = {
+    clubId,
+    ...(filters.teamId ? { teamId: filters.teamId } : {}),
+    ...trainingTeamWhere(filters.scope),
+  };
+
   const [sessions, total] = await Promise.all([
     prisma.trainingSession.findMany({
-      where: { clubId },
+      where,
       include: {
         playerStats: {
           include: {
@@ -126,7 +225,7 @@ export async function getTrainingSessions(
       skip,
       take: limit,
     }),
-    prisma.trainingSession.count({ where: { clubId } }),
+    prisma.trainingSession.count({ where }),
   ]);
 
   return { sessions, total, page, limit };
@@ -160,24 +259,16 @@ export async function createTrainingSession(
   dto: CreateTrainingDto
 ) {
   const { playerIds } = dto;
+  const teamId = await assertTeamOfClub(clubId, dto.teamId ?? null);
 
   if (playerIds && playerIds.length > 0) {
-    const owned = await prisma.player.findMany({
-      where:  { id: { in: playerIds }, clubId, isActive: true },
-      select: { id: true },
-    });
-    if (owned.length !== playerIds.length) {
-      const ownedSet = new Set(owned.map((p) => p.id));
-      const missing  = playerIds.filter((id) => !ownedSet.has(id));
-      throw new BadRequestError(
-        `playerIds not found in this club: ${missing.join(', ')}`,
-      );
-    }
+    await assertPlayersOfTeam(clubId, teamId, playerIds);
   }
 
   return prisma.trainingSession.create({
     data: {
       clubId,
+      teamId,
       title:       dto.title,
       description: dto.description,
       location:    dto.location,
@@ -204,9 +295,18 @@ export async function updateTrainingSession(
   dto: Partial<CreateTrainingDto>
 ) {
   // Ownership check before any write
-  await getTrainingById(id, clubId);
+  const existing = await getTrainingById(id, clubId);
 
-  const { playerIds, ...fields } = dto;
+  const { playerIds, teamId: newTeamId, ...fields } = dto;
+  // Moving a session between teams is allowed — a legacy club session is
+  // adopted this way — but the caller's right to BOTH teams was decided by the
+  // route before this ran, and the team must be one of this club's.
+  const teamId = newTeamId === undefined ? undefined : await assertTeamOfClub(clubId, newTeamId);
+  const effectiveTeamId = teamId === undefined ? existing.teamId : teamId;
+
+  if (playerIds !== undefined && playerIds.length) {
+    await assertPlayersOfTeam(clubId, effectiveTeamId, playerIds);
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.trainingSession.update({
@@ -225,6 +325,7 @@ export async function updateTrainingSession(
         ...(fields.scheduledAt !== undefined && { scheduledAt: new Date(fields.scheduledAt) }),
         ...(fields.duration    !== undefined && { duration:    fields.duration }),
         ...(fields.drills      !== undefined && { drills:      fields.drills }),
+        ...(teamId             !== undefined && { teamId }),
       },
     });
 
@@ -270,11 +371,14 @@ function summariseMarks(marks: AttendanceMark[]) {
 }
 
 export async function getTrainingAttendance(sessionId: string, clubId: string) {
-  await getTrainingById(sessionId, clubId);
+  const session = await getTrainingById(sessionId, clubId);
 
   const [players, records] = await Promise.all([
     prisma.player.findMany({
-      where:   { clubId, isActive: true },
+      // The roster is the session's TEAM, not the club. An Under-15 session
+      // marked against the whole club's players would show a First Team squad
+      // to whoever opened it — and would let a mark be recorded against them.
+      where:   { clubId, isActive: true, ...(session.teamId ? { teamId: session.teamId } : {}) },
       select:  { id: true, firstName: true, lastName: true, number: true, position: true },
       orderBy: [{ number: 'asc' }],
     }),
@@ -308,14 +412,15 @@ export async function setTrainingAttendance(
   actorUserId: string,
   marks: AttendanceMarkDto[],
 ) {
-  await getTrainingById(sessionId, clubId);
+  const session = await getTrainingById(sessionId, clubId);
 
-  // Reject marks for players outside this club — silently dropping would
-  // mask UI bugs (wrong club context, stale State.players).
+  // Reject marks for players outside this session's own team — silently
+  // dropping would mask UI bugs (wrong club context, stale State.players), and
+  // accepting them would record one team's attendance against another's squad.
   if (marks.length > 0) {
     const playerIds = marks.map((m) => m.playerId);
     const owned = await prisma.player.findMany({
-      where:  { id: { in: playerIds }, clubId },
+      where:  { id: { in: playerIds }, clubId, ...(session.teamId ? { teamId: session.teamId } : {}) },
       select: { id: true },
     });
     if (owned.length !== playerIds.length) {
@@ -362,10 +467,10 @@ export interface PerformanceMarkDto {
   notes?:        string | null;
 }
 
-async function assertOwnedPlayers(clubId: string, playerIds: string[]) {
+async function assertOwnedPlayers(clubId: string, playerIds: string[], teamId?: string | null) {
   if (playerIds.length === 0) return;
   const owned = await prisma.player.findMany({
-    where:  { id: { in: playerIds }, clubId },
+    where:  { id: { in: playerIds }, clubId, ...(teamId ? { teamId } : {}) },
     select: { id: true },
   });
   if (owned.length !== new Set(playerIds).size) throw new ForbiddenError();
@@ -378,8 +483,8 @@ export async function savePerformance(
   clubId: string,
   marks: PerformanceMarkDto[],
 ) {
-  await getTrainingById(sessionId, clubId);
-  await assertOwnedPlayers(clubId, marks.map((m) => m.playerId));
+  const session = await getTrainingById(sessionId, clubId);
+  await assertOwnedPlayers(clubId, marks.map((m) => m.playerId), session.teamId);
 
   await prisma.$transaction(
     marks.map((m) =>
@@ -424,9 +529,9 @@ export async function completeSession(
   clubId: string,
   dto: CompleteSessionDto,
 ) {
-  await getTrainingById(sessionId, clubId);
+  const session = await getTrainingById(sessionId, clubId);
 
-  if (dto.bestPlayerId) await assertOwnedPlayers(clubId, [dto.bestPlayerId]);
+  if (dto.bestPlayerId) await assertOwnedPlayers(clubId, [dto.bestPlayerId], session.teamId);
   if (dto.performance && dto.performance.length) {
     await savePerformance(sessionId, clubId, dto.performance);
   }
@@ -456,15 +561,34 @@ function rangeWindow(range: string): { from: Date | null; label: string } {
   return { from: null, label: 'Season' }; // season = everything for the club
 }
 
-export async function getTrainingReport(clubId: string, range: string) {
+export async function getTrainingReport(
+  clubId: string,
+  range: string,
+  opts: { teamId?: string | null; scope?: TrainingTeamScope | null } = {},
+) {
   const { from, label } = rangeWindow(range);
+  const teamId = opts.teamId ?? null;
 
-  const sessionWhere: Prisma.TrainingSessionWhereInput = from
-    ? { clubId, scheduledAt: { gte: from } }
-    : { clubId };
-  const attWhere: Prisma.TrainingAttendanceRecordWhereInput = from
-    ? { clubId, recordedAt: { gte: from } }
-    : { clubId };
+  const sessionWhere: Prisma.TrainingSessionWhereInput = {
+    clubId,
+    ...(from ? { scheduledAt: { gte: from } } : {}),
+    ...(teamId ? { teamId } : {}),
+    ...trainingTeamWhere(opts.scope),
+  };
+  // The sessions this report is about, read first: a TrainingAttendanceRecord
+  // carries a session id and no team of its own, so the only honest way to
+  // scope attendance is by the sessions the caller may actually read.
+  const scopedSessions = await prisma.trainingSession.findMany({
+    where: sessionWhere,
+    select: { id: true },
+  });
+  const scopedIds = scopedSessions.map((r) => r.id);
+  const narrowed = !!teamId || !!(opts.scope && !opts.scope.unrestricted);
+  const attWhere: Prisma.TrainingAttendanceRecordWhereInput = {
+    clubId,
+    ...(from ? { recordedAt: { gte: from } } : {}),
+    ...(narrowed ? { trainingSessionId: { in: scopedIds } } : {}),
+  };
 
   const [sessions, players, attendance] = await Promise.all([
     prisma.trainingSession.findMany({
@@ -473,7 +597,14 @@ export async function getTrainingReport(clubId: string, range: string) {
       orderBy: { scheduledAt: 'desc' },
     }),
     prisma.player.findMany({
-      where:  { clubId, isActive: true },
+      // A team's report is about that team's players. Reported per-player rows
+      // for a squad the reader does not work on would be the same leak the
+      // session list closes, arriving by a different route.
+      where:  {
+        clubId, isActive: true,
+        ...(teamId ? { teamId } : {}),
+        ...(opts.scope && !opts.scope.unrestricted ? { OR: [{ teamId: { in: opts.scope.teamIds } }, { teamId: null }] } : {}),
+      },
       select: { id: true, firstName: true, lastName: true, number: true, position: true },
     }),
     prisma.trainingAttendanceRecord.findMany({
@@ -564,9 +695,16 @@ export async function getTrainingReport(clubId: string, range: string) {
   };
 }
 
-export async function getTrainingForm(clubId: string) {
+export async function getTrainingForm(
+  clubId: string,
+  opts: { teamId?: string | null; scope?: TrainingTeamScope | null } = {},
+) {
   const latest = await prisma.trainingSession.findFirst({
-    where: { clubId },
+    where: {
+      clubId,
+      ...(opts.teamId ? { teamId: opts.teamId } : {}),
+      ...trainingTeamWhere(opts.scope),
+    },
     orderBy: { scheduledAt: 'desc' },
     select: {
       attackForm:    true,

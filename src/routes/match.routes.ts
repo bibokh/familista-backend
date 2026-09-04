@@ -13,8 +13,17 @@ import * as ann    from '../controllers/annotation.controller';
 import * as li     from '../controllers/live-intelligence.controller';
 import { matchLiveSse } from '../realtime/match-sse';
 import { authenticate, authorize } from '../middleware/auth.middleware';
+import { requireMatchTeamAccess } from '../middleware/team-scope.middleware';
 
 const router = Router();
+
+// A match belongs to a team, and its preparation, lineup, events and analysis
+// are that team's private work. Every route addressed by :id is checked against
+// that team before its handler runs — reading takes private sight of it,
+// changing it takes an assignment to manage it — so a match id from another
+// team's season is refused rather than answered. The live SSE stream carries
+// its own auth in the query string and is left to it.
+router.param('id', (req, res, next) => requireMatchTeamAccess('id')(req, res, next));
 
 // SSE handles its own auth (supports ?token= because EventSource cannot
 // set Authorization headers). Registered BEFORE `router.use(authenticate)`

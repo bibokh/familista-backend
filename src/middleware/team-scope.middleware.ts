@@ -26,6 +26,14 @@ import { prisma } from '../config/database';
 import * as teamAccess from '../identity/team-access.service';
 import { ForbiddenError } from '../utils/errors';
 
+/** Whether the request carries a session at all. A route that authenticates
+ *  itself — the live SSE stream takes its token in the query string — must not
+ *  be pre-empted here; it is refused by its own auth, not by a team rule. */
+export function isAuthenticated(req: Request): boolean {
+  const u = (req as Request & { user?: { id?: string; userId?: string } }).user;
+  return !!(u && (u.id || u.userId));
+}
+
 export function actorOfRequest(req: Request): teamAccess.TeamActor {
   const u = (req as Request & {
     user?: { id?: string; userId?: string; role?: string; currentClubId?: string; clubId?: string };
@@ -163,6 +171,102 @@ export function requireTeamRowAccess(param = 'id') {
       if (!teamId) return next();
       const write = req.method !== 'GET' && req.method !== 'HEAD';
       await enforce(actorOfRequest(req), teamId, write ? 'manage' : 'view');
+      next();
+    } catch (err) { next(err); }
+  };
+}
+
+
+/**
+ * The gate for a route addressed by TRAINING SESSION: `/training/:id`, and
+ * everything under it — attendance, performance, completion.
+ *
+ * A session belongs to a team, and a team's training week is private to the
+ * people assigned to it. Reading one takes private sight of its team; changing
+ * one takes an assignment to manage it.
+ *
+ * A session with no team is a legacy club session — the migration could not
+ * attribute it without guessing, and did not. It stays readable by anybody who
+ * works on one of the club's teams, because it is nobody else's team's week,
+ * and changeable only by somebody who administers the club's teams as a whole.
+ * Adopting one by naming a team is an ordinary update, and the team named is
+ * checked by `requireTeamManage` on the same route.
+ */
+export function requireTrainingSessionAccess(param = 'id') {
+  return async function (req: Request, _res: Response, next: NextFunction): Promise<void> {
+    try {
+      const sessionId = req.params?.[param];
+      if (!sessionId) return next();
+      const row = await prisma.trainingSession.findUnique({
+        where: { id: sessionId },
+        select: { clubId: true, teamId: true },
+      });
+      // No such session: the service answers that with a 404, and this gate
+      // does not pre-empt it or confirm the id's existence to a stranger.
+      if (!row) return next();
+      const actor = actorOfRequest(req);
+      const write = req.method !== 'GET' && req.method !== 'HEAD';
+      if (!row.teamId) {
+        if (write) await teamAccess.assertClubWideManageAuthority(actor);
+        else await teamAccess.assertAnyTeamPrivateAccess(actor);
+        return next();
+      }
+      await enforce(actor, row.teamId, write ? 'manage' : 'private');
+      next();
+    } catch (err) { next(err); }
+  };
+}
+
+/**
+ * The gate for CREATING something that belongs to a team.
+ *
+ * The team is named in the body. Naming one takes an assignment to manage it;
+ * naming none creates a club-level row, which takes the authority to
+ * administer the club's teams as a whole rather than one of them.
+ */
+export function requireTeamManageForCreate(opts: { keys?: string[] } = {}) {
+  const keys = opts.keys ?? TEAM_ID_KEYS;
+  return async function (req: Request, _res: Response, next: NextFunction): Promise<void> {
+    try {
+      const teamId = teamIdFrom(req, keys);
+      const actor = actorOfRequest(req);
+      if (teamId) { await enforce(actor, teamId, 'manage'); return next(); }
+      // No team named. Somebody who manages exactly one team is naming it by
+      // implication, and the controller resolves it the same way — from their
+      // memberships, never from the request. Anybody else is creating a row
+      // that belongs to the club rather than to a team, which takes the
+      // authority to administer the club's teams as a whole.
+      if (await teamAccess.soleManagedTeamId(actor)) return next();
+      await teamAccess.assertClubWideManageAuthority(actor);
+      next();
+    } catch (err) { next(err); }
+  };
+}
+
+
+/**
+ * The gate for a route addressed by MATCH: `/matches/:id`, and everything
+ * under it.
+ *
+ * A match belongs to a team — the Under-15s' fixtures are not the First Team's
+ * — and its preparation, its lineup, its events and its analysis are that
+ * team's private work. Reading takes private sight of its team; changing it
+ * takes an assignment to manage that team. A match filed against no team is
+ * the club's own and keeps the club scope the service already enforces.
+ */
+export function requireMatchTeamAccess(param = 'id') {
+  return async function (req: Request, _res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!isAuthenticated(req)) return next();
+      const matchId = req.params?.[param];
+      if (!matchId) return next();
+      const row = await prisma.match.findUnique({
+        where: { id: matchId },
+        select: { clubId: true, teamId: true },
+      });
+      if (!row || !row.teamId) return next();
+      const write = req.method !== 'GET' && req.method !== 'HEAD';
+      await enforce(actorOfRequest(req), row.teamId, write ? 'manage' : 'private');
       next();
     } catch (err) { next(err); }
   };

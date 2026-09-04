@@ -4,6 +4,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import * as matchService from '../services/match.service';
+import * as teamAccess from '../identity/team-access.service';
 import { sendSuccess, sendCreated, sendNoContent, sendPaginated } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
 
@@ -113,12 +114,31 @@ function parseDateMaybe(s?: string): Date | null {
 // CRUD
 // ─────────────────────────────────────────────────────────────────────────
 
+/** The team-access actor, from the session and never from the request. */
+function teamActorOf(req: Request): teamAccess.TeamActor {
+  const u = req.user as unknown as { id?: string; userId?: string; role?: string; currentClubId?: string; clubId?: string } | undefined;
+  return {
+    userId: u?.id ?? u?.userId ?? '',
+    clubId: u?.currentClubId ?? u?.clubId ?? '',
+    role: u?.role,
+  };
+}
+
 export async function getMatches(req: Request, res: Response, next: NextFunction) {
   try {
     const parsed = listQuerySchema.safeParse({ query: req.query });
     if (!parsed.success) throw zerr(parsed.error);
     const q = parsed.data.query;
+    // A club's calendar is not one list for everybody in it: a coach assigned
+    // to one team reads that team's matches. Naming a team they do not work on
+    // is refused outright rather than answered with an empty list.
+    const actor = teamActorOf(req);
+    const scope = await teamAccess.privateTeamScope(actor);
+    if (!scope.unrestricted && q.teamId && q.teamId !== 'NULL' && !scope.teamIds.includes(q.teamId)) {
+      await teamAccess.assertCanViewTeamPrivate(actor, q.teamId);
+    }
     const result = await matchService.getMatches(req.user!.clubId, {
+      teamScope:   scope.unrestricted ? undefined : scope.teamIds,
       competition: q.competition as never,
       status:      q.status,
       teamId:      q.teamId === 'NULL' ? 'NULL' : (q.teamId || undefined),

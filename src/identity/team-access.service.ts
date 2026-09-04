@@ -347,6 +347,51 @@ export async function hasAnyTeamPrivateAccess(actor: TeamActor): Promise<boolean
   return scope.unrestricted || scope.teamIds.length > 0;
 }
 
+/**
+ * Whether this person administers the club's teams as a whole, rather than one
+ * of them.
+ *
+ * The authority a legacy club session answers to: a row that belongs to no
+ * team is nobody's team's to change, so only somebody who runs the club's
+ * teams may change it — a platform administrator, a club-wide managing
+ * membership, or a legacy account that has never been assigned to anything and
+ * has always been club-wide.
+ */
+export async function hasClubWideManageAuthority(actor: TeamActor): Promise<boolean> {
+  if (actor.role === 'SUPER_ADMIN') return true;
+  if (!actor.userId || !actor.clubId) return false;
+  const rows = await membershipsOf(actor);
+  if (!rows.length) return true;
+  return rows.some((r) => !r.teamId && TEAM_MANAGING_ROLES.has(r.role));
+}
+
+export async function assertClubWideManageAuthority(actor: TeamActor): Promise<void> {
+  if (!(await hasClubWideManageAuthority(actor))) {
+    throw new ForbiddenError('That belongs to the club rather than to a team, and only a club administrator may change it');
+  }
+}
+
+/**
+ * The one team this person manages, when there is exactly one.
+ *
+ * What a create with no team named should belong to. A coach assigned to the
+ * Under-15s who creates a training session is creating an Under-15 session —
+ * there is nowhere else it could go, and asking the browser to say so would be
+ * trusting the browser to say so. Somebody who manages several teams, or the
+ * club as a whole, gets null: for them the team is a real choice and the
+ * request must make it.
+ */
+export async function soleManagedTeamId(actor: TeamActor): Promise<string | null> {
+  if (actor.role === 'SUPER_ADMIN') return null;
+  if (!actor.userId || !actor.clubId) return null;
+  const rows = await membershipsOf(actor);
+  if (rows.some((r) => !r.teamId && TEAM_MANAGING_ROLES.has(r.role))) return null;
+  const managed = [...new Set(
+    rows.filter((r) => r.teamId && TEAM_MANAGING_ROLES.has(r.role)).map((r) => r.teamId as string),
+  )];
+  return managed.length === 1 ? managed[0] : null;
+}
+
 export async function assertAnyTeamPrivateAccess(actor: TeamActor): Promise<void> {
   if (!(await hasAnyTeamPrivateAccess(actor))) {
     throw new ForbiddenError('You are not assigned to a team in this club');

@@ -75,6 +75,14 @@ export interface MatchFilters {
   competition?: CompetitionType;
   status?:      MatchStatus;
   teamId?:      string | 'NULL';
+  /**
+   * The teams whose matches this caller may read, when they may not read all
+   * of them. Resolved from the caller's memberships by the controller — never
+   * from the request. Undefined is unrestricted, which is what a platform
+   * administrator, a club-wide staff membership and a legacy account with no
+   * memberships get.
+   */
+  teamScope?:   string[];
   from?:        Date | null;
   to?:          Date | null;
   search?:      string;
@@ -137,6 +145,13 @@ export async function getMatches(clubId: string, filters: MatchFilters = {}) {
 
   const where: Prisma.MatchWhereInput = {
     clubId,
+    // The teams this caller works on, when they do not work on all of them.
+    // Written as AND because the search below is an OR, and two of them in one
+    // object would silently replace each other. A match filed against no team
+    // is the club's own and stays visible to the club's staff.
+    ...(filters.teamScope
+      ? { AND: [{ OR: [{ teamId: { in: filters.teamScope } }, { teamId: null }] }] }
+      : {}),
     ...(competition && { competition }),
     ...(status      && { status }),
     ...(teamId === 'NULL' ? { teamId: null } : teamId ? { teamId } : {}),
