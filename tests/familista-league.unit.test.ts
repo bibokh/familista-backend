@@ -195,7 +195,7 @@ describe('Familista League — one rule for who may play', () => {
     // The rule returns a reason, not a bare boolean, so a new condition is one
     // token here rather than a new check at every call site.
     expect(ELIGIBILITY).toContain('EligibilityVerdict');
-    expect(ELIGIBILITY).toMatch(/reason: 'OK' \| 'NOT_FIRST_TEAM' \| 'INACTIVE'/);
+    expect(ELIGIBILITY).toMatch(/reason: 'OK' \| 'NOT_FIRST_TEAM' \| 'INACTIVE' \| 'WRONG_AGE_GROUP'/);
   });
 });
 
@@ -206,8 +206,12 @@ describe('Familista League — participation references, never copies', () => {
     expect(body).toContain('prisma.competitionTeam.create');
     // The only columns written are the reference and the owning club.
     expect(body).toMatch(/data: \{ competitionId, teamId, clubId: team\.clubId \}/);
-    // Nothing about the team's identity is duplicated into that row.
-    const code = codeOnly(body);
+    // Nothing about the team's identity is duplicated into that row. The
+    // assertion is about what is WRITTEN: the row the create statement builds.
+    // Reading a team's name to decide its age band is not a copy — the band is
+    // the eligibility question, and the answer is not stored on the row.
+    const written = body.slice(body.indexOf('prisma.competitionTeam.create'));
+    const code = codeOnly(written);
     for (const copied of ['crestUrl:', 'teamName:', 'name:', 'squadSize', 'players:']) {
       expect(`${copied}${code.includes(copied)}`).toBe(`${copied}false`);
     }

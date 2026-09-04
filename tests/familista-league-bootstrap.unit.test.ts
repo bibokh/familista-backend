@@ -44,8 +44,14 @@ describe('what it uses', () => {
     // Asked about THIS competition's category: with no age group it is the
     // first-team rule, unchanged and shared with the First Team's own run.
     expect(BOOT).toContain('...eligibleTeamWhereFor(category.ageGroup)');
-    // No team is chosen by its name, and no academy kind is named here.
-    expect(BOOT).not.toMatch(/ACADEMY|name: \{ contains/);
+    // No team is chosen by a name the bootstrap matches against: a band is
+    // resolved by league-eligibility from the row, and this file asks it.
+    expect(BOOT).not.toMatch(/name: \{ contains/);
+    expect(BOOT).toContain('resolveEligibleTeams');
+    // And no age band is written down here — they are discovered from the
+    // teams that actually exist.
+    expect(BOOT).toContain('discoverAcademyBands');
+    expect(BOOT_CODE).not.toMatch(/'U\d+-U\d+'|"U\d+-U\d+"/);
   });
 
   it('reuses the existing generator rather than pairing teams itself', () => {

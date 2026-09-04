@@ -102,6 +102,7 @@ export async function listParticipants(competitionId: string): Promise<Participa
       where: { id: { in: teamIds } },
       select: {
         id: true, name: true, kind: true, isActive: true, clubId: true,
+        ageMin: true, ageMax: true,
         club: { select: { id: true, name: true, crestUrl: true, emblem: true } },
       },
     }),
@@ -125,7 +126,9 @@ export async function listParticipants(competitionId: string): Promise<Participa
       clubName: t.club?.name ?? t.name,
       crestUrl: t.club?.crestUrl ?? t.club?.emblem ?? null,
       playedMatches: playCount.get(t.id) ?? 0,
-      stillEligible: eligibilityFor(comp, { kind: t.kind, isActive: t.isActive }).eligible,
+      stillEligible: eligibilityFor(comp, {
+        kind: t.kind, isActive: t.isActive, name: t.name, ageMin: t.ageMin, ageMax: t.ageMax,
+      }).eligible,
     }))
     .sort((a, b) => a.clubName.localeCompare(b.clubName));
 }
@@ -165,7 +168,7 @@ export async function listEligibleTeams(
     prisma.team.findMany({
       where,
       select: {
-        id: true, name: true, clubId: true,
+        id: true, name: true, clubId: true, kind: true, isActive: true, ageMin: true, ageMax: true,
         club: { select: { name: true, crestUrl: true, emblem: true } },
         _count: { select: { players: true } },
       },
@@ -176,7 +179,13 @@ export async function listEligibleTeams(
   ]);
 
   const inLeague = new Set(entered.map((e) => e.teamId));
-  return teams.map((t) => ({
+  return teams
+    // The band is not a column: the query narrows to the right KIND of team and
+    // the verdict decides the band, exactly as the season runner does.
+    .filter((t) => eligibilityFor(comp, {
+      kind: t.kind, isActive: t.isActive, name: t.name, ageMin: t.ageMin, ageMax: t.ageMax,
+    }).eligible)
+    .map((t) => ({
     teamId: t.id,
     teamName: t.name,
     clubId: t.clubId,
@@ -201,11 +210,13 @@ export async function addParticipant(
 
   const team = await prisma.team.findUnique({
     where: { id: teamId },
-    select: { id: true, kind: true, isActive: true, clubId: true },
+    select: { id: true, name: true, kind: true, isActive: true, clubId: true, ageMin: true, ageMax: true },
   });
   if (!team) throw new NotFoundError('Team');
 
-  const verdict = eligibilityFor(comp, { kind: team.kind, isActive: team.isActive });
+  const verdict = eligibilityFor(comp, {
+    kind: team.kind, isActive: team.isActive, name: team.name, ageMin: team.ageMin, ageMax: team.ageMax,
+  });
   if (!verdict.eligible) {
     throw new BadRequestError(
       verdict.reason === 'NOT_FIRST_TEAM'

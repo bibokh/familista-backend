@@ -191,7 +191,7 @@ import * as teamAccess from '../src/identity/team-access.service';
 import * as mc from '../src/competition/match-center.service';
 import * as league from '../src/competition/familista-league.service';
 import {
-  eligibilityFor, eligibleTeamWhereFor, isEligibleFor, kindsForAgeGroup, ageGroupOfKind, allAgeGroups,
+  ACADEMY_KINDS, ageBandOf, ageGroupOfKind, eligibilityFor, isEligibleFor, normalizeBand, resolveAgeBand,
 } from '../src/competition/league-eligibility';
 import { academyCategory, FIRST_TEAM_CATEGORY, initAcademySeasons } from '../src/competition/familista-league.bootstrap';
 import { requireTeamPrivate, requirePlayerTeamAccess } from '../src/middleware/team-scope.middleware';
@@ -319,32 +319,59 @@ describe('a person assigned to one team runs that team and no other', () => {
 describe('an age group competes with its own age group', () => {
   it('10 · a First Team can never enter an Academy competition', () => {
     const u17 = academyCategory('U17');
-    expect(isEligibleFor(u17, { kind: TeamKind.SENIOR, isActive: true })).toBe(false);
-    expect(eligibilityFor(u17, { kind: TeamKind.SENIOR, isActive: true }).reason).toBe('WRONG_AGE_GROUP');
-    expect(isEligibleFor(u17, { kind: TeamKind.ACADEMY_U17, isActive: true })).toBe(true);
+    const senior = { kind: TeamKind.SENIOR, isActive: true, name: 'First Team' };
+    expect(isEligibleFor(u17, senior)).toBe(false);
+    expect(eligibilityFor(u17, senior).reason).toBe('WRONG_AGE_GROUP');
+    expect(isEligibleFor(u17, { kind: TeamKind.ACADEMY_U17, isActive: true, name: 'U17' })).toBe(true);
     // And the reverse: an academy side cannot enter the First Team's league.
-    expect(isEligibleFor(FIRST_TEAM_CATEGORY, { kind: TeamKind.ACADEMY_U17, isActive: true })).toBe(false);
+    expect(isEligibleFor(FIRST_TEAM_CATEGORY, { kind: TeamKind.ACADEMY_U17, isActive: true, name: 'U17' })).toBe(false);
   });
 
-  it('11 · and never with a different age group', () => {
+  it('11 · and never with a different age band', () => {
     const u17 = academyCategory('U17');
-    expect(isEligibleFor(u17, { kind: TeamKind.ACADEMY_U15, isActive: true })).toBe(false);
-    expect(isEligibleFor(academyCategory('U15'), { kind: TeamKind.ACADEMY_U17, isActive: true })).toBe(false);
-    // The query says exactly what the verdict says, for every age group the
-    // schema knows — the two cannot drift apart.
-    for (const group of allAgeGroups()) {
-      const where = eligibleTeamWhereFor(group) as { kind: { in: TeamKind[] } };
-      expect(where.kind.in).toEqual(kindsForAgeGroup(group));
-      for (const kind of Object.values(TeamKind)) {
-        expect(where.kind.in.includes(kind)).toBe(isEligibleFor({ ageGroup: group }, { kind, isActive: true }));
+    expect(isEligibleFor(u17, { kind: TeamKind.ACADEMY_U15, isActive: true, name: 'U15' })).toBe(false);
+    expect(isEligibleFor(academyCategory('U15'), { kind: TeamKind.ACADEMY_U17, isActive: true, name: 'U17' })).toBe(false);
+    // An age band is read off the team, never inferred from its kind: a club
+    // that runs U8-U10 and U11-U13 files BOTH under ACADEMY_U13, and they are
+    // two bands all the same.
+    const u8u10 = { kind: TeamKind.ACADEMY_U13, isActive: true, name: 'HARTA BERLIN U8-U10' };
+    const u11u13 = { kind: TeamKind.ACADEMY_U13, isActive: true, name: 'HARTA BERLIN U11-U13' };
+    expect(ageBandOf(u8u10)).toBe('U8-U10');
+    expect(ageBandOf(u11u13)).toBe('U11-U13');
+    expect(isEligibleFor(academyCategory('U8-U10'), u11u13)).toBe(false);
+    expect(isEligibleFor(academyCategory('U11-U13'), u8u10)).toBe(false);
+    expect(isEligibleFor(academyCategory('U8-U10'), u8u10)).toBe(true);
+    // The whole ladder, each rung closed against the next in both directions.
+    const BANDS = ['U8-U10', 'U11-U13', 'U14-U16', 'U17-U19', 'U20-U23'];
+    const teamOf = (band: string) => ({ kind: TeamKind.ACADEMY_U13, isActive: true, name: `FC X ${band}` });
+    for (const a of BANDS) {
+      for (const b of BANDS) {
+        expect(isEligibleFor(academyCategory(a), teamOf(b))).toBe(a === b);
       }
+      // And no first team, in any of them.
+      expect(isEligibleFor(academyCategory(a), { kind: TeamKind.SENIOR, isActive: true, name: `FC X ${a}` })).toBe(false);
     }
-    // An age group is read off the schema, never listed by hand.
+    // Nothing overlaps: an age INSIDE another band is still a different band.
+    expect(isEligibleFor(academyCategory('U11-U13'), { kind: TeamKind.ACADEMY_U13, isActive: true, name: 'U13' })).toBe(false);
+    // The band is read the same way however the club wrote the dash.
+    expect(ageBandOf({ kind: TeamKind.ACADEMY_U13, isActive: true, name: 'FC X — U11 – U13' })).toBe('U11-U13');
+    expect(normalizeBand('u11 - u13')).toBe('U11-U13');
+    // A recorded range is used when the name carries none, and the kind is the
+    // last resort — each one says which it used.
+    expect(resolveAgeBand({ kind: TeamKind.ACADEMY_U15, isActive: true, name: 'Academy B', ageMin: 14, ageMax: 16 }))
+      .toEqual({ band: 'U14-U16', source: 'AGE_RANGE' });
+    expect(resolveAgeBand({ kind: TeamKind.ACADEMY_U15, isActive: true, name: 'Academy B' }))
+      .toEqual({ band: 'U15', source: 'KIND' });
+    expect(resolveAgeBand({ kind: TeamKind.ACADEMY_U13, isActive: true, name: 'HARTA U8-U10', ageMin: 11, ageMax: 13 }).source)
+      .toBe('NAME_RANGE');
+    // A senior side has no band at all, so it can never match one.
+    expect(ageBandOf({ kind: TeamKind.SENIOR, isActive: true, name: 'First Team' })).toBeNull();
+    expect(ACADEMY_KINDS.includes(TeamKind.SENIOR)).toBe(false);
     expect(ageGroupOfKind(TeamKind.ACADEMY_U15)).toBe('U15');
     expect(ageGroupOfKind(TeamKind.SENIOR)).toBeNull();
-    // The category's competition is its own, by code and by stored age group.
-    expect(academyCategory('U17').code).toBe('FAMILISTA-LEAGUE-U17');
-    expect(academyCategory('U17').ageGroup).toBe('U17');
+    // The category's competition is its own, by code and by stored band.
+    expect(academyCategory('U11-U13').code).toBe('FAMILISTA-LEAGUE-U11-U13');
+    expect(academyCategory('U11-U13').ageGroup).toBe('U11-U13');
   });
 
   it('12 · the Academy Match Center reads that team\'s own fixtures', async () => {
