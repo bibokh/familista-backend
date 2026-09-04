@@ -285,7 +285,73 @@ else
   fi
 fi
 
-# ── 4 · the server ───────────────────────────────────────────────────────────
+# ── 4 · a one-shot season initialisation, when an operator asks for one ──────
+#
+# There is no shell on this plan, so a command that must be run once against the
+# production database is run HERE, on the boot that follows setting one
+# environment variable:
+#
+#   ACADEMY_LEAGUE_INIT=2026/27     the season to initialise
+#   ACADEMY_LEAGUE_INIT=1           the season today falls in
+#
+# Set it, wait for the deploy, read the log, then delete the variable. Leaving
+# it set is not dangerous — the initialiser creates only what is missing, so a
+# second boot enters no participant twice and regenerates no calendar — but the
+# variable has done its work and the log is quieter without it.
+#
+# Two properties this depends on, both of them belonging to the initialiser
+# rather than to this script: it never deletes a fixture, never touches a played
+# match, never invents a club or a team, and it only ever looks up
+# FAMILISTA-LEAGUE-<band>, so the First Team's competition is not reachable from
+# it. What runs here is exactly what --dry-run reported.
+#
+# A failure does not stop the API. A red deploy over a season that did not
+# initialise would take the whole service down with it; the failure is printed
+# where it will be read, and the server starts.
+if [ -n "${ACADEMY_LEAGUE_INIT:-}" ]; then
+  echo ""
+  echo "════════════════════════════════════════════════════════════"
+  echo "  Academy Familista League — one-shot initialisation"
+  echo "════════════════════════════════════════════════════════════"
+  SEASON_ARG=""
+  case "${ACADEMY_LEAGUE_INIT}" in
+    1|true|TRUE|yes|YES) SEASON_ARG="" ;;
+    *) SEASON_ARG="--season=${ACADEMY_LEAGUE_INIT}" ;;
+  esac
+
+  set +e
+  if [ -n "$SEASON_ARG" ]; then
+    node dist/scripts/init-academy-league-season.js "$SEASON_ARG"
+  else
+    node dist/scripts/init-academy-league-season.js
+  fi
+  INIT_RC=$?
+  set -e
+  if [ "$INIT_RC" -ne 0 ]; then
+    echo "❌ academy initialisation exited $INIT_RC — nothing further was attempted."
+    echo "   The API starts anyway; the database is unchanged beyond whatever the"
+    echo "   run had already committed, and the initialiser is safe to run again."
+  fi
+
+  # The proof, read back from the database in a separate process: what is
+  # actually there, band by band, rather than what the run believed it did.
+  echo ""
+  set +e
+  if [ -n "$SEASON_ARG" ]; then
+    node dist/scripts/verify-academy-league.js "$SEASON_ARG"
+  else
+    node dist/scripts/verify-academy-league.js
+  fi
+  VERIFY_RC=$?
+  set -e
+  if [ "$VERIFY_RC" -ne 0 ]; then
+    echo "⚠  verification could not complete (exit $VERIFY_RC)"
+  fi
+  echo ""
+  echo "── remove ACADEMY_LEAGUE_INIT from the environment once you have read the above ──"
+fi
+
+# ── 5 · the server ───────────────────────────────────────────────────────────
 echo ""
 echo "── starting API ──"
 exec node dist/server.js
