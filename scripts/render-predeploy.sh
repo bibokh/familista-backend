@@ -3,7 +3,13 @@
 # Render pre-deploy hook: apply Prisma migrations — the single, clean mechanism.
 #
 #   - Normal case: `prisma migrate deploy` applies every pending migration
-#     (including 20260531000000_club_profile_fields) and records it.
+#     (including 20260531000000_club_profile_fields) and records it. It runs
+#     through scripts/db-migrate.js, which waits for the database to answer
+#     before starting and retries a connection-level failure — the production
+#     database is a Neon compute that suspends when idle and takes longer to
+#     wake than Prisma's default five-second connect timeout allows, which is
+#     the P1002 the deploy log showed. A genuine migration error is NOT
+#     retried: it is handed straight back to the recovery path below.
 #   - DB bootstrapped via `prisma db push` (schema already exists but
 #     _prisma_migrations is empty): the first deploy fails with
 #     "relation/type already exists" → mark the baseline migrations resolved
@@ -15,8 +21,8 @@ set -euo pipefail
 
 SCHEMA="--schema=prisma/schema.prisma"
 
-echo "==> prisma migrate deploy"
-if npx prisma migrate deploy $SCHEMA; then
+echo "==> prisma migrate deploy (with wake-up wait and connection retry)"
+if node scripts/db-migrate.js; then
   echo "==> Migrations up to date."
   exit 0
 fi
@@ -36,5 +42,5 @@ npx prisma migrate resolve --applied 20260611000000_add_scout_prospect $SCHEMA 2
   && echo "==> add_scout_prospect resolved" || echo "==> add_scout_prospect already recorded (skipping)"
 
 echo "==> Retrying prisma migrate deploy..."
-npx prisma migrate deploy $SCHEMA
+node scripts/db-migrate.js
 echo "==> Done."
