@@ -28,6 +28,31 @@
   --sy-radius:    16px;
 }
 
+/* ── SYSTEM owns the viewport ──────────────────────────────────────────────
+   SYSTEM is not a page inside the club workspace; it is the other product. So
+   the shell takes the whole window and the club chrome is REMOVED from the
+   layout while it is open — not covered, not dimmed: `display: none`, so there
+   is no club sidebar, no club top bar and no club context in the document at
+   all. Leaving SYSTEM puts them back untouched.
+
+   The body class is set by the router, so a deep link, a back button and a
+   click all arrive at the same state. */
+body.sy-system-open > .app > .sidebar,
+body.sy-system-open > .app > .main > .topbar,
+body.sy-system-open .sidebar,
+body.sy-system-open .topbar { display: none !important; }
+body.sy-system-open .app { display: block !important; }
+body.sy-system-open .main { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; }
+body.sy-system-open { overflow: hidden; }
+
+#pg-system {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  overflow: auto;
+  background: var(--sy-bg);
+}
+
 /* The shell: a fixed rail, a fixed head, and one scrolling column between them.
    Nothing outside the column moves when the reader scrolls, and nothing inside
    it shifts when a panel loads — every skeleton is the size of its content. */

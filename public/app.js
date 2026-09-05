@@ -2087,6 +2087,16 @@ function navTo(page, el, _opts) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
+  // ── SYSTEM owns the whole application shell ──
+  // SYSTEM and CLUBS are two products. While SYSTEM is open the club chrome is
+  // removed from the layout entirely — no club sidebar, no club top bar, no
+  // club context — and restored the moment the reader leaves. Set here, on the
+  // one path every navigation takes, so a click, a deep link and a back button
+  // cannot disagree about which product is on screen.
+  try {
+    document.body.classList.toggle('sy-system-open', page === 'system');
+  } catch (_) {}
+
   // ── Separation guard ──
   // Only the explicit allow-list (Owner Home, Clubs picker, the 8
   // Platform pages, and the 9 Club Workspace pages) may activate

@@ -149,9 +149,23 @@ describe('SYSTEM is its own product, and is the way in', () => {
     expect(INDEX).toContain('/system/system.css');
     expect(INDEX).toContain('/system/system.js');
     // Every SYSTEM class is namespaced, so nothing here can style a club screen.
+    //
+    // The four exceptions are the club shell's own classes, and they appear for
+    // one purpose: SYSTEM takes over the viewport, so the club sidebar, top bar
+    // and content column are removed from the layout while it is open. Those
+    // rules are only ever reachable under `body.sy-system-open` — which is to
+    // say, only while SYSTEM is the product on screen — so a club screen is
+    // still untouched by this file. Anything else named here would not be.
+    const TAKEOVER = ['.app', '.sidebar', '.main', '.topbar'];
     const classes = SYS_CSS.match(/\.[a-z][\w-]*/g) || [];
-    const foreign = [...new Set(classes)].filter((c) => !c.startsWith('.sy-') && !c.startsWith('.is-'));
-    expect(foreign).toEqual([]);
+    const foreign = [...new Set(classes)]
+      .filter((c) => !c.startsWith('.sy-') && !c.startsWith('.is-'));
+    expect(foreign.filter((c) => !TAKEOVER.includes(c))).toEqual([]);
+    for (const selector of SYS_CSS.split('}')) {
+      if (!TAKEOVER.some((c) => selector.includes(c))) continue;
+      expect(`${selector.trim().slice(0, 60)}:${selector.includes('body.sy-system-open')}`)
+        .toMatch(/:true$/);
+    }
   });
 
   it('and the club modules are nowhere in it', () => {

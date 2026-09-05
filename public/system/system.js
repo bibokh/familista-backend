@@ -151,9 +151,11 @@
       name = u ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.email : '';
     } catch (_) {}
     var initial = (name || 'F').charAt(0).toUpperCase();
-    var level = who.level === 'PLATFORM_OWNER' ? 'Platform Owner'
-      : who.level === 'CLUB_OWNER' ? 'Club Owner'
-      : who.level === 'CLUB_STAFF' ? 'Club Staff' : 'Viewer';
+    // SYSTEM states platform authority and nothing else. A club role is not an
+    // authority on this screen — a club owner reaches none of SYSTEM — so the
+    // labels a club shell would draw ("Club Owner", "Club Staff") are never
+    // drawn here. Either the account owns the platform or it does not.
+    var level = who.isPlatformOwner ? 'Platform Owner' : 'No platform authority';
     var signals = (SY.signals || []).length;
 
     return '<header class="sy-top">'
@@ -532,6 +534,16 @@
   }
 
   function contentHtml() {
+    // Said once, plainly, before any module is drawn: an account without
+    // platform authority sees why, not an empty dashboard. The server refuses
+    // every SYSTEM read regardless — this is the explanation, not the guard.
+    if (SY.who && SY.who.isPlatformOwner === false) {
+      return '<section class="sy-panel">'
+        + emptyState('SYSTEM is the platform owner\'s',
+            'This account holds no platform authority. Owning or administering a club does not grant it: '
+            + 'platform ownership is assigned separately, at the platform level.')
+        + '</section>';
+    }
     if (SY.error) {
       return '<section class="sy-panel">' + emptyState('SYSTEM is the platform owner\'s', SY.error) + '</section>';
     }

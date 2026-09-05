@@ -285,6 +285,50 @@ else
   fi
 fi
 
+# ── 4a · platform owner, once ────────────────────────────────────────────────
+# Set PLATFORM_OWNER_BOOTSTRAP to the ONE email address (or user id) that owns
+# Familista, deploy, read the log, then delete the variable.
+#
+#   PLATFORM_OWNER_BOOTSTRAP=you@yourdomain.com          establish
+#   PLATFORM_OWNER_BOOTSTRAP_DRY_RUN=1                   report only, write nothing
+#
+# It exists because platform ownership cannot be inferred. A club owner is not
+# the platform's owner, a CLUB_ADMIN row is not a promotion, and the 132 seeded
+# coach accounts in this database are not people. So the assignment is explicit,
+# for one named account, and the script refuses everything else: no match, more
+# than one match, a deactivated account, or an address that reads as a demo or
+# test fixture. It is idempotent — a second boot finds the row and writes
+# nothing — and every assignment leaves a PlatformAuditLog entry.
+#
+# It does not touch a password, a membership, a club, a team or User.role.
+#
+# A failure does not stop the API: an address typed wrong must show up in the
+# log, not take the service down.
+if [ -n "${PLATFORM_OWNER_BOOTSTRAP:-}" ]; then
+  echo ""
+  echo "════════════════════════════════════════════════════════════"
+  echo "  Platform owner — one-shot bootstrap"
+  echo "════════════════════════════════════════════════════════════"
+  OWNER_ARG="--email=${PLATFORM_OWNER_BOOTSTRAP}"
+  case "${PLATFORM_OWNER_BOOTSTRAP}" in
+    *@*) OWNER_ARG="--email=${PLATFORM_OWNER_BOOTSTRAP}" ;;
+    *)   OWNER_ARG="--user-id=${PLATFORM_OWNER_BOOTSTRAP}" ;;
+  esac
+  DRY_ARG=""
+  if [ -n "${PLATFORM_OWNER_BOOTSTRAP_DRY_RUN:-}" ]; then DRY_ARG="--dry-run"; fi
+
+  set +e
+  node dist/scripts/bootstrap-platform-owner.js "$OWNER_ARG" $DRY_ARG --by="render boot"
+  OWNER_RC=$?
+  set -e
+  if [ "$OWNER_RC" -ne 0 ]; then
+    echo "⚠  the bootstrap refused (exit $OWNER_RC) — read the reason above. Nothing was written."
+    echo "   The API starts regardless."
+  else
+    echo "── remove PLATFORM_OWNER_BOOTSTRAP from the environment once you have read the above ──"
+  fi
+fi
+
 # ── 4 · a one-shot season initialisation, when an operator asks for one ──────
 #
 # There is no shell on this plan, so a command that must be run once against the
