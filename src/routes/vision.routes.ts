@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import * as ctrl from '../controllers/vision.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
+import { guardTeamScopedRouter } from '../middleware/team-scope.middleware';
 
 const router = Router();
 
@@ -12,6 +13,16 @@ const router = Router();
 router.post('/cameras/:id/frame', ctrl.ingestFrame);
 
 router.use(authenticate);
+
+// Team scope, on every route of this router that names a team, a player or a
+// match. A camera, a frame and a match's video belong to the team that plays it.
+// Club membership opens the club's shell; working on the team opens what is
+// inside it. Enforced by the same access service the Squad, Training, the
+// Match Center and the Familista League already use — reading takes private
+// sight of the team, writing takes an assignment to manage it, and a team,
+// player or match id from another team or another club is refused with 403
+// before the handler runs.
+guardTeamScopedRouter(router);
 
 // Multi-sport directory (public to authenticated users).
 router.get('/sports', ctrl.listSportAdapters);

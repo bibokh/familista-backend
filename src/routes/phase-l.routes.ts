@@ -3,10 +3,17 @@
 import { Router } from 'express';
 import * as ctrl from '../controllers/phase-l.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
+import { guardTeamScopedRouter } from '../middleware/team-scope.middleware';
 import { tenantGuard } from '../middleware/tenant-guard.middleware';
 
 const router = Router();
 router.use(authenticate);
+
+// Team scope. Federated cognition runs over one team's own matches and players.
+// The same access service the Squad, Training, the Match Center and the
+// Familista League use: a team, player or match id from another team or
+// another club is refused with 403 before the handler runs.
+guardTeamScopedRouter(router);
 router.use(tenantGuard);
 
 // Hardware

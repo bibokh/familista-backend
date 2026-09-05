@@ -21,9 +21,10 @@
 //                         the ordinary club member, and does not pretend to a
 //                         per-team separation the data cannot express.
 
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction, Router } from 'express';
 import { prisma } from '../config/database';
 import * as teamAccess from '../identity/team-access.service';
+import { tenantGuard } from './tenant-guard.middleware';
 import { ForbiddenError } from '../utils/errors';
 
 /** Whether the request carries a session at all. A route that authenticates
@@ -270,4 +271,72 @@ export function requireMatchTeamAccess(param = 'id') {
       next();
     } catch (err) { next(err); }
   };
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Installing the boundary on a whole router
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// `tenantGuard` reads `req.params`, and Express only fills those in once a
+// route has matched — so `router.use(tenantGuard)` sees an empty object and
+// checks nothing. `router.param` is the hook that runs WITH the parameter, and
+// this is where the existing guard is finally given the values it was written
+// to check. Nothing about tenantGuard changes; it is called, not reimplemented.
+//
+// Three parameter names are unambiguous wherever they appear in this codebase —
+// `teamId` is a Team, `playerId` is a Player, `matchId` is a Match — so a
+// router that carries any of them gets the same rule the Squad and the Match
+// Center already apply:
+//
+//   the club boundary   tenantGuard: the row must belong to the caller's club,
+//                       and a team-pinned membership must match the row's team.
+//   the team boundary   private sight to read, an assignment to write.
+//
+// `queryAndBody` adds the check for a team id that arrives as `?teamId=` or in
+// a JSON body. That one needs no route parameter, so it is a plain `use`.
+
+export interface GuardOptions {
+  /** Also check a team id arriving in the query string or the body. Default true. */
+  queryAndBody?: boolean;
+  /** Parameter names to guard. Defaults to teamId, playerId and matchId. */
+  params?: Array<'teamId' | 'playerId' | 'matchId'>;
+}
+
+export function guardTeamScopedRouter(router: Router, opts: GuardOptions = {}): Router {
+  const params = opts.params ?? ['teamId', 'playerId', 'matchId'];
+
+  const withTenant = (next: (req: Request, res: Response, done: NextFunction) => void) =>
+    (req: Request, res: Response, done: NextFunction): void => {
+      // The club boundary first — a row from another club is refused before the
+      // team question is even asked, and the refusal is logged where every
+      // other tenant mismatch is logged.
+      tenantGuard(req, res, ((err?: unknown) => {
+        if (err) return done(err as Error);
+        if (res.headersSent) return;          // tenantGuard already refused
+        next(req, res, done);
+      }) as NextFunction).catch(done);
+    };
+
+  if (params.includes('teamId')) {
+    router.param('teamId', withTenant((req, res, done) => {
+      const write = req.method !== 'GET' && req.method !== 'HEAD';
+      (write ? requireTeamManage({ keys: ['teamId'], required: true })
+             : requireTeamPrivate({ keys: ['teamId'], required: true }))(req, res, done);
+    }));
+  }
+  if (params.includes('playerId')) {
+    router.param('playerId', withTenant((req, res, done) => requirePlayerTeamAccess('playerId')(req, res, done)));
+  }
+  if (params.includes('matchId')) {
+    router.param('matchId', withTenant((req, res, done) => requireMatchTeamAccess('matchId')(req, res, done)));
+  }
+
+  if (opts.queryAndBody !== false) {
+    // Only acts when a team is actually named: a club-wide read that names no
+    // team is left exactly as it was.
+    router.use(requireTeamPrivate({ keys: ['teamId'] }));
+  }
+
+  return router;
 }

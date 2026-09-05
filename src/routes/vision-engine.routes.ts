@@ -12,6 +12,7 @@ import { Router } from 'express';
 
 import * as ctrl from '../controllers/vision-engine.controller';
 import { authenticate } from '../middleware/auth.middleware';
+import { guardTeamScopedRouter } from '../middleware/team-scope.middleware';
 import {
   attachVisionContext,
   requireVisionContext,
@@ -39,6 +40,12 @@ router.post(
 
 // All remaining routes require a logged-in user.
 router.use(authenticate, attachVisionContext, requireVisionContext);
+
+// Team scope. Video Intelligence — analyses, tracks and events of a team's
+// matches — is that team's private work, and a team or match id named here is
+// checked against the caller's assignments by the same access service the
+// Squad, Training, the Match Center and the Familista League use.
+guardTeamScopedRouter(router);
 
 // ── 1. Videos ──────────────────────────────────────────────────────────────
 router.post('/videos', ctrl.registerVideo);

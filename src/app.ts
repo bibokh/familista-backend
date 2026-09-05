@@ -15,6 +15,7 @@ import { edgeIdentity } from './middleware/rate-limit.middleware';
 import { RedisEdgeStore } from './middleware/edge-rate-limit.store';
 import { redisConfigured } from './infra/redis';
 import routes from './routes';
+import { tenantGuard } from './middleware/tenant-guard.middleware';
 
 // ── credentials that travel in a query string ────────────────────────────────
 // Only these parameter names are replaced, and only their values: the path and
@@ -199,7 +200,26 @@ export function createApp(): express.Application {
   app.get('/healthz',    (_req, res) => res.json(healthPayload()));
 
   // ── Routes
-  app.use(`/api/${config.apiVersion}`, routes);
+  //
+  // The tenant boundary is mounted at the API's own edge, before any router
+  // sees the request. It is the existing `tenantGuard` — the one that resolves
+  // a tenant-scoped id to its row, compares the row's club to the caller's and
+  // refuses a mismatch with a logged TENANT_MISMATCH — and it is deliberately
+  // cheap here: with no route matched yet there are no parameters to check, so
+  // it costs nothing and refuses nothing on a path that carries no id at this
+  // level. It is mounted all the same, so a route added directly under
+  // /api/<version> with an id in its own mount path is covered by default
+  // rather than by somebody remembering.
+  //
+  // What actually enforces the boundary per route is the same guard installed
+  // on each router through `router.param` — see guardTeamScopedRouter in
+  // middleware/team-scope.middleware.ts — because Express fills req.params in
+  // only once a route has matched. The two are the same rule, applied at the
+  // two points where it can be applied.
+  //
+  // Unauthenticated paths are unaffected: tenantGuard returns immediately when
+  // there is no session, so auth, health and webhook routes keep working.
+  app.use(`/api/${config.apiVersion}`, tenantGuard, routes);
 
   // ── Legacy SPA static assets (public/index.html + app.js + app.css)
   // Serves public/ at the root path so /app.js and /app.css are reachable.
