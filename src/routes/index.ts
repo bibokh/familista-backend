@@ -10,6 +10,7 @@ import trainingRoutes   from './training.routes';
 import teamRoutes       from './team.routes';
 import membershipRoutes from './membership.routes';
 import invitationRoutes from './invitation.routes';
+import systemRoutes from './system.routes';
 import contextRoutes    from './context.routes';
 // Phase B — Match Intelligence + Hardware Sessions + Automation
 import deviceRoutes     from './device-session.routes';
@@ -80,6 +81,8 @@ router.use('/training',    trainingRoutes);
 router.use('/teams',       teamRoutes);
 router.use('/memberships', membershipRoutes);
 router.use('/invitations', invitationRoutes);
+// SYSTEM / FOS — the platform's own surface. Never a club's.
+router.use('/system', systemRoutes);
 router.use('/me',          contextRoutes);
 router.use('/devices',     deviceRoutes);
 router.use('/automation',  automationRoutes);
