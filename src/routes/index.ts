@@ -9,6 +9,7 @@ import trainingRoutes   from './training.routes';
 // Phase A — Global SaaS Foundation
 import teamRoutes       from './team.routes';
 import membershipRoutes from './membership.routes';
+import invitationRoutes from './invitation.routes';
 import contextRoutes    from './context.routes';
 // Phase B — Match Intelligence + Hardware Sessions + Automation
 import deviceRoutes     from './device-session.routes';
@@ -78,6 +79,7 @@ router.use('/billing',     billingRoutes);
 router.use('/training',    trainingRoutes);
 router.use('/teams',       teamRoutes);
 router.use('/memberships', membershipRoutes);
+router.use('/invitations', invitationRoutes);
 router.use('/me',          contextRoutes);
 router.use('/devices',     deviceRoutes);
 router.use('/automation',  automationRoutes);

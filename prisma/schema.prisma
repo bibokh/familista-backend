@@ -152,6 +152,7 @@ model Club {
   currentPeriodEnd     DateTime?
 
   users User[]
+  invitations ClubInvitation[]
 
   // ── Coaches & technical staff market ──
   staffEngagements    StaffEngagement[]
@@ -244,6 +245,13 @@ model User {
   // back to the browser locale and finally en-GB, and a null is never written
   // over an existing choice.
   locale String?
+
+  /// Bumped when every session this person holds must stop being trusted —
+  /// today, when their last membership in a club is revoked. An access token
+  /// issued before the bump is refused at the next request; a token issued by
+  /// an older build carries no version and is accepted, so nobody is logged out
+  /// by the deploy that adds this.
+  tokenVersion Int @default(0)
 
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
@@ -432,6 +440,7 @@ model Team {
   currentUsers User[]       @relation("UserCurrentTeam")
   matches      Match[]
   trainingSessions TrainingSession[]
+  invitations  ClubInvitation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -455,6 +464,16 @@ model Membership {
   team     Team?          @relation(fields: [teamId], references: [id], onDelete: Cascade)
   role     MembershipRole
   isActive Boolean        @default(true)
+
+  /// The lifecycle of this membership, beside `isActive`.
+  ///
+  /// `isActive` stays the field every existing query reads — nothing is
+  /// migrated onto this column in the same change that adds it. What it adds
+  /// is the distinction `isActive` cannot make: a membership SUSPENDED for a
+  /// season is not one REMOVED when somebody left the club, and a club needs
+  /// to tell them apart when it decides who to reactivate.
+  status   MembershipStatus @default(ACTIVE)
+
   joinedAt DateTime       @default(now())
   leftAt   DateTime?
 
@@ -544,6 +563,70 @@ enum MembershipRole {
   PERFORMANCE_COACH
 }
 
+/// Where a membership stands, beside the boolean every query already reads.
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+  REMOVED
+}
+
+/// The life of one invitation. A row is created PENDING and leaves that state
+/// exactly once — accepted, revoked by the club, or expired by the clock.
+enum ClubInvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+/// An invitation to work for a club.
+///
+/// The point of this table is what it does NOT contain: no password, no
+/// credential, nothing the inviter could use to sign in as the person they
+/// invited. A club owner names an email, a role and — optionally — a team; the
+/// platform sends a link carrying a random token whose SHA-256 hash is all that
+/// is stored here. The recipient signs in with their own account, or creates
+/// one with a password only they ever know, and the invitation is consumed.
+///
+/// Single-use and expiring, for the same reason a password reset is: a link
+/// that works twice is a link that works for whoever finds it second.
+model ClubInvitation {
+  id     String @id @default(uuid())
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  /// Lower-cased and trimmed on the way in, so one address is one invitation.
+  email  String
+  role   MembershipRole
+  /// Null grants a club-wide membership; a value scopes it to that team.
+  teamId String?
+  team   Team?  @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  /// SHA-256 of the token that was sent. The token itself is never persisted.
+  tokenHash String @unique
+  status    ClubInvitationStatus @default(PENDING)
+  expiresAt DateTime
+
+  acceptedAt       DateTime?
+  acceptedByUserId String?
+  revokedAt        DateTime?
+  revokedByUserId  String?
+  /// Ids rather than relations on purpose: an invitation outlives the account
+  /// that sent it, and a deleted inviter must not cascade a club's history away.
+  invitedByUserId  String
+
+  /// What the club wants the person to see beside the invitation. Never a
+  /// credential, and never a field the recipient cannot see for themselves.
+  message String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clubId, status])
+  @@index([email])
+  @@index([expiresAt])
+}
+
 enum MembershipAuditAction {
   GRANT
   REVOKE
@@ -551,6 +634,12 @@ enum MembershipAuditAction {
   TEAM_CHANGED
   REACTIVATE
   CONTEXT_SWITCH
+  SUSPEND
+  UNSUSPEND
+  INVITED
+  INVITE_ACCEPTED
+  INVITE_REVOKED
+  INVITE_RESENT
 }
 
 model PlayerAttribute {

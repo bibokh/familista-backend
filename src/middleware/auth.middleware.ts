@@ -18,6 +18,8 @@ interface JwtPayload {
 type Identity = {
   id: string; email: string; role: UserRole; clubId: string; isActive: boolean;
   currentClubId: string | null; currentTeamId: string | null;
+  /** Bumped when every session this person holds must stop being trusted. */
+  tokenVersion: number;
 };
 const IDENTITY_TTL_MS = parseInt(process.env.AUTH_IDENTITY_TTL_MS ?? '5000', 10);
 const IDENTITY_MAX = 20000;
@@ -67,7 +69,7 @@ async function loadIdentity(userId: string): Promise<Identity | null> {
     where: { id: userId, isActive: true },
     select: {
       id: true, email: true, role: true, clubId: true, isActive: true,
-      currentClubId: true, currentTeamId: true,
+      currentClubId: true, currentTeamId: true, tokenVersion: true,
     },
   }).then((row) => {
     if (identityCache.size >= IDENTITY_MAX) {
@@ -131,6 +133,19 @@ export async function authenticate(
 
     if (!user) {
       throw new UnauthorizedError('User not found or deactivated');
+    }
+
+    // A session that was ended server-side stops here.
+    //
+    // Revoking somebody's last membership of a club bumps their tokenVersion
+    // and deletes their refresh tokens; an access token minted before that
+    // carries the older version and is refused now rather than in fifteen
+    // minutes. A token issued by a build that predates this claim carries no
+    // version at all and is accepted — so the deploy that introduces this logs
+    // nobody out. Their password is untouched: signing in again works.
+    const claimed = (payload as unknown as { tv?: number }).tv;
+    if (typeof claimed === 'number' && claimed !== (user.tokenVersion ?? 0)) {
+      throw new UnauthorizedError('Session ended. Please sign in again.');
     }
 
     // Effective tenant: whatever the user picked in their context, falling

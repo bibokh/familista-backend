@@ -34,6 +34,15 @@ interface JwtPayload {
   email: string;
   role: UserRole;
   clubId: string;
+  /**
+   * The identity's token version at the moment this token was minted.
+   *
+   * `authenticate` compares it against the row and refuses a token minted
+   * before a server-side session end — revoking somebody's last membership of
+   * a club bumps the row. Optional so that a token issued by an older build,
+   * which carries no version, is still accepted.
+   */
+  tv?: number;
 }
 
 // ── Token generation ──────────────────────────────────────
@@ -199,6 +208,9 @@ async function issueTokens(user: User): Promise<TokenPair> {
     email: user.email,
     role: user.role,
     clubId: user.clubId,
+    // Stamped so a token can be told apart from one minted before a
+    // server-side session end. Nothing else about the token changes.
+    tv: user.tokenVersion ?? 0,
   };
 
   const accessToken = generateAccessToken(payload);
