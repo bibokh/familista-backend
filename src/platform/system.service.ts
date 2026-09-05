@@ -12,6 +12,14 @@ import { prisma } from '../config/database';
 import { ForbiddenError } from '../utils/errors';
 import { isPlatformOwner, type PlatformActor } from './access-levels';
 import { SYSTEM_MODULES, type SystemModule } from './system-modules';
+import { CAPABILITIES, capabilitySummary, type Capability } from './capabilities';
+import { listFlags, type FlagRule } from './innovation/flags';
+import { listExperiments, type ExperimentRecord } from './innovation/experiments';
+import { killSwitchEngaged, killSwitchReason, TOOLS } from './intelligence/agents';
+import { listModels } from './intelligence/gateway';
+import { currentEnvironment } from './environment';
+import { decide, listPacks, type PolicyRequest } from './governance/policy';
+import { RESOURCE_CLASSIFICATION } from './data-classification';
 
 export interface Metric {
   /** The measured value, or null when nothing measures it yet. */
@@ -220,4 +228,209 @@ export async function listPeople(
     })),
     isViewer: u.memberships.length === 0,
   }));
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The command centre
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface Signal {
+  id: string;
+  severity: 'INFO' | 'ATTENTION' | 'WARNING';
+  title: string;
+  detail: string;
+  /** The SYSTEM module that can act on it. */
+  module: string;
+  /** How many rows the signal is about, when it is a count. */
+  count?: number;
+}
+
+/**
+ * "What is happening now?" — derived from rows, never invented.
+ *
+ * Every signal here is something the platform can actually see today: a club
+ * with no owner, invitations about to lapse, the kill switch being engaged. A
+ * signal that would need instrumentation Familista does not have is not shown
+ * as a quiet zero — it is absent, and the module it would belong to says it is
+ * not instrumented.
+ */
+export async function platformSignals(actor: PlatformActor): Promise<Signal[]> {
+  await assertPlatformOwner(actor);
+  const signals: Signal[] = [];
+  const soon = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
+  const [clubs, ownedClubs, expiring, pending, viewers, killSwitch] = await Promise.all([
+    prisma.club.count(),
+    prisma.membership.findMany({ where: { isActive: true, role: 'CLUB_OWNER' }, select: { clubId: true }, distinct: ['clubId'] }),
+    prisma.clubInvitation.count({ where: { status: 'PENDING', expiresAt: { gt: new Date(), lt: soon } } }),
+    prisma.clubInvitation.count({ where: { status: 'PENDING', expiresAt: { gt: new Date() } } }),
+    prisma.user.count({ where: { isActive: true, memberships: { none: { isActive: true } } } }),
+    Promise.resolve(killSwitchEngaged()),
+  ]);
+
+  const ownerless = Math.max(0, clubs - ownedClubs.length);
+  if (ownerless > 0) {
+    signals.push({
+      id: 'clubs.ownerless', severity: 'WARNING', module: 'clubs', count: ownerless,
+      title: `${ownerless} club${ownerless === 1 ? '' : 's'} without an active owner`,
+      detail: 'Nobody can invite or remove staff there. Familista will not choose an owner for you — a person decides.',
+    });
+  }
+  if (expiring > 0) {
+    signals.push({
+      id: 'invitations.expiring', severity: 'ATTENTION', module: 'people', count: expiring,
+      title: `${expiring} invitation${expiring === 1 ? '' : 's'} expiring within 48 hours`,
+      detail: 'Resending mints a new link and retires the old one.',
+    });
+  }
+  if (pending > 0) {
+    signals.push({
+      id: 'invitations.pending', severity: 'INFO', module: 'people', count: pending,
+      title: `${pending} invitation${pending === 1 ? '' : 's'} outstanding`,
+      detail: 'Nobody has accepted these yet.',
+    });
+  }
+  if (viewers > 0) {
+    signals.push({
+      id: 'people.viewers', severity: 'INFO', module: 'people', count: viewers,
+      title: `${viewers} account${viewers === 1 ? '' : 's'} with no club membership`,
+      detail: 'They browse public data only, and reach no private team content anywhere.',
+    });
+  }
+  if (killSwitch) {
+    signals.push({
+      id: 'ai.killswitch', severity: 'WARNING', module: 'agents',
+      title: 'Autonomous AI actions are stopped',
+      detail: killSwitchReason() ?? 'The kill switch is engaged. Reading and recommending continue.',
+    });
+  }
+  return signals;
+}
+
+export interface ControlSurface {
+  environment: string;
+  capabilities: ReadonlyArray<Capability>;
+  summary: Record<string, number>;
+  killSwitch: { engaged: boolean; reason: string | null };
+}
+
+export async function controlSurface(actor: PlatformActor): Promise<ControlSurface> {
+  await assertPlatformOwner(actor);
+  return {
+    environment: currentEnvironment(),
+    capabilities: CAPABILITIES,
+    summary: capabilitySummary(),
+    killSwitch: { engaged: killSwitchEngaged(), reason: killSwitchReason() },
+  };
+}
+
+export interface IntelligenceSurface {
+  environment: string;
+  killSwitch: { engaged: boolean; reason: string | null };
+  tools: typeof TOOLS;
+  models: ReturnType<typeof listModels>;
+  /** Recorded agent work, when the platform has recorded any. */
+  jobs: { pending: number; running: number; failed: number; succeeded: number } | null;
+  unavailable?: string;
+}
+
+export async function intelligenceSurface(actor: PlatformActor): Promise<IntelligenceSurface> {
+  await assertPlatformOwner(actor);
+  let jobs: IntelligenceSurface['jobs'] = null;
+  let unavailable: string | undefined;
+  try {
+    // The states the schema actually declares — see enum AutomationStatus.
+    const [pending, running, failed, succeeded] = await Promise.all([
+      prisma.aIAgentJob.count({ where: { status: 'PENDING' } }),
+      prisma.aIAgentJob.count({ where: { status: 'RUNNING' } }),
+      prisma.aIAgentJob.count({ where: { status: 'FAILED' } }),
+      prisma.aIAgentJob.count({ where: { status: 'SUCCESS' } }),
+    ]);
+    jobs = { pending, running, failed, succeeded };
+  } catch {
+    unavailable = 'Agent job history is not readable in this deployment.';
+  }
+  return {
+    environment: currentEnvironment(),
+    killSwitch: { engaged: killSwitchEngaged(), reason: killSwitchReason() },
+    tools: TOOLS,
+    models: listModels(),
+    jobs,
+    unavailable,
+  };
+}
+
+export interface InnovationSurface {
+  environment: string;
+  flags: FlagRule[];
+  experiments: ExperimentRecord[];
+}
+
+export async function innovationSurface(actor: PlatformActor): Promise<InnovationSurface> {
+  await assertPlatformOwner(actor);
+  return { environment: currentEnvironment(), flags: listFlags(), experiments: listExperiments() };
+}
+
+/**
+ * Recent security events and the audit trail, for the two modules that read
+ * them. Both are already recorded by the platform; this only presents them.
+ */
+export async function securitySurface(actor: PlatformActor, limit = 50) {
+  await assertPlatformOwner(actor);
+  const events = await prisma.securityEvent.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: Math.min(limit, 200),
+    select: { id: true, kind: true, severity: true, clubId: true, actorId: true, ipAddress: true, createdAt: true },
+  });
+  return { events };
+}
+
+export async function auditSurface(actor: PlatformActor, limit = 50) {
+  await assertPlatformOwner(actor);
+  const rows = await prisma.membershipAuditLog.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: Math.min(limit, 200),
+    select: { id: true, clubId: true, actorUserId: true, action: true, reason: true, createdAt: true },
+  });
+  return { rows };
+}
+
+
+export interface GovernanceSurface {
+  packs: ReturnType<typeof listPacks>;
+  classifications: Record<string, string>;
+  /** The decision for a question the caller asked, when they asked one. */
+  decision: ReturnType<typeof decide> | null;
+}
+
+/**
+ * Governance, as the platform can answer it today: which jurisdiction packs are
+ * loaded, how each resource family is classified, and — when the caller poses
+ * one — what the engine decides about a specific question.
+ *
+ * The evaluation is a read. It changes nothing, and it is the honest way to
+ * show an operator what the policy engine would do before it does it.
+ */
+export async function governanceSurface(
+  actor: PlatformActor,
+  question?: Partial<PolicyRequest>,
+): Promise<GovernanceSurface> {
+  await assertPlatformOwner(actor);
+  const decision = question?.resource
+    ? decide({
+        actorLevel: (question.actorLevel ?? 'CLUB_STAFF') as PolicyRequest['actorLevel'],
+        jurisdiction: question.jurisdiction ?? null,
+        resource: question.resource,
+        action: (question.action ?? 'READ') as PolicyRequest['action'],
+        subjectIsMinor: question.subjectIsMinor,
+        aiInvolved: question.aiInvolved,
+        consentGiven: question.consentGiven,
+      })
+    : null;
+  return {
+    packs: listPacks(),
+    classifications: RESOURCE_CLASSIFICATION as unknown as Record<string, string>,
+    decision,
+  };
 }

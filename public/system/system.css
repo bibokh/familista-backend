@@ -1,0 +1,303 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   FAMILISTA SYSTEM — the platform owner's command and control surface
+
+   A different room from the club workspace, and it should feel like one: darker
+   ground, a colder accent, denser information. It is deliberately its own
+   stylesheet — SYSTEM and CLUBS are two products, and a class defined here must
+   never reach a club screen.
+
+   Every colour is a token. The theme swaps them; nothing below hard-codes a
+   value a reader could not override.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#pg-system {
+  --sy-bg:        #070b14;
+  --sy-panel:     rgba(18, 25, 42, .72);
+  --sy-panel-2:   rgba(24, 33, 54, .55);
+  --sy-line:      rgba(255, 255, 255, .07);
+  --sy-line-2:    rgba(255, 255, 255, .12);
+  --sy-tx:        #e9eefb;
+  --sy-tx-2:      #98a3bd;
+  --sy-tx-3:      #67718c;
+  --sy-accent:    #3b82f6;
+  --sy-accent-2:  #22d3ee;
+  --sy-ok:        #34d399;
+  --sy-warn:      #fbbf24;
+  --sy-danger:    #f87171;
+  --sy-violet:    #a78bfa;
+  --sy-radius:    16px;
+}
+
+/* The shell: a fixed rail, a fixed head, and one scrolling column between them.
+   Nothing outside the column moves when the reader scrolls, and nothing inside
+   it shifts when a panel loads — every skeleton is the size of its content. */
+.sy-shell {
+  display: grid;
+  grid-template-columns: 268px 1fr;
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 600px at 12% -10%, rgba(59, 130, 246, .10), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(34, 211, 238, .07), transparent 55%),
+    var(--sy-bg);
+  color: var(--sy-tx);
+  font-feature-settings: "tnum" 1;
+}
+
+/* ── rail ─────────────────────────────────────────────────────────────────── */
+.sy-rail {
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 18px 14px 22px;
+  border-right: 1px solid var(--sy-line);
+  background: linear-gradient(180deg, rgba(12, 18, 32, .92), rgba(9, 13, 24, .96));
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.sy-brand { display: flex; align-items: center; gap: 11px; padding: 4px 6px 12px; }
+.sy-brand-mark {
+  width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
+  font-weight: 900; font-size: 19px; letter-spacing: -.5px;
+  color: #fff; background: linear-gradient(135deg, var(--sy-accent), var(--sy-accent-2));
+  box-shadow: 0 6px 20px rgba(59, 130, 246, .35);
+}
+.sy-brand-txt b { display: block; font-size: 15px; font-weight: 800; letter-spacing: .04em; }
+.sy-brand-txt span { display: block; font-size: 8.5px; letter-spacing: .16em; color: var(--sy-tx-3); text-transform: uppercase; }
+
+.sy-back {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 10px 12px; border-radius: 11px; cursor: pointer;
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--sy-line);
+  color: var(--sy-tx-2); font-size: 12px; font-weight: 600; text-align: left;
+  transition: background .15s ease, color .15s ease;
+}
+.sy-back:hover { background: rgba(255, 255, 255, .06); color: var(--sy-tx); }
+
+.sy-ident {
+  display: flex; align-items: center; gap: 11px; padding: 13px;
+  border-radius: 13px; border: 1px solid rgba(59, 130, 246, .3);
+  background: linear-gradient(135deg, rgba(59, 130, 246, .16), rgba(34, 211, 238, .07));
+}
+.sy-ident-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+  background: rgba(59, 130, 246, .22); font-size: 16px; }
+.sy-ident b { display: block; font-size: 13.5px; font-weight: 800; letter-spacing: .02em; }
+.sy-ident span { display: block; font-size: 10px; color: var(--sy-tx-2); }
+
+.sy-nav { display: flex; flex-direction: column; gap: 2px; }
+.sy-nav-group {
+  font-size: 8.5px; letter-spacing: .15em; text-transform: uppercase;
+  color: var(--sy-tx-3); padding: 14px 12px 6px; font-weight: 800;
+}
+.sy-nav-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8.5px 12px; border-radius: 10px; cursor: pointer;
+  background: transparent; border: 1px solid transparent;
+  color: var(--sy-tx-2); font-size: 12.5px; font-weight: 600; text-align: left;
+  transition: background .14s ease, color .14s ease, border-color .14s ease;
+}
+.sy-nav-item:hover { background: rgba(255, 255, 255, .045); color: var(--sy-tx); }
+.sy-nav-item.is-on {
+  background: linear-gradient(135deg, rgba(59, 130, 246, .22), rgba(59, 130, 246, .07));
+  border-color: rgba(59, 130, 246, .38); color: #fff;
+}
+.sy-nav-ic { width: 17px; text-align: center; opacity: .9; flex: none; }
+/* A module nothing measures yet says so in the rail, so the reader knows
+   before they click rather than after. */
+.sy-nav-tag {
+  margin-left: auto; font-size: 8px; letter-spacing: .08em; font-weight: 800;
+  padding: 2px 5px; border-radius: 5px; text-transform: uppercase;
+}
+.sy-nav-tag--partial { background: rgba(251, 191, 36, .14); color: var(--sy-warn); }
+.sy-nav-tag--none    { background: rgba(255, 255, 255, .06); color: var(--sy-tx-3); }
+
+/* ── main ─────────────────────────────────────────────────────────────────── */
+.sy-main { display: flex; flex-direction: column; min-width: 0; }
+.sy-top {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 26px; border-bottom: 1px solid var(--sy-line);
+  background: rgba(9, 13, 24, .72); backdrop-filter: blur(14px);
+  position: sticky; top: 0; z-index: 5;
+}
+.sy-search {
+  flex: 1; max-width: 520px; display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px; border-radius: 11px;
+  background: rgba(255, 255, 255, .04); border: 1px solid var(--sy-line);
+}
+.sy-search input {
+  flex: 1; background: none; border: 0; outline: none;
+  color: var(--sy-tx); font-size: 12.5px; font-family: inherit;
+}
+.sy-search input::placeholder { color: var(--sy-tx-3); }
+.sy-kbd {
+  font-size: 9.5px; padding: 2px 6px; border-radius: 5px; color: var(--sy-tx-3);
+  border: 1px solid var(--sy-line-2); background: rgba(255, 255, 255, .03);
+}
+.sy-top-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.sy-icon-btn {
+  width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+  background: rgba(255, 255, 255, .04); border: 1px solid var(--sy-line);
+  color: var(--sy-tx-2); cursor: pointer; font-size: 14px; position: relative;
+}
+.sy-icon-btn:hover { color: var(--sy-tx); background: rgba(255, 255, 255, .07); }
+.sy-badge {
+  position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px;
+  border-radius: 8px; background: var(--sy-danger); color: #fff;
+  font-size: 9px; font-weight: 800; display: grid; place-items: center; padding: 0 4px;
+}
+.sy-user {
+  display: flex; align-items: center; gap: 10px; padding: 5px 12px 5px 5px;
+  border-radius: 11px; background: rgba(255, 255, 255, .04); border: 1px solid var(--sy-line);
+}
+.sy-user-av {
+  width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--sy-accent), var(--sy-violet));
+  color: #fff; font-weight: 800; font-size: 12.5px;
+}
+.sy-user b { display: block; font-size: 12px; font-weight: 700; line-height: 1.25; }
+.sy-user span { display: block; font-size: 9.5px; color: var(--sy-tx-3); }
+
+.sy-body { padding: 24px 26px 40px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.sy-crumb { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--sy-tx-3); font-weight: 700; }
+
+/* ── hero ─────────────────────────────────────────────────────────────────── */
+.sy-hero { display: flex; align-items: flex-start; gap: 20px; flex-wrap: wrap; }
+.sy-hero-txt { flex: 1; min-width: 260px; }
+.sy-hero h1 { margin: 6px 0 6px; font-size: 40px; line-height: 1.06; font-weight: 800; letter-spacing: -1.2px; }
+.sy-hero h1 em { font-style: normal; background: linear-gradient(135deg, var(--sy-accent), var(--sy-accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sy-hero p { margin: 0; color: var(--sy-tx-2); font-size: 13px; }
+.sy-hero-side { display: flex; align-items: center; gap: 16px; }
+.sy-clock { text-align: right; font-size: 11.5px; color: var(--sy-tx-2); line-height: 1.5; }
+.sy-status {
+  display: flex; align-items: center; gap: 14px; padding: 13px 16px;
+  border-radius: 14px; border: 1px solid var(--sy-line); background: var(--sy-panel);
+}
+.sy-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.sy-dot--ok { background: var(--sy-ok); box-shadow: 0 0 0 4px rgba(52, 211, 153, .16); }
+.sy-dot--warn { background: var(--sy-warn); box-shadow: 0 0 0 4px rgba(251, 191, 36, .16); }
+.sy-status-txt span { display: block; font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--sy-tx-3); font-weight: 700; }
+.sy-status-txt b { display: block; font-size: 17px; font-weight: 800; }
+.sy-status-txt i { display: block; font-style: normal; font-size: 10px; color: var(--sy-tx-3); }
+.sy-btn {
+  padding: 9px 15px; border-radius: 10px; cursor: pointer; font-size: 12px; font-weight: 700;
+  border: 1px solid rgba(59, 130, 246, .4); color: #dbeafe;
+  background: linear-gradient(135deg, rgba(59, 130, 246, .3), rgba(59, 130, 246, .14));
+  transition: filter .15s ease;
+}
+.sy-btn:hover { filter: brightness(1.18); }
+.sy-btn--ghost { background: rgba(255, 255, 255, .04); border-color: var(--sy-line); color: var(--sy-tx-2); }
+.sy-btn--danger { background: rgba(248, 113, 113, .16); border-color: rgba(248, 113, 113, .4); color: #fecaca; }
+.sy-btn[disabled] { opacity: .42; cursor: not-allowed; filter: none; }
+
+/* ── KPI row ──────────────────────────────────────────────────────────────── */
+.sy-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr)); gap: 12px; }
+.sy-kpi {
+  padding: 15px 16px; border-radius: var(--sy-radius);
+  border: 1px solid var(--sy-line); background: var(--sy-panel);
+  display: flex; flex-direction: column; gap: 9px; min-width: 0;
+}
+.sy-kpi-h { display: flex; align-items: center; gap: 9px; }
+.sy-kpi-ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; background: rgba(59, 130, 246, .16); flex: none; }
+.sy-kpi-h span { font-size: 11px; color: var(--sy-tx-2); font-weight: 600; }
+.sy-kpi b { font-size: 26px; font-weight: 800; letter-spacing: -.6px; line-height: 1; }
+/* A figure the platform does not measure renders as an em dash and a reason —
+   never as a zero, which would read as "measured, and none". */
+.sy-kpi b.is-none { font-size: 20px; color: var(--sy-tx-3); }
+.sy-kpi i { font-style: normal; font-size: 9.5px; color: var(--sy-tx-3); line-height: 1.35; }
+
+/* ── panels ───────────────────────────────────────────────────────────────── */
+.sy-grid { display: grid; gap: 14px; }
+.sy-grid--3 { grid-template-columns: 1.5fr 1fr 1fr; }
+.sy-grid--2 { grid-template-columns: 1fr 1fr; }
+.sy-panel {
+  border-radius: var(--sy-radius); border: 1px solid var(--sy-line);
+  background: var(--sy-panel); padding: 16px 18px 18px; min-width: 0;
+}
+.sy-panel-h { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.sy-panel-h h2 { margin: 0; font-size: 14px; font-weight: 800; letter-spacing: -.2px; }
+.sy-panel-h span { margin-left: auto; font-size: 10px; color: var(--sy-tx-3); }
+
+.sy-bar-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 12px; }
+.sy-bar-row > span:first-child { width: 120px; color: var(--sy-tx-2); flex: none; }
+.sy-bar { flex: 1; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .06); overflow: hidden; }
+.sy-bar > i { display: block; height: 100%; border-radius: 4px; }
+.sy-bar-row > b { width: 44px; text-align: right; font-size: 11.5px; font-weight: 700; }
+
+.sy-legend { display: flex; flex-direction: column; gap: 9px; }
+.sy-legend-row { display: flex; align-items: center; gap: 9px; font-size: 11.5px; }
+.sy-legend-row i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.sy-legend-row b { margin-left: auto; font-weight: 700; }
+
+/* ── signals ──────────────────────────────────────────────────────────────── */
+.sy-signals { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.sy-signal {
+  padding: 14px 15px; border-radius: 13px; border: 1px solid var(--sy-line);
+  background: var(--sy-panel-2); display: flex; flex-direction: column; gap: 7px; cursor: pointer;
+  text-align: left; transition: border-color .15s ease, transform .15s ease;
+}
+.sy-signal:hover { border-color: var(--sy-line-2); transform: translateY(-1px); }
+.sy-signal-h { display: flex; align-items: center; gap: 9px; }
+.sy-signal-ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-size: 12px; flex: none; }
+.sy-signal-ic--info { background: rgba(59, 130, 246, .16); }
+.sy-signal-ic--attention { background: rgba(251, 191, 36, .16); }
+.sy-signal-ic--warning { background: rgba(248, 113, 113, .16); }
+.sy-signal-h b { font-size: 12px; font-weight: 700; line-height: 1.3; }
+.sy-signal p { margin: 0; font-size: 11px; color: var(--sy-tx-2); line-height: 1.45; }
+
+/* ── command cards ────────────────────────────────────────────────────────── */
+.sy-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.sy-card {
+  padding: 16px; border-radius: var(--sy-radius); border: 1px solid var(--sy-line);
+  background: var(--sy-panel); cursor: pointer; text-align: left;
+  display: flex; flex-direction: column; gap: 9px;
+  transition: border-color .15s ease, transform .15s ease;
+}
+.sy-card:hover { border-color: rgba(59, 130, 246, .38); transform: translateY(-2px); }
+.sy-card-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 16px; }
+.sy-card b { font-size: 13px; font-weight: 700; }
+.sy-card span { font-size: 10.5px; color: var(--sy-tx-3); }
+.sy-card-cta { margin-top: auto; font-size: 11px; color: var(--sy-accent); font-weight: 700; }
+
+/* ── tables, states, chips ────────────────────────────────────────────────── */
+.sy-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sy-table th {
+  text-align: left; font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--sy-tx-3); font-weight: 800; padding: 8px 10px; border-bottom: 1px solid var(--sy-line);
+}
+.sy-table td { padding: 10px; border-bottom: 1px solid rgba(255, 255, 255, .04); color: var(--sy-tx-2); }
+.sy-table td b { color: var(--sy-tx); font-weight: 700; }
+.sy-table-wrap { overflow-x: auto; scrollbar-gutter: stable; }
+
+.sy-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 6px;
+  font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+}
+.sy-chip--live { background: rgba(52, 211, 153, .14); color: var(--sy-ok); }
+.sy-chip--partial { background: rgba(251, 191, 36, .14); color: var(--sy-warn); }
+.sy-chip--none { background: rgba(255, 255, 255, .06); color: var(--sy-tx-3); }
+.sy-chip--safe { background: rgba(148, 163, 184, .14); color: var(--sy-tx-2); }
+.sy-chip--sensitive { background: rgba(59, 130, 246, .16); color: #93c5fd; }
+.sy-chip--critical { background: rgba(251, 146, 60, .16); color: #fdba74; }
+.sy-chip--protected { background: rgba(248, 113, 113, .16); color: #fca5a5; }
+
+.sy-empty {
+  padding: 26px 20px; text-align: center; border-radius: 13px;
+  border: 1px dashed var(--sy-line-2); background: rgba(255, 255, 255, .015);
+}
+.sy-empty b { display: block; font-size: 12.5px; margin-bottom: 5px; }
+.sy-empty span { font-size: 11px; color: var(--sy-tx-3); line-height: 1.5; }
+
+.sy-skel { border-radius: 10px; background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.08), rgba(255,255,255,.04));
+  background-size: 200% 100%; animation: sy-shimmer 1.4s ease-in-out infinite; }
+@keyframes sy-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* ── responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .sy-grid--3 { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 980px) {
+  .sy-shell { grid-template-columns: 1fr; }
+  .sy-rail { position: static; height: auto; }
+  .sy-nav { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+  .sy-grid--3, .sy-grid--2 { grid-template-columns: 1fr; }
+  .sy-hero h1 { font-size: 30px; }
+  .sy-body { padding: 18px 14px 30px; }
+  .sy-top { padding: 12px 14px; }
+}

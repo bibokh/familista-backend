@@ -931,6 +931,7 @@ var _FAM_PAGE_RENDER = {
   'ai-president-center':         ['renderAIPresidentCenter'],
   'ai-chairman-center':          ['renderAIChairmanCenter'],
   'ai-war-room':                 ['renderAIWarRoom'],
+  'system':                      ['renderFamilistaSystem'],
   'fos-core':                    ['renderFOSCore'],
   'fos-ai-orchestrator':         ['renderFOSAIOrchestrator'],
   'multi-club-network':          ['renderMultiClubNetwork'],
@@ -1995,6 +1996,7 @@ function _flushPendingRender() {
     case 'pg-ai-president-center': renderAIPresidentCenter(); break;
     case 'pg-ai-chairman-center': renderAIChairmanCenter(); break;
     case 'pg-ai-war-room':        renderAIWarRoom();         break;
+    case 'pg-system':             renderFamilistaSystem(document.getElementById('sy-root')); break;
     case 'pg-fos-core':           renderFOSCore();           break;
     case 'pg-fos-ai-orchestrator': renderFOSAIOrchestrator(); break;
     case 'pg-fos-knowledge-graph': renderFOSKnowledgeGraph(); break;
@@ -2095,6 +2097,10 @@ function navTo(page, el, _opts) {
   // a direct DOM mount — but they cannot become the active page.
   var _ALLOWED_PAGES = {
     'owner-home': 1, 'clubs': 1,
+    // SYSTEM — the platform owner's command centre, and the default SYSTEM
+    // experience. The FOS pages below it remain reachable as the infrastructure
+    // and health views they always were; they are no longer the way in.
+    'system': 1,
     // PLATFORM (8)
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
@@ -2255,6 +2261,10 @@ function navTo(page, el, _opts) {
   if (page === 'ai-president-center'){ try { renderAIPresidentCenter(); } catch (e) { try { console.error('[ai-president-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'ai-chairman-center'){ try { renderAIChairmanCenter(); } catch (e) { try { console.error('[ai-chairman-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'ai-war-room')      { try { renderAIWarRoom();        } catch (e) { try { console.error('[ai-war-room] nav render failed:', e);        } catch (_) {} } }
+  if (page === 'system') {
+    try { renderFamilistaSystem(document.getElementById('sy-root')); }
+    catch (e) { try { console.error('[system] nav render failed:', e); } catch (_) {} }
+  }
   if (page === 'fos-core')         { try { renderFOSCore();          } catch (e) { try { console.error('[fos-core] nav render failed:', e);           } catch (_) {} } }
   if (page === 'fos-ai-orchestrator'){ try { renderFOSAIOrchestrator();} catch (e) { try { console.error('[fos-ai-orchestrator] nav render failed:', e);} catch (_) {} } }
   if (page === 'multi-club-network'){ try { renderMultiClubNetwork(); } catch (e) { try { console.error('[multi-club-network] nav render failed:', e); } catch (_) {} } }
@@ -2439,6 +2449,7 @@ function _buildPageTemplateMap() {
     'ai-president-center':         renderAIPresidentCenterHTML,
     'ai-chairman-center':          renderAIChairmanCenterHTML,
     'ai-war-room':                 renderAIWarRoomHTML,
+    'system':                      renderSystemHTML,
     'fos-core':                    renderFOSCoreHTML,
     'fos-ai-orchestrator':         renderFOSAIOrchestratorHTML,
     'multi-club-network':          renderMultiClubNetworkHTML,
@@ -2487,6 +2498,7 @@ function _buildPageTemplateMap() {
 // These are mounted eagerly at boot so the click flow is instant.
 var _EAGER_PAGES = [
   'owner-home', 'clubs', 'club-home', 'squad',
+  'system',
   'fos-core', 'fos-observability', 'fos-security-center',
   'fos-automation-center', 'fos-rbac', 'fos-audit-governance',
   'multi-club-network', 'fos-admin-center',
@@ -2553,6 +2565,7 @@ function renderAllPages() {
     ${renderAIPresidentCenterHTML()}
     ${renderAIChairmanCenterHTML()}
     ${renderAIWarRoomHTML()}
+    ${renderSystemHTML()}
     ${renderFOSCoreHTML()}
     ${renderFOSAIOrchestratorHTML()}
     ${renderMultiClubNetworkHTML()}
@@ -2642,11 +2655,11 @@ function renderOwnerHome() {
         <div class="oh-sub">Where do you want to go today?</div>
       </div>
       <div class="oh-cards">
-        <button class="oh-card oh-card--system" data-action="navTo" data-page="fos-core" type="button">
+        <button class="oh-card oh-card--system" data-action="navTo" data-page="system" type="button">
           <div class="oh-card-icon">⚙️</div>
           <div class="oh-card-title">SYSTEM</div>
           <div class="oh-card-sub">Platform &amp; infrastructure</div>
-          <div class="oh-card-list">FOS Core · Observability · Security · Automation · RBAC · Governance · Multi-Club Management · System Settings</div>
+          <div class="oh-card-list">Command Center · Clubs · People &amp; Access · Intelligence · Governance · Innovation Lab · Security · Audit</div>
           <div class="oh-card-cta">Enter system area <span>→</span></div>
         </button>
         <button class="oh-card oh-card--clubs" data-action="navTo" data-page="clubs" type="button">
@@ -26906,6 +26919,16 @@ function _ensureFosStyles() {
     @media (max-width:600px){.fos-grid-2,.fos-grid-3,.fos-grid-4{grid-template-columns:1fr;}.fos-grid-6{grid-template-columns:repeat(2,1fr);}}`;
   document.head.appendChild(s);
 }
+// SYSTEM — the platform owner's command and control centre.
+//
+// The page is a host and nothing else: everything inside it is drawn by
+// public/system/system.js, which is SYSTEM's own module. Keeping it out of this
+// file is the same separation the product has — one codebase, two products, and
+// a club screen never loads a platform control.
+function renderSystemHTML() {
+  return `<div class="page" id="pg-system"><div id="sy-root"></div></div>`;
+}
+
 function renderFOSCoreHTML() {
   return `<div class="page" id="pg-fos-core">
     <div id="fos-core-content">
