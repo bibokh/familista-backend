@@ -116,6 +116,12 @@ export const CAPABILITIES: ReadonlyArray<Capability> = Object.freeze([
     note: 'No archival store exists yet — the contracts are declared, nothing is written.' },
   { key: 'analytics.platform', module: 'platform-analytics', label: 'DAU / WAU / retention', status: 'NOT_AVAILABLE', risk: 'SAFE',
     note: 'Needs the analytics event stream. Sign-ins are counted today; sessions are not.' },
+  { key: 'analytics.configure', module: 'product-analytics', label: 'Configure analytics instrumentation', status: 'NOT_AVAILABLE', risk: 'SAFE',
+    note: 'No event collector is configured. Until one is, activity curves and module usage stay empty rather than estimated.' },
+  { key: 'approvals.read', module: 'approvals', label: 'Inspect pending AI approvals', status: 'LIVE', risk: 'SAFE',
+    note: 'High-risk agent actions queued for a person. Reading the queue changes nothing.', endpoint: 'GET /system/approvals' },
+  { key: 'approvals.decide', module: 'approvals', label: 'Approve or reject a request', status: 'NOT_AVAILABLE', risk: 'PROTECTED',
+    note: 'The decision belongs to the club the action would affect. SYSTEM does not reach past that boundary.' },
 ]);
 
 export function capabilitiesFor(module: string): Capability[] {

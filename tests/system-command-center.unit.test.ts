@@ -114,7 +114,10 @@ describe('the interface never invents a number', () => {
     expect(SYS_JS).toContain('Not instrumented yet.');
     // A metric object is { value, unavailable } and null is not zero.
     expect(SYS_JS).toContain('if (!m || m.value == null)');
-    expect(SERVICE).toContain('const notInstrumented = (why: string): Metric => ({ value: null, unavailable: why });');
+    // A metric now carries where it came from as well. The property that
+    // matters is unchanged and still pinned: an absent figure is null with a
+    // reason, and NOT_INSTRUMENTED is the only source that may be null.
+    expect(SERVICE).toContain("const notInstrumented = (why: string): Metric => ({ value: null, source: 'NOT_INSTRUMENTED', how: why, unavailable: why });");
   });
 
   it('and the modules that cannot be measured say which phase would fix them', () => {

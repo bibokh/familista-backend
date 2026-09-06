@@ -27,6 +27,7 @@ router.get('/capabilities', ctrl.capabilities);
 router.get('/intelligence', ctrl.intelligence);
 router.get('/innovation',   ctrl.innovation);
 router.get('/governance',   ctrl.governance);
+router.get('/approvals',    ctrl.approvals);
 router.get('/security',     ctrl.security);
 router.get('/audit',        ctrl.audit);
 

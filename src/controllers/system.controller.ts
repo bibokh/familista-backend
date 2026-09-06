@@ -59,6 +59,12 @@ export async function people(req: Request, res: Response, next: NextFunction) {
 // Reads
 // ─────────────────────────────────────────────────────────────────────────────
 
+export async function approvals(req: Request, res: Response, next: NextFunction) {
+  try {
+    return sendSuccess(res, await system.approvalsSurface(actorOf(req)));
+  } catch (err) { return next(err); }
+}
+
 export async function signals(req: Request, res: Response, next: NextFunction) {
   try {
     return sendSuccess(res, { signals: await system.platformSignals(actorOf(req)) });

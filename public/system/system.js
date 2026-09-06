@@ -35,6 +35,7 @@
     people: null,
     security: null,
     audit: null,
+    approvals: null,
     error: null,
     search: '',
   };
@@ -55,6 +56,122 @@
     }
     return { text: num(m.value), none: false, why: '' };
   }
+  // ── SYSTEM localisation — three languages, and only three ────────────────
+  //
+  // SYSTEM is the platform owner's workspace, not the platform. It is read by
+  // one small group of people, so it carries English, German and Arabic and
+  // nothing else — a deliberate boundary, kept in its own catalogue under
+  // /system/i18n/ so that SYSTEM strings never enter the platform's 31-locale
+  // catalogue and the club product's translations are never touched by
+  // anything here.
+  //
+  // The mechanism is the house one: the English on screen IS the key, and a
+  // run of digits becomes a %d slot so "3 clubs without a president" and
+  // "17 clubs without a president" are one entry. A key with no translation
+  // falls through to the English, which is a gap rather than a break.
+  var SY_LOCALES = [['en', 'English', 'ltr'], ['de', 'Deutsch', 'ltr'], ['ar', 'العربية', 'rtl']];
+  var SY_DICT = {};
+  var SY_LANG = 'en';
+  var SY_DIR = 'ltr';
+
+  function localeOf(tag) {
+    for (var i = 0; i < SY_LOCALES.length; i++) if (SY_LOCALES[i][0] === tag) return SY_LOCALES[i];
+    return SY_LOCALES[0];
+  }
+
+  function storedSystemLocale() {
+    var tag = '';
+    try { tag = localStorage.getItem('familista_system_locale') || ''; } catch (_) {}
+    if (tag && localeOf(tag)[0] === tag) return tag;
+    // No stored choice: honour the browser only when it asks for one of ours.
+    var nav = '';
+    try { nav = (navigator.language || '').slice(0, 2).toLowerCase(); } catch (_) {}
+    return (nav === 'de' || nav === 'ar') ? nav : 'en';
+  }
+
+  /** The dictionary, fetched once per language and kept for the session. */
+  var SY_DICT_CACHE = {};
+  function loadSystemDict(tag) {
+    if (tag === 'en') { SY_DICT = {}; return Promise.resolve({}); }
+    if (SY_DICT_CACHE[tag]) { SY_DICT = SY_DICT_CACHE[tag]; return Promise.resolve(SY_DICT); }
+    return fetch('/system/i18n/' + tag + '.json')
+      .then(function (r) { return r.ok ? r.json() : {}; })
+      .catch(function () { return {}; })
+      .then(function (d) { SY_DICT_CACHE[tag] = d || {}; SY_DICT = SY_DICT_CACHE[tag]; return SY_DICT; });
+  }
+
+  function setSystemLocale(tag) {
+    var loc = localeOf(tag);
+    SY_LANG = loc[0];
+    SY_DIR = loc[2];
+    try { localStorage.setItem('familista_system_locale', SY_LANG); } catch (_) {}
+    return loadSystemDict(SY_LANG);
+  }
+
+  /** One string, translated. Used for text JavaScript speaks — prompts, alerts. */
+  function T(text) {
+    if (SY_LANG === 'en') return text;
+    var key = String(text == null ? '' : text);
+    if (SY_DICT[key]) return SY_DICT[key];
+    // Try the slotted form: digits become %d, and come back in order.
+    var digits = [];
+    var slotted = key.replace(/\d[\d,.]*/g, function (m) { digits.push(m); return '%d'; });
+    var hit = SY_DICT[slotted];
+    if (!hit) return key;
+    var n = 0;
+    return hit.replace(/%d/g, function () { return digits[n++] != null ? digits[n - 1] : '%d'; });
+  }
+
+  /**
+   * Translate what has just been painted, and nothing else.
+   *
+   * Walks only inside the SYSTEM host, skips anything a person typed
+   * (data-user-content), anything that is not language (data-no-i18n), and
+   * never touches a script or style node. A club screen is not reachable from
+   * here, by construction.
+   */
+  function syTranslate(root) {
+    if (!root || SY_LANG === 'en') return;
+    var skip = function (el) {
+      for (var n = el; n && n !== root.parentNode; n = n.parentNode) {
+        if (n.nodeType !== 1) continue;
+        if (n.hasAttribute('data-user-content') || n.hasAttribute('data-no-i18n')) return true;
+        var tag = n.nodeName;
+        if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'CODE') return true;
+      }
+      return false;
+    };
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+    var nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      var raw = node.nodeValue;
+      if (!raw || !/\S/.test(raw) || !node.parentNode || skip(node.parentNode)) continue;
+      var trimmed = raw.trim();
+      var out = T(trimmed);
+      if (out !== trimmed) node.nodeValue = raw.replace(trimmed, out);
+    }
+    var attrs = ['placeholder', 'title', 'aria-label'];
+    var all = root.querySelectorAll('[placeholder],[title],[aria-label]');
+    for (var j = 0; j < all.length; j++) {
+      if (skip(all[j])) continue;
+      for (var k = 0; k < attrs.length; k++) {
+        var v = all[j].getAttribute(attrs[k]);
+        if (v && v.trim()) all[j].setAttribute(attrs[k], T(v.trim()));
+      }
+    }
+  }
+
+  function languageSwitchHtml() {
+    return '<div class="sy-langs" role="group" aria-label="SYSTEM language">'
+      + SY_LOCALES.map(function (l) {
+        return '<button class="sy-lang' + (l[0] === SY_LANG ? ' is-on' : '') + '" type="button"'
+          + ' data-sy-lang="' + l[0] + '" lang="' + l[0] + '" data-no-i18n'
+          + ' aria-pressed="' + (l[0] === SY_LANG ? 'true' : 'false') + '">' + esc(l[1]) + '</button>';
+      }).join('') + '</div>';
+  }
+
   function api(path, opts) {
     var base = (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG.API_BASE)
       ? FAM_CONFIG.API_BASE : '/api/v1';
@@ -167,6 +284,7 @@
       + (signals ? '<span class="sy-badge">' + signals + '</span>' : '') + '</button>'
       + '<button class="sy-icon-btn" type="button" data-sy-go="governance" title="Governance">⚖</button>'
       + '<button class="sy-icon-btn" type="button" data-sy-go="settings" title="Platform settings">⚙</button>'
+      + languageSwitchHtml()
       + '<div class="sy-user"><div class="sy-user-av">' + esc(initial) + '</div>'
       + '<div><b data-user-content>' + esc(name || 'Familista') + '</b><span>' + esc(level) + '</span></div></div>'
       + '</div></header>';
@@ -178,12 +296,120 @@
     return h < 12 ? 'Good Morning' : h < 18 ? 'Good Afternoon' : 'Good Evening';
   }
 
-  function kpiHtml(icon, label, m, note) {
+  // ── metrics ───────────────────────────────────────────────────────────────
+  // Every figure carries where it came from. LIVE is one aggregate over one
+  // table; DERIVED is a real count under a definition somebody chose; an
+  // absent one renders as "—" and says what would measure it. The badge is
+  // not decoration — an operator acting on "Active Today" needs to know it
+  // counts sign-ins rather than live sessions before they act.
+  function sourceChip(m) {
+    if (!m || !m.source) return '';
+    var label = m.source === 'NOT_INSTRUMENTED' ? 'no data' : m.source.toLowerCase();
+    var cls = m.source === 'LIVE' ? 'live' : m.source === 'DERIVED' ? 'derived' : 'none';
+    return '<span class="sy-src sy-src--' + cls + '" title="' + esc(m.how || '') + '">' + esc(label) + '</span>';
+  }
+
+  function kpiHtml(icon, label, m, note, go) {
     var v = metric(m);
-    return '<div class="sy-kpi"><div class="sy-kpi-h"><span class="sy-kpi-ic">' + icon + '</span>'
-      + '<span>' + esc(label) + '</span></div>'
+    var tag = go ? 'button' : 'div';
+    var attrs = go ? ' type="button" data-sy-go="' + esc(go) + '"' : '';
+    return '<' + tag + ' class="sy-kpi' + (go ? ' is-live' : '') + '"' + attrs + '>'
+      + '<div class="sy-kpi-h"><span class="sy-kpi-ic">' + icon + '</span>'
+      + '<span>' + esc(label) + '</span>' + sourceChip(m) + '</div>'
       + '<b class="' + (v.none ? 'is-none' : '') + '">' + esc(v.text) + '</b>'
-      + '<i>' + esc(v.none ? v.why : (note || '')) + '</i></div>';
+      + '<i>' + esc(v.none ? v.why : (note || (m && m.how) || '')) + '</i>'
+      + (go ? '<span class="sy-kpi-go">→</span>' : '')
+      + '</' + tag + '>';
+  }
+
+  // ── quick actions ─────────────────────────────────────────────────────────
+  // The command area. Each entry names a real action or is disabled with the
+  // reason it is not available — there is no third kind. `act` is either a
+  // module to open (navigation is a real action) or a handler below.
+  var QUICK_ACTIONS = [
+    ['＋', 'Create Club', 'NOT_AVAILABLE', null,
+      'Creating a club here would make the platform owner that club\'s owner. A SYSTEM-side create that names a separate owner is not built yet.'],
+    ['✉', 'Invite President', 'NOT_AVAILABLE', null,
+      'Invitations are sent by a club administrator inside the club. SYSTEM cannot invite into a club it is not a member of.'],
+    ['⚇', 'Manage People & Access', 'LIVE', 'go:people', 'Identity, memberships and invitations across every club.'],
+    ['⬢', 'Clubs Management', 'LIVE', 'go:clubs', 'Every club, with what the platform can count about it.'],
+    ['⚛', 'New Experiment', 'LIVE', 'new-experiment', 'Registers an experiment in this environment.'],
+    ['⚑', 'Feature Flags', 'LIVE', 'go:flags', 'Enable, disable and target a flag. Takes effect immediately.'],
+    ['⌬', 'Open AI Control', 'LIVE', 'go:agents', 'Agents, tools, autonomy and the global kill switch.'],
+    ['✓', 'Pending Approvals', 'LIVE', 'go:approvals', 'High-risk agent actions waiting for a person.'],
+    ['⛨', 'Security Center', 'LIVE', 'go:security', 'Access denials, sign-in failures and suspicious payloads.'],
+    ['⚗', 'Innovation Lab', 'LIVE', 'go:lab', 'Test privately before anybody else sees it.'],
+    ['⇪', 'Release Control', 'NOT_AVAILABLE', null,
+      'Releases are deployed by the hosting platform. Familista has no promote or roll-back hook yet.'],
+  ];
+
+  function quickActionsHtml() {
+    return '<section class="sy-panel sy-command">'
+      + '<div class="sy-panel-h"><h2>Quick Actions</h2><span>every control here performs a real change</span></div>'
+      + '<div class="sy-qa">' + QUICK_ACTIONS.map(function (a) {
+        var live = a[2] === 'LIVE';
+        return '<button class="sy-qa-btn' + (live ? '' : ' is-off') + '" type="button"'
+          + (live ? ' data-sy-act="' + esc(a[3]) + '"' : ' disabled')
+          + ' title="' + esc(a[4]) + '">'
+          + '<span class="sy-qa-ic">' + a[0] + '</span>'
+          + '<span class="sy-qa-txt"><b>' + esc(a[1]) + '</b>'
+          + '<i class="sy-chip sy-chip--' + (live ? 'live' : 'none') + '">' + esc(live ? 'LIVE' : 'NOT AVAILABLE') + '</i></span>'
+          + '</button>';
+      }).join('') + '</div></section>';
+  }
+
+  // ── control widgets ───────────────────────────────────────────────────────
+  // Compact operational state, each with the control that changes it. The
+  // kill switch is a real switch: it is never drawn as decoration.
+  function widgetsHtml(o) {
+    var caps = SY.capabilities || {};
+    var ks = caps.killSwitch || { engaged: false, reason: null };
+    var env = o.environment || (caps.environment || 'PREVIEW');
+    var envs = ['PRODUCTION', 'STAGING', 'LAB', 'PREVIEW'];
+
+    var ai = '<div class="sy-widget"><div class="sy-widget-h"><b>Autonomous AI Actions</b>'
+      + '<span class="sy-chip sy-chip--' + (ks.engaged ? 'none' : 'live') + '">' + (ks.engaged ? 'STOPPED' : 'RUNNING') + '</span></div>'
+      + '<p>' + esc(ks.engaged ? (ks.reason || 'The kill switch is engaged. Reading and recommending continue.')
+        : 'Agents may act within their autonomy level. Reading and recommending are never stopped.') + '</p>'
+      + '<button class="sy-btn ' + (ks.engaged ? 'sy-btn--ok' : 'sy-btn--danger') + '" type="button"'
+      + ' data-sy-kill="' + (ks.engaged ? 'release' : 'engage') + '">'
+      + (ks.engaged ? 'Resume autonomous actions' : 'Stop autonomous actions') + '</button></div>';
+
+    var envW = '<div class="sy-widget"><div class="sy-widget-h"><b>Environment</b></div>'
+      + '<div class="sy-envs">' + envs.map(function (e) {
+        return '<span class="sy-env' + (e === env ? ' is-on' : '') + '">' + esc(e) + '</span>';
+      }).join('') + '</div>'
+      + '<p>Flags, experiments and agent autonomy are evaluated against this environment.</p></div>';
+
+    var wcount = function (title, m, note, go, cta) {
+      var v = metric(m);
+      return '<div class="sy-widget"><div class="sy-widget-h"><b>' + esc(title) + '</b>' + sourceChip(m) + '</div>'
+        + '<div class="sy-widget-n' + (v.none ? ' is-none' : '') + '">' + esc(v.text) + '</div>'
+        + '<p>' + esc(v.none ? v.why : note) + '</p>'
+        + (go ? '<button class="sy-btn" type="button" data-sy-go="' + esc(go) + '">' + esc(cta) + '</button>' : '')
+        + '</div>';
+    };
+
+    return '<div class="sy-widgets">' + ai + envW
+      + wcount('Experiments running', o.innovation.experimentsRunning, 'Registered in this instance and in the RUNNING state.', 'experiments', 'Open experiments')
+      + wcount('Feature flags on', o.innovation.flagsOn, 'Enabled and reaching this environment right now.', 'flags', 'Open flags')
+      + wcount('Pending approvals', o.governance.pendingApprovals, 'High-risk agent actions queued for a person.', 'approvals', 'Review')
+      + wcount('Security alerts · 24h', o.security.alertsToday, 'Severity WARN or CRITICAL.', 'security', 'Inspect')
+      + '</div>';
+  }
+
+  /** An analytics panel with nothing behind it yet — and no invented curve. */
+  function pendingAnalytics(title, span, m, module) {
+    return '<section class="sy-panel"><div class="sy-panel-h"><h2>' + esc(title) + '</h2><span>' + esc(span) + '</span></div>'
+      + '<div class="sy-pending">'
+      + '<div class="sy-pending-bars">'
+      + '<i></i><i></i><i></i><i></i><i></i><i></i><i></i>'
+      + '</div>'
+      + '<b>Analytics instrumentation pending</b>'
+      + '<span>' + esc((m && m.unavailable) || 'No event stream is connected yet.')
+      + ' Nothing is estimated here — an invented curve is worse than an empty panel.</span>'
+      + '<button class="sy-btn" type="button" data-sy-go="' + esc(module) + '">Configure Analytics</button>'
+      + '</div></section>';
   }
 
   function overviewHtml() {
@@ -192,30 +418,39 @@
     var name = '';
     try { var u = window.State && window.State.user; name = (u && u.firstName) || ''; } catch (_) {}
 
-    var ownerless = (o.access && o.access.clubsWithoutOwner && o.access.clubsWithoutOwner.value) || 0;
+    var ownerless = (o.clubs.withoutOwner && o.clubs.withoutOwner.value) || 0;
     var healthy = ownerless === 0;
     var now = new Date();
 
     var kpis = [
-      kpiHtml('⬢', 'Total Clubs', o.clubs.total, 'Every club on the platform'),
-      kpiHtml('◉', 'Active Clubs', o.clubs.active, 'At least one active membership'),
-      kpiHtml('⚇', 'Total Users', o.people.users, 'Accounts on Familista'),
-      kpiHtml('◔', 'Active Today', o.activity.activeToday, 'Signed in within 24 hours'),
-      kpiHtml('♛', 'Presidents', o.people.owners, 'Active club-owner memberships'),
-      kpiHtml('⚒', 'Staff', o.people.staff, 'Active non-owner memberships'),
-      kpiHtml('⚽', 'Players', o.players.total, 'Active player records'),
+      kpiHtml('⬢', 'Total Clubs', o.clubs.total, null, 'clubs'),
+      kpiHtml('◉', 'Active Clubs', o.clubs.active, null, 'clubs'),
+      kpiHtml('⚇', 'Total Users', o.people.users, null, 'people'),
+      kpiHtml('◔', 'Active Today', o.activity.activeToday, null, 'people'),
+      kpiHtml('♛', 'Presidents', o.people.owners, null, 'people'),
+      kpiHtml('⚒', 'Staff', o.people.staff, null, 'people'),
+      kpiHtml('⚽', 'Players', o.players.total, null, 'clubs'),
+      kpiHtml('⚿', 'Memberships', o.access.activeMemberships, null, 'people'),
+      kpiHtml('✉', 'Pending Invitations', o.access.pendingInvitations, null, 'people'),
+      kpiHtml('⊘', 'Suspended Memberships', o.access.suspendedMemberships, null, 'people'),
+      kpiHtml('✓', 'Pending Approvals', o.governance.pendingApprovals, null, 'approvals'),
+      kpiHtml('⛨', 'Security Alerts · 7d', o.security.alertsThisWeek, null, 'security'),
     ].join('');
 
-    // Users by role, from real membership counts. Viewers are accounts with no
-    // membership anywhere — a real number, not a residual guess.
+    // Users by role, from real membership counts. Every category is a counted
+    // number; the percentage is arithmetic on those numbers and nothing else.
     var owners = (o.people.owners && o.people.owners.value) || 0;
     var staff = (o.people.staff && o.people.staff.value) || 0;
     var viewers = (o.people.viewers && o.people.viewers.value) || 0;
-    var totalRoles = owners + staff + viewers;
-    var roleRow = function (label, value, colour) {
+    var admins = (o.people.platformAdmins && o.people.platformAdmins.value) || 0;
+    var totalRoles = owners + staff + viewers + admins;
+    var roleRow = function (label, value, colour, how) {
       var pct = totalRoles ? Math.round((value / totalRoles) * 100) : 0;
-      return '<div class="sy-legend-row"><i style="background:' + colour + '"></i>'
-        + '<span>' + esc(label) + '</span><b>' + num(value) + (totalRoles ? ' (' + pct + '%)' : '') + '</b></div>';
+      var w = totalRoles ? Math.max(2, Math.round((value / totalRoles) * 100)) : 0;
+      return '<div class="sy-legend-row" title="' + esc(how) + '"><i style="background:' + colour + '"></i>'
+        + '<span>' + esc(label) + '</span>'
+        + '<span class="sy-legend-bar"><b style="width:' + w + '%;background:' + colour + '"></b></span>'
+        + '<b>' + num(value) + (totalRoles ? ' (' + pct + '%)' : '') + '</b></div>';
     };
 
     var caps = SY.capabilities;
@@ -230,33 +465,31 @@
       + '<h1>' + esc(greeting()) + ', <em data-user-content>' + esc(name || 'Owner') + '</em></h1>'
       + '<p>Here\'s what\'s happening across Familista today.</p></div>'
       + '<div class="sy-hero-side">'
-      + '<div class="sy-clock">' + esc(now.toDateString()) + '<br>' + esc(now.toLocaleTimeString()) + '</div>'
+      + '<div class="sy-clock" data-no-i18n>' + esc(now.toDateString()) + '<br>' + esc(now.toLocaleTimeString()) + '</div>'
       + '<div class="sy-status"><span class="sy-dot ' + (healthy ? 'sy-dot--ok' : 'sy-dot--warn') + '"></span>'
       + '<div class="sy-status-txt"><span>Platform status</span><b>' + (healthy ? 'Healthy' : 'Attention') + '</b>'
-      + '<i>' + esc(o.modules.length) + ' modules · ' + esc(o.generatedAt.slice(11, 19)) + ' UTC</i></div>'
+      + '<i data-no-i18n>' + esc(o.environment) + ' · ' + esc(o.generatedAt.slice(11, 19)) + ' UTC</i></div>'
       + '<button class="sy-btn" type="button" data-sy-go="agents">Open Command Center →</button></div>'
       + '</div></div>'
 
+      + quickActionsHtml()
+
       + '<div class="sy-kpis">' + kpis + '</div>'
 
+      + widgetsHtml(o)
+
       + '<div class="sy-grid sy-grid--3">'
-      + '<section class="sy-panel"><div class="sy-panel-h"><h2>Platform Activity</h2><span>last 24 hours</span></div>'
-      + (o.activity.sessionsToday.value == null
-        ? emptyState('Session analytics are not instrumented', o.activity.sessionsToday.unavailable
-          + ' Sign-ins are counted above and are real; an activity curve would need the event stream.')
-        : '')
-      + '</section>'
-      + '<section class="sy-panel"><div class="sy-panel-h"><h2>Top Used Modules</h2><span>last 30 days</span></div>'
-      + (o.activity.topModules.value == null
-        ? emptyState('Feature usage is not instrumented', o.activity.topModules.unavailable)
-        : '')
-      + '</section>'
-      + '<section class="sy-panel"><div class="sy-panel-h"><h2>Users by Role</h2></div>'
+      + pendingAnalytics('Platform Activity', 'last 24 hours', o.activity.sessionsToday, 'platform-analytics')
+      + pendingAnalytics('Top Used Modules', 'last 30 days', o.activity.topModules, 'product-analytics')
+      + '<section class="sy-panel"><div class="sy-panel-h"><h2>Users by Role</h2><span>counted, not sampled</span></div>'
       + '<div class="sy-legend">'
-      + roleRow('Presidents', owners, 'var(--sy-violet)')
-      + roleRow('Staff', staff, 'var(--sy-ok)')
-      + roleRow('Viewers — no membership', viewers, 'var(--sy-accent)')
-      + '</div></section>'
+      + roleRow('Platform Owners & Admins', admins, 'var(--sy-cyan)', 'COUNT(PlatformAdmin) where isActive')
+      + roleRow('Presidents', owners, 'var(--sy-violet)', 'Active memberships with role CLUB_OWNER')
+      + roleRow('Staff', staff, 'var(--sy-ok)', 'Active memberships with any other role')
+      + roleRow('Normal Users — no membership', viewers, 'var(--sy-accent)', 'Active accounts with no active membership anywhere')
+      + '</div>'
+      + '<button class="sy-btn" type="button" data-sy-go="people">Open People &amp; Access</button>'
+      + '</section>'
       + '</div>'
 
       + '<section class="sy-panel"><div class="sy-panel-h"><h2>What\'s happening now?</h2><span>' + capStrip + '</span></div>'
@@ -284,15 +517,47 @@
     if (!list) return skeleton(80);
     if (!list.length) {
       return emptyState('Nothing needs attention',
-        'No club is without an owner, no invitation is about to lapse and autonomous AI actions are running normally.');
+        'No club is without a president, no invitation is about to lapse, no approval is queued and autonomous AI actions are running normally.');
     }
     var icon = { INFO: '◔', ATTENTION: '⚠', WARNING: '⛨' };
     return '<div class="sy-signals">' + list.map(function (s) {
       var tone = s.severity.toLowerCase();
-      return '<button class="sy-signal" type="button" data-sy-go="' + esc(s.module) + '">'
+      // Every signal names what the reader does about it, and the button goes
+      // there. A feed with no way to act on any row is a worry list.
+      return '<div class="sy-signal sy-signal--' + tone + '">'
         + '<div class="sy-signal-h"><span class="sy-signal-ic sy-signal-ic--' + tone + '">' + (icon[s.severity] || '◔') + '</span>'
-        + '<b>' + esc(s.title) + '</b></div><p>' + esc(s.detail) + '</p></button>';
+        + '<b>' + esc(s.title) + '</b></div><p>' + esc(s.detail) + '</p>'
+        + '<button class="sy-btn sy-btn--sm" type="button" data-sy-go="' + esc(s.module) + '">'
+        + esc(s.action || 'Open') + ' →</button></div>';
     }).join('') + '</div>';
+  }
+
+  function approvalsHtml() {
+    var a = SY.approvals;
+    if (!a) return moduleHeader('approvals') + skeleton(120);
+    if (a.unavailable) {
+      return moduleHeader('approvals')
+        + '<section class="sy-panel">' + emptyState('Approval queue unavailable', a.unavailable) + '</section>'
+        + capabilityTable('approvals');
+    }
+    if (!a.requests.length) {
+      return moduleHeader('approvals')
+        + '<section class="sy-panel">' + emptyState('Nothing is waiting for approval',
+          'No high-risk agent action is queued. Requests appear here the moment an agent asks for one.') + '</section>'
+        + capabilityTable('approvals');
+    }
+    return moduleHeader('approvals')
+      + '<section class="sy-panel"><div class="sy-panel-h"><h2>Waiting for a person</h2>'
+      + '<span>' + a.requests.length + ' request(s)</span></div>'
+      + '<div class="sy-table-wrap"><table class="sy-table">'
+      + '<thead><tr><th>Agent</th><th>Kind</th><th>Club</th><th>Requested</th><th>Expires</th></tr></thead><tbody>'
+      + a.requests.map(function (r) {
+        return '<tr><td><b>' + esc(r.agent) + '</b></td><td>' + esc(r.kind) + '</td>'
+          + '<td data-user-content>' + esc(r.clubId) + '</td>'
+          + '<td data-no-i18n>' + esc(String(r.createdAt).slice(0, 16).replace('T', ' ')) + '</td>'
+          + '<td data-no-i18n>' + esc(String(r.expiresAt).slice(0, 16).replace('T', ' ')) + '</td></tr>';
+      }).join('') + '</tbody></table></div></section>'
+      + capabilityTable('approvals');
   }
 
   function emptyState(title, detail) {
@@ -388,10 +653,10 @@
       + '<span class="sy-chip sy-chip--critical">CRITICAL</span></div>'
       + '<p style="margin:0 0 14px;font-size:12px;color:var(--sy-tx-2)">'
       + (ks.engaged
-        ? 'Autonomous actions are <b>stopped</b>' + (ks.reason ? ' — ' + esc(ks.reason) : '')
-          + '. Reading and recommending continue, and Familista is up.'
-        : 'Autonomous actions are running. Engaging the switch stops every agent action platform-wide; '
-          + 'reading and recommending continue and the platform stays up.')
+        ? '<span>Autonomous actions are stopped. Reading and recommending continue, and Familista is up.</span>'
+          + (ks.reason ? '<span data-user-content> — ' + esc(ks.reason) + '</span>' : '')
+        : '<span>Autonomous actions are running. Engaging the switch stops every agent action platform-wide; '
+          + 'reading and recommending continue and the platform stays up.</span>')
       + '</p>'
       + (ks.engaged
         ? '<button class="sy-btn" type="button" data-sy-kill="release">Resume autonomous actions</button>'
@@ -555,6 +820,7 @@
       case 'flags': return flagsHtml();
       case 'experiments': return experimentsHtml();
       case 'lab': return labHtml();
+      case 'approvals': return approvalsHtml();
       case 'security': return securityHtml();
       case 'audit': return auditHtml();
       default: return genericHtml(SY.module);
@@ -578,6 +844,7 @@
     if ((module === 'flags' || module === 'experiments' || module === 'lab') && !SY.innovation) {
       jobs.push(api('/system/innovation').then(function (d) { SY.innovation = d; }));
     }
+    if (module === 'approvals' && !SY.approvals) jobs.push(api('/system/approvals').then(function (d) { SY.approvals = d; }));
     if (module === 'security' && !SY.security) jobs.push(api('/system/security').then(function (d) { SY.security = d; }));
     if (module === 'audit' && !SY.audit) jobs.push(api('/system/audit').then(function (d) { SY.audit = d; }));
 
@@ -589,10 +856,15 @@
 
   // ── render ────────────────────────────────────────────────────────────────
   function paint(host) {
-    host.innerHTML = '<div class="sy-shell">' + railHtml()
+    host.innerHTML = '<div class="sy-shell" dir="' + SY_DIR + '" lang="' + SY_LANG + '">' + railHtml()
       + '<div class="sy-main">' + topHtml()
       + '<div class="sy-body" id="sy-body">' + contentHtml() + '</div></div></div>';
-    try { if (window.I18N && window.I18N.translateDom) window.I18N.translateDom(host); } catch (_) {}
+    // SYSTEM translates itself, from its own three-language catalogue. The
+    // platform's 31-locale catalogue is deliberately NOT applied here: the two
+    // are separate products and separate string sets, and neither may reach
+    // into the other's.
+    try { syTranslate(host); } catch (_) {}
+    try { document.documentElement.setAttribute('data-sy-dir', SY_DIR); } catch (_) {}
   }
 
   function go(host, module) {
@@ -617,6 +889,37 @@
     host.addEventListener('click', function (ev) {
       var go_ = ev.target.closest('[data-sy-go]');
       if (go_) { ev.preventDefault(); go(host, go_.getAttribute('data-sy-go')); return; }
+
+      // Quick actions. "go:<module>" is navigation, which is a real action;
+      // anything else is a handler that performs a real change below.
+      var act = ev.target.closest('[data-sy-act]');
+      if (act) {
+        ev.preventDefault();
+        var key = act.getAttribute('data-sy-act') || '';
+        if (key.indexOf('go:') === 0) { go(host, key.slice(3)); return; }
+        if (key === 'new-experiment') {
+          var title = window.prompt(T('Name the experiment. It is registered in this environment and starts as a draft.')) || '';
+          if (!title.trim()) return;
+          var hypothesis = window.prompt(T('What do you expect to happen? (optional)')) || '';
+          act.disabled = true;
+          api('/system/experiments', {
+            method: 'POST',
+            body: JSON.stringify({ title: title.trim(), hypothesis: hypothesis.trim() }),
+          }).then(function () {
+            SY.innovation = null; SY.overview = null; SY.signals = null;
+            go(host, 'experiments');
+          }).catch(function (e) { window.alert(e.message); act.disabled = false; });
+        }
+        return;
+      }
+
+      var lang = ev.target.closest('[data-sy-lang]');
+      if (lang) {
+        ev.preventDefault();
+        setSystemLocale(lang.getAttribute('data-sy-lang'));
+        paint(host);
+        return;
+      }
 
       var home = ev.target.closest('[data-sy-home]');
       if (home) { ev.preventDefault(); try { navTo('owner-home'); } catch (_) {} return; }
@@ -671,7 +974,7 @@
       SY.search = search.value;
       // Repaint the body only: retyping must not rebuild the rail or steal focus.
       var body = host.querySelector('#sy-body');
-      if (body) body.innerHTML = contentHtml();
+      if (body) { body.innerHTML = contentHtml(); try { syTranslate(body); } catch (_) {} }
     });
   }
 
@@ -680,7 +983,11 @@
     host = host || document.getElementById('sy-root');
     if (!host) return;
     bind(host);
-    paint(host);
-    load(SY.module).then(function () { paint(host); });
+    // The language is settled before the first paint, so a German or Arabic
+    // owner never sees a flash of English.
+    setSystemLocale(storedSystemLocale()).then(function () {
+      paint(host);
+      return load(SY.module);
+    }).then(function () { paint(host); });
   };
 }());

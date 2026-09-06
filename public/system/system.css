@@ -326,3 +326,148 @@ body.sy-system-open { overflow: hidden; }
   .sy-body { padding: 18px 14px 30px; }
   .sy-top { padding: 12px 14px; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Command surface — quick actions, control widgets, sourced metrics
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Where a figure came from, said on the figure. LIVE is one aggregate over one
+   table; DERIVED is a real count under a stated definition; "no data" means
+   nothing measures it and the value is an em dash. The full definition is the
+   element's title, so it is one hover away and never crowds the number. */
+.sy-src {
+  margin-inline-start: auto; font-size: 8.5px; font-weight: 800; letter-spacing: .6px;
+  text-transform: uppercase; padding: 2px 6px; border-radius: 5px; flex: none; cursor: help;
+}
+.sy-src--live    { background: rgba(52, 211, 153, .14); color: #6ee7b7; }
+.sy-src--derived { background: rgba(59, 130, 246, .16); color: #93c5fd; }
+.sy-src--none    { background: rgba(255, 255, 255, .05); color: var(--sy-tx-3); }
+
+/* A KPI that opens its own operational context is a button, and says so on
+   hover. One that has nowhere to go stays a plain card rather than pretending. */
+button.sy-kpi {
+  cursor: pointer; text-align: start; font: inherit; color: inherit; position: relative;
+  transition: border-color .15s ease, transform .15s ease, background .15s ease;
+}
+button.sy-kpi:hover { border-color: var(--sy-line-2); transform: translateY(-1px); background: var(--sy-panel-2); }
+button.sy-kpi:focus-visible { outline: 2px solid var(--sy-accent); outline-offset: 2px; }
+.sy-kpi-go {
+  position: absolute; inset-block-start: 13px; inset-inline-end: 13px;
+  font-size: 12px; color: var(--sy-tx-3); opacity: 0; transition: opacity .15s ease;
+}
+button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
+
+/* ── quick actions ─────────────────────────────────────────────────────────
+   The command area. A button is either wired end to end and enabled, or
+   disabled and carrying the reason as its title. There is no third kind, and
+   nothing here is decorative. */
+.sy-command { padding-bottom: 16px; }
+.sy-qa { display: grid; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); gap: 10px; }
+.sy-qa-btn {
+  display: flex; align-items: center; gap: 11px; padding: 12px 13px; min-width: 0;
+  border-radius: 12px; border: 1px solid var(--sy-line); background: var(--sy-panel-2);
+  color: var(--sy-tx); font: inherit; cursor: pointer; text-align: start;
+  transition: border-color .15s ease, transform .15s ease, background .15s ease;
+}
+.sy-qa-btn:hover:not([disabled]) { border-color: var(--sy-accent); transform: translateY(-1px); }
+.sy-qa-btn:focus-visible { outline: 2px solid var(--sy-accent); outline-offset: 2px; }
+.sy-qa-btn.is-off, .sy-qa-btn[disabled] { opacity: .45; cursor: not-allowed; }
+.sy-qa-ic {
+  width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+  font-size: 14px; flex: none; background: rgba(59, 130, 246, .16);
+}
+.sy-qa-btn.is-off .sy-qa-ic { background: rgba(255, 255, 255, .05); }
+.sy-qa-txt { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sy-qa-txt b { font-size: 11.5px; font-weight: 700; line-height: 1.25; }
+.sy-qa-txt i { font-style: normal; align-self: flex-start; }
+
+/* ── control widgets ───────────────────────────────────────────────────────
+   Operational state with the control that changes it, side by side. The kill
+   switch is a real switch: it performs a real change and is never drawn as
+   decoration. */
+.sy-widgets { display: grid; grid-template-columns: repeat(auto-fit, minmax(212px, 1fr)); gap: 12px; }
+.sy-widget {
+  padding: 14px 15px; border-radius: 13px; border: 1px solid var(--sy-line);
+  background: var(--sy-panel); display: flex; flex-direction: column; gap: 8px; min-width: 0;
+}
+.sy-widget-h { display: flex; align-items: center; gap: 8px; }
+.sy-widget-h b { font-size: 11px; font-weight: 700; color: var(--sy-tx-2); }
+.sy-widget-h .sy-chip { margin-inline-start: auto; }
+.sy-widget-n { font-size: 24px; font-weight: 800; letter-spacing: -.5px; line-height: 1; }
+.sy-widget-n.is-none { font-size: 19px; color: var(--sy-tx-3); }
+.sy-widget p { margin: 0; font-size: 10px; color: var(--sy-tx-3); line-height: 1.45; }
+.sy-widget .sy-btn { margin-block-start: auto; align-self: flex-start; }
+.sy-btn--ok { background: rgba(52, 211, 153, .16); border-color: rgba(52, 211, 153, .4); color: #a7f3d0; }
+.sy-btn--sm { padding: 5px 10px; font-size: 10.5px; align-self: flex-start; }
+
+.sy-envs { display: flex; flex-wrap: wrap; gap: 6px; }
+.sy-env {
+  font-size: 9px; font-weight: 800; letter-spacing: .6px; padding: 4px 8px; border-radius: 6px;
+  background: rgba(255, 255, 255, .04); color: var(--sy-tx-3); border: 1px solid transparent;
+}
+.sy-env.is-on { background: rgba(52, 211, 153, .14); color: #6ee7b7; border-color: rgba(52, 211, 153, .35); }
+
+/* ── an analytics panel with nothing behind it yet ─────────────────────────
+   The bars are flat, unlabelled and obviously empty. They hold the panel's
+   shape so the page does not look broken, and they carry no value a reader
+   could mistake for a measurement. */
+.sy-pending { display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 8px 4px 4px; text-align: center; }
+.sy-pending-bars { display: flex; align-items: flex-end; gap: 6px; height: 62px; width: 100%; justify-content: center; opacity: .3; }
+.sy-pending-bars i {
+  width: 14px; border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, var(--sy-line-2), transparent);
+}
+.sy-pending-bars i:nth-child(1) { height: 34%; } .sy-pending-bars i:nth-child(2) { height: 52%; }
+.sy-pending-bars i:nth-child(3) { height: 40%; } .sy-pending-bars i:nth-child(4) { height: 66%; }
+.sy-pending-bars i:nth-child(5) { height: 46%; } .sy-pending-bars i:nth-child(6) { height: 58%; }
+.sy-pending-bars i:nth-child(7) { height: 38%; }
+.sy-pending b { font-size: 12px; font-weight: 700; }
+.sy-pending span { font-size: 10.5px; color: var(--sy-tx-3); line-height: 1.5; max-width: 46ch; }
+
+/* ── users by role ─────────────────────────────────────────────────────────
+   The bar is the count as a share of the counted total. It is arithmetic on
+   real numbers, never a shape chosen to look balanced. */
+.sy-legend-bar { flex: 1; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .06); overflow: hidden; min-width: 30px; }
+.sy-legend-bar > b { display: block; height: 100%; border-radius: 3px; margin: 0 !important; }
+.sy-legend-row > b { margin-inline-start: 0; min-width: 74px; text-align: end; }
+.sy-legend + .sy-btn { margin-block-start: 14px; }
+
+/* A signal is a row with an action, so the card itself is no longer the
+   button — the action inside it is. */
+.sy-signal { cursor: default; }
+.sy-signal:hover { transform: none; }
+.sy-signal--warning { border-inline-start: 2px solid rgba(248, 113, 113, .5); }
+.sy-signal--attention { border-inline-start: 2px solid rgba(251, 191, 36, .5); }
+
+/* ── SYSTEM language ───────────────────────────────────────────────────────
+   Three languages, and only three: SYSTEM is the platform owner's workspace,
+   not the platform. The switch writes one key to localStorage and repaints;
+   it never touches the club product's locale. */
+.sy-langs { display: flex; gap: 2px; padding: 2px; border-radius: 9px; background: rgba(255, 255, 255, .04); border: 1px solid var(--sy-line); }
+.sy-lang {
+  padding: 5px 9px; border-radius: 7px; border: 0; background: transparent; cursor: pointer;
+  font: inherit; font-size: 10.5px; font-weight: 700; color: var(--sy-tx-3); white-space: nowrap;
+}
+.sy-lang:hover { color: var(--sy-tx-2); }
+.sy-lang.is-on { background: rgba(59, 130, 246, .18); color: #bfdbfe; }
+.sy-lang:focus-visible { outline: 2px solid var(--sy-accent); outline-offset: 1px; }
+
+/* ── right to left ─────────────────────────────────────────────────────────
+   Arabic reads right to left, so the shell's direction changes and the layout
+   follows it. Most of this stylesheet already uses logical properties, which
+   is why so little is needed here: what remains is the handful of places that
+   name a physical side because the shape itself is directional. */
+.sy-shell[dir="rtl"] { direction: rtl; }
+.sy-shell[dir="rtl"] .sy-rail { border-inline-end: 1px solid var(--sy-line); border-inline-start: 0; }
+.sy-shell[dir="rtl"] .sy-crumb,
+.sy-shell[dir="rtl"] .sy-qa-btn,
+.sy-shell[dir="rtl"] .sy-nav-item,
+.sy-shell[dir="rtl"] button.sy-kpi,
+.sy-shell[dir="rtl"] .sy-table th,
+.sy-shell[dir="rtl"] .sy-table td { text-align: right; }
+.sy-shell[dir="rtl"] .sy-pending b,
+.sy-shell[dir="rtl"] .sy-pending span { text-align: center; }
+/* An arrow is a neutral character, so bidi already turns "Open →" into
+   "← Open" when the paragraph runs right to left. Nothing is mirrored by
+   hand — mirroring the glyph would flip the letters with it. */
+.sy-shell[dir="rtl"] .sy-kpi-go { transform: scaleX(-1); }

@@ -26936,7 +26936,13 @@ function _ensureFosStyles() {
 // file is the same separation the product has — one codebase, two products, and
 // a club screen never loads a platform control.
 function renderSystemHTML() {
-  return `<div class="page" id="pg-system"><div id="sy-root"></div></div>`;
+  // `data-no-i18n` is the locale boundary, not a decoration. SYSTEM carries
+  // three languages of its own — English, German, Arabic — from its own
+  // catalogue under /system/i18n/. Marking the page here makes the platform's
+  // 31-locale pass REJECT this subtree outright, so the two catalogues can
+  // never translate the same node and a SYSTEM string never has to exist in a
+  // club locale file. Removing this attribute would silently merge them again.
+  return `<div class="page" id="pg-system" data-no-i18n><div id="sy-root"></div></div>`;
 }
 
 function renderFOSCoreHTML() {
