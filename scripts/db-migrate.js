@@ -85,6 +85,45 @@ function migrationUrl(env = process.env) {
 }
 
 /**
+ * A connection string with nothing secret left in it.
+ *
+ * Used for every line this script prints about a URL. Postgres URLs carry the
+ * password in the userinfo, and a deploy log is read by more people, and kept
+ * for longer, than anybody assumes when they add a console.log. So the rule is
+ * absolute: the host and the database name may be printed, the credentials and
+ * the query string never are, and an unparseable URL prints as nothing at all
+ * rather than as itself.
+ */
+function redactUrl(url) {
+  if (!url) return '(none)';
+  try {
+    const u = new URL(url);
+    const db = u.pathname && u.pathname !== '/' ? u.pathname : '';
+    return `${u.protocol}//${u.host}${db}`;
+  } catch (_) {
+    return '(unparseable url)';
+  }
+}
+
+/**
+ * Neon names its pooled endpoint by inserting "-pooler" into the host of the
+ * direct one, so the direct host is mechanically recoverable from the pooled
+ * host. This only ever SUGGESTS it, in a log line, with no credentials — the
+ * value that gets used is the one an operator set, never one this script
+ * guessed. Connecting somewhere nobody asked for is not a fix.
+ */
+function suggestedDirectHost(url) {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (!u.host.includes('-pooler.')) return null;
+    return u.host.replace('-pooler.', '.');
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
  * The same URL with a connection timeout long enough to wake a suspended
  * compute. An operator who set one already keeps it — this only fills a gap.
  * Nothing else about the URL is rewritten: not the host, not the credentials,
@@ -159,7 +198,13 @@ async function main() {
     // coming back, and the fix is one environment variable.
     console.log('==> WARNING: that URL is Neon\'s POOLED endpoint (-pooler). Migrations want a direct');
     console.log('==>          connection — set DIRECT_URL to the non-pooled host and redeploy.');
+    const suggestion = suggestedDirectHost(chosen.url);
+    if (suggestion) {
+      console.log(`==>          The direct host for this database is ${suggestion} — the same`);
+      console.log('==>          connection string with "-pooler" removed from the host.');
+    }
   }
+  console.log(`==> target ${redactUrl(chosen.url)}`);
 
   const timeout = Number(process.env.MIGRATE_CONNECT_TIMEOUT || 30);
   const url = withConnectTimeout(chosen.url, timeout);
@@ -168,7 +213,16 @@ async function main() {
   console.log(`==> waiting for the database (up to ${Math.round(deadline / 1000)}s, connect_timeout=${timeout}s)`);
   await waitForDatabase(url, { deadlineMs: deadline });
 
-  const env = { ...process.env, DATABASE_URL: url };
+  // Both, and both the same value.
+  //
+  // The schema's datasource declares `directUrl = env("DIRECT_URL")`, and
+  // Prisma refuses to run a migration when a declared variable is missing — so
+  // an unset DIRECT_URL would not fall back, it would fail the deploy. Setting
+  // it here to the URL this script already resolved makes the declaration safe
+  // in every deployment: where an operator set DIRECT_URL, that is what
+  // migrations use; where nobody has yet, it is DATABASE_URL, which is exactly
+  // what happened before this line existed.
+  const env = { ...process.env, DATABASE_URL: url, DIRECT_URL: url };
   const attempts = Number(process.env.MIGRATE_MAX_ATTEMPTS || 5);
   let delay = 5000;
 
@@ -195,7 +249,10 @@ async function main() {
   }
 }
 
-module.exports = { isTransientConnectionError, migrationUrl, withConnectTimeout, waitForDatabase, sleep };
+module.exports = {
+  isTransientConnectionError, migrationUrl, withConnectTimeout, waitForDatabase, sleep,
+  redactUrl, suggestedDirectHost,
+};
 
 if (require.main === module) {
   main().catch((err) => {

@@ -24,10 +24,14 @@ const runner = require('../scripts/db-migrate.js') as {
     url: string | null; source: string | null; pooled: boolean; direct: boolean;
   };
   withConnectTimeout: (url: string, seconds: number) => string;
+  redactUrl: (url?: string) => string;
+  suggestedDirectHost: (url?: string) => string | null;
 };
+const { redactUrl, suggestedDirectHost } = runner;
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'db-migrate.js'), 'utf8');
 const PREDEPLOY = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'render-predeploy.sh'), 'utf8');
+const read = (p: string) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 
 describe('what counts as "the database did not answer"', () => {
   it('every connection-level failure is retried', () => {
@@ -90,6 +94,84 @@ describe('the connection migrations run on', () => {
     // The host, the credentials and sslmode are untouched.
     const url = 'postgres://user:secret@ep-x.neon.tech/db?sslmode=require';
     expect(runner.withConnectTimeout(url, 30).startsWith(url)).toBe(true);
+  });
+});
+
+describe('the pooled endpoint runs the app; the direct one runs migrations', () => {
+  const POOLED = 'postgresql://dbuser42:s3cr3t@ep-cool-a1b2-pooler.eu-central-1.aws.neon.tech/familista?sslmode=require';
+  const DIRECT = 'postgresql://dbuser42:s3cr3t@ep-cool-a1b2.eu-central-1.aws.neon.tech/familista?sslmode=require';
+
+  it('the schema declares directUrl, so Prisma migrations take the direct connection', () => {
+    const schema = read('prisma/schema.prisma');
+    const datasource = schema.slice(schema.indexOf('datasource db {'), schema.indexOf('}', schema.indexOf('datasource db {')));
+    expect(datasource).toContain('url      = env("DATABASE_URL")');
+    expect(datasource).toContain('directUrl = env("DIRECT_URL")');
+  });
+
+  it('and DIRECT_URL is guaranteed, because a declared variable that is missing fails the deploy', () => {
+    // Prisma refuses to run a migration when a variable the datasource declares
+    // is unset. That would turn an improvement into a prerequisite, so both
+    // scripts that run a migrate command resolve it first, falling back to
+    // DATABASE_URL — which is exactly what happened before directUrl existed.
+    const lib = read('scripts/lib/direct-url.sh');
+    expect(lib).toContain('export DIRECT_URL="${DATABASE_URL:-}"');
+    for (const script of ['scripts/render-start.sh', 'scripts/render-predeploy.sh']) {
+      const body = read(script);
+      expect(`${script}:${body.includes('lib/direct-url.sh')}`).toBe(`${script}:true`);
+      expect(`${script}:${body.includes('familista_resolve_direct_url')}`).toBe(`${script}:true`);
+    }
+    // The runner passes it to the child too, for the same reason.
+    expect(SRC).toContain('DATABASE_URL: url, DIRECT_URL: url');
+  });
+
+  it('never prints a connection string, only a host', () => {
+    expect(redactUrl(POOLED)).toBe('postgresql://ep-cool-a1b2-pooler.eu-central-1.aws.neon.tech/familista');
+    // Neither half of the userinfo survives. (The fixture's username is
+    // deliberately not a substring of the host — "neon.tech" would make a
+    // careless assertion here pass for the wrong reason.)
+    expect(redactUrl(POOLED)).not.toContain('s3cr3t');
+    expect(redactUrl(POOLED)).not.toContain('dbuser42');
+    expect(redactUrl(POOLED)).not.toContain('@');
+    expect(redactUrl('not a url')).toBe('(unparseable url)');
+    expect(redactUrl(undefined)).toBe('(none)');
+    // And nothing that prints ever interpolates a URL. Checked line by line,
+    // because a nested call — redactUrl(chosen.url) — is exactly the shape a
+    // careless regex over the whole file gets wrong in both directions.
+    // A line offends when it PRINTS and the thing it interpolates is a URL.
+    // `log = console.log` in a parameter list is not a print, and
+    // redactUrl(...)/suggestedDirectHost(...) hand back a host, not a URL.
+    const printsUrl = (line: string) =>
+      /(console\.(log|error|warn)|\blog)\(|^\s*echo\b/.test(line)
+      && /\$\{\s*(chosen\.)?url\b|\$\{\s*DATABASE_URL|\$\{\s*DIRECT_URL|\$\{?DATABASE_URL\}?"|\$\{?DIRECT_URL\}?"|\+\s*url\b/.test(line)
+      && !/redactUrl|suggestedDirectHost|_fam_direct_host/.test(line);
+
+    for (const [name, body] of [
+      ['db-migrate.js', SRC],
+      ['direct-url.sh', read('scripts/lib/direct-url.sh')],
+      ['render-start.sh', read('scripts/render-start.sh')],
+      ['render-predeploy.sh', PREDEPLOY],
+    ] as const) {
+      const offenders = body.split('\n').filter(printsUrl);
+      expect(`${name}: ${offenders.join(' | ')}`).toBe(`${name}: `);
+    }
+  });
+
+  it('suggests the direct host rather than silently connecting to it', () => {
+    expect(suggestedDirectHost(POOLED)).toBe('ep-cool-a1b2.eu-central-1.aws.neon.tech');
+    // Already direct, or not Neon: nothing to suggest.
+    expect(suggestedDirectHost(DIRECT)).toBeNull();
+    expect(suggestedDirectHost('postgresql://u:p@localhost:5432/db')).toBeNull();
+    expect(suggestedDirectHost(undefined)).toBeNull();
+    // The runner never rewrites the host it was given — it only reports one.
+    expect(SRC).not.toMatch(/replace\('-pooler\.', '\.'\)[\s\S]{0,80}(url =|env\.|DATABASE_URL)/);
+  });
+
+  it('leaves the application pointed at the pooled endpoint', () => {
+    // The API's own client reads DATABASE_URL and nothing else. directUrl is a
+    // CLI concern; the running service keeps the pooler it was designed for.
+    const db = read('src/config/database.ts');
+    expect(db).toContain('process.env.DATABASE_URL');
+    expect(db).not.toContain('DIRECT_URL');
   });
 });
 

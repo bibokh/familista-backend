@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { User, UserRole } from '@prisma/client';
 import { prisma } from '../config/database';
 import { config } from '../config';
@@ -63,7 +63,11 @@ function generateAccessToken(payload: JwtPayload): string {
 // access token, which is not stored and has no uniqueness requirement, is
 // deliberately left alone.
 function generateRefreshToken(payload: JwtPayload): string {
-  return jwt.sign({ ...payload, jti: uuidv4() }, config.jwt.refreshSecret, {
+  // node:crypto's randomUUID, not the `uuid` package: it is the same RFC 4122
+  // version 4 value from the same CSPRNG, it is what request-id.middleware.ts
+  // already uses, and it is one fewer dependency to keep patched. Node 20 is
+  // required by this project's engines, so it is always present.
+  return jwt.sign({ ...payload, jti: randomUUID() }, config.jwt.refreshSecret, {
     expiresIn: config.jwt.refreshExpiresIn,
   } as jwt.SignOptions);
 }

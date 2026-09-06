@@ -23,6 +23,15 @@ set -euo pipefail
 
 SCHEMA="--schema=prisma/schema.prisma"
 
+# ── the connection migrations run on ─────────────────────────────────────────
+# The rule lives in scripts/lib/direct-url.sh, sourced by every script that runs
+# a prisma migrate command, so the two of them cannot drift apart. Exporting it
+# here also covers the raw `npx prisma migrate deploy` in the reconciliation
+# loop below, and scripts/render-predeploy.sh, which this script calls.
+# shellcheck source=scripts/lib/direct-url.sh
+. "$(dirname "$0")/lib/direct-url.sh"
+familista_resolve_direct_url
+
 echo "════════════════════════════════════════════════════════════"
 echo "  Familista — startup migration gate"
 echo "════════════════════════════════════════════════════════════"

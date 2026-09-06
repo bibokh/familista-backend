@@ -21,6 +21,13 @@ set -euo pipefail
 
 SCHEMA="--schema=prisma/schema.prisma"
 
+# Runs `prisma migrate resolve` directly below, and is a standalone npm script
+# (`npm run db:predeploy`), so it resolves the migration connection itself
+# rather than relying on a caller having done it.
+# shellcheck source=scripts/lib/direct-url.sh
+. "$(dirname "$0")/lib/direct-url.sh"
+familista_resolve_direct_url
+
 echo "==> prisma migrate deploy (with wake-up wait and connection retry)"
 if node scripts/db-migrate.js; then
   echo "==> Migrations up to date."
