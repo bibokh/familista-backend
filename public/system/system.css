@@ -555,3 +555,46 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
 @media (max-width: 620px) {
   .sy-drawer { width: 100vw; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   The refusal, as its own screen
+   ─────────────────────────────────────────────────────────────────────────────
+   An account without platform authority is not shown the command centre with
+   an empty middle. No rail, no module list, no search box, no top bar — those
+   would imply a workspace this account does not have. One card: what the
+   account is, what is missing, and the way back. */
+.sy-shell--denied { display: block; }
+.sy-denied {
+  min-height: 100vh; display: grid; place-items: center;
+  padding: 32px 20px; background: var(--sy-bg);
+}
+.sy-denied-card {
+  width: min(520px, 100%); text-align: center;
+  padding: 32px 30px; border-radius: 20px;
+  border: 1px solid var(--sy-line); background: var(--sy-panel);
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+}
+.sy-denied-ic {
+  width: 52px; height: 52px; border-radius: 15px; display: grid; place-items: center;
+  font-size: 22px; background: rgba(248, 113, 113, .14); color: #fecaca;
+}
+.sy-denied-card h1 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -.3px; }
+.sy-denied-card p { margin: 0; font-size: 12px; color: var(--sy-tx-2); line-height: 1.6; max-width: 44ch; }
+.sy-denied-fix { color: var(--sy-tx-3) !important; font-size: 11px !important; }
+
+/* What the server actually resolved, so a refusal can be diagnosed rather than
+   guessed at. Facts about this account only — never about any other. */
+.sy-diag {
+  width: 100%; display: flex; flex-direction: column; gap: 1px;
+  border-radius: 11px; overflow: hidden; border: 1px solid var(--sy-line);
+  background: var(--sy-line); margin-block-start: 4px;
+}
+.sy-diag-row {
+  display: flex; align-items: center; gap: 12px; padding: 10px 13px;
+  background: var(--sy-panel-2); font-size: 11px;
+}
+.sy-diag-row > span { color: var(--sy-tx-3); }
+.sy-diag-row > b { margin-inline-start: auto; font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.sy-diag-row > b.is-ok { color: #6ee7b7; }
+.sy-diag-row > b.is-no { color: #fca5a5; }
+.sy-denied-card .sy-btn { margin-block-start: 6px; }

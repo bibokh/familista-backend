@@ -301,6 +301,48 @@ else
   fi
 fi
 
+# ── 4 · who owns the platform ────────────────────────────────────────────────
+# Printed on every boot, unconditionally, because "why is SYSTEM refusing me?"
+# is otherwise a question no log answers. Platform authority has exactly two
+# sources — SUPER_ADMIN on the account, or an active PlatformAdmin row — and
+# this counts both. A zero here is the whole explanation for a refused SYSTEM,
+# and it names the fix on the next line.
+#
+# A read. It writes nothing, and a failure is printed rather than fatal: the
+# API must start even when this cannot be answered.
+echo ""
+echo "── platform authority ──"
+set +e
+node <<'NODE'
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+(async () => {
+  const [admins, supers] = await Promise.all([
+    prisma.platformAdmin.findMany({
+      where: { isActive: true },
+      select: { role: true, user: { select: { email: true } } },
+    }),
+    prisma.user.findMany({ where: { role: 'SUPER_ADMIN' }, select: { email: true } }),
+  ]);
+  const total = admins.length + supers.length;
+  console.log(`   accounts with platform authority: ${total}`);
+  for (const a of admins) console.log(`     · ${a.user?.email ?? '(unknown)'}  PlatformAdmin ${a.role}`);
+  for (const u of supers) console.log(`     · ${u.email}  User.role SUPER_ADMIN`);
+  if (total === 0) {
+    console.log('');
+    console.log('   ⚠ NOBODY owns this platform, so SYSTEM refuses every account —');
+    console.log('     including yours. That is the guard working, not a bug.');
+    console.log('');
+    console.log('     To fix it: set PLATFORM_OWNER_BOOTSTRAP=<your email> in this');
+    console.log('     service\'s environment, redeploy, read the block below, then');
+    console.log('     delete the variable. Add PLATFORM_OWNER_BOOTSTRAP_DRY_RUN=1');
+    console.log('     first if you want to see what it would do without writing.');
+  }
+})().catch((e) => console.log(`   (could not be read: ${e.message})`))
+  .finally(() => prisma.$disconnect());
+NODE
+set -e
+
 # ── 4a · platform owner, once ────────────────────────────────────────────────
 # Set PLATFORM_OWNER_BOOTSTRAP to the ONE email address (or user id) that owns
 # Familista, deploy, read the log, then delete the variable.
@@ -345,7 +387,7 @@ if [ -n "${PLATFORM_OWNER_BOOTSTRAP:-}" ]; then
   fi
 fi
 
-# ── 4 · a one-shot season initialisation, when an operator asks for one ──────
+# ── 4b · a one-shot season initialisation, when an operator asks for one ─────
 #
 # There is no shell on this plan, so a command that must be run once against the
 # production database is run HERE, on the boot that follows setting one

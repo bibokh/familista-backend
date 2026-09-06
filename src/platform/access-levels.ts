@@ -107,3 +107,57 @@ export async function describeAuthority(actor: PlatformActor): Promise<Authority
     canOperate: level === 'CLUB_OWNER' || level === 'CLUB_STAFF' || level === 'PLATFORM_OWNER',
   };
 }
+
+/**
+ * Why the answer above is the answer.
+ *
+ * Platform authority has exactly two sources and no others, and when somebody
+ * is refused, the useful thing to tell them is which of the two is missing —
+ * not "no". A denial that cannot explain itself sends people looking for a bug
+ * in the guard, which is the one place the bug is least likely to be.
+ *
+ * Everything here is a fact about the caller's own account: their account role,
+ * and whether a platform assignment exists for them and is active. No other
+ * account is described, nothing is counted across the platform, and there is no
+ * credential, token or hash anywhere in the shape. It is safe to return to the
+ * person it is about, which is the only person who ever receives it.
+ */
+export interface PlatformAuthorityDiagnosis {
+  /** SUPER_ADMIN on the account grants platform authority on its own. */
+  accountRole: string | null;
+  accountRoleGrants: boolean;
+  /** The PlatformAdmin row for this account: absent, retired, or in force. */
+  platformAdminRow: 'NONE' | 'INACTIVE' | 'ACTIVE';
+  platformAdminRole: string | null;
+  granted: boolean;
+  /** What would grant it, in one sentence, when it is not granted. */
+  remedy: string | null;
+}
+
+export async function diagnosePlatformAuthority(actor: PlatformActor): Promise<PlatformAuthorityDiagnosis> {
+  const accountRole = actor.role ? String(actor.role) : null;
+  const accountRoleGrants = isPlatformRole(actor.role);
+
+  const admin = actor.userId
+    ? await prisma.platformAdmin.findUnique({
+        where: { userId: actor.userId },
+        select: { isActive: true, role: true },
+      })
+    : null;
+
+  const platformAdminRow: PlatformAuthorityDiagnosis['platformAdminRow'] =
+    !admin ? 'NONE' : admin.isActive ? 'ACTIVE' : 'INACTIVE';
+  const granted = accountRoleGrants || platformAdminRow === 'ACTIVE';
+
+  return {
+    accountRole,
+    accountRoleGrants,
+    platformAdminRow,
+    platformAdminRole: admin ? String(admin.role) : null,
+    granted,
+    remedy: granted ? null
+      : platformAdminRow === 'INACTIVE'
+        ? 'This account has a retired platform assignment. Re-running the platform-owner bootstrap for it reactivates the assignment.'
+        : 'This account has no platform assignment. One is created by running the platform-owner bootstrap for its email address — set PLATFORM_OWNER_BOOTSTRAP on the deployment and read the boot log. Owning or administering a club never grants it.',
+  };
+}

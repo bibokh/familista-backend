@@ -968,16 +968,6 @@
   }
 
   function contentHtml() {
-    // Said once, plainly, before any module is drawn: an account without
-    // platform authority sees why, not an empty dashboard. The server refuses
-    // every SYSTEM read regardless — this is the explanation, not the guard.
-    if (SY.who && SY.who.isPlatformOwner === false) {
-      return '<section class="sy-panel">'
-        + emptyState('SYSTEM is the platform owner\'s',
-            'This account holds no platform authority. Owning or administering a club does not grant it: '
-            + 'platform ownership is assigned separately, at the platform level.')
-        + '</section>';
-    }
     if (SY.error) {
       return '<section class="sy-panel">' + emptyState('SYSTEM is the platform owner\'s', SY.error) + '</section>';
     }
@@ -998,8 +988,22 @@
 
   // ── data ──────────────────────────────────────────────────────────────────
   function load(module) {
+    // Whoami decides WHICH screen is drawn, so it is settled before anything
+    // else is requested. A refused account then asks the server for nothing
+    // else at all — not the overview, not the capabilities, not the signals.
+    if (!SY.who) {
+      return api('/system/whoami')
+        .then(function (d) { SY.who = d; })
+        .catch(function (e) {
+          SY.error = (e && e.message) || 'SYSTEM could not confirm this account\'s authority.';
+        })
+        .then(function () {
+          if (SY.who && SY.who.isPlatformOwner === false) return;
+          return load(module);
+        });
+    }
+
     var jobs = [];
-    if (!SY.who) jobs.push(api('/system/whoami').then(function (d) { SY.who = d; }));
     if (!SY.capabilities) jobs.push(api('/system/capabilities').then(function (d) { SY.capabilities = d; }));
     if (module === 'overview' && !SY.overview) {
       jobs.push(api('/system/overview').then(function (d) { SY.overview = d; }));
@@ -1024,6 +1028,41 @@
   }
 
   // ── render ────────────────────────────────────────────────────────────────
+  /**
+   * The refusal, drawn as its own screen.
+   *
+   * Not the command centre with an empty middle: an account without platform
+   * authority must not be shown a rail full of modules it cannot open, a search
+   * box that searches nothing and a top bar that implies a workspace. It gets
+   * one page that says what its account is, what is missing, and the way back.
+   *
+   * The server refuses every SYSTEM read regardless. This is the honest face of
+   * that refusal, not the enforcement of it.
+   */
+  function deniedHtml() {
+    var who = SY.who || {};
+    var d = who.platformAuthority || {};
+    var row = function (label, value, ok) {
+      return '<div class="sy-diag-row"><span>' + esc(label) + '</span>'
+        + '<b class="' + (ok === true ? 'is-ok' : ok === false ? 'is-no' : '') + '" data-no-i18n>'
+        + esc(value) + '</b></div>';
+    };
+    return '<div class="sy-denied">'
+      + '<div class="sy-denied-card">'
+      + '<div class="sy-denied-ic">⛨</div>'
+      + '<h1>SYSTEM is the platform owner\'s</h1>'
+      + '<p>This account holds no platform authority. Owning or administering a club never grants it — '
+      + 'platform ownership is a separate assignment, made at the platform level.</p>'
+      + '<div class="sy-diag">'
+      + row('Access level', String(who.level || 'VIEWER'), false)
+      + row('Account role', String(d.accountRole || '—'), !!d.accountRoleGrants)
+      + row('Platform assignment', String(d.platformAdminRow || 'NONE'), d.platformAdminRow === 'ACTIVE')
+      + '</div>'
+      + (d.remedy ? '<p class="sy-denied-fix">' + esc(d.remedy) + '</p>' : '')
+      + '<button class="sy-btn" type="button" data-sy-home>← Back to Home</button>'
+      + '</div></div>';
+  }
+
   function drawerHtml() {
     if (SY.drawer === 'create-club') return createClubDrawerHtml();
     if (SY.drawer === 'created' && SY.created) return createdClubHtml(SY.created);
@@ -1031,6 +1070,16 @@
   }
 
   function paint(host) {
+    // Refused accounts never see the shell. Drawn before anything else so that
+    // no rail, no module list and no search box is ever built for somebody who
+    // cannot use one.
+    if (SY.who && SY.who.isPlatformOwner === false) {
+      host.innerHTML = '<div class="sy-shell sy-shell--denied" dir="' + SY_DIR + '" lang="' + SY_LANG + '">'
+        + deniedHtml() + '</div>';
+      try { syTranslate(host); } catch (_) {}
+      try { document.documentElement.setAttribute('data-sy-dir', SY_DIR); } catch (_) {}
+      return;
+    }
     host.innerHTML = '<div class="sy-shell" dir="' + SY_DIR + '" lang="' + SY_LANG + '">' + railHtml()
       + '<div class="sy-main">' + topHtml()
       + '<div class="sy-body" id="sy-body">' + contentHtml() + '</div></div>'

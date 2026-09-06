@@ -6,7 +6,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as system from '../platform/system.service';
 import { SYSTEM_MODULES } from '../platform/system-modules';
-import { describeAuthority } from '../platform/access-levels';
+import { describeAuthority, diagnosePlatformAuthority } from '../platform/access-levels';
 import { engageKillSwitch, releaseKillSwitch } from '../platform/intelligence/agents';
 import { defineFlag, listFlags, isEnabled, type FlagAudience } from '../platform/innovation/flags';
 import { decideExperiment, registerExperiment, listExperiments, type ExperimentStatus } from '../platform/innovation/experiments';
@@ -105,10 +105,24 @@ export async function replacePresidentInvite(req: Request, res: Response, next: 
   } catch (err) { return next(err); }
 }
 
-/** Who the caller is, in platform terms. The SYSTEM shell asks before drawing. */
+/**
+ * Who the caller is, in platform terms — and, when they are refused, why.
+ *
+ * The SYSTEM shell asks before drawing anything, so this is the one route on
+ * the router that answers for a non-platform account. It says what that account
+ * is and what is missing; it does not describe any other account, count
+ * anything across the platform, or carry a credential. Being told "your account
+ * has no platform assignment" is not a privilege — it is the only useful thing
+ * a refused person can be told.
+ */
 export async function whoAmI(req: Request, res: Response, next: NextFunction) {
   try {
-    return sendSuccess(res, await describeAuthority(actorOf(req)));
+    const actor = actorOf(req);
+    const [authority, diagnosis] = await Promise.all([
+      describeAuthority(actor),
+      diagnosePlatformAuthority(actor),
+    ]);
+    return sendSuccess(res, { ...authority, platformAuthority: diagnosis });
   } catch (err) { return next(err); }
 }
 

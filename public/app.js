@@ -2643,6 +2643,29 @@ function renderOwnerHomeHTML() {
     <div class="owner-home" id="owner-home-content"></div>
   </div>`;
 }
+/**
+ * Is this account the platform's owner?
+ *
+ * Asked once per session, of the server, and cached. It is a courtesy for the
+ * interface only — every SYSTEM route refuses a club account whatever this
+ * returns — but it is the difference between an owner-home that offers a door
+ * and one that offers a door into a refusal.
+ */
+let _platformAuthority = null;
+function _isPlatformOwner() {
+  if (_platformAuthority) return _platformAuthority;
+  const base = (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG.API_BASE) ? FAM_CONFIG.API_BASE : '/api/v1';
+  let token = '';
+  try { token = (window.State && window.State.token) || localStorage.getItem('familista_token') || ''; } catch (_) {}
+  _platformAuthority = fetch(base + '/system/whoami', {
+    headers: token ? { Authorization: 'Bearer ' + token } : {},
+    credentials: 'include',
+  }).then(r => (r.ok ? r.json() : null))
+    .then(b => !!(b && b.data && b.data.isPlatformOwner))
+    .catch(() => false);
+  return _platformAuthority;
+}
+
 function renderOwnerHome() {
   const el = document.getElementById('owner-home-content');
   if (!el) return;
@@ -2665,7 +2688,7 @@ function renderOwnerHome() {
         <div class="oh-sub">Where do you want to go today?</div>
       </div>
       <div class="oh-cards">
-        <button class="oh-card oh-card--system" data-action="navTo" data-page="system" type="button">
+        <button class="oh-card oh-card--system" data-action="navTo" data-page="system" type="button" hidden>
           <div class="oh-card-icon">⚙️</div>
           <div class="oh-card-title">SYSTEM</div>
           <div class="oh-card-sub">Platform &amp; infrastructure</div>
@@ -2685,6 +2708,15 @@ function renderOwnerHome() {
       </div>
     </div>
   `;
+
+  // The SYSTEM door is drawn hidden and revealed only for an account the
+  // server says owns the platform. Hiding it is a courtesy, not the guard —
+  // /api/v1/system refuses a club account whatever is on screen — but an
+  // account that cannot enter should not be offered the door.
+  _isPlatformOwner().then((yes) => {
+    const card = el.querySelector('.oh-card--system');
+    if (card) card.hidden = !yes;
+  });
 }
 
 // ── CLUBS PICKER ──
