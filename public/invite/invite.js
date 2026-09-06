@@ -329,7 +329,13 @@
    * across in a query string is precisely the thing not to do.
    */
   function showAccepted() {
-    var target = appUrl();
+    // The address travels in the FRAGMENT, never the query string. A fragment
+    // is never sent to a server, never appears in a Referer header and never
+    // reaches an access log — so Familista can fill the email field in without
+    // the address being written down anywhere along the way. It is not a
+    // credential, and no credential travels with it: the person still signs in
+    // with the password they just chose.
+    var target = appUrl() + '#email=' + encodeURIComponent(preview.email);
     root.innerHTML =
       '<div class="centre">'
       + '<div class="status-ico status-ico--ok" aria-hidden="true">✓</div>'

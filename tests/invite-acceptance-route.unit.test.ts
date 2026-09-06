@@ -565,13 +565,19 @@ describe('the president can actually get into Familista afterwards', () => {
   it('carries no credential across the origin boundary', () => {
     // Not in the link, not in a query string, not in storage.
     const target = SCRIPT.slice(SCRIPT.indexOf('function showAccepted'), SCRIPT.indexOf('function showProblem'));
-    // The href is the bare application URL and nothing appended to it.
     expect(target).toContain("href=\"' + esc(target) + '\"");
+    // Nothing is appended as a QUERY STRING, which a server logs and a Referer
+    // header carries.
     expect(target).not.toMatch(/href="[^"]*\?/);
-    // No VALUE is carried across — the word "password" appears only in the
-    // sentence telling the person to use the one they chose.
+    expect(target).not.toMatch(/appUrl\(\) \+ '\?/);
+
+    // One thing IS appended, as a fragment: the person's own address, so the
+    // sign-in field can be filled in for them. A fragment never reaches a
+    // server, a log or a Referer. It is not a credential, and no credential
+    // travels with it — the word "password" appears in this block only in the
+    // sentence telling them to use the one they chose.
+    expect(target).toContain("appUrl() + '#email=' + encodeURIComponent(preview.email)");
     expect(target).not.toMatch(/\btoken\b|accessToken|refreshToken|password:/);
-    expect(target).not.toMatch(/appUrl\(\)\s*\+/);
     // And the page never assumes its own cookies authenticate the other origin.
     expect(SCRIPT).toMatch(/A session established here belongs to THIS origin/);
   });

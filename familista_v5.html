@@ -1540,18 +1540,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
     <div class="login-error" id="login-error">Invalid email or password</div>
 
     <label class="login-label">Email</label>
-    <input class="login-input" id="login-email" type="email" placeholder="khatab@familista.io" value="khatab@familista.io">
+    <input class="login-input" id="login-email" type="email" placeholder="you@club.com" autocomplete="username">
 
     <label class="login-label">Password</label>
-    <input class="login-input" id="login-password" type="password" placeholder="••••••••" value="Familista2024!">
+    <input class="login-input" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password">
 
     <button class="login-btn" id="login-btn" onclick="doLogin()">
       Sign In
     </button>
 
     <div class="login-demo">
-      <strong>Demo:</strong> khatab@familista.io / Familista2024!<br>
-      <strong>Coach:</strong> coach@familista.io / Coach2024!<br><br>
       <strong>API:</strong> <span style="color:var(--green-l);font-family:var(--mono);font-size:10px;">familista-backend.onrender.com</span>
     </div>
     <div id="connection-status" style="margin-top:10px;padding:8px 10px;border-radius:6px;font-size:11px;text-align:center;display:none;"></div>
@@ -2426,6 +2424,81 @@ async function api(endpoint, options) {
 
 async function tryRefreshToken() { return FamilistaAPI.refreshTokens(); }
 
+// ── Login field hygiene ─────────────────────────────────────────────────────
+// Two rules, and the first one is why this exists at all.
+//
+//   1. THE FORM STARTS EMPTY. It used to ship with a real account's address
+//      and a working password baked into the HTML, so every visitor — and
+//      every newly invited club president — was handed somebody else's
+//      credentials on the sign-in screen. Nothing is prefilled by default now,
+//      and nothing about one person may survive into another's session.
+//
+//   2. ONE EXCEPTION, AND IT CARRIES NO SECRET. Somebody arriving from an
+//      invitation they have just accepted may have their OWN address filled
+//      in, so they do not have to retype what they were invited as. It is
+//      read from the URL FRAGMENT — #email=… — which browsers never send to a
+//      server, never put in a Referer header and never write to an access log.
+//      A query string would have been visible to all three. The value is
+//      accepted only if it looks like an address, only into the email field,
+//      and the fragment is erased immediately after.
+//
+// A password is never prefilled by any path here.
+(function () {
+  function loginFields() {
+    return {
+      email: document.getElementById('login-email'),
+      password: document.getElementById('login-password'),
+    };
+  }
+
+  /** Empty both fields. Called on load and after a sign-out. */
+  window.famClearLoginForm = function famClearLoginForm() {
+    var f = loginFields();
+    if (f.email) f.email.value = '';
+    if (f.password) f.password.value = '';
+  };
+
+  function prefillFromInvitation() {
+    var f = loginFields();
+    if (!f.email) return;
+    var raw = '';
+    try {
+      // The fragment only. A query string is deliberately not read: it would
+      // reach the server's logs and the Referer of every asset this page loads.
+      var hash = String(window.location.hash || '').replace(/^#/, '');
+      raw = new URLSearchParams(hash).get('email') || '';
+    } catch (_) { return; }
+
+    var email = raw.trim().slice(0, 200);
+    // Anything that is not plainly an address is ignored rather than rendered.
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
+
+    f.email.value = email;
+    if (f.password) { try { f.password.focus(); } catch (_) {} }
+
+    // Erase the fragment so a refresh, a shared link or a screenshot does not
+    // carry the address any further than the one page load that needed it.
+    try {
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+      }
+    } catch (_) {}
+  }
+
+  function boot() {
+    // Empty first, then the one permitted prefill. Browsers restore input
+    // values on a soft reload, so clearing is not redundant.
+    window.famClearLoginForm();
+    prefillFromInvitation();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+}());
+
 // ── AUTH ──
 async function doLogin() {
   const email    = document.getElementById('login-email').value.trim();
@@ -2582,6 +2655,9 @@ function doLogout() {
 
   document.getElementById('main-app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
+  // The next person to use this browser must not find the last one's address
+  // sitting in the form.
+  try { window.famClearLoginForm(); } catch (_) {}
   showToast('Logged out successfully', 'info');
 }
 

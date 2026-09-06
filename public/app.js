@@ -1147,6 +1147,74 @@ async function loadAllData(opts) {
   }
 }
 
+// ── Login field hygiene ─────────────────────────────────────────────────────
+// Two rules, and the first one is why this exists at all.
+//
+//   1. THE FORM STARTS EMPTY. index.html used to ship with a real account's
+//      address and a working password baked into the markup, so every visitor —
+//      and every newly invited club president — was handed somebody else's
+//      credentials on the sign-in screen. Nothing is prefilled by default now,
+//      and nothing about one person may survive into another's session.
+//
+//   2. ONE EXCEPTION, AND IT CARRIES NO SECRET. Somebody arriving from an
+//      invitation they have just accepted may have their OWN address filled in,
+//      so they do not have to retype what they were invited as. It is read from
+//      the URL FRAGMENT — #email=… — which browsers never send to a server,
+//      never put in a Referer header and never write to an access log. A query
+//      string would have been visible to all three. The value is accepted only
+//      if it looks like an address, only into the email field, and the fragment
+//      is erased immediately after.
+//
+// A password is never prefilled by any path here.
+function famClearLoginForm() {
+  var email = document.getElementById('login-email');
+  var password = document.getElementById('login-password');
+  if (email) email.value = '';
+  if (password) password.value = '';
+}
+
+function famPrefillInvitedEmail() {
+  var field = document.getElementById('login-email');
+  if (!field) return;
+  var raw = '';
+  try {
+    // The fragment only. A query string is deliberately not read: it would
+    // reach the server's logs and the Referer of every asset this page loads.
+    var hash = String(window.location.hash || '').replace(/^#/, '');
+    raw = new URLSearchParams(hash).get('email') || '';
+  } catch (_) { return; }
+
+  var email = raw.trim().slice(0, 200);
+  // Anything that is not plainly an address is ignored rather than rendered.
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
+
+  field.value = email;
+  var password = document.getElementById('login-password');
+  if (password) { try { password.focus(); } catch (_) {} }
+
+  // Erase the fragment so a refresh, a shared link or a screenshot does not
+  // carry the address further than the one page load that needed it.
+  try {
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+    }
+  } catch (_) {}
+}
+
+(function () {
+  function boot() {
+    // Empty first, then the one permitted prefill. Browsers restore input
+    // values on a soft reload, so clearing is not redundant.
+    famClearLoginForm();
+    famPrefillInvitedEmail();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+}());
+
 function doLogout() {
   // The cached language belongs to the person who just left. Dropping it means
   // the next sign-in resolves from that user's own saved preference rather than
@@ -1172,6 +1240,9 @@ function doLogout() {
 
   document.getElementById('main-app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
+  // The next person to use this browser must not find the last one's address
+  // sitting in the form.
+  try { famClearLoginForm(); } catch (_) {}
   showToast('Logged out successfully', 'info');
 }
 
