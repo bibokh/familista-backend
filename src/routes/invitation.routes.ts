@@ -22,7 +22,12 @@ import { requireMembership } from '../middleware/tenant.middleware';
 const router = Router();
 
 // ── the recipient's side, before there is a session ─────────────────────────
+// Both of these are public, and both are safe for the same reason: the token
+// IS the credential. It is 32 random bytes, single-use and expiring, and
+// everything else that decides what happens — the address, the club, the role —
+// is read from the invitation it resolves to, never from the request.
 router.get('/preview', ctrl.preview);
+router.post('/accept-with-account', ctrl.acceptWithNewAccount);
 
 // ── everything else needs one ───────────────────────────────────────────────
 router.use(authenticate);

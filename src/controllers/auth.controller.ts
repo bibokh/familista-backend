@@ -33,7 +33,12 @@ const REFRESH_COOKIE_OPTS = {
   path:      '/api',                   // sent on all /api/* paths
 };
 
-function setAuthCookies(res: Response, tokens: authService.TokenPair): void {
+/**
+ * Exported so the invitation controller can end its flow the same way
+ * registration does — signed in, with the same cookie options — rather than
+ * growing a second, subtly different copy of them.
+ */
+export function setAuthCookies(res: Response, tokens: authService.TokenPair): void {
   res.cookie('access_token',  tokens.accessToken,  ACCESS_COOKIE_OPTS);
   res.cookie('refresh_token', tokens.refreshToken, REFRESH_COOKIE_OPTS);
 }

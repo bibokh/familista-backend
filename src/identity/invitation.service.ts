@@ -26,7 +26,9 @@ import {
 } from '@prisma/client';
 import { prisma } from '../config/database';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
+import { UserRole } from '@prisma/client';
 import { grantMembership, type MembershipActor } from '../services/membership.service';
+import { registerInvitedUser } from '../services/auth.service';
 import { deliverInvitation, type DeliveryOutcome } from './invitation-mail.service';
 import { consume } from './invitation-throttle';
 
@@ -398,3 +400,82 @@ export async function acceptInvitation(
 
   return { clubId: row.clubId, membershipId: membership.id };
 }
+
+/**
+ * Accept an invitation as somebody who does not have an account yet.
+ *
+ * The one door a signed-out invited person walks through, and it is deliberately
+ * narrow. The caller supplies a name and a password. Everything that decides
+ * WHERE they land — the address, the club, the role — is read from the
+ * invitation their token resolves to, so a person holding a link for one club
+ * cannot register into another, cannot choose their own role, and cannot claim
+ * an address the invitation was not written to.
+ *
+ * The acceptance itself is not re-implemented: this calls the same
+ * `acceptInvitation` a signed-in person uses, so the single-use consumption, the
+ * membership grant, the audit row and the last-owner rules are all exactly the
+ * ones the club already relies on. If that call fails, the account still exists
+ * and the invitation is still PENDING — the person can sign in and accept, which
+ * is a recoverable state rather than a corrupt one.
+ */
+export async function registerAndAccept(
+  rawToken: string,
+  input: { firstName: string; lastName: string; password: string },
+  meta: { ipAddress?: string | null; userAgent?: string | null } = {},
+): Promise<{ user: unknown; tokens: unknown; clubId: string; membershipId: string }> {
+  // Resolves the token, and refuses an expired, revoked or already-used one
+  // with the same messages every other path gives.
+  const row = await findByToken(rawToken);
+
+  const firstName = String(input?.firstName ?? '').trim();
+  const lastName = String(input?.lastName ?? '').trim();
+  const password = String(input?.password ?? '');
+  if (!firstName || !lastName) throw new BadRequestError('A first and last name are required');
+  if (password.length < 8) throw new BadRequestError('Password must be at least 8 characters');
+
+  const existing = await prisma.user.findUnique({ where: { email: row.email }, select: { id: true } });
+  if (existing) {
+    // Not "email already registered" as a bare conflict: the useful thing to
+    // say is what to do instead, and it tells them nothing they did not
+    // already know — they are holding a link written to this address.
+    throw new ConflictError('An account already exists for this address. Sign in to accept the invitation.');
+  }
+
+  const created = await registerInvitedUser({
+    email: row.email,
+    clubId: row.clubId,
+    accountRole: accountRoleFor(row.role),
+    firstName,
+    lastName,
+    password,
+  });
+
+  const accepted = await acceptInvitation(
+    { userId: created.user.id, email: row.email, ipAddress: meta.ipAddress, userAgent: meta.userAgent },
+    rawToken,
+  );
+
+  return { user: created.user, tokens: created.tokens, ...accepted };
+}
+
+/**
+ * The account-level role an invited membership implies.
+ *
+ * `Membership` is what actually grants authority over a club — that is settled
+ * elsewhere and unchanged. `User.role` is the older account-level field that
+ * some club routes still check, so it has to be something coherent rather than
+ * a default that locks the invited person out of the very club they were
+ * invited to run.
+ *
+ * A president gets CLUB_ADMIN, which is what administering one club means.
+ * Nobody gets SUPER_ADMIN: platform authority is a PlatformAdmin row, it is
+ * never implied by a club invitation, and there is no branch here that could
+ * produce it.
+ */
+function accountRoleFor(role: MembershipRole): UserRole {
+  if (role === MembershipRole.CLUB_OWNER) return UserRole.CLUB_ADMIN;
+  const names = Object.values(UserRole) as string[];
+  if (names.includes(String(role)) && String(role) !== 'SUPER_ADMIN') return String(role) as UserRole;
+  return UserRole.COACH;
+}
+

@@ -120,6 +120,63 @@ export async function registerUser(data: {
   };
 }
 
+/**
+ * Create an account for somebody an invitation named — and only for them.
+ *
+ * The ordinary `registerUser` above takes a clubId and a role from the request,
+ * which is fine for a club administrator creating an account inside their own
+ * club and completely wrong for a stranger holding a link. An invited person
+ * must not be able to name the club they land in, the role they arrive with, or
+ * even the address the account is created for: all three come from the
+ * invitation the caller proved they hold.
+ *
+ * So the ONLY things this accepts from the request are a name and a password —
+ * and the password is theirs, chosen here, hashed here, and never seen by the
+ * club that invited them or by anybody at Familista.
+ *
+ * It creates the account and nothing else. No membership is granted here: that
+ * is `acceptInvitation`'s job, with its own single-use consumption and its own
+ * audit row, and duplicating it would mean two paths into club authority.
+ */
+export async function registerInvitedUser(input: {
+  /** From the invitation, never from the request body. */
+  email: string;
+  clubId: string;
+  accountRole: UserRole;
+  firstName: string;
+  lastName: string;
+  password: string;
+}): Promise<{ user: AuthUser; tokens: TokenPair }> {
+  const email = input.email.toLowerCase().trim();
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) throw new ConflictError('Email already registered');
+
+  const club = await prisma.club.findUnique({ where: { id: input.clubId } });
+  if (!club) throw new NotFoundError('Club');
+
+  const passwordHash = await hashPassword(input.password);
+
+  const user = await prisma.user.create({
+    data: {
+      email,
+      passwordHash,
+      firstName: input.firstName.trim(),
+      lastName: input.lastName.trim(),
+      role: input.accountRole,
+      clubId: input.clubId,
+    },
+    include: { club: { select: { name: true } } },
+  });
+
+  const tokens = await issueTokens(user);
+  // The address is not logged: an invited person's address in a log is an
+  // address in every backup of that log.
+  logger.info('Invited user registered', { userId: user.id, clubId: user.clubId });
+
+  return { user: mapAuthUser(user, user.club.name), tokens };
+}
+
 // ── Login ─────────────────────────────────────────────────
 
 export async function loginUser(

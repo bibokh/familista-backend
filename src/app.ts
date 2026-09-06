@@ -226,14 +226,28 @@ export function createApp(): express.Application {
   const publicDir = path.join(__dirname, '..', 'public');
   app.use(express.static(publicDir, { index: 'index.html' }));
 
-  // ── Legacy SPA deep-link: /reset-password?token=...
-  // express.static serves index.html only for the exact root path "/".
-  // Password-reset emails link to /reset-password?token=<raw>; without this
-  // route the static middleware falls through to 404 and the user cannot
-  // complete their reset. Serve index.html here so the SPA boots and reads
-  // the token from location.search.
+  // ── Deep links that arrive from an email ──────────────────────────────────
+  // express.static serves index.html only for the EXACT root path "/". Every
+  // other path a person can be sent to therefore needs a route of its own, or
+  // the static middleware falls through to the 404 handler and the link that
+  // was mailed to them reads "Not Found".
+  //
+  // Password reset has had one since it was built. Invitation acceptance is
+  // the same shape and had none, which is exactly what an invited president
+  // hit: the email was correct, the token was valid, and the server had
+  // nothing to answer /invite/accept with.
   app.get('/reset-password', (_req, res) => {
     res.sendFile(path.join(publicDir, 'index.html'));
+  });
+
+  // The invitation acceptance page. Its own small document rather than the
+  // club workspace: the person opening it has no session, no club and possibly
+  // no account, and booting a signed-in application at them would spend a
+  // megabyte to show a form and then bounce them to a login screen they cannot
+  // use. Every /invite/* path resolves to it so the page — not the 404
+  // handler — is what explains a malformed link.
+  app.get(['/invite', '/invite/*'], (_req, res) => {
+    res.sendFile(path.join(publicDir, 'invite', 'index.html'));
   });
 
   // ── React SPA (Phase R) — serve built assets + SPA fallback

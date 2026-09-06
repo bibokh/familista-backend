@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { MembershipRole, ClubInvitationStatus } from '@prisma/client';
 import * as invites from '../identity/invitation.service';
 import { activateIfReady } from '../platform/club-onboarding.service';
+import { setAuthCookies } from './auth.controller';
 import { sendSuccess, sendCreated } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
 
@@ -91,6 +92,49 @@ export async function preview(req: Request, res: Response, next: NextFunction) {
 }
 
 /** Accept as the signed-in account. The invited address must be this account's. */
+/**
+ * Accept an invitation as somebody with no account yet.
+ *
+ * Public on purpose: the person holding the link cannot sign in, because they
+ * have nothing to sign in with. What makes that safe is that the token is the
+ * credential — 32 random bytes, single-use, expiring — and everything the
+ * request could otherwise choose (the address, the club, the role) is read from
+ * the invitation rather than the body.
+ *
+ * On success the session cookies are set, exactly as registration does, so the
+ * new president lands signed in rather than at a login screen.
+ */
+export async function acceptWithNewAccount(req: Request, res: Response, next: NextFunction) {
+  try {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const out = await invites.registerAndAccept(
+      String(body.token ?? ''),
+      {
+        firstName: String(body.firstName ?? ''),
+        lastName: String(body.lastName ?? ''),
+        password: String(body.password ?? ''),
+      },
+      {
+        ipAddress: (req.headers['x-forwarded-for'] as string) ?? req.ip ?? null,
+        userAgent: (req.headers['user-agent'] as string) ?? null,
+      },
+    );
+    setAuthCookies(res, out.tokens as never);
+
+    // A president accepting through this path activates their club by exactly
+    // the same reconciliation a signed-in acceptance uses — it re-reads the
+    // memberships and activates only if there genuinely is an active owner now.
+    let setup: unknown = null;
+    try {
+      setup = await activateIfReady(out.clubId, { userId: (out.user as { id?: string })?.id });
+    } catch (_) {
+      // Activation never blocks an acceptance. The membership is granted and
+      // the invitation consumed either way.
+    }
+    return sendCreated(res, { ...out, setup }, 'Invitation accepted');
+  } catch (err) { return next(err); }
+}
+
 export async function accept(req: Request, res: Response, next: NextFunction) {
   try {
     const token = String(req.body?.token ?? '');
