@@ -121,10 +121,18 @@ describe('the interface never invents a number', () => {
   });
 
   it('and the modules that cannot be measured say which phase would fix them', () => {
-    const sessions = SYSTEM_MODULES.find((m) => m.key === 'platform-analytics')!;
-    expect(sessions.readiness).toBe('NOT_INSTRUMENTED');
-    expect(SERVICE).toMatch(/No session analytics are collected yet/);
-    expect(SERVICE).toMatch(/No feature-usage events are collected yet/);
+    // Platform and product analytics are instrumented now, so the example
+    // moved. The property is unchanged and is what is pinned: a module with
+    // nothing measuring it says NOT_INSTRUMENTED and names what would.
+    const uninstrumented = SYSTEM_MODULES.filter((m) => m.readiness === 'NOT_INSTRUMENTED');
+    expect(uninstrumented.length).toBeGreaterThan(0);
+    for (const m of uninstrumented) {
+      expect(`${m.key}:${(m.backing ?? '').length > 10}`).toBe(`${m.key}:true`);
+    }
+    // And the analytics modules, now that they are measured, name their tables.
+    const analytics = SYSTEM_MODULES.find((m) => m.key === 'product-analytics')!;
+    expect(analytics.readiness).toBe('LIVE');
+    expect(analytics.backing).toMatch(/AnalyticsEvent/);
   });
 
   it('signals are derived from rows, and an empty platform says so', () => {

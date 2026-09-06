@@ -104,8 +104,11 @@ describe('the pooled endpoint runs the app; the direct one runs migrations', () 
   it('the schema declares directUrl, so Prisma migrations take the direct connection', () => {
     const schema = read('prisma/schema.prisma');
     const datasource = schema.slice(schema.indexOf('datasource db {'), schema.indexOf('}', schema.indexOf('datasource db {')));
-    expect(datasource).toContain('url      = env("DATABASE_URL")');
-    expect(datasource).toContain('directUrl = env("DIRECT_URL")');
+    // Matched loosely on whitespace: `prisma format` aligns the keys in this
+    // block, so the number of spaces is the formatter's business, not this
+    // test's.
+    expect(datasource).toMatch(/\burl\s*=\s*env\("DATABASE_URL"\)/);
+    expect(datasource).toMatch(/\bdirectUrl\s*=\s*env\("DIRECT_URL"\)/);
   });
 
   it('and DIRECT_URL is guaranteed, because a declared variable that is missing fails the deploy', () => {

@@ -954,6 +954,9 @@
   </div>
 </div>
 
+<!-- Product analytics. Loaded before app.js so the navigation hook in navTo
+     always finds it, and defer-ordered so it never blocks first paint. -->
+<script src="/analytics.js?v=20260907-analytics" defer></script>
 <script src="/system/system.js?v=20260905-system" defer></script>
 <script src="/app.js?v=20260818-staff-market" defer></script>
 </body>

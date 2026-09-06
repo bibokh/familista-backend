@@ -5,8 +5,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -157,7 +157,7 @@ model Club {
   /// club's. Null means the club has not recorded one, and the scheduler falls
   /// back to the competition's zone, then to the country above, then to UTC —
   /// see resolveVenueTimeZone in src/competition/match-scheduling.ts.
-  timezone     String?
+  timezone String?
 
   /// The language this club's own people read by default, as a BCP-47 tag.
   /// Null means the club has not chosen one and the platform default applies.
@@ -186,7 +186,7 @@ model Club {
   trialEndsAt          DateTime?
   currentPeriodEnd     DateTime?
 
-  users User[]
+  users       User[]
   invitations ClubInvitation[]
 
   // ── Coaches & technical staff market ──
@@ -470,12 +470,12 @@ model Team {
   notes     String?  @db.Text
   isActive  Boolean  @default(true)
 
-  players      Player[]
-  memberships  Membership[]
-  currentUsers User[]       @relation("UserCurrentTeam")
-  matches      Match[]
+  players          Player[]
+  memberships      Membership[]
+  currentUsers     User[]            @relation("UserCurrentTeam")
+  matches          Match[]
   trainingSessions TrainingSession[]
-  invitations  ClubInvitation[]
+  invitations      ClubInvitation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -507,9 +507,9 @@ model Membership {
   /// is the distinction `isActive` cannot make: a membership SUSPENDED for a
   /// season is not one REMOVED when somebody left the club, and a club needs
   /// to tell them apart when it decides who to reactivate.
-  status   MembershipStatus @default(ACTIVE)
+  status MembershipStatus @default(ACTIVE)
 
-  joinedAt DateTime       @default(now())
+  joinedAt DateTime  @default(now())
   leftAt   DateTime?
 
   audits MembershipAuditLog[]
@@ -635,10 +635,10 @@ model ClubInvitation {
   role   MembershipRole
   /// Null grants a club-wide membership; a value scopes it to that team.
   teamId String?
-  team   Team?  @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  team   Team?          @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
   /// SHA-256 of the token that was sent. The token itself is never persisted.
-  tokenHash String @unique
+  tokenHash String               @unique
   status    ClubInvitationStatus @default(PENDING)
   expiresAt DateTime
 
@@ -10201,4 +10201,149 @@ model StaffApproachMessage {
   createdAt DateTime @default(now())
 
   @@index([approachId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Product analytics
+// ─────────────────────────────────────────────────────────────────────────────
+// What is being used, and how. NOT who changed what — that is the audit trail,
+// which lives in MembershipAuditLog, PlatformAuditLog and SecurityEvent and is
+// deliberately a different set of tables with different retention, different
+// privacy exposure and different consumers. Merging them produces a table too
+// sensitive to query freely and too noisy to audit with.
+//
+// Nothing here records content. A module key, a feature key, a route shape, a
+// duration and a set of ids — that is the whole vocabulary. There is no column
+// a medical note, a tactical instruction, a message, a form field or a
+// credential could be written into, and that is a property of the schema rather
+// than a promise made by the code above it.
+
+/// Where an event happened. Production analytics must never be contaminated by
+/// Innovation Lab testing, so every row carries this and every read filters on
+/// it — defaulting to PRODUCTION.
+enum AnalyticsEnvironment {
+  PRODUCTION
+  STAGING
+  LAB
+  PREVIEW
+}
+
+/// One thing somebody did, at the grain the platform actually needs.
+///
+/// Deliberately coarse: module opens, feature uses, session boundaries. No
+/// clicks, no mouse movement, no keystrokes — a table that grows by a row per
+/// gesture is a table nobody can afford to query, and the questions SYSTEM asks
+/// are answered at this grain.
+///
+/// `day`, `hourOfDay` and `weekday` are stored rather than derived so that the
+/// peak-hours and peak-days aggregates are index scans instead of full-table
+/// date arithmetic.
+model AnalyticsEvent {
+  id          String               @id @default(uuid())
+  eventName   String
+  occurredAt  DateTime             @default(now())
+  environment AnalyticsEnvironment
+
+  /// Stable for the life of one browser session. Not a credential, not a
+  /// cookie anybody else can read, and never reused across users.
+  sessionId String
+
+  /// Absent for a signed-out visitor. Present is the ordinary case, because
+  /// almost everything in Familista is behind a session.
+  userId       String?
+  platformRole String?
+
+  clubId String?
+  teamId String?
+
+  /// The workspace being used, and the thing being done in it. Both are keys
+  /// from a fixed catalogue, never free text a user typed.
+  module  String?
+  feature String?
+  /// A route SHAPE — "/club/:clubId/academy/:teamId" — never a populated one.
+  route   String?
+
+  durationMs     Int?
+  deviceCategory String?
+  locale         String?
+  timezone       String?
+  source         String  @default("web")
+  schemaVersion  Int     @default(1)
+
+  /// Pre-bucketed for aggregation. UTC calendar day of occurredAt.
+  day       DateTime @db.Date
+  hourOfDay Int
+  weekday   Int
+
+  @@index([environment, occurredAt])
+  @@index([environment, day, userId])
+  @@index([environment, module, occurredAt])
+  @@index([environment, clubId, occurredAt])
+  @@index([environment, eventName, occurredAt])
+  @@index([sessionId, occurredAt])
+  @@index([day])
+}
+
+/// One visit, from first activity to last.
+///
+/// A session is a row rather than a window computed over events, because
+/// "average session duration" asked over millions of events is a query nobody
+/// wants on a dashboard load. The row is created once per sessionId — the
+/// unique key is what makes a refresh, a duplicate listener or a re-render
+/// unable to count twice — and updated as activity arrives.
+model AnalyticsSession {
+  id           String               @id
+  environment  AnalyticsEnvironment
+  userId       String?
+  platformRole String?
+  clubId       String?
+
+  startedAt      DateTime  @default(now())
+  lastActivityAt DateTime  @default(now())
+  endedAt        DateTime?
+  /// Filled when the session ends, or by the idle sweep. Null while live.
+  durationMs     Int?
+  eventCount     Int       @default(0)
+  moduleCount    Int       @default(0)
+
+  deviceCategory String?
+  locale         String?
+  timezone       String?
+
+  day DateTime @db.Date
+
+  @@index([environment, startedAt])
+  @@index([environment, day])
+  @@index([environment, userId, startedAt])
+  @@index([lastActivityAt])
+}
+
+/// What the raw events add up to, computed once a day and kept.
+///
+/// The split is the whole performance strategy: raw events answer "what
+/// happened" for a short window, these answer "what is the trend" forever. A
+/// dashboard reads this table; it does not count millions of rows on every
+/// page load.
+///
+/// One table with a metric name and a dimension, rather than a table per
+/// question. A new metric is a new string, not a migration.
+model AnalyticsDailyMetric {
+  id          String               @id @default(uuid())
+  day         DateTime             @db.Date
+  environment AnalyticsEnvironment
+
+  /// e.g. "dau", "sessions", "module.opens", "module.duration", "role.events"
+  metric    String
+  /// The metric's subject: a module key, a role, a club id, an hour, or "" for
+  /// a platform-wide figure. Never free text from a user.
+  dimension String @default("")
+
+  value       BigInt @default(0)
+  uniqueUsers Int    @default(0)
+
+  computedAt DateTime @default(now())
+
+  @@unique([day, environment, metric, dimension])
+  @@index([environment, metric, day])
+  @@index([day])
 }

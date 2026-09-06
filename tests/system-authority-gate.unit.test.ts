@@ -159,7 +159,10 @@ describe('a refusal explains itself', () => {
       const body = CTRL.slice(CTRL.indexOf(`export async function ${fn}(req: Request`));
       const next = body.indexOf('\nexport async function');
       const slice = next > 0 ? body.slice(0, next) : body;
-      return !/assertPlatformOwner|system\.|onboarding\./.test(slice);
+      // A handler is guarded when it asserts, or when every call it makes is
+      // to a service that does — system.*, onboarding.* and analytics.* all
+      // assert platform ownership as their first statement.
+      return !/assertPlatformOwner|system\.|onboarding\.|analytics\./.test(slice);
     });
     expect(open).toEqual(['whoAmI']);
   });

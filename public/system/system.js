@@ -33,6 +33,10 @@
     innovation: null,
     clubs: null,
     clubSetup: null,
+    platformAnalytics: null,
+    productAnalytics: null,
+    analyticsEnv: 'PRODUCTION',
+    analyticsDays: 30,
     people: null,
     security: null,
     audit: null,
@@ -484,6 +488,44 @@
       + '</div></div></aside>';
   }
 
+  /**
+   * Platform Activity — real sessions and events, or an honest "collecting".
+   *
+   * The hour bars are the last 24 hours of recorded events, bucketed in UTC.
+   * When nothing has been recorded the panel keeps its shape and says so; it
+   * never draws a curve it does not have.
+   */
+  function activityPanel(o) {
+    var m = o.activity.sessionsToday;
+    if (m.value == null) {
+      return pendingAnalytics('Platform Activity', 'last 24 hours', m, 'platform-analytics');
+    }
+    return '<section class="sy-panel"><div class="sy-panel-h"><h2>Platform Activity</h2>'
+      + '<span>last 24 hours</span></div>'
+      + '<div class="sy-legend">'
+      + '<div class="sy-legend-row"><span>Sessions today</span>' + sourceChip(m)
+      + '<b data-no-i18n>' + num(m.value) + '</b></div>'
+      + '<div class="sy-legend-row"><span>Active users today</span>' + sourceChip(o.activity.activeToday)
+      + '<b data-no-i18n>' + num(o.activity.activeToday.value) + '</b></div>'
+      + '<div class="sy-legend-row"><span>Signed in today</span>' + sourceChip(o.activity.signedInToday)
+      + '<b data-no-i18n>' + num(o.activity.signedInToday.value) + '</b></div>'
+      + '</div>'
+      + '<button class="sy-btn" type="button" data-sy-go="platform-analytics">Open platform analytics</button>'
+      + '</section>';
+  }
+
+  function topModulesPanel(o) {
+    var rows = o.topModules || [];
+    if (!rows.length) {
+      return pendingAnalytics('Top Used Modules', 'today', o.activity.topModules, 'product-analytics');
+    }
+    return '<section class="sy-panel"><div class="sy-panel-h"><h2>Top Used Modules</h2>'
+      + '<span>today · UTC</span></div>'
+      + barsHtml(rows, function (r) { return r.module; }, function (r) { return r.opens; })
+      + '<button class="sy-btn" type="button" data-sy-go="product-analytics">Open product analytics</button>'
+      + '</section>';
+  }
+
   function overviewHtml() {
     var o = SY.overview;
     if (!o) return skeleton();
@@ -551,8 +593,8 @@
       + widgetsHtml(o)
 
       + '<div class="sy-grid sy-grid--3">'
-      + pendingAnalytics('Platform Activity', 'last 24 hours', o.activity.sessionsToday, 'platform-analytics')
-      + pendingAnalytics('Top Used Modules', 'last 30 days', o.activity.topModules, 'product-analytics')
+      + activityPanel(o)
+      + topModulesPanel(o)
       + '<section class="sy-panel"><div class="sy-panel-h"><h2>Users by Role</h2><span>counted, not sampled</span></div>'
       + '<div class="sy-legend">'
       + roleRow('Platform Owners & Admins', admins, 'var(--sy-cyan)', 'COUNT(PlatformAdmin) where isActive')
@@ -739,6 +781,188 @@
     var label = life === 'ACTIVE' ? 'ACTIVE'
       : life === 'PRESIDENT_INVITED' ? 'PRESIDENT INVITED' : 'PENDING SETUP';
     return '<span class="sy-chip sy-chip--' + cls + '">' + esc(label) + '</span>';
+  }
+
+  // ── analytics ─────────────────────────────────────────────────────────────
+  // Two pages over one pipeline. Everything drawn here is an aggregate the
+  // server computed; nothing is estimated, and a figure with no data behind it
+  // says "collecting" rather than showing a zero.
+  function ms(v) {
+    if (v == null) return '—';
+    var s = Math.round(v / 1000);
+    if (s < 60) return s + 's';
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + 'm ' + (s % 60) + 's';
+    return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+  }
+  function delta(now_, before) {
+    if (before == null || before === 0) return '';
+    var pct = Math.round(((now_ - before) / before) * 100);
+    var cls = pct > 0 ? 'up' : pct < 0 ? 'down' : '';
+    return '<span class="sy-delta sy-delta--' + cls + '" data-no-i18n>'
+      + (pct > 0 ? '+' : '') + pct + '%</span>';
+  }
+
+  /** A bar chart with no library: real values, one axis, honest zero. */
+  function barsHtml(rows, labelOf, valueOf, note) {
+    if (!rows || !rows.length) return emptyState('Collecting data', note || 'Nothing has been recorded for this window yet.');
+    var max = 0;
+    rows.forEach(function (r) { max = Math.max(max, valueOf(r)); });
+    return '<div class="sy-bars">' + rows.map(function (r) {
+      var v = valueOf(r);
+      var w = max ? Math.max(1, Math.round((v / max) * 100)) : 0;
+      return '<div class="sy-bar-row"><span data-user-content>' + esc(labelOf(r)) + '</span>'
+        + '<span class="sy-bar"><i style="width:' + w + '%"></i></span>'
+        + '<b data-no-i18n>' + num(v) + '</b></div>';
+    }).join('') + '</div>';
+  }
+
+  var WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  /** Environment + window filters. Production is the default, always. */
+  function analyticsFilters() {
+    var envs = ['PRODUCTION', 'STAGING', 'LAB', 'PREVIEW'];
+    var ranges = [[7, '7 days'], [30, '30 days'], [90, '90 days']];
+    return '<div class="sy-filters">'
+      + '<div class="sy-filter-group" role="group" aria-label="Environment">'
+      + envs.map(function (e) {
+        return '<button class="sy-filter' + (SY.analyticsEnv === e ? ' is-on' : '') + '" type="button"'
+          + ' data-sy-aenv="' + e + '" data-no-i18n>' + e + '</button>';
+      }).join('') + '</div>'
+      + '<div class="sy-filter-group" role="group" aria-label="Range">'
+      + ranges.map(function (r) {
+        return '<button class="sy-filter' + (SY.analyticsDays === r[0] ? ' is-on' : '') + '" type="button"'
+          + ' data-sy-adays="' + r[0] + '">' + esc(r[1]) + '</button>';
+      }).join('') + '</div></div>';
+  }
+
+  function platformAnalyticsHtml() {
+    var a = SY.platformAnalytics;
+    if (!a) return moduleHeader('platform-analytics') + analyticsFilters() + skeleton(200);
+    var act = a.active || {}, r = a.rhythm || {}, ret = a.retention || {}, cl = a.clubs || {}, ac = a.activity || {};
+
+    var kpis = '<div class="sy-kpis">'
+      + '<div class="sy-kpi"><div class="sy-kpi-h"><span class="sy-kpi-ic">◔</span><span>DAU</span>'
+      + '<span class="sy-src sy-src--derived" title="' + esc(act.definitions && act.definitions.dau) + '">derived</span></div>'
+      + '<b data-no-i18n>' + num(act.dau) + '</b><i>' + delta(act.dau, act.dauPrevious) + ' vs the previous day</i></div>'
+      + '<div class="sy-kpi"><div class="sy-kpi-h"><span class="sy-kpi-ic">◑</span><span>WAU</span>'
+      + '<span class="sy-src sy-src--derived" title="' + esc(act.definitions && act.definitions.wau) + '">derived</span></div>'
+      + '<b data-no-i18n>' + num(act.wau) + '</b><i>' + delta(act.wau, act.wauPrevious) + ' vs the previous 7 days</i></div>'
+      + '<div class="sy-kpi"><div class="sy-kpi-h"><span class="sy-kpi-ic">●</span><span>MAU</span>'
+      + '<span class="sy-src sy-src--derived" title="' + esc(act.definitions && act.definitions.mau) + '">derived</span></div>'
+      + '<b data-no-i18n>' + num(act.mau) + '</b><i>' + delta(act.mau, act.mauPrevious) + ' vs the previous 30 days</i></div>'
+      + '<div class="sy-kpi"><div class="sy-kpi-h"><span class="sy-kpi-ic">⧗</span><span>Average session</span>'
+      + '<span class="sy-src sy-src--live">live</span></div>'
+      + '<b data-no-i18n>' + esc(ms(ac.averageSessionMs)) + '</b><i>Over the last 24 hours</i></div>'
+      + '<div class="sy-kpi"><div class="sy-kpi-h"><span class="sy-kpi-ic">⬢</span><span>Active clubs today</span>'
+      + '<span class="sy-src sy-src--derived">derived</span></div>'
+      + '<b data-no-i18n>' + num(cl.activeToday) + '</b><i>Clubs with at least one event today</i></div>'
+      + '<div class="sy-kpi"><div class="sy-kpi-h"><span class="sy-kpi-ic">◫</span><span>Sessions · 24h</span>'
+      + '<span class="sy-src sy-src--live">live</span></div>'
+      + '<b data-no-i18n>' + num(ac.sessions) + '</b><i>' + num(ac.events) + ' events recorded</i></div>'
+      + '</div>';
+
+    var retentionPanel = '<section class="sy-panel"><div class="sy-panel-h"><h2>Retention</h2>'
+      + '<span>' + esc(ret.cohortDay ? 'cohort of ' + ret.cohortDay : 'no cohort yet') + '</span></div>'
+      + (ret.collecting && ret.day1 == null
+        ? emptyState('Collecting data', ret.collecting)
+        : '<div class="sy-legend">'
+          + '<div class="sy-legend-row"><span>Day 1</span><b data-no-i18n>' + (ret.day1 == null ? '—' : ret.day1 + '%') + '</b></div>'
+          + '<div class="sy-legend-row"><span>Day 7</span><b data-no-i18n>' + (ret.day7 == null ? '—' : ret.day7 + '%') + '</b></div>'
+          + '<div class="sy-legend-row"><span>Day 30</span><b data-no-i18n>' + (ret.day30 == null ? '—' : ret.day30 + '%') + '</b></div>'
+          + '</div><p class="sy-note">Of the ' + num(ret.cohortSize) + ' user(s) first seen on that day, how many returned. '
+          + (ret.collecting ? esc(ret.collecting) : '') + '</p>')
+      + '</section>';
+
+    return moduleHeader('platform-analytics') + analyticsFilters() + kpis
+      + '<div class="sy-grid sy-grid--2">'
+      + '<section class="sy-panel"><div class="sy-panel-h"><h2>Peak hours</h2><span>UTC</span></div>'
+      + barsHtml(r.hours, function (h) { return String(h.hour).padStart(2, '0') + ':00'; }, function (h) { return h.events; })
+      + '</section>'
+      + '<section class="sy-panel"><div class="sy-panel-h"><h2>Peak days</h2><span>UTC</span></div>'
+      + barsHtml(r.weekdays, function (d) { return WEEKDAYS[d.weekday] || String(d.weekday); }, function (d) { return d.events; })
+      + '</section>'
+      + '</div>'
+      + '<div class="sy-grid sy-grid--2">'
+      + '<section class="sy-panel"><div class="sy-panel-h"><h2>Daily active users</h2>'
+      + '<span>' + esc((a.query && a.query.days) || 30) + ' days</span></div>'
+      + barsHtml(r.daily, function (d) { return d.day; }, function (d) { return d.uniqueUsers; })
+      + '</section>'
+      + retentionPanel
+      + '</div>'
+      + '<div class="sy-grid sy-grid--2">'
+      + '<section class="sy-panel"><div class="sy-panel-h"><h2>Usage by role</h2><span>events recorded</span></div>'
+      + barsHtml(a.roles && a.roles.roles, function (x) { return x.dimension; }, function (x) { return x.events; },
+        'Roles appear here once accounts in them use Familista.')
+      + '</section>'
+      + '<section class="sy-panel"><div class="sy-panel-h"><h2>Club activity</h2>'
+      + '<span>' + num(cl.activeThisWeek) + ' active this week</span></div>'
+      + barsHtml(cl.clubs, function (c) { return c.dimension; }, function (c) { return c.events; },
+        'Counts and ids only. No club content is reachable through this surface.')
+      + '</section>'
+      + '</div>'
+      + retentionNote(a.policy)
+      + capabilityTable('platform-analytics');
+  }
+
+  function retentionNote(policy) {
+    if (!policy) return '';
+    return '<section class="sy-panel"><div class="sy-panel-h"><h2>Analytics retention</h2>'
+      + '<span data-no-i18n>' + esc(policy.source && policy.source.raw) + '</span></div>'
+      + '<div class="sy-legend">'
+      + '<div class="sy-legend-row"><span>Raw events kept</span><b data-no-i18n>' + num(policy.rawDays) + ' days</b></div>'
+      + '<div class="sy-legend-row"><span>Daily rollups kept</span><b data-no-i18n>' + num(policy.rollupDays) + ' days</b></div>'
+      + '</div><p class="sy-note">' + esc(policy.note) + '</p></section>';
+  }
+
+  function productAnalyticsHtml() {
+    var a = SY.productAnalytics;
+    if (!a) return moduleHeader('product-analytics') + analyticsFilters() + skeleton(200);
+    var mods = (a.modules && a.modules.modules) || [];
+    var users = (a.modules && a.modules.activeUsers) || 0;
+
+    var table = mods.length
+      ? '<div class="sy-table-wrap"><table class="sy-table"><thead><tr>'
+        + '<th>Module</th><th>Opens</th><th>Unique users</th><th>Total time</th><th>Average</th><th>Adoption</th><th>Trend</th>'
+        + '</tr></thead><tbody>'
+        + mods.map(function (m) {
+          return '<tr><td><b data-user-content>' + esc(m.module) + '</b></td>'
+            + '<td data-no-i18n>' + num(m.opens) + '</td>'
+            + '<td data-no-i18n>' + num(m.uniqueUsers) + '</td>'
+            + '<td data-no-i18n>' + esc(ms(m.totalDurationMs)) + '</td>'
+            + '<td data-no-i18n>' + esc(ms(m.averageDurationMs)) + '</td>'
+            + '<td data-no-i18n>' + (m.adoption == null ? '—' : m.adoption + '%') + '</td>'
+            + '<td data-no-i18n>' + (m.trend == null ? '—' : (m.trend > 0 ? '+' : '') + m.trend + '%') + '</td></tr>';
+        }).join('') + '</tbody></table></div>'
+      : emptyState('Collecting data',
+        'No module has been opened in this window yet. Usage appears here as soon as somebody uses Familista.');
+
+    var least = mods.slice().sort(function (x, y) { return x.opens - y.opens; }).slice(0, 8);
+
+    return moduleHeader('product-analytics') + analyticsFilters()
+      + '<section class="sy-panel"><div class="sy-panel-h"><h2>Module usage</h2>'
+      + '<span>' + num(users) + ' active user(s) in this window</span></div>' + table + '</section>'
+      + '<div class="sy-grid sy-grid--2">'
+      + '<section class="sy-panel"><div class="sy-panel-h"><h2>Most used</h2><span>by opens</span></div>'
+      + barsHtml(mods.slice(0, 8), function (m) { return m.module; }, function (m) { return m.opens; })
+      + '</section>'
+      + '<section class="sy-panel"><div class="sy-panel-h"><h2>Least used</h2><span>by opens</span></div>'
+      + barsHtml(least, function (m) { return m.module; }, function (m) { return m.opens; },
+        'A module with no opens at all does not appear here — it appears nowhere, which is the finding.')
+      + '</section>'
+      + '</div>'
+      + '<section class="sy-panel"><div class="sy-panel-h"><h2>User journeys</h2>'
+      + '<span>first five modules of a session</span></div>'
+      + ((a.journeys && a.journeys.paths && a.journeys.paths.length)
+        ? '<div class="sy-journeys">' + a.journeys.paths.map(function (p) {
+          return '<div class="sy-journey"><span data-user-content>' + esc(p.path) + '</span>'
+            + '<b data-no-i18n>' + num(p.sessions) + '</b></div>';
+        }).join('') + '</div>'
+          + '<p class="sy-note">Built from module keys only. No page content, no ids and nothing anybody typed.</p>'
+        : emptyState('Collecting data', 'A journey appears once a session has opened more than one module.'))
+      + '</section>'
+      + retentionNote(a.policy)
+      + capabilityTable('product-analytics');
   }
 
   function clubsHtml() {
@@ -973,6 +1197,8 @@
     }
     switch (SY.module) {
       case 'overview': return overviewHtml();
+      case 'platform-analytics': return platformAnalyticsHtml();
+      case 'product-analytics': return productAnalyticsHtml();
       case 'clubs': return clubsHtml();
       case 'people': return peopleHtml();
       case 'agents': case 'intelligence': case 'models': return agentsHtml();
@@ -1008,6 +1234,13 @@
     if (module === 'overview' && !SY.overview) {
       jobs.push(api('/system/overview').then(function (d) { SY.overview = d; }));
       jobs.push(api('/system/signals').then(function (d) { SY.signals = d.signals; }));
+    }
+    var aq = '?environment=' + encodeURIComponent(SY.analyticsEnv) + '&days=' + encodeURIComponent(SY.analyticsDays);
+    if (module === 'platform-analytics' && !SY.platformAnalytics) {
+      jobs.push(api('/system/analytics/platform' + aq).then(function (d) { SY.platformAnalytics = d; }));
+    }
+    if (module === 'product-analytics' && !SY.productAnalytics) {
+      jobs.push(api('/system/analytics/product' + aq).then(function (d) { SY.productAnalytics = d; }));
     }
     if (module === 'clubs' && !SY.clubs) jobs.push(api('/system/clubs').then(function (d) { SY.clubs = d.clubs; }));
     if (module === 'people' && !SY.people) jobs.push(api('/system/people').then(function (d) { SY.people = d.people; }));
@@ -1223,6 +1456,26 @@
           if (navigator.clipboard) navigator.clipboard.writeText(input.value);
         } catch (_) {}
         copy.textContent = T('Copied');
+        return;
+      }
+
+      // Changing a filter discards the cached answer and asks again. The
+      // environment is a server-side filter, not a client-side one: Lab traffic
+      // is excluded by the query, never hidden after it arrives.
+      var aenv = ev.target.closest('[data-sy-aenv]');
+      if (aenv) {
+        ev.preventDefault();
+        SY.analyticsEnv = aenv.getAttribute('data-sy-aenv');
+        SY.platformAnalytics = null; SY.productAnalytics = null;
+        go(host, SY.module);
+        return;
+      }
+      var adays = ev.target.closest('[data-sy-adays]');
+      if (adays) {
+        ev.preventDefault();
+        SY.analyticsDays = Number(adays.getAttribute('data-sy-adays')) || 30;
+        SY.platformAnalytics = null; SY.productAnalytics = null;
+        go(host, SY.module);
         return;
       }
 

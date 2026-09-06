@@ -11,6 +11,7 @@ import teamRoutes       from './team.routes';
 import membershipRoutes from './membership.routes';
 import invitationRoutes from './invitation.routes';
 import systemRoutes from './system.routes';
+import telemetryRoutes from './telemetry.routes';
 import contextRoutes    from './context.routes';
 // Phase B — Match Intelligence + Hardware Sessions + Automation
 import deviceRoutes     from './device-session.routes';
@@ -83,6 +84,9 @@ router.use('/memberships', membershipRoutes);
 router.use('/invitations', invitationRoutes);
 // SYSTEM / FOS — the platform's own surface. Never a club's.
 router.use('/system', systemRoutes);
+// Product-usage ingestion. Deliberately not '/analytics' — that is a club's own
+// football analytics, and the two must never be confused for one another.
+router.use('/telemetry',   telemetryRoutes);
 router.use('/me',          contextRoutes);
 router.use('/devices',     deviceRoutes);
 router.use('/automation',  automationRoutes);

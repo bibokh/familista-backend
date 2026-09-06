@@ -21,6 +21,7 @@ import { listModels } from './intelligence/gateway';
 import { currentEnvironment } from './environment';
 import { decide, listPacks, type PolicyRequest } from './governance/policy';
 import { RESOURCE_CLASSIFICATION } from './data-classification';
+import { analyticsStore } from './analytics/store';
 
 /**
  * Where a number came from, said on the number itself.
@@ -69,7 +70,12 @@ export interface PlatformOverview {
   security: { alertsToday: Metric; alertsThisWeek: Metric };
   intelligence: { agents: Metric; jobsPending: Metric; jobsFailed: Metric };
   innovation: { flags: Metric; flagsOn: Metric; experiments: Metric; experimentsRunning: Metric };
-  activity: { activeToday: Metric; activeThisWeek: Metric; sessionsToday: Metric; topModules: Metric };
+  activity: {
+    activeToday: Metric; signedInToday: Metric; activeThisWeek: Metric;
+    sessionsToday: Metric; topModules: Metric;
+  };
+  /** The most-opened modules today, from product analytics. Empty until there is data. */
+  topModules: Array<{ module: string; opens: number; uniqueUsers: number }>;
   modules: ReadonlyArray<SystemModule>;
 }
 
@@ -106,6 +112,63 @@ async function agentJobCounts(): Promise<{ pending: number; running: number; fai
     ]);
     return { pending, running, failed, succeeded };
   } catch { return null; }
+}
+
+
+/**
+ * What product analytics can say about right now.
+ *
+ * Every read is an aggregate. A deployment with no analytics rows yet gets
+ * nulls, and the caller turns those into "collecting data" rather than into a
+ * zero — a dashboard that shows 0 active users when it means "nothing is
+ * measuring yet" is the exact lie this whole surface avoids.
+ */
+async function analyticsSnapshot(now: Date): Promise<{
+  activeToday: Metric | null;
+  activeThisWeek: Metric | null;
+  sessionsToday: Metric;
+  topModules: Metric;
+  topModuleRows: Array<{ module: string; opens: number; uniqueUsers: number }>;
+}> {
+  const collecting = 'Product analytics are instrumented, and no events have been recorded in this environment yet.';
+  try {
+    const store = analyticsStore();
+    const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const to = new Date(now.getTime() + 1000);
+    const today = { environment: 'PRODUCTION' as const, from: startOfDay, to };
+    const week = { environment: 'PRODUCTION' as const, from: new Date(startOfDay.getTime() - 6 * 86400000), to };
+
+    const [earliest, active, activeWeek, sessions, modules] = await Promise.all([
+      store.earliestEvent('PRODUCTION'),
+      store.uniqueUsers(today),
+      store.uniqueUsers(week),
+      store.sessionStats(today),
+      store.byDimension(today, 'module', 8),
+    ]);
+
+    if (!earliest) {
+      return {
+        activeToday: null, activeThisWeek: null,
+        sessionsToday: notInstrumented(collecting),
+        topModules: notInstrumented(collecting),
+        topModuleRows: [],
+      };
+    }
+
+    return {
+      activeToday: derived(active, 'Distinct authenticated users with at least one production analytics event today (UTC)'),
+      activeThisWeek: derived(activeWeek, 'Distinct authenticated users with a production analytics event in the last 7 days'),
+      sessionsToday: live(sessions.sessions, 'COUNT(AnalyticsSession) started today (UTC), in PRODUCTION'),
+      topModules: derived(modules.length, 'Distinct modules opened today (UTC), in PRODUCTION'),
+      topModuleRows: modules.map((m) => ({ module: m.dimension, opens: m.events, uniqueUsers: m.uniqueUsers })),
+    };
+  } catch {
+    const why = 'Analytics tables are not readable in this deployment.';
+    return {
+      activeToday: null, activeThisWeek: null,
+      sessionsToday: notInstrumented(why), topModules: notInstrumented(why), topModuleRows: [],
+    };
+  }
 }
 
 /**
@@ -171,6 +234,11 @@ export async function platformOverview(actor: PlatformActor): Promise<PlatformOv
     prisma.user.count({ where: { lastLoginAt: { gte: dayAgo } } }),
     prisma.user.count({ where: { lastLoginAt: { gte: weekAgo } } }),
   ]);
+
+  // Product analytics, if any has been recorded. Every figure is an aggregate
+  // over the analytics tables; a deployment that has recorded nothing yet gets
+  // nulls and says "collecting", never a zero dressed as a measurement.
+  const usage = await analyticsSnapshot(now);
 
   // Agent jobs are optional history: a deployment that has never run one has
   // the table and no rows, and a deployment whose client predates it has
@@ -246,12 +314,17 @@ export async function platformOverview(actor: PlatformActor): Promise<PlatformOv
     activity: {
       // lastLoginAt is a real column, so these are real — but they count
       // sign-ins, not sessions, and the definition says exactly that.
-      activeToday: derived(loggedInDay, 'Accounts whose lastLoginAt is within 24 hours — sign-ins, not live sessions'),
-      activeThisWeek: derived(loggedInWeek, 'Accounts whose lastLoginAt is within 7 days'),
-      sessionsToday: notInstrumented('No session analytics are collected yet — product analytics are not instrumented.'),
-      topModules: notInstrumented('No feature-usage events are collected yet — product analytics are not instrumented.'),
+      // Two different questions, both answered, never conflated. Sign-ins say
+      // who authenticated; active users say who actually did something. The
+      // analytics-backed figure is the one that means "used Familista today".
+      activeToday: usage.activeToday ?? derived(loggedInDay, 'Accounts whose lastLoginAt is within 24 hours — sign-ins, not live sessions'),
+      signedInToday: derived(loggedInDay, 'Accounts whose lastLoginAt is within 24 hours — sign-ins, not live sessions'),
+      activeThisWeek: usage.activeThisWeek ?? derived(loggedInWeek, 'Accounts whose lastLoginAt is within 7 days'),
+      sessionsToday: usage.sessionsToday,
+      topModules: usage.topModules,
     },
     modules: SYSTEM_MODULES,
+    topModules: usage.topModuleRows,
   };
 }
 

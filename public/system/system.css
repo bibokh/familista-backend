@@ -598,3 +598,47 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
 .sy-diag-row > b.is-ok { color: #6ee7b7; }
 .sy-diag-row > b.is-no { color: #fca5a5; }
 .sy-denied-card .sy-btn { margin-block-start: 6px; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Analytics
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Filters. The environment is a server-side filter, so changing it refetches —
+   Lab traffic is excluded by the query, never hidden after it arrives. */
+.sy-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.sy-filter-group {
+  display: flex; gap: 2px; padding: 2px; border-radius: 10px;
+  background: rgba(255, 255, 255, .04); border: 1px solid var(--sy-line);
+}
+.sy-filter {
+  padding: 6px 11px; border-radius: 8px; border: 0; background: transparent; cursor: pointer;
+  font: inherit; font-size: 10.5px; font-weight: 700; color: var(--sy-tx-3); white-space: nowrap;
+}
+.sy-filter:hover { color: var(--sy-tx-2); }
+.sy-filter.is-on { background: rgba(59, 130, 246, .18); color: #bfdbfe; }
+.sy-filter:focus-visible { outline: 2px solid var(--sy-accent); outline-offset: 1px; }
+
+/* Bars, drawn from real values against a real maximum. No library, no
+   smoothing, no interpolation — a bar is a number and nothing else. */
+.sy-bars { display: flex; flex-direction: column; gap: 7px; }
+.sy-bars .sy-bar-row { display: flex; align-items: center; gap: 10px; padding: 2px 0; font-size: 11px; }
+.sy-bars .sy-bar-row > span:first-child {
+  width: 118px; flex: none; color: var(--sy-tx-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sy-bars .sy-bar { flex: 1; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .06); overflow: hidden; min-width: 40px; }
+.sy-bars .sy-bar > i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--sy-accent), var(--sy-accent-2)); }
+.sy-bars .sy-bar-row > b { width: 62px; text-align: end; font-size: 11px; font-weight: 700; }
+
+.sy-delta { font-weight: 700; font-size: 9.5px; margin-inline-end: 4px; }
+.sy-delta--up { color: #6ee7b7; }
+.sy-delta--down { color: #fca5a5; }
+
+/* A journey is a sequence of module keys. There is nothing else in it. */
+.sy-journeys { display: flex; flex-direction: column; gap: 1px; border-radius: 11px; overflow: hidden; }
+.sy-journey {
+  display: flex; align-items: center; gap: 12px; padding: 9px 12px;
+  background: var(--sy-panel-2); font-size: 11px;
+}
+.sy-journey > span { color: var(--sy-tx-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sy-journey > b { margin-inline-start: auto; font-weight: 700; }

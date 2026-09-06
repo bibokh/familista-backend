@@ -156,8 +156,13 @@ describe('the Overview is populated from what the platform already owns', () => 
     // The two that genuinely need instrumentation stay null and say so.
     expect(o.activity.sessionsToday.value).toBeNull();
     expect(o.activity.topModules.value).toBeNull();
-    expect(o.activity.sessionsToday.unavailable).toMatch(/not instrumented/i);
-    expect(o.activity.topModules.unavailable).toMatch(/not instrumented/i);
+    // Both stay null with a stated reason. Which reason depends on why: a
+    // deployment that has recorded nothing says "no events yet", one whose
+    // analytics tables cannot be read says that instead. Either way it is a
+    // sentence, never a zero.
+    expect(o.activity.sessionsToday.unavailable!.length).toBeGreaterThan(20);
+    expect(o.activity.topModules.unavailable!.length).toBeGreaterThan(20);
+    expect(o.topModules).toEqual([]);
   });
 
   it('counts with aggregates — it never fetches rows to count them', async () => {
@@ -328,7 +333,7 @@ describe('SYSTEM speaks three languages, and only three', () => {
       // loanword are the same word in the target language, and forcing them
       // apart would make the interface worse. Those are listed, so the list
       // itself stays short and reviewable.
-      const SAME_WORD = /^(COUNT\(|LIVE$|%d live$|Detail$|live$|Agent$|Status$|Familista|English$|Deutsch$|Governance$|Innovation$|Platform$)/;
+      const SAME_WORD = /^(COUNT\(|LIVE$|%d live$|Detail$|live$|Agent$|Status$|Familista|English$|Deutsch$|Governance$|Innovation$|Platform$|DAU$|WAU$|MAU$|Trend$)/;
       const untranslated = Object.keys(en).filter((k) => dict[k] === k && !SAME_WORD.test(k));
       expect(`${tag}:${untranslated.join(' | ')}`).toBe(`${tag}:`);
       const sameWord = Object.keys(en).filter((k) => dict[k] === k);

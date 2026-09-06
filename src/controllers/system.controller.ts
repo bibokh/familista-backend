@@ -12,6 +12,9 @@ import { defineFlag, listFlags, isEnabled, type FlagAudience } from '../platform
 import { decideExperiment, registerExperiment, listExperiments, type ExperimentStatus } from '../platform/innovation/experiments';
 import { currentEnvironment, type FamilistaEnvironment } from '../platform/environment';
 import * as onboarding from '../platform/club-onboarding.service';
+import * as analytics from '../platform/analytics/service';
+import { analyticsSignals } from '../platform/analytics/signals';
+import { ANALYTICS_EVENTS } from '../platform/analytics/contracts';
 import { publish } from '../platform/events/bus';
 import { sendSuccess } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
@@ -164,9 +167,75 @@ export async function approvals(req: Request, res: Response, next: NextFunction)
   } catch (err) { return next(err); }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Analytics — every read here is cross-club, and therefore the platform
+// owner's alone. The service asserts that as well as the route.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The filters a request may set. The environment defaults to PRODUCTION. */
+function analyticsQuery(req: Request): analytics.AnalyticsQuery {
+  const q = req.query as Record<string, string | undefined>;
+  const env = (q.environment ?? '').toUpperCase();
+  return {
+    environment: (analytics.ANALYTICS_ENVIRONMENTS as string[]).includes(env)
+      ? (env as never) : 'PRODUCTION',
+    days: q.days ? Number(q.days) : undefined,
+    clubId: q.clubId ?? null,
+    module: q.module ?? null,
+    role: q.role ?? null,
+  };
+}
+
+export async function platformAnalytics(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = actorOf(req);
+    const q = analyticsQuery(req);
+    const [active, rhythm, roles, clubs, retentionReport, activity] = await Promise.all([
+      analytics.activeUsers(actor, q),
+      analytics.usageRhythm(actor, q),
+      analytics.roleUsage(actor, q),
+      analytics.clubUsage(actor, q),
+      analytics.retention(actor, q),
+      analytics.platformActivity(actor, q),
+    ]);
+    return sendSuccess(res, {
+      environments: analytics.ANALYTICS_ENVIRONMENTS,
+      query: { environment: q.environment, days: q.days ?? 30 },
+      active, rhythm, roles, clubs, retention: retentionReport, activity,
+      policy: analytics.retentionPolicy(),
+    });
+  } catch (err) { return next(err); }
+}
+
+export async function productAnalytics(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = actorOf(req);
+    const q = analyticsQuery(req);
+    const [modules, paths, activity] = await Promise.all([
+      analytics.moduleUsage(actor, q),
+      analytics.journeys(actor, q),
+      analytics.platformActivity(actor, q),
+    ]);
+    return sendSuccess(res, {
+      environments: analytics.ANALYTICS_ENVIRONMENTS,
+      query: { environment: q.environment, days: q.days ?? 30 },
+      events: ANALYTICS_EVENTS,
+      modules, journeys: paths, activity,
+      policy: analytics.retentionPolicy(),
+    });
+  } catch (err) { return next(err); }
+}
+
 export async function signals(req: Request, res: Response, next: NextFunction) {
   try {
-    return sendSuccess(res, { signals: await system.platformSignals(actorOf(req)) });
+    const actor = actorOf(req);
+    const [operational, usage] = await Promise.all([
+      system.platformSignals(actor),
+      // Deterministic thresholds over two windows, never a prediction. A
+      // failure to compute them must not empty the operational feed.
+      analyticsSignals('PRODUCTION').catch(() => []),
+    ]);
+    return sendSuccess(res, { signals: [...operational, ...usage] });
   } catch (err) { return next(err); }
 }
 

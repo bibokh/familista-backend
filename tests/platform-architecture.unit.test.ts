@@ -39,10 +39,17 @@ describe('SYSTEM and CLUBS are two products, and never mix', () => {
       expect(`${m.key}:${!!m.backing}`).toBe(`${m.key}:true`);
       expect(['LIVE', 'PARTIAL', 'NOT_INSTRUMENTED']).toContain(m.readiness);
     }
-    // The ones that cannot yet be measured say so, rather than being omitted or
-    // quietly claiming to be live.
-    expect(systemModule('platform-analytics')!.readiness).toBe('NOT_INSTRUMENTED');
-    expect(systemModule('product-analytics')!.readiness).toBe('NOT_INSTRUMENTED');
+    // The two analytics modules are instrumented now — AnalyticsEvent,
+    // AnalyticsSession and the daily rollups back them — so they say LIVE and
+    // name the tables. What must stay true is that a readiness is never a
+    // claim: it names its backing, and a module with nothing behind it still
+    // has to say NOT_INSTRUMENTED rather than being omitted.
+    for (const key of ['platform-analytics', 'product-analytics']) {
+      const m = systemModule(key)!;
+      expect(`${key}:${m.readiness}`).toBe(`${key}:LIVE`);
+      expect(m.backing).toMatch(/Analytics/);
+    }
+    expect(SYSTEM_MODULES.some((m) => m.readiness === 'NOT_INSTRUMENTED')).toBe(true);
     expect(systemModule('overview')!.readiness).toBe('LIVE');
   });
 
