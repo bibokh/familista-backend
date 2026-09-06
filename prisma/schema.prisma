@@ -614,6 +614,24 @@ enum ClubInvitationStatus {
   EXPIRED
 }
 
+/// Whether the email carrying an invitation reached a provider.
+///
+/// Deliberately a SEPARATE fact from ClubInvitationStatus, and the separation
+/// is the point: an email that failed does not make an invitation invalid, and
+/// an email that sent does not make one accepted. Confusing the two is how a
+/// platform ends up revoking a good invitation because a mail server was down.
+///
+///   CREATED  the invitation exists; no delivery has been attempted
+///   QUEUED   an attempt is in flight
+///   SENT     a provider accepted the message
+///   FAILED   no provider accepted it. The invitation is still valid.
+enum EmailDeliveryState {
+  CREATED
+  QUEUED
+  SENT
+  FAILED
+}
+
 /// An invitation to work for a club.
 ///
 /// The point of this table is what it does NOT contain: no password, no
@@ -654,12 +672,31 @@ model ClubInvitation {
   /// credential, and never a field the recipient cannot see for themselves.
   message String? @db.Text
 
+  /// ── delivery, which is not validity ──────────────────────────────────────
+  /// Whether the email got out, recorded separately from whether the
+  /// invitation is good. A FAILED delivery leaves a PENDING invitation that a
+  /// resend can carry again.
+  deliveryState      EmailDeliveryState @default(CREATED)
+  /// Which adapter attempted it: "sendgrid", "smtp", or "none".
+  deliveryProvider   String?
+  /// The provider's own id, when it gives one. Useful for a support ticket.
+  deliveryMessageId  String?
+  /// A short classified code — TIMEOUT, HTTP_429, EMAIL_NOT_CONFIGURED.
+  /// Never the provider's body, which can quote the message it refused.
+  deliveryFailureCode String?
+  deliveryFailureClass String?
+  deliveryAttemptedAt DateTime?
+  deliveryAttempts    Int      @default(0)
+  /// The language the message was written in: en, de or ar.
+  deliveryLocale      String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([clubId, status])
   @@index([email])
   @@index([expiresAt])
+  @@index([deliveryState])
 }
 
 enum MembershipAuditAction {

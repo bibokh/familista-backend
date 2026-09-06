@@ -27,6 +27,8 @@ import {
 import { prisma } from '../config/database';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { grantMembership, type MembershipActor } from '../services/membership.service';
+import { deliverInvitation, type DeliveryOutcome } from './invitation-mail.service';
+import { consume } from './invitation-throttle';
 
 /** Seven days: long enough for somebody on holiday, short enough to expire. */
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -38,6 +40,8 @@ export interface CreateInvitationDto {
   role: MembershipRole;
   teamId?: string | null;
   message?: string | null;
+  /** Shown in the email as who is inviting. A name, never an address. */
+  inviterName?: string | null;
 }
 
 /** What a club screen may see. The token is not in it, and never will be. */
@@ -48,6 +52,15 @@ export interface InvitationView {
   role: MembershipRole;
   teamId: string | null;
   status: ClubInvitationStatus;
+  /**
+   * Whether the email got out. A DIFFERENT fact from `status`: a FAILED
+   * delivery leaves a PENDING invitation, and a SENT one does not make an
+   * invitation accepted.
+   */
+  deliveryState: string;
+  deliveryProvider: string | null;
+  deliveryFailureCode: string | null;
+  deliveryAttempts: number;
   expiresAt: Date;
   acceptedAt: Date | null;
   revokedAt: Date | null;
@@ -79,6 +92,10 @@ export function view(row: ClubInvitation): InvitationView {
     role: row.role,
     teamId: row.teamId,
     status: row.status,
+    deliveryState: String(row.deliveryState),
+    deliveryProvider: row.deliveryProvider,
+    deliveryFailureCode: row.deliveryFailureCode,
+    deliveryAttempts: row.deliveryAttempts,
     expiresAt: row.expiresAt,
     acceptedAt: row.acceptedAt,
     revokedAt: row.revokedAt,
@@ -129,13 +146,24 @@ async function audit(
 export async function createInvitation(
   actor: InviteActor,
   dto: CreateInvitationDto,
-): Promise<{ invitation: InvitationView; token: string }> {
+): Promise<{ invitation: InvitationView; token: string; delivery: DeliveryOutcome }> {
   const email = normaliseEmail(dto.email);
 
   if (dto.teamId) {
     const team = await prisma.team.findUnique({ where: { id: dto.teamId }, select: { clubId: true } });
     if (!team) throw new NotFoundError('Team');
     if (team.clubId !== actor.clubId) throw new ForbiddenError();
+  }
+
+  // ── anti-abuse ─────────────────────────────────────────────────────────────
+  // An invitation endpoint sends email to an address the caller chooses, so it
+  // is a spam relay unless it is counted. Two buckets: one club cannot invite
+  // the world, and one account cannot do it across many clubs.
+  if (!consume('clubInvite', actor.clubId)) {
+    throw new ConflictError('This club has sent too many invitations recently. Try again later.');
+  }
+  if (!consume('actorInvite', actor.userId)) {
+    throw new ConflictError('You have sent too many invitations recently. Try again later.');
   }
 
   // One live invitation per address per club. A second one for the same person
@@ -165,7 +193,19 @@ export async function createInvitation(
     return created;
   });
 
-  return { invitation: view(row), token: raw };
+  // The email goes out after the row is committed, never inside the
+  // transaction: a mail provider taking four seconds must not hold a database
+  // transaction open for four seconds, and a delivery failure must not roll
+  // back an invitation that is perfectly valid.
+  const delivery = await deliverInvitation({
+    kind: dto.role === MembershipRole.CLUB_OWNER ? 'PRESIDENT' : 'STAFF',
+    invitation: row,
+    rawToken: raw,
+    inviterName: dto.inviterName ?? null,
+    actorUserId: actor.userId,
+  });
+
+  return { invitation: view(row), token: raw, delivery };
 }
 
 /**
@@ -178,11 +218,17 @@ export async function createInvitation(
 export async function resendInvitation(
   actor: InviteActor,
   id: string,
-): Promise<{ invitation: InvitationView; token: string }> {
+  opts?: { inviterName?: string | null },
+): Promise<{ invitation: InvitationView; token: string; delivery: DeliveryOutcome }> {
   const existing = await prisma.clubInvitation.findUnique({ where: { id } });
   if (!existing || existing.clubId !== actor.clubId) throw new NotFoundError('Invitation');
   if (effectiveStatus(existing) === 'ACCEPTED') throw new ConflictError('That invitation has already been accepted');
   if (existing.status === 'REVOKED') throw new ConflictError('That invitation was revoked');
+  // Counted per invitation: repeatedly pressing "resend" is the shape of both
+  // an impatient person and a script, and neither should reach the provider.
+  if (!consume('resend', id)) {
+    throw new ConflictError('That invitation has been resent too many times recently. Try again later.');
+  }
 
   const { raw, hash } = mintToken();
   const row = await prisma.$transaction(async (tx) => {
@@ -196,7 +242,18 @@ export async function resendInvitation(
     return updated;
   });
 
-  return { invitation: view(row), token: raw };
+  // A new link, and the old one already stopped working — the tokenHash was
+  // replaced inside the transaction above. The email says so in words.
+  const delivery = await deliverInvitation({
+    kind: row.role === MembershipRole.CLUB_OWNER ? 'PRESIDENT' : 'STAFF',
+    invitation: row,
+    rawToken: raw,
+    inviterName: opts?.inviterName ?? null,
+    resent: true,
+    actorUserId: actor.userId,
+  });
+
+  return { invitation: view(row), token: raw, delivery };
 }
 
 /** Withdraw it. The link stops working immediately, accepted or not. */
@@ -308,6 +365,11 @@ export async function acceptInvitation(
   actor: { userId: string; email: string; ipAddress?: string | null; userAgent?: string | null },
   rawToken: string,
 ): Promise<{ clubId: string; membershipId: string }> {
+  // Counted before the token is even looked up, so a brute-force costs the
+  // attacker their budget whether they guess right or wrong.
+  if (!consume('accept', normaliseEmail(actor.email))) {
+    throw new ForbiddenError('Too many invitation attempts for this account. Try again later.');
+  }
   const row = await findByToken(rawToken);
   if (normaliseEmail(actor.email) !== row.email) {
     throw new ForbiddenError('This invitation was sent to a different email address');

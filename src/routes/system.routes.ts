@@ -28,6 +28,7 @@ router.get('/intelligence', ctrl.intelligence);
 router.get('/innovation',   ctrl.innovation);
 router.get('/governance',   ctrl.governance);
 router.get('/approvals',    ctrl.approvals);
+router.get('/email',        ctrl.email);
 // Cross-club product analytics. Platform owner only, like everything here.
 router.get('/analytics/platform', ctrl.platformAnalytics);
 router.get('/analytics/product',  ctrl.productAnalytics);

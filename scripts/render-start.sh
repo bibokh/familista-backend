@@ -543,6 +543,33 @@ if [ -n "${ACADEMY_LEAGUE_INIT:-}" ]; then
   fi
 fi
 
+# ── 4d · email delivery ──────────────────────────────────────────────────────
+# Say once, at boot, whether Familista can send email. An operator who has to
+# discover that from a failed invitation discovers it from a president who
+# never arrived.
+#
+# The configuration is printed; the credential never is. This block reads the
+# adapter's own report, which has no field a secret could be in.
+echo ""
+set +e
+node -e "
+  const { emailConfiguration } = require('./dist/platform/email/service');
+  const c = emailConfiguration();
+  console.log('── email delivery ──');
+  console.log('   provider                     ' + c.providerName);
+  console.log('   configured                   ' + (c.configured ? 'YES' : 'NO'));
+  console.log('   from                         ' + c.fromAddress);
+  console.log('   acceptance links point at    ' + (c.publicAppUrl || '(PUBLIC_APP_URL is not set)'));
+  if (!c.configured) {
+    console.log('');
+    console.log('   ⚠ EMAIL DELIVERY NOT CONFIGURED — ' + c.problem);
+    console.log('     Invitations still work: a token is minted, it is valid, single-use');
+    console.log('     and expiring, and SYSTEM shows the link once. Nothing is emailed,');
+    console.log('     and nothing claims to have been.');
+  }
+" 2>&1
+set -e
+
 # ── 4c · analytics maintenance ───────────────────────────────────────────────
 # Summarise the days that are over, then apply the retention policy. Both are
 # idempotent, both are cheap, and neither can stop the API: the script exits 0

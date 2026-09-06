@@ -642,3 +642,9 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
 }
 .sy-journey > span { color: var(--sy-tx-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sy-journey > b { margin-inline-start: auto; font-weight: 700; }
+
+/* Delivery state, drawn beside the invitation but never merged with it — an
+   email that failed does not make an invitation invalid, and the two chips
+   sitting apart is what says so. */
+.sy-delivery { display: flex; align-items: center; gap: 8px; margin-block-start: 8px; }
+.sy-delivery-n { font-size: 10px; color: var(--sy-tx-3); font-weight: 700; }

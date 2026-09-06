@@ -1,6 +1,12 @@
-import * as https from 'https';
-import { config } from '../config';
+// Password-reset email
+// ─────────────────────────────────────────────────────────────────────────────
+// The template is this file's; the delivery is not. The SendGrid and SMTP
+// transports that used to live here have moved behind EmailService, so this
+// file no longer knows or cares which provider carries the message — which is
+// the whole point of having a gateway.
+
 import { logger } from '../utils/logger';
+import { sendEmail, recipientRef } from '../platform/email/service';
 
 interface PasswordResetEmailOptions {
   to: string;
@@ -79,89 +85,36 @@ function buildPasswordResetText(firstName: string, resetUrl: string): string {
   ].join('\n');
 }
 
-async function sendViaSendGrid(opts: PasswordResetEmailOptions): Promise<void> {
-  const payload = JSON.stringify({
-    personalizations: [{ to: [{ email: opts.to }] }],
-    from: {
-      email: config.email.fromAddress,
-      name: config.email.fromName,
-    },
-    subject: 'Reset your Familista password',
-    content: [
-      { type: 'text/plain', value: buildPasswordResetText(opts.firstName, opts.resetUrl) },
-      { type: 'text/html',  value: buildPasswordResetHtml(opts.firstName, opts.resetUrl) },
-    ],
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    const req = https.request(
-      {
-        hostname: 'api.sendgrid.com',
-        path:     '/v3/mail/send',
-        method:   'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${config.email.sendgridKey}`,
-          'Content-Length': Buffer.byteLength(payload),
-        },
-      },
-      (res) => {
-        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-          res.resume();
-          resolve();
-        } else {
-          let body = '';
-          res.on('data', (chunk: Buffer) => { body += chunk.toString(); });
-          res.on('end', () => reject(new Error(`SendGrid ${res.statusCode}: ${body}`)));
-        }
-      },
-    );
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
-  });
-}
-
-async function sendViaSmtp(opts: PasswordResetEmailOptions): Promise<void> {
-  // Dynamic require — nodemailer is not a declared dependency; only used when SMTP_HOST is set
-  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-explicit-any
-  const nodemailer = require('nodemailer') as any;
-
-  const transporter = nodemailer.createTransport({
-    host:   config.email.smtpHost,
-    port:   config.email.smtpPort,
-    secure: config.email.smtpPort === 465,
-    auth:   config.email.smtpUser
-      ? { user: config.email.smtpUser, pass: config.email.smtpPass }
-      : undefined,
-  });
-
-  await transporter.sendMail({
-    from:    `"${config.email.fromName}" <${config.email.fromAddress}>`,
-    to:      opts.to,
-    subject: 'Reset your Familista password',
-    text:    buildPasswordResetText(opts.firstName, opts.resetUrl),
-    html:    buildPasswordResetHtml(opts.firstName, opts.resetUrl),
-  });
-}
-
+/**
+ * Password reset, through the gateway.
+ *
+ * The templates above are unchanged and still produce exactly the message this
+ * function always sent. What changed is who delivers it: the SendGrid and SMTP
+ * code that used to live in this file has moved behind EmailService, so a
+ * provider change is one adapter rather than an edit here and in every other
+ * place that learned to send mail.
+ *
+ * Kept as a function with the same name and shape so nothing that calls it had
+ * to change. It still resolves rather than throwing on a delivery failure —
+ * a reset token is valid whether or not its email got out, and telling a
+ * caller otherwise would leak which addresses have accounts.
+ */
 export async function sendPasswordResetEmail(opts: PasswordResetEmailOptions): Promise<void> {
-  if (config.email.sendgridKey) {
-    await sendViaSendGrid(opts);
-    logger.info({ msg: 'password-reset email dispatched via SendGrid', to: opts.to });
-    return;
-  }
-
-  if (config.email.smtpHost) {
-    await sendViaSmtp(opts);
-    logger.info({ msg: 'password-reset email dispatched via SMTP', to: opts.to });
-    return;
-  }
-
-  // Dev fallback — log the link so it can be used without a real email provider
-  logger.info({
-    msg:      'password-reset email (no transport configured — dev log only)',
-    to:       opts.to,
-    resetUrl: opts.resetUrl,
+  const result = await sendEmail({
+    to: { address: opts.to, name: opts.firstName || null },
+    subject: 'Reset your Familista password',
+    html: buildPasswordResetHtml(opts.firstName, opts.resetUrl),
+    text: buildPasswordResetText(opts.firstName, opts.resetUrl),
+    locale: 'en',
   });
+  if (!result.ok) {
+    // Logged with a reference rather than the address, and never with the URL —
+    // a reset link in a log is a reset link anybody with the log can use.
+    logger.warn('password-reset email not delivered', {
+      provider: result.providerName,
+      failureClass: result.failureClass,
+      failureCode: result.failureCode,
+      recipient: recipientRef(opts.to),
+    });
+  }
 }

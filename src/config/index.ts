@@ -76,15 +76,22 @@ export const config = {
     level: optional('LOG_LEVEL', 'info'),
   },
 
+  // Email. Every value here is read by the gateway in platform/email and by
+  // nothing else — no product code reaches a provider SDK directly. A secret
+  // in this block is never logged, never returned by an endpoint and never
+  // included in a failure code.
   email: {
     fromAddress:  optional('EMAIL_FROM',       'noreply@familista.app'),
     fromName:     optional('EMAIL_FROM_NAME',  'Familista'),
+    /** 'sendgrid' | 'smtp' | 'none'. Unset picks the first that is configured. */
+    provider:     optional('EMAIL_PROVIDER',   ''),
     sendgridKey:  optional('SENDGRID_API_KEY', ''),
     smtpHost:     optional('SMTP_HOST',        ''),
     smtpPort:     parseInt(optional('SMTP_PORT', '587')),
     smtpUser:     optional('SMTP_USER',        ''),
     smtpPass:     optional('SMTP_PASS',        ''),
-    appUrl:       optional('APP_URL',          'http://localhost:3000'),
+    /** The public origin acceptance links point at. APP_URL is the older name. */
+    appUrl:       optional('PUBLIC_APP_URL',   optional('APP_URL', 'http://localhost:3000')),
   },
 
   isProd: process.env.NODE_ENV === 'production',

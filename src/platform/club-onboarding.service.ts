@@ -35,6 +35,7 @@ import { prisma } from '../config/database';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import * as invites from '../identity/invitation.service';
 import { assertPlatformOwner } from './system.service';
+import { emailConfiguration } from './email/service';
 import { currentEnvironment } from './environment';
 import { type PlatformActor } from './access-levels';
 
@@ -62,8 +63,16 @@ export interface CreateClubDto {
   };
 }
 
-/** Delivery is honest about itself: nothing here has sent an email. */
-export type DeliveryStatus = 'PARTIAL_NO_MAIL_PROVIDER';
+/**
+ * Delivery is honest about itself.
+ *
+ * SENT means a provider accepted the message. FAILED means one refused it, and
+ * the invitation is still perfectly valid. NOT_CONFIGURED means nothing was
+ * even attempted, because this deployment has no provider — and it is a
+ * separate answer from FAILED precisely so nobody reads "we tried and it
+ * bounced" when the truth is "nothing is set up".
+ */
+export type DeliveryStatus = 'SENT' | 'FAILED' | 'NOT_CONFIGURED';
 
 export interface PresidentState {
   /** PENDING while an invitation is out; ACTIVE once somebody accepted. */
@@ -75,11 +84,22 @@ export interface PresidentState {
   invitationExpiresAt: Date | null;
   userId: string | null;
   membershipId: string | null;
+  /**
+   * Whether the invitation email got out — CREATED, QUEUED, SENT or FAILED.
+   * A separate fact from `invitationStatus`: a FAILED delivery leaves a
+   * perfectly valid PENDING invitation that a resend can carry again.
+   */
+  deliveryState: string | null;
+  deliveryProvider: string | null;
+  deliveryFailureCode: string | null;
+  deliveryAttempts: number;
 }
 
 export interface ClubSetupState {
   clubId: string;
   name: string;
+  /** Whether this deployment can send email at all. No secret is in it. */
+  email: { configured: boolean; providerName: string; problem: string | null };
   lifecycle: ClubLifecycle;
   activatedAt: Date | null;
   president: PresidentState;
@@ -94,7 +114,34 @@ export interface ClubSetupState {
   blocking: string | null;
 }
 
-const INVITE_DELIVERY: DeliveryStatus = 'PARTIAL_NO_MAIL_PROVIDER';
+/**
+ * What the caller is told about a delivery, and whether they still need the
+ * link themselves.
+ *
+ * The raw token is returned only when the email did not go out. When it did,
+ * the link is in the recipient's inbox and nowhere else — which is where a
+ * single-use credential belongs.
+ */
+function describeDelivery(outcome: {
+  state: 'SENT' | 'FAILED'; provider: string; failureCode: string | null; notConfigured: boolean;
+}): { status: DeliveryStatus; detail: string } {
+  if (outcome.state === 'SENT') {
+    return {
+      status: 'SENT',
+      detail: `The invitation was sent through ${outcome.provider}. The link is in the recipient's inbox and is not shown here — it is single-use, and it belongs to them.`,
+    };
+  }
+  if (outcome.notConfigured) {
+    return {
+      status: 'NOT_CONFIGURED',
+      detail: 'EMAIL DELIVERY NOT CONFIGURED — nothing was emailed, and nothing claims to have been. The invitation is valid, single-use and expiring; give the recipient the link below yourself, or configure a provider and resend.',
+    };
+  }
+  return {
+    status: 'FAILED',
+    detail: `The provider (${outcome.provider}) did not accept the message${outcome.failureCode ? ` — ${outcome.failureCode}` : ''}. The invitation is unaffected and still valid: resend it, or give the recipient the link below.`,
+  };
+}
 
 function required(value: string | null | undefined, field: string): string {
   const v = String(value ?? '').trim();
@@ -179,7 +226,10 @@ export async function clubSetupState(clubId: string): Promise<ClubSetupState> {
     prisma.clubInvitation.findFirst({
       where: { clubId, role: MembershipRole.CLUB_OWNER },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, email: true, status: true, expiresAt: true },
+      select: {
+        id: true, email: true, status: true, expiresAt: true,
+        deliveryState: true, deliveryProvider: true, deliveryFailureCode: true, deliveryAttempts: true,
+      },
     }),
   ]);
 
@@ -193,6 +243,10 @@ export async function clubSetupState(clubId: string): Promise<ClubSetupState> {
         invitationExpiresAt: invitation?.expiresAt ?? null,
         userId: owner.userId,
         membershipId: owner.id,
+        deliveryState: invitation ? String(invitation.deliveryState) : null,
+        deliveryProvider: invitation?.deliveryProvider ?? null,
+        deliveryFailureCode: invitation?.deliveryFailureCode ?? null,
+        deliveryAttempts: invitation?.deliveryAttempts ?? 0,
       }
     : invitation && invitation.status === 'PENDING' && invitation.expiresAt > new Date()
       ? {
@@ -204,6 +258,10 @@ export async function clubSetupState(clubId: string): Promise<ClubSetupState> {
           invitationExpiresAt: invitation.expiresAt,
           userId: null,
           membershipId: null,
+          deliveryState: String(invitation.deliveryState),
+          deliveryProvider: invitation.deliveryProvider,
+          deliveryFailureCode: invitation.deliveryFailureCode,
+          deliveryAttempts: invitation.deliveryAttempts,
         }
       : {
           state: 'NONE',
@@ -214,13 +272,19 @@ export async function clubSetupState(clubId: string): Promise<ClubSetupState> {
           invitationExpiresAt: invitation?.expiresAt ?? null,
           userId: null,
           membershipId: null,
+          deliveryState: invitation ? String(invitation.deliveryState) : null,
+          deliveryProvider: invitation?.deliveryProvider ?? null,
+          deliveryFailureCode: invitation?.deliveryFailureCode ?? null,
+          deliveryAttempts: invitation?.deliveryAttempts ?? 0,
         };
 
   const activated = club.lifecycle === ClubLifecycle.ACTIVE && president.state === 'ACTIVE';
 
+  const email = emailConfiguration();
   return {
     clubId: club.id,
     name: club.name,
+    email: { configured: email.configured, providerName: email.providerName, problem: email.problem },
     lifecycle: club.lifecycle,
     activatedAt: club.activatedAt,
     president,
@@ -309,8 +373,8 @@ export async function createClubWithPresidentInvite(
       // call did not mint anything.
       token: '',
       delivery: {
-        status: INVITE_DELIVERY,
-        detail: 'This club and invitation already existed. Nothing was created and no new link was minted — resend the invitation if the president needs a fresh one.',
+        status: 'NOT_CONFIGURED',
+        detail: 'This club and invitation already existed. Nothing was created, nothing was emailed and no new link was minted — resend the invitation if the president needs a fresh one.',
       },
       idempotentHit: true,
     };
@@ -349,7 +413,7 @@ export async function createClubWithPresidentInvite(
   // fails, the club stays PENDING_SETUP with no invitation, which is a state
   // SYSTEM shows as incomplete and can retry, and is never mistaken for a
   // healthy club.
-  let created: { invitation: invites.InvitationView; token: string };
+  let created: Awaited<ReturnType<typeof invites.createInvitation>>;
   try {
     created = await invites.createInvitation(
       { userId: actor.userId, clubId, ipAddress: actor.ipAddress, userAgent: actor.userAgent },
@@ -359,6 +423,10 @@ export async function createClubWithPresidentInvite(
         teamId: null,
         message: dto.president.message?.trim()
           || `${firstName} ${lastName} is invited to be president of ${name}.`,
+        // The platform invites a president, not a person: SYSTEM has no club
+        // identity to sign the email with, and naming the platform owner in a
+        // stranger's inbox is neither useful nor theirs to disclose.
+        inviterName: 'Familista',
       },
     );
   } catch (err) {
@@ -386,11 +454,11 @@ export async function createClubWithPresidentInvite(
     clubId,
     setup: await clubSetupState(clubId),
     invitation: created.invitation,
-    token: created.token,
-    delivery: {
-      status: INVITE_DELIVERY,
-      detail: 'No mail provider is configured, so nothing was emailed. Give the president the link below yourself; it is shown once and cannot be retrieved again.',
-    },
+    // The link is handed back only when the email did not carry it. A token
+    // that reached the president's inbox does not also need to be on the
+    // platform owner's screen.
+    token: created.delivery.state === 'SENT' ? '' : created.token,
+    delivery: describeDelivery(created.delivery),
     idempotentHit: false,
   };
 }
@@ -448,11 +516,8 @@ export async function resendPresidentInvite(
 
   return {
     invitation: out.invitation,
-    token: out.token,
-    delivery: {
-      status: INVITE_DELIVERY,
-      detail: 'No mail provider is configured. The previous link no longer works; give the president the new one.',
-    },
+    token: out.delivery.state === 'SENT' ? '' : out.token,
+    delivery: describeDelivery(out.delivery),
   };
 }
 
@@ -536,6 +601,7 @@ export async function replacePresidentInvite(
       role: MembershipRole.CLUB_OWNER,
       teamId: null,
       message: president.message?.trim() || `${firstName} ${lastName} is invited to be president of ${club.name}.`,
+      inviterName: 'Familista',
     },
   );
 
@@ -557,11 +623,8 @@ export async function replacePresidentInvite(
     clubId,
     setup: await clubSetupState(clubId),
     invitation: created.invitation,
-    token: created.token,
-    delivery: {
-      status: INVITE_DELIVERY,
-      detail: 'No mail provider is configured. Give the new president the link below; it is shown once.',
-    },
+    token: created.delivery.state === 'SENT' ? '' : created.token,
+    delivery: describeDelivery(created.delivery),
     idempotentHit: false,
   };
 }

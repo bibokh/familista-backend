@@ -289,9 +289,15 @@ describe('the president is invited, never appointed', () => {
     expect(inv.teamId).toBeNull();
     expect(inv.invitedByUserId).toBe(PLATFORM_OWNER);
 
-    // Delivery tells the truth: nothing was emailed.
-    expect(out.delivery.status).toBe('PARTIAL_NO_MAIL_PROVIDER');
-    expect(out.delivery.detail).toMatch(/no mail provider/i);
+    // Delivery tells the truth, and there are now three truths to tell rather
+    // than one: SENT, FAILED, or nothing was even attempted. This suite runs
+    // with no provider configured, so it is the third — and "not configured"
+    // is deliberately a different answer from "we tried and it bounced".
+    expect(out.delivery.status).toBe('NOT_CONFIGURED');
+    expect(out.delivery.detail).toMatch(/EMAIL DELIVERY NOT CONFIGURED/);
+    // And the invitation is untouched by that: valid, and its own link is
+    // handed back precisely because no email carried it.
+    expect(out.token).toHaveLength(43);
   });
 
   it('7 · the token is hashed, expiring, single-use and revocable', async () => {

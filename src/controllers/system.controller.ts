@@ -13,6 +13,7 @@ import { decideExperiment, registerExperiment, listExperiments, type ExperimentS
 import { currentEnvironment, type FamilistaEnvironment } from '../platform/environment';
 import * as onboarding from '../platform/club-onboarding.service';
 import * as analytics from '../platform/analytics/service';
+import { emailConfiguration, emailMetrics } from '../platform/email/service';
 import { analyticsSignals } from '../platform/analytics/signals';
 import { ANALYTICS_EVENTS } from '../platform/analytics/contracts';
 import { publish } from '../platform/events/bus';
@@ -223,6 +224,20 @@ export async function productAnalytics(req: Request, res: Response, next: NextFu
       modules, journeys: paths, activity,
       policy: analytics.retentionPolicy(),
     });
+  } catch (err) { return next(err); }
+}
+
+/**
+ * Email delivery, as an operator needs to see it.
+ *
+ * Configuration and counters. There is no field here a key could be in, and no
+ * code path that reads one into this shape — it is returned to a screen, and a
+ * screen is a place a secret must never reach.
+ */
+export async function email(req: Request, res: Response, next: NextFunction) {
+  try {
+    await system.assertPlatformOwner(actorOf(req));
+    return sendSuccess(res, { configuration: emailConfiguration(), metrics: emailMetrics() });
   } catch (err) { return next(err); }
 }
 

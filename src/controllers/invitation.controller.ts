@@ -41,7 +41,8 @@ export async function create(req: Request, res: Response, next: NextFunction) {
   try {
     const parsed = createSchema.safeParse(req.body ?? {});
     if (!parsed.success) throw zerr(parsed.error);
-    const out = await invites.createInvitation(actorOf(req), parsed.data);
+    const out = await invites.createInvitation(actorOf(req),
+      { ...parsed.data, inviterName: inviterNameOf(req) });
     return sendCreated(res, out, 'Invitation created');
   } catch (err) { return next(err); }
 }
@@ -55,9 +56,16 @@ export async function list(req: Request, res: Response, next: NextFunction) {
   } catch (err) { return next(err); }
 }
 
+/** The inviter, as a name for the email. Never their address. */
+function inviterNameOf(req: Request): string | null {
+  const u = req.user as unknown as { firstName?: string; lastName?: string } | undefined;
+  const name = `${u?.firstName ?? ''} ${u?.lastName ?? ''}`.trim();
+  return name || null;
+}
+
 export async function resend(req: Request, res: Response, next: NextFunction) {
   try {
-    const out = await invites.resendInvitation(actorOf(req), String(req.params.id));
+    const out = await invites.resendInvitation(actorOf(req), String(req.params.id), { inviterName: inviterNameOf(req) });
     return sendSuccess(res, out, 'Invitation resent');
   } catch (err) { return next(err); }
 }

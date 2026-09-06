@@ -459,6 +459,14 @@
       + '</div></form></aside>';
   }
 
+  /** SENT, FAILED, or nothing was configured. Three different answers. */
+  function deliveryStatusChip(delivery) {
+    var status = (delivery && delivery.status) || 'NOT_CONFIGURED';
+    if (status === 'SENT') return '<span class="sy-chip sy-chip--live">SENT</span>';
+    if (status === 'FAILED') return '<span class="sy-chip sy-chip--protected">DELIVERY FAILED</span>';
+    return '<span class="sy-chip sy-chip--none">EMAIL DELIVERY NOT CONFIGURED</span>';
+  }
+
   /** What the platform owner sees the moment a club is created. */
   function createdClubHtml(result) {
     var link = '';
@@ -475,8 +483,10 @@
       + '<div class="sy-drawer-b">'
       + setupSteps(result.setup)
       + '<div class="sy-fieldset"><h3>Delivery</h3>'
-      + '<p class="sy-note"><span class="sy-chip sy-chip--partial">PARTIAL — EMAIL PROVIDER NOT CONNECTED</span></p>'
+      + '<p class="sy-note">' + deliveryStatusChip(result.delivery) + '</p>'
       + '<p class="sy-note">' + esc(result.delivery && result.delivery.detail) + '</p>'
+      // The token comes back only when the email did not carry it. A link that
+      // reached the recipient's inbox does not also belong on this screen.
       + (link
         ? '<label class="sy-field"><span>Invitation link — shown once</span>'
           + '<input type="text" readonly value="' + esc(link) + '" data-sy-link data-no-i18n></label>'
@@ -732,6 +742,46 @@
       + '</div>';
   }
 
+  /**
+   * Whether the invitation email got out — a different fact from whether the
+   * invitation is valid, and drawn as a different chip so the two can never be
+   * read as one. A FAILED delivery next to a PENDING invitation is the normal,
+   * correct state when a provider is down.
+   */
+  function deliveryChip(setup) {
+    var p = (setup && setup.president) || {};
+    var mail = (setup && setup.email) || {};
+    if (!mail.configured) {
+      return '<span class="sy-chip sy-chip--none" title="' + esc(mail.problem || '') + '">EMAIL DELIVERY NOT CONFIGURED</span>';
+    }
+    var d = p.deliveryState;
+    if (!d || d === 'CREATED') return '<span class="sy-chip sy-chip--none">NOT SENT</span>';
+    if (d === 'QUEUED') return '<span class="sy-chip sy-chip--partial">SENDING</span>';
+    if (d === 'SENT') {
+      return '<span class="sy-chip sy-chip--live" title="' + esc('Delivered through ' + (p.deliveryProvider || 'the configured provider')) + '">SENT</span>';
+    }
+    return '<span class="sy-chip sy-chip--protected" title="' + esc(p.deliveryFailureCode || '') + '">FAILED</span>';
+  }
+
+  function deliveryNote(setup) {
+    var p = (setup && setup.president) || {};
+    var mail = (setup && setup.email) || {};
+    if (!mail.configured) {
+      return '<p class="sy-note">' + esc(mail.problem || '')
+        + ' The invitation is still valid, single-use and expiring — nothing was emailed, and nothing claims to have been.</p>';
+    }
+    if (p.deliveryState === 'SENT') {
+      return '<p class="sy-note">Delivered through ' + esc(p.deliveryProvider || 'the configured provider')
+        + '. The link is in their inbox and is not shown here — it is single-use, and it belongs to them.</p>';
+    }
+    if (p.deliveryState === 'FAILED') {
+      return '<p class="sy-note">The provider did not accept the message'
+        + (p.deliveryFailureCode ? ' (' + esc(p.deliveryFailureCode) + ')' : '')
+        + '. The invitation is unaffected and still valid. Resending mints a new link and tries again.</p>';
+    }
+    return '';
+  }
+
   /** The president panel for one club: pending controls, or the active person. */
   function presidentPanel(setup) {
     if (!setup) return '';
@@ -758,9 +808,11 @@
       return '<section class="sy-panel">' + head
         + '<div class="sy-pres"><b data-user-content>' + esc(p.email || '') + '</b>'
         + '<span>Invitation pending' + (p.invitationExpiresAt
-          ? ' · expires <span data-no-i18n>' + esc(String(p.invitationExpiresAt).slice(0, 10)) + '</span>' : '') + '</span></div>'
-        + '<p class="sy-note">No mail provider is connected, so nothing was emailed. The link is shown once when '
-        + 'it is minted; resending mints a new one and retires the old.</p>'
+          ? ' · expires <span data-no-i18n>' + esc(String(p.invitationExpiresAt).slice(0, 10)) + '</span>' : '') + '</span>'
+        + '<div class="sy-delivery">' + deliveryChip(setup)
+        + (p.deliveryAttempts ? '<span class="sy-delivery-n" data-no-i18n>' + num(p.deliveryAttempts) + '×</span>' : '')
+        + '</div></div>'
+        + deliveryNote(setup)
         + '<div class="sy-row-btns">'
         + '<button class="sy-btn" type="button" data-sy-act="president-resend:' + esc(setup.clubId) + '">Resend invite</button>'
         + '<button class="sy-btn sy-btn--danger" type="button" data-sy-act="president-revoke:' + esc(setup.clubId) + '">Revoke invite</button>'
