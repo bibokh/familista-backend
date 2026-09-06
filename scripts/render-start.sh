@@ -163,6 +163,22 @@ const REQUIRED_COLUMNS = [
   // a migration applied without running it, and a TrainingSession without its
   // team would be a P2022 on the first session the Training screen asks for.
   ['TrainingSession', 'teamId',  'ALTER TABLE "TrainingSession" ADD COLUMN IF NOT EXISTS "teamId" TEXT'],
+  // 20260906090000_club_lifecycle — every club read now selects these, and a
+  // Club without `lifecycle` would be a P2022 on the first query SYSTEM makes.
+  // The enum has to exist before the column that uses it, so it is created
+  // here too, guarded; the DEFAULT is what keeps every pre-existing club
+  // behaving exactly as it did.
+  ['Club', 'defaultLocale', 'ALTER TABLE "Club" ADD COLUMN IF NOT EXISTS "defaultLocale" TEXT'],
+  // One statement, not two: $executeRawUnsafe sends a single statement, and the
+  // ALTER is EXECUTEd as text so it binds to the type AFTER the branch above
+  // has created it rather than when the block is parsed.
+  ['Club', 'lifecycle',     `DO $$ BEGIN
+       IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ClubLifecycle') THEN
+         CREATE TYPE "ClubLifecycle" AS ENUM ('PENDING_SETUP', 'PRESIDENT_INVITED', 'ACTIVE');
+       END IF;
+       EXECUTE 'ALTER TABLE "Club" ADD COLUMN IF NOT EXISTS "lifecycle" "ClubLifecycle" NOT NULL DEFAULT ''ACTIVE''';
+     END $$`],
+  ['Club', 'activatedAt',   'ALTER TABLE "Club" ADD COLUMN IF NOT EXISTS "activatedAt" TIMESTAMP(3)'],
 ];
 
 // 20260812000000_add_club_transfer_balance

@@ -471,3 +471,87 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
    "← Open" when the paragraph runs right to left. Nothing is mirrored by
    hand — mirroring the glyph would flip the letters with it. */
 .sy-shell[dir="rtl"] .sy-kpi-go { transform: scaleX(-1); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Club onboarding — the drawer, the setup steps, the president
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* The drawer is fixed and animates on opacity and transform only, so opening
+   it moves nothing underneath it. Nothing behind it reflows, scrolls or
+   repaints — the reader's place on the page is where they left it. */
+.sy-scrim {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(3, 6, 14, .62); backdrop-filter: blur(2px);
+  animation: sy-fade .16s ease both;
+}
+.sy-drawer {
+  position: fixed; inset-block: 0; inset-inline-end: 0; z-index: 61;
+  width: min(460px, 100vw); display: flex; flex-direction: column;
+  background: #0b1220; border-inline-start: 1px solid var(--sy-line-2);
+  box-shadow: -24px 0 60px rgba(0, 0, 0, .5);
+  animation: sy-slide .18s cubic-bezier(.22, .8, .3, 1) both;
+}
+.sy-shell[dir="rtl"] ~ .sy-drawer, [dir="rtl"] .sy-drawer { box-shadow: 24px 0 60px rgba(0, 0, 0, .5); }
+@keyframes sy-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sy-slide { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .sy-scrim, .sy-drawer { animation: none; }
+}
+
+.sy-drawer-h {
+  display: flex; align-items: flex-start; gap: 12px; padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--sy-line); flex: none;
+}
+.sy-drawer-h b { display: block; font-size: 15px; font-weight: 800; letter-spacing: -.2px; }
+.sy-drawer-h span { display: block; margin-top: 4px; font-size: 10.5px; color: var(--sy-tx-3); line-height: 1.5; }
+.sy-drawer-h .sy-icon-btn { margin-inline-start: auto; flex: none; }
+.sy-drawer-b {
+  flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable;
+  padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 18px;
+}
+.sy-drawer-f {
+  display: flex; gap: 8px; justify-content: flex-end; padding-block-start: 4px;
+  margin-block-start: auto;
+}
+
+.sy-fieldset { display: flex; flex-direction: column; gap: 10px; }
+.sy-fieldset h3 {
+  margin: 0; font-size: 9.5px; font-weight: 800; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--sy-tx-3);
+}
+.sy-field { display: flex; flex-direction: column; gap: 5px; }
+.sy-field > span { font-size: 10.5px; font-weight: 600; color: var(--sy-tx-2); }
+.sy-field input {
+  padding: 9px 11px; border-radius: 9px; font: inherit; font-size: 12px;
+  background: rgba(255, 255, 255, .04); border: 1px solid var(--sy-line);
+  color: var(--sy-tx); width: 100%; box-sizing: border-box;
+}
+.sy-field input:focus { outline: none; border-color: var(--sy-accent); background: rgba(59, 130, 246, .07); }
+.sy-field input[readonly] { color: var(--sy-tx-2); cursor: text; }
+.sy-note { margin: 0; font-size: 10.5px; color: var(--sy-tx-3); line-height: 1.55; }
+
+/* ── setup progress ────────────────────────────────────────────────────────
+   Four steps, each ticked only because the server confirmed the fact behind
+   it. A pending step says what it is waiting for, so nothing here reads as
+   finished before it is. */
+.sy-steps { display: flex; flex-direction: column; gap: 2px; }
+.sy-step { display: flex; align-items: flex-start; gap: 10px; padding: 9px 2px; }
+.sy-step + .sy-step { border-top: 1px solid var(--sy-line); }
+.sy-step-tick {
+  width: 20px; height: 20px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  font-size: 10px; background: rgba(255, 255, 255, .05); color: var(--sy-tx-3);
+}
+.sy-step.is-done .sy-step-tick { background: rgba(52, 211, 153, .16); color: #6ee7b7; }
+.sy-step-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sy-step-txt b { font-size: 11.5px; font-weight: 700; }
+.sy-step-txt i { font-style: normal; font-size: 10px; color: var(--sy-tx-3); line-height: 1.4; }
+.sy-step.is-done .sy-step-txt i { color: #6ee7b7; }
+
+.sy-pres { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
+.sy-pres b { font-size: 13px; font-weight: 700; }
+.sy-pres span { font-size: 11px; color: var(--sy-tx-3); }
+.sy-row-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: 12px; }
+
+@media (max-width: 620px) {
+  .sy-drawer { width: 100vw; }
+}

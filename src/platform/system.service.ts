@@ -263,13 +263,18 @@ export interface ClubRow {
   activeMemberships: number;
   hasOwner: boolean;
   createdAt: Date;
+  /** PENDING_SETUP | PRESIDENT_INVITED | ACTIVE — see Club.lifecycle. */
+  lifecycle: string;
+  activatedAt: Date | null;
+  /** The address a president invitation is outstanding for, when one is. */
+  pendingPresidentEmail: string | null;
 }
 
 /** Every club on the platform, with what the platform can count about it. */
 export async function listClubs(actor: PlatformActor, opts: { limit?: number } = {}): Promise<ClubRow[]> {
   await assertPlatformOwner(actor);
   const clubs = await prisma.club.findMany({
-    select: { id: true, name: true, createdAt: true },
+    select: { id: true, name: true, createdAt: true, lifecycle: true, activatedAt: true },
     orderBy: { name: 'asc' },
     take: Math.min(opts.limit ?? 200, 500),
   });
@@ -286,6 +291,16 @@ export async function listClubs(actor: PlatformActor, opts: { limit?: number } =
     }),
   ]);
 
+  // The address a club is still waiting on, so the list can say who rather
+  // than only that somebody is pending.
+  const pendingInvites = await prisma.clubInvitation.findMany({
+    where: { clubId: { in: ids }, role: 'CLUB_OWNER', status: 'PENDING', expiresAt: { gt: new Date() } },
+    select: { clubId: true, email: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  const pendingByClub = new Map<string, string>();
+  for (const inv of pendingInvites) if (!pendingByClub.has(inv.clubId)) pendingByClub.set(inv.clubId, inv.email);
+
   const countOf = (rows: Array<{ clubId: string; _count: { _all: number } }>, id: string) =>
     rows.find((r) => r.clubId === id)?._count._all ?? 0;
   const owned = new Set(owners.map((o) => o.clubId));
@@ -298,6 +313,9 @@ export async function listClubs(actor: PlatformActor, opts: { limit?: number } =
     activeMemberships: countOf(memberships, c.id),
     hasOwner: owned.has(c.id),
     createdAt: c.createdAt,
+    lifecycle: String(c.lifecycle),
+    activatedAt: c.activatedAt,
+    pendingPresidentEmail: pendingByClub.get(c.id) ?? null,
   }));
 }
 

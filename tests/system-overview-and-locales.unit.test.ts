@@ -253,9 +253,12 @@ describe('the Overview commands as well as reports', () => {
         expect(SYS_JS).toContain(`key === '${act}'`);
       }
     }
-    // A disabled action carries its reason and no handler.
+    // A disabled action carries its reason and no handler. How many are
+    // disabled is not the property — it shrinks as things get built, and did:
+    // Create Club and Invite President are LIVE now. What must stay true is
+    // that a disabled one explains itself and is wired to nothing.
     const off = [...block.matchAll(/'NOT_AVAILABLE', null,\s*\n?\s*'([^']+)/g)].map((m) => m[1]);
-    expect(off.length).toBeGreaterThanOrEqual(3);
+    expect(off.length).toBe((block.match(/'NOT_AVAILABLE'/g) || []).length);
     for (const reason of off) expect(reason.length).toBeGreaterThan(30);
     expect(block).not.toContain("'NOT_AVAILABLE', 'go:");
   });

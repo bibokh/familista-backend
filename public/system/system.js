@@ -32,12 +32,15 @@
     intelligence: null,
     innovation: null,
     clubs: null,
+    clubSetup: null,
     people: null,
     security: null,
     audit: null,
     approvals: null,
     error: null,
     search: '',
+    drawer: null,
+    created: null,
   };
 
   // ── plumbing ──────────────────────────────────────────────────────────────
@@ -327,10 +330,10 @@
   // reason it is not available — there is no third kind. `act` is either a
   // module to open (navigation is a real action) or a handler below.
   var QUICK_ACTIONS = [
-    ['＋', 'Create Club', 'NOT_AVAILABLE', null,
-      'Creating a club here would make the platform owner that club\'s owner. A SYSTEM-side create that names a separate owner is not built yet.'],
-    ['✉', 'Invite President', 'NOT_AVAILABLE', null,
-      'Invitations are sent by a club administrator inside the club. SYSTEM cannot invite into a club it is not a member of.'],
+    ['＋', 'Create Club', 'LIVE', 'create-club',
+      'Creates the club with no owner and invites the president you name. You are never made its owner.'],
+    ['✉', 'Invite President', 'LIVE', 'go:clubs',
+      'A president is invited as part of creating a club, and re-invited from that club\'s setup panel.'],
     ['⚇', 'Manage People & Access', 'LIVE', 'go:people', 'Identity, memberships and invitations across every club.'],
     ['⬢', 'Clubs Management', 'LIVE', 'go:clubs', 'Every club, with what the platform can count about it.'],
     ['⚛', 'New Experiment', 'LIVE', 'new-experiment', 'Registers an experiment in this environment.'],
@@ -410,6 +413,75 @@
       + ' Nothing is estimated here — an invented curve is worse than an empty panel.</span>'
       + '<button class="sy-btn" type="button" data-sy-go="' + esc(module) + '">Configure Analytics</button>'
       + '</div></section>';
+  }
+
+  // ── the create-club drawer ────────────────────────────────────────────────
+  // A drawer rather than a page: creating a club is a platform action, and the
+  // platform owner never leaves SYSTEM to perform it. It is `position: fixed`
+  // and animates on opacity and transform only, so opening it moves nothing
+  // underneath.
+  function createClubDrawerHtml() {
+    var field = function (name, label, type, required, hint) {
+      return '<label class="sy-field"><span>' + esc(label) + (required ? ' *' : '') + '</span>'
+        + '<input type="' + type + '" name="' + name + '"' + (required ? ' required' : '')
+        + (hint ? ' placeholder="' + esc(hint) + '"' : '') + '></label>';
+    };
+    return '<div class="sy-scrim" data-sy-close></div>'
+      + '<aside class="sy-drawer" role="dialog" aria-modal="true" aria-label="Create club">'
+      + '<header class="sy-drawer-h"><div><b>Create Club</b>'
+      + '<span>The club is created with no owner. You are not made its president.</span></div>'
+      + '<button class="sy-icon-btn" type="button" data-sy-close aria-label="Close">✕</button></header>'
+      + '<form class="sy-drawer-b" data-sy-create-club>'
+      + '<div class="sy-fieldset"><h3>Club</h3>'
+      + field('name', 'Club name', 'text', true, '')
+      + field('shortName', 'Display / short name', 'text', false, '')
+      + field('country', 'Country', 'text', false, 'Germany')
+      + field('city', 'City', 'text', true, '')
+      + field('timezone', 'Time zone', 'text', false, 'Europe/Berlin')
+      + field('defaultLocale', 'Default locale', 'text', false, 'de-DE')
+      + field('contactEmail', 'Contact email', 'email', false, '')
+      + field('websiteUrl', 'Website', 'url', false, '')
+      + '</div>'
+      + '<div class="sy-fieldset"><h3>President</h3>'
+      + '<p class="sy-note">They receive an invitation and set their own password. You will never see it, '
+      + 'and you are not asked to create one.</p>'
+      + field('firstName', 'First name', 'text', true, '')
+      + field('lastName', 'Last name', 'text', true, '')
+      + field('email', 'Email', 'email', true, '')
+      + '</div>'
+      + '<div class="sy-drawer-f">'
+      + '<button class="sy-btn sy-btn--ghost" type="button" data-sy-close>Cancel</button>'
+      + '<button class="sy-btn" type="submit">Create club and invite president</button>'
+      + '</div></form></aside>';
+  }
+
+  /** What the platform owner sees the moment a club is created. */
+  function createdClubHtml(result) {
+    var link = '';
+    try {
+      link = result.token
+        ? (window.location.origin + '/invite?token=' + encodeURIComponent(result.token))
+        : '';
+    } catch (_) {}
+    return '<div class="sy-scrim" data-sy-close></div>'
+      + '<aside class="sy-drawer" role="dialog" aria-modal="true" aria-label="Club created">'
+      + '<header class="sy-drawer-h"><div><b>Club created</b>'
+      + '<span data-user-content>' + esc(result.setup && result.setup.name) + '</span></div>'
+      + '<button class="sy-icon-btn" type="button" data-sy-close aria-label="Close">✕</button></header>'
+      + '<div class="sy-drawer-b">'
+      + setupSteps(result.setup)
+      + '<div class="sy-fieldset"><h3>Delivery</h3>'
+      + '<p class="sy-note"><span class="sy-chip sy-chip--partial">PARTIAL — EMAIL PROVIDER NOT CONNECTED</span></p>'
+      + '<p class="sy-note">' + esc(result.delivery && result.delivery.detail) + '</p>'
+      + (link
+        ? '<label class="sy-field"><span>Invitation link — shown once</span>'
+          + '<input type="text" readonly value="' + esc(link) + '" data-sy-link data-no-i18n></label>'
+          + '<div class="sy-row-btns"><button class="sy-btn" type="button" data-sy-copy>Copy link</button></div>'
+        : '')
+      + '</div>'
+      + '<div class="sy-drawer-f">'
+      + '<button class="sy-btn" type="button" data-sy-close>Done</button>'
+      + '</div></div></aside>';
   }
 
   function overviewHtml() {
@@ -597,20 +669,117 @@
       + '</div></div>';
   }
 
+  // ── club onboarding ───────────────────────────────────────────────────────
+  // A club is created here and owned by somebody else. The four steps below
+  // are the whole of it, and none of them is ticked because the previous one
+  // was: each reads a fact the server checked.
+  function setupSteps(setup) {
+    if (!setup) return '';
+    var st = setup.steps || {};
+    var step = function (label, done, note) {
+      return '<div class="sy-step' + (done ? ' is-done' : '') + '">'
+        + '<span class="sy-step-tick">' + (done ? '✓' : '○') + '</span>'
+        + '<span class="sy-step-txt"><b>' + esc(label) + '</b>'
+        + '<i>' + esc(done ? 'Done' : (note || 'Pending')) + '</i></span></div>';
+    };
+    return '<div class="sy-steps">'
+      + step('Club created', !!st.clubCreated, '')
+      + step('President invited', !!st.presidentInvited, 'No invitation is out')
+      + step('President accepted', !!st.presidentAccepted, 'The invited person has not accepted yet')
+      + step('Club activation', !!st.clubActivated, 'A club activates when it has an active president')
+      + '</div>';
+  }
+
+  /** The president panel for one club: pending controls, or the active person. */
+  function presidentPanel(setup) {
+    if (!setup) return '';
+    var p = setup.president || {};
+    var head = '<div class="sy-panel-h"><h2>President</h2>'
+      + '<span class="sy-chip sy-chip--' + (p.state === 'ACTIVE' ? 'live' : p.state === 'INVITED' ? 'partial' : 'none') + '">'
+      + esc(p.state === 'ACTIVE' ? 'ACTIVE' : p.state === 'INVITED' ? 'INVITATION PENDING' : 'NO PRESIDENT') + '</span></div>';
+
+    if (p.state === 'ACTIVE') {
+      return '<section class="sy-panel">' + head
+        + '<div class="sy-pres"><b data-user-content>' + esc(p.name || p.email || '') + '</b>'
+        + '<span data-user-content>' + esc(p.email || '') + '</span></div>'
+        + '<p class="sy-note">This club has a president. Replacing an active president removes somebody\'s '
+        + 'authority over their own club, so it is not a SYSTEM control — the club\'s own last-owner '
+        + 'protection is the only path.</p>'
+        + '<div class="sy-row-btns">'
+        + '<button class="sy-btn" type="button" data-sy-go="people">Inspect president</button>'
+        + '<button class="sy-btn sy-btn--ghost" type="button" data-sy-go="people">View membership</button>'
+        + '<button class="sy-btn sy-btn--ghost" type="button" data-sy-go="audit">View audit</button>'
+        + '</div></section>';
+    }
+
+    if (p.state === 'INVITED') {
+      return '<section class="sy-panel">' + head
+        + '<div class="sy-pres"><b data-user-content>' + esc(p.email || '') + '</b>'
+        + '<span>Invitation pending' + (p.invitationExpiresAt
+          ? ' · expires <span data-no-i18n>' + esc(String(p.invitationExpiresAt).slice(0, 10)) + '</span>' : '') + '</span></div>'
+        + '<p class="sy-note">No mail provider is connected, so nothing was emailed. The link is shown once when '
+        + 'it is minted; resending mints a new one and retires the old.</p>'
+        + '<div class="sy-row-btns">'
+        + '<button class="sy-btn" type="button" data-sy-act="president-resend:' + esc(setup.clubId) + '">Resend invite</button>'
+        + '<button class="sy-btn sy-btn--danger" type="button" data-sy-act="president-revoke:' + esc(setup.clubId) + '">Revoke invite</button>'
+        + '<button class="sy-btn sy-btn--ghost" type="button" data-sy-act="president-replace:' + esc(setup.clubId) + '">Replace president invite</button>'
+        + '</div></section>';
+    }
+
+    return '<section class="sy-panel">' + head
+      + emptyState('No president has been invited',
+        'This club cannot be run by anybody until a president accepts. It stays PENDING_SETUP until then.')
+      + '<div class="sy-row-btns">'
+      + '<button class="sy-btn" type="button" data-sy-act="president-replace:' + esc(setup.clubId) + '">Invite a president</button>'
+      + '</div></section>';
+  }
+
+  function lifecycleChip(life) {
+    var cls = life === 'ACTIVE' ? 'live' : life === 'PRESIDENT_INVITED' ? 'partial' : 'none';
+    var label = life === 'ACTIVE' ? 'ACTIVE'
+      : life === 'PRESIDENT_INVITED' ? 'PRESIDENT INVITED' : 'PENDING SETUP';
+    return '<span class="sy-chip sy-chip--' + cls + '">' + esc(label) + '</span>';
+  }
+
   function clubsHtml() {
     if (!SY.clubs) return moduleHeader('clubs') + skeleton();
+
+    // The club the reader opened, if any: its setup state and its president.
+    var open = SY.clubSetup
+      ? '<section class="sy-panel"><div class="sy-panel-h"><h2>Setup</h2>'
+        + '<span data-user-content>' + esc(SY.clubSetup.name) + '</span></div>'
+        + setupSteps(SY.clubSetup)
+        + (SY.clubSetup.blocking ? '<p class="sy-note">' + esc(SY.clubSetup.blocking) + '</p>' : '')
+        + '</section>' + presidentPanel(SY.clubSetup)
+      : '';
+
     var rows = SY.clubs.length
       ? '<div class="sy-table-wrap"><table class="sy-table"><thead><tr>'
-        + '<th>Club</th><th>Teams</th><th>Players</th><th>Memberships</th><th>Ownership</th></tr></thead><tbody>'
+        + '<th>Club</th><th>Lifecycle</th><th>Teams</th><th>Players</th><th>Memberships</th><th>Ownership</th><th></th></tr></thead><tbody>'
         + SY.clubs.map(function (c) {
-          return '<tr><td><b data-user-content>' + esc(c.name) + '</b></td>'
+          return '<tr><td><b data-user-content>' + esc(c.name) + '</b>'
+            + (c.pendingPresidentEmail
+              ? '<br><span style="opacity:.6" data-user-content>' + esc(c.pendingPresidentEmail) + '</span>' : '')
+            + '</td>'
+            + '<td>' + lifecycleChip(c.lifecycle) + '</td>'
             + '<td>' + num(c.teams) + '</td><td>' + num(c.players) + '</td><td>' + num(c.activeMemberships) + '</td>'
             + '<td>' + (c.hasOwner
-              ? '<span class="sy-chip sy-chip--live">owner active</span>'
-              : '<span class="sy-chip sy-chip--protected">no owner</span>') + '</td></tr>';
+              ? '<span class="sy-chip sy-chip--live">president active</span>'
+              : '<span class="sy-chip sy-chip--protected">no president</span>') + '</td>'
+            + '<td><button class="sy-btn sy-btn--sm" type="button" data-sy-act="club-setup:' + esc(c.id) + '">Open setup</button></td>'
+            + '</tr>';
         }).join('') + '</tbody></table></div>'
       : emptyState('No clubs yet', 'A club appears here as soon as one exists.');
+
     return moduleHeader('clubs')
+      + '<section class="sy-panel sy-command"><div class="sy-panel-h"><h2>Bring a club onto Familista</h2>'
+      + '<span>the platform owner never becomes the club owner</span></div>'
+      + '<p class="sy-note">A club is created with no owner and stays PENDING_SETUP until the person you name '
+      + 'accepts their invitation and signs in with a password only they know. You are not made its president, '
+      + 'not even temporarily.</p>'
+      + '<div class="sy-row-btns"><button class="sy-btn" type="button" data-sy-act="create-club">＋ Create Club</button></div>'
+      + '</section>'
+      + open
       + '<section class="sy-panel"><div class="sy-panel-h"><h2>Every club</h2>'
       + '<span>' + SY.clubs.length + ' total</span></div>' + rows + '</section>'
       + capabilityTable('clubs');
@@ -855,10 +1024,17 @@
   }
 
   // ── render ────────────────────────────────────────────────────────────────
+  function drawerHtml() {
+    if (SY.drawer === 'create-club') return createClubDrawerHtml();
+    if (SY.drawer === 'created' && SY.created) return createdClubHtml(SY.created);
+    return '';
+  }
+
   function paint(host) {
     host.innerHTML = '<div class="sy-shell" dir="' + SY_DIR + '" lang="' + SY_LANG + '">' + railHtml()
       + '<div class="sy-main">' + topHtml()
-      + '<div class="sy-body" id="sy-body">' + contentHtml() + '</div></div></div>';
+      + '<div class="sy-body" id="sy-body">' + contentHtml() + '</div></div>'
+      + drawerHtml() + '</div>';
     // SYSTEM translates itself, from its own three-language catalogue. The
     // platform's 31-locale catalogue is deliberately NOT applied here: the two
     // are separate products and separate string sets, and neither may reach
@@ -897,6 +1073,70 @@
         ev.preventDefault();
         var key = act.getAttribute('data-sy-act') || '';
         if (key.indexOf('go:') === 0) { go(host, key.slice(3)); return; }
+        if (key === 'create-club') { SY.drawer = 'create-club'; paint(host); return; }
+
+        // ── the president's pending invitation ─────────────────────────────
+        // Every one of these performs a real change through a real endpoint,
+        // and every one refuses on the server if the club already has an
+        // active president — the button is a convenience, not the guard.
+        if (key.indexOf('club-setup:') === 0) {
+          SY.clubSetup = null;
+          paint(host);
+          api('/system/clubs/' + encodeURIComponent(key.slice(11)) + '/setup')
+            .then(function (d) { SY.clubSetup = d; paint(host); })
+            .catch(function (e) { window.alert(e.message); });
+          return;
+        }
+        if (key.indexOf('president-resend:') === 0) {
+          var rid = key.slice(17);
+          if (!confirmCritical(T('Send a new invitation link?') + '\n\n'
+            + T('The current link stops working immediately.'))) return;
+          act.disabled = true;
+          api('/system/clubs/' + encodeURIComponent(rid) + '/president/resend', { method: 'POST', body: '{}' })
+            .then(function (d) {
+              SY.created = { setup: null, token: d.token, delivery: d.delivery };
+              return api('/system/clubs/' + encodeURIComponent(rid) + '/setup');
+            })
+            .then(function (setup) {
+              SY.clubSetup = setup;
+              SY.created.setup = setup;
+              SY.drawer = 'created';
+              SY.clubs = null;
+              paint(host);
+            })
+            .catch(function (e) { window.alert(e.message); act.disabled = false; });
+          return;
+        }
+        if (key.indexOf('president-revoke:') === 0) {
+          var vid = key.slice(17);
+          if (!confirmCritical(T('Withdraw this invitation?') + '\n\n'
+            + T('The link stops working immediately and the club returns to PENDING_SETUP.'))) return;
+          var why = window.prompt(T('Why is the invitation being withdrawn? (recorded)')) || '';
+          act.disabled = true;
+          api('/system/clubs/' + encodeURIComponent(vid) + '/president/revoke', {
+            method: 'POST', body: JSON.stringify({ reason: why.trim() || undefined }),
+          }).then(function (setup) { SY.clubSetup = setup; SY.clubs = null; go(host, 'clubs'); })
+            .catch(function (e) { window.alert(e.message); act.disabled = false; });
+          return;
+        }
+        if (key.indexOf('president-replace:') === 0) {
+          var pid = key.slice(18);
+          var first = window.prompt(T("The new president's first name")) || '';
+          if (!first.trim()) return;
+          var last = window.prompt(T("The new president's last name")) || '';
+          if (!last.trim()) return;
+          var mail = window.prompt(T("The new president's email address")) || '';
+          if (!mail.trim()) return;
+          act.disabled = true;
+          api('/system/clubs/' + encodeURIComponent(pid) + '/president/replace', {
+            method: 'POST',
+            body: JSON.stringify({ president: { firstName: first.trim(), lastName: last.trim(), email: mail.trim() } }),
+          }).then(function (d) {
+            SY.created = d; SY.clubSetup = d.setup; SY.drawer = 'created'; SY.clubs = null;
+            paint(host);
+          }).catch(function (e) { window.alert(e.message); act.disabled = false; });
+          return;
+        }
         if (key === 'new-experiment') {
           var title = window.prompt(T('Name the experiment. It is registered in this environment and starts as a draft.')) || '';
           if (!title.trim()) return;
@@ -910,6 +1150,30 @@
             go(host, 'experiments');
           }).catch(function (e) { window.alert(e.message); act.disabled = false; });
         }
+        return;
+      }
+
+      var close = ev.target.closest('[data-sy-close]');
+      if (close) {
+        ev.preventDefault();
+        SY.drawer = null; SY.created = null;
+        // The list is stale after a creation, so it is refetched rather than
+        // patched: the server is the only thing that knows what exists.
+        if (SY.module === 'clubs' && !SY.clubs) { go(host, 'clubs'); } else { paint(host); }
+        return;
+      }
+
+      var copy = ev.target.closest('[data-sy-copy]');
+      if (copy) {
+        ev.preventDefault();
+        var input = host.querySelector('[data-sy-link]');
+        if (!input) return;
+        input.select();
+        try { document.execCommand('copy'); } catch (_) {}
+        try {
+          if (navigator.clipboard) navigator.clipboard.writeText(input.value);
+        } catch (_) {}
+        copy.textContent = T('Copied');
         return;
       }
 
@@ -966,6 +1230,44 @@
         }).then(function () { SY.innovation = null; go(host, SY.module); })
           .catch(function (e) { window.alert(e.message); exp.disabled = false; });
       }
+    });
+
+    host.addEventListener('submit', function (ev) {
+      var form = ev.target.closest('[data-sy-create-club]');
+      if (!form) return;
+      ev.preventDefault();
+      var value = function (n) { var el = form.elements[n]; return el && el.value ? el.value.trim() : ''; };
+      var btn = form.querySelector('button[type="submit"]');
+      if (btn) btn.disabled = true;
+      api('/system/clubs', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: value('name'),
+          shortName: value('shortName'),
+          country: value('country'),
+          city: value('city'),
+          timezone: value('timezone'),
+          defaultLocale: value('defaultLocale'),
+          contactEmail: value('contactEmail'),
+          websiteUrl: value('websiteUrl'),
+          president: {
+            firstName: value('firstName'),
+            lastName: value('lastName'),
+            email: value('email'),
+          },
+        }),
+      }).then(function (d) {
+        SY.created = d;
+        SY.clubSetup = d.setup;
+        SY.drawer = 'created';
+        SY.clubs = null;
+        SY.overview = null;
+        SY.signals = null;
+        paint(host);
+      }).catch(function (e) {
+        window.alert(e.message);
+        if (btn) btn.disabled = false;
+      });
     });
 
     host.addEventListener('input', function (ev) {

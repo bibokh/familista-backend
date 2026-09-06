@@ -9,6 +9,7 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { MembershipRole, ClubInvitationStatus } from '@prisma/client';
 import * as invites from '../identity/invitation.service';
+import { activateIfReady } from '../platform/club-onboarding.service';
 import { sendSuccess, sendCreated } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
 
@@ -95,6 +96,19 @@ export async function accept(req: Request, res: Response, next: NextFunction) {
       },
       token,
     );
-    return sendSuccess(res, out, 'Invitation accepted');
+    // A club created from SYSTEM has been waiting for exactly this. Activation
+    // is a reconciliation, not a side effect: it re-reads the memberships and
+    // activates only if there is genuinely an active CLUB_OWNER now. For a club
+    // that was already ACTIVE — every club that predates the lifecycle column —
+    // it finds nothing to do and writes nothing.
+    let setup: unknown = null;
+    try {
+      setup = await activateIfReady(out.clubId, { userId: u.id });
+    } catch (_) {
+      // Activation never blocks an acceptance. The membership is granted and
+      // the invitation is consumed either way; SYSTEM shows the club as
+      // pending until a later reconciliation moves it.
+    }
+    return sendSuccess(res, { ...out, setup }, 'Invitation accepted');
   } catch (err) { return next(err); }
 }

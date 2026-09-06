@@ -11,6 +11,7 @@ import { engageKillSwitch, releaseKillSwitch } from '../platform/intelligence/ag
 import { defineFlag, listFlags, isEnabled, type FlagAudience } from '../platform/innovation/flags';
 import { decideExperiment, registerExperiment, listExperiments, type ExperimentStatus } from '../platform/innovation/experiments';
 import { currentEnvironment, type FamilistaEnvironment } from '../platform/environment';
+import * as onboarding from '../platform/club-onboarding.service';
 import { publish } from '../platform/events/bus';
 import { sendSuccess } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
@@ -18,6 +19,90 @@ import { BadRequestError } from '../utils/errors';
 function actorOf(req: Request): { userId: string; clubId: string | null; role?: string } {
   const u = req.user as unknown as { id?: string; role?: string; clubId?: string } | undefined;
   return { userId: u?.id ?? '', clubId: u?.clubId ?? null, role: u?.role };
+}
+
+/**
+ * The same actor, plus the request metadata every platform-level write is
+ * audited with: who, from where, and which request this was part of.
+ */
+function onboardingActorOf(req: Request): onboarding.OnboardingActor {
+  return {
+    ...actorOf(req),
+    ipAddress: (req.headers['x-forwarded-for'] as string) ?? req.ip ?? null,
+    userAgent: (req.headers['user-agent'] as string) ?? null,
+    correlationId: (req.headers['x-correlation-id'] as string)
+      ?? (req.headers['x-request-id'] as string) ?? null,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Club onboarding — creating a club without becoming its owner
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function createClub(req: Request, res: Response, next: NextFunction) {
+  try {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const p = (b.president ?? {}) as Record<string, unknown>;
+    const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
+
+    const out = await onboarding.createClubWithPresidentInvite(onboardingActorOf(req), {
+      name: String(b.name ?? ''),
+      city: String(b.city ?? ''),
+      shortName: str(b.shortName),
+      country: str(b.country),
+      timezone: str(b.timezone),
+      defaultLocale: str(b.defaultLocale),
+      contactEmail: str(b.contactEmail),
+      websiteUrl: str(b.websiteUrl),
+      president: {
+        firstName: String(p.firstName ?? ''),
+        lastName: String(p.lastName ?? ''),
+        email: String(p.email ?? ''),
+        message: str(p.message),
+      },
+    });
+    return sendSuccess(res, out, out.idempotentHit ? 'That club and invitation already existed' : 'Club created', out.idempotentHit ? 200 : 201);
+  } catch (err) { return next(err); }
+}
+
+export async function clubSetup(req: Request, res: Response, next: NextFunction) {
+  try {
+    await system.assertPlatformOwner(actorOf(req));
+    return sendSuccess(res, await onboarding.clubSetupState(req.params.clubId));
+  } catch (err) { return next(err); }
+}
+
+export async function resendPresidentInvite(req: Request, res: Response, next: NextFunction) {
+  try {
+    return sendSuccess(res, await onboarding.resendPresidentInvite(onboardingActorOf(req), req.params.clubId),
+      'A new invitation link was minted');
+  } catch (err) { return next(err); }
+}
+
+export async function revokePresidentInvite(req: Request, res: Response, next: NextFunction) {
+  try {
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
+    return sendSuccess(res, await onboarding.revokePresidentInvite(onboardingActorOf(req), req.params.clubId, reason),
+      'Invitation revoked');
+  } catch (err) { return next(err); }
+}
+
+export async function replacePresidentInvite(req: Request, res: Response, next: NextFunction) {
+  try {
+    const p = (req.body?.president ?? {}) as Record<string, unknown>;
+    const out = await onboarding.replacePresidentInvite(
+      onboardingActorOf(req),
+      req.params.clubId,
+      {
+        firstName: String(p.firstName ?? ''),
+        lastName: String(p.lastName ?? ''),
+        email: String(p.email ?? ''),
+        message: typeof p.message === 'string' ? p.message : null,
+      },
+      typeof req.body?.reason === 'string' ? req.body.reason : undefined,
+    );
+    return sendSuccess(res, out, 'A different president was invited');
+  } catch (err) { return next(err); }
 }
 
 /** Who the caller is, in platform terms. The SYSTEM shell asks before drawing. */

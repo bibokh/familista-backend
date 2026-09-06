@@ -35,6 +35,17 @@ router.get('/audit',        ctrl.audit);
 // Every control below performs a real change and publishes the event that
 // records it. A capability with no endpoint here is declared NOT_AVAILABLE in
 // the catalogue rather than given a handler that does nothing.
+// ── club onboarding ─────────────────────────────────────────────────────────
+// Creating a club is a platform action and lives here, not in a club
+// workspace: the platform owner never enters the club they are creating, and
+// never becomes its owner. Every route below refuses club authority, like
+// every other route on this router.
+router.post('/clubs',                              ctrl.createClub);
+router.get('/clubs/:clubId/setup',                 ctrl.clubSetup);
+router.post('/clubs/:clubId/president/resend',     ctrl.resendPresidentInvite);
+router.post('/clubs/:clubId/president/revoke',     ctrl.revokePresidentInvite);
+router.post('/clubs/:clubId/president/replace',    ctrl.replacePresidentInvite);
+
 router.post('/agents/kill-switch',      ctrl.killSwitch);
 router.post('/flags/:key',              ctrl.setFlag);
 router.post('/experiments',             ctrl.createExperiment);

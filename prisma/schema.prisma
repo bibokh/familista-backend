@@ -31,6 +31,20 @@ enum SubscriptionPlan {
   ENTERPRISE
 }
 
+/// How far a club has got through setup.
+///
+/// Deliberately small and deliberately one-directional: a club moves forward
+/// through it and never backwards, because "was this club ever properly set
+/// up?" is a question its audit trail has to be able to answer years later.
+enum ClubLifecycle {
+  /// The row exists. Nobody owns it, and nobody can run it yet.
+  PENDING_SETUP
+  /// A president has been invited. Still nobody owns it.
+  PRESIDENT_INVITED
+  /// A person accepted and holds an active CLUB_OWNER membership.
+  ACTIVE
+}
+
 enum SubscriptionStatus {
   ACTIVE
   PAST_DUE
@@ -143,6 +157,26 @@ model Club {
   /// back to the competition's zone, then to the country above, then to UTC —
   /// see resolveVenueTimeZone in src/competition/match-scheduling.ts.
   timezone     String?
+
+  /// The language this club's own people read by default, as a BCP-47 tag.
+  /// Null means the club has not chosen one and the platform default applies.
+  defaultLocale String?
+
+  /// Where the club is in its setup, and the reason a row is not a club.
+  ///
+  /// A club created from SYSTEM has no owner at the moment it is created — the
+  /// platform owner is deliberately NOT made its president — so for a while it
+  /// is a real row that nobody can yet run. `lifecycle` is what stops that
+  /// state from reading as a healthy, active club: PENDING_SETUP means created
+  /// and unowned, PRESIDENT_INVITED means the invitation is out and unaccepted,
+  /// and ACTIVE means a person has accepted and holds an active CLUB_OWNER
+  /// membership.
+  ///
+  /// The default is ACTIVE so that every club that existed before this column
+  /// keeps behaving exactly as it did. Only the SYSTEM creation path sets
+  /// PENDING_SETUP, and only activation sets ACTIVE from there.
+  lifecycle   ClubLifecycle @default(ACTIVE)
+  activatedAt DateTime?
 
   stripeCustomerId     String?            @unique
   stripeSubscriptionId String?            @unique
@@ -5522,6 +5556,11 @@ enum PlatformAuditCategory {
   IMPERSONATION
   FEATURE_FLAG
   PLATFORM_ADMIN
+  /// Bringing a club onto the platform and settling who runs it: creation,
+  /// the president's invitation, and activation. Its own category because
+  /// these are the events somebody will one day need to reconstruct in order
+  /// to answer "how did this club come to be owned by this person?".
+  CLUB_MANAGEMENT
   OTHER
 }
 
