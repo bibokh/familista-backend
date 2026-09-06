@@ -101,8 +101,30 @@ services:
         value: noreply@familista.app
       - key: EMAIL_FROM_NAME
         value: Familista
+      # ── Where emailed links point ────────────────────────────────────────
+      # THE BACKEND'S OWN URL, not the frontend's — and the distinction has
+      # already cost one broken invitation.
+      #
+      # /invite/accept and /reset-password are Express routes declared in
+      # src/app.ts, and the acceptance page itself is public/invite/, served by
+      # this service's own static middleware. A Render STATIC SITE — which is
+      # what familista-v5 is — cannot run an Express route, and frontend/
+      # contains no acceptance page: its _redirects sends /* to index.html, so
+      # an invitation link sent to the frontend host lands on the marketing
+      # shell instead of the page that accepts it.
+      #
+      # Keeping the link on this service also means the page calls /api/v1 on
+      # its own origin, so there is no cross-origin request to configure and
+      # nothing for CORS to refuse.
+      #
+      # Change this only if this service gains a custom domain — in which case
+      # use that domain, still pointing at THIS service.
+      - key: PUBLIC_APP_URL
+        sync: false      # https://familista-backend.onrender.com (or this service's custom domain)
+      # The older name for the same thing. PUBLIC_APP_URL wins when both are
+      # set; this remains so an existing deployment keeps working untouched.
       - key: APP_URL
-        sync: false      # set to your public frontend URL, e.g. https://app.familista.com
+        sync: false      # legacy alias for PUBLIC_APP_URL — same value, same service
       - key: SENDGRID_API_KEY
         sync: false      # set to enable transactional email via SendGrid
       - key: SMTP_HOST
