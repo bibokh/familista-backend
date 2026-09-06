@@ -86,10 +86,12 @@ const db: Row = {
     },
   },
   user: {
-    findUnique: async ({ where }: Row) => {
+    // `include` is a sibling of `where`, not a member of it — loginUser and
+    // registerInvitedUser both ask for the club that way.
+    findUnique: async ({ where, include }: Row) => {
       const u = state.users.find((x) => (where.id ? x.id === where.id : x.email === where.email));
       if (!u) return null;
-      return where.include?.club ? { ...u, club: state.clubs.find((c) => c.id === u.clubId) ?? null } : u;
+      return include?.club ? { ...u, club: state.clubs.find((c) => c.id === u.clubId) ?? { name: 'Club' } } : u;
     },
     create: async ({ data }: Row) => {
       const u = { id: id('user'), isActive: true, tokenVersion: 0, createdAt: new Date(), ...data };
@@ -135,6 +137,8 @@ const db: Row = {
 jest.mock('../src/config/database', () => ({ prisma: db }));
 
 import * as invites from '../src/identity/invitation.service';
+import { loginUser } from '../src/services/auth.service';
+import { config } from '../src/config';
 import { resetInvitationThrottle } from '../src/identity/invitation-throttle';
 import { setEmailProvider } from '../src/platform/email/service';
 import invitationRoutes from '../src/routes/invitation.routes';
@@ -246,9 +250,13 @@ describe('a signed-out person can read what the link is for', () => {
     });
     // Deliberately thin: the person holding this link has proved nothing yet
     // except that they hold it.
+    // Thin, and one field wider than it was: the page is served by the API
+    // host and cannot infer where the application lives, so the server tells
+    // it. A public configuration URL, not a fact about anybody.
     expect(Object.keys(res.body.data).sort()).toEqual([
-      'accountExists', 'clubId', 'clubName', 'email', 'expiresAt', 'message', 'role', 'teamId', 'teamName',
+      'accountExists', 'appUrl', 'clubId', 'clubName', 'email', 'expiresAt', 'message', 'role', 'teamId', 'teamName',
     ]);
+    expect(res.body.data.appUrl).toMatch(/^https?:\/\//);
     // No token, no hash, no member list.
     expect(JSON.stringify(res.body)).not.toContain(out.token);
     expect(JSON.stringify(res.body)).not.toContain(sha(out.token));
@@ -440,7 +448,10 @@ describe('the page holds the token carefully and decides nothing', () => {
   });
 
   it('and says plainly that the password is the recipient\'s own', () => {
-    expect(SCRIPT).toMatch(/nobody at the club and nobody at Familista can see it/i);
+    // The sentence spans two concatenated literals in the source, so it is
+    // matched in the halves it is actually written in.
+    expect(SCRIPT).toMatch(/You choose your own password\. Nobody at the club and nobody at/i);
+    expect(SCRIPT).toMatch(/Familista can see it/i);
     expect(SCRIPT).toMatch(/never email you a password/i);
   });
 });
@@ -476,5 +487,192 @@ describe('nothing that already worked was changed', () => {
     // an invited president could not have used it.
     expect(auth).toContain('clubId:    z.string().uuid()');
     expect(auth).toContain("role:      z.enum(['HEAD_COACH','ASSISTANT_COACH','ANALYST','MEDICAL_STAFF','SCOUT']).optional()");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The handoff into Familista
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('the president can actually get into Familista afterwards', () => {
+  it('the password chosen during acceptance works on the NORMAL login endpoint', async () => {
+    const out = await invite();
+    const password = 'a-password-only-mine';
+    await request(harness()).post('/api/v1/invitations/accept-with-account')
+      .send({ token: out.token, firstName: 'Alina', lastName: 'Braun', password })
+      .expect(201);
+
+    // The same service /auth/login calls, with no special casing for invited
+    // accounts. If this passes, a real sign-in on the frontend passes.
+    const session = await loginUser('new.president@club.test', password);
+    expect(session.user.email).toBe('new.president@club.test');
+    expect(session.tokens.accessToken).toBeTruthy();
+    expect(session.tokens.refreshToken).toBeTruthy();
+
+    // And a wrong password still fails, so nothing was loosened to make the
+    // right one work.
+    await expect(loginUser('new.president@club.test', 'not-the-password')).rejects.toThrow();
+  });
+
+  it('lands them in their own club, with the membership already active', async () => {
+    const out = await invite();
+    await request(harness()).post('/api/v1/invitations/accept-with-account')
+      .send({ token: out.token, firstName: 'Alina', lastName: 'Braun', password: 'a-password-only-mine' })
+      .expect(201);
+
+    const user = state.users.find((u) => u.email === 'new.president@club.test')!;
+    // The account's club context is the invited club, not a platform area.
+    expect(user.clubId).toBe(CLUB);
+    expect(user.isActive).toBe(true);
+    expect(user.role).toBe(UserRole.CLUB_ADMIN);
+    expect(user.role).not.toBe(UserRole.SUPER_ADMIN);
+
+    // The membership — which is what actually grants authority — is live.
+    const membership = state.memberships.find((m) => m.userId === user.id)!;
+    expect(membership).toMatchObject({
+      clubId: CLUB, role: 'CLUB_OWNER', isActive: true, status: 'ACTIVE', teamId: null,
+    });
+    // And they hold no membership of any other club.
+    expect(state.memberships.filter((m) => m.userId === user.id && m.clubId !== CLUB)).toEqual([]);
+
+    // Nothing here made them a platform owner: that is a PlatformAdmin row,
+    // and this flow cannot create one.
+    const service = read('src/identity/invitation.service.ts');
+    expect(service).not.toContain('platformAdmin');
+    expect(service).toContain("if (role === MembershipRole.CLUB_OWNER) return UserRole.CLUB_ADMIN;");
+  });
+
+  it('sends them to the APPLICATION host, not to the API host that served the page', async () => {
+    // The root cause of the broken handoff: location.href = '/' resolved to
+    // the backend's own root, which is not Familista.
+    expect(SCRIPT).not.toMatch(/location\.href\s*=\s*['"]\/['"]/);
+    // The destination comes from the server, and the server reads it from
+    // configuration rather than guessing.
+    expect(SCRIPT).toContain('function appUrl()');
+    expect(SCRIPT).toContain('preview.appUrl');
+    expect(read('src/controllers/invitation.controller.ts')).toContain('appUrl: config.app.frontendUrl');
+    expect(config.app.frontendUrl).toMatch(/^https?:\/\//);
+  });
+
+  it('and it defaults to the real production frontend, distinct from PUBLIC_APP_URL', () => {
+    const source = read('src/config/index.ts');
+    expect(source).toContain("'https://familista-v5.onrender.com'");
+    // The two are deliberately different values with different jobs: one is
+    // where a link is hosted, the other is where a person goes.
+    expect(source).toMatch(/one is where a link is HOSTED, this is where a person GOES/);
+  });
+
+  it('carries no credential across the origin boundary', () => {
+    // Not in the link, not in a query string, not in storage.
+    const target = SCRIPT.slice(SCRIPT.indexOf('function showAccepted'), SCRIPT.indexOf('function showProblem'));
+    // The href is the bare application URL and nothing appended to it.
+    expect(target).toContain("href=\"' + esc(target) + '\"");
+    expect(target).not.toMatch(/href="[^"]*\?/);
+    // No VALUE is carried across — the word "password" appears only in the
+    // sentence telling the person to use the one they chose.
+    expect(target).not.toMatch(/\btoken\b|accessToken|refreshToken|password:/);
+    expect(target).not.toMatch(/appUrl\(\)\s*\+/);
+    // And the page never assumes its own cookies authenticate the other origin.
+    expect(SCRIPT).toMatch(/A session established here belongs to THIS origin/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The redesign
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('the page looks like Familista, on a phone and on a desktop', () => {
+  it('uses the product\'s visual language rather than browser defaults', () => {
+    // Familista's own palette and surfaces, the same tokens SYSTEM uses.
+    expect(PAGE).toContain('--bg:        #070b14;');
+    expect(PAGE).toContain('--accent:    #3b82f6;');
+    expect(PAGE).toContain('backdrop-filter: blur(14px)');
+    expect(PAGE).toMatch(/radial-gradient/);
+    // Branding, and a card rather than a bare form.
+    expect(PAGE).toContain('brand-mark');
+    expect(PAGE).toMatch(/Famili<em>sta<\/em>/);
+    // Every control is styled: no raw input or button reaches the reader.
+    expect(PAGE).toMatch(/input \{[\s\S]{0,400}-webkit-appearance: none/);
+    expect(PAGE).toContain('.btn {');
+  });
+
+  it('is mobile-first, with no horizontal overflow and real touch targets', () => {
+    expect(PAGE).toContain('width=device-width, initial-scale=1, viewport-fit=cover');
+    expect(PAGE).toContain('overflow-x: hidden');
+    // A notch and a home indicator are cleared.
+    expect(PAGE).toContain('env(safe-area-inset-top)');
+    expect(PAGE).toContain('env(safe-area-inset-bottom)');
+    // 16px inputs, because anything smaller makes iOS Safari zoom the viewport.
+    expect(PAGE).toMatch(/font: 400 16px\/1\.4 inherit/);
+    // A 50px minimum on the primary action.
+    expect(PAGE).toMatch(/min-height: 50px/);
+    // The two-up name row stacks rather than crushing on a narrow phone.
+    expect(PAGE).toMatch(/@media \(max-width: 380px\)[\s\S]{0,200}\.pair \{ flex-direction: column/);
+    // Long addresses and club names wrap instead of widening the page.
+    expect(PAGE).toContain('overflow-wrap: anywhere');
+    // And the card is a card on a desktop, not a stretched banner.
+    expect(PAGE).toContain('max-width: 468px');
+  });
+
+  it('lays the invitation out as label-above-value, so nothing collides', () => {
+    // A definition list, not a two-column row that overlaps at 320px. The
+    // markup is emitted by the script; the document carries its styling.
+    expect(SCRIPT).toContain('<dl class="summary">');
+    expect(PAGE).toContain('.summary-row dt {');
+    expect(PAGE).toContain('.summary-row dd {');
+    expect(SCRIPT).toContain('<dt>Club</dt>');
+    expect(SCRIPT).toContain('<dt>Role</dt>');
+    expect(SCRIPT).toContain('<dt>Email</dt>');
+    expect(SCRIPT).toContain('<dt>Invitation expires</dt>');
+    // The date is localised for the reader, not printed as an ISO string.
+    expect(SCRIPT).toContain('Intl.DateTimeFormat(undefined, { dateStyle: \'long\', timeStyle: \'short\' })');
+  });
+
+  it('has show/hide, inline validation, a loading state and no double submit', () => {
+    expect(SCRIPT).toContain('function bindReveal');
+    expect(SCRIPT).toContain('function validate(showEmpty)');
+    expect(SCRIPT).toContain('The passwords do not match yet.');
+    expect(SCRIPT).toContain('function busyButton');
+    expect(SCRIPT).toContain('<span class="spinner"');
+    // Two guards: the flag catches a double-tap that fires before the button
+    // repaints, and the button is disabled for everything slower.
+    expect(SCRIPT).toMatch(/if \(busy\) return;/);
+    expect(SCRIPT).toContain('button.disabled = on;');
+    // A confirm field exists at all.
+    expect(SCRIPT).toContain('Confirm password');
+  });
+
+  it('never shows a stack trace, a status code or a JSON body to a person', () => {
+    expect(SCRIPT).toContain('function humanError');
+    // Anything that looks like machinery is replaced by a written sentence.
+    expect(SCRIPT).toMatch(/\/\^HTTP \\d\/\.test\(message\)/);
+    expect(SCRIPT).toMatch(/at \.\+:\\d\+:\\d\+/);
+  });
+
+  it('and has a distinct, actionable state for every way this can fail', () => {
+    for (const state_ of [
+      'This invitation has expired',
+      'This invitation was withdrawn',
+      'This invitation has already been used',
+      'This invitation could not be found',
+      'Familista could not be reached',
+      'This link is incomplete',
+      'You already have a Familista account',
+    ]) {
+      expect(`${state_}:${SCRIPT.includes(state_)}`).toBe(`${state_}:true`);
+    }
+    // Each carries a next step rather than a dead end.
+    expect(SCRIPT).toContain('Try again');
+    expect(SCRIPT).toContain('Go to Familista');
+  });
+
+  it('shows the success screen the flow actually needs', () => {
+    expect(SCRIPT).toContain('Invitation accepted');
+    expect(SCRIPT).toContain('You are now <b>');
+    expect(SCRIPT).toContain('Open Familista');
+    expect(SCRIPT).toContain('Sign in with this email');
+    // The address is offered to copy, since the person must type it on another
+    // origin where nothing can be prefilled from here.
+    expect(SCRIPT).toContain('id="copy-email"');
   });
 });

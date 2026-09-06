@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { MembershipRole, ClubInvitationStatus } from '@prisma/client';
 import * as invites from '../identity/invitation.service';
 import { activateIfReady } from '../platform/club-onboarding.service';
+import { config } from '../config';
 import { setAuthCookies } from './auth.controller';
 import { sendSuccess, sendCreated } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
@@ -87,7 +88,12 @@ export async function revoke(req: Request, res: Response, next: NextFunction) {
 export async function preview(req: Request, res: Response, next: NextFunction) {
   try {
     const token = String(req.query.token ?? req.params.token ?? '');
-    return sendSuccess(res, await invites.previewInvitation(token));
+    const invitation = await invites.previewInvitation(token);
+    // Where the acceptance page should send somebody afterwards. A public,
+    // non-sensitive configuration value that this page genuinely needs and
+    // cannot infer: it is served by the API host, and the application lives
+    // somewhere else.
+    return sendSuccess(res, { ...invitation, appUrl: config.app.frontendUrl });
   } catch (err) { return next(err); }
 }
 

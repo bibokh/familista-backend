@@ -94,6 +94,23 @@ export const config = {
     appUrl:       optional('PUBLIC_APP_URL',   optional('APP_URL', 'http://localhost:3000')),
   },
 
+  // Where a person USES Familista.
+  //
+  // Not this service. The API and the invitation acceptance page are served by
+  // familista-backend; the application people work in is a separate origin, and
+  // an emailed "open Familista" that points at the API host lands somebody on
+  // the wrong product entirely. Kept distinct from PUBLIC_APP_URL for exactly
+  // that reason: one is where a link is HOSTED, this is where a person GOES.
+  app: {
+    frontendUrl: (
+      optional('FRONTEND_APP_URL', '')
+      || (optional('FRONTEND_URL', '').split(',')[0] || '').trim()
+      || (process.env.NODE_ENV === 'production'
+        ? 'https://familista-v5.onrender.com'
+        : 'http://localhost:3000')
+    ).replace(/\/+$/, ''),
+  },
+
   isProd: process.env.NODE_ENV === 'production',
   isDev:  process.env.NODE_ENV === 'development',
 } as const;

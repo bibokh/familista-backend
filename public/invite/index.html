@@ -2,72 +2,255 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="robots" content="noindex, nofollow" />
-<!-- A page reached from an email by somebody with no session. Its own small
-     document rather than the club workspace: booting a signed-in application
-     at a stranger would spend a megabyte to show a form and then bounce them
-     to a login screen they cannot use. -->
-<title>Familista — invitation</title>
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#070b14" />
+<!-- Onboarding, for somebody who has never seen Familista and has no session.
+     Its own small document rather than the club workspace: booting a signed-in
+     application at a stranger spends a megabyte to show a form and then bounces
+     them to a login screen they cannot use. -->
+<title>Familista — accept your invitation</title>
 <style>
   :root {
-    --bg: #070b14; --panel: rgba(18, 25, 42, .78); --line: rgba(255, 255, 255, .08);
-    --line-2: rgba(255, 255, 255, .14); --tx: #e9eefb; --tx-2: #98a3bd; --tx-3: #67718c;
-    --accent: #3b82f6; --ok: #34d399; --warn: #fbbf24; --danger: #f87171;
+    --bg:        #070b14;
+    --bg-2:      #0b1220;
+    --panel:     rgba(18, 25, 42, .82);
+    --panel-2:   rgba(255, 255, 255, .04);
+    --line:      rgba(255, 255, 255, .08);
+    --line-2:    rgba(255, 255, 255, .16);
+    --tx:        #e9eefb;
+    --tx-2:      #98a3bd;
+    --tx-3:      #6b7691;
+    --accent:    #3b82f6;
+    --accent-2:  #22d3ee;
+    --ok:        #34d399;
+    --warn:      #fbbf24;
+    --danger:    #f87171;
+    --radius:    18px;
   }
   * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
-    margin: 0; min-height: 100vh; background: var(--bg); color: var(--tx);
-    font: 14px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    display: grid; place-items: center; padding: 24px;
+    margin: 0;
+    background:
+      radial-gradient(1100px 620px at 50% -12%, rgba(59,130,246,.16), transparent 62%),
+      radial-gradient(760px 460px at 88% 8%, rgba(34,211,238,.09), transparent 60%),
+      var(--bg);
+    color: var(--tx);
+    font: 400 15px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column; align-items: center;
+    /* Safe-area padding so the card clears a notch and a home indicator. */
+    padding: max(20px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
+    /* Nothing here may ever scroll sideways. */
+    overflow-x: hidden;
   }
+
+  /* ── the card ───────────────────────────────────────────────────────────
+     Fills a phone with comfortable margins and stays a card on a desktop
+     rather than stretching across it. */
+  .shell { width: 100%; max-width: 468px; margin: auto; }
   .card {
-    width: min(460px, 100%); background: var(--panel); border: 1px solid var(--line);
-    border-radius: 18px; overflow: hidden;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 24px 60px rgba(0,0,0,.42), 0 0 0 1px rgba(255,255,255,.02) inset;
+    overflow: hidden;
   }
-  .head { padding: 26px 30px 20px; border-bottom: 1px solid var(--line); text-align: center; }
-  .brand { font-size: 21px; font-weight: 800; letter-spacing: -.4px; }
-  .brand span { color: var(--accent); }
-  .body { padding: 26px 30px 30px; }
-  h1 { margin: 0 0 6px; font-size: 17px; font-weight: 800; letter-spacing: -.2px; }
-  p { margin: 0 0 14px; color: var(--tx-2); font-size: 13px; }
-  .facts { background: rgba(255,255,255,.04); border-radius: 11px; padding: 13px 15px; margin: 0 0 20px; }
-  .fact { display: flex; gap: 12px; font-size: 12.5px; padding: 3px 0; }
-  .fact > span { color: var(--tx-3); min-width: 78px; }
-  .fact > b { font-weight: 700; overflow-wrap: anywhere; }
-  label { display: block; margin: 0 0 12px; }
-  label > span { display: block; font-size: 11.5px; font-weight: 600; color: var(--tx-2); margin-bottom: 5px; }
+  .brand {
+    display: flex; align-items: center; justify-content: center; gap: 9px;
+    padding: 24px 24px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand-mark {
+    width: 30px; height: 30px; border-radius: 9px; flex: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center;
+    font-weight: 800; font-size: 15px; color: #04121f;
+  }
+  .brand-name { font-size: 17px; font-weight: 800; letter-spacing: -.35px; }
+  .brand-name em { font-style: normal; color: var(--accent); }
+  .body { padding: 26px 24px 28px; }
+
+  h1 { margin: 0 0 8px; font-size: 21px; font-weight: 800; letter-spacing: -.45px; line-height: 1.25; }
+  .lede { margin: 0 0 22px; color: var(--tx-2); font-size: 13.5px; }
+  p { margin: 0 0 14px; color: var(--tx-2); font-size: 13.5px; }
+
+  /* ── invitation summary ─────────────────────────────────────────────────
+     A definition list, so a narrow screen stacks the label above the value
+     instead of colliding with it. */
+  .summary {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    padding: 4px 16px;
+    margin: 0 0 22px;
+  }
+  .summary-row { padding: 12px 0; }
+  .summary-row + .summary-row { border-top: 1px solid var(--line); }
+  .summary-row dt {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .7px;
+    text-transform: uppercase; color: var(--tx-3); margin: 0 0 3px;
+  }
+  .summary-row dd {
+    margin: 0; font-size: 14.5px; font-weight: 600; color: var(--tx);
+    /* A long address or club name wraps rather than widening the page. */
+    overflow-wrap: anywhere;
+  }
+  .summary-row dd.muted { font-weight: 500; color: var(--tx-2); font-size: 13.5px; }
+  .pill {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    background: rgba(59,130,246,.16); color: #bfdbfe;
+    font-size: 12.5px; font-weight: 700;
+  }
+
+  /* ── form ───────────────────────────────────────────────────────────────
+     Every control is styled; nothing is a browser default. */
+  .field { margin: 0 0 15px; }
+  .field > label {
+    display: block; font-size: 12px; font-weight: 600;
+    color: var(--tx-2); margin: 0 0 6px;
+  }
+  .control { position: relative; }
   input {
-    width: 100%; padding: 11px 13px; border-radius: 10px; font: inherit; font-size: 14px;
-    background: rgba(255,255,255,.05); border: 1px solid var(--line); color: var(--tx);
+    width: 100%; display: block;
+    padding: 13px 14px;
+    /* 16px stops iOS Safari zooming the viewport on focus. */
+    font: 400 16px/1.4 inherit; color: var(--tx);
+    background: rgba(255,255,255,.05);
+    border: 1px solid var(--line); border-radius: 11px;
+    transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+    -webkit-appearance: none; appearance: none;
   }
-  input:focus { outline: none; border-color: var(--accent); background: rgba(59,130,246,.08); }
-  input[readonly] { color: var(--tx-2); cursor: not-allowed; }
-  .row { display: flex; gap: 10px; }
-  .row > label { flex: 1; }
-  button {
-    width: 100%; padding: 13px 18px; border-radius: 11px; border: 0; cursor: pointer;
-    background: var(--accent); color: #fff; font: inherit; font-size: 14px; font-weight: 700;
+  input::placeholder { color: var(--tx-3); }
+  input:focus {
+    outline: none; border-color: var(--accent);
+    background: rgba(59,130,246,.08);
+    box-shadow: 0 0 0 3px rgba(59,130,246,.18);
   }
-  button:hover:not([disabled]) { filter: brightness(1.1); }
-  button[disabled] { opacity: .5; cursor: not-allowed; }
-  .link { background: none; color: var(--tx-2); font-weight: 600; font-size: 12.5px; padding: 10px; text-decoration: underline; }
-  .note { font-size: 11.5px; color: var(--tx-3); margin: 14px 0 0; }
-  .msg { border-radius: 10px; padding: 12px 14px; font-size: 12.5px; margin: 0 0 16px; }
-  .msg--error { background: rgba(248,113,113,.12); color: #fecaca; border: 1px solid rgba(248,113,113,.3); }
-  .msg--ok { background: rgba(52,211,153,.12); color: #a7f3d0; border: 1px solid rgba(52,211,153,.3); }
-  .ico { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; font-size: 20px; margin: 0 auto 14px; }
-  .ico--ok { background: rgba(52,211,153,.14); color: #6ee7b7; }
-  .ico--bad { background: rgba(248,113,113,.14); color: #fecaca; }
+  input:disabled, input[readonly] {
+    color: var(--tx-2); background: rgba(255,255,255,.03); cursor: default;
+  }
+  input.invalid { border-color: rgba(248,113,113,.55); }
+  .control:has(.reveal) input { padding-inline-end: 54px; }
+  .reveal {
+    position: absolute; inset-block: 1px; inset-inline-end: 1px;
+    padding: 0 13px; border: 0; border-radius: 0 10px 10px 0;
+    background: transparent; color: var(--tx-3);
+    font: 600 11.5px/1 inherit; letter-spacing: .3px;
+    cursor: pointer; text-transform: uppercase;
+  }
+  .reveal:hover { color: var(--tx-2); }
+  .hint { margin: 6px 0 0; font-size: 11.5px; color: var(--tx-3); line-height: 1.5; }
+  .hint.bad { color: #fca5a5; }
+  .hint.good { color: #6ee7b7; }
+
+  .pair { display: flex; gap: 12px; }
+  .pair > .field { flex: 1 1 0; min-width: 0; }
+
+  /* ── buttons ────────────────────────────────────────────────────────── */
+  .btn {
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: 9px;
+    /* A comfortable touch target on a phone. */
+    min-height: 50px; padding: 14px 20px;
+    border: 0; border-radius: 12px; cursor: pointer;
+    font: 700 15px/1 inherit; color: #fff;
+    background: linear-gradient(135deg, var(--accent), #2f6fe0);
+    box-shadow: 0 8px 22px rgba(59,130,246,.28);
+    transition: filter .15s ease, transform .1s ease, opacity .15s ease;
+  }
+  .btn:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+  .btn:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
+  .btn--ghost {
+    background: transparent; color: var(--tx-2);
+    border: 1px solid var(--line); box-shadow: none; margin-top: 10px;
+  }
+  .btn--ghost:hover:not(:disabled) { border-color: var(--line-2); color: var(--tx); }
+  .spinner {
+    width: 15px; height: 15px; flex: none;
+    border: 2px solid rgba(255,255,255,.35); border-top-color: #fff;
+    border-radius: 50%; animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── messages and states ────────────────────────────────────────────── */
+  .alert {
+    border-radius: 11px; padding: 12px 14px; margin: 0 0 18px;
+    font-size: 13px; line-height: 1.5; border: 1px solid transparent;
+  }
+  .alert--error { background: rgba(248,113,113,.11); color: #fecaca; border-color: rgba(248,113,113,.28); }
+  .alert--info  { background: rgba(59,130,246,.11);  color: #bfdbfe; border-color: rgba(59,130,246,.26); }
+  .note {
+    margin: 18px 0 0; padding-top: 16px; border-top: 1px solid var(--line);
+    font-size: 11.5px; color: var(--tx-3); line-height: 1.6;
+  }
   .centre { text-align: center; }
-  .skel { height: 130px; border-radius: 12px; background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.07), rgba(255,255,255,.04)); }
+  .status-ico {
+    width: 56px; height: 56px; border-radius: 17px; margin: 4px auto 16px;
+    display: grid; place-items: center; font-size: 25px; line-height: 1;
+  }
+  .status-ico--ok  { background: rgba(52,211,153,.14); color: #6ee7b7; box-shadow: 0 0 0 6px rgba(52,211,153,.06); }
+  .status-ico--bad { background: rgba(248,113,113,.13); color: #fecaca; box-shadow: 0 0 0 6px rgba(248,113,113,.05); }
+  .status-ico--warn{ background: rgba(251,191,36,.13); color: #fde68a; box-shadow: 0 0 0 6px rgba(251,191,36,.05); }
+
+  .copy-row { display: flex; gap: 8px; align-items: stretch; margin: 4px 0 0; }
+  .copy-row > input { flex: 1 1 auto; min-width: 0; font-size: 14px; padding: 11px 13px; }
+  .copy-row > button {
+    flex: none; padding: 0 15px; border-radius: 11px; cursor: pointer;
+    background: rgba(255,255,255,.06); border: 1px solid var(--line);
+    color: var(--tx-2); font: 600 12px/1 inherit;
+  }
+  .copy-row > button:hover { color: var(--tx); border-color: var(--line-2); }
+
+  /* Loading placeholder, the size of the content it stands in for, so nothing
+     jumps when the invitation resolves. */
+  .skeleton { animation: pulse 1.5s ease-in-out infinite; }
+  .skel-line { height: 13px; border-radius: 7px; background: rgba(255,255,255,.06); margin-bottom: 11px; }
+  .skel-box  { height: 128px; border-radius: 13px; background: rgba(255,255,255,.05); margin: 20px 0; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+
+  .foot { margin: 20px auto 0; text-align: center; font-size: 11px; color: var(--tx-3); }
+
+  /* ── mobile ─────────────────────────────────────────────────────────────
+     At 380px and below the two-up name row would leave each field about
+     140px wide, which is not a field. It stacks instead. */
+  @media (max-width: 380px) {
+    .pair { flex-direction: column; gap: 0; }
+    .body { padding: 22px 18px 24px; }
+    .brand { padding: 20px 18px 17px; }
+    h1 { font-size: 19px; }
+  }
+  @media (min-width: 640px) {
+    .body { padding: 30px 30px 32px; }
+    .brand { padding: 26px 30px 22px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
 </style>
 </head>
 <body>
-  <main class="card">
-    <div class="head"><div class="brand">Famili<span>sta</span></div></div>
-    <div class="body" id="invite-root"><div class="skel"></div></div>
-  </main>
-  <script src="/invite/invite.js?v=20260909-invite"></script>
+  <div class="shell">
+    <main class="card">
+      <div class="brand">
+        <div class="brand-mark">F</div>
+        <div class="brand-name">Famili<em>sta</em></div>
+      </div>
+      <div class="body" id="invite-root">
+        <div class="skeleton" aria-busy="true" aria-live="polite">
+          <div class="skel-line" style="width:62%;height:19px"></div>
+          <div class="skel-line" style="width:88%"></div>
+          <div class="skel-box"></div>
+          <div class="skel-line" style="width:100%;height:46px"></div>
+        </div>
+      </div>
+    </main>
+    <p class="foot">Familista — football connects the world</p>
+  </div>
+  <script src="/invite/invite.js?v=20260910-invite"></script>
 </body>
 </html>
