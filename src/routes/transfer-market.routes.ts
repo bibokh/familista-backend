@@ -5,22 +5,42 @@
 // list or delist, and only a club that does not own the listing may buy it.
 
 import { Router } from 'express';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { MembershipRole } from '@prisma/client';
+import { authenticate } from '../middleware/auth.middleware';
+import { requireMembership } from '../middleware/tenant.middleware';
+import { requireClubWideManage } from '../middleware/team-scope.middleware';
 import * as ctrl from '../controllers/transfer-market.controller';
 
 const router = Router();
 router.use(authenticate);
 
-// Who may trade on a club's behalf. This is the club-operator tier the rest of
-// the codebase already uses for club administration — the owner included.
-// SUPER_ADMIN was missing here, so the account that owns the platform was the
-// one account that could not lift its own club's roster: bootstrap answered 403
-// and the squad fell back to the browser's copy. MANAGER runs a club's football
-// side in the same guards elsewhere and belongs with them.
-// Everyone else stays out: ANALYST, SCOUT, MEDICAL_STAFF, ASSISTANT_COACH,
-// COACH, PARENT and PLAYER cannot list, delist, bootstrap or buy.
-const TRADE_ROLES = ['SUPER_ADMIN', 'CLUB_ADMIN', 'MANAGER', 'HEAD_COACH'] as const;
-const tradeGuard = authorize(...TRADE_ROLES);
+// Who may trade on a club's behalf.
+//
+// This was `authorize('SUPER_ADMIN','CLUB_ADMIN','MANAGER','HEAD_COACH')` — a
+// check on `User.role`, the account-level field. An invited head coach's
+// account role IS HEAD_COACH, whatever their membership says, so a coach hired
+// to run one team could list the club's players, bid at auction, publish to the
+// open market, accept offers and rewrite contracts. Every one of those is the
+// club's decision, and none of them was ever meant to follow from running a
+// team. The interface stopped offering the module; that changed nothing about
+// what the API answered, which is why this is the fix and that was not.
+//
+// Two questions, each asked by the mechanism that already exists to ask it:
+//
+//   requireMembership(HEAD_COACH)  — how senior, by membership rank. Keeps the
+//                                    tier the module always had (owner, club
+//                                    administrator, head coach) and keeps out
+//                                    the assistant, the analyst, the scout,
+//                                    the physio, the parent and the player.
+//   requireClubWideManage()        — whether that authority is the CLUB's or
+//                                    one team's. This is the half that was
+//                                    missing, and the whole of the hole.
+//
+// A club-wide head coach still trades. A first-team head coach does not, and
+// neither does an academy one. SUPER_ADMIN short-circuits both, so the platform
+// owner can still lift a club's roster — the reason SUPER_ADMIN was added here
+// in the first place.
+const tradeGuard = [requireMembership(MembershipRole.HEAD_COACH), requireClubWideManage()];
 
 // ── read: every authenticated club sees other clubs' active listings ─────────
 router.get('/market',       ctrl.readMarket);

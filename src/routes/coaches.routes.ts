@@ -10,8 +10,10 @@
 // with one record whichever screen he is looked at from.
 
 import { Router } from 'express';
-import { authenticate, authorize } from '../middleware/auth.middleware';
-import { guardTeamScopedRouter } from '../middleware/team-scope.middleware';
+import { MembershipRole } from '@prisma/client';
+import { authenticate } from '../middleware/auth.middleware';
+import { requireMembership } from '../middleware/tenant.middleware';
+import { guardTeamScopedRouter, requireClubWideManage } from '../middleware/team-scope.middleware';
 import * as ctrl from '../controllers/coaches.controller';
 
 const router = Router();
@@ -27,10 +29,18 @@ router.use(authenticate);
 // before the handler runs.
 guardTeamScopedRouter(router);
 
-// Changing a club's own staff is a club-operator action, the same tier the
-// market takes for a recruitment decision.
-const STAFF_ROLES = ['SUPER_ADMIN', 'CLUB_ADMIN', 'MANAGER', 'HEAD_COACH'] as const;
-const staffGuard = authorize(...STAFF_ROLES);
+// Changing a club's own staff is administration, not football.
+//
+// Adding, moving and releasing staff creates, re-scopes and ends MEMBERSHIPS —
+// the same thing People & Access does, through a different door. So it takes
+// the same authority People & Access takes: a club administrator or the owner,
+// club-wide. It used to take `authorize(...)` on `User.role`, which reads
+// HEAD_COACH for every invited head coach, so a coach hired for one team could
+// move another team's staff and release them from the club.
+//
+// A rank floor AND a club-wide test, because a CLUB_ADMIN membership can itself
+// be scoped to one team, and a team's administrator does not run the club.
+const staffGuard = [requireMembership(MembershipRole.CLUB_ADMIN), requireClubWideManage()];
 
 // Every current team and its technical staff. Reading, so any authenticated
 // club may do it — the same tier that may read the market.

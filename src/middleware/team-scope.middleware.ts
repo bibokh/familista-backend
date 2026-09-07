@@ -130,6 +130,32 @@ export function requireAnyTeamPrivate() {
 }
 
 /**
+ * The gate for what belongs to the CLUB rather than to one of its teams.
+ *
+ * An Express adapter over `assertClubWideManageAuthority`, which is where the
+ * question is actually answered — this adds no rule of its own, exactly as
+ * `requireAnyTeamPrivate` above adds none to `assertAnyTeamPrivateAccess`.
+ *
+ * It exists because the club-wide modules were guarded on `User.role`, the
+ * account-level field, and that field says HEAD_COACH for anybody invited as
+ * one — including a coach hired to run a single team. Account role cannot tell
+ * a club's head coach from one team's head coach; the membership can, because
+ * a club-wide membership carries no teamId and a team-scoped one does.
+ *
+ * Pair it with `requireMembership(minRole)` where a floor is also wanted: this
+ * asks WHETHER the authority is club-wide, that asks HOW SENIOR it is, and
+ * most club-administration routes want both.
+ */
+export function requireClubWideManage() {
+  return async function (req: Request, _res: Response, next: NextFunction): Promise<void> {
+    try {
+      await teamAccess.assertClubWideManageAuthority(actorOfRequest(req));
+      next();
+    } catch (err) { next(err); }
+  };
+}
+
+/**
  * The gate for a route addressed by PLAYER: `/players/:id`, and everything
  * under it.
  *

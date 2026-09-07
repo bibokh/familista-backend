@@ -7,7 +7,10 @@
 // club-operator tier the transfer routes use.
 
 import { Router } from 'express';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { MembershipRole } from '@prisma/client';
+import { authenticate } from '../middleware/auth.middleware';
+import { requireMembership } from '../middleware/tenant.middleware';
+import { requireClubWideManage } from '../middleware/team-scope.middleware';
 import { guardTeamScopedRouter } from '../middleware/team-scope.middleware';
 import * as ctrl from '../controllers/staff-market.controller';
 
@@ -24,8 +27,14 @@ router.use(authenticate);
 // before the handler runs.
 guardTeamScopedRouter(router);
 
-const RECRUIT_ROLES = ['SUPER_ADMIN', 'CLUB_ADMIN', 'MANAGER', 'HEAD_COACH'] as const;
-const recruitGuard = authorize(...RECRUIT_ROLES);
+// Recruiting staff is the CLUB's decision, so it takes the club's authority and
+// not a team's. This was `authorize(...)` on `User.role`, which says HEAD_COACH
+// for anybody invited as one — so a coach scoped to a single team could open
+// approaches to another club's staff, publish the club's recruitment needs,
+// negotiate, and accept. The membership is what can tell a club's head coach
+// from one team's, so the membership is what decides. Same pair as the transfer
+// market: how senior, and whether it is club-wide.
+const recruitGuard = [requireMembership(MembershipRole.HEAD_COACH), requireClubWideManage()];
 
 // ── the market ──────────────────────────────────────────────────────────────
 router.get('/summary',                 ctrl.summary);
