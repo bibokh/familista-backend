@@ -821,8 +821,9 @@ async function bootApp() {
     // the membership that actually made them the club's owner says CLUB_OWNER.
     // The membership is the authority, so the membership is what is displayed.
     // Nothing about authorization changes here — this line only writes text.
-    const roleEl = document.getElementById('user-email');
-    if (roleEl) roleEl.textContent = _displayRole();
+    // First paint, before /me/context has answered. _paintUserRole runs again
+    // when it does — this is the placeholder, not the answer.
+    _paintUserRole();
     const metaEl = document.getElementById('nav-club-meta'); if (metaEl) metaEl.textContent = State.user.clubId ? 'Berlin · Manager' : '';
   }
 
@@ -2767,19 +2768,66 @@ function _isPlatformOwner() {
 /**
  * The role to PRINT for the signed-in person, in the club they are in.
  *
- * Authoritative first: the membership role the server reported for the current
- * club. Only if there is none — a legacy account with no membership row — does
- * it fall back to the account-level field, which is better than printing
- * nothing. It is never used to decide what somebody may do.
+ * Three sources, strongest first, and only the last of them is the account
+ * field that labelled an invited president "CLUB ADMIN":
+ *
+ *   1 · currentClubRole — the membership the server named for the club it has
+ *       open. The plain answer, and the one that applies once a club has been
+ *       entered in this session.
+ *   2 · the membership held in the club on screen, read out of the same
+ *       /me/context reply. The server reports currentClubRole for the club
+ *       recorded on the user row, and an invited president who has not yet
+ *       switched context has none recorded — so the club they are looking at
+ *       is known while the server's "current" club is still null.
+ *   3 · User.role, for a legacy account with no membership row at all. Better
+ *       than printing nothing, and wrong often enough that it is last.
+ *
+ * All three are text. None of them decides what anybody may do.
  */
 function _displayRole() {
   try {
-    const authoritative = window.State && State.context && State.context.currentClubRole;
-    if (authoritative) return _roleLabel(authoritative);
+    const ctx = (window.State && State.context) || {};
+    if (ctx.currentClubRole) return _roleLabel(ctx.currentClubRole);
+
+    const clubs = Array.isArray(ctx.availableClubs) ? ctx.availableClubs : [];
+    const here = clubs.find((c) => c && c.id === ctx.clubId)
+      || (clubs.length === 1 ? clubs[0] : null);
+    const strongest = _strongestRole(here && here.roles);
+    if (strongest) return _roleLabel(strongest);
   } catch (_) {}
   try {
     return String((window.State && State.user && State.user.role) || '').replace(/_/g, ' ');
   } catch (_) { return ''; }
+}
+
+/**
+ * The most senior of several memberships in one club.
+ *
+ * Somebody may be the club's owner and also coach a team, and "President" is
+ * what that person is. The order mirrors RANK in src/services/context.service.ts
+ * so the two agree about which membership names somebody.
+ */
+const _ROLE_RANK = ['CLUB_OWNER', 'CLUB_ADMIN', 'MANAGER', 'HEAD_COACH', 'ASSISTANT_COACH',
+  'ANALYST', 'SCOUT', 'MEDICAL_STAFF', 'PARENT', 'PLAYER', 'DEVICE'];
+function _strongestRole(roles) {
+  if (!Array.isArray(roles) || !roles.length) return null;
+  const at = (r) => { const i = _ROLE_RANK.indexOf(r); return i < 0 ? _ROLE_RANK.length : i; };
+  return [...roles].sort((a, b) => at(a) - at(b))[0];
+}
+
+/**
+ * Write that role into the sidebar.
+ *
+ * Boot paints the sidebar before /me/context has answered, so the first paint
+ * can only reach the account field — which is exactly how "CLUB ADMIN" survived
+ * being fixed once already. Every place that learns the context calls this, and
+ * the label is corrected the moment the authoritative answer lands.
+ */
+function _paintUserRole() {
+  try {
+    const el = document.getElementById('user-email');
+    if (el) el.textContent = _displayRole();
+  } catch (_) {}
 }
 
 /** The role somebody actually holds, in words. Membership, never User.role. */
@@ -2808,15 +2856,8 @@ function _accessibleClubs() {
 
 /** The strongest membership role held in one club, as a label. */
 function _clubRoleLabel(club) {
-  const roles = (club && Array.isArray(club.roles)) ? club.roles : [];
-  if (!roles.length) return '';
-  const rank = ['CLUB_OWNER', 'CLUB_ADMIN', 'MANAGER', 'HEAD_COACH', 'ASSISTANT_COACH',
-    'ANALYST', 'SCOUT', 'MEDICAL_STAFF', 'PARENT', 'PLAYER'];
-  const best = roles.slice().sort(function (a, b) {
-    var ia = rank.indexOf(a); var ib = rank.indexOf(b);
-    return (ia < 0 ? rank.length : ia) - (ib < 0 ? rank.length : ib);
-  })[0];
-  return _roleLabel(best);
+  const best = _strongestRole(club && club.roles);
+  return best ? _roleLabel(best) : '';
 }
 
 function _greeting() {
@@ -34774,6 +34815,9 @@ const AppContext = (function () {
           // NAME the role on screen; never to decide what may be done.
           currentClubRole: _ctx.currentClubRole || null,
         };
+        // The sidebar was painted from the account field at boot, before this
+        // answered. This is the authoritative answer, so the label is rewritten.
+        _paintUserRole();
         // Every club this user may act for, and what each one looks like. This
         // is where the crest registry is filled for the session, which is why
         // no <ClubLogo> anywhere afterwards has to ask the server anything.
@@ -34857,6 +34901,7 @@ const AppContext = (function () {
         // displayed role follows the club rather than the account.
         currentClubRole: (_ctx && _ctx.currentClubRole) || null,
       };
+      _paintUserRole();
       // The club being entered names itself. Crests are held per club id, so
       // this adds the new club rather than replacing the old one's image — the
       // club just left keeps its own crest for the tables that still name it.
@@ -34955,6 +35000,7 @@ const AppContext = (function () {
         currentClubRole: (_ctx && _ctx.currentClubRole)
           || (State.context && State.context.currentClubRole) || null,
       };
+      _paintUserRole();
       try { _clubIdentPutAll(State.context.availableClubs); } catch (_) {}
       renderSwitcher();
       // Same club, different team: Layer B is scoped by team, so what is held is

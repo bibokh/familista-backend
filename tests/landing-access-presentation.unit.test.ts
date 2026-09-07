@@ -298,14 +298,96 @@ describe('8 · a president is named president, not administrator', () => {
 
   it('and the interface prints that, falling back only for a legacy account', () => {
     expect(APP).toContain('function _displayRole()');
-    const display = between(APP, '* The role to PRINT', 'const _ROLE_LABELS');
-    expect(display).toContain('State.context.currentClubRole');
-    expect(display).toContain('_roleLabel(authoritative)');
-    // The fallback exists, and it is second.
-    expect(display.indexOf('currentClubRole')).toBeLessThan(display.indexOf('State.user.role'));
+    const display = between(APP, '* The role to PRINT', 'const _ROLE_RANK');
+    expect(display).toContain('ctx.currentClubRole');
+    expect(display).toContain('_roleLabel(ctx.currentClubRole)');
+    // The account field exists as a fallback, and it is the LAST of the three.
+    expect(display.indexOf('currentClubRole')).toBeLessThan(display.indexOf('ctx.availableClubs'));
+    expect(display.indexOf('ctx.availableClubs')).toBeLessThan(display.indexOf('State.user.role'));
     expect(APP).toContain("CLUB_OWNER: 'President'");
     // It is used where the role is WRITTEN, and nowhere a decision is made.
-    expect(APP).toContain('roleEl.textContent = _displayRole();');
+    expect(APP).toContain('el.textContent = _displayRole();');
+  });
+
+  it('CLUB_OWNER is never rendered as CLUB ADMIN, in any of the three sources', () => {
+    // The reported symptom, pinned at the level it actually failed: the label.
+    const app = new Function(`
+      ${between(APP, 'function _displayRole()', 'function _accessibleClubs()')}
+      return { _displayRole, _strongestRole, _roleLabel };
+    `)() as {
+      _displayRole: () => string;
+      _strongestRole: (r: string[] | null | undefined) => string | null;
+      _roleLabel: (r: string) => string;
+    };
+
+    const withState = (context: any, user: any) => {
+      (global as any).window = { State: { context, user } };
+      (global as any).State = (global as any).window.State;
+      try { return app._displayRole(); } finally {
+        delete (global as any).window; delete (global as any).State;
+      }
+    };
+
+    // 1 · the server named the membership for the open club.
+    expect(withState(
+      { currentClubRole: 'CLUB_OWNER', clubId: CLUB, availableClubs: [] },
+      { role: 'CLUB_ADMIN' },
+    )).toBe('President');
+
+    // 2 · it did not, because the president has never switched context and the
+    //     user row carries no current club — the club on screen still answers.
+    expect(withState(
+      { currentClubRole: null, clubId: CLUB, availableClubs: [{ id: CLUB, roles: ['CLUB_OWNER'] }] },
+      { role: 'CLUB_ADMIN' },
+    )).toBe('President');
+
+    // 3 · not even the club id is settled yet, but there is exactly one club.
+    expect(withState(
+      { currentClubRole: null, clubId: null, availableClubs: [{ id: CLUB, roles: ['CLUB_OWNER'] }] },
+      { role: 'CLUB_ADMIN' },
+    )).toBe('President');
+
+    // A president who also coaches is still a president.
+    expect(withState(
+      { currentClubRole: null, clubId: CLUB, availableClubs: [{ id: CLUB, roles: ['HEAD_COACH', 'CLUB_OWNER'] }] },
+      { role: 'CLUB_ADMIN' },
+    )).toBe('President');
+
+    // 7 · every other role still reads correctly — this is not a special case
+    //     for presidents bolted onto a broken function.
+    for (const [role, label] of [
+      ['CLUB_ADMIN', 'Club administrator'], ['HEAD_COACH', 'Head coach'],
+      ['MANAGER', 'Manager'], ['ANALYST', 'Analyst'], ['SCOUT', 'Scout'],
+      ['MEDICAL_STAFF', 'Medical staff'], ['PLAYER', 'Player'], ['PARENT', 'Parent'],
+    ] as const) {
+      expect(`${role} → ${withState({ currentClubRole: role, availableClubs: [] }, { role: 'PLAYER' })}`)
+        .toBe(`${role} → ${label}`);
+    }
+
+    // And a genuinely legacy account, with no membership anywhere, still gets
+    // the account field rather than a blank chip.
+    expect(withState({ currentClubRole: null, clubId: null, availableClubs: [] }, { role: 'CLUB_ADMIN' }))
+      .toBe('CLUB ADMIN');
+  });
+
+  it('repaints the label once the authoritative answer lands', () => {
+    // The first fix set the text from _displayRole() but ran at boot, before
+    // /me/context had answered — so it could only ever reach the account field
+    // and the label stayed "CLUB ADMIN". Every place that learns the context
+    // now rewrites it.
+    expect(APP).toContain('function _paintUserRole()');
+    const boot = between(APP, 'async function bootApp()', 'try { await AppContext.load(); }');
+    expect(boot).toContain('_paintUserRole();');
+    // The load, the club switch and the team switch: three context writes,
+    // three repaints, plus the one at boot.
+    expect(APP.split('_paintUserRole();').length - 1).toBe(4);
+    // Each assignment of State.context is followed by a repaint before the
+    // next one begins.
+    const writes = APP.split('currentClubRole:').slice(1);
+    expect(writes.length).toBe(3);
+    for (const w of writes) {
+      expect(w.slice(0, 400)).toContain('_paintUserRole();');
+    }
   });
 
   it('changes no authorization gate — this is a label, not a permission', () => {
@@ -313,8 +395,12 @@ describe('8 · a president is named president, not administrator', () => {
     // they did; changing them would alter behaviour, and the server is what
     // enforces any of it in any case.
     expect(APP).toContain("['CLUB_ADMIN','HEAD_COACH','SUPER_ADMIN'].includes(State.user && State.user.role)");
-    const display = between(APP, '* The role to PRINT', 'const _ROLE_LABELS');
-    expect(display).toMatch(/never used to decide what somebody may do/);
+    const display = between(APP, '* The role to PRINT', 'const _ROLE_RANK');
+    expect(display).toMatch(/None of them decides what anybody may do/);
+    // _displayRole, _strongestRole and _paintUserRole write text and nothing
+    // else — no fetch, no navigation, no permission check downstream.
+    const block = between(APP, '* The role to PRINT', 'function _accessibleClubs');
+    expect(block).not.toMatch(/fetch\(|FamilistaAPI\.|navTo|location\./);
   });
 
   it('and follows the club when the club is switched, not the account', () => {
