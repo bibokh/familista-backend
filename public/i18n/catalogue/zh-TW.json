@@ -1343,5 +1343,11 @@
   "Match Center and preparation": "Match Center 與賽前準備",
   "Familista League administration": "Familista League 管理",
   "Video Intelligence and private analytics": "Video Intelligence 與私有分析",
-  "Command Center · Clubs · People & Access · Intelligence · Governance · Innovation Lab · Security · Audit": "Command Center · 俱樂部 · 人員與存取 · Intelligence · 治理 · Innovation Lab · 安全 · 稽核"
+  "Command Center · Clubs · People & Access · Intelligence · Governance · Innovation Lab · Security · Audit": "Command Center · 俱樂部 · 人員與存取 · Intelligence · 治理 · Innovation Lab · 安全 · 稽核",
+  "Loading your access…": "正在載入您的存取權限…",
+  "No club yet": "尚無俱樂部",
+  "Nothing to open": "沒有可開啟的項目",
+  "Open club": "開啟俱樂部",
+  "Squad, training, matches and your season": "陣容、訓練、比賽與您的球季",
+  "Your account is not a member of a club. Whoever invited you can send a new invitation.": "您的帳戶不屬於任何俱樂部。邀請您的人可以傳送新的邀請。"
 }

@@ -813,7 +813,16 @@ async function bootApp() {
     const fullName = [State.user.firstName, State.user.lastName].filter(Boolean).join(' ').trim() || State.user.email || 'User';
     const avEl   = document.getElementById('user-av');       if (avEl)   avEl.textContent   = initials;
     const nameEl = document.getElementById('user-name');     if (nameEl) nameEl.textContent = fullName;
-    const roleEl = document.getElementById('user-email');    if (roleEl) roleEl.textContent = (State.user.role || '').replace('_', ' ');
+    // The role a person is SHOWN is the one they actually hold in this club.
+    //
+    // State.user.role is User.role — an account-level field that predates
+    // memberships, and the reason an invited president was labelled "CLUB
+    // ADMIN": their account role is CLUB_ADMIN so club-admin routes work, while
+    // the membership that actually made them the club's owner says CLUB_OWNER.
+    // The membership is the authority, so the membership is what is displayed.
+    // Nothing about authorization changes here — this line only writes text.
+    const roleEl = document.getElementById('user-email');
+    if (roleEl) roleEl.textContent = _displayRole();
     const metaEl = document.getElementById('nav-club-meta'); if (metaEl) metaEl.textContent = State.user.clubId ? 'Berlin · Manager' : '';
   }
 
@@ -2755,29 +2764,87 @@ function _isPlatformOwner() {
   return _platformAuthority;
 }
 
-function renderOwnerHome() {
-  const el = document.getElementById('owner-home-content');
-  if (!el) return;
-  const club = (window.State && State.club) || {};
-  const user = (window.State && State.user) || {};
-  const greet = (function () {
-    const h = new Date().getHours();
-    if (h < 12) return 'Good morning';
-    if (h < 18) return 'Good afternoon';
-    return 'Good evening';
-  })();
-  // Today there is one tenant (FC Familista). The CLUBS card surfaces
-  // the count so the owner sees the real network size.
-  const clubCount = 1;
-  el.innerHTML = `
+/**
+ * The role to PRINT for the signed-in person, in the club they are in.
+ *
+ * Authoritative first: the membership role the server reported for the current
+ * club. Only if there is none — a legacy account with no membership row — does
+ * it fall back to the account-level field, which is better than printing
+ * nothing. It is never used to decide what somebody may do.
+ */
+function _displayRole() {
+  try {
+    const authoritative = window.State && State.context && State.context.currentClubRole;
+    if (authoritative) return _roleLabel(authoritative);
+  } catch (_) {}
+  try {
+    return String((window.State && State.user && State.user.role) || '').replace(/_/g, ' ');
+  } catch (_) { return ''; }
+}
+
+/** The role somebody actually holds, in words. Membership, never User.role. */
+const _ROLE_LABELS = {
+  CLUB_OWNER: 'President', CLUB_ADMIN: 'Club administrator', MANAGER: 'Manager',
+  HEAD_COACH: 'Head coach', ASSISTANT_COACH: 'Assistant coach', ANALYST: 'Analyst',
+  SCOUT: 'Scout', MEDICAL_STAFF: 'Medical staff', PARENT: 'Parent', PLAYER: 'Player',
+};
+function _roleLabel(role) {
+  return _ROLE_LABELS[role] || String(role || '').replace(/_/g, ' ').toLowerCase();
+}
+
+/**
+ * The clubs this account can actually open, from the server's own context.
+ *
+ * Never inferred from a role, a club id on the user record, or anything the
+ * client could have made up: memberships are what grant access to a club, and
+ * /me/context is where the server reports them.
+ */
+function _accessibleClubs() {
+  try {
+    const list = window.State && State.context && State.context.availableClubs;
+    return Array.isArray(list) ? list : [];
+  } catch (_) { return []; }
+}
+
+/** The strongest membership role held in one club, as a label. */
+function _clubRoleLabel(club) {
+  const roles = (club && Array.isArray(club.roles)) ? club.roles : [];
+  if (!roles.length) return '';
+  const rank = ['CLUB_OWNER', 'CLUB_ADMIN', 'MANAGER', 'HEAD_COACH', 'ASSISTANT_COACH',
+    'ANALYST', 'SCOUT', 'MEDICAL_STAFF', 'PARENT', 'PLAYER'];
+  const best = roles.slice().sort(function (a, b) {
+    var ia = rank.indexOf(a); var ib = rank.indexOf(b);
+    return (ia < 0 ? rank.length : ia) - (ib < 0 ? rank.length : ib);
+  })[0];
+  return _roleLabel(best);
+}
+
+function _greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+/**
+ * The platform owner's landing: two products, and a choice between them.
+ *
+ * Unchanged. This is what somebody with platform authority has always seen,
+ * and the only thing that changed about it is that it is now built ONLY for
+ * them rather than built for everybody and then partly hidden.
+ */
+function _ownerHomeForPlatformOwner(user, club) {
+  const clubs = _accessibleClubs();
+  const clubCount = clubs.length || 1;
+  return `
     <div class="oh-wrap">
       <div class="oh-hero">
         <div class="oh-eyebrow">FAMILISTA · OWNER CONTROL</div>
-        <h1 class="oh-title"><span>${_esc(greet)}</span>${user.firstName ? ', <span data-user-content>' + _esc(user.firstName) + '</span>' : ''}</h1>
+        <h1 class="oh-title"><span>${_esc(_greeting())}</span>${user.firstName ? ', <span data-user-content>' + _esc(user.firstName) + '</span>' : ''}</h1>
         <div class="oh-sub">Where do you want to go today?</div>
       </div>
       <div class="oh-cards">
-        <button class="oh-card oh-card--system" data-action="navTo" data-page="system" type="button" hidden>
+        <button class="oh-card oh-card--system" data-action="navTo" data-page="system" type="button">
           <div class="oh-card-icon">⚙️</div>
           <div class="oh-card-title">SYSTEM</div>
           <div class="oh-card-sub">Platform &amp; infrastructure</div>
@@ -2797,14 +2864,97 @@ function renderOwnerHome() {
       </div>
     </div>
   `;
+}
 
-  // The SYSTEM door is drawn hidden and revealed only for an account the
-  // server says owns the platform. Hiding it is a courtesy, not the guard —
-  // /api/v1/system refuses a club account whatever is on screen — but an
-  // account that cannot enter should not be offered the door.
+/**
+ * Everybody else's landing: the clubs they belong to, and nothing else.
+ *
+ * No SYSTEM card, no "Platform & infrastructure", no "OWNER CONTROL" — not
+ * greyed out, not hidden, not present. A president is not a lesser platform
+ * owner; they are a different thing, and a landing page that offers them a
+ * door into a refusal is a landing page that has misunderstood what they are.
+ *
+ * There is no SYSTEM-versus-CLUBS choice here because for this account there
+ * is no platform-level choice to make.
+ */
+function _ownerHomeForClubMember(user) {
+  const clubs = _accessibleClubs();
+  const one = clubs.length === 1;
+
+  const cards = clubs.length
+    ? clubs.map((c) => {
+      const role = _clubRoleLabel(c);
+      return `
+        <button class="oh-card oh-card--clubs" data-action="openClub" data-club-id="${_esc(c.id)}" type="button">
+          <div class="oh-card-icon">🏟️</div>
+          <div class="oh-card-title" data-user-content>${_esc(c.name || 'Club')}</div>
+          ${role ? `<div class="oh-card-sub">${_esc(role)}</div>` : ''}
+          <div class="oh-card-list">${c.teams && c.teams.length
+            ? `<span>${c.teams.length} team${c.teams.length === 1 ? '' : 's'} you work with</span>`
+            : '<span>Squad, training, matches and your season</span>'}</div>
+          <div class="oh-card-cta">Open club <span>→</span></div>
+        </button>`;
+    }).join('')
+    : `<div class="oh-card oh-card--clubs" style="cursor:default">
+         <div class="oh-card-icon">🏟️</div>
+         <div class="oh-card-title">No club yet</div>
+         <div class="oh-card-sub">Nothing to open</div>
+         <div class="oh-card-list">Your account is not a member of a club. Whoever invited you can send a new invitation.</div>
+       </div>`;
+
+  return `
+    <div class="oh-wrap">
+      <div class="oh-hero">
+        <h1 class="oh-title"><span>${_esc(_greeting())}</span>${user.firstName ? ', <span data-user-content>' + _esc(user.firstName) + '</span>' : ''}</h1>
+        <div class="oh-sub">${one ? 'Your club' : (clubs.length ? 'Your clubs' : 'Welcome to Familista')}</div>
+      </div>
+      <div class="oh-cards${one ? ' oh-cards--single' : ''}">
+        ${cards}
+      </div>
+      <div class="oh-footer">
+        Familista · ${_esc((user.email || '') + '')}
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * The landing page, built once the server has said what this account is.
+ *
+ * The SYSTEM entry point is not rendered and then hidden — it is not rendered.
+ * An earlier attempt DID draw it with the `hidden` attribute and reveal it for
+ * a platform owner, and that silently failed in production: the author rule
+ * `body.club-theme .oh-card { display: flex }` outranks the user agent's
+ * `[hidden] { display: none }`, so the card stayed on screen for everybody.
+ * Deciding what to build, rather than what to conceal, cannot fail that way.
+ *
+ * Authority comes from GET /system/whoami and from nothing else. It is not read
+ * from a role in State, not inferred from a membership, and not remembered
+ * across accounts — every SYSTEM route refuses a club account regardless, so
+ * this is what the person is offered, never what they are permitted.
+ */
+function renderOwnerHome() {
+  const el = document.getElementById('owner-home-content');
+  if (!el) return;
+  const club = (window.State && State.club) || {};
+  const user = (window.State && State.user) || {};
+
+  // Nothing platform-shaped is on screen while the answer is outstanding, so
+  // a slow network cannot flash a SYSTEM card at somebody who may not have one.
+  el.innerHTML = `
+    <div class="oh-wrap">
+      <div class="oh-hero">
+        <h1 class="oh-title"><span>${_esc(_greeting())}</span>${user.firstName ? ', <span data-user-content>' + _esc(user.firstName) + '</span>' : ''}</h1>
+        <div class="oh-sub">Loading your access…</div>
+      </div>
+    </div>`;
+
   _isPlatformOwner().then((yes) => {
-    const card = el.querySelector('.oh-card--system');
-    if (card) card.hidden = !yes;
+    // The page may have moved on while the request was in flight.
+    if (!document.getElementById('owner-home-content')) return;
+    el.innerHTML = yes
+      ? _ownerHomeForPlatformOwner(user, club)
+      : _ownerHomeForClubMember(user);
   });
 }
 
@@ -34620,6 +34770,9 @@ const AppContext = (function () {
           clubId: _ctx.currentClubId || _ctx.legacyClubId,
           teamId: _ctx.currentTeamId || null,
           availableClubs: Array.isArray(_ctx.availableClubs) ? _ctx.availableClubs : [],
+          // The authoritative membership role in the club now open. Used to
+          // NAME the role on screen; never to decide what may be done.
+          currentClubRole: _ctx.currentClubRole || null,
         };
         // Every club this user may act for, and what each one looks like. This
         // is where the crest registry is filled for the session, which is why
@@ -34700,6 +34853,9 @@ const AppContext = (function () {
         availableClubs: (_ctx && Array.isArray(_ctx.availableClubs))
           ? _ctx.availableClubs
           : ((State.context && State.context.availableClubs) || []),
+        // Switching club switches which membership is authoritative, so the
+        // displayed role follows the club rather than the account.
+        currentClubRole: (_ctx && _ctx.currentClubRole) || null,
       };
       // The club being entered names itself. Crests are held per club id, so
       // this adds the new club rather than replacing the old one's image — the
@@ -34793,6 +34949,11 @@ const AppContext = (function () {
         availableClubs: (_ctx && Array.isArray(_ctx.availableClubs))
           ? _ctx.availableClubs
           : ((State.context && State.context.availableClubs) || []),
+        // Switching TEAM does not change the club, so the club membership that
+        // names this person is the one they already had. Carried forward
+        // rather than dropped, which would blank the role in the sidebar.
+        currentClubRole: (_ctx && _ctx.currentClubRole)
+          || (State.context && State.context.currentClubRole) || null,
       };
       try { _clubIdentPutAll(State.context.availableClubs); } catch (_) {}
       renderSwitcher();

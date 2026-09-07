@@ -1346,5 +1346,11 @@
   "Match Center and preparation": "Match Center i priprema za utakmicu",
   "Familista League administration": "Administracija Familista League",
   "Video Intelligence and private analytics": "Video Intelligence i privatna analitika",
-  "Command Center · Clubs · People & Access · Intelligence · Governance · Innovation Lab · Security · Audit": "Command Center · Klubovi · Ljudi i pristup · Intelligence · Upravljanje · Innovation Lab · Bezbednost · Revizija"
+  "Command Center · Clubs · People & Access · Intelligence · Governance · Innovation Lab · Security · Audit": "Command Center · Klubovi · Ljudi i pristup · Intelligence · Upravljanje · Innovation Lab · Bezbednost · Revizija",
+  "Loading your access…": "Учитавање вашег приступа…",
+  "No club yet": "Још нема клуба",
+  "Nothing to open": "Нема шта да се отвори",
+  "Open club": "Отвори клуб",
+  "Squad, training, matches and your season": "Састав, тренинзи, утакмице и ваша сезона",
+  "Your account is not a member of a club. Whoever invited you can send a new invitation.": "Ваш налог није члан ниједног клуба. Онај ко вас је позвао може послати нову позивницу."
 }

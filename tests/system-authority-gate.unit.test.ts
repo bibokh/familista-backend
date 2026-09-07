@@ -209,11 +209,18 @@ describe('a refused account is not shown a workspace', () => {
   });
 
   it('and the club shell does not offer a door it cannot open', () => {
-    expect(APP).toContain('class="oh-card oh-card--system" data-action="navTo" data-page="system" type="button" hidden');
+    // This assertion used to pin the opposite mechanism: render the SYSTEM
+    // card always, then set `hidden` on it once whoami answered. That never
+    // hid anything — `body.club-theme .oh-card { display: flex }` is an author
+    // rule and outranks the user agent's `[hidden] { display: none }` — so a
+    // club president saw a door into a refusal. The landing page now decides
+    // which of two layouts to build, and the club one has no SYSTEM card in it
+    // at all. tests/landing-access-presentation.unit.test.ts covers the rest.
     expect(APP).toContain('function _isPlatformOwner()');
-    expect(APP).toMatch(/_isPlatformOwner\(\)\.then\(\(yes\) => \{[\s\S]{0,200}card\.hidden = !yes;/);
-    // Hiding is a courtesy. The comment says so, and the server still refuses.
-    expect(APP).toMatch(/Hiding it is a courtesy, not the guard/);
+    expect(APP).toMatch(/_isPlatformOwner\(\)\.then\(\(yes\) => \{[\s\S]{0,240}\? _ownerHomeForPlatformOwner\(user, club\)[\s\S]{0,80}: _ownerHomeForClubMember\(user\);/);
+    expect(APP).not.toMatch(/card\.hidden = !yes;/);
+    // Not rendering it is a courtesy either way. The server still refuses.
+    expect(APP).toMatch(/every SYSTEM route refuses a club account/);
   });
 });
 

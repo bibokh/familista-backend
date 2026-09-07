@@ -7088,6 +7088,10 @@ body.club-theme .oh-cards{
   align-items: stretch;
 }
 @media (max-width: 900px){ body.club-theme .oh-cards{ grid-template-columns: 1fr; } }
+/* One club, one card.
+   A single card stretched across a two-column grid reads as a page missing its
+   other half. Centred at a readable width it reads as the answer. */
+body.club-theme .oh-cards--single{ grid-template-columns: minmax(0, 520px); justify-content: center; }
 body.club-theme .oh-card{
   position: relative; padding: var(--sp-8);
   background: var(--bg-surface); border: 1px solid var(--b-default); border-radius: var(--r-xl);

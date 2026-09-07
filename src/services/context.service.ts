@@ -28,14 +28,25 @@ export async function getContext(userId: string) {
   if (!user) throw new ForbiddenError();
 
   // De-duplicate clubs from memberships, then group teams per club.
-  const clubMap = new Map<string, { id: string; name: string; shortName: string | null; emblem: string | null; crestUrl: string | null; plan: string; teams: Array<{ id: string; name: string; kind: string }> }>();
+  const clubMap = new Map<string, { id: string; name: string; shortName: string | null; emblem: string | null; crestUrl: string | null; plan: string; teams: Array<{ id: string; name: string; kind: string }>; roles: string[] }>();
   for (const m of memberships) {
     const c = m.club;
     if (!clubMap.has(c.id)) {
-      clubMap.set(c.id, { ...c, teams: [] });
+      clubMap.set(c.id, { ...c, teams: [], roles: [] });
     }
-    if (m.team && !clubMap.get(c.id)!.teams.find((t) => t.id === m.team!.id)) {
-      clubMap.get(c.id)!.teams.push({ id: m.team.id, name: m.team.name, kind: m.team.kind });
+    // The AUTHORITATIVE role, per club.
+    //
+    // `legacyRole` below is User.role — an account-level field that predates
+    // memberships and is what some older club routes still check. It is not
+    // what somebody IS in a club: an invited president holds a CLUB_OWNER
+    // membership and a CLUB_ADMIN account role, and showing the second one
+    // labels the club's owner as its administrator. A screen that wants to
+    // name somebody's role reads this.
+    const entry = clubMap.get(c.id)!;
+    if (!entry.roles.includes(m.role)) entry.roles.push(m.role);
+
+    if (m.team && !entry.teams.find((t) => t.id === m.team!.id)) {
+      entry.teams.push({ id: m.team.id, name: m.team.name, kind: m.team.kind });
     }
   }
 
@@ -46,15 +57,33 @@ export async function getContext(userId: string) {
       where: { id: user.clubId },
       select: { id: true, name: true, shortName: true, emblem: true, crestUrl: true, plan: true },
     });
-    if (club) clubMap.set(club.id, { ...club, teams: [] });
+    // A legacy account with no membership row has no authoritative role to
+    // report, and an empty list is the honest answer rather than a guess.
+    if (club) clubMap.set(club.id, { ...club, teams: [], roles: [] });
   }
 
   const clubs = Array.from(clubMap.values());
 
+  // The strongest membership held in the club currently open. Ordered by
+  // authority so "CLUB_OWNER plus HEAD_COACH" reads as owner, which is what
+  // that person is.
+  const RANK = ['CLUB_OWNER', 'CLUB_ADMIN', 'MANAGER', 'HEAD_COACH', 'ASSISTANT_COACH',
+    'ANALYST', 'SCOUT', 'MEDICAL_STAFF', 'PARENT', 'PLAYER', 'DEVICE'];
+  const currentRoles = user.currentClubId ? (clubMap.get(user.currentClubId)?.roles ?? []) : [];
+  const currentClubRole = currentRoles.length
+    ? [...currentRoles].sort((a, b) => {
+      const ia = RANK.indexOf(a); const ib = RANK.indexOf(b);
+      return (ia < 0 ? RANK.length : ia) - (ib < 0 ? RANK.length : ib);
+    })[0]
+    : null;
+
   return {
     userId:           user.id,
     legacyClubId:     user.clubId,
+    /** User.role — the account-level field. NOT what somebody is in a club. */
     legacyRole:       user.role,
+    /** The authoritative membership role in the club currently open. */
+    currentClubRole,
     currentClubId:    user.currentClubId,
     currentTeamId:    user.currentTeamId,
     currentClub:      user.currentClub,

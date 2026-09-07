@@ -1343,5 +1343,11 @@
   "Match Center and preparation": "Match Center 및 경기 준비",
   "Familista League administration": "Familista League 관리",
   "Video Intelligence and private analytics": "Video Intelligence 및 비공개 분석",
-  "Command Center · Clubs · People & Access · Intelligence · Governance · Innovation Lab · Security · Audit": "Command Center · 클럽 · 사용자 및 접근 · Intelligence · 거버넌스 · Innovation Lab · 보안 · 감사"
+  "Command Center · Clubs · People & Access · Intelligence · Governance · Innovation Lab · Security · Audit": "Command Center · 클럽 · 사용자 및 접근 · Intelligence · 거버넌스 · Innovation Lab · 보안 · 감사",
+  "Loading your access…": "접근 권한을 불러오는 중…",
+  "No club yet": "아직 클럽이 없습니다",
+  "Nothing to open": "열 수 있는 항목이 없습니다",
+  "Open club": "클럽 열기",
+  "Squad, training, matches and your season": "선수단, 훈련, 경기 및 시즌",
+  "Your account is not a member of a club. Whoever invited you can send a new invitation.": "이 계정은 어떤 클럽에도 소속되어 있지 않습니다. 초대한 사람이 새 초대를 보낼 수 있습니다."
 }
