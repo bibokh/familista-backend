@@ -1470,5 +1470,9 @@
   "What this membership reaches.": "К чему даёт доступ это членство.",
   "Save access": "Сохранить доступ",
   "Onboarding a club is a platform-owner action.": "Создание клуба — действие владельца платформы.",
-  "The clubs you work with": "Клубы, с которыми вы работаете"
+  "The clubs you work with": "Клубы, с которыми вы работаете",
+  "Your clubs could not be read": "Не удалось прочитать ваши клубы",
+  "This is not an answer about your membership": "Это не ответ о вашем членстве",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Обновите страницу. Если это повторяется, ваши клубы никуда не делись — платформа просто не смогла к ним обратиться сейчас.",
+  "Something went wrong": "Что-то пошло не так"
 }

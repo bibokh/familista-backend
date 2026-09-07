@@ -1467,5 +1467,9 @@
   "What this membership reaches.": "สมาชิกภาพนี้เข้าถึงอะไรได้บ้าง",
   "Save access": "บันทึกสิทธิ์การเข้าถึง",
   "Onboarding a club is a platform-owner action.": "การสร้างสโมสรเป็นการดำเนินการของเจ้าของแพลตฟอร์ม",
-  "The clubs you work with": "สโมสรที่คุณทำงานด้วย"
+  "The clubs you work with": "สโมสรที่คุณทำงานด้วย",
+  "Your clubs could not be read": "ไม่สามารถอ่านสโมสรของคุณได้",
+  "This is not an answer about your membership": "นี่ไม่ใช่คำตอบเกี่ยวกับการเป็นสมาชิกของคุณ",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "โหลดหน้านี้ใหม่ หากยังเกิดขึ้นอีก สโมสรของคุณยังอยู่ครบ เพียงแต่แพลตฟอร์มเข้าถึงไม่ได้ในตอนนี้",
+  "Something went wrong": "เกิดข้อผิดพลาดบางอย่าง"
 }

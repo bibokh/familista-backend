@@ -1470,5 +1470,9 @@
   "What this membership reaches.": "A que este vínculo dá acesso.",
   "Save access": "Salvar acesso",
   "Onboarding a club is a platform-owner action.": "Criar um clube é uma ação do proprietário da plataforma.",
-  "The clubs you work with": "Os clubes com os quais você trabalha"
+  "The clubs you work with": "Os clubes com os quais você trabalha",
+  "Your clubs could not be read": "Não foi possível ler seus clubes",
+  "This is not an answer about your membership": "Isto não é uma resposta sobre seu vínculo",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Recarregue a página. Se continuar, seus clubes continuam lá — a plataforma apenas não conseguiu acessá-los agora.",
+  "Something went wrong": "Algo deu errado"
 }

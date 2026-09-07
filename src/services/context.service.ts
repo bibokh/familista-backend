@@ -68,12 +68,39 @@ export async function getContext(userId: string) {
 
   const clubs = Array.from(clubMap.values());
 
+  // ── which club this context is about ──────────────────────────────────────
+  //
+  // `User.currentClubId` is set when somebody switches into a club, so it is
+  // null for an account that has been invited, has accepted, and has not
+  // switched yet — a brand-new staff member on their first sign-in. Reading it
+  // alone meant that account got a context with no club: no team scope, and
+  // capabilities computed as though they were in no club at all. Their
+  // memberships said otherwise the whole time.
+  //
+  // So, in order: the club they have open; failing that the only club they
+  // belong to; failing that their account's own club, when they belong to it —
+  // the same `currentClubId ?? clubId` the authentication middleware has always
+  // resolved, so one request cannot be scoped to a club the context denies.
+  //
+  // This GRANTS NOTHING. Every candidate is checked against `clubs`, which is
+  // built from active memberships and nothing else, so the resolution can only
+  // ever pick a club the memberships already prove. Somebody in several clubs
+  // with no home club among them gets null, because choosing between them
+  // would be inventing an answer rather than finding one.
+  //
+  // Nothing is written back: this is what the read returns, and switchContext
+  // is what persists a choice.
+  const belongsTo = (id: string | null | undefined) => !!id && clubs.some((c) => c.id === id);
+  const currentClubId = belongsTo(user.currentClubId) ? user.currentClubId!
+    : (clubs.length === 1 ? clubs[0].id
+      : (belongsTo(user.clubId) ? user.clubId : null));
+
   // The strongest membership held in the club currently open. Ordered by
   // authority so "CLUB_OWNER plus HEAD_COACH" reads as owner, which is what
   // that person is.
   const RANK = ['CLUB_OWNER', 'CLUB_ADMIN', 'MANAGER', 'HEAD_COACH', 'ASSISTANT_COACH',
     'ANALYST', 'SCOUT', 'MEDICAL_STAFF', 'PARENT', 'PLAYER', 'DEVICE'];
-  const currentRoles = user.currentClubId ? (clubMap.get(user.currentClubId)?.roles ?? []) : [];
+  const currentRoles = currentClubId ? (clubMap.get(currentClubId)?.roles ?? []) : [];
   const currentClubRole = currentRoles.length
     ? [...currentRoles].sort((a, b) => {
       const ia = RANK.indexOf(a); const ib = RANK.indexOf(b);
@@ -97,8 +124,8 @@ export async function getContext(userId: string) {
   //
   // The server refuses an unauthorised team in switchContext regardless; this
   // is so the interface stops offering what the server would refuse.
-  const scope = user.currentClubId
-    ? await privateTeamScope({ userId: user.id, clubId: user.currentClubId, role: user.role })
+  const scope = currentClubId
+    ? await privateTeamScope({ userId: user.id, clubId: currentClubId, role: user.role })
     : { unrestricted: false, teamIds: [] as string[] };
 
   // ── what this person may actually reach, as capabilities ──────────────────
@@ -115,8 +142,8 @@ export async function getContext(userId: string) {
   // gets a 403 rather than a screen.
   const [platformOwner, clubWideManage] = await Promise.all([
     isPlatformOwner({ userId: user.id, role: user.role }),
-    user.currentClubId
-      ? hasClubWideManageAuthority({ userId: user.id, clubId: user.currentClubId, role: user.role })
+    currentClubId
+      ? hasClubWideManageAuthority({ userId: user.id, clubId: currentClubId, role: user.role })
       : Promise.resolve(false),
   ]);
 
@@ -130,13 +157,13 @@ export async function getContext(userId: string) {
   // an academy side, or to somebody who runs the club and therefore runs all
   // of them. A first-team coach holds neither.
   const myTeamKinds = memberships
-    .filter((m) => m.clubId === user.currentClubId && m.team)
+    .filter((m) => m.clubId === currentClubId && m.team)
     .map((m) => m.team!.kind as string);
   const canAccessAcademy = clubWideManage || myTeamKinds.some((k) => isAcademyKind(k));
 
   const scopedTeams = (!scope.unrestricted && scope.teamIds.length)
     ? await prisma.team.findMany({
-      where: { id: { in: scope.teamIds }, clubId: user.currentClubId! },
+      where: { id: { in: scope.teamIds }, clubId: currentClubId! },
       select: { id: true, name: true, shortName: true, kind: true, isActive: true },
       orderBy: [{ kind: 'asc' }, { name: 'asc' }],
     })
@@ -198,9 +225,21 @@ export async function getContext(userId: string) {
       /** The teams this person may work with. Empty with `unrestricted`. */
       authorizedTeamIds: scope.unrestricted ? [] : scope.teamIds,
     },
-    currentClubId:    user.currentClubId,
+    currentClubId,
     currentTeamId:    user.currentTeamId,
-    currentClub:      user.currentClub,
+    // The club named by `currentClubId` above, which is the resolved one — not
+    // necessarily the relation loaded from the raw column. For an account that
+    // has never switched, the column is null and the relation with it, while
+    // the resolution has found the one club they belong to.
+    currentClub:      user.currentClub ?? (() => {
+      const c = currentClubId ? clubMap.get(currentClubId) : null;
+      // Projected to the same shape the relation has, so one field never
+      // arrives in two different forms depending on how it was resolved.
+      return c ? {
+        id: c.id, name: c.name, shortName: c.shortName,
+        emblem: c.emblem, crestUrl: c.crestUrl, plan: c.plan,
+      } : null;
+    })(),
     currentTeam:      user.currentTeam,
     availableClubs:   clubs,
   };

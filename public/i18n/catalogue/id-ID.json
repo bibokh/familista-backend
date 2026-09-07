@@ -1467,5 +1467,9 @@
   "What this membership reaches.": "Apa yang bisa diakses keanggotaan ini.",
   "Save access": "Simpan akses",
   "Onboarding a club is a platform-owner action.": "Membuat klub baru adalah tindakan pemilik platform.",
-  "The clubs you work with": "Klub tempat Anda bekerja"
+  "The clubs you work with": "Klub tempat Anda bekerja",
+  "Your clubs could not be read": "Klub Anda tidak dapat dibaca",
+  "This is not an answer about your membership": "Ini bukan jawaban tentang keanggotaan Anda",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Muat ulang halaman. Jika terus terjadi, klub Anda tetap ada — platform hanya tidak dapat menjangkaunya saat ini.",
+  "Something went wrong": "Terjadi kesalahan"
 }

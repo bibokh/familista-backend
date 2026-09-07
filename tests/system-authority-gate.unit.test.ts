@@ -217,7 +217,10 @@ describe('a refused account is not shown a workspace', () => {
     // which of two layouts to build, and the club one has no SYSTEM card in it
     // at all. tests/landing-access-presentation.unit.test.ts covers the rest.
     expect(APP).toContain('function _isPlatformOwner()');
-    expect(APP).toMatch(/_isPlatformOwner\(\)\.then\(\(yes\) => \{[\s\S]{0,240}\? _ownerHomeForPlatformOwner\(user, club\)[\s\S]{0,80}: _ownerHomeForClubMember\(user\);/);
+    // Both reads, not just whoami: the club member's landing is built from the
+    // clubs too, and building it before those arrive is what once told a
+    // team-scoped coach they belonged to no club.
+    expect(APP).toMatch(/Promise\.all\(\[_isPlatformOwner\(\), _famContextReady\]\)\.then\([\s\S]{0,320}\? _ownerHomeForPlatformOwner\(user, club\)[\s\S]{0,80}: _ownerHomeForClubMember\(user\);/);
     expect(APP).not.toMatch(/card\.hidden = !yes;/);
     // Not rendering it is a courtesy either way. The server still refuses.
     expect(APP).toMatch(/every SYSTEM route refuses a club account/);

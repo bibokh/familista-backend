@@ -1470,5 +1470,9 @@
   "What this membership reaches.": "למה החברות הזו נותנת גישה.",
   "Save access": "שמירת ההרשאה",
   "Onboarding a club is a platform-owner action.": "הקמת מועדון היא פעולה של בעל הפלטפורמה.",
-  "The clubs you work with": "המועדונים שאתה עובד איתם"
+  "The clubs you work with": "המועדונים שאתה עובד איתם",
+  "Your clubs could not be read": "לא ניתן היה לקרוא את המועדונים שלך",
+  "This is not an answer about your membership": "זו אינה תשובה על החברות שלך",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "טען מחדש את הדף. אם זה נמשך, המועדונים שלך עדיין שם — הפלטפורמה פשוט לא הצליחה להגיע אליהם כרגע.",
+  "Something went wrong": "משהו השתבש"
 }

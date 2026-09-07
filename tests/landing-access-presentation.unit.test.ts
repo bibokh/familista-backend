@@ -210,12 +210,12 @@ describe('the SYSTEM entry point is not rendered for a club account', () => {
   it('shows nothing platform-shaped while the answer is still outstanding', () => {
     const render = between(APP, 'function renderOwnerHome() {', '// ── CLUBS PICKER ──');
     // The placeholder cannot flash a SYSTEM card at somebody on a slow network.
-    const placeholder = between(render, 'el.innerHTML = `', '_isPlatformOwner().then');
+    const placeholder = between(render, 'el.innerHTML = `', 'Promise.all([_isPlatformOwner()');
     expect(placeholder).not.toContain('system');
     expect(placeholder).not.toContain('OWNER CONTROL');
     expect(placeholder).toContain('Loading your access…');
     // And the layout is chosen only after the server has answered.
-    expect(render).toMatch(/_isPlatformOwner\(\)\.then\(\(yes\) => \{[\s\S]{0,400}yes\s*\n?\s*\?\s*_ownerHomeForPlatformOwner/);
+    expect(render).toMatch(/Promise\.all\(\[_isPlatformOwner\(\), _famContextReady\]\)[\s\S]{0,400}yes\s*\n?\s*\?\s*_ownerHomeForPlatformOwner/);
   });
 
   it('takes that answer from the server, never from a role in the client', () => {

@@ -1470,5 +1470,9 @@
   "What this membership reaches.": "What this membership reaches.",
   "Save access": "Save access",
   "Onboarding a club is a platform-owner action.": "Onboarding a club is a platform-owner action.",
-  "The clubs you work with": "The clubs you work with"
+  "The clubs you work with": "The clubs you work with",
+  "Your clubs could not be read": "Your clubs could not be read",
+  "This is not an answer about your membership": "This is not an answer about your membership",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.",
+  "Something went wrong": "Something went wrong"
 }

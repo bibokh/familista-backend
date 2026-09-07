@@ -1470,5 +1470,9 @@
   "What this membership reaches.": "Bu üyeliğin eriştiği kapsam.",
   "Save access": "Erişimi kaydet",
   "Onboarding a club is a platform-owner action.": "Kulüp oluşturmak platform sahibine ait bir işlemdir.",
-  "The clubs you work with": "Birlikte çalıştığınız kulüpler"
+  "The clubs you work with": "Birlikte çalıştığınız kulüpler",
+  "Your clubs could not be read": "Kulüpleriniz okunamadı",
+  "This is not an answer about your membership": "Bu, üyeliğinizle ilgili bir yanıt değildir",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Sayfayı yeniden yükleyin. Devam ederse kulüpleriniz hâlâ yerinde — platform şu anda onlara ulaşamadı.",
+  "Something went wrong": "Bir şeyler ters gitti"
 }

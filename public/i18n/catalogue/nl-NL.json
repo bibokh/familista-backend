@@ -1470,5 +1470,9 @@
   "What this membership reaches.": "Waartoe dit lidmaatschap toegang geeft.",
   "Save access": "Toegang opslaan",
   "Onboarding a club is a platform-owner action.": "Een club aanmaken is een actie van de platformeigenaar.",
-  "The clubs you work with": "De clubs waarmee je werkt"
+  "The clubs you work with": "De clubs waarmee je werkt",
+  "Your clubs could not be read": "Je clubs konden niet worden gelezen",
+  "This is not an answer about your membership": "Dit is geen antwoord over je lidmaatschap",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Laad de pagina opnieuw. Als het blijft gebeuren: je clubs zijn er nog steeds — het platform kon ze zojuist alleen niet bereiken.",
+  "Something went wrong": "Er is iets misgegaan"
 }

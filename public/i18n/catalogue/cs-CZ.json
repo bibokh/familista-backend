@@ -1470,5 +1470,9 @@
   "What this membership reaches.": "K čemu toto členství dává přístup.",
   "Save access": "Uložit přístup",
   "Onboarding a club is a platform-owner action.": "Založení klubu je akcí vlastníka platformy.",
-  "The clubs you work with": "Kluby, se kterými pracujete"
+  "The clubs you work with": "Kluby, se kterými pracujete",
+  "Your clubs could not be read": "Vaše kluby se nepodařilo načíst",
+  "This is not an answer about your membership": "Toto není odpověď na otázku vašeho členství",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Načtěte stránku znovu. Pokud to bude pokračovat, vaše kluby tam stále jsou — platforma se k nim teď jen nedostala.",
+  "Something went wrong": "Něco se pokazilo"
 }

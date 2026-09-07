@@ -1467,5 +1467,9 @@
   "What this membership reaches.": "Tư cách thành viên này truy cập được những gì.",
   "Save access": "Lưu quyền truy cập",
   "Onboarding a club is a platform-owner action.": "Tạo câu lạc bộ là hành động của chủ sở hữu nền tảng.",
-  "The clubs you work with": "Các câu lạc bộ bạn làm việc cùng"
+  "The clubs you work with": "Các câu lạc bộ bạn làm việc cùng",
+  "Your clubs could not be read": "Không thể đọc các câu lạc bộ của bạn",
+  "This is not an answer about your membership": "Đây không phải câu trả lời về tư cách thành viên của bạn",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Hãy tải lại trang. Nếu vẫn tiếp diễn, các câu lạc bộ của bạn vẫn còn đó — nền tảng chỉ là không truy cập được ngay lúc này.",
+  "Something went wrong": "Đã xảy ra lỗi"
 }

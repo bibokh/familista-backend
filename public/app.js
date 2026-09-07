@@ -2845,6 +2845,30 @@ function renderOwnerHomeHTML() {
  * returns — but it is the difference between an owner-home that offers a door
  * and one that offers a door into a refusal.
  */
+/**
+ * Resolves when /me/context has answered — successfully or not.
+ *
+ * The landing page is built from two independent reads: GET /system/whoami
+ * decides WHICH landing to draw, and GET /me/context supplies the clubs it
+ * draws. They are fired concurrently at boot, and only the first was ever
+ * awaited. When whoami won the race — which it does easily, being a much
+ * smaller query — the club member's landing was built against a context that
+ * did not exist yet, found no clubs, and said "Your account is not a member of
+ * a club". Nothing repainted it afterwards, so the sentence stayed on screen
+ * beside a team selector that had meanwhile filled in correctly.
+ *
+ * It resolves rather than rejects on failure: "we asked and it went wrong" is
+ * a state the page can describe, and it is not the same state as "you have no
+ * clubs" — which is the confusion this whole thing was.
+ */
+var _famContextSettle = null;
+var _famContextReady = new Promise(function (resolve) { _famContextSettle = resolve; });
+var _famContextAnswered = false;
+function _famMarkContextSettled() {
+  _famContextAnswered = true;
+  if (_famContextSettle) { _famContextSettle(); _famContextSettle = null; }
+}
+
 let _platformAuthority = null;
 /**
  * Whether /system/whoami has come back saying yes.
@@ -3024,6 +3048,15 @@ function _ownerHomeForPlatformOwner(user, club) {
 function _ownerHomeForClubMember(user) {
   const clubs = _accessibleClubs();
   const one = clubs.length === 1;
+  // Whether the server has actually answered about this account's clubs.
+  //
+  // An empty list means one of two completely different things, and telling
+  // somebody they belong to no club when the truth is "we have not asked yet"
+  // is the worse of the two mistakes by a long way. The page waits for the
+  // answer before it is built at all; this is the second line of defence, for
+  // a read that failed rather than one that has not returned.
+  const answered = _famContextAnswered
+    && !!(window.State && State.context && Array.isArray(State.context.availableClubs));
 
   const cards = clubs.length
     ? clubs.map((c) => {
@@ -3039,18 +3072,25 @@ function _ownerHomeForClubMember(user) {
           <div class="oh-card-cta">Open club <span>→</span></div>
         </button>`;
     }).join('')
-    : `<div class="oh-card oh-card--clubs" style="cursor:default">
+    : (answered
+      ? `<div class="oh-card oh-card--clubs oh-card--flat">
          <div class="oh-card-icon">🏟️</div>
          <div class="oh-card-title">No club yet</div>
          <div class="oh-card-sub">Nothing to open</div>
          <div class="oh-card-list">Your account is not a member of a club. Whoever invited you can send a new invitation.</div>
-       </div>`;
+       </div>`
+      : `<div class="oh-card oh-card--clubs oh-card--flat">
+         <div class="oh-card-icon">🏟️</div>
+         <div class="oh-card-title">Your clubs could not be read</div>
+         <div class="oh-card-sub">This is not an answer about your membership</div>
+         <div class="oh-card-list">Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.</div>
+       </div>`);
 
   return `
     <div class="oh-wrap">
       <div class="oh-hero">
         <h1 class="oh-title"><span>${_esc(_greeting())}</span>${user.firstName ? ', <span data-user-content>' + _esc(user.firstName) + '</span>' : ''}</h1>
-        <div class="oh-sub">${one ? 'Your club' : (clubs.length ? 'Your clubs' : 'Welcome to Familista')}</div>
+        <div class="oh-sub">${one ? 'Your club' : (clubs.length ? 'Your clubs' : (answered ? 'Welcome to Familista' : 'Something went wrong'))}</div>
       </div>
       <div class="oh-cards${one ? ' oh-cards--single' : ''}">
         ${cards}
@@ -3093,9 +3133,13 @@ function renderOwnerHome() {
       </div>
     </div>`;
 
-  _isPlatformOwner().then((yes) => {
+  // BOTH answers, not just the first. The platform owner's landing needs only
+  // whoami; the club member's needs the clubs, and building it early is how a
+  // team-scoped coach was told they belonged to nothing.
+  Promise.all([_isPlatformOwner(), _famContextReady]).then((answers) => {
+    const yes = answers[0];
     if (yes) _platformAuthorityKnown = true;
-    // The page may have moved on while the request was in flight.
+    // The page may have moved on while the requests were in flight.
     if (!document.getElementById('owner-home-content')) return;
     el.innerHTML = yes
       ? _ownerHomeForPlatformOwner(user, club)
@@ -35001,6 +35045,21 @@ const AppContext = (function () {
     } catch (e) {
       console.warn('[ctx] failed to load /me/context:', e?.userMessage || e?.message);
       return null;
+    } finally {
+      // Whatever happened, the question has been asked and answered. Anything
+      // waiting on the clubs — the landing page above all — stops waiting here,
+      // including when the read failed: a failure is a state to describe, not a
+      // reason to leave a page saying "Loading" for ever.
+      _famMarkContextSettled();
+      // And if the landing is what is on screen, it was built before any of
+      // this existed. This is the repaint it never had: the clubs picker was
+      // given one when the context lands, and owner home was not, which is why
+      // the switcher filled in correctly beside a page saying there was no club.
+      try {
+        if (typeof renderOwnerHome === 'function' && document.getElementById('owner-home-content')) {
+          renderOwnerHome();
+        }
+      } catch (_) {}
     }
   }
 

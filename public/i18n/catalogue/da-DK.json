@@ -1470,5 +1470,9 @@
   "What this membership reaches.": "Hvad dette medlemskab giver adgang til.",
   "Save access": "Gem adgang",
   "Onboarding a club is a platform-owner action.": "Oprettelse af en klub er en handling for platformsejeren.",
-  "The clubs you work with": "De klubber, du arbejder med"
+  "The clubs you work with": "De klubber, du arbejder med",
+  "Your clubs could not be read": "Dine klubber kunne ikke læses",
+  "This is not an answer about your membership": "Dette er ikke et svar om dit medlemskab",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Genindlæs siden. Hvis det bliver ved, findes dine klubber stadig — platformen kunne bare ikke nå dem lige nu.",
+  "Something went wrong": "Noget gik galt"
 }

@@ -1467,5 +1467,9 @@
   "What this membership reaches.": "Apa yang boleh diakses oleh keahlian ini.",
   "Save access": "Simpan akses",
   "Onboarding a club is a platform-owner action.": "Mendaftarkan kelab baharu ialah tindakan pemilik platform.",
-  "The clubs you work with": "Kelab yang anda bekerja dengannya"
+  "The clubs you work with": "Kelab yang anda bekerja dengannya",
+  "Your clubs could not be read": "Kelab anda tidak dapat dibaca",
+  "This is not an answer about your membership": "Ini bukan jawapan tentang keahlian anda",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Muat semula halaman. Jika ia berterusan, kelab anda masih ada — platform cuma tidak dapat menghubunginya sebentar tadi.",
+  "Something went wrong": "Sesuatu telah berlaku"
 }

@@ -1470,5 +1470,9 @@
   "What this membership reaches.": "Vad det här medlemskapet ger åtkomst till.",
   "Save access": "Spara åtkomst",
   "Onboarding a club is a platform-owner action.": "Att skapa en klubb är en åtgärd för plattformsägaren.",
-  "The clubs you work with": "Klubbarna du arbetar med"
+  "The clubs you work with": "Klubbarna du arbetar med",
+  "Your clubs could not be read": "Dina klubbar kunde inte läsas",
+  "This is not an answer about your membership": "Det här är inte ett svar om ditt medlemskap",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Ladda om sidan. Om det fortsätter finns dina klubbar kvar — plattformen kunde bara inte nå dem just nu.",
+  "Something went wrong": "Något gick fel"
 }

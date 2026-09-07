@@ -1470,5 +1470,9 @@
   "What this membership reaches.": "La ce dă acces această calitate de membru.",
   "Save access": "Salvează accesul",
   "Onboarding a club is a platform-owner action.": "Crearea unui club este o acțiune a proprietarului platformei.",
-  "The clubs you work with": "Cluburile cu care lucrezi"
+  "The clubs you work with": "Cluburile cu care lucrezi",
+  "Your clubs could not be read": "Cluburile tale nu au putut fi citite",
+  "This is not an answer about your membership": "Acesta nu este un răspuns despre apartenența ta",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Reîncarcă pagina. Dacă persistă, cluburile tale sunt în continuare acolo — platforma pur și simplu nu a putut ajunge la ele acum.",
+  "Something went wrong": "Ceva nu a mers bine"
 }

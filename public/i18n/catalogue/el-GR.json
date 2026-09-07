@@ -1470,5 +1470,9 @@
   "What this membership reaches.": "Σε τι δίνει πρόσβαση αυτή η ιδιότητα μέλους.",
   "Save access": "Αποθήκευση πρόσβασης",
   "Onboarding a club is a platform-owner action.": "Η δημιουργία συλλόγου είναι ενέργεια του ιδιοκτήτη της πλατφόρμας.",
-  "The clubs you work with": "Οι σύλλογοι με τους οποίους εργάζεστε"
+  "The clubs you work with": "Οι σύλλογοι με τους οποίους εργάζεστε",
+  "Your clubs could not be read": "Δεν ήταν δυνατή η ανάγνωση των συλλόγων σας",
+  "This is not an answer about your membership": "Αυτό δεν είναι απάντηση για τη συμμετοχή σας",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Φορτώστε ξανά τη σελίδα. Αν συνεχιστεί, οι σύλλογοί σας εξακολουθούν να υπάρχουν — απλώς η πλατφόρμα δεν μπόρεσε να τους προσπελάσει τώρα.",
+  "Something went wrong": "Κάτι πήγε στραβά"
 }

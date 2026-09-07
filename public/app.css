@@ -17622,3 +17622,7 @@ body.club-theme .set-panel .settings-wrap{ padding:0; max-width:none; }
   .pa-two{ grid-template-columns:1fr; }
 }
 .pa-subject{ margin:6px 0 2px !important; font-size:13px !important; font-weight:700; color:var(--tx) !important; }
+
+/* A club card that is a statement rather than a button — the empty and
+   could-not-read states of the club member's landing. */
+.oh-card--flat{ cursor: default; }

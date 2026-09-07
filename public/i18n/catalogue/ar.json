@@ -1470,5 +1470,9 @@
   "What this membership reaches.": "ما الذي تصل إليه هذه العضوية.",
   "Save access": "حفظ الوصول",
   "Onboarding a club is a platform-owner action.": "إعداد نادٍ جديد إجراء يخص مالك المنصة.",
-  "The clubs you work with": "الأندية التي تعمل معها"
+  "The clubs you work with": "الأندية التي تعمل معها",
+  "Your clubs could not be read": "تعذّرت قراءة أنديتك",
+  "This is not an answer about your membership": "هذه ليست إجابة عن عضويتك",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "أعد تحميل الصفحة. إذا استمر الأمر، فأنديتك لا تزال موجودة — لكن المنصة لم تتمكن من الوصول إليها الآن.",
+  "Something went wrong": "حدث خطأ ما"
 }

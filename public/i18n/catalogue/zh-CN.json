@@ -1467,5 +1467,9 @@
   "What this membership reaches.": "此成员资格可访问的范围。",
   "Save access": "保存权限",
   "Onboarding a club is a platform-owner action.": "创建俱乐部是平台所有者的操作。",
-  "The clubs you work with": "你参与的俱乐部"
+  "The clubs you work with": "你参与的俱乐部",
+  "Your clubs could not be read": "无法读取你的俱乐部",
+  "This is not an answer about your membership": "这并不是关于你成员身份的答复",
+  "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "请重新加载页面。如果问题持续，你的俱乐部依然存在——只是平台此刻无法读取。",
+  "Something went wrong": "出现了问题"
 }
