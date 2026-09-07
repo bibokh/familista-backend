@@ -153,6 +153,11 @@ const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const APP_TS = read('src/app.ts');
 const PAGE = read('public/invite/index.html');
 const SCRIPT = read('public/invite/invite.js');
+// The design used to live in a <style> block inside the page. It does not any
+// more, and it could not: this origin sends `style-src 'self'` with no
+// 'unsafe-inline', so the browser discarded every rule and the page rendered in
+// browser defaults. The assertions below follow the design to where it lives.
+const SHEET = read('public/invite/invite.css');
 
 /** A provider that accepts everything, so delivery never colours these tests. */
 const silentProvider = {
@@ -594,42 +599,52 @@ describe('the president can actually get into Familista afterwards', () => {
 describe('the page looks like Familista, on a phone and on a desktop', () => {
   it('uses the product\'s visual language rather than browser defaults', () => {
     // Familista's own palette and surfaces, the same tokens SYSTEM uses.
-    expect(PAGE).toContain('--bg:        #070b14;');
-    expect(PAGE).toContain('--accent:    #3b82f6;');
-    expect(PAGE).toContain('backdrop-filter: blur(14px)');
-    expect(PAGE).toMatch(/radial-gradient/);
+    expect(SHEET).toContain('--bg:        #070b14;');
+    expect(SHEET).toContain('--accent:    #3b82f6;');
+    expect(SHEET).toContain('backdrop-filter: blur(14px)');
+    expect(SHEET).toMatch(/radial-gradient/);
     // Branding, and a card rather than a bare form.
     expect(PAGE).toContain('brand-mark');
     expect(PAGE).toMatch(/Famili<em>sta<\/em>/);
     // Every control is styled: no raw input or button reaches the reader.
-    expect(PAGE).toMatch(/input \{[\s\S]{0,400}-webkit-appearance: none/);
-    expect(PAGE).toContain('.btn {');
+    expect(SHEET).toMatch(/input \{[\s\S]{0,700}-webkit-appearance: none/);
+    expect(SHEET).toContain('.btn {');
+    // And the page actually reaches it. A stylesheet nothing links to is the
+    // same as no stylesheet, which is what production looked like.
+    expect(PAGE).toMatch(/<link rel="stylesheet" href="\/invite\/invite\.css/);
   });
 
   it('is mobile-first, with no horizontal overflow and real touch targets', () => {
     expect(PAGE).toContain('width=device-width, initial-scale=1, viewport-fit=cover');
-    expect(PAGE).toContain('overflow-x: hidden');
+    expect(SHEET).toContain('overflow-x: hidden');
     // A notch and a home indicator are cleared.
-    expect(PAGE).toContain('env(safe-area-inset-top)');
-    expect(PAGE).toContain('env(safe-area-inset-bottom)');
+    expect(SHEET).toContain('env(safe-area-inset-top)');
+    expect(SHEET).toContain('env(safe-area-inset-bottom)');
     // 16px inputs, because anything smaller makes iOS Safari zoom the viewport.
-    expect(PAGE).toMatch(/font: 400 16px\/1\.4 inherit/);
+    //
+    // This line used to read `font: 400 16px/1.4 inherit`, and that is worth
+    // recording: the assertion passed while the rule did nothing. `inherit` is
+    // only legal as the WHOLE value of the `font` shorthand, so the browser
+    // dropped the declaration and the input computed to 13.33px — the test was
+    // pinning the bug. Longhands cannot fail that way.
+    expect(SHEET).toMatch(/font-size:\s*16px/);
+    expect(SHEET).toMatch(/input \{[\s\S]{0,700}font-family: inherit;/);
     // A 50px minimum on the primary action.
-    expect(PAGE).toMatch(/min-height: 50px/);
+    expect(SHEET).toMatch(/min-height: 50px/);
     // The two-up name row stacks rather than crushing on a narrow phone.
-    expect(PAGE).toMatch(/@media \(max-width: 380px\)[\s\S]{0,200}\.pair \{ flex-direction: column/);
+    expect(SHEET).toMatch(/@media \(max-width: 380px\)[\s\S]{0,200}\.pair \{ flex-direction: column/);
     // Long addresses and club names wrap instead of widening the page.
-    expect(PAGE).toContain('overflow-wrap: anywhere');
+    expect(SHEET).toContain('overflow-wrap: anywhere');
     // And the card is a card on a desktop, not a stretched banner.
-    expect(PAGE).toContain('max-width: 468px');
+    expect(SHEET).toContain('max-width: 468px');
   });
 
   it('lays the invitation out as label-above-value, so nothing collides', () => {
     // A definition list, not a two-column row that overlaps at 320px. The
     // markup is emitted by the script; the document carries its styling.
     expect(SCRIPT).toContain('<dl class="summary">');
-    expect(PAGE).toContain('.summary-row dt {');
-    expect(PAGE).toContain('.summary-row dd {');
+    expect(SHEET).toContain('.summary-row dt {');
+    expect(SHEET).toContain('.summary-row dd {');
     expect(SCRIPT).toContain('<dt>Club</dt>');
     expect(SCRIPT).toContain('<dt>Role</dt>');
     expect(SCRIPT).toContain('<dt>Email</dt>');

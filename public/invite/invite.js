@@ -104,10 +104,16 @@
     } catch (_) {}
   }
 
+  // The same words People & Access uses, so a coach is told the same thing on
+  // the invitation that the club sees beside their name afterwards.
   var ROLE_LABELS = {
     CLUB_OWNER: 'President', CLUB_ADMIN: 'Club administrator', HEAD_COACH: 'Head coach',
-    ASSISTANT_COACH: 'Assistant coach', ANALYST: 'Analyst', SCOUT: 'Scout',
-    MEDICAL_STAFF: 'Medical staff', PARENT: 'Parent', PLAYER: 'Player',
+    ASSISTANT_COACH: 'Assistant coach', GOALKEEPING_COACH: 'Goalkeeping coach',
+    FITNESS_COACH: 'Fitness coach', TECHNICAL_COACH: 'Technical coach',
+    TACTICAL_COACH: 'Tactical coach', YOUTH_COACH: 'Academy coach',
+    PERFORMANCE_COACH: 'Performance coach', ANALYST: 'Video / match analyst',
+    MEDICAL_STAFF: 'Medical staff', PHYSIO: 'Physiotherapist', SCOUT: 'Scout',
+    FINANCE_MANAGER: 'Finance manager', PARENT: 'Parent', PLAYER: 'Player',
   };
   function roleLabel(role) {
     return ROLE_LABELS[role] || String(role || '').replace(/_/g, ' ').toLowerCase();
@@ -127,12 +133,34 @@
     return (preview && preview.appUrl) || '/';
   }
 
+  /**
+   * What the invitation reaches: the teams by name, or the whole club.
+   *
+   * `teamName` is only set when exactly one team was named, so reading it
+   * alone showed nothing at all for a multi-team staff invitation — the row
+   * simply vanished, and somebody invited to two teams was told about none of
+   * them. `teams` carries every one.
+   */
+  function accessRow() {
+    var teams = (preview && preview.teams) || [];
+    var label = teams.length
+      ? teams.map(function (t) { return t && t.name; }).filter(Boolean).join(' · ')
+      : (preview && preview.teamName) || '';
+    if (label) {
+      return '<div class="summary-row"><dt>' + (teams.length > 1 ? 'Teams' : 'Team') + '</dt>'
+        + '<dd>' + esc(label) + '</dd></div>';
+    }
+    // No team named means club-wide, and saying so is better than a gap where
+    // the reader cannot tell whether the platform forgot or the answer is none.
+    return '<div class="summary-row"><dt>Access</dt><dd>The whole club</dd></div>';
+  }
+
   function summaryHtml() {
     var expires = expiryText();
     return '<dl class="summary">'
       + '<div class="summary-row"><dt>Club</dt><dd>' + esc(preview.clubName) + '</dd></div>'
       + '<div class="summary-row"><dt>Role</dt><dd><span class="pill">' + esc(roleLabel(preview.role)) + '</span></dd></div>'
-      + (preview.teamName ? '<div class="summary-row"><dt>Team</dt><dd>' + esc(preview.teamName) + '</dd></div>' : '')
+      + accessRow()
       + '<div class="summary-row"><dt>Email</dt><dd>' + esc(preview.email) + '</dd></div>'
       + (expires ? '<div class="summary-row"><dt>Invitation expires</dt><dd class="muted">' + esc(expires) + '</dd></div>' : '')
       + '</dl>';
@@ -343,12 +371,11 @@
       + '<p>You are now <b>' + esc(roleLabel(preview.role)) + '</b> of '
       + '<b>' + esc(preview.clubName) + '</b>. This invitation has been used and its link no longer works.</p>'
       + '</div>'
-      + '<div class="field" style="margin-top:20px"><label for="account-email">Sign in with this email</label>'
+      + '<div class="field field--spaced"><label for="account-email">Sign in with this email</label>'
       + '<div class="copy-row"><input id="account-email" value="' + esc(preview.email) + '" readonly>'
       + '<button type="button" id="copy-email">Copy</button></div>'
       + '<p class="hint">…and the password you just created.</p></div>'
-      + '<a class="btn" id="open-familista" href="' + esc(target) + '" '
-      + 'style="text-decoration:none;margin-top:18px">Open Familista</a>'
+      + '<a class="btn btn--spaced" id="open-familista" href="' + esc(target) + '">Open Familista</a>'
       + '<p class="note">Familista opens on its own address, so you sign in there once. '
       + 'Your club and your role are already active and waiting.</p>';
 
@@ -379,7 +406,7 @@
         ? '<button class="btn" type="button" id="retry">Try again</button>'
         : '')
       + (opts.appLink
-        ? '<a class="btn btn--ghost" href="' + esc(appUrl()) + '" style="text-decoration:none">Go to Familista</a>'
+        ? '<a class="btn btn--ghost btn--plain" href="' + esc(appUrl()) + '">Go to Familista</a>'
         : '')
       + '<p class="note">' + esc(opts.note || 'If you think this is a mistake, ask the club to send a new invitation.') + '</p>';
 
