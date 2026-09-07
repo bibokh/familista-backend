@@ -50,6 +50,14 @@ export interface InvitationEmailContext {
   clubName: string;
   /** A human phrase, already localised — "President", "Head Coach". */
   roleLabel: string;
+  /**
+   * What the role reaches: the teams by name, or the whole club.
+   *
+   * Written into the email because it is the half of an offer that decides
+   * what the job is. "Head Coach" alone does not tell somebody whether they
+   * were hired for the first team or the under-13s.
+   */
+  accessLabel?: string | null;
   /** Who is inviting, as a name or an organisation. Never an email address. */
   inviterName?: string | null;
   acceptUrl: string;
@@ -97,6 +105,9 @@ interface Copy {
   ignore: string;
   roleLine: (role: string) => string;
   clubLine: (club: string) => string;
+  /** Which teams, or the whole club. Named because a coach needs to know. */
+  accessLine: (access: string) => string;
+  accessWholeClub: string;
   footer: string;
   noPassword: string;
 }
@@ -126,6 +137,8 @@ const COPY: Record<EmailLocale, Copy> = {
     ignore: 'If you were not expecting this, you can ignore it. Nothing happens until you accept.',
     roleLine: (role) => `Role: ${role}`,
     clubLine: (club) => `Club: ${club}`,
+    accessLine: (access) => `Access: ${access}`,
+    accessWholeClub: 'The whole club',
     footer: 'Familista — football connects the world',
     noPassword: 'Familista will never email you a password, and will never ask you for one by reply.',
   },
@@ -146,6 +159,8 @@ const COPY: Record<EmailLocale, Copy> = {
     ignore: 'Wenn Sie das nicht erwartet haben, können Sie es ignorieren. Bis Sie annehmen, passiert nichts.',
     roleLine: (role) => `Rolle: ${role}`,
     clubLine: (club) => `Verein: ${club}`,
+    accessLine: (access) => `Zugriff: ${access}`,
+    accessWholeClub: 'Der gesamte Verein',
     footer: 'Familista — Fußball verbindet die Welt',
     noPassword: 'Familista sendet Ihnen niemals ein Passwort per E-Mail und fragt Sie niemals per Antwort danach.',
   },
@@ -166,6 +181,8 @@ const COPY: Record<EmailLocale, Copy> = {
     ignore: 'إذا لم تكن تتوقع هذه الرسالة، يمكنك تجاهلها. لن يحدث شيء حتى تقبلها.',
     roleLine: (role) => `الدور: ${role}`,
     clubLine: (club) => `النادي: ${club}`,
+    accessLine: (access) => `الوصول: ${access}`,
+    accessWholeClub: 'النادي بأكمله',
     footer: 'فاميليستا — كرة القدم تجمع العالم',
     noPassword: 'لن ترسل لك فاميليستا كلمة مرور عبر البريد أبداً، ولن تطلبها منك في رد.',
   },
@@ -215,6 +232,7 @@ function facts(locale: EmailLocale, ctx: InvitationEmailContext): string {
   return `<div style="background:rgba(255,255,255,.04);border-radius:10px;padding:14px 16px;margin:20px 0;font-size:13px;color:#98a3bd;">
         <div>${esc(c.clubLine(ctx.clubName))}</div>
         <div>${esc(c.roleLine(ctx.roleLabel))}</div>
+        <div>${esc(c.accessLine(ctx.accessLabel?.trim() || c.accessWholeClub))}</div>
       </div>`;
 }
 
@@ -257,6 +275,7 @@ ${button(locale, ctx.acceptUrl, c.cta)}
     '',
     c.clubLine(ctx.clubName),
     c.roleLine(ctx.roleLabel),
+    c.accessLine(ctx.accessLabel?.trim() || c.accessWholeClub),
     '',
     c.ownAccount,
     '',

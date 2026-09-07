@@ -655,6 +655,22 @@ model ClubInvitation {
   teamId String?
   team   Team?          @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
+  /// The rest of the teams this invitation grants, beyond `teamId`.
+  ///
+  /// A Membership is one row per team — that is the schema, and it is the
+  /// right one, because it is what lets access be withdrawn from one team
+  /// without touching the others. An invitation, though, is one offer, one
+  /// email and one link, so it has to carry every team the club picked. On
+  /// acceptance this becomes one membership per team.
+  ///
+  /// Ids only, and always checked against the invitation's own club before
+  /// anything is created — a team id is not a capability.
+  ///
+  /// Empty for every invitation written before this existed, and for every
+  /// single-team one after it, so `teamId` keeps meaning exactly what it
+  /// meant and no existing row or query changes.
+  additionalTeamIds String[] @default([])
+
   /// SHA-256 of the token that was sent. The token itself is never persisted.
   tokenHash String               @unique
   status    ClubInvitationStatus @default(PENDING)
@@ -676,19 +692,19 @@ model ClubInvitation {
   /// Whether the email got out, recorded separately from whether the
   /// invitation is good. A FAILED delivery leaves a PENDING invitation that a
   /// resend can carry again.
-  deliveryState      EmailDeliveryState @default(CREATED)
+  deliveryState        EmailDeliveryState @default(CREATED)
   /// Which adapter attempted it: "sendgrid", "smtp", or "none".
-  deliveryProvider   String?
+  deliveryProvider     String?
   /// The provider's own id, when it gives one. Useful for a support ticket.
-  deliveryMessageId  String?
+  deliveryMessageId    String?
   /// A short classified code — TIMEOUT, HTTP_429, EMAIL_NOT_CONFIGURED.
   /// Never the provider's body, which can quote the message it refused.
-  deliveryFailureCode String?
+  deliveryFailureCode  String?
   deliveryFailureClass String?
-  deliveryAttemptedAt DateTime?
-  deliveryAttempts    Int      @default(0)
+  deliveryAttemptedAt  DateTime?
+  deliveryAttempts     Int                @default(0)
   /// The language the message was written in: en, de or ar.
-  deliveryLocale      String?
+  deliveryLocale       String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

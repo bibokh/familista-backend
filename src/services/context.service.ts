@@ -102,12 +102,21 @@ export async function switchContext(
   // The user must have at least one active membership in the target club.
   const ok = await hasActiveMembership(actor.userId, clubId);
   if (!ok) {
-    // Allow legacy accounts to switch to their primary club even without an
-    // explicit Membership row (until backfill runs in production).
-    const user = await prisma.user.findUnique({
-      where: { id: actor.userId }, select: { clubId: true },
-    });
-    if (!user || user.clubId !== clubId) {
+    // Legacy accounts — the ones that predate memberships entirely — may still
+    // switch to their primary club, until the backfill has run everywhere.
+    //
+    // But ONLY those. `User.clubId` is NOT NULL, so it cannot be cleared when
+    // somebody is removed from a club, and without this check that column
+    // would quietly hand a removed or suspended member their club back: the
+    // membership says no, the legacy field says yes, and the legacy field
+    // wins. So the fallback is refused to anybody this system has actually
+    // managed. A membership row that exists and is not active is a decision
+    // the club made, and a column that predates it does not overrule it.
+    const [user, everManaged] = await Promise.all([
+      prisma.user.findUnique({ where: { id: actor.userId }, select: { clubId: true } }),
+      prisma.membership.count({ where: { userId: actor.userId, clubId } }),
+    ]);
+    if (!user || user.clubId !== clubId || everManaged > 0) {
       throw new ForbiddenError('No active membership for the requested club');
     }
   }
@@ -131,9 +140,22 @@ export async function switchContext(
       select: { id: true },
     });
     if (!scoped) {
-      // Final legacy fallback: primary clubId users can pick any team in their own club.
-      const u = await prisma.user.findUnique({ where: { id: actor.userId }, select: { clubId: true } });
-      if (!u || u.clubId !== clubId) {
+      // Final legacy fallback: a primary-clubId account with no memberships at
+      // all may pick any team in its own club.
+      //
+      // Emphatically NOT anybody who has memberships. A coach invited to the
+      // under-13s holds one team-scoped membership, and `registerInvitedUser`
+      // sets their `User.clubId` to the club they were invited to — so without
+      // the second condition this fallback would let that coach switch context
+      // into the first team, which is the whole thing team scoping exists to
+      // prevent. Private reads ask team-access and would still refuse them,
+      // but a context they were never granted must not be enterable in the
+      // first place.
+      const [u, everManaged] = await Promise.all([
+        prisma.user.findUnique({ where: { id: actor.userId }, select: { clubId: true } }),
+        prisma.membership.count({ where: { userId: actor.userId, clubId } }),
+      ]);
+      if (!u || u.clubId !== clubId || everManaged > 0) {
         throw new ForbiddenError('No membership covers that team');
       }
     }

@@ -105,7 +105,11 @@ const db: Row = {
     },
   },
   club: { findUnique: async ({ where }: Row) => state.clubs.find((c) => c.id === where.id) ?? null },
-  team: { findUnique: async () => null },
+  team: {
+    findUnique: async () => null,
+    // An invitation may name several teams, so they are resolved in one query.
+    findMany: async () => [],
+  },
   membership: {
     create: async ({ data }: Row) => {
       const m = { id: id('mem'), isActive: true, status: 'ACTIVE', createdAt: new Date(), ...data };
@@ -254,7 +258,7 @@ describe('a signed-out person can read what the link is for', () => {
     // host and cannot infer where the application lives, so the server tells
     // it. A public configuration URL, not a fact about anybody.
     expect(Object.keys(res.body.data).sort()).toEqual([
-      'accountExists', 'appUrl', 'clubId', 'clubName', 'email', 'expiresAt', 'message', 'role', 'teamId', 'teamName',
+      'accountExists', 'appUrl', 'clubId', 'clubName', 'email', 'expiresAt', 'message', 'role', 'teamId', 'teamName', 'teams',
     ]);
     expect(res.body.data.appUrl).toMatch(/^https?:\/\//);
     // No token, no hash, no member list.

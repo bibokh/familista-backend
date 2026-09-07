@@ -35,7 +35,11 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const SOURCES = ['public/app.js', 'public/index.html'];
+// Every served surface that carries interface text. A module added to the app
+// has to be added here too, or its strings are invisible to the ratchet in
+// i18n-check.js and a whole screen can ship untranslated without failing
+// anything.
+const SOURCES = ['public/app.js', 'public/index.html', 'public/people-access.js'];
 const OUT = path.join(ROOT, 'public/i18n/catalogue/_source-inventory.json');
 
 const SLOT = '\u0000';

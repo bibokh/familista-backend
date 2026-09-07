@@ -178,6 +178,12 @@ const REQUIRED_COLUMNS = [
   // here too, guarded; the DEFAULT is what keeps every pre-existing club
   // behaving exactly as it did.
   ['Club', 'defaultLocale', 'ALTER TABLE "Club" ADD COLUMN IF NOT EXISTS "defaultLocale" TEXT'],
+  // 20260909090000_invitation_multi_team — every invitation read now selects
+  // this, so a ClubInvitation without it is a P2022 on the first invitation the
+  // People & Access screen lists. Defaulted to empty, which is what every row
+  // written before multi-team invitations existed already means.
+  ['ClubInvitation', 'additionalTeamIds',
+    'ALTER TABLE "ClubInvitation" ADD COLUMN IF NOT EXISTS "additionalTeamIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]'],
   // One statement, not two: $executeRawUnsafe sends a single statement, and the
   // ALTER is EXECUTEd as text so it binds to the type AFTER the branch above
   // has created it rather than when the block is parsed.

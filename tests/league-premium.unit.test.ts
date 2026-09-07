@@ -508,7 +508,16 @@ describe('the fixture reads as a fixture and the boards as one row', () => {
 // could undo by adding one more colour, one more box or one more glow.
 
 describe('the palette is small enough to mean something', () => {
-  const BLOCK = CSS.slice(CSS.indexOf(':root{\n  /* A quieter surface'));
+  // The League's own stylesheet, and only it. This used to run to the end of
+  // the file, which quietly made every rule appended to app.css afterwards —
+  // by any feature, forever — subject to the League's palette rules. The block
+  // ends where the next section's banner begins.
+  const BLOCK = (() => {
+    const from = CSS.indexOf(':root{\n  /* A quieter surface');
+    expect(from).toBeGreaterThan(0);
+    const to = CSS.indexOf('   CLUB · PEOPLE & ACCESS', from);
+    return CSS.slice(from, to > from ? to : undefined);
+  })();
 
   it('two colours carry meaning and both come from a token', () => {
     expect(CSS).toContain('--lg-accent:#fbbf24;');

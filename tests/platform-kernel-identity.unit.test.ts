@@ -93,7 +93,14 @@ jest.mock('../src/config/database', () => ({
     },
     membershipAuditLog: tx.membershipAuditLog,
     user: { ...tx.user, findUnique: async ({ where }: any) => state.users.find((u) => (where.id ? u.id === where.id : u.email === where.email)) ?? null },
-    team: { findUnique: async ({ where }: any) => state.teams.find((t) => t.id === where.id) ?? null },
+    team: {
+      findUnique: async ({ where }: any) => state.teams.find((t) => t.id === where.id) ?? null,
+      // An invitation may name several teams, so they are resolved in one query.
+      findMany: async ({ where = {} }: any = {}) => {
+        const ids: string[] = (where.id && where.id.in) || [];
+        return state.teams.filter((t: any) => ids.includes(String(t.id)));
+      },
+    },
     club: { findUnique: async ({ where }: any) => state.clubs.find((c) => c.id === where.id) ?? null },
     platformAdmin: { findUnique: async ({ where }: any) => state.platformAdmins.find((a) => a.userId === where.userId) ?? null },
     refreshToken: tx.refreshToken,
@@ -192,7 +199,7 @@ describe('an invitation carries no credential, and works once', () => {
     expect(preview).toMatchObject({ clubName: 'HARTA BERLIN', role: 'ANALYST', teamName: 'First Team', accountExists: true });
     // No squad, no member list, no club private data.
     expect(Object.keys(preview).sort()).toEqual(
-      ['accountExists', 'clubId', 'clubName', 'email', 'expiresAt', 'message', 'role', 'teamId', 'teamName'],
+      ['accountExists', 'clubId', 'clubName', 'email', 'expiresAt', 'message', 'role', 'teamId', 'teamName', 'teams'],
     );
   });
 });

@@ -110,7 +110,14 @@ const db: Row = {
       state.users.find((u) => (where.id ? u.id === where.id : u.email === where.email)) ?? null,
   },
   club: { findUnique: async ({ where }: Row) => state.clubs.find((c) => c.id === where.id) ?? null },
-  team: { findUnique: async ({ where }: Row) => state.teams.find((t) => t.id === where.id) ?? null },
+  team: {
+    findUnique: async ({ where }: Row) => state.teams.find((t) => t.id === where.id) ?? null,
+    // An invitation may name several teams, so they are resolved in one query.
+    findMany: async ({ where = {} }: Row = {}) => {
+      const ids: string[] = (where.id && where.id.in) || [];
+      return state.teams.filter((t) => ids.includes(t.id));
+    },
+  },
   $transaction: async (fn: any) => (typeof fn === 'function' ? fn(db) : Promise.all(fn)),
 };
 
@@ -456,7 +463,7 @@ describe('the endpoint is not a spam relay', () => {
     const preview = await invites.previewInvitation(out.token);
     // It answers only about the address the link was issued to.
     expect(Object.keys(preview).sort()).toEqual([
-      'accountExists', 'clubId', 'clubName', 'email', 'expiresAt', 'message', 'role', 'teamId', 'teamName',
+      'accountExists', 'clubId', 'clubName', 'email', 'expiresAt', 'message', 'role', 'teamId', 'teamName', 'teams',
     ]);
     expect(preview.email).toBe('known@person.test');
     // There is no endpoint that answers "does this arbitrary address exist".

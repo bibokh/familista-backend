@@ -15,6 +15,11 @@ router.get('/',                ctrl.list);
 router.get('/audit',           authorize('CLUB_ADMIN','HEAD_COACH'), requireMembership('CLUB_ADMIN'), ctrl.listAudit);
 router.post('/',               authorize('CLUB_ADMIN'),              requireMembership('CLUB_ADMIN'), ctrl.grant);
 router.patch('/:id/role',      authorize('CLUB_ADMIN'),              requireMembership('CLUB_ADMIN'), ctrl.changeRole);
+router.patch('/:id/team',      authorize('CLUB_ADMIN'),              requireMembership('CLUB_ADMIN'), ctrl.changeTeam);
+// Suspend and reactivate are POSTs because they are events, not edits to a
+// field: "this person's access stopped today" is a thing that happened.
+router.post('/:id/suspend',    authorize('CLUB_ADMIN'),              requireMembership('CLUB_ADMIN'), ctrl.suspend);
+router.post('/:id/reactivate', authorize('CLUB_ADMIN'),              requireMembership('CLUB_ADMIN'), ctrl.reactivate);
 router.delete('/:id',          authorize('CLUB_ADMIN'),              requireMembership('CLUB_ADMIN'), ctrl.revoke);
 
 export default router;

@@ -36,6 +36,10 @@ const createSchema = z.object({
   email: z.string().trim().email().max(200),
   role: z.enum(ROLES),
   teamId: z.string().uuid().nullable().optional(),
+  // Every team the club picked. Capped so one request cannot ask for a
+  // thousand memberships; a club with more than a dozen teams to grant at once
+  // is doing something the invite screen is not for.
+  teamIds: z.array(z.string().uuid()).max(12).optional(),
   message: z.string().trim().max(1000).nullable().optional(),
 });
 

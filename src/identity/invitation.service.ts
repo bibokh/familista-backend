@@ -31,9 +31,12 @@ import { grantMembership, type MembershipActor } from '../services/membership.se
 import { registerInvitedUser } from '../services/auth.service';
 import { deliverInvitation, type DeliveryOutcome } from './invitation-mail.service';
 import { consume } from './invitation-throttle';
+import { allTeamIds } from './invitation-teams';
 
 /** Seven days: long enough for somebody on holiday, short enough to expire. */
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export { allTeamIds } from './invitation-teams';
 
 export interface InviteActor extends MembershipActor {}
 
@@ -41,6 +44,15 @@ export interface CreateInvitationDto {
   email: string;
   role: MembershipRole;
   teamId?: string | null;
+  /**
+   * Every team this invitation grants, when the club picked more than one.
+   *
+   * Preferred over `teamId`, which stays for the single-team callers that
+   * predate this. An empty list (or omitting it) with no `teamId` is what
+   * club-wide means — it is not a default that leaks, because a club-wide
+   * membership is only ever created when nothing named a team.
+   */
+  teamIds?: string[] | null;
   message?: string | null;
   /** Shown in the email as who is inviting. A name, never an address. */
   inviterName?: string | null;
@@ -53,6 +65,8 @@ export interface InvitationView {
   email: string;
   role: MembershipRole;
   teamId: string | null;
+  /** Every team the invitation grants. Empty means club-wide. */
+  teamIds: string[];
   status: ClubInvitationStatus;
   /**
    * Whether the email got out. A DIFFERENT fact from `status`: a FAILED
@@ -93,6 +107,7 @@ export function view(row: ClubInvitation): InvitationView {
     email: row.email,
     role: row.role,
     teamId: row.teamId,
+    teamIds: allTeamIds(row),
     status: row.status,
     deliveryState: String(row.deliveryState),
     deliveryProvider: row.deliveryProvider,
@@ -145,17 +160,46 @@ async function audit(
  * mail adapter and forgets it; nothing stores it, and asking for it again means
  * issuing a new one.
  */
+/**
+ * The teams an invitation is being written for, checked against its own club.
+ *
+ * De-duplicated and order-preserving, so "First Team, U13, First Team" is two
+ * memberships rather than a unique-constraint failure at acceptance time, and
+ * the first team named stays the one in `teamId`.
+ *
+ * Every id is verified to belong to the inviting club before it is stored. A
+ * team id is not a capability: naming another club's team here must fail at the
+ * moment of invitation rather than mint a membership across a tenant boundary
+ * a week later when somebody accepts.
+ */
+async function resolveInvitedTeams(clubId: string, dto: CreateInvitationDto): Promise<string[]> {
+  const asked = [
+    ...(dto.teamId ? [dto.teamId] : []),
+    ...(Array.isArray(dto.teamIds) ? dto.teamIds : []),
+  ].map((id) => String(id ?? '').trim()).filter(Boolean);
+
+  const wanted = Array.from(new Set(asked));
+  if (!wanted.length) return [];   // club-wide, which is the only thing it can mean
+
+  const rows = await prisma.team.findMany({
+    where: { id: { in: wanted } },
+    select: { id: true, clubId: true },
+  });
+  const byId = new Map(rows.map((r) => [r.id, r.clubId]));
+  for (const id of wanted) {
+    const owner = byId.get(id);
+    if (!owner) throw new NotFoundError('Team');
+    if (owner !== clubId) throw new ForbiddenError();
+  }
+  return wanted;
+}
+
 export async function createInvitation(
   actor: InviteActor,
   dto: CreateInvitationDto,
 ): Promise<{ invitation: InvitationView; token: string; delivery: DeliveryOutcome }> {
   const email = normaliseEmail(dto.email);
-
-  if (dto.teamId) {
-    const team = await prisma.team.findUnique({ where: { id: dto.teamId }, select: { clubId: true } });
-    if (!team) throw new NotFoundError('Team');
-    if (team.clubId !== actor.clubId) throw new ForbiddenError();
-  }
+  const teamIds = await resolveInvitedTeams(actor.clubId, dto);
 
   // ── anti-abuse ─────────────────────────────────────────────────────────────
   // An invitation endpoint sends email to an address the caller chooses, so it
@@ -182,7 +226,8 @@ export async function createInvitation(
         clubId: actor.clubId,
         email,
         role: dto.role,
-        teamId: dto.teamId ?? null,
+        teamId: teamIds[0] ?? null,
+        additionalTeamIds: teamIds.slice(1),
         tokenHash: hash,
         expiresAt: new Date(Date.now() + INVITE_TTL_MS),
         invitedByUserId: actor.userId,
@@ -190,7 +235,7 @@ export async function createInvitation(
       },
     });
     await audit(tx, actor.clubId, actor.userId, MembershipAuditAction.INVITED,
-      { invitationId: created.id, email, role: dto.role, teamId: dto.teamId ?? null },
+      { invitationId: created.id, email, role: dto.role, teamIds },
       { ipAddress: actor.ipAddress, userAgent: actor.userAgent });
     return created;
   });
@@ -300,6 +345,8 @@ export interface InvitationPreview {
   role: MembershipRole;
   teamId: string | null;
   teamName: string | null;
+  /** Every team this grants, named. Empty means the whole club. */
+  teams: Array<{ id: string; name: string }>;
   message: string | null;
   expiresAt: Date;
   /** Whether an account already exists for the invited address. */
@@ -315,18 +362,26 @@ export interface InvitationPreview {
  */
 export async function previewInvitation(rawToken: string): Promise<InvitationPreview> {
   const row = await findByToken(rawToken);
-  const [club, team, account] = await Promise.all([
+  const ids = allTeamIds(row);
+  const [club, teamRows, account] = await Promise.all([
     prisma.club.findUnique({ where: { id: row.clubId }, select: { name: true } }),
-    row.teamId ? prisma.team.findUnique({ where: { id: row.teamId }, select: { name: true } }) : Promise.resolve(null),
+    ids.length
+      ? prisma.team.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })
+      : Promise.resolve([]),
     prisma.user.findUnique({ where: { email: row.email }, select: { id: true } }),
   ]);
+  // Named in the order the club picked them, not the order the database
+  // happened to return.
+  const byId = new Map(teamRows.map((t) => [t.id, t.name]));
+  const teams = ids.filter((id) => byId.has(id)).map((id) => ({ id, name: byId.get(id)! }));
   return {
     clubId: row.clubId,
     clubName: club?.name ?? '',
     email: row.email,
     role: row.role,
     teamId: row.teamId,
-    teamName: team?.name ?? null,
+    teamName: teams.length === 1 ? teams[0].name : null,
+    teams,
     message: row.message,
     expiresAt: row.expiresAt,
     accountExists: !!account,
@@ -366,7 +421,7 @@ function safeEqual(a: string, b: string): boolean {
 export async function acceptInvitation(
   actor: { userId: string; email: string; ipAddress?: string | null; userAgent?: string | null },
   rawToken: string,
-): Promise<{ clubId: string; membershipId: string }> {
+): Promise<{ clubId: string; membershipId: string; membershipIds: string[] }> {
   // Counted before the token is even looked up, so a brute-force costs the
   // attacker their budget whether they guess right or wrong.
   if (!consume('accept', normaliseEmail(actor.email))) {
@@ -377,13 +432,25 @@ export async function acceptInvitation(
     throw new ForbiddenError('This invitation was sent to a different email address');
   }
 
-  // The membership is created by the service that owns memberships, so the
+  // The memberships are created by the service that owns memberships, so the
   // reactivation rule, the unique key and the audit row are the club's usual
   // ones rather than a second implementation of them.
-  const membership = await grantMembership(
-    { userId: row.invitedByUserId, clubId: row.clubId, ipAddress: actor.ipAddress, userAgent: actor.userAgent },
-    { userId: actor.userId, teamId: row.teamId, role: row.role },
-  );
+  //
+  // One row per team, which is what the schema means. An invitation naming
+  // three teams grants three team-scoped memberships and NOT one club-wide
+  // one — a club-wide membership is a different, larger thing, and arriving at
+  // it by way of a convenience would hand a U13 coach the first team.
+  // `teamId: null` here happens only when the invitation named no team at all.
+  const grantActor = {
+    userId: row.invitedByUserId, clubId: row.clubId,
+    ipAddress: actor.ipAddress, userAgent: actor.userAgent,
+  };
+  const teamIds = allTeamIds(row);
+  const memberships: Array<{ id: string }> = [];
+  for (const teamId of (teamIds.length ? teamIds : [null])) {
+    memberships.push(await grantMembership(grantActor, { userId: actor.userId, teamId, role: row.role }));
+  }
+  const membership = memberships[0];
 
   await prisma.$transaction(async (tx) => {
     // Consumed exactly once: the update is conditioned on the row still being
@@ -394,11 +461,14 @@ export async function acceptInvitation(
     });
     if (consumed.count !== 1) throw new ConflictError('That invitation has already been used.');
     await audit(tx, row.clubId, actor.userId, MembershipAuditAction.INVITE_ACCEPTED,
-      { invitationId: row.id, membershipId: membership.id, role: row.role, teamId: row.teamId },
+      {
+        invitationId: row.id, membershipId: membership.id, role: row.role,
+        teamIds, membershipIds: memberships.map((m) => m.id),
+      },
       { ipAddress: actor.ipAddress, userAgent: actor.userAgent });
   });
 
-  return { clubId: row.clubId, membershipId: membership.id };
+  return { clubId: row.clubId, membershipId: membership.id, membershipIds: memberships.map((m) => m.id) };
 }
 
 /**
@@ -422,7 +492,7 @@ export async function registerAndAccept(
   rawToken: string,
   input: { firstName: string; lastName: string; password: string },
   meta: { ipAddress?: string | null; userAgent?: string | null } = {},
-): Promise<{ user: unknown; tokens: unknown; clubId: string; membershipId: string }> {
+): Promise<{ user: unknown; tokens: unknown; clubId: string; membershipId: string; membershipIds: string[] }> {
   // Resolves the token, and refuses an expired, revoked or already-used one
   // with the same messages every other path gives.
   const row = await findByToken(rawToken);

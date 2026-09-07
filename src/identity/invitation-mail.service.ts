@@ -25,28 +25,54 @@ import { logger } from '../utils/logger';
 import { currentEnvironment } from '../platform/environment';
 import { sendEmail, publicAppUrl, recipientRef, emailConfiguration } from '../platform/email/service';
 import { renderInvitationEmail, resolveEmailLocale, type EmailLocale } from '../platform/email/templates';
+import { allTeamIds } from './invitation-teams';
 
 /** The role, in words a person recognises, per language. */
 const ROLE_LABELS: Record<EmailLocale, Partial<Record<MembershipRole, string>>> = {
   en: {
     CLUB_OWNER: 'President', CLUB_ADMIN: 'Club administrator', HEAD_COACH: 'Head coach',
     ASSISTANT_COACH: 'Assistant coach', ANALYST: 'Analyst', SCOUT: 'Scout',
-    MEDICAL_STAFF: 'Medical staff', PARENT: 'Parent', PLAYER: 'Player',
+    MEDICAL_STAFF: 'Medical staff', PHYSIO: 'Physiotherapist', PARENT: 'Parent', PLAYER: 'Player',
+    FINANCE_MANAGER: 'Finance manager',
+    GOALKEEPING_COACH: 'Goalkeeping coach', FITNESS_COACH: 'Fitness coach',
+    TECHNICAL_COACH: 'Technical coach', TACTICAL_COACH: 'Tactical coach',
+    YOUTH_COACH: 'Academy coach', PERFORMANCE_COACH: 'Performance coach',
   },
   de: {
     CLUB_OWNER: 'Präsident', CLUB_ADMIN: 'Vereinsadministrator', HEAD_COACH: 'Cheftrainer',
     ASSISTANT_COACH: 'Co-Trainer', ANALYST: 'Analyst', SCOUT: 'Scout',
-    MEDICAL_STAFF: 'Medizinisches Personal', PARENT: 'Elternteil', PLAYER: 'Spieler',
+    MEDICAL_STAFF: 'Medizinisches Personal', PHYSIO: 'Physiotherapeut', PARENT: 'Elternteil', PLAYER: 'Spieler',
+    FINANCE_MANAGER: 'Finanzmanager',
+    GOALKEEPING_COACH: 'Torwarttrainer', FITNESS_COACH: 'Fitnesstrainer',
+    TECHNICAL_COACH: 'Techniktrainer', TACTICAL_COACH: 'Taktiktrainer',
+    YOUTH_COACH: 'Nachwuchstrainer', PERFORMANCE_COACH: 'Leistungstrainer',
   },
   ar: {
     CLUB_OWNER: 'الرئيس', CLUB_ADMIN: 'مسؤول النادي', HEAD_COACH: 'المدرب الرئيسي',
     ASSISTANT_COACH: 'المدرب المساعد', ANALYST: 'محلل', SCOUT: 'كشاف',
-    MEDICAL_STAFF: 'الطاقم الطبي', PARENT: 'ولي أمر', PLAYER: 'لاعب',
+    MEDICAL_STAFF: 'الطاقم الطبي', PHYSIO: 'أخصائي علاج طبيعي', PARENT: 'ولي أمر', PLAYER: 'لاعب',
+    FINANCE_MANAGER: 'المدير المالي',
+    GOALKEEPING_COACH: 'مدرب حراس المرمى', FITNESS_COACH: 'مدرب اللياقة',
+    TECHNICAL_COACH: 'المدرب الفني', TACTICAL_COACH: 'المدرب التكتيكي',
+    YOUTH_COACH: 'مدرب الأكاديمية', PERFORMANCE_COACH: 'مدرب الأداء',
   },
 };
 
 function roleLabel(role: MembershipRole, locale: EmailLocale): string {
   return ROLE_LABELS[locale][role] ?? ROLE_LABELS.en[role] ?? String(role).replace(/_/g, ' ').toLowerCase();
+}
+
+/**
+ * The teams the invitation reaches, as one phrase.
+ *
+ * Team names are the club's own words and are never translated — the same rule
+ * the interface follows. An empty list returns null, and the template says
+ * "the whole club" in the reader's language rather than this file guessing at
+ * a translation it does not have.
+ */
+function accessLabel(teams: Array<{ name: string }>): string | null {
+  if (!teams.length) return null;
+  return teams.map((t) => t.name).join(' · ');
 }
 
 /**
@@ -91,7 +117,8 @@ export interface DeliverOptions {
 export async function deliverInvitation(opts: DeliverOptions): Promise<DeliveryOutcome> {
   const { invitation, rawToken } = opts;
 
-  const [club, account] = await Promise.all([
+  const teamIds = allTeamIds(invitation);
+  const [club, account, teamRows] = await Promise.all([
     prisma.club.findUnique({
       where: { id: invitation.clubId },
       select: { name: true, defaultLocale: true },
@@ -103,7 +130,17 @@ export async function deliverInvitation(opts: DeliverOptions): Promise<DeliveryO
       where: { email: invitation.email },
       select: { firstName: true, lastName: true },
     }),
+    // Named, not listed as ids: the email tells somebody what job they were
+    // offered, and "9f2c-…" is not a job.
+    teamIds.length
+      ? prisma.team.findMany({ where: { id: { in: teamIds } }, select: { id: true, name: true } })
+      : Promise.resolve([] as Array<{ id: string; name: string }>),
   ]);
+
+  // In the order the club picked them, which is the order the invitation was
+  // written in — not whatever order the database returned.
+  const teamsById = new Map(teamRows.map((t) => [t.id, t.name]));
+  const teams = teamIds.filter((id) => teamsById.has(id)).map((id) => ({ name: teamsById.get(id)! }));
 
   const locale = resolveEmailLocale(club?.defaultLocale, 'en');
   const recipientName = account ? `${account.firstName ?? ''} ${account.lastName ?? ''}`.trim() || null : null;
@@ -117,6 +154,7 @@ export async function deliverInvitation(opts: DeliverOptions): Promise<DeliveryO
     recipientName,
     clubName: club?.name ?? 'Familista',
     roleLabel: roleLabel(invitation.role, locale),
+    accessLabel: accessLabel(teams),
     inviterName: opts.inviterName ?? null,
     acceptUrl: acceptanceUrl(rawToken),
     expiresAt: invitation.expiresAt,

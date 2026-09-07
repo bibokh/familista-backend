@@ -1647,6 +1647,18 @@ var CLUB_NAV_ITEMS = [
     enabled: true,
     order:   5.8,
   },
+  {
+    // Who can open this club, and what they may reach. The CLUB's access
+    // screen — not the platform's, which lives in SYSTEM and shares no code
+    // with it. Last in the workspace, where administration belongs.
+    slug:    'people-access',
+    i18nKey: 'navigation.peopleAccess',
+    label:   'People & Access',
+    svgPath: 'M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a2 2 0 11-4 0 2 2 0 014 0zM1.49 15.326a.78.78 0 01-.358-.442 3 3 0 014.308-3.516 6.484 6.484 0 00-1.905 3.959c-.023.222-.014.442.025.654a4.97 4.97 0 01-2.07-.655zM16.44 15.98a4.97 4.97 0 002.07-.654.78.78 0 00.357-.442 3 3 0 00-4.308-3.517 6.484 6.484 0 011.907 3.96 2.32 2.32 0 01-.026.654zM18 8a2 2 0 11-4 0 2 2 0 014 0zM5.304 16.19a.844.844 0 01-.277-.71 5 5 0 019.947 0 .843.843 0 01-.277.71A6.975 6.975 0 0110 18a6.974 6.974 0 01-4.696-1.81z',
+    color:   '#c084fc',
+    enabled: true,
+    order:   9,
+  },
 ];
 
 // Render CLUB_NAV_ITEMS into #workspace-nav-items in the sidebar.
@@ -2221,6 +2233,9 @@ function navTo(page, el, _opts) {
     // in the sidebar, holding every competition's fixtures rather than one
     // competition's.
     'match-center': 1,
+    // The club's own People & Access. A club page like any other: the SYSTEM
+    // allow-list above is a different set, and nothing here reaches it.
+    'people-access': 1,
     // Club Settings (reachable via Quick Actions on Home)
     'settings': 1,
   };
@@ -2268,7 +2283,7 @@ function navTo(page, el, _opts) {
     // ── Owner Control ──
     'owner-home':'Owner Control', clubs:'Clubs',
     // ── Club Workspace ──
-    'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League', 'match-center':'Match Center',
+    'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League', 'match-center':'Match Center', 'people-access':'People & Access',
     // ── Platform (Phase B labels) ──
     'fos-core':'FOS Core', 'fos-observability':'Observability',
     'fos-security-center':'Security', 'fos-automation-center':'Automation',
@@ -2324,6 +2339,11 @@ function navTo(page, el, _opts) {
     // The directory paints before it reads, like every other workspace page.
     if (page === 'coaches' && typeof renderCoachesPage === 'function') {
       renderCoachesPage();
+    }
+    // People & Access paints its shell, then reads memberships, invitations,
+    // teams and the audit behind it.
+    if (page === 'people-access' && typeof renderPeopleAccessPage === 'function') {
+      renderPeopleAccessPage();
     }
     // The league paints its shell before it reads, like every other workspace
     // page, so entering it is a navigation rather than a wait.
@@ -2539,6 +2559,7 @@ function _buildPageTemplateMap() {
     'transfers':                   renderTransfersHTML,
     'coach-market':                renderCoachMarketHTML,
     'coaches':                     renderCoachesHTML,
+    'people-access':               renderPeopleAccessHTML,
     'familista-league':            renderFamilistaLeagueHTML,
     'match-center':                renderMatchCenterHTML,
     'ai-scouting':                 renderAIScoutingHTML,

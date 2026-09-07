@@ -59,7 +59,15 @@ export async function listMemberships(clubId: string, filters: ListMembershipFil
       skip:    (page - 1) * limit,
       take:    limit,
       include: {
-        user: { select: { id: true, email: true, firstName: true, lastName: true, role: true, isActive: true } },
+        // Narrow on purpose. A People & Access screen needs a name, an address
+        // and when somebody was last here; it does not need — and must never
+        // be handed — a password hash, a token version or a reset column.
+        user: {
+          select: {
+            id: true, email: true, firstName: true, lastName: true,
+            role: true, isActive: true, lastLoginAt: true, avatar: true,
+          },
+        },
         team: { select: { id: true, name: true, kind: true } },
       },
     }),
@@ -393,6 +401,12 @@ export async function listAudit(clubId: string, opts: { membershipId?: string; p
       orderBy: { createdAt: 'desc' },
       skip:    (page - 1) * limit,
       take:    limit,
+      // Who did it, by name. An audit trail that reads "actor 4f9c-…" is one
+      // nobody reads. The address is not selected: the name is what identifies
+      // a colleague on a screen their colleagues can see.
+      include: {
+        actor: { select: { id: true, firstName: true, lastName: true } },
+      },
     }),
     prisma.membershipAuditLog.count({ where }),
   ]);
