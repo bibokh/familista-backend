@@ -1468,5 +1468,7 @@
   "What this person is in this club.": "Mikä tämä henkilö on tässä seurassa.",
   "Save role": "Tallenna rooli",
   "What this membership reaches.": "Mihin tämä jäsenyys antaa pääsyn.",
-  "Save access": "Tallenna käyttöoikeus"
+  "Save access": "Tallenna käyttöoikeus",
+  "Onboarding a club is a platform-owner action.": "Seuran perustaminen on alustan omistajan toimenpide.",
+  "The clubs you work with": "Seurat, joiden kanssa työskentelet"
 }

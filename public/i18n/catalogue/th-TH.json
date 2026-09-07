@@ -1465,5 +1465,7 @@
   "What this person is in this club.": "บุคคลนี้คือใครในสโมสรนี้",
   "Save role": "บันทึกบทบาท",
   "What this membership reaches.": "สมาชิกภาพนี้เข้าถึงอะไรได้บ้าง",
-  "Save access": "บันทึกสิทธิ์การเข้าถึง"
+  "Save access": "บันทึกสิทธิ์การเข้าถึง",
+  "Onboarding a club is a platform-owner action.": "การสร้างสโมสรเป็นการดำเนินการของเจ้าของแพลตฟอร์ม",
+  "The clubs you work with": "สโมสรที่คุณทำงานด้วย"
 }

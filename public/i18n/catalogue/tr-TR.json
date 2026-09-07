@@ -1468,5 +1468,7 @@
   "What this person is in this club.": "Bu kişinin bu kulüpteki konumu.",
   "Save role": "Rolü kaydet",
   "What this membership reaches.": "Bu üyeliğin eriştiği kapsam.",
-  "Save access": "Erişimi kaydet"
+  "Save access": "Erişimi kaydet",
+  "Onboarding a club is a platform-owner action.": "Kulüp oluşturmak platform sahibine ait bir işlemdir.",
+  "The clubs you work with": "Birlikte çalıştığınız kulüpler"
 }

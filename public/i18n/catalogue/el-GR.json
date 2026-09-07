@@ -1468,5 +1468,7 @@
   "What this person is in this club.": "Τι είναι αυτό το άτομο σε αυτόν τον σύλλογο.",
   "Save role": "Αποθήκευση ρόλου",
   "What this membership reaches.": "Σε τι δίνει πρόσβαση αυτή η ιδιότητα μέλους.",
-  "Save access": "Αποθήκευση πρόσβασης"
+  "Save access": "Αποθήκευση πρόσβασης",
+  "Onboarding a club is a platform-owner action.": "Η δημιουργία συλλόγου είναι ενέργεια του ιδιοκτήτη της πλατφόρμας.",
+  "The clubs you work with": "Οι σύλλογοι με τους οποίους εργάζεστε"
 }

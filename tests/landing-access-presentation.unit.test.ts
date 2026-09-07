@@ -386,7 +386,10 @@ describe('8 · a president is named president, not administrator', () => {
     const writes = APP.split('currentClubRole:').slice(1);
     expect(writes.length).toBe(3);
     for (const w of writes) {
-      expect(w.slice(0, 400)).toContain('_paintUserRole();');
+      // A window rather than the whole tail: the repaint must follow its own
+      // context write, not somebody else's further down the file. Wide enough
+      // for the comments that sit between them.
+      expect(w.slice(0, 800)).toContain('_paintUserRole();');
     }
   });
 

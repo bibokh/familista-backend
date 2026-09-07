@@ -1,5 +1,5 @@
 // Familista — Club System controller (Phase R)
-// POST  /clubs              → onboard a new club (any authenticated user)
+// POST  /clubs              → onboard a new club (PLATFORM OWNER only)
 // GET   /clubs/current      → caller's active club profile
 // GET   /clubs/:clubId      → club profile (tenant-guarded upstream)
 // PATCH /clubs/:clubId      → update club + brand (CLUB_ADMIN / SUPER_ADMIN)
@@ -9,6 +9,7 @@ import { z } from 'zod';
 import * as svc from '../services/club.service';
 import { sendSuccess } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
+import { assertPlatformOwner } from '../platform/system.service';
 
 // ── Reusable validators ───────────────────────────────────────────────────
 const httpsUrl = z
@@ -90,8 +91,32 @@ const createSchema = z.object({
   }).strict(),
 });
 
+/**
+ * Onboard a club. The PLATFORM OWNER's action, and nobody else's.
+ *
+ * This route used to be open to any authenticated account, and it does not
+ * merely create a row: `createClubWithOwnerMembership` grants the caller a
+ * CLUB_OWNER membership in the club it creates. So an invited head coach,
+ * scoped to one team, could POST here and come out owning a club — a genuine
+ * escalation reachable with a single request, and the reason the "Onboard a
+ * new club" tile was so much worse than a stray label.
+ *
+ * Creating a club has always been a platform action; the system router says so
+ * in as many words, and POST /api/v1/system/clubs is the route that does it
+ * properly — it also sends the president their invitation and never makes the
+ * platform owner the club's owner. This one stays for the platform owner who
+ * reaches it, and refuses everybody else.
+ */
 export async function createClub(req: Request, res: Response, next: NextFunction) {
   try {
+    // Before the body is even read: a refusal must not depend on the payload
+    // being well formed.
+    await assertPlatformOwner({
+      userId: req.user?.id ?? '',
+      clubId: req.user?.clubId ?? null,
+      role: req.user?.role,
+    });
+
     const parsed = createSchema.safeParse({ body: req.body });
     if (!parsed.success) throw zerr(parsed.error);
     const b = parsed.data.body;

@@ -1465,5 +1465,7 @@
   "What this person is in this club.": "此人在本俱乐部的身份。",
   "Save role": "保存角色",
   "What this membership reaches.": "此成员资格可访问的范围。",
-  "Save access": "保存权限"
+  "Save access": "保存权限",
+  "Onboarding a club is a platform-owner action.": "创建俱乐部是平台所有者的操作。",
+  "The clubs you work with": "你参与的俱乐部"
 }

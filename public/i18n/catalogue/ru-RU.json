@@ -1468,5 +1468,7 @@
   "What this person is in this club.": "Кем этот человек является в этом клубе.",
   "Save role": "Сохранить роль",
   "What this membership reaches.": "К чему даёт доступ это членство.",
-  "Save access": "Сохранить доступ"
+  "Save access": "Сохранить доступ",
+  "Onboarding a club is a platform-owner action.": "Создание клуба — действие владельца платформы.",
+  "The clubs you work with": "Клубы, с которыми вы работаете"
 }

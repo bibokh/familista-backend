@@ -1803,7 +1803,21 @@ function _updateTopbarBack(page) {
     return;
   }
   btn.style.display = '';
-  if (lbl) lbl.textContent = (area === 'system') ? 'Owner Home' : 'Clubs';
+  // "Clubs" is a place to go only for somebody who has clubs to choose
+  // between. A coach with one club pressed this, landed on a picker holding
+  // one card, and found "Owner Home" and "Onboard a new club" waiting there —
+  // which is how a team-scoped account reached the owner's surfaces at all.
+  // With one club there is nothing to pick, so the way back is their own
+  // landing page.
+  var manyClubs = _accessibleClubs().length > 1;
+  if (area === 'system') {
+    if (lbl) lbl.textContent = 'Owner Home';
+  } else if (manyClubs) {
+    if (lbl) lbl.textContent = 'Clubs';
+  } else {
+    if (lbl) lbl.textContent = 'Home';
+  }
+  btn.setAttribute('data-back-to', area === 'system' ? 'owner-home' : (manyClubs ? 'clubs' : 'owner-home'));
 }
 
 // ── Browser back/forward — popstate replays navigation ─────────
@@ -1843,6 +1857,14 @@ function _updateTopbarBack(page) {
 // shows a toast explaining backend admin must complete provisioning;
 // no backend / API / DB write is performed here.
 function openOnboardClubModal() {
+  // The tile that opens this is drawn for the platform owner alone, but the
+  // click dispatcher is a public surface: anything that can be dispatched can
+  // be dispatched by anybody. POST /clubs refuses a non-owner outright — this
+  // is so nobody is shown a form that is going to be refused.
+  if (!_platformAuthorityKnown) {
+    try { showToast('Onboarding a club is a platform-owner action.', 'warn', 3500); } catch (_) {}
+    return;
+  }
   var el = document.getElementById('onboard-club-modal');
   if (!el) return;
   el.classList.add('open');
@@ -2772,6 +2794,14 @@ function renderOwnerHomeHTML() {
  * and one that offers a door into a refusal.
  */
 let _platformAuthority = null;
+/**
+ * Whether /system/whoami has come back saying yes.
+ *
+ * A latch, not a cache of the promise: a screen that must not draw owner
+ * controls needs a synchronous answer at paint time, and "not yet known" has
+ * to read the same as "no". It only ever goes false → true.
+ */
+let _platformAuthorityKnown = false;
 function _isPlatformOwner() {
   if (_platformAuthority) return _platformAuthority;
   const base = (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG.API_BASE) ? FAM_CONFIG.API_BASE : '/api/v1';
@@ -3012,6 +3042,7 @@ function renderOwnerHome() {
     </div>`;
 
   _isPlatformOwner().then((yes) => {
+    if (yes) _platformAuthorityKnown = true;
     // The page may have moved on while the request was in flight.
     if (!document.getElementById('owner-home-content')) return;
     el.innerHTML = yes
@@ -3032,6 +3063,16 @@ function renderClubsHTML() {
 function renderClubs() {
   const el = document.getElementById('clubs-picker-content');
   if (!el) return;
+  // The answer may not be in yet on a cold session. Until it is, the page is
+  // built WITHOUT the owner chrome and repaints once — a club account must
+  // never see a create-club tile flash past, and an owner waiting a moment for
+  // one is the harmless direction to be wrong in.
+  _isPlatformOwner().then(function (yes) {
+    if (yes && !_platformAuthorityKnown && document.getElementById('clubs-picker-content')) {
+      _platformAuthorityKnown = true;
+      renderClubs();
+    }
+  });
   const club = (window.State && State.club) || {};
   const hydrated = !!(window.State && State.context && Array.isArray(State.context.availableClubs));
   const available = hydrated ? State.context.availableClubs : [];
@@ -3062,12 +3103,23 @@ function renderClubs() {
   // difference between that and having no clubs matters to whoever is reading.
   const pending = (!clubs.length && !hydrated)
     ? '<div class="cp-pending">Reading your clubs…</div>' : '';
+  // Owner chrome, drawn only for the platform's owner.
+  //
+  // The back button says "Owner Home" and the tile creates a club — a new
+  // tenant, with the person who pressed it as its owner. Neither belongs to a
+  // club account: a president does not onboard tenants, and an invited head
+  // coach reached both of them by pressing the topbar's back button. The
+  // decision comes from the server (GET /system/whoami) and is asked once per
+  // session; POST /clubs refuses a non-owner regardless, so this is what is
+  // offered, never what is permitted.
+  const ownerChrome = !!_platformAuthorityKnown;
+
   el.innerHTML = `
     <div class="cp-wrap">
       <div class="cp-hero">
-        <button class="cp-back" data-action="navTo" data-page="owner-home" type="button">← Owner Home</button>
+        ${ownerChrome ? '<button class="cp-back" data-action="navTo" data-page="owner-home" type="button">← Owner Home</button>' : ''}
         <h1 class="cp-title">Clubs</h1>
-        <div class="cp-sub">Pick a club workspace to enter</div>
+        <div class="cp-sub">${ownerChrome ? 'Pick a club workspace to enter' : 'The clubs you work with'}</div>
       </div>
       ${pending}
       <div class="cp-grid">
@@ -3081,13 +3133,14 @@ function renderClubs() {
             <div class="cp-card-state">${c.isActive !== false ? 'ACTIVE' : 'PLANNED'}</div>
           </button>
         `).join('')}
+        ${ownerChrome ? `
         <button class="cp-card cp-card--add" data-action="openOnboardClubModal" type="button">
           <div class="cp-card-crest placeholder">+</div>
           <div class="cp-card-body">
             <div class="cp-card-name">Onboard a new club</div>
             <div class="cp-card-meta">Create a new tenant →</div>
           </div>
-        </button>
+        </button>` : ''}
       </div>
     </div>
   `;
@@ -34820,6 +34873,30 @@ const AppContext = (function () {
   let _ctx   = null;      // { availableClubs, currentClubId, currentTeamId, currentClub, currentTeam, ... }
   let _teams = [];        // teams for the active club (from /api/v1/teams)
 
+  /**
+   * Settle a restricted person on the one team they actually have.
+   *
+   * Entering a club posts `teamId: null`, which means "the club as a whole".
+   * For somebody whose access is one team that is not a scope they hold: the
+   * server refuses their private reads outside it anyway, but the screen
+   * behaves as though they were club-wide and the selector shows nothing
+   * chosen. With exactly one authorised team there is nothing to choose, so
+   * it is chosen.
+   *
+   * Never widens anything: it runs only when the scope is restricted, holds
+   * exactly one team, and no team is selected.
+   */
+  async function _settleScopedTeam() {
+    try {
+      const scope = _ctx && _ctx.currentTeamScope;
+      if (!scope || scope.unrestricted) return;
+      const teams = Array.isArray(scope.teams) ? scope.teams : [];
+      if (teams.length !== 1) return;
+      if (_ctx.currentTeamId === teams[0].id) return;
+      await switchTeam(teams[0].id);
+    } catch (_) { /* the selector still shows the right team; this is a nicety */ }
+  }
+
   async function load() {
     try {
       const r = await FamilistaAPI.get('/me/context');
@@ -34835,6 +34912,9 @@ const AppContext = (function () {
           // The authoritative membership role in the club now open. Used to
           // NAME the role on screen; never to decide what may be done.
           currentClubRole: _ctx.currentClubRole || null,
+          // Which teams this person may work with here. Read by the switcher,
+          // and available to anything else that must not offer more.
+          currentTeamScope: _ctx.currentTeamScope || null,
         };
         // The sidebar was painted from the account field at boot, before this
         // answered. This is the authoritative answer, so the label is rewritten.
@@ -34857,6 +34937,7 @@ const AppContext = (function () {
         } catch (_) {}
       }
       await loadTeams();
+      await _settleScopedTeam();
       renderSwitcher();
       return _ctx;
     } catch (e) {
@@ -34882,9 +34963,43 @@ const AppContext = (function () {
       '<option value="' + c.id + '"' + (c.id === _ctx.currentClubId ? ' selected' : '') + '>' + (c.shortName || c.name) + '</option>'
     ).join('');
 
-    ts.innerHTML = '<option value="">All teams</option>' + _teams.map(t =>
-      '<option value="' + t.id + '"' + (t.id === _ctx.currentTeamId ? ' selected' : '') + '>' + (t.shortName || t.name) + '</option>'
-    ).join('');
+    // ── the team selector is authorisation-aware ──────────────────────────
+    //
+    // It used to be built from _teams — GET /teams, every team in the club,
+    // no filtering — with "All teams" on top for everybody. A head coach
+    // assigned to the first team was therefore offered the academy sides and
+    // an all-teams scope they do not hold. Switching into one would have been
+    // refused by the server, which is the guard; being offered it at all was
+    // the bug.
+    //
+    // The server now says which teams this person may work with, in the same
+    // /me/context reply, computed by the team-access service that gates every
+    // private read. Only when that access genuinely covers the club's teams is
+    // "All teams" a thing to offer.
+    var scope = (_ctx && _ctx.currentTeamScope) || null;
+    var unrestricted = scope ? !!scope.unrestricted : false;
+    // While the answer is outstanding, offer nothing but what is already
+    // selected: an empty selector is recoverable, an over-broad one is not.
+    var allowed = unrestricted
+      ? _teams
+      : (scope && Array.isArray(scope.teams) ? scope.teams : []);
+    // Belt and braces: even unrestricted, never offer a team from another club.
+    var byId = {};
+    _teams.forEach(function (t) { byId[t.id] = t; });
+    allowed = allowed.map(function (t) { return byId[t.id] || t; });
+
+    ts.innerHTML =
+      (unrestricted ? '<option value="">All teams</option>' : '')
+      + allowed.map(function (t) {
+        return '<option value="' + t.id + '"' + (t.id === _ctx.currentTeamId ? ' selected' : '')
+          + '>' + (t.shortName || t.name) + '</option>';
+      }).join('');
+
+    // One team and no all-teams scope is not a choice. It stays on screen so
+    // the person can see which team they are in, and it does not pretend to
+    // offer an alternative that does not exist.
+    ts.disabled = (!unrestricted && allowed.length <= 1);
+    ts.setAttribute('aria-disabled', String(ts.disabled));
 
     wrap.style.display = (cs.options.length > 0) ? '' : 'none';
   }
@@ -34921,6 +35036,7 @@ const AppContext = (function () {
         // Switching club switches which membership is authoritative, so the
         // displayed role follows the club rather than the account.
         currentClubRole: (_ctx && _ctx.currentClubRole) || null,
+        currentTeamScope: (_ctx && _ctx.currentTeamScope) || null,
       };
       _paintUserRole();
       // The club being entered names itself. Crests are held per club id, so
@@ -34952,6 +35068,11 @@ const AppContext = (function () {
       if (typeof _stPrefetch === 'function') { try { _stPrefetch(); } catch (_) {} }
 
       await loadTeams();
+      if (!live()) return;
+      // Entering a club posts teamId: null. For somebody scoped to one team
+      // that is a club-wide context they do not hold, so it is settled here
+      // too, not only on boot.
+      await _settleScopedTeam();
       if (!live()) return;
       renderSwitcher();
       // The roster has to be read again for the club now being acted for.
@@ -35020,6 +35141,8 @@ const AppContext = (function () {
         // rather than dropped, which would blank the role in the sidebar.
         currentClubRole: (_ctx && _ctx.currentClubRole)
           || (State.context && State.context.currentClubRole) || null,
+        currentTeamScope: (_ctx && _ctx.currentTeamScope)
+          || (State.context && State.context.currentTeamScope) || null,
       };
       _paintUserRole();
       try { _clubIdentPutAll(State.context.availableClubs); } catch (_) {}
@@ -48656,10 +48779,12 @@ async function tosBoardSnapshot() {
         }
         // ── Topbar context Back button — area-aware up-navigation
         case 'topbarBack': {
-          var _area = (document.body.className.match(/area-(\w+)/) || [])[1] || 'home';
-          var _target = (_area === 'system') ? 'owner-home'
-                      : (_area === 'club')   ? 'clubs'
-                      : 'owner-home';
+          // The destination the label promises, decided in _updateTopbarBack
+          // where the club count is known. Falling back to owner-home rather
+          // than the Clubs picker: it is the landing page every account has,
+          // and the one a single-club member should return to.
+          var _btn = document.getElementById('topbar-back');
+          var _target = (_btn && _btn.getAttribute('data-back-to')) || 'owner-home';
           try { navTo(_target, null); }
           catch (err) { try { console.error('[delegate] topbarBack failed:', err); } catch (_) {} }
           break;

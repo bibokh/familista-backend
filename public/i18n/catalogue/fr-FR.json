@@ -1468,5 +1468,7 @@
   "What this person is in this club.": "Ce que cette personne est dans ce club.",
   "Save role": "Enregistrer le rôle",
   "What this membership reaches.": "Ce à quoi cette adhésion donne accès.",
-  "Save access": "Enregistrer l’accès"
+  "Save access": "Enregistrer l’accès",
+  "Onboarding a club is a platform-owner action.": "La création d’un club est une action du propriétaire de la plateforme.",
+  "The clubs you work with": "Les clubs avec lesquels vous travaillez"
 }

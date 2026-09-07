@@ -8,6 +8,7 @@ import { Prisma, MembershipAuditAction } from '@prisma/client';
 import { prisma } from '../config/database';
 import { ForbiddenError, BadRequestError } from '../utils/errors';
 import { getActiveMembershipsForUser, hasActiveMembership } from './membership.service';
+import { privateTeamScope } from '../identity/team-access.service';
 import { forgetIdentity } from '../middleware/auth.middleware';
 
 export async function getContext(userId: string) {
@@ -77,6 +78,34 @@ export async function getContext(userId: string) {
     })[0]
     : null;
 
+  // ── which teams this person may actually work with ────────────────────────
+  //
+  // The context is what the topbar's team selector reads, and it used to read
+  // GET /teams — every team in the club, unfiltered — and offer "All teams" on
+  // top of it. A head coach assigned to the first team was therefore offered
+  // the under-13s and an "all teams" scope they do not have.
+  //
+  // This is the authoritative answer instead, from the same team-access service
+  // every private read is gated by. `unrestricted` means their access genuinely
+  // covers the club's teams — a club-wide staff membership, or an account with
+  // no memberships at all, which is the legacy case that has always been
+  // club-wide. Otherwise `teams` is exactly what they may open, and there is no
+  // "all teams" for them to pick.
+  //
+  // The server refuses an unauthorised team in switchContext regardless; this
+  // is so the interface stops offering what the server would refuse.
+  const scope = user.currentClubId
+    ? await privateTeamScope({ userId: user.id, clubId: user.currentClubId, role: user.role })
+    : { unrestricted: false, teamIds: [] as string[] };
+
+  const scopedTeams = (!scope.unrestricted && scope.teamIds.length)
+    ? await prisma.team.findMany({
+      where: { id: { in: scope.teamIds }, clubId: user.currentClubId! },
+      select: { id: true, name: true, shortName: true, kind: true, isActive: true },
+      orderBy: [{ kind: 'asc' }, { name: 'asc' }],
+    })
+    : [];
+
   return {
     userId:           user.id,
     legacyClubId:     user.clubId,
@@ -84,6 +113,17 @@ export async function getContext(userId: string) {
     legacyRole:       user.role,
     /** The authoritative membership role in the club currently open. */
     currentClubRole,
+    /**
+     * The teams this person may work with in the club currently open.
+     *
+     * `unrestricted: true` — their access covers the club's teams, and an
+     * "all teams" context is theirs to pick. Otherwise `teams` is the whole
+     * list they may choose between, and nothing outside it is offerable.
+     */
+    currentTeamScope: {
+      unrestricted: scope.unrestricted,
+      teams: scopedTeams,
+    },
     currentClubId:    user.currentClubId,
     currentTeamId:    user.currentTeamId,
     currentClub:      user.currentClub,

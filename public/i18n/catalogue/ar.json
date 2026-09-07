@@ -1468,5 +1468,7 @@
   "What this person is in this club.": "ما هو هذا الشخص في هذا النادي.",
   "Save role": "حفظ الدور",
   "What this membership reaches.": "ما الذي تصل إليه هذه العضوية.",
-  "Save access": "حفظ الوصول"
+  "Save access": "حفظ الوصول",
+  "Onboarding a club is a platform-owner action.": "إعداد نادٍ جديد إجراء يخص مالك المنصة.",
+  "The clubs you work with": "الأندية التي تعمل معها"
 }
