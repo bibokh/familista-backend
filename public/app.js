@@ -1539,6 +1539,13 @@ function _isAnyFormEditing() { return isEditingUIActive(); }
 //   color   — CSS color/variable for the icon tint (leave '' for theme default)
 //   enabled — set false to hide without deleting (default true)
 //   order   — ascending sort order
+//   requires — the capability this module needs, from
+//              State.context.effectiveAccess. Omit for a module everybody in a
+//              club may open. NOT a role name: the sidebar is built from what
+//              the server says this person may reach, so a module and the
+//              guard behind it cannot drift apart. Unknown or absent reads as
+//              FALSE, so a sidebar drawn before the context lands offers less
+//              rather than more.
 //
 // ▶ TO ADD A NEW TAB:
 //   1. Push a new object to CLUB_NAV_ITEMS with a unique slug.
@@ -1564,6 +1571,7 @@ var CLUB_NAV_ITEMS = [
     color:   '#38bdf8',
     enabled: true,
     order:   2,
+    requires: 'canAccessTeamWorkspace',
   },
   {
     slug:    'training',
@@ -1573,6 +1581,7 @@ var CLUB_NAV_ITEMS = [
     color:   '#f59e0b',
     enabled: true,
     order:   3,
+    requires: 'canAccessTeamWorkspace',
   },
   {
     slug:    'academy',
@@ -1582,6 +1591,7 @@ var CLUB_NAV_ITEMS = [
     color:   '#a78bfa',
     enabled: true,
     order:   3.5,
+    requires: 'canAccessAcademy',
   },
   {
     slug:    'video-intelligence',
@@ -1591,6 +1601,7 @@ var CLUB_NAV_ITEMS = [
     color:   '#2dd4bf',
     enabled: true,
     order:   4,
+    requires: 'canAccessTeamWorkspace',
   },
   {
     slug:    'transfers',
@@ -1600,6 +1611,7 @@ var CLUB_NAV_ITEMS = [
     color:   '#4ade80',
     enabled: true,
     order:   5,
+    requires: 'canAccessTransfers',
   },
   {
     // The other recruitment market. It sits directly below Transfers because
@@ -1612,6 +1624,7 @@ var CLUB_NAV_ITEMS = [
     color:   '#f472b6',
     enabled: true,
     order:   5.5,
+    requires: 'canAccessCoachMarket',
   },
   {
     // Who is working where, right now. Not the market and not a view of it —
@@ -1623,6 +1636,7 @@ var CLUB_NAV_ITEMS = [
     color:   '#38bdf8',
     enabled: true,
     order:   5.6,
+    requires: 'canAccessStaffDirectory',
   },
   {
     // The competition between clubs on the platform. Directly below Coaches,
@@ -1634,6 +1648,7 @@ var CLUB_NAV_ITEMS = [
     color:   '#fbbf24',
     enabled: true,
     order:   5.7,
+    requires: 'hasClubWideManageAuthority',
   },
   {
     // The club's whole match calendar, for every competition it plays in.
@@ -1646,6 +1661,7 @@ var CLUB_NAV_ITEMS = [
     color:   '#7dd3fc',
     enabled: true,
     order:   5.8,
+    requires: 'canAccessTeamWorkspace',
   },
   {
     // Who can open this club, and what they may reach. The CLUB's access
@@ -1658,16 +1674,36 @@ var CLUB_NAV_ITEMS = [
     color:   '#c084fc',
     enabled: true,
     order:   9,
+    requires: 'canManagePeople',
   },
 ];
 
 // Render CLUB_NAV_ITEMS into #workspace-nav-items in the sidebar.
 // Called once at boot; call again after mutating CLUB_NAV_ITEMS at runtime.
+/**
+ * What this account may reach in the club now open.
+ *
+ * The server's own answer, from /me/context, computed by the services that
+ * gate the matching requests. Missing — a cold session, a failed read —
+ * answers false to everything, so the sidebar offers less rather than more
+ * while it does not know. Nothing here permits anything: every route behind
+ * every module checks for itself.
+ */
+function _access(capability) {
+  try {
+    var a = window.State && State.context && State.context.effectiveAccess;
+    return !!(a && a[capability]);
+  } catch (_) { return false; }
+}
+
 function buildWorkspaceSidebar() {
   var slot = document.getElementById('workspace-nav-items');
   if (!slot) return;
   var items = CLUB_NAV_ITEMS
     .filter(function (n) { return n.enabled !== false; })
+    // A module with no `requires` is one every club member may open. Everything
+    // else has to be granted, and "not yet known" is not granted.
+    .filter(function (n) { return !n.requires || _access(n.requires); })
     .sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
   slot.innerHTML = items.map(function (n) {
     var iconStyle = n.color ? ' style="color:' + n.color + '"' : '';
@@ -2266,6 +2302,22 @@ function navTo(page, el, _opts) {
     page = 'owner-home';
     el = null;
   }
+
+  // A workspace module needs the capability its sidebar entry needs.
+  //
+  // Removing an item from the sidebar removes the way in, not the page: a
+  // typed #people-access, a bookmark or a stale history entry all arrive here.
+  // The server refuses the data either way — that is the security, and it is
+  // unchanged — but a module rendering its empty shell over a string of 403s
+  // is a worse answer than not opening it.
+  try {
+    var _navItem = CLUB_NAV_ITEMS.filter(function (n) { return n.slug === page; })[0];
+    if (_navItem && _navItem.requires && !_access(_navItem.requires)) {
+      try { console.warn('[navTo] blocked page without capability:', page, _navItem.requires); } catch (_) {}
+      page = 'club-home';
+      el = null;
+    }
+  } catch (_) {}
 
   // The open match belongs to the Match Center's workspace and to nothing else.
   // Leaving the module closes it, so returning lands on the calendar rather than
@@ -34915,10 +34967,16 @@ const AppContext = (function () {
           // Which teams this person may work with here. Read by the switcher,
           // and available to anything else that must not offer more.
           currentTeamScope: _ctx.currentTeamScope || null,
+          // What they may reach here. Read by the workspace navigation.
+          effectiveAccess: _ctx.effectiveAccess || null,
         };
         // The sidebar was painted from the account field at boot, before this
         // answered. This is the authoritative answer, so the label is rewritten.
         _paintUserRole();
+        // And the workspace navigation was built before the capabilities
+        // existed, which means it was built offering nothing gated. This is
+        // where it learns what this person may actually reach.
+        try { buildWorkspaceSidebar(); } catch (_) {}
         // Every club this user may act for, and what each one looks like. This
         // is where the crest registry is filled for the session, which is why
         // no <ClubLogo> anywhere afterwards has to ask the server anything.
@@ -35037,8 +35095,12 @@ const AppContext = (function () {
         // displayed role follows the club rather than the account.
         currentClubRole: (_ctx && _ctx.currentClubRole) || null,
         currentTeamScope: (_ctx && _ctx.currentTeamScope) || null,
+        // Capabilities are per club: the same person may run one and coach in
+        // another, so they are replaced on a switch rather than carried over.
+        effectiveAccess: (_ctx && _ctx.effectiveAccess) || null,
       };
       _paintUserRole();
+      try { buildWorkspaceSidebar(); } catch (_) {}
       // The club being entered names itself. Crests are held per club id, so
       // this adds the new club rather than replacing the old one's image — the
       // club just left keeps its own crest for the tables that still name it.
@@ -35143,6 +35205,11 @@ const AppContext = (function () {
           || (State.context && State.context.currentClubRole) || null,
         currentTeamScope: (_ctx && _ctx.currentTeamScope)
           || (State.context && State.context.currentTeamScope) || null,
+        // Switching TEAM does not change the club, so the capabilities are the
+        // ones they already had here. Carried forward rather than dropped,
+        // which would empty the sidebar mid-session.
+        effectiveAccess: (_ctx && _ctx.effectiveAccess)
+          || (State.context && State.context.effectiveAccess) || null,
       };
       _paintUserRole();
       try { _clubIdentPutAll(State.context.availableClubs); } catch (_) {}

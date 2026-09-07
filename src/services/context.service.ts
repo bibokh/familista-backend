@@ -8,7 +8,10 @@ import { Prisma, MembershipAuditAction } from '@prisma/client';
 import { prisma } from '../config/database';
 import { ForbiddenError, BadRequestError } from '../utils/errors';
 import { getActiveMembershipsForUser, hasActiveMembership } from './membership.service';
-import { privateTeamScope } from '../identity/team-access.service';
+import {
+  privateTeamScope, hasClubWideManageAuthority, isAcademyKind,
+} from '../identity/team-access.service';
+import { isPlatformOwner } from '../platform/access-levels';
 import { forgetIdentity } from '../middleware/auth.middleware';
 
 export async function getContext(userId: string) {
@@ -98,6 +101,39 @@ export async function getContext(userId: string) {
     ? await privateTeamScope({ userId: user.id, clubId: user.currentClubId, role: user.role })
     : { unrestricted: false, teamIds: [] as string[] };
 
+  // ── what this person may actually reach, as capabilities ──────────────────
+  //
+  // The sidebar used to be a fixed list: every club module, for everybody who
+  // could open a club. A head coach hired for one team was therefore offered
+  // People & Access, the Coach Market and the Academy — screens that belong to
+  // whoever runs the club, not to whoever runs a team.
+  //
+  // These are DERIVED, never declared: each one is the same question the
+  // server already asks before it answers a request, so a capability cannot
+  // drift away from the guard it stands for. Nothing here grants anything —
+  // every route still checks for itself, and a client that lies about these
+  // gets a 403 rather than a screen.
+  const [platformOwner, clubWideManage] = await Promise.all([
+    isPlatformOwner({ userId: user.id, role: user.role }),
+    user.currentClubId
+      ? hasClubWideManageAuthority({ userId: user.id, clubId: user.currentClubId, role: user.role })
+      : Promise.resolve(false),
+  ]);
+
+  // Running the club, as `requireMembership('CLUB_ADMIN')` means it: the same
+  // ranking the middleware uses, asked of the same memberships. This is what
+  // People & Access, the membership writes and the invitation routes require.
+  const MANAGE_CLUB_ROLES = ['CLUB_OWNER', 'CLUB_ADMIN'];
+  const canManageClub = currentRoles.some((r) => MANAGE_CLUB_ROLES.includes(r));
+
+  // The academy is a workspace, not a label: it opens to somebody assigned to
+  // an academy side, or to somebody who runs the club and therefore runs all
+  // of them. A first-team coach holds neither.
+  const myTeamKinds = memberships
+    .filter((m) => m.clubId === user.currentClubId && m.team)
+    .map((m) => m.team!.kind as string);
+  const canAccessAcademy = clubWideManage || myTeamKinds.some((k) => isAcademyKind(k));
+
   const scopedTeams = (!scope.unrestricted && scope.teamIds.length)
     ? await prisma.team.findMany({
       where: { id: { in: scope.teamIds }, clubId: user.currentClubId! },
@@ -123,6 +159,44 @@ export async function getContext(userId: string) {
     currentTeamScope: {
       unrestricted: scope.unrestricted,
       teams: scopedTeams,
+    },
+    /**
+     * What this account may reach in the club now open.
+     *
+     * Read by the navigation, so the sidebar is built from effective access
+     * rather than from a role name. Every value is derived from the services
+     * that already gate the corresponding request; none of them grants
+     * anything, and the routes behind each module check for themselves.
+     */
+    effectiveAccess: {
+      /** SUPER_ADMIN or an active PlatformAdmin row. Never a club role. */
+      isPlatformOwner: platformOwner,
+      /** A club-wide managing membership — reaches every team in the club. */
+      hasClubWideManageAuthority: clubWideManage,
+      /** CLUB_OWNER or CLUB_ADMIN here: what requireMembership('CLUB_ADMIN') wants. */
+      canManageClub,
+      /** Invite, suspend, remove — the People & Access screen. */
+      canManagePeople: canManageClub,
+      /**
+       * Recruitment. Club-level work, so it takes club-level authority: a
+       * coach hired to run one team is not the club's recruiter.
+       *
+       * NOTE, and it is not a small one: the transfer and coach-market WRITE
+       * routes still authorise on User.role, which includes HEAD_COACH. This
+       * capability is deliberately narrower than that guard, so the module is
+       * not offered — but it does not make the guard narrower, and only the
+       * guard is security. See the report accompanying this change.
+       */
+      canAccessTransfers: clubWideManage,
+      canAccessCoachMarket: clubWideManage,
+      /** The club's staff directory — who works where, across every team. */
+      canAccessStaffDirectory: clubWideManage,
+      /** An academy assignment, or the authority that covers every team. */
+      canAccessAcademy,
+      /** Any team at all: the football modules need one team to be about. */
+      canAccessTeamWorkspace: scope.unrestricted || scope.teamIds.length > 0,
+      /** The teams this person may work with. Empty with `unrestricted`. */
+      authorizedTeamIds: scope.unrestricted ? [] : scope.teamIds,
     },
     currentClubId:    user.currentClubId,
     currentTeamId:    user.currentTeamId,
