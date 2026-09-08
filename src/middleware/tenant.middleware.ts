@@ -21,7 +21,7 @@ import { UnauthorizedError, ForbiddenError } from '../utils/errors';
 
 // Hierarchy used when caller passes a *minimum* required role.
 // Higher number = more authority. SUPER_ADMIN handled separately.
-const ROLE_RANK: Record<MembershipRole, number> = {
+export const ROLE_RANK: Record<MembershipRole, number> = {
   CLUB_OWNER:      100,
   CLUB_ADMIN:       90,
   HEAD_COACH:       70,
@@ -43,6 +43,26 @@ const ROLE_RANK: Record<MembershipRole, number> = {
   YOUTH_COACH:       55,
   PERFORMANCE_COACH: 55,
 };
+
+/**
+ * Does any of these memberships reach this rank?
+ *
+ * The same comparison `requireMembership` makes, exported so a capability can
+ * mirror a guard instead of restating it. A second ranking table beside this
+ * one is how a screen and its route come to disagree about who may do what.
+ */
+export function meetsMembershipRank(roles: MembershipRole[], minRole: MembershipRole): boolean {
+  if (!roles.length) return false;
+  const min = ROLE_RANK[minRole] ?? 0;
+  return Math.max(...roles.map((r) => ROLE_RANK[r] ?? 0)) >= min;
+}
+
+/** The most senior of several memberships, for naming somebody on screen. */
+export function strongestMembershipRole(roles: MembershipRole[]): MembershipRole | null {
+  if (!roles.length) return null;
+  return [...roles].sort((a, b) => (ROLE_RANK[b] ?? 0) - (ROLE_RANK[a] ?? 0)
+    || String(a).localeCompare(String(b)))[0];
+}
 
 export function requireMembership(minRole?: MembershipRole) {
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {

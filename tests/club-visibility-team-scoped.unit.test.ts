@@ -209,8 +209,12 @@ describe('1-4 · a team-scoped membership IS membership of the club', () => {
     expect(ctx.effectiveAccess.hasClubWideManageAuthority).toBe(false);
     expect(ctx.effectiveAccess.canManageClub).toBe(false);
     expect(ctx.effectiveAccess.canManagePeople).toBe(false);
-    expect(ctx.effectiveAccess.canAccessTransfers).toBe(false);
     expect(ctx.effectiveAccess.canAccessCoachMarket).toBe(false);
+    // Working in the transfer market is a coach's job; trading on the club's
+    // behalf is not. The pair is what "no club-wide authority" means here.
+    expect(ctx.effectiveAccess.canAdministerTransfers).toBe(false);
+    expect(ctx.effectiveAccess.canAdministerStaff).toBe(false);
+    expect(ctx.effectiveAccess.canAdministerLeague).toBe(false);
     expect(ctx.effectiveAccess.canAccessAcademy).toBe(false);
     expect(ctx.effectiveAccess.isPlatformOwner).toBe(false);
     // Visible ≠ unrestricted. The two must never be confused again.

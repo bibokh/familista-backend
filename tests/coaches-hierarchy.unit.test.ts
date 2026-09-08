@@ -61,7 +61,12 @@ describe('one tier is served at a time', () => {
     expect(svcFn('coachesTeamStaff')).toContain('coachesDirectory(actor, { clubId: team.clubId })');
     const dir = svcFn('coachesDirectory');
     expect(dir).toContain('const scope = opts.clubId ? { clubId: opts.clubId } : {};');
-    expect(dir).toContain('where: { isActive: true, ...scope }');
+    expect(dir).toContain('where: { isActive: true, ...scope, ...(visible ? { id: { in: visible } } : {}) }');
+    // The club scope is still there, and a second scope sits beside it now:
+    // the teams this reader actually works with. Before, the actor was ignored
+    // outright — the parameter was named `_actor` — and one club's whole roster
+    // came back to a coach hired for one of its teams.
+    expect(dir).toContain('privateTeamScope(');
   });
 });
 

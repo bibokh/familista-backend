@@ -163,8 +163,14 @@ const sidebarOf = async (userId: string) => sidebarFor((await getContext(userId)
 // ─────────────────────────────────────────────────────────────────────────────
 describe('1-6 · a First-Team-only head coach', () => {
   it('sees the football modules for their team, and only those', async () => {
+    // Transfers, the staff directory and the league were added deliberately in
+    // the pass that followed this one: scouting, the colleagues beside them and
+    // the competition their team plays in are a coach's work. What they still
+    // do not get is administering any of it, which
+    // head-coach-capability-model pins alongside this.
     expect(await sidebarOf(COACH)).toEqual([
-      'club-home', 'squad', 'training', 'video-intelligence', 'match-center',
+      'club-home', 'squad', 'training', 'video-intelligence',
+      'transfers', 'coaches', 'familista-league', 'match-center',
     ]);
   });
 
@@ -174,18 +180,23 @@ describe('1-6 · a First-Team-only head coach', () => {
     expect(await sidebarOf(COACH)).not.toContain('people-access');
   });
 
-  it('3 · does not see the Coach Market, nor the staff directory', async () => {
+  it('3 · does not see the Coach Market, and cannot administer the staff they see', async () => {
     const a = (await getContext(COACH)).effectiveAccess;
+    // The coach market has no read-only tier — browsing staff is how an
+    // approach begins — so it stays club-wide and is not offered.
     expect(a.canAccessCoachMarket).toBe(false);
-    expect(a.canAccessStaffDirectory).toBe(false);
-    const nav = await sidebarOf(COACH);
-    expect(nav).not.toContain('coach-market');
-    expect(nav).not.toContain('coaches');
+    expect(await sidebarOf(COACH)).not.toContain('coach-market');
+    // The staff DIRECTORY is theirs, scoped to their own teams; hiring,
+    // moving and releasing is not.
+    expect(a.canAccessStaffDirectory).toBe(true);
+    expect(a.canAdministerStaff).toBe(false);
   });
 
-  it('and does not see Transfers, which was never theirs to be granted by role', async () => {
-    expect((await getContext(COACH)).effectiveAccess.canAccessTransfers).toBe(false);
-    expect(await sidebarOf(COACH)).not.toContain('transfers');
+  it('and may scout in Transfers without trading on the club\'s behalf', async () => {
+    const a = (await getContext(COACH)).effectiveAccess;
+    expect(a.canAccessTransfers).toBe(true);
+    expect(a.canAdministerTransfers).toBe(false);
+    expect(await sidebarOf(COACH)).toContain('transfers');
   });
 
   it('4 · does not see the Academy without an academy membership', async () => {

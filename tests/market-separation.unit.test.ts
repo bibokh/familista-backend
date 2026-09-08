@@ -176,7 +176,10 @@ describe('the directory is read from what the platform holds', () => {
   it('it queries the teams that exist — no group is written down', () => {
     const f = svcFn('coachesDirectory');
     expect(f).toContain('prisma.team.findMany');
-    expect(f).toContain('where: { isActive: true, ...scope }');
+    expect(f).toContain('where: { isActive: true, ...scope, ...(visible ? { id: { in: visible } } : {}) }');
+    // Scoped twice: to the club asked for, and to the teams the reader works
+    // with. The second is new — the directory used to ignore its actor.
+    expect(f).toContain('privateTeamScope(');
     expect(f).toContain('prisma.membership.findMany');
     expect(f).toMatch(/role: \{ in: TECHNICAL_ROLES \}/);
     // no club and no team is named anywhere

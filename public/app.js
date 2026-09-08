@@ -1648,7 +1648,7 @@ var CLUB_NAV_ITEMS = [
     color:   '#fbbf24',
     enabled: true,
     order:   5.7,
-    requires: 'hasClubWideManageAuthority',
+    requires: 'canAccessLeague',
   },
   {
     // The club's whole match calendar, for every competition it plays in.

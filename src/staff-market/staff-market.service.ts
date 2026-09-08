@@ -21,6 +21,7 @@
 
 import { Prisma, MembershipRole, StaffApproachStatus, StaffAvailability, StaffCareerIntent } from '@prisma/client';
 import { prisma } from '../config/database';
+import { privateTeamScope } from '../identity/team-access.service';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
 import {
@@ -1800,13 +1801,33 @@ export async function coachesTeamStaff(actor: StaffActor, teamId: string) {
   return { group };
 }
 
-export async function coachesDirectory(_actor: StaffActor, opts: { clubId?: string } = {}) {
+export async function coachesDirectory(actor: StaffActor, opts: { clubId?: string } = {}) {
   // One club at a time when a club is asked for — the directory is read by
   // drilling in, so nothing loads the whole platform to show one team.
   const scope = opts.clubId ? { clubId: opts.clubId } : {};
+
+  // ── and only the teams this person actually works with ────────────────────
+  //
+  // The actor used to be ignored here — the parameter was literally named
+  // `_actor` — so the directory answered with every team in the club and the
+  // staff of each. That is the club's own roster of colleagues, not a secret,
+  // but it is still another team's, and a coach hired for one team is offered
+  // this module precisely because the people beside him are his business
+  // while the academy's are not.
+  //
+  // Club-wide staff stay visible: they are nobody else's team, they are the
+  // club's, and a coach who cannot see his own club's leadership is being told
+  // less than the truth. Somebody whose access covers the club — a president,
+  // a club administrator, a platform administrator — sees all of it, exactly
+  // as before.
+  const teamScope = await privateTeamScope({
+    userId: actor.userId, clubId: opts.clubId ?? actor.clubId, role: actor.role,
+  });
+  const visible: string[] | null = teamScope.unrestricted ? null : [...teamScope.teamIds];
+
   const [teams, memberships] = await Promise.all([
     prisma.team.findMany({
-      where: { isActive: true, ...scope },
+      where: { isActive: true, ...scope, ...(visible ? { id: { in: visible } } : {}) },
       select: {
         id: true, name: true, shortName: true, kind: true, ageMin: true, ageMax: true,
         emblem: true, color: true,
@@ -1816,7 +1837,12 @@ export async function coachesDirectory(_actor: StaffActor, opts: { clubId?: stri
       take: 2000,
     }),
     prisma.membership.findMany({
-      where: { isActive: true, role: { in: TECHNICAL_ROLES }, user: { isActive: true }, ...scope },
+      where: {
+        isActive: true, role: { in: TECHNICAL_ROLES }, user: { isActive: true }, ...scope,
+        // A team-scoped reader sees their own teams' staff and the club's own;
+        // `teamId: null` is the club-wide group, which belongs to no team.
+        ...(visible ? { OR: [{ teamId: { in: visible } }, { teamId: null }] } : {}),
+      },
       include: { user: { select: publicUserSelect }, club: { select: publicClubSelect } },
       take: 5000,
     }),

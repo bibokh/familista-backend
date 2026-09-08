@@ -4,7 +4,7 @@
 // Read /me/context → list of available clubs/teams and the currently selected pair.
 // Write /me/context → switch tenant (verified against active Memberships).
 
-import { Prisma, MembershipAuditAction } from '@prisma/client';
+import { Prisma, MembershipAuditAction, MembershipRole } from '@prisma/client';
 import { prisma } from '../config/database';
 import { ForbiddenError, BadRequestError } from '../utils/errors';
 import { getActiveMembershipsForUser, hasActiveMembership } from './membership.service';
@@ -12,6 +12,7 @@ import {
   privateTeamScope, hasClubWideManageAuthority, isAcademyKind,
 } from '../identity/team-access.service';
 import { isPlatformOwner } from '../platform/access-levels';
+import { meetsMembershipRank, strongestMembershipRole } from '../middleware/tenant.middleware';
 import { forgetIdentity } from '../middleware/auth.middleware';
 
 export async function getContext(userId: string) {
@@ -95,18 +96,15 @@ export async function getContext(userId: string) {
     : (clubs.length === 1 ? clubs[0].id
       : (belongsTo(user.clubId) ? user.clubId : null));
 
-  // The strongest membership held in the club currently open. Ordered by
-  // authority so "CLUB_OWNER plus HEAD_COACH" reads as owner, which is what
-  // that person is.
-  const RANK = ['CLUB_OWNER', 'CLUB_ADMIN', 'MANAGER', 'HEAD_COACH', 'ASSISTANT_COACH',
-    'ANALYST', 'SCOUT', 'MEDICAL_STAFF', 'PARENT', 'PLAYER', 'DEVICE'];
-  const currentRoles = currentClubId ? (clubMap.get(currentClubId)?.roles ?? []) : [];
-  const currentClubRole = currentRoles.length
-    ? [...currentRoles].sort((a, b) => {
-      const ia = RANK.indexOf(a); const ib = RANK.indexOf(b);
-      return (ia < 0 ? RANK.length : ia) - (ib < 0 ? RANK.length : ib);
-    })[0]
-    : null;
+  // The strongest membership held in the club currently open, so "CLUB_OWNER
+  // plus HEAD_COACH" reads as owner, which is what that person is.
+  //
+  // Ranked by the table `requireMembership` uses. It used to be ranked by a
+  // list written out here, which had drifted: it carried MANAGER, which is not
+  // a MembershipRole at all, and was missing the six technical-staff roles
+  // added later — so a goalkeeping coach ranked below a device.
+  const currentRoles = (currentClubId ? (clubMap.get(currentClubId)?.roles ?? []) : []) as MembershipRole[];
+  const currentClubRole = strongestMembershipRole(currentRoles);
 
   // ── which teams this person may actually work with ────────────────────────
   //
@@ -150,8 +148,24 @@ export async function getContext(userId: string) {
   // Running the club, as `requireMembership('CLUB_ADMIN')` means it: the same
   // ranking the middleware uses, asked of the same memberships. This is what
   // People & Access, the membership writes and the invitation routes require.
-  const MANAGE_CLUB_ROLES = ['CLUB_OWNER', 'CLUB_ADMIN'];
-  const canManageClub = currentRoles.some((r) => MANAGE_CLUB_ROLES.includes(r));
+  const canManageClub = meetsMembershipRank(currentRoles, MembershipRole.CLUB_ADMIN);
+
+  // Working WITH a module and ADMINISTERING it are different questions, and
+  // the modules that answer them differently now say so.
+  //
+  // A head coach hired for the first team scouts players, reads the league his
+  // team plays in, and sees who works alongside him. He does not sell the
+  // club's players, run its recruitment, or administer the competition. Both
+  // halves are mirrored from the guards that actually decide, so a capability
+  // cannot promise what a route will refuse:
+  //
+  //   transfers  · [requireMembership(HEAD_COACH), requireClubWideManage()]
+  //   staff      · [requireMembership(CLUB_ADMIN),  requireClubWideManage()]
+  //   league     · authorize(SUPER_ADMIN) + assertLeagueAdmin — the league is
+  //                owned by no club, so no club administrator administers it.
+  const canAdministerTransfers = clubWideManage
+    && meetsMembershipRank(currentRoles, MembershipRole.HEAD_COACH);
+  const canAdministerStaff = clubWideManage && canManageClub;
 
   // The academy is a workspace, not a label: it opens to somebody assigned to
   // an academy side, or to somebody who runs the club and therefore runs all
@@ -205,19 +219,36 @@ export async function getContext(userId: string) {
       /** Invite, suspend, remove — the People & Access screen. */
       canManagePeople: canManageClub,
       /**
-       * Recruitment. Club-level work, so it takes club-level authority: a
-       * coach hired to run one team is not the club's recruiter.
-       *
-       * NOTE, and it is not a small one: the transfer and coach-market WRITE
-       * routes still authorise on User.role, which includes HEAD_COACH. This
-       * capability is deliberately narrower than that guard, so the module is
-       * not offered — but it does not make the guard narrower, and only the
-       * guard is security. See the report accompanying this change.
+       * The transfer workspace: scouting, search, shortlists, comparison — the
+       * football work of finding a player, which is a coach's job. Reading the
+       * market is open to the whole club on the server; this asks the narrower
+       * question the sidebar needs, which is whether they work with a team at
+       * all.
        */
-      canAccessTransfers: clubWideManage,
+      canAccessTransfers: scope.unrestricted || scope.teamIds.length > 0,
+      /** Listing, selling, bidding, contracts. Club-wide, and mirrored below. */
+      canAdministerTransfers,
+
+      /**
+       * The coach market. Recruiting STAFF is the club's decision, and there
+       * is no read-only tier of it in the product: browsing is how an approach
+       * begins. So it stays club-wide, and a head coach is not offered it.
+       */
       canAccessCoachMarket: clubWideManage,
-      /** The club's staff directory — who works where, across every team. */
-      canAccessStaffDirectory: clubWideManage,
+
+      /** Who works alongside them. Scoped to their teams by the directory. */
+      canAccessStaffDirectory: scope.unrestricted || scope.teamIds.length > 0,
+      /** Hiring, moving between teams, releasing. Club administration. */
+      canAdministerStaff,
+
+      /**
+       * The competition their team plays in: fixtures, standings, results.
+       * Reading a league table is open to every club by design — it is
+       * competitive information about all of its participants.
+       */
+      canAccessLeague: scope.unrestricted || scope.teamIds.length > 0,
+      /** Who is in the league, and when they play. The platform's, not a club's. */
+      canAdministerLeague: platformOwner,
       /** An academy assignment, or the authority that covers every team. */
       canAccessAcademy,
       /** Any team at all: the football modules need one team to be about. */
