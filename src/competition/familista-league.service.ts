@@ -17,6 +17,7 @@
 import { prisma } from '../config/database';
 import { NotFoundError } from '../utils/errors';
 import { LEAGUE_CODE } from './familista-league.bootstrap';
+import { TeamActor, viewerSideOfFixture } from '../identity/team-access.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Rules — configuration, not branching
@@ -365,6 +366,18 @@ export interface LeagueMatchRow {
   awayScore: number | null;
   home: LeagueTeamIdentity | null;
   away: LeagueTeamIdentity | null;
+  /**
+   * The caller's own side of this fixture, by canonical `Team.id`, or null.
+   *
+   * Answered by `viewerSideOfFixture` — the same function the Match Centre
+   * asks before it reads a fixture — so a row that says it opens is a row the
+   * Match Centre will open. The interface does not work this out for itself:
+   * doing so was a second implementation of an authorization question, and it
+   * disagreed with the server.
+   */
+  viewerTeamId: string | null;
+  /** Whether the Match Centre will open on this fixture for this caller. */
+  canOpenMatchCentre: boolean;
 }
 
 export interface LeagueRoundsView {
@@ -393,7 +406,34 @@ function pickCurrentRound(all: Array<{ round: number | null; status: string }>):
   return rounds[rounds.length - 1];
 }
 
-export async function getRound(competitionId: string, round?: number): Promise<LeagueRoundsView> {
+/**
+ * Fill in, for one caller, which side of each fixture is theirs.
+ *
+ * One question per row, asked of `viewerSideOfFixture` — persisted Team ids
+ * compared against the caller's memberships, and nothing else. A caller with no
+ * session (the League is readable without one in some hosts) gets null on every
+ * row, which is the honest answer: nobody's fixture is theirs to prepare.
+ */
+async function withViewerSide<T extends { home: LeagueTeamIdentity | null; away: LeagueTeamIdentity | null }>(
+  rows: T[],
+  actor: TeamActor | null,
+  homeTeamIdOf: (row: T) => string,
+  awayTeamIdOf: (row: T) => string,
+): Promise<Array<T & { viewerTeamId: string | null; canOpenMatchCentre: boolean }>> {
+  if (!actor || !actor.userId || !actor.clubId) {
+    return rows.map((r) => ({ ...r, viewerTeamId: null, canOpenMatchCentre: false }));
+  }
+  return Promise.all(rows.map(async (r) => {
+    const side = await viewerSideOfFixture(actor, homeTeamIdOf(r), awayTeamIdOf(r));
+    return { ...r, viewerTeamId: side ? side.teamId : null, canOpenMatchCentre: !!side };
+  }));
+}
+
+export async function getRound(
+  competitionId: string,
+  round?: number,
+  actor?: TeamActor | null,
+): Promise<LeagueRoundsView> {
   await requireLeague(competitionId);
 
   // One pass for the round index, so the client never has to ask twice to know
@@ -408,15 +448,20 @@ export async function getRound(competitionId: string, round?: number): Promise<L
 
   if (wanted == null) return { rounds, currentRound, round: null, matches: [] };
 
-  const [fixtures, identities] = await Promise.all([
-    prisma.fixture.findMany({
-      where: { competitionId, round: wanted },
-      orderBy: [{ scheduledAt: 'asc' }],
-    }),
-    teamIdentities(competitionId),
-  ]);
+  const fixtures = await prisma.fixture.findMany({
+    where: { competitionId, round: wanted },
+    orderBy: [{ scheduledAt: 'asc' }],
+  });
+  // The sides are resolved from the fixture's own team ids as well as from the
+  // participant rows. A fixture may name a team that was never registered —
+  // and a row whose sides cannot be named is a row nothing can be decided
+  // about, on screen or anywhere else.
+  const identities = await teamIdentities(
+    competitionId,
+    fixtures.flatMap((f) => [f.homeTeamId, f.awayTeamId]),
+  );
 
-  const matches: LeagueMatchRow[] = fixtures.map((f) => ({
+  const base = fixtures.map((f) => ({
     fixtureId: f.id,
     matchId: f.matchId ?? null,
     round: f.round ?? null,
@@ -428,7 +473,14 @@ export async function getRound(competitionId: string, round?: number): Promise<L
     awayScore: f.awayScore,
     home: identities.get(f.homeTeamId) ?? null,
     away: identities.get(f.awayTeamId) ?? null,
+    homeTeamId: f.homeTeamId,
+    awayTeamId: f.awayTeamId,
   }));
+
+  const withSide = await withViewerSide(base, actor ?? null,
+    (r) => r.homeTeamId, (r) => r.awayTeamId);
+  // The raw team ids were carried only so the question could be asked of them.
+  const matches: LeagueMatchRow[] = withSide.map(({ homeTeamId: _h, awayTeamId: _a, ...row }) => row);
 
   return { rounds, currentRound, round: wanted, matches };
 }
@@ -738,14 +790,26 @@ async function matchSides(
   };
 }
 
-export async function getMatchDetail(competitionId: string, fixtureId: string): Promise<LeagueMatchDetail> {
+export async function getMatchDetail(
+  competitionId: string,
+  fixtureId: string,
+  actor?: TeamActor | null,
+): Promise<LeagueMatchDetail> {
   const comp = await requireCompetition(competitionId);
 
   const fixture = await prisma.fixture.findFirst({ where: { id: fixtureId, competitionId } });
   if (!fixture) throw new NotFoundError('Fixture');
 
   const identities = await teamIdentities(competitionId, [fixture.homeTeamId, fixture.awayTeamId]);
+  // The same question the Match Centre will ask when this fixture is opened,
+  // asked here so the panel offering the control and the route serving it
+  // cannot give different answers.
+  const side = (actor && actor.userId && actor.clubId)
+    ? await viewerSideOfFixture(actor, fixture.homeTeamId, fixture.awayTeamId)
+    : null;
   const row: LeagueMatchRow = {
+    viewerTeamId: side ? side.teamId : null,
+    canOpenMatchCentre: !!side,
     fixtureId: fixture.id,
     matchId: fixture.matchId ?? null,
     round: fixture.round ?? null,
@@ -1271,7 +1335,11 @@ export async function getTeamRecord(competitionId: string, teamId: string): Prom
     else availability.available += 1;
   }
 
+  // A club's record page lists results, and opens nothing: the Match Centre is
+  // reached from the calendar and the round, where the question has been asked.
   const toRow = (f: (typeof played)[number]): LeagueMatchRow => ({
+    viewerTeamId: null,
+    canOpenMatchCentre: false,
     fixtureId: f.id,
     matchId: f.matchId ?? null,
     round: f.round ?? null,

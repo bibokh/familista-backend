@@ -205,6 +205,53 @@ export async function accessForTeam(actor: TeamActor, teamId: string): Promise<T
     clubWide.map((r) => r.role));
 }
 
+/**
+ * Which side of a fixture is this caller's own, by canonical Team id.
+ *
+ * The single answer to "is this fixture mine to prepare for", and the only one.
+ * The Match Centre asks it before it reads a fixture; the League asks it so a
+ * row can say whether it opens. Two callers, one function — because when the
+ * interface computes this for itself it is a SECOND implementation of an
+ * authorization question, and two implementations can disagree. That is exactly
+ * what happened: the League decided from the club's competition entries
+ * (`myTeamIds`), the Match Centre decided from team access, and a coach was
+ * shown a control the server then refused.
+ *
+ * It compares persisted Team ids and nothing else. Not a club name, not a team
+ * name, not a display label, not a position in a list, not the club id — a club
+ * may field several teams in one competition, and a fixture that names the
+ * club's SECOND senior side is not the first team's coach's to prepare, however
+ * identical the two rows look on screen. `homeTeamId` and `awayTeamId` are
+ * `Team.id`, `Membership.teamId` is `Team.id`, `CompetitionTeam.teamId` is
+ * `Team.id`, and this asks `accessForTeam` about those ids directly.
+ *
+ * Null means neither side is one this caller may read privately. It does not
+ * throw: a list of fixtures asks about every row, and most of them are other
+ * clubs'. The caller that needs a refusal raises it.
+ */
+export async function viewerSideOfFixture(
+  actor: TeamActor,
+  homeTeamId: string,
+  awayTeamId: string,
+): Promise<{ teamId: string; access: TeamAccess } | null> {
+  let best: { teamId: string; access: TeamAccess } | null = null;
+  for (const teamId of [homeTeamId, awayTeamId]) {
+    if (!teamId) continue;
+    let access: TeamAccess;
+    // A team id that names no row answers nothing. The fixture's own reader
+    // reports that; this is not the place a 404 is decided.
+    try { access = await accessForTeam(actor, teamId); } catch { continue; }
+    if (!access.canView) continue;
+    // Seeing that a team exists is not seeing what it prepared for a match.
+    // A fixture opens from a side the reader actually works on.
+    if (!access.canViewPrivate) continue;
+    // A team this person manages wins over one they merely read, so a fixture
+    // between two of the club's own teams is writable from the right side.
+    if (!best || (access.canManage && !best.access.canManage)) best = { teamId, access };
+  }
+  return best;
+}
+
 export interface TeamContext {
   teamId: string;
   name: string;

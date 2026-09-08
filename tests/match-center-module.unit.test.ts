@@ -233,7 +233,7 @@ describe('one fixture is one record', () => {
     // The Match Center does not reimplement the match document; it asks the
     // reader the League already uses.
     expect(MCS).toContain("import * as league from './familista-league.service'");
-    expect(MCS).toContain('league.getMatchDetail(fixture.competitionId, fixture.id)');
+    expect(MCS).toContain('league.getMatchDetail(fixture.competitionId, fixture.id, actor)');
     expect(APP.match(/function _mcOverviewHtml\(/g) || []).toHaveLength(1);
     expect(APP.match(/function _mcPreparationHtml\(/g) || []).toHaveLength(1);
   });
@@ -273,9 +273,18 @@ describe('the calendar is one team\'s, and the First Team is the default', () =>
   it('and a fixture with no team this caller may read cannot be opened', () => {
     const at = MCS.indexOf('async function fixtureAccess');
     const guard = MCS.slice(at, MCS.indexOf('\n}', at));
-    expect(guard).toContain('await accessForTeam(actor, teamId)');
-    expect(guard).toContain('if (!access.canView) continue;');
+    // The question moved to `viewerSideOfFixture` in team-access, because the
+    // League has to ask the SAME one before a row offers to open the Match
+    // Centre — two implementations of it disagreed in production. This gate is
+    // now that resolver plus the refusal.
+    expect(guard).toContain('await viewerSideOfFixture(actor, homeTeamId, awayTeamId)');
     expect(guard).toContain('throw new ForbiddenError');
+    const TAS = require('fs').readFileSync(
+      require('path').join(__dirname, '..', 'src', 'identity', 'team-access.service.ts'), 'utf8');
+    const rat = TAS.indexOf('export async function viewerSideOfFixture');
+    const res = TAS.slice(rat, TAS.indexOf('\n}', rat));
+    expect(res).toContain('await accessForTeam(actor, teamId)');
+    expect(res).toContain('if (!access.canView) continue;');
     expect(MCS).toContain('const ours = await fixtureAccess(actor, fixture.homeTeamId, fixture.awayTeamId)');
   });
 });

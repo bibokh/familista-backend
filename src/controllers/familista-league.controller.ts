@@ -112,7 +112,7 @@ export async function getMatches(req: Request, res: Response, next: NextFunction
     const found = await resolveLeague(req);
     const { round } = roundSchema.parse(req.query);
     const [view, myTeamIds] = await Promise.all([
-      league.getRound(found.id, round),
+      league.getRound(found.id, round, actorOf2(req)),
       league.getMyTeamIds(found.id, callerClubId(req)),
     ]);
     res.json({ success: true, data: { ...view, myTeamIds, season: found.season } });
@@ -160,7 +160,7 @@ export async function getMatchDetail(req: Request, res: Response, next: NextFunc
   try {
     const found = await resolveLeague(req);
     const { fixtureId } = fixtureSchema.parse(req.params);
-    const detail = await league.getMatchDetail(found.id, fixtureId);
+    const detail = await league.getMatchDetail(found.id, fixtureId, actorOf2(req));
     res.json({ success: true, data: detail });
   } catch (err) { next(err); }
 }

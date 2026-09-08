@@ -116,6 +116,7 @@ const db: Row = {
 jest.mock('../src/config/database', () => ({ prisma: db }));
 
 import { getFixtureDetail } from '../src/competition/match-center.service';
+import { getRound, getMatchDetail } from '../src/competition/familista-league.service';
 
 const ROOT = path.join(__dirname, '..');
 const APP = fs.readFileSync(path.join(ROOT, 'public/app.js'), 'utf8');
@@ -243,71 +244,204 @@ describe('3 · another team\'s preparation is refused by the server', () => {
     await expect(getFixtureDetail(pres as never, STRANGERS)).rejects.toThrow(/access/i);
   });
 
-  it('and the gate that refuses them is untouched', () => {
+  it('and the gate that refuses them asks the one resolver, and refuses the same way', () => {
     const svc = fs.readFileSync(path.join(ROOT, 'src/competition/match-center.service.ts'), 'utf8');
     const from = svc.indexOf('async function fixtureAccess(');
     expect(from).toBeGreaterThan(-1);
     const fn = svc.slice(from, svc.indexOf('\n}', from));
-    expect(fn).toContain('await accessForTeam(actor, teamId)');
-    expect(fn).toContain('if (!access.canViewPrivate) continue;');
+    expect(fn).toContain('await viewerSideOfFixture(actor, homeTeamId, awayTeamId)');
     expect(fn).toContain("throw new ForbiddenError('That fixture does not belong to a team you have access to')");
-    // It asks team-access and no role name of its own.
     expect(fn).not.toMatch(/HEAD_COACH|CLUB_ADMIN|CLUB_OWNER/);
+
+    // And the resolver it delegates to compares persisted team ids through
+    // team-access, and nothing else. This is the one place the question lives.
+    const ta = fs.readFileSync(path.join(ROOT, 'src/identity/team-access.service.ts'), 'utf8');
+    const at = ta.indexOf('export async function viewerSideOfFixture(');
+    expect(at).toBeGreaterThan(-1);
+    const res = ta.slice(at, ta.indexOf('\n}', at));
+    expect(res).toContain('await accessForTeam(actor, teamId)');
+    expect(res).toContain('if (!access.canViewPrivate) continue;');
+    // Never a name, a label, a club or an index.
+    expect(res).not.toMatch(/clubName|teamName|shortName|\.name\b|indexOf\(/);
+    expect(res).not.toMatch(/HEAD_COACH|CLUB_ADMIN|CLUB_OWNER/);
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe('4 · the interface offers only what it can open', () => {
-  /** The real `_flCanOpenMatchCentre`, on one reader's real scope. */
-  function canOpen(fixture: Row, ctx: Row | null): boolean {
-    const src = between('function _flMine(teamId) {', 'function _flRoot() {');
-    const St = { context: ctx };
-    // eslint-disable-next-line no-new-func
-    const fn = new Function('State', '_FL', `${src}\nreturn _flCanOpenMatchCentre;`);
-    return fn(St, { myTeamIds: [T_FIRST, T_U15] })(fixture);
-  }
-  const side = (teamId: string) => ({ teamId });
-  const OUR_ROW = { home: side(T_FIRST), away: side(T_OPP) };
-  const U15_ROW = { home: side(T_U15), away: side(T_OPP) };
-  const OTHERS_ROW = { home: side(T_OPP), away: side('team-x') };
+describe('4 · one canonical answer, and the interface reads it', () => {
+  it('the League fills each row from the same function the Match Centre asks', async () => {
+    const view = await getRound(COMP, 3, COACH as never);
+    const byId = new Map(view.matches.map((m) => [m.fixtureId, m]));
 
-  const coachScope = { currentTeamScope: { unrestricted: false, teams: [{ id: T_FIRST }] } };
-  const clubWide = { currentTeamScope: { unrestricted: true, teams: [] } };
+    // THE PRODUCTION SHAPE: a team-scoped head coach, his authorized First
+    // Team, a league fixture containing that same First Team.
+    const ours = byId.get(OURS)!;
+    expect(ours.canOpenMatchCentre).toBe(true);
+    // And it names WHICH team of his it matched, by persisted id.
+    expect(ours.viewerTeamId).toBe(T_FIRST);
 
-  it('a team-scoped coach is offered his own team\'s fixture', () => {
-    expect(canOpen(OUR_ROW, coachScope)).toBe(true);
+    // His club's OTHER team's fixture. Same club, same crest, same name on
+    // screen — and a different Team row, so not his.
+    expect(byId.get(ACADEMY_FIX)!.canOpenMatchCentre).toBe(false);
+    expect(byId.get(ACADEMY_FIX)!.viewerTeamId).toBeNull();
+
+    // Two other clubs entirely.
+    expect(byId.get(STRANGERS)!.canOpenMatchCentre).toBe(false);
+    expect(byId.get(STRANGERS)!.viewerTeamId).toBeNull();
   });
 
-  it('and not his club\'s other team\'s, which myTeamIds would have called his', () => {
-    expect(canOpen(U15_ROW, coachScope)).toBe(false);
-    expect(canOpen(OTHERS_ROW, coachScope)).toBe(false);
+  it('and the row the panel is built from carries the same answer', async () => {
+    const d = await getMatchDetail(COMP, OURS, COACH as never);
+    expect(d.fixture.canOpenMatchCentre).toBe(true);
+    expect(d.fixture.viewerTeamId).toBe(T_FIRST);
+    const other = await getMatchDetail(COMP, ACADEMY_FIX, COACH as never);
+    expect(other.fixture.canOpenMatchCentre).toBe(false);
+    expect(other.fixture.viewerTeamId).toBeNull();
   });
 
-  it('a club-wide reader is offered both of the club\'s and neither of the strangers\'', () => {
-    expect(canOpen(OUR_ROW, clubWide)).toBe(true);
-    expect(canOpen(U15_ROW, clubWide)).toBe(true);
-    expect(canOpen(OTHERS_ROW, clubWide)).toBe(false);
+  it('and it agrees with the route that serves the fixture, on every row', async () => {
+    // The two answers come from one function, so this cannot drift. Asserted
+    // anyway, because drifting is precisely what happened when there were two.
+    const view = await getRound(COMP, 3, COACH as never);
+    for (const row of view.matches) {
+      let served = true;
+      try { await getFixtureDetail(COACH as never, row.fixtureId); } catch { served = false; }
+      expect(`${row.fixtureId} · offered ${row.canOpenMatchCentre}, served ${served}`)
+        .toBe(`${row.fixtureId} · offered ${served}, served ${served}`);
+    }
   });
 
-  it('and before the scope has arrived it offers nothing rather than guessing', () => {
-    expect(canOpen(OUR_ROW, null)).toBe(false);
-    expect(canOpen(OUR_ROW, {})).toBe(false);
+  it('and a club-wide member is offered both of the club\'s and neither stranger', async () => {
+    state.memberships = [{
+      id: 'm-pres', userId: 'u-pres', clubId: CLUB, teamId: null,
+      role: 'CLUB_OWNER', isActive: true,
+    }];
+    const pres = { userId: 'u-pres', clubId: CLUB, role: 'CLUB_ADMIN' };
+    const byId = new Map((await getRound(COMP, 3, pres as never)).matches.map((m) => [m.fixtureId, m]));
+    expect(byId.get(OURS)!.viewerTeamId).toBe(T_FIRST);
+    expect(byId.get(ACADEMY_FIX)!.viewerTeamId).toBe(T_U15);
+    expect(byId.get(STRANGERS)!.canOpenMatchCentre).toBe(false);
   });
 
-  it('and it asks the scope, never a role', () => {
-    const src = between('function _flCanOpenMatchCentre(x) {', '// The element this League is drawn inside');
-    expect(src).toContain('currentTeamScope');
+  it('and a caller with no session is offered nothing', async () => {
+    const view = await getRound(COMP, 3, null);
+    expect(view.matches.every((m) => m.canOpenMatchCentre === false)).toBe(true);
+    expect(view.matches.every((m) => m.viewerTeamId === null)).toBe(true);
+  });
+
+  it('the client reads that answer and derives nothing of its own', () => {
+    const src = between('function _flCanOpenMatchCentre(x) {', '/**\n * Why a fixture is not this reader');
+    expect(src).toContain('return !!(x && x.canOpenMatchCentre);');
+    // The two things it used to work out for itself, both gone.
+    expect(src).not.toContain('myTeamIds');
+    expect(src).not.toContain('currentTeamScope');
     expect(src).not.toMatch(/HEAD_COACH|CLUB_OWNER|CLUB_ADMIN|currentClubRole/);
   });
 
-  it('and the preview says whose the match is instead of offering a button that fails', () => {
+  it('and the preview offers the control, or says whose the match is', () => {
     const fn = between('function _flPreviewHtml() {', 'async function _flOpenPreview(fixtureId) {');
-    expect(fn).toContain('_flCanOpenMatchCentre(');
-    expect(fn).toContain('Match preparation is private to the teams playing');
-    // Not a disabled control: a disabled button says "later", and this is not
-    // a later. Checked against the code, not the prose explaining it.
+    expect(fn).toContain('_flCanOpenMatchCentre(d.fixture)');
+    expect(fn).toContain('_flNotMineBecause(');
     const code = fn.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
     expect(code).not.toContain('disabled');
+  });
+
+  it('and it says which of the two it is, without deciding anything by it', () => {
+    const fn = between('function _flNotMineBecause(x) {', 'function _flRoot() {');
+    // Read from the identities already on the row, for the sentence only.
+    expect(fn).toContain('Another of your club’s teams plays this one');
+    expect(fn).toContain('Match preparation is private to the teams playing');
+    expect(fn).not.toContain('canOpenMatchCentre');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('4b · and the canonical id is the only thing compared', () => {
+  it('a club\'s SECOND senior team is a different team, however alike the rows look', async () => {
+    // The trap this whole change is about. One club may field several teams in
+    // one competition; the League row shows the CLUB's name and crest for both,
+    // so two rows are indistinguishable on screen and are different Team rows.
+    const T_SECOND = 'team-first-b';
+    state.teams.push({ id: T_SECOND, clubId: CLUB, name: 'First Team', kind: 'SENIOR', isActive: true });
+    state.fixtures.push({
+      id: 'fix-second', competitionId: COMP, clubId: null,
+      homeTeamId: T_SECOND, awayTeamId: T_OPP,
+      scheduledAt: new Date('2026-03-01T18:00:00Z'), venue: 'Stadion', round: 3, leg: 1,
+      status: 'SCHEDULED', homeScore: null, awayScore: null, playedAt: null, matchId: null,
+    });
+
+    const byId = new Map((await getRound(COMP, 3, COACH as never)).matches.map((m) => [m.fixtureId, m]));
+    const mine = byId.get(OURS)!;
+    const theirs = byId.get('fix-second')!;
+
+    // Same club name, same crest, the same team NAME — and one is his, one is
+    // not, because the ids differ and the ids are what is compared.
+    expect(mine.home!.clubName).toBe(theirs.home!.clubName);
+    expect(mine.home!.teamName).toBe(theirs.home!.teamName);
+    expect(mine.home!.clubId).toBe(theirs.home!.clubId);
+    expect(mine.home!.teamId).not.toBe(theirs.home!.teamId);
+
+    expect(mine.canOpenMatchCentre).toBe(true);
+    expect(mine.viewerTeamId).toBe(T_FIRST);
+    expect(theirs.canOpenMatchCentre).toBe(false);
+    expect(theirs.viewerTeamId).toBeNull();
+    await expect(getFixtureDetail(COACH as never, 'fix-second')).rejects.toThrow(/access/i);
+  });
+
+  it('and a fixture naming a team that never registered is still identified', async () => {
+    // `teamIdentities` was asked only about the competition's participants, so
+    // a fixture naming an unregistered team came back with a nameless side —
+    // and a row whose sides cannot be named is a row nothing can be decided
+    // about. The fixture's own team ids are asked for now.
+    const T_GUEST = 'team-guest';
+    state.teams.push({ id: T_GUEST, clubId: 'club-x', name: 'Guest XI', kind: 'SENIOR', isActive: true });
+    state.fixtures.push({
+      id: 'fix-guest', competitionId: COMP, clubId: null,
+      homeTeamId: T_FIRST, awayTeamId: T_GUEST,
+      scheduledAt: new Date('2026-03-02T18:00:00Z'), venue: 'Stadion', round: 3, leg: 1,
+      status: 'SCHEDULED', homeScore: null, awayScore: null, playedAt: null, matchId: null,
+    });
+    const row = (await getRound(COMP, 3, COACH as never)).matches.find((m) => m.fixtureId === 'fix-guest')!;
+    expect(row.away).not.toBeNull();
+    expect(row.away!.teamId).toBe(T_GUEST);
+    // And it is still the coach's fixture, from his own side.
+    expect(row.canOpenMatchCentre).toBe(true);
+    expect(row.viewerTeamId).toBe(T_FIRST);
+  });
+
+  it('and the answer survives the id being the away side rather than the home one', async () => {
+    state.fixtures.push({
+      id: 'fix-away', competitionId: COMP, clubId: null,
+      homeTeamId: T_OPP, awayTeamId: T_FIRST,
+      scheduledAt: new Date('2026-03-03T18:00:00Z'), venue: 'Away', round: 3, leg: 1,
+      status: 'SCHEDULED', homeScore: null, awayScore: null, playedAt: null, matchId: null,
+    });
+    const row = (await getRound(COMP, 3, COACH as never)).matches.find((m) => m.fixtureId === 'fix-away')!;
+    expect(row.canOpenMatchCentre).toBe(true);
+    expect(row.viewerTeamId).toBe(T_FIRST);
+    expect((await getFixtureDetail(COACH as never, 'fix-away')).teamId).toBe(T_FIRST);
+  });
+
+  it('and none of it grants club-wide authority or changes the coach\'s scope', async () => {
+    const before = JSON.stringify(state.memberships);
+    await getRound(COMP, 3, COACH as never);
+    await getFixtureDetail(COACH as never, OURS);
+    expect(JSON.stringify(state.memberships)).toBe(before);
+    // Still one membership, still team-scoped, still HEAD_COACH.
+    expect(state.memberships).toHaveLength(1);
+    expect(state.memberships[0].teamId).toBe(T_FIRST);
+    expect(state.memberships[0].role).toBe('HEAD_COACH');
+    // And the club's other team is still refused, which is what "no club-wide
+    // authority" means here.
+    await expect(getFixtureDetail(COACH as never, ACADEMY_FIX)).rejects.toThrow(/access/i);
+  });
+
+  it('and direct access to an unauthorized fixture is still refused at the route', async () => {
+    // Offered or not, the server is the one refusing. Asking for the id
+    // directly — which is all "the UI hid it" would ever be worth — is refused.
+    for (const id of [ACADEMY_FIX, STRANGERS]) {
+      await expect(getFixtureDetail(COACH as never, id)).rejects.toThrow(/access/i);
+    }
   });
 });
 
@@ -345,6 +479,7 @@ describe('5 · and a failure says which failure it was', () => {
       'This match is another team’s',
       'That fixture is no longer there',
       'Match preparation is private to the teams playing',
+      'Another of your club’s teams plays this one',
     ];
     for (const file of locales) {
       const cat = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/i18n/catalogue', file), 'utf8'));
@@ -377,7 +512,7 @@ describe('6 · and the fixture id is the only identifier that crosses', () => {
     const fn = svc.slice(from, svc.indexOf('\n}\n', from));
     expect(fn).toContain('prisma.fixture.findUnique({');
     expect(fn).toContain('where: { id: fixtureId }');
-    expect(fn).toContain('league.getMatchDetail(fixture.competitionId, fixture.id)');
+    expect(fn).toContain('league.getMatchDetail(fixture.competitionId, fixture.id, actor)');
   });
 
   it('and the same fixture id answers the same way every time', async () => {

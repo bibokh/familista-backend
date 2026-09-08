@@ -66128,32 +66128,44 @@ function _flMine(teamId) {
 /**
  * Whether this reader may open the Match Centre on a fixture.
  *
- * The League shows the whole competition — every round, every club — and the
- * Match Centre shows one team's private preparation. Those are different
- * questions, and `myTeamIds` answers the wrong one: it is the CLUB's entries in
- * this competition, so for a coach assigned to one team it marks his club's
- * other teams as his too. Opening one of those is refused by the server, which
- * is right, and the reader was offered a button that could only fail.
+ * The server's answer, read — not worked out here. `viewerSideOfFixture` is the
+ * one place that question is answered, and `getFixtureDetail` asks it before it
+ * reads a fixture, so a row that says it opens is a row the Match Centre opens.
  *
- * So the answer comes from the reader's own team scope — the same scope the
- * server computed and sent down in the context. Nothing is granted here: a
- * fixture this returns true for is still checked by `assertCanViewTeamPrivate`
- * before a single row of preparation is read.
+ * It used to be derived on this side, and derived twice over: first from
+ * `myTeamIds`, which the server computes per CLUB, so a coach assigned to one
+ * team had his club's other teams counted as his and was offered a control the
+ * server then refused; then from `currentTeamScope`, which was the right list
+ * but still a SECOND implementation of an authorization question — and two
+ * implementations can disagree, which is what a coach was looking at when a
+ * fixture of his own read as somebody else's.
+ *
+ * The comparison itself happens on the server, between persisted `Team.id`
+ * values: the fixture's `homeTeamId` and `awayTeamId` against the caller's
+ * memberships. Never a club name, a team name, a display label, a position in a
+ * list, or a club id — one club may field several teams in one competition, and
+ * two of its rows look identical on screen while being different teams.
  */
 function _flCanOpenMatchCentre(x) {
-  if (!x) return false;
-  var sides = [x.home && x.home.teamId, x.away && x.away.teamId];
-  var scope = null;
-  try { scope = (State.context && State.context.currentTeamScope) || null; } catch (_) { scope = null; }
-  // No scope yet is not permission. While the context is outstanding the League
-  // offers nothing: an unoffered control is recoverable a moment later, an
-  // over-offered one is a button whose only outcome is a refusal.
-  if (!scope) return false;
-  // A reader whose scope covers the club reads its own teams' preparation, and
-  // the club's entries are exactly what `myTeamIds` holds.
-  if (scope.unrestricted) return sides.some(function (id) { return _flMine(id); });
-  var mine = (scope.teams || []).map(function (tm) { return tm && tm.id; });
-  return sides.some(function (id) { return !!id && mine.indexOf(id) >= 0; });
+  return !!(x && x.canOpenMatchCentre);
+}
+
+/**
+ * Why a fixture is not this reader's, when it is not.
+ *
+ * Display only: it changes nothing about access, and it is read from the
+ * identities already on the row. A coach who sees his own club's crest on a
+ * fixture he cannot open deserves to know it is his club's OTHER team, rather
+ * than being told the same thing as if it were a stranger's match.
+ */
+function _flNotMineBecause(x) {
+  var mine = null;
+  try { mine = (State.context && State.context.clubId) || null; } catch (_) { mine = null; }
+  var clubs = [x && x.home && x.home.clubId, x && x.away && x.away.clubId];
+  if (mine && clubs.indexOf(mine) >= 0) {
+    return 'Another of your club’s teams plays this one';
+  }
+  return 'Match preparation is private to the teams playing';
 }
 
 // The element this League is drawn inside. The First Team's page owns
@@ -67043,11 +67055,11 @@ function _flPreviewHtml() {
       + '</div>'
       + side(away, 'away', 'away')
       + '</div>' + meta,
-    foot: (_flCanOpenMatchCentre(d.fixture || { home: home, away: away })
+    foot: (_flCanOpenMatchCentre(d.fixture)
         ? '<button class="lg-act lg-act--primary" type="button" data-action="flPreviewOpen">Open Match Center</button>'
         // Not a disabled button and not an error: this match is simply not
         // this reader's to prepare, and saying so is the answer.
-        : '<span class="lg-act-note">Match preparation is private to the teams playing</span>')
+        : '<span class="lg-act-note">' + _esc(_flNotMineBecause(d.fixture || { home: home, away: away })) + '</span>')
       + '<button class="lg-act" type="button" data-action="flPreviewStandings">View Standings</button>'
       + '<button class="lg-act lg-act--ghost" type="button" data-action="flClosePreview">Close</button>',
   });

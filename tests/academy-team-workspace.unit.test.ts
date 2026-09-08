@@ -137,12 +137,19 @@ describe('each team has its own Match Center, and the data is scoped on the serv
   it('opening one fixture takes sight of one of its teams', () => {
     const at = MCS.indexOf('async function fixtureAccess');
     const fn = codeOnly(MCS.slice(at, MCS.indexOf('\n}', at)));
-    expect(fn).toContain('await accessForTeam(actor, teamId)');
-    expect(fn).toContain('if (!access.canView) continue;');
+    // Delegated to the one resolver, which the League asks too.
+    expect(fn).toContain('await viewerSideOfFixture(actor, homeTeamId, awayTeamId)');
+    const TAS = require('fs').readFileSync(
+      require('path').join(__dirname, '..', 'src', 'identity', 'team-access.service.ts'), 'utf8');
+    const rat = TAS.indexOf('export async function viewerSideOfFixture');
+    const res = codeOnly(TAS.slice(rat, TAS.indexOf('\n}', rat)));
+    expect(res).toContain('await accessForTeam(actor, teamId)');
+    expect(res).toContain('if (!access.canView) continue;');
     expect(fn).toContain('throw new ForbiddenError');
     // Between two of the club's own teams, the side this person MANAGES wins,
-    // so the fixture is writable from the right side rather than neither.
-    expect(fn).toContain('access.canManage && !best.access.canManage');
+    // so the fixture is writable from the right side rather than neither. That
+    // preference lives with the resolver now, along with the rest of the answer.
+    expect(res).toContain('access.canManage && !best.access.canManage');
   });
 
   it('and changing one takes an assignment to manage its team', () => {
@@ -317,7 +324,10 @@ describe('each team has its own Familista League, on the same engine', () => {
 
   it('the engine is reused: standings, matches and rankings all take a competition', () => {
     for (const fn of ['getStandings', 'getRound', 'getLeaderboards', 'getTeamStats']) {
-      expect(FLS).toMatch(new RegExp('export async function ' + fn + '\\(competitionId: string'));
+      // The signature may wrap — getRound takes the caller as well now, so it
+      // can say which side of each fixture is theirs — but the competition is
+      // still the first thing every one of them is asked about.
+      expect(FLS).toMatch(new RegExp('export async function ' + fn + '\\(\\s*competitionId: string'));
     }
     // There is no second league engine for the academy.
     expect(FLS.match(/export async function getStandings\(/g) || []).toHaveLength(1);

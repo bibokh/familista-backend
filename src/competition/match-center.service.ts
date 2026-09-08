@@ -27,6 +27,7 @@ import {
   accessForTeam,
   assertCanViewTeamPrivate,
   listTeamContexts,
+  viewerSideOfFixture,
 } from '../identity/team-access.service';
 import * as league from './familista-league.service';
 import {
@@ -427,7 +428,7 @@ export async function getFixtureDetail(actor: MatchCenterActor, fixtureId: strin
 
   const ours = await fixtureAccess(actor, fixture.homeTeamId, fixture.awayTeamId);
 
-  const detail = await league.getMatchDetail(fixture.competitionId, fixture.id);
+  const detail = await league.getMatchDetail(fixture.competitionId, fixture.id, actor);
 
   const homeClubId = detail.home?.clubId ?? null;
   const hostClub = homeClubId
@@ -472,28 +473,19 @@ export async function getFixtureDetail(actor: MatchCenterActor, fixtureId: strin
  * academy fixture gets the board and no controls, and an Under-14 coach may move
  * an Under-14 kickoff and nobody else's.
  *
- * Asked of the team rows, never of a club name.
+ * Asked of the team rows, never of a club name — and asked through
+ * `viewerSideOfFixture`, which is the ONE place that question is answered. The
+ * League reads the same function to decide whether a row offers the Match
+ * Centre, so the interface cannot offer what this would refuse.
  */
 async function fixtureAccess(
   actor: MatchCenterActor,
   homeTeamId: string,
   awayTeamId: string,
 ): Promise<{ ourTeamId: string | null; access: TeamAccess | null }> {
-  const sides = [homeTeamId, awayTeamId];
-  let best: { ourTeamId: string; access: TeamAccess } | null = null;
-  for (const teamId of sides) {
-    let access: TeamAccess;
-    try { access = await accessForTeam(actor, teamId); } catch { continue; }
-    if (!access.canView) continue;
-    // Seeing that a team exists is not seeing what it prepared for a match.
-    // A fixture opens from a side the reader actually works on.
-    if (!access.canViewPrivate) continue;
-    // A team this person manages wins over one they merely read, so a fixture
-    // between two of the club's own teams is writable from the right side.
-    if (!best || (access.canManage && !best.access.canManage)) best = { ourTeamId: teamId, access };
-  }
+  const best = await viewerSideOfFixture(actor, homeTeamId, awayTeamId);
   if (!best) throw new ForbiddenError('That fixture does not belong to a team you have access to');
-  return best;
+  return { ourTeamId: best.teamId, access: best.access };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
