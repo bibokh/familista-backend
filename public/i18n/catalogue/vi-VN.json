@@ -1471,5 +1471,6 @@
   "Your clubs could not be read": "Không thể đọc các câu lạc bộ của bạn",
   "This is not an answer about your membership": "Đây không phải câu trả lời về tư cách thành viên của bạn",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Hãy tải lại trang. Nếu vẫn tiếp diễn, các câu lạc bộ của bạn vẫn còn đó — nền tảng chỉ là không truy cập được ngay lúc này.",
-  "Something went wrong": "Đã xảy ra lỗi"
+  "Something went wrong": "Đã xảy ra lỗi",
+  "That is a club-level action, and this account does not have it.": "Đây là thao tác ở cấp câu lạc bộ, và tài khoản này không có quyền đó."
 }

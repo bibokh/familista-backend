@@ -1471,5 +1471,6 @@
   "Your clubs could not be read": "ไม่สามารถอ่านสโมสรของคุณได้",
   "This is not an answer about your membership": "นี่ไม่ใช่คำตอบเกี่ยวกับการเป็นสมาชิกของคุณ",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "โหลดหน้านี้ใหม่ หากยังเกิดขึ้นอีก สโมสรของคุณยังอยู่ครบ เพียงแต่แพลตฟอร์มเข้าถึงไม่ได้ในตอนนี้",
-  "Something went wrong": "เกิดข้อผิดพลาดบางอย่าง"
+  "Something went wrong": "เกิดข้อผิดพลาดบางอย่าง",
+  "That is a club-level action, and this account does not have it.": "นี่เป็นการดำเนินการระดับสโมสร และบัญชีนี้ไม่มีสิทธิ์ดังกล่าว"
 }

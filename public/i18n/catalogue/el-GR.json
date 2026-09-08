@@ -1474,5 +1474,6 @@
   "Your clubs could not be read": "Δεν ήταν δυνατή η ανάγνωση των συλλόγων σας",
   "This is not an answer about your membership": "Αυτό δεν είναι απάντηση για τη συμμετοχή σας",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Φορτώστε ξανά τη σελίδα. Αν συνεχιστεί, οι σύλλογοί σας εξακολουθούν να υπάρχουν — απλώς η πλατφόρμα δεν μπόρεσε να τους προσπελάσει τώρα.",
-  "Something went wrong": "Κάτι πήγε στραβά"
+  "Something went wrong": "Κάτι πήγε στραβά",
+  "That is a club-level action, and this account does not have it.": "Αυτή είναι ενέργεια σε επίπεδο συλλόγου, και αυτός ο λογαριασμός δεν τη διαθέτει."
 }

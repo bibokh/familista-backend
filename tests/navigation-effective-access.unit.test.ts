@@ -149,7 +149,15 @@ function sidebarFor(effectiveAccess: Row | null): string[] {
   const access = APP.slice(APP.indexOf('function _access(capability)'), APP.indexOf('function buildWorkspaceSidebar'));
   let html = '';
   const slot = { set innerHTML(v: string) { html = v; }, get innerHTML() { return html; } };
-  const doc = { getElementById: (id: string) => (id === 'workspace-nav-items' ? slot : null) };
+  // The slice also carries the capability sweep, which installs an observer and a
+  // capture-phase click backstop on load. Give it the two APIs it reaches for.
+  const doc = {
+    getElementById: (id: string) => (id === 'workspace-nav-items' ? slot : null),
+    querySelectorAll: () => [] as unknown[],
+    addEventListener: () => {},
+    readyState: 'complete',
+    body: null,
+  };
   const St = { context: { effectiveAccess } };
   // eslint-disable-next-line no-new-func
   const fn = new Function('document', 'window', 'State', 't',

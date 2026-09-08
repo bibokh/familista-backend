@@ -1474,5 +1474,6 @@
   "Your clubs could not be read": "Cluburile tale nu au putut fi citite",
   "This is not an answer about your membership": "Acesta nu este un răspuns despre apartenența ta",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Reîncarcă pagina. Dacă persistă, cluburile tale sunt în continuare acolo — platforma pur și simplu nu a putut ajunge la ele acum.",
-  "Something went wrong": "Ceva nu a mers bine"
+  "Something went wrong": "Ceva nu a mers bine",
+  "That is a club-level action, and this account does not have it.": "Aceasta este o acțiune la nivel de club, iar acest cont nu o are."
 }

@@ -1471,5 +1471,6 @@
   "Your clubs could not be read": "无法读取你的俱乐部",
   "This is not an answer about your membership": "这并不是关于你成员身份的答复",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "请重新加载页面。如果问题持续，你的俱乐部依然存在——只是平台此刻无法读取。",
-  "Something went wrong": "出现了问题"
+  "Something went wrong": "出现了问题",
+  "That is a club-level action, and this account does not have it.": "这是俱乐部级别的操作，此账号没有该权限。"
 }

@@ -1471,5 +1471,6 @@
   "Your clubs could not be read": "Kelab anda tidak dapat dibaca",
   "This is not an answer about your membership": "Ini bukan jawapan tentang keahlian anda",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Muat semula halaman. Jika ia berterusan, kelab anda masih ada — platform cuma tidak dapat menghubunginya sebentar tadi.",
-  "Something went wrong": "Sesuatu telah berlaku"
+  "Something went wrong": "Sesuatu telah berlaku",
+  "That is a club-level action, and this account does not have it.": "Itu tindakan peringkat kelab, dan akaun ini tidak memilikinya."
 }

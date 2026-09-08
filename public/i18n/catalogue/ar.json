@@ -1474,5 +1474,6 @@
   "Your clubs could not be read": "تعذّرت قراءة أنديتك",
   "This is not an answer about your membership": "هذه ليست إجابة عن عضويتك",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "أعد تحميل الصفحة. إذا استمر الأمر، فأنديتك لا تزال موجودة — لكن المنصة لم تتمكن من الوصول إليها الآن.",
-  "Something went wrong": "حدث خطأ ما"
+  "Something went wrong": "حدث خطأ ما",
+  "That is a club-level action, and this account does not have it.": "هذا إجراء على مستوى النادي، وهذا الحساب لا يملكه."
 }

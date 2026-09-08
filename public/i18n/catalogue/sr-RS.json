@@ -1474,5 +1474,6 @@
   "Your clubs could not be read": "Ваши клубови нису могли да буду учитани",
   "This is not an answer about your membership": "Ово није одговор о вашем чланству",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Освежите страницу. Ако се настави, ваши клубови и даље постоје — платформа само сада није могла да им приступи.",
-  "Something went wrong": "Нешто је пошло наопако"
+  "Something went wrong": "Нешто је пошло наопако",
+  "That is a club-level action, and this account does not have it.": "То је радња на нивоу клуба, а овај налог је нема."
 }

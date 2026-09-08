@@ -1474,5 +1474,6 @@
   "Your clubs could not be read": "Je clubs konden niet worden gelezen",
   "This is not an answer about your membership": "Dit is geen antwoord over je lidmaatschap",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Laad de pagina opnieuw. Als het blijft gebeuren: je clubs zijn er nog steeds — het platform kon ze zojuist alleen niet bereiken.",
-  "Something went wrong": "Er is iets misgegaan"
+  "Something went wrong": "Er is iets misgegaan",
+  "That is a club-level action, and this account does not have it.": "Dat is een clubbrede actie, en dit account heeft die niet."
 }

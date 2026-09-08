@@ -1474,5 +1474,6 @@
   "Your clubs could not be read": "Your clubs could not be read",
   "This is not an answer about your membership": "This is not an answer about your membership",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.",
-  "Something went wrong": "Something went wrong"
+  "Something went wrong": "Something went wrong",
+  "That is a club-level action, and this account does not have it.": "That is a club-level action, and this account does not have it."
 }

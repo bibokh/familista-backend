@@ -1696,6 +1696,133 @@ function _access(capability) {
   } catch (_) { return false; }
 }
 
+/**
+ * The controls that perform a write the server gates, by the capability that
+ * gates it.
+ *
+ * One list, three effects: the controls are REMOVED from the DOM for somebody
+ * without the capability, a click on one is refused if it survives anyway, and
+ * the list itself is the audit — every entry here corresponds to a route that
+ * already answers 403 for that person, and adding a control without adding it
+ * here is the mistake this exists to make visible.
+ *
+ * It is not security and does not pretend to be. `[requireMembership(...),
+ * requireClubWideManage()]` on the transfer market and the club's staff routes
+ * is what actually refuses; this is so a coach is not shown a button that was
+ * always going to fail.
+ */
+var _CAP_CONTROLS = {
+  // Trading on the club's behalf: listing, selling, bidding, contracts,
+  // negotiating, and the club's own recruitment needs and shortlist.
+  canAdministerTransfers: [
+    'data-tf-sell-open', 'data-tf-exp', 'data-tf-mode', 'data-tf-renew-save',
+    'data-tf-delist', 'data-tf-delist-now', 'data-tf-sign', 'data-tf-bid',
+    'data-tf-auction-bid', 'data-tf-auction-place', 'data-tf-auction-cancel',
+    'data-tf-aucstep', 'data-tf-offer-clubs', 'data-tf-offer-counter',
+    'data-tf-offer-reject', 'data-tf-interest', 'data-tf-interest-resp',
+    'data-tf-need-close', 'data-tf-need-edit', 'data-tf-need-reopen',
+    'data-tf-need-offer', 'data-tf-short', 'data-tf-o2c-mode',
+  ],
+  // Running the club's staff: hiring, moving between teams, releasing, and the
+  // records the club keeps about them.
+  canAdministerStaff: [
+    'data-co-add', 'data-co-moveopen', 'data-co-movesave', 'data-co-release',
+    'data-co-carsave', 'data-co-cardel', 'data-co-trsave',
+    'data-co-notesave', 'data-co-noteadd',
+    'data-co-seed', 'data-co-seed-all', 'data-co-unseed',
+  ],
+};
+
+/** Every selector currently withheld, as one CSS selector list. */
+function _capWithheldSelector() {
+  var out = [];
+  Object.keys(_CAP_CONTROLS).forEach(function (cap) {
+    if (_access(cap)) return;
+    _CAP_CONTROLS[cap].forEach(function (attr) { out.push('[' + attr + ']'); });
+  });
+  // Anything marked declaratively, for a control that is its own element.
+  out.push('[data-cap]');
+  return out.join(',');
+}
+
+/** Does this element name a capability its reader does not hold? */
+function _capRefused(el) {
+  try {
+    var declared = el.getAttribute && el.getAttribute('data-cap');
+    if (declared) return !_access(declared);
+    var caps = Object.keys(_CAP_CONTROLS);
+    for (var i = 0; i < caps.length; i++) {
+      if (_access(caps[i])) continue;
+      var attrs = _CAP_CONTROLS[caps[i]];
+      for (var j = 0; j < attrs.length; j++) {
+        if (el.hasAttribute && el.hasAttribute(attrs[j])) return true;
+      }
+    }
+  } catch (_) {}
+  return false;
+}
+
+/**
+ * Take the withheld controls out of the document.
+ *
+ * Removed, not hidden: a rule that hides can be undone by another rule, and
+ * this application has already been bitten once by exactly that — `hidden` on
+ * a card that an author rule kept on screen. An element that is not there
+ * cannot be revealed.
+ */
+function _capSweep(root) {
+  try {
+    var sel = _capWithheldSelector();
+    if (!sel) return;
+    var scope = root && root.querySelectorAll ? root : document;
+    var found = scope.querySelectorAll(sel);
+    for (var i = 0; i < found.length; i++) {
+      if (_capRefused(found[i])) found[i].remove();
+    }
+    // The root itself, when a whole control was inserted on its own.
+    if (root && root.nodeType === 1 && _capRefused(root)) root.remove();
+  } catch (_) {}
+}
+
+// These modules repaint by replacing innerHTML at unpredictable times, so the
+// sweep follows the DOM rather than being called from each render site — the
+// same reason the translation pass observes rather than being invoked.
+(function () {
+  function start() {
+    try {
+      _capSweep(document.body);
+      if (typeof MutationObserver === 'undefined') return;
+      new MutationObserver(function (records) {
+        for (var i = 0; i < records.length; i++) {
+          var added = records[i].addedNodes;
+          for (var j = 0; j < added.length; j++) {
+            if (added[j].nodeType === 1) _capSweep(added[j]);
+          }
+        }
+      }).observe(document.body, { childList: true, subtree: true });
+    } catch (_) {}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+})();
+
+// And the backstop: a control that somehow reaches a click does nothing. The
+// capture phase, so it runs before any module's own delegated handler.
+document.addEventListener('click', function (ev) {
+  try {
+    var el = ev.target && ev.target.closest ? ev.target.closest('*') : null;
+    while (el && el !== document.body) {
+      if (_capRefused(el)) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        try { showToast('That is a club-level action, and this account does not have it.', 'warn', 3500); } catch (_) {}
+        return;
+      }
+      el = el.parentElement;
+    }
+  } catch (_) {}
+}, true);
+
 function buildWorkspaceSidebar() {
   var slot = document.getElementById('workspace-nav-items');
   if (!slot) return;
@@ -56102,8 +56229,21 @@ function _tfDiscStateChip(state) {
 // The actions the SERVER said exist for this player, in the order they matter.
 // Nothing is added here, so a player his club never put on the market can only
 // ever be asked about.
+/**
+ * The actions offered beside a scouted player.
+ *
+ * Three of the five verbs are the club's decision — buying him, offering for
+ * him, registering the club's interest — and all three answer 403 for somebody
+ * without club-wide trading authority. They are not built at all rather than
+ * built and swept, so the row reads honestly: a coach sees the two that view,
+ * and "no transfer action" when those are all there is.
+ */
+var _TF_TRADE_ACTIONS = ['PURCHASE', 'MAKE_OFFER', 'REGISTER_INTEREST'];
+
 function _tfDiscActionsHtml(r) {
-  var acts = r.actions || [];
+  var acts = (r.actions || []).filter(function (a) {
+    return _TF_TRADE_ACTIONS.indexOf(a) < 0 || _access('canAdministerTransfers');
+  });
   if (!acts.length) return '<span class="tf-disc-noact">No transfer action</span>';
   return acts.map(function (a) {
     var cls = a === 'PURCHASE' ? 'tf-btn--primary' : a === 'MAKE_OFFER' ? 'tf-btn--gold' : '';

@@ -1474,5 +1474,6 @@
   "Your clubs could not be read": "No se pudieron leer tus clubes",
   "This is not an answer about your membership": "Esto no es una respuesta sobre tu membresía",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Vuelve a cargar la página. Si sigue ocurriendo, tus clubes siguen ahí: la plataforma no pudo acceder a ellos en este momento.",
-  "Something went wrong": "Algo salió mal"
+  "Something went wrong": "Algo salió mal",
+  "That is a club-level action, and this account does not have it.": "Esa es una acción a nivel de club, y esta cuenta no la tiene."
 }

@@ -1471,5 +1471,6 @@
   "Your clubs could not be read": "클럽을 불러오지 못했습니다",
   "This is not an answer about your membership": "이는 소속에 대한 답변이 아닙니다",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "페이지를 새로 고치세요. 계속된다면, 클럽은 그대로 있습니다 — 지금 플랫폼이 접근하지 못했을 뿐입니다.",
-  "Something went wrong": "문제가 발생했습니다"
+  "Something went wrong": "문제가 발생했습니다",
+  "That is a club-level action, and this account does not have it.": "이는 클럽 전체 작업이며, 이 계정에는 해당 권한이 없습니다."
 }

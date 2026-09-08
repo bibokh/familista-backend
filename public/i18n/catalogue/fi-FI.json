@@ -1474,5 +1474,6 @@
   "Your clubs could not be read": "Seurojasi ei voitu lukea",
   "This is not an answer about your membership": "Tämä ei ole vastaus jäsenyydestäsi",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Lataa sivu uudelleen. Jos tämä jatkuu, seurasi ovat yhä tallessa — alusta ei vain juuri nyt saanut niihin yhteyttä.",
-  "Something went wrong": "Jotain meni pieleen"
+  "Something went wrong": "Jotain meni pieleen",
+  "That is a club-level action, and this account does not have it.": "Tämä on seuratason toiminto, eikä tällä tilillä ole sitä."
 }

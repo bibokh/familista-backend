@@ -1474,5 +1474,6 @@
   "Your clubs could not be read": "Kulüpleriniz okunamadı",
   "This is not an answer about your membership": "Bu, üyeliğinizle ilgili bir yanıt değildir",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Sayfayı yeniden yükleyin. Devam ederse kulüpleriniz hâlâ yerinde — platform şu anda onlara ulaşamadı.",
-  "Something went wrong": "Bir şeyler ters gitti"
+  "Something went wrong": "Bir şeyler ters gitti",
+  "That is a club-level action, and this account does not have it.": "Bu, kulüp düzeyinde bir işlemdir ve bu hesapta bu yetki yok."
 }

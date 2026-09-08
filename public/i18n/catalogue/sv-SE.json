@@ -1474,5 +1474,6 @@
   "Your clubs could not be read": "Dina klubbar kunde inte läsas",
   "This is not an answer about your membership": "Det här är inte ett svar om ditt medlemskap",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Ladda om sidan. Om det fortsätter finns dina klubbar kvar — plattformen kunde bara inte nå dem just nu.",
-  "Something went wrong": "Något gick fel"
+  "Something went wrong": "Något gick fel",
+  "That is a club-level action, and this account does not have it.": "Det är en åtgärd på klubbnivå, och det här kontot har den inte."
 }
