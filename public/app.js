@@ -49889,6 +49889,10 @@ function _atEnrich(p, i, idx, id) {
  * happened: a photo that reached the record says so, and one that was refused
  * says that instead of quietly looking saved.
  */
+/** The newest photo write per player, so a slower earlier one cannot land on
+ *  top of a faster later one. */
+var _AT_PHOTO_SEQ = {};
+
 function _atPersistPhoto(playerId, dataUrl) {
   var real = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(String(playerId || ''));
   if (!real || typeof _thApi !== 'function'
@@ -49896,9 +49900,32 @@ function _atPersistPhoto(playerId, dataUrl) {
     try { showToast('Photo updated on this device only', 'info'); } catch (_) {}
     return;
   }
-  _thApi('PATCH', '/players/' + encodeURIComponent(playerId), { avatar: dataUrl })
-    .then(function () { try { showToast('Photo updated', 'success'); } catch (_) {} })
+  var seq = (_AT_PHOTO_SEQ[playerId] = (_AT_PHOTO_SEQ[playerId] || 0) + 1);
+  return _thApi('PATCH', '/players/' + encodeURIComponent(playerId), { avatar: dataUrl })
+    .then(function (res) {
+      // A photo saved after this one has already won. Its answer is the current
+      // one and this older answer writes nothing — not the record it read, not
+      // the toast that would contradict the newer save.
+      if (seq !== _AT_PHOTO_SEQ[playerId]) return;
+      // What the record now holds, not what was sent: the client is updated
+      // from the persisted row, so the screen and the server cannot disagree
+      // about what was stored.
+      var saved = res && res.data;
+      var stored = (saved && saved.avatar) || dataUrl;
+      var ov = _atOverlay(AT.active);
+      if (ov && ov[playerId]) ov[playerId].photo = stored;
+      _atSave();
+      if (window.State && Array.isArray(State.players)) {
+        for (var i = 0; i < State.players.length; i++) {
+          if (State.players[i] && State.players[i].id === playerId) {
+            State.players[i] = Object.assign({}, State.players[i], saved || { avatar: stored });
+          }
+        }
+      }
+      try { showToast('Photo updated', 'success'); } catch (_) {}
+    })
     .catch(function (err) {
+      if (seq !== _AT_PHOTO_SEQ[playerId]) return;
       try {
         showToast('Photo not saved — ' +
           ((err && (err.userMessage || err.message)) || 'the server refused it'), 'error');
@@ -65465,6 +65492,9 @@ window._tfSellButton = _tfSellButton;
 
 var _TH = {
   state: 'idle',        // idle | seeding | ready | failed
+  // The server refused to seed for this session — a club-wide write this
+  // person is not meant to make. The roster is read anyway; see _thHydrate.
+  seedRefused: false,
   error: null,
   clubId: null,
   teams: null,          // [{ id, name, kind }]
@@ -65686,7 +65716,30 @@ async function _thHydrate(opts) {
   _TH.state = 'seeding'; _TH.error = null; _TH.diag = null;
   _TH.step = 'bootstrap';
   try {
-    var boot = _thUnwrap(await _thApi('POST', '/transfer-market/bootstrap', { teams: _thBootstrapPayload() }));
+    // Seeding lifts a club's whole roster into real Player rows, once. It is a
+    // CLUB-wide write and the server guards it as one — `tradeGuard`, which a
+    // head coach scoped to a single team does not pass, and should not.
+    //
+    // Reading the roster is not that. `/teams` and `/players` are team-scoped
+    // on the server and answer this coach perfectly well. But hydration ran the
+    // two as one step, so a refused seed failed the whole thing: the session
+    // never reached `ready`, which produced "its squad could not be loaded" on
+    // every club entry AND silently stopped every player write, because
+    // `_sqPersistPlayer` and `_atPersistPhoto` both decline to send a PATCH for
+    // a session that is not hydrated. One 403 on a call this person was never
+    // meant to make, and their photo changes stopped reaching the record.
+    //
+    // A refusal here means "not yours to seed", and the honest response to that
+    // is to read what is already there. Nothing else is tolerated: a network
+    // failure, a 500 or anything else still fails hydration, because those mean
+    // the roster genuinely could not be established.
+    var boot = null;
+    try {
+      boot = _thUnwrap(await _thApi('POST', '/transfer-market/bootstrap', { teams: _thBootstrapPayload() }));
+    } catch (seedErr) {
+      if (!seedErr || seedErr.status !== 403) throw seedErr;
+      _TH.seedRefused = true;
+    }
     _TH.seeded = !!(boot && boot.seeded);
     _TH.step = 'refresh';
     await _thRefresh();

@@ -288,8 +288,12 @@ describe('6 · every player-photo path prepares, persists and reloads the same w
     expect(APP).toContain("['photo',  'avatar',");
     const persist = between('function _atPersistPhoto(playerId, dataUrl) {', 'function _atOverlay(id) {');
     expect(persist).toContain("_thApi('PATCH', '/players/' + encodeURIComponent(playerId), { avatar: dataUrl })");
-    // localStorage stays the immediate paint and is never the end of the story.
-    expect(persist).not.toContain('_atSave');
+    // The record is what is written, and what comes BACK from the record is
+    // what the screen is then set to — the persisted row, not the payload the
+    // browser happened to send. localStorage carries that answer onward; it is
+    // never where the answer comes from.
+    expect(persist).toContain('var saved = res && res.data;');
+    expect(persist).toContain("var stored = (saved && saved.avatar) || dataUrl;");
     expect(persist).not.toContain('localStorage');
   });
 

@@ -44,18 +44,27 @@ const decomment = (s: string) =>
 describe('1 · an academy player\'s photo reaches the record', () => {
   /** The real `_atPersistPhoto`, with the transport observed. */
   function persist(playerId: string, hydrated = true) {
-    const src = between('function _atPersistPhoto(playerId, dataUrl) {', 'function _atOverlay(id) {');
+    // The sequence counter is part of the unit now: an older answer must not
+    // land on a newer one, so it is sliced in with the function.
+    const src = between('var _AT_PHOTO_SEQ = {};', 'function _atOverlay(id) {');
     const calls: Array<{ method: string; url: string; body: Record<string, unknown> }> = [];
     const toasts: string[] = [];
+    const State: Record<string, unknown> = { players: [] };
     // eslint-disable-next-line no-new-func
-    const fn = new Function('_thApi', '_thIsHydrated', 'showToast', `${src}\nreturn _atPersistPhoto;`);
+    const fn = new Function('_thApi', '_thIsHydrated', 'showToast', '_atOverlay', '_atSave',
+      'AT', 'window', 'State', `${src}\nreturn _atPersistPhoto;`);
     fn(
       (method: string, url: string, body: Record<string, unknown>) => {
         calls.push({ method, url, body });
-        return Promise.resolve({});
+        return Promise.resolve({ data: { id: playerId, avatar: String(body.avatar) } });
       },
       () => hydrated,
       (msg: string) => toasts.push(msg),
+      () => ({}),
+      () => {},
+      { active: 'u15' },
+      { State },
+      State,
     )(playerId, 'data:image/jpeg;base64,AAAA');
     return { calls, toasts };
   }
@@ -99,8 +108,9 @@ describe('1 · an academy player\'s photo reaches the record', () => {
 
   it('the success message is the server\'s answer, not the repaint', () => {
     const src = decomment(between('function _atPersistPhoto(playerId, dataUrl) {', 'function _atOverlay(id) {'));
-    // "Photo updated" is said in the .then, and a refusal is said out loud.
-    expect(src).toMatch(/\.then\([\s\S]{0,120}Photo updated/);
+    // "Photo updated" is said inside the .then — after the server answered —
+    // and a refusal is said out loud.
+    expect(src).toMatch(/\.then\(function \(res\)[\s\S]*Photo updated/);
     expect(src).toContain('Photo not saved');
     // The failure is never swallowed into a silent success.
     expect(src).not.toMatch(/catch[\s\S]{0,80}success/);
