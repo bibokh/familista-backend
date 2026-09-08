@@ -17434,7 +17434,29 @@ body.club-theme .set-panel .settings-wrap{ padding:0; max-width:none; }
    stands in for.
    ═════════════════════════════════════════════════════════════════════════ */
 
-.pa-wrap{ padding:22px 24px 40px; max-width:1240px; margin:0 auto; }
+/* The workspace geometry every other module already has, and the reason
+   CLAUDE.md requires it: a fixed-height flex column whose BODY scrolls inside
+   itself, with the gutter reserved whether or not the content needs it. Without
+   it this page scrolled the document, so the members list arriving after the
+   skeleton toggled the window's own scrollbar — and a scrollbar appearing takes
+   its width out of the page, moving every column sideways. That is a shift the
+   reader did not ask for, on every load and every tab. */
+#pg-people-access.active{
+  height:calc(100vh - 92px); height:calc(100dvh - 92px);
+  min-height:560px; overflow:hidden; display:flex;
+}
+#pg-people-access.active > .pa-wrap{
+  flex:1 1 auto; min-height:0; min-width:0;
+  overflow-y:auto; overflow-x:hidden;
+  scrollbar-gutter:stable;
+}
+/* The escape hatch every workspace carries: below it the page returns to
+   ordinary document scrolling rather than crushing the panels. */
+@media (max-width:980px), (max-height:620px){
+  #pg-people-access.active{ height:auto; min-height:0; overflow:visible; display:block; }
+  #pg-people-access.active > .pa-wrap{ overflow:visible; }
+}
+.pa-wrap{ padding:22px 24px 40px; max-width:1240px; margin:0 auto; width:100%; }
 
 /* ── header ───────────────────────────────────────────────────────────────── */
 .pa-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:20px; }

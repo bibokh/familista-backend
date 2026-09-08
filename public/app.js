@@ -49285,7 +49285,13 @@ async function tosBoardSnapshot() {
 // VIDEO INTELLIGENCE — reset to a clean, empty module (ready for new architecture)
 // ═══════════════════════════════════════════════════════════════════════════
 function renderVideoIntelligenceHTML() {
-  return '<div class="page active" id="pg-video-intelligence">'
+  // `page`, not `page active`. This module is mounted lazily, and navTo clears
+  // `.active` from every page BEFORE it mounts the target — so a template that
+  // ships itself active arrives switched on beside the page that is really
+  // open. The same defect People & Access had, with the same consequences: two
+  // pages in flow, a document twice the viewport, and
+  // `querySelector('.page.active')` with two answers to choose between.
+  return '<div class="page" id="pg-video-intelligence">'
     + _famBackBtn()
     + '<div class="vi-notice-wrap">'
     +   '<div class="vi-notice">'

@@ -761,7 +761,22 @@
 
   // ── the entry points app.js registers ──────────────────────────────────────
   window.renderPeopleAccessHTML = function () {
-    return '<div class="page active" id="pg-people-access">'
+    // `page`, and NOT `page active`. This was the only page template in the
+    // application that shipped itself already active, and `navTo` mounts a page
+    // AFTER it has cleared `.active` from every other one — so this page arrived
+    // switched on beside whichever page was really open. Two `.page.active`
+    // elements, both in flow, both `height:100%`: the document became twice the
+    // viewport, the body grew a scrollbar it should not have, and every
+    // navigation re-toggled `display` on a page that carries
+    // `animation: fadeIn ... both` — replaying a `translateY(5px)` on content
+    // stacked under the real screen, which is the shake.
+    //
+    // It also broke `document.querySelector('.page.active')`, which seven call
+    // sites read to mean "the page the reader is looking at": with two matches
+    // it returns whichever comes first in the container, so repaints landed on
+    // a page nobody was looking at. `navTo` decides what is active, here as
+    // everywhere else.
+    return '<div class="page" id="pg-people-access">'
       + '<div class="pa-wrap" id="pa-content"></div>'
       + '</div>';
   };

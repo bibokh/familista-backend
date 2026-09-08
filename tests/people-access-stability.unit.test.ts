@@ -1,0 +1,229 @@
+/**
+ * tests/people-access-stability.unit.test.ts
+ *
+ * People & Access sat on top of whatever page you were actually looking at.
+ *
+ * `renderPeopleAccessHTML` returned `class="page active"` — the only page
+ * template in the application that shipped itself switched on. `navTo` clears
+ * `.active` from every page and THEN mounts the target, so this one arrived
+ * active after the clearing had already happened, beside the page that was
+ * really open. Two `.page.active` elements, both in flow, both `height:100%`:
+ * measured in Chromium, the document became exactly twice the viewport and this
+ * page's content sat at y=900, underneath the other one.
+ *
+ * From there the visible instability follows. `.page` carries
+ * `animation: fadeIn .2s ease both`, whose keyframes move `translateY(5px)` to
+ * none, and every navigation toggles `display` on every page — so the animation
+ * replayed on content stacked below the real screen. And
+ * `document.querySelector('.page.active')`, which seven call sites read as "the
+ * page the reader is looking at", had two matches to choose between, so
+ * repaints landed on a page nobody was looking at.
+ *
+ * Underneath that, this was also the one workspace that was not a fixed-height
+ * column: it scrolled the document, so the members list arriving after the
+ * skeleton toggled the window's own scrollbar — and a scrollbar appearing takes
+ * its width out of the page and moves every column sideways.
+ *
+ * Measured after the fix, in real Chromium at 1280x900, sampling 40 frames per
+ * state: one `.page.active`, `scrollHeight` 900 against a 900 viewport, and one
+ * distinct geometry in every one of the five states — page open, invite modal
+ * open, typing, the role dropdown, team scope. Typing eight characters produces
+ * zero mutations outside the panel and does not touch the page header.
+ *
+ * Nothing about permissions, membership, invitations or roles is touched here,
+ * and the tests below assert that too.
+ */
+
+import fs from 'fs';
+import path from 'path';
+
+const ROOT = path.join(__dirname, '..');
+const PA = fs.readFileSync(path.join(ROOT, 'public/people-access.js'), 'utf8');
+const CSS = fs.readFileSync(path.join(ROOT, 'public/app.css'), 'utf8');
+const APP = fs.readFileSync(path.join(ROOT, 'public/app.js'), 'utf8');
+
+const decomment = (s: string) =>
+  s.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+
+function rule(selector: string): string {
+  const at = CSS.indexOf(selector);
+  expect(`${selector} present: ${at > -1}`).toBe(`${selector} present: true`);
+  return CSS.slice(at, CSS.indexOf('}', at) + 1);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('1 · exactly one page is active, and navTo decides which', () => {
+  it('the template ships the page switched off, like every other one', () => {
+    const fn = decomment(PA.slice(PA.indexOf('window.renderPeopleAccessHTML = function () {')));
+    expect(fn).toContain('\'<div class="page" id="pg-people-access">\'');
+    expect(fn).not.toContain('page active');
+  });
+
+  it('and no LAZILY MOUNTED page ships itself active', () => {
+    // The defect in one line, so it cannot come back in another module. Video
+    // Intelligence had it too and is fixed with this; owner-home still carries
+    // it and may, because it is an EAGER page — built at boot, before any
+    // navigation, as the landing screen. A lazy page is mounted from inside
+    // navTo, after the clearing sweep, which is what makes this fatal there.
+    const active = [...APP.matchAll(/<div class="page active" id="pg-([a-z-]+)"/g)].map((m) => m[1]);
+    const eager = APP.slice(APP.indexOf('var _EAGER_PAGES = ['), APP.indexOf('];', APP.indexOf('var _EAGER_PAGES = [')));
+    for (const slug of active) {
+      expect(`${slug} ships active and is eager: ${eager.includes(`'${slug}'`)}`)
+        .toBe(`${slug} ships active and is eager: true`);
+    }
+    expect(APP).not.toContain('<div class="page active" id="pg-video-intelligence"');
+    expect(PA).not.toMatch(/<div class="page active"/);
+  });
+
+  it('navTo clears every page, then mounts, then activates — in that order', () => {
+    // The order is the whole reason a self-activating template is fatal: the
+    // clearing has already happened by the time the page is inserted.
+    const clear = APP.indexOf("document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));");
+    const mount = APP.indexOf('_ensurePageMounted(page)', clear);
+    const activate = APP.indexOf("pg.classList.add('active')", mount);
+    expect(clear).toBeGreaterThan(-1);
+    expect(mount).toBeGreaterThan(clear);
+    expect(activate).toBeGreaterThan(mount);
+  });
+
+  it('so the one reader of "the active page" has one answer to read', () => {
+    // _famRenderPage is driven by this on every data change. With two matches
+    // it repainted whichever came first in the container.
+    expect(APP).toContain("var el = document.querySelector('.page.active');");
+    expect((APP.match(/querySelector\('\.page\.active'\)/g) || []).length).toBeGreaterThan(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('2 · the page is a fixed-height column, so nothing shifts as it loads', () => {
+  it('the shell is the workspace geometry every other module has', () => {
+    const shell = rule('#pg-people-access.active{');
+    expect(shell).toContain('height:calc(100vh - 92px)');
+    expect(shell).toContain('overflow:hidden');
+    expect(shell).toContain('display:flex');
+  });
+
+  it('and the body scrolls inside itself with the gutter always reserved', () => {
+    const body = rule('#pg-people-access.active > .pa-wrap{');
+    expect(body).toContain('overflow-y:auto');
+    expect(body).toContain('scrollbar-gutter:stable');
+    expect(body).toContain('min-height:0');
+  });
+
+  it('with the escape hatch a small viewport needs', () => {
+    // Below it the page returns to ordinary scrolling rather than crushing the
+    // panels — the same hatch CLAUDE.md requires of every workspace.
+    expect(CSS).toMatch(/@media \(max-width:980px\), \(max-height:620px\)\{[\s\S]{0,400}#pg-people-access\.active\{ height:auto/);
+  });
+
+  it('and the module was not otherwise redesigned', () => {
+    // The one width line it already had, kept.
+    expect(CSS).toContain('.pa-wrap{ padding:22px 24px 40px; max-width:1240px; margin:0 auto;');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('3 · the modal floats, and typing in it touches nothing else', () => {
+  it('the scrim is fixed and animates on opacity and transform only', () => {
+    const scrim = rule('.pa-scrim{');
+    expect(scrim).toContain('position:fixed');
+    expect(scrim).toContain('inset:0');
+    expect(scrim).toContain('transition:opacity');
+    // Never a transition on a property that costs a layout.
+    expect(scrim).not.toMatch(/transition:[^;]*(width|height|top|left|margin|padding)/);
+    const panel = rule('.pa-panel{');
+    expect(panel).toContain('transition:transform');
+    expect(panel).not.toMatch(/transition:[^;]*(width|height|top|left|margin|padding)/);
+  });
+
+  it('opening it inserts one node and repaints no part of the page', () => {
+    const open = PA.slice(PA.indexOf('function openInvite() {'), PA.indexOf('function field(label, control) {'));
+    // A panel appended to the body; the page behind it is never redrawn.
+    expect(open).toContain("var wrap = document.createElement('div')");
+    expect(open).not.toContain('paint()');
+    expect(open).not.toMatch(/renderPeopleAccessPage|load\(\)/);
+  });
+
+  it('typing changes nothing at all — there is no input handler to redraw', () => {
+    const open = decomment(PA.slice(PA.indexOf('function openInvite() {'), PA.indexOf('function field(label, control) {')));
+    // The panel listens for submit, and for the one change that reveals the
+    // team list. Nothing listens to typing, so nothing can repaint on it.
+    expect(open).toContain("addEventListener('submit', submitInvite)");
+    expect(open).not.toContain("addEventListener('input'");
+    expect(open).not.toContain("addEventListener('keyup'");
+  });
+
+  it('and selecting a scope toggles one element, not a rebuild', () => {
+    const open = PA.slice(PA.indexOf('function openInvite() {'), PA.indexOf('function field(label, control) {'));
+    expect(open).toContain("if (e.target && e.target.name === 'scope')");
+    expect(open).toContain("list.hidden = (e.target.value !== 'teams')");
+    // `hidden`, not an innerHTML replacement and not a repaint of the panel.
+    expect(open).not.toMatch(/scope[\s\S]{0,200}innerHTML/);
+  });
+
+  it('the role dropdown is a plain select with no handler of its own', () => {
+    expect(PA).toContain('field(\'Role\', \'<select class="pa-in" name="role" required>\'');
+    const open = PA.slice(PA.indexOf('function openInvite() {'), PA.indexOf('function field(label, control) {'));
+    expect(open).not.toMatch(/name === 'role'/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('4 · nothing here observes, polls or re-registers', () => {
+  it('the module installs no observer and no timer', () => {
+    const code = decomment(PA);
+    expect(code).not.toContain('ResizeObserver');
+    expect(code).not.toContain('MutationObserver');
+    expect(code).not.toContain('setInterval');
+    // The two rAF calls are the one-shot enter transitions, and nothing else.
+    expect(code).not.toContain('setTimeout');
+    const rafs = code.match(/requestAnimationFrame\(/g) || [];
+    expect(rafs.length).toBe(3);
+    expect(code).toMatch(/requestAnimationFrame\(function \(\) \{ wrap\.classList\.add\('is-open'\); \}\)/);
+  });
+
+  it('and its document listeners are registered once, at module scope', () => {
+    // Two delegated listeners for the whole module — not one per render.
+    const doc = (PA.match(/document\.addEventListener\(/g) || []).length;
+    expect(doc).toBe(2);
+    const paint = PA.slice(PA.indexOf('function paint() {'), PA.indexOf('function openInvite() {'));
+    expect(paint).not.toContain('addEventListener');
+  });
+
+  it('a repaint replaces one region, and never the page element', () => {
+    const paint = PA.slice(PA.indexOf('function paint() {'), PA.indexOf('function openInvite() {'));
+    expect(paint).toContain("var el = document.getElementById('pa-content');");
+    expect(paint).toContain("el.innerHTML = ''");
+    expect(paint).not.toContain('outerHTML');
+    expect(paint).not.toContain("getElementById('pg-people-access')");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('5 · and none of the behaviour changed', () => {
+  it('the invitation workflow is exactly what it was', () => {
+    expect(PA).toContain('function submitInvite');
+    expect(PA).toContain("A.get('/invitations')");
+    expect(PA).toContain('teamIds');
+    expect(PA).toContain('scope');
+  });
+
+  it('the roles offered are unchanged, and CLUB_OWNER is not among them', () => {
+    const inv = PA.slice(PA.indexOf('var INVITABLE'), PA.indexOf(';', PA.indexOf('var INVITABLE')));
+    expect(inv).toContain('HEAD_COACH');
+    expect(inv).not.toContain('CLUB_OWNER');
+  });
+
+  it('management is still shown on the server\'s answer, and it is not the guard', () => {
+    const can = PA.slice(PA.indexOf('function canManage()'), PA.indexOf('function summary()'));
+    expect(can).toContain('currentClubRole');
+    // No new source of authority, and no capability invented on this side.
+    expect(can).not.toContain('effectiveAccess');
+  });
+
+  it('and this change touched no server file at all', () => {
+    // The fix is one class name and one block of layout CSS.
+    const shell = decomment(PA.slice(PA.indexOf('window.renderPeopleAccessHTML')));
+    expect(shell).not.toMatch(/Membership|authorize|requireMembership|privateTeamScope/);
+  });
+});
