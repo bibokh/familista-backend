@@ -1687,6 +1687,19 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
 .tf-modal-bd     { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 .mobile-overlay  { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 
+/* And People & Access's, which is the newest of them and was written with a
+   blur because the panels around it have one — reintroducing, on a new element,
+   the exact cause this block was written to remove.
+   Measured at five points across the opening — before the click, after the
+   activation, on each of the first two frames and once settled — every geometry
+   value is identical: html and body width, the scrollbar's 3px, the scroll
+   position, body overflow and padding, and the rects of the sidebar, the main
+   column, the page, the content and the panel. One scrim in the document, one
+   handler execution, and no ancestor with a transform or a filter. Nothing
+   moves, and the screen still shakes, which is the signature described above
+   and the reason four rounds of layout fixes could not touch it. */
+.pa-scrim        { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+
 /* And nothing animates behind an open panel. The two particle layers are the
    only thing on the page that moves by itself; pausing them while a player or
    transfer panel is open costs nothing — they are 85%-transparent dots behind a
@@ -1697,7 +1710,9 @@ body:has(.sq-plm.is-open)::after,
 body:has(.tf-modal)::before,
 body:has(.tf-modal)::after,
 body:has(.modal-bg.open)::before,
-body:has(.modal-bg.open)::after {
+body:has(.modal-bg.open)::after,
+body:has(.pa-scrim)::before,
+body:has(.pa-scrim)::after {
   animation: none !important;
 }
 
@@ -1759,7 +1774,10 @@ body:has(.sq-plm.is-open) #pages-container,
 body:has(.sq-plm.is-open) .content,
 body:has(.tf-modal) .page,
 body:has(.tf-modal) #pages-container,
-body:has(.tf-modal) .content {
+body:has(.tf-modal) .content,
+body:has(.pa-scrim) .page,
+body:has(.pa-scrim) #pages-container,
+body:has(.pa-scrim) .content {
   animation:   none !important;
   transform:   none !important;
   filter:      none !important;
@@ -17600,7 +17618,11 @@ body.club-theme .set-panel .settings-wrap{ padding:0; max-width:none; }
    same mechanism `.lg-float-bg` and `.lg-float` already use. */
 .pa-scrim{
   position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center;
-  background:rgba(4,6,12,.62); backdrop-filter:blur(6px); padding:20px;
+  /* The dim, and no blur. `backdrop-filter` on a full-viewport backdrop is the
+     confirmed cause of the shimmer this file removes everywhere else — see the
+     FLICKER FIX block. The fill is deepened from .62 to .74 so the separation
+     the blur was giving is still there. */
+  background:rgba(4,6,12,.74); padding:20px;
   animation:paFade .16s ease-out both;
 }
 @keyframes paFade{ from{ opacity:0; } to{ opacity:1; } }

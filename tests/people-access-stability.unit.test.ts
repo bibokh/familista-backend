@@ -275,6 +275,80 @@ describe('3b · and the panel arrives in one movement', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+describe('3c · and the backdrop does not shimmer, which is what was left', () => {
+  /**
+   * The last of it was not layout at all, and that is why four rounds of layout
+   * fixes could not touch it.
+   *
+   * Measured in Chromium at 1440x900, at five points across the opening —
+   * before the click, after the activation, on each of the first two frames,
+   * and once settled. EVERY geometry value identical at all five: html and body
+   * width, the scrollbar's 3px, the scroll position, body overflow and padding,
+   * and the rects of the sidebar, the main column, the page, the content and
+   * the panel. One scrim in the document, one handler execution, and no
+   * ancestor carrying a transform or a filter. Nothing moved, and the screen
+   * still shook.
+   *
+   * `.pa-scrim` carried `backdrop-filter: blur(6px)` and `inset: 0`. This file
+   * already contains the finding, written after CSS isolation and quoted in the
+   * FLICKER FIX block: a blurred backdrop over a continuously animating
+   * background is recomposited every frame for as long as the panel is open —
+   * "it moves nothing … which is why getBoundingClientRect, ResizeObserver and
+   * layout-shift all report the panel perfectly still while the screen visibly
+   * vibrates". `.modal-bg`, `.sq-plm-backdrop`, `.tf-modal-bd` and
+   * `.mobile-overlay` were all stripped of it then. `.pa-scrim` is newer than
+   * that block, was written with a blur because its neighbours had one, and was
+   * never added to the list.
+   *
+   * Behind it, `body::before` and `body::after` are two full-viewport particle
+   * layers running infinite transform-and-opacity animations. The rule that
+   * pauses them while a panel is open named three panels and not this one.
+   *
+   * Both halves are the fix. Neither is a new mechanism: both are this file's
+   * own, extended to cover the panel that was missing from them.
+   */
+  it('the scrim carries no backdrop filter, like every other full-viewport backdrop', () => {
+    expect(CSS).toContain('.pa-scrim        { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }');
+    // And it is not reintroduced in the panel's own rule.
+    expect(rule('.pa-scrim{')).not.toContain('backdrop-filter:blur');
+  });
+
+  it('and it is in the same list as the four that were stripped before it', () => {
+    const block = CSS.slice(CSS.indexOf('/* Part 1 — permanent: no backdrop-filter */'), CSS.indexOf('/* And nothing animates behind an open panel'));
+    for (const sel of ['.modal-bg', '.sq-plm-backdrop', '.tf-modal-bd', '.mobile-overlay', '.pa-scrim']) {
+      expect(`${sel} stripped: ${block.includes(sel + ' ')}`).toBe(`${sel} stripped: true`);
+    }
+  });
+
+  it('the dim is deepened, so the separation the blur gave is still there', () => {
+    const r = rule('.pa-scrim{');
+    expect(r).toContain('background:rgba(4,6,12,.74)');
+  });
+
+  it('nothing behind it animates while it is open', () => {
+    // The two particle layers, which are the only thing on the page that moves
+    // by itself, and the page containers.
+    const pause = CSS.slice(CSS.indexOf('body:has(.sq-plm.is-open)::before,'), CSS.indexOf('animation: none !important;', CSS.indexOf('body:has(.sq-plm.is-open)::before,')));
+    expect(pause).toContain('body:has(.pa-scrim)::before');
+    expect(pause).toContain('body:has(.pa-scrim)::after');
+    const containers = CSS.slice(CSS.indexOf('body:has(.sq-plm.is-open) .page,'));
+    expect(containers.slice(0, 700)).toContain('body:has(.pa-scrim) .page');
+    expect(containers.slice(0, 700)).toContain('body:has(.pa-scrim) #pages-container');
+    expect(containers.slice(0, 700)).toContain('body:has(.pa-scrim) .content');
+  });
+
+  it('and no full-viewport backdrop anywhere still blurs', () => {
+    // The rule this codebase learned once and had to learn again: an
+    // `inset: 0` fixed backdrop with a blur recomposites the whole viewport.
+    const backdrops = ['.pa-scrim', '.modal-bg', '.sq-plm-backdrop', '.tf-modal-bd', '.mobile-overlay'];
+    for (const sel of backdrops) {
+      const off = CSS.includes(`${sel} `) && CSS.includes('backdrop-filter: none !important');
+      expect(`${sel} has a kill rule: ${off}`).toBe(`${sel} has a kill rule: true`);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 describe('4 · nothing here observes, polls or re-registers', () => {
   it('the module installs no observer and no timer', () => {
     const code = decomment(PA);
