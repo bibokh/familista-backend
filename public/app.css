@@ -17591,19 +17591,34 @@ body.club-theme .set-panel .settings-wrap{ padding:0; max-width:none; }
 /* ── the floating panel ───────────────────────────────────────────────────── */
 /* Fixed, so nothing beneath it moves; opacity and transform only, so opening
    it costs no layout. */
+/* The panel opens on an ANIMATION, not on a class toggled a frame later.
+   A class added in requestAnimationFrame after an insertion is not reliably a
+   separate style resolution — the browser may fold the two into one recalc, so
+   the transition either never runs or runs from a half-resolved state, and the
+   panel arrives in a jump. An animation starts from the element's first frame,
+   deterministically, with nothing to toggle and no frame to wait for. It is the
+   same mechanism `.lg-float-bg` and `.lg-float` already use. */
 .pa-scrim{
   position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center;
   background:rgba(4,6,12,.62); backdrop-filter:blur(6px); padding:20px;
-  opacity:0; transition:opacity .18s ease;
+  animation:paFade .16s ease-out both;
 }
-.pa-scrim.is-open{ opacity:1; }
+@keyframes paFade{ from{ opacity:0; } to{ opacity:1; } }
 .pa-panel{
   width:min(560px,100%); max-height:calc(100vh - 40px); display:flex; flex-direction:column;
   background:var(--card); border:1px solid var(--bd); border-radius:16px; overflow:hidden;
   box-shadow:0 24px 70px rgba(0,0,0,.45);
-  transform:translateY(8px) scale(.99); transition:transform .18s ease;
+  animation:paRise .18s cubic-bezier(.2,.8,.2,1) both;
 }
-.pa-scrim.is-open .pa-panel{ transform:none; }
+/* Opacity and a pure translate, and deliberately no scale. This panel is a
+   FORM: scaling a box full of inputs and labels re-rasterises every glyph on
+   every frame of the animation, which is the shimmer that reads as the panel
+   shaking as it arrives. A whole-pixel translate composites without touching
+   the text at all. */
+@keyframes paRise{
+  from{ opacity:0; transform:translate3d(0,10px,0); }
+  to{ opacity:1; transform:none; }
+}
 .pa-panel--sm{ width:min(440px,100%); }
 .pa-panel-h{ display:flex; align-items:flex-start; gap:14px; padding:18px 20px 14px; border-bottom:1px solid var(--bd); }
 .pa-panel-h h2{ margin:0; font-size:17px; font-weight:800; color:var(--tx); }

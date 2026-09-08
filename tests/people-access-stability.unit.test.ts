@@ -124,16 +124,17 @@ describe('2 · the page is a fixed-height column, so nothing shifts as it loads'
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('3 · the modal floats, and typing in it touches nothing else', () => {
-  it('the scrim is fixed and animates on opacity and transform only', () => {
+  it('the scrim is fixed, and neither it nor the panel animates a layout property', () => {
     const scrim = rule('.pa-scrim{');
     expect(scrim).toContain('position:fixed');
     expect(scrim).toContain('inset:0');
-    expect(scrim).toContain('transition:opacity');
-    // Never a transition on a property that costs a layout.
-    expect(scrim).not.toMatch(/transition:[^;]*(width|height|top|left|margin|padding)/);
+    // An animation from the first frame, not a transition waiting on a class.
+    expect(scrim).toContain('animation:paFade');
     const panel = rule('.pa-panel{');
-    expect(panel).toContain('transition:transform');
-    expect(panel).not.toMatch(/transition:[^;]*(width|height|top|left|margin|padding)/);
+    expect(panel).toContain('animation:paRise');
+    for (const r of [scrim, panel]) {
+      expect(r).not.toMatch(/(transition|animation):[^;]*(width|height|top|left|margin|padding)/);
+    }
   });
 
   it('opening it inserts one node and repaints no part of the page', () => {
@@ -169,17 +170,122 @@ describe('3 · the modal floats, and typing in it touches nothing else', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+describe('3b · and the panel arrives in one movement', () => {
+  /**
+   * The last of it was in the opening sequence itself, and it was two things.
+   *
+   * `first.focus()` ran synchronously after the insertion, while the panel was
+   * still at its starting transform — so the browser scrolled the field into
+   * view against a position the panel was about to leave, then corrected that
+   * scroll while the animation was still running. A scrolling ancestor moving
+   * under a moving panel is a shake.
+   *
+   * And the panel scaled: `translateY(8px) scale(.99)` to none. Scaling a box
+   * full of inputs and labels re-rasterises every glyph on every frame. On a
+   * form that reads as the panel shivering as it lands.
+   *
+   * Measured in Chromium before: `matrix(0.99, 0, 0, 0.99, 0, 8)`, panel
+   * 554x593 mid-animation. After: `matrix(1, 0, 0, 1, 0, 10)` — a pure
+   * translate — and the panel already 560x599, its final size, at frame one.
+   */
+  it('the field is focused without scrolling anything', () => {
+    const open = PA.slice(PA.indexOf('function openInvite() {'), PA.indexOf('function field(label, control) {'));
+    expect(open).toContain('first.focus({ preventScroll: true })');
+    // With a plain focus left as the fallback for a browser without it, and
+    // never as the first choice.
+    expect(open).toMatch(/catch \(_\) \{ first\.focus\(\); \}/);
+    expect(open).not.toMatch(/if \(first\) first\.focus\(\);/);
+  });
+
+  it('and it opens on an animation, with no class toggled a frame later', () => {
+    const open = PA.slice(PA.indexOf('function openInvite() {'), PA.indexOf('function field(label, control) {'));
+    expect(open).toContain('document.body.appendChild(wrap);');
+    // A class added in rAF after an insertion is not reliably a separate style
+    // resolution: the browser may fold the two into one recalc, so the panel
+    // either snaps or animates from a half-resolved state.
+    expect(open).not.toContain('requestAnimationFrame');
+    expect(open).not.toContain('is-open');
+    // And nothing anywhere in the module still toggles it.
+    expect(PA).not.toContain('is-open');
+    expect(CSS).not.toContain('.pa-scrim.is-open');
+  });
+
+  it('the animation moves opacity and a pure translate, and nothing else', () => {
+    const scrim = rule('.pa-scrim{');
+    expect(scrim).toContain('animation:paFade');
+    expect(scrim).not.toContain('transition');
+    const panel = rule('.pa-panel{');
+    expect(panel).toContain('animation:paRise');
+    expect(panel).not.toContain('transition');
+
+    const fade = CSS.slice(CSS.indexOf('@keyframes paFade{'), CSS.indexOf('}', CSS.indexOf('@keyframes paFade{')) + 2);
+    expect(fade).toMatch(/from\{ opacity:0; \}/);
+    const rise = CSS.slice(CSS.indexOf('@keyframes paRise{'), CSS.indexOf('\n}', CSS.indexOf('@keyframes paRise{')));
+    expect(rise).toContain('transform:translate3d(0,10px,0)');
+    expect(rise).toContain('opacity:0');
+    // No scale: it is a form, and scaling text re-rasterises it every frame.
+    expect(rise).not.toContain('scale(');
+    // And no layout property is animated by either of them.
+    for (const kf of [fade, rise]) {
+      expect(kf).not.toMatch(/\b(width|height|top|left|right|bottom|margin|padding)\s*:/);
+    }
+  });
+
+  it('the panel is at its final size from the first frame', () => {
+    // `both` fills the starting state, so the box is laid out once and the
+    // animation only composites. A panel that grows into place is a panel that
+    // reflows on every frame of its own arrival.
+    expect(rule('.pa-panel{')).toContain('animation:paRise .18s cubic-bezier(.2,.8,.2,1) both');
+    expect(rule('.pa-scrim{')).toContain('animation:paFade .16s ease-out both');
+  });
+
+  it('and opening it locks no scroll, pads no body and moves no sidebar', () => {
+    const open = PA.slice(PA.indexOf('function openInvite() {'), PA.indexOf('function field(label, control) {'));
+    const close = PA.slice(PA.indexOf('function closePanel() {'), PA.indexOf('function showErr(msg) {'));
+    for (const fn of [open, close]) {
+      expect(fn).not.toMatch(/body\.style|overflow\s*=|paddingRight|scrollTop\s*=|scrollTo|classList\.add\('modal/);
+    }
+    // The scrim is fixed, so inserting it changes no document dimension.
+    expect(rule('.pa-scrim{')).toContain('position:fixed');
+    expect(rule('.pa-scrim{')).toContain('inset:0');
+  });
+
+  it('one click opens exactly one panel, and reopening starts from none', () => {
+    const open = PA.slice(PA.indexOf('function openInvite() {'), PA.indexOf('function field(label, control) {'));
+    // The first thing it does is remove any panel already there, so a second
+    // click can never leave two scrims stacked.
+    expect(open.slice(0, 200)).toContain('closePanel();');
+    const close = PA.slice(PA.indexOf('function closePanel() {'), PA.indexOf('function showErr(msg) {'));
+    expect(close).toContain("document.getElementById('pa-panel')");
+    expect(close).toContain('p.remove()');
+  });
+
+  it('and the click that opens it is dispatched once, from one listener', () => {
+    // One delegated listener for the module, matching on the action attribute —
+    // not a handler bound per render, which is how duplicates accumulate.
+    // One button carries the action, one entry in the handler map answers it,
+    // and one delegated listener connects them.
+    expect((PA.match(/data-pa="paInvite"/g) || []).length).toBe(1);
+    expect((PA.match(/^\s*paInvite: openInvite,$/gm) || []).length).toBe(1);
+    const dispatch = PA.slice(PA.indexOf("document.addEventListener('click'"));
+    expect(dispatch).toContain("t.getAttribute('data-pa')");
+    const paint = PA.slice(PA.indexOf('function paint() {'), PA.indexOf('function openInvite() {'));
+    expect(paint).not.toContain('addEventListener');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 describe('4 · nothing here observes, polls or re-registers', () => {
   it('the module installs no observer and no timer', () => {
     const code = decomment(PA);
     expect(code).not.toContain('ResizeObserver');
     expect(code).not.toContain('MutationObserver');
     expect(code).not.toContain('setInterval');
-    // The two rAF calls are the one-shot enter transitions, and nothing else.
     expect(code).not.toContain('setTimeout');
-    const rafs = code.match(/requestAnimationFrame\(/g) || [];
-    expect(rafs.length).toBe(3);
-    expect(code).toMatch(/requestAnimationFrame\(function \(\) \{ wrap\.classList\.add\('is-open'\); \}\)/);
+    // The three enter transitions used to be classes added a frame after the
+    // insertion. They are CSS animations now, so the module schedules nothing
+    // at all — there is no frame to wait for and none to get wrong.
+    expect(code).not.toContain('requestAnimationFrame');
   });
 
   it('and its document listeners are registered once, at module scope', () => {

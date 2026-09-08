@@ -482,9 +482,20 @@
       +   '</form>'
       + '</div>';
     document.body.appendChild(wrap);
-    requestAnimationFrame(function () { wrap.classList.add('is-open'); });
+    // The panel animates itself in from its first frame — see `paRise`. There is
+    // no class to add a frame later, which is what used to open it from a
+    // half-resolved state.
     var first = wrap.querySelector('input[name="firstName"]');
-    if (first) first.focus();
+    // `preventScroll`, and it is the whole of this fix. Focusing ran while the
+    // panel was still at `translate3d(0,10px,0)`, so the browser scrolled the
+    // field into view against a position the panel was about to leave — and
+    // then corrected that scroll while the animation was still running. A
+    // scrolling ancestor moving under a moving panel is the shake. The field is
+    // the first thing in the form and needs no scrolling to be seen.
+    if (first) {
+      try { first.focus({ preventScroll: true }); }
+      catch (_) { first.focus(); }
+    }
     wrap.querySelector('#pa-invite-form').addEventListener('submit', submitInvite);
     wrap.addEventListener('change', function (e) {
       if (e.target && e.target.name === 'scope') {
@@ -593,7 +604,7 @@
         +     esc(opts.confirm) + '</button>'
         + '</div></div>';
       document.body.appendChild(wrap);
-      requestAnimationFrame(function () { wrap.classList.add('is-open'); });
+      // Same animation as the invite panel; nothing to toggle.
       wrap.addEventListener('click', function (e) {
         var t = e.target.closest && e.target.closest('[data-pa]');
         if (!t) return;
@@ -626,7 +637,7 @@
         +   '<button type="button" class="pa-invite" data-pa="paOk">' + esc(opts.confirm) + '</button>'
         + '</div></div>';
       document.body.appendChild(wrap);
-      requestAnimationFrame(function () { wrap.classList.add('is-open'); });
+      // Same animation as the invite panel; nothing to toggle.
       wrap.addEventListener('click', function (e) {
         var t = e.target.closest && e.target.closest('[data-pa]');
         if (!t) return;

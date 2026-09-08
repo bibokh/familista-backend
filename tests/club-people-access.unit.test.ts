@@ -658,9 +658,12 @@ describe('the club screen shows what the server says, and offers only what it ma
     const css = read('public/app.css');
     // A skeleton is the size of the row it stands in for, so nothing jumps.
     expect(css).toMatch(/\.pa-skel-row\{[\s\S]*?height:66px/);
-    // The panel is fixed and animates on opacity and transform only.
+    // The panel is fixed and animates on opacity and transform only. It moves
+    // on a keyframe animation rather than a class-toggled transition now: a
+    // class added a frame after the insertion is not reliably a separate style
+    // resolution, so the panel opened from a half-resolved state.
     expect(css).toMatch(/\.pa-scrim\{[\s\S]*?position:fixed/);
-    expect(css).toMatch(/\.pa-panel\{[\s\S]*?transition:transform/);
+    expect(css).toMatch(/\.pa-panel\{[\s\S]*?animation:paRise/);
     // And it is responsive.
     expect(css).toContain('@media (max-width:680px)');
   });
