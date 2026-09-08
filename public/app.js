@@ -1713,7 +1713,7 @@ function _access(capability) {
  */
 var _CAP_CONTROLS = {
   // Trading on the club's behalf: listing, selling, bidding, contracts,
-  // negotiating, and the club's own recruitment needs and shortlist.
+  // negotiating, and the club's own recruitment needs.
   canAdministerTransfers: [
     'data-tf-sell-open', 'data-tf-exp', 'data-tf-mode', 'data-tf-renew-save',
     'data-tf-delist', 'data-tf-delist-now', 'data-tf-sign', 'data-tf-bid',
@@ -1721,7 +1721,7 @@ var _CAP_CONTROLS = {
     'data-tf-aucstep', 'data-tf-offer-clubs', 'data-tf-offer-counter',
     'data-tf-offer-reject', 'data-tf-interest', 'data-tf-interest-resp',
     'data-tf-need-close', 'data-tf-need-edit', 'data-tf-need-reopen',
-    'data-tf-need-offer', 'data-tf-short', 'data-tf-o2c-mode',
+    'data-tf-need-offer', 'data-tf-o2c-mode',
   ],
   // Running the club's staff: hiring, moving between teams, releasing, and the
   // records the club keeps about them.
@@ -1730,6 +1730,18 @@ var _CAP_CONTROLS = {
     'data-co-carsave', 'data-co-cardel', 'data-co-trsave',
     'data-co-notesave', 'data-co-noteadd',
     'data-co-seed', 'data-co-seed-all', 'data-co-unseed',
+    // The Coach Market's own controls. Approaching somebody, inviting him to
+    // interview, sending or answering an offer, withdrawing one, adding an
+    // external candidate, publishing or closing a recruitment need, writing
+    // the club's note on a person, and setting a shortlist entry's priority or
+    // recruitment stage — every one of them is `recruitGuard` on the server.
+    // The openers go too: a button whose only destination is a form the person
+    // cannot submit is not a kindness.
+    'data-st-approach', 'data-st-appr-send', 'data-st-interview',
+    'data-st-accept', 'data-st-reject', 'data-st-withdraw',
+    'data-st-ext-open', 'data-st-ext-save',
+    'data-st-needopen', 'data-st-need-add', 'data-st-need-close',
+    'data-st-note-save', 'data-st-pri', 'data-st-stage',
   ],
 };
 

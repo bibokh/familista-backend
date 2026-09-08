@@ -22,9 +22,11 @@
 //                         per-team separation the data cannot express.
 
 import type { Request, Response, NextFunction, Router } from 'express';
+import type { MembershipRole } from '@prisma/client';
 import { prisma } from '../config/database';
 import * as teamAccess from '../identity/team-access.service';
 import { tenantGuard } from './tenant-guard.middleware';
+import { meetsMembershipRank } from './tenant.middleware';
 import { ForbiddenError } from '../utils/errors';
 
 /** Whether the request carries a session at all. A route that authenticates
@@ -150,6 +152,49 @@ export function requireClubWideManage() {
   return async function (req: Request, _res: Response, next: NextFunction): Promise<void> {
     try {
       await teamAccess.assertClubWideManageAuthority(actorOfRequest(req));
+      next();
+    } catch (err) { next(err); }
+  };
+}
+
+/**
+ * The floor, asked of the club the request will actually act on.
+ *
+ * `requireMembership` in `tenant.middleware` asks the same question of
+ * `User.clubId`, the primary-club column. For almost every module that is the
+ * same club — but the two market controllers read `currentClubId ?? clubId`,
+ * the club the session is currently standing in, and for somebody who belongs
+ * to two clubs those can name different ones. On a route that pairs
+ * `requireMembership` with `requireClubWideManage` the mismatch cannot bite,
+ * because the second half pins the acting club itself. On a route that wants a
+ * rank floor and nothing above it, this is the one to use.
+ *
+ * It adds no rule of its own. `ROLE_RANK` is the same table
+ * `requireMembership` reads, an active membership is still the only thing that
+ * answers, and a club-wide membership and a team-scoped one of the same rank
+ * answer alike — which is the point: this asks HOW SENIOR, and deliberately
+ * not whether the authority is club-wide. Where club-wide is what matters,
+ * `requireClubWideManage` is still the gate.
+ */
+export function requireActingClubMembership(minRole: MembershipRole) {
+  return async function (req: Request, _res: Response, next: NextFunction): Promise<void> {
+    try {
+      const actor = actorOfRequest(req);
+      if (!actor.userId) throw new ForbiddenError('Authentication required');
+      // SUPER_ADMIN bypasses tenancy, exactly as it does in requireMembership.
+      if (actor.role === 'SUPER_ADMIN') return next();
+      if (!actor.clubId) throw new ForbiddenError('No active club context');
+
+      const memberships = await prisma.membership.findMany({
+        where: { userId: actor.userId, clubId: actor.clubId, isActive: true },
+        select: { role: true },
+      });
+      if (!memberships.length) {
+        throw new ForbiddenError('No active membership for the current club');
+      }
+      if (!meetsMembershipRank(memberships.map((m) => m.role), minRole)) {
+        throw new ForbiddenError(`Insufficient membership role (need ${minRole} or higher)`);
+      }
       next();
     } catch (err) { next(err); }
   };

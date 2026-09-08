@@ -103,6 +103,10 @@ const READS = [
   'data-tf-dpage', 'data-tf-sort', 'data-tf-negotiation', 'data-tf-auction-open',
   'data-tf-open-player', 'data-tf-feedview', 'data-tf-needview',
   'data-co-team', 'data-co-club', 'data-co-tabto', 'data-co-ptab', 'data-co-back',
+  // The shortlist, on both markets. It is a write, and it is deliberately not
+  // gated: `shortlistGuard` on the server lets a team-scoped head coach keep
+  // the club's watchlist, so the star stays where he can press it.
+  'data-tf-short', 'data-st-short',
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -113,7 +117,7 @@ describe('Transfers · a coach browses, and does not trade', () => {
     'data-tf-offer-clubs', 'data-tf-offer-counter', 'data-tf-offer-reject',
     'data-tf-renew-save', 'data-tf-interest', 'data-tf-interest-resp',
     'data-tf-need-close', 'data-tf-need-edit', 'data-tf-need-reopen', 'data-tf-need-offer',
-    'data-tf-short', 'data-tf-o2c-mode', 'data-tf-exp', 'data-tf-mode', 'data-tf-aucstep',
+    'data-tf-o2c-mode', 'data-tf-exp', 'data-tf-mode', 'data-tf-aucstep',
   ];
 
   it('every trading control is removed for a first-team head coach', () => {
@@ -151,6 +155,12 @@ describe('Coaches · a coach sees his colleagues, and hires nobody', () => {
     'data-co-add', 'data-co-moveopen', 'data-co-movesave', 'data-co-release',
     'data-co-carsave', 'data-co-cardel', 'data-co-trsave',
     'data-co-notesave', 'data-co-noteadd', 'data-co-seed', 'data-co-seed-all', 'data-co-unseed',
+    // The Coach Market's own controls, every one of them recruitGuard.
+    'data-st-approach', 'data-st-appr-send', 'data-st-interview',
+    'data-st-accept', 'data-st-reject', 'data-st-withdraw',
+    'data-st-ext-open', 'data-st-ext-save',
+    'data-st-needopen', 'data-st-need-add', 'data-st-need-close',
+    'data-st-note-save', 'data-st-pri', 'data-st-stage',
   ];
 
   it('every staff-administration control is removed', () => {
@@ -174,7 +184,7 @@ describe('Coaches · a coach sees his colleagues, and hires nobody', () => {
 describe('and the same list leaves everyone else exactly as they were', () => {
   const ALL = [
     'data-tf-sell-open', 'data-tf-delist', 'data-tf-auction-bid', 'data-tf-renew-save',
-    'data-tf-short', 'data-tf-need-edit',
+    'data-tf-need-edit', 'data-st-approach', 'data-st-appr-send', 'data-st-note-save',
     'data-co-add', 'data-co-release', 'data-co-moveopen', 'data-co-seed',
     ...READS,
   ];

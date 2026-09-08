@@ -166,7 +166,6 @@ const TRANSFER_WRITES: Array<[string, string]> = [
   ['post', '/transfers/offers'],
   ['post', '/transfers/offers/o1/accept'],
   ['post', '/transfers/players/p1/contract/renew'],
-  ['post', '/transfers/shortlist'],
   ['post', '/transfers/needs'],
   ['post', '/transfers/offer-to-clubs'],
 ];
@@ -176,11 +175,25 @@ const COACH_MARKET_WRITES: Array<[string, string]> = [
   ['post', '/staff-market/approaches/a1/counter'],
   ['post', '/staff-market/approaches/a1/accept'],
   ['post', '/staff-market/needs'],
-  ['put', '/staff-market/shortlist/s1'],
   ['put', '/staff-market/notes/s1'],
+  ['patch', '/staff-market/shortlist/s1'],
   ['patch', '/staff-market/staff/s1'],
   ['post', '/staff-market/bootstrap'],
   ['post', '/staff-market/external'],
+];
+
+/**
+ * The shortlist, on both markets. Marking somebody the club is watching sends
+ * nothing out of the club — no bid, no offer, no approach, no money, and
+ * nothing the person or his club can see — so it is the one recruitment write
+ * a team-scoped head coach may make. Everything that FOLLOWS from an entry
+ * stays in the lists above.
+ */
+const SHORTLIST_WRITES: Array<[string, string]> = [
+  ['post', '/transfers/shortlist'],
+  ['delete', '/transfers/shortlist/p1'],
+  ['put', '/staff-market/shortlist/s1'],
+  ['delete', '/staff-market/shortlist/s1'],
 ];
 
 const STAFF_WRITES: Array<[string, string]> = [
@@ -226,7 +239,7 @@ describe('1 · a First-Team-only head coach is refused every recruitment write',
 // ─────────────────────────────────────────────────────────────────────────────
 describe('2 · the tier the modules always had is the tier they still have', () => {
   it('a club-wide head coach still trades and still recruits', async () => {
-    for (const [method, url] of [...TRANSFER_WRITES, ...COACH_MARKET_WRITES]) {
+    for (const [method, url] of [...TRANSFER_WRITES, ...COACH_MARKET_WRITES, ...SHORTLIST_WRITES]) {
       const res = await call(method as 'post', url, CLUB_HEAD);
       expect(`${url} → ${res.status}`).toBe(`${url} → 200`);
     }
@@ -254,14 +267,14 @@ describe('2 · the tier the modules always had is the tier they still have', () 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('3 · and legitimate club authority is untouched', () => {
   it('the president keeps everything', async () => {
-    for (const [method, url] of [...TRANSFER_WRITES, ...COACH_MARKET_WRITES, ...STAFF_WRITES]) {
+    for (const [method, url] of [...TRANSFER_WRITES, ...COACH_MARKET_WRITES, ...STAFF_WRITES, ...SHORTLIST_WRITES]) {
       const res = await call(method as 'post', url, PRESIDENT);
       expect(`${url} → ${res.status}`).toBe(`${url} → 200`);
     }
   });
 
   it('a club administrator keeps everything a club administrator had', async () => {
-    for (const [method, url] of [...TRANSFER_WRITES, ...COACH_MARKET_WRITES, ...STAFF_WRITES]) {
+    for (const [method, url] of [...TRANSFER_WRITES, ...COACH_MARKET_WRITES, ...STAFF_WRITES, ...SHORTLIST_WRITES]) {
       const res = await call(method as 'post', url, ADMIN);
       expect(`${url} → ${res.status}`).toBe(`${url} → 200`);
     }
@@ -272,10 +285,111 @@ describe('3 · and legitimate club authority is untouched', () => {
     // short-circuits requireMembership and hasClubWideManageAuthority alike.
     // It is why SUPER_ADMIN was added to the old guard, and it still holds.
     expect(state.memberships.find((m) => m.userId === OWNER)).toBeUndefined();
-    for (const [method, url] of [...TRANSFER_WRITES, ...COACH_MARKET_WRITES, ...STAFF_WRITES]) {
+    for (const [method, url] of [...TRANSFER_WRITES, ...COACH_MARKET_WRITES, ...STAFF_WRITES, ...SHORTLIST_WRITES]) {
       const res = await call(method as 'post', url, OWNER);
       expect(`${url} → ${res.status}`).toBe(`${url} → 200`);
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('3b · the shortlist is the one recruitment write the coach may make', () => {
+  it('a First-Team head coach adds to and removes from both shortlists', async () => {
+    for (const [method, url] of SHORTLIST_WRITES) {
+      const res = await call(method as 'post', url, COACH);
+      expect(`${method.toUpperCase()} ${url} → ${res.status}`).toBe(`${method.toUpperCase()} ${url} → 200`);
+    }
+  });
+
+  it('and nothing that follows from an entry comes with it', async () => {
+    // Priority and recruitment stage — WATCHING through OFFER_SENT — are the
+    // club's pipeline, not one coach's list. So is the club's written note on
+    // a person, an approach, an interview invitation, an offer, a need. Every
+    // one of them is still refused to the same account, in the same request.
+    for (const [method, url] of [
+      ['patch', '/staff-market/shortlist/s1'],
+      ['put', '/staff-market/notes/s1'],
+      ['post', '/staff-market/approaches'],
+      ['post', '/staff-market/approaches/a1/interview'],
+      ['post', '/staff-market/approaches/a1/accept'],
+      ['post', '/staff-market/needs'],
+      ['post', '/staff-market/external'],
+      ['post', '/transfers/offers'],
+      ['post', '/transfers/listings'],
+      ['post', '/transfers/needs'],
+    ] as Array<[string, string]>) {
+      const res = await call(method as 'post', url, COACH);
+      expect(`${method.toUpperCase()} ${url} → ${res.status}`).toBe(`${method.toUpperCase()} ${url} → 403`);
+    }
+  });
+
+  it('it is the RANK that opens it, so the tier below is still refused', async () => {
+    // A club-wide assistant coach outranks nobody here: shortlisting asks for
+    // HEAD_COACH, exactly as every other write on these routers does, and
+    // being club-wide is not a promotion.
+    for (const [method, url] of SHORTLIST_WRITES) {
+      const res = await call(method as 'post', url, ASSISTANT);
+      expect(`assistant ${url} → ${res.status}`).toBe(`assistant ${url} → 403`);
+    }
+    // And an academy coach carries YOUTH_COACH, which is the assistant tier.
+    for (const [method, url] of SHORTLIST_WRITES) {
+      const res = await call(method as 'post', url, ACADEMY);
+      expect(`youth coach ${url} → ${res.status}`).toBe(`youth coach ${url} → 403`);
+    }
+  });
+
+  it('and a stranger to the club is refused, membership being the only answer', async () => {
+    // The account role says HEAD_COACH and the session names this club. What
+    // it does not have is a membership row here — so there is nothing to rank,
+    // and the shortlist is refused like everything else.
+    state.memberships = state.memberships.filter((m) => m.userId !== COACH);
+    for (const [method, url] of SHORTLIST_WRITES) {
+      const res = await call(method as 'post', url, COACH);
+      expect(`no membership ${url} → ${res.status}`).toBe(`no membership ${url} → 403`);
+    }
+  });
+
+  it('and a suspended membership does not shortlist either', async () => {
+    for (const m of state.memberships) if (m.userId === COACH) m.isActive = false;
+    for (const [method, url] of SHORTLIST_WRITES) {
+      const res = await call(method as 'post', url, COACH);
+      expect(`suspended ${url} → ${res.status}`).toBe(`suspended ${url} → 403`);
+    }
+  });
+
+  it('and the guard asks the club the request will act on', async () => {
+    // The market controllers read `currentClubId ?? clubId`. `requireMembership`
+    // reads `User.clubId`. For somebody who belongs to two clubs those name
+    // different clubs, and a rank floor checked against the wrong one is not a
+    // floor — so the shortlist guard asks the acting club itself.
+    const src: string = require('fs').readFileSync(
+      require('path').join(__dirname, '..', 'src', 'middleware', 'team-scope.middleware.ts'), 'utf8');
+    expect(src.includes('export function requireActingClubMembership')).toBe(true);
+    // It resolves the club the same way the controllers do.
+    const fn = src.slice(src.indexOf('export function requireActingClubMembership'));
+    expect(fn.slice(0, fn.indexOf('\n}')).includes('actorOfRequest(req)')).toBe(true);
+    for (const file of ['transfer-market.routes.ts', 'staff-market.routes.ts']) {
+      const routes: string = require('fs').readFileSync(
+        require('path').join(__dirname, '..', 'src', 'routes', file), 'utf8');
+      const code = routes.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+      expect(`${file} defines shortlistGuard: ${code.includes('const shortlistGuard =')}`)
+        .toBe(`${file} defines shortlistGuard: true`);
+      // And it is a floor and nothing else — no club-wide check smuggled in.
+      const guard = code.slice(code.indexOf('const shortlistGuard ='));
+      expect(guard.slice(0, guard.indexOf(';')).includes('requireClubWideManage')).toBe(false);
+    }
+  });
+
+  it('and re-adding somebody is not a way around the guarded note', async () => {
+    // `addToShortlist` upserts. If the update branch wrote the note, a coach
+    // could rewrite what the club has recorded about a person by pressing the
+    // star twice — the field PATCH deliberately keeps behind recruitGuard.
+    const src: string = require('fs').readFileSync(
+      require('path').join(__dirname, '..', 'src', 'staff-market', 'staff-market.service.ts'), 'utf8');
+    const fn = src.slice(src.indexOf('export async function addToShortlist'));
+    const body = fn.slice(0, fn.indexOf('\n}'));
+    expect(body.includes('update: {}')).toBe(true);
+    expect(/update:\s*\{\s*note/.test(body)).toBe(false);
   });
 });
 
@@ -320,10 +434,37 @@ describe('5 · and no route decides this from the account field any more', () =>
     const fs = require('fs');
     const path = require('path');
     const src: string = fs.readFileSync(path.join(__dirname, '..', 'src', 'middleware', 'team-scope.middleware.ts'), 'utf8');
-    const fn = src.slice(src.indexOf('export function requireClubWideManage'), src.indexOf('* The gate for a route addressed by PLAYER'));
+    // The one function, and not whatever happens to be written after it: an
+    // end anchor that claims the rest of the file would fail on the next thing
+    // added below, which is how this assertion has already been wrong once.
+    const from = src.indexOf('export function requireClubWideManage');
+    expect(from).toBeGreaterThan(-1);
+    const rest = src.indexOf('\nexport function ', from + 1);
+    expect(rest).toBeGreaterThan(from);
+    const fn = src.slice(from, rest);
     // It defers to the service. No roles listed, no ranks compared, no second
     // permission model beside the one that already exists.
     expect(fn).toContain('teamAccess.assertClubWideManageAuthority(actorOfRequest(req))');
     expect(fn).not.toMatch(/CLUB_ADMIN|HEAD_COACH|SUPER_ADMIN|MANAGER/);
+  });
+
+  it('and the rank guard beside it adds none either', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src: string = fs.readFileSync(path.join(__dirname, '..', 'src', 'middleware', 'team-scope.middleware.ts'), 'utf8');
+    const from = src.indexOf('export function requireActingClubMembership');
+    expect(from).toBeGreaterThan(-1);
+    const rest = src.indexOf('\nexport function ', from + 1);
+    expect(rest).toBeGreaterThan(from);
+    const fn = src.slice(from, rest);
+    // The rank comes from ROLE_RANK, through the same helper requireMembership
+    // reads. No list of roles of its own, and no role name written into it —
+    // the floor arrives as an argument from the route.
+    expect(fn).toContain('meetsMembershipRank(');
+    expect(fn).not.toMatch(/CLUB_ADMIN|HEAD_COACH|CLUB_OWNER|MANAGER|YOUTH_COACH/);
+    // An active membership is the only thing that answers.
+    expect(fn).toContain('isActive: true');
+    // And SUPER_ADMIN short-circuits exactly where requireMembership does.
+    expect(fn).toContain("actor.role === 'SUPER_ADMIN'");
   });
 });

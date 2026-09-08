@@ -120,8 +120,14 @@ describe('search, filters, sort, shortlist and comparison', () => {
     expect(APP).toMatch(/_stApi\('DELETE', '\/shortlist\//);
     expect(APP).not.toMatch(/localStorage[\s\S]{0,40}shortlist/i);
     expect(ROUTES).toContain("router.get('/shortlist',");
-    expect(ROUTES).toMatch(/router\.put\('\/shortlist\/:staffUserId',\s*recruitGuard/);
-    expect(ROUTES).toMatch(/router\.delete\('\/shortlist\/:staffUserId',\s*recruitGuard/);
+    // Keeping the club's watchlist takes the rank and not club-wide authority:
+    // the coach who scouts is the person who keeps the list, and marking
+    // somebody sends nothing out of the club. What FOLLOWS from an entry — its
+    // priority and its recruitment stage — is the club's pipeline and stays on
+    // the club-wide guard.
+    expect(ROUTES).toMatch(/router\.put\('\/shortlist\/:staffUserId',\s*shortlistGuard/);
+    expect(ROUTES).toMatch(/router\.delete\('\/shortlist\/:staffUserId',\s*shortlistGuard/);
+    expect(ROUTES).toMatch(/router\.patch\('\/shortlist\/:staffUserId',\s*recruitGuard/);
   });
 
   it('comparison reads the same projection a profile does', () => {

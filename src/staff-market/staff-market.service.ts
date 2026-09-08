@@ -1461,12 +1461,18 @@ export async function readShortlist(actor: StaffActor) {
 
 // Idempotent both ways — marking a coach twice is marking him once, and the
 // same button unmarks him.
+//
+// Adding somebody already on the list leaves the entry exactly as it is. A
+// note written when the entry is created is the reason it was created; what
+// the club has since written about him — its note, its priority, its
+// recruitment stage — is changed through `setShortlistMeta`, which is the
+// club-wide route. Re-adding must not be a way around it.
 export async function addToShortlist(actor: StaffActor, staffUserId: string, note?: string) {
   const user = await prisma.user.findUnique({ where: { id: staffUserId }, select: { id: true } });
   if (!user) throw new NotFoundError('Staff member');
   await prisma.staffShortlist.upsert({
     where: { clubId_staffUserId: { clubId: actor.clubId, staffUserId } },
-    update: { note: note ?? undefined },
+    update: {},
     create: { clubId: actor.clubId, staffUserId, addedById: actor.userId, note: note ?? null },
   });
   return { staffUserId, isShortlisted: true };

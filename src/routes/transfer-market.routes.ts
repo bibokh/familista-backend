@@ -8,7 +8,7 @@ import { Router } from 'express';
 import { MembershipRole } from '@prisma/client';
 import { authenticate } from '../middleware/auth.middleware';
 import { requireMembership } from '../middleware/tenant.middleware';
-import { requireClubWideManage } from '../middleware/team-scope.middleware';
+import { requireClubWideManage, requireActingClubMembership } from '../middleware/team-scope.middleware';
 import * as ctrl from '../controllers/transfer-market.controller';
 
 const router = Router();
@@ -41,6 +41,10 @@ router.use(authenticate);
 // owner can still lift a club's roster — the reason SUPER_ADMIN was added here
 // in the first place.
 const tradeGuard = [requireMembership(MembershipRole.HEAD_COACH), requireClubWideManage()];
+
+// The club's own watchlist, and nothing beyond it. See the shortlist routes
+// below for why this asks only how senior the membership is.
+const shortlistGuard = [requireActingClubMembership(MembershipRole.HEAD_COACH)];
 
 // ── read: every authenticated club sees other clubs' active listings ─────────
 router.get('/market',       ctrl.readMarket);
@@ -131,8 +135,14 @@ router.get('/my-club',                                      ctrl.readMyClub);
 // Club-scoped inside the service on every call, so one club can neither read
 // nor change another's list.
 router.get('/shortlist',                                    ctrl.readShortlist);
-router.post('/shortlist',                       tradeGuard, ctrl.addToShortlist);
-router.delete('/shortlist/:playerId',           tradeGuard, ctrl.removeFromShortlist);
+// Shortlisting is not trading. Putting a player on the club's own list sends
+// nothing out of the club — no bid, no offer, no approach, no money, and
+// nothing his club can see — so it asks for the rank and deliberately not for
+// club-wide authority: the coach who scouts is the person who keeps the list.
+// Everything that follows from an entry — an offer, a bid, a signing, a
+// published need — is club-wide and stays on tradeGuard.
+router.post('/shortlist',                   shortlistGuard, ctrl.addToShortlist);
+router.delete('/shortlist/:playerId',       shortlistGuard, ctrl.removeFromShortlist);
 
 // ── recruitment needs: a club publishes what it is looking for ──────────────
 router.get('/needs',                                        ctrl.readMarketNeeds);

@@ -10,7 +10,7 @@ import { Router } from 'express';
 import { MembershipRole } from '@prisma/client';
 import { authenticate } from '../middleware/auth.middleware';
 import { requireMembership } from '../middleware/tenant.middleware';
-import { requireClubWideManage } from '../middleware/team-scope.middleware';
+import { requireClubWideManage, requireActingClubMembership } from '../middleware/team-scope.middleware';
 import { guardTeamScopedRouter } from '../middleware/team-scope.middleware';
 import * as ctrl from '../controllers/staff-market.controller';
 
@@ -36,6 +36,17 @@ guardTeamScopedRouter(router);
 // market: how senior, and whether it is club-wide.
 const recruitGuard = [requireMembership(MembershipRole.HEAD_COACH), requireClubWideManage()];
 
+// Shortlisting is not recruiting. Marking somebody the club is watching sends
+// nothing out of the club: no approach, no offer, no message to the person, no
+// money, and nothing he or his club can see. It is the coach's own note of
+// interest, and the coach who scouts a team is the person who takes it — so it
+// asks for the rank, and deliberately not for club-wide authority.
+//
+// Everything that FOLLOWS from an entry is club-wide and stays on
+// recruitGuard: the recruitment stage and priority (PATCH below), the club's
+// written note on a person, an approach, a counter, an acceptance, a need.
+const shortlistGuard = [requireActingClubMembership(MembershipRole.HEAD_COACH)];
+
 // ── the market ──────────────────────────────────────────────────────────────
 router.get('/summary',                 ctrl.summary);
 router.get('/discover',                ctrl.discover);
@@ -57,9 +68,11 @@ router.get('/activity',                ctrl.activity);
 router.get('/shortlist',                      ctrl.readShortlist);
 // What this club has written about somebody. Private to it.
 router.put('/notes/:staffUserId',             recruitGuard, ctrl.saveClubNote);
-router.put('/shortlist/:staffUserId',         recruitGuard, ctrl.addToShortlist);
+router.put('/shortlist/:staffUserId',         shortlistGuard, ctrl.addToShortlist);
+// Priority and recruitment stage — WATCHING through OFFER_SENT — are the club's
+// pipeline, not one coach's list, so this one keeps the club-wide guard.
 router.patch('/shortlist/:staffUserId',       recruitGuard, ctrl.setShortlistMeta);
-router.delete('/shortlist/:staffUserId',      recruitGuard, ctrl.removeFromShortlist);
+router.delete('/shortlist/:staffUserId',      shortlistGuard, ctrl.removeFromShortlist);
 
 // ── needs ───────────────────────────────────────────────────────────────────
 router.get('/needs',                   ctrl.readNeeds);
