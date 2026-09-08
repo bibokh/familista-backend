@@ -17673,3 +17673,94 @@ body.club-theme .set-panel .settings-wrap{ padding:0; max-width:none; }
 /* A club card that is a statement rather than a button — the empty and
    could-not-read states of the club member's landing. */
 .oh-card--flat{ cursor: default; }
+
+/* ── the platform owner's live request trace ────────────────────────────────
+   A drawer, fixed to the right edge and layered over the application it
+   watches. Nothing about it is in the document flow, so opening it moves not
+   one pixel of the page behind it — which matters more here than anywhere: a
+   panel that perturbs the thing it is measuring is measuring itself. */
+.ot-drawer{
+  position:fixed; top:0; right:0; bottom:0; width:min(560px, 100vw);
+  z-index:11000; display:flex; flex-direction:column; min-height:0;
+  background:linear-gradient(180deg,rgba(10,13,20,.98),rgba(6,9,15,.99));
+  border-left:1px solid rgba(255,255,255,.10);
+  box-shadow:-24px 0 70px rgba(0,0,0,.55);
+  font:12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color:#cbd5e1;
+  transform:translate3d(100%,0,0); visibility:hidden;
+  transition:transform .2s cubic-bezier(.2,.8,.2,1), visibility 0s linear .2s;
+}
+.ot-drawer.is-open{ transform:none; visibility:visible; transition-delay:0s; }
+.ot-head{ flex:0 0 auto; padding:12px 14px 10px; border-bottom:1px solid rgba(255,255,255,.08); }
+.ot-title{ display:flex; align-items:center; gap:9px; }
+.ot-title b{ font-size:12px; letter-spacing:.10em; color:#f1f5f9; }
+.ot-dot{ width:8px; height:8px; border-radius:50%; background:#475569; flex:0 0 auto; }
+.ot-dot.is-on{ background:#34d399; box-shadow:0 0 0 3px rgba(52,211,153,.18); }
+.ot-exp{ font-style:normal; font-size:11px; color:#94a3b8; }
+.ot-x{ margin-left:auto; background:none; border:0; color:#64748b; font-size:20px; cursor:pointer; line-height:1; }
+.ot-x:hover{ color:#f1f5f9; }
+.ot-acts{ display:flex; align-items:center; gap:6px; margin-top:10px; flex-wrap:wrap; }
+.ot-btn{
+  appearance:none; cursor:pointer; font:inherit; font-size:11px;
+  padding:5px 10px; border-radius:7px; color:#cbd5e1;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.10);
+  transition:color .15s, background .15s, border-color .15s;
+}
+.ot-btn:hover{ color:#f1f5f9; background:rgba(255,255,255,.09); }
+.ot-btn.is-on{ color:#0b1220; background:#34d399; border-color:#34d399; font-weight:700; }
+.ot-btn:disabled{ opacity:.45; cursor:not-allowed; }
+.ot-count{ margin-left:auto; font-size:11px; color:#64748b; }
+.ot-filters{
+  flex:0 0 auto; display:grid; grid-template-columns:1fr 1fr auto auto; gap:6px;
+  padding:9px 14px; border-bottom:1px solid rgba(255,255,255,.08);
+}
+.ot-in{
+  font:inherit; font-size:11px; padding:5px 8px; border-radius:7px; min-width:0;
+  color:#e2e8f0; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.10);
+}
+.ot-list{ flex:1 1 auto; min-height:0; overflow-y:auto; scrollbar-gutter:stable; padding:8px 10px 20px; }
+.ot-empty{ padding:26px 14px; color:#64748b; font-size:11.5px; line-height:1.6; }
+.ot-row{ border:1px solid rgba(255,255,255,.07); border-radius:9px; margin-bottom:6px; overflow:hidden; }
+.ot-row.is-bad{ border-color:rgba(248,113,113,.34); }
+.ot-row.is-slow{ border-color:rgba(251,191,36,.30); }
+.ot-row.is-critical{ border-color:rgba(248,113,113,.45); }
+.ot-row-h{
+  width:100%; display:grid; grid-template-columns:64px 42px 1fr 40px 62px auto;
+  align-items:center; gap:8px; text-align:left; cursor:pointer;
+  padding:8px 10px; font:inherit; color:inherit;
+  background:rgba(255,255,255,.02); border:0;
+}
+.ot-row-h:hover{ background:rgba(255,255,255,.05); }
+.ot-id{ color:#7dd3fc; font-weight:700; }
+.ot-m{ color:#94a3b8; }
+.ot-route{ color:#e2e8f0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ot-st{ color:#34d399; text-align:right; }
+.ot-st.is-bad{ color:#f87171; }
+.ot-ms{ color:#cbd5e1; text-align:right; }
+.ot-speed{ font-size:9.5px; font-weight:800; letter-spacing:.08em; padding:2px 6px; border-radius:5px; }
+.ot-speed--fast{ color:#34d399; background:rgba(52,211,153,.12); }
+.ot-speed--normal{ color:#94a3b8; background:rgba(148,163,184,.12); }
+.ot-speed--slow{ color:#fbbf24; background:rgba(251,191,36,.14); }
+.ot-speed--critical{ color:#f87171; background:rgba(248,113,113,.16); }
+.ot-detail{ border-top:1px solid rgba(255,255,255,.07); padding:9px 10px 10px; background:rgba(0,0,0,.20); }
+.ot-sums{ display:flex; flex-wrap:wrap; gap:12px; margin-bottom:9px; }
+.ot-sum{ display:flex; flex-direction:column; gap:1px; }
+.ot-sum i{ font-style:normal; font-size:9.5px; letter-spacing:.07em; text-transform:uppercase; color:#64748b; }
+.ot-sum b{ font-size:11.5px; color:#e2e8f0; font-weight:700; }
+.ot-stages{ list-style:none; margin:0; padding:0; }
+.ot-stage{ display:grid; grid-template-columns:58px 74px 1fr auto; gap:8px; padding:3px 0; align-items:baseline; }
+.ot-stage--warn .ot-name{ color:#fbbf24; }
+.ot-stage--error .ot-name{ color:#f87171; }
+.ot-at{ color:#64748b; text-align:right; }
+.ot-cat{ font-size:9.5px; font-weight:800; letter-spacing:.06em; color:#94a3b8; }
+.ot-cat--DB{ color:#a78bfa; } .ot-cat--AUTHZ{ color:#fbbf24; } .ot-cat--AUTH{ color:#38bdf8; }
+.ot-cat--EXTERNAL{ color:#f472b6; } .ot-cat--ERROR{ color:#f87171; } .ot-cat--RENDER{ color:#34d399; }
+.ot-name{ color:#cbd5e1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ot-dur{ color:#94a3b8; }
+.ot-foot{ display:flex; align-items:center; gap:10px; margin-top:9px; padding-top:8px; border-top:1px solid rgba(255,255,255,.06); }
+.ot-ctx{ font-size:10px; color:#64748b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ot-foot .ot-btn{ margin-left:auto; flex:0 0 auto; }
+@media (max-width:680px){
+  .ot-drawer{ width:100vw; }
+  .ot-filters{ grid-template-columns:1fr 1fr; }
+}

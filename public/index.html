@@ -960,5 +960,8 @@
 <!-- Club People & Access. After app.js because it registers into it; `defer`
      keeps that order. -->
 <script src="/people-access.js?v=20260909-people-access" defer></script>
+<!-- SYSTEM only. Every route it calls is refused by assertPlatformOwner to
+     anybody else, so shipping the file is not shipping the access. -->
+<script src="/owner-trace.js?v=20260909-owner-trace" defer></script>
 </body>
 </html>

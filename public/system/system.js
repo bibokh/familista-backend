@@ -287,6 +287,13 @@
       + '<input type="search" placeholder="Search anything in System…" value="' + esc(SY.search) + '" data-sy-search>'
       + '<span class="sy-kbd">⌘K</span></div>'
       + '<div class="sy-top-actions">'
+      // The live request trace. SYSTEM's, and drawn only inside a shell that
+      // `paint` refuses to build for anybody without platform authority — and
+      // behind that, every route it calls is refused by assertPlatformOwner, so
+      // the control is a convenience and the server is the guard.
+      + (who.isPlatformOwner
+        ? '<button class="sy-icon-btn sy-trace-btn" type="button" data-sy-trace title="Live request trace">◉</button>'
+        : '')
       + '<button class="sy-icon-btn" type="button" data-sy-go="notifications" title="Signals">◔'
       + (signals ? '<span class="sy-badge">' + signals + '</span>' : '') + '</button>'
       + '<button class="sy-icon-btn" type="button" data-sy-go="governance" title="Governance">⚖</button>'
@@ -1397,6 +1404,16 @@
     host.__syBound = true;
 
     host.addEventListener('click', function (ev) {
+      // The live request trace opens as a drawer over whatever is on screen.
+      // It navigates nowhere and repaints nothing here — a panel that perturbs
+      // the thing it measures is measuring itself.
+      var tr = ev.target.closest('[data-sy-trace]');
+      if (tr) {
+        ev.preventDefault();
+        try { if (typeof window.openOwnerTrace === 'function') window.openOwnerTrace(); } catch (_) {}
+        return;
+      }
+
       var go_ = ev.target.closest('[data-sy-go]');
       if (go_) { ev.preventDefault(); go(host, go_.getAttribute('data-sy-go')); return; }
 

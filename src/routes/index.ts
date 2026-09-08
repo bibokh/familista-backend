@@ -11,6 +11,7 @@ import teamRoutes       from './team.routes';
 import membershipRoutes from './membership.routes';
 import invitationRoutes from './invitation.routes';
 import systemRoutes from './system.routes';
+import ownerTraceRoutes from './owner-trace.routes';
 import telemetryRoutes from './telemetry.routes';
 import contextRoutes    from './context.routes';
 // Phase B — Match Intelligence + Hardware Sessions + Automation
@@ -84,6 +85,10 @@ router.use('/memberships', membershipRoutes);
 router.use('/invitations', invitationRoutes);
 // SYSTEM / FOS — the platform's own surface. Never a club's.
 router.use('/system', systemRoutes);
+// The platform owner's live request trace. SYSTEM's, like everything above it:
+// the router's own guard is assertPlatformOwner, so a club role reaches none of
+// it however senior it is inside its club.
+router.use('/system/trace', ownerTraceRoutes);
 // Product-usage ingestion. Deliberately not '/analytics' — that is a club's own
 // football analytics, and the two must never be confused for one another.
 router.use('/telemetry',   telemetryRoutes);

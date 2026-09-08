@@ -28,6 +28,7 @@ import * as teamAccess from '../identity/team-access.service';
 import { tenantGuard } from './tenant-guard.middleware';
 import { meetsMembershipRank } from './tenant.middleware';
 import { ForbiddenError } from '../utils/errors';
+import { traceAuthz } from '../observability/trace.middleware';
 
 /** Whether the request carries a session at all. A route that authenticates
  *  itself — the live SSE stream takes its token in the query string — must not
@@ -152,8 +153,12 @@ export function requireClubWideManage() {
   return async function (req: Request, _res: Response, next: NextFunction): Promise<void> {
     try {
       await teamAccess.assertClubWideManageAuthority(actorOfRequest(req));
+      traceAuthz(req, 'requireClubWideManage', true);
       next();
-    } catch (err) { next(err); }
+    } catch (err) {
+      traceAuthz(req, 'requireClubWideManage', false);
+      next(err);
+    }
   };
 }
 
@@ -195,8 +200,12 @@ export function requireActingClubMembership(minRole: MembershipRole) {
       if (!meetsMembershipRank(memberships.map((m) => m.role), minRole)) {
         throw new ForbiddenError(`Insufficient membership role (need ${minRole} or higher)`);
       }
+      traceAuthz(req, 'requireActingClubMembership', true, { need: String(minRole) });
       next();
-    } catch (err) { next(err); }
+    } catch (err) {
+      traceAuthz(req, 'requireActingClubMembership', false, { need: String(minRole) });
+      next(err);
+    }
   };
 }
 
@@ -225,8 +234,12 @@ export function requirePlayerTeamAccess(param = 'id') {
       if (!player || !player.teamId) return next();
       const write = req.method !== 'GET' && req.method !== 'HEAD';
       await enforce(actorOfRequest(req), player.teamId, write ? 'manage' : 'private');
+      traceAuthz(req, 'requirePlayerTeamAccess', true, { mode: write ? 'manage' : 'private' });
       next();
-    } catch (err) { next(err); }
+    } catch (err) {
+      traceAuthz(req, 'requirePlayerTeamAccess', false);
+      next(err);
+    }
   };
 }
 

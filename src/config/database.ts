@@ -57,6 +57,18 @@ if (process.env.PRISMA_QUERY_COUNT === '1') {
   prisma.$on('query' as never, () => { queryCounter.n++; });
 }
 
+// The owner's live trace, when it is on: a query's model, its operation and how
+// long it took. Never the statement and never a value in it. Installed once,
+// here, so every caller is covered without one of them being changed; while
+// tracing is off the hook asks a boolean and calls through.
+//
+// Imported lazily so a failure to load the tracer cannot stop the database
+// module from loading — an uninstrumented database is not a broken one.
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
+  require('../observability/prisma-trace').installPrismaTracing(prisma);
+} catch (_) { /* tracing is a diagnostic, never a dependency */ }
+
 prisma.$on('error' as never, (e: unknown) => {
   logger.error('Prisma error', { error: e });
 });

@@ -18,6 +18,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { MembershipRole } from '@prisma/client';
 import { prisma } from '../config/database';
 import { UnauthorizedError, ForbiddenError } from '../utils/errors';
+import { traceAuthz } from '../observability/trace.middleware';
 
 // Hierarchy used when caller passes a *minimum* required role.
 // Higher number = more authority. SUPER_ADMIN handled separately.
@@ -92,8 +93,13 @@ export function requireMembership(minRole?: MembershipRole) {
         }
       }
 
+      // What was decided, for the owner's trace. It writes the decision down;
+      // the decision was made above and is not affected by whether anybody is
+      // watching.
+      traceAuthz(req, 'requireMembership', true, minRole ? { need: String(minRole) } : undefined);
       return next();
     } catch (err) {
+      traceAuthz(req, 'requireMembership', false, minRole ? { need: String(minRole) } : undefined);
       return next(err);
     }
   };

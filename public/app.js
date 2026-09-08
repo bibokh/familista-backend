@@ -422,17 +422,39 @@ const FamilistaAPI = (function () {
     return _gen;
   }
 
+  /** A correlation id for one call. A label, and nothing more. */
+  function _famNextRequestId() {
+    try {
+      if (window.crypto && window.crypto.randomUUID) return 'fam-' + window.crypto.randomUUID();
+    } catch (_) { /* fall through */ }
+    return 'fam-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+
   async function rawFetch(method, url, opts) {
     opts = opts || {};
     const controller = new AbortController();
     const cancellable = method === 'GET' && opts.cancelOnNav !== false && opts.auth !== false;
     if (cancellable) _live.add(controller);
+    // The correlation id. The server mints one when the client does not send
+    // one, so this is not required for anything to work — it is what lets a
+    // stage the BROWSER reports (a click, a paint) file under the same trace as
+    // the call it caused, which is the whole of the owner's live trace. Just an
+    // id: it carries no session, no claim and no authority, and the server
+    // treats it as a label rather than as a fact about who is asking.
+    const _corrId = opts.requestId || _famNextRequestId();
     const headers = Object.assign(
-      { 'Accept': 'application/json' },
+      { 'Accept': 'application/json', 'X-Request-Id': _corrId },
       opts.body !== undefined && !(opts.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {},
       opts.headers || {},
       opts.auth !== false && State.token ? { 'Authorization': 'Bearer ' + State.token } : {}
     );
+    // Reported only when the owner is tracing; a no-op otherwise, and the
+    // application never learns whether anybody is watching.
+    try {
+      if (typeof window.famTrace === 'function') {
+        window.famTrace(_corrId, 'FRONTEND', method + ' ' + String(url).split('?')[0].slice(-60));
+      }
+    } catch (_) { /* a diagnostic never stands in front of a request */ }
 
     const init = {
       method,

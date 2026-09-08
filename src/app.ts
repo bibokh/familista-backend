@@ -11,6 +11,8 @@ import { config } from './config';
 import { morganStream } from './utils/logger';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { requestId, accessLog, errorReporter } from './middleware/request-id.middleware';
+import { traceRequest, traceError } from './observability/trace.middleware';
+import { withRequestId } from './observability/trace-context';
 import { edgeIdentity } from './middleware/rate-limit.middleware';
 import { RedisEdgeStore } from './middleware/edge-rate-limit.store';
 import { redisConfigured } from './infra/redis';
@@ -46,6 +48,22 @@ export function createApp(): express.Application {
 
   // ── Request-ID FIRST so every downstream log can correlate.
   app.use(requestId);
+
+  // ── The owner's live trace, when the owner has turned it on.
+  //
+  // Bound here, immediately after the id exists, so a query run six calls deep
+  // in a service can still say which request asked for it — see
+  // observability/trace-context. The store carries the ID AND NOTHING ELSE: an
+  // ambient store holding identity is an invitation to authorize from it, and
+  // authorization stays where it is.
+  //
+  // Both of these are a boolean test and a call-through while tracing is off,
+  // which is its state unless the platform owner has explicitly said otherwise.
+  app.use((req, _res, next) => {
+    if (!req.requestId) return next();
+    withRequestId(req.requestId, next);
+  });
+  app.use(traceRequest);
 
   // ── Security headers
   // CSS lives in public/app.css, JS in public/app.js — both served as external
@@ -104,7 +122,12 @@ export function createApp(): express.Application {
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'x-club-id'],
+      // x-request-id is the correlation label the browser sends so a click and
+      // the call it caused can be read as one trace. It carries no session and
+      // no authority; without it here the preflight would refuse every
+      // cross-origin call the moment the client started sending it.
+      allowedHeaders: ['Content-Type', 'Authorization', 'x-club-id', 'x-request-id'],
+      exposedHeaders: ['x-request-id'],
     })
   );
 
@@ -264,6 +287,7 @@ export function createApp(): express.Application {
   app.use(notFoundHandler);
 
   // ── Error reporter (structured + Sentry-ready) BEFORE the JSON shaper
+  app.use(traceError);
   app.use(errorReporter);
 
   // ── Error handler (must be last)
