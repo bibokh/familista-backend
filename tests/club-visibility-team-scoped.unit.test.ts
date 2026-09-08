@@ -209,7 +209,11 @@ describe('1-4 · a team-scoped membership IS membership of the club', () => {
     expect(ctx.effectiveAccess.hasClubWideManageAuthority).toBe(false);
     expect(ctx.effectiveAccess.canManageClub).toBe(false);
     expect(ctx.effectiveAccess.canManagePeople).toBe(false);
-    expect(ctx.effectiveAccess.canAccessCoachMarket).toBe(false);
+    // The Coach Market opens — on the shortlist, which is the coach's own —
+    // and administering staff through it does not. Access and authority are
+    // separate answers, and only the second one is what this test is about.
+    expect(ctx.effectiveAccess.canAccessCoachMarket).toBe(true);
+    expect(ctx.effectiveAccess.canAdministerStaff).toBe(false);
     // Working in the transfer market is a coach's job; trading on the club's
     // behalf is not. The pair is what "no club-wide authority" means here.
     expect(ctx.effectiveAccess.canAdministerTransfers).toBe(false);

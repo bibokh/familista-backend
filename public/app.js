@@ -1743,6 +1743,11 @@ var _CAP_CONTROLS = {
     'data-st-needopen', 'data-st-need-add', 'data-st-need-close',
     'data-st-note-save', 'data-st-pri', 'data-st-stage',
   ],
+  // The club's watchlist, on both markets. Its own capability because the
+  // server gives it its own guard: `shortlistGuard` asks how senior the
+  // membership is and not whether it is club-wide, so a head coach scoped to
+  // one team keeps the list while the tier below him does not.
+  canShortlist: ['data-tf-short', 'data-st-short'],
 };
 
 /** Every selector currently withheld, as one CSS selector list. */
@@ -57668,7 +57673,11 @@ function _tfDiscAction(action, playerId, listingId) {
     }
     if ((el = t.closest('[data-st-view]'))) {
       e.preventDefault();
-      _TF_ST.view = el.getAttribute('data-st-view');
+      var _stWanted = el.getAttribute('data-st-view');
+      // The buttons for a withheld mode are never drawn, and one arriving by
+      // any other route is not honoured either.
+      if (!_stModeAllowed(_stWanted)) return;
+      _TF_ST.view = _stWanted;
       _TF_ST.page = 1;
       // Each tab is its own screen, so what was open on the last one closes.
       _TF_ST.lens = null; _TF_ST.deal = null; _TF_ST.area = '';
@@ -58794,7 +58803,7 @@ function _stRevalidate() {
 // The board for the open view, and nothing around it — the shell that holds it
 // is a permanent frame written once.
 function _stHtml() {
-  var v = _TF_ST.view;
+  var v = _stView();
   if (v === 'available')    return _stAvailableHtml();
   if (v === 'free-agents')  return _stFreeAgentsHtml();
   if (v === 'shortlisted')  return _stShortlistDeskHtml();
@@ -58856,12 +58865,35 @@ var ST_MODES = [
   ['shortlisted', 'Shortlist'], ['needs', 'Needs'], ['negotiations', 'Deals'],
   ['activity', 'Activity']
 ];
+
+// Which modes the club's own recruitment opens, and which are anybody's who
+// may reach the market at all.
+//
+// Browsing, the free agents and the club's shortlist are the coach's work: he
+// is the person who watches, and the server lets him keep the list. The needs
+// board, the live deals and the recruitment timeline are the CLUB's pipeline —
+// every control inside them is `recruitGuard`, and a mode whose whole content
+// is refused is not a mode, it is a wall with a label on it.
+var ST_MODE_REQUIRES = {
+  needs:        'canAdministerStaff',
+  negotiations: 'canAdministerStaff',
+  activity:     'canAdministerStaff',
+};
+function _stModeAllowed(mode) {
+  var need = ST_MODE_REQUIRES[mode];
+  return !need || _access(need);
+}
+/** The mode actually being shown. A withheld one falls back to the market. */
+function _stView() {
+  return _stModeAllowed(_TF_ST.view) ? _TF_ST.view : 'market';
+}
 function _stNavHtml() {
   var s = _TF_ST.summary || {};
   var counts = { shortlisted: s.shortlisted, negotiations: s.activeApproaches, needs: s.openNeeds };
-  return ST_MODES.map(function (m) {
+  var open = _stView();
+  return ST_MODES.filter(function (m) { return _stModeAllowed(m[0]); }).map(function (m) {
     var n = counts[m[0]];
-    return '<button type="button" class="cx-mode' + (_TF_ST.view === m[0] ? ' is-on' : '')
+    return '<button type="button" class="cx-mode' + (open === m[0] ? ' is-on' : '')
       + '" data-st-view="' + m[0] + '">' + m[1]
       + (n ? '<i>' + n + '</i>' : '') + '</button>';
   }).join('');
@@ -58887,9 +58919,9 @@ function _stDockToggleHtml() {
 }
 
 function _stDockInnerHtml() {
-  if (_TF_ST.view === 'needs' && _TF_ST.slot) return _stDockVacancyHtml();
-  if (_TF_ST.view === 'negotiations' && _TF_ST.deal) return _stDockDealHtml();
-  if (_TF_ST.view === 'activity' && !_TF_ST.lens) return _stDockMoversHtml();
+  if (_stView() === 'needs' && _TF_ST.slot) return _stDockVacancyHtml();
+  if (_stView() === 'negotiations' && _TF_ST.deal) return _stDockDealHtml();
+  if (_stView() === 'activity' && !_TF_ST.lens) return _stDockMoversHtml();
   if (_TF_ST.lens) {
     var r = null;
     (_TF_ST.rows || []).forEach(function (x) { if (x.staffUserId === _TF_ST.lens) r = x; });
@@ -60854,7 +60886,7 @@ function _stSyncNav() {
   if (!nav) return;
   var btns = nav.querySelectorAll('[data-st-view]');
   for (var i = 0; i < btns.length; i++) {
-    var on = btns[i].getAttribute('data-st-view') === _TF_ST.view;
+    var on = btns[i].getAttribute('data-st-view') === _stView();
     btns[i].classList.toggle('is-on', on);
   }
 }

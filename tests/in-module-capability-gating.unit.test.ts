@@ -87,7 +87,10 @@ const COACH_CAPS = {
   canAccessTeamWorkspace: true, canAccessTransfers: true, canAdministerTransfers: false,
   canAccessStaffDirectory: true, canAdministerStaff: false,
   canAccessLeague: true, canAdministerLeague: false,
-  canAccessCoachMarket: false, canManagePeople: false, canManageClub: false,
+  // The Coach Market opens on the shortlist, not on club authority: he keeps
+  // the club's watchlist and administers none of its recruitment.
+  canAccessCoachMarket: true, canShortlist: true,
+  canManagePeople: false, canManageClub: false,
   hasClubWideManageAuthority: false, isPlatformOwner: false,
 };
 const PRESIDENT_CAPS = {
@@ -103,9 +106,10 @@ const READS = [
   'data-tf-dpage', 'data-tf-sort', 'data-tf-negotiation', 'data-tf-auction-open',
   'data-tf-open-player', 'data-tf-feedview', 'data-tf-needview',
   'data-co-team', 'data-co-club', 'data-co-tabto', 'data-co-ptab', 'data-co-back',
-  // The shortlist, on both markets. It is a write, and it is deliberately not
-  // gated: `shortlistGuard` on the server lets a team-scoped head coach keep
-  // the club's watchlist, so the star stays where he can press it.
+  // The shortlist, on both markets. It is a write, and it is gated on its own
+  // capability rather than on club authority: `shortlistGuard` lets a
+  // team-scoped head coach keep the club's watchlist, so for him the star
+  // stays where he can press it.
   'data-tf-short', 'data-st-short',
 ];
 

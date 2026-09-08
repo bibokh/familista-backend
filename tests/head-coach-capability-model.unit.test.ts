@@ -197,7 +197,7 @@ describe('1 · the final navigation for a First-Team head coach', () => {
   it('is exactly Start, Squad, Training, Video, Transfers, Coaches, League, Match Center', async () => {
     expect(await sidebarOf(COACH)).toEqual([
       'club-home', 'squad', 'training', 'video-intelligence',
-      'transfers', 'coaches', 'familista-league', 'match-center',
+      'transfers', 'coach-market', 'coaches', 'familista-league', 'match-center',
     ]);
   });
 
@@ -223,12 +223,21 @@ describe('1 · the final navigation for a First-Team head coach', () => {
     expect(parent.canAccessStaffDirectory).toBe(false);
   });
 
-  it('4 · and the Coach Market is not among them', async () => {
+  it('4 · and the Coach Market opens in limited mode, not on club authority', async () => {
+    // It used to be withheld outright, on the reasoning that browsing staff IS
+    // how an approach begins. The shortlist changed that: a head coach may keep
+    // the club's watchlist, and a watchlist he cannot reach the people of is
+    // not a watchlist. So the module opens, and every control that commits the
+    // club stays exactly where it was.
     const a = (await getContext(COACH)).effectiveAccess;
-    expect(a.canAccessCoachMarket).toBe(false);
-    expect(await sidebarOf(COACH)).not.toContain('coach-market');
-    // It follows club-wide authority, which they do not have — never the role.
+    expect(a.canAccessCoachMarket).toBe(true);
+    expect(a.canShortlist).toBe(true);
+    expect(await sidebarOf(COACH)).toContain('coach-market');
+    // And it is NOT club-wide authority that opened it — that is still absent,
+    // and so is everything it governs.
     expect(a.hasClubWideManageAuthority).toBe(false);
+    expect(a.canAdministerStaff).toBe(false);
+    expect(a.canAdministerTransfers).toBe(false);
   });
 
   it('5 · nor the Academy, People & Access, SYSTEM or club onboarding', async () => {

@@ -4,7 +4,7 @@
 // Read /me/context → list of available clubs/teams and the currently selected pair.
 // Write /me/context → switch tenant (verified against active Memberships).
 
-import { Prisma, MembershipAuditAction, MembershipRole } from '@prisma/client';
+import { Prisma, MembershipAuditAction, MembershipRole, UserRole } from '@prisma/client';
 import { prisma } from '../config/database';
 import { ForbiddenError, BadRequestError } from '../utils/errors';
 import { getActiveMembershipsForUser, hasActiveMembership } from './membership.service';
@@ -167,6 +167,20 @@ export async function getContext(userId: string) {
     && meetsMembershipRank(currentRoles, MembershipRole.HEAD_COACH);
   const canAdministerStaff = clubWideManage && canManageClub;
 
+  /**
+   * The club's watchlist, on both markets.
+   *
+   * Marking somebody the club is watching sends nothing out of the club — no
+   * bid, no offer, no approach, no money, and nothing the person or his club
+   * can see — so `shortlistGuard` asks how senior the membership is and
+   * deliberately not whether it is club-wide. This is that same question,
+   * asked of the same rank table, so the interface and the server cannot
+   * disagree about who may keep the list. SUPER_ADMIN short-circuits here
+   * exactly as it does in the guard.
+   */
+  const canShortlist = user.role === UserRole.SUPER_ADMIN
+    || meetsMembershipRank(currentRoles, MembershipRole.HEAD_COACH);
+
   // The academy is a workspace, not a label: it opens to somebody assigned to
   // an academy side, or to somebody who runs the club and therefore runs all
   // of them. A first-team coach holds neither.
@@ -230,11 +244,24 @@ export async function getContext(userId: string) {
       canAdministerTransfers,
 
       /**
-       * The coach market. Recruiting STAFF is the club's decision, and there
-       * is no read-only tier of it in the product: browsing is how an approach
-       * begins. So it stays club-wide, and a head coach is not offered it.
+       * The coach market. Recruiting staff is the club's decision and every
+       * control that commits it — an approach, an interview, an offer, a
+       * counter, an acceptance, a published need — is `recruitGuard` on the
+       * server and `canAdministerStaff` in the interface.
+       *
+       * Opening the module is not one of those. A head coach who may keep the
+       * club's shortlist has to be able to reach the people he is shortlisting,
+       * and reading who is available was never the club's secret. So the module
+       * opens for anybody with either authority, and what is inside it is
+       * governed one control at a time.
        */
-      canAccessCoachMarket: clubWideManage,
+      canAccessCoachMarket: clubWideManage || canShortlist,
+
+      /**
+       * Adding to and removing from the club's watchlist, on both markets.
+       * Mirrors `shortlistGuard`.
+       */
+      canShortlist,
 
       /** Who works alongside them. Scoped to their teams by the directory. */
       canAccessStaffDirectory: scope.unrestricted || scope.teamIds.length > 0,

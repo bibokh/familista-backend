@@ -178,7 +178,7 @@ describe('1-6 · a First-Team-only head coach', () => {
     // head-coach-capability-model pins alongside this.
     expect(await sidebarOf(COACH)).toEqual([
       'club-home', 'squad', 'training', 'video-intelligence',
-      'transfers', 'coaches', 'familista-league', 'match-center',
+      'transfers', 'coach-market', 'coaches', 'familista-league', 'match-center',
     ]);
   });
 
@@ -188,16 +188,21 @@ describe('1-6 · a First-Team-only head coach', () => {
     expect(await sidebarOf(COACH)).not.toContain('people-access');
   });
 
-  it('3 · does not see the Coach Market, and cannot administer the staff they see', async () => {
+  it('3 · sees the Coach Market in limited mode, and administers no staff through it', async () => {
     const a = (await getContext(COACH)).effectiveAccess;
-    // The coach market has no read-only tier — browsing staff is how an
-    // approach begins — so it stays club-wide and is not offered.
-    expect(a.canAccessCoachMarket).toBe(false);
-    expect(await sidebarOf(COACH)).not.toContain('coach-market');
+    // It was withheld until the shortlist was opened to him. Now the module is
+    // reachable because he may keep the club's watchlist and has to be able to
+    // reach the people on it — and everything that commits the club is
+    // governed one control at a time, by the capability below.
+    // coach-market-limited-mode pins what is drawn inside it.
+    expect(a.canShortlist).toBe(true);
+    expect(a.canAccessCoachMarket).toBe(true);
+    expect(await sidebarOf(COACH)).toContain('coach-market');
     // The staff DIRECTORY is theirs, scoped to their own teams; hiring,
-    // moving and releasing is not.
+    // moving and releasing is not — through either door.
     expect(a.canAccessStaffDirectory).toBe(true);
     expect(a.canAdministerStaff).toBe(false);
+    expect(a.hasClubWideManageAuthority).toBe(false);
   });
 
   it('and may scout in Transfers without trading on the club\'s behalf', async () => {
