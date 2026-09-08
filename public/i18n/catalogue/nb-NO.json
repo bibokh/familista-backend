@@ -1481,5 +1481,7 @@
   "That fixture is no longer there": "Den kampen finnes ikke lenger",
   "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "Den var i turneringen da denne skjermen ble tegnet, og er det ikke nå. Familista League har gjeldende runde.",
   "Match preparation is private to the teams playing": "Kampforberedelse er privat for lagene som spiller",
-  "Another of your club’s teams plays this one": "Denne kampen spilles av et annet av klubbens lag"
+  "Another of your club’s teams plays this one": "Denne kampen spilles av et annet av klubbens lag",
+  "Photo updated on this device only": "Bildet er bare oppdatert på denne enheten",
+  "Photo not saved —": "Bildet ble ikke lagret —"
 }

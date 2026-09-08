@@ -1103,12 +1103,19 @@ function _famResetPageVersions() {
 async function loadAllData(opts) {
   opts = opts || {};
   try {
-    const [analytics, players, matches, tourns, training] = await Promise.allSettled([
+    // Six reads, none of which needs another's answer. The trend used to be
+    // awaited on its own AFTER these five had all landed, which put a whole
+    // round trip on the end of every club load for a panel that may not even be
+    // on screen. Nothing about what is reported changes: it is still counted
+    // separately below, because it is one panel among several and its failure
+    // must not speak for the rest.
+    const [analytics, players, matches, tourns, training, trend] = await Promise.allSettled([
       api('/analytics/overview'),
       SquadAPI.list('limit=50' + (State.context && State.context.teamId ? '&teamId=' + encodeURIComponent(State.context.teamId) : '')),
       api('/matches?limit=20'),
       api('/training?limit=10' + _famTeamQAmp()),
       api('/training/form' + _famTeamQFirst()),
+      api('/analytics/performance-trend?weeks=8'),
     ]);
 
     if (analytics.status === 'fulfilled' && analytics.value?.data) State.analytics = analytics.value.data;
@@ -1127,17 +1134,15 @@ async function loadAllData(opts) {
       State.trainingForm = training.value.data;
     }
 
-    // Load analytics trend. It is one panel among several, so its failure is
-    // reported with the others rather than standing in for all of them — which
-    // is what the single catch below used to do: five requests could fail in
-    // silence while this one spoke for them.
-    let trendOk = true;
-    try {
-      const trend = await api('/analytics/performance-trend?weeks=8');
-      if (trend?.data) State.performanceTrend = trend.data;
-    } catch (err) {
-      trendOk = false;
-      console.error('Data load error (performance trend):', err);
+    // The trend, from the batch above. It is one panel among several, so its
+    // failure is reported with the others rather than standing in for all of
+    // them — which is what the single catch below used to do: five requests
+    // could fail in silence while this one spoke for them.
+    const trendOk = trend.status === 'fulfilled';
+    if (trendOk) {
+      if (trend.value?.data) State.performanceTrend = trend.value.data;
+    } else {
+      console.error('Data load error (performance trend):', trend.reason);
     }
 
     const outcome = _famHydrationOutcome([analytics, players, matches, tourns, training], trendOk);
@@ -49766,6 +49771,36 @@ function _atEnrich(p, i, idx, id) {
   };
 }
 // Per-team editable overlay (isolated in the team store, keyed by player id).
+/**
+ * Send an academy player's new photo to the record that outlives this browser.
+ *
+ * The same field, route and authorization the Squad editor uses: a PATCH of
+ * `avatar` on the player. Only a real Player row has somewhere to put it — an
+ * academy card that exists solely in the local overlay has no server id, and
+ * for those the overlay remains the whole of the story, which is what it was
+ * before this and is not made worse by it.
+ *
+ * The toast is the truth about the server, not about the paint that has already
+ * happened: a photo that reached the record says so, and one that was refused
+ * says that instead of quietly looking saved.
+ */
+function _atPersistPhoto(playerId, dataUrl) {
+  var real = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(String(playerId || ''));
+  if (!real || typeof _thApi !== 'function'
+      || !(typeof _thIsHydrated === 'function' && _thIsHydrated())) {
+    try { showToast('Photo updated on this device only', 'info'); } catch (_) {}
+    return;
+  }
+  _thApi('PATCH', '/players/' + encodeURIComponent(playerId), { avatar: dataUrl })
+    .then(function () { try { showToast('Photo updated', 'success'); } catch (_) {} })
+    .catch(function (err) {
+      try {
+        showToast('Photo not saved — ' +
+          ((err && (err.userMessage || err.message)) || 'the server refused it'), 'error');
+      } catch (_) {}
+    });
+}
+
 function _atOverlay(id) { var t = _atTeam(id); if (!t.players || typeof t.players !== 'object') t.players = {}; return t.players; }
 function _atApplyOverlay(base, o) {
   if (!o) return base;
@@ -51675,15 +51710,27 @@ if (typeof document !== 'undefined' && !window._atBound) {
     if (tac) { var team = _atTeam(id); team.tactics[tac.getAttribute('data-at-tactic')] = tac.value; _atSave(); return; }
     var att = e.target.getAttribute && e.target.getAttribute('data-at-att');
     if (att && e.target.checked) { var parts = att.split('|'); var team2 = _atTeam(id); (team2.attendance[parts[0]] = team2.attendance[parts[0]] || {})[parts[1]] = parts[2]; _atSave(); return; }
-    // Player photo upload → stored (as a data URL) in the player's overlay.
+    // Player photo upload.
+    //
+    // It used to end at `_atSave()`, which is localStorage — so the photo was
+    // on the browser that uploaded it and nowhere else: gone on another device,
+    // gone after clearing site data, and never visible to anybody else in the
+    // club. It looked like it had saved, because the overlay repainted.
+    //
+    // The overlay write stays, because it is what puts the picture on screen
+    // immediately. What follows it is the same PATCH the Squad editor and the
+    // Player Center already use — one field, `avatar`, on the player's own
+    // record — so all three photo paths persist to the same column through the
+    // same route, and that route's existing authorization is what decides.
     if (e.target.getAttribute && e.target.getAttribute('data-at-photo') !== null && e.target.files && e.target.files[0] && AT.openPlayer) {
       var file = e.target.files[0];
       var reader = new FileReader();
+      var _pid = AT.openPlayer;
       reader.onload = function () {
         var url = String(reader.result || '');
         if (url.length > 220000) { try { showToast('Image too large — use a smaller photo', 'error'); } catch (_) {} return; }
-        var ov = _atOverlay(id); (ov[AT.openPlayer] = ov[AT.openPlayer] || {}).photo = url; _atSave(); renderAcademyTeamPage();
-        try { showToast('Photo updated', 'success'); } catch (_) {}
+        var ov = _atOverlay(id); (ov[_pid] = ov[_pid] || {}).photo = url; _atSave(); renderAcademyTeamPage();
+        _atPersistPhoto(_pid, url);
       };
       reader.readAsDataURL(file);
       return;
@@ -65607,8 +65654,12 @@ async function _thAllPlayers() {
 // Re-read the canonical roster. Called after any ownership change — a listing
 // sold, a player bought — so the squad reflects the server, not a memory of it.
 async function _thRefresh() {
-  var teams = _thUnwrap(await _thApi('GET', '/teams'));
-  var list = await _thAllPlayers();
+  // The teams and the players are independent reads, and this awaited one and
+  // then the other — a round trip of pure waiting on a path that runs after
+  // every single player save.
+  var _both = await Promise.all([_thApi('GET', '/teams'), _thAllPlayers()]);
+  var teams = _thUnwrap(_both[0]);
+  var list = _both[1];
   _TH.teams = Array.isArray(teams) ? teams : (teams && teams.items) || [];
   // Whose roster this is, according to the server that sent it rather than to
   // whatever the browser currently believes it is looking at.

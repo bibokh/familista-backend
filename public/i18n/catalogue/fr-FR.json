@@ -1481,5 +1481,7 @@
   "That fixture is no longer there": "Ce match n’existe plus",
   "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "Il figurait dans la compétition au moment où cet écran a été dessiné et n’y est plus. Familista League affiche la journée en cours.",
   "Match preparation is private to the teams playing": "La préparation d’un match est réservée aux équipes qui le disputent",
-  "Another of your club’s teams plays this one": "Ce match est disputé par une autre équipe de votre club"
+  "Another of your club’s teams plays this one": "Ce match est disputé par une autre équipe de votre club",
+  "Photo updated on this device only": "Photo mise à jour sur cet appareil uniquement",
+  "Photo not saved —": "Photo non enregistrée —"
 }

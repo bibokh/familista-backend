@@ -1481,5 +1481,7 @@
   "That fixture is no longer there": "Этого матча больше нет",
   "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "Он был в турнире, когда этот экран отрисовывался, а сейчас его нет. Текущий тур есть в Familista League.",
   "Match preparation is private to the teams playing": "Подготовка к матчу закрыта для всех, кроме играющих команд",
-  "Another of your club’s teams plays this one": "Этот матч играет другая команда вашего клуба"
+  "Another of your club’s teams plays this one": "Этот матч играет другая команда вашего клуба",
+  "Photo updated on this device only": "Фото обновлено только на этом устройстве",
+  "Photo not saved —": "Фото не сохранено —"
 }

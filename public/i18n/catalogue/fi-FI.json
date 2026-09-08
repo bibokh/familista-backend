@@ -1481,5 +1481,7 @@
   "That fixture is no longer there": "Sitä ottelua ei enää ole",
   "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "Se oli kilpailussa, kun tämä näkymä piirrettiin, eikä ole enää. Familista Leaguessa on nykyinen kierros.",
   "Match preparation is private to the teams playing": "Ottelun valmistelu on sen pelaavien joukkueiden yksityistä työtä",
-  "Another of your club’s teams plays this one": "Tämän ottelun pelaa seurasi toinen joukkue"
+  "Another of your club’s teams plays this one": "Tämän ottelun pelaa seurasi toinen joukkue",
+  "Photo updated on this device only": "Kuva päivitettiin vain tällä laitteella",
+  "Photo not saved —": "Kuvaa ei tallennettu —"
 }
