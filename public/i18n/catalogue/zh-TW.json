@@ -1480,5 +1480,8 @@
   "Match preparation is private to the teams playing": "比賽準備工作僅屬於出賽的兩支球隊",
   "Another of your club’s teams plays this one": "這場比賽由你俱樂部的另一支球隊出戰",
   "Photo updated on this device only": "照片僅在此裝置上更新",
-  "Photo not saved —": "照片未儲存 —"
+  "Photo not saved —": "照片未儲存 —",
+  "That file type is not supported — use a JPEG, PNG or WebP image": "不支援該檔案類型——請使用 JPEG、PNG 或 WebP 圖片",
+  "This image is still too large after compression — please use a different photo": "壓縮後這張圖片仍然過大——請換一張照片",
+  "Could not read that image": "無法讀取該圖片"
 }

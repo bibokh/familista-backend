@@ -1480,5 +1480,8 @@
   "Match preparation is private to the teams playing": "Việc chuẩn bị trận đấu là riêng của các đội thi đấu",
   "Another of your club’s teams plays this one": "Trận này do một đội khác của câu lạc bộ bạn thi đấu",
   "Photo updated on this device only": "Ảnh chỉ được cập nhật trên thiết bị này",
-  "Photo not saved —": "Ảnh chưa được lưu —"
+  "Photo not saved —": "Ảnh chưa được lưu —",
+  "That file type is not supported — use a JPEG, PNG or WebP image": "Không hỗ trợ loại tệp đó — hãy dùng ảnh JPEG, PNG hoặc WebP",
+  "This image is still too large after compression — please use a different photo": "Ảnh này vẫn quá lớn sau khi nén — vui lòng dùng ảnh khác",
+  "Could not read that image": "Không thể đọc ảnh đó"
 }

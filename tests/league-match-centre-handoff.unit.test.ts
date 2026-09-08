@@ -472,8 +472,11 @@ describe('5 · and a failure says which failure it was', () => {
   });
 
   it('and every one of those sentences is translated into every locale', () => {
+    // en-US is deliberately sparse: it carries only what differs from the base,
+    // and anything absent falls through to en-GB. Demanding an entry there
+    // would be demanding the English twice.
     const locales = fs.readdirSync(path.join(ROOT, 'public/i18n/catalogue'))
-      .filter((f) => f.endsWith('.json') && !f.startsWith('_'));
+      .filter((f) => f.endsWith('.json') && !f.startsWith('_') && f !== 'en-US.json');
     expect(locales.length).toBeGreaterThan(1);
     const sentences = [
       'This match is another team’s',

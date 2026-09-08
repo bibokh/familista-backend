@@ -1483,5 +1483,8 @@
   "Match preparation is private to the teams playing": "Ottelun valmistelu on sen pelaavien joukkueiden yksityistä työtä",
   "Another of your club’s teams plays this one": "Tämän ottelun pelaa seurasi toinen joukkue",
   "Photo updated on this device only": "Kuva päivitettiin vain tällä laitteella",
-  "Photo not saved —": "Kuvaa ei tallennettu —"
+  "Photo not saved —": "Kuvaa ei tallennettu —",
+  "That file type is not supported — use a JPEG, PNG or WebP image": "Tätä tiedostotyyppiä ei tueta — käytä JPEG-, PNG- tai WebP-kuvaa",
+  "This image is still too large after compression — please use a different photo": "Kuva on pakkauksen jälkeenkin liian suuri — käytä toista valokuvaa",
+  "Could not read that image": "Kuvaa ei voitu lukea"
 }

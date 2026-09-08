@@ -1483,5 +1483,8 @@
   "Match preparation is private to the teams playing": "Kampforberedelse er privat for lagene som spiller",
   "Another of your club’s teams plays this one": "Denne kampen spilles av et annet av klubbens lag",
   "Photo updated on this device only": "Bildet er bare oppdatert på denne enheten",
-  "Photo not saved —": "Bildet ble ikke lagret —"
+  "Photo not saved —": "Bildet ble ikke lagret —",
+  "That file type is not supported — use a JPEG, PNG or WebP image": "Denne filtypen støttes ikke — bruk et JPEG-, PNG- eller WebP-bilde",
+  "This image is still too large after compression — please use a different photo": "Bildet er fortsatt for stort etter komprimering — bruk et annet bilde",
+  "Could not read that image": "Bildet kunne ikke leses"
 }

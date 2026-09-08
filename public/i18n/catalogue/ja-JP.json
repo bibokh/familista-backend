@@ -1480,5 +1480,8 @@
   "Match preparation is private to the teams playing": "試合の準備は、それを戦うチームだけのものです",
   "Another of your club’s teams plays this one": "この試合はあなたのクラブの別のチームが戦います",
   "Photo updated on this device only": "写真はこの端末でのみ更新されました",
-  "Photo not saved —": "写真を保存できませんでした —"
+  "Photo not saved —": "写真を保存できませんでした —",
+  "That file type is not supported — use a JPEG, PNG or WebP image": "このファイル形式には対応していません — JPEG、PNG、WebP の画像をお使いください",
+  "This image is still too large after compression — please use a different photo": "圧縮しても画像がまだ大きすぎます — 別の写真をお使いください",
+  "Could not read that image": "この画像を読み込めませんでした"
 }

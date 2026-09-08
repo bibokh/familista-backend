@@ -4658,6 +4658,141 @@ function _sqPhotoField() {
     +   '</div>'
     + '</div></div>';
 }
+// ── preparing a personal photo for the record ───────────────────────────────
+//
+// One preparer, used by every place a player's own photo is picked: the Squad
+// editor, the Player Center and an academy card. There were three of these,
+// with three different maximum sizes — 320px, 512px, and on the academy card
+// none at all: it read the file as it stood and refused anything over 220 KB,
+// which is every photograph a phone takes. Asking somebody to go and shrink
+// their own picture is not a size limit, it is a broken upload.
+//
+// Nothing here relaxes what the server accepts. `express.json` takes 2 MB of
+// body, base64 is four thirds of the bytes it carries, and the JSON envelope
+// and escaping cost a little more on top — so the budget below is the length of
+// data-URI string that reliably fits inside that, with room to spare. The
+// server's limit is the guard; this is the client meeting it.
+var FAM_PHOTO = {
+  /** What a camera or a phone actually produces. Held as one string, the way
+   *  CREST_TYPES already is, because a list of MIME tokens is a technical
+   *  identifier and has no business in a translator's catalogue. */
+  TYPES: 'image/jpeg,image/png,image/webp',
+  /** Long edge of the stored image. Big enough to stay sharp on a retina card,
+   *  small enough that the compressed result clears the budget on the first
+   *  quality step for an ordinary photograph. */
+  MAX_DIM: 1400,
+  /** The most data-URI text one PATCH may carry. See the note above. */
+  MAX_CHARS: 1200000,
+  /** Tried in order. The first result inside the budget is the one kept, so a
+   *  picture that fits at 0.85 is never degraded to make it smaller. */
+  QUALITIES: [0.85, 0.75, 0.65, 0.55],
+};
+
+/**
+ * The size to draw at: the long edge capped, the aspect ratio kept, and never
+ * enlarged. A photo already smaller than the cap comes back untouched, which is
+ * what stops a small picture being re-encoded into a worse one.
+ */
+function _famPhotoFit(w, h, max) {
+  w = Math.max(1, Math.round(w || 0));
+  h = Math.max(1, Math.round(h || 0));
+  var cap = max || FAM_PHOTO.MAX_DIM;
+  var long = Math.max(w, h);
+  if (long <= cap) return { w: w, h: h };
+  var k = cap / long;
+  return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+}
+
+/** An error the caller can tell apart, so each one gets its own sentence. */
+function _famPhotoError(code, message) {
+  var e = new Error(message);
+  e.code = code;
+  return e;
+}
+
+/** Decode the file with its EXIF orientation applied, so a portrait taken on a
+ *  phone is stored the way up it was taken. `createImageBitmap` is asked for it
+ *  explicitly; the <img> fallback gets it from the browser's own default. */
+function _famPhotoDecode(file) {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      return createImageBitmap(file, { imageOrientation: 'from-image' })
+        .catch(function () { return _famPhotoDecodeImg(file); });
+    } catch (_) { /* older signature: fall through */ }
+  }
+  return _famPhotoDecodeImg(file);
+}
+function _famPhotoDecodeImg(file) {
+  return new Promise(function (resolve, reject) {
+    var reader = new FileReader();
+    reader.onerror = function () { reject(_famPhotoError('READ', 'Could not read that image')); };
+    reader.onload = function () {
+      var img = new Image();
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { reject(_famPhotoError('DECODE', 'Could not read that image')); };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * A picked file, ready to be stored on a player's record.
+ *
+ * Resolves to a data URI inside the budget. Rejects with a `code` — `TYPE`,
+ * `READ`, `DECODE` or `TOO_LARGE` — so the screen can say which of them
+ * happened rather than one sentence for all four.
+ *
+ * TOO_LARGE is genuinely rare: it takes an image that is still over the budget
+ * at the lowest quality and a quarter of the maximum edge. It is reported
+ * honestly rather than by silently storing something the server will refuse.
+ */
+async function _famPreparePhoto(file) {
+  var type = String((file && file.type) || '').toLowerCase();
+  if (!file || !type || FAM_PHOTO.TYPES.split(',').indexOf(type) < 0) {
+    throw _famPhotoError('TYPE', 'That file type is not supported — use a JPEG, PNG or WebP image');
+  }
+  var src = await _famPhotoDecode(file);
+  var sw = src.width || src.naturalWidth;
+  var sh = src.height || src.naturalHeight;
+  if (!sw || !sh) throw _famPhotoError('DECODE', 'Could not read that image');
+
+  // The long edge, then half of it, then a quarter — and at each size every
+  // quality in turn. The first result inside the budget wins, so nothing is
+  // compressed harder than it needs to be.
+  var caps = [FAM_PHOTO.MAX_DIM, Math.round(FAM_PHOTO.MAX_DIM / 2), Math.round(FAM_PHOTO.MAX_DIM / 4)];
+  var last = '';
+  for (var c = 0; c < caps.length; c++) {
+    var fit = _famPhotoFit(sw, sh, caps[c]);
+    var canvas = document.createElement('canvas');
+    canvas.width = fit.w; canvas.height = fit.h;
+    var ctx = canvas.getContext('2d');
+    if (!ctx) throw _famPhotoError('DECODE', 'Could not read that image');
+    // One draw, at the computed size: the ratio is in the numbers, so the face
+    // cannot be stretched by the drawing.
+    ctx.drawImage(src, 0, 0, fit.w, fit.h);
+    for (var q = 0; q < FAM_PHOTO.QUALITIES.length; q++) {
+      var out;
+      // JPEG: one image on the record, in the format every browser can read.
+      try { out = canvas.toDataURL('image/jpeg', FAM_PHOTO.QUALITIES[q]); }
+      catch (e) { throw _famPhotoError('DECODE', 'Could not read that image'); }
+      if (out && out.length <= FAM_PHOTO.MAX_CHARS) {
+        try { if (src.close) src.close(); } catch (_) {}
+        return out;
+      }
+      last = out || last;
+    }
+  }
+  try { if (src.close) src.close(); } catch (_) {}
+  throw _famPhotoError('TOO_LARGE',
+    'This image is still too large after compression — please use a different photo');
+}
+
+/** The one sentence to show for a preparation that failed. */
+function _famPhotoMessage(err) {
+  return (err && err.message) || 'Could not read that image';
+}
+
 function sqPickPhoto() {
   var inp = document.createElement('input');
   inp.type = 'file';
@@ -4669,25 +4804,15 @@ function sqPickPhoto() {
   setTimeout(function () { if (inp.parentNode) inp.parentNode.removeChild(inp); }, 60000);
 }
 function _sqReadPhoto(file) {
-  var reader = new FileReader();
-  reader.onload = function () {
-    var img = new Image();
-    img.onload = function () {
-      var max = 320, w = img.width, h = img.height;
-      if (w > h && w > max) { h = Math.round(h * max / w); w = max; }
-      else if (h >= w && h > max) { w = Math.round(w * max / h); h = max; }
-      var data;
-      try {
-        var c = document.createElement('canvas'); c.width = w; c.height = h;
-        c.getContext('2d').drawImage(img, 0, 0, w, h);
-        data = c.toDataURL('image/jpeg', 0.82);
-      } catch (e) { data = reader.result; }
-      _sqFormPhoto = data; _sqUpdatePhotoPreview();
-    };
-    img.onerror = function () { _sqFormPhoto = reader.result; _sqUpdatePhotoPreview(); };
-    img.src = reader.result;
-  };
-  reader.readAsDataURL(file);
+  // The shared preparer, so this form stores the same picture at the same size
+  // as every other place a player's photo is picked. It used to cap the long
+  // edge at 320px, which is a thumbnail, and what the form stores is what the
+  // record keeps.
+  _famPreparePhoto(file).then(function (data) {
+    _sqFormPhoto = data; _sqUpdatePhotoPreview();
+  }).catch(function (err) {
+    try { showToast(_famPhotoMessage(err), 'error'); } catch (_) {}
+  });
 }
 function _sqUpdatePhotoPreview() {
   var prev = document.getElementById('sq-photo-prev');
@@ -40257,38 +40382,16 @@ function _pcDevelopmentPriorities(p) {
 }
 
 // ─── Player photo upload (writes to existing Player.avatar field) ─────
-// Frontend-only handler. Resizes the picked file via <canvas> to a
-// 512px-max JPEG data URI (~50-150 KB), then PATCHes the existing
-// /api/v1/players/:id endpoint with { avatar: <dataUri> }. No backend
-// changes — the field, the Zod schema (z.string().url() accepts data
-// URIs), and the route already exist.
-function _pcResizeImage(file, maxDim, quality) {
-  return new Promise((resolve, reject) => {
-    if (!file || !/^image\//.test(file.type || '')) { reject(new Error('Not an image file')); return; }
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Could not read file'));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error('Could not load image'));
-      img.onload = () => {
-        let w = img.width, h = img.height;
-        if (!w || !h) { reject(new Error('Invalid image dimensions')); return; }
-        const max = maxDim || 512;
-        if (w > h) { if (w > max) { h = Math.round(h * (max / w)); w = max; } }
-        else        { if (h > max) { w = Math.round(w * (max / h)); h = max; } }
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { reject(new Error('Canvas unavailable')); return; }
-        ctx.drawImage(img, 0, 0, w, h);
-        try { resolve(canvas.toDataURL('image/jpeg', quality || 0.85)); }
-        catch (e) { reject(e); }
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
+// PATCHes the existing /api/v1/players/:id endpoint with { avatar: <dataUri> }.
+// No backend changes — the field, the Zod schema (z.string().url() accepts data
+// URIs) and the route already exist.
+//
+// The picture is prepared by `_famPreparePhoto`, which is shared with the Squad
+// editor and the academy card so all three store the same thing at the same
+// size. The private resizer that used to live here capped the long edge at
+// 512px and then REFUSED anything still over 1.5 MB rather than compressing it
+// further, which is the wrong way round.
+
 let _pcUploadInFlight = false;
 async function pcUploadPhoto(playerId) {
   if (!playerId || _pcUploadInFlight) return;
@@ -40306,10 +40409,12 @@ async function pcUploadPhoto(playerId) {
     _pcUploadInFlight = true;
     showToast('Uploading photo…', 'info');
     try {
-      const dataUrl = await _pcResizeImage(file, 512, 0.85);
-      if (dataUrl.length > 1.5 * 1024 * 1024) {
-        throw new Error('Photo too large after compression. Try a smaller image.');
-      }
+      // The shared preparer: it caps the long edge, keeps the ratio, applies the
+      // orientation the photo was taken at, and steps the quality down until
+      // the result fits what the server accepts. The cap-then-reject pair this
+      // replaces stored a 512px thumbnail and refused anything still too big
+      // instead of compressing it further.
+      const dataUrl = await _famPreparePhoto(file);
       const res = await SquadAPI.update(playerId, { avatar: dataUrl });
       const updated = res && res.data;
       if (updated) {
@@ -51724,15 +51829,16 @@ if (typeof document !== 'undefined' && !window._atBound) {
     // same route, and that route's existing authorization is what decides.
     if (e.target.getAttribute && e.target.getAttribute('data-at-photo') !== null && e.target.files && e.target.files[0] && AT.openPlayer) {
       var file = e.target.files[0];
-      var reader = new FileReader();
       var _pid = AT.openPlayer;
-      reader.onload = function () {
-        var url = String(reader.result || '');
-        if (url.length > 220000) { try { showToast('Image too large — use a smaller photo', 'error'); } catch (_) {} return; }
+      // This read the file exactly as it stood and refused anything over
+      // 220 KB — which is every photograph a phone takes. It prepares the
+      // picture now, like every other place a player's photo is picked.
+      _famPreparePhoto(file).then(function (url) {
         var ov = _atOverlay(id); (ov[_pid] = ov[_pid] || {}).photo = url; _atSave(); renderAcademyTeamPage();
         _atPersistPhoto(_pid, url);
-      };
-      reader.readAsDataURL(file);
+      }).catch(function (err) {
+        try { showToast(_famPhotoMessage(err), 'error'); } catch (_) {}
+      });
       return;
     }
     // Coaching-staff photo upload — same data-URL-into-local-store pattern as

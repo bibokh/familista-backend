@@ -1483,5 +1483,8 @@
   "Match preparation is private to the teams playing": "Припрема меча је приватна за тимове који га играју",
   "Another of your club’s teams plays this one": "Овај меч игра други тим вашег клуба",
   "Photo updated on this device only": "Фотографија је ажурирана само на овом уређају",
-  "Photo not saved —": "Фотографија није сачувана —"
+  "Photo not saved —": "Фотографија није сачувана —",
+  "That file type is not supported — use a JPEG, PNG or WebP image": "Тај тип датотеке није подржан — користите JPEG, PNG или WebP слику",
+  "This image is still too large after compression — please use a different photo": "Ова слика је и после компресије превелика — употребите другу фотографију",
+  "Could not read that image": "Ову слику није било могуће учитати"
 }

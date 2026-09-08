@@ -1480,5 +1480,8 @@
   "Match preparation is private to the teams playing": "Persiapan pertandingan bersifat privat bagi tim yang memainkannya",
   "Another of your club’s teams plays this one": "Pertandingan ini dimainkan oleh tim lain di klub Anda",
   "Photo updated on this device only": "Foto diperbarui hanya di perangkat ini",
-  "Photo not saved —": "Foto tidak tersimpan —"
+  "Photo not saved —": "Foto tidak tersimpan —",
+  "That file type is not supported — use a JPEG, PNG or WebP image": "Jenis file itu tidak didukung — gunakan gambar JPEG, PNG, atau WebP",
+  "This image is still too large after compression — please use a different photo": "Gambar ini masih terlalu besar setelah dikompresi — gunakan foto lain",
+  "Could not read that image": "Gambar itu tidak dapat dibaca"
 }

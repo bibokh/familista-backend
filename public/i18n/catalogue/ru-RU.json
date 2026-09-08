@@ -1483,5 +1483,8 @@
   "Match preparation is private to the teams playing": "Подготовка к матчу закрыта для всех, кроме играющих команд",
   "Another of your club’s teams plays this one": "Этот матч играет другая команда вашего клуба",
   "Photo updated on this device only": "Фото обновлено только на этом устройстве",
-  "Photo not saved —": "Фото не сохранено —"
+  "Photo not saved —": "Фото не сохранено —",
+  "That file type is not supported — use a JPEG, PNG or WebP image": "Этот тип файла не поддерживается — используйте изображение JPEG, PNG или WebP",
+  "This image is still too large after compression — please use a different photo": "Это изображение слишком велико даже после сжатия — используйте другое фото",
+  "Could not read that image": "Не удалось прочитать это изображение"
 }

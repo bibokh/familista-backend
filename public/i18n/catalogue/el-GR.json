@@ -1483,5 +1483,8 @@
   "Match preparation is private to the teams playing": "Η προετοιμασία του αγώνα είναι ιδιωτική για τις ομάδες που τον παίζουν",
   "Another of your club’s teams plays this one": "Αυτόν τον αγώνα τον παίζει άλλη ομάδα του συλλόγου σας",
   "Photo updated on this device only": "Η φωτογραφία ενημερώθηκε μόνο σε αυτή τη συσκευή",
-  "Photo not saved —": "Η φωτογραφία δεν αποθηκεύτηκε —"
+  "Photo not saved —": "Η φωτογραφία δεν αποθηκεύτηκε —",
+  "That file type is not supported — use a JPEG, PNG or WebP image": "Αυτός ο τύπος αρχείου δεν υποστηρίζεται — χρησιμοποιήστε εικόνα JPEG, PNG ή WebP",
+  "This image is still too large after compression — please use a different photo": "Η εικόνα παραμένει πολύ μεγάλη μετά τη συμπίεση — χρησιμοποιήστε άλλη φωτογραφία",
+  "Could not read that image": "Δεν ήταν δυνατή η ανάγνωση αυτής της εικόνας"
 }

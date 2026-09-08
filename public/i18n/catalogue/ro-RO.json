@@ -1483,5 +1483,8 @@
   "Match preparation is private to the teams playing": "Pregătirea meciului este privată pentru echipele care îl joacă",
   "Another of your club’s teams plays this one": "Acest meci este jucat de altă echipă a clubului tău",
   "Photo updated on this device only": "Fotografia a fost actualizată doar pe acest dispozitiv",
-  "Photo not saved —": "Fotografia nu a fost salvată —"
+  "Photo not saved —": "Fotografia nu a fost salvată —",
+  "That file type is not supported — use a JPEG, PNG or WebP image": "Acest tip de fișier nu este acceptat — folosește o imagine JPEG, PNG sau WebP",
+  "This image is still too large after compression — please use a different photo": "Imaginea este încă prea mare după comprimare — folosește altă fotografie",
+  "Could not read that image": "Această imagine nu a putut fi citită"
 }

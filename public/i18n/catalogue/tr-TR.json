@@ -1483,5 +1483,8 @@
   "Match preparation is private to the teams playing": "Maç hazırlığı, o maçı oynayan takımlara özeldir",
   "Another of your club’s teams plays this one": "Bu maçı kulübünüzün başka bir takımı oynuyor",
   "Photo updated on this device only": "Fotoğraf yalnızca bu cihazda güncellendi",
-  "Photo not saved —": "Fotoğraf kaydedilmedi —"
+  "Photo not saved —": "Fotoğraf kaydedilmedi —",
+  "That file type is not supported — use a JPEG, PNG or WebP image": "Bu dosya türü desteklenmiyor — JPEG, PNG veya WebP bir görsel kullanın",
+  "This image is still too large after compression — please use a different photo": "Bu görsel sıkıştırmadan sonra da çok büyük — lütfen başka bir fotoğraf kullanın",
+  "Could not read that image": "Bu görsel okunamadı"
 }

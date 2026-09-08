@@ -1483,5 +1483,8 @@
   "Match preparation is private to the teams playing": "Wedstrijdvoorbereiding is privé voor de teams die spelen",
   "Another of your club’s teams plays this one": "Deze wedstrijd wordt door een ander team van je club gespeeld",
   "Photo updated on this device only": "Foto alleen op dit apparaat bijgewerkt",
-  "Photo not saved —": "Foto niet opgeslagen —"
+  "Photo not saved —": "Foto niet opgeslagen —",
+  "That file type is not supported — use a JPEG, PNG or WebP image": "Dat bestandstype wordt niet ondersteund — gebruik een JPEG-, PNG- of WebP-afbeelding",
+  "This image is still too large after compression — please use a different photo": "Deze afbeelding is na compressie nog steeds te groot — gebruik een andere foto",
+  "Could not read that image": "Die afbeelding kon niet worden gelezen"
 }

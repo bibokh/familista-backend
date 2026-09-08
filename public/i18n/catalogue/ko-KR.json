@@ -1480,5 +1480,8 @@
   "Match preparation is private to the teams playing": "경기 준비는 그 경기를 치르는 팀만의 것입니다",
   "Another of your club’s teams plays this one": "이 경기는 귀하 클럽의 다른 팀이 치릅니다",
   "Photo updated on this device only": "이 기기에서만 사진이 업데이트되었습니다",
-  "Photo not saved —": "사진이 저장되지 않았습니다 —"
+  "Photo not saved —": "사진이 저장되지 않았습니다 —",
+  "That file type is not supported — use a JPEG, PNG or WebP image": "지원하지 않는 파일 형식입니다 — JPEG, PNG 또는 WebP 이미지를 사용하세요",
+  "This image is still too large after compression — please use a different photo": "압축 후에도 이미지가 너무 큽니다 — 다른 사진을 사용하세요",
+  "Could not read that image": "이 이미지를 읽지 못했습니다"
 }

@@ -1483,5 +1483,8 @@
   "Match preparation is private to the teams playing": "La preparación del partido es privada de los equipos que lo juegan",
   "Another of your club’s teams plays this one": "Este partido lo juega otro equipo de tu club",
   "Photo updated on this device only": "Foto actualizada solo en este dispositivo",
-  "Photo not saved —": "Foto no guardada —"
+  "Photo not saved —": "Foto no guardada —",
+  "That file type is not supported — use a JPEG, PNG or WebP image": "Ese tipo de archivo no es compatible: usa una imagen JPEG, PNG o WebP",
+  "This image is still too large after compression — please use a different photo": "La imagen sigue siendo demasiado grande tras comprimirla: usa otra foto",
+  "Could not read that image": "No se pudo leer esa imagen"
 }
