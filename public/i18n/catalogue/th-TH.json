@@ -1472,5 +1472,10 @@
   "This is not an answer about your membership": "นี่ไม่ใช่คำตอบเกี่ยวกับการเป็นสมาชิกของคุณ",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "โหลดหน้านี้ใหม่ หากยังเกิดขึ้นอีก สโมสรของคุณยังอยู่ครบ เพียงแต่แพลตฟอร์มเข้าถึงไม่ได้ในตอนนี้",
   "Something went wrong": "เกิดข้อผิดพลาดบางอย่าง",
-  "That is a club-level action, and this account does not have it.": "นี่เป็นการดำเนินการระดับสโมสร และบัญชีนี้ไม่มีสิทธิ์ดังกล่าว"
+  "That is a club-level action, and this account does not have it.": "นี่เป็นการดำเนินการระดับสโมสร และบัญชีนี้ไม่มีสิทธิ์ดังกล่าว",
+  "This match is another team’s": "แมตช์นี้เป็นของทีมอื่น",
+  "A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.": "แมตช์หนึ่งเตรียมโดยสองทีมที่ลงเล่น และแมตช์นี้ไม่ใช่ของคุณ บันทึกของรายการแข่งขันเอง — ตารางคะแนน รอบ และผล — อยู่ใน Familista League",
+  "That fixture is no longer there": "ไม่มีแมตช์นั้นแล้ว",
+  "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "ตอนที่หน้าจอนี้ถูกวาดยังอยู่ในรายการแข่งขัน แต่ตอนนี้ไม่อยู่แล้ว Familista League มีรอบปัจจุบัน",
+  "Match preparation is private to the teams playing": "การเตรียมแมตช์เป็นเรื่องเฉพาะของทีมที่ลงเล่น"
 }

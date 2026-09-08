@@ -1475,5 +1475,10 @@
   "This is not an answer about your membership": "Bu, üyeliğinizle ilgili bir yanıt değildir",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Sayfayı yeniden yükleyin. Devam ederse kulüpleriniz hâlâ yerinde — platform şu anda onlara ulaşamadı.",
   "Something went wrong": "Bir şeyler ters gitti",
-  "That is a club-level action, and this account does not have it.": "Bu, kulüp düzeyinde bir işlemdir ve bu hesapta bu yetki yok."
+  "That is a club-level action, and this account does not have it.": "Bu, kulüp düzeyinde bir işlemdir ve bu hesapta bu yetki yok.",
+  "This match is another team’s": "Bu maç başka bir takımın",
+  "A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.": "Bir maçı, onu oynayan iki takım hazırlar ve bu maç sizinkilerden biri değil. Turnuvanın kendi kaydı — puan durumu, hafta, sonuç — Familista League’de.",
+  "That fixture is no longer there": "O maç artık orada değil",
+  "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "Bu ekran çizildiğinde turnuvadaydı, şimdi değil. Güncel hafta Familista League’de.",
+  "Match preparation is private to the teams playing": "Maç hazırlığı, o maçı oynayan takımlara özeldir"
 }

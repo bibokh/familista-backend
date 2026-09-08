@@ -1475,5 +1475,10 @@
   "This is not an answer about your membership": "Это не ответ о вашем членстве",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Обновите страницу. Если это повторяется, ваши клубы никуда не делись — платформа просто не смогла к ним обратиться сейчас.",
   "Something went wrong": "Что-то пошло не так",
-  "That is a club-level action, and this account does not have it.": "Это действие на уровне клуба, и у этой учётной записи его нет."
+  "That is a club-level action, and this account does not have it.": "Это действие на уровне клуба, и у этой учётной записи его нет.",
+  "This match is another team’s": "Этот матч принадлежит другой команде",
+  "A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.": "Матч готовят две команды, которые его играют, и этот матч не ваш. Собственная запись турнира — таблица, тур, результат — находится в Familista League.",
+  "That fixture is no longer there": "Этого матча больше нет",
+  "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "Он был в турнире, когда этот экран отрисовывался, а сейчас его нет. Текущий тур есть в Familista League.",
+  "Match preparation is private to the teams playing": "Подготовка к матчу закрыта для всех, кроме играющих команд"
 }

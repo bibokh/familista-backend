@@ -1475,5 +1475,10 @@
   "This is not an answer about your membership": "This is not an answer about your membership",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.",
   "Something went wrong": "Something went wrong",
-  "That is a club-level action, and this account does not have it.": "That is a club-level action, and this account does not have it."
+  "That is a club-level action, and this account does not have it.": "That is a club-level action, and this account does not have it.",
+  "This match is another team’s": "This match is another team’s",
+  "A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.": "A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.",
+  "That fixture is no longer there": "That fixture is no longer there",
+  "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "It was in the competition when this screen was drawn and is not now. Familista League has the current round.",
+  "Match preparation is private to the teams playing": "Match preparation is private to the teams playing"
 }

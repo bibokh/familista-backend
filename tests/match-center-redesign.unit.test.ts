@@ -156,7 +156,12 @@ describe('the page announces itself and its place in the competition', () => {
     // top-level entry is the Match Center tab itself — a second call to action
     // beside a tab that already does the same thing is one control too many.
     expect(APP.match(/Open Match Center</g) || []).toHaveLength(1);
-    expect(APP).toMatch(/foot:\s*'<button class="lg-act lg-act--primary"[^']*data-action="flPreviewOpen">Open Match Center</);
+    // Still exactly one, and still the panel's primary action — but drawn only
+    // for a reader who may open it. A match is prepared by the two teams
+    // playing it, and offering the control to anybody else is offering a button
+    // whose only outcome is a refusal.
+    expect(APP).toMatch(/foot: \(_flCanOpenMatchCentre\([\s\S]{0,200}data-action="flPreviewOpen">Open Match Center</);
+    expect(APP).toContain('Match preparation is private to the teams playing');
     expect(APP).not.toContain('fl-mc-btn');
     expect(APP).not.toContain('flOpenMC');
     expect(CSS).not.toContain('.fl-mc-btn{');

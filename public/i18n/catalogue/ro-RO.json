@@ -1475,5 +1475,10 @@
   "This is not an answer about your membership": "Acesta nu este un răspuns despre apartenența ta",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Reîncarcă pagina. Dacă persistă, cluburile tale sunt în continuare acolo — platforma pur și simplu nu a putut ajunge la ele acum.",
   "Something went wrong": "Ceva nu a mers bine",
-  "That is a club-level action, and this account does not have it.": "Aceasta este o acțiune la nivel de club, iar acest cont nu o are."
+  "That is a club-level action, and this account does not have it.": "Aceasta este o acțiune la nivel de club, iar acest cont nu o are.",
+  "This match is another team’s": "Acest meci aparține altei echipe",
+  "A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.": "Un meci este pregătit de cele două echipe care îl joacă, iar acesta nu este unul dintre ale tale. Evidența competiției în sine — clasamentul, etapa, rezultatul — se află în Familista League.",
+  "That fixture is no longer there": "Acel meci nu mai există",
+  "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "Era în competiție când s-a desenat acest ecran și acum nu mai este. Familista League are etapa curentă.",
+  "Match preparation is private to the teams playing": "Pregătirea meciului este privată pentru echipele care îl joacă"
 }

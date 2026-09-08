@@ -72,7 +72,11 @@ describe('Familista League — navigation', () => {
     // …and a match hands over to the Match Center, which is the module that
     // owns match preparation for every competition. The League does not draw a
     // match screen of its own.
-    expect(APP).toMatch(/act === 'flMatch'[\s\S]{0,700}_flOpenPreview\(fid\)/);
+    expect(APP).toMatch(/act === 'flMatch'[\s\S]{0,1400}_flOpenPreview\(fid\)/);
+    // And the identifier it hands over is the fixture's, which is what both
+    // modules are built over. A fixture with no Match staged behind it opens
+    // too: the Match Centre is preparation, and preparation comes first.
+    expect(APP).toMatch(/act === 'flMatch'[\s\S]{0,1400}getAttribute\('data-fixture-id'\)/);
     expect(APP).toMatch(/function _flOpenMatch[\s\S]{0,1500}navTo\('match-center'\)/);
     expect(APP).toMatch(/function _flOpenMatch[\s\S]{0,1600}_mccOpen\(fixtureId, back\)/);
     // And the section and round it was launched from travel with it, so closing

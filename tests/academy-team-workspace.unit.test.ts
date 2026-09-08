@@ -352,7 +352,12 @@ describe('each team has its own Familista League, on the same engine', () => {
     // Switching team throws away the table that belonged to the last one.
     const render = APP.slice(APP.indexOf('function renderFamilistaLeaguePage(opts)'),
                              APP.indexOf('function _flPaintZones('));
-    expect(render).toContain('if (_FL.host !== host || _FL.teamId !== teamId)');
+    // The condition is named now, because a second question is asked beside it
+    // — whether a shell is already standing — so that re-entering the League
+    // repaints rather than demolishing it. What a genuine team change does is
+    // unchanged: everything the last team's league held is dropped.
+    expect(render).toContain('var moved = (_FL.host !== host || _FL.teamId !== teamId);');
+    expect(render).toContain('if (moved) {');
     expect(render).toContain('_FL.standings = null');
     expect(render).toContain('_FL.matches = null');
     expect(render).toContain('_FL.boards = null');

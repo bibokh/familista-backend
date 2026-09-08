@@ -1475,5 +1475,10 @@
   "This is not an answer about your membership": "Αυτό δεν είναι απάντηση για τη συμμετοχή σας",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Φορτώστε ξανά τη σελίδα. Αν συνεχιστεί, οι σύλλογοί σας εξακολουθούν να υπάρχουν — απλώς η πλατφόρμα δεν μπόρεσε να τους προσπελάσει τώρα.",
   "Something went wrong": "Κάτι πήγε στραβά",
-  "That is a club-level action, and this account does not have it.": "Αυτή είναι ενέργεια σε επίπεδο συλλόγου, και αυτός ο λογαριασμός δεν τη διαθέτει."
+  "That is a club-level action, and this account does not have it.": "Αυτή είναι ενέργεια σε επίπεδο συλλόγου, και αυτός ο λογαριασμός δεν τη διαθέτει.",
+  "This match is another team’s": "Αυτός ο αγώνας ανήκει σε άλλη ομάδα",
+  "A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.": "Έναν αγώνα τον προετοιμάζουν οι δύο ομάδες που τον παίζουν, και αυτός ο αγώνας δεν είναι δικός σας. Το ίδιο το αρχείο της διοργάνωσης — η βαθμολογία, η αγωνιστική, το αποτέλεσμα — βρίσκεται στο Familista League.",
+  "That fixture is no longer there": "Αυτός ο αγώνας δεν υπάρχει πια",
+  "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "Ήταν στη διοργάνωση όταν σχεδιάστηκε αυτή η οθόνη και τώρα δεν είναι. Το Familista League έχει την τρέχουσα αγωνιστική.",
+  "Match preparation is private to the teams playing": "Η προετοιμασία του αγώνα είναι ιδιωτική για τις ομάδες που τον παίζουν"
 }

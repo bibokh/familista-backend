@@ -1472,5 +1472,10 @@
   "This is not an answer about your membership": "Đây không phải câu trả lời về tư cách thành viên của bạn",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Hãy tải lại trang. Nếu vẫn tiếp diễn, các câu lạc bộ của bạn vẫn còn đó — nền tảng chỉ là không truy cập được ngay lúc này.",
   "Something went wrong": "Đã xảy ra lỗi",
-  "That is a club-level action, and this account does not have it.": "Đây là thao tác ở cấp câu lạc bộ, và tài khoản này không có quyền đó."
+  "That is a club-level action, and this account does not have it.": "Đây là thao tác ở cấp câu lạc bộ, và tài khoản này không có quyền đó.",
+  "This match is another team’s": "Trận đấu này thuộc về một đội khác",
+  "A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.": "Một trận đấu do hai đội thi đấu chuẩn bị, và trận này không phải của bạn. Bản ghi của chính giải đấu — bảng xếp hạng, vòng đấu, kết quả — nằm trong Familista League.",
+  "That fixture is no longer there": "Trận đấu đó không còn nữa",
+  "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "Nó có trong giải đấu khi màn hình này được vẽ và bây giờ thì không. Familista League có vòng đấu hiện tại.",
+  "Match preparation is private to the teams playing": "Việc chuẩn bị trận đấu là riêng của các đội thi đấu"
 }

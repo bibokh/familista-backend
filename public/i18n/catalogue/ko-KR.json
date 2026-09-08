@@ -1472,5 +1472,10 @@
   "This is not an answer about your membership": "이는 소속에 대한 답변이 아닙니다",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "페이지를 새로 고치세요. 계속된다면, 클럽은 그대로 있습니다 — 지금 플랫폼이 접근하지 못했을 뿐입니다.",
   "Something went wrong": "문제가 발생했습니다",
-  "That is a club-level action, and this account does not have it.": "이는 클럽 전체 작업이며, 이 계정에는 해당 권한이 없습니다."
+  "That is a club-level action, and this account does not have it.": "이는 클럽 전체 작업이며, 이 계정에는 해당 권한이 없습니다.",
+  "This match is another team’s": "이 경기는 다른 팀의 경기입니다",
+  "A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.": "경기는 그 경기를 치르는 두 팀이 준비합니다. 이 경기는 귀하의 경기가 아닙니다. 대회 자체의 기록 — 순위표, 라운드, 결과 — 은 Familista League에 있습니다.",
+  "That fixture is no longer there": "그 경기는 더 이상 없습니다",
+  "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "이 화면이 그려질 때는 대회에 있었으나 지금은 없습니다. 현재 라운드는 Familista League에 있습니다.",
+  "Match preparation is private to the teams playing": "경기 준비는 그 경기를 치르는 팀만의 것입니다"
 }

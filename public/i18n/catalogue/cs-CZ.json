@@ -1475,5 +1475,10 @@
   "This is not an answer about your membership": "Toto není odpověď na otázku vašeho členství",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Načtěte stránku znovu. Pokud to bude pokračovat, vaše kluby tam stále jsou — platforma se k nim teď jen nedostala.",
   "Something went wrong": "Něco se pokazilo",
-  "That is a club-level action, and this account does not have it.": "To je akce na úrovni klubu a tento účet ji nemá."
+  "That is a club-level action, and this account does not have it.": "To je akce na úrovni klubu a tento účet ji nemá.",
+  "This match is another team’s": "Tento zápas patří jinému týmu",
+  "A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.": "Zápas připravují oba týmy, které jej hrají, a tento zápas není váš. Vlastní záznam soutěže — tabulka, kolo, výsledek — je ve Familista League.",
+  "That fixture is no longer there": "Tento zápas už neexistuje",
+  "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "Když se tato obrazovka vykreslovala, v soutěži byl; teď už není. Aktuální kolo najdete ve Familista League.",
+  "Match preparation is private to the teams playing": "Příprava na zápas je soukromá pro týmy, které jej hrají"
 }

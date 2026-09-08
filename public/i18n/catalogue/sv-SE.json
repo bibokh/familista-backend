@@ -1475,5 +1475,10 @@
   "This is not an answer about your membership": "Det här är inte ett svar om ditt medlemskap",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Ladda om sidan. Om det fortsätter finns dina klubbar kvar — plattformen kunde bara inte nå dem just nu.",
   "Something went wrong": "Något gick fel",
-  "That is a club-level action, and this account does not have it.": "Det är en åtgärd på klubbnivå, och det här kontot har den inte."
+  "That is a club-level action, and this account does not have it.": "Det är en åtgärd på klubbnivå, och det här kontot har den inte.",
+  "This match is another team’s": "Den här matchen tillhör ett annat lag",
+  "A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.": "En match förbereds av de två lag som spelar den, och den här matchen är inte en av dina. Tävlingens egen notering — tabellen, omgången, resultatet — finns i Familista League.",
+  "That fixture is no longer there": "Den matchen finns inte längre",
+  "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "Den fanns i tävlingen när den här vyn ritades och gör det inte nu. Familista League har den aktuella omgången.",
+  "Match preparation is private to the teams playing": "Matchförberedelser är privata för de lag som spelar"
 }

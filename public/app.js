@@ -16268,15 +16268,29 @@ async function _mccOpen(fixtureId, returnTo) {
   _MC.cmp = null;
   _MCC.change = null;
   _MCC.open = { fixtureId: fixtureId, loading: true, error: false, data: null };
+  // One request at a time, and only the newest one paints. Opening a second
+  // fixture while the first is in flight used to let the slower answer land on
+  // top of the faster one.
+  var seq = (_MCC.seq = (_MCC.seq || 0) + 1);
   _mccPaintWorkspace();
   try {
     var r = await api('/match-center/fixtures/' + encodeURIComponent(fixtureId));
+    if (seq !== _MCC.seq) return;
     var d = (r && r.data) || null;
     if (!d) throw new Error('empty');
     _MCC.open = { fixtureId: fixtureId, loading: false, error: false, data: d };
     window._MC_FOCUS = _mcFocusFromDetail(d);
   } catch (e) {
-    _MCC.open = { fixtureId: fixtureId, loading: false, error: true, data: null };
+    if (seq !== _MCC.seq) return;
+    // Three different answers, and they used to read as one. A refusal is not a
+    // read failure — the record was found and this reader is not one of the two
+    // teams playing — and a fixture that is gone is not one either. Only the
+    // third is worth offering to try again.
+    var st = (e && e.status) || 0;
+    _MCC.open = {
+      fixtureId: fixtureId, loading: false, data: null,
+      error: st === 403 ? 'forbidden' : st === 404 ? 'missing' : 'unreadable',
+    };
     window._MC_FOCUS = null;
   }
   _mccPaintWorkspace();
@@ -16301,14 +16315,14 @@ function _mccClose() {
   }
   if (back && back.page === 'familista-league') {
     try {
-      // Order matters. Entering the League resets its section and round — that
-      // is what entering a workspace means — so the state the fixture was
-      // launched from is restored AFTER that reset, not before it. The
-      // overview load already in flight then draws the section we asked for.
-      navTo('familista-league');
+      // The section and round are restored BEFORE the navigation, because the
+      // League no longer resets them: a workspace that is already standing is
+      // kept. So this is one paint of the state the fixture was launched from,
+      // rather than a reset followed by a correction the reader can see.
       _FL.tab = back.tab || 'matches';
       if (back.round != null) _FL.round = back.round;
-      _flPaintHead(); _flPaintBody();
+      navTo('familista-league');
+      _flLoadTab();
     } catch (_) {}
   }
 }
@@ -16329,12 +16343,23 @@ function _mcWorkspaceHtml() {
       + '</div></div>';
   }
   if (open.error || !open.data) {
+    var says = open.error === 'forbidden'
+      ? ['This match is another team’s',
+         'A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.']
+      : open.error === 'missing'
+      ? ['That fixture is no longer there',
+         'It was in the competition when this screen was drawn and is not now. Familista League has the current round.']
+      : ['That match could not be opened',
+         'The fixture exists, but the record behind it could not be read just now.'];
     return '<div class="mcx-float-bg" data-action="mccClose">'
       + '<div class="mcx-float" role="dialog" aria-modal="true">'
       + '<div class="mcx"><div class="mcx-desk">'
-      + _lgEmpty('That match could not be opened',
-          'The fixture exists, but the record behind it could not be read just now.')
-      + '<div class="lg-act-row"><button class="lg-act" type="button" data-action="mccClose">Close</button></div>'
+      + _lgEmpty(says[0], says[1])
+      + '<div class="lg-act-row">'
+      + (open.error === 'unreadable'
+          ? '<button class="lg-act lg-act--primary" type="button" data-action="mccRetry">Try again</button>' : '')
+      + '<button class="lg-act" type="button" data-action="mccClose">Close</button>'
+      + '</div>'
       + '</div></div></div></div>';
   }
 
@@ -17769,7 +17794,10 @@ document.addEventListener('click', function (ev) {
     // The backdrop closes; a click inside the panel does not.
     if (ev.target === el || el.tagName === 'BUTTON') _mccClose();
   } else if (act === 'mccRetry') {
-    _mccLoad();
+    // Inside the fixture panel the thing to try again is the fixture, not the
+    // calendar behind it.
+    if (_MCC.open && _MCC.open.error && _MCC.open.fixtureId) _mccOpen(_MCC.open.fixtureId);
+    else _mccLoad();
   } else if (act === 'mccState') {
     var st = el.getAttribute('data-state') || 'all';
     if (st === _MCC.filter.state) return;
@@ -49903,7 +49931,10 @@ window._atEnter = _atEnter; window._atBack = _atBack; window._atGo = _atGo;
 
 // ── Shell ──
 function renderAcademyTeamHTML() {
-  if (typeof document !== 'undefined') setTimeout(function () { try { renderAcademyTeamPage(); } catch (e) {} }, 0);
+  // Markup only, for the same reason the League's template is markup only:
+  // navTo calls renderAcademyTeamPage() itself right after mounting this, and
+  // a second scheduled call rebuilt the whole workspace a tick later — twice
+  // over for the League this workspace embeds.
   return '<div class="page" id="pg-academy-team"><div id="at-shell"></div></div>';
 }
 function renderAcademyTeamPage() {
@@ -66094,6 +66125,37 @@ function _flMine(teamId) {
   return !!teamId && _FL.myTeamIds.indexOf(teamId) >= 0;
 }
 
+/**
+ * Whether this reader may open the Match Centre on a fixture.
+ *
+ * The League shows the whole competition — every round, every club — and the
+ * Match Centre shows one team's private preparation. Those are different
+ * questions, and `myTeamIds` answers the wrong one: it is the CLUB's entries in
+ * this competition, so for a coach assigned to one team it marks his club's
+ * other teams as his too. Opening one of those is refused by the server, which
+ * is right, and the reader was offered a button that could only fail.
+ *
+ * So the answer comes from the reader's own team scope — the same scope the
+ * server computed and sent down in the context. Nothing is granted here: a
+ * fixture this returns true for is still checked by `assertCanViewTeamPrivate`
+ * before a single row of preparation is read.
+ */
+function _flCanOpenMatchCentre(x) {
+  if (!x) return false;
+  var sides = [x.home && x.home.teamId, x.away && x.away.teamId];
+  var scope = null;
+  try { scope = (State.context && State.context.currentTeamScope) || null; } catch (_) { scope = null; }
+  // No scope yet is not permission. While the context is outstanding the League
+  // offers nothing: an unoffered control is recoverable a moment later, an
+  // over-offered one is a button whose only outcome is a refusal.
+  if (!scope) return false;
+  // A reader whose scope covers the club reads its own teams' preparation, and
+  // the club's entries are exactly what `myTeamIds` holds.
+  if (scope.unrestricted) return sides.some(function (id) { return _flMine(id); });
+  var mine = (scope.teams || []).map(function (tm) { return tm && tm.id; });
+  return sides.some(function (id) { return !!id && mine.indexOf(id) >= 0; });
+}
+
 // The element this League is drawn inside. The First Team's page owns
 // #fl-shell; an academy team workspace passes its own node. Every lookup goes
 // through here, so two hosts can never fight over one id.
@@ -66122,7 +66184,12 @@ function _flCrest(clubId, size) {
 // ── shell ───────────────────────────────────────────────────────────────────
 
 function renderFamilistaLeagueHTML() {
-  if (typeof document !== 'undefined') setTimeout(function () { try { renderFamilistaLeaguePage(); } catch (e) {} }, 0);
+  // Markup only. This used to schedule renderFamilistaLeaguePage() on a tick,
+  // and navTo calls it too — so entering the League built the whole workspace
+  // TWICE: shell, header and body painted, then wiped and painted again a tick
+  // later, with two overview reads racing behind them. That was the shake. The
+  // page is lazily mounted from inside navTo (`_ensurePageMounted`), which then
+  // calls the page function itself, so there is nothing here left to schedule.
   return '<div class="page" id="pg-familista-league">'
     + '<div class="fl-root" id="fl-shell"></div>'
     + '<div class="fl-overlay-host" id="fl-overlay"></div>'
@@ -66157,16 +66224,26 @@ function renderFamilistaLeaguePage(opts) {
   var teamId = o.teamId || null;
   // Switching team is switching competition: what is held belongs to the team
   // it was read for, and carrying it across would show one team another's table.
-  if (_FL.host !== host || _FL.teamId !== teamId) {
+  var moved = (_FL.host !== host || _FL.teamId !== teamId);
+  if (moved) {
     _FL.host = host; _FL.teamId = teamId; _FL.access = o.access || null;
     _FL.league = null; _FL.standings = null; _FL.matches = null; _FL.boards = null;
     _FL.canManage = false; _FL.hasSeason = false;
     _FL.loading = {}; _FL.error = {};
   }
-  _FL.tab = 'standings'; _FL.team = null; _FL.preview = null; _FL.rules = false; _FL.round = null;
-  host.innerHTML = _flShellHtml(standalone);
+  // Re-entering the League it is already showing is not a reason to demolish
+  // it. Rebuilding the shell throws away the header and the body that are on
+  // screen and starts the reads again, and the reader watches the whole
+  // workspace collapse to a skeleton and come back. A shell that is already
+  // standing is kept, and only what changed is repainted.
+  var fresh = moved || !host.querySelector('.fl-body');
+  if (fresh) {
+    _FL.tab = 'standings'; _FL.team = null; _FL.preview = null; _FL.rules = false; _FL.round = null;
+    host.innerHTML = _flShellHtml(standalone);
+  }
   _flPaintHead();
-  _flLoadOverview();
+  if (fresh || (!_FL.league && !_FL.loading.overview)) _flLoadOverview();
+  else _flPaintBody();
 }
 
 // Colours that come from configuration cannot be written as style attributes —
@@ -66388,6 +66465,10 @@ function _flSeasonQ(extra) {
 }
 
 async function _flLoadOverview() {
+  // One read at a time. Two overlapping overviews paint the same body twice
+  // from two answers, and the second one lands on a screen the reader has
+  // already started using.
+  if (_FL.loading.overview) return;
   _FL.loading.overview = true; _FL.error.overview = false;
   try {
     var team = _flTeamQ();
@@ -66962,7 +67043,11 @@ function _flPreviewHtml() {
       + '</div>'
       + side(away, 'away', 'away')
       + '</div>' + meta,
-    foot: '<button class="lg-act lg-act--primary" type="button" data-action="flPreviewOpen">Open Match Center</button>'
+    foot: (_flCanOpenMatchCentre(d.fixture || { home: home, away: away })
+        ? '<button class="lg-act lg-act--primary" type="button" data-action="flPreviewOpen">Open Match Center</button>'
+        // Not a disabled button and not an error: this match is simply not
+        // this reader's to prepare, and saying so is the answer.
+        : '<span class="lg-act-note">Match preparation is private to the teams playing</span>')
       + '<button class="lg-act" type="button" data-action="flPreviewStandings">View Standings</button>'
       + '<button class="lg-act lg-act--ghost" type="button" data-action="flClosePreview">Close</button>',
   });
@@ -67005,10 +67090,11 @@ function _flOpenMatch(fixtureId) {
   // out of the team the reader is inside.
   if (_FL.teamId && typeof AT !== 'undefined' && AT.active) {
     var stage = AT.active;
+    // `_atGo` paints the section synchronously, so the Match Centre's host is
+    // in the document by the time it returns. The tick that used to sit here
+    // was waiting for something that had already happened.
     try { _atGo('matchCenter'); } catch (_) {}
-    setTimeout(function () {
-      try { _mccOpen(fixtureId, { page: 'academy-team', stage: stage, section: 'familistaLeague' }); } catch (_) {}
-    }, 0);
+    try { _mccOpen(fixtureId, { page: 'academy-team', stage: stage, section: 'familistaLeague' }); } catch (_) {}
     return;
   }
   var back = { page: 'familista-league', tab: _FL.tab === 'standings' ? 'matches' : _FL.tab, round: _FL.round };
@@ -67203,9 +67289,17 @@ document.addEventListener('click', function (ev) {
     // to the Match Center, which owns match preparation. A fixture with no
     // Match behind it has nothing to open yet. Clicked inside a panel that is
     // already open, the row IS the answer and the preview is skipped.
+    // The FIXTURE id, always. It is the identifier both modules are built over
+    // — the League reads it, the Match Centre reads it — and it is on the row
+    // because the server put it there. Never the match id, never the team, the
+    // opponent, the row index or the name.
+    //
+    // A fixture with no Match staged behind it still opens: the Match Centre is
+    // preparation, and preparation is what a fixture that has not been played
+    // is FOR. The refusal that used to sit here turned every upcoming league
+    // fixture into a toast.
     var fid = el.getAttribute('data-fixture-id');
-    var mid = el.getAttribute('data-match-id');
-    if (!fid || !mid) { try { showToast('This fixture has not been set up in the Match Centre yet', 'info'); } catch (_) {} return; }
+    if (!fid) return;
     if (el.closest && el.closest('.lg-float')) _flOpenMatch(fid);
     else _flOpenPreview(fid);
   } else if (act === 'flManage') {

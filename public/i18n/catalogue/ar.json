@@ -1475,5 +1475,10 @@
   "This is not an answer about your membership": "هذه ليست إجابة عن عضويتك",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "أعد تحميل الصفحة. إذا استمر الأمر، فأنديتك لا تزال موجودة — لكن المنصة لم تتمكن من الوصول إليها الآن.",
   "Something went wrong": "حدث خطأ ما",
-  "That is a club-level action, and this account does not have it.": "هذا إجراء على مستوى النادي، وهذا الحساب لا يملكه."
+  "That is a club-level action, and this account does not have it.": "هذا إجراء على مستوى النادي، وهذا الحساب لا يملكه.",
+  "This match is another team’s": "هذه المباراة تخصّ فريقًا آخر",
+  "A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.": "تُحضَّر المباراة من قِبل الفريقين اللذين يخوضانها، وهذه المواجهة ليست من مبارياتك. سجل المسابقة نفسه — الترتيب والجولة والنتيجة — موجود في دوري فاميليستا.",
+  "That fixture is no longer there": "لم تعد هذه المواجهة موجودة",
+  "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "كانت ضمن المسابقة عند رسم هذه الشاشة ولم تعد كذلك الآن. دوري فاميليستا يعرض الجولة الحالية.",
+  "Match preparation is private to the teams playing": "تحضير المباراة خاص بالفريقين اللذين يخوضانها"
 }

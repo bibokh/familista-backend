@@ -1475,5 +1475,10 @@
   "This is not an answer about your membership": "Dette er ikke et svar om dit medlemskab",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Genindlæs siden. Hvis det bliver ved, findes dine klubber stadig — platformen kunne bare ikke nå dem lige nu.",
   "Something went wrong": "Noget gik galt",
-  "That is a club-level action, and this account does not have it.": "Det er en handling på klubniveau, og denne konto har den ikke."
+  "That is a club-level action, and this account does not have it.": "Det er en handling på klubniveau, og denne konto har den ikke.",
+  "This match is another team’s": "Denne kamp tilhører et andet hold",
+  "A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.": "En kamp forberedes af de to hold, der spiller den, og denne kamp er ikke en af dine. Turneringens eget register — tabellen, runden, resultatet — findes i Familista League.",
+  "That fixture is no longer there": "Den kamp findes ikke længere",
+  "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "Den var i turneringen, da denne skærm blev tegnet, og er det ikke nu. Familista League har den aktuelle runde.",
+  "Match preparation is private to the teams playing": "Kampforberedelse er privat for de hold, der spiller"
 }

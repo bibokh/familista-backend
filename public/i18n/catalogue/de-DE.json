@@ -1475,5 +1475,10 @@
   "This is not an answer about your membership": "Das ist keine Aussage über Ihre Mitgliedschaft",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "Laden Sie die Seite neu. Wenn es weiterhin auftritt: Ihre Vereine sind weiterhin vorhanden — die Plattform konnte sie gerade nur nicht erreichen.",
   "Something went wrong": "Etwas ist schiefgelaufen",
-  "That is a club-level action, and this account does not have it.": "Das ist eine vereinsweite Aktion, und dieses Konto hat sie nicht."
+  "That is a club-level action, and this account does not have it.": "Das ist eine vereinsweite Aktion, und dieses Konto hat sie nicht.",
+  "This match is another team’s": "Dieses Spiel gehört einem anderen Team",
+  "A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.": "Ein Spiel wird von den beiden Mannschaften vorbereitet, die es bestreiten, und diese Begegnung ist keine Ihrer eigenen. Der Datensatz des Wettbewerbs selbst — Tabelle, Spieltag, Ergebnis — steht in der Familista League.",
+  "That fixture is no longer there": "Diese Begegnung gibt es nicht mehr",
+  "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "Als diese Ansicht gezeichnet wurde, war sie im Wettbewerb; jetzt nicht mehr. Den aktuellen Spieltag zeigt die Familista League.",
+  "Match preparation is private to the teams playing": "Die Spielvorbereitung ist den beteiligten Mannschaften vorbehalten"
 }

@@ -1472,5 +1472,10 @@
   "This is not an answer about your membership": "这并不是关于你成员身份的答复",
   "Reload the page. If it keeps happening, your clubs are still there — the platform could not reach them just now.": "请重新加载页面。如果问题持续，你的俱乐部依然存在——只是平台此刻无法读取。",
   "Something went wrong": "出现了问题",
-  "That is a club-level action, and this account does not have it.": "这是俱乐部级别的操作，此账号没有该权限。"
+  "That is a club-level action, and this account does not have it.": "这是俱乐部级别的操作，此账号没有该权限。",
+  "This match is another team’s": "这场比赛属于另一支球队",
+  "A match is prepared by the two teams playing it, and this fixture is not one of yours. The competition’s own record — the table, the round, the result — is in Familista League.": "一场比赛由参赛的两支球队来准备，而这场比赛不是你的。赛事本身的记录——积分榜、轮次、比分——在 Familista League 中。",
+  "That fixture is no longer there": "那场比赛已经不在了",
+  "It was in the competition when this screen was drawn and is not now. Familista League has the current round.": "绘制此界面时它还在赛事中，现在已经不在。当前轮次可在 Familista League 查看。",
+  "Match preparation is private to the teams playing": "比赛准备工作仅属于参赛的两支球队"
 }
