@@ -564,3 +564,153 @@ describe('permanent deletion', () => {
     expect(code).toContain('tx.club.delete({ where: { id: clubId } })');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7 · SYSTEM and the Clubs page report the same club the same way
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Production found them disagreeing: a club whose `Club.lifecycle` in the
+// database is ARCHIVED read ARCHIVED on the platform owner's CLUBS page and
+// PENDING SETUP in SYSTEM > Clubs Management.
+//
+// The server was not the problem. `listClubs` selects `Club.lifecycle` and
+// returns it verbatim, and `getContext` carries the same column into
+// `availableClubs`; both are asserted below over the same club. The disagreement
+// was one display default: SYSTEM's chip was a three-way ternary — ACTIVE,
+// PRESIDENT_INVITED, and everything else — written when those were the only
+// three states, and DEACTIVATED and ARCHIVED fell into "everything else",
+// which was labelled PENDING SETUP.
+//
+// A status chip whose fallback names a state will eventually name the wrong
+// one. These tests pin that it no longer does, and that the two surfaces agree.
+
+describe('one club, one lifecycle, wherever it is read', () => {
+  const ROOT = require('path').join(__dirname, '..');
+  const read = (p: string) => require('fs').readFileSync(require('path').join(ROOT, p), 'utf8');
+
+  /** The real `lifecycleChip` from SYSTEM, executed as it ships. */
+  const systemChip = (() => {
+    const src = read('public/system/system.js');
+    const from = src.indexOf('var LIFECYCLE_CHIPS = {');
+    const to = src.indexOf('// ── analytics ─');
+    expect(from).toBeGreaterThan(-1);
+    expect(to).toBeGreaterThan(from);
+    const fn = new Function(`
+      const esc = (v) => String(v == null ? '' : v);
+      ${src.slice(from, to)}
+      return lifecycleChip;
+    `);
+    return fn() as (life: unknown) => string;
+  })();
+
+  /** The real `_clubStateChip` from the owner's Clubs page, executed as it ships. */
+  const ownerChip = (() => {
+    const src = read('public/app.js');
+    const from = src.indexOf('function _clubStateChip(c)');
+    const to = src.indexOf('/**\n * The strongest membership role held in one club');
+    expect(from).toBeGreaterThan(-1);
+    expect(to).toBeGreaterThan(from);
+    const fn = new Function(`${src.slice(from, to)} return _clubStateChip;`);
+    return fn() as (c: Row) => { lifecycle: string; tone: string; label: string };
+  })();
+
+  const EVERY_STATE = [
+    ClubLifecycle.PENDING_SETUP, ClubLifecycle.PRESIDENT_INVITED, ClubLifecycle.ACTIVE,
+    ClubLifecycle.DEACTIVATED, ClubLifecycle.ARCHIVED,
+  ];
+
+  test('SYSTEM shows every lifecycle as itself, and never as another state', () => {
+    for (const state of EVERY_STATE) {
+      const html = systemChip(state);
+      // The chip says the state it was given. ARCHIVED is the case that failed.
+      expect(`${state} → ${html.replace(/<[^>]*>/g, '')}`)
+        .toBe(`${state} → ${String(state).replace('_', ' ')}`);
+    }
+  });
+
+  test('and a state it has never heard of shows as itself rather than as PENDING SETUP', () => {
+    // The bug, in one line: the old chip named a state for values it did not
+    // know. A future ClubLifecycle value must look wrong, not plausible.
+    const html = systemChip('SOMETHING_NEW');
+    expect(html).toContain('SOMETHING_NEW');
+    expect(html).not.toContain('PENDING SETUP');
+    expect(systemChip(null)).not.toContain('PENDING SETUP');
+    expect(systemChip(undefined)).not.toContain('PENDING SETUP');
+  });
+
+  test('the two surfaces agree on every state', () => {
+    for (const state of EVERY_STATE) {
+      const inSystem = systemChip(state).replace(/<[^>]*>/g, '');
+      const onClubsPage = ownerChip({ id: CLUB, lifecycle: state });
+      // Different wording for different audiences — SYSTEM is an operator's
+      // console and shouts the enum, the Clubs page reads as a product — but
+      // they must be naming the SAME state.
+      expect(`${state}: ${onClubsPage.lifecycle}`).toBe(`${state}: ${state}`);
+      expect(`${state}: ${inSystem.replace(' ', '_')}`).toBe(`${state}: ${state}`);
+    }
+  });
+
+  test('neither surface derives the lifecycle from ownership', () => {
+    // Requirement, stated plainly: whether a club has a president is a
+    // different fact, in a different column.
+    const withPresident = ownerChip({ id: CLUB, lifecycle: 'ARCHIVED', hasOwner: true, isActive: true });
+    const without = ownerChip({ id: CLUB, lifecycle: 'ARCHIVED', hasOwner: false });
+    expect(withPresident.lifecycle).toBe('ARCHIVED');
+    expect(without.lifecycle).toBe('ARCHIVED');
+
+    const sys = read('public/system/system.js');
+    const chip = sys.slice(sys.indexOf('var LIFECYCLE_CHIPS = {'), sys.indexOf('// ── analytics ─'));
+    expect(chip).not.toMatch(/hasOwner|pendingPresidentEmail|membership/i);
+    // And the ownership column is still its own column, beside the lifecycle one.
+    expect(sys).toContain('<th>Club</th><th>Lifecycle</th>');
+    expect(sys).toContain('<th>Ownership</th>');
+    expect(sys).toContain("c.hasOwner");
+  });
+
+  test('the server hands both surfaces the same value for the same club', async () => {
+    await lifecycle.archiveClub(actor(OWNER), CLUB, 'Season ended');
+
+    // SYSTEM's read.
+    const rows = await listClubs(actor(OWNER));
+    const inSystem = rows.find((r) => r.id === CLUB)!.lifecycle;
+
+    // The Clubs page's read, through the context that builds the picker.
+    const ctx: any = await getContext(OWNER);
+    const onClubsPage = ctx.availableClubs.find((c: Row) => c.id === CLUB).lifecycle;
+
+    expect(inSystem).toBe('ARCHIVED');
+    expect(onClubsPage).toBe('ARCHIVED');
+    expect(inSystem).toBe(onClubsPage);
+    // And it is the column, not a derivation: the club still has its president.
+    expect(state.memberships.some((m) => m.clubId === CLUB && m.role === MembershipRole.CLUB_OWNER && m.isActive)).toBe(true);
+  });
+
+  test('every state the enum has agrees between the two reads', async () => {
+    for (const target of [ClubLifecycle.DEACTIVATED, ClubLifecycle.ARCHIVED]) {
+      state.clubs.find((c) => c.id === OTHER)!.lifecycle = target;
+      lifecycle.forgetClubState();
+      const rows = await listClubs(actor(OWNER));
+      const ctx: any = await getContext(OWNER);
+      const a = rows.find((r) => r.id === OTHER)!.lifecycle;
+      const b = ctx.availableClubs.find((c: Row) => c.id === OTHER).lifecycle;
+      expect(`${target}: ${a} / ${b}`).toBe(`${target}: ${target} / ${target}`);
+    }
+  });
+
+  test("SYSTEM's cached club list is dropped when a lifecycle changes", () => {
+    // `SY.clubs` is read once per SYSTEM session and reused. A club changed on
+    // the Clubs page would otherwise keep reading here as whatever it was when
+    // that list was fetched — stale rather than wrong, and indistinguishable
+    // from the outside.
+    const sys = read('public/system/system.js');
+    const bind = sys.slice(sys.indexOf('function bind(host)'), sys.indexOf("host.addEventListener('click'"));
+    expect(bind).toContain("familista:club-lifecycle-changed");
+    expect(bind).toContain('SY.clubs = null;');
+
+    const controls = read('public/club-lifecycle.js');
+    expect(controls).toContain("new CustomEvent('familista:club-lifecycle-changed')");
+    // Announced from the one place every lifecycle action funnels through.
+    const refresh = controls.slice(controls.indexOf('function refresh()'), controls.indexOf('function post(path, body)'));
+    expect(refresh).toContain('familista:club-lifecycle-changed');
+  });
+});

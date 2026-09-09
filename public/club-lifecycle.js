@@ -193,6 +193,13 @@
   }
 
   function refresh() {
+    // Every surface that holds a club's lifecycle is told it has changed, so
+    // that two screens cannot report the same club differently. SYSTEM reads
+    // its club list once per session and would otherwise go on showing the
+    // state the club was in when that list was fetched.
+    try {
+      document.dispatchEvent(new CustomEvent('familista:club-lifecycle-changed'));
+    } catch (_) {}
     // The picker rebuilds from the server rather than being patched in place,
     // so what is on screen after a change is what the server actually holds.
     try {

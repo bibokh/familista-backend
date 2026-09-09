@@ -835,11 +835,40 @@
       + '</div></section>';
   }
 
+  /**
+   * A club's lifecycle, exactly as the database holds it.
+   *
+   * This was a three-way ternary — ACTIVE, PRESIDENT_INVITED, and everything
+   * else — written when those were the only three states there were. When
+   * DEACTIVATED and ARCHIVED were added to `ClubLifecycle`, they fell into the
+   * "everything else" arm and SYSTEM reported an archived club as PENDING
+   * SETUP: not a stale read, not a cache, not a transformation on the server,
+   * which returns `Club.lifecycle` verbatim — a display default that had
+   * quietly become a lie.
+   *
+   * So the map is explicit, and there is NO catch-all that names a state. A
+   * value this table does not know is shown as itself, which reads as odd and
+   * is therefore fixed, rather than as a plausible state that is wrong. That is
+   * the whole lesson of the bug: the safe fallback for a status chip is the raw
+   * value, never a state somebody might believe.
+   *
+   * Lifecycle is the club's own operational state and nothing else. Whether it
+   * has a president is a separate fact in a separate column — never inferred
+   * from this, and this never inferred from it.
+   */
+  var LIFECYCLE_CHIPS = {
+    ACTIVE:            { cls: 'live',      label: 'ACTIVE' },
+    PRESIDENT_INVITED: { cls: 'partial',   label: 'PRESIDENT INVITED' },
+    PENDING_SETUP:     { cls: 'none',      label: 'PENDING SETUP' },
+    DEACTIVATED:       { cls: 'protected', label: 'DEACTIVATED' },
+    ARCHIVED:          { cls: 'safe',      label: 'ARCHIVED' },
+  };
+
   function lifecycleChip(life) {
-    var cls = life === 'ACTIVE' ? 'live' : life === 'PRESIDENT_INVITED' ? 'partial' : 'none';
-    var label = life === 'ACTIVE' ? 'ACTIVE'
-      : life === 'PRESIDENT_INVITED' ? 'PRESIDENT INVITED' : 'PENDING SETUP';
-    return '<span class="sy-chip sy-chip--' + cls + '">' + esc(label) + '</span>';
+    var key = String(life == null ? '' : life);
+    var chip = LIFECYCLE_CHIPS[key];
+    if (!chip) chip = { cls: 'none', label: key || '—' };
+    return '<span class="sy-chip sy-chip--' + chip.cls + '">' + esc(chip.label) + '</span>';
   }
 
   // ── analytics ─────────────────────────────────────────────────────────────
@@ -1402,6 +1431,22 @@
   function bind(host) {
     if (host.__syBound) return;
     host.__syBound = true;
+
+    // A club's lifecycle can be changed from the Clubs page, which is a
+    // different surface with its own state. `SY.clubs` is read once per SYSTEM
+    // session and reused, so without this a club deactivated a moment ago
+    // still reads here as whatever it was when this list was first fetched —
+    // a stale row rather than a wrong one, but indistinguishable from the
+    // outside and just as misleading. The lifecycle controls announce every
+    // change; SYSTEM drops the answers that the change invalidates and asks
+    // again the next time the module is opened.
+    document.addEventListener('familista:club-lifecycle-changed', function () {
+      SY.clubs = null;
+      SY.clubSetup = null;
+      SY.overview = null;
+      SY.signals = null;
+      if (SY.module === 'clubs' && host.isConnected) go(host, 'clubs');
+    });
 
     host.addEventListener('click', function (ev) {
       // The live request trace opens as a drawer over whatever is on screen.
