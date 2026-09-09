@@ -2217,12 +2217,38 @@ function openClub(clubId) {
   try { _famClubSwitchBegin(clubId); } catch (_) {}
 
   // ── immediately, with nothing awaited ──────────────────────────────────
+  //
+  // The club id changes here, before anything is fetched, so that the
+  // workspace paints as the club being entered rather than the one being
+  // left. Everything else in the context describes the club being LEFT, and
+  // the role is the one that shows: it used to survive this write untouched,
+  // so the sidebar went on saying "President" while the id underneath it named
+  // a club this person holds nothing in. If the switch below was then
+  // superseded by a second click, or failed, that stale role was never
+  // corrected at all.
+  //
+  // So the role is cleared with the id it belonged to. Nothing is invented in
+  // its place: `_myClubRoleLabel` recomputes from `availableClubs`, which
+  // already carries this account's roles for the club being entered, so the
+  // first paint is the right answer rather than a blank — a legacy CLUB_OWNER
+  // membership still reads "President", and a club reached through platform
+  // authority reads as the platform.
   try {
     window.State = window.State || {};
     window.State.context = window.State.context || {};
+    var _leaving = window.State.context.clubId;
     window.State.context.clubId = clubId;
     window.State.context.teamId = null;
+    if (_leaving !== clubId) {
+      window.State.context.currentClubRole = null;
+      window.State.context.inClubViaPlatform = false;
+      // Team scope belongs to the club being left too, and offering its teams
+      // for the club being entered is the same class of mistake.
+      window.State.context.currentTeamScope = null;
+    }
   } catch (_) {}
+  // The footer says who this person is here, and "here" just changed.
+  try { if (typeof _paintUserRole === 'function') _paintUserRole(); } catch (_) {}
   // Everything held belongs to the club being left, and none of it is stamped
   // with whose it is.
   try { if (typeof _famClearClubScopedState === 'function') _famClearClubScopedState(); } catch (_) {}
@@ -3092,18 +3118,43 @@ function _myClubRoleLabel() {
     if (ctx.currentClubRole) return _roleLabel(ctx.currentClubRole);
 
     const clubs = Array.isArray(ctx.availableClubs) ? ctx.availableClubs : [];
-    const here = clubs.find((c) => c && c.id === ctx.clubId)
-      || (clubs.length === 1 ? clubs[0] : null);
+    // The club now open, and no other. A club id that is set names exactly one
+    // entry or none — falling through to "the only club in the list" when an id
+    // WAS set would answer about a different club, which is how a role follows
+    // somebody out of the club it belongs to. The one-club shortcut applies
+    // only while no club has been chosen at all.
+    const here = ctx.clubId
+      ? (clubs.find((c) => c && c.id === ctx.clubId) || null)
+      : (clubs.length === 1 ? clubs[0] : null);
     const strongest = _strongestRole(here && here.roles);
     if (strongest) return _roleLabel(strongest);
     // A club entered through platform authority is entered as the platform.
     // There is no club role to name, and naming one would be the bug.
     if (here && here.viaPlatform) return '';
-    if (ctx.accountIdentity === 'PLATFORM_OWNER') return '';
+    if (_famIsPlatformIdentity(ctx)) return '';
+    // The server HAS answered — it listed this account's clubs — and none of
+    // them gives this person a role here. Nothing is the true answer, and the
+    // account field is not a substitute for it.
+    if (clubs.length) return '';
   } catch (_) {}
   try {
     return String((window.State && State.user && State.user.role) || '').replace(/_/g, ' ');
   } catch (_) { return ''; }
+}
+
+/**
+ * Whether the server has said this account administers Familista.
+ *
+ * One test, asked by both halves of the footer, because they were asking
+ * different questions and getting different answers: `_displayRole` read
+ * `effectiveAccess.isPlatformOwner` while `_myClubRoleLabel` read
+ * `accountIdentity` — a field the client never copied into State.context, so
+ * that branch could not fire. Neither is a permission; the server decides.
+ */
+function _famIsPlatformIdentity(ctx) {
+  if (!ctx) return false;
+  return ctx.accountIdentity === 'PLATFORM_OWNER'
+    || !!(ctx.effectiveAccess && ctx.effectiveAccess.isPlatformOwner);
 }
 
 /**
@@ -3129,10 +3180,7 @@ function _displayRole() {
   let identity = '';
   try {
     const ctx = (window.State && State.context) || {};
-    if (ctx.accountIdentity === 'PLATFORM_OWNER'
-      || (ctx.effectiveAccess && ctx.effectiveAccess.isPlatformOwner)) {
-      identity = 'Platform Owner';
-    }
+    if (_famIsPlatformIdentity(ctx)) identity = 'Platform Owner';
   } catch (_) {}
   const club = _myClubRoleLabel();
   if (identity && club) return identity + ' · ' + club;
@@ -35381,6 +35429,12 @@ const AppContext = (function () {
           // The authoritative membership role in the club now open. Used to
           // NAME the role on screen; never to decide what may be done.
           currentClubRole: _ctx.currentClubRole || null,
+          // What this ACCOUNT is to Familista, which is a different question
+          // from what it is at this club. Carried because the footer asks it:
+          // without it the platform-owner branch could not fire at all, and a
+          // club role was the only answer the footer had.
+          accountIdentity: _ctx.accountIdentity || null,
+          inClubViaPlatform: _ctx.inClubViaPlatform === true,
           // Which teams this person may work with here. Read by the switcher,
           // and available to anything else that must not offer more.
           currentTeamScope: _ctx.currentTeamScope || null,
@@ -35524,8 +35578,14 @@ const AppContext = (function () {
           ? _ctx.availableClubs
           : ((State.context && State.context.availableClubs) || []),
         // Switching club switches which membership is authoritative, so the
-        // displayed role follows the club rather than the account.
+        // displayed role follows the club rather than the account. Replaced
+        // outright, never merged with what the previous club left behind.
         currentClubRole: (_ctx && _ctx.currentClubRole) || null,
+        // The account identity does not change with the club; whether THIS
+        // club is open on platform authority does.
+        accountIdentity: (_ctx && _ctx.accountIdentity)
+          || (State.context && State.context.accountIdentity) || null,
+        inClubViaPlatform: !!(_ctx && _ctx.inClubViaPlatform),
         currentTeamScope: (_ctx && _ctx.currentTeamScope) || null,
         // Capabilities are per club: the same person may run one and coach in
         // another, so they are replaced on a switch rather than carried over.
@@ -35633,8 +35693,20 @@ const AppContext = (function () {
         // Switching TEAM does not change the club, so the club membership that
         // names this person is the one they already had. Carried forward
         // rather than dropped, which would blank the role in the sidebar.
-        currentClubRole: (_ctx && _ctx.currentClubRole)
-          || (State.context && State.context.currentClubRole) || null,
+        // Switching TEAM does not change the club, and the server returns the
+        // whole context for that club — so when it answers, its answer is the
+        // answer, null included. Reaching past a null to the previous value
+        // would put a role back that the server had just taken away, which is
+        // the same carried-role bug one level down. The previous value is used
+        // only when the server did not answer at all.
+        currentClubRole: _ctx
+          ? (_ctx.currentClubRole || null)
+          : ((State.context && State.context.currentClubRole) || null),
+        accountIdentity: (_ctx && _ctx.accountIdentity)
+          || (State.context && State.context.accountIdentity) || null,
+        inClubViaPlatform: _ctx
+          ? _ctx.inClubViaPlatform === true
+          : !!(State.context && State.context.inClubViaPlatform),
         currentTeamScope: (_ctx && _ctx.currentTeamScope)
           || (State.context && State.context.currentTeamScope) || null,
         // Switching TEAM does not change the club, so the capabilities are the

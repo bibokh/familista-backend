@@ -379,8 +379,16 @@ describe('8 · a president is named president, not administrator', () => {
     const boot = between(APP, 'async function bootApp()', 'try { await AppContext.load(); }');
     expect(boot).toContain('_paintUserRole();');
     // The load, the club switch and the team switch: three context writes,
-    // three repaints, plus the one at boot.
-    expect(APP.split('_paintUserRole();').length - 1).toBe(4);
+    // three repaints, plus the one at boot — and one more where a club is
+    // ENTERED, which rewrites the context synchronously before any of those
+    // three can answer. Without that fifth repaint the footer went on naming
+    // the club just left.
+    expect(APP.split('_paintUserRole();').length - 1).toBe(5);
+    const entry = APP.slice(
+      APP.indexOf('function openClub(clubId)'),
+      APP.indexOf('// ── Phase B.1 · Topbar brand hydration'),
+    );
+    expect(entry).toContain('_paintUserRole()');
     // Each assignment of State.context is followed by a repaint before the
     // next one begins.
     const writes = APP.split('currentClubRole:').slice(1);
@@ -389,7 +397,7 @@ describe('8 · a president is named president, not administrator', () => {
       // A window rather than the whole tail: the repaint must follow its own
       // context write, not somebody else's further down the file. Wide enough
       // for the comments that sit between them.
-      expect(w.slice(0, 800)).toContain('_paintUserRole();');
+      expect(w.slice(0, 1400)).toContain('_paintUserRole();');
     }
   });
 
@@ -409,9 +417,18 @@ describe('8 · a president is named president, not administrator', () => {
   it('and follows the club when the club is switched, not the account', () => {
     // Switching club switches which membership is authoritative.
     expect(APP).toMatch(/currentClubRole: \(_ctx && _ctx\.currentClubRole\) \|\| null,/);
-    // Switching TEAM does not change the club, so the role is carried forward
-    // rather than blanked.
-    expect(APP).toMatch(/currentClubRole: \(_ctx && _ctx\.currentClubRole\)\s*\n\s*\|\| \(State\.context && State\.context\.currentClubRole\) \|\| null,/);
+
+    // Switching TEAM does not change the club — but the server returns the
+    // whole context for that club, so its answer is the answer, null included.
+    //
+    // This used to reach past a null to the previous value, on the reasoning
+    // that a team switch should not blank a club role. It is the same bug as
+    // the one `openClub` had: a role the server has just taken away is put
+    // back. The previous value is used only when the server did not answer at
+    // all, which is a failed request rather than an answer of "none".
+    const team = APP.slice(APP.indexOf('async function switchTeam(teamId)'), APP.indexOf('async function switchTeam(teamId)') + 2600);
+    expect(team).toMatch(/currentClubRole: _ctx\s*\n\s*\? \(_ctx\.currentClubRole \|\| null\)/);
+    expect(team).not.toMatch(/\(_ctx && _ctx\.currentClubRole\)\s*\n\s*\|\| \(State\.context && State\.context\.currentClubRole\)/);
   });
 });
 

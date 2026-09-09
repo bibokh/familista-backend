@@ -462,3 +462,179 @@ describe('club roles are exactly what they were', () => {
     expect(state.memberships.filter((m) => m.clubId === CLUB_B)).toEqual([]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6 · A club role never follows somebody out of the club it belongs to
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Production found this after the separation shipped. The platform owner still
+// holds the four legacy CLUB_OWNER memberships — deliberately, until the
+// cleanup — so entering one of those clubs correctly reads "President". Then
+// entering ANY other club still read "President", including clubs where this
+// account holds nothing at all.
+//
+// The server was right the whole time. `openClub` writes the new club's id
+// into `State.context` synchronously, before anything is fetched, so the
+// workspace paints as the club being entered — and it left every other field
+// describing the club being LEFT. The role was the one that showed. If the
+// background switch was then superseded by a second click, or failed, the
+// stale role was never corrected at all.
+//
+// So the role is cleared with the id it belonged to, and recomputed from
+// `availableClubs`, which already carries this account's roles per club.
+
+describe('entering a club recomputes the club role from that club alone', () => {
+  const OWNED = 'club-legacy-owned';   // a legacy CLUB_OWNER membership survives here
+  const NOT_MINE = 'club-b';           // no membership at all
+  const OWNERLESS = 'club-ownerless';  // no membership, and no president either
+
+  beforeEach(() => {
+    state.clubs.push(
+      { id: OWNED, name: 'FC Familista', shortName: null, emblem: null, crestUrl: null, plan: 'BASIC', lifecycle: ClubLifecycle.ACTIVE },
+      { id: OWNERLESS, name: 'fc nord marzhen', shortName: null, emblem: null, crestUrl: null, plan: 'BASIC', lifecycle: ClubLifecycle.PENDING_SETUP },
+    );
+    // The production state exactly: platform authority AND one of the four
+    // legacy memberships that have not been cleaned up yet.
+    state.memberships.push({
+      id: 'm-legacy', userId: OWNER, clubId: OWNED, teamId: null,
+      role: MembershipRole.CLUB_OWNER, isActive: true,
+    });
+  });
+
+  // ── the server ────────────────────────────────────────────────────────────
+
+  test('A · the club with the legacy membership reports President', async () => {
+    const ctx: any = await switchContext({ userId: OWNER }, OWNED, null);
+    expect(ctx.accountIdentity).toBe('PLATFORM_OWNER');
+    expect(ctx.currentClubRole).toBe(MembershipRole.CLUB_OWNER);
+    expect(ctx.inClubViaPlatform).toBe(false);
+  });
+
+  test('B · switching to a club with no membership reports no club role', async () => {
+    await switchContext({ userId: OWNER }, OWNED, null);
+    const ctx: any = await switchContext({ userId: OWNER }, NOT_MINE, null);
+    expect(ctx.accountIdentity).toBe('PLATFORM_OWNER');
+    expect(ctx.currentClubRole).toBeNull();
+    expect(ctx.inClubViaPlatform).toBe(true);
+    expect(ctx.availableClubs.find((c: Row) => c.id === NOT_MINE).roles).toEqual([]);
+  });
+
+  test('C · switching back reports President again, from that club alone', async () => {
+    await switchContext({ userId: OWNER }, OWNED, null);
+    await switchContext({ userId: OWNER }, NOT_MINE, null);
+    const ctx: any = await switchContext({ userId: OWNER }, OWNED, null);
+    expect(ctx.currentClubRole).toBe(MembershipRole.CLUB_OWNER);
+  });
+
+  test('D · an ownerless club reports no club role, and no president is invented', async () => {
+    const ctx: any = await switchContext({ userId: OWNER }, OWNERLESS, null);
+    expect(ctx.currentClubRole).toBeNull();
+    expect(state.memberships.filter((m) => m.clubId === OWNERLESS)).toEqual([]);
+  });
+
+  // ── the interface, driving the shipped functions ──────────────────────────
+  //
+  // `openClub` is executed as it ships. Everything it reaches for is stubbed,
+  // and `AppContext` is left undefined so it returns after the synchronous
+  // state write — which is the moment under test, before any server answer.
+
+  const footer = () => {
+    const roleSrc = APP.slice(
+      APP.indexOf('function _myClubRoleLabel()'),
+      APP.indexOf('function _accessibleClubs()'),
+    );
+    const openSrc = APP.slice(
+      APP.indexOf('function openClub(clubId) {'),
+      APP.indexOf('// ── Phase B.1 · Topbar brand hydration'),
+    );
+    const el = { textContent: '' };
+    const fn = new Function('el', `
+      const window = { State: { context: null, user: { role: 'CLUB_ADMIN' } } };
+      const State = window.State;
+      const document = { getElementById: (id) => (id === 'user-email' ? el : null) };
+      let _famClubEntry = 0;
+      const showToast = () => {};
+      const navTo = () => {};
+      const _famClubSwitchBegin = () => {};
+      const _famClearClubScopedState = () => {};
+      const _tfRtReset = () => {};
+      ${roleSrc}
+      ${openSrc}
+      return {
+        seed: (c) => { window.State.context = c; _paintUserRole(); },
+        enter: (id) => { openClub(id); _paintUserRole(); },
+        text: () => el.textContent,
+      };
+    `);
+    return fn(el);
+  };
+
+  // Real UUIDs: `openClub` refuses an id that is not one, because an id that
+  // never came from the server must not be allowed to rewrite the session's
+  // scope. The client-side cases below go through that guard as they ship.
+  const UI_OWNED = '11111111-1111-4111-8111-111111111111';
+  const UI_NOT_MINE = '22222222-2222-4222-8222-222222222222';
+  const UI_OWNERLESS = '33333333-3333-4333-8333-333333333333';
+
+  /** What /me/context returns for this account, in the shape the client keeps. */
+  const contextFor = (clubId: string | null, role: string | null) => ({
+    clubId,
+    teamId: null,
+    accountIdentity: 'PLATFORM_OWNER',
+    effectiveAccess: { isPlatformOwner: true },
+    currentClubRole: role,
+    availableClubs: [
+      { id: UI_OWNED, name: 'FC Familista', roles: ['CLUB_OWNER'] },
+      { id: UI_NOT_MINE, name: 'BSC Marzahn', roles: [], viaPlatform: true },
+      { id: UI_OWNERLESS, name: 'fc nord marzhen', roles: [], viaPlatform: true },
+    ],
+  });
+
+  test('A → B → C · the role changes with the club, at the first paint', () => {
+    const ui = footer();
+
+    // A · in the club the legacy membership covers.
+    ui.seed(contextFor(UI_OWNED, 'CLUB_OWNER'));
+    expect(ui.text()).toBe('Platform Owner · President');
+
+    // B · the moment another club is entered, before any server answer.
+    // This is the assertion that was failing in production.
+    ui.enter(UI_NOT_MINE);
+    expect(ui.text()).toBe('Platform Owner');
+
+    // C · and back, from that club's own membership.
+    ui.enter(UI_OWNED);
+    expect(ui.text()).toBe('Platform Owner · President');
+  });
+
+  test('D · an ownerless club shows the account and nothing else', () => {
+    const ui = footer();
+    ui.seed(contextFor(UI_OWNED, 'CLUB_OWNER'));
+    ui.enter(UI_OWNERLESS);
+    expect(ui.text()).toBe('Platform Owner');
+  });
+
+  test('and the stale role is gone from the state, not merely unprinted', () => {
+    const ui = footer();
+    ui.seed(contextFor(UI_OWNED, 'CLUB_OWNER'));
+    ui.enter(UI_NOT_MINE);
+    // A background switch that is superseded or fails never writes again, so
+    // "the next response will fix it" is not a fix.
+    expect(ui.text()).not.toMatch(/President/);
+  });
+
+  test('re-entering the club already open disturbs nothing', () => {
+    const ui = footer();
+    ui.seed(contextFor(UI_OWNED, 'CLUB_OWNER'));
+    ui.enter(UI_OWNED);
+    expect(ui.text()).toBe('Platform Owner · President');
+  });
+
+  test('a club role is never read from the account field once the server has answered', () => {
+    const ui = footer();
+    // The server listed this account's clubs and this is not one of them: the
+    // honest answer is no club role, not User.role dressed up as one.
+    ui.seed({ ...contextFor('44444444-4444-4444-8444-444444444444', null), accountIdentity: null, effectiveAccess: null });
+    expect(ui.text()).toBe('');
+  });
+});

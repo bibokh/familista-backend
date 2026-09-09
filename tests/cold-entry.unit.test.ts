@@ -131,7 +131,13 @@ describe('the Clubs picker offers only clubs that exist', () => {
   });
 
   it('entering a club refuses an id the server never issued', () => {
-    const f = APP.slice(APP.indexOf('function openClub(clubId)'), APP.indexOf('function openClub(clubId)') + 1800);
+    // The whole function, not a fixed window of it: a byte count silently
+    // stops covering the code it was written for the moment a comment grows.
+    const f = APP.slice(
+      APP.indexOf('function openClub(clubId)'),
+      APP.indexOf('// ── Phase B.1 · Topbar brand hydration'),
+    );
+    expect(f).toContain('State.context.clubId = clubId');
     expect(f).toMatch(/\[0-9a-f\]\{8\}-\[0-9a-f\]\{4\}/);
     // and it refuses before it rewrites the session's scope
     expect(f.search(/\[0-9a-f\]\{8\}/)).toBeLessThan(f.indexOf('State.context.clubId = clubId'));
