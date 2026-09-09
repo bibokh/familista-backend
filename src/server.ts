@@ -16,6 +16,7 @@ import http from 'http';
 import { createApp } from './app';
 import { config } from './config';
 import { connectDatabase, disconnectDatabase } from './config/database';
+import { initDataFabric } from './fabric';
 import { logger } from './utils/logger';
 // Phase C — realtime + workers
 import { mountMatchWebSocket }       from './realtime/match-ws';
@@ -91,6 +92,21 @@ async function bootstrap() {
       await connectDatabase();
       // eslint-disable-next-line no-console
       console.log('[boot] database connected');
+
+      // The Data Fabric's transport, installed once the database is reachable.
+      // Domain code emits through the fabric's port regardless; this decides
+      // where those events are durably stored. Before it runs — and in any
+      // process where it fails — events are still built, validated and fanned
+      // out in process, so a fabric that is not yet bound degrades to
+      // in-memory rather than to an exception on every write.
+      try {
+        initDataFabric();
+        logger.info('[boot] data fabric bound to the event outbox');
+      } catch (err) {
+        logger.error('[boot] data fabric transport not installed (events are in-process only)', {
+          err: (err as Error).message,
+        });
+      }
     } catch (err) {
       logger.error('[boot] connectDatabase failed (server still serving)', {
         err: (err as Error).message,

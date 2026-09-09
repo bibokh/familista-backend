@@ -10335,6 +10335,172 @@ enum AnalyticsEnvironment {
 /// `day`, `hourOfDay` and `weekday` are stored rather than derived so that the
 /// peak-hours and peak-days aggregates are index scans instead of full-table
 /// date arithmetic.
+// ─────────────────────────────────────────────────────────────────────────────
+// Familista Data Fabric — media
+// ─────────────────────────────────────────────────────────────────────────────
+// The authoritative METADATA for a stored object. Never the object.
+//
+// Today a club crest and a player photograph are base64 `data:` URLs written
+// into text columns — up to 300 KB per crest, and unbounded for a photo. That
+// works at one club and is a liability at a thousand: it inflates every backup
+// and every restore, it defeats CDN caching because the bytes travel through
+// the API, and it puts image data in the same table a transactional read locks.
+//
+// This model is where that ends. The bytes live in an object store behind a
+// port; this row says which object, whose it is, what it is of, how sensitive
+// it is, how long it may be kept and whether a model may look at it. Nothing
+// here is a credential: `storageProvider` and `storageKey` name an object, and
+// naming an object is not the same as being able to fetch it — that takes a
+// signed URL minted by the port, scoped to the club that owns the row.
+//
+// Existing images are NOT migrated by this model's arrival. Both paths are read
+// through one resolver, and the old columns keep working untouched.
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  OTHER
+}
+
+/// What the media is FOR. `subjectType` says whose it is; this says which of
+/// their images it is, so a club crest and a photograph of a stadium are
+/// distinguishable without reading the filename.
+enum MediaPurpose {
+  CREST
+  PHOTO
+  AVATAR
+  MATCH_FOOTAGE
+  TRAINING_FOOTAGE
+  CLIP
+  THUMBNAIL
+  DOCUMENT
+  OTHER
+}
+
+enum MediaSubjectType {
+  CLUB
+  TEAM
+  PLAYER
+  STAFF
+  USER
+  MATCH
+  TRAINING_SESSION
+  COMPETITION
+  DEVICE
+  CAMERA
+  OTHER
+}
+
+enum MediaProcessingStatus {
+  /// A row exists and an upload has been authorised. No bytes yet.
+  PENDING
+  /// The bytes are in the object store and the checksum matched.
+  STORED
+  /// Derivatives are being produced.
+  PROCESSING
+  /// Everything this asset needs exists.
+  READY
+  /// Processing failed. The original is kept; the reason is in metadata.
+  FAILED
+  /// Held back by a quality or safety check. Never served, never trained on.
+  QUARANTINED
+}
+
+/// Where in the storage lifecycle this asset sits. A scheduled job may later
+/// propose transitions; nothing here deletes anything on its own.
+enum MediaRetentionClass {
+  HOT
+  WARM
+  COLD
+  ARCHIVED
+  DELETION_ELIGIBLE
+}
+
+/// Mirrors `src/platform/data-classification.ts`. Declared in the database as
+/// well as in TypeScript so a row carries its own sensitivity even when read
+/// by something that never loaded the application.
+enum DataClassificationLevel {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL
+  RESTRICTED
+}
+
+model MediaAsset {
+  id String @id @default(uuid())
+
+  /// The tenant. Not nullable: every object belongs to exactly one club, and
+  /// the club is what every read is filtered by.
+  clubId String
+  teamId String?
+
+  /// Whose media this is.
+  subjectType MediaSubjectType
+  subjectId   String?
+
+  mediaType MediaType
+  purpose   MediaPurpose @default(OTHER)
+  mimeType  String
+
+  /// What the uploader called it. Kept for people, never used as a key.
+  originalFilename String?
+
+  /// WHICH object, in WHICH store. A name, not a credential — fetching it
+  /// takes a signed URL the port mints against the caller's club.
+  storageProvider String
+  storageKey      String
+
+  sizeBytes Int
+  /// SHA-256 of the bytes. The duplicate-upload check, and the integrity check.
+  checksum  String
+
+  /// When the media was CAPTURED, which is not when it was uploaded. A match
+  /// recording uploaded the next morning was captured during the match, and a
+  /// fabric with one timestamp files it on the wrong day.
+  captureTime DateTime?
+
+  /// A venue, when one is known. A plain string today: `Venue` is a Phase 1
+  /// item of its own and this column is deliberately unconstrained so that
+  /// adding it later is a foreign key, not a data migration.
+  venueId String?
+
+  /// The session this belongs to, generically. `sessionType` names which table
+  /// `sessionId` points into — a match, a training session, a future capture
+  /// session — so one column serves all three without a nullable FK per kind.
+  sessionType String?
+  sessionId   String?
+
+  processingStatus   MediaProcessingStatus   @default(PENDING)
+  retentionClass     MediaRetentionClass     @default(HOT)
+  dataClassification DataClassificationLevel @default(INTERNAL)
+
+  /// The consent this asset relies on, when it depends on one. A photograph of
+  /// a player does; a club crest does not. Deliberately a reference rather than
+  /// a copied boolean: consent can be withdrawn, and a copy would not notice.
+  consentRecordId String?
+  /// Whether a model may process this asset. Never inferred from anything —
+  /// set explicitly, defaulting to no.
+  aiEligible      Boolean @default(false)
+
+  createdAt DateTime  @default(now())
+  createdBy String?
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  metadata Json?
+
+  /// One row per stored object. The duplicate-upload guard, at the database.
+  @@unique([storageProvider, storageKey])
+  @@index([clubId, subjectType, subjectId])
+  @@index([clubId, createdAt])
+  @@index([clubId, purpose])
+  @@index([checksum])
+  @@index([processingStatus])
+  @@index([retentionClass])
+}
+
 model AnalyticsEvent {
   id          String               @id @default(uuid())
   eventName   String
