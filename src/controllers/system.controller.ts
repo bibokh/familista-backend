@@ -12,6 +12,7 @@ import { defineFlag, listFlags, isEnabled, type FlagAudience } from '../platform
 import { decideExperiment, registerExperiment, listExperiments, type ExperimentStatus } from '../platform/innovation/experiments';
 import { currentEnvironment, type FamilistaEnvironment } from '../platform/environment';
 import * as onboarding from '../platform/club-onboarding.service';
+import * as lifecycle from '../platform/club-lifecycle.service';
 import * as analytics from '../platform/analytics/service';
 import { emailConfiguration, emailMetrics } from '../platform/email/service';
 import { analyticsSignals } from '../platform/analytics/signals';
@@ -43,6 +44,11 @@ function onboardingActorOf(req: Request): onboarding.OnboardingActor {
 // Club onboarding — creating a club without becoming its owner
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** The same actor an onboarding write is audited with, for a lifecycle write. */
+function lifecycleActorOf(req: Request): lifecycle.LifecycleActor {
+  return onboardingActorOf(req);
+}
+
 export async function createClub(req: Request, res: Response, next: NextFunction) {
   try {
     const b = (req.body ?? {}) as Record<string, unknown>;
@@ -66,6 +72,87 @@ export async function createClub(req: Request, res: Response, next: NextFunction
       },
     });
     return sendSuccess(res, out, out.idempotentHit ? 'That club and invitation already existed' : 'Club created', out.idempotentHit ? 200 : 201);
+  } catch (err) { return next(err); }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Club lifecycle — the platform's, and nobody else's
+// ─────────────────────────────────────────────────────────────────────────────
+// Every handler below delegates to `club-lifecycle.service`, which asserts
+// platform authority itself. That assertion is not repeated here and must not
+// be removed there: these routes are on the SYSTEM router, which a club role
+// cannot reach, and the service is the wall that holds if anything is ever
+// mounted anywhere else.
+
+/** The reason a change was made, when one was given. Optional, and bounded. */
+function reasonOf(req: Request): string | null {
+  const b = (req.body ?? {}) as Record<string, unknown>;
+  return typeof b.reason === 'string' && b.reason.trim() ? b.reason.trim() : null;
+}
+
+export async function deactivateClub(req: Request, res: Response, next: NextFunction) {
+  try {
+    const out = await lifecycle.deactivateClub(lifecycleActorOf(req), req.params.clubId, reasonOf(req));
+    return sendSuccess(res, out, 'Club deactivated. Everything in it has been kept.');
+  } catch (err) { return next(err); }
+}
+
+export async function reactivateClub(req: Request, res: Response, next: NextFunction) {
+  try {
+    const out = await lifecycle.reactivateClub(lifecycleActorOf(req), req.params.clubId, reasonOf(req));
+    return sendSuccess(res, out, 'Club reactivated. It is back exactly as it was.');
+  } catch (err) { return next(err); }
+}
+
+export async function archiveClub(req: Request, res: Response, next: NextFunction) {
+  try {
+    const out = await lifecycle.archiveClub(lifecycleActorOf(req), req.params.clubId, reasonOf(req));
+    return sendSuccess(res, out, 'Club archived. Everything in it has been kept.');
+  } catch (err) { return next(err); }
+}
+
+export async function restoreClub(req: Request, res: Response, next: NextFunction) {
+  try {
+    const out = await lifecycle.restoreClub(lifecycleActorOf(req), req.params.clubId, reasonOf(req));
+    return sendSuccess(res, out, 'Club restored. It is back exactly as it was.');
+  } catch (err) { return next(err); }
+}
+
+export async function clubLifecycle(req: Request, res: Response, next: NextFunction) {
+  try {
+    return sendSuccess(res, await lifecycle.clubLifecycleState(actorOf(req), req.params.clubId));
+  } catch (err) { return next(err); }
+}
+
+export async function clubLifecycleHistory(req: Request, res: Response, next: NextFunction) {
+  try {
+    const limit = Number.parseInt(String(req.query.limit ?? ''), 10);
+    return sendSuccess(res, {
+      events: await lifecycle.clubLifecycleHistory(actorOf(req), req.params.clubId,
+        { limit: Number.isFinite(limit) ? limit : undefined }),
+    });
+  } catch (err) { return next(err); }
+}
+
+/**
+ * What would have to go with the club.
+ *
+ * Read before the confirmation dialog is drawn, so that the person confirming
+ * an irreversible act is looking at what it costs rather than at a warning.
+ */
+export async function clubDependencies(req: Request, res: Response, next: NextFunction) {
+  try {
+    return sendSuccess(res, await lifecycle.clubDependencies(actorOf(req), req.params.clubId));
+  } catch (err) { return next(err); }
+}
+
+export async function deleteClubForever(req: Request, res: Response, next: NextFunction) {
+  try {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const out = await lifecycle.deleteClubForever(lifecycleActorOf(req), req.params.clubId, {
+      name: typeof b.confirmName === 'string' ? b.confirmName : '',
+    });
+    return sendSuccess(res, out, 'Club permanently deleted');
   } catch (err) { return next(err); }
 }
 

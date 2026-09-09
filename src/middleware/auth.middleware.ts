@@ -4,6 +4,7 @@ import { UserRole } from '@prisma/client';
 import { config } from '../config';
 import { prisma } from '../config/database';
 import { UnauthorizedError, ForbiddenError } from '../utils/errors';
+import { assertActingClubOperable } from './club-lifecycle.middleware';
 
 interface JwtPayload {
   sub: string;
@@ -183,6 +184,15 @@ export async function authenticate(
       isPlatformOwner: user.role === UserRole.SUPER_ADMIN || user.platformAdmin?.isActive === true,
     } as Express.Request['user'];
     req.clubId = effectiveClubId;
+
+    // A club the platform has suspended cannot be OPERATED by its own people,
+    // and this is the one place every authenticated request passes through, so
+    // it is the one place the rule can be complete. The rule itself — what
+    // counts as operating, who is exempt and why — is
+    // `middleware/club-lifecycle.middleware.ts`; this only makes sure it is
+    // asked. Hiding the controls in the interface is a courtesy; this is the
+    // control.
+    await assertActingClubOperable(req);
 
     next();
   } catch (err) {

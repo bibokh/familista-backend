@@ -12,6 +12,7 @@ import {
   privateTeamScope, hasClubWideManageAuthority, isAcademyKind,
 } from '../identity/team-access.service';
 import { resolvePlatformAuthority } from '../platform/access-levels';
+import { clubLifecycleOf, isOperableLifecycle, isSuspendedLifecycle } from '../platform/club-lifecycle.service';
 import { meetsMembershipRank, strongestMembershipRole } from '../middleware/tenant.middleware';
 import { forgetIdentity } from '../middleware/auth.middleware';
 
@@ -43,11 +44,11 @@ export async function getContext(userId: string) {
   if (!user) throw new ForbiddenError();
 
   // De-duplicate clubs from memberships, then group teams per club.
-  const clubMap = new Map<string, { id: string; name: string; shortName: string | null; emblem: string | null; crestUrl: string | null; plan: string; teams: Array<{ id: string; name: string; kind: string }>; roles: string[]; viaPlatform?: boolean }>();
+  const clubMap = new Map<string, { id: string; name: string; shortName: string | null; emblem: string | null; crestUrl: string | null; plan: string; lifecycle?: string; teams: Array<{ id: string; name: string; kind: string }>; roles: string[]; viaPlatform?: boolean }>();
   for (const m of memberships) {
     const c = m.club;
     if (!clubMap.has(c.id)) {
-      clubMap.set(c.id, { ...c, teams: [], roles: [] });
+      clubMap.set(c.id, { ...c, lifecycle: String(c.lifecycle), teams: [], roles: [] });
     }
     // The AUTHORITATIVE role, per club.
     //
@@ -102,14 +103,32 @@ export async function getContext(userId: string) {
   if (platformOwner) {
     const all = await prisma.club.findMany({
       where: { id: { notIn: [...clubMap.keys()] } },
-      select: { id: true, name: true, shortName: true, emblem: true, crestUrl: true, plan: true },
+      select: {
+        id: true, name: true, shortName: true, emblem: true, crestUrl: true, plan: true,
+        lifecycle: true,
+      },
       orderBy: { name: 'asc' },
       take: PLATFORM_CLUB_PICKER_LIMIT,
     });
-    for (const club of all) clubMap.set(club.id, { ...club, teams: [], roles: [], viaPlatform: true });
+    for (const club of all) {
+      clubMap.set(club.id, { ...club, lifecycle: String(club.lifecycle), teams: [], roles: [], viaPlatform: true });
+    }
   }
 
-  const clubs = Array.from(clubMap.values());
+  // ── what the picker offers ────────────────────────────────────────────────
+  //
+  // An archived club leaves the ordinary listings: that is what archiving IS,
+  // as distinct from deactivating, which leaves the club where it is and shuts
+  // the door. Nothing is removed from the database and no membership is
+  // touched — the row simply stops being offered to the people who cannot use
+  // it, and the platform owner, for whom SYSTEM is the authoritative view of
+  // every club in every state, keeps seeing all of them.
+  //
+  // A DEACTIVATED club is still listed, deliberately. Somebody whose club has
+  // been suspended should see it, with its state on it, rather than watch it
+  // vanish and wonder whether they have lost their account.
+  const clubs = Array.from(clubMap.values())
+    .filter((c) => platformOwner || c.lifecycle !== 'ARCHIVED');
 
   // ── which club this context is about ──────────────────────────────────────
   //
@@ -266,6 +285,18 @@ export async function getContext(userId: string) {
      */
     accountIdentity:  platformOwner ? 'PLATFORM_OWNER' as const : 'CLUB_MEMBER' as const,
     /**
+     * The operational state of the club now open, so a screen can say what has
+     * happened rather than only fail. PENDING_SETUP, PRESIDENT_INVITED and
+     * ACTIVE are ordinary; DEACTIVATED and ARCHIVED mean the platform has
+     * suspended it and every record in it has been kept.
+     */
+    currentClubLifecycle: currentClubId
+      ? (clubMap.get(currentClubId)?.lifecycle ?? null) : null,
+    /** True when the club now open has been suspended or archived. */
+    currentClubSuspended: isSuspendedLifecycle(
+      currentClubId ? (clubMap.get(currentClubId)?.lifecycle ?? null) : null,
+    ),
+    /**
      * True when the club now open is open through platform authority rather
      * than through a membership — so a screen can label it honestly instead of
      * presenting a platform administrator as one of the club's people.
@@ -409,6 +440,22 @@ export async function switchContext(
     // authority is not a reason to skip checking that the row exists.
     const club = await prisma.club.findUnique({ where: { id: clubId }, select: { id: true } });
     if (!club) throw new BadRequestError('Club not found');
+  }
+
+  // A club the platform has suspended is not one its own people may enter.
+  //
+  // The request guard refuses every club-scoped read and write already, so this
+  // is not what makes suspension work — it is what makes it legible. Without
+  // it somebody switches successfully into a club whose every subsequent
+  // request then fails, which reads as a broken platform rather than as a
+  // suspended club.
+  if (!platformOwner) {
+    const lifecycle = await clubLifecycleOf(clubId);
+    if (lifecycle && !isOperableLifecycle(lifecycle)) {
+      throw new ForbiddenError(lifecycle === 'ARCHIVED'
+        ? 'This club has been archived by Familista. Everything in it has been kept.'
+        : 'This club has been deactivated by Familista. Everything in it has been kept.');
+    }
   }
 
   const ok = platformOwner || await hasActiveMembership(actor.userId, clubId);

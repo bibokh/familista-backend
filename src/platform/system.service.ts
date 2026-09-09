@@ -22,6 +22,7 @@ import { currentEnvironment } from './environment';
 import { decide, listPacks, type PolicyRequest } from './governance/policy';
 import { RESOURCE_CLASSIFICATION } from './data-classification';
 import { analyticsStore } from './analytics/store';
+import { isOperableLifecycle } from './club-lifecycle.service';
 
 /**
  * Where a number came from, said on the number itself.
@@ -336,9 +337,29 @@ export interface ClubRow {
   activeMemberships: number;
   hasOwner: boolean;
   createdAt: Date;
-  /** PENDING_SETUP | PRESIDENT_INVITED | ACTIVE — see Club.lifecycle. */
+  /**
+   * PENDING_SETUP | PRESIDENT_INVITED | ACTIVE | DEACTIVATED | ARCHIVED.
+   *
+   * SYSTEM is the authoritative global view of club lifecycle state, so this
+   * list reports every state, including the two the platform puts a club into
+   * itself. A club suspended or archived still appears here with everything it
+   * owns still counted — that is what distinguishes suspension from deletion.
+   */
   lifecycle: string;
+  /** The state to return to when a suspended club is reactivated or restored. */
+  previousLifecycle: string | null;
   activatedAt: Date | null;
+  deactivatedAt: Date | null;
+  archivedAt: Date | null;
+  reactivatedAt: Date | null;
+  restoredAt: Date | null;
+  /** Who last changed the state, when, and why they said they were doing it. */
+  lifecycleChangedAt: Date | null;
+  lifecycleChangedByUserId: string | null;
+  lifecycleChangedByEmail: string | null;
+  lifecycleReason: string | null;
+  /** Whether the club's own people may operate it right now. */
+  isOperable: boolean;
   /** The address a president invitation is outstanding for, when one is. */
   pendingPresidentEmail: string | null;
 }
@@ -347,7 +368,12 @@ export interface ClubRow {
 export async function listClubs(actor: PlatformActor, opts: { limit?: number } = {}): Promise<ClubRow[]> {
   await assertPlatformOwner(actor);
   const clubs = await prisma.club.findMany({
-    select: { id: true, name: true, createdAt: true, lifecycle: true, activatedAt: true },
+    select: {
+      id: true, name: true, createdAt: true, lifecycle: true, activatedAt: true,
+      previousLifecycle: true, deactivatedAt: true, archivedAt: true,
+      reactivatedAt: true, restoredAt: true,
+      lifecycleChangedAt: true, lifecycleChangedByUserId: true, lifecycleReason: true,
+    },
     orderBy: { name: 'asc' },
     take: Math.min(opts.limit ?? 200, 500),
   });
@@ -378,6 +404,16 @@ export async function listClubs(actor: PlatformActor, opts: { limit?: number } =
     rows.find((r) => r.clubId === id)?._count._all ?? 0;
   const owned = new Set(owners.map((o) => o.clubId));
 
+  // Who last changed each club's state, named rather than left as an id. One
+  // query for the whole page rather than a join per row.
+  const changerIds = [...new Set(
+    clubs.map((c) => c.lifecycleChangedByUserId).filter((u): u is string => !!u),
+  )];
+  const changers = changerIds.length
+    ? await prisma.user.findMany({ where: { id: { in: changerIds } }, select: { id: true, email: true } })
+    : [];
+  const emailOf = new Map(changers.map((u) => [u.id, u.email]));
+
   return clubs.map((c) => ({
     id: c.id,
     name: c.name,
@@ -387,7 +423,18 @@ export async function listClubs(actor: PlatformActor, opts: { limit?: number } =
     hasOwner: owned.has(c.id),
     createdAt: c.createdAt,
     lifecycle: String(c.lifecycle),
+    previousLifecycle: c.previousLifecycle ? String(c.previousLifecycle) : null,
     activatedAt: c.activatedAt,
+    deactivatedAt: c.deactivatedAt,
+    archivedAt: c.archivedAt,
+    reactivatedAt: c.reactivatedAt,
+    restoredAt: c.restoredAt,
+    lifecycleChangedAt: c.lifecycleChangedAt,
+    lifecycleChangedByUserId: c.lifecycleChangedByUserId,
+    lifecycleChangedByEmail: c.lifecycleChangedByUserId
+      ? (emailOf.get(c.lifecycleChangedByUserId) ?? null) : null,
+    lifecycleReason: c.lifecycleReason,
+    isOperable: isOperableLifecycle(c.lifecycle),
     pendingPresidentEmail: pendingByClub.get(c.id) ?? null,
   }));
 }

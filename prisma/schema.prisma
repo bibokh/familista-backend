@@ -44,6 +44,17 @@ enum ClubLifecycle {
   PRESIDENT_INVITED
   /// A person accepted and holds an active CLUB_OWNER membership.
   ACTIVE
+  /// Suspended by the platform. EVERY row the club owns is untouched —
+  /// players, teams, memberships, training, matches, transfers, media,
+  /// history — and none of the club's own people may operate it. The platform
+  /// owner may still inspect it. Reactivating returns it to
+  /// `previousLifecycle`, so the club comes back as exactly what it was.
+  DEACTIVATED
+  /// Put away by the platform. Same preservation as DEACTIVATED, and in
+  /// addition the club leaves the ordinary listings: it is a club the platform
+  /// is keeping rather than one anybody is running. Restoring returns it to
+  /// `previousLifecycle`.
+  ARCHIVED
 }
 
 enum SubscriptionStatus {
@@ -178,6 +189,39 @@ model Club {
   /// PENDING_SETUP, and only activation sets ACTIVE from there.
   lifecycle   ClubLifecycle @default(ACTIVE)
   activatedAt DateTime?
+
+  /// The state this club was in before the platform suspended or archived it.
+  ///
+  /// The requirement is that reactivating restores the EXACT previous state,
+  /// and "active" is not always that: a club still waiting on its president is
+  /// PRESIDENT_INVITED, and coming back as ACTIVE would silently tell the
+  /// platform it has an owner it does not have. So the state it left is
+  /// recorded, and the state it left is the state it returns to.
+  ///
+  /// Null whenever `lifecycle` is not DEACTIVATED or ARCHIVED — there is
+  /// nothing to go back to from a club that is simply running.
+  previousLifecycle ClubLifecycle?
+
+  /// When the platform suspended, archived, reactivated and restored it. Kept
+  /// as distinct columns rather than one, because SYSTEM reports them as
+  /// distinct facts and a single "changedAt" cannot answer "when was this club
+  /// archived" once it has also been restored.
+  deactivatedAt DateTime?
+  archivedAt    DateTime?
+  reactivatedAt DateTime?
+  restoredAt    DateTime?
+
+  /// Who made the most recent lifecycle change, when, and why.
+  ///
+  /// A convenience denormalisation of the newest row in the club's lifecycle
+  /// history, which is the PlatformAuditLog and remains authoritative — this
+  /// exists so a club listing can name the last change without a join per row.
+  /// Deliberately NOT a relation: it names a platform administrator's account,
+  /// and a club must not gain a foreign key into the people who administer the
+  /// platform.
+  lifecycleChangedAt       DateTime?
+  lifecycleChangedByUserId String?
+  lifecycleReason          String?   @db.Text
 
   stripeCustomerId     String?            @unique
   stripeSubscriptionId String?            @unique

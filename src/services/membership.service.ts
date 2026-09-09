@@ -459,7 +459,16 @@ export async function getActiveMembershipsForUser(userId: string) {
   return prisma.membership.findMany({
     where:  { userId, isActive: true },
     include: {
-      club: { select: { id: true, name: true, shortName: true, emblem: true, crestUrl: true, plan: true } },
+      // `lifecycle` travels with the club because every reader of this list
+      // has to know whether the club may be operated — the context builds the
+      // picker from it, and a suspended club must be shown as suspended rather
+      // than as an ordinary one that then refuses every request.
+      club: {
+        select: {
+          id: true, name: true, shortName: true, emblem: true, crestUrl: true, plan: true,
+          lifecycle: true,
+        },
+      },
       team: { select: { id: true, name: true, kind: true } },
     },
     orderBy: [{ joinedAt: 'desc' }],

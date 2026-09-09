@@ -3242,6 +3242,31 @@ function _accessibleClubs() {
 }
 
 /**
+ * A club's operational state, as one chip.
+ *
+ * `lifecycle` is the server's, and it is the only source: PENDING_SETUP and
+ * PRESIDENT_INVITED are a club still being set up, ACTIVE is one that is
+ * running, and DEACTIVATED and ARCHIVED are the two the platform puts a club
+ * into. Nothing is inferred from `isActive`, which is a different and much
+ * older flag about whether a row is a real club at all.
+ *
+ * The tone carries meaning and nothing else: green for running, amber for
+ * waiting, grey for put away. A suspended club is not an error and is not
+ * painted as one — nothing in it has been lost.
+ */
+function _clubStateChip(c) {
+  const lifecycle = String((c && c.lifecycle) || (c && c.isActive === false ? 'PLANNED' : 'ACTIVE'));
+  switch (lifecycle) {
+    case 'DEACTIVATED':       return { lifecycle, tone: 'off',      label: 'Deactivated' };
+    case 'ARCHIVED':          return { lifecycle, tone: 'archived', label: 'Archived' };
+    case 'PENDING_SETUP':     return { lifecycle, tone: 'setup',    label: 'President pending' };
+    case 'PRESIDENT_INVITED': return { lifecycle, tone: 'setup',    label: 'President invited' };
+    case 'PLANNED':           return { lifecycle, tone: 'setup',    label: 'Planned' };
+    default:                  return { lifecycle: 'ACTIVE', tone: 'on', label: 'Active' };
+  }
+}
+
+/**
  * The strongest membership role held in one club, as a label.
  *
  * A club offered through platform authority has no membership behind it and
@@ -3487,16 +3512,30 @@ function renderClubs() {
       </div>
       ${pending}
       <div class="cp-grid">
-        ${clubs.map(c => `
+        ${clubs.map(c => {
+          // The club's own state, from the server, in one word. A club the
+          // platform has suspended or archived says so on its card rather than
+          // looking ordinary and then refusing every request behind it.
+          const state = _clubStateChip(c);
+          return `
+          <div class="cp-cell">
           <button class="cp-card${c.isActive !== false ? ' cp-card--active' : ''}" data-action="openClub" data-club-id="${_esc(c.id || '')}" type="button">
             <div class="cp-card-crest">${clubLogoHtml(c.id, { size: 44, cls: 'club-logo--plain', title: false })}</div>
             <div class="cp-card-body">
               <div class="cp-card-name">${_esc(c.name || 'Club')}</div>
               <div class="cp-card-meta">${_esc([c.city, c.country, c.level ? 'Level ' + c.level : ''].filter(Boolean).join(' · ') || 'Football Club')}</div>
             </div>
-            <div class="cp-card-state">${c.isActive !== false ? 'ACTIVE' : 'PLANNED'}</div>
+            <div class="cp-card-state cp-card-state--${state.tone}">${_esc(state.label)}</div>
           </button>
-        `).join('')}
+          ${ownerChrome ? `
+          <button class="cp-menu-btn" type="button"
+                  data-action="clubLifecycleMenu"
+                  data-club-id="${_esc(c.id || '')}"
+                  data-club-name="${_esc(c.name || 'Club')}"
+                  data-club-lifecycle="${_esc(state.lifecycle)}"
+                  aria-haspopup="menu" aria-label="Club actions">⋯</button>` : ''}
+          </div>`;
+        }).join('')}
         ${ownerChrome ? `
         <button class="cp-card cp-card--add" data-action="openOnboardClubModal" type="button">
           <div class="cp-card-crest placeholder">+</div>
@@ -49354,6 +49393,12 @@ async function tosBoardSnapshot() {
         case 'closeOnboardClubModal': closeOnboardClubModal(); break;
         case 'submitOnboardClub':     submitOnboardClub();     break;
         // ── Clubs picker → open the picked club workspace
+        case 'clubLifecycleMenu':
+          // The platform owner's club controls. The module draws the menu and
+          // every dialog behind it; the server refuses anybody else whatever
+          // this does.
+          try { if (window.ClubLifecycle) window.ClubLifecycle.menu(el); } catch (_) {}
+          break;
         case 'openClub': {
           var _clubId = el.dataset.clubId || el.getAttribute('data-club-id') || '';
           try { openClub(_clubId); }
