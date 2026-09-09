@@ -638,3 +638,111 @@ describe('entering a club recomputes the club role from that club alone', () => 
     expect(ui.text()).toBe('');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7 · Entering a club that is not yet a going concern
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Production reported one club that will not open for the platform owner while
+// two others in the same state open fine. These pin the states that were
+// suspected, so that "a club with no president" or "a club with no team" can be
+// ruled in or out by evidence rather than by reading the code and agreeing with
+// oneself. All three open.
+
+describe('a platform owner enters a club whatever state it is in', () => {
+  const ORDINARY = 'club-ordinary';     // active, has teams, no membership for the owner
+  const OWNERLESS = 'club-no-president'; // PENDING_SETUP, nobody owns it
+  const TEAMLESS = 'club-no-teams';      // exists, and has not been set up at all
+
+  beforeEach(() => {
+    state.clubs.push(
+      { id: ORDINARY, name: 'familista mail test', shortName: null, emblem: null, crestUrl: null, plan: 'BASIC', lifecycle: ClubLifecycle.ACTIVE },
+      { id: OWNERLESS, name: 'Familista berlin', shortName: null, emblem: null, crestUrl: null, plan: 'BASIC', lifecycle: ClubLifecycle.PENDING_SETUP },
+      { id: TEAMLESS, name: 'ABDELHALIM ATIYA ABDELHALIM', shortName: null, emblem: null, crestUrl: null, plan: 'BASIC', lifecycle: ClubLifecycle.PENDING_SETUP },
+    );
+    state.teams.push(
+      { id: 'team-ordinary', clubId: ORDINARY, name: 'First Team', shortName: null, kind: 'SENIOR', isActive: true },
+      { id: 'team-owner-less', clubId: OWNERLESS, name: 'First Team', shortName: null, kind: 'SENIOR', isActive: true },
+    );
+    // TEAMLESS gets none, deliberately.
+  });
+
+  test('a normal club it holds no membership in', async () => {
+    const ctx: any = await switchContext({ userId: OWNER }, ORDINARY, null);
+    expect(ctx.currentClubId).toBe(ORDINARY);
+    expect(ctx.currentClubRole).toBeNull();
+    expect(ctx.inClubViaPlatform).toBe(true);
+    expect(ctx.currentTeamScope.unrestricted).toBe(true);
+    expect(ctx.effectiveAccess.canManagePeople).toBe(true);
+  });
+
+  test('an ownerless club that is still awaiting its president', async () => {
+    const ctx: any = await switchContext({ userId: OWNER }, OWNERLESS, null);
+    expect(ctx.currentClubId).toBe(OWNERLESS);
+    expect(ctx.currentClubRole).toBeNull();
+    // Awaiting a president is not a reason to refuse the platform. It is the
+    // reason the platform is the only one who can get in.
+    expect(ctx.effectiveAccess.canAppointPresident).toBe(true);
+    expect(state.memberships.filter((m) => m.clubId === OWNERLESS)).toEqual([]);
+  });
+
+  test('a club with no team at all opens, and offers no team', async () => {
+    const ctx: any = await switchContext({ userId: OWNER }, TEAMLESS, null);
+    expect(ctx.currentClubId).toBe(TEAMLESS);
+    expect(ctx.currentTeamId).toBeNull();
+    // Unrestricted over a club with nothing in it is an empty list, not a
+    // failure: the workspace opens on a club waiting to be set up.
+    expect(ctx.currentTeamScope).toEqual({ unrestricted: true, teams: [] });
+    expect(ctx.effectiveAccess.authorizedTeamIds).toEqual([]);
+  });
+
+  test('and every one of them is offered by the picker in the first place', async () => {
+    const ctx: any = await getContext(OWNER);
+    const ids = ctx.availableClubs.map((c: Row) => c.id);
+    for (const id of [ORDINARY, OWNERLESS, TEAMLESS]) expect(ids).toContain(id);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8 · The one way a club entry can fail before it begins
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Everything `switchClub` does after the context call is wrapped: loadTeams
+// swallows its own failure, _settleScopedTeam is a nicety, renderSwitcher is
+// null-safe, _thHydrate is caught and only downgrades a toast, and
+// _famEnsureClubData resolves rather than rejects. So a club entry that shows a
+// toast AND never opens the workspace can only have been refused by openClub
+// itself, before it navigates — and openClub refuses on exactly two things.
+
+describe('what refuses a club entry, and what it says', () => {
+  const openSrc = () => APP.slice(
+    APP.indexOf('function openClub(clubId) {'),
+    APP.indexOf('// ── Phase B.1 · Topbar brand hydration'),
+  );
+
+  test('the only refusals that precede navigation are a missing id and a non-server id', () => {
+    const before = openSrc().slice(0, openSrc().indexOf("navTo('club-home'"));
+    const toasts = before.match(/showToast\((?:'|")([^'"]+)/g) || [];
+    expect(toasts.map((t) => t.replace(/showToast\(('|")/, ''))).toEqual([
+      'Missing club id',
+      'That club is still loading — one moment',
+    ]);
+  });
+
+  test('and every step after the context call is wrapped, so none of them can strand the entry', () => {
+    const sw = APP.slice(
+      APP.indexOf('async function switchClub(clubId, opts)'),
+      APP.indexOf('async function switchTeam(teamId)'),
+    );
+    // loadTeams cannot reject.
+    const lt = APP.slice(APP.indexOf('async function loadTeams()'), APP.indexOf('function renderSwitcher()'));
+    expect(lt).toContain('catch (_) { _teams = []; }');
+    // The roster, the squad store and the stream are each guarded on their own.
+    expect(sw).toMatch(/try \{ hydrated = \(await _thHydrate\(\)\) === 'ready'; \} catch \(_\) \{ hydrated = false; \}/);
+    expect(sw).toMatch(/try \{ _sqLoad\(\); \} catch \(_\) \{\}/);
+    expect(sw).toMatch(/try \{ _tfRtConnect\(\); \} catch \(_\) \{\}/);
+    // And club data resolves rather than rejecting.
+    const ecd = APP.slice(APP.indexOf('function _famEnsureClubData(opts)'), APP.indexOf('function _famActivePage()'));
+    expect(ecd).toContain(".catch(function () { return { ok: false, failed: ['club data'] }; })");
+  });
+});
