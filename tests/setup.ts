@@ -28,3 +28,9 @@ process.env.JWT_REFRESH_EXPIRES_IN = '7d';
 
 // MFA (optional — not required for auth smoke tests)
 process.env.MFA_ENCRYPTION_KEY = process.env.MFA_ENCRYPTION_KEY ?? 'test-mfa-key-jest-min-32-chars-pad!!';
+
+// Platform authority is memoised for a few seconds in production so that a
+// guard does not read the same PlatformAdmin row on every request. A test that
+// grants or retires that row inside one file must see the change immediately,
+// so the window is closed here rather than branching on NODE_ENV in the source.
+process.env.PLATFORM_AUTHORITY_TTL_MS = '0';

@@ -4,16 +4,26 @@
 // Read /me/context → list of available clubs/teams and the currently selected pair.
 // Write /me/context → switch tenant (verified against active Memberships).
 
-import { Prisma, MembershipAuditAction, MembershipRole, UserRole } from '@prisma/client';
+import { Prisma, MembershipAuditAction, MembershipRole } from '@prisma/client';
 import { prisma } from '../config/database';
 import { ForbiddenError, BadRequestError } from '../utils/errors';
 import { getActiveMembershipsForUser, hasActiveMembership } from './membership.service';
 import {
   privateTeamScope, hasClubWideManageAuthority, isAcademyKind,
 } from '../identity/team-access.service';
-import { isPlatformOwner } from '../platform/access-levels';
+import { resolvePlatformAuthority } from '../platform/access-levels';
 import { meetsMembershipRank, strongestMembershipRole } from '../middleware/tenant.middleware';
 import { forgetIdentity } from '../middleware/auth.middleware';
+
+/**
+ * How many clubs a platform owner's club picker offers.
+ *
+ * A bound rather than a permission: platform authority reaches every club, and
+ * a picker that tried to render all of them on a platform with thousands would
+ * be a slow screen rather than a safer one. Administering a club beyond the
+ * bound goes through the platform console, which pages.
+ */
+const PLATFORM_CLUB_PICKER_LIMIT = 200;
 
 export async function getContext(userId: string) {
   const [user, memberships] = await Promise.all([
@@ -33,7 +43,7 @@ export async function getContext(userId: string) {
   if (!user) throw new ForbiddenError();
 
   // De-duplicate clubs from memberships, then group teams per club.
-  const clubMap = new Map<string, { id: string; name: string; shortName: string | null; emblem: string | null; crestUrl: string | null; plan: string; teams: Array<{ id: string; name: string; kind: string }>; roles: string[] }>();
+  const clubMap = new Map<string, { id: string; name: string; shortName: string | null; emblem: string | null; crestUrl: string | null; plan: string; teams: Array<{ id: string; name: string; kind: string }>; roles: string[]; viaPlatform?: boolean }>();
   for (const m of memberships) {
     const c = m.club;
     if (!clubMap.has(c.id)) {
@@ -55,9 +65,18 @@ export async function getContext(userId: string) {
     }
   }
 
+  const platformOwner = await resolvePlatformAuthority({ userId: user.id, role: user.role });
+
   // Backward compat: if the user has no Memberships at all (legacy account),
   // fall back to their primary clubId so the UI still works.
-  if (clubMap.size === 0 && user.clubId) {
+  //
+  // Not for a platform owner. `User.clubId` is NOT NULL, so every account has
+  // one whether or not it means anything, and for the platform owner it means
+  // nothing at all — it is the club their account happened to be created
+  // against. Presenting it as "their club" is the same mistake as the CLUB_OWNER
+  // membership, one column further down. Their clubs come from platform
+  // authority below, and are marked as such.
+  if (!platformOwner && clubMap.size === 0 && user.clubId) {
     const club = await prisma.club.findUnique({
       where: { id: user.clubId },
       select: { id: true, name: true, shortName: true, emblem: true, crestUrl: true, plan: true },
@@ -65,6 +84,29 @@ export async function getContext(userId: string) {
     // A legacy account with no membership row has no authoritative role to
     // report, and an empty list is the honest answer rather than a guess.
     if (club) clubMap.set(club.id, { ...club, teams: [], roles: [] });
+  }
+
+  // ── the clubs a PLATFORM owner may enter, as the platform ─────────────────
+  //
+  // Platform authority is not a membership, so none of these clubs appears
+  // above — and until now the only way the platform owner could open a club at
+  // all was to hold a CLUB_OWNER membership of it. That is exactly backwards:
+  // it makes the person who administers Familista look like four clubs'
+  // president, and it means removing that pretence would lock them out.
+  //
+  // So the clubs are listed here instead, from platform authority, and marked
+  // `viaPlatform` with an EMPTY role list. The interface shows them as platform
+  // access rather than as a club role, the audit trail records a context switch
+  // by a platform administrator, and no club acquires an owner it did not
+  // appoint. Bounded, because a platform picker is a picker and not an export.
+  if (platformOwner) {
+    const all = await prisma.club.findMany({
+      where: { id: { notIn: [...clubMap.keys()] } },
+      select: { id: true, name: true, shortName: true, emblem: true, crestUrl: true, plan: true },
+      orderBy: { name: 'asc' },
+      take: PLATFORM_CLUB_PICKER_LIMIT,
+    });
+    for (const club of all) clubMap.set(club.id, { ...club, teams: [], roles: [], viaPlatform: true });
   }
 
   const clubs = Array.from(clubMap.values());
@@ -123,7 +165,9 @@ export async function getContext(userId: string) {
   // The server refuses an unauthorised team in switchContext regardless; this
   // is so the interface stops offering what the server would refuse.
   const scope = currentClubId
-    ? await privateTeamScope({ userId: user.id, clubId: currentClubId, role: user.role })
+    ? await privateTeamScope({
+      userId: user.id, clubId: currentClubId, role: user.role, isPlatformOwner: platformOwner,
+    })
     : { unrestricted: false, teamIds: [] as string[] };
 
   // ── what this person may actually reach, as capabilities ──────────────────
@@ -138,17 +182,23 @@ export async function getContext(userId: string) {
   // drift away from the guard it stands for. Nothing here grants anything —
   // every route still checks for itself, and a client that lies about these
   // gets a 403 rather than a screen.
-  const [platformOwner, clubWideManage] = await Promise.all([
-    isPlatformOwner({ userId: user.id, role: user.role }),
-    currentClubId
-      ? hasClubWideManageAuthority({ userId: user.id, clubId: currentClubId, role: user.role })
-      : Promise.resolve(false),
-  ]);
+  const clubWideManage = currentClubId
+    ? await hasClubWideManageAuthority({
+      userId: user.id, clubId: currentClubId, role: user.role, isPlatformOwner: platformOwner,
+    })
+    : false;
 
   // Running the club, as `requireMembership('CLUB_ADMIN')` means it: the same
   // ranking the middleware uses, asked of the same memberships. This is what
   // People & Access, the membership writes and the invitation routes require.
-  const canManageClub = meetsMembershipRank(currentRoles, MembershipRole.CLUB_ADMIN);
+  //
+  // Platform authority satisfies it too, because `requireMembership` bypasses
+  // on platform authority and a capability that promised less than the route
+  // allows is the same drift as one that promises more. It is a CAPABILITY,
+  // not an identity: `accountIdentity` and `currentClubRole` below still say
+  // that this person administers Familista and holds no role at this club.
+  const canManageClub = platformOwner
+    || meetsMembershipRank(currentRoles, MembershipRole.CLUB_ADMIN);
 
   // Working WITH a module and ADMINISTERING it are different questions, and
   // the modules that answer them differently now say so.
@@ -163,8 +213,8 @@ export async function getContext(userId: string) {
   //   staff      · [requireMembership(CLUB_ADMIN),  requireClubWideManage()]
   //   league     · authorize(SUPER_ADMIN) + assertLeagueAdmin — the league is
   //                owned by no club, so no club administrator administers it.
-  const canAdministerTransfers = clubWideManage
-    && meetsMembershipRank(currentRoles, MembershipRole.HEAD_COACH);
+  const canAdministerTransfers = platformOwner
+    || (clubWideManage && meetsMembershipRank(currentRoles, MembershipRole.HEAD_COACH));
   const canAdministerStaff = clubWideManage && canManageClub;
 
   /**
@@ -178,7 +228,7 @@ export async function getContext(userId: string) {
    * disagree about who may keep the list. SUPER_ADMIN short-circuits here
    * exactly as it does in the guard.
    */
-  const canShortlist = user.role === UserRole.SUPER_ADMIN
+  const canShortlist = platformOwner
     || meetsMembershipRank(currentRoles, MembershipRole.HEAD_COACH);
 
   // The academy is a workspace, not a label: it opens to somebody assigned to
@@ -202,6 +252,25 @@ export async function getContext(userId: string) {
     legacyClubId:     user.clubId,
     /** User.role — the account-level field. NOT what somebody is in a club. */
     legacyRole:       user.role,
+    /**
+     * Who this account is to FAMILISTA, which is a different question from what
+     * it is at the club it currently has open.
+     *
+     * Two fields, never one, and never collapsed into each other: a platform
+     * owner with no membership is `PLATFORM_OWNER` with a null
+     * `currentClubRole`, and the interface says "Account: Platform Owner ·
+     * Club role: None" rather than inventing a club role to fill the gap. The
+     * club's own president is `CLUB_MEMBER` with `currentClubRole:
+     * CLUB_OWNER`, and one person may be both at different clubs without
+     * either fact changing the other.
+     */
+    accountIdentity:  platformOwner ? 'PLATFORM_OWNER' as const : 'CLUB_MEMBER' as const,
+    /**
+     * True when the club now open is open through platform authority rather
+     * than through a membership — so a screen can label it honestly instead of
+     * presenting a platform administrator as one of the club's people.
+     */
+    inClubViaPlatform: platformOwner && currentRoles.length === 0 && !!currentClubId,
     /** The authoritative membership role in the club currently open. */
     currentClubRole,
     /**
@@ -232,6 +301,15 @@ export async function getContext(userId: string) {
       canManageClub,
       /** Invite, suspend, remove — the People & Access screen. */
       canManagePeople: canManageClub,
+      /**
+       * Offer CLUB_OWNER — the club's president — in the invite dialog.
+       *
+       * Narrower than `canManagePeople` on purpose, and mirrors the rule
+       * `createInvitation` enforces: a president is appointed by a sitting
+       * president or by Familista onboarding the club, never by an
+       * administrator, because the role outranks the person handing it out.
+       */
+      canAppointPresident: platformOwner || currentRoles.includes(MembershipRole.CLUB_OWNER),
       /**
        * The transfer workspace: scouting, search, shortlists, comparison — the
        * football work of finding a player, which is a coach's job. Reading the
@@ -310,8 +388,30 @@ export async function switchContext(
 ) {
   if (!clubId) throw new BadRequestError('clubId is required');
 
+  // Platform authority enters a club AS THE PLATFORM.
+  //
+  // Requirement, stated plainly: the platform owner must be able to enter and
+  // inspect any club without masquerading as its president. Before this, they
+  // could not — `hasActiveMembership` was the only door — so the way it had
+  // been made to work was a CLUB_OWNER membership of four clubs, which is the
+  // thing being unwound. Recognising the authority here is what makes removing
+  // those memberships safe rather than a lockout.
+  //
+  // It GRANTS NO CLUB ROLE. `getContext` reports `currentClubRole: null` and
+  // `inClubViaPlatform: true` for such a session, the audit row below records
+  // the switch, and every write inside the club is still decided by the guard
+  // that owns it.
+  const platformOwner = await resolvePlatformAuthority({ userId: actor.userId });
+
   // The user must have at least one active membership in the target club.
-  const ok = await hasActiveMembership(actor.userId, clubId);
+  if (platformOwner) {
+    // A club id that names no club is a bad request whoever asks, and platform
+    // authority is not a reason to skip checking that the row exists.
+    const club = await prisma.club.findUnique({ where: { id: clubId }, select: { id: true } });
+    if (!club) throw new BadRequestError('Club not found');
+  }
+
+  const ok = platformOwner || await hasActiveMembership(actor.userId, clubId);
   if (!ok) {
     // Legacy accounts — the ones that predate memberships entirely — may still
     // switch to their primary club, until the backfill has run everywhere.
@@ -350,7 +450,7 @@ export async function switchContext(
       },
       select: { id: true },
     });
-    if (!scoped) {
+    if (!scoped && !platformOwner) {
       // Final legacy fallback: a primary-clubId account with no memberships at
       // all may pick any team in its own club.
       //

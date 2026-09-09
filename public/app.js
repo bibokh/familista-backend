@@ -3064,7 +3064,7 @@ function _isPlatformOwner() {
 }
 
 /**
- * The role to PRINT for the signed-in person, in the club they are in.
+ * The CLUB role to PRINT for the signed-in person, in the club they are in.
  *
  * Three sources, strongest first, and only the last of them is the account
  * field that labelled an invited president "CLUB ADMIN":
@@ -3080,9 +3080,13 @@ function _isPlatformOwner() {
  *   3 · User.role, for a legacy account with no membership row at all. Better
  *       than printing nothing, and wrong often enough that it is last.
  *
+ * Empty string means: this person holds NO role at this club. That is an
+ * answer, and `_displayRole` prints it as one rather than reaching for
+ * something else to say.
+ *
  * All three are text. None of them decides what anybody may do.
  */
-function _displayRole() {
+function _myClubRoleLabel() {
   try {
     const ctx = (window.State && State.context) || {};
     if (ctx.currentClubRole) return _roleLabel(ctx.currentClubRole);
@@ -3092,10 +3096,47 @@ function _displayRole() {
       || (clubs.length === 1 ? clubs[0] : null);
     const strongest = _strongestRole(here && here.roles);
     if (strongest) return _roleLabel(strongest);
+    // A club entered through platform authority is entered as the platform.
+    // There is no club role to name, and naming one would be the bug.
+    if (here && here.viaPlatform) return '';
+    if (ctx.accountIdentity === 'PLATFORM_OWNER') return '';
   } catch (_) {}
   try {
     return String((window.State && State.user && State.user.role) || '').replace(/_/g, ' ');
   } catch (_) { return ''; }
+}
+
+/**
+ * Who the sidebar says this person is.
+ *
+ * TWO facts, never folded into one. What somebody is to FAMILISTA — the
+ * platform owner, or nothing in particular — is a different question from what
+ * they are at the club they have open, and the answer to one is not available
+ * as an answer to the other.
+ *
+ * The platform owner used to read "President" here, because the only way they
+ * could open a club was to hold a CLUB_OWNER membership of it. Both halves of
+ * that are gone: the membership is no longer created, platform authority opens
+ * the club instead, and this prints "Platform Owner" with no club role beside
+ * it — which is the truth, and is why a club with no president now looks like
+ * a club with no president.
+ *
+ * When the same person genuinely does hold a role at the club — a platform
+ * administrator who is also a real coach somewhere — both are printed, in that
+ * order, and neither is inferred from the other.
+ */
+function _displayRole() {
+  let identity = '';
+  try {
+    const ctx = (window.State && State.context) || {};
+    if (ctx.accountIdentity === 'PLATFORM_OWNER'
+      || (ctx.effectiveAccess && ctx.effectiveAccess.isPlatformOwner)) {
+      identity = 'Platform Owner';
+    }
+  } catch (_) {}
+  const club = _myClubRoleLabel();
+  if (identity && club) return identity + ' · ' + club;
+  return identity || club;
 }
 
 /**
@@ -3152,10 +3193,18 @@ function _accessibleClubs() {
   } catch (_) { return []; }
 }
 
-/** The strongest membership role held in one club, as a label. */
+/**
+ * The strongest membership role held in one club, as a label.
+ *
+ * A club offered through platform authority has no membership behind it and
+ * says so: "Platform access", not a role it would be a lie to print. That is
+ * the whole separation in one line — the platform owner can open the club and
+ * is not one of its people.
+ */
 function _clubRoleLabel(club) {
   const best = _strongestRole(club && club.roles);
-  return best ? _roleLabel(best) : '';
+  if (best) return _roleLabel(best);
+  return club && club.viaPlatform ? 'Platform access' : '';
 }
 
 function _greeting() {

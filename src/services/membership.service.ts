@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ConflictError, ForbiddenError, BadRequestError } from '../utils/errors';
+import { resolvePlatformAuthority } from '../platform/access-levels';
 
 export interface MembershipActor {
   userId:     string;
@@ -167,6 +168,32 @@ export async function grantMembership(
  * owner. The check is here rather than in a screen because a screen is not what
  * a curl request goes through.
  */
+/**
+ * Who may make somebody a president.
+ *
+ * One rule, one function, two callers: `createInvitation` when a president is
+ * invited, and `changeRole` when an existing member is promoted into the role.
+ * A president is appointed by a sitting president of the same club, or by
+ * Familista under platform authority — never by a club administrator, because
+ * CLUB_OWNER outranks CLUB_ADMIN and a role that can hand out authority above
+ * its own is not a boundary.
+ */
+export async function assertMayAppointPresident(actor: MembershipActor): Promise<void> {
+  const [platform, sitting] = await Promise.all([
+    resolvePlatformAuthority({ userId: actor.userId, role: actor.role }),
+    prisma.membership.findFirst({
+      where: {
+        userId: actor.userId, clubId: actor.clubId,
+        role: MembershipRole.CLUB_OWNER, isActive: true,
+      },
+      select: { id: true },
+    }),
+  ]);
+  if (!platform && !sitting) {
+    throw new ForbiddenError("Only the club's president, or Familista, may appoint a president");
+  }
+}
+
 export async function assertNotLastOwner(clubId: string, membershipId: string): Promise<void> {
   const target = await prisma.membership.findUnique({
     where: { id: membershipId },
@@ -363,6 +390,17 @@ export async function changeRole(
 ): Promise<Membership> {
   const existing = await getMembershipById(id, actor.clubId);
   if (existing.role === dto.role) return existing;
+
+  // Promoting somebody to president is appointing a president, and the same
+  // rule applies here as at the invitation: only a sitting president of this
+  // club, or Familista, may do it. Without this, an administrator could hand
+  // themselves the role that outranks them by editing a membership — the
+  // invitation path would refuse it and this one would not, which is how two
+  // doors into the same room come to disagree.
+  if (dto.role === MembershipRole.CLUB_OWNER) {
+    await assertMayAppointPresident(actor);
+  }
+
   // Demoting the last owner leaves the club ownerless just as surely as
   // removing them does.
   if (existing.role === MembershipRole.CLUB_OWNER && dto.role !== MembershipRole.CLUB_OWNER) {

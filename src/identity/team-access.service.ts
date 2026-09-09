@@ -26,14 +26,29 @@
 import { MembershipRole, TeamKind, UserRole } from '@prisma/client';
 import { prisma } from '../config/database';
 import { ForbiddenError, NotFoundError } from '../utils/errors';
+import { resolvePlatformAuthority } from '../platform/access-levels';
 
 export type TeamAccessLevel = 'MANAGE' | 'VIEW' | 'NONE';
 
 export interface TeamActor {
   userId: string;
   clubId: string;
-  /** The account-level role. Only SUPER_ADMIN means anything here. */
+  /** The account-level role, as the token carries it. */
   role?: UserRole | string;
+  /**
+   * Platform authority, resolved for this request by `authenticate`.
+   *
+   * Familista's platform owner need not be `SUPER_ADMIN` on their account —
+   * an active PlatformAdmin row is the newer statement of the same authority,
+   * and for a while the guards here recognised only the older one. That gap is
+   * why the platform owner could reach a club only by holding a CLUB_OWNER
+   * membership of it, which is precisely the contamination this separates.
+   *
+   * It grants what platform authority has always granted here and nothing
+   * more: sight of and control over a club's teams AS THE PLATFORM, reported
+   * as `PLATFORM_ADMIN`, never as one of the club's own roles.
+   */
+  isPlatformOwner?: boolean;
 }
 
 export type TeamAccessReason =
@@ -175,7 +190,7 @@ export async function accessForTeam(actor: TeamActor, teamId: string): Promise<T
   const team = await prisma.team.findUnique({ where: { id: teamId }, select: { id: true, clubId: true } });
   if (!team) throw new NotFoundError('Team');
 
-  if (actor.role === 'SUPER_ADMIN') {
+  if (await resolvePlatformAuthority(actor)) {
     return pack(team.id, team.clubId, 'MANAGE', 'PLATFORM_ADMIN', []);
   }
   if (team.clubId !== actor.clubId) {
@@ -271,13 +286,14 @@ export interface TeamContext {
  */
 export async function listTeamContexts(actor: TeamActor): Promise<TeamContext[]> {
   if (!actor.clubId) return [];
+  const platform = await resolvePlatformAuthority(actor);
   const [teams, rows, counts] = await Promise.all([
     prisma.team.findMany({
       where: { clubId: actor.clubId },
       select: { id: true, name: true, shortName: true, kind: true, isActive: true },
       orderBy: [{ kind: 'asc' }, { name: 'asc' }],
     }),
-    actor.role === 'SUPER_ADMIN' ? Promise.resolve([] as MembershipRow[]) : membershipsOf(actor),
+    platform ? Promise.resolve([] as MembershipRow[]) : membershipsOf(actor),
     prisma.player.groupBy({ by: ['teamId'], where: { clubId: actor.clubId }, _count: { _all: true } }),
   ]);
 
@@ -289,7 +305,7 @@ export async function listTeamContexts(actor: TeamActor): Promise<TeamContext[]>
 
   return teams.map((t) => {
     let access: TeamAccess;
-    if (actor.role === 'SUPER_ADMIN') {
+    if (platform) {
       access = pack(t.id, actor.clubId, 'MANAGE', 'PLATFORM_ADMIN', []);
     } else if (clubWideManage) {
       access = pack(t.id, actor.clubId, 'MANAGE', 'CLUB_WIDE', clubWide.map((r) => r.role));
@@ -365,7 +381,7 @@ export interface PrivateTeamScope {
 }
 
 export async function privateTeamScope(actor: TeamActor): Promise<PrivateTeamScope> {
-  if (actor.role === 'SUPER_ADMIN') return { unrestricted: true, teamIds: [] };
+  if (await resolvePlatformAuthority(actor)) return { unrestricted: true, teamIds: [] };
   if (!actor.userId || !actor.clubId) return { unrestricted: false, teamIds: [] };
 
   const rows = await membershipsOf(actor);
@@ -405,7 +421,7 @@ export async function hasAnyTeamPrivateAccess(actor: TeamActor): Promise<boolean
  * has always been club-wide.
  */
 export async function hasClubWideManageAuthority(actor: TeamActor): Promise<boolean> {
-  if (actor.role === 'SUPER_ADMIN') return true;
+  if (await resolvePlatformAuthority(actor)) return true;
   if (!actor.userId || !actor.clubId) return false;
   const rows = await membershipsOf(actor);
   if (!rows.length) return true;
@@ -429,7 +445,7 @@ export async function assertClubWideManageAuthority(actor: TeamActor): Promise<v
  * request must make it.
  */
 export async function soleManagedTeamId(actor: TeamActor): Promise<string | null> {
-  if (actor.role === 'SUPER_ADMIN') return null;
+  if (await resolvePlatformAuthority(actor)) return null;
   if (!actor.userId || !actor.clubId) return null;
   const rows = await membershipsOf(actor);
   if (rows.some((r) => !r.teamId && TEAM_MANAGING_ROLES.has(r.role))) return null;

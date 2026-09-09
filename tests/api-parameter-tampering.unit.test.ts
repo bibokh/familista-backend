@@ -49,6 +49,10 @@ jest.mock('../src/security/security-event.service', () => ({ logSecurityEvent: j
 
 jest.mock('../src/config/database', () => ({
   prisma: {
+    // No platform administrator among these accounts. Platform authority is
+    // resolved from this table and nothing else, so an empty answer here is
+    // what makes every actor below an ordinary club person.
+    platformAdmin: { findUnique: async () => null },
     team: { findUnique: async ({ where }: any) => TEAMS.find((t) => t.id === where.id) ?? null },
     membership: {
       findMany: async ({ where }: any) => MEMBERSHIPS

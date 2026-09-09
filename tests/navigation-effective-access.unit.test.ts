@@ -77,7 +77,17 @@ const db: Row = {
     findFirst: async ({ where = {} }: Row = {}) => state.memberships.find((m) => match(m, where)) ?? null,
     count: async ({ where = {} }: Row = {}) => state.memberships.filter((m) => match(m, where)).length,
   },
-  club: { findUnique: async ({ where }: Row) => clubOf(where.id) },
+  club: {
+    findUnique: async ({ where }: Row) => clubOf(where.id),
+    // What a platform owner's club picker reads. Platform authority reaches
+    // every club without a membership in any of them, so the list comes from
+    // here rather than from the membership table.
+    findMany: async ({ where = {}, take }: Row = {}) => {
+      const skip: string[] = (where.id && where.id.notIn) || [];
+      const rows = state.clubs.filter((c) => !skip.includes(c.id));
+      return typeof take === 'number' ? rows.slice(0, take) : rows;
+    },
+  },
   team: {
     findUnique: async ({ where }: Row) => state.teams.find((t) => t.id === where.id) ?? null,
     findMany: async ({ where = {} }: Row = {}) => {

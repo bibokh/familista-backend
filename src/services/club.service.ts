@@ -3,7 +3,7 @@
 // Logo + colors live ONLY in WhiteLabelConfig (no duplication on Club).
 // Pure Prisma — schema is the single source of truth.
 
-import { Prisma, MembershipRole } from '@prisma/client';
+import { Prisma, ClubLifecycle } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ConflictError } from '../utils/errors';
 
@@ -105,10 +105,23 @@ function toProfile(club: ClubWithBrand): ClubProfile {
 // ─────────────────────────────────────────────────────────────────────────────
 // Club onboarding (POST /clubs)
 // ─────────────────────────────────────────────────────────────────────────────
-// Creates a new Club row and, in the same transaction, grants the caller a
-// CLUB_OWNER Membership so the club appears in /me/context.availableClubs
-// immediately on the next refresh. No subscription/billing artefacts are
-// provisioned — the row starts in the schema's default TRIALING / BASIC state.
+// Creates a new Club row and GRANTS THE CALLER NOTHING.
+//
+// It used to grant the caller a CLUB_OWNER membership in the same transaction,
+// so that the club appeared in their own `availableClubs`. That one line is
+// where Familista's identity model came apart: the platform owner onboards
+// clubs, so the platform owner ended up president of every club they onboarded
+// — four of them in production — and every screen that names somebody's role
+// then had to choose between "Platform Owner" and "President" for the same
+// person. Convenience for the creator, paid for by the club's own identity.
+//
+// A club is created PENDING_SETUP: it exists, nobody owns it, and it waits for
+// a real person to be invited as CLUB_OWNER and to accept. The platform owner
+// reaches it meanwhile through platform authority, which is what platform
+// authority is for, and no membership is invented to stand in for it.
+//
+// No subscription/billing artefacts are provisioned — the row starts in the
+// schema's default TRIALING / BASIC state.
 
 export interface CreateClubInput {
   name: string;
@@ -120,13 +133,20 @@ export interface CreateClubInput {
 
 export interface CreateClubResult {
   clubId: string;
-  membershipId: string;
+  /**
+   * Always null. Kept in the shape so the response contract does not change
+   * under existing clients, and named so that a reader looking for where the
+   * creator's membership went finds this comment rather than a missing field.
+   */
+  membershipId: null;
+  /** PENDING_SETUP: the club has no president and cannot be run yet. */
+  lifecycle: ClubLifecycle;
   profile: ClubProfile;
 }
 
-export async function createClubWithOwnerMembership(
+export async function createClubAwaitingPresident(
   input: CreateClubInput,
-  ownerUserId: string,
+  creatorUserId: string,
 ): Promise<CreateClubResult> {
   // Defence in depth — controller already validates with zod, but the service
   // is callable from internal code paths too.
@@ -142,42 +162,34 @@ export async function createClubWithOwnerMembership(
   const dup = await prisma.club.findFirst({
     where: {
       name,
-      memberships: { some: { userId: ownerUserId, isActive: true } },
+      memberships: { some: { userId: creatorUserId, isActive: true } },
     },
     select: { id: true },
   });
   if (dup) throw new ConflictError('You already own a club with that name');
 
-  const { clubId, membershipId } = await prisma.$transaction(async (tx) => {
-    const club = await tx.club.create({
-      data: {
-        name,
-        city,
-        shortName: input.shortName?.trim() || null,
-        country:   input.country?.trim()   || 'Germany',
-        emblem:    input.emblem?.trim()    || null,
-      },
-      select: { id: true },
-    });
-
-    const membership = await tx.membership.create({
-      data: {
-        userId:   ownerUserId,
-        clubId:   club.id,
-        teamId:   null,
-        role:     MembershipRole.CLUB_OWNER,
-        isActive: true,
-      },
-      select: { id: true, userId: true, clubId: true, isActive: true },
-    });
-
-    return { clubId: club.id, membershipId: membership.id };
+  // One statement, and deliberately no membership.create anywhere in this
+  // function. `tests/identity-separation.unit.test.ts` reads this file and
+  // fails if one comes back.
+  const club = await prisma.club.create({
+    data: {
+      name,
+      city,
+      shortName: input.shortName?.trim() || null,
+      country:   input.country?.trim()   || 'Germany',
+      emblem:    input.emblem?.trim()    || null,
+      // Explicit, and the point of the whole function: the club exists and is
+      // awaiting a president. The schema's default is not relied on.
+      lifecycle: ClubLifecycle.PENDING_SETUP,
+    },
+    select: { id: true },
   });
 
   return {
-    clubId,
-    membershipId,
-    profile: await getClubProfile(clubId),
+    clubId: club.id,
+    membershipId: null,
+    lifecycle: ClubLifecycle.PENDING_SETUP,
+    profile: await getClubProfile(club.id),
   };
 }
 

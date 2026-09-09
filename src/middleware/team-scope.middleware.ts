@@ -28,6 +28,7 @@ import * as teamAccess from '../identity/team-access.service';
 import { tenantGuard } from './tenant-guard.middleware';
 import { meetsMembershipRank } from './tenant.middleware';
 import { ForbiddenError } from '../utils/errors';
+import { resolvePlatformAuthority } from '../platform/access-levels';
 import { traceAuthz } from '../observability/trace.middleware';
 
 /** Whether the request carries a session at all. A route that authenticates
@@ -40,12 +41,18 @@ export function isAuthenticated(req: Request): boolean {
 
 export function actorOfRequest(req: Request): teamAccess.TeamActor {
   const u = (req as Request & {
-    user?: { id?: string; userId?: string; role?: string; currentClubId?: string; clubId?: string };
+    user?: {
+      id?: string; userId?: string; role?: string;
+      currentClubId?: string; clubId?: string; isPlatformOwner?: boolean;
+    };
   }).user;
   return {
     userId: u?.id ?? u?.userId ?? '',
     clubId: u?.currentClubId ?? u?.clubId ?? '',
     role: u?.role,
+    // Carried, not re-derived: `authenticate` resolved it from the
+    // PlatformAdmin table when the request arrived.
+    isPlatformOwner: u?.isPlatformOwner,
   };
 }
 
@@ -186,8 +193,10 @@ export function requireActingClubMembership(minRole: MembershipRole) {
     try {
       const actor = actorOfRequest(req);
       if (!actor.userId) throw new ForbiddenError('Authentication required');
-      // SUPER_ADMIN bypasses tenancy, exactly as it does in requireMembership.
-      if (actor.role === 'SUPER_ADMIN') return next();
+      // Platform authority bypasses tenancy, exactly as it does in
+      // requireMembership — and by the same shared predicate, so the two
+      // cannot drift into disagreeing about who the platform owner is.
+      if (await resolvePlatformAuthority(actor)) return next();
       if (!actor.clubId) throw new ForbiddenError('No active club context');
 
       const memberships = await prisma.membership.findMany({

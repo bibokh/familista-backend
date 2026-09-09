@@ -20,6 +20,21 @@ type Identity = {
   currentClubId: string | null; currentTeamId: string | null;
   /** Bumped when every session this person holds must stop being trusted. */
   tokenVersion: number;
+  /**
+   * Platform authority, resolved once with the identity it belongs to.
+   *
+   * Familista's platform owner is an active `PlatformAdmin` row — not
+   * necessarily `SUPER_ADMIN` on the account, and never a club membership. The
+   * guards need that fact on every request, and reading it separately in each
+   * of them would be a query per guard per request; it is one join here, held
+   * for the same few seconds as the rest of the identity and dropped by the
+   * same `forgetIdentity`.
+   *
+   * This RESOLVES platform authority. It does not decide what it permits: the
+   * only thing that reads it is `hasPlatformAuthority`, and `assertPlatformOwner`
+   * is untouched and still reads the row itself.
+   */
+  platformAdmin: { isActive: boolean } | null;
 };
 const IDENTITY_TTL_MS = parseInt(process.env.AUTH_IDENTITY_TTL_MS ?? '5000', 10);
 const IDENTITY_MAX = 20000;
@@ -70,6 +85,7 @@ async function loadIdentity(userId: string): Promise<Identity | null> {
     select: {
       id: true, email: true, role: true, clubId: true, isActive: true,
       currentClubId: true, currentTeamId: true, tokenVersion: true,
+      platformAdmin: { select: { isActive: true } },
     },
   }).then((row) => {
     if (identityCache.size >= IDENTITY_MAX) {
@@ -161,6 +177,10 @@ export async function authenticate(
       primaryClubId: user.clubId,
       currentClubId: user.currentClubId ?? null,
       currentTeamId: user.currentTeamId ?? null,
+      // Who this person is to FAMILISTA, carried beside — never merged into —
+      // who they are to a club. A platform owner holds no club role by virtue
+      // of this flag, and a club owner never acquires it.
+      isPlatformOwner: user.role === UserRole.SUPER_ADMIN || user.platformAdmin?.isActive === true,
     } as Express.Request['user'];
     req.clubId = effectiveClubId;
 

@@ -79,6 +79,10 @@ const db: Row = {
   playerAuditLog: { create: async () => ({}) },
   auditLog: { create: async () => ({}) },
   securityEvent: { create: async () => ({}) },
+  // No platform administrator among these accounts. Platform authority is
+  // resolved from this table and nothing else, so an empty answer here is
+  // what makes every actor below an ordinary club person.
+  platformAdmin: { findUnique: async () => null },
   $transaction: async (fn: any) => (typeof fn === 'function' ? fn(db) : Promise.all(fn)),
 };
 

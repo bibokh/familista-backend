@@ -71,11 +71,46 @@
     'FINANCE_MANAGER',
   ];
 
+  /**
+   * The roles this person may actually invite somebody into.
+   *
+   * President is the club's own, and it is offered only to somebody the server
+   * would accept it from — a sitting president, or Familista onboarding the
+   * club. That is `canAppointPresident`, the capability `createInvitation`
+   * mirrors, read from the server's answer and never decided here.
+   *
+   * It is offered at all because a club has to be able to get a president
+   * through the invitation flow: that is now the ONLY way a CLUB_OWNER
+   * membership comes into existence, since creating a club grants nobody
+   * anything. A club with no president stays a club with no president until a
+   * real person accepts.
+   */
+  function invitableRoles() {
+    var can = false;
+    try {
+      var ea = ((window.State && window.State.context) || {}).effectiveAccess || {};
+      can = ea.canAppointPresident === true;
+    } catch (_) { can = false; }
+    return can ? ['CLUB_OWNER'].concat(INVITABLE) : INVITABLE.slice();
+  }
+
   // The two roles that manage a club. Everything else is ordinary staff, and
   // nothing promotes itself into this list by accident — it is written out.
   var MANAGING = ['CLUB_OWNER', 'CLUB_ADMIN'];
 
   function roleLabel(r) { return ROLE_LABELS[r] || String(r || '').replace(/_/g, ' ').toLowerCase(); }
+
+  /**
+   * The offered roles, plus the one this person already holds.
+   *
+   * A dropdown that cannot show the current value is a dropdown that silently
+   * proposes a change nobody asked for. So a president being edited by
+   * somebody who may not appoint one still SEES "President" selected — and
+   * every other option is a demotion, which is what that person may do.
+   */
+  function withCurrent(list, role) {
+    return role && list.indexOf(role) < 0 ? [role].concat(list) : list;
+  }
 
   /**
    * May the signed-in person manage access here?
@@ -88,6 +123,16 @@
   function canManage() {
     try {
       var ctx = (window.State && window.State.context) || {};
+      // The server's own answer first. It already knows every way somebody may
+      // reach this screen — a club-managing membership, or platform authority,
+      // which is not a membership and has no role name to match against. That
+      // second case is why reading a role here was not enough: the platform
+      // owner used to pass this test only because they held a CLUB_OWNER
+      // membership of the club, which is exactly what has been removed.
+      var ea = ctx.effectiveAccess || {};
+      if (ea.canManagePeople === true) return true;
+      if (ea.canManagePeople === false) return false;
+
       var role = ctx.currentClubRole;
       if (!role) {
         var here = (ctx.availableClubs || []).filter(function (c) { return c && c.id === ctx.clubId; })[0];
@@ -463,7 +508,7 @@
       +     '</div>'
       +     field('Email', '<input class="pa-in" name="email" type="email" autocomplete="off" maxlength="200" required placeholder="coach@example.com">')
       +     field('Role', '<select class="pa-in" name="role" required>'
-             + INVITABLE.map(function (r) {
+             + invitableRoles().map(function (r) {
                return '<option value="' + r + '">' + esc(roleLabel(r)) + '</option>';
              }).join('') + '</select>')
       +     '<div class="pa-scope">'
@@ -711,7 +756,11 @@
       choose({
         title: 'Change role', subject: fullName(m.user), body: 'What this person is in this club.',
         label: 'Role', value: m.role, confirm: 'Save role',
-        options: INVITABLE.concat(['CLUB_OWNER']).map(function (r) { return [r, roleLabel(r)]; }),
+        // President is offered only to somebody the server would accept it
+        // from — the same `canAppointPresident` the invite dialog reads, and
+        // the same rule `changeRole` enforces. Two doors into the same room,
+        // one rule.
+        options: withCurrent(invitableRoles(), m.role).map(function (r) { return [r, roleLabel(r)]; }),
       }).then(function (role) {
         if (role && role !== m.role) run(id, api().patch('/memberships/' + id + '/role', { role: role }), 'Role changed');
       });

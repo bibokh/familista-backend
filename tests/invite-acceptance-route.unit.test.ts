@@ -128,7 +128,15 @@ const db: Row = {
   },
   membershipAuditLog: { create: async ({ data }: Row) => { state.audits.push(data); return data; } },
   platformAuditLog: { create: async ({ data }: Row) => { state.platformAudits.push(data); return data; } },
-  platformAdmin: { findUnique: async () => null },
+  // The account that issues these invitations IS Familista onboarding a club:
+  // an active PlatformAdmin row, which is what `assertMayAppointPresident`
+  // requires before a CLUB_OWNER invitation may be minted at all. Nobody else
+  // in this file has one.
+  platformAdmin: {
+    findUnique: async ({ where }: Row) => (where.userId === 'u-owner'
+      ? { userId: 'u-owner', role: 'PLATFORM_OWNER', isActive: true }
+      : null),
+  },
   refreshToken: {
     create: async ({ data }: Row) => { state.refreshTokens.push(data); return data; },
     deleteMany: async () => ({ count: 0 }),

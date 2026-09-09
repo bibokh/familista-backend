@@ -388,17 +388,25 @@ describe('5 · and none of the behaviour changed', () => {
     expect(PA).toContain('scope');
   });
 
-  it('the roles offered are unchanged, and CLUB_OWNER is not among them', () => {
+  it('the staff roles offered are unchanged, and President is not one of them', () => {
     const inv = PA.slice(PA.indexOf('var INVITABLE'), PA.indexOf(';', PA.indexOf('var INVITABLE')));
     expect(inv).toContain('HEAD_COACH');
+    // The staff list itself never carries it. President is added on top, and
+    // only for somebody the server said may appoint one — the club's sitting
+    // president, or Familista onboarding it.
     expect(inv).not.toContain('CLUB_OWNER');
+    const roles = PA.slice(PA.indexOf('function invitableRoles()'), PA.indexOf('function invitableRoles()') + 600);
+    expect(roles).toContain('canAppointPresident');
   });
 
   it('management is still shown on the server\'s answer, and it is not the guard', () => {
     const can = PA.slice(PA.indexOf('function canManage()'), PA.indexOf('function summary()'));
+    // The server's own capability, and the membership role it already reported,
+    // in that order. Both come from /me/context; neither is a second source of
+    // authority invented on this side, and neither is a guard — People &
+    // Access is refused by the routes whatever this returns.
+    expect(can).toContain('canManagePeople');
     expect(can).toContain('currentClubRole');
-    // No new source of authority, and no capability invented on this side.
-    expect(can).not.toContain('effectiveAccess');
   });
 
   it('and this change touched no server file at all', () => {

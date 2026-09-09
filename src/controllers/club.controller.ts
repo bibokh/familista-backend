@@ -10,6 +10,7 @@ import * as svc from '../services/club.service';
 import { sendSuccess } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
 import { assertPlatformOwner } from '../platform/system.service';
+import * as onboarding from '../platform/club-onboarding.service';
 
 // ── Reusable validators ───────────────────────────────────────────────────
 const httpsUrl = z
@@ -78,9 +79,13 @@ function zerr(err: z.ZodError): BadRequestError {
 
 // POST /clubs — onboard a new club.
 //
-// Required: name, city. Optional: shortName, country, emblem (https URL).
-// Side-effect: caller receives a CLUB_OWNER Membership in the new club so it
-// shows up in /me/context.availableClubs immediately on next refresh.
+// Required: name, city. Optional: shortName, country, emblem (https URL), and
+// the president to invite.
+//
+// NO side-effect on the caller. Creating a club grants the creator nothing —
+// not a membership, not a role, not a place in their own club picker. If the
+// president is named the invitation is minted here; if not, the club waits in
+// PENDING_SETUP until one is invited through People & Access.
 const createSchema = z.object({
   body: z.object({
     name:      text(120).min(1, 'name is required'),
@@ -88,24 +93,37 @@ const createSchema = z.object({
     shortName: text(60).optional().nullable(),
     country:   text(120).optional().nullable(),
     emblem:    httpsUrl.optional().nullable(),
+    // The person who will run the club. Optional, because a club may be
+    // created first and its president invited afterwards — but never the
+    // creator, and never implied.
+    president: z.object({
+      firstName: text(80).min(1, "the president's first name is required"),
+      lastName:  text(80).min(1, "the president's last name is required"),
+      email:     z.string().trim().email('must be a valid email address').max(254),
+      message:   text(1000).optional().nullable(),
+    }).strict().optional(),
   }).strict(),
 });
 
 /**
  * Onboard a club. The PLATFORM OWNER's action, and nobody else's.
  *
- * This route used to be open to any authenticated account, and it does not
- * merely create a row: `createClubWithOwnerMembership` grants the caller a
- * CLUB_OWNER membership in the club it creates. So an invited head coach,
- * scoped to one team, could POST here and come out owning a club — a genuine
- * escalation reachable with a single request, and the reason the "Onboard a
- * new club" tile was so much worse than a stray label.
+ * This route used to be open to any authenticated account, and it did not
+ * merely create a row: it granted the caller a CLUB_OWNER membership in the
+ * club it created. So an invited head coach, scoped to one team, could POST
+ * here and come out owning a club — a genuine escalation reachable with a
+ * single request.
  *
- * Creating a club has always been a platform action; the system router says so
- * in as many words, and POST /api/v1/system/clubs is the route that does it
- * properly — it also sends the president their invitation and never makes the
- * platform owner the club's owner. This one stays for the platform owner who
- * reaches it, and refuses everybody else.
+ * That is closed twice over now. The route is the platform owner's, and the
+ * creation grants NOBODY anything: named a president, it delegates to the
+ * onboarding service, which mints a CLUB_OWNER invitation for that person and
+ * leaves the club PRESIDENT_INVITED; named none, the club is created
+ * PENDING_SETUP and waits. Either way the club's president is somebody who
+ * accepted an invitation, which is the only way a CLUB_OWNER membership is
+ * ever created.
+ *
+ * The platform owner still reaches the club — through platform authority,
+ * which needs no membership and is not one.
  */
 export async function createClub(req: Request, res: Response, next: NextFunction) {
   try {
@@ -124,7 +142,49 @@ export async function createClub(req: Request, res: Response, next: NextFunction
     const userId = req.user?.id;
     if (!userId) throw new BadRequestError('No authenticated user');
 
-    const result = await svc.createClubWithOwnerMembership(
+    // Named a president: one path, the onboarding service's, which is the only
+    // code in Familista that may put a club on the road to having an owner.
+    if (b.president) {
+      const onboarded = await onboarding.createClubWithPresidentInvite(
+        {
+          userId,
+          clubId: req.user?.clubId ?? null,
+          role: req.user?.role,
+          ipAddress: req.ip ?? null,
+          userAgent: req.get('user-agent') ?? null,
+        },
+        {
+          name:      b.name,
+          city:      b.city,
+          shortName: b.shortName ?? null,
+          country:   b.country   ?? null,
+          president: {
+            firstName: b.president.firstName,
+            lastName:  b.president.lastName,
+            email:     b.president.email,
+            message:   b.president.message ?? null,
+          },
+        },
+      );
+      return sendSuccess(
+        res,
+        {
+          clubId: onboarded.clubId,
+          // Nobody is a member of this club yet, and the field says so rather
+          // than being quietly dropped.
+          membershipId: null,
+          profile: await svc.getClubProfile(onboarded.clubId),
+          setup: onboarded.setup,
+          invitation: onboarded.invitation,
+          token: onboarded.token,
+          delivery: onboarded.delivery,
+        },
+        'Club created — the president has been invited',
+        201,
+      );
+    }
+
+    const result = await svc.createClubAwaitingPresident(
       {
         name:      b.name,
         city:      b.city,
@@ -137,8 +197,13 @@ export async function createClub(req: Request, res: Response, next: NextFunction
 
     return sendSuccess(
       res,
-      { clubId: result.clubId, membershipId: result.membershipId, profile: result.profile },
-      'Club created',
+      {
+        clubId: result.clubId,
+        membershipId: result.membershipId,
+        lifecycle: result.lifecycle,
+        profile: result.profile,
+      },
+      'Club created — invite a president to activate it',
       201,
     );
   } catch (err) { return next(err); }

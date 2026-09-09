@@ -219,7 +219,7 @@ describe('the SYSTEM entry point is not rendered for a club account', () => {
   });
 
   it('takes that answer from the server, never from a role in the client', () => {
-    const resolver = between(APP, 'let _platformAuthority = null;', 'function _displayRole');
+    const resolver = between(APP, 'let _platformAuthority = null;', 'function _myClubRoleLabel');
     expect(resolver).toContain("'/system/whoami'");
     expect(resolver).toContain('isPlatformOwner');
     // Not inferred from anything the client holds.
@@ -298,7 +298,7 @@ describe('8 · a president is named president, not administrator', () => {
 
   it('and the interface prints that, falling back only for a legacy account', () => {
     expect(APP).toContain('function _displayRole()');
-    const display = between(APP, '* The role to PRINT', 'const _ROLE_RANK');
+    const display = between(APP, '* The CLUB role to PRINT', 'const _ROLE_RANK');
     expect(display).toContain('ctx.currentClubRole');
     expect(display).toContain('_roleLabel(ctx.currentClubRole)');
     // The account field exists as a fallback, and it is the LAST of the three.
@@ -312,7 +312,7 @@ describe('8 · a president is named president, not administrator', () => {
   it('CLUB_OWNER is never rendered as CLUB ADMIN, in any of the three sources', () => {
     // The reported symptom, pinned at the level it actually failed: the label.
     const app = new Function(`
-      ${between(APP, 'function _displayRole()', 'function _accessibleClubs()')}
+      ${between(APP, 'function _myClubRoleLabel()', 'function _accessibleClubs()')}
       return { _displayRole, _strongestRole, _roleLabel };
     `)() as {
       _displayRole: () => string;
@@ -398,11 +398,11 @@ describe('8 · a president is named president, not administrator', () => {
     // they did; changing them would alter behaviour, and the server is what
     // enforces any of it in any case.
     expect(APP).toContain("['CLUB_ADMIN','HEAD_COACH','SUPER_ADMIN'].includes(State.user && State.user.role)");
-    const display = between(APP, '* The role to PRINT', 'const _ROLE_RANK');
+    const display = between(APP, '* The CLUB role to PRINT', 'const _ROLE_RANK');
     expect(display).toMatch(/None of them decides what anybody may do/);
     // _displayRole, _strongestRole and _paintUserRole write text and nothing
     // else — no fetch, no navigation, no permission check downstream.
-    const block = between(APP, '* The role to PRINT', 'function _accessibleClubs');
+    const block = between(APP, '* The CLUB role to PRINT', 'function _accessibleClubs');
     expect(block).not.toMatch(/fetch\(|FamilistaAPI\.|navTo|location\./);
   });
 

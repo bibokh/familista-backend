@@ -27,7 +27,7 @@ import {
 import { prisma } from '../config/database';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { UserRole } from '@prisma/client';
-import { grantMembership, type MembershipActor } from '../services/membership.service';
+import { assertMayAppointPresident, grantMembership, type MembershipActor } from '../services/membership.service';
 import { registerInvitedUser } from '../services/auth.service';
 import { deliverInvitation, type DeliveryOutcome } from './invitation-mail.service';
 import { consume } from './invitation-throttle';
@@ -199,6 +199,19 @@ export async function createInvitation(
   dto: CreateInvitationDto,
 ): Promise<{ invitation: InvitationView; token: string; delivery: DeliveryOutcome }> {
   const email = normaliseEmail(dto.email);
+
+  // ── appointing a president ─────────────────────────────────────────────────
+  // A club's president is the one role that outranks the person who invites
+  // people, so it is the one role an administrator may not hand out. Only a
+  // sitting president of THIS club, or platform authority onboarding it, may
+  // appoint one — which is also the only way a CLUB_OWNER membership comes into
+  // existence anywhere in Familista now that creating a club grants nothing.
+  //
+  // Checked here rather than on the route, because this service is what every
+  // caller goes through and a rule written on one route is a rule the next
+  // route forgets.
+  if (dto.role === MembershipRole.CLUB_OWNER) await assertMayAppointPresident(actor);
+
   const teamIds = await resolveInvitedTeams(actor.clubId, dto);
 
   // ── anti-abuse ─────────────────────────────────────────────────────────────

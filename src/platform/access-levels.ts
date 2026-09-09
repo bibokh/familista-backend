@@ -35,6 +35,13 @@ export interface PlatformActor {
   clubId?: string | null;
   /** The account-level role, as the token carries it. */
   role?: UserRole | string | null;
+  /**
+   * Platform authority, already resolved for this request by `authenticate`.
+   *
+   * `true` and `false` are both answers and both are trusted; `undefined` means
+   * nobody has asked yet, and `resolvePlatformAuthority` then reads the row.
+   */
+  isPlatformOwner?: boolean;
 }
 
 /**
@@ -48,6 +55,58 @@ export interface PlatformActor {
  */
 export function isPlatformRole(role: UserRole | string | null | undefined): boolean {
   return role === 'SUPER_ADMIN';
+}
+
+/**
+ * Platform authority, from what the caller already knows.
+ *
+ * Synchronous, and deliberately narrow: an account role of `SUPER_ADMIN`, or
+ * the fact `authenticate` resolved from the `PlatformAdmin` table when the
+ * request came in. It does not read the database and it does not consult a
+ * single membership — platform authority is never granted by a club.
+ */
+export function hasPlatformAuthority(
+  actor: { role?: UserRole | string | null; isPlatformOwner?: boolean } | null | undefined,
+): boolean {
+  if (!actor) return false;
+  return actor.isPlatformOwner === true || isPlatformRole(actor.role);
+}
+
+// A short memo for actors that did NOT come from `authenticate` — a service
+// that built one from a stored userId, a worker, a test. Request-borne actors
+// carry the resolved flag and never reach this. Same few-second window as the
+// identity cache, and for the same reason: the alternative is one query per
+// guard per request.
+const AUTHORITY_TTL_MS = parseInt(process.env.PLATFORM_AUTHORITY_TTL_MS ?? '5000', 10);
+const authorityMemo = new Map<string, { at: number; value: boolean }>();
+
+/** Drop a memoised platform-authority answer. Call after granting or retiring one. */
+export function forgetPlatformAuthority(userId?: string | null): void {
+  if (userId) authorityMemo.delete(userId);
+  else authorityMemo.clear();
+}
+
+/**
+ * Platform authority, resolving it if the caller does not already know.
+ *
+ * The guards' entry point. It never widens `isPlatformOwner` below — an
+ * assertion still reads the live row — it only avoids asking for a fact the
+ * request already established.
+ */
+export async function resolvePlatformAuthority(actor: PlatformActor | null | undefined): Promise<boolean> {
+  if (!actor) return false;
+  if (hasPlatformAuthority(actor)) return true;
+  if (actor.isPlatformOwner === false) return false;
+  if (!actor.userId) return false;
+
+  const hit = authorityMemo.get(actor.userId);
+  const now = Date.now();
+  if (hit && now - hit.at < AUTHORITY_TTL_MS) return hit.value;
+
+  const value = await isPlatformOwner({ userId: actor.userId, role: actor.role });
+  if (authorityMemo.size >= 20000) authorityMemo.clear();
+  authorityMemo.set(actor.userId, { at: Date.now(), value });
+  return value;
 }
 
 export async function isPlatformOwner(actor: PlatformActor): Promise<boolean> {

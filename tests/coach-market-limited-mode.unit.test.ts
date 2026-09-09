@@ -389,16 +389,27 @@ describe('4 · and the president loses none of it', () => {
     expect(sweep(SHORTLIST_CONTROLS, a).removed).toEqual([]);
   });
 
-  it('and a platform administrator who is not a member of this club is not given its recruitment', async () => {
-    // This account administers the PLATFORM. It holds no membership here, so
-    // `requireActingClubMembership` would refuse it and `recruitGuard` with it
-    // — and the capability says so rather than drawing controls that 403.
+  it('and a platform administrator gets exactly what a SUPER_ADMIN account gets', async () => {
+    // These two accounts are the SAME authority written down two ways —
+    // `SUPER_ADMIN` on the account, and an active PlatformAdmin row — and they
+    // used to behave differently here: the guards recognised the first and not
+    // the second, so a platform administrator holding no membership was
+    // refused a club's recruitment while a SUPER_ADMIN was not.
+    //
+    // That gap is not a boundary, it is the bug. Familista's real platform
+    // owner has the row and not the account role, so the only way they could
+    // reach a club at all was to hold a CLUB_OWNER membership of it — which is
+    // exactly the contamination being unwound. The guards now recognise both,
+    // and the capability mirrors the guards, as it must.
+    //
+    // What has NOT changed: this account holds no membership, is reported as
+    // holding no club role, and nothing here gives a club role to anybody.
     const a = (await getContext(OWNER)).effectiveAccess as Row;
     expect(state.memberships.find((x) => x.userId === OWNER)).toBeUndefined();
     expect(a.isPlatformOwner).toBe(true);
-    expect(a.canShortlist).toBe(false);
-    expect(a.canAdministerStaff).toBe(false);
-    expect(sweep([...RESTRICTED_CONTROLS, ...SHORTLIST_CONTROLS], a).kept).toEqual([]);
+    expect((await getContext(OWNER)).currentClubRole).toBeNull();
+    expect(a.canShortlist).toBe(true);
+    expect(sweep(SHORTLIST_CONTROLS, a).removed).toEqual([]);
   });
 });
 

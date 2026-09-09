@@ -68,6 +68,10 @@ const db: Row = {
   // model here surfaces as a 500 on the DENIAL path only — which is exactly
   // how it was found.
   securityEvent: { create: async () => ({}) },
+  // No platform administrator among these accounts. Platform authority is
+  // resolved from this table and nothing else, so an empty answer here is
+  // what makes every actor below an ordinary club person.
+  platformAdmin: { findUnique: async () => null },
   $transaction: async (fn: any) => (typeof fn === 'function' ? fn(db) : Promise.all(fn)),
 };
 
@@ -464,7 +468,12 @@ describe('5 · and no route decides this from the account field any more', () =>
     expect(fn).not.toMatch(/CLUB_ADMIN|HEAD_COACH|CLUB_OWNER|MANAGER|YOUTH_COACH/);
     // An active membership is the only thing that answers.
     expect(fn).toContain('isActive: true');
-    // And SUPER_ADMIN short-circuits exactly where requireMembership does.
-    expect(fn).toContain("actor.role === 'SUPER_ADMIN'");
+    // And platform authority short-circuits exactly where requireMembership
+    // does, through the same shared predicate rather than a role name written
+    // out here. The account role alone is no longer the test: Familista's
+    // platform owner is an active PlatformAdmin row, and a guard that looked
+    // only for SUPER_ADMIN did not recognise them.
+    expect(fn).toContain('resolvePlatformAuthority(actor)');
+    expect(fn).not.toMatch(/actor\.role === 'SUPER_ADMIN'/);
   });
 });

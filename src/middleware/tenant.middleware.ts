@@ -12,13 +12,16 @@
 // - The legacy User.role (CLUB_ADMIN/HEAD_COACH/...) still works via the
 //   existing `authorize(...)` middleware. `requireMembership` is the new,
 //   scope-aware gate. They can be combined.
-// - SUPER_ADMIN bypasses every membership check.
+// - Platform authority bypasses every membership check. That is SUPER_ADMIN on
+//   the account OR an active PlatformAdmin row, resolved once per request by
+//   `authenticate` — not a club role, and never granted by one.
 
 import type { Request, Response, NextFunction } from 'express';
 import { MembershipRole } from '@prisma/client';
 import { prisma } from '../config/database';
 import { UnauthorizedError, ForbiddenError } from '../utils/errors';
 import { traceAuthz } from '../observability/trace.middleware';
+import { hasPlatformAuthority } from '../platform/access-levels';
 
 // Hierarchy used when caller passes a *minimum* required role.
 // Higher number = more authority. SUPER_ADMIN handled separately.
@@ -70,8 +73,15 @@ export function requireMembership(minRole?: MembershipRole) {
     try {
       if (!req.user) throw new UnauthorizedError('Authentication required');
 
-      // SUPER_ADMIN bypasses tenancy entirely.
-      if (req.user.role === 'SUPER_ADMIN') return next();
+      // Platform authority bypasses tenancy entirely.
+      //
+      // Read from the flag `authenticate` resolved rather than from the
+      // account role alone: the platform owner's authority is their
+      // PlatformAdmin row, and for a while only `SUPER_ADMIN` was recognised
+      // here. The owner therefore reached clubs through CLUB_OWNER
+      // memberships of them — which is the contamination being removed, so
+      // the recognition has to be right before the memberships can go.
+      if (hasPlatformAuthority(req.user)) return next();
 
       const clubId = req.user.clubId;
       if (!clubId) throw new ForbiddenError('No active club context');
