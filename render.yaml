@@ -98,6 +98,30 @@ services:
       - key: FAMILISTA_SECRET_KEK
         sync: false
 
+      # ── Secret store keyring (Data Fabric — KEK rotation) ───────────────
+      # A sealed credential NAMES the key that sealed it, so more than one key
+      # can be live at once and rotating does not make yesterday's ciphertext
+      # unreadable. FAMILISTA_SECRET_KEK above is that keyring's `v1` entry;
+      # everything below is only needed when a key is actually being rotated.
+      #
+      # To rotate — each step is one deployment change, in this order:
+      #   1. add   FAMILISTA_KEK_<KID>  (e.g. FAMILISTA_KEK_2026_01 → kid
+      #            `2026-01`) with fresh material. Nothing uses it yet.
+      #   2. set   FAMILISTA_ACTIVE_KEK to that kid. New credentials seal
+      #            under it; existing ones keep opening under theirs.
+      #   3. re-key existing rows (rewrapBatch, resumable) until none remain.
+      #   4. add   the old kid to FAMILISTA_RETIRED_KEKS, then remove its
+      #            material — only once nothing references it.
+      #
+      # With more than one key configured, FAMILISTA_ACTIVE_KEK is REQUIRED:
+      # adding material must never silently change which key seals the next
+      # credential. The strength floor applies to every key, not just the
+      # active one, and a retired or unknown kid fails closed.
+      - key: FAMILISTA_ACTIVE_KEK
+        sync: false      # kid of the key that seals new writes, e.g. 2026-01
+      - key: FAMILISTA_RETIRED_KEKS
+        sync: false      # comma-separated kids withdrawn from use
+
       # ── Rate limit ──────────────────────────────────────────────────────
       - key: RATE_LIMIT_WINDOW_MS
         value: "60000"

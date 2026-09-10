@@ -108,6 +108,13 @@ export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   { type: 'device.credential.created', describes: 'A credential was minted for a device or camera',    classification: 'CONFIDENTIAL', schemaVersion: 1 },
   { type: 'device.credential.rotated', describes: 'A credential was rotated to a new version',         classification: 'CONFIDENTIAL', schemaVersion: 1 },
   { type: 'device.credential.revoked', describes: 'A credential version was revoked',                  classification: 'CONFIDENTIAL', schemaVersion: 1 },
+  // Key-encryption key lifecycle. The payload of every one of these carries
+  // key NAMES — a kid is not key material and cannot open anything — plus the
+  // reference of the secret that moved and who moved it. Never the KEK, never
+  // the derived key, never the credential.
+  { type: 'secret.kek.activated',    describes: 'A key-encryption key became the one sealing new writes', classification: 'CONFIDENTIAL', schemaVersion: 1 },
+  { type: 'secret.kek.rewrapped',    describes: 'A sealed secret was re-keyed onto another KEK version',  classification: 'CONFIDENTIAL', schemaVersion: 1 },
+  { type: 'secret.kek.retired',      describes: 'A key-encryption key was withdrawn from use',            classification: 'CONFIDENTIAL', schemaVersion: 1 },
   { type: 'camera.stream.ended',     describes: 'A camera stream finished',                           classification: 'INTERNAL',     schemaVersion: 1 },
 
   // ── intelligence ──────────────────────────────────────────────────────────

@@ -32,8 +32,9 @@
 // the version was wrong, or the store was empty, because those three answers
 // together are an oracle.
 
-import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'crypto';
+import { createCipheriv, createDecipheriv, randomBytes, timingSafeEqual } from 'crypto';
 import { formatSecretRef, nextVersion, type SecretRef } from './secret-ref';
+import { activeKey, keyForKid, ENVELOPE_MARKER, LEGACY_KID } from './keyring';
 
 /** A secret, in memory, for as long as the caller holds it. */
 export type SecretValue = string;
@@ -181,169 +182,166 @@ export class EnvSecretStore implements SecretStore {
 // ciphertext, and the key that opens it is an environment variable of the
 // running service — which is exactly the separation the plaintext column
 // lacked.
+//
+// An envelope NAMES the key that sealed it, so more than one key can be live at
+// once and a rotation does not have to make yesterday's ciphertext unreadable:
+//
+//   fam1:<kid>:<iv>:<tag>:<ciphertext>      every part base64 but the kid
+//   <iv>:<tag>:<ciphertext>                 what Item 3 wrote — kid `v1`
+//
+// The read path uses the key the envelope names and no other. That is the rule
+// the whole rotation design rests on, and `keyring.ts` is where it is enforced.
 
-export const SECRET_KEK_ENV = 'FAMILISTA_SECRET_KEK';
-
-/**
- * How much real key material the KEK must carry.
- *
- * 32 bytes — 256 bits — because that is the width of the AES-256 key it is
- * hashed into. A KEK with less entropy than the key it derives does not make
- * the key stronger; it makes the key exactly as guessable as the KEK, and the
- * SHA-256 in between hides that fact by producing 32 bytes of output whatever
- * goes in. That hiding is the whole hazard this floor exists to remove.
- */
-export const MIN_KEK_BYTES = 32;
-
-/**
- * The fewest distinct characters a KEK may be built from.
- *
- * Length alone is not strength: `'a'.repeat(64)` is 64 bytes and carries almost
- * no entropy, and would sail past a length check. Eight is deliberately low —
- * lowercase hex has only sixteen distinct symbols and is a perfectly good KEK,
- * so a stricter floor would reject a legitimate one to catch a pathological
- * one. This rejects the pathological case and nothing real.
- */
-export const MIN_KEK_DISTINCT_CHARS = 8;
-
-/** Anything wrong with the key-encryption key. Config, not runtime. */
-export class SecretKeyConfigError extends Error {}
-
-export class SecretKeyUnavailable extends SecretKeyConfigError {
-  constructor() {
-    super(
-      `${SECRET_KEK_ENV} is not set. The encrypted secret store cannot open or seal anything without it.`,
-    );
-    this.name = 'SecretKeyUnavailable';
-  }
-}
-
-export class WeakSecretKey extends SecretKeyConfigError {
-  constructor(reason: string) {
-    // Names the variable and the requirement. Never the value, never its
-    // actual length, never any part of it — an error message is a place
-    // secrets go to be read by whoever has the logs.
-    super(
-      `${SECRET_KEK_ENV} does not meet the minimum strength for sealing credentials: ${reason}. `
-      + `Supply at least ${MIN_KEK_BYTES} bytes of cryptographic randomness — for example, `
-      + `the output of \`openssl rand -base64 48\`.`,
-    );
-    this.name = 'WeakSecretKey';
-  }
-}
+// The strength floor, the errors and the derivation all live in `keyring.ts`
+// now, because a keyring is what they are policy about. Re-exported here so
+// every existing importer of this module is unaffected.
+export {
+  SECRET_KEK_ENV, KEYRING_ENV_PREFIX, ACTIVE_KEK_ENV, RETIRED_KEKS_ENV,
+  LEGACY_KID, ENVELOPE_MARKER, MIN_KEK_BYTES, MIN_KEK_DISTINCT_CHARS,
+  SecretKeyConfigError, SecretKeyUnavailable, WeakSecretKey,
+  UnknownKeyId, RetiredKeyId, DuplicateKeyId, KeyringMisconfigured,
+  effectiveKeyBytes, kekWeakness, kidFromEnvName,
+  readKeyring, keyringStatus, secretKeyStatus, keyForKid, activeKey,
+  type KeyringEntry, type KeyringReport,
+} from './keyring';
 
 /**
- * How many bytes of key material a KEK string actually carries.
+ * A sealed envelope, taken apart.
  *
- * The value is an opaque string that gets hashed, so "how long is it" has more
- * than one answer, and the honest one is the SMALLEST. A 44-character base64
- * string is 44 ASCII characters and 33 bytes of entropy; counting the
- * characters would credit it with a third more strength than it has. So every
- * plausible decoding is tried and the minimum is taken — the conservative
- * reading, which is the correct direction for a security floor to be wrong in.
- *
- * A value that is not valid base64 or hex — a passphrase, say — is measured by
- * its UTF-8 byte length. That is generous, since printable ASCII carries about
- * six bits per byte rather than eight, but the alternative is refusing every
- * passphrase, and the distinct-character floor already catches the degenerate
- * ones.
+ * Everything here is non-secret and everything needed to resolve the key is
+ * present: the kid that names it, the format version that says how to read the
+ * rest, the nonce and the authentication tag. Nothing about the format is
+ * ambiguous — a versioned envelope has five parts and a fixed marker, and an
+ * Item 3 envelope has exactly three. A string that is neither is not an
+ * envelope, rather than an envelope read the wrong way.
  */
-export function effectiveKeyBytes(raw: string): number {
-  const v = String(raw ?? '');
-  if (!v) return 0;
-
-  const candidates: number[] = [Buffer.byteLength(v, 'utf8')];
-
-  // base64 / base64url. Node is lenient, so a round-trip check is what proves
-  // the string really was that encoding rather than merely survived it.
-  if (/^[A-Za-z0-9+/\-_]+={0,2}$/.test(v) && v.length >= 4) {
-    const decoded = Buffer.from(v, 'base64');
-    if (decoded.length > 0) {
-      const reencoded = decoded.toString('base64').replace(/=+$/, '');
-      const normalised = v.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
-      if (reencoded === normalised) candidates.push(decoded.length);
-    }
-  }
-
-  // hex
-  if (/^[A-Fa-f0-9]+$/.test(v) && v.length % 2 === 0) {
-    candidates.push(v.length / 2);
-  }
-
-  return Math.min(...candidates);
+export interface SecretEnvelope {
+  kid: string;
+  /** `fam1`, or `legacy` for the unversioned form Item 3 wrote. */
+  format: 'fam1' | 'legacy';
+  ivB64: string;
+  tagB64: string;
+  ciphertextB64: string;
 }
 
-/** Why this KEK is unacceptable, or null when it is fine. */
-export function kekWeakness(raw: string): string | null {
-  const v = String(raw ?? '');
-  if (!v) return 'it is empty';
-  if (effectiveKeyBytes(v) < MIN_KEK_BYTES) {
-    return `it carries fewer than ${MIN_KEK_BYTES} bytes of key material`;
+/** A kid in an envelope is spelled the same way the keyring spells one. */
+const ENVELOPE_KID = /^[a-z0-9][a-z0-9-]{0,31}$/;
+
+/**
+ * The nonce and tag are fixed widths for AES-256-GCM, and checking them is what
+ * makes the two formats unambiguous rather than merely different lengths.
+ *
+ * Without this, `fam1:a:b` is three colon-separated parts and would be read as
+ * an Item 3 envelope whose IV happens to be the string `fam1` — malformed input
+ * arriving at key resolution dressed as a real ciphertext. A 12-byte IV is
+ * sixteen base64 characters; `fam1` is not one.
+ */
+function isB64OfLength(value: string, bytes: number): boolean {
+  if (!value) return false;
+  const buf = Buffer.from(value, 'base64');
+  return buf.length === bytes;
+}
+
+const IV_BYTES = 12;
+const TAG_BYTES = 16;
+
+/** Parse an envelope. Null for anything that is not one. Never throws. */
+export function parseEnvelope(envelope: string): SecretEnvelope | null {
+  const parts = String(envelope ?? '').split(':');
+
+  const wellFormed = (ivB64: string, tagB64: string, ciphertextB64: string) =>
+    isB64OfLength(ivB64, IV_BYTES) && isB64OfLength(tagB64, TAG_BYTES) && !!ciphertextB64;
+
+  if (parts.length === 5 && parts[0] === ENVELOPE_MARKER) {
+    const [, kid, ivB64, tagB64, ciphertextB64] = parts;
+    if (!ENVELOPE_KID.test(kid ?? '')) return null;
+    if (!wellFormed(ivB64, tagB64, ciphertextB64)) return null;
+    return { kid, format: 'fam1', ivB64, tagB64, ciphertextB64 };
   }
-  if (new Set(v).size < MIN_KEK_DISTINCT_CHARS) {
-    return `it is built from too few distinct characters to be random`;
+
+  // Item 3's form. The key was implied rather than named, so the implication
+  // is resolved here, once, instead of being re-guessed by every reader.
+  if (parts.length === 3) {
+    const [ivB64, tagB64, ciphertextB64] = parts;
+    if (!wellFormed(ivB64, tagB64, ciphertextB64)) return null;
+    return { kid: LEGACY_KID, format: 'legacy', ivB64, tagB64, ciphertextB64 };
   }
+
   return null;
 }
 
+/** Which key sealed this, without opening it. What the audit column records. */
+export function envelopeKid(envelope: string): string | null {
+  return parseEnvelope(envelope)?.kid ?? null;
+}
+
 /**
- * The current KEK's usability, without revealing anything about it.
+ * Seal under the ACTIVE key, and say so in the envelope.
  *
- * Read by the status surface so a deployment can be checked BEFORE a credential
- * is minted against it. Returns a reason a person can act on and nothing a
- * person could attack.
+ * A deployment with nothing but the Item 3 variable set still writes the Item 3
+ * three-part form — see `activeKey`. So shipping this changes no byte of what
+ * production currently writes until a keyring is actually configured.
  */
-export function secretKeyStatus(): { usable: boolean; reason: string | null } {
-  const raw = process.env[SECRET_KEK_ENV] || process.env.MFA_ENCRYPTION_KEY || '';
-  if (!raw) return { usable: false, reason: `${SECRET_KEK_ENV} is not set` };
-  const weakness = kekWeakness(raw);
-  return weakness
-    ? { usable: false, reason: `${SECRET_KEK_ENV} ${weakness}` }
-    : { usable: true, reason: null };
-}
-
-function deriveKek(): Buffer {
-  // The MFA key is accepted as a fallback so a deployment that already has one
-  // strong, separately-managed key is not forced to add a second before this
-  // can be used at all. A distinct KEK is still the right end state, and the
-  // domain separator below means the two derive different keys either way.
-  const raw = process.env[SECRET_KEK_ENV] || process.env.MFA_ENCRYPTION_KEY || '';
-  if (!raw) throw new SecretKeyUnavailable();
-
-  // Fail CLOSED, and before the hash. SHA-256 turns anything into 32 plausible
-  // bytes, so a one-character KEK produces a key that looks exactly as good as
-  // a strong one — which is precisely why the check has to happen here, on the
-  // input, rather than anywhere downstream where only the output is visible.
-  const weakness = kekWeakness(raw);
-  if (weakness) throw new WeakSecretKey(weakness);
-
-  return createHash('sha256').update(`${raw}:familista:secret:v1`).digest();
-}
-
-/** iv:tag:ciphertext, all base64. The same envelope shape the MFA store uses. */
 export function sealSecret(value: SecretValue): string {
+  const { kid, key, versioned } = activeKey();
   const iv = randomBytes(12);
-  const cipher = createCipheriv('aes-256-gcm', deriveKek(), iv);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
   const enc = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
-  return `${iv.toString('base64')}:${cipher.getAuthTag().toString('base64')}:${enc.toString('base64')}`;
+  const body = `${iv.toString('base64')}:${cipher.getAuthTag().toString('base64')}:${enc.toString('base64')}`;
+  return versioned ? `${ENVELOPE_MARKER}:${kid}:${body}` : body;
 }
 
+/**
+ * Open an envelope with the key IT NAMES. Never with any other key.
+ *
+ * The two failure modes are kept apart on purpose. A configuration fault — no
+ * such kid, a retired kid, a weak key — throws, because swallowing it as null
+ * would make every credential in the store look revoked instead of making the
+ * deployment look broken. A failed authentication tag answers null, because
+ * that is a wrong or tampered ciphertext and the answer to it is "no", not
+ * "here is why".
+ */
 export function openSecret(envelope: string): SecretValue | null {
+  const parsed = parseEnvelope(envelope);
+  if (!parsed) return null;
+
+  // Outside the try: a key that cannot be resolved must propagate, not become
+  // a null. And resolved by the envelope's own kid — there is no second
+  // attempt with a different key, which is what makes a retired key retired.
+  const key = keyForKid(parsed.kid);
+
   try {
-    const [ivB64, tagB64, encB64] = String(envelope).split(':');
-    if (!ivB64 || !tagB64 || !encB64) return null;
-    const decipher = createDecipheriv('aes-256-gcm', deriveKek(), Buffer.from(ivB64, 'base64'));
-    decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(parsed.ivB64, 'base64'));
+    decipher.setAuthTag(Buffer.from(parsed.tagB64, 'base64'));
     return Buffer.concat([
-      decipher.update(Buffer.from(encB64, 'base64')),
+      decipher.update(Buffer.from(parsed.ciphertextB64, 'base64')),
       decipher.final(),
     ]).toString('utf8');
-  } catch (err) {
-    // A missing or weak key is a configuration fault worth surfacing; a failed
-    // tag is a tampered or wrong-key ciphertext and answers "no", not "why".
-    if (err instanceof SecretKeyConfigError) throw err;
+  } catch {
     return null;
   }
+}
+
+/**
+ * Re-seal an already-sealed envelope under the active key, without the
+ * plaintext ever reaching the caller.
+ *
+ * The rewrap primitive. The value exists as a local for the length of two
+ * cryptographic operations and is never returned, logged or emitted, which is
+ * what makes a bulk re-key something that can run unattended.
+ *
+ * Returns null when the envelope cannot be opened — a wrong key or a corrupt
+ * row is left exactly as it is rather than being replaced with something worse.
+ */
+export function rewrapEnvelope(envelope: string): { sealed: string; fromKid: string; toKid: string } | null {
+  const parsed = parseEnvelope(envelope);
+  if (!parsed) return null;
+  const value = openSecret(envelope);
+  if (value == null) return null;
+  const sealed = sealSecret(value);
+  const toKid = envelopeKid(sealed);
+  if (!toKid) return null;
+  return { sealed, fromKid: parsed.kid, toKid };
 }
 
 // ── the registered store ─────────────────────────────────────────────────────

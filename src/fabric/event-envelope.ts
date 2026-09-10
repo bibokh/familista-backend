@@ -69,6 +69,10 @@ export type EventSubjectType =
   | 'CLUB' | 'TEAM' | 'USER' | 'PLAYER' | 'STAFF' | 'MEMBERSHIP'
   | 'MATCH' | 'FIXTURE' | 'COMPETITION' | 'TRAINING_SESSION'
   | 'MEDICAL_RECORD' | 'TRANSFER' | 'MEDIA_ASSET' | 'DEVICE' | 'CAMERA'
+  // A sealed credential or a key-encryption key. Named separately from
+  // `PLATFORM` because a consumer filtering an audit trail for key handling
+  // should not have to read every platform event to find it.
+  | 'PLATFORM_SECRET'
   | 'MODEL' | 'DATASET' | 'PLATFORM';
 
 /**

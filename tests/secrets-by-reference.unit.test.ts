@@ -727,16 +727,27 @@ describe('the KEK strength floor', () => {
     expect(() => openSecret(sealed)).toThrow(SecretKeyConfigError);
   });
 
-  test('the floor is enforced in the derivation, not at a call site', () => {
+  test('the floor is enforced where the key is resolved, not at a call site', () => {
     // Read the source: a check that lives in one caller is a check the next
-    // caller forgets. It must be inside deriveKek, above the hash.
-    const src = decomment(read('src/fabric/secrets/secret-store.ts'));
-    const derive = src.slice(src.indexOf('function deriveKek'));
-    const body = derive.slice(0, derive.indexOf('\n}'));
-    expect(body).toMatch(/kekWeakness/);
+    // caller forgets. Item 3B moved derivation into the keyring, so the floor
+    // moved with it — it must sit in `keyForKid`, which every read and write
+    // goes through, and it must fire before any material reaches the hash.
+    const src = decomment(read('src/fabric/secrets/keyring.ts'));
+    const resolve = src.slice(src.indexOf('export function keyForKid'));
+    const body = resolve.slice(0, resolve.indexOf('\n}'));
     expect(body).toMatch(/throw new WeakSecretKey/);
-    // Order matters: the throw is before the hash, not after it.
-    expect(body.indexOf('WeakSecretKey')).toBeLessThan(body.indexOf('createHash'));
+    expect(body).toMatch(/entry\.weakness/);
+
+    // The hash lives in exactly one function, and that function is downstream
+    // of the check above — so there is no route to a derived key that skipped it.
+    const withoutImports = src.replace(/^import .*$/gm, ' ');
+    expect(withoutImports.match(/createHash/g)).toHaveLength(1);
+    const derive = src.slice(src.indexOf('function deriveFor'));
+    expect(derive.slice(0, derive.indexOf('\n}'))).toMatch(/createHash/);
+
+    // Inside keyForKid itself, the refusal precedes the call that derives — so
+    // no material reaches the hash without having been measured first.
+    expect(body.indexOf('throw new WeakSecretKey')).toBeLessThan(body.indexOf('deriveFor'));
   });
 
   test('the KEK is declared on the deployment as an unsynced secret', () => {

@@ -22,8 +22,9 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { formatSecretRef, nextVersion, type SecretRef } from './secret-ref';
+import { LEGACY_KID } from './keyring';
 import {
-  generateSecret, openSecret, sealSecret,
+  envelopeKid, generateSecret, openSecret, sealSecret,
   type PutSecretOptions, type RotateResult, type SecretStore, type SecretValue,
 } from './secret-store';
 
@@ -59,9 +60,10 @@ export class DbSecretStore implements SecretStore {
         where,
         create: {
           scope: ref.scope, name: ref.name, version: ref.version, sealed,
+          kid: envelopeKid(sealed),
           metadata: (opts.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
         },
-        update: { sealed, revokedAt: null },
+        update: { sealed, kid: envelopeKid(sealed), revokedAt: null },
       });
       return;
     }
@@ -70,6 +72,7 @@ export class DbSecretStore implements SecretStore {
       await prisma.platformSecret.create({
         data: {
           scope: ref.scope, name: ref.name, version: ref.version, sealed,
+          kid: envelopeKid(sealed),
           metadata: (opts.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
         },
       });
@@ -102,7 +105,10 @@ export class DbSecretStore implements SecretStore {
 
     await prisma.$transaction(async (tx) => {
       await tx.platformSecret.create({
-        data: { scope: next.scope, name: next.name, version: next.version, sealed },
+        data: {
+          scope: next.scope, name: next.name, version: next.version, sealed,
+          kid: envelopeKid(sealed),
+        },
       });
       await tx.platformSecret.updateMany({
         where: { scope: ref.scope, name: ref.name, version: ref.version, rotatedAt: null },
@@ -141,9 +147,79 @@ export class DbSecretStore implements SecretStore {
       where: { scope, name },
       orderBy: { version: 'desc' },
       select: {
-        id: true, scope: true, name: true, version: true,
+        id: true, scope: true, name: true, version: true, kid: true,
         createdAt: true, createdBy: true, rotatedAt: true, revokedAt: true, metadata: true,
       },
     });
+  }
+
+  // ── re-key support ─────────────────────────────────────────────────────────
+  //
+  // Two queries and one guarded write. Everything the rotation runbook needs
+  // and nothing more: no bulk read of `sealed` into a list, no method that
+  // returns plaintext, and no way to ask for "all the secrets".
+
+  /**
+   * How many rows sit under each key, by the recorded kid.
+   *
+   * The answer to "is the re-key finished" and to "may this key be retired",
+   * computed without opening a single envelope. NULL is reported as the legacy
+   * kid because that is what a NULL row's envelope resolves to.
+   */
+  async countByKid(): Promise<Record<string, number>> {
+    const rows = await prisma.platformSecret.groupBy({
+      by: ['kid'],
+      where: { revokedAt: null },
+      _count: { _all: true },
+    });
+    const out: Record<string, number> = {};
+    for (const r of rows as Array<{ kid: string | null; _count: { _all: number } }>) {
+      const kid = r.kid ?? LEGACY_KID;
+      out[kid] = (out[kid] ?? 0) + r._count._all;
+    }
+    return out;
+  }
+
+  /**
+   * One page of rows not yet sealed under `toKid`, oldest id first.
+   *
+   * Paged by id rather than by offset so the scan is resumable and stable while
+   * rows are being rewritten underneath it — an offset-paged scan re-numbers
+   * itself as it works and skips rows.
+   *
+   * Revoked rows are skipped. Re-keying a credential that has been withdrawn
+   * would decrypt something nothing is allowed to use, to protect it better.
+   */
+  async pageForRewrap(toKid: string, opts: { after?: string | null; limit?: number } = {}) {
+    const limit = Math.min(Math.max(opts.limit ?? 100, 1), 1000);
+    return prisma.platformSecret.findMany({
+      where: {
+        revokedAt: null,
+        NOT: { kid: toKid },
+        ...(opts.after ? { id: { gt: opts.after } } : {}),
+      },
+      orderBy: { id: 'asc' },
+      take: limit,
+      select: { id: true, scope: true, name: true, version: true, sealed: true, kid: true },
+    });
+  }
+
+  /**
+   * Replace one row's envelope, but only if it still holds the one we opened.
+   *
+   * The `sealed: expect` guard is the whole safety of an unattended re-key. A
+   * rotation running concurrently with this scan may have already replaced the
+   * row; without the guard this would overwrite that newer envelope with one
+   * derived from the value it superseded, quietly resurrecting a rotated-out
+   * credential. With it, the write simply does not apply and the scan moves on.
+   *
+   * Returns whether it applied.
+   */
+  async applyRewrap(id: string, expect: string, sealed: string): Promise<boolean> {
+    const { count } = await prisma.platformSecret.updateMany({
+      where: { id, sealed: expect, revokedAt: null },
+      data: { sealed, kid: envelopeKid(sealed) },
+    });
+    return count === 1;
   }
 }

@@ -72,16 +72,31 @@ export {
 
 export {
   getSecretStore, setSecretStore, generateSecret, secretsEqual,
-  sealSecret, openSecret, SECRET_KEK_ENV, DEFAULT_SECRET_BYTES,
+  sealSecret, openSecret, DEFAULT_SECRET_BYTES,
   MemorySecretStore, EnvSecretStore,
-  // The KEK strength floor. Exported so a status surface, a startup check or a
-  // test can ask whether this deployment may seal anything WITHOUT first
-  // trying to seal something.
+  // The envelope, taken apart. A kid is not key material, so it is safe in a
+  // column, a log and an event — which is what makes rotation auditable.
+  parseEnvelope, envelopeKid, rewrapEnvelope, type SecretEnvelope,
+  // The keyring. Exported so a status surface, a startup check or a test can
+  // ask whether this deployment may seal anything WITHOUT trying to seal
+  // something, and which key would do it.
+  SECRET_KEK_ENV, KEYRING_ENV_PREFIX, ACTIVE_KEK_ENV, RETIRED_KEKS_ENV,
+  LEGACY_KID, ENVELOPE_MARKER,
   SecretKeyConfigError, SecretKeyUnavailable, WeakSecretKey,
+  UnknownKeyId, RetiredKeyId, DuplicateKeyId, KeyringMisconfigured,
   MIN_KEK_BYTES, MIN_KEK_DISTINCT_CHARS,
-  effectiveKeyBytes, kekWeakness, secretKeyStatus,
+  effectiveKeyBytes, kekWeakness, kidFromEnvName,
+  readKeyring, keyringStatus, secretKeyStatus, keyForKid, activeKey,
+  type KeyringEntry, type KeyringReport,
   type SecretStore, type SecretValue, type PutSecretOptions, type RotateResult,
 } from './secrets/secret-store';
+
+// Rotation, as an operation rather than a script. Resumable, auditable, and
+// incapable of returning a plaintext credential to its caller.
+export {
+  rewrapPlan, rewrapBatch, retirementCheck, recordKeyLifecycle,
+  type RewrapPlan, type RewrapOptions, type RewrapReport, type RetirementCheck,
+} from './secrets/rewrap';
 
 export { DbSecretStore } from './secrets/db-secret-store';
 

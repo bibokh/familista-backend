@@ -10381,10 +10381,18 @@ model PlatformSecret {
   name    String
   version Int    @default(1)
 
-  /// iv:tag:ciphertext, base64. Opened only by a process holding the KEK.
-  /// This column is the reason the table exists and the reason nothing else
-  /// may ever hold the plaintext.
+  /// fam1:kid:iv:tag:ciphertext, base64. Opened only by a process holding the
+  /// named key-encryption key. This column is the reason the table exists and
+  /// the reason nothing else may ever hold the plaintext.
   sealed String @db.Text
+
+  /// Which key-encryption key sealed the envelope above. NOT secret — it is a
+  /// name, and it is already inside `sealed`; this column exists so a re-key
+  /// can find the rows that still need one, and so an operator can prove no
+  /// row references a key before retiring it. NULL on rows written before the
+  /// keyring existed, which are read as `v1`. The envelope is authoritative
+  /// for decryption; this column is for finding and counting only.
+  kid String?
 
   /// Never secret. Who created it, for what, and any operational note.
   metadata Json?
@@ -10402,6 +10410,8 @@ model PlatformSecret {
   @@unique([scope, name, version])
   @@index([scope, name])
   @@index([revokedAt])
+  /// The re-key scan: "every row not yet sealed under the active key".
+  @@index([kid])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
