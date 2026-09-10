@@ -59,6 +59,8 @@
     // "Reconnecting…" — the exact failure that made this panel look idle
     // when it was actually unauthorised.
     fatal: false,
+    /** One refresh per connection attempt, so an expired token cannot loop. */
+    refreshed: false,
     reconnectAttempt: 0,
     inspecting: null,
     replay: { minutes: 5, loading: false, counts: null, truncated: false },
@@ -200,7 +202,10 @@
   function statusHtml() {
     var cls = DP.connected ? 'sy-dp-live' : (DP.lastError ? 'sy-dp-down' : 'sy-dp-connecting');
     var text = DP.connected ? 'Live' : (DP.lastError ? 'Reconnecting…' : 'Connecting…');
-    if (!DP.connected && DP.fatal) text = 'Not authorised';
+    // 401 and 403 are different problems and the difference is what tells the
+    // owner whether to sign in again or to check their platform authority.
+    if (!DP.connected && DP.fatalStatus === 401) text = 'Not signed in';
+    else if (!DP.connected && DP.fatalStatus === 403) text = 'Not authorised';
     // The status itself, verbatim, next to the label. "Reconnecting…" with no
     // number is what let a 404 masquerade as an idle platform for a whole
     // production test; the code is what makes the difference visible.
@@ -375,21 +380,55 @@
     });
   }
 
-  // ── one way to reach the API ────────────────────────────────────────────────
+  // ── one way to reach the API, and it is Familista's ────────────────────────
   //
-  // EVERY Data Pulse request goes through `dpFetch`. That is the whole point of
-  // it: the first version of this file built its own URL and read two
-  // properties off the API client that do not exist — `API().baseUrl` and
-  // `API().token` — so every call went to `/system/data-pulse/...` with no
-  // prefix and no credentials, and 404'd. Four call sites meant four chances to
-  // get it wrong; there is now one, and the tests assert that no other `fetch`
-  // exists in this file.
+  // TWO FAILURES GOT US HERE, AND BOTH WERE THE SAME MISTAKE
+  //
+  // First this file built its own URL from `API().baseUrl` — a property that
+  // does not exist — so every request lost the `/api/v1` prefix and 404'd.
+  // Then it read the token from `API().getToken()`, which also does not exist:
+  // `public/familista-api-client.js` defines one `FamilistaAPI` with
+  // `getToken`, and `app.js` defines another that REPLACES it and exposes
+  // `request/get/post/refreshTokens/rawFetch` and no token accessor at all.
+  // app.js loads last, so `getToken` was undefined and the header was empty.
+  // Cross-origin, with no cookie to fall back on, that is a 401.
+  //
+  // The lesson both times: do not reconstruct what the application already
+  // does. So JSON requests now go through `FamilistaAPI.get`, the canonical
+  // request path the whole SPA uses — which brings its own 401 → refresh →
+  // retry, its cold-start timeout and its backoff with it. Nothing here
+  // reimplements any of that.
+  //
+  // PRODUCTION IS CROSS-ORIGIN
+  //
+  // The SPA is served from familista-v5.onrender.com and the API answers on
+  // familista-backend.onrender.com, so `FAM_CONFIG.API_BASE` is an absolute
+  // URL and the `access_token` cookie does NOT travel by default. The bearer
+  // token is therefore the credential that matters, and it lives where the
+  // rest of the app keeps it — `State.token`, refreshed in place — never in a
+  // query string, which every proxy between here and the server would log.
+
+  /** The canonical client. `app.js`'s, which is the one that ends up on window. */
+  function client() {
+    try {
+      var api = API();
+      return (api && typeof api.get === 'function') ? api : null;
+    } catch (_) { return null; }
+  }
 
   /**
-   * The API root, resolved the same way every other Familista client resolves
-   * it. `FAM_CONFIG.API_BASE` is what `app.js` publishes; `/api/v1` is the
-   * mount in `app.ts` and the fallback the rest of the app already uses.
+   * The access token, from the one place the application keeps it.
+   *
+   * The same expression SYSTEM's own `api()` uses, so there is exactly one
+   * answer to "what is the current token" and this screen cannot disagree with
+   * the screen around it.
    */
+  function accessToken() {
+    try {
+      return (window.State && window.State.token) || localStorage.getItem('familista_token') || '';
+    } catch (_) { return ''; }
+  }
+
   function apiBase() {
     try {
       if (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG && FAM_CONFIG.API_BASE) return FAM_CONFIG.API_BASE;
@@ -397,46 +436,68 @@
     return '/api/v1';
   }
 
-  /**
-   * The bearer token, from the accessor the API client actually exposes.
-   *
-   * `FamilistaAPI` keeps the token in a closure and offers `getToken()`. There
-   * is no `.token` property — reading one yields undefined, which is how the
-   * original bug sent an empty Authorization header.
-   */
-  function bearer() {
-    try {
-      var api = API();
-      return (api && typeof api.getToken === 'function' && api.getToken()) || '';
-    } catch (_) { return ''; }
+  /** An error that carries the status, so the UI can name it rather than guess. */
+  function httpError(status, message) {
+    var e = new Error(message || ('HTTP ' + status));
+    e.status = status;
+    return e;
   }
 
   /**
-   * One authenticated request for the whole panel.
+   * A JSON read, through the application's own request path.
    *
-   * Both credentials travel, because Familista accepts both and prefers the
-   * cookie: `authenticate` reads the HttpOnly `access_token` cookie first and
-   * falls back to `Authorization: Bearer`. `credentials: 'include'` is what
-   * carries the cookie when the API is on another origin, which same-origin
-   * defaults would not.
-   *
-   * No token ever goes in the URL. A credential in a query string is written
-   * to every proxy log between here and the server, and this panel exists to
-   * make things visible, not to leak them.
+   * `FamilistaAPI.get` handles the bearer header, the refresh-on-401 retry and
+   * the cold-start timeout. When it is somehow absent — a page that loaded this
+   * file without app.js — this falls back to a plain authenticated fetch rather
+   * than failing silently, and the fallback uses the same token expression.
    */
-  function dpFetch(path, opts) {
-    var o = opts || {};
-    var t = bearer();
+  function dpJson(path) {
+    var api = client();
+    if (api) {
+      return api.get('/system/data-pulse' + path).then(function (body) {
+        return (body && body.data != null) ? body.data : body;
+      });
+    }
+    var t = accessToken();
     return fetch(apiBase() + '/system/data-pulse' + path, {
+      headers: t ? { Authorization: 'Bearer ' + t } : {},
+      credentials: 'include',
+      cache: 'no-store',
+    }).then(function (r) {
+      if (!r.ok) throw httpError(r.status);
+      return r.json();
+    }).then(function (body) { return (body && body.data != null) ? body.data : body; });
+  }
+
+  /**
+   * The stream, which cannot go through `FamilistaAPI.get`.
+   *
+   * That helper parses a JSON body; an SSE response is an open
+   * `ReadableStream` and must not be consumed. So this is the one raw request
+   * in the file — and it authenticates with the SAME token and refreshes
+   * through the SAME `refreshTokens()` the rest of the app uses, rather than
+   * inventing a second session.
+   */
+  function dpStream(signal) {
+    var t = accessToken();
+    return fetch(apiBase() + '/system/data-pulse/stream', {
       method: 'GET',
       headers: t ? { Authorization: 'Bearer ' + t } : {},
       credentials: 'include',
       cache: 'no-store',
-      signal: o.signal,
+      signal: signal,
     });
   }
 
-  /** A refusal is not a network problem, and must not be retried forever. */
+  /** The application's refresh, used once before a 401 is called fatal. */
+  function refreshOnce() {
+    var api = client();
+    if (!api || typeof api.refreshTokens !== 'function') return Promise.resolve(false);
+    try { return Promise.resolve(api.refreshTokens()).catch(function () { return false; }); }
+    catch (_) { return Promise.resolve(false); }
+  }
+
+  /** 401 is authentication; 403 is authority. They are not the same problem. */
   function isAuthStatus(code) {
     return code === 401 || code === 403;
   }
@@ -448,6 +509,7 @@
       DP.connected = true;
       DP.lastError = null;
       DP.fatal = false;
+      DP.refreshed = false;
       DP.reconnectAttempt = 0;
       DP.topology = data.topology || DP.topology;
       DP.metrics = data.metrics || DP.metrics;
@@ -463,11 +525,27 @@
     if (DP.mode !== 'LIVE' || !DP.open) return;
     disconnect();
     abort = new AbortController();
+    var signal = abort.signal;
 
-    dpFetch('/stream', { signal: abort.signal }).then(function (res) {
+    dpStream(signal).then(function (res) {
+      // A 401 on a stream means the access token expired while the panel sat
+      // open. The application's own refresh is asked once — not a second
+      // session, not a login redirect — and the stream is reopened with the
+      // new token. A second 401 is an answer.
+      if (res.status === 401 && !DP.refreshed) {
+        DP.refreshed = true;
+        return refreshOnce().then(function (ok) {
+          if (!ok || signal.aborted) throw httpError(401, 'Session expired — sign in again');
+          return dpStream(signal);
+        });
+      }
+      return res;
+    }).then(function (res) {
       // The status travels with the error, so the screen can name it instead
       // of saying "Reconnecting…" forever about a 403 that will never change.
-      if (!res.ok) { var e = new Error('HTTP ' + res.status); e.status = res.status; throw e; }
+      if (!res.ok) throw httpError(res.status, res.status === 403
+        ? 'Platform Owner authority required'
+        : res.status === 401 ? 'Not signed in' : ('HTTP ' + res.status));
       if (!res.body) throw new Error('This browser cannot read a streamed response');
       var reader = res.body.getReader();
       var decoder = new TextDecoder();
@@ -507,6 +585,7 @@
     DP.connected = false;
     DP.lastError = (err && err.message) || 'disconnected';
     DP.fatal = isAuthStatus(err && err.status);
+    DP.fatalStatus = (err && err.status) || null;
     paint('metrics');
     if (!DP.open || DP.mode !== 'LIVE') return;
     // A 401 or 403 is an answer, not an outage. Retrying it on a timer burns
@@ -532,11 +611,8 @@
     DP.replay.loading = true;
     paint('replay');
 
-    dpFetch('/replay?minutes=' + encodeURIComponent(DP.replay.minutes)).then(function (r) {
-      if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
-      return r.json();
-    }).then(function (body) {
-      var d = (body && body.data) || {};
+    dpJson('/replay?minutes=' + encodeURIComponent(DP.replay.minutes)).then(function (d) {
+      d = d || {};
       // Replay owns its window, so it replaces rather than merges — and the
       // seen-set is reset with it so the same event may legitimately reappear
       // in a later window.
@@ -562,6 +638,7 @@
       // identical otherwise, which is exactly how this bug survived a review.
       DP.lastError = (err && err.message) || 'replay failed';
       DP.fatal = isAuthStatus(err && err.status);
+      DP.fatalStatus = (err && err.status) || null;
       paint();
     });
   }
@@ -660,6 +737,8 @@
     DP.sampling = 1;
     DP.lastError = null;
     DP.fatal = false;
+    DP.fatalStatus = null;
+    DP.refreshed = false;
     seen = Object.create(null);
     seenOrder = [];
     if (mode === 'LIVE') { DP.replay.counts = null; paint(); connect(); }

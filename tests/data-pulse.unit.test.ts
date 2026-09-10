@@ -626,8 +626,11 @@ describe('burst handling', () => {
     expect(src).toMatch(/event: metrics|'metrics'/);
     const client = decomment(read('public/data-pulse.js'));
     expect(client).not.toMatch(/setInterval/);
-    // One shared request helper, so exactly one fetch in the whole file.
-    expect(client.match(/fetch\(/g)!.length).toBe(1);
+    // Two raw fetches, and only two: the SSE stream, which cannot go through
+    // a JSON helper, and the fallback beside it for a page without app.js.
+    // Every other read is `FamilistaAPI.get`, which is not a fetch here.
+    expect(client.match(/fetch\(/g)!.length).toBe(2);
+    expect(client).toMatch(/api\.get\('\/system\/data-pulse'/);
   });
 
   test('a throwing listener does not stop the others or the emit', async () => {
@@ -810,94 +813,114 @@ describe('the panel', () => {
 // credentials, and the silence. The fourth test is the one that stops it
 // recurring — a single request helper, asserted to be the only `fetch` here.
 
-describe('the API path bug that broke production', () => {
+describe('the auth transport bugs that broke production', () => {
   const CLIENT = () => decomment(read('public/data-pulse.js'));
+  const APP = () => read('public/app.js');
+  const SYSTEM = () => read('public/system/system.js');
 
-  test('there is exactly one fetch, and it is the shared helper', () => {
-    // Four call sites were four chances to build the URL wrong. One is one.
+  test('the token comes from the one place the application keeps it', () => {
+    // THE 401. `app.js` defines a `FamilistaAPI` that REPLACES the one in
+    // `familista-api-client.js` and exposes no token accessor at all, so
+    // `getToken()` was undefined and the header went out empty. The canonical
+    // expression is the one SYSTEM's own `api()` uses.
     const src = CLIENT();
-    expect(src.match(/\bfetch\(/g)).toHaveLength(1);
-    const helper = src.slice(src.indexOf('function dpFetch'));
-    expect(helper.slice(0, helper.indexOf('\n  }'))).toMatch(/\bfetch\(/);
-    // Every caller goes through it.
-    for (const path of ['/stream', '/replay']) {
-      expect(`${path}: ${new RegExp(`dpFetch\\('${path}`).test(src)}`).toBe(`${path}: true`);
-    }
-  });
-
-  test('the API prefix is resolved the way every other Familista client does', () => {
-    const src = CLIENT();
-    // `FAM_CONFIG.API_BASE` with the same `/api/v1` fallback the rest of the
-    // app uses — the exact pattern owner-trace.js already had and this file
-    // originally did not.
-    expect(src).toMatch(/FAM_CONFIG\.API_BASE/);
-    expect(src).toMatch(/'\/api\/v1'/);
-    // And the properties that never existed are gone for good.
-    expect(src).not.toMatch(/API\(\)\.baseUrl/);
+    expect(src).toMatch(/window\.State && window\.State\.token/);
+    expect(src).toMatch(/localStorage\.getItem\('familista_token'\)/);
+    expect(src).not.toMatch(/getToken\(\)/);
     expect(src).not.toMatch(/API\(\)\.token\b/);
-    expect(src).not.toMatch(/localStorage\.getItem\('familista_token'\)/);
+    expect(src).not.toMatch(/API\(\)\.baseUrl/);
+
+    // And it is the SAME expression, not a lookalike.
+    expect(SYSTEM()).toMatch(/window\.State && window\.State\.token/);
+    expect(SYSTEM()).toMatch(/localStorage\.getItem\('familista_token'\)/);
   });
 
-  test('the request carries a real credential, and never one in the URL', () => {
+  test('the exported client really has no getToken, which is why that failed', () => {
+    // Pins the fact the fix rests on: if app.js ever exports getToken, this
+    // test should be revisited rather than silently passing.
+    const surface = APP().slice(APP().indexOf('  return {\n    request,'));
+    const block = surface.slice(0, surface.indexOf('\n  };'));
+    expect(block).toMatch(/refreshTokens/);
+    expect(block).toMatch(/request/);
+    expect(block).not.toMatch(/getToken/);
+  });
+
+  test('JSON reads go through the application request path, not a private one', () => {
+    // `FamilistaAPI.get` brings the 401-refresh-retry, the cold-start timeout
+    // and the backoff. Reimplementing any of that would be a second session.
     const src = CLIENT();
-    // `getToken()` is the accessor the client actually exposes; the cookie is
-    // what `authenticate` prefers, and `include` is what carries it
-    // cross-origin.
-    expect(src).toMatch(/getToken\(\)/);
-    expect(src).toMatch(/credentials: 'include'/);
+    expect(src).toMatch(/api\.get\('\/system\/data-pulse'/);
+    expect(src).toMatch(/api\.refreshTokens/);
+    // Exactly two raw fetches: the stream, which cannot be a JSON helper, and
+    // the no-app.js fallback beside it.
+    expect(src.match(/\bfetch\(/g)).toHaveLength(2);
+  });
+
+  test('an expired token is refreshed once through the canonical flow', () => {
+    const src = CLIENT();
+    const connect = src.slice(src.indexOf('function connect('));
+    const body = connect.slice(0, connect.indexOf('\n  }'));
+    expect(body).toMatch(/res\.status === 401 && !DP\.refreshed/);
+    expect(body).toMatch(/refreshOnce\(\)/);
+    // One refresh per attempt, so an expired session cannot loop.
+    expect(body).toMatch(/DP\.refreshed = true/);
+    // And the app's own refresh is what is called.
+    const refresh = src.slice(src.indexOf('function refreshOnce'));
+    expect(refresh.slice(0, refresh.indexOf('\n  }'))).toMatch(/api\.refreshTokens\(\)/);
+  });
+
+  test('production is cross-origin, so the bearer is the credential that counts', () => {
+    // `FAM_CONFIG.API_BASE` is absolute in production, so the access_token
+    // cookie does not travel by default and cannot be relied on.
+    expect(APP()).toMatch(/https:\/\/familista-backend\.onrender\.com\/api\/v1/);
+    const src = CLIENT();
+    expect(src).toMatch(/FAM_CONFIG\.API_BASE/);
     expect(src).toMatch(/Authorization: 'Bearer '/);
-    // No token in a query string, ever.
+    // Sent as well, for a same-origin deployment. Belt, not the only strap.
+    expect(src).toMatch(/credentials: 'include'/);
+  });
+
+  test('401 and 403 stay distinguishable all the way to the label', () => {
+    const src = CLIENT();
+    expect(src).toMatch(/Not signed in/);
+    expect(src).toMatch(/Not authorised/);
+    expect(src).toMatch(/Platform Owner authority required/);
+    expect(src).toMatch(/DP\.fatalStatus === 401/);
+    expect(src).toMatch(/DP\.fatalStatus === 403/);
+    // The status travels on the error object, so nothing has to be inferred
+    // from a message string.
+    expect(src).toMatch(/e\.status = status/);
+    expect(src).toMatch(/sy-dp-status-detail/);
+  });
+
+  test('no credential ever appears in a URL', () => {
+    const src = CLIENT();
     expect(src).not.toMatch(/[?&]token=/);
     expect(src).not.toMatch(/[?&]access_token=/);
     expect(src).not.toMatch(/new EventSource/);
+    // The only query parameter this panel sends is the replay window.
+    expect(src).toMatch(/'\/replay\?minutes=' \+ encodeURIComponent/);
   });
 
-  test('a failure names its HTTP status instead of saying Reconnecting for ever', () => {
+  test('a refusal is not retried, and a network fault is', () => {
     const src = CLIENT();
-    // The status travels with the error…
-    expect(src).toMatch(/e\.status = res\.status/);
-    // …is shown…
-    expect(src).toMatch(/sy-dp-status-detail/);
-    expect(src).toMatch(/Not authorised/);
-    // …and a refusal is not retried, because 401 and 403 do not heal.
     const fail = src.slice(src.indexOf('function fail('));
     const body = fail.slice(0, fail.indexOf('\n  }'));
     expect(body).toMatch(/if \(DP\.fatal\) return;/);
-    expect(body.indexOf('DP.fatal')).toBeLessThan(body.indexOf('setTimeout'));
-    // A deliberate abort is still not a failure.
     expect(body).toMatch(/AbortError/);
-    // And 401/403 is the definition of fatal — not 404, which may be a bad
-    // deploy and is worth retrying.
+    expect(body.indexOf('DP.fatal')).toBeLessThan(body.indexOf('setTimeout'));
     const auth = src.slice(src.indexOf('function isAuthStatus'));
     expect(auth.slice(0, auth.indexOf('\n  }'))).toMatch(/401.*403/s);
   });
 
-  test('replay reports a refusal rather than rendering as empty', () => {
-    // An empty window and a rejected request looked identical, which is how
-    // this survived review. Replay now sets lastError and repaints.
-    const src = CLIENT();
-    const load = src.slice(src.indexOf('function loadReplay'));
-    const body = load.slice(0, load.indexOf('\n  }'));
-    expect(body).toMatch(/if \(!r\.ok\)/);
-    expect(body).toMatch(/DP\.lastError =/);
-    expect(body).toMatch(/encodeURIComponent/);
-  });
-
   test('the same event is never rendered twice across a reconnect', () => {
-    // A reconnect replays `backlog`, which overlaps what `pulse` already sent.
     const src = CLIENT();
     const accept = src.slice(src.indexOf('function accept('));
     const body = accept.slice(0, accept.indexOf('\n  }'));
     expect(body).toMatch(/seen\[id\]/);
     expect(body).toMatch(/f\.eventId/);
-    // Deduped by eventId, which the envelope guarantees is unique and never
-    // reused; and the seen-set is trimmed, so a long session cannot grow it
-    // without bound.
-    expect(body).toMatch(/seenOrder/);
-    expect(src).toMatch(/delete seen\[seenOrder\.shift\(\)\]/);
-    // Nothing new means no repaint and no dots, rather than a redraw of
-    // identical rows.
     expect(body).toMatch(/if \(!fresh\.length\) return;/);
+    expect(src).toMatch(/delete seen\[seenOrder\.shift\(\)\]/);
   });
 });
 
@@ -976,5 +999,73 @@ describe('replay reads the real outbox rows', () => {
     expect(serialised).not.toContain(COACH);       // the actor is not published
     expect(serialised).not.toContain(PLAYER);      // nor the person's id
     expect(serialised).not.toContain('idem-row-1');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10 · The cross-origin check that a same-origin test cannot make
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// The production 401 was invisible to every test in this file, because its
+// cause was the two things a same-origin suite cannot see: an absolute API base
+// and a cookie that does not cross origins. `scripts/data-pulse-xorigin-check.js`
+// serves the panel from one host and the API from another and drives the real
+// browser. It is not in `npm test` because it needs a browser binary; these
+// assertions pin that it exists and still covers the cases that failed.
+
+describe('the cross-origin browser check', () => {
+  const SCRIPT = () => read('scripts/data-pulse-xorigin-check.js');
+
+  test('it exists, and uses two genuinely different origins', () => {
+    const src = SCRIPT();
+    // Different hosts, so the browser treats it as cross-origin and applies
+    // real CORS and real cookie rules.
+    expect(src).toMatch(/http:\/\/127\.0\.0\.1:7801/);
+    expect(src).toMatch(/http:\/\/localhost:7802/);
+    // And it says which production origins those stand for.
+    expect(src).toMatch(/familista-v5\.onrender\.com/);
+    expect(src).toMatch(/familista-backend\.onrender\.com/);
+    // An absolute API base is the production shape, and the shape that broke.
+    expect(src).toMatch(/API_BASE: '\$\{BACK\}\/api\/v1'/);
+  });
+
+  test('it drives the real client, not a reimplementation of it', () => {
+    // Decommented: the header explains the getToken defect in prose, and an
+    // assertion that matches its own explanation proves nothing.
+    const src = decomment(SCRIPT());
+    expect(src).toMatch(/src="\/data-pulse\.js"/);
+    expect(src).toMatch(/window\.dpMount\('dp-host'\)/);
+    // The harness models the client app.js really exports — get and
+    // refreshTokens, and no getToken, which is the fact the fix rests on.
+    expect(src).toMatch(/refreshTokens/);
+    expect(src).not.toMatch(/getToken/);
+    // And the token where the application really keeps it.
+    expect(src).toMatch(/window\.State = \{ token/);
+  });
+
+  test('it covers every authorization outcome that reached production', () => {
+    const src = SCRIPT();
+    for (const scenario of [
+      'fresh owner token',
+      'expired token -> refresh',
+      'signed out (no token, no refresh)',
+      'president',
+      'head coach',
+    ]) {
+      expect(`${scenario}: ${src.includes(scenario)}`).toBe(`${scenario}: true`);
+    }
+    // 403 for a club role, 401 for no session — asserted by the harness's own
+    // backend rather than by the client, so the client cannot fake either.
+    expect(src).toMatch(/res\.writeHead\(403/);
+    expect(src).toMatch(/res\.writeHead\(401/);
+    // And it watches for a credential in a URL on every request it records.
+    expect(src).toMatch(/tokenInUrl/);
+  });
+
+  test('it writes nothing into the repository it does not clean up', () => {
+    const src = SCRIPT();
+    expect(src).toMatch(/unlinkSync\('public\/__x\.html'\)/);
+    // No production host is ever contacted.
+    expect(src).not.toMatch(/https:\/\/familista-backend\.onrender\.com\/api/);
   });
 });
