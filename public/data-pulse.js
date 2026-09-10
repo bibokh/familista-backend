@@ -1,0 +1,580 @@
+// Familista — Data Pulse, the platform owner's live data flow
+// ─────────────────────────────────────────────────────────────────────────────
+// A map of where events come from, where they go, and a dot travelling the
+// path each real event actually took.
+//
+// THE ONE RULE THIS FILE EXISTS TO KEEP
+//
+// Nothing on this screen is invented. There is no particle loop, no decorative
+// animation, no synthetic throughput and no destination that is not either
+// genuinely consuming events or clearly marked FUTURE. Every dot is one event
+// the server observed; when nothing is happening the screen says so and stays
+// still. A visualiser that looks busy when the platform is idle is worse than
+// no visualiser, because it cannot be used to answer the only question it is
+// for.
+//
+// HOW IT STREAMS
+//
+// `fetch` with a reader rather than `EventSource`, exactly as owner-trace does
+// it: `EventSource` cannot set headers, so it would force the token into a
+// query string where every proxy writes it to a log.
+//
+// HOW IT STAYS CHEAP
+//
+// The server batches frames on a tick and samples a burst, so this file
+// receives at most a few frames per animation window. Live dots are capped
+// independently of that, and a dot removes itself when its animation ends —
+// nothing accumulates. The metrics row repaints its own numbers rather than
+// re-rendering the map, and the map is only rebuilt when the topology changes.
+//
+// NOTHING MOVES THAT THE READER DID NOT MOVE
+//
+// Dots are absolutely positioned inside a fixed-height stage and animate on
+// `transform` and `opacity` only, so a pulse cannot shift a single pixel of the
+// panel underneath it. The inspector is a fixed overlay for the same reason.
+
+(function () {
+  'use strict';
+
+  var API = function () { return window.FamilistaAPI; };
+  function esc(s) {
+    return (typeof window._esc === 'function') ? window._esc(s)
+      : String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+  }
+
+  /** Everything this panel knows. One object, so a reconnect can reset it. */
+  var DP = {
+    open: false,
+    connected: false,
+    mode: 'LIVE',
+    topology: null,
+    metrics: null,
+    frames: [],        // newest first, bounded
+    sampling: 1,
+    lastError: null,
+    reconnectAttempt: 0,
+    inspecting: null,
+    replay: { minutes: 5, loading: false, counts: null, truncated: false },
+  };
+  window._DP = DP;
+
+  var FRAME_LIMIT = 200;     // what the inspector list can hold
+  var DOT_LIMIT = 24;        // what may be in flight on screen at once
+  var abort = null;
+  var reconnectTimer = null;
+
+  // ── the lanes ──────────────────────────────────────────────────────────────
+
+  function laneId(kind, name) {
+    return 'dp-' + kind + '-' + String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  }
+
+  /**
+   * A metric cell.
+   *
+   * `null` is NOT zero. The server sends null for anything it cannot compute,
+   * and this renders those words rather than a number nobody measured.
+   */
+  function metric(label, value, unit) {
+    var body = (value === null || value === undefined)
+      ? '<span class="sy-dp-unavailable">Not instrumented yet</span>'
+      : '<b>' + esc(String(value)) + '</b>' + (unit ? '<i>' + esc(unit) + '</i>' : '');
+    return '<div class="sy-dp-metric"><span>' + esc(label) + '</span><div>' + body + '</div></div>';
+  }
+
+  function metricsHtml() {
+    var m = DP.metrics;
+    if (!m) return '<div class="sy-dp-metrics sy-dp-metrics-idle"></div>';
+    var last = m.lastEventAt ? timeAgo(m.lastEventAt) : null;
+    return '<div class="sy-dp-metrics">'
+      + metric('Events / sec', m.eventsPerSecond)
+      + metric('Events / min', m.eventsPerMinute)
+      + metric('Active clubs', m.activeClubs)
+      + metric('Observed', m.totalObserved)
+      + metric('Avg write latency', m.averageLatencyMs, 'ms')
+      + metric('Last event', last)
+      + metric('Processed', m.processed)
+      + metric('Failed', m.failed)
+      + metric('Pending', m.pending)
+      + '</div>';
+  }
+
+  function timeAgo(iso) {
+    var t = new Date(iso).getTime();
+    if (!t || isNaN(t)) return null;
+    var s = Math.max(0, Math.round((Date.now() - t) / 1000));
+    if (s < 2) return 'just now';
+    if (s < 60) return s + 's ago';
+    if (s < 3600) return Math.round(s / 60) + 'm ago';
+    return Math.round(s / 3600) + 'h ago';
+  }
+
+  function mapHtml() {
+    var t = DP.topology;
+    if (!t) return '<div class="sy-dp-map sy-dp-map-loading"></div>';
+
+    var sources = t.sources.map(function (name) {
+      return '<div class="sy-dp-node sy-dp-source" id="' + laneId('src', name) + '">'
+        + '<span>' + esc(name) + '</span></div>';
+    }).join('');
+
+    var dests = t.destinations.map(function (d) {
+      return '<div class="sy-dp-node sy-dp-dest" id="' + laneId('dst', d.name) + '">'
+        + '<span>' + esc(d.name) + '</span></div>';
+    }).join('');
+
+    // FUTURE lanes are drawn dashed, dimmed, and labelled. They are architecture
+    // the platform intends, not destinations anything reaches today, and the
+    // label is what stops the map from being a claim it cannot support.
+    var future = t.future.map(function (d) {
+      return '<div class="sy-dp-node sy-dp-dest sy-dp-future" title="' + esc(d.note) + '">'
+        + '<span>' + esc(d.name) + '</span><em>Future</em></div>';
+    }).join('');
+
+    return '<div class="sy-dp-map">'
+      + '<div class="sy-dp-col sy-dp-col-src"><h4>Sources</h4>' + sources + '</div>'
+      + '<div class="sy-dp-col sy-dp-col-fabric">'
+        + '<h4>Familista Data Fabric</h4>'
+        + '<div class="sy-dp-fabric" id="dp-fabric">'
+          + '<div class="sy-dp-fabric-ring"></div>'
+          + '<b>Event Envelope</b><span>Event Outbox</span>'
+        + '</div>'
+      + '</div>'
+      + '<div class="sy-dp-col sy-dp-col-dst"><h4>Destinations</h4>' + dests
+        + '<div class="sy-dp-future-group">' + future + '</div>'
+      + '</div>'
+      + '<div class="sy-dp-stage" id="dp-stage" aria-hidden="true"></div>'
+      + '</div>';
+  }
+
+  function emptyHtml() {
+    var idle = !DP.frames.length;
+    if (!idle) return '';
+    return '<div class="sy-dp-empty">'
+      + '<div class="sy-dp-empty-ring"></div>'
+      + '<b>Listening for live platform activity…</b>'
+      + '<span>Nothing has moved through the fabric since this panel opened. '
+      + 'Update a player in any club and the event will appear here.</span>'
+      + '</div>';
+  }
+
+  function feedHtml() {
+    if (!DP.frames.length) return '';
+    var rows = DP.frames.slice(0, 40).map(function (f) {
+      var cls = 'sy-dp-row' + (f.registered ? '' : ' sy-dp-row-unknown');
+      return '<button class="' + cls + '" data-sy-dp-inspect="' + esc(f.eventId) + '">'
+        + '<code>' + esc(f.eventType) + '</code>'
+        + '<span class="sy-dp-row-lane">' + esc(f.source) + ' → ' + esc(f.destination) + '</span>'
+        + '<span class="sy-dp-row-cls sy-dp-cls-' + esc(String(f.dataClassification).toLowerCase()) + '">'
+        + esc(f.dataClassification) + '</span>'
+        + '<time>' + esc(timeAgo(f.recordedAt) || '') + '</time>'
+        + (f.registered ? '' : '<em title="This build does not know this event name">Unknown type</em>')
+        + '</button>';
+    }).join('');
+    return '<div class="sy-dp-feed"><h4>Recent events'
+      + (DP.sampling > 1 ? '<span class="sy-dp-sampling">showing 1 in ' + DP.sampling + '</span>' : '')
+      + '</h4><div class="sy-dp-feed-rows">' + rows + '</div></div>';
+  }
+
+  function notInstrumentedHtml() {
+    var t = DP.topology;
+    if (!t || !t.notInstrumented || !t.notInstrumented.length) return '';
+    return '<details class="sy-dp-gaps"><summary>'
+      + esc(String(t.notInstrumented.length)) + ' registered event types have no producer yet'
+      + '</summary><div class="sy-dp-gap-list">'
+      + t.notInstrumented.map(function (n) { return '<code>' + esc(n) + '</code>'; }).join('')
+      + '</div><p>These names exist in the taxonomy so consumers can be written against them. '
+      + 'Nothing in the platform emits them today, so no flow is drawn for them.</p></details>';
+  }
+
+  function statusHtml() {
+    var cls = DP.connected ? 'sy-dp-live' : (DP.lastError ? 'sy-dp-down' : 'sy-dp-connecting');
+    var text = DP.connected ? 'Live' : (DP.lastError ? 'Reconnecting…' : 'Connecting…');
+    return '<span class="sy-dp-status ' + cls + '"><i></i>' + esc(text) + '</span>';
+  }
+
+  function replayHtml() {
+    if (DP.mode !== 'REPLAY') return '';
+    var r = DP.replay;
+    var buttons = [1, 5, 15].map(function (m) {
+      return '<button class="sy-dp-win' + (r.minutes === m ? ' sy-dp-win-on' : '') + '" data-sy-dp-window="' + m + '">'
+        + 'Last ' + m + 'm</button>';
+    }).join('');
+    var note = r.loading ? '<span class="sy-dp-unavailable">Loading…</span>'
+      : r.counts ? esc(String(r.counts.total)) + ' events in window'
+        + (r.truncated ? ' (showing the most recent ' + DP.frames.length + ')' : '')
+      : '';
+    return '<div class="sy-dp-replay">' + buttons + '<span class="sy-dp-replay-note">' + note + '</span></div>';
+  }
+
+  // ── rendering ──────────────────────────────────────────────────────────────
+  //
+  // Split so a metric tick repaints nine numbers rather than the whole map, and
+  // so a new frame never rebuilds the nodes a dot is currently travelling
+  // between. Repainting the map mid-flight would cancel every animation.
+
+  function shell() {
+    return '<div class="sy-dp-wrap" id="dp-wrap">'
+      + '<div class="sy-dp-head">'
+        + '<div class="sy-dp-title"><b>Live Data Flow</b>'
+        + '<span>Real events moving through the Familista Data Fabric</span></div>'
+        + '<div class="sy-dp-head-right">'
+          + '<div class="sy-dp-modes">'
+            + '<button class="sy-dp-mode' + (DP.mode === 'LIVE' ? ' sy-dp-mode-on' : '') + '" data-sy-dp-mode="LIVE">Live</button>'
+            + '<button class="sy-dp-mode' + (DP.mode === 'REPLAY' ? ' sy-dp-mode-on' : '') + '" data-sy-dp-mode="REPLAY">Replay</button>'
+          + '</div>'
+          + '<span id="dp-status-slot">' + statusHtml() + '</span>'
+        + '</div>'
+      + '</div>'
+      + '<div id="dp-replay-slot">' + replayHtml() + '</div>'
+      + '<div id="dp-metrics-slot">' + metricsHtml() + '</div>'
+      + '<div id="dp-map-slot">' + mapHtml() + '</div>'
+      + '<div id="dp-body-slot">' + emptyHtml() + feedHtml() + '</div>'
+      + notInstrumentedHtml()
+      + '</div>';
+  }
+
+  /**
+   * Translate what was just drawn, using SYSTEM's catalogue.
+   *
+   * This panel mounts AFTER SYSTEM has painted and translated, so its own
+   * markup would otherwise stay English in an Arabic or German session. It
+   * calls SYSTEM's translator rather than carrying a second one: one screen,
+   * one catalogue.
+   */
+  function translate(el) {
+    try { if (el && typeof window.sySyncTranslate === 'function') window.sySyncTranslate(el); }
+    catch (_) { /* an untranslated panel still works */ }
+  }
+
+  function paint(what) {
+    var slot;
+    if (what === 'metrics') {
+      slot = document.getElementById('dp-metrics-slot');
+      if (slot) { slot.innerHTML = metricsHtml(); translate(slot); }
+      slot = document.getElementById('dp-status-slot');
+      if (slot) { slot.innerHTML = statusHtml(); translate(slot); }
+      return;
+    }
+    if (what === 'body') {
+      slot = document.getElementById('dp-body-slot');
+      if (slot) { slot.innerHTML = emptyHtml() + feedHtml(); translate(slot); }
+      return;
+    }
+    if (what === 'replay') {
+      slot = document.getElementById('dp-replay-slot');
+      if (slot) { slot.innerHTML = replayHtml(); translate(slot); }
+      return;
+    }
+    var host = document.getElementById('dp-host');
+    if (host) { host.innerHTML = shell(); translate(host); }
+  }
+
+  // ── the dot ────────────────────────────────────────────────────────────────
+
+  /**
+   * Animate one real event along its real path.
+   *
+   * Source node → fabric → destination node, using the nodes' measured
+   * positions so the dot lands on the lane the server said the event took. If
+   * either node is missing — an event whose lane this build does not draw — no
+   * dot is created rather than one being sent somewhere arbitrary.
+   */
+  function pulse(frame) {
+    var stage = document.getElementById('dp-stage');
+    if (!stage) return;
+    if (stage.childElementCount >= DOT_LIMIT) return;   // hard cap, oldest keep flying
+
+    var src = document.getElementById(laneId('src', frame.source));
+    var dst = document.getElementById(laneId('dst', frame.destination));
+    var mid = document.getElementById('dp-fabric');
+    if (!src || !dst || !mid) return;
+
+    var base = stage.getBoundingClientRect();
+    var a = src.getBoundingClientRect();
+    var b = mid.getBoundingClientRect();
+    var c = dst.getBoundingClientRect();
+
+    var p = function (r) {
+      return { x: r.left - base.left + r.width / 2, y: r.top - base.top + r.height / 2 };
+    };
+    var from = p(a); var via = p(b); var to = p(c);
+
+    var dot = document.createElement('i');
+    dot.className = 'sy-dp-dot sy-dp-dot-' + String(frame.dataClassification || 'INTERNAL').toLowerCase();
+    dot.style.transform = 'translate3d(' + from.x + 'px,' + from.y + 'px,0)';
+    stage.appendChild(dot);
+
+    // Two hops, on transform only. The Web Animations API is used rather than a
+    // CSS class so the exact geometry travels with the event and the element can
+    // clean itself up on finish.
+    var anim = dot.animate([
+      { transform: 'translate3d(' + from.x + 'px,' + from.y + 'px,0)', opacity: 0 },
+      { transform: 'translate3d(' + via.x + 'px,' + via.y + 'px,0)', opacity: 1, offset: 0.5 },
+      { transform: 'translate3d(' + to.x + 'px,' + to.y + 'px,0)', opacity: 0 },
+    ], { duration: 1400, easing: 'cubic-bezier(.4,0,.2,1)' });
+
+    var done = function () { try { dot.remove(); } catch (_) {} };
+    if (anim && anim.finished && anim.finished.then) anim.finished.then(done, done);
+    else setTimeout(done, 1500);
+
+    // The fabric acknowledges the pass-through. One class, removed on timeout,
+    // so a burst does not leave it stuck lit.
+    mid.classList.add('sy-dp-fabric-hit');
+    setTimeout(function () { mid.classList.remove('sy-dp-fabric-hit'); }, 400);
+  }
+
+  function accept(frames, sampling) {
+    if (!frames || !frames.length) return;
+    DP.sampling = sampling || 1;
+    for (var i = 0; i < frames.length; i++) DP.frames.unshift(frames[i]);
+    while (DP.frames.length > FRAME_LIMIT) DP.frames.pop();
+    paint('body');
+    // Animate on the next frame, after the feed has laid out — measuring node
+    // positions in the same tick as an innerHTML write would read a stale box.
+    requestAnimationFrame(function () {
+      for (var j = 0; j < frames.length && j < DOT_LIMIT; j++) pulse(frames[j]);
+    });
+  }
+
+  // ── the stream ─────────────────────────────────────────────────────────────
+
+  function baseUrl() {
+    try { return (API() && API().baseUrl) || ''; } catch (_) { return ''; }
+  }
+  function token() {
+    try { return (API() && API().token) || localStorage.getItem('familista_token') || ''; }
+    catch (_) { return ''; }
+  }
+
+  function handle(event, data) {
+    if (event === 'hello') {
+      DP.connected = true;
+      DP.lastError = null;
+      DP.reconnectAttempt = 0;
+      DP.topology = data.topology || DP.topology;
+      DP.metrics = data.metrics || DP.metrics;
+      paint();
+      return;
+    }
+    if (event === 'backlog') { accept(data.frames, 1); return; }
+    if (event === 'pulse') { accept(data.frames, data.sampling); return; }
+    if (event === 'metrics') { DP.metrics = data; paint('metrics'); return; }
+  }
+
+  function connect() {
+    if (DP.mode !== 'LIVE' || !DP.open) return;
+    disconnect();
+    abort = new AbortController();
+    var t = token();
+
+    fetch(baseUrl() + '/system/data-pulse/stream', {
+      headers: t ? { Authorization: 'Bearer ' + t } : {},
+      signal: abort.signal,
+      cache: 'no-store',
+    }).then(function (res) {
+      if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder();
+      var buf = '';
+
+      (function read() {
+        reader.read().then(function (r) {
+          if (r.done) throw new Error('stream ended');
+          buf += decoder.decode(r.value, { stream: true });
+          // SSE frames are separated by a blank line. Anything after the last
+          // one is a partial frame and stays in the buffer.
+          var parts = buf.split('\n\n');
+          buf = parts.pop();
+          parts.forEach(function (block) {
+            var name = 'message'; var payload = '';
+            block.split('\n').forEach(function (line) {
+              if (line.indexOf('event:') === 0) name = line.slice(6).trim();
+              else if (line.indexOf('data:') === 0) payload += line.slice(5).trim();
+            });
+            if (!payload) return;   // a comment line — the heartbeat
+            try { handle(name, JSON.parse(payload)); } catch (_) { /* a truncated frame is skipped */ }
+          });
+          read();
+        }).catch(fail);
+      }());
+    }).catch(fail);
+  }
+
+  /**
+   * Reconnect with a backoff, and say so on screen while it happens.
+   *
+   * A silent reconnect would make a dead stream look like an idle platform,
+   * which is the one confusion this screen must never create.
+   */
+  function fail(err) {
+    if (err && err.name === 'AbortError') return;
+    DP.connected = false;
+    DP.lastError = (err && err.message) || 'disconnected';
+    paint('metrics');
+    if (!DP.open || DP.mode !== 'LIVE') return;
+    DP.reconnectAttempt = Math.min(DP.reconnectAttempt + 1, 6);
+    var wait = Math.min(1000 * Math.pow(2, DP.reconnectAttempt - 1), 30000);
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, wait);
+  }
+
+  function disconnect() {
+    clearTimeout(reconnectTimer);
+    try { if (abort) abort.abort(); } catch (_) {}
+    abort = null;
+  }
+
+  // ── replay ─────────────────────────────────────────────────────────────────
+
+  function loadReplay(minutes) {
+    DP.replay.minutes = minutes || DP.replay.minutes;
+    DP.replay.loading = true;
+    paint('replay');
+
+    var t = token();
+    fetch(baseUrl() + '/system/data-pulse/replay?minutes=' + DP.replay.minutes, {
+      headers: t ? { Authorization: 'Bearer ' + t } : {},
+      cache: 'no-store',
+    }).then(function (r) { return r.json(); }).then(function (body) {
+      var d = (body && body.data) || {};
+      DP.frames = (d.frames || []).slice().reverse();
+      DP.replay.counts = d.counts || null;
+      DP.replay.truncated = !!d.truncated;
+      DP.replay.loading = false;
+      DP.sampling = 1;
+      paint();
+    }).catch(function () {
+      DP.replay.loading = false;
+      DP.replay.counts = null;
+      paint('replay');
+    });
+  }
+
+  // ── the inspector ──────────────────────────────────────────────────────────
+
+  function row(label, value) {
+    if (value === null || value === undefined || value === '') {
+      return '<div class="sy-dp-i-row"><span>' + esc(label) + '</span>'
+        + '<b class="sy-dp-unavailable">—</b></div>';
+    }
+    return '<div class="sy-dp-i-row"><span>' + esc(label) + '</span><b>' + esc(String(value)) + '</b></div>';
+  }
+
+  window.dpInspect = function (eventId) {
+    var f = null;
+    for (var i = 0; i < DP.frames.length; i++) if (DP.frames[i].eventId === eventId) { f = DP.frames[i]; break; }
+    if (!f) return;
+    DP.inspecting = f;
+
+    var host = document.getElementById('dp-inspector');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'dp-inspector';
+      document.body.appendChild(host);
+    }
+    host.className = 'sy-dp-i-open';
+    host.innerHTML = '<div class="sy-dp-i-card" role="dialog" aria-label="Event detail">'
+      + '<div class="sy-dp-i-head"><code>' + esc(f.eventType) + '</code>'
+      + '<button class="sy-dp-i-close" data-sy-dp-close="1" aria-label="Close">×</button></div>'
+      + '<div class="sy-dp-i-body">'
+        + row('Event id', f.eventId)
+        + row('Schema version', f.schemaVersion)
+        + row('Occurred at', f.occurredAt)
+        + row('Recorded at', f.recordedAt)
+        + row('Write latency', f.latencyMs === null ? null : f.latencyMs + ' ms')
+        + row('Club', f.clubId)
+        + row('Team', f.teamId)
+        + row('Source type', f.sourceType)
+        + row('Subject type', f.subjectType)
+        + row('Subject id', f.subjectId)
+        + row('Correlation id', f.correlationId)
+        + row('Causation id', f.causationId)
+        + row('Classification', f.dataClassification)
+        + row('Status', f.status)
+        + row('Flow', f.source + ' → Data Fabric → ' + f.destination)
+        + row('Registered type', f.registered ? 'Yes' : 'No — unknown to this build')
+      + '</div>'
+      // Said plainly, because an inspector that shows fifteen fields invites the
+      // question "where is the rest of it".
+      + '<p class="sy-dp-i-note">The event body is never sent to this screen. '
+      + 'Data Pulse shows how events move, not what they contain.</p>'
+      + '</div>';
+    translate(host);
+  };
+
+  window.dpCloseInspector = function () {
+    DP.inspecting = null;
+    var host = document.getElementById('dp-inspector');
+    if (host) { host.className = ''; host.innerHTML = ''; }
+  };
+
+  // ── open / close ───────────────────────────────────────────────────────────
+
+  /**
+   * Mount into a host SYSTEM has just drawn.
+   *
+   * SYSTEM repaints its whole body on navigation and again when its data
+   * arrives, which replaces this host element. So mounting re-renders into the
+   * fresh host — but only opens a stream if one is not already running.
+   * Reconnecting on the second paint of one navigation would double every
+   * frame and leave an orphaned connection open on the server.
+   */
+  window.dpMount = function (hostId) {
+    var host = document.getElementById(hostId || 'dp-host');
+    if (!host) return;
+    host.id = 'dp-host';
+    var wasOpen = DP.open;
+    DP.open = true;
+    paint();
+    if (DP.mode === 'REPLAY') { if (!wasOpen) loadReplay(DP.replay.minutes); return; }
+    if (!abort) connect();
+  };
+
+  window.dpUnmount = function () {
+    DP.open = false;
+    disconnect();
+    window.dpCloseInspector();
+  };
+
+  window.dpSetMode = function (mode) {
+    if (mode !== 'LIVE' && mode !== 'REPLAY') return;
+    if (DP.mode === mode) return;
+    DP.mode = mode;
+    DP.frames = [];
+    DP.sampling = 1;
+    if (mode === 'LIVE') { DP.replay.counts = null; paint(); connect(); }
+    else { disconnect(); DP.connected = false; paint(); loadReplay(DP.replay.minutes); }
+  };
+
+  // One delegated listener for the whole panel, so repainting a slot never
+  // leaves a dead handler behind.
+  document.addEventListener('click', function (e) {
+    var el = e.target && e.target.closest ? e.target.closest('[data-sy-dp-inspect],[data-sy-dp-mode],[data-sy-dp-window],[data-sy-dp-close]') : null;
+    if (!el) return;
+    if (el.hasAttribute('data-sy-dp-close')) { window.dpCloseInspector(); return; }
+    if (el.hasAttribute('data-sy-dp-inspect')) { window.dpInspect(el.getAttribute('data-sy-dp-inspect')); return; }
+    if (el.hasAttribute('data-sy-dp-mode')) { window.dpSetMode(el.getAttribute('data-sy-dp-mode')); return; }
+    if (el.hasAttribute('data-sy-dp-window')) { loadReplay(Number(el.getAttribute('data-sy-dp-window'))); }
+  });
+
+  // Two seams, for a browser harness and for a test that wants to drive the
+  // real renderer rather than reimplement it. Neither produces an event: they
+  // render what they are given, which is the opposite of a demo mode.
+  window.__repaint = function () { paint(); };
+  window.__feed = function (frames) { accept(frames, 1); };
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && DP.inspecting) window.dpCloseInspector();
+  });
+
+  // A backgrounded tab does not need a live socket. Reconnecting on return is
+  // cheaper than holding one open for a screen nobody is looking at.
+  document.addEventListener('visibilitychange', function () {
+    if (!DP.open || DP.mode !== 'LIVE') return;
+    if (document.hidden) disconnect();
+    else connect();
+  });
+}());

@@ -137,6 +137,8 @@
    * never touches a script or style node. A club screen is not reachable from
    * here, by construction.
    */
+  // Exposed at the bottom of this file as `window.sySyncTranslate` so a panel
+  // mounted after paint uses this catalogue rather than growing its own.
   function syTranslate(root) {
     if (!root || SY_LANG === 'en') return;
     var skip = function (el) {
@@ -208,6 +210,7 @@
     ['platform-analytics', 'Platform Analytics', '◫', 'INSIGHT'],
     ['product-analytics', 'Product Analytics', '◪', 'INSIGHT'],
     ['infrastructure', 'Infrastructure', '▤', 'PLATFORM'],
+    ['data-pulse', 'Live Data Flow', '⇝', 'PLATFORM'],
     ['health', 'Platform Health', '♥', 'PLATFORM'],
     ['security', 'Security Center', '⛨', 'PLATFORM'],
     ['audit', 'Audit Center', '☰', 'PLATFORM'],
@@ -1296,8 +1299,37 @@
       case 'approvals': return approvalsHtml();
       case 'security': return securityHtml();
       case 'audit': return auditHtml();
+      case 'data-pulse': return dataPulseHtml();
       default: return genericHtml(SY.module);
     }
+  }
+
+  /**
+   * Live Data Flow.
+   *
+   * The panel itself lives in `data-pulse.js`, which owns its own stream,
+   * buffer and animation. This returns the host it mounts into and nothing
+   * else — a live view that repainted whenever SYSTEM repainted would cancel
+   * every dot in flight.
+   */
+  function dataPulseHtml() {
+    return '<div id="dp-host" class="sy-panel-plain"></div>';
+  }
+
+  /**
+   * Hand the panel its host once the markup is actually in the document, and
+   * take the stream down when the owner navigates away.
+   *
+   * Called from the render path below. Unmounting matters: an SSE connection
+   * left open for a screen nobody is looking at is a connection the server is
+   * holding for nothing.
+   */
+  function syncDataPulse() {
+    var mounting = SY.module === 'data-pulse';
+    try {
+      if (mounting && typeof window.dpMount === 'function') window.dpMount('dp-host');
+      else if (!mounting && typeof window.dpUnmount === 'function') window.dpUnmount();
+    } catch (_) { /* the panel is optional; SYSTEM still works without it */ }
   }
 
   // ── data ──────────────────────────────────────────────────────────────────
@@ -1411,6 +1443,10 @@
     // into the other's.
     try { syTranslate(host); } catch (_) {}
     try { document.documentElement.setAttribute('data-sy-dir', SY_DIR); } catch (_) {}
+    // After the markup is in the document: the live panel positions its dots
+    // from measured node geometry, and measuring before layout reads a stale
+    // box. Also what takes the stream down when the owner navigates away.
+    try { syncDataPulse(); } catch (_) {}
   }
 
   function go(host, module) {
@@ -1708,4 +1744,7 @@
       return load(SY.module);
     }).then(function () { paint(host); });
   };
+
+  // One catalogue, two mount points.
+  try { window.sySyncTranslate = syTranslate; } catch (_) {}
 }());

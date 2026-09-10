@@ -45,6 +45,23 @@ export {
 
 export { fabricStatus, type FabricStatus } from './fabric-status.service';
 
+// ── observability ────────────────────────────────────────────────────────────
+// Watching events move, without becoming a second way to read them. The frame
+// is an allow-list of envelope fields and never carries a payload.
+
+export {
+  startPulse, stopPulse, isPulseRunning, onPulse, recentFrames, resetPulse, flushNow,
+  pulseMetrics, pulseTopology, project, sourceLaneFor, destinationLaneFor,
+  INSTRUMENTED_EVENT_TYPES, SOURCE_LANES, LIVE_DESTINATIONS, FUTURE_DESTINATIONS,
+  BUFFER_LIMIT, FLUSH_MS, SAMPLE_THRESHOLD,
+  type PulseFrame, type PulseBatch, type PulseMetrics, type PulseTopology, type PulseListener,
+} from './pulse/pulse.service';
+
+export {
+  replayWindow, replayCounts, REPLAY_WINDOWS, REPLAY_MAX,
+  type ReplayQuery, type ReplayResult,
+} from './pulse/pulse-replay.service';
+
 /**
  * Install the default transport.
  *
@@ -57,6 +74,11 @@ export function initDataFabric(): void {
   const { outboxTransport: t } = require('./outbox-transport') as typeof import('./outbox-transport');
   const { setEventTransport: set } = require('./event-bus') as typeof import('./event-bus');
   set(t);
+  // Observing from boot rather than from the owner's first visit, so "last
+  // event time" means the platform's last event and not the last one somebody
+  // happened to be watching. One in-process subscriber, no I/O, bounded buffer.
+  const { startPulse: watch } = require('./pulse/pulse.service') as typeof import('./pulse/pulse.service');
+  watch();
 }
 
 // ── secrets ──────────────────────────────────────────────────────────────────

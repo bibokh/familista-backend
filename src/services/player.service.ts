@@ -19,6 +19,8 @@ import {
 } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, ConflictError } from '../utils/errors';
+import { emit } from '../fabric';
+import { logger } from '../utils/logger';
 
 // ─────────────────────────────────────────────────────────────────────────
 // DTOs
@@ -262,11 +264,62 @@ async function assertTeamInClub(clubId: string, teamId: string | null | undefine
   if (team.clubId !== clubId)      throw new ForbiddenError();
 }
 
+/**
+ * Tell the Data Fabric that a player changed.
+ *
+ * WHY THIS IS NOT INSIDE THE TRANSACTION
+ *
+ * The audit row is written inside it, because audit and state must agree even
+ * when the write fails. An EVENT is the opposite case: it announces a fact to
+ * the rest of the platform, and announcing a change that then rolled back is
+ * worse than not announcing it at all. So this is called after the commit, on
+ * the value the commit produced.
+ *
+ * WHY THE PAYLOAD IS THIS SMALL
+ *
+ * A player row carries a date of birth, a parent's email and phone, a medical
+ * status and free-text notes. None of that belongs in an event that fans out to
+ * subscribers, a live owner view and eventually a broker — so the payload names
+ * WHICH FIELDS changed and never what they changed to. A consumer that needs
+ * the values reads the player through the service that authorises it.
+ *
+ * `emit` never throws into its caller by contract, and the `void` is deliberate:
+ * a squad update must not fail, or wait, because the fabric is unwell.
+ */
+function emitPlayerEvent(
+  eventType: 'player.created' | 'player.updated' | 'player.photo.attached',
+  actor: PlayerActor,
+  player: Player,
+  changedFields: string[] = [],
+): void {
+  // `.catch` and not just `void`. `emit` is async, so the one thing it does
+  // throw on — a malformed envelope, which is a programming error — arrives as
+  // a REJECTED PROMISE. A discarded rejection is an unhandled rejection, and
+  // Node's default for those is to terminate the process. That would turn a
+  // fabric bug into a failed squad update, which is the exact outcome the
+  // fabric's own failure policy exists to prevent.
+  emit({
+    eventType,
+    clubId: player.clubId,
+    teamId: player.teamId ?? null,
+    actorUserId: actor.userId,
+    subjectType: 'PLAYER',
+    subjectId: player.id,
+    sourceType: 'USER',
+    // Field NAMES only. No values, and nothing a person typed.
+    payload: eventType === 'player.updated' ? { changedFields } : {},
+  }).catch((err) => {
+    logger.warn('[fabric] a player event could not be recorded; the player write stands', {
+      eventType, clubId: player.clubId, err: (err as Error).message,
+    });
+  });
+}
+
 export async function createPlayer(actor: PlayerActor, dto: CreatePlayerDto): Promise<Player> {
   await assertShirtNumberFree(actor.clubId, dto.number);
   await assertTeamInClub(actor.clubId, dto.teamId ?? null);
 
-  return prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     const player = await tx.player.create({
       data: {
         firstName:    dto.firstName,
@@ -311,6 +364,10 @@ export async function createPlayer(actor: PlayerActor, dto: CreatePlayerDto): Pr
     });
     return player;
   });
+
+  // After the commit. See `emitPlayerEvent`.
+  emitPlayerEvent('player.created', actor, created);
+  return created;
 }
 
 export async function updatePlayer(actor: PlayerActor, id: string, dto: UpdatePlayerDto): Promise<Player> {
@@ -323,7 +380,12 @@ export async function updatePlayer(actor: PlayerActor, id: string, dto: UpdatePl
     await assertTeamInClub(actor.clubId, dto.teamId);
   }
 
-  return prisma.$transaction(async (tx) => {
+  // Captured BEFORE the transaction. Read afterwards it would depend on the
+  // update returning an object distinct from the one `existing` points at,
+  // which is true of Prisma and is not a thing to rely on.
+  const previousAvatar = existing.avatar;
+
+  const updated = await prisma.$transaction(async (tx) => {
     const data: Prisma.PlayerUpdateInput = {
       ...(dto.firstName     !== undefined && { firstName:     dto.firstName }),
       ...(dto.lastName      !== undefined && { lastName:      dto.lastName }),
@@ -355,7 +417,7 @@ export async function updatePlayer(actor: PlayerActor, id: string, dto: UpdatePl
       ...(dto.teamId        !== undefined && { teamId:        dto.teamId ?? null }),
     };
 
-    const updated = await tx.player.update({ where: { id }, data });
+    const row = await tx.player.update({ where: { id }, data });
 
     // Specialised audit actions when status changes
     let action: PlayerAuditAction = PlayerAuditAction.UPDATE;
@@ -371,13 +433,28 @@ export async function updatePlayer(actor: PlayerActor, id: string, dto: UpdatePl
         userId:   actor.userId,
         action,
         before:   snapshot(existing as Player) as Prisma.InputJsonValue,
-        after:    snapshot(updated)            as Prisma.InputJsonValue,
+        after:    snapshot(row)                as Prisma.InputJsonValue,
         ipAddress: actor.ipAddress ?? undefined,
         userAgent: actor.userAgent ?? undefined,
       },
     });
-    return updated;
+    return row;
   });
+
+  // After the commit, and derived from the DTO rather than from a diff of the
+  // rows: `dto` is exactly the set of fields the caller asked to change, which
+  // is what an observer wants to know. Field names only — see `emitPlayerEvent`.
+  const changedFields = Object.keys(dto).filter((k) => (dto as Record<string, unknown>)[k] !== undefined);
+  emitPlayerEvent('player.updated', actor, updated, changedFields);
+
+  // A photograph is its own event because it is its own kind of fact: the
+  // taxonomy classifies `player.photo.attached` as RESTRICTED, where an
+  // ordinary update is CONFIDENTIAL, and a consumer filtering on sensitivity
+  // must be able to tell them apart without reading the payload.
+  if (dto.avatar !== undefined && dto.avatar !== previousAvatar) {
+    emitPlayerEvent('player.photo.attached', actor, updated);
+  }
+  return updated;
 }
 
 // Soft-delete: flips isActive=false and writes a DEACTIVATE audit row.

@@ -648,3 +648,245 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
    sitting apart is what says so. */
 .sy-delivery { display: flex; align-items: center; gap: 8px; margin-block-start: 8px; }
 .sy-delivery-n { font-size: 10px; color: var(--sy-tx-3); font-weight: 700; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Live Data Flow — Data Pulse
+
+   The panel's own surfaces, drawn from the SYSTEM tokens above rather than from
+   values of its own. A new screen that needs a panel uses this system's panel.
+
+   The rule that shapes the whole block: NOTHING MOVES THAT THE READER DID NOT
+   MOVE. Dots live in a `position:absolute` stage that is `pointer-events:none`
+   and sits over the map, and they animate on `transform` and `opacity` only, so
+   a pulse cannot reflow one pixel of what is underneath it. The map itself is a
+   fixed three-column grid whose rows do not resize when a metric changes width,
+   which is why every metric cell has `min-width` and tabular figures.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.sy-panel-plain { min-width: 0; }
+
+.sy-dp-wrap {
+  border-radius: var(--sy-radius); border: 1px solid var(--sy-line);
+  background: var(--sy-panel); padding: 16px 18px 18px; min-width: 0;
+}
+
+.sy-dp-head { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+.sy-dp-title b { display: block; font-size: 14px; font-weight: 800; letter-spacing: -.2px; }
+.sy-dp-title span { display: block; margin-top: 2px; font-size: 11px; color: var(--sy-tx-3); }
+.sy-dp-head-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+.sy-dp-modes, .sy-dp-replay { display: flex; align-items: center; gap: 6px; }
+.sy-dp-mode, .sy-dp-win {
+  font: inherit; font-size: 11px; font-weight: 700; color: var(--sy-tx-2);
+  background: var(--sy-panel-2); border: 1px solid var(--sy-line);
+  border-radius: 8px; padding: 5px 11px; cursor: pointer;
+  transition: color .15s ease, border-color .15s ease;
+}
+.sy-dp-mode:hover, .sy-dp-win:hover { color: var(--sy-tx); border-color: var(--sy-line-2); }
+.sy-dp-mode-on, .sy-dp-win-on { color: var(--sy-bg); background: var(--sy-accent-2); border-color: transparent; }
+
+.sy-dp-replay { margin-bottom: 12px; }
+.sy-dp-replay-note { font-size: 11px; color: var(--sy-tx-3); }
+
+/* Connection state. A dead stream must never look like an idle platform, so
+   this says which of the two it is at all times. */
+.sy-dp-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; }
+.sy-dp-status > i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.sy-dp-live { color: var(--sy-ok); }
+.sy-dp-connecting { color: var(--sy-warn); }
+.sy-dp-down { color: var(--sy-danger); }
+.sy-dp-live > i { animation: dp-breathe 2.4s ease-in-out infinite; }
+@keyframes dp-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* ── metrics ────────────────────────────────────────────────────────────────
+   Tabular figures and a floor width, so a number going from 9 to 10 does not
+   reflow the row it is in. */
+.sy-dp-metrics {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: 8px; margin-bottom: 16px;
+}
+.sy-dp-metrics-idle { min-height: 62px; }
+.sy-dp-metric {
+  border-radius: 10px; border: 1px solid var(--sy-line);
+  background: var(--sy-panel-2); padding: 9px 11px; min-width: 0;
+}
+.sy-dp-metric > span { display: block; font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--sy-tx-3); }
+.sy-dp-metric > div { margin-top: 3px; display: flex; align-items: baseline; gap: 3px; min-height: 19px; }
+.sy-dp-metric b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sy-dp-metric i { font-size: 10px; font-style: normal; color: var(--sy-tx-3); }
+
+/* An honest absence. Deliberately not styled like a number — it is a sentence
+   about instrumentation, not a measurement. */
+.sy-dp-unavailable { font-size: 10px; font-style: italic; color: var(--sy-tx-3); }
+
+/* ── the map ────────────────────────────────────────────────────────────────
+   Three columns and one overlay. `position:relative` on the map is what the
+   stage's absolute positioning is measured against. */
+.sy-dp-map {
+  position: relative;
+  display: grid; grid-template-columns: 1fr auto 1fr; gap: 22px;
+  align-items: start; padding: 4px 2px 8px;
+}
+.sy-dp-map-loading { min-height: 260px; }
+.sy-dp-col { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.sy-dp-col > h4 {
+  margin: 0 0 4px; font-size: 9.5px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--sy-tx-3);
+}
+.sy-dp-col-dst > h4, .sy-dp-col-dst .sy-dp-node { text-align: right; }
+.sy-dp-col-fabric { align-items: center; justify-content: flex-start; }
+
+.sy-dp-node {
+  border-radius: 10px; border: 1px solid var(--sy-line);
+  background: var(--sy-panel-2); padding: 7px 11px;
+  font-size: 11.5px; font-weight: 600; color: var(--sy-tx-2);
+}
+.sy-dp-source { border-left: 2px solid var(--sy-accent); }
+.sy-dp-dest { border-right: 2px solid var(--sy-accent-2); }
+
+/* FUTURE lanes: dashed, dimmed, and labelled in words. The label is what stops
+   the map from claiming a destination that consumes nothing. */
+.sy-dp-future-group { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.sy-dp-future {
+  border: 1px dashed var(--sy-line-2); border-right-width: 1px;
+  background: transparent; color: var(--sy-tx-3); opacity: .62;
+  display: flex; align-items: baseline; justify-content: flex-end; gap: 7px;
+}
+.sy-dp-future em {
+  font-style: normal; font-size: 8.5px; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--sy-warn); opacity: .8;
+}
+
+.sy-dp-fabric {
+  position: relative; width: 132px; min-height: 96px;
+  border-radius: 14px; border: 1px solid var(--sy-line-2);
+  background: linear-gradient(160deg, rgba(59,130,246,.14), rgba(34,211,238,.06));
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  text-align: center; padding: 12px 10px;
+}
+.sy-dp-fabric b { font-size: 11.5px; font-weight: 800; }
+.sy-dp-fabric > span { font-size: 10px; color: var(--sy-tx-3); }
+.sy-dp-fabric-ring {
+  position: absolute; inset: -1px; border-radius: 14px;
+  border: 1px solid var(--sy-accent-2); opacity: 0;
+  transition: opacity .18s ease;
+}
+/* Acknowledges a real pass-through. Opacity only — no glow that resizes a box. */
+.sy-dp-fabric-hit .sy-dp-fabric-ring { opacity: .75; }
+
+/* The stage. Over the map, hit-testing nothing, so a dot can never intercept a
+   click meant for a node underneath it. */
+.sy-dp-stage {
+  position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+  border-radius: 12px;
+}
+.sy-dp-dot {
+  position: absolute; top: 0; left: 0; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%; background: var(--sy-accent-2);
+  box-shadow: 0 0 8px 1px currentColor; color: var(--sy-accent-2);
+  will-change: transform, opacity;
+}
+/* Sensitivity is a property of the event, so it is a property of the dot. */
+.sy-dp-dot-public { background: var(--sy-tx-2); color: var(--sy-tx-2); }
+.sy-dp-dot-internal { background: var(--sy-accent-2); color: var(--sy-accent-2); }
+.sy-dp-dot-confidential { background: var(--sy-violet); color: var(--sy-violet); }
+.sy-dp-dot-restricted { background: var(--sy-warn); color: var(--sy-warn); }
+
+/* ── idle ───────────────────────────────────────────────────────────────────
+   What the screen says when the platform is quiet. Calm and still: an idle
+   platform must look idle. */
+.sy-dp-empty { text-align: center; padding: 26px 18px 22px; }
+.sy-dp-empty-ring {
+  width: 34px; height: 34px; margin: 0 auto 12px; border-radius: 50%;
+  border: 1.5px solid var(--sy-line-2); border-top-color: var(--sy-accent-2);
+  animation: dp-spin 2.6s linear infinite;
+}
+@keyframes dp-spin { to { transform: rotate(360deg); } }
+.sy-dp-empty b { display: block; font-size: 12.5px; font-weight: 700; }
+.sy-dp-empty span { display: block; margin: 5px auto 0; max-width: 460px; font-size: 11px; color: var(--sy-tx-3); line-height: 1.55; }
+
+/* ── the feed ───────────────────────────────────────────────────────────────
+   Scrolls inside itself with a stable gutter, so a new row arriving does not
+   move the panel below it. */
+.sy-dp-feed > h4 {
+  display: flex; align-items: baseline; gap: 8px; margin: 6px 0 8px;
+  font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--sy-tx-3);
+}
+.sy-dp-sampling { margin-left: auto; font-size: 9.5px; font-weight: 700; color: var(--sy-warn); text-transform: none; letter-spacing: 0; }
+.sy-dp-feed-rows { max-height: 260px; overflow-y: auto; scrollbar-gutter: stable; display: flex; flex-direction: column; gap: 4px; }
+.sy-dp-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  font: inherit; cursor: pointer;
+  border-radius: 8px; border: 1px solid var(--sy-line); background: var(--sy-panel-2);
+  padding: 7px 10px; color: var(--sy-tx-2);
+  transition: border-color .15s ease;
+}
+.sy-dp-row:hover { border-color: var(--sy-line-2); }
+.sy-dp-row > code { font-size: 11px; font-weight: 700; color: var(--sy-tx); }
+.sy-dp-row-lane { font-size: 10px; color: var(--sy-tx-3); }
+.sy-dp-row > time { margin-left: auto; font-size: 10px; color: var(--sy-tx-3); font-variant-numeric: tabular-nums; }
+.sy-dp-row-cls { font-size: 8.5px; font-weight: 800; letter-spacing: .06em; padding: 2px 6px; border-radius: 5px; }
+.sy-dp-cls-public { color: var(--sy-tx-2); background: rgba(255,255,255,.06); }
+.sy-dp-cls-internal { color: var(--sy-accent-2); background: rgba(34,211,238,.1); }
+.sy-dp-cls-confidential { color: var(--sy-violet); background: rgba(167,139,250,.12); }
+.sy-dp-cls-restricted { color: var(--sy-warn); background: rgba(251,191,36,.12); }
+.sy-dp-row-unknown { border-style: dashed; }
+.sy-dp-row-unknown em { font-size: 9px; font-style: normal; font-weight: 700; color: var(--sy-warn); }
+
+/* ── the honest gap list ────────────────────────────────────────────────────── */
+.sy-dp-gaps { margin-top: 14px; border-top: 1px solid var(--sy-line); padding-top: 12px; }
+.sy-dp-gaps > summary { cursor: pointer; font-size: 11px; font-weight: 700; color: var(--sy-tx-2); }
+.sy-dp-gap-list { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0 8px; }
+.sy-dp-gap-list code { font-size: 10px; color: var(--sy-tx-3); background: var(--sy-panel-2); border: 1px solid var(--sy-line); border-radius: 5px; padding: 2px 6px; }
+.sy-dp-gaps p { margin: 0; font-size: 10.5px; color: var(--sy-tx-3); line-height: 1.55; }
+
+/* ── the inspector ──────────────────────────────────────────────────────────
+   `position: fixed`, so opening it cannot shift the panel behind it, and it
+   animates on opacity and transform only. */
+#dp-inspector { display: none; }
+#dp-inspector.sy-dp-i-open {
+  display: flex; position: fixed; inset: 0; z-index: 4000;
+  align-items: center; justify-content: center; padding: 20px;
+  background: rgba(3, 6, 14, .62);
+  animation: dp-fade .16s ease both;
+}
+@keyframes dp-fade { from { opacity: 0; } to { opacity: 1; } }
+.sy-dp-i-card {
+  width: min(520px, 100%); max-height: min(78vh, 680px); display: flex; flex-direction: column;
+  border-radius: var(--sy-radius); border: 1px solid var(--sy-line-2);
+  background: #0d1424; color: var(--sy-tx);
+  animation: dp-rise .18s cubic-bezier(.4,0,.2,1) both;
+}
+@keyframes dp-rise { from { opacity: 0; transform: translate3d(0, 8px, 0); } to { opacity: 1; transform: none; } }
+.sy-dp-i-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--sy-line); }
+.sy-dp-i-head > code { font-size: 12px; font-weight: 800; }
+.sy-dp-i-close {
+  margin-left: auto; font: inherit; font-size: 18px; line-height: 1; cursor: pointer;
+  background: none; border: 0; color: var(--sy-tx-3); padding: 0 2px;
+}
+.sy-dp-i-close:hover { color: var(--sy-tx); }
+.sy-dp-i-body { padding: 6px 16px 10px; overflow-y: auto; scrollbar-gutter: stable; }
+.sy-dp-i-row { display: flex; align-items: baseline; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--sy-line); }
+.sy-dp-i-row > span { flex: none; width: 132px; font-size: 10.5px; color: var(--sy-tx-3); }
+.sy-dp-i-row > b { font-size: 11.5px; font-weight: 600; word-break: break-all; min-width: 0; }
+.sy-dp-i-note { margin: 0; padding: 12px 16px 14px; font-size: 10.5px; color: var(--sy-tx-3); line-height: 1.55; border-top: 1px solid var(--sy-line); }
+
+/* ── the escape hatch ───────────────────────────────────────────────────────
+   Below this the three-column map becomes one column and the page returns to
+   normal scrolling, rather than crushing the lanes into unreadable slivers. */
+@media (max-width: 980px), (max-height: 620px) {
+  .sy-dp-map { grid-template-columns: 1fr; gap: 14px; }
+  .sy-dp-col-dst > h4, .sy-dp-col-dst .sy-dp-node { text-align: left; }
+  .sy-dp-future { justify-content: flex-start; }
+  .sy-dp-fabric { width: 100%; min-height: 72px; }
+  /* Geometry the dots were measured against no longer holds in one column, so
+     the stage is withdrawn rather than sending dots to the wrong places. */
+  .sy-dp-stage { display: none; }
+  .sy-dp-feed-rows { max-height: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sy-dp-dot { display: none; }
+  .sy-dp-empty-ring, .sy-dp-live > i { animation: none; }
+  .sy-dp-i-card, #dp-inspector.sy-dp-i-open { animation: none; }
+}
