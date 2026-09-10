@@ -45,7 +45,6 @@
 // reported, so the screen says "showing 1 in 4" instead of quietly lying.
 
 import { logger } from '../../utils/logger';
-import { subscribe } from '../event-bus';
 import { isRegisteredEventType } from '../event-taxonomy';
 import type { FamilistaEvent } from '../event-envelope';
 
@@ -83,6 +82,35 @@ export interface PulseFrame {
   registered: boolean;
   /** `STORED` or `DUPLICATE`. A frame only exists for an event that persisted. */
   status: string;
+
+  // ── the three fields that make a frame readable ───────────────────────────
+  //
+  // Added deliberately and narrowly. Everything above is a name, an id, a time
+  // or a classification; these three are the smallest additions that turn "a
+  // player was updated somewhere" into an answer, and each is bounded:
+
+  /** The club's name. Filled server-side from `clubId`. */
+  clubLabel: string | null;
+  /** The subject's name — a player's, a team's, a club's. Never an id. */
+  subjectLabel: string | null;
+  /**
+   * WHICH fields changed, by name. Never their values.
+   *
+   * The producer already writes only field names into this payload key — see
+   * `emitPlayerEvent` — so allow-listing the key by name cannot surface a
+   * value. A date of birth's NAME is not a date of birth.
+   */
+  changedFields: string[];
+
+  /**
+   * The subject id, for the label lookup, and stripped before the wire.
+   *
+   * Present on the object between `project()` and `resolveSubjects()` and
+   * `delete`d there, so a person's identifier is used server-side and never
+   * serialised. Optional in the type because a frame that has reached a client
+   * does not have it.
+   */
+  resolveId?: string;
 }
 
 /**
@@ -203,7 +231,34 @@ export function project(event: FamilistaEvent, status = 'STORED'): PulseFrame {
     destination: destinationLaneFor(eventType),
     registered: isRegisteredEventType(eventType),
     status,
+
+    // Resolved later, in one batched read for the whole page.
+    clubLabel: null,
+    subjectLabel: null,
+    // ONE key, by name, and only its strings. Not a spread, not a filter over
+    // whatever the payload happens to contain.
+    changedFields: changedFieldNames(event),
+    // Server-side only. `resolveSubjects` deletes it.
+    resolveId: event?.subjectId ? String(event.subjectId) : undefined,
   };
+}
+
+/**
+ * The `changedFields` array, if the producer supplied one.
+ *
+ * Reads exactly that key, accepts only strings, caps the count and the length
+ * of each name. A producer that put a value in there would still surface a
+ * string — so the cap is what keeps a mistake to a truncated field name rather
+ * than a paragraph of notes.
+ */
+function changedFieldNames(event: FamilistaEvent): string[] {
+  const payload = event?.payload as Record<string, unknown> | null | undefined;
+  const raw = payload && typeof payload === 'object' ? (payload as Record<string, unknown>).changedFields : null;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((v): v is string => typeof v === 'string')
+    .slice(0, 24)
+    .map((v) => v.slice(0, 40));
 }
 
 // ── the bounded live buffer ──────────────────────────────────────────────────
@@ -231,7 +286,10 @@ const buffer: PulseFrame[] = [];
 const listeners = new Set<PulseListener>();
 let pending: PulseFrame[] = [];
 let timer: NodeJS.Timeout | null = null;
-let unsubscribe: (() => void) | null = null;
+let running = false;
+/** eventIds already buffered, so a re-read from a cursor cannot double-count. */
+const ingested = new Set<string>();
+const ingestedOrder: string[] = [];
 
 /** Every frame the platform has produced since this process started. */
 let totalFrames = 0;
@@ -289,32 +347,54 @@ function record(frame: PulseFrame): void {
 }
 
 /**
- * Start observing the fabric.
+ * Open the buffer for business.
  *
- * Idempotent, and safe to call before any transport is installed. Subscribing
- * to `'*'` means a producer added tomorrow appears here with no change to this
- * file — which is the property that stops this module from becoming a second
- * list of event types to keep in step.
+ * There used to be a `subscribe('*')` here, and it was the bug: a frame only
+ * reached the screen when the `emit()` that made it ran in THIS process, so on
+ * a multi-instance service the owner watched an idle map while another instance
+ * served the writes. Live now comes from the outbox tail — see
+ * `outbox-tail.service.ts` — and this module is the buffer and the metrics over
+ * whatever the tail hands it.
+ *
+ * The bus subscription is not kept alongside the tail. Two sources would
+ * deliver every same-process event twice and, worse, would make the screen
+ * appear to work in single-instance testing while still failing in production.
  */
 export function startPulse(): void {
-  if (unsubscribe) return;
-  unsubscribe = subscribe('*', (event) => {
-    try { record(project(event)); } catch (err) {
-      // A frame that cannot be built must not break the emit it came from.
-      logger.warn('[pulse] could not project an event', { err: (err as Error).message });
-    }
-  });
+  running = true;
 }
 
 export function stopPulse(): void {
-  try { unsubscribe?.(); } catch { /* already gone */ }
-  unsubscribe = null;
+  running = false;
   if (timer) { clearTimeout(timer); timer = null; }
   pending = [];
 }
 
 export function isPulseRunning(): boolean {
-  return unsubscribe !== null;
+  return running;
+}
+
+/**
+ * Take a page of frames from the tail.
+ *
+ * The one way a frame enters the buffer. Deduped on `eventId` here as well as
+ * in the browser: a reconnect re-reads from a cursor the client supplied, and
+ * two owners watching at once must not make one event two.
+ */
+export function ingestFrames(frames: PulseFrame[]): PulseFrame[] {
+  const fresh: PulseFrame[] = [];
+  for (const frame of frames) {
+    if (!frame?.eventId || ingested.has(frame.eventId)) continue;
+    ingested.add(frame.eventId);
+    ingestedOrder.push(frame.eventId);
+    record(frame);
+    fresh.push(frame);
+  }
+  while (ingestedOrder.length > BUFFER_LIMIT * 4) {
+    const id = ingestedOrder.shift();
+    if (id) ingested.delete(id);
+  }
+  return fresh;
 }
 
 /** Listen for batched frames. Returns an unsubscribe. */
@@ -333,6 +413,8 @@ export function recentFrames(limit = 60): PulseFrame[] {
 export function resetPulse(): void {
   stopPulse();
   listeners.clear();
+  ingested.clear();
+  ingestedOrder.length = 0;
   buffer.length = 0;
   arrivals.length = 0;
   latencies.length = 0;

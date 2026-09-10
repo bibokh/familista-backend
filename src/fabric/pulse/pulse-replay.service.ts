@@ -1,14 +1,18 @@
-// Replaying what already moved, from the record rather than from memory
+// Replaying a window of the outbox, with the same reader Live uses
 // ─────────────────────────────────────────────────────────────────────────────
-// LIVE reads the in-process ring buffer, which is bounded and dies with the
-// process. REPLAY reads `EventOutbox`, which is the actual durable record, and
-// produces the SAME frame shape — so the visualiser has one renderer and one
-// inspector, and switching mode changes where frames come from and nothing
-// else.
+// Live and Replay now read the SAME table through the SAME conversion. That was
+// not true before: Live was fed by the in-process event bus and Replay by
+// `EventOutbox`, which is why a `player.updated` row could exist in Postgres,
+// show in Replay, and never appear Live. One source removes the whole class of
+// disagreement between the two modes.
 //
-// That shared shape is the whole design decision here. A replay that returned a
-// different object would have grown a second projection, and a second
-// projection is a second place for a payload to escape from.
+//   Replay  a bounded historical window,  ordered by (createdAt, id)
+//   Live    everything after a cursor,    ordered by (createdAt, id)
+//
+// The rows go through `framesFromRows` in `outbox-tail.service.ts`, so there is
+// one row→frame path. A second projection would be a second place for a payload
+// to escape from, and a second chance for the two modes to describe the same
+// event differently.
 //
 // WHY THIS IS NOT AN ANALYTICS ENGINE
 //
@@ -28,11 +32,8 @@
 // built from the row's own columns and its payload is never opened.
 
 import { prisma } from '../../config/database';
-import { canonicalNameForLegacyKind } from '../event-taxonomy';
-import { eventFromRow, isFabricRow } from '../outbox-transport';
-import {
-  destinationLaneFor, project, sourceLaneFor, type PulseFrame,
-} from './pulse.service';
+import { framesFromRows } from './outbox-tail.service';
+import type { PulseFrame } from './pulse.service';
 
 /** The windows the interface offers. Minutes. */
 export const REPLAY_WINDOWS = Object.freeze([1, 5, 15]);
@@ -59,47 +60,6 @@ export interface ReplayResult {
   legacyCount: number;
 }
 
-/**
- * A frame for a row written before the canonical envelope existed.
- *
- * Built entirely from columns — id, kind, clubId, createdAt — because a legacy
- * row's `payload` is an arbitrary producer bag with no schema and no
- * classification, and opening it here would put unclassified content into the
- * one surface that promised not to carry any. So the frame says what kind of
- * thing happened and when, and nothing about what it contained.
- */
-function frameFromLegacyRow(row: {
-  id: string; clubId: string | null; kind: string; createdAt: Date;
-  source: string | null; processedAt: Date | null; failedAt: Date | null;
-}): PulseFrame {
-  const eventType = canonicalNameForLegacyKind(row.kind) ?? `legacy.${String(row.kind || 'unknown').toLowerCase()}`;
-  const at = row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt);
-  return {
-    eventId: row.id,
-    eventType,
-    schemaVersion: 1,
-    occurredAt: at.toISOString(),
-    recordedAt: at.toISOString(),
-    // A legacy row records one timestamp, so the gap between happening and
-    // being written down is genuinely unknown rather than zero.
-    latencyMs: null,
-    clubId: row.clubId ?? null,
-    teamId: null,
-    subjectType: null,
-    subjectId: null,
-    sourceType: 'SERVICE',
-    correlationId: null,
-    causationId: null,
-    // Unknown, so treated as the most sensitive thing it could be. A legacy
-    // sensor or match row may well carry personal data.
-    dataClassification: 'RESTRICTED',
-    source: sourceLaneFor(eventType),
-    destination: destinationLaneFor(eventType),
-    registered: !!canonicalNameForLegacyKind(row.kind),
-    status: row.failedAt ? 'FAILED' : row.processedAt ? 'PROCESSED' : 'STORED',
-  };
-}
-
 const DAY_MINUTES = 24 * 60;
 
 /**
@@ -116,9 +76,16 @@ export async function replayWindow(query: ReplayQuery = {}): Promise<ReplayResul
   const from = query.from instanceof Date ? query.from : new Date(to.getTime() - minutes * 60_000);
   const limit = Math.min(Math.max(Number(query.limit ?? REPLAY_MAX), 1), REPLAY_MAX);
 
+  // Selected DESCENDING and reversed, so a window holding more rows than the
+  // cap returns the most RECENT of them. Ascending would hand back the oldest
+  // and silently omit what just happened, which is the opposite of what
+  // somebody watching a replay wants.
+  //
+  // The secondary sort on `id` is the same tie-break the live cursor uses, so a
+  // millisecond holding two events orders them identically in both modes.
   const rows = await prisma.eventOutbox.findMany({
     where: { createdAt: { gte: from, lte: to } },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: limit + 1,
     select: {
       id: true, clubId: true, kind: true, payload: true, source: true,
@@ -128,22 +95,17 @@ export async function replayWindow(query: ReplayQuery = {}): Promise<ReplayResul
 
   const truncated = rows.length > limit;
   const page = truncated ? rows.slice(0, limit) : rows;
+  page.reverse();
 
-  let legacyCount = 0;
-  const frames: PulseFrame[] = [];
+  // The SAME conversion the tail uses — one row→frame path, so a payload has
+  // one place to escape from rather than two, and a legacy row is read the
+  // same way in both modes.
+  const frames: PulseFrame[] = await framesFromRows(page as unknown as Array<Record<string, unknown>>);
+  const legacyCount = page.filter((r) => {
+    const p = r.payload as Record<string, unknown> | null;
+    return !(p && typeof p === 'object' && '__familista_event' in p);
+  }).length;
 
-  for (const row of page) {
-    if (isFabricRow(row.payload)) {
-      const event = eventFromRow(row);
-      if (!event) continue;   // a row whose envelope will not parse is skipped, not guessed at
-      frames.push(project(event, row.failedAt ? 'FAILED' : row.processedAt ? 'PROCESSED' : 'STORED'));
-    } else {
-      legacyCount += 1;
-      frames.push(frameFromLegacyRow(row));
-    }
-  }
-
-  frames.reverse();
   return { frames, from: from.toISOString(), to: to.toISOString(), truncated, legacyCount };
 }
 

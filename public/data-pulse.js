@@ -63,6 +63,14 @@
     refreshed: false,
     reconnectAttempt: 0,
     inspecting: null,
+    /**
+     * The last outbox position this browser has rendered, as `<iso>|<id>`.
+     *
+     * Sent on reconnect so the tail resumes exactly there: no gap, and no
+     * repeat of anything already on screen. Non-secret — a timestamp and a row
+     * id — and never a credential.
+     */
+    cursor: null,
     replay: { minutes: 5, loading: false, counts: null, truncated: false },
   };
   window._DP = DP;
@@ -78,7 +86,8 @@
   // ── the lanes ──────────────────────────────────────────────────────────────
 
   function laneId(kind, name) {
-    return 'dp-' + kind + '-' + String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    var k = kind === 'source' ? 'src' : kind === 'dest' ? 'dst' : kind;
+    return 'dp-' + k + '-' + String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-');
   }
 
   /**
@@ -125,31 +134,40 @@
     var t = DP.topology;
     if (!t) return '<div class="sy-dp-map sy-dp-map-loading"></div>';
 
-    var sources = t.sources.map(function (name) {
-      return '<div class="sy-dp-node sy-dp-source" id="' + laneId('src', name) + '">'
-        + '<span>' + esc(name) + '</span></div>';
-    }).join('');
+    // A pad, not a box: an LED, a label, and a connector stub the trace meets.
+    var pad = function (kind, name, extra) {
+      return '<div class="sy-dp-node sy-dp-' + kind + (extra || '') + '" id="' + laneId(kind === 'source' ? 'src' : 'dst', name) + '">'
+        + '<i class="sy-dp-led"></i><span>' + esc(name) + '</span>'
+        + (kind === 'source' ? '<u class="sy-dp-stub"></u>' : '<u class="sy-dp-stub sy-dp-stub-in"></u>')
+        + '</div>';
+    };
 
-    var dests = t.destinations.map(function (d) {
-      return '<div class="sy-dp-node sy-dp-dest" id="' + laneId('dst', d.name) + '">'
-        + '<span>' + esc(d.name) + '</span></div>';
-    }).join('');
+    var sources = t.sources.map(function (n) { return pad('source', n); }).join('');
+    var dests = t.destinations.map(function (d) { return pad('dest', d.name); }).join('');
 
-    // FUTURE lanes are drawn dashed, dimmed, and labelled. They are architecture
-    // the platform intends, not destinations anything reaches today, and the
-    // label is what stops the map from being a claim it cannot support.
+    // FUTURE lanes are drawn, dashed and labelled, with NO trace running to
+    // them. An unconnected pad on a board is the honest picture of a
+    // destination that consumes nothing.
     var future = t.future.map(function (d) {
       return '<div class="sy-dp-node sy-dp-dest sy-dp-future" title="' + esc(d.note) + '">'
-        + '<span>' + esc(d.name) + '</span><em>Future</em></div>';
+        + '<i class="sy-dp-led"></i><span>' + esc(d.name) + '</span><em>Future</em></div>';
     }).join('');
 
-    return '<div class="sy-dp-map">'
+    return '<div class="sy-dp-map" id="dp-map">'
+      // The copper. One <svg> behind everything, sized to the board, holding a
+      // real <path> per connection — measured from the pads once they are laid
+      // out, so a packet follows the trace rather than a straight line between
+      // two boxes.
+      + '<svg class="sy-dp-traces" id="dp-traces" aria-hidden="true" focusable="false"></svg>'
       + '<div class="sy-dp-col sy-dp-col-src"><h4>Sources</h4>' + sources + '</div>'
       + '<div class="sy-dp-col sy-dp-col-fabric">'
         + '<h4>Familista Data Fabric</h4>'
         + '<div class="sy-dp-fabric" id="dp-fabric">'
           + '<div class="sy-dp-fabric-ring"></div>'
-          + '<b>Event Envelope</b><span>Event Outbox</span>'
+          + '<b>Event Envelope</b>'
+          // The outbox is its own lit element: it is the moment the row becomes
+          // the truth, and the whole architecture now reads from it.
+          + '<span class="sy-dp-outbox" id="dp-outbox"><i class="sy-dp-led"></i>Event Outbox</span>'
         + '</div>'
       + '</div>'
       + '<div class="sy-dp-col sy-dp-col-dst"><h4>Destinations</h4>' + dests
@@ -157,6 +175,92 @@
       + '</div>'
       + '<div class="sy-dp-stage" id="dp-stage" aria-hidden="true"></div>'
       + '</div>';
+  }
+
+  // ── the copper ──────────────────────────────────────────────────────────────
+  //
+  // Traces are built ONCE from measured pad geometry and cached until the board
+  // resizes. Rebuilding them per event would mean a layout read per packet, and
+  // measuring during an animation is how a visualiser starts costing more than
+  // the thing it watches.
+
+  var traces = {};        // 'src:Players' -> SVGPathElement
+  var traceBox = '';      // the geometry the current traces were built for
+
+  /**
+   * An L-shaped trace with a chamfered corner, the way copper actually turns.
+   *
+   * Out of the pad horizontally, a 45° break, then straight into the target's
+   * edge. Two segments and one chamfer — enough to read as a circuit, cheap
+   * enough to animate.
+   */
+  function tracePath(from, to) {
+    var midX = from.x + (to.x - from.x) * 0.55;
+    var c = Math.min(14, Math.abs(to.y - from.y) / 2);
+    if (c < 2) return 'M' + from.x + ',' + from.y + ' L' + to.x + ',' + to.y;
+    var dir = to.y > from.y ? 1 : -1;
+    return 'M' + from.x + ',' + from.y
+      + ' L' + (midX - c) + ',' + from.y
+      + ' L' + midX + ',' + (from.y + c * dir)
+      + ' L' + midX + ',' + (to.y - c * dir)
+      + ' L' + (midX + c) + ',' + to.y
+      + ' L' + to.x + ',' + to.y;
+  }
+
+  function buildTraces() {
+    var svg = document.getElementById('dp-traces');
+    var map = document.getElementById('dp-map');
+    var fabric = document.getElementById('dp-fabric');
+    var t = DP.topology;
+    if (!svg || !map || !fabric || !t) return false;
+
+    var box = map.getBoundingClientRect();
+    if (box.width < 40 || box.height < 40) return false;
+
+    var key = Math.round(box.width) + 'x' + Math.round(box.height) + ':' + t.sources.length;
+    if (key === traceBox && svg.childElementCount) return true;   // already correct
+
+    var point = function (el, side) {
+      var r = el.getBoundingClientRect();
+      return {
+        x: (side === 'right' ? r.right : side === 'left' ? r.left : r.left + r.width / 2) - box.left,
+        y: r.top - box.top + r.height / 2,
+      };
+    };
+
+    svg.setAttribute('viewBox', '0 0 ' + box.width + ' ' + box.height);
+    svg.setAttribute('width', String(box.width));
+    svg.setAttribute('height', String(box.height));
+    svg.innerHTML = '';
+    traces = {};
+
+    var add = function (id, from, to) {
+      var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', tracePath(from, to));
+      path.setAttribute('class', 'sy-dp-trace');
+      path.setAttribute('id', id);
+      svg.appendChild(path);
+      traces[id] = path;
+    };
+
+    var fabL = point(fabric, 'left');
+    var fabR = point(fabric, 'right');
+
+    t.sources.forEach(function (name) {
+      var el = document.getElementById(laneId('source', name));
+      if (el) add('tr-src-' + slug(name), point(el, 'right'), fabL);
+    });
+    t.destinations.forEach(function (d) {
+      var el = document.getElementById(laneId('dest', d.name));
+      if (el) add('tr-dst-' + slug(d.name), fabR, point(el, 'left'));
+    });
+
+    traceBox = key;
+    return true;
+  }
+
+  function slug(name) {
+    return String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-');
   }
 
   function emptyHtml() {
@@ -176,6 +280,12 @@
       var cls = 'sy-dp-row' + (f.registered ? '' : ' sy-dp-row-unknown');
       return '<button class="' + cls + '" data-sy-dp-inspect="' + esc(f.eventId) + '">'
         + '<code>' + esc(f.eventType) + '</code>'
+        // The resolved names, when the server could resolve them. `data-user-content`
+        // so the catalogue pass leaves a person's name and a club's name alone.
+        + (f.subjectLabel
+          ? '<span class="sy-dp-row-who" data-user-content>' + esc(f.subjectLabel) + '</span>' : '')
+        + (f.clubLabel
+          ? '<span class="sy-dp-row-club" data-user-content>' + esc(f.clubLabel) + '</span>' : '')
         + '<span class="sy-dp-row-lane">' + esc(f.source) + ' → ' + esc(f.destination) + '</span>'
         + '<span class="sy-dp-row-cls sy-dp-cls-' + esc(String(f.dataClassification).toLowerCase()) + '">'
         + esc(f.dataClassification) + '</span>'
@@ -288,71 +398,117 @@
       return;
     }
     var host = document.getElementById('dp-host');
-    if (host) { host.innerHTML = shell(); translate(host); }
+    if (host) {
+      host.innerHTML = shell();
+      translate(host);
+      // After layout, so the pads have real boxes to measure.
+      requestAnimationFrame(function () { traceBox = ''; buildTraces(); });
+    }
   }
 
   // ── the dot ────────────────────────────────────────────────────────────────
 
   /**
-   * Animate one real event along its real path.
+   * Send one real event along the real copper, in two legs.
    *
-   * Source node → fabric → destination node, using the nodes' measured
-   * positions so the dot lands on the lane the server said the event took. If
-   * either node is missing — an event whose lane this build does not draw — no
-   * dot is created rather than one being sent somewhere arbitrary.
+   *   source pad → fabric      the event arriving
+   *   Event Outbox lights      the row becoming the truth
+   *   fabric → destination pad the event going where it is consumed
+   *
+   * The packet rides the actual `<path>` via `offset-path`, so it follows the
+   * trace's corners instead of cutting across the board. A pad's LED is lit
+   * only while its own traffic is passing and decays afterwards — a board with
+   * everything permanently lit says nothing about what is happening.
+   *
+   * If either pad is missing — an event whose lane this build does not draw —
+   * no packet is created rather than one being sent somewhere arbitrary.
    */
   function pulse(frame) {
     var stage = document.getElementById('dp-stage');
-    if (!stage) return;
-    if (stage.childElementCount >= DOT_LIMIT) return;   // hard cap, oldest keep flying
+    if (!stage || !buildTraces()) return;
+    if (stage.childElementCount >= DOT_LIMIT) return;   // hard cap; counters still move
 
-    var src = document.getElementById(laneId('src', frame.source));
-    var dst = document.getElementById(laneId('dst', frame.destination));
-    var mid = document.getElementById('dp-fabric');
-    if (!src || !dst || !mid) return;
+    var inTrace = traces['tr-src-' + slug(frame.source)];
+    var outTrace = traces['tr-dst-' + slug(frame.destination)];
+    var srcPad = document.getElementById(laneId('source', frame.source));
+    var dstPad = document.getElementById(laneId('dest', frame.destination));
+    var outbox = document.getElementById('dp-outbox');
+    var fabric = document.getElementById('dp-fabric');
+    if (!inTrace || !outTrace || !srcPad || !dstPad) return;
 
-    var base = stage.getBoundingClientRect();
-    var a = src.getBoundingClientRect();
-    var b = mid.getBoundingClientRect();
-    var c = dst.getBoundingClientRect();
+    var cls = 'sy-dp-cl-' + String(frame.dataClassification || 'INTERNAL').toLowerCase();
+    var IN_MS = 780;
+    var OUT_MS = 620;
 
-    var p = function (r) {
-      return { x: r.left - base.left + r.width / 2, y: r.top - base.top + r.height / 2 };
+    // A packet: a small rounded bar, so direction of travel reads at a glance.
+    var packet = function (trace, ms, delay) {
+      var el = document.createElement('i');
+      el.className = 'sy-dp-packet ' + cls;
+      stage.appendChild(el);
+      var anim = el.animate([
+        { offsetDistance: '0%', opacity: 0 },
+        { offsetDistance: '6%', opacity: 1, offset: 0.08 },
+        { offsetDistance: '94%', opacity: 1, offset: 0.92 },
+        { offsetDistance: '100%', opacity: 0 },
+      ], { duration: ms, delay: delay || 0, easing: 'cubic-bezier(.45,0,.35,1)', fill: 'both' });
+      // The path travels with the packet, so two events on different traces are
+      // genuinely independent animations rather than one shared timeline.
+      el.style.offsetPath = 'path("' + trace.getAttribute('d') + '")';
+      el.style.offsetRotate = '0deg';
+      var done = function () { try { el.remove(); } catch (_) {} };
+      if (anim && anim.finished && anim.finished.then) anim.finished.then(done, done);
+      else setTimeout(done, ms + (delay || 0) + 80);
+      return anim;
     };
-    var from = p(a); var via = p(b); var to = p(c);
 
-    var dot = document.createElement('i');
-    dot.className = 'sy-dp-dot sy-dp-dot-' + String(frame.dataClassification || 'INTERNAL').toLowerCase();
-    dot.style.transform = 'translate3d(' + from.x + 'px,' + from.y + 'px,0)';
-    stage.appendChild(dot);
+    // The trace itself lights along its length, on stroke-dashoffset — a
+    // property that does not reflow.
+    var energise = function (trace, ms, delay) {
+      trace.classList.add('sy-dp-trace-hot');
+      var len = 0;
+      try { len = trace.getTotalLength(); } catch (_) { len = 600; }
+      var a = trace.animate([
+        { strokeDasharray: len + ' ' + len, strokeDashoffset: len },
+        { strokeDasharray: len + ' ' + len, strokeDashoffset: 0 },
+      ], { duration: ms, delay: delay || 0, easing: 'ease-out', fill: 'none' });
+      var cool = function () { trace.classList.remove('sy-dp-trace-hot'); };
+      if (a && a.finished && a.finished.then) a.finished.then(cool, cool);
+      else setTimeout(cool, ms + (delay || 0) + 200);
+    };
 
-    // Two hops, on transform only. The Web Animations API is used rather than a
-    // CSS class so the exact geometry travels with the event and the element can
-    // clean itself up on finish.
-    var anim = dot.animate([
-      { transform: 'translate3d(' + from.x + 'px,' + from.y + 'px,0)', opacity: 0 },
-      { transform: 'translate3d(' + via.x + 'px,' + via.y + 'px,0)', opacity: 1, offset: 0.5 },
-      { transform: 'translate3d(' + to.x + 'px,' + to.y + 'px,0)', opacity: 0 },
-    ], { duration: 1400, easing: 'cubic-bezier(.4,0,.2,1)' });
+    /** Light a pad's LED for as long as its own traffic is passing. */
+    var lightFor = function (el, ms, delay) {
+      if (!el) return;
+      setTimeout(function () {
+        el.classList.add('sy-dp-hot');
+        setTimeout(function () { el.classList.remove('sy-dp-hot'); }, ms);
+      }, delay || 0);
+    };
 
-    var done = function () { try { dot.remove(); } catch (_) {} };
-    if (anim && anim.finished && anim.finished.then) anim.finished.then(done, done);
-    else setTimeout(done, 1500);
+    // Leg one: the source announces itself, the trace lights, the packet runs.
+    lightFor(srcPad, IN_MS + 300, 0);
+    energise(inTrace, IN_MS, 0);
+    packet(inTrace, IN_MS, 0);
 
-    // The fabric acknowledges the pass-through. One class, removed on timeout,
-    // so a burst does not leave it stuck lit.
-    mid.classList.add('sy-dp-fabric-hit');
-    setTimeout(function () { mid.classList.remove('sy-dp-fabric-hit'); }, 400);
+    // Arrival: the fabric acknowledges once, and the OUTBOX lights, because
+    // that is the instant the row exists and Live reads rows.
+    setTimeout(function () {
+      if (fabric) {
+        fabric.classList.add('sy-dp-fabric-hit');
+        setTimeout(function () { fabric.classList.remove('sy-dp-fabric-hit'); }, 420);
+      }
+      if (outbox) {
+        outbox.classList.add('sy-dp-hot');
+        setTimeout(function () { outbox.classList.remove('sy-dp-hot'); }, 520);
+      }
+    }, IN_MS);
+
+    // Leg two: onward to whatever actually consumes it.
+    energise(outTrace, OUT_MS, IN_MS);
+    packet(outTrace, OUT_MS, IN_MS);
+    lightFor(dstPad, OUT_MS + 300, IN_MS);
   }
 
-  /**
-   * Take frames in, newest first, without ever showing one twice.
-   *
-   * A reconnect replays `backlog`, and a `pulse` batch can overlap it, so the
-   * same event arrives more than once by design. `eventId` is unique per event
-   * and never reused, so it is the identity to dedupe on — and the seen-set is
-   * trimmed with the buffer so it cannot grow without bound on a long session.
-   */
   function accept(frames, sampling) {
     if (!frames || !frames.length) return;
     DP.sampling = sampling || 1;
@@ -375,8 +531,22 @@
     paint('body');
     // Animate on the next frame, after the feed has laid out — measuring node
     // positions in the same tick as an innerHTML write would read a stale box.
+    // Animated on the next frame, after the feed has laid out — measuring pad
+    // geometry in the same tick as an innerHTML write reads a stale box.
+    //
+    // Two events sharing one trace are staggered so they read as two packets
+    // rather than one; events on different traces start together, because they
+    // genuinely happened together.
     requestAnimationFrame(function () {
-      for (var j = 0; j < frames.length && j < DOT_LIMIT; j++) pulse(frames[j]);
+      var perTrace = Object.create(null);
+      for (var j = 0; j < frames.length && j < DOT_LIMIT; j++) {
+        var f = frames[j];
+        var lane = f.source + '>' + f.destination;
+        var n = perTrace[lane] || 0;
+        perTrace[lane] = n + 1;
+        if (n === 0) pulse(f);
+        else setTimeout(pulse.bind(null, f), n * 160);
+      }
     });
   }
 
@@ -480,7 +650,9 @@
    */
   function dpStream(signal) {
     var t = accessToken();
-    return fetch(apiBase() + '/system/data-pulse/stream', {
+    // The cursor resumes the tail. It is a position, not a credential.
+    var q = DP.cursor ? '?cursor=' + encodeURIComponent(DP.cursor) : '';
+    return fetch(apiBase() + '/system/data-pulse/stream' + q, {
       method: 'GET',
       headers: t ? { Authorization: 'Bearer ' + t } : {},
       credentials: 'include',
@@ -505,7 +677,12 @@
   // ── the stream ─────────────────────────────────────────────────────────────
 
   function handle(event, data) {
+    if (event === 'cursor') { DP.cursor = data.cursor || DP.cursor; return; }
     if (event === 'hello') {
+      // Where the server started reading. Held so a reconnect resumes from what
+      // this browser actually rendered rather than from wherever the new
+      // instance happens to be.
+      DP.cursor = data.cursor || null;
       DP.connected = true;
       DP.lastError = null;
       DP.fatal = false;
@@ -653,6 +830,21 @@
     return '<div class="sy-dp-i-row"><span>' + esc(label) + '</span><b>' + esc(String(value)) + '</b></div>';
   }
 
+  /**
+   * A row holding a name somebody typed — a club's, a person's.
+   *
+   * Marked `data-user-content` so the translation pass does not translate a
+   * name. A translated club name is a bug, not a feature.
+   */
+  function rowUser(label, value) {
+    if (value === null || value === undefined || value === '') {
+      return '<div class="sy-dp-i-row"><span>' + esc(label) + '</span>'
+        + '<b class="sy-dp-unavailable">—</b></div>';
+    }
+    return '<div class="sy-dp-i-row"><span>' + esc(label) + '</span>'
+      + '<b data-user-content>' + esc(String(value)) + '</b></div>';
+  }
+
   window.dpInspect = function (eventId) {
     var f = null;
     for (var i = 0; i < DP.frames.length; i++) if (DP.frames[i].eventId === eventId) { f = DP.frames[i]; break; }
@@ -670,6 +862,12 @@
       + '<div class="sy-dp-i-head"><code>' + esc(f.eventType) + '</code>'
       + '<button class="sy-dp-i-close" data-sy-dp-close="1" aria-label="Close">×</button></div>'
       + '<div class="sy-dp-i-body">'
+        // Discovered by the server from the outbox row alone — nothing here was
+        // supplied by whoever opened this panel.
+        + rowUser('Club', f.clubLabel)
+        + rowUser(f.subjectType === 'PLAYER' ? 'Player' : 'Subject', f.subjectLabel)
+        + row('Changed fields', f.changedFields && f.changedFields.length
+          ? f.changedFields.join(', ') : null)
         + row('Event id', f.eventId)
         + row('Schema version', f.schemaVersion)
         + row('Occurred at', f.occurredAt)
@@ -768,6 +966,15 @@
 
   // A backgrounded tab does not need a live socket. Reconnecting on return is
   // cheaper than holding one open for a screen nobody is looking at.
+  // The board's geometry changes with the viewport, and a trace measured at one
+  // width sends packets to the wrong place at another. Rebuilt on a settle,
+  // never mid-animation.
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () { traceBox = ''; buildTraces(); }, 180);
+  });
+
   document.addEventListener('visibilitychange', function () {
     if (!DP.open || DP.mode !== 'LIVE') return;
     if (document.hidden) disconnect();

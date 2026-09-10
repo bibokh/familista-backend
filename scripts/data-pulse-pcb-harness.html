@@ -1,0 +1,41 @@
+<!doctype html><meta charset="utf-8">
+<link rel="stylesheet" href="/system/system.css">
+<style>body{margin:0;background:#070b14;padding:26px;font-family:system-ui,sans-serif}</style>
+<div id="pg-system"><div class="sy-shell"><aside class="sy-rail"></aside><div class="sy-main"><div class="sy-body"><div id="dp-host" class="sy-panel-plain"></div></div></div></div></div>
+<script>
+  var FAM_CONFIG = { API_BASE: '/api/v1' };
+  window.State = { token: 't' };
+  window.FamilistaAPI = { get: function(){ return new Promise(function(){}); }, refreshTokens: function(){ return Promise.resolve(false); } };
+  window.fetch = function () { return new Promise(function () {}); };
+</script>
+<script src="/data-pulse.js"></script>
+<script>
+window.dpMount('dp-host');
+var DP = window._DP;
+DP.topology = {
+  sources: ['Clubs','Users','Players','Training','Matches','Transfers','Medical','Media','AI','System'],
+  destinations: [{name:'Operational Data',live:true},{name:'Media',live:true},{name:'Audit',live:true},{name:'Analytics',live:true}],
+  future: ['ML Pipeline','Feature Store','Data Lake','Cameras','GPS','Edge'].map(function(n){
+    return {name:n,live:false,note:'Architecture only — nothing is connected to this yet'};}),
+  instrumented: [], notInstrumented: ['training.started','match.completed'],
+};
+DP.metrics = { eventsPerSecond:1, eventsPerMinute:12, activeClubs:2, totalObserved:37, averageLatencyMs:6,
+  lastEventAt:new Date().toISOString(), processed:null, failed:null, pending:null, notInstrumented:['processed','failed','pending'] };
+DP.connected = true;
+window.__repaint();
+var mk = function (id, type, src, dst, cls, who) {
+  return { eventId:id, eventType:type, schemaVersion:1,
+    occurredAt:new Date().toISOString(), recordedAt:new Date().toISOString(), latencyMs:6,
+    clubId:'fc', teamId:'t1', subjectType:'PLAYER', subjectId:null, sourceType:'USER',
+    correlationId:'c1', causationId:null, dataClassification:cls,
+    source:src, destination:dst, registered:true, status:'STORED',
+    clubLabel:'FC Familista', subjectLabel:who, changedFields:['position'] };
+};
+setTimeout(function () {
+  window.__feed([
+    mk('e1','player.updated','Players','Operational Data','CONFIDENTIAL','Amara Okonkwo'),
+    mk('e2','media.created','Media','Media','INTERNAL',null),
+    mk('e3','club.lifecycle.changed','Clubs','Audit','INTERNAL',null),
+  ]);
+}, 250);
+</script>

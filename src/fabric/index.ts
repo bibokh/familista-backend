@@ -50,7 +50,7 @@ export { fabricStatus, type FabricStatus } from './fabric-status.service';
 // is an allow-list of envelope fields and never carries a payload.
 
 export {
-  startPulse, stopPulse, isPulseRunning, onPulse, recentFrames, resetPulse, flushNow,
+  startPulse, stopPulse, isPulseRunning, onPulse, recentFrames, resetPulse, flushNow, ingestFrames,
   pulseMetrics, pulseTopology, project, sourceLaneFor, destinationLaneFor,
   INSTRUMENTED_EVENT_TYPES, SOURCE_LANES, LIVE_DESTINATIONS, FUTURE_DESTINATIONS,
   BUFFER_LIMIT, FLUSH_MS, SAMPLE_THRESHOLD,
@@ -61,6 +61,17 @@ export {
   replayWindow, replayCounts, REPLAY_WINDOWS, REPLAY_MAX,
   type ReplayQuery, type ReplayResult,
 } from './pulse/pulse-replay.service';
+
+// The durable tail. Live reads the outbox, so an event written by one instance
+// is seen by an owner streaming from another — which the in-process bus could
+// never do.
+export {
+  tailStep, tailAfter, latestCursor, framesFromRows,
+  formatCursor, parseCursor, TAIL_BATCH, TAIL_INTERVAL_MS,
+  type OutboxCursor,
+} from './pulse/outbox-tail.service';
+
+export { resolveSubjects, isNameableSubject } from './pulse/subject-resolver.service';
 
 /**
  * Install the default transport.
@@ -74,11 +85,10 @@ export function initDataFabric(): void {
   const { outboxTransport: t } = require('./outbox-transport') as typeof import('./outbox-transport');
   const { setEventTransport: set } = require('./event-bus') as typeof import('./event-bus');
   set(t);
-  // Observing from boot rather than from the owner's first visit, so "last
-  // event time" means the platform's last event and not the last one somebody
-  // happened to be watching. One in-process subscriber, no I/O, bounded buffer.
-  const { startPulse: watch } = require('./pulse/pulse.service') as typeof import('./pulse/pulse.service');
-  watch();
+  // Data Pulse is NOT started here any more. It used to subscribe to this bus,
+  // which is exactly why a `player.updated` written by one instance never
+  // reached an owner watching another. Live now tails `EventOutbox` and starts
+  // with the first stream that asks for it — see `data-pulse.routes.ts`.
 }
 
 // ── secrets ──────────────────────────────────────────────────────────────────

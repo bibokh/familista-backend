@@ -1,0 +1,37 @@
+-- Familista Data Pulse — the live tail's index
+--
+-- PURELY ADDITIVE. One index on two existing columns. No column is added,
+-- dropped, renamed or re-typed; no row is read, written, moved or deleted; no
+-- constraint is created or changed.
+--
+-- WHAT IT IS FOR
+--
+-- Data Pulse's Live mode tails `EventOutbox` so that an event written by one
+-- Render instance is seen by a Platform Owner streaming from another. The tail
+-- is a keyset scan:
+--
+--   WHERE ("createdAt", "id") > ($1, $2)
+--   ORDER BY "createdAt", "id"
+--   LIMIT $3
+--
+-- THE PAIR, NOT THE TIMESTAMP
+--
+-- `createdAt` is timestamp(3), and one player update emits `player.updated`
+-- and `player.photo.attached` inside the same millisecond. A cursor on time
+-- alone would either replay one of them on every poll or skip one, depending
+-- on which side of the comparison it landed. Ordering on the composite pair is
+-- total — no two rows share both — so the cursor is exact.
+--
+-- WHY THE EXISTING INDEXES DO NOT SERVE IT
+--
+-- `[clubId, createdAt]` is led by `clubId`, and this scan is deliberately
+-- cross-tenant: the platform owner watches every club. `[publishedAt]` and
+-- `[topic, processedAt]` are led by columns the tail does not filter on.
+-- Without this index Postgres sequentially scans EventOutbox on every poll —
+-- correct, and progressively slower as the table grows.
+--
+-- Guarded so it is safe to replay against a database bootstrapped with
+-- `db push`.
+
+CREATE INDEX IF NOT EXISTS "EventOutbox_createdAt_id_idx"
+  ON "EventOutbox" ("createdAt", "id");

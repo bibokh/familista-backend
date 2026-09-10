@@ -1491,6 +1491,15 @@ model EventOutbox {
   @@index([clubId, createdAt])
   @@index([publishedAt])
   @@index([topic, processedAt])
+  /// The Data Pulse live tail: "every row after this (createdAt, id) pair".
+  ///
+  /// The pair, not the timestamp. `createdAt` is timestamp(3) and one player
+  /// update emits two events inside the same millisecond, so a cursor on time
+  /// alone would either replay one for ever or skip one. Ordering on the pair
+  /// is total, and this index is what makes that ordering a range scan instead
+  /// of a sort over the whole table. `[clubId, createdAt]` cannot serve it —
+  /// the tail is deliberately cross-tenant, so the leading column is wrong.
+  @@index([createdAt, id])
 }
 
 /// MatchEventSequence — internal counter table backing EventOutbox.seq.

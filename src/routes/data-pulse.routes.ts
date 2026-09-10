@@ -32,11 +32,15 @@ import { Router, type Request, type Response } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
 import { assertPlatformOwner } from '../platform/system.service';
 import {
-  flushNow, onPulse, pulseMetrics, pulseTopology, recentFrames, startPulse,
+  flushNow, ingestFrames, onPulse, pulseMetrics, pulseTopology, recentFrames, startPulse,
   BUFFER_LIMIT, FLUSH_MS, SAMPLE_THRESHOLD,
   type PulseBatch,
 } from '../fabric/pulse/pulse.service';
 import { replayCounts, replayWindow, REPLAY_MAX, REPLAY_WINDOWS } from '../fabric/pulse/pulse-replay.service';
+import {
+  formatCursor, latestCursor, parseCursor, tailStep,
+  TAIL_BATCH, TAIL_INTERVAL_MS, type OutboxCursor,
+} from '../fabric/pulse/outbox-tail.service';
 
 const router = Router();
 router.use(authenticate);
@@ -104,7 +108,7 @@ const HEARTBEAT_MS = 25_000;
  * second would be exactly the aggressive database traffic the brief rules out,
  * and these numbers are already in memory.
  */
-router.get('/stream', (req: Request, res: Response) => {
+router.get('/stream', async (req: Request, res: Response) => {
   startPulse();
 
   res.status(200);
@@ -125,17 +129,74 @@ router.get('/stream', (req: Request, res: Response) => {
   // reconnect policy lives with the server that knows its own load.
   try { res.write('retry: 3000\n\n'); } catch { open = false; }
 
+  /**
+   * Where this connection starts reading.
+   *
+   * A `cursor` from the client means "resume": the browser reconnected and is
+   * telling us the last pair it actually rendered, so nothing between is lost
+   * and nothing already drawn is repeated. Without one, the cursor is seeded at
+   * the NEWEST existing row — Live means "after I started watching", and a
+   * screen that animated ten minutes of history on open would be lying about
+   * what is happening now. Those rows are Replay's job and remain there.
+   */
+  let cursor: OutboxCursor | null = parseCursor(String(req.query.cursor ?? ''));
+  let seeded = false;
+  try {
+    if (!cursor) { cursor = await latestCursor(); seeded = true; }
+  } catch {
+    // The seed failed; the tail will simply find nothing until it succeeds.
+    cursor = null;
+  }
+
   send('hello', {
     topology: pulseTopology(),
     metrics: pulseMetrics(),
-    limits: { bufferLimit: BUFFER_LIMIT, flushMs: FLUSH_MS, sampleThreshold: SAMPLE_THRESHOLD },
+    cursor: formatCursor(cursor),
+    resumed: !seeded && cursor !== null,
+    limits: {
+      bufferLimit: BUFFER_LIMIT, flushMs: FLUSH_MS, sampleThreshold: SAMPLE_THRESHOLD,
+      tailBatch: TAIL_BATCH, tailIntervalMs: TAIL_INTERVAL_MS,
+    },
   });
-  // Catch the client up on what it missed, as one frame rather than a replay
-  // storm of individual events.
+  // What this instance has already buffered, as one frame rather than a storm.
   send('backlog', { frames: recentFrames(60) });
 
   const off = onPulse((batch: PulseBatch) => send('pulse', batch));
 
+  /**
+   * One tail poll. Reads the outbox, feeds the buffer, advances the cursor.
+   *
+   * The cursor advances only as far as rows were actually read, and it travels
+   * to the client on every batch so a reconnect can resume from what the
+   * browser rendered rather than from what this instance last read.
+   *
+   * When a poll returns a full batch there is more waiting, so the next poll is
+   * immediate rather than a second later — a backlog drains at the speed of the
+   * database instead of two hundred rows per second.
+   */
+  let polling = false;
+  const poll = async (): Promise<void> => {
+    if (!open || polling) return;
+    polling = true;
+    try {
+      const step = await tailStep(cursor, TAIL_BATCH);
+      cursor = step.cursor;
+      if (step.frames.length) {
+        // Deduped in the buffer as well as in the browser: two owners may watch
+        // at once, and a resumed cursor may overlap what was already read.
+        const fresh = ingestFrames(step.frames);
+        if (fresh.length) {
+          send('cursor', { cursor: formatCursor(cursor) });
+          flushNow();
+        }
+      }
+      if (step.more && open) { polling = false; void poll(); return; }
+    } finally {
+      polling = false;
+    }
+  };
+
+  const tailTick = setInterval(() => { void poll(); }, TAIL_INTERVAL_MS);
   const metricsTick = setInterval(() => send('metrics', pulseMetrics()), 1_000);
   const beat = setInterval(() => {
     if (!open) return;
@@ -144,6 +205,7 @@ router.get('/stream', (req: Request, res: Response) => {
 
   const stop = (): void => {
     open = false;
+    clearInterval(tailTick);
     clearInterval(metricsTick);
     clearInterval(beat);
     try { off(); } catch { /* already gone */ }
@@ -154,8 +216,7 @@ router.get('/stream', (req: Request, res: Response) => {
   req.on('error', stop);
   res.on('close', stop);
 
-  // Anything already buffered goes out now rather than on the next tick, so a
-  // freshly opened panel is not blank for a quarter of a second.
+  // Anything already buffered goes out now rather than on the next tick.
   flushNow();
 });
 

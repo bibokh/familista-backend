@@ -667,7 +667,14 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
 
 .sy-dp-wrap {
   border-radius: var(--sy-radius); border: 1px solid var(--sy-line);
-  background: var(--sy-panel); padding: 16px 18px 18px; min-width: 0;
+  background: var(--sy-panel); padding: 16px 18px 18px;
+  /* The board's traces are measured from laid-out geometry, so the panel must
+     not depend on its parent to stretch it: dropped into a flex container it
+     would otherwise shrink to content width and the copper would be measured
+     for a board a fifth of its real size. `width:100%` with `min-width:0`
+     makes it fill whatever column it is mounted in and still shrink below its
+     content when that column is narrow. */
+  width: 100%; min-width: 0; box-sizing: border-box;
 }
 
 .sy-dp-head { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -726,78 +733,159 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
    about instrumentation, not a measurement. */
 .sy-dp-unavailable { font-size: 10px; font-style: italic; color: var(--sy-tx-3); }
 
-/* ── the map ────────────────────────────────────────────────────────────────
-   Three columns and one overlay. `position:relative` on the map is what the
-   stage's absolute positioning is measured against. */
+/* ── the board ──────────────────────────────────────────────────────────────
+   A printed circuit, not three columns with a dot between them. Three grid
+   tracks hold the pads; one <svg> underneath holds the copper. The map is the
+   positioning context every trace and packet is measured against, so it must
+   stay `position: relative`.
+
+   The whole block animates `transform`, `opacity` and `stroke-dashoffset` and
+   nothing else. A trace that lit by changing its width, or a pad that grew when
+   hot, would reflow the board under a reader's eyes. */
 .sy-dp-map {
   position: relative;
-  display: grid; grid-template-columns: 1fr auto 1fr; gap: 22px;
-  align-items: start; padding: 4px 2px 8px;
+  display: grid; grid-template-columns: 1fr auto 1fr; gap: 30px;
+  align-items: start; padding: 10px 2px 12px;
+  /* A faint substrate. Two hairline gradients, static — the board is a board
+     whether or not anything is travelling on it. */
+  background-image:
+    linear-gradient(rgba(59, 130, 246, .045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 130, 246, .045) 1px, transparent 1px);
+  background-size: 28px 28px, 28px 28px;
+  border-radius: 12px;
 }
-.sy-dp-map-loading { min-height: 260px; }
-.sy-dp-col { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.sy-dp-map-loading { min-height: 300px; }
+
+/* The copper. Behind the pads, hit-testing nothing. */
+.sy-dp-traces {
+  position: absolute; inset: 0; pointer-events: none;
+  overflow: visible; z-index: 0;
+}
+.sy-dp-trace {
+  fill: none;
+  stroke: var(--sy-line-2);
+  stroke-width: 1.25;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+/* Lit while its own event is passing, and only then. */
+.sy-dp-trace-hot {
+  stroke: var(--sy-accent-2);
+  stroke-width: 1.75;
+  filter: drop-shadow(0 0 3px rgba(34, 211, 238, .55));
+}
+
+.sy-dp-col { position: relative; z-index: 1; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
 .sy-dp-col > h4 {
   margin: 0 0 4px; font-size: 9.5px; font-weight: 800; text-transform: uppercase;
   letter-spacing: .08em; color: var(--sy-tx-3);
 }
-.sy-dp-col-dst > h4, .sy-dp-col-dst .sy-dp-node { text-align: right; }
+.sy-dp-col-dst > h4 { text-align: right; }
 .sy-dp-col-fabric { align-items: center; justify-content: flex-start; }
 
+/* A pad: an LED, a label, and a connector stub where the trace lands. */
 .sy-dp-node {
-  border-radius: 10px; border: 1px solid var(--sy-line);
-  background: var(--sy-panel-2); padding: 7px 11px;
+  position: relative;
+  display: flex; align-items: center; gap: 8px;
+  border-radius: 8px; border: 1px solid var(--sy-line);
+  background: linear-gradient(180deg, rgba(24, 33, 54, .75), rgba(18, 25, 42, .6));
+  padding: 8px 11px;
   font-size: 11.5px; font-weight: 600; color: var(--sy-tx-2);
+  /* Border and shadow only, so lighting a pad cannot move it. */
+  transition: border-color .2s ease, box-shadow .3s ease, color .2s ease;
 }
-.sy-dp-source { border-left: 2px solid var(--sy-accent); }
-.sy-dp-dest { border-right: 2px solid var(--sy-accent-2); }
+.sy-dp-source { border-left: 2px solid rgba(59, 130, 246, .55); }
+.sy-dp-dest { border-right: 2px solid rgba(34, 211, 238, .55); flex-direction: row-reverse; }
+.sy-dp-col-dst .sy-dp-node { text-align: right; }
 
-/* FUTURE lanes: dashed, dimmed, and labelled in words. The label is what stops
-   the map from claiming a destination that consumes nothing. */
-.sy-dp-future-group { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+/* The LED. Dark until its own traffic passes. */
+.sy-dp-led {
+  flex: none; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--sy-line-2);
+  transition: background-color .2s ease, box-shadow .3s ease;
+}
+.sy-dp-hot { border-color: var(--sy-accent-2); color: var(--sy-tx); box-shadow: 0 0 0 1px rgba(34, 211, 238, .25); }
+.sy-dp-hot > .sy-dp-led,
+.sy-dp-hot .sy-dp-led {
+  background: var(--sy-accent-2);
+  box-shadow: 0 0 7px 1px rgba(34, 211, 238, .8);
+}
+
+/* The stub: the short run of copper on the pad itself, so a trace appears to
+   terminate at a connector rather than at a rectangle's edge. */
+.sy-dp-stub {
+  position: absolute; top: 50%; width: 7px; height: 1.25px;
+  background: var(--sy-line-2); transform: translateY(-50%);
+}
+.sy-dp-source .sy-dp-stub { right: -7px; }
+.sy-dp-dest .sy-dp-stub-in { left: -7px; }
+
+/* FUTURE pads carry no trace at all. An unconnected pad is the honest picture
+   of a destination nothing reaches. */
+.sy-dp-future-group { margin-top: 12px; display: flex; flex-direction: column; gap: 7px; }
 .sy-dp-future {
   border: 1px dashed var(--sy-line-2); border-right-width: 1px;
-  background: transparent; color: var(--sy-tx-3); opacity: .62;
-  display: flex; align-items: baseline; justify-content: flex-end; gap: 7px;
+  background: transparent; color: var(--sy-tx-3); opacity: .58;
+  justify-content: flex-end;
 }
+.sy-dp-future .sy-dp-led { background: transparent; border: 1px solid var(--sy-line-2); width: 5px; height: 5px; }
 .sy-dp-future em {
   font-style: normal; font-size: 8.5px; font-weight: 800; letter-spacing: .08em;
   text-transform: uppercase; color: var(--sy-warn); opacity: .8;
 }
 
+/* The die at the centre of the board. */
 .sy-dp-fabric {
-  position: relative; width: 132px; min-height: 96px;
-  border-radius: 14px; border: 1px solid var(--sy-line-2);
-  background: linear-gradient(160deg, rgba(59,130,246,.14), rgba(34,211,238,.06));
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  text-align: center; padding: 12px 10px;
+  position: relative; width: 150px; min-height: 112px;
+  border-radius: 12px; border: 1px solid var(--sy-line-2);
+  background:
+    linear-gradient(160deg, rgba(59, 130, 246, .18), rgba(34, 211, 238, .07)),
+    var(--sy-panel-2);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  text-align: center; padding: 14px 10px;
+  z-index: 1;
 }
-.sy-dp-fabric b { font-size: 11.5px; font-weight: 800; }
-.sy-dp-fabric > span { font-size: 10px; color: var(--sy-tx-3); }
+.sy-dp-fabric b { font-size: 11.5px; font-weight: 800; color: var(--sy-tx); }
 .sy-dp-fabric-ring {
-  position: absolute; inset: -1px; border-radius: 14px;
+  position: absolute; inset: -1px; border-radius: 12px;
   border: 1px solid var(--sy-accent-2); opacity: 0;
   transition: opacity .18s ease;
 }
-/* Acknowledges a real pass-through. Opacity only — no glow that resizes a box. */
-.sy-dp-fabric-hit .sy-dp-fabric-ring { opacity: .75; }
+/* One acknowledgement per arrival. Opacity only — nothing resizes. */
+.sy-dp-fabric-hit .sy-dp-fabric-ring { opacity: .8; }
 
-/* The stage. Over the map, hit-testing nothing, so a dot can never intercept a
-   click meant for a node underneath it. */
+/* The outbox, lit at the instant the row becomes the truth. */
+.sy-dp-outbox {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--sy-tx-3);
+  padding: 3px 7px; border-radius: 5px; border: 1px solid var(--sy-line);
+  transition: color .2s ease, border-color .2s ease, box-shadow .3s ease;
+}
+
+/* The stage the packets live on. Over the board, hit-testing nothing, so a
+   packet can never intercept a click meant for a pad beneath it. */
 .sy-dp-stage {
-  position: absolute; inset: 0; pointer-events: none; overflow: hidden;
-  border-radius: 12px;
+  position: absolute; inset: 0; pointer-events: none; overflow: visible; z-index: 2;
 }
-.sy-dp-dot {
-  position: absolute; top: 0; left: 0; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px;
-  border-radius: 50%; background: var(--sy-accent-2);
-  box-shadow: 0 0 8px 1px currentColor; color: var(--sy-accent-2);
-  will-change: transform, opacity;
+
+/* A packet: a short bar, so its direction of travel reads at a glance. It is
+   positioned entirely by `offset-path` / `offset-distance`, which is why it
+   follows the trace's corners rather than a straight line. */
+.sy-dp-packet {
+  position: absolute; top: 0; left: 0;
+  width: 13px; height: 3.5px; margin: -1.75px 0 0 -6.5px;
+  border-radius: 2px;
+  background: var(--sy-accent-2);
+  box-shadow: 0 0 8px 1px currentColor;
+  color: var(--sy-accent-2);
+  offset-distance: 0%;
+  will-change: offset-distance, opacity;
 }
-/* Sensitivity is a property of the event, so it is a property of the dot. */
-.sy-dp-dot-public { background: var(--sy-tx-2); color: var(--sy-tx-2); }
-.sy-dp-dot-internal { background: var(--sy-accent-2); color: var(--sy-accent-2); }
-.sy-dp-dot-confidential { background: var(--sy-violet); color: var(--sy-violet); }
-.sy-dp-dot-restricted { background: var(--sy-warn); color: var(--sy-warn); }
+/* Classification is a property of the event, so it is a property of the packet. */
+.sy-dp-cl-public { background: var(--sy-tx-2); color: var(--sy-tx-2); }
+.sy-dp-cl-internal { background: var(--sy-accent-2); color: var(--sy-accent-2); }
+.sy-dp-cl-confidential { background: var(--sy-violet); color: var(--sy-violet); }
+.sy-dp-cl-restricted { background: var(--sy-warn); color: var(--sy-warn); }
 
 /* ── idle ───────────────────────────────────────────────────────────────────
    What the screen says when the platform is quiet. Calm and still: an idle
@@ -831,6 +919,9 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
 .sy-dp-row:hover { border-color: var(--sy-line-2); }
 .sy-dp-row > code { font-size: 11px; font-weight: 700; color: var(--sy-tx); }
 .sy-dp-row-lane { font-size: 10px; color: var(--sy-tx-3); }
+/* Names the server resolved. A person's name reads as a person's name. */
+.sy-dp-row-who { font-size: 10.5px; font-weight: 700; color: var(--sy-tx); }
+.sy-dp-row-club { font-size: 10px; color: var(--sy-accent-2); }
 .sy-dp-row > time { margin-left: auto; font-size: 10px; color: var(--sy-tx-3); font-variant-numeric: tabular-nums; }
 .sy-dp-row-cls { font-size: 8.5px; font-weight: 800; letter-spacing: .06em; padding: 2px 6px; border-radius: 5px; }
 .sy-dp-cls-public { color: var(--sy-tx-2); background: rgba(255,255,255,.06); }
@@ -882,18 +973,25 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
    Below this the three-column map becomes one column and the page returns to
    normal scrolling, rather than crushing the lanes into unreadable slivers. */
 @media (max-width: 980px), (max-height: 620px) {
-  .sy-dp-map { grid-template-columns: 1fr; gap: 14px; }
+  .sy-dp-map { grid-template-columns: 1fr; gap: 14px; background-image: none; }
   .sy-dp-col-dst > h4, .sy-dp-col-dst .sy-dp-node { text-align: left; }
+  .sy-dp-dest { flex-direction: row; }
   .sy-dp-future { justify-content: flex-start; }
-  .sy-dp-fabric { width: 100%; min-height: 72px; }
-  /* Geometry the dots were measured against no longer holds in one column, so
-     the stage is withdrawn rather than sending dots to the wrong places. */
-  .sy-dp-stage { display: none; }
+  .sy-dp-fabric { width: 100%; min-height: 76px; }
+  /* A trace measured for three columns lands nowhere in one, so the copper and
+     the packets are withdrawn rather than drawn to the wrong places. The pads,
+     the LEDs and the feed all still work — this is a smaller board, not a
+     broken one. */
+  .sy-dp-traces, .sy-dp-stage { display: none; }
+  .sy-dp-stub { display: none; }
   .sy-dp-feed-rows { max-height: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sy-dp-dot { display: none; }
+  /* No packets and no travelling light. The pads still light on their own
+     event, so the screen still says what happened — it just does not move.  */
+  .sy-dp-packet { display: none; }
+  .sy-dp-trace-hot { filter: none; }
   .sy-dp-empty-ring, .sy-dp-live > i { animation: none; }
   .sy-dp-i-card, #dp-inspector.sy-dp-i-open { animation: none; }
 }

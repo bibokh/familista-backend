@@ -60,16 +60,41 @@ const db: Row = {
       return row;
     },
     findMany: async ({ where = {}, orderBy, take, select }: Row = {}) => {
-      // The window is honoured here on purpose. A mock that ignores the
-      // `createdAt` filter would make the replay tests pass whatever the
-      // service asked for, which is how a wrong time column ships.
+      // The window AND the keyset predicate are honoured here on purpose. A
+      // mock that ignored either would make the tail tests pass whatever the
+      // service asked for — which is how a wrong cursor or a wrong time column
+      // ships.
+      const at = (r: Row) => (r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt));
+      const matchesKeyset = (r: Row, clauses: Row[]) => clauses.some((c) => {
+        if (c.createdAt?.gt !== undefined) return at(r) > c.createdAt.gt;
+        if (c.createdAt !== undefined && c.id?.gt !== undefined) {
+          return at(r).getTime() === (c.createdAt as Date).getTime() && String(r.id) > String(c.id.gt);
+        }
+        return false;
+      });
+
       let rows = state.outbox.filter((r) => {
-        const at = r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt);
-        if (where.createdAt?.gte && at < where.createdAt.gte) return false;
-        if (where.createdAt?.lte && at > where.createdAt.lte) return false;
+        if (where.OR && !matchesKeyset(r, where.OR)) return false;
+        if (where.createdAt?.gte && at(r) < where.createdAt.gte) return false;
+        if (where.createdAt?.lte && at(r) > where.createdAt.lte) return false;
         return true;
       });
-      if (orderBy?.createdAt === 'desc') rows = [...rows].reverse();
+
+      // `orderBy` arrives as an array for every (createdAt, id) ordering.
+      const order = Array.isArray(orderBy) ? orderBy : orderBy ? [orderBy] : [];
+      if (order.length) {
+        rows = [...rows].sort((a, b) => {
+          for (const clause of order) {
+            const key = Object.keys(clause)[0];
+            const dir = clause[key] === 'desc' ? -1 : 1;
+            const av = key === 'createdAt' ? at(a).getTime() : String(a[key]);
+            const bv = key === 'createdAt' ? at(b).getTime() : String(b[key]);
+            if (av < bv) return -1 * dir;
+            if (av > bv) return 1 * dir;
+          }
+          return 0;
+        });
+      }
       if (take) rows = rows.slice(0, take);
       if (select) return rows.map((r) => Object.fromEntries(Object.keys(select).map((k) => [k, r[k] ?? null])));
       return rows;
@@ -87,6 +112,11 @@ const db: Row = {
     findFirst: async ({ where }: Row) => state.players.find((p) =>
       p.id === where.id && (!where.clubId || p.clubId === where.clubId)) ?? null,
     findUnique: async ({ where }: Row) => state.players.find((p) => p.id === where.id) ?? null,
+    findMany: async ({ where = {}, select }: Row = {}) => state.players
+      .filter((p) => (where.id?.in ?? []).includes(p.id))
+      .map((p) => (select
+        ? Object.fromEntries(Object.keys(select).map((k) => [k, p[k] ?? null]))
+        : p)),
     update: async ({ where, data }: Row) => {
       const p = state.players.find((r) => r.id === where.id) as Row;
       Object.assign(p, data);
@@ -94,7 +124,19 @@ const db: Row = {
     },
   },
   playerAuditLog: { create: async ({ data }: Row) => { state.audits.push(data); return data; } },
-  team: { findUnique: async ({ where }: Row) => ({ id: where.id, clubId: CLUB, isActive: true }) },
+  team: {
+    findUnique: async ({ where }: Row) => ({ id: where.id, clubId: CLUB, isActive: true }),
+    findMany: async ({ where = {} }: Row = {}) =>
+      (where.id?.in ?? []).map((id: string) => ({ id, name: 'First Team' })),
+  },
+  // The resolver's two reads. `select`ed narrowly by the service; the mock
+  // returns only what that select names, so a test cannot accidentally prove a
+  // wider read is safe.
+  club: {
+    findMany: async ({ where = {} }: Row = {}) => (where.id?.in ?? [])
+      .filter((id: string) => id === CLUB || id === OTHER_CLUB)
+      .map((id: string) => ({ id, name: id === CLUB ? 'FC Familista' : 'Other Club' })),
+  },
   platformAdmin: {
     findUnique: async ({ where }: Row) =>
       state.platformAdmins.find((a) => a.userId === where.userId && a.isActive) ?? null,
@@ -131,7 +173,9 @@ import {
   pulseMetrics, pulseTopology, project,
   SOURCE_LANES, LIVE_DESTINATIONS, FUTURE_DESTINATIONS, INSTRUMENTED_EVENT_TYPES,
   SAMPLE_THRESHOLD, BUFFER_LIMIT,
-  replayWindow, replayCounts, eventFromRow,
+  replayWindow, replayCounts, eventFromRow, currentTransport,
+  tailStep, tailAfter, latestCursor, formatCursor, parseCursor, TAIL_BATCH, ingestFrames,
+  framesFromRows,
   type FamilistaEvent, type PulseFrame,
 } from '../src/fabric';
 import { updatePlayer } from '../src/services/player.service';
@@ -177,6 +221,9 @@ beforeEach(() => {
   resetPulse();
   setEventTransport(outboxTransport);
   startPulse();
+  // Live starts from the beginning of time in tests, so a test's own emits are
+  // visible without having to seed a cursor first.
+  liveCursor = { createdAt: new Date(0), id: '' };
 });
 
 afterAll(() => {
@@ -192,10 +239,29 @@ function replayProjection(row: Row): PulseFrame {
   return project(event);
 }
 
-/** Let the fabric's async emit and the pulse's batching settle. */
+/** Let the fabric's async emit reach the outbox. */
 async function settle() {
   await new Promise((r) => setImmediate(r));
   flushNow();
+}
+
+/**
+ * Drive one Live cycle the way the SSE route does.
+ *
+ * Live is no longer the in-process bus, so a test that emits and waits for a
+ * subscriber is testing a mechanism that no longer exists. This tails the
+ * outbox from a cursor, ingests what it finds, and returns the fresh frames —
+ * exactly the loop in `data-pulse.routes.ts`.
+ */
+let liveCursor: Awaited<ReturnType<typeof latestCursor>> = null;
+
+async function liveTick(): Promise<PulseFrame[]> {
+  await settle();
+  const step = await tailStep(liveCursor ?? { createdAt: new Date(0), id: '' });
+  liveCursor = step.cursor;
+  const fresh = ingestFrames(step.frames);
+  flushNow();
+  return fresh;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -204,15 +270,14 @@ async function settle() {
 
 describe('a real platform action reaches the owner stream', () => {
   test('updating a player produces a canonical event and one pulse frame', async () => {
-    const frames: PulseFrame[] = [];
-    onPulse((b) => frames.push(...b.frames));
-
     await updatePlayer(
       { userId: PRESIDENT, clubId: CLUB },
       PLAYER,
       { position: 'CF', overallRating: 74 } as never,
     );
-    await settle();
+    // Through the OUTBOX, not the bus — which is what production does across
+    // instances, and what the previous version of this test could not prove.
+    const frames = await liveTick();
 
     // The event exists, is the canonical envelope, and is the one the taxonomy
     // registers — not a string invented at the call site.
@@ -233,11 +298,8 @@ describe('a real platform action reaches the owner stream', () => {
   });
 
   test('attaching a photograph is its own event, at its own sensitivity', async () => {
-    const frames: PulseFrame[] = [];
-    onPulse((b) => frames.push(...b.frames));
-
     await updatePlayer({ userId: PRESIDENT, clubId: CLUB }, PLAYER, { avatar: 'media:abc123' } as never);
-    await settle();
+    const frames = await liveTick();
 
     const types = frames.map((f) => f.eventType);
     expect(types).toContain('player.updated');
@@ -251,10 +313,8 @@ describe('a real platform action reaches the owner stream', () => {
   });
 
   test('an update that does not touch the photo does not claim one was attached', async () => {
-    const frames: PulseFrame[] = [];
-    onPulse((b) => frames.push(...b.frames));
     await updatePlayer({ userId: PRESIDENT, clubId: CLUB }, PLAYER, { number: 11 } as never);
-    await settle();
+    const frames = await liveTick();
     expect(frames.map((f) => f.eventType)).not.toContain('player.photo.attached');
   });
 
@@ -479,7 +539,7 @@ describe('metrics are measured or absent, never invented', () => {
   test('real events move the counters, and only real ones', async () => {
     await emit({ eventType: 'player.updated', clubId: CLUB, subjectType: 'PLAYER', subjectId: PLAYER, sourceType: 'USER', payload: {} });
     await emit({ eventType: 'player.created', clubId: OTHER_CLUB, subjectType: 'PLAYER', subjectId: 'p2', sourceType: 'USER', payload: {} });
-    await settle();
+    await liveTick();
 
     const m = pulseMetrics();
     expect(m.eventsPerMinute).toBe(2);
@@ -593,7 +653,8 @@ describe('burst handling', () => {
         occurredAt: new Date(Date.now() - i), payload: { i },
       });
     }
-    await settle();
+    // Drained the way the route drains it: bounded pages until there is no more.
+    for (let page = 0; page < 4; page += 1) await liveTick();
 
     // One flush, not four hundred callbacks.
     expect(batches.length).toBeLessThanOrEqual(2);
@@ -615,7 +676,7 @@ describe('burst handling', () => {
         subjectType: 'PLAYER', subjectId: `p-${i}`, sourceType: 'USER', payload: {},
       });
     }
-    await settle();
+    for (let page = 0; page < 4; page += 1) await liveTick();
     expect(recentFrames(10_000).length).toBe(BUFFER_LIMIT);
   });
 
@@ -642,7 +703,7 @@ describe('burst handling', () => {
       eventType: 'player.updated', clubId: CLUB,
       subjectType: 'PLAYER', subjectId: PLAYER, sourceType: 'USER', payload: {},
     });
-    await settle();
+    await liveTick();
 
     expect(result.stored).toBe(true);
     expect(seen).toContain('player.updated');
@@ -657,7 +718,7 @@ describe('burst handling', () => {
 describe('reconnect and replay', () => {
   test('a reconnecting client is caught up from the buffer, not from nothing', async () => {
     await emit({ eventType: 'player.created', clubId: CLUB, subjectType: 'PLAYER', subjectId: PLAYER, sourceType: 'USER', payload: {} });
-    await settle();
+    await liveTick();
 
     // What `GET /snapshot` and the stream's `backlog` frame both serve.
     actingAs = { id: OWNER, clubId: null, role: 'CLUB_ADMIN' };
@@ -765,8 +826,12 @@ describe('the panel', () => {
     const block = css.slice(css.indexOf('Live Data Flow — Data Pulse'));
     // A dot is positioned once and then only transformed, so a pulse cannot
     // reflow the panel underneath it.
-    expect(block).toMatch(/will-change: transform, opacity/);
+    // The packet rides `offset-path`, so those are the properties that change.
+    expect(block).toMatch(/will-change: offset-distance, opacity/);
     expect(block).toMatch(/pointer-events: none/);
+    // The copper is a real SVG layer, behind the pads, hit-testing nothing.
+    expect(block).toMatch(/\.sy-dp-traces/);
+    expect(block).toMatch(/\.sy-dp-trace-hot/);
     for (const bad of ['animation: dp-grow', 'transition: width', 'transition: height', 'transition: top', 'transition: left']) {
       expect(`${bad}: ${block.includes(bad)}`).toBe(`${bad}: false`);
     }
@@ -993,12 +1058,28 @@ describe('replay reads the real outbox rows', () => {
   test('a real row still leaks nothing', async () => {
     state.outbox.push(outboxRow());
     const result = await replayWindow({ minutes: 5 });
+    // The club and the player NAME are resolved and are meant to be here; the
+    // ids, the payload and the actor are not.
+    expect(result.frames[0].clubLabel).toBe('FC Familista');
     const serialised = JSON.stringify(result);
-    expect(serialised).not.toContain('changedFields');
-    expect(serialised).not.toContain('position');
-    expect(serialised).not.toContain(COACH);       // the actor is not published
-    expect(serialised).not.toContain(PLAYER);      // nor the person's id
-    expect(serialised).not.toContain('idem-row-1');
+    // The two APPROVED additions are present, and are the reason the card can
+    // answer "which player, which field" without the payload.
+    expect(result.frames[0].subjectLabel).toBe('Amara Okonkwo');
+    expect(result.frames[0].changedFields).toEqual(['position']);
+
+    // Everything else the row holds still does not travel. `position` here is a
+    // field NAME the producer chose to publish; the VALUE it changed to is not
+    // in the envelope at all, and none of the rest of the player is either.
+    expect(serialised).not.toContain(COACH);            // the actor is not published
+    expect(serialised).not.toContain(PLAYER);           // nor the person's id
+    expect(serialised).not.toContain('idem-row-1');     // nor the idempotency key
+    expect(serialised).not.toContain('parent@example.test');
+    expect(serialised).not.toContain('hamstring');      // the notes
+    expect(serialised).not.toContain('2007-04-12');     // the date of birth
+    // And the id used server-side for the label lookup is deleted, not blanked,
+    // so a serialiser cannot even find the key.
+    expect(serialised).not.toContain('resolveId');
+    expect('resolveId' in result.frames[0]).toBe(false);
   });
 });
 
@@ -1067,5 +1148,460 @@ describe('the cross-origin browser check', () => {
     expect(src).toMatch(/unlinkSync\('public\/__x\.html'\)/);
     // No production host is ever contacted.
     expect(src).not.toMatch(/https:\/\/familista-backend\.onrender\.com\/api/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 11 · Live reads the outbox, not this process's memory
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// THE FAILURE THIS CLOSES
+//
+// Live used to be fed by `subscribe('*')` on the in-process event bus, so a
+// frame only reached the screen when the `emit()` that made it ran in the SAME
+// Node process as the open stream. On a service with more than one instance
+// those are different processes, and two real `player.updated` rows sat in
+// Postgres while the panel reported an idle platform.
+//
+// The tests below are written so that a pass CANNOT be explained by an
+// in-process shortcut: the event bus is explicitly disconnected — no transport,
+// no subscribers — and the row is inserted directly, the way another instance
+// would have left it. If the tail did not read the table, every one of these
+// would fail.
+
+describe('the durable tail — process A sees what process B wrote', () => {
+  /** A row exactly as `outboxTransport.append` leaves one. */
+  const outboxRow = (over: Row = {}, envelope: Row = {}) => {
+    const created = (over.createdAt as Date) ?? new Date();
+    return {
+      id: (over.id as string) ?? `row-${state.outbox.length + 1}`,
+      clubId: CLUB, kind: 'player.updated', source: 'USER',
+      createdAt: created, idempotencyKey: `idem-${state.outbox.length + 1}`,
+      processedAt: null, failedAt: null,
+      payload: {
+        __familista_event: {
+          eventId: (over.id as string) ?? `evt-${state.outbox.length + 1}`,
+          eventType: 'player.updated', schemaVersion: 1,
+          occurredAt: created.toISOString(), recordedAt: created.toISOString(),
+          clubId: CLUB, teamId: TEAM, actorUserId: COACH,
+          subjectType: 'PLAYER', subjectId: PLAYER,
+          sourceType: 'USER', sourceId: null,
+          correlationId: null, causationId: null, jurisdiction: null,
+          dataClassification: 'CONFIDENTIAL',
+          payload: { changedFields: ['position'] },
+          metadata: {}, idempotencyKey: `idem-${state.outbox.length + 1}`,
+          ...envelope,
+        },
+      },
+      ...over,
+    };
+  };
+
+  /**
+   * Sever every in-process path.
+   *
+   * No transport and no subscribers, so nothing can reach a frame except by
+   * reading the table. This is what makes the next test meaningful rather than
+   * merely green.
+   */
+  const asAnotherInstance = () => {
+    setEventTransport(null);
+    clearSubscribers();
+  };
+
+  test('THE CRITICAL TEST — a row written elsewhere animates here', async () => {
+    asAnotherInstance();
+
+    // A owns a stream and is caught up: its cursor is the newest row, of which
+    // there are none.
+    let cursor = await latestCursor();
+    expect(cursor).toBeNull();
+
+    // Process B writes. No emit, no bus, no subscriber — just the row.
+    state.outbox.push(outboxRow({ id: 'row-from-B' }));
+
+    // A had no cursor, so it seeds now — as a freshly opened panel would.
+    cursor = await latestCursor();
+    expect(cursor).not.toBeNull();
+
+    // B writes a second one while A is watching.
+    state.outbox.push(outboxRow({ id: 'row-from-B-2', createdAt: new Date(Date.now() + 5) }));
+
+    const step = await tailStep(cursor);
+    expect(step.frames).toHaveLength(1);
+    expect(step.frames[0].eventType).toBe('player.updated');
+    expect(step.frames[0].eventId).toBe('row-from-B-2');
+    // And the cursor moved to exactly what was read.
+    expect(step.cursor!.id).toBe('row-from-B-2');
+
+    // Proof that nothing in-process was involved: no transport is installed.
+    expect(currentTransport()).toBeNull();
+  });
+
+  test('the cursor is a (createdAt, id) pair, so a shared millisecond is exact', async () => {
+    asAnotherInstance();
+    // The real case: one player update emits `player.updated` and
+    // `player.photo.attached` inside the same millisecond.
+    const sameMs = new Date('2026-09-18T10:00:00.000Z');
+    state.outbox.push(outboxRow({ id: 'aaa', createdAt: sameMs }));
+    state.outbox.push(outboxRow({ id: 'bbb', createdAt: sameMs }, { eventType: 'player.photo.attached' }));
+    state.outbox.push(outboxRow({ id: 'ccc', createdAt: sameMs }));
+
+    // Starting from the first of the three: the other two follow, in id order,
+    // and the first is not repeated.
+    const step = await tailStep({ createdAt: sameMs, id: 'aaa' });
+    expect(step.frames.map((f) => f.eventId)).toEqual(['bbb', 'ccc']);
+
+    // A cursor on the timestamp alone could not do this: every row shares it.
+    const all = await tailAfter({ createdAt: new Date(sameMs.getTime() - 1), id: '' });
+    expect(all.rows).toHaveLength(3);
+  });
+
+  test('opening Live does not animate history, and Replay still has it', async () => {
+    asAnotherInstance();
+    // Ten minutes of existing activity.
+    for (let i = 0; i < 5; i += 1) {
+      state.outbox.push(outboxRow({ id: `old-${i}`, createdAt: new Date(Date.now() - (10 - i) * 60_000) }));
+    }
+
+    // A panel opens: the cursor seeds at the newest row that exists…
+    const cursor = await latestCursor();
+    expect(cursor!.id).toBe('old-4');
+    // …so the first tail finds nothing. Live means "after I started watching".
+    expect((await tailStep(cursor)).frames).toHaveLength(0);
+
+    // The same rows are Replay's job, and Replay has them.
+    const replay = await replayWindow({ minutes: 60 });
+    expect(replay.frames.map((f) => f.eventId).sort()).toEqual(['old-0', 'old-1', 'old-2', 'old-3', 'old-4']);
+  });
+
+  test('no cursor means nothing, not everything', async () => {
+    asAnotherInstance();
+    state.outbox.push(outboxRow({ id: 'x' }));
+    // A tail that defaulted to the beginning of time would replay the whole
+    // table on its first poll — the flood the seed exists to prevent.
+    expect((await tailStep(null)).frames).toHaveLength(0);
+  });
+
+  test('a resumed cursor replays nothing already delivered', async () => {
+    asAnotherInstance();
+    const t0 = new Date('2026-09-18T10:00:00.000Z');
+    state.outbox.push(outboxRow({ id: 'r1', createdAt: t0 }));
+    state.outbox.push(outboxRow({ id: 'r2', createdAt: new Date(t0.getTime() + 10) }));
+
+    const first = await tailStep({ createdAt: new Date(t0.getTime() - 1), id: '' });
+    expect(first.frames.map((f) => f.eventId)).toEqual(['r1', 'r2']);
+
+    // The client reconnects and hands back the pair it rendered.
+    const resumed = await tailStep(first.cursor);
+    expect(resumed.frames).toHaveLength(0);
+
+    // And the wire form round-trips exactly, so a reconnect cannot drift.
+    const wire = formatCursor(first.cursor);
+    expect(parseCursor(wire)).toEqual(first.cursor);
+  });
+
+  test('the batch is bounded, and says when more is waiting', async () => {
+    asAnotherInstance();
+    const t0 = Date.now();
+    for (let i = 0; i < TAIL_BATCH + 40; i += 1) {
+      state.outbox.push(outboxRow({ id: `b-${String(i).padStart(4, '0')}`, createdAt: new Date(t0 + i) }));
+    }
+    const step = await tailStep({ createdAt: new Date(t0 - 1), id: '' }, TAIL_BATCH);
+    expect(step.frames).toHaveLength(TAIL_BATCH);
+    expect(step.more).toBe(true);
+    // The cursor advanced only as far as was read. A cursor moved past unread
+    // rows loses them silently — the one failure a tail must not have.
+    expect(step.cursor!.id).toBe(`b-${String(TAIL_BATCH - 1).padStart(4, '0')}`);
+  });
+
+  test('two simultaneous events keep their own lanes', async () => {
+    asAnotherInstance();
+    const t0 = new Date();
+    state.outbox.push(outboxRow({ id: 'p1', createdAt: t0 }));
+    state.outbox.push(outboxRow({ id: 'm1', createdAt: new Date(t0.getTime() + 1) },
+      { eventType: 'media.created', subjectType: 'MEDIA_ASSET', subjectId: 'media-1' }));
+
+    const step = await tailStep({ createdAt: new Date(t0.getTime() - 1), id: '' });
+    const byId = Object.fromEntries(step.frames.map((f) => [f.eventId, f]));
+
+    // A Players event lights Players, and a Media event does not.
+    expect(byId.p1.source).toBe('Players');
+    expect(byId.p1.destination).toBe('Operational Data');
+    expect(byId.m1.source).toBe('Media');
+    expect(byId.m1.destination).toBe('Media');
+  });
+
+  test('the in-process subscription is gone, not kept alongside', () => {
+    // Two sources would deliver every same-process event twice and — worse —
+    // would make the screen appear to work in single-instance testing while
+    // still failing in production.
+    const src = decomment(read('src/fabric/pulse/pulse.service.ts'));
+    expect(src).not.toMatch(/subscribe\('\*'/);
+    expect(src).not.toMatch(/from '\.\.\/event-bus'/);
+    // And `initDataFabric` no longer starts it against the bus. Scoped to that
+    // function's body: the module legitimately still EXPORTS `startPulse`, and
+    // asserting on the whole file would fail for the wrong reason.
+    const barrel = decomment(read('src/fabric/index.ts'));
+    const init = barrel.slice(barrel.indexOf('export function initDataFabric'));
+    const body = init.slice(0, init.indexOf('\n}'));
+    expect(body).toMatch(/setEventTransport|set\(t\)/);
+    expect(body).not.toMatch(/startPulse|watch\(\)/);
+    expect(body).not.toMatch(/pulse\.service/);
+  });
+
+  test('a failed poll leaves the cursor where it was', async () => {
+    asAnotherInstance();
+    const cursor = { createdAt: new Date(), id: 'somewhere' };
+    const original = db.eventOutbox.findMany;
+    db.eventOutbox.findMany = async () => { throw new Error('connection lost'); };
+    try {
+      const step = await tailStep(cursor);
+      expect(step.frames).toHaveLength(0);
+      // Unchanged, so the next tick asks for exactly the same rows.
+      expect(step.cursor).toEqual(cursor);
+      expect(logged.join('\n')).toMatch(/tail step failed/);
+    } finally {
+      db.eventOutbox.findMany = original;
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 12 · Naming the subject, without opening the row
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// The card must say WHICH player, in WHICH club, and WHICH field changed —
+// discovered by the server from the outbox row, with nothing supplied by
+// whoever opened the panel. That is two new labels and one payload key, and
+// each is the narrowest thing that answers the question. These tests are the
+// boundary: they feed a player row carrying every sensitive column Familista
+// holds and assert that only the name comes out.
+
+describe('subject resolution', () => {
+  const rowFor = (envelope: Row = {}) => {
+    const created = new Date();
+    return {
+      id: 'row-res', clubId: CLUB, kind: 'player.updated', source: 'USER',
+      createdAt: created, idempotencyKey: 'idem-res', processedAt: null, failedAt: null,
+      payload: {
+        __familista_event: {
+          eventId: 'evt-res', eventType: 'player.updated', schemaVersion: 1,
+          occurredAt: created.toISOString(), recordedAt: created.toISOString(),
+          clubId: CLUB, teamId: TEAM, actorUserId: COACH,
+          subjectType: 'PLAYER', subjectId: PLAYER,
+          sourceType: 'USER', sourceId: null,
+          correlationId: null, causationId: null, jurisdiction: null,
+          dataClassification: 'CONFIDENTIAL',
+          payload: { changedFields: ['position'] },
+          metadata: {}, idempotencyKey: 'idem-res', ...envelope,
+        },
+      },
+    };
+  };
+
+  test('the acceptance case: the system discovers the player unaided', async () => {
+    // Nothing in this test tells the resolver which player changed. It has the
+    // row, and the row has an id, and that is all it needs.
+    state.outbox.push(rowFor());
+    const [frame] = await framesFromRows([state.outbox[0] as Row]);
+
+    expect(frame.eventType).toBe('player.updated');
+    expect(frame.clubLabel).toBe('FC Familista');
+    expect(frame.subjectLabel).toBe('Amara Okonkwo');
+    expect(frame.changedFields).toEqual(['position']);
+    expect(frame.occurredAt).toBeTruthy();
+    expect(frame.source).toBe('Players');
+    expect(frame.destination).toBe('Operational Data');
+  });
+
+  test('the resolver selects names and nothing else', () => {
+    // Read the source. A `select` naming three columns cannot return a fourth;
+    // a fetch-and-delete would ship whatever a migration adds next.
+    const src = decomment(read('src/fabric/pulse/subject-resolver.service.ts'));
+    const player = src.slice(src.indexOf('prisma.player.findMany'));
+    const scope = player.slice(0, player.indexOf('}),'));
+    expect(scope).toMatch(/select: \{ id: true, firstName: true, lastName: true \}/);
+    for (const forbidden of ['dateOfBirth', 'parentEmail', 'parentPhone', 'medicalStatus', 'notes', 'email', 'avatar']) {
+      expect(`${forbidden}: ${src.includes(forbidden)}`).toBe(`${forbidden}: false`);
+    }
+    // And never a bare findMany with no select.
+    expect(src).not.toMatch(/findMany\(\{ where: \{ id: \{ in: playerIds \} \} \}\)/);
+  });
+
+  test('resolution is batched, not per frame', async () => {
+    // A burst of activity must not become a burst of database load.
+    let calls = 0;
+    const original = db.player.findMany;
+    db.player.findMany = async (args: Row) => { calls += 1; return original(args); };
+    try {
+      const rows = [];
+      for (let i = 0; i < 30; i += 1) rows.push({ ...rowFor(), id: `r-${i}` });
+      await framesFromRows(rows as Row[]);
+      // One query for thirty frames, not thirty.
+      expect(calls).toBe(1);
+    } finally {
+      db.player.findMany = original;
+    }
+  });
+
+  test('a value hidden in changedFields is truncated, not published', async () => {
+    // The producer writes names only. If one day it wrote something longer,
+    // the cap keeps a mistake to a truncated string rather than a paragraph.
+    const long = 'x'.repeat(400);
+    state.outbox.push(rowFor({ payload: { changedFields: [long, 'position'] } }) as never);
+    const [frame] = await framesFromRows([state.outbox[state.outbox.length - 1] as Row]);
+    expect(frame.changedFields[0].length).toBeLessThanOrEqual(40);
+    expect(JSON.stringify(frame)).not.toContain(long);
+  });
+
+  test('a non-string, or too many, cannot smuggle a payload through', async () => {
+    state.outbox.push(rowFor({
+      payload: { changedFields: [{ secret: 'a-value' }, 42, null, 'position'] },
+    }) as never);
+    const [frame] = await framesFromRows([state.outbox[state.outbox.length - 1] as Row]);
+    expect(frame.changedFields).toEqual(['position']);
+    expect(JSON.stringify(frame)).not.toContain('a-value');
+  });
+
+  test('a deleted subject leaves the label empty and the event visible', async () => {
+    // The event happened. That the player has since gone is not a reason to
+    // hide it, and inventing a name would be a fabrication.
+    state.players = [];
+    state.outbox.push(rowFor());
+    const [frame] = await framesFromRows([state.outbox[state.outbox.length - 1] as Row]);
+    expect(frame.subjectLabel).toBeNull();
+    expect(frame.eventType).toBe('player.updated');
+  });
+
+  test('a failed lookup costs the label, never the frame', async () => {
+    const original = db.club.findMany;
+    db.club.findMany = async () => { throw new Error('read failed'); };
+    try {
+      state.outbox.push(rowFor());
+      const [frame] = await framesFromRows([state.outbox[state.outbox.length - 1] as Row]);
+      expect(frame.eventType).toBe('player.updated');
+      expect(frame.clubLabel).toBeNull();
+      expect('resolveId' in frame).toBe(false);
+      expect(logged.join('\n')).toMatch(/could not resolve subject labels/);
+    } finally {
+      db.club.findMany = original;
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 13 · The board is a board
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('the PCB topology', () => {
+  const CLIENT = () => decomment(read('public/data-pulse.js'));
+  const CSS = () => read('public/system/system.css');
+
+  test('traces are real SVG paths, measured from the pads', () => {
+    const src = CLIENT();
+    expect(src).toMatch(/createElementNS\('http:\/\/www\.w3\.org\/2000\/svg', 'path'\)/);
+    expect(src).toMatch(/function tracePath/);
+    expect(src).toMatch(/getBoundingClientRect/);
+    // One trace per source and per destination, keyed so a packet can find its
+    // own copper rather than a straight line between two boxes.
+    expect(src).toMatch(/'tr-src-' \+ slug/);
+    expect(src).toMatch(/'tr-dst-' \+ slug/);
+  });
+
+  test('a packet rides the trace, and the trace lights along its length', () => {
+    const src = CLIENT();
+    expect(src).toMatch(/offsetPath = 'path\("'/);
+    expect(src).toMatch(/offsetDistance/);
+    // stroke-dashoffset, which does not reflow.
+    expect(src).toMatch(/strokeDashoffset/);
+    expect(src).toMatch(/getTotalLength/);
+  });
+
+  test('the flow is source → fabric → outbox → destination, in that order', () => {
+    const src = CLIENT();
+    const fn = src.slice(src.indexOf('function pulse(frame)'));
+    const body = fn.slice(0, fn.indexOf('\n  }'));
+    // The outbox lights at arrival, because that is the instant the row exists
+    // and Live reads rows.
+    expect(body.indexOf('lightFor(srcPad')).toBeLessThan(body.indexOf("getElementById('dp-outbox')") + 1e9);
+    expect(body).toMatch(/dp-outbox|outbox/);
+    expect(body).toMatch(/energise\(inTrace/);
+    expect(body).toMatch(/energise\(outTrace/);
+    expect(body).toMatch(/lightFor\(dstPad/);
+    // Leg two is delayed by leg one's duration, so direction is unambiguous.
+    expect(body).toMatch(/packet\(outTrace, OUT_MS, IN_MS\)/);
+  });
+
+  test('a missing lane draws nothing rather than something arbitrary', () => {
+    const src = CLIENT();
+    const fn = src.slice(src.indexOf('function pulse(frame)'));
+    const body = fn.slice(0, fn.indexOf('\n  }'));
+    expect(body).toMatch(/if \(!inTrace \|\| !outTrace \|\| !srcPad \|\| !dstPad\) return;/);
+    // And the hard cap holds regardless.
+    expect(body).toMatch(/DOT_LIMIT\) return;/);
+  });
+
+  test('a pad lights only while its own traffic passes', () => {
+    const src = CLIENT();
+    expect(src).toMatch(/classList\.add\('sy-dp-hot'\)/);
+    expect(src).toMatch(/classList\.remove\('sy-dp-hot'\)/);
+    // Idle means dark: the LED's resting colour is a line token, not an accent.
+    const css = CSS();
+    const led = css.slice(css.indexOf('.sy-dp-led {'));
+    expect(led.slice(0, led.indexOf('}'))).toMatch(/background: var\(--sy-line-2\)/);
+  });
+
+  test('FUTURE pads carry no trace at all', () => {
+    const src = CLIENT();
+    // Traces are built for `t.sources` and `t.destinations`. `t.future` is
+    // drawn and never given a path — an unconnected pad is the honest picture
+    // of a destination nothing reaches.
+    const build = src.slice(src.indexOf('function buildTraces'));
+    const body = build.slice(0, build.indexOf('\n  }'));
+    expect(body).toMatch(/t\.sources\.forEach/);
+    expect(body).toMatch(/t\.destinations\.forEach/);
+    expect(body).not.toMatch(/t\.future/);
+  });
+
+  test('nothing continuous animates, and idle is still', () => {
+    const src = CLIENT();
+    expect(src).not.toMatch(/Math\.random/);
+    expect(src).not.toMatch(/setInterval/);
+    expect(src).not.toMatch(/demo|fake|mock|synthetic/i);
+    // The only repeating animations in the stylesheet are the two that say
+    // "connected" and "listening" — no marquee on the board itself.
+    const css = CSS();
+    const board = css.slice(css.indexOf('── the board ──'), css.indexOf('── idle ──'));
+    expect(board).not.toMatch(/animation:/);
+    expect(board).not.toMatch(/infinite/);
+  });
+
+  test('the board withdraws its copper rather than mis-drawing it when narrow', () => {
+    const css = CSS();
+    const hatch = css.slice(css.indexOf('@media (max-width: 980px)'));
+    expect(hatch).toMatch(/\.sy-dp-traces, \.sy-dp-stage \{ display: none; \}/);
+    expect(hatch).toMatch(/grid-template-columns: 1fr/);
+    // And reduced motion drops the packets but keeps the pads informative.
+    const rm = css.slice(css.indexOf('@media (prefers-reduced-motion'));
+    expect(rm).toMatch(/\.sy-dp-packet \{ display: none; \}/);
+  });
+
+  test('traces are rebuilt on resize, never mid-animation', () => {
+    const src = CLIENT();
+    expect(src).toMatch(/addEventListener\('resize'/);
+    expect(src).toMatch(/traceBox = ''/);
+    // Cached until the geometry actually changes, so a packet does not cost a
+    // layout read.
+    expect(src).toMatch(/if \(key === traceBox && svg\.childElementCount\) return true;/);
+  });
+
+  test('the cursor travels with the client, and is not a credential', () => {
+    const src = CLIENT();
+    expect(src).toMatch(/DP\.cursor/);
+    expect(src).toMatch(/'\?cursor=' \+ encodeURIComponent/);
+    // A position, not a secret: a timestamp and a row id.
+    expect(src).not.toMatch(/[?&]token=/);
+    expect(src).not.toMatch(/[?&]access_token=/);
   });
 });
