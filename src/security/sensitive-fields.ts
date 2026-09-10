@@ -64,6 +64,10 @@ export const REGISTRY: ReadonlyArray<FieldPolicy> = [
   { field: 'Device.hmacSecret',    class: 'CRED',      allowedRoles: [],           hashInAudit: true, gdprErasable: false },
   { field: 'Camera.hmacSecret',    class: 'CRED',      allowedRoles: [],           hashInAudit: true, gdprErasable: false },
   { field: 'DeviceSession.sessionKey', class: 'CRED',  allowedRoles: [],           hashInAudit: true, gdprErasable: false },
+  // The sealed envelope in the fabric's secret store. Ciphertext, and still
+  // CRED: a KEK can leak, and a registry that classifies ciphertext as harmless
+  // is a registry that lets it into an audit log.
+  { field: 'PlatformSecret.sealed', class: 'CRED',    allowedRoles: [],           hashInAudit: true, gdprErasable: false },
 ];
 
 const byField: Record<string, FieldPolicy> = Object.fromEntries(REGISTRY.map((p) => [p.field, p]));

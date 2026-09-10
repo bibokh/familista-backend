@@ -5,6 +5,7 @@
 // replay-protected via Phase I LRU.
 
 import { createHmac, timingSafeEqual } from 'crypto';
+import { resolveCredential } from '../fabric/secrets/device-credentials';
 import { AttestationStatus, DeviceAttestation, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError, UnauthorizedError } from '../utils/errors';
@@ -42,7 +43,10 @@ export async function recordAttestation(_actor: AttestationActor, dto: RecordAtt
 
   // Verify HMAC over (nonce | secureBootHash ?? '').
   const message = `${dto.nonce}|${dto.secureBootHash ?? ''}`;
-  const ok = verify(dev.hmacSecret, message, dto.sigB64);
+  // Resolved through the credential seam: the reference where the row has one,
+  // the legacy column where it does not. Never `row.hmacSecret` directly.
+  const credential = await resolveCredential(dev);
+  const ok = verify(credential.value ?? '', message, dto.sigB64);
   let status: AttestationStatus = ok ? 'VERIFIED' : 'FAILED';
   let reason: string | null = null;
 

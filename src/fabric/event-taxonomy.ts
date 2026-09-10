@@ -102,6 +102,12 @@ export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   { type: 'device.disconnected',     describes: 'A device session ended',                             classification: 'INTERNAL',     schemaVersion: 1 },
   { type: 'telemetry.batch.received', describes: 'A batch of sensor samples was ingested',            classification: 'RESTRICTED',   schemaVersion: 1, legacyKind: 'SENSOR_PACKET' },
   { type: 'camera.stream.started',   describes: 'A camera began producing a stream',                  classification: 'INTERNAL',     schemaVersion: 1 },
+  // Credential lifecycle. The payload of every one of these carries the
+  // REFERENCE and never the secret — a reference is safe in an event, a log and
+  // a backup, which is the entire reason references exist.
+  { type: 'device.credential.created', describes: 'A credential was minted for a device or camera',    classification: 'CONFIDENTIAL', schemaVersion: 1 },
+  { type: 'device.credential.rotated', describes: 'A credential was rotated to a new version',         classification: 'CONFIDENTIAL', schemaVersion: 1 },
+  { type: 'device.credential.revoked', describes: 'A credential version was revoked',                  classification: 'CONFIDENTIAL', schemaVersion: 1 },
   { type: 'camera.stream.ended',     describes: 'A camera stream finished',                           classification: 'INTERNAL',     schemaVersion: 1 },
 
   // ── intelligence ──────────────────────────────────────────────────────────

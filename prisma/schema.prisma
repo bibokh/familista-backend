@@ -1384,7 +1384,19 @@ model Device {
   serial           String                @unique
   model            String // FAMILISTA_WEARABLE_V1 | …
   hwRevision       String? // PCB rev: R1A, R2B, …
+  /// LEGACY. The long-lived HMAC root key, in plaintext.
+  ///
+  /// Kept because existing devices in the field were provisioned against it and
+  /// removing the column would strand every one of them. Nothing NEW is written
+  /// here — see `secretRef`, which is where a newly registered device's key
+  /// goes. `identity/device-credentials.ts` reads the reference first and falls
+  /// back to this only for a row that predates it.
   hmacSecret       String // long-lived HMAC root key (b64)
+  /// The device's credential, by reference: `fam:v1:db:device/<id>#1`.
+  ///
+  /// Contains no secret material, so it is safe in a log, an event or a backup.
+  /// Null for every device registered before this existed.
+  secretRef        String?
   /// Last-known eFuse fingerprint reported by the device. If it changes
   /// we revoke the device — likely tampering or board swap.
   efuseFingerprint String?
@@ -1545,7 +1557,11 @@ model Camera {
   vendor          String?
   model           String?
   hwRevision      String?
+  /// LEGACY, exactly as `Device.hmacSecret` — see the note there. Nothing new
+  /// is written here; `secretRef` is where a newly registered camera's key goes.
   hmacSecret      String
+  /// The camera's credential, by reference: `fam:v1:db:camera/<id>#1`.
+  secretRef       String?
   status          CameraStatus @default(REGISTERED)
   lastClockSkewMs Int?
   registeredAt    DateTime     @default(now())
@@ -10335,6 +10351,59 @@ enum AnalyticsEnvironment {
 /// `day`, `hourOfDay` and `weekday` are stored rather than derived so that the
 /// peak-hours and peak-days aggregates are index scans instead of full-table
 /// date arithmetic.
+// ─────────────────────────────────────────────────────────────────────────────
+// Familista Data Fabric — secrets
+// ─────────────────────────────────────────────────────────────────────────────
+// Ciphertext, and the metadata needed to rotate and revoke it. Never plaintext.
+//
+// Today a device's long-lived HMAC root key is a plain column on `Device`, and
+// a camera's is a plain column on `Camera`. Every logical dump of this database
+// therefore carries the credentials of the entire fleet in the clear, and any
+// query that selects the row selects the key. This table is where those keys go
+// instead: sealed with AES-256-GCM under a key-encryption key that lives in the
+// environment and never reaches Postgres, so a dump is ciphertext and the thing
+// that opens it is somewhere else entirely.
+//
+// The owning row keeps only a REFERENCE — `fam:v1:db:device/<id>#3` — which
+// contains no secret material and is safe in a log, an event or a backup.
+//
+// Versioned rather than overwritten, because rotation across a fleet of devices
+// is not instantaneous: version n stays resolvable while devices move to n+1,
+// and revoking is a deliberate act on a version rather than the destruction of
+// the only copy there is.
+
+model PlatformSecret {
+  id String @id @default(uuid())
+
+  /// The reference's parts, stored separately so a lookup is an index hit and
+  /// a rotation can find every version of one name.
+  scope   String
+  name    String
+  version Int    @default(1)
+
+  /// iv:tag:ciphertext, base64. Opened only by a process holding the KEK.
+  /// This column is the reason the table exists and the reason nothing else
+  /// may ever hold the plaintext.
+  sealed String @db.Text
+
+  /// Never secret. Who created it, for what, and any operational note.
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  createdBy String?
+  /// Set when a newer version supersedes this one. Still resolvable until
+  /// revoked — that grace window is what makes a fleet rotation survivable.
+  rotatedAt DateTime?
+  /// Set when this version must no longer authenticate anything. A revoked
+  /// version is refused even though its ciphertext is still on the row, so the
+  /// audit trail of what existed survives the revocation.
+  revokedAt DateTime?
+
+  @@unique([scope, name, version])
+  @@index([scope, name])
+  @@index([revokedAt])
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Familista Data Fabric — media
 // ─────────────────────────────────────────────────────────────────────────────

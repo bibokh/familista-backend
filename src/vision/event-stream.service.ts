@@ -20,6 +20,7 @@ import { EventCameraStream, Prisma, VisionEventBatch, VisionStreamStatus } from 
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError, UnauthorizedError } from '../utils/errors';
 import { verifyCameraHmac } from './camera-registry.service';
+import { resolveCredential } from '../fabric/secrets/device-credentials';
 import { assertFreshAndRemember } from '../security/device-nonce.service';
 import { logDeviceSecurityEvent } from '../security/security-event.service';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
@@ -145,7 +146,10 @@ export async function ingestEventBatch(streamId: string, env: IngestEventBatchEn
   const payloadJson = JSON.stringify(env.payload);
   const digest = createHash('sha256').update(payloadJson).digest('hex');
   const msg = `${env.cameraTsUs}.${env.nonce}.${digest}`;
-  if (!verifyCameraHmac(cam.hmacSecret, msg, env.sigB64)) {
+  // Resolved through the credential seam: the reference where the row has one,
+  // the legacy column where it does not. Never `row.hmacSecret` directly.
+  const credential = await resolveCredential(cam);
+  if (!verifyCameraHmac(credential.value ?? '', msg, env.sigB64)) {
     logDeviceSecurityEvent({ kind: 'DEVICE_REJECTED', severity: 'CRITICAL', clubId: cam.clubId, cameraId: cam.id, payload: { reason: 'hmac_mismatch' } });
     throw new ForbiddenError('Invalid camera signature');
   }

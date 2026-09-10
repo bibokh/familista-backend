@@ -11,6 +11,7 @@
 // path bounded under 100 Hz from a 4-camera rig.
 
 import { createHash } from 'crypto';
+import { resolveCredential } from '../fabric/secrets/device-credentials';
 import { VisionFrame, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
@@ -47,7 +48,10 @@ export async function ingestVisionFrame(cameraId: string, dto: VisionIngestDto):
     .update(safeJson(dto.detections))
     .digest('hex');
   const msg = `${dto.cameraTsUs}.${dto.nonce}.${digest}`;
-  if (!verifyCameraHmac(cam.hmacSecret, msg, dto.sigB64)) {
+  // Resolved through the credential seam: the reference where the row has one,
+  // the legacy column where it does not. Never `row.hmacSecret` directly.
+  const credential = await resolveCredential(cam);
+  if (!verifyCameraHmac(credential.value ?? '', msg, dto.sigB64)) {
     throw new ForbiddenError('Invalid camera signature');
   }
 

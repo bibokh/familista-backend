@@ -7,6 +7,7 @@
 import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import { Camera, CameraCalibration, CameraKind, CameraStatus, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
+import { storeNewCredential } from '../fabric/secrets/device-credentials';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
 
 export interface CameraActor {
@@ -37,8 +38,16 @@ export interface ApplyCalibrationDto {
 // Registration & lifecycle
 // ─────────────────────────────────────────────────────────────────────────
 
-export async function registerCamera(actor: CameraActor, dto: RegisterCameraDto): Promise<Camera & { hmacSecretPlaintext: string }> {
-  const existing = await prisma.camera.findUnique({ where: { serial: dto.serial } });
+/** Everything about a camera EXCEPT its credential. What a response may carry. */
+const CAMERA_PUBLIC_SELECT = {
+  id: true, clubId: true, teamId: true, serial: true, label: true, kind: true,
+  vendor: true, model: true, hwRevision: true, status: true,
+  lastClockSkewMs: true, registeredAt: true, calibratedAt: true, retiredAt: true,
+  metadata: true, secretRef: true,
+} as const;
+
+export async function registerCamera(actor: CameraActor, dto: RegisterCameraDto): Promise<Record<string, unknown> & { hmacSecretPlaintext: string }> {
+  const existing = await prisma.camera.findUnique({ where: { serial: dto.serial }, select: { id: true } });
   if (existing) throw new BadRequestError(`Serial ${dto.serial} already registered`);
   const secret = randomBytes(32).toString('base64');
 
@@ -52,12 +61,25 @@ export async function registerCamera(actor: CameraActor, dto: RegisterCameraDto)
       vendor:     dto.vendor ?? null,
       model:      dto.model ?? null,
       hwRevision: dto.hwRevision ?? null,
+      // Still written, so a rollback of the reference path leaves this camera
+      // authenticating exactly as it did. See the rollout plan.
       hmacSecret: secret,
       status:     'REGISTERED',
       metadata:   (dto.metadata ?? null) as Prisma.InputJsonValue,
     },
+    select: CAMERA_PUBLIC_SELECT,
   });
-  return { ...row, hmacSecretPlaintext: secret };
+
+  const ref = await storeNewCredential('camera', row.id, secret, {
+    serial: dto.serial, label: dto.label, registeredBy: actor.userId,
+  });
+  const saved = ref
+    ? await prisma.camera.update({ where: { id: row.id }, data: { secretRef: ref }, select: CAMERA_PUBLIC_SELECT })
+    : row;
+
+  // A narrowed select: `hmacSecret` is not in `saved` and cannot be spread into
+  // the response. The plaintext appears once, named for what it is.
+  return { ...saved, hmacSecretPlaintext: secret };
 }
 
 export async function listCameras(

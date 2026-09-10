@@ -16,6 +16,7 @@ import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import { Device, DeviceProvisionStatus, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
+import { resolveCredential, storeNewCredential } from '../fabric/secrets/device-credentials';
 
 export interface DeviceActor {
   userId: string;
@@ -44,10 +45,18 @@ export interface ActivateDeviceDto {
 // Lifecycle
 // ─────────────────────────────────────────────────────────────────────────
 
-export async function registerDevice(actor: DeviceActor, dto: RegisterDeviceDto): Promise<Device & { hmacSecretPlaintext: string }> {
+/** Everything about a device EXCEPT its credential. What a response may carry. */
+const DEVICE_PUBLIC_SELECT = {
+  id: true, clubId: true, teamId: true, serial: true, model: true,
+  hwRevision: true, status: true, efuseFingerprint: true,
+  registeredAt: true, activatedAt: true, retiredAt: true, revokedAt: true,
+  notes: true, metadata: true, secretRef: true,
+} as const;
+
+export async function registerDevice(actor: DeviceActor, dto: RegisterDeviceDto): Promise<Record<string, unknown> & { hmacSecretPlaintext: string }> {
   // Generate a 32-byte HMAC secret. Returned to caller ONCE.
   const secret = randomBytes(32).toString('base64');
-  const existing = await prisma.device.findUnique({ where: { serial: dto.serial } });
+  const existing = await prisma.device.findUnique({ where: { serial: dto.serial }, select: { id: true } });
   if (existing) throw new BadRequestError(`Serial ${dto.serial} already registered`);
 
   const row = await prisma.device.create({
@@ -57,13 +66,32 @@ export async function registerDevice(actor: DeviceActor, dto: RegisterDeviceDto)
       serial:     dto.serial,
       model:      dto.model,
       hwRevision: dto.hwRevision ?? null,
+      // The legacy column is still written, and that is deliberate: a device
+      // provisioned by this build must keep working if the reference path is
+      // later rolled back. Once the reference is proven in production, a
+      // separate step blanks it — see the rollout plan.
       hmacSecret: secret,
       status:     'REGISTERED',
       notes:      dto.notes ?? null,
       metadata:   (dto.metadata ?? null) as Prisma.InputJsonValue,
     },
+    select: DEVICE_PUBLIC_SELECT,
   });
-  return { ...row, hmacSecretPlaintext: secret };
+
+  // The credential's real home. A store that cannot accept it returns null and
+  // the device authenticates from the legacy column exactly as before, so this
+  // ships without the deployment having to be reconfigured first.
+  const ref = await storeNewCredential('device', row.id, secret, {
+    serial: dto.serial, model: dto.model, registeredBy: actor.userId,
+  });
+  const saved = ref
+    ? await prisma.device.update({ where: { id: row.id }, data: { secretRef: ref }, select: DEVICE_PUBLIC_SELECT })
+    : row;
+
+  // `saved` is a narrowed select — `hmacSecret` is not in it and cannot be
+  // spread into the response. The plaintext appears exactly once, under the
+  // name that says what it is and that it will not be shown again.
+  return { ...saved, hmacSecretPlaintext: secret };
 }
 
 export async function activateDevice(serial: string, dto: ActivateDeviceDto): Promise<Device> {
@@ -79,7 +107,12 @@ export async function activateDevice(serial: string, dto: ActivateDeviceDto): Pr
   if (d.status === 'REVOKED' || d.status === 'RETIRED') throw new ForbiddenError('Device retired/revoked');
 
   const expectedMsg = `${dto.ts}.${dto.nonce}`;
-  if (!verifyHmac(d.hmacSecret, expectedMsg, dto.sig)) {
+  // The credential, by reference where the row has one and from the legacy
+  // column where it does not. A row that resolves to nothing fails the
+  // signature check below — the same refusal a wrong key produces, which is
+  // what stops this becoming an oracle for which devices have been migrated.
+  const credential = await resolveCredential(d);
+  if (!verifyHmac(credential.value ?? '', expectedMsg, dto.sig)) {
     throw new ForbiddenError('Invalid device signature');
   }
 

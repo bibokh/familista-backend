@@ -58,3 +58,35 @@ export function initDataFabric(): void {
   const { setEventTransport: set } = require('./event-bus') as typeof import('./event-bus');
   set(t);
 }
+
+// ── secrets ──────────────────────────────────────────────────────────────────
+// A reference names a secret and is not one. Domain code stores the reference,
+// resolves through the port, and can name no provider.
+
+export {
+  makeSecretRef, parseSecretRef, formatSecretRef, isSecretRef, nextVersion,
+  looksLikeSecretMaterial, assertNoSecretMaterial,
+  SecretRefError, SECRET_REF_SCHEME, SECRET_REF_VERSION,
+  type SecretRef,
+} from './secrets/secret-ref';
+
+export {
+  getSecretStore, setSecretStore, generateSecret, secretsEqual,
+  sealSecret, openSecret, SECRET_KEK_ENV, DEFAULT_SECRET_BYTES,
+  MemorySecretStore, EnvSecretStore,
+  // The KEK strength floor. Exported so a status surface, a startup check or a
+  // test can ask whether this deployment may seal anything WITHOUT first
+  // trying to seal something.
+  SecretKeyConfigError, SecretKeyUnavailable, WeakSecretKey,
+  MIN_KEK_BYTES, MIN_KEK_DISTINCT_CHARS,
+  effectiveKeyBytes, kekWeakness, secretKeyStatus,
+  type SecretStore, type SecretValue, type PutSecretOptions, type RotateResult,
+} from './secrets/secret-store';
+
+export { DbSecretStore } from './secrets/db-secret-store';
+
+export {
+  resolveCredential, storeNewCredential, rotateCredential, revokeCredential,
+  credentialRefFor, credentialStorageMode,
+  type CredentialBearer, type CredentialScope, type CredentialSource, type ResolvedCredential,
+} from './secrets/device-credentials';

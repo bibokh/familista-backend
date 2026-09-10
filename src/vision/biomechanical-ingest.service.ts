@@ -4,6 +4,7 @@
 // HMAC-verified via Device.hmacSecret when sigB64 + nonce are provided.
 
 import { createHash } from 'crypto';
+import { resolveCredential } from '../fabric/secrets/device-credentials';
 import { BiomechanicalPacket, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError, UnauthorizedError } from '../utils/errors';
@@ -32,7 +33,9 @@ export async function ingestBiomechPacket(actor: BiomechActor, deviceId: string,
     const payloadJson = JSON.stringify(env.payload);
     const digest = createHash('sha256').update(payloadJson).digest('hex');
     const msg = `${env.payload.deviceTsMs}.${env.nonce}.${digest}`;
-    if (!verifyHmac(dev.hmacSecret, msg, env.sigB64)) {
+    // Resolved through the credential seam — never `row.hmacSecret` directly.
+    const credential = await resolveCredential(dev);
+    if (!verifyHmac(credential.value ?? '', msg, env.sigB64)) {
       logDeviceSecurityEvent({ kind: 'DEVICE_REJECTED', severity: 'CRITICAL', clubId: dev.clubId, deviceSessionId: null, payload: { reason: 'hmac_mismatch', deviceId } });
       throw new ForbiddenError('Invalid device signature');
     }

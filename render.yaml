@@ -84,6 +84,20 @@ services:
       - key: MFA_ENCRYPTION_KEY
         sync: false
 
+      # ── Secret store KEK (Data Fabric — secrets by reference) ───────────
+      # The key-encryption key the encrypted secret store seals device and
+      # camera credentials under. It lives HERE and never in the database, so
+      # a logical dump of Postgres carries ciphertext and nothing that opens
+      # it. Until it is set, new credentials keep going to the legacy column
+      # and nothing breaks — SYSTEM reports which way they went.
+      #
+      # Rejected at seal time if it carries under 32 bytes of key material or
+      # too few distinct characters, so a short placeholder fails closed
+      # rather than hashing into a key that merely looks strong.
+      # Generate: openssl rand -base64 48
+      - key: FAMILISTA_SECRET_KEK
+        sync: false
+
       # ── Rate limit ──────────────────────────────────────────────────────
       - key: RATE_LIMIT_WINDOW_MS
         value: "60000"
