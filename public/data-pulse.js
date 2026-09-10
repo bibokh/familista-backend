@@ -54,6 +54,11 @@
     frames: [],        // newest first, bounded
     sampling: 1,
     lastError: null,
+    // A refusal, as opposed to a network wobble. 401 and 403 do not fix
+    // themselves, so retrying them forever just hides them behind
+    // "Reconnecting…" — the exact failure that made this panel look idle
+    // when it was actually unauthorised.
+    fatal: false,
     reconnectAttempt: 0,
     inspecting: null,
     replay: { minutes: 5, loading: false, counts: null, truncated: false },
@@ -64,6 +69,9 @@
   var DOT_LIMIT = 24;        // what may be in flight on screen at once
   var abort = null;
   var reconnectTimer = null;
+  /** eventIds already rendered, and their arrival order so the set can be trimmed. */
+  var seen = Object.create(null);
+  var seenOrder = [];
 
   // ── the lanes ──────────────────────────────────────────────────────────────
 
@@ -192,7 +200,13 @@
   function statusHtml() {
     var cls = DP.connected ? 'sy-dp-live' : (DP.lastError ? 'sy-dp-down' : 'sy-dp-connecting');
     var text = DP.connected ? 'Live' : (DP.lastError ? 'Reconnecting…' : 'Connecting…');
-    return '<span class="sy-dp-status ' + cls + '"><i></i>' + esc(text) + '</span>';
+    if (!DP.connected && DP.fatal) text = 'Not authorised';
+    // The status itself, verbatim, next to the label. "Reconnecting…" with no
+    // number is what let a 404 masquerade as an idle platform for a whole
+    // production test; the code is what makes the difference visible.
+    var detail = (!DP.connected && DP.lastError)
+      ? '<em class="sy-dp-status-detail">' + esc(DP.lastError) + '</em>' : '';
+    return '<span class="sy-dp-status ' + cls + '"><i></i>' + esc(text) + detail + '</span>';
   }
 
   function replayHtml() {
@@ -326,11 +340,33 @@
     setTimeout(function () { mid.classList.remove('sy-dp-fabric-hit'); }, 400);
   }
 
+  /**
+   * Take frames in, newest first, without ever showing one twice.
+   *
+   * A reconnect replays `backlog`, and a `pulse` batch can overlap it, so the
+   * same event arrives more than once by design. `eventId` is unique per event
+   * and never reused, so it is the identity to dedupe on — and the seen-set is
+   * trimmed with the buffer so it cannot grow without bound on a long session.
+   */
   function accept(frames, sampling) {
     if (!frames || !frames.length) return;
     DP.sampling = sampling || 1;
-    for (var i = 0; i < frames.length; i++) DP.frames.unshift(frames[i]);
+
+    var fresh = [];
+    for (var i = 0; i < frames.length; i++) {
+      var f = frames[i];
+      var id = f && f.eventId;
+      if (!id || seen[id]) continue;
+      seen[id] = true;
+      seenOrder.push(id);
+      fresh.push(f);
+      DP.frames.unshift(f);
+    }
+    if (!fresh.length) return;      // nothing new: no repaint, no dots
+
     while (DP.frames.length > FRAME_LIMIT) DP.frames.pop();
+    while (seenOrder.length > FRAME_LIMIT * 2) { delete seen[seenOrder.shift()]; }
+    frames = fresh;
     paint('body');
     // Animate on the next frame, after the feed has laid out — measuring node
     // positions in the same tick as an innerHTML write would read a stale box.
@@ -339,20 +375,79 @@
     });
   }
 
-  // ── the stream ─────────────────────────────────────────────────────────────
+  // ── one way to reach the API ────────────────────────────────────────────────
+  //
+  // EVERY Data Pulse request goes through `dpFetch`. That is the whole point of
+  // it: the first version of this file built its own URL and read two
+  // properties off the API client that do not exist — `API().baseUrl` and
+  // `API().token` — so every call went to `/system/data-pulse/...` with no
+  // prefix and no credentials, and 404'd. Four call sites meant four chances to
+  // get it wrong; there is now one, and the tests assert that no other `fetch`
+  // exists in this file.
 
-  function baseUrl() {
-    try { return (API() && API().baseUrl) || ''; } catch (_) { return ''; }
+  /**
+   * The API root, resolved the same way every other Familista client resolves
+   * it. `FAM_CONFIG.API_BASE` is what `app.js` publishes; `/api/v1` is the
+   * mount in `app.ts` and the fallback the rest of the app already uses.
+   */
+  function apiBase() {
+    try {
+      if (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG && FAM_CONFIG.API_BASE) return FAM_CONFIG.API_BASE;
+    } catch (_) { /* fall through */ }
+    return '/api/v1';
   }
-  function token() {
-    try { return (API() && API().token) || localStorage.getItem('familista_token') || ''; }
-    catch (_) { return ''; }
+
+  /**
+   * The bearer token, from the accessor the API client actually exposes.
+   *
+   * `FamilistaAPI` keeps the token in a closure and offers `getToken()`. There
+   * is no `.token` property — reading one yields undefined, which is how the
+   * original bug sent an empty Authorization header.
+   */
+  function bearer() {
+    try {
+      var api = API();
+      return (api && typeof api.getToken === 'function' && api.getToken()) || '';
+    } catch (_) { return ''; }
   }
+
+  /**
+   * One authenticated request for the whole panel.
+   *
+   * Both credentials travel, because Familista accepts both and prefers the
+   * cookie: `authenticate` reads the HttpOnly `access_token` cookie first and
+   * falls back to `Authorization: Bearer`. `credentials: 'include'` is what
+   * carries the cookie when the API is on another origin, which same-origin
+   * defaults would not.
+   *
+   * No token ever goes in the URL. A credential in a query string is written
+   * to every proxy log between here and the server, and this panel exists to
+   * make things visible, not to leak them.
+   */
+  function dpFetch(path, opts) {
+    var o = opts || {};
+    var t = bearer();
+    return fetch(apiBase() + '/system/data-pulse' + path, {
+      method: 'GET',
+      headers: t ? { Authorization: 'Bearer ' + t } : {},
+      credentials: 'include',
+      cache: 'no-store',
+      signal: o.signal,
+    });
+  }
+
+  /** A refusal is not a network problem, and must not be retried forever. */
+  function isAuthStatus(code) {
+    return code === 401 || code === 403;
+  }
+
+  // ── the stream ─────────────────────────────────────────────────────────────
 
   function handle(event, data) {
     if (event === 'hello') {
       DP.connected = true;
       DP.lastError = null;
+      DP.fatal = false;
       DP.reconnectAttempt = 0;
       DP.topology = data.topology || DP.topology;
       DP.metrics = data.metrics || DP.metrics;
@@ -368,14 +463,12 @@
     if (DP.mode !== 'LIVE' || !DP.open) return;
     disconnect();
     abort = new AbortController();
-    var t = token();
 
-    fetch(baseUrl() + '/system/data-pulse/stream', {
-      headers: t ? { Authorization: 'Bearer ' + t } : {},
-      signal: abort.signal,
-      cache: 'no-store',
-    }).then(function (res) {
-      if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
+    dpFetch('/stream', { signal: abort.signal }).then(function (res) {
+      // The status travels with the error, so the screen can name it instead
+      // of saying "Reconnecting…" forever about a 403 that will never change.
+      if (!res.ok) { var e = new Error('HTTP ' + res.status); e.status = res.status; throw e; }
+      if (!res.body) throw new Error('This browser cannot read a streamed response');
       var reader = res.body.getReader();
       var decoder = new TextDecoder();
       var buf = '';
@@ -413,8 +506,13 @@
     if (err && err.name === 'AbortError') return;
     DP.connected = false;
     DP.lastError = (err && err.message) || 'disconnected';
+    DP.fatal = isAuthStatus(err && err.status);
     paint('metrics');
     if (!DP.open || DP.mode !== 'LIVE') return;
+    // A 401 or 403 is an answer, not an outage. Retrying it on a timer burns
+    // requests and — worse — presents a permission problem as a connection
+    // problem, which is unactionable.
+    if (DP.fatal) return;
     DP.reconnectAttempt = Math.min(DP.reconnectAttempt + 1, 6);
     var wait = Math.min(1000 * Math.pow(2, DP.reconnectAttempt - 1), 30000);
     clearTimeout(reconnectTimer);
@@ -434,22 +532,37 @@
     DP.replay.loading = true;
     paint('replay');
 
-    var t = token();
-    fetch(baseUrl() + '/system/data-pulse/replay?minutes=' + DP.replay.minutes, {
-      headers: t ? { Authorization: 'Bearer ' + t } : {},
-      cache: 'no-store',
-    }).then(function (r) { return r.json(); }).then(function (body) {
+    dpFetch('/replay?minutes=' + encodeURIComponent(DP.replay.minutes)).then(function (r) {
+      if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
+      return r.json();
+    }).then(function (body) {
       var d = (body && body.data) || {};
+      // Replay owns its window, so it replaces rather than merges — and the
+      // seen-set is reset with it so the same event may legitimately reappear
+      // in a later window.
+      seen = Object.create(null);
+      seenOrder = [];
       DP.frames = (d.frames || []).slice().reverse();
+      for (var i = 0; i < DP.frames.length; i++) {
+        if (DP.frames[i] && DP.frames[i].eventId) {
+          seen[DP.frames[i].eventId] = true;
+          seenOrder.push(DP.frames[i].eventId);
+        }
+      }
       DP.replay.counts = d.counts || null;
       DP.replay.truncated = !!d.truncated;
       DP.replay.loading = false;
       DP.sampling = 1;
+      DP.lastError = null;
       paint();
-    }).catch(function () {
+    }).catch(function (err) {
       DP.replay.loading = false;
       DP.replay.counts = null;
-      paint('replay');
+      // Named, not swallowed. An empty replay and a refused replay look
+      // identical otherwise, which is exactly how this bug survived a review.
+      DP.lastError = (err && err.message) || 'replay failed';
+      DP.fatal = isAuthStatus(err && err.status);
+      paint();
     });
   }
 
@@ -545,6 +658,10 @@
     DP.mode = mode;
     DP.frames = [];
     DP.sampling = 1;
+    DP.lastError = null;
+    DP.fatal = false;
+    seen = Object.create(null);
+    seenOrder = [];
     if (mode === 'LIVE') { DP.replay.counts = null; paint(); connect(); }
     else { disconnect(); DP.connected = false; paint(); loadReplay(DP.replay.minutes); }
   };

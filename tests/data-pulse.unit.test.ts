@@ -59,14 +59,25 @@ const db: Row = {
       state.outbox.push(row);
       return row;
     },
-    findMany: async ({ orderBy, take, select }: Row = {}) => {
-      let rows = [...state.outbox];
-      if (orderBy?.createdAt === 'desc') rows.reverse();
+    findMany: async ({ where = {}, orderBy, take, select }: Row = {}) => {
+      // The window is honoured here on purpose. A mock that ignores the
+      // `createdAt` filter would make the replay tests pass whatever the
+      // service asked for, which is how a wrong time column ships.
+      let rows = state.outbox.filter((r) => {
+        const at = r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt);
+        if (where.createdAt?.gte && at < where.createdAt.gte) return false;
+        if (where.createdAt?.lte && at > where.createdAt.lte) return false;
+        return true;
+      });
+      if (orderBy?.createdAt === 'desc') rows = [...rows].reverse();
       if (take) rows = rows.slice(0, take);
       if (select) return rows.map((r) => Object.fromEntries(Object.keys(select).map((k) => [k, r[k] ?? null])));
       return rows;
     },
     count: async ({ where = {} }: Row = {}) => state.outbox.filter((r) => {
+      const at = r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt);
+      if (where.createdAt?.gte && at < where.createdAt.gte) return false;
+      if (where.createdAt?.lte && at > where.createdAt.lte) return false;
       if (where.processedAt?.not === null && !r.processedAt) return false;
       if (where.failedAt?.not === null && !r.failedAt) return false;
       return true;
@@ -120,7 +131,7 @@ import {
   pulseMetrics, pulseTopology, project,
   SOURCE_LANES, LIVE_DESTINATIONS, FUTURE_DESTINATIONS, INSTRUMENTED_EVENT_TYPES,
   SAMPLE_THRESHOLD, BUFFER_LIMIT,
-  replayWindow, replayCounts,
+  replayWindow, replayCounts, eventFromRow,
   type FamilistaEvent, type PulseFrame,
 } from '../src/fabric';
 import { updatePlayer } from '../src/services/player.service';
@@ -173,6 +184,13 @@ afterAll(() => {
   setEventTransport(null);
   clearSubscribers();
 });
+
+/** Project one outbox row exactly as the replay path does. */
+function replayProjection(row: Row): PulseFrame {
+  const event = eventFromRow(row as never);
+  if (!event) throw new Error('the row did not parse as a fabric envelope');
+  return project(event);
+}
 
 /** Let the fabric's async emit and the pulse's batching settle. */
 async function settle() {
@@ -608,8 +626,8 @@ describe('burst handling', () => {
     expect(src).toMatch(/event: metrics|'metrics'/);
     const client = decomment(read('public/data-pulse.js'));
     expect(client).not.toMatch(/setInterval/);
-    // Replay is the only database read, and only when the owner picks a window.
-    expect(client.match(/fetch\(/g)!.length).toBe(2);
+    // One shared request helper, so exactly one fetch in the whole file.
+    expect(client.match(/fetch\(/g)!.length).toBe(1);
   });
 
   test('a throwing listener does not stop the others or the emit', async () => {
@@ -770,5 +788,193 @@ describe('the panel', () => {
     // one is deliberately not applied there. One screen, one catalogue.
     expect(decomment(read('public/data-pulse.js'))).toMatch(/sySyncTranslate/);
     expect(read('public/system/system.js')).toMatch(/window\.sySyncTranslate = syTranslate/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9 · The production delivery failure, and the regressions that pin it shut
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// WHAT HAPPENED
+//
+// The server half worked from the first deploy: a Head Coach saved a player,
+// `emit` ran, and two `player.updated` rows landed in `EventOutbox`. Nothing on
+// the screen. The panel built its own URL from two properties that do not
+// exist on the API client — `API().baseUrl` and `API().token` — so every
+// request went to `/system/data-pulse/...` with no `/api/v1` prefix and no
+// credentials, and 404'd. The client then reported every failure as
+// "Reconnecting…" with no status code, so a 404 was indistinguishable from an
+// idle platform.
+//
+// Three defects, and the tests below are one per defect: the prefix, the
+// credentials, and the silence. The fourth test is the one that stops it
+// recurring — a single request helper, asserted to be the only `fetch` here.
+
+describe('the API path bug that broke production', () => {
+  const CLIENT = () => decomment(read('public/data-pulse.js'));
+
+  test('there is exactly one fetch, and it is the shared helper', () => {
+    // Four call sites were four chances to build the URL wrong. One is one.
+    const src = CLIENT();
+    expect(src.match(/\bfetch\(/g)).toHaveLength(1);
+    const helper = src.slice(src.indexOf('function dpFetch'));
+    expect(helper.slice(0, helper.indexOf('\n  }'))).toMatch(/\bfetch\(/);
+    // Every caller goes through it.
+    for (const path of ['/stream', '/replay']) {
+      expect(`${path}: ${new RegExp(`dpFetch\\('${path}`).test(src)}`).toBe(`${path}: true`);
+    }
+  });
+
+  test('the API prefix is resolved the way every other Familista client does', () => {
+    const src = CLIENT();
+    // `FAM_CONFIG.API_BASE` with the same `/api/v1` fallback the rest of the
+    // app uses — the exact pattern owner-trace.js already had and this file
+    // originally did not.
+    expect(src).toMatch(/FAM_CONFIG\.API_BASE/);
+    expect(src).toMatch(/'\/api\/v1'/);
+    // And the properties that never existed are gone for good.
+    expect(src).not.toMatch(/API\(\)\.baseUrl/);
+    expect(src).not.toMatch(/API\(\)\.token\b/);
+    expect(src).not.toMatch(/localStorage\.getItem\('familista_token'\)/);
+  });
+
+  test('the request carries a real credential, and never one in the URL', () => {
+    const src = CLIENT();
+    // `getToken()` is the accessor the client actually exposes; the cookie is
+    // what `authenticate` prefers, and `include` is what carries it
+    // cross-origin.
+    expect(src).toMatch(/getToken\(\)/);
+    expect(src).toMatch(/credentials: 'include'/);
+    expect(src).toMatch(/Authorization: 'Bearer '/);
+    // No token in a query string, ever.
+    expect(src).not.toMatch(/[?&]token=/);
+    expect(src).not.toMatch(/[?&]access_token=/);
+    expect(src).not.toMatch(/new EventSource/);
+  });
+
+  test('a failure names its HTTP status instead of saying Reconnecting for ever', () => {
+    const src = CLIENT();
+    // The status travels with the error…
+    expect(src).toMatch(/e\.status = res\.status/);
+    // …is shown…
+    expect(src).toMatch(/sy-dp-status-detail/);
+    expect(src).toMatch(/Not authorised/);
+    // …and a refusal is not retried, because 401 and 403 do not heal.
+    const fail = src.slice(src.indexOf('function fail('));
+    const body = fail.slice(0, fail.indexOf('\n  }'));
+    expect(body).toMatch(/if \(DP\.fatal\) return;/);
+    expect(body.indexOf('DP.fatal')).toBeLessThan(body.indexOf('setTimeout'));
+    // A deliberate abort is still not a failure.
+    expect(body).toMatch(/AbortError/);
+    // And 401/403 is the definition of fatal — not 404, which may be a bad
+    // deploy and is worth retrying.
+    const auth = src.slice(src.indexOf('function isAuthStatus'));
+    expect(auth.slice(0, auth.indexOf('\n  }'))).toMatch(/401.*403/s);
+  });
+
+  test('replay reports a refusal rather than rendering as empty', () => {
+    // An empty window and a rejected request looked identical, which is how
+    // this survived review. Replay now sets lastError and repaints.
+    const src = CLIENT();
+    const load = src.slice(src.indexOf('function loadReplay'));
+    const body = load.slice(0, load.indexOf('\n  }'));
+    expect(body).toMatch(/if \(!r\.ok\)/);
+    expect(body).toMatch(/DP\.lastError =/);
+    expect(body).toMatch(/encodeURIComponent/);
+  });
+
+  test('the same event is never rendered twice across a reconnect', () => {
+    // A reconnect replays `backlog`, which overlaps what `pulse` already sent.
+    const src = CLIENT();
+    const accept = src.slice(src.indexOf('function accept('));
+    const body = accept.slice(0, accept.indexOf('\n  }'));
+    expect(body).toMatch(/seen\[id\]/);
+    expect(body).toMatch(/f\.eventId/);
+    // Deduped by eventId, which the envelope guarantees is unique and never
+    // reused; and the seen-set is trimmed, so a long session cannot grow it
+    // without bound.
+    expect(body).toMatch(/seenOrder/);
+    expect(src).toMatch(/delete seen\[seenOrder\.shift\(\)\]/);
+    // Nothing new means no repaint and no dots, rather than a redraw of
+    // identical rows.
+    expect(body).toMatch(/if \(!fresh\.length\) return;/);
+  });
+});
+
+describe('replay reads the real outbox rows', () => {
+  /** A row exactly as the outbox transport writes one. */
+  const outboxRow = (over: Row = {}) => ({
+    id: 'row-1', clubId: CLUB, kind: 'player.updated',
+    source: 'USER', createdAt: new Date(), idempotencyKey: 'idem-row-1',
+    processedAt: null, failedAt: null,
+    payload: {
+      __familista_event: {
+        eventId: 'evt-real-1', eventType: 'player.updated', schemaVersion: 1,
+        occurredAt: new Date().toISOString(), recordedAt: new Date().toISOString(),
+        clubId: CLUB, teamId: TEAM, actorUserId: COACH,
+        subjectType: 'PLAYER', subjectId: PLAYER,
+        sourceType: 'USER', sourceId: null,
+        correlationId: null, causationId: null, jurisdiction: null,
+        dataClassification: 'CONFIDENTIAL',
+        payload: { changedFields: ['position'] },
+        metadata: {}, idempotencyKey: 'idem-row-1',
+      },
+    },
+    ...over,
+  });
+
+  test('a real player.updated row appears in the last five minutes', async () => {
+    // The production case, reproduced from the row shape rather than by
+    // emitting: this is what Neon actually holds.
+    state.outbox.push(outboxRow());
+
+    const result = await replayWindow({ minutes: 5 });
+    expect(result.frames).toHaveLength(1);
+    expect(result.legacyCount).toBe(0);
+
+    const frame = result.frames[0];
+    expect(frame.eventType).toBe('player.updated');
+    expect(frame.clubId).toBe(CLUB);
+    expect(frame.teamId).toBe(TEAM);
+    expect(frame.source).toBe('Players');
+    expect(frame.destination).toBe('Operational Data');
+    expect(frame.dataClassification).toBe('CONFIDENTIAL');
+    expect(frame.registered).toBe(true);
+  });
+
+  test('subject metadata is read from the real envelope path', () => {
+    // `payload.__familista_event.subjectType` — verified against what the
+    // transport writes, not assumed. The id is withheld for a PLAYER because
+    // it identifies a person; the TYPE is not, and must survive.
+    const frame = replayProjection(outboxRow());
+    expect(frame.subjectType).toBe('PLAYER');
+    expect(frame.subjectId).toBeNull();
+
+    const clubRow = outboxRow();
+    (clubRow.payload as Row).__familista_event.subjectType = 'CLUB';
+    (clubRow.payload as Row).__familista_event.subjectId = CLUB;
+    expect(replayProjection(clubRow).subjectId).toBe(CLUB);
+  });
+
+  test('the replay window filters on the column the rows are written with', async () => {
+    // `createdAt`, which is the row's insert time. Filtering on the envelope's
+    // `occurredAt` would silently miss a row whose producer clock differs.
+    const src = decomment(read('src/fabric/pulse/pulse-replay.service.ts'));
+    expect(src).toMatch(/createdAt: \{ gte: from, lte: to \}/);
+
+    state.outbox.push(outboxRow({ createdAt: new Date(Date.now() - 60 * 60_000) }));
+    expect((await replayWindow({ minutes: 5 })).frames).toHaveLength(0);
+    expect((await replayWindow({ minutes: 120 })).frames).toHaveLength(1);
+  });
+
+  test('a real row still leaks nothing', async () => {
+    state.outbox.push(outboxRow());
+    const result = await replayWindow({ minutes: 5 });
+    const serialised = JSON.stringify(result);
+    expect(serialised).not.toContain('changedFields');
+    expect(serialised).not.toContain('position');
+    expect(serialised).not.toContain(COACH);       // the actor is not published
+    expect(serialised).not.toContain(PLAYER);      // nor the person's id
+    expect(serialised).not.toContain('idem-row-1');
   });
 });

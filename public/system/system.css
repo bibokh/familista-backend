@@ -692,6 +692,13 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
    this says which of the two it is at all times. */
 .sy-dp-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; }
 .sy-dp-status > i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+/* The real HTTP status, beside the label. Small, monospaced, and present only
+   when something is wrong — an unnamed "Reconnecting…" is what let a 404 pass
+   for an idle platform through an entire production test. */
+.sy-dp-status-detail {
+  font-style: normal; font-size: 9.5px; font-weight: 700; opacity: .75;
+  font-variant-numeric: tabular-nums;
+}
 .sy-dp-live { color: var(--sy-ok); }
 .sy-dp-connecting { color: var(--sy-warn); }
 .sy-dp-down { color: var(--sy-danger); }
