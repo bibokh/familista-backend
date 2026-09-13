@@ -165,6 +165,29 @@
   var openModule = null;
   var openedAt = 0;
 
+  /**
+   * The club workspaces — the only modules whose activity belongs to a tenant.
+   *
+   * Mirrored from `_ALLOWED_PAGES` in `app.js` and from `CLUB_MODULES` in
+   * `src/platform/analytics/actor-context.ts`, and held HERE rather than in the
+   * interaction layer so the browser has exactly one copy of the list.
+   *
+   * SYSTEM, the eight platform pages, Owner Home and the clubs picker are the
+   * platform's own surfaces and carry no club. `State.context.clubId` survives
+   * a walk from a club back into SYSTEM — correctly, it is the reader's own
+   * context and telemetry has no business mutating it — so reading it
+   * unconditionally is what attributed SYSTEM activity to the last club
+   * visited.
+   */
+  var CLUB_MODULES = {
+    'club-home': 1, 'squad': 1, 'training': 1, 'training-centre': 1, 'academy': 1,
+    'academy-team': 1, 'video-intelligence': 1, 'transfers': 1, 'coach-market': 1,
+    'coaches': 1, 'familista-league': 1, 'match-center': 1, 'people-access': 1,
+    'settings': 1,
+  };
+
+  function isClubModule(key) { return !!CLUB_MODULES[String(key || '')]; }
+
   /** Pages that are the same module under different names. */
   var MODULE_ALIASES = {
     'owner-home': 'club-home',
@@ -208,10 +231,17 @@
     var now = Date.now();
     closeCurrent(now);
 
+    // A tenant only when this module IS a club workspace. The server resolves
+    // the same question again from the module name and its answer is what
+    // reaches the row; this keeps a stale id off the wire to begin with.
     var club = null, team = null;
     try {
-      club = (window.State && State.club && State.club.id) || null;
-      team = (window.State && State.currentTeamId) || null;
+      if (isClubModule(module)) {
+        club = (window.State && State.context && State.context.clubId)
+          || (window.State && State.club && State.club.id) || null;
+        team = (window.State && State.context && State.context.teamId)
+          || (window.State && State.currentTeamId) || null;
+      }
     } catch (_) {}
 
     openModule = module;
@@ -264,6 +294,13 @@
     },
     /** Named events the product raises itself. */
     event: function (name, fields) { record(name, fields); },
+    /**
+     * Whether a module key is a club workspace.
+     *
+     * The one copy of that list in the browser. `fam-telemetry.js` asks this
+     * rather than keeping a second one, so the two cannot drift.
+     */
+    isClubModule: isClubModule,
     flush: function () { flush(true); },
     /** For tests and for anybody reading the console. */
     _state: function () {

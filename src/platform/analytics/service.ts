@@ -24,6 +24,7 @@ import { assertPlatformOwner } from '../system.service';
 import type { PlatformActor } from '../access-levels';
 import { sanitize, type AnalyticsEventInput } from './contracts';
 import { analyticsStore, type StoredEvent, type Window } from './store';
+import { telemetryContextResolver } from './actor-context';
 import { retentionCutoffs } from './retention';
 
 export const ANALYTICS_ENVIRONMENTS: AnalyticsEnvironment[] = ['PRODUCTION', 'STAGING', 'LAB', 'PREVIEW'];
@@ -44,7 +45,22 @@ export function analyticsEnvironment(): AnalyticsEnvironment {
 
 export interface TrackActor {
   userId?: string | null;
+  /**
+   * Deprecated as an INPUT, and ignored when `isPlatformOwner` is present.
+   *
+   * This used to be `req.user.role` — the legacy account column — and stamping
+   * it on the row is what reported this platform's owner as `CLUB_ADMIN`.
+   * `platformRole` on the row is now RESOLVED by `actor-context.ts` from the
+   * canonical authority, and this field survives only so a caller that predates
+   * that change still compiles.
+   */
   platformRole?: string | null;
+  /**
+   * Platform authority, as `authenticate` resolved it for this request:
+   * `SUPER_ADMIN` on the account, or an active `PlatformAdmin` row. The
+   * canonical answer, and the only one that makes somebody the platform owner.
+   */
+  isPlatformOwner?: boolean;
 }
 
 /** How many events one request may carry. A batch, not a firehose. */
@@ -66,14 +82,26 @@ export async function track(
   const environment = analyticsEnvironment();
   const stored: StoredEvent[] = [];
 
+  // One resolver for the whole batch: every event shares an actor and almost
+  // always a club, so the memberships are read once rather than per event.
+  const resolve = telemetryContextResolver(actor);
+
   for (const input of list) {
     const clean = sanitize({ ...input });
     if (!clean) continue;
+    // Identity and tenant are RESOLVED, never taken from the session as it
+    // happens to stand. The event says which workspace it happened in; the
+    // request says what authority the account holds; those two decide the row.
+    const context = await resolve({
+      module: clean.module, route: clean.route, clubId: clean.clubId, teamId: clean.teamId,
+    });
     stored.push({
       ...clean,
       environment,
       userId: actor.userId ?? null,
-      platformRole: actor.platformRole ?? null,
+      platformRole: context.actorIdentity,
+      clubId: context.clubId,
+      teamId: context.teamId,
     });
   }
 

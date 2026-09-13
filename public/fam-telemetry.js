@@ -175,14 +175,43 @@
     } catch (_) { return null; }
   }
 
+  /**
+   * Whether the interaction is happening inside a club workspace AT ALL.
+   *
+   * Derived from the workspace on screen, never from the session's stored club.
+   * `State.context.clubId` survives a walk from a club back into SYSTEM —
+   * correctly, it is the reader's own context and telemetry has no business
+   * mutating it — so reading it unconditionally is what attributed SYSTEM
+   * activity to the last club visited. The question a telemetry event has to
+   * answer is not "which club is this person a member of" but "which workspace
+   * did this happen in".
+   *
+   * The list itself lives in `analytics.js`, which is the one copy in the
+   * browser. If that file has not loaded, the answer is NO club: a missing
+   * dimension is a gap in a chart, where a guessed one is one tenant's activity
+   * recorded against another's.
+   *
+   * The server resolves the same question again from the module the event
+   * names, and its answer is what reaches the row. This is here so the stale id
+   * is never on the wire to begin with.
+   */
+  function inClubWorkspace() {
+    try {
+      var a = window.FamilistaAnalytics;
+      return !!(a && a.isClubModule && a.isClubModule(activeModule() || ''));
+    } catch (_) { return false; }
+  }
+
   function clubId() {
     try {
+      if (!inClubWorkspace()) return null;
       return (window.State && State.context && State.context.clubId)
         || (window.State && State.club && State.club.id) || null;
     } catch (_) { return null; }
   }
   function teamId() {
     try {
+      if (!inClubWorkspace()) return null;
       return (window.State && State.context && State.context.teamId)
         || (window.State && State.currentTeamId) || null;
     } catch (_) { return null; }

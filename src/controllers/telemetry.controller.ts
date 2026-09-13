@@ -12,12 +12,20 @@ import { sendSuccess } from '../utils/response';
 
 export async function ingest(req: Request, res: Response, next: NextFunction) {
   try {
-    const u = req.user as unknown as { id?: string; role?: string } | undefined;
+    const u = req.user as unknown as
+      { id?: string; role?: string; isPlatformOwner?: boolean } | undefined;
     const body = req.body ?? {};
     const events = Array.isArray(body.events) ? body.events : [body];
 
+    // `u.role` is NOT passed. It is `User.role`, the legacy account column, and
+    // this platform's owner holds `CLUB_ADMIN` in it for historical reasons the
+    // access model deliberately preserves — so stamping it on a row reported
+    // the platform owner as a club administrator, including inside SYSTEM.
+    // What travels is the canonical authority flag `authenticate` resolved from
+    // `SUPER_ADMIN` or an active `PlatformAdmin` row; `actor-context.ts` turns
+    // that, plus the workspace the event names, into the identity and tenant.
     const out = await track(
-      { userId: u?.id ?? null, platformRole: u?.role ?? null },
+      { userId: u?.id ?? null, isPlatformOwner: u?.isPlatformOwner === true },
       events.slice(0, MAX_BATCH),
     );
     // 202: recorded, or quietly dropped. Either way the client carries on and

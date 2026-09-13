@@ -161,7 +161,18 @@ const memoryStore = {
 };
 
 jest.mock('../src/config/database', () => ({
-  prisma: { platformAdmin: { findUnique: async ({ where }: Row) => (where.userId === 'u-owner' ? { isActive: true } : null) } },
+  prisma: {
+    platformAdmin: { findUnique: async ({ where }: Row) => (where.userId === 'u-owner' ? { isActive: true } : null) },
+    // The identity and tenant on a row are RESOLVED from live memberships
+    // rather than taken from whatever the session was carrying — see
+    // `actor-context.ts` and `tests/telemetry-actor-context.unit.test.ts`.
+    membership: {
+      findMany: async ({ where }: Row) => {
+        const w = (where ?? {}) as Row;
+        return w.userId === 'u-club' || w.userId === 'u1' ? [{ role: 'HEAD_COACH' }] : [];
+      },
+    },
+  },
 }));
 
 import { setAnalyticsStore } from '../src/platform/analytics/store';
@@ -204,7 +215,12 @@ const seed = (e: Partial<Row>) => memoryStore.writeEvents([{
 
 describe('an event is metadata about an interaction, never its subject', () => {
   it('creates an event from a declared name and a session', async () => {
-    const out = await svc.track({ userId: 'u1', platformRole: 'HEAD_COACH' }, {
+    // `platformRole` is no longer an INPUT. It used to be `req.user.role` —
+    // the legacy account column — which is how this platform's owner came to be
+    // recorded as a club administrator inside SYSTEM. It is now resolved from
+    // the canonical authority and the live membership for the workspace the
+    // event names; `academy` is a club workspace and `u1` is a head coach in it.
+    const out = await svc.track({ userId: 'u1', isPlatformOwner: false }, {
       eventName: 'module_opened', sessionId: 'sess-1', module: 'academy', clubId: 'club-a',
     });
     expect(out).toEqual({ accepted: 1, rejected: 0 });
@@ -541,7 +557,7 @@ describe('cross-club analytics is the platform owner\'s alone', () => {
   it('but lets any authenticated account record its own usage', async () => {
     // Writing is not reading. A coach records that they opened a module; only
     // the platform owner can ever see the aggregate.
-    const out = await svc.track({ userId: 'u-club', platformRole: 'HEAD_COACH' }, { eventName: 'module_opened', sessionId: 's', module: 'academy' });
+    const out = await svc.track({ userId: 'u-club', isPlatformOwner: false }, { eventName: 'module_opened', sessionId: 's', module: 'academy' });
     expect(out.accepted).toBe(1);
     const routes = read('src/routes/telemetry.routes.ts');
     expect(routes).toContain('authenticate');
