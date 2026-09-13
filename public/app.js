@@ -2458,28 +2458,6 @@ function navTo(page, el, _opts) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
-  // ── product analytics: one hook, for the whole product ──
-  // Every module open in Familista is recorded here and nowhere else. No page
-  // has its own tracking code and none should gain any — scattered
-  // instrumentation is how an analytics layer becomes impossible to audit or
-  // to switch off. It records the module key and nothing a person typed, it
-  // ignores a repeat navigation to the module already open, and it can never
-  // fail this function: a broken tracker must not break navigation.
-  try {
-    if (window.FamilistaAnalytics) {
-      // start() is idempotent and guarded, so calling it on every navigation
-      // opens exactly one session — and starting it here rather than on
-      // DOMContentLoaded means the session begins when somebody actually uses
-      // Familista, not when a signed-out page happens to load.
-      window.FamilistaAnalytics.start();
-      window.FamilistaAnalytics.page(page);
-    }
-    // The interaction layer's share of the same moment: the route changed, a
-    // page was viewed, and whatever the pointer and the hover were doing in the
-    // module being left is closed out rather than attributed to the next one.
-    if (window.FamTelemetry) FamTelemetry.nav(page);
-  } catch (_) {}
-
   // ── SYSTEM owns the whole application shell ──
   // SYSTEM and CLUBS are two products. While SYSTEM is open the club chrome is
   // removed from the layout entirely — no club sidebar, no club top bar, no
@@ -2541,6 +2519,38 @@ function navTo(page, el, _opts) {
       page = 'club-home';
       el = null;
     }
+  } catch (_) {}
+
+  // ── product analytics: one hook, for the whole product ──
+  //
+  // Every module open in Familista is recorded here and nowhere else. No page
+  // has its own tracking code and none should gain any — scattered
+  // instrumentation is how an analytics layer becomes impossible to audit or
+  // to switch off. It records the module key and nothing a person typed, it
+  // ignores a repeat navigation to the module already open, and it can never
+  // fail this function: a broken tracker must not break navigation.
+  //
+  // PLACED HERE, AFTER BOTH REDIRECTS, DELIBERATELY.
+  //
+  // `page` is rewritten twice above — once by the allow-list guard and once by
+  // the capability guard — and this used to run before either, so a blocked
+  // navigation reported the page somebody ASKED for rather than the one that
+  // opened. `page` is final from this line on, which is the only point at which
+  // a navigation can be reported truthfully. It is still before the mount and
+  // the activation, so a throw in either cannot cost the event.
+  try {
+    if (window.FamilistaAnalytics) {
+      // start() is idempotent and guarded, so calling it on every navigation
+      // opens exactly one session — and starting it here rather than on
+      // DOMContentLoaded means the session begins when somebody actually uses
+      // Familista, not when a signed-out page happens to load.
+      window.FamilistaAnalytics.start();
+      window.FamilistaAnalytics.page(page);
+    }
+    // The interaction layer's share of the same moment: the route changed, a
+    // page was viewed, and whatever the pointer and the hover were doing in the
+    // module being left is closed out rather than attributed to the next one.
+    if (window.FamTelemetry) FamTelemetry.nav(page);
   } catch (_) {}
 
   // The open match belongs to the Match Center's workspace and to nothing else.

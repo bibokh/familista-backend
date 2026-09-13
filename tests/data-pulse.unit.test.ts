@@ -109,20 +109,30 @@ const db: Row = {
       return true;
     }).length,
   },
-  // The telemetry table, with the same keyset honesty as the outbox mock.
+  // The telemetry table, with the same keyset honesty as the outbox mock — and
+  // with the TWO clocks kept apart, because the code now keeps them apart. A
+  // mock that collapsed `recordedAt` onto `occurredAt` would pass whichever one
+  // the service walked, which is exactly the property that let the live tail
+  // walk the wrong one into production.
   analyticsEvent: {
     findMany: async ({ where = {}, orderBy, take, select }: Row = {}) => {
-      const at = (r: Row) => (r.occurredAt instanceof Date ? r.occurredAt : new Date(r.occurredAt));
+      const when = (r: Row, key: string) => {
+        const v = r[key] ?? r.occurredAt;
+        return v instanceof Date ? v : new Date(v as string);
+      };
+      const at = (r: Row) => when(r, 'occurredAt');
+      const rec = (r: Row) => when(r, 'recordedAt');
       const keyset = (r: Row, clauses: Row[]) => clauses.some((c) => {
-        if (c.occurredAt?.gt !== undefined) return at(r) > c.occurredAt.gt;
-        if (c.occurredAt !== undefined && c.id?.gt !== undefined) {
-          return at(r).getTime() === (c.occurredAt as Date).getTime() && String(r.id) > String(c.id.gt);
+        if (c.recordedAt?.gt !== undefined) return rec(r) > c.recordedAt.gt;
+        if (c.recordedAt !== undefined && c.id?.gt !== undefined) {
+          return rec(r).getTime() === (c.recordedAt as Date).getTime() && String(r.id) > String(c.id.gt);
         }
         return false;
       });
       let rows = state.telemetry.filter((r) => {
         if (where.OR && !keyset(r, where.OR)) return false;
         if (where.occurredAt?.gte && at(r) < where.occurredAt.gte) return false;
+        if (where.occurredAt?.lte && at(r) > where.occurredAt.lte) return false;
         return true;
       });
       const order = Array.isArray(orderBy) ? orderBy : orderBy ? [orderBy] : [];
@@ -131,8 +141,9 @@ const db: Row = {
           for (const clause of order) {
             const key = Object.keys(clause)[0];
             const dir = clause[key] === 'desc' ? -1 : 1;
-            const av = key === 'occurredAt' ? at(a).getTime() : String(a[key]);
-            const bv = key === 'occurredAt' ? at(b).getTime() : String(b[key]);
+            const timeKey = key === 'occurredAt' || key === 'recordedAt';
+            const av = timeKey ? when(a, key).getTime() : String(a[key]);
+            const bv = timeKey ? when(b, key).getTime() : String(b[key]);
             if (av < bv) return -1 * dir;
             if (av > bv) return 1 * dir;
           }
@@ -1094,6 +1105,75 @@ describe('replay reads the real outbox rows', () => {
     expect((await replayWindow({ minutes: 120 })).frames).toHaveLength(1);
   });
 
+  /**
+   * Replay read only the outbox, so every navigation, pointer window, scroll
+   * and hover was live-only. It existed on screen for as long as the board's
+   * buffer held it and then it was gone, even though the row was sitting in
+   * `AnalyticsEvent` the whole time. That is a second reason a NAV event could
+   * be missing from a reader's point of view, independent of the cursor bug.
+   */
+  test('replay shows telemetry as well as domain events, merged by when they happened', async () => {
+    const base = Date.now() - 60_000;
+    state.outbox.push(outboxRow({ id: 'dom-1', createdAt: new Date(base + 2000) }));
+    state.telemetry.push({
+      id: 'ui-nav', eventName: 'route_changed', module: 'squad', feature: 'squad',
+      occurredAt: new Date(base + 1000), recordedAt: new Date(base + 4000),
+      sessionId: 's', userId: COACH, platformRole: 'HEAD_COACH',
+      clubId: CLUB, teamId: TEAM, route: '/squad', durationMs: null,
+      deviceCategory: 'desktop', source: 'web', schemaVersion: 1,
+    });
+    state.telemetry.push({
+      id: 'ui-scroll', eventName: 'scroll_depth', module: 'squad', feature: 'depth-50',
+      occurredAt: new Date(base + 3000), recordedAt: new Date(base + 4001),
+      sessionId: 's', userId: COACH, platformRole: 'HEAD_COACH',
+      clubId: CLUB, teamId: TEAM, route: '/squad', durationMs: null,
+      deviceCategory: 'desktop', source: 'web', schemaVersion: 1,
+    });
+
+    const result = await replayWindow({ minutes: 5 });
+    const types = result.frames.map((f) => f.eventType);
+    expect(types).toContain('ui.route_changed');
+    expect(types).toContain('ui.scroll_depth');
+    // Interleaved by `occurredAt` across both tables, not one table after the
+    // other — a replay is meant to show what a minute actually looked like.
+    expect(types.indexOf('ui.route_changed')).toBeLessThan(types.indexOf('ui.scroll_depth'));
+    expect(types.some((t) => t.indexOf('ui.') !== 0)).toBe(true);
+  });
+
+  test('a replay window is asked of when things HAPPENED, on both tables', async () => {
+    const src = decomment(read('src/fabric/pulse/pulse-replay.service.ts'));
+    // The outbox has one clock and it is the database's. Telemetry has two, and
+    // a window is a question about the browser's — which is the opposite of
+    // what a live CURSOR may walk.
+    expect(src).toMatch(/createdAt: \{ gte: from, lte: to \}/);
+    expect(src).toMatch(/occurredAt: \{ gte: from, lte: to \}/);
+
+    const old = new Date(Date.now() - 60 * 60_000);
+    state.telemetry.push({
+      id: 'ui-old', eventName: 'route_changed', module: 'training',
+      occurredAt: old, recordedAt: new Date(),
+      sessionId: 's', userId: COACH, platformRole: 'HEAD_COACH',
+      clubId: CLUB, teamId: null, route: '/training', durationMs: null,
+      deviceCategory: 'desktop', source: 'web', schemaVersion: 1,
+    });
+    // Recorded seconds ago, but it HAPPENED an hour ago, so a five-minute
+    // window does not contain it and a two-hour one does.
+    expect((await replayWindow({ minutes: 5 })).frames).toHaveLength(0);
+    expect((await replayWindow({ minutes: 120 })).frames.map((f) => f.eventId)).toEqual(['ui-old']);
+  });
+
+  test('a telemetry outage does not take replay down with it', async () => {
+    const original = db.analyticsEvent.findMany;
+    db.analyticsEvent.findMany = async () => { throw new Error('telemetry unavailable'); };
+    try {
+      state.outbox.push(outboxRow());
+      const result = await replayWindow({ minutes: 5 });
+      expect(result.frames).toHaveLength(1);
+    } finally {
+      db.analyticsEvent.findMany = original;
+    }
+  });
+
   test('a real row still leaks nothing', async () => {
     state.outbox.push(outboxRow());
     const result = await replayWindow({ minutes: 5 });
@@ -1668,6 +1748,9 @@ describe('the telemetry tail', () => {
     id: (over.id as string) ?? `ui-${state.telemetry.length + 1}`,
     eventName: 'module_opened',
     occurredAt: (over.occurredAt as Date) ?? new Date(),
+    // The database stamps this at INSERT. Unless a test is specifically about
+    // the gap between the two clocks, a row is stored when it happened.
+    recordedAt: (over.recordedAt as Date) ?? (over.occurredAt as Date) ?? new Date(),
     sessionId: 'sess-abc',
     userId: COACH, platformRole: 'HEAD_COACH',
     clubId: CLUB, teamId: TEAM,
@@ -1696,7 +1779,7 @@ describe('the telemetry tail', () => {
     expect(currentTransport()).toBeNull();
   });
 
-  test('the cursor is a (occurredAt, id) pair, like the outbox\'s', async () => {
+  test('the cursor is a (recordedAt, id) pair, like the outbox\'s (createdAt, id)', async () => {
     const sameMs = new Date('2026-09-20T11:00:00.000Z');
     state.telemetry.push(uiRow({ id: 'a', occurredAt: sameMs, eventName: 'pointer_active' }));
     state.telemetry.push(uiRow({ id: 'b', occurredAt: sameMs, eventName: 'scroll_depth' }));
@@ -1704,11 +1787,97 @@ describe('the telemetry tail', () => {
 
     // A burst of interaction shares milliseconds freely — this is the normal
     // case for telemetry, not the edge case it is for domain events.
-    const step = await telemetryStep({ occurredAt: sameMs, id: 'a' });
+    const step = await telemetryStep({ recordedAt: sameMs, id: 'a' });
     expect(step.frames.map((f) => f.eventId)).toEqual(['b', 'c']);
 
     const wire = formatTelemetryCursor(step.cursor);
     expect(parseTelemetryCursor(wire)).toEqual(step.cursor);
+  });
+
+  /**
+   * The bug that made a second device invisible.
+   *
+   * Observed in production: Live green, POINTER arriving, NAV filter on, another
+   * device navigating hard — and Recent Activity empty under NAV. The cause was
+   * not the instrumentation. It was that the live cursor walked `occurredAt`,
+   * which is the BROWSER's clock, on a table whose rows arrive out of order
+   * against it: `public/analytics.js` batches for five seconds, and two devices
+   * disagree about the time by whatever their clocks disagree by.
+   *
+   * The watching tab's own pointer stream kept pushing the cursor to its own
+   * newest timestamp. Every sparse, always-late event from anywhere else landed
+   * behind it, and a cursor does not go back.
+   */
+  test('a batch that arrives late still reaches Live — the bug that hid a second device', async () => {
+    const t = (iso: string) => new Date(iso);
+
+    // Device A — the tab watching the board — flushes a pointer window.
+    state.telemetry.push(uiRow({
+      id: 'a1', eventName: 'pointer_active',
+      occurredAt: t('2026-09-24T10:00:04.000Z'), recordedAt: t('2026-09-24T10:00:04.100Z'),
+    }));
+    const cursor = await latestTelemetryCursor();
+    expect(cursor).not.toBeNull();
+
+    // Device B navigated three seconds EARLIER, but its batch only lands now.
+    // Under the old cursor both of these were skipped, permanently.
+    state.telemetry.push(uiRow({
+      id: 'b1', eventName: 'route_changed', module: 'squad',
+      occurredAt: t('2026-09-24T10:00:01.000Z'), recordedAt: t('2026-09-24T10:00:05.000Z'),
+    }));
+    state.telemetry.push(uiRow({
+      id: 'b2', eventName: 'page_viewed', module: 'squad',
+      occurredAt: t('2026-09-24T10:00:02.000Z'), recordedAt: t('2026-09-24T10:00:05.001Z'),
+    }));
+
+    const step = await telemetryStep(cursor);
+    expect(step.frames.map((f) => f.eventType)).toEqual(['ui.route_changed', 'ui.page_viewed']);
+  });
+
+  test('a device whose clock is minutes behind is still seen', async () => {
+    // Clock skew is not an edge case across a fleet of phones and laptops. A
+    // cursor on a client clock hides such a device for ever; a cursor on the
+    // database's clock cannot.
+    state.telemetry.push(uiRow({
+      id: 'now', eventName: 'pointer_active',
+      occurredAt: new Date('2026-09-24T10:00:00.000Z'), recordedAt: new Date('2026-09-24T10:00:00.000Z'),
+    }));
+    const cursor = await latestTelemetryCursor();
+
+    state.telemetry.push(uiRow({
+      id: 'skewed', eventName: 'route_changed', module: 'training',
+      occurredAt: new Date('2026-09-24T09:52:00.000Z'),      // eight minutes slow
+      recordedAt: new Date('2026-09-24T10:00:01.000Z'),
+    }));
+
+    const step = await telemetryStep(cursor);
+    expect(step.frames.map((f) => f.eventId)).toEqual(['skewed']);
+  });
+
+  test('the frame carries both clocks, and the gap between them as real latency', () => {
+    const frame = frameFromTelemetryRow(uiRow({
+      eventName: 'route_changed',
+      occurredAt: new Date('2026-09-24T10:00:00.000Z'),
+      recordedAt: new Date('2026-09-24T10:00:04.250Z'),
+    }));
+    expect(frame.occurredAt).toBe('2026-09-24T10:00:00.000Z');
+    expect(frame.recordedAt).toBe('2026-09-24T10:00:04.250Z');
+    // The client's batching window, made visible. It was `null` before, which
+    // is part of why a cursor walking the wrong clock went unnoticed.
+    expect(frame.latencyMs).toBe(4250);
+  });
+
+  test('the tail advances on the ingest clock, so ordering is the database\'s', async () => {
+    // Deliberately reverse-ordered by the client clock, in ingest order.
+    for (let i = 0; i < 5; i += 1) {
+      state.telemetry.push(uiRow({
+        id: `r${i}`, eventName: 'route_changed', module: 'squad',
+        occurredAt: new Date(Date.UTC(2026, 8, 24, 10, 0, 50 - i)),
+        recordedAt: new Date(Date.UTC(2026, 8, 24, 11, 0, i)),
+      }));
+    }
+    const step = await telemetryStep({ recordedAt: new Date(Date.UTC(2026, 8, 24, 10, 0, 0)), id: '' });
+    expect(step.frames.map((f) => f.eventId)).toEqual(['r0', 'r1', 'r2', 'r3', 'r4']);
   });
 
   test('opening Live does not replay telemetry history', async () => {
@@ -1866,10 +2035,10 @@ describe('the telemetry tail', () => {
     const original = db.analyticsEvent.findMany;
     db.analyticsEvent.findMany = async () => { throw new Error('telemetry unavailable'); };
     try {
-      const step = await telemetryStep({ occurredAt: new Date(), id: 'x' });
+      const step = await telemetryStep({ recordedAt: new Date(), id: 'x' });
       expect(step.frames).toHaveLength(0);
       // The cursor is untouched, so the next tick asks for the same rows.
-      expect(step.cursor).toEqual({ occurredAt: expect.any(Date), id: 'x' });
+      expect(step.cursor).toEqual({ recordedAt: expect.any(Date), id: 'x' });
       expect(logged.join('\n')).toMatch(/telemetry tail step failed/);
     } finally {
       db.analyticsEvent.findMany = original;

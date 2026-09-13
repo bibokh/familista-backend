@@ -40,7 +40,7 @@ const SOURCE = read('public/fam-telemetry.js');
 
 // ── the smallest DOM this file can run in ────────────────────────────────────
 
-interface Recorded { eventName: string; module?: string; feature?: string; durationMs?: number; route?: string }
+interface Recorded { eventName: string; module?: string; feature?: string; durationMs?: number; route?: string; clubId?: string | null; teamId?: string | null }
 
 /** Selectors this file actually uses: tag, .class, #id, [attr], [attr="v"], and commas. */
 function matchOne(el: FakeEl, sel: string): boolean {
@@ -614,6 +614,123 @@ describe('STAGE 4 — hover is an opt-in, bucketed dwell', () => {
 
     expect(h.names()).toEqual(['region_dwell']);
     expect(h.last().durationMs).toBe(2000);   // one dwell of ~1.2s, bucketed
+  });
+});
+
+/**
+ * The navigation sequence, as a reader performs it.
+ *
+ * Familista navigates through ONE funnel: `navTo`. The sidebar calls it, a hash
+ * deep link calls it, and `popstate` calls it with `{fromPopState:true}` —
+ * `navTo` is also what pushes the history entry, so back and forward replay
+ * through the same function. There is no second router and no framework
+ * routing, which is why one hook in `navTo` is the whole of the instrumentation
+ * and why these tests drive `FamTelemetry.nav` directly: that IS the funnel's
+ * telemetry surface.
+ */
+describe('a real navigation sequence', () => {
+  const WALK = ['owner-home', 'club-home', 'squad', 'training', 'academy', 'match-center'];
+
+  test('every step emits route_changed and page_viewed, naming the module it landed on', () => {
+    const { page } = squadPage();
+    const h = makeHarness(page);
+    for (const p of WALK) (h.api.nav as (x: string) => void)(p);
+
+    expect(h.names()).toEqual(WALK.flatMap(() => ['route_changed', 'page_viewed']));
+    expect(h.events.filter((e) => e.eventName === 'route_changed').map((e) => e.module)).toEqual(WALK);
+    expect(h.events.every((e) => e.feature === e.module)).toBe(true);
+  });
+
+  test('one navigation is two events, not a storm', () => {
+    const { page } = squadPage();
+    const h = makeHarness(page);
+    (h.api.nav as (x: string) => void)('squad');
+    expect(h.names()).toEqual(['route_changed', 'page_viewed']);
+
+    // A re-render that navigates to the module already open is still one
+    // navigation's worth. It is not deduplicated here — `route_changed` means
+    // the route was set, and `analytics.js` is what suppresses a repeat
+    // `module_opened` — but it must never multiply.
+    (h.api.nav as (x: string) => void)('squad');
+    expect(h.names()).toHaveLength(4);
+  });
+
+  test('back and forward are navigations like any other', () => {
+    const { page } = squadPage();
+    const h = makeHarness(page);
+    // `popstate` → navTo(page, null, {fromPopState:true}) → the same hook. Back
+    // from Academy to Training is a navigation to Training.
+    for (const p of ['squad', 'training', 'academy']) (h.api.nav as (x: string) => void)(p);
+    h.reset();
+    (h.api.nav as (x: string) => void)('training');      // Back
+    (h.api.nav as (x: string) => void)('academy');       // Forward
+
+    expect(h.names()).toEqual(['route_changed', 'page_viewed', 'route_changed', 'page_viewed']);
+    expect(h.events.map((e) => e.module)).toEqual(['training', 'training', 'academy', 'academy']);
+  });
+
+  test('attribution survives the DOM swap, which is when the hook actually fires', () => {
+    // `navTo` clears `.active` from every page BEFORE it activates the target,
+    // and the hook fires in between — so for that span `document.querySelector
+    // ('.page.active')` returns nothing. A layer that read only the DOM would
+    // attribute everything in that window to no module at all.
+    const { page, card } = squadPage();
+    const h = makeHarness(page);
+    (h.api.nav as (x: string) => void)('squad');
+    h.reset();
+
+    page.attrs.class = 'page';                        // mid-navigation: nothing active
+    h.fire('pointermove', card);
+    jest.advanceTimersByTime(300);
+    h.fire('pointermove', card);
+    jest.advanceTimersByTime(2000);
+
+    expect(h.names()).toEqual(['pointer_active']);
+    expect(h.last().module).toBe('squad');
+  });
+
+  test('a pointer window opened in one module is billed to that module, not the next', () => {
+    const { page, card } = squadPage();
+    const h = makeHarness(page);
+    (h.api.nav as (x: string) => void)('squad');
+    h.reset();
+
+    h.fire('pointermove', card);
+    jest.advanceTimersByTime(300);
+    h.fire('pointermove', card);
+    (h.api.nav as (x: string) => void)('training');
+
+    expect(h.names()).toEqual(['pointer_active', 'route_changed', 'page_viewed']);
+    expect(h.events[0].module).toBe('squad');
+    expect(h.events[1].module).toBe('training');
+  });
+
+  test('a navigation refused by the ceiling still closes what the last module had open', () => {
+    const { page, card } = squadPage();
+    const h = makeHarness(page);
+    const limits = h.api._limits() as Record<string, number>;
+
+    for (let i = 0; i < limits.NAV_PER_MIN; i++) (h.api.nav as (x: string) => void)('squad');
+    h.reset();
+    h.fire('pointermove', card);
+    jest.advanceTimersByTime(300);
+    h.fire('pointermove', card);
+
+    // This navigation is over the ceiling and emits nothing — but the pointer
+    // window must still close here rather than spanning two screens.
+    (h.api.nav as (x: string) => void)('training');
+    expect(h.names()).toEqual(['pointer_active']);
+    expect(h.last().module).toBe('squad');
+  });
+
+  test('navigation carries no tenant while the workspace is a platform surface', () => {
+    const { page } = squadPage();
+    const h = makeHarness(page);
+    (h.api.nav as (x: string) => void)('system');
+    // `isClubModule` is not available in this stub, so the layer answers "no
+    // club" — which is the safe direction, and the server resolves it again
+    // from the module name regardless.
+    for (const e of h.events) expect(e.clubId ?? null).toBeNull();
   });
 });
 

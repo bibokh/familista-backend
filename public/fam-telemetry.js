@@ -165,14 +165,23 @@
    * The module on screen, from the shell rather than from a variable here.
    *
    * `navTo` activates exactly one `.page` and names it `pg-<module>`, so the DOM
-   * already holds the answer and a second copy of it here could only ever drift.
+   * usually holds the answer and a second copy of it could only ever drift.
+   *
+   * EXCEPT DURING A NAVIGATION. `navTo` clears `.active` from every page first
+   * and adds it to the target last, so for the span in between — which includes
+   * the moment this layer is told the route changed — NOTHING is active and the
+   * DOM cannot answer. That window is why the module last navigated to is
+   * remembered: it is the fallback, not the source, so it can never disagree
+   * with a page that is genuinely on screen.
    */
+  var lastModule = null;
+
   function activeModule() {
     try {
       var el = document.querySelector('.page.active');
-      if (!el || !el.id) return null;
-      return kebab(el.id.replace(/^pg-/, '')) || null;
-    } catch (_) { return null; }
+      if (el && el.id) return kebab(el.id.replace(/^pg-/, '')) || lastModule;
+      return lastModule;
+    } catch (_) { return lastModule; }
   }
 
   /**
@@ -769,14 +778,18 @@
     nav: function (page) {
       var key = kebab(page);
       if (!key) return;
-      if (!allow('nav', NAV_PER_MIN)) return;
       // Leaving a module ends whatever the pointer and the hover were doing in
-      // it; carrying those into the next module would attribute attention to
-      // the wrong screen.
+      // it, and those belong to the module being LEFT — closed before
+      // `lastModule` moves on, so a sweep across Squad is not billed to
+      // Training. This happens whether or not the ceiling lets the navigation
+      // itself through, because a dropped nav event must not leave a pointer
+      // window open across two screens.
       closePointerWindow();
       endHover();
       reached = Object.create(null);
       startedForms = Object.create(null);
+      lastModule = key;
+      if (!allow('nav', NAV_PER_MIN)) return;
       emit('route_changed', key, { module: key });
       emit('page_viewed', key, { module: key });
     },

@@ -10592,7 +10592,23 @@ model MediaAsset {
 model AnalyticsEvent {
   id          String               @id @default(uuid())
   eventName   String
+  /// WHEN IT HAPPENED, by the client's clock. The analytical truth: rollups,
+  /// day buckets, session durations and Replay windows are all questions about
+  /// this. It is not an ordering key — see `recordedAt`.
   occurredAt  DateTime             @default(now())
+  /// WHEN IT WAS STORED, by the database's clock, and never set by a caller.
+  ///
+  /// `occurredAt` arrives from a browser and the client batches for five
+  /// seconds, so rows land out of order against it and two devices disagree
+  /// about the time by whatever their clocks disagree by. A live tail keyed on
+  /// `occurredAt` therefore skips any batch that arrives after a row with a
+  /// later client timestamp — permanently, because the cursor only moves
+  /// forward. That is exactly what made a second device's navigation invisible
+  /// while the watching tab's own pointer stream came through.
+  ///
+  /// One clock, the database's, assigned at INSERT. Monotonic across every
+  /// Render instance, which `now()` in Node would not be.
+  recordedAt  DateTime             @default(now())
   environment AnalyticsEnvironment
 
   /// Stable for the life of one browser session. Not a credential, not a
@@ -10633,10 +10649,14 @@ model AnalyticsEvent {
   @@index([environment, eventName, occurredAt])
   @@index([sessionId, occurredAt])
   @@index([day])
-  /// The Data Pulse live tail: "every telemetry row after this (occurredAt,
-  /// id) pair". Cross-environment and cross-tenant by design, so none of the
+  /// Replay: "every telemetry row in this window", asked of when things
+  /// HAPPENED. Cross-environment and cross-tenant by design, so none of the
   /// indexes above — every one led by `environment` — can serve it.
   @@index([occurredAt, id])
+  /// The Data Pulse live tail: "every telemetry row stored after this
+  /// (recordedAt, id) pair". Ingest order, which is the only order a cursor can
+  /// safely walk.
+  @@index([recordedAt, id])
 }
 
 /// One visit, from first activity to last.

@@ -23,13 +23,36 @@
 // They are merged at the point of display, not at the point of storage, and
 // each carries its own cursor so neither can hold the other up.
 //
-// THE ORDERING IS THE SAME PROBLEM, SO IT HAS THE SAME ANSWER
+// THE ORDERING IS THE SAME PROBLEM, BUT NOT THE SAME CLOCK
 //
-// `occurredAt` is a timestamp and a burst of interaction shares milliseconds
-// freely, so the cursor is the composite `(occurredAt, id)` and the predicate
-// is the lexicographic greater-than. Identical reasoning to the outbox tail,
-// identical index shape, and for exactly the same reason: a cursor on time
-// alone either repeats a row for ever or skips one.
+// The outbox tail walks `createdAt`, which Postgres assigns at insert. This
+// table has TWO times and they are not interchangeable:
+//
+//   `occurredAt`  when it happened, by the BROWSER's clock
+//   `recordedAt`  when it was stored, by the DATABASE's clock
+//
+// The tail walks `recordedAt`, and the reason is a bug this cost a production
+// afternoon to find. `public/analytics.js` batches for five seconds before it
+// posts, so every row is stored 0-5s after the instant it names; and two
+// devices disagree about that instant by whatever their clocks disagree by. A
+// cursor on `occurredAt` only moves forward, so ANY batch arriving after a row
+// that bears a later client timestamp is skipped — and skipped permanently.
+//
+// In practice that meant: the tab watching the board emitted a continuous
+// pointer stream which kept pushing the cursor to its own newest timestamp,
+// and every sparse, always-late event from a SECOND device — a navigation, for
+// instance — landed behind it and was never seen. Live showed the watcher's own
+// mouse and nothing anybody else did.
+//
+// `recordedAt` is one clock, the database's, monotonic across every Render
+// instance in a way a Node-side `new Date()` would not be. The composite
+// `(recordedAt, id)` and the lexicographic predicate are then the same keyset
+// reasoning as the outbox: a cursor on time alone either repeats a row for ever
+// or skips one.
+//
+// Replay keeps asking `occurredAt`, because "what happened between 10:00 and
+// 10:05" is a question about when things happened, not about when they were
+// filed.
 //
 // WHAT NEVER REACHES A FRAME
 //
@@ -45,9 +68,15 @@ import { logger } from '../../utils/logger';
 import type { PulseFrame } from './pulse.service';
 import { resolveSubjects } from './subject-resolver.service';
 
-/** A position in the telemetry table, as a pair. Same shape as the outbox's. */
+/**
+ * A position in the telemetry table, as a pair.
+ *
+ * `recordedAt`, NOT `occurredAt` — see the note at the top of this file. The
+ * field is named for the column it walks so that nobody reading a cursor has to
+ * remember which of the two times it means.
+ */
 export interface TelemetryCursor {
-  occurredAt: Date;
+  recordedAt: Date;
   id: string;
 }
 
@@ -55,7 +84,7 @@ export interface TelemetryCursor {
 export const TELEMETRY_BATCH = 200;
 
 export function formatTelemetryCursor(cursor: TelemetryCursor | null): string | null {
-  return cursor ? `${cursor.occurredAt.toISOString()}|${cursor.id}` : null;
+  return cursor ? `${cursor.recordedAt.toISOString()}|${cursor.id}` : null;
 }
 
 export function parseTelemetryCursor(value: string | null | undefined): TelemetryCursor | null {
@@ -66,7 +95,7 @@ export function parseTelemetryCursor(value: string | null | undefined): Telemetr
   const when = new Date(raw.slice(0, at));
   const id = raw.slice(at + 1);
   if (Number.isNaN(when.getTime()) || !id) return null;
-  return { occurredAt: when, id };
+  return { recordedAt: when, id };
 }
 
 /**
@@ -167,7 +196,7 @@ function classificationFor(category: TelemetryCategory): string {
 }
 
 const TELEMETRY_SELECT = {
-  id: true, eventName: true, occurredAt: true, sessionId: true,
+  id: true, eventName: true, occurredAt: true, recordedAt: true, sessionId: true,
   userId: true, platformRole: true, clubId: true, teamId: true,
   module: true, feature: true, route: true, durationMs: true,
   deviceCategory: true, source: true, schemaVersion: true,
@@ -176,11 +205,11 @@ const TELEMETRY_SELECT = {
 /** The newest telemetry row that exists, as a cursor. */
 export async function latestTelemetryCursor(): Promise<TelemetryCursor | null> {
   const [row] = await prisma.analyticsEvent.findMany({
-    orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+    orderBy: [{ recordedAt: 'desc' }, { id: 'desc' }],
     take: 1,
-    select: { id: true, occurredAt: true },
+    select: { id: true, recordedAt: true },
   });
-  return row ? { occurredAt: row.occurredAt, id: row.id } : null;
+  return row ? { recordedAt: row.recordedAt, id: row.id } : null;
 }
 
 /**
@@ -195,6 +224,15 @@ export function frameFromTelemetryRow(row: Record<string, unknown>): PulseFrame 
   const category = telemetryCategory(eventName);
   const at = row.occurredAt instanceof Date ? row.occurredAt : new Date(String(row.occurredAt));
   const iso = Number.isNaN(at.getTime()) ? new Date(0).toISOString() : at.toISOString();
+  // Stored time, which is a different fact from happened time — and now that
+  // the two are both kept, the gap between them is the ingest lag the client's
+  // five-second batching creates. That lag was invisible before, which is part
+  // of why a cursor walking the wrong one went unnoticed.
+  const rec = row.recordedAt instanceof Date ? row.recordedAt : (row.recordedAt ? new Date(String(row.recordedAt)) : at);
+  const recIso = Number.isNaN(rec.getTime()) ? iso : rec.toISOString();
+  const lag = Number.isNaN(rec.getTime()) || Number.isNaN(at.getTime())
+    ? null
+    : Math.max(0, rec.getTime() - at.getTime());
 
   return {
     eventId: String(row.id ?? ''),
@@ -203,10 +241,12 @@ export function frameFromTelemetryRow(row: Record<string, unknown>): PulseFrame 
     eventType: `ui.${eventName}`,
     schemaVersion: Number(row.schemaVersion ?? 1),
     occurredAt: iso,
-    // Telemetry records one instant; there is no separate write time, so
-    // claiming a latency would be inventing one.
-    recordedAt: iso,
-    latencyMs: null,
+    recordedAt: recIso,
+    // Real, not invented: how long the event sat in the browser's queue before
+    // it reached the database. A clock-skewed client can make this meaningless
+    // for one row, which is why it is a displayed number and never an ordering
+    // key.
+    latencyMs: lag,
     clubId: row.clubId ? String(row.clubId) : null,
     teamId: row.teamId ? String(row.teamId) : null,
     // The ACTOR's kind, never the actor. A role is a category; a user id is a
@@ -240,7 +280,7 @@ export function frameFromTelemetryRow(row: Record<string, unknown>): PulseFrame 
  * Every telemetry row strictly after the cursor, oldest first.
  *
  * Same keyset predicate as the outbox tail, served by
- * `AnalyticsEvent_occurredAt_id_idx`. With no cursor this returns nothing
+ * `AnalyticsEvent_recordedAt_id_idx`. With no cursor this returns nothing
  * rather than everything, for the same reason: a tail that defaulted to the
  * beginning of time would replay the table on its first poll.
  */
@@ -254,11 +294,11 @@ export async function telemetryAfter(
   const rows = await prisma.analyticsEvent.findMany({
     where: {
       OR: [
-        { occurredAt: { gt: cursor.occurredAt } },
-        { occurredAt: cursor.occurredAt, id: { gt: cursor.id } },
+        { recordedAt: { gt: cursor.recordedAt } },
+        { recordedAt: cursor.recordedAt, id: { gt: cursor.id } },
       ],
     },
-    orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
+    orderBy: [{ recordedAt: 'asc' }, { id: 'asc' }],
     take: take + 1,
     select: TELEMETRY_SELECT,
   });
@@ -269,7 +309,7 @@ export async function telemetryAfter(
 
   return {
     rows: page as unknown as Array<Record<string, unknown>>,
-    cursor: last ? { occurredAt: last.occurredAt as Date, id: last.id as string } : cursor,
+    cursor: last ? { recordedAt: last.recordedAt as Date, id: last.id as string } : cursor,
     more,
   };
 }

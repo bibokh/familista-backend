@@ -9,6 +9,20 @@
 //   Replay  a bounded historical window,  ordered by (createdAt, id)
 //   Live    everything after a cursor,    ordered by (createdAt, id)
 //
+// TWO TABLES, BECAUSE LIVE READS TWO
+//
+// Live merges the outbox with `AnalyticsEvent`, so a Replay that read only the
+// outbox described a different platform from the one the board had just shown:
+// every navigation, pointer window, scroll and hover was live-only and vanished
+// the moment it scrolled off. Replay reads both and merges them the same way.
+//
+// The two tables are asked with different time columns ON PURPOSE. The outbox
+// has one time and it is the database's. Telemetry has two — `occurredAt` from
+// the browser and `recordedAt` from the database — and a window is a question
+// about when things HAPPENED, so Replay asks `occurredAt`. Live walks
+// `recordedAt`, because a cursor can only safely walk a clock that is
+// monotonic at insert. Same rows, two honest orderings of them.
+//
 // The rows go through `framesFromRows` in `outbox-tail.service.ts`, so there is
 // one row→frame path. A second projection would be a second place for a payload
 // to escape from, and a second chance for the two modes to describe the same
@@ -33,6 +47,8 @@
 
 import { prisma } from '../../config/database';
 import { framesFromRows } from './outbox-tail.service';
+import { frameFromTelemetryRow } from './telemetry-tail.service';
+import { resolveSubjects } from './subject-resolver.service';
 import type { PulseFrame } from './pulse.service';
 
 /** The windows the interface offers. Minutes. */
@@ -100,13 +116,63 @@ export async function replayWindow(query: ReplayQuery = {}): Promise<ReplayResul
   // The SAME conversion the tail uses — one row→frame path, so a payload has
   // one place to escape from rather than two, and a legacy row is read the
   // same way in both modes.
-  const frames: PulseFrame[] = await framesFromRows(page as unknown as Array<Record<string, unknown>>);
+  const domain: PulseFrame[] = await framesFromRows(page as unknown as Array<Record<string, unknown>>);
   const legacyCount = page.filter((r) => {
     const p = r.payload as Record<string, unknown> | null;
     return !(p && typeof p === 'object' && '__familista_event' in p);
   }).length;
 
-  return { frames, from: from.toISOString(), to: to.toISOString(), truncated, legacyCount };
+  const telemetry = await telemetryFramesIn(from, to, limit);
+
+  // Merged on `occurredAt` across both sources, then capped once. Concatenating
+  // would interleave nothing and show one table after the other; the whole
+  // value of a replay is seeing what a minute actually looked like.
+  const merged = [...domain, ...telemetry]
+    .sort((a, b) => (a.occurredAt < b.occurredAt ? -1 : a.occurredAt > b.occurredAt ? 1 : 0));
+  const capped = merged.length > limit ? merged.slice(merged.length - limit) : merged;
+
+  return {
+    frames: capped,
+    from: from.toISOString(),
+    to: to.toISOString(),
+    truncated: truncated || merged.length > limit,
+    legacyCount,
+  };
+}
+
+/**
+ * The telemetry half of a window, as frames.
+ *
+ * Asked of `occurredAt` — when things happened — because that is the question a
+ * window is. Selected descending and reversed for the same reason the outbox
+ * half is: a window with more rows than the cap should return what just
+ * happened, not the oldest rows in it.
+ *
+ * A telemetry table that cannot be read returns nothing rather than failing the
+ * replay: the domain half is still worth showing.
+ */
+async function telemetryFramesIn(from: Date, to: Date, limit: number): Promise<PulseFrame[]> {
+  try {
+    const rows = await prisma.analyticsEvent.findMany({
+      where: { occurredAt: { gte: from, lte: to } },
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+      select: {
+        id: true, eventName: true, occurredAt: true, recordedAt: true, sessionId: true,
+        userId: true, platformRole: true, clubId: true, teamId: true,
+        module: true, feature: true, route: true, durationMs: true,
+        deviceCategory: true, source: true, schemaVersion: true,
+      },
+    });
+    rows.reverse();
+    const frames = (rows as unknown as Array<Record<string, unknown>>).map(frameFromTelemetryRow);
+    // The same label pass Live uses — it mutates in place — so a club reads the
+    // same in both modes.
+    await resolveSubjects(frames);
+    return frames;
+  } catch {
+    return [];
+  }
 }
 
 /**
