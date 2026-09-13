@@ -100,17 +100,39 @@ const TELEMETRY_DESTINATION: Record<string, string> = {
  * in their head, against forty names they cannot.
  */
 export type TelemetryCategory =
-  | 'AUTH' | 'NAVIGATION' | 'INTERACTION' | 'POINTER' | 'SCROLL' | 'HOVER' | 'SYSTEM' | 'UI';
+  | 'AUTH' | 'NAV' | 'UI' | 'ACTION' | 'POINTER' | 'SCROLL' | 'HOVER' | 'SYSTEM';
 
+/**
+ * These eight words are also the eight the board draws, spelled identically.
+ *
+ * `public/data-pulse.js` derives the same category on the client, because a
+ * frame is filtered there and a round trip to ask the server what kind of thing
+ * it just received would be absurd. Two derivations of one concept must at
+ * least agree on its vocabulary, so the strings here and the chip labels there
+ * are the same strings — `tests/data-pulse.unit.test.ts` pins the pair.
+ *
+ * WHERE THE LINE BETWEEN `UI` AND `ACTION` IS
+ *
+ * `UI` is a SURFACE changing — a tab, a panel, a modal, a card opening. Nothing
+ * about the club is different afterwards. `ACTION` is somebody DOING something
+ * — invoking a named action, changing a filter, saving, moving a player. The
+ * distinction is what lets an owner filter to "people are changing things" and
+ * not drown in "people are looking at things".
+ */
 const CATEGORY: Record<string, TelemetryCategory> = {
   login_succeeded: 'AUTH', login_failed: 'AUTH', logout: 'AUTH', session_expired: 'AUTH',
   session_started: 'AUTH', session_ended: 'AUTH',
 
-  route_changed: 'NAVIGATION', workspace_changed: 'NAVIGATION',
-  club_entered: 'NAVIGATION', club_exited: 'NAVIGATION',
-  tab_changed: 'NAVIGATION', page_viewed: 'NAVIGATION',
-  module_opened: 'NAVIGATION', module_closed: 'NAVIGATION',
-  club_opened: 'NAVIGATION', team_opened: 'NAVIGATION',
+  route_changed: 'NAV', workspace_changed: 'NAV',
+  club_entered: 'NAV', club_exited: 'NAV', page_viewed: 'NAV',
+  module_opened: 'NAV', module_closed: 'NAV',
+  club_opened: 'NAV', team_opened: 'NAV',
+
+  tab_changed: 'UI',
+  panel_opened: 'UI', panel_closed: 'UI',
+  modal_opened: 'UI', modal_closed: 'UI',
+  menu_opened: 'UI', player_card_opened: 'UI', match_card_opened: 'UI',
+  form_started: 'UI',
 
   pointer_active: 'POINTER',
   scroll_depth: 'SCROLL',
@@ -120,7 +142,7 @@ const CATEGORY: Record<string, TelemetryCategory> = {
 };
 
 export function telemetryCategory(eventName: string): TelemetryCategory {
-  return CATEGORY[eventName] ?? 'INTERACTION';
+  return CATEGORY[eventName] ?? 'ACTION';
 }
 
 export function telemetrySourceLane(eventName: string): string {

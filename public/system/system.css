@@ -938,7 +938,8 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
 .sy-dp-cat-pointer { color: var(--sy-ok); background: rgba(52, 211, 153, .1); }
 .sy-dp-cat-scroll { color: var(--sy-ok); background: rgba(52, 211, 153, .07); }
 .sy-dp-cat-hover { color: var(--sy-ok); background: rgba(52, 211, 153, .07); }
-.sy-dp-cat-error { color: var(--sy-danger); background: rgba(248, 113, 113, .12); }
+.sy-dp-cat-action { color: var(--sy-warn); background: rgba(251, 191, 36, .12); }
+.sy-dp-cat-system { color: var(--sy-danger); background: rgba(248, 113, 113, .12); }
 
 /* The filter chips. */
 .sy-dp-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }

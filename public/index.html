@@ -955,6 +955,9 @@
 <!-- Product analytics. Loaded before app.js so the navigation hook in navTo
      always finds it, and defer-ordered so it never blocks first paint. -->
 <script src="/analytics.js?v=20260907-analytics" defer></script>
+<!-- The interaction layer. Hands every event to FamilistaAnalytics above,
+     so there is still exactly one way telemetry leaves this browser. -->
+<script src="/fam-telemetry.js?v=20260921-fam-telemetry" defer></script>
 <script src="/system/system.js?v=20260905-system" defer></script>
 <script src="/app.js?v=20260818-staff-market" defer></script>
 <!-- Club People & Access. After app.js because it registers into it; `defer`

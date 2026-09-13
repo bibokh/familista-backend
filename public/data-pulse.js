@@ -98,6 +98,18 @@
    * carries its own category in the name. Nine words a person can hold in
    * their head, against forty event names they cannot.
    */
+  // The eight telemetry words, spelled exactly as the server spells them in
+  // `telemetry-tail.service.ts`. Two derivations of one concept are tolerable —
+  // the client must filter without a round trip — but two VOCABULARIES are not,
+  // so a test pins this list against that one.
+  //
+  // UI is a surface changing; ACTION is somebody doing something. That is the
+  // whole of the distinction, and it is the one an owner actually filters on.
+  var UI_SURFACE = {
+    tab_changed: 1, panel_opened: 1, panel_closed: 1, modal_opened: 1, modal_closed: 1,
+    menu_opened: 1, player_card_opened: 1, match_card_opened: 1, form_started: 1,
+  };
+
   function categoryOf(f) {
     var t = String((f && f.eventType) || '');
     if (t.indexOf('ui.') !== 0) return 'DOMAIN';
@@ -106,9 +118,10 @@
     if (n === 'scroll_depth') return 'SCROLL';
     if (n === 'region_dwell') return 'HOVER';
     if (/^(login|logout|session)/.test(n)) return 'AUTH';
-    if (/^(route|workspace|club_|team_|tab_|page_|module_)/.test(n)) return 'NAV';
-    if (/^(api_error|client_error|reconnected|offline)/.test(n)) return 'ERROR';
-    return 'UI';
+    if (/^(route|workspace|club_|team_|page_|module_)/.test(n)) return 'NAV';
+    if (/^(api_error|client_error|reconnected|offline)/.test(n)) return 'SYSTEM';
+    if (UI_SURFACE[n]) return 'UI';
+    return 'ACTION';
   }
 
   /** The module/feature keys the server packed into `changedFields`. */
@@ -342,7 +355,7 @@
         + '</button>';
     }).join('');
 
-    var chips = ['', 'DOMAIN', 'UI', 'AUTH', 'NAV', 'POINTER', 'SCROLL', 'HOVER', 'ERROR']
+    var chips = ['', 'DOMAIN', 'AUTH', 'NAV', 'UI', 'ACTION', 'POINTER', 'SCROLL', 'HOVER', 'SYSTEM']
       .map(function (c) {
         return '<button class="sy-dp-chip' + (DP.filter === c ? ' sy-dp-chip-on' : '')
           + '" data-sy-dp-filter="' + esc(c) + '">' + esc(c || 'All') + '</button>';

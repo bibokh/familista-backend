@@ -1726,8 +1726,13 @@ describe('the telemetry tail', () => {
     const cases: Array<[string, string, string, string]> = [
       // eventName            category      source    destination
       ['login_succeeded', 'AUTH', 'Users', 'Audit'],
-      ['club_entered', 'NAVIGATION', 'Users', 'Analytics'],
-      ['player_card_opened', 'INTERACTION', 'Users', 'Analytics'],
+      ['club_entered', 'NAV', 'Users', 'Analytics'],
+      // A surface changing and somebody doing something are different
+      // questions, so they are different categories.
+      ['player_card_opened', 'UI', 'Users', 'Analytics'],
+      ['tab_changed', 'UI', 'Users', 'Analytics'],
+      ['action_invoked', 'ACTION', 'Users', 'Analytics'],
+      ['player_moved', 'ACTION', 'Users', 'Analytics'],
       ['pointer_active', 'POINTER', 'Users', 'Analytics'],
       ['scroll_depth', 'SCROLL', 'Users', 'Analytics'],
       ['region_dwell', 'HOVER', 'Users', 'Analytics'],
@@ -1739,6 +1744,44 @@ describe('the telemetry tail', () => {
       expect(`${name}: ${telemetryCategory(name)}`).toBe(`${name}: ${category}`);
       const frame = frameFromTelemetryRow(uiRow({ eventName: name }));
       expect(`${name}: ${frame.source} → ${frame.destination}`).toBe(`${name}: ${source} → ${destination}`);
+    }
+  });
+
+  test('the board and the server spell the eight categories identically', () => {
+    // Two derivations of one concept is tolerable — the client filters without
+    // a round trip — but two VOCABULARIES is not. This is what makes the pair a
+    // pair rather than a coincidence that held on the day it was written.
+    const client = decomment(read('public/data-pulse.js'));
+    const server = decomment(read('src/fabric/pulse/telemetry-tail.service.ts'));
+
+    const chips = client.match(/var chips = \[([^\]]+)\]/);
+    expect(chips).toBeTruthy();
+    const chipWords = (chips as RegExpMatchArray)[1]
+      .split(',').map((w) => w.trim().replace(/^'|'$/g, '')).filter(Boolean);
+
+    // DOMAIN is the client's alone: the server never sees a domain event
+    // through this module, so it has no name for one.
+    expect(chipWords).toContain('DOMAIN');
+    const telemetryWords = chipWords.filter((w) => w !== 'DOMAIN').sort();
+    expect(telemetryWords).toEqual(
+      ['ACTION', 'AUTH', 'HOVER', 'NAV', 'POINTER', 'SCROLL', 'SYSTEM', 'UI'],
+    );
+
+    // And every one of them is a category the server can actually produce.
+    for (const word of telemetryWords) {
+      expect(`${word} in server union: ${server.includes(`'${word}'`)}`).toBe(`${word} in server union: true`);
+    }
+
+    // The UI/ACTION split is the one a reader relies on, so the two lists of
+    // surface names must be the same list.
+    const surfaces = [
+      'tab_changed', 'panel_opened', 'panel_closed', 'modal_opened', 'modal_closed',
+      'menu_opened', 'player_card_opened', 'match_card_opened', 'form_started',
+    ];
+    for (const name of surfaces) {
+      expect(`${name} server: ${telemetryCategory(name)}`).toBe(`${name} server: UI`);
+      expect(`${name} client: ${/UI_SURFACE = \{[\s\S]*?\}/.exec(client)?.[0].includes(name)}`)
+        .toBe(`${name} client: true`);
     }
   });
 
@@ -1848,7 +1891,7 @@ describe('the telemetry tail', () => {
   test('the board can filter by category, and says which it is showing', () => {
     const client = decomment(read('public/data-pulse.js'));
     expect(client).toMatch(/function categoryOf/);
-    for (const cat of ['POINTER', 'SCROLL', 'HOVER', 'AUTH', 'NAV', 'ERROR', 'DOMAIN']) {
+    for (const cat of ['POINTER', 'SCROLL', 'HOVER', 'AUTH', 'NAV', 'UI', 'ACTION', 'SYSTEM', 'DOMAIN']) {
       expect(`${cat}: ${client.includes("'" + cat + "'")}`).toBe(`${cat}: true`);
     }
     expect(client).toMatch(/data-sy-dp-filter/);

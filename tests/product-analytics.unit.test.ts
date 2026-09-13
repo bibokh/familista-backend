@@ -661,12 +661,20 @@ describe('analytics and audit stay separate, and CLUBS is untouched', () => {
   });
 
   it('changes club behaviour by exactly one hook', () => {
-    // The whole club-side integration: start(), page(), inside one try/catch.
+    // The whole club-side integration, still: start() and page() on the one
+    // navigation path, plus flush() on sign-out so a session's last events
+    // leave with the token that can deliver them. No page has its own.
     const calls = APP.match(/FamilistaAnalytics\.\w+\(/g) || [];
-    expect(calls.sort()).toEqual(['FamilistaAnalytics.page(', 'FamilistaAnalytics.start(']);
-    // No page renders its own tracking.
+    expect([...new Set(calls)].sort()).toEqual([
+      'FamilistaAnalytics.flush(', 'FamilistaAnalytics.page(', 'FamilistaAnalytics.start(',
+    ]);
+    // No page renders its own tracking, and the interaction layer added for
+    // Data Pulse is not a second transport — it hands everything to this one.
     expect(APP).not.toMatch(/fetch\([^)]*telemetry/);
     expect(read('public/index.html')).toContain('/analytics.js');
+    const interaction = read('public/fam-telemetry.js');
+    expect(interaction).toContain('window.FamilistaAnalytics.event');
+    expect(interaction).not.toMatch(/fetch\(/);
   });
 
   it('never blocks the product, and never retries into a loop', () => {

@@ -328,6 +328,13 @@ class ApiError extends Error {
     this.userMessage = opts.userMessage || this.message;
     this.cause       = opts.cause       || null;
     this.url         = opts.url         || null;
+    // Every API failure in Familista is constructed here, so this is the one
+    // hook that sees all of them. The CODE travels — NETWORK, AUTH, SERVER,
+    // VALIDATION — and the message does not: a server message can quote a value
+    // the caller sent, and a classification cannot.
+    try {
+      if (window.FamTelemetry) window.FamTelemetry.error(this.code);
+    } catch (_) {}
   }
 }
 
@@ -796,6 +803,11 @@ async function doLogin() {
     State.token = at;   // in-memory for WS/SSE ?token= param
     State.user  = user;
 
+    // Reported here and not on the button, because only this line knows the
+    // sign-in worked. The queue kept anything recorded while signed out, so a
+    // failed attempt followed by this one reaches SYSTEM as the pair it was.
+    try { if (window.FamTelemetry) FamTelemetry.auth('in'); } catch (_) {}
+
     console.log('[Login] Success →', user && user.email);
     // Now that there IS a signed-in user, ask the server for THEIR language.
     // Boot ran before sign-in, when the only clues were the cache and the
@@ -807,6 +819,9 @@ async function doLogin() {
     // ApiError has .code + .userMessage; fall back to generic
     const msg = (e && e.userMessage) || (e && e.message) || 'Sign-in failed. Please retry.';
     console.error('[Login] Failed:', e);
+    // The FACT of a failed sign-in, never the reason and never the email: an
+    // error message here can quote what was typed.
+    try { if (window.FamTelemetry) FamTelemetry.auth('failed'); } catch (_) {}
     err(msg);
   } finally {
     btn.disabled = false;
@@ -1253,6 +1268,10 @@ function famPrefillInvitedEmail() {
 }());
 
 function doLogout() {
+  // First, while there is still a token to deliver it with — the flush below
+  // rides the session that is ending.
+  try { if (window.FamTelemetry) FamTelemetry.auth('out'); } catch (_) {}
+  try { if (window.FamilistaAnalytics) FamilistaAnalytics.flush(); } catch (_) {}
   // The cached language belongs to the person who just left. Dropping it means
   // the next sign-in resolves from that user's own saved preference rather than
   // inheriting this one's.
@@ -2246,6 +2265,10 @@ function openClub(clubId) {
       // for the club being entered is the same class of mistake.
       window.State.context.currentTeamScope = null;
     }
+    // The club scope has changed for real — the id above is written and the
+    // uuid guard is behind us. A click on a club card is an intention; this is
+    // the fact, which is what the board is for.
+    try { if (window.FamTelemetry) FamTelemetry.club(clubId, _leaving); } catch (_) {}
   } catch (_) {}
   // The footer says who this person is here, and "here" just changed.
   try { if (typeof _paintUserRole === 'function') _paintUserRole(); } catch (_) {}
@@ -2451,6 +2474,10 @@ function navTo(page, el, _opts) {
       window.FamilistaAnalytics.start();
       window.FamilistaAnalytics.page(page);
     }
+    // The interaction layer's share of the same moment: the route changed, a
+    // page was viewed, and whatever the pointer and the hover were doing in the
+    // module being left is closed out rather than attributed to the next one.
+    if (window.FamTelemetry) FamTelemetry.nav(page);
   } catch (_) {}
 
   // ── SYSTEM owns the whole application shell ──
@@ -35958,7 +35985,10 @@ function renderSquad(filterPos) {
     const ring      = _sq2RingColor(role);
     const isInjured = !!p.isInjured;
 
-    return '<button class="sq2-card sq2-status-' + (isInjured ? 'injured' : 'available') + '" data-action="openPlayerModal" data-id="' + p.id + '" type="button">'
+    return '<button class="sq2-card sq2-status-' + (isInjured ? 'injured' : 'available') + '" data-action="openPlayerModal" data-id="' + p.id + '"'
+      // Declared as a hover region so attention paid to a player card is
+      // measurable. The key is this literal — never the player's name.
+      + ' data-fam-region="player-card" data-fam-card="player" type="button">'
          + '  <div class="sq2-card-hdr">'
          + '    <span class="sq2-jersey">#' + num + '</span>'
          + '    <span class="sq2-rating">' + ovr + '</span>'
@@ -36008,6 +36038,9 @@ async function openPlayerModal(id) {
     State.activePlayer = p;
   }
   if (!p) return;
+  // After the load succeeded and before the modal paints. An id that resolves
+  // to nothing returned above, so this counts opens rather than attempts.
+  try { if (window.FamTelemetry) FamTelemetry.card('player'); } catch (_) {}
 
   document.getElementById('player-modal-title').textContent = (p.firstName || '') + ' ' + (p.lastName || '') + ' · #' + (p.number != null ? p.number : '?');
 
@@ -36052,7 +36085,9 @@ async function openPlayerModal(id) {
     { id: 'videos',      label: 'Videos' },
   ];
   document.getElementById('player-modal-tabs-nav').innerHTML = tabs.map(t =>
-    '<div class="pm2-tab" onclick="playerModalTab(\'' + t.id + '\', this)">' + t.label + '</div>'
+    // `t.id` is a tab KEY — `overview`, `stats` — and `t.label` is the
+    // translated words next to it. Only the key is declared to telemetry.
+    '<div class="pm2-tab" data-fam-tab="' + t.id + '" onclick="playerModalTab(\'' + t.id + '\', this)">' + t.label + '</div>'
   ).join('');
 
   playerModalTab('overview', document.querySelector('#player-modal-tabs-nav .pm2-tab'));

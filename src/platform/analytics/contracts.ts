@@ -66,9 +66,12 @@ export const ANALYTICS_EVENTS = [
   // `action_invoked`, not `clicked`: what is worth a trend line is that a named
   // action was performed, not which input device performed it. A keyboard
   // activation of the same control is the same fact.
-  'menu_opened', 'player_card_opened', 'action_invoked',
+  'menu_opened', 'player_card_opened', 'match_card_opened', 'action_invoked',
   'filter_changed', 'form_started', 'save_attempted', 'save_succeeded', 'save_failed',
-  'drag_completed', 'formation_changed',
+  // A drag that finished, and the one drag whose destination is the point of
+  // it. `player_moved` carries the pitch SLOT key, never a coordinate: where a
+  // player was put is a tactical fact, where the cursor was is not.
+  'drag_completed', 'formation_changed', 'player_moved',
 
   /**
    * One WINDOW of pointer movement, never one sample.
@@ -83,7 +86,7 @@ export const ANALYTICS_EVENTS = [
   /**
    * A depth THRESHOLD crossed, never a scroll position.
    *
-   * `feature` is `depth_25`, `depth_50`, `depth_75` or `depth_100`, and each
+   * `feature` is `depth-25`, `depth-50`, `depth-75` or `depth-100`, and each
    * fires at most once per module visit. Scrolling up and down a page
    * repeatedly produces no further events, because no new threshold is reached.
    */

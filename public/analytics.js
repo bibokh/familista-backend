@@ -101,11 +101,20 @@
   // ── the queue ─────────────────────────────────────────────────────────────
   function flush(sync) {
     if (!queue.length) return;
-    var batch = queue.splice(0, MAX_QUEUE);
     var base = (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG.API_BASE) ? FAM_CONFIG.API_BASE : '/api/v1';
     var token = '';
     try { token = (window.State && window.State.token) || localStorage.getItem('familista_token') || ''; } catch (_) {}
-    if (!token) return;                          // signed out: nothing to attribute
+    // Signed out, so there is nobody to attribute this to yet — but the events
+    // are KEPT rather than dropped. A failed sign-in followed by a successful
+    // one is precisely the sequence somebody watching the platform wants to
+    // see, and taking the batch out of the queue before checking for a token is
+    // what used to throw the first half of it away. The tail is trimmed so a
+    // page left on the sign-in screen cannot grow this without bound.
+    if (!token) {
+      if (queue.length > MAX_QUEUE) queue.splice(0, queue.length - MAX_QUEUE);
+      return;
+    }
+    var batch = queue.splice(0, MAX_QUEUE);
 
     try {
       fetch(base + '/telemetry/events', {
