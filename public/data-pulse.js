@@ -71,6 +71,12 @@
      * id — and never a credential.
      */
     cursor: null,
+    /** The telemetry tail's own position. Two streams, two cursors. */
+    uiCursor: null,
+    /** Counted from telemetry, so they are null until the server says. */
+    active: { activeUsers: null, activeSessions: null },
+    /** Which categories the feed shows. Empty means all of them. */
+    filter: '',
     replay: { minutes: 5, loading: false, counts: null, truncated: false },
   };
   window._DP = DP;
@@ -84,6 +90,35 @@
   var seenOrder = [];
 
   // ── the lanes ──────────────────────────────────────────────────────────────
+
+  /**
+   * The coarse kind a reader filters by.
+   *
+   * Domain events are DOMAIN; telemetry arrives already namespaced `ui.*` and
+   * carries its own category in the name. Nine words a person can hold in
+   * their head, against forty event names they cannot.
+   */
+  function categoryOf(f) {
+    var t = String((f && f.eventType) || '');
+    if (t.indexOf('ui.') !== 0) return 'DOMAIN';
+    var n = t.slice(3);
+    if (n === 'pointer_active') return 'POINTER';
+    if (n === 'scroll_depth') return 'SCROLL';
+    if (n === 'region_dwell') return 'HOVER';
+    if (/^(login|logout|session)/.test(n)) return 'AUTH';
+    if (/^(route|workspace|club_|team_|tab_|page_|module_)/.test(n)) return 'NAV';
+    if (/^(api_error|client_error|reconnected|offline)/.test(n)) return 'ERROR';
+    return 'UI';
+  }
+
+  /** The module/feature keys the server packed into `changedFields`. */
+  function ctx(f, key) {
+    var list = (f && f.changedFields) || [];
+    for (var i = 0; i < list.length; i++) {
+      if (String(list[i]).indexOf(key + ':') === 0) return String(list[i]).slice(key.length + 1);
+    }
+    return null;
+  }
 
   function laneId(kind, name) {
     var k = kind === 'source' ? 'src' : kind === 'dest' ? 'dst' : kind;
@@ -110,6 +145,11 @@
     return '<div class="sy-dp-metrics">'
       + metric('Events / sec', m.eventsPerSecond)
       + metric('Events / min', m.eventsPerMinute)
+      // Counted from telemetry sessions in the last five minutes, not guessed
+      // from open connections — an owner watching the board is not a user of
+      // the product, and counting them would flatter the number.
+      + metric('Active users', DP.active ? DP.active.activeUsers : null)
+      + metric('Active sessions', DP.active ? DP.active.activeSessions : null)
       + metric('Active clubs', m.activeClubs)
       + metric('Observed', m.totalObserved)
       + metric('Avg write latency', m.averageLatencyMs, 'ms')
@@ -276,24 +316,39 @@
 
   function feedHtml() {
     if (!DP.frames.length) return '';
-    var rows = DP.frames.slice(0, 40).map(function (f) {
+    var shown = DP.frames;
+    if (DP.filter) {
+      shown = shown.filter(function (f) { return categoryOf(f) === DP.filter; });
+    }
+    var rows = shown.slice(0, 40).map(function (f) {
       var cls = 'sy-dp-row' + (f.registered ? '' : ' sy-dp-row-unknown');
+      var cat = categoryOf(f);
+      var mod = ctx(f, 'module');
+      var feat = ctx(f, 'feature');
+      // What the reader actually wants on one line: the category, the thing
+      // that happened, and where. "POINTER Active interaction — Squad" rather
+      // than "ui.pointer_active".
+      var what = cat === 'DOMAIN' ? f.eventType : String(f.eventType).slice(3).replace(/_/g, ' ');
+      var where = [mod, feat].filter(Boolean).join(' / ');
       return '<button class="' + cls + '" data-sy-dp-inspect="' + esc(f.eventId) + '">'
-        + '<code>' + esc(f.eventType) + '</code>'
-        // The resolved names, when the server could resolve them. `data-user-content`
-        // so the catalogue pass leaves a person's name and a club's name alone.
+        + '<span class="sy-dp-cat sy-dp-cat-' + esc(cat.toLowerCase()) + '">' + esc(cat) + '</span>'
+        + '<code>' + esc(what) + '</code>'
         + (f.subjectLabel
           ? '<span class="sy-dp-row-who" data-user-content>' + esc(f.subjectLabel) + '</span>' : '')
+        + (where ? '<span class="sy-dp-row-where">' + esc(where) + '</span>' : '')
         + (f.clubLabel
           ? '<span class="sy-dp-row-club" data-user-content>' + esc(f.clubLabel) + '</span>' : '')
-        + '<span class="sy-dp-row-lane">' + esc(f.source) + ' → ' + esc(f.destination) + '</span>'
-        + '<span class="sy-dp-row-cls sy-dp-cls-' + esc(String(f.dataClassification).toLowerCase()) + '">'
-        + esc(f.dataClassification) + '</span>'
         + '<time>' + esc(timeAgo(f.recordedAt) || '') + '</time>'
-        + (f.registered ? '' : '<em title="This build does not know this event name">Unknown type</em>')
         + '</button>';
     }).join('');
-    return '<div class="sy-dp-feed"><h4>Recent events'
+
+    var chips = ['', 'DOMAIN', 'UI', 'AUTH', 'NAV', 'POINTER', 'SCROLL', 'HOVER', 'ERROR']
+      .map(function (c) {
+        return '<button class="sy-dp-chip' + (DP.filter === c ? ' sy-dp-chip-on' : '')
+          + '" data-sy-dp-filter="' + esc(c) + '">' + esc(c || 'All') + '</button>';
+      }).join('');
+
+    return '<div class="sy-dp-feed"><h4>Recent activity' + '<span class="sy-dp-chips">' + chips + '</span>'
       + (DP.sampling > 1 ? '<span class="sy-dp-sampling">showing 1 in ' + DP.sampling + '</span>' : '')
       + '</h4><div class="sy-dp-feed-rows">' + rows + '</div></div>';
   }
@@ -651,7 +706,11 @@
   function dpStream(signal) {
     var t = accessToken();
     // The cursor resumes the tail. It is a position, not a credential.
-    var q = DP.cursor ? '?cursor=' + encodeURIComponent(DP.cursor) : '';
+    // Both positions resume, so neither stream repeats or skips on reconnect.
+    var parts = [];
+    if (DP.cursor) parts.push('cursor=' + encodeURIComponent(DP.cursor));
+    if (DP.uiCursor) parts.push('uiCursor=' + encodeURIComponent(DP.uiCursor));
+    var q = parts.length ? '?' + parts.join('&') : '';
     return fetch(apiBase() + '/system/data-pulse/stream' + q, {
       method: 'GET',
       headers: t ? { Authorization: 'Bearer ' + t } : {},
@@ -677,12 +736,18 @@
   // ── the stream ─────────────────────────────────────────────────────────────
 
   function handle(event, data) {
-    if (event === 'cursor') { DP.cursor = data.cursor || DP.cursor; return; }
+    if (event === 'cursor') {
+      DP.cursor = data.cursor || DP.cursor;
+      DP.uiCursor = data.uiCursor || DP.uiCursor;
+      return;
+    }
+    if (event === 'active') { DP.active = data || DP.active; paint('metrics'); return; }
     if (event === 'hello') {
       // Where the server started reading. Held so a reconnect resumes from what
       // this browser actually rendered rather than from wherever the new
       // instance happens to be.
       DP.cursor = data.cursor || null;
+      DP.uiCursor = data.uiCursor || null;
       DP.connected = true;
       DP.lastError = null;
       DP.fatal = false;
@@ -946,8 +1011,15 @@
   // One delegated listener for the whole panel, so repainting a slot never
   // leaves a dead handler behind.
   document.addEventListener('click', function (e) {
-    var el = e.target && e.target.closest ? e.target.closest('[data-sy-dp-inspect],[data-sy-dp-mode],[data-sy-dp-window],[data-sy-dp-close]') : null;
+    var el = e.target && e.target.closest
+      ? e.target.closest('[data-sy-dp-inspect],[data-sy-dp-mode],[data-sy-dp-window],[data-sy-dp-close],[data-sy-dp-filter]')
+      : null;
     if (!el) return;
+    if (el.hasAttribute('data-sy-dp-filter')) {
+      DP.filter = el.getAttribute('data-sy-dp-filter') || '';
+      paint('body');
+      return;
+    }
     if (el.hasAttribute('data-sy-dp-close')) { window.dpCloseInspector(); return; }
     if (el.hasAttribute('data-sy-dp-inspect')) { window.dpInspect(el.getAttribute('data-sy-dp-inspect')); return; }
     if (el.hasAttribute('data-sy-dp-mode')) { window.dpSetMode(el.getAttribute('data-sy-dp-mode')); return; }

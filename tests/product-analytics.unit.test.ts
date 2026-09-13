@@ -267,9 +267,35 @@ describe('an event is metadata about an interaction, never its subject', () => {
   });
 
   it('and the declared vocabulary is coarse — no clicks, no keystrokes', () => {
+    // The rule is that no event names a GESTURE. A click, a keypress, a mouse
+    // move and a scroll position are all one-per-interaction, and a table of
+    // those is one nobody can query and a privacy surface nobody can defend.
     for (const name of ANALYTICS_EVENTS) {
-      expect(`${name}:${/click|mouse|scroll|key|hover|input/i.test(name)}`).toBe(`${name}:false`);
+      expect(`${name}:${/click|mouse|keystroke|keypress|keydown|hover|input|position|coord|pixel/i.test(name)}`)
+        .toBe(`${name}:false`);
     }
+
+    // Three names survive a "scroll"-shaped reading and are deliberately NOT
+    // gestures. Each is a summary of many interactions, which is the only form
+    // in which this class of signal can be recorded at all:
+    //
+    //   scroll_depth    a THRESHOLD, at most four times per module visit —
+    //                   scrolling up and down repeatedly emits nothing further
+    //   pointer_active  a WINDOW of movement, one per few seconds, and nothing
+    //                   at all while the pointer is still
+    //   region_dwell    a BUCKET of attention on one opt-in region, one per
+    //                   region visit rather than one per element
+    for (const aggregate of ['scroll_depth', 'pointer_active', 'region_dwell']) {
+      expect(`${aggregate}:${(ANALYTICS_EVENTS as readonly string[]).includes(aggregate)}`)
+        .toBe(`${aggregate}:true`);
+    }
+
+    // And the raw forms of each remain unnameable, so a caller could not emit
+    // one even if it wanted to.
+    for (const raw of ['scroll_position', 'pointer_move', 'mouse_move', 'element_hover', 'key_pressed']) {
+      expect(`${raw}:${(ANALYTICS_EVENTS as readonly string[]).includes(raw)}`).toBe(`${raw}:false`);
+    }
+
     expect(ANALYTICS_EVENTS).toContain('module_opened');
     expect(ANALYTICS_EVENTS).toContain('session_started');
   });

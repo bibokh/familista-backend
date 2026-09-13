@@ -44,6 +44,7 @@ const TEAM = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 
 const state = {
   outbox: [] as Row[],
+  telemetry: [] as Row[],
   players: [] as Row[],
   audits: [] as Row[],
   platformAdmins: [] as Row[],
@@ -107,6 +108,41 @@ const db: Row = {
       if (where.failedAt?.not === null && !r.failedAt) return false;
       return true;
     }).length,
+  },
+  // The telemetry table, with the same keyset honesty as the outbox mock.
+  analyticsEvent: {
+    findMany: async ({ where = {}, orderBy, take, select }: Row = {}) => {
+      const at = (r: Row) => (r.occurredAt instanceof Date ? r.occurredAt : new Date(r.occurredAt));
+      const keyset = (r: Row, clauses: Row[]) => clauses.some((c) => {
+        if (c.occurredAt?.gt !== undefined) return at(r) > c.occurredAt.gt;
+        if (c.occurredAt !== undefined && c.id?.gt !== undefined) {
+          return at(r).getTime() === (c.occurredAt as Date).getTime() && String(r.id) > String(c.id.gt);
+        }
+        return false;
+      });
+      let rows = state.telemetry.filter((r) => {
+        if (where.OR && !keyset(r, where.OR)) return false;
+        if (where.occurredAt?.gte && at(r) < where.occurredAt.gte) return false;
+        return true;
+      });
+      const order = Array.isArray(orderBy) ? orderBy : orderBy ? [orderBy] : [];
+      if (order.length) {
+        rows = [...rows].sort((a, b) => {
+          for (const clause of order) {
+            const key = Object.keys(clause)[0];
+            const dir = clause[key] === 'desc' ? -1 : 1;
+            const av = key === 'occurredAt' ? at(a).getTime() : String(a[key]);
+            const bv = key === 'occurredAt' ? at(b).getTime() : String(b[key]);
+            if (av < bv) return -1 * dir;
+            if (av > bv) return 1 * dir;
+          }
+          return 0;
+        });
+      }
+      if (take) rows = rows.slice(0, take);
+      if (select) return rows.map((r) => Object.fromEntries(Object.keys(select).map((k) => [k, r[k] ?? null])));
+      return rows;
+    },
   },
   player: {
     findFirst: async ({ where }: Row) => state.players.find((p) =>
@@ -176,6 +212,8 @@ import {
   replayWindow, replayCounts, eventFromRow, currentTransport,
   tailStep, tailAfter, latestCursor, formatCursor, parseCursor, TAIL_BATCH, ingestFrames,
   framesFromRows,
+  telemetryStep, latestTelemetryCursor, formatTelemetryCursor, parseTelemetryCursor,
+  telemetryCategory, frameFromTelemetryRow, activeCounts,
   type FamilistaEvent, type PulseFrame,
 } from '../src/fabric';
 import { updatePlayer } from '../src/services/player.service';
@@ -212,6 +250,7 @@ const aPlayer = () => ({
 
 beforeEach(() => {
   state.outbox = [];
+  state.telemetry = [];
   state.players = [aPlayer()];
   state.audits = [];
   state.platformAdmins = [{ userId: OWNER, isActive: true }];
@@ -1599,9 +1638,231 @@ describe('the PCB topology', () => {
   test('the cursor travels with the client, and is not a credential', () => {
     const src = CLIENT();
     expect(src).toMatch(/DP\.cursor/);
-    expect(src).toMatch(/'\?cursor=' \+ encodeURIComponent/);
+    expect(src).toMatch(/DP\.uiCursor/);
+    // Both positions travel, so neither stream repeats or skips on reconnect.
+    expect(src).toMatch(/'cursor=' \+ encodeURIComponent\(DP\.cursor\)/);
+    expect(src).toMatch(/'uiCursor=' \+ encodeURIComponent\(DP\.uiCursor\)/);
     // A position, not a secret: a timestamp and a row id.
     expect(src).not.toMatch(/[?&]token=/);
     expect(src).not.toMatch(/[?&]access_token=/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 14 · The second tail — people, not only records
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// `EventOutbox` answers "what did the platform record". It cannot answer "is
+// anyone using it", because a person can read every screen for an hour and
+// write nothing. So the board tails `AnalyticsEvent` too — the telemetry table
+// that already existed, with its own ingest, its own sanitiser and its own
+// retention — and merges the two streams at the point of display.
+//
+// The privacy claim here is unusually strong and worth stating precisely: this
+// is not redaction. `ALLOWED_FIELDS` in `contracts.ts` is an allow-list of
+// fourteen names and `sanitize` drops everything else BEFORE a row is written,
+// and the table has no column for content. There is nothing to redact.
+
+describe('the telemetry tail', () => {
+  const uiRow = (over: Row = {}) => ({
+    id: (over.id as string) ?? `ui-${state.telemetry.length + 1}`,
+    eventName: 'module_opened',
+    occurredAt: (over.occurredAt as Date) ?? new Date(),
+    sessionId: 'sess-abc',
+    userId: COACH, platformRole: 'HEAD_COACH',
+    clubId: CLUB, teamId: TEAM,
+    module: 'squad', feature: null, route: '/club/:clubId/squad',
+    durationMs: null, deviceCategory: 'desktop', source: 'web', schemaVersion: 1,
+    ...over,
+  });
+
+  test('a telemetry row written elsewhere reaches the board', async () => {
+    // Same severing as the outbox test: no transport, no subscribers. If the
+    // tail did not read the table, nothing would arrive.
+    setEventTransport(null);
+    clearSubscribers();
+
+    let cursor = await latestTelemetryCursor();
+    expect(cursor).toBeNull();
+    state.telemetry.push(uiRow({ id: 'ui-1' }));
+    cursor = await latestTelemetryCursor();
+
+    state.telemetry.push(uiRow({ id: 'ui-2', occurredAt: new Date(Date.now() + 5), eventName: 'club_entered' }));
+    const step = await telemetryStep(cursor);
+
+    expect(step.frames).toHaveLength(1);
+    expect(step.frames[0].eventType).toBe('ui.club_entered');
+    expect(step.frames[0].eventId).toBe('ui-2');
+    expect(currentTransport()).toBeNull();
+  });
+
+  test('the cursor is a (occurredAt, id) pair, like the outbox\'s', async () => {
+    const sameMs = new Date('2026-09-20T11:00:00.000Z');
+    state.telemetry.push(uiRow({ id: 'a', occurredAt: sameMs, eventName: 'pointer_active' }));
+    state.telemetry.push(uiRow({ id: 'b', occurredAt: sameMs, eventName: 'scroll_depth' }));
+    state.telemetry.push(uiRow({ id: 'c', occurredAt: sameMs, eventName: 'region_dwell' }));
+
+    // A burst of interaction shares milliseconds freely — this is the normal
+    // case for telemetry, not the edge case it is for domain events.
+    const step = await telemetryStep({ occurredAt: sameMs, id: 'a' });
+    expect(step.frames.map((f) => f.eventId)).toEqual(['b', 'c']);
+
+    const wire = formatTelemetryCursor(step.cursor);
+    expect(parseTelemetryCursor(wire)).toEqual(step.cursor);
+  });
+
+  test('opening Live does not replay telemetry history', async () => {
+    for (let i = 0; i < 4; i += 1) {
+      state.telemetry.push(uiRow({ id: `old-${i}`, occurredAt: new Date(Date.now() - (5 - i) * 60_000) }));
+    }
+    const cursor = await latestTelemetryCursor();
+    expect(cursor!.id).toBe('old-3');
+    expect((await telemetryStep(cursor)).frames).toHaveLength(0);
+    // And no cursor means nothing, not the whole table.
+    expect((await telemetryStep(null)).frames).toHaveLength(0);
+  });
+
+  test('every category routes to its own lane', async () => {
+    const cases: Array<[string, string, string, string]> = [
+      // eventName            category      source    destination
+      ['login_succeeded', 'AUTH', 'Users', 'Audit'],
+      ['club_entered', 'NAVIGATION', 'Users', 'Analytics'],
+      ['player_card_opened', 'INTERACTION', 'Users', 'Analytics'],
+      ['pointer_active', 'POINTER', 'Users', 'Analytics'],
+      ['scroll_depth', 'SCROLL', 'Users', 'Analytics'],
+      ['region_dwell', 'HOVER', 'Users', 'Analytics'],
+      // A client error is the platform reporting on itself, not a person
+      // acting. Putting it in Users would make an outage look like activity.
+      ['client_error', 'SYSTEM', 'System', 'Audit'],
+    ];
+    for (const [name, category, source, destination] of cases) {
+      expect(`${name}: ${telemetryCategory(name)}`).toBe(`${name}: ${category}`);
+      const frame = frameFromTelemetryRow(uiRow({ eventName: name }));
+      expect(`${name}: ${frame.source} → ${frame.destination}`).toBe(`${name}: ${source} → ${destination}`);
+    }
+  });
+
+  test('a telemetry frame carries keys and a role, never a person or their text', () => {
+    const frame = frameFromTelemetryRow(uiRow({
+      eventName: 'pointer_active', module: 'squad', feature: 'player-grid', durationMs: 3000,
+    }));
+
+    // What it DOES carry: the module and feature keys, the route shape, the
+    // role, the tenant. Enough to say "someone is working in the Squad grid".
+    expect(frame.changedFields).toContain('module:squad');
+    expect(frame.changedFields).toContain('feature:player-grid');
+    expect(frame.changedFields).toContain('route:/club/:clubId/squad');
+    expect(frame.changedFields).toContain('durationMs:3000');
+    expect(frame.subjectType).toBe('HEAD_COACH');
+    expect(frame.clubId).toBe(CLUB);
+
+    // What it does NOT: the person. A role is a category; a user id is an
+    // individual, and this board is not a way to follow one around the product.
+    expect(frame.subjectId).toBeNull();
+    expect(JSON.stringify(frame)).not.toContain(COACH);
+    // The session correlates one visit without naming anybody.
+    expect(frame.correlationId).toBe('sess-abc');
+  });
+
+  test('the telemetry table has no column that could carry content', () => {
+    // The strong claim, checked against the contract rather than asserted. An
+    // allow-list of fourteen names, and `sanitize` drops the rest before a row
+    // is ever written.
+    const contracts = decomment(read('src/platform/analytics/contracts.ts'));
+    expect(contracts).toMatch(/ALLOWED_FIELDS = \[/);
+    for (const forbidden of ['password', 'token', 'secret', 'notes', 'message', 'query', 'text', 'value', 'content']) {
+      const allow = contracts.slice(contracts.indexOf('ALLOWED_FIELDS = ['));
+      expect(`${forbidden}: ${allow.slice(0, allow.indexOf(']')).includes(forbidden)}`).toBe(`${forbidden}: false`);
+    }
+    // And the tail selects named columns, never the whole row.
+    const tail = decomment(read('src/fabric/pulse/telemetry-tail.service.ts'));
+    expect(tail).toMatch(/TELEMETRY_SELECT = \{/);
+    expect(tail).not.toMatch(/\.\.\.row/);
+  });
+
+  test('the aggregated forms are the only shape these signals have', () => {
+    // Pointer, scroll and hover exist in the catalogue ONLY as windows,
+    // thresholds and buckets. There is no per-sample, per-pixel or per-element
+    // name to emit even if a caller wanted to.
+    const contracts = decomment(read('src/platform/analytics/contracts.ts'));
+    for (const aggregate of ['pointer_active', 'scroll_depth', 'region_dwell']) {
+      expect(`${aggregate}: ${contracts.includes(aggregate)}`).toBe(`${aggregate}: true`);
+    }
+    for (const raw of ['pointer_move', 'mouse_move', 'scroll_position', 'element_hover', 'mouseover', 'keydown', 'keypress']) {
+      expect(`${raw}: ${contracts.includes(raw)}`).toBe(`${raw}: false`);
+    }
+    // No coordinate field exists to put a position in.
+    for (const coord of ["'x'", "'y'", 'clientX', 'clientY', 'pageX', 'scrollTop']) {
+      expect(`${coord}: ${contracts.includes(coord)}`).toBe(`${coord}: false`);
+    }
+  });
+
+  test('active users and sessions are counted, and admitted when unreadable', async () => {
+    state.telemetry.push(uiRow({ id: 'u1', userId: 'user-a', sessionId: 's-1' }));
+    state.telemetry.push(uiRow({ id: 'u2', userId: 'user-a', sessionId: 's-1' }));
+    state.telemetry.push(uiRow({ id: 'u3', userId: 'user-b', sessionId: 's-2' }));
+
+    // Two people, two sessions — distinct, not a row count.
+    expect(await activeCounts()).toEqual({ activeUsers: 2, activeSessions: 2 });
+
+    // Anything older than the window is not "active".
+    state.telemetry.push(uiRow({ id: 'u4', userId: 'user-c', sessionId: 's-3', occurredAt: new Date(Date.now() - 60 * 60_000) }));
+    expect((await activeCounts()).activeUsers).toBe(2);
+
+    // And a failed read says so rather than reporting nobody is here.
+    const original = db.analyticsEvent.findMany;
+    db.analyticsEvent.findMany = async () => { throw new Error('read failed'); };
+    try {
+      expect(await activeCounts()).toEqual({ activeUsers: null, activeSessions: null });
+    } finally {
+      db.analyticsEvent.findMany = original;
+    }
+  });
+
+  test('a telemetry outage cannot take the domain stream down', async () => {
+    const original = db.analyticsEvent.findMany;
+    db.analyticsEvent.findMany = async () => { throw new Error('telemetry unavailable'); };
+    try {
+      const step = await telemetryStep({ occurredAt: new Date(), id: 'x' });
+      expect(step.frames).toHaveLength(0);
+      // The cursor is untouched, so the next tick asks for the same rows.
+      expect(step.cursor).toEqual({ occurredAt: expect.any(Date), id: 'x' });
+      expect(logged.join('\n')).toMatch(/telemetry tail step failed/);
+    } finally {
+      db.analyticsEvent.findMany = original;
+    }
+  });
+
+  test('the two streams merge by time and keep separate cursors', () => {
+    // Merging at DISPLAY rather than at storage is what lets a durable fact and
+    // a sampled signal share a board without sharing a table.
+    const src = decomment(read('src/routes/data-pulse.routes.ts'));
+    expect(src).toMatch(/Promise\.all\(\[\s*tailStep\(cursor, TAIL_BATCH\),\s*telemetryStep\(uiCursor, TELEMETRY_BATCH\),?\s*\]\)/s);
+    expect(src).toMatch(/\.sort\(\(a, b\) => \(a\.occurredAt < b\.occurredAt/);
+    // Two cursors on the wire, so a quiet domain stream cannot hold back a busy
+    // telemetry one.
+    expect(src).toMatch(/uiCursor: formatTelemetryCursor\(uiCursor\)/);
+    expect(src).toMatch(/parseTelemetryCursor\(String\(req\.query\.uiCursor/);
+  });
+
+  test('the board can filter by category, and says which it is showing', () => {
+    const client = decomment(read('public/data-pulse.js'));
+    expect(client).toMatch(/function categoryOf/);
+    for (const cat of ['POINTER', 'SCROLL', 'HOVER', 'AUTH', 'NAV', 'ERROR', 'DOMAIN']) {
+      expect(`${cat}: ${client.includes("'" + cat + "'")}`).toBe(`${cat}: true`);
+    }
+    expect(client).toMatch(/data-sy-dp-filter/);
+    // Recent Activity, because it is no longer only events.
+    expect(client).toMatch(/Recent activity/);
+  });
+
+  test('the telemetry index migration is additive only', () => {
+    const sql = read('prisma/migrations/20260920110000_analytics_event_live_tail_index/migration.sql');
+    const statements = sql.split('\n').filter((l) => !/^\s*(--|$)/.test(l)).join('\n');
+    expect(statements).not.toMatch(/\b(DROP|DELETE|TRUNCATE|RENAME|UPDATE|INSERT|ALTER)\b/i);
+    expect(statements).toMatch(/CREATE INDEX IF NOT EXISTS "AnalyticsEvent_occurredAt_id_idx"/);
+    expect(statements).toMatch(/\("occurredAt", "id"\)/);
+    // One statement, and no new column.
+    expect(statements.split(';').filter((s) => s.trim()).length).toBe(1);
   });
 });

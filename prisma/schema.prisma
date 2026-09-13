@@ -10633,6 +10633,10 @@ model AnalyticsEvent {
   @@index([environment, eventName, occurredAt])
   @@index([sessionId, occurredAt])
   @@index([day])
+  /// The Data Pulse live tail: "every telemetry row after this (occurredAt,
+  /// id) pair". Cross-environment and cross-tenant by design, so none of the
+  /// indexes above — every one led by `environment` — can serve it.
+  @@index([occurredAt, id])
 }
 
 /// One visit, from first activity to last.

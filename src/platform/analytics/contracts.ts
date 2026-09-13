@@ -47,6 +47,59 @@ export const ANALYTICS_EVENTS = [
   'staff_invited', 'invitation_accepted',
   // platform surfaces
   'experiment_opened', 'feature_flag_changed',
+
+  // ── live observability, added for Data Pulse ───────────────────────────────
+  //
+  // Every name below is AGGREGATE by construction. There is no per-gesture
+  // event here: a pointer window, a depth threshold and a dwell bucket are each
+  // a summary of many interactions, which is the only form in which this class
+  // of signal can be recorded at all without becoming a table nobody can query
+  // and a privacy surface nobody can defend.
+
+  // authentication
+  'login_succeeded', 'login_failed', 'logout', 'session_expired',
+  // navigation
+  'route_changed', 'workspace_changed', 'club_entered', 'club_exited',
+  'tab_changed', 'page_viewed',
+  // deliberate interaction
+  'panel_opened', 'panel_closed', 'modal_opened', 'modal_closed',
+  // `action_invoked`, not `clicked`: what is worth a trend line is that a named
+  // action was performed, not which input device performed it. A keyboard
+  // activation of the same control is the same fact.
+  'menu_opened', 'player_card_opened', 'action_invoked',
+  'filter_changed', 'form_started', 'save_attempted', 'save_succeeded', 'save_failed',
+  'drag_completed', 'formation_changed',
+
+  /**
+   * One WINDOW of pointer movement, never one sample.
+   *
+   * `feature` is the semantic region the pointer was in — a key from the
+   * markup's own `data-fam-region`, never a coordinate and never an element's
+   * text. `durationMs` is the window length. An idle pointer emits nothing at
+   * all, so the board stays dark when nobody is moving.
+   */
+  'pointer_active',
+
+  /**
+   * A depth THRESHOLD crossed, never a scroll position.
+   *
+   * `feature` is `depth_25`, `depth_50`, `depth_75` or `depth_100`, and each
+   * fires at most once per module visit. Scrolling up and down a page
+   * repeatedly produces no further events, because no new threshold is reached.
+   */
+  'scroll_depth',
+
+  /**
+   * Attention paid to a semantic region, as a bucket.
+   *
+   * `feature` is an opt-in region key; `durationMs` is the dwell, bucketed
+   * rather than exact. One event per region visit, not one per element and not
+   * one per mouseover.
+   */
+  'region_dwell',
+
+  // platform health, from the client's point of view
+  'api_error', 'client_error', 'reconnected', 'offline',
 ] as const;
 
 export type AnalyticsEventName = typeof ANALYTICS_EVENTS[number];

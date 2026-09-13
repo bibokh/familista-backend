@@ -73,6 +73,18 @@ export {
 
 export { resolveSubjects, isNameableSubject } from './pulse/subject-resolver.service';
 
+// The second tail. `EventOutbox` says what the platform recorded; this says
+// whether anyone is using it — a person can read every screen for an hour and
+// write nothing, and a board fed only by domain events sits dark through a busy
+// afternoon.
+export {
+  telemetryStep, telemetryAfter, latestTelemetryCursor, frameFromTelemetryRow,
+  formatTelemetryCursor, parseTelemetryCursor, activeCounts,
+  telemetryCategory, telemetrySourceLane, telemetryDestinationLane,
+  TELEMETRY_BATCH,
+  type TelemetryCursor, type TelemetryCategory,
+} from './pulse/telemetry-tail.service';
+
 /**
  * Install the default transport.
  *

@@ -41,6 +41,10 @@ import {
   formatCursor, latestCursor, parseCursor, tailStep,
   TAIL_BATCH, TAIL_INTERVAL_MS, type OutboxCursor,
 } from '../fabric/pulse/outbox-tail.service';
+import {
+  activeCounts, formatTelemetryCursor, latestTelemetryCursor, parseTelemetryCursor,
+  telemetryStep, TELEMETRY_BATCH, type TelemetryCursor,
+} from '../fabric/pulse/telemetry-tail.service';
 
 const router = Router();
 router.use(authenticate);
@@ -140,6 +144,7 @@ router.get('/stream', async (req: Request, res: Response) => {
    * what is happening now. Those rows are Replay's job and remain there.
    */
   let cursor: OutboxCursor | null = parseCursor(String(req.query.cursor ?? ''));
+  let uiCursor: TelemetryCursor | null = parseTelemetryCursor(String(req.query.uiCursor ?? ''));
   let seeded = false;
   try {
     if (!cursor) { cursor = await latestCursor(); seeded = true; }
@@ -147,15 +152,22 @@ router.get('/stream', async (req: Request, res: Response) => {
     // The seed failed; the tail will simply find nothing until it succeeds.
     cursor = null;
   }
+  try {
+    // Seeded independently. Telemetry and domain events arrive at wildly
+    // different rates, and one cursor for both would make a quiet afternoon of
+    // domain activity hold back a busy afternoon of people using the product.
+    if (!uiCursor) uiCursor = await latestTelemetryCursor();
+  } catch { uiCursor = null; }
 
   send('hello', {
     topology: pulseTopology(),
     metrics: pulseMetrics(),
     cursor: formatCursor(cursor),
+    uiCursor: formatTelemetryCursor(uiCursor),
     resumed: !seeded && cursor !== null,
     limits: {
       bufferLimit: BUFFER_LIMIT, flushMs: FLUSH_MS, sampleThreshold: SAMPLE_THRESHOLD,
-      tailBatch: TAIL_BATCH, tailIntervalMs: TAIL_INTERVAL_MS,
+      tailBatch: TAIL_BATCH, tailIntervalMs: TAIL_INTERVAL_MS, telemetryBatch: TELEMETRY_BATCH,
     },
   });
   // What this instance has already buffered, as one frame rather than a storm.
@@ -175,29 +187,66 @@ router.get('/stream', async (req: Request, res: Response) => {
    * database instead of two hundred rows per second.
    */
   let polling = false;
+
+  /**
+   * One poll of BOTH tails, merged.
+   *
+   * The two sources are read independently — each has its own cursor and its
+   * own failure — and their frames are merged by time before being handed to
+   * the buffer. Merging at display rather than at storage is what lets a
+   * durable fact and a sampled signal share a board without sharing a table.
+   *
+   * A frame from either source that arrives out of order relative to the other
+   * is still ordered correctly here, because the merge sorts on `occurredAt`
+   * across both pages rather than concatenating them.
+   */
   const poll = async (): Promise<void> => {
     if (!open || polling) return;
     polling = true;
     try {
-      const step = await tailStep(cursor, TAIL_BATCH);
-      cursor = step.cursor;
-      if (step.frames.length) {
-        // Deduped in the buffer as well as in the browser: two owners may watch
-        // at once, and a resumed cursor may overlap what was already read.
-        const fresh = ingestFrames(step.frames);
+      const [domain, telemetry] = await Promise.all([
+        tailStep(cursor, TAIL_BATCH),
+        telemetryStep(uiCursor, TELEMETRY_BATCH),
+      ]);
+      cursor = domain.cursor;
+      uiCursor = telemetry.cursor;
+
+      const merged = [...domain.frames, ...telemetry.frames]
+        .sort((a, b) => (a.occurredAt < b.occurredAt ? -1 : a.occurredAt > b.occurredAt ? 1 : 0));
+
+      if (merged.length) {
+        const fresh = ingestFrames(merged);
         if (fresh.length) {
-          send('cursor', { cursor: formatCursor(cursor) });
+          send('cursor', {
+            cursor: formatCursor(cursor),
+            uiCursor: formatTelemetryCursor(uiCursor),
+          });
           flushNow();
         }
       }
-      if (step.more && open) { polling = false; void poll(); return; }
+      // Either tail having more waiting means drain now rather than in a
+      // second: a backlog should clear at the speed of the database.
+      if ((domain.more || telemetry.more) && open) { polling = false; void poll(); return; }
     } finally {
       polling = false;
     }
   };
 
   const tailTick = setInterval(() => { void poll(); }, TAIL_INTERVAL_MS);
+  /**
+   * Metrics on the open connection, and the active counts on a slower one.
+   *
+   * The in-memory numbers are free and go out every second. "Active users" and
+   * "active sessions" are a database read, so they run every ten — often enough
+   * to be live, rarely enough that watching the board is not itself a load.
+   */
   const metricsTick = setInterval(() => send('metrics', pulseMetrics()), 1_000);
+  const sendActive = async (): Promise<void> => {
+    if (!open) return;
+    try { send('active', await activeCounts()); } catch { /* a missing count is not fatal */ }
+  };
+  void sendActive();
+  const activeTick = setInterval(() => { void sendActive(); }, 10_000);
   const beat = setInterval(() => {
     if (!open) return;
     try { res.write(': keepalive\n\n'); } catch { open = false; }
@@ -207,6 +256,7 @@ router.get('/stream', async (req: Request, res: Response) => {
     open = false;
     clearInterval(tailTick);
     clearInterval(metricsTick);
+    clearInterval(activeTick);
     clearInterval(beat);
     try { off(); } catch { /* already gone */ }
     try { res.end(); } catch { /* already gone */ }

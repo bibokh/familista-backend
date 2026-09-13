@@ -1,0 +1,52 @@
+-- Familista Data Pulse — the telemetry tail's index
+--
+-- PURELY ADDITIVE. One index on two existing columns. No column is added,
+-- dropped, renamed or re-typed; no row is read, written, moved or deleted; no
+-- constraint is created or changed.
+--
+-- WHAT IT IS FOR
+--
+-- Data Pulse now tails `AnalyticsEvent` as well as `EventOutbox`, so the board
+-- shows people using the platform and not only records the platform wrote. The
+-- tail is a keyset scan, identical in shape to the outbox's:
+--
+--   WHERE ("occurredAt", "id") > ($1, $2)
+--   ORDER BY "occurredAt", "id"
+--   LIMIT $3
+--
+-- WHY THE SEVEN EXISTING INDEXES DO NOT SERVE IT
+--
+-- Every one of them is led by `environment`:
+--
+--   [environment, occurredAt]           [environment, day, userId]
+--   [environment, module, occurredAt]   [environment, clubId, occurredAt]
+--   [environment, eventName, occurredAt]
+--   [sessionId, occurredAt]             [day]
+--
+-- The live tail is deliberately cross-environment and cross-tenant — the
+-- platform owner watches everything — so a leading `environment` predicate is
+-- exactly what it does not have. `[sessionId, occurredAt]` is led by a session
+-- the tail does not filter on, and `[day]` has the wrong granularity.
+--
+-- THE PAIR, NOT THE TIMESTAMP
+--
+-- A burst of interaction shares milliseconds freely: a pointer window, a depth
+-- threshold and a dwell bucket can all land in the same one. A cursor on
+-- `occurredAt` alone would either replay a row on every poll or skip one,
+-- depending on which side of the comparison it fell. Ordering on the composite
+-- pair is total.
+--
+-- A NOTE ON SIZE
+--
+-- This table grows far faster than `EventOutbox` — hundreds of rows per active
+-- user per hour rather than a handful. `CREATE INDEX` without CONCURRENTLY
+-- takes a SHARE lock and blocks writes while it builds, which at today's row
+-- count is milliseconds and at ten million rows would not be. Doing it now,
+-- while the table is small, is the cheap moment; the concurrent form cannot run
+-- inside Prisma's migration transaction and would need its own step.
+--
+-- Guarded so it is safe to replay against a database bootstrapped with
+-- `db push`.
+
+CREATE INDEX IF NOT EXISTS "AnalyticsEvent_occurredAt_id_idx"
+  ON "AnalyticsEvent" ("occurredAt", "id");

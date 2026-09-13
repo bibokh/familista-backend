@@ -919,6 +919,38 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
 .sy-dp-row:hover { border-color: var(--sy-line-2); }
 .sy-dp-row > code { font-size: 11px; font-weight: 700; color: var(--sy-tx); }
 .sy-dp-row-lane { font-size: 10px; color: var(--sy-tx-3); }
+/* Where it happened — the module and feature KEYS the server packed into the
+   frame, never text from a screen. */
+.sy-dp-row-where { font-size: 10px; color: var(--sy-tx-3); }
+
+/* The category badge. Nine words, each its own colour, so a reader can scan the
+   feed for one kind of activity without reading every line. */
+.sy-dp-cat {
+  flex: none; min-width: 58px; text-align: center;
+  font-size: 8.5px; font-weight: 800; letter-spacing: .06em;
+  padding: 2px 5px; border-radius: 4px;
+  background: rgba(255, 255, 255, .05); color: var(--sy-tx-3);
+}
+.sy-dp-cat-domain { color: var(--sy-violet); background: rgba(167, 139, 250, .12); }
+.sy-dp-cat-ui { color: var(--sy-accent-2); background: rgba(34, 211, 238, .1); }
+.sy-dp-cat-auth { color: var(--sy-accent); background: rgba(59, 130, 246, .14); }
+.sy-dp-cat-nav { color: var(--sy-accent-2); background: rgba(34, 211, 238, .07); }
+.sy-dp-cat-pointer { color: var(--sy-ok); background: rgba(52, 211, 153, .1); }
+.sy-dp-cat-scroll { color: var(--sy-ok); background: rgba(52, 211, 153, .07); }
+.sy-dp-cat-hover { color: var(--sy-ok); background: rgba(52, 211, 153, .07); }
+.sy-dp-cat-error { color: var(--sy-danger); background: rgba(248, 113, 113, .12); }
+
+/* The filter chips. */
+.sy-dp-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
+.sy-dp-chip {
+  font: inherit; font-size: 9px; font-weight: 700; letter-spacing: .04em;
+  text-transform: none; cursor: pointer;
+  color: var(--sy-tx-3); background: var(--sy-panel-2);
+  border: 1px solid var(--sy-line); border-radius: 5px; padding: 2px 7px;
+  transition: color .15s ease, border-color .15s ease;
+}
+.sy-dp-chip:hover { color: var(--sy-tx); border-color: var(--sy-line-2); }
+.sy-dp-chip-on { color: var(--sy-bg); background: var(--sy-accent-2); border-color: transparent; }
 /* Names the server resolved. A person's name reads as a person's name. */
 .sy-dp-row-who { font-size: 10.5px; font-weight: 700; color: var(--sy-tx); }
 .sy-dp-row-club { font-size: 10px; color: var(--sy-accent-2); }
