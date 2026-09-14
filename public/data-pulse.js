@@ -554,7 +554,7 @@
     return eco.regions.filter(function (r) { return r.lat !== null && r.lon !== null; });
   }
 
-  function worldSvg(cls, withPins) {
+  function worldSvg(cls, withPins, fit) {
     var pins = '';
     if (withPins) {
       var rows = plotted();
@@ -562,15 +562,20 @@
       pins = rows.map(function (r) {
         var p = project(r.lat, r.lon);
         var rad = 3.2 + Math.min(7, (r.clubs / max) * 7);
+        var cx = p.x.toFixed(1), cy = p.y.toFixed(1);
         return '<g class="sy-dp-pin">'
-          + '<circle class="sy-dp-pin-halo" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + (rad + 6).toFixed(1) + '"/>'
-          + '<circle class="sy-dp-pin-dot" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + rad.toFixed(1) + '">'
+          + '<circle class="sy-dp-pin-halo" cx="' + cx + '" cy="' + cy + '" r="' + (rad + 7).toFixed(1) + '"/>'
+          + '<circle class="sy-dp-pin-ring" cx="' + cx + '" cy="' + cy + '" r="' + (rad + 3.5).toFixed(1) + '"/>'
+          + '<circle class="sy-dp-pin-dot" cx="' + cx + '" cy="' + cy + '" r="' + rad.toFixed(1) + '">'
           + '<title data-user-content>' + esc(r.country) + ' · ' + esc(String(r.clubs))
           + '</title></circle></g>';
       }).join('');
     }
+    // `slice` fills the card and crops the empty polar rows; `meet` letterboxes
+    // and leaves half a card of nothing, which is what the panels were doing.
     return '<svg class="sy-dp-world ' + (cls || '') + '" viewBox="0 0 ' + MAP_W + ' ' + MAP_H + '"'
-      + ' preserveAspectRatio="xMidYMid meet" role="img" aria-label="World map">'
+      + ' preserveAspectRatio="xMidYMid ' + (fit === 'slice' ? 'slice' : 'meet') + '"'
+      + ' role="img" aria-label="World map">'
       + '<path class="sy-dp-land" d="' + worldPath() + '"/>' + pins + '</svg>';
   }
 
@@ -600,7 +605,7 @@
     }
     return '<section class="sy-dp-eco" aria-label="Global football ecosystem">'
       + '<h4>' + icon('globe') + '<span>Global Football Ecosystem</span></h4>'
-      + '<div class="sy-dp-eco-map">' + worldSvg('sy-dp-world--sm', true) + '</div>'
+      + '<div class="sy-dp-eco-map">' + worldSvg('sy-dp-world--sm', true, 'slice') + '</div>'
       + '<div class="sy-dp-eco-stats">'
         + ecoStat('Continents', e ? e.continents : null, e && e.how ? e.how.continents : '')
         + ecoStat('Countries', e ? e.countries : null, e && e.how ? e.how.countries : '')
@@ -647,6 +652,37 @@
     }).join('');
   }
 
+  /**
+   * The substrate the board is printed on.
+   *
+   * Static etched routing and vias, drawn once as a constant and scaled with
+   * the board. It is TEXTURE, not topology: nothing travels on it, no packet
+   * is ever given one of these paths, and it is drawn dimmer than the live
+   * copper precisely so the two cannot be confused. The real connections are
+   * the measured `<path>`s in `#dp-traces`, and they are the only ones that
+   * ever light.
+   */
+  var ETCH = '<svg class="sy-dp-etch" viewBox="0 0 1000 420" preserveAspectRatio="xMidYMid slice"'
+    + ' aria-hidden="true" focusable="false">'
+    + '<g class="sy-dp-etch-g">'
+    + '<path d="M0 46h84l22 22h96M0 92h58l26-26h72M0 138h44l30 30h108M0 212h70l24 24h70"/>'
+    + '<path d="M0 286h44l30-30h108M0 332h58l26 26h72M0 378h84l22-22h96"/>'
+    + '<path d="M1000 46h-84l-22 22h-96M1000 92h-58l-26-26h-72M1000 138h-44l-30 30h-108"/>'
+    + '<path d="M1000 212h-70l-24 24h-70M1000 286h-44l-30-30h-108M1000 332h-58l-26 26h-72"/>'
+    + '<path d="M1000 378h-84l-22-22h-96"/>'
+    + '<path d="M300 0v38l26 26v64M700 0v38l-26 26v64M300 420v-38l26-26v-64M700 420v-38l-26-26v-64"/>'
+    + '<path d="M360 14h280M360 406h280"/>'
+    + '</g>'
+    + '<g class="sy-dp-etch-via">'
+    + '<circle cx="202" cy="68" r="3"/><circle cx="156" cy="66" r="3"/><circle cx="182" cy="168" r="3"/>'
+    + '<circle cx="164" cy="236" r="3"/><circle cx="182" cy="256" r="3"/><circle cx="156" cy="358" r="3"/>'
+    + '<circle cx="202" cy="356" r="3"/><circle cx="798" cy="68" r="3"/><circle cx="844" cy="66" r="3"/>'
+    + '<circle cx="818" cy="168" r="3"/><circle cx="836" cy="236" r="3"/><circle cx="818" cy="256" r="3"/>'
+    + '<circle cx="844" cy="358" r="3"/><circle cx="798" cy="356" r="3"/>'
+    + '<circle cx="326" cy="128" r="3"/><circle cx="674" cy="128" r="3"/>'
+    + '<circle cx="326" cy="292" r="3"/><circle cx="674" cy="292" r="3"/>'
+    + '</g></svg>';
+
   function mapHtml() {
     var t = DP.topology;
     if (!t) return '<div class="sy-dp-map sy-dp-map-loading" id="dp-map"></div>';
@@ -686,7 +722,9 @@
     }).join('');
 
     return '<div class="sy-dp-map" id="dp-map">'
-      // The copper. One <svg> behind everything, sized to the board, holding a
+      // The board it is all printed on, then the copper on top of it.
+      + ETCH
+      // The copper. One <svg> above the substrate, sized to the board, holding a
       // real <path> per connection — measured from the pads once they are laid
       // out, so a packet follows the trace rather than a straight line between
       // two boxes.
@@ -702,14 +740,19 @@
         + '</div>'
         + '<div class="sy-dp-tier sy-dp-tier-5">' + serviceHtml(SERVICES.top) + '</div>'
         + '<div class="sy-dp-core-wrap">'
+          // A package, a die and the lettering on it — the three layers a chip
+          // actually has. The pin rows down each edge are drawn by the package's
+          // own pseudo-elements, so the die is one element and not fourteen.
           + '<div class="sy-dp-fabric" id="dp-fabric">'
             + '<div class="sy-dp-fabric-ring"></div>'
-            + '<span class="sy-dp-core-mark" data-no-i18n>F</span>'
-            + '<b data-no-i18n>Familista<em>Data Fabric</em></b>'
-            + '<span class="sy-dp-core-sub">Connects Football To The World</span>'
-            // The outbox is its own lit element: it is the moment the row becomes
-            // the truth, and the whole architecture now reads from it.
-            + '<span class="sy-dp-outbox" id="dp-outbox"><i class="sy-dp-led"></i>Event Outbox</span>'
+            + '<div class="sy-dp-core-die">'
+              + '<span class="sy-dp-core-mark" data-no-i18n>F</span>'
+              + '<b data-no-i18n>Familista<em>Data Fabric</em></b>'
+              + '<span class="sy-dp-core-sub">Connects Football To The World</span>'
+              // The outbox is its own lit element: it is the moment the row
+              // becomes the truth, and the whole architecture now reads from it.
+              + '<span class="sy-dp-outbox" id="dp-outbox"><i class="sy-dp-led"></i>Event Outbox</span>'
+            + '</div>'
           + '</div>'
         + '</div>'
         + '<div class="sy-dp-tier sy-dp-tier-5">' + serviceHtml(SERVICES.mid) + '</div>'
@@ -742,8 +785,12 @@
    * edge. Two segments and one chamfer — enough to read as a circuit, cheap
    * enough to animate.
    */
-  function tracePath(from, to) {
-    var midX = from.x + (to.x - from.x) * 0.55;
+  function tracePath(from, to, lane) {
+    // Every pad on a column shares an x, so a single break point would stack
+    // ten routes on one vertical bus. The break walks with the lane index, and
+    // the board reads as routed copper rather than one trunk.
+    var spread = 0.42 + ((lane || 0) % 6) * 0.045;
+    var midX = from.x + (to.x - from.x) * spread;
     var c = Math.min(14, Math.abs(to.y - from.y) / 2);
     if (c < 2) return 'M' + from.x + ',' + from.y + ' L' + to.x + ',' + to.y;
     var dir = to.y > from.y ? 1 : -1;
@@ -782,9 +829,9 @@
     svg.innerHTML = '';
     traces = {};
 
-    var add = function (id, from, to) {
+    var add = function (id, from, to, lane) {
       var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', tracePath(from, to));
+      path.setAttribute('d', tracePath(from, to, lane));
       path.setAttribute('class', 'sy-dp-trace');
       path.setAttribute('id', id);
       svg.appendChild(path);
@@ -794,13 +841,13 @@
     var fabL = point(fabric, 'left');
     var fabR = point(fabric, 'right');
 
-    t.sources.forEach(function (name) {
+    t.sources.forEach(function (name, i) {
       var el = document.getElementById(laneId('source', name));
-      if (el) add('tr-src-' + slug(name), point(el, 'right'), fabL);
+      if (el) add('tr-src-' + slug(name), point(el, 'right'), fabL, i);
     });
-    t.destinations.forEach(function (d) {
+    t.destinations.forEach(function (d, i) {
       var el = document.getElementById(laneId('dest', d.name));
-      if (el) add('tr-dst-' + slug(d.name), fabR, point(el, 'left'));
+      if (el) add('tr-dst-' + slug(d.name), fabR, point(el, 'left'), i);
     });
 
     traceBox = key;
@@ -1003,7 +1050,7 @@
         + '<span id="dp-gstatus">' + statusHtml() + '</span>'
       + '</div>'
       + '<div class="sy-dp-globe-body">'
-        + '<div class="sy-dp-globe-map">' + worldSvg('', true) + '</div>'
+        + '<div class="sy-dp-globe-map">' + worldSvg('', true, 'slice') + '</div>'
         + '<div class="sy-dp-gstats" id="dp-gstats">' + gstatsHtml() + '</div>'
       + '</div>'
       + '<div class="sy-dp-globe-foot">'
