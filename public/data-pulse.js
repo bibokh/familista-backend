@@ -517,6 +517,9 @@
     '........................................................................',
   ];
   var MAP_W = 720, MAP_H = 350, CELL = 10, LAT_TOP = 82, LAT_SPAN = 140;
+  // 73°N to 44°S. Every country the atlas can place sits inside it with room
+  // for its halo; what is trimmed is Arctic ocean and empty southern water.
+  var ECO_BAND = [22, 314];
   var landPath = null;
 
   function worldPath() {
@@ -554,7 +557,18 @@
     return eco.regions.filter(function (r) { return r.lat !== null && r.lon !== null; });
   }
 
-  function worldSvg(cls, withPins, fit) {
+  /**
+   * The world, optionally cropped to a latitude band.
+   *
+   * `band` is a pair of viewBox rows. It exists because a card that is five
+   * times wider than it is tall cannot show a two-to-one world without either
+   * throwing away most of the latitude or shrinking the map to nothing —
+   * trimming the empty polar rows buys back the difference honestly, without
+   * distorting a single coastline.
+   */
+  function worldSvg(cls, withPins, fit, band) {
+    var y0 = band ? band[0] : 0;
+    var vh = (band ? band[1] : MAP_H) - y0;
     var pins = '';
     if (withPins) {
       var rows = plotted();
@@ -571,9 +585,11 @@
           + '</title></circle></g>';
       }).join('');
     }
-    // `slice` fills the card and crops the empty polar rows; `meet` letterboxes
-    // and leaves half a card of nothing, which is what the panels were doing.
-    return '<svg class="sy-dp-world ' + (cls || '') + '" viewBox="0 0 ' + MAP_W + ' ' + MAP_H + '"'
+    // `slice` fills the box and crops whatever will not fit; `meet` fits the
+    // whole band inside it. A panel tall enough to hold the world uses the
+    // first, the ecosystem card the second — a map that hides the country with
+    // the most clubs in it is not a smaller map, it is the wrong one.
+    return '<svg class="sy-dp-world ' + (cls || '') + '" viewBox="0 ' + y0 + ' ' + MAP_W + ' ' + vh + '"'
       + ' preserveAspectRatio="xMidYMid ' + (fit === 'slice' ? 'slice' : 'meet') + '"'
       + ' role="img" aria-label="World map">'
       + '<path class="sy-dp-land" d="' + worldPath() + '"/>' + pins + '</svg>';
@@ -605,7 +621,7 @@
     }
     return '<section class="sy-dp-eco" aria-label="Global football ecosystem">'
       + '<h4>' + icon('globe') + '<span>Global Football Ecosystem</span></h4>'
-      + '<div class="sy-dp-eco-map">' + worldSvg('sy-dp-world--sm', true, 'slice') + '</div>'
+      + '<div class="sy-dp-eco-map">' + worldSvg('sy-dp-world--sm', true, 'meet', ECO_BAND) + '</div>'
       + '<div class="sy-dp-eco-stats">'
         + ecoStat('Continents', e ? e.continents : null, e && e.how ? e.how.continents : '')
         + ecoStat('Countries', e ? e.countries : null, e && e.how ? e.how.countries : '')
