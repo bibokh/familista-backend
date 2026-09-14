@@ -1,6 +1,6 @@
 // Familista — Data Pulse, as an API
 // ─────────────────────────────────────────────────────────────────────────────
-// Four reads and a stream, all of them the platform owner's. The guard is
+// Five reads and a stream, all of them the platform owner's. The guard is
 // `assertPlatformOwner`, the SAME function SYSTEM and the owner trace already
 // use — there is no second authorization system here, and no club role reaches
 // any of this however senior it is inside its club.
@@ -45,6 +45,7 @@ import {
   activeCounts, formatTelemetryCursor, latestTelemetryCursor, parseTelemetryCursor,
   telemetryStep, TELEMETRY_BATCH, type TelemetryCursor,
 } from '../fabric/pulse/telemetry-tail.service';
+import { ecosystemFootprint } from '../fabric/pulse/ecosystem.service';
 
 const router = Router();
 router.use(authenticate);
@@ -73,6 +74,20 @@ router.get('/topology', (_req: Request, res: Response) => {
       replayWindows: REPLAY_WINDOWS,
     },
   });
+});
+
+/**
+ * THE FOOTPRINT — where Familista actually is, as opposed to how fast it is.
+ *
+ * Counts of clubs, people and the countries clubs record, plus the country
+ * centroids the board plots them at. Cached for a minute inside the service,
+ * because an owner watching a live board must not be a load on the database
+ * and a club is not created twice a second.
+ */
+router.get('/ecosystem', async (_req: Request, res: Response, next) => {
+  try {
+    res.json({ success: true, data: await ecosystemFootprint() });
+  } catch (err) { next(err); }
 });
 
 /** What is measurable now, plus the frames a client needs to catch up. */
@@ -165,6 +180,10 @@ router.get('/stream', async (req: Request, res: Response) => {
     cursor: formatCursor(cursor),
     uiCursor: formatTelemetryCursor(uiCursor),
     resumed: !seeded && cursor !== null,
+    // The windows the replay endpoint will honour. Sent with the topology so
+    // the board's time control offers what the server actually serves rather
+    // than a list the client keeps its own copy of.
+    replayWindows: REPLAY_WINDOWS,
     limits: {
       bufferLimit: BUFFER_LIMIT, flushMs: FLUSH_MS, sampleThreshold: SAMPLE_THRESHOLD,
       tailBatch: TAIL_BATCH, tailIntervalMs: TAIL_INTERVAL_MS, telemetryBatch: TELEMETRY_BATCH,

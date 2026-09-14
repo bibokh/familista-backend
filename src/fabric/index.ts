@@ -73,6 +73,14 @@ export {
 
 export { resolveSubjects, isNameableSubject } from './pulse/subject-resolver.service';
 
+// Where Familista is, as opposed to how fast it is moving. Counts of clubs,
+// people and the countries clubs record, plus the country centroids the board
+// plots them at — every one of them a COUNT over a real table.
+export {
+  ecosystemFootprint, placeCountry, resetEcosystemCache, ATLAS_SIZE,
+  type EcosystemFootprint, type EcosystemRegion,
+} from './pulse/ecosystem.service';
+
 // The second tail. `EventOutbox` says what the platform recorded; this says
 // whether anyone is using it — a person can read every screen for an hour and
 // write nothing, and a board fed only by domain events sits dark through a busy

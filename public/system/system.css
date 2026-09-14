@@ -10,7 +10,11 @@
    value a reader could not override.
    ───────────────────────────────────────────────────────────────────────────── */
 
-#pg-system {
+/* SYSTEM's palette. The two overlays are named here as well because they are
+   appended to the document body rather than to the page — outside `#pg-system`
+   every one of these tokens would be undefined, which is why the inspector
+   used to render with no border, no radius and inherited text colour. */
+#pg-system, #dp-inspector, #dp-storage {
   --sy-bg:        #070b14;
   --sy-panel:     rgba(18, 25, 42, .72);
   --sy-panel-2:   rgba(24, 33, 54, .55);
@@ -74,8 +78,10 @@ body.sy-system-open { overflow: hidden; }
   padding: 18px 14px 22px;
   border-right: 1px solid var(--sy-line);
   background: linear-gradient(180deg, rgba(12, 18, 32, .92), rgba(9, 13, 24, .96));
-  position: sticky; top: 0; height: 100vh; overflow-y: auto;
-  scrollbar-gutter: stable;
+  position: sticky; top: 0; height: 100vh; overflow: hidden;
+  /* The padding is inside the 100vh, or the rail is forty pixels taller than
+     the window and the build line at its foot is clipped. */
+  box-sizing: border-box;
 }
 .sy-brand { display: flex; align-items: center; gap: 11px; padding: 4px 6px 12px; }
 .sy-brand-mark {
@@ -85,7 +91,7 @@ body.sy-system-open { overflow: hidden; }
   box-shadow: 0 6px 20px rgba(59, 130, 246, .35);
 }
 .sy-brand-txt b { display: block; font-size: 15px; font-weight: 800; letter-spacing: .04em; }
-.sy-brand-txt span { display: block; font-size: 8.5px; letter-spacing: .16em; color: var(--sy-tx-3); text-transform: uppercase; }
+.sy-brand-txt span { display: block; font-size: 7.5px; letter-spacing: .11em; color: var(--sy-tx-3); text-transform: uppercase; white-space: nowrap; }
 
 .sy-back {
   display: flex; align-items: center; gap: 9px; width: 100%;
@@ -96,17 +102,28 @@ body.sy-system-open { overflow: hidden; }
 }
 .sy-back:hover { background: rgba(255, 255, 255, .06); color: var(--sy-tx); }
 
-.sy-ident {
-  display: flex; align-items: center; gap: 11px; padding: 13px;
-  border-radius: 13px; border: 1px solid rgba(59, 130, 246, .3);
-  background: linear-gradient(135deg, rgba(59, 130, 246, .16), rgba(34, 211, 238, .07));
+/* Every drawing in SYSTEM is one stroked path from the shared icon module,
+   sized in `em` so a button's font size is the only thing that scales it. */
+.sy-ic {
+  width: 1em; height: 1em; flex: none; display: block;
+  fill: none; stroke: currentColor; stroke-width: 1.6;
+  stroke-linecap: round; stroke-linejoin: round;
 }
-.sy-ident-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
-  background: rgba(59, 130, 246, .22); font-size: 16px; }
-.sy-ident b { display: block; font-size: 13.5px; font-weight: 800; letter-spacing: .02em; }
-.sy-ident span { display: block; font-size: 10px; color: var(--sy-tx-2); }
 
-.sy-nav { display: flex; flex-direction: column; gap: 2px; }
+/* The build, pinned to the foot of the rail. An operator reading a screen in an
+   incident needs to know which build they are reading. */
+.sy-rail-foot {
+  display: flex; align-items: center; gap: 10px; flex: none;
+  padding: 12px 8px 0; border-block-start: 1px solid var(--sy-line);
+}
+.sy-brand-mark--sm { width: 30px; height: 30px; border-radius: 9px; font-size: 15px; box-shadow: none; }
+
+/* Only the module list scrolls. The brand stays at the top and the build stays
+   at the foot, where an operator looks for them during an incident. */
+.sy-nav {
+  display: flex; flex-direction: column; gap: 2px;
+  flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable;
+}
 .sy-nav-group {
   font-size: 8.5px; letter-spacing: .15em; text-transform: uppercase;
   color: var(--sy-tx-3); padding: 14px 12px 6px; font-weight: 800;
@@ -123,7 +140,10 @@ body.sy-system-open { overflow: hidden; }
   background: linear-gradient(135deg, rgba(59, 130, 246, .22), rgba(59, 130, 246, .07));
   border-color: rgba(59, 130, 246, .38); color: #fff;
 }
-.sy-nav-ic { width: 17px; text-align: center; opacity: .9; flex: none; }
+.sy-nav-ic { width: 17px; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; opacity: .85; flex: none; }
+.sy-nav-item.is-on .sy-nav-ic { opacity: 1; color: var(--sy-accent-2); }
+.sy-back .sy-nav-ic { font-size: 15px; }
 /* A module nothing measures yet says so in the rail, so the reader knows
    before they click rather than after. */
 .sy-nav-tag {
@@ -151,6 +171,7 @@ body.sy-system-open { overflow: hidden; }
   color: var(--sy-tx); font-size: 12.5px; font-family: inherit;
 }
 .sy-search input::placeholder { color: var(--sy-tx-3); }
+.sy-search-ic { display: flex; font-size: 15px; color: var(--sy-tx-3); flex: none; }
 .sy-kbd {
   font-size: 9.5px; padding: 2px 6px; border-radius: 5px; color: var(--sy-tx-3);
   border: 1px solid var(--sy-line-2); background: rgba(255, 255, 255, .03);
@@ -162,22 +183,40 @@ body.sy-system-open { overflow: hidden; }
   color: var(--sy-tx-2); cursor: pointer; font-size: 14px; position: relative;
 }
 .sy-icon-btn:hover { color: var(--sy-tx); background: rgba(255, 255, 255, .07); }
+.sy-icon-btn .sy-ic { font-size: 16px; }
 .sy-badge {
   position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px;
   border-radius: 8px; background: var(--sy-danger); color: #fff;
   font-size: 9px; font-weight: 800; display: grid; place-items: center; padding: 0 4px;
 }
+/* Whether the platform is healthy, said in the top bar on every screen and
+   derived from the platform signals rather than asserted. Three states, and
+   "not read yet" is one of them — a green light nobody measured is the most
+   expensive lie a control surface can tell. */
+.sy-state {
+  display: flex; align-items: center; gap: 10px; padding: 6px 14px 6px 12px;
+  border-radius: 11px; border: 1px solid var(--sy-line);
+  background: rgba(255, 255, 255, .04); font: inherit; text-align: start;
+}
+.sy-state--idle .sy-dot { background: var(--sy-tx-3); box-shadow: 0 0 0 4px rgba(255, 255, 255, .05); }
+.sy-state--ok { border-color: rgba(52, 211, 153, .32); background: rgba(52, 211, 153, .08); }
+.sy-state--attn { border-color: rgba(251, 191, 36, .32); background: rgba(251, 191, 36, .08); cursor: pointer; }
+.sy-state--warn { border-color: rgba(248, 113, 113, .32); background: rgba(248, 113, 113, .08); cursor: pointer; }
+.sy-state-t b { display: block; font-size: 11.5px; font-weight: 800; line-height: 1.25; color: var(--sy-tx); }
+.sy-state-t i { display: block; font-style: normal; font-size: 9.5px; color: var(--sy-tx-3); }
+
 .sy-user {
-  display: flex; align-items: center; gap: 10px; padding: 5px 12px 5px 5px;
+  display: flex; align-items: center; gap: 10px; padding: 5px 10px 5px 5px;
   border-radius: 11px; background: rgba(255, 255, 255, .04); border: 1px solid var(--sy-line);
 }
 .sy-user-av {
-  width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+  width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center;
   background: linear-gradient(135deg, var(--sy-accent), var(--sy-violet));
-  color: #fff; font-weight: 800; font-size: 12.5px;
+  color: #fff; font-weight: 800; font-size: 11.5px; letter-spacing: .02em;
 }
 .sy-user b { display: block; font-size: 12px; font-weight: 700; line-height: 1.25; }
 .sy-user span { display: block; font-size: 9.5px; color: var(--sy-tx-3); }
+.sy-user-ch { display: flex; font-size: 14px; color: var(--sy-tx-3); }
 
 .sy-body { padding: 24px 26px 40px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .sy-crumb { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--sy-tx-3); font-weight: 700; }
@@ -197,6 +236,7 @@ body.sy-system-open { overflow: hidden; }
 .sy-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .sy-dot--ok { background: var(--sy-ok); box-shadow: 0 0 0 4px rgba(52, 211, 153, .16); }
 .sy-dot--warn { background: var(--sy-warn); box-shadow: 0 0 0 4px rgba(251, 191, 36, .16); }
+.sy-dot--bad { background: var(--sy-danger); box-shadow: 0 0 0 4px rgba(248, 113, 113, .16); }
 .sy-status-txt span { display: block; font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--sy-tx-3); font-weight: 700; }
 .sy-status-txt b { display: block; font-size: 17px; font-weight: 800; }
 .sy-status-txt i { display: block; font-style: normal; font-size: 10px; color: var(--sy-tx-3); }
@@ -443,12 +483,32 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
    Three languages, and only three: SYSTEM is the platform owner's workspace,
    not the platform. The switch writes one key to localStorage and repaints;
    it never touches the club product's locale. */
-.sy-langs { display: flex; gap: 2px; padding: 2px; border-radius: 9px; background: rgba(255, 255, 255, .04); border: 1px solid var(--sy-line); }
-.sy-lang {
-  padding: 5px 9px; border-radius: 7px; border: 0; background: transparent; cursor: pointer;
-  font: inherit; font-size: 10.5px; font-weight: 700; color: var(--sy-tx-3); white-space: nowrap;
+.sy-langs { position: relative; }
+.sy-lang-pick {
+  display: flex; align-items: center; gap: 7px; cursor: pointer;
+  padding: 7px 9px 7px 11px; border-radius: 10px;
+  border: 1px solid var(--sy-line); background: rgba(255, 255, 255, .04);
+  font: inherit; font-size: 11.5px; font-weight: 700; color: var(--sy-tx-2); white-space: nowrap;
+  transition: color .15s ease, border-color .15s ease;
 }
-.sy-lang:hover { color: var(--sy-tx-2); }
+.sy-lang-pick:hover { color: var(--sy-tx); border-color: var(--sy-line-2); }
+.sy-lang-pick > .sy-ic { font-size: 15px; }
+.sy-lang-ch { display: flex; font-size: 13px; color: var(--sy-tx-3); }
+/* The panel is absolutely positioned, so opening it cannot move one pixel of
+   the row it hangs from. */
+.sy-lang-menu {
+  position: absolute; inset-block-start: calc(100% + 6px); inset-inline-end: 0; z-index: 20;
+  display: none; flex-direction: column; gap: 2px; min-width: 148px; padding: 5px;
+  border-radius: 11px; border: 1px solid var(--sy-line-2); background: #0d1424;
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, .9);
+}
+.sy-langs.is-open .sy-lang-menu { display: flex; }
+.sy-lang {
+  padding: 7px 10px; border-radius: 7px; border: 0; background: transparent; cursor: pointer;
+  font: inherit; font-size: 11.5px; font-weight: 700; color: var(--sy-tx-2);
+  white-space: nowrap; text-align: start;
+}
+.sy-lang:hover { color: var(--sy-tx); background: rgba(255, 255, 255, .05); }
 .sy-lang.is-on { background: rgba(59, 130, 246, .18); color: #bfdbfe; }
 .sy-lang:focus-visible { outline: 2px solid var(--sy-accent); outline-offset: 1px; }
 
@@ -467,6 +527,15 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
 .sy-shell[dir="rtl"] .sy-table td { text-align: right; }
 .sy-shell[dir="rtl"] .sy-pending b,
 .sy-shell[dir="rtl"] .sy-pending span { text-align: center; }
+/* A rate, a latency and a clock are LTR runs whatever the paragraph around
+   them does: bidi reordering turns "0/min" into "min/0" and "27 ms" into
+   "ms 27", which are not the same readings. Isolated, so they keep their own
+   direction inside an Arabic row without changing the row's alignment. */
+.sy-dp-rate, .sy-dp-lat, .sy-dp-tr > time, .sy-dp-marks > span,
+.sy-dp-tile-v, .sy-dp-eco-stat b, .sy-dp-gstat b {
+  direction: ltr; unicode-bidi: isolate;
+}
+.sy-shell[dir="rtl"] .sy-dp-lat { text-align: start; }
 /* An arrow is a neutral character, so bidi already turns "Open →" into
    "← Open" when the paragraph runs right to left. Nothing is mirrored by
    hand — mirroring the glyph would flip the letters with it. */
@@ -652,107 +721,278 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
 /* ─────────────────────────────────────────────────────────────────────────────
    Live Data Flow — Data Pulse
 
-   The panel's own surfaces, drawn from the SYSTEM tokens above rather than from
-   values of its own. A new screen that needs a panel uses this system's panel.
+   The platform owner's operations cockpit, and the densest screen in SYSTEM.
+   Every surface here is drawn from the tokens at the top of this sheet rather
+   than from values of its own: a new panel on this screen uses this screen's
+   panel, and a panel that needs to be different is a change to the shared one.
 
-   The rule that shapes the whole block: NOTHING MOVES THAT THE READER DID NOT
-   MOVE. Dots live in a `position:absolute` stage that is `pointer-events:none`
-   and sits over the map, and they animate on `transform` and `opacity` only, so
-   a pulse cannot reflow one pixel of what is underneath it. The map itself is a
-   fixed three-column grid whose rows do not resize when a metric changes width,
-   which is why every metric cell has `min-width` and tabular figures.
+   THE RULES THIS BLOCK IS SHAPED BY
+
+   1. Nothing moves that the reader did not move. The whole screen is one
+      fixed-height column: the header, the tiles and the footer are fixed, the
+      board takes what is left, and every list scrolls inside itself with a
+      stable gutter. Packets live in a `pointer-events: none` stage over the
+      board and animate on `offset-distance` and `opacity` only, so a pulse
+      cannot reflow one pixel of what is underneath it. The inspector and the
+      storage panel are fixed overlays for the same reason.
+
+   2. Colour means something. Blue and cyan are the platform's own accent and
+      carry identity, flow and selection. Green, amber and red mean a state —
+      processed, pending, failed — and nothing else. A highlight is an edge, a
+      hairline or a whisper of tint; a filled block of colour across a row is
+      not a highlight.
+
+   3. A figure is a measurement or an em dash. `.sy-dp-none` is deliberately
+      not styled like a number, because it is not one.
    ───────────────────────────────────────────────────────────────────────────── */
 
 .sy-panel-plain { min-width: 0; }
 
+/* The cockpit takes the window. SYSTEM's body keeps its padding for every other
+   module and tightens here, because this screen is an instrument panel and a
+   40px footer of nothing is 40px of board. */
+.sy-body--flow { padding: 14px 18px 16px; gap: 0; }
+
 .sy-dp-wrap {
-  border-radius: var(--sy-radius); border: 1px solid var(--sy-line);
-  background: var(--sy-panel); padding: 16px 18px 18px;
-  /* The board's traces are measured from laid-out geometry, so the panel must
-     not depend on its parent to stretch it: dropped into a flex container it
-     would otherwise shrink to content width and the copper would be measured
-     for a board a fifth of its real size. `width:100%` with `min-width:0`
-     makes it fill whatever column it is mounted in and still shrink below its
-     content when that column is narrow. */
+  display: flex; flex-direction: column; gap: 10px;
   width: 100%; min-width: 0; box-sizing: border-box;
+  /* The top bar and the body's own padding, subtracted. Below the escape hatch
+     this reverts to `auto` and the page scrolls normally rather than crushing
+     the board. */
+  height: calc(100vh - 103px);
+  min-height: 640px;
 }
 
-.sy-dp-head { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
-.sy-dp-title b { display: block; font-size: 14px; font-weight: 800; letter-spacing: -.2px; }
-.sy-dp-title span { display: block; margin-top: 2px; font-size: 11px; color: var(--sy-tx-3); }
-.sy-dp-head-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-
-.sy-dp-modes, .sy-dp-replay { display: flex; align-items: center; gap: 6px; }
-.sy-dp-mode, .sy-dp-win {
-  font: inherit; font-size: 11px; font-weight: 700; color: var(--sy-tx-2);
-  background: var(--sy-panel-2); border: 1px solid var(--sy-line);
-  border-radius: 8px; padding: 5px 11px; cursor: pointer;
-  transition: color .15s ease, border-color .15s ease;
+/* Where the browser can ask "is this the flow body?", the column is MEASURED
+   rather than assumed: the main column takes the window, the body takes what
+   the top bar leaves, and the cockpit fills it. The calc above stays as the
+   answer for a browser without `:has()`, so neither is a cliff. */
+@supports selector(.sy-main:has(> .sy-body--flow)) {
+  .sy-main:has(> .sy-body--flow) { height: 100vh; overflow: hidden; }
+  .sy-main:has(> .sy-body--flow) > .sy-body--flow { flex: 1 1 auto; min-height: 0; }
+  .sy-body--flow > #dp-host { flex: 1 1 auto; min-height: 0; display: flex; }
+  .sy-body--flow .sy-dp-wrap { height: auto; min-height: 0; }
 }
-.sy-dp-mode:hover, .sy-dp-win:hover { color: var(--sy-tx); border-color: var(--sy-line-2); }
-.sy-dp-mode-on, .sy-dp-win-on { color: var(--sy-bg); background: var(--sy-accent-2); border-color: transparent; }
 
-.sy-dp-replay { margin-bottom: 12px; }
-.sy-dp-replay-note { font-size: 11px; color: var(--sy-tx-3); }
+/* Every icon in the panel is one stroked path inheriting `currentColor`. */
+.sy-dp-i {
+  width: 1em; height: 1em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.6;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ── the page header ─────────────────────────────────────────────────────────
+   Breadcrumb, title, live state, one sentence of what this screen is, and the
+   controls that change what it shows. Deliberately short: the instruments are
+   the page, not the chrome. */
+.sy-dp-page { display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap; }
+.sy-dp-page-txt { min-width: 0; }
+.sy-dp-crumb {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--sy-tx-3);
+}
+.sy-dp-crumb i { font-style: normal; opacity: .6; }
+.sy-dp-crumb b { color: var(--sy-tx-2); font-weight: 700; }
+.sy-dp-page-title { display: flex; align-items: center; gap: 12px; margin: 5px 0 3px; }
+.sy-dp-page-title h1 {
+  margin: 0; font-size: 23px; font-weight: 800; letter-spacing: -.6px; line-height: 1.05;
+}
+.sy-dp-page-txt > p { margin: 0; font-size: 11px; color: var(--sy-tx-2); max-width: 92ch; }
+.sy-dp-page-ctl { margin-inline-start: auto; display: flex; align-items: center; gap: 8px; }
+
+.sy-dp-modes { display: flex; align-items: center; gap: 4px; padding: 3px;
+  border-radius: 11px; border: 1px solid var(--sy-line); background: rgba(255, 255, 255, .03); }
+.sy-dp-mode, .sy-dp-ghost, .sy-dp-select {
+  display: inline-flex; align-items: center; gap: 7px;
+  font: inherit; font-size: 11.5px; font-weight: 700; color: var(--sy-tx-2);
+  border-radius: 9px; padding: 6px 12px; cursor: pointer;
+  border: 1px solid transparent; background: transparent;
+  transition: color .15s ease, border-color .15s ease, background-color .15s ease;
+}
+.sy-dp-mode .sy-dp-i, .sy-dp-ghost .sy-dp-i, .sy-dp-select .sy-dp-i { font-size: 14px; }
+.sy-dp-mode:hover, .sy-dp-ghost:hover { color: var(--sy-tx); background: rgba(255, 255, 255, .05); }
+.sy-dp-mode-on {
+  color: #eaf6ff;
+  background: linear-gradient(135deg, rgba(59, 130, 246, .45), rgba(34, 211, 238, .22));
+  border-color: rgba(56, 189, 248, .5);
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, .12), 0 6px 18px -8px rgba(34, 211, 238, .7);
+}
+.sy-dp-ghost, .sy-dp-select {
+  border-color: var(--sy-line); background: rgba(255, 255, 255, .03); padding: 6px 11px;
+}
+.sy-dp-select { gap: 6px; padding-inline-end: 7px; }
+.sy-dp-select select {
+  font: inherit; font-size: 11.5px; font-weight: 700; color: var(--sy-tx-2);
+  background: transparent; border: 0; outline: none; cursor: pointer; padding: 0;
+}
+.sy-dp-select select option { background: #0d1424; color: var(--sy-tx); }
 
 /* Connection state. A dead stream must never look like an idle platform, so
    this says which of the two it is at all times. */
-.sy-dp-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; }
-.sy-dp-status > i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-/* The real HTTP status, beside the label. Small, monospaced, and present only
-   when something is wrong — an unnamed "Reconnecting…" is what let a 404 pass
-   for an idle platform through an entire production test. */
+.sy-dp-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 10.5px; font-weight: 800; letter-spacing: .02em;
+  padding: 3px 9px 3px 7px; border-radius: 999px;
+  border: 1px solid currentColor; background: rgba(255, 255, 255, .03);
+}
+.sy-dp-status > i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+/* The real HTTP status, beside the label. Small, and present only when
+   something is wrong — an unnamed "Reconnecting…" is what let a 404 pass for an
+   idle platform through an entire production test. */
 .sy-dp-status-detail {
   font-style: normal; font-size: 9.5px; font-weight: 700; opacity: .75;
   font-variant-numeric: tabular-nums;
 }
 .sy-dp-live { color: var(--sy-ok); }
 .sy-dp-connecting { color: var(--sy-warn); }
+.sy-dp-replaying { color: var(--sy-accent-2); }
 .sy-dp-down { color: var(--sy-danger); }
 .sy-dp-live > i { animation: dp-breathe 2.4s ease-in-out infinite; }
 @keyframes dp-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
 /* ── metrics ────────────────────────────────────────────────────────────────
-   Tabular figures and a floor width, so a number going from 9 to 10 does not
+   Tabular figures and a fixed grid, so a number going from 9 to 10 does not
    reflow the row it is in. */
-.sy-dp-metrics {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
-  gap: 8px; margin-bottom: 16px;
+/* A band of a fixed height, and the row inside it is that height too — an
+   `auto` row would be sized by its tallest card and would quietly overflow the
+   band onto the board below. */
+.sy-dp-strip {
+  display: grid; grid-template-columns: minmax(0, 1fr) 296px;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 10px; align-items: stretch; flex: none; height: 142px;
 }
-.sy-dp-metrics-idle { min-height: 62px; }
-.sy-dp-metric {
-  border-radius: 10px; border: 1px solid var(--sy-line);
-  background: var(--sy-panel-2); padding: 9px 11px; min-width: 0;
-}
-.sy-dp-metric > span { display: block; font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--sy-tx-3); }
-.sy-dp-metric > div { margin-top: 3px; display: flex; align-items: baseline; gap: 3px; min-height: 19px; }
-.sy-dp-metric b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.sy-dp-metric i { font-size: 10px; font-style: normal; color: var(--sy-tx-3); }
+.sy-dp-strip > div { min-height: 0; min-width: 0; }
+.sy-dp-tiles { display: flex; flex-direction: column; justify-content: space-between; gap: 8px; height: 100%; }
+.sy-dp-tile-row { min-height: 0; }
+.sy-dp-tile-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.sy-dp-tile-row--sm { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 
-/* An honest absence. Deliberately not styled like a number — it is a sentence
-   about instrumentation, not a measurement. */
-.sy-dp-unavailable { font-size: 10px; font-style: italic; color: var(--sy-tx-3); }
+.sy-dp-tile {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+  padding: 11px 12px; border-radius: 13px;
+  border: 1px solid var(--sy-line);
+  background:
+    linear-gradient(150deg, rgba(59, 130, 246, .07), rgba(10, 16, 30, 0) 62%),
+    var(--sy-panel);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+}
+.sy-dp-tile--sm { padding: 8px 11px; gap: 9px; }
+.sy-dp-tile-ic {
+  width: 32px; height: 32px; flex: none; border-radius: 10px;
+  display: grid; place-items: center; font-size: 17px;
+  color: var(--sy-accent-2);
+  border: 1px solid rgba(34, 211, 238, .22);
+  background: rgba(34, 211, 238, .09);
+}
+.sy-dp-tile--sm .sy-dp-tile-ic { width: 27px; height: 27px; border-radius: 9px; font-size: 15px; }
+.sy-dp-tile--blue .sy-dp-tile-ic { color: #7dd3fc; border-color: rgba(59, 130, 246, .3); background: rgba(59, 130, 246, .12); }
+.sy-dp-tile--ok   .sy-dp-tile-ic { color: var(--sy-ok); border-color: rgba(52, 211, 153, .26); background: rgba(52, 211, 153, .1); }
+.sy-dp-tile--warn .sy-dp-tile-ic { color: var(--sy-warn); border-color: rgba(251, 191, 36, .26); background: rgba(251, 191, 36, .1); }
+.sy-dp-tile--bad  .sy-dp-tile-ic { color: var(--sy-danger); border-color: rgba(248, 113, 113, .26); background: rgba(248, 113, 113, .1); }
+
+.sy-dp-tile-b { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sy-dp-tile-v { display: flex; align-items: baseline; gap: 3px; min-height: 20px; }
+.sy-dp-tile-v b {
+  font-size: 19px; font-weight: 800; letter-spacing: -.5px; line-height: 1.05;
+  font-variant-numeric: tabular-nums; color: var(--sy-tx);
+}
+.sy-dp-tile--sm .sy-dp-tile-v b { font-size: 16px; }
+/* Six tiles across leaves about ninety pixels of label, and German writes
+   "Fehlgeschlagen" where English writes "Failed". The small tiles wrap — a
+   label that reads "Avg Write La…" says nothing at all. */
+.sy-dp-tile--sm .sy-dp-tile-l,
+.sy-dp-tile--sm .sy-dp-unavailable {
+  white-space: normal; overflow-wrap: break-word; line-height: 1.15;
+  overflow: visible; text-overflow: clip;
+}
+.sy-dp-tile-v u { text-decoration: none; font-size: 10px; font-weight: 700; color: var(--sy-tx-3); }
+.sy-dp-tile-l {
+  font-size: 8.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--sy-tx-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* A figure the platform does not measure renders as an em dash and a reason —
+   never as a zero, which would read as "measured, and none". */
+.sy-dp-none { color: var(--sy-tx-3); font-weight: 700; }
+.sy-dp-unavailable {
+  display: block; font-style: italic; font-size: 8px; font-weight: 600;
+  color: var(--sy-tx-3); line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sy-dp-trend {
+  margin-inline-start: auto; font-style: normal; flex: none;
+  font-size: 9.5px; font-weight: 800; font-variant-numeric: tabular-nums;
+  padding: 2px 6px; border-radius: 6px;
+}
+.sy-dp-trend--up { color: var(--sy-ok); background: rgba(52, 211, 153, .12); }
+.sy-dp-trend--down { color: var(--sy-danger); background: rgba(248, 113, 113, .12); }
+
+/* ── the ecosystem card ─────────────────────────────────────────────────────
+   Where Familista actually is, counted. The map is the same land mask the
+   global activity panel uses, at a quarter of the size. */
+.sy-dp-eco {
+  display: flex; flex-direction: column; gap: 7px; min-width: 0;
+  height: 100%; overflow: hidden; box-sizing: border-box;
+  padding: 9px 13px 10px; border-radius: 13px;
+  border: 1px solid rgba(56, 189, 248, .2);
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(34, 211, 238, .12), transparent 62%),
+    var(--sy-panel);
+}
+.sy-dp-eco > h4 {
+  display: flex; align-items: center; gap: 7px; margin: 0;
+  font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--sy-tx-2);
+}
+.sy-dp-eco > h4 .sy-dp-i { font-size: 13px; color: var(--sy-accent-2); }
+.sy-dp-eco-map { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.sy-dp-eco-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.sy-dp-eco-stat { text-align: center; min-width: 0; }
+.sy-dp-eco-stat b {
+  display: block; font-size: 16px; font-weight: 800; letter-spacing: -.4px;
+  font-variant-numeric: tabular-nums; color: var(--sy-tx);
+}
+.sy-dp-eco-stat span {
+  display: block; font-size: 8px; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--sy-tx-3);
+}
+.sy-dp-eco-note { margin: 0; font-size: 9px; line-height: 1.4; color: var(--sy-tx-3); }
+
+/* The world, as a dot matrix. One <path> of small squares, static, so a map is
+   two DOM nodes rather than two and a half thousand. */
+.sy-dp-world { width: 100%; height: 100%; display: block; }
+.sy-dp-land { fill: rgba(96, 165, 250, .3); stroke: none; }
+.sy-dp-pin-dot { fill: var(--sy-accent-2); }
+.sy-dp-pin-halo { fill: rgba(34, 211, 238, .2); }
 
 /* ── the board ──────────────────────────────────────────────────────────────
    A printed circuit, not three columns with a dot between them. Three grid
-   tracks hold the pads; one <svg> underneath holds the copper. The map is the
-   positioning context every trace and packet is measured against, so it must
-   stay `position: relative`.
+   tracks hold the pads and the architecture; one <svg> underneath holds the
+   copper. The map is the positioning context every trace and packet is measured
+   against, so it must stay `position: relative`.
 
-   The whole block animates `transform`, `opacity` and `stroke-dashoffset` and
-   nothing else. A trace that lit by changing its width, or a pad that grew when
-   hot, would reflow the board under a reader's eyes. */
+   The whole region changes `opacity`, `transform`, `stroke-dashoffset` and
+   colour and nothing else. A trace that lit by growing, or a pad that resized
+   when hot, would reflow the board under a reader's eyes. */
+/* Whatever the window leaves after the fixed bands, and never one pixel more:
+   a board that overflowed would paint over the monitors beneath it. */
+.sy-dp-boardwrap { flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; }
 .sy-dp-map {
-  position: relative;
-  display: grid; grid-template-columns: 1fr auto 1fr; gap: 30px;
-  align-items: start; padding: 10px 2px 12px;
-  /* A faint substrate. Two hairline gradients, static — the board is a board
+  position: relative; flex: 1; min-width: 0; min-height: 0;
+  display: grid; grid-template-columns: 190px minmax(0, 1fr) 190px; gap: 20px;
+  align-items: stretch; padding: 9px 13px 10px;
+  border-radius: 15px; border: 1px solid rgba(56, 189, 248, .18);
+  /* A faint substrate and a glow under the die. Static — the board is a board
      whether or not anything is travelling on it. */
   background-image:
-    linear-gradient(rgba(59, 130, 246, .045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(59, 130, 246, .045) 1px, transparent 1px);
-  background-size: 28px 28px, 28px 28px;
-  border-radius: 12px;
+    radial-gradient(58% 70% at 50% 52%, rgba(34, 211, 238, .12), transparent 68%),
+    radial-gradient(90% 100% at 50% 120%, rgba(59, 130, 246, .10), transparent 70%),
+    linear-gradient(rgba(59, 130, 246, .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 130, 246, .05) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(17, 26, 46, .8), rgba(9, 14, 26, .92));
+  background-size: auto, auto, 26px 26px, 26px 26px, auto;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
 }
 .sy-dp-map-loading { min-height: 300px; }
 
@@ -763,39 +1003,62 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
 }
 .sy-dp-trace {
   fill: none;
-  stroke: var(--sy-line-2);
-  stroke-width: 1.25;
+  stroke: rgba(96, 165, 250, .26);
+  stroke-width: 1.15;
   stroke-linecap: round; stroke-linejoin: round;
 }
 /* Lit while its own event is passing, and only then. */
 .sy-dp-trace-hot {
   stroke: var(--sy-accent-2);
-  stroke-width: 1.75;
-  filter: drop-shadow(0 0 3px rgba(34, 211, 238, .55));
+  stroke-width: 1.8;
+  filter: drop-shadow(0 0 4px rgba(34, 211, 238, .6));
 }
 
-.sy-dp-col { position: relative; z-index: 1; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
-.sy-dp-col > h4 {
-  margin: 0 0 4px; font-size: 9.5px; font-weight: 800; text-transform: uppercase;
-  letter-spacing: .08em; color: var(--sy-tx-3);
+.sy-dp-col { position: relative; z-index: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.sy-dp-col > h4, .sy-dp-col > h5 {
+  margin: 0; font-size: 9px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--sy-tx-2);
 }
-.sy-dp-col-dst > h4 { text-align: right; }
-.sy-dp-col-fabric { align-items: center; justify-content: flex-start; }
+.sy-dp-col > h4 i {
+  display: block; margin-block-start: 2px; font-style: normal; font-size: 8.5px;
+  font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--sy-tx-3);
+}
+.sy-dp-col > h5 { margin-block-start: 6px; color: var(--sy-tx-3); letter-spacing: .12em; }
+.sy-dp-col-dst > h4, .sy-dp-col-dst > h5 { text-align: end; }
+.sy-dp-col-src .sy-dp-pads { flex: 1; justify-content: space-between; }
+/* Ten pads and two headings on the right against ten pads on the left: the
+   column distributes rather than running past the board's edge. */
+.sy-dp-col-dst { justify-content: space-between; }
+.sy-dp-col-dst .sy-dp-pads { gap: 4px; }
+.sy-dp-pads { display: flex; flex-direction: column; gap: 4px; min-height: 0; }
 
-/* A pad: an LED, a label, and a connector stub where the trace lands. */
+/* A pad: an LED, an icon, a label, a counted rate and a connector stub where
+   the trace lands. */
 .sy-dp-node {
-  position: relative;
-  display: flex; align-items: center; gap: 8px;
-  border-radius: 8px; border: 1px solid var(--sy-line);
-  background: linear-gradient(180deg, rgba(24, 33, 54, .75), rgba(18, 25, 42, .6));
-  padding: 8px 11px;
-  font-size: 11.5px; font-weight: 600; color: var(--sy-tx-2);
-  /* Border and shadow only, so lighting a pad cannot move it. */
-  transition: border-color .2s ease, box-shadow .3s ease, color .2s ease;
+  position: relative; width: 100%; text-align: start;
+  display: flex; align-items: center; gap: 7px;
+  border-radius: 9px; border: 1px solid var(--sy-line);
+  background: linear-gradient(180deg, rgba(26, 37, 60, .86), rgba(16, 24, 41, .74));
+  padding: 4px 9px; cursor: pointer;
+  font: inherit; font-size: 10px; font-weight: 600; color: var(--sy-tx-2);
+  /* Border, shadow and colour only, so lighting a pad cannot move it. */
+  transition: border-color .2s ease, box-shadow .3s ease, color .2s ease, background-color .2s ease;
 }
-.sy-dp-source { border-left: 2px solid rgba(59, 130, 246, .55); }
-.sy-dp-dest { border-right: 2px solid rgba(34, 211, 238, .55); flex-direction: row-reverse; }
-.sy-dp-col-dst .sy-dp-node { text-align: right; }
+.sy-dp-node .sy-dp-node-ic { font-size: 13px; color: var(--sy-accent-2); opacity: .85; flex: none; display: flex; }
+.sy-dp-node-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sy-dp-rate {
+  margin-inline-start: auto; flex: none; font-size: 9.5px; font-weight: 800;
+  color: var(--sy-tx-3); font-variant-numeric: tabular-nums;
+}
+.sy-dp-source { border-inline-start: 2px solid rgba(59, 130, 246, .55); }
+.sy-dp-dest { border-inline-end: 2px solid rgba(34, 211, 238, .55); flex-direction: row-reverse; }
+.sy-dp-col-dst .sy-dp-node { text-align: end; }
+.sy-dp-col-dst .sy-dp-rate { margin-inline-start: 0; margin-inline-end: auto; }
+.sy-dp-node:hover { color: var(--sy-tx); border-color: var(--sy-line-2); }
+.sy-dp-node-on {
+  color: var(--sy-tx); border-color: rgba(56, 189, 248, .55);
+  background: linear-gradient(180deg, rgba(34, 211, 238, .16), rgba(16, 24, 41, .74));
+}
 
 /* The LED. Dark until its own traffic passes. */
 .sy-dp-led {
@@ -813,52 +1076,113 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
 /* The stub: the short run of copper on the pad itself, so a trace appears to
    terminate at a connector rather than at a rectangle's edge. */
 .sy-dp-stub {
-  position: absolute; top: 50%; width: 7px; height: 1.25px;
-  background: var(--sy-line-2); transform: translateY(-50%);
+  position: absolute; inset-block-start: 50%; width: 7px; height: 1.15px;
+  background: rgba(96, 165, 250, .3); transform: translateY(-50%);
 }
-.sy-dp-source .sy-dp-stub { right: -7px; }
-.sy-dp-dest .sy-dp-stub-in { left: -7px; }
+.sy-dp-source .sy-dp-stub { inset-inline-end: -7px; }
+.sy-dp-dest .sy-dp-stub-in { inset-inline-start: -7px; }
 
 /* FUTURE pads carry no trace at all. An unconnected pad is the honest picture
    of a destination nothing reaches. */
-.sy-dp-future-group { margin-top: 12px; display: flex; flex-direction: column; gap: 7px; }
+.sy-dp-future-group { gap: 3px; }
+.sy-dp-future { padding-block: 3px; }
 .sy-dp-future {
-  border: 1px dashed var(--sy-line-2); border-right-width: 1px;
-  background: transparent; color: var(--sy-tx-3); opacity: .58;
-  justify-content: flex-end;
+  border: 1px dashed var(--sy-line-2);
+  background: transparent; color: var(--sy-tx-3); opacity: .62; cursor: default;
 }
+.sy-dp-future .sy-dp-node-ic { color: var(--sy-tx-3); }
 .sy-dp-future .sy-dp-led { background: transparent; border: 1px solid var(--sy-line-2); width: 5px; height: 5px; }
 .sy-dp-future em {
-  font-style: normal; font-size: 8.5px; font-weight: 800; letter-spacing: .08em;
-  text-transform: uppercase; color: var(--sy-warn); opacity: .8;
+  margin-inline-start: auto; font-style: normal; font-size: 7.5px; font-weight: 800;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--sy-warn); opacity: .8;
+}
+.sy-dp-col-dst .sy-dp-future em { margin-inline-start: 0; margin-inline-end: auto; }
+
+/* ── the architecture column ────────────────────────────────────────────────
+   The services around the fabric. Every one is a real SYSTEM module and opens
+   it: a label that navigates nowhere would be a picture of an architecture
+   rather than a way into it. */
+.sy-dp-col-fabric { align-items: stretch; gap: 8px; justify-content: space-between; }
+.sy-dp-arch { text-align: center; }
+.sy-dp-arch b {
+  display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--sy-tx);
+}
+.sy-dp-arch i {
+  display: block; margin-block-start: 1px; font-style: normal; font-size: 7.5px;
+  font-weight: 700; letter-spacing: .14em; color: var(--sy-tx-3);
+}
+.sy-dp-tier { display: grid; gap: 6px; flex: none; }
+.sy-dp-tier-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.sy-dp-tier-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-inline: 8%; }
+.sy-dp-svc {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 4px 5px 5px; border-radius: 10px; cursor: pointer; min-width: 0;
+  border: 1px solid rgba(56, 189, 248, .22);
+  background: linear-gradient(180deg, rgba(21, 33, 56, .92), rgba(13, 20, 36, .82));
+  font: inherit; color: var(--sy-tx-2); text-align: center;
+  transition: border-color .16s ease, color .16s ease, box-shadow .3s ease, background-color .16s ease;
+}
+.sy-dp-svc:hover {
+  color: var(--sy-tx); border-color: rgba(56, 189, 248, .55);
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, .18), 0 8px 22px -12px rgba(34, 211, 238, .8);
+}
+.sy-dp-svc-ic { font-size: 14px; color: var(--sy-accent-2); display: flex; }
+.sy-dp-svc-t { min-width: 0; width: 100%; }
+.sy-dp-svc-t b {
+  display: block; font-size: 9px; font-weight: 700; color: inherit; line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sy-dp-svc-t i {
+  display: block; font-style: normal; font-size: 7.5px; color: var(--sy-tx-3); line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 /* The die at the centre of the board. */
+.sy-dp-core-wrap { display: flex; align-items: center; justify-content: center; flex: none; }
 .sy-dp-fabric {
-  position: relative; width: 150px; min-height: 112px;
-  border-radius: 12px; border: 1px solid var(--sy-line-2);
+  position: relative; width: 226px; min-height: 96px;
+  border-radius: 16px; border: 1px solid rgba(56, 189, 248, .45);
   background:
-    linear-gradient(160deg, rgba(59, 130, 246, .18), rgba(34, 211, 238, .07)),
-    var(--sy-panel-2);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-  text-align: center; padding: 14px 10px;
+    radial-gradient(120% 120% at 50% 0%, rgba(34, 211, 238, .3), transparent 64%),
+    linear-gradient(170deg, rgba(30, 64, 140, .55), rgba(11, 20, 40, .9));
+  box-shadow:
+    0 0 0 1px rgba(34, 211, 238, .12),
+    0 0 38px -8px rgba(34, 211, 238, .55),
+    inset 0 1px 0 rgba(255, 255, 255, .1);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  text-align: center; padding: 9px 14px;
   z-index: 1;
 }
-.sy-dp-fabric b { font-size: 11.5px; font-weight: 800; color: var(--sy-tx); }
+.sy-dp-core-mark {
+  width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
+  font-weight: 900; font-size: 15px; letter-spacing: -.5px; color: #fff;
+  background: linear-gradient(135deg, var(--sy-accent), var(--sy-accent-2));
+  box-shadow: 0 5px 16px rgba(34, 211, 238, .4);
+}
+.sy-dp-fabric b {
+  font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase;
+  color: #fff; line-height: 1.25;
+}
+.sy-dp-fabric b em {
+  display: block; font-style: normal; font-size: 12.5px; letter-spacing: .1em;
+  color: var(--sy-accent-2);
+}
+.sy-dp-core-sub { font-size: 8px; font-weight: 600; color: rgba(233, 238, 251, .62); }
 .sy-dp-fabric-ring {
-  position: absolute; inset: -1px; border-radius: 12px;
+  position: absolute; inset: -2px; border-radius: 17px;
   border: 1px solid var(--sy-accent-2); opacity: 0;
   transition: opacity .18s ease;
 }
 /* One acknowledgement per arrival. Opacity only — nothing resizes. */
-.sy-dp-fabric-hit .sy-dp-fabric-ring { opacity: .8; }
+.sy-dp-fabric-hit .sy-dp-fabric-ring { opacity: .85; }
 
 /* The outbox, lit at the instant the row becomes the truth. */
 .sy-dp-outbox {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 9.5px; font-weight: 700; letter-spacing: .04em;
-  text-transform: uppercase; color: var(--sy-tx-3);
-  padding: 3px 7px; border-radius: 5px; border: 1px solid var(--sy-line);
+  display: inline-flex; align-items: center; gap: 5px; margin-block-start: 2px;
+  font-size: 8.5px; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; color: rgba(233, 238, 251, .6);
+  padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, .14);
   transition: color .2s ease, border-color .2s ease, box-shadow .3s ease;
 }
 
@@ -872,7 +1196,7 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
    positioned entirely by `offset-path` / `offset-distance`, which is why it
    follows the trace's corners rather than a straight line. */
 .sy-dp-packet {
-  position: absolute; top: 0; left: 0;
+  position: absolute; inset-block-start: 0; inset-inline-start: 0;
   width: 13px; height: 3.5px; margin: -1.75px 0 0 -6.5px;
   border-radius: 2px;
   background: var(--sy-accent-2);
@@ -890,95 +1214,185 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
 /* ── idle ───────────────────────────────────────────────────────────────────
    What the screen says when the platform is quiet. Calm and still: an idle
    platform must look idle. */
-.sy-dp-empty { text-align: center; padding: 26px 18px 22px; }
+.sy-dp-empty { text-align: center; padding: 20px 14px; }
 .sy-dp-empty-ring {
-  width: 34px; height: 34px; margin: 0 auto 12px; border-radius: 50%;
-  border: 1.5px solid var(--sy-line-2); border-top-color: var(--sy-accent-2);
+  width: 26px; height: 26px; margin: 0 auto 10px; border-radius: 50%;
+  border: 1.5px solid var(--sy-line-2); border-block-start-color: var(--sy-accent-2);
   animation: dp-spin 2.6s linear infinite;
 }
 @keyframes dp-spin { to { transform: rotate(360deg); } }
-.sy-dp-empty b { display: block; font-size: 12.5px; font-weight: 700; }
-.sy-dp-empty span { display: block; margin: 5px auto 0; max-width: 460px; font-size: 11px; color: var(--sy-tx-3); line-height: 1.55; }
+.sy-dp-empty b { display: block; font-size: 11.5px; font-weight: 700; }
+.sy-dp-empty span { display: block; margin: 5px auto 0; max-width: 380px; font-size: 10px; color: var(--sy-tx-3); line-height: 1.5; }
 
-/* ── the feed ───────────────────────────────────────────────────────────────
-   Scrolls inside itself with a stable gutter, so a new row arriving does not
-   move the panel below it. */
-.sy-dp-feed > h4 {
-  display: flex; align-items: baseline; gap: 8px; margin: 6px 0 8px;
-  font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--sy-tx-3);
+/* ── the footer panels ──────────────────────────────────────────────────────
+   Three instruments of fixed height. Each scrolls inside itself with a stable
+   gutter, so a row arriving in one never moves the other two. */
+.sy-dp-foot {
+  display: grid; grid-template-columns: 1.55fr 1fr 1.2fr;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 10px; height: 188px; flex: none;
 }
-.sy-dp-sampling { margin-left: auto; font-size: 9.5px; font-weight: 700; color: var(--sy-warn); text-transform: none; letter-spacing: 0; }
-.sy-dp-feed-rows { max-height: 260px; overflow-y: auto; scrollbar-gutter: stable; display: flex; flex-direction: column; gap: 4px; }
-.sy-dp-row {
-  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
-  font: inherit; cursor: pointer;
-  border-radius: 8px; border: 1px solid var(--sy-line); background: var(--sy-panel-2);
-  padding: 7px 10px; color: var(--sy-tx-2);
-  transition: border-color .15s ease;
+.sy-dp-foot > div { min-height: 0; min-width: 0; display: flex; }
+.sy-dp-foot > div > .sy-dp-panel { flex: 1; }
+.sy-dp-panel {
+  display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  border-radius: 13px; border: 1px solid var(--sy-line);
+  background: var(--sy-panel);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
 }
-.sy-dp-row:hover { border-color: var(--sy-line-2); }
-.sy-dp-row > code { font-size: 11px; font-weight: 700; color: var(--sy-tx); }
-.sy-dp-row-lane { font-size: 10px; color: var(--sy-tx-3); }
-/* Where it happened — the module and feature KEYS the server packed into the
-   frame, never text from a screen. */
-.sy-dp-row-where { font-size: 10px; color: var(--sy-tx-3); }
+.sy-dp-panel-h {
+  display: flex; align-items: center; gap: 8px; flex: none;
+  padding: 9px 12px; border-block-end: 1px solid var(--sy-line);
+}
+.sy-dp-panel-h > h4 {
+  display: flex; align-items: center; gap: 7px; margin: 0;
+  font-size: 9.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--sy-tx-2);
+}
+.sy-dp-panel-h > h4 .sy-dp-i { font-size: 13px; color: var(--sy-accent-2); }
+.sy-dp-panel-h > .sy-dp-status, .sy-dp-panel-h > #dp-gstatus { margin-inline-start: auto; }
+.sy-dp-sampling {
+  margin-inline-start: auto; font-size: 8.5px; font-weight: 800; color: var(--sy-warn);
+  padding: 2px 6px; border-radius: 5px; background: rgba(251, 191, 36, .12);
+}
+.sy-dp-clear {
+  font: inherit; font-size: 9px; font-weight: 800; letter-spacing: .04em; cursor: pointer;
+  color: var(--sy-bg); background: var(--sy-accent-2); border: 0;
+  border-radius: 5px; padding: 2px 7px;
+}
 
-/* The category badge. Nine words, each its own colour, so a reader can scan the
-   feed for one kind of activity without reading every line. */
-.sy-dp-cat {
-  flex: none; min-width: 58px; text-align: center;
-  font-size: 8.5px; font-weight: 800; letter-spacing: .06em;
-  padding: 2px 5px; border-radius: 4px;
-  background: rgba(255, 255, 255, .05); color: var(--sy-tx-3);
+/* The event stream. A fixed six-column grid shared by the head and the rows, so
+   a long event name can never push a column and shift the ones beside it. */
+.sy-dp-thead, .sy-dp-tr {
+  display: grid; align-items: center;
+  grid-template-columns: 50px minmax(0, 1.6fr) 62px minmax(0, 1.1fr) 62px 46px;
+  gap: 6px;
 }
-.sy-dp-cat-domain { color: var(--sy-violet); background: rgba(167, 139, 250, .12); }
-.sy-dp-cat-ui { color: var(--sy-accent-2); background: rgba(34, 211, 238, .1); }
-.sy-dp-cat-auth { color: var(--sy-accent); background: rgba(59, 130, 246, .14); }
-.sy-dp-cat-nav { color: var(--sy-accent-2); background: rgba(34, 211, 238, .07); }
-.sy-dp-cat-pointer { color: var(--sy-ok); background: rgba(52, 211, 153, .1); }
-.sy-dp-cat-scroll { color: var(--sy-ok); background: rgba(52, 211, 153, .07); }
-.sy-dp-cat-hover { color: var(--sy-ok); background: rgba(52, 211, 153, .07); }
-.sy-dp-cat-action { color: var(--sy-warn); background: rgba(251, 191, 36, .12); }
-.sy-dp-cat-system { color: var(--sy-danger); background: rgba(248, 113, 113, .12); }
+.sy-dp-thead {
+  flex: none; padding: 6px 12px; border-block-end: 1px solid var(--sy-line);
+  font-size: 8px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--sy-tx-3);
+}
+.sy-dp-tbody {
+  flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable;
+  padding: 4px 8px 6px;
+}
+.sy-dp-tr {
+  width: 100%; font: inherit; text-align: start; cursor: pointer;
+  border: 1px solid transparent; border-radius: 7px; padding: 5px 4px;
+  color: var(--sy-tx-2); background: transparent;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.sy-dp-tr:hover { border-color: var(--sy-line-2); background: rgba(255, 255, 255, .035); }
+.sy-dp-tr-unknown { border-style: dashed; border-color: rgba(251, 191, 36, .3); }
+.sy-dp-tr > time { font-size: 9.5px; color: var(--sy-tx-3); font-variant-numeric: tabular-nums; }
+.sy-dp-ev { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.sy-dp-ev > code {
+  font-size: 10px; font-weight: 700; color: var(--sy-tx);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sy-dp-src-cell, .sy-dp-ent {
+  font-size: 9.5px; color: var(--sy-tx-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sy-dp-ent { color: var(--sy-tx-2); }
+.sy-dp-lat { font-size: 9.5px; color: var(--sy-tx-3); font-variant-numeric: tabular-nums; text-align: end; }
+.sy-dp-st { display: inline-flex; align-items: center; gap: 5px; font-size: 8.5px; font-weight: 800; letter-spacing: .04em; }
+.sy-dp-st > i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
+.sy-dp-st--ok { color: var(--sy-ok); }
+.sy-dp-st--warn { color: var(--sy-warn); }
+.sy-dp-st--bad { color: var(--sy-danger); }
 
-/* The filter chips. */
-.sy-dp-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
-.sy-dp-chip {
-  font: inherit; font-size: 9px; font-weight: 700; letter-spacing: .04em;
-  text-transform: none; cursor: pointer;
-  color: var(--sy-tx-3); background: var(--sy-panel-2);
-  border: 1px solid var(--sy-line); border-radius: 5px; padding: 2px 7px;
+/* The category dot. Nine kinds, each its own colour, so a reader can scan the
+   stream for one kind of activity without reading every line. */
+.sy-dp-cat { width: 6px; height: 6px; border-radius: 2px; flex: none; background: var(--sy-tx-3); }
+.sy-dp-cat-domain { background: var(--sy-violet); }
+.sy-dp-cat-ui { background: var(--sy-accent-2); }
+.sy-dp-cat-auth { background: var(--sy-accent); }
+.sy-dp-cat-nav { background: #38bdf8; }
+.sy-dp-cat-pointer { background: var(--sy-ok); }
+.sy-dp-cat-scroll { background: #6ee7b7; }
+.sy-dp-cat-hover { background: #5eead4; }
+.sy-dp-cat-action { background: var(--sy-warn); }
+.sy-dp-cat-system { background: var(--sy-danger); }
+
+/* ── the timeline ──────────────────────────────────────────────────────────── */
+.sy-dp-timeline { padding-block-end: 8px; }
+.sy-dp-mini {
+  display: inline-flex; align-items: center; gap: 5px;
+  font: inherit; font-size: 9.5px; font-weight: 800; cursor: pointer;
+  color: var(--sy-tx-3); background: rgba(255, 255, 255, .035);
+  border: 1px solid var(--sy-line); border-radius: 7px; padding: 3px 8px;
   transition: color .15s ease, border-color .15s ease;
+}
+.sy-dp-mini:first-of-type { margin-inline-start: auto; }
+.sy-dp-mini .sy-dp-i { font-size: 12px; }
+.sy-dp-mini:hover { color: var(--sy-tx); border-color: var(--sy-line-2); }
+.sy-dp-mini-on { color: var(--sy-ok); border-color: rgba(52, 211, 153, .4); background: rgba(52, 211, 153, .1); }
+.sy-dp-mini-ic { padding: 3px 6px; }
+
+.sy-dp-tl-row { display: flex; align-items: center; gap: 9px; padding: 9px 12px 0; }
+.sy-dp-playbtn {
+  width: 26px; height: 26px; flex: none; border-radius: 50%; cursor: pointer;
+  display: grid; place-items: center; font-size: 10px; line-height: 1;
+  color: var(--sy-bg); border: 0;
+  background: linear-gradient(135deg, var(--sy-accent-2), #60a5fa);
+  box-shadow: 0 4px 14px -4px rgba(34, 211, 238, .8);
+}
+.sy-dp-playbtn[disabled] { opacity: .32; cursor: not-allowed; box-shadow: none; }
+.sy-dp-track {
+  position: relative; flex: 1; height: 4px; border-radius: 999px; cursor: pointer;
+  background: rgba(255, 255, 255, .08);
+}
+.sy-dp-track-fill { position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: 999px; background: linear-gradient(90deg, rgba(59, 130, 246, .8), var(--sy-accent-2)); }
+.sy-dp-track-head {
+  position: absolute; inset-block-start: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(34, 211, 238, .35);
+}
+.sy-dp-bars {
+  display: flex; align-items: flex-end; gap: 2px; height: 46px;
+  padding: 8px 12px 0;
+}
+.sy-dp-bar { flex: 1; min-width: 0; border-radius: 2px 2px 0 0; background: rgba(96, 165, 250, .28); }
+.sy-dp-bar-on { background: linear-gradient(180deg, var(--sy-accent-2), rgba(59, 130, 246, .6)); }
+.sy-dp-marks {
+  display: flex; justify-content: space-between; padding: 4px 12px 0;
+  font-size: 8.5px; color: var(--sy-tx-3); font-variant-numeric: tabular-nums;
+}
+.sy-dp-chips {
+  display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 12px 0;
+  overflow-y: auto; scrollbar-gutter: stable;
+}
+.sy-dp-chip {
+  font: inherit; font-size: 8.5px; font-weight: 800; letter-spacing: .04em; cursor: pointer;
+  color: var(--sy-tx-3); background: rgba(255, 255, 255, .035);
+  border: 1px solid var(--sy-line); border-radius: 6px; padding: 2px 7px;
+  transition: color .15s ease, border-color .15s ease, background-color .15s ease;
 }
 .sy-dp-chip:hover { color: var(--sy-tx); border-color: var(--sy-line-2); }
 .sy-dp-chip-on { color: var(--sy-bg); background: var(--sy-accent-2); border-color: transparent; }
-/* Names the server resolved. A person's name reads as a person's name. */
-.sy-dp-row-who { font-size: 10.5px; font-weight: 700; color: var(--sy-tx); }
-.sy-dp-row-club { font-size: 10px; color: var(--sy-accent-2); }
-.sy-dp-row > time { margin-left: auto; font-size: 10px; color: var(--sy-tx-3); font-variant-numeric: tabular-nums; }
-.sy-dp-row-cls { font-size: 8.5px; font-weight: 800; letter-spacing: .06em; padding: 2px 6px; border-radius: 5px; }
-.sy-dp-cls-public { color: var(--sy-tx-2); background: rgba(255,255,255,.06); }
-.sy-dp-cls-internal { color: var(--sy-accent-2); background: rgba(34,211,238,.1); }
-.sy-dp-cls-confidential { color: var(--sy-violet); background: rgba(167,139,250,.12); }
-.sy-dp-cls-restricted { color: var(--sy-warn); background: rgba(251,191,36,.12); }
-.sy-dp-row-unknown { border-style: dashed; }
-.sy-dp-row-unknown em { font-size: 9px; font-style: normal; font-weight: 700; color: var(--sy-warn); }
 
-/* ── the honest gap list ────────────────────────────────────────────────────── */
-.sy-dp-gaps { margin-top: 14px; border-top: 1px solid var(--sy-line); padding-top: 12px; }
-.sy-dp-gaps > summary { cursor: pointer; font-size: 11px; font-weight: 700; color: var(--sy-tx-2); }
-.sy-dp-gap-list { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0 8px; }
-.sy-dp-gap-list code { font-size: 10px; color: var(--sy-tx-3); background: var(--sy-panel-2); border: 1px solid var(--sy-line); border-radius: 5px; padding: 2px 6px; }
-.sy-dp-gaps p { margin: 0; font-size: 10.5px; color: var(--sy-tx-3); line-height: 1.55; }
+/* ── the global activity map ───────────────────────────────────────────────── */
+.sy-dp-globe-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 96px; gap: 8px; padding: 8px 10px 0; }
+.sy-dp-globe-map { min-width: 0; min-height: 0; display: flex; align-items: center; }
+.sy-dp-gstats { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.sy-dp-gstat { display: flex; flex-direction: column; }
+.sy-dp-gstat b { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--sy-tx); line-height: 1.1; }
+.sy-dp-gstat span { font-size: 7.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--sy-tx-3); }
+.sy-dp-globe-foot {
+  display: flex; align-items: center; gap: 8px; flex: none;
+  padding: 7px 12px; font-size: 8.5px; color: var(--sy-tx-3);
+}
+.sy-dp-globe-foot i { margin-inline-start: auto; font-style: normal; color: var(--sy-tx-3); opacity: .75; }
 
-/* ── the inspector ──────────────────────────────────────────────────────────
-   `position: fixed`, so opening it cannot shift the panel behind it, and it
-   animates on opacity and transform only. */
-#dp-inspector { display: none; }
-#dp-inspector.sy-dp-i-open {
+/* ── the overlays ───────────────────────────────────────────────────────────
+   `position: fixed`, so opening one cannot shift the panel behind it, and they
+   animate on opacity and transform only. */
+#dp-inspector, #dp-storage { display: none; }
+#dp-inspector.sy-dp-i-open, #dp-storage.sy-dp-i-open {
   display: flex; position: fixed; inset: 0; z-index: 4000;
   align-items: center; justify-content: center; padding: 20px;
-  background: rgba(3, 6, 14, .62);
+  background: rgba(3, 6, 14, .66);
   animation: dp-fade .16s ease both;
 }
 @keyframes dp-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -988,36 +1402,85 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
   background: #0d1424; color: var(--sy-tx);
   animation: dp-rise .18s cubic-bezier(.4,0,.2,1) both;
 }
+.sy-dp-i-card--wide { width: min(680px, 100%); }
 @keyframes dp-rise { from { opacity: 0; transform: translate3d(0, 8px, 0); } to { opacity: 1; transform: none; } }
-.sy-dp-i-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--sy-line); }
+.sy-dp-i-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-block-end: 1px solid var(--sy-line); }
 .sy-dp-i-head > code { font-size: 12px; font-weight: 800; }
 .sy-dp-i-close {
-  margin-left: auto; font: inherit; font-size: 18px; line-height: 1; cursor: pointer;
+  margin-inline-start: auto; font: inherit; font-size: 18px; line-height: 1; cursor: pointer;
   background: none; border: 0; color: var(--sy-tx-3); padding: 0 2px;
 }
 .sy-dp-i-close:hover { color: var(--sy-tx); }
 .sy-dp-i-body { padding: 6px 16px 10px; overflow-y: auto; scrollbar-gutter: stable; }
-.sy-dp-i-row { display: flex; align-items: baseline; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--sy-line); }
-.sy-dp-i-row > span { flex: none; width: 132px; font-size: 10.5px; color: var(--sy-tx-3); }
+.sy-dp-i-lead { margin: 10px 0 4px; font-size: 11px; color: var(--sy-tx-2); line-height: 1.55; }
+.sy-dp-i-row { display: flex; align-items: baseline; gap: 12px; padding: 7px 0; border-block-end: 1px solid var(--sy-line); }
+.sy-dp-i-row > span { flex: none; width: 152px; font-size: 10.5px; color: var(--sy-tx-3); }
 .sy-dp-i-row > b { font-size: 11.5px; font-weight: 600; word-break: break-all; min-width: 0; }
-.sy-dp-i-note { margin: 0; padding: 12px 16px 14px; font-size: 10.5px; color: var(--sy-tx-3); line-height: 1.55; border-top: 1px solid var(--sy-line); }
+.sy-dp-i-note { margin: 0; padding: 12px 16px 14px; font-size: 10.5px; color: var(--sy-tx-3); line-height: 1.55; border-block-start: 1px solid var(--sy-line); }
+
+/* The honest gap list, inside Storage where it belongs: it is a statement about
+   what is written down, not about what is flowing. */
+.sy-dp-gaps { margin-block-start: 14px; }
+.sy-dp-gaps > b { display: block; font-size: 11px; font-weight: 700; color: var(--sy-tx-2); }
+.sy-dp-gap-list { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0 8px; }
+.sy-dp-gap-list code { font-size: 10px; color: var(--sy-tx-3); background: var(--sy-panel-2); border: 1px solid var(--sy-line); border-radius: 5px; padding: 2px 6px; }
+.sy-dp-gaps p { margin: 0; font-size: 10.5px; color: var(--sy-tx-3); line-height: 1.55; }
 
 /* ── the escape hatch ───────────────────────────────────────────────────────
-   Below this the three-column map becomes one column and the page returns to
-   normal scrolling, rather than crushing the lanes into unreadable slivers. */
+   Below this the cockpit stops being a cockpit: the board becomes one column,
+   the footer stacks, and the page returns to normal scrolling rather than
+   crushing ten lanes into unreadable slivers. */
+/* The cockpit only claims the window when the window is tall enough to hold
+   it. Below this it is an ordinary scrolling page with a full-size board —
+   clipping the architecture would be worse than a scrollbar. */
+@media (max-height: 830px) {
+  .sy-dp-wrap, .sy-body--flow .sy-dp-wrap { height: auto; min-height: 0; }
+  .sy-main:has(> .sy-body--flow) { height: auto; overflow: visible; }
+  .sy-dp-boardwrap { min-height: 360px; }
+}
+
+@media (max-width: 1440px) {
+  .sy-dp-foot { grid-template-columns: 1.2fr 1fr; height: auto; }
+  .sy-dp-globe { grid-column: 1 / -1; }
+  .sy-dp-wrap, .sy-body--flow .sy-dp-wrap { height: auto; min-height: 0; }
+  .sy-main:has(> .sy-body--flow) { height: auto; overflow: visible; }
+  .sy-dp-boardwrap { min-height: 420px; }
+  .sy-dp-streamp .sy-dp-tbody, .sy-dp-timeline { min-height: 190px; }
+  .sy-dp-globe-body { min-height: 150px; }
+  /* Below the fixed-height cockpit nothing is pinned to a band any more, so a
+     label wraps instead of being cut: "Active S…" and "Global Governa…" are
+     not shorter versions of anything, they are missing words. */
+  .sy-dp-strip { height: auto; grid-template-rows: auto; }
+  .sy-dp-tile-row, .sy-dp-tile-row--sm { grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); }
+  .sy-dp-tile-l { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.15; }
+  .sy-dp-svc-t b, .sy-dp-svc-t i { white-space: normal; overflow: visible; text-overflow: clip; }
+}
+@media (max-width: 1180px) {
+  .sy-dp-strip { grid-template-columns: minmax(0, 1fr); }
+  .sy-dp-tile-row, .sy-dp-tile-row--sm { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sy-dp-map { grid-template-columns: 170px minmax(0, 1fr) 170px; gap: 14px; }
+  .sy-dp-tier-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 @media (max-width: 980px), (max-height: 620px) {
+  .sy-dp-wrap { height: auto; min-height: 0; }
+  .sy-body--flow .sy-dp-wrap { height: auto; min-height: 0; }
+  .sy-main:has(> .sy-body--flow) { height: auto; overflow: visible; }
   .sy-dp-map { grid-template-columns: 1fr; gap: 14px; background-image: none; }
-  .sy-dp-col-dst > h4, .sy-dp-col-dst .sy-dp-node { text-align: left; }
+  .sy-dp-col-dst > h4, .sy-dp-col-dst > h5, .sy-dp-col-dst .sy-dp-node { text-align: start; }
   .sy-dp-dest { flex-direction: row; }
-  .sy-dp-future { justify-content: flex-start; }
-  .sy-dp-fabric { width: 100%; min-height: 76px; }
+  .sy-dp-col-dst .sy-dp-rate, .sy-dp-col-dst .sy-dp-future em { margin-inline-start: auto; margin-inline-end: 0; }
+  .sy-dp-fabric { width: 100%; min-height: 88px; }
+  .sy-dp-tier-3 { margin-inline: 0; }
+  .sy-dp-foot { grid-template-columns: 1fr; height: auto; }
+  .sy-dp-tile-row, .sy-dp-tile-row--sm { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sy-dp-page-ctl { margin-inline-start: 0; flex-wrap: wrap; }
   /* A trace measured for three columns lands nowhere in one, so the copper and
      the packets are withdrawn rather than drawn to the wrong places. The pads,
-     the LEDs and the feed all still work — this is a smaller board, not a
+     the LEDs and the stream all still work — this is a smaller board, not a
      broken one. */
   .sy-dp-traces, .sy-dp-stage { display: none; }
   .sy-dp-stub { display: none; }
-  .sy-dp-feed-rows { max-height: none; }
+  .sy-dp-tbody { max-height: 260px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1026,5 +1489,5 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
   .sy-dp-packet { display: none; }
   .sy-dp-trace-hot { filter: none; }
   .sy-dp-empty-ring, .sy-dp-live > i { animation: none; }
-  .sy-dp-i-card, #dp-inspector.sy-dp-i-open { animation: none; }
+  .sy-dp-i-card, #dp-inspector.sy-dp-i-open, #dp-storage.sy-dp-i-open { animation: none; }
 }

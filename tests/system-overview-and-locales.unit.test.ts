@@ -333,7 +333,12 @@ describe('SYSTEM speaks three languages, and only three', () => {
       // loanword are the same word in the target language, and forcing them
       // apart would make the interface worse. Those are listed, so the list
       // itself stays short and reviewable.
-      const SAME_WORD = /^(COUNT\(|LIVE$|%d live$|Detail$|live$|Agent$|Status$|Familista|English$|Deutsch$|Governance$|Innovation$|Platform$|DAU$|WAU$|MAU$|Trend$)/;
+      //
+      // `System` joined the list when Live Data Flow put the word on a lane,
+      // a filter chip and a breadcrumb: it is spelled `System` in German, and
+      // inventing a second German word for it so a test would pass would make
+      // three screens read worse to nobody's benefit.
+      const SAME_WORD = /^(COUNT\(|LIVE$|%d live$|Detail$|live$|Agent$|Status$|Familista|English$|Deutsch$|Governance$|Innovation$|Platform$|System$|DAU$|WAU$|MAU$|Trend$)/;
       const untranslated = Object.keys(en).filter((k) => dict[k] === k && !SAME_WORD.test(k));
       expect(`${tag}:${untranslated.join(' | ')}`).toBe(`${tag}:`);
       const sameWord = Object.keys(en).filter((k) => dict[k] === k);
