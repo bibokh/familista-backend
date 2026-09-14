@@ -953,31 +953,79 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
    Where Familista actually is, counted. The map is the same land mask the
    global activity panel uses, at a quarter of the size. */
 .sy-dp-eco {
-  display: flex; flex-direction: column; gap: 7px; min-width: 0;
+  display: flex; flex-direction: column; gap: 6px; min-width: 0;
   height: 100%; overflow: hidden; box-sizing: border-box;
-  padding: 9px 13px 10px; border-radius: 13px;
-  border: 1px solid rgba(56, 189, 248, .3);
+  padding: 8px 12px 9px; border-radius: 13px;
+  border: 1px solid rgba(56, 189, 248, .32);
   background:
-    radial-gradient(120% 90% at 100% 0%, rgba(34, 211, 238, .18), transparent 62%),
+    radial-gradient(120% 90% at 100% 0%, rgba(34, 211, 238, .17), transparent 62%),
     linear-gradient(180deg, rgba(20, 31, 54, .86), rgba(11, 18, 33, .84));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), inset 0 0 40px -22px rgba(34, 211, 238, .9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .07),
+    inset 0 0 40px -22px rgba(34, 211, 238, .9),
+    0 10px 26px -22px rgba(0, 0, 0, .95);
 }
 .sy-dp-eco > h4 {
   display: flex; align-items: center; gap: 7px; margin: 0; flex: none;
-  font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
-  color: #cbd5f5;
+  font-size: 9px; line-height: 1; font-weight: 800; letter-spacing: .13em;
+  text-transform: uppercase; color: #d6e2fb;
 }
-.sy-dp-eco > h4 .sy-dp-i { font-size: 13px; color: var(--sy-accent-2); }
-.sy-dp-eco-map { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
-.sy-dp-eco-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; flex: none; }
-.sy-dp-eco-stat { text-align: center; min-width: 0; }
+.sy-dp-eco > h4 .sy-dp-i {
+  font-size: 12px; line-height: 1; color: var(--sy-accent-2);
+  text-shadow: 0 0 10px rgba(34, 211, 238, .55);
+}
+/* The title runs into a hairline rather than stopping in the middle of the
+   card. Symmetric, so it reads the same when the card is laid out right to
+   left. */
+.sy-dp-eco > h4::after {
+  content: ''; flex: 1; height: 1px; min-width: 12px;
+  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, .26), transparent);
+}
+/* The map sits in a lit well, the way a display is set into an instrument
+   panel. The frame is what separates it from the figures below, so the row of
+   figures needs no rule of its own and loses no height to one. */
+.sy-dp-eco-map {
+  flex: 1; min-height: 0; position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px; border: 1px solid rgba(56, 189, 248, .17);
+  background:
+    radial-gradient(46% 130% at 50% 50%, rgba(34, 211, 238, .14), transparent 72%),
+    radial-gradient(90% 160% at 50% 125%, rgba(30, 64, 140, .5), transparent 70%),
+    linear-gradient(180deg, rgba(8, 15, 31, .92), rgba(5, 10, 22, .96));
+  box-shadow:
+    inset 0 0 26px -12px rgba(34, 211, 238, .55),
+    inset 0 1px 0 rgba(186, 230, 253, .1);
+}
+/* A graticule, faded out at the edges. Cartographic furniture, not data — no
+   line here says anything about where Familista is. */
+.sy-dp-eco-map::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, rgba(125, 211, 252, .1) 0 1px, transparent 1px 15px),
+    repeating-linear-gradient(0deg, rgba(125, 211, 252, .08) 0 1px, transparent 1px 15px);
+  mask-image: radial-gradient(64% 150% at 50% 50%, #000 12%, transparent 80%);
+  -webkit-mask-image: radial-gradient(64% 150% at 50% 50%, #000 12%, transparent 80%);
+  opacity: .7;
+}
+.sy-dp-eco-map .sy-dp-world { position: relative; z-index: 1; }
+.sy-dp-eco-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); flex: none; }
+.sy-dp-eco-stat { text-align: center; min-width: 0; position: relative; padding-inline: 6px; }
+/* A hairline between the figures instead of a gap, so four numbers read as one
+   row of four rather than four things that happen to be next to each other. */
+.sy-dp-eco-stat + .sy-dp-eco-stat::before {
+  content: ''; position: absolute; inset-block: 3px; inset-inline-start: 0; width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(96, 165, 250, .24), transparent);
+}
 .sy-dp-eco-stat b {
-  display: block; font-size: 18px; font-weight: 800; letter-spacing: -.4px;
-  font-variant-numeric: tabular-nums; color: #f1f6ff;
+  display: block; font-size: 18px; line-height: 1.05; font-weight: 800; letter-spacing: -.4px;
+  font-variant-numeric: tabular-nums; color: #eef4ff;
+  text-shadow: 0 0 16px rgba(34, 211, 238, .3);
 }
 .sy-dp-eco-stat span {
-  display: block; font-size: 8px; font-weight: 700; letter-spacing: .07em;
+  display: block; margin-block-start: 1px; line-height: 1.1;
+  font-size: 7.5px; font-weight: 700; letter-spacing: .1em;
   text-transform: uppercase; color: var(--sy-tx-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .sy-dp-eco-note { margin: 0; font-size: 9px; line-height: 1.4; color: var(--sy-tx-3); }
 
@@ -986,12 +1034,25 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
 .sy-dp-world { width: 100%; height: 100%; display: block; }
 /* The ecosystem card's map is the card, so it takes the space the header and
    the four figures do not. */
-.sy-dp-eco .sy-dp-world { filter: drop-shadow(0 0 12px rgba(34, 211, 238, .25)); }
-.sy-dp-land { fill: rgba(125, 211, 252, .38); stroke: none; }
+.sy-dp-eco .sy-dp-world { filter: drop-shadow(0 0 14px rgba(34, 211, 238, .3)); }
+.sy-dp-land { fill: rgba(125, 211, 252, .44); stroke: none; }
 /* A plotted country reads as a place: a lit core, a halo and a ring. */
 .sy-dp-pin-ring { fill: none; stroke: rgba(165, 243, 252, .5); stroke-width: 1.2; }
 .sy-dp-pin-dot { fill: #a5f3fc; filter: drop-shadow(0 0 5px rgba(34, 211, 238, .95)); }
 .sy-dp-pin-halo { fill: rgba(34, 211, 238, .26); }
+/* In the card the map is small enough that the coastline needs lifting to read
+   at all: each land cell is a 3.4-unit square in a 10-unit grid, which at this
+   scale lands on well under a pixel. A round join on a stroke of its own colour
+   fattens every cell into a soft dot — the same coastline, legible. The pins
+   are lifted with it. What is raised here is brightness, never a pin: the lit
+   places are exactly the ones the atlas placed. */
+.sy-dp-eco .sy-dp-land {
+  fill: rgba(150, 222, 255, .58);
+  stroke: rgba(150, 222, 255, .52); stroke-width: 2.4; stroke-linejoin: round;
+}
+.sy-dp-eco .sy-dp-pin-halo { fill: rgba(34, 211, 238, .32); }
+.sy-dp-eco .sy-dp-pin-ring { stroke: rgba(186, 240, 252, .62); stroke-width: 1.4; }
+.sy-dp-eco .sy-dp-pin-dot { fill: #dffaff; filter: drop-shadow(0 0 7px rgba(34, 211, 238, 1)); }
 
 /* ── the board ──────────────────────────────────────────────────────────────
    A printed circuit, not three columns with a dot between them. Three grid
@@ -1020,7 +1081,7 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
      Every one is a gradient the compositor paints once. A board that cost a
      frame to look deep would be paying for the wrong thing. */
   background-image:
-    radial-gradient(46% 54% at 50% 50%, rgba(34, 211, 238, .2), transparent 70%),
+    radial-gradient(38% 46% at 50% 50%, rgba(34, 211, 238, .16), transparent 72%),
     radial-gradient(120% 60% at 50% -18%, rgba(56, 189, 248, .14), transparent 64%),
     repeating-linear-gradient(90deg, rgba(59, 130, 246, .05) 0 1px, transparent 1px 78px),
     linear-gradient(rgba(59, 130, 246, .05) 1px, transparent 1px),
@@ -1031,19 +1092,41 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
   background-position: center, top, center, center, center, center, center;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, .06),
-    inset 0 0 90px -30px rgba(34, 211, 238, .35);
+    inset 0 0 110px -40px rgba(34, 211, 238, .3);
 }
-/* The racks: two bands of vertical light standing at the far walls, faded out
-   toward the middle so they never sit behind a label. `mask-image` keeps them
-   to the outer eighth of the board on each side. */
+/* THE RACKS
+   Cabinets standing at the far walls, not a barcode. Three superimposed
+   periods give the row uneven cabinet widths; the horizontal band is the
+   shelf line every rack has; and the mask fades them both toward the middle
+   of the board and toward its ceiling, so they read as standing on a floor
+   and never sit behind a label. Static, like everything else back here. */
 .sy-dp-map::before {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
   background:
+    repeating-linear-gradient(0deg,
+      transparent 0 13px, rgba(125, 211, 252, .1) 13px 14px),
     repeating-linear-gradient(90deg,
-      rgba(56, 189, 248, .16) 0 2px, transparent 2px 7px, rgba(59, 130, 246, .07) 7px 9px, transparent 9px 16px);
-  mask-image: linear-gradient(90deg, rgba(0,0,0,.9) 0%, transparent 7%, transparent 93%, rgba(0,0,0,.9) 100%);
-  -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,.9) 0%, transparent 7%, transparent 93%, rgba(0,0,0,.9) 100%);
-  opacity: .42;
+      rgba(56, 189, 248, .2) 0 2px, transparent 2px 6px,
+      rgba(59, 130, 246, .1) 6px 9px, transparent 9px 13px,
+      rgba(125, 211, 252, .07) 13px 14px, transparent 14px 23px);
+  mask-image:
+    linear-gradient(90deg, #000 0%, transparent 8%, transparent 92%, #000 100%),
+    linear-gradient(180deg, transparent 0%, rgba(0,0,0,.35) 38%, #000 100%);
+  -webkit-mask-image:
+    linear-gradient(90deg, #000 0%, transparent 8%, transparent 92%, #000 100%),
+    linear-gradient(180deg, transparent 0%, rgba(0,0,0,.35) 38%, #000 100%);
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
+  opacity: .5;
+}
+/* The floor the racks stand on: one lit seam along the bottom edge, and the
+   fall-off above it. This is the layer that turns a flat panel into a hall. */
+.sy-dp-map::after {
+  content: ''; position: absolute; inset-inline: 0; inset-block-end: 0; height: 46%;
+  pointer-events: none; z-index: 0;
+  background:
+    linear-gradient(0deg, rgba(34, 211, 238, .16), transparent 34%),
+    linear-gradient(0deg, rgba(4, 9, 20, .6), transparent 70%);
 }
 
 /* The etched substrate. Below the copper, above the background, hit-testing
@@ -1053,9 +1136,27 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
   position: absolute; inset: 0; width: 100%; height: 100%;
   pointer-events: none; z-index: 0;
 }
-.sy-dp-etch-g { fill: none; stroke: rgba(96, 165, 250, .17); stroke-width: 1; }
-.sy-dp-etch-via { fill: rgba(96, 165, 250, .22); }
+/* The drop shadow is the same routing again, one pixel down and much darker:
+   the lower copper layer showing through the substrate. One element, two
+   apparent depths. */
+.sy-dp-etch-g {
+  fill: none; stroke: rgba(96, 165, 250, .2); stroke-width: 1;
+  filter: drop-shadow(0 1px 0 rgba(8, 16, 34, .9));
+}
+.sy-dp-etch-via { fill: rgba(125, 211, 252, .3); }
 .sy-dp-map-loading { min-height: 300px; }
+
+/* Edge connectors: the fingers a board presents at its rim. Drawn on the
+   column wrappers rather than as new nodes, and only on the wide layout where
+   the copper they belong to is visible. */
+.sy-dp-col-src::before, .sy-dp-col-dst::before {
+  content: ''; position: absolute; inset-block: 12%; width: 3px; border-radius: 2px;
+  pointer-events: none; z-index: 0;
+  background: repeating-linear-gradient(180deg,
+    rgba(125, 211, 252, .32) 0 5px, transparent 5px 14px);
+}
+.sy-dp-col-src::before { inset-inline-start: -11px; }
+.sy-dp-col-dst::before { inset-inline-end: -11px; }
 
 /* The copper. Behind the pads, hit-testing nothing. */
 .sy-dp-traces {
@@ -1214,57 +1315,92 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
    other element on the board is arranged around. */
 .sy-dp-fabric {
   position: relative; width: min(340px, 100%); min-height: 90px;
-  border-radius: 18px; border: 1px solid rgba(103, 232, 249, .55);
-  padding: 9px;
+  border-radius: 16px; border: 1px solid rgba(103, 232, 249, .5);
+  padding: 8px;
+  /* The package is MACHINED, not lit: a dark anodised carrier with one cold
+     sheen along its top edge. The previous version pushed a cyan wash through
+     the whole body, which is what made the core read as a glowing rectangle
+     rather than a component. */
   background:
-    linear-gradient(180deg, rgba(56, 189, 248, .22), rgba(12, 22, 44, .92) 62%),
-    linear-gradient(180deg, rgba(23, 42, 82, .95), rgba(9, 16, 34, .98));
+    linear-gradient(180deg, rgba(125, 211, 252, .16), transparent 34%),
+    linear-gradient(180deg, rgba(20, 34, 62, .97), rgba(7, 13, 27, .99));
   box-shadow:
-    0 0 0 1px rgba(34, 211, 238, .18),
-    0 0 0 7px rgba(34, 211, 238, .05),
-    0 0 70px -6px rgba(34, 211, 238, .6),
-    0 22px 48px -20px rgba(0, 0, 0, .9),
-    inset 0 1px 0 rgba(255, 255, 255, .16);
+    0 0 0 1px rgba(34, 211, 238, .14),
+    0 0 34px -14px rgba(34, 211, 238, .5),
+    0 20px 44px -22px rgba(0, 0, 0, .95),
+    inset 0 1px 0 rgba(186, 230, 253, .28);
   display: flex; z-index: 3;
 }
 /* The pin rows. Two pseudo-elements rather than twenty-eight nodes. */
 .sy-dp-fabric::before, .sy-dp-fabric::after {
   content: ''; position: absolute; inset-block: 16px; width: 7px; border-radius: 2px;
   background: repeating-linear-gradient(180deg,
-    rgba(186, 230, 253, .9) 0 3px, transparent 3px 10px);
-  box-shadow: 0 0 10px rgba(34, 211, 238, .5);
+    rgba(186, 230, 253, .82) 0 3px, rgba(56, 189, 248, .12) 3px 4px, transparent 4px 10px);
+  box-shadow: 0 0 7px rgba(34, 211, 238, .35);
 }
 .sy-dp-fabric::before { inset-inline-start: -7px; }
 .sy-dp-fabric::after { inset-inline-end: -7px; }
 
-/* The die: the lit face, inset inside the package. */
+/* THE DIE FACE
+   Dark silicon with a lattice etched across it, a cold sheen at the top edge
+   and a ring of bond pads around the rim. The face is dark on purpose: the
+   lettering has to be the brightest thing inside the package, and it cannot be
+   if the surface behind it is already white. */
 .sy-dp-core-die {
-  flex: 1; min-width: 0; border-radius: 11px;
-  border: 1px solid rgba(125, 211, 252, .42);
+  position: relative; flex: 1; min-width: 0; border-radius: 10px; overflow: hidden;
+  border: 1px solid rgba(125, 211, 252, .5);
   background:
-    radial-gradient(130% 120% at 50% -10%, rgba(103, 232, 249, .38), transparent 62%),
-    linear-gradient(168deg, rgba(37, 84, 175, .7), rgba(10, 18, 38, .95));
-  box-shadow: inset 0 0 26px -6px rgba(34, 211, 238, .55), inset 0 1px 0 rgba(255, 255, 255, .14);
+    linear-gradient(180deg, rgba(186, 230, 253, .16), transparent 22%),
+    repeating-linear-gradient(90deg, rgba(125, 211, 252, .07) 0 1px, transparent 1px 9px),
+    repeating-linear-gradient(0deg, rgba(125, 211, 252, .05) 0 1px, transparent 1px 9px),
+    radial-gradient(120% 130% at 50% 118%, rgba(37, 99, 199, .42), transparent 66%),
+    linear-gradient(170deg, rgba(15, 32, 66, .97), rgba(6, 12, 26, .99));
+  box-shadow:
+    inset 0 0 22px -10px rgba(34, 211, 238, .5),
+    inset 0 1px 0 rgba(186, 230, 253, .2);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   text-align: center; padding: 8px 12px;
 }
+/* Bond pads down the die's own edges, inside the package's pins. */
+.sy-dp-core-die::before {
+  content: ''; position: absolute; inset-block: 9px; inset-inline: 3px;
+  pointer-events: none; border-radius: 8px;
+  background:
+    repeating-linear-gradient(180deg, rgba(165, 243, 252, .5) 0 2px, transparent 2px 9px) left / 2px 100% no-repeat,
+    repeating-linear-gradient(180deg, rgba(165, 243, 252, .5) 0 2px, transparent 2px 9px) right / 2px 100% no-repeat;
+}
+/* Registration marks at the die's corners — the detail that makes a rectangle
+   read as a component. */
+.sy-dp-core-die::after {
+  content: ''; position: absolute; inset: 5px; pointer-events: none; border-radius: 7px;
+  background:
+    linear-gradient(90deg, rgba(165, 243, 252, .55) 0 9px, transparent 9px) top left / 100% 1px no-repeat,
+    linear-gradient(180deg, rgba(165, 243, 252, .55) 0 9px, transparent 9px) top left / 1px 100% no-repeat,
+    linear-gradient(270deg, rgba(165, 243, 252, .55) 0 9px, transparent 9px) top right / 100% 1px no-repeat,
+    linear-gradient(180deg, rgba(165, 243, 252, .55) 0 9px, transparent 9px) top right / 1px 100% no-repeat,
+    linear-gradient(90deg, rgba(165, 243, 252, .55) 0 9px, transparent 9px) bottom left / 100% 1px no-repeat,
+    linear-gradient(0deg, rgba(165, 243, 252, .55) 0 9px, transparent 9px) bottom left / 1px 100% no-repeat,
+    linear-gradient(270deg, rgba(165, 243, 252, .55) 0 9px, transparent 9px) bottom right / 100% 1px no-repeat,
+    linear-gradient(0deg, rgba(165, 243, 252, .55) 0 9px, transparent 9px) bottom right / 1px 100% no-repeat;
+}
+.sy-dp-core-die > * { position: relative; z-index: 1; }
 .sy-dp-core-mark {
   width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center;
-  font-weight: 900; font-size: 17px; letter-spacing: -.5px; color: #061018;
-  background: linear-gradient(135deg, #7dd3fc, #a5f3fc 55%, #e0f2fe);
-  box-shadow: 0 6px 22px rgba(34, 211, 238, .6), inset 0 1px 0 rgba(255, 255, 255, .8);
+  font-weight: 900; font-size: 17px; letter-spacing: -.5px; color: #04121c;
+  background: linear-gradient(140deg, #67e8f9, #a5f3fc 60%, #cffafe);
+  box-shadow: 0 4px 14px rgba(34, 211, 238, .45), inset 0 1px 0 rgba(255, 255, 255, .75);
 }
 .sy-dp-fabric b {
   font-size: 12.5px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase;
-  color: #fff; line-height: 1.3; text-shadow: 0 0 18px rgba(165, 243, 252, .5);
+  color: #f4fbff; line-height: 1.3; text-shadow: 0 1px 10px rgba(4, 12, 26, .9);
 }
 .sy-dp-fabric b em {
   display: block; font-style: normal; font-size: 15px; letter-spacing: .13em;
-  color: #a5f3fc; text-shadow: 0 0 20px rgba(34, 211, 238, .8);
+  color: #7dd3fc; text-shadow: 0 0 14px rgba(34, 211, 238, .55), 0 1px 8px rgba(4, 12, 26, .9);
 }
-.sy-dp-core-sub { font-size: 9px; font-weight: 600; color: rgba(224, 242, 254, .72); }
+.sy-dp-core-sub { font-size: 9px; font-weight: 600; color: rgba(186, 230, 253, .66); letter-spacing: .02em; }
 .sy-dp-fabric-ring {
-  position: absolute; inset: -3px; border-radius: 20px;
+  position: absolute; inset: -3px; border-radius: 19px;
   border: 1px solid var(--sy-accent-2); opacity: 0;
   transition: opacity .18s ease;
 }
@@ -1579,7 +1715,8 @@ button.sy-kpi:hover .sy-kpi-go { opacity: 1; }
      broken one. */
   .sy-dp-traces, .sy-dp-stage { display: none; }
   .sy-dp-etch { display: none; }
-  .sy-dp-map::before { display: none; }
+  .sy-dp-map::before, .sy-dp-map::after { display: none; }
+  .sy-dp-col-src::before, .sy-dp-col-dst::before { display: none; }
   .sy-dp-fabric::before, .sy-dp-fabric::after { display: none; }
   .sy-dp-stub { display: none; }
   .sy-dp-tbody { max-height: 260px; }
