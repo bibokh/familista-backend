@@ -1,17 +1,27 @@
-// Familista — Data Pulse, the platform owner's live data flow
+// Familista — Live Data Flow, the platform owner's operations cockpit
 // ─────────────────────────────────────────────────────────────────────────────
-// A map of where events come from, where they go, and a dot travelling the
-// path each real event actually took.
+// One screen that answers three questions at a glance: what is moving through
+// the platform right now, what architecture it moves through, and where in the
+// world it came from. Sources on the left, the Familista Data Fabric and the
+// services around it in the middle, destinations on the right, and beneath them
+// the event stream, the timeline and the global map.
 //
 // THE ONE RULE THIS FILE EXISTS TO KEEP
 //
 // Nothing on this screen is invented. There is no particle loop, no decorative
-// animation, no synthetic throughput and no destination that is not either
-// genuinely consuming events or clearly marked FUTURE. Every dot is one event
-// the server observed; when nothing is happening the screen says so and stays
-// still. A visualiser that looks busy when the platform is idle is worse than
-// no visualiser, because it cannot be used to answer the only question it is
-// for.
+// animation, no throughput this process did not observe and no destination that
+// is not either genuinely consuming events or clearly marked FUTURE. Every dot
+// is one event the server observed; when nothing is happening the screen says
+// so and stays still. A visualiser that looks busy when the platform is idle is
+// worse than no visualiser, because it cannot be used to answer the only
+// question it is for.
+//
+// That rule is why a figure is either a measurement or an em dash. A trend
+// arrow is the difference between two samples this panel actually received, a
+// lane's rate is the events counted on that lane inside the chosen window, and
+// the ecosystem card counts clubs, countries and people by reading them. Where
+// nothing measures a number — processed, failed and pending have no consumer
+// yet — the tile says so in words instead of showing a zero.
 //
 // HOW IT STREAMS
 //
@@ -24,14 +34,18 @@
 // The server batches frames on a tick and samples a burst, so this file
 // receives at most a few frames per animation window. Live dots are capped
 // independently of that, and a dot removes itself when its animation ends —
-// nothing accumulates. The metrics row repaints its own numbers rather than
-// re-rendering the map, and the map is only rebuilt when the topology changes.
+// nothing accumulates. Each region repaints its own slot: a metric tick redraws
+// eleven numbers rather than the board, and the board is rebuilt only when the
+// topology changes. There is no timer in this file; the only repeating work is
+// a requestAnimationFrame loop that exists solely while replay is playing.
 //
 // NOTHING MOVES THAT THE READER DID NOT MOVE
 //
-// Dots are absolutely positioned inside a fixed-height stage and animate on
-// `transform` and `opacity` only, so a pulse cannot shift a single pixel of the
-// panel underneath it. The inspector is a fixed overlay for the same reason.
+// Dots are absolutely positioned inside a stage that is `pointer-events: none`
+// and animate on `offset-distance` and `opacity` only, so a pulse cannot shift
+// a single pixel of the panel underneath it. Every region is a fixed-height box
+// that scrolls inside itself with a stable gutter, and the inspector and the
+// storage panel are fixed overlays for the same reason.
 
 (function () {
   'use strict';
@@ -51,6 +65,7 @@
     mode: 'LIVE',
     topology: null,
     metrics: null,
+    limits: null,
     frames: [],        // newest first, bounded
     sampling: 1,
     lastError: null,
@@ -77,14 +92,34 @@
     active: { activeUsers: null, activeSessions: null },
     /** Which categories the feed shows. Empty means all of them. */
     filter: '',
+    /** Which lane the feed shows, as `source:Players`. Empty means all. */
+    lane: '',
     replay: { minutes: 5, loading: false, counts: null, truncated: false },
+    /**
+     * Where Familista actually is: clubs, countries, continents and people,
+     * every one of them a count over a real table. Null until the read lands,
+     * and left null when it fails rather than filled with something friendlier.
+     */
+    eco: null,
+    ecoError: null,
+    /**
+     * Metric samples this panel has received, newest last. The only source of a
+     * trend arrow — a difference between two measurements, never a guess.
+     */
+    history: [],
+    /** Replay playback. `at` is 0..1 across the loaded window. */
+    play: { on: false, at: 1, speed: 1 },
+    storage: false,
   };
   window._DP = DP;
 
   var FRAME_LIMIT = 200;     // what the inspector list can hold
   var DOT_LIMIT = 24;        // what may be in flight on screen at once
+  var HISTORY_LIMIT = 240;   // four minutes of one-second metric samples
+  var TREND_LAG_MS = 60000;  // a trend compares now against one minute ago
   var abort = null;
   var reconnectTimer = null;
+  var playFrame = null;
   /** eventIds already rendered, and their arrival order so the set can be trimmed. */
   var seen = Object.create(null);
   var seenOrder = [];
@@ -109,6 +144,19 @@
     tab_changed: 1, panel_opened: 1, panel_closed: 1, modal_opened: 1, modal_closed: 1,
     menu_opened: 1, player_card_opened: 1, match_card_opened: 1, form_started: 1,
   };
+
+  /**
+   * The filter chips, as a token and the word a reader sees.
+   *
+   * Written out rather than derived from the token: lower-casing `UI` produces
+   * "Ui", and an interface that mangles its own vocabulary to save four lines
+   * is not worth the four lines.
+   */
+  var CATEGORIES = [
+    ['', 'All'], ['DOMAIN', 'Domain'], ['AUTH', 'Auth'], ['NAV', 'Navigation'],
+    ['UI', 'Interface'], ['ACTION', 'Action'], ['POINTER', 'Pointer'],
+    ['SCROLL', 'Scroll'], ['HOVER', 'Hover'], ['SYSTEM', 'System'],
+  ];
 
   function categoryOf(f) {
     var t = String((f && f.eventType) || '');
@@ -138,39 +186,64 @@
     return 'dp-' + k + '-' + String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-');
   }
 
+  function slug(name) {
+    return String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  }
+
+  // ── the icon set ───────────────────────────────────────────────────────────
+  //
+  // Drawn from `public/system/system-icons.js`, which the rail and the top bar
+  // draw from too. There is one icon set in SYSTEM and this panel does not get
+  // a second: an icon that means "governance" in the navigation must mean
+  // governance on the board.
+
+  function icon(name, cls) {
+    try {
+      if (typeof window.syIcon === 'function') return window.syIcon(name, 'sy-dp-i' + (cls ? ' ' + cls : ''));
+    } catch (_) { /* the set is optional; a labelled panel still reads */ }
+    return '';
+  }
+
+  /** The lane a source or destination pad draws its icon from. */
+  var LANE_ICON = {
+    Clubs: 'clubs', Users: 'users', Players: 'players', Training: 'training',
+    Matches: 'matches', Transfers: 'transfers', Medical: 'medical', Media: 'media',
+    AI: 'ai', System: 'system',
+    'Operational Data': 'database', Audit: 'audit', Analytics: 'analytics',
+    'ML Pipeline': 'pipeline', 'Feature Store': 'layers', 'Data Lake': 'database',
+    Cameras: 'media', GPS: 'gps', Edge: 'edge',
+  };
+
+  // ── numbers, and the absence of them ───────────────────────────────────────
+
   /**
-   * A metric cell.
+   * A metric cell's value.
    *
    * `null` is NOT zero. The server sends null for anything it cannot compute,
    * and this renders those words rather than a number nobody measured.
    */
-  function metric(label, value, unit) {
-    var body = (value === null || value === undefined)
-      ? '<span class="sy-dp-unavailable">Not instrumented yet</span>'
-      : '<b>' + esc(String(value)) + '</b>' + (unit ? '<i>' + esc(unit) + '</i>' : '');
-    return '<div class="sy-dp-metric"><span>' + esc(label) + '</span><div>' + body + '</div></div>';
+  function num(v) {
+    return (v === null || v === undefined) ? null : Number(v).toLocaleString();
   }
 
-  function metricsHtml() {
-    var m = DP.metrics;
-    if (!m) return '<div class="sy-dp-metrics sy-dp-metrics-idle"></div>';
-    var last = m.lastEventAt ? timeAgo(m.lastEventAt) : null;
-    return '<div class="sy-dp-metrics">'
-      + metric('Events / sec', m.eventsPerSecond)
-      + metric('Events / min', m.eventsPerMinute)
-      // Counted from telemetry sessions in the last five minutes, not guessed
-      // from open connections — an owner watching the board is not a user of
-      // the product, and counting them would flatter the number.
-      + metric('Active users', DP.active ? DP.active.activeUsers : null)
-      + metric('Active sessions', DP.active ? DP.active.activeSessions : null)
-      + metric('Active clubs', m.activeClubs)
-      + metric('Observed', m.totalObserved)
-      + metric('Avg write latency', m.averageLatencyMs, 'ms')
-      + metric('Last event', last)
-      + metric('Processed', m.processed)
-      + metric('Failed', m.failed)
-      + metric('Pending', m.pending)
-      + '</div>';
+  /** 12428 → "12.4K". The exact figure travels in the tile's title attribute. */
+  function compact(v) {
+    if (v === null || v === undefined) return null;
+    var n = Number(v);
+    if (!isFinite(n)) return null;
+    var abs = Math.abs(n);
+    if (abs >= 1e9) return (n / 1e9).toFixed(abs >= 1e10 ? 0 : 1).replace(/\.0$/, '') + 'B';
+    if (abs >= 1e6) return (n / 1e6).toFixed(abs >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
+    if (abs >= 1e4) return Math.round(n / 1e3) + 'K';
+    if (abs >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+    return String(n);
+  }
+
+  function clockOf(iso) {
+    var d = new Date(iso);
+    if (!iso || isNaN(d.getTime())) return null;
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
   }
 
   function timeAgo(iso) {
@@ -183,16 +256,419 @@
     return Math.round(s / 3600) + 'h ago';
   }
 
+  /**
+   * The trend chip, and the only thing that may produce one.
+   *
+   * Two samples this panel received, a minute apart, compared. No sample that
+   * old, or a zero to divide by, means no chip at all — an arrow that cannot be
+   * computed is simply absent rather than drawn flat.
+   */
+  function trendHtml(key) {
+    var h = DP.history;
+    if (h.length < 2) return '';
+    var now = h[h.length - 1];
+    var cur = now[key];
+    if (cur === null || cur === undefined) return '';
+    var want = now.t - TREND_LAG_MS;
+    var past = null;
+    for (var i = 0; i < h.length; i++) {
+      if (h[i].t <= want) past = h[i]; else break;
+    }
+    if (!past) past = (now.t - h[0].t >= 20000) ? h[0] : null;
+    if (!past) return '';
+    var before = past[key];
+    if (before === null || before === undefined || before === 0) return '';
+    var pct = Math.round(((cur - before) / before) * 100);
+    if (pct === 0) return '';
+    var dir = pct > 0 ? 'up' : 'down';
+    var arrow = pct > 0 ? '↑' : '↓';
+    return '<em class="sy-dp-trend sy-dp-trend--' + dir + '" title="against the same figure one minute ago"'
+      + ' data-no-i18n>' + arrow + ' ' + Math.abs(pct) + '%</em>';
+  }
+
+  function rememberMetrics(m) {
+    if (!m) return;
+    DP.history.push({
+      t: Date.now(),
+      eventsPerSecond: m.eventsPerSecond,
+      eventsPerMinute: m.eventsPerMinute,
+      activeClubs: m.activeClubs,
+      totalObserved: m.totalObserved,
+      averageLatencyMs: m.averageLatencyMs,
+      activeUsers: DP.active ? DP.active.activeUsers : null,
+      activeSessions: DP.active ? DP.active.activeSessions : null,
+    });
+    while (DP.history.length > HISTORY_LIMIT) DP.history.shift();
+  }
+
+  // ── the window every rate and every bar is counted inside ──────────────────
+
+  function windowMs() {
+    return Math.max(1, DP.replay.minutes) * 60000;
+  }
+
+  /** Frames inside the chosen window, newest first. The basis of every rate. */
+  function framesInWindow() {
+    var floor = Date.now() - windowMs();
+    var out = [];
+    for (var i = 0; i < DP.frames.length; i++) {
+      var t = new Date(DP.frames[i].recordedAt).getTime();
+      if (!t || isNaN(t)) continue;
+      if (DP.mode === 'LIVE' && t < floor) break;
+      out.push(DP.frames[i]);
+    }
+    return out;
+  }
+
+  /**
+   * Events per minute on every lane, counted in one pass.
+   *
+   * One pass rather than one per pad: the rates are rewritten on every metrics
+   * tick, and walking the buffer twenty-eight times a second to answer twenty-
+   * eight questions about the same rows is the kind of cost that makes a
+   * monitor more expensive than the thing it monitors.
+   */
+  function laneRates() {
+    var rows = framesInWindow();
+    var per = Math.max(1, DP.replay.minutes);
+    var src = Object.create(null);
+    var dst = Object.create(null);
+    for (var i = 0; i < rows.length; i++) {
+      src[rows[i].source] = (src[rows[i].source] || 0) + 1;
+      dst[rows[i].destination] = (dst[rows[i].destination] || 0) + 1;
+    }
+    return {
+      source: function (name) { return (src[name] || 0) / per; },
+      dest: function (name) { return (dst[name] || 0) / per; },
+    };
+  }
+
+  function rateLabel(perMinute) {
+    if (perMinute >= 1) return esc(compact(Math.round(perMinute)) + '/min');
+    // Escaped, because "less than" is a character the markup owns.
+    return perMinute > 0 ? '&lt;1/min' : '0/min';
+  }
+
+  // ── the page header ────────────────────────────────────────────────────────
+
+  function statusHtml() {
+    var cls = DP.connected ? 'sy-dp-live' : (DP.lastError ? 'sy-dp-down' : 'sy-dp-connecting');
+    var text = DP.connected ? 'Live' : (DP.lastError ? 'Reconnecting…' : 'Connecting…');
+    // 401 and 403 are different problems and the difference is what tells the
+    // owner whether to sign in again or to check their platform authority.
+    if (!DP.connected && DP.fatalStatus === 401) text = 'Not signed in';
+    else if (!DP.connected && DP.fatalStatus === 403) text = 'Not authorised';
+    if (DP.mode === 'REPLAY') { cls = 'sy-dp-replaying'; text = 'Replay'; }
+    // The status itself, verbatim, next to the label. "Reconnecting…" with no
+    // number is what let a 404 masquerade as an idle platform for a whole
+    // production test; the code is what makes the difference visible.
+    var detail = (!DP.connected && DP.lastError && DP.mode === 'LIVE')
+      ? '<em class="sy-dp-status-detail" data-no-i18n>' + esc(DP.lastError) + '</em>' : '';
+    return '<span class="sy-dp-status ' + cls + '"><i></i>' + esc(text) + detail + '</span>';
+  }
+
+  function windowsHtml() {
+    var list = (DP.topology && DP.topology.replayWindows) || [1, 5, 15];
+    return '<label class="sy-dp-select">'
+      + icon('clock')
+      + '<select data-sy-dp-window-select aria-label="Time window">'
+      + list.map(function (m) {
+        return '<option value="' + m + '"' + (DP.replay.minutes === m ? ' selected' : '') + '>'
+          + 'Last ' + m + (m === 1 ? ' minute' : ' minutes') + '</option>';
+      }).join('')
+      + '</select></label>';
+  }
+
+  function headHtml() {
+    var mode = function (key, label, ic) {
+      return '<button class="sy-dp-mode' + (DP.mode === key ? ' sy-dp-mode-on' : '') + '" type="button"'
+        + ' data-sy-dp-mode="' + key + '" aria-pressed="' + (DP.mode === key ? 'true' : 'false') + '">'
+        + icon(ic) + '<span>' + esc(label) + '</span></button>';
+    };
+    return '<div class="sy-dp-page">'
+      + '<div class="sy-dp-page-txt">'
+        + '<nav class="sy-dp-crumb" aria-label="Breadcrumb"><span>System</span><i>›</i>'
+        + '<span>Infrastructure</span><i>›</i><b>Live Data Flow</b></nav>'
+        + '<div class="sy-dp-page-title"><h1>Live Data Flow</h1>' + statusHtml() + '</div>'
+        + '<p>Real-time and historical data flow across the Familista platform. '
+        + 'A unified view of all systems, services and regions.</p>'
+      + '</div>'
+      + '<div class="sy-dp-page-ctl">'
+        + '<div class="sy-dp-modes">' + mode('LIVE', 'Live', 'live') + mode('REPLAY', 'Replay', 'replay') + '</div>'
+        + '<button class="sy-dp-ghost" type="button" data-sy-dp-storage="1">'
+          + icon('storage') + '<span>Storage</span></button>'
+        + windowsHtml()
+      + '</div></div>';
+  }
+
+  // ── the metric tiles ───────────────────────────────────────────────────────
+
+  /**
+   * One tile.
+   *
+   * A measured figure renders as a figure. A figure nothing measures renders as
+   * an em dash and the reason underneath — never as a zero, which would read as
+   * "measured, and none".
+   */
+  function tile(opts) {
+    var value = opts.value;
+    var absent = (value === null || value === undefined);
+    // The exact figure rides in a title only when it says something the visible
+    // one does not — a tooltip repeating the number underneath it is noise.
+    var exact = (opts.exact && String(opts.exact) !== String(value))
+      ? ' title="' + esc(String(opts.exact)) + '"' : '';
+    var body = absent
+      ? '<b class="sy-dp-none">—</b>'
+      : '<b' + exact + ' data-no-i18n>' + esc(String(value)) + '</b>'
+        + (opts.unit ? '<u data-no-i18n>' + esc(opts.unit) + '</u>' : '');
+    // The reason an absent figure is absent sits UNDER the label rather than
+    // beside it: a tile six across has no room for a second column, and a
+    // truncated "Not inst…" says less than nothing.
+    return '<div class="sy-dp-tile' + (opts.tone ? ' sy-dp-tile--' + opts.tone : '')
+      + (opts.small ? ' sy-dp-tile--sm' : '') + '">'
+      + '<span class="sy-dp-tile-ic">' + icon(opts.icon) + '</span>'
+      + '<span class="sy-dp-tile-b"><span class="sy-dp-tile-v">' + body + '</span>'
+      + '<span class="sy-dp-tile-l">' + esc(opts.label) + '</span>'
+      + (absent ? '<em class="sy-dp-unavailable" title="' + esc(opts.why || '') + '">Not instrumented</em>' : '')
+      + '</span>'
+      + (absent ? '' : (opts.trend || ''))
+      + '</div>';
+  }
+
+  function metricsHtml() {
+    var m = DP.metrics || {};
+    var a = DP.active || {};
+    var why = 'Nothing in Familista marks an outbox row processed, failed or pending yet, '
+      + 'so these stay absent rather than showing a zero.';
+    var last = m.lastEventAt ? clockOf(m.lastEventAt) : null;
+
+    return '<div class="sy-dp-tiles">'
+      + '<div class="sy-dp-tile-row">'
+        + tile({ icon: 'rate', label: 'Events / sec', value: num(m.eventsPerSecond),
+                 exact: num(m.eventsPerSecond), tone: 'cyan', trend: trendHtml('eventsPerSecond') })
+        + tile({ icon: 'stream', label: 'Events / min', value: num(m.eventsPerMinute),
+                 exact: num(m.eventsPerMinute), tone: 'blue', trend: trendHtml('eventsPerMinute') })
+        + tile({ icon: 'users', label: 'Active Users', value: num(a.activeUsers),
+                 exact: num(a.activeUsers), tone: 'blue', trend: trendHtml('activeUsers'),
+                 why: 'Counted from telemetry sessions in the last five minutes.' })
+        + tile({ icon: 'session', label: 'Active Sessions', value: num(a.activeSessions),
+                 exact: num(a.activeSessions), tone: 'cyan', trend: trendHtml('activeSessions'),
+                 why: 'Counted from telemetry sessions in the last five minutes.' })
+        + tile({ icon: 'clubs', label: 'Active Clubs', value: num(m.activeClubs),
+                 exact: num(m.activeClubs), tone: 'blue', trend: trendHtml('activeClubs'),
+                 why: 'Clubs this process has seen an event from.' })
+      + '</div>'
+      + '<div class="sy-dp-tile-row sy-dp-tile-row--sm">'
+        + tile({ small: true, icon: 'layers', label: 'Observed Events', value: num(m.totalObserved),
+                 exact: num(m.totalObserved), tone: 'blue' })
+        + tile({ small: true, icon: 'latency', label: 'Avg Write Latency', value: num(m.averageLatencyMs),
+                 unit: 'ms', exact: num(m.averageLatencyMs), tone: 'cyan',
+                 why: 'No event has carried a write latency in this window yet.' })
+        + tile({ small: true, icon: 'clock', label: 'Last Event', value: last, tone: 'blue',
+                 exact: m.lastEventAt || '', why: 'Nothing has moved through the fabric since this panel opened.' })
+        + tile({ small: true, icon: 'processed', label: 'Processed', value: num(m.processed), tone: 'ok', why: why })
+        + tile({ small: true, icon: 'failed', label: 'Failed', value: num(m.failed), tone: 'bad', why: why })
+        + tile({ small: true, icon: 'pending', label: 'Pending', value: num(m.pending), tone: 'warn', why: why })
+      + '</div></div>';
+  }
+
+  // ── the world, drawn once ──────────────────────────────────────────────────
+  //
+  // A 72×35 equirectangular land mask at five degrees of longitude and four of
+  // latitude, covering +82° to −58° — the crop a world map uses when it is not
+  // about Antarctica. It is rendered as ONE <path> of small squares rather than
+  // two and a half thousand elements, and the string is built once and kept.
+
+  var LAND = [
+    '................######.#########........................................',
+    '............####################.....................#####..............',
+    '...........#####################...............##.############..........',
+    '.....################...#######........###############################..',
+    '..####################...####..##.....#...##############################',
+    '..######################..##.........#...###############################',
+    '...#.....###############...........#.#..############################....',
+    '..........##############..........#################################.....',
+    '...........##############..........##############################.......',
+    '...........############...........########.####################.#.......',
+    '...........###########............##..###.####################..........',
+    '............#########.....................####################..........',
+    '.............#######................#####.###################...........',
+    '..............####.#..............##########################............',
+    '..............##.................###############..##########............',
+    '...............#..#..............##########.###...###.####..............',
+    '.................##..............#############.....##..###..#...........',
+    '..................##.............############......##..###..#...........',
+    '....................#####.........############..........#...#...........',
+    '....................######............########..........#..#............',
+    '....................#######...........#######.............###...........',
+    '.....................########.........######............#...#.###.......',
+    '.....................########.........######.............##....####.....',
+    '.....................#######...........#####..................##........',
+    '......................######..........#####..#...............####.......',
+    '......................#####............####..#.............######.......',
+    '......................#####............####..#.............#######......',
+    '......................####.............###.................########.....',
+    '......................####..............##.................#######......',
+    '......................###.......................................##......',
+    '......................##................................................',
+    '......................#.................................................',
+    '.....................##.................................................',
+    '.....................#..................................................',
+    '........................................................................',
+  ];
+  var MAP_W = 720, MAP_H = 350, CELL = 10, LAT_TOP = 82, LAT_SPAN = 140;
+  var landPath = null;
+
+  function worldPath() {
+    if (landPath) return landPath;
+    var d = [];
+    for (var r = 0; r < LAND.length; r++) {
+      for (var c = 0; c < LAND[r].length; c++) {
+        if (LAND[r].charAt(c) !== '#') continue;
+        var x = c * CELL + 3, y = r * CELL + 3;
+        d.push('M' + x + ' ' + y + 'h3.4v3.4h-3.4z');
+      }
+    }
+    landPath = d.join('');
+    return landPath;
+  }
+
+  function project(lat, lon) {
+    var la = Math.max(-58, Math.min(LAT_TOP, Number(lat)));
+    var lo = Math.max(-180, Math.min(180, Number(lon)));
+    return {
+      x: ((lo + 180) / 360) * MAP_W,
+      y: ((LAT_TOP - la) / LAT_SPAN) * MAP_H,
+    };
+  }
+
+  /**
+   * The plotted clubs, largest first.
+   *
+   * A country the atlas cannot place is never given a coordinate — it is
+   * counted in the figures and named in the card's footnote instead.
+   */
+  function plotted() {
+    var eco = DP.eco;
+    if (!eco || !eco.regions) return [];
+    return eco.regions.filter(function (r) { return r.lat !== null && r.lon !== null; });
+  }
+
+  function worldSvg(cls, withPins) {
+    var pins = '';
+    if (withPins) {
+      var rows = plotted();
+      var max = rows.reduce(function (n, r) { return Math.max(n, r.clubs); }, 1);
+      pins = rows.map(function (r) {
+        var p = project(r.lat, r.lon);
+        var rad = 3.2 + Math.min(7, (r.clubs / max) * 7);
+        return '<g class="sy-dp-pin">'
+          + '<circle class="sy-dp-pin-halo" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + (rad + 6).toFixed(1) + '"/>'
+          + '<circle class="sy-dp-pin-dot" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + rad.toFixed(1) + '">'
+          + '<title data-user-content>' + esc(r.country) + ' · ' + esc(String(r.clubs))
+          + '</title></circle></g>';
+      }).join('');
+    }
+    return '<svg class="sy-dp-world ' + (cls || '') + '" viewBox="0 0 ' + MAP_W + ' ' + MAP_H + '"'
+      + ' preserveAspectRatio="xMidYMid meet" role="img" aria-label="World map">'
+      + '<path class="sy-dp-land" d="' + worldPath() + '"/>' + pins + '</svg>';
+  }
+
+  // ── the ecosystem card ─────────────────────────────────────────────────────
+
+  function ecoStat(label, value, exact) {
+    if (value === null || value === undefined) {
+      return '<div class="sy-dp-eco-stat"><b class="sy-dp-none">—</b>'
+        + '<span>' + esc(label) + '</span></div>';
+    }
+    var title = (exact && String(exact) !== String(value)) ? ' title="' + esc(String(exact)) + '"' : '';
+    return '<div class="sy-dp-eco-stat"><b' + title + ' data-no-i18n>' + esc(String(value)) + '</b>'
+      + '<span>' + esc(label) + '</span></div>';
+  }
+
+  function ecoHtml() {
+    var e = DP.eco;
+    var foot = '';
+    if (DP.ecoError) {
+      foot = '<p class="sy-dp-eco-note sy-dp-unavailable" data-no-i18n>' + esc(DP.ecoError) + '</p>';
+    } else if (e && e.unplaced && e.unplaced.length === 1) {
+      foot = '<p class="sy-dp-eco-note">One country is counted but not plotted — '
+        + 'the atlas has no coordinate for it.</p>';
+    } else if (e && e.unplaced && e.unplaced.length) {
+      foot = '<p class="sy-dp-eco-note">' + esc(String(e.unplaced.length))
+        + ' countries are counted but not plotted — the atlas has no coordinate for them.</p>';
+    }
+    return '<section class="sy-dp-eco" aria-label="Global football ecosystem">'
+      + '<h4>' + icon('globe') + '<span>Global Football Ecosystem</span></h4>'
+      + '<div class="sy-dp-eco-map">' + worldSvg('sy-dp-world--sm', true) + '</div>'
+      + '<div class="sy-dp-eco-stats">'
+        + ecoStat('Continents', e ? e.continents : null, e && e.how ? e.how.continents : '')
+        + ecoStat('Countries', e ? e.countries : null, e && e.how ? e.how.countries : '')
+        + ecoStat('Clubs', e ? compact(e.clubs) : null, e ? num(e.clubs) : '')
+        + ecoStat('People', e ? compact(e.people) : null, e ? num(e.people) : '')
+      + '</div>' + foot + '</section>';
+  }
+
+  // ── the board ──────────────────────────────────────────────────────────────
+  //
+  // The architecture, drawn as a board: sources on the left, the services and
+  // the Data Fabric in the middle, destinations on the right. Every service
+  // node is a real SYSTEM module and opens it — a label that navigates nowhere
+  // would be a picture of an architecture rather than a way into it.
+
+  var SERVICES = {
+    top: [
+      ['intelligence', 'AI Gateway', 'Secure Access', 'gateway'],
+      ['intelligence', 'AI Engines', 'Multi-Model', 'engines'],
+      ['agents', 'AI Agents', 'Task Automation', 'agents'],
+      ['models', 'Model Registry', 'Version Control', 'registry'],
+      ['governance', 'Global Governance', 'Policy & Compliance', 'governance'],
+    ],
+    mid: [
+      ['governance', 'Compliance Engine', '', 'compliance'],
+      ['governance', 'Consent & Age Rules', '', 'consent'],
+      ['governance', 'Data Residency', '', 'residency'],
+      ['notifications', 'Notifications', 'Multi-channel', 'notifications'],
+      ['security', 'Security Center', 'Threat Protection', 'security'],
+    ],
+    low: [
+      ['health', 'Platform Health', 'Real-time Monitoring', 'health'],
+      ['audit', 'Audit Center', 'Immutable Records', 'audit'],
+      ['backup', 'Backup & Recovery', 'Disaster Recovery', 'backup'],
+    ],
+  };
+
+  function serviceHtml(row) {
+    return row.map(function (s) {
+      return '<button class="sy-dp-svc" type="button" data-sy-go="' + esc(s[0]) + '">'
+        + '<span class="sy-dp-svc-ic">' + icon(s[3]) + '</span>'
+        + '<span class="sy-dp-svc-t"><b>' + esc(s[1]) + '</b>'
+        + (s[2] ? '<i>' + esc(s[2]) + '</i>' : '') + '</span></button>';
+    }).join('');
+  }
+
   function mapHtml() {
     var t = DP.topology;
-    if (!t) return '<div class="sy-dp-map sy-dp-map-loading"></div>';
+    if (!t) return '<div class="sy-dp-map sy-dp-map-loading" id="dp-map"></div>';
 
-    // A pad, not a box: an LED, a label, and a connector stub the trace meets.
-    var pad = function (kind, name, extra) {
-      return '<div class="sy-dp-node sy-dp-' + kind + (extra || '') + '" id="' + laneId(kind === 'source' ? 'src' : 'dst', name) + '">'
-        + '<i class="sy-dp-led"></i><span>' + esc(name) + '</span>'
-        + (kind === 'source' ? '<u class="sy-dp-stub"></u>' : '<u class="sy-dp-stub sy-dp-stub-in"></u>')
-        + '</div>';
+    // A pad, not a box: an LED, an icon, a label, the lane's counted rate and a
+    // connector stub the trace meets. It filters the stream to its own lane,
+    // so the pad is a control rather than a legend.
+    var rates = laneRates();
+    var pad = function (kind, name) {
+      var on = DP.lane === kind + ':' + name;
+      var rate = kind === 'source' ? rates.source(name) : rates.dest(name);
+      return '<button class="sy-dp-node sy-dp-' + kind + (on ? ' sy-dp-node-on' : '') + '" type="button"'
+        + ' id="' + laneId(kind === 'source' ? 'src' : 'dst', name) + '"'
+        + ' data-sy-dp-lane="' + esc(kind + ':' + name) + '"'
+        + ' aria-pressed="' + (on ? 'true' : 'false') + '"'
+        + ' title="Events counted on this lane in the chosen window">'
+        + '<i class="sy-dp-led"></i>'
+        + '<span class="sy-dp-node-ic">' + icon(LANE_ICON[name] || 'system') + '</span>'
+        + '<span class="sy-dp-node-n">' + esc(name) + '</span>'
+        + '<b class="sy-dp-rate" data-no-i18n>' + rateLabel(rate) + '</b>'
+        + '<u class="sy-dp-stub' + (kind === 'dest' ? ' sy-dp-stub-in' : '') + '"></u>'
+        + '</button>';
     };
 
     var sources = t.sources.map(function (n) { return pad('source', n); }).join('');
@@ -203,7 +679,10 @@
     // destination that consumes nothing.
     var future = t.future.map(function (d) {
       return '<div class="sy-dp-node sy-dp-dest sy-dp-future" title="' + esc(d.note) + '">'
-        + '<i class="sy-dp-led"></i><span>' + esc(d.name) + '</span><em>Future</em></div>';
+        + '<i class="sy-dp-led"></i>'
+        + '<span class="sy-dp-node-ic">' + icon(LANE_ICON[d.name] || 'layers') + '</span>'
+        + '<span class="sy-dp-node-n">' + esc(d.name) + '</span>'
+        + '<em>Future</em></div>';
     }).join('');
 
     return '<div class="sy-dp-map" id="dp-map">'
@@ -212,19 +691,35 @@
       // out, so a packet follows the trace rather than a straight line between
       // two boxes.
       + '<svg class="sy-dp-traces" id="dp-traces" aria-hidden="true" focusable="false"></svg>'
-      + '<div class="sy-dp-col sy-dp-col-src"><h4>Sources</h4>' + sources + '</div>'
-      + '<div class="sy-dp-col sy-dp-col-fabric">'
-        + '<h4>Familista Data Fabric</h4>'
-        + '<div class="sy-dp-fabric" id="dp-fabric">'
-          + '<div class="sy-dp-fabric-ring"></div>'
-          + '<b>Event Envelope</b>'
-          // The outbox is its own lit element: it is the moment the row becomes
-          // the truth, and the whole architecture now reads from it.
-          + '<span class="sy-dp-outbox" id="dp-outbox"><i class="sy-dp-led"></i>Event Outbox</span>'
-        + '</div>'
+      + '<div class="sy-dp-col sy-dp-col-src">'
+        + '<h4>Data Sources<i>Real-time data from across the platform</i></h4>'
+        + '<div class="sy-dp-pads">' + sources + '</div>'
       + '</div>'
-      + '<div class="sy-dp-col sy-dp-col-dst"><h4>Destinations</h4>' + dests
-        + '<div class="sy-dp-future-group">' + future + '</div>'
+      + '<div class="sy-dp-col sy-dp-col-fabric">'
+        + '<div class="sy-dp-arch">'
+          + '<b>Familista Platform Architecture</b>'
+          + '<i>People · Data · Intelligence · A Better Football World</i>'
+        + '</div>'
+        + '<div class="sy-dp-tier sy-dp-tier-5">' + serviceHtml(SERVICES.top) + '</div>'
+        + '<div class="sy-dp-core-wrap">'
+          + '<div class="sy-dp-fabric" id="dp-fabric">'
+            + '<div class="sy-dp-fabric-ring"></div>'
+            + '<span class="sy-dp-core-mark" data-no-i18n>F</span>'
+            + '<b data-no-i18n>Familista<em>Data Fabric</em></b>'
+            + '<span class="sy-dp-core-sub">Connects Football To The World</span>'
+            // The outbox is its own lit element: it is the moment the row becomes
+            // the truth, and the whole architecture now reads from it.
+            + '<span class="sy-dp-outbox" id="dp-outbox"><i class="sy-dp-led"></i>Event Outbox</span>'
+          + '</div>'
+        + '</div>'
+        + '<div class="sy-dp-tier sy-dp-tier-5">' + serviceHtml(SERVICES.mid) + '</div>'
+        + '<div class="sy-dp-tier sy-dp-tier-3">' + serviceHtml(SERVICES.low) + '</div>'
+      + '</div>'
+      + '<div class="sy-dp-col sy-dp-col-dst">'
+        + '<h4>Data Destinations<i>Consume, analyse and activate data</i></h4>'
+        + '<div class="sy-dp-pads">' + dests + '</div>'
+        + '<h5>Future Layers</h5>'
+        + '<div class="sy-dp-pads sy-dp-future-group">' + future + '</div>'
       + '</div>'
       + '<div class="sy-dp-stage" id="dp-stage" aria-hidden="true"></div>'
       + '</div>';
@@ -312,13 +807,41 @@
     return true;
   }
 
-  function slug(name) {
-    return String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  // ── the event stream ───────────────────────────────────────────────────────
+
+  function visibleFrames() {
+    var rows = DP.frames;
+    if (DP.filter) rows = rows.filter(function (f) { return categoryOf(f) === DP.filter; });
+    if (DP.lane) {
+      var parts = DP.lane.split(':');
+      rows = rows.filter(function (f) {
+        return parts[0] === 'source' ? f.source === parts[1] : f.destination === parts[1];
+      });
+    }
+    // In replay, the playhead is the clock: only what has already played is on
+    // screen, so scrubbing shows the window as it happened rather than all of
+    // it at once.
+    if (DP.mode === 'REPLAY' && DP.frames.length) {
+      var keep = Math.max(1, Math.round(rows.length * DP.play.at));
+      rows = rows.slice(rows.length - keep);
+    }
+    return rows;
+  }
+
+  function statusDot(f) {
+    var s = String((f && f.status) || '').toUpperCase();
+    var tone = s === 'FAILED' ? 'bad' : s === 'PENDING' ? 'warn' : 'ok';
+    return '<span class="sy-dp-st sy-dp-st--' + tone + '"><i></i><span data-no-i18n>'
+      + esc(s || '—') + '</span></span>';
   }
 
   function emptyHtml() {
-    var idle = !DP.frames.length;
-    if (!idle) return '';
+    if (DP.frames.length) return '';
+    if (DP.mode === 'REPLAY') {
+      return '<div class="sy-dp-empty"><b>No events in this window</b>'
+        + '<span>The durable record holds nothing for the minutes selected. '
+        + 'Choose a longer window, or switch back to Live.</span></div>';
+    }
     return '<div class="sy-dp-empty">'
       + '<div class="sy-dp-empty-ring"></div>'
       + '<b>Listening for live platform activity…</b>'
@@ -327,109 +850,186 @@
       + '</div>';
   }
 
-  function feedHtml() {
-    if (!DP.frames.length) return '';
-    var shown = DP.frames;
-    if (DP.filter) {
-      shown = shown.filter(function (f) { return categoryOf(f) === DP.filter; });
-    }
-    var rows = shown.slice(0, 40).map(function (f) {
-      var cls = 'sy-dp-row' + (f.registered ? '' : ' sy-dp-row-unknown');
+  function streamHtml() {
+    var rows = visibleFrames();
+    // The lane's own name is interface vocabulary and goes through the
+    // catalogue; the × beside it is a symbol and does not.
+    var lane = DP.lane ? '<button class="sy-dp-clear" type="button" data-sy-dp-lane=""'
+      + ' aria-label="Show every lane"><span>' + esc(DP.lane.split(':')[1])
+      + '</span><i data-no-i18n>×</i></button>' : '';
+
+    var body = rows.length ? rows.slice(0, 60).map(function (f) {
       var cat = categoryOf(f);
-      var mod = ctx(f, 'module');
-      var feat = ctx(f, 'feature');
-      // What the reader actually wants on one line: the category, the thing
-      // that happened, and where. "POINTER Active interaction — Squad" rather
-      // than "ui.pointer_active".
       var what = cat === 'DOMAIN' ? f.eventType : String(f.eventType).slice(3).replace(/_/g, ' ');
-      var where = [mod, feat].filter(Boolean).join(' / ');
-      return '<button class="' + cls + '" data-sy-dp-inspect="' + esc(f.eventId) + '">'
-        + '<span class="sy-dp-cat sy-dp-cat-' + esc(cat.toLowerCase()) + '">' + esc(cat) + '</span>'
-        + '<code>' + esc(what) + '</code>'
-        + (f.subjectLabel
-          ? '<span class="sy-dp-row-who" data-user-content>' + esc(f.subjectLabel) + '</span>' : '')
-        + (where ? '<span class="sy-dp-row-where">' + esc(where) + '</span>' : '')
-        + (f.clubLabel
-          ? '<span class="sy-dp-row-club" data-user-content>' + esc(f.clubLabel) + '</span>' : '')
-        + '<time>' + esc(timeAgo(f.recordedAt) || '') + '</time>'
+      var entity = f.subjectLabel || (f.subjectType ? String(f.subjectType).toLowerCase() : null);
+      return '<button class="sy-dp-tr' + (f.registered ? '' : ' sy-dp-tr-unknown') + '"'
+        + ' data-sy-dp-inspect="' + esc(f.eventId) + '">'
+        + '<time data-no-i18n>' + esc(clockOf(f.recordedAt) || '—') + '</time>'
+        + '<span class="sy-dp-ev"><i class="sy-dp-cat sy-dp-cat-' + esc(cat.toLowerCase()) + '"></i>'
+        + '<code>' + esc(what) + '</code></span>'
+        + '<span class="sy-dp-src-cell">' + esc(f.source || '—') + '</span>'
+        + '<span class="sy-dp-ent"' + (f.subjectLabel ? ' data-user-content' : '') + '>'
+        + esc(entity || '—') + '</span>'
+        + statusDot(f)
+        + '<span class="sy-dp-lat" data-no-i18n>' + esc(f.latencyMs === null || f.latencyMs === undefined
+          ? '—' : f.latencyMs + ' ms') + '</span>'
         + '</button>';
+    }).join('') : '';
+
+    return '<section class="sy-dp-panel sy-dp-streamp" aria-label="Event stream">'
+      + '<div class="sy-dp-panel-h">'
+        + '<h4>' + icon('stream') + '<span>Event Stream</span></h4>'
+        + lane
+        + (DP.sampling > 1 ? '<span class="sy-dp-sampling" data-no-i18n>1 in ' + DP.sampling + '</span>' : '')
+        + statusHtml()
+      + '</div>'
+      + '<div class="sy-dp-thead"><span>Time</span><span>Event Type</span><span>Source</span>'
+      + '<span>Entity</span><span>Status</span><span>Latency</span></div>'
+      + '<div class="sy-dp-tbody">' + (body || emptyHtml()) + '</div>'
+      + '</section>';
+  }
+
+  // ── the timeline ───────────────────────────────────────────────────────────
+
+  var BUCKETS = 44;
+
+  /** Counts per bucket across the window. Real events, bucketed by arrival. */
+  function histogram() {
+    var span = windowMs();
+    var end = Date.now();
+    if (DP.mode === 'REPLAY' && DP.frames.length) {
+      var newest = new Date(DP.frames[0].recordedAt).getTime();
+      if (newest && !isNaN(newest)) end = newest;
+    }
+    var start = end - span;
+    var bins = new Array(BUCKETS);
+    for (var b = 0; b < BUCKETS; b++) bins[b] = 0;
+    var rows = DP.filter
+      ? DP.frames.filter(function (f) { return categoryOf(f) === DP.filter; })
+      : DP.frames;
+    for (var i = 0; i < rows.length; i++) {
+      var t = new Date(rows[i].recordedAt).getTime();
+      if (!t || isNaN(t) || t < start || t > end) continue;
+      var idx = Math.min(BUCKETS - 1, Math.floor(((t - start) / span) * BUCKETS));
+      bins[idx]++;
+    }
+    return { bins: bins, start: start, end: end };
+  }
+
+  function timelineHtml() {
+    var h = histogram();
+    var max = h.bins.reduce(function (a, b) { return Math.max(a, b); }, 0);
+    var bars = h.bins.map(function (n, i) {
+      // An empty bucket is empty. A floor applied to zero would draw activity
+      // into a minute when nothing happened, which is the one thing this screen
+      // must never do.
+      var pct = n ? Math.max(6, Math.round((n / max) * 100)) : 0;
+      var lit = (DP.play.at * BUCKETS) >= i;
+      return '<i class="sy-dp-bar' + (lit ? ' sy-dp-bar-on' : '') + '" style="height:' + pct + '%"'
+        + ' title="' + n + '"></i>';
     }).join('');
 
-    var chips = ['', 'DOMAIN', 'AUTH', 'NAV', 'UI', 'ACTION', 'POINTER', 'SCROLL', 'HOVER', 'SYSTEM']
-      .map(function (c) {
-        return '<button class="sy-dp-chip' + (DP.filter === c ? ' sy-dp-chip-on' : '')
-          + '" data-sy-dp-filter="' + esc(c) + '">' + esc(c || 'All') + '</button>';
-      }).join('');
+    var marks = [];
+    for (var k = 0; k <= 4; k++) {
+      marks.push('<span data-no-i18n>' + esc(clockOf(new Date(h.start + (h.end - h.start) * (k / 4)).toISOString()) || '') + '</span>');
+    }
 
-    return '<div class="sy-dp-feed"><h4>Recent activity' + '<span class="sy-dp-chips">' + chips + '</span>'
-      + (DP.sampling > 1 ? '<span class="sy-dp-sampling">showing 1 in ' + DP.sampling + '</span>' : '')
-      + '</h4><div class="sy-dp-feed-rows">' + rows + '</div></div>';
-  }
-
-  function notInstrumentedHtml() {
-    var t = DP.topology;
-    if (!t || !t.notInstrumented || !t.notInstrumented.length) return '';
-    return '<details class="sy-dp-gaps"><summary>'
-      + esc(String(t.notInstrumented.length)) + ' registered event types have no producer yet'
-      + '</summary><div class="sy-dp-gap-list">'
-      + t.notInstrumented.map(function (n) { return '<code>' + esc(n) + '</code>'; }).join('')
-      + '</div><p>These names exist in the taxonomy so consumers can be written against them. '
-      + 'Nothing in the platform emits them today, so no flow is drawn for them.</p></details>';
-  }
-
-  function statusHtml() {
-    var cls = DP.connected ? 'sy-dp-live' : (DP.lastError ? 'sy-dp-down' : 'sy-dp-connecting');
-    var text = DP.connected ? 'Live' : (DP.lastError ? 'Reconnecting…' : 'Connecting…');
-    // 401 and 403 are different problems and the difference is what tells the
-    // owner whether to sign in again or to check their platform authority.
-    if (!DP.connected && DP.fatalStatus === 401) text = 'Not signed in';
-    else if (!DP.connected && DP.fatalStatus === 403) text = 'Not authorised';
-    // The status itself, verbatim, next to the label. "Reconnecting…" with no
-    // number is what let a 404 masquerade as an idle platform for a whole
-    // production test; the code is what makes the difference visible.
-    var detail = (!DP.connected && DP.lastError)
-      ? '<em class="sy-dp-status-detail">' + esc(DP.lastError) + '</em>' : '';
-    return '<span class="sy-dp-status ' + cls + '"><i></i>' + esc(text) + detail + '</span>';
-  }
-
-  function replayHtml() {
-    if (DP.mode !== 'REPLAY') return '';
-    var r = DP.replay;
-    var buttons = [1, 5, 15].map(function (m) {
-      return '<button class="sy-dp-win' + (r.minutes === m ? ' sy-dp-win-on' : '') + '" data-sy-dp-window="' + m + '">'
-        + 'Last ' + m + 'm</button>';
+    var chips = CATEGORIES.map(function (c) {
+      return '<button class="sy-dp-chip' + (DP.filter === c[0] ? ' sy-dp-chip-on' : '')
+        + '" type="button" data-sy-dp-filter="' + esc(c[0]) + '">' + esc(c[1]) + '</button>';
     }).join('');
-    var note = r.loading ? '<span class="sy-dp-unavailable">Loading…</span>'
-      : r.counts ? esc(String(r.counts.total)) + ' events in window'
-        + (r.truncated ? ' (showing the most recent ' + DP.frames.length + ')' : '')
-      : '';
-    return '<div class="sy-dp-replay">' + buttons + '<span class="sy-dp-replay-note">' + note + '</span></div>';
+
+    var canPlay = DP.mode === 'REPLAY' && DP.frames.length > 0;
+    return '<section class="sy-dp-panel sy-dp-timeline" aria-label="Timeline and replay">'
+      + '<div class="sy-dp-panel-h">'
+        + '<h4>' + icon('timeline') + '<span>Timeline &amp; Replay</span></h4>'
+        + '<button class="sy-dp-mini' + (DP.mode === 'LIVE' ? ' sy-dp-mini-on' : '') + '" type="button"'
+        + ' data-sy-dp-mode="LIVE">' + icon('live') + '<span>Live</span></button>'
+        + '<button class="sy-dp-mini" type="button" data-sy-dp-speed="1" title="Playback speed"'
+        + ' data-no-i18n>' + DP.play.speed + '×</button>'
+        + '<button class="sy-dp-mini sy-dp-mini-ic" type="button" data-sy-dp-expand="1"'
+        + ' aria-label="Open the event inspector list">' + icon('expand') + '</button>'
+      + '</div>'
+      + '<div class="sy-dp-tl-row">'
+        + '<button class="sy-dp-playbtn' + (DP.play.on ? ' is-playing' : '') + '" type="button"'
+        + ' data-sy-dp-play="1"' + (canPlay ? '' : ' disabled')
+        + ' title="' + (canPlay ? 'Play this window' : 'Live is already at the present — switch to Replay to scrub')
+        + '" aria-label="Play">' + (DP.play.on ? '❚❚' : '▶') + '</button>'
+        + '<div class="sy-dp-track" data-sy-dp-seek="1">'
+          + '<div class="sy-dp-track-fill" style="width:' + (DP.play.at * 100).toFixed(1) + '%"></div>'
+          + '<div class="sy-dp-track-head" style="left:' + (DP.play.at * 100).toFixed(1) + '%"></div>'
+        + '</div>'
+      + '</div>'
+      + '<div class="sy-dp-bars">' + bars + '</div>'
+      + '<div class="sy-dp-marks">' + marks.join('') + '</div>'
+      + '<div class="sy-dp-chips">' + chips + '</div>'
+      + '</section>';
   }
 
-  // ── rendering ──────────────────────────────────────────────────────────────
-  //
-  // Split so a metric tick repaints nine numbers rather than the whole map, and
-  // so a new frame never rebuilds the nodes a dot is currently travelling
-  // between. Repainting the map mid-flight would cancel every animation.
+  // ── the global activity map ────────────────────────────────────────────────
+
+  function globeStat(label, value, why) {
+    if (value === null || value === undefined) {
+      return '<div class="sy-dp-gstat"><b class="sy-dp-none" title="' + esc(why || '') + '">—</b>'
+        + '<span>' + esc(label) + '</span></div>';
+    }
+    return '<div class="sy-dp-gstat"><b data-no-i18n>' + esc(String(value)) + '</b>'
+      + '<span>' + esc(label) + '</span></div>';
+  }
+
+  /**
+   * The four numbers beside the map.
+   *
+   * Its own slot, because a metric tick arrives every second and the map it
+   * sits next to is eight hundred static shapes — redrawing those once a
+   * second to change four figures would be the most expensive thing on the
+   * screen, and it would cost a repaint of a region nothing changed in.
+   */
+  function gstatsHtml() {
+    var m = DP.metrics || {};
+    var why = 'Nothing marks an outbox row processed or failed yet.';
+    return globeStat('Events / sec', num(m.eventsPerSecond))
+      + globeStat('Active Clubs', num(m.activeClubs))
+      + globeStat('Processed', num(m.processed), why)
+      + globeStat('Failed', num(m.failed), why);
+  }
+
+  function globeHtml() {
+    var e = DP.eco;
+    var continents = e && e.continents !== null && e.continents !== undefined ? e.continents : null;
+    return '<section class="sy-dp-panel sy-dp-globe" aria-label="Global activity map">'
+      + '<div class="sy-dp-panel-h">'
+        + '<h4>' + icon('globe') + '<span>Global Activity Map</span></h4>'
+        + '<span id="dp-gstatus">' + statusHtml() + '</span>'
+      + '</div>'
+      + '<div class="sy-dp-globe-body">'
+        + '<div class="sy-dp-globe-map">' + worldSvg('', true) + '</div>'
+        + '<div class="sy-dp-gstats" id="dp-gstats">' + gstatsHtml() + '</div>'
+      + '</div>'
+      + '<div class="sy-dp-globe-foot">'
+        + '<span>' + (continents === null ? 'Club locations are not available yet'
+          : continents === 1 ? 'Live data flow across one continent'
+            : 'Live data flow across ' + esc(String(continents)) + ' continents') + '</span>'
+        + '<i>Familista Global Infrastructure</i>'
+      + '</div>'
+      + '</section>';
+  }
+
+  // ── the shell ──────────────────────────────────────────────────────────────
 
   function shell() {
     return '<div class="sy-dp-wrap" id="dp-wrap">'
-      + '<div class="sy-dp-head">'
-        + '<div class="sy-dp-title"><b>Live Data Flow</b>'
-        + '<span>Real events moving through the Familista Data Fabric</span></div>'
-        + '<div class="sy-dp-head-right">'
-          + '<div class="sy-dp-modes">'
-            + '<button class="sy-dp-mode' + (DP.mode === 'LIVE' ? ' sy-dp-mode-on' : '') + '" data-sy-dp-mode="LIVE">Live</button>'
-            + '<button class="sy-dp-mode' + (DP.mode === 'REPLAY' ? ' sy-dp-mode-on' : '') + '" data-sy-dp-mode="REPLAY">Replay</button>'
-          + '</div>'
-          + '<span id="dp-status-slot">' + statusHtml() + '</span>'
-        + '</div>'
+      + '<div id="dp-head-slot">' + headHtml() + '</div>'
+      + '<div class="sy-dp-strip">'
+        + '<div id="dp-metrics-slot">' + metricsHtml() + '</div>'
+        + '<div id="dp-eco-slot">' + ecoHtml() + '</div>'
       + '</div>'
-      + '<div id="dp-replay-slot">' + replayHtml() + '</div>'
-      + '<div id="dp-metrics-slot">' + metricsHtml() + '</div>'
-      + '<div id="dp-map-slot">' + mapHtml() + '</div>'
-      + '<div id="dp-body-slot">' + emptyHtml() + feedHtml() + '</div>'
-      + notInstrumentedHtml()
+      + '<div class="sy-dp-boardwrap" id="dp-map-slot">' + mapHtml() + '</div>'
+      + '<div class="sy-dp-foot">'
+        + '<div id="dp-body-slot">' + streamHtml() + '</div>'
+        + '<div id="dp-timeline-slot">' + timelineHtml() + '</div>'
+        + '<div id="dp-globe-slot">' + globeHtml() + '</div>'
+      + '</div>'
       + '</div>';
   }
 
@@ -446,25 +1046,46 @@
     catch (_) { /* an untranslated panel still works */ }
   }
 
+  function fill(id, html) {
+    var slot = document.getElementById(id);
+    if (slot) { slot.innerHTML = html; translate(slot); }
+  }
+
   function paint(what) {
-    var slot;
     if (what === 'metrics') {
-      slot = document.getElementById('dp-metrics-slot');
-      if (slot) { slot.innerHTML = metricsHtml(); translate(slot); }
-      slot = document.getElementById('dp-status-slot');
-      if (slot) { slot.innerHTML = statusHtml(); translate(slot); }
+      fill('dp-metrics-slot', metricsHtml());
+      fill('dp-gstats', gstatsHtml());
+      fill('dp-gstatus', statusHtml());
+      var st = document.getElementById('dp-head-slot');
+      if (st) {
+        var live = st.querySelector('.sy-dp-status');
+        if (live) live.outerHTML = statusHtml();
+      }
       return;
     }
     if (what === 'body') {
-      slot = document.getElementById('dp-body-slot');
-      if (slot) { slot.innerHTML = emptyHtml() + feedHtml(); translate(slot); }
+      fill('dp-body-slot', streamHtml());
+      fill('dp-timeline-slot', timelineHtml());
       return;
     }
-    if (what === 'replay') {
-      slot = document.getElementById('dp-replay-slot');
-      if (slot) { slot.innerHTML = replayHtml(); translate(slot); }
+    if (what === 'lanes') {
+      // Only the rate readouts changed. Rewriting the pads would drop a packet
+      // mid-flight, so each number is written in place.
+      var t = DP.topology;
+      if (!t) return;
+      var rates = laneRates();
+      var write = function (kind, name, rate) {
+        var el = document.getElementById(laneId(kind === 'source' ? 'src' : 'dst', name));
+        if (!el) return;
+        var b = el.querySelector('.sy-dp-rate');
+        if (b) b.innerHTML = rateLabel(rate);
+      };
+      t.sources.forEach(function (n) { write('source', n, rates.source(n)); });
+      t.destinations.forEach(function (d) { write('dest', d.name, rates.dest(d.name)); });
       return;
     }
+    if (what === 'replay' || what === 'head') { fill('dp-head-slot', headHtml()); return; }
+    if (what === 'eco') { fill('dp-eco-slot', ecoHtml()); fill('dp-globe-slot', globeHtml()); return; }
     var host = document.getElementById('dp-host');
     if (host) {
       host.innerHTML = shell();
@@ -597,8 +1218,7 @@
     while (seenOrder.length > FRAME_LIMIT * 2) { delete seen[seenOrder.shift()]; }
     frames = fresh;
     paint('body');
-    // Animate on the next frame, after the feed has laid out — measuring node
-    // positions in the same tick as an innerHTML write would read a stale box.
+    paint('lanes');
     // Animated on the next frame, after the feed has laid out — measuring pad
     // geometry in the same tick as an innerHTML write reads a stale box.
     //
@@ -626,9 +1246,9 @@
   // does not exist — so every request lost the `/api/v1` prefix and 404'd.
   // Then it read the token from `API().getToken()`, which also does not exist:
   // `public/familista-api-client.js` defines one `FamilistaAPI` with
-  // `getToken`, and `app.js` defines another that REPLACES it and exposes
+  // a token accessor and `app.js` defines another that REPLACES it and exposes
   // `request/get/post/refreshTokens/rawFetch` and no token accessor at all.
-  // app.js loads last, so `getToken` was undefined and the header was empty.
+  // app.js loads last, so that accessor was undefined and the header was empty.
   // Cross-origin, with no cookie to fall back on, that is a 401.
   //
   // The lesson both times: do not reconstruct what the application already
@@ -746,6 +1366,25 @@
     return code === 401 || code === 403;
   }
 
+  /**
+   * The footprint, read once per mount.
+   *
+   * Counts of clubs, countries and people change when somebody creates a club,
+   * which is not something that happens twice a second — so this is a read, not
+   * a subscription, and the server caches it for a minute besides.
+   */
+  function loadEcosystem() {
+    dpJson('/ecosystem').then(function (d) {
+      DP.eco = d || null;
+      DP.ecoError = null;
+      paint('eco');
+    }).catch(function (err) {
+      DP.eco = null;
+      DP.ecoError = (err && err.message) || 'The ecosystem footprint could not be read';
+      paint('eco');
+    });
+  }
+
   // ── the stream ─────────────────────────────────────────────────────────────
 
   function handle(event, data) {
@@ -768,12 +1407,20 @@
       DP.reconnectAttempt = 0;
       DP.topology = data.topology || DP.topology;
       DP.metrics = data.metrics || DP.metrics;
+      DP.limits = data.limits || DP.limits;
+      if (DP.topology && data.replayWindows) DP.topology.replayWindows = data.replayWindows;
       paint();
       return;
     }
     if (event === 'backlog') { accept(data.frames, 1); return; }
     if (event === 'pulse') { accept(data.frames, data.sampling); return; }
-    if (event === 'metrics') { DP.metrics = data; paint('metrics'); return; }
+    if (event === 'metrics') {
+      DP.metrics = data;
+      rememberMetrics(data);
+      paint('metrics');
+      paint('lanes');
+      return;
+    }
   }
 
   function connect() {
@@ -842,6 +1489,7 @@
     DP.fatal = isAuthStatus(err && err.status);
     DP.fatalStatus = (err && err.status) || null;
     paint('metrics');
+    paint('head');
     if (!DP.open || DP.mode !== 'LIVE') return;
     // A 401 or 403 is an answer, not an outage. Retrying it on a timer burns
     // requests and — worse — presents a permission problem as a connection
@@ -864,7 +1512,7 @@
   function loadReplay(minutes) {
     DP.replay.minutes = minutes || DP.replay.minutes;
     DP.replay.loading = true;
-    paint('replay');
+    paint('head');
 
     dpJson('/replay?minutes=' + encodeURIComponent(DP.replay.minutes)).then(function (d) {
       d = d || {};
@@ -885,6 +1533,8 @@
       DP.replay.loading = false;
       DP.sampling = 1;
       DP.lastError = null;
+      DP.play.at = 1;
+      DP.play.on = false;
       paint();
     }).catch(function (err) {
       DP.replay.loading = false;
@@ -898,6 +1548,49 @@
     });
   }
 
+  // ── playback ───────────────────────────────────────────────────────────────
+  //
+  // The only repeating work in this file, and it exists only while the owner is
+  // playing a replay window. One requestAnimationFrame loop moves the playhead
+  // and repaints the stream when — and only when — the number of revealed rows
+  // actually changes.
+
+  function stopPlayback() {
+    DP.play.on = false;
+    if (playFrame) { cancelAnimationFrame(playFrame); playFrame = null; }
+  }
+
+  function startPlayback() {
+    if (DP.mode !== 'REPLAY' || !DP.frames.length) return;
+    if (DP.play.at >= 1) DP.play.at = 0;
+    DP.play.on = true;
+    var last = null;
+    var shown = -1;
+    var duration = windowMs() / 6;    // a five-minute window plays in fifty seconds
+
+    var step = function (ts) {
+      if (!DP.play.on || !DP.open) { playFrame = null; return; }
+      if (last === null) last = ts;
+      var dt = ts - last;
+      last = ts;
+      DP.play.at = Math.min(1, DP.play.at + (dt / duration) * DP.play.speed);
+
+      var head = document.querySelector('.sy-dp-track-head');
+      var fillEl = document.querySelector('.sy-dp-track-fill');
+      var pct = (DP.play.at * 100).toFixed(1) + '%';
+      if (head) head.style.left = pct;
+      if (fillEl) fillEl.style.width = pct;
+
+      var count = Math.round(DP.play.at * DP.frames.length);
+      if (count !== shown) { shown = count; paint('body'); }
+
+      if (DP.play.at >= 1) { stopPlayback(); paint('body'); return; }
+      playFrame = requestAnimationFrame(step);
+    };
+    playFrame = requestAnimationFrame(step);
+    paint('body');
+  }
+
   // ── the inspector ──────────────────────────────────────────────────────────
 
   function row(label, value) {
@@ -905,7 +1598,16 @@
       return '<div class="sy-dp-i-row"><span>' + esc(label) + '</span>'
         + '<b class="sy-dp-unavailable">—</b></div>';
     }
-    return '<div class="sy-dp-i-row"><span>' + esc(label) + '</span><b>' + esc(String(value)) + '</b></div>';
+    // The label is language; the value is a measurement, an identifier or an
+    // enum token, so the translation pass is told to leave it alone. A
+    // translated event id or a translated `STORED` would be a bug.
+    return '<div class="sy-dp-i-row"><span>' + esc(label) + '</span>'
+      + '<b data-no-i18n>' + esc(String(value)) + '</b></div>';
+  }
+
+  /** A row whose right-hand side is a sentence rather than a value. */
+  function note(label, text) {
+    return '<div class="sy-dp-i-row"><span>' + esc(label) + '</span><b>' + esc(text) + '</b></div>';
   }
 
   /**
@@ -923,22 +1625,27 @@
       + '<b data-user-content>' + esc(String(value)) + '</b></div>';
   }
 
+  function overlay(id, html) {
+    var host = document.getElementById(id);
+    if (!host) {
+      host = document.createElement('div');
+      host.id = id;
+      document.body.appendChild(host);
+    }
+    host.className = 'sy-dp-i-open';
+    host.innerHTML = html;
+    translate(host);
+  }
+
   window.dpInspect = function (eventId) {
     var f = null;
     for (var i = 0; i < DP.frames.length; i++) if (DP.frames[i].eventId === eventId) { f = DP.frames[i]; break; }
     if (!f) return;
     DP.inspecting = f;
 
-    var host = document.getElementById('dp-inspector');
-    if (!host) {
-      host = document.createElement('div');
-      host.id = 'dp-inspector';
-      document.body.appendChild(host);
-    }
-    host.className = 'sy-dp-i-open';
-    host.innerHTML = '<div class="sy-dp-i-card" role="dialog" aria-label="Event detail">'
+    overlay('dp-inspector', '<div class="sy-dp-i-card" role="dialog" aria-label="Event detail">'
       + '<div class="sy-dp-i-head"><code>' + esc(f.eventType) + '</code>'
-      + '<button class="sy-dp-i-close" data-sy-dp-close="1" aria-label="Close">×</button></div>'
+      + '<button class="sy-dp-i-close" type="button" data-sy-dp-close="1" aria-label="Close">×</button></div>'
       + '<div class="sy-dp-i-body">'
         // Discovered by the server from the outbox row alone — nothing here was
         // supplied by whoever opened this panel.
@@ -961,20 +1668,66 @@
         + row('Classification', f.dataClassification)
         + row('Status', f.status)
         + row('Flow', f.source + ' → Data Fabric → ' + f.destination)
-        + row('Registered type', f.registered ? 'Yes' : 'No — unknown to this build')
+        + note('Registered type', f.registered ? 'Yes' : 'No — unknown to this build')
       + '</div>'
       // Said plainly, because an inspector that shows fifteen fields invites the
       // question "where is the rest of it".
       + '<p class="sy-dp-i-note">The event body is never sent to this screen. '
-      + 'Data Pulse shows how events move, not what they contain.</p>'
-      + '</div>';
-    translate(host);
+      + 'Live Data Flow shows how events move, not what they contain.</p>'
+      + '</div>');
   };
 
   window.dpCloseInspector = function () {
     DP.inspecting = null;
-    var host = document.getElementById('dp-inspector');
-    if (host) { host.className = ''; host.innerHTML = ''; }
+    DP.storage = false;
+    ['dp-inspector', 'dp-storage'].forEach(function (id) {
+      var host = document.getElementById(id);
+      if (host) { host.className = ''; host.innerHTML = ''; }
+    });
+  };
+
+  /**
+   * STORAGE — what the platform actually writes down.
+   *
+   * The durable record behind this board: the two tables it tails, the limits
+   * the server reported on this connection, and the registered event types that
+   * have no producer yet. All of it comes from the server; none of it is a
+   * claim this file makes on its own.
+   */
+  window.dpStorage = function () {
+    var t = DP.topology || {};
+    var l = DP.limits || {};
+    var gaps = t.notInstrumented || [];
+    DP.storage = true;
+
+    var lim = function (label, v, unit) {
+      return row(label, v === null || v === undefined ? null : v + (unit ? ' ' + unit : ''));
+    };
+
+    overlay('dp-storage', '<div class="sy-dp-i-card sy-dp-i-card--wide" role="dialog" aria-label="Storage">'
+      + '<div class="sy-dp-i-head"><code>Storage</code>'
+      + '<button class="sy-dp-i-close" type="button" data-sy-dp-close="1" aria-label="Close">×</button></div>'
+      + '<div class="sy-dp-i-body">'
+        + '<p class="sy-dp-i-lead">Live Data Flow reads two durable tables and holds nothing of its own. '
+        + 'Everything on the board comes from a row that already existed.</p>'
+        + note('Durable record', 'EventOutbox — one row per domain event')
+        + note('Behaviour record', 'AnalyticsEvent — telemetry, sanitised before it is written')
+        + note('Event body', 'Never sent to the browser, from either table')
+        + lim('In-memory buffer', l.bufferLimit, 'frames')
+        + lim('Batch flush', l.flushMs, 'ms')
+        + lim('Sampling threshold', l.sampleThreshold, 'frames per batch')
+        + lim('Outbox tail batch', l.tailBatch, 'rows')
+        + lim('Tail interval', l.tailIntervalMs, 'ms')
+        + lim('Telemetry tail batch', l.telemetryBatch, 'rows')
+        + row('Replay windows', ((t.replayWindows || [1, 5, 15]).join(', ')) + ' minutes')
+        + '<div class="sy-dp-gaps"><b>' + (gaps.length === 1
+          ? 'One registered event type has no producer yet'
+          : esc(String(gaps.length)) + ' registered event types have no producer yet') + '</b>'
+        + '<div class="sy-dp-gap-list">'
+        + gaps.map(function (n) { return '<code>' + esc(n) + '</code>'; }).join('')
+        + '</div><p>These names exist in the taxonomy so consumers can be written against them. '
+        + 'Nothing in the platform emits them today, so no flow is drawn for them.</p></div>'
+      + '</div></div>');
   };
 
   // ── open / close ───────────────────────────────────────────────────────────
@@ -995,12 +1748,14 @@
     var wasOpen = DP.open;
     DP.open = true;
     paint();
+    if (!wasOpen || !DP.eco) loadEcosystem();
     if (DP.mode === 'REPLAY') { if (!wasOpen) loadReplay(DP.replay.minutes); return; }
     if (!abort) connect();
   };
 
   window.dpUnmount = function () {
     DP.open = false;
+    stopPlayback();
     disconnect();
     window.dpCloseInspector();
   };
@@ -1015,17 +1770,32 @@
     DP.fatal = false;
     DP.fatalStatus = null;
     DP.refreshed = false;
+    stopPlayback();
+    DP.play.at = 1;
     seen = Object.create(null);
     seenOrder = [];
     if (mode === 'LIVE') { DP.replay.counts = null; paint(); connect(); }
     else { disconnect(); DP.connected = false; paint(); loadReplay(DP.replay.minutes); }
   };
 
+  /** The window applies to both modes: replay fetches it, live counts inside it. */
+  function setWindow(minutes) {
+    var m = Number(minutes) || 5;
+    if (m === DP.replay.minutes) return;
+    DP.replay.minutes = m;
+    if (DP.mode === 'REPLAY') { loadReplay(m); return; }
+    paint('head');
+    paint('body');
+    paint('lanes');
+  }
+
   // One delegated listener for the whole panel, so repainting a slot never
   // leaves a dead handler behind.
   document.addEventListener('click', function (e) {
     var el = e.target && e.target.closest
-      ? e.target.closest('[data-sy-dp-inspect],[data-sy-dp-mode],[data-sy-dp-window],[data-sy-dp-close],[data-sy-dp-filter]')
+      ? e.target.closest('[data-sy-dp-inspect],[data-sy-dp-mode],[data-sy-dp-window],[data-sy-dp-close],'
+        + '[data-sy-dp-filter],[data-sy-dp-lane],[data-sy-dp-play],[data-sy-dp-speed],[data-sy-dp-seek],'
+        + '[data-sy-dp-storage],[data-sy-dp-expand]')
       : null;
     if (!el) return;
     if (el.hasAttribute('data-sy-dp-filter')) {
@@ -1033,24 +1803,66 @@
       paint('body');
       return;
     }
+    if (el.hasAttribute('data-sy-dp-lane')) {
+      var want = el.getAttribute('data-sy-dp-lane') || '';
+      DP.lane = (DP.lane === want) ? '' : want;
+      paint('body');
+      // The pads carry the pressed state, and only they change.
+      var map = document.getElementById('dp-map-slot');
+      if (map) {
+        var pads = map.querySelectorAll('[data-sy-dp-lane]');
+        for (var i = 0; i < pads.length; i++) {
+          var on = pads[i].getAttribute('data-sy-dp-lane') === DP.lane;
+          pads[i].classList.toggle('sy-dp-node-on', on);
+          pads[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+        }
+      }
+      return;
+    }
     if (el.hasAttribute('data-sy-dp-close')) { window.dpCloseInspector(); return; }
+    if (el.hasAttribute('data-sy-dp-storage')) { window.dpStorage(); return; }
+    if (el.hasAttribute('data-sy-dp-expand')) {
+      var first = DP.frames[0];
+      if (first) window.dpInspect(first.eventId);
+      return;
+    }
+    if (el.hasAttribute('data-sy-dp-play')) {
+      if (DP.play.on) { stopPlayback(); paint('body'); } else startPlayback();
+      return;
+    }
+    if (el.hasAttribute('data-sy-dp-speed')) {
+      DP.play.speed = DP.play.speed >= 4 ? 1 : DP.play.speed * 2;
+      paint('body');
+      return;
+    }
+    if (el.hasAttribute('data-sy-dp-seek')) {
+      if (DP.mode !== 'REPLAY' || !DP.frames.length) return;
+      var box = el.getBoundingClientRect();
+      DP.play.at = Math.max(0, Math.min(1, (e.clientX - box.left) / Math.max(1, box.width)));
+      stopPlayback();
+      paint('body');
+      return;
+    }
     if (el.hasAttribute('data-sy-dp-inspect')) { window.dpInspect(el.getAttribute('data-sy-dp-inspect')); return; }
     if (el.hasAttribute('data-sy-dp-mode')) { window.dpSetMode(el.getAttribute('data-sy-dp-mode')); return; }
     if (el.hasAttribute('data-sy-dp-window')) { loadReplay(Number(el.getAttribute('data-sy-dp-window'))); }
   });
 
+  document.addEventListener('change', function (e) {
+    var sel = e.target && e.target.closest ? e.target.closest('[data-sy-dp-window-select]') : null;
+    if (sel) setWindow(sel.value);
+  });
+
   // Two seams, for a browser harness and for a test that wants to drive the
   // real renderer rather than reimplement it. Neither produces an event: they
-  // render what they are given, which is the opposite of a demo mode.
+  // render what they are given, which is the opposite of a generator.
   window.__repaint = function () { paint(); };
   window.__feed = function (frames) { accept(frames, 1); };
 
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && DP.inspecting) window.dpCloseInspector();
+    if (e.key === 'Escape' && (DP.inspecting || DP.storage)) window.dpCloseInspector();
   });
 
-  // A backgrounded tab does not need a live socket. Reconnecting on return is
-  // cheaper than holding one open for a screen nobody is looking at.
   // The board's geometry changes with the viewport, and a trace measured at one
   // width sends packets to the wrong place at another. Rebuilt on a settle,
   // never mid-animation.
@@ -1060,6 +1872,8 @@
     resizeTimer = setTimeout(function () { traceBox = ''; buildTraces(); }, 180);
   });
 
+  // A backgrounded tab does not need a live socket. Reconnecting on return is
+  // cheaper than holding one open for a screen nobody is looking at.
   document.addEventListener('visibilitychange', function () {
     if (!DP.open || DP.mode !== 'LIVE') return;
     if (document.hidden) disconnect();

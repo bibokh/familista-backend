@@ -45,6 +45,8 @@
     search: '',
     drawer: null,
     created: null,
+    /** Whether the language panel in the top bar is open. */
+    langOpen: false,
   };
 
   // ── plumbing ──────────────────────────────────────────────────────────────
@@ -172,13 +174,30 @@
     }
   }
 
+  /**
+   * The language control.
+   *
+   * A pill naming the language the reader is in, and a panel holding the three
+   * SYSTEM speaks. The choices are real buttons rather than a styled list, so
+   * the control works from a keyboard and reads correctly to a screen reader —
+   * and `data-sy-lang` is what the shell's one click handler acts on, exactly
+   * as it did when this was a bare row of buttons.
+   */
   function languageSwitchHtml() {
-    return '<div class="sy-langs" role="group" aria-label="SYSTEM language">'
+    var active = localeOf(SY_LANG);
+    return '<div class="sy-langs' + (SY.langOpen ? ' is-open' : '') + '">'
+      + '<button class="sy-lang-pick" type="button" data-sy-langs'
+      + ' aria-expanded="' + (SY.langOpen ? 'true' : 'false') + '" aria-label="SYSTEM language">'
+      + navIcon('__lang', '⊕')
+      + '<span data-no-i18n>' + esc(active[1]) + '</span>'
+      + '<span class="sy-lang-ch">' + navIcon('__chevron', '⌄') + '</span></button>'
+      + '<div class="sy-lang-menu" role="group">'
       + SY_LOCALES.map(function (l) {
         return '<button class="sy-lang' + (l[0] === SY_LANG ? ' is-on' : '') + '" type="button"'
           + ' data-sy-lang="' + l[0] + '" lang="' + l[0] + '" data-no-i18n'
           + ' aria-pressed="' + (l[0] === SY_LANG ? 'true' : 'false') + '">' + esc(l[1]) + '</button>';
-      }).join('') + '</div>';
+      }).join('')
+      + '</div></div>';
   }
 
   function api(path, opts) {
@@ -204,37 +223,72 @@
   // Icons and grouping are the interface's; readiness comes from the server, so
   // a module that stops being instrumented says so here without an edit.
   var MODULES = [
-    ['overview', 'Overview', '◎', 'COMMAND'],
-    ['clubs', 'Clubs Management', '⬢', 'COMMAND'],
-    ['people', 'People & Access', '⚇', 'COMMAND'],
-    ['platform-analytics', 'Platform Analytics', '◫', 'INSIGHT'],
-    ['product-analytics', 'Product Analytics', '◪', 'INSIGHT'],
-    ['infrastructure', 'Infrastructure', '▤', 'PLATFORM'],
-    ['data-pulse', 'Live Data Flow', '⇝', 'PLATFORM'],
-    ['health', 'Platform Health', '♥', 'PLATFORM'],
-    ['security', 'Security Center', '⛨', 'PLATFORM'],
-    ['audit', 'Audit Center', '☰', 'PLATFORM'],
+    ['infrastructure', 'Platform & Infrastructure', '▤', 'SYSTEM'],
+    ['overview', 'Overview', '◎', 'SYSTEM'],
+    ['clubs', 'Club Management', '⬢', 'SYSTEM'],
+    ['people', 'People & Access', '⚇', 'SYSTEM'],
+    ['platform-analytics', 'Platform Analytics', '◫', 'INSIGHTS'],
+    ['product-analytics', 'Product Analytics', '◪', 'INSIGHTS'],
     ['intelligence', 'Familista Intelligence', '✦', 'INTELLIGENCE'],
     ['agents', 'AI Agent Control', '⌬', 'INTELLIGENCE'],
     ['models', 'Model Management', '⚗', 'INTELLIGENCE'],
     ['governance', 'Global Governance', '⚖', 'GOVERNANCE'],
     ['approvals', 'Approval Center', '✓', 'GOVERNANCE'],
+    ['data-pulse', 'Live Data Flow', '⇝', 'PLATFORM'],
+    ['health', 'Platform Health', '♥', 'PLATFORM'],
+    ['security', 'Security Center', '⛨', 'PLATFORM'],
+    ['audit', 'Audit Center', '☰', 'PLATFORM'],
     ['data-archive', 'Data & Archive', '⛁', 'CONTINUITY'],
     ['backup', 'Backup & Recovery', '↻', 'CONTINUITY'],
     ['lab', 'Innovation Lab', '⚛', 'INNOVATION'],
     ['experiments', 'Experiments', '⚖', 'INNOVATION'],
     ['flags', 'Feature Flags', '⚑', 'INNOVATION'],
     ['releases', 'Release Management', '⇪', 'INNOVATION'],
-    ['automation', 'Automation', '⚙', 'PLATFORM'],
-    ['notifications', 'Notifications', '◔', 'PLATFORM'],
-    ['integrations', 'Integrations', '⇄', 'PLATFORM'],
-    ['settings', 'Platform Settings', '⚙', 'PLATFORM'],
+    ['automation', 'Automation', '⚙', 'OPERATIONS'],
+    ['notifications', 'Notifications', '◔', 'OPERATIONS'],
+    ['integrations', 'Integrations', '⇄', 'OPERATIONS'],
+    ['settings', 'Platform Settings', '⚙', 'OPERATIONS'],
   ];
-  var GROUP_ORDER = ['COMMAND', 'INSIGHT', 'INTELLIGENCE', 'GOVERNANCE', 'PLATFORM', 'CONTINUITY', 'INNOVATION'];
+  var GROUP_ORDER = ['SYSTEM', 'INSIGHTS', 'INTELLIGENCE', 'GOVERNANCE', 'PLATFORM',
+    'CONTINUITY', 'INNOVATION', 'OPERATIONS'];
   var GROUP_LABEL = {
-    COMMAND: 'Command', INSIGHT: 'Insight', INTELLIGENCE: 'Intelligence',
-    GOVERNANCE: 'Governance', PLATFORM: 'Platform', CONTINUITY: 'Continuity', INNOVATION: 'Innovation',
+    SYSTEM: 'System', INSIGHTS: 'Insights', INTELLIGENCE: 'Intelligence',
+    GOVERNANCE: 'Governance', PLATFORM: 'Platform', CONTINUITY: 'Continuity',
+    INNOVATION: 'Innovation', OPERATIONS: 'Operations',
   };
+
+  /**
+   * The rail's drawing, per module.
+   *
+   * A name from `public/system/system-icons.js`, which the top bar and the Live
+   * Data Flow board draw from as well — one icon set in SYSTEM, so a drawing
+   * cannot mean one thing in the navigation and another on a board. The glyph
+   * in the list above is the fallback for a browser that fails to load the set.
+   */
+  var NAV_ICON = {
+    infrastructure: 'infrastructure', overview: 'overview', clubs: 'clubs', people: 'users',
+    'platform-analytics': 'analytics', 'product-analytics': 'product',
+    intelligence: 'ai', agents: 'agents', models: 'registry',
+    governance: 'governance', approvals: 'approvals',
+    'data-pulse': 'rate', health: 'health', security: 'security', audit: 'audit',
+    'data-archive': 'database', backup: 'backup',
+    lab: 'lab', experiments: 'experiments', flags: 'flags', releases: 'releases',
+    automation: 'automation', notifications: 'notifications',
+    integrations: 'integrations', settings: 'settings',
+    __home: 'home', __search: 'search', __bell: 'notifications', __lang: 'globe',
+    __trace: 'rate', __chevron: 'chevron',
+  };
+
+  /** The build, drawn at the foot of the rail. Never translated. */
+  var SY_BUILD = 'v1.0.0 Enterprise';
+
+  /** One icon, from the shared set, falling back to the list's own glyph. */
+  function navIcon(key, glyph) {
+    try {
+      if (typeof window.syIcon === 'function') return window.syIcon(NAV_ICON[key] || 'system');
+    } catch (_) { /* the set is optional */ }
+    return glyph;
+  }
 
   function readinessOf(key) {
     var list = (SY.overview && SY.overview.modules) || (SY.modules || []);
@@ -254,8 +308,8 @@
           if (r && r.readiness === 'PARTIAL') tag = '<span class="sy-nav-tag sy-nav-tag--partial">partial</span>';
           if (r && r.readiness === 'NOT_INSTRUMENTED') tag = '<span class="sy-nav-tag sy-nav-tag--none">no data</span>';
           return '<button class="sy-nav-item' + (SY.module === m[0] ? ' is-on' : '') + '" type="button"'
-            + ' data-sy-go="' + esc(m[0]) + '">'
-            + '<span class="sy-nav-ic">' + m[2] + '</span><span>' + esc(m[1]) + '</span>' + tag
+            + ' data-sy-go="' + esc(m[0]) + '" aria-current="' + (SY.module === m[0] ? 'page' : 'false') + '">'
+            + '<span class="sy-nav-ic">' + navIcon(m[0], m[2]) + '</span><span>' + esc(m[1]) + '</span>' + tag
             + '</button>';
         }).join('');
     }).join('');
@@ -263,11 +317,46 @@
     return '<aside class="sy-rail">'
       + '<div class="sy-brand"><div class="sy-brand-mark">F</div>'
       + '<div class="sy-brand-txt"><b>FAMILISTA</b><span>Football connects the world</span></div></div>'
-      + '<button class="sy-back" type="button" data-sy-home>← Back to Home</button>'
-      + '<div class="sy-ident"><div class="sy-ident-ic">⚙</div>'
-      + '<div><b>SYSTEM</b><span>Platform &amp; Infrastructure</span></div></div>'
+      + '<button class="sy-back" type="button" data-sy-home>'
+      + '<span class="sy-nav-ic">' + navIcon('__home', '←') + '</span>Back to Home</button>'
       + '<nav class="sy-nav">' + groups + '</nav>'
+      // The build, pinned to the bottom of the rail. An operator reading a
+      // screen in an incident needs to know which build they are reading.
+      + '<div class="sy-rail-foot"><div class="sy-brand-mark sy-brand-mark--sm">F</div>'
+      + '<div class="sy-brand-txt"><b>FAMILISTA</b>'
+      + '<span data-no-i18n>' + esc(SY_BUILD) + '</span></div></div>'
       + '</aside>';
+  }
+
+  /**
+   * The platform's own state, in the top bar, derived from what SYSTEM knows.
+   *
+   * Not decoration and not a constant: it reads the platform signals — the same
+   * rows the Overview lists — and says which of three things is true. Before
+   * they have been read it says so rather than claiming everything is fine,
+   * because a green light nobody measured is the most expensive kind of lie a
+   * control surface can tell.
+   */
+  function platformStateHtml() {
+    var list = SY.signals;
+    if (!list) {
+      return '<div class="sy-state sy-state--idle"><span class="sy-dot"></span>'
+        + '<div class="sy-state-t"><b>Checking systems</b><i>Platform signals not read yet</i></div></div>';
+    }
+    var loud = list.filter(function (sig) { return sig.severity === 'WARNING' || sig.severity === 'ATTENTION'; });
+    if (!loud.length) {
+      return '<div class="sy-state sy-state--ok"><span class="sy-dot sy-dot--ok"></span>'
+        + '<div class="sy-state-t"><b>System Operational</b><i>All systems running normally</i></div></div>';
+    }
+    // WARNING is red and ATTENTION is amber, the same two words the Overview's
+    // signal list uses. A colour means the same thing on both screens or it
+    // means nothing on either.
+    var loudest = loud.filter(function (sig) { return sig.severity === 'WARNING'; }).length;
+    return '<button class="sy-state sy-state--' + (loudest ? 'warn' : 'attn') + '" type="button"'
+      + ' data-sy-go="overview">'
+      + '<span class="sy-dot sy-dot--' + (loudest ? 'bad' : 'warn') + '"></span>'
+      + '<div class="sy-state-t"><b>Attention required</b>'
+      + '<i>' + esc(String(loud.length)) + ' open platform signals</i></div></button>';
   }
 
   function topHtml() {
@@ -277,7 +366,12 @@
       var u = window.State && window.State.user;
       name = u ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.email : '';
     } catch (_) {}
-    var initial = (name || 'F').charAt(0).toUpperCase();
+    // Two letters where there are two words, one where there is not. An avatar
+    // is a handle on an account, so it is drawn from the account.
+    var parts = String(name || 'Familista').trim().split(/\s+/);
+    var initials = (parts.length > 1
+      ? parts[0].charAt(0) + parts[parts.length - 1].charAt(0)
+      : parts[0].slice(0, 2)).toUpperCase();
     // SYSTEM states platform authority and nothing else. A club role is not an
     // authority on this screen — a club owner reaches none of SYSTEM — so the
     // labels a club shell would draw ("Club Owner", "Club Staff") are never
@@ -286,24 +380,27 @@
     var signals = (SY.signals || []).length;
 
     return '<header class="sy-top">'
-      + '<div class="sy-search"><span>⌕</span>'
+      + '<div class="sy-search"><span class="sy-search-ic">' + navIcon('__search', '⌕') + '</span>'
       + '<input type="search" placeholder="Search anything in System…" value="' + esc(SY.search) + '" data-sy-search>'
-      + '<span class="sy-kbd">⌘K</span></div>'
+      + '<span class="sy-kbd" data-no-i18n>⌘K</span></div>'
       + '<div class="sy-top-actions">'
+      + languageSwitchHtml()
       // The live request trace. SYSTEM's, and drawn only inside a shell that
       // `paint` refuses to build for anybody without platform authority — and
       // behind that, every route it calls is refused by assertPlatformOwner, so
       // the control is a convenience and the server is the guard.
       + (who.isPlatformOwner
-        ? '<button class="sy-icon-btn sy-trace-btn" type="button" data-sy-trace title="Live request trace">◉</button>'
+        ? '<button class="sy-icon-btn sy-trace-btn" type="button" data-sy-trace title="Live request trace">'
+          + navIcon('__trace', '◉') + '</button>'
         : '')
-      + '<button class="sy-icon-btn" type="button" data-sy-go="notifications" title="Signals">◔'
-      + (signals ? '<span class="sy-badge">' + signals + '</span>' : '') + '</button>'
-      + '<button class="sy-icon-btn" type="button" data-sy-go="governance" title="Governance">⚖</button>'
-      + '<button class="sy-icon-btn" type="button" data-sy-go="settings" title="Platform settings">⚙</button>'
-      + languageSwitchHtml()
-      + '<div class="sy-user"><div class="sy-user-av">' + esc(initial) + '</div>'
-      + '<div><b data-user-content>' + esc(name || 'Familista') + '</b><span>' + esc(level) + '</span></div></div>'
+      + '<button class="sy-icon-btn" type="button" data-sy-go="notifications" title="Signals">'
+      + navIcon('__bell', '◔')
+      + (signals ? '<span class="sy-badge" data-no-i18n>' + signals + '</span>' : '') + '</button>'
+      + platformStateHtml()
+      + '<div class="sy-user"><div class="sy-user-av" data-no-i18n>' + esc(initials) + '</div>'
+      + '<div class="sy-user-t"><b data-user-content>' + esc(name || 'Familista') + '</b>'
+      + '<span>' + esc(level) + '</span></div>'
+      + '<span class="sy-user-ch">' + navIcon('__chevron', '⌄') + '</span></div>'
       + '</div></header>';
   }
 
@@ -1353,8 +1450,11 @@
     if (!SY.capabilities) jobs.push(api('/system/capabilities').then(function (d) { SY.capabilities = d; }));
     if (module === 'overview' && !SY.overview) {
       jobs.push(api('/system/overview').then(function (d) { SY.overview = d; }));
-      jobs.push(api('/system/signals').then(function (d) { SY.signals = d.signals; }));
     }
+    // The top bar states whether the platform is healthy, on every screen, so
+    // the signals behind that claim are read on every screen. One request per
+    // session — they are cached on SY exactly like everything else here.
+    if (!SY.signals) jobs.push(api('/system/signals').then(function (d) { SY.signals = d.signals; }));
     var aq = '?environment=' + encodeURIComponent(SY.analyticsEnv) + '&days=' + encodeURIComponent(SY.analyticsDays);
     if (module === 'platform-analytics' && !SY.platformAnalytics) {
       jobs.push(api('/system/analytics/platform' + aq).then(function (d) { SY.platformAnalytics = d; }));
@@ -1435,7 +1535,8 @@
     }
     host.innerHTML = '<div class="sy-shell" dir="' + SY_DIR + '" lang="' + SY_LANG + '">' + railHtml()
       + '<div class="sy-main">' + topHtml()
-      + '<div class="sy-body" id="sy-body">' + contentHtml() + '</div></div>'
+      + '<div class="sy-body' + (SY.module === 'data-pulse' ? ' sy-body--flow' : '')
+      + '" id="sy-body">' + contentHtml() + '</div></div>'
       + drawerHtml() + '</div>';
     // SYSTEM translates itself, from its own three-language catalogue. The
     // platform's 31-locale catalogue is deliberately NOT applied here: the two
@@ -1629,11 +1730,24 @@
         return;
       }
 
+      // The language panel. Opening it repaints the top bar and nothing else
+      // moves: the panel is absolutely positioned, so the row underneath it is
+      // exactly where it was.
+      var langs = ev.target.closest('[data-sy-langs]');
+      if (langs) { ev.preventDefault(); SY.langOpen = !SY.langOpen; paint(host); return; }
+      if (SY.langOpen && !ev.target.closest('.sy-langs')) { SY.langOpen = false; paint(host); }
+
       var lang = ev.target.closest('[data-sy-lang]');
       if (lang) {
         ev.preventDefault();
-        setSystemLocale(lang.getAttribute('data-sy-lang'));
+        SY.langOpen = false;
+        var ready = setSystemLocale(lang.getAttribute('data-sy-lang'));
         paint(host);
+        // The catalogue is fetched once per language, and the paint above
+        // happens while that request is still in flight. Repainting when it
+        // lands is what stops the first switch leaving the screen in English
+        // until something else happens to repaint it.
+        ready.then(function () { paint(host); });
         return;
       }
 

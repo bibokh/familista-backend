@@ -48,6 +48,9 @@ const state = {
   players: [] as Row[],
   audits: [] as Row[],
   platformAdmins: [] as Row[],
+  /** Clubs as the footprint reads them: a country each, and nothing else. */
+  clubs: [] as Row[],
+  users: 0,
 };
 
 const db: Row = {
@@ -183,12 +186,20 @@ const db: Row = {
     findMany: async ({ where = {} }: Row = {}) => (where.id?.in ?? [])
       .filter((id: string) => id === CLUB || id === OTHER_CLUB)
       .map((id: string) => ({ id, name: id === CLUB ? 'FC Familista' : 'Other Club' })),
+    // The footprint's one read. Grouped the way Prisma groups, so a test cannot
+    // prove a shape the service will not actually receive.
+    groupBy: async ({ by }: Row) => {
+      if (!Array.isArray(by) || by[0] !== 'country') throw new Error('unexpected groupBy');
+      const counts = new Map<string, number>();
+      for (const c of state.clubs) counts.set(c.country, (counts.get(c.country) ?? 0) + 1);
+      return [...counts].map(([country, n]) => ({ country, _count: { _all: n } }));
+    },
   },
   platformAdmin: {
     findUnique: async ({ where }: Row) =>
       state.platformAdmins.find((a) => a.userId === where.userId && a.isActive) ?? null,
   },
-  user: { findUnique: async () => null },
+  user: { findUnique: async () => null, count: async () => state.users },
   $transaction: async (fn: any) => (typeof fn === 'function' ? fn(db) : Promise.all(fn)),
 };
 
@@ -225,6 +236,7 @@ import {
   framesFromRows,
   telemetryStep, latestTelemetryCursor, formatTelemetryCursor, parseTelemetryCursor,
   telemetryCategory, frameFromTelemetryRow, activeCounts,
+  ecosystemFootprint, placeCountry, resetEcosystemCache,
   type FamilistaEvent, type PulseFrame,
 } from '../src/fabric';
 import { updatePlayer } from '../src/services/player.service';
@@ -265,6 +277,9 @@ beforeEach(() => {
   state.players = [aPlayer()];
   state.audits = [];
   state.platformAdmins = [{ userId: OWNER, isActive: true }];
+  state.clubs = [];
+  state.users = 0;
+  resetEcosystemCache();
   logged.length = 0;
   actingAs = null;
   clearSubscribers();
@@ -611,12 +626,16 @@ describe('metrics are measured or absent, never invented', () => {
 
   test('the interface renders a null metric as words, never as zero', () => {
     const src = decomment(read('public/data-pulse.js'));
-    const body = src.slice(src.indexOf('function metric('));
+    // `tile` is the one place a figure becomes pixels, so it is the one place
+    // this property can be broken.
+    const body = src.slice(src.indexOf('function tile(opts)'));
     const scope = body.slice(0, body.indexOf('\n  }'));
-    expect(scope).toMatch(/Not instrumented yet/);
+    expect(scope).toMatch(/Not instrumented/);
     // The null check must precede any formatting, or `null` renders as "0".
     expect(scope).toMatch(/value === null/);
-    expect(scope.indexOf('value === null')).toBeLessThan(scope.indexOf('dp-metric'));
+    expect(scope.indexOf('value === null')).toBeLessThan(scope.indexOf('sy-dp-none'));
+    // And the em dash is what a reader sees, never a zero.
+    expect(scope).toMatch(/sy-dp-none">—/);
   });
 });
 
@@ -1923,10 +1942,12 @@ describe('the telemetry tail', () => {
     const client = decomment(read('public/data-pulse.js'));
     const server = decomment(read('src/fabric/pulse/telemetry-tail.service.ts'));
 
-    const chips = client.match(/var chips = \[([^\]]+)\]/);
-    expect(chips).toBeTruthy();
-    const chipWords = (chips as RegExpMatchArray)[1]
-      .split(',').map((w) => w.trim().replace(/^'|'$/g, '')).filter(Boolean);
+    // The chips are declared as [token, word] pairs so `UI` does not render as
+    // "Ui"; the token half is the vocabulary this test is about.
+    const chips = client.slice(client.indexOf('var CATEGORIES = ['));
+    const block = chips.slice(0, chips.indexOf('];'));
+    expect(block).toBeTruthy();
+    const chipWords = [...block.matchAll(/\['([A-Z]*)',/g)].map((m) => m[1]).filter(Boolean);
 
     // DOMAIN is the client's alone: the server never sees a domain event
     // through this module, so it has no name for one.
@@ -2064,8 +2085,10 @@ describe('the telemetry tail', () => {
       expect(`${cat}: ${client.includes("'" + cat + "'")}`).toBe(`${cat}: true`);
     }
     expect(client).toMatch(/data-sy-dp-filter/);
-    // Recent Activity, because it is no longer only events.
-    expect(client).toMatch(/Recent activity/);
+    // The stream names itself, and the filter chips sit with the timeline they
+    // also scope.
+    expect(client).toMatch(/Event Stream/);
+    expect(client).toMatch(/sy-dp-chip/);
   });
 
   test('the telemetry index migration is additive only', () => {
@@ -2076,5 +2099,303 @@ describe('the telemetry tail', () => {
     expect(statements).toMatch(/\("occurredAt", "id"\)/);
     // One statement, and no new column.
     expect(statements.split(';').filter((s) => s.trim()).length).toBe(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 16 · The footprint — where Familista IS, as opposed to how fast it is
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// "Five continents, twenty-eight countries, two thousand clubs" is the line a
+// dashboard invents, and it is the single most quotable thing on this screen —
+// which is exactly why it has to be a count. These tests hold three properties:
+// every figure is an aggregate over a real table, a country the atlas cannot
+// place is COUNTED but never PLOTTED, and a table that cannot be read produces
+// null rather than a friendlier zero.
+
+describe('the ecosystem footprint', () => {
+  const clubsIn = (...countries: string[]) => countries.map((country, i) => ({ id: `c-${i}`, country }));
+
+  it('counts clubs, countries and people from rows and nothing else', async () => {
+    state.clubs = clubsIn('Germany', 'Germany', 'Spain', 'Brazil');
+    state.users = 1_402;
+
+    const eco = await ecosystemFootprint();
+    expect(eco.clubs).toBe(4);
+    expect(eco.countries).toBe(3);
+    expect(eco.people).toBe(1_402);
+    // Germany, Spain (Europe) and Brazil (South America).
+    expect(eco.continents).toBe(2);
+    // Largest first, so the map draws the busiest country as the biggest pin.
+    expect(eco.regions.map((r) => r.country)).toEqual(['Germany', 'Spain', 'Brazil']);
+    expect(eco.regions[0]).toMatchObject({ clubs: 2, continent: 'Europe' });
+  });
+
+  it('places a country through the atlas and never guesses one it does not know', async () => {
+    expect(placeCountry('Germany')).toMatchObject({ continent: 'Europe' });
+    // Case, spacing and punctuation are not data.
+    expect(placeCountry('  united KINGDOM ')).toEqual(placeCountry('United Kingdom'));
+    expect(placeCountry('Wakanda')).toBeNull();
+
+    state.clubs = clubsIn('Germany', 'Wakanda');
+    const eco = await ecosystemFootprint();
+    const unknown = eco.regions.find((r) => r.country === 'Wakanda')!;
+    // Counted — it is a real club in a real place — but given no coordinate,
+    // because a pin in the wrong country is worse than no pin.
+    expect(eco.countries).toBe(2);
+    expect(unknown).toMatchObject({ clubs: 1, continent: null, lat: null, lon: null });
+    expect(eco.unplaced).toEqual(['Wakanda']);
+    // And the continent figure cannot be raised by a country nothing placed.
+    expect(eco.continents).toBe(1);
+  });
+
+  it('answers null rather than zero when a table cannot be read', async () => {
+    const groupBy = db.club.groupBy;
+    const count = db.user.count;
+    db.club.groupBy = async () => { throw new Error('relation "Club" does not exist'); };
+    db.user.count = async () => { throw new Error('relation "User" does not exist'); };
+    try {
+      const eco = await ecosystemFootprint();
+      expect(eco.clubs).toBeNull();
+      expect(eco.people).toBeNull();
+      expect(eco.countries).toBeNull();
+      expect(eco.continents).toBeNull();
+      expect(eco.regions).toEqual([]);
+    } finally {
+      db.club.groupBy = groupBy;
+      db.user.count = count;
+    }
+  });
+
+  it('a platform with no clubs says zero, because zero is what was measured', async () => {
+    state.clubs = [];
+    state.users = 3;
+    const eco = await ecosystemFootprint();
+    expect(eco.clubs).toBe(0);
+    expect(eco.countries).toBe(0);
+    expect(eco.continents).toBe(0);
+    expect(eco.people).toBe(3);
+  });
+
+  it('is cached, so an owner watching the board is not a load on the database', async () => {
+    let reads = 0;
+    const groupBy = db.club.groupBy;
+    db.club.groupBy = async (args: Row) => { reads++; return groupBy(args); };
+    try {
+      state.clubs = clubsIn('Germany');
+      await ecosystemFootprint();
+      await ecosystemFootprint();
+      await ecosystemFootprint();
+      expect(reads).toBe(1);
+      resetEcosystemCache();
+      await ecosystemFootprint();
+      expect(reads).toBe(2);
+    } finally {
+      db.club.groupBy = groupBy;
+    }
+  });
+
+  it('is served to the platform owner and refused to everybody else', async () => {
+    state.clubs = clubsIn('Germany', 'Brazil');
+    state.users = 9;
+
+    actingAs = { id: OWNER, clubId: null, role: 'PLATFORM_OWNER' };
+    const owner = await request(app()).get('/system/data-pulse/ecosystem');
+    expect(owner.status).toBe(200);
+    expect(owner.body.data).toMatchObject({ clubs: 2, countries: 2, people: 9 });
+    // Every figure travels with its definition, so the screen can say what it
+    // is showing rather than implying a definition nobody chose.
+    expect(String(owner.body.data.how.countries)).toMatch(/DISTINCT/);
+
+    actingAs = { id: PRESIDENT, clubId: CLUB, role: 'CLUB_OWNER' };
+    expect((await request(app()).get('/system/data-pulse/ecosystem')).status).toBe(403);
+
+    actingAs = null;
+    expect((await request(app()).get('/system/data-pulse/ecosystem')).status).toBe(401);
+  });
+
+  it('never returns a person, only a country centroid', () => {
+    const src = decomment(read('src/fabric/pulse/ecosystem.service.ts'));
+    // The projection is `country`, and there is no read of a person's location
+    // anywhere in it — `Familista does not need one` is a claim the code has to
+    // keep, not a sentence in a comment.
+    expect(src).toMatch(/by: \['country'\]/);
+    for (const forbidden of ['latitude', 'longitude', 'addressLine', 'postalCode', 'city']) {
+      expect(`${forbidden}:${src.includes(forbidden)}`).toBe(`${forbidden}:false`);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 17 · The cockpit — the screen an owner actually reads
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Live Data Flow is now a full operations screen rather than one panel: a page
+// header, two rows of instruments, the ecosystem footprint, the architecture
+// board, and three monitors beneath it. The tests below hold the properties
+// that make it usable rather than merely present — one region per slot so a
+// metric tick cannot repaint the board, every architecture node reaching a real
+// module, a figure that is either measured or an em dash, and a fixed-height
+// column that scrolls inside itself.
+
+describe('the cockpit', () => {
+  const CLIENT = () => decomment(read('public/data-pulse.js'));
+  const CSS = () => read('public/system/system.css');
+  const SYSTEM = () => read('public/system/system.js');
+
+  it('draws every region of the screen, each into its own slot', () => {
+    const src = CLIENT();
+    for (const slot of ['dp-head-slot', 'dp-metrics-slot', 'dp-eco-slot', 'dp-map-slot',
+      'dp-body-slot', 'dp-timeline-slot', 'dp-globe-slot', 'dp-gstats']) {
+      expect(`${slot}:${src.includes(slot)}`).toBe(`${slot}:true`);
+    }
+    // A metric tick arrives every second. It repaints the eleven numbers, the
+    // four beside the map and the connection state — never the board, whose
+    // pads a packet is currently travelling between, and never the world map,
+    // which is eight hundred static shapes.
+    const paint = src.slice(src.indexOf('function paint(what)'));
+    const metrics = paint.slice(paint.indexOf("if (what === 'metrics')"), paint.indexOf("if (what === 'body')"));
+    expect(metrics).toMatch(/dp-metrics-slot/);
+    expect(metrics).toMatch(/dp-gstats/);
+    expect(metrics).not.toMatch(/dp-map-slot|dp-globe-slot|dp-eco-slot/);
+  });
+
+  it('every architecture node opens a real SYSTEM module', () => {
+    const src = CLIENT();
+    const block = src.slice(src.indexOf('var SERVICES = {'), src.indexOf('function serviceHtml'));
+    const keys = [...block.matchAll(/\[\s*'([a-z-]+)',\s*'/g)].map((m) => m[1]);
+    expect(keys.length).toBeGreaterThanOrEqual(13);
+
+    const modules = [...SYSTEM().matchAll(/\['([a-z-]+)', '[^']+', '.', '[A-Z]+'\]/g)].map((m) => m[1]);
+    for (const key of keys) expect(`${key}:${modules.includes(key)}`).toBe(`${key}:true`);
+    // And they navigate through the shell's one handler rather than a second.
+    expect(src).toMatch(/data-sy-go="/);
+    expect(SYSTEM()).toMatch(/ev\.target\.closest\('\[data-sy-go\]'\)/);
+  });
+
+  it('a figure nothing measures is an em dash with its reason, never a zero', () => {
+    const src = CLIENT();
+    const fn = src.slice(src.indexOf('function tile(opts)'));
+    const body = fn.slice(0, fn.indexOf('\n  }'));
+    expect(body).toMatch(/value === null \|\| value === undefined/);
+    expect(body).toMatch(/sy-dp-none">—/);
+    expect(body).toMatch(/Not instrumented/);
+    // Processed, failed and pending have no consumer, so the screen says so in
+    // words instead of showing three reassuring zeroes.
+    expect(src).toMatch(/Nothing in Familista marks an outbox row processed, failed or pending yet/);
+  });
+
+  it('a trend arrow is two measurements compared, and absent when it cannot be', () => {
+    const src = CLIENT();
+    const fn = src.slice(src.indexOf('function trendHtml(key)'));
+    const body = fn.slice(0, fn.indexOf('\n  }'));
+    // Samples this panel received, a minute apart. No sample that old, or a
+    // zero to divide by, and there is no arrow at all.
+    expect(body).toMatch(/DP\.history/);
+    expect(body).toMatch(/TREND_LAG_MS/);
+    expect(body).toMatch(/if \(before === null \|\| before === undefined \|\| before === 0\) return '';/);
+    expect(src).toMatch(/function rememberMetrics/);
+  });
+
+  it('the world is one static path, and a pin only where a club really is', () => {
+    const src = CLIENT();
+    // The land mask is data, not a drawing loop: one <path> built once and kept.
+    expect(src).toMatch(/var LAND = \[/);
+    expect(src).toMatch(/if \(landPath\) return landPath;/);
+    // A pin comes from a region the server placed, and nowhere else.
+    const fn = src.slice(src.indexOf('function plotted()'));
+    const body = fn.slice(0, fn.indexOf('\n  }'));
+    expect(body).toMatch(/r\.lat !== null && r\.lon !== null/);
+    // The projection is arithmetic on a coordinate the server sent.
+    expect(src).toMatch(/function project\(lat, lon\)/);
+  });
+
+  it('there is one icon set in SYSTEM, and every surface draws from it', () => {
+    const icons = read('public/system/system-icons.js');
+    expect(icons).toMatch(/window\.syIcon = syIcon;/);
+    // The rail, the top bar and the board all call the same function — a second
+    // copy of the set is how an icon comes to mean two things.
+    expect(SYSTEM()).toMatch(/window\.syIcon === 'function'/);
+    expect(CLIENT()).toMatch(/window\.syIcon === 'function'/);
+    expect(read('public/index.html')).toMatch(/system-icons\.js/);
+    // And it loads before the two files that use it.
+    const html = read('public/index.html');
+    expect(html.indexOf('system-icons.js')).toBeLessThan(html.indexOf('/system/system.js'));
+    expect(html.indexOf('system-icons.js')).toBeLessThan(html.indexOf('data-pulse.js'));
+  });
+
+  it('the screen is a fixed-height column whose regions scroll inside themselves', () => {
+    const css = CSS();
+    const block = css.slice(css.indexOf('Live Data Flow — Data Pulse'));
+    // One column that takes the window, so opening the screen does not scroll
+    // the page and a new row cannot move the panel beside it.
+    expect(block).toMatch(/\.sy-dp-wrap \{[^}]*height: calc\(100vh/s);
+    expect(block).toMatch(/scrollbar-gutter: stable/);
+    // The board takes what is left rather than a magic number.
+    expect(block).toMatch(/\.sy-dp-boardwrap \{ flex: 1 1 auto/);
+    // And the escape hatch hands the page back to normal scrolling.
+    expect(block).toMatch(/@media \(max-width: 980px\), \(max-height: 620px\) \{\s*\.sy-dp-wrap \{ height: auto;/);
+  });
+
+  it('the rail carries the platform\'s own groups, and says which build it is', () => {
+    const src = SYSTEM();
+    expect(src).toMatch(/var GROUP_ORDER = \['SYSTEM', 'INSIGHTS', 'INTELLIGENCE', 'GOVERNANCE', 'PLATFORM',/);
+    // Nothing was dropped when the rail was regrouped: every module the server
+    // declares is still reachable from it.
+    const modules = [...src.matchAll(/\['([a-z-]+)', '[^']+', '.', '([A-Z]+)'\]/g)];
+    const keys = modules.map((m) => m[1]);
+    for (const key of ['infrastructure', 'overview', 'clubs', 'people', 'platform-analytics',
+      'product-analytics', 'intelligence', 'agents', 'models', 'governance', 'approvals',
+      'data-pulse', 'health', 'security', 'audit', 'data-archive', 'backup', 'lab',
+      'experiments', 'flags', 'releases', 'automation', 'notifications', 'integrations', 'settings']) {
+      expect(`${key}:${keys.includes(key)}`).toBe(`${key}:true`);
+    }
+    // Every group a module claims is one the rail actually renders.
+    const order = src.slice(src.indexOf('var GROUP_ORDER'), src.indexOf('var GROUP_LABEL'));
+    for (const [, , group] of modules) expect(`${group}:${order.includes(`'${group}'`)}`).toBe(`${group}:true`);
+    expect(src).toMatch(/var SY_BUILD = /);
+    expect(src).toMatch(/sy-rail-foot/);
+  });
+
+  it('the top bar states platform health from signals rather than asserting it', () => {
+    const src = SYSTEM();
+    const fn = src.slice(src.indexOf('function platformStateHtml()'));
+    const body = fn.slice(0, fn.indexOf('\n  }'));
+    // Three states, and "not read yet" is one of them. A green light nobody
+    // measured is the most expensive lie a control surface can tell.
+    expect(body).toMatch(/Platform signals not read yet/);
+    expect(body).toMatch(/System Operational/);
+    expect(body).toMatch(/Attention required/);
+    expect(body).toMatch(/sig\.severity === 'WARNING' \|\| sig\.severity === 'ATTENTION'/);
+    // Which means the signals are read on every screen, not only the Overview.
+    expect(src).toMatch(/if \(!SY\.signals\) jobs\.push\(api\('\/system\/signals'\)/);
+  });
+
+  it('the controls are real: every one performs something or says why it cannot', () => {
+    const src = CLIENT();
+    // Live and Replay switch the source; Storage opens the durable record;
+    // the window drives both the replay fetch and the counted rates.
+    expect(src).toMatch(/data-sy-dp-mode="LIVE"/);
+    expect(src).toMatch(/data-sy-dp-storage="1"/);
+    expect(src).toMatch(/data-sy-dp-window-select/);
+    expect(src).toMatch(/function setWindow\(minutes\)/);
+    // Play is disabled in Live, with the reason on the control rather than a
+    // button that silently does nothing.
+    expect(src).toMatch(/Live is already at the present — switch to Replay to scrub/);
+    expect(src).toMatch(/canPlay \? '' : ' disabled'/);
+    // A pad filters the stream to its own lane, and says so.
+    expect(src).toMatch(/data-sy-dp-lane="/);
+  });
+
+  it('playback is one animation frame loop and nothing repeats when it stops', () => {
+    const src = CLIENT();
+    // The only repeating work in the file, and it exists only while playing.
+    expect(src).not.toMatch(/setInterval/);
+    expect(src).toMatch(/playFrame = requestAnimationFrame\(step\)/);
+    expect(src).toMatch(/function stopPlayback/);
+    expect(src).toMatch(/cancelAnimationFrame\(playFrame\)/);
+    // Unmounting takes it down with the stream.
+    const unmount = src.slice(src.indexOf('window.dpUnmount = function'));
+    expect(unmount.slice(0, unmount.indexOf('\n  };'))).toMatch(/stopPlayback\(\)/);
   });
 });
