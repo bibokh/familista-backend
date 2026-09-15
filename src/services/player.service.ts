@@ -25,6 +25,10 @@ import {
   publishPlayerProfileUpdated, publishPlayerStatusChanged, publishPlayerPositionChanged,
   publishPlayerTeamChanged, publishPlayerSquadAdded, publishPlayerSquadRemoved,
 } from '../fabric/producers/players.producer';
+import {
+  publishMedicalStatusUpdated, publishMedicalAvailabilityChanged, availableForSelection,
+} from '../fabric/producers/medical.producer';
+import { withMedicalContext } from '../fabric/producers/medical-context';
 import { logger } from '../utils/logger';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -579,6 +583,33 @@ export async function updatePlayer(actor: PlayerActor, id: string, dto: UpdatePl
   emitPlayerEvent('player.status.changed', actor, updated, {
     changedFields: statusChanged, teamKind: currentTeamKind,
   });
+
+  // ── and the same commit, told to the MEDICAL source ──────────────────────
+  //
+  // Not a second copy of the event above, and not a widening of it. The Players
+  // event says WHICH FIELD NAMES a squad update touched, one of which happens
+  // to be `medicalStatus`; it stays exactly as it was. These say that a medical
+  // transition occurred, under `source = medical`, where a medical consumer,
+  // an audit rule or a retention policy can find it without subscribing to
+  // every squad edit in the club.
+  //
+  // Neither carries the status. `medical.status.updated` says only that it
+  // moved; `medical.availability.changed` says only whether he can be selected,
+  // and fires only when that boolean actually flips — RECOVERING to INJURED is
+  // a real medical transition and is not a change in availability.
+  if (dto.medicalStatus !== undefined && dto.medicalStatus !== existing.medicalStatus) {
+    const ctx = {
+      playerId: updated.id, clubId: updated.clubId,
+      actorUserId: actor.userId, teamKind: currentTeamKind,
+    };
+    withMedicalContext(ctx, publishMedicalStatusUpdated);
+
+    const wasAvailable = availableForSelection(existing.medicalStatus);
+    const nowAvailable = availableForSelection(updated.medicalStatus);
+    if (wasAvailable !== nowAvailable) {
+      withMedicalContext(ctx, (c) => publishMedicalAvailabilityChanged(c, nowAvailable));
+    }
+  }
 
   if (dto.position !== undefined && dto.position !== previousPosition) {
     emitPlayerEvent('player.position.changed', actor, updated, {

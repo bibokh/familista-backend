@@ -245,11 +245,17 @@ describe('a successful Players action publishes exactly the right events', () =>
     await playerService.updatePlayer(ACTOR_CTX, PLAYER, { medicalStatus: 'FIT' } as never);
     await settle();
 
-    expect(types()).toEqual(['player.status.changed', 'player.updated']);
+    // The Players half is unchanged. The same commit is also told to the
+    // MEDICAL source, which is a different fact for a different consumer —
+    // see `fabric/producers/medical.producer.ts`.
+    expect(types()).toEqual([
+      'medical.availability.changed', 'medical.status.updated',
+      'player.status.changed', 'player.updated',
+    ]);
     const e = one('player.status.changed');
     expect(e.dataClassification).toBe('RESTRICTED');
     expect(e.payload).toEqual({ changedFields: ['medicalStatus'], teamKind: 'SENIOR' });
-    // Neither the status he had nor the one he now has.
+    // Neither the status he had nor the one he now has — on ANY of the four.
     const wire = JSON.stringify(published);
     expect(wire).not.toContain('INJURED');
     expect(wire).not.toContain('FIT');
@@ -296,6 +302,7 @@ describe('a successful Players action publishes exactly the right events', () =>
     await settle();
 
     expect(types()).toEqual([
+      'medical.availability.changed', 'medical.status.updated',
       'player.position.changed', 'player.profile.updated',
       'player.status.changed', 'player.team.changed', 'player.updated',
     ]);
@@ -588,13 +595,25 @@ describe('Live Data Flow recognises the Players types automatically', () => {
     } as never);
     await settle();
 
-    expect(published.length).toBe(5);
-    for (const event of published) {
+    expect(published.length).toBe(7);
+    const players = published.filter((e) => e.eventType.startsWith('player.'));
+    const medical = published.filter((e) => e.eventType.startsWith('medical.'));
+    expect(players).toHaveLength(5);
+    // A medical status move is a medical fact and lands on the Medical lane,
+    // not on this one. It is the same commit, not the same event.
+    expect(medical).toHaveLength(2);
+
+    for (const event of players) {
       const frame = project(event);
       expect(`${event.eventType} registered: ${frame.registered}`).toBe(`${event.eventType} registered: true`);
       expect(`${event.eventType} source: ${frame.source}`).toBe(`${event.eventType} source: Players`);
       expect(frame.destination).toBe('Operational Data');
       expect(frame.status).toBe('STORED');
+    }
+    for (const event of medical) {
+      const frame = project(event);
+      expect(`${event.eventType} registered: ${frame.registered}`).toBe(`${event.eventType} registered: true`);
+      expect(`${event.eventType} source: ${frame.source}`).toBe(`${event.eventType} source: Medical`);
     }
   });
 
