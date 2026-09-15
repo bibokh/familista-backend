@@ -36,6 +36,8 @@ import type {
   InferenceResultsInput,
 } from '../utils/vision.validators';
 import type { VisionActor } from '../types/vision.types';
+import { publishMediaCreated, publishMediaUpdated } from '../fabric/producers/media.producer';
+import { withMediaContext } from '../fabric/producers/media-context';
 
 const STAGE_TRANSITIONS: Record<IngestStage, ReadonlyArray<IngestStage>> = {
   UPLOADED:           ['DEMUXED', 'INFERRED', 'FAILED'],
@@ -101,6 +103,22 @@ export async function registerVideo(
     userAgent: actor.userAgent,
   });
 
+  // A registered video is an asset that already has its content — it points at
+  // a URL somebody else holds — so this is `media.created` rather than an
+  // upload beginning. The URL, the checksum, the title and the description are
+  // not on the event: the first two locate and fingerprint the file, and the
+  // last two are free text a person typed.
+  withMediaContext(
+    {
+      mediaId: created.id, clubId: created.clubId ?? null,
+      actorUserId: actor.userId, sourceType: 'SERVICE',
+    },
+    (ctx) => publishMediaCreated(
+      ctx, { mediaCategory: 'VIDEO', mimeType: null, purpose: created.source ?? null },
+      created.fileBytes,
+    ),
+  );
+
   return created;
 }
 
@@ -147,6 +165,21 @@ export async function updateVideo(
     ipAddress: actor.ipAddress,
     userAgent: actor.userAgent,
   });
+
+  // Field NAMES, and never their values. The audit row above carries the whole
+  // change because it is read under authorisation; the fabric event says which
+  // fields moved and stops there — `title`, `description` and `metadata` are
+  // free text, and on a video asset they are frequently tactical analysis.
+  withMediaContext(
+    {
+      mediaId: id, clubId: updated.clubId ?? null,
+      actorUserId: actor.userId, sourceType: 'SERVICE',
+    },
+    (ctx) => publishMediaUpdated(
+      ctx,
+      Object.keys(input ?? {}).filter((k) => (input as Record<string, unknown>)[k] !== undefined),
+    ),
+  );
 
   return updated;
 }

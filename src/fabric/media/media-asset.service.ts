@@ -23,7 +23,8 @@ import {
 } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { ForbiddenError, NotFoundError, BadRequestError } from '../../utils/errors';
-import { emit } from '../event-bus';
+import { publishMediaCreated, publishMediaDeleted } from '../producers/media.producer';
+import { withMediaContext } from '../producers/media-context';
 import {
   buildObjectKey, clubIdFromKey, getObjectStore, sha256,
   DEFAULT_READ_TTL_SECONDS, type SignedUrl,
@@ -142,23 +143,27 @@ export async function createMediaAsset(input: CreateMediaInput) {
     },
   });
 
-  // The fabric learns about it. Never awaited for correctness: the media is
-  // stored whether or not the event is, and a failed event must not undo it.
-  void emit({
-    eventType: 'media.created',
-    clubId: row.clubId,
-    teamId: row.teamId,
-    actorUserId: input.createdBy ?? null,
-    subjectType: 'MEDIA_ASSET',
-    subjectId: row.id,
-    sourceType: 'SERVICE',
-    occurredAt: row.createdAt,
-    dataClassification: row.dataClassification,
-    payload: {
-      mediaType: row.mediaType, purpose: row.purpose, mimeType: row.mimeType,
-      sizeBytes: row.sizeBytes, checksum: row.checksum, storageProvider: row.storageProvider,
+  // The fabric learns about it, through the registry rather than through the
+  // bus directly: the type is registered, the payload is validated against a
+  // declared schema, and the publish is detached. The media is stored whether
+  // or not the event is, and a failed event must not undo it.
+  //
+  // The payload is NARROWER than the one this replaces. It carried a CHECKSUM,
+  // which is a confirmation oracle — anybody holding a file could ask the
+  // stream whether this club holds that exact file — and a STORAGE PROVIDER,
+  // which is infrastructure detail an observability surface does not need. The
+  // exact byte count is now a bucket, for the same reason the checksum went.
+  withMediaContext(
+    {
+      mediaId: row.id, clubId: row.clubId, teamId: row.teamId,
+      actorUserId: input.createdBy ?? null, sourceType: 'SERVICE',
     },
-  });
+    (ctx) => publishMediaCreated(
+      ctx,
+      { mediaCategory: row.mediaType, purpose: row.purpose, mimeType: row.mimeType },
+      row.sizeBytes,
+    ),
+  );
 
   return row;
 }
@@ -251,16 +256,13 @@ export async function deleteMediaAsset(
     data: { deletedAt: new Date(), retentionClass: MediaRetentionClass.DELETION_ELIGIBLE },
   });
 
-  void emit({
-    eventType: 'media.deleted',
-    clubId: row.clubId,
-    teamId: row.teamId,
-    actorUserId: opts.actorUserId ?? null,
-    subjectType: 'MEDIA_ASSET',
-    subjectId: row.id,
-    sourceType: 'SERVICE',
-    payload: { purgedObject: !!opts.purgeObject, storageProvider: row.storageProvider },
-  });
+  withMediaContext(
+    {
+      mediaId: row.id, clubId: row.clubId, teamId: row.teamId,
+      actorUserId: opts.actorUserId ?? null, sourceType: 'SERVICE',
+    },
+    (ctx) => publishMediaDeleted(ctx, row.mediaType, !!opts.purgeObject),
+  );
 
   return updated;
 }

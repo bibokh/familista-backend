@@ -666,6 +666,10 @@ describe('topology', () => {
     const files = [
       'src/services/player.service.ts',
       'src/fabric/media/media-asset.service.ts',
+      // Where the media names live now that the domain publishes through the
+      // registry rather than through the bus. The service still calls the
+      // producer; the producer is what names the type.
+      'src/fabric/producers/media.producer.ts',
       'src/fabric/secrets/device-credentials.ts',
       'src/fabric/secrets/rewrap.ts',
     ];

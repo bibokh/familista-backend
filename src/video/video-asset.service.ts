@@ -29,6 +29,11 @@ import { Prisma, VideoAsset } from '@prisma/client';
 import { prisma } from '../config/database';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
+import {
+  publishMediaUploadStarted, publishMediaUploadCompleted, publishMediaDeleted,
+  publishMediaProcessingCompleted, publishMediaProcessingFailed,
+} from '../fabric/producers/media.producer';
+import { withMediaContext } from '../fabric/producers/media-context';
 
 export interface VideoActor {
   userId: string;
@@ -133,6 +138,21 @@ export async function requestUpload(
     data:  { rawStorageKey: rawKey },
   });
 
+  // An upload BEGAN. Not `media.created`: the row exists but holds no bytes,
+  // and an asset that may never be uploaded is not an asset that exists. The
+  // signed URL this step just produced — a time-limited write credential for
+  // the bucket — is not on the event, and the schema has nowhere to put one.
+  withMediaContext(
+    {
+      mediaId: asset.id, clubId: actor.clubId, teamId: dto.teamId ?? null,
+      actorUserId: actor.userId, sourceType: 'USER',
+    },
+    (ctx) => publishMediaUploadStarted(
+      ctx, { mediaCategory: 'VIDEO', sourceKind: dto.sourceKind ?? null },
+      dto.fileSizeMb ? dto.fileSizeMb * 1024 * 1024 : null,
+    ),
+  );
+
   return { asset: updated, uploadUrl, uploadKey: rawKey };
 }
 
@@ -168,6 +188,19 @@ export async function confirmUpload(actor: VideoActor, dto: ConfirmUploadDto): P
     payload:    { rawStorageKey: asset.rawStorageKey },
   });
 
+  // After the status moved and the job was queued. The audit row above holds
+  // the storage key because an audit trail is read under authorisation; the
+  // fabric event does not.
+  withMediaContext(
+    {
+      mediaId: asset.id, clubId: actor.clubId, teamId: asset.teamId ?? null,
+      actorUserId: actor.userId, sourceType: 'USER',
+    },
+    (ctx) => publishMediaUploadCompleted(ctx, {
+      mediaCategory: 'VIDEO', sourceKind: asset.sourceKind ?? null,
+    }),
+  );
+
   return updated;
 }
 
@@ -177,14 +210,26 @@ export async function handleTranscodeCallback(dto: TranscodeCallbackDto): Promis
   const asset = await prisma.videoAsset.findUnique({ where: { id: dto.assetId } });
   if (!asset) throw new NotFoundError('VideoAsset');
 
+  // THE ONE FUNNEL. Both outcomes of a transcode arrive here, from the worker
+  // and from any future external callback, so the two events are published
+  // once each whatever called it. `errorMessage` itself never travels: a
+  // transcoder quotes storage paths and original filenames, and the text stays
+  // on `VideoTranscodeJob.errorMsg` where it is read under authorisation.
+  const ctx = {
+    mediaId: asset.id, clubId: asset.clubId ?? null, teamId: asset.teamId ?? null,
+    sourceType: 'WORKER' as const,
+  };
+
   if (dto.errorMessage) {
-    return prisma.videoAsset.update({
+    const failed = await prisma.videoAsset.update({
       where: { id: dto.assetId },
       data:  { status: 'FAILED', transcodedAt: new Date() },
     });
+    withMediaContext(ctx, publishMediaProcessingFailed);
+    return failed;
   }
 
-  return prisma.videoAsset.update({
+  const ready = await prisma.videoAsset.update({
     where: { id: dto.assetId },
     data:  {
       status:          'READY',
@@ -197,6 +242,8 @@ export async function handleTranscodeCallback(dto: TranscodeCallbackDto): Promis
       transcodedAt:    new Date(),
     },
   });
+  withMediaContext(ctx, (c) => publishMediaProcessingCompleted(c, dto.durationSec ?? null));
+  return ready;
 }
 
 // ─── Streaming ───────────────────────────────────────────────────────────────
@@ -287,6 +334,16 @@ export async function deleteAsset(actor: VideoActor, assetId: string): Promise<v
     action: 'VIDEO_ASSET_DELETED', entityType: 'VideoAsset', entityId: assetId,
     payload: {},
   });
+
+  withMediaContext(
+    {
+      mediaId: assetId, clubId: actor.clubId, teamId: asset.teamId ?? null,
+      actorUserId: actor.userId, sourceType: 'USER',
+    },
+    // The row is gone, bytes and all — a hard delete, unlike the media asset
+    // service's soft one — so the object is reported as purged.
+    (ctx) => publishMediaDeleted(ctx, 'VIDEO', true),
+  );
 }
 
 // ─── HLS streaming proxy ─────────────────────────────────────────────────────
