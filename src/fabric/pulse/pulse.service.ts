@@ -132,9 +132,17 @@ export interface PulseFrame {
  * and the attendance save are one story, and without the id they are three
  * unrelated dots. What the session CONTAINS — its venue, its notes, who was
  * marked — never travels; see `producers/training.producer.ts`.
+ *
+ * A TRANSFER id is in the same group, and for the same reason. It identifies a
+ * LISTING, an OFFER, a registered interest or a shortlist entry — a market
+ * artifact, not a footballer — so an operator can follow one negotiation from
+ * the advert to the bid to the settlement instead of watching four unrelated
+ * dots. The player it concerns is NOT the subject and never becomes one: he is
+ * named in the payload, which this projection cannot read. Nor does any figure
+ * travel — no fee, no bid, no asking price. See `producers/transfers.producer.ts`.
  */
 const SAFE_SUBJECT_IDS = new Set([
-  'CLUB', 'TEAM', 'COMPETITION', 'FIXTURE', 'MATCH', 'TRAINING_SESSION',
+  'CLUB', 'TEAM', 'COMPETITION', 'FIXTURE', 'MATCH', 'TRAINING_SESSION', 'TRANSFER',
   'PLATFORM', 'PLATFORM_SECRET', 'MODEL', 'DATASET',
 ]);
 

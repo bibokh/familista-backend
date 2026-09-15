@@ -35,7 +35,7 @@ import {
 } from './public-player';
 import { notifyClub, fmt } from './transfer-notify';
 import {
-  emitInterest, emitInterestAnswered, emitOffer, emitPlayerOffered,
+  emitInterest, emitInterestAnswered, emitOffer, emitPlayerOffered, emitNegotiationSuperseded,
   emitTransferCompleted, emitNeedPublished, emitNeedUpdated, emitNeedClosed,
 } from './transfer-events';
 
@@ -91,7 +91,7 @@ export async function registerInterest(actor: MarketActor, playerId: string, mes
     message?.slice(0, 500) ?? null,
     { type: 'TRANSFER_INTEREST', interestId: row.id, playerId, clubId: buyer.id, hasFormalOffer: false });
 
-  emitInterest(player.clubId, actor.clubId, playerId);
+  emitInterest(player.clubId, actor.clubId, playerId, row.id, actor.userId);
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'TRANSFER_INTEREST_REGISTERED', entityType: 'TransferInterest', entityId: row.id,
@@ -117,7 +117,7 @@ export async function respondToInterest(actor: MarketActor, interestId: string, 
   await notifyClub(row.interestedClubId, 'TRANSFER_INTEREST',
     `${owner.name} ${said} ${player.firstName} ${player.lastName}.`, null,
     { type: 'TRANSFER_INTEREST', interestId: row.id, playerId: row.playerId, clubId: owner.id, hasFormalOffer: false });
-  emitInterestAnswered(actor.clubId, row.interestedClubId, row.playerId);
+  emitInterestAnswered(actor.clubId, row.interestedClubId, row.playerId, row.id, status, actor.userId);
   return updated;
 }
 
@@ -179,7 +179,14 @@ export async function makeOffer(actor: MarketActor, dto: OfferDto) {
       ...offerExtras(dto),
     },
   });
-  // Interest, once it has a price on it, has been answered.
+  // Interest, once it has a price on it, has been answered. Read first, so the
+  // record can name the interest that ended rather than only count it — there
+  // is at most one live interest per club and player, which `registerInterest`
+  // guarantees by returning the open one instead of opening a second.
+  const superseded = await prisma.transferInterest.findFirst({
+    where: { playerId: dto.playerId, interestedClubId: actor.clubId, status: { in: ['OPEN', 'INVITED'] } },
+    select: { id: true },
+  });
   await prisma.transferInterest.updateMany({
     where: { playerId: dto.playerId, interestedClubId: actor.clubId, status: { in: ['OPEN', 'INVITED'] } },
     data: { status: 'CLOSED', respondedAt: new Date() },
@@ -191,7 +198,8 @@ export async function makeOffer(actor: MarketActor, dto: OfferDto) {
     dto.message?.slice(0, 500) ?? null,
     { type: 'TRANSFER_OFFER_RECEIVED', offerId: row.id, playerId: dto.playerId, clubId: buyer.id, feeEur });
 
-  emitOffer('OFFER_CREATED', player.clubId, actor.clubId, dto.playerId, row.id);
+  emitOffer('OFFER_CREATED', player.clubId, actor.clubId, dto.playerId, row.id, actor.clubId, actor.userId);
+  emitNegotiationSuperseded(superseded?.id, player.clubId, actor.clubId, dto.playerId, actor.userId);
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'TRANSFER_OFFER_MADE', entityType: 'TransferOffer', entityId: row.id,
@@ -284,7 +292,7 @@ export async function offerPlayerToNeed(
     payload: { playerId: dto.playerId, needId: need.id, feeEur, to: need.clubId },
   });
   emitPlayerOffered(actor.clubId, need.clubId, dto.playerId, need.id);
-  emitOffer('OFFER_CREATED', actor.clubId, need.clubId, dto.playerId, row.id);
+  emitOffer('OFFER_CREATED', actor.clubId, need.clubId, dto.playerId, row.id, actor.clubId, actor.userId);
   return hydrateOffer(row);
 }
 
@@ -683,8 +691,8 @@ export async function acceptOffer(actor: MarketActor, offerId: string) {
     action: 'TRANSFER_SETTLED', entityType: 'TransferOffer', entityId: offerId,
     payload: { playerId: result.playerId, feeEur, from: offer.sellerClubId, to: offer.buyerClubId, type: 'DIRECT' },
   });
-  emitOffer('OFFER_ACCEPTED', offer.sellerClubId, offer.buyerClubId, offer.playerId, offerId);
-  emitTransferCompleted(offer.sellerClubId, offer.buyerClubId, offer.playerId, { offerId }, 'OFFER_ACCEPTED');
+  emitOffer('OFFER_ACCEPTED', offer.sellerClubId, offer.buyerClubId, offer.playerId, offerId, actor.clubId, actor.userId);
+  emitTransferCompleted(offer.sellerClubId, offer.buyerClubId, offer.playerId, { offerId }, 'OFFER_ACCEPTED', actor.userId);
   return { ...result, sellerClubId: offer.sellerClubId, buyerClubId: offer.buyerClubId, type: 'DIRECT_TRANSFER' };
 }
 
@@ -703,7 +711,7 @@ export async function rejectOffer(actor: MarketActor, offerId: string) {
   await notifyClub(offer.createdByClubId, 'TRANSFER_OFFER_REJECTED',
     `${me.name} rejected your ${fmt(money(offer.feeEur))} offer for ${player.firstName} ${player.lastName}.`, null,
     { type: 'TRANSFER_OFFER_REJECTED', offerId, playerId: offer.playerId, clubId: me.id });
-  emitOffer('OFFER_REJECTED', offer.sellerClubId, offer.buyerClubId, offer.playerId, offerId);
+  emitOffer('OFFER_REJECTED', offer.sellerClubId, offer.buyerClubId, offer.playerId, offerId, actor.clubId, actor.userId);
   return hydrateOffer(rejected);
 }
 
@@ -723,7 +731,7 @@ export async function withdrawOffer(actor: MarketActor, offerId: string) {
   await notifyClub(other, 'TRANSFER_OFFER_WITHDRAWN',
     `${me.name} withdrew the ${fmt(money(offer.feeEur))} offer for ${player.firstName} ${player.lastName}.`, null,
     { type: 'TRANSFER_OFFER_WITHDRAWN', offerId, playerId: offer.playerId, clubId: me.id });
-  emitOffer('OFFER_WITHDRAWN', offer.sellerClubId, offer.buyerClubId, offer.playerId, offerId);
+  emitOffer('OFFER_WITHDRAWN', offer.sellerClubId, offer.buyerClubId, offer.playerId, offerId, actor.clubId, actor.userId);
   return hydrateOffer(withdrawn);
 }
 
@@ -768,7 +776,7 @@ export async function counterOffer(
     `${me.name} countered at ${fmt(fee)} for ${player.firstName} ${player.lastName}.`,
     message?.slice(0, 500) ?? null,
     { type: 'TRANSFER_COUNTER_OFFER', offerId: row.id, parentOfferId: parent.id, playerId: parent.playerId, clubId: me.id, feeEur: fee });
-  emitOffer('OFFER_COUNTERED', parent.sellerClubId, parent.buyerClubId, parent.playerId, row.id);
+  emitOffer('OFFER_COUNTERED', parent.sellerClubId, parent.buyerClubId, parent.playerId, row.id, actor.clubId, actor.userId);
   return hydrateOffer(row);
 }
 

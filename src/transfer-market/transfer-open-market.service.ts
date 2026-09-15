@@ -26,7 +26,7 @@ import {
   MarketActor, findActiveListingForPlayer, pendingOfferForPlayer, setAvailability, isOpenMarket,
 } from './transfer-market.service';
 import { requiredBid, settleDueAuctions } from './transfer-auction.service';
-import { emitAuctionCreated, emitListingWithdrawn } from './transfer-events';
+import { emitOpenMarketPublished, emitListingWithdrawn, emitListingExtended } from './transfer-events';
 
 const KIND = 'TRANSFER_LISTING' as const;
 export const OPEN_MARKET = 'OPEN_MARKET' as const;
@@ -139,7 +139,7 @@ export async function publish(actor: MarketActor, dto: OpenMarketDto): Promise<M
     return item;
   });
 
-  if (bidding) emitAuctionCreated(actor.clubId, player.id, row.id);
+  emitOpenMarketPublished(actor.clubId, player.id, row.id, bidding, actor.userId);
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'OPEN_MARKET_PUBLISHED', entityType: 'MarketplaceItem', entityId: row.id,
@@ -274,6 +274,10 @@ export async function extendListing(actor: MarketActor, listingId: string, minut
   const row = await prisma.marketplaceItem.update({
     where: { id: listingId }, data: { validUntil: until },
   });
+  // The listing's exposure changed. The new deadline is not on the event — a
+  // listing's terms are read from the listing, under the authorisation that
+  // already governs it.
+  emitListingExtended(actor.clubId, terms(item).playerId ?? null, listingId, 'OPEN_MARKET', actor.userId);
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'OPEN_MARKET_EXTENDED', entityType: 'MarketplaceItem', entityId: listingId,
@@ -303,7 +307,7 @@ export async function closeListing(actor: MarketActor, listingId: string) {
     }
     return tx.marketplaceItem.findUnique({ where: { id: listingId } });
   });
-  emitListingWithdrawn(actor.clubId, t.playerId ?? '', listingId);
+  emitListingWithdrawn(actor.clubId, t.playerId ?? '', listingId, 'OPEN_MARKET', actor.userId);
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'OPEN_MARKET_CLOSED', entityType: 'MarketplaceItem', entityId: listingId,

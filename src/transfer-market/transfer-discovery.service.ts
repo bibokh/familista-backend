@@ -27,6 +27,7 @@ import {
   matchIsEligible, matchPlayerToNeed, MatchCriterion, needSpec,
 } from './transfer-negotiation.service';
 import { leadingCommitmentFor } from './transfer-auction.service';
+import { emitShortlisted, emitUnshortlisted } from './transfer-events';
 
 export interface MarketActor { userId: string; clubId: string; role?: string }
 
@@ -459,25 +460,39 @@ export async function addToShortlist(actor: MarketActor, playerId: string, notes
   const existing = await prisma.transferTarget.findFirst({
     where: { clubId: actor.clubId, playerId, archivedAt: null },
   });
+  // Asking twice announces nothing. The row already existed, so nothing
+  // happened, and an event saying otherwise would make a page refresh look
+  // like recruitment activity.
   if (existing) return existing;
 
-  return prisma.transferTarget.create({
+  const row = await prisma.transferTarget.create({
     data: {
       clubId: actor.clubId, playerId, stage: 'SHORTLIST',
       notes: notes?.slice(0, 500) ?? null, createdBy: actor.userId,
     },
   });
+  emitShortlisted(actor.clubId, playerId, row.id, actor.userId);
+  return row;
 }
 
 export async function removeFromShortlist(actor: MarketActor, playerId: string) {
   // Scoped by the acting club, so a club can only ever take a player off its
   // own list. Archived rather than deleted: the pipeline keeps its history, and
   // re-adding him later is a new entry.
+  //
+  // Read first, so the record can name the entry that was archived rather than
+  // only count it. The archive itself is unchanged — one scoped `updateMany`,
+  // still throwing when it matched nothing, and a removal that removed nothing
+  // announces nothing.
+  const entry = await prisma.transferTarget.findFirst({
+    where: { clubId: actor.clubId, playerId, archivedAt: null }, select: { id: true },
+  });
   const done = await prisma.transferTarget.updateMany({
     where: { clubId: actor.clubId, playerId, archivedAt: null },
     data: { archivedAt: new Date() },
   });
   if (!done.count) throw new NotFoundError('Shortlist entry');
+  if (entry) emitUnshortlisted(actor.clubId, playerId, entry.id, actor.userId);
   return { removed: done.count, playerId };
 }
 

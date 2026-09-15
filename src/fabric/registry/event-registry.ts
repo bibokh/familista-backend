@@ -56,6 +56,17 @@ export interface FabricEventSpec {
   exposeInLiveStream: boolean;
   /** Whether the record that it happened is itself the point. */
   auditRelevant: boolean;
+  /**
+   * Whether anything in this build actually publishes it.
+   *
+   * True for almost every type, and the default. False declares a CAPABILITY
+   * with no producer behind it yet — a name reserved so that the flow which
+   * one day fills it registers nothing new and breaks no consumer. It exists
+   * because a catalogue that lists a type says, to anyone reading it, that the
+   * type occurs; for the handful that do not, saying so is the honest answer
+   * and stops a consumer waiting for an event that will never arrive.
+   */
+  produced: boolean;
 }
 
 export interface FabricEventInput {
@@ -68,6 +79,8 @@ export interface FabricEventInput {
   entityType?: string | null;
   exposeInLiveStream?: boolean;
   auditRelevant?: boolean;
+  /** False for a name declared ahead of the flow that will publish it. */
+  produced?: boolean;
 }
 
 /**
@@ -133,6 +146,7 @@ export function registerFabricEvent(input: FabricEventInput): FabricEventSpec {
     entityType: input.entityType ?? null,
     exposeInLiveStream: input.exposeInLiveStream ?? true,
     auditRelevant: input.auditRelevant ?? false,
+    produced: input.produced ?? true,
   });
 
   const existing = events.get(type);
@@ -167,7 +181,8 @@ function sameSpec(a: FabricEventSpec, b: FabricEventSpec): boolean {
   return a.describes === b.describes && a.classification === b.classification
     && a.schemaVersion === b.schemaVersion && a.legacyKind === b.legacyKind
     && a.source === b.source && a.entityType === b.entityType
-    && a.exposeInLiveStream === b.exposeInLiveStream && a.auditRelevant === b.auditRelevant;
+    && a.exposeInLiveStream === b.exposeInLiveStream && a.auditRelevant === b.auditRelevant
+    && a.produced === b.produced;
 }
 
 /** Register many at once. Used by the taxonomy seed and by module bootstraps. */
