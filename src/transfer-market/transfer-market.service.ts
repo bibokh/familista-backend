@@ -320,7 +320,7 @@ export async function listPlayer(actor: MarketActor, dto: ListDto): Promise<Mark
     return item;
   });
 
-  emitListingCreated(actor.clubId, player.id, row.id);
+  emitListingCreated(actor.clubId, player.id, row.id, actor.userId);
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'TRANSFER_LISTED', entityType: 'MarketplaceItem', entityId: row.id,
@@ -348,7 +348,7 @@ export async function delistPlayer(actor: MarketActor, listingId: string): Promi
     }
     return row;
   });
-  emitListingWithdrawn(actor.clubId, playerId, listingId);
+  emitListingWithdrawn(actor.clubId, playerId, listingId, 'FIXED_PRICE', actor.userId);
   return updated;
 }
 
@@ -517,7 +517,7 @@ export async function purchase(actor: MarketActor, listingId: string) {
   await notifyClub(result.buyerClubId, 'TRANSFER_COMPLETED',
     `${who} has joined from ${sellerName} for ${fmt(result.feeEur)}.`, null, note);
 
-  emitTransferCompleted(result.sellerClubId, result.buyerClubId, result.playerId, { listingId }, 'PURCHASE');
+  emitTransferCompleted(result.sellerClubId, result.buyerClubId, result.playerId, { listingId }, 'PURCHASE', actor.userId);
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'TRANSFER_SETTLED', entityType: 'MarketplaceItem', entityId: listingId,

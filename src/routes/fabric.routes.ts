@@ -140,6 +140,14 @@ router.get('/events/catalog', (req: Request, res: Response) => {
         schemaVersions: schemaVersionsFor(e.type),
         exposeInLiveStream: e.exposeInLiveStream,
         auditRelevant: e.auditRelevant,
+        /**
+         * Whether anything in this build publishes it.
+         *
+         * A catalogue that lists a name implies the name occurs. For the few
+         * that are declared ahead of the flow that will fill them, saying so
+         * here is what stops a consumer subscribing to silence.
+         */
+        produced: e.produced,
         ...(e.legacyKind ? { legacyKind: e.legacyKind } : {}),
       })),
       total: events.length,

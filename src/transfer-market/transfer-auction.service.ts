@@ -105,7 +105,7 @@ export async function listAuction(actor: MarketActor, dto: AuctionDto): Promise<
     return item;
   });
 
-  emitAuctionCreated(actor.clubId, player.id, row.id);
+  emitAuctionCreated(actor.clubId, player.id, row.id, 'AUCTION', actor.userId);
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'AUCTION_LISTED', entityType: 'MarketplaceItem', entityId: row.id,
@@ -181,7 +181,7 @@ export async function placeBid(actor: MarketActor, listingId: string, amountEur:
     action: 'AUCTION_BID_PLACED', entityType: 'MarketplaceItem', entityId: listingId,
     payload: { bidId: result.bid.id, amountEur: amount, playerId: result.playerId },
   });
-  emitAuctionBid(listingId, result.playerId, result.item.clubId, actor.clubId, result.previousLeader);
+  emitAuctionBid(listingId, result.playerId, result.item.clubId, actor.clubId, result.previousLeader, actor.userId);
   return { bidId: result.bid.id, listingId, amountEur: amount, playerId: result.playerId };
 }
 
@@ -263,7 +263,7 @@ export async function cancelAuction(actor: MarketActor, listingId: string) {
   // already has; the message says which of the two things happened, because
   // "cancelled by the seller" and "outbid" are not the same news.
   const cancelledBidders = await notifyBiddersOfCancellation(listingId, playerId, actor.clubId, 'the selling club withdrew it');
-  emitAuctionCancelled(listingId, playerId, actor.clubId, cancelledBidders);
+  emitAuctionCancelled(listingId, playerId, actor.clubId, cancelledBidders, actor.userId);
 
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },

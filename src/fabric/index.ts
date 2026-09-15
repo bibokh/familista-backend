@@ -80,6 +80,16 @@ export {
 } from './producers/players.producer';
 
 export {
+  registerTransfersProducer, TRANSFERS_SOURCE_ID,
+  publishTransferListed, publishTransferListingUpdated, publishTransferListingWithdrawn,
+  publishTransferOffer, publishTransferBidPlaced,
+  publishTransferNegotiationStarted, publishTransferNegotiationUpdated,
+  publishTransferNegotiationCompleted,
+  publishTransferShortlisted, publishTransferUnshortlisted, publishTransferCompleted,
+  type TransferContext, type ListingKind, type TransferSettledBy,
+} from './producers/transfers.producer';
+
+export {
   registerUsersProducer, USERS_SOURCE_ID,
   publishUserCreated, publishUserUpdated, publishUserProfileUpdated,
   publishUserLogin, publishUserLogout,

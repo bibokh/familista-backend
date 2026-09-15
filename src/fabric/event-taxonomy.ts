@@ -47,6 +47,11 @@ export interface EventTypeSpec {
    * twice under two names.
    */
   legacyKind?: string;
+  /**
+   * False for a name that ships but that nothing in this build publishes.
+   * Defaults to true. See `FabricEventSpec.produced` for why it is stated.
+   */
+  produced?: boolean;
 }
 
 /**
@@ -89,7 +94,12 @@ export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   { type: 'medical.injury.resolved', describes: 'A player was cleared from an injury',                classification: 'RESTRICTED',   schemaVersion: 1 },
 
   // ── recruitment ───────────────────────────────────────────────────────────
-  { type: 'transfer.offered',        describes: 'An offer was made for a player',                     classification: 'CONFIDENTIAL', schemaVersion: 1 },
+  // `transfer.offered` predates the Transfers producer, which publishes the
+  // five states of an offer under their own names. Nothing emits this one, and
+  // the catalogue now says so rather than leaving a consumer to subscribe to a
+  // name that never arrives. Kept registered, because a name that shipped is a
+  // published contract and withdrawing it is not this change's job.
+  { type: 'transfer.offered',        describes: 'An offer was made for a player',                     classification: 'CONFIDENTIAL', schemaVersion: 1, produced: false },
   { type: 'transfer.completed',      describes: 'A transfer was concluded',                           classification: 'CONFIDENTIAL', schemaVersion: 1 },
 
   // ── media ─────────────────────────────────────────────────────────────────
@@ -173,6 +183,7 @@ export function seedTaxonomy(): void {
       legacyKind: spec.legacyKind,
       entityType: ENTITY_TYPES[domain] ?? null,
       auditRelevant: AUDIT_DOMAINS.has(domain),
+      produced: spec.produced ?? true,
       // Every name this build ships with was already drawn by the live board
       // before the registry existed. Withholding one now would be a silent
       // change to what an operator sees, so all of them stay exposed and a
