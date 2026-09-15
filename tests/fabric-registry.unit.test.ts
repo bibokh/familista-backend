@@ -182,6 +182,9 @@ describe('source registration', () => {
 
 describe('the existing ten sources are unchanged', () => {
   it('has exactly the lanes the board had before the registry, in order', () => {
+    // The TEN the core seed installs. A module that registers its own source —
+    // the Coach Market does — appears beside them at boot and is not part of
+    // this seed, which is exactly the separation the registry exists to make.
     expect(sourceLanes()).toEqual([
       'Clubs', 'Users', 'Players', 'Training', 'Matches',
       'Transfers', 'Medical', 'Media', 'AI', 'System',

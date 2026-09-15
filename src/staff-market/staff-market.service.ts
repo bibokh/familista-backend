@@ -30,6 +30,36 @@ import {
   type EmploymentStatusName,
 } from './market-index';
 import { forgetIdentity } from '../middleware/auth.middleware';
+import {
+  publishCoachProfileCreated, publishCoachProfileUpdated,
+  publishCoachAvailabilityChanged, publishCoachCareerIntentChanged,
+  publishCoachContractStatusChanged,
+  publishCoachShortlisted, publishCoachUnshortlisted,
+  publishCoachOffer, publishCoachNegotiationStarted, publishCoachNegotiationUpdated,
+  publishCoachNegotiationCancelled, publishCoachHired,
+  publishStaffNeedCreated, publishStaffNeedClosed,
+  type CoachMarketContext,
+} from '../fabric/producers/coach-market.producer';
+
+/**
+ * The envelope for everything one approach produces.
+ *
+ * Built from the approach ROW, so the two clubs and the role are the ones the
+ * record holds rather than the ones a request claimed. The acting club is the
+ * caller; the counterparty is whichever of the two it is not.
+ */
+function marketCtx(
+  a: { staffUserId: string; fromClubId: string; currentClubId: string | null; proposedRole: string },
+  actor: StaffActor,
+): CoachMarketContext {
+  return {
+    staffUserId: a.staffUserId,
+    clubId: actor.clubId,
+    counterpartyClubId: actor.clubId === a.fromClubId ? a.currentClubId : a.fromClubId,
+    staffRole: a.proposedRole,
+    actorUserId: actor.userId,
+  };
+}
 
 export interface StaffActor { userId: string; clubId: string; role?: string }
 
@@ -915,6 +945,15 @@ export async function approach(actor: StaffActor, dto: ApproachDto) {
     action: 'STAFF_APPROACH_CREATED', entityType: 'StaffApproach', entityId: created.id,
     payload: { staffUserId: dto.staffUserId, role: dto.proposedRole },
   });
+
+  // A DRAFT is private preparation and announces nothing; an approach that was
+  // sent is an offer on the table. The salary, the compensation, the clause,
+  // the bonuses and the message stay on the row — the audit trail above holds
+  // what it needs, read under authorisation, and the fabric event holds none
+  // of it.
+  if (created.status !== 'DRAFT') {
+    publishCoachOffer(marketCtx(created, actor), 'CREATED', created.id);
+  }
   return hydrateApproach(created.id);
 }
 
@@ -1004,6 +1043,13 @@ export async function counterApproach(
       },
     }),
   ]);
+
+  // TWO facts on one commit, and each published once. The counter is a change
+  // to the offer; the FIRST counter is also the moment an approach becomes a
+  // negotiation, which is a different thing a consumer may want on its own.
+  const ctx = marketCtx(a, actor);
+  publishCoachOffer(ctx, 'UPDATED', approachId);
+  if (a.status !== 'NEGOTIATING') publishCoachNegotiationStarted(ctx, approachId);
   return hydrateApproach(approachId);
 }
 
@@ -1017,6 +1063,7 @@ export async function withdrawApproach(actor: StaffActor, approachId: string) {
     where: { id: approachId },
     data: { status: 'WITHDRAWN', decidedAt: new Date() },
   });
+  publishCoachNegotiationCancelled(marketCtx(a, actor), approachId);
   return hydrateApproach(approachId);
 }
 
@@ -1028,6 +1075,7 @@ export async function rejectApproach(actor: StaffActor, approachId: string) {
     where: { id: approachId },
     data: { status: 'REJECTED', decidedAt: new Date() },
   });
+  publishCoachOffer(marketCtx(a, actor), 'REJECTED', approachId);
   return hydrateApproach(approachId);
 }
 
@@ -1146,7 +1194,17 @@ export async function completeMove(actor: StaffActor, approachId: string) {
       data: { status: 'COMPLETED', completedAt: new Date() },
     });
 
-    return { engagementId: engagement.id, staffUserId: a.staffUserId, toClubId: a.fromClubId, fromClubId: open?.clubId ?? null };
+    return {
+      engagementId: engagement.id, staffUserId: a.staffUserId,
+      toClubId: a.fromClubId, fromClubId: open?.clubId ?? null,
+      role: a.proposedRole, teamLabel: engagement.teamLabel ?? null,
+      wasAvailable: held ? 'EMPLOYED' : 'FREE_AGENT',
+      // The club he actually left, which is known from the JOB he held even
+      // when no engagement had been recorded for it. `fromClubId` above is the
+      // engagement's club and stays exactly as the audit payload has always
+      // read it; this is the one the record needs to name a counterparty.
+      leftClubId: held?.clubId ?? null,
+    };
   });
 
   appendAuditEventAsync({
@@ -1154,6 +1212,30 @@ export async function completeMove(actor: StaffActor, approachId: string) {
     action: 'STAFF_TRANSFER_COMPLETED', entityType: 'StaffEngagement', entityId: result.engagementId,
     payload: result,
   });
+
+  // THREE facts, after the transaction, each published once:
+  //
+  //   · the approach was accepted        — the offer reached its end
+  //   · a staff member joined a club     — an engagement and a membership began
+  //   · his availability is now EMPLOYED — the market state the profile holds
+  //
+  // They are not three names for one occurrence. A future flow that settles an
+  // approach without a hire would produce the first and not the second, which
+  // is why `coach.negotiation.completed` is registered and produced by nothing
+  // rather than published here as a fourth.
+  //
+  // The salary, the duration, the compensation and the release clause are on
+  // the engagement and the approach. None of them travels.
+  const ctx: CoachMarketContext = {
+    staffUserId: result.staffUserId,
+    clubId: result.toClubId,
+    counterpartyClubId: result.leftClubId,
+    staffRole: result.role,
+    actorUserId: actor.userId,
+  };
+  publishCoachOffer(ctx, 'ACCEPTED', approachId);
+  publishCoachHired(ctx, approachId, result.teamLabel);
+  publishCoachAvailabilityChanged(ctx, result.wasAvailable, 'EMPLOYED');
   return hydrateApproach(approachId);
 }
 
@@ -1269,6 +1351,9 @@ export async function createNeed(actor: StaffActor, dto: {
       seniorRequired: dto.seniorRequired === true,
     },
   });
+  // The role and the priority — the two things that make a vacancy findable.
+  // Not the salary band, the licence, the languages or the note.
+  publishStaffNeedCreated(actor.clubId, n.id, n.role, n.priority, actor.userId);
   return { id: n.id };
 }
 
@@ -1277,6 +1362,7 @@ export async function closeNeed(actor: StaffActor, needId: string) {
   if (!n) throw new NotFoundError('Staff need');
   if (n.clubId !== actor.clubId) throw new ForbiddenError('That need belongs to another club');
   await prisma.staffNeed.update({ where: { id: needId }, data: { isActive: false } });
+  publishStaffNeedClosed(actor.clubId, needId, n.role, actor.userId);
   return { ok: true };
 }
 
@@ -1330,6 +1416,14 @@ export async function upsertProfile(actor: StaffActor, staffUserId: string, dto:
   };
   const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
 
+  // What the record said before, so a transition can be told from a resend.
+  // Two tokens and nothing else — not the salary he asks for, not his
+  // preferred leagues, not a licence.
+  const priorProfile = await prisma.staffProfile.findUnique({
+    where: { userId: staffUserId },
+    select: { availability: true, careerIntent: true },
+  });
+
   await prisma.staffProfile.upsert({
     where: { userId: staffUserId },
     update: clean,
@@ -1366,6 +1460,7 @@ export async function upsertProfile(actor: StaffActor, staffUserId: string, dto:
   // where, and the engagement is what this module added to say on what terms. So
   // the first time a club records terms for somebody it already employs, the
   // period is opened from the membership rather than the edit being dropped.
+  let contractMoved = false;
   let eng = await prisma.staffEngagement.findFirst({
     where: { userId: staffUserId, clubId: actor.clubId, isActive: true },
     select: { id: true },
@@ -1392,8 +1487,34 @@ export async function upsertProfile(actor: StaffActor, staffUserId: string, dto:
     const contractClean = Object.fromEntries(Object.entries(contract).filter(([, v]) => v !== undefined));
     if (Object.keys(contractClean).length) {
       await prisma.staffEngagement.update({ where: { id: eng.id }, data: contractClean });
+      contractMoved = contractClean.renewalStatus !== undefined;
     }
   }
+
+  // THE UMBRELLA, and then the specific facts — each only when that thing
+  // actually MOVED, not when the field merely appeared in the request. A club
+  // resending a record it has not changed has not changed it, and an event
+  // saying otherwise is a lie a consumer would act on.
+  //
+  // A COUNT, never the field names: `salary`, `contractEnd` and
+  // `renewalStatus` are names that are themselves commercially sensitive about
+  // an identifiable person, and `changedFields` is the one key the board draws.
+  const ctx: CoachMarketContext = {
+    staffUserId, clubId: actor.clubId,
+    staffRole: employed.role, actorUserId: actor.userId,
+  };
+  publishCoachProfileUpdated(ctx, Object.keys(clean).length);
+
+  if (clean.availability !== undefined && clean.availability !== priorProfile?.availability) {
+    publishCoachAvailabilityChanged(ctx, priorProfile?.availability ?? null, String(clean.availability));
+  }
+  if (clean.careerIntent !== undefined && clean.careerIntent !== priorProfile?.careerIntent) {
+    publishCoachCareerIntentChanged(ctx, priorProfile?.careerIntent ?? null, String(clean.careerIntent));
+  }
+  // THAT the contract's standing moved, never the wording — `renewalStatus` is
+  // free text a club typed, and "in talks with Bayern" is a plausible value.
+  if (contractMoved) publishCoachContractStatusChanged(ctx);
+
   return readStaff(actor, staffUserId);
 }
 
@@ -1482,11 +1603,23 @@ export async function readShortlist(actor: StaffActor) {
 export async function addToShortlist(actor: StaffActor, staffUserId: string, note?: string) {
   const user = await prisma.user.findUnique({ where: { id: staffUserId }, select: { id: true } });
   if (!user) throw new NotFoundError('Staff member');
+  // Read first, so an add that adds nothing announces nothing. The upsert's
+  // `update: {}` already makes it idempotent; this makes the EVENT idempotent
+  // too, which is what stops a page refresh looking like recruitment activity.
+  const already = await prisma.staffShortlist.findUnique({
+    where: { clubId_staffUserId: { clubId: actor.clubId, staffUserId } },
+    select: { id: true },
+  });
   await prisma.staffShortlist.upsert({
     where: { clubId_staffUserId: { clubId: actor.clubId, staffUserId } },
     update: {},
     create: { clubId: actor.clubId, staffUserId, addedById: actor.userId, note: note ?? null },
   });
+  // The club's private note is not on the event, and the schema has nowhere to
+  // put one.
+  if (!already) {
+    publishCoachShortlisted({ staffUserId, clubId: actor.clubId, actorUserId: actor.userId });
+  }
   return { staffUserId, isShortlisted: true };
 }
 
@@ -1517,7 +1650,12 @@ export async function setShortlistMeta(actor: StaffActor, staffUserId: string, d
 }
 
 export async function removeFromShortlist(actor: StaffActor, staffUserId: string) {
-  await prisma.staffShortlist.deleteMany({ where: { clubId: actor.clubId, staffUserId } });
+  const done = await prisma.staffShortlist.deleteMany({ where: { clubId: actor.clubId, staffUserId } });
+  // A removal that removed nothing announces nothing. The call still succeeds,
+  // because taking somebody off a list he is not on is not an error.
+  if (done.count > 0) {
+    publishCoachUnshortlisted({ staffUserId, clubId: actor.clubId, actorUserId: actor.userId });
+  }
   return { staffUserId, isShortlisted: false };
 }
 
@@ -1594,6 +1732,10 @@ export async function inviteToInterview(actor: StaffActor, approachId: string, w
   const msg = await prisma.staffApproachMessage.create({
     data: { approachId, fromClubId: actor.clubId, body },
   });
+  // A PERSISTED step inside a live approach. The proposed time and the note
+  // are in the message body and stay there; what travels is that an interview
+  // was proposed.
+  publishCoachNegotiationUpdated(marketCtx(a, actor), approachId);
   return { id: msg.id, approachId, body };
 }
 
@@ -1644,6 +1786,14 @@ export async function addExternalStaff(actor: StaffActor, dto: {
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'STAFF_EXTERNAL_ADDED', entityType: 'User', entityId: created.id,
     payload: { name: `${first} ${last}` },
+  });
+
+  // A record now exists for somebody the market can see. The audit row above
+  // holds his name because an audit trail is read under authorisation; the
+  // fabric event holds no name, no email, no date of birth and no nationality.
+  publishCoachProfileCreated({
+    staffUserId: created.id, clubId: actor.clubId,
+    staffRole: dto.role ?? null, actorUserId: actor.userId,
   });
   return { staffUserId: created.id };
 }

@@ -111,6 +111,10 @@ const db: Row = {
 jest.mock('../src/config/database', () => ({ prisma: db }));
 
 import { setEventTransport, type EventTransport } from '../src/fabric/event-bus';
+// Every source the platform registers at boot, so a lane assertion below
+// describes the real board rather than whichever producers this file
+// happened to import.
+import '../src/fabric/producers/coach-market.producer';
 import type { FamilistaEvent } from '../src/fabric/event-envelope';
 import { project, sourceLaneFor, pulseTopology } from '../src/fabric/pulse/pulse.service';
 import { fabricEvent, fabricEventsForSource, isRegisteredEventType } from '../src/fabric/registry/event-registry';
@@ -617,19 +621,19 @@ describe('Live Data Flow recognises the Players types automatically', () => {
     }
   });
 
-  it('adds no source card — the board still draws exactly ten lanes', () => {
+  it('adds no source card of its own — the board draws the registry’s lanes', () => {
     expect(sourceLanes()).toEqual([
       'Clubs', 'Users', 'Players', 'Training', 'Matches',
-      'Transfers', 'Medical', 'Media', 'AI', 'System',
+      'Transfers', 'Coach Market', 'Medical', 'Media', 'AI', 'System',
     ]);
-    expect(visibleFabricSources()).toHaveLength(10);
-    expect(pulseTopology().sources).toHaveLength(10);
+    expect(visibleFabricSources()).toHaveLength(11);
+    expect(pulseTopology().sources).toHaveLength(11);
   });
 
   it('a NEW Players feature adds no card either', () => {
     const { registerFabricEvent } = require('../src/fabric/registry/event-registry');
     registerFabricEvent({ type: 'player.contract.extended', entityType: 'PLAYER' });
-    expect(sourceLanes()).toHaveLength(10);
+    expect(sourceLanes()).toHaveLength(11);
     expect(fabricEvent('player.contract.extended')?.source).toBe('players');
   });
 

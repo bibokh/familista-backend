@@ -123,6 +123,10 @@ jest.mock('@anthropic-ai/sdk', () => ({
 }));
 
 import { setEventTransport, type EventTransport } from '../src/fabric/event-bus';
+// Every source the platform registers at boot, so a lane assertion below
+// describes the real board rather than whichever producers this file
+// happened to import.
+import '../src/fabric/producers/coach-market.producer';
 import { resetFabricSelfHealth } from '../src/fabric/producers/system.producer';
 import type { FamilistaEvent } from '../src/fabric/event-envelope';
 import { project, sourceLaneFor } from '../src/fabric/pulse/pulse.service';
@@ -295,7 +299,7 @@ describe('the lifecycle', () => {
     }
     expect(sourceLanes()).toEqual([
       'Clubs', 'Users', 'Players', 'Training', 'Matches',
-      'Transfers', 'Medical', 'Media', 'AI', 'System',
+      'Transfers', 'Coach Market', 'Medical', 'Media', 'AI', 'System',
     ]);
   });
 
