@@ -17,6 +17,43 @@ export {
   type EventTypeSpec, type FamilistaEventType,
 } from './event-taxonomy';
 
+// ── the registry ─────────────────────────────────────────────────────────────
+// How a module joins the fabric: declare a source, declare its event types,
+// declare their payload schemas, publish. Nothing downstream — not the pulse,
+// not the board, not the routes — needs editing for a new module to appear.
+// See `registry/README.md`.
+
+export {
+  registerFabricSource, fabricSource, fabricSources, visibleFabricSources,
+  sourceLanes, sourceForEventDomain, resetSourceRegistry,
+  FabricRegistryError, FALLBACK_SOURCE_ID,
+  type FabricSourceSpec, type FabricSourceInput,
+} from './registry/source-registry';
+
+export {
+  registerFabricEvent, registerFabricEvents, fabricEvent, fabricEvents,
+  fabricEventsForSource, exposedInLiveStream, resetEventRegistry,
+  type FabricEventSpec, type FabricEventInput,
+} from './registry/event-registry';
+
+export {
+  registerFabricSchema, fabricSchema, fabricSchemas, schemaVersionsFor,
+  validateEventPayload, resetSchemaRegistry,
+  type FabricSchemaSpec, type FabricSchemaInput, type SchemaCheck,
+} from './registry/schema-registry';
+
+export { registerCoreSchemas } from './registry/core-schemas';
+
+export {
+  publishFabricEvent, publishFabricEventDetached, FabricPublishError,
+  type PublishOptions, type PublishResult,
+} from './registry/publisher';
+
+export {
+  registryHealth, resetRegistryHealth,
+  type RegistryHealth,
+} from './registry/unknown-events';
+
 export {
   emit, readEvents, subscribe, clearSubscribers,
   setEventTransport, currentTransport,
@@ -54,7 +91,8 @@ export {
   pulseMetrics, pulseTopology, project, sourceLaneFor, destinationLaneFor,
   INSTRUMENTED_EVENT_TYPES, SOURCE_LANES, LIVE_DESTINATIONS, FUTURE_DESTINATIONS,
   BUFFER_LIMIT, FLUSH_MS, SAMPLE_THRESHOLD,
-  type PulseFrame, type PulseBatch, type PulseMetrics, type PulseTopology, type PulseListener,
+  type PulseFrame, type PulseBatch, type PulseMetrics, type PulseTopology,
+  type PulseListener, type PulseSourceCard,
 } from './pulse/pulse.service';
 
 export {

@@ -30,6 +30,7 @@
 // fact two names, which is how a consumer comes to count it twice.
 
 import type { DataClassification } from '../platform/data-classification';
+import { registerFabricEvent, type FabricEventSpec } from './registry/event-registry';
 
 export interface EventTypeSpec {
   /** The canonical dotted name. */
@@ -126,36 +127,78 @@ export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
 
 export type FamilistaEventType = (typeof EVENT_TYPES)[number]['type'];
 
-const BY_TYPE = new Map<string, EventTypeSpec>(EVENT_TYPES.map((s) => [s.type, s]));
-const BY_LEGACY = new Map<string, EventTypeSpec>(
-  EVENT_TYPES.filter((s) => s.legacyKind).map((s) => [s.legacyKind as string, s]),
-);
+// ── the seed ─────────────────────────────────────────────────────────────────
+//
+// The list above is what this BUILD ships with. The live set is held in
+// `registry/event-registry.ts`, which a module arriving later can add to
+// without editing this file — that is the whole point of the registry, and it
+// is why every lookup below now delegates rather than reading the literal.
+//
+// The dependency runs one way: this file imports the registry and seeds it, the
+// registry imports nothing from here at load. Anything that can reach a lookup
+// has already evaluated this module, so there is no order in which the answers
+// come back empty.
+//
+// Which entityType a name is about is stated here rather than guessed from the
+// name: `medical.injury.created` is about a PLAYER, not an injury, and no
+// amount of string-splitting produces that.
 
-export function isRegisteredEventType(type: string): boolean {
-  return BY_TYPE.has(type);
-}
-
-export function eventTypeSpec(type: string): EventTypeSpec | undefined {
-  return BY_TYPE.get(type);
-}
-
-/** The default sensitivity for a registered type; undefined for an unknown one. */
-export function classificationForEventType(type: string): DataClassification | undefined {
-  return BY_TYPE.get(type)?.classification;
-}
+const ENTITY_TYPES: Record<string, string> = {
+  club: 'CLUB', membership: 'MEMBERSHIP', user: 'USER',
+  player: 'PLAYER', training: 'TRAINING_SESSION', attendance: 'TRAINING_SESSION',
+  match: 'MATCH', transfer: 'TRANSFER', medical: 'PLAYER',
+  media: 'MEDIA_ASSET', device: 'DEVICE', camera: 'CAMERA',
+  telemetry: 'DEVICE', secret: 'PLATFORM_SECRET',
+  ai: 'MODEL', model: 'MODEL',
+};
 
 /**
- * The canonical name for a legacy `OutboxKind`, where one exists.
+ * Types whose record is the point, as opposed to types that describe a change
+ * the application reads back from a row anyway.
  *
- * The bridge that stops one occurrence acquiring two names. A producer still
- * calling `publishMatchEvent` writes `MATCH_EVENT`; a reader asking this gets
- * `match.event.recorded` back and can treat both as the same fact.
+ * Kept in step with the board's `Audit` destination lane — a type that travels
+ * to Audit is a type whose value IS the record that it happened.
  */
-export function canonicalNameForLegacyKind(kind: string): string | undefined {
-  return BY_LEGACY.get(kind)?.type;
+const AUDIT_DOMAINS = new Set(['club', 'membership', 'user', 'secret', 'device', 'camera']);
+
+/** Put this build's names into the registry. Called once, at module load. */
+export function seedTaxonomy(): void {
+  for (const spec of EVENT_TYPES) {
+    const domain = spec.type.split('.')[0] ?? '';
+    registerFabricEvent({
+      type: spec.type,
+      describes: spec.describes,
+      classification: spec.classification,
+      schemaVersion: spec.schemaVersion,
+      legacyKind: spec.legacyKind,
+      entityType: ENTITY_TYPES[domain] ?? null,
+      auditRelevant: AUDIT_DOMAINS.has(domain),
+      // Every name this build ships with was already drawn by the live board
+      // before the registry existed. Withholding one now would be a silent
+      // change to what an operator sees, so all of them stay exposed and a
+      // future type opts out explicitly.
+      exposeInLiveStream: true,
+    });
+  }
 }
 
-/** Every registered name. For a status surface, a test, or a consumer's switch. */
-export function registeredEventTypes(): string[] {
-  return EVENT_TYPES.map((s) => s.type);
+seedTaxonomy();
+
+// ── lookups · delegated, so a later registration is visible everywhere ───────
+
+export {
+  isRegisteredEventType, registeredEventTypes, classificationForEventType,
+  canonicalNameForLegacyKind, registerFabricEvent,
+} from './registry/event-registry';
+
+/**
+ * One type's spec.
+ *
+ * Returns the registry's record, which carries everything `EventTypeSpec` did
+ * plus the fields the registry adds. Callers that only read the original four
+ * fields are unaffected.
+ */
+export function eventTypeSpec(type: string): FabricEventSpec | undefined {
+  const { fabricEvent } = require('./registry/event-registry') as typeof import('./registry/event-registry');
+  return fabricEvent(type);
 }

@@ -13,6 +13,7 @@ import invitationRoutes from './invitation.routes';
 import systemRoutes from './system.routes';
 import ownerTraceRoutes from './owner-trace.routes';
 import dataPulseRoutes from './data-pulse.routes';
+import fabricRoutes from './fabric.routes';
 import telemetryRoutes from './telemetry.routes';
 import contextRoutes    from './context.routes';
 // Phase B — Match Intelligence + Hardware Sessions + Automation
@@ -91,6 +92,9 @@ router.use('/system', systemRoutes);
 // it however senior it is inside its club.
 router.use('/system/trace', ownerTraceRoutes);
 router.use('/system/data-pulse', dataPulseRoutes);
+// The Data Fabric registry: which sources and event types exist, as opposed to
+// what is moving through them right now. Same owner guard as data-pulse.
+router.use('/system/fabric', fabricRoutes);
 // Product-usage ingestion. Deliberately not '/analytics' — that is a club's own
 // football analytics, and the two must never be confused for one another.
 router.use('/telemetry',   telemetryRoutes);

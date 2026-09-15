@@ -204,7 +204,28 @@
     return '';
   }
 
-  /** The lane a source or destination pad draws its icon from. */
+  /**
+   * The icon a lane draws.
+   *
+   * Sources are answered by the server: the fabric's source registry holds the
+   * icon key alongside the lane name and sends both in `topology.sourceCatalogue`,
+   * so a domain registered after this file was written draws its own icon
+   * rather than the System fallback. The map below still answers for
+   * destinations, which are not registry-backed, and stands in for a source
+   * whose catalogue entry is missing — an older server, or a lane the registry
+   * has no card for.
+   */
+  function laneIcon(name) {
+    var cat = DP.topology && DP.topology.sourceCatalogue;
+    if (cat) {
+      for (var i = 0; i < cat.length; i++) {
+        if (cat[i] && cat[i].name === name && cat[i].icon) return cat[i].icon;
+      }
+    }
+    return LANE_ICON[name] || 'system';
+  }
+
+  /** The lane a destination pad draws its icon from, and the source fallback. */
   var LANE_ICON = {
     Clubs: 'clubs', Users: 'users', Players: 'players', Training: 'training',
     Matches: 'matches', Transfers: 'transfers', Medical: 'medical', Media: 'media',
@@ -716,7 +737,7 @@
         + ' aria-pressed="' + (on ? 'true' : 'false') + '"'
         + ' title="Events counted on this lane in the chosen window">'
         + '<i class="sy-dp-led"></i>'
-        + '<span class="sy-dp-node-ic">' + icon(LANE_ICON[name] || 'system') + '</span>'
+        + '<span class="sy-dp-node-ic">' + icon(laneIcon(name)) + '</span>'
         + '<span class="sy-dp-node-n">' + esc(name) + '</span>'
         + '<b class="sy-dp-rate" data-no-i18n>' + rateLabel(rate) + '</b>'
         + '<u class="sy-dp-stub' + (kind === 'dest' ? ' sy-dp-stub-in' : '') + '"></u>'

@@ -47,6 +47,9 @@
 import { logger } from '../../utils/logger';
 import { isRegisteredEventType } from '../event-taxonomy';
 import type { FamilistaEvent } from '../event-envelope';
+import {
+  FALLBACK_SOURCE_ID, fabricSource, sourceForEventDomain, sourceLanes, visibleFabricSources,
+} from '../registry/source-registry';
 
 // ── what a pulse looks like on the wire ──────────────────────────────────────
 
@@ -128,20 +131,6 @@ const SAFE_SUBJECT_IDS = new Set(['CLUB', 'TEAM', 'COMPETITION', 'FIXTURE', 'MAT
 // ── the lanes, derived from what actually exists ─────────────────────────────
 
 /**
- * The left-hand lane for an event type, by its domain prefix.
- *
- * A map rather than a guess, so a type with no home is `System` instead of a
- * lane invented from the first word of its name.
- */
-const SOURCE_LANE: Record<string, string> = {
-  club: 'Clubs', membership: 'Users', user: 'Users',
-  player: 'Players', training: 'Training', attendance: 'Training',
-  match: 'Matches', transfer: 'Transfers', medical: 'Medical',
-  media: 'Media', ai: 'AI', model: 'AI',
-  device: 'System', telemetry: 'System', camera: 'System', secret: 'System',
-};
-
-/**
  * The right-hand lane, by what genuinely consumes the event today.
  *
  * This map is the part of the visualiser most at risk of becoming a lie, so it
@@ -165,10 +154,15 @@ export const FUTURE_DESTINATIONS = Object.freeze([
   'ML Pipeline', 'Feature Store', 'Data Lake', 'Cameras', 'GPS', 'Edge',
 ]);
 
-export const SOURCE_LANES = Object.freeze([
-  'Clubs', 'Users', 'Players', 'Training', 'Matches',
-  'Transfers', 'Medical', 'Media', 'AI', 'System',
-]);
+/**
+ * The core lanes, as a snapshot taken at load.
+ *
+ * Kept because callers and tests import it as an array. It is the ten lanes
+ * this build registers and it does not grow: a source registered later appears
+ * through `sourceLanes()` and in `pulseTopology()`, which is what the board
+ * actually reads. Anything that needs the LIVE set must call the function.
+ */
+export const SOURCE_LANES = Object.freeze(sourceLanes());
 
 export const LIVE_DESTINATIONS = Object.freeze(['Operational Data', 'Media', 'Audit', 'Analytics']);
 
@@ -176,8 +170,20 @@ function domainOf(eventType: string): string {
   return String(eventType ?? '').split('.')[0] ?? '';
 }
 
+/**
+ * The left-hand lane for an event type.
+ *
+ * Answered by the source registry, which owns the prefix-to-source mapping —
+ * so registering a source with `eventDomains: ['finance']` is all it takes for
+ * `finance.invoice.issued` to land on a Finance lane. A prefix nobody claimed
+ * falls to System rather than inventing a lane from the first word of the name,
+ * which is what the hard-coded map here used to do and is still the right
+ * answer: an unrouted event should look unrouted.
+ */
 export function sourceLaneFor(eventType: string): string {
-  return SOURCE_LANE[domainOf(eventType)] ?? 'System';
+  const source = sourceForEventDomain(domainOf(eventType));
+  if (source) return source.name;
+  return fabricSource(FALLBACK_SOURCE_ID)?.name ?? 'System';
 }
 
 export function destinationLaneFor(eventType: string): string {
@@ -382,9 +388,19 @@ export function isPulseRunning(): boolean {
  * two owners watching at once must not make one event two.
  */
 export function ingestFrames(frames: PulseFrame[]): PulseFrame[] {
+  const { exposedInLiveStream } = require('../registry/event-registry') as typeof import('../registry/event-registry');
   const fresh: PulseFrame[] = [];
   for (const frame of frames) {
     if (!frame?.eventId || ingested.has(frame.eventId)) continue;
+    // A type that declares `exposeInLiveStream: false` is real, recorded and
+    // readable — it simply has no business on a firehose. Marked as seen so a
+    // later pass over the same cursor does not reconsider it, then dropped
+    // before it reaches the buffer, the counters or any listener.
+    if (!exposedInLiveStream(frame.eventType)) {
+      ingested.add(frame.eventId);
+      ingestedOrder.push(frame.eventId);
+      continue;
+    }
     ingested.add(frame.eventId);
     ingestedOrder.push(frame.eventId);
     record(frame);
@@ -492,8 +508,19 @@ export function pulseMetrics(): PulseMetrics {
 
 // ── the map the interface draws ──────────────────────────────────────────────
 
+export interface PulseSourceCard {
+  id: string;
+  name: string;
+  icon: string;
+  domain: string;
+  category: string;
+  order: number;
+}
+
 export interface PulseTopology {
   sources: string[];
+  /** The same lanes with their registry metadata. See `pulseTopology`. */
+  sourceCatalogue: PulseSourceCard[];
   destinations: Array<{ name: string; live: true }>;
   future: Array<{ name: string; live: false; note: string }>;
   /** Registered types with a producer in this build, and their lanes. */
@@ -530,7 +557,15 @@ export function pulseTopology(): PulseTopology {
   const live = new Set<string>(INSTRUMENTED_EVENT_TYPES);
 
   return {
-    sources: [...SOURCE_LANES],
+    sources: sourceLanes(),
+    // The same lanes again, with the metadata the board cannot invent: an icon
+    // key, a category and the order they were registered in. Served ALONGSIDE
+    // `sources` rather than replacing it, so a client that only knows about the
+    // string array keeps working exactly as it did.
+    sourceCatalogue: visibleFabricSources().map((s) => ({
+      id: s.id, name: s.name, icon: s.icon, domain: s.domain,
+      category: s.category, order: s.order,
+    })),
     destinations: LIVE_DESTINATIONS.map((name) => ({ name, live: true as const })),
     future: FUTURE_DESTINATIONS.map((name) => ({
       name, live: false as const,
