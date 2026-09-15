@@ -22,6 +22,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma }  from '../config/database';
 import { NotFoundError } from '../utils/errors';
+import { publishAIRequestCreated } from '../fabric/producers/ai.producer';
 
 export interface IntelligenceActor {
   userId: string;
@@ -427,7 +428,7 @@ async function _createJob(
   context:  unknown,
   entityId: string,
 ) {
-  return prisma.aIAgentJob.create({
+  const job = await prisma.aIAgentJob.create({
     data: {
       clubId: actor.clubId,
       agent:  agent as any,
@@ -440,6 +441,16 @@ async function _createJob(
       } as Prisma.InputJsonValue,
     },
   });
+  // The third of three places a job is queued, and the third to announce it.
+  // The `context` it carries is a club's own data and does not travel.
+  publishAIRequestCreated(
+    {
+      runId: job.id, clubId: job.clubId, teamId: job.teamId,
+      correlationId: job.id, actorUserId: actor.userId, sourceType: 'USER',
+    },
+    job.agent,
+  );
+  return job;
 }
 
 async function _findRecentJob(clubId: string, kind: string, entityId: string) {

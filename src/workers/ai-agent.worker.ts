@@ -19,6 +19,9 @@ import { AIAgent, AutomationStatus, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { logger } from '../utils/logger';
 import { llmCall, llmStatus } from '../services/llm-adapter.service';
+import {
+  publishAIAgentStarted, publishAIAgentCompleted, publishAIAgentFailed,
+} from '../fabric/producers/ai.producer';
 import { runDeterministicHandler } from './agent-handlers';
 import { classifyRisk, getJobApproval, requestApproval } from '../security/ai-approval.service';
 import { logSecurityEvent } from '../security/security-event.service';
@@ -84,15 +87,39 @@ async function pickOneJob(): Promise<{ id: string; agent: AIAgent; kind: string;
 
   const j = await prisma.aIAgentJob.findUnique({ where: { id: candidate.id } });
   if (!j) return null;
+
+  // Published on the ATOMIC CLAIM, which is what makes it exactly one event per
+  // run: a worker that lost the race returned above having written nothing.
+  // `correlationId` is the job id, so this run, the request that queued it and
+  // every model it calls can be followed as one piece of work.
+  publishAIAgentStarted(
+    { runId: j.id, clubId: j.clubId, teamId: j.teamId, correlationId: j.id, sourceType: 'WORKER' },
+    j.agent,
+  );
+
   return { id: j.id, agent: j.agent, kind: j.kind, input: j.input, clubId: j.clubId };
 }
 
 async function reapStalled(): Promise<void> {
   const cutoff = new Date(Date.now() - STALE_RUNNING_MS);
+  // Read the ids first, so a reaped run can be named rather than only counted.
+  // Usually empty; the index on [agent, status] makes the miss cheap.
+  const stalled = await prisma.aIAgentJob.findMany({
+    where: { status: AutomationStatus.RUNNING, startedAt: { lt: cutoff } },
+    select: { id: true, clubId: true, teamId: true, agent: true },
+    take: 100,
+  });
   await prisma.aIAgentJob.updateMany({
     where: { status: AutomationStatus.RUNNING, startedAt: { lt: cutoff } },
     data:  { status: AutomationStatus.FAILED, finishedAt: new Date(), error: 'Stalled — exceeded max running window' },
   });
+  for (const j of stalled) {
+    publishAIAgentFailed(
+      { runId: j.id, clubId: j.clubId, teamId: j.teamId, correlationId: j.id, sourceType: 'WORKER' },
+      j.agent,
+      { message: 'stalled — exceeded max running window' },
+    );
+  }
 }
 
 async function runOne(job: { id: string; agent: AIAgent; kind: string; input: Prisma.JsonValue; clubId: string }): Promise<void> {
@@ -136,6 +163,10 @@ async function runOne(job: { id: string; agent: AIAgent; kind: string; input: Pr
             error:      `Approval ${existing.status.toLowerCase()}: ${existing.rejectedReason ?? ''}`.slice(0, 4000),
           },
         });
+        // A refused approval is a real, terminal failure of the run. The
+        // REASON a human gave is on the job row and does not travel — it is
+        // free text about a decision somebody made.
+        publishAIAgentFailed(agentCtx(job), job.agent, { message: 'not authorised: approval refused' });
         return;
       }
       // APPROVED — mark approval row as EXECUTED after success below.
@@ -164,6 +195,10 @@ async function runOne(job: { id: string; agent: AIAgent; kind: string; input: Pr
         },
       });
       logger.info('[ai-worker] deterministic job done', { id: job.id, agent: job.agent });
+      publishAIAgentCompleted(
+        agentCtx(job), job.agent, 'deterministic',
+        deterministic.tokensIn + deterministic.tokensOut,
+      );
       // Phase J — record the decision (rationale + telemetry + impact) and
       // anchor it in the audit chain.
       try {
@@ -194,7 +229,13 @@ async function runOne(job: { id: string; agent: AIAgent; kind: string; input: Pr
       : JSON.stringify(job.input ?? {}, null, 2);
     const system = pickSystemPrompt(job.agent, job.kind);
 
-    const result = await llmCall({ system, prompt, maxTokens: 1024 });
+    // The model invocation is published by `llmCall` itself, from the one
+    // place every caller goes through. It is told which piece of work it
+    // belongs to and nothing else about it.
+    const result = await llmCall({
+      system, prompt, maxTokens: 1024,
+      observe: { clubId: job.clubId, correlationId: job.id, runId: job.id },
+    });
 
     await prisma.aIAgentJob.update({
       where: { id: job.id },
@@ -208,6 +249,7 @@ async function runOne(job: { id: string; agent: AIAgent; kind: string; input: Pr
       },
     });
     logger.info('[ai-worker] llm job done', { id: job.id, agent: job.agent, tokens: result.tokensIn + result.tokensOut, cents: result.costCents });
+    publishAIAgentCompleted(agentCtx(job), job.agent, result.backend, result.tokensIn + result.tokensOut);
     // Phase J — record LLM decision (slightly lower default confidence).
     try {
       const matchId = (typeof (job.input as { matchId?: unknown })?.matchId === 'string') ? (job.input as { matchId: string }).matchId : null;
@@ -239,7 +281,15 @@ async function runOne(job: { id: string; agent: AIAgent; kind: string; input: Pr
       },
     });
     logger.warn('[ai-worker] job failed', { id: job.id, err: (err as Error)?.message });
+    // One category out of six, derived from the error. The error itself stays
+    // on the job row: a provider's message routinely quotes the prompt back.
+    publishAIAgentFailed(agentCtx(job), job.agent, err);
   }
+}
+
+/** The same envelope for every event about one run. */
+function agentCtx(job: { id: string; clubId: string }) {
+  return { runId: job.id, clubId: job.clubId, correlationId: job.id, sourceType: 'WORKER' as const };
 }
 
 /** Phase I — flip any approval gating this job to EXECUTED. Best-effort. */

@@ -9,6 +9,7 @@ import * as anomaly from '../services/anomaly-detector.service';
 import { sendSuccess, sendCreated, sendPaginated } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
 import type { Prisma } from '@prisma/client';
+import { publishAIRequestCreated } from '../fabric/producers/ai.producer';
 
 const AGENTS = ['CLUB_MANAGER','TACTICAL','MEDICAL','SCOUTING','FINANCE','TRAINING','MATCH_OPS','COMMS','DEVICE_MGMT','BIG_DATA'] as const;
 const SEVERITIES = ['INFO','WARN','CRITICAL'] as const;
@@ -227,6 +228,13 @@ export async function runAgent(req: Request, res: Response, next: NextFunction) 
       },
       select: { id: true, agent: true, kind: true, status: true, createdAt: true },
     });
+    publishAIRequestCreated(
+      {
+        runId: job.id, clubId: req.user!.clubId, teamId: body.teamId ?? null,
+        correlationId: job.id, actorUserId: req.user!.id, sourceType: 'USER',
+      },
+      job.agent,
+    );
     return sendCreated(res, job, `Enqueued ${agentParam} job`);
   } catch (err) { return next(err); }
 }

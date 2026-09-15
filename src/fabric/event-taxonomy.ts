@@ -144,8 +144,13 @@ export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   { type: 'camera.stream.ended',     describes: 'A camera stream finished',                           classification: 'INTERNAL',     schemaVersion: 1 },
 
   // ── intelligence ──────────────────────────────────────────────────────────
-  { type: 'ai.analysis.completed',   describes: 'A model finished analysing something',               classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'AI_RECOMMENDATION' },
-  { type: 'ai.alert.raised',         describes: 'A model raised an alert',                            classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'AI_ALERT' },
+  // Neither has ever been published through the fabric. `AI_RECOMMENDATION`
+  // and `AI_ALERT` travel on the realtime match channel and the big-data
+  // dispatcher, which are different transports; the legacy mapping is kept so
+  // a reader of either name finds the other. The AI producer publishes the
+  // request, agent, model, inference and orchestration lifecycles instead.
+  { type: 'ai.analysis.completed',   describes: 'A model finished analysing something',               classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'AI_RECOMMENDATION', produced: false },
+  { type: 'ai.alert.raised',         describes: 'A model raised an alert',                            classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'AI_ALERT', produced: false },
   { type: 'model.evaluation.completed', describes: 'A model version was evaluated against a dataset', classification: 'INTERNAL',     schemaVersion: 1 },
   { type: 'model.deployment.completed', describes: 'A model version was put into service',            classification: 'INTERNAL',     schemaVersion: 1 },
 ]);

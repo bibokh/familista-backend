@@ -80,6 +80,17 @@ export {
 } from './producers/players.producer';
 
 export {
+  registerAIProducer, AI_SOURCE_ID,
+  publishAIRequestCreated,
+  publishAIAgentStarted, publishAIAgentCompleted, publishAIAgentFailed,
+  publishAIModelInvoked,
+  publishAIInferenceStarted, publishAIInferenceCompleted, publishAIInferenceFailed,
+  publishAIOrchestrationStarted, publishAIOrchestrationCompleted,
+  modelFamilyOf, failureCategoryOf, bucketTokens,
+  type AIContext, type TokenBucket,
+} from './producers/ai.producer';
+
+export {
   registerMediaProducer, MEDIA_SOURCE_ID,
   publishMediaCreated, publishMediaUpdated, publishMediaDeleted,
   publishMediaUploadStarted, publishMediaUploadCompleted,
