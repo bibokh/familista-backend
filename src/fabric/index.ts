@@ -80,6 +80,15 @@ export {
 } from './producers/players.producer';
 
 export {
+  registerSystemProducer, SYSTEM_SOURCE_ID,
+  publishSystemServiceStarted, publishSystemServiceStopped,
+  publishSystemHealthChanged, publishSystemConfigChanged, publishSystemFeatureToggled,
+  noteFabricPublishOutcome, noteFabricRegistryProblem,
+  fabricSelfHealth, resetFabricSelfHealth,
+  type SystemContext,
+} from './producers/system.producer';
+
+export {
   registerAIProducer, AI_SOURCE_ID,
   publishAIRequestCreated,
   publishAIAgentStarted, publishAIAgentCompleted, publishAIAgentFailed,

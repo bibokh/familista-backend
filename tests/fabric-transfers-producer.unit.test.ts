@@ -143,6 +143,7 @@ jest.mock('../src/realtime/market-channel', () => ({
 }));
 
 import { setEventTransport, type EventTransport } from '../src/fabric/event-bus';
+import { resetFabricSelfHealth } from '../src/fabric/producers/system.producer';
 import type { FamilistaEvent } from '../src/fabric/event-envelope';
 import { project, sourceLaneFor } from '../src/fabric/pulse/pulse.service';
 import { fabricEvent, fabricEventsForSource } from '../src/fabric/registry/event-registry';
@@ -171,6 +172,11 @@ const ACTOR_CTX = { userId: ACTOR, clubId: BUYER };
 
 beforeEach(() => {
   published = [];
+  // A test that deliberately breaks the transport latches the publisher as
+  // degraded, and the next test's healthy transport would then announce a
+  // recovery inside somebody else's exact-set assertion. Reset it here, the
+  // way the transport itself is reset.
+  resetFabricSelfHealth();
   setEventTransport(transport);
   state.players = [{
     id: PLAYER, clubId: SELLER, teamId: null, isActive: true,

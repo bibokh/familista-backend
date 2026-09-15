@@ -6,6 +6,7 @@
 import { AlertRuleState, BackupKind, BackupRecord, HealthCheckState, Prisma, ProductionAlertRule, ProductionHealthCheck } from '@prisma/client';
 import { prisma } from '../config/database';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
+import { publishSystemHealthChanged } from '../fabric/producers/system.producer';
 
 export interface MonActor {
   userId: string;
@@ -17,9 +18,28 @@ export interface MonActor {
 
 export async function recordHealth(args: { service: string; state: HealthCheckState; latencyMs?: number; payload?: Prisma.InputJsonValue }): Promise<ProductionHealthCheck> {
   if (!args.service || !args.state) throw new BadRequestError('service + state required');
-  return prisma.productionHealthCheck.create({
+
+  // What this service last reported. Read before the write, because the row
+  // about to be appended would otherwise BE the previous state.
+  const previous = await prisma.productionHealthCheck.findFirst({
+    where: { service: args.service },
+    orderBy: { capturedAt: 'desc' },
+    select: { state: true },
+  });
+
+  const row = await prisma.productionHealthCheck.create({
     data: { service: args.service, state: args.state, latencyMs: args.latencyMs ?? null, payload: (args.payload ?? Prisma.JsonNull) as Prisma.InputJsonValue },
   });
+
+  // A TRANSITION, never a snapshot. This endpoint is polled, and a healthy
+  // service reporting healthy every thirty seconds is a heartbeat — putting it
+  // on an operational board would drown the moment something actually moved.
+  // The check's `payload` is not carried: it is arbitrary JSON a caller
+  // supplied and is where a connection string or a stack trace would arrive.
+  if (previous?.state !== args.state) {
+    publishSystemHealthChanged(args.service, previous?.state ?? null, args.state, args.latencyMs ?? null);
+  }
+  return row;
 }
 
 export async function listHealth(opts: { service?: string; state?: HealthCheckState; limit?: number } = {}): Promise<ProductionHealthCheck[]> {

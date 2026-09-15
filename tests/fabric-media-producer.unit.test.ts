@@ -134,6 +134,7 @@ jest.mock('@aws-sdk/s3-request-presigner', () => ({
 }));
 
 import { setEventTransport, type EventTransport } from '../src/fabric/event-bus';
+import { resetFabricSelfHealth } from '../src/fabric/producers/system.producer';
 import type { FamilistaEvent } from '../src/fabric/event-envelope';
 import { project, sourceLaneFor } from '../src/fabric/pulse/pulse.service';
 import { resolveSubjects } from '../src/fabric/pulse/subject-resolver.service';
@@ -167,6 +168,11 @@ const VIDEO_ACTOR = { userId: ACTOR, clubId: CLUB, role: 'HEAD_COACH' } as never
 
 beforeEach(() => {
   published = [];
+  // A test that deliberately breaks the transport latches the publisher as
+  // degraded, and the next test's healthy transport would then announce a
+  // recovery inside somebody else's exact-set assertion. Reset it here, the
+  // way the transport itself is reset.
+  resetFabricSelfHealth();
   setEventTransport(transport);
   setObjectStore(new MemoryObjectStore());
   state.media = [];
