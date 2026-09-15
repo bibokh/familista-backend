@@ -31,6 +31,9 @@
 // arriving at it by accident.
 
 import { MatchStatus, Prisma, CompetitionType } from '@prisma/client';
+import { logger } from '../utils/logger';
+import { announceReschedule, matchContext, type MatchLike } from '../fabric/producers/match-context';
+import { publishMatchDeleted, publishMatchFixturesGenerated } from '../fabric/producers/matches.producer';
 import { prisma } from '../config/database';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { eligibilityFor, eligibleTeamWhereFor } from './league-eligibility';
@@ -316,7 +319,11 @@ async function _deleteFixtureAndItsMatch(fixtureId: string, matchId: string | nu
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     select: {
-      id: true, status: true,
+      // The guard needs the status and the counts; the fabric envelope needs
+      // the tenant, the squad and the competition. One row either way.
+      id: true, status: true, clubId: true, teamId: true,
+      scheduledAt: true, venue: true, competition: true,
+      homeScore: true, awayScore: true, result: true,
       _count: {
         select: {
           lineups: true, timeline: true, events: true,
@@ -336,6 +343,19 @@ async function _deleteFixtureAndItsMatch(fixtureId: string, matchId: string | nu
     match._count.playerMatchStats === 0 &&
     match._count.tacticalSnapshots === 0;
   if (untouched) await prisma.match.delete({ where: { id: matchId } });
+
+  // Announced only when the delete actually happened. A match carrying
+  // anybody's work is left alone above, and leaves behind no event claiming
+  // otherwise. Written as a second guard rather than a block so the deletion
+  // rule stays one line — it is pinned in the League's own tests, and it should
+  // be readable at a glance.
+  if (untouched) {
+    void (async () => {
+      publishMatchDeleted(await matchContext(match as unknown as MatchLike, null));
+    })().catch((err) => logger.warn('[fabric] a fixture match deletion could not be recorded', {
+      matchId, err: (err as Error)?.message,
+    }));
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -458,6 +478,30 @@ export async function ensureFixtureMatches(competitionId: string): Promise<numbe
     await prisma.fixture.update({ where: { id: f.id }, data: { matchId: match.id } });
     created++;
   }
+
+  // ONE event for the whole generation, after it has finished.
+  //
+  // A twenty-team league is three hundred and eighty pairings, and an event per
+  // Match would drown the board in the one moment an operator most needs to
+  // read it — while saying nothing a single count does not. The subject is the
+  // COMPETITION rather than any one match, and its envelope's tenant is the
+  // competition's owner: null for the Familista League, which belongs to the
+  // platform rather than to a club.
+  //
+  // `comp.name` is not carried. `comp.code` is: it is part of the competition's
+  // own unique key, a structured handle rather than prose.
+  if (created > 0) {
+    publishMatchFixturesGenerated(
+      {
+        competitionId: comp.id,
+        clubId: comp.clubId ?? null,
+        competition: CompetitionType.LEAGUE,
+        competitionCode: comp.code ?? null,
+        sourceType: 'SERVICE',
+      },
+      created,
+    );
+  }
   return created;
 }
 
@@ -509,6 +553,9 @@ export async function rescheduleFixture(
       where: { id: fixture.matchId },
       data: { scheduledAt: when, ...(venue !== undefined ? { venue } : {}) },
     });
+    // After the write, and only past `validateKickoff` above — a time outside
+    // the competition's window throws and is never announced.
+    announceReschedule(fixture.matchId, actor.userId ?? null, 'LEAGUE_ADMIN', venue !== undefined);
   }
   return { fixtureId, matchId: fixture.matchId, scheduledAt: when.toISOString() };
 }

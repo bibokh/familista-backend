@@ -14,6 +14,11 @@
 //     minuteMs, type, playerId) is allowed — duplicate check before insert
 
 import { Prisma, MatchEvent, DataProviderSource } from '@prisma/client';
+import { logger } from '../utils/logger';
+import { matchContext, type MatchLike } from '../fabric/producers/match-context';
+import {
+  publishMatchEventRecorded, publishMatchEventsBatchIngested,
+} from '../fabric/producers/matches.producer';
 import { prisma } from '../config/database';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
@@ -98,7 +103,7 @@ export async function recordEvent(actor: EventActor, dto: CreateEventDto): Promi
   if (!Number.isInteger(dto.periodIndex) || dto.periodIndex < 1 || dto.periodIndex > 5)
     throw new BadRequestError('periodIndex must be 1–5');
 
-  const match = await prisma.match.findUnique({ where: { id: dto.matchId }, select: { clubId: true } });
+  const match = await prisma.match.findUnique({ where: { id: dto.matchId } });
   if (!match) throw new NotFoundError('Match');
   if (match.clubId !== actor.clubId && actor.role !== 'SUPER_ADMIN') throw new ForbiddenError();
 
@@ -112,12 +117,40 @@ export async function recordEvent(actor: EventActor, dto: CreateEventDto): Promi
       update: data as Prisma.MatchEventUpdateInput,
     });
     enqueueAggregation(dto.matchId);
+    announceToFabric(match, actor, dto, 'FEED');
     return toJsonSafeEvent(row);
   }
 
   const row = await prisma.matchEvent.create({ data: data as Prisma.MatchEventCreateInput });
   enqueueAggregation(dto.matchId);
+  announceToFabric(match, actor, dto, 'MANUAL');
   return toJsonSafeEvent(row);
+}
+
+/**
+ * Tell the Data Fabric that something happened in a match.
+ *
+ * A goal, a card, a substitution, an incident. What travels is the KIND and the
+ * PERIOD; what does not is the description somebody typed and the player it was
+ * about. A scorer is a named person who is frequently a child, and the fact
+ * that a goal was scored in the second half is the whole of what an operator
+ * watching a live feed needs.
+ *
+ * Detached, after the write, and never able to fail the record it describes.
+ */
+function announceToFabric(
+  match: MatchLike,
+  actor: EventActor,
+  dto: { type?: string | null; periodIndex?: number | null },
+  source: 'MANUAL' | 'FEED' | 'BATCH',
+  events = 1,
+): void {
+  void (async () => {
+    const ctx = await matchContext(match, actor.userId ?? null);
+    publishMatchEventRecorded(ctx, String(dto.type ?? 'UNKNOWN'), dto.periodIndex ?? null, source, events);
+  })().catch((err) => logger.warn('[fabric] a match event could not be recorded', {
+    matchId: match.id, err: (err as Error)?.message,
+  }));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,7 +174,7 @@ export async function batchIngestEvents(
   if (!Array.isArray(events) || events.length === 0) return { created: 0, updated: 0, rejected: 0, errors: [] };
   if (events.length > 5_000) throw new BadRequestError('Max 5 000 events per batch');
 
-  const match = await prisma.match.findUnique({ where: { id: matchId }, select: { clubId: true } });
+  const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match) throw new NotFoundError('Match');
   if (match.clubId !== actor.clubId && actor.role !== 'SUPER_ADMIN') throw new ForbiddenError();
 
@@ -201,6 +234,27 @@ export async function batchIngestEvents(
     entityType: 'Match', entityId: matchId,
     payload: { source, created, updated, rejected, sessionId: session.id },
   });
+
+  // ONE event for the whole batch, after it has finished.
+  //
+  // Up to five thousand rows arrive in a single call, and an event apiece would
+  // be a denial of service against the board it is meant to inform. What an
+  // operator watching an import needs is four numbers and a provider, and that
+  // is exactly what this carries — no raw provider payload, no scorer, no
+  // description. The error strings collected above stay in the session record,
+  // where they are read under authorisation: a provider's error text can quote
+  // the row that failed, and the row is a player.
+  void (async () => {
+    const ctx = await matchContext(match as unknown as MatchLike, actor.userId ?? null);
+    publishMatchEventsBatchIngested(
+      ctx,
+      source,
+      { received: events.length, accepted: created + updated, rejected },
+      rejected === events.length ? 'FAILED' : 'COMPLETE',
+    );
+  })().catch((err) => logger.warn('[fabric] a batch ingest could not be recorded', {
+    matchId, err: (err as Error)?.message,
+  }));
 
   return { created, updated, rejected, errors };
 }

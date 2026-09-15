@@ -18,6 +18,7 @@
 // group, and nothing below excludes one by name either.
 
 import { Prisma, TeamKind } from '@prisma/client';
+import { announceReschedule } from '../fabric/producers/match-context';
 import { prisma } from '../config/database';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { FIRST_TEAM_KINDS } from './league-eligibility';
@@ -769,6 +770,7 @@ export async function actOnRequest(
   // policy as it stands NOW rather than as it stood when the request was made:
   // a proposal that has since fallen into the past, or a competition whose
   // window has been narrowed since, must not be applied by an approval.
+  let movedMatchId: string | null = null;
   if (next === 'APPROVED') {
     const ctx = await schedulingContextFor(req.fixtureId);
     const check = validateKickoff({ at: req.proposedKickoff, timeZone: ctx.timeZone, policy: ctx.policy });
@@ -784,9 +786,16 @@ export async function actOnRequest(
         // One canonical kickoff. The Match row the fixture is played as moves
         // with it, so the League and the Match Center cannot disagree.
         await tx.match.update({ where: { id: fixture.matchId }, data: { scheduledAt: req.proposedKickoff } });
+        movedMatchId = fixture.matchId;
       }
     });
   }
+
+  // After the transaction, and ONLY when the approval actually moved a match.
+  // A rejected request, or one whose proposed kickoff failed `validateKickoff`
+  // above, never reaches here — the throw is what keeps a refused reschedule
+  // from being announced as a successful one.
+  if (movedMatchId) announceReschedule(movedMatchId, actor.userId ?? null, 'REQUEST_APPROVED', false);
 
   await prisma.fixtureChangeRequest.update({
     where: { id: requestId },

@@ -52,6 +52,17 @@ export { registerCoreSchemas } from './registry/core-schemas';
 // yet, and a domain whose registrations arrive late is a domain the board
 // briefly does not understand.
 export {
+  registerMatchesProducer, MATCHES_SOURCE_ID,
+  publishMatchCreated, publishMatchUpdated, publishMatchDeleted,
+  publishMatchStatusChanged, publishMatchStarted, publishMatchCompleted,
+  publishMatchCancelled, publishMatchTimeChanged, publishMatchVenueChanged,
+  publishMatchLineupUpdated, publishMatchResultUpdated, publishMatchEventRecorded,
+  type MatchContext,
+} from './producers/matches.producer';
+
+export { matchContext, announceReschedule, type MatchLike } from './producers/match-context';
+
+export {
   registerTrainingProducer, TRAINING_SOURCE_ID,
   publishTrainingSessionCreated, publishTrainingSessionUpdated, publishTrainingSessionDeleted,
   publishTrainingAttendanceSaved, publishTrainingLocationChanged, publishTrainingStatusChanged,
