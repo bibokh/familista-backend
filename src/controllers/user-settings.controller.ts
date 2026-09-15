@@ -11,6 +11,7 @@
 // resolve to whatever was last saved here.
 
 import type { Request, Response, NextFunction } from 'express';
+import { publishUserProfileUpdated } from '../fabric/producers/users.producer';
 import { prisma } from '../config/database';
 import { sendSuccess } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
@@ -47,6 +48,13 @@ export async function updateSettings(req: Request, res: Response, next: NextFunc
     if (!tag) throw new BadRequestError('Unsupported locale');
 
     await prisma.user.update({ where: { id: req.user!.id }, data: { locale: tag } });
+    // The field NAME, not the tag. A locale is not sensitive, but the rule that
+    // a profile event carries names rather than values is worth keeping
+    // unbroken — the next field added here might be.
+    // No club. A person's interface language belongs to the person, and giving
+    // the event a tenant would make a personal preference readable as club
+    // data — which is the same reason nothing else in this file has one.
+    publishUserProfileUpdated({ userId: req.user!.id }, ['locale']);
     // The authenticated identity is cached for a few seconds; drop this user's
     // entry so the next request sees the new language immediately rather than
     // at the end of the TTL.

@@ -44,6 +44,20 @@ export {
 
 export { registerCoreSchemas } from './registry/core-schemas';
 
+// ── producers ────────────────────────────────────────────────────────────────
+// A domain migrated onto `publishFabricEvent`. Exported from here so its event
+// types and schemas are registered at boot by the fabric itself, rather than as
+// a side effect of whichever service happened to be imported first — the event
+// catalogue must describe the same set whether or not anybody has logged in
+// yet, and a domain whose registrations arrive late is a domain the board
+// briefly does not understand.
+export {
+  registerUsersProducer, USERS_SOURCE_ID,
+  publishUserCreated, publishUserUpdated, publishUserProfileUpdated,
+  publishUserLogin, publishUserLogout,
+  publishMembershipGranted, publishMembershipRevoked, publishAccessRoleChanged,
+} from './producers/users.producer';
+
 export {
   publishFabricEvent, publishFabricEventDetached, FabricPublishError,
   type PublishOptions, type PublishResult,
