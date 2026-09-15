@@ -517,7 +517,7 @@ export async function purchase(actor: MarketActor, listingId: string) {
   await notifyClub(result.buyerClubId, 'TRANSFER_COMPLETED',
     `${who} has joined from ${sellerName} for ${fmt(result.feeEur)}.`, null, note);
 
-  emitTransferCompleted(result.sellerClubId, result.buyerClubId, result.playerId, { listingId });
+  emitTransferCompleted(result.sellerClubId, result.buyerClubId, result.playerId, { listingId }, 'PURCHASE');
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'TRANSFER_SETTLED', entityType: 'MarketplaceItem', entityId: listingId,

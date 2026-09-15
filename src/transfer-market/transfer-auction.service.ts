@@ -458,7 +458,7 @@ export async function settleAuction(listingId: string): Promise<{ listingId: str
     : [];
   emitAuctionSettled(listingId, settled.playerId, settled.sellerClubId, settled.winnerClubId, settledLosers);
   if (settled.status === 'SOLD' && settled.winnerClubId && settled.playerId) {
-    emitTransferCompleted(settled.sellerClubId, settled.winnerClubId, settled.playerId, { listingId });
+    emitTransferCompleted(settled.sellerClubId, settled.winnerClubId, settled.playerId, { listingId }, 'AUCTION');
   }
   return { listingId: settled.listingId, status: settled.status };
 }
