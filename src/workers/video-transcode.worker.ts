@@ -18,6 +18,8 @@
 import { prisma }               from '../config/database';
 import { transcodeToHls }       from '../services/video-hls.service';
 import { handleTranscodeCallback } from '../video/video-asset.service';
+import { publishMediaProcessingStarted } from '../fabric/producers/media.producer';
+import { withMediaContext } from '../fabric/producers/media-context';
 
 const POLL_INTERVAL = parseInt(process.env.VIDEO_WORKER_INTERVAL_MS ?? '15000', 10);
 const MAX_RETRIES   = 2;
@@ -78,6 +80,14 @@ async function _tick(): Promise<void> {
 
     // Another worker claimed it between findFirst and updateMany.
     if (claimed.count === 0) return;
+
+    // Published on the ATOMIC CLAIM, which is what makes it exactly one event
+    // per job attempt: a worker that lost the race returned above, having
+    // written nothing and announcing nothing.
+    withMediaContext(
+      { mediaId: job.assetId, clubId: job.clubId, sourceType: 'WORKER' },
+      (ctx) => publishMediaProcessingStarted(ctx, job.retryCount + 1),
+    );
 
     _log(`claimed job ${job.id} for asset ${job.assetId}`);
     await _processJob(job.id, job.assetId, job.clubId, job.retryCount);

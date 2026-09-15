@@ -80,6 +80,17 @@ export {
 } from './producers/players.producer';
 
 export {
+  registerMediaProducer, MEDIA_SOURCE_ID,
+  publishMediaCreated, publishMediaUpdated, publishMediaDeleted,
+  publishMediaUploadStarted, publishMediaUploadCompleted,
+  publishMediaProcessingStarted, publishMediaProcessingCompleted, publishMediaProcessingFailed,
+  bucketSize, bucketDuration,
+  type MediaContext, type MediaFacts, type SizeBucket, type DurationBucket,
+} from './producers/media.producer';
+
+export { withMediaContext } from './producers/media-context';
+
+export {
   registerMedicalProducer, MEDICAL_SOURCE_ID,
   publishInjuryCreated, publishInjuryUpdated, publishInjuryClosed, publishInjuryDeleted,
   publishMedicalRecordCreated, publishMedicalStatusUpdated, publishMedicalAvailabilityChanged,

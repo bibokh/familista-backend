@@ -140,9 +140,19 @@ export interface PulseFrame {
  * dots. The player it concerns is NOT the subject and never becomes one: he is
  * named in the payload, which this projection cannot read. Nor does any figure
  * travel — no fee, no bid, no asking price. See `producers/transfers.producer.ts`.
+ *
+ * A MEDIA_ASSET id identifies a FILE. Without it an upload is four unrelated
+ * dots — a slot opened, bytes confirmed, a worker claiming it, a transcode
+ * finishing — instead of one story, which is the single thing an operator most
+ * wants to follow here. It is not a route to the bytes: the read path still
+ * checks the caller's club against the row's and still signs its own URL, and
+ * no storage key, bucket, manifest or CDN base is on any media event. What the
+ * file CONTAINS, what it is called and what it hashes to never travel; see
+ * `producers/media.producer.ts`.
  */
 const SAFE_SUBJECT_IDS = new Set([
   'CLUB', 'TEAM', 'COMPETITION', 'FIXTURE', 'MATCH', 'TRAINING_SESSION', 'TRANSFER',
+  'MEDIA_ASSET',
   'PLATFORM', 'PLATFORM_SECRET', 'MODEL', 'DATASET',
 ]);
 

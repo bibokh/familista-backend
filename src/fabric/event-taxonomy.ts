@@ -109,9 +109,18 @@ export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   { type: 'transfer.completed',      describes: 'A transfer was concluded',                           classification: 'CONFIDENTIAL', schemaVersion: 1 },
 
   // ── media ─────────────────────────────────────────────────────────────────
-  { type: 'media.created',           describes: 'A media asset was registered and its bytes stored',  classification: 'INTERNAL',     schemaVersion: 1 },
-  { type: 'media.processed',         describes: 'Processing of a media asset finished',               classification: 'INTERNAL',     schemaVersion: 1 },
-  { type: 'media.deleted',           describes: 'A media asset was withdrawn or expired',             classification: 'INTERNAL',     schemaVersion: 1 },
+  // v2. The v1 payload carried a CHECKSUM and a STORAGE PROVIDER; a content
+  // hash is a confirmation oracle and a provider is infrastructure detail, so
+  // the Media producer publishes a narrower shape. The v1 schema stays
+  // registered in `core-schemas.ts` — it is the contract the events already in
+  // the outbox were written against, and a historical contract is not edited.
+  { type: 'media.created',           describes: 'A media asset was registered and its bytes stored',  classification: 'INTERNAL',     schemaVersion: 2 },
+  // Replaced by `media.processing.completed` and `media.processing.failed`,
+  // which say which of the two happened. Never emitted, and the catalogue now
+  // says so rather than implying an event that does not arrive.
+  { type: 'media.processed',         describes: 'Processing of a media asset finished',               classification: 'INTERNAL',     schemaVersion: 1, produced: false },
+  // v2, for the same reason: the v1 payload named the storage provider.
+  { type: 'media.deleted',           describes: 'A media asset was withdrawn or expired',             classification: 'INTERNAL',     schemaVersion: 2 },
 
   // ── devices and capture · not implemented, registered so producers exist ──
   { type: 'device.registered',       describes: 'A device was enrolled to a club',                    classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'DEVICE_STATUS' },
