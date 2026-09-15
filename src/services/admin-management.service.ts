@@ -15,6 +15,7 @@
 //       - InvestorProfile deactivation toggles InvestorProfile.isActive only.
 //       - FranchiseUnit suspend/restore toggles FranchiseUnit.status only.
 
+import { publishUserUpdated } from '../fabric/producers/users.producer';
 import { prisma } from '../lib/prisma';
 import type { Prisma, UserRole, FranchiseStatus, SubscriptionPlan, SubscriptionStatus, KycStatus, FranchiseLevel } from '@prisma/client';
 
@@ -233,6 +234,12 @@ export async function setUserActive(
   await prisma.user.update({ where: { id: userId }, data: { isActive } });
   // Deactivation must bite now, not when the identity cache next expires.
   forgetIdentity(userId);
+  // After the write. The early return above means a call that changes nothing
+  // produces no event.
+  publishUserUpdated(
+    { userId, clubId: before.clubId ?? null, actorUserId: actor.userId ?? null },
+    ['isActive'],
+  );
   await writePlatformAudit({
     adminId: actor.adminId,
     userId: actor.userId,

@@ -20,6 +20,7 @@
 // grows by itself.
 
 import { Prisma, MembershipRole, StaffApproachStatus, StaffAvailability, StaffCareerIntent } from '@prisma/client';
+import { publishUserProfileUpdated } from '../fabric/producers/users.producer';
 import { prisma } from '../config/database';
 import { privateTeamScope } from '../identity/team-access.service';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
@@ -1345,6 +1346,17 @@ export async function upsertProfile(actor: StaffActor, staffUserId: string, dto:
   if (Object.keys(personClean).length) {
     await prisma.user.update({ where: { id: staffUserId }, data: personClean });
     forgetIdentity(staffUserId);
+    // The KEYS of what was written, never the values. `personClean` holds a
+    // person's name and the URL of their portrait; `Object.keys` holds
+    // "firstName", "lastName", "avatar".
+    publishUserProfileUpdated(
+      // The tenant is the club whose staff area the edit was made in, and
+      // `actorUserId` records who made it. A staff member may be a free agent
+      // or belong elsewhere, so their own club is not what this event is
+      // scoped to — the action happened here.
+      { userId: staffUserId, clubId: actor.clubId ?? null, actorUserId: actor.userId },
+      Object.keys(personClean),
+    );
   }
 
   // The contract is the engagement's, not the profile's — a club editing its

@@ -7,6 +7,9 @@
 import {
   Membership, MembershipRole, MembershipAuditAction, MembershipStatus, Prisma,
 } from '@prisma/client';
+import {
+  publishAccessRoleChanged, publishMembershipGranted, publishMembershipRevoked,
+} from '../fabric/producers/users.producer';
 import { prisma } from '../config/database';
 import { NotFoundError, ConflictError, ForbiddenError, BadRequestError } from '../utils/errors';
 import { resolvePlatformAuthority } from '../platform/access-levels';
@@ -117,7 +120,7 @@ export async function grantMembership(
     where: { userId: dto.userId, clubId: actor.clubId, teamId: dto.teamId ?? null, role: dto.role },
   });
 
-  return prisma.$transaction(async (tx) => {
+  const granted = await prisma.$transaction(async (tx) => {
     let membership: Membership;
     let action: MembershipAuditAction;
     let before: Record<string, unknown> | undefined;
@@ -156,8 +159,26 @@ export async function grantMembership(
       },
     });
 
-    return membership;
+    return { membership, reactivated: action === MembershipAuditAction.REACTIVATE };
   });
+
+  // Outside the transaction, after it has committed. Inside it, a later failure
+  // would roll the membership back and leave an event claiming somebody has
+  // access they do not have — which on an access-control event is the worst
+  // kind of thing to be wrong about.
+  publishMembershipGranted(
+    {
+      membershipId: granted.membership.id,
+      clubId: actor.clubId,
+      teamId: granted.membership.teamId ?? null,
+      actorUserId: actor.userId,
+    },
+    granted.membership.role,
+    granted.membership.teamId ? 'TEAM' : 'CLUB',
+    granted.reactivated,
+  );
+
+  return granted.membership;
 }
 
 /**
@@ -251,6 +272,11 @@ export async function revokeMembership(
   const existing = await getMembershipById(id, actor.clubId);
   if (!existing.isActive) return;
   await assertNotLastOwner(actor.clubId, id);
+  // Same reason as `changeRole`: what is being revoked is read before the row
+  // is touched, not after.
+  const revokedRole = existing.role;
+  const revokedScope: 'CLUB' | 'TEAM' = existing.teamId ? 'TEAM' : 'CLUB';
+  const revokedTeamId = existing.teamId ?? null;
 
   await prisma.$transaction(async (tx) => {
     const updated = await tx.membership.update({
@@ -275,6 +301,21 @@ export async function revokeMembership(
   // Outside the transaction on purpose: the membership is already gone, and a
   // failure to clear a session must not roll the revocation back.
   await endClubSession(existing.userId, actor.clubId);
+
+  // The role and the scope, and not the reason. A reason is free text somebody
+  // typed about a person, it is already written to the membership audit log
+  // where it is read under access control, and an observability surface is not
+  // where it belongs.
+  publishMembershipRevoked(
+    {
+      membershipId: id,
+      clubId: actor.clubId,
+      teamId: revokedTeamId,
+      actorUserId: actor.userId,
+    },
+    revokedRole,
+    revokedScope,
+  );
 }
 
 /**
@@ -390,6 +431,11 @@ export async function changeRole(
 ): Promise<Membership> {
   const existing = await getMembershipById(id, actor.clubId);
   if (existing.role === dto.role) return existing;
+  // Captured before the write, by value. Reading `existing.role` after the
+  // transaction would be correct with Prisma, which hands back detached rows —
+  // and silently wrong against any layer that returns the same object it
+  // updated. The previous role is a fact about the past; copy it like one.
+  const previousRole = existing.role;
 
   // Promoting somebody to president is appointing a president, and the same
   // rule applies here as at the invitation: only a sitting president of this
@@ -407,8 +453,8 @@ export async function changeRole(
     await assertNotLastOwner(actor.clubId, id);
   }
 
-  return prisma.$transaction(async (tx) => {
-    const updated = await tx.membership.update({ where: { id }, data: { role: dto.role } });
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.membership.update({ where: { id }, data: { role: dto.role } });
     await tx.membershipAuditLog.create({
       data: {
         membershipId: id,
@@ -416,14 +462,31 @@ export async function changeRole(
         actorUserId:  actor.userId,
         action:       MembershipAuditAction.ROLE_CHANGED,
         before:       snapshot(existing) as Prisma.InputJsonValue,
-        after:        snapshot(updated)  as Prisma.InputJsonValue,
+        after:        snapshot(row)      as Prisma.InputJsonValue,
         reason:       dto.reason,
         ipAddress:    actor.ipAddress ?? undefined,
         userAgent:    actor.userAgent ?? undefined,
       },
     });
-    return updated;
+    return row;
   });
+
+  // The early return above — when the role is already what it is being set to —
+  // never reaches here, so a no-op change produces no event. An access event
+  // that fires when nothing changed is noise in the one log that must not have
+  // any.
+  publishAccessRoleChanged(
+    {
+      membershipId: id,
+      clubId: actor.clubId,
+      teamId: updated.teamId ?? null,
+      actorUserId: actor.userId,
+    },
+    previousRole,
+    updated.role,
+  );
+
+  return updated;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

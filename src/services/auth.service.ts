@@ -11,6 +11,7 @@ import {
   BadRequestError,
 } from '../utils/errors';
 import { logger } from '../utils/logger';
+import { publishUserCreated, publishUserLogin, publishUserLogout } from '../fabric/producers/users.producer';
 import { forgetIdentity } from '../middleware/auth.middleware';
 import { hashPassword, verifyPassword } from '../utils/password';
 
@@ -114,6 +115,15 @@ export async function registerUser(data: {
   const tokens = await issueTokens(user);
   logger.info('User registered', { userId: user.id, clubId: user.clubId });
 
+  // After the account exists and a session was issued, never before. An event
+  // announcing an account that a later failure rolls back is an event that is
+  // wrong about whether the account exists.
+  publishUserCreated(
+    { userId: user.id, clubId: user.clubId, actorUserId: user.id },
+    user.role,
+    false,
+  );
+
   return {
     user: mapAuthUser(user, user.club.name),
     tokens,
@@ -174,6 +184,15 @@ export async function registerInvitedUser(input: {
   // address in every backup of that log.
   logger.info('Invited user registered', { userId: user.id, clubId: user.clubId });
 
+  // `invited: true` is the whole difference, and it is worth recording: an
+  // account created from an invitation took its club and its role from the
+  // invitation rather than from a request body.
+  publishUserCreated(
+    { userId: user.id, clubId: user.clubId, actorUserId: user.id },
+    user.role,
+    true,
+  );
+
   return { user: mapAuthUser(user, user.club.name), tokens };
 }
 
@@ -203,6 +222,10 @@ export async function loginUser(
 
   const tokens = await issueTokens(user);
   logger.info('User logged in', { userId: user.id });
+
+  // Only here. A failed password never reaches this line, so there is no path
+  // on which a refused attempt is recorded as a login.
+  publishUserLogin({ userId: user.id, clubId: user.clubId });
 
   return { user: mapAuthUser(user, user.club.name), tokens };
 }
@@ -236,7 +259,22 @@ export async function refreshTokens(token: string): Promise<TokenPair> {
 // ── Logout ────────────────────────────────────────────────
 
 export async function logoutUser(refreshToken: string): Promise<void> {
+  // Read before the delete, because `deleteMany` returns a count and a count
+  // cannot say whose session ended. One indexed read on a token that is about
+  // to be deleted anyway, and the delete below keeps its existing semantics
+  // exactly — including being a no-op for a token that was never there.
+  const stored = await prisma.refreshToken.findUnique({
+    where: { token: refreshToken },
+    select: { userId: true, user: { select: { clubId: true } } },
+  });
+
   await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
+
+  // A logout of a token that did not exist is not a logout. Presenting an
+  // expired or forged token must not put a `user.logout` on the record.
+  if (stored) {
+    publishUserLogout({ userId: stored.userId, clubId: stored.user?.clubId ?? null });
+  }
 }
 
 // ── Change password ───────────────────────────────────────
