@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
+import { publishAIRequestCreated } from '../fabric/producers/ai.producer';
 
 export interface AutomationActor {
   userId:     string;
@@ -160,7 +161,7 @@ export interface EnqueueAgentJobDto {
 export async function enqueueAgentJob(actor: AutomationActor, dto: EnqueueAgentJobDto): Promise<AIAgentJob> {
   await assertTeamInClub(actor.clubId, dto.teamId ?? null);
   if (!dto.kind || dto.kind.length > 80) throw new BadRequestError('kind must be 1..80 chars');
-  return prisma.aIAgentJob.create({
+  const job = await prisma.aIAgentJob.create({
     data: {
       clubId:      actor.clubId,
       teamId:      dto.teamId ?? null,
@@ -172,6 +173,19 @@ export async function enqueueAgentJob(actor: AutomationActor, dto: EnqueueAgentJ
       triggeredBy: dto.triggeredBy ?? actor.userId,
     },
   });
+
+  // The request was ACCEPTED. Not the input — that is arbitrary JSON the
+  // caller supplied and is the prompt in everything but name — and not the
+  // free-text `kind`. The closed `AIAgent` enum travels, and the job id
+  // becomes the correlation id every later event about this work carries.
+  publishAIRequestCreated(
+    {
+      runId: job.id, clubId: job.clubId, teamId: job.teamId,
+      correlationId: job.id, actorUserId: actor.userId, sourceType: 'USER',
+    },
+    job.agent,
+  );
+  return job;
 }
 
 export async function listAgentJobs(clubId: string, filters: { agent?: AIAgent; status?: AutomationStatus; page?: number; limit?: number } = {}) {

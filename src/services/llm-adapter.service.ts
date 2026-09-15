@@ -20,6 +20,16 @@ export interface LLMRequest {
   // Optional, agent-specific structured context. The adapter does NOT
   // interpret this — it is interpolated into the system prompt by the caller.
   context?:   Record<string, unknown>;
+  /**
+   * Who this invocation is for, for the record only.
+   *
+   * Purely observational: nothing here reaches the provider, changes the
+   * request, or affects what comes back. It exists so the one place every
+   * model call passes through can say which piece of work the call belonged
+   * to — and so no caller has to publish its own model event and risk
+   * publishing the prompt with it.
+   */
+  observe?: { runId: string; clubId?: string | null; correlationId?: string | null };
 }
 
 export interface LLMResponse {
@@ -81,7 +91,11 @@ export async function llmCall(req: LLMRequest): Promise<LLMResponse> {
   const started = new Date();
   const client  = getAnthropic();
 
-  if (!client) return stubResponse(req, started);
+  if (!client) {
+    const stub = stubResponse(req, started);
+    announce(req, { model: stub.model, provider: stub.backend, tokens: stub.tokensIn + stub.tokensOut });
+    return stub;
+  }
 
   const model = req.model || config.anthropic.model || 'claude-sonnet-4-20250514';
   try {
@@ -101,6 +115,8 @@ export async function llmCall(req: LLMRequest): Promise<LLMResponse> {
 
     const costCents = Math.round(((tokensIn * TOKEN_COST.in) + (tokensOut * TOKEN_COST.out)) / 1000 * 100 / 1000);
 
+    announce(req, { model, provider: 'anthropic', tokens: tokensIn + tokensOut });
+
     return {
       text,
       model,
@@ -112,8 +128,43 @@ export async function llmCall(req: LLMRequest): Promise<LLMResponse> {
       finishedAt: new Date(),
     };
   } catch (err) {
+    // The record of a failed invocation is made here, where the call happened,
+    // and carries a CATEGORY rather than the provider's message — which
+    // routinely quotes the request that caused it, and the request is the
+    // prompt. The message itself still bubbles up unchanged.
+    announce(req, { model, provider: 'anthropic', tokens: null, error: err });
     // Bubble up — the worker decides what to do.
     throw err;
+  }
+}
+
+/**
+ * Tell the fabric a model was called. Never the prompt, never the answer.
+ *
+ * THE SINGLE FUNNEL for model invocations: every caller in the platform reaches
+ * a provider through `llmCall`, so publishing here is what makes it exactly one
+ * event per call however many layers sit above it. Silent when the caller did
+ * not ask to be observed, and incapable of failing the call either way —
+ * `publishFabricEventDetached` does not reject, and this cannot throw.
+ */
+function announce(
+  req: LLMRequest,
+  args: { model?: string | null; provider?: string | null; tokens?: number | null; error?: unknown },
+): void {
+  if (!req.observe?.runId) return;
+  try {
+    const { publishAIModelInvoked } = require('../fabric/producers/ai.producer') as typeof import('../fabric/producers/ai.producer');
+    publishAIModelInvoked(
+      {
+        runId: req.observe.runId,
+        clubId: req.observe.clubId ?? null,
+        correlationId: req.observe.correlationId ?? null,
+        sourceType: 'AI',
+      },
+      args,
+    );
+  } catch (err) {
+    logger.warn('[llm] could not record a model invocation', { err: (err as Error)?.message });
   }
 }
 

@@ -21,6 +21,9 @@ import { BadRequestError } from '../utils/errors';
 import { resolveModel } from './ai-model-registry.service';
 import { explain } from './ai-explainability.service';
 import { writeAIAudit } from './ai-audit.service';
+import {
+  publishAIOrchestrationStarted, publishAIOrchestrationCompleted,
+} from '../fabric/producers/ai.producer';
 import type {
   AIActor,
   AISubjectRef,
@@ -175,6 +178,18 @@ export async function orchestrate<F extends FeatureMap>(
 
   const inputHash = hashFeatures(input.domain, input.decisionType, input.subject, input.features);
 
+  // A run id for this orchestration, and the correlation every event about it
+  // carries. Derived from the INPUT HASH the orchestrator already computes —
+  // a digest of features that is never reversed and never accompanied by the
+  // features themselves.
+  const runId = `orc-${inputHash.slice(0, 32)}`;
+  const ctx = {
+    runId, clubId: input.scopeContext?.clubId ?? null,
+    correlationId: runId, actorUserId: actor.userId, sourceType: 'AI' as const,
+  };
+  // The QUESTION, never the features that answer it.
+  publishAIOrchestrationStarted(ctx, input.domain, input.decisionType);
+
   const ttlSec = input.options?.cacheTtlSec;
   if (ttlSec !== undefined && ttlSec > 0) {
     const cached = await fetchCached(input.domain, input.decisionType, inputHash, ttlSec);
@@ -189,6 +204,7 @@ export async function orchestrate<F extends FeatureMap>(
         ipAddress: actor.ipAddress,
         userAgent: actor.userAgent,
       });
+      publishAIOrchestrationCompleted(ctx, input.domain, input.decisionType, true);
       return rowToResult(cached) as DecisionResult<F>;
     }
   }
@@ -207,6 +223,7 @@ export async function orchestrate<F extends FeatureMap>(
   const persist = input.options?.persist !== false;
 
   if (!persist) {
+    publishAIOrchestrationCompleted(ctx, input.domain, input.decisionType, false);
     return {
       id: 'transient',
       domain: input.domain,
@@ -282,6 +299,12 @@ export async function orchestrate<F extends FeatureMap>(
     ipAddress: actor.ipAddress,
     userAgent: actor.userAgent,
   });
+
+  // The decision was produced and persisted. Not the score, not the
+  // confidence, not the urgency, not the rationale, not the alternatives —
+  // all of which are the club's own analysis and are read through the
+  // surfaces that authorise them.
+  publishAIOrchestrationCompleted(ctx, input.domain, input.decisionType, false);
 
   return rowToResult(row) as DecisionResult<F>;
 }

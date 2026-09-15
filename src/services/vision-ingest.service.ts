@@ -37,6 +37,9 @@ import type {
 } from '../utils/vision.validators';
 import type { VisionActor } from '../types/vision.types';
 import { publishMediaCreated, publishMediaUpdated } from '../fabric/producers/media.producer';
+import {
+  publishAIInferenceStarted, publishAIInferenceCompleted, publishAIInferenceFailed,
+} from '../fabric/producers/ai.producer';
 import { withMediaContext } from '../fabric/producers/media-context';
 
 const STAGE_TRANSITIONS: Record<IngestStage, ReadonlyArray<IngestStage>> = {
@@ -306,6 +309,19 @@ export async function startIngest(
     userAgent: actor.userAgent,
   });
 
+  // The AI half of this video's life begins. The MEDIA half — uploaded,
+  // transcoded, ready — is published under `source = media` and is not
+  // repeated here. The provider CATEGORY travels; the external job id does
+  // not, because it is a handle on somebody else's system, and neither does
+  // the video's URL.
+  publishAIInferenceStarted(
+    {
+      runId: result.job.id, clubId: video.clubId ?? null,
+      correlationId: result.job.id, actorUserId: actor.userId, sourceType: 'AI',
+    },
+    input.provider ?? adapter.kind,
+  );
+
   return result;
 }
 
@@ -340,6 +356,24 @@ export async function transitionIngest(
       finishedAt: input.stage === 'COMPLETED' || input.stage === 'FAILED' ? new Date() : existing.finishedAt,
     },
   });
+
+  // Only the TERMINAL stages are events, and only when the job was not already
+  // there: `assertStageTransition` permits the intermediate stages to be
+  // reported repeatedly, and a progress update is not a completion. Guarded on
+  // the PREVIOUS status, so a second report of the same terminal stage
+  // publishes nothing.
+  if (existing.status !== status) {
+    const ctx = {
+      runId: jobId, correlationId: jobId,
+      actorUserId: actor?.userId ?? null, sourceType: 'AI' as const,
+    };
+    if (status === 'COMPLETED') publishAIInferenceCompleted(ctx, existing.inferenceProvider);
+    // The `error` text is on the row and does not travel — a provider's
+    // message can quote the media it failed on.
+    else if (status === 'FAILED') {
+      publishAIInferenceFailed(ctx, existing.inferenceProvider, { message: input.error ?? '' });
+    }
+  }
 
   await writeVisionAudit({
     videoAssetId: existing.videoAssetId,
@@ -506,6 +540,19 @@ export async function failIngest(
     where: { id: jobId },
     data: { stage: 'FAILED', status: 'FAILED', error, finishedAt: new Date() },
   });
+
+  // Guarded the same way, so a job failed through `transitionIngest` and then
+  // again here records one failure rather than two.
+  if (existing.status !== 'FAILED') {
+    publishAIInferenceFailed(
+      {
+        runId: jobId, correlationId: jobId,
+        actorUserId: actor?.userId ?? null, sourceType: 'AI',
+      },
+      existing.inferenceProvider,
+      { message: error },
+    );
+  }
 
   await writeVisionAudit({
     videoAssetId: existing.videoAssetId,
