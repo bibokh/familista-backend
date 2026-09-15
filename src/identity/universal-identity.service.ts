@@ -9,6 +9,8 @@ import { AthleteIdentityLink, AthleteMedicalHistory, AthletePerformanceHistory, 
 import { prisma } from '../config/database';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
+import { publishMedicalRecordCreated } from '../fabric/producers/medical.producer';
+import { withAthleteMedicalContext } from '../fabric/producers/medical-context';
 
 export interface IdentityActor {
   userId: string;
@@ -124,7 +126,7 @@ export async function recordMedical(actor: IdentityActor, athleteId: string, rec
     throw new ForbiddenError('Insufficient role for medical history');
   }
   const payloadHash = createHash('sha256').update(JSON.stringify(plainPayload ?? null)).digest('hex');
-  return prisma.athleteMedicalHistory.create({
+  const row = await prisma.athleteMedicalHistory.create({
     data: {
       athleteId,
       recordKind,
@@ -132,6 +134,16 @@ export async function recordMedical(actor: IdentityActor, athleteId: string, rec
       payload: anonymisedPayload,
     },
   });
+
+  // After the write, and carrying nothing of what was written. Not the payload,
+  // not the k-anonymised payload, not the hash — a hash of a plain medical
+  // payload is a confirmation oracle for anyone who can guess it — and not
+  // `recordKind`, because "SURGERY" is a medical history in one word.
+  withAthleteMedicalContext(
+    { athleteId, clubId: actor.clubId, actorUserId: actor.userId },
+    (ctx) => publishMedicalRecordCreated(ctx, row.id),
+  );
+  return row;
 }
 
 export async function listMedical(actor: IdentityActor, athleteId: string, recordKind?: string): Promise<AthleteMedicalHistory[]> {

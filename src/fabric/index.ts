@@ -80,6 +80,16 @@ export {
 } from './producers/players.producer';
 
 export {
+  registerMedicalProducer, MEDICAL_SOURCE_ID,
+  publishInjuryCreated, publishInjuryUpdated, publishInjuryClosed, publishInjuryDeleted,
+  publishMedicalRecordCreated, publishMedicalStatusUpdated, publishMedicalAvailabilityChanged,
+  injuryContextOf, availableForSelection,
+  type MedicalContext,
+} from './producers/medical.producer';
+
+export { withMedicalContext, withAthleteMedicalContext } from './producers/medical-context';
+
+export {
   registerTransfersProducer, TRANSFERS_SOURCE_ID,
   publishTransferListed, publishTransferListingUpdated, publishTransferListingWithdrawn,
   publishTransferOffer, publishTransferBidPlaced,

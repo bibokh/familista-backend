@@ -38,13 +38,43 @@
 // still drawn. The event happened; the fact that the subject has since gone is
 // not a reason to hide it, and inventing a placeholder name would be a
 // fabrication.
+//
+// AND ONE KIND OF EVENT IS NEVER NAMED
+//
+// A name plus an event type is a sentence. For a squad update that sentence is
+// "somebody edited this player", which is what the screen is for. For a medical
+// event it is "this named person, who is frequently a child, has an injury
+// record" — a health disclosure about an identifiable individual, on an
+// operations board, assembled out of two fields that are each harmless alone.
+//
+// So a frame whose event belongs to the MEDICAL source is never given a subject
+// name, and its player row is never read in the first place. The medical
+// producer already withholds the diagnosis, the body part, the status value and
+// the field names; a label resolved here would have walked round all of it.
 
 import { prisma } from '../../config/database';
 import { logger } from '../../utils/logger';
+import { fabricEvent } from '../registry/event-registry';
 import type { PulseFrame } from './pulse.service';
 
 /** Subject kinds this module knows how to name. */
 const NAMEABLE = new Set(['PLAYER', 'CLUB', 'TEAM']);
+
+/** The source whose subjects are never named. See the note above. */
+const UNNAMEABLE_SOURCE = 'medical';
+
+/**
+ * May this frame's subject be given a name?
+ *
+ * By the event's registered SOURCE, not by its classification: `player.profile.
+ * updated` is RESTRICTED too and has always been named, and silently changing
+ * what the board draws for it is not this rule's job. An unregistered name has
+ * no source, so it is nameable — the medical producer registers every type it
+ * publishes, and a type nothing registered is not a medical event.
+ */
+function nameable(frame: PulseFrame): boolean {
+  return fabricEvent(String(frame?.eventType ?? ''))?.source !== UNNAMEABLE_SOURCE;
+}
 
 /** The most subjects one page may resolve. A page is already bounded above. */
 const MAX_LOOKUP = 200;
@@ -69,7 +99,7 @@ export async function resolveSubjects(frames: PulseFrame[]): Promise<void> {
     // Only PLAYER subjects carry an id worth resolving, and only because the
     // projection deliberately withholds that id from the wire — it is used
     // here, server-side, and does not travel.
-    const playerIds = unique(frames.map((f) => (f.subjectType === 'PLAYER' ? f.resolveId : null)));
+    const playerIds = unique(frames.map((f) => (f.subjectType === 'PLAYER' && nameable(f) ? f.resolveId : null)));
     const teamIds = unique(frames.map((f) => (f.subjectType === 'TEAM' ? f.resolveId : null)));
 
     const [clubs, players, teams] = await Promise.all([
@@ -96,7 +126,7 @@ export async function resolveSubjects(frames: PulseFrame[]): Promise<void> {
 
     for (const frame of frames) {
       frame.clubLabel = (frame.clubId && clubName.get(frame.clubId)) || null;
-      if (frame.subjectType === 'PLAYER' && frame.resolveId) {
+      if (frame.subjectType === 'PLAYER' && frame.resolveId && nameable(frame)) {
         frame.subjectLabel = playerName.get(frame.resolveId) ?? null;
       } else if (frame.subjectType === 'TEAM' && frame.resolveId) {
         frame.subjectLabel = teamName.get(frame.resolveId) ?? null;

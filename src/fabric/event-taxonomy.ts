@@ -90,8 +90,14 @@ export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   { type: 'match.completed',         describes: 'A match finished',                                   classification: 'INTERNAL',     schemaVersion: 1 },
 
   // ── medical ───────────────────────────────────────────────────────────────
-  { type: 'medical.injury.created',  describes: 'An injury was recorded for a player',                classification: 'RESTRICTED',   schemaVersion: 1 },
-  { type: 'medical.injury.resolved', describes: 'A player was cleared from an injury',                classification: 'RESTRICTED',   schemaVersion: 1 },
+  // Both predate the Medical producer, which publishes the injury lifecycle as
+  // `injury.created`, `injury.updated` and `injury.closed` — one family, under
+  // the `injury` domain the Medical source already declares. Neither of these
+  // has ever been emitted. Kept registered, because a name that shipped is a
+  // published contract; marked unproduced, so the catalogue does not imply an
+  // event that never arrives.
+  { type: 'medical.injury.created',  describes: 'An injury was recorded for a player',                classification: 'RESTRICTED',   schemaVersion: 1, produced: false },
+  { type: 'medical.injury.resolved', describes: 'A player was cleared from an injury',                classification: 'RESTRICTED',   schemaVersion: 1, produced: false },
 
   // ── recruitment ───────────────────────────────────────────────────────────
   // `transfer.offered` predates the Transfers producer, which publishes the

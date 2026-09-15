@@ -18,6 +18,11 @@ import { Prisma, GPSTrackingSession, WorkloadRecord, InjuryRecord } from '@prism
 import { prisma } from '../config/database';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
+import {
+  publishInjuryCreated, publishInjuryUpdated, publishInjuryClosed, publishInjuryDeleted,
+  injuryContextOf,
+} from '../fabric/producers/medical.producer';
+import { withMedicalContext } from '../fabric/producers/medical-context';
 
 export interface WorkloadActor {
   userId: string;
@@ -58,7 +63,13 @@ export async function ingestGPSSession(actor: WorkloadActor, dto: GPSSessionDto)
   if (!dto.playerId || !dto.startedAt || dto.totalDistanceM === undefined)
     throw new BadRequestError('playerId + startedAt + totalDistanceM required');
 
-  const player = await prisma.player.findUnique({ where: { id: dto.playerId }, select: { clubId: true } });
+  const player = await prisma.player.findUnique({
+    where: { id: dto.playerId },
+    // `team.kind` rides along on a read this function already made, so the
+    // medical event costs no extra query. The name, the date of birth and the
+    // medical status are not selected and cannot arrive here by accident.
+    select: { clubId: true, team: { select: { kind: true } } },
+  });
   if (!player) throw new NotFoundError('Player');
   if (player.clubId !== actor.clubId && actor.role !== 'SUPER_ADMIN') throw new ForbiddenError();
 
@@ -279,7 +290,13 @@ export async function recordInjury(actor: WorkloadActor, dto: CreateInjuryDto): 
   if (!dto.playerId || !dto.injuryDate || !dto.bodyLocation)
     throw new BadRequestError('playerId + injuryDate + bodyLocation required');
 
-  const player = await prisma.player.findUnique({ where: { id: dto.playerId }, select: { clubId: true } });
+  const player = await prisma.player.findUnique({
+    where: { id: dto.playerId },
+    // `team.kind` rides along on a read this function already made, so the
+    // medical event costs no extra query. The name, the date of birth and the
+    // medical status are not selected and cannot arrive here by accident.
+    select: { clubId: true, team: { select: { kind: true } } },
+  });
   if (!player) throw new NotFoundError('Player');
   if (player.clubId !== actor.clubId && actor.role !== 'SUPER_ADMIN') throw new ForbiddenError();
 
@@ -313,6 +330,14 @@ export async function recordInjury(actor: WorkloadActor, dto: CreateInjuryDto): 
     entityType: 'InjuryRecord', entityId: row.id,
     payload: { playerId: dto.playerId, bodyLocation: dto.bodyLocation, severity: dto.severity ?? null, acwrAtInjury: workload?.acwr ?? null },
   });
+
+  // After the write, and carrying none of it. The audit row above holds the
+  // body location and the severity because an audit trail is read under
+  // authorisation; the fabric event holds neither.
+  withMedicalContext(
+    { playerId: dto.playerId, clubId: row.clubId, actorUserId: actor.userId, teamKind: player.team?.kind ?? null },
+    (ctx) => publishInjuryCreated(ctx, row.id, injuryContextOf(dto.matchId, dto.trainingId)),
+  );
   return row;
 }
 
@@ -325,10 +350,19 @@ export async function updateInjuryReturn(actor: WorkloadActor, id: string, retur
   const rd   = new Date(returnDate);
   if (Number.isNaN(rd.getTime())) throw new BadRequestError('returnDate must be a valid ISO date string');
   const days = Math.round((rd.getTime() - row.injuryDate.getTime()) / (24 * 60 * 60_000));
-  return prisma.injuryRecord.update({
+  const updated = await prisma.injuryRecord.update({
     where: { id },
     data: { returnDate: rd, daysAbsent: days, updatedAt: new Date() },
   });
+
+  // An amendment, and — when the record had no return date before — the
+  // closure of it. Two facts about one commit, each published once. Neither
+  // carries the date, and neither carries how long he was out.
+  withMedicalContext({ playerId: row.playerId, clubId: row.clubId, actorUserId: actor.userId }, (ctx) => {
+    publishInjuryUpdated(ctx, id, 1);
+    if (!row.returnDate) publishInjuryClosed(ctx, id);
+  });
+  return updated;
 }
 
 export async function getInjuryById(actor: WorkloadActor, id: string): Promise<InjuryRecord & { player: { id: string; firstName: string; lastName: string; number: number | null; position: string | null } }> {
@@ -380,7 +414,20 @@ export async function updateInjury(actor: WorkloadActor, id: string, dto: Update
     }
   }
 
-  return prisma.injuryRecord.update({ where: { id }, data: data as Prisma.InjuryRecordUpdateInput });
+  const updated = await prisma.injuryRecord.update({ where: { id }, data: data as Prisma.InjuryRecordUpdateInput });
+
+  // `updatedAt` is bookkeeping and is not something the caller changed, so it
+  // does not count. A COUNT is all that travels — which fields moved is the
+  // difference between "a record was amended" and a clinical hint.
+  const touched = Object.keys(data).filter((k) => k !== 'updatedAt').length;
+  withMedicalContext({ playerId: row.playerId, clubId: row.clubId, actorUserId: actor.userId }, (ctx) => {
+    publishInjuryUpdated(ctx, id, touched);
+    // Closed only when a record that had no return date now has one. Clearing
+    // one REOPENS the injury and closes nothing, so it publishes the
+    // amendment alone.
+    if (!row.returnDate && data.returnDate) publishInjuryClosed(ctx, id);
+  });
+  return updated;
 }
 
 export async function deleteInjury(actor: WorkloadActor, id: string): Promise<void> {
@@ -388,6 +435,13 @@ export async function deleteInjury(actor: WorkloadActor, id: string): Promise<vo
   if (!row) throw new NotFoundError('InjuryRecord');
   if (row.clubId !== actor.clubId && actor.role !== 'SUPER_ADMIN') throw new ForbiddenError();
   await prisma.injuryRecord.delete({ where: { id } });
+
+  // A medical record being destroyed is the event an audit trail most needs,
+  // and the one a system most easily forgets to record.
+  withMedicalContext(
+    { playerId: row.playerId, clubId: row.clubId, actorUserId: actor.userId },
+    (ctx) => publishInjuryDeleted(ctx, id),
+  );
 }
 
 // Bug fixed: added include: { player } so callers don't need a separate player lookup.
