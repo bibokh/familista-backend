@@ -47,7 +47,11 @@ const SECRETS = {
   competitionName: 'Sheffield & District Youth Association Cup',
 };
 
-const state = { matches: [] as Row[], teams: [] as Row[], players: [] as Row[], lineups: [] as Row[], fixtures: [] as Row[], audit: [] as Row[], events: [] as Row[] };
+const state = {
+  matches: [] as Row[], teams: [] as Row[], players: [] as Row[], lineups: [] as Row[],
+  fixtures: [] as Row[], competitions: [] as Row[], sessions: [] as Row[],
+  audit: [] as Row[], events: [] as Row[],
+};
 
 const match = (row: Row, where: Row = {}): boolean =>
   Object.entries(where).every(([k, v]) => {
@@ -58,7 +62,18 @@ const match = (row: Row, where: Row = {}): boolean =>
     return row[k] === v;
   });
 
-const copy = <T>(row: T): T => (row == null ? row : JSON.parse(JSON.stringify(row)) as T);
+/**
+ * Detach a row, the way Prisma does.
+ *
+ * BigInt-aware: match events carry them, and `JSON.stringify` refuses one
+ * outright rather than coercing it.
+ */
+const copy = <T>(row: T): T => {
+  if (row == null) return row;
+  return JSON.parse(
+    JSON.stringify(row, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)),
+  ) as T;
+};
 
 const db: Row = {
   match: {
@@ -79,9 +94,34 @@ const db: Row = {
       return i >= 0 ? copy(state.matches.splice(i, 1)[0]) : null;
     },
   },
-  team: { findUnique: async ({ where }: Row) => copy(state.teams.find((t) => t.id === where.id) ?? null) },
+  team: {
+    findUnique: async ({ where }: Row) => copy(state.teams.find((t) => t.id === where.id) ?? null),
+    findMany: async ({ where = {} }: Row = {}) => copy(
+      state.teams.filter((t) => match(t, where)).map((t) => ({ ...t, name: t.name ?? 'Team', club: { name: 'FC Familista' } })),
+    ),
+  },
+  competition: {
+    findFirst: async ({ where = {} }: Row = {}) => copy(state.competitions.find((c) => match(c, where)) ?? null),
+    findUnique: async ({ where }: Row) => copy(state.competitions.find((c) => c.id === where.id) ?? null),
+  },
+  dataProviderSession: {
+    create: async ({ data }: Row) => { const row = { id: 'sess-1', ...data }; state.sessions.push(row); return copy(row); },
+    update: async ({ where, data }: Row) => {
+      const x = state.sessions.find((r) => r.id === where.id)!; Object.assign(x, data); return copy(x);
+    },
+  },
   fixture: {
-    findFirst: async ({ where = {} }: Row = {}) => copy(state.fixtures.find((f) => match(f, where)) ?? null),
+    findFirst: async ({ where = {}, select }: Row = {}) => {
+      const f = state.fixtures.find((x) => match(x, where));
+      if (!f) return null;
+      // Honour the `competition: { select: { code } }` join the context makes.
+      if (select?.competition) {
+        const comp = state.competitions.find((c) => c.id === f.competitionId);
+        return copy({ ...f, competition: comp ? { code: comp.code } : null });
+      }
+      return copy(f);
+    },
+    findMany: async ({ where = {} }: Row = {}) => copy(state.fixtures.filter((f) => match(f, where))),
     findUnique: async ({ where }: Row) => copy(state.fixtures.find((f) => f.id === where.id) ?? null),
     update: async ({ where, data }: Row) => {
       const f = state.fixtures.find((x) => x.id === where.id)!;
@@ -106,16 +146,30 @@ const db: Row = {
   },
   matchEvent: {
     create: async ({ data }: Row) => { state.events.push(data); return copy(data); },
+    update: async ({ where, data }: Row) => {
+      const e = state.events.find((x) => x.id === where.id) ?? {};
+      Object.assign(e, data); return copy(e);
+    },
     upsert: async ({ create }: Row) => { state.events.push(create); return copy(create); },
+    findFirst: async ({ where = {} }: Row = {}) => copy(state.events.find((e) => match(e, where)) ?? null),
     findMany: async () => [],
   },
   matchAuditLog: { create: async ({ data }: Row) => { state.audit.push(data); return data; }, findMany: async () => [], count: async () => 0 },
+  // The stats worker's queue and the platform audit trail. Both are
+  // fire-and-forget from the code under test; they need to exist, not to work.
+  eventOutbox: { create: async ({ data }: Row) => data, findMany: async () => [] },
+  platformAuditEvent: { create: async ({ data }: Row) => data },
+  auditEvent: { create: async ({ data }: Row) => data },
   $transaction: async (arg: any) => (typeof arg === 'function' ? arg(db) : Promise.all(arg)),
 };
 
 jest.mock('../src/config/database', () => ({ prisma: db }));
 jest.mock('../src/realtime/match-channel', () => ({ publish: () => {} }));
+// Keep the REAL League administration — `ensureFixtureMatches` is under test
+// below — and stub only the sync the match funnel calls back into, which would
+// otherwise rebuild a standings table on every update.
 jest.mock('../src/competition/familista-league.admin.service', () => ({
+  ...jest.requireActual('../src/competition/familista-league.admin.service'),
   syncMatchToLeague: async () => ({ competitionId: null }),
 }));
 
@@ -168,6 +222,8 @@ beforeEach(() => {
     periodNow: null, liveMinute: null, playedAt: null,
   }];
   state.fixtures = [];
+  state.competitions = [];
+  state.sessions = [];
   state.lineups = [];
   state.audit = [];
   state.events = [];
@@ -196,7 +252,9 @@ describe('every helper delegating to updateMatch publishes exactly once', () => 
 
     expect(types()).toEqual(['match.created']);
     const e = one('match.created');
-    expect(e.payload).toEqual({ teamKind: 'ACADEMY_U17', competition: 'FRIENDLY', competitionId: null });
+    expect(e.payload).toEqual({
+      teamKind: 'ACADEMY_U17', competition: 'FRIENDLY', competitionId: null, competitionCode: null,
+    });
     expect(e.subjectType).toBe('MATCH');
   });
 
@@ -205,7 +263,8 @@ describe('every helper delegating to updateMatch publishes exactly once', () => 
     await settle();
     expect(types()).toEqual(['match.updated']);
     expect(one('match.updated').payload).toEqual({
-      changedFields: ['homeTeam'], teamKind: 'SENIOR', competition: 'LEAGUE', competitionId: null,
+      changedFields: ['homeTeam'], teamKind: 'SENIOR', competition: 'LEAGUE',
+      competitionId: null, competitionCode: null,
     });
   });
 
@@ -258,7 +317,8 @@ describe('every helper delegating to updateMatch publishes exactly once', () => 
     const e = one('match.venue.changed');
     expect(e.dataClassification).toBe('RESTRICTED');
     expect(e.payload).toEqual({
-      route: 'EDIT', teamKind: 'SENIOR', competition: 'LEAGUE', competitionId: null,
+      route: 'EDIT', teamKind: 'SENIOR', competition: 'LEAGUE',
+      competitionId: null, competitionCode: null,
     });
   });
 
@@ -417,7 +477,8 @@ describe('lineups and match events carry counts, not people', () => {
     expect(types()).toEqual(['match.lineup.updated']);
     const e = one('match.lineup.updated');
     expect(e.payload).toEqual({
-      side: 'HOME', players: 2, teamKind: 'SENIOR', competition: 'LEAGUE', competitionId: null,
+      side: 'HOME', players: 2, teamKind: 'SENIOR', competition: 'LEAGUE',
+      competitionId: null, competitionCode: null,
     });
     // The notes were written to the lineup and reached no event.
     expect(state.lineups[0].notes).toBe(SECRETS.lineupNotes);
@@ -494,11 +555,13 @@ describe('no match secret reaches the fabric or the board', () => {
     }
     // Strict, so smuggling a venue or a scorer onto an event is caught.
     expect(validateEventPayload('match.venue.changed', 1, {
-      route: 'EDIT', teamKind: null, competition: null, competitionId: null, to: SECRETS.newVenue,
+      route: 'EDIT', teamKind: null, competition: null, competitionId: null,
+      competitionCode: null, to: SECRETS.newVenue,
     }).ok).toBe(false);
     expect(validateEventPayload('match.event.recorded', 1, {
       kind: 'GOAL', period: 2, source: 'MANUAL', events: 1,
-      teamKind: null, competition: null, competitionId: null, player: 'Tomás',
+      teamKind: null, competition: null, competitionId: null, competitionCode: null,
+      player: 'Tomás',
     }).ok).toBe(false);
   });
 });
@@ -527,6 +590,7 @@ describe('one source, four contexts', () => {
 
   it('carries the Familista League competition id when played as a fixture', async () => {
     state.fixtures.push({ id: 'f-1', matchId: MATCH, competitionId: COMP });
+    state.competitions.push({ id: COMP, clubId: null, code: 'FL-1', name: 'Familista League', season: '2026' });
     await matches.updateMatch(ACTOR_CTX, MATCH, { homeTeam: 'A' } as never);
     await settle();
     expect((published[0].payload as Row).competitionId).toBe(COMP);
@@ -547,6 +611,7 @@ describe('one source, four contexts', () => {
 
   it('every event carries the full context, whatever it is', async () => {
     state.fixtures.push({ id: 'f-1', matchId: MATCH, competitionId: COMP });
+    state.competitions.push({ id: COMP, clubId: null, code: 'FL-1', name: 'Familista League', season: '2026' });
     state.matches[0].status = 'LIVE';
     await matches.finalize(ACTOR_CTX, MATCH, 1, 0);
     await settle();
@@ -554,8 +619,8 @@ describe('one source, four contexts', () => {
     expect(published.length).toBe(4);
     for (const e of published) {
       const p = e.payload as Row;
-      expect(`${e.eventType} ctx: ${p.teamKind}/${p.competition}/${p.competitionId}`)
-        .toBe(`${e.eventType} ctx: SENIOR/LEAGUE/${COMP}`);
+      expect(`${e.eventType} ctx: ${p.teamKind}/${p.competition}/${p.competitionId}/${p.competitionCode}`)
+        .toBe(`${e.eventType} ctx: SENIOR/LEAGUE/${COMP}/FL-1`);
     }
   });
 });
@@ -591,7 +656,10 @@ describe('observability cannot break a Matches operation', () => {
     const { publishFabricEvent } = require('../src/fabric/registry/publisher');
     const result = await publishFabricEvent({
       eventType: 'match.lineup.updated',
-      payload: { side: 'HOME', players: 11, teamKind: null, competition: null, competitionId: null, notes: SECRETS.lineupNotes },
+      payload: {
+        side: 'HOME', players: 11, teamKind: null, competition: null,
+        competitionId: null, competitionCode: null, notes: SECRETS.lineupNotes,
+      },
     });
     expect(result.schema.ok).toBe(false);
     expect(result.quarantined).toBe(true);
@@ -647,13 +715,14 @@ describe('Live Data Flow recognises the Matches types automatically', () => {
     }
   });
 
-  it('registers all twelve types under the matches source', () => {
+  it('registers all fourteen types under the matches source', () => {
     const all = fabricEventsForSource('matches').map((e) => e.type);
     for (const t of [
       'match.created', 'match.updated', 'match.deleted', 'match.started',
       'match.completed', 'match.cancelled', 'match.status.changed',
       'match.time.changed', 'match.venue.changed', 'match.lineup.updated',
       'match.result.updated', 'match.event.recorded',
+      'match.fixtures.generated', 'match.events.batch.ingested',
     ]) {
       expect(`${t} registered: ${isRegisteredEventType(t)}`).toBe(`${t} registered: true`);
       expect(`${t} under matches: ${all.includes(t)}`).toBe(`${t} under matches: true`);
@@ -664,5 +733,213 @@ describe('Live Data Flow recognises the Matches types automatically', () => {
   it('keeps the legacy MATCH_EVENT bridge intact', () => {
     const { canonicalNameForLegacyKind } = require('../src/fabric/registry/event-registry');
     expect(canonicalNameForLegacyKind('MATCH_EVENT')).toBe('match.event.recorded');
+  });
+});
+
+// ── the two aggregates, and the competition's identity ───────────────────────
+
+describe('bulk work produces one event, not hundreds', () => {
+  const admin = () => require('../src/competition/familista-league.admin.service');
+
+  beforeEach(() => {
+    state.competitions.push({
+      id: COMP, clubId: null, code: 'FL-1', season: '2026',
+      // Free text, deliberately planted: it must not reach an event.
+      name: SECRETS.competitionName,
+    });
+  });
+
+  it('ensureFixtureMatches publishes ONE aggregate for a whole round-robin', async () => {
+    // Twenty fixtures. One event, not twenty — and a count of what was made.
+    for (let i = 0; i < 20; i += 1) {
+      state.fixtures.push({
+        id: `f-${i}`, competitionId: COMP, matchId: null,
+        homeTeamId: SENIOR_TEAM, awayTeamId: ACADEMY_TEAM,
+        scheduledAt: new Date('2026-11-01T15:00:00Z'), venue: SECRETS.venue, round: 1,
+      });
+    }
+    const created = await admin().ensureFixtureMatches(COMP);
+    await settle();
+
+    expect(created).toBe(20);
+    expect(state.matches.length).toBe(21); // the seeded one, plus twenty
+    expect(types()).toEqual(['match.fixtures.generated']);
+
+    const e = one('match.fixtures.generated');
+    expect(e.payload).toEqual({
+      generatedCount: 20,
+      teamKind: null,
+      competition: 'LEAGUE',
+      competitionId: COMP,
+      competitionCode: 'FL-1',
+    });
+    // The subject is the competition, and the platform league has no owning club.
+    expect(e.subjectType).toBe('COMPETITION');
+    expect(e.subjectId).toBe(COMP);
+    expect(e.clubId).toBeNull();
+  });
+
+  it('generating nothing announces nothing', async () => {
+    const created = await admin().ensureFixtureMatches(COMP);
+    await settle();
+    expect(created).toBe(0);
+    expect(published).toHaveLength(0);
+  });
+
+  it('carries no competition NAME, only its code and type', async () => {
+    state.fixtures.push({
+      id: 'f-0', competitionId: COMP, matchId: null,
+      homeTeamId: SENIOR_TEAM, awayTeamId: ACADEMY_TEAM,
+      scheduledAt: new Date('2026-11-01T15:00:00Z'), venue: SECRETS.venue, round: 1,
+    });
+    await admin().ensureFixtureMatches(COMP);
+    await settle();
+
+    const wire = JSON.stringify(published);
+    expect(wire).not.toContain(SECRETS.competitionName);
+    expect(wire).not.toContain('Association');
+    // And no venue, even though every generated fixture had one.
+    expect(wire).not.toContain(SECRETS.venue);
+  });
+
+  it('the competition id may travel, because a competition is not a person', async () => {
+    state.fixtures.push({
+      id: 'f-0', competitionId: COMP, matchId: null,
+      homeTeamId: SENIOR_TEAM, awayTeamId: ACADEMY_TEAM,
+      scheduledAt: new Date('2026-11-01T15:00:00Z'), venue: null, round: 1,
+    });
+    await admin().ensureFixtureMatches(COMP);
+    await settle();
+    expect(project(published[0]).subjectId).toBe(COMP);
+  });
+});
+
+describe('a provider batch produces one event, not five thousand', () => {
+  const feed = () => require('../src/match-events/match-event.service');
+
+  const batch = (n: number) => Array.from({ length: n }, (_, i) => ({
+    type: 'GOAL', periodIndex: 2, minute: 50 + i,
+    externalId: `ext-${i}`, dataSource: 'OPTA',
+    // Planted: a provider payload names the scorer, and none of it travels.
+    description: SECRETS.eventDescription, playerId: 'p-1',
+  }));
+
+  it('publishes ONE aggregate with four honest counts', async () => {
+    const result = await feed().batchIngestEvents(ACTOR_CTX, MATCH, batch(120), 'OPTA');
+    await settle();
+
+    expect(result.created + result.updated).toBe(120);
+    expect(types()).toEqual(['match.events.batch.ingested']);
+
+    const e = one('match.events.batch.ingested');
+    expect(e.payload).toMatchObject({
+      provider: 'OPTA',
+      receivedCount: 120,
+      acceptedCount: 120,
+      rejectedCount: 0,
+      status: 'COMPLETE',
+    });
+    expect(e.subjectType).toBe('MATCH');
+    expect(e.subjectId).toBe(MATCH);
+  });
+
+  it('carries no provider payload — no scorer, no description', async () => {
+    await feed().batchIngestEvents(ACTOR_CTX, MATCH, batch(30), 'OPTA');
+    await settle();
+
+    const wire = JSON.stringify(published);
+    expect(wire).not.toContain(SECRETS.eventDescription);
+    expect(wire).not.toContain('Müller');
+    expect(wire).not.toContain('p-1');
+    // And the frame carries none of it either.
+    expect(JSON.stringify(project(published[0]))).not.toContain('Müller');
+  });
+
+  it('an empty batch does no work and says nothing', async () => {
+    const result = await feed().batchIngestEvents(ACTOR_CTX, MATCH, [], 'OPTA');
+    await settle();
+    expect(result).toEqual({ created: 0, updated: 0, rejected: 0, errors: [] });
+    expect(published).toHaveLength(0);
+  });
+
+  it('a batch for another club’s match publishes nothing', async () => {
+    state.matches.push({
+      id: 'm-other', clubId: OTHER_CLUB, teamId: null, status: 'SCHEDULED',
+      scheduledAt: new Date(), venue: null, competition: 'LEAGUE',
+      homeScore: null, awayScore: null, result: null,
+    });
+    await expect(feed().batchIngestEvents(ACTOR_CTX, 'm-other', batch(5), 'OPTA'))
+      .rejects.toBeDefined();
+    await settle();
+    expect(published).toHaveLength(0);
+  });
+
+  it('a batch over the cap is refused and publishes nothing', async () => {
+    await expect(feed().batchIngestEvents(ACTOR_CTX, MATCH, batch(5001), 'OPTA'))
+      .rejects.toBeDefined();
+    await settle();
+    expect(published).toHaveLength(0);
+  });
+
+  it('the single-event path still publishes per event — the cap is for batches', async () => {
+    await feed().recordEvent(ACTOR_CTX, {
+      matchId: MATCH, type: 'GOAL', periodIndex: 2, minute: 51,
+      description: SECRETS.eventDescription,
+    } as never);
+    await settle();
+
+    expect(types()).toEqual(['match.event.recorded']);
+    expect(one('match.event.recorded').payload).toMatchObject({
+      kind: 'GOAL', period: 2, source: 'MANUAL', events: 1,
+    });
+    expect(JSON.stringify(published)).not.toContain(SECRETS.eventDescription);
+  });
+});
+
+describe('competition identity is a code or a type, never a typed name', () => {
+  it('carries the registered code when the match is played as a fixture', async () => {
+    state.competitions.push({ id: COMP, clubId: null, code: 'FL-1', season: '2026', name: SECRETS.competitionName });
+    state.fixtures.push({ id: 'f-1', matchId: MATCH, competitionId: COMP });
+
+    await matches.updateMatch(ACTOR_CTX, MATCH, { homeTeam: 'A' } as never);
+    await settle();
+
+    const p = published[0].payload as Row;
+    expect(p.competitionId).toBe(COMP);
+    expect(p.competitionCode).toBe('FL-1');
+    expect(p.competition).toBe('LEAGUE');
+  });
+
+  it('falls back to the generic TYPE for a competition that is only free text', async () => {
+    // A club cup with a name somebody typed and no registered competition row.
+    state.matches[0].competition = 'CUP';
+    state.matches[0].competitionName = SECRETS.competitionName;
+
+    await matches.updateMatch(ACTOR_CTX, MATCH, { homeTeam: 'A' } as never);
+    await settle();
+
+    const p = published[0].payload as Row;
+    expect(p.competition).toBe('CUP');
+    // No id, no code — and above all no name. Nothing is invented or
+    // normalised to fill the gap.
+    expect(p.competitionId).toBeNull();
+    expect(p.competitionCode).toBeNull();
+    expect(JSON.stringify(published)).not.toContain(SECRETS.competitionName);
+  });
+
+  it('never reads a competition NAME at all', () => {
+    const ctx = fs.readFileSync(path.join(__dirname, '..', 'src/fabric/producers/match-context.ts'), 'utf8');
+    const code = ctx.replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+    expect(code).not.toMatch(/competitionName/);
+    expect(code).not.toMatch(/name:\s*true/);
+    expect(code).toMatch(/code:\s*true/);
+  });
+
+  it('has nowhere to put a name even if somebody tried', () => {
+    expect(validateEventPayload('match.updated', 1, {
+      changedFields: ['homeTeam'], teamKind: null, competition: 'CUP',
+      competitionId: null, competitionCode: null, competitionName: SECRETS.competitionName,
+    }).ok).toBe(false);
   });
 });

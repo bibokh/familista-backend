@@ -48,11 +48,21 @@ export async function matchContext(
     match.teamId
       ? prisma.team.findUnique({ where: { id: match.teamId }, select: { kind: true } })
       : Promise.resolve(null),
-    // A match played as a Familista League fixture carries that competition's
+    // A match played as a registered fixture carries that competition's
     // identity; the overwhelming majority of matches are not, and answer null
     // from a single indexed lookup.
-    prisma.fixture.findFirst({ where: { matchId: match.id }, select: { competitionId: true } })
-      .catch(() => null),
+    //
+    // The competition's own CODE comes with the id. `Competition.code` is part
+    // of the `[clubId, code, season]` unique key — a short structured
+    // identifier, not prose — so it is a trusted handle for the competition in
+    // a way its NAME is not. Neither `Competition.name` nor
+    // `Match.competitionName` is read here at all: both are free text somebody
+    // typed, and a match whose competition exists only as free text is
+    // described by its generic type and nothing else.
+    prisma.fixture.findFirst({
+      where: { matchId: match.id },
+      select: { competitionId: true, competition: { select: { code: true } } },
+    }).catch(() => null),
   ]);
 
   return {
@@ -63,6 +73,7 @@ export async function matchContext(
     teamKind: team?.kind ?? null,
     competition: match.competition ?? null,
     competitionId: fixture?.competitionId ?? null,
+    competitionCode: fixture?.competition?.code ?? null,
   };
 }
 

@@ -33,7 +33,7 @@
 import { MatchStatus, Prisma, CompetitionType } from '@prisma/client';
 import { logger } from '../utils/logger';
 import { announceReschedule, matchContext, type MatchLike } from '../fabric/producers/match-context';
-import { publishMatchDeleted } from '../fabric/producers/matches.producer';
+import { publishMatchDeleted, publishMatchFixturesGenerated } from '../fabric/producers/matches.producer';
 import { prisma } from '../config/database';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { eligibilityFor, eligibleTeamWhereFor } from './league-eligibility';
@@ -477,6 +477,30 @@ export async function ensureFixtureMatches(competitionId: string): Promise<numbe
     });
     await prisma.fixture.update({ where: { id: f.id }, data: { matchId: match.id } });
     created++;
+  }
+
+  // ONE event for the whole generation, after it has finished.
+  //
+  // A twenty-team league is three hundred and eighty pairings, and an event per
+  // Match would drown the board in the one moment an operator most needs to
+  // read it — while saying nothing a single count does not. The subject is the
+  // COMPETITION rather than any one match, and its envelope's tenant is the
+  // competition's owner: null for the Familista League, which belongs to the
+  // platform rather than to a club.
+  //
+  // `comp.name` is not carried. `comp.code` is: it is part of the competition's
+  // own unique key, a structured handle rather than prose.
+  if (created > 0) {
+    publishMatchFixturesGenerated(
+      {
+        competitionId: comp.id,
+        clubId: comp.clubId ?? null,
+        competition: CompetitionType.LEAGUE,
+        competitionCode: comp.code ?? null,
+        sourceType: 'SERVICE',
+      },
+      created,
+    );
   }
   return created;
 }

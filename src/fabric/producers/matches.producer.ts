@@ -46,8 +46,21 @@ export const MATCHES_SOURCE_ID = 'matches';
 const teamKind = z.string().min(1).max(40).nullable();
 /** A `CompetitionType` token — LEAGUE, CUP, FRIENDLY, ELITE, ASSOCIATION. */
 const competition = z.string().min(1).max(40).nullable();
-/** The Familista League competition id, when the match is played as a fixture. */
+/** The competition id, when the match is played as a registered fixture. */
 const competitionId = z.string().min(1).max(64).nullable();
+/**
+ * The competition's own registered CODE, when it has one.
+ *
+ * `Competition.code` is part of the `[clubId, code, season]` unique key — a
+ * short structured identifier, not prose. It travels; `Competition.name` and
+ * `Match.competitionName` do not, because those are free text somebody typed
+ * and an observability surface is not where free text belongs.
+ *
+ * Null for a match that names a competition only in free text. In that case the
+ * generic `competition` type below — CUP, FRIENDLY — is all that is known, and
+ * all that is said. Nothing here invents or normalises a name.
+ */
+const competitionCode = z.string().min(1).max(64).nullable();
 /** A `MatchStatus` token. */
 const statusToken = z.string().min(1).max(32).nullable();
 const changedFields = z.array(z.string().min(1).max(40)).max(32);
@@ -60,7 +73,7 @@ const count = z.number().int().nonnegative().max(1_000_000);
  * fixtures out of a firehose can do it with one field test whatever the event
  * is. Three tokens and an id; nothing here describes a person.
  */
-const context = { teamKind, competition, competitionId };
+const context = { teamKind, competition, competitionId, competitionCode };
 
 export function registerMatchesProducer(): void {
   // `match.started`, `match.completed` and `match.event.recorded` are already
@@ -216,6 +229,52 @@ export function registerMatchesProducer(): void {
     }).strict(),
   });
 
+  // ── the two aggregates ─────────────────────────────────────────────────────
+  //
+  // Both exist because the alternative is a flood. Generating a season's
+  // fixtures writes a Match per pairing — a twenty-team league is 380 rows —
+  // and a provider feed arrives five thousand events at a time. An event per
+  // row would drown the board in exactly the moment an operator most needs to
+  // read it, and would say nothing a single count does not.
+
+  registerFabricEvent({
+    type: 'match.fixtures.generated',
+    describes: 'A competition’s fixture list was turned into matches',
+    classification: 'INTERNAL',
+    // The subject is the COMPETITION, not any one of the matches — which is
+    // also why its id may travel: a competition is not a person.
+    entityType: 'COMPETITION',
+    auditRelevant: true,
+  });
+  registerFabricSchema({
+    eventType: 'match.fixtures.generated', version: 1,
+    describes: 'How many matches the generation created, and for which competition',
+    schema: z.object({ generatedCount: count, ...context }).strict(),
+  });
+
+  registerFabricEvent({
+    type: 'match.events.batch.ingested',
+    describes: 'A batch of match events was taken from a provider feed',
+    classification: 'INTERNAL',
+    entityType: 'MATCH',
+    auditRelevant: true,
+  });
+  registerFabricSchema({
+    eventType: 'match.events.batch.ingested', version: 1,
+    // Counts and a provider CATEGORY. Not one raw provider payload, not a
+    // scorer, not a description — the same rule the single-event form follows,
+    // applied to five thousand of them at once.
+    describes: 'How many arrived, how many were taken, how many refused, and from which provider',
+    schema: z.object({
+      provider: z.string().min(1).max(40),
+      receivedCount: count,
+      acceptedCount: count,
+      rejectedCount: count,
+      status: z.enum(['COMPLETE', 'FAILED']),
+      ...context,
+    }).strict(),
+  });
+
   registerFabricSchema({
     eventType: 'match.event.recorded', version: 1,
     // A goal, a card, a substitution. The TYPE and the period travel; the
@@ -246,6 +305,7 @@ export interface MatchContext {
   teamKind?: string | null;
   competition?: string | null;
   competitionId?: string | null;
+  competitionCode?: string | null;
 }
 
 function ctxPayload(ctx: MatchContext): Record<string, unknown> {
@@ -253,6 +313,7 @@ function ctxPayload(ctx: MatchContext): Record<string, unknown> {
     teamKind: ctx.teamKind ?? null,
     competition: ctx.competition ?? null,
     competitionId: ctx.competitionId ?? null,
+    competitionCode: ctx.competitionCode ?? null,
   };
 }
 
@@ -330,6 +391,51 @@ export function publishMatchResultUpdated(
   ctx: MatchContext, homeScore: number | null, awayScore: number | null, result: string | null,
 ): void {
   publish('match.result.updated', ctx, { homeScore, awayScore, result: result ?? null });
+}
+
+/**
+ * One event for a whole fixture generation.
+ *
+ * The subject is the competition, so the envelope's `clubId` is the
+ * competition's owner — null for the Familista League, which belongs to the
+ * platform rather than to any club.
+ */
+export function publishMatchFixturesGenerated(
+  ctx: Omit<MatchContext, 'matchId' | 'clubId'> & { competitionId: string; clubId: string | null },
+  generatedCount: number,
+): void {
+  publishFabricEventDetached({
+    eventType: 'match.fixtures.generated',
+    clubId: ctx.clubId,
+    teamId: null,
+    actorUserId: ctx.actorUserId ?? null,
+    subjectType: 'COMPETITION',
+    subjectId: ctx.competitionId,
+    sourceType: ctx.sourceType ?? 'USER',
+    payload: {
+      generatedCount: Math.max(0, generatedCount),
+      teamKind: ctx.teamKind ?? null,
+      competition: ctx.competition ?? null,
+      competitionId: ctx.competitionId,
+      competitionCode: ctx.competitionCode ?? null,
+    },
+  });
+}
+
+/** One event for a whole provider batch, however many rows it carried. */
+export function publishMatchEventsBatchIngested(
+  ctx: MatchContext,
+  provider: string,
+  counts: { received: number; accepted: number; rejected: number },
+  status: 'COMPLETE' | 'FAILED',
+): void {
+  publish('match.events.batch.ingested', ctx, {
+    provider: String(provider).slice(0, 40),
+    receivedCount: Math.max(0, counts.received),
+    acceptedCount: Math.max(0, counts.accepted),
+    rejectedCount: Math.max(0, counts.rejected),
+    status,
+  });
 }
 
 export function publishMatchEventRecorded(
