@@ -125,8 +125,18 @@ export interface PulseFrame {
  * from the platform owner, because "the owner could look it up anyway" is an
  * argument for using the screen that has an access log, not for putting
  * personal identifiers into a firehose that has none.
+ *
+ * A TRAINING_SESSION id is in the first group, alongside FIXTURE and MATCH: it
+ * identifies a scheduled event, not a person. It is here so an operator can
+ * follow one session's events across the board — the roster, the venue change
+ * and the attendance save are one story, and without the id they are three
+ * unrelated dots. What the session CONTAINS — its venue, its notes, who was
+ * marked — never travels; see `producers/training.producer.ts`.
  */
-const SAFE_SUBJECT_IDS = new Set(['CLUB', 'TEAM', 'COMPETITION', 'FIXTURE', 'MATCH', 'PLATFORM', 'PLATFORM_SECRET', 'MODEL', 'DATASET']);
+const SAFE_SUBJECT_IDS = new Set([
+  'CLUB', 'TEAM', 'COMPETITION', 'FIXTURE', 'MATCH', 'TRAINING_SESSION',
+  'PLATFORM', 'PLATFORM_SECRET', 'MODEL', 'DATASET',
+]);
 
 // ── the lanes, derived from what actually exists ─────────────────────────────
 
