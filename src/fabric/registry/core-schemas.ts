@@ -25,37 +25,14 @@
 import { z } from 'zod';
 import { registerFabricSchema } from './schema-registry';
 
-/**
- * Field NAMES that changed, never their values.
- *
- * The cap mirrors the one `pulse.service.ts` applies when it projects the same
- * key onto a frame — a producer that put a value here would still be truncated
- * to something that cannot carry a sentence.
- */
-const changedFields = z.array(z.string().max(40)).max(24);
-
 /** A `secret://` reference. Names a secret and is not one. */
 const secretRef = z.string().min(1).max(512);
 
 export function registerCoreSchemas(): void {
-  // ── squad ──────────────────────────────────────────────────────────────────
-  registerFabricSchema({
-    eventType: 'player.created', version: 1,
-    describes: 'No body — the envelope carries the club, team and player',
-    schema: z.object({}).passthrough(),
-  });
-
-  registerFabricSchema({
-    eventType: 'player.updated', version: 1,
-    describes: 'Which fields changed, by name',
-    schema: z.object({ changedFields }).passthrough(),
-  });
-
-  registerFabricSchema({
-    eventType: 'player.photo.attached', version: 1,
-    describes: 'No body — the envelope carries the player and the media reference',
-    schema: z.object({}).passthrough(),
-  });
+  // The Players schemas used to live here, laid over the raw `emit()` calls in
+  // `player.service.ts`. That service now publishes through the fabric, so its
+  // contracts moved with it — every Players payload shape is declared in
+  // `producers/players.producer.ts`, which is the file that builds them.
 
   // ── media ──────────────────────────────────────────────────────────────────
   registerFabricSchema({

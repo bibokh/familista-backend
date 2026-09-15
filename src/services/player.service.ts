@@ -16,10 +16,15 @@ import {
   PlayerAuditAction,
   PlayerAttribute,
   Prisma,
+  TeamKind,
 } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, ConflictError } from '../utils/errors';
-import { emit } from '../fabric';
+import {
+  publishPlayerCreated, publishPlayerUpdated, publishPlayerPhotoAttached,
+  publishPlayerProfileUpdated, publishPlayerStatusChanged, publishPlayerPositionChanged,
+  publishPlayerTeamChanged, publishPlayerSquadAdded, publishPlayerSquadRemoved,
+} from '../fabric/producers/players.producer';
 import { logger } from '../utils/logger';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -256,12 +261,63 @@ export async function getPlayerById(id: string, clubId: string) {
 // WRITE (every mutation also writes a PlayerAuditLog row)
 // ─────────────────────────────────────────────────────────────────────────
 
-// Validate the requested teamId belongs to the actor's club (or is null).
-async function assertTeamInClub(clubId: string, teamId: string | null | undefined): Promise<void> {
-  if (!teamId) return;
-  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { clubId: true, isActive: true } });
+// Validate the requested teamId belongs to the actor's club (or is null), and
+// hand back the squad's KIND. The kind comes off a query that already runs —
+// one more column on a row we were fetching anyway — and it is what lets the
+// fabric tell an academy move from a first-team one without a second read.
+async function assertTeamInClub(
+  clubId: string,
+  teamId: string | null | undefined,
+): Promise<TeamKind | null> {
+  if (!teamId) return null;
+  const team = await prisma.team.findUnique({
+    where: { id: teamId }, select: { clubId: true, isActive: true, kind: true },
+  });
   if (!team)                       throw new NotFoundError('Team');
   if (team.clubId !== clubId)      throw new ForbiddenError();
+  return team.kind;
+}
+
+/** The kind of squad a player is in now, when nobody has already looked it up. */
+async function teamKindOf(teamId: string | null | undefined): Promise<TeamKind | null> {
+  if (!teamId) return null;
+  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { kind: true } });
+  return team?.kind ?? null;
+}
+
+/**
+ * Did this field actually MOVE?
+ *
+ * Dates and enums both arrive as strings on the DTO and as objects or enums on
+ * the row, so a plain `!==` would call every resent date a change. Compared
+ * through their own string forms, which is the comparison a person means.
+ */
+function differs(dto: Record<string, unknown>, before: Record<string, unknown>, field: string): boolean {
+  const next = dto[field];
+  const prev = before[field];
+  if (next == null || prev == null) return next !== prev;
+  if (prev instanceof Date) return new Date(String(next)).getTime() !== prev.getTime();
+  return String(next) !== String(prev);
+}
+
+/** Every event this service may produce. One union, so the switch is total. */
+type PlayerEventType =
+  | 'player.created' | 'player.updated' | 'player.photo.attached'
+  | 'player.profile.updated' | 'player.status.changed' | 'player.position.changed'
+  | 'player.team.changed' | 'player.squad.added' | 'player.squad.removed';
+
+/**
+ * What a particular event needs beyond the player itself.
+ *
+ * Deliberately narrow: field NAMES, position TOKENS and team KINDS. There is no
+ * member of this type into which a date of birth, a parent's telephone number,
+ * a medical status or a wage could be put.
+ */
+interface PlayerEventDetail {
+  changedFields?: readonly string[];
+  from?: string | null;
+  to?: string | null;
+  teamKind?: string | null;
 }
 
 /**
@@ -283,41 +339,68 @@ async function assertTeamInClub(clubId: string, teamId: string | null | undefine
  * WHICH FIELDS changed and never what they changed to. A consumer that needs
  * the values reads the player through the service that authorises it.
  *
- * `emit` never throws into its caller by contract, and the `void` is deliberate:
- * a squad update must not fail, or wait, because the fabric is unwell.
+ * The publisher is detached and never rejects into its caller: a squad update
+ * must not fail, or wait, because the fabric is unwell. Registration, payload
+ * validation and the live-stream decision all happen inside it — see
+ * `fabric/producers/players.producer.ts`, which is the only place a Players
+ * event type or payload shape is declared.
  */
 function emitPlayerEvent(
-  eventType: 'player.created' | 'player.updated' | 'player.photo.attached',
+  eventType: PlayerEventType,
   actor: PlayerActor,
-  player: Player,
-  changedFields: string[] = [],
+  player: Pick<Player, 'id' | 'clubId' | 'teamId'>,
+  detail: PlayerEventDetail = {},
 ): void {
-  // `.catch` and not just `void`. `emit` is async, so the one thing it does
-  // throw on — a malformed envelope, which is a programming error — arrives as
-  // a REJECTED PROMISE. A discarded rejection is an unhandled rejection, and
-  // Node's default for those is to terminate the process. That would turn a
-  // fabric bug into a failed squad update, which is the exact outcome the
-  // fabric's own failure policy exists to prevent.
-  emit({
-    eventType,
-    clubId: player.clubId,
-    teamId: player.teamId ?? null,
+  const ctx = {
+    playerId: player.id,
+    clubId:   player.clubId,
+    teamId:   player.teamId ?? null,
     actorUserId: actor.userId,
-    subjectType: 'PLAYER',
-    subjectId: player.id,
-    sourceType: 'USER',
-    // Field NAMES only. No values, and nothing a person typed.
-    payload: eventType === 'player.updated' ? { changedFields } : {},
-  }).catch((err) => {
-    logger.warn('[fabric] a player event could not be recorded; the player write stands', {
-      eventType, clubId: player.clubId, err: (err as Error).message,
-    });
-  });
+  };
+  const kind = detail.teamKind ?? null;
+
+  switch (eventType) {
+    case 'player.created':          publishPlayerCreated(ctx, kind); return;
+    case 'player.updated':          publishPlayerUpdated(ctx, detail.changedFields ?? [], kind); return;
+    case 'player.photo.attached':   publishPlayerPhotoAttached(ctx, kind); return;
+    case 'player.profile.updated':  publishPlayerProfileUpdated(ctx, detail.changedFields ?? [], kind); return;
+    case 'player.status.changed':   publishPlayerStatusChanged(ctx, detail.changedFields ?? [], kind); return;
+    case 'player.position.changed': publishPlayerPositionChanged(ctx, detail.from ?? null, detail.to ?? null, kind); return;
+    case 'player.team.changed':     publishPlayerTeamChanged(ctx, detail.from ?? null, detail.to ?? null); return;
+    case 'player.squad.added':      publishPlayerSquadAdded(ctx, detail.to ?? kind); return;
+    case 'player.squad.removed':    publishPlayerSquadRemoved(ctx, detail.from ?? kind); return;
+    default: return;
+  }
 }
+
+/**
+ * The fields that make up a player's PERSON, as opposed to his football.
+ *
+ * This is the group that holds a date of birth, a parent's name, a parent's
+ * email and a parent's telephone number — a child's personal data and the
+ * contact details of the adult responsible for them. A change to any of it
+ * produces `player.profile.updated`, which the registry classifies RESTRICTED,
+ * so a consumer can refuse the whole category without having to know which
+ * field moved. The event still carries only the NAMES.
+ */
+const PROFILE_FIELDS = new Set([
+  'firstName', 'lastName', 'nationality', 'flag', 'dateOfBirth',
+  'height', 'weight', 'preferredFoot', 'avatar',
+  'email', 'parentName', 'parentEmail', 'parentPhone',
+]);
+
+/**
+ * The fields that describe whether a player is available, and on what terms.
+ *
+ * `medicalStatus` is in here and its VALUE never leaves the database. What
+ * travels is the name of the field that moved — "a medical field changed" is
+ * not medical information about a child; "he tore his ACL" is.
+ */
+const STATUS_FIELDS = new Set(['medicalStatus', 'paymentStatus', 'isActive', 'isInjured', 'condition']);
 
 export async function createPlayer(actor: PlayerActor, dto: CreatePlayerDto): Promise<Player> {
   await assertShirtNumberFree(actor.clubId, dto.number);
-  await assertTeamInClub(actor.clubId, dto.teamId ?? null);
+  const teamKind = await assertTeamInClub(actor.clubId, dto.teamId ?? null);
 
   const created = await prisma.$transaction(async (tx) => {
     const player = await tx.player.create({
@@ -365,8 +448,10 @@ export async function createPlayer(actor: PlayerActor, dto: CreatePlayerDto): Pr
     return player;
   });
 
-  // After the commit. See `emitPlayerEvent`.
-  emitPlayerEvent('player.created', actor, created);
+  // After the commit. See `emitPlayerEvent`. ONE event: a player arriving is a
+  // player arriving, and firing `squad.added` beside it because he arrived with
+  // a team would be the same fact said twice.
+  emitPlayerEvent('player.created', actor, created, { teamKind });
   return created;
 }
 
@@ -376,14 +461,18 @@ export async function updatePlayer(actor: PlayerActor, id: string, dto: UpdatePl
   if (dto.number !== undefined && dto.number !== existing.number) {
     await assertShirtNumberFree(actor.clubId, dto.number, id);
   }
+  // The kind of squad he is moving INTO, from the check that already runs.
+  let nextTeamKind: TeamKind | null = null;
   if (dto.teamId !== undefined) {
-    await assertTeamInClub(actor.clubId, dto.teamId);
+    nextTeamKind = await assertTeamInClub(actor.clubId, dto.teamId);
   }
 
-  // Captured BEFORE the transaction. Read afterwards it would depend on the
+  // Captured BEFORE the transaction. Read afterwards they would depend on the
   // update returning an object distinct from the one `existing` points at,
   // which is true of Prisma and is not a thing to rely on.
   const previousAvatar = existing.avatar;
+  const previousPosition = existing.position;
+  const previousTeamId = existing.teamId ?? null;
 
   const updated = await prisma.$transaction(async (tx) => {
     const data: Prisma.PlayerUpdateInput = {
@@ -445,15 +534,66 @@ export async function updatePlayer(actor: PlayerActor, id: string, dto: UpdatePl
   // rows: `dto` is exactly the set of fields the caller asked to change, which
   // is what an observer wants to know. Field names only — see `emitPlayerEvent`.
   const changedFields = Object.keys(dto).filter((k) => (dto as Record<string, unknown>)[k] !== undefined);
-  emitPlayerEvent('player.updated', actor, updated, changedFields);
+
+  // The squad he is in NOW. Already known when the caller moved him; read once
+  // otherwise, and not at all when he is in no squad.
+  const currentTeamKind = dto.teamId !== undefined
+    ? nextTeamKind
+    : await teamKindOf(updated.teamId);
+
+  // THE UMBRELLA. Fires for every successful update, whatever changed.
+  emitPlayerEvent('player.updated', actor, updated, { changedFields, teamKind: currentTeamKind });
+
+  // ── and the specific facts, each only when that thing actually MOVED ──────
+  //
+  // Not when the field merely appeared in the request: a PUT that resends a
+  // player's existing position has not changed his position, and an event
+  // saying otherwise is a lie a consumer would act on. Every one of these is a
+  // different fact with a different name and a different sensitivity, which is
+  // why they sit alongside `player.updated` rather than replacing it — the same
+  // arrangement `player.photo.attached` has always had.
 
   // A photograph is its own event because it is its own kind of fact: the
   // taxonomy classifies `player.photo.attached` as RESTRICTED, where an
   // ordinary update is CONFIDENTIAL, and a consumer filtering on sensitivity
   // must be able to tell them apart without reading the payload.
   if (dto.avatar !== undefined && dto.avatar !== previousAvatar) {
-    emitPlayerEvent('player.photo.attached', actor, updated);
+    emitPlayerEvent('player.photo.attached', actor, updated, { teamKind: currentTeamKind });
   }
+
+  // The person, as opposed to the footballer. RESTRICTED, because this is the
+  // group that holds a date of birth and a parent's contact details.
+  const asRecord = dto as unknown as Record<string, unknown>;
+  const beforeRecord = existing as unknown as Record<string, unknown>;
+  const profileChanged = changedFields.filter(
+    (f) => PROFILE_FIELDS.has(f) && differs(asRecord, beforeRecord, f),
+  );
+  emitPlayerEvent('player.profile.updated', actor, updated, {
+    changedFields: profileChanged, teamKind: currentTeamKind,
+  });
+
+  // Availability and standing. Names only — `medicalStatus` never travels.
+  const statusChanged = changedFields.filter(
+    (f) => STATUS_FIELDS.has(f) && differs(asRecord, beforeRecord, f),
+  );
+  emitPlayerEvent('player.status.changed', actor, updated, {
+    changedFields: statusChanged, teamKind: currentTeamKind,
+  });
+
+  if (dto.position !== undefined && dto.position !== previousPosition) {
+    emitPlayerEvent('player.position.changed', actor, updated, {
+      from: previousPosition, to: updated.position, teamKind: currentTeamKind,
+    });
+  }
+
+  // A squad move is exactly one of three things, and never two of them.
+  if (dto.teamId !== undefined && (dto.teamId ?? null) !== previousTeamId) {
+    const previousKind = await teamKindOf(previousTeamId);
+    if (previousTeamId === null)      emitPlayerEvent('player.squad.added',   actor, updated, { to: nextTeamKind });
+    else if (updated.teamId === null) emitPlayerEvent('player.squad.removed', actor, updated, { from: previousKind });
+    else emitPlayerEvent('player.team.changed', actor, updated, { from: previousKind, to: nextTeamKind });
+  }
+
   return updated;
 }
 
@@ -477,12 +617,22 @@ export async function softDeletePlayer(actor: PlayerActor, id: string, reason?: 
       },
     });
   });
+
+  // After the commit, and only when something actually changed — the early
+  // return above means an already-inactive player produces no event. The
+  // REASON is not carried: it is free text somebody typed about a person, it is
+  // already in the player audit log where it is read under authorisation, and
+  // an observability surface is not where it belongs.
+  emitPlayerEvent('player.status.changed', actor, existing as Player, {
+    changedFields: ['isActive'],
+    teamKind: await teamKindOf(existing.teamId),
+  });
 }
 
 export async function reactivatePlayer(actor: PlayerActor, id: string, reason?: string): Promise<Player> {
   const existing = await getPlayerById(id, actor.clubId);
   if (existing.isActive) return existing as Player;
-  return prisma.$transaction(async (tx) => {
+  const reactivated = await prisma.$transaction(async (tx) => {
     const updated = await tx.player.update({ where: { id }, data: { isActive: true } });
     await tx.playerAuditLog.create({
       data: {
@@ -498,6 +648,14 @@ export async function reactivatePlayer(actor: PlayerActor, id: string, reason?: 
     });
     return updated;
   });
+
+  // Same rule, the other direction. An already-active player returned early and
+  // reaches no event.
+  emitPlayerEvent('player.status.changed', actor, reactivated, {
+    changedFields: ['isActive'],
+    teamKind: await teamKindOf(reactivated.teamId),
+  });
+  return reactivated;
 }
 
 // Hard delete — physical removal. Kept for backwards compatibility but

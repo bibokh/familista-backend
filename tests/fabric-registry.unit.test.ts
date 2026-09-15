@@ -392,9 +392,18 @@ describe('schema registration and versioning', () => {
       sizeBytes: 4096, checksum: 'abc', storageProvider: 'S3',
     })).toEqual({ ok: true, validated: true });
 
-    // The shape `player.service.ts` actually sends.
-    expect(validateEventPayload('player.updated', 1, { changedFields: ['number', 'position'] }))
-      .toEqual({ ok: true, validated: true });
+    // The shape `device-credentials.ts` actually sends. A reference, never the
+    // credential — which the schema enforces by having nowhere to put one.
+    expect(validateEventPayload('device.credential.created', 1, {
+      scope: 'DEVICE', secretRef: 'secret://v1/device/abc', provider: 'DB',
+    })).toEqual({ ok: true, validated: true });
+
+    // The Players shapes are NOT here any more. They were laid over the raw
+    // `emit()` calls in `player.service.ts`; that service now publishes through
+    // the fabric, so its contracts moved into the producer that builds them and
+    // are covered by `fabric-players-producer.unit.test.ts`.
+    expect(validateEventPayload('player.updated', 1, { changedFields: ['number'] }))
+      .toEqual({ ok: true, validated: false });
   });
 });
 

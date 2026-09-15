@@ -105,10 +105,68 @@ export function emitPlayerOffered(fromClubId: string, toClubId: string, playerId
 export function emitTransferCompleted(
   sellerClubId: string, buyerClubId: string, playerId: string,
   ids: { listingId?: string | null; offerId?: string | null } = {},
+  settledBy: TransferSettlement = 'PURCHASE',
 ) {
   safePublic('TRANSFER_COMPLETED', ['feed', 'market', 'discover', 'auctions'], { playerId, ...ids });
   safeClubs([sellerClubId, buyerClubId], 'TRANSFER_COMPLETED',
     ['activity', 'balance', 'offers', 'shortlist', 'market', 'notifications'], { playerId, ...ids });
+  publishTransferToFabric(sellerClubId, playerId, settledBy);
+}
+
+/** How a transfer was settled. Three routes, one fact. */
+export type TransferSettlement = 'PURCHASE' | 'OFFER_ACCEPTED' | 'AUCTION';
+
+/**
+ * Tell the Data Fabric a player changed clubs.
+ *
+ * ONE call, from the one function all three settlement routes already go
+ * through. A direct purchase, an accepted offer and a settled auction are three
+ * ways of reaching the same fact, and publishing from each of them separately
+ * is how the same transfer comes to be recorded two or three times the day
+ * somebody adds a fourth route.
+ *
+ * Detached and self-reading. The player row is, at this point, already the new
+ * state — the transaction has committed — so one read gives the envelope its
+ * tenant, its team and the squad kind, and the caller waits for none of it. A
+ * transfer that has completed must not be undone, delayed, or reported as
+ * failed because the fabric was slow.
+ *
+ * What it does NOT carry is the fee. What a club paid for a player is
+ * commercially confidential; the figure is in the transfer record, read under
+ * authorisation, and an observability surface gets the fact and the two clubs.
+ */
+function publishTransferToFabric(
+  sellerClubId: string, playerId: string, settledBy: TransferSettlement,
+): void {
+  void (async () => {
+    const { prisma } = require('../config/database') as typeof import('../config/database');
+    const { publishPlayerTransferred } = require('../fabric/producers/players.producer') as typeof import('../fabric/producers/players.producer');
+
+    const player = await prisma.player.findUnique({
+      where: { id: playerId },
+      select: { id: true, clubId: true, teamId: true, team: { select: { kind: true } } },
+    });
+    if (!player) return;
+
+    publishPlayerTransferred(
+      {
+        playerId: player.id,
+        // The ACQUIRING club. An event has one tenant, and from the moment this
+        // commits the player's tenant is the buyer; the club he left is named
+        // in the payload instead.
+        clubId: player.clubId,
+        teamId: player.teamId ?? null,
+        sourceType: 'SERVICE',
+      },
+      sellerClubId,
+      settledBy,
+      player.team?.kind ?? null,
+    );
+  })().catch((err) => {
+    logger.warn('[market-events] could not record a transfer on the fabric', {
+      playerId, err: (err as Error)?.message,
+    });
+  });
 }
 
 // ── club needs ──────────────────────────────────────────────────────────────

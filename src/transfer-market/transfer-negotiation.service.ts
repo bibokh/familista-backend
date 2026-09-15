@@ -684,7 +684,7 @@ export async function acceptOffer(actor: MarketActor, offerId: string) {
     payload: { playerId: result.playerId, feeEur, from: offer.sellerClubId, to: offer.buyerClubId, type: 'DIRECT' },
   });
   emitOffer('OFFER_ACCEPTED', offer.sellerClubId, offer.buyerClubId, offer.playerId, offerId);
-  emitTransferCompleted(offer.sellerClubId, offer.buyerClubId, offer.playerId, { offerId });
+  emitTransferCompleted(offer.sellerClubId, offer.buyerClubId, offer.playerId, { offerId }, 'OFFER_ACCEPTED');
   return { ...result, sellerClubId: offer.sellerClubId, buyerClubId: offer.buyerClubId, type: 'DIRECT_TRANSFER' };
 }
 
