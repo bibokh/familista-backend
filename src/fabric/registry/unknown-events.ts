@@ -51,12 +51,27 @@ function loud(): boolean {
  * Returns nothing and throws nothing. The caller publishes the event either
  * way — see the module note.
  */
+function tellSystem(problem: 'UNREGISTERED_TYPE' | 'SCHEMA_FAILURE', eventType: string): void {
+  // Lazily, and latched on the other side: the System producer publishes
+  // through the same publisher this module reports on, so the import is
+  // deferred and the reporting is a state transition rather than a per-event
+  // announcement. See the recursion note in `producers/system.producer.ts`.
+  try {
+    const { noteFabricRegistryProblem } = require('../producers/system.producer') as typeof import('../producers/system.producer');
+    noteFabricRegistryProblem(problem, eventType);
+  } catch {
+    // Never let health reporting break the thing it is reporting on.
+  }
+}
+
 export function noteUnknownEventType(eventType: string): void {
   const type = String(eventType ?? '(empty)');
   const seen = unknownSeen.get(type) ?? 0;
   unknownSeen.set(type, seen + 1);
 
   if (seen > 0) return; // once per name
+
+  tellSystem('UNREGISTERED_TYPE', type);
 
   const message = '[fabric] event type is not registered';
   const detail = {
@@ -80,6 +95,8 @@ export function noteSchemaFailure(eventType: string, version: number, issues: st
   schemaFailures.set(key, seen + 1);
 
   if (seen > 0) return;
+
+  tellSystem('SCHEMA_FAILURE', eventType);
 
   const message = '[fabric] event payload does not match its declared schema';
   const detail = { eventType, schemaVersion: version, issues: issues.slice(0, 5) };

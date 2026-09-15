@@ -50,6 +50,7 @@ import {
 import { registerCoreSchemas } from '../src/fabric/registry/core-schemas';
 import { publishFabricEvent, FabricPublishError } from '../src/fabric/registry/publisher';
 import { registryHealth, resetRegistryHealth } from '../src/fabric/registry/unknown-events';
+import { resetFabricSelfHealth } from '../src/fabric/producers/system.producer';
 import { setEventTransport, type EventTransport } from '../src/fabric/event-bus';
 import { project, pulseTopology, sourceLaneFor, SOURCE_LANES, ingestFrames, resetPulse, recentFrames } from '../src/fabric/pulse/pulse.service';
 import type { FamilistaEvent } from '../src/fabric/event-envelope';
@@ -75,6 +76,10 @@ beforeEach(() => {
   resetSchemaRegistry();
   registerCoreSchemas();
   resetRegistryHealth();
+  // The System producer latches "the registry is degraded" for the life of a
+  // process, so one suite's deliberate bad name would otherwise silence the
+  // next one's. Reset alongside the counters it reports on.
+  resetFabricSelfHealth();
   resetPulse();
   transport = recordingTransport();
   setEventTransport(transport);
@@ -440,18 +445,40 @@ describe('publishing', () => {
     const result = await publishFabricEvent({ eventType: 'finance.invoice.shredded' });
     expect(result.registered).toBe(false);
     expect(result.stored).toBe(true);
-    expect(transport.rows).toHaveLength(1);
-    expect(registryHealth()).toMatchObject({
-      unknownEventTypes: ['finance.invoice.shredded'],
-      unknownEventCount: 1,
+    // This suite resets the registries, so the System producer's own
+    // registrations are gone too and its health event arrives under a name
+    // this registry no longer knows. That is the interesting case: the
+    // reporter's self-exemption drops it instead of reporting itself, which
+    // is what stops the loop. It is counted once and never again.
+    const health = registryHealth();
+    expect(health.unknownEventTypes.filter((t) => !t.startsWith('system.fabric.')))
+      .toEqual(['finance.invoice.shredded']);
+    expect(health.unknownEventTypes.filter((t) => t.startsWith('system.fabric.')).length)
+      .toBeLessThanOrEqual(1);
+
+    // The event itself lands, unchanged. The System producer additionally
+    // announces that the registry saw a name nobody declared — once, latched,
+    // and carrying the NAME rather than the payload that arrived under it.
+    const own = transport.rows.filter((r) => r.eventType === 'finance.invoice.shredded');
+    expect(own).toHaveLength(1);
+    const degraded = transport.rows.filter((r) => r.eventType === 'system.fabric.registry.degraded');
+    expect(degraded).toHaveLength(1);
+    expect(degraded[0].payload).toMatchObject({
+      problem: 'UNREGISTERED_TYPE', eventType: 'finance.invoice.shredded', component: 'FABRIC',
     });
   });
 
   it('counts an unregistered name once per NAME however often it arrives', async () => {
     for (let i = 0; i < 5; i += 1) await publishFabricEvent({ eventType: 'finance.invoice.shredded' });
     const health = registryHealth();
-    expect(health.unknownEventTypes).toEqual(['finance.invoice.shredded']);
-    expect(health.unknownEventCount).toBe(5);
+    expect(health.unknownEventTypes.filter((t) => !t.startsWith('system.fabric.')))
+      .toEqual(['finance.invoice.shredded']);
+    expect(health.unknownEventTypes.filter((t) => t.startsWith('system.fabric.')).length)
+      .toBeLessThanOrEqual(1);
+    // FIVE arrivals of the unknown name, and at most ONE self-health event
+    // however many times the registry was unhappy: the reporter is latched.
+    expect(health.unknownEventCount).toBeGreaterThanOrEqual(5);
+    expect(health.unknownEventCount).toBeLessThanOrEqual(6);
   });
 
   it('stores an invalid payload but WITHHOLDS it from the live view', async () => {
@@ -464,10 +491,16 @@ describe('publishing', () => {
     expect(result.quarantined).toBe(true);
     // The fact is still on record — quarantine is about the board, not durability.
     expect(result.stored).toBe(true);
-    expect(transport.rows).toHaveLength(1);
-    expect(transport.rows[0].metadata.schemaInvalid).toBe(true);
-    expect(transport.rows[0].metadata.liveStreamWithheld).toBe(true);
+    const own = transport.rows.filter((r) => r.eventType === 'finance.invoice.issued');
+    expect(own).toHaveLength(1);
+    expect(own[0].metadata.schemaInvalid).toBe(true);
+    expect(own[0].metadata.liveStreamWithheld).toBe(true);
     expect(registryHealth().schemaFailureCount).toBe(1);
+    // And the System producer said the registry saw one, once, carrying the
+    // NAME that failed and never the payload that failed under it.
+    const degraded = transport.rows.filter((r) => r.eventType === 'system.fabric.registry.degraded');
+    expect(degraded).toHaveLength(1);
+    expect(JSON.stringify(degraded[0].payload)).not.toContain('lots');
     expect(registryHealth().quarantinedCount).toBe(1);
   });
 

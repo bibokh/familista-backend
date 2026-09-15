@@ -11,6 +11,9 @@ import { writePlatformAudit } from '../middleware/admin-rbac.middleware';
 import type { UpsertFeatureFlagInput } from '../utils/admin.validators';
 import type { PlatformActor } from '../types/admin.types';
 import type { FeatureFlag, SubscriptionPlan } from '@prisma/client';
+import {
+  publishSystemConfigChanged, publishSystemFeatureToggled,
+} from '../fabric/producers/system.producer';
 
 const BUILTIN_FLAGS: ReadonlyArray<Omit<UpsertFeatureFlagInput, 'description'> & { description: string }> = [
   {
@@ -140,6 +143,17 @@ export async function upsertFeatureFlag(
     },
   });
 
+  // The flag's KEY, never its value, its name, its description or its plan
+  // list. A configuration event says that configuration moved; it does not
+  // say what it moved to.
+  if (existing && existing.defaultEnabled !== upserted.defaultEnabled) {
+    publishSystemFeatureToggled(upserted.key, upserted.defaultEnabled, actor.userId);
+  } else if (!existing && upserted.defaultEnabled) {
+    publishSystemFeatureToggled(upserted.key, true, actor.userId);
+  } else {
+    publishSystemConfigChanged(upserted.key, actor.userId);
+  }
+
   await writePlatformAudit({
     adminId: actor.adminId,
     userId: actor.userId,
@@ -160,6 +174,11 @@ export async function deleteFeatureFlag(actor: PlatformActor, key: string): Prom
   if (!existing) throw new NotFoundError('Feature flag not found');
 
   await prisma.featureFlag.delete({ where: { key } });
+
+  // A deleted flag that was ON is a disablement; one that was already OFF is
+  // a configuration change and nothing more.
+  if (existing.defaultEnabled) publishSystemFeatureToggled(key, false, actor.userId);
+  else publishSystemConfigChanged(key, actor.userId);
 
   await writePlatformAudit({
     adminId: actor.adminId,

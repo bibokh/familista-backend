@@ -26,6 +26,9 @@ import { runDeterministicHandler } from './agent-handlers';
 import { classifyRisk, getJobApproval, requestApproval } from '../security/ai-approval.service';
 import { logSecurityEvent } from '../security/security-event.service';
 import { recordDecision, impactFor } from '../services/ai-agent-decision.service';
+import {
+  publishSystemServiceStarted, publishSystemServiceStopped,
+} from '../fabric/producers/system.producer';
 
 const TICK_MS = 4_000;
 const STALE_RUNNING_MS = 10 * 60 * 1000;   // a job running > 10 min is considered stalled
@@ -327,6 +330,7 @@ async function tick(): Promise<void> {
 export function startAIAgentWorker(): void {
   if (_running) return;
   _running = true;
+  publishSystemServiceStarted('ai-agent-worker');
   const status = llmStatus();
   logger.info('[ai-worker] starting', { tickMs: TICK_MS, backend: status.backend });
   _timer = setTimeout(tick, TICK_MS);
@@ -334,6 +338,7 @@ export function startAIAgentWorker(): void {
 
 export async function stopAIAgentWorker(): Promise<void> {
   _running = false;
+  publishSystemServiceStopped('ai-agent-worker');
   if (_timer) { clearTimeout(_timer); _timer = null; }
   logger.info('[ai-worker] stopped');
 }

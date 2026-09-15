@@ -20,6 +20,9 @@ import { transcodeToHls }       from '../services/video-hls.service';
 import { handleTranscodeCallback } from '../video/video-asset.service';
 import { publishMediaProcessingStarted } from '../fabric/producers/media.producer';
 import { withMediaContext } from '../fabric/producers/media-context';
+import {
+  publishSystemServiceStarted, publishSystemServiceStopped,
+} from '../fabric/producers/system.producer';
 
 const POLL_INTERVAL = parseInt(process.env.VIDEO_WORKER_INTERVAL_MS ?? '15000', 10);
 const MAX_RETRIES   = 2;
@@ -37,12 +40,14 @@ export function startVideoTranscodeWorker(): void {
     return;
   }
   _running = true;
+  publishSystemServiceStarted('video-transcode-worker');
   _log(`started (interval=${POLL_INTERVAL}ms, worker=${WORKER_ID})`);
   _schedule();
 }
 
 export function stopVideoTranscodeWorker(): void {
   _running = false;
+  publishSystemServiceStopped('video-transcode-worker');
   if (_timer) {
     clearTimeout(_timer);
     _timer = null;

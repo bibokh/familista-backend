@@ -15,6 +15,9 @@
 import { AutomationStatus, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { logger } from '../utils/logger';
+import {
+  publishSystemServiceStarted, publishSystemServiceStopped,
+} from '../fabric/producers/system.producer';
 
 const TICK_MS = 15_000;   // re-evaluate every 15 seconds; fine for "every:30s" granularity
 
@@ -75,12 +78,14 @@ async function tick(): Promise<void> {
 export function startAutomationScheduler(): void {
   if (_running) return;
   _running = true;
+  publishSystemServiceStarted('automation-scheduler');
   logger.info('[automation] starting scheduler', { tickMs: TICK_MS });
   _timer = setTimeout(tick, TICK_MS);
 }
 
 export async function stopAutomationScheduler(): Promise<void> {
   _running = false;
+  publishSystemServiceStopped('automation-scheduler');
   if (_timer) { clearTimeout(_timer); _timer = null; }
   logger.info('[automation] scheduler stopped');
 }

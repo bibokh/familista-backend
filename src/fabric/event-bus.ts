@@ -184,6 +184,17 @@ export async function emit<P>(input: EventInput<P>): Promise<EmitResult> {
     }
   }
 
+  // Tell the System producer whether this landed. Required lazily: that module
+  // publishes through this one, and a static import would be a cycle. It is a
+  // name check and a boolean on the hot path, and it reports a STATE rather
+  // than a failure — see the recursion note in `producers/system.producer.ts`.
+  try {
+    const { noteFabricPublishOutcome } = require('../fabric/producers/system.producer') as typeof import('./producers/system.producer');
+    noteFabricPublishOutcome(event.eventType, outcome !== 'FAILED');
+  } catch {
+    // Observability about observability never fails an append.
+  }
+
   if (outcome !== 'FAILED') fanOut(event);
   return { event, outcome, stored: outcome !== 'FAILED' };
 }
