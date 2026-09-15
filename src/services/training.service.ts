@@ -1,6 +1,107 @@
 import { AttendanceMark, DrillType, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
+import { logger } from '../utils/logger';
+import {
+  publishTrainingSessionCreated, publishTrainingSessionUpdated, publishTrainingSessionDeleted,
+  publishTrainingAttendanceSaved, publishTrainingLocationChanged, publishTrainingStatusChanged,
+  publishTrainingPlayerAdded, publishTrainingPlayerRemoved,
+} from '../fabric/producers/training.producer';
+
+// ─────────────────────────────────────────────────────────────────────────
+// The Data Fabric adapter
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Every Training event goes through here and nowhere else. One name to scan
+// for, one place the rules live, and one place the squad's KIND is resolved.
+//
+// WHY IT IS CALLED AFTER THE COMMIT, ALWAYS
+//
+// An event announces a fact to the rest of the platform. Announcing a session
+// that then rolled back is worse than announcing nothing, so every call site
+// below sits after its transaction has returned.
+//
+// WHY IT RESOLVES THE TEAM KIND ITSELF
+//
+// First-team and academy training are one lane, told apart by `teamKind`. Most
+// call sites do not already know it, and making them `await` a lookup would put
+// a read on the path of every attendance save. So the lookup happens inside the
+// detached body: the caller returns immediately, and the event acquires its
+// context a moment later. A coach must not wait on observability.
+
+/** Every event this service may produce. One union, so the switch is total. */
+type TrainingEventType =
+  | 'training.session.created' | 'training.session.updated' | 'training.session.deleted'
+  | 'training.attendance.saved' | 'training.location.changed' | 'training.status.changed'
+  | 'training.player.added' | 'training.player.removed';
+
+/**
+ * What a particular event needs beyond the session itself.
+ *
+ * Deliberately narrow: COUNTS, FIELD NAMES and STATUS TOKENS. There is no
+ * member of this type into which a location, a coach's note, an attendance
+ * reason or a player id could be put.
+ */
+interface TrainingEventDetail {
+  changedFields?: readonly string[];
+  players?: number;
+  drills?: number;
+  marked?: number;
+  count?: number;
+  from?: string | null;
+  to?: string | null;
+}
+
+interface TrainingSubject {
+  id: string;
+  clubId: string;
+  teamId: string | null;
+}
+
+function emitTrainingEvent(
+  eventType: TrainingEventType,
+  session: TrainingSubject,
+  actorUserId: string | null,
+  detail: TrainingEventDetail = {},
+): void {
+  void (async () => {
+    const kind = session.teamId
+      ? (await prisma.team.findUnique({ where: { id: session.teamId }, select: { kind: true } }))?.kind ?? null
+      : null;
+    const ctx = {
+      sessionId: session.id,
+      clubId: session.clubId,
+      teamId: session.teamId ?? null,
+      actorUserId,
+    };
+
+    switch (eventType) {
+      case 'training.session.created':
+        publishTrainingSessionCreated(ctx, detail.players ?? 0, detail.drills ?? 0, kind); return;
+      case 'training.session.updated':
+        publishTrainingSessionUpdated(ctx, detail.changedFields ?? [], kind); return;
+      case 'training.session.deleted':
+        publishTrainingSessionDeleted(ctx, kind); return;
+      case 'training.attendance.saved':
+        publishTrainingAttendanceSaved(ctx, detail.marked ?? 0, kind); return;
+      case 'training.location.changed':
+        publishTrainingLocationChanged(ctx, kind); return;
+      case 'training.status.changed':
+        publishTrainingStatusChanged(ctx, detail.from ?? null, detail.to ?? null, kind); return;
+      case 'training.player.added':
+        publishTrainingPlayerAdded(ctx, detail.count ?? 0, kind); return;
+      case 'training.player.removed':
+        publishTrainingPlayerRemoved(ctx, detail.count ?? 0, kind); return;
+      default: return;
+    }
+  })().catch((err) => {
+    // A training operation that already succeeded must not be reported as
+    // failed because the fabric was unwell.
+    logger.warn('[fabric] a training event could not be recorded; the write stands', {
+      eventType, sessionId: session.id, err: (err as Error)?.message,
+    });
+  });
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Whose training week is this?
@@ -154,14 +255,11 @@ export async function createCleanSession(clubId: string, dto: CleanCreateSession
     }
   }
 
-  // NOTE: `location` intentionally NOT written here. The deployed Prisma
-  // Client on Render predates the 20260602000000_training_location migration,
-  // so include of `location` raises PrismaClientValidationError "Unknown
-  // argument `location`". Zod still accepts `location` from the request body
-  // so existing clients don't fail validation — it just isn't persisted until
-  // the next full backend redeploy regenerates the Client against the
-  // current schema.
-  return prisma.trainingSession.create({
+  // `location` is written, and has been since the migration below it shipped.
+  // The note that used to sit here said the opposite and contradicted the line
+  // that writes it — a workaround's obituary left in place long enough to be
+  // read as current.
+  const created = await prisma.trainingSession.create({
     data: {
       clubId,
       teamId,
@@ -193,6 +291,12 @@ export async function createCleanSession(clubId: string, dto: CleanCreateSession
       playerStats: { include: { player: true } },
     },
   });
+
+  // After the create. COUNTS, never ids — a roster of three is three children.
+  emitTrainingEvent('training.session.created', created, null, {
+    players: validPlayerIds.length, drills: (dto.drills ?? []).length,
+  });
+  return created;
 }
 
 export async function getTrainingSessions(
@@ -265,7 +369,7 @@ export async function createTrainingSession(
     await assertPlayersOfTeam(clubId, teamId, playerIds);
   }
 
-  return prisma.trainingSession.create({
+  const created = await prisma.trainingSession.create({
     data: {
       clubId,
       teamId,
@@ -285,6 +389,13 @@ export async function createTrainingSession(
       playerStats: { include: { player: true } },
     },
   });
+
+  // The same fact as the clean path produces, under the same name. Two routes
+  // into one occurrence must not become two names for it.
+  emitTrainingEvent('training.session.created', created, null, {
+    players: playerIds?.length ?? 0, drills: (dto.drills ?? []).length,
+  });
+  return created;
 }
 
 // Bug fixed: playerIds was extracted but silently ignored. Now replaces the
@@ -308,20 +419,29 @@ export async function updateTrainingSession(
     await assertPlayersOfTeam(clubId, effectiveTeamId, playerIds);
   }
 
+  // Captured BEFORE the write, by value. Read afterwards they would depend on
+  // the update returning an object distinct from the one `existing` points at,
+  // which is true of Prisma and is not a thing to rely on.
+  const previousLocation = existing.location ?? null;
+  const previousRoster = new Set((existing.playerStats ?? []).map((ps) => ps.playerId));
+
   await prisma.$transaction(async (tx) => {
     await tx.trainingSession.update({
       where: { id },
       data: {
         ...(fields.title       !== undefined && { title:       fields.title }),
         ...(fields.description !== undefined && { description: fields.description }),
-        // NOTE: `location` intentionally NOT written here. Same reason as
-        // createCleanSession (commit 2a7a8ff): the deployed Prisma Client on
-        // Render predates the 20260602000000_training_location migration, so
-        // including `location` raises PrismaClientValidationError "Unknown
-        // argument `location`" and 500s the entire PATCH. Zod still accepts
-        // it in the request body so existing clients don't fail validation;
-        // the value is silently discarded until the next clean backend
-        // redeploy regenerates the Client against the current schema.
+        // `location` IS written. It stopped being written behind a workaround
+        // for a deployed Prisma Client that predated
+        // `20260602000000_training_location`; that migration has since shipped,
+        // the column is in the schema, and both create paths have been writing
+        // the field successfully ever since — which is the proof the Client
+        // knows about it. The workaround outlived its cause and left the two
+        // halves disagreeing: a session could be created with a location and
+        // then never moved, with the PATCH returning 200 and discarding the
+        // value. `training.location.changed` cannot be produced honestly while
+        // that is true, which is how it came to light.
+        ...(fields.location    !== undefined && { location:    fields.location }),
         ...(fields.scheduledAt !== undefined && { scheduledAt: new Date(fields.scheduledAt) }),
         ...(fields.duration    !== undefined && { duration:    fields.duration }),
         ...(fields.drills      !== undefined && { drills:      fields.drills }),
@@ -342,12 +462,46 @@ export async function updateTrainingSession(
   });
 
   // Re-fetch to return fresh playerStats relation
-  return getTrainingById(id, clubId);
+  const updated = await getTrainingById(id, clubId);
+
+  // ── the umbrella, then the specific facts ────────────────────────────────
+  //
+  // `training.session.updated` fires for every successful update and names the
+  // fields the caller asked to change. The specific events fire only when that
+  // thing actually MOVED — resending a session's existing location is not a
+  // change of venue, and an event saying otherwise is a lie a consumer would
+  // act on. Each is a different fact with a different name and sensitivity,
+  // which is why they sit alongside the umbrella rather than replacing it.
+  const changedFields = Object.keys(dto).filter((k) => (dto as Record<string, unknown>)[k] !== undefined);
+  emitTrainingEvent('training.session.updated', updated, null, { changedFields });
+
+  // A venue move is RESTRICTED and carries no value: an address plus a
+  // scheduled time is where a named squad of children will be.
+  if (fields.location !== undefined && (fields.location ?? null) !== previousLocation) {
+    emitTrainingEvent('training.location.changed', updated, null);
+  }
+
+  // A roster change is reported as a COUNT in each direction. A session that
+  // swaps one player for another genuinely added one and removed one.
+  if (playerIds !== undefined) {
+    const nextRoster = new Set(playerIds);
+    let added = 0;
+    for (const pid of nextRoster) if (!previousRoster.has(pid)) added += 1;
+    let removed = 0;
+    for (const pid of previousRoster) if (!nextRoster.has(pid)) removed += 1;
+    emitTrainingEvent('training.player.added', updated, null, { count: added });
+    emitTrainingEvent('training.player.removed', updated, null, { count: removed });
+  }
+
+  return updated;
 }
 
 export async function deleteTrainingSession(id: string, clubId: string) {
-  await getTrainingById(id, clubId);
+  const existing = await getTrainingById(id, clubId);
   await prisma.trainingSession.delete({ where: { id } });
+  // After the delete, on the row as it was. The session no longer exists, so
+  // the squad it belonged to is read from what was fetched a moment ago.
+  emitTrainingEvent('training.session.deleted', existing, null);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -450,6 +604,11 @@ export async function setTrainingAttendance(
     ),
   );
 
+  // After the writes. HOW MANY marks were saved, and nothing else — not who,
+  // not the mark, and above all not the note against it. An attendance reason
+  // is the sort of thing safeguarding exists to protect.
+  emitTrainingEvent('training.attendance.saved', session, actorUserId, { marked: marks.length });
+
   return getTrainingAttendance(sessionId, clubId);
 }
 
@@ -482,7 +641,20 @@ export async function savePerformance(
   sessionId: string,
   clubId: string,
   marks: PerformanceMarkDto[],
+  /**
+   * Whether this call owns the operation the caller asked for.
+   *
+   * False when `completeSession` is walking through here on its way to
+   * `completed`: the planned → in_progress step is real, but it is an
+   * implementation detail of completion rather than a second thing the coach
+   * did, and publishing both would put two status events on the board for one
+   * action. Defaults to true, so a direct call announces itself.
+   */
+  announce = true,
 ) {
+  const before = await prisma.trainingSession.findUnique({
+    where: { id: sessionId }, select: { status: true },
+  });
   const session = await getTrainingById(sessionId, clubId);
   await assertOwnedPlayers(clubId, marks.map((m) => m.playerId), session.teamId);
 
@@ -507,12 +679,32 @@ export async function savePerformance(
   );
 
   // Mark the session in-progress once performance is recorded (matches client flow).
-  await prisma.trainingSession.updateMany({
+  const moved = await prisma.trainingSession.updateMany({
     where: { id: sessionId, status: { in: ['draft', 'planned'] } },
     data:  { status: 'in_progress' },
   });
 
-  return getTrainingById(sessionId, clubId);
+  const after = await getTrainingById(sessionId, clubId);
+
+  // Two conditions, and both matter.
+  //
+  // `moved.count` is the first: `updateMany` with a status filter is a no-op
+  // when the session has already started, and a status event for a status that
+  // did not change is noise in a log that must not have any.
+  //
+  // `announce` is the second, and it is the one rule 7 is about.
+  // `completeSession` calls this function on its way to `completed`, so
+  // publishing here would put planned → in_progress on the board alongside the
+  // completion — two events for one thing the coach did. The caller that owns
+  // the operation publishes; this one stays quiet when it is a step inside
+  // somebody else's.
+  if (announce && moved.count > 0) {
+    emitTrainingEvent('training.status.changed', after, null, {
+      from: before?.status ?? null, to: 'in_progress',
+    });
+  }
+
+  return after;
 }
 
 export interface CompleteSessionDto {
@@ -530,10 +722,15 @@ export async function completeSession(
   dto: CompleteSessionDto,
 ) {
   const session = await getTrainingById(sessionId, clubId);
+  // The status it had when the coach pressed complete — before `savePerformance`
+  // below walks it through `in_progress` on the way.
+  const previousStatus = session.status;
 
   if (dto.bestPlayerId) await assertOwnedPlayers(clubId, [dto.bestPlayerId], session.teamId);
   if (dto.performance && dto.performance.length) {
-    await savePerformance(sessionId, clubId, dto.performance);
+    // `announce: false` — see the parameter's own note. Completing a session is
+    // one action and produces one status event, published below.
+    await savePerformance(sessionId, clubId, dto.performance, false);
   }
 
   await prisma.trainingSession.update({
@@ -547,7 +744,17 @@ export async function completeSession(
     },
   });
 
-  return getTrainingById(sessionId, clubId);
+  const completed = await getTrainingById(sessionId, clubId);
+
+  // One event, after the commit, carrying the status the session really had
+  // when the coach started — not the `in_progress` it passed through. Neither
+  // the coach's note nor the session rating travels: one is free text an adult
+  // wrote, the other is a judgement about children.
+  emitTrainingEvent('training.status.changed', completed, null, {
+    from: previousStatus, to: 'completed',
+  });
+
+  return completed;
 }
 
 // ── Reports (PostgreSQL only) ──────────────────────────────────────────────
