@@ -17,6 +17,9 @@ import {
   TacticalSource,
   Prisma,
 } from '@prisma/client';
+import { logger } from '../utils/logger';
+import { matchContext, type MatchLike } from '../fabric/producers/match-context';
+import { publishMatchLineupUpdated } from '../fabric/producers/matches.producer';
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
 import type { MatchActor } from './match.service';
@@ -180,6 +183,16 @@ export async function setLineup(actor: MatchActor, matchId: string, dto: SetLine
   }).then((lineup) => {
     publish({ kind: 'LINEUP_SET', matchId, clubId: actor.clubId,
       payload: { side: dto.side, formation: dto.formation, n: dto.positions.length } });
+
+    // After the commit. A COUNT of positions and which side — never the
+    // positions themselves, which are player ids, and never the lineup's notes,
+    // which are where a coach writes what he actually thinks.
+    void (async () => {
+      const ctx = await matchContext(match as MatchLike, actor.userId ?? null);
+      publishMatchLineupUpdated(ctx, dto.side, dto.positions.length);
+    })().catch((err) => logger.warn('[fabric] a lineup could not be recorded', {
+      matchId, err: (err as Error)?.message,
+    }));
     return lineup;
   });
 }

@@ -11,6 +11,92 @@ import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
 import { publish } from '../realtime/match-channel';
 import { syncMatchToLeague } from '../competition/familista-league.admin.service';
+import { logger } from '../utils/logger';
+import { matchContext, type MatchLike } from '../fabric/producers/match-context';
+import {
+  publishMatchCreated, publishMatchUpdated, publishMatchDeleted,
+  publishMatchStatusChanged, publishMatchStarted, publishMatchCompleted,
+  publishMatchCancelled, publishMatchTimeChanged, publishMatchVenueChanged,
+  publishMatchResultUpdated,
+} from '../fabric/producers/matches.producer';
+
+// ─────────────────────────────────────────────────────────────────────────
+// The Data Fabric, from the one funnel every match change goes through
+// ─────────────────────────────────────────────────────────────────────────
+//
+// `startLive`, `setHalftime`, `resumeSecondHalf` and `finalize` all call
+// `updateMatch`. So does the Match Centre's edit form. Publishing from each of
+// them would mean a single `finalize` producing two `match.updated` events —
+// one from the helper and one from the funnel it delegates to — which is the
+// duplication this architecture exists to avoid. Everything routed through
+// `updateMatch` is therefore published ONCE, here, and derived from what
+// actually changed rather than from which helper asked.
+//
+// `abandonMatch` is the exception and writes directly; it publishes its own.
+
+/** Statuses after which the fixture will not produce a result. */
+const TERMINAL_WITHOUT_RESULT = new Set<MatchStatus>([MatchStatus.CANCELLED, MatchStatus.ABANDONED]);
+
+/**
+ * Announce a committed match change.
+ *
+ * Detached, and resolving its own context: a match's squad kind and its league
+ * competition are two joins the caller usually has no reason to have made, and
+ * making a live status transition wait on them would put reads on the path of
+ * every tick of a running match.
+ */
+function emitMatchChange(
+  before: MatchLike | null,
+  after: MatchLike,
+  actorUserId: string | null,
+  changedFields: readonly string[],
+): void {
+  void (async () => {
+    const ctx = await matchContext(after, actorUserId);
+
+    // THE UMBRELLA. One per successful update, whatever changed.
+    publishMatchUpdated(ctx, changedFields);
+
+    // ── and the specific facts, each only when that thing actually MOVED ────
+    const movedTime = before != null
+      && new Date(after.scheduledAt).getTime() !== new Date(before.scheduledAt).getTime();
+    if (movedTime) publishMatchTimeChanged(ctx, 'EDIT');
+
+    if (before != null && (after.venue ?? null) !== (before.venue ?? null)) {
+      publishMatchVenueChanged(ctx, 'EDIT');
+    }
+
+    if (before != null && after.status !== before.status) {
+      publishMatchStatusChanged(ctx, before.status, after.status);
+      // The milestones sit ALONGSIDE the transition rather than replacing it —
+      // intentional coexistence, so a consumer that only cares whether matches
+      // are kicking off need not parse a from/to pair to find out.
+      if (after.status === MatchStatus.LIVE && before.status !== MatchStatus.HALFTIME) {
+        publishMatchStarted(ctx);
+      }
+      if (after.status === MatchStatus.FT) {
+        publishMatchCompleted(ctx, after.homeScore ?? null, after.awayScore ?? null, after.result ?? null);
+      }
+      if (TERMINAL_WITHOUT_RESULT.has(after.status as MatchStatus)) {
+        publishMatchCancelled(ctx, after.status);
+      }
+    }
+
+    const movedScore = before != null
+      && ((after.homeScore ?? null) !== (before.homeScore ?? null)
+        || (after.awayScore ?? null) !== (before.awayScore ?? null)
+        || (after.result ?? null) !== (before.result ?? null));
+    if (movedScore) {
+      publishMatchResultUpdated(ctx, after.homeScore ?? null, after.awayScore ?? null, after.result ?? null);
+    }
+  })().catch((err) => {
+    // A match operation that already succeeded must not be reported as failed
+    // because the fabric was unwell.
+    logger.warn('[fabric] a match event could not be recorded; the write stands', {
+      matchId: after.id, err: (err as Error)?.message,
+    });
+  });
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -255,7 +341,7 @@ export async function getNextMatch(clubId: string, teamId?: string | null) {
 
 export async function createMatch(actor: MatchActor, dto: CreateMatchDto) {
   await assertTeamInClub(actor.clubId, dto.teamId ?? null);
-  return prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     const match = await tx.match.create({
       data: {
         clubId:          actor.clubId,
@@ -283,6 +369,16 @@ export async function createMatch(actor: MatchActor, dto: CreateMatchDto) {
     });
     return match;
   });
+
+  // After the commit. ONE event: a fixture appearing in the calendar is a
+  // fixture appearing, and the opponent notes it may have been created with
+  // stay where they were written.
+  void (async () => {
+    publishMatchCreated(await matchContext(created, actor.userId ?? null));
+  })().catch((err) => logger.warn('[fabric] a match creation could not be recorded', {
+    matchId: created.id, err: (err as Error)?.message,
+  }));
+  return created;
 }
 
 export async function updateMatch(actor: MatchActor, id: string, dto: UpdateMatchDto) {
@@ -367,6 +463,14 @@ export async function updateMatch(actor: MatchActor, id: string, dto: UpdateMatc
         || dto.scheduledAt !== undefined) {
       try { await syncMatchToLeague(id); } catch (_) { /* derived, and rebuildable */ }
     }
+
+    // THE ONE PUBLISH POINT. Every helper above delegates here, so a finalize
+    // produces one `match.updated` rather than one per layer it passed through.
+    // Derived from the before/after rows rather than from the DTO, because the
+    // same DTO field resent unchanged is not a change.
+    const changedFields = Object.keys(dto).filter((k) => (dto as Record<string, unknown>)[k] !== undefined);
+    emitMatchChange(existing as MatchLike, updated as MatchLike, actor.userId ?? null, changedFields);
+
     return updated;
   });
 }
@@ -385,6 +489,16 @@ export async function deleteMatch(actor: MatchActor, id: string, reason?: string
     });
     await tx.match.delete({ where: { id } });
   });
+
+  // After the delete, on the row as it was. The REASON is not carried: it is
+  // free text somebody typed, it is already in the match audit log where it is
+  // read under authorisation, and an observability surface is not where it
+  // belongs.
+  void (async () => {
+    publishMatchDeleted(await matchContext(existing as MatchLike, actor.userId ?? null));
+  })().catch((err) => logger.warn('[fabric] a match deletion could not be recorded', {
+    matchId: id, err: (err as Error)?.message,
+  }));
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -451,6 +565,19 @@ export async function abandonMatch(actor: MatchActor, id: string, reason?: strin
       },
     });
   });
+
+  // This is the one transition that does NOT delegate to `updateMatch`, so it
+  // publishes its own — and publishes exactly what the funnel would have: the
+  // transition, and the fact that no result will follow.
+  void (async () => {
+    const ctx = await matchContext(
+      { ...(existing as MatchLike), status: MatchStatus.ABANDONED }, actor.userId ?? null,
+    );
+    publishMatchStatusChanged(ctx, existing.status, MatchStatus.ABANDONED);
+    publishMatchCancelled(ctx, MatchStatus.ABANDONED);
+  })().catch((err) => logger.warn('[fabric] an abandonment could not be recorded', {
+    matchId: id, err: (err as Error)?.message,
+  }));
 }
 
 // ─────────────────────────────────────────────────────────────────────────
