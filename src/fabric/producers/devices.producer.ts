@@ -1,4 +1,4 @@
-// Devices and their telemetry, as a Data Fabric producer
+// Devices, cameras and their telemetry, as a Data Fabric producer
 // ─────────────────────────────────────────────────────────────────────────────
 // Four names that shipped with the taxonomy and never had a producer, and four
 // flows that have been writing rows the whole time: a device is enrolled to a
@@ -59,6 +59,12 @@ const attachment = z.enum(['MATCH', 'TRAINING', 'NONE']);
 /** Sensor packet kinds, as tokens. The `SensorPacketKind` enum, never a payload. */
 const kinds = z.array(z.string().min(1).max(32)).min(1).max(12);
 
+/** A capture stream's state, as `VisionStreamStatus` records it. `ACTIVE`, `CLOSED`. */
+const streamStatus = z.string().min(1).max(24);
+
+/** A count on a stream row. Bounded, so a corrupt BigInt cannot widen the frame. */
+const total = z.number().int().min(0).max(1_000_000_000);
+
 export function registerDevicesProducer(): void {
   // None of the four is registered here — all four are in `event-taxonomy.ts`,
   // and `telemetry.batch.received` additionally carries the `SENSOR_PACKET`
@@ -112,6 +118,43 @@ export function registerDevicesProducer(): void {
       accepted: z.number().int().min(0).max(500),
       kinds,
       attachedTo: attachment,
+    }).strict(),
+  });
+
+  // ── cameras ────────────────────────────────────────────────────────────────
+  //
+  // Two names the taxonomy grouped with devices under "devices and capture ·
+  // not implemented", and which two audits then read as future architecture on
+  // the strength of that comment. They are not: `vision/event-stream` opens a
+  // real `EventCameraStream` against a real `Camera`, sets it ACTIVE, audits
+  // `NEURO_STREAM_OPENED`, and closes it with `NEURO_STREAM_CLOSED`. The flow
+  // has been writing rows the whole time.
+  //
+  // `sessionRef` never travels. It is a caller-supplied correlation string that
+  // a capture rig may set to anything — a fixture name, a venue, a date — and
+  // the board has no use for it. Nor does `metadata`, which is an arbitrary
+  // JSON bag, and nor does the camera id: `CAMERA` is not a safe subject kind.
+  registerFabricSchema({
+    eventType: 'camera.stream.started', version: 1,
+    describes: 'That a capture stream opened and what it is attached to. Never its session reference',
+    schema: z.object({
+      status: streamStatus,
+      attachedTo: z.enum(['MATCH', 'NONE']),
+      metadataDeclared: z.boolean(),
+    }).strict(),
+  });
+
+  registerFabricSchema({
+    eventType: 'camera.stream.ended', version: 1,
+    // The two totals are the operational point of a closed stream — how much it
+    // actually carried — and are counts rather than content.
+    describes: 'That a capture stream closed, how long it ran and how much it carried',
+    schema: z.object({
+      status: streamStatus,
+      attachedTo: z.enum(['MATCH', 'NONE']),
+      durationSeconds: z.number().int().min(0).max(86_400).nullable(),
+      packetsTotal: total,
+      eventsTotal: total,
     }).strict(),
   });
 }
@@ -217,6 +260,81 @@ export function publishDeviceDisconnected(
     model: modelName ? String(modelName).slice(0, 48) : null,
     attachedTo,
     durationSeconds: Number.isFinite(seconds as number) ? seconds : null,
+  });
+}
+
+/** Which club a camera stream belongs to, and which row it is. */
+export interface CameraStreamContext {
+  clubId: string;
+  /** The `EventCameraStream` row. Withheld from the frame — `CAMERA` is not safe. */
+  streamId: string;
+  actorUserId?: string | null;
+}
+
+function publishCamera(
+  eventType: string, ctx: CameraStreamContext, payload: Record<string, unknown>,
+): void {
+  publishFabricEventDetached({
+    eventType,
+    clubId: ctx.clubId,
+    teamId: null,
+    actorUserId: ctx.actorUserId ?? null,
+    subjectType: 'CAMERA',
+    subjectId: ctx.streamId,
+    sourceType: 'CAMERA',
+    payload,
+  });
+}
+
+/** A count from the database, clamped into the shape the schema declares. */
+function counted(value: bigint | number | null | undefined): number {
+  const n = typeof value === 'bigint' ? Number(value) : Number(value ?? 0);
+  return Number.isFinite(n) ? Math.max(0, Math.min(1_000_000_000, Math.trunc(n))) : 0;
+}
+
+/**
+ * A capture stream opened.
+ *
+ * Called by `openStream` after the row exists — and NOT called on its early
+ * return, where an existing `(cameraId, sessionRef)` pair is handed back
+ * untouched. Reopening the same stream is not a second opening.
+ */
+export function publishCameraStreamStarted(
+  ctx: CameraStreamContext,
+  status: string,
+  attachedTo: 'MATCH' | 'NONE',
+  metadataDeclared: boolean,
+): void {
+  publishCamera('camera.stream.started', ctx, {
+    status: String(status).slice(0, 24) || 'ACTIVE',
+    attachedTo,
+    metadataDeclared: !!metadataDeclared,
+  });
+}
+
+/**
+ * A capture stream closed.
+ *
+ * Called by `closeStream` after the update, and not reached when the stream was
+ * already closed — that service returns the row untouched on `closedAt`.
+ */
+export function publishCameraStreamEnded(
+  ctx: CameraStreamContext,
+  status: string,
+  attachedTo: 'MATCH' | 'NONE',
+  openedAt: Date | null,
+  closedAt: Date | null,
+  totals: { packets: bigint | number | null; events: bigint | number | null },
+): void {
+  const seconds = openedAt && closedAt
+    ? Math.max(0, Math.min(86_400, Math.round((closedAt.getTime() - openedAt.getTime()) / 1000)))
+    : null;
+  publishCamera('camera.stream.ended', ctx, {
+    status: String(status).slice(0, 24) || 'CLOSED',
+    attachedTo,
+    durationSeconds: Number.isFinite(seconds as number) ? seconds : null,
+    packetsTotal: counted(totals.packets),
+    eventsTotal: counted(totals.events),
   });
 }
 

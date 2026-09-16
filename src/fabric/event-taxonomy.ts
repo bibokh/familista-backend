@@ -149,9 +149,11 @@ export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   { type: 'device.connected',        describes: 'A device opened a session',                          classification: 'INTERNAL',     schemaVersion: 1 },
   { type: 'device.disconnected',     describes: 'A device session ended',                             classification: 'INTERNAL',     schemaVersion: 1 },
   { type: 'telemetry.batch.received', describes: 'A batch of sensor samples was ingested',            classification: 'RESTRICTED',   schemaVersion: 1, legacyKind: 'SENSOR_PACKET' },
-  // No camera stream lifecycle exists in this build — `vision/event-stream`
-  // is a different thing. Future architecture, and marked as such.
-  { type: 'camera.stream.started',   describes: 'A camera began producing a stream',                  classification: 'INTERNAL',     schemaVersion: 1, produced: false },
+  // `vision/event-stream` IS the camera stream lifecycle, and both now have a
+  // producer there. The comment this replaces said it was "a different thing";
+  // it was read off a file name rather than out of the file, and two audits
+  // repeated the mistake before one opened it.
+  { type: 'camera.stream.started',   describes: 'A camera began producing a stream',                  classification: 'INTERNAL',     schemaVersion: 1 },
   // Credential lifecycle. The payload of every one of these carries the
   // REFERENCE and never the secret — a reference is safe in an event, a log and
   // a backup, which is the entire reason references exist.
@@ -165,16 +167,17 @@ export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   { type: 'secret.kek.activated',    describes: 'A key-encryption key became the one sealing new writes', classification: 'CONFIDENTIAL', schemaVersion: 1 },
   { type: 'secret.kek.rewrapped',    describes: 'A sealed secret was re-keyed onto another KEK version',  classification: 'CONFIDENTIAL', schemaVersion: 1 },
   { type: 'secret.kek.retired',      describes: 'A key-encryption key was withdrawn from use',            classification: 'CONFIDENTIAL', schemaVersion: 1 },
-  { type: 'camera.stream.ended',     describes: 'A camera stream finished',                           classification: 'INTERNAL',     schemaVersion: 1, produced: false },
+  { type: 'camera.stream.ended',     describes: 'A camera stream finished',                           classification: 'INTERNAL',     schemaVersion: 1 },
 
   // ── intelligence ──────────────────────────────────────────────────────────
-  // Neither has ever been published through the fabric. `AI_RECOMMENDATION`
-  // and `AI_ALERT` travel on the realtime match channel and the big-data
-  // dispatcher, which are different transports; the legacy mapping is kept so
-  // a reader of either name finds the other. The AI producer publishes the
-  // request, agent, model, inference and orchestration lifecycles instead.
-  { type: 'ai.analysis.completed',   describes: 'A model finished analysing something',               classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'AI_RECOMMENDATION', produced: false },
-  { type: 'ai.alert.raised',         describes: 'A model raised an alert',                            classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'AI_ALERT', produced: false },
+  // Both now have a producer in `ai-ops.service`, where the rows they describe
+  // have always been written. The comment this replaces said they travelled on
+  // the big-data dispatcher — `publishAIAlert` and `publishAIRecommendation` in
+  // `big-data/publisher.ts` are called by nothing at all, so that transport had
+  // no producer either. The legacy mapping stays, so a reader of either name
+  // still finds the other.
+  { type: 'ai.analysis.completed',   describes: 'A model finished analysing something',               classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'AI_RECOMMENDATION' },
+  { type: 'ai.alert.raised',         describes: 'A model raised an alert',                            classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'AI_ALERT' },
   // `ai-model-registry.activateModel` now publishes the deployment, from
   // `producers/ai.producer.ts`. Nothing in this build evaluates a model against
   // a dataset, so the evaluation stays unproduced — future architecture, and a

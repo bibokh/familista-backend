@@ -36,7 +36,7 @@ import {
   publishCoachContractStatusChanged,
   publishCoachShortlisted, publishCoachUnshortlisted,
   publishCoachOffer, publishCoachNegotiationStarted, publishCoachNegotiationUpdated,
-  publishCoachNegotiationCancelled, publishCoachHired,
+  publishCoachNegotiationCancelled, publishCoachHired, publishCoachAssignmentChanged,
   publishStaffNeedCreated, publishStaffNeedClosed,
   type CoachMarketContext,
 } from '../fabric/producers/coach-market.producer';
@@ -2553,6 +2553,13 @@ export async function moveStaffMember(actor: StaffActor, staffUserId: string, dt
   const teamChanged = (dto.teamId ?? null) !== (m!.teamId ?? null);
   if (!roleChanged && !teamChanged) return { staffUserId, moved: false };
 
+  // The label the job he is leaving recorded, read before the transaction
+  // closes that engagement. Asking afterwards would answer about the new one.
+  const leaving = await prisma.staffEngagement.findFirst({
+    where: { userId: staffUserId, clubId: actor.clubId, isActive: true },
+    select: { teamLabel: true },
+  });
+
   await prisma.$transaction(async (tx) => {
     // The compound unique is (userId, clubId, teamId, role); a move can collide
     // with a period he already holds, so the existing row is reused if so.
@@ -2602,6 +2609,23 @@ export async function moveStaffMember(actor: StaffActor, staffUserId: string, dt
     action: 'STAFF_MOVED', entityType: 'User', entityId: staffUserId,
     payload: { toTeam: dto.teamId ?? null, role: newRole },
   });
+
+  // After the commit, and only where a move really happened — the guard above
+  // returns `{ moved: false }` without writing when neither the role nor the
+  // team changed. One event: the membership move, the engagement that closed
+  // and the one that opened are three writes describing one reassignment.
+  //
+  // Team CONTEXTS, the same kind of value `coach.hired` already carries. Never
+  // a team id, never the person: `STAFF` is not a safe subject kind.
+  publishCoachAssignmentChanged(
+    {
+      staffUserId, clubId: actor.clubId,
+      staffRole: newRole, actorUserId: actor.userId,
+    },
+    leaving?.teamLabel ?? null,
+    teamLabel,
+  );
+
   return { staffUserId, moved: true };
 }
 

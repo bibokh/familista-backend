@@ -697,9 +697,12 @@ describe('devices and their telemetry', () => {
     expect(published).toEqual([]);
   });
 
-  it('camera streams stay unproduced, because this build has no camera lifecycle', () => {
+  it('camera streams are produced too, by the lifecycle this file once said did not exist', () => {
+    // They were marked future architecture here because `vision/event-stream`
+    // was judged "a different thing" from its file name. It is the camera
+    // stream lifecycle, and the Remaining Unproduced Events Review found it.
     for (const t of ['camera.stream.started', 'camera.stream.ended']) {
-      expect(`${t}: ${fabricEvent(t)?.produced}`).toBe(`${t}: false`);
+      expect(`${t}: ${fabricEvent(t)?.produced}`).toBe(`${t}: true`);
     }
   });
 });
@@ -1074,7 +1077,6 @@ describe('the catalogue, the lanes and the board', () => {
     // reasons, so that a later change making coverage "look better" fails here.
     const STILL_FALSE = [
       'training.started', 'training.completed', 'attendance.recorded',  // superseded
-      'camera.stream.started', 'camera.stream.ended',                   // future
       'model.evaluation.completed',                                     // future
       'user.role.changed',                                              // no flow
       'system.deploy.started', 'system.deploy.completed', 'system.deploy.failed',

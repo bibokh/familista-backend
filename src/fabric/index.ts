@@ -66,6 +66,7 @@ export {
   registerDevicesProducer, DEVICES_SOURCE_ID, attachmentOf,
   publishDeviceRegistered, publishDeviceConnected, publishDeviceDisconnected,
   publishTelemetryBatchReceived,
+  publishCameraStreamStarted, publishCameraStreamEnded, type CameraStreamContext,
   type DeviceContext,
 } from './producers/devices.producer';
 
@@ -100,7 +101,7 @@ export {
   publishCoachContractStatusChanged,
   publishCoachShortlisted, publishCoachUnshortlisted,
   publishCoachOffer, publishCoachNegotiationStarted, publishCoachNegotiationUpdated,
-  publishCoachNegotiationCancelled, publishCoachHired,
+  publishCoachNegotiationCancelled, publishCoachHired, publishCoachAssignmentChanged,
   publishStaffNeedCreated, publishStaffNeedClosed,
   type CoachMarketContext,
 } from './producers/coach-market.producer';
@@ -119,7 +120,8 @@ export {
   publishAIRequestCreated,
   publishAIAgentStarted, publishAIAgentCompleted, publishAIAgentFailed,
   publishAIModelInvoked,
-  publishAIInferenceStarted, publishAIInferenceCompleted, publishModelDeploymentCompleted, publishAIInferenceFailed,
+  publishAIInferenceStarted, publishAIInferenceCompleted, publishModelDeploymentCompleted,
+  publishAIAlertRaised, publishAIAnalysisCompleted, confidenceBand, scopeOf, publishAIInferenceFailed,
   publishAIOrchestrationStarted, publishAIOrchestrationCompleted,
   modelFamilyOf, failureCategoryOf, bucketTokens,
   type AIContext, type TokenBucket,

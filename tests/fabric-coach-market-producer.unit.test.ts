@@ -860,7 +860,10 @@ describe('the catalogue', () => {
     const declared = fabricEventsForSource('coach-market')
       .filter((s) => !s.produced).map((s) => s.type).sort();
     expect(declared).toEqual([
-      'coach.assignment.changed', 'coach.contact.started',
+      // `coach.assignment.changed` is no longer here. `moveStaffMember` moves a
+      // staff member's team, role or both inside one club, and the comment that
+      // said nothing did so was never checked against the code.
+      'coach.contact.started',
       'coach.invitation.accepted', 'coach.invitation.created', 'coach.invitation.rejected',
       'coach.negotiation.completed', 'staff.need.updated',
     ]);
@@ -869,7 +872,7 @@ describe('the catalogue', () => {
   it('and everything else under the source IS published by this build', () => {
     const produced = fabricEventsForSource('coach-market')
       .filter((s) => s.produced).map((s) => s.type).sort();
-    expect(produced).toEqual([...PRODUCED].sort());
+    expect(produced).toEqual([...PRODUCED, 'coach.assignment.changed'].sort());
   });
 
   it('a name the registry accepts is a name the envelope can emit', () => {

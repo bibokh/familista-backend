@@ -704,7 +704,11 @@ describe('the catalogue', () => {
   it('says plainly which names are declared and not yet published', () => {
     const declared = fabricEventsForSource('ai').filter((s) => !s.produced).map((s) => s.type).sort();
     expect(declared).toEqual([
-      'ai.alert.raised', 'ai.analysis.completed',
+      // `ai.alert.raised` and `ai.analysis.completed` are no longer here. Both
+      // were listed as unpublished on the strength of a registration comment
+      // claiming they travelled on the big-data dispatcher; that dispatcher's
+      // two functions are called by nothing at all, and the rows they describe
+      // have been written by `ai-ops` the whole time.
       'ai.request.completed', 'ai.request.failed',
       'ai.task.completed', 'ai.task.failed', 'ai.task.started',
       // The one model-registry name the AI lane carries that still has no
@@ -722,7 +726,9 @@ describe('the catalogue', () => {
     const produced = fabricEventsForSource('ai')
       .filter((s) => s.produced && s.type.startsWith('ai.'))
       .map((s) => s.type).sort();
-    expect(produced).toEqual([...PRODUCED].sort());
+    // The two `ai-ops` names belong to this lane and are published from
+    // `ai-ops.service`, not from the agent/inference families above.
+    expect(produced).toEqual([...PRODUCED, 'ai.alert.raised', 'ai.analysis.completed'].sort());
   });
 
   it('shares its lane with the model-registry names, and adds no card for them', () => {
