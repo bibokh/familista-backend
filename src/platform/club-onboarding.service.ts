@@ -38,6 +38,9 @@ import { assertPlatformOwner } from './system.service';
 import { emailConfiguration } from './email/service';
 import { currentEnvironment } from './environment';
 import { type PlatformActor } from './access-levels';
+import {
+  publishClubCreated, publishClubPresidentInvited, publishClubLifecycleChanged,
+} from '../fabric/producers/clubs.producer';
 
 export interface OnboardingActor extends PlatformActor {
   ipAddress?: string | null;
@@ -405,6 +408,17 @@ export async function createClubWithPresidentInvite(
     return { clubId: club.id, invitationRow: null as null };
   });
 
+  // The club row exists and is PENDING_SETUP. Announced here rather than after
+  // the invitation below, because the invitation is a SEPARATE transaction that
+  // may fail — and when it does the club is still a club, still visible in
+  // SYSTEM, and the board should have said so.
+  publishClubCreated(
+    { clubId, actorUserId: actor.userId, sourceType: 'USER' },
+    'PLATFORM',
+    ClubLifecycle.PENDING_SETUP,
+    { country: !!dto.country?.trim(), shortName: !!dto.shortName?.trim() },
+  );
+
   // ── the invitation ─────────────────────────────────────────────────────────
   // Minted by the existing invitation service — 32 random bytes, SHA-256
   // stored, seven days, single-use, revocable, audited — with the platform
@@ -449,6 +463,15 @@ export async function createClubWithPresidentInvite(
         expiresAt: created.invitation.expiresAt.toISOString(), presidentName: `${firstName} ${lastName}` },
       'An invitation was created. No email was sent — no mail provider is configured.');
   });
+
+  // One event, not two. This transaction also moved the lifecycle to
+  // PRESIDENT_INVITED, and that move IS this fact rather than a second one —
+  // publishing `club.lifecycle.changed` beside it would draw one occurrence
+  // twice. Neither the address nor the token nor the candidate's name travels.
+  publishClubPresidentInvited(
+    { clubId, actorUserId: actor.userId, sourceType: 'USER' },
+    MembershipRole.CLUB_OWNER, 'NEW', ClubLifecycle.PRESIDENT_INVITED,
+  );
 
   return {
     clubId,
@@ -514,6 +537,13 @@ export async function resendPresidentInvite(
     { invitationId: out.invitation.id, email: out.invitation.email, expiresAt: out.invitation.expiresAt.toISOString() },
     'A new link was minted and the previous one stopped working. No email was sent.'));
 
+  // A re-mint changes no lifecycle — the club was already PRESIDENT_INVITED and
+  // still is. What moved is the invitation, and `issue` says which way.
+  publishClubPresidentInvited(
+    { clubId, actorUserId: actor.userId, sourceType: 'USER' },
+    MembershipRole.CLUB_OWNER, 'RESENT', ClubLifecycle.PRESIDENT_INVITED,
+  );
+
   return {
     invitation: out.invitation,
     token: out.delivery.state === 'SENT' ? '' : out.token,
@@ -550,6 +580,15 @@ export async function revokePresidentInvite(
       { invitationId: pending.id, email: pending.email, reason: reason ?? null },
       'The invitation was withdrawn. The link stopped working immediately and the club is back to PENDING_SETUP.');
   });
+
+  // Here the lifecycle move is the fact: there is no invitation out and no
+  // owner, and the club went backwards. No invitation event, because nothing
+  // was invited.
+  publishClubLifecycleChanged(
+    { clubId, actorUserId: actor.userId, sourceType: 'USER' },
+    ClubLifecycle.PRESIDENT_INVITED, ClubLifecycle.PENDING_SETUP,
+    'ClubPresidentInvitationRevoked',
+  );
 
   return clubSetupState(clubId);
 }
@@ -619,6 +658,13 @@ export async function replacePresidentInvite(
       'A different president was invited. The previous link stopped working. No email was sent.');
   });
 
+  // One event for the swap. Neither address travels — not the one that was
+  // dropped and not the one that replaced it.
+  publishClubPresidentInvited(
+    { clubId, actorUserId: actor.userId, sourceType: 'USER' },
+    MembershipRole.CLUB_OWNER, 'REPLACED', ClubLifecycle.PRESIDENT_INVITED,
+  );
+
   return {
     clubId,
     setup: await clubSetupState(clubId),
@@ -661,14 +707,14 @@ export async function activateIfReady(
   if (!club) throw new NotFoundError('Club');
   if (club.lifecycle === ClubLifecycle.ACTIVE) return clubSetupState(clubId);
 
-  await prisma.$transaction(async (tx) => {
+  const activated = await prisma.$transaction(async (tx) => {
     const moved = await tx.club.updateMany({
       where: { id: clubId, lifecycle: { not: ClubLifecycle.ACTIVE } },
       data: { lifecycle: ClubLifecycle.ACTIVE, activatedAt: new Date() },
     });
     // A second caller finding it already ACTIVE writes nothing and audits
     // nothing, which is what makes retrying free.
-    if (moved.count !== 1) return;
+    if (moved.count !== 1) return false;
     await tx.platformAuditLog.create({
       data: {
         userId: actor?.userId ?? owner.userId,
@@ -686,7 +732,19 @@ export async function activateIfReady(
         message: 'The club has an active CLUB_OWNER membership and is now active.',
       },
     });
+    return true;
   });
+
+  // Only when a row really moved. The condition above is what makes this
+  // idempotent, and carrying its answer out of the transaction is what stops a
+  // retry drawing a second activation on the board. `SERVICE`, because nobody
+  // pressed activate — accepting an invitation did this.
+  if (activated) {
+    publishClubLifecycleChanged(
+      { clubId, actorUserId: actor?.userId ?? owner.userId, sourceType: 'SERVICE' },
+      club.lifecycle, ClubLifecycle.ACTIVE, 'ClubActivated',
+    );
+  }
 
   return clubSetupState(clubId);
 }

@@ -35,6 +35,7 @@ import { BadRequestError, ConflictError, NotFoundError } from '../utils/errors';
 import type { PlatformActor } from './access-levels';
 import { assertPlatformOwner } from './system.service';
 import { currentEnvironment } from './environment';
+import { publishClubLifecycleChanged, publishClubDeleted } from '../fabric/producers/clubs.producer';
 
 export interface LifecycleActor extends PlatformActor {
   ipAddress?: string | null;
@@ -250,6 +251,17 @@ async function transition(
   // Every request that asks whether this club may be operated must get the new
   // answer, not the one cached a second ago.
   forgetClubState(clubId);
+
+  // One publish for all four transitions, because there is one transition.
+  // `deactivateClub`, `reactivateClub`, `archiveClub` and `restoreClub` all
+  // delegate here, and a helper apiece would be four chances for one of them to
+  // announce a state the row does not hold. The update was conditional on the
+  // lifecycle the read saw and threw when it had moved, so reaching this line
+  // means exactly one row changed. The REASON somebody typed never travels.
+  publishClubLifecycleChanged(
+    { clubId, actorUserId: actor.userId },
+    from, to, opts.action,
+  );
   return view(updated);
 }
 
@@ -478,7 +490,7 @@ export async function deleteClubForever(
   await assertPlatformOwner(actor);
 
   const club = await prisma.club.findUnique({
-    where: { id: clubId }, select: { id: true, name: true },
+    where: { id: clubId }, select: { id: true, name: true, lifecycle: true },
   });
   if (!club) throw new NotFoundError('Club');
 
@@ -528,5 +540,13 @@ export async function deleteClubForever(
   });
 
   forgetClubState(clubId);
+
+  // After the row is gone, which is the only honest moment: a deletion that
+  // rolled back is not a deletion. `EventOutbox.clubId` is a plain column with
+  // no foreign key to `Club`, so the event outlives the club it is about —
+  // which is the same reason the audit row above keeps no key to it either.
+  // The board will render the id and resolve no name, because there is no
+  // longer a name to resolve. That is the correct answer.
+  publishClubDeleted({ clubId, actorUserId: actor.userId }, club.lifecycle);
   return { clubId: club.id, name: club.name, deleted: true };
 }

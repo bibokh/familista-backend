@@ -6,6 +6,7 @@
 import { Prisma, ClubLifecycle } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ConflictError } from '../utils/errors';
+import { publishClubCreated } from '../fabric/producers/clubs.producer';
 
 export interface ClubBrand {
   logoUrl: string | null;
@@ -184,6 +185,18 @@ export async function createClubAwaitingPresident(
     },
     select: { id: true },
   });
+
+  // The row exists. Announced once, after the write, by the SELF_SERVICE route
+  // — the person who created it is waiting to become its president, and the
+  // platform path in `club-onboarding` announces its own creations separately.
+  // Nothing about the club travels: which fields were declared, and the state
+  // it starts in.
+  publishClubCreated(
+    { clubId: club.id, actorUserId: creatorUserId },
+    'SELF_SERVICE',
+    ClubLifecycle.PENDING_SETUP,
+    { country: !!input.country?.trim(), shortName: !!input.shortName?.trim() },
+  );
 
   return {
     clubId: club.id,

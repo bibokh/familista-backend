@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 import {
   publishAccessRoleChanged, publishMembershipGranted, publishMembershipRevoked,
+  publishMembershipChanged,
 } from '../fabric/producers/users.producer';
 import { prisma } from '../config/database';
 import { NotFoundError, ConflictError, ForbiddenError, BadRequestError } from '../utils/errors';
@@ -409,7 +410,7 @@ export async function changeTeam(
   if ((existing.teamId ?? null) === (teamId ?? null)) return existing;
   const before = snapshot(existing);
 
-  return prisma.$transaction(async (tx) => {
+  const moved = await prisma.$transaction(async (tx) => {
     const row = await tx.membership.update({ where: { id }, data: { teamId: teamId ?? null } });
     await tx.membershipAuditLog.create({
       data: {
@@ -422,6 +423,18 @@ export async function changeTeam(
     });
     return row;
   });
+
+  // After the commit, and only where one happened: the equality check above
+  // returns early when the requested team is the one it already has, so this
+  // line is never reached for a no-op. The NAME of the field that moved and
+  // the scope it moved to — never the team, and never the person.
+  publishMembershipChanged(
+    { membershipId: id, clubId: actor.clubId, actorUserId: actor.userId },
+    ['teamId'],
+    moved.teamId ? 'TEAM' : 'CLUB',
+  );
+
+  return moved;
 }
 
 export async function changeRole(

@@ -193,6 +193,38 @@ export function registerUsersProducer(): void {
     describes: 'The role and scope that ended. Never the reason text',
     schema: z.object({ role: roleToken, scope: z.enum(['CLUB', 'TEAM']) }).strict(),
   });
+
+  // `membership.changed` covers the half of a membership that is NOT its role.
+  // A role move is `access.role.changed` and always was; what had no producer
+  // is `changeTeam`, which moves a person between the squads of one club and
+  // writes an audit row. The board learns that somebody's scope moved and
+  // never whose, nor which team — TEAM ids are safe on a frame, but a team id
+  // beside a membership event is a person's position in a club, and the id of
+  // a squad with four children in it identifies four children.
+  registerFabricSchema({
+    eventType: 'membership.changed', version: 1,
+    describes: 'Which part of a membership moved, and the scope it now has',
+    schema: z.object({
+      changedFields,
+      scope: z.enum(['CLUB', 'TEAM']),
+    }).strict(),
+  });
+
+  // `user.context.switched` is a session changing which club or team it acts
+  // for. Two booleans: an id here would be a club the person is a member of,
+  // which the envelope's own `clubId` already says, and a team id would say
+  // which squad they work with.
+  registerFabricSchema({
+    eventType: 'user.context.switched', version: 1,
+    describes: 'Whether the club moved, whether the team moved, and the scope arrived at',
+    schema: z.object({
+      clubChanged: z.boolean(),
+      teamChanged: z.boolean(),
+      scope: z.enum(['CLUB', 'TEAM']),
+      /** True when a platform authority entered without holding a club role. */
+      viaPlatform: z.boolean(),
+    }).strict(),
+  });
 }
 
 registerUsersProducer();
@@ -333,6 +365,62 @@ export function publishMembershipRevoked(
     subjectId: ctx.membershipId,
     sourceType: ctx.sourceType ?? 'USER',
     payload: { role: String(role), scope },
+  });
+}
+
+/**
+ * A membership moved between team scopes.
+ *
+ * Called by `changeTeam`, after its transaction. Not called when the requested
+ * team is the one it already has — that service returns early without writing,
+ * so there is nothing to announce.
+ */
+export function publishMembershipChanged(
+  ctx: UsersContext & { membershipId: string },
+  fields: readonly string[],
+  scope: 'CLUB' | 'TEAM',
+): void {
+  if (!fields.length) return;
+  publishFabricEventDetached({
+    eventType: 'membership.changed',
+    clubId: ctx.clubId ?? null,
+    teamId: null,
+    actorUserId: ctx.actorUserId ?? null,
+    subjectType: 'MEMBERSHIP',
+    subjectId: ctx.membershipId,
+    sourceType: ctx.sourceType ?? 'USER',
+    payload: { changedFields: names(fields), scope },
+  });
+}
+
+/**
+ * A session changed the club or the team it acts for.
+ *
+ * Published only when something actually moved. A person reselecting the
+ * context they are already in writes the same two columns back and is not news;
+ * the caller compares before and after and does not call this when they match.
+ */
+export function publishUserContextSwitched(
+  ctx: UsersContext & { userId: string },
+  moved: { clubChanged: boolean; teamChanged: boolean },
+  scope: 'CLUB' | 'TEAM',
+  viaPlatform: boolean,
+): void {
+  if (!moved.clubChanged && !moved.teamChanged) return;
+  publishFabricEventDetached({
+    eventType: 'user.context.switched',
+    clubId: ctx.clubId ?? null,
+    teamId: null,
+    actorUserId: ctx.userId,
+    subjectType: 'USER',
+    subjectId: ctx.userId,
+    sourceType: ctx.sourceType ?? 'USER',
+    payload: {
+      clubChanged: !!moved.clubChanged,
+      teamChanged: !!moved.teamChanged,
+      scope,
+      viaPlatform: !!viaPlatform,
+    },
   });
 }
 

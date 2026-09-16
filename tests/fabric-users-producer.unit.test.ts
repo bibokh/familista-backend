@@ -749,6 +749,10 @@ describe('no helper is called before its write has committed', () => {
     const producer = read('src/fabric/producers/users.producer.ts');
     expect(producer).not.toMatch(/await publishFabricEvent\(/);
     const calls = producer.match(/publishFabricEventDetached\(/g) ?? [];
-    expect(calls.length).toBe(8);
+    // One per exported helper. Ten since `membership.changed` and
+    // `user.context.switched` got the producers the coverage audit found them
+    // missing — `changeTeam` and `switchContext` were both writing rows and
+    // telling the fabric nothing.
+    expect(calls.length).toBe(10);
   });
 });

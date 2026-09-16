@@ -64,27 +64,27 @@ export interface EventTypeSpec {
  */
 export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   // ── club and tenancy ──────────────────────────────────────────────────────
-  // None of the four has a producer. The flows are real and live —
-  // `club.service.createClubAwaitingPresident`, `club-onboarding` for the
-  // invitation and the lifecycle moves, `club-lifecycle.deleteClubForever` —
-  // but none of them publishes, so the Clubs lane is registered and silent.
-  // Marked unproduced so the catalogue says that rather than implying four
-  // events that never arrive. Instrumenting them is a Clubs producer, which is
-  // a change of its own and not this one.
-  { type: 'club.created',            describes: 'A club row was created and is awaiting a president', classification: 'INTERNAL',     schemaVersion: 1, produced: false },
-  { type: 'club.lifecycle.changed',  describes: 'A club moved between lifecycle states',              classification: 'INTERNAL',     schemaVersion: 1, produced: false },
-  { type: 'club.president.invited',  describes: 'A CLUB_OWNER invitation was issued for a club',      classification: 'CONFIDENTIAL', schemaVersion: 1, produced: false },
-  { type: 'club.deleted',            describes: 'A club was permanently deleted',                     classification: 'INTERNAL',     schemaVersion: 1, produced: false },
+  // All four now have a producer — `producers/clubs.producer.ts`, called from
+  // the two creation paths, the three invitation paths, the lifecycle funnel in
+  // `club-lifecycle.transition`, `activateIfReady` and `deleteClubForever`.
+  // They were registered and silent from the day the fabric shipped until the
+  // audit found the lane drawn with nothing on it.
+  { type: 'club.created',            describes: 'A club row was created and is awaiting a president', classification: 'INTERNAL',     schemaVersion: 1 },
+  { type: 'club.lifecycle.changed',  describes: 'A club moved between lifecycle states',              classification: 'INTERNAL',     schemaVersion: 1 },
+  { type: 'club.president.invited',  describes: 'A CLUB_OWNER invitation was issued for a club',      classification: 'CONFIDENTIAL', schemaVersion: 1 },
+  { type: 'club.deleted',            describes: 'A club was permanently deleted',                     classification: 'INTERNAL',     schemaVersion: 1 },
 
   // ── people and access ─────────────────────────────────────────────────────
   { type: 'membership.granted',      describes: 'Somebody was given a role in a club',                classification: 'CONFIDENTIAL', schemaVersion: 1 },
-  // `changeTeam` moves a membership between teams and writes an audit row; it
-  // publishes nothing. The role half of the same idea IS published, as
-  // `access.role.changed`. Unproduced until the team half is instrumented.
-  { type: 'membership.changed',      describes: 'A membership role or team scope changed',            classification: 'CONFIDENTIAL', schemaVersion: 1, produced: false },
+  // The team half of a membership, published by `changeTeam`. The role half is
+  // `access.role.changed` and always was; this is its counterpart and had no
+  // producer until the audit found the flow writing an audit row and nothing
+  // else.
+  { type: 'membership.changed',      describes: 'A membership role or team scope changed',            classification: 'CONFIDENTIAL', schemaVersion: 1 },
   { type: 'membership.revoked',      describes: 'A membership was ended',                             classification: 'CONFIDENTIAL', schemaVersion: 1 },
-  // `context.switchContext` is real and is not instrumented.
-  { type: 'user.context.switched',   describes: 'A session changed the club or team it acts for',     classification: 'INTERNAL',     schemaVersion: 1, produced: false },
+  // Published by `context.switchContext`, and only where the club or the team
+  // really moved — reselecting the context you are already in is not news.
+  { type: 'user.context.switched',   describes: 'A session changed the club or team it acts for',     classification: 'INTERNAL',     schemaVersion: 1 },
 
   // ── squad ─────────────────────────────────────────────────────────────────
   { type: 'player.created',          describes: 'A player was added to a squad',                      classification: 'CONFIDENTIAL', schemaVersion: 1 },
@@ -140,15 +140,15 @@ export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   { type: 'media.deleted',           describes: 'A media asset was withdrawn or expired',             classification: 'INTERNAL',     schemaVersion: 2 },
 
   // ── devices and capture · not implemented, registered so producers exist ──
-  // Registered, and each has a real flow that does not publish:
-  // `device-registry.registerDevice`, `device-session.openSession` and
-  // `closeSession`, `device-session.ingestBatch`. A Devices producer is the
-  // change that makes these true; until then the catalogue says they are not
-  // produced rather than implying a stream that is silent.
-  { type: 'device.registered',       describes: 'A device was enrolled to a club',                    classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'DEVICE_STATUS', produced: false },
-  { type: 'device.connected',        describes: 'A device opened a session',                          classification: 'INTERNAL',     schemaVersion: 1, produced: false },
-  { type: 'device.disconnected',     describes: 'A device session ended',                             classification: 'INTERNAL',     schemaVersion: 1, produced: false },
-  { type: 'telemetry.batch.received', describes: 'A batch of sensor samples was ingested',            classification: 'RESTRICTED',   schemaVersion: 1, legacyKind: 'SENSOR_PACKET', produced: false },
+  // All four now have a producer — `producers/devices.producer.ts`, called from
+  // `device-registry.registerDevice`, `device-session.openSession`,
+  // `closeSession` and `ingestBatch`. Telemetry is ONE event per batch and
+  // never one per packet: the ingest path caps a batch at 500 and a 100 Hz IMU
+  // burst would otherwise put a hundred events a second on an operator's board.
+  { type: 'device.registered',       describes: 'A device was enrolled to a club',                    classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'DEVICE_STATUS' },
+  { type: 'device.connected',        describes: 'A device opened a session',                          classification: 'INTERNAL',     schemaVersion: 1 },
+  { type: 'device.disconnected',     describes: 'A device session ended',                             classification: 'INTERNAL',     schemaVersion: 1 },
+  { type: 'telemetry.batch.received', describes: 'A batch of sensor samples was ingested',            classification: 'RESTRICTED',   schemaVersion: 1, legacyKind: 'SENSOR_PACKET' },
   // No camera stream lifecycle exists in this build — `vision/event-stream`
   // is a different thing. Future architecture, and marked as such.
   { type: 'camera.stream.started',   describes: 'A camera began producing a stream',                  classification: 'INTERNAL',     schemaVersion: 1, produced: false },
@@ -175,11 +175,12 @@ export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   // request, agent, model, inference and orchestration lifecycles instead.
   { type: 'ai.analysis.completed',   describes: 'A model finished analysing something',               classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'AI_RECOMMENDATION', produced: false },
   { type: 'ai.alert.raised',         describes: 'A model raised an alert',                            classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'AI_ALERT', produced: false },
-  // `ai-model-registry.activateModel` puts a version into service and does not
-  // publish; nothing in this build evaluates a model at all. One is a missing
-  // producer, the other is future architecture, and both are unproduced today.
+  // `ai-model-registry.activateModel` now publishes the deployment, from
+  // `producers/ai.producer.ts`. Nothing in this build evaluates a model against
+  // a dataset, so the evaluation stays unproduced — future architecture, and a
+  // producer for a flow that does not exist would be fiction.
   { type: 'model.evaluation.completed', describes: 'A model version was evaluated against a dataset', classification: 'INTERNAL',     schemaVersion: 1, produced: false },
-  { type: 'model.deployment.completed', describes: 'A model version was put into service',            classification: 'INTERNAL',     schemaVersion: 1, produced: false },
+  { type: 'model.deployment.completed', describes: 'A model version was put into service',            classification: 'INTERNAL',     schemaVersion: 1 },
 ]);
 
 export type FamilistaEventType = (typeof EVENT_TYPES)[number]['type'];
