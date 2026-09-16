@@ -71,7 +71,7 @@ export {
 
 export {
   registerClubsProducer, CLUBS_SOURCE_ID,
-  publishClubCreated, publishClubPresidentInvited,
+  publishClubCreated, publishClubUpdated, publishClubPresidentInvited,
   publishClubLifecycleChanged, publishClubDeleted,
   type ClubsContext,
 } from './producers/clubs.producer';
@@ -160,7 +160,7 @@ export {
   registerUsersProducer, USERS_SOURCE_ID,
   publishUserCreated, publishUserUpdated, publishUserProfileUpdated,
   publishUserLogin, publishUserLogout,
-  publishMembershipGranted, publishMembershipRevoked, publishAccessRoleChanged, publishMembershipChanged, publishUserContextSwitched,
+  publishMembershipGranted, publishMembershipRevoked, publishAccessRoleChanged, publishMembershipChanged, publishMembershipSuspended, publishMembershipReactivated, publishUserContextSwitched,
 } from './producers/users.producer';
 
 export {

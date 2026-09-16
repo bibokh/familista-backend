@@ -173,6 +173,8 @@ const db: Row = {
   player: empty, match: empty, trainingSession: empty, announcement: empty,
   staffEngagement: empty, financial: empty, gpsDevice: empty, scoutReport: empty,
   whiteLabelConfig: { upsert: async ({ create }: Row) => create },
+  // `endClubSession` ends every session a suspended member holds.
+  refreshToken: { deleteMany: async () => ({ count: 0 }) },
   eventOutbox: { create: async ({ data }: Row) => data, findMany: async () => [] },
   $transaction: async (arg: any) => (typeof arg === 'function' ? arg(db) : Promise.all(arg)),
 };
@@ -503,10 +505,14 @@ describe('the Clubs lane, which had four names and no producer', () => {
     expect(state.clubs).toHaveLength(1);
   });
 
-  it('all four Clubs types are now produced, and the lane is one source', () => {
+  it('every Clubs type is produced, and the lane is one source', () => {
     const owned = fabricEventsForSource('clubs');
+    // The four the taxonomy shipped, plus `club.updated`, which this producer
+    // registers because `updateClubProfile` is a real persisted general edit
+    // that had no name at all.
     expect(owned.map((s) => s.type).sort()).toEqual([
-      'club.created', 'club.deleted', 'club.lifecycle.changed', 'club.president.invited',
+      'club.created', 'club.deleted', 'club.lifecycle.changed',
+      'club.president.invited', 'club.updated',
     ]);
     for (const spec of owned) {
       expect(`${spec.type} produced: ${spec.produced}`).toBe(`${spec.type} produced: true`);
@@ -803,6 +809,246 @@ describe('a broken fabric never breaks the business operation', () => {
       const src = decomment(read(f));
       expect(`${f}: ${/await publishFabricEvent\(/.test(src)}`).toBe(`${f}: false`);
       expect(src).toMatch(/publishFabricEventDetached\(/);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('a club’s own record, amended', () => {
+  it('publishes the field names once, and never the values', async () => {
+    state.clubs = [aClub()];
+    await clubService.updateClubProfile(
+      CLUB,
+      { name: 'FC Musterstadt 1904', crestUrl: 'https://cdn.private.test/crest.png' } as never,
+      { primaryColor: '#0b5cff', logoUrl: 'https://cdn.private.test/logo.png' } as never,
+      ACTOR,
+    );
+    await settle();
+
+    expect(typesOf()).toEqual(['club.updated']);
+    const e = only('club.updated')[0];
+    expect(e.payload).toEqual({
+      changedFields: ['name', 'crestUrl', 'primaryColor', 'logoUrl'],
+      brandChanged: true,
+    });
+    // A brand colour and a logo URL are a paying customer's configuration.
+    const surfaces = JSON.stringify(published);
+    expect(surfaces).not.toContain('#0b5cff');
+    expect(surfaces).not.toContain('cdn.private.test');
+    expect(sourceLaneFor('club.updated')).toBe('Clubs');
+  });
+
+  it('says so when only the brand moved', async () => {
+    state.clubs = [aClub()];
+    await clubService.updateClubProfile(CLUB, {} as never, { accentColor: '#fff' } as never, ACTOR);
+    await settle();
+    expect(only('club.updated')[0].payload).toEqual({
+      changedFields: ['accentColor'], brandChanged: true,
+    });
+  });
+
+  it('an empty patch writes nothing and publishes nothing', async () => {
+    state.clubs = [aClub()];
+    await clubService.updateClubProfile(CLUB, {} as never, {} as never, ACTOR);
+    await settle();
+    expect(published).toEqual([]);
+  });
+
+  it('a patch against a club that is not there publishes nothing', async () => {
+    state.clubs = [];
+    await expect(clubService.updateClubProfile(CLUB, { name: 'X' } as never, {} as never, ACTOR))
+      .rejects.toThrow();
+    await settle();
+    expect(published).toEqual([]);
+  });
+
+  it('cannot fire for a status transition, because the patch cannot reach one', () => {
+    // The rule is structural rather than conditional: `ClubCorePatch` is the
+    // only shape `updateClubProfile` writes onto the club, and it has no
+    // `lifecycle`. A state transition therefore cannot arrive at `club.updated`
+    // — it goes to `club.lifecycle.changed`, which is the specialised event for
+    // exactly that fact.
+    const src = decomment(read('src/services/club.service.ts'));
+    const patch = src.slice(src.indexOf('export interface ClubCorePatch'), src.indexOf('export interface ClubBrandPatch'));
+    expect(patch).not.toMatch(/lifecycle/);
+    expect(patch).not.toMatch(/status/);
+    const fn = src.slice(src.indexOf('export async function updateClubProfile'));
+    expect(fn).not.toMatch(/publishClubLifecycleChanged/);
+    // And the lifecycle service does not reach for the general update event.
+    expect(decomment(read('src/platform/club-lifecycle.service.ts'))).not.toMatch(/publishClubUpdated/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('a membership suspended, and restored', () => {
+  const member = (over: Row = {}) => ({
+    id: 'mem-1', clubId: CLUB, userId: MEMBER, role: 'COACH',
+    teamId: null, isActive: true, status: 'ACTIVE', joinedAt: new Date(), leftAt: null,
+    ...over,
+  });
+
+  beforeEach(() => {
+    // A second owner, so `assertNotLastOwner` does not refuse the suspension.
+    state.memberships = [
+      member(),
+      member({ id: 'mem-owner', userId: 'u-owner', role: 'CLUB_OWNER' }),
+    ];
+  });
+
+  it('a suspension publishes exactly once, and is not a revocation', async () => {
+    await membership.suspendMembership(
+      { userId: ACTOR, clubId: CLUB } as never, 'mem-1',
+      'Suspended while the safeguarding complaint is investigated',
+    );
+    await settle();
+
+    expect(typesOf()).toEqual(['membership.suspended']);
+    const e = only('membership.suspended')[0];
+    expect(e.payload).toEqual({ role: 'COACH', scope: 'CLUB' });
+    expect(e.subjectType).toBe('MEMBERSHIP');
+    // Never borrowed. A revocation means the person left the club.
+    expect(typesOf()).not.toContain('membership.revoked');
+    expect(typesOf()).not.toContain('membership.changed');
+    // And the reason somebody typed is the most sensitive sentence in the flow.
+    expect(JSON.stringify(published)).not.toContain('safeguarding');
+    expect(sourceLaneFor('membership.suspended')).toBe('Users');
+  });
+
+  it('a restoration publishes exactly once, and is not a grant', async () => {
+    state.memberships = [
+      member({ isActive: false, status: 'SUSPENDED' }),
+      member({ id: 'mem-owner', userId: 'u-owner', role: 'CLUB_OWNER' }),
+    ];
+    await membership.reactivateMembership({ userId: ACTOR, clubId: CLUB } as never, 'mem-1');
+    await settle();
+
+    expect(typesOf()).toEqual(['membership.reactivated']);
+    expect(only('membership.reactivated')[0].payload).toEqual({
+      role: 'COACH', scope: 'CLUB', from: 'SUSPENDED',
+    });
+    // Nobody was GIVEN access here; access they already held was restored.
+    expect(typesOf()).not.toContain('membership.granted');
+    expect(typesOf()).not.toContain('membership.changed');
+  });
+
+  it('names the state it came out of, so a restored revocation is not a lifted suspension', async () => {
+    state.memberships = [
+      member({ isActive: false, status: 'REVOKED' }),
+      member({ id: 'mem-owner', userId: 'u-owner', role: 'CLUB_OWNER' }),
+    ];
+    await membership.reactivateMembership({ userId: ACTOR, clubId: CLUB } as never, 'mem-1');
+    await settle();
+    expect((only('membership.reactivated')[0].payload as Row).from).toBe('REVOKED');
+  });
+
+  it('suspending an already-suspended membership is refused and publishes nothing', async () => {
+    state.memberships = [
+      member({ isActive: false, status: 'SUSPENDED' }),
+      member({ id: 'mem-owner', userId: 'u-owner', role: 'CLUB_OWNER' }),
+    ];
+    await expect(membership.suspendMembership({ userId: ACTOR, clubId: CLUB } as never, 'mem-1'))
+      .rejects.toThrow();
+    await settle();
+    expect(published).toEqual([]);
+  });
+
+  it('suspending the last owner is refused and publishes nothing', async () => {
+    state.memberships = [member({ id: 'mem-owner', userId: 'u-owner', role: 'CLUB_OWNER' })];
+    await expect(membership.suspendMembership({ userId: ACTOR, clubId: CLUB } as never, 'mem-owner'))
+      .rejects.toThrow();
+    await settle();
+    expect(published).toEqual([]);
+  });
+
+  it('restoring an already-active membership publishes nothing', async () => {
+    await membership.reactivateMembership({ userId: ACTOR, clubId: CLUB } as never, 'mem-1');
+    await settle();
+    expect(published).toEqual([]);
+  });
+
+  it('a membership in another club is refused and publishes nothing', async () => {
+    await expect(membership.suspendMembership(
+      { userId: ACTOR, clubId: 'some-other-club' } as never, 'mem-1',
+    )).rejects.toThrow();
+    await settle();
+    expect(published).toEqual([]);
+  });
+
+  it('neither flow can reach the other’s event', () => {
+    // `grantMembership` publishes `membership.granted`; `revokeMembership`
+    // publishes `membership.revoked`. Suspension and restoration have their own
+    // names and neither function calls the other, so one action is one event.
+    const src = decomment(read('src/services/membership.service.ts'));
+    const between = (from: string, to: string) => src.slice(src.indexOf(from), src.indexOf(to));
+    const suspend = between('export async function suspendMembership', 'export async function reactivateMembership');
+    const restore = between('export async function reactivateMembership', 'export async function changeTeam');
+    expect(suspend).toMatch(/publishMembershipSuspended\(/);
+    expect(suspend).not.toMatch(/publishMembershipRevoked\(|publishMembershipChanged\(|publishMembershipGranted\(/);
+    expect(restore).toMatch(/publishMembershipReactivated\(/);
+    expect(restore).not.toMatch(/publishMembershipGranted\(|publishMembershipChanged\(|publishMembershipRevoked\(/);
+    expect(suspend).not.toMatch(/reactivateMembership\(/);
+    expect(restore).not.toMatch(/grantMembership\(/);
+    // One publish statement each.
+    expect(suspend.match(/publishMembershipSuspended\(/g) ?? []).toHaveLength(1);
+    expect(restore.match(/publishMembershipReactivated\(/g) ?? []).toHaveLength(1);
+  });
+
+  it('carries no person, no name and no id of one', async () => {
+    await membership.suspendMembership({ userId: ACTOR, clubId: CLUB } as never, 'mem-1');
+    await settle();
+    const frames = published.map((e) => project(e));
+    await resolveSubjects(frames);
+    // `MEMBERSHIP` is not a safe subject kind, so the id is withheld and no
+    // label is resolved onto the frame.
+    for (const frame of frames) {
+      expect(frame.subjectId).toBeNull();
+      expect(frame.subjectLabel).toBeNull();
+    }
+    expect(JSON.stringify(frames)).not.toContain(MEMBER);
+  });
+
+  it('both are registered under Users, produced, and strictly shaped', () => {
+    for (const t of ['membership.suspended', 'membership.reactivated']) {
+      const spec = fabricEvent(t);
+      expect(`${t} registered: ${!!spec}`).toBe(`${t} registered: true`);
+      expect(`${t} source: ${spec!.source}`).toBe(`${t} source: users`);
+      expect(`${t} entity: ${spec!.entityType}`).toBe(`${t} entity: MEMBERSHIP`);
+      expect(`${t} produced: ${spec!.produced}`).toBe(`${t} produced: true`);
+      expect(`${t} audit: ${spec!.auditRelevant}`).toBe(`${t} audit: true`);
+      expect(sourceLaneFor(t)).toBe('Users');
+      expect(destinationLaneFor(t)).toBe('Audit');
+      // Strict: an unknown key quarantines rather than travelling.
+      expect(validateEventPayload(t, 1, null).ok).toBe(false);
+      expect(validateEventPayload(t, 1, { role: 'COACH', scope: 'CLUB', from: 'SUSPENDED', extra: 1 }).ok).toBe(false);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('model evaluation, which this build does not do', () => {
+  it('stays registered and unproduced, because no evaluation workflow exists', () => {
+    expect(fabricEvent('model.evaluation.completed')?.produced).toBe(false);
+  });
+
+  it('and nothing in the source evaluates a model against a dataset', () => {
+    // The audit, as a test. `AIModel` has no evaluation columns, there is no
+    // dataset entity, and `modelFeedbackStats` is a read-only aggregate over
+    // per-decision human feedback that persists nothing and has no completed
+    // state. Inventing a producer for this would be inventing the flow.
+    const schema = read('prisma/schema.prisma');
+    const model = schema.slice(schema.indexOf('model AIModel {'), schema.indexOf('model AIDecision {'));
+    expect(model).not.toMatch(/evaluat/i);
+    expect(schema).not.toMatch(/^model ModelEvaluation \{/m);
+    expect(schema).not.toMatch(/^model Dataset \{/m);
+
+    const registry = decomment(read('src/services/ai-model-registry.service.ts'));
+    expect(registry).not.toMatch(/evaluat/i);
+    // And no file publishes it.
+    const dir = path.join(ROOT, 'src', 'fabric', 'producers');
+    for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.ts'))) {
+      const src = decomment(fs.readFileSync(path.join(dir, file), 'utf8'));
+      expect(`${file}: ${/publish\w*\([^)]*'model\.evaluation\.completed'/.test(src)}`)
+        .toBe(`${file}: false`);
     }
   });
 });

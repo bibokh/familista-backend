@@ -45,6 +45,7 @@
 // no row, writes no audit entry, and produces no event.
 
 import { z } from 'zod';
+import { registerFabricEvent } from '../registry/event-registry';
 import { registerFabricSchema } from '../registry/schema-registry';
 import { publishFabricEventDetached } from '../registry/publisher';
 import type { EventSourceType } from '../event-envelope';
@@ -76,6 +77,9 @@ const creationRoute = z.enum(['SELF_SERVICE', 'PLATFORM']);
 /** Whether the club was named a country at creation. The value never travels. */
 const declared = z.boolean();
 
+/** Field NAMES, never values. Capped the way `project()` caps them on a frame. */
+const changedFields = z.array(z.string().min(1).max(40)).min(1).max(24);
+
 export function registerClubsProducer(): void {
   // None of the four types is registered here. All four are in
   // `event-taxonomy.ts`, where they have been since the fabric shipped, and
@@ -94,6 +98,38 @@ export function registerClubsProducer(): void {
       // already on the frame — the two together are more than either.
       countryDeclared: declared,
       shortNameDeclared: declared,
+    }).strict(),
+  });
+
+  // The one name in this file that is NOT in `event-taxonomy.ts`.
+  //
+  // `updateClubProfile` is the club's own general edit — the PATCH endpoint
+  // behind `club.controller`, writing the club's name and crest and, beside
+  // them, the white-label brand. It is a real persisted flow and it had no
+  // name, which is the gap this registration closes.
+  //
+  // It is NOT the status event. `ClubCorePatch` is two fields wide and cannot
+  // reach `lifecycle`; every state transition a club makes belongs to
+  // `club.lifecycle.changed`, and a general update event that also fired for
+  // those would be a second name for a fact that already has one.
+  registerFabricEvent({
+    type: 'club.updated',
+    describes: 'A club’s own record was amended — its name, crest or brand',
+    classification: 'INTERNAL',
+    entityType: 'CLUB',
+    auditRelevant: true,
+  });
+  registerFabricSchema({
+    eventType: 'club.updated', version: 1,
+    // NAMES, never values. A club's name is not private — it is on the shirt
+    // and the frame resolves it anyway — but a brand colour, a logo URL and a
+    // crest URL are a paying customer's configuration, and the rule that keeps
+    // one of them off the board is the rule that keeps all of them off it.
+    describes: 'Which fields of a club’s record moved. Never what they moved to',
+    schema: z.object({
+      changedFields,
+      /** Whether the white-label configuration moved, not how. */
+      brandChanged: z.boolean(),
     }).strict(),
   });
 
@@ -229,6 +265,25 @@ export function publishClubLifecycleChanged(
   publish('club.lifecycle.changed', ctx, {
     from: String(from), to: String(to), action: String(action).slice(0, 48),
   });
+}
+
+/**
+ * A club's own record was amended.
+ *
+ * Called by `updateClubProfile` after its transaction, and only when one
+ * happened: the service builds a list of writes and runs nothing when the
+ * patch is empty, so an empty PATCH is not an event.
+ */
+export function publishClubUpdated(
+  ctx: ClubsContext,
+  fields: readonly string[],
+  brandChanged: boolean,
+): void {
+  const names = [...new Set(fields.map((f) => String(f).trim()).filter(Boolean))]
+    .slice(0, 24)
+    .map((f) => f.slice(0, 40));
+  if (!names.length) return;
+  publish('club.updated', ctx, { changedFields: names, brandChanged: !!brandChanged });
 }
 
 /** A club was permanently deleted. Published after the row is gone. */

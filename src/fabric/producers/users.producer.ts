@@ -210,6 +210,58 @@ export function registerUsersProducer(): void {
     }).strict(),
   });
 
+  // ── suspension and its lifting ─────────────────────────────────────────────
+  //
+  // Two names this file registers rather than inherits, because the taxonomy
+  // never had them and the flows were being told through the wrong events or
+  // through none.
+  //
+  // A suspension is NOT a revocation. `membership.revoked` means the membership
+  // ended — the person is out of the club and the row is closed. A suspension
+  // is reversible by construction: the role and the scope are preserved, the
+  // row stays, and `reactivateMembership` puts it back. Publishing one as the
+  // other would tell a retention policy, an audit rule and an access review
+  // that somebody left when they did not.
+  //
+  // For the same reason a reactivation is NOT a grant. `membership.granted`
+  // means somebody was given access; `membership.reactivated` means access they
+  // already had was restored, and `from` says which state it was restored out
+  // of. The two flows are separate functions and neither calls the other.
+  registerFabricEvent({
+    type: 'membership.suspended',
+    describes: 'A membership was suspended — reversible, and not an ending',
+    classification: 'CONFIDENTIAL',
+    entityType: 'MEMBERSHIP',
+    auditRelevant: true,
+  });
+  registerFabricSchema({
+    eventType: 'membership.suspended', version: 1,
+    // The role and the scope, which is exactly what `membership.revoked`
+    // carries — the same facts about a different transition. Never the reason
+    // somebody typed, which on a suspension is the most sensitive sentence in
+    // the flow: "suspended while the safeguarding complaint is investigated".
+    describes: 'The role and scope that were suspended. Never the reason',
+    schema: z.object({ role: roleToken, scope: z.enum(['CLUB', 'TEAM']) }).strict(),
+  });
+
+  registerFabricEvent({
+    type: 'membership.reactivated',
+    describes: 'A suspended or ended membership was restored',
+    classification: 'CONFIDENTIAL',
+    entityType: 'MEMBERSHIP',
+    auditRelevant: true,
+  });
+  registerFabricSchema({
+    eventType: 'membership.reactivated', version: 1,
+    describes: 'The role and scope restored, and the state it was restored out of',
+    schema: z.object({
+      role: roleToken,
+      scope: z.enum(['CLUB', 'TEAM']),
+      /** The `MembershipStatus` it held before. `SUSPENDED` for a lifted suspension. */
+      from: z.string().min(1).max(32),
+    }).strict(),
+  });
+
   // `user.context.switched` is a session changing which club or team it acts
   // for. Two booleans: an id here would be a club the person is a member of,
   // which the envelope's own `clubId` already says, and a team id would say
@@ -421,6 +473,55 @@ export function publishUserContextSwitched(
       scope,
       viaPlatform: !!viaPlatform,
     },
+  });
+}
+
+/**
+ * A membership was suspended.
+ *
+ * Called by `suspendMembership` after its transaction. The service refuses a
+ * membership that is not active, so a second suspension throws before it
+ * reaches a write and this is never called twice for one state.
+ */
+export function publishMembershipSuspended(
+  ctx: UsersContext & { membershipId: string },
+  role: string,
+  scope: 'CLUB' | 'TEAM',
+): void {
+  publishFabricEventDetached({
+    eventType: 'membership.suspended',
+    clubId: ctx.clubId ?? null,
+    teamId: null,
+    actorUserId: ctx.actorUserId ?? null,
+    subjectType: 'MEMBERSHIP',
+    subjectId: ctx.membershipId,
+    sourceType: ctx.sourceType ?? 'USER',
+    payload: { role: String(role), scope },
+  });
+}
+
+/**
+ * A membership was restored.
+ *
+ * Called by `reactivateMembership` after its transaction, and not called at all
+ * when the membership was already active — that service returns the row
+ * untouched, which is what makes a repeated reactivation free and silent.
+ */
+export function publishMembershipReactivated(
+  ctx: UsersContext & { membershipId: string },
+  role: string,
+  scope: 'CLUB' | 'TEAM',
+  from: string,
+): void {
+  publishFabricEventDetached({
+    eventType: 'membership.reactivated',
+    clubId: ctx.clubId ?? null,
+    teamId: null,
+    actorUserId: ctx.actorUserId ?? null,
+    subjectType: 'MEMBERSHIP',
+    subjectId: ctx.membershipId,
+    sourceType: ctx.sourceType ?? 'USER',
+    payload: { role: String(role), scope, from: String(from).slice(0, 32) },
   });
 }
 

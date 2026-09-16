@@ -647,6 +647,9 @@ describe('Users is one source, whatever is added to it', () => {
       'user.created', 'user.updated', 'user.profile.updated', 'user.role.changed',
       'user.login', 'user.logout', 'user.context.switched',
       'membership.granted', 'membership.changed', 'membership.revoked',
+      // Suspension is reversible and a revocation is not, so each has its own
+      // name rather than one borrowing the other's.
+      'membership.suspended', 'membership.reactivated',
       'access.role.changed',
     ];
     for (const type of types) {
@@ -752,7 +755,8 @@ describe('no helper is called before its write has committed', () => {
     // One per exported helper. Ten since `membership.changed` and
     // `user.context.switched` got the producers the coverage audit found them
     // missing — `changeTeam` and `switchContext` were both writing rows and
-    // telling the fabric nothing.
-    expect(calls.length).toBe(10);
+    // telling the fabric nothing — and twelve since suspension and its lifting
+    // were given names of their own.
+    expect(calls.length).toBe(12);
   });
 });

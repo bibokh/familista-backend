@@ -9,7 +9,7 @@ import {
 } from '@prisma/client';
 import {
   publishAccessRoleChanged, publishMembershipGranted, publishMembershipRevoked,
-  publishMembershipChanged,
+  publishMembershipChanged, publishMembershipSuspended, publishMembershipReactivated,
 } from '../fabric/producers/users.producer';
 import { prisma } from '../config/database';
 import { NotFoundError, ConflictError, ForbiddenError, BadRequestError } from '../utils/errors';
@@ -354,6 +354,18 @@ export async function suspendMembership(
   });
 
   await endClubSession(existing.userId, actor.clubId);
+
+  // After the commit. A suspension is NOT a revocation: the row survives, the
+  // role and the scope survive, and `reactivateMembership` puts it back — so it
+  // gets its own name rather than borrowing `membership.revoked`, which would
+  // tell every consumer that somebody left the club. The reason somebody typed
+  // never travels.
+  publishMembershipSuspended(
+    { membershipId: id, clubId: actor.clubId, actorUserId: actor.userId },
+    updated.role,
+    updated.teamId ? 'TEAM' : 'CLUB',
+  );
+
   return updated;
 }
 
@@ -371,7 +383,7 @@ export async function reactivateMembership(
   const wasSuspended = existing.status === MembershipStatus.SUSPENDED;
   const before = snapshot(existing);
 
-  return prisma.$transaction(async (tx) => {
+  const restored = await prisma.$transaction(async (tx) => {
     const row = await tx.membership.update({
       where: { id },
       data: { isActive: true, status: MembershipStatus.ACTIVE, leftAt: null },
@@ -387,6 +399,20 @@ export async function reactivateMembership(
     });
     return row;
   });
+
+  // After the commit, and never reached for a membership that was already
+  // active — the early return above sees to that. NOT `membership.granted`:
+  // nobody was given access here, access somebody already had was restored,
+  // and `from` carries which state it came out of. Granting is `grantMembership`
+  // and neither function calls the other.
+  publishMembershipReactivated(
+    { membershipId: id, clubId: actor.clubId, actorUserId: actor.userId },
+    restored.role,
+    restored.teamId ? 'TEAM' : 'CLUB',
+    String(existing.status ?? (wasSuspended ? MembershipStatus.SUSPENDED : 'INACTIVE')),
+  );
+
+  return restored;
 }
 
 /**

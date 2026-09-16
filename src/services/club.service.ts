@@ -6,7 +6,7 @@
 import { Prisma, ClubLifecycle } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ConflictError } from '../utils/errors';
-import { publishClubCreated } from '../fabric/producers/clubs.producer';
+import { publishClubCreated, publishClubUpdated } from '../fabric/producers/clubs.producer';
 
 export interface ClubBrand {
   logoUrl: string | null;
@@ -219,6 +219,12 @@ export async function updateClubProfile(
   clubId: string,
   core: ClubCorePatch,
   brand: ClubBrandPatch,
+  /**
+   * Who is editing, when the caller knows. Optional because the service is
+   * reachable from internal paths that have no request behind them, and an
+   * actor invented to fill the field would be worse than an absent one.
+   */
+  actorUserId?: string | null,
 ): Promise<ClubProfile> {
   const existing = await prisma.club.findUnique({ where: { id: clubId }, select: { id: true } });
   if (!existing) throw new NotFoundError('Club not found');
@@ -241,6 +247,22 @@ export async function updateClubProfile(
   }
 
   if (ops.length > 0) await prisma.$transaction(ops);
+
+  // After the commit, and only where there was one: an empty PATCH runs no
+  // write and is not an event. NAMES of what the caller asked to change, never
+  // the values — a brand colour and a logo URL are a paying customer's
+  // configuration.
+  //
+  // This is the club's own general edit and not its status: `ClubCorePatch` is
+  // two fields wide and cannot reach `lifecycle`, so a state transition never
+  // arrives here. Those are `club.lifecycle.changed`, and they always were.
+  if (ops.length > 0) {
+    publishClubUpdated(
+      { clubId, actorUserId: actorUserId ?? null },
+      [...Object.keys(core), ...Object.keys(brand)],
+      Object.keys(brand).length > 0,
+    );
+  }
 
   return getClubProfile(clubId);
 }
