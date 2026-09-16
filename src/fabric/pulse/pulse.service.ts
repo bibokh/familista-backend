@@ -169,10 +169,17 @@ const SAFE_SUBJECT_IDS = new Set([
  * appears only for events something actually aggregates.
  */
 const DESTINATION_LANE: Record<string, string> = {
-  club: 'Audit', membership: 'Audit', user: 'Audit', secret: 'Audit',
-  device: 'Audit', camera: 'Audit',
+  club: 'Audit', membership: 'Audit', access: 'Audit', user: 'Audit', secret: 'Audit',
+  device: 'Audit', camera: 'Audit', system: 'Audit',
   player: 'Operational Data', training: 'Operational Data', attendance: 'Operational Data',
-  match: 'Operational Data', transfer: 'Operational Data', medical: 'Operational Data',
+  match: 'Operational Data', transfer: 'Operational Data',
+  // `medical` and `injury` are one source and belong in one lane; `coach` and
+  // `staff` are the staff side of `transfer` and belong in the same lane it
+  // does. All four arrived with a producer and none of them was added here,
+  // so each was falling through to Audit — which split the Medical source
+  // across two destinations and drew the whole Coach Market as an audit trail.
+  medical: 'Operational Data', injury: 'Operational Data',
+  coach: 'Operational Data', staff: 'Operational Data',
   media: 'Media',
   ai: 'Analytics', model: 'Analytics', telemetry: 'Analytics',
 };
@@ -560,29 +567,28 @@ export interface PulseTopology {
 /**
  * Which event types this build actually produces.
  *
- * Hand-maintained and deliberately so: it is a claim about the code, and a
- * claim about the code should be reviewable in a diff. A test walks the source
- * for `emit({ eventType: … })` and fails if this list drifts, which is what
- * keeps it honest without making it magic.
+ * Read from the registry, where every registration states whether anything in
+ * the build publishes the type. It used to be a hand-maintained array, and a
+ * hand-maintained array is only honest for as long as somebody remembers it:
+ * ten producer migrations went past it and it still named eleven types, so the
+ * board told an operator that `match.completed` and a hundred and eighteen
+ * others were not instrumented while they were arriving on screen.
+ *
+ * The registry cannot drift that way, because the same registration that makes
+ * a type exist is the one that says whether it is produced. The honest gap is
+ * still reported — it is now the types whose registration says `produced:
+ * false`, which is a reviewable claim in the diff that adds the name.
  */
-export const INSTRUMENTED_EVENT_TYPES = Object.freeze([
-  'player.created',
-  'player.updated',
-  'player.photo.attached',
-  'media.created',
-  'media.deleted',
-  'device.credential.created',
-  'device.credential.rotated',
-  'device.credential.revoked',
-  'secret.kek.activated',
-  'secret.kek.rewrapped',
-  'secret.kek.retired',
-]);
+export function instrumentedEventTypes(): string[] {
+  const { fabricEvents } = require('../registry/event-registry') as typeof import('../registry/event-registry');
+  return fabricEvents().filter((e) => e.produced).map((e) => e.type).sort();
+}
 
 export function pulseTopology(): PulseTopology {
   const { registeredEventTypes } = require('../event-taxonomy') as typeof import('../event-taxonomy');
   const all: string[] = registeredEventTypes();
-  const live = new Set<string>(INSTRUMENTED_EVENT_TYPES);
+  const instrumented = instrumentedEventTypes();
+  const live = new Set<string>(instrumented);
 
   return {
     sources: sourceLanes(),
@@ -599,7 +605,7 @@ export function pulseTopology(): PulseTopology {
       name, live: false as const,
       note: 'Architecture only — nothing is connected to this yet',
     })),
-    instrumented: INSTRUMENTED_EVENT_TYPES.map((eventType) => ({
+    instrumented: instrumented.map((eventType) => ({
       eventType,
       source: sourceLaneFor(eventType),
       destination: destinationLaneFor(eventType),

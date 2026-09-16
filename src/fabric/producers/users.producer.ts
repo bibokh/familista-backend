@@ -123,6 +123,7 @@ export function registerUsersProducer(): void {
     classification: 'CONFIDENTIAL',
     entityType: 'USER',
     auditRelevant: true,
+    produced: false,
   });
   registerFabricSchema({
     eventType: 'user.role.changed', version: 1,

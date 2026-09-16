@@ -64,16 +64,27 @@ export interface EventTypeSpec {
  */
 export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   // ── club and tenancy ──────────────────────────────────────────────────────
-  { type: 'club.created',            describes: 'A club row was created and is awaiting a president', classification: 'INTERNAL',     schemaVersion: 1 },
-  { type: 'club.lifecycle.changed',  describes: 'A club moved between lifecycle states',              classification: 'INTERNAL',     schemaVersion: 1 },
-  { type: 'club.president.invited',  describes: 'A CLUB_OWNER invitation was issued for a club',      classification: 'CONFIDENTIAL', schemaVersion: 1 },
-  { type: 'club.deleted',            describes: 'A club was permanently deleted',                     classification: 'INTERNAL',     schemaVersion: 1 },
+  // None of the four has a producer. The flows are real and live —
+  // `club.service.createClubAwaitingPresident`, `club-onboarding` for the
+  // invitation and the lifecycle moves, `club-lifecycle.deleteClubForever` —
+  // but none of them publishes, so the Clubs lane is registered and silent.
+  // Marked unproduced so the catalogue says that rather than implying four
+  // events that never arrive. Instrumenting them is a Clubs producer, which is
+  // a change of its own and not this one.
+  { type: 'club.created',            describes: 'A club row was created and is awaiting a president', classification: 'INTERNAL',     schemaVersion: 1, produced: false },
+  { type: 'club.lifecycle.changed',  describes: 'A club moved between lifecycle states',              classification: 'INTERNAL',     schemaVersion: 1, produced: false },
+  { type: 'club.president.invited',  describes: 'A CLUB_OWNER invitation was issued for a club',      classification: 'CONFIDENTIAL', schemaVersion: 1, produced: false },
+  { type: 'club.deleted',            describes: 'A club was permanently deleted',                     classification: 'INTERNAL',     schemaVersion: 1, produced: false },
 
   // ── people and access ─────────────────────────────────────────────────────
   { type: 'membership.granted',      describes: 'Somebody was given a role in a club',                classification: 'CONFIDENTIAL', schemaVersion: 1 },
-  { type: 'membership.changed',      describes: 'A membership role or team scope changed',            classification: 'CONFIDENTIAL', schemaVersion: 1 },
+  // `changeTeam` moves a membership between teams and writes an audit row; it
+  // publishes nothing. The role half of the same idea IS published, as
+  // `access.role.changed`. Unproduced until the team half is instrumented.
+  { type: 'membership.changed',      describes: 'A membership role or team scope changed',            classification: 'CONFIDENTIAL', schemaVersion: 1, produced: false },
   { type: 'membership.revoked',      describes: 'A membership was ended',                             classification: 'CONFIDENTIAL', schemaVersion: 1 },
-  { type: 'user.context.switched',   describes: 'A session changed the club or team it acts for',     classification: 'INTERNAL',     schemaVersion: 1 },
+  // `context.switchContext` is real and is not instrumented.
+  { type: 'user.context.switched',   describes: 'A session changed the club or team it acts for',     classification: 'INTERNAL',     schemaVersion: 1, produced: false },
 
   // ── squad ─────────────────────────────────────────────────────────────────
   { type: 'player.created',          describes: 'A player was added to a squad',                      classification: 'CONFIDENTIAL', schemaVersion: 1 },
@@ -82,9 +93,15 @@ export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   { type: 'player.transferred',      describes: 'A player moved between clubs',                       classification: 'CONFIDENTIAL', schemaVersion: 1 },
 
   // ── football operations ───────────────────────────────────────────────────
-  { type: 'training.started',        describes: 'A training session began',                           classification: 'INTERNAL',     schemaVersion: 1 },
-  { type: 'training.completed',      describes: 'A training session finished',                         classification: 'INTERNAL',     schemaVersion: 1 },
-  { type: 'attendance.recorded',     describes: 'Attendance was taken for a session or match',        classification: 'INTERNAL',     schemaVersion: 1 },
+  // Superseded before either was ever emitted. A session's whole lifecycle
+  // travels as `training.status.changed`, which names the state it moved from
+  // and the state it moved to, and attendance travels as
+  // `training.attendance.saved`. The three names below stay registered, because
+  // a name that shipped is a published contract, and are marked unproduced so
+  // the catalogue does not imply a second event for a fact that already has one.
+  { type: 'training.started',        describes: 'A training session began',                           classification: 'INTERNAL',     schemaVersion: 1, produced: false },
+  { type: 'training.completed',      describes: 'A training session finished',                         classification: 'INTERNAL',     schemaVersion: 1, produced: false },
+  { type: 'attendance.recorded',     describes: 'Attendance was taken for a session or match',        classification: 'INTERNAL',     schemaVersion: 1, produced: false },
   { type: 'match.started',           describes: 'A match kicked off',                                 classification: 'INTERNAL',     schemaVersion: 1 },
   { type: 'match.event.recorded',    describes: 'One event within a match was recorded',              classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'MATCH_EVENT' },
   { type: 'match.completed',         describes: 'A match finished',                                   classification: 'INTERNAL',     schemaVersion: 1 },
@@ -123,11 +140,18 @@ export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   { type: 'media.deleted',           describes: 'A media asset was withdrawn or expired',             classification: 'INTERNAL',     schemaVersion: 2 },
 
   // ── devices and capture · not implemented, registered so producers exist ──
-  { type: 'device.registered',       describes: 'A device was enrolled to a club',                    classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'DEVICE_STATUS' },
-  { type: 'device.connected',        describes: 'A device opened a session',                          classification: 'INTERNAL',     schemaVersion: 1 },
-  { type: 'device.disconnected',     describes: 'A device session ended',                             classification: 'INTERNAL',     schemaVersion: 1 },
-  { type: 'telemetry.batch.received', describes: 'A batch of sensor samples was ingested',            classification: 'RESTRICTED',   schemaVersion: 1, legacyKind: 'SENSOR_PACKET' },
-  { type: 'camera.stream.started',   describes: 'A camera began producing a stream',                  classification: 'INTERNAL',     schemaVersion: 1 },
+  // Registered, and each has a real flow that does not publish:
+  // `device-registry.registerDevice`, `device-session.openSession` and
+  // `closeSession`, `device-session.ingestBatch`. A Devices producer is the
+  // change that makes these true; until then the catalogue says they are not
+  // produced rather than implying a stream that is silent.
+  { type: 'device.registered',       describes: 'A device was enrolled to a club',                    classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'DEVICE_STATUS', produced: false },
+  { type: 'device.connected',        describes: 'A device opened a session',                          classification: 'INTERNAL',     schemaVersion: 1, produced: false },
+  { type: 'device.disconnected',     describes: 'A device session ended',                             classification: 'INTERNAL',     schemaVersion: 1, produced: false },
+  { type: 'telemetry.batch.received', describes: 'A batch of sensor samples was ingested',            classification: 'RESTRICTED',   schemaVersion: 1, legacyKind: 'SENSOR_PACKET', produced: false },
+  // No camera stream lifecycle exists in this build — `vision/event-stream`
+  // is a different thing. Future architecture, and marked as such.
+  { type: 'camera.stream.started',   describes: 'A camera began producing a stream',                  classification: 'INTERNAL',     schemaVersion: 1, produced: false },
   // Credential lifecycle. The payload of every one of these carries the
   // REFERENCE and never the secret — a reference is safe in an event, a log and
   // a backup, which is the entire reason references exist.
@@ -141,7 +165,7 @@ export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   { type: 'secret.kek.activated',    describes: 'A key-encryption key became the one sealing new writes', classification: 'CONFIDENTIAL', schemaVersion: 1 },
   { type: 'secret.kek.rewrapped',    describes: 'A sealed secret was re-keyed onto another KEK version',  classification: 'CONFIDENTIAL', schemaVersion: 1 },
   { type: 'secret.kek.retired',      describes: 'A key-encryption key was withdrawn from use',            classification: 'CONFIDENTIAL', schemaVersion: 1 },
-  { type: 'camera.stream.ended',     describes: 'A camera stream finished',                           classification: 'INTERNAL',     schemaVersion: 1 },
+  { type: 'camera.stream.ended',     describes: 'A camera stream finished',                           classification: 'INTERNAL',     schemaVersion: 1, produced: false },
 
   // ── intelligence ──────────────────────────────────────────────────────────
   // Neither has ever been published through the fabric. `AI_RECOMMENDATION`
@@ -151,8 +175,11 @@ export const EVENT_TYPES: readonly EventTypeSpec[] = Object.freeze([
   // request, agent, model, inference and orchestration lifecycles instead.
   { type: 'ai.analysis.completed',   describes: 'A model finished analysing something',               classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'AI_RECOMMENDATION', produced: false },
   { type: 'ai.alert.raised',         describes: 'A model raised an alert',                            classification: 'INTERNAL',     schemaVersion: 1, legacyKind: 'AI_ALERT', produced: false },
-  { type: 'model.evaluation.completed', describes: 'A model version was evaluated against a dataset', classification: 'INTERNAL',     schemaVersion: 1 },
-  { type: 'model.deployment.completed', describes: 'A model version was put into service',            classification: 'INTERNAL',     schemaVersion: 1 },
+  // `ai-model-registry.activateModel` puts a version into service and does not
+  // publish; nothing in this build evaluates a model at all. One is a missing
+  // producer, the other is future architecture, and both are unproduced today.
+  { type: 'model.evaluation.completed', describes: 'A model version was evaluated against a dataset', classification: 'INTERNAL',     schemaVersion: 1, produced: false },
+  { type: 'model.deployment.completed', describes: 'A model version was put into service',            classification: 'INTERNAL',     schemaVersion: 1, produced: false },
 ]);
 
 export type FamilistaEventType = (typeof EVENT_TYPES)[number]['type'];

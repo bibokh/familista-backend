@@ -707,6 +707,10 @@ describe('the catalogue', () => {
       'ai.alert.raised', 'ai.analysis.completed',
       'ai.request.completed', 'ai.request.failed',
       'ai.task.completed', 'ai.task.failed', 'ai.task.started',
+      // The two model-registry names the AI lane also carries. Neither has a
+      // producer: `ai-model-registry.activateModel` puts a version into service
+      // without publishing, and nothing in this build evaluates a model at all.
+      'model.deployment.completed', 'model.evaluation.completed',
     ]);
   });
 
@@ -728,8 +732,10 @@ describe('the catalogue', () => {
 
   it('every declared-but-unproduced type still has a strict schema to be built against', () => {
     for (const spec of fabricEventsForSource('ai').filter((s) => !s.produced)) {
-      // The two legacy `ai.*` names predate the registry and have no schema.
-      if (spec.type === 'ai.alert.raised' || spec.type === 'ai.analysis.completed') continue;
+      // The names seeded by the taxonomy rather than by this producer predate
+      // the schema registry and have no schema of their own.
+      if (['ai.alert.raised', 'ai.analysis.completed',
+           'model.deployment.completed', 'model.evaluation.completed'].includes(spec.type)) continue;
       expect(`${spec.type} has a schema: ${validateEventPayload(spec.type, 1, null).ok === false}`)
         .toBe(`${spec.type} has a schema: true`);
     }
