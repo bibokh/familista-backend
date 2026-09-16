@@ -93,6 +93,10 @@ const db: Row = {
 jest.mock('../src/config/database', () => ({ prisma: db }));
 
 import { setEventTransport, type EventTransport } from '../src/fabric/event-bus';
+// Every source the platform registers at boot, so a lane assertion below
+// describes the real board rather than whichever producers this file
+// happened to import.
+import '../src/fabric/producers/coach-market.producer';
 import type { FamilistaEvent } from '../src/fabric/event-envelope';
 import { project, sourceLaneFor } from '../src/fabric/pulse/pulse.service';
 import { resolveSubjects } from '../src/fabric/pulse/subject-resolver.service';
@@ -608,7 +612,7 @@ describe('the catalogue', () => {
     expect(ids).toContain('system');
     expect(sourceLanes()).toEqual([
       'Clubs', 'Users', 'Players', 'Training', 'Matches',
-      'Transfers', 'Medical', 'Media', 'AI', 'System',
+      'Transfers', 'Coach Market', 'Medical', 'Media', 'AI', 'System',
     ]);
   });
 

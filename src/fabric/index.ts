@@ -80,6 +80,18 @@ export {
 } from './producers/players.producer';
 
 export {
+  registerCoachMarketProducer, COACH_MARKET_SOURCE_ID,
+  publishCoachProfileCreated, publishCoachProfileUpdated,
+  publishCoachAvailabilityChanged, publishCoachCareerIntentChanged,
+  publishCoachContractStatusChanged,
+  publishCoachShortlisted, publishCoachUnshortlisted,
+  publishCoachOffer, publishCoachNegotiationStarted, publishCoachNegotiationUpdated,
+  publishCoachNegotiationCancelled, publishCoachHired,
+  publishStaffNeedCreated, publishStaffNeedClosed,
+  type CoachMarketContext,
+} from './producers/coach-market.producer';
+
+export {
   registerSystemProducer, SYSTEM_SOURCE_ID,
   publishSystemServiceStarted, publishSystemServiceStopped,
   publishSystemHealthChanged, publishSystemConfigChanged, publishSystemFeatureToggled,

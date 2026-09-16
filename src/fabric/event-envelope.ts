@@ -172,6 +172,16 @@ export class EventValidationError extends Error {
 }
 
 const MAX_TYPE_LENGTH = 120;
+
+/**
+ * The shape an event name must have.
+ *
+ * Written out here and in `registry/event-registry.ts`, deliberately identical.
+ * A name that registers must be a name that can be emitted; two patterns
+ * diverging is how a type comes to have a schema, a source and a lane and still
+ * never arrive.
+ */
+const TYPE_PATTERN = /^[a-z][a-z0-9]*(\.[a-z0-9_]+)+$/;
 const MAX_METADATA_KEYS = 50;
 
 function asDate(v: Date | string | undefined, fallback: Date): Date {
@@ -200,7 +210,20 @@ export function makeEvent<P>(input: EventInput<P>): FamilistaEvent<P> {
   if (eventType.length > MAX_TYPE_LENGTH) {
     throw new EventValidationError(`eventType is longer than ${MAX_TYPE_LENGTH} characters`);
   }
-  if (!/^[a-z][a-z0-9]*(\.[a-z0-9]+)+$/.test(eventType)) {
+  // The SAME pattern `registry/event-registry.ts` enforces, and that is the
+  // whole point of it being written out here in the same shape.
+  //
+  // It used to be stricter by one character: the registry allowed an underscore
+  // in a segment after the first and this did not. A name like
+  // `coach.career_intent.changed` could therefore be REGISTERED — with a
+  // schema, a source and a lane — and then never published, because `makeEvent`
+  // threw and the detached publisher swallowed the rejection. The event did not
+  // arrive and nothing said why.
+  //
+  // Widened rather than narrowed, so no name that was valid before becomes
+  // invalid now. The first segment stays letters and digits, because that is
+  // what maps a name to a source domain.
+  if (!TYPE_PATTERN.test(eventType)) {
     throw new EventValidationError(
       `eventType "${eventType}" is not a dotted lower-case name — see event-taxonomy.ts`,
     );
