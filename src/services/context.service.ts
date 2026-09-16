@@ -15,6 +15,7 @@ import { resolvePlatformAuthority } from '../platform/access-levels';
 import { clubLifecycleOf, isOperableLifecycle, isSuspendedLifecycle } from '../platform/club-lifecycle.service';
 import { meetsMembershipRank, strongestMembershipRole } from '../middleware/tenant.middleware';
 import { forgetIdentity } from '../middleware/auth.middleware';
+import { publishUserContextSwitched } from '../fabric/producers/users.producer';
 
 /**
  * How many clubs a platform owner's club picker offers.
@@ -546,6 +547,24 @@ export async function switchContext(
   // request will be scoped by it. It must not be answered from the club they
   // just switched away from.
   forgetIdentity(actor.userId);
+
+  // After the commit, and only where something moved. Reselecting the context
+  // you are already in writes the same two columns back; the helper compares
+  // the before-read against what was asked for and publishes nothing when they
+  // match, so a page that re-posts its own state does not fill the board.
+  //
+  // Two booleans and a scope. Not the club — the envelope already carries the
+  // tenant — and above all not the team, because which squad a person switched
+  // into says which children they work with.
+  publishUserContextSwitched(
+    { userId: actor.userId, clubId },
+    {
+      clubChanged: (before?.currentClubId ?? null) !== clubId,
+      teamChanged: (before?.currentTeamId ?? null) !== (teamId ?? null),
+    },
+    teamId ? 'TEAM' : 'CLUB',
+    !!platformOwner,
+  );
 
   return getContext(actor.userId);
 }

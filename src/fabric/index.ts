@@ -63,6 +63,20 @@ export {
 export { matchContext, announceReschedule, type MatchLike } from './producers/match-context';
 
 export {
+  registerDevicesProducer, DEVICES_SOURCE_ID, attachmentOf,
+  publishDeviceRegistered, publishDeviceConnected, publishDeviceDisconnected,
+  publishTelemetryBatchReceived,
+  type DeviceContext,
+} from './producers/devices.producer';
+
+export {
+  registerClubsProducer, CLUBS_SOURCE_ID,
+  publishClubCreated, publishClubUpdated, publishClubPresidentInvited,
+  publishClubLifecycleChanged, publishClubDeleted,
+  type ClubsContext,
+} from './producers/clubs.producer';
+
+export {
   registerTrainingProducer, TRAINING_SOURCE_ID,
   publishTrainingSessionCreated, publishTrainingSessionUpdated, publishTrainingSessionDeleted,
   publishTrainingAttendanceSaved, publishTrainingLocationChanged, publishTrainingStatusChanged,
@@ -105,7 +119,7 @@ export {
   publishAIRequestCreated,
   publishAIAgentStarted, publishAIAgentCompleted, publishAIAgentFailed,
   publishAIModelInvoked,
-  publishAIInferenceStarted, publishAIInferenceCompleted, publishAIInferenceFailed,
+  publishAIInferenceStarted, publishAIInferenceCompleted, publishModelDeploymentCompleted, publishAIInferenceFailed,
   publishAIOrchestrationStarted, publishAIOrchestrationCompleted,
   modelFamilyOf, failureCategoryOf, bucketTokens,
   type AIContext, type TokenBucket,
@@ -146,7 +160,7 @@ export {
   registerUsersProducer, USERS_SOURCE_ID,
   publishUserCreated, publishUserUpdated, publishUserProfileUpdated,
   publishUserLogin, publishUserLogout,
-  publishMembershipGranted, publishMembershipRevoked, publishAccessRoleChanged,
+  publishMembershipGranted, publishMembershipRevoked, publishAccessRoleChanged, publishMembershipChanged, publishMembershipSuspended, publishMembershipReactivated, publishUserContextSwitched,
 } from './producers/users.producer';
 
 export {

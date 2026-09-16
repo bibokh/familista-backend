@@ -14,6 +14,9 @@ import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
 import { randomBytes } from 'crypto';
 import { emitSensorPacket, emitSensorBatch } from '../fusion/realtime-ingest';
+import {
+  publishDeviceConnected, publishDeviceDisconnected, publishTelemetryBatchReceived, attachmentOf,
+} from '../fabric/producers/devices.producer';
 
 export interface DeviceSessionActor {
   userId:     string;
@@ -71,7 +74,7 @@ export async function openSession(actor: DeviceSessionActor, dto: OpenSessionDto
   // and never sees the clubId/teamId. HMAC packets verified against this key.
   const sessionKey = randomBytes(32).toString('base64');
 
-  return prisma.deviceSession.create({
+  const session = await prisma.deviceSession.create({
     data: {
       clubId:           actor.clubId,
       teamId:           dto.teamId ?? null,
@@ -85,14 +88,41 @@ export async function openSession(actor: DeviceSessionActor, dto: OpenSessionDto
       metadata:         (dto.metadata ?? null) as Prisma.InputJsonValue,
     },
   });
+
+  // After the row exists. `sessionKey` is in scope and is not passed — the
+  // helper builds its own payload from typed parameters, and there is no
+  // parameter a key could arrive through. Nor does the serial travel.
+  publishDeviceConnected(
+    { clubId: actor.clubId, teamId: dto.teamId ?? null, deviceId: session.id, actorUserId: actor.userId ?? null },
+    dto.deviceModel ?? null,
+    attachmentOf(dto.matchId ?? null, dto.trainingSessionId ?? null),
+    !!dto.edgeFwVersion,
+  );
+
+  return session;
 }
 
 export async function closeSession(actor: DeviceSessionActor, sessionId: string): Promise<DeviceSession> {
   const s = await prisma.deviceSession.findUnique({ where: { id: sessionId } });
   if (!s)                       throw new NotFoundError('DeviceSession');
   if (s.clubId !== actor.clubId) throw new ForbiddenError();
+  // Already closed. The row is returned untouched, and a second close is not a
+  // second disconnection — this early return is what makes the event fire once.
   if (s.endedAt) return s;
-  return prisma.deviceSession.update({ where: { id: sessionId }, data: { endedAt: new Date() } });
+
+  const closed = await prisma.deviceSession.update({
+    where: { id: sessionId }, data: { endedAt: new Date() },
+  });
+
+  publishDeviceDisconnected(
+    { clubId: actor.clubId, teamId: s.teamId ?? null, deviceId: sessionId, actorUserId: actor.userId ?? null },
+    s.deviceModel ?? null,
+    attachmentOf(s.matchId ?? null, s.trainingSessionId ?? null),
+    closed.startedAt ?? null,
+    closed.endedAt ?? null,
+  );
+
+  return closed;
 }
 
 export async function listSessions(
@@ -210,6 +240,19 @@ export async function ingestBatch(
     { clubId: actor.clubId, matchId: session.matchId },
     rows.map((r) => ({ kind: r.kind, capturedAt: r.capturedAt, payload: r.payload })),
   );
+
+  // ONE event for the batch, after the rows are stored, for exactly the reason
+  // the fan-out above is also per batch rather than per packet: a 100 Hz IMU
+  // burst is a hundred rows a second and a hundred events a second is a flood,
+  // not information. A count and the kinds — never a packet, never a payload,
+  // never a signature.
+  publishTelemetryBatchReceived(
+    { clubId: actor.clubId, teamId: session.teamId ?? null, deviceId: sessionId, actorUserId: actor.userId ?? null },
+    result.count,
+    rows.map((r) => String(r.kind)),
+    attachmentOf(session.matchId ?? null, session.trainingSessionId ?? null),
+  );
+
   return { accepted: result.count };
 }
 

@@ -27,6 +27,7 @@ import type {
   ActivateModelInput,
 } from '../utils/ai-engine.validators';
 import type { AIActor } from '../types/ai-engine.types';
+import { publishModelDeploymentCompleted } from '../fabric/producers/ai.producer';
 
 export async function createModel(actor: AIActor, input: CreateModelInput): Promise<AIModel> {
   const dup = await prisma.aIModel.findUnique({
@@ -107,8 +108,13 @@ export async function activateModel(
     if (!existing) throw new NotFoundError('Model not found');
     if (existing.deprecatedAt) throw new BadRequestError('Cannot activate a deprecated model');
 
+    // How many peers actually stood down, carried out of the transaction. The
+    // flag says what was ASKED for; the count says what happened, and an event
+    // that reports a request rather than an outcome is the thing this whole
+    // integration exists to avoid.
+    let peersDeactivated = 0;
     if (input.deactivatePeers !== false) {
-      await tx.aIModel.updateMany({
+      const stoodDown = await tx.aIModel.updateMany({
         where: {
           domain: existing.domain,
           decisionType: existing.decisionType,
@@ -117,13 +123,15 @@ export async function activateModel(
         },
         data: { isActive: false },
       });
+      peersDeactivated = stoodDown.count;
     }
 
-    return await tx.aIModel.update({
+    const updated = await tx.aIModel.update({
       where: { id },
       data: { isActive: true, releasedAt: existing.releasedAt ?? new Date() },
     });
-  }).then(async (model) => {
+    return { model: updated, peersDeactivated };
+  }).then(async ({ model, peersDeactivated }) => {
     await writeAIAudit({
       modelId: model.id,
       userId: actor.userId,
@@ -133,6 +141,19 @@ export async function activateModel(
       ipAddress: actor.ipAddress,
       userAgent: actor.userAgent,
     });
+
+    // After the commit and after the audit row. Which decision this model makes
+    // and how many it replaced — never the slug somebody chose for it, never
+    // the activation notes they typed beside it.
+    publishModelDeploymentCompleted(
+      { modelId: model.id, actorUserId: actor.userId },
+      {
+        domain: String(model.domain),
+        decisionType: String(model.decisionType),
+        version: model.version,
+        peersDeactivated,
+      },
+    );
     return model;
   });
 }

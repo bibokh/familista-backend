@@ -291,6 +291,32 @@ export function registerAIProducer(): void {
       }).strict(),
     });
   }
+
+  // ── the model registry ─────────────────────────────────────────────────────
+  //
+  // `model.deployment.completed` is in `event-taxonomy.ts`, not here, and its
+  // domain is `model` rather than `ai` — which is why the AI source declares
+  // three event domains and why this lane carries it. Only its payload shape is
+  // declared here, because this is now the file that builds it.
+  //
+  // `model.evaluation.completed` stays unproduced beside it, and deliberately:
+  // nothing in this build evaluates a model against a dataset, and a producer
+  // for a flow that does not exist would be fiction.
+  registerFabricSchema({
+    eventType: 'model.deployment.completed', version: 1,
+    // Not the SLUG. A slug is a name somebody typed and this file's whole
+    // doctrine on model identity — see `modelFamily` above — is that the
+    // identifier the caller chose does not travel. What does is which decision
+    // this model makes, which is a closed enum, and how many peers stood down.
+    describes: 'Which decision a model version was put in service for, and how many it replaced',
+    schema: z.object({
+      domain: token(),
+      decisionType: token(),
+      version: token(24),
+      peersDeactivated: z.number().int().min(0).max(10_000),
+      component,
+    }).strict(),
+  });
 }
 
 registerAIProducer();
@@ -437,6 +463,39 @@ export function publishAIModelInvoked(
 
 export function publishAIInferenceStarted(ctx: AIContext, providerName: string | null): void {
   publish('ai.inference.started', ctx, { provider: providerName ?? null, component: 'INFERENCE' });
+}
+
+/**
+ * A model version was put into service.
+ *
+ * Called by `ai-model-registry.activateModel` after its transaction and its
+ * audit write. Activating an already-active model still moves `releasedAt` and
+ * still writes an audit row, so the caller announces what the transaction did
+ * rather than what it was asked to do.
+ */
+export function publishModelDeploymentCompleted(
+  // Its own shape rather than `AIContext`: that context is keyed by a `runId`,
+  // and a deployment is not a run. Nothing is executing here — a row was marked
+  // active.
+  ctx: { modelId: string; clubId?: string | null; actorUserId?: string | null; sourceType?: EventSourceType },
+  facts: { domain: string; decisionType: string; version: string | number; peersDeactivated: number },
+): void {
+  publishFabricEventDetached({
+    eventType: 'model.deployment.completed',
+    clubId: ctx.clubId ?? null,
+    teamId: null,
+    actorUserId: ctx.actorUserId ?? null,
+    subjectType: 'MODEL',
+    subjectId: ctx.modelId,
+    sourceType: ctx.sourceType ?? 'SERVICE',
+    payload: {
+      domain: String(facts.domain).slice(0, 48) || null,
+      decisionType: String(facts.decisionType).slice(0, 48) || null,
+      version: String(facts.version).slice(0, 24) || null,
+      peersDeactivated: Math.max(0, Math.min(10_000, Math.trunc(facts.peersDeactivated))),
+      component: 'MODEL',
+    },
+  });
 }
 
 export function publishAIInferenceCompleted(ctx: AIContext, providerName: string | null): void {

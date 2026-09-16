@@ -17,6 +17,7 @@ import { Device, DeviceProvisionStatus, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
 import { resolveCredential, storeNewCredential } from '../fabric/secrets/device-credentials';
+import { publishDeviceRegistered } from '../fabric/producers/devices.producer';
 
 export interface DeviceActor {
   userId: string;
@@ -87,6 +88,17 @@ export async function registerDevice(actor: DeviceActor, dto: RegisterDeviceDto)
   const saved = ref
     ? await prisma.device.update({ where: { id: row.id }, data: { secretRef: ref }, select: DEVICE_PUBLIC_SELECT })
     : row;
+
+  // After both writes. The plaintext secret is in scope on the line below and
+  // is not passed: the helper takes typed parameters and builds its own
+  // payload, so a credential cannot reach it even by mistake. Neither can the
+  // serial, the notes, or the metadata bag.
+  publishDeviceRegistered(
+    { clubId: actor.clubId, teamId: dto.teamId ?? null, deviceId: row.id, actorUserId: actor.userId },
+    dto.model ?? null,
+    'REGISTERED',
+    !!ref,
+  );
 
   // `saved` is a narrowed select — `hmacSecret` is not in it and cannot be
   // spread into the response. The plaintext appears exactly once, under the

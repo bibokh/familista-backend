@@ -242,7 +242,7 @@ export async function updateClub(req: Request, res: Response, next: NextFunction
       }
     }
 
-    const profile = await svc.updateClubProfile(req.params.clubId, core, brand);
+    const profile = await svc.updateClubProfile(req.params.clubId, core, brand, req.user?.id ?? null);
     return sendSuccess(res, profile, 'Club updated');
   } catch (err) { return next(err); }
 }
