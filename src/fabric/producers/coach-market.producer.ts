@@ -386,15 +386,15 @@ export function registerCoachMarketProducer(): void {
     });
   }
 
-  // A hire creates the membership, and `coach.hired` says so. Nothing moves a
-  // staff member between teams within a club afterwards, so there is no
-  // reassignment to observe.
+  // `moveStaffMember` does exactly this: it changes the membership's team, its
+  // role, or both, closes the open engagement and opens a new one. This comment
+  // used to claim nothing moved a staff member within a club, and two audits
+  // repeated the claim rather than checking it. The flow was there all along.
   registerFabricEvent({
     type: 'coach.assignment.changed',
     describes: 'A staff member was moved to a different team',
     classification: 'CONFIDENTIAL',
     entityType: 'STAFF',
-    produced: false,
   });
   registerFabricSchema({
     eventType: 'coach.assignment.changed', version: 1,
@@ -523,6 +523,23 @@ export function publishCoachHired(
   ctx: CoachMarketContext, approachId: string, team: string | null,
 ): void {
   publish('coach.hired', ctx, 'HIRE', { approachId, teamContext: team ?? null });
+}
+
+/**
+ * A staff member was moved to a different job inside the same club.
+ *
+ * Called by `moveStaffMember` after its transaction, and never for a request
+ * that moves nothing — the service returns `{ moved: false }` before writing
+ * when neither the role nor the team changed.
+ *
+ * `from` and `to` are team CONTEXTS, the same kind of value `coach.hired`
+ * already carries: the label an engagement recorded, never a person and never
+ * a team id.
+ */
+export function publishCoachAssignmentChanged(
+  ctx: CoachMarketContext, from: string | null, to: string | null,
+): void {
+  publish('coach.assignment.changed', ctx, 'HIRE', { from: from ?? null, to: to ?? null });
 }
 
 export function publishStaffNeedCreated(

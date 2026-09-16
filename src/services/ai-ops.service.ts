@@ -14,6 +14,9 @@ import { NotFoundError, ForbiddenError } from '../utils/errors';
 import { publish } from '../realtime/match-channel';
 import { logger } from '../utils/logger';
 import type { AlertSeverity, AlertStatus, AIAgent, Prisma } from '@prisma/client';
+import {
+  publishAIAlertRaised, publishAIAnalysisCompleted, confidenceBand, scopeOf,
+} from '../fabric/producers/ai.producer';
 
 // ─────────────────────────────────────────────────────────────────────────
 // DTOs
@@ -91,6 +94,25 @@ export async function createAlert(dto: CreateAlertDto) {
       });
     } catch (err) { logger.warn('[ai-ops] alert publish failed', { err: (err as Error).message }); }
   }
+
+  // After the row exists. The fan-out above is a websocket message to one match
+  // channel and reaches nobody who is not watching it; this is the record.
+  //
+  // The kind, the severity and which agent raised it. Not the title, not the
+  // message, not the payload, and above all not `playerId` — a fatigue alert
+  // about an identifiable person is a health disclosure, and on an academy
+  // squad it is one about a child. `scope` says a player was the subject
+  // without saying which.
+  publishAIAlertRaised(
+    { alertId: row.id, clubId: row.clubId },
+    {
+      alertKind: String(row.kind),
+      severity: String(row.severity),
+      agent: row.agent ? String(row.agent) : null,
+      scope: scopeOf(row),
+    },
+  );
+
   return row;
 }
 
@@ -185,6 +207,20 @@ export async function createRecommendation(dto: CreateRecommendationDto) {
       });
     } catch (err) { logger.warn('[ai-ops] recommendation publish failed', { err: (err as Error).message }); }
   }
+
+  // After the row exists. `content` IS the recommendation and is not passed;
+  // `score` travels as a band, because a precise confidence attached to a named
+  // player is a judgement about that person.
+  publishAIAnalysisCompleted(
+    { recommendationId: row.id, clubId: row.clubId },
+    {
+      analysisKind: String(row.kind),
+      agent: row.agent ? String(row.agent) : null,
+      scope: scopeOf(row),
+      confidence: confidenceBand(row.score),
+    },
+  );
+
   return row;
 }
 

@@ -26,6 +26,9 @@ import { logDeviceSecurityEvent } from '../security/security-event.service';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
 import type { IngestEventBatchEnvelope } from './neuromorphic-types';
 import { logger } from '../utils/logger';
+import {
+  publishCameraStreamStarted, publishCameraStreamEnded,
+} from '../fabric/producers/devices.producer';
 
 const MAX_EVENTS_PER_BATCH = 5_000;
 const TS_SKEW_LIMIT_MS     = 5 * 60_000;
@@ -75,6 +78,21 @@ export async function openStream(actor: EventStreamActor, dto: OpenStreamDto): P
     entityId:   row.id,
     payload:    { cameraId: dto.cameraId, sessionRef: dto.sessionRef, matchId: dto.matchId ?? null },
   });
+
+  // After the row exists, and only on the path that creates one: the early
+  // return above hands back an existing `(cameraId, sessionRef)` untouched, so
+  // reopening the same stream is not a second opening.
+  //
+  // Neither `sessionRef` nor `metadata` travels. The first is a correlation
+  // string a capture rig may set to anything, the second an arbitrary JSON bag,
+  // and `CAMERA` is not a safe subject kind, so the id is withheld too.
+  publishCameraStreamStarted(
+    { clubId: row.clubId, streamId: row.id, actorUserId: actor.userId },
+    String(row.status),
+    row.matchId ? 'MATCH' : 'NONE',
+    dto.metadata != null,
+  );
+
   return row;
 }
 
@@ -91,6 +109,19 @@ export async function closeStream(actor: EventStreamActor, id: string): Promise<
     entityId:   id,
     payload:    { packetsTotal: Number(s.packetsTotal), eventsTotal: Number(s.eventsTotal) },
   });
+
+  // After the update. Not reached for a stream that was already closed — the
+  // `closedAt` guard above returns the row untouched, so a second close is not
+  // a second ending.
+  publishCameraStreamEnded(
+    { clubId: closed.clubId, streamId: closed.id, actorUserId: actor.userId },
+    String(closed.status),
+    closed.matchId ? 'MATCH' : 'NONE',
+    closed.openedAt ?? null,
+    closed.closedAt ?? null,
+    { packets: closed.packetsTotal, events: closed.eventsTotal },
+  );
+
   return closed;
 }
 

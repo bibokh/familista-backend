@@ -90,6 +90,39 @@ const failureCategory = z.enum([
   'validation_error', 'not_authorised', 'internal_error',
 ]);
 
+/**
+ * What an alert or an analysis is ABOUT, without naming which one.
+ *
+ * `AIAlert` and `AIRecommendation` both carry an optional `playerId`, and a
+ * player id on a fatigue alert is a health disclosure about an identifiable
+ * person — on an academy squad, about a child. The scope says a player was the
+ * subject; it never says which, and no id or team travels beside it.
+ */
+const scope = z.enum(['PLAYER', 'TEAM', 'MATCH', 'CLUB']);
+
+/**
+ * How the alert classified itself.
+ *
+ * `AIAlert.kind` is `z.string()` at the route — genuinely unconstrained, not an
+ * enum — so this is capped rather than trusted. Every caller in this build
+ * passes a token (`FATIGUE`, `FORMATION_DRIFT`, `DEVICE_STALE`), and the cap is
+ * what keeps a caller who one day passes a sentence to a truncated fragment
+ * rather than a paragraph on an operator's screen.
+ */
+const alertKind = token();
+
+/** How urgent, as the platform's own `AlertSeverity` records it. */
+const severity = token(24);
+
+/**
+ * A model's confidence, as a BAND.
+ *
+ * `AIRecommendation.score` is a 0..1 confidence in a judgement that is often
+ * about one named player. The band is the operational fact — how sure it was —
+ * without publishing a precise number attached to a person.
+ */
+const confidence = z.enum(['LOW', 'MEDIUM', 'HIGH']).nullable();
+
 export function registerAIProducer(): void {
   // ── the request ────────────────────────────────────────────────────────────
 
@@ -292,6 +325,42 @@ export function registerAIProducer(): void {
     });
   }
 
+  // ── alerts and analyses ────────────────────────────────────────────────────
+  //
+  // Two names from `event-taxonomy.ts` that had no producer and, until the
+  // Remaining Unproduced Events Review, a registration claiming they travelled
+  // on another transport. They did not. `ai-ops.createAlert` writes an `AIAlert`
+  // row and `createRecommendation` writes an `AIRecommendation` row, both real
+  // and both durable, and the `AI_ALERT` / `AI_RECOMMENDATION` dispatchers in
+  // `big-data/publisher.ts` that the registration pointed at are called by
+  // nothing at all. The legacy mapping stays, because a reader of either name
+  // should still find the other; what changes is that the fact now arrives.
+  //
+  // Only their payload shapes are declared here. Neither is registered here —
+  // both are in the taxonomy and re-registering them would be refused.
+  registerFabricSchema({
+    eventType: 'ai.alert.raised', version: 1,
+    // An alert is made of a classification and three pieces of prose: a title,
+    // a message and an arbitrary JSON payload. The prose is what a model wrote
+    // ABOUT A NAMED PERSON — "Okonkwo's load is 38% above his four-week mean"
+    // is a plausible message — and none of it is here.
+    describes: 'What kind of alert, how urgent, and what it is about. Never its text',
+    schema: z.object({
+      alertKind, severity, agent, scope,
+    }).strict(),
+  });
+
+  registerFabricSchema({
+    eventType: 'ai.analysis.completed', version: 1,
+    // Same shape of risk and the same answer. `content` IS the recommendation —
+    // "withdraw 9, press higher on the left" — and `score` is a judgement about
+    // a person, so it travels as a band the way token counts do above.
+    describes: 'Which agent answered, about what, and how confident. Never the recommendation',
+    schema: z.object({
+      analysisKind: alertKind, agent, scope, confidence,
+    }).strict(),
+  });
+
   // ── the model registry ─────────────────────────────────────────────────────
   //
   // `model.deployment.completed` is in `event-taxonomy.ts`, not here, and its
@@ -463,6 +532,88 @@ export function publishAIModelInvoked(
 
 export function publishAIInferenceStarted(ctx: AIContext, providerName: string | null): void {
   publish('ai.inference.started', ctx, { provider: providerName ?? null, component: 'INFERENCE' });
+}
+
+/** A score on 0..1 as one of three bands. Null when the model gave none. */
+export function confidenceBand(score: number | null | undefined): 'LOW' | 'MEDIUM' | 'HIGH' | null {
+  if (typeof score !== 'number' || !Number.isFinite(score)) return null;
+  if (score < 0.4) return 'LOW';
+  if (score < 0.75) return 'MEDIUM';
+  return 'HIGH';
+}
+
+/** What the row is about, from the ids it carries. Never which one. */
+export function scopeOf(
+  row: { playerId?: string | null; teamId?: string | null; matchId?: string | null },
+): 'PLAYER' | 'TEAM' | 'MATCH' | 'CLUB' {
+  if (row.playerId) return 'PLAYER';
+  if (row.teamId) return 'TEAM';
+  if (row.matchId) return 'MATCH';
+  return 'CLUB';
+}
+
+/**
+ * A model raised an alert.
+ *
+ * Called by `ai-ops.createAlert` after the row exists. Neither the title, the
+ * message nor the payload is a parameter, so there is no call site at which one
+ * could be handed to this module.
+ */
+export function publishAIAlertRaised(
+  ctx: { alertId: string; clubId: string; actorUserId?: string | null },
+  facts: {
+    alertKind: string; severity: string; agent: string | null;
+    scope: 'PLAYER' | 'TEAM' | 'MATCH' | 'CLUB';
+  },
+): void {
+  publishFabricEventDetached({
+    eventType: 'ai.alert.raised',
+    clubId: ctx.clubId,
+    // Deliberately null. A team id beside a fatigue alert narrows its subject
+    // to one squad, and `scope` already says what kind of thing it is about.
+    teamId: null,
+    actorUserId: ctx.actorUserId ?? null,
+    subjectType: 'MODEL',
+    subjectId: ctx.alertId,
+    sourceType: 'AI',
+    payload: {
+      alertKind: String(facts.alertKind).slice(0, 48) || null,
+      severity: String(facts.severity).slice(0, 24) || null,
+      agent: facts.agent ? String(facts.agent).slice(0, 48) : null,
+      scope: facts.scope,
+    },
+  });
+}
+
+/**
+ * A model finished analysing something.
+ *
+ * Called by `ai-ops.createRecommendation` after the row exists. `content` is the
+ * recommendation itself and is not a parameter.
+ */
+export function publishAIAnalysisCompleted(
+  ctx: { recommendationId: string; clubId: string; actorUserId?: string | null },
+  facts: {
+    analysisKind: string; agent: string | null;
+    scope: 'PLAYER' | 'TEAM' | 'MATCH' | 'CLUB';
+    confidence: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+  },
+): void {
+  publishFabricEventDetached({
+    eventType: 'ai.analysis.completed',
+    clubId: ctx.clubId,
+    teamId: null,
+    actorUserId: ctx.actorUserId ?? null,
+    subjectType: 'MODEL',
+    subjectId: ctx.recommendationId,
+    sourceType: 'AI',
+    payload: {
+      analysisKind: String(facts.analysisKind).slice(0, 48) || null,
+      agent: facts.agent ? String(facts.agent).slice(0, 48) : null,
+      scope: facts.scope,
+      confidence: facts.confidence,
+    },
+  });
 }
 
 /**
