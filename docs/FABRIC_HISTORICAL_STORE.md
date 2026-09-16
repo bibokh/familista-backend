@@ -98,6 +98,41 @@ reports `dropped`, `retryBacklog` and `lastError`, and
 
 **No infinite retry.** Bounded queue, bounded attempts, unref'd timer.
 
+### Crash-durable delivery
+
+The in-process queue is an *optimisation*. The **guarantee** is the outbox, and
+it is already written when the historical write is attempted:
+
+```
+emit()
+  → transport.append()        EventOutbox row, COMMITTED    ← the durable record
+  → recordHistoryDetached()   FabricEventHistory row         ← may fail
+```
+
+An outbox row whose `eventId` has no `FabricEventHistory` row **is** a pending
+delivery. The set difference is the pending state: it needs no column to
+maintain, no flag to clear, and no window in which a flag and a fact disagree.
+It is correct after a crash at any point, because neither side was ever
+half-written.
+
+`recoverHistory()` reads a bounded window of outbox rows, asks history which it
+already holds, rebuilds the rest with `eventFromRow` — the same reader the live
+board uses — and delivers them. `startHistoryRecovery()` runs it on a leased
+background timer (`FABRIC_HISTORY_RECOVERY_SWEEP_MS`, default 5 min;
+`..._LOOKBACK_MS`, default 24 h; `..._BATCH`, default 500).
+
+Completion is the historical row existing. A second sweep over the same window
+finds it present and does nothing, and two instances racing the same window are
+resolved by the unique index rather than by luck.
+
+**What this cannot recover, stated rather than hidden:**
+
+- An event whose **outbox append itself failed** — there is no durable record
+  anywhere, by definition. That is reported as
+  `system.fabric.publisher.degraded`, which is the honest signal.
+- An event whose outbox row the retention worker has **already deleted**. The
+  recovery window is bounded by outbox retention.
+
 ---
 
 ## Privacy — historical does not mean raw
@@ -204,6 +239,27 @@ foundation it can be pointed at later; that is a UI change and belongs in one.
 ---
 
 ## Cold archive — designed, not enabled
+
+**Storage goes through the platform's existing port.** `fabric/media/object-store.ts`
+already defines `ObjectStore` (four operations), `MemoryObjectStore`, and
+`setObjectStore`/`getObjectStore` over the `lib/storage` adapter. The archive
+does **not** define a rival storage interface: `ArchiveExporter` is
+*orchestration* — batching, partitioning, manifests, integrity — and holds an
+`ObjectStore` for the bytes.
+
+```
+ArchiveExporter  (batch → Parquet → manifest)
+      └── uses → ObjectStore  (putObject / headObject / …)
+```
+
+`archiveEnabled()` deliberately does **not** consult the port. `getObjectStore()`
+always returns something — an in-memory store when nothing is configured — so
+asking it would always answer yes while the bytes went to a buffer a restart
+discards. Configuration is a separate question from capability.
+
+`manifestFor()` builds the manifest from the `PutObjectResult` the **store**
+returned — what it says it actually wrote — never from what the caller believed
+it sent.
 
 `archiveEnabled()` returns `false` unless **both** a bucket and credentials are
 configured. Today neither is, so `archiveStatus()` reports `NOT_CONFIGURED` and

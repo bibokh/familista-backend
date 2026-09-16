@@ -8,13 +8,24 @@
 // returns false unless a bucket and credentials are configured, and every entry
 // point refuses while it does.
 //
-// The repository already depends on `@aws-sdk/client-s3` and already builds an
-// S3 client in `services/video-hls.service.ts` against `VIDEO_S3_*` variables,
-// so the provider abstraction exists. What does not exist is a configured
-// archive bucket. Inventing one — or writing an exporter that pretends to work
-// against an unset endpoint — would produce an archive nobody could restore
-// from and a green job that proves nothing. So the exporter is declared and
-// disabled, and the configuration it needs is written down.
+// STORAGE IS NOT THIS FILE'S TO INVENT
+//
+// Familista already has an object-storage port — `fabric/media/object-store.ts`
+// — with four operations, a `MemoryObjectStore`, a `setObjectStore`/
+// `getObjectStore` pair and an adapter that wraps the existing `lib/storage`
+// stack. An archive that defined its own storage interface beside it would be a
+// second port to configure, a second provider to select and a second thing to
+// get wrong, and the day somebody built the exporter they would have to throw
+// one of them away.
+//
+// So `ArchiveExporter` is ORCHESTRATION — batching, partitioning, manifests,
+// integrity — and the bytes go through `ObjectStore`. The exporter decides what
+// a batch is and what proves it arrived; the port decides where bytes live and
+// which vendor holds them. Neither knows the other's business.
+//
+// The exporter is still not implemented, and that is deliberate: writing one
+// that pretends to work would produce an archive nobody could restore from and
+// a green job that proves nothing.
 //
 // THREE THINGS THAT ARE NOT EACH OTHER
 //
@@ -29,7 +40,7 @@
 //
 //   DATABASE BACKUP    The provider's snapshot of the whole database. Answers
 //                      "the database is gone, put it back". Not a feature of
-//                      this platform at all — it is Neon's, it covers every
+//                      this platform at all — it is the database provider's, it covers every
 //                      table rather than this one, and it is restored to a
 //                      point in time rather than queried.
 //
@@ -42,6 +53,7 @@
 // See `docs/FABRIC_HISTORICAL_STORE.md`.
 
 import type { RetentionClass } from './retention-classes';
+import { getObjectStore, type ObjectStore, type PutObjectResult } from '../media/object-store';
 
 /** Where an archive batch lands, and what proves it arrived intact. */
 export interface ArchiveManifest {
@@ -91,6 +103,21 @@ export function archivePartitionKey(occurredAt: Date, source: string, batchId: s
   return `year=${y}/month=${m}/day=${d}/source=${safeSource}/${batchId}.parquet`;
 }
 
+/**
+ * The storage the archive would write through.
+ *
+ * `getObjectStore()` is the platform's one port and resolves lazily: a
+ * deployment with nothing configured gets an in-memory store rather than a
+ * process that will not start. That is exactly why `archiveEnabled()` below
+ * does NOT ask the port whether it works — an in-memory store answers yes to
+ * `putObject` and loses the bytes at the next restart. Configuration is a
+ * separate question from capability, and conflating them is how an archive
+ * comes to exist only in a test.
+ */
+export function archiveObjectStore(): ObjectStore {
+  return getObjectStore();
+}
+
 /** The configuration an archive needs before it can run. */
 export interface ArchiveConfiguration {
   bucket: string | null;
@@ -117,6 +144,11 @@ export function archiveConfiguration(): ArchiveConfiguration {
  * A bucket AND credentials. Either alone is a misconfiguration, and the honest
  * response to a misconfiguration is to stay switched off rather than to fail
  * halfway through a batch.
+ *
+ * Deliberately does not consult `getObjectStore()`. That port always returns
+ * something — an in-memory store when nothing is configured — so asking it
+ * would always say yes and an archive would appear to work while writing to a
+ * buffer that a restart discards.
  */
 export function archiveEnabled(): boolean {
   const c = archiveConfiguration();
@@ -132,6 +164,8 @@ export interface ArchiveStatus {
   missing: string[];
   format: 'parquet';
   partitioning: string;
+  /** Which port the bytes would go through, and which provider it resolved to. */
+  objectStore: { port: 'fabric/media/object-store'; provider: string };
   /** Nothing has ever been exported, and this build cannot export. */
   lastBatch: null;
 }
@@ -148,16 +182,66 @@ export function archiveStatus(): ArchiveStatus {
     state: archiveEnabled() ? 'READY' : 'NOT_CONFIGURED',
     bucket: c.bucket,
     missing,
+    // Reported so an operator can see WHICH store would receive the bytes
+    // before anything is written — `MEMORY` here says the platform has no
+    // durable object storage configured at all, whatever the bucket says.
+    objectStore: { port: 'fabric/media/object-store', provider: archiveObjectStore().provider },
     format: 'parquet',
     partitioning: 'year=YYYY/month=MM/day=DD/source=<source>/<batchId>.parquet',
     lastBatch: null,
   };
 }
 
-/** What an exporter must implement when one is built. */
+/**
+ * What an exporter must implement when one is built.
+ *
+ * ORCHESTRATION, not storage. An implementation batches historical rows,
+ * serialises them to Parquet, computes the manifest, and hands the bytes to an
+ * `ObjectStore` — the platform's existing port, injected rather than chosen, so
+ * the exporter never names a vendor and a test can pass a `MemoryObjectStore`
+ * without a bucket in sight.
+ */
 export interface ArchiveExporter {
+  /** Where the bytes go. The port, never a provider. */
+  readonly store: ObjectStore;
   /** Write one batch and return the manifest that proves what was written. */
   export(batch: readonly unknown[]): Promise<ArchiveManifest>;
+}
+
+/**
+ * The manifest for a batch whose bytes are already stored.
+ *
+ * Split out from any exporter so the integrity format is testable on its own
+ * and identical whichever implementation eventually calls it: the checksum and
+ * the size come from the `PutObjectResult` the PORT returned — what the store
+ * says it actually wrote — rather than from what the exporter believed it sent.
+ * A manifest built from the caller's own intention proves nothing.
+ */
+export function manifestFor(args: {
+  batchId: string;
+  stored: PutObjectResult;
+  recordCount: number;
+  minOccurredAt: Date;
+  maxOccurredAt: Date;
+  schemaVersions: readonly number[];
+  sources: readonly string[];
+  retentionClasses: readonly RetentionClass[];
+}): ArchiveManifest {
+  return {
+    batchId: args.batchId,
+    recordCount: args.recordCount,
+    minOccurredAt: args.minOccurredAt.toISOString(),
+    maxOccurredAt: args.maxOccurredAt.toISOString(),
+    checksum: args.stored.checksum,
+    checksumAlgorithm: 'sha256',
+    manifestVersion: 1,
+    schemaVersions: [...new Set(args.schemaVersions)].sort((a, b) => a - b),
+    sources: [...new Set(args.sources)].sort(),
+    retentionClasses: [...new Set(args.retentionClasses)].sort(),
+    objectKey: args.stored.key,
+    format: 'parquet',
+    createdAt: new Date().toISOString(),
+  };
 }
 
 /**
@@ -174,6 +258,17 @@ export async function exportArchiveBatch(): Promise<never> {
       ? 'Fabric archive exporter is not implemented in this build'
       : `Fabric archive is not configured — set ${status.missing.join(', ')}`,
   );
+}
+
+/**
+ * Whether an object may be written at all.
+ *
+ * One gate, so there is exactly one place an exporter has to consult and
+ * exactly one place a test has to point at. No byte leaves this platform for an
+ * archive while this returns false, and it returns false in this build.
+ */
+export function archiveWritesPermitted(): boolean {
+  return archiveEnabled();
 }
 
 /**

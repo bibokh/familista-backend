@@ -52,7 +52,7 @@ const SECRETS = {
   tacticalNote: 'Press trigger fails against a back three — do not share',
 };
 
-const state = { history: [] as Row[] };
+const state = { history: [] as Row[], outbox: [] as Row[] };
 
 const match = (row: Row, where: Row = {}): boolean =>
   Object.entries(where).every(([k, v]) => {
@@ -114,7 +114,23 @@ const db: Row = {
     },
     count: async ({ where = {} }: Row = {}) => state.history.filter((r) => match(r, where)).length,
   },
-  eventOutbox: { create: async ({ data }: Row) => data, findMany: async () => [] },
+  // A REAL outbox in this harness, not a stub. The crash-recovery tests below
+  // depend on it being what it is in production: the durable record, written
+  // and committed BEFORE the historical write is attempted.
+  eventOutbox: {
+    create: async ({ data }: Row) => {
+      seq += 1;
+      const row = { id: `outbox-${String(seq).padStart(6, '0')}`, createdAt: new Date(), ...data };
+      state.outbox.push(row);
+      return row;
+    },
+    findMany: async ({ where = {}, take }: Row = {}) => {
+      const hits = state.outbox
+        .filter((r) => match(r, where))
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || String(a.id).localeCompare(String(b.id)));
+      return take ? hits.slice(0, take) : hits;
+    },
+  },
   $transaction: async (arg: any) => (typeof arg === 'function' ? arg(db) : Promise.all(arg)),
 };
 
@@ -126,6 +142,8 @@ import {
   recordHistory, drainFabricHistory, fabricHistoryHealth, resetFabricHistory,
   queryHistory, countHistory, replayHistory, historyWindow,
   formatHistoryCursor, HISTORY_MAX_PAGE,
+  recoverHistory, resetHistoryRecovery, historyRecoveryHealth, pendingHistoryDelivery,
+  archiveObjectStore, archiveWritesPermitted, manifestFor,
   historicalRecord, retentionClassFor, RETENTION_CLASSES, retentionPolicyConfigured,
   archiveEnabled, archiveStatus, archivePartitionKey, exportArchiveBatch, mayPurgeAfterArchive,
 } from '../src/fabric';
@@ -152,10 +170,12 @@ const at = (iso: string) => new Date(iso);
 
 beforeEach(() => {
   state.history = [];
+  state.outbox = [];
   failWrites = false;
   writeAttempts = 0;
   seq = 0;
   resetFabricHistory();
+  resetHistoryRecovery();
   clearSubscribers();
   setEventTransport(transport);
 });
@@ -348,6 +368,252 @@ describe('a historical failure never costs a business transaction', () => {
     expect(health.written).toBe(0);
     // Process counters, and they say so rather than pretending to be metrics.
     expect(health.scope).toBe('PROCESS');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('crash-durable delivery, on the outbox that already exists', () => {
+  /**
+   * The transport that writes the durable record. Every test here uses the
+   * REAL outbox transport, because the whole guarantee is that the outbox row
+   * is committed before the historical write is attempted — a stubbed
+   * transport would prove nothing.
+   */
+  const durable: EventTransport = {
+    name: 'OUTBOX-LIKE',
+    async append(event: FamilistaEvent) {
+      await db.eventOutbox.create({
+        data: {
+          clubId: event.clubId,
+          kind: event.eventType,
+          topic: event.eventType,
+          idempotencyKey: event.idempotencyKey,
+          source: String(event.sourceType),
+          payload: { __familista_event: JSON.parse(JSON.stringify(event)) },
+        },
+      });
+      return 'STORED';
+    },
+    async read() { return []; },
+  } as EventTransport;
+
+  beforeEach(() => setEventTransport(durable));
+
+  it('a crash after the business commit leaves the event durably recoverable', async () => {
+    // The business transaction has committed and the outbox row is written.
+    // The historical write then fails — a database blip, a full connection
+    // pool, anything.
+    failWrites = true;
+    await emit({ eventType: 'club.created', clubId: CLUB, subjectType: 'CLUB', subjectId: CLUB, payload: {} });
+    await settle();
+
+    expect(state.outbox).toHaveLength(1);        // the durable record exists
+    expect(state.history).toHaveLength(0);       // the delivery has not happened
+
+    // THE CRASH. Everything in this process is gone: the retry queue, the
+    // counters, the timer. A new instance starts with none of it.
+    resetFabricHistory();
+    resetHistoryRecovery();
+    expect(fabricHistoryHealth().retryBacklog).toBe(0);
+
+    // The new instance sweeps, and the event is delivered.
+    failWrites = false;
+    const swept = await recoverHistory();
+    expect(swept.recovered).toBe(1);
+    expect(state.history).toHaveLength(1);
+    expect(state.history[0].eventType).toBe('club.created');
+  });
+
+  it('the pending set is computed from the two tables, not from memory', async () => {
+    failWrites = true;
+    await emit({ eventType: 'club.created', clubId: CLUB, payload: {} });
+    await emit({ eventType: 'match.started', clubId: CLUB, payload: {} });
+    await settle();
+
+    // Survives the crash, because it was never in memory in the first place.
+    resetFabricHistory();
+    resetHistoryRecovery();
+    const before = await pendingHistoryDelivery();
+    expect(before.pending).toBe(2);
+
+    failWrites = false;
+    await recoverHistory();
+    const after = await pendingHistoryDelivery();
+    expect(after.pending).toBe(0);
+  });
+
+  it('a process killed DURING retry loses nothing', async () => {
+    failWrites = true;
+    await emit({ eventType: 'club.created', clubId: CLUB, payload: {} });
+    await settle();
+    // Mid-retry: the queue holds it, the database is still refusing.
+    expect(fabricHistoryHealth().retryBacklog).toBe(1);
+
+    // Killed here. The queue evaporates.
+    resetFabricHistory();
+    resetHistoryRecovery();
+
+    failWrites = false;
+    expect((await recoverHistory()).recovered).toBe(1);
+    expect(state.history).toHaveLength(1);
+  });
+
+  it('repeated recovery does not duplicate history', async () => {
+    failWrites = true;
+    await emit({ eventType: 'club.created', clubId: CLUB, payload: {} });
+    await settle();
+    failWrites = false;
+
+    const first = await recoverHistory();
+    const second = await recoverHistory();
+    const third = await recoverHistory();
+
+    expect(first.recovered).toBe(1);
+    // The second pass finds the row present. No insert, no duplicate, no work.
+    expect(second.recovered).toBe(0);
+    expect(second.alreadyPresent).toBe(1);
+    expect(third.alreadyPresent).toBe(1);
+    expect(state.history).toHaveLength(1);
+  });
+
+  it('successful delivery completes the pending state — there is no flag to clear', async () => {
+    failWrites = true;
+    await emit({ eventType: 'club.created', clubId: CLUB, payload: {} });
+    await settle();
+    failWrites = false;
+    await recoverHistory();
+
+    // Completion IS the historical row existing. Nothing was marked, so nothing
+    // can disagree with the fact.
+    expect((await pendingHistoryDelivery()).pending).toBe(0);
+    const src = decomment(read('src/fabric/history/history-recovery.service.ts'));
+    expect(src).not.toMatch(/eventOutbox\.update|historyDeliveredAt|markDelivered/);
+  });
+
+  it('a temporarily unavailable database delivers everything once it returns', async () => {
+    failWrites = true;
+    for (let i = 0; i < 5; i += 1) {
+      await emit({ eventType: 'match.started', clubId: CLUB, payload: { n: i } });
+    }
+    await settle();
+    expect(state.history).toHaveLength(0);
+    expect(state.outbox).toHaveLength(5);
+
+    resetFabricHistory();               // as if the instance restarted meanwhile
+    failWrites = false;
+    const swept = await recoverHistory();
+    expect(swept.recovered).toBe(5);
+    expect(state.history).toHaveLength(5);
+    // And a second sweep is free.
+    expect((await recoverHistory()).recovered).toBe(0);
+  });
+
+  it('the business transaction is never rolled back by any of this', async () => {
+    failWrites = true;
+    const result = await emit({ eventType: 'club.created', clubId: CLUB, payload: {} });
+    await settle();
+    // The append succeeded, the caller got its answer, and the outbox row — the
+    // record the business transaction actually depends on — is there.
+    expect(result.stored).toBe(true);
+    expect(state.outbox).toHaveLength(1);
+  });
+
+  it('a sweep that still fails leaves the work recoverable rather than losing it', async () => {
+    failWrites = true;
+    await emit({ eventType: 'club.created', clubId: CLUB, payload: {} });
+    await settle();
+    resetFabricHistory();
+
+    // The database is still down when recovery runs.
+    const swept = await recoverHistory();
+    expect(swept.failed).toBe(1);
+    expect(swept.recovered).toBe(0);
+    // Still pending, still recoverable, nothing lost.
+    expect((await pendingHistoryDelivery()).pending).toBe(1);
+
+    failWrites = false;
+    expect((await recoverHistory()).recovered).toBe(1);
+  });
+
+  it('recovery is bounded — a window, a batch, and one sweep at a time', () => {
+    const src = decomment(read('src/fabric/history/history-recovery.service.ts'));
+    expect(src).toMatch(/LOOKBACK_MS/);
+    expect(src).toMatch(/take,/);
+    expect(src).toMatch(/if \(sweeping\) return EMPTY;/);
+    // No loop that retries until the backlog is empty.
+    expect(src).not.toMatch(/while\s*\(true\)/);
+    expect(src).not.toMatch(/for\s*\(;;\)/);
+    // The timer never holds the process open.
+    expect(src).toMatch(/timer\.unref/);
+  });
+
+  it('reuses the existing outbox and creates no second queue or table', () => {
+    const src = decomment(read('src/fabric/history/history-recovery.service.ts'));
+    // The existing durable record, read through the existing reader.
+    expect(src).toMatch(/eventFromRow/);
+    expect(src).toMatch(/isFabricRow/);
+    expect(src).toMatch(/prisma\.eventOutbox\.findMany/);
+    // And no new model for delivery bookkeeping.
+    const schema = read('prisma/schema.prisma');
+    expect(schema).not.toMatch(/model\s+\w*(HistoryQueue|HistoryDelivery|FabricRetry)\w*\s*\{/);
+    // Nothing in the recovery path writes to the outbox.
+    expect(src).not.toMatch(/eventOutbox\.(create|update|delete)/);
+  });
+
+  it('skips a legacy outbox row rather than inventing a record for it', async () => {
+    // A row written by a producer that predates the envelope. It has no schema
+    // and no classification, so there is nothing honest to record.
+    state.outbox.push({
+      id: 'outbox-legacy', clubId: CLUB, kind: 'MATCH_EVENT',
+      payload: { goal: true }, source: 'legacy', createdAt: new Date(), idempotencyKey: 'legacy-1',
+    });
+    const swept = await recoverHistory();
+    expect(swept.skipped).toBe(1);
+    expect(swept.recovered).toBe(0);
+    expect(state.history).toHaveLength(0);
+  });
+
+  it('reports the durable backlog through health, with the window it looked at', async () => {
+    failWrites = true;
+    await emit({ eventType: 'club.created', clubId: CLUB, payload: {} });
+    await settle();
+    resetFabricHistory();
+
+    const pending = await pendingHistoryDelivery();
+    expect(pending.pending).toBe(1);
+    expect(pending.window.since).toBeTruthy();
+    expect(pending.window.until).toBeTruthy();
+
+    const health = historyRecoveryHealth();
+    expect(health.enabled).toBe(true);
+    expect(health.scope).toBe('PROCESS');
+    expect(health.sweepMs).toBeGreaterThan(0);
+  });
+
+  it('an event whose OUTBOX append failed is NOT claimed to be recoverable', async () => {
+    // The honest limit of the design, stated as a test. No outbox row means no
+    // durable record anywhere, and recovery cannot invent one. That failure is
+    // reported as publisher-degraded instead, which is the true signal.
+    setEventTransport({
+      name: 'BROKEN', async append() { throw new Error('outbox down'); }, async read() { return []; },
+    } as EventTransport);
+    const { resetFabricSelfHealth } = require('../src/fabric/producers/system.producer') as typeof import('../src/fabric/producers/system.producer');
+    resetFabricSelfHealth();
+
+    await emit({ eventType: 'club.created', clubId: CLUB, payload: {} });
+    await settle();
+
+    expect(state.outbox).toHaveLength(0);
+    expect((await pendingHistoryDelivery()).pending).toBe(0);   // nothing to recover
+    expect((await recoverHistory()).recovered).toBe(0);
+    resetFabricSelfHealth();
+  });
+
+  it('is registered as a leased background worker, so instances do not race', () => {
+    const src = decomment(read('src/infra/background-workers.ts'));
+    expect(src).toMatch(/startHistoryRecovery/);
+    expect(src).toMatch(/stopHistoryRecovery/);
+    expect(src).toMatch(/label: 'history-recovery'/);
   });
 });
 
@@ -641,6 +907,85 @@ describe('the cold archive, which is designed and not enabled', () => {
 
   it('never permits a purge on the strength of an export', () => {
     expect(mayPurgeAfterArchive()).toBe(false);
+  });
+
+  it('depends on the platform’s existing ObjectStore port, not a rival one', () => {
+    const src = decomment(read('src/fabric/history/archive.ts'));
+    // The existing port, imported — not a second storage interface beside it.
+    expect(src).toMatch(/from '\.\.\/media\/object-store'/);
+    expect(src).toMatch(/getObjectStore/);
+    // And no vendor, no SDK, no bucket API of its own.
+    expect(src).not.toMatch(/S3Client|PutObjectCommand|@aws-sdk|createPresignedUrl/);
+    // `ArchiveExporter` is orchestration that HOLDS a store rather than being one.
+    expect(src).toMatch(/readonly store: ObjectStore/);
+    for (const portMethod of ['putObject(', 'getSignedReadUrl(', 'deleteObject(', 'headObject(']) {
+      expect(`archive redeclares ${portMethod}: ${src.includes(`  ${portMethod}`)}`)
+        .toBe(`archive redeclares ${portMethod}: false`);
+    }
+  });
+
+  it('resolves the real port, and reports which provider it got', () => {
+    const store = archiveObjectStore();
+    expect(typeof store.putObject).toBe('function');
+    expect(typeof store.headObject).toBe('function');
+    // Whatever it resolved to is named on the status, so an operator can see
+    // that an unconfigured deployment would be writing to MEMORY.
+    expect(archiveStatus().objectStore.port).toBe('fabric/media/object-store');
+    expect(archiveStatus().objectStore.provider).toBe(store.provider);
+  });
+
+  it('writes NO object while the exporter is disabled', async () => {
+    // A recording store, installed for this test only. If anything in the
+    // archive path were to write a byte, it would land here.
+    const written: string[] = [];
+    const { setObjectStore, MemoryObjectStore } = require('../src/fabric/media/object-store') as typeof import('../src/fabric/media/object-store');
+    const memory = new MemoryObjectStore();
+    const spy = {
+      provider: 'TEST',
+      async putObject(args: { key: string; body: Buffer; contentType: string }) {
+        written.push(args.key);
+        return memory.putObject(args);
+      },
+      getSignedReadUrl: memory.getSignedReadUrl.bind(memory),
+      deleteObject: memory.deleteObject.bind(memory),
+      headObject: memory.headObject.bind(memory),
+    };
+    setObjectStore(spy as never);
+    try {
+      expect(archiveWritesPermitted()).toBe(false);
+      await expect(exportArchiveBatch()).rejects.toThrow();
+      // Nothing was written, and nothing was attempted.
+      expect(written).toEqual([]);
+    } finally {
+      setObjectStore(null);
+    }
+  });
+
+  it('builds a manifest from what the STORE reported, not from what a caller believed', () => {
+    const manifest = manifestFor({
+      batchId: 'batch-1',
+      stored: {
+        key: 'year=2030/month=05/day=14/source=matches/batch-1.parquet',
+        provider: 'TEST', sizeBytes: 1024,
+        checksum: 'abc123', contentType: 'application/vnd.apache.parquet',
+      },
+      recordCount: 3,
+      minOccurredAt: at('2030-05-14T00:00:00Z'),
+      maxOccurredAt: at('2030-05-14T23:59:59Z'),
+      schemaVersions: [1, 1, 2],
+      sources: ['matches', 'matches', 'clubs'],
+      retentionClasses: ['OPERATIONAL', 'AUDIT', 'AUDIT'],
+    });
+    // The checksum and the key come from the PutObjectResult — what the store
+    // says it actually wrote.
+    expect(manifest.checksum).toBe('abc123');
+    expect(manifest.objectKey).toContain('year=2030/month=05/day=14');
+    expect(manifest.checksumAlgorithm).toBe('sha256');
+    expect(manifest.recordCount).toBe(3);
+    expect(manifest.schemaVersions).toEqual([1, 2]);
+    expect(manifest.sources).toEqual(['clubs', 'matches']);
+    expect(manifest.retentionClasses).toEqual(['AUDIT', 'OPERATIONAL']);
+    expect(manifest.format).toBe('parquet');
   });
 
   it('partitions by date then source, the way an analytic reader expects', () => {

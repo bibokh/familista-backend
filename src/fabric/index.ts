@@ -88,7 +88,14 @@ export {
 } from './history/retention-classes';
 
 export {
+  recoverHistory, startHistoryRecovery, stopHistoryRecovery,
+  historyRecoveryHealth, pendingHistoryDelivery, resetHistoryRecovery,
+  type RecoveryResult,
+} from './history/history-recovery.service';
+
+export {
   archiveEnabled, archiveStatus, archiveConfiguration, archivePartitionKey,
+  archiveObjectStore, archiveWritesPermitted, manifestFor,
   exportArchiveBatch, mayPurgeAfterArchive,
   type ArchiveManifest, type ArchiveExporter, type ArchiveStatus,
 } from './history/archive';

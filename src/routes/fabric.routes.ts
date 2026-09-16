@@ -29,6 +29,7 @@ import {
   queryHistory, countHistory, replayHistory, historyWindow, HISTORY_MAX_PAGE,
 } from '../fabric/history/history-query.service';
 import { fabricHistoryHealth } from '../fabric/history/history-writer.service';
+import { historyRecoveryHealth, pendingHistoryDelivery } from '../fabric/history/history-recovery.service';
 import { archiveStatus } from '../fabric/history/archive';
 import { RETENTION_CLASSES, retentionPolicyConfigured } from '../fabric/history/retention-classes';
 
@@ -297,11 +298,16 @@ router.get('/history/replay', async (req: Request, res: Response, next) => {
  */
 router.get('/history/health', async (_req: Request, res: Response, next) => {
   try {
-    const [window] = await Promise.all([historyWindow()]);
+    const [window, pending] = await Promise.all([historyWindow(), pendingHistoryDelivery()]);
     res.json({
       success: true,
       data: {
         writer: fabricHistoryHealth(),
+        // The DURABLE backlog, computed from the two tables rather than from a
+        // counter a restart would reset: outbox rows in the window with no
+        // historical row are deliveries that have not happened yet. This is the
+        // number that survives a crash, and the one to act on.
+        delivery: { ...historyRecoveryHealth(), pending },
         window,
         retention: {
           classes: RETENTION_CLASSES,
