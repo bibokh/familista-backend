@@ -229,7 +229,7 @@ import {
   emit, setEventTransport, outboxTransport, clearSubscribers,
   startPulse, stopPulse, resetPulse, onPulse, recentFrames, flushNow,
   pulseMetrics, pulseTopology, project,
-  SOURCE_LANES, LIVE_DESTINATIONS, FUTURE_DESTINATIONS, INSTRUMENTED_EVENT_TYPES,
+  SOURCE_LANES, LIVE_DESTINATIONS, FUTURE_DESTINATIONS, instrumentedEventTypes,
   SAMPLE_THRESHOLD, BUFFER_LIMIT,
   replayWindow, replayCounts, eventFromRow, currentTransport,
   tailStep, tailAfter, latestCursor, formatCursor, parseCursor, TAIL_BATCH, ingestFrames,
@@ -245,6 +245,41 @@ import dataPulseRoutes from '../src/routes/data-pulse.routes';
 const ROOT = path.join(__dirname, '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const decomment = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+
+/**
+ * Every dotted lower-case name written anywhere in the source tree, minus the
+ * two files whose whole job is to DECLARE names.
+ *
+ * Walked once and cached: it is the only way to check a claim about the code
+ * against the code rather than against a list somebody maintained by hand.
+ */
+let NAMED_IN_SOURCE: Set<string> | null = null;
+function namedInSource(): Set<string> {
+  if (NAMED_IN_SOURCE) return NAMED_IN_SOURCE;
+  const skip = [path.join('fabric', 'event-taxonomy.ts'), path.join('fabric', 'registry') + path.sep];
+  const found = new Set<string>();
+  const walk = (dir: string): void => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) { walk(full); continue; }
+      if (!entry.name.endsWith('.ts')) continue;
+      if (skip.some((sk) => full.includes(sk))) continue;
+      const src = decomment(fs.readFileSync(full, 'utf8'));
+      for (const m of src.matchAll(/['"`]([a-z][a-z0-9]*(?:\.[a-z0-9_]+)+)['"`]/g)) found.add(m[1]);
+      // A name assembled from a prefix and a state — `transfer.offer.${state}`.
+      for (const m of src.matchAll(/`([a-z][a-z0-9_.]*?)\$\{/g)) found.add(m[1].replace(/\.$/, '') + '.*');
+    }
+  };
+  walk(path.join(ROOT, 'src'));
+  // Expand the prefixes: a name is backed if a template in the source can build it.
+  const prefixes = [...found].filter((f) => f.endsWith('.*')).map((f) => f.slice(0, -1));
+  const { registeredEventTypes } = require('../src/fabric') as typeof import('../src/fabric');
+  for (const t of registeredEventTypes() as string[]) {
+    if (prefixes.some((pre) => t.startsWith(pre))) found.add(t);
+  }
+  NAMED_IN_SOURCE = found;
+  return found;
+}
 
 function app() {
   const a = express();
@@ -660,42 +695,54 @@ describe('topology', () => {
     }
   });
 
-  test('the instrumented list matches what the source actually emits', () => {
-    // The claim "these types have a producer" is checked against the code, so
-    // the list cannot drift into a wish.
-    const files = [
-      'src/services/player.service.ts',
-      'src/fabric/media/media-asset.service.ts',
-      // Where the media names live now that the domain publishes through the
-      // registry rather than through the bus. The service still calls the
-      // producer; the producer is what names the type.
-      'src/fabric/producers/media.producer.ts',
-      'src/fabric/secrets/device-credentials.ts',
-      'src/fabric/secrets/rewrap.ts',
-    ];
-    const found = new Set<string>();
-    for (const file of files) {
-      const src = decomment(read(file));
-      for (const m of src.matchAll(/eventType:\s*['"]([a-z0-9.]+)['"]/g)) found.add(m[1]);
-      // A producer that picks its name from a union of literals, as the player
-      // one does, still names every literal in the signature.
-      for (const m of src.matchAll(/'((?:player|media|device|secret)\.[a-z.]+)'/g)) found.add(m[1]);
-    }
-    for (const claimed of INSTRUMENTED_EVENT_TYPES) {
-      expect(`${claimed}: emitted somewhere`).toBe(`${claimed}: ${found.has(claimed) ? 'emitted somewhere' : 'NOT EMITTED'}`);
+  test('every type claimed as produced is named somewhere outside the registry', () => {
+    // The claim "this type has a producer" is checked against the whole source
+    // tree, so `produced: true` cannot drift into a wish. It used to be checked
+    // against a hand-written list of five files, which is how eighteen names
+    // came to claim a producer that had never been written.
+    //
+    // The two places excluded are the ones that only DECLARE a name: the
+    // taxonomy seeds it and the registry stores it. A type that appears in
+    // neither anything else is a name and nothing more.
+    const found = namedInSource();
+    const unbacked = instrumentedEventTypes().filter((t) => !found.has(t));
+    expect(unbacked).toEqual([]);
+  });
+
+  test('every type marked unproduced is absent from the instrumented set', () => {
+    const t = pulseTopology();
+    const live = new Set(t.instrumented.map((i) => i.eventType));
+    // The honest gap. These are registered so consumers can be written against
+    // them; nothing emits them, and the screen says so.
+    expect(t.notInstrumented.length).toBeGreaterThan(0);
+    expect(t.notInstrumented).toContain('training.started');
+    expect(t.notInstrumented).toContain('transfer.offered');
+    for (const gap of t.notInstrumented) {
+      expect(`${gap}: not claimed live`).toBe(`${gap}: ${live.has(gap) ? 'CLAIMED LIVE' : 'not claimed live'}`);
     }
   });
 
-  test('registered types with no producer are named as such', () => {
+  test('a type that really is produced is reported as instrumented, not as a gap', () => {
+    // The regression the derived list exists to prevent: `match.completed` has
+    // had a producer since the Matches migration and the hand-written list
+    // still called it uninstrumented.
     const t = pulseTopology();
-    // The honest gap. These are in the taxonomy so consumers can be written
-    // against them; nothing emits them, and the screen says so.
-    expect(t.notInstrumented.length).toBeGreaterThan(0);
-    expect(t.notInstrumented).toContain('training.started');
-    expect(t.notInstrumented).toContain('match.completed');
-    for (const live of INSTRUMENTED_EVENT_TYPES) {
-      expect(`${live}: not in gap list`).toBe(`${live}: ${t.notInstrumented.includes(live) ? 'IN GAP LIST' : 'not in gap list'}`);
-    }
+    expect(t.notInstrumented).not.toContain('match.completed');
+    expect(t.instrumented.map((i) => i.eventType)).toContain('match.completed');
+  });
+
+  test('every registered domain has a destination lane of its own', () => {
+    // A domain missing from the map falls through to Audit, silently, which is
+    // how the Medical source came to be split across two lanes and the whole
+    // Coach Market came to be drawn as an audit trail. The fallback is for a
+    // name this build has never heard of, not for one it registered itself.
+    const { registeredEventTypes } = require('../src/fabric') as typeof import('../src/fabric');
+    const src = decomment(read('src/fabric/pulse/pulse.service.ts'));
+    const map = src.slice(src.indexOf('const DESTINATION_LANE'));
+    const declared = new Set<string>();
+    for (const m of map.slice(0, map.indexOf('};')).matchAll(/(\w+):\s*'/g)) declared.add(m[1]);
+    const domains = [...new Set(registeredEventTypes().map((t: string) => t.split('.')[0]))].sort();
+    expect(domains.filter((d) => !declared.has(d))).toEqual([]);
   });
 
   test('the interface has no particle loop and no synthetic activity', () => {

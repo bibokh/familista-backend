@@ -194,7 +194,7 @@ export { fabricStatus, type FabricStatus } from './fabric-status.service';
 export {
   startPulse, stopPulse, isPulseRunning, onPulse, recentFrames, resetPulse, flushNow, ingestFrames,
   pulseMetrics, pulseTopology, project, sourceLaneFor, destinationLaneFor,
-  INSTRUMENTED_EVENT_TYPES, SOURCE_LANES, LIVE_DESTINATIONS, FUTURE_DESTINATIONS,
+  instrumentedEventTypes, SOURCE_LANES, LIVE_DESTINATIONS, FUTURE_DESTINATIONS,
   BUFFER_LIMIT, FLUSH_MS, SAMPLE_THRESHOLD,
   type PulseFrame, type PulseBatch, type PulseMetrics, type PulseTopology,
   type PulseListener, type PulseSourceCard,
