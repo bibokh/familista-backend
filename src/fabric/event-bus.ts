@@ -195,6 +195,34 @@ export async function emit<P>(input: EventInput<P>): Promise<EmitResult> {
     // Observability about observability never fails an append.
   }
 
+  // ── history ────────────────────────────────────────────────────────────────
+  //
+  // THE central integration point, and the reason none of the 131 producers had
+  // to be edited to gain durable history — nor will the 132nd. Everything that
+  // reaches the fabric reaches it through this function, so everything that
+  // reaches this function is recorded.
+  //
+  // DETACHED, deliberately. The outbox is the transport and a slow or unwell
+  // historical store must not make an append slower, let alone fail one: the
+  // caller has already committed a business transaction by the time it gets
+  // here. `recordHistoryDetached` catches everything and returns void, and a
+  // failure is queued and surfaced through `fabricHistoryHealth()` rather than
+  // thrown at anybody.
+  //
+  // The outcome travels with it, so a record says whether the transport stored
+  // the event, found it a duplicate, or failed — history records what happened,
+  // including when what happened was a failure.
+  //
+  // Required lazily for the same reason as above: the writer imports the
+  // registry, which several producers import, and a static import here would
+  // close a cycle at module load.
+  try {
+    const { recordHistoryDetached } = require('./history/history-writer.service') as typeof import('./history/history-writer.service');
+    recordHistoryDetached(event, outcome);
+  } catch {
+    // A module that will not load must not take the publisher down with it.
+  }
+
   if (outcome !== 'FAILED') fanOut(event);
   return { event, outcome, stored: outcome !== 'FAILED' };
 }

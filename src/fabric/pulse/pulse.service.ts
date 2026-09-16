@@ -150,6 +150,18 @@ export interface PulseFrame {
  * file CONTAINS, what it is called and what it hashes to never travel; see
  * `producers/media.producer.ts`.
  */
+/**
+ * Whether a subject kind's id may be named outside the envelope.
+ *
+ * Exported so the historical store applies the SAME allow-list the live board
+ * does rather than a second copy of it. A policy that exists twice is a policy
+ * that will one day disagree with itself.
+ */
+export function safeSubjectId(subjectType: string | null | undefined, id: string | null | undefined): string | null {
+  if (!subjectType || !id) return null;
+  return SAFE_SUBJECT_IDS.has(String(subjectType)) ? String(id) : null;
+}
+
 const SAFE_SUBJECT_IDS = new Set([
   'CLUB', 'TEAM', 'COMPETITION', 'FIXTURE', 'MATCH', 'TRAINING_SESSION', 'TRANSFER',
   'MEDIA_ASSET',

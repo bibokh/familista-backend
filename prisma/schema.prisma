@@ -10722,3 +10722,92 @@ model AnalyticsDailyMetric {
   @@index([environment, metric, day])
   @@index([day])
 }
+
+/// ─────────────────────────────────────────────────────────────────────────
+/// Familista Data Fabric — the HISTORICAL EVENT STORE
+///
+/// Durable, append-only, queryable. Every event the central Fabric publisher
+/// accepts is written here once, and nothing in the application ever updates
+/// or deletes a row.
+///
+/// WHY THIS IS NOT `EventOutbox`
+///
+/// The outbox is a TRANSPORT. Three things disqualify it as history:
+///   1. `retention.worker.ts` has an `EventOutbox` sweeper, so the moment a
+///      `DataRetentionPolicy` names it, published rows are deleted. It is
+///      retention-governed by design — undeleted today by the absence of a
+///      policy, not by a guarantee.
+///   2. The envelope lives inside `payload.__familista_event` as JSON. There
+///      is no column for eventType, occurredAt, entityType, entityId or
+///      correlationId, and no index that could serve "every medical event in
+///      May 2028 for this club" without a full JSON scan.
+///   3. It mixes Fabric envelopes with LEGACY rows written by
+///      `match-event.service` and `big-data/event-source`, whose payloads have
+///      no schema and no classification — which is exactly why the live board
+///      already treats such a row as RESTRICTED.
+///
+/// WHAT IS DELIBERATELY ABSENT
+///
+/// The PAYLOAD. History is an index of what happened, not a second copy of
+/// what it happened to. `metadata` carries only the field NAMES the live board
+/// is already allowed to draw; the domain database remains the protected
+/// source of truth for every value. See `fabric/history/history-record.ts`.
+///
+/// TIMESTAMPS
+///
+/// `timestamptz`, unlike every other table in this schema, which uses
+/// `timestamp(3)`. A historical store is ordered and range-queried across
+/// years and deployments; a type that does not carry a zone is an invitation
+/// to an off-by-one-hour boundary on a month query. New table, no column
+/// retyped, so the divergence costs nothing and buys correctness.
+model FabricEventHistory {
+  id String @id @default(uuid())
+
+  /// The envelope's own id. UNIQUE — this is what makes a retry idempotent.
+  eventId       String @unique
+  eventType     String
+  source        String
+  schemaVersion Int    @default(1)
+
+  /// When it HAPPENED, from the producer. Ordering and range queries use this.
+  occurredAt  DateTime @db.Timestamptz(3)
+  /// When THIS database stored it. Assigned here and by nothing else.
+  persistedAt DateTime @default(now()) @db.Timestamptz(3)
+
+  /// What the event is about, and its id ONLY where the subject kind is one
+  /// the platform already treats as safe to name. A PLAYER or STAFF id is not.
+  entityType String?
+  entityId   String?
+
+  clubId      String?
+  /// `{ teamId }` today; an object so it can carry more without a migration.
+  teamContext Json?
+  /// Reserved. The envelope does not carry an age group, so this is null in
+  /// this build rather than derived by reading a payload.
+  ageGroup    String?
+
+  correlationId String?
+  requestId     String?
+
+  /// `STORED`, `DUPLICATE` or `FAILED` — what the transport reported.
+  status   String @default("STORED")
+  /// Safe operational metadata only. Never a payload. See the module comment.
+  metadata Json?
+
+  /// From the envelope: `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`.
+  privacyClassification String
+  /// `OPERATIONAL` | `AUDIT` | `SECURITY` | `COMPLIANCE` | `ANALYTICS` | `RESTRICTED`.
+  /// A classification, not a schedule: nothing purges this table.
+  retentionClass        String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  /// The six a real historical question actually asks. Deliberately not more:
+  /// every index is a write cost on the hot path of every event in the system.
+  @@index([occurredAt])
+  @@index([source, occurredAt])
+  @@index([eventType, occurredAt])
+  @@index([clubId, occurredAt])
+  @@index([entityType, entityId, occurredAt])
+  @@index([correlationId])
+}
