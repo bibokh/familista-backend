@@ -32,6 +32,7 @@ import { startVideoTranscodeWorker, stopVideoTranscodeWorker } from '../workers/
 import { stopRetentionWorker } from '../workers/retention.worker';
 import { stopNotificationDispatchWorker } from '../workers/notification-dispatch.worker';
 import { startHeartbeat, stopHeartbeat } from '../distributed/region.service';
+import { startHistoryRecovery, stopHistoryRecovery } from '../fabric/history/history-recovery.service';
 
 /**
  * The set that must run once across the whole deployment.
@@ -61,6 +62,12 @@ const OWNED: Array<{ label: string; start: () => void; stop: () => void | Promis
   // heartbeat rows per interval for one node — four times the writes, and a
   // health average computed from four copies of one sample.
   { label: 'region-heartbeat',    start: startHeartbeat,               stop: stopHeartbeat },
+  // Historical delivery recovery. Leased like the rest, because the sweep is a
+  // set difference over a shared window: four unleased processes would each
+  // read the same outbox rows and race to insert the same historical records.
+  // The unique index would make three of them no-ops, but doing the work four
+  // times to throw three away is not a design, it is a leak the lease prevents.
+  { label: 'history-recovery',    start: startHistoryRecovery,         stop: stopHistoryRecovery },
 ];
 
 let running = false;

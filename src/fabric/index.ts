@@ -62,6 +62,44 @@ export {
 
 export { matchContext, announceReschedule, type MatchLike } from './producers/match-context';
 
+// ── the historical event store ───────────────────────────────────────────────
+// Durable, append-only, queryable. Written centrally from `emit()`, so every
+// producer — including ones that do not exist yet — is recorded without a line
+// of code of its own.
+
+export {
+  recordHistory, recordHistoryDetached, drain as drainFabricHistory,
+  fabricHistoryHealth, resetFabricHistory,
+} from './history/history-writer.service';
+
+export {
+  queryHistory, countHistory, replayHistory, historyWindow,
+  formatHistoryCursor, parseHistoryCursor, HISTORY_MAX_PAGE,
+  type HistoryQuery, type HistoryRow, type HistoryPage, type HistoryReplayResult,
+} from './history/history-query.service';
+
+export {
+  historicalRecord, type HistoricalRecord,
+} from './history/history-record';
+
+export {
+  RETENTION_CLASSES, retentionClassFor, retentionPolicyConfigured,
+  type RetentionClass,
+} from './history/retention-classes';
+
+export {
+  recoverHistory, startHistoryRecovery, stopHistoryRecovery,
+  historyRecoveryHealth, pendingHistoryDelivery, resetHistoryRecovery,
+  type RecoveryResult,
+} from './history/history-recovery.service';
+
+export {
+  archiveEnabled, archiveStatus, archiveConfiguration, archivePartitionKey,
+  archiveObjectStore, archiveWritesPermitted, manifestFor,
+  exportArchiveBatch, mayPurgeAfterArchive,
+  type ArchiveManifest, type ArchiveExporter, type ArchiveStatus,
+} from './history/archive';
+
 export {
   registerDevicesProducer, DEVICES_SOURCE_ID, attachmentOf,
   publishDeviceRegistered, publishDeviceConnected, publishDeviceDisconnected,

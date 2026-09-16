@@ -755,7 +755,17 @@ describe('the registry endpoints are the platform owner\'s alone', () => {
 describe('the registry is code, not a table', () => {
   it('adds no Prisma model and no migration', () => {
     const schema = src('prisma/schema.prisma');
-    expect(schema).not.toMatch(/model\s+Fabric(Source|Event|Schema)/);
+    // The REGISTRY is code. There is no `FabricSource`, `FabricEvent` or
+    // `FabricSchema` table, and a source registered by a module that loaded
+    // this morning needs no row and no deploy.
+    //
+    // Anchored on the closing brace, because `FabricEventHistory` IS a table
+    // and is meant to be: the registry is the set of names the build knows,
+    // and history is the durable record of what was published. A list that
+    // ships with the code and a log that outlives it are different things with
+    // different storage.
+    expect(schema).not.toMatch(/model\s+Fabric(Source|Event|Schema)\s*\{/);
+    expect(schema).toMatch(/model\s+FabricEventHistory\s*\{/);
     for (const file of fs.readdirSync(path.join(__dirname, '..', 'src/fabric/registry'))) {
       if (!file.endsWith('.ts')) continue;
       const body = src(path.join('src/fabric/registry', file));
