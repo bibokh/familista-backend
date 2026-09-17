@@ -189,5 +189,7 @@
   "Archive Exporter": "مُصدّر الأرشيف",
   "Coverage Gate": "بوابة تغطية الاختبارات",
   "AI Infrastructure Assistant": "مساعد البنية التحتية بالذكاء الاصطناعي",
-  "Vulnerability Scanning": "فحص الثغرات الأمنية"
+  "Vulnerability Scanning": "فحص الثغرات الأمنية",
+  "CONTRACT ERROR": "خطأ في العقد",
+  "the response did not carry:": "لم تتضمّن الاستجابة:"
 }

@@ -189,5 +189,7 @@
   "Archive Exporter": "Archive Exporter",
   "Coverage Gate": "Coverage Gate",
   "AI Infrastructure Assistant": "AI Infrastructure Assistant",
-  "Vulnerability Scanning": "Vulnerability Scanning"
+  "Vulnerability Scanning": "Vulnerability Scanning",
+  "CONTRACT ERROR": "CONTRACT ERROR",
+  "the response did not carry:": "the response did not carry:"
 }
