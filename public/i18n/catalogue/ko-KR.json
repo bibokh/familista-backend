@@ -1541,5 +1541,15 @@
   "Historical Data, Archive, Replay & Governance": "히스토리 데이터, 아카이브, 리플레이 및 거버넌스",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "히스토리 탐색기 · 타임라인 및 리플레이 · 클럽 히스토리 · 엔터티 히스토리 · 소스 · 스토리지 · 무결성 · 보존",
   "Open the vault": "볼트 열기",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "플랫폼 운영, 인프라, 인텔리전스 및 거버넌스"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "플랫폼 운영, 인프라, 인텔리전스 및 거버넌스",
+  "INFRASTRUCTURE CITY": "인프라 시티",
+  "Live Infrastructure, Technology, Health & Architecture": "실시간 인프라, 기술, 상태 및 아키텍처",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "지구 · 기술 지도 · 토폴로지 · 경보 및 인시던트 · 용량 · 변경 이력 · 탐지 규칙 · 근거",
+  "Checking infrastructure…": "인프라를 확인하는 중…",
+  "Enter the city": "시티 열기",
+  "All measured systems healthy": "측정된 모든 시스템이 정상입니다",
+  "Infrastructure state unknown": "인프라 상태를 알 수 없음",
+  "Infrastructure health unreachable": "인프라 상태에 접근할 수 없음",
+  "Critical infrastructure alerts: ": "심각 인프라 경보: ",
+  "Infrastructure warnings: ": "인프라 경고: "
 }

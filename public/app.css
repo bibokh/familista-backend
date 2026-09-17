@@ -7111,6 +7111,12 @@ body.club-theme .oh-cards{
    another, would be the page disagreeing with the architecture. */
 body.club-theme .oh-cards--three{ grid-template-columns: repeat(3, 1fr); }
 @media (max-width: 1240px){ body.club-theme .oh-cards--three{ grid-template-columns: 1fr; max-width: 560px; margin-inline: auto; } }
+/* Four products, four equal columns, and the same rule as three: siblings get
+   the same track. Two rows of two below the width where four would crush. */
+body.club-theme .oh-cards--four{ grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 1560px){ body.club-theme .oh-cards--four{ grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 900px){ body.club-theme .oh-cards--four{ grid-template-columns: 1fr; max-width: 560px; margin-inline: auto; } }
+body.club-theme .oh-wrap--four{ max-width: 1680px; }
 @media (max-width: 900px){ body.club-theme .oh-cards{ grid-template-columns: 1fr; } }
 body.club-theme .oh-wrap--three{ max-width: 1320px; }
 
@@ -7161,6 +7167,19 @@ body.club-theme .oh-card--vault .oh-card-icon{
   border-color: rgba(34,211,238,0.34);
 }
 body.club-theme .oh-card--vault .oh-card-cta{ color: #22d3ee; }
+
+/* Infrastructure City's accent. Electric blue rather than the Vault's cyan —
+   two platform-owner rooms, related but not the same door. */
+body.club-theme .oh-card--city::before{
+  background: linear-gradient(90deg, #3b82f6, #a78bfa);
+}
+body.club-theme .oh-card--city:hover{ box-shadow: 0 24px 56px rgba(59,130,246,0.22); border-color: rgba(59,130,246,0.44); }
+body.club-theme .oh-card--city .oh-card-icon{
+  color: #60a5fa;
+  background: linear-gradient(145deg, rgba(59,130,246,0.16), rgba(167,139,250,0.08));
+  border-color: rgba(59,130,246,0.36);
+}
+body.club-theme .oh-card--city .oh-card-cta{ color: #60a5fa; }
 
 body.club-theme .oh-card:hover{ border-color: var(--b-strong); box-shadow: var(--sh-2); }
 body.club-theme .oh-card--system:hover{ box-shadow: 0 24px 56px rgba(99,102,241,0.20); border-color: rgba(99,102,241,0.40); }

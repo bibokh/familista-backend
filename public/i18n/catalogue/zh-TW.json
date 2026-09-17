@@ -1541,5 +1541,15 @@
   "Historical Data, Archive, Replay & Governance": "歷史資料、封存、重播與治理",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "歷史瀏覽器 · 時間軸與重播 · 俱樂部歷史 · 實體歷史 · 資料來源 · 儲存 · 完整性 · 保留",
   "Open the vault": "開啟保險庫",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "平台營運、基礎設施、智慧與治理"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "平台營運、基礎設施、智慧與治理",
+  "INFRASTRUCTURE CITY": "基礎設施之城",
+  "Live Infrastructure, Technology, Health & Architecture": "即時基礎設施、技術、健康狀況與架構",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "區域 · 技術地圖 · 拓樸 · 告警與事件 · 容量 · 變更歷史 · 偵測規則 · 證據",
+  "Checking infrastructure…": "正在檢查基礎設施…",
+  "Enter the city": "進入城市",
+  "All measured systems healthy": "所有已量測的系統均正常",
+  "Infrastructure state unknown": "基礎設施狀態未知",
+  "Infrastructure health unreachable": "無法取得基礎設施健康狀態",
+  "Critical infrastructure alerts: ": "嚴重基礎設施告警：",
+  "Infrastructure warnings: ": "基礎設施警告："
 }

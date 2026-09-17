@@ -1544,5 +1544,15 @@
   "Historical Data, Archive, Replay & Governance": "Historische data, archief, replay en governance",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Historie-verkenner · Tijdlijn en replay · Clubhistorie · Entiteitshistorie · Bronnen · Opslag · Integriteit · Bewaring",
   "Open the vault": "Open de kluis",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "Platformbeheer, infrastructuur, intelligentie en governance"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Platformbeheer, infrastructuur, intelligentie en governance",
+  "INFRASTRUCTURE CITY": "INFRASTRUCTUURSTAD",
+  "Live Infrastructure, Technology, Health & Architecture": "Live infrastructuur, technologie, status & architectuur",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "Districten · Technologiekaart · Topologie · Waarschuwingen & incidenten · Capaciteit · Wijzigingsgeschiedenis · Detectieregels · Bewijs",
+  "Checking infrastructure…": "Infrastructuur wordt gecontroleerd…",
+  "Enter the city": "De stad binnengaan",
+  "All measured systems healthy": "Alle gemeten systemen zijn gezond",
+  "Infrastructure state unknown": "Infrastructuurstatus onbekend",
+  "Infrastructure health unreachable": "Infrastructuurstatus niet bereikbaar",
+  "Critical infrastructure alerts: ": "Kritieke infrastructuurwaarschuwingen: ",
+  "Infrastructure warnings: ": "Infrastructuurwaarschuwingen: "
 }

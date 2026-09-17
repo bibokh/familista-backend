@@ -1541,5 +1541,15 @@
   "Historical Data, Archive, Replay & Governance": "履歴データ、アーカイブ、リプレイ、ガバナンス",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "履歴エクスプローラー · タイムラインとリプレイ · クラブ履歴 · エンティティ履歴 · ソース · ストレージ · 整合性 · 保持",
   "Open the vault": "ボールトを開く",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "プラットフォーム運用、インフラ、インテリジェンス、ガバナンス"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "プラットフォーム運用、インフラ、インテリジェンス、ガバナンス",
+  "INFRASTRUCTURE CITY": "インフラストラクチャ・シティ",
+  "Live Infrastructure, Technology, Health & Architecture": "ライブインフラ、テクノロジー、状態、アーキテクチャ",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "地区 · テクノロジーマップ · トポロジー · アラートとインシデント · キャパシティ · 変更履歴 · 検知ルール · 根拠",
+  "Checking infrastructure…": "インフラを確認しています…",
+  "Enter the city": "シティを開く",
+  "All measured systems healthy": "計測対象のすべてのシステムは正常です",
+  "Infrastructure state unknown": "インフラの状態は不明です",
+  "Infrastructure health unreachable": "インフラの状態を取得できません",
+  "Critical infrastructure alerts: ": "重大なインフラアラート: ",
+  "Infrastructure warnings: ": "インフラの警告: "
 }

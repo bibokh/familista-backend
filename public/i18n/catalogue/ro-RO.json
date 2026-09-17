@@ -1544,5 +1544,15 @@
   "Historical Data, Archive, Replay & Governance": "Date istorice, arhivă, reluare și guvernanță",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Explorator istoric · Cronologie și reluare · Istoricul clubului · Istoricul entităților · Surse · Stocare · Integritate · Păstrare",
   "Open the vault": "Deschide seiful",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "Operațiuni de platformă, infrastructură, inteligență și guvernanță"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Operațiuni de platformă, infrastructură, inteligență și guvernanță",
+  "INFRASTRUCTURE CITY": "ORAȘUL INFRASTRUCTURII",
+  "Live Infrastructure, Technology, Health & Architecture": "Infrastructură în timp real, tehnologie, stare și arhitectură",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "Cartiere · Hartă tehnologică · Topologie · Alerte și incidente · Capacitate · Istoric modificări · Reguli de detecție · Dovezi",
+  "Checking infrastructure…": "Se verifică infrastructura…",
+  "Enter the city": "Intră în oraș",
+  "All measured systems healthy": "Toate sistemele măsurate sunt sănătoase",
+  "Infrastructure state unknown": "Stare necunoscută a infrastructurii",
+  "Infrastructure health unreachable": "Starea infrastructurii este inaccesibilă",
+  "Critical infrastructure alerts: ": "Alerte critice de infrastructură: ",
+  "Infrastructure warnings: ": "Avertismente de infrastructură: "
 }

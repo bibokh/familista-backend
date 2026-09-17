@@ -1544,5 +1544,15 @@
   "Historical Data, Archive, Replay & Governance": "Историјски подаци, архива, репродукција и управљање",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Претраживач историје · Временска оса и репродукција · Историја клуба · Историја ентитета · Извори · Складиште · Интегритет · Задржавање",
   "Open the vault": "Отвори трезор",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "Рад платформе, инфраструктура, интелигенција и управљање"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Рад платформе, инфраструктура, интелигенција и управљање",
+  "INFRASTRUCTURE CITY": "ГРАД ИНФРАСТРУКТУРЕ",
+  "Live Infrastructure, Technology, Health & Architecture": "Инфраструктура уживо, технологија, стање и архитектура",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "Квартови · Мапа технологија · Топологија · Упозорења и инциденти · Капацитет · Историја промена · Правила откривања · Докази",
+  "Checking infrastructure…": "Провера инфраструктуре…",
+  "Enter the city": "Уђи у град",
+  "All measured systems healthy": "Сви мерени системи су исправни",
+  "Infrastructure state unknown": "Стање инфраструктуре је непознато",
+  "Infrastructure health unreachable": "Стање инфраструктуре није доступно",
+  "Critical infrastructure alerts: ": "Критична упозорења инфраструктуре: ",
+  "Infrastructure warnings: ": "Упозорења инфраструктуре: "
 }

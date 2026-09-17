@@ -980,6 +980,7 @@ var _FAM_PAGE_RENDER = {
   'ai-war-room':                 ['renderAIWarRoom'],
   'system':                      ['renderFamilistaSystem'],
   'data-vault':                  ['renderFamilistaDataVault'],
+  'infrastructure-city':         ['renderFamilistaInfrastructureCity'],
   'fos-core':                    ['renderFOSCore'],
   'fos-ai-orchestrator':         ['renderFOSAIOrchestrator'],
   'multi-club-network':          ['renderMultiClubNetwork'],
@@ -2370,6 +2371,7 @@ function _flushPendingRender() {
     case 'pg-ai-war-room':        renderAIWarRoom();         break;
     case 'pg-system':             renderFamilistaSystem(document.getElementById('sy-root')); break;
     case 'pg-data-vault':         renderFamilistaDataVault(document.getElementById('dv-root')); break;
+    case 'pg-infrastructure-city': renderFamilistaInfrastructureCity(document.getElementById('ic-root')); break;
     case 'pg-fos-core':           renderFOSCore();           break;
     case 'pg-fos-ai-orchestrator': renderFOSAIOrchestrator(); break;
     case 'pg-fos-knowledge-graph': renderFOSKnowledgeGraph(); break;
@@ -2476,6 +2478,14 @@ function navTo(page, el, _opts) {
     if (_wasVault && page !== 'data-vault' && typeof window.teardownFamilistaDataVault === 'function') {
       window.teardownFamilistaDataVault();
     }
+    // INFRASTRUCTURE CITY is the fourth product and takes the shell the same
+    // way. It holds an open stream, so leaving the page closes it rather than
+    // leaving a socket reading into a screen nobody is looking at.
+    var _wasCity = document.body.classList.contains('ic-city-open');
+    document.body.classList.toggle('ic-city-open', page === 'infrastructure-city');
+    if (_wasCity && page !== 'infrastructure-city' && typeof window.teardownFamilistaInfrastructureCity === 'function') {
+      window.teardownFamilistaInfrastructureCity();
+    }
   } catch (_) {}
 
   // ── Separation guard ──
@@ -2495,6 +2505,9 @@ function navTo(page, el, _opts) {
     // DATA VAULT — the platform's historical memory. A sibling of SYSTEM and
     // CLUBS, not a page inside either of them.
     'data-vault': 1,
+    // INFRASTRUCTURE CITY — the platform's own architecture. The fourth
+    // sibling, not a page inside any of the other three.
+    'infrastructure-city': 1,
     // PLATFORM (8)
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
@@ -2602,7 +2615,7 @@ function navTo(page, el, _opts) {
 
   const titles = {
     // ── Owner Control ──
-    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault',
+    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City',
     // ── Club Workspace ──
     'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League', 'match-center':'Match Center', 'people-access':'People & Access',
     // ── Platform (Phase B labels) ──
@@ -2872,6 +2885,7 @@ function _buildPageTemplateMap() {
     'owner-home':                  renderOwnerHomeHTML,
     'clubs':                       renderClubsHTML,
     'data-vault':                  renderDataVaultHTML,
+    'infrastructure-city':         renderInfrastructureCityHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
@@ -2950,7 +2964,7 @@ function _buildPageTemplateMap() {
 // These are mounted eagerly at boot so the click flow is instant.
 var _EAGER_PAGES = [
   'owner-home', 'clubs', 'club-home', 'squad',
-  'system', 'data-vault',
+  'system', 'data-vault', 'infrastructure-city',
   'fos-core', 'fos-observability', 'fos-security-center',
   'fos-automation-center', 'fos-rbac', 'fos-audit-governance',
   'multi-club-network', 'fos-admin-center',
@@ -3357,6 +3371,36 @@ function _vaultStatusHTML(state, text) {
  * failure is reported as a failure — an owner whose historical store is
  * unreachable should learn it on the way in, not after clicking.
  */
+function _fillCityStatus() {
+  const slot = document.getElementById('oh-city-state');
+  if (!slot) return;
+  const base = (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG.API_BASE) ? FAM_CONFIG.API_BASE : '/api/v1';
+  let token = '';
+  try { token = (window.State && window.State.token) || localStorage.getItem('familista_token') || ''; } catch (_) {}
+  const write = (state, text) => {
+    const el = document.getElementById('oh-city-state');
+    if (el) el.outerHTML = _vaultStatusHTML(state, text).replace('class="oh-card-state', 'id="oh-city-state" class="oh-card-state');
+  };
+  fetch(base + '/system/infrastructure/health', {
+    headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
+    credentials: 'include',
+  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+    .then(function (body) {
+      const d = (body && body.data) || body || {};
+      const c = d.counts || {};
+      // A label and a number rather than an inflected sentence. The catalogue
+      // has no plural entries yet, and "%d alert(s)" would make this feature the
+      // first thing to need one form per plural category in thirty-one
+      // languages — six of them in Arabic alone. A fixed label reads correctly
+      // in every one of them and translates as a single string.
+      if (d.overall === 'CRITICAL') write('bad', 'Critical infrastructure alerts: ' + (c.critical || 0));
+      else if (d.overall === 'WARNING') write('warn', 'Infrastructure warnings: ' + (c.warning || 0));
+      else if (d.overall === 'HEALTHY') write('ok', 'All measured systems healthy');
+      else write('idle', 'Infrastructure state unknown');
+    })
+    .catch(function () { write('bad', 'Infrastructure health unreachable'); });
+}
+
 function _fillVaultStatus() {
   const slot = document.getElementById('oh-vault-state');
   if (!slot) return;
@@ -3386,13 +3430,15 @@ function _fillVaultStatus() {
 }
 
 /**
- * The platform owner's landing: three products, and a choice between them.
+ * The platform owner's landing: four products, and a choice between them.
  *
  * SYSTEM operates and governs the platform. CLUBS operates the football
- * organisations. DATA VAULT is the platform's historical memory. They are
- * siblings, not a parent and two children: the Vault is not a page inside
- * SYSTEM, and putting it there would say the platform's history is a system
- * setting rather than a product of its own.
+ * organisations. DATA VAULT is the platform's historical memory.
+ * INFRASTRUCTURE CITY is what the platform is made of and how it is behaving
+ * right now. They are siblings, not a parent and three children: the Vault is
+ * not a page inside SYSTEM, and putting it there would say the platform's
+ * history is a system setting rather than a product of its own. The same is
+ * true of the City — an architecture is not a settings screen.
  *
  * The only figures on this screen are counts the platform actually holds - the
  * number of clubs in the network, and the historical store's own health, which
@@ -3402,13 +3448,13 @@ function _ownerHomeForPlatformOwner(user, club) {
   const clubs = _accessibleClubs();
   const clubCount = clubs.length || 1;
   return `
-    <div class="oh-wrap oh-wrap--three">
+    <div class="oh-wrap oh-wrap--four">
       <div class="oh-hero">
         <div class="oh-eyebrow">FAMILISTA · OWNER CONTROL</div>
         <h1 class="oh-title"><span>${_esc(_greeting())}</span>${user.firstName ? ', <span data-user-content>' + _esc(user.firstName) + '</span>' : ''}</h1>
         <div class="oh-sub">Where do you want to go today?</div>
       </div>
-      <div class="oh-cards oh-cards--three">
+      <div class="oh-cards oh-cards--four">
         <button class="oh-card oh-card--system" data-action="navTo" data-page="system" type="button">
           <div class="oh-card-icon">⚙️</div>
           <div class="oh-card-title">SYSTEM</div>
@@ -3430,6 +3476,14 @@ function _ownerHomeForPlatformOwner(user, club) {
           <div class="oh-card-list">Historical Explorer · Timeline &amp; Replay · Club History · Entity History · Sources · Storage · Integrity · Retention</div>
           <span id="oh-vault-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Checking historical store…</span>
           <div class="oh-card-cta">Open the vault <span>→</span></div>
+        </button>
+        <button class="oh-card oh-card--city" data-action="navTo" data-page="infrastructure-city" type="button">
+          <div class="oh-card-icon">◈</div>
+          <div class="oh-card-title">INFRASTRUCTURE CITY</div>
+          <div class="oh-card-sub">Live Infrastructure, Technology, Health &amp; Architecture</div>
+          <div class="oh-card-list">Districts · Technology Map · Topology · Alerts &amp; Incidents · Capacity · Change History · Detection Rules · Evidence</div>
+          <span id="oh-city-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Checking infrastructure…</span>
+          <div class="oh-card-cta">Enter the city <span>→</span></div>
         </button>
       </div>
       <div class="oh-footer">
@@ -3553,7 +3607,10 @@ function renderOwnerHome() {
     // to put one on. Asked after paint so the landing is never waiting on it,
     // and written into a slot that is already the right size so the answer
     // cannot resize the card under the reader.
-    if (yes) { try { _fillVaultStatus(); } catch (_) {} }
+    if (yes) {
+      try { _fillVaultStatus(); } catch (_) {}
+      try { _fillCityStatus(); } catch (_) {}
+    }
   });
 }
 
@@ -28015,6 +28072,19 @@ function renderSystemHTML() {
 // translate it a second time from a different dictionary.
 function renderDataVaultHTML() {
   return `<div class="page" id="pg-data-vault" data-no-i18n><div id="dv-root"></div></div>`;
+}
+
+// INFRASTRUCTURE CITY — the platform's own technology estate, drawn from the
+// repository that defines it. The fourth top-level product.
+//
+// A host and nothing else: everything inside it is drawn by
+// public/infrastructure-city/infrastructure-city.js. `data-no-i18n` is the same
+// boundary SYSTEM and the Data Vault keep — the City carries English, German
+// and Arabic in its own catalogue under /infrastructure-city/i18n/, so the
+// platform's club-facing locale pass must reject this subtree rather than
+// translate it a second time from a different dictionary.
+function renderInfrastructureCityHTML() {
+  return `<div class="page" id="pg-infrastructure-city" data-no-i18n><div id="ic-root"></div></div>`;
 }
 
 function renderFOSCoreHTML() {

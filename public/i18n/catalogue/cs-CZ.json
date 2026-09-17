@@ -1544,5 +1544,15 @@
   "Historical Data, Archive, Replay & Governance": "Historická data, archiv, přehrávání a správa",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Průzkumník historie · Časová osa a přehrávání · Historie klubu · Historie entit · Zdroje · Úložiště · Integrita · Uchovávání",
   "Open the vault": "Otevřít trezor",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "Provoz platformy, infrastruktura, inteligence a správa"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Provoz platformy, infrastruktura, inteligence a správa",
+  "INFRASTRUCTURE CITY": "MĚSTO INFRASTRUKTURY",
+  "Live Infrastructure, Technology, Health & Architecture": "Živá infrastruktura, technologie, stav a architektura",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "Čtvrti · Mapa technologií · Topologie · Výstrahy a incidenty · Kapacita · Historie změn · Pravidla detekce · Důkazy",
+  "Checking infrastructure…": "Kontrola infrastruktury…",
+  "Enter the city": "Vstoupit do města",
+  "All measured systems healthy": "Všechny měřené systémy jsou v pořádku",
+  "Infrastructure state unknown": "Stav infrastruktury není znám",
+  "Infrastructure health unreachable": "Stav infrastruktury je nedostupný",
+  "Critical infrastructure alerts: ": "Kritické výstrahy infrastruktury: ",
+  "Infrastructure warnings: ": "Varování infrastruktury: "
 }

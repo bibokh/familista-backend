@@ -1544,5 +1544,15 @@
   "Historical Data, Archive, Replay & Governance": "Historiske data, arkiv, avspilling og styring",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Historikkutforsker · Tidslinje og avspilling · Klubbhistorikk · Entitetshistorikk · Kilder · Lagring · Integritet · Oppbevaring",
   "Open the vault": "Åpne hvelvet",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "Plattformdrift, infrastruktur, intelligens og styring"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Plattformdrift, infrastruktur, intelligens og styring",
+  "INFRASTRUCTURE CITY": "INFRASTRUKTURBY",
+  "Live Infrastructure, Technology, Health & Architecture": "Sanntidsinfrastruktur, teknologi, tilstand og arkitektur",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "Bydeler · Teknologikart · Topologi · Varsler og hendelser · Kapasitet · Endringslogg · Deteksjonsregler · Dokumentasjon",
+  "Checking infrastructure…": "Sjekker infrastrukturen…",
+  "Enter the city": "Gå inn i byen",
+  "All measured systems healthy": "Alle målte systemer er sunne",
+  "Infrastructure state unknown": "Ukjent infrastrukturtilstand",
+  "Infrastructure health unreachable": "Infrastrukturtilstanden er utilgjengelig",
+  "Critical infrastructure alerts: ": "Kritiske infrastrukturvarsler: ",
+  "Infrastructure warnings: ": "Infrastrukturvarsler: "
 }

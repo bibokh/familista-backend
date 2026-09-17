@@ -1544,5 +1544,15 @@
   "Historical Data, Archive, Replay & Governance": "Ιστορικά δεδομένα, αρχείο, αναπαραγωγή και διακυβέρνηση",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Εξερεύνηση ιστορικού · Χρονολόγιο και αναπαραγωγή · Ιστορικό συλλόγου · Ιστορικό οντοτήτων · Πηγές · Αποθήκευση · Ακεραιότητα · Διατήρηση",
   "Open the vault": "Άνοιγμα θησαυροφυλακίου",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "Λειτουργία πλατφόρμας, υποδομή, ευφυΐα και διακυβέρνηση"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Λειτουργία πλατφόρμας, υποδομή, ευφυΐα και διακυβέρνηση",
+  "INFRASTRUCTURE CITY": "ΠΟΛΗ ΥΠΟΔΟΜΩΝ",
+  "Live Infrastructure, Technology, Health & Architecture": "Ζωντανή υποδομή, τεχνολογία, κατάσταση & αρχιτεκτονική",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "Συνοικίες · Χάρτης τεχνολογιών · Τοπολογία · Ειδοποιήσεις & συμβάντα · Χωρητικότητα · Ιστορικό αλλαγών · Κανόνες ανίχνευσης · Τεκμήρια",
+  "Checking infrastructure…": "Έλεγχος υποδομών…",
+  "Enter the city": "Είσοδος στην πόλη",
+  "All measured systems healthy": "Όλα τα μετρούμενα συστήματα είναι υγιή",
+  "Infrastructure state unknown": "Άγνωστη κατάσταση υποδομών",
+  "Infrastructure health unreachable": "Η κατάσταση υποδομών δεν είναι προσβάσιμη",
+  "Critical infrastructure alerts: ": "Κρίσιμες ειδοποιήσεις υποδομών: ",
+  "Infrastructure warnings: ": "Προειδοποιήσεις υποδομών: "
 }

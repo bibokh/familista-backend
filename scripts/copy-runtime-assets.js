@@ -8,7 +8,15 @@
 const fs = require('fs');
 const path = require('path');
 
-const ASSETS = [['src/utils/password.worker.js', 'dist/utils/password.worker.js']];
+const ASSETS = [
+  ['src/utils/password.worker.js', 'dist/utils/password.worker.js'],
+  // The infrastructure manifest is generated from the repository by
+  // scripts/infrastructure-discover.js and read at runtime by the
+  // Infrastructure City API. tsc emits .ts and leaves .json where it is, so
+  // without this the compiled server finds no manifest and the city is empty.
+  ['src/infra/generated/infrastructure-manifest.json',
+   'dist/infra/generated/infrastructure-manifest.json'],
+];
 
 let copied = 0;
 for (const [from, to] of ASSETS) {

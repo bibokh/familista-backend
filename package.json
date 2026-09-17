@@ -11,7 +11,7 @@
   },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "build": "prisma generate --schema=prisma/schema.prisma && tsc && node scripts/copy-runtime-assets.js",
+    "build": "node scripts/infrastructure-discover.js && prisma generate --schema=prisma/schema.prisma && tsc && node scripts/copy-runtime-assets.js",
     "build:client": "cd client && npm install && npm run build",
     "build:all": "npm run build && npm run build:client",
     "dev:client": "cd client && npm run dev",
@@ -32,6 +32,8 @@
     "league:init-current-season": "node dist/scripts/init-league-season.js",
     "league:init-academy-season": "node dist/scripts/init-academy-league-season.js",
     "i18n:check": "node scripts/i18n-check.js",
+    "infra:discover": "node scripts/infrastructure-discover.js",
+    "infra:check": "node scripts/infrastructure-discover.js --check",
     "i18n:sync": "node scripts/i18n-sync.js",
     "i18n:audit": "node scripts/i18n-audit.js",
     "test": "jest",

@@ -1,0 +1,2057 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-17T17:58:07.814Z",
+  "generator": "scripts/infrastructure-discover.js",
+  "platform": {
+    "name": "familista-backend",
+    "version": "1.0.0"
+  },
+  "evidence": {
+    "filesRead": [
+      ".github/workflows/ci.yml",
+      ".github/workflows/deploy.yml",
+      "package-lock.json",
+      "package.json",
+      "prisma/migrations",
+      "prisma/schema.prisma",
+      "render.yaml",
+      "src/routes/index.ts",
+      "tsconfig.json"
+    ]
+  },
+  "districts": [
+    {
+      "id": "core",
+      "name": "Familista Platform Core",
+      "category": "CORE",
+      "zone": "centre",
+      "priority": 0,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "frontend",
+      "name": "Frontend",
+      "category": "PRESENTATION",
+      "zone": "north",
+      "priority": 1,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "backend",
+      "name": "Backend Services",
+      "category": "APPLICATION",
+      "zone": "centre",
+      "priority": 2,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "database",
+      "name": "Database",
+      "category": "DATA",
+      "zone": "south",
+      "priority": 3,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "fabric",
+      "name": "Data Fabric",
+      "category": "DATA",
+      "zone": "east",
+      "priority": 4,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "vault",
+      "name": "Data Vault",
+      "category": "DATA",
+      "zone": "east",
+      "priority": 5,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "security",
+      "name": "Security & Access",
+      "category": "SECURITY",
+      "zone": "west",
+      "priority": 6,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "ai",
+      "name": "AI & Agents",
+      "category": "INTELLIGENCE",
+      "zone": "east",
+      "priority": 7,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "storage",
+      "name": "Storage & Media",
+      "category": "DATA",
+      "zone": "south",
+      "priority": 8,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "cache",
+      "name": "Cache & Realtime",
+      "category": "APPLICATION",
+      "zone": "centre",
+      "priority": 9,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "monitoring",
+      "name": "Monitoring & Observability",
+      "category": "OPERATIONS",
+      "zone": "north",
+      "priority": 10,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "cicd",
+      "name": "CI/CD & Deployment",
+      "category": "OPERATIONS",
+      "zone": "north",
+      "priority": 11,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "integrations",
+      "name": "Integrations",
+      "category": "EXTERNAL",
+      "zone": "west",
+      "priority": 12,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "i18n",
+      "name": "Internationalisation",
+      "category": "PRESENTATION",
+      "zone": "north",
+      "priority": 13,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "testing",
+      "name": "Testing & Quality",
+      "category": "OPERATIONS",
+      "zone": "north",
+      "priority": 14,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "config",
+      "name": "Configuration",
+      "category": "OPERATIONS",
+      "zone": "west",
+      "priority": 15,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "language",
+      "name": "Languages & Runtime",
+      "category": "FOUNDATION",
+      "zone": "centre",
+      "priority": 17,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "realtime",
+      "name": "Realtime Transport",
+      "category": "APPLICATION",
+      "zone": "centre",
+      "priority": 18,
+      "status": "ACTIVE"
+    }
+  ],
+  "components": [
+    {
+      "id": "platform-core",
+      "name": "Familista Platform Core",
+      "district": "core",
+      "category": "core",
+      "type": "PLATFORM",
+      "version": "1.0.0",
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/app.ts",
+      "sourceEvidence": "package.json, src/app.ts",
+      "dependencies": [],
+      "healthKey": "process",
+      "note": "The Express application every request passes through."
+    },
+    {
+      "id": "web-app",
+      "name": "Web Application",
+      "district": "frontend",
+      "category": "frontend",
+      "type": "SPA",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "public/index.html",
+      "sourceEvidence": "public/index.html, public/app.js",
+      "dependencies": [
+        "api-gateway"
+      ],
+      "healthKey": null,
+      "note": "The signed-in workspace, served from public/."
+    },
+    {
+      "id": "system-module",
+      "name": "SYSTEM",
+      "district": "frontend",
+      "category": "frontend",
+      "type": "MODULE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "public/system/system.js",
+      "sourceEvidence": "public/system/system.js",
+      "dependencies": [
+        "web-app"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "data-vault-module",
+      "name": "DATA VAULT",
+      "district": "frontend",
+      "category": "frontend",
+      "type": "MODULE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "public/data-vault/data-vault.js",
+      "sourceEvidence": "public/data-vault/data-vault.js",
+      "dependencies": [
+        "web-app",
+        "history-api"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "react-client",
+      "name": "React Client",
+      "district": "frontend",
+      "category": "frontend",
+      "type": "SPA",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "client/",
+      "sourceEvidence": "client/package.json, src/app.ts (/app mount)",
+      "dependencies": [
+        "api-gateway"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "api-gateway",
+      "name": "API Router",
+      "district": "backend",
+      "category": "api",
+      "type": "ROUTER",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/routes/index.ts",
+      "sourceEvidence": "src/routes/index.ts — 47 mounted routers",
+      "dependencies": [
+        "platform-core"
+      ],
+      "healthKey": "api",
+      "note": null
+    },
+    {
+      "id": "backend-services",
+      "name": "Application Services",
+      "district": "backend",
+      "category": "service",
+      "type": "SERVICE_LAYER",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/services/",
+      "sourceEvidence": "src/services/ — 101 modules",
+      "dependencies": [
+        "api-gateway",
+        "prisma-orm"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "postgres",
+      "name": "PostgreSQL",
+      "district": "database",
+      "category": "database",
+      "type": "DATABASE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": "Render",
+      "region": "frankfurt",
+      "repositoryPath": "prisma/schema.prisma",
+      "sourceEvidence": "prisma/schema.prisma — datasource provider",
+      "dependencies": [],
+      "healthKey": "database",
+      "note": "340 models, 209 enums, 40 migrations."
+    },
+    {
+      "id": "prisma-orm",
+      "name": "Prisma ORM",
+      "district": "database",
+      "category": "orm",
+      "type": "LIBRARY",
+      "version": "5.22.0",
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "prisma/schema.prisma",
+      "sourceEvidence": "package.json — @prisma/client",
+      "dependencies": [
+        "postgres"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "data-fabric",
+      "name": "Data Fabric",
+      "district": "fabric",
+      "category": "platform",
+      "type": "EVENT_BUS",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/fabric/",
+      "sourceEvidence": "src/fabric/ — 50 modules",
+      "dependencies": [
+        "backend-services"
+      ],
+      "healthKey": "fabric",
+      "note": null
+    },
+    {
+      "id": "durable-outbox",
+      "name": "Durable Outbox",
+      "district": "fabric",
+      "category": "platform",
+      "type": "TRANSPORT",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/fabric/outbox-transport.ts",
+      "sourceEvidence": "src/fabric/outbox-transport.ts",
+      "dependencies": [
+        "data-fabric",
+        "postgres"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "historical-store",
+      "name": "Historical Event Store",
+      "district": "vault",
+      "category": "platform",
+      "type": "STORE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/fabric/history/",
+      "sourceEvidence": "src/fabric/history/history-writer.service.ts, prisma FabricEventHistory",
+      "dependencies": [
+        "durable-outbox",
+        "postgres"
+      ],
+      "healthKey": "historicalStore",
+      "note": null
+    },
+    {
+      "id": "history-api",
+      "name": "Historical Query API",
+      "district": "vault",
+      "category": "api",
+      "type": "API",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/routes/fabric.routes.ts",
+      "sourceEvidence": "src/routes/fabric.routes.ts — /system/fabric/history*",
+      "dependencies": [
+        "historical-store"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "cold-archive",
+      "name": "Long-Term Archive",
+      "district": "vault",
+      "category": "storage",
+      "type": "ARCHIVE",
+      "version": null,
+      "status": "NOT_CONFIGURED",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/fabric/history/archive.ts",
+      "sourceEvidence": "src/fabric/history/archive.ts — archiveEnabled() is false",
+      "dependencies": [
+        "historical-store",
+        "object-store"
+      ],
+      "healthKey": "archive",
+      "note": "Contract and manifest only. No exporter is implemented."
+    },
+    {
+      "id": "authentication",
+      "name": "Authentication",
+      "district": "security",
+      "category": "security",
+      "type": "MIDDLEWARE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/middleware/auth.middleware.ts",
+      "sourceEvidence": "src/middleware/auth.middleware.ts, package.json — jsonwebtoken",
+      "dependencies": [
+        "api-gateway"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "rbac",
+      "name": "Authorization & RBAC",
+      "district": "security",
+      "category": "security",
+      "type": "MIDDLEWARE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/middleware/",
+      "sourceEvidence": "src/middleware/ — admin-rbac.middleware.ts, tenant-guard.middleware.ts, team-scope.middleware.ts",
+      "dependencies": [
+        "authentication"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "rate-limiting",
+      "name": "Rate Limiting",
+      "district": "security",
+      "category": "security",
+      "type": "MIDDLEWARE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/middleware/rate-limit.middleware.ts",
+      "sourceEvidence": "src/middleware/rate-limit.middleware.ts, package.json — express-rate-limit",
+      "dependencies": [
+        "api-gateway"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "security-audit",
+      "name": "Security Audit Chain",
+      "district": "security",
+      "category": "security",
+      "type": "STORE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "prisma/schema.prisma",
+      "sourceEvidence": "prisma/schema.prisma — SecurityAuditEvent, SecurityChainHead",
+      "dependencies": [
+        "postgres"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "http-hardening",
+      "name": "HTTP Hardening",
+      "district": "security",
+      "category": "security",
+      "type": "MIDDLEWARE",
+      "version": "7.2.0",
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/app.ts",
+      "sourceEvidence": "src/app.ts — helmet(), cors()",
+      "dependencies": [
+        "platform-core"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "ai-gateway",
+      "name": "AI Gateway",
+      "district": "ai",
+      "category": "ai",
+      "type": "GATEWAY",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/platform/intelligence/gateway.ts",
+      "sourceEvidence": "src/platform/intelligence/gateway.ts",
+      "dependencies": [
+        "backend-services"
+      ],
+      "healthKey": "aiProvider",
+      "note": null
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic",
+      "district": "ai",
+      "category": "ai",
+      "type": "PROVIDER",
+      "version": "0.20.9",
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": "Anthropic",
+      "region": null,
+      "repositoryPath": "src/services/ai-llm.adapter.ts",
+      "sourceEvidence": "package.json — @anthropic-ai/sdk; src/services/ai-llm.adapter.ts",
+      "dependencies": [
+        "ai-gateway"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "object-store",
+      "name": "Object Storage",
+      "district": "storage",
+      "category": "storage",
+      "type": "PORT",
+      "version": "3.1053.0",
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/fabric/media/object-store.ts",
+      "sourceEvidence": "src/fabric/media/object-store.ts, src/lib/storage/storage-s3.adapter.ts",
+      "dependencies": [
+        "backend-services"
+      ],
+      "healthKey": "objectStore",
+      "note": null
+    },
+    {
+      "id": "media-pipeline",
+      "name": "Media Pipeline",
+      "district": "storage",
+      "category": "media",
+      "type": "SERVICE",
+      "version": "2.1.3",
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/services/video-hls.service.ts",
+      "sourceEvidence": "package.json — fluent-ffmpeg; src/services/video-hls.service.ts",
+      "dependencies": [
+        "object-store"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "redis",
+      "name": "Redis",
+      "district": "cache",
+      "category": "cache",
+      "type": "CACHE",
+      "version": "5.10.1",
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": "Render",
+      "region": "frankfurt",
+      "repositoryPath": "src/infra/redis.ts",
+      "sourceEvidence": "src/infra/redis.ts, package.json — ioredis",
+      "dependencies": [
+        "backend-services"
+      ],
+      "healthKey": "redis",
+      "note": null
+    },
+    {
+      "id": "sse-stream",
+      "name": "Server-Sent Events",
+      "district": "realtime",
+      "category": "realtime",
+      "type": "TRANSPORT",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/routes/data-pulse.routes.ts",
+      "sourceEvidence": "src/routes/data-pulse.routes.ts — text/event-stream",
+      "dependencies": [
+        "api-gateway"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "websockets",
+      "name": "WebSocket Channels",
+      "district": "realtime",
+      "category": "realtime",
+      "type": "TRANSPORT",
+      "version": "8.21.3",
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/realtime/",
+      "sourceEvidence": "src/realtime/match-ws.ts, src/realtime/market-ws.ts",
+      "dependencies": [
+        "platform-core"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "metrics",
+      "name": "Metrics",
+      "district": "monitoring",
+      "category": "observability",
+      "type": "SERVICE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/observability/metrics.service.ts",
+      "sourceEvidence": "src/observability/metrics.service.ts",
+      "dependencies": [
+        "postgres"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "monitoring",
+      "name": "Health Monitoring",
+      "district": "monitoring",
+      "category": "observability",
+      "type": "SERVICE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/monitoring/monitoring.service.ts",
+      "sourceEvidence": "src/monitoring/monitoring.service.ts",
+      "dependencies": [
+        "postgres"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "logging",
+      "name": "Structured Logging",
+      "district": "monitoring",
+      "category": "observability",
+      "type": "LIBRARY",
+      "version": "3.19.0",
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/utils/logger.ts",
+      "sourceEvidence": "package.json — winston; src/utils/logger.ts",
+      "dependencies": [
+        "platform-core"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "workflow-ci",
+      "name": "GitHub Actions — ci",
+      "district": "cicd",
+      "category": "cicd",
+      "type": "PIPELINE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": "GitHub",
+      "region": null,
+      "repositoryPath": ".github/workflows/ci.yml",
+      "sourceEvidence": ".github/workflows/ci.yml — 10 named steps",
+      "dependencies": [
+        "platform-core"
+      ],
+      "healthKey": "ci:ci",
+      "note": null
+    },
+    {
+      "id": "workflow-deploy",
+      "name": "GitHub Actions — deploy",
+      "district": "cicd",
+      "category": "cicd",
+      "type": "PIPELINE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": "GitHub",
+      "region": null,
+      "repositoryPath": ".github/workflows/deploy.yml",
+      "sourceEvidence": ".github/workflows/deploy.yml — 1 named steps",
+      "dependencies": [
+        "platform-core"
+      ],
+      "healthKey": "ci:deploy",
+      "note": null
+    },
+    {
+      "id": "render-familista-backend",
+      "name": "familista-backend",
+      "district": "cicd",
+      "category": "hosting",
+      "type": "WEB_SERVICE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": "Render",
+      "region": "frankfurt",
+      "repositoryPath": "render.yaml",
+      "sourceEvidence": "render.yaml — familista-backend (web, standard)",
+      "dependencies": [
+        "platform-core"
+      ],
+      "healthKey": "deployment",
+      "note": "autoDeploy is enabled."
+    },
+    {
+      "id": "render-familista-redis",
+      "name": "familista-redis",
+      "district": "cicd",
+      "category": "hosting",
+      "type": "REDIS",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": "Render",
+      "region": "frankfurt",
+      "repositoryPath": "render.yaml",
+      "sourceEvidence": "render.yaml — familista-redis (redis, starter)",
+      "dependencies": [
+        "platform-core"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "render-familista-postgres",
+      "name": "familista-postgres",
+      "district": "cicd",
+      "category": "hosting",
+      "type": "POSTGRES",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": "Render",
+      "region": "frankfurt",
+      "repositoryPath": "render.yaml",
+      "sourceEvidence": "render.yaml — familista-postgres (postgres, standard)",
+      "dependencies": [
+        "platform-core"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "stripe",
+      "name": "Stripe",
+      "district": "integrations",
+      "category": "integration",
+      "type": "PROVIDER",
+      "version": "14.25.0",
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": "Stripe",
+      "region": null,
+      "repositoryPath": "src/controllers/billing.controller.ts",
+      "sourceEvidence": "package.json — stripe; src/controllers/billing.controller.ts",
+      "dependencies": [
+        "backend-services"
+      ],
+      "healthKey": "stripe",
+      "note": null
+    },
+    {
+      "id": "email",
+      "name": "Email Delivery",
+      "district": "integrations",
+      "category": "integration",
+      "type": "PROVIDER",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "render.yaml",
+      "sourceEvidence": "render.yaml — SENDGRID_API_KEY / SMTP_* declared",
+      "dependencies": [
+        "backend-services"
+      ],
+      "healthKey": "email",
+      "note": null
+    },
+    {
+      "id": "i18n",
+      "name": "Internationalisation",
+      "district": "i18n",
+      "category": "i18n",
+      "type": "SUBSYSTEM",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/i18n/locales.ts",
+      "sourceEvidence": "src/i18n/locales.ts — 31 locales; public/i18n/",
+      "dependencies": [
+        "web-app"
+      ],
+      "healthKey": null,
+      "note": "31 platform locales."
+    },
+    {
+      "id": "test-suite",
+      "name": "Test Suite",
+      "district": "testing",
+      "category": "testing",
+      "type": "SUITE",
+      "version": "29.7.0",
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "tests/",
+      "sourceEvidence": "tests/ — 135 suites; jest.config.ts",
+      "dependencies": [
+        "platform-core"
+      ],
+      "healthKey": "tests",
+      "note": null
+    },
+    {
+      "id": "boot-probe",
+      "name": "Boot Probe",
+      "district": "testing",
+      "category": "testing",
+      "type": "CHECK",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "scripts/boot-probe.js",
+      "sourceEvidence": "scripts/boot-probe.js; .github/workflows/ci.yml",
+      "dependencies": [
+        "platform-core"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "i18n-check",
+      "name": "i18n Check",
+      "district": "testing",
+      "category": "testing",
+      "type": "CHECK",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "scripts/i18n-check.js",
+      "sourceEvidence": "scripts/i18n-check.js; .github/workflows/ci.yml",
+      "dependencies": [
+        "i18n"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "typescript",
+      "name": "TypeScript",
+      "district": "language",
+      "category": "language",
+      "type": "COMPILER",
+      "version": "5.9.3",
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "tsconfig.json",
+      "sourceEvidence": "tsconfig.json — target ES2020, strict true",
+      "dependencies": [],
+      "healthKey": null,
+      "note": "514 TypeScript modules under src/."
+    },
+    {
+      "id": "nodejs",
+      "name": "Node.js",
+      "district": "language",
+      "category": "runtime",
+      "type": "RUNTIME",
+      "version": ">=20.0.0",
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "package.json",
+      "sourceEvidence": "package.json — engines.node",
+      "dependencies": [],
+      "healthKey": "process",
+      "note": null
+    },
+    {
+      "id": "configuration",
+      "name": "Configuration",
+      "district": "config",
+      "category": "config",
+      "type": "SUBSYSTEM",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/config/index.ts",
+      "sourceEvidence": "src/config/index.ts; render.yaml — 57 declared variables",
+      "dependencies": [],
+      "healthKey": null,
+      "note": "Names only. No value is ever read into this manifest."
+    }
+  ],
+  "relationships": [
+    {
+      "from": "backend-services",
+      "to": "prisma-orm",
+      "kind": "USES",
+      "evidence": "src/services/ imports prisma"
+    },
+    {
+      "from": "prisma-orm",
+      "to": "postgres",
+      "kind": "CONNECTS_TO",
+      "evidence": "prisma/schema.prisma datasource"
+    },
+    {
+      "from": "data-fabric",
+      "to": "durable-outbox",
+      "kind": "WRITES_TO",
+      "evidence": "src/fabric/event-bus.ts emit()"
+    },
+    {
+      "from": "durable-outbox",
+      "to": "historical-store",
+      "kind": "RECOVERED_BY",
+      "evidence": "src/fabric/history/history-recovery.service.ts"
+    },
+    {
+      "from": "ai-gateway",
+      "to": "anthropic",
+      "kind": "CALLS",
+      "evidence": "src/services/ai-llm.adapter.ts"
+    },
+    {
+      "from": "web-app",
+      "to": "api-gateway",
+      "kind": "CALLS",
+      "evidence": "public/app.js — fetch(FAM_CONFIG.API_BASE)"
+    },
+    {
+      "from": "api-gateway",
+      "to": "backend-services",
+      "kind": "DISPATCHES_TO",
+      "evidence": "src/routes/index.ts"
+    },
+    {
+      "from": "api-gateway",
+      "to": "authentication",
+      "kind": "GUARDED_BY",
+      "evidence": "src/routes/*.ts — authenticate"
+    },
+    {
+      "from": "backend-services",
+      "to": "data-fabric",
+      "kind": "PUBLISHES_TO",
+      "evidence": "src/fabric/registry/publisher.ts"
+    },
+    {
+      "from": "historical-store",
+      "to": "history-api",
+      "kind": "SERVED_BY",
+      "evidence": "src/routes/fabric.routes.ts"
+    },
+    {
+      "from": "data-vault-module",
+      "to": "history-api",
+      "kind": "READS",
+      "evidence": "public/data-vault/data-vault.js"
+    },
+    {
+      "from": "media-pipeline",
+      "to": "object-store",
+      "kind": "WRITES_TO",
+      "evidence": "src/services/video-hls.service.ts"
+    },
+    {
+      "from": "rate-limiting",
+      "to": "redis",
+      "kind": "USES",
+      "evidence": "src/middleware/rate-limit-redis.store.ts"
+    },
+    {
+      "from": "workflow-ci",
+      "to": "render-familista-backend",
+      "kind": "DEPLOYS",
+      "evidence": ".github/workflows/ci.yml; render.yaml autoDeploy"
+    },
+    {
+      "from": "workflow-deploy",
+      "to": "render-familista-backend",
+      "kind": "DEPLOYS",
+      "evidence": ".github/workflows/deploy.yml; render.yaml autoDeploy"
+    }
+  ],
+  "technologies": [
+    {
+      "id": "@anthropic-ai/sdk",
+      "name": "Anthropic SDK",
+      "category": "ai",
+      "version": "0.20.9",
+      "usedBy": [
+        "ai"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "ioredis",
+      "name": "Redis (ioredis)",
+      "category": "cache",
+      "version": "5.10.1",
+      "usedBy": [
+        "cache"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "dotenv",
+      "name": "dotenv",
+      "category": "config",
+      "version": "16.6.1",
+      "usedBy": [
+        "config"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "express",
+      "name": "Express",
+      "category": "framework",
+      "version": "4.22.1",
+      "usedBy": [
+        "backend"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "stripe",
+      "name": "Stripe",
+      "category": "integration",
+      "version": "14.25.0",
+      "usedBy": [
+        "integrations"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "javascript",
+      "name": "JavaScript",
+      "category": "language",
+      "version": null,
+      "usedBy": [
+        "frontend"
+      ],
+      "sourceEvidence": "public/"
+    },
+    {
+      "id": "typescript",
+      "name": "TypeScript",
+      "category": "language",
+      "version": "5.9.3",
+      "usedBy": [
+        "language"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "compression",
+      "name": "Compression",
+      "category": "library",
+      "version": "1.8.1",
+      "usedBy": [
+        "backend"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "zod",
+      "name": "Zod",
+      "category": "library",
+      "version": "3.25.76",
+      "usedBy": [
+        "backend"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "fluent-ffmpeg",
+      "name": "fluent-ffmpeg",
+      "category": "media",
+      "version": "2.1.3",
+      "usedBy": [
+        "storage"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "morgan",
+      "name": "Morgan",
+      "category": "observability",
+      "version": "1.12.0",
+      "usedBy": [
+        "monitoring"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "winston",
+      "name": "Winston",
+      "category": "observability",
+      "version": "3.19.0",
+      "usedBy": [
+        "monitoring"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "prisma",
+      "name": "Prisma",
+      "category": "orm",
+      "version": "5.22.0",
+      "usedBy": [
+        "database"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "@prisma/client",
+      "name": "Prisma Client",
+      "category": "orm",
+      "version": "5.22.0",
+      "usedBy": [
+        "database"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "ws",
+      "name": "WebSocket (ws)",
+      "category": "realtime",
+      "version": "8.21.3",
+      "usedBy": [
+        "realtime"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "node",
+      "name": "Node.js",
+      "category": "runtime",
+      "version": ">=20.0.0",
+      "usedBy": [
+        "backend"
+      ],
+      "sourceEvidence": "package.json#engines.node"
+    },
+    {
+      "id": "bcrypt",
+      "name": "bcrypt",
+      "category": "security",
+      "version": "6.0.0",
+      "usedBy": [
+        "security"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "bcryptjs",
+      "name": "bcryptjs",
+      "category": "security",
+      "version": "2.4.3",
+      "usedBy": [
+        "security"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "cookie-parser",
+      "name": "Cookie Parser",
+      "category": "security",
+      "version": "1.4.7",
+      "usedBy": [
+        "security"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "cors",
+      "name": "CORS",
+      "category": "security",
+      "version": "2.8.6",
+      "usedBy": [
+        "security"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "helmet",
+      "name": "Helmet",
+      "category": "security",
+      "version": "7.2.0",
+      "usedBy": [
+        "security"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "jsonwebtoken",
+      "name": "JSON Web Tokens",
+      "category": "security",
+      "version": "9.0.3",
+      "usedBy": [
+        "security"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "express-rate-limit",
+      "name": "Rate Limiting",
+      "category": "security",
+      "version": "7.5.1",
+      "usedBy": [
+        "security"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "@aws-sdk/client-s3",
+      "name": "AWS SDK — S3",
+      "category": "storage",
+      "version": "3.1053.0",
+      "usedBy": [
+        "storage"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "@aws-sdk/s3-request-presigner",
+      "name": "S3 Request Presigner",
+      "category": "storage",
+      "version": "3.1053.0",
+      "usedBy": [
+        "storage"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "jest",
+      "name": "Jest",
+      "category": "testing",
+      "version": "29.7.0",
+      "usedBy": [
+        "testing"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "supertest",
+      "name": "Supertest",
+      "category": "testing",
+      "version": "6.3.4",
+      "usedBy": [
+        "testing"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "ts-jest",
+      "name": "ts-jest",
+      "category": "testing",
+      "version": "29.4.11",
+      "usedBy": [
+        "testing"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "ts-node",
+      "name": "ts-node",
+      "category": "tooling",
+      "version": "10.9.2",
+      "usedBy": [
+        "tooling"
+      ],
+      "sourceEvidence": "package.json"
+    },
+    {
+      "id": "ts-node-dev",
+      "name": "ts-node-dev",
+      "category": "tooling",
+      "version": "2.0.0",
+      "usedBy": [
+        "tooling"
+      ],
+      "sourceEvidence": "package.json"
+    }
+  ],
+  "future": [
+    {
+      "id": "future-scouting",
+      "name": "Scouting",
+      "district": "backend",
+      "reason": "Not implemented in this build."
+    },
+    {
+      "id": "future-snapshots",
+      "name": "Snapshots",
+      "district": "vault",
+      "reason": "Designed in docs/FABRIC_HISTORICAL_STORE.md; no engine exists."
+    },
+    {
+      "id": "future-archive-exporter",
+      "name": "Archive Exporter",
+      "district": "vault",
+      "reason": "Contract only; exportArchiveBatch() throws."
+    },
+    {
+      "id": "future-lint",
+      "name": "Lint",
+      "district": "testing",
+      "reason": "No ESLint configuration exists in the repository."
+    },
+    {
+      "id": "future-coverage",
+      "name": "Coverage Gate",
+      "district": "testing",
+      "reason": "jest.config.ts sets collectCoverage: false."
+    },
+    {
+      "id": "future-vuln-scan",
+      "name": "Vulnerability Scanning",
+      "district": "security",
+      "reason": "CI runs npm audit informationally (|| true); no gate."
+    },
+    {
+      "id": "future-ai-diagnostics",
+      "name": "AI Infrastructure Assistant",
+      "district": "ai",
+      "reason": "Reserved integration point. Not implemented."
+    }
+  ],
+  "surface": {
+    "routeModules": 57,
+    "serviceModules": 101,
+    "middleware": 21,
+    "fabricModules": 50,
+    "totalTypeScript": 514,
+    "testSuites": 135,
+    "migrations": 40,
+    "prismaModels": 340,
+    "prismaEnums": 209
+  },
+  "database": {
+    "provider": "postgresql",
+    "models": 340,
+    "enums": 209,
+    "migrations": 40,
+    "latestMigration": "20260926090000_fabric_event_history"
+  },
+  "typescript": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "declaration": true,
+    "sourceMap": true,
+    "skipLibCheck": true
+  },
+  "deployment": {
+    "provider": "Render",
+    "services": [
+      {
+        "name": "familista-backend",
+        "type": "web",
+        "runtime": "node",
+        "region": "frankfurt",
+        "plan": "standard",
+        "autoDeploy": true,
+        "healthCheckPath": "/healthz"
+      },
+      {
+        "name": "familista-redis",
+        "type": "redis",
+        "runtime": null,
+        "region": "frankfurt",
+        "plan": "starter",
+        "autoDeploy": null,
+        "healthCheckPath": null
+      },
+      {
+        "name": "familista-postgres",
+        "type": "postgres",
+        "runtime": null,
+        "region": "frankfurt",
+        "plan": "standard",
+        "autoDeploy": null,
+        "healthCheckPath": null
+      }
+    ],
+    "observable": false,
+    "observabilityNote": "Render deploys are not observable from the running process. Deployment state is UNVERIFIED."
+  },
+  "ci": {
+    "workflows": [
+      {
+        "file": ".github/workflows/ci.yml",
+        "name": "ci",
+        "jobs": 3,
+        "steps": [
+          "Checkout",
+          "Setup Node 20",
+          "Install deps",
+          "Prisma format (verify schema)",
+          "Prisma generate",
+          "Prisma migrate deploy",
+          "TypeScript build",
+          "Boot probe (verify route registration)",
+          "i18n check (locales synchronized)",
+          "Audit (informational)"
+        ],
+        "services": [
+          "postgres:16-alpine"
+        ],
+        "runsOn": [
+          "ubuntu-latest"
+        ]
+      },
+      {
+        "file": ".github/workflows/deploy.yml",
+        "name": "deploy",
+        "jobs": 3,
+        "steps": [
+          "Trigger Render deploy hook"
+        ],
+        "services": [],
+        "runsOn": [
+          "ubuntu-latest"
+        ]
+      }
+    ]
+  },
+  "mounts": [
+    {
+      "path": "/players",
+      "router": "playerRoutes"
+    },
+    {
+      "path": "/matches",
+      "router": "matchRoutes"
+    },
+    {
+      "path": "/analytics",
+      "router": "analyticsRoutes"
+    },
+    {
+      "path": "/ai",
+      "router": "aiRoutes"
+    },
+    {
+      "path": "/billing",
+      "router": "billingRoutes"
+    },
+    {
+      "path": "/training",
+      "router": "trainingRoutes"
+    },
+    {
+      "path": "/teams",
+      "router": "teamRoutes"
+    },
+    {
+      "path": "/memberships",
+      "router": "membershipRoutes"
+    },
+    {
+      "path": "/invitations",
+      "router": "invitationRoutes"
+    },
+    {
+      "path": "/system",
+      "router": "systemRoutes"
+    },
+    {
+      "path": "/system/trace",
+      "router": "ownerTraceRoutes"
+    },
+    {
+      "path": "/system/data-pulse",
+      "router": "dataPulseRoutes"
+    },
+    {
+      "path": "/system/fabric",
+      "router": "fabricRoutes"
+    },
+    {
+      "path": "/system/infrastructure",
+      "router": "infrastructureRoutes"
+    },
+    {
+      "path": "/telemetry",
+      "router": "telemetryRoutes"
+    },
+    {
+      "path": "/me",
+      "router": "contextRoutes"
+    },
+    {
+      "path": "/devices",
+      "router": "deviceRoutes"
+    },
+    {
+      "path": "/automation",
+      "router": "automationRoutes"
+    },
+    {
+      "path": "/ai-ops",
+      "router": "aiOpsRoutes"
+    },
+    {
+      "path": "/device-infra",
+      "router": "deviceInfraRoutes"
+    },
+    {
+      "path": "/vision",
+      "router": "visionRoutes"
+    },
+    {
+      "path": "/spatial",
+      "router": "spatialRoutes"
+    },
+    {
+      "path": "/predictive",
+      "router": "predictiveRoutes"
+    },
+    {
+      "path": "/security",
+      "router": "securityRoutes"
+    },
+    {
+      "path": "/distributed",
+      "router": "distributedRoutes"
+    },
+    {
+      "path": "/edge",
+      "router": "edgeRoutes"
+    },
+    {
+      "path": "/provisioning",
+      "router": "provisioningRoutes"
+    },
+    {
+      "path": "/billing-j",
+      "router": "billingJRoutes"
+    },
+    {
+      "path": "/observability",
+      "router": "observabilityRoutes"
+    },
+    {
+      "path": "/neuro",
+      "router": "neuroRoutes"
+    },
+    {
+      "path": "/phase-l",
+      "router": "phaseLRoutes"
+    },
+    {
+      "path": "/phase-m",
+      "router": "phaseMRoutes"
+    },
+    {
+      "path": "/phase-n",
+      "router": "phaseNRoutes"
+    },
+    {
+      "path": "/phase-o",
+      "router": "phaseORoutes"
+    },
+    {
+      "path": "/phase-p",
+      "router": "phasePRoutes"
+    },
+    {
+      "path": "/phase-q",
+      "router": "phaseQRoutes"
+    },
+    {
+      "path": "/transfer-market",
+      "router": "transferMarketRoutes"
+    },
+    {
+      "path": "/staff-market",
+      "router": "staffMarketRoutes"
+    },
+    {
+      "path": "/coaches",
+      "router": "coachesRoutes"
+    },
+    {
+      "path": "/phase-s/intelligence",
+      "router": "intelligenceRoutes"
+    },
+    {
+      "path": "/scouting",
+      "router": "scoutingRoutes"
+    },
+    {
+      "path": "/club-admin",
+      "router": "clubAdminRoutes"
+    },
+    {
+      "path": "/tactical-ai",
+      "router": "tacticalAIRoutes"
+    },
+    {
+      "path": "/clubs",
+      "router": "clubRoutes"
+    },
+    {
+      "path": "/home",
+      "router": "homeRoutes"
+    },
+    {
+      "path": "/familista-league",
+      "router": "familistaLeagueRoutes"
+    },
+    {
+      "path": "/match-center",
+      "router": "matchCenterRoutes"
+    }
+  ],
+  "environment": {
+    "total": 57,
+    "architectural": [
+      "AI_LLM_MODEL",
+      "AI_LLM_TIMEOUT_MS",
+      "API_VERSION",
+      "APP_URL",
+      "DATABASE_URL",
+      "DB_CONNECTION_LIMIT",
+      "EMAIL_FROM",
+      "EMAIL_FROM_NAME",
+      "FAMILISTA_ACTIVE_KEK",
+      "FAMILISTA_RETIRED_KEKS",
+      "JWT_ACCESS_TTL",
+      "JWT_ISSUER",
+      "JWT_REFRESH_TTL",
+      "NODE_ENV",
+      "PORT",
+      "PUBLIC_APP_URL",
+      "RATE_LIMIT_MAX",
+      "RATE_LIMIT_WINDOW_MS",
+      "REDIS_URL",
+      "SMTP_HOST",
+      "SMTP_PASS",
+      "SMTP_PORT",
+      "SMTP_USER",
+      "UV_THREADPOOL_SIZE",
+      "VISION_CLIP_BACKEND",
+      "VISION_CLIP_WORKER_CALLBACK_URL",
+      "VISION_CLIP_WORKER_URL",
+      "VISION_FUSION_DISTANCE_WEIGHT",
+      "VISION_FUSION_TOPSPEED_WEIGHT",
+      "VISION_INFERENCE_BACKEND",
+      "VISION_WORKER_CALLBACK_URL",
+      "VISION_WORKER_URL",
+      "WEB_CONCURRENCY",
+      "WL_ASSETS_BACKEND",
+      "WL_ASSETS_DIR",
+      "WL_ASSETS_PUBLIC_BASE_URL",
+      "WL_ASSETS_PUBLIC_PREFIX",
+      "WL_ASSETS_S3_BUCKET",
+      "WL_ASSETS_S3_ENDPOINT",
+      "WL_ASSETS_S3_FORCE_PATH_STYLE",
+      "WL_ASSETS_S3_REGION",
+      "WL_PAYOUT_BACKEND"
+    ],
+    "secretShapedCount": 15
+  },
+  "dependencies": [
+    {
+      "name": "@anthropic-ai/sdk",
+      "declared": "^0.20.0",
+      "resolved": "0.20.9",
+      "classification": "RUNTIME",
+      "technology": "Anthropic SDK"
+    },
+    {
+      "name": "@aws-sdk/client-s3",
+      "declared": "^3.1053.0",
+      "resolved": "3.1053.0",
+      "classification": "RUNTIME",
+      "technology": "AWS SDK — S3"
+    },
+    {
+      "name": "@aws-sdk/s3-request-presigner",
+      "declared": "^3.1053.0",
+      "resolved": "3.1053.0",
+      "classification": "RUNTIME",
+      "technology": "S3 Request Presigner"
+    },
+    {
+      "name": "@prisma/client",
+      "declared": "^5.10.0",
+      "resolved": "5.22.0",
+      "classification": "RUNTIME",
+      "technology": "Prisma Client"
+    },
+    {
+      "name": "@types/bcryptjs",
+      "declared": "^2.4.6",
+      "resolved": "2.4.6",
+      "classification": "DEVELOPMENT",
+      "technology": null
+    },
+    {
+      "name": "@types/compression",
+      "declared": "^1.7.5",
+      "resolved": "1.8.1",
+      "classification": "DEVELOPMENT",
+      "technology": null
+    },
+    {
+      "name": "@types/cookie-parser",
+      "declared": "^1.4.10",
+      "resolved": "1.4.10",
+      "classification": "RUNTIME",
+      "technology": null
+    },
+    {
+      "name": "@types/cors",
+      "declared": "^2.8.17",
+      "resolved": "2.8.19",
+      "classification": "DEVELOPMENT",
+      "technology": null
+    },
+    {
+      "name": "@types/express",
+      "declared": "^4.17.21",
+      "resolved": "4.17.25",
+      "classification": "DEVELOPMENT",
+      "technology": null
+    },
+    {
+      "name": "@types/fluent-ffmpeg",
+      "declared": "^2.1.28",
+      "resolved": "2.1.28",
+      "classification": "DEVELOPMENT",
+      "technology": null
+    },
+    {
+      "name": "@types/ioredis",
+      "declared": "^4.28.10",
+      "resolved": "4.28.10",
+      "classification": "RUNTIME",
+      "technology": null
+    },
+    {
+      "name": "@types/jest",
+      "declared": "^29.5.14",
+      "resolved": "29.5.14",
+      "classification": "DEVELOPMENT",
+      "technology": null
+    },
+    {
+      "name": "@types/jsonwebtoken",
+      "declared": "^9.0.5",
+      "resolved": "9.0.10",
+      "classification": "DEVELOPMENT",
+      "technology": null
+    },
+    {
+      "name": "@types/morgan",
+      "declared": "^1.9.9",
+      "resolved": "1.9.10",
+      "classification": "DEVELOPMENT",
+      "technology": null
+    },
+    {
+      "name": "@types/node",
+      "declared": "^20.11.5",
+      "resolved": "20.19.39",
+      "classification": "DEVELOPMENT",
+      "technology": null
+    },
+    {
+      "name": "@types/supertest",
+      "declared": "^6.0.3",
+      "resolved": "6.0.3",
+      "classification": "DEVELOPMENT",
+      "technology": null
+    },
+    {
+      "name": "@types/ws",
+      "declared": "^8.5.10",
+      "resolved": "8.18.1",
+      "classification": "DEVELOPMENT",
+      "technology": null
+    },
+    {
+      "name": "bcrypt",
+      "declared": "^6.0.0",
+      "resolved": "6.0.0",
+      "classification": "RUNTIME",
+      "technology": "bcrypt"
+    },
+    {
+      "name": "bcryptjs",
+      "declared": "^2.4.3",
+      "resolved": "2.4.3",
+      "classification": "RUNTIME",
+      "technology": "bcryptjs"
+    },
+    {
+      "name": "compression",
+      "declared": "^1.7.4",
+      "resolved": "1.8.1",
+      "classification": "RUNTIME",
+      "technology": "Compression"
+    },
+    {
+      "name": "cookie-parser",
+      "declared": "^1.4.7",
+      "resolved": "1.4.7",
+      "classification": "RUNTIME",
+      "technology": "Cookie Parser"
+    },
+    {
+      "name": "cors",
+      "declared": "^2.8.5",
+      "resolved": "2.8.6",
+      "classification": "RUNTIME",
+      "technology": "CORS"
+    },
+    {
+      "name": "dotenv",
+      "declared": "^16.4.1",
+      "resolved": "16.6.1",
+      "classification": "RUNTIME",
+      "technology": "dotenv"
+    },
+    {
+      "name": "express",
+      "declared": "^4.18.2",
+      "resolved": "4.22.1",
+      "classification": "RUNTIME",
+      "technology": "Express"
+    },
+    {
+      "name": "express-rate-limit",
+      "declared": "^7.1.5",
+      "resolved": "7.5.1",
+      "classification": "RUNTIME",
+      "technology": "Rate Limiting"
+    },
+    {
+      "name": "fluent-ffmpeg",
+      "declared": "^2.1.3",
+      "resolved": "2.1.3",
+      "classification": "RUNTIME",
+      "technology": "fluent-ffmpeg"
+    },
+    {
+      "name": "helmet",
+      "declared": "^7.1.0",
+      "resolved": "7.2.0",
+      "classification": "RUNTIME",
+      "technology": "Helmet"
+    },
+    {
+      "name": "ioredis",
+      "declared": "^5.10.1",
+      "resolved": "5.10.1",
+      "classification": "RUNTIME",
+      "technology": "Redis (ioredis)"
+    },
+    {
+      "name": "jest",
+      "declared": "^29.7.0",
+      "resolved": "29.7.0",
+      "classification": "DEVELOPMENT",
+      "technology": "Jest"
+    },
+    {
+      "name": "jsonwebtoken",
+      "declared": "^9.0.2",
+      "resolved": "9.0.3",
+      "classification": "RUNTIME",
+      "technology": "JSON Web Tokens"
+    },
+    {
+      "name": "morgan",
+      "declared": "^1.10.0",
+      "resolved": "1.12.0",
+      "classification": "RUNTIME",
+      "technology": "Morgan"
+    },
+    {
+      "name": "prisma",
+      "declared": "^5.10.0",
+      "resolved": "5.22.0",
+      "classification": "RUNTIME",
+      "technology": "Prisma"
+    },
+    {
+      "name": "stripe",
+      "declared": "^14.18.0",
+      "resolved": "14.25.0",
+      "classification": "RUNTIME",
+      "technology": "Stripe"
+    },
+    {
+      "name": "supertest",
+      "declared": "^6.3.4",
+      "resolved": "6.3.4",
+      "classification": "DEVELOPMENT",
+      "technology": "Supertest"
+    },
+    {
+      "name": "ts-jest",
+      "declared": "^29.4.11",
+      "resolved": "29.4.11",
+      "classification": "DEVELOPMENT",
+      "technology": "ts-jest"
+    },
+    {
+      "name": "ts-node",
+      "declared": "^10.9.2",
+      "resolved": "10.9.2",
+      "classification": "DEVELOPMENT",
+      "technology": "ts-node"
+    },
+    {
+      "name": "ts-node-dev",
+      "declared": "^2.0.0",
+      "resolved": "2.0.0",
+      "classification": "DEVELOPMENT",
+      "technology": "ts-node-dev"
+    },
+    {
+      "name": "typescript",
+      "declared": "^5.3.3",
+      "resolved": "5.9.3",
+      "classification": "DEVELOPMENT",
+      "technology": "TypeScript"
+    },
+    {
+      "name": "winston",
+      "declared": "^3.11.0",
+      "resolved": "3.19.0",
+      "classification": "RUNTIME",
+      "technology": "Winston"
+    },
+    {
+      "name": "ws",
+      "declared": "^8.16.0",
+      "resolved": "8.21.3",
+      "classification": "RUNTIME",
+      "technology": "WebSocket (ws)"
+    },
+    {
+      "name": "zod",
+      "declared": "^3.22.4",
+      "resolved": "3.25.76",
+      "classification": "RUNTIME",
+      "technology": "Zod"
+    }
+  ],
+  "counts": {
+    "districts": 18,
+    "components": 43,
+    "relationships": 15,
+    "technologies": 30,
+    "future": 7,
+    "dependencies": 41
+  }
+}
