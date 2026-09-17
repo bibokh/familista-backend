@@ -141,7 +141,15 @@ body.dv-vault-open { overflow: hidden; }
 
 .dv-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
 
+/* The top bar sits ABOVE the body, and that needs saying explicitly.
+   `.dv-top` and `.dv-body` are siblings, and every `.dv-panel` in the body
+   carries a `backdrop-filter`, which creates a stacking context of its own.
+   Without a position and a z-index here, those panels paint after the bar in
+   DOM order and swallow the one thing that escapes it — the language menu,
+   which then cannot be clicked at all. */
 .dv-top {
+  position: relative;
+  z-index: 40;
   flex: 0 0 auto;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 18px 26px;

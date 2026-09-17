@@ -903,6 +903,19 @@ describe('nothing moves that the reader did not move', () => {
     expect(src).toContain("host.querySelector('#dv-body')");
   });
 
+  it('paints the top bar above the body, so the language menu is clickable', () => {
+    // A regression with teeth: every .dv-panel carries a backdrop-filter, which
+    // creates a stacking context, so without an explicit position and z-index
+    // on .dv-top the panels paint over the language dropdown and a German or
+    // Arabic reader cannot select their language at all.
+    const top = css.slice(css.indexOf('.dv-top {'), css.indexOf('.dv-top-eyebrow'));
+    expect(top).toMatch(/position:\s*relative/);
+    expect(top).toMatch(/z-index:\s*\d+/);
+    const z = Number((top.match(/z-index:\s*(\d+)/) || [])[1]);
+    const menuZ = Number((css.match(/\.dv-lang-menu[^}]*z-index:\s*(\d+)/) || [])[1]);
+    expect(z).toBeGreaterThan(menuZ);
+  });
+
   it('respects a reader who asked for less motion', () => {
     expect(css).toContain('@media (prefers-reduced-motion: reduce)');
     expect(src).toContain("matchMedia('(prefers-reduced-motion: reduce)')");
