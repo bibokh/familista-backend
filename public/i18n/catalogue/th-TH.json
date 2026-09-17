@@ -1541,5 +1541,15 @@
   "Historical Data, Archive, Replay & Governance": "ข้อมูลย้อนหลัง คลังเก็บ การเล่นซ้ำ และธรรมาภิบาล",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "ตัวสำรวจข้อมูลย้อนหลัง · ไทม์ไลน์และการเล่นซ้ำ · ประวัติสโมสร · ประวัติเอนทิตี · แหล่งข้อมูล · ที่จัดเก็บ · ความสมบูรณ์ · การเก็บรักษา",
   "Open the vault": "เปิดคลังข้อมูล",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "การดำเนินงานแพลตฟอร์ม โครงสร้างพื้นฐาน ปัญญาประดิษฐ์ และธรรมาภิบาล"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "การดำเนินงานแพลตฟอร์ม โครงสร้างพื้นฐาน ปัญญาประดิษฐ์ และธรรมาภิบาล",
+  "INFRASTRUCTURE CITY": "เมืองโครงสร้างพื้นฐาน",
+  "Live Infrastructure, Technology, Health & Architecture": "โครงสร้างพื้นฐานแบบสด เทคโนโลยี สถานะ และสถาปัตยกรรม",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "เขต · แผนที่เทคโนโลยี · โทโพโลยี · การแจ้งเตือนและเหตุการณ์ · ความจุ · ประวัติการเปลี่ยนแปลง · กฎการตรวจจับ · หลักฐาน",
+  "Checking infrastructure…": "กำลังตรวจสอบโครงสร้างพื้นฐาน…",
+  "Enter the city": "เข้าสู่เมือง",
+  "All measured systems healthy": "ระบบที่วัดได้ทั้งหมดปกติ",
+  "Infrastructure state unknown": "ไม่ทราบสถานะโครงสร้างพื้นฐาน",
+  "Infrastructure health unreachable": "ไม่สามารถเข้าถึงสถานะโครงสร้างพื้นฐาน",
+  "Critical infrastructure alerts: ": "การแจ้งเตือนโครงสร้างพื้นฐานระดับวิกฤต: ",
+  "Infrastructure warnings: ": "คำเตือนโครงสร้างพื้นฐาน: "
 }

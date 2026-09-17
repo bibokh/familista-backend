@@ -1544,5 +1544,15 @@
   "Historical Data, Archive, Replay & Governance": "נתונים היסטוריים, ארכיון, שידור חוזר וממשל",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "סייר היסטוריה · ציר זמן ושידור חוזר · היסטוריית מועדון · היסטוריית ישויות · מקורות · אחסון · שלמות · שימור",
   "Open the vault": "פתח את הכספת",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "תפעול הפלטפורמה, תשתית, בינה וממשל"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "תפעול הפלטפורמה, תשתית, בינה וממשל",
+  "INFRASTRUCTURE CITY": "עיר התשתיות",
+  "Live Infrastructure, Technology, Health & Architecture": "תשתית חיה, טכנולוגיה, תקינות וארכיטקטורה",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "רבעים · מפת טכנולוגיות · טופולוגיה · התראות ותקריות · קיבולת · היסטוריית שינויים · כללי זיהוי · ראיות",
+  "Checking infrastructure…": "בודק את התשתית…",
+  "Enter the city": "כניסה לעיר",
+  "All measured systems healthy": "כל המערכות הנמדדות תקינות",
+  "Infrastructure state unknown": "מצב התשתית אינו ידוע",
+  "Infrastructure health unreachable": "לא ניתן להגיע למצב התשתית",
+  "Critical infrastructure alerts: ": "התראות תשתית קריטיות: ",
+  "Infrastructure warnings: ": "אזהרות תשתית: "
 }

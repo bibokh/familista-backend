@@ -1541,5 +1541,15 @@
   "Historical Data, Archive, Replay & Governance": "Data historis, arsip, pemutaran ulang, dan tata kelola",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Penjelajah Historis · Linimasa & Pemutaran Ulang · Riwayat Klub · Riwayat Entitas · Sumber · Penyimpanan · Integritas · Retensi",
   "Open the vault": "Buka brankas",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "Operasi platform, infrastruktur, kecerdasan, dan tata kelola"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Operasi platform, infrastruktur, kecerdasan, dan tata kelola",
+  "INFRASTRUCTURE CITY": "KOTA INFRASTRUKTUR",
+  "Live Infrastructure, Technology, Health & Architecture": "Infrastruktur langsung, teknologi, kesehatan & arsitektur",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "Distrik · Peta teknologi · Topologi · Peringatan & insiden · Kapasitas · Riwayat perubahan · Aturan deteksi · Bukti",
+  "Checking infrastructure…": "Memeriksa infrastruktur…",
+  "Enter the city": "Masuki kota",
+  "All measured systems healthy": "Semua sistem yang diukur sehat",
+  "Infrastructure state unknown": "Status infrastruktur tidak diketahui",
+  "Infrastructure health unreachable": "Kesehatan infrastruktur tidak dapat dijangkau",
+  "Critical infrastructure alerts: ": "Peringatan infrastruktur kritis: ",
+  "Infrastructure warnings: ": "Peringatan infrastruktur: "
 }

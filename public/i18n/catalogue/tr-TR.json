@@ -1544,5 +1544,15 @@
   "Historical Data, Archive, Replay & Governance": "Geçmiş veriler, arşiv, yeniden oynatma ve yönetişim",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Geçmiş Gezgini · Zaman çizelgesi ve yeniden oynatma · Kulüp geçmişi · Varlık geçmişi · Kaynaklar · Depolama · Bütünlük · Saklama",
   "Open the vault": "Kasayı aç",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "Platform operasyonları, altyapı, zekâ ve yönetişim"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Platform operasyonları, altyapı, zekâ ve yönetişim",
+  "INFRASTRUCTURE CITY": "ALTYAPI ŞEHRİ",
+  "Live Infrastructure, Technology, Health & Architecture": "Canlı altyapı, teknoloji, sağlık ve mimari",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "Bölgeler · Teknoloji haritası · Topoloji · Uyarılar ve olaylar · Kapasite · Değişiklik geçmişi · Tespit kuralları · Kanıtlar",
+  "Checking infrastructure…": "Altyapı kontrol ediliyor…",
+  "Enter the city": "Şehre gir",
+  "All measured systems healthy": "Ölçülen tüm sistemler sağlıklı",
+  "Infrastructure state unknown": "Altyapı durumu bilinmiyor",
+  "Infrastructure health unreachable": "Altyapı sağlığına ulaşılamıyor",
+  "Critical infrastructure alerts: ": "Kritik altyapı uyarıları: ",
+  "Infrastructure warnings: ": "Altyapı uyarıları: "
 }

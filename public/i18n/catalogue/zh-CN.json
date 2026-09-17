@@ -1541,5 +1541,15 @@
   "Historical Data, Archive, Replay & Governance": "历史数据、归档、回放与治理",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "历史浏览器 · 时间线与回放 · 俱乐部历史 · 实体历史 · 数据源 · 存储 · 完整性 · 保留",
   "Open the vault": "打开保险库",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "平台运营、基础设施、智能与治理"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "平台运营、基础设施、智能与治理",
+  "INFRASTRUCTURE CITY": "基础设施之城",
+  "Live Infrastructure, Technology, Health & Architecture": "实时基础设施、技术、健康状况与架构",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "区域 · 技术地图 · 拓扑 · 告警与事件 · 容量 · 变更历史 · 检测规则 · 证据",
+  "Checking infrastructure…": "正在检查基础设施…",
+  "Enter the city": "进入城市",
+  "All measured systems healthy": "所有已测量的系统均正常",
+  "Infrastructure state unknown": "基础设施状态未知",
+  "Infrastructure health unreachable": "无法获取基础设施健康状态",
+  "Critical infrastructure alerts: ": "严重基础设施告警：",
+  "Infrastructure warnings: ": "基础设施警告："
 }

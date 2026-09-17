@@ -1544,5 +1544,15 @@
   "Historical Data, Archive, Replay & Governance": "Dane historyczne, archiwum, odtwarzanie i nadzór",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Eksplorator historii · Oś czasu i odtwarzanie · Historia klubu · Historia encji · Źródła · Magazyn · Integralność · Retencja",
   "Open the vault": "Otwórz skarbiec",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "Działanie platformy, infrastruktura, inteligencja i nadzór"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Działanie platformy, infrastruktura, inteligencja i nadzór",
+  "INFRASTRUCTURE CITY": "MIASTO INFRASTRUKTURY",
+  "Live Infrastructure, Technology, Health & Architecture": "Infrastruktura na żywo, technologia, kondycja i architektura",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "Dzielnice · Mapa technologii · Topologia · Alerty i incydenty · Pojemność · Historia zmian · Reguły wykrywania · Dowody",
+  "Checking infrastructure…": "Sprawdzanie infrastruktury…",
+  "Enter the city": "Wejdź do miasta",
+  "All measured systems healthy": "Wszystkie mierzone systemy są sprawne",
+  "Infrastructure state unknown": "Nieznany stan infrastruktury",
+  "Infrastructure health unreachable": "Stan infrastruktury jest nieosiągalny",
+  "Critical infrastructure alerts: ": "Krytyczne alerty infrastruktury: ",
+  "Infrastructure warnings: ": "Ostrzeżenia infrastruktury: "
 }

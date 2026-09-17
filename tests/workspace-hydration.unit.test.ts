@@ -65,8 +65,11 @@ describe('entering a club no longer draws the whole application', () => {
      'renderAIWarRoom', 'renderAIScoutingCenter', 'renderMedicalCenter',
      'renderSquad', 'renderDashboard', 'renderMatches']
       .forEach((fn) => expect(APP).toContain(`['${fn}']`));
-    const nav = APP.slice(APP.indexOf('function navTo(page, el, _opts)'),
-                          APP.indexOf('function navTo(page, el, _opts)') + 8000);
+    // The whole function, matched by its braces, rather than the first 8000
+    // characters of it: a fixed window is a proxy for "inside navTo" that
+    // silently stops covering the end of the function every time anybody adds
+    // a page to the one path every navigation takes.
+    const nav = fnBody('navTo');
     expect(nav).toContain('_famRenderPage(page)');
     // drawn after the page is activated, so the renderer finds its container
     expect(nav.indexOf('_famRenderPage(page)')).toBeGreaterThan(nav.indexOf("pg.classList.add('active')"));

@@ -1541,5 +1541,15 @@
   "Historical Data, Archive, Replay & Governance": "Dữ liệu lịch sử, lưu trữ, phát lại và quản trị",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Trình khám phá lịch sử · Dòng thời gian & Phát lại · Lịch sử câu lạc bộ · Lịch sử thực thể · Nguồn · Lưu trữ · Toàn vẹn · Lưu giữ",
   "Open the vault": "Mở kho",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "Vận hành nền tảng, hạ tầng, trí tuệ và quản trị"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Vận hành nền tảng, hạ tầng, trí tuệ và quản trị",
+  "INFRASTRUCTURE CITY": "THÀNH PHỐ HẠ TẦNG",
+  "Live Infrastructure, Technology, Health & Architecture": "Hạ tầng trực tiếp, công nghệ, tình trạng & kiến trúc",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "Khu vực · Bản đồ công nghệ · Cấu trúc liên kết · Cảnh báo & sự cố · Dung lượng · Lịch sử thay đổi · Quy tắc phát hiện · Bằng chứng",
+  "Checking infrastructure…": "Đang kiểm tra hạ tầng…",
+  "Enter the city": "Vào thành phố",
+  "All measured systems healthy": "Tất cả hệ thống được đo đều khỏe mạnh",
+  "Infrastructure state unknown": "Không rõ trạng thái hạ tầng",
+  "Infrastructure health unreachable": "Không truy cập được tình trạng hạ tầng",
+  "Critical infrastructure alerts: ": "Cảnh báo hạ tầng nghiêm trọng: ",
+  "Infrastructure warnings: ": "Cảnh báo hạ tầng: "
 }

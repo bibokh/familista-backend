@@ -1544,5 +1544,15 @@
   "Historical Data, Archive, Replay & Governance": "البيانات التاريخية والأرشيف وإعادة التشغيل والحوكمة",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "مستكشف السجل · المخطط الزمني وإعادة التشغيل · سجل النادي · سجل الكيانات · المصادر · التخزين · السلامة · الاحتفاظ",
   "Open the vault": "افتح الخزنة",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "تشغيل المنصة والبنية التحتية والذكاء والحوكمة"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "تشغيل المنصة والبنية التحتية والذكاء والحوكمة",
+  "INFRASTRUCTURE CITY": "مدينة البنية التحتية",
+  "Live Infrastructure, Technology, Health & Architecture": "البنية التحتية المباشرة والتقنيات والحالة والمعمارية",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "الأحياء · خريطة التقنيات · الطوبولوجيا · التنبيهات والحوادث · السعة · سجل التغييرات · قواعد الكشف · الأدلة",
+  "Checking infrastructure…": "جارٍ فحص البنية التحتية…",
+  "Enter the city": "ادخل المدينة",
+  "All measured systems healthy": "جميع الأنظمة المقاسة سليمة",
+  "Infrastructure state unknown": "حالة البنية التحتية غير معروفة",
+  "Infrastructure health unreachable": "تعذّر الوصول إلى حالة البنية التحتية",
+  "Critical infrastructure alerts: ": "تنبيهات البنية التحتية الحرجة: ",
+  "Infrastructure warnings: ": "تحذيرات البنية التحتية: "
 }

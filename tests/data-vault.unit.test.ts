@@ -772,36 +772,37 @@ describe('the Data Vault speaks English, German and Arabic — and only those', 
 
 // ── the landing, and the two products that were already there ────────────────
 
-describe('the Platform Owner landing offers three equal products', () => {
+describe('the Platform Owner landing offers four equal products', () => {
   const app = read(APP_JS);
   const css = read(APP_CSS);
   const landing = app.slice(app.indexOf('function _ownerHomeForPlatformOwner'),
     app.indexOf('function _ownerHomeForClubMember'));
 
-  it('renders SYSTEM, CLUBS and DATA VAULT as siblings in one card row', () => {
-    for (const title of ['>SYSTEM<', '>CLUBS<', '>DATA VAULT<']) {
+  it('renders SYSTEM, CLUBS, DATA VAULT and INFRASTRUCTURE CITY as siblings in one card row', () => {
+    for (const title of ['>SYSTEM<', '>CLUBS<', '>DATA VAULT<', '>INFRASTRUCTURE CITY<']) {
       expect(landing).toContain(title);
     }
     const cards = [...landing.matchAll(/class="oh-card oh-card--(\w+)"/g)].map((m) => m[1]);
-    expect(cards).toEqual(['system', 'clubs', 'vault']);
+    expect(cards).toEqual(['system', 'clubs', 'vault', 'city']);
   });
 
-  it('gives the three cards the same grid track, so none is subordinate', () => {
-    expect(css).toContain('body.club-theme .oh-cards--three{ grid-template-columns: repeat(3, 1fr); }');
+  it('gives the four cards the same grid track, so none is subordinate', () => {
+    expect(css).toContain('body.club-theme .oh-cards--four{ grid-template-columns: repeat(4, 1fr); }');
   });
 
-  it('does not nest the Vault inside SYSTEM or CLUBS', () => {
-    // Each card is a direct sibling: three buttons, one container, no card
+  it('does not nest one product inside another', () => {
+    // Each card is a direct sibling: four buttons, one container, no card
     // contains another.
-    const row = landing.slice(landing.indexOf('oh-cards oh-cards--three'), landing.indexOf('oh-footer'));
-    expect((row.match(/<button class="oh-card/g) || [])).toHaveLength(3);
+    const row = landing.slice(landing.indexOf('oh-cards oh-cards--four'), landing.indexOf('oh-footer'));
+    expect((row.match(/<button class="oh-card/g) || [])).toHaveLength(4);
     expect(row).not.toMatch(/<button class="oh-card[\s\S]*?<button class="oh-card[\s\S]*?<\/button>\s*<\/button>/);
   });
 
-  it('carries the descriptions the three modules were given', () => {
+  it('carries the descriptions the four modules were given', () => {
     expect(landing).toContain('Platform Operations, Infrastructure, Intelligence &amp; Governance');
     expect(landing).toContain('Football Organizations, Teams, People &amp; Operations');
     expect(landing).toContain('Historical Data, Archive, Replay &amp; Governance');
+    expect(landing).toContain('Live Infrastructure, Technology, Health &amp; Architecture');
   });
 
   it('shows a REAL historical status, fetched, never a fixed string', () => {

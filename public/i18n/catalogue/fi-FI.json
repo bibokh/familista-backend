@@ -1544,5 +1544,15 @@
   "Historical Data, Archive, Replay & Governance": "Historiatiedot, arkisto, toisto ja hallinta",
   "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Historiaselain · Aikajana ja toisto · Seuran historia · Entiteettihistoria · Lähteet · Tallennus · Eheys · Säilytys",
   "Open the vault": "Avaa holvi",
-  "Platform Operations, Infrastructure, Intelligence & Governance": "Alustan toiminta, infrastruktuuri, äly ja hallinta"
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Alustan toiminta, infrastruktuuri, äly ja hallinta",
+  "INFRASTRUCTURE CITY": "INFRASTRUKTUURIKAUPUNKI",
+  "Live Infrastructure, Technology, Health & Architecture": "Reaaliaikainen infrastruktuuri, teknologia, tila ja arkkitehtuuri",
+  "Districts · Technology Map · Topology · Alerts & Incidents · Capacity · Change History · Detection Rules · Evidence": "Kaupunginosat · Teknologiakartta · Topologia · Hälytykset ja häiriöt · Kapasiteetti · Muutoshistoria · Havaintosäännöt · Todisteet",
+  "Checking infrastructure…": "Tarkistetaan infrastruktuuria…",
+  "Enter the city": "Siirry kaupunkiin",
+  "All measured systems healthy": "Kaikki mitatut järjestelmät ovat kunnossa",
+  "Infrastructure state unknown": "Infrastruktuurin tila tuntematon",
+  "Infrastructure health unreachable": "Infrastruktuurin tilaa ei tavoiteta",
+  "Critical infrastructure alerts: ": "Kriittiset infrastruktuurihälytykset: ",
+  "Infrastructure warnings: ": "Infrastruktuurivaroitukset: "
 }
