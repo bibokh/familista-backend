@@ -7105,7 +7105,30 @@ body.club-theme .oh-cards{
   display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-6);
   align-items: stretch;
 }
+/* Three products, three equal columns.
+   SYSTEM, CLUBS and DATA VAULT are siblings — the grid says so by giving them
+   the same track. A layout that made one of them narrower, or nested it under
+   another, would be the page disagreeing with the architecture. */
+body.club-theme .oh-cards--three{ grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 1240px){ body.club-theme .oh-cards--three{ grid-template-columns: 1fr; max-width: 560px; margin-inline: auto; } }
 @media (max-width: 900px){ body.club-theme .oh-cards{ grid-template-columns: 1fr; } }
+body.club-theme .oh-wrap--three{ max-width: 1320px; }
+
+
+/* The real status line. Fixed height so the answer, when it lands, replaces
+   the "checking" text without the card changing size. */
+body.club-theme .oh-card-state{
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 26px; padding: 4px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.2px;
+  align-self: flex-start;
+  border: 1px solid var(--b-default); background: var(--bg-elevated); color: var(--t-secondary);
+}
+body.club-theme .oh-card-dot{ width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+body.club-theme .oh-card-state--ok{   color: #34d399; border-color: rgba(52,211,153,0.34); }
+body.club-theme .oh-card-state--warn{ color: #f59e0b; border-color: rgba(245,158,11,0.34); }
+body.club-theme .oh-card-state--bad{  color: #ef4444; border-color: rgba(239,68,68,0.34); }
+body.club-theme .oh-card-state--idle{ color: var(--t-tertiary); }
 /* One club, one card.
    A single card stretched across a two-column grid reads as a page missing its
    other half. Centred at a readable width it reads as the answer. */
@@ -7125,6 +7148,20 @@ body.club-theme .oh-card::before{
 body.club-theme .oh-card--clubs::before{
   background: linear-gradient(90deg, var(--pitch-500), var(--pitch-700));
 }
+/* The Vault's own accent. Cyan, because that is what the Vault itself uses —
+   a reader who enters from this card should arrive somewhere that looks like
+   the door they opened. */
+body.club-theme .oh-card--vault::before{
+  background: linear-gradient(90deg, #22d3ee, #3b82f6);
+}
+body.club-theme .oh-card--vault:hover{ box-shadow: 0 24px 56px rgba(34,211,238,0.20); border-color: rgba(34,211,238,0.42); }
+body.club-theme .oh-card--vault .oh-card-icon{
+  color: #22d3ee;
+  background: linear-gradient(145deg, rgba(34,211,238,0.14), rgba(59,130,246,0.08));
+  border-color: rgba(34,211,238,0.34);
+}
+body.club-theme .oh-card--vault .oh-card-cta{ color: #22d3ee; }
+
 body.club-theme .oh-card:hover{ border-color: var(--b-strong); box-shadow: var(--sh-2); }
 body.club-theme .oh-card--system:hover{ box-shadow: 0 24px 56px rgba(99,102,241,0.20); border-color: rgba(99,102,241,0.40); }
 body.club-theme .oh-card--clubs:hover{  box-shadow: 0 24px 56px rgba(34,197,94,0.20); border-color: rgba(34,197,94,0.40); }

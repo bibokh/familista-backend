@@ -1537,5 +1537,12 @@
   "Staff engagements": "Personalengasjementer",
   "Financial records": "Finansielle poster",
   "Devices": "Enheter",
-  "Scout reports": "Speiderrapporter"
+  "Scout reports": "Speiderrapporter",
+  "Checking historical store…": "Kontrollerer historikklageret…",
+  "DATA VAULT": "DATAHVELV",
+  "Football Organizations, Teams, People & Operations": "Fotballorganisasjoner, lag, personer og drift",
+  "Historical Data, Archive, Replay & Governance": "Historiske data, arkiv, avspilling og styring",
+  "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Historikkutforsker · Tidslinje og avspilling · Klubbhistorikk · Entitetshistorikk · Kilder · Lagring · Integritet · Oppbevaring",
+  "Open the vault": "Åpne hvelvet",
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Plattformdrift, infrastruktur, intelligens og styring"
 }

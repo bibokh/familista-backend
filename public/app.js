@@ -979,6 +979,7 @@ var _FAM_PAGE_RENDER = {
   'ai-chairman-center':          ['renderAIChairmanCenter'],
   'ai-war-room':                 ['renderAIWarRoom'],
   'system':                      ['renderFamilistaSystem'],
+  'data-vault':                  ['renderFamilistaDataVault'],
   'fos-core':                    ['renderFOSCore'],
   'fos-ai-orchestrator':         ['renderFOSAIOrchestrator'],
   'multi-club-network':          ['renderMultiClubNetwork'],
@@ -2368,6 +2369,7 @@ function _flushPendingRender() {
     case 'pg-ai-chairman-center': renderAIChairmanCenter(); break;
     case 'pg-ai-war-room':        renderAIWarRoom();         break;
     case 'pg-system':             renderFamilistaSystem(document.getElementById('sy-root')); break;
+    case 'pg-data-vault':         renderFamilistaDataVault(document.getElementById('dv-root')); break;
     case 'pg-fos-core':           renderFOSCore();           break;
     case 'pg-fos-ai-orchestrator': renderFOSAIOrchestrator(); break;
     case 'pg-fos-knowledge-graph': renderFOSKnowledgeGraph(); break;
@@ -2466,6 +2468,14 @@ function navTo(page, el, _opts) {
   // cannot disagree about which product is on screen.
   try {
     document.body.classList.toggle('sy-system-open', page === 'system');
+    // DATA VAULT is the third product and takes the shell the same way. Its
+    // replay transport owns a timer, so leaving the page tears it down rather
+    // than leaving it ticking behind a screen nobody is looking at.
+    var _wasVault = document.body.classList.contains('dv-vault-open');
+    document.body.classList.toggle('dv-vault-open', page === 'data-vault');
+    if (_wasVault && page !== 'data-vault' && typeof window.teardownFamilistaDataVault === 'function') {
+      window.teardownFamilistaDataVault();
+    }
   } catch (_) {}
 
   // ── Separation guard ──
@@ -2482,6 +2492,9 @@ function navTo(page, el, _opts) {
     // experience. The FOS pages below it remain reachable as the infrastructure
     // and health views they always were; they are no longer the way in.
     'system': 1,
+    // DATA VAULT — the platform's historical memory. A sibling of SYSTEM and
+    // CLUBS, not a page inside either of them.
+    'data-vault': 1,
     // PLATFORM (8)
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
@@ -2589,7 +2602,7 @@ function navTo(page, el, _opts) {
 
   const titles = {
     // ── Owner Control ──
-    'owner-home':'Owner Control', clubs:'Clubs',
+    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault',
     // ── Club Workspace ──
     'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League', 'match-center':'Match Center', 'people-access':'People & Access',
     // ── Platform (Phase B labels) ──
@@ -2858,6 +2871,7 @@ function _buildPageTemplateMap() {
   _PAGE_TEMPLATE_MAP = {
     'owner-home':                  renderOwnerHomeHTML,
     'clubs':                       renderClubsHTML,
+    'data-vault':                  renderDataVaultHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
@@ -2936,7 +2950,7 @@ function _buildPageTemplateMap() {
 // These are mounted eagerly at boot so the click flow is instant.
 var _EAGER_PAGES = [
   'owner-home', 'clubs', 'club-home', 'squad',
-  'system',
+  'system', 'data-vault',
   'fos-core', 'fos-observability', 'fos-security-center',
   'fos-automation-center', 'fos-rbac', 'fos-audit-governance',
   'multi-club-network', 'fos-admin-center',
@@ -3325,40 +3339,101 @@ function _greeting() {
 }
 
 /**
- * The platform owner's landing: two products, and a choice between them.
+ * The status line on the DATA VAULT card.
  *
- * Unchanged. This is what somebody with platform authority has always seen,
- * and the only thing that changed about it is that it is now built ONLY for
- * them rather than built for everybody and then partly hidden.
+ * Real, or nothing. It is filled in by `_fillVaultStatus()` once the platform
+ * has actually answered; until then it reads "Checking" and occupies exactly
+ * the space the answer will, so the card does not resize under the reader when
+ * the fetch lands. There is no placeholder figure here and no invented health.
+ */
+function _vaultStatusHTML(state, text) {
+  return `<span class="oh-card-state oh-card-state--${state}"><span class="oh-card-dot"></span>${_esc(text)}</span>`;
+}
+
+/**
+ * Ask the historical store how it is, and say so on the card.
+ *
+ * One read, after paint, of the same endpoint the Data Vault itself uses. A
+ * failure is reported as a failure — an owner whose historical store is
+ * unreachable should learn it on the way in, not after clicking.
+ */
+function _fillVaultStatus() {
+  const slot = document.getElementById('oh-vault-state');
+  if (!slot) return;
+  const base = (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG.API_BASE) ? FAM_CONFIG.API_BASE : '/api/v1';
+  let token = '';
+  try { token = (window.State && window.State.token) || localStorage.getItem('familista_token') || ''; } catch (_) {}
+  fetch(base + '/system/fabric/history/health', {
+    headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
+    credentials: 'include',
+  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+    .then(function (body) {
+      const d = (body && body.data) || body || {};
+      const total = d.window ? d.window.total : null;
+      const w = d.writer || {};
+      const degraded = w.state && String(w.state).toUpperCase() !== 'OK' && String(w.state).toUpperCase() !== 'HEALTHY';
+      const el = document.getElementById('oh-vault-state');
+      if (!el) return;
+      if (degraded) el.outerHTML = _vaultStatusHTML('warn', 'Historical writer degraded').replace('class="oh-card-state', 'id="oh-vault-state" class="oh-card-state');
+      else if (total === 0) el.outerHTML = _vaultStatusHTML('idle', 'No historical events yet').replace('class="oh-card-state', 'id="oh-vault-state" class="oh-card-state');
+      else if (typeof total === 'number') el.outerHTML = _vaultStatusHTML('ok', 'Historical store healthy \u00b7 ' + total.toLocaleString() + ' events').replace('class="oh-card-state', 'id="oh-vault-state" class="oh-card-state');
+      else el.outerHTML = _vaultStatusHTML('ok', 'Historical store healthy').replace('class="oh-card-state', 'id="oh-vault-state" class="oh-card-state');
+    })
+    .catch(function () {
+      const el = document.getElementById('oh-vault-state');
+      if (el) el.outerHTML = _vaultStatusHTML('bad', 'Historical store unreachable').replace('class="oh-card-state', 'id="oh-vault-state" class="oh-card-state');
+    });
+}
+
+/**
+ * The platform owner's landing: three products, and a choice between them.
+ *
+ * SYSTEM operates and governs the platform. CLUBS operates the football
+ * organisations. DATA VAULT is the platform's historical memory. They are
+ * siblings, not a parent and two children: the Vault is not a page inside
+ * SYSTEM, and putting it there would say the platform's history is a system
+ * setting rather than a product of its own.
+ *
+ * The only figures on this screen are counts the platform actually holds - the
+ * number of clubs in the network, and the historical store's own health, which
+ * arrives after paint. Nothing here is decorative telemetry.
  */
 function _ownerHomeForPlatformOwner(user, club) {
   const clubs = _accessibleClubs();
   const clubCount = clubs.length || 1;
   return `
-    <div class="oh-wrap">
+    <div class="oh-wrap oh-wrap--three">
       <div class="oh-hero">
         <div class="oh-eyebrow">FAMILISTA · OWNER CONTROL</div>
         <h1 class="oh-title"><span>${_esc(_greeting())}</span>${user.firstName ? ', <span data-user-content>' + _esc(user.firstName) + '</span>' : ''}</h1>
         <div class="oh-sub">Where do you want to go today?</div>
       </div>
-      <div class="oh-cards">
+      <div class="oh-cards oh-cards--three">
         <button class="oh-card oh-card--system" data-action="navTo" data-page="system" type="button">
           <div class="oh-card-icon">⚙️</div>
           <div class="oh-card-title">SYSTEM</div>
-          <div class="oh-card-sub">Platform &amp; infrastructure</div>
+          <div class="oh-card-sub">Platform Operations, Infrastructure, Intelligence &amp; Governance</div>
           <div class="oh-card-list">Command Center · Clubs · People &amp; Access · Intelligence · Governance · Innovation Lab · Security · Audit</div>
           <div class="oh-card-cta">Enter system area <span>→</span></div>
         </button>
         <button class="oh-card oh-card--clubs" data-action="navTo" data-page="clubs" type="button">
           <div class="oh-card-icon">🏟️</div>
           <div class="oh-card-title">CLUBS</div>
-          <div class="oh-card-sub">${clubCount} club${clubCount === 1 ? '' : 's'} in your network</div>
+          <div class="oh-card-sub">Football Organizations, Teams, People &amp; Operations</div>
           <div class="oh-card-list"><span>Pick a club workspace to enter — currently</span> <span data-user-content>${_esc(club.name || 'FC Familista')}</span></div>
           <div class="oh-card-cta">Select a club <span>→</span></div>
         </button>
+        <button class="oh-card oh-card--vault" data-action="navTo" data-page="data-vault" type="button">
+          <div class="oh-card-icon">⛁</div>
+          <div class="oh-card-title">DATA VAULT</div>
+          <div class="oh-card-sub">Historical Data, Archive, Replay &amp; Governance</div>
+          <div class="oh-card-list">Historical Explorer · Timeline &amp; Replay · Club History · Entity History · Sources · Storage · Integrity · Retention</div>
+          <span id="oh-vault-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Checking historical store…</span>
+          <div class="oh-card-cta">Open the vault <span>→</span></div>
+        </button>
       </div>
       <div class="oh-footer">
-        Familista · ${_esc((user.email || 'Owner') + '')}
+        Familista · ${_esc((user.email || 'Owner') + '')} · ${clubCount} club${clubCount === 1 ? '' : 's'} in your network
       </div>
     </div>
   `;
@@ -3474,6 +3549,11 @@ function renderOwnerHome() {
     el.innerHTML = yes
       ? _ownerHomeForPlatformOwner(user, club)
       : _ownerHomeForClubMember(user);
+    // The DATA VAULT card carries a real status, and only the owner has a card
+    // to put one on. Asked after paint so the landing is never waiting on it,
+    // and written into a slot that is already the right size so the answer
+    // cannot resize the card under the reader.
+    if (yes) { try { _fillVaultStatus(); } catch (_) {} }
   });
 }
 
@@ -27922,6 +28002,19 @@ function renderSystemHTML() {
   // never translate the same node and a SYSTEM string never has to exist in a
   // club locale file. Removing this attribute would silently merge them again.
   return `<div class="page" id="pg-system" data-no-i18n><div id="sy-root"></div></div>`;
+}
+
+// DATA VAULT — the platform's historical memory, and the third top-level
+// product beside SYSTEM and CLUBS.
+//
+// A host and nothing else: everything inside it is drawn by
+// public/data-vault/data-vault.js. The `data-no-i18n` boundary is the same one
+// SYSTEM keeps and for the same reason — the Vault carries English, German and
+// Arabic in its own catalogue under /data-vault/i18n/, so the platform's
+// club-facing locale pass must REJECT this subtree outright rather than
+// translate it a second time from a different dictionary.
+function renderDataVaultHTML() {
+  return `<div class="page" id="pg-data-vault" data-no-i18n><div id="dv-root"></div></div>`;
 }
 
 function renderFOSCoreHTML() {

@@ -1537,5 +1537,12 @@
   "Staff engagements": "ارتباطات الطاقم",
   "Financial records": "السجلات المالية",
   "Devices": "الأجهزة",
-  "Scout reports": "تقارير الكشافة"
+  "Scout reports": "تقارير الكشافة",
+  "Checking historical store…": "جارٍ فحص المخزن التاريخي…",
+  "DATA VAULT": "خزنة البيانات",
+  "Football Organizations, Teams, People & Operations": "المؤسسات الكروية والفرق والأشخاص والعمليات",
+  "Historical Data, Archive, Replay & Governance": "البيانات التاريخية والأرشيف وإعادة التشغيل والحوكمة",
+  "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "مستكشف السجل · المخطط الزمني وإعادة التشغيل · سجل النادي · سجل الكيانات · المصادر · التخزين · السلامة · الاحتفاظ",
+  "Open the vault": "افتح الخزنة",
+  "Platform Operations, Infrastructure, Intelligence & Governance": "تشغيل المنصة والبنية التحتية والذكاء والحوكمة"
 }

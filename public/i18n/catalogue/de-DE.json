@@ -1537,5 +1537,12 @@
   "Staff engagements": "Mitarbeiterengagements",
   "Financial records": "Finanzunterlagen",
   "Devices": "Geräte",
-  "Scout reports": "Scouting-Berichte"
+  "Scout reports": "Scouting-Berichte",
+  "Checking historical store…": "Historischer Speicher wird geprüft…",
+  "DATA VAULT": "DATENTRESOR",
+  "Football Organizations, Teams, People & Operations": "Fußballorganisationen, Mannschaften, Personen & Betrieb",
+  "Historical Data, Archive, Replay & Governance": "Historische Daten, Archiv, Wiedergabe & Governance",
+  "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Verlaufs-Explorer · Zeitachse & Wiedergabe · Vereinsverlauf · Entitätsverlauf · Quellen · Speicher · Integrität · Aufbewahrung",
+  "Open the vault": "Tresor öffnen",
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Plattformbetrieb, Infrastruktur, Intelligenz & Governance"
 }

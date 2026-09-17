@@ -1537,5 +1537,12 @@
   "Staff engagements": "Назначения персонала",
   "Financial records": "Финансовые записи",
   "Devices": "Устройства",
-  "Scout reports": "Отчёты скаутов"
+  "Scout reports": "Отчёты скаутов",
+  "Checking historical store…": "Проверка исторического хранилища…",
+  "DATA VAULT": "ХРАНИЛИЩЕ ДАННЫХ",
+  "Football Organizations, Teams, People & Operations": "Футбольные организации, команды, люди и операции",
+  "Historical Data, Archive, Replay & Governance": "Исторические данные, архив, воспроизведение и управление",
+  "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Обозреватель истории · Хронология и воспроизведение · История клуба · История сущностей · Источники · Хранилище · Целостность · Хранение",
+  "Open the vault": "Открыть хранилище",
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Эксплуатация платформы, инфраструктура, интеллект и управление"
 }

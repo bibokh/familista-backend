@@ -1534,5 +1534,12 @@
   "Staff engagements": "职员聘用",
   "Financial records": "财务记录",
   "Devices": "设备",
-  "Scout reports": "球探报告"
+  "Scout reports": "球探报告",
+  "Checking historical store…": "正在检查历史存储…",
+  "DATA VAULT": "数据保险库",
+  "Football Organizations, Teams, People & Operations": "足球组织、球队、人员与运营",
+  "Historical Data, Archive, Replay & Governance": "历史数据、归档、回放与治理",
+  "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "历史浏览器 · 时间线与回放 · 俱乐部历史 · 实体历史 · 数据源 · 存储 · 完整性 · 保留",
+  "Open the vault": "打开保险库",
+  "Platform Operations, Infrastructure, Intelligence & Governance": "平台运营、基础设施、智能与治理"
 }

@@ -1537,5 +1537,12 @@
   "Staff engagements": "Personaleengagementer",
   "Financial records": "Finansielle poster",
   "Devices": "Enheder",
-  "Scout reports": "Scoutrapporter"
+  "Scout reports": "Scoutrapporter",
+  "Checking historical store…": "Kontrollerer det historiske lager…",
+  "DATA VAULT": "DATABOKS",
+  "Football Organizations, Teams, People & Operations": "Fodboldorganisationer, hold, personer og drift",
+  "Historical Data, Archive, Replay & Governance": "Historiske data, arkiv, afspilning og governance",
+  "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Historikudforsker · Tidslinje og afspilning · Klubhistorik · Entitetshistorik · Kilder · Lagring · Integritet · Opbevaring",
+  "Open the vault": "Åbn boksen",
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Platformsdrift, infrastruktur, intelligens og governance"
 }

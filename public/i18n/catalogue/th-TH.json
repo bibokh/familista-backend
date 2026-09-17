@@ -1534,5 +1534,12 @@
   "Staff engagements": "การว่าจ้างบุคลากร",
   "Financial records": "บันทึกทางการเงิน",
   "Devices": "อุปกรณ์",
-  "Scout reports": "รายงานแมวมอง"
+  "Scout reports": "รายงานแมวมอง",
+  "Checking historical store…": "กำลังตรวจสอบคลังข้อมูลย้อนหลัง…",
+  "DATA VAULT": "คลังข้อมูล",
+  "Football Organizations, Teams, People & Operations": "องค์กรฟุตบอล ทีม บุคลากร และการปฏิบัติงาน",
+  "Historical Data, Archive, Replay & Governance": "ข้อมูลย้อนหลัง คลังเก็บ การเล่นซ้ำ และธรรมาภิบาล",
+  "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "ตัวสำรวจข้อมูลย้อนหลัง · ไทม์ไลน์และการเล่นซ้ำ · ประวัติสโมสร · ประวัติเอนทิตี · แหล่งข้อมูล · ที่จัดเก็บ · ความสมบูรณ์ · การเก็บรักษา",
+  "Open the vault": "เปิดคลังข้อมูล",
+  "Platform Operations, Infrastructure, Intelligence & Governance": "การดำเนินงานแพลตฟอร์ม โครงสร้างพื้นฐาน ปัญญาประดิษฐ์ และธรรมาภิบาล"
 }

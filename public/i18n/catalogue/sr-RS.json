@@ -1537,5 +1537,12 @@
   "Staff engagements": "Ангажмани особља",
   "Financial records": "Финансијски записи",
   "Devices": "Уређаји",
-  "Scout reports": "Скаутски извештаји"
+  "Scout reports": "Скаутски извештаји",
+  "Checking historical store…": "Провера историјског складишта…",
+  "DATA VAULT": "ТРЕЗОР ПОДАТАКА",
+  "Football Organizations, Teams, People & Operations": "Фудбалске организације, тимови, људи и операције",
+  "Historical Data, Archive, Replay & Governance": "Историјски подаци, архива, репродукција и управљање",
+  "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Претраживач историје · Временска оса и репродукција · Историја клуба · Историја ентитета · Извори · Складиште · Интегритет · Задржавање",
+  "Open the vault": "Отвори трезор",
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Рад платформе, инфраструктура, интелигенција и управљање"
 }
