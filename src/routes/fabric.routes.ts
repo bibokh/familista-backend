@@ -32,6 +32,9 @@ import { fabricHistoryHealth } from '../fabric/history/history-writer.service';
 import { historyRecoveryHealth, pendingHistoryDelivery } from '../fabric/history/history-recovery.service';
 import { archiveStatus } from '../fabric/history/archive';
 import { RETENTION_CLASSES, retentionPolicyConfigured } from '../fabric/history/retention-classes';
+import {
+  historyStats, clubHistorySummary, entityTypesInHistory,
+} from '../fabric/history/history-stats.service';
 
 const router = Router();
 router.use(authenticate);
@@ -317,6 +320,58 @@ router.get('/history/health', async (_req: Request, res: Response, next) => {
         archive: archiveStatus(),
       },
     });
+  } catch (err) { return next(err); }
+});
+
+/**
+ * HISTORICAL AGGREGATES — the counts the Data Vault draws, counted in SQL.
+ *
+ * The one capability the Data Vault needed that the history API could not
+ * already answer. Every figure here could be derived by paging `/history` and
+ * counting in the browser; that is exactly the thing this store exists to make
+ * unnecessary, and it stops working at the scale where somebody needs it most.
+ *
+ * Fixed cost: a handful of aggregates over columns that are already indexed. No
+ * row of history is returned, so nothing here can leak what the write path
+ * deliberately never recorded.
+ *
+ * The source list comes from the REGISTRY, so a source registered tomorrow
+ * appears with a real zero and no edit to the interface.
+ */
+router.get('/history/stats', async (_req: Request, res: Response, next) => {
+  try {
+    res.json({ success: true, data: await historyStats() });
+  } catch (err) { return next(err); }
+});
+
+/**
+ * One club's historical footprint — first activity, last, total, by source.
+ *
+ * A platform-owner read like every other on this router. The `clubId` narrows
+ * what is counted; it is NOT the authorization boundary, which is the
+ * router-level `assertPlatformOwner` above. A club account reaches none of
+ * this, including its own.
+ */
+router.get('/history/clubs/:clubId/summary', async (req: Request, res: Response, next) => {
+  try {
+    res.json({ success: true, data: await clubHistorySummary(String(req.params.clubId ?? '')) });
+  } catch (err) { return next(err); }
+});
+
+/**
+ * Which entity kinds history can be asked about, and which can be looked up by
+ * id at all.
+ *
+ * The second half matters more than the first. `history-record.ts` withholds
+ * the id of any subject kind the platform does not treat as safe to name, so a
+ * PLAYER row carries the type and a null id — and an Entity History search for
+ * a player would always come back empty. Rather than offer a lookup that cannot
+ * succeed, this reports `idSearchable` per kind, measured from the rows
+ * themselves, so the interface can say why.
+ */
+router.get('/history/entity-types', async (_req: Request, res: Response, next) => {
+  try {
+    res.json({ success: true, data: { entityTypes: await entityTypesInHistory() } });
   } catch (err) { return next(err); }
 });
 

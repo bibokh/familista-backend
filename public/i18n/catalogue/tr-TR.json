@@ -1537,5 +1537,12 @@
   "Staff engagements": "Personel görevlendirmeleri",
   "Financial records": "Mali kayıtlar",
   "Devices": "Cihazlar",
-  "Scout reports": "Gözlemci raporları"
+  "Scout reports": "Gözlemci raporları",
+  "Checking historical store…": "Geçmiş deposu denetleniyor…",
+  "DATA VAULT": "VERİ KASASI",
+  "Football Organizations, Teams, People & Operations": "Futbol organizasyonları, takımlar, kişiler ve operasyon",
+  "Historical Data, Archive, Replay & Governance": "Geçmiş veriler, arşiv, yeniden oynatma ve yönetişim",
+  "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Geçmiş Gezgini · Zaman çizelgesi ve yeniden oynatma · Kulüp geçmişi · Varlık geçmişi · Kaynaklar · Depolama · Bütünlük · Saklama",
+  "Open the vault": "Kasayı aç",
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Platform operasyonları, altyapı, zekâ ve yönetişim"
 }

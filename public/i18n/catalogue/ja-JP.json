@@ -1534,5 +1534,12 @@
   "Staff engagements": "スタッフ契約",
   "Financial records": "財務記録",
   "Devices": "デバイス",
-  "Scout reports": "スカウトレポート"
+  "Scout reports": "スカウトレポート",
+  "Checking historical store…": "履歴ストアを確認しています…",
+  "DATA VAULT": "データボールト",
+  "Football Organizations, Teams, People & Operations": "フットボール組織、チーム、人材、オペレーション",
+  "Historical Data, Archive, Replay & Governance": "履歴データ、アーカイブ、リプレイ、ガバナンス",
+  "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "履歴エクスプローラー · タイムラインとリプレイ · クラブ履歴 · エンティティ履歴 · ソース · ストレージ · 整合性 · 保持",
+  "Open the vault": "ボールトを開く",
+  "Platform Operations, Infrastructure, Intelligence & Governance": "プラットフォーム運用、インフラ、インテリジェンス、ガバナンス"
 }

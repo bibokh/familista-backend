@@ -1534,5 +1534,12 @@
   "Staff engagements": "스태프 계약",
   "Financial records": "재무 기록",
   "Devices": "기기",
-  "Scout reports": "스카우트 보고서"
+  "Scout reports": "스카우트 보고서",
+  "Checking historical store…": "히스토리 저장소를 확인하는 중…",
+  "DATA VAULT": "데이터 볼트",
+  "Football Organizations, Teams, People & Operations": "축구 조직, 팀, 인원 및 운영",
+  "Historical Data, Archive, Replay & Governance": "히스토리 데이터, 아카이브, 리플레이 및 거버넌스",
+  "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "히스토리 탐색기 · 타임라인 및 리플레이 · 클럽 히스토리 · 엔터티 히스토리 · 소스 · 스토리지 · 무결성 · 보존",
+  "Open the vault": "볼트 열기",
+  "Platform Operations, Infrastructure, Intelligence & Governance": "플랫폼 운영, 인프라, 인텔리전스 및 거버넌스"
 }

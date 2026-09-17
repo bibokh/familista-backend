@@ -1537,5 +1537,12 @@
   "Staff engagements": "Henkilöstösitoumukset",
   "Financial records": "Talousasiakirjat",
   "Devices": "Laitteet",
-  "Scout reports": "Skouttiraportit"
+  "Scout reports": "Skouttiraportit",
+  "Checking historical store…": "Tarkistetaan historiavarastoa…",
+  "DATA VAULT": "DATAHOLVI",
+  "Football Organizations, Teams, People & Operations": "Jalkapallo-organisaatiot, joukkueet, ihmiset ja toiminta",
+  "Historical Data, Archive, Replay & Governance": "Historiatiedot, arkisto, toisto ja hallinta",
+  "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Historiaselain · Aikajana ja toisto · Seuran historia · Entiteettihistoria · Lähteet · Tallennus · Eheys · Säilytys",
+  "Open the vault": "Avaa holvi",
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Alustan toiminta, infrastruktuuri, äly ja hallinta"
 }

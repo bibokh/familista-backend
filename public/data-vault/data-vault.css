@@ -1,0 +1,703 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   FAMILISTA DATA VAULT — the historical memory surface
+
+   A third room, beside SYSTEM and CLUBS. It borrows SYSTEM's palette on
+   purpose — these are the platform owner's two workspaces and they should feel
+   like one building — and separates itself with depth rather than hue: the
+   vault is colder, denser and quieter, and the one accent that carries meaning
+   is cyan for "recorded".
+
+   THE RULES THIS STYLESHEET KEEPS
+
+     · Nothing moves that the reader did not move. The workspace is a
+       fixed-height flex column whose body scrolls inside itself with a stable
+       scrollbar gutter; the inspector is `position: fixed` and animates on
+       `opacity` and `transform` only; every skeleton is the size of the content
+       it stands in for.
+     · Colour means something. Cyan is the vault's accent — recorded, active,
+       present. Amber is a warning. Red is a failure. Grey is "not configured",
+       and it is used for every future capability so that a reader can tell at a
+       glance what exists. A filled block of colour across a row is not a
+       highlight; an edge or a whisper of tint is.
+     · Motion is earned. The only animation is the replay pulse, it runs only
+       while replay is playing, and `prefers-reduced-motion` removes it.
+     · Below 980px wide or 620px tall the workspace returns to ordinary page
+       scrolling rather than crushing its panels.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#pg-data-vault, .dv-insp, .dv-insp-scrim {
+  --dv-bg:       #060a12;
+  --dv-bg-2:     #080d18;
+  --dv-panel:    rgba(17, 24, 41, .72);
+  --dv-panel-2:  rgba(23, 32, 53, .55);
+  --dv-line:     rgba(255, 255, 255, .07);
+  --dv-line-2:   rgba(255, 255, 255, .13);
+  --dv-tx:       #e9eefb;
+  --dv-tx-2:     #97a2bc;
+  --dv-tx-3:     #66708b;
+  --dv-accent:   #22d3ee;
+  --dv-accent-2: #3b82f6;
+  --dv-ok:       #34d399;
+  --dv-warn:     #fbbf24;
+  --dv-danger:   #f87171;
+  --dv-off:      #5b6480;
+  --dv-radius:   16px;
+}
+
+/* ── the Vault owns the viewport ──────────────────────────────────────────
+   Like SYSTEM: the club chrome is removed from the layout while the Vault is
+   open — not covered, not dimmed — and restored untouched on the way out. */
+body.dv-vault-open > .app > .sidebar,
+body.dv-vault-open > .app > .main > .topbar,
+body.dv-vault-open .sidebar,
+body.dv-vault-open .topbar { display: none !important; }
+body.dv-vault-open .app { display: block !important; }
+body.dv-vault-open .main { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; }
+body.dv-vault-open { overflow: hidden; }
+
+#pg-data-vault {
+  background:
+    radial-gradient(1200px 600px at 78% -12%, rgba(34, 211, 238, .10), transparent 62%),
+    radial-gradient(900px 520px at 8% 8%, rgba(59, 130, 246, .09), transparent 60%),
+    var(--dv-bg);
+  color: var(--dv-tx);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* The shell is a fixed-height row: rail + main. Nothing outside it scrolls. */
+.dv-shell {
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+#pg-data-vault[dir="rtl"] .dv-shell { flex-direction: row-reverse; }
+
+/* ── rail ─────────────────────────────────────────────────────────────── */
+
+.dv-rail {
+  flex: 0 0 254px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: linear-gradient(180deg, rgba(10, 16, 29, .96), rgba(6, 10, 18, .96));
+  border-inline-end: 1px solid var(--dv-line);
+}
+.dv-rail-head { padding: 18px 16px 12px; border-bottom: 1px solid var(--dv-line); }
+.dv-rail-home {
+  display: flex; align-items: center; gap: 8px;
+  background: none; border: 0; cursor: pointer;
+  color: var(--dv-tx-3); font-size: 11.5px; font-weight: 700;
+  letter-spacing: .4px; padding: 0 0 12px;
+}
+.dv-rail-home:hover { color: var(--dv-accent); }
+#pg-data-vault[dir="rtl"] .dv-rail-home span[aria-hidden] { transform: scaleX(-1); }
+.dv-rail-brand { display: flex; align-items: center; gap: 10px; }
+.dv-rail-mark {
+  width: 30px; height: 30px; display: grid; place-items: center;
+  border-radius: 9px; font-size: 15px;
+  background: linear-gradient(145deg, rgba(34, 211, 238, .22), rgba(59, 130, 246, .12));
+  border: 1px solid rgba(34, 211, 238, .34);
+  color: var(--dv-accent);
+}
+.dv-rail-title { font-size: 14.5px; font-weight: 800; letter-spacing: .2px; }
+
+.dv-rail-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding: 12px 10px 18px;
+}
+.dv-rail-group { margin-bottom: 14px; }
+.dv-rail-label {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
+  color: var(--dv-tx-3); padding: 6px 10px;
+}
+.dv-rail-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 10px; margin-bottom: 2px;
+  background: none; border: 0; border-radius: 9px; cursor: pointer;
+  color: var(--dv-tx-2); font-size: 12.8px; font-weight: 600;
+  text-align: start;
+}
+.dv-rail-item:hover { background: rgba(255, 255, 255, .04); color: var(--dv-tx); }
+/* The active item is an edge and a tint, never a filled block. */
+.dv-rail-item.is-on {
+  color: var(--dv-tx);
+  background: linear-gradient(90deg, rgba(34, 211, 238, .14), transparent 78%);
+  box-shadow: inset 2px 0 0 var(--dv-accent);
+}
+#pg-data-vault[dir="rtl"] .dv-rail-item.is-on {
+  background: linear-gradient(-90deg, rgba(34, 211, 238, .14), transparent 78%);
+  box-shadow: inset -2px 0 0 var(--dv-accent);
+}
+.dv-rail-icon { width: 18px; text-align: center; opacity: .85; font-size: 13px; }
+.dv-rail-foot {
+  padding: 12px 16px; border-top: 1px solid var(--dv-line);
+  font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--dv-tx-3);
+}
+
+/* ── main ─────────────────────────────────────────────────────────────── */
+
+.dv-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+
+/* The top bar sits ABOVE the body, and that needs saying explicitly.
+   `.dv-top` and `.dv-body` are siblings, and every `.dv-panel` in the body
+   carries a `backdrop-filter`, which creates a stacking context of its own.
+   Without a position and a z-index here, those panels paint after the bar in
+   DOM order and swallow the one thing that escapes it — the language menu,
+   which then cannot be clicked at all. */
+.dv-top {
+  position: relative;
+  z-index: 40;
+  flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 18px 26px;
+  border-bottom: 1px solid var(--dv-line);
+  background: rgba(8, 13, 24, .6);
+  backdrop-filter: blur(10px);
+}
+.dv-top-eyebrow {
+  font-size: 10px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase;
+  color: var(--dv-tx-3); margin-bottom: 4px;
+}
+.dv-top-title { font-size: 19px; font-weight: 800; margin: 0; letter-spacing: -.2px; }
+.dv-top-r { display: flex; align-items: center; gap: 12px; }
+
+/* The body scrolls inside itself, with a reserved gutter so a panel that
+   grows past the fold does not shift the layout sideways. */
+.dv-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding: 22px 26px 60px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+
+/* ── panels ───────────────────────────────────────────────────────────── */
+
+.dv-panel {
+  background: linear-gradient(180deg, var(--dv-panel), var(--dv-panel-2));
+  border: 1px solid var(--dv-line);
+  border-radius: var(--dv-radius);
+  backdrop-filter: blur(8px);
+  padding: 18px 20px 20px;
+}
+.dv-panel-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 14px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.dv-panel-title { font-size: 13px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; margin: 0; color: var(--dv-tx); }
+.dv-panel-note { font-size: 11.5px; color: var(--dv-tx-3); }
+
+/* ── the vault diagram ────────────────────────────────────────────────── */
+
+.dv-hero {
+  background:
+    radial-gradient(760px 300px at 50% -10%, rgba(34, 211, 238, .12), transparent 66%),
+    linear-gradient(180deg, var(--dv-panel), var(--dv-panel-2));
+  border: 1px solid var(--dv-line);
+  border-radius: var(--dv-radius);
+  padding: 26px 20px 24px;
+}
+.dv-diagram { display: flex; flex-direction: column; align-items: center; gap: 0; }
+
+.dv-core { text-align: center; }
+.dv-core-mark {
+  width: 56px; height: 56px; margin: 0 auto 10px; display: grid; place-items: center;
+  font-size: 26px; border-radius: 17px;
+  color: var(--dv-accent);
+  background: radial-gradient(circle at 50% 30%, rgba(34, 211, 238, .28), rgba(59, 130, 246, .10) 66%, transparent);
+  border: 1px solid rgba(34, 211, 238, .42);
+  box-shadow: 0 0 34px -10px rgba(34, 211, 238, .5);
+}
+.dv-core-title { font-size: 17px; font-weight: 900; letter-spacing: .4px; }
+.dv-core-sub { font-size: 11.5px; color: var(--dv-tx-3); margin-top: 3px; letter-spacing: .3px; }
+
+.dv-feed {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 7px;
+  margin: 16px 0 4px; max-width: 900px;
+}
+.dv-src-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 10px; border-radius: 999px; cursor: pointer;
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid var(--dv-line);
+  color: var(--dv-tx-3); font-size: 11.5px; font-weight: 600;
+}
+.dv-src-chip:hover { border-color: var(--dv-line-2); color: var(--dv-tx); }
+.dv-src-chip.is-live { color: var(--dv-tx-2); border-color: rgba(34, 211, 238, .26); }
+.dv-src-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dv-off); }
+.dv-src-chip.is-live .dv-src-dot { background: var(--dv-accent); }
+.dv-src-count { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px; opacity: .75; }
+.dv-src-empty { font-size: 12px; color: var(--dv-tx-3); }
+
+.dv-trunk { width: 1px; height: 26px; background: linear-gradient(180deg, rgba(34, 211, 238, .5), rgba(34, 211, 238, .12)); }
+.dv-trunk--down { background: linear-gradient(180deg, rgba(34, 211, 238, .12), rgba(34, 211, 238, .5)); }
+
+.dv-pillars {
+  display: grid; grid-template-columns: repeat(3, minmax(190px, 260px));
+  gap: 14px; position: relative; padding-top: 14px;
+}
+/* The horizontal connector across the three pillars. A hairline, not a bar. */
+.dv-pillars::before {
+  content: ''; position: absolute; top: 0; left: 16.6%; right: 16.6%; height: 1px;
+  background: rgba(34, 211, 238, .28);
+}
+.dv-pillar {
+  background: rgba(255, 255, 255, .022);
+  border: 1px solid var(--dv-line);
+  border-radius: 13px; padding: 14px; position: relative;
+  text-align: center;
+}
+.dv-pillar::before {
+  content: ''; position: absolute; top: -14px; left: 50%; width: 1px; height: 14px;
+  background: rgba(34, 211, 238, .28);
+}
+.dv-pillar--hot { border-color: rgba(34, 211, 238, .3); }
+.dv-pillar--cold { opacity: .72; }
+.dv-pillar-state {
+  display: inline-block; font-size: 9px; font-weight: 800; letter-spacing: 1.1px;
+  text-transform: uppercase; padding: 3px 8px; border-radius: 999px; margin-bottom: 9px;
+}
+.dv-pillar-state--ok { color: var(--dv-ok); background: rgba(52, 211, 153, .12); border: 1px solid rgba(52, 211, 153, .3); }
+.dv-pillar-state--idle { color: var(--dv-tx-3); background: rgba(255, 255, 255, .04); border: 1px solid var(--dv-line); }
+.dv-pillar-state--off { color: var(--dv-off); background: rgba(91, 100, 128, .12); border: 1px solid rgba(91, 100, 128, .3); }
+.dv-pillar-title { font-size: 13px; font-weight: 800; }
+.dv-pillar-sub { font-size: 10.8px; color: var(--dv-tx-3); margin-top: 3px; min-height: 26px; }
+.dv-pillar-detail { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--dv-line); }
+.dv-pillar-figure {
+  display: block; font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 21px; font-weight: 700; color: var(--dv-tx);
+}
+.dv-pillar-unit { display: block; font-size: 10px; color: var(--dv-tx-3); letter-spacing: .4px; margin-top: 2px; }
+
+.dv-rail-out { display: flex; gap: 8px; margin-top: 14px; }
+.dv-out {
+  padding: 7px 18px; border-radius: 9px; cursor: pointer;
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--dv-line);
+  color: var(--dv-tx-2); font-size: 11.5px; font-weight: 700; letter-spacing: .6px;
+  text-transform: uppercase;
+}
+.dv-out:hover { border-color: rgba(34, 211, 238, .4); color: var(--dv-accent); }
+
+/* ── replay pulse ─────────────────────────────────────────────────────────
+   The only animation in this module. It runs on `transform`/`opacity`, it is
+   triggered per event rather than looping, and it does not exist for a reader
+   who asked for less motion. */
+@keyframes dv-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(34, 211, 238, .55); }
+  100% { box-shadow: 0 0 0 14px rgba(34, 211, 238, 0); }
+}
+.dv-stage .dv-src-chip.is-pulse,
+.dv-stage .dv-pillar.is-pulse { animation: dv-pulse .62s ease-out 1; }
+.dv-stage.is-playing .dv-trunk { background: linear-gradient(180deg, var(--dv-accent), rgba(34, 211, 238, .12)); }
+@media (prefers-reduced-motion: reduce) {
+  .dv-stage .dv-src-chip.is-pulse,
+  .dv-stage .dv-pillar.is-pulse { animation: none; }
+}
+
+/* ── stats ────────────────────────────────────────────────────────────── */
+
+.dv-stats { display: grid; gap: 12px; }
+.dv-stats--2 { grid-template-columns: repeat(2, 1fr); }
+.dv-stats--3 { grid-template-columns: repeat(3, 1fr); }
+.dv-stats--4 { grid-template-columns: repeat(4, 1fr); }
+.dv-stats + .dv-stats { margin-top: 12px; }
+.dv-stat {
+  background: rgba(255, 255, 255, .022);
+  border: 1px solid var(--dv-line);
+  border-radius: 11px; padding: 13px 14px;
+}
+.dv-stat-label {
+  font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--dv-tx-3); margin-bottom: 7px;
+}
+.dv-stat-value {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 23px; font-weight: 700; line-height: 1.1; color: var(--dv-tx);
+}
+.dv-stat-value--time { font-size: 14.5px; }
+.dv-stat-value--text { font-size: 15px; }
+.dv-stat-hint { font-size: 10.5px; color: var(--dv-tx-3); margin-top: 5px; }
+/* An absent figure is a dash in the muted colour, with the reason on hover.
+   It must never be mistaken for a measured zero. */
+.dv-none { color: var(--dv-tx-3); cursor: help; border-bottom: 1px dotted var(--dv-tx-3); }
+
+/* ── chips ────────────────────────────────────────────────────────────── */
+
+.dv-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .4px;
+  border: 1px solid var(--dv-line); background: rgba(255, 255, 255, .03); color: var(--dv-tx-2);
+}
+.dv-chip--ok   { color: var(--dv-ok);     border-color: rgba(52, 211, 153, .32); background: rgba(52, 211, 153, .10); }
+.dv-chip--warn { color: var(--dv-warn);   border-color: rgba(251, 191, 36, .32); background: rgba(251, 191, 36, .10); }
+.dv-chip--bad  { color: var(--dv-danger); border-color: rgba(248, 113, 113, .32); background: rgba(248, 113, 113, .10); }
+.dv-chip--idle { color: var(--dv-tx-3); }
+.dv-chip--off  { color: var(--dv-off); border-color: rgba(91, 100, 128, .32); }
+.dv-chip--future { color: var(--dv-accent-2); border-color: rgba(59, 130, 246, .3); }
+
+/* ── cards ────────────────────────────────────────────────────────────── */
+
+.dv-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.dv-card {
+  text-align: start; cursor: pointer; padding: 15px 16px;
+  background: rgba(255, 255, 255, .022); border: 1px solid var(--dv-line);
+  border-radius: 12px; color: inherit;
+}
+.dv-card:hover { border-color: rgba(34, 211, 238, .34); background: rgba(34, 211, 238, .05); }
+.dv-card-title { font-size: 13px; font-weight: 800; margin-bottom: 5px; }
+.dv-card-sub { font-size: 11.5px; color: var(--dv-tx-3); line-height: 1.5; }
+
+/* ── date navigation + filters ────────────────────────────────────────── */
+
+.dv-datenav { display: flex; flex-direction: column; gap: 12px; }
+.dv-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.dv-preset {
+  padding: 6px 13px; border-radius: 8px; cursor: pointer;
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--dv-line);
+  color: var(--dv-tx-2); font-size: 11.5px; font-weight: 600;
+}
+.dv-preset:hover { color: var(--dv-tx); border-color: var(--dv-line-2); }
+.dv-preset.is-on { color: var(--dv-accent); border-color: rgba(34, 211, 238, .45); background: rgba(34, 211, 238, .09); }
+
+.dv-drill-label {
+  font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--dv-tx-3); margin-bottom: 6px;
+}
+.dv-drill-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.dv-custom { display: flex; gap: 12px; flex-wrap: wrap; }
+
+.dv-window {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px; color: var(--dv-tx-3);
+  padding: 7px 11px; border-radius: 8px;
+  background: rgba(255, 255, 255, .022); border: 1px solid var(--dv-line);
+  align-self: flex-start;
+}
+
+.dv-filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.dv-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.dv-field--wide { grid-column: span 2; }
+.dv-field > span {
+  font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--dv-tx-3);
+}
+.dv-field input, .dv-field select, .dv-drill-row select {
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid var(--dv-line); border-radius: 8px;
+  color: var(--dv-tx); font-size: 12.5px; padding: 8px 10px;
+  font-family: inherit; min-width: 0;
+}
+.dv-field input:focus, .dv-field select:focus, .dv-drill-row select:focus {
+  outline: none; border-color: rgba(34, 211, 238, .5);
+}
+.dv-field select:disabled, .dv-drill-row select:disabled { opacity: .45; cursor: not-allowed; }
+.dv-filter-actions { grid-column: 1 / -1; display: flex; gap: 8px; }
+
+.dv-btn {
+  padding: 8px 16px; border-radius: 8px; cursor: pointer;
+  font-size: 12px; font-weight: 700; font-family: inherit;
+  border: 1px solid var(--dv-line); background: rgba(255, 255, 255, .03); color: var(--dv-tx-2);
+}
+.dv-btn:hover:not(:disabled) { color: var(--dv-tx); border-color: var(--dv-line-2); }
+.dv-btn:disabled { opacity: .4; cursor: not-allowed; }
+.dv-btn--primary {
+  background: linear-gradient(135deg, rgba(34, 211, 238, .2), rgba(59, 130, 246, .16));
+  border-color: rgba(34, 211, 238, .42); color: var(--dv-accent);
+}
+.dv-btn--ghost { background: none; }
+
+.dv-count {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 14px; font-weight: 700; color: var(--dv-tx); margin-bottom: 12px;
+}
+.dv-count span { font-family: Inter, sans-serif; font-size: 11.5px; font-weight: 600; color: var(--dv-tx-3); }
+
+/* ── timeline ─────────────────────────────────────────────────────────── */
+
+.dv-timeline { display: flex; flex-direction: column; }
+.dv-event {
+  display: grid;
+  grid-template-columns: 160px 130px minmax(180px, 1fr) 120px 96px;
+  gap: 12px; align-items: center;
+  padding: 9px 11px; border-radius: 8px; cursor: pointer;
+  background: none; border: 0; border-bottom: 1px solid var(--dv-line);
+  color: var(--dv-tx-2); font-size: 12px; text-align: start; width: 100%;
+}
+.dv-event:hover { background: rgba(34, 211, 238, .05); color: var(--dv-tx); }
+.dv-event--head {
+  cursor: default; font-size: 9.5px; font-weight: 800; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--dv-tx-3);
+}
+.dv-event--head:hover { background: none; }
+.dv-event-time { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: var(--dv-tx-3); }
+.dv-event-type { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px; color: var(--dv-tx); }
+.dv-event-ent, .dv-event-status { font-size: 11px; }
+.dv-event-status--stored { color: var(--dv-ok); }
+.dv-event-status--duplicate { color: var(--dv-tx-3); }
+.dv-event-status--failed { color: var(--dv-danger); }
+
+.dv-pager { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.dv-pager-info { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px; color: var(--dv-tx-3); }
+
+/* ── inspector ────────────────────────────────────────────────────────────
+   Fixed, so opening it cannot move one pixel of what is underneath. It
+   animates on opacity and transform and on nothing else. */
+.dv-insp-scrim {
+  position: fixed; inset: 0; z-index: 900;
+  background: rgba(3, 6, 12, .55); backdrop-filter: blur(2px);
+  animation: dv-fade .16s ease-out;
+}
+.dv-insp {
+  position: fixed; top: 0; inset-inline-end: 0; z-index: 901;
+  width: min(460px, 92vw); height: 100vh; height: 100dvh;
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, #0a1120, #070c16);
+  border-inline-start: 1px solid var(--dv-line-2);
+  color: var(--dv-tx);
+  animation: dv-slide .18s cubic-bezier(.22, .8, .3, 1);
+}
+@keyframes dv-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dv-slide { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: translateX(0); } }
+#pg-data-vault[dir="rtl"] ~ .dv-insp,
+[dir="rtl"] .dv-insp { }
+@media (prefers-reduced-motion: reduce) {
+  .dv-insp, .dv-insp-scrim { animation: none; }
+}
+.dv-insp-head {
+  flex: 0 0 auto; display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--dv-line);
+}
+.dv-insp-title { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13.5px; font-weight: 700; }
+.dv-insp-sub { font-size: 11.5px; color: var(--dv-tx-3); margin-top: 3px; }
+.dv-insp-x {
+  background: none; border: 0; cursor: pointer; color: var(--dv-tx-3);
+  font-size: 22px; line-height: 1; padding: 0 2px;
+}
+.dv-insp-x:hover { color: var(--dv-tx); }
+.dv-insp-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; padding: 8px 20px 20px; }
+.dv-insp-row { display: grid; grid-template-columns: 148px 1fr; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--dv-line); }
+.dv-insp-k { font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--dv-tx-3); }
+.dv-insp-v { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px; word-break: break-word; }
+.dv-insp-foot {
+  flex: 0 0 auto; padding: 14px 20px; border-top: 1px solid var(--dv-line);
+  font-size: 11px; color: var(--dv-tx-3); line-height: 1.55;
+}
+
+/* ── replay transport ─────────────────────────────────────────────────── */
+
+.dv-guarantee {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: 11.5px; color: var(--dv-tx-3); margin-bottom: 14px;
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(52, 211, 153, .05); border: 1px solid rgba(52, 211, 153, .18);
+}
+.dv-guarantee-api { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px; opacity: .8; }
+.dv-transport { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dv-tbtn {
+  width: 40px; height: 36px; border-radius: 9px; cursor: pointer; font-size: 14px;
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--dv-line); color: var(--dv-tx-2);
+}
+.dv-tbtn:hover:not(:disabled) { color: var(--dv-accent); border-color: rgba(34, 211, 238, .4); }
+.dv-tbtn:disabled { opacity: .35; cursor: not-allowed; }
+.dv-tbtn--play { width: 52px; color: var(--dv-accent); border-color: rgba(34, 211, 238, .34); }
+.dv-speeds { display: flex; gap: 4px; margin-inline-start: 8px; }
+.dv-speed {
+  padding: 6px 10px; border-radius: 7px; cursor: pointer; font-size: 11px; font-weight: 700;
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--dv-line); color: var(--dv-tx-3);
+}
+.dv-speed.is-on { color: var(--dv-accent); border-color: rgba(34, 211, 238, .45); }
+.dv-rp-pos { margin-inline-start: auto; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; color: var(--dv-tx-3); }
+.dv-scrub { width: 100%; margin-top: 14px; accent-color: var(--dv-accent); }
+.dv-scrub:disabled { opacity: .35; }
+.dv-nowcard {
+  margin-top: 14px; padding: 12px 14px; border-radius: 10px;
+  background: rgba(34, 211, 238, .06); border: 1px solid rgba(34, 211, 238, .22);
+}
+.dv-nowcard-time { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: var(--dv-tx-3); }
+.dv-nowcard-type { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 14px; font-weight: 700; margin-top: 3px; }
+.dv-nowcard-src { font-size: 11.5px; color: var(--dv-tx-2); margin-top: 2px; }
+.dv-stage { padding: 6px 0; }
+
+/* ── sources, clubs, entities ─────────────────────────────────────────── */
+
+.dv-srcgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.dv-srccard {
+  background: rgba(255, 255, 255, .022); border: 1px solid var(--dv-line);
+  border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 11px;
+}
+.dv-srccard.is-live { border-color: rgba(34, 211, 238, .24); }
+.dv-srccard-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dv-srccard-name { font-size: 13.5px; font-weight: 800; }
+.dv-srccard-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
+.dv-srccard-grid > div, .dv-srccard-times > div { display: flex; flex-direction: column; gap: 2px; }
+.dv-srccard-grid span, .dv-srccard-times span {
+  font-size: 9.5px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: var(--dv-tx-3);
+}
+.dv-srccard-grid b { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 15px; }
+.dv-srccard-times { display: grid; gap: 7px; padding-top: 10px; border-top: 1px solid var(--dv-line); }
+.dv-srccard-times b { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: var(--dv-tx-2); }
+
+.dv-dist { display: flex; flex-direction: column; gap: 8px; }
+.dv-dist-row { display: grid; grid-template-columns: 160px 1fr 72px; gap: 12px; align-items: center; }
+.dv-dist-name { font-size: 12px; color: var(--dv-tx-2); }
+.dv-dist-bar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .05); overflow: hidden; }
+.dv-dist-bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--dv-accent), var(--dv-accent-2)); }
+.dv-dist-n { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px; color: var(--dv-tx-3); text-align: end; }
+
+.dv-etypes { display: flex; flex-direction: column; gap: 6px; }
+.dv-etype {
+  display: grid; grid-template-columns: 1fr 90px 160px; gap: 12px; align-items: center;
+  padding: 10px 12px; border-radius: 9px; cursor: pointer; text-align: start;
+  background: rgba(255, 255, 255, .022); border: 1px solid var(--dv-line); color: var(--dv-tx-2);
+}
+.dv-etype:hover { border-color: var(--dv-line-2); color: var(--dv-tx); }
+.dv-etype.is-on { border-color: rgba(34, 211, 238, .45); background: rgba(34, 211, 238, .06); }
+.dv-etype-name { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; }
+.dv-etype-n { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; color: var(--dv-tx-3); }
+.dv-etype-flag { text-align: end; }
+
+/* ── lifecycle, integrity, future-state ───────────────────────────────── */
+
+.dv-lifecycle { display: flex; flex-direction: column; gap: 2px; }
+.dv-lc-step {
+  display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: center;
+  padding: 11px 12px; border-radius: 10px; position: relative;
+  background: rgba(255, 255, 255, .018); border: 1px solid var(--dv-line);
+}
+.dv-lc-mark { width: 10px; height: 10px; border-radius: 50%; margin: 0 auto; background: var(--dv-off); }
+.dv-lc-step--ok .dv-lc-mark { background: var(--dv-ok); box-shadow: 0 0 10px -1px var(--dv-ok); }
+.dv-lc-step--off .dv-lc-mark { background: var(--dv-off); }
+.dv-lc-step--future .dv-lc-mark { background: transparent; border: 1px dashed var(--dv-accent-2); }
+.dv-lc-step--off, .dv-lc-step--future { opacity: .72; }
+.dv-lc-title { font-size: 12.8px; font-weight: 700; }
+.dv-lc-sub { font-size: 11px; color: var(--dv-tx-3); margin-top: 2px; }
+.dv-lc-state {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 999px;
+}
+.dv-lc-state--ok { color: var(--dv-ok); background: rgba(52, 211, 153, .1); }
+.dv-lc-state--off { color: var(--dv-off); background: rgba(91, 100, 128, .12); }
+.dv-lc-state--future { color: var(--dv-accent-2); background: rgba(59, 130, 246, .1); }
+.dv-lc-link { position: absolute; left: 16px; bottom: -2px; width: 1px; height: 4px; background: var(--dv-line-2); }
+#pg-data-vault[dir="rtl"] .dv-lc-link { left: auto; right: 16px; }
+
+.dv-integrity { display: flex; flex-direction: column; gap: 2px; }
+.dv-int-row {
+  display: grid; grid-template-columns: 220px 200px 1fr; gap: 14px; align-items: center;
+  padding: 11px 12px; border-bottom: 1px solid var(--dv-line);
+}
+.dv-int-k { font-size: 12.5px; font-weight: 700; color: var(--dv-tx); }
+.dv-int-d { font-size: 11.3px; color: var(--dv-tx-3); line-height: 1.5; }
+
+.dv-kv { display: flex; flex-direction: column; }
+.dv-kv-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--dv-line); }
+.dv-kv-row > span { font-size: 12px; color: var(--dv-tx-3); }
+.dv-kv-row > b { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; font-weight: 600; color: var(--dv-tx); }
+.dv-kv-off, .dv-kv-missing { color: var(--dv-off) !important; }
+
+.dv-classes { display: flex; flex-wrap: wrap; gap: 7px; }
+.dv-class {
+  padding: 6px 13px; border-radius: 8px; font-size: 11.5px; font-weight: 700;
+  letter-spacing: .5px; font-family: "JetBrains Mono", ui-monospace, monospace;
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--dv-line); color: var(--dv-tx-2);
+}
+
+.dv-future {
+  padding: 15px 16px; border-radius: 11px;
+  background: rgba(91, 100, 128, .07); border: 1px dashed rgba(91, 100, 128, .34);
+}
+.dv-future-state {
+  display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: 1.2px;
+  text-transform: uppercase; color: var(--dv-off); margin-bottom: 9px;
+  padding: 3px 9px; border-radius: 999px; background: rgba(91, 100, 128, .14);
+}
+.dv-future p { font-size: 12.3px; color: var(--dv-tx-2); line-height: 1.6; margin: 0 0 8px; }
+.dv-future-note { color: var(--dv-tx-3) !important; font-size: 11.5px !important; }
+.dv-future-list { margin: 4px 0 10px; padding-inline-start: 20px; }
+.dv-future-list li { font-size: 11.8px; color: var(--dv-tx-3); line-height: 1.7; }
+.dv-archive-head { margin-bottom: 12px; }
+
+.dv-notice {
+  margin-top: 12px; padding: 11px 13px; border-radius: 9px;
+  font-size: 11.5px; line-height: 1.6; color: var(--dv-tx-2);
+  background: rgba(59, 130, 246, .06); border: 1px solid rgba(59, 130, 246, .2);
+}
+.dv-notice--soft { background: rgba(255, 255, 255, .022); border-color: var(--dv-line); color: var(--dv-tx-3); }
+
+/* ── empty + skeleton ─────────────────────────────────────────────────── */
+
+.dv-empty { text-align: center; padding: 34px 20px; }
+.dv-empty-mark { font-size: 26px; color: var(--dv-tx-3); opacity: .5; margin-bottom: 10px; }
+.dv-empty-title { font-size: 13.5px; font-weight: 700; color: var(--dv-tx-2); }
+.dv-empty-detail { font-size: 11.8px; color: var(--dv-tx-3); margin-top: 6px; max-width: 460px; margin-inline: auto; line-height: 1.6; }
+
+/* A skeleton the size of the row it replaces, so nothing resettles. */
+.dv-skel { display: flex; flex-direction: column; gap: 9px; }
+.dv-skel-row { height: 38px; border-radius: 8px; background: linear-gradient(90deg, rgba(255,255,255,.028), rgba(255,255,255,.05), rgba(255,255,255,.028)); }
+
+/* ── language switch ──────────────────────────────────────────────────── */
+
+.dv-langs { position: relative; }
+.dv-lang-pick {
+  display: flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 8px;
+  cursor: pointer; background: rgba(255, 255, 255, .03); border: 1px solid var(--dv-line);
+  color: var(--dv-tx-2); font-size: 11.5px; font-weight: 600; font-family: inherit;
+}
+.dv-lang-pick:hover { color: var(--dv-tx); }
+.dv-lang-ch { font-size: 10px; opacity: .7; }
+.dv-lang-menu {
+  position: absolute; inset-inline-end: 0; top: calc(100% + 6px); z-index: 30;
+  display: none; flex-direction: column; min-width: 150px; padding: 5px;
+  background: #0a1120; border: 1px solid var(--dv-line-2); border-radius: 10px;
+  box-shadow: 0 18px 46px -14px rgba(0, 0, 0, .7);
+}
+.dv-langs.is-open .dv-lang-menu { display: flex; }
+.dv-lang {
+  padding: 8px 11px; border-radius: 7px; cursor: pointer; text-align: start;
+  background: none; border: 0; color: var(--dv-tx-2); font-size: 12.5px; font-family: inherit;
+}
+.dv-lang:hover { background: rgba(255, 255, 255, .05); color: var(--dv-tx); }
+.dv-lang.is-on { color: var(--dv-accent); }
+
+/* ── responsive ───────────────────────────────────────────────────────────
+   Down through the workstation widths the grids relax. Below the escape
+   hatch the workspace stops being a fixed-height column and becomes an
+   ordinary scrolling page — better a long page than crushed panels. */
+@media (max-width: 1536px) {
+  .dv-filters { grid-template-columns: repeat(3, 1fr); }
+  .dv-int-row { grid-template-columns: 200px 170px 1fr; }
+}
+@media (max-width: 1280px) {
+  .dv-rail { flex-basis: 214px; }
+  .dv-stats--4 { grid-template-columns: repeat(2, 1fr); }
+  .dv-cards { grid-template-columns: 1fr; }
+  .dv-pillars { grid-template-columns: repeat(3, minmax(150px, 1fr)); }
+  .dv-event { grid-template-columns: 140px 110px minmax(150px, 1fr) 100px 86px; }
+}
+@media (max-width: 1100px) {
+  .dv-filters { grid-template-columns: repeat(2, 1fr); }
+  .dv-int-row { grid-template-columns: 1fr; gap: 6px; }
+  .dv-stats--3 { grid-template-columns: 1fr; }
+}
+@media (max-width: 980px), (max-height: 620px) {
+  body.dv-vault-open { overflow: auto; }
+  .dv-shell { display: block; height: auto; overflow: visible; }
+  .dv-rail { flex-basis: auto; border-inline-end: 0; border-bottom: 1px solid var(--dv-line); }
+  .dv-rail-body { overflow: visible; }
+  .dv-main { min-height: 0; }
+  .dv-body { overflow: visible; padding: 16px; }
+  .dv-pillars { grid-template-columns: 1fr; }
+  .dv-pillars::before { display: none; }
+  .dv-pillar::before { display: none; }
+  .dv-stats--2, .dv-stats--4 { grid-template-columns: 1fr; }
+  .dv-filters { grid-template-columns: 1fr; }
+  .dv-field--wide { grid-column: span 1; }
+  .dv-event { grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+  .dv-event--head { display: none; }
+  .dv-dist-row { grid-template-columns: 110px 1fr 60px; }
+  .dv-etype { grid-template-columns: 1fr auto; }
+  .dv-etype-flag { grid-column: 1 / -1; text-align: start; }
+}

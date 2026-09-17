@@ -1537,5 +1537,12 @@
   "Staff engagements": "Contrataciones de personal",
   "Financial records": "Registros financieros",
   "Devices": "Dispositivos",
-  "Scout reports": "Informes de scouts"
+  "Scout reports": "Informes de scouts",
+  "Checking historical store…": "Comprobando el almacén histórico…",
+  "DATA VAULT": "BÓVEDA DE DATOS",
+  "Football Organizations, Teams, People & Operations": "Organizaciones de futbol, equipos, personas y operaciones",
+  "Historical Data, Archive, Replay & Governance": "Datos históricos, archivo, reproducción y gobernanza",
+  "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Explorador histórico · Cronología y reproducción · Historial del club · Historial de entidades · Fuentes · Almacenamiento · Integridad · Retención",
+  "Open the vault": "Abrir la bóveda",
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Operaciones de la plataforma, infraestructura, inteligencia y gobernanza"
 }

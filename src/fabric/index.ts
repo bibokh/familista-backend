@@ -94,6 +94,11 @@ export {
 } from './history/history-recovery.service';
 
 export {
+  historyStats, clubHistorySummary, entityTypesInHistory, boundsUtc,
+  type HistoryStats, type SourceHistoryStat, type ClubHistorySummary,
+} from './history/history-stats.service';
+
+export {
   archiveEnabled, archiveStatus, archiveConfiguration, archivePartitionKey,
   archiveObjectStore, archiveWritesPermitted, manifestFor,
   exportArchiveBatch, mayPurgeAfterArchive,

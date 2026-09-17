@@ -45,7 +45,19 @@ describe('one Match Center, not two', () => {
     // Allow-listed, titled, mounted, and — the change this file records — an
     // item in the sidebar directly beneath Familista League rather than a tab
     // inside it.
-    expect(APP).toMatch(/_ALLOWED_PAGES[\s\S]{0,900}'match-center': 1/);
+    // Membership of the allow-list OBJECT, read from the object itself.
+    //
+    // This was a proximity regex — `_ALLOWED_PAGES` followed by the entry
+    // within 900 characters — which is a proxy for membership rather than
+    // membership: it passes on a match in a comment or a neighbouring object,
+    // and it fails the moment anyone adds an unrelated page to the list, which
+    // is exactly what adding DATA VAULT did. Slicing the object body and
+    // asserting the entry is in it tests the real property and cannot be
+    // broken by a sibling entry.
+    const allowStart = APP.indexOf('var _ALLOWED_PAGES = {');
+    expect(allowStart).toBeGreaterThan(-1);
+    const allowList = APP.slice(allowStart, APP.indexOf('};', allowStart));
+    expect(allowList).toContain("'match-center': 1");
     expect(APP).toContain("'match-center':'Match Center'");
     expect(APP).toContain("'match-center':                renderMatchCenterHTML");
     const nav = APP.slice(APP.indexOf('var CLUB_NAV_ITEMS = ['), APP.indexOf('function buildWorkspaceSidebar('));

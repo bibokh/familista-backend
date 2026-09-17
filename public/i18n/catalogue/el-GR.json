@@ -1537,5 +1537,12 @@
   "Staff engagements": "Αναθέσεις προσωπικού",
   "Financial records": "Οικονομικά αρχεία",
   "Devices": "Συσκευές",
-  "Scout reports": "Αναφορές σκάουτινγκ"
+  "Scout reports": "Αναφορές σκάουτινγκ",
+  "Checking historical store…": "Έλεγχος του ιστορικού αποθέματος…",
+  "DATA VAULT": "ΘΗΣΑΥΡΟΦΥΛΑΚΙΟ ΔΕΔΟΜΕΝΩΝ",
+  "Football Organizations, Teams, People & Operations": "Ποδοσφαιρικοί οργανισμοί, ομάδες, άνθρωποι και λειτουργία",
+  "Historical Data, Archive, Replay & Governance": "Ιστορικά δεδομένα, αρχείο, αναπαραγωγή και διακυβέρνηση",
+  "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Εξερεύνηση ιστορικού · Χρονολόγιο και αναπαραγωγή · Ιστορικό συλλόγου · Ιστορικό οντοτήτων · Πηγές · Αποθήκευση · Ακεραιότητα · Διατήρηση",
+  "Open the vault": "Άνοιγμα θησαυροφυλακίου",
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Λειτουργία πλατφόρμας, υποδομή, ευφυΐα και διακυβέρνηση"
 }

@@ -1537,5 +1537,12 @@
   "Staff engagements": "Angažmá personálu",
   "Financial records": "Finanční záznamy",
   "Devices": "Zařízení",
-  "Scout reports": "Skautské zprávy"
+  "Scout reports": "Skautské zprávy",
+  "Checking historical store…": "Kontrola historického úložiště…",
+  "DATA VAULT": "TREZOR DAT",
+  "Football Organizations, Teams, People & Operations": "Fotbalové organizace, týmy, lidé a provoz",
+  "Historical Data, Archive, Replay & Governance": "Historická data, archiv, přehrávání a správa",
+  "Historical Explorer · Timeline & Replay · Club History · Entity History · Sources · Storage · Integrity · Retention": "Průzkumník historie · Časová osa a přehrávání · Historie klubu · Historie entit · Zdroje · Úložiště · Integrita · Uchovávání",
+  "Open the vault": "Otevřít trezor",
+  "Platform Operations, Infrastructure, Intelligence & Governance": "Provoz platformy, infrastruktura, inteligence a správa"
 }
