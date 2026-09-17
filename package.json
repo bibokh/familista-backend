@@ -37,7 +37,8 @@
     "i18n:sync": "node scripts/i18n-sync.js",
     "i18n:audit": "node scripts/i18n-audit.js",
     "test": "jest",
-    "start:server": "node dist/server.js"
+    "start:server": "node dist/server.js",
+    "contract:check": "jest tests/api-contract.unit.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",

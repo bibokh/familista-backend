@@ -1169,13 +1169,64 @@
 
   // ── loading ───────────────────────────────────────────────────────────────
 
+  /**
+   * The fields this screen cannot draw without.
+   *
+   * Not a schema and not a validator — the contract lives in
+   * `src/contracts/owner-api.contracts.ts` and is enforced by CI. This is the
+   * last line: if a payload somehow reaches a browser without them, the city
+   * must SAY SO rather than draw itself empty.
+   *
+   * That distinction is the entire lesson of the `relationships` defect. Every
+   * read in this module is guarded with `|| []`, which is correct for an empty
+   * platform and catastrophic for an absent field: both render a blank panel,
+   * and a blank panel reads as "nothing here" rather than "I was not told".
+   */
+  var REQUIRED = {
+    manifest: ['districts', 'components', 'relationships'],
+    health: ['overall', 'signals', 'counts'],
+  };
+
+  /**
+   * Which required fields a payload is missing.
+   *
+   * Absence only — a present-but-empty array is a real answer about a real
+   * platform and is never reported here.
+   */
+  function missingFields(payload, required) {
+    var missing = [];
+    for (var i = 0; i < required.length; i++) {
+      var k = required[i];
+      if (!payload || payload[k] === undefined || payload[k] === null) missing.push(k);
+    }
+    return missing;
+  }
+
+  /** A contract failure, said in the words a reader can act on. */
+  function contractError(endpoint, missing) {
+    return T('CONTRACT ERROR') + ' · ' + endpoint + ' · '
+      + T('the response did not carry:') + ' ' + missing.join(', ');
+  }
+
   function loadManifest() {
     return api('/system/infrastructure').then(function (d) {
+      var missing = missingFields(d, REQUIRED.manifest);
+      if (missing.length) {
+        IC.manifest = null;
+        IC.error = contractError('/system/infrastructure', missing);
+        return;
+      }
       IC.manifest = d; IC.error = null;
     }).catch(function (e) { IC.error = e.message; });
   }
   function loadHealth() {
     return api('/system/infrastructure/health').then(function (d) {
+      var missing = missingFields(d, REQUIRED.health);
+      if (missing.length) {
+        IC.health = null;
+        IC.error = contractError('/system/infrastructure/health', missing);
+        return;
+      }
       IC.health = d; IC.stream.lastAt = new Date().toISOString();
     }).catch(function (e) { IC.error = e.message; });
   }
@@ -1260,6 +1311,10 @@
             try {
               var data = JSON.parse(payload);
               if (name === 'health') {
+                // A frame missing what the screen needs is dropped, not
+                // installed. Replacing a good frame with an unusable one would
+                // blank a dashboard somebody is reading during an incident.
+                if (missingFields(data, REQUIRED.health).length) return;
                 IC.health = data;
                 IC.stream.state = 'LIVE';
                 IC.stream.lastAt = new Date().toISOString();

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-17T17:58:07.814Z",
+  "generatedAt": "2026-09-17T18:29:16.516Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -730,7 +730,7 @@
       "provider": "GitHub",
       "region": null,
       "repositoryPath": ".github/workflows/ci.yml",
-      "sourceEvidence": ".github/workflows/ci.yml — 10 named steps",
+      "sourceEvidence": ".github/workflows/ci.yml — 12 named steps",
       "dependencies": [
         "platform-core"
       ],
@@ -882,7 +882,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 135 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 136 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -942,7 +942,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": null,
-      "note": "514 TypeScript modules under src/."
+      "note": "515 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1422,8 +1422,8 @@
     "serviceModules": 101,
     "middleware": 21,
     "fabricModules": 50,
-    "totalTypeScript": 514,
-    "testSuites": 135,
+    "totalTypeScript": 515,
+    "testSuites": 136,
     "migrations": 40,
     "prismaModels": 340,
     "prismaEnums": 209
@@ -1496,6 +1496,8 @@
           "TypeScript build",
           "Boot probe (verify route registration)",
           "i18n check (locales synchronized)",
+          "API / frontend contract verification",
+          "Test suite",
           "Audit (informational)"
         ],
         "services": [

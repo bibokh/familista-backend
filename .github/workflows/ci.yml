@@ -1,4 +1,4 @@
-# Familista — CI: type-check + prisma format + boot probe on every PR.
+# Familista — CI: type-check, prisma, boot probe, contracts and tests on every PR.
 # Production deploys go through render.yaml → autoDeploy on main.
 # This workflow only validates the change; it never touches infra.
 
@@ -12,9 +12,9 @@ on:
 
 jobs:
   validate:
-    name: validate (tsc + prisma + boot probe)
+    name: validate (tsc + prisma + boot probe + contracts + tests)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -80,6 +80,27 @@ jobs:
       # change from merging, not stop production from starting.
       - name: i18n check (locales synchronized)
         run: npm run i18n:check
+
+      # The contract between the owner APIs and the screens that read them.
+      #
+      # Named as its own step rather than left inside the suite below, because
+      # this is the class of failure whose message matters: it names the
+      # endpoint, the field, what arrived and WHICH SCREEN breaks. A reviewer
+      # reading a red build should see "contract" in the step name and know
+      # what broke before opening the log.
+      #
+      # Authoritative, not informational. No `|| true`.
+      - name: API / frontend contract verification
+        run: npm run contract:check
+
+      # The test suite, which until now did not gate anything.
+      #
+      # 3760 tests ran on every developer's machine and on no pull request, so
+      # a change could turn the whole suite red and still merge green. That is
+      # how the contract defect this layer exists for reached main. Fifty-five
+      # seconds is a small price for the suite actually meaning something.
+      - name: Test suite
+        run: npm test
 
       - name: Audit (informational)
         run: npm audit --audit-level=high || true
