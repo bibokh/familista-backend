@@ -710,6 +710,15 @@ button.ic-tr:hover { background: rgba(34, 211, 238, .05); color: var(--ic-tx); }
 @media (max-width: 1660px) {
   .ic-mid { grid-template-columns: minmax(180px, 1fr) minmax(300px, 1.4fr) minmax(180px, 1fr); }
   .ic-edge { grid-template-columns: 150px 110px 150px 1fr; }
+  /* Two buildings per row, not one.
+     A north-band plot is 182px of usable width here, and a building was
+     allowed 108 — so two plus the 8px gap came to 224 and only one fitted.
+     CI/CD, which has five buildings and the longest names on the plan, became
+     a five-storey column 408px tall and left its neighbours ragged beside it.
+     87 is the widest a building can be and still let two share a row
+     (87 + 8 + 87 = 182). The labels wrap one line deeper; the plot is far
+     shorter, and the band reads as blocks again. */
+  .ic-building { max-width: 87px; }
 }
 @media (max-width: 1400px) {
   .ic-rail { flex-basis: 224px; }
