@@ -281,5 +281,13 @@
   "Writer state": "حالة الكاتب",
   "Written": "المكتوب",
   "Year": "السنة",
-  "Yesterday": "أمس"
+  "Yesterday": "أمس",
+  "Stage 1": "المرحلة ١",
+  "Stage 2": "المرحلة ٢",
+  "Stage 4": "المرحلة ٤",
+  "Stage 5": "المرحلة ٥",
+  "Registered Data Fabric sources": "مصادر Data Fabric المسجّلة",
+  "Access": "الوصول",
+  "Durable Outbox": "صندوق الصادر الدائم",
+  "Writer": "كاتب السجلات"
 }

@@ -281,5 +281,13 @@
   "Writer state": "Writer state",
   "Written": "Written",
   "Year": "Year",
-  "Yesterday": "Yesterday"
+  "Yesterday": "Yesterday",
+  "Stage 1": "Stage 1",
+  "Stage 2": "Stage 2",
+  "Stage 4": "Stage 4",
+  "Stage 5": "Stage 5",
+  "Registered Data Fabric sources": "Registered Data Fabric sources",
+  "Access": "Access",
+  "Durable Outbox": "Durable Outbox",
+  "Writer": "Writer"
 }
