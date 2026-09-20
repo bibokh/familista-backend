@@ -281,5 +281,13 @@
   "Writer state": "Writer-Zustand",
   "Written": "Geschrieben",
   "Year": "Jahr",
-  "Yesterday": "Gestern"
+  "Yesterday": "Gestern",
+  "Stage 1": "Stufe 1",
+  "Stage 2": "Stufe 2",
+  "Stage 4": "Stufe 4",
+  "Stage 5": "Stufe 5",
+  "Registered Data Fabric sources": "Registrierte Data-Fabric-Quellen",
+  "Access": "Zugriff",
+  "Durable Outbox": "Dauerhafter Outbox-Speicher",
+  "Writer": "Schreiber"
 }

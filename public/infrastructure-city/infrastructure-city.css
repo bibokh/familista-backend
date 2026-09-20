@@ -196,63 +196,218 @@ body.ic-city-open { overflow: hidden; }
 .ic-viewbtn.is-on { color: var(--ic-accent); border-color: rgba(34, 211, 238, .45); background: rgba(34, 211, 238, .09); }
 .ic-metaline { font-size: 11px; color: var(--ic-tx-3); font-family: "JetBrains Mono", ui-monospace, monospace; }
 
-.ic-city { display: flex; flex-direction: column; gap: 14px; align-items: stretch; }
-.ic-mid { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(320px, 1.5fr) minmax(200px, 1fr); gap: 14px; align-items: start; }
-.ic-zone { display: flex; flex-direction: column; gap: 12px; }
-.ic-zone--north, .ic-zone--south { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
-.ic-centre { display: flex; flex-direction: column; gap: 12px; }
+/* ── the plan ──────────────────────────────────────────────────────────────
+   Three layers in one stacking context: the GROUND the city stands on, the
+   ROADS between its buildings, and the districts themselves. Nothing here is
+   decorative — every street is a row of `manifest.relationships`, and a
+   building's height is its connection count. The illumination is cyan because
+   that is this product's accent, and it is used to say "live", never to fill
+   space. */
+
+.ic-city { position: relative; isolation: isolate; padding: 4px; }
+
+/* The ground. A surveyor's grid fading to a horizon, so the districts read as
+   parcels on a site rather than boxes on a page. */
+.ic-ground {
+  position: absolute; inset: -4px; z-index: 0; pointer-events: none; border-radius: 20px;
+  background:
+    radial-gradient(1200px 420px at 50% -6%, rgba(34, 211, 238, .10), transparent 66%),
+    radial-gradient(900px 500px at 50% 108%, rgba(59, 130, 246, .09), transparent 70%),
+    linear-gradient(180deg, rgba(10, 16, 30, .55), rgba(5, 9, 17, .82));
+  border: 1px solid rgba(255, 255, 255, .05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035), inset 0 -40px 80px -50px rgba(34, 211, 238, .22);
+}
+.ic-ground::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; opacity: .5;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px);
+  background-size: 68px 68px;
+  -webkit-mask-image: radial-gradient(120% 90% at 50% 40%, #000 30%, transparent 78%);
+  mask-image: radial-gradient(120% 90% at 50% 40%, #000 30%, transparent 78%);
+}
+
+.ic-roads { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: visible; }
+.ic-road {
+  fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
+  stroke: rgba(148, 163, 184, .42);
+}
+.ic-road--ok    { stroke: rgba(52, 211, 153, .55); }
+.ic-road--warn  { stroke: rgba(251, 191, 36, .52); }
+.ic-road--crit  { stroke: rgba(248, 113, 113, .62); }
+.ic-road--unver { stroke: rgba(167, 139, 250, .42); }
+/* A route the reader sent themselves to, by clicking an alert. */
+.ic-road.is-hot { stroke: var(--ic-accent); stroke-width: 2.2; filter: drop-shadow(0 0 6px rgba(34, 211, 238, .75)); }
+.ic-road-node        { fill: rgba(148, 163, 184, .45); }
+.ic-road-node--ok    { fill: rgba(52, 211, 153, .6); }
+.ic-road-node--warn  { fill: rgba(251, 191, 36, .75); }
+.ic-road-node--crit  { fill: rgba(248, 113, 113, .85); }
+.ic-road-node--unver { fill: rgba(167, 139, 250, .6); }
+.ic-road-node.is-hot { fill: var(--ic-accent); }
+
+.ic-plan { position: relative; z-index: 2; display: flex; flex-direction: column; gap: 18px; padding: 20px 18px 22px; }
+.ic-mid { display: grid; grid-template-columns: minmax(190px, .92fr) minmax(360px, 1.7fr) minmax(190px, .92fr); gap: 18px; align-items: start; }
+.ic-zone { display: flex; flex-direction: column; gap: 16px; }
+.ic-zone--north, .ic-zone--south { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; align-items: start; }
+.ic-centre { display: flex; flex-direction: column; gap: 16px; }
+
+/* ── the core ──────────────────────────────────────────────────────────────
+   The tallest structure on the plan, and the only one given a footprint of its
+   own. Everything else is a district; this is the building the city is for. */
 
 .ic-core {
-  display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer;
-  padding: 22px 18px; border-radius: 18px; text-align: center; color: inherit; font-family: inherit;
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px;
+  cursor: pointer; padding: 34px 26px 30px; border-radius: 14px 14px 6px 6px; text-align: center;
+  color: inherit; font-family: inherit; overflow: hidden;
+  width: min(430px, 100%); margin: 6px auto 10px; min-height: 210px; justify-content: flex-end;
   background:
-    radial-gradient(420px 180px at 50% 0%, rgba(34, 211, 238, .16), transparent 70%),
-    rgba(255, 255, 255, .03);
-  border: 1px solid rgba(34, 211, 238, .34);
-  box-shadow: 0 0 46px -18px rgba(34, 211, 238, .55);
+    linear-gradient(180deg, rgba(34, 211, 238, .14), rgba(12, 20, 38, .86) 58%),
+    linear-gradient(180deg, rgba(23, 34, 60, .9), rgba(8, 13, 25, .95));
+  border: 1px solid rgba(34, 211, 238, .40);
+  box-shadow:
+    0 0 60px -20px rgba(34, 211, 238, .65),
+    0 22px 46px -26px rgba(0, 0, 0, .9),
+    inset 0 1px 0 rgba(255, 255, 255, .10);
 }
-.ic-core:hover { border-color: rgba(34, 211, 238, .52); }
-.ic-core-mark { font-size: 26px; color: var(--ic-accent); }
-.ic-core-title { font-size: 16px; font-weight: 900; letter-spacing: .3px; }
-.ic-core-sub { font-size: 11px; color: var(--ic-tx-3); letter-spacing: .4px; }
-.ic-core--crit { border-color: rgba(248, 113, 113, .5); box-shadow: 0 0 46px -18px rgba(248, 113, 113, .5); }
-.ic-core--warn { border-color: rgba(251, 191, 36, .45); box-shadow: 0 0 46px -18px rgba(251, 191, 36, .45); }
+/* The light it casts on the ground around it. */
+.ic-core-halo {
+  position: absolute; left: 50%; bottom: -46%; width: 150%; height: 88%;
+  transform: translateX(-50%); pointer-events: none;
+  background: radial-gradient(closest-side, rgba(34, 211, 238, .30), transparent 72%);
+}
+/* Storeys, drawn as a lit facade rather than as an image. */
+.ic-core::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .62;
+  background-image:
+    /* mullions and floor plates — a facade, at a building's frequency rather
+       than a grid's */
+    linear-gradient(90deg, rgba(150, 226, 240, .17) 0 1px, transparent 1px 38px),
+    linear-gradient(rgba(150, 226, 240, .10) 0 1px, transparent 1px 26px),
+    /* the service core, running the full height */
+    linear-gradient(90deg, transparent 0 46%, rgba(34, 211, 238, .16) 46% 54%, transparent 54%);
+  background-size: 38px 100%, 100% 26px, 100% 100%;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 18%, rgba(0,0,0,.42) 62%, transparent 92%);
+  mask-image: linear-gradient(180deg, transparent 0, #000 18%, rgba(0,0,0,.42) 62%, transparent 92%);
+}
+.ic-core:hover { border-color: rgba(34, 211, 238, .62); }
+.ic-core-mark { position: relative; font-size: 30px; color: var(--ic-accent); text-shadow: 0 0 22px rgba(34, 211, 238, .85); }
+.ic-core-title { position: relative; font-size: 17px; font-weight: 900; letter-spacing: .3px; }
+.ic-core-sub { position: relative; font-size: 11px; color: var(--ic-tx-3); letter-spacing: .5px; }
+.ic-core .ic-chip { position: relative; }
+.ic-core--crit { border-color: rgba(248, 113, 113, .55); box-shadow: 0 0 60px -20px rgba(248, 113, 113, .6), 0 22px 46px -26px rgba(0,0,0,.9); }
+.ic-core--crit .ic-core-halo { background: radial-gradient(closest-side, rgba(248, 113, 113, .3), transparent 72%); }
+.ic-core--warn { border-color: rgba(251, 191, 36, .5); box-shadow: 0 0 60px -20px rgba(251, 191, 36, .55), 0 22px 46px -26px rgba(0,0,0,.9); }
+.ic-core--warn .ic-core-halo { background: radial-gradient(closest-side, rgba(251, 191, 36, .28), transparent 72%); }
+
+/* ── a district is a plot of land ──────────────────────────────────────────
+   Surveyed boundary, a zoning label on the edge, and the buildings standing on
+   it. The state is the boundary's colour — never a wash of colour across the
+   parcel, which would read as terrain rather than as a reading. */
 
 .ic-district {
-  background: rgba(255, 255, 255, .022); border: 1px solid var(--ic-line);
-  border-radius: 13px; padding: 12px 13px 13px; position: relative;
+  position: relative; padding: 16px 14px 14px; border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .028), rgba(255, 255, 255, .008)),
+    linear-gradient(180deg, rgba(12, 19, 34, .5), rgba(8, 13, 24, .34));
+  border: 1px solid rgba(255, 255, 255, .07);
+  box-shadow: 0 14px 30px -26px rgba(0, 0, 0, .95), inset 0 1px 0 rgba(255, 255, 255, .03);
 }
-/* A district's state is an EDGE, never a filled block across the panel. */
-.ic-district--ok   { border-color: rgba(52, 211, 153, .22); }
-.ic-district--warn { border-color: rgba(251, 191, 36, .34); background: rgba(251, 191, 36, .04); }
-.ic-district--crit { border-color: rgba(248, 113, 113, .40); background: rgba(248, 113, 113, .05); }
-.ic-district--off, .ic-district--future { opacity: .78; }
+/* The surveyed edge: a hairline inset, the way a plot is marked on a site plan. */
+.ic-plot-edge {
+  position: absolute; inset: 5px; border-radius: 7px; pointer-events: none;
+  border: 1px dashed rgba(255, 255, 255, .055);
+}
+.ic-district--ok   { border-color: rgba(52, 211, 153, .26); }
+.ic-district--warn { border-color: rgba(251, 191, 36, .42); box-shadow: 0 14px 30px -26px rgba(0,0,0,.95), 0 0 30px -18px rgba(251, 191, 36, .5); }
+.ic-district--crit { border-color: rgba(248, 113, 113, .5);  box-shadow: 0 14px 30px -26px rgba(0,0,0,.95), 0 0 34px -16px rgba(248, 113, 113, .6); }
+.ic-district--off, .ic-district--future { opacity: .82; }
 .ic-district.is-focus {
   border-color: var(--ic-accent);
-  box-shadow: 0 0 0 1px rgba(34, 211, 238, .4), 0 0 34px -12px rgba(34, 211, 238, .7);
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, .45), 0 0 42px -14px rgba(34, 211, 238, .8);
 }
-.ic-district-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-.ic-district-name { font-size: 12.5px; font-weight: 800; }
+.ic-district.is-focus .ic-plot-edge { border-color: rgba(34, 211, 238, .4); }
+.ic-district-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin: -4px 0 14px;
+}
+.ic-district-name {
+  font-size: 10px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase;
+  color: var(--ic-tx-2);
+}
 
-.ic-buildings { display: flex; flex-wrap: wrap; gap: 6px; }
+/* ── buildings ─────────────────────────────────────────────────────────────
+   A tower and its plate. The HEIGHT is `data-ic-rank`, which is the component's
+   connection count banded into five storeys — a real property of the
+   architecture, not a decorative variation. The roof light is its live state. */
+
+.ic-buildings { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 8px; }
 .ic-building {
-  display: inline-flex; align-items: center; gap: 7px; padding: 5px 9px; border-radius: 8px;
-  cursor: pointer; text-align: start; font-family: inherit;
-  background: rgba(255, 255, 255, .03); border: 1px solid var(--ic-line);
-  color: var(--ic-tx-2); font-size: 11.5px; font-weight: 600;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 0; border: 0; background: none; cursor: pointer; font-family: inherit;
+  color: var(--ic-tx-2); min-width: 54px; max-width: 108px;
 }
-.ic-building:hover { border-color: var(--ic-line-2); color: var(--ic-tx); }
-.ic-building-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ic-off); flex: 0 0 auto; }
-.ic-building--ok .ic-building-dot    { background: var(--ic-ok); }
-.ic-building--warn .ic-building-dot  { background: var(--ic-warn); }
-.ic-building--crit .ic-building-dot  { background: var(--ic-crit); }
-.ic-building--unver .ic-building-dot { background: var(--ic-unver); }
-.ic-building--future { border-style: dashed; opacity: .68; cursor: default; }
-.ic-building--future .ic-building-dot { background: transparent; border: 1px dashed var(--ic-off); }
-.ic-building--warn { border-color: rgba(251, 191, 36, .3); }
-.ic-building--crit { border-color: rgba(248, 113, 113, .36); color: var(--ic-tx); }
-.ic-building.is-focus { border-color: var(--ic-accent); box-shadow: 0 0 0 1px rgba(34, 211, 238, .45); }
-.ic-building-ver { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; opacity: .7; }
+.ic-tower {
+  position: relative; display: flex; flex-direction: column; justify-content: flex-end;
+  width: 30px; border-radius: 3px 3px 1px 1px;
+}
+.ic-building[data-ic-rank="1"] .ic-tower { height: 20px; }
+.ic-building[data-ic-rank="2"] .ic-tower { height: 30px; }
+.ic-building[data-ic-rank="3"] .ic-tower { height: 42px; }
+.ic-building[data-ic-rank="4"] .ic-tower { height: 56px; }
+.ic-building[data-ic-rank="5"] .ic-tower { height: 72px; }
+.ic-tower-body {
+  flex: 1 1 auto; border-radius: 2px 2px 1px 1px;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.10), rgba(255,255,255,0) 55%),
+    linear-gradient(180deg, rgba(60, 80, 116, .82), rgba(22, 32, 54, .92));
+  border: 1px solid rgba(255, 255, 255, .10); border-bottom: 0;
+  box-shadow: 0 10px 18px -12px rgba(0, 0, 0, .9);
+}
+/* Lit floors. Two columns of windows, so mass reads as a building. */
+.ic-tower-body::after {
+  content: ''; position: absolute; inset: 6px 6px 0; opacity: .55; border-radius: 1px;
+  background-image:
+    linear-gradient(90deg, rgba(148, 197, 226, .5) 0 2px, transparent 2px 7px),
+    linear-gradient(rgba(148, 197, 226, .28) 0 2px, transparent 2px 7px);
+}
+.ic-tower-roof {
+  position: absolute; top: -4px; left: 50%; transform: translateX(-50%);
+  display: grid; place-items: center; width: 100%;
+}
+.ic-building-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--ic-off);
+  box-shadow: 0 0 0 2px rgba(6, 10, 18, .9);
+}
+.ic-building--ok    .ic-building-dot { background: var(--ic-ok);    box-shadow: 0 0 0 2px rgba(6,10,18,.9), 0 0 10px rgba(52, 211, 153, .95); }
+.ic-building--warn  .ic-building-dot { background: var(--ic-warn);  box-shadow: 0 0 0 2px rgba(6,10,18,.9), 0 0 12px rgba(251, 191, 36, 1); }
+.ic-building--crit  .ic-building-dot { background: var(--ic-crit);  box-shadow: 0 0 0 2px rgba(6,10,18,.9), 0 0 14px rgba(248, 113, 113, 1); }
+.ic-building--unver .ic-building-dot { background: var(--ic-unver); box-shadow: 0 0 0 2px rgba(6,10,18,.9), 0 0 10px rgba(167, 139, 250, .9); }
+/* A healthy tower is lit; an unmeasured one stands dark. The difference is the
+   whole point of the plan, so it is carried by the facade and not only a dot. */
+.ic-building--ok .ic-tower-body   { background: linear-gradient(90deg, rgba(255,255,255,.12), rgba(255,255,255,0) 55%), linear-gradient(180deg, rgba(34, 94, 96, .9), rgba(16, 38, 46, .95)); border-color: rgba(52, 211, 153, .3); }
+.ic-building--warn .ic-tower-body { background: linear-gradient(90deg, rgba(255,255,255,.12), rgba(255,255,255,0) 55%), linear-gradient(180deg, rgba(120, 92, 30, .92), rgba(46, 34, 12, .95)); border-color: rgba(251, 191, 36, .42); }
+.ic-building--crit .ic-tower-body { background: linear-gradient(90deg, rgba(255,255,255,.14), rgba(255,255,255,0) 55%), linear-gradient(180deg, rgba(126, 46, 46, .94), rgba(48, 18, 18, .96)); border-color: rgba(248, 113, 113, .5); }
+.ic-building:hover .ic-tower-body { border-color: var(--ic-line-2); filter: brightness(1.22); }
+.ic-building-label { display: flex; flex-direction: column; align-items: center; gap: 1px; max-width: 100%; }
+.ic-building-name {
+  font-size: 10px; font-weight: 650; line-height: 1.25; text-align: center;
+  max-width: 100%; overflow-wrap: break-word; hyphens: auto;
+}
+.ic-building-ver { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 8.5px; opacity: .6; }
+.ic-building.is-focus .ic-tower-body {
+  border-color: var(--ic-accent);
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, .6), 0 0 26px -4px rgba(34, 211, 238, .85);
+}
+.ic-building.is-focus .ic-building-name { color: var(--ic-tx); }
+
+/* An empty plot: the ground is marked out, nothing is built on it. */
+.ic-building--future { cursor: default; opacity: .6; }
+.ic-tower--plot { height: 14px !important; }
+.ic-tower--plot .ic-tower-body {
+  background: none; border: 1px dashed rgba(255, 255, 255, .16); border-bottom: 0; box-shadow: none;
+}
+.ic-tower--plot .ic-tower-body::after { content: none; }
+.ic-building--future .ic-building-dot { background: transparent; border: 1px dashed var(--ic-off); box-shadow: none; }
 
 .ic-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--ic-line); }
 .ic-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--ic-tx-3); }
@@ -555,6 +710,15 @@ button.ic-tr:hover { background: rgba(34, 211, 238, .05); color: var(--ic-tx); }
 @media (max-width: 1660px) {
   .ic-mid { grid-template-columns: minmax(180px, 1fr) minmax(300px, 1.4fr) minmax(180px, 1fr); }
   .ic-edge { grid-template-columns: 150px 110px 150px 1fr; }
+  /* Two buildings per row, not one.
+     A north-band plot is 182px of usable width here, and a building was
+     allowed 108 — so two plus the 8px gap came to 224 and only one fitted.
+     CI/CD, which has five buildings and the longest names on the plan, became
+     a five-storey column 408px tall and left its neighbours ragged beside it.
+     87 is the widest a building can be and still let two share a row
+     (87 + 8 + 87 = 182). The labels wrap one line deeper; the plot is far
+     shorter, and the band reads as blocks again. */
+  .ic-building { max-width: 87px; }
 }
 @media (max-width: 1400px) {
   .ic-rail { flex-basis: 224px; }

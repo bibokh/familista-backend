@@ -437,23 +437,59 @@
    * technology name by accident: this catalogue is closed and hand-authored,
    * and adding such an entry is the deliberate act that would do it.
    */
+  /**
+   * How connected a component is, from the manifest and nothing else.
+   *
+   * Its own declared dependencies, plus every relationship with either end on
+   * it. This is the ONE thing that varies a building's height, and it is a
+   * real, checkable property of the architecture: a thing many things lean on
+   * stands taller than a leaf. No invented metric goes near this.
+   */
+  function linkCount(id) {
+    if (!IC.manifest) return 0;
+    var c = componentById(id);
+    var n = c && c.dependencies ? c.dependencies.length : 0;
+    (IC.manifest.relationships || []).forEach(function (e) {
+      if (e.from === id || e.to === id) n += 1;
+    });
+    return n;
+  }
+
+  /** Five storeys, so the skyline has rhythm without pretending to precision. */
+  function towerRank(n) {
+    return n >= 6 ? 5 : n >= 4 ? 4 : n >= 2 ? 3 : n >= 1 ? 2 : 1;
+  }
+
   function buildingHtml(c) {
     var state = componentState(c);
     var focused = IC.focusComponent === c.id;
+    var links = linkCount(c.id);
     return '<button class="ic-building ic-building--' + stateKind(state) + (focused ? ' is-focus' : '') + '"'
       + ' type="button" data-ic-component="' + esc(c.id) + '"'
+      + ' data-ic-rank="' + towerRank(links) + '"'
       + ' title="' + esc(c.name + ' · ' + stateLabel(state)) + '">'
-      + '<span class="ic-building-dot" aria-hidden="true"></span>'
+      + '<span class="ic-tower" aria-hidden="true">'
+      + '<span class="ic-tower-roof"><span class="ic-building-dot"></span></span>'
+      + '<span class="ic-tower-body"></span>'
+      + '</span>'
+      + '<span class="ic-building-label">'
       + '<span class="ic-building-name">' + esc(T(c.name)) + '</span>'
       + (c.version ? '<span class="ic-building-ver" data-no-i18n>' + esc(c.version) + '</span>' : '')
+      + '</span>'
       + '</button>';
   }
 
+  /** A plot with no building on it. Drawn as ground, because that is what it is. */
   function futureHtml(f) {
     return '<span class="ic-building ic-building--future" title="' + esc(f.reason) + '">'
-      + '<span class="ic-building-dot" aria-hidden="true"></span>'
+      + '<span class="ic-tower ic-tower--plot" aria-hidden="true">'
+      + '<span class="ic-tower-roof"><span class="ic-building-dot"></span></span>'
+      + '<span class="ic-tower-body"></span>'
+      + '</span>'
+      + '<span class="ic-building-label">'
       + '<span class="ic-building-name">' + esc(T(f.name)) + '</span>'
-      + '<span class="ic-building-ver">' + esc(T('Future')) + '</span></span>';
+      + '<span class="ic-building-ver">' + esc(T('Future')) + '</span>'
+      + '</span></span>';
   }
 
   function districtHtml(d) {
@@ -462,7 +498,8 @@
     var state = districtState(d.id);
     var focused = IC.focusDistrict === d.id;
     return '<div class="ic-district ic-district--' + stateKind(state) + (focused ? ' is-focus' : '') + '"'
-      + ' data-ic-district="' + esc(d.id) + '">'
+      + ' data-ic-district="' + esc(d.id) + '" data-ic-zone="' + esc(d.zone) + '">'
+      + '<span class="ic-plot-edge" aria-hidden="true"></span>'
       + '<div class="ic-district-head">'
       + '<span class="ic-district-name">' + esc(T(d.name)) + '</span>'
       + '<span class="ic-chip ic-chip--' + stateKind(state) + ' ic-chip--sm">' + esc(stateLabel(state)) + '</span>'
@@ -480,8 +517,9 @@
     var zoneOf = {};
     layout.zones.forEach(function (z) { zoneOf[z.zone] = z.districts.map(function (d) { return d.id; }); });
 
-    var render = function (zone) {
+    var render = function (zone, skip) {
       return (zoneOf[zone] || []).map(function (id) {
+        if (skip && skip.indexOf(id) >= 0) return '';
         var d = districtById(id);
         return d ? districtHtml(d) : '';
       }).join('');
@@ -490,24 +528,34 @@
     var core = IC.manifest.components.filter(function (c) { return c.district === 'core'; })[0];
     var coreState = core ? componentState(core) : 'UNKNOWN';
 
+    // The plan is three layers in one stacking context: the GROUND it is built
+    // on, the ROADS between buildings, and the districts themselves. The roads
+    // are drawn after paint from measured positions — see `drawRoads` — and sit
+    // beneath the buildings so a street runs under a tower, not over it.
     return '<div class="ic-city">'
+      + '<div class="ic-ground" aria-hidden="true"></div>'
+      + '<svg class="ic-roads" aria-hidden="true" focusable="false"></svg>'
+      + '<div class="ic-plan">'
       + '<div class="ic-zone ic-zone--north">' + render('north') + '</div>'
       + '<div class="ic-mid">'
       + '<div class="ic-zone ic-zone--west">' + render('west') + '</div>'
       + '<div class="ic-centre">'
       + '<button class="ic-core ic-core--' + stateKind(coreState) + '" type="button"'
       + (core ? ' data-ic-component="' + esc(core.id) + '"' : '') + '>'
+      + '<span class="ic-core-halo" aria-hidden="true"></span>'
       + '<span class="ic-core-mark" aria-hidden="true">◈</span>'
       + '<span class="ic-core-title" data-no-i18n>Familista Platform Core</span>'
       + '<span class="ic-core-sub">' + esc(T('Connected · Scalable · Impactful')) + '</span>'
       + '<span class="ic-chip ic-chip--' + stateKind(coreState) + ' ic-chip--sm">' + esc(stateLabel(coreState)) + '</span>'
       + '</button>'
-      + render('centre')
+      // The core district holds exactly the component the landmark above IS.
+      // Drawing it again below would put the same building on the plan twice.
+      + render('centre', ['core'])
       + '</div>'
       + '<div class="ic-zone ic-zone--east">' + render('east') + '</div>'
       + '</div>'
       + '<div class="ic-zone ic-zone--south">' + render('south') + '</div>'
-      + '</div>';
+      + '</div></div>';
   }
 
   // ── MAP VIEW ──────────────────────────────────────────────────────────────
@@ -1124,6 +1172,8 @@
       + '<div class="ic-body" id="ic-body">' + contentHtml() + '</div></main>'
       + '</div>' + inspectorHtml();
     try { icTranslate(host); } catch (_) {}
+    scheduleRoads(host);
+    watchPlan(host);
   }
 
   /** Repaint the body only, so the rail keeps its scroll and nothing jumps. */
@@ -1142,6 +1192,12 @@
       try { icTranslate(host.querySelector('.ic-insp')); } catch (_) {}
     }
     refreshChrome(host);
+    // The body was replaced, so the plan element is new: re-measure, and point
+    // the observer at the element that now exists rather than the detached one.
+    if (host.__icPlanObserver) { try { host.__icPlanObserver.disconnect(); } catch (_) {} }
+    host.__icPlanObserver = null;
+    scheduleRoads(host);
+    watchPlan(host);
   }
 
   /** The two places outside the body that carry live state. */
@@ -1370,6 +1426,123 @@
     else refreshChrome(host);
   }
 
+  // ── the roads ─────────────────────────────────────────────────────────────
+  //
+  // Every street on the plan is one row of `manifest.relationships`. There is
+  // no decorative line: if two buildings are joined, the repository proves they
+  // are, and the evidence is in the Connections list under Topology.
+  //
+  // Drawn AFTER layout because a street needs to know where its two ends
+  // landed, and only the browser knows that. The svg is absolutely positioned
+  // and `pointer-events: none`, so adding it moves nothing and intercepts
+  // nothing — the reader's scroll position is untouched by a redraw.
+
+  var roadFrame = 0;
+
+  function clearRoads(host) {
+    var svg = host.querySelector('.ic-roads');
+    if (svg) svg.innerHTML = '';
+  }
+
+  /**
+   * Measure the plan, then lay the streets.
+   *
+   * Orthogonal with rounded corners rather than straight diagonals: a city has
+   * streets, not sightlines, and a right-angled route reads as infrastructure
+   * where a diagonal reads as a graph edge.
+   */
+  function drawRoads(host) {
+    var svg = host.querySelector('.ic-roads');
+    var plan = host.querySelector('.ic-plan');
+    if (!svg || !plan || !IC.manifest) return;
+
+    var edges = IC.manifest.relationships || [];
+    if (!edges.length) { svg.innerHTML = ''; return; }
+
+    var base = plan.getBoundingClientRect();
+    if (!base.width || !base.height) return;
+    svg.setAttribute('viewBox', '0 0 ' + Math.round(base.width) + ' ' + Math.round(base.height));
+    svg.setAttribute('width', Math.round(base.width));
+    svg.setAttribute('height', Math.round(base.height));
+
+    var at = function (id) {
+      var el = plan.querySelector('[data-ic-component="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+      if (!el) return null;
+      var r = el.getBoundingClientRect();
+      return { x: r.left - base.left + r.width / 2, y: r.top - base.top + r.height / 2 };
+    };
+
+    var parts = [];
+    edges.forEach(function (e) {
+      var a = at(e.from);
+      var b = at(e.to);
+      if (!a || !b) return;                       // one end is off-plan; draw nothing
+
+      var from = componentById(e.from);
+      var kind = stateKind(from ? componentState(from) : 'UNKNOWN');
+      var hot = IC.focusPaths.indexOf(e.from + '>' + e.to) >= 0;
+
+      // An L with a filleted corner, turning on whichever axis is the SHORT
+      // one. Always turning on x sent a route that is mostly vertical out to a
+      // midpoint far to the side and back — a detour across the plan that reads
+      // as a mistake rather than as a street.
+      var dx = b.x - a.x;
+      var dy = b.y - a.y;
+      var turn;
+      if (Math.abs(dx) < 2 || Math.abs(dy) < 2) {
+        turn = 'M' + a.x + ',' + a.y + ' L' + b.x + ',' + b.y;   // already straight
+      } else if (Math.abs(dy) >= Math.abs(dx)) {
+        var midY = a.y + dy / 2;
+        var ry = Math.min(14, Math.abs(dy) / 4, Math.abs(dx) / 2);
+        turn = 'M' + a.x + ',' + a.y
+          + ' L' + a.x + ',' + (midY - Math.sign(dy) * ry)
+          + ' Q' + a.x + ',' + midY + ' ' + (a.x + Math.sign(dx) * ry) + ',' + midY
+          + ' L' + (b.x - Math.sign(dx) * ry) + ',' + midY
+          + ' Q' + b.x + ',' + midY + ' ' + b.x + ',' + (midY + Math.sign(dy) * ry)
+          + ' L' + b.x + ',' + b.y;
+      } else {
+        var midX = a.x + dx / 2;
+        var rx = Math.min(14, Math.abs(dx) / 4, Math.abs(dy) / 2);
+        turn = 'M' + a.x + ',' + a.y
+          + ' L' + (midX - Math.sign(dx) * rx) + ',' + a.y
+          + ' Q' + midX + ',' + a.y + ' ' + midX + ',' + (a.y + Math.sign(dy) * rx)
+          + ' L' + midX + ',' + (b.y - Math.sign(dy) * rx)
+          + ' Q' + midX + ',' + b.y + ' ' + (midX + Math.sign(dx) * rx) + ',' + b.y
+          + ' L' + b.x + ',' + b.y;
+      }
+
+      parts.push('<path class="ic-road ic-road--' + kind + (hot ? ' is-hot' : '') + '" d="' + turn + '"/>');
+      parts.push('<circle class="ic-road-node ic-road-node--' + kind + (hot ? ' is-hot' : '') + '" cx="'
+        + b.x + '" cy="' + b.y + '" r="2.5"/>');
+    });
+
+    svg.innerHTML = parts.join('');
+  }
+
+  /** Redraw on the next frame, after the browser has laid the plan out. */
+  function scheduleRoads(host) {
+    if (roadFrame) cancelAnimationFrame(roadFrame);
+    roadFrame = requestAnimationFrame(function () {
+      roadFrame = 0;
+      try { drawRoads(host); } catch (_) { clearRoads(host); }
+    });
+  }
+
+  /**
+   * Keep the streets attached to the buildings when the window changes.
+   *
+   * One observer for the life of the mount, on the plan itself, so a column
+   * reflow at a breakpoint re-lays the roads rather than leaving them pointing
+   * at where a building used to be.
+   */
+  function watchPlan(host) {
+    if (host.__icPlanObserver || typeof ResizeObserver !== 'function') return;
+    var obs = new ResizeObserver(function () { scheduleRoads(host); });
+    host.__icPlanObserver = obs;
+    var plan = host.querySelector('.ic-plan');
+    if (plan) obs.observe(plan);
+  }
+
   // ── alert → locate ────────────────────────────────────────────────────────
 
   /**
@@ -1514,7 +1687,15 @@
   };
 
   /** Torn down when the reader leaves, so no stream survives the page. */
-  window.teardownFamilistaInfrastructureCity = function () { stopStream(); };
+  window.teardownFamilistaInfrastructureCity = function () {
+    stopStream();
+    if (roadFrame) { cancelAnimationFrame(roadFrame); roadFrame = 0; }
+    var host = document.getElementById('ic-root');
+    if (host && host.__icPlanObserver) {
+      try { host.__icPlanObserver.disconnect(); } catch (_) {}
+      host.__icPlanObserver = null;
+    }
+  };
 
   // Exposed for the test suite, which asserts the state vocabulary rather than
   // trusting a comment about it.

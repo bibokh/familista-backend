@@ -428,21 +428,28 @@
       }).join('')
       : '<div class="dv-src-empty">' + esc(T('No sources registered.')) + '</div>';
 
-    var pillar = function (key, title, sub, state, stateKind, detail) {
-      return '<div class="dv-pillar dv-pillar--' + key + '" data-dv-pillar="' + key + '">'
-        + '<div class="dv-pillar-state dv-pillar-state--' + stateKind + '">' + esc(state) + '</div>'
-        + '<div class="dv-pillar-title">' + esc(title) + '</div>'
-        + '<div class="dv-pillar-sub">' + esc(sub) + '</div>'
-        + '<div class="dv-pillar-detail">' + detail + '</div>'
-        + '</div>';
+    // SOURCES → FABRIC → HOT STORE → ARCHIVE → ACCESS, laid out as the path an
+    // event actually takes, with the vault core as the mass in the middle.
+    // Every figure on it is measured: the chips are the registry's with their
+    // real counts, the hot store carries the real total, and the archive says
+    // NOT CONFIGURED because it is.
+    var stage = function (key, kind, label, title, sub, body) {
+      return '<section class="dv-vstage dv-vstage--' + key + '" data-dv-stage="' + key + '">'
+        + '<div class="dv-vstage-tag dv-vstage-tag--' + kind + '">' + esc(label) + '</div>'
+        + '<div class="dv-vstage-title">' + esc(title) + '</div>'
+        + (sub ? '<div class="dv-vstage-sub">' + esc(sub) + '</div>' : '')
+        + '<div class="dv-vstage-body">' + body + '</div>'
+        + '</section>';
+    };
+
+    var conduit = function (kind) {
+      return '<div class="dv-conduit dv-conduit--' + kind + '" aria-hidden="true">'
+        + '<span class="dv-conduit-line"></span><span class="dv-conduit-head"></span></div>';
     };
 
     var liveDetail = '<span class="dv-pillar-figure">'
       + (s ? esc(num((s.sources || []).filter(function (x) { return x.total > 0; }).length)) : '—')
       + '</span><span class="dv-pillar-unit">' + esc(T('sources recorded')) + '</span>';
-
-    var hotDetail = '<span class="dv-pillar-figure">' + metricHtml(total, T('The historical store has not answered yet.'))
-      + '</span><span class="dv-pillar-unit">' + esc(T('events stored')) + '</span>';
 
     var coldDetail = '<span class="dv-pillar-unit">'
       + esc(archive && archive.missing && archive.missing.length
@@ -450,25 +457,63 @@
         : T('Not configured.'))
       + '</span>';
 
+    var w = h && h.writer ? h.writer : null;
+    var writerState = w ? String(w.state || '').toUpperCase() : '';
+    var hotKind = total === 0 ? 'idle' : (writerState && writerState !== 'OK' && writerState !== 'HEALTHY' ? 'warn' : 'ok');
+
+    // The vault core: layered storage zones, each one a real reading.
+    var zone = function (kind, name, value) {
+      return '<div class="dv-zone dv-zone--' + kind + '">'
+        + '<span class="dv-zone-name">' + esc(name) + '</span>'
+        + '<span class="dv-zone-value" data-no-i18n>' + value + '</span></div>';
+    };
+
+    var coreBody = '<div class="dv-zones">'
+      + zone('hot', T('Hot History Store'), metricHtml(total, T('The historical store has not answered yet.')))
+      + zone('outbox', T('Durable Outbox'),
+        (h && h.delivery && h.delivery.pending ? esc(num(h.delivery.pending.pending)) : '—'))
+      + zone('writer', T('Writer'), (w ? esc(num(w.written)) : '—'))
+      + '</div>'
+      + '<div class="dv-core-foot">' + esc(T('PostgreSQL · queryable, append-only')) + '</div>';
+
     return '<div class="dv-diagram">'
-      + '<div class="dv-core">'
+      + '<div class="dv-arch">'
+
+      // ── 1 · SOURCES ──
+      + stage('sources', 'ok', T('Stage 1'), T('Sources'), T('Registered Data Fabric sources'),
+        '<div class="dv-feed" aria-label="Registered Data Fabric sources">' + chips + '</div>')
+      + conduit('ok')
+
+      // ── 2 · DATA FABRIC ──
+      + stage('fabric', 'ok', T('Stage 2'), T('Live Data Fabric'), T('Publishes every platform event'),
+        '<div class="dv-pillar-detail">' + liveDetail + '</div>')
+      + conduit('ok')
+
+      // ── 3 · THE CORE ──
+      + '<section class="dv-vault dv-vault--' + hotKind + '" data-dv-pillar="hot">'
+      + '<span class="dv-vault-halo" aria-hidden="true"></span>'
+      + '<div class="dv-vault-head">'
       + '<div class="dv-core-mark" aria-hidden="true">⛁</div>'
       + '<div class="dv-core-title" data-no-i18n>Familista Data Vault</div>'
       + '<div class="dv-core-sub">' + esc(T('Historical Memory of the Platform')) + '</div>'
       + '</div>'
-      + '<div class="dv-feed" aria-label="Registered Data Fabric sources">' + chips + '</div>'
-      + '<div class="dv-trunk" aria-hidden="true"></div>'
-      + '<div class="dv-pillars">'
-      + pillar('live', T('Live Data Fabric'), T('Publishes every platform event'), T('Active'), 'ok', liveDetail)
-      + pillar('hot', T('Hot History Store'), T('PostgreSQL · queryable, append-only'),
-        (total === 0 ? T('Empty') : T('Active')), (total === 0 ? 'idle' : 'ok'), hotDetail)
-      + pillar('cold', T('Long-Term Archive'), T('Partitioned cold export'), T('Not configured'), 'off', coldDetail)
-      + '</div>'
-      + '<div class="dv-trunk dv-trunk--down" aria-hidden="true"></div>'
-      + '<div class="dv-rail-out">'
-      + '<button class="dv-out" type="button" data-dv-nav="explorer">' + esc(T('Query')) + '</button>'
-      + '<button class="dv-out" type="button" data-dv-nav="replay">' + esc(T('Replay')) + '</button>'
-      + '<button class="dv-out" type="button" data-dv-nav="integrity">' + esc(T('Audit')) + '</button>'
+      + '<div class="dv-vault-body">' + coreBody + '</div>'
+      + '</section>'
+      + conduit('off')
+
+      // ── 4 · ARCHIVE ──
+      + stage('cold', 'off', T('Stage 4'), T('Long-Term Archive'), T('Partitioned cold export'),
+        '<div class="dv-pillar-detail">' + coldDetail + '</div>')
+      + conduit('off')
+
+      // ── 5 · ACCESS ──
+      + stage('access', 'ok', T('Stage 5'), T('Access'), T('Read-only'),
+        '<div class="dv-rail-out">'
+        + '<button class="dv-out" type="button" data-dv-nav="explorer">' + esc(T('Query')) + '</button>'
+        + '<button class="dv-out" type="button" data-dv-nav="replay">' + esc(T('Replay')) + '</button>'
+        + '<button class="dv-out" type="button" data-dv-nav="integrity">' + esc(T('Audit')) + '</button>'
+        + '</div>')
+
       + '</div>'
       + '</div>';
   }
@@ -1429,7 +1474,10 @@
       void chip.offsetWidth;   // restart the animation rather than queue it
       chip.classList.add('is-pulse');
     }
-    var hot = host.querySelector('.dv-stage .dv-pillar--hot');
+    // The hot store, wherever it is drawn. Addressed by the data attribute
+    // rather than by the class the old pillar carried, so the playback pulse
+    // stays attached to the thing it means and not to a particular drawing.
+    var hot = host.querySelector('.dv-stage [data-dv-pillar="hot"]');
     if (hot) {
       hot.classList.remove('is-pulse');
       void hot.offsetWidth;
