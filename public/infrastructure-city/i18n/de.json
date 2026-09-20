@@ -189,5 +189,7 @@
   "Archive Exporter": "Archiv-Exporter",
   "Coverage Gate": "Coverage-Gate",
   "AI Infrastructure Assistant": "KI-Infrastrukturassistent",
-  "Vulnerability Scanning": "Schwachstellen-Scan"
+  "Vulnerability Scanning": "Schwachstellen-Scan",
+  "CONTRACT ERROR": "VERTRAGSFEHLER",
+  "the response did not carry:": "die Antwort enthielt nicht:"
 }

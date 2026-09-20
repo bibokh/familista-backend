@@ -19,6 +19,29 @@ import jwt from 'jsonwebtoken';
 import { createApp } from '../src/app';
 import type { Application } from 'express';
 
+/**
+ * The identity read this suite did not know it was making.
+ *
+ * The header above says these tests are safe without a live database because
+ * the guard rejects before any Prisma call. `authenticate` verifies the token
+ * and then reads the user row — it has to, because a token cannot say whether
+ * the account is still active. With no database the read THREW and the request
+ * became a 500, which satisfied `expect(status).not.toBe(401)` by accident.
+ * Against a real empty database — which is what CI has — the read returns null,
+ * the guard correctly answers 401, and every one of those assertions fails.
+ *
+ * Stubbing the read makes the claim true rather than accidental: the guard is
+ * exercised with a known, active user in every environment. It is skipped
+ * entirely when TEST_DATABASE_URL is set, so the DB-gated sections below still
+ * talk to the real client.
+ */
+jest.mock('../src/config/database', () => require('./helpers/stub-database').stubDatabase({
+  id: '00000000-0000-0000-0000-000000000002',
+  clubId: '00000000-0000-0000-0000-000000000001',
+  role: 'HEAD_COACH',
+}));
+
+
 const DB_AVAILABLE  = !!process.env.TEST_DATABASE_URL;
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET!;
 
