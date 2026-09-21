@@ -981,6 +981,7 @@ var _FAM_PAGE_RENDER = {
   'system':                      ['renderFamilistaSystem'],
   'data-vault':                  ['renderFamilistaDataVault'],
   'infrastructure-city':         ['renderFamilistaInfrastructureCity'],
+  'source-core':                 ['renderFamilistaSourceCore'],
   'fos-core':                    ['renderFOSCore'],
   'fos-ai-orchestrator':         ['renderFOSAIOrchestrator'],
   'multi-club-network':          ['renderMultiClubNetwork'],
@@ -2372,6 +2373,7 @@ function _flushPendingRender() {
     case 'pg-system':             renderFamilistaSystem(document.getElementById('sy-root')); break;
     case 'pg-data-vault':         renderFamilistaDataVault(document.getElementById('dv-root')); break;
     case 'pg-infrastructure-city': renderFamilistaInfrastructureCity(document.getElementById('ic-root')); break;
+    case 'pg-source-core':        renderFamilistaSourceCore(document.getElementById('sc-root')); break;
     case 'pg-fos-core':           renderFOSCore();           break;
     case 'pg-fos-ai-orchestrator': renderFOSAIOrchestrator(); break;
     case 'pg-fos-knowledge-graph': renderFOSKnowledgeGraph(); break;
@@ -2486,6 +2488,15 @@ function navTo(page, el, _opts) {
     if (_wasCity && page !== 'infrastructure-city' && typeof window.teardownFamilistaInfrastructureCity === 'function') {
       window.teardownFamilistaInfrastructureCity();
     }
+    // SOURCE CORE is the fifth product and takes the shell the same way. It
+    // opens no stream of its own — source health IS infrastructure health, and
+    // the city already streams it — so the teardown is a formality kept for
+    // symmetry rather than a socket to close.
+    var _wasSource = document.body.classList.contains('sc-core-open');
+    document.body.classList.toggle('sc-core-open', page === 'source-core');
+    if (_wasSource && page !== 'source-core' && typeof window.teardownFamilistaSourceCore === 'function') {
+      window.teardownFamilistaSourceCore();
+    }
   } catch (_) {}
 
   // ── Separation guard ──
@@ -2508,6 +2519,11 @@ function navTo(page, el, _opts) {
     // INFRASTRUCTURE CITY — the platform's own architecture. The fourth
     // sibling, not a page inside any of the other three.
     'infrastructure-city': 1,
+    // SOURCE CORE — where the platform's data and technology come from. The
+    // fifth sibling. The allow-list is convenience, not security: the six
+    // endpoints behind it are guarded by assertPlatformOwner on the server,
+    // and a reader who types the hash without that role gets 403s, not a page.
+    'source-core': 1,
     // PLATFORM (8)
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
@@ -2615,7 +2631,7 @@ function navTo(page, el, _opts) {
 
   const titles = {
     // ── Owner Control ──
-    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City',
+    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'source-core':'Source Core',
     // ── Club Workspace ──
     'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League', 'match-center':'Match Center', 'people-access':'People & Access',
     // ── Platform (Phase B labels) ──
@@ -2886,6 +2902,7 @@ function _buildPageTemplateMap() {
     'clubs':                       renderClubsHTML,
     'data-vault':                  renderDataVaultHTML,
     'infrastructure-city':         renderInfrastructureCityHTML,
+    'source-core':                 renderSourceCoreHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
@@ -2964,7 +2981,7 @@ function _buildPageTemplateMap() {
 // These are mounted eagerly at boot so the click flow is instant.
 var _EAGER_PAGES = [
   'owner-home', 'clubs', 'club-home', 'squad',
-  'system', 'data-vault', 'infrastructure-city',
+  'system', 'data-vault', 'infrastructure-city', 'source-core',
   'fos-core', 'fos-observability', 'fos-security-center',
   'fos-automation-center', 'fos-rbac', 'fos-audit-governance',
   'multi-club-network', 'fos-admin-center',
@@ -3371,6 +3388,47 @@ function _vaultStatusHTML(state, text) {
  * failure is reported as a failure — an owner whose historical store is
  * unreachable should learn it on the way in, not after clicking.
  */
+/**
+ * Ask the source registry what it knows, and say so on the SOURCE CORE card.
+ *
+ * The number that matters here is not "how many sources" — it is how many of
+ * them anything is actually measuring. A platform with ninety-eight sources and
+ * seventy nobody measures should say the second number on the way in, because
+ * the first one on its own reads as coverage it does not have.
+ */
+function _fillSourceCoreStatus() {
+  const slot = document.getElementById('oh-core-state');
+  if (!slot) return;
+  const base = (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG.API_BASE) ? FAM_CONFIG.API_BASE : '/api/v1';
+  let token = '';
+  try { token = (window.State && window.State.token) || localStorage.getItem('familista_token') || ''; } catch (_) {}
+  const write = (state, text) => {
+    const el = document.getElementById('oh-core-state');
+    if (el) el.outerHTML = _vaultStatusHTML(state, text).replace('class="oh-card-state', 'id="oh-core-state" class="oh-card-state');
+  };
+  fetch(base + '/system/sources/health', {
+    headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
+    credentials: 'include',
+  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+    .then(function (body) {
+      const d = (body && body.data) || body || {};
+      // The registry has never been generated. That is a real state with a real
+      // remedy, and it is not "unknown".
+      if (d.state === 'NOT_GENERATED') return write('warn', 'Source registry not generated');
+      const c = d.counts || {};
+      // Labels and numbers rather than inflected sentences — the same reason the
+      // city card gives: a "%d source(s)" here would be the first string in the
+      // platform to need one form per plural category in thirty-one languages.
+      if (d.overall === 'CRITICAL') write('bad', 'Critical sources: ' + (c.critical || 0));
+      else if (d.overall === 'WARNING') write('warn', 'Sources in warning: ' + (c.warning || 0));
+      else if (typeof c.total === 'number') {
+        write('ok', 'Sources mapped: ' + c.total.toLocaleString()
+          + ' · not instrumented: ' + (c.notInstrumented || 0).toLocaleString());
+      } else write('idle', 'Source state unknown');
+    })
+    .catch(function () { write('bad', 'Source registry unreachable'); });
+}
+
 function _fillCityStatus() {
   const slot = document.getElementById('oh-city-state');
   if (!slot) return;
@@ -3448,13 +3506,13 @@ function _ownerHomeForPlatformOwner(user, club) {
   const clubs = _accessibleClubs();
   const clubCount = clubs.length || 1;
   return `
-    <div class="oh-wrap oh-wrap--four">
+    <div class="oh-wrap oh-wrap--core">
       <div class="oh-hero">
         <div class="oh-eyebrow">FAMILISTA · OWNER CONTROL</div>
         <h1 class="oh-title"><span>${_esc(_greeting())}</span>${user.firstName ? ', <span data-user-content>' + _esc(user.firstName) + '</span>' : ''}</h1>
         <div class="oh-sub">Where do you want to go today?</div>
       </div>
-      <div class="oh-cards oh-cards--four">
+      <div class="oh-cards oh-cards--core">
         <button class="oh-card oh-card--system" data-action="navTo" data-page="system" type="button">
           <div class="oh-card-icon">⚙️</div>
           <div class="oh-card-title">SYSTEM</div>
@@ -3484,6 +3542,20 @@ function _ownerHomeForPlatformOwner(user, club) {
           <div class="oh-card-list">Districts · Technology Map · Topology · Alerts &amp; Incidents · Capacity · Change History · Detection Rules · Evidence</div>
           <span id="oh-city-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Checking infrastructure…</span>
           <div class="oh-card-cta">Enter the city <span>→</span></div>
+        </button>
+        <!-- SOURCE CORE sits in the middle of the grid rather than at the end
+             of the row, because it is the middle of the architecture: the other
+             four rooms each describe something the platform HAS, and this one
+             describes where any of it CAME FROM. A fifth equal card in a row of
+             five would say they are five parallel things, which is not what
+             they are. -->
+        <button class="oh-card oh-card--core" data-action="navTo" data-page="source-core" type="button">
+          <div class="oh-card-icon">◉</div>
+          <div class="oh-card-title">SOURCE CORE</div>
+          <div class="oh-card-sub">Origins, Provenance, Lineage &amp; Dependency</div>
+          <div class="oh-card-list">Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence</div>
+          <span id="oh-core-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading source registry…</span>
+          <div class="oh-card-cta">Enter the core <span>→</span></div>
         </button>
       </div>
       <div class="oh-footer">
@@ -3610,6 +3682,7 @@ function renderOwnerHome() {
     if (yes) {
       try { _fillVaultStatus(); } catch (_) {}
       try { _fillCityStatus(); } catch (_) {}
+      try { _fillSourceCoreStatus(); } catch (_) {}
     }
   });
 }
@@ -28085,6 +28158,20 @@ function renderDataVaultHTML() {
 // translate it a second time from a different dictionary.
 function renderInfrastructureCityHTML() {
   return `<div class="page" id="pg-infrastructure-city" data-no-i18n><div id="ic-root"></div></div>`;
+}
+
+// SOURCE CORE — where every input the platform holds originated, how it
+// entered, what validated it and who consumes it. The fifth top-level product,
+// and the one the other four point at.
+//
+// A host and nothing else: everything inside it is drawn by
+// public/source-core/source-core.js. `data-no-i18n` is the same boundary the
+// other three platform rooms keep — Source Core carries English, German and
+// Arabic in its own catalogue under /source-core/i18n/, so the platform's
+// club-facing locale pass must reject this subtree rather than translate it a
+// second time from a different dictionary.
+function renderSourceCoreHTML() {
+  return `<div class="page" id="pg-source-core" data-no-i18n><div id="sc-root"></div></div>`;
 }
 
 function renderFOSCoreHTML() {

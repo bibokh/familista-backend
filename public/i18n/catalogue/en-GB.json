@@ -1554,5 +1554,16 @@
   "Infrastructure state unknown": "Infrastructure state unknown",
   "Infrastructure health unreachable": "Infrastructure health unreachable",
   "Critical infrastructure alerts: ": "Critical infrastructure alerts: ",
-  "Infrastructure warnings: ": "Infrastructure warnings: "
+  "Infrastructure warnings: ": "Infrastructure warnings: ",
+  "SOURCE CORE": "SOURCE CORE",
+  "Origins, Provenance, Lineage & Dependency": "Origins, Provenance, Lineage & Dependency",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence",
+  "Reading source registry…": "Reading source registry…",
+  "Enter the core": "Enter the core",
+  "Source registry not generated": "Source registry not generated",
+  "Source registry unreachable": "Source registry unreachable",
+  "Source state unknown": "Source state unknown",
+  "Critical sources: \u0000": "Critical sources: \u0000",
+  "Sources in warning: \u0000": "Sources in warning: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Sources mapped: \u0000 · not instrumented: \u0000"
 }

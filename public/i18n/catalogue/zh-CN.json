@@ -1551,5 +1551,16 @@
   "Infrastructure state unknown": "基础设施状态未知",
   "Infrastructure health unreachable": "无法获取基础设施健康状态",
   "Critical infrastructure alerts: ": "严重基础设施告警：",
-  "Infrastructure warnings: ": "基础设施警告："
+  "Infrastructure warnings: ": "基础设施警告：",
+  "SOURCE CORE": "数据源核心",
+  "Origins, Provenance, Lineage & Dependency": "来源、出处、血缘与依赖",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "源流 · 内部数据源 · 外部数据源 · 技术来源 · 未注册接入 · 未来数据源 · 数据血缘 · 证据",
+  "Reading source registry…": "正在读取数据源注册表…",
+  "Enter the core": "进入核心",
+  "Source registry not generated": "尚未生成数据源注册表",
+  "Source registry unreachable": "无法获取数据源注册表",
+  "Source state unknown": "数据源状态未知",
+  "Critical sources: \u0000": "严重数据源: \u0000",
+  "Sources in warning: \u0000": "告警中的数据源: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "已记录数据源: \u0000 · 未接入监测: \u0000"
 }

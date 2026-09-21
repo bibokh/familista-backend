@@ -1554,5 +1554,16 @@
   "Infrastructure state unknown": "Infrastructuurstatus onbekend",
   "Infrastructure health unreachable": "Infrastructuurstatus niet bereikbaar",
   "Critical infrastructure alerts: ": "Kritieke infrastructuurwaarschuwingen: ",
-  "Infrastructure warnings: ": "Infrastructuurwaarschuwingen: "
+  "Infrastructure warnings: ": "Infrastructuurwaarschuwingen: ",
+  "SOURCE CORE": "BRONKERN",
+  "Origins, Provenance, Lineage & Dependency": "Herkomst, provenance, datalijn & afhankelijkheid",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "Bronstroom · Interne bronnen · Externe bronnen · Technologieherkomst · Niet-geregistreerde invoer · Toekomstige bronnen · Datalijn · Bewijs",
+  "Reading source registry…": "Bronregister wordt gelezen…",
+  "Enter the core": "De kern binnengaan",
+  "Source registry not generated": "Bronregister niet gegenereerd",
+  "Source registry unreachable": "Bronregister niet bereikbaar",
+  "Source state unknown": "Bronstatus onbekend",
+  "Critical sources: \u0000": "Kritieke bronnen: \u0000",
+  "Sources in warning: \u0000": "Bronnen met waarschuwing: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Bronnen in kaart: \u0000 · niet gemeten: \u0000"
 }

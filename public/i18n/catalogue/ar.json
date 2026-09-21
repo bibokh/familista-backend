@@ -1554,5 +1554,16 @@
   "Infrastructure state unknown": "حالة البنية التحتية غير معروفة",
   "Infrastructure health unreachable": "تعذّر الوصول إلى حالة البنية التحتية",
   "Critical infrastructure alerts: ": "تنبيهات البنية التحتية الحرجة: ",
-  "Infrastructure warnings: ": "تحذيرات البنية التحتية: "
+  "Infrastructure warnings: ": "تحذيرات البنية التحتية: ",
+  "SOURCE CORE": "نواة المصادر",
+  "Origins, Provenance, Lineage & Dependency": "الأصول والمنشأ والنسب والاعتمادية",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "تدفّق المصادر · المصادر الداخلية · المصادر الخارجية · أصول التقنيات · الاستقبال غير المسجَّل · المصادر المستقبلية · نسب البيانات · الأدلّة",
+  "Reading source registry…": "جارٍ قراءة سجل المصادر…",
+  "Enter the core": "ادخل النواة",
+  "Source registry not generated": "لم يُنشأ سجل المصادر",
+  "Source registry unreachable": "تعذّر الوصول إلى سجل المصادر",
+  "Source state unknown": "حالة المصادر غير معروفة",
+  "Critical sources: \u0000": "المصادر الحرجة: \u0000",
+  "Sources in warning: \u0000": "المصادر ذات التحذيرات: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "المصادر المرسومة: \u0000 · غير المقيسة: \u0000"
 }

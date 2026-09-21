@@ -1554,5 +1554,16 @@
   "Infrastructure state unknown": "Estado de la infraestructura desconocido",
   "Infrastructure health unreachable": "No se puede consultar el estado de la infraestructura",
   "Critical infrastructure alerts: ": "Alertas críticas de infraestructura: ",
-  "Infrastructure warnings: ": "Advertencias de infraestructura: "
+  "Infrastructure warnings: ": "Advertencias de infraestructura: ",
+  "SOURCE CORE": "NÚCLEO DE FUENTES",
+  "Origins, Provenance, Lineage & Dependency": "Orígenes, procedencia, linaje y dependencias",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "Flujo de fuentes · Fuentes internas · Fuentes externas · Orígenes tecnológicos · Entradas no registradas · Fuentes futuras · Linaje de datos · Evidencias",
+  "Reading source registry…": "Leyendo el registro de fuentes…",
+  "Enter the core": "Entrar en el núcleo",
+  "Source registry not generated": "Registro de fuentes no generado",
+  "Source registry unreachable": "Registro de fuentes inaccesible",
+  "Source state unknown": "Estado de las fuentes desconocido",
+  "Critical sources: \u0000": "Fuentes críticas: \u0000",
+  "Sources in warning: \u0000": "Fuentes en aviso: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Fuentes mapeadas: \u0000 · sin instrumentar: \u0000"
 }

@@ -1554,5 +1554,16 @@
   "Infrastructure state unknown": "Άγνωστη κατάσταση υποδομών",
   "Infrastructure health unreachable": "Η κατάσταση υποδομών δεν είναι προσβάσιμη",
   "Critical infrastructure alerts: ": "Κρίσιμες ειδοποιήσεις υποδομών: ",
-  "Infrastructure warnings: ": "Προειδοποιήσεις υποδομών: "
+  "Infrastructure warnings: ": "Προειδοποιήσεις υποδομών: ",
+  "SOURCE CORE": "ΠΥΡΗΝΑΣ ΠΗΓΩΝ",
+  "Origins, Provenance, Lineage & Dependency": "Προελεύσεις, προέλευση δεδομένων, ιχνηλάτηση & εξαρτήσεις",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "Ροή πηγών · Εσωτερικές πηγές · Εξωτερικές πηγές · Τεχνολογικές προελεύσεις · Μη καταγεγραμμένη είσοδος · Μελλοντικές πηγές · Ιχνηλάτηση δεδομένων · Τεκμήρια",
+  "Reading source registry…": "Ανάγνωση μητρώου πηγών…",
+  "Enter the core": "Είσοδος στον πυρήνα",
+  "Source registry not generated": "Το μητρώο πηγών δεν έχει δημιουργηθεί",
+  "Source registry unreachable": "Το μητρώο πηγών δεν είναι προσβάσιμο",
+  "Source state unknown": "Άγνωστη κατάσταση πηγών",
+  "Critical sources: \u0000": "Κρίσιμες πηγές: \u0000",
+  "Sources in warning: \u0000": "Πηγές σε προειδοποίηση: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Καταγεγραμμένες πηγές: \u0000 · χωρίς μέτρηση: \u0000"
 }

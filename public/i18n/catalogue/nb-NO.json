@@ -1554,5 +1554,16 @@
   "Infrastructure state unknown": "Ukjent infrastrukturtilstand",
   "Infrastructure health unreachable": "Infrastrukturtilstanden er utilgjengelig",
   "Critical infrastructure alerts: ": "Kritiske infrastrukturvarsler: ",
-  "Infrastructure warnings: ": "Infrastrukturvarsler: "
+  "Infrastructure warnings: ": "Infrastrukturvarsler: ",
+  "SOURCE CORE": "KILDEKJERNE",
+  "Origins, Provenance, Lineage & Dependency": "Opprinnelse, proveniens, datahistorikk og avhengigheter",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "Kildeflyt · Interne kilder · Eksterne kilder · Teknologiopprinnelser · Uregistrert inntak · Fremtidige kilder · Datahistorikk · Dokumentasjon",
+  "Reading source registry…": "Leser kilderegisteret…",
+  "Enter the core": "Gå inn i kjernen",
+  "Source registry not generated": "Kilderegisteret er ikke generert",
+  "Source registry unreachable": "Kilderegisteret er utilgjengelig",
+  "Source state unknown": "Ukjent kildetilstand",
+  "Critical sources: \u0000": "Kritiske kilder: \u0000",
+  "Sources in warning: \u0000": "Kilder med advarsel: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Kartlagte kilder: \u0000 · ikke målt: \u0000"
 }

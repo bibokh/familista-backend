@@ -1551,5 +1551,16 @@
   "Infrastructure state unknown": "Không rõ trạng thái hạ tầng",
   "Infrastructure health unreachable": "Không truy cập được tình trạng hạ tầng",
   "Critical infrastructure alerts: ": "Cảnh báo hạ tầng nghiêm trọng: ",
-  "Infrastructure warnings: ": "Cảnh báo hạ tầng: "
+  "Infrastructure warnings: ": "Cảnh báo hạ tầng: ",
+  "SOURCE CORE": "LÕI NGUỒN",
+  "Origins, Provenance, Lineage & Dependency": "Nguồn gốc, xuất xứ, phả hệ dữ liệu & phụ thuộc",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "Dòng nguồn · Nguồn nội bộ · Nguồn bên ngoài · Nguồn gốc công nghệ · Tiếp nhận chưa đăng ký · Nguồn tương lai · Phả hệ dữ liệu · Bằng chứng",
+  "Reading source registry…": "Đang đọc sổ đăng ký nguồn…",
+  "Enter the core": "Vào lõi",
+  "Source registry not generated": "Chưa tạo sổ đăng ký nguồn",
+  "Source registry unreachable": "Không truy cập được sổ đăng ký nguồn",
+  "Source state unknown": "Không rõ trạng thái nguồn",
+  "Critical sources: \u0000": "Nguồn nghiêm trọng: \u0000",
+  "Sources in warning: \u0000": "Nguồn có cảnh báo: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Nguồn đã lập bản đồ: \u0000 · chưa đo: \u0000"
 }

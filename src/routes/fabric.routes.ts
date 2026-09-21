@@ -25,6 +25,7 @@ import { fabricEvents, fabricEventsForSource } from '../fabric/registry/event-re
 import { fabricSchemas, schemaVersionsFor } from '../fabric/registry/schema-registry';
 import { registryHealth } from '../fabric/registry/unknown-events';
 import { recentFrames } from '../fabric/pulse/pulse.service';
+import { laneActivity } from '../fabric/registry/lane-activity';
 import {
   queryHistory, countHistory, replayHistory, historyWindow, HISTORY_MAX_PAGE,
 } from '../fabric/history/history-query.service';
@@ -46,35 +47,6 @@ router.use(async (req: Request, res: Response, next) => {
     next();
   } catch (err) { next(err); }
 });
-
-const MINUTE = 60_000;
-
-/**
- * Per-lane counts from the live buffer.
- *
- * The buffer is bounded and in-process, so this answers "what has this instance
- * seen recently", not "what has the platform ever seen". That is the honest
- * scope of the number and the field names say so: `eventsPerMinute` counts the
- * last sixty seconds; `lastEventAt` is the most recent arrival or null.
- *
- * A source that has produced nothing gets `0` and `null` — a measured zero,
- * which is a different answer from "not instrumented" and is rendered
- * differently by everything that reads it.
- */
-function laneActivity(): Map<string, { count: number; lastAt: string | null }> {
-  const now = Date.now();
-  const byLane = new Map<string, { count: number; lastAt: string | null }>();
-
-  for (const frame of recentFrames()) {
-    const at = new Date(frame.recordedAt).getTime();
-    if (!Number.isFinite(at)) continue;
-    const entry = byLane.get(frame.source) ?? { count: 0, lastAt: null };
-    if (now - at <= MINUTE) entry.count += 1;
-    if (!entry.lastAt || at > new Date(entry.lastAt).getTime()) entry.lastAt = frame.recordedAt;
-    byLane.set(frame.source, entry);
-  }
-  return byLane;
-}
 
 /**
  * THE SOURCE CATALOGUE — every registered platform domain.

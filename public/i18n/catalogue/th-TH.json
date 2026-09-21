@@ -1551,5 +1551,16 @@
   "Infrastructure state unknown": "ไม่ทราบสถานะโครงสร้างพื้นฐาน",
   "Infrastructure health unreachable": "ไม่สามารถเข้าถึงสถานะโครงสร้างพื้นฐาน",
   "Critical infrastructure alerts: ": "การแจ้งเตือนโครงสร้างพื้นฐานระดับวิกฤต: ",
-  "Infrastructure warnings: ": "คำเตือนโครงสร้างพื้นฐาน: "
+  "Infrastructure warnings: ": "คำเตือนโครงสร้างพื้นฐาน: ",
+  "SOURCE CORE": "แกนกลางแหล่งข้อมูล",
+  "Origins, Provenance, Lineage & Dependency": "ต้นกำเนิด ที่มา สายข้อมูล และการพึ่งพา",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "การไหลของแหล่งข้อมูล · แหล่งข้อมูลภายใน · แหล่งข้อมูลภายนอก · ต้นกำเนิดเทคโนโลยี · การรับข้อมูลที่ไม่ได้ลงทะเบียน · แหล่งข้อมูลในอนาคต · สายข้อมูล · หลักฐาน",
+  "Reading source registry…": "กำลังอ่านทะเบียนแหล่งข้อมูล…",
+  "Enter the core": "เข้าสู่แกนกลาง",
+  "Source registry not generated": "ยังไม่ได้สร้างทะเบียนแหล่งข้อมูล",
+  "Source registry unreachable": "ไม่สามารถเข้าถึงทะเบียนแหล่งข้อมูล",
+  "Source state unknown": "ไม่ทราบสถานะแหล่งข้อมูล",
+  "Critical sources: \u0000": "แหล่งข้อมูลวิกฤต: \u0000",
+  "Sources in warning: \u0000": "แหล่งข้อมูลที่มีคำเตือน: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "แหล่งข้อมูลที่จัดทำแผนที่: \u0000 · ไม่ได้วัด: \u0000"
 }

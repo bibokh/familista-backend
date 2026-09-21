@@ -1554,5 +1554,16 @@
   "Infrastructure state unknown": "Стање инфраструктуре је непознато",
   "Infrastructure health unreachable": "Стање инфраструктуре није доступно",
   "Critical infrastructure alerts: ": "Критична упозорења инфраструктуре: ",
-  "Infrastructure warnings: ": "Упозорења инфраструктуре: "
+  "Infrastructure warnings: ": "Упозорења инфраструктуре: ",
+  "SOURCE CORE": "ЈЕЗГРО ИЗВОРА",
+  "Origins, Provenance, Lineage & Dependency": "Порекло, провенијенција, лоза података и зависности",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "Ток извора · Интерни извори · Екстерни извори · Технолошко порекло · Нерегистровани улаз · Будући извори · Лоза података · Докази",
+  "Reading source registry…": "Читање регистра извора…",
+  "Enter the core": "Уђи у језгро",
+  "Source registry not generated": "Регистар извора није генерисан",
+  "Source registry unreachable": "Регистар извора није доступан",
+  "Source state unknown": "Стање извора је непознато",
+  "Critical sources: \u0000": "Критични извори: \u0000",
+  "Sources in warning: \u0000": "Извори са упозорењем: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Мапирани извори: \u0000 · без мерења: \u0000"
 }

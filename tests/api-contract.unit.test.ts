@@ -638,14 +638,22 @@ describe('the contract registry stays honest', () => {
   });
 
   it('records which served endpoints no screen consumes', () => {
-    // Not a failure — a fact, pinned so it stays deliberate. Two endpoints are
+    // Not a failure — a fact, pinned so it stays deliberate. Three endpoints are
     // served, guarded and shape-verified with nothing reading them. They are
     // still worth a contract: the day a screen does read them, it reads a shape
     // somebody has already checked.
+    //
+    // All three are the same shape of decision. The City assembles its topology
+    // and its inspector from the INVENTORY payload; Source Core's inspector
+    // reads the source object that already arrived with the registry list
+    // rather than fetching it a second time. In each case the endpoint is the
+    // one a caller OUTSIDE the screen would want, and the screen has a cheaper
+    // way in. Recording that is worth more than inventing a consumer.
     const unconsumed = OWNER_API_CONTRACTS.filter((c) => c.consumer === null).map((c) => c.endpoint).sort();
     expect(unconsumed).toEqual([
       '/system/infrastructure/components/postgres',
       '/system/infrastructure/topology',
+      '/system/sources/fabric:users',
     ]);
   });
 
@@ -654,7 +662,8 @@ describe('the contract registry stays honest', () => {
     expect([...modules].some((m) => m.includes('Infrastructure City'))).toBe(true);
     expect([...modules].some((m) => m.includes('Data Vault'))).toBe(true);
     expect([...modules].some((m) => m === 'SYSTEM')).toBe(true);
-    expect(OWNER_API_CONTRACTS.length).toBeGreaterThanOrEqual(13);
+    expect([...modules].some((m) => m === 'Source Core')).toBe(true);
+    expect(OWNER_API_CONTRACTS.length).toBeGreaterThanOrEqual(19);
   });
 
   it('covers every Infrastructure City read endpoint the router serves', () => {

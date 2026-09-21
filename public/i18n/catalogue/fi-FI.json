@@ -1554,5 +1554,16 @@
   "Infrastructure state unknown": "Infrastruktuurin tila tuntematon",
   "Infrastructure health unreachable": "Infrastruktuurin tilaa ei tavoiteta",
   "Critical infrastructure alerts: ": "Kriittiset infrastruktuurihälytykset: ",
-  "Infrastructure warnings: ": "Infrastruktuurivaroitukset: "
+  "Infrastructure warnings: ": "Infrastruktuurivaroitukset: ",
+  "SOURCE CORE": "LÄHDEYDIN",
+  "Origins, Provenance, Lineage & Dependency": "Alkuperät, provenienssi, tietopolku ja riippuvuudet",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "Lähteiden virta · Sisäiset lähteet · Ulkoiset lähteet · Teknologia-alkuperät · Rekisteröimätön vastaanotto · Tulevat lähteet · Tietopolku · Todisteet",
+  "Reading source registry…": "Luetaan lähderekisteriä…",
+  "Enter the core": "Siirry ytimeen",
+  "Source registry not generated": "Lähderekisteriä ei ole luotu",
+  "Source registry unreachable": "Lähderekisteriä ei tavoiteta",
+  "Source state unknown": "Lähteiden tila tuntematon",
+  "Critical sources: \u0000": "Kriittiset lähteet: \u0000",
+  "Sources in warning: \u0000": "Varoittavat lähteet: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Kartoitetut lähteet: \u0000 · ei mitattu: \u0000"
 }
