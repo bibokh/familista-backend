@@ -1554,5 +1554,16 @@
   "Infrastructure state unknown": "Stare necunoscută a infrastructurii",
   "Infrastructure health unreachable": "Starea infrastructurii este inaccesibilă",
   "Critical infrastructure alerts: ": "Alerte critice de infrastructură: ",
-  "Infrastructure warnings: ": "Avertismente de infrastructură: "
+  "Infrastructure warnings: ": "Avertismente de infrastructură: ",
+  "SOURCE CORE": "NUCLEUL SURSELOR",
+  "Origins, Provenance, Lineage & Dependency": "Origini, proveniență, descendență & dependențe",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "Fluxul surselor · Surse interne · Surse externe · Origini tehnologice · Intrări neînregistrate · Surse viitoare · Descendența datelor · Dovezi",
+  "Reading source registry…": "Se citește registrul surselor…",
+  "Enter the core": "Intră în nucleu",
+  "Source registry not generated": "Registrul surselor nu a fost generat",
+  "Source registry unreachable": "Registrul surselor este inaccesibil",
+  "Source state unknown": "Stare necunoscută a surselor",
+  "Critical sources: \u0000": "Surse critice: \u0000",
+  "Sources in warning: \u0000": "Surse cu avertisment: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Surse cartografiate: \u0000 · nemăsurate: \u0000"
 }

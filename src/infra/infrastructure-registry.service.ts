@@ -101,7 +101,14 @@ export interface InfraManifest {
     observabilityNote: string;
   };
   ci: { workflows: { file: string; name: string; jobs: number; steps: string[]; services: string[]; runsOn: string[] }[] };
-  mounts: { path: string; router: string }[];
+  /**
+   * Every mounted router, with the verbs it declares.
+   *
+   * `writes` is what lets a provenance map tell an INGESTION point from a read
+   * surface — the only honest discriminator, since the path name gets it wrong
+   * in both directions.
+   */
+  mounts: { path: string; router: string; file: string | null; writes: number; reads: number }[];
   environment: { total: number; architectural: string[]; secretShapedCount: number };
   dependencies: { name: string; declared: string; resolved: string | null; classification: string; technology: string | null }[];
   counts: Record<string, number>;

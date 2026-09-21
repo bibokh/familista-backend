@@ -1554,5 +1554,16 @@
   "Infrastructure state unknown": "Altyapı durumu bilinmiyor",
   "Infrastructure health unreachable": "Altyapı sağlığına ulaşılamıyor",
   "Critical infrastructure alerts: ": "Kritik altyapı uyarıları: ",
-  "Infrastructure warnings: ": "Altyapı uyarıları: "
+  "Infrastructure warnings: ": "Altyapı uyarıları: ",
+  "SOURCE CORE": "KAYNAK ÇEKİRDEĞİ",
+  "Origins, Provenance, Lineage & Dependency": "Kökenler, Köken Bilgisi, Veri Soyağacı ve Bağımlılık",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "Kaynak Akışı · Dahili Kaynaklar · Harici Kaynaklar · Teknoloji Kökenleri · Kayıtsız Giriş · Gelecek Kaynaklar · Veri Soyağacı · Kanıt",
+  "Reading source registry…": "Kaynak kaydı okunuyor…",
+  "Enter the core": "Çekirdeğe gir",
+  "Source registry not generated": "Kaynak kaydı oluşturulmadı",
+  "Source registry unreachable": "Kaynak kaydına ulaşılamıyor",
+  "Source state unknown": "Kaynak durumu bilinmiyor",
+  "Critical sources: \u0000": "Kritik kaynaklar: \u0000",
+  "Sources in warning: \u0000": "Uyarıdaki kaynaklar: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Haritalanan kaynaklar: \u0000 · ölçülmeyen: \u0000"
 }

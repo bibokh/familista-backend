@@ -457,6 +457,125 @@ export const SystemOverviewSchema = z.object({
   activity: z.record(MetricSchema),
 }).passthrough();
 
+// ── Source Core ──────────────────────────────────────────────────────────────
+//
+// The provenance layer. Every schema here is pinned to the interface in
+// `src/sources/source-registry.service.ts` at the bottom of this file, so a
+// field renamed there fails the build rather than emptying a panel.
+
+export const SourceControlSchema = z.object({
+  id: z.string().min(1),
+  state: z.enum(['APPLIED', 'NOT_INSTRUMENTED', 'NOT_IMPLEMENTED']),
+  evidence: z.string().min(1),
+});
+
+export const PlatformSourceSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  sourceType: z.enum([
+    'INTERNAL_PLATFORM', 'USER_GENERATED', 'SYSTEM_GENERATED', 'EXTERNAL_PROVIDER',
+    'TECHNOLOGY', 'DATABASE', 'EVENT', 'FILE_MEDIA', 'AI', 'DEVICE',
+    'UNREGISTERED_INTAKE', 'FUTURE',
+  ]),
+  category: z.string(),
+  origin: z.string().min(1),
+  provider: z.string().nullable(),
+  internalOrExternal: z.enum(['INTERNAL', 'EXTERNAL']),
+  status: z.string(),
+  health: z.enum(['HEALTHY', 'WARNING', 'CRITICAL', 'DELAYED', 'DISCONNECTED',
+    'UNKNOWN', 'NOT_INSTRUMENTED', 'FUTURE']),
+  connectionState: z.enum(['LIVE', 'CONNECTED', 'NOT_CONFIGURED', 'NOT_CONNECTED',
+    'UNVERIFIED', 'UNKNOWN']),
+  // Null is the answer when nothing measured it, and the schema says so rather
+  // than letting a zero stand in for a reading that was never taken.
+  lastEventAt: z.string().nullable(),
+  eventsPerMinute: z.number().nullable(),
+  updateMode: z.enum(['EVENT_DRIVEN', 'REQUEST_DRIVEN', 'POLLED', 'BUILD_TIME', 'UNKNOWN']),
+  intake: z.enum(['REST_API', 'WEBHOOK', 'SSE', 'INTERNAL_EVENT', 'DATABASE_WRITE',
+    'FILE_UPLOAD', 'BACKGROUND_WORKER', 'OUTBOUND_CALL', 'BUILD_TIME',
+    'DEPLOY_HOOK', 'NOT_APPLICABLE', 'UNKNOWN']),
+  produces: z.array(z.string()),
+  producesCount: z.number(),
+  consumers: z.array(z.string()),
+  dependencies: z.array(z.string()),
+  dependents: z.array(z.string()),
+  destinationModules: z.array(z.string()),
+  dataClassification: z.string().nullable(),
+  authMethod: z.string().nullable(),
+  environment: z.string().nullable(),
+  region: z.string().nullable(),
+  version: z.string().nullable(),
+  schemaVersion: z.number().nullable(),
+  riskState: z.enum(['NONE', 'UNMEASURED', 'DEGRADED', 'FAILED', 'UNCONFIGURED']),
+  futureState: z.enum(['ACTIVE', 'NOT_CONNECTED', 'NOT_IMPLEMENTED']),
+  controls: z.array(SourceControlSchema),
+  evidence: z.string().min(1),
+  repositoryPath: z.string().nullable(),
+  crossLinks: z.array(z.object({ module: z.string(), target: z.string() })),
+  note: z.string().nullable(),
+});
+
+export const SourceCountsSchema = z.object({
+  total: z.number(), internal: z.number(), external: z.number(),
+  live: z.number(), warning: z.number(), critical: z.number(),
+  notInstrumented: z.number(), notConnected: z.number(), future: z.number(),
+  unregisteredIntake: z.number(),
+});
+
+export const SourceRegistrySchema = z.object({
+  state: z.enum(['READY', 'NOT_GENERATED']),
+  reason: z.string().optional(),
+  remedy: z.string().optional(),
+  sources: z.array(PlatformSourceSchema),
+  counts: SourceCountsSchema,
+  generatedAt: z.string().nullable(),
+  measuredAt: Instant,
+});
+
+export const SourceHealthSchema = z.object({
+  counts: SourceCountsSchema,
+  overall: z.enum(['CRITICAL', 'WARNING', 'HEALTHY', 'UNKNOWN']),
+  measuredNote: z.string().min(1),
+  measuredAt: Instant,
+  generatedAt: z.string().nullable(),
+});
+
+export const SourceFlowSchema = z.object({
+  origins: z.record(z.array(PlatformSourceSchema)),
+  intake: z.record(z.number()),
+  validation: z.array(SourceControlSchema),
+  consumers: z.array(z.string()),
+  counts: SourceCountsSchema,
+  measuredAt: Instant,
+});
+
+export const SourceDetailSchema = z.object({ source: PlatformSourceSchema });
+
+export const SourceConsumersSchema = z.object({
+  consumers: z.array(z.string()),
+  destinationModules: z.array(z.string()),
+  impact: z.array(z.object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    relation: z.enum(['DIRECTLY_AFFECTED', 'DEPENDENT', 'POTENTIALLY_AFFECTED']),
+    evidence: z.string().min(1),
+  })),
+  impactNote: z.string().min(1),
+});
+
+export const SourceLineageSchema = z.object({
+  source: z.object({
+    id: z.string().min(1), name: z.string().min(1), sourceType: z.string().min(1),
+  }),
+  stages: z.array(z.object({
+    stage: z.enum(['ORIGIN', 'INTAKE', 'VALIDATION', 'PROCESSING', 'DESTINATION', 'HISTORY']),
+    label: z.string().min(1),
+    detail: z.string().min(1),
+    state: z.enum(['VERIFIED', 'NOT_INSTRUMENTED', 'NOT_APPLICABLE']),
+    evidence: z.string().min(1),
+  })),
+});
+
 // ── the registry ─────────────────────────────────────────────────────────────
 
 export interface ApiContract {
@@ -560,6 +679,38 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     reads: [],
   },
 
+  // ── Source Core ──
+  {
+    endpoint: '/system/sources', module: 'Source Core',
+    schema: SourceRegistrySchema, consumer: 'public/source-core/source-core.js',
+    reads: ['state', 'sources', 'counts', 'generatedAt', 'measuredAt'],
+  },
+  {
+    endpoint: '/system/sources/health', module: 'Source Core',
+    schema: SourceHealthSchema, consumer: 'public/source-core/source-core.js',
+    reads: ['overall'],
+  },
+  {
+    endpoint: '/system/sources/flow', module: 'Source Core',
+    schema: SourceFlowSchema, consumer: 'public/source-core/source-core.js',
+    reads: ['origins', 'intake', 'validation', 'counts'],
+  },
+  {
+    endpoint: '/system/sources/fabric:users', module: 'Source Core',
+    schema: SourceDetailSchema, consumer: null,
+    reads: [],
+  },
+  {
+    endpoint: '/system/sources/fabric:users/consumers', module: 'Source Core',
+    schema: SourceConsumersSchema, consumer: 'public/source-core/source-core.js',
+    reads: ['impact'],
+  },
+  {
+    endpoint: '/system/sources/fabric:users/lineage', module: 'Source Core',
+    schema: SourceLineageSchema, consumer: 'public/source-core/source-core.js',
+    reads: ['stages'],
+  },
+
   // ── SYSTEM ──
   {
     endpoint: '/system/overview', module: 'SYSTEM',
@@ -579,6 +730,9 @@ import type {
   InfraComponent, InfraDistrict, InfraRelationship, InfraTechnology,
 } from '../infra/infrastructure-registry.service';
 import type { Signal, Incident, InfraRule } from '../infra/infrastructure-health.service';
+import type {
+  PlatformSource, SourceControl, LineageStage, ImpactNode,
+} from '../sources/source-registry.service';
 
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 
@@ -590,4 +744,9 @@ const _technology: Exact<z.infer<typeof InfraTechnologySchema>, InfraTechnology>
 const _signal: Exact<z.infer<typeof InfraSignalSchema>, Signal> = true;
 const _incident: Exact<z.infer<typeof InfraIncidentSchema>, Incident> = true;
 const _rule: Exact<z.infer<typeof InfraRuleSchema>, InfraRule> = true;
-void [_component, _district, _relationship, _technology, _signal, _incident, _rule];
+const _source: Exact<z.infer<typeof PlatformSourceSchema>, PlatformSource> = true;
+const _control: Exact<z.infer<typeof SourceControlSchema>, SourceControl> = true;
+const _stage: Exact<z.infer<typeof SourceLineageSchema>['stages'][number], LineageStage> = true;
+const _impact: Exact<z.infer<typeof SourceConsumersSchema>['impact'][number], ImpactNode> = true;
+void [_component, _district, _relationship, _technology, _signal, _incident, _rule,
+  _source, _control, _stage, _impact];

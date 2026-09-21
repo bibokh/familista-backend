@@ -1554,5 +1554,16 @@
   "Infrastructure state unknown": "מצב התשתית אינו ידוע",
   "Infrastructure health unreachable": "לא ניתן להגיע למצב התשתית",
   "Critical infrastructure alerts: ": "התראות תשתית קריטיות: ",
-  "Infrastructure warnings: ": "אזהרות תשתית: "
+  "Infrastructure warnings: ": "אזהרות תשתית: ",
+  "SOURCE CORE": "ליבת המקורות",
+  "Origins, Provenance, Lineage & Dependency": "מקורות, מוצא, שושלת נתונים ותלויות",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "זרימת מקורות · מקורות פנימיים · מקורות חיצוניים · מקורות טכנולוגיים · קליטה לא רשומה · מקורות עתידיים · שושלת נתונים · ראיות",
+  "Reading source registry…": "קורא את מרשם המקורות…",
+  "Enter the core": "כניסה לליבה",
+  "Source registry not generated": "מרשם המקורות לא נוצר",
+  "Source registry unreachable": "לא ניתן להגיע למרשם המקורות",
+  "Source state unknown": "מצב המקורות אינו ידוע",
+  "Critical sources: \u0000": "מקורות קריטיים: \u0000",
+  "Sources in warning: \u0000": "מקורות באזהרה: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "מקורות ממופים: \u0000 · ללא מדידה: \u0000"
 }

@@ -1554,5 +1554,16 @@
   "Infrastructure state unknown": "Infrastrukturens tillstånd okänt",
   "Infrastructure health unreachable": "Infrastrukturens hälsa går inte att nå",
   "Critical infrastructure alerts: ": "Kritiska infrastrukturvarningar: ",
-  "Infrastructure warnings: ": "Infrastrukturvarningar: "
+  "Infrastructure warnings: ": "Infrastrukturvarningar: ",
+  "SOURCE CORE": "KÄLLKÄRNA",
+  "Origins, Provenance, Lineage & Dependency": "Ursprung, proveniens, datahärkomst och beroenden",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "Källflöde · Interna källor · Externa källor · Teknikursprung · Oregistrerat intag · Framtida källor · Datahärkomst · Underlag",
+  "Reading source registry…": "Läser källregistret…",
+  "Enter the core": "Gå in i kärnan",
+  "Source registry not generated": "Källregistret är inte genererat",
+  "Source registry unreachable": "Källregistret går inte att nå",
+  "Source state unknown": "Källornas tillstånd okänt",
+  "Critical sources: \u0000": "Kritiska källor: \u0000",
+  "Sources in warning: \u0000": "Källor med varning: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Kartlagda källor: \u0000 · inte mätta: \u0000"
 }

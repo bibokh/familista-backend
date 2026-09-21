@@ -1554,5 +1554,16 @@
   "Infrastructure state unknown": "Stav infrastruktury není znám",
   "Infrastructure health unreachable": "Stav infrastruktury je nedostupný",
   "Critical infrastructure alerts: ": "Kritické výstrahy infrastruktury: ",
-  "Infrastructure warnings: ": "Varování infrastruktury: "
+  "Infrastructure warnings: ": "Varování infrastruktury: ",
+  "SOURCE CORE": "JÁDRO ZDROJŮ",
+  "Origins, Provenance, Lineage & Dependency": "Původ, provenience, rodokmen dat a závislosti",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "Tok zdrojů · Interní zdroje · Externí zdroje · Technologické původy · Neregistrovaný příjem · Budoucí zdroje · Rodokmen dat · Důkazy",
+  "Reading source registry…": "Načítání registru zdrojů…",
+  "Enter the core": "Vstoupit do jádra",
+  "Source registry not generated": "Registr zdrojů nebyl vygenerován",
+  "Source registry unreachable": "Registr zdrojů je nedostupný",
+  "Source state unknown": "Stav zdrojů není znám",
+  "Critical sources: \u0000": "Kritické zdroje: \u0000",
+  "Sources in warning: \u0000": "Zdroje s varováním: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Zmapované zdroje: \u0000 · bez měření: \u0000"
 }

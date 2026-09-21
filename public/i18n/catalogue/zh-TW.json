@@ -1551,5 +1551,16 @@
   "Infrastructure state unknown": "基礎設施狀態未知",
   "Infrastructure health unreachable": "無法取得基礎設施健康狀態",
   "Critical infrastructure alerts: ": "嚴重基礎設施告警：",
-  "Infrastructure warnings: ": "基礎設施警告："
+  "Infrastructure warnings: ": "基礎設施警告：",
+  "SOURCE CORE": "資料來源核心",
+  "Origins, Provenance, Lineage & Dependency": "來源、出處、血緣與相依",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "來源流 · 內部來源 · 外部來源 · 技術來源 · 未註冊接入 · 未來來源 · 資料血緣 · 證據",
+  "Reading source registry…": "正在讀取來源註冊表…",
+  "Enter the core": "進入核心",
+  "Source registry not generated": "尚未產生來源註冊表",
+  "Source registry unreachable": "無法取得來源註冊表",
+  "Source state unknown": "來源狀態未知",
+  "Critical sources: \u0000": "嚴重來源: \u0000",
+  "Sources in warning: \u0000": "警告中的來源: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "已記錄來源: \u0000 · 未接入量測: \u0000"
 }

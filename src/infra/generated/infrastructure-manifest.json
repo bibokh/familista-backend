@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-20T18:25:53.646Z",
+  "generatedAt": "2026-09-21T08:17:27.102Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -272,7 +272,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "src/routes/index.ts",
-      "sourceEvidence": "src/routes/index.ts — 47 mounted routers",
+      "sourceEvidence": "src/routes/index.ts — 48 mounted routers",
       "dependencies": [
         "platform-core"
       ],
@@ -347,7 +347,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "src/fabric/",
-      "sourceEvidence": "src/fabric/ — 50 modules",
+      "sourceEvidence": "src/fabric/ — 51 modules",
       "dependencies": [
         "backend-services"
       ],
@@ -882,7 +882,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 136 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 137 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -942,7 +942,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": null,
-      "note": "515 TypeScript modules under src/."
+      "note": "518 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1418,12 +1418,12 @@
     }
   ],
   "surface": {
-    "routeModules": 57,
+    "routeModules": 58,
     "serviceModules": 101,
     "middleware": 21,
-    "fabricModules": 50,
-    "totalTypeScript": 515,
-    "testSuites": 136,
+    "fabricModules": 51,
+    "totalTypeScript": 518,
+    "testSuites": 137,
     "migrations": 40,
     "prismaModels": 340,
     "prismaEnums": 209
@@ -1524,191 +1524,339 @@
   "mounts": [
     {
       "path": "/players",
-      "router": "playerRoutes"
+      "router": "playerRoutes",
+      "file": "src/routes/player.routes.ts",
+      "writes": 9,
+      "reads": 7
     },
     {
       "path": "/matches",
-      "router": "matchRoutes"
+      "router": "matchRoutes",
+      "file": "src/routes/match.routes.ts",
+      "writes": 20,
+      "reads": 18
     },
     {
       "path": "/analytics",
-      "router": "analyticsRoutes"
+      "router": "analyticsRoutes",
+      "file": "src/routes/analytics.routes.ts",
+      "writes": 0,
+      "reads": 7
     },
     {
       "path": "/ai",
-      "router": "aiRoutes"
+      "router": "aiRoutes",
+      "file": "src/routes/ai.routes.ts",
+      "writes": 2,
+      "reads": 1
     },
     {
       "path": "/billing",
-      "router": "billingRoutes"
+      "router": "billingRoutes",
+      "file": "src/routes/billing.routes.ts",
+      "writes": 3,
+      "reads": 2
     },
     {
       "path": "/training",
-      "router": "trainingRoutes"
+      "router": "trainingRoutes",
+      "file": "src/routes/training.routes.ts",
+      "writes": 9,
+      "reads": 5
     },
     {
       "path": "/teams",
-      "router": "teamRoutes"
+      "router": "teamRoutes",
+      "file": "src/routes/team.routes.ts",
+      "writes": 5,
+      "reads": 2
     },
     {
       "path": "/memberships",
-      "router": "membershipRoutes"
+      "router": "membershipRoutes",
+      "file": "src/routes/membership.routes.ts",
+      "writes": 6,
+      "reads": 2
     },
     {
       "path": "/invitations",
-      "router": "invitationRoutes"
+      "router": "invitationRoutes",
+      "file": "src/routes/invitation.routes.ts",
+      "writes": 5,
+      "reads": 2
     },
     {
       "path": "/system",
-      "router": "systemRoutes"
+      "router": "systemRoutes",
+      "file": "src/routes/system.routes.ts",
+      "writes": 13,
+      "reads": 20
     },
     {
       "path": "/system/trace",
-      "router": "ownerTraceRoutes"
+      "router": "ownerTraceRoutes",
+      "file": "src/routes/owner-trace.routes.ts",
+      "writes": 3,
+      "reads": 3
     },
     {
       "path": "/system/data-pulse",
-      "router": "dataPulseRoutes"
+      "router": "dataPulseRoutes",
+      "file": "src/routes/data-pulse.routes.ts",
+      "writes": 0,
+      "reads": 5
     },
     {
       "path": "/system/fabric",
-      "router": "fabricRoutes"
+      "router": "fabricRoutes",
+      "file": "src/routes/fabric.routes.ts",
+      "writes": 0,
+      "reads": 10
     },
     {
       "path": "/system/infrastructure",
-      "router": "infrastructureRoutes"
+      "router": "infrastructureRoutes",
+      "file": "src/routes/infrastructure.routes.ts",
+      "writes": 1,
+      "reads": 8
+    },
+    {
+      "path": "/system/sources",
+      "router": "sourcesRoutes",
+      "file": "src/routes/sources.routes.ts",
+      "writes": 0,
+      "reads": 6
     },
     {
       "path": "/telemetry",
-      "router": "telemetryRoutes"
+      "router": "telemetryRoutes",
+      "file": "src/routes/telemetry.routes.ts",
+      "writes": 1,
+      "reads": 0
     },
     {
       "path": "/me",
-      "router": "contextRoutes"
+      "router": "contextRoutes",
+      "file": "src/routes/context.routes.ts",
+      "writes": 2,
+      "reads": 3
     },
     {
       "path": "/devices",
-      "router": "deviceRoutes"
+      "router": "deviceRoutes",
+      "file": "src/routes/device-session.routes.ts",
+      "writes": 6,
+      "reads": 4
     },
     {
       "path": "/automation",
-      "router": "automationRoutes"
+      "router": "automationRoutes",
+      "file": "src/routes/automation.routes.ts",
+      "writes": 7,
+      "reads": 5
     },
     {
       "path": "/ai-ops",
-      "router": "aiOpsRoutes"
+      "router": "aiOpsRoutes",
+      "file": "src/routes/ai-ops.routes.ts",
+      "writes": 9,
+      "reads": 6
     },
     {
       "path": "/device-infra",
-      "router": "deviceInfraRoutes"
+      "router": "deviceInfraRoutes",
+      "file": "src/routes/device-infra.routes.ts",
+      "writes": 6,
+      "reads": 6
     },
     {
       "path": "/vision",
-      "router": "visionRoutes"
+      "router": "visionRoutes",
+      "file": "src/routes/vision.routes.ts",
+      "writes": 4,
+      "reads": 5
     },
     {
       "path": "/spatial",
-      "router": "spatialRoutes"
+      "router": "spatialRoutes",
+      "file": "src/routes/spatial.routes.ts",
+      "writes": 0,
+      "reads": 3
     },
     {
       "path": "/predictive",
-      "router": "predictiveRoutes"
+      "router": "predictiveRoutes",
+      "file": "src/routes/predictive.routes.ts",
+      "writes": 1,
+      "reads": 1
     },
     {
       "path": "/security",
-      "router": "securityRoutes"
+      "router": "securityRoutes",
+      "file": "src/routes/security.routes.ts",
+      "writes": 2,
+      "reads": 7
     },
     {
       "path": "/distributed",
-      "router": "distributedRoutes"
+      "router": "distributedRoutes",
+      "file": "src/routes/distributed.routes.ts",
+      "writes": 0,
+      "reads": 4
     },
     {
       "path": "/edge",
-      "router": "edgeRoutes"
+      "router": "edgeRoutes",
+      "file": "src/routes/edge.routes.ts",
+      "writes": 5,
+      "reads": 2
     },
     {
       "path": "/provisioning",
-      "router": "provisioningRoutes"
+      "router": "provisioningRoutes",
+      "file": "src/routes/provisioning.routes.ts",
+      "writes": 7,
+      "reads": 5
     },
     {
       "path": "/billing-j",
-      "router": "billingJRoutes"
+      "router": "billingJRoutes",
+      "file": "src/routes/billing-j.routes.ts",
+      "writes": 4,
+      "reads": 5
     },
     {
       "path": "/observability",
-      "router": "observabilityRoutes"
+      "router": "observabilityRoutes",
+      "file": "src/routes/observability.routes.ts",
+      "writes": 1,
+      "reads": 4
     },
     {
       "path": "/neuro",
-      "router": "neuroRoutes"
+      "router": "neuroRoutes",
+      "file": "src/routes/neuro.routes.ts",
+      "writes": 17,
+      "reads": 6
     },
     {
       "path": "/phase-l",
-      "router": "phaseLRoutes"
+      "router": "phaseLRoutes",
+      "file": "src/routes/phase-l.routes.ts",
+      "writes": 17,
+      "reads": 9
     },
     {
       "path": "/phase-m",
-      "router": "phaseMRoutes"
+      "router": "phaseMRoutes",
+      "file": "src/routes/phase-m.routes.ts",
+      "writes": 29,
+      "reads": 10
     },
     {
       "path": "/phase-n",
-      "router": "phaseNRoutes"
+      "router": "phaseNRoutes",
+      "file": "src/routes/phase-n.routes.ts",
+      "writes": 18,
+      "reads": 11
     },
     {
       "path": "/phase-o",
-      "router": "phaseORoutes"
+      "router": "phaseORoutes",
+      "file": "src/routes/phase-o.routes.ts",
+      "writes": 33,
+      "reads": 20
     },
     {
       "path": "/phase-p",
-      "router": "phasePRoutes"
+      "router": "phasePRoutes",
+      "file": "src/routes/phase-p.routes.ts",
+      "writes": 6,
+      "reads": 9
     },
     {
       "path": "/phase-q",
-      "router": "phaseQRoutes"
+      "router": "phaseQRoutes",
+      "file": "src/routes/phase-q.routes.ts",
+      "writes": 47,
+      "reads": 44
     },
     {
       "path": "/transfer-market",
-      "router": "transferMarketRoutes"
+      "router": "transferMarketRoutes",
+      "file": "src/routes/transfer-market.routes.ts",
+      "writes": 27,
+      "reads": 26
     },
     {
       "path": "/staff-market",
-      "router": "staffMarketRoutes"
+      "router": "staffMarketRoutes",
+      "file": "src/routes/staff-market.routes.ts",
+      "writes": 16,
+      "reads": 10
     },
     {
       "path": "/coaches",
-      "router": "coachesRoutes"
+      "router": "coachesRoutes",
+      "file": "src/routes/coaches.routes.ts",
+      "writes": 9,
+      "reads": 4
     },
     {
       "path": "/phase-s/intelligence",
-      "router": "intelligenceRoutes"
+      "router": "intelligenceRoutes",
+      "file": "src/routes/intelligence.routes.ts",
+      "writes": 5,
+      "reads": 2
     },
     {
       "path": "/scouting",
-      "router": "scoutingRoutes"
+      "router": "scoutingRoutes",
+      "file": "src/routes/scouting.routes.ts",
+      "writes": 5,
+      "reads": 6
     },
     {
       "path": "/club-admin",
-      "router": "clubAdminRoutes"
+      "router": "clubAdminRoutes",
+      "file": "src/routes/club-admin.routes.ts",
+      "writes": 0,
+      "reads": 3
     },
     {
       "path": "/tactical-ai",
-      "router": "tacticalAIRoutes"
+      "router": "tacticalAIRoutes",
+      "file": "src/routes/tactical-ai.routes.ts",
+      "writes": 0,
+      "reads": 2
     },
     {
       "path": "/clubs",
-      "router": "clubRoutes"
+      "router": "clubRoutes",
+      "file": "src/routes/club.routes.ts",
+      "writes": 2,
+      "reads": 2
     },
     {
       "path": "/home",
-      "router": "homeRoutes"
+      "router": "homeRoutes",
+      "file": "src/routes/home.routes.ts",
+      "writes": 0,
+      "reads": 1
     },
     {
       "path": "/familista-league",
-      "router": "familistaLeagueRoutes"
+      "router": "familistaLeagueRoutes",
+      "file": "src/routes/familista-league.routes.ts",
+      "writes": 4,
+      "reads": 9
     },
     {
       "path": "/match-center",
-      "router": "matchCenterRoutes"
+      "router": "matchCenterRoutes",
+      "file": "src/routes/match-center.routes.ts",
+      "writes": 2,
+      "reads": 5
     }
   ],
   "environment": {

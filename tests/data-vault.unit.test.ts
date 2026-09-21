@@ -772,37 +772,46 @@ describe('the Data Vault speaks English, German and Arabic — and only those', 
 
 // ── the landing, and the two products that were already there ────────────────
 
-describe('the Platform Owner landing offers four equal products', () => {
+describe('the Platform Owner landing offers four rooms around one core', () => {
   const app = read(APP_JS);
   const css = read(APP_CSS);
   const landing = app.slice(app.indexOf('function _ownerHomeForPlatformOwner'),
     app.indexOf('function _ownerHomeForClubMember'));
 
-  it('renders SYSTEM, CLUBS, DATA VAULT and INFRASTRUCTURE CITY as siblings in one card row', () => {
-    for (const title of ['>SYSTEM<', '>CLUBS<', '>DATA VAULT<', '>INFRASTRUCTURE CITY<']) {
+  it('renders SYSTEM, CLUBS, DATA VAULT, INFRASTRUCTURE CITY and SOURCE CORE in one card grid', () => {
+    for (const title of ['>SYSTEM<', '>CLUBS<', '>DATA VAULT<', '>INFRASTRUCTURE CITY<', '>SOURCE CORE<']) {
       expect(landing).toContain(title);
     }
     const cards = [...landing.matchAll(/class="oh-card oh-card--(\w+)"/g)].map((m) => m[1]);
-    expect(cards).toEqual(['system', 'clubs', 'vault', 'city']);
+    expect(cards).toEqual(['system', 'clubs', 'vault', 'city', 'core']);
   });
 
-  it('gives the four cards the same grid track, so none is subordinate', () => {
-    expect(css).toContain('body.club-theme .oh-cards--four{ grid-template-columns: repeat(4, 1fr); }');
+  it('gives the four rooms the same grid track, so none is subordinate', () => {
+    // The four rooms occupy the two outer columns in two rows — the same
+    // track as each other. SOURCE CORE is not one of them and is placed
+    // deliberately differently: it answers where the other four came from,
+    // and it spans the middle column across both rows.
+    expect(css).toContain('"system core  clubs"');
+    expect(css).toContain('"vault  core  city"');
+    expect(css).toContain('body.club-theme .oh-cards--core .oh-card--core{   grid-area: core; }');
+    // The orphaned four-column rule is gone rather than left behind to rot.
+    expect(css).not.toContain('oh-cards--four');
   });
 
   it('does not nest one product inside another', () => {
-    // Each card is a direct sibling: four buttons, one container, no card
+    // Each card is a direct sibling: five buttons, one container, no card
     // contains another.
-    const row = landing.slice(landing.indexOf('oh-cards oh-cards--four'), landing.indexOf('oh-footer'));
-    expect((row.match(/<button class="oh-card/g) || [])).toHaveLength(4);
+    const row = landing.slice(landing.indexOf('oh-cards oh-cards--core'), landing.indexOf('oh-footer'));
+    expect((row.match(/<button class="oh-card/g) || [])).toHaveLength(5);
     expect(row).not.toMatch(/<button class="oh-card[\s\S]*?<button class="oh-card[\s\S]*?<\/button>\s*<\/button>/);
   });
 
-  it('carries the descriptions the four modules were given', () => {
+  it('carries the descriptions the five modules were given', () => {
     expect(landing).toContain('Platform Operations, Infrastructure, Intelligence &amp; Governance');
     expect(landing).toContain('Football Organizations, Teams, People &amp; Operations');
     expect(landing).toContain('Historical Data, Archive, Replay &amp; Governance');
     expect(landing).toContain('Live Infrastructure, Technology, Health &amp; Architecture');
+    expect(landing).toContain('Origins, Provenance, Lineage &amp; Dependency');
   });
 
   it('shows a REAL historical status, fetched, never a fixed string', () => {

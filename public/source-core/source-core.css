@@ -1,0 +1,849 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   FAMILISTA SOURCE CORE — where the platform's data and technology come from
+
+   The fifth room, and the one the other four point at. SYSTEM, CLUBS, the Data
+   Vault and Infrastructure City each answer a question about what the platform
+   IS; this one answers where any of it CAME FROM. So it is drawn as a core with
+   an architecture around it rather than as another list of panels: five stages
+   left to right, the core third of five, and every path between them a
+   direction data actually travels.
+
+   THE RULES THIS STYLESHEET KEEPS
+
+     · Colour is a fact, never decoration. Green means measured and live. Amber
+       means a named condition fired. Red is reserved for a real critical state
+       and appears nowhere else — not in "if this fails", which is a hypothesis,
+       not an incident. Grey means nobody is measuring, and three different
+       greys are told apart by border STYLE, not by hue: solid for NOT
+       CONNECTED, dotted for NOT INSTRUMENTED, dashed for FUTURE. All three mean
+       "do not read this as working". Violet means real but unverifiable.
+     · Nothing moves that the reader did not move. The workspace is a
+       fixed-height flex column whose body scrolls inside itself with a stable
+       gutter; the inspector is `position: fixed` and animates on `opacity` and
+       `transform` only.
+     · The only idle motion in the module is the travelling dash on a conduit,
+       and it runs ONLY when the registry has measured live throughput
+       (`counts.live > 0`). When nothing is arriving, nothing moves — a diagram
+       that flows while the platform is silent is a diagram telling a lie.
+       `prefers-reduced-motion` removes it entirely.
+     · Depth comes from elevation, not from neon. The core sits on a plinth and
+       casts a shadow; the stages are plates below it. No glow is used to fill
+       space, only to say "this is the centre".
+     · Below 1280px the flow rotates from a row to a column. The core is still
+       third of five, so it is still the middle — the architecture is preserved
+       rather than crushed, and no label is ever squeezed to fit.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#pg-source-core, .sc-insp, .sc-insp-scrim {
+  --sc-bg:       #060a12;
+  --sc-panel:    rgba(17, 24, 41, .72);
+  --sc-panel-2:  rgba(23, 32, 53, .55);
+  --sc-line:     rgba(255, 255, 255, .07);
+  --sc-line-2:   rgba(255, 255, 255, .13);
+  --sc-tx:       #e9eefb;
+  --sc-tx-2:     #97a2bc;
+  --sc-tx-3:     #66708b;
+  --sc-accent:   #22d3ee;
+  --sc-accent-2: #3b82f6;
+  --sc-ok:       #34d399;
+  --sc-warn:     #fbbf24;
+  --sc-crit:     #f87171;
+  --sc-info:     #60a5fa;
+  --sc-off:      #5b6480;
+  --sc-unver:    #a78bfa;
+  --sc-radius:   16px;
+}
+
+/* ── the Core owns the viewport, as SYSTEM, the Vault and the City do ───── */
+body.sc-core-open > .app > .sidebar,
+body.sc-core-open > .app > .main > .topbar,
+body.sc-core-open .sidebar,
+body.sc-core-open .topbar { display: none !important; }
+body.sc-core-open .app { display: block !important; }
+body.sc-core-open .main { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; }
+body.sc-core-open { overflow: hidden; }
+
+#pg-source-core {
+  background:
+    radial-gradient(1500px 760px at 50% -18%, rgba(34, 211, 238, .11), transparent 62%),
+    radial-gradient(1000px 560px at 8% 104%, rgba(59, 130, 246, .08), transparent 62%),
+    var(--sc-bg);
+  color: var(--sc-tx);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.sc-shell { display: flex; height: 100vh; height: 100dvh; overflow: hidden; }
+#pg-source-core[dir="rtl"] .sc-shell { flex-direction: row-reverse; }
+
+/* ── rail ─────────────────────────────────────────────────────────────── */
+
+.sc-rail {
+  flex: 0 0 258px; display: flex; flex-direction: column; min-height: 0;
+  background: linear-gradient(180deg, rgba(10, 16, 29, .96), rgba(6, 10, 18, .96));
+  border-inline-end: 1px solid var(--sc-line);
+}
+.sc-rail-head { padding: 18px 16px 12px; border-bottom: 1px solid var(--sc-line); }
+.sc-rail-home {
+  display: flex; align-items: center; gap: 8px; background: none; border: 0; cursor: pointer;
+  color: var(--sc-tx-3); font-size: 11.5px; font-weight: 700; letter-spacing: .4px;
+  padding: 0 0 12px; font-family: inherit;
+}
+.sc-rail-home:hover { color: var(--sc-accent); }
+#pg-source-core[dir="rtl"] .sc-rail-home span[aria-hidden] { transform: scaleX(-1); }
+.sc-rail-brand { display: flex; align-items: center; gap: 10px; }
+.sc-rail-mark {
+  width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; font-size: 15px;
+  background: linear-gradient(145deg, rgba(34, 211, 238, .22), rgba(59, 130, 246, .12));
+  border: 1px solid rgba(34, 211, 238, .34); color: var(--sc-accent);
+}
+.sc-rail-title { font-size: 14px; font-weight: 800; letter-spacing: .2px; }
+.sc-rail-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; padding: 12px 10px 18px; }
+.sc-rail-group { margin-bottom: 14px; }
+.sc-rail-label {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
+  color: var(--sc-tx-3); padding: 6px 10px;
+}
+.sc-rail-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; margin-bottom: 2px;
+  background: none; border: 0; border-radius: 9px; cursor: pointer;
+  color: var(--sc-tx-2); font-size: 12.8px; font-weight: 600; text-align: start; font-family: inherit;
+}
+.sc-rail-item:hover { background: rgba(255, 255, 255, .04); color: var(--sc-tx); }
+.sc-rail-item.is-on {
+  color: var(--sc-tx);
+  background: linear-gradient(90deg, rgba(34, 211, 238, .14), transparent 78%);
+  box-shadow: inset 2px 0 0 var(--sc-accent);
+}
+#pg-source-core[dir="rtl"] .sc-rail-item.is-on {
+  background: linear-gradient(-90deg, rgba(34, 211, 238, .14), transparent 78%);
+  box-shadow: inset -2px 0 0 var(--sc-accent);
+}
+.sc-rail-icon { width: 18px; text-align: center; opacity: .85; font-size: 13px; }
+.sc-rail-text { flex: 1 1 auto; }
+.sc-rail-badge {
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; font-weight: 700;
+  padding: 1px 7px; border-radius: 999px; flex: 0 0 auto;
+}
+.sc-rail-badge--warn { color: var(--sc-warn); background: rgba(251, 191, 36, .16); }
+.sc-rail-foot { padding: 12px 14px; border-top: 1px solid var(--sc-line); }
+
+.sc-origin { display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+.sc-origin-at { font-size: 10px; color: var(--sc-tx-3); font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+/* ── main ─────────────────────────────────────────────────────────────── */
+
+.sc-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+
+/* Above the body, explicitly: every panel carries a backdrop-filter, which
+   creates a stacking context, and without this the language menu is painted
+   behind the first panel and cannot be clicked. */
+.sc-top {
+  position: relative; z-index: 40; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 18px 26px; border-bottom: 1px solid var(--sc-line);
+  background: rgba(8, 13, 24, .6); backdrop-filter: blur(10px);
+}
+.sc-top-eyebrow {
+  font-size: 10px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase;
+  color: var(--sc-tx-3); margin-bottom: 4px;
+}
+.sc-top-title { font-size: 19px; font-weight: 800; margin: 0; letter-spacing: -.2px; }
+.sc-top-r { display: flex; align-items: center; gap: 12px; }
+
+.sc-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable;
+  padding: 22px 26px 60px; display: flex; flex-direction: column; gap: 18px;
+}
+
+/* ── panels ───────────────────────────────────────────────────────────── */
+
+.sc-panel {
+  background: linear-gradient(180deg, var(--sc-panel), var(--sc-panel-2));
+  border: 1px solid var(--sc-line); border-radius: var(--sc-radius);
+  backdrop-filter: blur(8px); padding: 18px 20px 20px;
+}
+.sc-panel-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 14px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.sc-panel-title { font-size: 13px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; margin: 0; }
+.sc-panel-note { font-size: 11.5px; color: var(--sc-tx-3); }
+/* A name that is data, sitting beside a title that is a sentence. */
+.sc-panel-tag {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .6px;
+  color: var(--sc-accent); padding-inline-start: 4px;
+}
+
+/* ── chips and the state vocabulary ───────────────────────────────────────
+   Eight health words and six connection words collapse to eight kinds, and
+   this block is the only place a kind becomes a colour. Three of them are
+   grey on purpose — see the header. */
+
+.sc-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .3px; white-space: nowrap;
+  border: 1px solid var(--sc-line); background: rgba(255, 255, 255, .03); color: var(--sc-tx-2);
+}
+.sc-chip--sm { padding: 2px 8px; font-size: 9.5px; }
+.sc-chip--ok      { color: var(--sc-ok);    border-color: rgba(52, 211, 153, .32); background: rgba(52, 211, 153, .10); }
+.sc-chip--warn    { color: var(--sc-warn);  border-color: rgba(251, 191, 36, .32); background: rgba(251, 191, 36, .10); }
+.sc-chip--crit    { color: var(--sc-crit);  border-color: rgba(248, 113, 113, .34); background: rgba(248, 113, 113, .11); }
+.sc-chip--unver   { color: var(--sc-unver); border-color: rgba(167, 139, 250, .32); background: rgba(167, 139, 250, .10); }
+.sc-chip--off     { color: var(--sc-off);   border-color: rgba(91, 100, 128, .34); }
+.sc-chip--none    { color: var(--sc-off);   border-color: rgba(91, 100, 128, .40); border-style: dotted; }
+.sc-chip--future  { color: var(--sc-off);   border-color: rgba(91, 100, 128, .40); border-style: dashed; }
+.sc-chip--unknown { color: var(--sc-tx-3); }
+
+.sc-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+
+/* An em dash that can say why it is an em dash. */
+.sc-none { color: var(--sc-tx-3); cursor: help; border-bottom: 1px dotted var(--sc-tx-3); }
+
+/* ── names that may be identifiers ────────────────────────────────────────
+   A route path is data, and `/billing` inside an Arabic paragraph renders as
+   `billing/`: the leading slash is a bidi-neutral character, so it is laid out
+   at the paragraph's own end rather than with the word it belongs to.
+   `plaintext` takes each name's base direction from its own first strong
+   character, so `/billing` reads left-to-right and `المستخدمون` reads
+   right-to-left — one rule, no list of which names are identifiers to keep in
+   step with anything. */
+.sc-src-name, .sc-mech-name, .sc-ctl-name, .sc-td-name, .sc-td-origin,
+.sc-impact-name, .sc-lstage-label, .sc-type, .sc-consumer-name,
+.sc-olayer-name, .sc-core-title { unicode-bidi: plaintext; }
+
+/* ── THE FLOW — the hero ───────────────────────────────────────────────────
+   Five stages and the core third of five, so the core is the middle of the
+   architecture and not merely a box that happens to be bigger. Three layers in
+   one stacking context: the GROUND the architecture stands on, the conduits
+   between stages, and the stages themselves. */
+
+/* The flow fills the workspace rather than being capped at a fixed height.
+   A diagram that stops 500px down and leaves a third of the screen empty —
+   while clipping the very column that carries the most sources — is a diagram
+   that has been sized by a guess instead of by the room it has. */
+.sc-flow {
+  position: relative; isolation: isolate; padding: 6px;
+  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+}
+
+/* The ground. Horizontal rules read stronger than vertical ones, so the plane
+   reads as strata — the layering the architecture is actually made of. */
+.sc-flow-ground {
+  position: absolute; inset: -6px; z-index: 0; pointer-events: none; border-radius: 20px;
+  background:
+    radial-gradient(1300px 440px at 50% -8%, rgba(34, 211, 238, .10), transparent 66%),
+    radial-gradient(980px 520px at 50% 110%, rgba(59, 130, 246, .09), transparent 70%),
+    linear-gradient(180deg, rgba(10, 16, 30, .55), rgba(5, 9, 17, .82));
+  border: 1px solid rgba(255, 255, 255, .05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035), inset 0 -44px 90px -56px rgba(34, 211, 238, .24);
+}
+.sc-flow-ground::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; opacity: .55;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .03) 1px, transparent 1px);
+  background-size: 100% 46px, 72px 100%;
+  -webkit-mask-image: radial-gradient(122% 92% at 50% 42%, #000 28%, transparent 80%);
+  mask-image: radial-gradient(122% 92% at 50% 42%, #000 28%, transparent 80%);
+}
+
+.sc-flow-grid {
+  position: relative; z-index: 2;
+  flex: 1 1 auto; min-height: 0;
+  /* Stretch, so the five plates are the same height and the architecture reads
+     as five stages of one thing rather than five cards that happen to be in a
+     row. The core is centred inside its own track instead. */
+  display: grid; align-items: stretch; gap: 0 10px;
+  /* Bounded by the viewport rather than by the content: without this the
+     plates grow to fit the longest column and the diagram runs off the bottom
+     of the screen, which is the same clipping as before with extra steps. The
+     stages scroll inside themselves instead. The floor keeps a short window
+     from squeezing a plate down to its header. */
+  max-height: calc(100dvh - 206px); min-height: 420px;
+  /* One row, and it is the container's row — not the tallest column's. An
+     `auto` row is sized by its content and overflows a clamped container, so
+     the plates ran off the bottom of the screen even with a max-height set. */
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns:
+    minmax(224px, 1.30fr) 30px
+    minmax(142px, .80fr) 30px
+    minmax(236px, 1.06fr) 30px
+    minmax(150px, .86fr) 30px
+    minmax(158px, .92fr);
+  padding: 20px 16px 24px;
+}
+
+/* ── a stage ──────────────────────────────────────────────────────────── */
+
+.sc-stage {
+  position: relative; min-width: 0; min-height: 0; align-self: stretch;
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, rgba(19, 27, 46, .80), rgba(12, 18, 33, .66));
+  border: 1px solid var(--sc-line); border-radius: 14px;
+  padding: 13px 13px 15px;
+  box-shadow: 0 16px 34px -26px rgba(0, 0, 0, .9), inset 0 1px 0 rgba(255, 255, 255, .04);
+}
+/* The plate's leading edge, so a stage reads as a slab seen slightly from
+   above rather than as a flat rectangle. */
+.sc-stage::before {
+  content: ''; position: absolute; inset-inline: 12px; top: -1px; height: 1px; border-radius: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .13), transparent);
+}
+.sc-stage-tag {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 9px; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase;
+  color: var(--sc-tx-3); margin-bottom: 3px;
+}
+.sc-stage-title { font-size: 12.5px; font-weight: 800; letter-spacing: .3px; }
+.sc-stage-sub { font-size: 10.5px; color: var(--sc-tx-3); margin-top: 3px; line-height: 1.45; }
+.sc-stage-body {
+  margin-top: 11px; flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column; gap: 9px;
+  overflow-y: auto; scrollbar-gutter: stable;
+}
+/* A visible, narrow scrollbar. A column clipped by an invisible overflow reads
+   as a rendering fault; a column with a track reads as a list you can scroll. */
+.sc-stage-body::-webkit-scrollbar { width: 6px; }
+.sc-stage-body::-webkit-scrollbar-track { background: rgba(255, 255, 255, .03); border-radius: 3px; }
+.sc-stage-body::-webkit-scrollbar-thumb { background: rgba(148, 163, 200, .28); border-radius: 3px; }
+.sc-stage-body::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 200, .46); }
+.sc-stage-body { scrollbar-width: thin; scrollbar-color: rgba(148, 163, 200, .28) rgba(255, 255, 255, .03); }
+.sc-stage--origins  { border-color: rgba(34, 211, 238, .18); }
+.sc-stage--consumers { border-color: rgba(59, 130, 246, .20); }
+
+/* ── the origin strata ────────────────────────────────────────────────── */
+
+.sc-olayer {
+  border-radius: 10px; padding: 8px 9px 9px;
+  background: rgba(255, 255, 255, .022);
+  border: 1px solid var(--sc-line);
+  box-shadow: inset 2px 0 0 rgba(34, 211, 238, .30);
+}
+#pg-source-core[dir="rtl"] .sc-olayer { box-shadow: inset -2px 0 0 rgba(34, 211, 238, .30); }
+.sc-olayer[data-sc-layer="EXTERNAL_ORIGIN"]      { box-shadow: inset 2px 0 0 rgba(59, 130, 246, .38); }
+.sc-olayer[data-sc-layer="UNREGISTERED_INTAKE"]  { box-shadow: inset 2px 0 0 rgba(251, 191, 36, .42); }
+.sc-olayer[data-sc-layer="TECHNOLOGY"]           { box-shadow: inset 2px 0 0 rgba(167, 139, 250, .34); }
+.sc-olayer[data-sc-layer="FUTURE"]               { box-shadow: inset 2px 0 0 rgba(91, 100, 128, .46); }
+#pg-source-core[dir="rtl"] .sc-olayer[data-sc-layer="EXTERNAL_ORIGIN"]     { box-shadow: inset -2px 0 0 rgba(59, 130, 246, .38); }
+#pg-source-core[dir="rtl"] .sc-olayer[data-sc-layer="UNREGISTERED_INTAKE"] { box-shadow: inset -2px 0 0 rgba(251, 191, 36, .42); }
+#pg-source-core[dir="rtl"] .sc-olayer[data-sc-layer="TECHNOLOGY"]          { box-shadow: inset -2px 0 0 rgba(167, 139, 250, .34); }
+#pg-source-core[dir="rtl"] .sc-olayer[data-sc-layer="FUTURE"]              { box-shadow: inset -2px 0 0 rgba(91, 100, 128, .46); }
+.sc-olayer-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+.sc-olayer-name {
+  font-size: 9.5px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; color: var(--sc-tx-2);
+}
+.sc-olayer-n {
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; font-weight: 700;
+  color: var(--sc-tx-3); flex: 0 0 auto;
+}
+
+/* ── a source, drawn ──────────────────────────────────────────────────── */
+
+.sc-srcs { display: flex; flex-wrap: wrap; gap: 5px; }
+.sc-srcs--pick { margin-bottom: 14px; }
+.sc-src {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 4px 9px; border-radius: 8px; cursor: pointer; font-family: inherit;
+  background: rgba(255, 255, 255, .035); border: 1px solid var(--sc-line);
+  color: var(--sc-tx-2); font-size: 11px; font-weight: 600; text-align: start;
+}
+.sc-src:hover { border-color: var(--sc-line-2); color: var(--sc-tx); background: rgba(255, 255, 255, .06); }
+.sc-src.is-focus { border-color: rgba(34, 211, 238, .55); color: var(--sc-tx); background: rgba(34, 211, 238, .10); }
+.sc-src-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-src-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; background: var(--sc-tx-3); }
+.sc-src--ok      .sc-src-dot { background: var(--sc-ok); }
+.sc-src--warn    .sc-src-dot { background: var(--sc-warn); }
+.sc-src--crit    .sc-src-dot { background: var(--sc-crit); }
+.sc-src--unver   .sc-src-dot { background: var(--sc-unver); }
+.sc-src--off     .sc-src-dot { background: var(--sc-off); }
+.sc-src--none    .sc-src-dot { background: transparent; border: 1px dotted var(--sc-off); }
+.sc-src--future  .sc-src-dot { background: transparent; border: 1px dashed var(--sc-off); }
+.sc-src--unknown .sc-src-dot { background: var(--sc-tx-3); }
+.sc-src-count {
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px; font-weight: 700;
+  color: var(--sc-tx-3); padding-inline-start: 2px; flex: 0 0 auto;
+}
+.sc-more {
+  padding: 4px 9px; border-radius: 8px; cursor: pointer; font-family: inherit;
+  background: none; border: 1px dashed rgba(255, 255, 255, .14);
+  color: var(--sc-tx-3); font-size: 10.5px; font-weight: 700;
+}
+.sc-more:hover { color: var(--sc-accent); border-color: rgba(34, 211, 238, .45); }
+
+/* ── a conduit ────────────────────────────────────────────────────────────
+   The direction data travels, drawn once per segment. The travelling dash is
+   applied only by `--live`, which the view emits only when the registry has
+   measured throughput. `--idle` is the same geometry with nothing moving. */
+
+.sc-conduit { display: flex; align-items: center; justify-content: center; gap: 0; min-width: 0; }
+.sc-conduit-line {
+  flex: 1 1 auto; height: 2px; border-radius: 2px; min-width: 8px;
+  background: linear-gradient(90deg, rgba(34, 211, 238, .12), rgba(34, 211, 238, .46));
+}
+.sc-conduit-head {
+  flex: 0 0 auto; width: 8px; height: 10px; background: rgba(34, 211, 238, .55);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+#pg-source-core[dir="rtl"] .sc-conduit-line { background: linear-gradient(-90deg, rgba(34, 211, 238, .12), rgba(34, 211, 238, .46)); }
+#pg-source-core[dir="rtl"] .sc-conduit-head { transform: scaleX(-1); }
+
+.sc-conduit--idle .sc-conduit-line { background: rgba(91, 100, 128, .34); }
+.sc-conduit--idle .sc-conduit-head { background: rgba(91, 100, 128, .46); }
+
+.sc-conduit--live .sc-conduit-line {
+  background-image:
+    linear-gradient(90deg, rgba(34, 211, 238, .10), rgba(34, 211, 238, .42)),
+    repeating-linear-gradient(90deg, rgba(190, 245, 255, .85) 0 7px, transparent 7px 20px);
+  background-size: 100% 100%, 20px 100%;
+  background-repeat: no-repeat, repeat-x;
+  animation: sc-carry 1.5s linear infinite;
+}
+@keyframes sc-carry { to { background-position: 0 0, 20px 0; } }
+
+/* ── THE CORE ─────────────────────────────────────────────────────────────
+   Third of five, elevated above the stages on a plinth, and the one element in
+   the module allowed a glow — because it is the centre, which is a fact about
+   the architecture and not an effect. */
+
+.sc-core-wrap {
+  position: relative; min-width: 0; min-height: 0;
+  display: flex; justify-content: center; align-items: center;
+}
+.sc-core {
+  position: relative; z-index: 3; width: 100%;
+  border-radius: 18px; padding: 18px 16px 16px; text-align: center;
+  background:
+    linear-gradient(180deg, rgba(28, 41, 68, .94), rgba(13, 20, 36, .92));
+  border: 1px solid rgba(34, 211, 238, .34);
+  box-shadow:
+    0 30px 60px -28px rgba(0, 0, 0, .95),
+    0 0 0 1px rgba(34, 211, 238, .08),
+    inset 0 1px 0 rgba(255, 255, 255, .07);
+}
+/* The plinth: a narrower slab under the core, so the core reads as raised
+   above the plane the stages sit on. */
+.sc-core::after {
+  content: ''; position: absolute; inset-inline: 18px; bottom: -9px; height: 9px; z-index: -1;
+  border-radius: 0 0 14px 14px;
+  background: linear-gradient(180deg, rgba(20, 30, 52, .95), rgba(9, 14, 26, .6));
+  border: 1px solid var(--sc-line); border-top: 0;
+}
+.sc-core-halo {
+  position: absolute; inset: -46px; z-index: -2; pointer-events: none; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(34, 211, 238, .20), transparent 72%);
+}
+.sc-core-mark {
+  font-size: 24px; line-height: 1; color: var(--sc-accent); margin-bottom: 8px;
+  text-shadow: 0 0 22px rgba(34, 211, 238, .55);
+}
+.sc-core-title { font-size: 14.5px; font-weight: 800; letter-spacing: -.1px; }
+.sc-core-sub {
+  font-size: 10px; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase;
+  color: var(--sc-tx-3); margin-top: 4px;
+}
+.sc-core-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+  margin: 14px 0 12px; padding: 11px 0; border-block: 1px solid var(--sc-line);
+}
+.sc-cstat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sc-cstat-v {
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 16px; font-weight: 700;
+  color: var(--sc-tx); line-height: 1.1;
+}
+.sc-cstat-l {
+  font-size: 8.5px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
+  color: var(--sc-tx-3); overflow: hidden; text-overflow: ellipsis;
+}
+.sc-core-ctls {
+  font-size: 9px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--sc-tx-3); margin-bottom: 8px;
+}
+
+/* ── controls ─────────────────────────────────────────────────────────── */
+
+.sc-ctls { display: flex; flex-direction: column; gap: 5px; }
+.sc-ctl {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 9px; border-radius: 8px; text-align: start;
+  background: rgba(255, 255, 255, .025); border: 1px solid var(--sc-line);
+}
+.sc-ctl--ok  { box-shadow: inset 2px 0 0 var(--sc-ok); }
+.sc-ctl--off { box-shadow: inset 2px 0 0 var(--sc-off); }
+#pg-source-core[dir="rtl"] .sc-ctl--ok  { box-shadow: inset -2px 0 0 var(--sc-ok); }
+#pg-source-core[dir="rtl"] .sc-ctl--off { box-shadow: inset -2px 0 0 var(--sc-off); }
+.sc-ctl-name { font-size: 10.5px; font-weight: 700; color: var(--sc-tx-2); min-width: 0; }
+.sc-ctl-state {
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9px;
+  color: var(--sc-tx-3); flex: 0 0 auto; max-width: 52%; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.sc-ctl--ok  .sc-ctl-state { color: rgba(52, 211, 153, .85); }
+
+/* ── mechanisms (intake and processing) ───────────────────────────────── */
+
+.sc-mech {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 10px; border-radius: 9px;
+  background: rgba(255, 255, 255, .028); border: 1px solid var(--sc-line);
+}
+.sc-mech-name { font-size: 11px; font-weight: 700; color: var(--sc-tx-2); min-width: 0; }
+.sc-mech-n {
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; font-weight: 700;
+  color: var(--sc-accent); flex: 0 0 auto;
+}
+
+/* ── consumers ────────────────────────────────────────────────────────── */
+
+.sc-consumers { display: flex; flex-direction: column; gap: 6px; }
+.sc-consumer {
+  display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 10px;
+  border-radius: 10px; cursor: pointer; font-family: inherit; text-align: start;
+  background: rgba(255, 255, 255, .028); border: 1px solid var(--sc-line); color: var(--sc-tx-2);
+}
+.sc-consumer:hover { border-color: var(--sc-line-2); color: var(--sc-tx); background: rgba(255, 255, 255, .055); }
+.sc-consumer.is-focus {
+  color: var(--sc-tx); border-color: rgba(59, 130, 246, .5); background: rgba(59, 130, 246, .12);
+}
+.sc-consumer-mark {
+  width: 22px; height: 22px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 7px;
+  font-size: 11px; color: var(--sc-accent-2);
+  background: rgba(59, 130, 246, .14); border: 1px solid rgba(59, 130, 246, .26);
+}
+.sc-consumer-name {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .5px; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── search ───────────────────────────────────────────────────────────── */
+
+.sc-search { position: relative; display: flex; }
+.sc-search-in {
+  flex: 1 1 auto; padding: 10px 13px; border-radius: 10px; font-family: inherit; font-size: 12.5px;
+  background: rgba(255, 255, 255, .035); border: 1px solid var(--sc-line); color: var(--sc-tx);
+}
+.sc-search-in::placeholder { color: var(--sc-tx-3); }
+.sc-search-in:focus { outline: none; border-color: rgba(34, 211, 238, .5); background: rgba(34, 211, 238, .05); }
+.sc-search-x {
+  position: absolute; inset-inline-end: 8px; top: 50%; transform: translateY(-50%);
+  background: none; border: 0; cursor: pointer; color: var(--sc-tx-3); font-size: 18px; line-height: 1; padding: 2px 6px;
+}
+.sc-search-x:hover { color: var(--sc-tx); }
+
+/* ── table ────────────────────────────────────────────────────────────── */
+
+.sc-table { display: flex; flex-direction: column; }
+.sc-tr {
+  display: grid; align-items: center; gap: 12px; width: 100%; text-align: start;
+  grid-template-columns: minmax(150px, 1.5fr) 130px minmax(140px, 1.2fr) 130px 110px 84px;
+  padding: 9px 10px; border-radius: 9px; border: 1px solid transparent;
+  background: none; cursor: pointer; font-family: inherit;
+  font-size: 11.5px; color: var(--sc-tx-2);
+}
+.sc-tr:not(.sc-tr--head):hover { background: rgba(255, 255, 255, .04); border-color: var(--sc-line); color: var(--sc-tx); }
+.sc-tr--head {
+  cursor: default; padding-bottom: 7px; margin-bottom: 3px; border-radius: 0;
+  border-bottom: 1px solid var(--sc-line);
+  font-size: 9.5px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; color: var(--sc-tx-3);
+}
+.sc-tr > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-tr .sc-chip { justify-self: start; }
+.sc-td-name { font-weight: 700; color: var(--sc-tx); }
+.sc-td-origin { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px; color: var(--sc-tx-3); }
+
+/* ── lineage ──────────────────────────────────────────────────────────────
+   A source's recorded path, one stage per block, with the evidence that proves
+   each stage underneath it. A stage nobody instruments says so rather than
+   being drawn as a gap. */
+
+.sc-lineage { display: flex; flex-direction: column; }
+.sc-lstage {
+  display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: start;
+  padding: 11px 13px; border-radius: 11px;
+  background: rgba(255, 255, 255, .025); border: 1px solid var(--sc-line);
+}
+.sc-lstage--ok   { box-shadow: inset 3px 0 0 var(--sc-ok); }
+.sc-lstage--off  { box-shadow: inset 3px 0 0 var(--sc-off); }
+.sc-lstage--none { box-shadow: inset 3px 0 0 rgba(91, 100, 128, .45); border-style: dashed; }
+#pg-source-core[dir="rtl"] .sc-lstage--ok   { box-shadow: inset -3px 0 0 var(--sc-ok); }
+#pg-source-core[dir="rtl"] .sc-lstage--off  { box-shadow: inset -3px 0 0 var(--sc-off); }
+#pg-source-core[dir="rtl"] .sc-lstage--none { box-shadow: inset -3px 0 0 rgba(91, 100, 128, .45); }
+.sc-lstage-n {
+  width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%;
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; font-weight: 700;
+  color: var(--sc-tx-2); background: rgba(255, 255, 255, .05); border: 1px solid var(--sc-line);
+}
+.sc-lstage--ok .sc-lstage-n { color: var(--sc-ok); border-color: rgba(52, 211, 153, .35); background: rgba(52, 211, 153, .10); }
+.sc-lstage-b { min-width: 0; }
+.sc-lstage-stage {
+  font-size: 9px; font-weight: 800; letter-spacing: 1.1px; text-transform: uppercase; color: var(--sc-tx-3);
+}
+.sc-lstage-label { font-size: 12.5px; font-weight: 700; color: var(--sc-tx); margin-top: 2px; }
+.sc-lstage-detail { font-size: 11.3px; color: var(--sc-tx-2); margin-top: 4px; line-height: 1.55; }
+.sc-lstage-ev {
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; color: var(--sc-tx-3);
+  margin-top: 6px; word-break: break-word; line-height: 1.5;
+}
+/* The joint between two stages: a short vertical run, so the path reads as one
+   path rather than as a list of cards. */
+.sc-lgap {
+  height: 16px; width: 2px; margin-inline-start: 26px; border-radius: 2px;
+  background: linear-gradient(180deg, rgba(34, 211, 238, .42), rgba(34, 211, 238, .12));
+}
+
+/* ── evidence ─────────────────────────────────────────────────────────── */
+
+.sc-kv { display: flex; flex-direction: column; }
+.sc-kv-row {
+  display: grid; grid-template-columns: 210px 1fr; gap: 14px; align-items: baseline;
+  padding: 9px 0; border-bottom: 1px solid var(--sc-line); font-size: 11.8px; color: var(--sc-tx-2);
+}
+.sc-kv-row:last-child { border-bottom: 0; }
+.sc-kv-row b { color: var(--sc-tx); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px; font-weight: 700; word-break: break-word; }
+
+.sc-notice {
+  margin-top: 12px; text-align: center;
+}
+.sc-notice code {
+  display: inline-block; padding: 7px 13px; border-radius: 8px;
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px;
+  color: var(--sc-accent); background: rgba(34, 211, 238, .08); border: 1px solid rgba(34, 211, 238, .26);
+}
+
+/* ── inspector ────────────────────────────────────────────────────────── */
+
+.sc-insp-scrim {
+  position: fixed; inset: 0; z-index: 900;
+  background: rgba(3, 6, 12, .55); backdrop-filter: blur(2px); animation: sc-fade .16s ease-out;
+}
+.sc-insp {
+  position: fixed; top: 0; inset-inline-end: 0; z-index: 901;
+  width: min(520px, 94vw); height: 100vh; height: 100dvh;
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, #0a1120, #070c16);
+  border-inline-start: 1px solid var(--sc-line-2); color: var(--sc-tx);
+  animation: sc-slide .18s cubic-bezier(.22, .8, .3, 1);
+}
+@keyframes sc-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sc-slide { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: translateX(0); } }
+/* The drawer is pinned to the inline end, so in Arabic it sits on the LEFT of
+   the viewport and must enter from the left. `translateX` has no logical form,
+   so the direction is mirrored explicitly rather than left to slide in from the
+   side it is not on. */
+@keyframes sc-slide-rtl { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: translateX(0); } }
+#pg-source-core[dir="rtl"] .sc-insp { animation-name: sc-slide-rtl; }
+.sc-insp-head {
+  flex: 0 0 auto; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 18px 20px; border-bottom: 1px solid var(--sc-line);
+}
+.sc-insp-title { font-size: 15px; font-weight: 800; }
+.sc-insp-sub { font-size: 11.5px; color: var(--sc-tx-3); margin-top: 3px; }
+.sc-insp-x { background: none; border: 0; cursor: pointer; color: var(--sc-tx-3); font-size: 22px; line-height: 1; padding: 0 2px; font-family: inherit; }
+.sc-insp-x:hover { color: var(--sc-tx); }
+.sc-insp-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; padding: 8px 20px 20px; }
+.sc-insp-state { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 0; }
+.sc-insp-sum { font-size: 11.8px; color: var(--sc-tx-2); }
+.sc-insp-sec {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--sc-tx-3); margin: 16px 0 8px; padding-top: 12px; border-top: 1px solid var(--sc-line);
+}
+.sc-insp-row { display: grid; grid-template-columns: 150px 1fr; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--sc-line); }
+.sc-insp-k { font-size: 10.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--sc-tx-3); }
+.sc-insp-v { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px; word-break: break-word; }
+.sc-insp-note { font-size: 11.3px; color: var(--sc-tx-3); line-height: 1.6; padding: 8px 0; }
+.sc-insp-ev { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: var(--sc-tx-2); line-height: 1.6; word-break: break-word; }
+.sc-insp-foot { flex: 0 0 auto; padding: 14px 20px; border-top: 1px solid var(--sc-line); font-size: 11px; color: var(--sc-tx-3); line-height: 1.55; }
+
+/* Event types a source publishes: identifiers, so monospace and never wrapped
+   mid-token. */
+.sc-types { display: flex; flex-wrap: wrap; gap: 5px; padding: 4px 0 2px; }
+.sc-type {
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px;
+  padding: 3px 8px; border-radius: 6px; color: var(--sc-tx-2);
+  background: rgba(255, 255, 255, .04); border: 1px solid var(--sc-line);
+}
+
+/* "If this fails" — three degrees of consequence, graded by how the dependency
+   was established. Amber for a recorded edge, blue for one hop beyond it, grey
+   for a declared destination. No red: this is a hypothesis, not an incident. */
+.sc-impacts { display: flex; flex-direction: column; gap: 6px; padding: 2px 0; }
+.sc-impact {
+  display: grid; grid-template-columns: 1fr auto; gap: 3px 10px; align-items: baseline;
+  padding: 8px 10px; border-radius: 9px;
+  background: rgba(255, 255, 255, .025); border: 1px solid var(--sc-line);
+}
+.sc-impact--directly-affected    { box-shadow: inset 3px 0 0 var(--sc-warn); }
+.sc-impact--dependent            { box-shadow: inset 3px 0 0 var(--sc-info); }
+.sc-impact--potentially-affected { box-shadow: inset 3px 0 0 var(--sc-off); }
+#pg-source-core[dir="rtl"] .sc-impact--directly-affected    { box-shadow: inset -3px 0 0 var(--sc-warn); }
+#pg-source-core[dir="rtl"] .sc-impact--dependent            { box-shadow: inset -3px 0 0 var(--sc-info); }
+#pg-source-core[dir="rtl"] .sc-impact--potentially-affected { box-shadow: inset -3px 0 0 var(--sc-off); }
+.sc-impact-name { font-size: 11.8px; font-weight: 700; color: var(--sc-tx); min-width: 0; word-break: break-word; }
+.sc-impact-rel { font-size: 9.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--sc-tx-3); flex: 0 0 auto; }
+.sc-impact--directly-affected .sc-impact-rel { color: var(--sc-warn); }
+.sc-impact--dependent .sc-impact-rel { color: var(--sc-info); }
+.sc-impact-ev {
+  grid-column: 1 / -1; font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 9.5px; color: var(--sc-tx-3); word-break: break-word; line-height: 1.5;
+}
+
+.sc-links { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 2px; }
+.sc-link {
+  padding: 6px 12px; border-radius: 8px; cursor: pointer; font-family: inherit;
+  font-size: 11px; font-weight: 700; letter-spacing: .3px;
+  background: rgba(34, 211, 238, .08); border: 1px solid rgba(34, 211, 238, .28); color: var(--sc-accent);
+}
+.sc-link:hover { background: rgba(34, 211, 238, .14); }
+
+/* ── empty + skeleton ─────────────────────────────────────────────────── */
+
+.sc-empty { text-align: center; padding: 34px 20px; }
+.sc-empty-mark { font-size: 26px; color: var(--sc-tx-3); opacity: .5; margin-bottom: 10px; }
+.sc-empty-title { font-size: 13.5px; font-weight: 700; color: var(--sc-tx-2); }
+.sc-empty-detail { font-size: 11.8px; color: var(--sc-tx-3); margin-top: 6px; max-width: 480px; margin-inline: auto; line-height: 1.6; }
+/* The skeleton is the size of the content it stands in for, so nothing shifts
+   when the answer arrives. */
+.sc-skel { display: flex; flex-direction: column; gap: 9px; }
+.sc-skel-row { height: 40px; border-radius: 9px; background: linear-gradient(90deg, rgba(255,255,255,.028), rgba(255,255,255,.05), rgba(255,255,255,.028)); }
+
+/* ── language switch ──────────────────────────────────────────────────── */
+
+.sc-langs { position: relative; }
+.sc-lang-pick {
+  display: flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 8px; cursor: pointer;
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--sc-line);
+  color: var(--sc-tx-2); font-size: 11.5px; font-weight: 600; font-family: inherit;
+}
+.sc-lang-pick:hover { color: var(--sc-tx); }
+.sc-lang-ch { font-size: 10px; opacity: .7; }
+.sc-lang-menu {
+  position: absolute; inset-inline-end: 0; top: calc(100% + 6px); z-index: 30;
+  display: none; flex-direction: column; min-width: 150px; padding: 5px;
+  background: #0a1120; border: 1px solid var(--sc-line-2); border-radius: 10px;
+  box-shadow: 0 18px 46px -14px rgba(0, 0, 0, .7);
+}
+.sc-langs.is-open .sc-lang-menu { display: flex; }
+.sc-lang { padding: 8px 11px; border-radius: 7px; cursor: pointer; text-align: start; background: none; border: 0; color: var(--sc-tx-2); font-size: 12.5px; font-family: inherit; }
+.sc-lang:hover { background: rgba(255, 255, 255, .05); color: var(--sc-tx); }
+.sc-lang.is-on { color: var(--sc-accent); }
+
+/* ── motion ───────────────────────────────────────────────────────────────
+   Two animations exist: the drawer entering, and the carry on a live conduit.
+   A reader who has asked for less motion gets neither, and the live conduit
+   falls back to its static gradient rather than to the idle one — because it
+   is still live, it is just not being animated at them. */
+@media (prefers-reduced-motion: reduce) {
+  .sc-insp, .sc-insp-scrim { animation: none; }
+  .sc-conduit--live .sc-conduit-line { animation: none; background-image: linear-gradient(90deg, rgba(34, 211, 238, .12), rgba(34, 211, 238, .46)); }
+}
+
+/* ── responsive ───────────────────────────────────────────────────────────
+   1920 → 1536 → 1280 keep the architecture. At 1280 the flow rotates from a
+   row into a column: the core is still third of five, so it is still the
+   middle, and no label has been crushed to keep it horizontal. */
+
+@media (max-width: 1660px) {
+  .sc-flow-grid {
+    gap: 0 7px; padding: 18px 12px 22px;
+    grid-template-columns:
+      minmax(198px, 1.28fr) 24px
+      minmax(128px, .78fr) 24px
+      minmax(212px, 1.04fr) 24px
+      minmax(136px, .84fr) 24px
+      minmax(144px, .90fr);
+  }
+  .sc-core-stats { grid-template-columns: repeat(2, 1fr); gap: 8px 6px; }
+  /* A module name is not guessable from its first eleven letters. */
+  .sc-consumer-name { white-space: normal; overflow: visible; line-height: 1.3; }
+  .sc-kv-row { grid-template-columns: 180px 1fr; }
+  .sc-tr { grid-template-columns: minmax(130px, 1.5fr) 118px minmax(120px, 1.15fr) 116px 102px 72px; gap: 10px; }
+}
+
+@media (max-width: 1400px) {
+  .sc-rail { flex-basis: 224px; }
+  .sc-flow-grid {
+    grid-template-columns:
+      minmax(176px, 1.26fr) 20px
+      minmax(118px, .76fr) 20px
+      minmax(196px, 1.02fr) 20px
+      minmax(124px, .82fr) 20px
+      minmax(132px, .88fr);
+  }
+  .sc-tr { grid-template-columns: minmax(120px, 1.5fr) 108px minmax(110px, 1.1fr) 106px 96px 64px; }
+}
+
+/* The rotation. Five stages become five rows, the conduits turn to point down,
+   and the core keeps its position — middle of the column instead of middle of
+   the row. */
+@media (max-width: 1280px) {
+  /* Out of the height-constrained model entirely. Stacked, the diagram is
+     taller than any window, so it belongs in normal flow with the body
+     scrolling — left constrained, the grid's tracks are squeezed under their
+     content and the core, centred in its own track, spills over four stages. */
+  .sc-flow { flex: 0 0 auto; display: block; }
+  .sc-flow-grid {
+    grid-template-columns: minmax(0, 620px); justify-content: center;
+    align-items: start; gap: 0; padding: 18px 14px 22px;
+    flex: none; max-height: none; min-height: 0; grid-template-rows: none;
+  }
+  .sc-stage, .sc-core-wrap { align-self: stretch; }
+  .sc-core-wrap { align-items: stretch; }
+  /* Stacked, a stage that filled the viewport would put one plate on screen and
+     push the other four out of sight, so here the cap comes back. */
+  .sc-stage-body { max-height: min(40vh, 340px); }
+  .sc-conduit { padding: 9px 0; }
+  .sc-conduit-line { flex: 0 0 auto; width: 2px; height: 24px; min-width: 0; background: linear-gradient(180deg, rgba(34, 211, 238, .12), rgba(34, 211, 238, .46)); }
+  .sc-conduit-head { width: 10px; height: 8px; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+  #pg-source-core[dir="rtl"] .sc-conduit-line { background: linear-gradient(180deg, rgba(34, 211, 238, .12), rgba(34, 211, 238, .46)); }
+  #pg-source-core[dir="rtl"] .sc-conduit-head { transform: none; }
+  .sc-conduit { flex-direction: column; }
+  .sc-conduit--idle .sc-conduit-line { background: rgba(91, 100, 128, .34); }
+  .sc-conduit--live .sc-conduit-line {
+    background-image:
+      linear-gradient(180deg, rgba(34, 211, 238, .10), rgba(34, 211, 238, .42)),
+      repeating-linear-gradient(180deg, rgba(190, 245, 255, .85) 0 6px, transparent 6px 17px);
+    background-size: 100% 100%, 100% 17px;
+    background-repeat: no-repeat, repeat-y;
+    animation: sc-carry-v 1.5s linear infinite;
+  }
+  @keyframes sc-carry-v { to { background-position: 0 0, 0 17px; } }
+  .sc-core-stats { grid-template-columns: repeat(4, 1fr); }
+  .sc-stage--origins .sc-stage-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) and (max-width: 1280px) {
+  .sc-conduit--live .sc-conduit-line { animation: none; background-image: linear-gradient(180deg, rgba(34, 211, 238, .12), rgba(34, 211, 238, .46)); }
+}
+
+@media (max-width: 1100px) {
+  .sc-tr { grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+  .sc-tr--head { display: none; }
+  .sc-kv-row { grid-template-columns: 1fr; gap: 3px; }
+}
+
+/* The escape hatch. Below this the workspace stops being a fixed-height column
+   and becomes an ordinary scrolling page, because a panel crushed to fit is
+   worse than a page that scrolls. */
+@media (max-width: 980px), (max-height: 620px) {
+  body.sc-core-open { overflow: auto; }
+  .sc-shell { display: block; height: auto; overflow: visible; }
+  .sc-rail { flex-basis: auto; border-inline-end: 0; border-bottom: 1px solid var(--sc-line); }
+  /* The rail stops being a column and becomes a strip. Stacked, eight
+     full-width rows push the architecture an entire screen down, so the reader
+     scrolls past the navigation to reach the thing they opened. */
+  .sc-rail-body { overflow: visible; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .sc-rail-group { display: contents; }
+  .sc-rail-label { flex: 0 0 100%; padding: 8px 10px 2px; }
+  .sc-rail-item { width: auto; margin: 0; padding: 7px 12px; }
+  .sc-rail-foot { display: flex; align-items: baseline; gap: 12px; }
+  .sc-rail-foot .sc-origin { flex-direction: row; align-items: center; gap: 10px; }
+  .sc-body { overflow: visible; padding: 16px; }
+  .sc-stage-body { max-height: none; overflow: visible; }
+  .sc-flow-grid { grid-template-columns: minmax(0, 1fr); }
+  .sc-stage--origins .sc-stage-body { grid-template-columns: 1fr; }
+  .sc-core-stats { grid-template-columns: repeat(2, 1fr); }
+  .sc-insp-row { grid-template-columns: 1fr; gap: 2px; }
+  .sc-impact { grid-template-columns: 1fr; }
+  .sc-lstage { grid-template-columns: 1fr; gap: 8px; }
+  .sc-lgap { margin-inline-start: 13px; }
+}

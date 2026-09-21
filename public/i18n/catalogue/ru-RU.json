@@ -1554,5 +1554,16 @@
   "Infrastructure state unknown": "Состояние инфраструктуры неизвестно",
   "Infrastructure health unreachable": "Состояние инфраструктуры недоступно",
   "Critical infrastructure alerts: ": "Критические оповещения инфраструктуры: ",
-  "Infrastructure warnings: ": "Предупреждения инфраструктуры: "
+  "Infrastructure warnings: ": "Предупреждения инфраструктуры: ",
+  "SOURCE CORE": "ЯДРО ИСТОЧНИКОВ",
+  "Origins, Provenance, Lineage & Dependency": "Происхождение, провенанс, происхождение данных и зависимости",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "Поток источников · Внутренние источники · Внешние источники · Технологические истоки · Незарегистрированный приём · Будущие источники · Происхождение данных · Доказательства",
+  "Reading source registry…": "Чтение реестра источников…",
+  "Enter the core": "Войти в ядро",
+  "Source registry not generated": "Реестр источников не сформирован",
+  "Source registry unreachable": "Реестр источников недоступен",
+  "Source state unknown": "Состояние источников неизвестно",
+  "Critical sources: \u0000": "Критические источники: \u0000",
+  "Sources in warning: \u0000": "Источники с предупреждением: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Учтено источников: \u0000 · без измерения: \u0000"
 }

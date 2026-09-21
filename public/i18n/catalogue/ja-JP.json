@@ -1551,5 +1551,16 @@
   "Infrastructure state unknown": "インフラの状態は不明です",
   "Infrastructure health unreachable": "インフラの状態を取得できません",
   "Critical infrastructure alerts: ": "重大なインフラアラート: ",
-  "Infrastructure warnings: ": "インフラの警告: "
+  "Infrastructure warnings: ": "インフラの警告: ",
+  "SOURCE CORE": "ソース・コア",
+  "Origins, Provenance, Lineage & Dependency": "起源・来歴・系譜と依存関係",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "ソースフロー · 内部ソース · 外部ソース · 技術の起源 · 未登録の受信 · 将来のソース · データ系譜 · 根拠",
+  "Reading source registry…": "ソースレジストリを読み込んでいます…",
+  "Enter the core": "コアを開く",
+  "Source registry not generated": "ソースレジストリが生成されていません",
+  "Source registry unreachable": "ソースレジストリを取得できません",
+  "Source state unknown": "ソースの状態は不明です",
+  "Critical sources: \u0000": "重大なソース: \u0000",
+  "Sources in warning: \u0000": "警告中のソース: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "把握済みソース: \u0000 · 計測なし: \u0000"
 }

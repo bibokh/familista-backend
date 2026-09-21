@@ -338,8 +338,30 @@ try {
 const routesIndex = read(cite('src/routes/index.ts'));
 const mounts = [];
 if (routesIndex) {
+  // The import line tells us which FILE each router lives in, so a mount can be
+  // followed back to the routes it actually declares.
+  const files = new Map();
+  for (const m of routesIndex.matchAll(/import\s+([A-Za-z0-9_]+)\s+from\s+'\.\/([^']+)'/g)) {
+    files.set(m[1], `src/routes/${m[2]}.ts`);
+  }
+
   for (const m of routesIndex.matchAll(/router\.use\(\s*'([^']+)'\s*,\s*([A-Za-z0-9_]+)\s*\)/g)) {
-    mounts.push({ path: m[1], router: m[2] });
+    const file = files.get(m[2]) || null;
+    // WHETHER A MOUNT CAN RECEIVE DATA, from the verbs it declares.
+    //
+    // Recorded because a provenance map has to tell an ingestion point from a
+    // read surface, and guessing from the path name gets it wrong: `/home` and
+    // `/match-center` read, `/devices` and `/vision` receive. The only honest
+    // discriminator is whether the router declares a write verb, and that is
+    // in the file.
+    let writes = 0;
+    let reads = 0;
+    const body = file ? read(file) : '';
+    if (body) {
+      writes = (body.match(/router\.(post|put|patch|delete)\s*\(/g) || []).length;
+      reads = (body.match(/router\.get\s*\(/g) || []).length;
+    }
+    mounts.push({ path: m[1], router: m[2], file, writes, reads });
   }
 }
 

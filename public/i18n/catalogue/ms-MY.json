@@ -1551,5 +1551,16 @@
   "Infrastructure state unknown": "Status infrastruktur tidak diketahui",
   "Infrastructure health unreachable": "Kesihatan infrastruktur tidak dapat dicapai",
   "Critical infrastructure alerts: ": "Amaran infrastruktur kritikal: ",
-  "Infrastructure warnings: ": "Amaran infrastruktur: "
+  "Infrastructure warnings: ": "Amaran infrastruktur: ",
+  "SOURCE CORE": "TERAS SUMBER",
+  "Origins, Provenance, Lineage & Dependency": "Asal, Provenans, Salasilah & Kebergantungan",
+  "Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence": "Aliran Sumber · Sumber Dalaman · Sumber Luaran · Asal Teknologi · Pengambilan Tidak Berdaftar · Sumber Masa Depan · Salasilah Data · Bukti",
+  "Reading source registry…": "Membaca daftar sumber…",
+  "Enter the core": "Masuk ke teras",
+  "Source registry not generated": "Daftar sumber belum dijana",
+  "Source registry unreachable": "Daftar sumber tidak dapat dicapai",
+  "Source state unknown": "Status sumber tidak diketahui",
+  "Critical sources: \u0000": "Sumber kritikal: \u0000",
+  "Sources in warning: \u0000": "Sumber dengan amaran: \u0000",
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Sumber dipetakan: \u0000 · tidak diukur: \u0000"
 }
