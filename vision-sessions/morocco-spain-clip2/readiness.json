@@ -1,0 +1,661 @@
+{
+  "schema": "familista-vision/evidence@1",
+  "contains_synthetic": false,
+  "produced_by": "phase5_readiness",
+  "sources": [
+    "morocco_spain_clip2"
+  ],
+  "modalities_implemented": [
+    "VISION"
+  ],
+  "modalities_declared_not_implemented": [
+    "FIELD_NODE",
+    "PLAYER_POD",
+    "BALL_SENSOR",
+    "MANUAL"
+  ],
+  "phase": 5,
+  "claim": "ARCHITECTURE AND READINESS ONLY \u2014 no new real-world validation",
+  "validated_on_real_footage": {
+    "unified_schema_carries_phase_1_to_4_output": true,
+    "frames": 460,
+    "subjects": 6921,
+    "frame_origins": {
+      "MEASURED": 415,
+      "PROPAGATED": 45
+    },
+    "frames_with_metric_ball": 48,
+    "controls_available": 14,
+    "controls_fed_to_machine": 14,
+    "possession_event_counts": {
+      "CONTROL": 14,
+      "POSSESSION_START": 1
+    },
+    "possession_events_emitted": 15,
+    "resting_state": {
+      "phase": "HELD",
+      "team_id": "team_b",
+      "player_id": "433#1",
+      "since_t": 11.5571,
+      "origin": "MEASURED",
+      "reason": "433#1 took the first observed control"
+    }
+  },
+  "structurally_ready_only": {
+    "fixed_tactical_camera": {
+      "mode": "persistent_static_camera",
+      "status": "ARCHITECTURE_ONLY \u2014 not validated against real fixed-camera footage",
+      "placement": {
+        "height_m": null,
+        "distance_from_touchline_m": null,
+        "along_touchline_m": null,
+        "tilt_degrees": null,
+        "notes": "no fixed-camera recording exists yet"
+      },
+      "resolves": 0,
+      "drift_m": null,
+      "max_drift_m": 1.0,
+      "min_agreeing_samples": 3,
+      "held": null
+    },
+    "sensor_adapters": [
+      {
+        "modality": "VISION",
+        "implemented": true,
+        "contributes": [
+          "player tracks",
+          "team and role",
+          "ball",
+          "pitch coordinates"
+        ],
+        "rationale": "the only instrument that exists today; works standalone"
+      },
+      {
+        "modality": "PLAYER_POD",
+        "implemented": false,
+        "contributes": [
+          "per-player metric position independent of the camera",
+          "position while the player is off-screen or occluded",
+          "identity that cannot be swapped by a tracker"
+        ],
+        "rationale": "Vision loses a player behind another player and can swap two identities that cross \u2014 measured at four genuine switches on ten seconds of validation footage. A pod does neither, so fusing one removes the failure mode rather than reducing it."
+      },
+      {
+        "modality": "FIELD_NODE",
+        "implemented": false,
+        "contributes": [
+          "metric position with no pitch calibration at all",
+          "a common time base every other instrument can sync to",
+          "coverage during replays and close-ups"
+        ],
+        "rationale": "Phase 4 measured the structural problem: calibratable pitch geometry and visible football events are anti-correlated in broadcast footage, so only 21.6 % of frames carry a metric ball position. Field nodes supply position without needing the pitch to be visible, which removes the correlation instead of working around it."
+      },
+      {
+        "modality": "BALL_SENSOR",
+        "implemented": false,
+        "contributes": [
+          "the moment of contact, directly measured",
+          "ball height, which no single camera can recover",
+          "impact force and spin"
+        ],
+        "rationale": "A touch is currently inferred from a change in the ball's motion seen from one viewpoint, and a ball in flight has no recoverable height, so a header and a ground touch are indistinguishable. A sensor in the ball measures the contact itself."
+      }
+    ],
+    "possession_machine": {
+      "status": "logic tested on synthetic sequences only",
+      "vocabulary": [
+        "TOUCH",
+        "CONTROL",
+        "POSSESSION_START",
+        "POSSESSION_TRANSITION",
+        "PASS",
+        "RECEPTION",
+        "CARRY",
+        "DRIBBLE",
+        "CROSS",
+        "SHOT",
+        "INTERCEPTION",
+        "RECOVERY",
+        "BALL_LOSS"
+      ],
+      "synthetic_exercise": {
+        "CONTROL": 6,
+        "POSSESSION_START": 1,
+        "DRIBBLE": 1,
+        "PASS": 2,
+        "RECEPTION": 3,
+        "POSSESSION_TRANSITION": 4,
+        "CROSS": 1,
+        "INTERCEPTION": 1,
+        "BALL_LOSS": 1,
+        "SHOT": 1
+      },
+      "contains_synthetic": true
+    }
+  },
+  "synthetic_events": [
+    {
+      "kind": "CONTROL",
+      "t": 0.0,
+      "frame_number": 0,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A1"
+      ],
+      "teams": [
+        "team_a"
+      ],
+      "pitch_x_m": 30.0,
+      "pitch_y_m": 34.0,
+      "confidence": 0.9,
+      "reason": "A1 controlled the ball",
+      "evidence": {
+        "first_control": true
+      }
+    },
+    {
+      "kind": "POSSESSION_START",
+      "t": 0.0,
+      "frame_number": 0,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A1"
+      ],
+      "teams": [
+        "team_a"
+      ],
+      "pitch_x_m": 30.0,
+      "pitch_y_m": 34.0,
+      "confidence": 0.9,
+      "reason": "possession begins with A1",
+      "evidence": {
+        "previous_phase": "UNKNOWN"
+      }
+    },
+    {
+      "kind": "CONTROL",
+      "t": 0.6,
+      "frame_number": 18,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A1"
+      ],
+      "teams": [
+        "team_a"
+      ],
+      "pitch_x_m": 36.0,
+      "pitch_y_m": 34.0,
+      "confidence": 0.9,
+      "reason": "A1 controlled the ball",
+      "evidence": {}
+    },
+    {
+      "kind": "DRIBBLE",
+      "t": 0.6,
+      "frame_number": 18,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A1"
+      ],
+      "teams": [
+        "team_a"
+      ],
+      "pitch_x_m": 36.0,
+      "pitch_y_m": 34.0,
+      "confidence": 0.9,
+      "reason": "A1 moved the ball 6.0 m while retaining it under pressure from 1 opponent(s)",
+      "evidence": {
+        "from_player": "A1",
+        "from_team": "team_a",
+        "travel_m": 6.0,
+        "elapsed_s": 0.6,
+        "from_xy": [
+          30.0,
+          34.0
+        ],
+        "opponents_within_pressure": 1,
+        "pressure_radius_m": 3.0
+      }
+    },
+    {
+      "kind": "CONTROL",
+      "t": 1.4,
+      "frame_number": 42,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A2"
+      ],
+      "teams": [
+        "team_a"
+      ],
+      "pitch_x_m": 48.0,
+      "pitch_y_m": 20.0,
+      "confidence": 0.9,
+      "reason": "A2 controlled the ball",
+      "evidence": {}
+    },
+    {
+      "kind": "PASS",
+      "t": 1.4,
+      "frame_number": 42,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A1",
+        "A2"
+      ],
+      "teams": [
+        "team_a",
+        "team_a"
+      ],
+      "pitch_x_m": 48.0,
+      "pitch_y_m": 20.0,
+      "confidence": 0.9,
+      "reason": "A1 to A2, 18.4 m in 0.80 s; intent is not assessed",
+      "evidence": {
+        "from_player": "A1",
+        "from_team": "team_a",
+        "travel_m": 18.44,
+        "elapsed_s": 0.8,
+        "from_xy": [
+          36.0,
+          34.0
+        ],
+        "wide_origin": false,
+        "ended_in_penalty_area": false
+      }
+    },
+    {
+      "kind": "RECEPTION",
+      "t": 1.4,
+      "frame_number": 42,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A2"
+      ],
+      "teams": [
+        "team_a"
+      ],
+      "pitch_x_m": 48.0,
+      "pitch_y_m": 20.0,
+      "confidence": 0.9,
+      "reason": "A2 received from A1",
+      "evidence": {
+        "from_player": "A1",
+        "from_team": "team_a",
+        "travel_m": 18.44,
+        "elapsed_s": 0.8,
+        "from_xy": [
+          36.0,
+          34.0
+        ]
+      }
+    },
+    {
+      "kind": "POSSESSION_TRANSITION",
+      "t": 1.4,
+      "frame_number": 42,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A1",
+        "A2"
+      ],
+      "teams": [
+        "team_a",
+        "team_a"
+      ],
+      "pitch_x_m": 48.0,
+      "pitch_y_m": 20.0,
+      "confidence": 0.9,
+      "reason": "possession moved within the same team",
+      "evidence": {
+        "from_player": "A1",
+        "from_team": "team_a",
+        "travel_m": 18.44,
+        "elapsed_s": 0.8,
+        "from_xy": [
+          36.0,
+          34.0
+        ],
+        "same_team": true
+      }
+    },
+    {
+      "kind": "CONTROL",
+      "t": 2.2,
+      "frame_number": 66,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A3"
+      ],
+      "teams": [
+        "team_a"
+      ],
+      "pitch_x_m": 92.0,
+      "pitch_y_m": 10.0,
+      "confidence": 0.9,
+      "reason": "A3 controlled the ball",
+      "evidence": {}
+    },
+    {
+      "kind": "PASS",
+      "t": 2.2,
+      "frame_number": 66,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A2",
+        "A3"
+      ],
+      "teams": [
+        "team_a",
+        "team_a"
+      ],
+      "pitch_x_m": 92.0,
+      "pitch_y_m": 10.0,
+      "confidence": 0.9,
+      "reason": "A2 to A3, 45.1 m in 0.80 s; intent is not assessed",
+      "evidence": {
+        "from_player": "A2",
+        "from_team": "team_a",
+        "travel_m": 45.12,
+        "elapsed_s": 0.8,
+        "from_xy": [
+          48.0,
+          20.0
+        ],
+        "wide_origin": false,
+        "ended_in_penalty_area": false
+      }
+    },
+    {
+      "kind": "RECEPTION",
+      "t": 2.2,
+      "frame_number": 66,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A3"
+      ],
+      "teams": [
+        "team_a"
+      ],
+      "pitch_x_m": 92.0,
+      "pitch_y_m": 10.0,
+      "confidence": 0.9,
+      "reason": "A3 received from A2",
+      "evidence": {
+        "from_player": "A2",
+        "from_team": "team_a",
+        "travel_m": 45.12,
+        "elapsed_s": 0.8,
+        "from_xy": [
+          48.0,
+          20.0
+        ]
+      }
+    },
+    {
+      "kind": "POSSESSION_TRANSITION",
+      "t": 2.2,
+      "frame_number": 66,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A2",
+        "A3"
+      ],
+      "teams": [
+        "team_a",
+        "team_a"
+      ],
+      "pitch_x_m": 92.0,
+      "pitch_y_m": 10.0,
+      "confidence": 0.9,
+      "reason": "possession moved within the same team",
+      "evidence": {
+        "from_player": "A2",
+        "from_team": "team_a",
+        "travel_m": 45.12,
+        "elapsed_s": 0.8,
+        "from_xy": [
+          48.0,
+          20.0
+        ],
+        "same_team": true
+      }
+    },
+    {
+      "kind": "CONTROL",
+      "t": 2.9,
+      "frame_number": 87,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A4"
+      ],
+      "teams": [
+        "team_a"
+      ],
+      "pitch_x_m": 95.0,
+      "pitch_y_m": 30.0,
+      "confidence": 0.9,
+      "reason": "A4 controlled the ball",
+      "evidence": {}
+    },
+    {
+      "kind": "CROSS",
+      "t": 2.9,
+      "frame_number": 87,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A3",
+        "A4"
+      ],
+      "teams": [
+        "team_a",
+        "team_a"
+      ],
+      "pitch_x_m": 95.0,
+      "pitch_y_m": 30.0,
+      "confidence": 0.9,
+      "reason": "A3 to A4, 20.2 m in 0.70 s; intent is not assessed; started wide and ended in the penalty area",
+      "evidence": {
+        "from_player": "A3",
+        "from_team": "team_a",
+        "travel_m": 20.22,
+        "elapsed_s": 0.7,
+        "from_xy": [
+          92.0,
+          10.0
+        ],
+        "wide_origin": true,
+        "ended_in_penalty_area": true
+      }
+    },
+    {
+      "kind": "RECEPTION",
+      "t": 2.9,
+      "frame_number": 87,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A4"
+      ],
+      "teams": [
+        "team_a"
+      ],
+      "pitch_x_m": 95.0,
+      "pitch_y_m": 30.0,
+      "confidence": 0.9,
+      "reason": "A4 received from A3",
+      "evidence": {
+        "from_player": "A3",
+        "from_team": "team_a",
+        "travel_m": 20.22,
+        "elapsed_s": 0.7,
+        "from_xy": [
+          92.0,
+          10.0
+        ]
+      }
+    },
+    {
+      "kind": "POSSESSION_TRANSITION",
+      "t": 2.9,
+      "frame_number": 87,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A3",
+        "A4"
+      ],
+      "teams": [
+        "team_a",
+        "team_a"
+      ],
+      "pitch_x_m": 95.0,
+      "pitch_y_m": 30.0,
+      "confidence": 0.9,
+      "reason": "possession moved within the same team",
+      "evidence": {
+        "from_player": "A3",
+        "from_team": "team_a",
+        "travel_m": 20.22,
+        "elapsed_s": 0.7,
+        "from_xy": [
+          92.0,
+          10.0
+        ],
+        "same_team": true
+      }
+    },
+    {
+      "kind": "CONTROL",
+      "t": 3.6,
+      "frame_number": 108,
+      "origin": "SYNTHETIC",
+      "players": [
+        "B1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 99.0,
+      "pitch_y_m": 33.0,
+      "confidence": 0.9,
+      "reason": "B1 controlled the ball",
+      "evidence": {}
+    },
+    {
+      "kind": "INTERCEPTION",
+      "t": 3.6,
+      "frame_number": 108,
+      "origin": "SYNTHETIC",
+      "players": [
+        "B1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 99.0,
+      "pitch_y_m": 33.0,
+      "confidence": 0.9,
+      "reason": "B1 (team_b) took the ball from A4 (team_a)",
+      "evidence": {
+        "from_player": "A4",
+        "from_team": "team_a",
+        "travel_m": 5.0,
+        "elapsed_s": 0.7,
+        "from_xy": [
+          95.0,
+          30.0
+        ],
+        "ball_was_loose": false
+      }
+    },
+    {
+      "kind": "BALL_LOSS",
+      "t": 3.6,
+      "frame_number": 108,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A4"
+      ],
+      "teams": [
+        "team_a"
+      ],
+      "pitch_x_m": 99.0,
+      "pitch_y_m": 33.0,
+      "confidence": 0.9,
+      "reason": "A4 lost the ball to B1",
+      "evidence": {
+        "from_player": "A4",
+        "from_team": "team_a",
+        "travel_m": 5.0,
+        "elapsed_s": 0.7,
+        "from_xy": [
+          95.0,
+          30.0
+        ]
+      }
+    },
+    {
+      "kind": "POSSESSION_TRANSITION",
+      "t": 3.6,
+      "frame_number": 108,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A4",
+        "B1"
+      ],
+      "teams": [
+        "team_a",
+        "team_b"
+      ],
+      "pitch_x_m": 99.0,
+      "pitch_y_m": 33.0,
+      "confidence": 0.9,
+      "reason": "possession changed team",
+      "evidence": {
+        "from_player": "A4",
+        "from_team": "team_a",
+        "travel_m": 5.0,
+        "elapsed_s": 0.7,
+        "from_xy": [
+          95.0,
+          30.0
+        ],
+        "same_team": false
+      }
+    },
+    {
+      "kind": "SHOT",
+      "t": 4.4,
+      "frame_number": 132,
+      "origin": "SYNTHETIC",
+      "players": [
+        "A4"
+      ],
+      "teams": [
+        "team_a"
+      ],
+      "pitch_x_m": 96.0,
+      "pitch_y_m": 34.0,
+      "confidence": 0.9,
+      "reason": "A4 struck the ball at 22.0 m/s within 0 deg of the nearer goal; the attacking direction is not known, so the goal is inferred from position",
+      "evidence": {
+        "speed_ms": 22.0,
+        "angle_to_goal_deg": 0.0,
+        "goal_xy": [
+          105.0,
+          34.0
+        ],
+        "attacking_direction_known": false
+      }
+    }
+  ],
+  "not_calculated": [
+    "player attributes",
+    "ratings",
+    "Quality",
+    "Vision",
+    "Decisions",
+    "Passing scores",
+    "speed",
+    "stamina"
+  ]
+}

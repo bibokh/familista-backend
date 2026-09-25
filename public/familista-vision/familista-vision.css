@@ -1,0 +1,330 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   FAMILISTA VISION — the sixth room
+
+   SYSTEM operates the platform. CLUBS operates the football organisations. The
+   DATA VAULT is what the platform remembers. INFRASTRUCTURE CITY is what it is
+   built from. SOURCE CORE is where any of it came from. FAMILISTA VISION is
+   what the platform can SEE — and it is the only room whose subject is a pitch,
+   so it is drawn like an instrument pointed at one rather than like another
+   grid of panels.
+
+   THE RULES THIS STYLESHEET KEEPS, AND WHY EACH ONE EXISTS
+
+     · Colour is a fact. Cyan is Vision's own accent — the module, a live
+       reading, the current selection. Green means MEASURED and only that. Amber
+       means PROPAGATED: real, carried, not observed. Grey means withheld, and
+       withheld is a RESULT rather than a failure, so it is never red. Red is
+       kept for an actual error state and appears nowhere else. Violet marks a
+       licence that has not been verified, matching Source Core's meaning of
+       "real but unverifiable" exactly, because a reader who has learned it
+       there must not have to learn it again here.
+
+     · An absence is drawn, not left blank. NOT IMPLEMENTED, NOT AVAILABLE,
+       INSUFFICIENT EVIDENCE and NOT YET VALIDATED each have a visible
+       treatment, told apart by border STYLE rather than hue: dashed for a thing
+       that does not exist yet, dotted for a thing nothing is measuring, solid
+       grey for a thing that exists and is withheld. A reader must be able to
+       tell "nobody built this" from "this session could not answer".
+
+     · Nothing moves that the reader did not move. The workspace is a
+       fixed-height flex column whose body scrolls inside itself with
+       `scrollbar-gutter: stable`; panels animate on `opacity` and `transform`
+       only; switching a section repaints one region. Opening the frame
+       inspector must not shift a pixel of the timeline underneath it.
+
+     · A measured zero is `0`. A figure the platform does not hold is `—`. They
+       are different answers and they are never drawn the same way.
+
+     · Below 1280px the workspace rotates from a two-column instrument to a
+       single scrolling column, and below 980px it returns the page to normal
+       document scrolling rather than crushing panels to fit.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#pg-familista-vision, .fv-insp, .fv-insp-scrim {
+  --fv-bg:       #05080f;
+  --fv-panel:    rgba(16, 23, 40, .74);
+  --fv-panel-2:  rgba(22, 31, 52, .55);
+  --fv-line:     rgba(255, 255, 255, .07);
+  --fv-line-2:   rgba(255, 255, 255, .14);
+  --fv-tx:       #e9eefb;
+  --fv-tx-2:     #95a1bd;
+  --fv-tx-3:     #646f8b;
+  --fv-accent:   #22d3ee;
+  --fv-accent-2: #3b82f6;
+  --fv-measured: #34d399;
+  --fv-propagated: #fbbf24;
+  --fv-withheld: #5b6480;
+  --fv-crit:     #f87171;
+  --fv-unver:    #a78bfa;
+  --fv-purple:   #8b5cf6;
+  --fv-radius:   16px;
+}
+
+body.fv-vision-open .app-sidebar,
+body.fv-vision-open .app-topbar,
+body.fv-vision-open .club-chrome { display: none !important; }
+
+#pg-familista-vision {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; flex-direction: column;
+  background:
+    radial-gradient(1200px 700px at 78% -12%, rgba(34, 211, 238, .10), transparent 60%),
+    radial-gradient(900px 600px at 8% 105%, rgba(139, 92, 246, .09), transparent 62%),
+    var(--fv-bg);
+  color: var(--fv-tx);
+  font: 400 13px/1.5 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+
+/* ── header ─────────────────────────────────────────────────────────────── */
+
+.fv-head {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 18px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--fv-line);
+  background: rgba(8, 12, 22, .82);
+  backdrop-filter: blur(14px);
+}
+.fv-brand { display: flex; align-items: baseline; gap: 10px; }
+.fv-brand-mark {
+  width: 26px; height: 26px; border-radius: 7px;
+  background: linear-gradient(140deg, var(--fv-accent), var(--fv-accent-2));
+  display: grid; place-items: center; color: #041019; font-weight: 800; font-size: 13px;
+  align-self: center;
+}
+.fv-brand-name { font-size: 15px; font-weight: 700; letter-spacing: .10em; }
+.fv-brand-sub { font-size: 10.5px; color: var(--fv-tx-3); letter-spacing: .14em; text-transform: uppercase; }
+.fv-head-spacer { flex: 1 1 auto; }
+.fv-back {
+  background: rgba(255,255,255,.05); border: 1px solid var(--fv-line-2);
+  color: var(--fv-tx-2); border-radius: 9px; padding: 7px 13px;
+  font-size: 11.5px; cursor: pointer; transition: background .16s, color .16s;
+}
+.fv-back:hover { background: rgba(255,255,255,.1); color: var(--fv-tx); }
+
+/* The capability rail: fourteen services, each answering for itself. */
+.fv-rail {
+  flex: 0 0 auto;
+  display: flex; gap: 7px; padding: 10px 22px;
+  overflow-x: auto; scrollbar-width: thin;
+  border-bottom: 1px solid var(--fv-line);
+  background: rgba(7, 11, 20, .6);
+}
+.fv-chip {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 7px;
+  padding: 6px 11px; border-radius: 999px;
+  border: 1px solid var(--fv-line-2); background: var(--fv-panel-2);
+  font-size: 11px; color: var(--fv-tx-2); white-space: nowrap;
+  cursor: default;
+}
+.fv-chip b { font-weight: 600; color: var(--fv-tx); }
+.fv-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+.fv-s-LIVE .fv-dot, .fv-s-READY .fv-dot { background: var(--fv-measured); }
+.fv-s-LIVE { border-color: rgba(52, 211, 153, .32); }
+.fv-s-PROCESSING .fv-dot { background: var(--fv-accent); }
+.fv-s-DEGRADED .fv-dot { background: var(--fv-propagated); }
+.fv-s-ERROR .fv-dot, .fv-s-OFFLINE .fv-dot { background: var(--fv-crit); }
+.fv-s-NOT_AVAILABLE .fv-dot { background: var(--fv-withheld); }
+.fv-s-NOT_AVAILABLE { border-style: dotted; }
+.fv-s-NOT_IMPLEMENTED .fv-dot { background: transparent; border: 1px dashed var(--fv-withheld); }
+.fv-s-NOT_IMPLEMENTED { border-style: dashed; color: var(--fv-tx-3); }
+
+/* ── body: nav + workspace ──────────────────────────────────────────────── */
+
+.fv-body { flex: 1 1 auto; display: flex; min-height: 0; }
+
+.fv-nav {
+  flex: 0 0 218px; display: flex; flex-direction: column; gap: 2px;
+  padding: 14px 10px; overflow-y: auto;
+  border-right: 1px solid var(--fv-line);
+  background: rgba(8, 12, 22, .5);
+  scrollbar-gutter: stable;
+}
+.fv-nav-group { font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--fv-tx-3); padding: 12px 10px 5px; }
+.fv-nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 11px; border-radius: 9px; cursor: pointer;
+  font-size: 12.5px; color: var(--fv-tx-2);
+  border: 1px solid transparent; text-align: left; width: 100%;
+  background: none; transition: background .14s, color .14s;
+}
+.fv-nav-item:hover { background: rgba(255,255,255,.05); color: var(--fv-tx); }
+.fv-nav-item.is-active {
+  background: linear-gradient(90deg, rgba(34,211,238,.16), rgba(34,211,238,.03));
+  border-color: rgba(34,211,238,.3); color: var(--fv-tx); font-weight: 600;
+}
+.fv-nav-item .fv-nav-ico { width: 16px; text-align: center; opacity: .85; }
+.fv-nav-badge {
+  margin-left: auto; font-size: 9.5px; padding: 1px 6px; border-radius: 999px;
+  border: 1px dashed var(--fv-line-2); color: var(--fv-tx-3);
+}
+
+.fv-work { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.fv-work-head {
+  flex: 0 0 auto; padding: 16px 24px 12px; border-bottom: 1px solid var(--fv-line);
+}
+.fv-work-title { font-size: 17px; font-weight: 650; letter-spacing: .01em; }
+.fv-work-sub { font-size: 11.5px; color: var(--fv-tx-3); margin-top: 3px; }
+.fv-work-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 18px 24px 40px;
+  scrollbar-gutter: stable;
+}
+
+/* ── panels, metrics, states ────────────────────────────────────────────── */
+
+.fv-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.fv-grid--wide { grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); }
+
+.fv-panel {
+  background: var(--fv-panel); border: 1px solid var(--fv-line);
+  border-radius: var(--fv-radius); padding: 15px 16px;
+  backdrop-filter: blur(10px);
+}
+.fv-panel-title {
+  font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--fv-tx-3); margin-bottom: 11px;
+  display: flex; align-items: center; gap: 8px;
+}
+.fv-panel-title .fv-tag { margin-left: auto; }
+
+.fv-metric { display: flex; align-items: baseline; gap: 7px; }
+.fv-metric-v { font-size: 25px; font-weight: 680; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.fv-metric-u { font-size: 11px; color: var(--fv-tx-3); }
+.fv-metric-k { font-size: 11px; color: var(--fv-tx-2); margin-top: 3px; }
+/* A figure the platform does not hold. Never a zero, never a blank. */
+.fv-none { color: var(--fv-withheld); font-weight: 500; }
+
+.fv-rows { display: flex; flex-direction: column; gap: 1px; }
+.fv-row {
+  display: flex; align-items: center; gap: 10px; padding: 7px 2px;
+  border-bottom: 1px solid rgba(255,255,255,.04); font-size: 12px;
+}
+.fv-row:last-child { border-bottom: none; }
+.fv-row-k { color: var(--fv-tx-2); flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.fv-row-v { color: var(--fv-tx); font-variant-numeric: tabular-nums; text-align: right;
+  flex: 0 0 auto; }
+/* A tag in a row never shrinks and never overlaps its label. Model ids are long
+   and the licence verdict beside them is the whole point of the row — a verdict
+   sitting on top of the id it applies to is worse than no verdict at all. */
+.fv-row > .fv-tag { flex: 0 0 auto; margin-left: auto; }
+
+.fv-tag {
+  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 5px; border: 1px solid var(--fv-line-2);
+  color: var(--fv-tx-3); white-space: nowrap;
+}
+.fv-tag--measured { color: var(--fv-measured); border-color: rgba(52,211,153,.35); background: rgba(52,211,153,.08); }
+.fv-tag--propagated { color: var(--fv-propagated); border-color: rgba(251,191,36,.35); background: rgba(251,191,36,.08); }
+.fv-tag--withheld { color: var(--fv-withheld); border-style: solid; }
+.fv-tag--future { color: var(--fv-tx-3); border-style: dashed; }
+.fv-tag--uninstrumented { color: var(--fv-tx-3); border-style: dotted; }
+.fv-tag--unverified { color: var(--fv-unver); border-color: rgba(167,139,250,.35); background: rgba(167,139,250,.08); }
+.fv-tag--restricted { color: var(--fv-propagated); border-color: rgba(251,191,36,.35); }
+.fv-tag--accent { color: var(--fv-accent); border-color: rgba(34,211,238,.35); background: rgba(34,211,238,.08); }
+
+/* The four absences, told apart by border style rather than by hue. */
+.fv-empty {
+  border-radius: var(--fv-radius); padding: 26px 22px; text-align: center;
+  color: var(--fv-tx-3); background: rgba(12, 18, 32, .5);
+}
+.fv-empty--future { border: 1px dashed var(--fv-line-2); }
+.fv-empty--absent { border: 1px dotted var(--fv-line-2); }
+.fv-empty--withheld { border: 1px solid var(--fv-line-2); }
+.fv-empty-title {
+  font-size: 12.5px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--fv-tx-2); font-weight: 600; margin-bottom: 7px;
+}
+.fv-empty-why { font-size: 12px; max-width: 62ch; margin: 0 auto; line-height: 1.6; }
+
+/* ── the pitch, drawn only from calibrated coordinates ──────────────────── */
+
+.fv-pitch-wrap { position: relative; width: 100%; }
+.fv-pitch { width: 100%; height: auto; display: block; border-radius: 12px;
+  /* Capped so a pitch never becomes the whole screen. A 105x68 viewBox in a
+     1680px column is 1088px tall, which pushes every figure beside it below
+     the fold for no gain — the pattern is legible at half that. */
+  max-height: 60vh; margin-inline: auto;
+  background: linear-gradient(170deg, #0a1a12, #061009); border: 1px solid var(--fv-line); }
+.fv-pitch-line { stroke: rgba(255,255,255,.22); stroke-width: .3; fill: none; }
+.fv-dotm { fill: var(--fv-measured); }
+.fv-dotp { fill: var(--fv-propagated); }
+.fv-dotball { fill: #ffffff; stroke: #05080f; stroke-width: .3; }
+
+/* ── the timeline ───────────────────────────────────────────────────────── */
+
+.fv-tl { display: flex; flex-direction: column; gap: 7px; }
+.fv-tl-band { display: flex; align-items: center; gap: 10px; }
+.fv-tl-label { flex: 0 0 132px; font-size: 10.5px; color: var(--fv-tx-3);
+  text-transform: uppercase; letter-spacing: .1em; }
+.fv-tl-track {
+  position: relative; flex: 1 1 auto; height: 16px; border-radius: 5px;
+  background: rgba(255,255,255,.035); overflow: hidden;
+}
+.fv-tl-span { position: absolute; top: 0; bottom: 0; }
+.fv-tl-span--valid { background: var(--fv-measured); }
+.fv-tl-span--prop { background: var(--fv-propagated); }
+.fv-tl-span--none { background: repeating-linear-gradient(90deg,
+  rgba(91,100,128,.55) 0 4px, transparent 4px 8px); }
+.fv-tl-span--obs { background: #e2e8f0; }
+.fv-tl-span--gap { background: repeating-linear-gradient(90deg,
+  rgba(91,100,128,.4) 0 3px, transparent 3px 7px); }
+.fv-tl-mark { position: absolute; top: -3px; bottom: -3px; width: 2px; cursor: pointer; }
+.fv-tl-mark--anchor { background: var(--fv-accent); }
+.fv-tl-mark--cut { background: var(--fv-purple); }
+.fv-tl-mark--event { background: #fff; }
+
+/* ── tables ─────────────────────────────────────────────────────────────── */
+
+.fv-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.fv-table th {
+  text-align: left; font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--fv-tx-3); font-weight: 600; padding: 8px 10px;
+  border-bottom: 1px solid var(--fv-line-2); position: sticky; top: 0;
+  background: rgba(10, 15, 27, .96); backdrop-filter: blur(8px);
+}
+.fv-table td { padding: 7px 10px; border-bottom: 1px solid rgba(255,255,255,.04);
+  color: var(--fv-tx-2); font-variant-numeric: tabular-nums; }
+.fv-table tr:hover td { background: rgba(255,255,255,.03); color: var(--fv-tx); }
+.fv-table-scroll { max-height: 460px; overflow: auto; border-radius: 12px;
+  border: 1px solid var(--fv-line); scrollbar-gutter: stable; }
+
+.fv-note {
+  font-size: 11.5px; color: var(--fv-tx-3); line-height: 1.65;
+  border-left: 2px solid var(--fv-line-2); padding-left: 11px; margin-top: 12px;
+}
+.fv-note--loud { border-left-color: var(--fv-accent); color: var(--fv-tx-2); }
+
+.fv-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; margin-top: 7px; }
+.fv-bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--fv-accent), var(--fv-accent-2)); }
+
+.fv-flow { display: flex; flex-direction: column; gap: 9px; }
+.fv-flow-node {
+  display: flex; align-items: center; gap: 12px; padding: 11px 14px;
+  border: 1px solid var(--fv-line); border-radius: 12px; background: var(--fv-panel-2);
+}
+.fv-flow-stage { font-size: 9.5px; letter-spacing: .13em; color: var(--fv-tx-3);
+  text-transform: uppercase; flex: 0 0 132px; }
+.fv-flow-name { font-weight: 600; font-size: 12.5px; flex: 0 0 auto; min-width: 190px; }
+.fv-flow-detail { font-size: 11.5px; color: var(--fv-tx-3); flex: 1 1 auto; min-width: 0; }
+.fv-flow-node > .fv-tag { flex: 0 0 auto; }
+.fv-flow-arrow { text-align: center; color: var(--fv-tx-3); font-size: 13px; }
+
+/* ── responsive escape hatches ──────────────────────────────────────────── */
+
+@media (max-width: 1280px) {
+  .fv-nav { flex: 0 0 62px; }
+  .fv-nav-item span:not(.fv-nav-ico) { display: none; }
+  .fv-nav-group, .fv-nav-badge { display: none; }
+}
+@media (max-width: 980px), (max-height: 620px) {
+  #pg-familista-vision { position: static; height: auto; min-height: 100vh; overflow: visible; }
+  .fv-body { flex-direction: column; }
+  .fv-nav { flex: 0 0 auto; flex-direction: row; overflow-x: auto; border-right: none;
+    border-bottom: 1px solid var(--fv-line); }
+  .fv-work-body { overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #pg-familista-vision * { transition: none !important; animation: none !important; }
+}

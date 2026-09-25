@@ -982,6 +982,7 @@ var _FAM_PAGE_RENDER = {
   'data-vault':                  ['renderFamilistaDataVault'],
   'infrastructure-city':         ['renderFamilistaInfrastructureCity'],
   'source-core':                 ['renderFamilistaSourceCore'],
+  'familista-vision':            ['renderFamilistaVision'],
   'fos-core':                    ['renderFOSCore'],
   'fos-ai-orchestrator':         ['renderFOSAIOrchestrator'],
   'multi-club-network':          ['renderMultiClubNetwork'],
@@ -2374,6 +2375,7 @@ function _flushPendingRender() {
     case 'pg-data-vault':         renderFamilistaDataVault(document.getElementById('dv-root')); break;
     case 'pg-infrastructure-city': renderFamilistaInfrastructureCity(document.getElementById('ic-root')); break;
     case 'pg-source-core':        renderFamilistaSourceCore(document.getElementById('sc-root')); break;
+    case 'pg-familista-vision':   renderFamilistaVision(document.getElementById('fv-root')); break;
     case 'pg-fos-core':           renderFOSCore();           break;
     case 'pg-fos-ai-orchestrator': renderFOSAIOrchestrator(); break;
     case 'pg-fos-knowledge-graph': renderFOSKnowledgeGraph(); break;
@@ -2497,6 +2499,16 @@ function navTo(page, el, _opts) {
     if (_wasSource && page !== 'source-core' && typeof window.teardownFamilistaSourceCore === 'function') {
       window.teardownFamilistaSourceCore();
     }
+    // FAMILISTA VISION is the sixth product and takes the shell the same way.
+    // It holds a loaded session in memory rather than an open socket, so the
+    // teardown releases that rather than closing a stream — leaving a session's
+    // worth of observations behind a screen nobody is looking at is the same
+    // mistake as leaving a socket open, in a different currency.
+    var _wasVision = document.body.classList.contains('fv-vision-open');
+    document.body.classList.toggle('fv-vision-open', page === 'familista-vision');
+    if (_wasVision && page !== 'familista-vision' && typeof window.teardownFamilistaVision === 'function') {
+      window.teardownFamilistaVision();
+    }
   } catch (_) {}
 
   // ── Separation guard ──
@@ -2524,6 +2536,12 @@ function navTo(page, el, _opts) {
     // endpoints behind it are guarded by assertPlatformOwner on the server,
     // and a reader who types the hash without that role gets 403s, not a page.
     'source-core': 1,
+    // FAMILISTA VISION — what the platform can SEE. The sixth sibling. As with
+    // the other five, the allow-list is convenience rather than security: the
+    // endpoints behind it apply the platform's own authentication and club
+    // scoping, and a reader without access gets filtered results or a 404, not
+    // a page they were not supposed to reach.
+    'familista-vision': 1,
     // PLATFORM (8)
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
@@ -2631,7 +2649,7 @@ function navTo(page, el, _opts) {
 
   const titles = {
     // ── Owner Control ──
-    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'source-core':'Source Core',
+    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'source-core':'Source Core', 'familista-vision':'Familista Vision',
     // ── Club Workspace ──
     'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League', 'match-center':'Match Center', 'people-access':'People & Access',
     // ── Platform (Phase B labels) ──
@@ -2903,6 +2921,7 @@ function _buildPageTemplateMap() {
     'data-vault':                  renderDataVaultHTML,
     'infrastructure-city':         renderInfrastructureCityHTML,
     'source-core':                 renderSourceCoreHTML,
+    'familista-vision':            renderFamilistaVisionHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
@@ -2981,7 +3000,7 @@ function _buildPageTemplateMap() {
 // These are mounted eagerly at boot so the click flow is instant.
 var _EAGER_PAGES = [
   'owner-home', 'clubs', 'club-home', 'squad',
-  'system', 'data-vault', 'infrastructure-city', 'source-core',
+  'system', 'data-vault', 'infrastructure-city', 'source-core', 'familista-vision',
   'fos-core', 'fos-observability', 'fos-security-center',
   'fos-automation-center', 'fos-rbac', 'fos-audit-governance',
   'multi-club-network', 'fos-admin-center',
@@ -3396,6 +3415,43 @@ function _vaultStatusHTML(state, text) {
  * seventy nobody measures should say the second number on the way in, because
  * the first one on its own reads as coverage it does not have.
  */
+/**
+ * Ask the Vision service how it is, and say so on the FAMILISTA VISION card.
+ *
+ * The number that matters on the way in is how many sessions this account can
+ * actually open. A service that is LIVE with nothing to look at is a different
+ * situation from a service that is LIVE with evidence waiting, and an owner
+ * should learn which one they are walking into before they click.
+ */
+function _fillVisionStatus() {
+  const slot = document.getElementById('oh-vision-state');
+  if (!slot) return;
+  const base = (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG.API_BASE) ? FAM_CONFIG.API_BASE : '/api/v1';
+  let token = '';
+  try { token = (window.State && window.State.token) || localStorage.getItem('familista_token') || ''; } catch (_) {}
+  const write = (state, text) => {
+    const el = document.getElementById('oh-vision-state');
+    if (el) el.outerHTML = _vaultStatusHTML(state, text).replace('class="oh-card-state', 'id="oh-vision-state" class="oh-card-state');
+  };
+  fetch(base + '/familista-vision/status', {
+    headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
+    credentials: 'include',
+  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+    .then(function (body) {
+      const h = (body && body.health) || {};
+      const stored = h.sessions && h.sessions.stored;
+      // A label and a number rather than an inflected sentence, for the same
+      // reason the Vault and the City cards give: "%d session(s)" would need one
+      // form per plural category in every locale the platform ships.
+      if (h.service === 'ERROR' || h.service === 'OFFLINE') return write('bad', 'Vision service ' + String(h.service).toLowerCase());
+      if (stored === null || stored === undefined) return write('warn', 'Vision engine reachable · no session store');
+      if (stored === 0) return write('warn', 'Vision ready · sessions stored: 0');
+      if (h.service === 'DEGRADED') return write('warn', 'Vision degraded · sessions stored: ' + stored);
+      return write('ok', 'Vision live · sessions stored: ' + stored);
+    })
+    .catch(function () { write('warn', 'Vision service unreachable'); });
+}
+
 function _fillSourceCoreStatus() {
   const slot = document.getElementById('oh-core-state');
   if (!slot) return;
@@ -3557,6 +3613,20 @@ function _ownerHomeForPlatformOwner(user, club) {
           <span id="oh-core-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading source registry…</span>
           <div class="oh-card-cta">Enter the core <span>→</span></div>
         </button>
+        <!-- FAMILISTA VISION is the sixth room, and the only one whose subject
+             is a pitch. The other five each describe the PLATFORM — what it
+             operates, what it remembers, what it is built from, where its
+             inputs came from. This one describes what it can SEE, and it is the
+             first room whose evidence is measured off a football match rather
+             than recorded by the platform about itself. -->
+        <button class="oh-card oh-card--vision" data-action="navTo" data-page="familista-vision" type="button">
+          <div class="oh-card-icon">◉</div>
+          <div class="oh-card-title">FAMILISTA VISION</div>
+          <div class="oh-card-sub">Computer Vision, Tracking, Calibration &amp; Football Evidence</div>
+          <div class="oh-card-list">Live Analysis · Sources · Sessions · Player &amp; Ball Tracking · Pitch Calibration · Teams &amp; Roles · Events · Timeline · Models &amp; Providers · Device</div>
+          <span id="oh-vision-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading Vision service…</span>
+          <div class="oh-card-cta">Open Vision <span>→</span></div>
+        </button>
       </div>
       <div class="oh-footer">
         Familista · ${_esc((user.email || 'Owner') + '')} · ${clubCount} club${clubCount === 1 ? '' : 's'} in your network
@@ -3683,6 +3753,7 @@ function renderOwnerHome() {
       try { _fillVaultStatus(); } catch (_) {}
       try { _fillCityStatus(); } catch (_) {}
       try { _fillSourceCoreStatus(); } catch (_) {}
+      try { _fillVisionStatus(); } catch (_) {}
     }
   });
 }
@@ -28172,6 +28243,20 @@ function renderInfrastructureCityHTML() {
 // second time from a different dictionary.
 function renderSourceCoreHTML() {
   return `<div class="page" id="pg-source-core" data-no-i18n><div id="sc-root"></div></div>`;
+}
+
+// FAMILISTA VISION — what the platform can SEE: computer-vision evidence from
+// video and, later, from field sensors. The sixth top-level product.
+//
+// A host and nothing else: everything inside it is drawn by
+// public/familista-vision/familista-vision.js. `data-no-i18n` is the same
+// boundary the other platform rooms keep — Vision carries its own vocabulary,
+// much of it a status vocabulary whose words are load-bearing (NOT IMPLEMENTED
+// and NOT AVAILABLE mean different things), so the platform's club-facing
+// locale pass must reject this subtree rather than translate it from a
+// dictionary that does not know the difference.
+function renderFamilistaVisionHTML() {
+  return `<div class="page" id="pg-familista-vision" data-no-i18n><div id="fv-root"></div></div>`;
 }
 
 function renderFOSCoreHTML() {

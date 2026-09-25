@@ -1565,5 +1565,10 @@
   "Source state unknown": "Kaynak durumu bilinmiyor",
   "Critical sources: \u0000": "Kritik kaynaklar: \u0000",
   "Sources in warning: \u0000": "Uyarıdaki kaynaklar: \u0000",
-  "Sources mapped: \u0000 · not instrumented: \u0000": "Haritalanan kaynaklar: \u0000 · ölçülmeyen: \u0000"
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Haritalanan kaynaklar: \u0000 · ölçülmeyen: \u0000",
+  "Computer Vision, Tracking, Calibration & Football Evidence": "Computer Vision, Tracking, Calibration & Football Evidence",
+  "FAMILISTA VISION": "FAMILISTA VISION",
+  "Live Analysis · Sources · Sessions · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Timeline · Models & Providers · Device": "Live Analysis · Sources · Sessions · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Timeline · Models & Providers · Device",
+  "Open Vision": "Open Vision",
+  "Reading Vision service…": "Reading Vision service…"
 }

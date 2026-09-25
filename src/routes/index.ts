@@ -27,6 +27,10 @@ import aiOpsRoutes      from './ai-ops.routes';
 import deviceInfraRoutes from './device-infra.routes';
 // Phase G — Vision intelligence + cognitive spatial + predictive intelligence
 import visionRoutes     from './vision.routes';
+// FAMILISTA VISION — the sixth top-level platform module. A different thing
+// from `vision.routes` above, which is the Phase-G camera and frame-ingest API
+// and keeps its own prefix untouched.
+import familistaVisionRoutes from './familista-vision.routes';
 import spatialRoutes    from './spatial.routes';
 import predictiveRoutes from './predictive.routes';
 // Phase I — Zero-trust security: audit chain + events + approvals
@@ -108,6 +112,7 @@ router.use('/automation',  automationRoutes);
 router.use('/ai-ops',      aiOpsRoutes);
 router.use('/device-infra', deviceInfraRoutes);
 router.use('/vision',      visionRoutes);
+router.use('/familista-vision', familistaVisionRoutes);
 router.use('/spatial',     spatialRoutes);
 router.use('/predictive',  predictiveRoutes);
 router.use('/security',    securityRoutes);

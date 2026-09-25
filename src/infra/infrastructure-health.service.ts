@@ -364,14 +364,93 @@ function integrationSignal(key: string, envName: string, label: string): Signal 
 }
 
 /** Every signal, measured together. */
+/**
+ * Familista Vision, as a signal Infrastructure City can draw.
+ *
+ * Vision does not get a second monitoring surface. It gets a reading in the one
+ * the platform already has, joined by `healthKey` like every other component,
+ * so an operator watching the city sees a Vision problem beside a database
+ * problem rather than having to know Vision exists and go and look.
+ *
+ * Deliberately CHEAP: it reads the engine's identity and counts what is
+ * addressable. It does not normalise a session, because the city polls, and
+ * parsing four thousand observations on a health tick would make the monitoring
+ * more expensive than the thing it monitors.
+ */
+async function visionSignal(): Promise<Signal> {
+  const { visionEngine, isUnavailable, configuredTarget } =
+    await import('../vision-platform/engine-contract');
+  const { visionEventCatalogue } = await import('../vision-platform/vision-events');
+  try {
+    const engine = visionEngine();
+    const identity = await engine.identify();
+    const refs = await engine.listSessions();
+    const sessions = isUnavailable(refs) ? null : refs.length;
+    const eventTypes = visionEventCatalogue().length;
+    const target = configuredTarget();
+
+    // A Vision Hub target on a deployment with no Hub is NOT_CONFIGURED rather
+    // than a fault: somebody selected hardware that does not exist yet, and the
+    // remedy is a setting, not an incident.
+    if (identity.status === 'NOT_IMPLEMENTED') {
+      return {
+        key: 'vision',
+        state: 'NOT_CONFIGURED',
+        summary: `Vision is targeting ${target}, which is not implemented.`,
+        measurements: { processingTarget: target, sessions: null, eventTypes },
+        evidence: 'vision-platform engine contract: identify()',
+        measuredAt: iso(),
+      };
+    }
+    if (sessions === null) {
+      return {
+        key: 'vision',
+        // WARNING, not CRITICAL: an engine with no session store is a
+        // deployment that has not been given evidence to read, which is an
+        // operator's configuration, not an outage.
+        state: 'WARNING',
+        summary: 'The Vision engine answered but exposes no session store.',
+        measurements: { processingTarget: target, sessions: null, eventTypes },
+        evidence: 'vision-platform engine contract: listSessions()',
+        measuredAt: iso(),
+      };
+    }
+    return {
+      key: 'vision',
+      state: 'HEALTHY',
+      summary: `Vision is ${identity.status} on ${target} with ${sessions} session`
+        + `${sessions === 1 ? '' : 's'} addressable.`,
+      measurements: {
+        processingTarget: target,
+        deviceKind: identity.deviceKind,
+        sessions,
+        eventTypes,
+      },
+      evidence: 'vision-platform engine contract: identify() and listSessions()',
+      measuredAt: iso(),
+    };
+  } catch (err) {
+    return {
+      key: 'vision',
+      state: 'WARNING',
+      summary: 'The Vision engine could not be reached.',
+      measurements: { error: (err as Error).message.slice(0, 160) },
+      evidence: 'vision-platform engine contract',
+      measuredAt: iso(),
+    };
+  }
+}
+
 export async function infrastructureSignals(): Promise<Signal[]> {
-  const [db, history] = await Promise.all([databaseSignal(), historicalStoreSignal()]);
+  const [db, history, vision] = await Promise.all([
+    databaseSignal(), historicalStoreSignal(), visionSignal(),
+  ]);
   return [
     processSignal(), db, fabricSignal(), history, redisSignal(),
     objectStoreSignal(), archiveSignal(), aiSignal(),
     integrationSignal('stripe', 'STRIPE_SECRET_KEY', 'Stripe'),
     integrationSignal('email', 'SENDGRID_API_KEY', 'Email delivery'),
-    deploymentSignal(), ciSignal(), testsSignal(),
+    deploymentSignal(), ciSignal(), testsSignal(), vision,
   ];
 }
 

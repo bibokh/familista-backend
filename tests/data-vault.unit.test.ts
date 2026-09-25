@@ -772,37 +772,45 @@ describe('the Data Vault speaks English, German and Arabic — and only those', 
 
 // ── the landing, and the two products that were already there ────────────────
 
-describe('the Platform Owner landing offers four rooms around one core', () => {
+describe('the Platform Owner landing offers five rooms around one core', () => {
   const app = read(APP_JS);
   const css = read(APP_CSS);
   const landing = app.slice(app.indexOf('function _ownerHomeForPlatformOwner'),
     app.indexOf('function _ownerHomeForClubMember'));
 
-  it('renders SYSTEM, CLUBS, DATA VAULT, INFRASTRUCTURE CITY and SOURCE CORE in one card grid', () => {
+  it('renders SYSTEM, CLUBS, DATA VAULT, INFRASTRUCTURE CITY, SOURCE CORE and FAMILISTA VISION in one card grid', () => {
     for (const title of ['>SYSTEM<', '>CLUBS<', '>DATA VAULT<', '>INFRASTRUCTURE CITY<', '>SOURCE CORE<']) {
       expect(landing).toContain(title);
     }
     const cards = [...landing.matchAll(/class="oh-card oh-card--(\w+)"/g)].map((m) => m[1]);
-    expect(cards).toEqual(['system', 'clubs', 'vault', 'city', 'core']);
+    // FAMILISTA VISION joined as the sixth. It is appended rather than
+    // inserted: the five that were here keep their order, so a reader who knew
+    // where a room was still finds it there.
+    expect(cards).toEqual(['system', 'clubs', 'vault', 'city', 'core', 'vision']);
   });
 
-  it('gives the four rooms the same grid track, so none is subordinate', () => {
-    // The four rooms occupy the two outer columns in two rows — the same
-    // track as each other. SOURCE CORE is not one of them and is placed
-    // deliberately differently: it answers where the other four came from,
-    // and it spans the middle column across both rows.
-    expect(css).toContain('"system core  clubs"');
-    expect(css).toContain('"vault  core  city"');
+  it('gives the rooms the same grid track, so none is subordinate', () => {
+    // The four original rooms occupy the two outer columns in two rows — the
+    // same track as each other. SOURCE CORE is not one of them and is placed
+    // deliberately differently: it answers where the other four came from, and
+    // it spans the middle column across both rows. FAMILISTA VISION takes a
+    // full-width band beneath them: it describes something the platform HAS,
+    // like the outer four, but its subject is a pitch rather than the platform
+    // itself, and a band of its own says that without making it subordinate.
+    expect(css).toContain('"system core   clubs"');
+    expect(css).toContain('"vault  core   city"');
+    expect(css).toContain('"vision vision vision"');
+    expect(css).toContain('body.club-theme .oh-cards--core .oh-card--vision{ grid-area: vision; }');
     expect(css).toContain('body.club-theme .oh-cards--core .oh-card--core{   grid-area: core; }');
     // The orphaned four-column rule is gone rather than left behind to rot.
     expect(css).not.toContain('oh-cards--four');
   });
 
   it('does not nest one product inside another', () => {
-    // Each card is a direct sibling: five buttons, one container, no card
+    // Each card is a direct sibling: six buttons, one container, no card
     // contains another.
     const row = landing.slice(landing.indexOf('oh-cards oh-cards--core'), landing.indexOf('oh-footer'));
-    expect((row.match(/<button class="oh-card/g) || [])).toHaveLength(5);
+    expect((row.match(/<button class="oh-card/g) || [])).toHaveLength(6);
     expect(row).not.toMatch(/<button class="oh-card[\s\S]*?<button class="oh-card[\s\S]*?<\/button>\s*<\/button>/);
   });
 

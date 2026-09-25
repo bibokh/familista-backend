@@ -7125,30 +7125,37 @@ body.club-theme .oh-cards--three{ grid-template-columns: repeat(3, 1fr); }
    The tracks stay honest at every width — at two columns the core takes the
    middle row, at one column it is third of five. It is never pushed to an end,
    because an end is the one place it does not belong. */
+/* Six rooms now, and the core is still the middle. VISION joins the lower band
+   beside the Vault and the City: like them it describes something the platform
+   HAS — in its case, sight — rather than where anything came from, so it
+   belongs in the ring around the core and not in the middle of it. */
 body.club-theme .oh-cards--core{
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.06fr) minmax(0, 1fr);
   grid-template-areas:
-    "system core  clubs"
-    "vault  core  city";
+    "system core   clubs"
+    "vault  core   city"
+    "vision vision vision";
 }
 body.club-theme .oh-cards--core .oh-card--system{ grid-area: system; }
 body.club-theme .oh-cards--core .oh-card--clubs{  grid-area: clubs; }
 body.club-theme .oh-cards--core .oh-card--vault{  grid-area: vault; }
 body.club-theme .oh-cards--core .oh-card--city{   grid-area: city; }
 body.club-theme .oh-cards--core .oh-card--core{   grid-area: core; }
+body.club-theme .oh-cards--core .oh-card--vision{ grid-area: vision; }
 @media (max-width: 1560px){
   body.club-theme .oh-cards--core{
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
       "system clubs"
       "core   core"
-      "vault  city";
+      "vault  city"
+      "vision vision";
   }
 }
 @media (max-width: 900px){
   body.club-theme .oh-cards--core{
     grid-template-columns: 1fr; max-width: 560px; margin-inline: auto;
-    grid-template-areas: "system" "clubs" "core" "vault" "city";
+    grid-template-areas: "system" "clubs" "core" "vault" "city" "vision";
   }
 }
 body.club-theme .oh-wrap--core{ max-width: 1680px; }
@@ -7174,6 +7181,31 @@ body.club-theme .oh-card--core .oh-card-icon{
   border-color: rgba(34,211,238,0.40);
 }
 body.club-theme .oh-card--core .oh-card-cta{ color: #22d3ee; }
+
+/* Vision's own accent. Cyan is the module's colour and it is shared with the
+   core deliberately — they are the two rooms that describe EVIDENCE, one its
+   origin and one its content — but Vision is distinguished by a violet second
+   stop rather than a blue one, because violet already means "real but
+   unverifiable" everywhere else in the platform and Vision is the room where
+   that distinction is drawn most often. */
+body.club-theme .oh-card--vision{
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(34,211,238,0.09), transparent 62%),
+    var(--bg-surface);
+  border-color: rgba(34,211,238,0.24);
+  box-shadow: 0 30px 70px -34px rgba(139,92,246,0.26);
+}
+body.club-theme .oh-card--vision::before{
+  background: linear-gradient(90deg, #22d3ee, #8b5cf6, #22d3ee);
+}
+body.club-theme .oh-card--vision:hover{ box-shadow: 0 30px 72px rgba(34,211,238,0.22); border-color: rgba(34,211,238,0.46); }
+body.club-theme .oh-card--vision .oh-card-icon{
+  color: #22d3ee;
+  background: linear-gradient(145deg, rgba(34,211,238,0.18), rgba(139,92,246,0.10));
+  border-color: rgba(34,211,238,0.36);
+}
+body.club-theme .oh-card--vision .oh-card-cta{ color: #22d3ee; }
+
 @media (max-width: 900px){ body.club-theme .oh-cards{ grid-template-columns: 1fr; } }
 body.club-theme .oh-wrap--three{ max-width: 1320px; }
 

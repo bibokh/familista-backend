@@ -1562,5 +1562,10 @@
   "Source state unknown": "数据源状态未知",
   "Critical sources: \u0000": "严重数据源: \u0000",
   "Sources in warning: \u0000": "告警中的数据源: \u0000",
-  "Sources mapped: \u0000 · not instrumented: \u0000": "已记录数据源: \u0000 · 未接入监测: \u0000"
+  "Sources mapped: \u0000 · not instrumented: \u0000": "已记录数据源: \u0000 · 未接入监测: \u0000",
+  "Computer Vision, Tracking, Calibration & Football Evidence": "Computer Vision, Tracking, Calibration & Football Evidence",
+  "FAMILISTA VISION": "FAMILISTA VISION",
+  "Live Analysis · Sources · Sessions · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Timeline · Models & Providers · Device": "Live Analysis · Sources · Sessions · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Timeline · Models & Providers · Device",
+  "Open Vision": "Open Vision",
+  "Reading Vision service…": "Reading Vision service…"
 }

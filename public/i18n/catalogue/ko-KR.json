@@ -1562,5 +1562,10 @@
   "Source state unknown": "소스 상태를 알 수 없음",
   "Critical sources: \u0000": "심각 소스: \u0000",
   "Sources in warning: \u0000": "경고 상태 소스: \u0000",
-  "Sources mapped: \u0000 · not instrumented: \u0000": "파악된 소스: \u0000 · 계측되지 않음: \u0000"
+  "Sources mapped: \u0000 · not instrumented: \u0000": "파악된 소스: \u0000 · 계측되지 않음: \u0000",
+  "Computer Vision, Tracking, Calibration & Football Evidence": "Computer Vision, Tracking, Calibration & Football Evidence",
+  "FAMILISTA VISION": "FAMILISTA VISION",
+  "Live Analysis · Sources · Sessions · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Timeline · Models & Providers · Device": "Live Analysis · Sources · Sessions · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Timeline · Models & Providers · Device",
+  "Open Vision": "Open Vision",
+  "Reading Vision service…": "Reading Vision service…"
 }

@@ -1,0 +1,14 @@
+{
+ "sessionRef": "morocco-spain-clip2",
+ "importedAt": "2026-09-25T09:53:01.832Z",
+ "engineSchema": "familista-vision/phase2-corrected@1",
+ "sourceSha256": "fdddb0e57d99109753c479eedc917aff8bc4d1a0975265bdc16426c34ecee615",
+ "observations": 6546,
+ "ballSamples": 460,
+ "companions": [
+  "events",
+  "readiness"
+ ],
+ "artefactSha256": "636d25f91e30937c0d7075f2b6dd1dcdc8163e61d518c8fc8d7d5229983879b6",
+ "note": "copied from a validated engine run. Original evidence: never edited, never recomputed, and never overwritten when a later model disagrees."
+}

@@ -703,13 +703,13 @@ describe('SOURCE CORE is the middle of the landing, not the end of a row', () =>
   it('sits in the geometric centre of the grid at every width', () => {
     expect(css).toContain('body.club-theme .oh-cards--core{');
     // Three columns: the core spans both rows in the middle track.
-    expect(css).toContain('"system core  clubs"');
-    expect(css).toContain('"vault  core  city"');
+    expect(css).toContain('"system core   clubs"');
+    expect(css).toContain('"vault  core   city"');
     // Two columns: the core takes the middle row.
     expect(css).toContain('"system clubs"');
     expect(css).toContain('"core   core"');
     // One column: third of five is still the middle.
-    expect(css).toContain('grid-template-areas: "system" "clubs" "core" "vault" "city";');
+    expect(css).toContain('grid-template-areas: "system" "clubs" "core" "vault" "city" "vision";');
   });
 
   it('carries a real summary or an honest absence, never a placeholder figure', () => {

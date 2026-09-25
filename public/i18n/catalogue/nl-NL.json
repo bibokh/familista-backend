@@ -1565,5 +1565,10 @@
   "Source state unknown": "Bronstatus onbekend",
   "Critical sources: \u0000": "Kritieke bronnen: \u0000",
   "Sources in warning: \u0000": "Bronnen met waarschuwing: \u0000",
-  "Sources mapped: \u0000 · not instrumented: \u0000": "Bronnen in kaart: \u0000 · niet gemeten: \u0000"
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Bronnen in kaart: \u0000 · niet gemeten: \u0000",
+  "Computer Vision, Tracking, Calibration & Football Evidence": "Computer Vision, Tracking, Calibration & Football Evidence",
+  "FAMILISTA VISION": "FAMILISTA VISION",
+  "Live Analysis · Sources · Sessions · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Timeline · Models & Providers · Device": "Live Analysis · Sources · Sessions · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Timeline · Models & Providers · Device",
+  "Open Vision": "Open Vision",
+  "Reading Vision service…": "Reading Vision service…"
 }
