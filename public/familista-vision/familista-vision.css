@@ -1,63 +1,94 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   FAMILISTA VISION — the sixth room
+   FAMILISTA VISION — the instrument
 
    SYSTEM operates the platform. CLUBS operates the football organisations. The
    DATA VAULT is what the platform remembers. INFRASTRUCTURE CITY is what it is
    built from. SOURCE CORE is where any of it came from. FAMILISTA VISION is
    what the platform can SEE — and it is the only room whose subject is a pitch,
-   so it is drawn like an instrument pointed at one rather than like another
-   grid of panels.
+   so it is drawn as an instrument pointed at one rather than as another grid of
+   admin panels.
+
+   THIS FILE IS A DESIGN SYSTEM, NOT SEVENTEEN STYLESHEETS
+
+   Every section is built from the same dozen primitives — `fv-panel`,
+   `fv-metric`, `fv-chip`, `fv-table`, `fv-empty`, `fv-pitch`, `fv-tl`,
+   `fv-drawer`, `fv-split`. A section that needs something new changes the
+   primitive rather than adding a second one beside it, because the day two
+   panels disagree about their own padding is the day the module stops looking
+   like one product.
 
    THE RULES THIS STYLESHEET KEEPS, AND WHY EACH ONE EXISTS
 
-     · Colour is a fact. Cyan is Vision's own accent — the module, a live
+     · COLOUR IS A FACT. Cyan is Vision's own accent — the module, a live
        reading, the current selection. Green means MEASURED and only that. Amber
        means PROPAGATED: real, carried, not observed. Grey means withheld, and
        withheld is a RESULT rather than a failure, so it is never red. Red is
-       kept for an actual error state and appears nowhere else. Violet marks a
-       licence that has not been verified, matching Source Core's meaning of
-       "real but unverifiable" exactly, because a reader who has learned it
-       there must not have to learn it again here.
+       kept for a genuine error or offline state and appears nowhere else.
+       Violet marks a licence that has not been verified, matching Source Core's
+       meaning of "real but unverifiable" exactly, because a reader who has
+       learned it there must not have to learn it again here.
 
-     · An absence is drawn, not left blank. NOT IMPLEMENTED, NOT AVAILABLE,
-       INSUFFICIENT EVIDENCE and NOT YET VALIDATED each have a visible
-       treatment, told apart by border STYLE rather than hue: dashed for a thing
-       that does not exist yet, dotted for a thing nothing is measuring, solid
-       grey for a thing that exists and is withheld. A reader must be able to
-       tell "nobody built this" from "this session could not answer".
+     · COLOUR IS NEVER THE ONLY SIGNAL. Every status chip carries a glyph and a
+       word beside its dot, and the four absence states are told apart by border
+       STYLE — dashed for a thing that does not exist yet, dotted for a thing
+       nothing is measuring, solid grey for a thing that exists and is withheld.
+       A reader who cannot distinguish green from amber still reads the module.
 
-     · Nothing moves that the reader did not move. The workspace is a
+     · AN ABSENCE IS DRAWN, NOT LEFT BLANK. NOT IMPLEMENTED, NOT AVAILABLE,
+       INSUFFICIENT EVIDENCE and NOT YET VALIDATED each have a visible,
+       intentional treatment. An empty state is a designed state.
+
+     · NOTHING MOVES THAT THE READER DID NOT MOVE. The workspace is a
        fixed-height flex column whose body scrolls inside itself with
-       `scrollbar-gutter: stable`; panels animate on `opacity` and `transform`
-       only; switching a section repaints one region. Opening the frame
-       inspector must not shift a pixel of the timeline underneath it.
+       `scrollbar-gutter: stable`; the drawer is `position: fixed` and animates
+       on `opacity` and `transform` only; switching a section repaints one
+       region. The single piece of idle motion in the module is the travelling
+       dash on an integration conduit, and it runs only where a link is LIVE —
+       a diagram that flows while the platform is silent is a diagram telling a
+       lie. `prefers-reduced-motion` removes it entirely.
 
-     · A measured zero is `0`. A figure the platform does not hold is `—`. They
+     · A MEASURED ZERO IS `0`. A figure the platform does not hold is `—`. They
        are different answers and they are never drawn the same way.
 
-     · Below 1280px the workspace rotates from a two-column instrument to a
-       single scrolling column, and below 980px it returns the page to normal
-       document scrolling rather than crushing panels to fit.
+     · ONE SPACING GRID: 4px. Every gap, pad and radius below is a multiple.
    ───────────────────────────────────────────────────────────────────────────── */
 
-#pg-familista-vision, .fv-insp, .fv-insp-scrim {
-  --fv-bg:       #05080f;
-  --fv-panel:    rgba(16, 23, 40, .74);
-  --fv-panel-2:  rgba(22, 31, 52, .55);
-  --fv-line:     rgba(255, 255, 255, .07);
-  --fv-line-2:   rgba(255, 255, 255, .14);
-  --fv-tx:       #e9eefb;
-  --fv-tx-2:     #95a1bd;
-  --fv-tx-3:     #646f8b;
-  --fv-accent:   #22d3ee;
-  --fv-accent-2: #3b82f6;
-  --fv-measured: #34d399;
-  --fv-propagated: #fbbf24;
-  --fv-withheld: #5b6480;
-  --fv-crit:     #f87171;
-  --fv-unver:    #a78bfa;
-  --fv-purple:   #8b5cf6;
-  --fv-radius:   16px;
+#pg-familista-vision, .fv-drawer, .fv-scrim {
+  /* ── surface ── */
+  --fv-bg:        #04070d;
+  --fv-bg-2:      #070b14;
+  --fv-panel:     rgba(15, 22, 38, .72);
+  --fv-panel-2:   rgba(21, 30, 50, .52);
+  --fv-panel-3:   rgba(28, 39, 63, .40);
+  --fv-line:      rgba(255, 255, 255, .06);
+  --fv-line-2:    rgba(255, 255, 255, .12);
+  --fv-line-3:    rgba(255, 255, 255, .20);
+
+  /* ── ink ── */
+  --fv-tx:        #eaeffb;
+  --fv-tx-2:      #94a1be;
+  --fv-tx-3:      #616c88;
+
+  /* ── meaning ── */
+  --fv-accent:    #22d3ee;   /* Vision itself, and the current selection      */
+  --fv-accent-2:  #3b82f6;   /* the second stop of every Vision gradient      */
+  --fv-measured:  #34d399;   /* MEASURED. Nothing else.                       */
+  --fv-propagated:#fbbf24;   /* PROPAGATED, and DEGRADED                      */
+  --fv-withheld:  #5b6480;   /* withheld — a result, never a failure          */
+  --fv-crit:      #f87171;   /* a real error or offline state, and only that  */
+  --fv-unver:     #a78bfa;   /* real but unverifiable                         */
+  --fv-purple:    #8b5cf6;   /* a camera cut, and Vision's second accent      */
+
+  /* ── geometry, all multiples of 4 ── */
+  --fv-r-sm:      8px;
+  --fv-r:         14px;
+  --fv-r-lg:      20px;
+  --fv-gap:       12px;
+  --fv-gap-lg:    16px;
+  --fv-pad:       16px;
+
+  --fv-shadow:    0 18px 48px -28px rgba(0, 0, 0, .9);
+  --fv-glow:      0 0 0 1px rgba(34, 211, 238, .26), 0 8px 28px -14px rgba(34, 211, 238, .34);
 }
 
 body.fv-vision-open .app-sidebar,
@@ -68,263 +99,568 @@ body.fv-vision-open .club-chrome { display: none !important; }
   position: fixed; inset: 0; z-index: 60;
   display: flex; flex-direction: column;
   background:
-    radial-gradient(1200px 700px at 78% -12%, rgba(34, 211, 238, .10), transparent 60%),
-    radial-gradient(900px 600px at 8% 105%, rgba(139, 92, 246, .09), transparent 62%),
-    var(--fv-bg);
+    radial-gradient(1400px 780px at 82% -14%, rgba(34, 211, 238, .11), transparent 58%),
+    radial-gradient(1000px 640px at 6% 108%, rgba(139, 92, 246, .10), transparent 60%),
+    linear-gradient(180deg, var(--fv-bg-2), var(--fv-bg));
   color: var(--fv-tx);
   font: 400 13px/1.5 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-feature-settings: 'tnum' 0;
   overflow: hidden;
 }
 
-/* ── header ─────────────────────────────────────────────────────────────── */
+/* Focus is visible everywhere, on the module's own accent, and it is never
+   removed. An instrument that cannot be driven from a keyboard is an
+   instrument half its users cannot drive. */
+#pg-familista-vision :focus-visible,
+.fv-drawer :focus-visible {
+  outline: 2px solid var(--fv-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ═══ HEADER ═══════════════════════════════════════════════════════════════ */
 
 .fv-head {
   flex: 0 0 auto;
-  display: flex; align-items: center; gap: 18px;
-  padding: 14px 22px;
+  display: flex; align-items: center; gap: var(--fv-gap-lg);
+  padding: 12px 20px;
   border-bottom: 1px solid var(--fv-line);
-  background: rgba(8, 12, 22, .82);
-  backdrop-filter: blur(14px);
+  background: linear-gradient(180deg, rgba(8, 13, 24, .94), rgba(8, 13, 24, .78));
+  backdrop-filter: blur(18px);
 }
-.fv-brand { display: flex; align-items: baseline; gap: 10px; }
+.fv-brand { display: flex; align-items: center; gap: 11px; }
 .fv-brand-mark {
-  width: 26px; height: 26px; border-radius: 7px;
-  background: linear-gradient(140deg, var(--fv-accent), var(--fv-accent-2));
-  display: grid; place-items: center; color: #041019; font-weight: 800; font-size: 13px;
-  align-self: center;
+  width: 32px; height: 32px; border-radius: 10px;
+  background: linear-gradient(140deg, var(--fv-accent), var(--fv-accent-2) 55%, var(--fv-purple));
+  display: grid; place-items: center; color: #03131b; font-weight: 800; font-size: 15px;
+  box-shadow: 0 6px 18px -8px rgba(34, 211, 238, .8);
 }
-.fv-brand-name { font-size: 15px; font-weight: 700; letter-spacing: .10em; }
-.fv-brand-sub { font-size: 10.5px; color: var(--fv-tx-3); letter-spacing: .14em; text-transform: uppercase; }
+.fv-brand-name { font-size: 14.5px; font-weight: 700; letter-spacing: .13em; line-height: 1.2; }
+.fv-brand-sub {
+  font-size: 9.5px; color: var(--fv-tx-3); letter-spacing: .15em;
+  text-transform: uppercase; margin-top: 2px;
+}
 .fv-head-spacer { flex: 1 1 auto; }
-.fv-back {
-  background: rgba(255,255,255,.05); border: 1px solid var(--fv-line-2);
-  color: var(--fv-tx-2); border-radius: 9px; padding: 7px 13px;
-  font-size: 11.5px; cursor: pointer; transition: background .16s, color .16s;
-}
-.fv-back:hover { background: rgba(255,255,255,.1); color: var(--fv-tx); }
 
-/* The capability rail: fourteen services, each answering for itself. */
-.fv-rail {
-  flex: 0 0 auto;
-  display: flex; gap: 7px; padding: 10px 22px;
-  overflow-x: auto; scrollbar-width: thin;
-  border-bottom: 1px solid var(--fv-line);
-  background: rgba(7, 11, 20, .6);
-}
-.fv-chip {
-  flex: 0 0 auto; display: flex; align-items: center; gap: 7px;
+.fv-target {
+  display: flex; align-items: center; gap: 7px;
   padding: 6px 11px; border-radius: 999px;
-  border: 1px solid var(--fv-line-2); background: var(--fv-panel-2);
-  font-size: 11px; color: var(--fv-tx-2); white-space: nowrap;
-  cursor: default;
+  border: 1px solid rgba(34, 211, 238, .28); background: rgba(34, 211, 238, .08);
+  font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--fv-accent);
 }
-.fv-chip b { font-weight: 600; color: var(--fv-tx); }
-.fv-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
-.fv-s-LIVE .fv-dot, .fv-s-READY .fv-dot { background: var(--fv-measured); }
-.fv-s-LIVE { border-color: rgba(52, 211, 153, .32); }
-.fv-s-PROCESSING .fv-dot { background: var(--fv-accent); }
-.fv-s-DEGRADED .fv-dot { background: var(--fv-propagated); }
-.fv-s-ERROR .fv-dot, .fv-s-OFFLINE .fv-dot { background: var(--fv-crit); }
-.fv-s-NOT_AVAILABLE .fv-dot { background: var(--fv-withheld); }
-.fv-s-NOT_AVAILABLE { border-style: dotted; }
-.fv-s-NOT_IMPLEMENTED .fv-dot { background: transparent; border: 1px dashed var(--fv-withheld); }
-.fv-s-NOT_IMPLEMENTED { border-style: dashed; color: var(--fv-tx-3); }
+.fv-btn {
+  background: rgba(255, 255, 255, .05); border: 1px solid var(--fv-line-2);
+  color: var(--fv-tx-2); border-radius: var(--fv-r-sm); padding: 7px 13px;
+  font-size: 11.5px; cursor: pointer; transition: background .15s, color .15s, border-color .15s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.fv-btn:hover { background: rgba(255, 255, 255, .1); color: var(--fv-tx); border-color: var(--fv-line-3); }
+.fv-btn[aria-pressed="true"] {
+  background: rgba(34, 211, 238, .14); border-color: rgba(34, 211, 238, .4); color: var(--fv-accent);
+}
 
-/* ── body: nav + workspace ──────────────────────────────────────────────── */
+/* ── the live system strip ── */
+
+.fv-strip {
+  flex: 0 0 auto; display: flex; gap: 6px;
+  padding: 8px 20px; overflow-x: auto; overscroll-behavior-x: contain;
+  border-bottom: 1px solid var(--fv-line);
+  background: rgba(5, 9, 17, .6);
+  scrollbar-width: thin;
+}
+.fv-strip::-webkit-scrollbar { height: 4px; }
+.fv-strip::-webkit-scrollbar-thumb { background: var(--fv-line-2); border-radius: 2px; }
+
+/* ═══ STATUS CHIP — the module's single status primitive ═══════════════════ */
+
+.fv-chip {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 999px;
+  border: 1px solid var(--fv-line-2); background: var(--fv-panel-2);
+  font-size: 10.5px; color: var(--fv-tx-2); white-space: nowrap;
+  font-family: inherit;
+}
+.fv-chip b { font-weight: 600; color: var(--fv-tx); letter-spacing: .01em; }
+.fv-chip-state { font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; }
+/* The glyph is the point: status is never colour alone. */
+.fv-chip-glyph { font-size: 9px; line-height: 1; opacity: .9; }
+.fv-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+
+.fv-s-LIVE      { border-color: rgba(52, 211, 153, .34); background: rgba(52, 211, 153, .07); }
+.fv-s-LIVE      .fv-dot { background: var(--fv-measured); box-shadow: 0 0 8px rgba(52,211,153,.7); }
+.fv-s-READY     { border-color: rgba(52, 211, 153, .22); }
+.fv-s-READY     .fv-dot { background: var(--fv-measured); }
+.fv-s-PROCESSING{ border-color: rgba(34, 211, 238, .34); background: rgba(34, 211, 238, .07); }
+.fv-s-PROCESSING .fv-dot { background: var(--fv-accent); }
+.fv-s-DEGRADED  { border-color: rgba(251, 191, 36, .34); background: rgba(251, 191, 36, .07); }
+.fv-s-DEGRADED  .fv-dot { background: var(--fv-propagated); }
+.fv-s-ERROR, .fv-s-OFFLINE { border-color: rgba(248, 113, 113, .38); background: rgba(248, 113, 113, .08); }
+.fv-s-ERROR .fv-dot, .fv-s-OFFLINE .fv-dot { background: var(--fv-crit); }
+.fv-s-NOT_AVAILABLE { border-style: dotted; color: var(--fv-tx-3); }
+.fv-s-NOT_AVAILABLE .fv-dot { background: var(--fv-withheld); }
+.fv-s-NOT_IMPLEMENTED { border-style: dashed; color: var(--fv-tx-3); }
+.fv-s-NOT_IMPLEMENTED .fv-dot { background: transparent; box-shadow: inset 0 0 0 1px var(--fv-withheld); }
+
+/* ═══ BODY: NAV + WORKSPACE ════════════════════════════════════════════════ */
 
 .fv-body { flex: 1 1 auto; display: flex; min-height: 0; }
 
 .fv-nav {
-  flex: 0 0 218px; display: flex; flex-direction: column; gap: 2px;
-  padding: 14px 10px; overflow-y: auto;
+  flex: 0 0 216px; display: flex; flex-direction: column;
+  padding: 12px 10px 24px; overflow-y: auto;
   border-right: 1px solid var(--fv-line);
-  background: rgba(8, 12, 22, .5);
+  background: linear-gradient(180deg, rgba(7, 11, 21, .7), rgba(5, 9, 17, .5));
   scrollbar-gutter: stable;
 }
-.fv-nav-group { font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase;
-  color: var(--fv-tx-3); padding: 12px 10px 5px; }
+.fv-nav-group {
+  font-size: 9px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--fv-tx-3); padding: 14px 12px 6px; font-weight: 600;
+}
+.fv-nav-group:first-child { padding-top: 4px; }
 .fv-nav-item {
-  display: flex; align-items: center; gap: 9px;
-  padding: 8px 11px; border-radius: 9px; cursor: pointer;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 11px; border-radius: var(--fv-r-sm); cursor: pointer;
   font-size: 12.5px; color: var(--fv-tx-2);
   border: 1px solid transparent; text-align: left; width: 100%;
-  background: none; transition: background .14s, color .14s;
+  background: none; font-family: inherit;
+  transition: background .14s, color .14s, border-color .14s;
+  position: relative;
 }
-.fv-nav-item:hover { background: rgba(255,255,255,.05); color: var(--fv-tx); }
-.fv-nav-item.is-active {
-  background: linear-gradient(90deg, rgba(34,211,238,.16), rgba(34,211,238,.03));
-  border-color: rgba(34,211,238,.3); color: var(--fv-tx); font-weight: 600;
+.fv-nav-item:hover { background: rgba(255, 255, 255, .045); color: var(--fv-tx); }
+.fv-nav-item[aria-current="page"] {
+  background: linear-gradient(90deg, rgba(34, 211, 238, .15), rgba(34, 211, 238, .02));
+  border-color: rgba(34, 211, 238, .26); color: var(--fv-tx); font-weight: 600;
 }
-.fv-nav-item .fv-nav-ico { width: 16px; text-align: center; opacity: .85; }
+.fv-nav-item[aria-current="page"]::before {
+  content: ''; position: absolute; left: -10px; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 18px; border-radius: 0 2px 2px 0; background: var(--fv-accent);
+}
+.fv-nav-ico {
+  width: 18px; height: 18px; flex: 0 0 auto; display: grid; place-items: center;
+  opacity: .85;
+}
+.fv-nav-ico svg { width: 15px; height: 15px; stroke: currentColor; fill: none;
+  stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.fv-nav-label { flex: 1 1 auto; min-width: 0; }
 .fv-nav-badge {
-  margin-left: auto; font-size: 9.5px; padding: 1px 6px; border-radius: 999px;
-  border: 1px dashed var(--fv-line-2); color: var(--fv-tx-3);
+  font-size: 8.5px; padding: 2px 6px; border-radius: 999px; letter-spacing: .06em;
+  border: 1px dashed var(--fv-line-2); color: var(--fv-tx-3); flex: 0 0 auto;
 }
 
 .fv-work { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .fv-work-head {
-  flex: 0 0 auto; padding: 16px 24px 12px; border-bottom: 1px solid var(--fv-line);
+  flex: 0 0 auto; padding: 16px 22px 12px; border-bottom: 1px solid var(--fv-line);
+  display: flex; align-items: flex-end; gap: var(--fv-gap-lg);
 }
-.fv-work-title { font-size: 17px; font-weight: 650; letter-spacing: .01em; }
-.fv-work-sub { font-size: 11.5px; color: var(--fv-tx-3); margin-top: 3px; }
+.fv-work-titles { flex: 1 1 auto; min-width: 0; }
+.fv-work-title { font-size: 18px; font-weight: 650; letter-spacing: -.01em; }
+.fv-work-sub { font-size: 11.5px; color: var(--fv-tx-3); margin-top: 3px; max-width: 108ch; }
+.fv-work-actions { flex: 0 0 auto; display: flex; gap: 6px; align-items: center; }
 .fv-work-body {
-  flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 18px 24px 40px;
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--fv-gap-lg) 22px 40px;
   scrollbar-gutter: stable;
 }
 
-/* ── panels, metrics, states ────────────────────────────────────────────── */
+/* ═══ LAYOUT PRIMITIVES ════════════════════════════════════════════════════ */
 
-.fv-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.fv-grid { display: grid; gap: var(--fv-gap); grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); }
 .fv-grid--wide { grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); }
+.fv-stack { display: flex; flex-direction: column; gap: var(--fv-gap); }
+.fv-row-gap { height: var(--fv-gap); }
+
+/* The split: an instrument's two-column working area. Collapses at 1180px. */
+.fv-split { display: grid; gap: var(--fv-gap); grid-template-columns: minmax(0, 1.9fr) minmax(300px, .85fr); align-items: start; }
+.fv-split--even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.fv-split--wide-left { grid-template-columns: minmax(0, 2.6fr) minmax(280px, .8fr); }
+
+/* ═══ PANEL ════════════════════════════════════════════════════════════════ */
 
 .fv-panel {
-  background: var(--fv-panel); border: 1px solid var(--fv-line);
-  border-radius: var(--fv-radius); padding: 15px 16px;
-  backdrop-filter: blur(10px);
+  background: linear-gradient(170deg, var(--fv-panel), var(--fv-panel-2));
+  border: 1px solid var(--fv-line);
+  border-radius: var(--fv-r); padding: var(--fv-pad);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--fv-shadow);
+  min-width: 0;
 }
+.fv-panel--flush { padding: 0; overflow: hidden; }
+.fv-panel--accent { border-color: rgba(34, 211, 238, .2); box-shadow: var(--fv-glow); }
+.fv-panel-head {
+  display: flex; align-items: center; gap: var(--fv-gap); margin-bottom: 12px;
+}
+.fv-panel--flush .fv-panel-head { padding: var(--fv-pad) var(--fv-pad) 0; margin-bottom: 10px; }
 .fv-panel-title {
-  font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--fv-tx-3); margin-bottom: 11px;
-  display: flex; align-items: center; gap: 8px;
+  font-size: 10px; letter-spacing: .15em; text-transform: uppercase;
+  color: var(--fv-tx-3); font-weight: 600; flex: 1 1 auto; min-width: 0;
 }
-.fv-panel-title .fv-tag { margin-left: auto; }
+.fv-panel-aside { flex: 0 0 auto; display: flex; gap: 6px; align-items: center; }
 
-.fv-metric { display: flex; align-items: baseline; gap: 7px; }
-.fv-metric-v { font-size: 25px; font-weight: 680; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+/* ═══ METRIC ═══════════════════════════════════════════════════════════════ */
+
+.fv-metric { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.fv-metric-v {
+  font-size: 26px; font-weight: 660; letter-spacing: -.025em;
+  font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.fv-metric-v--sm { font-size: 17px; }
 .fv-metric-u { font-size: 11px; color: var(--fv-tx-3); }
-.fv-metric-k { font-size: 11px; color: var(--fv-tx-2); margin-top: 3px; }
+.fv-metric-k { font-size: 11px; color: var(--fv-tx-2); margin-top: 5px; line-height: 1.5; }
 /* A figure the platform does not hold. Never a zero, never a blank. */
 .fv-none { color: var(--fv-withheld); font-weight: 500; }
 
-.fv-rows { display: flex; flex-direction: column; gap: 1px; }
+.fv-bar { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .07); overflow: hidden; margin-top: 9px; }
+.fv-bar > i { display: block; height: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--fv-accent), var(--fv-accent-2)); }
+.fv-bar--measured > i { background: linear-gradient(90deg, var(--fv-measured), #10b981); }
+.fv-bar--propagated > i { background: linear-gradient(90deg, var(--fv-propagated), #f59e0b); }
+
+/* A stacked proportion bar: several measured quantities, one track. */
+.fv-stackbar { display: flex; height: 8px; border-radius: 4px; overflow: hidden;
+  background: rgba(255, 255, 255, .05); margin-top: 10px; }
+.fv-stackbar > i { display: block; height: 100%; }
+
+/* ═══ ROWS ═════════════════════════════════════════════════════════════════ */
+
+.fv-rows { display: flex; flex-direction: column; }
 .fv-row {
-  display: flex; align-items: center; gap: 10px; padding: 7px 2px;
-  border-bottom: 1px solid rgba(255,255,255,.04); font-size: 12px;
+  display: flex; align-items: center; gap: 10px; padding: 7px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, .04); font-size: 12px;
 }
 .fv-row:last-child { border-bottom: none; }
 .fv-row-k { color: var(--fv-tx-2); flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
-.fv-row-v { color: var(--fv-tx); font-variant-numeric: tabular-nums; text-align: right;
-  flex: 0 0 auto; }
-/* A tag in a row never shrinks and never overlaps its label. Model ids are long
-   and the licence verdict beside them is the whole point of the row — a verdict
-   sitting on top of the id it applies to is worse than no verdict at all. */
+.fv-row-v { color: var(--fv-tx); font-variant-numeric: tabular-nums; text-align: right; flex: 0 0 auto; }
 .fv-row > .fv-tag { flex: 0 0 auto; margin-left: auto; }
+.fv-row-sub { display: block; font-size: 10.5px; color: var(--fv-tx-3); margin-top: 2px; }
+
+/* ═══ TAG — a small inline verdict ═════════════════════════════════════════ */
 
 .fv-tag {
-  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
-  padding: 2px 7px; border-radius: 5px; border: 1px solid var(--fv-line-2);
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 9px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600;
+  padding: 3px 7px; border-radius: 5px; border: 1px solid var(--fv-line-2);
   color: var(--fv-tx-3); white-space: nowrap;
 }
-.fv-tag--measured { color: var(--fv-measured); border-color: rgba(52,211,153,.35); background: rgba(52,211,153,.08); }
-.fv-tag--propagated { color: var(--fv-propagated); border-color: rgba(251,191,36,.35); background: rgba(251,191,36,.08); }
-.fv-tag--withheld { color: var(--fv-withheld); border-style: solid; }
-.fv-tag--future { color: var(--fv-tx-3); border-style: dashed; }
-.fv-tag--uninstrumented { color: var(--fv-tx-3); border-style: dotted; }
-.fv-tag--unverified { color: var(--fv-unver); border-color: rgba(167,139,250,.35); background: rgba(167,139,250,.08); }
-.fv-tag--restricted { color: var(--fv-propagated); border-color: rgba(251,191,36,.35); }
-.fv-tag--accent { color: var(--fv-accent); border-color: rgba(34,211,238,.35); background: rgba(34,211,238,.08); }
+.fv-tag--measured   { color: var(--fv-measured);   border-color: rgba(52,211,153,.32);  background: rgba(52,211,153,.08); }
+.fv-tag--propagated { color: var(--fv-propagated); border-color: rgba(251,191,36,.32);  background: rgba(251,191,36,.08); }
+.fv-tag--derived    { color: var(--fv-accent);     border-color: rgba(34,211,238,.32);  background: rgba(34,211,238,.07); }
+.fv-tag--withheld   { color: var(--fv-withheld);   border-style: solid; }
+.fv-tag--future     { color: var(--fv-tx-3);       border-style: dashed; }
+.fv-tag--uninstrumented { color: var(--fv-tx-3);   border-style: dotted; }
+.fv-tag--unverified { color: var(--fv-unver);      border-color: rgba(167,139,250,.34); background: rgba(167,139,250,.08); }
+.fv-tag--restricted { color: var(--fv-propagated); border-color: rgba(251,191,36,.32); }
+.fv-tag--accent     { color: var(--fv-accent);     border-color: rgba(34,211,238,.34);  background: rgba(34,211,238,.08); }
+.fv-tag--crit       { color: var(--fv-crit);       border-color: rgba(248,113,113,.36); background: rgba(248,113,113,.08); }
 
-/* The four absences, told apart by border style rather than by hue. */
+/* ═══ EMPTY STATES — four absences, four treatments ════════════════════════ */
+
 .fv-empty {
-  border-radius: var(--fv-radius); padding: 26px 22px; text-align: center;
-  color: var(--fv-tx-3); background: rgba(12, 18, 32, .5);
+  border-radius: var(--fv-r); padding: 34px 26px; text-align: center;
+  color: var(--fv-tx-3);
+  background: radial-gradient(520px 200px at 50% 0%, rgba(34,211,238,.045), transparent 70%),
+              rgba(11, 17, 30, .55);
 }
-.fv-empty--future { border: 1px dashed var(--fv-line-2); }
-.fv-empty--absent { border: 1px dotted var(--fv-line-2); }
-.fv-empty--withheld { border: 1px solid var(--fv-line-2); }
+.fv-empty--future  { border: 1px dashed var(--fv-line-2); }
+.fv-empty--absent  { border: 1px dotted var(--fv-line-2); }
+.fv-empty--withheld{ border: 1px solid var(--fv-line-2); }
+.fv-empty-mark {
+  width: 40px; height: 40px; margin: 0 auto 14px; border-radius: 12px;
+  display: grid; place-items: center; color: var(--fv-tx-3);
+  border: 1px solid var(--fv-line-2); background: rgba(255, 255, 255, .03);
+}
+.fv-empty-mark svg { width: 20px; height: 20px; stroke: currentColor; fill: none;
+  stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .fv-empty-title {
-  font-size: 12.5px; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--fv-tx-2); font-weight: 600; margin-bottom: 7px;
+  font-size: 12.5px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--fv-tx-2); font-weight: 650; margin-bottom: 8px;
 }
-.fv-empty-why { font-size: 12px; max-width: 62ch; margin: 0 auto; line-height: 1.6; }
+.fv-empty-why { font-size: 12px; max-width: 64ch; margin: 0 auto; line-height: 1.65; }
 
-/* ── the pitch, drawn only from calibrated coordinates ──────────────────── */
+/* ═══ TABLE ════════════════════════════════════════════════════════════════ */
 
-.fv-pitch-wrap { position: relative; width: 100%; }
-.fv-pitch { width: 100%; height: auto; display: block; border-radius: 12px;
-  /* Capped so a pitch never becomes the whole screen. A 105x68 viewBox in a
-     1680px column is 1088px tall, which pushes every figure beside it below
-     the fold for no gain — the pattern is legible at half that. */
-  max-height: 60vh; margin-inline: auto;
-  background: linear-gradient(170deg, #0a1a12, #061009); border: 1px solid var(--fv-line); }
-.fv-pitch-line { stroke: rgba(255,255,255,.22); stroke-width: .3; fill: none; }
+.fv-table-wrap {
+  border-radius: var(--fv-r); border: 1px solid var(--fv-line);
+  overflow: auto; max-height: 520px; scrollbar-gutter: stable;
+  background: rgba(9, 14, 26, .5);
+}
+.fv-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.fv-table caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.fv-table th {
+  text-align: left; font-size: 9px; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--fv-tx-3); font-weight: 650; padding: 9px 12px;
+  border-bottom: 1px solid var(--fv-line-2); position: sticky; top: 0; z-index: 1;
+  background: rgba(10, 15, 28, .97); backdrop-filter: blur(10px); white-space: nowrap;
+}
+.fv-table td {
+  padding: 8px 12px; border-bottom: 1px solid rgba(255, 255, 255, .035);
+  color: var(--fv-tx-2); font-variant-numeric: tabular-nums; vertical-align: top;
+}
+.fv-table tbody tr:hover td { background: rgba(255, 255, 255, .028); color: var(--fv-tx); }
+.fv-table tbody tr[aria-selected="true"] td {
+  background: rgba(34, 211, 238, .09);
+  box-shadow: inset 2px 0 0 var(--fv-accent);
+}
+.fv-table tbody tr.is-clickable { cursor: pointer; }
+.fv-table b { color: var(--fv-tx); font-weight: 600; }
+.fv-td-sub { display: block; font-size: 10px; color: var(--fv-tx-3); margin-top: 2px; }
+.fv-table-foot {
+  padding: 8px 12px; font-size: 10.5px; color: var(--fv-tx-3);
+  border-top: 1px solid var(--fv-line); background: rgba(9, 14, 26, .7);
+}
+
+/* ═══ FILTER BAR ═══════════════════════════════════════════════════════════ */
+
+.fv-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
+.fv-input {
+  background: rgba(255, 255, 255, .04); border: 1px solid var(--fv-line-2);
+  color: var(--fv-tx); border-radius: var(--fv-r-sm); padding: 6px 11px;
+  font-size: 12px; font-family: inherit; min-width: 160px;
+}
+.fv-input::placeholder { color: var(--fv-tx-3); }
+.fv-select {
+  background: rgba(255, 255, 255, .04); border: 1px solid var(--fv-line-2);
+  color: var(--fv-tx); border-radius: var(--fv-r-sm); padding: 6px 9px;
+  font-size: 11.5px; font-family: inherit; cursor: pointer;
+}
+.fv-filter-label { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--fv-tx-3); }
+
+/* ═══ PITCH — Law 1, in metres ═════════════════════════════════════════════ */
+
+.fv-pitch-wrap { position: relative; width: 100%; display: flex; justify-content: center; }
+.fv-pitch {
+  width: 100%; height: auto; display: block; border-radius: var(--fv-r-sm);
+  max-height: 58vh; margin-inline: auto;
+  background:
+    radial-gradient(60% 80% at 50% 40%, rgba(16, 48, 32, .85), transparent 75%),
+    linear-gradient(170deg, #07170f, #040c07);
+  border: 1px solid var(--fv-line);
+}
+/* The small pitch is capped by WIDTH, not height. An SVG capped by height
+   letterboxes inside a wide viewport — the pitch shrinks to the middle and the
+   panel keeps the full width as dead space. Capping the width lets the natural
+   105:68 ratio set the height, and the wrapper centres it. */
+.fv-pitch--sm { max-width: 480px; max-height: none; }
+.fv-pitch-line { stroke: rgba(255, 255, 255, .20); stroke-width: .28; fill: none; }
+.fv-pitch-mow { fill: rgba(255, 255, 255, .012); }
 .fv-dotm { fill: var(--fv-measured); }
 .fv-dotp { fill: var(--fv-propagated); }
-.fv-dotball { fill: #ffffff; stroke: #05080f; stroke-width: .3; }
+.fv-dotball { fill: #fff; stroke: #04070d; stroke-width: .28; }
+.fv-dotsel { fill: var(--fv-accent); }
+.fv-trace { fill: none; stroke: var(--fv-accent); stroke-width: .45; stroke-linejoin: round; opacity: .9; }
 
-/* ── the timeline ───────────────────────────────────────────────────────── */
+.fv-legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 
-.fv-tl { display: flex; flex-direction: column; gap: 7px; }
+/* ═══ TIMELINE ═════════════════════════════════════════════════════════════ */
+
+.fv-tl { display: flex; flex-direction: column; gap: 5px; }
 .fv-tl-band { display: flex; align-items: center; gap: 10px; }
-.fv-tl-label { flex: 0 0 132px; font-size: 10.5px; color: var(--fv-tx-3);
-  text-transform: uppercase; letter-spacing: .1em; }
+.fv-tl-label {
+  flex: 0 0 136px; font-size: 9.5px; color: var(--fv-tx-3);
+  text-transform: uppercase; letter-spacing: .11em; text-align: right;
+}
 .fv-tl-track {
-  position: relative; flex: 1 1 auto; height: 16px; border-radius: 5px;
-  background: rgba(255,255,255,.035); overflow: hidden;
+  position: relative; flex: 1 1 auto; height: 18px; border-radius: 4px;
+  background: rgba(255, 255, 255, .03); overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .035);
 }
+.fv-tl-track--marks { overflow: visible; background: none; border: none; height: 14px; }
 .fv-tl-span { position: absolute; top: 0; bottom: 0; }
-.fv-tl-span--valid { background: var(--fv-measured); }
-.fv-tl-span--prop { background: var(--fv-propagated); }
-.fv-tl-span--none { background: repeating-linear-gradient(90deg,
-  rgba(91,100,128,.55) 0 4px, transparent 4px 8px); }
-.fv-tl-span--obs { background: #e2e8f0; }
-.fv-tl-span--gap { background: repeating-linear-gradient(90deg,
-  rgba(91,100,128,.4) 0 3px, transparent 3px 7px); }
-.fv-tl-mark { position: absolute; top: -3px; bottom: -3px; width: 2px; cursor: pointer; }
-.fv-tl-mark--anchor { background: var(--fv-accent); }
-.fv-tl-mark--cut { background: var(--fv-purple); }
-.fv-tl-mark--event { background: #fff; }
-
-/* ── tables ─────────────────────────────────────────────────────────────── */
-
-.fv-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.fv-table th {
-  text-align: left; font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--fv-tx-3); font-weight: 600; padding: 8px 10px;
-  border-bottom: 1px solid var(--fv-line-2); position: sticky; top: 0;
-  background: rgba(10, 15, 27, .96); backdrop-filter: blur(8px);
+.fv-tl-span--valid { background: linear-gradient(180deg, var(--fv-measured), #10b981); }
+.fv-tl-span--prop  { background: linear-gradient(180deg, var(--fv-propagated), #f59e0b); }
+.fv-tl-span--none  { background: repeating-linear-gradient(135deg,
+  rgba(91,100,128,.5) 0 3px, transparent 3px 7px); }
+.fv-tl-span--obs   { background: linear-gradient(180deg, #f1f5f9, #cbd5e1); }
+.fv-tl-span--gap   { background: repeating-linear-gradient(135deg,
+  rgba(91,100,128,.35) 0 2px, transparent 2px 6px); }
+.fv-tl-mark {
+  position: absolute; top: 0; bottom: 0; width: 2px; cursor: pointer; border: none;
+  padding: 0; border-radius: 1px;
 }
-.fv-table td { padding: 7px 10px; border-bottom: 1px solid rgba(255,255,255,.04);
-  color: var(--fv-tx-2); font-variant-numeric: tabular-nums; }
-.fv-table tr:hover td { background: rgba(255,255,255,.03); color: var(--fv-tx); }
-.fv-table-scroll { max-height: 460px; overflow: auto; border-radius: 12px;
-  border: 1px solid var(--fv-line); scrollbar-gutter: stable; }
+.fv-tl-mark--anchor { background: var(--fv-accent); }
+.fv-tl-mark--cut    { background: var(--fv-purple); }
+.fv-tl-mark--event  { background: #fff; }
+.fv-tl-mark:hover, .fv-tl-mark:focus-visible { transform: scaleX(2.4); }
+.fv-tl-cursor {
+  position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--fv-accent);
+  box-shadow: 0 0 10px rgba(34, 211, 238, .9); pointer-events: none;
+}
+.fv-tl-ruler { display: flex; justify-content: space-between; font-size: 9.5px;
+  color: var(--fv-tx-3); margin-left: 146px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+/* ═══ FEED — the annotated analysis surface ════════════════════════════════ */
+
+.fv-feed { position: relative; border-radius: var(--fv-r-sm); overflow: hidden;
+  border: 1px solid var(--fv-line); background: #070b14; }
+.fv-feed svg { display: block; width: 100%; height: auto; }
+.fv-feed-note {
+  position: absolute; left: 10px; bottom: 10px; z-index: 2;
+  font-size: 10px; letter-spacing: .06em; padding: 5px 9px; border-radius: 6px;
+  background: rgba(4, 7, 13, .84); border: 1px solid var(--fv-line-2); color: var(--fv-tx-3);
+  backdrop-filter: blur(6px);
+}
+.fv-transport { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.fv-scrub {
+  flex: 1 1 220px; min-width: 160px; height: 4px; border-radius: 2px; appearance: none;
+  background: linear-gradient(90deg, var(--fv-accent) var(--fv-pos, 0%), rgba(255,255,255,.08) var(--fv-pos, 0%));
+  cursor: pointer;
+}
+.fv-scrub::-webkit-slider-thumb {
+  appearance: none; width: 13px; height: 13px; border-radius: 50%;
+  background: var(--fv-accent); border: 2px solid #04070d; cursor: pointer;
+  box-shadow: 0 0 10px rgba(34, 211, 238, .8);
+}
+.fv-scrub::-moz-range-thumb {
+  width: 13px; height: 13px; border-radius: 50%; background: var(--fv-accent);
+  border: 2px solid #04070d; cursor: pointer;
+}
+.fv-readout { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--fv-tx-3); }
+.fv-readout b { color: var(--fv-tx); font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* ═══ FLOW — the nervous system ════════════════════════════════════════════ */
+
+.fv-flow { display: flex; flex-direction: column; gap: 0; }
+.fv-flow-node {
+  display: flex; align-items: center; gap: var(--fv-gap); padding: 12px 14px;
+  border: 1px solid var(--fv-line); border-radius: var(--fv-r-sm);
+  background: linear-gradient(120deg, var(--fv-panel-2), var(--fv-panel-3));
+  cursor: pointer; text-align: left; width: 100%; font-family: inherit;
+  transition: border-color .15s, background .15s;
+}
+.fv-flow-node:hover { border-color: rgba(34, 211, 238, .3); background: rgba(34, 211, 238, .05); }
+.fv-flow-node[aria-expanded="true"] { border-color: rgba(34, 211, 238, .4); box-shadow: var(--fv-glow); }
+.fv-flow-stage {
+  font-size: 9px; letter-spacing: .14em; color: var(--fv-tx-3);
+  text-transform: uppercase; flex: 0 0 122px;
+}
+.fv-flow-name { font-weight: 650; font-size: 12.5px; color: var(--fv-tx); flex: 0 0 auto; min-width: 178px; }
+.fv-flow-detail { font-size: 11.5px; color: var(--fv-tx-3); flex: 1 1 auto; min-width: 0; }
+.fv-flow-node > .fv-tag { flex: 0 0 auto; }
+/* The conduit between two nodes. It travels only when the link is LIVE — a
+   diagram that flows while the platform is silent is a diagram telling a lie. */
+.fv-conduit { height: 20px; margin-left: 58px; width: 2px; background: var(--fv-line-2); position: relative; }
+.fv-conduit--live {
+  background: linear-gradient(180deg, transparent, var(--fv-accent), transparent);
+  background-size: 100% 200%;
+  animation: fv-travel 1.8s linear infinite;
+}
+@keyframes fv-travel { from { background-position: 0 -100%; } to { background-position: 0 100%; } }
+.fv-flow-detail-panel {
+  margin: 0 0 0 58px; padding: 12px 14px; border-left: 2px solid rgba(34, 211, 238, .34);
+  background: rgba(34, 211, 238, .035); border-radius: 0 var(--fv-r-sm) var(--fv-r-sm) 0;
+  font-size: 11.5px; color: var(--fv-tx-2); line-height: 1.6;
+}
+
+/* ═══ SOURCE CARD ══════════════════════════════════════════════════════════ */
+
+.fv-source {
+  border: 1px solid var(--fv-line); border-radius: var(--fv-r);
+  padding: 14px; background: linear-gradient(160deg, var(--fv-panel-2), var(--fv-panel-3));
+  display: flex; flex-direction: column; gap: 9px; min-height: 128px;
+}
+.fv-source--future { border-style: dashed; opacity: .78; }
+.fv-source--live { border-color: rgba(52, 211, 153, .28); }
+.fv-source-top { display: flex; align-items: flex-start; gap: 10px; }
+.fv-source-ico {
+  width: 34px; height: 34px; border-radius: 10px; flex: 0 0 auto; display: grid; place-items: center;
+  border: 1px solid var(--fv-line-2); background: rgba(255, 255, 255, .03); color: var(--fv-tx-2);
+}
+.fv-source-ico svg { width: 17px; height: 17px; stroke: currentColor; fill: none;
+  stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.fv-source--live .fv-source-ico { color: var(--fv-measured); border-color: rgba(52,211,153,.3);
+  background: rgba(52,211,153,.07); }
+.fv-source-name { font-size: 12.5px; font-weight: 650; color: var(--fv-tx); }
+.fv-source-type { font-size: 10px; color: var(--fv-tx-3); letter-spacing: .07em; margin-top: 2px; }
+.fv-source-why { font-size: 11px; color: var(--fv-tx-3); line-height: 1.55; flex: 1 1 auto; }
+/* A status chip states one thing; stretched to the card's full width it reads
+   as a progress bar. It sizes to its own content. */
+.fv-source > .fv-chip, .fv-source > .fv-tag, .fv-source > .fv-btn { align-self: flex-start; }
+
+/* ═══ DRAWER — evidence, without moving the page underneath ════════════════ */
+
+.fv-scrim {
+  position: fixed; inset: 0; z-index: 70; background: rgba(2, 4, 9, .6);
+  backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity .18s;
+}
+.fv-scrim.is-open { opacity: 1; pointer-events: auto; }
+.fv-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 71; width: min(460px, 94vw);
+  background: linear-gradient(180deg, #0a1120, #06090f);
+  border-left: 1px solid var(--fv-line-2); box-shadow: -26px 0 70px -30px rgba(0,0,0,.95);
+  transform: translateX(100%); opacity: 0; transition: transform .2s ease, opacity .2s ease;
+  display: flex; flex-direction: column; color: var(--fv-tx);
+  font: 400 13px/1.5 'Inter', -apple-system, sans-serif;
+}
+.fv-drawer.is-open { transform: translateX(0); opacity: 1; }
+.fv-drawer-head {
+  flex: 0 0 auto; padding: 16px 18px 12px; border-bottom: 1px solid var(--fv-line);
+  display: flex; align-items: flex-start; gap: var(--fv-gap);
+}
+.fv-drawer-title { font-size: 14.5px; font-weight: 650; flex: 1 1 auto; }
+.fv-drawer-sub { font-size: 11px; color: var(--fv-tx-3); margin-top: 3px; }
+.fv-drawer-body { flex: 1 1 auto; overflow-y: auto; padding: 16px 18px 32px;
+  scrollbar-gutter: stable; }
+
+/* ═══ NOTES ════════════════════════════════════════════════════════════════ */
 
 .fv-note {
   font-size: 11.5px; color: var(--fv-tx-3); line-height: 1.65;
   border-left: 2px solid var(--fv-line-2); padding-left: 11px; margin-top: 12px;
 }
 .fv-note--loud { border-left-color: var(--fv-accent); color: var(--fv-tx-2); }
-
-.fv-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; margin-top: 7px; }
-.fv-bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--fv-accent), var(--fv-accent-2)); }
-
-.fv-flow { display: flex; flex-direction: column; gap: 9px; }
-.fv-flow-node {
-  display: flex; align-items: center; gap: 12px; padding: 11px 14px;
-  border: 1px solid var(--fv-line); border-radius: 12px; background: var(--fv-panel-2);
+.fv-note--warn { border-left-color: var(--fv-propagated); color: var(--fv-tx-2); }
+.fv-banner {
+  display: flex; align-items: center; gap: 10px; padding: 11px 14px; margin-bottom: var(--fv-gap);
+  border-radius: var(--fv-r-sm); border: 1px solid rgba(251, 191, 36, .28);
+  background: rgba(251, 191, 36, .06); color: var(--fv-tx-2); font-size: 12px;
 }
-.fv-flow-stage { font-size: 9.5px; letter-spacing: .13em; color: var(--fv-tx-3);
-  text-transform: uppercase; flex: 0 0 132px; }
-.fv-flow-name { font-weight: 600; font-size: 12.5px; flex: 0 0 auto; min-width: 190px; }
-.fv-flow-detail { font-size: 11.5px; color: var(--fv-tx-3); flex: 1 1 auto; min-width: 0; }
-.fv-flow-node > .fv-tag { flex: 0 0 auto; }
-.fv-flow-arrow { text-align: center; color: var(--fv-tx-3); font-size: 13px; }
+.fv-banner b { color: var(--fv-propagated); letter-spacing: .06em; }
 
-/* ── responsive escape hatches ──────────────────────────────────────────── */
+.fv-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
-@media (max-width: 1280px) {
-  .fv-nav { flex: 0 0 62px; }
-  .fv-nav-item span:not(.fv-nav-ico) { display: none; }
-  .fv-nav-group, .fv-nav-badge { display: none; }
+/* ═══ RESPONSIVE ═══════════════════════════════════════════════════════════ */
+
+@media (max-width: 1180px) {
+  .fv-split, .fv-split--even, .fv-split--wide-left { grid-template-columns: minmax(0, 1fr); }
 }
-@media (max-width: 980px), (max-height: 620px) {
+@media (max-width: 1080px) {
+  .fv-nav { flex: 0 0 58px; padding: 12px 8px; }
+  .fv-nav-label, .fv-nav-group, .fv-nav-badge { display: none; }
+  .fv-nav-item { justify-content: center; padding: 10px 0; }
+  .fv-nav-item[aria-current="page"]::before { left: -8px; }
+}
+@media (max-width: 860px) {
+  /* Return the page to normal document scrolling rather than crushing panels
+     into a fixed viewport. The status strip stays — on a phone at the side of a
+     pitch, whether the engine is live is the one thing still worth knowing. */
   #pg-familista-vision { position: static; height: auto; min-height: 100vh; overflow: visible; }
   .fv-body { flex-direction: column; }
-  .fv-nav { flex: 0 0 auto; flex-direction: row; overflow-x: auto; border-right: none;
-    border-bottom: 1px solid var(--fv-line); }
-  .fv-work-body { overflow: visible; }
+  .fv-nav {
+    flex: 0 0 auto; flex-direction: row; overflow-x: auto; border-right: none;
+    border-bottom: 1px solid var(--fv-line); padding: 8px; gap: 4px;
+    position: sticky; top: 0; z-index: 5; background: rgba(5, 9, 17, .96);
+    backdrop-filter: blur(14px);
+  }
+  .fv-nav-item { width: auto; flex: 0 0 auto; }
+  .fv-work-body { overflow: visible; padding: var(--fv-gap) 14px 40px; }
+  .fv-work-head { padding: 14px 14px 10px; flex-direction: column; align-items: flex-start; }
+  .fv-head { padding: 10px 14px; }
+  .fv-strip { padding: 8px 14px; }
+  .fv-brand-sub { display: none; }
+  .fv-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .fv-metric-v { font-size: 21px; }
+  .fv-table-wrap { max-height: none; }
+  .fv-tl-label { flex: 0 0 84px; font-size: 8.5px; }
+  .fv-tl-ruler { margin-left: 94px; }
+  .fv-flow-stage { display: none; }
+  .fv-flow-name { min-width: 120px; }
 }
+@media (max-width: 520px) {
+  .fv-grid { grid-template-columns: 1fr 1fr; }
+  .fv-flow-detail { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  #pg-familista-vision * { transition: none !important; animation: none !important; }
+  #pg-familista-vision *, .fv-drawer * {
+    transition: none !important; animation: none !important;
+  }
+  .fv-conduit--live { background: var(--fv-accent); opacity: .5; }
 }
