@@ -61,7 +61,10 @@ describe('every section exists and is routed', () => {
     const shell = JS.slice(JS.indexOf('function renderShell'), JS.indexOf('function refreshRail'));
     expect(shell.match(/class="vx-side"/g) || []).toHaveLength(0); // the rail is built by rail()
     expect((JS.match(/class="vx-side"/g) || []).length).toBe(1);
-    expect((JS.match(/class="vx-modules"/g) || []).length).toBe(1);
+    // And no second navigation beside the rail: the row of platform rooms that
+    // used to sit under the header is gone entirely, not merely emptied.
+    expect(JS).not.toContain('class="vx-modules"');
+    expect(CSS).not.toContain('.vx-modules');
   });
 
   it('shows the page only when the shell has made it the active one', () => {
@@ -83,14 +86,15 @@ describe('every section exists and is routed', () => {
     expect(JS).toContain('[data-tf-notif-open]');
   });
 
-  it('routes the module row to pages the platform already owns', () => {
-    const mods = JS.slice(JS.indexOf('var MODULES = ['), JS.indexOf('var SECTIONS = ['));
-    for (const p of ['owner-home', 'source-core', 'clubs', 'data-vault',
-      'infrastructure-city', 'familista-vision', 'settings']) {
-      expect(mods).toContain("id: '" + p + "'");
-      if (p !== 'familista-vision') expect(APP).toContain("'" + p + "'");
-    }
+  it('offers a way out of the workspace, handed to the shell', () => {
+    // Vision draws no platform navigation of its own. The two controls that
+    // leave it — the back button and Settings — route through the shell, which
+    // owns every destination outside this module.
+    expect(JS).toContain("var PLATFORM_HOME = 'owner-home'");
+    expect(JS).toContain('data-vx-platform="');
     expect(JS).toContain("window.navTo === 'function'");
+    expect(APP).toContain("'owner-home'");
+    expect(APP).toContain("'settings'");
   });
 
   it('marks an unbuilt section as PLANNED rather than as broken', () => {

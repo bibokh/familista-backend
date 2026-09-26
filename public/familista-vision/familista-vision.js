@@ -215,9 +215,6 @@
     insight:  '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 013.5 10.9V16h-7v-2.1A6 6 0 0112 3z"/>',
     perf:     '<path d="M4 18l5-6 4 3 7-9"/><path d="M14 6h6v6"/>',
     compare:  '<path d="M6 4v16M18 4v16M6 8h12M6 16h12"/>',
-    overview: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',
-    core:     '<circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="8.6"/>',
-    clubs:    '<path d="M4 20V9l8-5 8 5v11z"/><path d="M9 20v-6h6v6"/>',
     vault:    '<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
     city:     '<path d="M12 3l9 5v13H3V8z"/><path d="M9 21v-6h6v6"/>',
     vision:   '<path d="M4 12V6.5A2.5 2.5 0 016.5 4H12M28 4h5.5" transform="scale(.6)"/><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.5"/><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/>',
@@ -418,18 +415,27 @@
      NAVIGATION
      ═══════════════════════════════════════════════════════════════════════════
 
-     THE MODULE ROW is the platform's own rooms, and ONLY those. Every entry
-     routes through `window.navTo` to a page the shell already owns.
+     VISION IS A WORKSPACE, AND A WORKSPACE HAS ONE NAVIGATION.
 
-     It used to carry Reports, Models, Devices and AI Assistant as well, which
-     were not platform rooms at all — they were Vision's OWN rail sections,
-     duplicated onto the top row. One destination reachable from two places in
-     the same chrome, one of them mislabelled as a peer of Clubs and the Data
-     Vault, is a lie about what the platform is made of. Vision's sections
-     belong to Vision's rail; the row above it belongs to the platform. Vision
-     still INTEGRATES with those rooms — it publishes evidence to the Data
-     Vault and reads its lineage through Source Core — but integration is an
-     API, not a menu entry.
+     There used to be a row of the platform's rooms across the top — Overview,
+     Source Core, Clubs, the Data Vault, Infrastructure City — carried INSIDE
+     this module. It is gone, and the reasoning is worth keeping.
+
+     A workspace is a place you go to do one thing. Restating the parent
+     platform's menu inside it makes the module a second copy of the shell: two
+     navigations on one screen, one of them belonging to somewhere else, and a
+     reader who has to work out which of the two they are in. The rooms are not
+     Vision's to offer, and offering them said they were.
+
+     What replaces it is one control — BACK TO PLATFORM — which is the only
+     thing a reader actually needs from that row: the way out. Settings stays
+     because it is a property of the session rather than a destination inside
+     the product, and it sits with the other session controls on the right.
+
+     Nothing about those rooms changed. Their routes, APIs, data and their
+     integration with Vision are untouched; Vision still publishes evidence to
+     the Data Vault and reads its lineage through Source Core. It simply stops
+     drawing their menu.
 
      THE RAIL is Vision's own sections and nothing else, grouped by what a
      reader is DOING. An entry with `planned: …` is a section whose architecture
@@ -438,15 +444,8 @@
      reads as broken rather than unbuilt.
   */
 
-  var MODULES = [
-    { id: 'owner-home',          label: 'Overview',            ico: 'overview', platform: true },
-    { id: 'source-core',         label: 'Source Core',         ico: 'core',     platform: true },
-    { id: 'clubs',               label: 'Clubs',               ico: 'clubs',    platform: true },
-    { id: 'data-vault',          label: 'Data Vault',          ico: 'vault',    platform: true },
-    { id: 'infrastructure-city', label: 'Infrastructure City', ico: 'city',     platform: true },
-    { id: 'familista-vision',    label: 'Familista Vision',    ico: 'vision',   current: true },
-    { id: 'settings',            label: 'Settings',            ico: 'settings', platform: true },
-  ];
+  /** Where the way out goes: the platform's own landing. */
+  var PLATFORM_HOME = 'owner-home';
 
   var SECTIONS = [
     { id: 'live',        group: 'VISION', ico: 'live',     label: 'Live Analysis' },
@@ -537,13 +536,29 @@
     } catch (_) {}
 
     return '<header class="vx-top">'
+
+      // THE WAY OUT, AND THE ONLY THING THE MODULE ROW WAS REALLY FOR.
+      // It leads the header because leaving is the one platform action a
+      // reader takes from inside a workspace, and a back control that has to
+      // be hunted for is how a workspace starts to feel like a trap.
+      + '<button class="vx-back" type="button" data-vx-platform="' + esc(PLATFORM_HOME) + '"'
+      + ' title="Leave Familista Vision and return to the platform">'
+      + '<span class="vx-back-i" aria-hidden="true">' + ico('arrow') + '</span>'
+      + '<span class="vx-back-l">Platform</span></button>'
+
+      + '<span class="vx-top-sep" aria-hidden="true"></span>'
+
+      // The identity of THIS workspace, not of the platform above it. The
+      // header used to read FAMILISTA · Football Intelligence Platform while
+      // standing inside one module of it, which is the parent's name on the
+      // child's door.
       + '<div class="vx-brand"><span class="vx-brand-mark" aria-hidden="true">'
       + '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"'
       + ' stroke-width="2" stroke-linecap="round"><path d="M3 8V5a2 2 0 012-2h3M16 3h3a2 2 0 012 2v3'
       + 'M21 16v3a2 2 0 01-2 2h-3M8 21H5a2 2 0 01-2-2v-3"/><circle cx="12" cy="12" r="4.4"/>'
       + '<circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span>'
-      + '<span><span class="vx-brand-n">FAMILISTA</span>'
-      + '<span class="vx-brand-s">Football Intelligence Platform</span></span></div>'
+      + '<span><span class="vx-brand-n">FAMILISTA VISION</span>'
+      + '<span class="vx-brand-s">Computer Vision &amp; Match Intelligence</span></span></div>'
 
       // Drives the platform's own `#global-search`. A second search box that
       // searches nothing would be a control with a lie in it.
@@ -557,20 +572,14 @@
       + '<i></i>' + esc(h ? h.service : 'READING') + '</span>'
       + '<button class="vx-iconbtn" data-vx-notif type="button" aria-label="Notifications">' + ico('bell')
       + (badge ? '<span class="vx-iconbtn-badge">' + esc(badge) + '</span>' : '') + '</button>'
+      // Settings is a property of the session, not a room in the product, so it
+      // sits with the session controls rather than in a navigation.
+      + '<button class="vx-iconbtn" data-vx-platform="settings" type="button" aria-label="Settings">'
+      + ico('settings') + '</button>'
       + '<div class="vx-me"><span class="vx-me-av" aria-hidden="true">' + esc(me.initials) + '</span>'
       + '<span><span class="vx-me-n" data-user-content>' + esc(me.name) + '</span>'
       + '<span class="vx-me-r" data-user-content>' + esc(me.club || me.role) + '</span></span></div>'
       + '</div></header>';
-  }
-
-  function moduleRow() {
-    return '<nav class="vx-modules" aria-label="Familista modules">' + MODULES.map(function (m) {
-      var attrs = m.current
-        ? ' aria-current="page"'
-        : ' data-vx-module="' + esc(m.id) + '"';
-      return '<button class="vx-mod" type="button"' + attrs + '>' + ico(m.ico)
-        + '<span>' + esc(m.label) + '</span></button>';
-    }).join('') + '</nav>';
   }
 
   /**
@@ -694,7 +703,7 @@
     var root = document.getElementById('fv-root');
     if (!root) return;
     root.innerHTML =
-      globalBar() + moduleRow()
+      globalBar()
       + '<div class="vx-main">' + rail()
       + '<main class="vx-work"><div id="vx-workbar"></div>'
       + '<div class="vx-body" id="vx-body" tabindex="-1"></div></main></div>'
@@ -2862,9 +2871,13 @@
   function onClick(e) {
     var t = e.target;
 
-    var mod = t.closest('[data-vx-module]');
-    if (mod) {
-      var page = mod.getAttribute('data-vx-module');
+    // Leaving the workspace. Two controls carry this — the back button and
+    // Settings — and both hand the page to the shell, which owns every route
+    // outside Vision. The hash is the fallback for a shell that has not
+    // finished booting.
+    var out = t.closest('[data-vx-platform]');
+    if (out) {
+      var page = out.getAttribute('data-vx-platform');
       if (typeof window.navTo === 'function') window.navTo(page);
       else window.location.hash = '#' + page;
       return;

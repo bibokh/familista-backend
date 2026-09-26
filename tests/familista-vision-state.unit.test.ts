@@ -40,7 +40,6 @@ const APP = read('public/app.js');
 /** The section list, as declared. */
 const RAIL = JS.slice(JS.indexOf('var SECTIONS = ['), JS.indexOf('/* ── the global bar'));
 /** The platform module row, as declared. */
-const MODS = JS.slice(JS.indexOf('var MODULES = ['), JS.indexOf('var SECTIONS = ['));
 
 describe('the selection is written down, so it can survive a refresh', () => {
   it('persists the session reference and the section', () => {
@@ -261,22 +260,50 @@ describe('the delegated listeners are bound once', () => {
 describe('Vision is a Vision workspace, not a second copy of the platform', () => {
   const GLOBAL_ONLY = ['source-core', 'clubs', 'data-vault', 'infrastructure-city', 'settings'];
 
-  it('keeps the platform rooms on the top row, routed to the shell', () => {
+  it('draws no platform navigation of its own', () => {
+    // The row of platform rooms carried inside the workspace is gone: a module
+    // restating its parent's menu is two navigations on one screen, one of them
+    // belonging somewhere else.
+    expect(JS).not.toContain('var MODULES = [');
+    expect(JS).not.toContain('function moduleRow(');
+    expect(JS).not.toContain('class="vx-modules"');
     for (const id of GLOBAL_ONLY) {
-      expect(MODS).toContain("id: '" + id + "'");
-      expect(APP).toContain("'" + id + "'");
+      expect(JS).not.toContain("label: '" + id + "'");
     }
-    expect(JS).toContain("window.navTo === 'function'");
+    // Named platform rooms appear nowhere as navigation labels.
+    for (const label of ['Source Core', 'Data Vault', 'Infrastructure City']) {
+      expect(JS).not.toContain("label: '" + label + "'");
+    }
   });
 
-  it('no longer duplicates Vision sections onto the platform row', () => {
-    // Reports, Models, Devices and AI Assistant were rail sections wearing a
-    // top-row badge — one destination reachable from two places, one of them
-    // mislabelled as a peer of Clubs and the Data Vault.
-    expect(MODS).not.toContain('section: true');
-    for (const dup of ['reports', 'models', 'device', 'ai-assistant']) {
-      expect(MODS).not.toContain("id: '" + dup + "'");
+  it('keeps exactly one way out, plus Settings', () => {
+    const bar = JS.slice(JS.indexOf('function globalBar()'), JS.indexOf('function rail()'));
+    // Two, and only two: the way back to the platform (which takes its
+    // destination from the one constant that names it) and Settings.
+    const outs = [...bar.matchAll(/data-vx-platform="(?:' \+ esc\(([A-Z_]+)\) \+ '|([a-z-]+))"/g)]
+      .map((m) => m[1] || m[2]);
+    expect(outs).toEqual(['PLATFORM_HOME', 'settings']);
+    expect(JS).toContain("var PLATFORM_HOME = 'owner-home'");
+    expect(bar).toContain('vx-back');
+  });
+
+  it('routes the way out through the shell, never around it', () => {
+    const handler = JS.slice(JS.indexOf('function onClick(e)'), JS.indexOf('function onInput('));
+    expect(handler).toContain("t.closest('[data-vx-platform]')");
+    expect(handler).toContain('window.navTo(page)');
+    // The shell still owns those destinations; Vision only asks.
+    for (const id of GLOBAL_ONLY) expect(APP).toContain("'" + id + "'");
+  });
+
+  it('leaves the global modules themselves untouched', () => {
+    // Removing their navigation from Vision must not remove them. Each is still
+    // allow-listed and still has its own renderer registered in the shell.
+    for (const id of ['source-core', 'clubs', 'data-vault', 'infrastructure-city']) {
+      expect(APP).toContain("'" + id + "': 1");
     }
+    expect(APP).toContain('renderFamilistaSourceCore');
+    expect(APP).toContain('renderFamilistaDataVault');
+    expect(APP).toContain('renderFamilistaInfrastructureCity');
   });
 
   it('puts no global platform module in the Vision rail', () => {
