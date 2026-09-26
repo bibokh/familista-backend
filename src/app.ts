@@ -16,6 +16,7 @@ import { withRequestId } from './observability/trace-context';
 import { edgeIdentity } from './middleware/rate-limit.middleware';
 import { RedisEdgeStore } from './middleware/edge-rate-limit.store';
 import { redisConfigured } from './infra/redis';
+import { apiTrafficMeter } from './infra/api-traffic';
 import routes from './routes';
 import { tenantGuard } from './middleware/tenant-guard.middleware';
 
@@ -242,6 +243,11 @@ export function createApp(): express.Application {
   //
   // Unauthenticated paths are unaffected: tenantGuard returns immediately when
   // there is no session, so auth, health and webhook routes keep working.
+  //
+  // The API Router building in Infrastructure City reads its health from the
+  // responses counted here: every completed response through this mount, and
+  // whether it was a server error. Nothing about the request is kept.
+  app.use(`/api/${config.apiVersion}`, apiTrafficMeter);
   app.use(`/api/${config.apiVersion}`, tenantGuard, routes);
 
   // ── Legacy SPA static assets (public/index.html + app.js + app.css)

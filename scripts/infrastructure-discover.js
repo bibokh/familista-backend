@@ -732,7 +732,10 @@ for (const wf of workflows) {
     repositoryPath: wf.file,
     sourceEvidence: `${wf.file} — ${wf.steps.length} named steps`,
     dependencies: ['platform-core'],
-    healthKey: `ci:${path.basename(wf.file).replace(/\.ya?ml$/, '')}`,
+    // One signal for every workflow: CI results are not readable from the
+    // running server, whichever workflow produced them, and a per-workflow key
+    // the health layer never emits would leave the building joined to nothing.
+    healthKey: 'ci',
   });
 }
 for (const svc of renderServices) {
@@ -822,6 +825,8 @@ if (tsconfig.target) {
     version: lockedVersion('typescript'),
     repositoryPath: 'tsconfig.json',
     sourceEvidence: `tsconfig.json — target ${tsconfig.target}, strict ${tsconfig.strict === true}`,
+    // TypeScript's runtime status is the build the server is running.
+    healthKey: 'build',
     note: `${surface.totalTypeScript} TypeScript modules under src/.`,
   });
 }

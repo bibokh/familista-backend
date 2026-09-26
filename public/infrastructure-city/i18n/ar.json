@@ -191,5 +191,16 @@
   "AI Infrastructure Assistant": "مساعد البنية التحتية بالذكاء الاصطناعي",
   "Vulnerability Scanning": "فحص الثغرات الأمنية",
   "CONTRACT ERROR": "خطأ في العقد",
-  "the response did not carry:": "لم تتضمّن الاستجابة:"
+  "the response did not carry:": "لم تتضمّن الاستجابة:",
+  "Database unreachable": "قاعدة البيانات غير قابلة للوصول",
+  "Database latency elevated": "ارتفاع زمن استجابة قاعدة البيانات",
+  "Historical delivery backlog": "تراكم في التسليم التاريخي",
+  "Historical records dropped": "سجلات تاريخية مُسقطة",
+  "Historical write failures": "إخفاقات في الكتابة التاريخية",
+  "Unknown event types seen": "رُصدت أنواع أحداث غير معروفة",
+  "Event schema failures": "إخفاقات في مخطط الأحداث",
+  "Redis configured but unreachable": "Redis مُهيّأ لكنه غير قابل للوصول",
+  "Process heap pressure": "ضغط على ذاكرة الكومة في العملية",
+  "API server errors elevated": "ارتفاع أخطاء خادم API",
+  "Object storage is in-memory": "تخزين الكائنات في الذاكرة فقط"
 }
