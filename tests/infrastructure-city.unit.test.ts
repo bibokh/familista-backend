@@ -851,9 +851,9 @@ describe('the platform owner reaches the city from the landing, and nobody else 
     expect(app).toContain('oh-cards--core');
     expect(app).not.toContain('oh-cards--three');
     expect(app).not.toContain('oh-cards--four');
-    // The four rooms take the outer columns; the city has the second row's
-    // far track, which is still a full sibling track and not a subordinate one.
-    expect(read(APP_CSS)).toContain('"vault  core   city"');
+    // Six equal cards in three columns by two rows. The city holds the second
+    // row's far track — a full sibling track, the same size as every other.
+    expect(read(APP_CSS)).toContain('"vault  vision city"');
   });
 
   it('shows a real status on the card rather than a decorative one', () => {

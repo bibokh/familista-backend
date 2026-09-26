@@ -33,9 +33,59 @@ describe('every section exists and is routed', () => {
   });
 
   it('groups the navigation into the four bands', () => {
-    for (const g of ['VISION', 'TRACKING', 'ANALYSIS', 'SYSTEM']) {
+    // The bands name the JOB a reader is doing, not the code that produced the
+    // screen. They were VISION / TRACKING / ANALYSIS / SYSTEM, which named the
+    // latter.
+    for (const g of ['COMMAND', 'EVIDENCE', 'INTELLIGENCE', 'OPERATIONS']) {
       expect(JS).toContain("group: '" + g + "'");
     }
+  });
+
+  it('carries ONE navigation and no second topbar', () => {
+    // A module with its own command bar and its own rail must hide the
+    // platform's chrome by the class names the shell actually uses. Naming
+    // selectors that exist nowhere hid nothing, and two topbars sat on top of
+    // each other.
+    expect(CSS).toContain('body.fv-vision-open .topbar');
+    expect(CSS).toContain('body.fv-vision-open .sidebar');
+    // and not by names that exist nowhere in the shell. Comments are stripped
+    // first: the rule's own comment names the wrong selectors in order to say
+    // why they were wrong.
+    const rules = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(rules).not.toContain('.app-topbar');
+    expect(rules).not.toContain('.app-sidebar');
+    // One rail in the shell, and the shell holds no horizontal section list.
+    const shell = JS.slice(JS.indexOf('function renderShell'), JS.indexOf('function refreshNav'));
+    expect(shell.match(/class="fv-nav"/g) || []).toHaveLength(1);
+  });
+
+  it('shows the page only when the shell has made it the active one', () => {
+    // `.page { display: none }` is how every room in Familista is hidden. An ID
+    // selector outranks it, so an unscoped `display: flex` here pinned a
+    // full-viewport fixed layer over the whole application — the landing's own
+    // cards were painted underneath it.
+    expect(CSS).toContain('#pg-familista-vision.active {');
+    expect(CSS).not.toMatch(/#pg-familista-vision \{[^}]*display:/);
+  });
+
+  it('mounts from the page-render registry, which passes no host', () => {
+    // The navigation switch passes the root element; `_famRenderPage` calls
+    // every renderer with no argument at all, and that is the path a
+    // navigation from Owner Home takes. Guarding on the argument mounted an
+    // empty page.
+    const mount = JS.slice(JS.indexOf('window.renderFamilistaVision'));
+    expect(mount).toContain("host = host || document.getElementById('fv-root')");
+  });
+
+  it('gives the command bar the seven readings, and colours only their dots', () => {
+    const bar = JS.slice(JS.indexOf('function commandReadings'), JS.indexOf('function refreshBar'));
+    for (const k of ['Current session', 'Source', 'Engine', 'Processing target', 'Rate',
+      'Evidence health', 'Device']) {
+      expect(bar).toContain("Reading('" + k + "'");
+    }
+    // A reading is a slot in a bar, not a pill: the state paints the dot and
+    // gives back the box.
+    expect(CSS).toContain('.fv-read[class*="fv-s-"]');
   });
 
   it('gives every section an icon rather than a bullet', () => {
@@ -63,7 +113,13 @@ describe('the design system is a system, not seventeen stylesheets', () => {
   });
 
   it('keeps one spacing grid rather than ad-hoc pixels', () => {
-    expect(CSS).toContain('--fv-gap:       12px;');
+    // ONE 8px grid, declared once. 4px exists for a hairline of separation and
+    // nothing else.
+    for (const token of ['--fv-1:          4px;', '--fv-2:          8px;', '--fv-3:         16px;',
+      '--fv-4:         24px;', '--fv-5:         32px;']) {
+      expect(CSS).toContain(token);
+    }
+    expect(CSS).toContain('--fv-gap:        8px;');
     expect(CSS).toContain('--fv-pad:       16px;');
   });
 });
@@ -112,7 +168,11 @@ describe('the interface never fabricates a value', () => {
     const sec = JS.slice(JS.indexOf('function secBall'), JS.indexOf('function secCalibration'));
     expect(sec).toContain("['OBSERVED'");
     expect(sec).toContain("['PROPAGATED'");
-    expect(sec).toContain('PROXIMITY IS NOT POSSESSION');
+    // The warning opens the section and rides the scroll, because the table it
+    // qualifies is read below it.
+    expect(sec).toContain('PROXIMITY \u2260 POSSESSION');
+    expect(sec).toContain('fv-banner--sticky');
+    expect(CSS).toContain('.fv-banner--sticky');
     expect(sec).not.toMatch(/OBSERVED[^\n]*\+[^\n]*PROPAGATED/);
   });
 

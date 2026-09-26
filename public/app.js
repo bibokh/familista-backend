@@ -3599,12 +3599,11 @@ function _ownerHomeForPlatformOwner(user, club) {
           <span id="oh-city-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Checking infrastructure…</span>
           <div class="oh-card-cta">Enter the city <span>→</span></div>
         </button>
-        <!-- SOURCE CORE sits in the middle of the grid rather than at the end
-             of the row, because it is the middle of the architecture: the other
-             four rooms each describe something the platform HAS, and this one
-             describes where any of it CAME FROM. A fifth equal card in a row of
-             five would say they are five parallel things, which is not what
-             they are. -->
+        <!-- SOURCE CORE holds the middle column, with FAMILISTA VISION beneath
+             it: one room says where the platform's evidence CAME FROM and the
+             other says what that evidence SHOWS. The four rooms either side
+             each describe the platform itself. All six cards are the same size
+             — they are peers, and a bigger card would claim otherwise. -->
         <button class="oh-card oh-card--core" data-action="navTo" data-page="source-core" type="button">
           <div class="oh-card-icon">◉</div>
           <div class="oh-card-title">SOURCE CORE</div>
@@ -3620,9 +3619,19 @@ function _ownerHomeForPlatformOwner(user, club) {
              first room whose evidence is measured off a football match rather
              than recorded by the platform about itself. -->
         <button class="oh-card oh-card--vision" data-action="navTo" data-page="familista-vision" type="button">
-          <div class="oh-card-icon">◉</div>
+          <!-- A reticle round an iris: the two halves of what this room does —
+               it LOOKS at something, and it LOCKS ON to it. Drawn rather than
+               set as a glyph because the glyph that was here (◉) is Source
+               Core's, and two cyan circles side by side said the two rooms were
+               the same room. -->
+          <div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 40 40" width="40" height="40" fill="none" focusable="false">
+            <path d="M4 12V6.5A2.5 2.5 0 0 1 6.5 4H12M28 4h5.5A2.5 2.5 0 0 1 36 6.5V12M36 28v5.5a2.5 2.5 0 0 1-2.5 2.5H28M12 36H6.5A2.5 2.5 0 0 1 4 33.5V28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="20" cy="20" r="8.4" stroke="currentColor" stroke-width="1.6" opacity=".9"/>
+            <circle cx="20" cy="20" r="3" fill="currentColor"/>
+            <path d="M20 11.6v-2.2M20 30.6v-2.2M11.6 20H9.4M30.6 20h-2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".6"/>
+          </svg></div>
           <div class="oh-card-title">FAMILISTA VISION</div>
-          <div class="oh-card-sub">Computer Vision, Tracking, Calibration &amp; Football Evidence</div>
+          <div class="oh-card-sub">Computer Vision, Tracking, Evidence &amp; Match Intelligence</div>
           <div class="oh-card-list">Live Analysis · Sources · Sessions · Player &amp; Ball Tracking · Pitch Calibration · Teams &amp; Roles · Events · Timeline · Models &amp; Providers · Device</div>
           <span id="oh-vision-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading Vision service…</span>
           <div class="oh-card-cta">Open Vision <span>→</span></div>

@@ -1563,9 +1563,9 @@
   "Critical sources: \u0000": "แหล่งข้อมูลวิกฤต: \u0000",
   "Sources in warning: \u0000": "แหล่งข้อมูลที่มีคำเตือน: \u0000",
   "Sources mapped: \u0000 · not instrumented: \u0000": "แหล่งข้อมูลที่จัดทำแผนที่: \u0000 · ไม่ได้วัด: \u0000",
-  "Computer Vision, Tracking, Calibration & Football Evidence": "Computer Vision, Tracking, Calibration & Football Evidence",
   "FAMILISTA VISION": "FAMILISTA VISION",
   "Live Analysis · Sources · Sessions · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Timeline · Models & Providers · Device": "Live Analysis · Sources · Sessions · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Timeline · Models & Providers · Device",
   "Open Vision": "Open Vision",
-  "Reading Vision service…": "Reading Vision service…"
+  "Reading Vision service…": "Reading Vision service…",
+  "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence"
 }

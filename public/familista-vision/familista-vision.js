@@ -130,6 +130,56 @@
       + '<span class="fv-chip-state">' + esc(s.replace(/_/g, ' ')) + '</span></span>';
   }
 
+  /**
+   * ONE READING ON THE COMMAND BAR.
+   *
+   * A chip says whether a subsystem is up. A reading says what the instrument
+   * is currently DOING — which session, off which source, at what rate, on
+   * which device — and it is the difference between a status page and a
+   * console. Seven of them ride the bar and they are the same seven at every
+   * section, because the question "what am I looking at?" does not change when
+   * the panel below it does.
+   *
+   * The state only ever colours the dot. A reading is read for its value.
+   */
+  function Reading(key, value, sub, state, title) {
+    var st = String(state || 'READY');
+    return '<div class="fv-read fv-s-' + esc(st) + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>'
+      + '<span class="fv-read-k">' + esc(key) + '</span>'
+      + '<span class="fv-read-v"><i class="fv-dot" aria-hidden="true"></i><b>' + esc(value) + '</b></span>'
+      + '<span class="fv-read-s">' + esc(sub || '') + '</span></div>';
+  }
+
+  /** A satellite figure: one number the hero's headline is read against. */
+  function Sat(value, caption, sub) {
+    return '<div class="fv-sat"><span class="fv-sat-v">' + value + '</span>'
+      + '<span class="fv-sat-k">' + esc(caption) + '</span>'
+      + (sub ? '<span class="fv-sat-s">' + esc(sub) + '</span>' : '') + '</div>';
+  }
+
+  /** One dial on an instrument: a figure, what it measures, and its qualifier. */
+  function Dial(value, caption, sub, bar) {
+    return '<div class="fv-dial"><span class="fv-dial-v">' + value + '</span>'
+      + '<span class="fv-dial-k">' + esc(caption) + '</span>'
+      + (bar === undefined || bar === null ? ''
+        : '<div class="fv-bar fv-bar--measured"><i style="width:'
+          + Math.max(0, Math.min(100, bar * 100)).toFixed(1) + '%"></i></div>')
+      + '<span class="fv-dial-s">' + esc(sub) + '</span></div>';
+  }
+
+  /**
+   * A sentence that ends like one.
+   *
+   * The engine's `reasons` are written as clauses and do not all carry a full
+   * stop. Concatenated with a sentence of this screen's own, two statements
+   * ran into each other as one ungrammatical line.
+   */
+  function sentence(text) {
+    var t = String(text || '').trim();
+    if (!t) return t;
+    return /[.!?\u2026]$/.test(t) ? t : t + '.';
+  }
+
   function Tag(text, kind) {
     return '<span class="fv-tag' + (kind ? ' fv-tag--' + kind : '') + '">' + esc(text) + '</span>';
   }
@@ -222,11 +272,16 @@
 
   function Pitch(inner, opts) {
     opts = opts || {};
-    return '<div class="fv-pitch-wrap"><svg class="fv-pitch' + (opts.small ? ' fv-pitch--sm' : '')
+    return '<div class="fv-pitch-wrap"><svg class="fv-pitch'
+      + (opts.small ? ' fv-pitch--sm' : '') + (opts.tall ? ' fv-pitch--tall' : '')
       + '" viewBox="-4 -4 113 76" role="img" aria-label="'
       + esc(opts.label || 'Pitch map in metres') + '">'
       + pitchFrame() + inner + '</svg></div>';
   }
+
+  /** The same two words as LEGEND_ORIGIN, sized for a caption rather than a row. */
+  var LEGEND_INLINE = '<span class="fv-lgd"><i class="fv-lgd-m"></i>measured</span>'
+    + '<span class="fv-lgd"><i class="fv-lgd-p"></i>propagated</span>';
 
   var LEGEND_ORIGIN = '<div class="fv-legend">'
     + Chip('MEASURED', 'READY', 'solved from landmarks on this frame')
@@ -264,55 +319,120 @@
 
   // ── navigation ────────────────────────────────────────────────────────────
 
+  /**
+   * THE FOUR THINGS A READER CAN BE DOING HERE.
+   *
+   * The groups used to be VISION / TRACKING / ANALYSIS / SYSTEM, which named
+   * the code that produced each screen rather than the job it serves. These
+   * name the job:
+   *
+   *   COMMAND      — what is running right now, and what to watch it on.
+   *   EVIDENCE     — what the engine MEASURED, and how well.
+   *   INTELLIGENCE — what can be READ OFF that evidence, including the
+   *                  readings that are not validated yet and say so.
+   *   OPERATIONS   — the rig, the models, the exports, the wiring.
+   *
+   * A section belongs to exactly one, and this list is the only place the
+   * order is decided.
+   */
   var SECTIONS = [
-    { id: 'overview',     group: 'VISION',   ico: 'overview',  label: 'Overview' },
-    { id: 'live',         group: 'VISION',   ico: 'live',      label: 'Live Analysis' },
-    { id: 'sessions',     group: 'VISION',   ico: 'sessions',  label: 'Sessions' },
-    { id: 'sources',      group: 'VISION',   ico: 'sources',   label: 'Sources' },
-    { id: 'device',       group: 'VISION',   ico: 'device',    label: 'Device / Vision Hub' },
+    { id: 'overview',     group: 'COMMAND',      ico: 'overview',  label: 'Overview' },
+    { id: 'live',         group: 'COMMAND',      ico: 'live',      label: 'Live Analysis' },
+    { id: 'sessions',     group: 'COMMAND',      ico: 'sessions',  label: 'Sessions' },
 
-    { id: 'tracking',     group: 'TRACKING', ico: 'track',     label: 'Player Tracking' },
-    { id: 'ball',         group: 'TRACKING', ico: 'ball',      label: 'Ball Tracking' },
-    { id: 'teams',        group: 'TRACKING', ico: 'teams',     label: 'Teams & Roles' },
-    { id: 'calibration',  group: 'TRACKING', ico: 'calib',     label: 'Pitch Calibration' },
+    { id: 'tracking',     group: 'EVIDENCE',     ico: 'track',     label: 'Player Tracking' },
+    { id: 'ball',         group: 'EVIDENCE',     ico: 'ball',      label: 'Ball Tracking' },
+    { id: 'calibration',  group: 'EVIDENCE',     ico: 'calib',     label: 'Pitch Calibration' },
+    { id: 'teams',        group: 'EVIDENCE',     ico: 'teams',     label: 'Teams & Roles' },
+    { id: 'events',       group: 'EVIDENCE',     ico: 'events',    label: 'Events' },
 
-    { id: 'events',       group: 'ANALYSIS', ico: 'events',    label: 'Events' },
-    { id: 'tactical',     group: 'ANALYSIS', ico: 'tactical',  label: 'Tactical View', badge: 'PENDING' },
-    { id: 'heatmaps',     group: 'ANALYSIS', ico: 'heat',      label: 'Heatmaps' },
-    { id: 'physical',     group: 'ANALYSIS', ico: 'physical',  label: 'Physical Metrics', badge: 'NOT VALIDATED' },
-    { id: 'timeline',     group: 'ANALYSIS', ico: 'timeline',  label: 'Timeline' },
+    { id: 'tactical',     group: 'INTELLIGENCE', ico: 'tactical',  label: 'Tactical View', badge: 'PENDING' },
+    { id: 'heatmaps',     group: 'INTELLIGENCE', ico: 'heat',      label: 'Heatmaps' },
+    { id: 'physical',     group: 'INTELLIGENCE', ico: 'physical',  label: 'Physical Metrics', badge: 'NOT VALIDATED' },
+    { id: 'timeline',     group: 'INTELLIGENCE', ico: 'timeline',  label: 'Timeline' },
 
-    { id: 'reports',      group: 'SYSTEM',   ico: 'reports',   label: 'Reports' },
-    { id: 'models',       group: 'SYSTEM',   ico: 'models',    label: 'Models & Providers' },
-    { id: 'integrations', group: 'SYSTEM',   ico: 'flow',      label: 'Integrations / Data Flow' },
+    { id: 'sources',      group: 'OPERATIONS',   ico: 'sources',   label: 'Sources' },
+    { id: 'device',       group: 'OPERATIONS',   ico: 'device',    label: 'Device / Vision Hub' },
+    { id: 'models',       group: 'OPERATIONS',   ico: 'models',    label: 'Models & Providers' },
+    { id: 'reports',      group: 'OPERATIONS',   ico: 'reports',   label: 'Reports' },
+    { id: 'integrations', group: 'OPERATIONS',   ico: 'flow',      label: 'Integrations / Data Flow' },
   ];
 
   /**
-   * The twelve readings the header strip carries.
+   * THE EVIDENCE CAPABILITIES, as one counted reading.
    *
-   * Eleven come from the service's own capability rows; the twelfth is the
-   * processing target, which is not a health reading but is the single most
-   * consequential fact about where any of this ran.
+   * These are the rows the service publishes about what it can currently
+   * produce. The command bar reports HOW MANY of them are ready and colours
+   * itself by the worst one — it counts, it does not judge. The rows
+   * themselves, each with its own status and its own reason, are on Overview
+   * where there is room to read them.
    */
-  var STRIP = ['engine', 'source-input', 'player-tracking', 'ball-tracking', 'calibration',
-    'teams-roles', 'events', 'source-core', 'data-fabric', 'data-vault',
-    'infrastructure', 'vision-hub'];
+  var EVIDENCE_CAPS = ['source-input', 'player-tracking', 'ball-tracking',
+    'calibration', 'teams-roles', 'events'];
+
+  var STATE_RANK = { LIVE: 0, READY: 0, PROCESSING: 1, DEGRADED: 2, NOT_IMPLEMENTED: 3,
+    NOT_AVAILABLE: 3, OFFLINE: 4, ERROR: 5 };
+
+  /**
+   * The seven readings, built from whatever the module currently knows.
+   *
+   * Its own function because the bar has to be repainted when a session opens
+   * — four of the seven are about that session — and repainting the whole
+   * shell to say so would throw away the reader's nav position and scroll.
+   * `refreshBar` writes this into the one element that changed.
+   */
+  function commandReadings() {
+    var h = FV.status && FV.status.health;
+    if (!h) return '';
+    var caps = h.capabilities || [];
+    var byKey = {};
+    caps.forEach(function (c) { byKey[c.key] = c; });
+    var s = FV.session && FV.session.summary;
+
+    var evRows = EVIDENCE_CAPS.map(function (k) { return byKey[k]; })
+      .filter(function (c) { return !!c; });
+    var evReady = evRows.filter(function (c) { return c.status === 'READY' || c.status === 'LIVE'; }).length;
+    var evWorst = evRows.reduce(function (acc, c) {
+      return (STATE_RANK[c.status] || 0) > (STATE_RANK[acc] || 0) ? c.status : acc;
+    }, 'READY');
+
+    return [
+      Reading('Current session', s ? s.sessionRef : 'NONE SELECTED',
+        s ? (s.source.displayName + ' · ' + s.source.width + '\u00d7' + s.source.height) : 'choose one under Sessions',
+        s ? 'LIVE' : 'NOT_AVAILABLE',
+        'every figure in this module belongs to this session and to no other'),
+      Reading('Source', s ? s.source.sourceType.replace(/_/g, ' ') : '\u2014',
+        s ? (s.source.qualityBand ? 'quality ' + s.source.qualityBand + ' \u00b7 ' + n(s.source.qualityScore, 2) : 'quality not scored') : 'no source in view',
+        s ? 'READY' : 'NOT_AVAILABLE',
+        'what the engine read this session off'),
+      Reading('Engine', h.service, h.deviceKind.replace(/_/g, ' ').toLowerCase(),
+        h.service, 'the Vision engine behind this deployment'),
+      Reading('Processing target', h.processingTarget.replace(/_/g, ' '),
+        'where inference runs', h.processingTarget === 'VISION_HUB' ? 'NOT_IMPLEMENTED' : 'READY',
+        'LOCAL_SERVER reads the engine\u2019s artefacts; VISION_HUB is declared and refuses everything'),
+      Reading('Rate', s ? n(s.processingFps, 2) + ' fps' : '\u2014',
+        s ? ('source ' + n(s.source.fps, 2) + ' fps \u00b7 wall clock ' + n(s.processingSeconds, 0) + ' s') : 'nothing processed in view',
+        s ? 'READY' : 'NOT_AVAILABLE',
+        'how fast this session was processed, not a live frame rate'),
+      Reading('Evidence health', evReady + ' / ' + evRows.length,
+        'capability rows ready', evWorst,
+        'a count of the service\u2019s own capability rows \u2014 the rows themselves are on Overview'),
+      Reading('Device', h.deviceKind.replace(/_/g, ' '), h.deviceId,
+        byKey['vision-hub'] ? byKey['vision-hub'].status : 'READY',
+        'the device this deployment is running as'),
+    ].join('');
+  }
+
+  /** Repaint the command bar and nothing else. */
+  function refreshBar() {
+    var rail = document.querySelector('.fv-cmd-rail');
+    if (rail) rail.innerHTML = commandReadings();
+  }
 
   function renderShell() {
     var root = document.getElementById('fv-root');
     if (!root) return;
-    var h = FV.status && FV.status.health;
-    var caps = (h && h.capabilities) || [];
-    var byKey = {};
-    caps.forEach(function (c) { byKey[c.key] = c; });
-
-    var strip = STRIP.map(function (k) {
-      var c = byKey[k];
-      return c ? Chip(c.label, c.status, c.detail) : '';
-    }).join('')
-      + (h ? '<span class="fv-chip fv-s-PROCESSING" title="where inference runs for this deployment">'
-        + '<span class="fv-dot"></span><b>Processing Target</b>'
-        + '<span class="fv-chip-state">' + esc(h.processingTarget) + '</span></span>' : '');
+    var bar = commandReadings();
 
     var lastGroup = '';
     var nav = SECTIONS.map(function (s) {
@@ -327,19 +447,20 @@
     }).join('');
 
     root.innerHTML =
-      '<header class="fv-head">'
-      + '<div class="fv-brand"><span class="fv-brand-mark" aria-hidden="true">◉</span>'
-      + '<span><div class="fv-brand-name">FAMILISTA VISION</div>'
-      + '<div class="fv-brand-sub">Football Computer Vision · Evidence &amp; Provenance</div></span></div>'
-      + '<div class="fv-head-spacer"></div>'
-      + (FV.session
-        ? '<span class="fv-target" title="the session every figure below belongs to">'
-          + '<span aria-hidden="true">◈</span>' + esc(FV.session.summary.sessionRef) + '</span>'
-        : '')
-      + '<button class="fv-btn" data-fv-back type="button">← Familista</button>'
+      // ── ONE command bar. No second topbar, no second navigation. ──────────
+      '<header class="fv-cmd">'
+      + '<div class="fv-cmd-id">'
+      + '<span class="fv-cmd-mark" aria-hidden="true">'
+      + '<svg viewBox="0 0 40 40" width="24" height="24" fill="none" focusable="false">'
+      + '<path d="M4 12V6.5A2.5 2.5 0 0 1 6.5 4H12M28 4h5.5A2.5 2.5 0 0 1 36 6.5V12M36 28v5.5a2.5 2.5 0 0 1-2.5 2.5H28M12 36H6.5A2.5 2.5 0 0 1 4 33.5V28" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>'
+      + '<circle cx="20" cy="20" r="8" stroke="currentColor" stroke-width="2"/>'
+      + '<circle cx="20" cy="20" r="3" fill="currentColor"/></svg></span>'
+      + '<span class="fv-cmd-names"><span class="fv-cmd-name">FAMILISTA VISION</span>'
+      + '<span class="fv-cmd-sub">Computer vision \u00b7 evidence \u00b7 provenance</span></span>'
+      + '</div>'
+      + '<div class="fv-cmd-rail" role="status" aria-label="Familista Vision instrument state">' + bar + '</div>'
+      + '<div class="fv-cmd-end"><button class="fv-btn" data-fv-back type="button">\u2190 Familista</button></div>'
       + '</header>'
-      + '<div class="fv-strip" role="status" aria-label="Familista Vision system status">'
-      + (strip || Chip('Vision service', 'NOT_AVAILABLE', 'reading…')) + '</div>'
       + '<div class="fv-body">'
       + '<nav class="fv-nav" aria-label="Familista Vision sections">' + nav + '</nav>'
       + '<main class="fv-work"><div class="fv-work-head" id="fv-work-head"></div>'
@@ -349,7 +470,7 @@
       + '<aside class="fv-drawer" id="fv-drawer" role="dialog" aria-modal="false" aria-hidden="true">'
       + '<div class="fv-drawer-head"><div><div class="fv-drawer-title" id="fv-drawer-title"></div>'
       + '<div class="fv-drawer-sub" id="fv-drawer-sub"></div></div>'
-      + '<button class="fv-btn" data-fv-drawer-close type="button" aria-label="Close evidence">✕</button></div>'
+      + '<button class="fv-btn" data-fv-drawer-close type="button" aria-label="Close evidence">\u2715</button></div>'
       + '<div class="fv-drawer-body" id="fv-drawer-body"></div></aside>';
 
     root.addEventListener('click', onClick);
@@ -482,6 +603,22 @@
 
   // ═══ OVERVIEW — the command centre ══════════════════════════════════════
 
+  /**
+   * OVERVIEW — three zones, in order of what a reader needs first.
+   *
+   *   1 · THE HERO. What is loaded, off what, running on what, at what rate,
+   *       and how much of it is measured rather than carried. It dominates,
+   *       because on arrival every other number on the screen is meaningless
+   *       until this one is read.
+   *   2 · THE FOOTBALL STATE. Where the evidence actually is on a pitch, what
+   *       happened in it, and how good the evidence is.
+   *   3 · SYSTEM HEALTH. One compact strip. It matters, it is not what the
+   *       reader came for, and it used to be eight panels arguing otherwise.
+   *
+   * What this replaced was nine equal tiles in a wrapping grid: nine boxes of
+   * the same size, so nothing led, and a reader had to assemble the state of
+   * the instrument out of parts instead of being told it.
+   */
   function secOverview() {
     head('Overview', 'Every figure below came from a processed session or from the running '
       + 'service. None of it is a platform average and none of it is decorative.');
@@ -494,44 +631,59 @@
     var h = FV.status.health;
     var s = FV.session && FV.session.summary;
 
-    // ── top: the instrument's vital signs ──
-    var vitals;
+    // ── ZONE 1 · the hero ───────────────────────────────────────────────────
+    var hero;
     if (s) {
       var observed = s.ballStates.OBSERVED || 0;
       var propagated = s.ballStates.PROPAGATED || 0;
       var evTotal = Object.keys(s.eventCounts).reduce(function (a, k) { return a + s.eventCounts[k]; }, 0);
       var tracksNow = FV.session.tracks.filter(function (t) { return t.frameNumber === FV.frame; }).length;
-      vitals = [
-        Panel('Current session', Metric('<span style="font-size:17px">' + esc(s.sessionRef) + '</span>',
-          '', esc(s.source.displayName) + ' · ' + esc(s.source.width) + '×' + esc(s.source.height)),
-          { aside: Tag('MEASURED', 'measured'), accent: true }),
-        Panel('Engine', Metric(esc(h.service), '', esc(h.deviceKind.replace(/_/g, ' ').toLowerCase())),
-          { aside: Tag(h.processingTarget, 'accent') }),
-        Panel('Frames processed', Metric(esc(s.framesProcessed), '',
-          esc(s.observationsTotal) + ' observations · ' + esc(s.identities) + ' identities')),
-        Panel('Active tracks', Metric(esc(tracksNow), 'in frame ' + FV.frame,
-          esc(s.rawTrackIds) + ' raw track ids across the session')),
-        Panel('Video / processing', Metric(n(s.source.fps, 2), 'fps',
-          'processing ' + n(s.processingFps, 2) + ' fps · wall clock ' + n(s.processingSeconds, 0) + ' s')),
-        Panel('Calibration', Metric(pct(s.calibrationCoverage), '',
-          esc(s.anchorsAccepted) + ' anchors · ' + esc(s.calibrationMeasuredFrames) + ' measured, '
-          + esc(s.calibrationPropagatedFrames) + ' propagated',
-          { bar: s.calibrationCoverage, barKind: 'measured' })),
-        Panel('Ball', Metric(esc(observed), 'observed',
-          esc(propagated) + ' propagated · ' + esc(s.ballStates.UNKNOWN || 0) + ' unknown · '
-          + esc(s.ballStates.NOT_AVAILABLE || 0) + ' not available'),
-          { aside: Tag('PROPAGATED ≠ OBSERVED', 'propagated') }),
-        Panel('Football events', Metric(esc(evTotal), '',
+
+      hero = '<section class="fv-hero">'
+        + '<div class="fv-hero-main">'
+        + '<div class="fv-hero-eyebrow">' + Tag('MEASURED', 'measured')
+        + '<span>session loaded · every figure on this screen belongs to it</span></div>'
+        + '<h3 class="fv-hero-name">' + esc(s.sessionRef) + '</h3>'
+        + '<p class="fv-hero-src">' + esc(s.source.displayName) + ' · '
+        + esc(s.source.width) + '×' + esc(s.source.height) + ' · '
+        + esc(s.source.sourceType.replace(/_/g, ' ')) + ' · ' + n(s.source.fps, 2) + ' fps</p>'
+        + '<div class="fv-sats">'
+        + Sat(esc(s.framesProcessed), 'frames processed', esc(s.observationsTotal) + ' observations')
+        + Sat(esc(s.identities), 'identities', esc(s.rawTrackIds) + ' raw track ids')
+        + Sat(esc(tracksNow), 'tracks in frame ' + FV.frame, 'at the frame in view')
+        // The types the engine actually named, not a claim about them. `PROXIMITY`
+        // is a proximity, and calling a screenful of them "confirmed events"
+        // would be this layer deciding something the engine did not.
+        + Sat(esc(evTotal), 'football events',
           Object.keys(s.eventCounts).map(function (k) {
-            return esc(k.replace(/_/g, ' ').toLowerCase()) + ' ' + s.eventCounts[k];
-          }).join(' · ') || 'none confirmed')),
-      ].join('');
+            return k.replace(/_/g, ' ').toLowerCase() + ' ' + s.eventCounts[k];
+          }).join(' \u00b7 ') || 'none confirmed')
+        + '</div></div>'
+
+        + '<div class="fv-hero-side">'
+        + '<div class="fv-gauge">'
+        + '<div class="fv-gauge-k">Calibration coverage</div>'
+        + '<div class="fv-gauge-v">' + pct(s.calibrationCoverage) + '</div>'
+        + '<div class="fv-bar fv-bar--measured"><i style="width:'
+        + Math.max(0, Math.min(100, s.calibrationCoverage * 100)).toFixed(1) + '%"></i></div>'
+        + '<div class="fv-gauge-s">' + esc(s.anchorsAccepted) + ' anchors · '
+        + esc(s.calibrationMeasuredFrames) + ' measured, ' + esc(s.calibrationPropagatedFrames)
+        + ' propagated</div></div>'
+        // OBSERVED and PROPAGATED are drawn as two figures because they are two
+        // figures. Adding them would invent a ball position the engine never saw.
+        + '<div class="fv-gauge">'
+        + '<div class="fv-gauge-k">Ball ' + Tag('PROPAGATED ≠ OBSERVED', 'propagated') + '</div>'
+        + '<div class="fv-duo"><span class="fv-duo-a">' + esc(observed) + '<small>observed</small></span>'
+        + '<span class="fv-duo-b">' + esc(propagated) + '<small>propagated</small></span></div>'
+        + '<div class="fv-gauge-s">' + esc(s.ballStates.UNKNOWN || 0) + ' unknown · '
+        + esc(s.ballStates.NOT_AVAILABLE || 0) + ' not available</div></div>'
+        + '</div></section>';
     } else {
-      vitals = Panel('', needSession());
+      hero = '<section class="fv-hero fv-hero--empty">' + needSession() + '</section>';
     }
 
-    // ── middle: pitch, events, health, source, models, quality ──
-    var mid = '';
+    // ── ZONE 2 · the football state ─────────────────────────────────────────
+    var football = '';
     if (s) {
       var dots = FV.session.tracks.filter(function (t) { return t.pitchXM !== null; })
         .filter(function (_, i) { return i % 3 === 0; })
@@ -540,16 +692,18 @@
             + (t.calibrationChain === 'measured' ? 'fv-dotm' : 'fv-dotp') + '" opacity=".55"/>';
         }).join('');
 
-      var recent = FV.session.events.slice(-6).reverse().map(function (e) {
+      var recent = FV.session.events.slice(-8).reverse().map(function (e) {
         return '<div class="fv-row"><span class="fv-row-k">' + esc(e.type)
           + '<span class="fv-row-sub">frame ' + e.frameNumber + ' · ' + e.timestamp.toFixed(2) + ' s</span></span>'
           + Tag(e.state, e.state === 'CONFIRMED' ? 'measured' : 'withheld') + '</div>';
       }).join('');
 
-      mid = '<div class="fv-split">'
-        + Panel('Where the evidence is', Pitch(dots, { small: true, label: 'Calibrated positions' })
+      football = '<div class="fv-zone2">'
+        + Panel('Where the evidence is',
+          Pitch(dots, { label: 'Calibrated positions across the session' })
           + '<div class="fv-metric-k">' + esc(s.observationsWithPitchCoords)
-          + ' calibrated positions · on-pitch rate ' + pct(s.coordsOnPitchRate) + '</div>',
+          + ' calibrated positions · on-pitch rate ' + pct(s.coordsOnPitchRate)
+          + ' · ' + LEGEND_INLINE + '</div>',
           { aside: Tag(s.capabilities.metricCoordinates ? 'METRIC' : 'NONE',
             s.capabilities.metricCoordinates ? 'measured' : 'withheld') })
         + '<div class="fv-stack">'
@@ -562,40 +716,18 @@
           ['Coordinates on pitch', pct(s.coordsOnPitchRate)],
           ['Anchor disagreement', n(s.anchorDisagreementMedianM, 3) + ' m'],
         ]))
-        + '</div></div><div class="fv-row-gap"></div>';
+        + '</div></div>';
     }
 
-    var mid2 = '<div class="fv-split--even fv-split">'
-      + Panel('Live health', '<div class="fv-rows">' + h.capabilities.slice(0, 9).map(function (c) {
-        return '<div class="fv-row"><span class="fv-row-k">' + esc(c.label)
-          + '<span class="fv-row-sub">' + esc(c.detail) + '</span></span>'
-          + Chip('', c.status) + '</div>';
-      }).join('') + '</div>')
-      + '<div class="fv-stack">'
-      + Panel('Source & device', Rows([
-        ['Device', esc(h.deviceId)],
-        ['Kind', esc(h.deviceKind.replace(/_/g, ' '))],
-        ['Processing target', esc(h.processingTarget)],
-        ['Source types implemented', esc(h.sources.implementedTypes) + ' of ' + esc(h.sources.declaredTypes)],
-        ['Future rig slots', esc(h.sources.slots) + ' declared, all empty'],
-      ]))
-      + (s ? Panel('Models behind this result', '<div class="fv-rows">'
-        + s.models.map(function (m) {
-          return '<div class="fv-row"><span class="fv-row-k">' + esc(m.modelId) + '</span>'
-            + Tag(m.commercialUse, m.commercialUse === 'VERIFIED' ? 'measured'
-              : m.commercialUse === 'UNKNOWN' ? 'unverified' : 'restricted') + '</div>';
-        }).join('') + '</div>') : '')
-      + '</div></div>';
-
-    // ── bottom: the nervous system, and the other sessions ──
-    var nerve = h.capabilities.filter(function (c) {
-      return ['source-core', 'data-fabric', 'data-vault', 'infrastructure', 'vision-hub'].indexOf(c.key) > -1;
-    }).map(function (c) {
-      return '<div class="fv-row"><span class="fv-row-k">' + esc(c.label)
-        + '<span class="fv-row-sub">' + esc(c.detail) + '</span></span>' + Chip('', c.status) + '</div>';
+    // ── ZONE 3 · system health, compact ─────────────────────────────────────
+    var healthRows = h.capabilities.map(function (c) {
+      return '<div class="fv-hcell fv-s-' + esc(c.status) + '" title="' + esc(c.detail) + '">'
+        + '<i class="fv-dot" aria-hidden="true"></i>'
+        + '<span class="fv-hcell-k">' + esc(c.label) + '</span>'
+        + '<span class="fv-hcell-v">' + esc(String(c.status).replace(/_/g, ' ')) + '</span></div>';
     }).join('');
 
-    var recentSessions = (FV.sessions && FV.sessions.ok ? FV.sessions.sessions : []).map(function (x) {
+    var sessionsRows = (FV.sessions && FV.sessions.ok ? FV.sessions.sessions : []).map(function (x) {
       return '<div class="fv-row"><span class="fv-row-k">'
         + '<button class="fv-btn" data-fv-open-session="' + esc(x.sessionRef) + '" type="button">'
         + esc(x.sessionRef) + '</button>'
@@ -604,15 +736,22 @@
         + Tag(x.clubId ? x.clubId : 'PLATFORM', x.clubId ? 'accent' : 'withheld') + '</div>';
     }).join('');
 
-    var bottom = '<div class="fv-split--even fv-split">'
-      + Panel('Nervous-system links', '<div class="fv-rows">' + nerve + '</div>')
-      + Panel('Sessions available to you', recentSessions
-        ? '<div class="fv-rows">' + recentSessions + '</div>'
+    var health = '<div class="fv-zone3">'
+      + Panel('System health', '<div class="fv-hgrid">' + healthRows + '</div>',
+        { aside: Tag(h.processingTarget.replace(/_/g, ' '), 'accent') })
+      + '<div class="fv-stack">'
+      + Panel('Sessions available to you', sessionsRows
+        ? '<div class="fv-rows">' + sessionsRows + '</div>'
         : '<p class="fv-metric-k">No session is visible to this account.</p>')
-      + '</div>';
+      + Panel('Rig', Rows([
+        ['Device', esc(h.deviceId)],
+        ['Kind', esc(h.deviceKind.replace(/_/g, ' '))],
+        ['Source types implemented', esc(h.sources.implementedTypes) + ' of ' + esc(h.sources.declaredTypes)],
+        ['Future rig slots', esc(h.sources.slots) + ' declared, all empty'],
+      ]))
+      + '</div></div>';
 
-    body('<div class="fv-grid">' + vitals + '</div><div class="fv-row-gap"></div>'
-      + mid + mid2 + '<div class="fv-row-gap"></div>' + bottom);
+    body(hero + football + health);
   }
 
   // ═══ LIVE ANALYSIS — the centrepiece ════════════════════════════════════
@@ -631,6 +770,82 @@
       { key: 'coords', label: 'Pitch coordinates', ok: caps.metricCoordinates },
       { key: 'events', label: 'Event markers', ok: caps.events },
     ].filter(function (o) { return o.ok; });
+  }
+
+  /**
+   * A RUN-LENGTH LANE for the module's existing timeline primitive.
+   *
+   * `rows` are per-frame records already in frame order; `kindOf` says which
+   * of the five span vocabularies each one belongs to. Consecutive records of
+   * the same kind become ONE span — which is both how the calibration band
+   * has always been drawn and, at three hundred frames a lane, three hundred
+   * nodes fewer than a rect per frame.
+   *
+   * It records; it does not smooth. A frame with no record contributes no
+   * span, so a gap in the evidence stays a gap on the screen.
+   */
+  function tlSpans(rows, frames, kindOf, titleOf) {
+    var out = [];
+    for (var i = 0; i < rows.length; i++) {
+      var kind = kindOf(rows[i]);
+      var j = i;
+      while (j + 1 < rows.length && kindOf(rows[j + 1]) === kind
+             && rows[j + 1].frameNumber - rows[j].frameNumber <= 1) j++;
+      var from = rows[i].frameNumber, to = rows[j].frameNumber;
+      out.push('<div class="fv-tl-span fv-tl-span--' + kind + '" style="left:'
+        + ((from / frames) * 100).toFixed(2) + '%;width:'
+        + Math.max(0.2, (((to - from + 1) / frames) * 100)).toFixed(2) + '%"'
+        + ' title="' + esc(titleOf(rows[i]) + ' · frames ' + from + '–' + to) + '"></div>');
+      i = j;
+    }
+    return out.join('');
+  }
+
+  function tlBand(label, inner, opts) {
+    opts = opts || {};
+    return '<div class="fv-tl-band"><div class="fv-tl-label">' + esc(label) + '</div>'
+      + '<div class="fv-tl-track' + (opts.marks ? ' fv-tl-track--marks' : '') + '">'
+      + inner + '</div></div>';
+  }
+
+  /**
+   * THE EVIDENCE TIMELINE — three bands under the canvas.
+   *
+   * The canvas shows one frame. This shows the whole session at once, and it
+   * answers the question a single frame cannot: is this frame typical? The
+   * bands are calibration, ball and events, in the same three vocabularies
+   * used everywhere else in the module, so a long amber run reads as
+   * "carried, not seen" without a legend.
+   */
+  function EvidenceTimeline(s, frame) {
+    var frames = Math.max(1, s.summary.framesProcessed);
+
+    var calBand = tlSpans(s.calibration, frames,
+      function (c) { return c.chain === 'measured' ? 'valid' : c.chain === 'propagated' ? 'prop' : 'none'; },
+      function (c) { return c.chain; });
+
+    var ballBand = tlSpans(s.ball, frames,
+      function (b) { return b.state === 'OBSERVED' ? 'obs' : b.state === 'PROPAGATED' ? 'prop' : 'gap'; },
+      function (b) { return b.state; });
+
+    var evBand = s.events.map(function (e) {
+      return '<button class="fv-tl-mark fv-tl-mark--event" data-fv-seek="' + esc(e.frameNumber)
+        + '" data-fv-stay type="button" style="left:' + ((e.frameNumber / frames) * 100).toFixed(2)
+        + '%" title="' + esc(e.type + ' · frame ' + e.frameNumber)
+        + '"><span class="fv-sr">' + esc(e.type) + ' at frame ' + esc(e.frameNumber) + '</span></button>';
+    }).join('');
+
+    var cursor = '<div class="fv-tl-cursor" style="left:' + ((frame / frames) * 100).toFixed(2) + '%"></div>';
+
+    return '<div class="fv-tl">'
+      + tlBand('Calibration', calBand + cursor)
+      + tlBand('Ball', ballBand + cursor)
+      + tlBand('Events · ' + s.events.length, evBand + cursor, { marks: true })
+      + '</div>'
+      + '<div class="fv-tl-ruler"><span>frame 0</span>'
+      + '<span>' + Chip('MEASURED / OBSERVED', 'READY') + Chip('PROPAGATED', 'DEGRADED')
+      + Chip('NO RECORD', 'NOT_AVAILABLE') + '</span>'
+      + '<span>frame ' + frames + '</span></div>';
   }
 
   function secLive() {
@@ -749,6 +964,31 @@
       + (ballRow && ballRow.pitchXM !== null
         ? '<circle cx="' + ballRow.pitchXM + '" cy="' + ballRow.pitchYM + '" r="1.1" class="fv-dotball"/>' : '');
 
+    // The three per-frame verdicts ride the rail, beside the frame they belong
+    // to, rather than in a row of panels under it. A reader comparing "what is
+    // in this frame" with "what the engine says about this frame" should not
+    // have to look in two directions to do it.
+    var verdicts = Rows([
+      ['Ball', ballRow
+        ? (Tag(ballRow.state, ballRow.state === 'OBSERVED' ? 'measured'
+            : ballRow.state === 'PROPAGATED' ? 'propagated' : 'withheld')
+           + (ballRow.origin ? ' ' + Tag(ballRow.origin, ballRow.origin === 'MEASURED' ? 'measured'
+              : ballRow.origin === 'PROPAGATED' ? 'propagated' : 'withheld') : ''))
+        : '<span class="fv-none">—</span>',
+        ballRow && ballRow.reason ? ballRow.reason : 'no ball record for this frame'],
+      ['Calibration', cal
+        ? Tag(cal.chain.toUpperCase() + (cal.expectedErrorM === null ? ''
+            : ' · ±' + cal.expectedErrorM.toFixed(3) + ' m'),
+          cal.chain === 'measured' ? 'measured' : cal.chain === 'propagated' ? 'propagated' : 'withheld')
+        : '<span class="fv-none">—</span>',
+        cal ? 'band ' + cal.confidence : 'no verdict recorded at this frame'],
+      ['Events', evHere.length
+        ? Tag(String(evHere.length) + ' here', 'measured')
+        : '<span class="fv-none">0</span>',
+        evHere.length ? evHere.map(function (e) { return e.type; }).join(', ')
+          : 'the engine confirmed none at this frame'],
+    ]);
+
     var right = '<div class="fv-stack">'
       + Panel('This frame on the pitch',
         rows.filter(function (t) { return t.pitchXM !== null; }).length
@@ -756,6 +996,7 @@
           : Empty('withheld', 'NO METRIC POSITIONS HERE',
             'Calibration published no coordinate for this frame, so nothing may be placed on a pitch.'),
         { aside: calLine })
+      + Panel('What the engine says about this frame', verdicts)
       + Panel('Tracks in frame', rows.length
         ? '<div class="fv-rows">' + rows.slice(0, 14).map(function (t) {
           return '<div class="fv-row"><span class="fv-row-k"><b>' + esc(t.identity) + '</b>'
@@ -766,35 +1007,25 @@
         : '<p class="fv-metric-k">No track was observed in this frame.</p>')
       + '</div>';
 
-    var bottom = '<div class="fv-grid">'
-      + Panel('Ball here', ballRow
-        ? Metric(esc(ballRow.state), '', ballRow.reason ? esc(ballRow.reason) : '', { small: true })
-        : Metric('<span class="fv-none">—</span>', '', 'no ball record for this frame', { small: true }),
-        { aside: ballRow ? Tag(ballRow.origin, ballRow.origin === 'MEASURED' ? 'measured'
-          : ballRow.origin === 'PROPAGATED' ? 'propagated' : 'withheld') : '' })
-      + Panel('Calibration here', Metric(cal ? esc(cal.chain.toUpperCase()) : '<span class="fv-none">—</span>',
-        '', cal ? ('band ' + esc(cal.confidence) + (cal.expectedErrorM === null ? ''
-          : ' · ±' + cal.expectedErrorM.toFixed(3) + ' m')) : 'no verdict recorded', { small: true }))
-      + Panel('Events here', evHere.length
-        ? Metric(esc(evHere.length), '', evHere.map(function (e) { return esc(e.type); }).join(', '), { small: true })
-        : Metric('0', '', 'the engine confirmed none at this frame', { small: true }))
-      + Panel('Session', Metric('<span style="font-size:15px">' + esc(sm.sessionRef) + '</span>', '',
-        'pipeline ' + esc(sm.pipelineVersion || '—'), { small: true }))
-      + '</div>';
-
-    body('<div class="fv-split--wide-left fv-split">'
-      + Panel(FV.feed === 'original' ? 'Original feed' : 'Annotated feed',
-        '<div class="fv-feed">' + feedInner + '</div>' + transport
-        + '<div class="fv-legend">' + toggles + '</div>'
-        + (FV.feed === 'original'
-          ? '<p class="fv-note fv-note--warn">This deployment stores evidence, not media. The '
-            + 'original video is not served here, so the original feed is an explicit absence '
-            + 'rather than a black rectangle pretending to be a camera.</p>'
-          : '<p class="fv-note">Every box, label and marker above was drawn from a stored '
-            + 'observation. Nothing here was placed by hand, and an overlay whose data this '
-            + 'session lacks is not offered as a toggle.</p>'),
-        { accent: true })
-      + right + '</div><div class="fv-row-gap"></div>' + bottom);
+    // 70 / 30. The canvas is the section; the rail explains it.
+    body('<div class="fv-live">'
+      + '<section class="fv-panel fv-panel--accent fv-canvas">'
+      + '<div class="fv-panel-head"><h3 class="fv-panel-title">'
+      + (FV.feed === 'original' ? 'Original feed' : 'Annotated feed') + '</h3>'
+      + '<div class="fv-panel-aside">' + calLine + '</div></div>'
+      + '<div class="fv-feed">' + feedInner + '</div>'
+      + transport
+      + EvidenceTimeline(s, frame)
+      + '<div class="fv-legend">' + toggles + '</div>'
+      + (FV.feed === 'original'
+        ? '<p class="fv-note fv-note--warn">This deployment stores evidence, not media. The '
+          + 'original video is not served here, so the original feed is an explicit absence '
+          + 'rather than a black rectangle pretending to be a camera.</p>'
+        : '<p class="fv-note">Every box, label and marker above was drawn from a stored '
+          + 'observation. Nothing here was placed by hand, and an overlay whose data this '
+          + 'session lacks is not offered as a toggle.</p>')
+      + '</section>'
+      + right + '</div>');
   }
 
   // ═══ PLAYER TRACKING ════════════════════════════════════════════════════
@@ -861,7 +1092,6 @@
         return '<option value="' + v + '"' + (FV.filters.conf === v ? ' selected' : '') + '>'
           + (v === '' ? 'All' : v === 'high' ? '≥ 0.80' : v === 'low' ? '< 0.80' : 'Not scored') + '</option>';
       }).join('') + '</select>'
-      + '<span class="fv-filter-label">' + list.length + ' of ' + all.length + '</span>'
       + '</div>';
 
     var dots = '';
@@ -890,7 +1120,7 @@
 
     var left = Panel(sel ? 'Trajectory · ' + sel.identity : 'Calibrated positions',
       caps.metricCoordinates
-        ? Pitch(dots, { label: 'Player positions in metres' }) + LEGEND_ORIGIN
+        ? Pitch(dots, { tall: true, label: 'Player positions in metres' }) + LEGEND_ORIGIN
         : Empty('withheld', 'NO METRIC POSITIONS', caps.reasons.metricCoordinates || ''),
       { aside: Tag(s.summary.observationsWithPitchCoords + ' POSITIONS', 'measured'), accent: true });
 
@@ -912,9 +1142,9 @@
         + '" type="button">Open at frame ' + esc(sel.first) + '</button></div>',
         { aside: Tag('EVIDENCE', 'derived') })
       : Panel('No track selected',
-        '<p class="fv-metric-k">Choose a row below to draw its trajectory and read its evidence. '
-        + 'A trajectory is drawn only from positions the engine published — nothing is interpolated '
-        + 'across a frame where calibration was NONE.</p>');
+        '<p class="fv-metric-k">Choose an identity above to draw its trajectory on the pitch and '
+        + 'read its evidence here. A trajectory is drawn only from positions the engine published '
+        + '\u2014 nothing is interpolated across a frame where calibration was NONE.</p>');
 
     var rows = list.map(function (r) {
       return '<tr class="is-clickable" data-fv-track="' + esc(r.identity) + '"'
@@ -930,9 +1160,31 @@
         + '<td><button class="fv-btn" data-fv-seek="' + esc(r.first) + '" type="button">seek</button></td></tr>';
     });
 
-    body('<div class="fv-split">' + left + detail + '</div><div class="fv-row-gap"></div>'
+    // PITCH FIRST, INSPECTOR BESIDE IT, RECORD BELOW.
+    //
+    // The pitch is what a reader is here for — a trajectory is a shape, not a
+    // row — so it takes the width. Choosing an identity is done in the rail,
+    // an arm's length from the shape it draws, instead of in a nine-column
+    // table two screens down. The table is still here, under the fold, as the
+    // evidence record: every column it ever had, and nothing in it removed.
+    var picker = list.map(function (r) {
+      return '<button class="fv-pick is-clickable" data-fv-track="' + esc(r.identity) + '" type="button"'
+        + (sel && sel.identity === r.identity ? ' aria-current="true"' : '') + '>'
+        + '<span class="fv-pick-id">' + esc(r.identity) + '</span>'
+        + '<span class="fv-pick-m">' + esc(r.team || 'no team') + ' · ' + esc(r.role.toLowerCase()) + '</span>'
+        + '<span class="fv-pick-n">' + esc(r.withCoords) + '<em>/' + esc(r.obs) + '</em></span></button>';
+    }).join('');
+
+    var inspector = '<div class="fv-stack">'
       + Panel('Identities', filters
-        + Table('Tracked identities in this session',
+        + (picker ? '<div class="fv-picks">' + picker + '</div>'
+          : '<p class="fv-metric-k">No identity matches these filters.</p>'),
+        { aside: Tag(list.length + ' OF ' + all.length, list.length === all.length ? 'measured' : 'accent') })
+      + detail + '</div>';
+
+    body('<div class="fv-live">' + left + inspector + '</div>'
+      + '<div class="fv-row-gap"></div>'
+      + Panel('Evidence record', Table('Tracked identities in this session',
           ['Identity', 'Team', 'Role', 'Conf', 'Observations', 'With metric position',
             'Trajectory', 'Frames', ''], rows)
         + '<p class="fv-note">Provenance: every row came from ' + esc(s.summary.source.displayName)
@@ -960,12 +1212,6 @@
       ['UNKNOWN', 'withheld', 'the ball could not be located'],
       ['NOT_AVAILABLE', 'withheld', 'no ball evidence was produced for these frames'],
     ];
-    var cards = kinds.map(function (k) {
-      return Panel(k[0].replace(/_/g, ' '),
-        Metric(esc(st[k[0]] || 0), 'frames', esc(k[2]), { bar: (st[k[0]] || 0) / total, barKind: k[1] }),
-        { aside: Tag(k[0].replace(/_/g, ' '), k[1]) });
-    }).join('');
-
     var stack = '<div class="fv-stackbar" role="img" aria-label="Ball state distribution">'
       + kinds.map(function (k) {
         var c = k[1] === 'measured' ? 'var(--fv-measured)' : k[1] === 'propagated'
@@ -1037,24 +1283,41 @@
         + '" data-fv-stay type="button">go</button></td></tr>';
     });
 
-    body('<div class="fv-grid">' + cards + '</div>'
-      + '<div class="fv-panel" style="margin-top:12px">' + stack
+    // THE WARNING IS PERMANENT, AND IT IS FIRST.
+    //
+    // Nearest player and distance are geometry. Every football reading of them
+    // — a touch, a control, a possession — is an inference the engine does not
+    // make, and this section is where somebody would be most tempted to make
+    // it on the engine's behalf. So the sentence is not a footnote under the
+    // table it qualifies: it opens the section, and it stays on screen while
+    // the table beside it is read.
+    var banner = '<div class="fv-banner fv-banner--sticky" role="note">'
+      + '<b>PROXIMITY ≠ POSSESSION.</b> The nearest player and the distance on this screen are '
+      + 'geometry. Nothing here asserts a touch, a control or a possession, and the engine does '
+      + 'not infer one from distance.</div>';
+
+    var states = '<div class="fv-states">' + kinds.map(function (k) {
+      return '<div class="fv-state-cell"><span class="fv-state-v fv-state-v--' + k[1] + '">'
+        + esc(st[k[0]] || 0) + '</span>'
+        + '<span class="fv-state-k">' + esc(k[0].replace(/_/g, ' ')) + '</span>'
+        + '<span class="fv-state-s">' + esc(k[2]) + '</span></div>';
+    }).join('') + '</div>' + stack
       + '<p class="fv-metric-k">' + esc(s.ball.length) + ' frames of ball record · observed coverage '
       + pct(s.summary.ballObservedCoverage) + ' · ' + esc(s.summary.calibratedBallFrames)
-      + ' frames carry a metric position</p></div>'
-      + '<div class="fv-row-gap"></div>'
-      + '<div class="fv-banner"><b>PROXIMITY IS NOT POSSESSION.</b> The nearest player and the '
-      + 'distance below are geometry. Nothing here asserts a touch, a control or a possession, and '
-      + 'the engine does not infer one from distance.</div>'
-      + '<div class="fv-split">' + currentPanel
+      + ' frames carry a metric position</p>';
+
+    body(banner
+      + '<div class="fv-live">'
       + Panel('Ball on the pitch', trail.length
-        ? Pitch(path + balls, { label: 'Ball positions in metres' })
+        ? Pitch(path + balls, { tall: true, label: 'Ball positions in metres' })
           + '<p class="fv-note">The line breaks wherever the record does. A smooth path across '
           + 'frames the tracker never saw would be a picture of an assumption.</p>'
         : Empty('withheld', 'NO CALIBRATED BALL POSITIONS',
           'The ball was located in image space but calibration published no pitch coordinate for '
           + 'those frames, so no metric ball position exists.'),
-        { aside: Tag(s.summary.calibratedBallFrames + ' CALIBRATED', 'measured') })
+        { aside: Tag(s.summary.calibratedBallFrames + ' CALIBRATED', 'measured'), accent: true })
+      + '<div class="fv-stack">' + currentPanel
+      + Panel('Where the record stands', states) + '</div>'
       + '</div><div class="fv-row-gap"></div>'
       + Panel('Ball samples', Table('Ball samples with evidence',
         ['Frame', 't (s)', 'State', 'Image x,y', 'Pitch x,y (m)', 'Track conf', 'Det conf',
@@ -1108,17 +1371,11 @@
         + '" aria-label="Anchor at frame ' + a.frameNumber + '"></button>';
     }).join('');
 
-    var coverageStrip = s.calibration.map(function (c, i, arr) {
-      var prev = arr[i - 1];
-      if (prev && prev.chain === c.chain) return '';
-      var runEnd = i;
-      while (runEnd + 1 < arr.length && arr[runEnd + 1].chain === c.chain) runEnd++;
-      var cls = c.chain === 'measured' ? 'valid' : c.chain === 'propagated' ? 'prop' : 'none';
-      return '<div class="fv-tl-span fv-tl-span--' + cls + '" style="left:'
-        + ((c.frameNumber / frames) * 100).toFixed(2) + '%;width:'
-        + Math.max(0.2, (((arr[runEnd].frameNumber - c.frameNumber + 1) / frames) * 100)).toFixed(2)
-        + '%" title="' + c.chain + ' · frames ' + c.frameNumber + '–' + arr[runEnd].frameNumber + '"></div>';
-    }).join('');
+    // The same run-length lane the Live canvas draws. One way of drawing a
+    // calibration chain across a session, used in both places.
+    var coverageStrip = tlSpans(s.calibration, frames,
+      function (c) { return c.chain === 'measured' ? 'valid' : c.chain === 'propagated' ? 'prop' : 'none'; },
+      function (c) { return c.chain; });
 
     var diagnostics = Rows([
       ['Calibration state', stateTag + ' ' + Tag('DERIVED', 'derived'),
@@ -1160,25 +1417,36 @@
         + '<td><button class="fv-btn" data-fv-seek="' + esc(a.frameNumber) + '" type="button">seek</button></td></tr>';
     });
 
-    body('<div class="fv-grid">'
-      + Panel('Calibration state', Metric(esc(state), '',
-        esc(stateRule) + '. '
-        + (anchors.length ? esc(anchors.length) + ' anchors survived every gate.'
-          : 'Every candidate failed the validity gate.')),
-        { aside: stateTag + Tag('DERIVED', 'derived'), accent: true })
-      + Panel('Coverage', Metric(pct(sm.calibrationCoverage), '',
-        esc(sm.calibrationMeasuredFrames) + ' measured · ' + esc(sm.calibrationPropagatedFrames)
-        + ' propagated', { bar: sm.calibrationCoverage, barKind: 'measured' }))
-      + Panel('Expected metric error', Metric(errs.length
-        ? n(Math.min.apply(null, errs), 3) + '–' + n(Math.max.apply(null, errs), 3)
-        : '<span class="fv-none">—</span>', 'm', 'cross-validated across accepted anchors'))
-      + Panel('Anchor disagreement', Metric(n(sm.anchorDisagreementMedianM, 3), 'm',
-        'fresh anchor against the chain it replaced'))
-      + Panel('Frames withheld', Metric(esc(none.length), 'frames',
-        'calibration NONE · no metric claim'), { aside: Tag('WITHHELD', 'withheld') })
-      + Panel('Coordinates on pitch', Metric(pct(sm.coordsOnPitchRate), '',
-        esc(sm.observationsWithPitchCoords) + ' published positions'))
-      + '</div><div class="fv-row-gap"></div>'
+    // CALIBRATION READS LIKE A BENCH INSTRUMENT.
+    //
+    // Six panels in a wrapping grid made six separate claims of equal weight.
+    // A calibration report is not six claims: it is one verdict, qualified by
+    // five figures. So the verdict leads at instrument scale and the five sit
+    // beside it on one baseline, aligned and tabular, the way a reading is
+    // printed on a meter rather than scattered across cards.
+    body('<section class="fv-instr">'
+      + '<div class="fv-instr-lead">'
+      + '<div class="fv-instr-k">Calibration state ' + stateTag + ' ' + Tag('DERIVED', 'derived') + '</div>'
+      + '<div class="fv-instr-v">' + esc(state) + '</div>'
+      + '<p class="fv-instr-s">' + esc(stateRule) + '. '
+      + (anchors.length ? esc(anchors.length) + ' anchors survived every gate.'
+        : 'Every candidate failed the validity gate.')
+      + ' The engine publishes a verdict per FRAME and no verdict for the session, so this word is '
+      + 'this screen’s summary of those verdicts and is labelled DERIVED wherever it appears.</p>'
+      + '</div>'
+      + '<div class="fv-instr-dials">'
+      + Dial(pct(sm.calibrationCoverage), 'Coverage',
+        esc(sm.calibrationMeasuredFrames) + ' measured · ' + esc(sm.calibrationPropagatedFrames) + ' propagated',
+        sm.calibrationCoverage)
+      + Dial(errs.length ? n(Math.min.apply(null, errs), 3) + '–' + n(Math.max.apply(null, errs), 3)
+          + '<small> m</small>' : '<span class="fv-none">—</span>',
+        'Expected metric error', 'cross-validated across accepted anchors')
+      + Dial(n(sm.anchorDisagreementMedianM, 3) + '<small> m</small>', 'Anchor disagreement',
+        'fresh anchor against the chain it replaced')
+      + Dial(esc(none.length), 'Frames withheld', 'calibration NONE · no metric claim')
+      + Dial(pct(sm.coordsOnPitchRate), 'Coordinates on pitch',
+        esc(sm.observationsWithPitchCoords) + ' published positions', sm.coordsOnPitchRate)
+      + '</div></section><div class="fv-row-gap"></div>'
       + Panel('Calibration across the session',
         '<div class="fv-tl">'
         + '<div class="fv-tl-band"><div class="fv-tl-label">Chain</div>'
@@ -1224,31 +1492,54 @@
     });
     var totalObs = s.tracks.length || 1;
 
-    var teamCards = Object.keys(teams).sort().map(function (k) {
+    // TEAMS AS LANES, NOT AS CARDS.
+    //
+    // A squad is a group of people, and the question a reader asks here is how
+    // the session's observations DIVIDED between the groups — including the
+    // group that is "no group". Three cards in a wrapping grid answer that
+    // badly: they are the same size whatever share they hold, so the share has
+    // to be read off a number instead of seen. A lane per team, as wide as its
+    // share, shows the division and keeps the number.
+    var teamLane = Object.keys(teams).sort().map(function (k) {
       var isUnassigned = k === 'UNASSIGNED';
       var colour = k === 'team_a' ? 'var(--fv-accent)' : k === 'team_b' ? 'var(--fv-measured)'
         : 'var(--fv-withheld)';
-      return Panel(isUnassigned ? 'No team assigned' : k.toUpperCase(),
-        '<div class="fv-metric"><span class="fv-metric-v" style="color:' + colour + '">'
-        + esc(Object.keys(teams[k].identities).length) + '</span>'
-        + '<span class="fv-metric-u">identities</span></div>'
-        + '<div class="fv-metric-k">' + esc(teams[k].obs) + ' observations · '
-        + pct(teams[k].obs / totalObs) + ' of the session</div>'
+      var ids = Object.keys(teams[k].identities);
+      return '<div class="fv-lane" style="--fv-lane-c:' + colour + '">'
+        + '<div class="fv-lane-head"><span class="fv-lane-n">'
+        + esc(isUnassigned ? 'NO TEAM ASSIGNED' : k.toUpperCase()) + '</span>'
+        + (isUnassigned ? Tag('UNKNOWN', 'withheld') : Tag('CLUSTERED', 'measured')) + '</div>'
+        + '<div class="fv-lane-v">' + esc(ids.length) + '<small>identities</small></div>'
         + '<div class="fv-bar"><i style="width:' + ((teams[k].obs / totalObs) * 100).toFixed(1)
-        + '%;background:' + colour + '"></i></div>',
-        { aside: isUnassigned ? Tag('UNKNOWN', 'withheld') : Tag('CLUSTERED', 'measured') });
+        + '%;background:' + colour + '"></i></div>'
+        + '<div class="fv-lane-s">' + esc(teams[k].obs) + ' observations · '
+        + pct(teams[k].obs / totalObs) + ' of the session</div>'
+        + '<div class="fv-lane-ids">' + ids.slice(0, 26).map(function (id) {
+          return '<button class="fv-chipid" data-fv-track="' + esc(id) + '" type="button">'
+            + esc(id) + '</button>';
+        }).join('') + (ids.length > 26 ? '<span class="fv-lane-more">+' + (ids.length - 26) + '</span>' : '')
+        + '</div></div>';
     }).join('');
+    var teamCards = '<div class="fv-lanes">' + teamLane + '</div>';
 
-    var roleCards = Object.keys(roles).sort().map(function (r) {
-      return Panel(r, Metric(esc(roles[r]), 'observations',
-        r === 'UNKNOWN' ? 'evidence was insufficient to decide; nothing was forced'
-          : r === 'GOALKEEPER' ? 'decided on metric position, not on kit colour'
-            : r === 'REFEREE' ? 'neither kit, and not confined to a penalty area'
-              : r === 'OFF_PITCH' ? 'feet did not land on detected grass'
-                : 'kit matched a team cluster',
-        { bar: roles[r] / totalObs }),
-        { aside: r === 'UNKNOWN' ? Tag('UNKNOWN', 'withheld') : '' });
-    }).join('');
+    var roleTotal = Object.keys(roles).reduce(function (a, r) { return a + roles[r]; }, 0) || 1;
+    var roleCards = Panel('Roles across the session',
+      '<div class="fv-lanes fv-lanes--roles">' + Object.keys(roles).sort().map(function (r) {
+        var c = r === 'UNKNOWN' ? 'var(--fv-withheld)' : r === 'GOALKEEPER' ? 'var(--fv-propagated)'
+          : r === 'REFEREE' ? 'var(--fv-tx)' : r === 'OFF_PITCH' ? 'var(--fv-unver)' : 'var(--fv-accent)';
+        return '<div class="fv-lane fv-lane--sm" style="--fv-lane-c:' + c + '">'
+          + '<div class="fv-lane-head"><span class="fv-lane-n">' + esc(r) + '</span>'
+          + (r === 'UNKNOWN' ? Tag('UNKNOWN', 'withheld') : '') + '</div>'
+          + '<div class="fv-lane-v">' + esc(roles[r]) + '<small>observations</small></div>'
+          + '<div class="fv-bar"><i style="width:' + ((roles[r] / roleTotal) * 100).toFixed(1)
+          + '%;background:' + c + '"></i></div>'
+          + '<div class="fv-lane-s">' + esc(
+            r === 'UNKNOWN' ? 'evidence was insufficient to decide; nothing was forced'
+              : r === 'GOALKEEPER' ? 'decided on metric position, not on kit colour'
+                : r === 'REFEREE' ? 'neither kit, and not confined to a penalty area'
+                  : r === 'OFF_PITCH' ? 'feet did not land on detected grass'
+                    : 'kit matched a team cluster') + '</div></div>';
+      }).join('') + '</div>');
 
     var rows = s.roles.map(function (r) {
       return '<tr class="is-clickable" data-fv-track="' + esc(r.identity) + '">'
@@ -1259,7 +1550,7 @@
         + '<td>' + esc(r.reason || '—') + '</td></tr>';
     });
 
-    body('<div class="fv-grid">' + teamCards + roleCards + '</div><div class="fv-row-gap"></div>'
+    body(teamCards + '<div class="fv-row-gap"></div>' + roleCards + '<div class="fv-row-gap"></div>'
       + Panel('Role evidence', rows.length
         ? Table('Per-identity role reasoning',
           ['Identity', 'Classification', 'Confidence', 'Observations', 'Reason'], rows)
@@ -1325,8 +1616,8 @@
         + '" type="button">Open at frame ' + esc(sel.frameNumber) + '</button></div>',
         { accent: true, aside: Tag('EVIDENCE', 'derived') })
       : Panel('No event selected',
-        '<p class="fv-metric-k">Choose an event from the timeline or the table to read the evidence '
-        + 'the engine recorded for it.</p>');
+        '<p class="fv-metric-k">Choose a finding on the left, or a mark on the timeline, to read '
+        + 'the evidence the engine recorded for it.</p>');
 
     var rows = s.events.map(function (e) {
       return '<tr class="is-clickable" data-fv-event="' + esc(e.eventId) + '"'
@@ -1345,15 +1636,49 @@
         + '</tr>';
     });
 
-    body('<div class="fv-grid">' + cards + '</div><div class="fv-row-gap"></div>'
-      + '<div class="fv-split">'
-      + Panel('Event timeline', '<div class="fv-tl"><div class="fv-tl-band">'
+    // A THREE-COLUMN WORKSTATION: index, subject, evidence.
+    //
+    // Reading an event is a loop — pick one, look at where and when it sits,
+    // read what the engine recorded for it, pick the next. Laid out as a grid
+    // of count cards over a timeline over a wide table, that loop crossed the
+    // whole page twice per event. Here the three things the loop needs are
+    // side by side: the list to pick from, the timeline and counts that place
+    // the pick, and the evidence for it.
+    var picker = s.events.map(function (e) {
+      return '<button class="fv-pick is-clickable" data-fv-event="' + esc(e.eventId) + '" type="button"'
+        + (sel && sel.eventId === e.eventId ? ' aria-current="true"' : '') + '>'
+        + '<span class="fv-pick-id">' + esc(e.type) + '</span>'
+        + '<span class="fv-pick-m">frame ' + esc(e.frameNumber) + ' · ' + n(e.timestamp, 2) + ' s'
+        + (e.teamId ? ' · ' + esc(e.teamId) : '') + '</span>'
+        + '<span class="fv-pick-n">' + (e.confidence === null ? '—' : n(e.confidence, 2)) + '</span>'
+        + '</button>';
+    }).join('');
+
+    body('<div class="fv-work3">'
+      + Panel('Findings', '<div class="fv-picks fv-picks--tall">' + picker + '</div>',
+        { aside: Tag(s.events.length + ' CONFIRMED', 'measured') })
+      + '<div class="fv-stack">'
+      + Panel('Where they fall', '<div class="fv-tl"><div class="fv-tl-band">'
         + '<div class="fv-tl-label">Confirmed</div>'
         + '<div class="fv-tl-track fv-tl-track--marks">' + strip + '</div></div></div>'
         + '<div class="fv-tl-ruler"><span>frame 0</span><span>frame ' + frames + '</span></div>'
         + '<p class="fv-note">Each mark is one finding, at the frame the engine placed it.</p>')
-      + detail + '</div><div class="fv-row-gap"></div>'
-      + Panel('Events', Table('Confirmed football events',
+      + (sel && sel.pitchXM !== null
+        ? Panel('Where this one is', Pitch('<circle cx="' + sel.pitchXM + '" cy="' + sel.pitchYM
+            + '" r="1.6" class="fv-dotsel"/><circle cx="' + sel.pitchXM + '" cy="' + sel.pitchYM
+            + '" r="4" fill="none" stroke="var(--fv-accent)" stroke-width=".3" opacity=".7"/>',
+            { small: true, label: 'Pitch position of the selected finding' }),
+          { aside: Tag('MEASURED', 'measured') })
+        : sel
+          ? Panel('Where this one is', Empty('withheld', 'POSITION WITHHELD',
+            'Calibration published no pitch coordinate at frame ' + sel.frameNumber + ', so this '
+            + 'finding has no metric position.'))
+          : '')
+      + '<div class="fv-grid">' + cards + '</div>'
+      + '</div>'
+      + detail
+      + '</div><div class="fv-row-gap"></div>'
+      + Panel('Evidence record', Table('Confirmed football events',
         ['Event', 'State', 'Frame', 't (s)', 'Tracks', 'Team', 'Ball', 'Conf', 'Origin', 'Reason', ''],
         rows)));
   }
@@ -1374,20 +1699,33 @@
       ['Transitions', 'a transition requires two possessions to move between'],
       ['Available actions', 'requires all of the above'],
     ].map(function (a) {
-      return Panel(a[0], '<div class="fv-metric"><span class="fv-metric-v fv-none">—</span></div>'
-        + '<div class="fv-metric-k">' + esc(a[1]) + '</div>',
-        { aside: Tag('PENDING EVIDENCE', 'future') });
+      return '<div class="fv-await"><span class="fv-await-k">' + esc(a[0]) + '</span>'
+        + '<span class="fv-await-v fv-none">—</span>'
+        + '<span class="fv-await-s">' + esc(a[1]) + '</span></div>';
     }).join('');
 
-    body(Empty('future', 'TACTICAL INTELLIGENCE — PENDING VALIDATED EVIDENCE',
-      (caps && caps.reasons.tactical)
-      || 'Tactical intelligence is not implemented in the validated engine. No formation, team '
-        + 'shape, zone, controlled space, passing lane, pressing, overload or transition result '
-        + 'exists to display, and drawing one from position data alone would be a diagram of an '
-        + 'assumption rather than a finding.', 'tactical')
-      + '<div class="fv-row-gap"></div>'
-      + '<div class="fv-grid">' + areas + '</div>'
-      + '<div class="fv-row-gap"></div>'
+    // THE PITCH IS THE SUBJECT, EVEN WHEN IT IS EMPTY.
+    //
+    // A screen that says "nothing here" with a small icon reads as a broken
+    // screen. This one draws the pitch a tactical result would be drawn ON,
+    // at full size, and says across it what is missing and why. The absence
+    // is the finding, so the absence gets the hero.
+    body('<div class="fv-live">'
+      + '<section class="fv-panel fv-panel--accent">'
+      + '<div class="fv-panel-head"><h3 class="fv-panel-title">Tactical surface</h3>'
+      + '<div class="fv-panel-aside">' + Tag('AWAITING EVIDENCE', 'future') + '</div></div>'
+      + '<div class="fv-await-hero">'
+      + Pitch('', { tall: true, label: 'Pitch with no tactical result to draw' })
+      + '<div class="fv-await-over">'
+      + '<div class="fv-await-t">TACTICAL INTELLIGENCE</div>'
+      + '<div class="fv-await-t2">WAITING FOR VALIDATED EVIDENCE</div>'
+      + '<p class="fv-await-p">' + esc(sentence((caps && caps.reasons.tactical)
+        || 'Tactical intelligence is not implemented in the validated engine. No formation, team '
+          + 'shape, zone, controlled space, passing lane, pressing, overload or transition result '
+          + 'exists to display, and drawing one from position data alone would be a diagram of an '
+          + 'assumption rather than a finding.')) + '</p>'
+      + '</div></div></section>'
+      + '<div class="fv-stack">'
       + Panel('What a tactical result would need', Rows([
         ['Sustained metric coverage across both teams',
           caps && caps.metricCoordinates ? Tag('PARTIAL', 'propagated') : Tag('NOT MET', 'future')],
@@ -1396,7 +1734,9 @@
       ]) + '<p class="fv-note fv-note--loud">The contract is in place — a tactical result would '
         + 'arrive as its own evidence type, with its own confidence, through the same session API. '
         + 'Nothing about this screen would need rebuilding. What is missing is the finding, not '
-        + 'the plumbing.</p>'));
+        + 'the plumbing.</p>')
+      + Panel('Every reading that is waiting', '<div class="fv-awaits">' + areas + '</div>')
+      + '</div></div>');
   }
 
   // ═══ HEATMAPS ═══════════════════════════════════════════════════════════
@@ -1462,7 +1802,6 @@
           + esc(t) + '</option>';
       }).join('') + '</select>'
       + Tag('VALID CALIBRATED ONLY', 'measured')
-      + '<span class="fv-filter-label">' + pool.length + ' positions</span>'
       + '</div>';
 
     if (!pool.length) {
@@ -1472,13 +1811,25 @@
       return;
     }
 
-    body(Panel('Occupancy', controls + Pitch(cells.join(''), { label: 'Occupancy heatmap' })
-      + '<div class="fv-legend">' + Tag('MEASURED', 'measured')
-      + Tag(max + ' MAX PER CELL', 'accent') + '</div>'
-      + '<p class="fv-note">Built from ' + pool.length + ' calibrated positions counted into '
-      + 'five-metre cells. Nothing is smoothed and nothing is interpolated between observations, '
-      + 'so an empty cell means no calibrated position landed there — not low activity.</p>',
-      { accent: true }));
+    // PITCH FIRST. The controls select what is on it; they do not precede it.
+    var occupied = 0;
+    for (var gi = 0; gi < grid.length; gi++) { if (grid[gi]) occupied += 1; }
+
+    body('<div class="fv-live">'
+      + Panel('Occupancy', Pitch(cells.join(''), { tall: true, label: 'Occupancy heatmap' })
+        + '<p class="fv-note">Built from ' + pool.length + ' calibrated positions counted into '
+        + 'five-metre cells. Nothing is smoothed and nothing is interpolated between observations, '
+        + 'so an empty cell means no calibrated position landed there — not low activity.</p>',
+        { accent: true, aside: Tag('MEASURED', 'measured') })
+      + '<div class="fv-stack">'
+      + Panel('Selection', controls)
+      + Panel('What is on the pitch', '<div class="fv-instr-dials">'
+        + Dial(esc(pool.length), 'Calibrated positions', 'after the selection above')
+        + Dial(esc(max), 'Busiest cell', 'positions in one five-metre cell')
+        + Dial(esc(occupied) + '<small> / ' + (HEAT_CX * HEAT_CY) + '</small>', 'Cells occupied',
+          'a cell with no position is drawn empty, not dim', occupied / (HEAT_CX * HEAT_CY))
+        + '</div>')
+      + '</div></div>');
   }
 
   // ═══ PHYSICAL METRICS ═══════════════════════════════════════════════════
@@ -1486,22 +1837,38 @@
   function secPhysical() {
     head('Physical Metrics', 'The contract exists. The validated measurement does not.');
     var g = FV.session && FV.session.summary.guards;
+    // A READINESS SCREEN, NOT SIX EMPTY GAUGES.
+    //
+    // Six panels each reading "—" said the same thing six times and looked
+    // like six failures. What a reader needs to know is one thing — none of
+    // these is validated yet — and then, per reading, what would have to be
+    // true before it could be shown. That is a readiness list.
     var cards = [
-      ['Speed', 'm/s'], ['Acceleration', 'm/s²'], ['Distance', 'm'],
-      ['High-speed running', 'm'], ['Sprints', 'count'], ['Stamina / load', 'AU'],
+      ['Speed', 'm/s', 'a per-frame displacement over a calibrated interval, validated against ground truth'],
+      ['Acceleration', 'm/s²', 'a second derivative of a measurement that is not yet validated'],
+      ['Distance', 'm', 'a sum over frames, and a sum over gaps is not a distance'],
+      ['High-speed running', 'm', 'a threshold on a speed that has no validated value'],
+      ['Sprints', 'count', 'a count of crossings of that same threshold'],
+      ['Stamina / load', 'AU', 'a model over all of the above'],
     ].map(function (k) {
-      return Panel(k[0], '<div class="fv-metric"><span class="fv-metric-v fv-none">—</span>'
-        + '<span class="fv-metric-u">' + esc(k[1]) + '</span></div>'
-        + '<div class="fv-metric-k">not calculated</div>',
-        { aside: Tag('NOT YET VALIDATED', 'future') });
+      return '<div class="fv-await"><span class="fv-await-k">' + esc(k[0])
+        + '<em>' + esc(k[1]) + '</em></span>'
+        + '<span class="fv-await-v fv-none">—</span>'
+        + '<span class="fv-await-s">' + esc(k[2]) + '</span>'
+        + Tag('NOT YET VALIDATED', 'future') + '</div>';
     }).join('');
 
-    body(Empty('future', 'PHYSICAL METRICS — NOT YET VALIDATED',
-      (FV.session && FV.session.summary.capabilities.reasons.physicalMetrics)
-      || 'The engine measures implied speed only as a calibration guard, and it is deliberately '
-        + 'not exposed as a player measurement.', 'physical')
+    body('<section class="fv-instr">'
+      + '<div class="fv-instr-lead">'
+      + '<div class="fv-instr-k">Physical metrics ' + Tag('NOT YET VALIDATED', 'future') + '</div>'
+      + '<div class="fv-instr-v">0 <small>of 6 ready</small></div>'
+      + '<p class="fv-instr-s">' + esc(sentence((FV.session && FV.session.summary.capabilities.reasons.physicalMetrics)
+        || 'The engine measures implied speed only as a calibration guard, and it is deliberately '
+          + 'not exposed as a player measurement.'))
+      + ' Nothing on this screen is withheld to be cautious: there is no validated figure to withhold.</p>'
+      + '</div></section>'
       + '<div class="fv-row-gap"></div>'
-      + '<div class="fv-grid">' + cards + '</div>'
+      + Panel('Readiness', '<div class="fv-awaits fv-awaits--wide">' + cards + '</div>')
       + (g ? '<div class="fv-row-gap"></div>'
         + Panel('What the engine does measure, and why it is not this', Rows([
           ['Worst p90 implied speed in a calibrated span', n(g.speedGuardP90MsMax, 1) + ' m/s'],
@@ -1543,16 +1910,19 @@
     }
 
     function marks(label, kind, cls) {
-      var m = tl.marks.filter(function (x) { return x.kind === kind; }).map(function (x) {
+      var hits = tl.marks.filter(function (x) { return x.kind === kind; });
+      var m = hits.map(function (x) {
         return '<button class="fv-tl-mark fv-tl-mark--' + cls + '" style="left:'
           + ((x.frame / total) * 100).toFixed(3) + '%" data-fv-seek="' + x.frame
-          + '" data-fv-stay type="button" title="' + esc(x.label + (x.detail ? ' — ' + x.detail : ''))
+          + '" data-fv-stay type="button" title="' + esc(x.label + (x.detail ? ' \u2014 ' + x.detail : ''))
           + '" aria-label="' + esc(x.label + ' at frame ' + x.frame) + '"></button>';
       }).join('');
-      return '<div class="fv-tl-band"><div class="fv-tl-label">' + esc(label) + '</div>'
+      return '<div class="fv-tl-band"><div class="fv-tl-label">' + esc(label)
+        + '<em>' + hits.length + '</em></div>'
         + '<div class="fv-tl-track fv-tl-track--marks">' + (m
           || '<span class="fv-metric-k" style="font-size:10px;margin:0">none in this session</span>')
-        + '</div></div>';
+        + '<div class="fv-tl-cursor" style="left:' + ((FV.frame / total) * 100).toFixed(3)
+        + '%"></div></div></div>';
     }
 
     var sm = FV.session.summary;
@@ -1568,8 +1938,19 @@
         + esc(tl.legend[k]) + '</span></div>';
     }).join('');
 
-    body(Panel('Session timeline · ' + tl.durationSeconds + ' s · ' + tl.frames + ' frames',
-      '<div class="fv-tl">'
+    // FULL WIDTH, AND EVERY LAYER THE SAME PLAYHEAD.
+    //
+    // This is the one screen whose subject is the whole session at once, so it
+    // takes the whole width and the bands are drawn at reading height rather
+    // than as hairlines. The cursor crosses every layer: a reader comparing
+    // "was calibration measured here" with "was the ball seen here" is asking
+    // about ONE instant, and an instant marked on one band only is an instant
+    // they have to hold in their head.
+    var cursorAll = '<div class="fv-tl-cursor" style="left:'
+      + ((FV.frame / total) * 100).toFixed(3) + '%"></div>';
+
+    body(Panel('Session timeline \u00b7 ' + tl.durationSeconds + ' s \u00b7 ' + tl.frames + ' frames',
+      '<div class="fv-tl fv-tl--tall">'
       + sourceBand
       + band('Calibration', ['CALIBRATION_VALID', 'CALIBRATION_PROPAGATED', 'CALIBRATION_NONE'])
       + band('Ball', ['BALL_OBSERVED', 'BALL_PROPAGATED', 'BALL_GAP'])
@@ -1640,12 +2021,12 @@
     });
 
     body(Panel('Sources in use', live
-      ? '<div class="fv-grid fv-grid--wide">' + live + '</div>'
+      ? '<div class="fv-source-bay">' + live + '</div>'
       : '<p class="fv-metric-k">No source is attached. The sessions in this deployment were '
         + 'produced by the engine from recorded video; a live source would appear here.</p>',
       { accent: true, aside: Tag(connected.length + ' RECORDED', 'measured') })
       + '<div class="fv-row-gap"></div>'
-      + Panel('Future rig slots', '<div class="fv-grid fv-grid--wide">' + slots + '</div>'
+      + Panel('Future rig slots', '<div class="fv-source-bay">' + slots + '</div>'
         + '<p class="fv-note fv-note--warn">Every slot above is empty and every one is drawn as '
         + 'empty. None of this hardware exists, and none of it is shown as connected, degraded or '
         + 'waiting for a signal — those would all imply something is there.</p>',
@@ -1802,70 +2183,99 @@
     var h = FV.status && FV.status.health;
     var gb = function (v) { return v ? (v / 1073741824).toFixed(1) : null; };
 
-    function absent(label, spec, what) {
+    // A CONSOLE, NOT A CARD WALL.
+    //
+    // This screen was fifteen equal panels in a wrapping grid, and four of
+    // them read "—" because this host has no GPU, no thermometer, no battery
+    // and no camera link. Fifteen equal boxes make an absence look like a
+    // failure and a reading look like a footnote. A console separates the
+    // three things that are actually different here: WHAT THIS IS, WHAT IT
+    // MEASURES, and WHAT IT DOES NOT HAVE.
+    function reading(label, value, unit, sub, bar) {
+      return Dial(value + (unit ? '<small> ' + esc(unit) + '</small>' : ''), label, sub, bar);
+    }
+    function absentRow(label, spec, what) {
       var st = (spec && spec.status) || 'NOT_AVAILABLE';
-      return Panel(label, '<div class="fv-metric"><span class="fv-metric-v fv-none">—</span></div>'
-        + '<div class="fv-metric-k">' + esc((spec && spec.reason) || what || 'not measured') + '</div>',
-        { aside: Chip('', st) });
+      return '<div class="fv-await"><span class="fv-await-k">' + esc(label) + '</span>'
+        + '<span class="fv-await-v fv-none">—</span>'
+        + '<span class="fv-await-s">' + esc((spec && spec.reason) || what || 'not measured') + '</span>'
+        + Chip('', st) + '</div>';
     }
 
-    var cards = [
-      Panel('Device', '<div class="fv-metric"><span class="fv-metric-v fv-metric-v--sm">'
-        + esc(d.label) + '</span></div><div class="fv-metric-k">' + esc(d.deviceId) + '</div>',
-        { accent: true, aside: Tag(d.processingTarget, 'accent') }),
-      Panel('Vision Engine', Metric(esc(d.status.replace(/_/g, ' ')), '',
-        esc(d.reason || 'the engine answered')),
-        { aside: Chip('', d.status) }),
-    ];
+    // ── the faceplate ───────────────────────────────────────────────────────
+    var faceplate = '<section class="fv-instr">'
+      + '<div class="fv-instr-lead">'
+      + '<div class="fv-instr-k">Device ' + Tag(d.processingTarget.replace(/_/g, ' '), 'accent')
+      + ' ' + Chip('', d.status) + '</div>'
+      + '<div class="fv-instr-v">' + esc(d.label) + '</div>'
+      + '<p class="fv-instr-s"><code>' + esc(d.deviceId) + '</code> · '
+      + esc(d.reason || 'the engine answered') + '</p>'
+      + '</div></section>';
 
-    if (t && t.status) {
-      cards.push(Panel('Host telemetry',
-        '<div class="fv-metric"><span class="fv-metric-v fv-none">—</span></div>'
-        + '<div class="fv-metric-k">' + esc(t.reason) + '</div>', { aside: Chip('', t.status) }));
-    } else if (t) {
-      cards.push(Panel('CPU', Metric(n(t.cpuCores), 'cores',
-        'load average 1m ' + n(t.loadAverage1m, 2))));
-      cards.push(Panel('Memory', Metric(n(gb(t.memoryTotalBytes), 1), 'GB',
+    // ── what it measures ────────────────────────────────────────────────────
+    var dials = [];
+    if (t && !t.status) {
+      // `cpuCores` — the name the engine contract publishes. Read as `cpuCount`
+      // this dial rendered its unit and its caption with no figure between
+      // them, which is the one thing an em dash is for and this was not one:
+      // the host does report its core count.
+      dials.push(reading('CPU', n(t.cpuCores, 0), 'cores', 'load average 1m ' + n(t.loadAverage1m, 2)));
+      dials.push(reading('Memory', n(gb(t.memoryTotalBytes), 1), 'GB',
         gb(t.memoryFreeBytes) + ' GB free',
-        { bar: t.memoryTotalBytes ? 1 - (t.memoryFreeBytes / t.memoryTotalBytes) : null })));
-      cards.push(t.storageTotalBytes
-        ? Panel('Storage', Metric(n(gb(t.storageTotalBytes), 1), 'GB',
-          gb(t.storageFreeBytes) + ' GB free',
-          { bar: 1 - (t.storageFreeBytes / t.storageTotalBytes) }))
-        : absent('Storage', null, 'the host exposes no filesystem statistics'));
-      cards.push(Panel('Uptime', Metric(n(Math.round((t.uptimeSeconds || 0) / 3600)), 'h',
-        'host uptime')));
-      cards.push(absent('GPU', t.gpu));
-      cards.push(absent('Temperature', t.temperatureCelsius));
-      cards.push(absent('Battery', t.batteryPercent));
-      cards.push(absent('Camera link', t.cameraLink));
+        t.memoryTotalBytes ? 1 - (t.memoryFreeBytes / t.memoryTotalBytes) : null));
+      if (t.storageTotalBytes) {
+        dials.push(reading('Storage', n(gb(t.storageTotalBytes), 1), 'GB',
+          gb(t.storageFreeBytes) + ' GB free', 1 - (t.storageFreeBytes / t.storageTotalBytes)));
+      }
+      dials.push(reading('Uptime', n(Math.round((t.uptimeSeconds || 0) / 3600)), 'h', 'host uptime'));
     }
+    dials.push(reading('Processing', FV.session ? n(FV.session.summary.processingFps, 2)
+      : '<span class="fv-none">—</span>', FV.session ? 'fps' : '',
+      FV.session ? 'measured on ' + FV.session.summary.sessionRef : 'no session open'));
 
-    cards.push(Panel('Processing', FV.session
-      ? Metric(n(FV.session.summary.processingFps, 2), 'fps',
-        'measured on ' + esc(FV.session.summary.sessionRef))
-      : Metric('<span class="fv-none">—</span>', '', 'no session open')));
-    cards.push(Panel('Active source', FV.session
-      ? Metric('<span style="font-size:14px">' + esc(FV.session.summary.source.displayName) + '</span>',
-        '', esc(FV.session.summary.source.sourceType))
-      : Metric('<span class="fv-none">—</span>', '', 'no source attached')));
-    cards.push(Panel('Active session', FV.session
-      ? Metric('<span style="font-size:14px">' + esc(FV.session.summary.sessionRef) + '</span>',
-        '', esc(FV.session.summary.framesProcessed) + ' frames')
-      : Metric('<span class="fv-none">—</span>', '', 'no session open')));
+    var measured = (t && t.status)
+      ? Panel('Host telemetry', '<div class="fv-awaits">'
+        + absentRow('Host telemetry', t, t.reason) + '</div>')
+      : Panel('Measured on this host', '<div class="fv-instr-dials">' + dials.join('') + '</div>');
 
-    if (h) {
-      cards.push(Panel('API', Metric('LIVE', '', esc(h.eventTypes) + ' Vision event types registered'),
-        { aside: Chip('', 'LIVE') }));
-      cards.push(Panel('Network', Metric('LIVE', '', 'the platform served this request'),
-        { aside: Chip('', 'LIVE') }));
-      cards.push(Panel('Source Core link', Metric('LIVE', '',
-        'registered on the Fabric source registry'), { aside: Chip('', 'LIVE') }));
-      cards.push(Panel('Data Vault link', Metric('LIVE', '',
-        'session facts persist as platform events'), { aside: Chip('', 'LIVE') }));
-    }
+    // ── what it does not have ───────────────────────────────────────────────
+    var absences = (t && !t.status)
+      ? Panel('Not present on this host', '<div class="fv-awaits">'
+        + absentRow('GPU', t.gpu) + absentRow('Temperature', t.temperatureCelsius)
+        + absentRow('Battery', t.batteryPercent) + absentRow('Camera link', t.cameraLink)
+        + '</div>'
+        + '<p class="fv-note">These are absences, not failures. A software device on a server has '
+        + 'no battery and no camera link, and drawing a zero for either would be a reading this '
+        + 'host never took.</p>', { aside: Tag('NOT MEASURED', 'withheld') })
+      : '';
 
-    body('<div class="fv-grid">' + cards.join('') + '</div><div class="fv-row-gap"></div>'
+    // ── what it is attached to ──────────────────────────────────────────────
+    var links = h ? Panel('Attached to', '<div class="fv-hgrid">'
+      + [['API', esc(h.eventTypes) + ' Vision event types registered'],
+         ['Network', 'the platform served this request'],
+         ['Source Core link', 'registered on the Fabric source registry'],
+         ['Data Vault link', 'session facts persist as platform events']]
+        .map(function (r) {
+          return '<div class="fv-hcell fv-s-LIVE" title="' + esc(r[1]) + '">'
+            + '<i class="fv-dot" aria-hidden="true"></i>'
+            + '<span class="fv-hcell-k">' + esc(r[0]) + '</span>'
+            + '<span class="fv-hcell-v">LIVE</span></div>';
+        }).join('') + '</div>') : '';
+
+    var loaded = Panel('Loaded now', Rows([
+      ['Active session', FV.session ? '<b>' + esc(FV.session.summary.sessionRef) + '</b>'
+        : '<span class="fv-none">—</span>',
+        FV.session ? FV.session.summary.framesProcessed + ' frames' : 'no session open'],
+      ['Active source', FV.session ? esc(FV.session.summary.source.displayName)
+        : '<span class="fv-none">—</span>',
+        FV.session ? FV.session.summary.source.sourceType : 'no source attached'],
+      ['Vision engine', Chip('', d.status)],
+    ]));
+
+    body(faceplate + '<div class="fv-row-gap"></div>'
+      + '<div class="fv-zone3">' + measured + '<div class="fv-stack">' + loaded + links + '</div></div>'
+      + (absences ? '<div class="fv-row-gap"></div>' + absences : '')
+      + '<div class="fv-row-gap"></div>'
       + Panel('Future hardware target', Rows([
         ['FAMILISTA VISION HUB', Chip('', 'NOT_IMPLEMENTED')],
         ['Current processing target', esc(d.processingTarget)],
@@ -2025,20 +2435,37 @@
       },
     };
 
+    // A GRAPH, NOT A LIST, AND THE DETAIL DOES NOT MOVE IT.
+    //
+    // The stages used to stack vertically and open INLINE, which pushed every
+    // node below the one selected — the reader's own diagram rearranged itself
+    // under them each time they asked a question of it. Here the stages are
+    // laid out as a graph, the conduits run between them, and the answer opens
+    // in the rail beside it. Nothing on the graph moves when a node is chosen
+    // except the node's own outline.
+    var selNode = null;
     var flow = FV.integrations.flow.map(function (f, i) {
       var open = FV.selection.node === f.stage;
+      if (open) selNode = f;
       var conduit = i ? '<div class="fv-conduit' + (f.status === 'LIVE' ? ' fv-conduit--live' : '')
-        + '"></div>' : '';
-      var detail = open && NODE_DETAIL[f.stage]
-        ? '<div class="fv-flow-detail-panel">' + NODE_DETAIL[f.stage]() + '</div>' : '';
+        + '" aria-hidden="true"></div>' : '';
       return conduit
         + '<button class="fv-flow-node" data-fv-node="' + esc(f.stage) + '" type="button" '
-        + 'aria-expanded="' + open + '">'
+        + 'aria-pressed="' + open + '">'
+        + '<span class="fv-flow-top">'
         + '<span class="fv-flow-stage">' + esc(f.stage.replace(/_/g, ' ')) + '</span>'
+        + Chip('', f.status === 'LIVE' ? 'LIVE' : 'READY') + '</span>'
         + '<span class="fv-flow-name">' + esc(f.node) + '</span>'
         + '<span class="fv-flow-detail">' + esc(f.detail) + '</span>'
-        + Chip('', f.status === 'LIVE' ? 'LIVE' : 'READY') + '</button>' + detail;
+        + '</button>';
     }).join('');
+
+    var nodePanel = selNode && NODE_DETAIL[selNode.stage]
+      ? Panel(selNode.node, NODE_DETAIL[selNode.stage](),
+        { accent: true, aside: Chip('', selNode.status === 'LIVE' ? 'LIVE' : 'READY') })
+      : Panel('No node selected',
+        '<p class="fv-metric-k">Choose a stage in the graph to read its connection metadata — '
+        + 'what it registers, what it carries, and what it deliberately does not.</p>');
 
     var monitor = byKey.infrastructure
       ? Panel('Infrastructure City — monitoring', Rows([
@@ -2057,11 +2484,12 @@
         + '<td>' + esc(e.describes) + '</td></tr>';
     });
 
-    body('<div class="fv-split">'
-      + Panel('Nervous system', '<div class="fv-flow">' + flow + '</div>'
+    body('<div class="fv-live">'
+      + Panel('Nervous system', '<div class="fv-flow fv-flow--graph">' + flow + '</div>'
         + '<p class="fv-note">A conduit travels only where the link is LIVE. A diagram that flows '
         + 'while the platform is silent is a diagram telling a lie.</p>', { accent: true })
-      + monitor + '</div><div class="fv-row-gap"></div>'
+      + '<div class="fv-stack">' + nodePanel + monitor + '</div>'
+      + '</div><div class="fv-row-gap"></div>'
       + Panel('Vision events on the platform transport',
         Table('Registered Vision event types',
           ['Event type', 'Schema', 'Live board', 'What it says has happened'], events)
@@ -2099,7 +2527,11 @@
       FV.session = r[0] && r[0].ok ? r[0].session : null;
       FV.timeline = r[1] && r[1].ok ? r[1].timeline : null;
       if (FV.session && FV.session.tracks.length) FV.frame = FV.session.tracks[0].frameNumber;
-      renderShell();
+      // The bar and the open panel are the two regions a new session changes.
+      // Rebuilding the whole shell repainted the navigation as well, which
+      // dropped the reader's place in it for no reason.
+      refreshBar();
+      renderSection();
     });
   }
 
@@ -2125,7 +2557,19 @@
   // The platform mounts a module by calling its render hook with its host
   // element, exactly as it does for Source Core, the Vault and the City. There
   // is no second convention here.
-  window.renderFamilistaVision = function (host) { if (host) boot(); };
+  //
+  // BOTH CALLERS, NOT ONE. The navigation switch passes the root element; the
+  // page-render registry (`_FAM_PAGE_RENDER` → `_famRenderPage`) calls every
+  // renderer with NO argument at all, and that second one is the path a
+  // navigation from Owner Home actually takes. Guarding on `host` meant the
+  // page mounted its empty `#fv-root` and stopped there — the module was
+  // wired, allow-listed, styled and reachable, and opened to a blank screen.
+  // Source Core solved this the same way, and its comment says why.
+  window.renderFamilistaVision = function (host) {
+    host = host || document.getElementById('fv-root');
+    if (!host) return;
+    boot();
+  };
   window.mountFamilistaVision = boot;
   window.teardownFamilistaVision = function () {
     FV.session = null; FV.timeline = null; FV.sessionRef = null;

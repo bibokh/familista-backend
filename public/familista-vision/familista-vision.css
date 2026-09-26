@@ -79,11 +79,20 @@
   --fv-unver:     #a78bfa;   /* real but unverifiable                         */
   --fv-purple:    #8b5cf6;   /* a camera cut, and Vision's second accent      */
 
-  /* ── geometry, all multiples of 4 ── */
-  --fv-r-sm:      8px;
-  --fv-r:         14px;
-  --fv-r-lg:      20px;
-  --fv-gap:       12px;
+  /* ── geometry: ONE 8px grid ──────────────────────────────────────────────
+     Every gap, pad and radius in this module is 8, 16, 24 or 32 — or 4 where
+     a hairline of separation is wanted rather than a space. Nothing is 11px,
+     13px or 22px any more; those were the numbers that made panels look
+     hand-placed instead of laid out. */
+  --fv-1:          4px;
+  --fv-2:          8px;
+  --fv-3:         16px;
+  --fv-4:         24px;
+  --fv-5:         32px;
+  --fv-r-sm:       8px;
+  --fv-r:         16px;
+  --fv-r-lg:      24px;
+  --fv-gap:        8px;
   --fv-gap-lg:    16px;
   --fv-pad:       16px;
 
@@ -91,11 +100,31 @@
   --fv-glow:      0 0 0 1px rgba(34, 211, 238, .26), 0 8px 28px -14px rgba(34, 211, 238, .34);
 }
 
-body.fv-vision-open .app-sidebar,
-body.fv-vision-open .app-topbar,
-body.fv-vision-open .club-chrome { display: none !important; }
+/* The platform's chrome steps aside while Vision is open — the same bargain
+   Source Core, the Vault and the City strike, and for the same reason: this
+   module carries its own command bar and its own navigation, and a second
+   topbar above them is two products stacked on one screen.
+   These are the shell's REAL class names. The rule first written here named
+   `.app-sidebar` and `.app-topbar`, which exist nowhere in `index.html`, so it
+   hid nothing and the platform topbar sat across the Vision header. */
+body.fv-vision-open > .app > .sidebar,
+body.fv-vision-open > .app > .main > .topbar,
+body.fv-vision-open .sidebar,
+body.fv-vision-open .topbar,
+body.fv-vision-open .mobile-header { display: none !important; }
+body.fv-vision-open .app { display: block !important; }
+body.fv-vision-open .main { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; }
+body.fv-vision-open { overflow: hidden; }
 
-#pg-familista-vision {
+/* The shell owns visibility, not this module.
+   `.page { display: none }` / `.page.active { display: block }` is how every
+   room in Familista is shown and hidden. An ID selector outranks a class one,
+   so writing `display: flex` here — as this rule first did — pinned a
+   full-viewport `position: fixed` layer over the whole application whether or
+   not Vision was the open page, and the landing's six cards were painted
+   underneath it. Every rule that makes this page VISIBLE is therefore scoped
+   to `.active`; the rules that only describe how it LOOKS need no scope. */
+#pg-familista-vision.active {
   position: fixed; inset: 0; z-index: 60;
   display: flex; flex-direction: column;
   background:
@@ -106,6 +135,21 @@ body.fv-vision-open .club-chrome { display: none !important; }
   font: 400 13px/1.5 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-feature-settings: 'tnum' 0;
   overflow: hidden;
+}
+/* THE COLUMN HAS TO REACH THE ELEMENT THAT HOLDS THE SHELL.
+   The platform mounts this module into `#fv-root`, which sits BETWEEN the page
+   and the command bar. The page was the fixed-height flex column and `#fv-root`
+   was an ordinary div, so the column stopped one level short: the work body
+   never got a constrained height, never scrolled inside itself, and the page's
+   own `overflow: hidden` silently clipped everything past the fold. On a
+   1050px screen the Player Tracking evidence table ended at y=3092 and two
+   thousand pixels of it could not be reached by any means.
+   `#fv-root` is now the column, so the body scrolls inside itself — and
+   because it scrolls inside itself, the command bar and the rail stay put
+   while it does. */
+#pg-familista-vision.active > #fv-root {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column;
 }
 
 /* Focus is visible everywhere, on the module's own accent, and it is never
@@ -120,56 +164,97 @@ body.fv-vision-open .club-chrome { display: none !important; }
 
 /* ═══ HEADER ═══════════════════════════════════════════════════════════════ */
 
-.fv-head {
-  flex: 0 0 auto;
-  display: flex; align-items: center; gap: var(--fv-gap-lg);
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--fv-line);
-  background: linear-gradient(180deg, rgba(8, 13, 24, .94), rgba(8, 13, 24, .78));
-  backdrop-filter: blur(18px);
-}
-.fv-brand { display: flex; align-items: center; gap: 11px; }
-.fv-brand-mark {
-  width: 32px; height: 32px; border-radius: 10px;
-  background: linear-gradient(140deg, var(--fv-accent), var(--fv-accent-2) 55%, var(--fv-purple));
-  display: grid; place-items: center; color: #03131b; font-weight: 800; font-size: 15px;
-  box-shadow: 0 6px 18px -8px rgba(34, 211, 238, .8);
-}
-.fv-brand-name { font-size: 14.5px; font-weight: 700; letter-spacing: .13em; line-height: 1.2; }
-.fv-brand-sub {
-  font-size: 9.5px; color: var(--fv-tx-3); letter-spacing: .15em;
-  text-transform: uppercase; margin-top: 2px;
-}
-.fv-head-spacer { flex: 1 1 auto; }
+/* ═══ THE COMMAND BAR ══════════════════════════════════════════════════════
+   One bar, seven readings, and nothing else competing with it.
 
-.fv-target {
-  display: flex; align-items: center; gap: 7px;
-  padding: 6px 11px; border-radius: 999px;
-  border: 1px solid rgba(34, 211, 238, .28); background: rgba(34, 211, 238, .08);
-  font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--fv-accent);
+   What was here before was a header AND a status strip: a brand row, then a
+   scrolling rail of twelve identical pill chips. Twelve chips of the same
+   size say twelve things of the same importance, which is another way of
+   saying nothing — and none of them answered the question a reader actually
+   arrives with, which is "what am I looking at, off what, on what, how fast".
+   The chips are not gone; they are on Overview, in a strip sized for reading
+   rather than for glancing past. Here are the seven readings that change what
+   every panel below them means.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+.fv-cmd {
+  flex: 0 0 auto; display: flex; align-items: stretch; min-width: 0;
+  border-bottom: 1px solid var(--fv-line-2);
+  background: linear-gradient(180deg, rgba(9, 14, 26, .97), rgba(6, 10, 20, .9));
+  backdrop-filter: blur(20px);
+  box-shadow: 0 1px 0 rgba(34, 211, 238, .10), 0 16px 32px -30px #000;
 }
+.fv-cmd-id {
+  flex: 0 0 auto; display: flex; align-items: center; gap: var(--fv-2);
+  padding: var(--fv-2) var(--fv-3); border-right: 1px solid var(--fv-line);
+}
+.fv-cmd-mark {
+  width: 36px; height: 36px; border-radius: 10px; flex: 0 0 auto;
+  display: grid; place-items: center; color: #041019;
+  background: linear-gradient(140deg, var(--fv-accent), var(--fv-accent-2) 56%, var(--fv-purple));
+  box-shadow: 0 8px 22px -10px rgba(34, 211, 238, .85);
+}
+.fv-cmd-names { display: flex; flex-direction: column; gap: 2px; }
+.fv-cmd-name { font-size: 13px; font-weight: 800; letter-spacing: .16em; line-height: 1; }
+.fv-cmd-sub {
+  font-size: 9px; color: var(--fv-tx-3); letter-spacing: .14em;
+  text-transform: uppercase; line-height: 1;
+}
+.fv-cmd-end {
+  flex: 0 0 auto; display: flex; align-items: center; gap: var(--fv-2);
+  padding: var(--fv-2) var(--fv-3); border-left: 1px solid var(--fv-line);
+}
+
+.fv-cmd-rail {
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: stretch;
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin;
+}
+.fv-cmd-rail::-webkit-scrollbar { height: 3px; }
+.fv-cmd-rail::-webkit-scrollbar-thumb { background: var(--fv-line-2); border-radius: 2px; }
+
+.fv-read {
+  flex: 1 1 0; min-width: 136px; display: flex; flex-direction: column;
+  justify-content: center; gap: 3px;
+  padding: var(--fv-2) var(--fv-3);
+  border-right: 1px solid var(--fv-line);
+}
+.fv-read:last-child { border-right: none; }
+.fv-read-k {
+  font-size: 9px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--fv-tx-3); white-space: nowrap;
+}
+/* Big enough to read at arm's length across a desk, which is the distance a
+   console is actually read from. */
+.fv-read-v {
+  display: flex; align-items: center; gap: var(--fv-2);
+  font-size: 16px; font-weight: 700; letter-spacing: -.012em; color: var(--fv-tx);
+  line-height: 1.15; min-width: 0;
+}
+.fv-read-v b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fv-read-s {
+  font-size: 10px; color: var(--fv-tx-3); line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The state colours the dot. It does not colour the reading. */
+.fv-read .fv-dot { flex: 0 0 auto; }
+
 .fv-btn {
   background: rgba(255, 255, 255, .05); border: 1px solid var(--fv-line-2);
-  color: var(--fv-tx-2); border-radius: var(--fv-r-sm); padding: 7px 13px;
+  color: var(--fv-tx-2); border-radius: var(--fv-r-sm); padding: var(--fv-2) var(--fv-3);
   font-size: 11.5px; cursor: pointer; transition: background .15s, color .15s, border-color .15s;
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; gap: var(--fv-2);
 }
 .fv-btn:hover { background: rgba(255, 255, 255, .1); color: var(--fv-tx); border-color: var(--fv-line-3); }
 .fv-btn[aria-pressed="true"] {
   background: rgba(34, 211, 238, .14); border-color: rgba(34, 211, 238, .4); color: var(--fv-accent);
 }
 
-/* ── the live system strip ── */
-
-.fv-strip {
-  flex: 0 0 auto; display: flex; gap: 6px;
-  padding: 8px 20px; overflow-x: auto; overscroll-behavior-x: contain;
-  border-bottom: 1px solid var(--fv-line);
-  background: rgba(5, 9, 17, .6);
-  scrollbar-width: thin;
+.fv-target {
+  display: flex; align-items: center; gap: var(--fv-2);
+  padding: var(--fv-1) var(--fv-2); border-radius: 999px;
+  border: 1px solid rgba(34, 211, 238, .28); background: rgba(34, 211, 238, .08);
+  font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--fv-accent);
 }
-.fv-strip::-webkit-scrollbar { height: 4px; }
-.fv-strip::-webkit-scrollbar-thumb { background: var(--fv-line-2); border-radius: 2px; }
 
 /* ═══ STATUS CHIP — the module's single status primitive ═══════════════════ */
 
@@ -200,6 +285,18 @@ body.fv-vision-open .club-chrome { display: none !important; }
 .fv-s-NOT_AVAILABLE .fv-dot { background: var(--fv-withheld); }
 .fv-s-NOT_IMPLEMENTED { border-style: dashed; color: var(--fv-tx-3); }
 .fv-s-NOT_IMPLEMENTED .fv-dot { background: transparent; box-shadow: inset 0 0 0 1px var(--fv-withheld); }
+
+/* A READING IS NOT A CHIP.
+   The rules above paint a pill: a tinted fill and a coloured, dotted or dashed
+   border. On a command-bar cell — which is a slot in a bar, separated by one
+   hairline — that becomes a filled block of colour across the bar, which is
+   the thing a highlight is specifically not. The cell keeps the dot, which is
+   where the state belongs, and gives back the box. */
+.fv-read[class*="fv-s-"] {
+  background: none; color: inherit;
+  border: 0; border-right: 1px solid var(--fv-line); border-style: solid;
+}
+.fv-read:last-child { border-right: 0; }
 
 /* ═══ BODY: NAV + WORKSPACE ════════════════════════════════════════════════ */
 
@@ -248,20 +345,124 @@ body.fv-vision-open .club-chrome { display: none !important; }
 }
 
 .fv-work { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+/* THE HEADER IS THE SAME HEIGHT ON EVERY SECTION.
+   Some subtitles run to one line and some to two, so the header was 76px on
+   one section and 94px on the next — and the work body beneath it moved 18px
+   every time the reader changed section. It is sized for the taller of the
+   two, which is what the module's own rule means by "a skeleton is the size of
+   the content it stands in for". */
 .fv-work-head {
-  flex: 0 0 auto; padding: 16px 22px 12px; border-bottom: 1px solid var(--fv-line);
-  display: flex; align-items: flex-end; gap: var(--fv-gap-lg);
+  flex: 0 0 auto; min-height: 94px;
+  padding: var(--fv-3) var(--fv-4) var(--fv-2); border-bottom: 1px solid var(--fv-line);
+  display: flex; align-items: flex-end; gap: var(--fv-3);
 }
 .fv-work-titles { flex: 1 1 auto; min-width: 0; }
 .fv-work-title { font-size: 18px; font-weight: 650; letter-spacing: -.01em; }
 .fv-work-sub { font-size: 11.5px; color: var(--fv-tx-3); margin-top: 3px; max-width: 108ch; }
 .fv-work-actions { flex: 0 0 auto; display: flex; gap: 6px; align-items: center; }
 .fv-work-body {
-  flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--fv-gap-lg) 22px 40px;
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  padding: var(--fv-3) var(--fv-4) var(--fv-5);
   scrollbar-gutter: stable;
 }
 
 /* ═══ LAYOUT PRIMITIVES ════════════════════════════════════════════════════ */
+
+/* ═══ OVERVIEW — THREE ZONES ═══════════════════════════════════════════════
+   The hero is allowed to be big. Everything else on the screen is read
+   against it, so it leads by size as well as by position — which is the one
+   thing nine equally-sized tiles could never do.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+.fv-hero {
+  display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .9fr);
+  gap: var(--fv-3); align-items: start;
+  padding: var(--fv-4); border-radius: var(--fv-r-lg);
+  border: 1px solid rgba(34, 211, 238, .22);
+  background:
+    radial-gradient(900px 360px at 6% -30%, rgba(34, 211, 238, .13), transparent 62%),
+    radial-gradient(700px 320px at 104% 128%, rgba(139, 92, 246, .12), transparent 60%),
+    linear-gradient(180deg, rgba(17, 26, 45, .84), rgba(11, 17, 31, .76));
+  box-shadow: var(--fv-shadow);
+  margin-bottom: var(--fv-3);
+}
+.fv-hero--empty { grid-template-columns: minmax(0, 1fr); }
+.fv-hero-main { display: flex; flex-direction: column; min-width: 0; }
+.fv-hero-eyebrow {
+  display: flex; align-items: center; gap: var(--fv-2); flex-wrap: wrap;
+  font-size: 10.5px; color: var(--fv-tx-3); letter-spacing: .02em;
+}
+/* The one piece of type on the screen a reader can identify from across a
+   room. It is the answer to "what am I looking at". */
+.fv-hero-name {
+  font-size: 38px; font-weight: 800; letter-spacing: -.028em; line-height: 1.05;
+  margin-top: var(--fv-2); color: var(--fv-tx); overflow-wrap: anywhere;
+}
+.fv-hero-src { font-size: 12.5px; color: var(--fv-tx-2); margin-top: var(--fv-2); }
+
+/* The slack in this column falls BELOW the satellites, not above them: pushed
+   to the bottom with `margin-top:auto` it opened a void in the middle of the
+   hero, which is the same mistake the landing grid had just been rid of. */
+.fv-sats {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--fv-3); margin-top: var(--fv-4);
+}
+.fv-sat { display: flex; flex-direction: column; gap: 2px; min-width: 0;
+  border-left: 1px solid var(--fv-line-2); padding-left: var(--fv-2); }
+.fv-sat-v { font-size: 26px; font-weight: 750; letter-spacing: -.02em; line-height: 1.05;
+  font-variant-numeric: tabular-nums; }
+.fv-sat-k { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--fv-tx-2); }
+.fv-sat-s { font-size: 10px; color: var(--fv-tx-3); }
+
+.fv-hero-side { display: flex; flex-direction: column; gap: var(--fv-2); min-width: 0; }
+.fv-gauge {
+  flex: 1 1 0; display: flex; flex-direction: column; gap: var(--fv-2);
+  padding: var(--fv-3); border-radius: var(--fv-r);
+  border: 1px solid var(--fv-line); background: rgba(8, 13, 24, .52);
+}
+.fv-gauge-k {
+  display: flex; align-items: center; gap: var(--fv-2); flex-wrap: wrap;
+  font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--fv-tx-2);
+}
+.fv-gauge-v { font-size: 30px; font-weight: 750; letter-spacing: -.02em; line-height: 1;
+  font-variant-numeric: tabular-nums; }
+.fv-gauge-s { font-size: 10.5px; color: var(--fv-tx-3); margin-top: auto; }
+/* Two figures, never one. Summing OBSERVED and PROPAGATED would report a ball
+   position the engine never saw. */
+.fv-duo { display: flex; gap: var(--fv-4); align-items: flex-end; }
+.fv-duo-a, .fv-duo-b { display: flex; flex-direction: column; font-size: 28px; font-weight: 750;
+  letter-spacing: -.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.fv-duo-a { color: var(--fv-measured); }
+.fv-duo-b { color: var(--fv-propagated); }
+.fv-duo small { font-size: 9.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--fv-tx-3); margin-top: var(--fv-1); }
+
+.fv-zone2 {
+  display: grid; gap: var(--fv-3); align-items: start;
+  grid-template-columns: minmax(0, 1.85fr) minmax(300px, .9fr);
+  margin-bottom: var(--fv-3);
+}
+.fv-zone3 {
+  display: grid; gap: var(--fv-3); align-items: start;
+  grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr);
+}
+/* The twelve capability rows, as a strip rather than as a screenful. */
+.fv-hgrid { display: grid; gap: var(--fv-2); grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+.fv-hcell {
+  display: flex; align-items: center; gap: var(--fv-2); min-width: 0;
+  padding: var(--fv-2); border-radius: var(--fv-r-sm);
+  border: 1px solid var(--fv-line); background: rgba(255, 255, 255, .022);
+}
+.fv-hcell-k { flex: 1 1 auto; min-width: 0; font-size: 11.5px; color: var(--fv-tx);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fv-hcell-v { flex: 0 0 auto; font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--fv-tx-3); }
+
+.fv-lgd { display: inline-flex; align-items: center; gap: var(--fv-1); margin-left: var(--fv-2); }
+.fv-lgd i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.fv-lgd-m { background: var(--fv-measured); }
+.fv-lgd-p { background: var(--fv-propagated); }
+.fv-lgd-n { background: rgba(91, 100, 128, .7); }
 
 .fv-grid { display: grid; gap: var(--fv-gap); grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); }
 .fv-grid--wide { grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); }
@@ -269,6 +470,17 @@ body.fv-vision-open .club-chrome { display: none !important; }
 .fv-row-gap { height: var(--fv-gap); }
 
 /* The split: an instrument's two-column working area. Collapses at 1180px. */
+/* ═══ LIVE ANALYSIS — 70 / 30 ══════════════════════════════════════════════
+   The canvas is the section. The rail beside it explains the canvas and never
+   competes with it, which is why it holds rows and a small pitch rather than
+   a second set of full-sized panels.
+   ═════════════════════════════════════════════════════════════════════════ */
+.fv-live {
+  display: grid; gap: var(--fv-3); align-items: start;
+  grid-template-columns: minmax(0, 70fr) minmax(300px, 30fr);
+}
+.fv-canvas { display: flex; flex-direction: column; gap: var(--fv-3); }
+
 .fv-split { display: grid; gap: var(--fv-gap); grid-template-columns: minmax(0, 1.9fr) minmax(300px, .85fr); align-items: start; }
 .fv-split--even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .fv-split--wide-left { grid-template-columns: minmax(0, 2.6fr) minmax(280px, .8fr); }
@@ -409,7 +621,15 @@ body.fv-vision-open .club-chrome { display: none !important; }
 
 /* ═══ FILTER BAR ═══════════════════════════════════════════════════════════ */
 
-.fv-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
+.fv-filters { display: flex; flex-wrap: wrap; gap: var(--fv-2); align-items: center; margin-bottom: var(--fv-2); }
+/* In a 30%-wide rail a row of label/select pairs wraps into a muddle. Each
+   control takes a full line there, with its label above it. */
+.fv-live > .fv-stack .fv-filters { display: grid; grid-template-columns: 1fr; gap: var(--fv-1); }
+.fv-live > .fv-stack .fv-filters .fv-input,
+.fv-live > .fv-stack .fv-filters .fv-select { width: 100%; }
+.fv-live > .fv-stack .fv-filters .fv-filter-label { margin-top: var(--fv-1); }
+.fv-live > .fv-stack .fv-filters .fv-tag,
+.fv-live > .fv-stack .fv-filters .fv-chip { justify-self: start; }
 .fv-input {
   background: rgba(255, 255, 255, .04); border: 1px solid var(--fv-line-2);
   color: var(--fv-tx); border-radius: var(--fv-r-sm); padding: 6px 11px;
@@ -439,6 +659,42 @@ body.fv-vision-open .club-chrome { display: none !important; }
    panel keeps the full width as dead space. Capping the width lets the natural
    105:68 ratio set the height, and the wrapper centres it. */
 .fv-pitch--sm { max-width: 480px; max-height: none; }
+/* The pitch as the subject of its section rather than an illustration in it. */
+.fv-pitch--tall { max-height: 68vh; }
+
+/* ── the identity picker: choosing in the rail, beside the shape it draws ── */
+.fv-picks {
+  display: flex; flex-direction: column; gap: var(--fv-1);
+  max-height: 46vh; overflow-y: auto; scrollbar-gutter: stable; margin-top: var(--fv-2);
+}
+.fv-picks--tall { max-height: 44vh; }
+
+/* ── a three-column workstation: index, subject, evidence ── */
+.fv-work3 {
+  display: grid; gap: var(--fv-3); align-items: start;
+  grid-template-columns: minmax(240px, .85fr) minmax(0, 1.5fr) minmax(280px, 1fr);
+}
+.fv-pick {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "id n" "m n";
+  gap: 0 var(--fv-2); align-items: center; text-align: left; width: 100%;
+  padding: var(--fv-2); border-radius: var(--fv-r-sm); cursor: pointer;
+  border: 1px solid transparent; background: rgba(255, 255, 255, .022);
+  color: var(--fv-tx-2); font-family: inherit;
+  transition: background .14s, border-color .14s, color .14s;
+}
+.fv-pick:hover { background: rgba(255, 255, 255, .06); color: var(--fv-tx); }
+/* Selected is an edge and a tint, not a filled block. */
+.fv-pick[aria-current="true"] {
+  border-color: rgba(34, 211, 238, .42); background: rgba(34, 211, 238, .10); color: var(--fv-tx);
+  box-shadow: inset 2px 0 0 var(--fv-accent);
+}
+.fv-pick-id { grid-area: id; font-size: 12.5px; font-weight: 650; color: var(--fv-tx);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fv-pick-m { grid-area: m; font-size: 10px; color: var(--fv-tx-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fv-pick-n { grid-area: n; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--fv-tx); }
+.fv-pick-n em { font-style: normal; font-size: 10px; font-weight: 500; color: var(--fv-tx-3); }
 .fv-pitch-line { stroke: rgba(255, 255, 255, .20); stroke-width: .28; fill: none; }
 .fv-pitch-mow { fill: rgba(255, 255, 255, .012); }
 .fv-dotm { fill: var(--fv-measured); }
@@ -449,6 +705,113 @@ body.fv-vision-open .club-chrome { display: none !important; }
 
 .fv-legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 
+/* ═══ AWAITING — a reading that has no validated value yet ═════════════════
+   Not an error state and not a blank. A row that names the reading, shows the
+   em dash that stands for "the platform does not hold this", and says what
+   would have to be true before it did.
+   ═════════════════════════════════════════════════════════════════════════ */
+.fv-awaits { display: flex; flex-direction: column; gap: var(--fv-1); }
+.fv-awaits--wide { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--fv-2); }
+.fv-await {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "k v" "s s";
+  gap: var(--fv-1) var(--fv-2); align-items: center;
+  padding: var(--fv-2); border-radius: var(--fv-r-sm);
+  border: 1px dashed var(--fv-line-2); background: rgba(255, 255, 255, .016);
+}
+.fv-await-k { grid-area: k; display: flex; align-items: baseline; gap: var(--fv-2);
+  font-size: 11.5px; font-weight: 650; color: var(--fv-tx); }
+.fv-await-k em { font-style: normal; font-size: 9.5px; font-weight: 500; color: var(--fv-tx-3); }
+.fv-await-v { grid-area: v; font-size: 19px; font-weight: 700; line-height: 1; }
+.fv-await-s { grid-area: s; font-size: 10.5px; color: var(--fv-tx-3); line-height: 1.45; }
+/* The status marker sits with the reason, at the end of the row — whether it
+   came through as a tag or as a chip. */
+.fv-await > .fv-tag, .fv-await > .fv-chip { grid-area: t; justify-self: end; align-self: center; }
+.fv-await { grid-template-areas: "k v" "s t"; }
+.fv-awaits--wide .fv-await { grid-template-areas: "k v" "s s" "t t"; }
+.fv-awaits--wide .fv-await > .fv-tag,
+.fv-awaits--wide .fv-await > .fv-chip { justify-self: start; }
+
+/* The pitch a tactical result would be drawn on, with the absence across it. */
+.fv-await-hero { position: relative; }
+.fv-await-over {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: var(--fv-2);
+  text-align: center; padding: var(--fv-4);
+  background: radial-gradient(60% 60% at 50% 50%, rgba(4, 7, 13, .84), rgba(4, 7, 13, .5));
+  border-radius: var(--fv-r-sm); pointer-events: none;
+}
+.fv-await-t { font-size: 13px; font-weight: 800; letter-spacing: .3em; color: var(--fv-tx-2); }
+.fv-await-t2 {
+  font-size: 26px; font-weight: 800; letter-spacing: .1em; line-height: 1.15;
+  color: var(--fv-unver);
+}
+.fv-await-p { font-size: 12px; color: var(--fv-tx-2); max-width: 68ch; line-height: 1.6; }
+
+/* ═══ LANES — a group, and the share of the session it holds ═══════════════ */
+.fv-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--fv-3); }
+.fv-lanes--roles { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.fv-lane {
+  display: flex; flex-direction: column; gap: var(--fv-2); min-width: 0;
+  padding: var(--fv-3); border-radius: var(--fv-r);
+  border: 1px solid var(--fv-line); background: var(--fv-panel);
+  box-shadow: inset 3px 0 0 var(--fv-lane-c, var(--fv-accent));
+}
+.fv-lane--sm { padding: var(--fv-2) var(--fv-3); }
+.fv-lane-head { display: flex; align-items: center; justify-content: space-between; gap: var(--fv-2); }
+.fv-lane-n { font-size: 11px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--fv-tx); }
+.fv-lane-v { display: flex; align-items: baseline; gap: var(--fv-2);
+  font-size: 30px; font-weight: 750; letter-spacing: -.02em; line-height: 1;
+  color: var(--fv-lane-c, var(--fv-accent)); font-variant-numeric: tabular-nums; }
+.fv-lane-v small { font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--fv-tx-3); }
+.fv-lane-s { font-size: 10.5px; color: var(--fv-tx-3); line-height: 1.45; }
+.fv-lane-ids { display: flex; flex-wrap: wrap; gap: var(--fv-1); }
+.fv-lane-more { font-size: 10px; color: var(--fv-tx-3); align-self: center; }
+.fv-chipid {
+  font-size: 10.5px; font-variant-numeric: tabular-nums; padding: 2px var(--fv-2);
+  border-radius: var(--fv-r-sm); border: 1px solid var(--fv-line-2);
+  background: rgba(255, 255, 255, .03); color: var(--fv-tx-2);
+  cursor: pointer; font-family: inherit;
+  transition: background .14s, color .14s, border-color .14s;
+}
+.fv-chipid:hover { background: rgba(34, 211, 238, .12); border-color: rgba(34, 211, 238, .4);
+  color: var(--fv-accent); }
+
+/* ═══ THE INSTRUMENT ═══════════════════════════════════════════════════════
+   A verdict, then the figures that qualify it, on one baseline. Used where a
+   section has one answer rather than six — calibration today.
+   ═════════════════════════════════════════════════════════════════════════ */
+.fv-instr {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--fv-3);
+  padding: var(--fv-4); border-radius: var(--fv-r-lg);
+  border: 1px solid rgba(34, 211, 238, .20);
+  background:
+    radial-gradient(900px 340px at 4% -34%, rgba(34, 211, 238, .11), transparent 62%),
+    linear-gradient(180deg, rgba(17, 26, 45, .82), rgba(11, 17, 31, .74));
+  box-shadow: var(--fv-shadow);
+}
+.fv-instr-k {
+  display: flex; align-items: center; gap: var(--fv-2); flex-wrap: wrap;
+  font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--fv-tx-2);
+}
+.fv-instr-v { font-size: 40px; font-weight: 800; letter-spacing: -.03em; line-height: 1.05;
+  margin-top: var(--fv-2); }
+.fv-instr-s { font-size: 12px; color: var(--fv-tx-2); margin-top: var(--fv-2); max-width: 92ch;
+  line-height: 1.55; }
+.fv-instr-dials {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--fv-3); padding-top: var(--fv-3); border-top: 1px solid var(--fv-line);
+}
+.fv-dial { display: flex; flex-direction: column; gap: var(--fv-1); min-width: 0;
+  border-left: 1px solid var(--fv-line-2); padding-left: var(--fv-2); }
+.fv-dial-v { font-size: 24px; font-weight: 750; letter-spacing: -.02em; line-height: 1.1;
+  font-variant-numeric: tabular-nums; }
+.fv-dial-v small { font-size: 12px; font-weight: 500; color: var(--fv-tx-3); }
+.fv-dial-k { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--fv-tx-2); }
+.fv-dial-s { font-size: 10px; color: var(--fv-tx-3); line-height: 1.4; }
+
 /* ═══ TIMELINE ═════════════════════════════════════════════════════════════ */
 
 .fv-tl { display: flex; flex-direction: column; gap: 5px; }
@@ -457,6 +820,13 @@ body.fv-vision-open .club-chrome { display: none !important; }
   flex: 0 0 136px; font-size: 9.5px; color: var(--fv-tx-3);
   text-transform: uppercase; letter-spacing: .11em; text-align: right;
 }
+.fv-tl-label em { font-style: normal; display: block; font-size: 9px; letter-spacing: .04em;
+  color: var(--fv-tx-2); text-transform: none; font-variant-numeric: tabular-nums; }
+/* The timeline as the SUBJECT of its section rather than a strip inside one. */
+.fv-tl--tall { gap: var(--fv-2); }
+.fv-tl--tall .fv-tl-track { height: 26px; }
+.fv-tl--tall .fv-tl-track--marks { height: 20px; }
+.fv-tl--tall .fv-tl-label { font-size: 10.5px; }
 .fv-tl-track {
   position: relative; flex: 1 1 auto; height: 18px; border-radius: 4px;
   background: rgba(255, 255, 255, .03); overflow: hidden;
@@ -468,7 +838,7 @@ body.fv-vision-open .club-chrome { display: none !important; }
 .fv-tl-span--prop  { background: linear-gradient(180deg, var(--fv-propagated), #f59e0b); }
 .fv-tl-span--none  { background: repeating-linear-gradient(135deg,
   rgba(91,100,128,.5) 0 3px, transparent 3px 7px); }
-.fv-tl-span--obs   { background: linear-gradient(180deg, #f1f5f9, #cbd5e1); }
+.fv-tl-span--obs   { background: linear-gradient(180deg, #cbd5e1, #94a3b8); }
 .fv-tl-span--gap   { background: repeating-linear-gradient(135deg,
   rgba(91,100,128,.35) 0 2px, transparent 2px 6px); }
 .fv-tl-mark {
@@ -483,8 +853,10 @@ body.fv-vision-open .club-chrome { display: none !important; }
   position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--fv-accent);
   box-shadow: 0 0 10px rgba(34, 211, 238, .9); pointer-events: none;
 }
-.fv-tl-ruler { display: flex; justify-content: space-between; font-size: 9.5px;
-  color: var(--fv-tx-3); margin-left: 146px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.fv-tl-ruler { display: flex; justify-content: space-between; align-items: center; gap: var(--fv-2);
+  flex-wrap: wrap; font-size: 9.5px;
+  color: var(--fv-tx-3); margin-left: 146px; margin-top: var(--fv-2); font-variant-numeric: tabular-nums; }
+.fv-tl-ruler > span { display: inline-flex; align-items: center; gap: var(--fv-1); flex-wrap: wrap; }
 
 /* ═══ FEED — the annotated analysis surface ════════════════════════════════ */
 
@@ -518,56 +890,98 @@ body.fv-vision-open .club-chrome { display: none !important; }
 /* ═══ FLOW — the nervous system ════════════════════════════════════════════ */
 
 .fv-flow { display: flex; flex-direction: column; gap: 0; }
+/* THE GRAPH. Stages read left to right the way the data travels, wrapping at
+   narrow widths rather than shrinking into columns too thin to read. */
+.fv-flow--graph {
+  flex-direction: row; flex-wrap: wrap; align-items: stretch; gap: 0;
+}
 .fv-flow-node {
-  display: flex; align-items: center; gap: var(--fv-gap); padding: 12px 14px;
-  border: 1px solid var(--fv-line); border-radius: var(--fv-r-sm);
-  background: linear-gradient(120deg, var(--fv-panel-2), var(--fv-panel-3));
+  display: flex; flex-direction: column; gap: var(--fv-2); padding: var(--fv-3);
+  border: 1px solid var(--fv-line); border-radius: var(--fv-r);
+  background: linear-gradient(140deg, var(--fv-panel-2), var(--fv-panel-3));
   cursor: pointer; text-align: left; width: 100%; font-family: inherit;
-  transition: border-color .15s, background .15s;
+  transition: border-color .15s, background .15s, box-shadow .15s;
 }
+.fv-flow--graph .fv-flow-node { flex: 1 1 210px; width: auto; min-width: 190px; }
 .fv-flow-node:hover { border-color: rgba(34, 211, 238, .3); background: rgba(34, 211, 238, .05); }
-.fv-flow-node[aria-expanded="true"] { border-color: rgba(34, 211, 238, .4); box-shadow: var(--fv-glow); }
-.fv-flow-stage {
-  font-size: 9px; letter-spacing: .14em; color: var(--fv-tx-3);
-  text-transform: uppercase; flex: 0 0 122px;
+/* Selected is an outline, and it changes nothing else's size or place. */
+.fv-flow-node[aria-pressed="true"],
+.fv-flow-node[aria-expanded="true"] {
+  border-color: rgba(34, 211, 238, .45); box-shadow: var(--fv-glow);
 }
-.fv-flow-name { font-weight: 650; font-size: 12.5px; color: var(--fv-tx); flex: 0 0 auto; min-width: 178px; }
-.fv-flow-detail { font-size: 11.5px; color: var(--fv-tx-3); flex: 1 1 auto; min-width: 0; }
-.fv-flow-node > .fv-tag { flex: 0 0 auto; }
+.fv-flow-top { display: flex; align-items: center; justify-content: space-between; gap: var(--fv-2); }
+.fv-flow-stage {
+  font-size: 9px; letter-spacing: .14em; color: var(--fv-tx-3); text-transform: uppercase;
+}
+.fv-flow-name { font-weight: 700; font-size: 14px; color: var(--fv-tx); letter-spacing: -.01em; }
+.fv-flow-detail { font-size: 11px; color: var(--fv-tx-3); line-height: 1.5; }
 /* The conduit between two nodes. It travels only when the link is LIVE — a
    diagram that flows while the platform is silent is a diagram telling a lie. */
 .fv-conduit { height: 20px; margin-left: 58px; width: 2px; background: var(--fv-line-2); position: relative; }
+.fv-flow--graph .fv-conduit {
+  flex: 0 0 26px; height: auto; width: 26px; margin: 0; align-self: center;
+  background: var(--fv-line-2); clip-path: polygon(0 45%, 72% 45%, 72% 28%, 100% 50%, 72% 72%, 72% 55%, 0 55%);
+}
 .fv-conduit--live {
   background: linear-gradient(180deg, transparent, var(--fv-accent), transparent);
   background-size: 100% 200%;
   animation: fv-travel 1.8s linear infinite;
 }
+.fv-flow--graph .fv-conduit--live {
+  background: linear-gradient(90deg, transparent, var(--fv-accent), transparent);
+  background-size: 200% 100%;
+  animation: fv-travel-x 1.8s linear infinite;
+}
 @keyframes fv-travel { from { background-position: 0 -100%; } to { background-position: 0 100%; } }
+@keyframes fv-travel-x { from { background-position: -100% 0; } to { background-position: 100% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .fv-conduit--live, .fv-flow--graph .fv-conduit--live { animation: none; background: var(--fv-accent); }
+}
 .fv-flow-detail-panel {
-  margin: 0 0 0 58px; padding: 12px 14px; border-left: 2px solid rgba(34, 211, 238, .34);
+  margin: 0 0 0 58px; padding: var(--fv-3); border-left: 2px solid rgba(34, 211, 238, .34);
   background: rgba(34, 211, 238, .035); border-radius: 0 var(--fv-r-sm) var(--fv-r-sm) 0;
   font-size: 11.5px; color: var(--fv-tx-2); line-height: 1.6;
 }
 
+/* ── hardware tiles: a bay, with something in it or explicitly not ── */
+.fv-source-bay { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: var(--fv-3); }
+
 /* ═══ SOURCE CARD ══════════════════════════════════════════════════════════ */
 
+/* A BAY, WITH SOMETHING IN IT OR EXPLICITLY NOT.
+   A source is a piece of hardware, so its tile is drawn as a bay in a rack:
+   a rail down the left that is lit when something is in it and unlit when the
+   bay is declared and empty, a larger instrument icon, and room for the
+   reading underneath. An empty bay is not dimmed into near-invisibility —
+   "no adapter exists for this slot" is a fact worth reading. */
 .fv-source {
+  position: relative; overflow: hidden;
   border: 1px solid var(--fv-line); border-radius: var(--fv-r);
-  padding: 14px; background: linear-gradient(160deg, var(--fv-panel-2), var(--fv-panel-3));
-  display: flex; flex-direction: column; gap: 9px; min-height: 128px;
+  padding: var(--fv-3) var(--fv-3) var(--fv-3) var(--fv-4);
+  background: linear-gradient(160deg, var(--fv-panel-2), var(--fv-panel-3));
+  display: flex; flex-direction: column; gap: var(--fv-2); min-height: 150px;
 }
-.fv-source--future { border-style: dashed; opacity: .78; }
+.fv-source::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--fv-withheld);
+}
+.fv-source--future { border-style: dashed; }
+.fv-source--future::before {
+  background: repeating-linear-gradient(180deg,
+    var(--fv-withheld) 0 6px, transparent 6px 12px);
+}
 .fv-source--live { border-color: rgba(52, 211, 153, .28); }
-.fv-source-top { display: flex; align-items: flex-start; gap: 10px; }
+.fv-source--live::before { background: var(--fv-measured); box-shadow: 0 0 14px rgba(52,211,153,.55); }
+.fv-source-top { display: flex; align-items: flex-start; gap: var(--fv-2); }
 .fv-source-ico {
-  width: 34px; height: 34px; border-radius: 10px; flex: 0 0 auto; display: grid; place-items: center;
+  width: 44px; height: 44px; border-radius: 12px; flex: 0 0 auto; display: grid; place-items: center;
   border: 1px solid var(--fv-line-2); background: rgba(255, 255, 255, .03); color: var(--fv-tx-2);
 }
-.fv-source-ico svg { width: 17px; height: 17px; stroke: currentColor; fill: none;
+.fv-source-ico svg { width: 22px; height: 22px; stroke: currentColor; fill: none;
   stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .fv-source--live .fv-source-ico { color: var(--fv-measured); border-color: rgba(52,211,153,.3);
   background: rgba(52,211,153,.07); }
-.fv-source-name { font-size: 12.5px; font-weight: 650; color: var(--fv-tx); }
+.fv-source-name { font-size: 14px; font-weight: 700; color: var(--fv-tx); }
 .fv-source-type { font-size: 10px; color: var(--fv-tx-3); letter-spacing: .07em; margin-top: 2px; }
 .fv-source-why { font-size: 11px; color: var(--fv-tx-3); line-height: 1.55; flex: 1 1 auto; }
 /* A status chip states one thing; stretched to the card's full width it reads
@@ -585,11 +999,23 @@ body.fv-vision-open .club-chrome { display: none !important; }
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 71; width: min(460px, 94vw);
   background: linear-gradient(180deg, #0a1120, #06090f);
   border-left: 1px solid var(--fv-line-2); box-shadow: -26px 0 70px -30px rgba(0,0,0,.95);
-  transform: translateX(100%); opacity: 0; transition: transform .2s ease, opacity .2s ease;
+  transform: translateX(100%); opacity: 0;
+  /* VISIBILITY, not just position. Parked off-screen by transform alone the
+     drawer stayed `visibility: visible`: its close button was still in the tab
+     order and its contents still in the accessibility tree, so a keyboard
+     reader tabbed into a dialog that is not open. `visibility` is delayed to
+     the end of the slide out and taken away immediately on the way in, so the
+     animation still plays in both directions.
+     It animates on transform and opacity only — nothing under it moves. */
+  visibility: hidden;
+  transition: transform .2s ease, opacity .2s ease, visibility 0s linear .2s;
   display: flex; flex-direction: column; color: var(--fv-tx);
   font: 400 13px/1.5 'Inter', -apple-system, sans-serif;
 }
-.fv-drawer.is-open { transform: translateX(0); opacity: 1; }
+.fv-drawer.is-open {
+  transform: translateX(0); opacity: 1; visibility: visible;
+  transition: transform .2s ease, opacity .2s ease, visibility 0s linear 0s;
+}
 .fv-drawer-head {
   flex: 0 0 auto; padding: 16px 18px 12px; border-bottom: 1px solid var(--fv-line);
   display: flex; align-items: flex-start; gap: var(--fv-gap);
@@ -608,20 +1034,68 @@ body.fv-vision-open .club-chrome { display: none !important; }
 .fv-note--loud { border-left-color: var(--fv-accent); color: var(--fv-tx-2); }
 .fv-note--warn { border-left-color: var(--fv-propagated); color: var(--fv-tx-2); }
 .fv-banner {
-  display: flex; align-items: center; gap: 10px; padding: 11px 14px; margin-bottom: var(--fv-gap);
+  display: flex; align-items: center; gap: var(--fv-2); padding: var(--fv-2) var(--fv-3);
+  margin-bottom: var(--fv-3);
   border-radius: var(--fv-r-sm); border: 1px solid rgba(251, 191, 36, .28);
-  background: rgba(251, 191, 36, .06); color: var(--fv-tx-2); font-size: 12px;
+  background: rgba(251, 191, 36, .06); color: var(--fv-tx-2); font-size: 12.5px;
 }
 .fv-banner b { color: var(--fv-propagated); letter-spacing: .06em; }
+/* A warning about how to read the table below it has to still be there when
+   the table is being read. It rides the scroll rather than leaving with it. */
+.fv-banner--sticky {
+  position: sticky; top: 0; z-index: 4;
+  background: linear-gradient(180deg, rgba(38, 28, 8, .97), rgba(30, 23, 8, .95));
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 22px -18px #000;
+}
+
+/* The four ball states as one strip: four figures, not four panels. */
+.fv-states { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--fv-3); }
+.fv-state-cell { display: flex; flex-direction: column; gap: 1px; min-width: 0;
+  border-left: 1px solid var(--fv-line-2); padding-left: var(--fv-2); }
+.fv-state-v { font-size: 22px; font-weight: 750; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.fv-state-v--measured { color: var(--fv-measured); }
+.fv-state-v--propagated { color: var(--fv-propagated); }
+.fv-state-v--withheld { color: var(--fv-withheld); }
+.fv-state-k { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--fv-tx-2); }
+.fv-state-s { font-size: 10px; color: var(--fv-tx-3); line-height: 1.35; }
 
 .fv-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
 /* ═══ RESPONSIVE ═══════════════════════════════════════════════════════════ */
 
 @media (max-width: 1180px) {
-  .fv-split, .fv-split--even, .fv-split--wide-left { grid-template-columns: minmax(0, 1fr); }
+  .fv-split, .fv-split--even, .fv-split--wide-left,
+  .fv-hero, .fv-zone2, .fv-zone3, .fv-live, .fv-work3 { grid-template-columns: minmax(0, 1fr); }
+  .fv-tl-k { flex: 0 0 96px; }
+  .fv-tl-head { margin-left: 104px; }
+  .fv-tl-foot { margin-left: 104px; }
+  .fv-sats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fv-hero-name { font-size: 30px; }
 }
 @media (max-width: 1080px) {
+  /* THE READINGS WRAP; THEY DO NOT SCROLL AWAY.
+     Seven readings on one horizontal rail need about 950px. Below that the
+     rail's own `overflow-x: auto` pushed every one of them off the right edge,
+     so the single most important thing on the screen — which session, off what,
+     running where — was reachable only by discovering a sideways scroll in a
+     header. Here the identity keeps the top line and the readings become a
+     grid underneath it, which is taller and legible instead of shorter and
+     hidden. */
+  .fv-cmd { flex-wrap: wrap; }
+  .fv-cmd-id { flex: 1 1 auto; border-right: none; }
+  .fv-cmd-end { border-left: none; }
+  .fv-cmd-rail {
+    order: 3; flex: 1 0 100%; overflow: visible;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(156px, 1fr));
+    border-top: 1px solid var(--fv-line);
+  }
+  .fv-cmd-rail .fv-read,
+  .fv-cmd-rail .fv-read[class*="fv-s-"] {
+    min-width: 0; border: 0;
+    border-right: 1px solid var(--fv-line); border-bottom: 1px solid var(--fv-line);
+  }
+
   .fv-nav { flex: 0 0 58px; padding: 12px 8px; }
   .fv-nav-label, .fv-nav-group, .fv-nav-badge { display: none; }
   .fv-nav-item { justify-content: center; padding: 10px 0; }
@@ -631,7 +1105,11 @@ body.fv-vision-open .club-chrome { display: none !important; }
   /* Return the page to normal document scrolling rather than crushing panels
      into a fixed viewport. The status strip stays — on a phone at the side of a
      pitch, whether the engine is live is the one thing still worth knowing. */
-  #pg-familista-vision { position: static; height: auto; min-height: 100vh; overflow: visible; }
+  #pg-familista-vision.active { position: static; height: auto; min-height: 100vh; overflow: visible; }
+  /* The escape hatch returns the page to ordinary document scrolling, so the
+     column stops being a column here too. */
+  #pg-familista-vision.active > #fv-root { display: block; min-height: 0; }
+  body.fv-vision-open { overflow: auto; }
   .fv-body { flex-direction: column; }
   .fv-nav {
     flex: 0 0 auto; flex-direction: row; overflow-x: auto; border-right: none;
@@ -641,11 +1119,15 @@ body.fv-vision-open .club-chrome { display: none !important; }
   }
   .fv-nav-item { width: auto; flex: 0 0 auto; }
   .fv-work-body { overflow: visible; padding: var(--fv-gap) 14px 40px; }
-  .fv-work-head { padding: 14px 14px 10px; flex-direction: column; align-items: flex-start; }
-  .fv-head { padding: 10px 14px; }
-  .fv-strip { padding: 8px 14px; }
-  .fv-brand-sub { display: none; }
-  .fv-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  /* Stacked, so the two-line allowance the wide layout needs is not one here. */
+  .fv-work-head { min-height: 0; padding: var(--fv-2) var(--fv-2) var(--fv-2);
+    flex-direction: column; align-items: flex-start; }
+  .fv-cmd-id { padding: var(--fv-2); }
+  .fv-cmd-end { padding: var(--fv-2); }
+  .fv-cmd-sub { display: none; }
+  .fv-read { padding: var(--fv-2); }
+  .fv-read-v { font-size: 14px; }
+  .fv-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--fv-2); }
   .fv-metric-v { font-size: 21px; }
   .fv-table-wrap { max-height: none; }
   .fv-tl-label { flex: 0 0 84px; font-size: 8.5px; }

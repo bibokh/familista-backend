@@ -792,16 +792,19 @@ describe('the Platform Owner landing offers five rooms around one core', () => {
   it('gives the rooms the same grid track, so none is subordinate', () => {
     // The four original rooms occupy the two outer columns in two rows — the
     // same track as each other. SOURCE CORE is not one of them and is placed
-    // deliberately differently: it answers where the other four came from, and
-    // it spans the middle column across both rows. FAMILISTA VISION takes a
-    // full-width band beneath them: it describes something the platform HAS,
-    // like the outer four, but its subject is a pitch rather than the platform
-    // itself, and a band of its own says that without making it subordinate.
+    // SIX EQUAL CARDS, three columns by two rows. SOURCE CORE used to span the
+    // middle column across both rows and VISION to take a full-width band
+    // underneath, which made one card 713px tall with a void in it and pushed
+    // another below the fold. Size is a claim about importance and these six
+    // are peers, so the story is told with COLUMN instead: where the evidence
+    // came from sits directly above what the evidence says.
     expect(css).toContain('"system core   clubs"');
-    expect(css).toContain('"vault  core   city"');
-    expect(css).toContain('"vision vision vision"');
+    expect(css).toContain('"vault  vision city"');
+    expect(css).not.toContain('"vision vision vision"');
     expect(css).toContain('body.club-theme .oh-cards--core .oh-card--vision{ grid-area: vision; }');
     expect(css).toContain('body.club-theme .oh-cards--core .oh-card--core{   grid-area: core; }');
+    // Equal rows, so no card can grow taller than its peers.
+    expect(css).toMatch(/\.oh-cards--core\{[^}]*grid-auto-rows:\s*1fr/);
     // The orphaned four-column rule is gone rather than left behind to rot.
     expect(css).not.toContain('oh-cards--four');
   });
