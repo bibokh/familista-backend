@@ -113,22 +113,42 @@ export async function authenticate(
   try {
     // Cookie-first: prefer HttpOnly access_token cookie (browser SPA).
     // Fall back to Authorization: Bearer <token> for API clients and WebSocket.
+    //
+    // A STALE COOKIE MUST NOT BEAT A VALID BEARER.
+    //
+    // This used to pick the cookie whenever one existed and reject outright if
+    // it did not verify — so a request carrying an expired `access_token`
+    // cookie AND a freshly minted bearer was refused, with the valid credential
+    // sitting unread in the same request.
+    //
+    // That is not a rare shape. The access cookie lives fifteen minutes; the
+    // SPA mints a replacement through `/auth/refresh` and holds it in memory.
+    // From that moment every call carries both, and the one the browser will
+    // not let the page delete was the only one being looked at.
+    //
+    // Each candidate is now VERIFIED, in preference order, and the first that
+    // holds up wins. This grants nothing new: both are checked against the same
+    // secret and the same token version a line below. It stops a credential
+    // that is valid from being refused because a dead one travelled with it.
     const cookieToken = (req.cookies as Record<string, string> | undefined)?.access_token;
     const authHeader  = req.headers.authorization;
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
 
-    let token: string;
-    if (cookieToken) {
-      token = cookieToken;
-    } else if (authHeader?.startsWith('Bearer ')) {
-      token = authHeader.slice(7);
-    } else {
+    const candidates = [cookieToken, bearerToken].filter(Boolean) as string[];
+    if (candidates.length === 0) {
       throw new UnauthorizedError('No token provided');
     }
-    let payload: JwtPayload;
 
-    try {
-      payload = jwt.verify(token, config.jwt.secret) as JwtPayload;
-    } catch {
+    let payload: JwtPayload | null = null;
+    for (const candidate of candidates) {
+      try {
+        payload = jwt.verify(candidate, config.jwt.secret) as JwtPayload;
+        break;
+      } catch {
+        // try the next credential; the error is raised below if none verifies
+      }
+    }
+    if (!payload) {
       throw new UnauthorizedError('Invalid or expired token');
     }
 

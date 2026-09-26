@@ -38,7 +38,45 @@
 (function () {
   'use strict';
 
-  var API = '/api/v1/familista-vision';
+  /**
+   * WHERE THE API IS, AND WHAT PROVES WHO IS ASKING.
+   *
+   * Both of these were wrong, and the module hung on "READING VISION SERVICE"
+   * in production because of it.
+   *
+   * The base is the platform's, not a constant. `FAM_CONFIG.API_BASE` is an
+   * absolute URL when the SPA and the API are different origins; a hard-coded
+   * `/api/v1` points at the page's own host, which is the wrong host there.
+   *
+   * The credential is the platform's too. Familista authenticates with an
+   * HttpOnly `access_token` cookie AND an in-memory access token, and the
+   * second is not a fallback — it is what a session runs on after
+   * `/auth/refresh`, because the cookie's TTL is fifteen minutes. Sending only
+   * the cookie meant Vision worked for fifteen minutes after a sign-in and
+   * 401ed for the rest of the session, while every other module — all of which
+   * attach the bearer — kept working. That is exactly the shape of the bug: the
+   * landing card read the Vision service fine, and the module behind it could
+   * not.
+   *
+   * Source Core, the Data Vault and Infrastructure City all do what is below.
+   * This is not a new convention; it is the one Vision was missing.
+   */
+  function apiBase() {
+    return (typeof window.FAM_CONFIG !== 'undefined' && window.FAM_CONFIG.API_BASE)
+      ? window.FAM_CONFIG.API_BASE : '/api/v1';
+  }
+
+  function authToken() {
+    try {
+      return (window.State && window.State.token) || localStorage.getItem('familista_token') || '';
+    } catch (_) { return ''; }
+  }
+
+  function authHeaders(extra) {
+    var t = authToken();
+    return Object.assign({ Accept: 'application/json' },
+      t ? { Authorization: 'Bearer ' + t } : {}, extra || {});
+  }
 
   /* A session holds ten thousand observations. A browser asked to lay out ten
      thousand rows stops being an instrument, so tables are windowed and say
@@ -819,11 +857,25 @@
       + ico('stop') + 'Stop</button>';
     setWorkbar('Live Analysis', actions);
 
-    if (!h) { body(Empty('withheld', 'READING VISION SERVICE', 'One moment')); return; }
-    if (FV.status.ok === false) {
-      body(Empty('withheld', 'VISION SERVICE UNAVAILABLE', FV.status.error || 'the service did not answer'));
+    // ORDER MATTERS, AND IT WAS WRONG.
+    //
+    // `h` is `FV.status.health`, which is absent both while the request is in
+    // flight AND when it came back an error. Testing `!h` first meant every
+    // failure rendered as the LOADING state: a 401 in production showed
+    // "READING VISION SERVICE — One moment" and sat there for ever, with the
+    // real answer already in `FV.status.error` and nothing on screen saying so.
+    // An error is checked before an absence, and a never-answered request is
+    // the only thing that may still read as loading.
+    if (FV.status && FV.status.ok === false) {
+      body(Empty('withheld', 'VISION SERVICE UNAVAILABLE',
+        FV.status.error || 'the service did not answer', 'absent')
+        + '<div class="vx-rowgap"></div>'
+        + '<div class="vx-legend" style="justify-content:center">'
+        + '<button class="vx-btn" type="button" data-vx-retry>' + ico('arrow') + 'Try again</button>'
+        + '</div>');
       return;
     }
+    if (!h) { body(Empty('withheld', 'READING VISION SERVICE', 'One moment')); return; }
     if (!s) { body(needSession()); return; }
 
     var sm = s.summary, caps = sm.capabilities, frame = FV.frame;
@@ -2513,10 +2565,26 @@
      ═══════════════════════════════════════════════════════════════════════════ */
 
   function get(path) {
-    return fetch(API + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    return fetch(apiBase() + '/familista-vision' + path, {
+      credentials: 'include',
+      headers: authHeaders(),
+    })
       .then(function (r) {
-        if (r.status === 401 || r.status === 403) {
-          return { ok: false, error: 'Familista Vision is not available to this account.' };
+        // 401 and 403 are different answers and the reader deserves to know
+        // which. "Signed out" is fixed by signing in; "not yours" is not.
+        if (r.status === 401) {
+          return { ok: false, status: 401,
+            error: 'Your session has expired. Reload the page to sign in again.' };
+        }
+        if (r.status === 403) {
+          return { ok: false, status: 403,
+            error: 'Familista Vision is not available to this account.' };
+        }
+        if (!r.ok) {
+          return r.json().catch(function () { return {}; }).then(function (b) {
+            return { ok: false, status: r.status,
+              error: (b && (b.error || b.message)) || ('The Vision service answered HTTP ' + r.status + '.') };
+          });
         }
         return r.json().catch(function () { return { ok: false, error: 'malformed response' }; });
       })
@@ -2553,11 +2621,41 @@
       + ico('track') + 'Open in Player Tracking</button>');
   }
 
+  /**
+   * An export is an authenticated read, so it goes through `fetch`.
+   *
+   * `window.open` cannot carry an Authorization header, so the download
+   * inherited exactly the fault the rest of the module had: it worked while the
+   * cookie was fresh and 401ed afterwards, and the browser rendered the 401
+   * body as a blank tab. Fetching the bytes and handing the browser an object
+   * URL keeps the credential on the request.
+   */
   function exportReport(kind) {
     if (!FV.sessionRef) return;
-    var url = API + '/sessions/' + encodeURIComponent(FV.sessionRef) + '/export?kind='
-      + encodeURIComponent(kind);
-    try { window.open(url, '_blank', 'noopener'); } catch (_) { window.location.href = url; }
+    var ref = FV.sessionRef;
+    var url = apiBase() + '/familista-vision/sessions/' + encodeURIComponent(ref)
+      + '/export?kind=' + encodeURIComponent(kind);
+    fetch(url, { credentials: 'include', headers: authHeaders() })
+      .then(function (r) {
+        if (!r.ok) throw new Error('The Vision service answered HTTP ' + r.status + '.');
+        var cd = r.headers.get('content-disposition') || '';
+        var m = /filename="?([^";]+)"?/i.exec(cd);
+        return r.blob().then(function (b) {
+          return { blob: b, name: m ? m[1] : ref + '-' + kind + '.json' };
+        });
+      })
+      .then(function (f) {
+        var href = URL.createObjectURL(f.blob);
+        var a = document.createElement('a');
+        a.href = href; a.download = f.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(href); }, 30000);
+      })
+      .catch(function (e) {
+        openDrawer('Export failed', kind,
+          '<p class="vx-note" style="border:0;padding:0;margin:0">'
+          + esc(String((e && e.message) || e)) + '</p>');
+      });
   }
 
   /* ── events ──────────────────────────────────────────────────────────────── */
@@ -2631,6 +2729,8 @@
     }
     var exp = t.closest('[data-vx-export]');
     if (exp) { exportReport(exp.getAttribute('data-vx-export')); return; }
+
+    if (t.closest('[data-vx-retry]')) { boot(); return; }
   }
 
   function onInput(e) {
