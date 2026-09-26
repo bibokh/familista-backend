@@ -189,31 +189,31 @@ body.fv-vision-open { overflow: hidden; }
 .vx-me-r { display: block; font-size: 9.5px; color: var(--v-tx-3); letter-spacing: .06em;
   text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
 
-/* ═══ 2 · MODULE ROW ════════════════════════════════════════════════════════ */
+/* ═══ 2 · LEAVING THE WORKSPACE ═════════════════════════════════════════════
 
-.vx-modules {
-  flex: 0 0 auto; height: 40px; display: flex; align-items: stretch; gap: var(--v-1);
-  padding: 0 var(--v-2); overflow-x: auto; scrollbar-width: none;
-  border-bottom: 1px solid var(--v-line); background: rgba(5, 9, 17, .7);
-}
-.vx-modules::-webkit-scrollbar { display: none; }
-.vx-mod {
+   One control where a row of the platform's rooms used to be. It is quiet by
+   default and lights on hover: a way out should be findable without competing
+   with the work. The arrow is flipped rather than given its own glyph, so the
+   set of icons this module carries does not grow by one for a single use. */
+
+.vx-back {
   flex: 0 0 auto; display: inline-flex; align-items: center; gap: var(--v-2);
-  padding: 0 var(--v-3); margin: var(--v-1) 0; border-radius: var(--v-r-sm);
-  border: 1px solid transparent; background: none; color: var(--v-tx-2);
-  font-size: 12px; font-weight: 550; cursor: pointer; white-space: nowrap;
-  transition: background .14s, color .14s, border-color .14s;
+  height: 32px; padding: 0 var(--v-3) 0 var(--v-2); border-radius: var(--v-r-sm);
+  border: 1px solid var(--v-line-2); background: rgba(255, 255, 255, .02);
+  color: var(--v-tx-2); font-size: 12px; font-weight: 600; cursor: pointer;
+  white-space: nowrap; transition: background .14s, color .14s, border-color .14s;
 }
-.vx-mod svg { width: 15px; height: 15px; stroke: currentColor; fill: none;
-  stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; opacity: .9; }
-.vx-mod:hover { background: rgba(255, 255, 255, .05); color: var(--v-tx); }
-.vx-mod[aria-current="page"] {
-  background: linear-gradient(180deg, rgba(139, 92, 246, .26), rgba(34, 211, 238, .14));
-  border-color: rgba(139, 92, 246, .45); color: #fff; font-weight: 700;
-  box-shadow: 0 0 20px -8px rgba(139, 92, 246, .9);
+.vx-back:hover { background: rgba(255, 255, 255, .06); color: var(--v-tx); border-color: var(--v-line-3); }
+.vx-back:active { transform: translateY(0.5px); }
+.vx-back-i { display: grid; place-items: center; }
+.vx-back-i svg {
+  width: 15px; height: 15px; stroke: currentColor; fill: none;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+  transform: rotate(180deg);
 }
-.vx-mod[disabled] { opacity: .38; cursor: not-allowed; }
-.vx-mod[disabled]:hover { background: none; color: var(--v-tx-2); }
+.vx-top-sep {
+  flex: 0 0 auto; width: 1px; height: 22px; background: var(--v-line);
+}
 
 /* ═══ 3 · BODY: SIDEBAR + WORKSPACE ═════════════════════════════════════════ */
 
