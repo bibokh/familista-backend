@@ -7,3 +7,8 @@ logs/
 coverage/
 # NOTE: prisma/migrations IS version-controlled (was previously ignored which
 # left production schema state unreproducible — see prisma/migrations/README.md).
+
+# Browser-verification output. The screenshot runs that prove a UI change in a
+# real browser write here; they are evidence for a review, not source, and a
+# few dozen full-page PNGs would weigh more than the code they document.
+vision-screenshots-tmp/
