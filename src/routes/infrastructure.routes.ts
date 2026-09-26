@@ -133,7 +133,9 @@ router.get('/topology', async (_req: Request, res: Response, next) => {
           id: c.id, name: c.name, district: c.district, category: c.category,
           type: c.type, status: c.status, version: c.version,
           provider: c.provider, region: c.region,
-          health: c.healthKey ? (byKey.get(c.healthKey)?.state ?? 'UNKNOWN') : 'NOT_INSTRUMENTED',
+          // A key no signal answers is a component nothing measures — the same
+          // word the city and Source Core use for it, not an UNKNOWN reading.
+          health: (c.healthKey && byKey.get(c.healthKey)?.state) || 'NOT_INSTRUMENTED',
           dependencies: dependenciesOf(c.id),
           dependents: dependentsOf(c.id),
         })),

@@ -191,5 +191,16 @@
   "AI Infrastructure Assistant": "KI-Infrastrukturassistent",
   "Vulnerability Scanning": "Schwachstellen-Scan",
   "CONTRACT ERROR": "VERTRAGSFEHLER",
-  "the response did not carry:": "die Antwort enthielt nicht:"
+  "the response did not carry:": "die Antwort enthielt nicht:",
+  "Database unreachable": "Datenbank nicht erreichbar",
+  "Database latency elevated": "Erhöhte Datenbanklatenz",
+  "Historical delivery backlog": "Rückstau bei der historischen Zustellung",
+  "Historical records dropped": "Historische Datensätze verworfen",
+  "Historical write failures": "Fehler beim historischen Schreiben",
+  "Unknown event types seen": "Unbekannte Ereignistypen erkannt",
+  "Event schema failures": "Fehler im Ereignisschema",
+  "Redis configured but unreachable": "Redis konfiguriert, aber nicht erreichbar",
+  "Process heap pressure": "Heap-Auslastung des Prozesses",
+  "API server errors elevated": "Erhöhte API-Serverfehler",
+  "Object storage is in-memory": "Objektspeicher liegt nur im Arbeitsspeicher"
 }

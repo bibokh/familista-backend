@@ -830,7 +830,7 @@
     };
 
     var measured = '<div class="ic-caps">'
-      + bar('Process heap', proc.heapUsedMb, proc.heapTotalMb, 'MB')
+      + bar('Process heap', proc.heapUsedMb, proc.heapLimitMb, 'MB')
       + bar('Historical delivery backlog', hist.pendingDeliveries, hist.pendingCriticalAt, T('events'))
       + '</div>'
       + '<div class="ic-stats ic-stats--4">'

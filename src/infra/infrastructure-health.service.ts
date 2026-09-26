@@ -38,6 +38,9 @@
 // comment — "publishing a snapshot per poll would make a heartbeat look like
 // news" — so this file honours that rather than working around it.
 
+import fs from 'fs';
+import path from 'path';
+import v8 from 'v8';
 import { prisma } from '../config/database';
 import { logger } from '../utils/logger';
 import { redisStatus, redisConfigured } from './redis';
@@ -51,6 +54,7 @@ import { archiveStatus } from '../fabric/history/archive';
 import { getObjectStore } from '../fabric/media/object-store';
 import { publishSystemHealthChanged } from '../fabric/producers/system.producer';
 import { manifestOrNull } from './infrastructure-registry.service';
+import { apiTraffic, API_WINDOW_MINUTES } from './api-traffic';
 
 export type HealthState = 'HEALTHY' | 'WARNING' | 'CRITICAL' | 'NOT_CONFIGURED' | 'NOT_INSTRUMENTED' | 'UNVERIFIED' | 'UNKNOWN';
 export type Severity = 'CRITICAL' | 'WARNING' | 'INFO';
@@ -84,10 +88,39 @@ export const THRESHOLDS = {
   heapUsedCriticalRatio: Number(process.env.INFRA_HEAP_CRITICAL_RATIO ?? 0.95),
   registryUnknownWarn: Number(process.env.INFRA_REGISTRY_UNKNOWN_WARN ?? 1),
   registrySchemaFailWarn: Number(process.env.INFRA_REGISTRY_SCHEMA_FAIL_WARN ?? 1),
+  apiServerErrorsWarn: Number(process.env.INFRA_API_SERVER_ERRORS_WARN ?? 5),
+  apiErrorRatioWarn: Number(process.env.INFRA_API_ERROR_RATIO_WARN ?? 0.05),
+  apiErrorRatioCritical: Number(process.env.INFRA_API_ERROR_RATIO_CRITICAL ?? 0.25),
+  counterWindowMinutes: Number(process.env.INFRA_COUNTER_WINDOW_MINUTES ?? 15),
 } as const;
 
 const iso = () => new Date().toISOString();
 const round = (n: number) => Math.round(n * 100) / 100;
+
+// ── counters that only ever rise ─────────────────────────────────────────────
+//
+// Several of the platform's own health counters are since-start totals: the
+// historical writer's failures and drops, the registry's unknown types and
+// schema rejections. Judging the present by a since-start total means one bad
+// minute at boot keeps a district yellow until the next restart, long after the
+// thing recovered — and an incident that cannot resolve is not an incident, it
+// is wallpaper. So a counter fires a rule while it is RISING: when it went up
+// within the last `counterWindowMinutes` of observation. The total is still
+// reported, unchanged, beside it.
+
+const counterRises = new Map<string, { value: number; risenAt: number }>();
+
+function risenRecently(key: string, value: number, now: number = Date.now()): boolean {
+  const seen = counterRises.get(key);
+  if (!seen || value !== seen.value) {
+    // A first sighting of a non-zero total counts as a rise now: it happened
+    // before anybody was looking, and the operator should see it once.
+    const rose = !seen ? value > 0 : value > seen.value;
+    counterRises.set(key, { value, risenAt: rose ? now : (seen ? seen.risenAt : 0) });
+  }
+  const at = counterRises.get(key)!.risenAt;
+  return at > 0 && now - at < THRESHOLDS.counterWindowMinutes * 60_000;
+}
 
 // ── individual signals ───────────────────────────────────────────────────────
 
@@ -126,24 +159,37 @@ async function databaseSignal(): Promise<Signal> {
   }
 }
 
-/** The process this code is running in. Real `process` values, nothing derived. */
+/**
+ * The process this code is running in. Real `process` and V8 values.
+ *
+ * Heap pressure is measured against V8's heap LIMIT — the size at which the
+ * process actually runs out of memory — and not against `heapTotal`. The two
+ * are easy to confuse and mean opposite things: `heapTotal` is only what V8 has
+ * committed so far, it grows on demand and is trimmed after every collection,
+ * so `heapUsed / heapTotal` sits between 85% and 99% in a perfectly healthy
+ * server. Reading that ratio as pressure painted Node.js and the Platform Core
+ * red on a process with gigabytes of headroom.
+ */
 function processSignal(): Signal {
   const mem = process.memoryUsage();
-  const ratio = mem.heapTotal > 0 ? mem.heapUsed / mem.heapTotal : 0;
+  const limit = v8.getHeapStatistics().heap_size_limit;
+  const ratio = limit > 0 ? mem.heapUsed / limit : 0;
   const state: HealthState = ratio >= THRESHOLDS.heapUsedCriticalRatio ? 'CRITICAL'
     : ratio >= THRESHOLDS.heapUsedWarnRatio ? 'WARNING' : 'HEALTHY';
   return {
     key: 'process', state,
-    summary: `Up ${Math.floor(process.uptime())} s, heap ${Math.round(ratio * 100)}% of allocation.`,
+    summary: `Up ${Math.floor(process.uptime())} s, heap ${Math.round(ratio * 100)}% of its `
+      + `${Math.round(limit / 1048576)} MB limit.`,
     measurements: {
       uptimeSeconds: Math.floor(process.uptime()),
       heapUsedMb: round(mem.heapUsed / 1048576),
       heapTotalMb: round(mem.heapTotal / 1048576),
+      heapLimitMb: round(limit / 1048576),
       rssMb: round(mem.rss / 1048576),
       heapRatio: round(ratio),
       nodeVersion: process.version,
     },
-    evidence: 'process.memoryUsage(), process.uptime()',
+    evidence: 'process.memoryUsage(), v8.getHeapStatistics().heap_size_limit, process.uptime()',
     measuredAt: iso(),
   };
 }
@@ -153,16 +199,21 @@ function fabricSignal(): Signal {
   const h = registryHealth() as unknown as Record<string, number>;
   const unknown = Number(h.unknownEventCount ?? 0);
   const schemaFail = Number(h.schemaFailureCount ?? 0);
-  const state: HealthState = schemaFail >= THRESHOLDS.registrySchemaFailWarn ? 'WARNING'
-    : unknown >= THRESHOLDS.registryUnknownWarn ? 'WARNING' : 'HEALTHY';
+  const unknownActive = unknown >= THRESHOLDS.registryUnknownWarn && risenRecently('fabric.unknown', unknown);
+  const schemaActive = schemaFail >= THRESHOLDS.registrySchemaFailWarn && risenRecently('fabric.schema', schemaFail);
+  const state: HealthState = schemaActive || unknownActive ? 'WARNING' : 'HEALTHY';
   return {
     key: 'fabric', state,
-    summary: state === 'HEALTHY'
-      ? 'No unknown event types and no schema failures since start.'
-      : `${unknown} unknown event type(s), ${schemaFail} schema failure(s) since start.`,
+    summary: state !== 'HEALTHY'
+      ? `${unknown} unknown event type(s), ${schemaFail} schema failure(s) since start, rising in the last ${THRESHOLDS.counterWindowMinutes} min.`
+      : unknown + schemaFail === 0
+        ? 'No unknown event types and no schema failures since start.'
+        : `None in the last ${THRESHOLDS.counterWindowMinutes} min (${unknown} unknown type(s), ${schemaFail} schema failure(s) since start).`,
     measurements: {
       unknownEventCount: unknown,
       schemaFailureCount: schemaFail,
+      unknownEventsActive: unknownActive,
+      schemaFailuresActive: schemaActive,
       registeredSources: fabricSources().length,
       registeredEventTypes: fabricEvents().length,
       producedEventTypes: fabricEvents().filter((e) => e.produced).length,
@@ -197,26 +248,35 @@ async function historicalStoreSignal(): Promise<Signal> {
 
   const failures = Number(w.failures ?? 0);
   const dropped = Number(w.dropped ?? 0);
+  const retryBacklog = Number(w.retryBacklog ?? 0);
+  // Failing now: failures are still rising, or records are still waiting on a
+  // retry. A failure the writer has since recovered from is history, not state.
+  const failuresActive = failures >= THRESHOLDS.historyFailuresWarn
+    && (risenRecently('history.failures', failures) || retryBacklog > 0);
+  const droppedActive = dropped >= THRESHOLDS.historyDroppedCritical && risenRecently('history.dropped', dropped);
   const state: HealthState =
-    dropped >= THRESHOLDS.historyDroppedCritical ? 'CRITICAL'
+    droppedActive ? 'CRITICAL'
       : (pending ?? 0) >= THRESHOLDS.historyPendingCritical ? 'CRITICAL'
         : (pending ?? 0) >= THRESHOLDS.historyPendingWarn ? 'WARNING'
-          : failures >= THRESHOLDS.historyFailuresWarn ? 'WARNING'
+          : failuresActive ? 'WARNING'
             : 'HEALTHY';
 
   return {
     key: 'historicalStore', state,
     summary: state === 'HEALTHY'
       ? `${windowTotal ?? 0} events stored, nothing pending.`
+        + (failures > 0 ? ` ${failures} earlier write failure(s), recovered.` : '')
       : `${pending ?? 0} pending deliver${(pending ?? 0) === 1 ? 'y' : 'ies'}, ${failures} write failure(s).`,
     measurements: {
       storedEvents: windowTotal,
       earliestEvent: earliest,
       pendingDeliveries: pending,
       writeFailures: failures,
+      writeFailuresActive: failuresActive,
       dropped,
+      droppedActive,
       duplicates: Number(w.duplicates ?? 0),
-      retryBacklog: Number(w.retryBacklog ?? 0),
+      retryBacklog,
       recoveryEnabled: !!recovery.enabled,
       recoveredTotal: recovery.totalRecovered,
       pendingWarnAt: THRESHOLDS.historyPendingWarn,
@@ -363,7 +423,86 @@ function integrationSignal(key: string, envName: string, label: string): Signal 
   };
 }
 
-/** Every signal, measured together. */
+/**
+ * The API router: is it answering, and is it answering with server errors?
+ *
+ * Read from `api-traffic.ts`, which counts every response the API mount
+ * completes. The reading itself travels through that router, so a router that
+ * is not answering produces no reading at all rather than a green one. A
+ * handful of 5xx responses on a quiet platform is not an outage, so a state
+ * needs both an absolute count and a share of traffic before it is raised.
+ */
+function apiSignal(): Signal {
+  const t = apiTraffic();
+  const ratio = t.responses > 0 ? t.serverErrors / t.responses : 0;
+  const enough = t.serverErrors >= THRESHOLDS.apiServerErrorsWarn;
+  const state: HealthState = enough && ratio >= THRESHOLDS.apiErrorRatioCritical ? 'CRITICAL'
+    : enough && ratio >= THRESHOLDS.apiErrorRatioWarn ? 'WARNING' : 'HEALTHY';
+  return {
+    key: 'api', state,
+    summary: state === 'HEALTHY'
+      ? `Answering: ${t.responses} response(s), ${t.serverErrors} server error(s) in the last ${t.windowMinutes} min.`
+      : `${t.serverErrors} of ${t.responses} response(s) were server errors in the last ${t.windowMinutes} min.`,
+    measurements: {
+      windowMinutes: t.windowMinutes,
+      responses: t.responses,
+      serverErrors: t.serverErrors,
+      serverErrorRatio: round(ratio),
+      responsesSinceStart: t.responsesSinceStart,
+      serverErrorsSinceStart: t.serverErrorsSinceStart,
+      lastResponseAt: t.lastResponseAt,
+    },
+    evidence: 'src/infra/api-traffic.ts — responses completed through the /api mount',
+    measuredAt: iso(),
+  };
+}
+
+/**
+ * The build this process is running — TypeScript's only runtime status.
+ *
+ * TypeScript does not run; its output does. What a running server CAN prove is
+ * that it is executing compiled JavaScript from a build whose compile step
+ * succeeded: `npm run build` chains discovery, `tsc` and the asset copy with
+ * `&&`, and the manifest is copied beside the compiled health service only by
+ * that last step, so its presence there means `tsc` exited cleanly. A server
+ * started from source through a transpiler cannot prove a type-checked build,
+ * and says UNVERIFIED rather than green. Read once: a build cannot change under
+ * a running process.
+ */
+let buildReading: { runtimeMode: 'compiled' | 'source'; buildCompleted: boolean } | null = null;
+
+function buildSignal(): Signal {
+  if (!buildReading) {
+    const runtimeMode = __filename.endsWith('.js') ? 'compiled' : 'source';
+    buildReading = {
+      runtimeMode,
+      buildCompleted: runtimeMode === 'compiled'
+        && fs.existsSync(path.join(__dirname, 'generated', 'infrastructure-manifest.json')),
+    };
+  }
+  const { runtimeMode, buildCompleted } = buildReading;
+  const m = manifestOrNull();
+  const compiler = m ? m.components.find((c) => c.id === 'typescript') : undefined;
+  return {
+    key: 'build',
+    state: buildCompleted ? 'HEALTHY' : 'UNVERIFIED',
+    summary: buildCompleted
+      ? 'Running the compiled output of a build whose TypeScript compile completed.'
+      : runtimeMode === 'source'
+        ? 'Running TypeScript source through a transpiler; this process cannot prove a type-checked build.'
+        : 'Running compiled output, but the build step that follows the compile left no marker beside it.',
+    measurements: {
+      runtimeMode,
+      buildCompleted,
+      typescriptVersion: compiler ? compiler.version : null,
+      target: m && m.typescript && typeof m.typescript.target === 'string' ? m.typescript.target : null,
+      manifestGeneratedAt: m ? m.generatedAt : null,
+    },
+    evidence: 'npm run build: infrastructure-discover && prisma generate && tsc && copy-runtime-assets',
+    measuredAt: iso(),
+  };
+}
+
 /**
  * Familista Vision, as a signal Infrastructure City can draw.
  *
@@ -405,10 +544,10 @@ async function visionSignal(): Promise<Signal> {
     if (sessions === null) {
       return {
         key: 'vision',
-        // WARNING, not CRITICAL: an engine with no session store is a
-        // deployment that has not been given evidence to read, which is an
-        // operator's configuration, not an outage.
-        state: 'WARNING',
+        // An engine with no session store is a deployment that has not been
+        // given evidence to read — an operator's configuration, not an outage —
+        // so it is NOT_CONFIGURED, and nothing turns yellow over it.
+        state: 'NOT_CONFIGURED',
         summary: 'The Vision engine answered but exposes no session store.',
         measurements: { processingTarget: target, sessions: null, eventTypes },
         evidence: 'vision-platform engine contract: listSessions()',
@@ -441,12 +580,13 @@ async function visionSignal(): Promise<Signal> {
   }
 }
 
+/** Every signal, measured together. */
 export async function infrastructureSignals(): Promise<Signal[]> {
   const [db, history, vision] = await Promise.all([
     databaseSignal(), historicalStoreSignal(), visionSignal(),
   ]);
   return [
-    processSignal(), db, fabricSignal(), history, redisSignal(),
+    processSignal(), buildSignal(), apiSignal(), db, fabricSignal(), history, redisSignal(),
     objectStoreSignal(), archiveSignal(), aiSignal(),
     integrationSignal('stripe', 'STRIPE_SECRET_KEY', 'Stripe'),
     integrationSignal('email', 'SENDGRID_API_KEY', 'Email delivery'),
@@ -495,28 +635,28 @@ export const INFRASTRUCTURE_RULES: InfraRule[] = [
   {
     id: 'history-dropped', title: 'Historical records dropped', severity: 'CRITICAL',
     componentId: 'historical-store', districtId: 'vault',
-    condition: `The writer reports ${THRESHOLDS.historyDroppedCritical} or more exhausted records.`,
+    condition: `The writer's count of exhausted records (${THRESHOLDS.historyDroppedCritical} or more) rose within the last ${THRESHOLDS.counterWindowMinutes} minutes.`,
     nextStep: 'Inspect the historical writer. A dropped record is one the in-process queue gave up on; recovery may still deliver it from the outbox.',
     impact: 'History may be incomplete for the affected window.',
   },
   {
     id: 'history-failures', title: 'Historical write failures', severity: 'WARNING',
     componentId: 'historical-store', districtId: 'vault',
-    condition: `The writer reports ${THRESHOLDS.historyFailuresWarn} or more failed writes since start.`,
+    condition: `The writer reports ${THRESHOLDS.historyFailuresWarn} or more failed writes, and they are still rising (last ${THRESHOLDS.counterWindowMinutes} minutes) or still waiting on a retry.`,
     nextStep: 'Check database health first — the writer fails when the store does.',
     impact: 'Affected events fall back to the durable outbox and are recovered later.',
   },
   {
     id: 'fabric-unknown', title: 'Unknown event types seen', severity: 'WARNING',
     componentId: 'data-fabric', districtId: 'fabric',
-    condition: `The registry has seen ${THRESHOLDS.registryUnknownWarn} or more unregistered event types.`,
+    condition: `The registry's count of unregistered event types (${THRESHOLDS.registryUnknownWarn} or more) rose within the last ${THRESHOLDS.counterWindowMinutes} minutes.`,
     nextStep: 'A producer is publishing a type the registry does not declare. Check recent producer changes.',
     impact: 'Unregistered events carry no schema and are classified defensively.',
   },
   {
     id: 'fabric-schema', title: 'Event schema failures', severity: 'WARNING',
     componentId: 'data-fabric', districtId: 'fabric',
-    condition: `The registry has rejected ${THRESHOLDS.registrySchemaFailWarn} or more payloads.`,
+    condition: `The registry's count of rejected payloads (${THRESHOLDS.registrySchemaFailWarn} or more) rose within the last ${THRESHOLDS.counterWindowMinutes} minutes.`,
     nextStep: 'A producer is sending a payload its own contract rejects. Check the failing event type.',
     impact: 'Rejected events are not published.',
   },
@@ -530,9 +670,16 @@ export const INFRASTRUCTURE_RULES: InfraRule[] = [
   {
     id: 'heap-pressure', title: 'Process heap pressure', severity: 'WARNING',
     componentId: 'platform-core', districtId: 'core',
-    condition: `Heap used at or above ${Math.round(THRESHOLDS.heapUsedWarnRatio * 100)}% of allocation (critical at ${Math.round(THRESHOLDS.heapUsedCriticalRatio * 100)}%).`,
+    condition: `Heap used at or above ${Math.round(THRESHOLDS.heapUsedWarnRatio * 100)}% of the V8 heap limit (critical at ${Math.round(THRESHOLDS.heapUsedCriticalRatio * 100)}%).`,
     nextStep: 'Watch for a rising trend rather than a single reading; a garbage collection cycle moves this number.',
     impact: 'Sustained pressure precedes slowdowns and, eventually, a restart.',
+  },
+  {
+    id: 'api-errors', title: 'API server errors elevated', severity: 'WARNING',
+    componentId: 'api-gateway', districtId: 'backend',
+    condition: `At least ${THRESHOLDS.apiServerErrorsWarn} server errors (5xx) and ${Math.round(THRESHOLDS.apiErrorRatioWarn * 100)}% of API responses in the last ${API_WINDOW_MINUTES} minutes (critical at ${Math.round(THRESHOLDS.apiErrorRatioCritical * 100)}%).`,
+    nextStep: 'Search the structured log for http.error: each line names the route and carries the request id of the whole transaction.',
+    impact: 'Requests on the affected routes are failing for the people making them.',
   },
   {
     id: 'object-store-volatile', title: 'Object storage is in-memory', severity: 'INFO',
@@ -665,22 +812,27 @@ export function evaluate(signals: Signal[]): Incident[] {
     fire(ruleById('history-backlog')!, `${pending} event(s) committed to the outbox have no historical row.`, hist);
   } else { clear('history-backlog'); }
 
-  if (Number(hist.dropped ?? 0) >= THRESHOLDS.historyDroppedCritical) {
+  if (hist.droppedActive === true) {
     fire(ruleById('history-dropped')!, `${hist.dropped} record(s) exhausted their retries.`, hist);
   } else { clear('history-dropped'); }
 
-  if (Number(hist.writeFailures ?? 0) >= THRESHOLDS.historyFailuresWarn) {
+  if (hist.writeFailuresActive === true) {
     fire(ruleById('history-failures')!, `${hist.writeFailures} historical write(s) failed since start.`, hist);
   } else { clear('history-failures'); }
 
   const fab = m('fabric');
-  if (Number(fab.unknownEventCount ?? 0) >= THRESHOLDS.registryUnknownWarn) {
+  if (fab.unknownEventsActive === true) {
     fire(ruleById('fabric-unknown')!, `${fab.unknownEventCount} unregistered event type(s) seen.`, fab);
   } else { clear('fabric-unknown'); }
 
-  if (Number(fab.schemaFailureCount ?? 0) >= THRESHOLDS.registrySchemaFailWarn) {
+  if (fab.schemaFailuresActive === true) {
     fire(ruleById('fabric-schema')!, `${fab.schemaFailureCount} payload(s) rejected by their own schema.`, fab);
   } else { clear('fabric-schema'); }
+
+  if (state('api') === 'WARNING' || state('api') === 'CRITICAL') {
+    const api = m('api');
+    fire(ruleById('api-errors')!, `${api.serverErrors} of ${api.responses} API response(s) were server errors in the last ${api.windowMinutes} min.`, api);
+  } else { clear('api-errors'); }
 
   if (state('redis') === 'CRITICAL') {
     fire(ruleById('redis-down')!, 'Redis is configured but the client is not connected.', m('redis'));
@@ -688,7 +840,7 @@ export function evaluate(signals: Signal[]): Incident[] {
 
   const proc = m('process');
   if (state('process') === 'WARNING' || state('process') === 'CRITICAL') {
-    fire(ruleById('heap-pressure')!, `Heap at ${Math.round(Number(proc.heapRatio ?? 0) * 100)}% of allocation.`, proc);
+    fire(ruleById('heap-pressure')!, `Heap at ${Math.round(Number(proc.heapRatio ?? 0) * 100)}% of the ${proc.heapLimitMb} MB V8 heap limit.`, proc);
   } else { clear('heap-pressure'); }
 
   if (state('objectStore') === 'NOT_CONFIGURED') {
@@ -762,6 +914,7 @@ export function resetInfrastructureIncidents(): void {
   open.clear();
   resolved.length = 0;
   lastPublished.clear();
+  counterRises.clear();
   sequence = 0;
 }
 

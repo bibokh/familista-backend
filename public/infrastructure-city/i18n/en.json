@@ -191,5 +191,16 @@
   "AI Infrastructure Assistant": "AI Infrastructure Assistant",
   "Vulnerability Scanning": "Vulnerability Scanning",
   "CONTRACT ERROR": "CONTRACT ERROR",
-  "the response did not carry:": "the response did not carry:"
+  "the response did not carry:": "the response did not carry:",
+  "Database unreachable": "Database unreachable",
+  "Database latency elevated": "Database latency elevated",
+  "Historical delivery backlog": "Historical delivery backlog",
+  "Historical records dropped": "Historical records dropped",
+  "Historical write failures": "Historical write failures",
+  "Unknown event types seen": "Unknown event types seen",
+  "Event schema failures": "Event schema failures",
+  "Redis configured but unreachable": "Redis configured but unreachable",
+  "Process heap pressure": "Process heap pressure",
+  "API server errors elevated": "API server errors elevated",
+  "Object storage is in-memory": "Object storage is in-memory"
 }
