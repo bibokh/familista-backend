@@ -1562,5 +1562,10 @@
   "Source state unknown": "Không rõ trạng thái nguồn",
   "Critical sources: \u0000": "Nguồn nghiêm trọng: \u0000",
   "Sources in warning: \u0000": "Nguồn có cảnh báo: \u0000",
-  "Sources mapped: \u0000 · not instrumented: \u0000": "Nguồn đã lập bản đồ: \u0000 · chưa đo: \u0000"
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Nguồn đã lập bản đồ: \u0000 · chưa đo: \u0000",
+  "FAMILISTA VISION": "FAMILISTA VISION",
+  "Open Vision": "Open Vision",
+  "Reading Vision service…": "Reading Vision service…",
+  "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
 }

@@ -1565,5 +1565,10 @@
   "Source state unknown": "Ukjent kildetilstand",
   "Critical sources: \u0000": "Kritiske kilder: \u0000",
   "Sources in warning: \u0000": "Kilder med advarsel: \u0000",
-  "Sources mapped: \u0000 · not instrumented: \u0000": "Kartlagte kilder: \u0000 · ikke målt: \u0000"
+  "Sources mapped: \u0000 · not instrumented: \u0000": "Kartlagte kilder: \u0000 · ikke målt: \u0000",
+  "FAMILISTA VISION": "FAMILISTA VISION",
+  "Open Vision": "Open Vision",
+  "Reading Vision service…": "Reading Vision service…",
+  "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
 }

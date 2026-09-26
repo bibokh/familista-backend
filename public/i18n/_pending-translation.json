@@ -1,0 +1,121 @@
+{
+  "note": "Keys filled with the base value rather than translated. Each one renders as English in a locale that is not English. Replace with a real translation and remove the entry; scripts/i18n-check.js reports the count on every run.",
+  "locales": {
+    "de-DE": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "it-IT": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "es-ES": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "es-MX": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "pt-PT": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "pt-BR": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "fr-FR": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "sr-RS": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "zh-CN": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "zh-TW": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "cs-CZ": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "da-DK": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "fi-FI": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "el-GR": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "he-IL": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "ja-JP": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "nl-NL": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "nb-NO": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "pl-PL": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "ro-RO": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "ru-RU": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "ko-KR": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "sv-SE": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "tr-TR": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "vi-VN": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "ar": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "id-ID": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "ms-MY": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ],
+    "th-TH": [
+      "catalogue:1 entr(ies) filled with English",
+      "catalogue:5 entr(ies) filled with English"
+    ]
+  }
+}

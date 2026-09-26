@@ -1,0 +1,14 @@
+{
+ "sessionRef": "original-clip",
+ "importedAt": "2026-09-25T09:52:59.842Z",
+ "engineSchema": "familista-vision/phase2-corrected@1",
+ "sourceSha256": "36252634dc1be6991dfd0fe46f82d42ab579d261427145d56194b5e2b797e18b",
+ "observations": 4484,
+ "ballSamples": 301,
+ "companions": [
+  "events",
+  "readiness"
+ ],
+ "artefactSha256": "daaa720026f6bec8bca7ef460833818fe9960d4473e07e0c645f69ae4b1bf059",
+ "note": "copied from a validated engine run. Original evidence: never edited, never recomputed, and never overwritten when a later model disagrees."
+}

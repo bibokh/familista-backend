@@ -1,0 +1,973 @@
+{
+  "schema": "familista-vision/phase4-events@1",
+  "source": {
+    "path": "input/morocco_spain_clip2.mp4",
+    "bytes": 19901316,
+    "sha256": "fdddb0e57d99109753c479eedc917aff8bc4d1a0975265bdc16426c34ecee615"
+  },
+  "built_from": {
+    "phase3_json": "bench_clip2.json",
+    "ball_model": {
+      "role": "ball_detector",
+      "provider": "ultralytics_yolo11_coco_ball",
+      "model_ids": [
+        "ultralytics_yolo11m_coco_ball"
+      ],
+      "settings": {
+        "imgsz": 1280,
+        "device": "cpu",
+        "classes": [
+          32
+        ],
+        "weights": "yolo11m.pt"
+      },
+      "fuses_detection_and_tracking": false
+    },
+    "pitch_model": {
+      "backend": "hrnet_soccernet",
+      "architecture": "HRNetV2-W48 + 58-channel softmax heatmap head",
+      "backbone_source": "timm hrnet_w48 (Apache-2.0)",
+      "weights_file": "pnlcalib_SV_kp.pth",
+      "weights_license": "GPL-2.0 reference implementation; trained on SoccerNet-Calibration (research use)",
+      "commercial_use": "NOT CLEARED \u2014 requires licensed or retrained weights",
+      "landmark_vocabulary": "57-point SoccerNet-Calibration ordering",
+      "input_size": "960x540",
+      "score_threshold": 0.3434,
+      "tensors_loaded": 1839
+    }
+  },
+  "policy": {
+    "evidence": "calibrated, OBSERVED ball positions only; propagated positions never carry an event",
+    "proximity": "reported as a measurement; never a control claim",
+    "control": "requires a change in ball motion, not proximity alone",
+    "not_claimed": [
+      "possession %",
+      "passes completed",
+      "shots",
+      "touches from proximity",
+      "player attributes",
+      "ratings",
+      "speed",
+      "stamina",
+      "tactical intelligence"
+    ]
+  },
+  "events": [
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 313,
+      "timestamp": 11.5203,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 68.65,
+      "pitch_y_m": 10.45,
+      "confidence": 0.873,
+      "reason": "433#1 measured 0.38 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.38,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 314,
+      "timestamp": 11.5571,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 68.64,
+      "pitch_y_m": 10.56,
+      "confidence": 0.87,
+      "reason": "433#1 measured 0.39 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.39,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 315,
+      "timestamp": 11.5939,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 68.7,
+      "pitch_y_m": 10.56,
+      "confidence": 0.872,
+      "reason": "433#1 measured 0.38 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.38,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 316,
+      "timestamp": 11.6307,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 68.73,
+      "pitch_y_m": 10.41,
+      "confidence": 0.869,
+      "reason": "433#1 measured 0.39 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.39,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 317,
+      "timestamp": 11.6676,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 68.76,
+      "pitch_y_m": 10.51,
+      "confidence": 0.865,
+      "reason": "433#1 measured 0.40 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.4,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 318,
+      "timestamp": 11.7044,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 68.77,
+      "pitch_y_m": 10.55,
+      "confidence": 0.83,
+      "reason": "433#1 measured 0.51 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.51,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 319,
+      "timestamp": 11.7412,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 68.81,
+      "pitch_y_m": 10.76,
+      "confidence": 0.803,
+      "reason": "433#1 measured 0.59 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.59,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 320,
+      "timestamp": 11.778,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 68.84,
+      "pitch_y_m": 10.83,
+      "confidence": 0.7,
+      "reason": "433#1 measured 0.90 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.9,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 321,
+      "timestamp": 11.8148,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.04,
+      "pitch_y_m": 10.62,
+      "confidence": 0.629,
+      "reason": "433#1 measured 1.11 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 1.11,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 322,
+      "timestamp": 11.8516,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.12,
+      "pitch_y_m": 10.59,
+      "confidence": 0.674,
+      "reason": "433#1 measured 0.98 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.98,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 323,
+      "timestamp": 11.8884,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.18,
+      "pitch_y_m": 10.53,
+      "confidence": 0.626,
+      "reason": "433#1 measured 1.12 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 1.12,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 324,
+      "timestamp": 11.9252,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.14,
+      "pitch_y_m": 11.11,
+      "confidence": 0.854,
+      "reason": "433#1 measured 0.44 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.44,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 325,
+      "timestamp": 11.962,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.26,
+      "pitch_y_m": 11.05,
+      "confidence": 0.73,
+      "reason": "433#1 measured 0.81 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.81,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 326,
+      "timestamp": 11.9988,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.26,
+      "pitch_y_m": 11.21,
+      "confidence": 0.879,
+      "reason": "433#1 measured 0.36 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.36,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 327,
+      "timestamp": 12.0356,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.56,
+      "pitch_y_m": 10.9,
+      "confidence": 0.852,
+      "reason": "433#1 measured 0.44 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.44,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 328,
+      "timestamp": 12.0724,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.59,
+      "pitch_y_m": 10.92,
+      "confidence": 0.815,
+      "reason": "433#1 measured 0.55 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.55,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 329,
+      "timestamp": 12.1092,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.74,
+      "pitch_y_m": 11.01,
+      "confidence": 0.866,
+      "reason": "433#1 measured 0.40 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.4,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 330,
+      "timestamp": 12.146,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.82,
+      "pitch_y_m": 10.99,
+      "confidence": 0.716,
+      "reason": "433#1 measured 0.85 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.85,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 332,
+      "timestamp": 12.2196,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.92,
+      "pitch_y_m": 11.03,
+      "confidence": 0.663,
+      "reason": "433#1 measured 1.01 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 1.01,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 335,
+      "timestamp": 12.3301,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 70.34,
+      "pitch_y_m": 12.14,
+      "confidence": 0.867,
+      "reason": "433#1 measured 0.40 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.4,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 336,
+      "timestamp": 12.3669,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 70.87,
+      "pitch_y_m": 12.73,
+      "confidence": 0.72,
+      "reason": "433#1 measured 0.84 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 0.84,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 337,
+      "timestamp": 12.4037,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 71.03,
+      "pitch_y_m": 13.97,
+      "confidence": 0.458,
+      "reason": "433#1 measured 1.63 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 1.63,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "PROXIMITY",
+      "state": "CONFIRMED",
+      "frame_number": 338,
+      "timestamp": 12.4405,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 71.16,
+      "pitch_y_m": 14.51,
+      "confidence": 0.281,
+      "reason": "433#1 measured 2.16 m from the ball (reporting radius 3.0 m); no interaction is claimed",
+      "evidence": {
+        "distance_m": 2.16,
+        "others_within_radius": [],
+        "ball_state": "OBSERVED"
+      }
+    },
+    {
+      "type": "CONTROL",
+      "state": "CONFIRMED",
+      "frame_number": 314,
+      "timestamp": 11.5571,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 68.64,
+      "pitch_y_m": 10.56,
+      "confidence": 0.74,
+      "reason": "ball motion changed (95deg, 3.0->1.6 m/s) with 433#1 0.39 m away",
+      "evidence": {
+        "distance_m": 0.39,
+        "turn_degrees": 95.2,
+        "speed_before_ms": 3.0,
+        "speed_after_ms": 1.63,
+        "ball_state": "OBSERVED",
+        "ground_projection_trusted": true
+      }
+    },
+    {
+      "type": "CONTROL",
+      "state": "CONFIRMED",
+      "frame_number": 315,
+      "timestamp": 11.5939,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 68.7,
+      "pitch_y_m": 10.56,
+      "confidence": 0.745,
+      "reason": "ball motion changed (79deg, 1.6->4.2 m/s) with 433#1 0.38 m away",
+      "evidence": {
+        "distance_m": 0.38,
+        "turn_degrees": 78.7,
+        "speed_before_ms": 1.63,
+        "speed_after_ms": 4.16,
+        "ball_state": "OBSERVED",
+        "ground_projection_trusted": true
+      }
+    },
+    {
+      "type": "CONTROL",
+      "state": "CONFIRMED",
+      "frame_number": 316,
+      "timestamp": 11.6307,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 68.73,
+      "pitch_y_m": 10.41,
+      "confidence": 0.737,
+      "reason": "ball motion changed (152deg, 4.2->2.8 m/s) with 433#1 0.39 m away",
+      "evidence": {
+        "distance_m": 0.39,
+        "turn_degrees": 152.0,
+        "speed_before_ms": 4.16,
+        "speed_after_ms": 2.83,
+        "ball_state": "OBSERVED",
+        "ground_projection_trusted": true
+      }
+    },
+    {
+      "type": "CONTROL",
+      "state": "CONFIRMED",
+      "frame_number": 318,
+      "timestamp": 11.7044,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 68.77,
+      "pitch_y_m": 10.55,
+      "confidence": 0.333,
+      "reason": "ball motion changed (3deg, 1.1->5.8 m/s) with 433#1 0.51 m away",
+      "evidence": {
+        "distance_m": 0.51,
+        "turn_degrees": 3.3,
+        "speed_before_ms": 1.12,
+        "speed_after_ms": 5.81,
+        "ball_state": "OBSERVED",
+        "ground_projection_trusted": true
+      }
+    },
+    {
+      "type": "CONTROL",
+      "state": "CONFIRMED",
+      "frame_number": 319,
+      "timestamp": 11.7412,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 68.81,
+      "pitch_y_m": 10.76,
+      "confidence": 0.31,
+      "reason": "ball motion changed (12deg, 5.8->2.1 m/s) with 433#1 0.59 m away",
+      "evidence": {
+        "distance_m": 0.59,
+        "turn_degrees": 12.4,
+        "speed_before_ms": 5.81,
+        "speed_after_ms": 2.07,
+        "ball_state": "OBSERVED",
+        "ground_projection_trusted": true
+      }
+    },
+    {
+      "type": "CONTROL",
+      "state": "CONFIRMED",
+      "frame_number": 320,
+      "timestamp": 11.778,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 68.84,
+      "pitch_y_m": 10.83,
+      "confidence": 0.4,
+      "reason": "ball motion changed (113deg, 2.1->7.9 m/s) with 433#1 0.90 m away",
+      "evidence": {
+        "distance_m": 0.9,
+        "turn_degrees": 113.2,
+        "speed_before_ms": 2.07,
+        "speed_after_ms": 7.88,
+        "ball_state": "OBSERVED",
+        "ground_projection_trusted": true
+      }
+    },
+    {
+      "type": "CONTROL",
+      "state": "CONFIRMED",
+      "frame_number": 321,
+      "timestamp": 11.8148,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.04,
+      "pitch_y_m": 10.62,
+      "confidence": 0.218,
+      "reason": "ball motion changed (26deg, 7.9->2.3 m/s) with 433#1 1.11 m away",
+      "evidence": {
+        "distance_m": 1.11,
+        "turn_degrees": 25.8,
+        "speed_before_ms": 7.88,
+        "speed_after_ms": 2.32,
+        "ball_state": "OBSERVED",
+        "ground_projection_trusted": true
+      }
+    },
+    {
+      "type": "CONTROL",
+      "state": "CONFIRMED",
+      "frame_number": 323,
+      "timestamp": 11.8884,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.18,
+      "pitch_y_m": 10.53,
+      "confidence": 0.252,
+      "reason": "ball motion changed (139deg, 2.3->15.8 m/s) with 433#1 1.12 m away",
+      "evidence": {
+        "distance_m": 1.12,
+        "turn_degrees": 138.9,
+        "speed_before_ms": 2.31,
+        "speed_after_ms": 15.8,
+        "ball_state": "OBSERVED",
+        "ground_projection_trusted": true
+      }
+    },
+    {
+      "type": "CONTROL",
+      "state": "CONFIRMED",
+      "frame_number": 324,
+      "timestamp": 11.9252,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.14,
+      "pitch_y_m": 11.11,
+      "confidence": 0.709,
+      "reason": "ball motion changed (121deg, 15.8->3.6 m/s) with 433#1 0.44 m away",
+      "evidence": {
+        "distance_m": 0.44,
+        "turn_degrees": 120.5,
+        "speed_before_ms": 15.8,
+        "speed_after_ms": 3.65,
+        "ball_state": "OBSERVED",
+        "ground_projection_trusted": true
+      }
+    },
+    {
+      "type": "CONTROL",
+      "state": "CONFIRMED",
+      "frame_number": 325,
+      "timestamp": 11.962,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.26,
+      "pitch_y_m": 11.05,
+      "confidence": 0.459,
+      "reason": "ball motion changed (117deg, 3.6->4.3 m/s) with 433#1 0.81 m away",
+      "evidence": {
+        "distance_m": 0.81,
+        "turn_degrees": 116.6,
+        "speed_before_ms": 3.65,
+        "speed_after_ms": 4.35,
+        "ball_state": "OBSERVED",
+        "ground_projection_trusted": true
+      }
+    },
+    {
+      "type": "CONTROL",
+      "state": "CONFIRMED",
+      "frame_number": 326,
+      "timestamp": 11.9988,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.26,
+      "pitch_y_m": 11.21,
+      "confidence": 0.758,
+      "reason": "ball motion changed (136deg, 4.3->11.7 m/s) with 433#1 0.36 m away",
+      "evidence": {
+        "distance_m": 0.36,
+        "turn_degrees": 135.9,
+        "speed_before_ms": 4.35,
+        "speed_after_ms": 11.72,
+        "ball_state": "OBSERVED",
+        "ground_projection_trusted": true
+      }
+    },
+    {
+      "type": "CONTROL",
+      "state": "CONFIRMED",
+      "frame_number": 327,
+      "timestamp": 12.0356,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.56,
+      "pitch_y_m": 10.9,
+      "confidence": 0.705,
+      "reason": "ball motion changed (80deg, 11.7->1.0 m/s) with 433#1 0.44 m away",
+      "evidence": {
+        "distance_m": 0.44,
+        "turn_degrees": 79.6,
+        "speed_before_ms": 11.72,
+        "speed_after_ms": 0.98,
+        "ball_state": "OBSERVED",
+        "ground_projection_trusted": true
+      }
+    },
+    {
+      "type": "CONTROL",
+      "state": "CONFIRMED",
+      "frame_number": 328,
+      "timestamp": 12.0724,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.59,
+      "pitch_y_m": 10.92,
+      "confidence": 0.257,
+      "reason": "ball motion changed (3deg, 1.0->4.8 m/s) with 433#1 0.55 m away",
+      "evidence": {
+        "distance_m": 0.55,
+        "turn_degrees": 2.7,
+        "speed_before_ms": 0.98,
+        "speed_after_ms": 4.75,
+        "ball_state": "OBSERVED",
+        "ground_projection_trusted": true
+      }
+    },
+    {
+      "type": "CONTROL",
+      "state": "CONFIRMED",
+      "frame_number": 329,
+      "timestamp": 12.1092,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 69.74,
+      "pitch_y_m": 11.01,
+      "confidence": 0.549,
+      "reason": "ball motion changed (45deg, 4.8->2.2 m/s) with 433#1 0.40 m away",
+      "evidence": {
+        "distance_m": 0.4,
+        "turn_degrees": 45.0,
+        "speed_before_ms": 4.75,
+        "speed_after_ms": 2.24,
+        "ball_state": "OBSERVED",
+        "ground_projection_trusted": true
+      }
+    },
+    {
+      "type": "CONTROL",
+      "state": "UNKNOWN",
+      "frame_number": 336,
+      "timestamp": 12.3669,
+      "shot_id": 1,
+      "players": [
+        "433#1"
+      ],
+      "teams": [
+        "team_b"
+      ],
+      "pitch_x_m": 70.87,
+      "pitch_y_m": 12.73,
+      "confidence": 0.0,
+      "reason": "ball motion changed (35deg, 21.6->34.0 m/s) with 433#1 0.84 m away; ground speed implies the ball is airborne, so the pitch coordinate is not the ball's position",
+      "evidence": {
+        "distance_m": 0.84,
+        "turn_degrees": 34.6,
+        "speed_before_ms": 21.55,
+        "speed_after_ms": 33.97,
+        "ball_state": "OBSERVED",
+        "ground_projection_trusted": false
+      }
+    }
+  ],
+  "counts": {
+    "PROXIMITY": 23,
+    "CONTROL": 15,
+    "CONTROL_confirmed": 14,
+    "CONTROL_unknown": 1,
+    "POSSESSION_TRANSITION": 0,
+    "PASS_CANDIDATE": 0
+  },
+  "evidence_census": {
+    "ball_samples": 48,
+    "observed_samples": 45,
+    "propagated_samples": 3,
+    "control_blocked_by": {
+      "not_observed": 3,
+      "no_velocity_pair": 5,
+      "no_motion_change": 10,
+      "nobody_within_control_radius": 15,
+      "ground_speed_implausible": 0,
+      "eligible": 15
+    },
+    "nearest_player_distance_m": {
+      "min": 0.36,
+      "median": 2.16,
+      "max": 5.38,
+      "frames_within_control_radius": 21
+    }
+  },
+  "thresholds": {
+    "control_radius_m": 1.5,
+    "proximity_radius_m": 3.0,
+    "min_turn_degrees": 25.0,
+    "min_speed_change_ms": 2.0,
+    "max_trusted_ground_speed_ms": 20.0,
+    "min_pass_travel_m": 3.0
+  }
+}
