@@ -93,12 +93,18 @@ describe('every section exists and is routed', () => {
     expect(JS).toContain("window.navTo === 'function'");
   });
 
-  it('marks an unsupported entry as unavailable instead of pretending it works', () => {
+  it('marks an unbuilt section as PLANNED rather than as broken', () => {
     const rail = JS.slice(JS.indexOf('var SECTIONS = ['), JS.indexOf('/* ── the global bar'));
-    // Every `off:` entry carries a reason, and a disabled control is inert.
-    expect(rail).toContain('off:');
-    expect(JS).toContain('disabled aria-disabled="true"');
-    expect(CSS).toContain('.vx-item[disabled]');
+    // A section that is designed but not built states what it will do, why it
+    // does not yet, and what it waits on. It is NOT `disabled` and NOT "N/A":
+    // beside twelve working sections those read as a product with holes in it.
+    expect(rail).toContain('planned: {');
+    expect(rail).toMatch(/what:\s*'/);
+    expect(rail).toMatch(/why:\s*'/);
+    expect(rail).toMatch(/needs:\s*'/);
+    expect(rail).not.toContain('off:');
+    expect(JS).toContain('PLANNED');
+    expect(CSS).toContain('.vx-item-b--plan');
   });
 
   it('gives every section an icon rather than a bullet', () => {

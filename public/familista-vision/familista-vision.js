@@ -93,7 +93,71 @@
     layers: { boxes: true, ids: true, ball: true, trails: false, heat: false, lines: true, zones: false },
     filters: { track: '', team: '', role: '', conf: '', session: '', source: '' },
     selection: { track: null, event: null, node: null, heatTeam: '', heatPlayer: '' },
+
+    /* ── lifecycle ────────────────────────────────────────────────────────────
+       `booted` says the catalogue reads have run at least once, so a re-mount
+       repaints what is already held instead of refetching and rebuilding.
+       `loading` is the in-flight guard: a second boot while the first is still
+       in the air used to start a second, racing openSession.
+       `loadToken` orders session reads — a slow answer for a session the reader
+       has already navigated away from must not overwrite a newer one.
+       `sessionGone` records that a REMEMBERED session no longer exists, which
+       is a different empty state from never having chosen one. */
+    booted: false, loading: false, loadToken: 0, sessionGone: null, bound: false,
+    inflightRef: null,
   };
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     THE SELECTION IS STATE, AND STATE THAT IS NOT WRITTEN DOWN IS LOST
+     ═══════════════════════════════════════════════════════════════════════════
+
+     Which session is open, and which section is being read, survived nothing:
+     not a tab change, not leaving the module, not a refresh. There was no
+     canonical record of the choice anywhere — the module re-derived it on every
+     mount by opening `sessions[0]`, which is not the reader's selection, it is
+     a guess that happens to be right once.
+
+     It is written down now, in `sessionStorage`:
+
+       · sessionStorage, not localStorage, because a Vision selection belongs to
+         the tab the reader is working in. Two tabs on two sessions is a normal
+         thing to want, and localStorage would make them fight.
+       · keyed by user id, so a selection never restores under a different
+         account on a shared machine.
+       · holding a REFERENCE, never a payload. The session itself is always
+         re-read from the API and re-authorised on restore; the browser
+         remembers WHICH session, and the server remains the only thing that
+         decides whether it may be opened.
+
+     Every accessor is wrapped: storage throws in a private window, and a module
+     that cannot remember a choice must still work, not fail to draw.
+  */
+
+  var STORE_VERSION = 'v1';
+
+  function storeKey() {
+    var u = (window.State && window.State.user) || {};
+    return 'familista.vision.' + STORE_VERSION + '.' + (u.id || u.email || 'anon');
+  }
+
+  function readStore() {
+    try {
+      var raw = window.sessionStorage.getItem(storeKey());
+      if (!raw) return {};
+      var v = JSON.parse(raw);
+      return (v && typeof v === 'object') ? v : {};
+    } catch (_) { return {}; }
+  }
+
+  function writeStore(patch) {
+    try {
+      var next = Object.assign(readStore(), patch);
+      window.sessionStorage.setItem(storeKey(), JSON.stringify(next));
+    } catch (_) { /* a forgotten choice is a lesser fault than a broken module */ }
+  }
+
+  function rememberSession(ref) { writeStore({ sessionRef: ref || null }); }
+  function rememberSection(id) { writeStore({ section: id || null }); }
 
   /* ── primitives ──────────────────────────────────────────────────────────── */
 
@@ -252,10 +316,40 @@
       + '<p class="vx-empty-w">' + esc(sentence(why)) + '</p></div>';
   }
 
+  /**
+   * Four different absences, and they are not the same answer.
+   *
+   * "Nothing is open" and "the thing you had open has gone" and "this account
+   * has no sessions at all" and "it is still loading" were all one screen
+   * saying NO SESSION LOADED, which is why a failure was indistinguishable from
+   * an empty account.
+   */
   function needSession() {
+    if (FV.sessionRef && !FV.session && !FV.sessionGone) {
+      return Empty('withheld', 'OPENING SESSION',
+        'Reading ' + FV.sessionRef + ' from the Vision service', 'sessions');
+    }
+    if (FV.sessionGone) {
+      return Empty('withheld', 'SESSION NOT AVAILABLE',
+        'The session ' + FV.sessionGone.ref + ' could not be opened — '
+        + FV.sessionGone.why + '. Choose another under Sessions', 'sessions')
+        + '<div class="vx-rowgap"></div>'
+        + '<div class="vx-legend" style="justify-content:center">'
+        + '<button class="vx-btn" type="button" data-vx-section="sessions">'
+        + ico('sessions') + 'Open Sessions</button></div>';
+    }
+    if (FV.sessions && FV.sessions.ok && !FV.sessions.sessions.length) {
+      return Empty('withheld', 'NO SESSIONS RECORDED',
+        'This account has no processed Vision sessions yet. A session appears here once '
+        + 'a source has been processed by the Vision engine', 'sessions');
+    }
     return Empty('withheld', 'NO SESSION LOADED',
       'Open one under Sessions. Every figure in this module belongs to one processed '
-      + 'session and none of them is an average across sessions', 'sessions');
+      + 'session and none of them is an average across sessions', 'sessions')
+      + '<div class="vx-rowgap"></div>'
+      + '<div class="vx-legend" style="justify-content:center">'
+      + '<button class="vx-btn" type="button" data-vx-section="sessions">'
+      + ico('sessions') + 'Open Sessions</button></div>';
   }
 
   /**
@@ -324,15 +418,24 @@
      NAVIGATION
      ═══════════════════════════════════════════════════════════════════════════
 
-     THE MODULE ROW is the platform's own rooms. Every entry here routes through
-     `window.navTo` to a page the shell already owns — nothing on this row is a
-     module invented for the picture. Reports, Models and Devices are Vision's
-     own sections and say so by opening them.
+     THE MODULE ROW is the platform's own rooms, and ONLY those. Every entry
+     routes through `window.navTo` to a page the shell already owns.
 
-     THE RAIL is Vision's sections, grouped by what a reader is DOING. An entry
-     with `off: true` is a reading this deployment does not produce; it is drawn
-     disabled and marked, because the shape of the product is worth seeing and a
-     control that does nothing is not worth clicking.
+     It used to carry Reports, Models, Devices and AI Assistant as well, which
+     were not platform rooms at all — they were Vision's OWN rail sections,
+     duplicated onto the top row. One destination reachable from two places in
+     the same chrome, one of them mislabelled as a peer of Clubs and the Data
+     Vault, is a lie about what the platform is made of. Vision's sections
+     belong to Vision's rail; the row above it belongs to the platform. Vision
+     still INTEGRATES with those rooms — it publishes evidence to the Data
+     Vault and reads its lineage through Source Core — but integration is an
+     API, not a menu entry.
+
+     THE RAIL is Vision's own sections and nothing else, grouped by what a
+     reader is DOING. An entry with `planned: …` is a section whose architecture
+     exists and whose implementation does not; it opens and says so. It is not
+     disabled and it is not marked N/A, because "N/A" beside a working product
+     reads as broken rather than unbuilt.
   */
 
   var MODULES = [
@@ -342,11 +445,6 @@
     { id: 'data-vault',          label: 'Data Vault',          ico: 'vault',    platform: true },
     { id: 'infrastructure-city', label: 'Infrastructure City', ico: 'city',     platform: true },
     { id: 'familista-vision',    label: 'Familista Vision',    ico: 'vision',   current: true },
-    { id: 'reports',             label: 'Reports',             ico: 'reports',  section: true },
-    { id: 'models',              label: 'Models',              ico: 'models',   section: true },
-    { id: 'device',              label: 'Devices',             ico: 'device',   section: true },
-    { id: 'ai-assistant',        label: 'AI Assistant',        ico: 'ai',
-      off: 'Vision publishes evidence to Familista Intelligence; it has no assistant of its own' },
     { id: 'settings',            label: 'Settings',            ico: 'settings', platform: true },
   ];
 
@@ -366,22 +464,56 @@
     { id: 'reports',     group: 'VISION', ico: 'reports',  label: 'Reports' },
 
     { id: 'ai',          group: 'INTELLIGENCE', ico: 'ai',      label: 'AI Assistant',
-      off: 'no Vision assistant exists; evidence is published to Familista Intelligence' },
+      planned: {
+        what: 'A Vision-scoped assistant that answers questions about the open session — '
+          + 'which frames carry the evidence behind a figure, why a track was withheld, '
+          + 'what changed between two calibration attempts',
+        why: 'Vision publishes its evidence to Familista Intelligence today. The assistant '
+          + 'that reads it back has an architecture and no implementation',
+        needs: 'a validated question-to-evidence retrieval path over session records' } },
     { id: 'insights',    group: 'INTELLIGENCE', ico: 'insight', label: 'Insights',
-      off: 'an insight is a claim about football, and the engine confirms none beyond proximity' },
+      planned: {
+        what: 'Automatically surfaced findings from a processed session — a coverage collapse, '
+          + 'a calibration drift, a stretch of frames the tracker lost',
+        why: 'An insight is a claim about football, and this engine confirms none beyond '
+          + 'proximity. Publishing guesses as findings would put invented football in a '
+          + 'panel that looks authoritative',
+        needs: 'validated event semantics above the tracking layer' } },
     { id: 'tacticalai',  group: 'INTELLIGENCE', ico: 'tactical', label: 'Tactical AI',
-      off: 'tactical intelligence is not implemented in the validated engine' },
+      planned: {
+        what: 'Formation detection, pressing triggers, defensive line height and phase '
+          + 'classification computed from tracked positions',
+        why: 'Tactical intelligence is not implemented in the validated engine. The pitch, '
+          + 'the projection and the per-frame positions it would read are all in place',
+        needs: 'team assignment stable enough to attribute a shape to a side' } },
     { id: 'performance', group: 'INTELLIGENCE', ico: 'perf',    label: 'Performance', badge: 'NOT VALIDATED' },
     { id: 'comparisons', group: 'INTELLIGENCE', ico: 'compare', label: 'Comparisons',
-      off: 'comparing two sessions needs a validated per-player measurement; none exists yet' },
+      planned: {
+        what: 'Two sessions side by side — the same player, the same pitch region, the same '
+          + 'metric, with the evidence behind each figure',
+        why: 'Comparing two sessions needs a validated per-player measurement, and physical '
+          + 'metrics have not passed validation. A comparison of two unvalidated numbers '
+          + 'is two unvalidated numbers',
+        needs: 'physical metrics to clear their validation gate' } },
 
     { id: 'health',       group: 'SYSTEM', ico: 'health', label: 'Health' },
     { id: 'models',       group: 'SYSTEM', ico: 'models', label: 'Models & Providers' },
     { id: 'integrations', group: 'SYSTEM', ico: 'flow',   label: 'Integrations' },
     { id: 'logs',         group: 'SYSTEM', ico: 'logs',   label: 'Logs',
-      off: 'Vision writes its facts to the Data Vault as events; it keeps no log surface of its own' },
+      planned: {
+        what: 'Vision’s own processing log — what ran, how long each stage took, what it '
+          + 'rejected and why',
+        why: 'Vision writes its FACTS to the Data Vault as events, which is the right place '
+          + 'for them. Its processing DIARY has nowhere to go yet, and a log surface that '
+          + 'replayed the event stream would be a second, weaker copy of the Vault',
+        needs: 'a retained processing log the engine does not currently keep' } },
     { id: 'config',       group: 'SYSTEM', ico: 'config', label: 'Configuration',
-      off: 'Vision reads its configuration from the deployment; there is nothing to edit here' },
+      planned: {
+        what: 'Per-club Vision settings — processing target, retention, which capabilities a '
+          + 'club may run and the thresholds each one answers to',
+        why: 'Vision reads its configuration from the deployment today, so there is one '
+          + 'setting for everybody. Making it per-club is a data-model change, not a form',
+        needs: 'club-scoped Vision configuration in the platform data model' } },
   ];
 
   /* ── the global bar ──────────────────────────────────────────────────────── */
@@ -433,35 +565,74 @@
 
   function moduleRow() {
     return '<nav class="vx-modules" aria-label="Familista modules">' + MODULES.map(function (m) {
-      var attrs = m.current ? ' aria-current="page"' : '';
-      if (m.off) attrs += ' disabled aria-disabled="true" title="' + esc(sentence(m.off)) + '"';
-      else if (m.platform) attrs += ' data-vx-module="' + esc(m.id) + '"';
-      else if (m.section) attrs += ' data-vx-section="' + esc(m.id) + '"';
+      var attrs = m.current
+        ? ' aria-current="page"'
+        : ' data-vx-module="' + esc(m.id) + '"';
       return '<button class="vx-mod" type="button"' + attrs + '>' + ico(m.ico)
         + '<span>' + esc(m.label) + '</span></button>';
     }).join('') + '</nav>';
   }
 
+  /**
+   * PLANNED IS NOT DISABLED.
+   *
+   * These sections used to be `disabled` with an "N/A" badge. Beside twelve
+   * working sections that reads as broken — the reader's question becomes "what
+   * went wrong here" rather than "what is coming". They are reachable now, they
+   * carry a PLANNED badge, and opening one says what it will do, why it does
+   * not do it yet and what has to exist first. Nothing about the architecture
+   * is thrown away; it is stated instead of implied by a dead control.
+   */
   function rail() {
     var last = '';
     return '<nav class="vx-side" aria-label="Familista Vision sections">'
       + '<div class="vx-side-scroll">' + SECTIONS.map(function (s) {
         var g = s.group !== last ? '<div class="vx-group">' + esc(s.group) + '</div>' : '';
         last = s.group;
-        var attrs = s.off
-          ? ' disabled aria-disabled="true" title="' + esc(sentence(s.off)) + '"'
-          : ' data-vx-section="' + esc(s.id) + '"'
-            + (FV.section === s.id ? ' aria-current="page"' : '')
-            + ' title="' + esc(s.label) + '"';
-        return g + '<button class="vx-item" type="button"' + attrs + '>'
+        var badge = s.planned
+          ? '<span class="vx-item-b vx-item-b--plan">PLANNED</span>'
+          : s.badge ? '<span class="vx-item-b vx-item-b--warn">' + esc(s.badge) + '</span>' : '';
+        var attrs = ' data-vx-section="' + esc(s.id) + '"'
+          + (FV.section === s.id ? ' aria-current="page"' : '')
+          + (s.planned ? ' data-vx-planned="1"' : '')
+          + ' title="' + esc(s.label + (s.planned ? ' — planned, not yet built' : '')) + '"';
+        return g + '<button class="vx-item' + (s.planned ? ' is-planned' : '') + '" type="button"' + attrs + '>'
           + '<span class="vx-item-ico">' + ico(s.ico) + '</span>'
           + '<span class="vx-item-l">' + esc(s.label) + '</span>'
-          + (s.off ? '<span class="vx-item-b">N/A</span>'
-            : s.badge ? '<span class="vx-item-b vx-item-b--warn">' + esc(s.badge) + '</span>' : '')
+          + badge
           + '</button>';
       }).join('') + '</div>'
       + '<div class="vx-side-foot"><b>FAMILISTA</b><i>VISION</i>'
       + '<span>See · Understand · Improve</span></div></nav>';
+  }
+
+  /** The screen a PLANNED section opens: what, why not yet, and what it waits on. */
+  function secPlanned(s) {
+    var p = s.planned;
+    setWorkbar(s.label, Chip('', 'PLANNED', 'designed, not yet built'));
+
+    // Prose, not figures. `Rows` right-aligns its value against the panel edge
+    // because it exists for a label and a number; three sentences laid out that
+    // way run the full width of a 1920px workspace and stop being readable.
+    // This is a measured column with the label above the text.
+    function para(k, v) {
+      return '<div class="vx-plan-p"><div class="vx-plan-k">' + esc(k) + '</div>'
+        + '<p class="vx-plan-v">' + esc(sentence(v)) + '</p></div>';
+    }
+
+    body('<div class="vx-plan">'
+      + Empty('future', 'PLANNED — NOT YET BUILT',
+        'This section produces no data today. Nothing on this screen is a measurement',
+        'future')
+      + '<div class="vx-plan-body">'
+      + para('What it will do', p.what)
+      + para('Why it is not here yet', p.why)
+      + para('What it waits on', p.needs)
+      + '<p class="vx-note">When this section is built it will read the same validated '
+      + 'session records every other Vision section reads, through the same API. It is '
+      + 'listed here so the shape of the product is visible — not to suggest a '
+      + 'capability that exists.</p>'
+      + '</div></div>');
   }
 
   /* ── the workbar: the state of the instrument, on one line ───────────────── */
@@ -535,11 +706,31 @@
       + '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>'
       + '<div class="vx-drawer-b" id="vx-drawer-b"></div></aside>';
 
-    root.addEventListener('click', onClick);
-    root.addEventListener('input', onInput);
-    root.addEventListener('change', onInput);
-    root.addEventListener('keydown', onKey);
+    // ONCE. `renderShell` replaces the root's CONTENTS, not the root itself, so
+    // binding here bound another full set of handlers on every repaint — and
+    // the shell repaints on every mount. After three visits a single click ran
+    // `openSession` three times and a single keypress stepped the frame three
+    // frames. The listeners are delegated from the root, so one set is all
+    // there ever needed to be.
+    if (!FV.bound) {
+      root.addEventListener('click', onClick);
+      root.addEventListener('input', onInput);
+      root.addEventListener('change', onInput);
+      root.addEventListener('keydown', onKey);
+      FV.bound = true;
+    }
     renderSection();
+  }
+
+  /**
+   * Acknowledge a selection without rebuilding the body.
+   *
+   * While a session is being fetched the rail's marker moves but the content
+   * underneath stays exactly as it was. Throwing the body away and rebuilding
+   * it is what made an ordinary load look like a failure.
+   */
+  function renderWorkbarOnly() {
+    refreshRail();
   }
 
   /** Repaint the rail's current marker and the workbar, and nothing else. */
@@ -554,6 +745,7 @@
 
   function goto(section) {
     FV.section = section;
+    rememberSection(section);
     refreshRail();
     renderSection();
     var b = document.getElementById('vx-body');
@@ -2555,9 +2747,16 @@
     models: secModels, integrations: secIntegrations,
   };
 
+  function sectionDef(id) {
+    for (var i = 0; i < SECTIONS.length; i++) if (SECTIONS[i].id === id) return SECTIONS[i];
+    return null;
+  }
+
   function renderSection() {
+    var def = sectionDef(FV.section);
+    if (def && def.planned) { secPlanned(def); return; }
     var r = ROUTES[FV.section];
-    if (r) r(); else { FV.section = 'live'; secLive(); }
+    if (r) r(); else { FV.section = 'live'; rememberSection('live'); secLive(); }
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
@@ -2730,7 +2929,13 @@
     var exp = t.closest('[data-vx-export]');
     if (exp) { exportReport(exp.getAttribute('data-vx-export')); return; }
 
-    if (t.closest('[data-vx-retry]')) { boot(); return; }
+    // A retry must actually go back to the service. `boot()` is deliberately
+    // cheap on a re-entry, so retry clears the booted flag and reads again.
+    if (t.closest('[data-vx-retry]')) {
+      FV.booted = false; FV.loading = false; FV.sessionGone = null;
+      loadCatalogue();
+      return;
+    }
   }
 
   function onInput(e) {
@@ -2763,39 +2968,190 @@
 
   /* ── session and boot ────────────────────────────────────────────────────── */
 
-  function openSession(ref) {
+  /**
+   * Open a session, without blanking the screen to do it.
+   *
+   * The old version set `FV.session = null` and repainted BEFORE the fetch, so
+   * every caller flashed "NO SESSION LOADED" — and any caller that fired while
+   * a session was already open destroyed it. Combined with a `boot()` the shell
+   * could re-enter at any moment, that is the whole of the reported fault: a
+   * section showed real content and then went empty on its own.
+   *
+   * Now: re-opening the session already held is a no-op; opening a different
+   * one keeps the current one on screen until its replacement has arrived; and
+   * a stale answer cannot overwrite a newer one.
+   */
+  function openSession(ref, opts) {
+    opts = opts || {};
+    if (!ref) return;
+    if (FV.sessionRef === ref && FV.session && !opts.force) { renderSection(); return; }
+
+    // ONE READ PER SESSION AT A TIME. The shell can mount a module twice for a
+    // single navigation — the switch draws it and `_famRenderPage` draws it
+    // again — and a session body is megabytes. Without this, returning to
+    // Vision fired two identical reads, the first was discarded by the token
+    // below, and the screen waited on the slower of two requests for the same
+    // bytes.
+    if (FV.inflightRef === ref) return;
+
+    var token = ++FV.loadToken;
+    FV.inflightRef = ref;
+    var changed = FV.sessionRef !== ref;
     FV.sessionRef = ref;
-    FV.session = null; FV.timeline = null; FV.frame = 0;
-    FV.selection.track = null; FV.selection.event = null;
-    renderSection();
+    FV.sessionGone = null;
+    rememberSession(ref);
+
+    if (changed) {
+      // A different session's selections do not belong to this one. The frame
+      // and the payload are held until the replacement lands.
+      FV.selection.track = null; FV.selection.event = null;
+    }
+    renderWorkbarOnly();
+
     Promise.all([
       get('/sessions/' + encodeURIComponent(ref)),
       get('/sessions/' + encodeURIComponent(ref) + '/timeline'),
     ]).then(function (r) {
-      FV.session = r[0] && r[0].ok ? r[0].session : null;
+      if (FV.inflightRef === ref) FV.inflightRef = null;
+      if (token !== FV.loadToken) return;          // a newer read has overtaken this one
+      var loaded = r[0] && r[0].ok ? r[0].session : null;
+      if (!loaded) {
+        // Do not silently fall back to another session: the reader asked for
+        // this one. Say what happened and leave the choice to them.
+        FV.session = null; FV.timeline = null;
+        FV.sessionGone = { ref: ref, why: (r[0] && r[0].error) || 'the service did not return it' };
+        if (r[0] && r[0].status === 404) rememberSession(null);
+        renderSection();
+        return;
+      }
+      FV.session = loaded;
       FV.timeline = r[1] && r[1].ok ? r[1].timeline : null;
-      if (FV.session && FV.session.tracks.length) FV.frame = FV.session.tracks[0].frameNumber;
+      if (changed || !FV.frame) {
+        FV.frame = loaded.tracks.length ? loaded.tracks[0].frameNumber : 0;
+      }
       renderSection();
     });
   }
 
-  function boot() {
-    var root = document.getElementById('fv-root');
-    if (!root) return;
-    renderShell();
-    Promise.all([
+  /**
+   * Decide what should be open, from the catalogue the server just returned.
+   *
+   * The order is the point. A remembered choice outranks a convenience default,
+   * and a remembered choice that no longer exists is reported rather than
+   * quietly swapped for a different session — being shown another club's match
+   * because yours was deleted is worse than being told yours is gone.
+   */
+  function restoreSelection() {
+    var list = (FV.sessions && FV.sessions.ok && FV.sessions.sessions) || [];
+    var saved = readStore();
+    var wanted = saved.sessionRef;
+
+    if (wanted) {
+      var found = list.some(function (x) { return x.sessionRef === wanted; });
+      if (found) { openSession(wanted); return; }
+      if (list.length || FV.sessions) {
+        // The catalogue answered and this session is not in it.
+        FV.sessionRef = null; FV.session = null; FV.timeline = null;
+        FV.sessionGone = { ref: wanted, why: 'it is no longer in this account’s session list' };
+        rememberSession(null);
+        renderSection();
+        return;
+      }
+    }
+
+    // No remembered choice. Opening the newest session is a convenience, not a
+    // claim — and with no sessions at all the empty state is the honest answer.
+    if (list.length) { openSession(list[0].sessionRef); return; }
+    renderSection();
+  }
+
+  /**
+   * DO NOT ASK BEFORE THERE IS ANYTHING TO ASK WITH.
+   *
+   * On a refresh the shell mounts this module while `/auth/refresh` is still in
+   * flight, so the first reads went out with no credential at all and came back
+   * 401 — and because a refresh is exactly when a reader expects their session
+   * back, the module they returned to was the one screen that could not load.
+   *
+   * The wait is bounded and it never blocks for its own sake: it resolves the
+   * moment a token exists, or as soon as the platform's context settles, and it
+   * gives up after a short ceiling so a deployment that genuinely has no token
+   * still reaches the 401 screen rather than waiting for ever.
+   */
+  function whenAuthReady() {
+    if (authToken()) return Promise.resolve();
+    var ceiling = 6000, step = 60, waited = 0;
+    var settled = false;
+    return new Promise(function (resolve) {
+      function done() { if (!settled) { settled = true; resolve(); } }
+      try {
+        if (window._famContextReady && typeof window._famContextReady.then === 'function') {
+          window._famContextReady.then(done, done);
+        }
+      } catch (_) { /* the poll below is the guarantee */ }
+      (function poll() {
+        if (settled) return;
+        if (authToken() || waited >= ceiling) { done(); return; }
+        waited += step;
+        setTimeout(poll, step);
+      })();
+    });
+  }
+
+  /** Read the catalogue. Separated from `boot` so a refresh is not a rebuild. */
+  function loadCatalogue() {
+    if (FV.loading) return Promise.resolve();
+    FV.loading = true;
+    return whenAuthReady().then(function () { return Promise.all([
       get('/status'), get('/sessions'), get('/sources'), get('/models'),
       get('/device'), get('/integrations'),
     ]).then(function (r) {
       FV.status = r[0]; FV.sessions = r[1]; FV.sources = r[2];
       FV.models = r[3]; FV.device = r[4]; FV.integrations = r[5];
+      FV.booted = true; FV.loading = false;
       renderShell();
-      // A command centre that opens empty when evidence exists is a command
-      // centre making the reader work.
-      if (FV.sessions && FV.sessions.ok && FV.sessions.sessions.length) {
-        openSession(FV.sessions.sessions[0].sessionRef);
-      }
-    });
+      restoreSelection();
+    }).catch(function () {
+      FV.loading = false; FV.booted = true;
+      renderShell();
+    }); });
+  }
+
+  /**
+   * MOUNTING MUST NOT DESTROY WHAT IS OPEN.
+   *
+   * `boot()` used to be the only entry point, and it refetched everything and
+   * re-picked `sessions[0]` on every call. The shell calls the render hook far
+   * more often than "the reader opened this module": `_famDataChanged` fires
+   * when the club context hydrates and again when Layer B lands — both a second
+   * or two AFTER Vision first paints — and each one re-entered boot and wiped
+   * the session out from under whatever section was being read.
+   *
+   * So there are two paths now. The first mount reads the catalogue. Every
+   * mount after that repaints from what is already held.
+   */
+  function boot() {
+    var root = document.getElementById('fv-root');
+    if (!root) return;
+
+    // The section the reader was last in is restored before the first paint, so
+    // a refresh returns them where they were rather than to Live Analysis. An
+    // unknown id — a section removed since the choice was stored — falls back
+    // rather than rendering nothing.
+    if (!FV.booted) {
+      var savedSection = readStore().section;
+      if (savedSection && sectionDef(savedSection)) FV.section = savedSection;
+    }
+
+    renderShell();
+    if (FV.booted) {
+      // Already have the catalogue. Restore what was open if the payload was
+      // released on the way out, and otherwise leave the screen exactly as it
+      // was — a repaint is not a reload.
+      if (FV.sessionRef && !FV.session && !FV.loading) openSession(FV.sessionRef, { force: true });
+      return;
+    }
+    loadCatalogue();
   }
 
   /**
@@ -2811,8 +3167,27 @@
     boot();
   };
   window.mountFamilistaVision = boot;
+
+  /**
+   * Leaving releases the PAYLOAD. It does not forget the CHOICE.
+   *
+   * A loaded session is tens of thousands of observations and there is no
+   * reason to hold them behind a screen nobody is looking at — that part was
+   * right. Nulling `sessionRef` with them was not: it threw away the one fact
+   * that made returning to the same session possible, which is why coming back
+   * always landed on `sessions[0]` and, if the refetch was slow or failed, on
+   * "NO SESSION LOADED".
+   *
+   * The reference stays, in memory and in storage. The observations go.
+   */
   window.teardownFamilistaVision = function () {
-    FV.session = null; FV.timeline = null; FV.sessionRef = null;
+    FV.session = null; FV.timeline = null;
     FV.selection.track = null; FV.selection.event = null; FV.selection.node = null;
+  };
+
+  // Exposed for the regression tests and for diagnosis from the console.
+  window.__FV_STATE = function () {
+    return { section: FV.section, sessionRef: FV.sessionRef, hasSession: !!FV.session,
+      booted: FV.booted, stored: readStore() };
   };
 })();
