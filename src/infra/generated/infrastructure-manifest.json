@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-21T08:17:27.102Z",
+  "generatedAt": "2026-09-26T18:16:49.236Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -272,7 +272,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "src/routes/index.ts",
-      "sourceEvidence": "src/routes/index.ts — 48 mounted routers",
+      "sourceEvidence": "src/routes/index.ts — 49 mounted routers",
       "dependencies": [
         "platform-core"
       ],
@@ -882,7 +882,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 137 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 141 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -942,7 +942,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": null,
-      "note": "518 TypeScript modules under src/."
+      "note": "531 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1418,12 +1418,12 @@
     }
   ],
   "surface": {
-    "routeModules": 58,
+    "routeModules": 59,
     "serviceModules": 101,
     "middleware": 21,
     "fabricModules": 51,
-    "totalTypeScript": 518,
-    "testSuites": 137,
+    "totalTypeScript": 531,
+    "testSuites": 141,
     "migrations": 40,
     "prismaModels": 340,
     "prismaEnums": 209
@@ -1675,6 +1675,13 @@
       "file": "src/routes/vision.routes.ts",
       "writes": 4,
       "reads": 5
+    },
+    {
+      "path": "/familista-vision",
+      "router": "familistaVisionRoutes",
+      "file": "src/routes/familista-vision.routes.ts",
+      "writes": 2,
+      "reads": 17
     },
     {
       "path": "/spatial",

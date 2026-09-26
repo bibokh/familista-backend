@@ -2058,6 +2058,48 @@ function _updateTopbarBack(page) {
                'owner-home';
     try { navTo(page, null, { fromPopState: true }); } catch (_) {}
   }
+  /**
+   * A DEEP LINK MUST SURVIVE THE REST OF THE STARTUP.
+   *
+   * `initHash` runs at DOMContentLoaded, which is BEFORE the platform-authority
+   * answer and the club context have arrived. The landing finishes booting
+   * after it and activates Owner Home, so the route the reader actually asked
+   * for is thrown away — a refresh on any platform room lands on the landing
+   * instead of the room. It is not a Vision fault; opening `#source-core` cold
+   * loses the route in exactly the same way.
+   *
+   * So the route is applied again once startup has settled, and only if the
+   * reader has not moved in the meantime: the hash must still name the page
+   * that was asked for, and the page actually on screen must not already be it.
+   * That makes this a repair of a lost navigation, never an override of a
+   * deliberate one.
+   */
+  function _reapplyDeepLink(hashPage) {
+    var settle = (typeof _famContextReady !== 'undefined' && _famContextReady)
+      ? _famContextReady : Promise.resolve();
+    // The displacement does not happen at one predictable moment: the landing
+    // repaints when BOTH the authority answer and the context have landed, and
+    // a module's own template may mount later still. So the route is checked a
+    // few times across the startup window rather than once at a guessed
+    // instant. It stops the moment the page is right, or the moment the reader
+    // navigates — whichever comes first — so it can neither loop nor fight a
+    // deliberate navigation.
+    var tries = [60, 400, 1200, 2500, 4000];
+    Promise.resolve(settle).catch(function () {}).then(function () {
+      tries.forEach(function (delay) {
+        setTimeout(function () {
+          try {
+            var still = (location.hash || '').replace(/^#/, '').split(/[\/?]/)[0];
+            if (still !== hashPage) return;                        // the reader moved
+            var active = document.querySelector('.page.active');
+            if (active && active.id === 'pg-' + hashPage) return;   // already there
+            navTo(hashPage, null, { fromPopState: true });
+          } catch (_) {}
+        }, delay);
+      });
+    });
+  }
+
   function initHash() {
     try {
       var hashPage = (location.hash || '').replace(/^#/, '').split(/[\/?]/)[0];
@@ -2065,6 +2107,7 @@ function _updateTopbarBack(page) {
         // Deep-link arrived; route to it (also runs through the
         // allow-list guard inside navTo).
         navTo(hashPage, null, { fromPopState: false });
+        _reapplyDeepLink(hashPage);
       } else if (window.history && !window.history.state) {
         // Seed history so the very first Back press has somewhere
         // to land instead of leaving the app.
@@ -2508,6 +2551,29 @@ function navTo(page, el, _opts) {
     document.body.classList.toggle('fv-vision-open', page === 'familista-vision');
     if (_wasVision && page !== 'familista-vision' && typeof window.teardownFamilistaVision === 'function') {
       window.teardownFamilistaVision();
+    }
+    // ENTERING IS NOT SYMMETRICAL WITH LEAVING, AND THAT WAS A BUG.
+    //
+    // Leaving released the module's held session; nothing re-hydrated it on the
+    // way back. `_famRenderPage` is version-gated — it returns early when the
+    // page has already been drawn for the current data version — and the render
+    // switch that names this module lives in `_flushPendingRender`, which only
+    // runs after a render deferred for an open form. So a second visit mounted
+    // nothing: the reader came back to a module holding no session, and it
+    // stayed that way until some unrelated data change happened to reset the
+    // page versions.
+    //
+    // The mount hook is idempotent and cheap on re-entry — it repaints from
+    // what it already holds and re-reads only the session payload it released —
+    // so calling it on every entry is correct rather than merely safe.
+    // The trigger is the DOM, not "was I here a moment ago". A deep link routes
+    // to Vision once before its template exists — the mount finds no root and
+    // returns — and a flag set by that first attempt would then suppress the
+    // real mount when the page finally appears. Asking whether the module's
+    // body is actually on the page cannot be wrong about it.
+    if (page === 'familista-vision' && typeof window.mountFamilistaVision === 'function'
+        && (!_wasVision || !document.getElementById('vx-body'))) {
+      window.mountFamilistaVision();
     }
   } catch (_) {}
 

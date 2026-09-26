@@ -256,11 +256,28 @@ body.fv-vision-open { overflow: hidden; }
 .vx-item-ico svg { width: 15px; height: 15px; stroke: currentColor; fill: none;
   stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .vx-item-l { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Tracking is tight here because the rail is 210px and the badge takes its
+   width off the label. At .07em, "NOT VALIDATED" left "Performance" rendering
+   as "Perfor…" — a truncated nav label in a product that has room for the
+   whole word. The badge gives the space back rather than the label losing it. */
 .vx-item-b {
-  flex: 0 0 auto; font-size: 8px; font-weight: 700; letter-spacing: .07em;
-  padding: 2px 5px; border-radius: 3px; border: 1px dashed var(--v-line-2); color: var(--v-tx-3);
+  flex: 0 0 auto; font-size: 8px; font-weight: 700; letter-spacing: .02em;
+  padding: 2px 4px; border-radius: 3px; border: 1px dashed var(--v-line-2); color: var(--v-tx-3);
+  white-space: nowrap;
 }
 .vx-item-b--warn { border-style: solid; border-color: rgba(245, 165, 36, .4); color: var(--v-amber); }
+
+/* PLANNED is a future, not a fault.
+   It reads quieter than a working section and louder than a dead one: a dashed
+   edge says "not built", full opacity and a live hover say "and not broken".
+   The old treatment — `disabled` plus an N/A badge — made twelve shipped
+   sections look like a product with holes in it. */
+.vx-item-b--plan {
+  border-style: dashed; border-color: rgba(148, 163, 184, .45); color: var(--v-tx-2);
+}
+.vx-item.is-planned .vx-item-l { color: var(--v-tx-2); }
+.vx-item.is-planned:hover .vx-item-l { color: var(--v-tx-1); }
+.vx-item.is-planned[aria-current="page"] .vx-item-l { color: #fff; }
 
 .vx-side-foot {
   flex: 0 0 auto; padding: var(--v-3) var(--v-3) var(--v-4);
@@ -373,6 +390,11 @@ body.fv-vision-open { overflow: hidden; }
 .vx-s-ERROR .vx-dot, .vx-s-OFFLINE .vx-dot { background: var(--v-red); }
 .vx-s-NOT_AVAILABLE .vx-dot { background: transparent; box-shadow: inset 0 0 0 1px var(--v-grey); }
 .vx-s-NOT_IMPLEMENTED .vx-dot { background: transparent; box-shadow: inset 0 0 0 1px var(--v-grey); }
+/* A planned capability is a future, and violet is this module's future colour —
+   the same one `.vx-empty--future` already uses, so the badge in the rail, the
+   chip in the workbar and the empty state all say one thing. */
+.vx-s-PLANNED .vx-dot { background: transparent; box-shadow: inset 0 0 0 1px var(--v-violet); }
+.vx-s-PLANNED { color: var(--v-violet); border-color: rgba(139, 92, 246, .32); }
 
 .vx-none { color: var(--v-tx-3); font-variant-numeric: normal; }
 
@@ -922,3 +944,27 @@ body.fv-vision-open { overflow: hidden; }
   #pg-familista-vision *, .vx-drawer * { transition: none !important; animation: none !important; }
   .vx-pipe--live { background: var(--v-cyan); }
 }
+
+/* ── a planned section ─────────────────────────────────────────────────────
+   Designed, not built. The screen is prose rather than figures, so it is a
+   measured column: an absence at the top that names itself, then what the
+   section will do, why it does not yet, and what has to exist first. It is
+   centred and capped because a sentence running the width of a 1920px
+   workspace is a sentence nobody finishes. */
+.vx-plan {
+  max-width: 780px; margin: 0 auto; padding: var(--v-4) 0 var(--v-5);
+  display: flex; flex-direction: column; gap: var(--v-4);
+}
+.vx-plan .vx-empty { min-height: 0; padding: var(--v-5) var(--v-4); }
+.vx-plan-body {
+  display: flex; flex-direction: column; gap: var(--v-4);
+  padding: var(--v-4); border-radius: var(--v-r);
+  border: 1px solid var(--v-line); background: rgba(10, 16, 28, .5);
+}
+.vx-plan-p { display: flex; flex-direction: column; gap: 5px; }
+.vx-plan-k {
+  font-size: 9px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--v-tx-3);
+}
+.vx-plan-v { margin: 0; font-size: 12px; line-height: 1.65; color: var(--v-tx-1); }
+.vx-plan .vx-note { margin: 0; }
