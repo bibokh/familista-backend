@@ -1,42 +1,38 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   FAMILISTA VISION — the instrument
+   FAMILISTA VISION — the workstation
+   ─────────────────────────────────────────────────────────────────────────────
 
-   WHAT THIS FILE IS ALLOWED TO DO
+   WHAT THIS FILE IS
 
-   Draw what the API returned. That is the whole contract, and it is stricter
-   than it sounds:
+   The presentation layer for the Vision module: a global bar, a module row, a
+   persistent rail of sections, and eighteen screens built around one rule —
+   the football surface leads, the controls follow, the diagnostics come third
+   and the table comes last.
 
-     · It never computes a football figure. Not an average position, not a
-       possession share, not a distance covered. Every number on every screen
-       arrived from `/api/v1/familista-vision/...`, which got it from a session
-       the validated engine produced. If a figure is not in the response, the
-       screen says so rather than deriving one.
+   WHAT IT IS NOT
 
-     · It never fills an empty panel. A session with no confirmed events draws
-       an empty state that names what is missing and why; it does not draw a
-       zero that could be read as "we checked and there were none" when the real
-       answer is "this was not examined".
+   It is not a dashboard. There is no grid of equal cards, and no screen opens
+   with a table. The engine, its thresholds, its gates, the normaliser and
+   every API this reads are untouched; only the composition above them is new.
 
-     · It never merges OBSERVED with PROPAGATED, and never shows a metric
-       coordinate the engine withheld. Those two rules are why five validation
-       phases were spent on the engine, and a presentation layer that quietly
-       relaxed either would undo all of it.
+   THE ONE RULE THAT OUTRANKS EVERY LAYOUT DECISION
 
-   HOW IT IS BUILT
+   This layer may not decide anything the engine declined to decide.
 
-   A component layer, then seventeen sections that use it. `Panel`, `Metric`,
-   `Chip`, `Tag`, `Table`, `Empty`, `Pitch`, `Timeline`, `SourceCard`, `Drawer`,
-   `Health` — every section composes those. A section that needs something new
-   extends the component rather than writing its own CSS, because the day two
-   panels disagree about their padding is the day this stops looking like one
-   product.
+     · A measured zero is `0`. A figure the platform does not hold is `—`.
+     · OBSERVED and PROPAGATED are two findings and are never summed.
+     · A trajectory breaks wherever the record breaks. A smooth line across
+       frames nobody saw is a picture of an assumption.
+     · Proximity is not possession, and this module never implies it is.
+     · A reading with no validated value says so and says what it waits on.
+       It does not borrow a number from somewhere else to look complete.
 
-   WHY THE PITCH IS DRAWN FROM COORDINATES AND NOT FROM A BACKGROUND IMAGE
+   WHAT THE DEPLOYMENT DOES NOT SERVE
 
-   Because a pitch drawn as a picture with dots on top invites the dots to be
-   placed anywhere. Here the pitch is an SVG in METRES — 105 by 68, Law 1 — and
-   a dot's position is its own pitch coordinate. A coordinate the engine did not
-   publish therefore has nowhere to go, which is exactly the property wanted.
+   Video. The engine stores evidence, not media, so the stage draws the real
+   detections at their real image coordinates over an empty frame and says on
+   its face that the source video is not served here. A black rectangle
+   labelled "live feed" would be a lie about a capability that does not exist.
    ───────────────────────────────────────────────────────────────────────────── */
 
 (function () {
@@ -44,25 +40,24 @@
 
   var API = '/api/v1/familista-vision';
 
-  // Long tables are windowed rather than fully rendered: a session holds ten
-  // thousand observations and a browser asked to lay out ten thousand rows
-  // stops being an instrument.
+  /* A session holds ten thousand observations. A browser asked to lay out ten
+     thousand rows stops being an instrument, so tables are windowed and say
+     how many rows they did not lay out. */
   var TABLE_WINDOW = 300;
 
   var FV = {
-    section: 'overview',
+    section: 'live',
     status: null, sessions: null, sources: null, models: null,
     device: null, integrations: null,
     sessionRef: null, session: null, timeline: null,
-    frame: 0, feed: 'annotated',
-    overlays: { boxes: true, ids: true, teams: true, roles: true, ball: true,
-                confidence: false, calibration: true, coords: true, events: true },
+    frame: 0,
+    mode: 'frame',
+    layers: { boxes: true, ids: true, ball: true, trails: false, heat: false, lines: true, zones: false },
     filters: { track: '', team: '', role: '', conf: '', session: '', source: '' },
     selection: { track: null, event: null, node: null, heatTeam: '', heatPlayer: '' },
-    drawer: null,
   };
 
-  // ── primitives ────────────────────────────────────────────────────────────
+  /* ── primitives ──────────────────────────────────────────────────────────── */
 
   function esc(s) {
     return String(s === null || s === undefined ? '' : s)
@@ -73,405 +68,434 @@
   /** A measured zero is 0. A figure the platform does not hold is an em dash. */
   function n(v, digits) {
     if (v === null || v === undefined || (typeof v === 'number' && !isFinite(v))) {
-      return '<span class="fv-none" title="not held by the platform">—</span>';
+      return '<span class="vx-none" title="not held by the platform">—</span>';
     }
     if (typeof v !== 'number') return esc(v);
     return esc(digits === undefined ? String(v) : v.toFixed(digits));
   }
 
   function pct(v, digits) {
-    if (v === null || v === undefined) return '<span class="fv-none">—</span>';
+    if (v === null || v === undefined) return '<span class="vx-none">—</span>';
     return esc((v * 100).toFixed(digits === undefined ? 1 : digits)) + '%';
   }
 
-  function icon(name) {
-    var P = {
-      overview: '<path d="M3 3h7v7H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 14h7v7H3z"/>',
-      live: '<path d="M4 4l14 8-14 8z"/>',
-      sessions: '<path d="M4 6h16M4 12h16M4 18h16"/>',
-      sources: '<path d="M4 7h16v10H4z"/><path d="M9 21h6M12 17v4"/>',
-      device: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/>',
-      track: '<circle cx="8" cy="8" r="2"/><circle cx="17" cy="15" r="2"/><path d="M9.5 9.5l6 4"/>',
-      ball: '<circle cx="12" cy="12" r="8"/><path d="M12 4l3 5-3 4-3-4z"/>',
-      teams: '<path d="M4 20v-2a4 4 0 014-4h2"/><circle cx="9" cy="7" r="3"/><path d="M15 20v-2a4 4 0 014-4"/><circle cx="17" cy="7" r="2.5"/>',
-      calib: '<path d="M3 5h18v14H3z"/><path d="M12 5v14M3 12h4M17 12h4"/>',
-      events: '<path d="M12 3l2.4 6.3L21 10l-5 4 1.6 7L12 17l-5.6 4L8 14l-5-4 6.6-.7z"/>',
-      tactical: '<path d="M12 3l9 5v8l-9 5-9-5V8z"/><path d="M12 8v8M8 10l8 4M16 10l-8 4"/>',
-      heat: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 9h3v3H8zM13 13h3v3h-3z"/>',
-      physical: '<path d="M4 18l5-6 4 3 7-9"/><path d="M14 6h6v6"/>',
-      timeline: '<path d="M3 12h18"/><circle cx="7" cy="12" r="2"/><circle cx="15" cy="12" r="2"/>',
-      reports: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/>',
-      models: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
-      flow: '<circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M6.7 7.4L11 16M17.3 7.4L13 16"/>',
-      camera: '<path d="M3 7h4l2-2h6l2 2h4v12H3z"/><circle cx="12" cy="13" r="3.5"/>',
-      drone: '<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><rect x="9" y="9" width="6" height="6" rx="1"/>',
-      node: '<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
-      pod: '<rect x="7" y="3" width="10" height="18" rx="4"/><path d="M12 8v5"/>',
-      sensor: '<circle cx="12" cy="12" r="4"/><path d="M5 5a10 10 0 000 14M19 5a10 10 0 010 14"/>',
-      none: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
-      future: '<circle cx="12" cy="12" r="9" stroke-dasharray="3 3"/><path d="M12 8v4l3 2"/>',
-      absent: '<circle cx="12" cy="12" r="9" stroke-dasharray="2 3"/><path d="M12 8v5M12 16v.5"/>',
-    };
-    return '<svg viewBox="0 0 24 24" aria-hidden="true">' + (P[name] || P.none) + '</svg>';
-  }
-
-  var GLYPH = {
-    LIVE: '●', READY: '○', PROCESSING: '◐', DEGRADED: '▲',
-    OFFLINE: '■', ERROR: '✕', NOT_AVAILABLE: '⊘', NOT_IMPLEMENTED: '◌',
-  };
-
-  /** Status never depends on colour alone: a glyph and a word ride with it. */
-  function Chip(label, state, title) {
-    var s = String(state || 'NOT_AVAILABLE');
-    return '<span class="fv-chip fv-s-' + esc(s) + '"' + (title ? ' title="' + esc(title) + '"' : '')
-      + '><span class="fv-dot"></span>'
-      + (label ? '<b>' + esc(label) + '</b>' : '')
-      + '<span class="fv-chip-glyph" aria-hidden="true">' + (GLYPH[s] || '○') + '</span>'
-      + '<span class="fv-chip-state">' + esc(s.replace(/_/g, ' ')) + '</span></span>';
-  }
-
-  /**
-   * ONE READING ON THE COMMAND BAR.
-   *
-   * A chip says whether a subsystem is up. A reading says what the instrument
-   * is currently DOING — which session, off which source, at what rate, on
-   * which device — and it is the difference between a status page and a
-   * console. Seven of them ride the bar and they are the same seven at every
-   * section, because the question "what am I looking at?" does not change when
-   * the panel below it does.
-   *
-   * The state only ever colours the dot. A reading is read for its value.
-   */
-  function Reading(key, value, sub, state, title) {
-    var st = String(state || 'READY');
-    return '<div class="fv-read fv-s-' + esc(st) + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>'
-      + '<span class="fv-read-k">' + esc(key) + '</span>'
-      + '<span class="fv-read-v"><i class="fv-dot" aria-hidden="true"></i><b>' + esc(value) + '</b></span>'
-      + '<span class="fv-read-s">' + esc(sub || '') + '</span></div>';
-  }
-
-  /** A satellite figure: one number the hero's headline is read against. */
-  function Sat(value, caption, sub) {
-    return '<div class="fv-sat"><span class="fv-sat-v">' + value + '</span>'
-      + '<span class="fv-sat-k">' + esc(caption) + '</span>'
-      + (sub ? '<span class="fv-sat-s">' + esc(sub) + '</span>' : '') + '</div>';
-  }
-
-  /** One dial on an instrument: a figure, what it measures, and its qualifier. */
-  function Dial(value, caption, sub, bar) {
-    return '<div class="fv-dial"><span class="fv-dial-v">' + value + '</span>'
-      + '<span class="fv-dial-k">' + esc(caption) + '</span>'
-      + (bar === undefined || bar === null ? ''
-        : '<div class="fv-bar fv-bar--measured"><i style="width:'
-          + Math.max(0, Math.min(100, bar * 100)).toFixed(1) + '%"></i></div>')
-      + '<span class="fv-dial-s">' + esc(sub) + '</span></div>';
-  }
-
-  /**
-   * A sentence that ends like one.
-   *
-   * The engine's `reasons` are written as clauses and do not all carry a full
-   * stop. Concatenated with a sentence of this screen's own, two statements
-   * ran into each other as one ungrammatical line.
-   */
+  /** The engine's `reasons` are clauses; joined to a sentence of ours they ran on. */
   function sentence(text) {
     var t = String(text || '').trim();
     if (!t) return t;
-    return /[.!?\u2026]$/.test(t) ? t : t + '.';
+    return /[.!?…]$/.test(t) ? t : t + '.';
   }
+
+  function words(s) { return String(s || '').replace(/_/g, ' '); }
+
+  /* ── icons: one set, stroked, 24-grid ────────────────────────────────────── */
+
+  var ICONS = {
+    live:     '<path d="M4 4l14 8-14 8z"/>',
+    sessions: '<path d="M4 6h16M4 12h16M4 18h10"/>',
+    sources:  '<rect x="3" y="6" width="18" height="11" rx="2"/><path d="M9 21h6M12 17v4"/>',
+    device:   '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
+    track:    '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8.5"/>',
+    ball:     '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5l3.2 5-3.2 4.2-3.2-4.2z"/>',
+    calib:    '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M9 5v14"/>',
+    teams:    '<circle cx="9" cy="8" r="3"/><path d="M3 20v-1.5A4.5 4.5 0 017.5 14h3A4.5 4.5 0 0115 18.5V20"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14h.5a3.5 3.5 0 013.5 3.5V20"/>',
+    events:   '<path d="M12 3l2.5 6.4 6.5.5-5 4.3 1.6 6.8L12 17.4 6.4 21l1.6-6.8-5-4.3 6.5-.5z"/>',
+    tactical: '<path d="M12 3l9 5v8l-9 5-9-5V8z"/><path d="M12 8v8M8 10l8 4M16 10l-8 4"/>',
+    heat:     '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 10h3v3H7zM13 13h4v4h-4z"/>',
+    timeline: '<path d="M3 12h18"/><circle cx="7" cy="12" r="2.2"/><circle cx="16" cy="12" r="2.2"/>',
+    reports:  '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/>',
+    models:   '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
+    flow:     '<circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M6.7 7.4L11 16M17.3 7.4L13 16"/>',
+    health:   '<path d="M3 12h4l2-5 3 10 2.5-6 1.5 3h5"/>',
+    logs:     '<path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+    config:   '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.2 2.2M17.6 17.6l2.2 2.2M2 12h3M19 12h3M4.2 19.8l2.2-2.2M17.6 6.4l2.2-2.2"/>',
+    ai:       '<rect x="4" y="5" width="16" height="13" rx="3"/><circle cx="9" cy="11" r="1.4"/><circle cx="15" cy="11" r="1.4"/><path d="M12 2v3M9 18v3M15 18v3"/>',
+    insight:  '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 013.5 10.9V16h-7v-2.1A6 6 0 0112 3z"/>',
+    perf:     '<path d="M4 18l5-6 4 3 7-9"/><path d="M14 6h6v6"/>',
+    compare:  '<path d="M6 4v16M18 4v16M6 8h12M6 16h12"/>',
+    overview: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',
+    core:     '<circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="8.6"/>',
+    clubs:    '<path d="M4 20V9l8-5 8 5v11z"/><path d="M9 20v-6h6v6"/>',
+    vault:    '<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
+    city:     '<path d="M12 3l9 5v13H3V8z"/><path d="M9 21v-6h6v6"/>',
+    vision:   '<path d="M4 12V6.5A2.5 2.5 0 016.5 4H12M28 4h5.5" transform="scale(.6)"/><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.5"/><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-1.8-.3 1.6 1.6 0 00-1 1.5V21a2 2 0 11-4 0v-.1A1.6 1.6 0 008 19.4a1.6 1.6 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.6 1.6 0 00.3-1.8 1.6 1.6 0 00-1.5-1H2a2 2 0 110-4h.1A1.6 1.6 0 004.6 8a1.6 1.6 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.6 1.6 0 001.8.3H9a1.6 1.6 0 001-1.5V2a2 2 0 114 0v.1a1.6 1.6 0 001 1.5 1.6 1.6 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 00-.3 1.8V9a1.6 1.6 0 001.5 1H22a2 2 0 110 4h-.1a1.6 1.6 0 00-1.5 1z"/>',
+    search:   '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/>',
+    bell:     '<path d="M18 8a6 6 0 10-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 01-3.4 0"/>',
+    camera:   '<path d="M3 7h4l2-2h6l2 2h4v12H3z"/><circle cx="12" cy="13" r="3.4"/>',
+    drone:    '<circle cx="6" cy="6" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="18" r="2.4"/><rect x="9" y="9" width="6" height="6" rx="1.4"/>',
+    node:     '<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
+    pod:      '<rect x="7" y="3" width="10" height="18" rx="4.5"/><path d="M12 8v5"/>',
+    sensor:   '<circle cx="12" cy="12" r="3.6"/><path d="M5.5 5.5a9 9 0 000 13M18.5 5.5a9 9 0 010 13"/>',
+    cpu:      '<rect x="7" y="7" width="10" height="10" rx="1.6"/><path d="M10 2v3M14 2v3M10 19v3M14 19v3M2 10h3M2 14h3M19 10h3M19 14h3"/>',
+    grid2d:   '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 12h18M12 5v14"/>',
+    cube3d:   '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
+    lines:    '<path d="M4 18c4-9 12-9 16 0"/><path d="M4 12h16"/>',
+    zones:    '<rect x="3" y="4" width="8" height="7" rx="1"/><rect x="13" y="4" width="8" height="7" rx="1"/><rect x="3" y="13" width="8" height="7" rx="1"/><rect x="13" y="13" width="8" height="7" rx="1"/>',
+    play:     '<path d="M6 4l14 8-14 8z"/>',
+    prev:     '<path d="M15 5l-8 7 8 7"/>',
+    next:     '<path d="M9 5l8 7-8 7"/>',
+    back10:   '<path d="M11 5l-6 5 6 5"/><path d="M5 10h9a5 5 0 110 10h-3"/>',
+    fwd10:    '<path d="M13 5l6 5-6 5"/><path d="M19 10h-9a5 5 0 100 10h3"/>',
+    stop:     '<rect x="6" y="6" width="12" height="12" rx="2"/>',
+    shot:     '<path d="M4 7h4l2-2h4l2 2h4v11H4z"/><circle cx="12" cy="12" r="3"/>',
+    absent:   '<circle cx="12" cy="12" r="9" stroke-dasharray="2 3"/><path d="M12 8v5M12 16v.4"/>',
+    future:   '<circle cx="12" cy="12" r="9" stroke-dasharray="3 3"/><path d="M12 7.5V12l3 2"/>',
+    arrow:    '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    down:     '<path d="M12 4v12M6 12l6 6 6-6"/>',
+  };
+
+  function ico(name) {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+      + (ICONS[name] || ICONS.node) + '</svg>';
+  }
+
+  /* ── atoms ───────────────────────────────────────────────────────────────── */
 
   function Tag(text, kind) {
-    return '<span class="fv-tag' + (kind ? ' fv-tag--' + kind : '') + '">' + esc(text) + '</span>';
+    return '<span class="vx-tag' + (kind ? ' vx-tag--' + kind : '') + '">' + esc(text) + '</span>';
   }
 
-  function Panel(title, inner, opts) {
-    opts = opts || {};
-    var cls = 'fv-panel' + (opts.flush ? ' fv-panel--flush' : '') + (opts.accent ? ' fv-panel--accent' : '');
-    var head = title
-      ? '<div class="fv-panel-head"><h3 class="fv-panel-title">' + esc(title) + '</h3>'
-        + (opts.aside ? '<div class="fv-panel-aside">' + opts.aside + '</div>' : '') + '</div>'
-      : '';
-    return '<section class="' + cls + '">' + head + inner + '</section>';
+  /** A status marker: a dot, a word, and never colour alone. */
+  function Chip(label, state, title) {
+    var s = String(state || 'NOT_AVAILABLE');
+    return '<span class="vx-tag vx-s-' + esc(s) + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>'
+      + '<i class="vx-dot"></i>' + (label ? esc(label) + ' ' : '') + esc(words(s)) + '</span>';
   }
 
-  function Metric(value, unit, caption, opts) {
-    opts = opts || {};
-    return '<div class="fv-metric"><span class="fv-metric-v' + (opts.small ? ' fv-metric-v--sm' : '') + '">'
-      + value + '</span>' + (unit ? '<span class="fv-metric-u">' + esc(unit) + '</span>' : '') + '</div>'
-      + (caption ? '<div class="fv-metric-k">' + caption + '</div>' : '')
-      + (opts.bar !== undefined && opts.bar !== null
-        ? '<div class="fv-bar' + (opts.barKind ? ' fv-bar--' + opts.barKind : '') + '"><i style="width:'
-          + Math.max(0, Math.min(100, opts.bar * 100)).toFixed(1) + '%"></i></div>' : '');
+  /**
+   * A panel: a hairline, a dense header, and content. It is the only container
+   * in this module, and it is deliberately tight — 12px of padding, an 8px
+   * radius, one line of chrome. A workstation is read, not admired.
+   */
+  function Panel(title, inner, o) {
+    o = o || {};
+    return '<section class="vx-panel' + (o.accent ? ' vx-panel--accent' : '')
+      + (o.flat ? ' vx-panel--flat' : '') + (o.cls ? ' ' + o.cls : '') + '">'
+      + (title === null ? '' :
+        '<div class="vx-ph">'
+        + (o.ico ? '<span class="vx-ph-ico">' + ico(o.ico) + '</span>' : '')
+        + '<h3 class="vx-ph-t">' + esc(title) + '</h3>'
+        + (o.actions ? '<div class="vx-ph-a">' + o.actions + '</div>' : '')
+        + '</div>')
+      + '<div class="vx-pb' + (o.flush ? ' vx-pb--flush' : '') + (o.tight ? ' vx-pb--tight' : '') + '">'
+      + inner + '</div></section>';
   }
 
-  /** The four absences. Each names what is missing and what would fill it. */
-  function Empty(kind, title, why, mark) {
-    return '<div class="fv-empty fv-empty--' + kind + '" role="status">'
-      + '<div class="fv-empty-mark">' + icon(mark || (kind === 'future' ? 'future' : 'absent')) + '</div>'
-      + '<div class="fv-empty-title">' + esc(title) + '</div>'
-      + '<p class="fv-empty-why">' + esc(why) + '</p></div>';
+  /** A reading: label, figure, qualifier. No box of its own unless asked. */
+  function Stat(k, v, s, o) {
+    o = o || {};
+    return '<div class="vx-stat' + (o.tone ? ' vx-stat--' + o.tone : '')
+      + (o.ico ? ' vx-stat--icon' : '') + '">'
+      + (o.ico ? '<span class="vx-stat-ico">' + ico(o.ico) + '</span>' : '')
+      + '<span class="vx-stat-k">' + esc(k) + '</span>'
+      + '<span class="vx-stat-v">' + v + '</span>'
+      + '<span class="vx-stat-s">' + (s === undefined || s === null ? '' : s) + '</span></div>';
   }
 
   function Rows(pairs) {
-    return '<div class="fv-rows">' + pairs.map(function (p) {
-      if (!p) return '';
-      return '<div class="fv-row"><span class="fv-row-k">' + p[0]
-        + (p[2] ? '<span class="fv-row-sub">' + esc(p[2]) + '</span>' : '')
-        + '</span><span class="fv-row-v">' + p[1] + '</span></div>';
+    return '<div class="vx-rows">' + pairs.filter(Boolean).map(function (p) {
+      return '<div class="vx-row"><span class="vx-row-k">' + p[0]
+        + (p[2] ? '<span>' + esc(p[2]) + '</span>' : '') + '</span>'
+        + '<span class="vx-row-v">' + p[1] + '</span></div>';
     }).join('') + '</div>';
+  }
+
+  function Bar(value, kind) {
+    return '<div class="vx-bar' + (kind ? ' vx-bar--' + kind : '') + '"><i style="width:'
+      + Math.max(0, Math.min(100, (value || 0) * 100)).toFixed(1) + '%"></i></div>';
+  }
+
+  /** Every absence names what is missing and what would fill it. */
+  function Empty(kind, title, why, mark) {
+    return '<div class="vx-empty vx-empty--' + kind + '" role="status">'
+      + '<span class="vx-empty-m">' + ico(mark || (kind === 'future' ? 'future' : 'absent')) + '</span>'
+      + '<span class="vx-empty-t">' + esc(title) + '</span>'
+      + '<p class="vx-empty-w">' + esc(sentence(why)) + '</p></div>';
+  }
+
+  function needSession() {
+    return Empty('withheld', 'NO SESSION LOADED',
+      'Open one under Sessions. Every figure in this module belongs to one processed '
+      + 'session and none of them is an average across sessions', 'sessions');
   }
 
   /**
    * A table, windowed.
    *
-   * `rows` is an array of HTML strings. Only the first `TABLE_WINDOW` are laid
-   * out; the footer says how many were withheld, because a silently truncated
-   * table is a table that has lied about its own size.
+   * Only the first `TABLE_WINDOW` rows are laid out; the footer says how many
+   * were not, because a silently truncated table has lied about its own size.
    */
-  function Table(caption, headers, rows, opts) {
-    opts = opts || {};
-    var shown = rows.slice(0, opts.window || TABLE_WINDOW);
+  function Table(caption, headers, rows, o) {
+    o = o || {};
+    var shown = rows.slice(0, o.window || TABLE_WINDOW);
     var hidden = rows.length - shown.length;
-    return '<div class="fv-table-wrap"' + (opts.tall ? ' style="max-height:none"' : '') + '>'
-      + '<table class="fv-table"><caption>' + esc(caption) + '</caption><thead><tr>'
+    return '<div class="vx-tablewrap"' + (o.tall ? ' style="max-height:none"' : '') + '>'
+      + '<table class="vx-table"><caption>' + esc(caption) + '</caption><thead><tr>'
       + headers.map(function (h) { return '<th scope="col">' + esc(h) + '</th>'; }).join('')
-      + '</tr></thead><tbody>' + shown.join('') + '</tbody></table>'
-      + (hidden > 0
-        ? '<div class="fv-table-foot">Showing ' + shown.length + ' of ' + rows.length
-          + ' rows. The rest are in the export — nothing was dropped, only not laid out.</div>'
-        : '')
-      + '</div>';
+      + '</tr></thead><tbody>' + shown.join('') + '</tbody></table></div>'
+      + (hidden > 0 ? '<div class="vx-tablefoot">Showing ' + shown.length + ' of ' + rows.length
+        + ' rows. The rest are in the export — nothing was dropped, only not laid out.</div>' : '');
   }
 
-  function needSession() {
-    return Empty('withheld', 'NO SESSION SELECTED',
-      'Choose a session under Sessions. Every figure in this module belongs to one '
-      + 'processed session and none of them is a platform average.', 'sessions');
-  }
+  /* ── the pitch, in metres. Law 1. ────────────────────────────────────────── */
 
-  // ── pitch ─────────────────────────────────────────────────────────────────
-
-  /** Law 1, in metres. A dot's position is its own pitch coordinate. */
   function pitchFrame() {
     var L = 105, W = 68, out = [];
     for (var i = 0; i < 6; i++) {
-      out.push('<rect class="fv-pitch-mow" x="' + (i * 17.5) + '" y="0" width="8.75" height="' + W + '"/>');
+      out.push('<rect class="vx-pitch-mow" x="' + (i * 17.5) + '" y="0" width="8.75" height="' + W + '"/>');
     }
-    out.push('<rect x="0" y="0" width="' + L + '" height="' + W + '" class="fv-pitch-line"/>');
-    out.push('<line x1="52.5" y1="0" x2="52.5" y2="' + W + '" class="fv-pitch-line"/>');
-    out.push('<circle cx="52.5" cy="34" r="9.15" class="fv-pitch-line"/>');
-    out.push('<circle cx="52.5" cy="34" r="0.4" class="fv-pitch-line" fill="rgba(255,255,255,.2)"/>');
-    out.push('<rect x="0" y="13.84" width="16.5" height="40.32" class="fv-pitch-line"/>');
-    out.push('<rect x="88.5" y="13.84" width="16.5" height="40.32" class="fv-pitch-line"/>');
-    out.push('<rect x="0" y="24.84" width="5.5" height="18.32" class="fv-pitch-line"/>');
-    out.push('<rect x="99.5" y="24.84" width="5.5" height="18.32" class="fv-pitch-line"/>');
-    out.push('<circle cx="11" cy="34" r="0.4" class="fv-pitch-line" fill="rgba(255,255,255,.2)"/>');
-    out.push('<circle cx="94" cy="34" r="0.4" class="fv-pitch-line" fill="rgba(255,255,255,.2)"/>');
+    out.push('<rect x="0" y="0" width="105" height="68" class="vx-pitch-line"/>');
+    out.push('<line x1="52.5" y1="0" x2="52.5" y2="68" class="vx-pitch-line"/>');
+    out.push('<circle cx="52.5" cy="34" r="9.15" class="vx-pitch-line"/>');
+    out.push('<circle cx="52.5" cy="34" r="0.4" class="vx-pitch-line" fill="rgba(255,255,255,.22)"/>');
+    out.push('<rect x="0" y="13.84" width="16.5" height="40.32" class="vx-pitch-line"/>');
+    out.push('<rect x="88.5" y="13.84" width="16.5" height="40.32" class="vx-pitch-line"/>');
+    out.push('<rect x="0" y="24.84" width="5.5" height="18.32" class="vx-pitch-line"/>');
+    out.push('<rect x="99.5" y="24.84" width="5.5" height="18.32" class="vx-pitch-line"/>');
+    out.push('<circle cx="11" cy="34" r="0.4" class="vx-pitch-line" fill="rgba(255,255,255,.22)"/>');
+    out.push('<circle cx="94" cy="34" r="0.4" class="vx-pitch-line" fill="rgba(255,255,255,.22)"/>');
     return out.join('');
   }
 
-  function Pitch(inner, opts) {
-    opts = opts || {};
-    return '<div class="fv-pitch-wrap"><svg class="fv-pitch'
-      + (opts.small ? ' fv-pitch--sm' : '') + (opts.tall ? ' fv-pitch--tall' : '')
-      + '" viewBox="-4 -4 113 76" role="img" aria-label="'
-      + esc(opts.label || 'Pitch map in metres') + '">'
-      + pitchFrame() + inner + '</svg></div>';
+  function Pitch(inner, o) {
+    o = o || {};
+    return '<svg class="vx-pitch" viewBox="-3 -3 111 74" preserveAspectRatio="xMidYMid meet"'
+      + ' role="img" aria-label="' + esc(o.label || 'Pitch map in metres') + '"'
+      + (o.style ? ' style="' + o.style + '"' : '') + '>'
+      + (FV.layers.lines || o.forceLines ? pitchFrame() : '') + inner + '</svg>';
   }
 
-  /** The same two words as LEGEND_ORIGIN, sized for a caption rather than a row. */
-  var LEGEND_INLINE = '<span class="fv-lgd"><i class="fv-lgd-m"></i>measured</span>'
-    + '<span class="fv-lgd"><i class="fv-lgd-p"></i>propagated</span>';
-
-  var LEGEND_ORIGIN = '<div class="fv-legend">'
-    + Chip('MEASURED', 'READY', 'solved from landmarks on this frame')
-    + Chip('PROPAGATED', 'DEGRADED', 'carried from an anchor through measured camera motion')
-    + '</div>';
-
-  // ── plumbing ──────────────────────────────────────────────────────────────
-
-  function get(path) {
-    return fetch(API + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-      .then(function (r) {
-        if (r.status === 401 || r.status === 403) {
-          return { ok: false, error: 'Familista Vision is not available to this account.' };
-        }
-        return r.json().catch(function () { return { ok: false, error: 'malformed response' }; });
-      })
-      .catch(function (e) { return { ok: false, error: String((e && e.message) || e) }; });
+  /** The colour a track is drawn in: role first, then team. Never a guess. */
+  function trackTone(t) {
+    if (t.role === 'GOALKEEPER') return 'var(--v-amber)';
+    if (t.role === 'REFEREE') return '#ffffff';
+    if (t.role === 'UNKNOWN' || !t.teamId) return 'var(--v-violet)';
+    return t.teamId === 'team_a' ? 'var(--v-cyan)' : 'var(--v-green)';
   }
-
-  function head(title, sub, actions) {
-    var el = document.getElementById('fv-work-head');
-    if (el) {
-      el.innerHTML = '<div class="fv-work-titles"><h2 class="fv-work-title">' + esc(title) + '</h2>'
-        + '<p class="fv-work-sub">' + esc(sub) + '</p></div>'
-        + (actions ? '<div class="fv-work-actions">' + actions + '</div>' : '');
-    }
-  }
-
-  function body(html) {
-    var el = document.getElementById('fv-work-body');
-    if (el) { el.innerHTML = html; el.scrollTop = 0; }
+  function trackToneClass(t) {
+    if (t.role === 'GOALKEEPER') return 'gk';
+    if (t.role === 'REFEREE') return 'ref';
+    if (!t.teamId || t.teamId === 'UNASSIGNED') return '';
+    return t.teamId === 'team_a' ? 'a' : 'b';
   }
 
   window.__FV = FV;
 
-  // ── navigation ────────────────────────────────────────────────────────────
+  /* ═══════════════════════════════════════════════════════════════════════════
+     NAVIGATION
+     ═══════════════════════════════════════════════════════════════════════════
 
-  /**
-   * THE FOUR THINGS A READER CAN BE DOING HERE.
-   *
-   * The groups used to be VISION / TRACKING / ANALYSIS / SYSTEM, which named
-   * the code that produced each screen rather than the job it serves. These
-   * name the job:
-   *
-   *   COMMAND      — what is running right now, and what to watch it on.
-   *   EVIDENCE     — what the engine MEASURED, and how well.
-   *   INTELLIGENCE — what can be READ OFF that evidence, including the
-   *                  readings that are not validated yet and say so.
-   *   OPERATIONS   — the rig, the models, the exports, the wiring.
-   *
-   * A section belongs to exactly one, and this list is the only place the
-   * order is decided.
-   */
-  var SECTIONS = [
-    { id: 'overview',     group: 'COMMAND',      ico: 'overview',  label: 'Overview' },
-    { id: 'live',         group: 'COMMAND',      ico: 'live',      label: 'Live Analysis' },
-    { id: 'sessions',     group: 'COMMAND',      ico: 'sessions',  label: 'Sessions' },
+     THE MODULE ROW is the platform's own rooms. Every entry here routes through
+     `window.navTo` to a page the shell already owns — nothing on this row is a
+     module invented for the picture. Reports, Models and Devices are Vision's
+     own sections and say so by opening them.
 
-    { id: 'tracking',     group: 'EVIDENCE',     ico: 'track',     label: 'Player Tracking' },
-    { id: 'ball',         group: 'EVIDENCE',     ico: 'ball',      label: 'Ball Tracking' },
-    { id: 'calibration',  group: 'EVIDENCE',     ico: 'calib',     label: 'Pitch Calibration' },
-    { id: 'teams',        group: 'EVIDENCE',     ico: 'teams',     label: 'Teams & Roles' },
-    { id: 'events',       group: 'EVIDENCE',     ico: 'events',    label: 'Events' },
+     THE RAIL is Vision's sections, grouped by what a reader is DOING. An entry
+     with `off: true` is a reading this deployment does not produce; it is drawn
+     disabled and marked, because the shape of the product is worth seeing and a
+     control that does nothing is not worth clicking.
+  */
 
-    { id: 'tactical',     group: 'INTELLIGENCE', ico: 'tactical',  label: 'Tactical View', badge: 'PENDING' },
-    { id: 'heatmaps',     group: 'INTELLIGENCE', ico: 'heat',      label: 'Heatmaps' },
-    { id: 'physical',     group: 'INTELLIGENCE', ico: 'physical',  label: 'Physical Metrics', badge: 'NOT VALIDATED' },
-    { id: 'timeline',     group: 'INTELLIGENCE', ico: 'timeline',  label: 'Timeline' },
-
-    { id: 'sources',      group: 'OPERATIONS',   ico: 'sources',   label: 'Sources' },
-    { id: 'device',       group: 'OPERATIONS',   ico: 'device',    label: 'Device / Vision Hub' },
-    { id: 'models',       group: 'OPERATIONS',   ico: 'models',    label: 'Models & Providers' },
-    { id: 'reports',      group: 'OPERATIONS',   ico: 'reports',   label: 'Reports' },
-    { id: 'integrations', group: 'OPERATIONS',   ico: 'flow',      label: 'Integrations / Data Flow' },
+  var MODULES = [
+    { id: 'owner-home',          label: 'Overview',            ico: 'overview', platform: true },
+    { id: 'source-core',         label: 'Source Core',         ico: 'core',     platform: true },
+    { id: 'clubs',               label: 'Clubs',               ico: 'clubs',    platform: true },
+    { id: 'data-vault',          label: 'Data Vault',          ico: 'vault',    platform: true },
+    { id: 'infrastructure-city', label: 'Infrastructure City', ico: 'city',     platform: true },
+    { id: 'familista-vision',    label: 'Familista Vision',    ico: 'vision',   current: true },
+    { id: 'reports',             label: 'Reports',             ico: 'reports',  section: true },
+    { id: 'models',              label: 'Models',              ico: 'models',   section: true },
+    { id: 'device',              label: 'Devices',             ico: 'device',   section: true },
+    { id: 'ai-assistant',        label: 'AI Assistant',        ico: 'ai',
+      off: 'Vision publishes evidence to Familista Intelligence; it has no assistant of its own' },
+    { id: 'settings',            label: 'Settings',            ico: 'settings', platform: true },
   ];
 
-  /**
-   * THE EVIDENCE CAPABILITIES, as one counted reading.
-   *
-   * These are the rows the service publishes about what it can currently
-   * produce. The command bar reports HOW MANY of them are ready and colours
-   * itself by the worst one — it counts, it does not judge. The rows
-   * themselves, each with its own status and its own reason, are on Overview
-   * where there is room to read them.
-   */
-  var EVIDENCE_CAPS = ['source-input', 'player-tracking', 'ball-tracking',
-    'calibration', 'teams-roles', 'events'];
+  var SECTIONS = [
+    { id: 'live',        group: 'VISION', ico: 'live',     label: 'Live Analysis' },
+    { id: 'sessions',    group: 'VISION', ico: 'sessions', label: 'Sessions' },
+    { id: 'sources',     group: 'VISION', ico: 'sources',  label: 'Sources' },
+    { id: 'device',      group: 'VISION', ico: 'device',   label: 'Device / Vision Hub' },
+    { id: 'tracking',    group: 'VISION', ico: 'track',    label: 'Player Tracking' },
+    { id: 'ball',        group: 'VISION', ico: 'ball',     label: 'Ball Tracking' },
+    { id: 'calibration', group: 'VISION', ico: 'calib',    label: 'Pitch Calibration' },
+    { id: 'teams',       group: 'VISION', ico: 'teams',    label: 'Teams & Roles' },
+    { id: 'events',      group: 'VISION', ico: 'events',   label: 'Events' },
+    { id: 'tactical',    group: 'VISION', ico: 'tactical', label: 'Tactical View', badge: 'PENDING' },
+    { id: 'heatmaps',    group: 'VISION', ico: 'heat',     label: 'Heatmaps' },
+    { id: 'timeline',    group: 'VISION', ico: 'timeline', label: 'Timeline' },
+    { id: 'reports',     group: 'VISION', ico: 'reports',  label: 'Reports' },
 
-  var STATE_RANK = { LIVE: 0, READY: 0, PROCESSING: 1, DEGRADED: 2, NOT_IMPLEMENTED: 3,
-    NOT_AVAILABLE: 3, OFFLINE: 4, ERROR: 5 };
+    { id: 'ai',          group: 'INTELLIGENCE', ico: 'ai',      label: 'AI Assistant',
+      off: 'no Vision assistant exists; evidence is published to Familista Intelligence' },
+    { id: 'insights',    group: 'INTELLIGENCE', ico: 'insight', label: 'Insights',
+      off: 'an insight is a claim about football, and the engine confirms none beyond proximity' },
+    { id: 'tacticalai',  group: 'INTELLIGENCE', ico: 'tactical', label: 'Tactical AI',
+      off: 'tactical intelligence is not implemented in the validated engine' },
+    { id: 'performance', group: 'INTELLIGENCE', ico: 'perf',    label: 'Performance', badge: 'NOT VALIDATED' },
+    { id: 'comparisons', group: 'INTELLIGENCE', ico: 'compare', label: 'Comparisons',
+      off: 'comparing two sessions needs a validated per-player measurement; none exists yet' },
 
-  /**
-   * The seven readings, built from whatever the module currently knows.
-   *
-   * Its own function because the bar has to be repainted when a session opens
-   * — four of the seven are about that session — and repainting the whole
-   * shell to say so would throw away the reader's nav position and scroll.
-   * `refreshBar` writes this into the one element that changed.
-   */
-  function commandReadings() {
+    { id: 'health',       group: 'SYSTEM', ico: 'health', label: 'Health' },
+    { id: 'models',       group: 'SYSTEM', ico: 'models', label: 'Models & Providers' },
+    { id: 'integrations', group: 'SYSTEM', ico: 'flow',   label: 'Integrations' },
+    { id: 'logs',         group: 'SYSTEM', ico: 'logs',   label: 'Logs',
+      off: 'Vision writes its facts to the Data Vault as events; it keeps no log surface of its own' },
+    { id: 'config',       group: 'SYSTEM', ico: 'config', label: 'Configuration',
+      off: 'Vision reads its configuration from the deployment; there is nothing to edit here' },
+  ];
+
+  /* ── the global bar ──────────────────────────────────────────────────────── */
+
+  function platformUser() {
+    var u = (window.State && window.State.user) || {};
+    var c = (window.State && window.State.club) || {};
+    var name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email || 'Signed in';
+    var initials = ((u.firstName || u.email || 'U')[0] || 'U').toUpperCase();
+    return { name: name, initials: initials, club: c.name || '', role: u.role ? words(u.role) : '' };
+  }
+
+  function globalBar() {
     var h = FV.status && FV.status.health;
-    if (!h) return '';
-    var caps = h.capabilities || [];
-    var byKey = {};
-    caps.forEach(function (c) { byKey[c.key] = c; });
+    var me = platformUser();
+    var engineLive = !!(h && h.service === 'LIVE');
+    var badge = '';
+    try {
+      var b = document.getElementById('hdr-notif-badge');
+      if (b && !b.hidden && b.textContent.trim()) badge = b.textContent.trim();
+    } catch (_) {}
+
+    return '<header class="vx-top">'
+      + '<div class="vx-brand"><span class="vx-brand-mark" aria-hidden="true">'
+      + '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"'
+      + ' stroke-width="2" stroke-linecap="round"><path d="M3 8V5a2 2 0 012-2h3M16 3h3a2 2 0 012 2v3'
+      + 'M21 16v3a2 2 0 01-2 2h-3M8 21H5a2 2 0 01-2-2v-3"/><circle cx="12" cy="12" r="4.4"/>'
+      + '<circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span>'
+      + '<span><span class="vx-brand-n">FAMILISTA</span>'
+      + '<span class="vx-brand-s">Football Intelligence Platform</span></span></div>'
+
+      // Drives the platform's own `#global-search`. A second search box that
+      // searches nothing would be a control with a lie in it.
+      + '<label class="vx-search">' + ico('search')
+      + '<input type="search" data-vx-search placeholder="Search players, teams, matches, sessions…"'
+      + ' aria-label="Search Familista">'
+      + '</label>'
+
+      + '<div class="vx-top-right">'
+      + '<span class="vx-live' + (engineLive ? '' : ' is-off') + '" title="the Vision engine’s own state">'
+      + '<i></i>' + esc(h ? h.service : 'READING') + '</span>'
+      + '<button class="vx-iconbtn" data-vx-notif type="button" aria-label="Notifications">' + ico('bell')
+      + (badge ? '<span class="vx-iconbtn-badge">' + esc(badge) + '</span>' : '') + '</button>'
+      + '<div class="vx-me"><span class="vx-me-av" aria-hidden="true">' + esc(me.initials) + '</span>'
+      + '<span><span class="vx-me-n" data-user-content>' + esc(me.name) + '</span>'
+      + '<span class="vx-me-r" data-user-content>' + esc(me.club || me.role) + '</span></span></div>'
+      + '</div></header>';
+  }
+
+  function moduleRow() {
+    return '<nav class="vx-modules" aria-label="Familista modules">' + MODULES.map(function (m) {
+      var attrs = m.current ? ' aria-current="page"' : '';
+      if (m.off) attrs += ' disabled aria-disabled="true" title="' + esc(sentence(m.off)) + '"';
+      else if (m.platform) attrs += ' data-vx-module="' + esc(m.id) + '"';
+      else if (m.section) attrs += ' data-vx-section="' + esc(m.id) + '"';
+      return '<button class="vx-mod" type="button"' + attrs + '>' + ico(m.ico)
+        + '<span>' + esc(m.label) + '</span></button>';
+    }).join('') + '</nav>';
+  }
+
+  function rail() {
+    var last = '';
+    return '<nav class="vx-side" aria-label="Familista Vision sections">'
+      + '<div class="vx-side-scroll">' + SECTIONS.map(function (s) {
+        var g = s.group !== last ? '<div class="vx-group">' + esc(s.group) + '</div>' : '';
+        last = s.group;
+        var attrs = s.off
+          ? ' disabled aria-disabled="true" title="' + esc(sentence(s.off)) + '"'
+          : ' data-vx-section="' + esc(s.id) + '"'
+            + (FV.section === s.id ? ' aria-current="page"' : '')
+            + ' title="' + esc(s.label) + '"';
+        return g + '<button class="vx-item" type="button"' + attrs + '>'
+          + '<span class="vx-item-ico">' + ico(s.ico) + '</span>'
+          + '<span class="vx-item-l">' + esc(s.label) + '</span>'
+          + (s.off ? '<span class="vx-item-b">N/A</span>'
+            : s.badge ? '<span class="vx-item-b vx-item-b--warn">' + esc(s.badge) + '</span>' : '')
+          + '</button>';
+      }).join('') + '</div>'
+      + '<div class="vx-side-foot"><b>FAMILISTA</b><i>VISION</i>'
+      + '<span>See · Understand · Improve</span></div></nav>';
+  }
+
+  /* ── the workbar: the state of the instrument, on one line ───────────────── */
+
+  function rd(k, v, title) {
+    return '<span class="vx-rd"' + (title ? ' title="' + esc(title) + '"' : '') + '>'
+      + esc(k) + ' <b>' + v + '</b></span>';
+  }
+
+  /**
+   * What the workbar says is the same seven facts on every screen, because the
+   * question "what am I looking at, off what, on what, how fast" does not
+   * change when the panel below it does.
+   */
+  function workbarReadings() {
+    var h = FV.status && FV.status.health;
     var s = FV.session && FV.session.summary;
-
-    var evRows = EVIDENCE_CAPS.map(function (k) { return byKey[k]; })
-      .filter(function (c) { return !!c; });
-    var evReady = evRows.filter(function (c) { return c.status === 'READY' || c.status === 'LIVE'; }).length;
-    var evWorst = evRows.reduce(function (acc, c) {
-      return (STATE_RANK[c.status] || 0) > (STATE_RANK[acc] || 0) ? c.status : acc;
-    }, 'READY');
-
-    return [
-      Reading('Current session', s ? s.sessionRef : 'NONE SELECTED',
-        s ? (s.source.displayName + ' · ' + s.source.width + '\u00d7' + s.source.height) : 'choose one under Sessions',
-        s ? 'LIVE' : 'NOT_AVAILABLE',
-        'every figure in this module belongs to this session and to no other'),
-      Reading('Source', s ? s.source.sourceType.replace(/_/g, ' ') : '\u2014',
-        s ? (s.source.qualityBand ? 'quality ' + s.source.qualityBand + ' \u00b7 ' + n(s.source.qualityScore, 2) : 'quality not scored') : 'no source in view',
-        s ? 'READY' : 'NOT_AVAILABLE',
-        'what the engine read this session off'),
-      Reading('Engine', h.service, h.deviceKind.replace(/_/g, ' ').toLowerCase(),
-        h.service, 'the Vision engine behind this deployment'),
-      Reading('Processing target', h.processingTarget.replace(/_/g, ' '),
-        'where inference runs', h.processingTarget === 'VISION_HUB' ? 'NOT_IMPLEMENTED' : 'READY',
-        'LOCAL_SERVER reads the engine\u2019s artefacts; VISION_HUB is declared and refuses everything'),
-      Reading('Rate', s ? n(s.processingFps, 2) + ' fps' : '\u2014',
-        s ? ('source ' + n(s.source.fps, 2) + ' fps \u00b7 wall clock ' + n(s.processingSeconds, 0) + ' s') : 'nothing processed in view',
-        s ? 'READY' : 'NOT_AVAILABLE',
-        'how fast this session was processed, not a live frame rate'),
-      Reading('Evidence health', evReady + ' / ' + evRows.length,
-        'capability rows ready', evWorst,
-        'a count of the service\u2019s own capability rows \u2014 the rows themselves are on Overview'),
-      Reading('Device', h.deviceKind.replace(/_/g, ' '), h.deviceId,
-        byKey['vision-hub'] ? byKey['vision-hub'].status : 'READY',
-        'the device this deployment is running as'),
-    ].join('');
+    var out = [];
+    out.push(rd('Session', s ? '<span data-user-content>' + esc(s.sessionRef) + '</span>'
+      : '<span class="vx-none">none</span>', 'every figure on this screen belongs to this session'));
+    out.push('<span class="vx-rd-sep"></span>');
+    out.push(rd('Source', s ? esc(s.source.displayName) : '<span class="vx-none">—</span>'));
+    out.push(rd('', s ? esc(s.source.width) + '×' + esc(s.source.height)
+      : '<span class="vx-none">—</span>'));
+    out.push(rd('Input', s ? n(s.source.fps, 2) + ' fps' : '<span class="vx-none">—</span>',
+      'the source’s own frame rate'));
+    out.push(rd('Processing', s ? n(s.processingFps, 2) + ' fps' : '<span class="vx-none">—</span>',
+      'how fast this session was processed — not a live rate'));
+    out.push('<span class="vx-rd-sep"></span>');
+    out.push(rd('Target', h ? esc(words(h.processingTarget)) : '<span class="vx-none">—</span>',
+      'where inference runs for this deployment'));
+    // Latency is a live-pipeline figure. This deployment reads completed
+    // sessions, so there is no latency to report and none is invented.
+    out.push(rd('Latency', '<span class="vx-none" title="this deployment reads completed sessions;'
+      + ' there is no live pipeline to measure">—</span>'));
+    return out.join('');
   }
 
-  /** Repaint the command bar and nothing else. */
-  function refreshBar() {
-    var rail = document.querySelector('.fv-cmd-rail');
-    if (rail) rail.innerHTML = commandReadings();
+  function workbar(title, actions) {
+    return '<div class="vx-workbar">'
+      + '<h2 class="vx-title">' + esc(title) + '</h2>'
+      + '<div class="vx-workbar-readings" role="status">' + workbarReadings() + '</div>'
+      + '<div class="vx-workbar-actions">' + (actions || '') + '</div></div>';
   }
+
+  function setWorkbar(title, actions) {
+    var el = document.getElementById('vx-workbar');
+    if (el) el.innerHTML = workbar(title, actions);
+  }
+
+  function body(html) {
+    var el = document.getElementById('vx-body');
+    if (el) { el.innerHTML = html; el.scrollTop = 0; }
+  }
+
+  /* ── the shell ───────────────────────────────────────────────────────────── */
 
   function renderShell() {
     var root = document.getElementById('fv-root');
     if (!root) return;
-    var bar = commandReadings();
-
-    var lastGroup = '';
-    var nav = SECTIONS.map(function (s) {
-      var g = s.group !== lastGroup ? '<div class="fv-nav-group">' + esc(s.group) + '</div>' : '';
-      lastGroup = s.group;
-      return g + '<button class="fv-nav-item" data-fv-section="' + esc(s.id) + '" type="button"'
-        + (FV.section === s.id ? ' aria-current="page"' : '') + ' title="' + esc(s.label) + '">'
-        + '<span class="fv-nav-ico">' + icon(s.ico) + '</span>'
-        + '<span class="fv-nav-label">' + esc(s.label) + '</span>'
-        + (s.badge ? '<span class="fv-nav-badge">' + esc(s.badge) + '</span>' : '')
-        + '</button>';
-    }).join('');
-
     root.innerHTML =
-      // ── ONE command bar. No second topbar, no second navigation. ──────────
-      '<header class="fv-cmd">'
-      + '<div class="fv-cmd-id">'
-      + '<span class="fv-cmd-mark" aria-hidden="true">'
-      + '<svg viewBox="0 0 40 40" width="24" height="24" fill="none" focusable="false">'
-      + '<path d="M4 12V6.5A2.5 2.5 0 0 1 6.5 4H12M28 4h5.5A2.5 2.5 0 0 1 36 6.5V12M36 28v5.5a2.5 2.5 0 0 1-2.5 2.5H28M12 36H6.5A2.5 2.5 0 0 1 4 33.5V28" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>'
-      + '<circle cx="20" cy="20" r="8" stroke="currentColor" stroke-width="2"/>'
-      + '<circle cx="20" cy="20" r="3" fill="currentColor"/></svg></span>'
-      + '<span class="fv-cmd-names"><span class="fv-cmd-name">FAMILISTA VISION</span>'
-      + '<span class="fv-cmd-sub">Computer vision \u00b7 evidence \u00b7 provenance</span></span>'
-      + '</div>'
-      + '<div class="fv-cmd-rail" role="status" aria-label="Familista Vision instrument state">' + bar + '</div>'
-      + '<div class="fv-cmd-end"><button class="fv-btn" data-fv-back type="button">\u2190 Familista</button></div>'
-      + '</header>'
-      + '<div class="fv-body">'
-      + '<nav class="fv-nav" aria-label="Familista Vision sections">' + nav + '</nav>'
-      + '<main class="fv-work"><div class="fv-work-head" id="fv-work-head"></div>'
-      + '<div class="fv-work-body" id="fv-work-body" tabindex="-1"></div></main>'
-      + '</div>'
-      + '<div class="fv-scrim" data-fv-drawer-close></div>'
-      + '<aside class="fv-drawer" id="fv-drawer" role="dialog" aria-modal="false" aria-hidden="true">'
-      + '<div class="fv-drawer-head"><div><div class="fv-drawer-title" id="fv-drawer-title"></div>'
-      + '<div class="fv-drawer-sub" id="fv-drawer-sub"></div></div>'
-      + '<button class="fv-btn" data-fv-drawer-close type="button" aria-label="Close evidence">\u2715</button></div>'
-      + '<div class="fv-drawer-body" id="fv-drawer-body"></div></aside>';
+      globalBar() + moduleRow()
+      + '<div class="vx-main">' + rail()
+      + '<main class="vx-work"><div id="vx-workbar"></div>'
+      + '<div class="vx-body" id="vx-body" tabindex="-1"></div></main></div>'
+      + '<div class="vx-scrim" data-vx-drawer-close></div>'
+      + '<aside class="vx-drawer" id="vx-drawer" role="dialog" aria-modal="false" aria-hidden="true">'
+      + '<div class="vx-drawer-h"><div><div class="vx-drawer-t" id="vx-drawer-t"></div>'
+      + '<div class="vx-drawer-s" id="vx-drawer-s"></div></div>'
+      + '<button class="vx-iconbtn" data-vx-drawer-close type="button" aria-label="Close evidence">'
+      + '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>'
+      + '<div class="vx-drawer-b" id="vx-drawer-b"></div></aside>';
 
     root.addEventListener('click', onClick);
     root.addEventListener('input', onInput);
@@ -480,555 +504,47 @@
     renderSection();
   }
 
-  function refreshNav() {
-    var items = document.querySelectorAll('[data-fv-section]');
+  /** Repaint the rail's current marker and the workbar, and nothing else. */
+  function refreshRail() {
+    var items = document.querySelectorAll('[data-vx-section]');
     for (var i = 0; i < items.length; i++) {
-      var on = items[i].getAttribute('data-fv-section') === FV.section;
-      if (on) items[i].setAttribute('aria-current', 'page');
+      if (!items[i].classList.contains('vx-item')) continue;
+      if (items[i].getAttribute('data-vx-section') === FV.section) items[i].setAttribute('aria-current', 'page');
       else items[i].removeAttribute('aria-current');
     }
   }
 
   function goto(section) {
     FV.section = section;
-    refreshNav();
+    refreshRail();
     renderSection();
-    var b = document.getElementById('fv-work-body');
+    var b = document.getElementById('vx-body');
     if (b) b.focus({ preventScroll: true });
   }
 
-  // ── drawer ────────────────────────────────────────────────────────────────
-
   function openDrawer(title, sub, html) {
-    var d = document.getElementById('fv-drawer');
-    var s = document.querySelector('.fv-scrim');
+    var d = document.getElementById('vx-drawer');
+    var s = document.querySelector('.vx-scrim');
     if (!d) return;
-    document.getElementById('fv-drawer-title').textContent = title;
-    document.getElementById('fv-drawer-sub').textContent = sub || '';
-    document.getElementById('fv-drawer-body').innerHTML = html;
-    d.classList.add('is-open');
-    d.setAttribute('aria-hidden', 'false');
+    document.getElementById('vx-drawer-t').textContent = title;
+    document.getElementById('vx-drawer-s').textContent = sub || '';
+    document.getElementById('vx-drawer-b').innerHTML = html;
+    d.classList.add('is-open'); d.setAttribute('aria-hidden', 'false');
     if (s) s.classList.add('is-open');
-    var close = d.querySelector('[data-fv-drawer-close]');
+    var close = d.querySelector('[data-vx-drawer-close]');
     if (close) close.focus();
   }
 
   function closeDrawer() {
-    var d = document.getElementById('fv-drawer');
-    var s = document.querySelector('.fv-scrim');
+    var d = document.getElementById('vx-drawer');
+    var s = document.querySelector('.vx-scrim');
     if (d) { d.classList.remove('is-open'); d.setAttribute('aria-hidden', 'true'); }
     if (s) s.classList.remove('is-open');
-    FV.selection.track = null;
-    FV.selection.event = null;
   }
 
-  // ── events ────────────────────────────────────────────────────────────────
-
-  function onClick(e) {
-    var t = e.target;
-    var nav = t.closest('[data-fv-section]');
-    if (nav) { goto(nav.getAttribute('data-fv-section')); return; }
-
-    if (t.closest('[data-fv-back]')) {
-      if (typeof window.navTo === 'function') window.navTo('owner-home');
-      else window.location.hash = '#owner-home';
-      return;
-    }
-    if (t.closest('[data-fv-drawer-close]')) { closeDrawer(); return; }
-
-    var open = t.closest('[data-fv-open-session]');
-    if (open) { openSession(open.getAttribute('data-fv-open-session')); return; }
-
-    var ov = t.closest('[data-fv-overlay]');
-    if (ov) {
-      var key = ov.getAttribute('data-fv-overlay');
-      FV.overlays[key] = !FV.overlays[key];
-      renderSection();
-      return;
-    }
-    var feed = t.closest('[data-fv-feed]');
-    if (feed) { FV.feed = feed.getAttribute('data-fv-feed'); renderSection(); return; }
-
-    var seek = t.closest('[data-fv-seek]');
-    if (seek) {
-      FV.frame = parseInt(seek.getAttribute('data-fv-seek'), 10) || 0;
-      if (seek.hasAttribute('data-fv-stay')) renderSection();
-      else goto('live');
-      return;
-    }
-    var step = t.closest('[data-fv-step]');
-    if (step) { stepFrame(parseInt(step.getAttribute('data-fv-step'), 10)); return; }
-
-    var trk = t.closest('[data-fv-track]');
-    if (trk) { FV.selection.track = trk.getAttribute('data-fv-track'); showTrack(); return; }
-
-    var evt = t.closest('[data-fv-event]');
-    if (evt) { FV.selection.event = evt.getAttribute('data-fv-event'); showEvent(); return; }
-
-    var node = t.closest('[data-fv-node]');
-    if (node) {
-      var id = node.getAttribute('data-fv-node');
-      FV.selection.node = FV.selection.node === id ? null : id;
-      renderSection();
-      return;
-    }
-  }
-
-  function onInput(e) {
-    var f = e.target.closest('[data-fv-filter]');
-    if (f) { FV.filters[f.getAttribute('data-fv-filter')] = f.value; renderSection(); return; }
-    var sel = e.target.closest('[data-fv-select]');
-    if (sel) { FV.selection[sel.getAttribute('data-fv-select')] = sel.value; renderSection(); return; }
-    var scrub = e.target.closest('[data-fv-scrub]');
-    if (scrub) {
-      FV.frame = parseInt(scrub.value, 10) || 0;
-      renderSection();
-    }
-  }
-
-  function onKey(e) {
-    if (e.key === 'Escape') { closeDrawer(); return; }
-    if (FV.section !== 'live') return;
-    if (e.target && /input|select|textarea/i.test(e.target.tagName)) return;
-    if (e.key === 'ArrowRight') { e.preventDefault(); stepFrame(1); }
-    if (e.key === 'ArrowLeft') { e.preventDefault(); stepFrame(-1); }
-  }
-
-  function stepFrame(delta) {
-    if (!FV.session) return;
-    var frames = FV.session.summary.framesProcessed || 1;
-    FV.frame = Math.max(0, Math.min(frames - 1, FV.frame + delta));
-    renderSection();
-  }
-
-  // ═══ OVERVIEW — the command centre ══════════════════════════════════════
-
-  /**
-   * OVERVIEW — three zones, in order of what a reader needs first.
-   *
-   *   1 · THE HERO. What is loaded, off what, running on what, at what rate,
-   *       and how much of it is measured rather than carried. It dominates,
-   *       because on arrival every other number on the screen is meaningless
-   *       until this one is read.
-   *   2 · THE FOOTBALL STATE. Where the evidence actually is on a pitch, what
-   *       happened in it, and how good the evidence is.
-   *   3 · SYSTEM HEALTH. One compact strip. It matters, it is not what the
-   *       reader came for, and it used to be eight panels arguing otherwise.
-   *
-   * What this replaced was nine equal tiles in a wrapping grid: nine boxes of
-   * the same size, so nothing led, and a reader had to assemble the state of
-   * the instrument out of parts instead of being told it.
-   */
-  function secOverview() {
-    head('Overview', 'Every figure below came from a processed session or from the running '
-      + 'service. None of it is a platform average and none of it is decorative.');
-    if (!FV.status) { body(Empty('withheld', 'READING VISION SERVICE', 'One moment.')); return; }
-    if (FV.status.ok === false) {
-      body(Empty('withheld', 'VISION SERVICE UNAVAILABLE',
-        FV.status.error || 'the service did not answer'));
-      return;
-    }
-    var h = FV.status.health;
-    var s = FV.session && FV.session.summary;
-
-    // ── ZONE 1 · the hero ───────────────────────────────────────────────────
-    var hero;
-    if (s) {
-      var observed = s.ballStates.OBSERVED || 0;
-      var propagated = s.ballStates.PROPAGATED || 0;
-      var evTotal = Object.keys(s.eventCounts).reduce(function (a, k) { return a + s.eventCounts[k]; }, 0);
-      var tracksNow = FV.session.tracks.filter(function (t) { return t.frameNumber === FV.frame; }).length;
-
-      hero = '<section class="fv-hero">'
-        + '<div class="fv-hero-main">'
-        + '<div class="fv-hero-eyebrow">' + Tag('MEASURED', 'measured')
-        + '<span>session loaded · every figure on this screen belongs to it</span></div>'
-        + '<h3 class="fv-hero-name">' + esc(s.sessionRef) + '</h3>'
-        + '<p class="fv-hero-src">' + esc(s.source.displayName) + ' · '
-        + esc(s.source.width) + '×' + esc(s.source.height) + ' · '
-        + esc(s.source.sourceType.replace(/_/g, ' ')) + ' · ' + n(s.source.fps, 2) + ' fps</p>'
-        + '<div class="fv-sats">'
-        + Sat(esc(s.framesProcessed), 'frames processed', esc(s.observationsTotal) + ' observations')
-        + Sat(esc(s.identities), 'identities', esc(s.rawTrackIds) + ' raw track ids')
-        + Sat(esc(tracksNow), 'tracks in frame ' + FV.frame, 'at the frame in view')
-        // The types the engine actually named, not a claim about them. `PROXIMITY`
-        // is a proximity, and calling a screenful of them "confirmed events"
-        // would be this layer deciding something the engine did not.
-        + Sat(esc(evTotal), 'football events',
-          Object.keys(s.eventCounts).map(function (k) {
-            return k.replace(/_/g, ' ').toLowerCase() + ' ' + s.eventCounts[k];
-          }).join(' \u00b7 ') || 'none confirmed')
-        + '</div></div>'
-
-        + '<div class="fv-hero-side">'
-        + '<div class="fv-gauge">'
-        + '<div class="fv-gauge-k">Calibration coverage</div>'
-        + '<div class="fv-gauge-v">' + pct(s.calibrationCoverage) + '</div>'
-        + '<div class="fv-bar fv-bar--measured"><i style="width:'
-        + Math.max(0, Math.min(100, s.calibrationCoverage * 100)).toFixed(1) + '%"></i></div>'
-        + '<div class="fv-gauge-s">' + esc(s.anchorsAccepted) + ' anchors · '
-        + esc(s.calibrationMeasuredFrames) + ' measured, ' + esc(s.calibrationPropagatedFrames)
-        + ' propagated</div></div>'
-        // OBSERVED and PROPAGATED are drawn as two figures because they are two
-        // figures. Adding them would invent a ball position the engine never saw.
-        + '<div class="fv-gauge">'
-        + '<div class="fv-gauge-k">Ball ' + Tag('PROPAGATED ≠ OBSERVED', 'propagated') + '</div>'
-        + '<div class="fv-duo"><span class="fv-duo-a">' + esc(observed) + '<small>observed</small></span>'
-        + '<span class="fv-duo-b">' + esc(propagated) + '<small>propagated</small></span></div>'
-        + '<div class="fv-gauge-s">' + esc(s.ballStates.UNKNOWN || 0) + ' unknown · '
-        + esc(s.ballStates.NOT_AVAILABLE || 0) + ' not available</div></div>'
-        + '</div></section>';
-    } else {
-      hero = '<section class="fv-hero fv-hero--empty">' + needSession() + '</section>';
-    }
-
-    // ── ZONE 2 · the football state ─────────────────────────────────────────
-    var football = '';
-    if (s) {
-      var dots = FV.session.tracks.filter(function (t) { return t.pitchXM !== null; })
-        .filter(function (_, i) { return i % 3 === 0; })
-        .map(function (t) {
-          return '<circle cx="' + t.pitchXM + '" cy="' + t.pitchYM + '" r="0.55" class="'
-            + (t.calibrationChain === 'measured' ? 'fv-dotm' : 'fv-dotp') + '" opacity=".55"/>';
-        }).join('');
-
-      var recent = FV.session.events.slice(-8).reverse().map(function (e) {
-        return '<div class="fv-row"><span class="fv-row-k">' + esc(e.type)
-          + '<span class="fv-row-sub">frame ' + e.frameNumber + ' · ' + e.timestamp.toFixed(2) + ' s</span></span>'
-          + Tag(e.state, e.state === 'CONFIRMED' ? 'measured' : 'withheld') + '</div>';
-      }).join('');
-
-      football = '<div class="fv-zone2">'
-        + Panel('Where the evidence is',
-          Pitch(dots, { label: 'Calibrated positions across the session' })
-          + '<div class="fv-metric-k">' + esc(s.observationsWithPitchCoords)
-          + ' calibrated positions · on-pitch rate ' + pct(s.coordsOnPitchRate)
-          + ' · ' + LEGEND_INLINE + '</div>',
-          { aside: Tag(s.capabilities.metricCoordinates ? 'METRIC' : 'NONE',
-            s.capabilities.metricCoordinates ? 'measured' : 'withheld') })
-        + '<div class="fv-stack">'
-        + Panel('Recent events', recent
-          ? '<div class="fv-rows">' + recent + '</div>'
-          : '<p class="fv-metric-k">' + esc(s.capabilities.reasons.events || 'none confirmed') + '</p>')
-        + Panel('Session evidence', Rows([
-          ['Team assignment', pct(s.teamAssignmentRate), 'given a team, not given the RIGHT team'],
-          ['Source quality', esc(s.source.qualityBand || '—') + ' · ' + n(s.source.qualityScore, 2)],
-          ['Coordinates on pitch', pct(s.coordsOnPitchRate)],
-          ['Anchor disagreement', n(s.anchorDisagreementMedianM, 3) + ' m'],
-        ]))
-        + '</div></div>';
-    }
-
-    // ── ZONE 3 · system health, compact ─────────────────────────────────────
-    var healthRows = h.capabilities.map(function (c) {
-      return '<div class="fv-hcell fv-s-' + esc(c.status) + '" title="' + esc(c.detail) + '">'
-        + '<i class="fv-dot" aria-hidden="true"></i>'
-        + '<span class="fv-hcell-k">' + esc(c.label) + '</span>'
-        + '<span class="fv-hcell-v">' + esc(String(c.status).replace(/_/g, ' ')) + '</span></div>';
-    }).join('');
-
-    var sessionsRows = (FV.sessions && FV.sessions.ok ? FV.sessions.sessions : []).map(function (x) {
-      return '<div class="fv-row"><span class="fv-row-k">'
-        + '<button class="fv-btn" data-fv-open-session="' + esc(x.sessionRef) + '" type="button">'
-        + esc(x.sessionRef) + '</button>'
-        + '<span class="fv-row-sub">' + esc(x.framesProcessed) + ' frames · calibration '
-        + pct(x.calibrationCoverage) + '</span></span>'
-        + Tag(x.clubId ? x.clubId : 'PLATFORM', x.clubId ? 'accent' : 'withheld') + '</div>';
-    }).join('');
-
-    var health = '<div class="fv-zone3">'
-      + Panel('System health', '<div class="fv-hgrid">' + healthRows + '</div>',
-        { aside: Tag(h.processingTarget.replace(/_/g, ' '), 'accent') })
-      + '<div class="fv-stack">'
-      + Panel('Sessions available to you', sessionsRows
-        ? '<div class="fv-rows">' + sessionsRows + '</div>'
-        : '<p class="fv-metric-k">No session is visible to this account.</p>')
-      + Panel('Rig', Rows([
-        ['Device', esc(h.deviceId)],
-        ['Kind', esc(h.deviceKind.replace(/_/g, ' '))],
-        ['Source types implemented', esc(h.sources.implementedTypes) + ' of ' + esc(h.sources.declaredTypes)],
-        ['Future rig slots', esc(h.sources.slots) + ' declared, all empty'],
-      ]))
-      + '</div></div>';
-
-    body(hero + football + health);
-  }
-
-  // ═══ LIVE ANALYSIS — the centrepiece ════════════════════════════════════
-
-  /** Overlays whose underlying data this session genuinely has. */
-  function availableOverlays(s) {
-    var caps = s.summary.capabilities;
-    return [
-      { key: 'boxes', label: 'Player boxes', ok: caps.tracking },
-      { key: 'ids', label: 'Track IDs', ok: caps.tracking },
-      { key: 'teams', label: 'Teams', ok: caps.teams },
-      { key: 'roles', label: 'Roles', ok: caps.roles },
-      { key: 'ball', label: 'Ball', ok: caps.ball },
-      { key: 'confidence', label: 'Confidence', ok: caps.tracking },
-      { key: 'calibration', label: 'Calibration', ok: true },
-      { key: 'coords', label: 'Pitch coordinates', ok: caps.metricCoordinates },
-      { key: 'events', label: 'Event markers', ok: caps.events },
-    ].filter(function (o) { return o.ok; });
-  }
-
-  /**
-   * A RUN-LENGTH LANE for the module's existing timeline primitive.
-   *
-   * `rows` are per-frame records already in frame order; `kindOf` says which
-   * of the five span vocabularies each one belongs to. Consecutive records of
-   * the same kind become ONE span — which is both how the calibration band
-   * has always been drawn and, at three hundred frames a lane, three hundred
-   * nodes fewer than a rect per frame.
-   *
-   * It records; it does not smooth. A frame with no record contributes no
-   * span, so a gap in the evidence stays a gap on the screen.
-   */
-  function tlSpans(rows, frames, kindOf, titleOf) {
-    var out = [];
-    for (var i = 0; i < rows.length; i++) {
-      var kind = kindOf(rows[i]);
-      var j = i;
-      while (j + 1 < rows.length && kindOf(rows[j + 1]) === kind
-             && rows[j + 1].frameNumber - rows[j].frameNumber <= 1) j++;
-      var from = rows[i].frameNumber, to = rows[j].frameNumber;
-      out.push('<div class="fv-tl-span fv-tl-span--' + kind + '" style="left:'
-        + ((from / frames) * 100).toFixed(2) + '%;width:'
-        + Math.max(0.2, (((to - from + 1) / frames) * 100)).toFixed(2) + '%"'
-        + ' title="' + esc(titleOf(rows[i]) + ' · frames ' + from + '–' + to) + '"></div>');
-      i = j;
-    }
-    return out.join('');
-  }
-
-  function tlBand(label, inner, opts) {
-    opts = opts || {};
-    return '<div class="fv-tl-band"><div class="fv-tl-label">' + esc(label) + '</div>'
-      + '<div class="fv-tl-track' + (opts.marks ? ' fv-tl-track--marks' : '') + '">'
-      + inner + '</div></div>';
-  }
-
-  /**
-   * THE EVIDENCE TIMELINE — three bands under the canvas.
-   *
-   * The canvas shows one frame. This shows the whole session at once, and it
-   * answers the question a single frame cannot: is this frame typical? The
-   * bands are calibration, ball and events, in the same three vocabularies
-   * used everywhere else in the module, so a long amber run reads as
-   * "carried, not seen" without a legend.
-   */
-  function EvidenceTimeline(s, frame) {
-    var frames = Math.max(1, s.summary.framesProcessed);
-
-    var calBand = tlSpans(s.calibration, frames,
-      function (c) { return c.chain === 'measured' ? 'valid' : c.chain === 'propagated' ? 'prop' : 'none'; },
-      function (c) { return c.chain; });
-
-    var ballBand = tlSpans(s.ball, frames,
-      function (b) { return b.state === 'OBSERVED' ? 'obs' : b.state === 'PROPAGATED' ? 'prop' : 'gap'; },
-      function (b) { return b.state; });
-
-    var evBand = s.events.map(function (e) {
-      return '<button class="fv-tl-mark fv-tl-mark--event" data-fv-seek="' + esc(e.frameNumber)
-        + '" data-fv-stay type="button" style="left:' + ((e.frameNumber / frames) * 100).toFixed(2)
-        + '%" title="' + esc(e.type + ' · frame ' + e.frameNumber)
-        + '"><span class="fv-sr">' + esc(e.type) + ' at frame ' + esc(e.frameNumber) + '</span></button>';
-    }).join('');
-
-    var cursor = '<div class="fv-tl-cursor" style="left:' + ((frame / frames) * 100).toFixed(2) + '%"></div>';
-
-    return '<div class="fv-tl">'
-      + tlBand('Calibration', calBand + cursor)
-      + tlBand('Ball', ballBand + cursor)
-      + tlBand('Events · ' + s.events.length, evBand + cursor, { marks: true })
-      + '</div>'
-      + '<div class="fv-tl-ruler"><span>frame 0</span>'
-      + '<span>' + Chip('MEASURED / OBSERVED', 'READY') + Chip('PROPAGATED', 'DEGRADED')
-      + Chip('NO RECORD', 'NOT_AVAILABLE') + '</span>'
-      + '<span>frame ' + frames + '</span></div>';
-  }
-
-  function secLive() {
-    head('Live Analysis', 'The annotated frame, drawn from this session\'s own observations. '
-      + 'Where calibration is NONE the metric readout is suppressed, not estimated.',
-      '<button class="fv-btn" data-fv-feed="original" type="button" aria-pressed="'
-      + (FV.feed === 'original') + '">Original feed</button>'
-      + '<button class="fv-btn" data-fv-feed="annotated" type="button" aria-pressed="'
-      + (FV.feed === 'annotated') + '">Annotated feed</button>');
-    if (!FV.session) { body(needSession()); return; }
-
-    var s = FV.session, sm = s.summary, frame = FV.frame;
-    var rows = s.tracks.filter(function (t) { return t.frameNumber === frame; });
-    var cal = s.calibration.filter(function (c) { return c.frameNumber === frame; })[0] || null;
-    var ballRow = s.ball.filter(function (b) { return b.frameNumber === frame; })[0] || null;
-    var evHere = s.events.filter(function (e) { return e.frameNumber === frame; });
-    var W = sm.source.width || 1024, H = sm.source.height || 576;
-
-    var feedInner;
-    if (FV.feed === 'original') {
-      // The original video is not served by this deployment. Saying so is the
-      // feature: a black rectangle labelled "live feed" would be a lie about a
-      // capability that does not exist.
-      feedInner = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Original feed unavailable">'
-        + '<rect width="' + W + '" height="' + H + '" fill="#070b14"/></svg>'
-        + '<div class="fv-feed-note">ORIGINAL FEED NOT SERVED BY THIS DEPLOYMENT</div>';
-    } else {
-      var svg = ['<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Annotated frame '
-        + frame + '"><rect width="' + W + '" height="' + H + '" fill="#080d18"/>'];
-      // A faint grid, so a box has something to sit against without pretending
-      // to be a photograph of a pitch.
-      for (var gx = 0; gx < W; gx += Math.round(W / 16)) {
-        svg.push('<line x1="' + gx + '" y1="0" x2="' + gx + '" y2="' + H + '" stroke="rgba(255,255,255,.028)" stroke-width="1"/>');
-      }
-      for (var gy = 0; gy < H; gy += Math.round(H / 9)) {
-        svg.push('<line x1="0" y1="' + gy + '" x2="' + W + '" y2="' + gy + '" stroke="rgba(255,255,255,.028)" stroke-width="1"/>');
-      }
-      rows.forEach(function (t) {
-        var colour = t.role === 'GOALKEEPER' ? '#fbbf24' : t.role === 'REFEREE' ? '#e2e8f0'
-          : t.role === 'UNKNOWN' ? '#a78bfa' : (t.teamId === 'team_a' ? '#22d3ee' : '#34d399');
-        if (FV.overlays.boxes) {
-          svg.push('<rect x="' + t.box.x1 + '" y="' + t.box.y1 + '" width="' + (t.box.x2 - t.box.x1)
-            + '" height="' + (t.box.y2 - t.box.y1) + '" fill="' + colour + '" fill-opacity=".07" stroke="'
-            + colour + '" stroke-width="2" rx="3"/>');
-        }
-        var label = [];
-        if (FV.overlays.ids) label.push(t.identity);
-        if (FV.overlays.teams && t.teamId) label.push(t.teamId.replace('team_', '').toUpperCase());
-        if (FV.overlays.roles && t.role !== 'PLAYER') label.push(t.role);
-        if (FV.overlays.confidence && t.classificationConfidence !== null) {
-          label.push(t.classificationConfidence.toFixed(2));
-        }
-        if (FV.overlays.coords && t.pitchXM !== null) {
-          label.push(t.pitchXM.toFixed(0) + ' · ' + t.pitchYM.toFixed(0) + ' m');
-        }
-        if (label.length) {
-          var ly = Math.max(13, t.box.y1 - 6);
-          svg.push('<rect x="' + t.box.x1 + '" y="' + (ly - 11) + '" width="' + (label.join(' ').length * 6.6 + 8)
-            + '" height="14" fill="rgba(4,7,13,.82)" rx="3"/>');
-          svg.push('<text x="' + (t.box.x1 + 4) + '" y="' + ly + '" fill="' + colour
-            + '" font-size="11" font-family="ui-monospace,monospace">' + esc(label.join(' ')) + '</text>');
-        }
-      });
-      if (FV.overlays.ball && ballRow && ballRow.imageX !== null) {
-        var bc = ballRow.state === 'OBSERVED' ? '#ffffff' : '#fbbf24';
-        svg.push('<circle cx="' + ballRow.imageX + '" cy="' + ballRow.imageY + '" r="9" fill="none" stroke="'
-          + bc + '" stroke-width="2"/>');
-        svg.push('<circle cx="' + ballRow.imageX + '" cy="' + ballRow.imageY + '" r="2.5" fill="' + bc + '"/>');
-        svg.push('<text x="' + (ballRow.imageX + 13) + '" y="' + (ballRow.imageY - 10) + '" fill="' + bc
-          + '" font-size="11" font-family="ui-monospace,monospace">' + esc(ballRow.state) + '</text>');
-      }
-      if (FV.overlays.events && evHere.length) {
-        svg.push('<rect x="12" y="12" width="' + (evHere[0].type.length * 8 + 26) + '" height="22" rx="5" '
-          + 'fill="rgba(34,211,238,.16)" stroke="rgba(34,211,238,.5)"/>');
-        svg.push('<text x="22" y="27" fill="#22d3ee" font-size="12" font-family="ui-monospace,monospace">'
-          + esc(evHere[0].type) + '</text>');
-      }
-      svg.push('</svg>');
-      feedInner = svg.join('')
-        + '<div class="fv-feed-note">ANNOTATION LAYER · drawn from stored observations, not from video</div>';
-    }
-
-    var toggles = availableOverlays(s).map(function (o) {
-      return '<button class="fv-btn" data-fv-overlay="' + o.key + '" type="button" aria-pressed="'
-        + !!FV.overlays[o.key] + '">' + esc(o.label) + '</button>';
-    }).join('');
-
-    var calLine = cal && cal.chain !== 'none'
-      ? Tag(cal.chain.toUpperCase() + ' · ' + cal.confidence + ' · ±' + (cal.expectedErrorM === null
-        ? '—' : cal.expectedErrorM.toFixed(3) + ' m'), cal.chain === 'measured' ? 'measured' : 'propagated')
-      : Tag('CALIBRATION NONE — NO METRIC CLAIM', 'withheld');
-
-    var transport = '<div class="fv-transport">'
-      + '<button class="fv-btn" data-fv-step="-10" type="button" aria-label="Back ten frames">&#171;10</button>'
-      + '<button class="fv-btn" data-fv-step="-1" type="button" aria-label="Previous frame">&#8249;</button>'
-      + '<button class="fv-btn" data-fv-step="1" type="button" aria-label="Next frame">&#8250;</button>'
-      + '<button class="fv-btn" data-fv-step="10" type="button" aria-label="Forward ten frames">10&#187;</button>'
-      + '<input class="fv-scrub" type="range" min="0" max="' + Math.max(0, sm.framesProcessed - 1)
-      + '" value="' + frame + '" data-fv-scrub aria-label="Seek to frame" '
-      + 'style="--fv-pos:' + ((frame / Math.max(1, sm.framesProcessed - 1)) * 100).toFixed(2) + '%">'
-      + '</div>'
-      + '<div class="fv-readout" style="margin-top:8px">'
-      + '<span>frame <b>' + frame + '</b></span>'
-      + '<span>t <b>' + (rows.length ? rows[0].timestamp.toFixed(3) : (sm.source.fps
-        ? (frame / sm.source.fps).toFixed(3) : '—')) + '</b> s</span>'
-      + '<span>video <b>' + (sm.source.fps === null ? '—' : sm.source.fps.toFixed(2)) + '</b> fps</span>'
-      + '<span>processing <b>' + (sm.processingFps === null ? '—' : sm.processingFps.toFixed(2)) + '</b> fps</span>'
-      + '<span>source <b>' + esc(sm.source.displayName) + '</b></span>'
-      + '</div>';
-
-    var miniDots = rows.filter(function (t) { return t.pitchXM !== null; }).map(function (t) {
-      var c = t.role === 'GOALKEEPER' ? '#fbbf24' : t.role === 'REFEREE' ? '#e2e8f0'
-        : (t.teamId === 'team_a' ? '#22d3ee' : '#34d399');
-      return '<circle cx="' + t.pitchXM + '" cy="' + t.pitchYM + '" r="1.5" fill="' + c + '"/>';
-    }).join('')
-      + (ballRow && ballRow.pitchXM !== null
-        ? '<circle cx="' + ballRow.pitchXM + '" cy="' + ballRow.pitchYM + '" r="1.1" class="fv-dotball"/>' : '');
-
-    // The three per-frame verdicts ride the rail, beside the frame they belong
-    // to, rather than in a row of panels under it. A reader comparing "what is
-    // in this frame" with "what the engine says about this frame" should not
-    // have to look in two directions to do it.
-    var verdicts = Rows([
-      ['Ball', ballRow
-        ? (Tag(ballRow.state, ballRow.state === 'OBSERVED' ? 'measured'
-            : ballRow.state === 'PROPAGATED' ? 'propagated' : 'withheld')
-           + (ballRow.origin ? ' ' + Tag(ballRow.origin, ballRow.origin === 'MEASURED' ? 'measured'
-              : ballRow.origin === 'PROPAGATED' ? 'propagated' : 'withheld') : ''))
-        : '<span class="fv-none">—</span>',
-        ballRow && ballRow.reason ? ballRow.reason : 'no ball record for this frame'],
-      ['Calibration', cal
-        ? Tag(cal.chain.toUpperCase() + (cal.expectedErrorM === null ? ''
-            : ' · ±' + cal.expectedErrorM.toFixed(3) + ' m'),
-          cal.chain === 'measured' ? 'measured' : cal.chain === 'propagated' ? 'propagated' : 'withheld')
-        : '<span class="fv-none">—</span>',
-        cal ? 'band ' + cal.confidence : 'no verdict recorded at this frame'],
-      ['Events', evHere.length
-        ? Tag(String(evHere.length) + ' here', 'measured')
-        : '<span class="fv-none">0</span>',
-        evHere.length ? evHere.map(function (e) { return e.type; }).join(', ')
-          : 'the engine confirmed none at this frame'],
-    ]);
-
-    var right = '<div class="fv-stack">'
-      + Panel('This frame on the pitch',
-        rows.filter(function (t) { return t.pitchXM !== null; }).length
-          ? Pitch(miniDots, { small: true, label: 'Frame ' + frame + ' in metres' })
-          : Empty('withheld', 'NO METRIC POSITIONS HERE',
-            'Calibration published no coordinate for this frame, so nothing may be placed on a pitch.'),
-        { aside: calLine })
-      + Panel('What the engine says about this frame', verdicts)
-      + Panel('Tracks in frame', rows.length
-        ? '<div class="fv-rows">' + rows.slice(0, 14).map(function (t) {
-          return '<div class="fv-row"><span class="fv-row-k"><b>' + esc(t.identity) + '</b>'
-            + '<span class="fv-row-sub">' + esc(t.teamId || 'no team') + ' · ' + esc(t.role) + '</span></span>'
-            + '<span class="fv-row-v">' + (t.pitchXM === null ? '<span class="fv-none">—</span>'
-              : n(t.pitchXM, 1) + ', ' + n(t.pitchYM, 1)) + '</span></div>';
-        }).join('') + '</div>'
-        : '<p class="fv-metric-k">No track was observed in this frame.</p>')
-      + '</div>';
-
-    // 70 / 30. The canvas is the section; the rail explains it.
-    body('<div class="fv-live">'
-      + '<section class="fv-panel fv-panel--accent fv-canvas">'
-      + '<div class="fv-panel-head"><h3 class="fv-panel-title">'
-      + (FV.feed === 'original' ? 'Original feed' : 'Annotated feed') + '</h3>'
-      + '<div class="fv-panel-aside">' + calLine + '</div></div>'
-      + '<div class="fv-feed">' + feedInner + '</div>'
-      + transport
-      + EvidenceTimeline(s, frame)
-      + '<div class="fv-legend">' + toggles + '</div>'
-      + (FV.feed === 'original'
-        ? '<p class="fv-note fv-note--warn">This deployment stores evidence, not media. The '
-          + 'original video is not served here, so the original feed is an explicit absence '
-          + 'rather than a black rectangle pretending to be a camera.</p>'
-        : '<p class="fv-note">Every box, label and marker above was drawn from a stored '
-          + 'observation. Nothing here was placed by hand, and an overlay whose data this '
-          + 'session lacks is not offered as a toggle.</p>')
-      + '</section>'
-      + right + '</div>');
-  }
-
-  // ═══ PLAYER TRACKING ════════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════════════════════════
+     DERIVATIONS — unchanged from the validated build
+     ═══════════════════════════════════════════════════════════════════════════ */
 
   function trackIndex(s) {
     var by = {};
@@ -1061,75 +577,577 @@
     });
   }
 
+  /**
+   * The ball's path, broken wherever the record breaks.
+   *
+   * A smooth line across thirty frames the tracker never saw would be a
+   * picture of an assumption, so a gap of more than two frames ends the run.
+   */
+  function ballPath(ball) {
+    var trail = ball.filter(function (b) { return b.pitchXM !== null; });
+    var out = '', run = [];
+    trail.forEach(function (b, i) {
+      var prev = trail[i - 1];
+      if (prev && b.frameNumber - prev.frameNumber > 2) {
+        if (run.length > 1) out += '<polyline class="vx-trace vx-trace--ball" points="' + run.join(' ') + '"/>';
+        run = [];
+      }
+      run.push(b.pitchXM.toFixed(2) + ',' + b.pitchYM.toFixed(2));
+    });
+    if (run.length > 1) out += '<polyline class="vx-trace vx-trace--ball" points="' + run.join(' ') + '"/>';
+    return { path: out, trail: trail };
+  }
+
+  var HEAT_CX = 21, HEAT_CY = 14;
+
+  function heatGrid(pool) {
+    var grid = new Array(HEAT_CX * HEAT_CY).fill(0), max = 0;
+    pool.forEach(function (t) {
+      var cx = Math.min(HEAT_CX - 1, Math.max(0, Math.floor(t.pitchXM / (105 / HEAT_CX))));
+      var cy = Math.min(HEAT_CY - 1, Math.max(0, Math.floor(t.pitchYM / (68 / HEAT_CY))));
+      var i = cy * HEAT_CX + cx;
+      grid[i] += 1;
+      if (grid[i] > max) max = grid[i];
+    });
+    return { grid: grid, max: max };
+  }
+
+  function heatCells(grid, max, alpha) {
+    var cells = [];
+    for (var y = 0; y < HEAT_CY; y++) {
+      for (var x = 0; x < HEAT_CX; x++) {
+        var v = grid[y * HEAT_CX + x];
+        if (!v) continue;
+        var a = Math.pow(v / max, 0.58) * (alpha === undefined ? 1 : alpha);
+        cells.push('<rect x="' + (x * (105 / HEAT_CX)) + '" y="' + (y * (68 / HEAT_CY))
+          + '" width="' + (105 / HEAT_CX) + '" height="' + (68 / HEAT_CY)
+          + '" fill="rgba(34,211,238,' + a.toFixed(3) + ')"><title>' + v
+          + ' calibrated positions</title></rect>');
+      }
+    }
+    return cells.join('');
+  }
+
+  /** Run-length spans for a timeline band. One span per run, not per frame. */
+  function tlSpans(rows, frames, kindOf, titleOf) {
+    var out = [];
+    for (var i = 0; i < rows.length; i++) {
+      var kind = kindOf(rows[i]), j = i;
+      while (j + 1 < rows.length && kindOf(rows[j + 1]) === kind
+             && rows[j + 1].frameNumber - rows[j].frameNumber <= 1) j++;
+      var from = rows[i].frameNumber, to = rows[j].frameNumber;
+      out.push('<div class="vx-tl-span vx-tl-span--' + kind + '" style="left:'
+        + ((from / frames) * 100).toFixed(2) + '%;width:'
+        + Math.max(0.25, (((to - from + 1) / frames) * 100)).toFixed(2) + '%"'
+        + ' title="' + esc(titleOf(rows[i]) + ' · frames ' + from + '–' + to) + '"></div>');
+      i = j;
+    }
+    return out.join('');
+  }
+
+  function tlBand(label, count, inner, marks) {
+    return '<div class="vx-tl-band"><div class="vx-tl-k">' + esc(label)
+      + (count === undefined ? '' : '<em>' + esc(count) + '</em>') + '</div>'
+      + '<div class="vx-tl-track' + (marks ? ' vx-tl-track--marks' : '') + '">' + inner + '</div></div>';
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     LIVE ANALYSIS — the hero
+     ═══════════════════════════════════════════════════════════════════════════
+
+     One stage that dominates, one instrument rail beside it, two operational
+     rows beneath. At 1920×1080 all of it is on screen at once, which is the
+     whole point of a workstation.
+  */
+
+  var MODES = [
+    { id: 'frame',  ico: 'shot',   label: 'FRAME' },
+    { id: 'pitch',  ico: 'grid2d', label: '2D' },
+    { id: 'tracks', ico: 'lines',  label: 'PATHS' },
+    { id: 'zones',  ico: 'zones',  label: 'ZONES',
+      off: 'zone occupancy needs a possession attribution the engine does not produce' },
+    { id: 'three',  ico: 'cube3d', label: '3D',
+      off: 'a third dimension needs a camera height the calibration does not solve for' },
+  ];
+
+  function modeRail(caps) {
+    return '<div class="vx-stage-modes" role="group" aria-label="Analysis surface">'
+      + MODES.map(function (m) {
+        var off = m.off || (m.id === 'pitch' && !caps.metricCoordinates
+          ? 'this session published no metric coordinate' : null);
+        return '<button class="vx-mode" type="button"'
+          + (off ? ' disabled aria-disabled="true" title="' + esc(sentence(off)) + '"'
+                 : ' data-vx-mode="' + m.id + '" aria-pressed="' + (FV.mode === m.id) + '"')
+          + '>' + ico(m.ico) + '<b>' + esc(m.label) + '</b></button>';
+      }).join('') + '</div>';
+  }
+
+  /** The annotated frame: real detections at their real image coordinates. */
+  function stageFrame(s, frame) {
+    var sm = s.summary, W = sm.source.width || 1024, H = sm.source.height || 576;
+    var rows = s.tracks.filter(function (t) { return t.frameNumber === frame; });
+    var ballRow = s.ball.filter(function (b) { return b.frameNumber === frame; })[0] || null;
+    var evHere = s.events.filter(function (e) { return e.frameNumber === frame; });
+    var svg = ['<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet"'
+      + ' role="img" aria-label="Annotated frame ' + frame + '">'
+      + '<rect width="' + W + '" height="' + H + '" fill="#080e1a"/>'
+      + '<rect x="1" y="1" width="' + (W - 2) + '" height="' + (H - 2)
+      + '" fill="none" stroke="rgba(34,211,238,.22)" stroke-width="2"/>'];
+    // A faint grid so a box has something to sit against, without pretending to
+    // be a photograph of a pitch.
+    for (var gx = 0; gx <= W; gx += Math.round(W / 16)) {
+      svg.push('<line x1="' + gx + '" y1="0" x2="' + gx + '" y2="' + H + '" stroke="rgba(255,255,255,.03)"/>');
+    }
+    for (var gy = 0; gy <= H; gy += Math.round(H / 9)) {
+      svg.push('<line x1="0" y1="' + gy + '" x2="' + W + '" y2="' + gy + '" stroke="rgba(255,255,255,.03)"/>');
+    }
+    rows.forEach(function (t) {
+      var c = trackTone(t);
+      if (FV.layers.boxes) {
+        svg.push('<rect x="' + t.box.x1 + '" y="' + t.box.y1 + '" width="' + (t.box.x2 - t.box.x1)
+          + '" height="' + (t.box.y2 - t.box.y1) + '" fill="' + c + '" fill-opacity=".08" stroke="' + c
+          + '" stroke-width="2" rx="2"/>');
+      }
+      if (FV.layers.ids) {
+        var label = '#' + t.identity;
+        var w = label.length * 8 + 10;
+        var ly = Math.max(16, t.box.y1 - 5);
+        svg.push('<rect x="' + t.box.x1 + '" y="' + (ly - 14) + '" width="' + w + '" height="16" rx="3" fill="' + c + '"/>');
+        svg.push('<text x="' + (t.box.x1 + 5) + '" y="' + (ly - 2) + '" fill="#04070d" font-size="12"'
+          + ' font-weight="700" font-family="ui-monospace,monospace">' + esc(label) + '</text>');
+      }
+    });
+    if (FV.layers.ball && ballRow && ballRow.imageX !== null) {
+      var bc = ballRow.state === 'OBSERVED' ? '#ffffff' : 'var(--v-amber)';
+      svg.push('<circle cx="' + ballRow.imageX + '" cy="' + ballRow.imageY + '" r="11" fill="none" stroke="'
+        + bc + '" stroke-width="2"/>');
+      svg.push('<circle cx="' + ballRow.imageX + '" cy="' + ballRow.imageY + '" r="3" fill="' + bc + '"/>');
+    }
+    if (evHere.length) {
+      svg.push('<rect x="14" y="14" width="' + (evHere[0].type.length * 9 + 30) + '" height="24" rx="5"'
+        + ' fill="rgba(34,211,238,.18)" stroke="rgba(34,211,238,.55)"/>');
+      svg.push('<text x="26" y="31" fill="#22d3ee" font-size="13" font-weight="700"'
+        + ' font-family="ui-monospace,monospace">' + esc(evHere[0].type) + '</text>');
+    }
+    svg.push('</svg>');
+    return { svg: svg.join(''), rows: rows, ball: ballRow, events: evHere };
+  }
+
+  /** The same evidence, on a pitch, in metres. */
+  function stagePitch(s, frame) {
+    var rows = s.tracks.filter(function (t) { return t.frameNumber === frame && t.pitchXM !== null; });
+    var ballRow = s.ball.filter(function (b) { return b.frameNumber === frame; })[0] || null;
+    var inner = '';
+    if (FV.layers.heat && s.summary.capabilities.heatmaps) {
+      var all = s.tracks.filter(function (t) { return t.pitchXM !== null; });
+      var g = heatGrid(all);
+      inner += heatCells(g.grid, g.max, 0.55);
+    }
+    if (FV.layers.boxes) {
+      inner += rows.map(function (t) {
+        return '<circle cx="' + t.pitchXM + '" cy="' + t.pitchYM + '" r="1.5" fill="' + trackTone(t)
+          + '" stroke="rgba(4,7,13,.7)" stroke-width=".25"><title>#' + esc(t.identity) + '</title></circle>'
+          + (FV.layers.ids ? '<text x="' + t.pitchXM + '" y="' + (t.pitchYM - 2.3) + '" fill="#e9eefb"'
+            + ' font-size="2.1" text-anchor="middle" font-family="ui-monospace,monospace">'
+            + esc(t.identity) + '</text>' : '');
+      }).join('');
+    }
+    if (FV.layers.ball && ballRow && ballRow.pitchXM !== null) {
+      inner += '<circle cx="' + ballRow.pitchXM + '" cy="' + ballRow.pitchYM + '" r="1.1" class="vx-dot-ball"/>';
+    }
+    return Pitch(inner, { label: 'Frame ' + frame + ' in metres', forceLines: true,
+      style: 'max-height:100%;width:auto;max-width:100%' });
+  }
+
+  /** Every identity's path, drawn only across the positions the engine published. */
+  function stageTracks(s) {
+    var idx = trackIndex(s).filter(function (r) { return r.withCoords > 1; });
+    var inner = idx.map(function (r) {
+      var c = trackTone({ role: r.role, teamId: r.team });
+      var runs = [], run = [];
+      r.path.forEach(function (t, i) {
+        var prev = r.path[i - 1];
+        if (prev && t.frameNumber - prev.frameNumber > 3) { if (run.length > 1) runs.push(run); run = []; }
+        run.push(t.pitchXM.toFixed(2) + ',' + t.pitchYM.toFixed(2));
+      });
+      if (run.length > 1) runs.push(run);
+      return runs.map(function (p) {
+        return '<polyline points="' + p.join(' ') + '" fill="none" stroke="' + c
+          + '" stroke-width=".38" stroke-linejoin="round" opacity=".75"/>';
+      }).join('');
+    }).join('');
+    return Pitch(inner, { label: 'Every tracked path in metres', forceLines: true,
+      style: 'max-height:100%;width:auto;max-width:100%' });
+  }
+
+  var LAYERS = [
+    { k: 'boxes',  label: 'Players',      c: 'var(--v-cyan)' },
+    { k: 'ball',   label: 'Ball',         c: '#ffffff' },
+    { k: 'ids',    label: 'Player IDs',   c: 'var(--v-violet)' },
+    { k: 'trails', label: 'Trajectories', c: 'var(--v-amber)', needs: 'metricCoordinates' },
+    { k: 'heat',   label: 'Heatmap',      c: 'var(--v-green)', needs: 'heatmaps' },
+    { k: 'lines',  label: 'Pitch Lines',  c: 'var(--v-tx-2)' },
+    { k: 'zones',  label: 'Zones',        c: 'var(--v-grey)',
+      off: 'no zone model exists; a zone needs a possession attribution the engine does not produce' },
+  ];
+
+  function layerBoard(caps) {
+    return '<div class="vx-layers">' + LAYERS.map(function (l) {
+      var off = l.off || (l.needs && !caps[l.needs]
+        ? 'this session does not carry the evidence this layer draws' : null);
+      return '<button class="vx-layer" type="button"'
+        + (off ? ' disabled aria-disabled="true" title="' + esc(sentence(off)) + '"'
+               : ' data-vx-layer="' + l.k + '" aria-pressed="' + !!FV.layers[l.k] + '"')
+        + '><span class="vx-layer-sw" aria-hidden="true"></span>'
+        + '<span class="vx-layer-k">' + esc(l.label) + '</span>'
+        + '<span class="vx-layer-c" style="background:' + l.c + '"></span></button>';
+    }).join('') + '</div>';
+  }
+
+  function secLive() {
+    var h = FV.status && FV.status.health;
+    var s = FV.session;
+
+    var actions =
+      '<button class="vx-btn" type="button" data-vx-section="calibration">' + ico('calib')
+      + 'Calibrate Pitch</button>'
+      + '<button class="vx-btn" type="button" data-vx-section="events">' + ico('events') + 'Analysis</button>'
+      + '<button class="vx-btn" type="button" data-vx-export="tracks"' + (s ? '' : ' disabled')
+      + '>' + ico('down') + 'Export</button>'
+      + '<button class="vx-btn vx-btn--danger" type="button" disabled aria-disabled="true"'
+      + ' title="this deployment reads completed sessions; there is no run to stop">'
+      + ico('stop') + 'Stop</button>';
+    setWorkbar('Live Analysis', actions);
+
+    if (!h) { body(Empty('withheld', 'READING VISION SERVICE', 'One moment')); return; }
+    if (FV.status.ok === false) {
+      body(Empty('withheld', 'VISION SERVICE UNAVAILABLE', FV.status.error || 'the service did not answer'));
+      return;
+    }
+    if (!s) { body(needSession()); return; }
+
+    var sm = s.summary, caps = sm.capabilities, frame = FV.frame;
+    var frames = Math.max(1, sm.framesProcessed);
+    var f = stageFrame(s, frame);
+    var cal = s.calibration.filter(function (c) { return c.frameNumber === frame; })[0] || null;
+
+    /* ── the stage ───────────────────────────────────────────────────────── */
+    var view = FV.mode === 'pitch' ? '<div class="vx-surface">' + stagePitch(s, frame) + '</div>'
+      : FV.mode === 'tracks' ? '<div class="vx-surface">' + stageTracks(s) + '</div>'
+        : f.svg;
+
+    var mapDots = s.tracks.filter(function (t) { return t.frameNumber === frame && t.pitchXM !== null; })
+      .map(function (t) {
+        return '<circle cx="' + t.pitchXM + '" cy="' + t.pitchYM + '" r="2" fill="' + trackTone(t) + '"/>';
+      }).join('')
+      + (f.ball && f.ball.pitchXM !== null
+        ? '<circle cx="' + f.ball.pitchXM + '" cy="' + f.ball.pitchYM + '" r="1.5" class="vx-dot-ball"/>' : '');
+
+    var stage = '<section class="vx-stage">'
+      + '<div class="vx-stage-view">' + view
+      + '<div class="vx-stage-src"><span class="vx-stage-src-ico">' + ico('camera') + '</span>'
+      + '<span><span class="vx-stage-src-n" data-user-content>' + esc(sm.source.displayName) + '</span>'
+      + '<span class="vx-stage-src-s"><i class="vx-dot vx-dot--ready"></i>'
+      + esc(words(sm.source.sourceType)) + ' · ' + esc(sm.source.width) + '×'
+      + esc(sm.source.height) + ' · ' + n(sm.source.fps, 2) + ' fps</span></span></div>'
+      + '<div class="vx-stage-map">' + Pitch(mapDots, { label: 'This frame on the pitch', forceLines: true })
+      + '</div>'
+      + modeRail(caps)
+      + '<div class="vx-stage-note">'
+      + (FV.mode === 'frame'
+        ? 'ANNOTATION LAYER · SOURCE VIDEO NOT SERVED BY THIS DEPLOYMENT'
+        : FV.mode === 'pitch' ? 'METRIC PROJECTION · CALIBRATED POSITIONS ONLY'
+          : 'EVERY PATH · BROKEN WHERE THE RECORD BREAKS')
+      + '</div></div>'
+      + '<div class="vx-transport">'
+      + '<button class="vx-tp-btn" data-vx-step="-10" type="button" aria-label="Back ten frames">' + ico('back10') + '</button>'
+      + '<button class="vx-tp-btn" data-vx-step="-1" type="button" aria-label="Previous frame">' + ico('prev') + '</button>'
+      + '<button class="vx-tp-btn" data-vx-step="1" type="button" aria-label="Next frame">' + ico('next') + '</button>'
+      + '<button class="vx-tp-btn" data-vx-step="10" type="button" aria-label="Forward ten frames">' + ico('fwd10') + '</button>'
+      + '<input class="vx-scrub" type="range" min="0" max="' + (frames - 1) + '" value="' + frame
+      + '" data-vx-scrub aria-label="Seek to frame" style="--v-pos:'
+      + ((frame / Math.max(1, frames - 1)) * 100).toFixed(2) + '%">'
+      + '<span class="vx-tp-time">frame <b>' + frame + '</b> / ' + (frames - 1)
+      + ' · t <b>' + (f.rows.length ? f.rows[0].timestamp.toFixed(2)
+        : (sm.source.fps ? (frame / sm.source.fps).toFixed(2) : '—')) + '</b> s</span>'
+      + '</div></section>';
+
+    /* ── the tracking rail ───────────────────────────────────────────────── */
+    var teamsHere = {};
+    f.rows.forEach(function (t) { if (t.teamId) teamsHere[t.teamId] = 1; });
+
+    var overview = '<div class="vx-stats">'
+      + Stat('Players', esc(f.rows.length), esc(sm.identities) + ' identities in session',
+        { ico: 'teams', tone: 'cyan' })
+      + Stat('Ball', f.ball ? esc(words(f.ball.state)) : '<span class="vx-none">—</span>',
+        f.ball && f.ball.trackingConfidence !== null ? 'confidence ' + n(f.ball.trackingConfidence, 2)
+          : 'no record at this frame',
+        { ico: 'ball', tone: f.ball && f.ball.state === 'OBSERVED' ? 'green'
+          : f.ball && f.ball.state === 'PROPAGATED' ? 'amber' : '' })
+      + Stat('Teams', esc(Object.keys(teamsHere).length), 'clustered in this frame', { ico: 'track' })
+      + '</div><div class="vx-rowgap"></div>'
+      + '<div class="vx-stats">'
+      + Stat('Input FPS', n(sm.source.fps, 2), 'source frame rate')
+      + Stat('Processing', n(sm.processingFps, 2), 'wall clock ' + n(sm.processingSeconds, 0) + ' s')
+      + Stat('Latency', '<span class="vx-none">—</span>', 'no live pipeline to measure')
+      + '</div>';
+
+    var railPitchDots = s.tracks.filter(function (t) { return t.frameNumber === frame && t.pitchXM !== null; })
+      .map(function (t) {
+        return '<circle cx="' + t.pitchXM + '" cy="' + t.pitchYM + '" r="1.7" fill="' + trackTone(t) + '"/>'
+          + (FV.layers.ids ? '<text x="' + t.pitchXM + '" y="' + (t.pitchYM - 2.6) + '" fill="#cfd8ea"'
+            + ' font-size="2.2" text-anchor="middle" font-family="ui-monospace,monospace">'
+            + esc(t.identity) + '</text>' : '');
+      }).join('');
+    var railTrails = FV.layers.trails && caps.metricCoordinates
+      ? trackIndex(s).filter(function (r) { return r.withCoords > 1; }).map(function (r) {
+        return '<polyline points="' + r.path.map(function (t) {
+          return t.pitchXM.toFixed(1) + ',' + t.pitchYM.toFixed(1); }).join(' ')
+          + '" fill="none" stroke="' + trackTone({ role: r.role, teamId: r.team })
+          + '" stroke-width=".3" opacity=".45"/>';
+      }).join('') : '';
+    var railHeat = '';
+    if (FV.layers.heat && caps.heatmaps) {
+      var pool = s.tracks.filter(function (t) { return t.pitchXM !== null; });
+      var hg = heatGrid(pool);
+      railHeat = heatCells(hg.grid, hg.max, 0.6);
+    }
+    var railBall = FV.layers.ball && f.ball && f.ball.pitchXM !== null
+      ? '<circle cx="' + f.ball.pitchXM + '" cy="' + f.ball.pitchYM + '" r="1.2" class="vx-dot-ball"/>' : '';
+
+    var railEl = '<div class="vx-ga-rail">'
+      + Panel('Tracking Overview', overview,
+        { ico: 'track', actions: Chip('', h.service), accent: true })
+      + Panel('Pitch View',
+        Pitch(railHeat + railTrails + (FV.layers.boxes ? railPitchDots : '') + railBall,
+          { label: 'Tracked positions at frame ' + frame, forceLines: true })
+        + '<div class="vx-rowgap"></div>' + layerBoard(caps),
+        { ico: 'grid2d', actions: Tag(caps.metricCoordinates ? 'METRIC' : 'NO METRIC',
+          caps.metricCoordinates ? 'measured' : 'withheld') })
+      + '</div>';
+
+    /* ── row 1 ───────────────────────────────────────────────────────────── */
+    var trackRows = f.rows.slice(0, 40).map(function (t) {
+      return '<button class="vx-pick" type="button" data-vx-track="' + esc(t.identity) + '">'
+        + '<span class="vx-pick-n vx-pick-n--' + trackToneClass(t) + '">' + esc(t.identity) + '</span>'
+        + '<span class="vx-pick-m"><b>' + esc(t.teamId ? words(t.teamId).toUpperCase() : 'NO TEAM')
+        + ' · ' + esc(words(t.role).toLowerCase()) + '</b>'
+        + '<span>' + (t.pitchXM === null ? 'no metric position'
+          : n(t.pitchXM, 1) + ', ' + n(t.pitchYM, 1) + ' m · ' + esc(t.calibrationChain)) + '</span></span>'
+        + '<span class="vx-pick-e">' + Tag(n(t.classificationConfidence, 2),
+          t.classificationConfidence >= 0.8 ? 'measured' : 'propagated') + '</span></button>';
+    }).join('');
+
+    var playerPanel = Panel('Player Tracking',
+      f.rows.length ? '<div class="vx-list">' + trackRows + '</div>'
+        : Empty('withheld', 'NO TRACK IN THIS FRAME',
+          'The engine observed nobody at frame ' + frame + '. Seek to another frame', 'track'),
+      { ico: 'teams', flush: false, tight: true,
+        actions: Tag(f.rows.length + ' IN FRAME', 'accent')
+          + '<button class="vx-btn vx-btn--sm" type="button" data-vx-section="tracking">All</button>' });
+
+    var b = f.ball;
+    var ballVisual = '<div style="display:flex;align-items:center;gap:12px">'
+      + '<svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">'
+      + '<circle cx="32" cy="32" r="27" fill="none" stroke="'
+      + (b && b.state === 'OBSERVED' ? 'var(--v-green)' : b && b.state === 'PROPAGATED'
+        ? 'var(--v-amber)' : 'var(--v-grey)') + '" stroke-width="2.5"'
+      + (b && b.state === 'OBSERVED' ? '' : ' stroke-dasharray="4 4"') + '/>'
+      + '<path d="M32 12l9.5 7-3.6 11.2H27.1L23.5 19z" fill="'
+      + (b && b.state === 'OBSERVED' ? 'var(--v-green)' : b && b.state === 'PROPAGATED'
+        ? 'var(--v-amber)' : 'var(--v-grey)') + '" opacity=".85"/></svg>'
+      + '<div style="min-width:0;flex:1 1 auto">'
+      + '<div style="font-size:17px;font-weight:780;letter-spacing:-.02em">'
+      + (b ? esc(words(b.state)) : '<span class="vx-none">NO RECORD</span>') + '</div>'
+      + '<div style="font-size:10px;color:var(--v-tx-3);line-height:1.4">'
+      + esc(b && b.reason ? b.reason : 'no reason recorded') + '</div></div></div>';
+
+    var ballPanel = Panel('Ball Tracking',
+      ballVisual + '<div class="vx-rowgap"></div>' + Rows([
+        ['Confidence', b ? n(b.trackingConfidence, 3) : '<span class="vx-none">—</span>'],
+        ['Nearest player', b && b.nearestPlayer ? '<b>#' + esc(b.nearestPlayer) + '</b>'
+          : '<span class="vx-none">—</span>'],
+        ['Distance', b && b.nearestDistanceM !== null ? n(b.nearestDistanceM, 2) + ' m'
+          : '<span class="vx-none">—</span>', 'geometry, not possession'],
+        ['Origin', b ? Tag(b.origin, b.origin === 'MEASURED' ? 'measured'
+          : b.origin === 'PROPAGATED' ? 'propagated' : 'withheld') : '<span class="vx-none">—</span>'],
+      ]),
+      { ico: 'ball', tight: true,
+        actions: b ? Tag(words(b.state), b.state === 'OBSERVED' ? 'measured'
+          : b.state === 'PROPAGATED' ? 'propagated' : 'withheld') : '' });
+
+    var heatPanel;
+    if (caps.heatmaps) {
+      var pool2 = s.tracks.filter(function (t) { return t.pitchXM !== null; });
+      var g2 = heatGrid(pool2);
+      heatPanel = Panel('Heatmap & Zones',
+        Pitch(heatCells(g2.grid, g2.max), { label: 'Occupancy across the session', forceLines: true }),
+        { ico: 'heat', tight: true,
+          actions: Tag('MEASURED', 'measured')
+            + '<button class="vx-btn vx-btn--sm" type="button" data-vx-section="heatmaps">Open</button>' });
+    } else {
+      heatPanel = Panel('Heatmap & Zones',
+        '<div style="position:relative">'
+        + Pitch('', { label: 'Pitch with no calibrated occupancy to draw', forceLines: true })
+        + '<div class="vx-surface-over"><span class="vx-surface-t">INSUFFICIENT</span>'
+        + '<span class="vx-surface-t2" style="font-size:16px">VALIDATED DATA</span></div></div>'
+        + '<p class="vx-note">' + esc(sentence(caps.reasons.heatmaps
+          || 'this session published too few calibrated positions to count into cells')) + '</p>',
+        { ico: 'heat', tight: true, actions: Tag('NOT AVAILABLE', 'withheld') });
+    }
+
+    /* ── row 2 ───────────────────────────────────────────────────────────── */
+    var recent = s.events.slice(-7).reverse().map(function (e) {
+      return '<button class="vx-pick" type="button" data-vx-event="' + esc(e.eventId) + '">'
+        + '<span class="vx-pick-n">' + esc((e.timestamp).toFixed(0)) + 's</span>'
+        + '<span class="vx-pick-m"><b>' + esc(e.type) + '</b>'
+        + '<span>frame ' + e.frameNumber + ' · track #'
+        + esc(e.trackIds.join(', ') || '—') + '</span></span>'
+        + '<span class="vx-pick-e">' + Tag(e.state, e.state === 'CONFIRMED' ? 'measured' : 'withheld')
+        + '</span></button>';
+    }).join('');
+
+    var eventsPanel = Panel('Recent Events',
+      s.events.length ? '<div class="vx-list">' + recent + '</div>'
+        : Empty('withheld', 'NO EVENT CONFIRMED',
+          sentence(caps.reasons.events || 'the engine confirmed no football event in this session'), 'events'),
+      { ico: 'events', tight: true,
+        actions: Tag(s.events.length + ' CONFIRMED', 'measured')
+          + '<button class="vx-btn vx-btn--sm" type="button" data-vx-section="events">All</button>' });
+
+    var sessionPanel = Panel('Session Information', Rows([
+      ['Session', '<b data-user-content>' + esc(sm.sessionRef) + '</b>'],
+      ['Generated', esc((sm.generatedAt || '').replace('T', ' ').replace('Z', ''))],
+      ['Frames', esc(sm.framesProcessed)],
+      ['Observations', esc(sm.observationsTotal)],
+      ['Calibration coverage', pct(sm.calibrationCoverage)],
+      ['Pipeline', '<span style="font-size:10px">' + esc(sm.pipelineVersion || '—') + '</span>'],
+      ['Scope', sm.clubId ? Tag(sm.clubId, 'accent') : Tag('PLATFORM', 'withheld')],
+    ]), { ico: 'sessions', tight: true,
+      actions: '<button class="vx-btn vx-btn--sm" type="button" data-vx-section="sessions">Switch</button>' });
+
+    var byKey = {};
+    h.capabilities.forEach(function (c) { byKey[c.key] = c; });
+    var linkRows = ['source-core', 'data-fabric', 'data-vault', 'infrastructure', 'model-registry']
+      .map(function (k) { return byKey[k]; }).filter(Boolean).map(function (c) {
+        return ['<b>' + esc(c.label) + '</b>', Chip('', c.status), c.detail];
+      });
+    var systemPanel = Panel('System & Intelligence', Rows(linkRows.concat([
+      ['Vision Intelligence', Tag('EVIDENCE ONLY', 'unver'),
+        'metric positions and confirmed findings; no rating of any kind'],
+    ])), { ico: 'health', tight: true,
+      actions: '<button class="vx-btn vx-btn--sm" type="button" data-vx-section="health">Health</button>' });
+
+    var d = FV.device && FV.device.ok !== false ? FV.device.device : null;
+    var devicePanel = Panel('Device / Source', Rows([
+      ['Source', '<b data-user-content>' + esc(sm.source.displayName) + '</b>', words(sm.source.sourceType)],
+      ['Resolution', esc(sm.source.width) + '×' + esc(sm.source.height)],
+      ['Quality', esc(sm.source.qualityBand || 'UNKNOWN') + ' · ' + n(sm.source.qualityScore, 2)],
+      ['Device', d ? esc(d.label) : '<span class="vx-none">—</span>', d ? d.deviceId : ''],
+      ['Processing target', esc(words(h.processingTarget))],
+    ]), { ico: 'device', tight: true,
+      actions: '<button class="vx-btn vx-btn--sm" type="button" data-vx-section="device">Manage</button>' });
+
+    body('<div class="vx-live-grid">'
+      + '<div class="vx-ga-stage">' + stage + '</div>' + railEl
+      + '<div class="vx-ga-r1">' + playerPanel + ballPanel + heatPanel + '</div>'
+      + '<div class="vx-ga-r2">' + eventsPanel + sessionPanel + systemPanel + devicePanel + '</div>'
+      + '</div>');
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     PLAYER TRACKING — the pitch is the subject; the table is the record
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  function trackFilters(all, list) {
+    var teams = {}, roles = {};
+    all.forEach(function (r) { teams[r.team || 'UNASSIGNED'] = 1; roles[r.role] = 1; });
+    return '<div class="vx-filters">'
+      + '<input class="vx-input" data-vx-filter="track" placeholder="Search track…" value="'
+      + esc(FV.filters.track) + '" aria-label="Search track identity">'
+      + '<select class="vx-select" data-vx-filter="team" aria-label="Filter by team">'
+      + '<option value="">All teams</option>' + Object.keys(teams).sort().map(function (t) {
+        return '<option value="' + esc(t) + '"' + (FV.filters.team === t ? ' selected' : '') + '>'
+          + esc(words(t)) + '</option>'; }).join('') + '</select>'
+      + '<select class="vx-select" data-vx-filter="role" aria-label="Filter by role">'
+      + '<option value="">All roles</option>' + Object.keys(roles).sort().map(function (r) {
+        return '<option value="' + esc(r) + '"' + (FV.filters.role === r ? ' selected' : '') + '>'
+          + esc(words(r)) + '</option>'; }).join('') + '</select>'
+      + '<select class="vx-select" data-vx-filter="conf" aria-label="Filter by confidence">'
+      + ['', 'high', 'low', 'none'].map(function (v) {
+        return '<option value="' + v + '"' + (FV.filters.conf === v ? ' selected' : '') + '>'
+          + (v === '' ? 'Any confidence' : v === 'high' ? '≥ 0.80' : v === 'low' ? '< 0.80'
+            : 'Not scored') + '</option>'; }).join('') + '</select>'
+      + '</div>';
+  }
+
   function secTracking() {
-    head('Player Tracking', 'Real tracks from this session. A pitch position appears only where '
-      + 'calibration published one; a gap is left as a gap.');
+    setWorkbar('Player Tracking',
+      '<button class="vx-btn" type="button" data-vx-section="live">' + ico('live') + 'Live Analysis</button>'
+      + '<button class="vx-btn" type="button" data-vx-export="tracks-csv"'
+      + (FV.session ? '' : ' disabled') + '>' + ico('down') + 'Tracking CSV</button>');
     if (!FV.session) { body(needSession()); return; }
+
     var s = FV.session, caps = s.summary.capabilities;
     var all = trackIndex(s);
     var list = applyTrackFilters(all);
-    var sel = FV.selection.track ? all.filter(function (r) { return r.identity === FV.selection.track; })[0] : null;
+    var sel = FV.selection.track
+      ? all.filter(function (r) { return r.identity === FV.selection.track; })[0] : null;
 
-    var teams = {}; var roles = {};
-    all.forEach(function (r) { teams[r.team || 'UNASSIGNED'] = 1; roles[r.role] = 1; });
-
-    var filters = '<div class="fv-filters">'
-      + '<label class="fv-sr" for="fv-f-track">Search identity</label>'
-      + '<input class="fv-input" id="fv-f-track" data-fv-filter="track" placeholder="Search identity…" value="'
-      + esc(FV.filters.track) + '">'
-      + '<span class="fv-filter-label">Team</span><select class="fv-select" data-fv-filter="team" aria-label="Filter by team">'
-      + '<option value="">All</option>' + Object.keys(teams).sort().map(function (t) {
-        return '<option value="' + esc(t) + '"' + (FV.filters.team === t ? ' selected' : '') + '>'
-          + esc(t) + '</option>';
-      }).join('') + '</select>'
-      + '<span class="fv-filter-label">Role</span><select class="fv-select" data-fv-filter="role" aria-label="Filter by role">'
-      + '<option value="">All</option>' + Object.keys(roles).sort().map(function (t) {
-        return '<option value="' + esc(t) + '"' + (FV.filters.role === t ? ' selected' : '') + '>'
-          + esc(t) + '</option>';
-      }).join('') + '</select>'
-      + '<span class="fv-filter-label">Confidence</span><select class="fv-select" data-fv-filter="conf" aria-label="Filter by confidence">'
-      + ['', 'high', 'low', 'none'].map(function (v) {
-        return '<option value="' + v + '"' + (FV.filters.conf === v ? ' selected' : '') + '>'
-          + (v === '' ? 'All' : v === 'high' ? '≥ 0.80' : v === 'low' ? '< 0.80' : 'Not scored') + '</option>';
-      }).join('') + '</select>'
-      + '</div>';
-
-    var dots = '';
+    var inner = '';
     if (caps.metricCoordinates) {
       if (sel && sel.path.length) {
-        dots = s.tracks.filter(function (t) { return t.pitchXM !== null; }).map(function (t) {
-          return '<circle cx="' + t.pitchXM + '" cy="' + t.pitchYM + '" r="0.45" class="'
-            + (t.calibrationChain === 'measured' ? 'fv-dotm' : 'fv-dotp') + '" opacity=".16"/>';
+        inner = s.tracks.filter(function (t) { return t.pitchXM !== null; }).map(function (t) {
+          return '<circle cx="' + t.pitchXM + '" cy="' + t.pitchYM + '" r="0.4" fill="rgba(255,255,255,.1)"/>';
         }).join('')
-          + '<polyline class="fv-trace" points="' + sel.path.map(function (t) {
-            return t.pitchXM.toFixed(2) + ',' + t.pitchYM.toFixed(2);
-          }).join(' ') + '"/>'
+          + '<polyline class="vx-trace" points="' + sel.path.map(function (t) {
+            return t.pitchXM.toFixed(2) + ',' + t.pitchYM.toFixed(2); }).join(' ') + '"/>'
           + sel.path.map(function (t) {
-            return '<circle cx="' + t.pitchXM + '" cy="' + t.pitchYM + '" r="0.7" class="fv-dotsel"/>';
+            return '<circle cx="' + t.pitchXM + '" cy="' + t.pitchYM + '" r="0.75" class="vx-dot-sel"/>';
           }).join('');
       } else {
         var keep = {};
         list.forEach(function (r) { keep[r.identity] = 1; });
-        dots = s.tracks.filter(function (t) { return t.pitchXM !== null && keep[t.identity]; })
+        inner = s.tracks.filter(function (t) { return t.pitchXM !== null && keep[t.identity]; })
           .map(function (t) {
-            return '<circle cx="' + t.pitchXM + '" cy="' + t.pitchYM + '" r="0.5" class="'
-              + (t.calibrationChain === 'measured' ? 'fv-dotm' : 'fv-dotp') + '" opacity=".5"/>';
+            return '<circle cx="' + t.pitchXM + '" cy="' + t.pitchYM + '" r="0.55" class="'
+              + (t.calibrationChain === 'measured' ? 'vx-dot-m' : 'vx-dot-p') + '" opacity=".5"/>';
           }).join('');
       }
     }
 
-    var left = Panel(sel ? 'Trajectory · ' + sel.identity : 'Calibrated positions',
+    var stage = Panel(sel ? 'Trajectory · #' + sel.identity : 'Calibrated positions',
       caps.metricCoordinates
-        ? Pitch(dots, { tall: true, label: 'Player positions in metres' }) + LEGEND_ORIGIN
-        : Empty('withheld', 'NO METRIC POSITIONS', caps.reasons.metricCoordinates || ''),
-      { aside: Tag(s.summary.observationsWithPitchCoords + ' POSITIONS', 'measured'), accent: true });
+        ? '<div class="vx-surface" style="height:min(58vh,520px)">'
+          + Pitch(inner, { label: 'Player positions in metres', forceLines: true,
+            style: 'max-height:100%;width:auto;max-width:100%' }) + '</div>'
+          + '<div class="vx-legend" style="padding:0 12px 4px">'
+          + '<span class="vx-lg"><i style="background:var(--v-green)"></i>measured</span>'
+          + '<span class="vx-lg"><i style="background:var(--v-amber)"></i>propagated</span>'
+          + '<span class="vx-lg"><i style="background:var(--v-cyan)"></i>selected path</span></div>'
+        : Empty('withheld', 'NO METRIC POSITIONS',
+          caps.reasons.metricCoordinates || 'calibration published no coordinate for this session', 'track'),
+      { accent: true, ico: 'track', flush: true,
+        actions: Tag(s.summary.observationsWithPitchCoords + ' POSITIONS', 'measured') });
 
-    var detail = sel
+    var picker = list.map(function (r) {
+      return '<button class="vx-pick" type="button" data-vx-track="' + esc(r.identity) + '"'
+        + (sel && sel.identity === r.identity ? ' aria-current="true"' : '') + '>'
+        + '<span class="vx-pick-n vx-pick-n--' + trackToneClass({ role: r.role, teamId: r.team })
+        + '">' + esc(r.identity) + '</span>'
+        + '<span class="vx-pick-m"><b>' + esc(r.team ? words(r.team).toUpperCase() : 'NO TEAM')
+        + ' · ' + esc(words(r.role).toLowerCase()) + '</b>'
+        + '<span>' + esc(r.withCoords) + ' of ' + esc(r.obs) + ' with metric position</span></span>'
+        + '<span class="vx-pick-e">' + Tag(n(r.conf || null, 2),
+          r.conf >= 0.8 ? 'measured' : r.conf > 0 ? 'propagated' : 'withheld') + '</span></button>';
+    }).join('');
+
+    var inspector = sel
       ? Panel('Selected track', Rows([
-        ['Identity', '<b>' + esc(sel.identity) + '</b>'],
+        ['Identity', '<b>#' + esc(sel.identity) + '</b>'],
         ['Track id', esc(sel.trackId)],
-        ['Team', sel.team ? esc(sel.team) : Tag('NONE', 'withheld')],
-        ['Role', sel.role === 'UNKNOWN' ? Tag('UNKNOWN', 'withheld') : esc(sel.role)],
+        ['Team', sel.team ? esc(words(sel.team)) : Tag('NONE', 'withheld')],
+        ['Role', sel.role === 'UNKNOWN' ? Tag('UNKNOWN', 'withheld') : esc(words(sel.role))],
         ['Classification confidence', n(sel.conf || null, 2)],
         ['Observations', esc(sel.obs)],
         ['With metric position', esc(sel.withCoords) + ' of ' + esc(sel.obs)],
@@ -1137,133 +1155,129 @@
         ['Frames', esc(sel.first) + '–' + esc(sel.last)],
         ['Origin', (sel.origins.measured || 0) + ' measured · ' + (sel.origins.propagated || 0)
           + ' propagated · ' + (sel.origins.none || 0) + ' none'],
-        ['Source', esc(s.summary.source.displayName)],
-      ]) + '<div class="fv-legend"><button class="fv-btn" data-fv-seek="' + esc(sel.first)
-        + '" type="button">Open at frame ' + esc(sel.first) + '</button></div>',
-        { aside: Tag('EVIDENCE', 'derived') })
+        ['Speed / distance', Tag('NOT VALIDATED', 'future'),
+          'the engine measures implied speed only as a calibration guard'],
+      ]) + '<div class="vx-rowgap"></div>'
+        + '<button class="vx-btn" type="button" data-vx-seek="' + esc(sel.first) + '">'
+        + ico('live') + 'Open at frame ' + esc(sel.first) + '</button>',
+        { ico: 'track', accent: true, tight: true, actions: Tag('EVIDENCE', 'derived') })
       : Panel('No track selected',
-        '<p class="fv-metric-k">Choose an identity above to draw its trajectory on the pitch and '
-        + 'read its evidence here. A trajectory is drawn only from positions the engine published '
-        + '\u2014 nothing is interpolated across a frame where calibration was NONE.</p>');
+        '<p class="vx-note" style="border:0;padding:0;margin:0">Choose a track to draw its trajectory '
+        + 'on the pitch and read its evidence here. A trajectory is drawn only from positions the '
+        + 'engine published — nothing is interpolated across a frame where calibration was NONE.</p>',
+        { ico: 'track', tight: true });
+
+    var rail = '<div class="vx-stack">'
+      + Panel('Tracks', trackFilters(all, list)
+        + '<div class="vx-rowgap"></div>'
+        + (picker ? '<div class="vx-list" style="max-height:38vh;overflow:auto">' + picker + '</div>'
+          : '<p class="vx-note">No track matches these filters.</p>'),
+        { ico: 'teams', tight: true,
+          actions: Tag(list.length + ' / ' + all.length, list.length === all.length ? 'measured' : 'accent') })
+      + inspector + '</div>';
 
     var rows = list.map(function (r) {
-      return '<tr class="is-clickable" data-fv-track="' + esc(r.identity) + '"'
+      return '<tr class="is-clickable" data-vx-track="' + esc(r.identity) + '"'
         + (sel && sel.identity === r.identity ? ' aria-selected="true"' : '') + '>'
-        + '<td><b>' + esc(r.identity) + '</b><span class="fv-td-sub">track ' + esc(r.trackId) + '</span></td>'
-        + '<td>' + (r.team ? esc(r.team) : Tag('NONE', 'withheld')) + '</td>'
-        + '<td>' + (r.role === 'UNKNOWN' ? Tag('UNKNOWN', 'withheld') : esc(r.role)) + '</td>'
-        + '<td>' + n(r.conf || null, 2) + '</td>'
-        + '<td>' + esc(r.obs) + '</td>'
-        + '<td>' + esc(r.withCoords) + '</td>'
+        + '<td><b>#' + esc(r.identity) + '</b><span class="vx-td-sub">track ' + esc(r.trackId) + '</span></td>'
+        + '<td>' + (r.team ? esc(words(r.team)) : Tag('NONE', 'withheld')) + '</td>'
+        + '<td>' + (r.role === 'UNKNOWN' ? Tag('UNKNOWN', 'withheld') : esc(words(r.role))) + '</td>'
+        + '<td>' + n(r.conf || null, 2) + '</td><td>' + esc(r.obs) + '</td><td>' + esc(r.withCoords) + '</td>'
         + '<td>' + (r.withCoords > 1 ? Tag('YES', 'measured') : Tag('NO', 'withheld')) + '</td>'
         + '<td>' + esc(r.first) + '–' + esc(r.last) + '</td>'
-        + '<td><button class="fv-btn" data-fv-seek="' + esc(r.first) + '" type="button">seek</button></td></tr>';
+        + '<td><button class="vx-btn vx-btn--sm" data-vx-seek="' + esc(r.first) + '" type="button">seek</button></td></tr>';
     });
 
-    // PITCH FIRST, INSPECTOR BESIDE IT, RECORD BELOW.
-    //
-    // The pitch is what a reader is here for — a trajectory is a shape, not a
-    // row — so it takes the width. Choosing an identity is done in the rail,
-    // an arm's length from the shape it draws, instead of in a nine-column
-    // table two screens down. The table is still here, under the fold, as the
-    // evidence record: every column it ever had, and nothing in it removed.
-    var picker = list.map(function (r) {
-      return '<button class="fv-pick is-clickable" data-fv-track="' + esc(r.identity) + '" type="button"'
-        + (sel && sel.identity === r.identity ? ' aria-current="true"' : '') + '>'
-        + '<span class="fv-pick-id">' + esc(r.identity) + '</span>'
-        + '<span class="fv-pick-m">' + esc(r.team || 'no team') + ' · ' + esc(r.role.toLowerCase()) + '</span>'
-        + '<span class="fv-pick-n">' + esc(r.withCoords) + '<em>/' + esc(r.obs) + '</em></span></button>';
-    }).join('');
-
-    var inspector = '<div class="fv-stack">'
-      + Panel('Identities', filters
-        + (picker ? '<div class="fv-picks">' + picker + '</div>'
-          : '<p class="fv-metric-k">No identity matches these filters.</p>'),
-        { aside: Tag(list.length + ' OF ' + all.length, list.length === all.length ? 'measured' : 'accent') })
-      + detail + '</div>';
-
-    body('<div class="fv-live">' + left + inspector + '</div>'
-      + '<div class="fv-row-gap"></div>'
+    body('<div class="vx-2col--wide vx-2col">' + stage + rail + '</div><div class="vx-rowgap"></div>'
       + Panel('Evidence record', Table('Tracked identities in this session',
-          ['Identity', 'Team', 'Role', 'Conf', 'Observations', 'With metric position',
-            'Trajectory', 'Frames', ''], rows)
-        + '<p class="fv-note">Provenance: every row came from ' + esc(s.summary.source.displayName)
+        ['Identity', 'Team', 'Role', 'Conf', 'Observations', 'With metric position', 'Trajectory', 'Frames', ''],
+        rows) + '<p class="vx-note">Every row came from ' + esc(s.summary.source.displayName)
         + ', pipeline ' + esc(s.summary.pipelineVersion || '—')
         + '. Origin per observation is MEASURED where an anchor solved that frame and PROPAGATED '
-        + 'where it was carried.</p>', { flush: false }));
+        + 'where it was carried.</p>', { ico: 'reports', tight: true }));
   }
 
-  function showTrack() {
-    if (!FV.session) return;
-    renderSection();
-  }
-
-  // ═══ BALL TRACKING ══════════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════════════════════════
+     BALL TRACKING — the warning opens the screen and stays on it
+     ═══════════════════════════════════════════════════════════════════════════ */
 
   function secBall() {
-    head('Ball Tracking', 'OBSERVED and PROPAGATED are two different findings and are never merged.');
+    setWorkbar('Ball Tracking',
+      '<button class="vx-btn" type="button" data-vx-section="live">' + ico('live') + 'Live Analysis</button>'
+      + '<button class="vx-btn" type="button" data-vx-export="ball"' + (FV.session ? '' : ' disabled')
+      + '>' + ico('down') + 'Ball JSON</button>');
     if (!FV.session) { body(needSession()); return; }
-    var s = FV.session, st = s.summary.ballStates, total = s.ball.length || 1;
+
+    var s = FV.session, sm = s.summary, st = sm.ballStates, total = s.ball.length || 1;
     var current = s.ball.filter(function (b) { return b.frameNumber === FV.frame; })[0] || null;
+    var bp = ballPath(s.ball);
+    var balls = bp.trail.map(function (b) {
+      return '<circle cx="' + b.pitchXM + '" cy="' + b.pitchYM + '" r="0.75" class="'
+        + (b.state === 'OBSERVED' ? 'vx-dot-ball' : 'vx-dot-p') + '"/>';
+    }).join('');
+
+    var warn = '<div class="vx-warn"><b>PROXIMITY ≠ POSSESSION.</b>&nbsp;The nearest player and the '
+      + 'distance on this screen are geometry. Nothing here asserts a touch, a control or a possession, '
+      + 'and the engine does not infer one from distance.</div><div class="vx-rowgap"></div>';
+
+    var stage = Panel('Ball on the pitch',
+      bp.trail.length
+        ? '<div class="vx-surface" style="height:min(56vh,500px)">'
+          + Pitch(bp.path + balls, { label: 'Ball positions in metres', forceLines: true,
+            style: 'max-height:100%;width:auto;max-width:100%' }) + '</div>'
+          + '<p class="vx-note" style="margin:0 12px 10px">The line breaks wherever the record does. '
+          + 'A smooth path across frames the tracker never saw would be a picture of an assumption.</p>'
+        : Empty('withheld', 'NO CALIBRATED BALL POSITIONS',
+          'The ball was located in image space but calibration published no pitch coordinate for those '
+          + 'frames, so no metric ball position exists', 'ball'),
+      { accent: true, ico: 'ball', flush: true,
+        actions: Tag(sm.calibratedBallFrames + ' CALIBRATED', 'measured') });
 
     var kinds = [
-      ['OBSERVED', 'measured', 'the ball was directly detected'],
-      ['PROPAGATED', 'propagated', 'carried through measured camera motion, not observed'],
-      ['UNKNOWN', 'withheld', 'the ball could not be located'],
-      ['NOT_AVAILABLE', 'withheld', 'no ball evidence was produced for these frames'],
+      ['OBSERVED', 'measured', 'green', 'the ball was directly detected'],
+      ['PROPAGATED', 'propagated', 'amber', 'carried through measured camera motion, not observed'],
+      ['UNKNOWN', 'withheld', '', 'the ball could not be located'],
+      ['NOT_AVAILABLE', 'withheld', '', 'no ball evidence was produced for these frames'],
     ];
-    var stack = '<div class="fv-stackbar" role="img" aria-label="Ball state distribution">'
-      + kinds.map(function (k) {
-        var c = k[1] === 'measured' ? 'var(--fv-measured)' : k[1] === 'propagated'
-          ? 'var(--fv-propagated)' : 'rgba(91,100,128,.55)';
+    var stateStrip = '<div class="vx-stats">' + kinds.map(function (k) {
+      return Stat(words(k[0]), esc(st[k[0]] || 0), k[3], { tone: k[2] });
+    }).join('') + '</div><div class="vx-rowgap"></div>'
+      + '<div class="vx-split" role="img" aria-label="Ball state distribution">' + kinds.map(function (k) {
+        var c = k[1] === 'measured' ? 'var(--v-green)' : k[1] === 'propagated' ? 'var(--v-amber)'
+          : 'rgba(93,107,136,.55)';
         return '<i style="width:' + (((st[k[0]] || 0) / total) * 100).toFixed(2) + '%;background:' + c + '"></i>';
-      }).join('') + '</div>';
+      }).join('') + '</div>'
+      + '<p class="vx-note">' + esc(s.ball.length) + ' frames of ball record · observed coverage '
+      + pct(sm.ballObservedCoverage) + ' · ' + esc(sm.calibratedBallFrames)
+      + ' frames carry a metric position.</p>';
 
-    var currentPanel = Panel('Current state at frame ' + FV.frame,
-      current
-        ? Metric(esc(current.state), '',
-          current.reason ? esc(current.reason) : 'no reason recorded')
-          + Rows([
-            ['Frame · time', esc(current.frameNumber) + ' · ' + n(current.timestamp, 3) + ' s'],
-            ['Image position', current.imageX === null ? '<span class="fv-none">—</span>'
-              : n(current.imageX, 0) + ', ' + n(current.imageY, 0)],
-            ['Metric position', current.pitchXM === null ? Tag('WITHHELD', 'withheld')
-              : n(current.pitchXM, 2) + ', ' + n(current.pitchYM, 2) + ' m'],
-            ['Tracking confidence', n(current.trackingConfidence, 3)],
-            ['Detection confidence', n(current.detectionConfidence, 3)],
-            ['Frames since observation', n(current.framesSinceObservation, 0)],
-            ['Nearest player', current.nearestPlayer ? esc(current.nearestPlayer)
-              : '<span class="fv-none">—</span>'],
-            ['Distance', n(current.nearestDistanceM, 2) + ' m'],
-            ['Origin', Tag(current.origin, current.origin === 'MEASURED' ? 'measured'
-              : current.origin === 'PROPAGATED' ? 'propagated' : 'withheld')],
-            ['Source', esc(s.summary.source.displayName)],
-          ])
+    var rail = '<div class="vx-stack">'
+      + Panel('State at frame ' + FV.frame, current
+        ? Rows([
+          ['State', Tag(words(current.state), current.state === 'OBSERVED' ? 'measured'
+            : current.state === 'PROPAGATED' ? 'propagated' : 'withheld'), current.reason || ''],
+          ['Frame · time', esc(current.frameNumber) + ' · ' + n(current.timestamp, 3) + ' s'],
+          ['Image position', current.imageX === null ? '<span class="vx-none">—</span>'
+            : n(current.imageX, 0) + ', ' + n(current.imageY, 0)],
+          ['Metric position', current.pitchXM === null ? Tag('WITHHELD', 'withheld')
+            : n(current.pitchXM, 2) + ', ' + n(current.pitchYM, 2) + ' m'],
+          ['Tracking confidence', n(current.trackingConfidence, 3)],
+          ['Detection confidence', n(current.detectionConfidence, 3)],
+          ['Frames since observation', n(current.framesSinceObservation, 0)],
+          ['Nearest player', current.nearestPlayer ? '<b>#' + esc(current.nearestPlayer) + '</b>'
+            : '<span class="vx-none">—</span>'],
+          ['Distance', current.nearestDistanceM === null ? '<span class="vx-none">—</span>'
+            : n(current.nearestDistanceM, 2) + ' m', 'geometry only'],
+          ['Origin', Tag(current.origin, current.origin === 'MEASURED' ? 'measured'
+            : current.origin === 'PROPAGATED' ? 'propagated' : 'withheld')],
+          ['Source', esc(sm.source.displayName)],
+        ])
         : Empty('withheld', 'NO BALL RECORD AT THIS FRAME',
-          'The tracker published nothing for frame ' + FV.frame + '. Seek to another frame, or '
-          + 'open the table below to jump to an observation.'),
-      { aside: current ? Tag(current.state, current.state === 'OBSERVED' ? 'measured'
-        : current.state === 'PROPAGATED' ? 'propagated' : 'withheld') : '', accent: true });
-
-    var trail = s.ball.filter(function (b) { return b.pitchXM !== null; });
-    var path = '';
-    // The trajectory is drawn only across CONSECUTIVE evidence. A gap in the
-    // record is a gap in the line — a long smooth path bridging thirty frames
-    // the tracker never saw would be a picture of an assumption.
-    var run = [];
-    trail.forEach(function (b, i) {
-      var prev = trail[i - 1];
-      if (prev && b.frameNumber - prev.frameNumber > 2) {
-        if (run.length > 1) path += '<polyline class="fv-trace" points="' + run.join(' ') + '"/>';
-        run = [];
-      }
-      run.push(b.pitchXM.toFixed(2) + ',' + b.pitchYM.toFixed(2));
-    });
-    if (run.length > 1) path += '<polyline class="fv-trace" points="' + run.join(' ') + '"/>';
-    var balls = trail.map(function (b) {
-      return '<circle cx="' + b.pitchXM + '" cy="' + b.pitchYM + '" r="0.75" class="'
-        + (b.state === 'OBSERVED' ? 'fv-dotball' : 'fv-dotp') + '"/>';
-    }).join('');
+          'The tracker published nothing for frame ' + FV.frame + '. Seek to another frame', 'ball'),
+        { ico: 'ball', accent: true, tight: true,
+          actions: current ? Tag(words(current.state), current.state === 'OBSERVED' ? 'measured'
+            : current.state === 'PROPAGATED' ? 'propagated' : 'withheld') : '' })
+      + Panel('Where the record stands', stateStrip, { ico: 'timeline', tight: true }) + '</div>';
 
     var rows = s.ball.filter(function (b) {
       return b.state === 'OBSERVED' || b.state === 'PROPAGATED';
@@ -1272,425 +1286,400 @@
         + '<td>' + esc(b.frameNumber) + '</td><td>' + n(b.timestamp, 2) + '</td>'
         + '<td>' + Tag(b.state, b.state === 'OBSERVED' ? 'measured' : 'propagated') + '</td>'
         + '<td>' + n(b.imageX, 0) + ', ' + n(b.imageY, 0) + '</td>'
-        + '<td>' + (b.pitchXM === null ? '<span class="fv-none">—</span>'
+        + '<td>' + (b.pitchXM === null ? '<span class="vx-none">—</span>'
           : n(b.pitchXM, 1) + ', ' + n(b.pitchYM, 1)) + '</td>'
-        + '<td>' + n(b.trackingConfidence, 2) + '</td>'
-        + '<td>' + n(b.detectionConfidence, 2) + '</td>'
+        + '<td>' + n(b.trackingConfidence, 2) + '</td><td>' + n(b.detectionConfidence, 2) + '</td>'
         + '<td>' + n(b.framesSinceObservation, 0) + '</td>'
-        + '<td>' + (b.nearestPlayer ? esc(b.nearestPlayer) : '<span class="fv-none">—</span>') + '</td>'
+        + '<td>' + (b.nearestPlayer ? '#' + esc(b.nearestPlayer) : '<span class="vx-none">—</span>') + '</td>'
         + '<td>' + n(b.nearestDistanceM, 2) + '</td>'
-        + '<td><button class="fv-btn" data-fv-seek="' + esc(b.frameNumber)
-        + '" data-fv-stay type="button">go</button></td></tr>';
+        + '<td><button class="vx-btn vx-btn--sm" data-vx-seek="' + esc(b.frameNumber)
+        + '" data-vx-stay type="button">go</button></td></tr>';
     });
 
-    // THE WARNING IS PERMANENT, AND IT IS FIRST.
-    //
-    // Nearest player and distance are geometry. Every football reading of them
-    // — a touch, a control, a possession — is an inference the engine does not
-    // make, and this section is where somebody would be most tempted to make
-    // it on the engine's behalf. So the sentence is not a footnote under the
-    // table it qualifies: it opens the section, and it stays on screen while
-    // the table beside it is read.
-    var banner = '<div class="fv-banner fv-banner--sticky" role="note">'
-      + '<b>PROXIMITY ≠ POSSESSION.</b> The nearest player and the distance on this screen are '
-      + 'geometry. Nothing here asserts a touch, a control or a possession, and the engine does '
-      + 'not infer one from distance.</div>';
-
-    var states = '<div class="fv-states">' + kinds.map(function (k) {
-      return '<div class="fv-state-cell"><span class="fv-state-v fv-state-v--' + k[1] + '">'
-        + esc(st[k[0]] || 0) + '</span>'
-        + '<span class="fv-state-k">' + esc(k[0].replace(/_/g, ' ')) + '</span>'
-        + '<span class="fv-state-s">' + esc(k[2]) + '</span></div>';
-    }).join('') + '</div>' + stack
-      + '<p class="fv-metric-k">' + esc(s.ball.length) + ' frames of ball record · observed coverage '
-      + pct(s.summary.ballObservedCoverage) + ' · ' + esc(s.summary.calibratedBallFrames)
-      + ' frames carry a metric position</p>';
-
-    body(banner
-      + '<div class="fv-live">'
-      + Panel('Ball on the pitch', trail.length
-        ? Pitch(path + balls, { tall: true, label: 'Ball positions in metres' })
-          + '<p class="fv-note">The line breaks wherever the record does. A smooth path across '
-          + 'frames the tracker never saw would be a picture of an assumption.</p>'
-        : Empty('withheld', 'NO CALIBRATED BALL POSITIONS',
-          'The ball was located in image space but calibration published no pitch coordinate for '
-          + 'those frames, so no metric ball position exists.'),
-        { aside: Tag(s.summary.calibratedBallFrames + ' CALIBRATED', 'measured'), accent: true })
-      + '<div class="fv-stack">' + currentPanel
-      + Panel('Where the record stands', states) + '</div>'
-      + '</div><div class="fv-row-gap"></div>'
+    body(warn + '<div class="vx-2col--wide vx-2col">' + stage + rail + '</div>'
+      + '<div class="vx-rowgap"></div>'
       + Panel('Ball samples', Table('Ball samples with evidence',
         ['Frame', 't (s)', 'State', 'Image x,y', 'Pitch x,y (m)', 'Track conf', 'Det conf',
-          'Since obs', 'Nearest', 'Dist (m)', ''], rows)));
+          'Since obs', 'Nearest', 'Dist (m)', ''], rows), { ico: 'reports', tight: true }));
   }
 
-  // ═══ PITCH CALIBRATION ══════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════════════════════════
+     PITCH CALIBRATION — a calibration workstation, not a card wall
+     ═══════════════════════════════════════════════════════════════════════════ */
 
   function secCalibration() {
-    head('Pitch Calibration', 'What was accepted, what the guards withheld, and where no metric '
-      + 'claim may be made at all.');
+    setWorkbar('Pitch Calibration',
+      '<button class="vx-btn" type="button" data-vx-section="live">' + ico('live') + 'Live Analysis</button>'
+      + '<button class="vx-btn" type="button" data-vx-export="calibration"'
+      + (FV.session ? '' : ' disabled') + '>' + ico('down') + 'Calibration JSON</button>');
     if (!FV.session) { body(needSession()); return; }
+
     var s = FV.session, sm = s.summary;
+    var frames = Math.max(1, sm.framesProcessed);
     var anchors = s.calibration.filter(function (c) { return c.isAnchor; });
     var none = s.calibration.filter(function (c) { return c.chain === 'none'; });
     var bands = { HIGH: 0, MEDIUM: 0, LOW: 0, NONE: 0 };
     anchors.forEach(function (a) { bands[a.confidence] = (bands[a.confidence] || 0) + 1; });
     var errs = anchors.map(function (a) { return a.expectedErrorM; })
       .filter(function (e) { return e !== null; });
-    var g = sm.guards || {};
-    // A SESSION-LEVEL verdict, and the engine does not publish one — it
-    // publishes a verdict per frame. This is therefore a UI summary of those
-    // per-frame verdicts and is labelled DERIVED wherever it appears, so it is
-    // never mistaken for something the engine decided. The rule is stated on
-    // the card rather than buried here:
-    //   NONE      no anchor was accepted
-    //   DEGRADED  an accepted anchor sits in the LOW band, or coverage < 25%
-    //   VALID     otherwise
+    var here = s.calibration.filter(function (c) { return c.frameNumber === FV.frame; })[0] || null;
+
+    /* A SESSION-LEVEL verdict, and the engine does not publish one — it
+       publishes a verdict per frame. This is therefore a summary of those
+       per-frame verdicts and is labelled DERIVED wherever it appears.
+         NONE      no anchor was accepted
+         DEGRADED  an accepted anchor sits in the LOW band, or coverage < 25%
+         VALID     otherwise                                                   */
     var state = anchors.length === 0 ? 'NONE'
       : (bands.LOW > 0 || (sm.calibrationCoverage || 0) < 0.25) ? 'DEGRADED' : 'VALID';
-    var stateRule = state === 'NONE' ? 'no anchor was accepted'
+    var rule = state === 'NONE' ? 'no anchor was accepted'
       : state === 'DEGRADED'
         ? (bands.LOW > 0 ? bands.LOW + ' accepted anchor' + (bands.LOW === 1 ? '' : 's')
           + ' sit in the LOW band' : 'coverage is below 25%')
         : 'every accepted anchor is HIGH or MEDIUM, and coverage is above 25%';
     var stateTag = state === 'VALID' ? Tag('VALID', 'measured')
-      : state === 'DEGRADED' ? Tag('DEGRADED', 'propagated') : Tag('NONE', 'withheld');
+      : state === 'DEGRADED' ? Tag('DEGRADED', 'propagated') : Tag('REJECTED', 'crit');
 
-    // Anchors placed where the engine's own expected error puts them: a marker
-    // per anchor along the frame axis, sized by its error band. Nothing about
-    // an anchor's PITCH position is known, so none is drawn.
-    var frames = Math.max(1, sm.framesProcessed);
-    var anchorStrip = anchors.map(function (a) {
-      var cls = a.confidence === 'HIGH' ? 'measured' : a.confidence === 'LOW' ? 'withheld' : 'propagated';
-      var colour = cls === 'measured' ? 'var(--fv-measured)'
-        : cls === 'propagated' ? 'var(--fv-propagated)' : 'var(--fv-withheld)';
-      return '<button class="fv-tl-mark" style="left:' + ((a.frameNumber / frames) * 100).toFixed(2)
-        + '%;background:' + colour + '" data-fv-seek="' + a.frameNumber + '" type="button" '
-        + 'title="Anchor at frame ' + a.frameNumber + ' · ' + a.confidence + ' · ±'
-        + (a.expectedErrorM === null ? '—' : a.expectedErrorM.toFixed(3) + ' m')
-        + '" aria-label="Anchor at frame ' + a.frameNumber + '"></button>';
+    /* The projected field geometry, with this frame's own solve drawn over it.
+       Nothing about an anchor's PITCH position is known, so none is drawn. */
+    var solved = s.tracks.filter(function (t) { return t.frameNumber === FV.frame && t.pitchXM !== null; });
+    var geometry = solved.map(function (t) {
+      return '<circle cx="' + t.pitchXM + '" cy="' + t.pitchYM + '" r="1.1" class="'
+        + (t.calibrationChain === 'measured' ? 'vx-dot-m' : 'vx-dot-p') + '"/>'
+        + '<circle cx="' + t.pitchXM + '" cy="' + t.pitchYM + '" r="'
+        + Math.max(0.6, (t.calibrationErrorM || 0) * 2).toFixed(2)
+        + '" fill="none" stroke="' + (t.calibrationChain === 'measured'
+          ? 'var(--v-green)' : 'var(--v-amber)') + '" stroke-width=".18" opacity=".55"/>';
     }).join('');
 
-    // The same run-length lane the Live canvas draws. One way of drawing a
-    // calibration chain across a session, used in both places.
+    var stage = Panel('Projected field geometry · frame ' + FV.frame,
+      '<div class="vx-surface" style="height:min(52vh,470px)">'
+      + Pitch(geometry, { label: 'Solved ground plane at frame ' + FV.frame, forceLines: true,
+        style: 'max-height:100%;width:auto;max-width:100%' })
+      + (here && here.chain === 'none'
+        ? '<div class="vx-surface-over"><span class="vx-surface-t">CALIBRATION</span>'
+          + '<span class="vx-surface-t2" style="font-size:20px">NONE AT THIS FRAME</span>'
+          + '<p class="vx-surface-p">No coordinate was published here, so nothing may be placed on a '
+          + 'pitch and nothing is.</p></div>' : '')
+      + '</div>'
+      + '<div class="vx-legend" style="padding:0 12px 10px">'
+      + '<span class="vx-lg"><i style="background:var(--v-green)"></i>measured solve</span>'
+      + '<span class="vx-lg"><i style="background:var(--v-amber)"></i>propagated from an anchor</span>'
+      + '<span class="vx-lg"><i style="background:transparent;box-shadow:inset 0 0 0 1px var(--v-tx-3)">'
+      + '</i>ring = expected metric error</span></div>',
+      { accent: true, ico: 'calib', flush: true,
+        actions: stateTag + Tag('DERIVED', 'derived') });
+
     var coverageStrip = tlSpans(s.calibration, frames,
       function (c) { return c.chain === 'measured' ? 'valid' : c.chain === 'propagated' ? 'prop' : 'none'; },
       function (c) { return c.chain; });
+    var anchorStrip = anchors.map(function (a) {
+      var colour = a.confidence === 'HIGH' ? 'var(--v-green)'
+        : a.confidence === 'LOW' ? 'var(--v-grey)' : 'var(--v-amber)';
+      return '<button class="vx-tl-mark" style="left:' + ((a.frameNumber / frames) * 100).toFixed(2)
+        + '%;background:' + colour + '" data-vx-seek="' + a.frameNumber + '" data-vx-stay type="button"'
+        + ' title="Anchor at frame ' + a.frameNumber + ' · ' + a.confidence + ' · ±'
+        + (a.expectedErrorM === null ? '—' : a.expectedErrorM.toFixed(3) + ' m')
+        + '"><span class="vx-sr">Anchor at frame ' + a.frameNumber + '</span></button>';
+    }).join('');
+    var cursor = '<div class="vx-tl-cursor" style="left:' + ((FV.frame / frames) * 100).toFixed(2) + '%"></div>';
 
-    var diagnostics = Rows([
-      ['Calibration state', stateTag + ' ' + Tag('DERIVED', 'derived'),
-        'a UI summary of the per-frame verdicts; the engine publishes no '
-        + 'session-level state'],
-      ['Coverage', pct(sm.calibrationCoverage)],
-      ['Measured frames', esc(sm.calibrationMeasuredFrames)],
-      ['Propagated frames', esc(sm.calibrationPropagatedFrames)],
-      ['Frames with NONE', esc(none.length), 'no coordinate published, none may be inferred'],
-      ['Accepted anchors', esc(anchors.length), 'HIGH ' + bands.HIGH + ' · MEDIUM ' + bands.MEDIUM
-        + ' · LOW ' + bands.LOW],
-      ['Expected metric error', errs.length
-        ? n(Math.min.apply(null, errs), 3) + ' – ' + n(Math.max.apply(null, errs), 3) + ' m'
-        : '<span class="fv-none">—</span>', 'cross-validated, not measured against ground truth'],
-      ['Anchor disagreement', n(sm.anchorDisagreementMedianM, 3) + ' m',
-        'a fresh anchor against the propagated chain it replaced'],
-      ['Coordinates on pitch', pct(sm.coordsOnPitchRate)],
-      ['Provider', esc((s.summary.providers.filter(function (p) {
-        return p.role === 'pitch_calibrator';
-      })[0] || {}).provider || '—')],
-    ]);
+    var chain = Panel('Calibration chain across the session',
+      '<div class="vx-tl">'
+      + tlBand('Chain', s.calibration.length + ' frames', coverageStrip + cursor)
+      + tlBand('Accepted anchors', anchors.length, anchorStrip + cursor, true)
+      + '</div>'
+      + '<div class="vx-tl-ruler"><span>frame 0</span><span class="vx-legend">'
+      + '<span class="vx-lg"><i style="background:var(--v-green)"></i>MEASURED</span>'
+      + '<span class="vx-lg"><i style="background:var(--v-amber)"></i>PROPAGATED</span>'
+      + '<span class="vx-lg"><i style="background:rgba(93,107,136,.6)"></i>NONE</span>'
+      + '</span><span>frame ' + frames + '</span></div>', { ico: 'timeline', tight: true });
 
-    var guards = Rows([
-      ['Speed-guard spans examined', n(g.speedGuardSpans)],
-      ['Spans withheld as physically impossible', n(g.speedGuardSpansWithheld)],
-      ['Frames whose coordinates were withheld', n(g.speedGuardFramesWithheld)],
-      ['Worst p90 implied speed', n(g.speedGuardP90MsMax, 1) + ' m/s'],
-    ]) + '<p class="fv-note fv-note--loud">The physical guard only ever WITHHOLDS. It never rescales '
-      + 'or repairs a coordinate, because nothing in the system knows what the right scale would '
-      + 'have been. A rejected span is drawn as NONE above, not as a lower-confidence estimate.</p>';
+    var g = sm.guards || {};
+    var rail = '<div class="vx-stack">'
+      + Panel('Validation', Rows([
+        ['Validation state', stateTag + ' ' + Tag('DERIVED', 'derived'),
+          'the engine publishes a verdict per FRAME and none for the session'],
+        ['Reason', '<span style="font-size:11px;font-weight:500">' + esc(sentence(rule)) + '</span>'],
+        ['Coverage', pct(sm.calibrationCoverage)],
+        ['Expected error', errs.length ? n(Math.min.apply(null, errs), 3) + '–'
+          + n(Math.max.apply(null, errs), 3) + ' m' : '<span class="vx-none">—</span>',
+          'cross-validated across accepted anchors'],
+        ['Anchor disagreement', n(sm.anchorDisagreementMedianM, 3) + ' m',
+          'a fresh anchor against the chain it replaced'],
+        ['On-pitch coordinates', pct(sm.coordsOnPitchRate),
+          esc(sm.observationsWithPitchCoords) + ' published positions'],
+        ['Provider', (function () {
+          var p = (sm.providers || []).filter(function (x) { return /calib/i.test(x.role); })[0];
+          return p ? '<span style="font-size:11px">' + esc(p.provider) + '</span>'
+            : '<span class="vx-none">—</span>';
+        }())],
+        ['Failure reason', none.length
+          ? esc(none.length) + ' frames NONE'
+          : Tag('NONE', 'measured'), none.length ? 'no coordinate published; none may be inferred' : ''],
+      ]), { ico: 'health', accent: true, tight: true })
+      + Panel('Anchors accepted', '<div class="vx-stats">'
+        + Stat('HIGH', esc(bands.HIGH || 0), 'accepted', { tone: 'green' })
+        + Stat('MEDIUM', esc(bands.MEDIUM || 0), 'accepted', { tone: 'amber' })
+        + Stat('LOW', esc(bands.LOW || 0), 'accepted', { tone: '' })
+        + '</div>'
+        + '<div class="vx-rowgap"></div>' + Rows([
+          ['Frames withheld', esc(none.length), 'calibration NONE · no metric claim'],
+          ['Speed guard spans', n(g.speedGuardSpans, 0), 'spans examined by the validity gate'],
+          ['Spans withheld', n(g.speedGuardSpansWithheld, 0), 'physically impossible; rejected'],
+        ]), { ico: 'calib', tight: true }) + '</div>';
 
     var rows = anchors.map(function (a) {
       return '<tr><td>' + esc(a.frameNumber) + '</td>'
         + '<td>' + Tag(a.confidence, a.confidence === 'HIGH' ? 'measured'
-          : a.confidence === 'NONE' ? 'withheld' : 'propagated') + '</td>'
-        + '<td>' + n(a.expectedErrorM, 3) + '</td>'
-        + '<td>' + n(a.score, 4) + '</td>'
-        + '<td>' + (a.landmark ? esc(a.landmark) : '<span class="fv-none">—</span>') + '</td>'
-        + '<td><button class="fv-btn" data-fv-seek="' + esc(a.frameNumber) + '" type="button">seek</button></td></tr>';
+          : a.confidence === 'LOW' ? 'withheld' : 'propagated') + '</td>'
+        + '<td>' + n(a.expectedErrorM, 3) + '</td><td>' + n(a.score, 4) + '</td>'
+        + '<td>' + n(a.reprojectionErrorPx, 2) + '</td>'
+        + '<td>' + (a.landmark ? esc(a.landmark) : '<span class="vx-none">—</span>') + '</td>'
+        + '<td><button class="vx-btn vx-btn--sm" data-vx-seek="' + esc(a.frameNumber)
+        + '" data-vx-stay type="button">go</button></td></tr>';
     });
 
-    // CALIBRATION READS LIKE A BENCH INSTRUMENT.
-    //
-    // Six panels in a wrapping grid made six separate claims of equal weight.
-    // A calibration report is not six claims: it is one verdict, qualified by
-    // five figures. So the verdict leads at instrument scale and the five sit
-    // beside it on one baseline, aligned and tabular, the way a reading is
-    // printed on a meter rather than scattered across cards.
-    body('<section class="fv-instr">'
-      + '<div class="fv-instr-lead">'
-      + '<div class="fv-instr-k">Calibration state ' + stateTag + ' ' + Tag('DERIVED', 'derived') + '</div>'
-      + '<div class="fv-instr-v">' + esc(state) + '</div>'
-      + '<p class="fv-instr-s">' + esc(stateRule) + '. '
-      + (anchors.length ? esc(anchors.length) + ' anchors survived every gate.'
-        : 'Every candidate failed the validity gate.')
-      + ' The engine publishes a verdict per FRAME and no verdict for the session, so this word is '
-      + 'this screen’s summary of those verdicts and is labelled DERIVED wherever it appears.</p>'
-      + '</div>'
-      + '<div class="fv-instr-dials">'
-      + Dial(pct(sm.calibrationCoverage), 'Coverage',
-        esc(sm.calibrationMeasuredFrames) + ' measured · ' + esc(sm.calibrationPropagatedFrames) + ' propagated',
-        sm.calibrationCoverage)
-      + Dial(errs.length ? n(Math.min.apply(null, errs), 3) + '–' + n(Math.max.apply(null, errs), 3)
-          + '<small> m</small>' : '<span class="fv-none">—</span>',
-        'Expected metric error', 'cross-validated across accepted anchors')
-      + Dial(n(sm.anchorDisagreementMedianM, 3) + '<small> m</small>', 'Anchor disagreement',
-        'fresh anchor against the chain it replaced')
-      + Dial(esc(none.length), 'Frames withheld', 'calibration NONE · no metric claim')
-      + Dial(pct(sm.coordsOnPitchRate), 'Coordinates on pitch',
-        esc(sm.observationsWithPitchCoords) + ' published positions', sm.coordsOnPitchRate)
-      + '</div></section><div class="fv-row-gap"></div>'
-      + Panel('Calibration across the session',
-        '<div class="fv-tl">'
-        + '<div class="fv-tl-band"><div class="fv-tl-label">Chain</div>'
-        + '<div class="fv-tl-track">' + coverageStrip + '</div></div>'
-        + '<div class="fv-tl-band"><div class="fv-tl-label">Accepted anchors</div>'
-        + '<div class="fv-tl-track fv-tl-track--marks">' + anchorStrip + '</div></div>'
-        + '</div>'
-        + '<div class="fv-tl-ruler"><span>frame 0</span><span>frame ' + frames + '</span></div>'
-        + '<div class="fv-legend">'
-        + Chip('MEASURED', 'READY') + Chip('PROPAGATED', 'DEGRADED')
-        + Chip('NONE', 'NOT_AVAILABLE') + '</div>', { accent: true })
-      + '<div class="fv-row-gap"></div>'
-      + '<div class="fv-split">'
+    body('<div class="vx-2col--wide vx-2col">' + stage + rail + '</div>'
+      + '<div class="vx-rowgap"></div>' + chain + '<div class="vx-rowgap"></div>'
       + Panel('Accepted anchors', rows.length
         ? Table('Accepted calibration anchors',
-          ['Frame', 'Band', 'Expected error (m)', 'Score', 'Landmark evidence', ''], rows)
-          + '<p class="fv-note">Landmark evidence reads as an em dash because this engine schema '
-          + 'records the landmark sentence on the calibration state rather than on each frame\'s '
-          + 'provenance. An em dash means the platform does not hold the figure — it does not mean '
-          + 'the anchor had no evidence.</p>'
+          ['Frame', 'Band', 'Expected error (m)', 'Score', 'Reprojection (px)', 'Landmark evidence', ''], rows)
+          + '<p class="vx-note">Landmark evidence reads as an em dash because this engine schema records '
+          + 'the landmark sentence on the calibration state rather than on each frame’s provenance. '
+          + 'An em dash means the platform does not hold the figure — not that the anchor had no '
+          + 'evidence.</p>'
         : Empty('withheld', 'NO ANCHOR ACCEPTED',
-          'Every candidate failed the validity gate, so this session carries no metric geometry. '
-          + 'That is a result, not a fault.'))
-      + '<div class="fv-stack">' + Panel('Diagnostics', diagnostics)
-      + Panel('Validation guards', guards) + '</div>'
-      + '</div>');
+          'Every candidate failed the validity gate, so no metric claim is made anywhere in this session',
+          'calib'), { ico: 'reports', tight: true }));
   }
 
-  // ═══ TEAMS & ROLES ══════════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════════════════════════
+     TEAMS & ROLES — lanes, sized by the share of the session they hold
+     ═══════════════════════════════════════════════════════════════════════════ */
 
   function secTeams() {
-    head('Teams & Roles', 'No classification is forced. UNKNOWN is an answer and it is kept — '
-      + 'never folded into a team to make a card look complete.');
+    setWorkbar('Teams & Roles',
+      '<button class="vx-btn" type="button" data-vx-section="tracking">' + ico('track') + 'Player Tracking</button>');
     if (!FV.session) { body(needSession()); return; }
+
     var s = FV.session;
-    var teams = {}; var roles = {};
-    s.tracks.forEach(function (t) {
-      var k = t.teamId || 'UNASSIGNED';
-      (teams[k] || (teams[k] = { identities: {}, obs: 0 }));
-      teams[k].identities[t.identity] = 1;
-      teams[k].obs += 1;
-      roles[t.role] = (roles[t.role] || 0) + 1;
+    var groups = { team_a: [], team_b: [], GOALKEEPERS: [], OFFICIALS: [], UNKNOWN: [] };
+    var byId = trackIndex(s);
+    byId.forEach(function (r) {
+      if (r.role === 'GOALKEEPER') groups.GOALKEEPERS.push(r);
+      else if (r.role === 'REFEREE') groups.OFFICIALS.push(r);
+      else if (!r.team || r.role === 'UNKNOWN') groups.UNKNOWN.push(r);
+      else if (groups[r.team]) groups[r.team].push(r);
+      else groups.UNKNOWN.push(r);
     });
     var totalObs = s.tracks.length || 1;
+    var roleReason = {};
+    s.roles.forEach(function (r) { roleReason[r.identity] = r; });
 
-    // TEAMS AS LANES, NOT AS CARDS.
-    //
-    // A squad is a group of people, and the question a reader asks here is how
-    // the session's observations DIVIDED between the groups — including the
-    // group that is "no group". Three cards in a wrapping grid answer that
-    // badly: they are the same size whatever share they hold, so the share has
-    // to be read off a number instead of seen. A lane per team, as wide as its
-    // share, shows the division and keeps the number.
-    var teamLane = Object.keys(teams).sort().map(function (k) {
-      var isUnassigned = k === 'UNASSIGNED';
-      var colour = k === 'team_a' ? 'var(--fv-accent)' : k === 'team_b' ? 'var(--fv-measured)'
-        : 'var(--fv-withheld)';
-      var ids = Object.keys(teams[k].identities);
-      return '<div class="fv-lane" style="--fv-lane-c:' + colour + '">'
-        + '<div class="fv-lane-head"><span class="fv-lane-n">'
-        + esc(isUnassigned ? 'NO TEAM ASSIGNED' : k.toUpperCase()) + '</span>'
-        + (isUnassigned ? Tag('UNKNOWN', 'withheld') : Tag('CLUSTERED', 'measured')) + '</div>'
-        + '<div class="fv-lane-v">' + esc(ids.length) + '<small>identities</small></div>'
-        + '<div class="fv-bar"><i style="width:' + ((teams[k].obs / totalObs) * 100).toFixed(1)
-        + '%;background:' + colour + '"></i></div>'
-        + '<div class="fv-lane-s">' + esc(teams[k].obs) + ' observations · '
-        + pct(teams[k].obs / totalObs) + ' of the session</div>'
-        + '<div class="fv-lane-ids">' + ids.slice(0, 26).map(function (id) {
-          return '<button class="fv-chipid" data-fv-track="' + esc(id) + '" type="button">'
-            + esc(id) + '</button>';
-        }).join('') + (ids.length > 26 ? '<span class="fv-lane-more">+' + (ids.length - 26) + '</span>' : '')
-        + '</div></div>';
-    }).join('');
-    var teamCards = '<div class="fv-lanes">' + teamLane + '</div>';
+    var LANES = [
+      ['team_a', 'TEAM A', 'var(--v-cyan)', 'clustered on kit colour'],
+      ['team_b', 'TEAM B', 'var(--v-green)', 'clustered on kit colour'],
+      ['GOALKEEPERS', 'GOALKEEPERS', 'var(--v-amber)', 'decided on metric position, not on kit colour'],
+      ['OFFICIALS', 'OFFICIALS', '#ffffff', 'neither kit, and not confined to a penalty area'],
+      ['UNKNOWN', 'UNKNOWN', 'var(--v-violet)', 'evidence was insufficient to decide; nothing was forced'],
+    ];
 
-    var roleTotal = Object.keys(roles).reduce(function (a, r) { return a + roles[r]; }, 0) || 1;
-    var roleCards = Panel('Roles across the session',
-      '<div class="fv-lanes fv-lanes--roles">' + Object.keys(roles).sort().map(function (r) {
-        var c = r === 'UNKNOWN' ? 'var(--fv-withheld)' : r === 'GOALKEEPER' ? 'var(--fv-propagated)'
-          : r === 'REFEREE' ? 'var(--fv-tx)' : r === 'OFF_PITCH' ? 'var(--fv-unver)' : 'var(--fv-accent)';
-        return '<div class="fv-lane fv-lane--sm" style="--fv-lane-c:' + c + '">'
-          + '<div class="fv-lane-head"><span class="fv-lane-n">' + esc(r) + '</span>'
-          + (r === 'UNKNOWN' ? Tag('UNKNOWN', 'withheld') : '') + '</div>'
-          + '<div class="fv-lane-v">' + esc(roles[r]) + '<small>observations</small></div>'
-          + '<div class="fv-bar"><i style="width:' + ((roles[r] / roleTotal) * 100).toFixed(1)
-          + '%;background:' + c + '"></i></div>'
-          + '<div class="fv-lane-s">' + esc(
-            r === 'UNKNOWN' ? 'evidence was insufficient to decide; nothing was forced'
-              : r === 'GOALKEEPER' ? 'decided on metric position, not on kit colour'
-                : r === 'REFEREE' ? 'neither kit, and not confined to a penalty area'
-                  : r === 'OFF_PITCH' ? 'feet did not land on detected grass'
-                    : 'kit matched a team cluster') + '</div></div>';
-      }).join('') + '</div>');
+    var lanes = '<div class="vx-lanes">' + LANES.map(function (L) {
+      var list = groups[L[0]];
+      var obs = list.reduce(function (a, r) { return a + r.obs; }, 0);
+      return '<div class="vx-lane" style="--v-lane:' + L[2] + '">'
+        + '<div class="vx-lane-h"><span class="vx-lane-n">' + esc(L[1]) + '</span>'
+        + (L[0] === 'UNKNOWN' ? Tag('UNKNOWN', 'withheld') : Tag(list.length ? 'CLUSTERED' : 'NONE',
+          list.length ? 'measured' : 'withheld')) + '</div>'
+        + '<div class="vx-lane-v">' + list.length + '<small>tracks</small></div>'
+        + Bar(obs / totalObs)
+        + '<div class="vx-lane-s">' + esc(obs) + ' observations · ' + pct(obs / totalObs)
+        + ' of the session</div>'
+        + '<div class="vx-lane-ids">' + (list.length
+          ? list.slice(0, 24).map(function (r) {
+            return '<button class="vx-chipid" data-vx-role="' + esc(r.identity) + '" type="button"'
+              + ' title="open the evidence for this track">#' + esc(r.identity) + '</button>';
+          }).join('') + (list.length > 24 ? '<span class="vx-lane-s">+' + (list.length - 24) + '</span>' : '')
+          : '<span class="vx-lane-s">none in this session</span>') + '</div>'
+        + '<div class="vx-lane-s">' + esc(L[3]) + '</div></div>';
+    }).join('') + '</div>';
 
     var rows = s.roles.map(function (r) {
-      return '<tr class="is-clickable" data-fv-track="' + esc(r.identity) + '">'
-        + '<td><b>' + esc(r.identity) + '</b></td>'
-        + '<td>' + (r.role === 'UNKNOWN' ? Tag('UNKNOWN', 'withheld') : esc(r.role)) + '</td>'
-        + '<td>' + n(r.confidence, 2) + '</td>'
-        + '<td>' + n(r.observations) + '</td>'
-        + '<td>' + esc(r.reason || '—') + '</td></tr>';
+      return '<tr class="is-clickable" data-vx-role="' + esc(r.identity) + '">'
+        + '<td><b>#' + esc(r.identity) + '</b></td>'
+        + '<td>' + (r.role === 'UNKNOWN' ? Tag('UNKNOWN', 'withheld') : esc(words(r.role))) + '</td>'
+        + '<td>' + n(r.confidence, 2) + '</td><td>' + n(r.observations, 0) + '</td>'
+        + '<td style="white-space:normal;max-width:70ch">' + esc(r.reason || '—') + '</td></tr>';
     });
 
-    body(teamCards + '<div class="fv-row-gap"></div>' + roleCards + '<div class="fv-row-gap"></div>'
+    body(lanes + '<div class="vx-rowgap"></div>'
+      + Panel('Assignment', '<div class="vx-stats">'
+        + Stat('Team assignment', pct(s.summary.teamAssignmentRate),
+          'given a team, not given the RIGHT team', { tone: 'cyan' })
+        + Stat('Identities', esc(s.summary.identities), esc(s.summary.rawTrackIds) + ' raw track ids')
+        + Stat('Role evidence', esc(s.roles.length), 'identities with a recorded reason')
+        + '</div>', { ico: 'teams', tight: true })
+      + '<div class="vx-rowgap"></div>'
       + Panel('Role evidence', rows.length
         ? Table('Per-identity role reasoning',
           ['Identity', 'Classification', 'Confidence', 'Observations', 'Reason'], rows)
-          + '<p class="fv-note fv-note--loud">A role decided on METRIC POSITION requires calibration. '
-          + 'Where the session had none, the honest answer is UNKNOWN, and UNKNOWN is what is '
-          + 'stored and what is shown.</p>'
+          + '<p class="vx-note vx-note--warn">A role decided on METRIC POSITION requires calibration. '
+          + 'Where the session had none, the honest answer is UNKNOWN, and UNKNOWN is what is stored '
+          + 'and what is shown.</p>'
         : Empty('absent', 'NO ROLE EVIDENCE RECORDED',
-          'This session produced no per-identity role reasoning.')));
+          'This session produced no per-identity role reasoning', 'teams'), { ico: 'reports', tight: true }));
   }
 
-  // ═══ EVENTS ═════════════════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════════════════════════
+     EVENTS — a three-column workstation: index, evidence, inspector
+     ═══════════════════════════════════════════════════════════════════════════ */
 
   function secEvents() {
-    head('Events', 'Only findings the validated engine emitted. Selecting one shows its evidence '
-      + 'and seeks the analysis to its frame.');
+    setWorkbar('Events',
+      '<button class="vx-btn" type="button" data-vx-section="live">' + ico('live') + 'Live Analysis</button>'
+      + '<button class="vx-btn" type="button" data-vx-export="events"' + (FV.session ? '' : ' disabled')
+      + '>' + ico('down') + 'Events JSON</button>');
     if (!FV.session) { body(needSession()); return; }
-    var s = FV.session;
+
+    var s = FV.session, frames = Math.max(1, s.summary.framesProcessed);
     if (!s.events.length) {
       body(Empty('withheld', 'NO EVENTS CONFIRMED',
         s.summary.capabilities.reasons.events
-        || 'The engine confirmed no football event in this session.', 'events'));
+        || 'The engine confirmed no football event in this session', 'events'));
       return;
     }
     var sel = FV.selection.event
       ? s.events.filter(function (e) { return e.eventId === FV.selection.event; })[0] : null;
-    var frames = Math.max(1, s.summary.framesProcessed);
 
-    var counts = {};
-    s.events.forEach(function (e) { counts[e.type + ' · ' + e.state] = (counts[e.type + ' · ' + e.state] || 0) + 1; });
-    var cards = Object.keys(counts).map(function (k) {
-      var isProx = k.indexOf('PROXIMITY') === 0;
-      return Panel(k, Metric(esc(counts[k]), '', isProx
-        ? 'distance only. This asserts no touch and no possession.'
-        : 'confirmed against ball evidence, not from proximity'),
-        { aside: isProx ? Tag('NOT POSSESSION', 'withheld') : Tag('CONFIRMED', 'measured') });
+    var picker = s.events.map(function (e) {
+      return '<button class="vx-pick" type="button" data-vx-event="' + esc(e.eventId) + '"'
+        + (sel && sel.eventId === e.eventId ? ' aria-current="true"' : '') + '>'
+        + '<span class="vx-pick-n">' + esc(e.timestamp.toFixed(1)) + '</span>'
+        + '<span class="vx-pick-m"><b>' + esc(e.type) + '</b>'
+        + '<span>frame ' + esc(e.frameNumber) + ' · track #'
+        + esc(e.trackIds.join(', ') || '—') + '</span></span>'
+        + '<span class="vx-pick-e">' + Tag(n(e.confidence, 2), 'withheld') + '</span></button>';
     }).join('');
 
+    var left = Panel('Timeline', '<div class="vx-list" style="max-height:62vh;overflow:auto">'
+      + picker + '</div>', { ico: 'timeline', tight: true,
+        actions: Tag(s.events.length + ' CONFIRMED', 'measured') });
+
+    /* The centre column is the evidence itself: where the selected finding sits
+       on the pitch, and where every finding falls across the session. */
     var strip = s.events.map(function (e) {
-      return '<button class="fv-tl-mark fv-tl-mark--event" style="left:'
-        + ((e.frameNumber / frames) * 100).toFixed(2) + '%" data-fv-event="' + esc(e.eventId)
-        + '" type="button" title="' + esc(e.type + ' at frame ' + e.frameNumber)
-        + '" aria-label="' + esc(e.type + ' at frame ' + e.frameNumber) + '"></button>';
+      return '<button class="vx-tl-mark vx-tl-mark--event" data-vx-event="' + esc(e.eventId)
+        + '" type="button" style="left:' + ((e.frameNumber / frames) * 100).toFixed(2) + '%"'
+        + ' title="' + esc(e.type + ' · frame ' + e.frameNumber) + '">'
+        + '<span class="vx-sr">' + esc(e.type) + ' at frame ' + esc(e.frameNumber) + '</span></button>';
     }).join('');
 
-    var detail = sel
-      ? Panel('Selected event', Rows([
-        ['Event id', '<span style="font-size:11px">' + esc(sel.eventId) + '</span>'],
+    var centreInner;
+    if (sel && sel.pitchXM !== null) {
+      centreInner = Pitch(
+        '<circle cx="' + sel.pitchXM + '" cy="' + sel.pitchYM + '" r="5.5" fill="none"'
+        + ' stroke="var(--v-cyan)" stroke-width=".28" opacity=".7"/>'
+        + '<circle cx="' + sel.pitchXM + '" cy="' + sel.pitchYM + '" r="1.6" class="vx-dot-sel"/>'
+        + s.tracks.filter(function (t) { return t.frameNumber === sel.frameNumber && t.pitchXM !== null; })
+          .map(function (t) {
+            return '<circle cx="' + t.pitchXM + '" cy="' + t.pitchYM + '" r="1.2" fill="' + trackTone(t)
+              + '" opacity=".9"><title>#' + esc(t.identity) + '</title></circle>';
+          }).join(''),
+        { label: 'Pitch position of the selected finding', forceLines: true,
+          style: 'max-height:100%;width:auto;max-width:100%' });
+    } else if (sel) {
+      centreInner = Empty('withheld', 'POSITION WITHHELD',
+        'Calibration published no pitch coordinate at frame ' + sel.frameNumber
+        + ', so this finding has no metric position', 'calib');
+    } else {
+      centreInner = Pitch('', { label: 'Pitch awaiting a selection', forceLines: true,
+        style: 'max-height:100%;width:auto;max-width:100%;opacity:.5' });
+    }
+
+    var centre = Panel(sel ? 'Evidence · frame ' + sel.frameNumber : 'Evidence',
+      '<div class="vx-surface" style="height:min(44vh,400px)">' + centreInner + '</div>'
+      + '<div style="padding:0 12px 12px">'
+      + '<div class="vx-tl">' + tlBand('Where they fall', s.events.length, strip
+        + '<div class="vx-tl-cursor" style="left:' + ((FV.frame / frames) * 100).toFixed(2) + '%"></div>', true)
+      + '</div>'
+      + '<div class="vx-tl-ruler"><span>frame 0</span>'
+      + '<span class="vx-lg"><i style="background:#fff"></i>one confirmed finding</span>'
+      + '<span>frame ' + frames + '</span></div></div>',
+      { accent: true, ico: 'events', flush: true,
+        actions: sel ? '<button class="vx-btn vx-btn--sm" type="button" data-vx-seek="'
+          + esc(sel.frameNumber) + '">Open in Live</button>' : '' });
+
+    var right = sel
+      ? Panel('Event inspector', Rows([
+        ['Event id', '<span style="font-size:10px">' + esc(sel.eventId) + '</span>'],
         ['Type', '<b>' + esc(sel.type) + '</b>'],
         ['State', Tag(sel.state, sel.state === 'CONFIRMED' ? 'measured' : 'withheld')],
         ['Frame · time', esc(sel.frameNumber) + ' · ' + n(sel.timestamp, 3) + ' s'],
-        ['Track IDs', sel.trackIds.length ? esc(sel.trackIds.join(', ')) : '<span class="fv-none">—</span>'],
-        ['Team', sel.teamId ? esc(sel.teamId) : '<span class="fv-none">—</span>'],
+        ['Track IDs', sel.trackIds.length ? '#' + esc(sel.trackIds.join(', #'))
+          : '<span class="vx-none">—</span>'],
+        ['Team', sel.teamId ? esc(words(sel.teamId)) : '<span class="vx-none">—</span>'],
         ['Ball state', sel.ballState ? Tag(sel.ballState, sel.ballState === 'OBSERVED' ? 'measured'
-          : 'propagated') : '<span class="fv-none">—</span>'],
+          : 'propagated') : '<span class="vx-none">—</span>'],
         ['Pitch position', sel.pitchXM === null ? Tag('WITHHELD', 'withheld')
           : n(sel.pitchXM, 2) + ', ' + n(sel.pitchYM, 2) + ' m'],
         ['Confidence', n(sel.confidence, 3)],
         ['Origin', Tag(sel.origin, sel.origin === 'MEASURED' ? 'measured'
           : sel.origin === 'PROPAGATED' ? 'propagated' : 'withheld')],
-        ['Source', esc(s.summary.source.displayName)],
-      ]) + (sel.reason ? '<p class="fv-note">' + esc(sel.reason) + '</p>' : '')
-        + '<div class="fv-legend"><button class="fv-btn" data-fv-seek="' + esc(sel.frameNumber)
-        + '" type="button">Open at frame ' + esc(sel.frameNumber) + '</button></div>',
-        { accent: true, aside: Tag('EVIDENCE', 'derived') })
+        ['Distance to ball', sel.evidence && sel.evidence.distance_m !== undefined
+          ? n(sel.evidence.distance_m, 2) + ' m' : '<span class="vx-none">—</span>',
+          'geometry; no interaction is claimed'],
+      ]) + (sel.reason ? '<p class="vx-note">' + esc(sentence(sel.reason)) + '</p>' : ''),
+        { ico: 'events', accent: true, tight: true, actions: Tag('EVIDENCE', 'derived') })
       : Panel('No event selected',
-        '<p class="fv-metric-k">Choose a finding on the left, or a mark on the timeline, to read '
-        + 'the evidence the engine recorded for it.</p>');
+        '<p class="vx-note" style="border:0;padding:0;margin:0">Choose a finding on the left, or a '
+        + 'mark on the timeline, to read the evidence the engine recorded for it.</p>',
+        { ico: 'events', tight: true });
+
+    var counts = {};
+    s.events.forEach(function (e) { counts[e.type + ' · ' + e.state] = (counts[e.type + ' · ' + e.state] || 0) + 1; });
+    var countStrip = Panel('Findings by kind', '<div class="vx-stats">'
+      + Object.keys(counts).map(function (k) {
+        var isProx = k.indexOf('PROXIMITY') === 0;
+        return Stat(k, esc(counts[k]), isProx
+          ? 'distance only · asserts no touch and no possession'
+          : 'confirmed against ball evidence, not from proximity', { tone: isProx ? '' : 'green' });
+      }).join('') + '</div>', { ico: 'insight', tight: true,
+        actions: Tag('NOT POSSESSION', 'withheld') });
 
     var rows = s.events.map(function (e) {
-      return '<tr class="is-clickable" data-fv-event="' + esc(e.eventId) + '"'
+      return '<tr class="is-clickable" data-vx-event="' + esc(e.eventId) + '"'
         + (sel && sel.eventId === e.eventId ? ' aria-selected="true"' : '') + '>'
-        + '<td><b>' + esc(e.type) + '</b><span class="fv-td-sub">' + esc(e.eventId) + '</span></td>'
+        + '<td><b>' + esc(e.type) + '</b><span class="vx-td-sub">' + esc(e.eventId) + '</span></td>'
         + '<td>' + Tag(e.state, e.state === 'CONFIRMED' ? 'measured' : 'withheld') + '</td>'
         + '<td>' + esc(e.frameNumber) + '</td><td>' + n(e.timestamp, 2) + '</td>'
-        + '<td>' + (e.trackIds.length ? esc(e.trackIds.join(', ')) : '<span class="fv-none">—</span>') + '</td>'
-        + '<td>' + (e.teamId ? esc(e.teamId) : '<span class="fv-none">—</span>') + '</td>'
-        + '<td>' + (e.ballState ? esc(e.ballState) : '<span class="fv-none">—</span>') + '</td>'
+        + '<td>' + (e.trackIds.length ? '#' + esc(e.trackIds.join(', #')) : '<span class="vx-none">—</span>') + '</td>'
+        + '<td>' + (e.teamId ? esc(words(e.teamId)) : '<span class="vx-none">—</span>') + '</td>'
+        + '<td>' + (e.ballState ? esc(e.ballState) : '<span class="vx-none">—</span>') + '</td>'
         + '<td>' + n(e.confidence, 2) + '</td>'
         + '<td>' + Tag(e.origin, e.origin === 'MEASURED' ? 'measured'
           : e.origin === 'PROPAGATED' ? 'propagated' : 'withheld') + '</td>'
-        + '<td>' + esc(e.reason || '—') + '</td>'
-        + '<td><button class="fv-btn" data-fv-seek="' + esc(e.frameNumber) + '" type="button">seek</button></td>'
-        + '</tr>';
+        + '<td style="white-space:normal;max-width:64ch">' + esc(e.reason || '—') + '</td>'
+        + '<td><button class="vx-btn vx-btn--sm" data-vx-seek="' + esc(e.frameNumber) + '" type="button">seek</button></td></tr>';
     });
 
-    // A THREE-COLUMN WORKSTATION: index, subject, evidence.
-    //
-    // Reading an event is a loop — pick one, look at where and when it sits,
-    // read what the engine recorded for it, pick the next. Laid out as a grid
-    // of count cards over a timeline over a wide table, that loop crossed the
-    // whole page twice per event. Here the three things the loop needs are
-    // side by side: the list to pick from, the timeline and counts that place
-    // the pick, and the evidence for it.
-    var picker = s.events.map(function (e) {
-      return '<button class="fv-pick is-clickable" data-fv-event="' + esc(e.eventId) + '" type="button"'
-        + (sel && sel.eventId === e.eventId ? ' aria-current="true"' : '') + '>'
-        + '<span class="fv-pick-id">' + esc(e.type) + '</span>'
-        + '<span class="fv-pick-m">frame ' + esc(e.frameNumber) + ' · ' + n(e.timestamp, 2) + ' s'
-        + (e.teamId ? ' · ' + esc(e.teamId) : '') + '</span>'
-        + '<span class="fv-pick-n">' + (e.confidence === null ? '—' : n(e.confidence, 2)) + '</span>'
-        + '</button>';
-    }).join('');
-
-    body('<div class="fv-work3">'
-      + Panel('Findings', '<div class="fv-picks fv-picks--tall">' + picker + '</div>',
-        { aside: Tag(s.events.length + ' CONFIRMED', 'measured') })
-      + '<div class="fv-stack">'
-      + Panel('Where they fall', '<div class="fv-tl"><div class="fv-tl-band">'
-        + '<div class="fv-tl-label">Confirmed</div>'
-        + '<div class="fv-tl-track fv-tl-track--marks">' + strip + '</div></div></div>'
-        + '<div class="fv-tl-ruler"><span>frame 0</span><span>frame ' + frames + '</span></div>'
-        + '<p class="fv-note">Each mark is one finding, at the frame the engine placed it.</p>')
-      + (sel && sel.pitchXM !== null
-        ? Panel('Where this one is', Pitch('<circle cx="' + sel.pitchXM + '" cy="' + sel.pitchYM
-            + '" r="1.6" class="fv-dotsel"/><circle cx="' + sel.pitchXM + '" cy="' + sel.pitchYM
-            + '" r="4" fill="none" stroke="var(--fv-accent)" stroke-width=".3" opacity=".7"/>',
-            { small: true, label: 'Pitch position of the selected finding' }),
-          { aside: Tag('MEASURED', 'measured') })
-        : sel
-          ? Panel('Where this one is', Empty('withheld', 'POSITION WITHHELD',
-            'Calibration published no pitch coordinate at frame ' + sel.frameNumber + ', so this '
-            + 'finding has no metric position.'))
-          : '')
-      + '<div class="fv-grid">' + cards + '</div>'
-      + '</div>'
-      + detail
-      + '</div><div class="fv-row-gap"></div>'
+    body('<div class="vx-3col">' + left + centre + right + '</div>'
+      + '<div class="vx-rowgap"></div>' + countStrip + '<div class="vx-rowgap"></div>'
       + Panel('Evidence record', Table('Confirmed football events',
         ['Event', 'State', 'Frame', 't (s)', 'Tracks', 'Team', 'Ball', 'Conf', 'Origin', 'Reason', ''],
-        rows)));
+        rows), { ico: 'reports', tight: true }));
   }
 
-  function showEvent() { renderSection(); }
-
-  // ═══ TACTICAL VIEW ══════════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════════════════════════
+     TACTICAL VIEW — the pitch is the subject, even when it is empty
+     ═══════════════════════════════════════════════════════════════════════════ */
 
   function secTactical() {
-    head('Tactical View', 'The architecture and the data contract exist. The evidence does not.');
+    setWorkbar('Tactical View',
+      '<button class="vx-btn" type="button" data-vx-section="heatmaps">' + ico('heat') + 'Heatmaps</button>');
     var caps = FV.session && FV.session.summary.capabilities;
-    var areas = [
+
+    var needs = [
       ['Team shape', 'a formation requires sustained metric coverage of both teams at once'],
       ['Zones', 'zone occupancy requires a possession attribution the engine does not produce'],
       ['Space', 'controlled space requires every player located in the same frame'],
@@ -1699,276 +1688,286 @@
       ['Transitions', 'a transition requires two possessions to move between'],
       ['Available actions', 'requires all of the above'],
     ].map(function (a) {
-      return '<div class="fv-await"><span class="fv-await-k">' + esc(a[0]) + '</span>'
-        + '<span class="fv-await-v fv-none">—</span>'
-        + '<span class="fv-await-s">' + esc(a[1]) + '</span></div>';
+      return '<div class="vx-await"><span class="vx-await-k">' + esc(a[0]) + '</span>'
+        + '<span class="vx-await-v vx-none">—</span>'
+        + '<span class="vx-await-s">' + esc(a[1]) + '</span>'
+        + Tag('PENDING', 'future') + '</div>';
     }).join('');
 
-    // THE PITCH IS THE SUBJECT, EVEN WHEN IT IS EMPTY.
-    //
-    // A screen that says "nothing here" with a small icon reads as a broken
-    // screen. This one draws the pitch a tactical result would be drawn ON,
-    // at full size, and says across it what is missing and why. The absence
-    // is the finding, so the absence gets the hero.
-    body('<div class="fv-live">'
-      + '<section class="fv-panel fv-panel--accent">'
-      + '<div class="fv-panel-head"><h3 class="fv-panel-title">Tactical surface</h3>'
-      + '<div class="fv-panel-aside">' + Tag('AWAITING EVIDENCE', 'future') + '</div></div>'
-      + '<div class="fv-await-hero">'
-      + Pitch('', { tall: true, label: 'Pitch with no tactical result to draw' })
-      + '<div class="fv-await-over">'
-      + '<div class="fv-await-t">TACTICAL INTELLIGENCE</div>'
-      + '<div class="fv-await-t2">WAITING FOR VALIDATED EVIDENCE</div>'
-      + '<p class="fv-await-p">' + esc(sentence((caps && caps.reasons.tactical)
+    var stage = Panel('Tactical surface',
+      '<div class="vx-surface" style="height:min(62vh,560px)">'
+      + Pitch('', { label: 'Pitch with no tactical result to draw', forceLines: true,
+        style: 'max-height:100%;width:auto;max-width:100%' })
+      + '<div class="vx-surface-over">'
+      + '<span class="vx-surface-t">TACTICAL INTELLIGENCE</span>'
+      + '<span class="vx-surface-t2">WAITING FOR VALIDATED EVIDENCE</span>'
+      + '<p class="vx-surface-p">' + esc(sentence((caps && caps.reasons.tactical)
         || 'Tactical intelligence is not implemented in the validated engine. No formation, team '
           + 'shape, zone, controlled space, passing lane, pressing, overload or transition result '
           + 'exists to display, and drawing one from position data alone would be a diagram of an '
-          + 'assumption rather than a finding.')) + '</p>'
-      + '</div></div></section>'
-      + '<div class="fv-stack">'
+          + 'assumption rather than a finding')) + '</p></div></div>',
+      { accent: true, ico: 'tactical', flush: true, actions: Tag('AWAITING EVIDENCE', 'future') });
+
+    var rail = '<div class="vx-stack">'
       + Panel('What a tactical result would need', Rows([
         ['Sustained metric coverage across both teams',
           caps && caps.metricCoordinates ? Tag('PARTIAL', 'propagated') : Tag('NOT MET', 'future')],
         ['Possession attribution beyond confirmed control', Tag('NOT IMPLEMENTED', 'future')],
         ['Human-verified ground truth to validate against', Tag('NONE EXISTS', 'future')],
-      ]) + '<p class="fv-note fv-note--loud">The contract is in place — a tactical result would '
+      ]) + '<p class="vx-note vx-note--warn">The contract is in place — a tactical result would '
         + 'arrive as its own evidence type, with its own confidence, through the same session API. '
-        + 'Nothing about this screen would need rebuilding. What is missing is the finding, not '
-        + 'the plumbing.</p>')
-      + Panel('Every reading that is waiting', '<div class="fv-awaits">' + areas + '</div>')
-      + '</div></div>');
+        + 'Nothing about this screen would need rebuilding. What is missing is the finding, not the '
+        + 'plumbing.</p>', { ico: 'health', accent: true, tight: true })
+      + Panel('Every reading that is waiting', '<div class="vx-stack">' + needs + '</div>',
+        { ico: 'tactical', tight: true }) + '</div>';
+
+    body('<div class="vx-2col--wide vx-2col">' + stage + rail + '</div>');
   }
 
-  // ═══ HEATMAPS ═══════════════════════════════════════════════════════════
-
-  var HEAT_CX = 21, HEAT_CY = 14;
+  /* ═══════════════════════════════════════════════════════════════════════════
+     HEATMAPS — pitch first, filters beside it
+     ═══════════════════════════════════════════════════════════════════════════ */
 
   function secHeatmaps() {
-    head('Heatmaps', 'Generated only from genuine calibrated history. Never decorative, never '
-      + 'smoothed across an observation that was not made.');
+    setWorkbar('Heatmaps',
+      '<button class="vx-btn" type="button" data-vx-section="tracking">' + ico('track') + 'Player Tracking</button>');
     if (!FV.session) { body(needSession()); return; }
     var s = FV.session, caps = s.summary.capabilities;
     if (!caps.heatmaps) {
-      body(Empty('withheld', 'INSUFFICIENT CALIBRATED TRACKING DATA', caps.reasons.heatmaps || '', 'heat'));
+      body(Panel('Occupancy',
+        '<div class="vx-surface" style="height:min(58vh,520px)">'
+        + Pitch('', { label: 'Pitch with no calibrated occupancy', forceLines: true,
+          style: 'max-height:100%;width:auto;max-width:100%' })
+        + '<div class="vx-surface-over"><span class="vx-surface-t">OCCUPANCY</span>'
+        + '<span class="vx-surface-t2">INSUFFICIENT VALIDATED DATA</span>'
+        + '<p class="vx-surface-p">' + esc(sentence(caps.reasons.heatmaps
+          || 'this session published too few calibrated positions to count into cells')) + '</p></div></div>',
+        { accent: true, ico: 'heat', flush: true, actions: Tag('NOT AVAILABLE', 'withheld') }));
       return;
     }
 
-    var teams = {}; var players = {};
+    var teams = {}, players = {};
     s.tracks.forEach(function (t) {
       if (t.pitchXM === null) return;
-      teams[t.teamId || 'UNASSIGNED'] = 1;
-      players[t.identity] = 1;
+      teams[t.teamId || 'UNASSIGNED'] = 1; players[t.identity] = 1;
     });
-
     var pool = s.tracks.filter(function (t) {
       if (t.pitchXM === null || t.pitchYM === null) return false;
       if (FV.selection.heatTeam && (t.teamId || 'UNASSIGNED') !== FV.selection.heatTeam) return false;
       if (FV.selection.heatPlayer && t.identity !== FV.selection.heatPlayer) return false;
+      if (FV.filters.conf === 'high' && t.calibrationChain !== 'measured') return false;
+      if (FV.filters.conf === 'low' && t.calibrationChain !== 'propagated') return false;
       return true;
     });
 
-    var grid = new Array(HEAT_CX * HEAT_CY).fill(0);
-    var max = 0;
-    pool.forEach(function (t) {
-      var cx = Math.min(HEAT_CX - 1, Math.max(0, Math.floor(t.pitchXM / (105 / HEAT_CX))));
-      var cy = Math.min(HEAT_CY - 1, Math.max(0, Math.floor(t.pitchYM / (68 / HEAT_CY))));
-      var i = cy * HEAT_CX + cx;
-      grid[i] += 1;
-      if (grid[i] > max) max = grid[i];
-    });
-
-    var cells = [];
-    for (var y = 0; y < HEAT_CY; y++) {
-      for (var x = 0; x < HEAT_CX; x++) {
-        var v = grid[y * HEAT_CX + x];
-        if (!v) continue;
-        var a = Math.pow(v / max, 0.58);
-        cells.push('<rect x="' + (x * (105 / HEAT_CX)) + '" y="' + (y * (68 / HEAT_CY))
-          + '" width="' + (105 / HEAT_CX) + '" height="' + (68 / HEAT_CY)
-          + '" fill="rgba(34,211,238,' + a.toFixed(3) + ')"><title>' + v
-          + ' calibrated positions</title></rect>');
-      }
-    }
-
-    var controls = '<div class="fv-filters">'
-      + '<span class="fv-filter-label">Team</span><select class="fv-select" data-fv-select="heatTeam" aria-label="Filter heatmap by team">'
+    var filters = '<div class="vx-filters">'
+      + '<span class="vx-flabel">Team</span>'
+      + '<select class="vx-select" data-vx-select="heatTeam" aria-label="Filter heatmap by team">'
       + '<option value="">All teams</option>' + Object.keys(teams).sort().map(function (t) {
         return '<option value="' + esc(t) + '"' + (FV.selection.heatTeam === t ? ' selected' : '') + '>'
-          + esc(t) + '</option>';
-      }).join('') + '</select>'
-      + '<span class="fv-filter-label">Player</span><select class="fv-select" data-fv-select="heatPlayer" aria-label="Filter heatmap by player">'
-      + '<option value="">All players</option>' + Object.keys(players).sort().map(function (t) {
-        return '<option value="' + esc(t) + '"' + (FV.selection.heatPlayer === t ? ' selected' : '') + '>'
-          + esc(t) + '</option>';
-      }).join('') + '</select>'
-      + Tag('VALID CALIBRATED ONLY', 'measured')
-      + '</div>';
+          + esc(words(t)) + '</option>'; }).join('') + '</select>'
+      + '<span class="vx-flabel">Player</span>'
+      + '<select class="vx-select" data-vx-select="heatPlayer" aria-label="Filter heatmap by player">'
+      + '<option value="">All players</option>' + Object.keys(players).sort(function (a, b) {
+        return (+a || 0) - (+b || 0); }).map(function (t) {
+        return '<option value="' + esc(t) + '"' + (FV.selection.heatPlayer === t ? ' selected' : '') + '>#'
+          + esc(t) + '</option>'; }).join('') + '</select>'
+      + '<span class="vx-flabel">Evidence quality</span>'
+      + '<select class="vx-select" data-vx-filter="conf" aria-label="Filter by evidence quality">'
+      + [['', 'Measured and propagated'], ['high', 'Measured only'], ['low', 'Propagated only']]
+        .map(function (v) {
+          return '<option value="' + v[0] + '"' + (FV.filters.conf === v[0] ? ' selected' : '') + '>'
+            + esc(v[1]) + '</option>'; }).join('') + '</select>'
+      + '</div>'
+      + '<p class="vx-note">Time window is the whole session: the engine publishes one processing pass '
+      + 'per session and no per-window aggregate, so a window control here would filter nothing.</p>';
 
     if (!pool.length) {
-      body(controls + Empty('withheld', 'NO CALIBRATED POSITIONS FOR THIS SELECTION',
-        'The filters above leave no calibrated position. Widen them, or accept that this '
-        + 'player or team produced none in this session.', 'heat'));
+      body('<div class="vx-2col--wide vx-2col">'
+        + Panel('Occupancy', '<div class="vx-surface" style="height:min(56vh,500px)">'
+          + Pitch('', { label: 'No calibrated position for this selection', forceLines: true,
+            style: 'max-height:100%;width:auto;max-width:100%' })
+          + '<div class="vx-surface-over"><span class="vx-surface-t">SELECTION</span>'
+          + '<span class="vx-surface-t2" style="font-size:19px">NO CALIBRATED POSITION</span></div></div>',
+          { accent: true, ico: 'heat', flush: true })
+        + Panel('Selection', filters, { ico: 'config', tight: true }) + '</div>');
       return;
     }
 
-    // PITCH FIRST. The controls select what is on it; they do not precede it.
+    var g = heatGrid(pool);
     var occupied = 0;
-    for (var gi = 0; gi < grid.length; gi++) { if (grid[gi]) occupied += 1; }
+    for (var i = 0; i < g.grid.length; i++) if (g.grid[i]) occupied += 1;
 
-    body('<div class="fv-live">'
-      + Panel('Occupancy', Pitch(cells.join(''), { tall: true, label: 'Occupancy heatmap' })
-        + '<p class="fv-note">Built from ' + pool.length + ' calibrated positions counted into '
-        + 'five-metre cells. Nothing is smoothed and nothing is interpolated between observations, '
-        + 'so an empty cell means no calibrated position landed there — not low activity.</p>',
-        { accent: true, aside: Tag('MEASURED', 'measured') })
-      + '<div class="fv-stack">'
-      + Panel('Selection', controls)
-      + Panel('What is on the pitch', '<div class="fv-instr-dials">'
-        + Dial(esc(pool.length), 'Calibrated positions', 'after the selection above')
-        + Dial(esc(max), 'Busiest cell', 'positions in one five-metre cell')
-        + Dial(esc(occupied) + '<small> / ' + (HEAT_CX * HEAT_CY) + '</small>', 'Cells occupied',
-          'a cell with no position is drawn empty, not dim', occupied / (HEAT_CX * HEAT_CY))
-        + '</div>')
+    body('<div class="vx-2col--wide vx-2col">'
+      + Panel('Occupancy', '<div class="vx-surface" style="height:min(58vh,520px)">'
+        + Pitch(heatCells(g.grid, g.max), { label: 'Occupancy heatmap', forceLines: true,
+          style: 'max-height:100%;width:auto;max-width:100%' }) + '</div>'
+        + '<p class="vx-note" style="margin:0 12px 10px">Built from ' + pool.length + ' calibrated '
+        + 'positions counted into five-metre cells. Nothing is smoothed and nothing is interpolated '
+        + 'between observations, so an empty cell means no calibrated position landed there — not '
+        + 'low activity.</p>',
+        { accent: true, ico: 'heat', flush: true, actions: Tag('MEASURED', 'measured') })
+      + '<div class="vx-stack">'
+      + Panel('Selection', filters, { ico: 'config', tight: true })
+      + Panel('What is on the pitch', '<div class="vx-stats">'
+        + Stat('Positions', esc(pool.length), 'after the selection', { tone: 'cyan' })
+        + Stat('Busiest cell', esc(g.max), 'positions in one five-metre cell')
+        + Stat('Cells occupied', esc(occupied) + '<small> / ' + (HEAT_CX * HEAT_CY) + '</small>',
+          'an empty cell is drawn empty, not dim')
+        + '</div>' + '<div class="vx-rowgap"></div>' + Bar(occupied / (HEAT_CX * HEAT_CY), 'measured'),
+        { ico: 'grid2d', tight: true })
       + '</div></div>');
   }
 
-  // ═══ PHYSICAL METRICS ═══════════════════════════════════════════════════
-
-  function secPhysical() {
-    head('Physical Metrics', 'The contract exists. The validated measurement does not.');
-    var g = FV.session && FV.session.summary.guards;
-    // A READINESS SCREEN, NOT SIX EMPTY GAUGES.
-    //
-    // Six panels each reading "—" said the same thing six times and looked
-    // like six failures. What a reader needs to know is one thing — none of
-    // these is validated yet — and then, per reading, what would have to be
-    // true before it could be shown. That is a readiness list.
-    var cards = [
-      ['Speed', 'm/s', 'a per-frame displacement over a calibrated interval, validated against ground truth'],
-      ['Acceleration', 'm/s²', 'a second derivative of a measurement that is not yet validated'],
-      ['Distance', 'm', 'a sum over frames, and a sum over gaps is not a distance'],
-      ['High-speed running', 'm', 'a threshold on a speed that has no validated value'],
-      ['Sprints', 'count', 'a count of crossings of that same threshold'],
-      ['Stamina / load', 'AU', 'a model over all of the above'],
-    ].map(function (k) {
-      return '<div class="fv-await"><span class="fv-await-k">' + esc(k[0])
-        + '<em>' + esc(k[1]) + '</em></span>'
-        + '<span class="fv-await-v fv-none">—</span>'
-        + '<span class="fv-await-s">' + esc(k[2]) + '</span>'
-        + Tag('NOT YET VALIDATED', 'future') + '</div>';
-    }).join('');
-
-    body('<section class="fv-instr">'
-      + '<div class="fv-instr-lead">'
-      + '<div class="fv-instr-k">Physical metrics ' + Tag('NOT YET VALIDATED', 'future') + '</div>'
-      + '<div class="fv-instr-v">0 <small>of 6 ready</small></div>'
-      + '<p class="fv-instr-s">' + esc(sentence((FV.session && FV.session.summary.capabilities.reasons.physicalMetrics)
-        || 'The engine measures implied speed only as a calibration guard, and it is deliberately '
-          + 'not exposed as a player measurement.'))
-      + ' Nothing on this screen is withheld to be cautious: there is no validated figure to withhold.</p>'
-      + '</div></section>'
-      + '<div class="fv-row-gap"></div>'
-      + Panel('Readiness', '<div class="fv-awaits fv-awaits--wide">' + cards + '</div>')
-      + (g ? '<div class="fv-row-gap"></div>'
-        + Panel('What the engine does measure, and why it is not this', Rows([
-          ['Worst p90 implied speed in a calibrated span', n(g.speedGuardP90MsMax, 1) + ' m/s'],
-          ['Spans examined', n(g.speedGuardSpans)],
-          ['Spans withheld as physically impossible', n(g.speedGuardSpansWithheld)],
-          ['Frames whose coordinates were withheld', n(g.speedGuardFramesWithheld)],
-        ]) + '<p class="fv-note fv-note--loud">This is a GUARD statistic. It exists to reject a '
-          + 'calibration whose metres imply people outrunning the world record, and it is computed '
-          + 'over a whole span rather than per player. Presenting it as a player\'s speed would be '
-          + 'presenting a validation threshold as a performance measurement.</p>',
-          { aside: Tag('GUARD, NOT A METRIC', 'propagated') }) : ''));
-  }
-
-  // ═══ TIMELINE ═══════════════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════════════════════════
+     TIMELINE — the whole session at once, full width, one playhead
+     ═══════════════════════════════════════════════════════════════════════════ */
 
   function secTimeline() {
-    head('Timeline', 'The session as a strip of time, with the gaps drawn as gaps. Click any mark '
-      + 'to seek the analysis there.');
+    setWorkbar('Timeline',
+      '<button class="vx-btn" type="button" data-vx-seek="' + FV.frame + '">' + ico('live')
+      + 'Open frame ' + FV.frame + '</button>');
     if (!FV.session) { body(needSession()); return; }
-    if (!FV.timeline) { body(Empty('withheld', 'READING TIMELINE', 'One moment.')); return; }
+    if (!FV.timeline) { body(Empty('withheld', 'READING TIMELINE', 'One moment')); return; }
+
     var tl = FV.timeline, total = Math.max(1, tl.frames);
+    var cursor = '<div class="vx-tl-cursor" style="left:' + ((FV.frame / total) * 100).toFixed(3) + '%"></div>';
 
-    function band(label, kinds) {
-      var spans = tl.spans.filter(function (x) { return kinds.indexOf(x.kind) > -1; })
-        .map(function (x) {
-          var k = x.kind.indexOf('OBSERVED') > -1 ? 'obs'
-            : x.kind.indexOf('VALID') > -1 ? 'valid'
-              : x.kind.indexOf('PROPAGATED') > -1 ? 'prop'
-                : x.kind.indexOf('GAP') > -1 ? 'gap' : 'none';
-          return '<div class="fv-tl-span fv-tl-span--' + k + '" style="left:'
-            + ((x.fromFrame / total) * 100).toFixed(3) + '%;width:'
-            + Math.max(0.2, ((x.toFrame - x.fromFrame + 1) / total) * 100).toFixed(3)
-            + '%" title="' + esc(x.kind.replace(/_/g, ' ') + ' · frames ' + x.fromFrame + '–'
-              + x.toFrame + ' (' + x.frames + ')') + '"></div>';
-        }).join('');
-      var cursor = '<div class="fv-tl-cursor" style="left:' + ((FV.frame / total) * 100).toFixed(3) + '%"></div>';
-      return '<div class="fv-tl-band"><div class="fv-tl-label">' + esc(label) + '</div>'
-        + '<div class="fv-tl-track">' + spans + cursor + '</div></div>';
+    function band(label, kinds, cls) {
+      var spans = tl.spans.filter(function (x) { return kinds.indexOf(x.kind) >= 0; });
+      var inner = spans.map(function (x) {
+        var kind = /VALID|OBSERVED/.test(x.kind) ? (/OBSERVED/.test(x.kind) ? 'obs' : 'valid')
+          : /PROPAGATED/.test(x.kind) ? 'prop' : /GAP/.test(x.kind) ? 'gap' : 'none';
+        return '<div class="vx-tl-span vx-tl-span--' + kind + '" style="left:'
+          + ((x.fromFrame / total) * 100).toFixed(3) + '%;width:'
+          + Math.max(0.2, (x.frames / total) * 100).toFixed(3) + '%" title="' + esc(words(x.kind))
+          + ' · frames ' + x.fromFrame + '–' + x.toFrame + '"></div>';
+      }).join('');
+      return tlBand(label, spans.length + ' spans', inner + cursor);
     }
-
     function marks(label, kind, cls) {
       var hits = tl.marks.filter(function (x) { return x.kind === kind; });
       var m = hits.map(function (x) {
-        return '<button class="fv-tl-mark fv-tl-mark--' + cls + '" style="left:'
-          + ((x.frame / total) * 100).toFixed(3) + '%" data-fv-seek="' + x.frame
-          + '" data-fv-stay type="button" title="' + esc(x.label + (x.detail ? ' \u2014 ' + x.detail : ''))
-          + '" aria-label="' + esc(x.label + ' at frame ' + x.frame) + '"></button>';
+        return '<button class="vx-tl-mark vx-tl-mark--' + cls + '" style="left:'
+          + ((x.frame / total) * 100).toFixed(3) + '%" data-vx-seek="' + x.frame
+          + '" data-vx-stay type="button" title="' + esc(x.label + (x.detail ? ' — ' + x.detail : ''))
+          + '"><span class="vx-sr">' + esc(x.label) + ' at frame ' + x.frame + '</span></button>';
       }).join('');
-      return '<div class="fv-tl-band"><div class="fv-tl-label">' + esc(label)
-        + '<em>' + hits.length + '</em></div>'
-        + '<div class="fv-tl-track fv-tl-track--marks">' + (m
-          || '<span class="fv-metric-k" style="font-size:10px;margin:0">none in this session</span>')
-        + '<div class="fv-tl-cursor" style="left:' + ((FV.frame / total) * 100).toFixed(3)
-        + '%"></div></div></div>';
+      return tlBand(label, hits.length, (m || '<span class="vx-lane-s" style="padding-left:4px">'
+        + 'none in this session</span>') + cursor, true);
     }
 
     var sm = FV.session.summary;
-    var sourceBand = '<div class="fv-tl-band"><div class="fv-tl-label">Source</div>'
-      + '<div class="fv-tl-track"><div class="fv-tl-span fv-tl-span--obs" style="left:0;width:100%" '
-      + 'title="' + esc(sm.source.displayName) + '"></div>'
-      + '<div class="fv-tl-cursor" style="left:' + ((FV.frame / total) * 100).toFixed(3) + '%"></div></div></div>';
+    var sourceBand = tlBand('Video / source', sm.framesProcessed + ' frames',
+      '<div class="vx-tl-span vx-tl-span--src" style="left:0;width:100%" title="'
+      + esc(sm.source.displayName) + '"></div>' + cursor);
+    var unknownSpans = FV.session.ball.filter(function (b) { return b.state === 'UNKNOWN'; });
+    var unknownBand = tlBand('Unknown', unknownSpans.length + ' frames',
+      tlSpans(unknownSpans, total, function () { return 'none'; },
+        function () { return 'ball UNKNOWN'; }) + cursor);
 
     var legend = Object.keys(tl.legend).map(function (k) {
-      return '<div class="fv-row"><span class="fv-row-k">' + esc(k.replace(/_/g, ' '))
-        + '</span><span class="fv-row-v" style="font-size:11px;color:var(--fv-tx-3);'
-        + 'text-align:left;max-width:58ch;font-variant-numeric:normal">'
-        + esc(tl.legend[k]) + '</span></div>';
-    }).join('');
+      return ['<b>' + esc(words(k)) + '</b>', '<span style="font-size:10.5px;font-weight:500;'
+        + 'color:var(--v-tx-3);text-align:left;display:block;max-width:64ch">'
+        + esc(tl.legend[k]) + '</span>'];
+    });
 
-    // FULL WIDTH, AND EVERY LAYER THE SAME PLAYHEAD.
-    //
-    // This is the one screen whose subject is the whole session at once, so it
-    // takes the whole width and the bands are drawn at reading height rather
-    // than as hairlines. The cursor crosses every layer: a reader comparing
-    // "was calibration measured here" with "was the ball seen here" is asking
-    // about ONE instant, and an instant marked on one band only is an instant
-    // they have to hold in their head.
-    var cursorAll = '<div class="fv-tl-cursor" style="left:'
-      + ((FV.frame / total) * 100).toFixed(3) + '%"></div>';
-
-    body(Panel('Session timeline \u00b7 ' + tl.durationSeconds + ' s \u00b7 ' + tl.frames + ' frames',
-      '<div class="fv-tl fv-tl--tall">'
+    body(Panel('Session timeline · ' + tl.durationSeconds + ' s · ' + tl.frames + ' frames',
+      '<div class="vx-tl vx-tl--tall">'
       + sourceBand
-      + band('Calibration', ['CALIBRATION_VALID', 'CALIBRATION_PROPAGATED', 'CALIBRATION_NONE'])
+      + band('Players', ['CALIBRATION_VALID', 'CALIBRATION_PROPAGATED'])
       + band('Ball', ['BALL_OBSERVED', 'BALL_PROPAGATED', 'BALL_GAP'])
+      + band('Calibration', ['CALIBRATION_VALID', 'CALIBRATION_PROPAGATED', 'CALIBRATION_NONE'])
+      + marks('Events', 'EVENT', 'event')
       + marks('Anchors', 'CALIBRATION_ANCHOR', 'anchor')
       + marks('Shot cuts', 'SHOT_BOUNDARY', 'cut')
-      + marks('Events', 'EVENT', 'event')
+      + unknownBand
       + '</div>'
-      + '<div class="fv-tl-ruler"><span>0 s</span><span>' + (tl.durationSeconds / 2).toFixed(1)
-      + ' s</span><span>' + tl.durationSeconds + ' s</span></div>'
-      + '<div class="fv-legend">' + Chip('MEASURED', 'READY') + Chip('PROPAGATED', 'DEGRADED')
-      + Chip('WITHHELD', 'NOT_AVAILABLE')
-      + '<button class="fv-btn" data-fv-seek="' + FV.frame + '" type="button">Open frame '
-      + FV.frame + ' in Live Analysis</button></div>', { accent: true })
-      + '<div class="fv-row-gap"></div>'
-      + Panel('What each band means', '<div class="fv-rows">' + legend + '</div>'));
+      + '<div class="vx-tl-ruler"><span>0 s</span>'
+      + '<span class="vx-legend">'
+      + '<span class="vx-lg"><i style="background:var(--v-green)"></i>MEASURED</span>'
+      + '<span class="vx-lg"><i style="background:#cbd5e1"></i>OBSERVED</span>'
+      + '<span class="vx-lg"><i style="background:var(--v-amber)"></i>PROPAGATED</span>'
+      + '<span class="vx-lg"><i style="background:rgba(93,107,136,.6)"></i>NO RECORD</span>'
+      + '<span class="vx-lg"><i style="background:var(--v-violet)"></i>SHOT CUT</span>'
+      + '</span><span>' + tl.durationSeconds + ' s</span></div>',
+      { accent: true, ico: 'timeline' })
+      + '<div class="vx-rowgap"></div>'
+      + Panel('What each band means', Rows(legend), { ico: 'insight', tight: true }));
   }
 
-  // ═══ SOURCES ════════════════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════════════════════════
+     SESSIONS
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  function secSessions() {
+    setWorkbar('Sessions', '');
+    if (!FV.sessions) { body(Empty('withheld', 'READING SESSIONS', 'One moment')); return; }
+    if (FV.sessions.ok === false) {
+      body(Empty('withheld', 'SESSIONS UNAVAILABLE', FV.sessions.error || '')); return;
+    }
+    var list = FV.sessions.sessions || [];
+    if (!list.length) {
+      body(Empty('withheld', 'NO SESSION VISIBLE TO THIS ACCOUNT',
+        'A session is visible to the club that owns it and to the platform owner. None is visible here',
+        'sessions'));
+      return;
+    }
+    var filtered = list.filter(function (x) {
+      if (FV.filters.session && x.sessionRef.toLowerCase().indexOf(FV.filters.session.toLowerCase()) < 0) return false;
+      if (FV.filters.source && x.source.sourceType !== FV.filters.source) return false;
+      return true;
+    });
+    var types = {};
+    list.forEach(function (x) { types[x.source.sourceType] = 1; });
+
+    var tiles = filtered.map(function (x) {
+      var on = x.sessionRef === FV.sessionRef;
+      return '<div class="vx-bay ' + (on ? 'vx-bay--on' : '') + '">'
+        + '<div class="vx-bay-h"><span class="vx-bay-ico">' + ico('shot') + '</span>'
+        + '<div style="flex:1 1 auto;min-width:0">'
+        + '<div class="vx-bay-n" data-user-content>' + esc(x.sessionRef) + '</div>'
+        + '<div class="vx-bay-t" data-user-content>' + esc(x.source.displayName) + ' · '
+        + esc(x.source.width) + '×' + esc(x.source.height) + ' · ' + n(x.source.fps, 2) + ' fps</div>'
+        + '</div>' + (on ? Chip('', 'LIVE') : Chip('', 'READY')) + '</div>'
+        + '<div class="vx-stats">'
+        + Stat('Frames', esc(x.framesProcessed), '')
+        + Stat('Observations', esc(x.observationsTotal), '')
+        + Stat('Calibration', pct(x.calibrationCoverage), '')
+        + Stat('Ball observed', pct(x.ballObservedCoverage), '')
+        + '</div>'
+        + Rows([
+          ['Events confirmed', esc(x.eventsConfirmed !== undefined ? x.eventsConfirmed
+            : Object.keys(x.eventCounts || {}).reduce(function (a, k) { return a + x.eventCounts[k]; }, 0))],
+          ['Pipeline', '<span style="font-size:10px">' + esc(x.pipelineVersion || '—') + '</span>'],
+          ['Scope', x.clubId ? Tag(x.clubId, 'accent') : Tag('PLATFORM', 'withheld')],
+          ['Generated', '<span style="font-size:10.5px">'
+            + esc((x.generatedAt || '').replace('T', ' ').replace('Z', '')) + '</span>'],
+        ])
+        + '<button class="vx-btn' + (on ? ' is-on' : '') + '" type="button" data-vx-open-session="'
+        + esc(x.sessionRef) + '">' + ico(on ? 'live' : 'arrow')
+        + (on ? 'Currently loaded' : 'Open session') + '</button></div>';
+    }).join('');
+
+    body(Panel('Processed sessions',
+      '<div class="vx-filters" style="margin-bottom:10px">'
+      + '<input class="vx-input" data-vx-filter="session" placeholder="Search session…" value="'
+      + esc(FV.filters.session) + '" aria-label="Search session">'
+      + '<select class="vx-select" data-vx-filter="source" aria-label="Filter by source type">'
+      + '<option value="">All source types</option>' + Object.keys(types).sort().map(function (t) {
+        return '<option value="' + esc(t) + '"' + (FV.filters.source === t ? ' selected' : '') + '>'
+          + esc(words(t)) + '</option>'; }).join('') + '</select></div>'
+      + '<div class="vx-bays">' + tiles + '</div>'
+      + '<p class="vx-note">A session with no declared club is platform-scoped: the platform owner sees '
+      + 'it and nobody else does. Ownership is declared beside the evidence, never guessed from a '
+      + 'filename.</p>',
+      { ico: 'sessions', accent: true,
+        actions: Tag(filtered.length + ' / ' + list.length, 'accent') }));
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     SOURCES — device bays
+     ═══════════════════════════════════════════════════════════════════════════ */
 
   var SLOT_ICON = {
     main: 'camera', 'corner-1': 'camera', 'corner-2': 'camera', 'corner-3': 'camera',
@@ -1977,410 +1976,303 @@
   };
 
   function secSources() {
-    head('Sources', 'Fourteen source types are named. One is implemented. The difference is drawn '
-      + 'rather than hidden, and no future hardware is shown as connected.');
-    if (!FV.sources) { body(Empty('withheld', 'READING SOURCES', 'One moment.')); return; }
+    setWorkbar('Sources',
+      '<button class="vx-btn" type="button" data-vx-section="device">' + ico('device') + 'Vision Hub</button>');
+    if (!FV.sources) { body(Empty('withheld', 'READING SOURCES', 'One moment')); return; }
     if (FV.sources.ok === false) {
-      body(Empty('withheld', 'SOURCES UNAVAILABLE', FV.sources.error || ''));
-      return;
+      body(Empty('withheld', 'SOURCES UNAVAILABLE', FV.sources.error || '')); return;
     }
     var connected = FV.sources.connected || [];
 
     var live = connected.map(function (c) {
-      return '<article class="fv-source fv-source--live">'
-        + '<div class="fv-source-top"><span class="fv-source-ico">' + icon('camera') + '</span>'
-        + '<div><div class="fv-source-name">' + esc(c.displayName) + '</div>'
-        + '<div class="fv-source-type">' + esc(c.sourceType) + ' · session ' + esc(c.sessionRef)
-        + '</div></div></div>'
-        + '<p class="fv-source-why">' + esc(c.width) + '×' + esc(c.height) + ' · '
-        + (c.fps === null ? '—' : c.fps.toFixed(2)) + ' fps · quality '
-        + esc(c.qualityBand || 'UNKNOWN') + '</p>'
-        + Chip('', 'READY', 'a recorded source this deployment has processed')
-        + '</article>';
+      return '<div class="vx-bay vx-bay--on">'
+        + '<div class="vx-bay-h"><span class="vx-bay-ico">' + ico('camera') + '</span>'
+        + '<div style="flex:1 1 auto;min-width:0"><div class="vx-bay-n" data-user-content>'
+        + esc(c.displayName) + '</div>'
+        + '<div class="vx-bay-t">' + esc(words(c.sourceType)) + ' · session '
+        + esc(c.sessionRef) + '</div></div>' + Chip('', 'READY') + '</div>'
+        + '<div class="vx-bay-w">' + esc(c.width) + '×' + esc(c.height) + ' · '
+        + n(c.fps, 2) + ' fps · quality ' + esc(c.qualityBand || 'UNKNOWN') + '</div></div>';
     }).join('');
 
     var slots = (FV.sources.slots || []).map(function (s) {
-      return '<article class="fv-source fv-source--future">'
-        + '<div class="fv-source-top"><span class="fv-source-ico">'
-        + icon(SLOT_ICON[s.slot] || 'camera') + '</span>'
-        + '<div><div class="fv-source-name">' + esc(s.label) + '</div>'
-        + '<div class="fv-source-type">' + esc(s.intendedType) + '</div></div></div>'
-        + '<p class="fv-source-why">Declared and empty. Waiting on '
-        + esc(s.waitingOn.replace(/_/g, ' ').toLowerCase()) + '.</p>'
-        + Chip('', 'NOT_IMPLEMENTED', 'no adapter exists for this slot')
-        + '</article>';
+      return '<div class="vx-bay vx-bay--off">'
+        + '<div class="vx-bay-h"><span class="vx-bay-ico">' + ico(SLOT_ICON[s.slot] || 'camera') + '</span>'
+        + '<div style="flex:1 1 auto;min-width:0"><div class="vx-bay-n">' + esc(s.label) + '</div>'
+        + '<div class="vx-bay-t">' + esc(words(s.intendedType)) + '</div></div>'
+        + Chip('', 'NOT_IMPLEMENTED') + '</div>'
+        + '<div class="vx-bay-w">Declared and empty. Waiting on '
+        + esc(words(s.waitingOn).toLowerCase()) + '.</div></div>';
     }).join('');
 
     var types = (FV.sources.types || []).map(function (t) {
-      return '<tr><td><b>' + esc(t.label) + '</b><span class="fv-td-sub">' + esc(t.type) + '</span></td>'
-        + '<td>' + (t.implemented ? Tag('IMPLEMENTED', 'measured') : Tag('NOT IMPLEMENTED', 'future'))
-        + '</td>'
-        + '<td>' + (t.waitingOn === 'NOTHING' ? '<span class="fv-none">—</span>'
-          : Tag(t.waitingOn.replace(/_/g, ' '), 'future')) + '</td>'
-        + '<td>' + esc(t.describes) + '</td></tr>';
+      return '<tr><td><b>' + esc(t.label) + '</b><span class="vx-td-sub">' + esc(t.type) + '</span></td>'
+        + '<td>' + (t.implemented ? Tag('IMPLEMENTED', 'measured') : Tag('NOT IMPLEMENTED', 'future')) + '</td>'
+        + '<td>' + (t.waitingOn === 'NOTHING' ? '<span class="vx-none">—</span>'
+          : Tag(words(t.waitingOn), 'future')) + '</td>'
+        + '<td style="white-space:normal;max-width:70ch">' + esc(t.describes) + '</td></tr>';
     });
 
     body(Panel('Sources in use', live
-      ? '<div class="fv-source-bay">' + live + '</div>'
-      : '<p class="fv-metric-k">No source is attached. The sessions in this deployment were '
-        + 'produced by the engine from recorded video; a live source would appear here.</p>',
-      { accent: true, aside: Tag(connected.length + ' RECORDED', 'measured') })
-      + '<div class="fv-row-gap"></div>'
-      + Panel('Future rig slots', '<div class="fv-source-bay">' + slots + '</div>'
-        + '<p class="fv-note fv-note--warn">Every slot above is empty and every one is drawn as '
-        + 'empty. None of this hardware exists, and none of it is shown as connected, degraded or '
-        + 'waiting for a signal — those would all imply something is there.</p>',
-        { aside: Tag('ALL EMPTY', 'future') })
-      + '<div class="fv-row-gap"></div>'
-      + Panel('Source type vocabulary',
-        Table('Source types and their implementation state',
-          ['Type', 'State', 'Waiting on', 'What is actually behind it'], types)
-        + '<p class="fv-note fv-note--loud">Camera manufacturer is metadata. Nothing in the Vision '
-        + 'engine branches on brand — a Sony body is a video source with Sony on its label, and the '
-        + 'day that stops being true is the day Familista Vision becomes a Sony product.</p>'));
+      ? '<div class="vx-bays">' + live + '</div>'
+      : Empty('withheld', 'NO SOURCE ATTACHED',
+        'The sessions in this deployment were produced by the engine from recorded video; a live '
+        + 'source would appear here', 'sources'),
+      { accent: true, ico: 'sources', actions: Tag(connected.length + ' RECORDED', 'measured') })
+      + '<div class="vx-rowgap"></div>'
+      + Panel('Rig bays', '<div class="vx-bays">' + slots + '</div>'
+        + '<p class="vx-note vx-note--warn">Every bay above is empty and every one is drawn as empty. '
+        + 'None of this hardware exists, and none of it is shown as connected, degraded or waiting for '
+        + 'a signal — those would all imply something is there.</p>',
+        { ico: 'device', actions: Tag('ALL EMPTY', 'future') })
+      + '<div class="vx-rowgap"></div>'
+      + Panel('Source type vocabulary', Table('Source types and their implementation state',
+        ['Type', 'State', 'Waiting on', 'What is actually behind it'], types)
+        + '<p class="vx-note">Camera manufacturer is metadata. Nothing in the Vision engine branches on '
+        + 'brand — a Sony body is a video source with Sony on its label, and the day that stops '
+        + 'being true is the day Familista Vision becomes a Sony product.</p>',
+        { ico: 'reports', tight: true }));
   }
 
-  // ═══ SESSIONS ═══════════════════════════════════════════════════════════
-
-  function secSessions() {
-    head('Sessions', 'Each row is one processed session. Opening one loads its own evidence; '
-      + 'nothing here is aggregated across sessions.');
-    if (!FV.sessions) { body(Empty('withheld', 'READING SESSIONS', 'One moment.')); return; }
-    if (FV.sessions.ok === false) {
-      body(Empty('withheld', 'SESSIONS UNAVAILABLE',
-        FV.sessions.reason || FV.sessions.error || 'the session store did not answer'));
-      return;
-    }
-    var all = FV.sessions.sessions;
-    if (!all.length) {
-      body(Empty('absent', 'NO SESSIONS VISIBLE',
-        'This account has access to no Vision session. A session with no declared club is '
-        + 'platform-scoped and visible to the platform owner only.', 'sessions'));
-      return;
-    }
-    var f = FV.filters;
-    var list = all.filter(function (x) {
-      if (f.session && (x.sessionRef + ' ' + x.sessionId).toLowerCase()
-        .indexOf(f.session.toLowerCase()) < 0) return false;
-      if (f.source && x.source.sourceType !== f.source) return false;
-      return true;
-    });
-
-    var sourceTypes = {};
-    all.forEach(function (x) { sourceTypes[x.source.sourceType] = 1; });
-
-    var filters = '<div class="fv-filters">'
-      + '<input class="fv-input" data-fv-filter="session" placeholder="Search session…" value="'
-      + esc(f.session) + '" aria-label="Search sessions">'
-      + '<span class="fv-filter-label">Source type</span>'
-      + '<select class="fv-select" data-fv-filter="source" aria-label="Filter by source type">'
-      + '<option value="">All</option>' + Object.keys(sourceTypes).sort().map(function (t) {
-        return '<option value="' + esc(t) + '"' + (f.source === t ? ' selected' : '') + '>'
-          + esc(t) + '</option>';
-      }).join('') + '</select>'
-      + '<span class="fv-filter-label">' + list.length + ' of ' + all.length + '</span>'
-      + '</div>';
-
-    var cards = list.map(function (x) {
-      var open = FV.sessionRef === x.sessionRef;
-      var duration = x.source.fps ? (x.framesProcessed / x.source.fps).toFixed(1) + ' s' : '—';
-      var evTotal = Object.keys(x.eventCounts).reduce(function (a, k) { return a + x.eventCounts[k]; }, 0);
-      return Panel(x.sessionRef,
-        '<div class="fv-metric"><span class="fv-metric-v fv-metric-v--sm">'
-        + esc(x.source.displayName) + '</span></div>'
-        + '<div class="fv-metric-k">' + esc(x.source.width) + '×' + esc(x.source.height) + ' · '
-        + n(x.source.fps, 2) + ' fps · ' + duration + ' · quality ' + esc(x.source.qualityBand || '—')
-        + '</div>'
-        + Rows([
-          ['Frames', esc(x.framesProcessed)],
-          ['Tracked observations', esc(x.observationsTotal)],
-          ['Calibration coverage', pct(x.calibrationCoverage)],
-          ['Ball observed coverage', pct(x.ballObservedCoverage)],
-          ['Events confirmed', esc(evTotal)],
-          ['Pipeline', '<span style="font-size:11px">' + esc(x.pipelineVersion || '—') + '</span>'],
-          ['Scope', x.clubId ? esc(x.clubId) : Tag('PLATFORM', 'withheld')],
-          ['Generated', '<span style="font-size:11px">' + esc((x.generatedAt || '—').slice(0, 19)) + '</span>'],
-        ])
-        + '<div class="fv-legend"><button class="fv-btn" data-fv-open-session="' + esc(x.sessionRef)
-        + '" type="button" aria-pressed="' + open + '">'
-        + (open ? 'Open — currently loaded' : 'Open session') + '</button></div>',
-        { accent: open, aside: Chip('', open ? 'LIVE' : 'READY') });
-    }).join('');
-
-    body(filters + (cards ? '<div class="fv-grid fv-grid--wide">' + cards + '</div>'
-      : Empty('absent', 'NO SESSION MATCHES THESE FILTERS',
-        'Widen the search or the source-type filter.', 'sessions'))
-      + '<p class="fv-note">A session with no declared club is platform-scoped: the platform owner '
-      + 'sees it and nobody else does. Ownership is declared beside the evidence, never guessed '
-      + 'from a filename.</p>');
-  }
-
-  // ═══ REPORTS ════════════════════════════════════════════════════════════
-
-  function secReports() {
-    head('Reports & Export', 'Every export carries the provenance needed to re-derive it. No '
-      + 'filesystem path leaves the server.');
-    if (!FV.session) { body(needSession()); return; }
-    var s = FV.session.summary;
-    var kinds = [
-      ['session', 'Session JSON', 'the whole normalised session', 'JSON'],
-      ['summary', 'Session summary', 'counts, coverage, providers and guards', 'JSON'],
-      ['tracks', 'Tracking export', 'every observation with its calibration state', 'JSON'],
-      ['ball', 'Ball export', 'every sample with OBSERVED/PROPAGATED preserved', 'JSON'],
-      ['events', 'Events export', 'confirmed findings only', 'JSON'],
-      ['calibration', 'Calibration export', 'per-frame verdicts and accepted anchors', 'JSON'],
-      ['evidence', 'Evidence references', 'what Familista Intelligence may consume', 'JSON'],
-      ['tracks-csv', 'Tracking CSV', 'withheld coordinates are empty cells, never zeros', 'CSV'],
-    ];
-    var cards = kinds.map(function (k) {
-      return '<article class="fv-source">'
-        + '<div class="fv-source-top"><span class="fv-source-ico">' + icon('reports') + '</span>'
-        + '<div><div class="fv-source-name">' + esc(k[1]) + '</div>'
-        + '<div class="fv-source-type">' + esc(k[3]) + '</div></div></div>'
-        + '<p class="fv-source-why">' + esc(k[2]) + '</p>'
-        + '<a class="fv-btn" href="' + API + '/sessions/' + encodeURIComponent(s.sessionRef)
-        + '/export?kind=' + encodeURIComponent(k[0]) + '" download>Download</a>'
-        + '</article>';
-    }).join('');
-
-    body('<div class="fv-grid fv-grid--wide">' + cards + '</div><div class="fv-row-gap"></div>'
-      + '<div class="fv-split--even fv-split">'
-      + Panel('Provenance carried in every export', Rows([
-        ['Session id', '<span style="font-size:11px">' + esc(s.sessionId) + '</span>'],
-        ['Session ref', esc(s.sessionRef)],
-        ['Source', esc(s.source.displayName)],
-        ['Source SHA-256', '<span style="font-size:10.5px">' + esc((s.source.sha256 || '—').slice(0, 40))
-          + '…</span>'],
-        ['Pipeline version', esc(s.pipelineVersion || '—')],
-        ['Generated', esc(s.generatedAt || '—')],
-        ['Processing target', esc(s.processingTarget)],
-        ['Device', esc(s.deviceId)],
-        ['Club scope', s.clubId ? esc(s.clubId) : Tag('PLATFORM', 'withheld')],
-      ]), { accent: true })
-      + Panel('Model provenance', '<div class="fv-rows">' + s.models.map(function (m) {
-        return '<div class="fv-row"><span class="fv-row-k">' + esc(m.modelId)
-          + '<span class="fv-row-sub">' + esc((m.checksumSha256 || 'no checksum').slice(0, 24))
-          + '…</span></span>' + Tag(m.commercialUse, m.commercialUse === 'VERIFIED' ? 'measured'
-            : m.commercialUse === 'UNKNOWN' ? 'unverified' : 'restricted') + '</div>';
-      }).join('') + '</div>'
-        + '<p class="fv-note">A source is identified by its file NAME and its hash. An API that '
-        + 'handed a client an absolute path would have told an attacker the shape of the server and '
-        + 'told an honest reader nothing they can use.</p>')
-      + '</div>');
-  }
-
-  // ═══ DEVICE ═════════════════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════════════════════════
+     DEVICE / VISION HUB — hardware-control software
+     ═══════════════════════════════════════════════════════════════════════════ */
 
   function secDevice() {
-    head('Device / Vision Hub', 'What is actually running Vision. Readings this host does not '
-      + 'have say so, rather than showing a zero a dashboard would draw as a value.');
-    if (!FV.device) { body(Empty('withheld', 'READING DEVICE', 'One moment.')); return; }
+    setWorkbar('Device / Vision Hub',
+      '<button class="vx-btn" type="button" data-vx-section="sources">' + ico('sources') + 'Sources</button>');
+    if (!FV.device) { body(Empty('withheld', 'READING DEVICE', 'One moment')); return; }
     if (FV.device.ok === false) {
-      body(Empty('withheld', 'DEVICE UNAVAILABLE', FV.device.error || ''));
-      return;
+      body(Empty('withheld', 'DEVICE UNAVAILABLE', FV.device.error || '')); return;
     }
     var d = FV.device.device, t = FV.device.telemetry;
     var h = FV.status && FV.status.health;
     var gb = function (v) { return v ? (v / 1073741824).toFixed(1) : null; };
 
-    // A CONSOLE, NOT A CARD WALL.
-    //
-    // This screen was fifteen equal panels in a wrapping grid, and four of
-    // them read "—" because this host has no GPU, no thermometer, no battery
-    // and no camera link. Fifteen equal boxes make an absence look like a
-    // failure and a reading look like a footnote. A console separates the
-    // three things that are actually different here: WHAT THIS IS, WHAT IT
-    // MEASURES, and WHAT IT DOES NOT HAVE.
-    function reading(label, value, unit, sub, bar) {
-      return Dial(value + (unit ? '<small> ' + esc(unit) + '</small>' : ''), label, sub, bar);
-    }
-    function absentRow(label, spec, what) {
+    function absent(label, spec, what) {
       var st = (spec && spec.status) || 'NOT_AVAILABLE';
-      return '<div class="fv-await"><span class="fv-await-k">' + esc(label) + '</span>'
-        + '<span class="fv-await-v fv-none">—</span>'
-        + '<span class="fv-await-s">' + esc((spec && spec.reason) || what || 'not measured') + '</span>'
-        + Chip('', st) + '</div>';
+      return '<div class="vx-await"><span class="vx-await-k">' + esc(label) + '</span>'
+        + '<span class="vx-await-v vx-none">—</span>'
+        + '<span class="vx-await-s">' + esc(sentence((spec && spec.reason) || what || 'not measured'))
+        + '</span>' + Chip('', st) + '</div>';
     }
 
-    // ── the faceplate ───────────────────────────────────────────────────────
-    var faceplate = '<section class="fv-instr">'
-      + '<div class="fv-instr-lead">'
-      + '<div class="fv-instr-k">Device ' + Tag(d.processingTarget.replace(/_/g, ' '), 'accent')
-      + ' ' + Chip('', d.status) + '</div>'
-      + '<div class="fv-instr-v">' + esc(d.label) + '</div>'
-      + '<p class="fv-instr-s"><code>' + esc(d.deviceId) + '</code> · '
-      + esc(d.reason || 'the engine answered') + '</p>'
-      + '</div></section>';
+    var faceplate = Panel(null,
+      '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">'
+      + '<span style="width:56px;height:56px;border-radius:12px;display:grid;place-items:center;'
+      + 'background:linear-gradient(140deg,rgba(34,211,238,.22),rgba(139,92,246,.18));'
+      + 'color:var(--v-cyan);border:1px solid rgba(34,211,238,.35)">'
+      + '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor"'
+      + ' stroke-width="1.6">' + ICONS.device + '</svg></span>'
+      + '<div style="flex:1 1 260px;min-width:0">'
+      + '<div style="font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--v-tx-3)">'
+      + 'Familista Vision Hub · current mode</div>'
+      + '<div style="font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.1">'
+      + esc(d.label) + '</div>'
+      + '<div style="font-size:11px;color:var(--v-tx-3);margin-top:3px">'
+      + '<code>' + esc(d.deviceId) + '</code> · ' + esc(sentence(d.reason || 'the engine answered'))
+      + '</div></div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap">' + Chip('', d.status)
+      + Tag(words(d.processingTarget), 'accent') + '</div></div>',
+      { accent: true });
 
-    // ── what it measures ────────────────────────────────────────────────────
     var dials = [];
     if (t && !t.status) {
-      // `cpuCores` — the name the engine contract publishes. Read as `cpuCount`
-      // this dial rendered its unit and its caption with no figure between
-      // them, which is the one thing an em dash is for and this was not one:
-      // the host does report its core count.
-      dials.push(reading('CPU', n(t.cpuCores, 0), 'cores', 'load average 1m ' + n(t.loadAverage1m, 2)));
-      dials.push(reading('Memory', n(gb(t.memoryTotalBytes), 1), 'GB',
-        gb(t.memoryFreeBytes) + ' GB free',
-        t.memoryTotalBytes ? 1 - (t.memoryFreeBytes / t.memoryTotalBytes) : null));
+      dials.push(Stat('CPU', n(t.cpuCores, 0) + '<small> cores</small>',
+        'load average 1m ' + n(t.loadAverage1m, 2), { ico: 'cpu' }));
+      dials.push(Stat('Memory', n(gb(t.memoryTotalBytes), 1) + '<small> GB</small>',
+        gb(t.memoryFreeBytes) + ' GB free', { ico: 'vault' }));
       if (t.storageTotalBytes) {
-        dials.push(reading('Storage', n(gb(t.storageTotalBytes), 1), 'GB',
-          gb(t.storageFreeBytes) + ' GB free', 1 - (t.storageFreeBytes / t.storageTotalBytes)));
+        dials.push(Stat('Storage', n(gb(t.storageTotalBytes), 1) + '<small> GB</small>',
+          gb(t.storageFreeBytes) + ' GB free', { ico: 'vault' }));
       }
-      dials.push(reading('Uptime', n(Math.round((t.uptimeSeconds || 0) / 3600)), 'h', 'host uptime'));
+      dials.push(Stat('Uptime', n(Math.round((t.uptimeSeconds || 0) / 3600), 0) + '<small> h</small>',
+        'host uptime', { ico: 'timeline' }));
     }
-    dials.push(reading('Processing', FV.session ? n(FV.session.summary.processingFps, 2)
-      : '<span class="fv-none">—</span>', FV.session ? 'fps' : '',
-      FV.session ? 'measured on ' + FV.session.summary.sessionRef : 'no session open'));
+    dials.push(Stat('Processing', FV.session ? n(FV.session.summary.processingFps, 2) + '<small> fps</small>'
+      : '<span class="vx-none">—</span>',
+      FV.session ? 'measured on ' + FV.session.summary.sessionRef : 'no session open', { ico: 'perf' }));
+    dials.push(Stat('Network', h ? 'LIVE' : '<span class="vx-none">—</span>',
+      'the platform served this request', { ico: 'flow', tone: 'green' }));
+    dials.push(Stat('API', h ? esc(h.eventTypes) + '<small> types</small>' : '<span class="vx-none">—</span>',
+      'Vision event types registered', { ico: 'node' }));
 
     var measured = (t && t.status)
-      ? Panel('Host telemetry', '<div class="fv-awaits">'
-        + absentRow('Host telemetry', t, t.reason) + '</div>')
-      : Panel('Measured on this host', '<div class="fv-instr-dials">' + dials.join('') + '</div>');
+      ? Panel('Host telemetry', '<div class="vx-stack">' + absent('Host telemetry', t, t.reason) + '</div>',
+        { ico: 'cpu', tight: true })
+      : Panel('Measured on this host', '<div class="vx-stats">' + dials.join('') + '</div>',
+        { ico: 'cpu', tight: true, actions: Chip('', 'READY') });
 
-    // ── what it does not have ───────────────────────────────────────────────
     var absences = (t && !t.status)
-      ? Panel('Not present on this host', '<div class="fv-awaits">'
-        + absentRow('GPU', t.gpu) + absentRow('Temperature', t.temperatureCelsius)
-        + absentRow('Battery', t.batteryPercent) + absentRow('Camera link', t.cameraLink)
-        + '</div>'
-        + '<p class="fv-note">These are absences, not failures. A software device on a server has '
-        + 'no battery and no camera link, and drawing a zero for either would be a reading this '
-        + 'host never took.</p>', { aside: Tag('NOT MEASURED', 'withheld') })
+      ? Panel('Not present on this host', '<div class="vx-stack">'
+        + absent('GPU', t.gpu) + absent('Temperature', t.temperatureCelsius)
+        + absent('Battery', t.batteryPercent) + absent('Camera link', t.cameraLink) + '</div>'
+        + '<p class="vx-note">These are absences, not failures. A software device on a server has no '
+        + 'battery and no camera link, and drawing a zero for either would be a reading this host never '
+        + 'took.</p>', { ico: 'absent', tight: true, actions: Tag('NOT MEASURED', 'withheld') })
       : '';
 
-    // ── what it is attached to ──────────────────────────────────────────────
-    var links = h ? Panel('Attached to', '<div class="fv-hgrid">'
-      + [['API', esc(h.eventTypes) + ' Vision event types registered'],
-         ['Network', 'the platform served this request'],
-         ['Source Core link', 'registered on the Fabric source registry'],
-         ['Data Vault link', 'session facts persist as platform events']]
-        .map(function (r) {
-          return '<div class="fv-hcell fv-s-LIVE" title="' + esc(r[1]) + '">'
-            + '<i class="fv-dot" aria-hidden="true"></i>'
-            + '<span class="fv-hcell-k">' + esc(r[0]) + '</span>'
-            + '<span class="fv-hcell-v">LIVE</span></div>';
-        }).join('') + '</div>') : '';
-
     var loaded = Panel('Loaded now', Rows([
-      ['Active session', FV.session ? '<b>' + esc(FV.session.summary.sessionRef) + '</b>'
-        : '<span class="fv-none">—</span>',
+      ['Current session', FV.session ? '<b data-user-content>' + esc(FV.session.summary.sessionRef) + '</b>'
+        : '<span class="vx-none">—</span>',
         FV.session ? FV.session.summary.framesProcessed + ' frames' : 'no session open'],
-      ['Active source', FV.session ? esc(FV.session.summary.source.displayName)
-        : '<span class="fv-none">—</span>',
-        FV.session ? FV.session.summary.source.sourceType : 'no source attached'],
+      ['Current source', FV.session ? esc(FV.session.summary.source.displayName)
+        : '<span class="vx-none">—</span>',
+        FV.session ? words(FV.session.summary.source.sourceType) : 'no source attached'],
+      ['Processing target', h ? esc(words(h.processingTarget)) : '<span class="vx-none">—</span>'],
       ['Vision engine', Chip('', d.status)],
-    ]));
+      ['Sessions stored', h && h.sessions.stored !== null ? esc(h.sessions.stored)
+        : '<span class="vx-none">—</span>', h ? h.sessions.note : ''],
+    ]), { ico: 'sessions', tight: true });
 
-    body(faceplate + '<div class="fv-row-gap"></div>'
-      + '<div class="fv-zone3">' + measured + '<div class="fv-stack">' + loaded + links + '</div></div>'
-      + (absences ? '<div class="fv-row-gap"></div>' + absences : '')
-      + '<div class="fv-row-gap"></div>'
+    body(faceplate + '<div class="vx-rowgap"></div>'
+      + '<div class="vx-2col">' + measured + loaded + '</div>'
+      + (absences ? '<div class="vx-rowgap"></div>' + absences : '')
+      + '<div class="vx-rowgap"></div>'
       + Panel('Future hardware target', Rows([
         ['FAMILISTA VISION HUB', Chip('', 'NOT_IMPLEMENTED')],
-        ['Current processing target', esc(d.processingTarget)],
+        ['Current processing target', esc(words(d.processingTarget))],
         ['Adapter', 'addressable today; refuses every call'],
-      ]) + '<p class="fv-note fv-note--loud">Selecting the VISION_HUB target today runs the entire '
-        + 'platform against an adapter that refuses every call and says why. Nothing about the '
-        + 'device is simulated — no invented temperature, no invented battery, no invented fan '
-        + 'speed, no invented sensor count. When the hardware exists, one adapter changes and this '
-        + 'screen does not.</p>', { aside: Tag('ARCHITECTURE TARGET', 'future') }));
+      ]) + '<p class="vx-note vx-note--warn">Selecting the VISION_HUB target today runs the entire '
+        + 'platform against an adapter that refuses every call and says why. Nothing about the device '
+        + 'is simulated — no invented temperature, no invented battery, no invented fan speed, no '
+        + 'invented sensor count. When the hardware exists, one adapter changes and this screen does '
+        + 'not.</p>', { ico: 'future', tight: true, actions: Tag('ARCHITECTURE TARGET', 'future') }));
   }
 
-  // ═══ MODELS & PROVIDERS ═════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════════════════════════
+     MODELS & PROVIDERS
+     ═══════════════════════════════════════════════════════════════════════════ */
 
   function secModels() {
-    head('Models & Providers', 'From the Model Registry that travelled with the result. No model '
-      + 'path is written in this frontend.');
-    if (!FV.models) { body(Empty('withheld', 'READING MODELS', 'One moment.')); return; }
+    setWorkbar('Models & Providers', '');
+    if (!FV.models) { body(Empty('withheld', 'READING MODEL REGISTRY', 'One moment')); return; }
     if (FV.models.ok === false) {
-      body(Empty('withheld', 'MODELS UNAVAILABLE', FV.models.error || ''));
-      return;
+      body(Empty('withheld', 'MODEL REGISTRY UNAVAILABLE', FV.models.error || '')); return;
     }
-    if (!FV.models.models.length) {
-      body(Empty('absent', 'NO MODELS RECORDED',
-        'No session visible to this account carries model provenance.', 'models'));
-      return;
-    }
-
+    var models = FV.models.models || [];
+    var providers = (FV.session && FV.session.summary.providers) || FV.models.providers || [];
     var counts = { VERIFIED: 0, RESTRICTED: 0, UNKNOWN: 0 };
-    FV.models.models.forEach(function (m) {
-      counts[m.commercialUse] = (counts[m.commercialUse] || 0) + 1;
-    });
+    models.forEach(function (m) { counts[m.commercialUse] = (counts[m.commercialUse] || 0) + 1; });
 
-    var verdicts = '<div class="fv-grid">'
-      + Panel('Cleared for commercial use', Metric(esc(counts.VERIFIED || 0), 'models',
-        'licence read, and it permits proprietary use'), { aside: Tag('VERIFIED', 'measured') })
-      + Panel('Restricted', Metric(esc(counts.RESTRICTED || 0), 'models',
-        'licence read, and it does not permit it without further action'),
-        { aside: Tag('RESTRICTED', 'restricted') })
-      + Panel('Unknown', Metric(esc(counts.UNKNOWN || 0), 'models',
-        'nobody has checked. Not a milder restriction — an unpriced one'),
-        { aside: Tag('UNKNOWN', 'unverified') })
+    var strip = '<div class="vx-stats">'
+      + Stat('Cleared for commercial use', esc(counts.VERIFIED || 0) + '<small> models</small>',
+        'licence read, and it permits proprietary use', { tone: 'green', ico: 'models' })
+      + Stat('Restricted', esc(counts.RESTRICTED || 0) + '<small> models</small>',
+        'licence read; it does not permit it without further action', { tone: 'amber', ico: 'models' })
+      + Stat('Unknown', esc(counts.UNKNOWN || 0) + '<small> models</small>',
+        'nobody has checked — not a milder restriction, an unpriced one',
+        { tone: 'violet', ico: 'absent' })
+      + Stat('Registered', esc(models.filter(function (m) { return m.registered; }).length)
+        + '<small> of ' + models.length + '</small>', 'present in the Model Registry', { ico: 'node' })
       + '</div>';
 
-    var provs = FV.models.providers.map(function (p) {
-      return '<article class="fv-source">'
-        + '<div class="fv-source-top"><span class="fv-source-ico">' + icon('models') + '</span>'
-        + '<div><div class="fv-source-name">' + esc(p.role.replace(/_/g, ' ')) + '</div>'
-        + '<div class="fv-source-type">' + esc(p.provider) + '</div></div></div>'
-        + '<p class="fv-source-why">' + esc(p.modelIds.join(', ')) + '</p>'
-        + (p.fusesDetectionAndTracking ? Tag('FUSES DETECTION + TRACKING', 'withheld')
-          : Chip('', 'READY'))
-        + '</article>';
-    }).join('');
+    var roleTiles = '<div class="vx-bays">' + providers.map(function (p) {
+      return '<div class="vx-bay vx-bay--on">'
+        + '<div class="vx-bay-h"><span class="vx-bay-ico">' + ico('models') + '</span>'
+        + '<div style="flex:1 1 auto;min-width:0"><div class="vx-bay-n">' + esc(words(p.role)) + '</div>'
+        + '<div class="vx-bay-t">' + esc(p.provider) + '</div></div>' + Chip('', 'READY') + '</div>'
+        + '<div class="vx-bay-w">' + esc((p.modelIds || []).join(', ')) + '</div>'
+        + (p.fusesDetectionAndTracking ? Tag('FUSES DETECTION + TRACKING', 'accent') : '')
+        + '</div>';
+    }).join('') + '</div>';
 
-    var rows = FV.models.models.map(function (m) {
-      var kind = m.commercialUse === 'VERIFIED' ? 'measured'
-        : m.commercialUse === 'UNKNOWN' ? 'unverified' : 'restricted';
-      return '<tr><td><b>' + esc(m.modelId) + '</b><span class="fv-td-sub">'
-        + esc(m.name || '') + '</span></td>'
-        + '<td>' + esc(m.task || '—') + '</td>'
-        + '<td>' + esc(m.version || '—') + '</td>'
+    var rows = models.map(function (m) {
+      return '<tr><td><b>' + esc(m.modelId) + '</b><span class="vx-td-sub">' + esc(m.name || '') + '</span></td>'
+        + '<td>' + esc(words(m.task)) + '</td><td>' + esc(m.version || '—') + '</td>'
         + '<td>' + esc(m.framework || '—') + '</td>'
-        + '<td><span style="font-size:10.5px">' + esc(m.weights || '—') + '</span></td>'
-        + '<td><span style="font-size:10.5px">' + esc((m.checksumSha256 || '—').slice(0, 16))
-        + '…</span></td>'
-        + '<td><span style="font-size:11px">sw ' + esc(m.licenceSoftware || '—')
-        + '<br>weights ' + esc(m.licenceWeights || '—') + '</span></td>'
-        + '<td>' + Tag(m.commercialUse, kind) + '<span class="fv-td-sub">'
-        + esc(m.licenceVerification || '') + '</span></td>'
-        + '<td>' + Chip('', 'READY', 'this model produced a result in this deployment') + '</td></tr>';
+        + '<td>' + (m.weights ? '<span style="font-size:10px">' + esc(m.weights) + '</span>'
+          : '<span class="vx-none">—</span>') + '</td>'
+        + '<td>' + (m.checksumSha256 ? '<span style="font-size:10px">'
+          + esc(String(m.checksumSha256).slice(0, 12)) + '…</span>'
+          : '<span class="vx-none">—</span>') + '</td>'
+        + '<td style="white-space:normal;max-width:36ch"><span style="font-size:10.5px">sw '
+        + esc(m.licenceSoftware || '—') + '<br>weights ' + esc(m.licenceWeights || '—')
+        + '</span></td>'
+        + '<td>' + Tag(m.commercialUse, m.commercialUse === 'VERIFIED' ? 'measured'
+          : m.commercialUse === 'RESTRICTED' ? 'propagated' : 'unver')
+        + '<span class="vx-td-sub">' + esc(words(m.licenceVerification || '')) + '</span></td>'
+        + '<td>' + (m.registered ? Tag('VALIDATED', 'measured') : Tag('UNVERIFIED', 'unver')) + '</td></tr>';
     });
 
-    body(verdicts + '<div class="fv-row-gap"></div>'
-      + Panel('Providers by role', '<div class="fv-grid fv-grid--wide">' + provs + '</div>'
-        + '<p class="fv-note">A role names what fills it. Swapping a model is configuration; '
-        + 'nothing in this frontend names a checkpoint file.</p>', { accent: true })
-      + '<div class="fv-row-gap"></div>'
-      + Panel('Models', Table('Model registry entries behind these results',
-        ['Model', 'Task', 'Version', 'Framework', 'Weights', 'Checksum', 'Licence',
-          'Commercial use', 'State'], rows)
-        + '<p class="fv-note fv-note--warn">UNKNOWN is not a milder RESTRICTED. RESTRICTED means '
-        + 'the terms were read and they say no — that cost is known and can be budgeted. UNKNOWN '
-        + 'means nobody has checked, which reads like the absence of a problem and is not.</p>'));
+    body(Panel('Licence posture', strip, { accent: true, ico: 'models', tight: true })
+      + '<div class="vx-rowgap"></div>'
+      + Panel('Providers by role', roleTiles
+        + '<p class="vx-note">A role names what fills it. Swapping a model is configuration; nothing in '
+        + 'this frontend names a checkpoint file.</p>', { ico: 'flow', tight: true })
+      + '<div class="vx-rowgap"></div>'
+      + Panel('Model registry', Table('Models behind this result',
+        ['Model', 'Task', 'Version', 'Framework', 'Weights', 'Checksum', 'Licence', 'Commercial use',
+          'Validation'], rows), { ico: 'reports', tight: true }));
   }
 
-  // ═══ INTEGRATIONS ═══════════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════════════════════════
+     REPORTS
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  function secReports() {
+    setWorkbar('Reports', '');
+    if (!FV.session) { body(needSession()); return; }
+    var sm = FV.session.summary;
+    var REPORTS = [
+      ['session', 'Session JSON', 'json', 'the whole normalised session as the API returns it'],
+      ['summary', 'Session summary', 'json', 'counts, coverages and capabilities only'],
+      ['tracks', 'Tracking JSON', 'json', 'every observation with its provenance'],
+      ['tracks-csv', 'Tracking CSV', 'csv', 'the same rows, for a spreadsheet'],
+      ['ball', 'Ball JSON', 'json', 'every ball sample, OBSERVED and PROPAGATED kept apart'],
+      ['calibration', 'Calibration JSON', 'json', 'per-frame chain, band and expected error'],
+      ['events', 'Events JSON', 'json', 'confirmed findings and their reasons'],
+      ['evidence', 'Intelligence evidence bundle', 'json',
+        'what Familista Intelligence is offered — positions and findings, and no rating'],
+    ];
+    var tiles = '<div class="vx-bays">' + REPORTS.map(function (r) {
+      return '<div class="vx-bay">'
+        + '<div class="vx-bay-h"><span class="vx-bay-ico">' + ico('reports') + '</span>'
+        + '<div style="flex:1 1 auto;min-width:0"><div class="vx-bay-n">' + esc(r[1]) + '</div>'
+        + '<div class="vx-bay-t">' + esc(r[2].toUpperCase()) + '</div></div></div>'
+        + '<div class="vx-bay-w">' + esc(r[3]) + '</div>'
+        + '<button class="vx-btn" type="button" data-vx-export="' + esc(r[0]) + '">'
+        + ico('down') + 'Download</button></div>';
+    }).join('') + '</div>';
+
+    body(Panel('Exports', tiles, { accent: true, ico: 'reports',
+      actions: Tag('ORIGINAL EVIDENCE', 'measured') })
+      + '<div class="vx-rowgap"></div>'
+      + Panel('Provenance carried by every export', Rows([
+        ['Session', '<b data-user-content>' + esc(sm.sessionRef) + '</b>'],
+        ['Session id', '<span style="font-size:10px">' + esc(sm.sessionId) + '</span>'],
+        ['Source', esc(sm.source.displayName)],
+        ['Source hash', '<span style="font-size:10px">'
+          + esc(String(sm.source.sha256 || '—').slice(0, 20)) + '…</span>'],
+        ['Pipeline', esc(sm.pipelineVersion || '—')],
+        ['Schema', esc(sm.schema || '—')],
+        ['Generated', esc((sm.generatedAt || '').replace('T', ' ').replace('Z', ''))],
+        ['Imported', esc((sm.importedAt || '').replace('T', ' ').replace('Z', ''))],
+      ]) + '<p class="vx-note">An export is the engine’s own evidence, not a rendering of this '
+        + 'screen. It carries the source hash and the pipeline version so a figure can always be traced '
+        + 'back to the run that produced it.</p>', { ico: 'flow', tight: true }));
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     INTEGRATIONS — a graph, and the detail opens beside it
+     ═══════════════════════════════════════════════════════════════════════════ */
 
   function secIntegrations() {
-    head('Integrations / Data Flow', 'Where Vision sits in the Familista nervous system, and what '
-      + 'it publishes. Select a node to read its connection metadata.');
-    if (!FV.integrations) { body(Empty('withheld', 'READING INTEGRATIONS', 'One moment.')); return; }
+    setWorkbar('Integrations / Data Flow', '');
+    if (!FV.integrations) { body(Empty('withheld', 'READING INTEGRATIONS', 'One moment')); return; }
     if (FV.integrations.ok === false) {
-      body(Empty('withheld', 'INTEGRATIONS UNAVAILABLE', FV.integrations.error || ''));
-      return;
+      body(Empty('withheld', 'INTEGRATIONS UNAVAILABLE', FV.integrations.error || '')); return;
     }
     var h = FV.status && FV.status.health;
     var byKey = {};
     if (h) h.capabilities.forEach(function (c) { byKey[c.key] = c; });
 
-    var NODE_DETAIL = {
+    var DETAIL = {
       SOURCE: function () {
         return Rows([
           ['Implemented source types', h ? esc(h.sources.implementedTypes) + ' of '
             + esc(h.sources.declaredTypes) : '—'],
-          ['Future rig slots', h ? esc(h.sources.slots) + ', all empty' : '—'],
+          ['Future rig bays', h ? esc(h.sources.slots) + ', all empty' : '—'],
           ['Connected now', esc((FV.sources && FV.sources.connected || []).length) + ' recorded'],
         ]);
       },
@@ -2388,15 +2280,14 @@
         return Rows([
           ['Fabric source id', '<code>vision</code>'],
           ['Event domain', '<code>vision</code>'],
-          ['Registration', 'composed by Source Core from the Fabric registry — no entry of its own'],
-        ]) + '<p class="fv-note">A second description of Vision on a Source Core screen would be a '
-          + 'second opinion, and the day it disagreed with this one somebody would trust the wrong '
-          + 'one.</p>';
+          ['Registration', 'composed by Source Core from the Fabric registry'],
+        ]) + '<p class="vx-note">A second description of Vision on a Source Core screen would be a '
+          + 'second opinion, and the day it disagreed with this one somebody would trust the wrong one.</p>';
       },
       VISION: function () {
         return Rows([
           ['Sessions addressable', h && h.sessions.stored !== null ? esc(h.sessions.stored) : '—'],
-          ['Processing target', h ? esc(h.processingTarget) : '—'],
+          ['Processing target', h ? esc(words(h.processingTarget)) : '—'],
           ['Queue', h ? esc(h.sessions.processing) : '—', h ? h.sessions.note : ''],
         ]);
       },
@@ -2414,17 +2305,17 @@
         return Rows([
           ['Storage', 'the platform event history — no Vision table'],
           ['Original evidence', 'never rewritten when a later model disagrees'],
-        ]) + '<p class="fv-note">A `vision_session` table would have been a second history beside '
-          + 'the Vault and a second original beside the engine\'s.</p>';
+        ]) + '<p class="vx-note">A vision_session table would have been a second history beside the '
+          + 'Vault and a second original beside the engine’s.</p>';
       },
       INTELLIGENCE: function () {
         return Rows([
           ['Interface', '<code>GET /sessions/:id/evidence</code>'],
           ['Carries', 'metric positions with error bars, and confirmed findings'],
           ['Does not carry', Tag('ANY RATING', 'future')],
-        ]) + '<p class="fv-note fv-note--loud">There is no field for Quality, Vision, Decisions, '
-          + 'Composure, Passing, Finishing, Stamina or any mental attribute. An interface with a '
-          + 'field for something nobody measures is an invitation to fill it.</p>';
+        ]) + '<p class="vx-note vx-note--warn">There is no field for Quality, Vision, Decisions, '
+          + 'Composure, Passing, Finishing, Stamina or any mental attribute. An interface with a field '
+          + 'for something nobody measures is an invitation to fill it.</p>';
       },
       CONSUMERS: function () {
         return Rows([
@@ -2435,85 +2326,342 @@
       },
     };
 
-    // A GRAPH, NOT A LIST, AND THE DETAIL DOES NOT MOVE IT.
-    //
-    // The stages used to stack vertically and open INLINE, which pushed every
-    // node below the one selected — the reader's own diagram rearranged itself
-    // under them each time they asked a question of it. Here the stages are
-    // laid out as a graph, the conduits run between them, and the answer opens
-    // in the rail beside it. Nothing on the graph moves when a node is chosen
-    // except the node's own outline.
     var selNode = null;
     var flow = FV.integrations.flow.map(function (f, i) {
       var open = FV.selection.node === f.stage;
       if (open) selNode = f;
-      var conduit = i ? '<div class="fv-conduit' + (f.status === 'LIVE' ? ' fv-conduit--live' : '')
+      var pipe = i ? '<div class="vx-pipe' + (f.status === 'LIVE' ? ' vx-pipe--live' : '')
         + '" aria-hidden="true"></div>' : '';
-      return conduit
-        + '<button class="fv-flow-node" data-fv-node="' + esc(f.stage) + '" type="button" '
-        + 'aria-pressed="' + open + '">'
-        + '<span class="fv-flow-top">'
-        + '<span class="fv-flow-stage">' + esc(f.stage.replace(/_/g, ' ')) + '</span>'
-        + Chip('', f.status === 'LIVE' ? 'LIVE' : 'READY') + '</span>'
-        + '<span class="fv-flow-name">' + esc(f.node) + '</span>'
-        + '<span class="fv-flow-detail">' + esc(f.detail) + '</span>'
-        + '</button>';
+      // The conduit travels WITH the node it feeds, so a wrap never leaves an
+      // arrow pointing at the end of a row.
+      return '<div class="vx-nodewrap">' + pipe
+        + '<button class="vx-node" type="button" data-vx-node="' + esc(f.stage) + '"'
+        + ' aria-pressed="' + open + '">'
+        + '<span class="vx-node-h"><span class="vx-node-s">' + esc(words(f.stage)) + '</span>'
+        + Chip('', f.status) + '</span>'
+        + '<span class="vx-node-n">' + esc(f.node) + '</span>'
+        + '<span class="vx-node-d">' + esc(f.detail) + '</span></button></div>';
     }).join('');
 
-    var nodePanel = selNode && NODE_DETAIL[selNode.stage]
-      ? Panel(selNode.node, NODE_DETAIL[selNode.stage](),
-        { accent: true, aside: Chip('', selNode.status === 'LIVE' ? 'LIVE' : 'READY') })
+    var nodePanel = selNode && DETAIL[selNode.stage]
+      ? Panel(selNode.node, DETAIL[selNode.stage](),
+        { accent: true, ico: 'node', tight: true, actions: Chip('', selNode.status) })
       : Panel('No node selected',
-        '<p class="fv-metric-k">Choose a stage in the graph to read its connection metadata — '
-        + 'what it registers, what it carries, and what it deliberately does not.</p>');
+        '<p class="vx-note" style="border:0;padding:0;margin:0">Choose a stage in the graph to read '
+        + 'its connection metadata — what it registers, what it carries, and what it deliberately '
+        + 'does not.</p>', { ico: 'node', tight: true });
 
     var monitor = byKey.infrastructure
-      ? Panel('Infrastructure City — monitoring', Rows([
+      ? Panel('Infrastructure City', Rows([
         ['Vision health signal', Chip('', byKey.infrastructure.status)],
-        ['How', 'joined by healthKey, like every other component'],
-      ]) + '<p class="fv-note">Vision does not get a second monitoring surface. It gets a district '
-        + 'in the one the platform already has, so an operator sees a Vision problem beside a '
-        + 'database problem rather than having to know Vision exists and go and look.</p>',
-        { aside: Tag('MONITORING', 'derived') })
+        ['Joined by', '<code>healthKey</code>', 'like every other component'],
+      ]) + '<p class="vx-note">Vision does not get a second monitoring surface. It gets a district in '
+        + 'the one the platform already has, so an operator sees a Vision problem beside a database '
+        + 'problem rather than having to know Vision exists and go and look.</p>',
+        { ico: 'city', tight: true, actions: Tag('OBSERVES THE PATH', 'derived') })
       : '';
 
     var events = FV.integrations.events.map(function (e) {
-      return '<tr><td><code style="font-size:11px;color:var(--fv-tx)">' + esc(e.type) + '</code></td>'
+      return '<tr><td><code style="font-size:10.5px;color:var(--v-tx)">' + esc(e.type) + '</code></td>'
         + '<td>v' + esc(e.schemaVersion) + '</td>'
         + '<td>' + (e.live ? Tag('LIVE VIEW', 'measured') : Tag('DURABLE ONLY', 'withheld')) + '</td>'
-        + '<td>' + esc(e.describes) + '</td></tr>';
+        + '<td style="white-space:normal;max-width:70ch">' + esc(e.describes) + '</td></tr>';
     });
 
-    body('<div class="fv-live">'
-      + Panel('Nervous system', '<div class="fv-flow fv-flow--graph">' + flow + '</div>'
-        + '<p class="fv-note">A conduit travels only where the link is LIVE. A diagram that flows '
-        + 'while the platform is silent is a diagram telling a lie.</p>', { accent: true })
-      + '<div class="fv-stack">' + nodePanel + monitor + '</div>'
-      + '</div><div class="fv-row-gap"></div>'
-      + Panel('Vision events on the platform transport',
-        Table('Registered Vision event types',
-          ['Event type', 'Schema', 'Live board', 'What it says has happened'], events)
-        + '<p class="fv-note">There is no Vision event bus. These names are registered on the '
-        + 'Fabric\'s own registry, travel through the same outbox, and land in the same Data Vault '
-        + 'as every other domain\'s facts. The three per-observation names are withheld from the '
-        + 'LIVE board and remain fully durable — a ten-second clip holds four thousand '
-        + 'observations, and putting them on a shared firehose would drown every other domain.</p>'));
+    body('<div class="vx-2col--wide vx-2col">'
+      + Panel('Nervous system', '<div class="vx-flow">' + flow + '</div>'
+        + '<p class="vx-note">A conduit travels only where the link is LIVE. A diagram that flows while '
+        + 'the platform is silent is a diagram telling a lie.</p>',
+        { accent: true, ico: 'flow' })
+      + '<div class="vx-stack">' + nodePanel + monitor + '</div></div>'
+      + '<div class="vx-rowgap"></div>'
+      + Panel('Vision events on the platform transport', Table('Registered Vision event types',
+        ['Event type', 'Schema', 'Live board', 'What it says has happened'], events)
+        + '<p class="vx-note">There is no Vision event bus. These names are registered on the '
+        + 'Fabric’s own registry, travel through the same outbox, and land in the same Data Vault '
+        + 'as every other domain’s facts.</p>', { ico: 'reports', tight: true }));
   }
 
-  // ═══ ROUTER & BOOT ══════════════════════════════════════════════════════
+  /* ═══════════════════════════════════════════════════════════════════════════
+     HEALTH · PERFORMANCE
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  function secHealth() {
+    setWorkbar('Health',
+      '<button class="vx-btn" type="button" data-vx-section="integrations">' + ico('flow')
+      + 'Integrations</button>');
+    if (!FV.status || FV.status.ok === false) {
+      body(Empty('withheld', 'VISION SERVICE UNAVAILABLE',
+        (FV.status && FV.status.error) || 'the service did not answer'));
+      return;
+    }
+    var h = FV.status.health;
+    var evidence = ['source-input', 'player-tracking', 'ball-tracking', 'calibration', 'teams-roles', 'events'];
+    var platform = ['source-core', 'data-fabric', 'data-vault', 'infrastructure'];
+
+    function grid(keys) {
+      return '<div class="vx-stack">' + h.capabilities.filter(function (c) {
+        return keys.indexOf(c.key) >= 0;
+      }).map(function (c) {
+        return '<div class="vx-row"><span class="vx-row-k"><b>' + esc(c.label) + '</b>'
+          + '<span>' + esc(c.detail) + '</span></span>'
+          + '<span class="vx-row-v">' + Chip('', c.status) + '</span></div>';
+      }).join('') + '</div>';
+    }
+    var others = h.capabilities.filter(function (c) {
+      return evidence.indexOf(c.key) < 0 && platform.indexOf(c.key) < 0;
+    });
+
+    body('<div class="vx-stats">'
+      + Stat('Service', esc(h.service), 'the Vision engine’s own state',
+        { ico: 'health', tone: h.service === 'LIVE' ? 'green' : '' })
+      + Stat('Processing target', esc(words(h.processingTarget)), 'where inference runs', { ico: 'cpu' })
+      + Stat('Sessions stored', esc(h.sessions.stored), h.sessions.note, { ico: 'sessions' })
+      + Stat('Event types', esc(h.eventTypes), 'registered on the Data Fabric', { ico: 'flow' })
+      + Stat('Source types', esc(h.sources.implementedTypes) + '<small> of '
+        + esc(h.sources.declaredTypes) + '</small>', esc(h.sources.slots) + ' bays declared, all empty',
+        { ico: 'sources' })
+      + '</div><div class="vx-rowgap"></div>'
+      + '<div class="vx-2col">'
+      + Panel('Evidence capabilities', grid(evidence),
+        { accent: true, ico: 'track', tight: true,
+          actions: Tag(h.capabilities.filter(function (c) {
+            return evidence.indexOf(c.key) >= 0 && (c.status === 'READY' || c.status === 'LIVE');
+          }).length + ' / ' + evidence.length + ' READY', 'measured') })
+      + '<div class="vx-stack">'
+      + Panel('Platform links', grid(platform), { ico: 'flow', tight: true })
+      + Panel('Engine and rig', '<div class="vx-stack">' + others.map(function (c) {
+        return '<div class="vx-row"><span class="vx-row-k"><b>' + esc(c.label) + '</b>'
+          + '<span>' + esc(c.detail) + '</span></span>'
+          + '<span class="vx-row-v">' + Chip('', c.status) + '</span></div>';
+      }).join('') + '</div>', { ico: 'device', tight: true })
+      + '</div></div>'
+      + '<div class="vx-rowgap"></div>'
+      + Panel('Checked at', Rows([
+        ['Service answered', esc((h.checkedAt || '').replace('T', ' ').replace('Z', ''))],
+        ['Device', esc(h.deviceId), words(h.deviceKind)],
+      ]), { ico: 'timeline', tight: true }));
+  }
+
+  function secPerformance() {
+    setWorkbar('Performance', '');
+    var g = FV.session && FV.session.summary.guards;
+    var reason = (FV.session && FV.session.summary.capabilities.reasons.physicalMetrics)
+      || 'The engine measures implied speed only as a calibration guard, and it is deliberately not '
+        + 'exposed as a player measurement';
+
+    var READINGS = [
+      ['Speed', 'm/s', 'a per-frame displacement over a calibrated interval, validated against ground truth'],
+      ['Acceleration', 'm/s²', 'a second derivative of a measurement that is not yet validated'],
+      ['Distance', 'm', 'a sum over frames, and a sum over gaps is not a distance'],
+      ['High-speed running', 'm', 'a threshold on a speed that has no validated value'],
+      ['Sprints', 'count', 'a count of crossings of that same threshold'],
+      ['Stamina / load', 'AU', 'a model over all of the above'],
+    ].map(function (k) {
+      return '<div class="vx-await"><span class="vx-await-k">' + esc(k[0]) + '<em>' + esc(k[1])
+        + '</em></span><span class="vx-await-v vx-none">—</span>'
+        + '<span class="vx-await-s">' + esc(k[2]) + '</span>'
+        + Tag('NOT YET VALIDATED', 'future') + '</div>';
+    }).join('');
+
+    body(Panel(null,
+      '<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">'
+      + '<div style="flex:0 0 auto"><div style="font-size:10px;letter-spacing:.2em;'
+      + 'text-transform:uppercase;color:var(--v-tx-3)">Physical metrics</div>'
+      + '<div style="font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:1.05">'
+      + '0 <small style="font-size:15px;font-weight:600;color:var(--v-tx-3)">of 6 ready</small></div></div>'
+      + '<p style="flex:1 1 340px;min-width:0;font-size:12px;color:var(--v-tx-2);line-height:1.6;margin:0">'
+      + esc(sentence(reason)) + ' Nothing on this screen is withheld to be cautious: there is no '
+      + 'validated figure to withhold.</p>'
+      + Tag('NOT YET VALIDATED', 'future') + '</div>', { accent: true })
+      + '<div class="vx-rowgap"></div>'
+      + '<div class="vx-2col">'
+      + Panel('Readiness', '<div class="vx-stack">' + READINGS + '</div>', { ico: 'perf', tight: true })
+      + (g ? Panel('What the engine does measure, and why it is not this', Rows([
+        ['Worst p90 implied speed in a calibrated span', n(g.speedGuardP90MsMax, 1) + ' m/s'],
+        ['Spans examined', n(g.speedGuardSpans, 0)],
+        ['Spans withheld as physically impossible', n(g.speedGuardSpansWithheld, 0)],
+        ['Frames whose coordinates were withheld', n(g.speedGuardFramesWithheld, 0)],
+      ]) + '<p class="vx-note vx-note--warn">This is a GUARD statistic. It exists to reject a '
+        + 'calibration whose metres imply people outrunning the world record, and it is computed over '
+        + 'a whole span rather than per player. Presenting it as a player’s speed would be '
+        + 'presenting a validation threshold as a performance measurement.</p>',
+        { ico: 'health', tight: true, actions: Tag('GUARD, NOT A METRIC', 'propagated') })
+        : Panel('Guard statistics', needSession(), { ico: 'health', tight: true }))
+      + '</div>');
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     ROUTER
+     ═══════════════════════════════════════════════════════════════════════════ */
 
   var ROUTES = {
-    overview: secOverview, live: secLive, sources: secSources, sessions: secSessions,
+    live: secLive, sessions: secSessions, sources: secSources, device: secDevice,
     tracking: secTracking, ball: secBall, calibration: secCalibration, teams: secTeams,
-    events: secEvents, tactical: secTactical, heatmaps: secHeatmaps, physical: secPhysical,
-    timeline: secTimeline, reports: secReports, device: secDevice, models: secModels,
-    integrations: secIntegrations,
+    events: secEvents, tactical: secTactical, heatmaps: secHeatmaps, timeline: secTimeline,
+    reports: secReports, performance: secPerformance, health: secHealth,
+    models: secModels, integrations: secIntegrations,
   };
 
   function renderSection() {
     var r = ROUTES[FV.section];
-    if (r) r();
+    if (r) r(); else { FV.section = 'live'; secLive(); }
   }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     PLUMBING
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  function get(path) {
+    return fetch(API + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) {
+          return { ok: false, error: 'Familista Vision is not available to this account.' };
+        }
+        return r.json().catch(function () { return { ok: false, error: 'malformed response' }; });
+      })
+      .catch(function (e) { return { ok: false, error: String((e && e.message) || e) }; });
+  }
+
+  function stepFrame(delta) {
+    if (!FV.session) return;
+    var frames = FV.session.summary.framesProcessed || 1;
+    FV.frame = Math.max(0, Math.min(frames - 1, FV.frame + delta));
+    renderSection();
+  }
+
+  /** The evidence drawer, for a track's role reasoning. */
+  function showRole(identity) {
+    if (!FV.session) return;
+    var r = FV.session.roles.filter(function (x) { return x.identity === identity; })[0];
+    var idx = trackIndex(FV.session).filter(function (x) { return x.identity === identity; })[0];
+    if (!r && !idx) return;
+    openDrawer('#' + identity, r ? words(r.role) : (idx ? words(idx.role) : ''),
+      Rows([
+        ['Classification', r ? (r.role === 'UNKNOWN' ? Tag('UNKNOWN', 'withheld') : esc(words(r.role)))
+          : (idx ? esc(words(idx.role)) : '—')],
+        ['Confidence', r ? n(r.confidence, 3) : (idx ? n(idx.conf || null, 3) : '—')],
+        ['Observations', idx ? esc(idx.obs) : n(r && r.observations, 0)],
+        ['With metric position', idx ? esc(idx.withCoords) + ' of ' + esc(idx.obs) : '—'],
+        ['Team', idx && idx.team ? esc(words(idx.team)) : Tag('NONE', 'withheld')],
+        ['Frames', idx ? esc(idx.first) + '–' + esc(idx.last) : '—'],
+      ])
+      + (r && r.reason ? '<p class="vx-note">' + esc(sentence(r.reason)) + '</p>'
+        : '<p class="vx-note">The engine recorded no role reasoning for this identity.</p>')
+      + '<div class="vx-rowgap"></div>'
+      + '<button class="vx-btn" type="button" data-vx-track="' + esc(identity) + '">'
+      + ico('track') + 'Open in Player Tracking</button>');
+  }
+
+  function exportReport(kind) {
+    if (!FV.sessionRef) return;
+    var url = API + '/sessions/' + encodeURIComponent(FV.sessionRef) + '/export?kind='
+      + encodeURIComponent(kind);
+    try { window.open(url, '_blank', 'noopener'); } catch (_) { window.location.href = url; }
+  }
+
+  /* ── events ──────────────────────────────────────────────────────────────── */
+
+  function onClick(e) {
+    var t = e.target;
+
+    var mod = t.closest('[data-vx-module]');
+    if (mod) {
+      var page = mod.getAttribute('data-vx-module');
+      if (typeof window.navTo === 'function') window.navTo(page);
+      else window.location.hash = '#' + page;
+      return;
+    }
+    var sec = t.closest('[data-vx-section]');
+    if (sec) { goto(sec.getAttribute('data-vx-section')); return; }
+
+    if (t.closest('[data-vx-notif]')) {
+      // The platform's own notification surface, not a second one.
+      var bell = document.querySelector('[data-tf-notif-open]');
+      if (bell) bell.click();
+      return;
+    }
+    if (t.closest('[data-vx-drawer-close]')) { closeDrawer(); return; }
+
+    var open = t.closest('[data-vx-open-session]');
+    if (open) { openSession(open.getAttribute('data-vx-open-session')); return; }
+
+    var mode = t.closest('[data-vx-mode]');
+    if (mode) { FV.mode = mode.getAttribute('data-vx-mode'); renderSection(); return; }
+
+    var layer = t.closest('[data-vx-layer]');
+    if (layer) {
+      var k = layer.getAttribute('data-vx-layer');
+      FV.layers[k] = !FV.layers[k];
+      renderSection();
+      return;
+    }
+    var seek = t.closest('[data-vx-seek]');
+    if (seek) {
+      FV.frame = parseInt(seek.getAttribute('data-vx-seek'), 10) || 0;
+      if (seek.hasAttribute('data-vx-stay')) renderSection();
+      else goto('live');
+      return;
+    }
+    var step = t.closest('[data-vx-step]');
+    if (step) { stepFrame(parseInt(step.getAttribute('data-vx-step'), 10)); return; }
+
+    var role = t.closest('[data-vx-role]');
+    if (role) { showRole(role.getAttribute('data-vx-role')); return; }
+
+    var trk = t.closest('[data-vx-track]');
+    if (trk) {
+      FV.selection.track = trk.getAttribute('data-vx-track');
+      closeDrawer();
+      if (FV.section !== 'tracking') goto('tracking'); else renderSection();
+      return;
+    }
+    var evt = t.closest('[data-vx-event]');
+    if (evt) {
+      FV.selection.event = evt.getAttribute('data-vx-event');
+      if (FV.section !== 'events') goto('events'); else renderSection();
+      return;
+    }
+    var node = t.closest('[data-vx-node]');
+    if (node) {
+      var id = node.getAttribute('data-vx-node');
+      FV.selection.node = FV.selection.node === id ? null : id;
+      renderSection();
+      return;
+    }
+    var exp = t.closest('[data-vx-export]');
+    if (exp) { exportReport(exp.getAttribute('data-vx-export')); return; }
+  }
+
+  function onInput(e) {
+    var search = e.target.closest('[data-vx-search]');
+    if (search) {
+      // Forward to the platform's own search so its behaviour runs. A second
+      // search box that searches nothing would be a control with a lie in it.
+      var gs = document.getElementById('global-search');
+      if (gs) {
+        gs.value = search.value;
+        try { gs.dispatchEvent(new Event('input', { bubbles: true })); } catch (_) {}
+      }
+      return;
+    }
+    var f = e.target.closest('[data-vx-filter]');
+    if (f) { FV.filters[f.getAttribute('data-vx-filter')] = f.value; renderSection(); return; }
+    var sel = e.target.closest('[data-vx-select]');
+    if (sel) { FV.selection[sel.getAttribute('data-vx-select')] = sel.value; renderSection(); return; }
+    var scrub = e.target.closest('[data-vx-scrub]');
+    if (scrub) { FV.frame = parseInt(scrub.value, 10) || 0; renderSection(); }
+  }
+
+  function onKey(e) {
+    if (e.key === 'Escape') { closeDrawer(); return; }
+    if (FV.section !== 'live') return;
+    if (e.target && /input|select|textarea/i.test(e.target.tagName)) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); stepFrame(1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); stepFrame(-1); }
+  }
+
+  /* ── session and boot ────────────────────────────────────────────────────── */
 
   function openSession(ref) {
     FV.sessionRef = ref;
@@ -2527,10 +2675,6 @@
       FV.session = r[0] && r[0].ok ? r[0].session : null;
       FV.timeline = r[1] && r[1].ok ? r[1].timeline : null;
       if (FV.session && FV.session.tracks.length) FV.frame = FV.session.tracks[0].frameNumber;
-      // The bar and the open panel are the two regions a new session changes.
-      // Rebuilding the whole shell repainted the navigation as well, which
-      // dropped the reader's place in it for no reason.
-      refreshBar();
       renderSection();
     });
   }
@@ -2546,25 +2690,21 @@
       FV.status = r[0]; FV.sessions = r[1]; FV.sources = r[2];
       FV.models = r[3]; FV.device = r[4]; FV.integrations = r[5];
       renderShell();
-      // Open the newest session automatically: a command centre that opens
-      // empty when evidence exists is a command centre making the reader work.
+      // A command centre that opens empty when evidence exists is a command
+      // centre making the reader work.
       if (FV.sessions && FV.sessions.ok && FV.sessions.sessions.length) {
         openSession(FV.sessions.sessions[0].sessionRef);
       }
     });
   }
 
-  // The platform mounts a module by calling its render hook with its host
-  // element, exactly as it does for Source Core, the Vault and the City. There
-  // is no second convention here.
-  //
-  // BOTH CALLERS, NOT ONE. The navigation switch passes the root element; the
-  // page-render registry (`_FAM_PAGE_RENDER` → `_famRenderPage`) calls every
-  // renderer with NO argument at all, and that second one is the path a
-  // navigation from Owner Home actually takes. Guarding on `host` meant the
-  // page mounted its empty `#fv-root` and stopped there — the module was
-  // wired, allow-listed, styled and reachable, and opened to a blank screen.
-  // Source Core solved this the same way, and its comment says why.
+  /**
+   * The platform mounts a module by calling its render hook.
+   *
+   * BOTH CALLERS, NOT ONE. The navigation switch passes the root element; the
+   * page-render registry calls every renderer with NO argument at all, and that
+   * second one is the path a navigation from Owner Home actually takes.
+   */
   window.renderFamilistaVision = function (host) {
     host = host || document.getElementById('fv-root');
     if (!host) return;

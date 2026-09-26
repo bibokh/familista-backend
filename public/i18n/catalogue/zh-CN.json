@@ -1564,8 +1564,8 @@
   "Sources in warning: \u0000": "告警中的数据源: \u0000",
   "Sources mapped: \u0000 · not instrumented: \u0000": "已记录数据源: \u0000 · 未接入监测: \u0000",
   "FAMILISTA VISION": "FAMILISTA VISION",
-  "Live Analysis · Sources · Sessions · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Timeline · Models & Providers · Device": "Live Analysis · Sources · Sessions · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Timeline · Models & Providers · Device",
   "Open Vision": "Open Vision",
   "Reading Vision service…": "Reading Vision service…",
-  "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence"
+  "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
 }

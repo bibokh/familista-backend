@@ -3632,7 +3632,7 @@ function _ownerHomeForPlatformOwner(user, club) {
           </svg></div>
           <div class="oh-card-title">FAMILISTA VISION</div>
           <div class="oh-card-sub">Computer Vision, Tracking, Evidence &amp; Match Intelligence</div>
-          <div class="oh-card-list">Live Analysis · Sources · Sessions · Player &amp; Ball Tracking · Pitch Calibration · Teams &amp; Roles · Events · Timeline · Models &amp; Providers · Device</div>
+          <div class="oh-card-list">Live Analysis · Player &amp; Ball Tracking · Pitch Calibration · Teams &amp; Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models</div>
           <span id="oh-vision-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading Vision service…</span>
           <div class="oh-card-cta">Open Vision <span>→</span></div>
         </button>
