@@ -13,6 +13,7 @@
 // The handler is mounted via an UPGRADE listener so we can reject before the
 // WS handshake completes (no protocol confusion with /ws/live).
 
+import { registerWebSocketServer } from '../infra/ws-registry';
 import http from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
 import jwt from 'jsonwebtoken';
@@ -85,6 +86,7 @@ export function mountMatchWebSocket(httpServer: http.Server): WebSocketServer {
     }
   });
 
+  registerWebSocketServer('match', wss);
   return wss;
 }
 

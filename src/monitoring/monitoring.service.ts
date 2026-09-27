@@ -3,6 +3,7 @@
 // Append-only health checks, configurable alert rules, backup records.
 // Composes with (does not replace) Phase J SystemMetric / RealtimeHealth.
 
+import { countOutcome } from '../infra/outcome-meter';
 import { AlertRuleState, BackupKind, BackupRecord, HealthCheckState, Prisma, ProductionAlertRule, ProductionHealthCheck } from '@prisma/client';
 import { prisma } from '../config/database';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
@@ -27,9 +28,9 @@ export async function recordHealth(args: { service: string; state: HealthCheckSt
     select: { state: true },
   });
 
-  const row = await prisma.productionHealthCheck.create({
+  const row = await countOutcome('monitoring', prisma.productionHealthCheck.create({
     data: { service: args.service, state: args.state, latencyMs: args.latencyMs ?? null, payload: (args.payload ?? Prisma.JsonNull) as Prisma.InputJsonValue },
-  });
+  }));
 
   // A TRANSITION, never a snapshot. This endpoint is polled, and a healthy
   // service reporting healthy every thirty seconds is a heartbeat — putting it

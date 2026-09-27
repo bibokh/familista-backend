@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-26T21:39:16.445Z",
+  "generatedAt": "2026-09-27T17:55:46.518Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -199,7 +199,7 @@
       "dependencies": [
         "api-gateway"
       ],
-      "healthKey": null,
+      "healthKey": "webApp",
       "note": "The signed-in workspace, served from public/."
     },
     {
@@ -218,7 +218,7 @@
       "dependencies": [
         "web-app"
       ],
-      "healthKey": null,
+      "healthKey": "systemModule",
       "note": null
     },
     {
@@ -238,7 +238,7 @@
         "web-app",
         "history-api"
       ],
-      "healthKey": null,
+      "healthKey": "dataVaultModule",
       "note": null
     },
     {
@@ -257,7 +257,7 @@
       "dependencies": [
         "api-gateway"
       ],
-      "healthKey": null,
+      "healthKey": "reactClient",
       "note": null
     },
     {
@@ -296,7 +296,7 @@
         "api-gateway",
         "prisma-orm"
       ],
-      "healthKey": null,
+      "healthKey": "services",
       "note": null
     },
     {
@@ -332,7 +332,7 @@
       "dependencies": [
         "postgres"
       ],
-      "healthKey": null,
+      "healthKey": "database",
       "note": null
     },
     {
@@ -371,7 +371,7 @@
         "data-fabric",
         "postgres"
       ],
-      "healthKey": null,
+      "healthKey": "outbox",
       "note": null
     },
     {
@@ -410,7 +410,7 @@
       "dependencies": [
         "historical-store"
       ],
-      "healthKey": null,
+      "healthKey": "historyQuery",
       "note": null
     },
     {
@@ -449,7 +449,7 @@
       "dependencies": [
         "api-gateway"
       ],
-      "healthKey": null,
+      "healthKey": "auth",
       "note": null
     },
     {
@@ -468,7 +468,7 @@
       "dependencies": [
         "authentication"
       ],
-      "healthKey": null,
+      "healthKey": "rbac",
       "note": null
     },
     {
@@ -487,7 +487,7 @@
       "dependencies": [
         "api-gateway"
       ],
-      "healthKey": null,
+      "healthKey": "rateLimit",
       "note": null
     },
     {
@@ -506,7 +506,7 @@
       "dependencies": [
         "postgres"
       ],
-      "healthKey": null,
+      "healthKey": "auditChain",
       "note": null
     },
     {
@@ -525,7 +525,7 @@
       "dependencies": [
         "platform-core"
       ],
-      "healthKey": null,
+      "healthKey": "httpHardening",
       "note": null
     },
     {
@@ -563,7 +563,7 @@
       "dependencies": [
         "ai-gateway"
       ],
-      "healthKey": null,
+      "healthKey": "anthropic",
       "note": null
     },
     {
@@ -601,7 +601,7 @@
       "dependencies": [
         "object-store"
       ],
-      "healthKey": null,
+      "healthKey": "media",
       "note": null
     },
     {
@@ -639,7 +639,7 @@
       "dependencies": [
         "api-gateway"
       ],
-      "healthKey": null,
+      "healthKey": "sse",
       "note": null
     },
     {
@@ -658,7 +658,7 @@
       "dependencies": [
         "platform-core"
       ],
-      "healthKey": null,
+      "healthKey": "websockets",
       "note": null
     },
     {
@@ -677,7 +677,7 @@
       "dependencies": [
         "postgres"
       ],
-      "healthKey": null,
+      "healthKey": "metrics",
       "note": null
     },
     {
@@ -696,7 +696,7 @@
       "dependencies": [
         "postgres"
       ],
-      "healthKey": null,
+      "healthKey": "monitoring",
       "note": null
     },
     {
@@ -715,7 +715,7 @@
       "dependencies": [
         "platform-core"
       ],
-      "healthKey": null,
+      "healthKey": "logging",
       "note": null
     },
     {
@@ -791,7 +791,7 @@
       "dependencies": [
         "platform-core"
       ],
-      "healthKey": null,
+      "healthKey": "redis",
       "note": null
     },
     {
@@ -810,7 +810,7 @@
       "dependencies": [
         "platform-core"
       ],
-      "healthKey": null,
+      "healthKey": "database",
       "note": null
     },
     {
@@ -867,7 +867,7 @@
       "dependencies": [
         "web-app"
       ],
-      "healthKey": null,
+      "healthKey": "i18n",
       "note": "31 platform locales."
     },
     {
@@ -882,7 +882,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 142 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 143 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -942,7 +942,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "532 TypeScript modules under src/."
+      "note": "534 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1422,8 +1422,8 @@
     "serviceModules": 101,
     "middleware": 21,
     "fabricModules": 51,
-    "totalTypeScript": 532,
-    "testSuites": 142,
+    "totalTypeScript": 534,
+    "testSuites": 143,
     "migrations": 40,
     "prismaModels": 340,
     "prismaEnums": 209

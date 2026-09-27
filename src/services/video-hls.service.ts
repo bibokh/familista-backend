@@ -15,6 +15,7 @@
 //   VIDEO_S3_REGION, VIDEO_S3_ENDPOINT, VIDEO_S3_ACCESS_KEY_ID,
 //   VIDEO_S3_SECRET_ACCESS_KEY, VIDEO_BUCKET, VIDEO_TEMP_DIR
 
+import { countOutcome } from '../infra/outcome-meter';
 import fs            from 'fs';
 import os            from 'os';
 import path          from 'path';
@@ -73,6 +74,15 @@ const TEMP_DIR = () => process.env.VIDEO_TEMP_DIR  ?? os.tmpdir();
  * Returns HLS + thumbnail storage keys and video metadata.
  */
 export async function transcodeToHls(
+  rawStorageKey: string,
+  assetId:       string,
+  clubId:        string,
+): Promise<HlsResult> {
+  // Counted for the Media Pipeline building: one transcode job, one outcome.
+  return countOutcome('media', transcodeToHlsUncounted(rawStorageKey, assetId, clubId));
+}
+
+async function transcodeToHlsUncounted(
   rawStorageKey: string,
   assetId:       string,
   clubId:        string,

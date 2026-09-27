@@ -27,6 +27,7 @@
 // user did successfully. Failures are returned in the result and logged. A
 // producer that genuinely cannot proceed without the event checks `.stored`.
 
+import { recordOutcome } from '../infra/outcome-meter';
 import { logger } from '../utils/logger';
 import { makeEvent, type EventInput, type FamilistaEvent } from './event-envelope';
 
@@ -194,6 +195,8 @@ export async function emit<P>(input: EventInput<P>): Promise<EmitResult> {
   } catch {
     // Observability about observability never fails an append.
   }
+  // The Durable Outbox building reads this: did the append reach the store?
+  recordOutcome('outbox', outcome !== 'FAILED');
 
   // ── history ────────────────────────────────────────────────────────────────
   //

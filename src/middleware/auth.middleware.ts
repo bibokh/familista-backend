@@ -1,3 +1,4 @@
+import { recordOutcome } from '../infra/outcome-meter';
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { UserRole } from '@prisma/client';
@@ -214,8 +215,13 @@ export async function authenticate(
     // control.
     await assertActingClubOperable(req);
 
+    recordOutcome('auth', true);
     next();
   } catch (err) {
+    // A refused credential is the middleware working. Only a server-side
+    // failure — the identity lookup throwing, say — counts against it.
+    const status = (err as { statusCode?: number })?.statusCode;
+    if (!(typeof status === 'number' && status < 500)) recordOutcome('auth', false);
     next(err);
   }
 }

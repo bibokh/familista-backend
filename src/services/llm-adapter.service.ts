@@ -8,6 +8,7 @@
 // SAFELY when keys are missing — never crash the boot path. Every agent
 // kind lives in the worker (Phase C), not here.
 
+import { recordOutcome } from '../infra/outcome-meter';
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config';
 import { logger } from '../utils/logger';
@@ -105,6 +106,7 @@ export async function llmCall(req: LLMRequest): Promise<LLMResponse> {
       system:     req.system,
       messages: [{ role: 'user', content: req.prompt }],
     });
+    recordOutcome('anthropic', true);
 
     const tokensIn  = result.usage?.input_tokens  ?? Math.ceil(req.prompt.length / 4);
     const tokensOut = result.usage?.output_tokens ?? 0;
@@ -128,6 +130,7 @@ export async function llmCall(req: LLMRequest): Promise<LLMResponse> {
       finishedAt: new Date(),
     };
   } catch (err) {
+    recordOutcome('anthropic', false);
     // The record of a failed invocation is made here, where the call happened,
     // and carries a CATEGORY rather than the provider's message — which
     // routinely quotes the request that caused it, and the request is the
