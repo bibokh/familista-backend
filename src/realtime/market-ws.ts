@@ -17,6 +17,7 @@
 // and its subscriptions go with it — so a private event for the club just
 // left has nowhere to arrive.
 
+import { registerWebSocketServer } from '../infra/ws-registry';
 import http from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
 import jwt from 'jsonwebtoken';
@@ -72,6 +73,7 @@ export function mountMarketWebSocket(httpServer: http.Server): WebSocketServer {
     }
   });
 
+  registerWebSocketServer('market', wss);
   return wss;
 }
 

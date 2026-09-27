@@ -444,6 +444,7 @@ if (exists('public/index.html')) {
     category: 'frontend', type: 'SPA',
     repositoryPath: 'public/index.html',
     sourceEvidence: 'public/index.html, public/app.js',
+    healthKey: 'webApp',
     dependencies: ['api-gateway'],
     note: 'The signed-in workspace, served from public/.',
   });
@@ -454,6 +455,7 @@ if (exists('public/system/system.js')) {
     category: 'frontend', type: 'MODULE',
     repositoryPath: 'public/system/system.js',
     sourceEvidence: 'public/system/system.js',
+    healthKey: 'systemModule',
     dependencies: ['web-app'],
   });
 }
@@ -463,6 +465,7 @@ if (exists('public/data-vault/data-vault.js')) {
     category: 'frontend', type: 'MODULE',
     repositoryPath: 'public/data-vault/data-vault.js',
     sourceEvidence: 'public/data-vault/data-vault.js',
+    healthKey: 'dataVaultModule',
     dependencies: ['web-app', 'history-api'],
   });
 }
@@ -472,6 +475,7 @@ if (exists('client/package.json')) {
     category: 'frontend', type: 'SPA',
     repositoryPath: 'client/',
     sourceEvidence: 'client/package.json, src/app.ts (/app mount)',
+    healthKey: 'reactClient',
     dependencies: ['api-gateway'],
   });
 }
@@ -490,6 +494,7 @@ if (mounts.length) {
     category: 'service', type: 'SERVICE_LAYER',
     repositoryPath: 'src/services/',
     sourceEvidence: `src/services/ — ${surface.serviceModules} modules`,
+    healthKey: 'services',
     dependencies: ['api-gateway', 'prisma-orm'],
   });
 }
@@ -510,6 +515,7 @@ if (dbProvider) {
     version: lockedVersion('@prisma/client') || lockedVersion('prisma'),
     repositoryPath: 'prisma/schema.prisma',
     sourceEvidence: 'package.json — @prisma/client',
+    healthKey: 'database',
     dependencies: ['postgres'],
   });
   relate('backend-services', 'prisma-orm', 'USES', 'src/services/ imports prisma');
@@ -532,6 +538,7 @@ if (exists('src/fabric/outbox-transport.ts')) {
     category: 'platform', type: 'TRANSPORT',
     repositoryPath: 'src/fabric/outbox-transport.ts',
     sourceEvidence: 'src/fabric/outbox-transport.ts',
+    healthKey: 'outbox',
     dependencies: ['data-fabric', 'postgres'],
   });
   relate('data-fabric', 'durable-outbox', 'WRITES_TO', 'src/fabric/event-bus.ts emit()');
@@ -553,6 +560,7 @@ if (exists('src/fabric/history/history-query.service.ts')) {
     category: 'api', type: 'API',
     repositoryPath: 'src/routes/fabric.routes.ts',
     sourceEvidence: 'src/routes/fabric.routes.ts — /system/fabric/history*',
+    healthKey: 'historyQuery',
     dependencies: ['historical-store'],
   });
 }
@@ -575,6 +583,7 @@ if (exists('src/middleware/auth.middleware.ts')) {
     category: 'security', type: 'MIDDLEWARE',
     repositoryPath: 'src/middleware/auth.middleware.ts',
     sourceEvidence: 'src/middleware/auth.middleware.ts, package.json — jsonwebtoken',
+    healthKey: 'auth',
     dependencies: ['api-gateway'],
   });
 }
@@ -586,6 +595,7 @@ if (rbacFiles.length) {
     category: 'security', type: 'MIDDLEWARE',
     repositoryPath: 'src/middleware/',
     sourceEvidence: `src/middleware/ — ${rbacFiles.join(', ')}`,
+    healthKey: 'rbac',
     dependencies: ['authentication'],
   });
 }
@@ -595,6 +605,7 @@ if (exists('src/middleware/rate-limit.middleware.ts')) {
     category: 'security', type: 'MIDDLEWARE',
     repositoryPath: 'src/middleware/rate-limit.middleware.ts',
     sourceEvidence: 'src/middleware/rate-limit.middleware.ts, package.json — express-rate-limit',
+    healthKey: 'rateLimit',
     dependencies: ['api-gateway'],
   });
 }
@@ -604,6 +615,7 @@ if (schema && /model\s+SecurityAuditEvent\s*\{/.test(schema)) {
     category: 'security', type: 'STORE',
     repositoryPath: 'prisma/schema.prisma',
     sourceEvidence: 'prisma/schema.prisma — SecurityAuditEvent, SecurityChainHead',
+    healthKey: 'auditChain',
     dependencies: ['postgres'],
   });
 }
@@ -614,6 +626,7 @@ if (deps.helmet) {
     version: lockedVersion('helmet'),
     repositoryPath: 'src/app.ts',
     sourceEvidence: 'src/app.ts — helmet(), cors()',
+    healthKey: 'httpHardening',
     dependencies: ['platform-core'],
   });
 }
@@ -634,6 +647,7 @@ if (deps['@anthropic-ai/sdk']) {
     provider: 'Anthropic',
     repositoryPath: 'src/services/ai-llm.adapter.ts',
     sourceEvidence: 'package.json — @anthropic-ai/sdk; src/services/ai-llm.adapter.ts',
+    healthKey: 'anthropic',
     dependencies: ['ai-gateway'],
   });
   relate('ai-gateway', 'anthropic', 'CALLS', 'src/services/ai-llm.adapter.ts');
@@ -657,6 +671,7 @@ if (deps['fluent-ffmpeg']) {
     version: lockedVersion('fluent-ffmpeg'),
     repositoryPath: 'src/services/video-hls.service.ts',
     sourceEvidence: 'package.json — fluent-ffmpeg; src/services/video-hls.service.ts',
+    healthKey: 'media',
     dependencies: ['object-store'],
   });
 }
@@ -680,6 +695,7 @@ if (exists('src/routes/data-pulse.routes.ts')) {
     category: 'realtime', type: 'TRANSPORT',
     repositoryPath: 'src/routes/data-pulse.routes.ts',
     sourceEvidence: 'src/routes/data-pulse.routes.ts — text/event-stream',
+    healthKey: 'sse',
     dependencies: ['api-gateway'],
   });
 }
@@ -690,6 +706,7 @@ if (deps.ws && exists('src/realtime/match-ws.ts')) {
     version: lockedVersion('ws'),
     repositoryPath: 'src/realtime/',
     sourceEvidence: 'src/realtime/match-ws.ts, src/realtime/market-ws.ts',
+    healthKey: 'websockets',
     dependencies: ['platform-core'],
   });
 }
@@ -700,6 +717,7 @@ if (exists('src/observability/metrics.service.ts')) {
     category: 'observability', type: 'SERVICE',
     repositoryPath: 'src/observability/metrics.service.ts',
     sourceEvidence: 'src/observability/metrics.service.ts',
+    healthKey: 'metrics',
     dependencies: ['postgres'],
   });
 }
@@ -709,6 +727,7 @@ if (exists('src/monitoring/monitoring.service.ts')) {
     category: 'observability', type: 'SERVICE',
     repositoryPath: 'src/monitoring/monitoring.service.ts',
     sourceEvidence: 'src/monitoring/monitoring.service.ts',
+    healthKey: 'monitoring',
     dependencies: ['postgres'],
   });
 }
@@ -719,6 +738,7 @@ if (deps.winston) {
     version: lockedVersion('winston'),
     repositoryPath: 'src/utils/logger.ts',
     sourceEvidence: 'package.json — winston; src/utils/logger.ts',
+    healthKey: 'logging',
     dependencies: ['platform-core'],
   });
 }
@@ -747,7 +767,11 @@ for (const svc of renderServices) {
     repositoryPath: 'render.yaml',
     sourceEvidence: `render.yaml — ${svc.name} (${svc.type}${svc.plan ? ', ' + svc.plan : ''})`,
     dependencies: ['platform-core'],
-    healthKey: svc.type === 'web' ? 'deployment' : null,
+    // The Render-hosted datastores are the ones this process connects to, so
+    // they report through the same probes the Database and Cache districts use.
+    healthKey: svc.type === 'web' ? 'deployment'
+      : /postgres/i.test(svc.name) ? 'database'
+        : /redis/i.test(svc.name) ? 'redis' : null,
     note: svc.autoDeploy === true ? 'autoDeploy is enabled.' : null,
   });
 }
@@ -783,6 +807,7 @@ if (exists('src/i18n/locales.ts')) {
     category: 'i18n', type: 'SUBSYSTEM',
     repositoryPath: 'src/i18n/locales.ts',
     sourceEvidence: `src/i18n/locales.ts — ${localeCount} locales; public/i18n/`,
+    healthKey: 'i18n',
     dependencies: ['web-app'],
     note: `${localeCount} platform locales.`,
   });

@@ -15,6 +15,7 @@
 //   • Timeout + retry (one retry on transient errors).
 //   • Token-accounting surfaced so AIDecision.llmTokens{In,Out} can be filled.
 
+import { recordOutcome } from '../infra/outcome-meter';
 import type { ScoreFactor, RecommendationAction, Alternative } from '../types/ai-engine.types';
 
 const DEFAULT_MODEL = process.env.AI_LLM_MODEL ?? 'claude-sonnet-4-20250514';
@@ -214,7 +215,9 @@ async function callOnce(req: NarrativeRequest): Promise<NarrativeResult> {
         setTimeout(() => reject(new Error('LLM_TIMEOUT')), DEFAULT_TIMEOUT_MS),
       ),
     ]);
+    recordOutcome('anthropic', true);
   } catch (err) {
+    recordOutcome('anthropic', false);
     return {
       ok: false,
       reason: (err as Error).message,

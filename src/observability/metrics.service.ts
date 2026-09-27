@@ -6,6 +6,7 @@
 // else is bucketed into "custom" with the original name moved to `label`.
 // This prevents adversarial / typo'd metric names from exploding the table.
 
+import { recordOutcome } from '../infra/outcome-meter';
 import { Prisma, MetricKind, SystemMetric, DeviceHealth, RealtimeHealth, AIWorkerHealth, ReplayIntegrityMetric } from '@prisma/client';
 import { prisma } from '../config/database';
 import { logger } from '../utils/logger';
@@ -48,7 +49,7 @@ export function recordMetric(input: RecordMetricInput): void {
       label:    safeLabel ?? null,
       regionId: input.regionId ?? null,
     },
-  }).catch((err) => {
+  }).then(() => recordOutcome('metrics', true), (err) => { recordOutcome('metrics', false); throw err; }).catch((err) => {
     logger.warn('[metrics] write failed', { name: input.name, err: (err as Error).message });
   });
 }
@@ -91,7 +92,7 @@ export function recordDeviceHealth(input: RecordDeviceHealthInput): void {
       signalDbm:    input.signalDbm ?? null,
       notes:        input.notes ?? null,
     },
-  }).catch((err) => logger.warn('[metrics] deviceHealth failed', { deviceId: input.deviceId, err: (err as Error).message }));
+  }).then(() => recordOutcome('metrics', true), (err) => { recordOutcome('metrics', false); throw err; }).catch((err) => logger.warn('[metrics] deviceHealth failed', { deviceId: input.deviceId, err: (err as Error).message }));
 }
 
 export async function listDeviceHealth(deviceId: string, limit = 100): Promise<DeviceHealth[]> {
@@ -113,7 +114,7 @@ export function recordRealtimeHealth(input: { kind: string; activeSubs?: number;
       errors1m:   input.errors1m ?? 0,
       regionId:   input.regionId ?? null,
     },
-  }).catch((err) => logger.warn('[metrics] realtimeHealth failed', { err: (err as Error).message }));
+  }).then(() => recordOutcome('metrics', true), (err) => { recordOutcome('metrics', false); throw err; }).catch((err) => logger.warn('[metrics] realtimeHealth failed', { err: (err as Error).message }));
 }
 
 // ── AI worker health ───────────────────────────────────────────────────
@@ -127,7 +128,7 @@ export function recordAIWorkerHealth(input: { workerId: string; lastTickAt?: Dat
       failuresPerMin: input.failuresPerMin ?? 0,
       regionId:       input.regionId ?? null,
     },
-  }).catch((err) => logger.warn('[metrics] aiWorkerHealth failed', { err: (err as Error).message }));
+  }).then(() => recordOutcome('metrics', true), (err) => { recordOutcome('metrics', false); throw err; }).catch((err) => logger.warn('[metrics] aiWorkerHealth failed', { err: (err as Error).message }));
 }
 
 // ── Replay integrity ───────────────────────────────────────────────────

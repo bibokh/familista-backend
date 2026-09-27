@@ -28,6 +28,7 @@
 //
 // SUPER_ADMIN bypasses both comparisons but is still logged at INFO.
 
+import { recordOutcome } from '../infra/outcome-meter';
 import type { Request, Response, NextFunction } from 'express';
 import { Prisma, UserRole } from '@prisma/client';
 import { prisma } from '../config/database';
@@ -169,10 +170,13 @@ export async function tenantGuard(req: Request, res: Response, next: NextFunctio
         return;
       }
     }
+    recordOutcome('rbac', true);
     next();
   } catch (err) {
     // Never block on guard failure; log and continue. Underlying service
-    // checks remain authoritative.
+    // checks remain authoritative. It is still a guard that could not decide,
+    // and the Authorization & RBAC building counts it.
+    recordOutcome('rbac', false);
     logSecurityEvent({
       kind:    'SUSPICIOUS_PAYLOAD',
       severity:'INFO',

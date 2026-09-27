@@ -28,6 +28,7 @@
 // activity is exactly what would make this screen untrustworthy, and if one is
 // ever wanted it belongs behind a staging-only flag proposed on its own.
 
+import { recordOutcome } from '../infra/outcome-meter';
 import { Router, type Request, type Response } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
 import { assertPlatformOwner } from '../platform/system.service';
@@ -226,7 +227,8 @@ router.get('/stream', async (req: Request, res: Response) => {
       const [domain, telemetry] = await Promise.all([
         tailStep(cursor, TAIL_BATCH),
         telemetryStep(uiCursor, TELEMETRY_BATCH),
-      ]);
+      ]).catch((err) => { recordOutcome('sse', false); throw err; });
+      recordOutcome('sse', true);
       cursor = domain.cursor;
       uiCursor = telemetry.cursor;
 

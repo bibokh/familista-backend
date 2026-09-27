@@ -18,6 +18,7 @@
 //   - Bumps SecurityChainHead.{nextPosition,lastHash} in the SAME
 //     transaction as the SecurityAuditEvent insert.
 
+import { countOutcome } from '../infra/outcome-meter';
 import { createHash } from 'crypto';
 import { Prisma, SecurityAuditEvent } from '@prisma/client';
 import { prisma } from '../config/database';
@@ -111,6 +112,12 @@ export function computeRowHash(args: {
 // ─────────────────────────────────────────────────────────────────────────
 
 export async function appendAuditEvent(a: AppendArgs): Promise<AppendResult> {
+  // Counted for the Security Audit Chain building: an append that failed is an
+  // audit event the chain does not hold.
+  return countOutcome('auditChain', appendAuditEventUncounted(a));
+}
+
+async function appendAuditEventUncounted(a: AppendArgs): Promise<AppendResult> {
   const pH = payloadHash(a.payload);
 
   return prisma.$transaction(async (tx) => {

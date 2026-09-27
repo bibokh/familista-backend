@@ -1,3 +1,4 @@
+import { recordOutcome } from '../infra/outcome-meter';
 import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '../config/database';
 import { config } from '../config';
@@ -118,7 +119,9 @@ export async function analyzeWithAI(req: AnalysisRequest): Promise<{
       system: systemPrompt,
       messages: [{ role: 'user', content: req.prompt }],
     });
+    recordOutcome('anthropic', true);
   } catch (err: unknown) {
+    recordOutcome('anthropic', false);
     if (err instanceof Anthropic.RateLimitError) {
       throw new AppError('AI rate limit reached, please try again shortly', 429);
     }

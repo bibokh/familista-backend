@@ -1,3 +1,4 @@
+import { recordOutcome } from '../infra/outcome-meter';
 import winston from 'winston';
 import { config } from '../config';
 
@@ -32,6 +33,13 @@ export const logger = winston.createLogger({
       : []),
   ],
 });
+
+// The Structured Logging building reads these: every line a transport wrote,
+// and every error a transport raised (a file it could not append to, say).
+for (const transport of logger.transports) {
+  transport.on('logged', () => recordOutcome('logging', true));
+  transport.on('error', () => recordOutcome('logging', false));
+}
 
 // Morgan stream
 export const morganStream = {
