@@ -2498,6 +2498,17 @@ function navTo(page, el, _opts) {
   // Never switch pages out from under an open dialog — but a focused control is
   // not a dialog, so release it and carry on.
   if (isNavBlocked()) return;
+  // A deep link can arrive before this session's capabilities have loaded — a
+  // hard refresh on #squad routes at DOMContentLoaded, before /me/context has
+  // answered. "Not known yet" is not "denied": redirecting here rewrote the
+  // hash, the deep-link repair then read that as the reader moving away, and
+  // the refresh landed on Owner Home. So do nothing yet; `_reapplyDeepLink`
+  // routes here once the context has settled, and the capability check below
+  // still refuses a reader who genuinely lacks it.
+  try {
+    var _gate = CLUB_NAV_ITEMS.filter(function (n) { return n.slug === page; })[0];
+    if (_gate && _gate.requires && !(window.State && State.context && State.context.effectiveAccess)) return;
+  } catch (_) {}
   _navReleaseFocus();
   const _leaving = (document.querySelector('.page.active') || {}).id || '';
   if (_leaving && _leaving !== 'pg-' + page) {
@@ -3104,6 +3115,14 @@ function renderAllPages() {
     }
   }
   container.innerHTML = html;
+  // Every page shell was just rebuilt from its template, so nothing on screen
+  // is drawn any more — including a page mounted lazily before this call, which
+  // the next navTo re-mounts empty. Without forgetting the drawn versions,
+  // `_famRenderPage` would see its marker, skip the renderer, and leave that
+  // page blank for good. That is what a hard refresh on Infrastructure City,
+  // Source Core or the Data Vault did: the deep link drew the room, bootApp
+  // rebuilt the pages, and the room came back as an empty dark shell.
+  _FAM_PAGE_VERSION = {};
   // ↓ Legacy template list — replaced by the loop above. Kept around
   // for a few releases as a fallback if a follower discovers a page
   // that was never in the eager set AND has no lazy entry. Commented
