@@ -1,0 +1,76 @@
+{
+  "$comment": "Familista Cyber Defense — the reviewed security posture. The manifest (generated/security-manifest.json) says what the code IS; this file says what has been REVIEWED and accepted. tests/security-posture.unit.test.ts fails when the two disagree. Changing this file is a security review: say why in the commit.",
+  "schemaVersion": 1,
+  "publicRoutes": {
+    "POST /auth/register": "Account creation; no session can exist yet. Behind the auth rate limiter.",
+    "POST /auth/login": "Credential exchange; no session can exist yet. Behind the auth rate limiter.",
+    "POST /auth/refresh": "Authenticated by the refresh token presented, not by an access token. Behind the auth rate limiter.",
+    "POST /auth/logout": "Revokes the presented refresh token; must work with an expired access token. Behind the auth rate limiter.",
+    "POST /auth/forgot-password": "Starts a reset for a reader who cannot sign in. Behind the auth rate limiter.",
+    "GET /auth/reset-password/:token/validate": "Authenticated by the reset token in the path. Behind the auth rate limiter.",
+    "POST /auth/reset-password": "Authenticated by the reset token in the body. Behind the auth rate limiter.",
+    "GET /billing/plans": "Public price list; returns no account data.",
+    "POST /billing/webhook": "Stripe calls it; authenticated by the Stripe-Signature header (stripe.webhooks.constructEvent) over the raw body.",
+    "GET /invitations/preview": "Shows an invitation before anybody signs in; authenticated by the invitation token.",
+    "POST /invitations/accept-with-account": "Creates the invited account; authenticated by the invitation token.",
+    "POST /devices/auth/token": "Device handshake: device-auth service requires deviceSessionId, ts, nonce and an HMAC signature before issuing a device token.",
+    "POST /device-infra/devices/by-serial/:serial/activate": "First activation of a provisioned device: device-registry verifies an HMAC over ts.nonce with the device credential (timingSafeEqual).",
+    "POST /devices/sessions/:id/packets": "acceptUserOrDevice: requires a user JWT or a device JWT; the scanner does not recognise that guard by name.",
+    "POST /devices/sessions/:id/packets/batch": "acceptUserOrDevice: requires a user JWT or a device JWT; the scanner does not recognise that guard by name.",
+    "POST /devices/:id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/packet": "acceptUserOrDevice: device-keyed alias of the packet ingest; requires a user JWT or a device JWT.",
+    "POST /neuro/streams/:id/event-batch": "Edge camera ingest: HMAC over the batch verified with the camera credential, nonce replay-checked (device-nonce service).",
+    "POST /vision/cameras/:id/frame": "Edge camera ingest: HMAC over ts.nonce.sha256(detections) verified with the camera credential."
+  },
+  "appLevelRoutes": {
+    "GET /api/health": "Liveness probe for the load balancer; returns no data.",
+    "GET /healthz": "Liveness probe for the load balancer; returns no data.",
+    "GET /app/*": "Serves the static single-page shell; data is fetched with a session afterwards.",
+    "GET /invite": "Serves the static invitation page shell.",
+    "GET /invite/*": "Serves the static invitation page shell.",
+    "GET /reset-password": "Serves the static password-reset page shell."
+  },
+  "dormantRouteModules": {
+    "admin-dashboard.routes": "Not mounted. Must not be mounted without a security review.",
+    "admin.routes": "Not mounted. Must not be mounted without a security review.",
+    "ai-engine.routes": "Not mounted. Must not be mounted without a security review.",
+    "executive.routes": "Not mounted. Its executor synthesises a PLATFORM_ADMIN principal with MFA marked verified; must be reviewed before any mount.",
+    "franchise.routes": "Not mounted. Must not be mounted without a security review.",
+    "investor.routes": "Not mounted. Must not be mounted without a security review.",
+    "vision-engine.routes": "Not mounted. Must not be mounted without a security review.",
+    "whitelabel.routes": "Not mounted. Must not be mounted without a security review."
+  },
+  "requiredControls": [
+    "csp-script-self",
+    "csp-no-plugins-no-frames",
+    "cors-allowlist",
+    "auth-rate-limit",
+    "password-hashing-bcrypt",
+    "session-revocation-token-version",
+    "mfa-service",
+    "tenant-guard",
+    "device-ingest-hmac",
+    "stripe-webhook-signature",
+    "versioned-keyring",
+    "audit-hash-chain",
+    "security-event-log",
+    "ai-action-approval-gate",
+    "no-unsafe-raw-sql"
+  ],
+  "knownGaps": {
+    "login-lockout": "PARTIAL — the lockout service exists with no callers.",
+    "cors-rejection-is-403": "ABSENT — a rejected origin surfaces as a 500.",
+    "mfa-required-at-login": "ABSENT — the TOTP service exists and is not enforced.",
+    "refresh-token-hashed-at-rest": "ABSENT — refresh tokens are stored as issued.",
+    "jwt-algorithm-pinned": "ABSENT — jwt.verify is called without an algorithms list.",
+    "jwt-issuer-validated": "ABSENT — no issuer or audience is set or checked.",
+    "websocket-token-outside-url": "ABSENT — the WebSocket token travels in the query string.",
+    "db-row-level-security": "ABSENT — tenancy is enforced in the application only.",
+    "db-audit-append-only": "ABSENT — the audit table can be updated or deleted by the application role."
+  },
+  "ratchets": {
+    "maxNonNpmjsLockfilePackages": 332,
+    "maxSecretNamedInline": 0,
+    "minAuditHashChainSites": 85,
+    "minSecurityEventSites": 19
+  }
+}

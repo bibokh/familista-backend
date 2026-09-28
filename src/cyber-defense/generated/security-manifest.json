@@ -1,0 +1,1151 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-28T08:46:33.197Z",
+  "generator": "scripts/security-discover.js",
+  "platform": {
+    "name": "familista-backend",
+    "version": "1.0.0"
+  },
+  "apiSurface": {
+    "mountedRouters": 50,
+    "handlers": 625,
+    "publicHandlers": 18,
+    "publicRoutes": [
+      {
+        "route": "GET /auth/reset-password/:token/validate",
+        "file": "src/routes/auth.routes.ts",
+        "line": 15
+      },
+      {
+        "route": "GET /billing/plans",
+        "file": "src/routes/billing.routes.ts",
+        "line": 16
+      },
+      {
+        "route": "GET /invitations/preview",
+        "file": "src/routes/invitation.routes.ts",
+        "line": 29
+      },
+      {
+        "route": "POST /auth/forgot-password",
+        "file": "src/routes/auth.routes.ts",
+        "line": 14
+      },
+      {
+        "route": "POST /auth/login",
+        "file": "src/routes/auth.routes.ts",
+        "line": 9
+      },
+      {
+        "route": "POST /auth/logout",
+        "file": "src/routes/auth.routes.ts",
+        "line": 11
+      },
+      {
+        "route": "POST /auth/refresh",
+        "file": "src/routes/auth.routes.ts",
+        "line": 10
+      },
+      {
+        "route": "POST /auth/register",
+        "file": "src/routes/auth.routes.ts",
+        "line": 8
+      },
+      {
+        "route": "POST /auth/reset-password",
+        "file": "src/routes/auth.routes.ts",
+        "line": 16
+      },
+      {
+        "route": "POST /billing/webhook",
+        "file": "src/routes/billing.routes.ts",
+        "line": 9
+      },
+      {
+        "route": "POST /device-infra/devices/by-serial/:serial/activate",
+        "file": "src/routes/device-infra.routes.ts",
+        "line": 13
+      },
+      {
+        "route": "POST /devices/:id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/packet",
+        "file": "src/routes/device-session.routes.ts",
+        "line": 32
+      },
+      {
+        "route": "POST /devices/auth/token",
+        "file": "src/routes/device-session.routes.ts",
+        "line": 19
+      },
+      {
+        "route": "POST /devices/sessions/:id/packets",
+        "file": "src/routes/device-session.routes.ts",
+        "line": 24
+      },
+      {
+        "route": "POST /devices/sessions/:id/packets/batch",
+        "file": "src/routes/device-session.routes.ts",
+        "line": 25
+      },
+      {
+        "route": "POST /invitations/accept-with-account",
+        "file": "src/routes/invitation.routes.ts",
+        "line": 30
+      },
+      {
+        "route": "POST /neuro/streams/:id/event-batch",
+        "file": "src/routes/neuro.routes.ts",
+        "line": 11
+      },
+      {
+        "route": "POST /vision/cameras/:id/frame",
+        "file": "src/routes/vision.routes.ts",
+        "line": 13
+      }
+    ],
+    "appLevelRoutes": [
+      {
+        "route": "GET /api/health",
+        "file": "src/app.ts",
+        "line": 223
+      },
+      {
+        "route": "GET /app/*",
+        "file": "src/app.ts",
+        "line": 288
+      },
+      {
+        "route": "GET /healthz",
+        "file": "src/app.ts",
+        "line": 224
+      },
+      {
+        "route": "GET /invite",
+        "file": "src/app.ts",
+        "line": 278
+      },
+      {
+        "route": "GET /invite/*",
+        "file": "src/app.ts",
+        "line": 278
+      },
+      {
+        "route": "GET /reset-password",
+        "file": "src/app.ts",
+        "line": 268
+      }
+    ],
+    "mounts": [
+      {
+        "path": "/auth",
+        "module": "auth.routes",
+        "handlers": 9,
+        "public": 7,
+        "routerWideAuth": false
+      },
+      {
+        "path": "/players",
+        "module": "player.routes",
+        "handlers": 16,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/matches",
+        "module": "match.routes",
+        "handlers": 38,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/analytics",
+        "module": "analytics.routes",
+        "handlers": 7,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/ai",
+        "module": "ai.routes",
+        "handlers": 3,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/billing",
+        "module": "billing.routes",
+        "handlers": 5,
+        "public": 2,
+        "routerWideAuth": false
+      },
+      {
+        "path": "/training",
+        "module": "training.routes",
+        "handlers": 14,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/teams",
+        "module": "team.routes",
+        "handlers": 7,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/memberships",
+        "module": "membership.routes",
+        "handlers": 8,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/invitations",
+        "module": "invitation.routes",
+        "handlers": 7,
+        "public": 2,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/system",
+        "module": "system.routes",
+        "handlers": 33,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/system/trace",
+        "module": "owner-trace.routes",
+        "handlers": 6,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/system/data-pulse",
+        "module": "data-pulse.routes",
+        "handlers": 5,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/system/fabric",
+        "module": "fabric.routes",
+        "handlers": 10,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/system/infrastructure",
+        "module": "infrastructure.routes",
+        "handlers": 9,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/system/sources",
+        "module": "sources.routes",
+        "handlers": 6,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/telemetry",
+        "module": "telemetry.routes",
+        "handlers": 1,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/me",
+        "module": "context.routes",
+        "handlers": 5,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/devices",
+        "module": "device-session.routes",
+        "handlers": 10,
+        "public": 4,
+        "routerWideAuth": false
+      },
+      {
+        "path": "/automation",
+        "module": "automation.routes",
+        "handlers": 12,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/ai-ops",
+        "module": "ai-ops.routes",
+        "handlers": 15,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/device-infra",
+        "module": "device-infra.routes",
+        "handlers": 12,
+        "public": 1,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/vision",
+        "module": "vision.routes",
+        "handlers": 9,
+        "public": 1,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/familista-vision",
+        "module": "familista-vision.routes",
+        "handlers": 19,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/spatial",
+        "module": "spatial.routes",
+        "handlers": 3,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/predictive",
+        "module": "predictive.routes",
+        "handlers": 2,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/security",
+        "module": "security.routes",
+        "handlers": 9,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/distributed",
+        "module": "distributed.routes",
+        "handlers": 4,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/edge",
+        "module": "edge.routes",
+        "handlers": 7,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/provisioning",
+        "module": "provisioning.routes",
+        "handlers": 12,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/billing-j",
+        "module": "billing-j.routes",
+        "handlers": 9,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/observability",
+        "module": "observability.routes",
+        "handlers": 5,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/neuro",
+        "module": "neuro.routes",
+        "handlers": 23,
+        "public": 1,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/phase-l",
+        "module": "phase-l.routes",
+        "handlers": 26,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/phase-m",
+        "module": "phase-m.routes",
+        "handlers": 39,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/phase-n",
+        "module": "phase-n.routes",
+        "handlers": 29,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/phase-o",
+        "module": "phase-o.routes",
+        "handlers": 27,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/phase-p",
+        "module": "phase-p.routes",
+        "handlers": 13,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/phase-q",
+        "module": "phase-q.routes",
+        "handlers": 11,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/transfer-market",
+        "module": "transfer-market.routes",
+        "handlers": 53,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/staff-market",
+        "module": "staff-market.routes",
+        "handlers": 26,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/coaches",
+        "module": "coaches.routes",
+        "handlers": 13,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/phase-s/intelligence",
+        "module": "intelligence.routes",
+        "handlers": 7,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/scouting",
+        "module": "scouting.routes",
+        "handlers": 11,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/club-admin",
+        "module": "club-admin.routes",
+        "handlers": 3,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/tactical-ai",
+        "module": "tactical-ai.routes",
+        "handlers": 2,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/clubs",
+        "module": "club.routes",
+        "handlers": 4,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/home",
+        "module": "home.routes",
+        "handlers": 1,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/familista-league",
+        "module": "familista-league.routes",
+        "handlers": 13,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/match-center",
+        "module": "match-center.routes",
+        "handlers": 7,
+        "public": 0,
+        "routerWideAuth": true
+      }
+    ],
+    "dormantRouteModules": [
+      "admin-dashboard.routes",
+      "admin.routes",
+      "ai-engine.routes",
+      "executive.routes",
+      "franchise.routes",
+      "investor.routes",
+      "vision-engine.routes",
+      "whitelabel.routes"
+    ]
+  },
+  "controls": [
+    {
+      "id": "csp-script-self",
+      "status": "PRESENT",
+      "evidence": "src/app.ts",
+      "note": "Content-Security-Policy script-src is the site's own origin only."
+    },
+    {
+      "id": "csp-no-plugins-no-frames",
+      "status": "PRESENT",
+      "evidence": "src/app.ts"
+    },
+    {
+      "id": "cors-allowlist",
+      "status": "PRESENT",
+      "evidence": "src/app.ts"
+    },
+    {
+      "id": "cors-rejection-is-403",
+      "status": "ABSENT",
+      "evidence": "src/app.ts",
+      "note": "A rejected origin currently surfaces as an unhandled 500."
+    },
+    {
+      "id": "auth-rate-limit",
+      "status": "PRESENT",
+      "evidence": "src/routes/index.ts"
+    },
+    {
+      "id": "password-hashing-bcrypt",
+      "status": "PRESENT",
+      "evidence": "src/utils/password.ts"
+    },
+    {
+      "id": "session-revocation-token-version",
+      "status": "PRESENT",
+      "evidence": "src/middleware/auth.middleware.ts"
+    },
+    {
+      "id": "mfa-service",
+      "status": "PRESENT",
+      "evidence": "src/auth-prod/mfa.service.ts"
+    },
+    {
+      "id": "mfa-required-at-login",
+      "status": "ABSENT",
+      "evidence": "src/services/auth.service.ts",
+      "note": "loginUser() issues tokens without asking for a second factor."
+    },
+    {
+      "id": "login-lockout",
+      "status": "PARTIAL",
+      "evidence": "src/security/login-attempt.service.ts",
+      "note": "0 caller(s) outside the lockout service."
+    },
+    {
+      "id": "refresh-token-hashed-at-rest",
+      "status": "ABSENT",
+      "evidence": "src/services/auth.service.ts",
+      "note": "Refresh tokens are looked up by their literal value."
+    },
+    {
+      "id": "jwt-algorithm-pinned",
+      "status": "ABSENT",
+      "evidence": "src/middleware/auth.middleware.ts"
+    },
+    {
+      "id": "jwt-issuer-validated",
+      "status": "ABSENT",
+      "evidence": "src/middleware/auth.middleware.ts"
+    },
+    {
+      "id": "websocket-token-outside-url",
+      "status": "ABSENT",
+      "evidence": "src/realtime/match-ws.ts"
+    },
+    {
+      "id": "tenant-guard",
+      "status": "PRESENT",
+      "evidence": "src/middleware/tenant-guard.middleware.ts"
+    },
+    {
+      "id": "device-ingest-hmac",
+      "status": "PRESENT",
+      "evidence": "src/services/device-auth.service.ts"
+    },
+    {
+      "id": "stripe-webhook-signature",
+      "status": "PRESENT",
+      "evidence": "src/services/stripe.service.ts"
+    },
+    {
+      "id": "versioned-keyring",
+      "status": "PRESENT",
+      "evidence": "src/fabric/secrets/keyring.ts"
+    },
+    {
+      "id": "audit-hash-chain",
+      "status": "PRESENT",
+      "evidence": "src/security/audit-chain.service.ts",
+      "note": "85 call site(s) append to the chain."
+    },
+    {
+      "id": "security-event-log",
+      "status": "PRESENT",
+      "evidence": "src/security/security-event.service.ts",
+      "note": "19 call site(s) record security events."
+    },
+    {
+      "id": "ai-action-approval-gate",
+      "status": "PRESENT",
+      "evidence": "src/security/ai-approval.service.ts"
+    },
+    {
+      "id": "no-unsafe-raw-sql",
+      "status": "PRESENT",
+      "evidence": "src/",
+      "note": "0 unsafe raw query call(s)."
+    },
+    {
+      "id": "db-row-level-security",
+      "status": "ABSENT",
+      "evidence": "prisma/migrations"
+    },
+    {
+      "id": "db-audit-append-only",
+      "status": "ABSENT",
+      "evidence": "prisma/migrations"
+    }
+  ],
+  "secrets": {
+    "declared": 57,
+    "secretNamed": 18,
+    "secretNamedInline": [],
+    "envVars": [
+      {
+        "name": "AI_LLM_MAX_TOKENS",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "AI_LLM_MODEL",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "AI_LLM_TIMEOUT_MS",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "ANTHROPIC_API_KEY",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "API_VERSION",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "APP_URL",
+        "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "DATABASE_URL",
+        "supply": "linked",
+        "secretNamed": true
+      },
+      {
+        "name": "DB_CONNECTION_LIMIT",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "EMAIL_FROM",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "EMAIL_FROM_NAME",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "FAMILISTA_ACTIVE_KEK",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "FAMILISTA_RETIRED_KEKS",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "FAMILISTA_SECRET_KEK",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "JWT_ACCESS_SECRET",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "JWT_ACCESS_TTL",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "JWT_ISSUER",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "JWT_REFRESH_SECRET",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "JWT_REFRESH_TTL",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "MFA_ENCRYPTION_KEY",
+        "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "NODE_ENV",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "PORT",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "PUBLIC_APP_URL",
+        "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "RATE_LIMIT_MAX",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "RATE_LIMIT_WINDOW_MS",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "REDIS_URL",
+        "supply": "linked",
+        "secretNamed": true
+      },
+      {
+        "name": "SENDGRID_API_KEY",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "SMTP_HOST",
+        "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "SMTP_PASS",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "SMTP_PORT",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "SMTP_USER",
+        "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "STRIPE_SECRET_KEY",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "STRIPE_WEBHOOK_SECRET",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "UV_THREADPOOL_SIZE",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "VISION_CLIP_BACKEND",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "VISION_CLIP_WEBHOOK_TOKEN",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "VISION_CLIP_WORKER_CALLBACK_URL",
+        "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "VISION_CLIP_WORKER_TOKEN",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "VISION_CLIP_WORKER_URL",
+        "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "VISION_FUSION_DISTANCE_WEIGHT",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "VISION_FUSION_TOPSPEED_WEIGHT",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "VISION_INFERENCE_BACKEND",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "VISION_WEBHOOK_TOKEN",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "VISION_WORKER_CALLBACK_URL",
+        "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "VISION_WORKER_TOKEN",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "VISION_WORKER_URL",
+        "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "WEB_CONCURRENCY",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "WL_ASSETS_BACKEND",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "WL_ASSETS_DIR",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "WL_ASSETS_PUBLIC_BASE_URL",
+        "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "WL_ASSETS_PUBLIC_PREFIX",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "WL_ASSETS_S3_ACCESS_KEY_ID",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "WL_ASSETS_S3_BUCKET",
+        "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "WL_ASSETS_S3_ENDPOINT",
+        "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "WL_ASSETS_S3_FORCE_PATH_STYLE",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "WL_ASSETS_S3_REGION",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "WL_ASSETS_S3_SECRET_ACCESS_KEY",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "WL_PAYOUT_BACKEND",
+        "supply": "inline",
+        "secretNamed": false
+      }
+    ]
+  },
+  "datastores": [
+    {
+      "kind": "redis",
+      "name": "familista-redis",
+      "privateNetworkOnly": true
+    },
+    {
+      "kind": "postgres",
+      "name": "familista-postgres",
+      "privateNetworkOnly": true
+    }
+  ],
+  "crypto": [
+    {
+      "primitive": "cipher",
+      "algorithm": "aes-256-gcm",
+      "files": [
+        "src/auth-prod/mfa.service.ts",
+        "src/fabric/secrets/secret-store.ts"
+      ]
+    },
+    {
+      "primitive": "constant-time-compare",
+      "algorithm": "timingSafeEqual",
+      "files": [
+        "src/auth-prod/mfa.service.ts",
+        "src/fabric/secrets/secret-store.ts",
+        "src/identity/invitation.service.ts",
+        "src/middleware/vision-access.middleware.ts",
+        "src/security-l/attestation.service.ts",
+        "src/security-n/signed-recommendations.service.ts",
+        "src/security/envelope-sign.ts",
+        "src/services/device-auth.service.ts",
+        "src/services/device-registry.service.ts",
+        "src/vision/camera-registry.service.ts"
+      ]
+    },
+    {
+      "primitive": "hash",
+      "algorithm": "sha256",
+      "files": [
+        "src/auth-prod/mfa.service.ts",
+        "src/auth-prod/session.service.ts",
+        "src/big-data/event-source.ts",
+        "src/coaching/coach-agent.service.ts",
+        "src/executive/executive.service.ts",
+        "src/fabric/event-envelope.ts",
+        "src/fabric/media/object-store.ts",
+        "src/fabric/secrets/keyring.ts",
+        "src/federated/federated.service.ts",
+        "src/governance/governance.service.ts",
+        "src/identity/invitation.service.ts",
+        "src/identity/universal-identity.service.ts",
+        "src/knowledge-graph/knowledge-graph.service.ts",
+        "src/knowledge-graph/reasoning.service.ts",
+        "src/lib/storage/storage-local.adapter.ts",
+        "src/lib/storage/storage-s3.adapter.ts",
+        "src/notifications/notifications.service.ts",
+        "src/platform/email/service.ts",
+        "src/platform/innovation/flags.ts",
+        "src/player-lifecycle/player-lifecycle.service.ts",
+        "src/security-n/signed-recommendations.service.ts",
+        "src/security/audit-chain.service.ts",
+        "src/security/login-attempt.service.ts",
+        "src/services/admin-asset.service.ts",
+        "src/services/admin-impersonation.service.ts",
+        "src/services/ai-agent-decision.service.ts",
+        "src/services/ai-orchestrator.service.ts",
+        "src/services/password-reset.service.ts",
+        "src/vision-platform/session-normaliser.ts",
+        "src/vision/biomechanical-ingest.service.ts",
+        "src/vision/event-stream.service.ts",
+        "src/vision/vision-ingest.service.ts"
+      ]
+    },
+    {
+      "primitive": "hmac",
+      "algorithm": "sha1",
+      "files": [
+        "src/auth-prod/mfa.service.ts"
+      ]
+    },
+    {
+      "primitive": "hmac",
+      "algorithm": "sha256",
+      "files": [
+        "src/knowledge-graph/reasoning.service.ts",
+        "src/security-l/attestation.service.ts",
+        "src/security-n/signed-recommendations.service.ts",
+        "src/security/envelope-sign.ts",
+        "src/services/device-auth.service.ts",
+        "src/services/device-registry.service.ts",
+        "src/vision/camera-registry.service.ts",
+        "src/workers/notification-dispatch.worker.ts"
+      ]
+    },
+    {
+      "primitive": "jwt-sign",
+      "algorithm": "explicit",
+      "files": [
+        "src/services/device-auth.service.ts"
+      ]
+    },
+    {
+      "primitive": "jwt-sign",
+      "algorithm": "library-default-hs256",
+      "files": [
+        "src/services/auth.service.ts"
+      ]
+    },
+    {
+      "primitive": "jwt-verify",
+      "algorithm": "not-pinned",
+      "files": [
+        "src/middleware/auth.middleware.ts",
+        "src/middleware/device-auth.middleware.ts",
+        "src/middleware/rate-limit.middleware.ts",
+        "src/realtime/market-ws.ts",
+        "src/realtime/match-sse.ts",
+        "src/realtime/match-ws.ts",
+        "src/services/auth.service.ts",
+        "src/services/device-auth.service.ts"
+      ]
+    },
+    {
+      "primitive": "password-hash",
+      "algorithm": "bcrypt",
+      "files": [
+        "src/utils/password.ts"
+      ]
+    }
+  ],
+  "supplyChain": {
+    "lockfilePackages": 579,
+    "lockfileIntegrity": 579,
+    "registries": {
+      "registry.npmjs.org": 247,
+      "registry.npmmirror.com": 332
+    },
+    "auditInCi": true,
+    "auditBlocksCi": false,
+    "actions": 2,
+    "actionsPinnedBySha": 0,
+    "ciPermissionsDeclared": false,
+    "dependencyUpdates": false,
+    "codeowners": false,
+    "securityPolicy": false
+  },
+  "evidence": {
+    "filesRead": [
+      ".github/workflows/ci.yml",
+      ".github/workflows/deploy.yml",
+      "package-lock.json",
+      "prisma/migrations",
+      "render.yaml",
+      "src/app.ts",
+      "src/auth-prod/mfa.service.ts",
+      "src/fabric/secrets/keyring.ts",
+      "src/middleware/auth.middleware.ts",
+      "src/middleware/tenant-guard.middleware.ts",
+      "src/realtime/market-ws.ts",
+      "src/realtime/match-ws.ts",
+      "src/routes/ai-ops.routes.ts",
+      "src/routes/ai.routes.ts",
+      "src/routes/analytics.routes.ts",
+      "src/routes/auth.routes.ts",
+      "src/routes/automation.routes.ts",
+      "src/routes/billing-j.routes.ts",
+      "src/routes/billing.routes.ts",
+      "src/routes/club-admin.routes.ts",
+      "src/routes/club.routes.ts",
+      "src/routes/coaches.routes.ts",
+      "src/routes/context.routes.ts",
+      "src/routes/data-pulse.routes.ts",
+      "src/routes/device-infra.routes.ts",
+      "src/routes/device-session.routes.ts",
+      "src/routes/distributed.routes.ts",
+      "src/routes/edge.routes.ts",
+      "src/routes/fabric.routes.ts",
+      "src/routes/familista-league.routes.ts",
+      "src/routes/familista-vision.routes.ts",
+      "src/routes/home.routes.ts",
+      "src/routes/index.ts",
+      "src/routes/infrastructure.routes.ts",
+      "src/routes/intelligence.routes.ts",
+      "src/routes/invitation.routes.ts",
+      "src/routes/match-center.routes.ts",
+      "src/routes/match.routes.ts",
+      "src/routes/membership.routes.ts",
+      "src/routes/neuro.routes.ts",
+      "src/routes/observability.routes.ts",
+      "src/routes/owner-trace.routes.ts",
+      "src/routes/phase-l.routes.ts",
+      "src/routes/phase-m.routes.ts",
+      "src/routes/phase-n.routes.ts",
+      "src/routes/phase-o.routes.ts",
+      "src/routes/phase-p.routes.ts",
+      "src/routes/phase-q.routes.ts",
+      "src/routes/player.routes.ts",
+      "src/routes/predictive.routes.ts",
+      "src/routes/provisioning.routes.ts",
+      "src/routes/scouting.routes.ts",
+      "src/routes/security.routes.ts",
+      "src/routes/sources.routes.ts",
+      "src/routes/spatial.routes.ts",
+      "src/routes/staff-market.routes.ts",
+      "src/routes/system.routes.ts",
+      "src/routes/tactical-ai.routes.ts",
+      "src/routes/team.routes.ts",
+      "src/routes/telemetry.routes.ts",
+      "src/routes/training.routes.ts",
+      "src/routes/transfer-market.routes.ts",
+      "src/routes/vision.routes.ts",
+      "src/security/ai-approval.service.ts",
+      "src/security/audit-chain.service.ts",
+      "src/security/login-attempt.service.ts",
+      "src/security/security-event.service.ts",
+      "src/services/auth.service.ts",
+      "src/services/device-auth.service.ts",
+      "src/services/stripe.service.ts",
+      "src/utils/password.ts"
+    ]
+  },
+  "counts": {
+    "controlsPresent": 15,
+    "controlsPartial": 1,
+    "controlsAbsent": 8,
+    "cryptoUses": 9
+  }
+}

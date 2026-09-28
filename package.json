@@ -34,6 +34,8 @@
     "i18n:check": "node scripts/i18n-check.js",
     "infra:discover": "node scripts/infrastructure-discover.js",
     "infra:check": "node scripts/infrastructure-discover.js --check",
+    "security:discover": "node scripts/security-discover.js",
+    "security:check": "node scripts/security-discover.js --check",
     "i18n:sync": "node scripts/i18n-sync.js",
     "i18n:audit": "node scripts/i18n-audit.js",
     "test": "jest",
