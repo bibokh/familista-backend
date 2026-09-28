@@ -43,6 +43,7 @@
     "csp-script-self",
     "csp-no-plugins-no-frames",
     "cors-allowlist",
+    "cors-rejection-is-403",
     "auth-rate-limit",
     "password-hashing-bcrypt",
     "session-revocation-token-version",
@@ -58,7 +59,6 @@
   ],
   "knownGaps": {
     "login-lockout": "PARTIAL — the lockout service exists with no callers.",
-    "cors-rejection-is-403": "ABSENT — a rejected origin surfaces as a 500.",
     "mfa-required-at-login": "ABSENT — the TOTP service exists and is not enforced.",
     "refresh-token-hashed-at-rest": "ABSENT — refresh tokens are stored as issued.",
     "jwt-algorithm-pinned": "ABSENT — jwt.verify is called without an algorithms list.",

@@ -223,8 +223,9 @@ const controls = [
     /objectSrc:\s*\[\s*"'none'"\s*\]/.test(appSrc) && /frameSrc:\s*\[\s*"'none'"\s*\]/.test(appSrc) ? 'PRESENT' : 'ABSENT', APP),
   control('cors-allowlist', /corsAllowlist/.test(appSrc) ? 'PRESENT' : 'ABSENT', APP),
   control('cors-rejection-is-403',
-    /new Error\(`CORS: origin/.test(appSrc) ? 'ABSENT' : 'PRESENT', APP,
-    'A rejected origin currently surfaces as an unhandled 500.'),
+    /callback\(new OriginNotAllowedError\(\)\)/.test(appSrc) && !/new Error\(`CORS: origin/.test(appSrc)
+      ? 'PRESENT' : 'ABSENT', APP,
+    'A refused origin is an OriginNotAllowedError: 403, never counted as a server error.'),
   control('auth-rate-limit', /router\.use\('\/auth',\s*rateLimitAuth/.test(indexSrc) ? 'PRESENT' : 'ABSENT', INDEX),
   control('password-hashing-bcrypt', has('src/utils/password.ts', /BCRYPT_ROUNDS/) ? 'PRESENT' : 'ABSENT', 'src/utils/password.ts'),
   control('session-revocation-token-version', /tokenVersion/.test(authMwSrc) ? 'PRESENT' : 'ABSENT', AUTH_MW),

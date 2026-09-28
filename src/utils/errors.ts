@@ -29,6 +29,19 @@ export class ForbiddenError extends AppError {
   }
 }
 
+/**
+ * A browser request from an origin outside the CORS allowlist.
+ *
+ * A refusal, not a fault: answered 403 and never counted as a server error.
+ * The message does not name the origin — the caller already knows it, and an
+ * attacker-chosen string has no business in a response body.
+ */
+export class OriginNotAllowedError extends ForbiddenError {
+  constructor() {
+    super('Origin not allowed');
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(resource = 'Resource') {
     super(`${resource} not found`, 404);
