@@ -208,6 +208,8 @@ export {
   publishMembershipGranted, publishMembershipRevoked, publishAccessRoleChanged, publishMembershipChanged, publishMembershipSuspended, publishMembershipReactivated, publishUserContextSwitched,
 } from './producers/users.producer';
 
+export { registerSecurityProducer, SECURITY_EVENTS_SOURCE_ID } from './producers/security.producer';
+
 export {
   publishFabricEvent, publishFabricEventDetached, FabricPublishError,
   type PublishOptions, type PublishResult,

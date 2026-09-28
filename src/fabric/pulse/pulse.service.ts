@@ -183,6 +183,9 @@ const SAFE_SUBJECT_IDS = new Set([
 const DESTINATION_LANE: Record<string, string> = {
   club: 'Audit', membership: 'Audit', access: 'Audit', user: 'Audit', secret: 'Audit',
   device: 'Audit', camera: 'Audit', system: 'Audit',
+  // Cyber Defense's `security.*` signals. Withheld from the live stream, so
+  // this names where they belong rather than anything the board draws.
+  security: 'Audit',
   player: 'Operational Data', training: 'Operational Data', attendance: 'Operational Data',
   match: 'Operational Data', transfer: 'Operational Data',
   // `medical` and `injury` are one source and belong in one lane; `coach` and

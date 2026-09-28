@@ -1051,9 +1051,11 @@ describe('the rest of the fabric is unchanged', () => {
     const all = fabricEvents().filter((e) => !e.type.startsWith('futurething'));
     const sources = fabricSources().filter((s) => s.id !== 'future-domain');
     expect(sources).toHaveLength(11);
-    expect(all).toHaveLength(177);
+    // 177 + the twelve `security.*` names Cyber Defense declares (Step 2), all
+    // produced:false — so the produced count does not move.
+    expect(all).toHaveLength(189);
     expect(all.filter((e) => e.produced)).toHaveLength(131);
-    expect(all.filter((e) => !e.produced)).toHaveLength(46);
+    expect(all.filter((e) => !e.produced)).toHaveLength(58);
   });
 
   it('a produced:false contract did not become historical by being registered', async () => {

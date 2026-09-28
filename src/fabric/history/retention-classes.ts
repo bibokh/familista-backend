@@ -30,7 +30,7 @@ export const RETENTION_CLASSES = [
   'OPERATIONAL',
   /** The record IS the point: tenancy, access, membership, club lifecycle. */
   'AUDIT',
-  /** Credential and key handling. Kept apart so a security review can find it. */
+  /** Credential and key handling, and security signals. Kept apart so a security review can find it. */
   'SECURITY',
   /** Assigned by governance, never derived. Nothing here produces it. */
   'COMPLIANCE',
@@ -42,8 +42,11 @@ export const RETENTION_CLASSES = [
 
 export type RetentionClass = (typeof RETENTION_CLASSES)[number];
 
-/** Domains whose events are credential or key handling. */
-const SECURITY_DOMAINS = new Set(['secret']);
+/**
+ * Domains whose events are credential or key handling, or security signals
+ * (`security.*`, Cyber Defense Security Event Schema v1).
+ */
+const SECURITY_DOMAINS = new Set(['secret', 'security']);
 
 /** Domains whose value is aggregate rather than individual. */
 const ANALYTICS_DOMAINS = new Set(['ai', 'model', 'telemetry', 'agent']);
