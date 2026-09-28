@@ -4865,6 +4865,14 @@ model MFASetting {
   backupCodesHash Json?
   enabledAt       DateTime?
   lastVerifiedAt  DateTime?
+  /// Wrong codes in the current window (Cyber Defense, Step 6). Stored here,
+  /// not in process memory, so a restart or a spin-down cannot reset the limit.
+  codeFailures    Int       @default(0)
+  /// When the current wrong-code window began. Null until the first failure.
+  codeWindowStart DateTime?
+  /// The 30-second TOTP step of the last accepted app code. A code is accepted
+  /// only for a strictly later step, so no code is ever accepted twice.
+  lastTotpStep    Int?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }

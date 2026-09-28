@@ -89,6 +89,24 @@ export function verifyTOTP(base32Secret: string, code: string, atSeconds = Math.
   return false;
 }
 
+/**
+ * The 30-second step a code belongs to, within ±1 step, or null.
+ *
+ * `verifyTOTP` answers "is this code valid right now"; this answers "which
+ * step's code is it", which is what makes a code single-use: the step is
+ * recorded when the code is accepted, and only a strictly later step is ever
+ * accepted again.
+ */
+export function matchTOTPStep(base32Secret: string, code: string, atSeconds = Math.floor(Date.now() / 1000), step = STEP_SECONDS, digits = CODE_DIGITS): number | null {
+  if (!code || !base32Secret) return null;
+  const secret = base32Decode(base32Secret);
+  for (const offset of [-1, 0, 1]) {
+    const at = atSeconds + offset * step;
+    if (constantTimeEq(totpFor(secret, at, step, digits), code)) return Math.floor(at / step);
+  }
+  return null;
+}
+
 function constantTimeEq(a: string, b: string): boolean {
   const ba = Buffer.from(a), bb = Buffer.from(b);
   if (ba.length !== bb.length) return false;
@@ -134,36 +152,57 @@ function deriveAesKey(): Buffer {
 // Code-guessing limit. A 6-digit code is one in a million; unlimited tries make
 // it a matter of time. After MAX_CODE_FAILURES wrong codes for one user within
 // CODE_FAILURE_WINDOW_MS every code check for that user answers 429 until the
-// window has passed. In process memory, per user, bounded.
+// window has passed.
+//
+// PERSISTENT. The count lives on the user's MFASetting row, not in process
+// memory, so a restart, a redeploy or a free-plan spin-down cannot reset it,
+// and every instance shares one count.
+//
+// ATOMIC. An attempt is RESERVED before the code is checked, by one conditional
+// increment (`codeFailures < MAX`) that Postgres applies to the row under its
+// own lock. Twenty parallel guesses cannot all read "4 so far" and all proceed:
+// exactly the attempts that fit are taken and the rest are refused. A correct
+// code gives its reservation back and clears the window; a wrong one keeps it.
 // ─────────────────────────────────────────────────────────────────────────
 
 export const MAX_CODE_FAILURES = 5;
 export const CODE_FAILURE_WINDOW_MS = 5 * 60_000;
-const MAX_TRACKED_USERS = 10_000;
-const codeFailures = new Map<string, number[]>();
 
-function recentFailures(userId: string, now = Date.now()): number[] {
-  const live = (codeFailures.get(userId) ?? []).filter((t) => now - t < CODE_FAILURE_WINDOW_MS);
-  if (live.length) codeFailures.set(userId, live); else codeFailures.delete(userId);
-  return live;
+async function reserveCodeAttempt(userId: string): Promise<void> {
+  const now = new Date();
+  // A window that has run out starts again from zero.
+  await prisma.mFASetting.updateMany({
+    where: {
+      userId,
+      OR: [{ codeWindowStart: null }, { codeWindowStart: { lt: new Date(now.getTime() - CODE_FAILURE_WINDOW_MS) } }],
+    },
+    data: { codeFailures: 0, codeWindowStart: now },
+  });
+  const taken = await prisma.mFASetting.updateMany({
+    where: { userId, codeFailures: { lt: MAX_CODE_FAILURES } },
+    data: { codeFailures: { increment: 1 } },
+  });
+  if (taken.count === 0) throw new TooManyRequestsError('Too many attempts. Try again later.');
 }
 
-function assertNotThrottled(userId: string): void {
-  if (recentFailures(userId).length >= MAX_CODE_FAILURES) {
-    throw new TooManyRequestsError('Too many attempts. Try again later.');
-  }
+/** A correct code: nothing in this window was a failure after all. */
+async function clearCodeFailures(userId: string): Promise<void> {
+  await prisma.mFASetting.updateMany({ where: { userId }, data: { codeFailures: 0, codeWindowStart: null } });
 }
 
-function noteCodeFailure(userId: string): void {
-  const list = recentFailures(userId);
-  list.push(Date.now());
-  codeFailures.delete(userId);
-  codeFailures.set(userId, list);
-  while (codeFailures.size > MAX_TRACKED_USERS) codeFailures.delete(codeFailures.keys().next().value as string);
+/**
+ * Accept an app code's step at most once. One conditional update: it succeeds
+ * only when no code of this step or a later one has been accepted before, so
+ * the same code — or an older one still inside the ±1 step tolerance — is
+ * refused the second time, even when both arrive at once.
+ */
+async function claimTotpStep(userId: string, step: number): Promise<boolean> {
+  const r = await prisma.mFASetting.updateMany({
+    where: { userId, OR: [{ lastTotpStep: null }, { lastTotpStep: { lt: step } }] },
+    data: { lastTotpStep: step },
+  });
+  return r.count === 1;
 }
-
-/** Tests only. */
-export function resetMfaThrottle(): void { codeFailures.clear(); }
 
 // ─────────────────────────────────────────────────────────────────────────
 // Recovery codes: 8 per enrolment, 80 bits each, base32. Stored as SHA-256
@@ -235,7 +274,9 @@ export async function enrollTOTP(actor: MfaActor, label = 'Familista'): Promise<
   await prisma.mFASetting.upsert({
     where:  { userId: actor.userId },
     create: { userId: actor.userId, method: 'TOTP', secretEncrypted: encryptSecret(base32) },
-    update: { method: 'TOTP', secretEncrypted: encryptSecret(base32), enabledAt: null },
+    // A new secret starts a new sequence of steps. The failure count is kept:
+    // re-enrolling must not be a way to reset the guessing limit.
+    update: { method: 'TOTP', secretEncrypted: encryptSecret(base32), enabledAt: null, lastTotpStep: null },
   });
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
@@ -259,15 +300,14 @@ export interface ConfirmResult {
  * encrypted secret, which has no business in a response.
  */
 export async function confirmTOTP(actor: MfaActor, code: string): Promise<ConfirmResult> {
-  assertNotThrottled(actor.userId);
   const settings = await prisma.mFASetting.findUnique({ where: { userId: actor.userId } });
   if (!settings || !settings.secretEncrypted) throw new BadRequestError('MFA not initialised; enroll first');
   if (settings.enabledAt) throw new BadRequestError('MFA is already on');
+  await reserveCodeAttempt(actor.userId);
   const secret = decryptSecret(settings.secretEncrypted);
-  if (!verifyTOTP(secret, String(code ?? '').trim())) {
-    noteCodeFailure(actor.userId);
-    throw new InvalidMfaCodeError();
-  }
+  const step = matchTOTPStep(secret, String(code ?? '').trim());
+  if (step === null || !(await claimTotpStep(actor.userId, step))) throw new InvalidMfaCodeError();
+  await clearCodeFailures(actor.userId);
   const { codes, hashes } = newRecoveryCodes();
   const updated = await prisma.mFASetting.update({
     where: { userId: actor.userId },
@@ -282,30 +322,45 @@ export async function confirmTOTP(actor: MfaActor, code: string): Promise<Confir
 
 /**
  * Check a code for an enrolled user: an app code, or — when `allowRecovery` —
- * a recovery code, which is consumed. Counts toward the guessing limit.
+ * a recovery code. Either is accepted at most once. Reserves an attempt first
+ * (429 when the limit is reached); a wrong code keeps it, a correct one clears
+ * the window.
  */
 async function checkCode(actor: MfaActor, s: MFASetting, code: string, allowRecovery: boolean): Promise<boolean> {
   if (!s.secretEncrypted) return false;
+  await reserveCodeAttempt(actor.userId);
   const secret = decryptSecret(s.secretEncrypted);
-  if (verifyTOTP(secret, String(code ?? '').trim())) return true;
-  if (allowRecovery) {
-    const hashes = (s.backupCodesHash as string[] | null) ?? [];
-    const provided = hashRecoveryCode(code);
-    const idx = hashes.findIndex((h) => h === provided);
-    if (idx >= 0) {
-      await prisma.mFASetting.update({
-        where: { userId: actor.userId },
-        data:  { backupCodesHash: hashes.filter((_, i) => i !== idx) as unknown as Prisma.InputJsonValue },
-      });
-      appendAuditEventAsync({
-        actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
-        action: 'MFA_RECOVERY_CODE_USED', entityType: 'MFASetting', entityId: actor.userId,
-      });
-      return true;
-    }
+  const step = matchTOTPStep(secret, String(code ?? '').trim());
+  if (step !== null && await claimTotpStep(actor.userId, step)) {
+    await clearCodeFailures(actor.userId);
+    return true;
   }
-  noteCodeFailure(actor.userId);
+  if (allowRecovery && await consumeRecoveryCode(actor, s, code)) {
+    await clearCodeFailures(actor.userId);
+    return true;
+  }
   return false;
+}
+
+/**
+ * Use one recovery code, atomically. The row is updated only if its code list
+ * is still exactly the one this request read, so two requests racing with the
+ * same code cannot both succeed: the second finds the list already changed.
+ */
+async function consumeRecoveryCode(actor: MfaActor, s: MFASetting, code: string): Promise<boolean> {
+  const hashes = (s.backupCodesHash as string[] | null) ?? [];
+  const idx = hashes.indexOf(hashRecoveryCode(code));
+  if (idx < 0) return false;
+  const r = await prisma.mFASetting.updateMany({
+    where: { userId: actor.userId, backupCodesHash: { equals: hashes as unknown as Prisma.InputJsonValue } },
+    data:  { backupCodesHash: hashes.filter((_, i) => i !== idx) as unknown as Prisma.InputJsonValue },
+  });
+  if (r.count !== 1) return false;
+  appendAuditEventAsync({
+    actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
+    action: 'MFA_RECOVERY_CODE_USED', entityType: 'MFASetting', entityId: actor.userId,
+  });
+  return true;
 }
 
 async function enrolledSettings(userId: string): Promise<MFASetting> {
@@ -319,12 +374,11 @@ async function enrolledSettings(userId: string): Promise<MFASetting> {
  * alone is not enough, or a stolen session could remove the second factor.
  */
 export async function disableMFA(actor: MfaActor, code: string): Promise<{ ok: true }> {
-  assertNotThrottled(actor.userId);
   const s = await enrolledSettings(actor.userId);
   if (!(await checkCode(actor, s, code, true))) throw new InvalidMfaCodeError();
   await prisma.mFASetting.update({
     where: { userId: actor.userId },
-    data:  { method: 'NONE', enabledAt: null, secretEncrypted: null, backupCodesHash: Prisma.JsonNull },
+    data:  { method: 'NONE', enabledAt: null, secretEncrypted: null, backupCodesHash: Prisma.JsonNull, lastTotpStep: null },
   });
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
@@ -339,7 +393,6 @@ export async function disableMFA(actor: MfaActor, code: string): Promise<{ ok: t
  * working at once.
  */
 export async function regenerateRecoveryCodes(actor: MfaActor, code: string): Promise<{ recoveryCodes: string[] }> {
-  assertNotThrottled(actor.userId);
   const s = await enrolledSettings(actor.userId);
   if (!(await checkCode(actor, s, code, false))) throw new InvalidMfaCodeError();
   const { codes, hashes } = newRecoveryCodes();
@@ -385,7 +438,6 @@ export async function mfaStatus(userId: string): Promise<MfaStatus> {
 export async function verifyLogin(actor: MfaActor, code: string): Promise<boolean> {
   const s = await prisma.mFASetting.findUnique({ where: { userId: actor.userId } });
   if (!s || !s.enabledAt || s.method === 'NONE') return true;          // not enrolled → pass-through
-  assertNotThrottled(actor.userId);
   if (s.method === 'TOTP' && await checkCode(actor, s, code, true)) {
     await prisma.mFASetting.update({ where: { userId: actor.userId }, data: { lastVerifiedAt: new Date() } });
     return true;
