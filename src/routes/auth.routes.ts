@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as ctrl from '../controllers/auth.controller';
+import * as mfaCtrl from '../controllers/account-mfa.controller';
 import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -18,5 +19,13 @@ router.post('/reset-password',                   ctrl.resetPassword);
 // Protected
 router.get( '/me',              authenticate, ctrl.me);
 router.put( '/change-password', authenticate, ctrl.changePassword);
+
+// Two-step sign-in for the platform owner (Cyber Defense, Step 6). Enrolment
+// and recovery codes only — sign-in does not ask for a code in this build.
+router.get( '/mfa',                authenticate, mfaCtrl.requirePlatformOwner, mfaCtrl.status);
+router.post('/mfa/enroll',         authenticate, mfaCtrl.requirePlatformOwner, mfaCtrl.enroll);
+router.post('/mfa/confirm',        authenticate, mfaCtrl.requirePlatformOwner, mfaCtrl.confirm);
+router.post('/mfa/recovery-codes', authenticate, mfaCtrl.requirePlatformOwner, mfaCtrl.recoveryCodes);
+router.post('/mfa/disable',        authenticate, mfaCtrl.requirePlatformOwner, mfaCtrl.disable);
 
 export default router;

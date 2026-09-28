@@ -17119,6 +17119,51 @@ body.club-theme .set-field-note.is-ok{ color:var(--green-l,#4ade80); }
 body.club-theme .set-field-note.is-warn{ color:#f4b740; }
 body.club-theme .set-panel .settings-wrap{ padding:0; max-width:none; }
 
+/* ── Settings · Account · two-step sign-in (Cyber Defense, Step 6) ──
+   The same card, field and button vocabulary as the rest of Settings. The key
+   and the recovery codes are monospaced and grouped so they can be read aloud
+   or typed without error; nothing here is a filled block of colour. */
+body.club-theme .set-mfa{ margin-bottom:14px; }
+body.club-theme .set-mfa-hd{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+body.club-theme .set-mfa-enforce{ margin-top:4px; }
+body.club-theme .set-mfa-body{ margin-top:14px; display:flex; flex-direction:column; gap:14px; }
+body.club-theme .set-mfa-step{ display:flex; flex-direction:column; gap:8px; }
+body.club-theme .set-mfa-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+body.club-theme .set-mfa-row a.btn{ text-decoration:none; }
+body.club-theme .set-mfa-codes-wrap{ display:flex; flex-direction:column; gap:8px; }
+body.club-theme .set-mfa-form{ display:flex; flex-direction:column; gap:7px; max-width:460px; }
+body.club-theme .set-mfa-input{
+  width:190px; padding:8px 11px; border-radius:9px;
+  border:1px solid rgba(255,255,255,.12); background:rgba(10,16,26,.72);
+  color:var(--tx-1,#f1f5f9); font:600 14px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; letter-spacing:.12em;
+}
+body.club-theme .set-mfa-input:focus{ outline:none; border-color:rgba(74,222,128,.55); }
+body.club-theme .set-mfa-key code,
+body.club-theme .set-mfa-codes code{
+  font:600 13px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; letter-spacing:.08em;
+  color:var(--tx-1,#f1f5f9); direction:ltr; unicode-bidi:isolate;
+}
+body.club-theme .set-mfa-key{
+  padding:10px 12px; border-radius:10px; max-width:460px; word-break:keep-all; overflow-wrap:normal;
+  border:1px solid rgba(255,255,255,.09); background:rgba(255,255,255,.025);
+}
+body.club-theme .set-mfa-codes{
+  list-style:none; margin:0; padding:10px 12px; max-width:460px;
+  display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 18px;
+  border:1px solid rgba(255,255,255,.09); border-radius:10px; background:rgba(255,255,255,.025);
+}
+body.club-theme .set-mfa-facts{ margin:0; display:flex; gap:28px; flex-wrap:wrap; }
+body.club-theme .set-mfa-facts dt{ font:700 10px/1 Inter,system-ui,Arial; letter-spacing:.1em; text-transform:uppercase; color:var(--tx-3,#94a3b8); }
+body.club-theme .set-mfa-facts dd{ margin:6px 0 0; font:700 14px/1.2 Inter,system-ui,Arial; color:var(--tx-1,#f1f5f9); }
+body.club-theme .set-mfa-danger:hover{ border-color:rgba(248,113,113,.45); color:#fca5a5; }
+body.club-theme .set-mfa-skel{
+  height:30px; max-width:120px; border-radius:8px;
+  background:linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.08), rgba(255,255,255,.04));
+}
+@media (max-width:520px){
+  body.club-theme .set-mfa-codes{ grid-template-columns:minmax(0,1fr); }
+}
+
 @media (max-width:1024px){
   body.club-theme .set-shell{ grid-template-columns:minmax(0,1fr); gap:14px; padding:16px 16px 32px; }
   body.club-theme .set-rail{ position:static; flex-direction:row; flex-wrap:wrap; }
