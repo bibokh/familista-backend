@@ -9,6 +9,7 @@ import path from 'path';
 
 import { config } from './config';
 import { morganStream } from './utils/logger';
+import { OriginNotAllowedError } from './utils/errors';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { requestId, accessLog, errorReporter } from './middleware/request-id.middleware';
 import { traceRequest, traceError } from './observability/trace.middleware';
@@ -119,7 +120,8 @@ export function createApp(): express.Application {
         // No-Origin requests (curl, Postman, server-to-server) — allow.
         if (!origin) return callback(null, true);
         if (corsAllowlist.has(origin)) return callback(null, origin);
-        return callback(new Error(`CORS: origin ${origin} not allowed`));
+        // A refusal, not a fault: 403, never counted as a server error.
+        return callback(new OriginNotAllowedError());
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

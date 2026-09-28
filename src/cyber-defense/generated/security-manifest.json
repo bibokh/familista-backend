@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-28T08:46:33.197Z",
+  "generatedAt": "2026-09-28T09:35:37.986Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -106,32 +106,32 @@
       {
         "route": "GET /api/health",
         "file": "src/app.ts",
-        "line": 223
+        "line": 225
       },
       {
         "route": "GET /app/*",
         "file": "src/app.ts",
-        "line": 288
+        "line": 290
       },
       {
         "route": "GET /healthz",
         "file": "src/app.ts",
-        "line": 224
+        "line": 226
       },
       {
         "route": "GET /invite",
         "file": "src/app.ts",
-        "line": 278
+        "line": 280
       },
       {
         "route": "GET /invite/*",
         "file": "src/app.ts",
-        "line": 278
+        "line": 280
       },
       {
         "route": "GET /reset-password",
         "file": "src/app.ts",
-        "line": 268
+        "line": 270
       }
     ],
     "mounts": [
@@ -516,9 +516,9 @@
     },
     {
       "id": "cors-rejection-is-403",
-      "status": "ABSENT",
+      "status": "PRESENT",
       "evidence": "src/app.ts",
-      "note": "A rejected origin currently surfaces as an unhandled 500."
+      "note": "A refused origin is an OriginNotAllowedError: 403, never counted as a server error."
     },
     {
       "id": "auth-rate-limit",
@@ -1143,9 +1143,9 @@
     ]
   },
   "counts": {
-    "controlsPresent": 15,
+    "controlsPresent": 16,
     "controlsPartial": 1,
-    "controlsAbsent": 8,
+    "controlsAbsent": 7,
     "cryptoUses": 9
   }
 }
