@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-28T17:30:10.649Z",
+  "generatedAt": "2026-09-28T18:15:13.501Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -882,7 +882,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 149 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 151 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -942,7 +942,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "538 TypeScript modules under src/."
+      "note": "539 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1422,8 +1422,8 @@
     "serviceModules": 101,
     "middleware": 21,
     "fabricModules": 52,
-    "totalTypeScript": 538,
-    "testSuites": 149,
+    "totalTypeScript": 539,
+    "testSuites": 151,
     "migrations": 40,
     "prismaModels": 340,
     "prismaEnums": 209

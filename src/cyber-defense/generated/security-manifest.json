@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-28T17:24:46.661Z",
+  "generatedAt": "2026-09-28T18:12:10.419Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,13 +8,13 @@
   },
   "apiSurface": {
     "mountedRouters": 50,
-    "handlers": 625,
+    "handlers": 630,
     "publicHandlers": 18,
     "publicRoutes": [
       {
         "route": "GET /auth/reset-password/:token/validate",
         "file": "src/routes/auth.routes.ts",
-        "line": 15
+        "line": 16
       },
       {
         "route": "GET /billing/plans",
@@ -29,32 +29,32 @@
       {
         "route": "POST /auth/forgot-password",
         "file": "src/routes/auth.routes.ts",
-        "line": 14
+        "line": 15
       },
       {
         "route": "POST /auth/login",
         "file": "src/routes/auth.routes.ts",
-        "line": 9
+        "line": 10
       },
       {
         "route": "POST /auth/logout",
         "file": "src/routes/auth.routes.ts",
-        "line": 11
+        "line": 12
       },
       {
         "route": "POST /auth/refresh",
         "file": "src/routes/auth.routes.ts",
-        "line": 10
+        "line": 11
       },
       {
         "route": "POST /auth/register",
         "file": "src/routes/auth.routes.ts",
-        "line": 8
+        "line": 9
       },
       {
         "route": "POST /auth/reset-password",
         "file": "src/routes/auth.routes.ts",
-        "line": 16
+        "line": 17
       },
       {
         "route": "POST /billing/webhook",
@@ -138,7 +138,7 @@
       {
         "path": "/auth",
         "module": "auth.routes",
-        "handlers": 9,
+        "handlers": 14,
         "public": 7,
         "routerWideAuth": false
       },
@@ -603,7 +603,7 @@
       "id": "audit-hash-chain",
       "status": "PRESENT",
       "evidence": "src/security/audit-chain.service.ts",
-      "note": "85 call site(s) append to the chain."
+      "note": "87 call site(s) append to the chain."
     },
     {
       "id": "security-event-log",

@@ -44552,6 +44552,8 @@ window.clubCrestSave = clubCrestSave;
 // repainted here.
 function renderSettingsPage() {
   try { _crestRepaint(); } catch (_) {}
+  // Two-step sign-in (public/settings-mfa.js): shown to the platform owner only.
+  try { if (window.SettingsMfa) window.SettingsMfa.mount(); } catch (_) {}
 }
 window.renderSettingsPage = renderSettingsPage;
 
@@ -44583,6 +44585,7 @@ function renderSettingsHTML() {
         </section>
 
         <section class="set-panel" data-set-panel="account" style="display:none">
+    <div class="set-card set-mfa" id="set-mfa-card" data-no-i18n hidden></div>
     <div class="settings-wrap">
       <div class="settings-section">
         <div class="settings-sec-title" data-i18n="settings.catAccount">Account</div>

@@ -9,7 +9,7 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, 
 import { MFAChallenge, MfaMethod, MFASetting, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { config } from '../config';
-import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/errors';
+import { AppError, BadRequestError, ForbiddenError, NotFoundError, TooManyRequestsError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
 
 const STEP_SECONDS = 30;
@@ -102,10 +102,95 @@ function constantTimeEq(a: string, b: string): boolean {
 // enables MFA — the service throws at call time if the key is absent.
 // ─────────────────────────────────────────────────────────────────────────
 
+/**
+ * The server has no MFA encryption key. A 503 rather than a bare Error (which
+ * answered 500 and read as a crash): the feature is not configured here, and
+ * the interface says so instead of failing.
+ */
+export class MfaUnavailableError extends AppError {
+  constructor() { super('Two-step sign-in is not configured on this server', 503); }
+}
+
+/**
+ * A code that did not verify. 400, deliberately not 401: the caller is signed
+ * in, and a 401 would send the client down its session-expired path.
+ */
+export class InvalidMfaCodeError extends BadRequestError {
+  constructor() { super('Invalid code'); }
+}
+
+/** Whether this server can store an MFA secret at all. */
+export function mfaConfigured(): boolean {
+  return !!config.mfa.encryptionKey;
+}
+
 function deriveAesKey(): Buffer {
   const raw = config.mfa.encryptionKey;
-  if (!raw) throw new Error('Missing required env variable: MFA_ENCRYPTION_KEY');
+  if (!raw) throw new MfaUnavailableError();
   return createHash('sha256').update(raw + ':mfa:v1').digest();
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Code-guessing limit. A 6-digit code is one in a million; unlimited tries make
+// it a matter of time. After MAX_CODE_FAILURES wrong codes for one user within
+// CODE_FAILURE_WINDOW_MS every code check for that user answers 429 until the
+// window has passed. In process memory, per user, bounded.
+// ─────────────────────────────────────────────────────────────────────────
+
+export const MAX_CODE_FAILURES = 5;
+export const CODE_FAILURE_WINDOW_MS = 5 * 60_000;
+const MAX_TRACKED_USERS = 10_000;
+const codeFailures = new Map<string, number[]>();
+
+function recentFailures(userId: string, now = Date.now()): number[] {
+  const live = (codeFailures.get(userId) ?? []).filter((t) => now - t < CODE_FAILURE_WINDOW_MS);
+  if (live.length) codeFailures.set(userId, live); else codeFailures.delete(userId);
+  return live;
+}
+
+function assertNotThrottled(userId: string): void {
+  if (recentFailures(userId).length >= MAX_CODE_FAILURES) {
+    throw new TooManyRequestsError('Too many attempts. Try again later.');
+  }
+}
+
+function noteCodeFailure(userId: string): void {
+  const list = recentFailures(userId);
+  list.push(Date.now());
+  codeFailures.delete(userId);
+  codeFailures.set(userId, list);
+  while (codeFailures.size > MAX_TRACKED_USERS) codeFailures.delete(codeFailures.keys().next().value as string);
+}
+
+/** Tests only. */
+export function resetMfaThrottle(): void { codeFailures.clear(); }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Recovery codes: 8 per enrolment, 80 bits each, base32. Stored as SHA-256
+// hashes only; the plain codes leave the server once, in the response that
+// created them. Accepted with or without the dashes and spaces the interface
+// shows them with.
+// ─────────────────────────────────────────────────────────────────────────
+
+const RECOVERY_CODE_COUNT = 8;
+
+function normaliseRecoveryCode(code: string): string {
+  return String(code ?? '').replace(/[\s-]/g, '').toUpperCase();
+}
+
+function hashRecoveryCode(code: string): string {
+  return createHash('sha256').update(normaliseRecoveryCode(code)).digest('hex');
+}
+
+function newRecoveryCodes(): { codes: string[]; hashes: string[] } {
+  const codes: string[] = [];
+  const hashes: string[] = [];
+  for (let i = 0; i < RECOVERY_CODE_COUNT; i++) {
+    const c = base32Encode(randomBytes(10));
+    codes.push(c);
+    hashes.push(hashRecoveryCode(c));
+  }
+  return { codes, hashes };
 }
 
 function encryptSecret(base32: string): string {
@@ -161,32 +246,82 @@ export async function enrollTOTP(actor: MfaActor, label = 'Familista'): Promise<
   return { base32, otpauth };
 }
 
-export async function confirmTOTP(actor: MfaActor, code: string): Promise<MFASetting> {
+export interface ConfirmResult {
+  enabledAt: Date;
+  /** Plain recovery codes, returned once and never stored in this form. */
+  recoveryCodes: string[];
+}
+
+/**
+ * Turn MFA on with a code from the newly enrolled app.
+ *
+ * Returns the recovery codes and nothing else: the settings row carries the
+ * encrypted secret, which has no business in a response.
+ */
+export async function confirmTOTP(actor: MfaActor, code: string): Promise<ConfirmResult> {
+  assertNotThrottled(actor.userId);
   const settings = await prisma.mFASetting.findUnique({ where: { userId: actor.userId } });
   if (!settings || !settings.secretEncrypted) throw new BadRequestError('MFA not initialised; enroll first');
+  if (settings.enabledAt) throw new BadRequestError('MFA is already on');
   const secret = decryptSecret(settings.secretEncrypted);
-  if (!verifyTOTP(secret, code)) throw new UnauthorizedError('Invalid TOTP code');
-  // Generate 8 backup codes (sha256 of base32(10 bytes)).
-  const backupCodes: string[] = [];
-  const backupHashes: string[] = [];
-  for (let i = 0; i < 8; i++) {
-    const c = base32Encode(randomBytes(10));
-    backupCodes.push(c);
-    backupHashes.push(createHash('sha256').update(c).digest('hex'));
+  if (!verifyTOTP(secret, String(code ?? '').trim())) {
+    noteCodeFailure(actor.userId);
+    throw new InvalidMfaCodeError();
   }
+  const { codes, hashes } = newRecoveryCodes();
   const updated = await prisma.mFASetting.update({
     where: { userId: actor.userId },
-    data:  { enabledAt: new Date(), lastVerifiedAt: new Date(), backupCodesHash: backupHashes as unknown as Prisma.InputJsonValue },
+    data:  { enabledAt: new Date(), lastVerifiedAt: new Date(), backupCodesHash: hashes as unknown as Prisma.InputJsonValue },
   });
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'MFA_ENABLED', entityType: 'MFASetting', entityId: actor.userId,
   });
-  // Return the plain backup codes ONCE via response (caller stores externally).
-  return { ...updated, backupCodesHash: backupCodes as unknown as Prisma.JsonValue };
+  return { enabledAt: updated.enabledAt ?? new Date(), recoveryCodes: codes };
 }
 
-export async function disableMFA(actor: MfaActor): Promise<{ ok: true }> {
+/**
+ * Check a code for an enrolled user: an app code, or — when `allowRecovery` —
+ * a recovery code, which is consumed. Counts toward the guessing limit.
+ */
+async function checkCode(actor: MfaActor, s: MFASetting, code: string, allowRecovery: boolean): Promise<boolean> {
+  if (!s.secretEncrypted) return false;
+  const secret = decryptSecret(s.secretEncrypted);
+  if (verifyTOTP(secret, String(code ?? '').trim())) return true;
+  if (allowRecovery) {
+    const hashes = (s.backupCodesHash as string[] | null) ?? [];
+    const provided = hashRecoveryCode(code);
+    const idx = hashes.findIndex((h) => h === provided);
+    if (idx >= 0) {
+      await prisma.mFASetting.update({
+        where: { userId: actor.userId },
+        data:  { backupCodesHash: hashes.filter((_, i) => i !== idx) as unknown as Prisma.InputJsonValue },
+      });
+      appendAuditEventAsync({
+        actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
+        action: 'MFA_RECOVERY_CODE_USED', entityType: 'MFASetting', entityId: actor.userId,
+      });
+      return true;
+    }
+  }
+  noteCodeFailure(actor.userId);
+  return false;
+}
+
+async function enrolledSettings(userId: string): Promise<MFASetting> {
+  const s = await prisma.mFASetting.findUnique({ where: { userId } });
+  if (!s || !s.enabledAt || s.method === 'NONE') throw new BadRequestError('MFA is not on');
+  return s;
+}
+
+/**
+ * Turn MFA off. Requires a current app code or a recovery code: a session
+ * alone is not enough, or a stolen session could remove the second factor.
+ */
+export async function disableMFA(actor: MfaActor, code: string): Promise<{ ok: true }> {
+  assertNotThrottled(actor.userId);
+  const s = await enrolledSettings(actor.userId);
+  if (!(await checkCode(actor, s, code, true))) throw new InvalidMfaCodeError();
   await prisma.mFASetting.update({
     where: { userId: actor.userId },
     data:  { method: 'NONE', enabledAt: null, secretEncrypted: null, backupCodesHash: Prisma.JsonNull },
@@ -198,28 +333,62 @@ export async function disableMFA(actor: MfaActor): Promise<{ ok: true }> {
   return { ok: true };
 }
 
+/**
+ * Replace the recovery codes. Requires a current app code (not a recovery
+ * code — the point is often that those are lost or used up). The old codes stop
+ * working at once.
+ */
+export async function regenerateRecoveryCodes(actor: MfaActor, code: string): Promise<{ recoveryCodes: string[] }> {
+  assertNotThrottled(actor.userId);
+  const s = await enrolledSettings(actor.userId);
+  if (!(await checkCode(actor, s, code, false))) throw new InvalidMfaCodeError();
+  const { codes, hashes } = newRecoveryCodes();
+  await prisma.mFASetting.update({
+    where: { userId: actor.userId },
+    data:  { backupCodesHash: hashes as unknown as Prisma.InputJsonValue, lastVerifiedAt: new Date() },
+  });
+  appendAuditEventAsync({
+    actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
+    action: 'MFA_RECOVERY_CODES_REGENERATED', entityType: 'MFASetting', entityId: actor.userId,
+  });
+  return { recoveryCodes: codes };
+}
+
+export interface MfaStatus {
+  /** Whether this server can store a secret (MFA_ENCRYPTION_KEY is set). */
+  configured: boolean;
+  enrolled: boolean;
+  /** A secret was issued and not yet confirmed. */
+  pending: boolean;
+  enabledAt: Date | null;
+  lastVerifiedAt: Date | null;
+  recoveryCodesRemaining: number;
+  /** Whether sign-in asks for the second factor. False in this build. */
+  enforced: false;
+}
+
+/** What the user's own settings screen shows. Never the secret or the hashes. */
+export async function mfaStatus(userId: string): Promise<MfaStatus> {
+  const s = await prisma.mFASetting.findUnique({ where: { userId } });
+  const enrolled = !!(s && s.enabledAt && s.method !== 'NONE');
+  return {
+    configured: mfaConfigured(),
+    enrolled,
+    pending: !!(s && s.secretEncrypted && !s.enabledAt),
+    enabledAt: enrolled ? s!.enabledAt : null,
+    lastVerifiedAt: enrolled ? s!.lastVerifiedAt : null,
+    recoveryCodesRemaining: enrolled && Array.isArray(s!.backupCodesHash) ? (s!.backupCodesHash as unknown[]).length : 0,
+    enforced: false,
+  };
+}
+
 export async function verifyLogin(actor: MfaActor, code: string): Promise<boolean> {
   const s = await prisma.mFASetting.findUnique({ where: { userId: actor.userId } });
   if (!s || !s.enabledAt || s.method === 'NONE') return true;          // not enrolled → pass-through
-  if (s.method === 'TOTP' && s.secretEncrypted) {
-    const secret = decryptSecret(s.secretEncrypted);
-    if (verifyTOTP(secret, code)) {
-      await prisma.mFASetting.update({ where: { userId: actor.userId }, data: { lastVerifiedAt: new Date() } });
-      return true;
-    }
-    // Try backup codes.
-    const hashes = (s.backupCodesHash as string[] | null) ?? [];
-    const provided = createHash('sha256').update(code).digest('hex');
-    const idx = hashes.findIndex((h) => h === provided);
-    if (idx >= 0) {
-      // Single-use backup — remove the consumed hash.
-      const newHashes = hashes.filter((_, i) => i !== idx);
-      await prisma.mFASetting.update({
-        where: { userId: actor.userId },
-        data:  { backupCodesHash: newHashes as unknown as Prisma.InputJsonValue, lastVerifiedAt: new Date() },
-      });
-      return true;
-    }
+  assertNotThrottled(actor.userId);
+  if (s.method === 'TOTP' && await checkCode(actor, s, code, true)) {
+    await prisma.mFASetting.update({ where: { userId: actor.userId }, data: { lastVerifiedAt: new Date() } });
+    return true;
   }
   return false;
 }

@@ -96,12 +96,15 @@ export async function mfaConfirm(req: Request, res: Response, next: NextFunction
   } catch (err) { return next(err); }
 }
 
-export async function mfaDisable(req: Request, res: Response, next: NextFunction) {
-  try { return sendSuccess(res, await mfa.disableMFA(actor(req))); }
-  catch (err) { return next(err); }
-}
-
 const verifySchema = z.object({ body: z.object({ code: z.string().trim().min(4).max(20) }) });
+
+// Turning MFA off takes a current code or a recovery code, never a session alone.
+export async function mfaDisable(req: Request, res: Response, next: NextFunction) {
+  try {
+    const parsed = verifySchema.safeParse({ body: req.body }); if (!parsed.success) throw zerr(parsed.error);
+    return sendSuccess(res, await mfa.disableMFA(actor(req), parsed.data.body.code));
+  } catch (err) { return next(err); }
+}
 
 export async function mfaVerify(req: Request, res: Response, next: NextFunction) {
   try {
