@@ -10,6 +10,7 @@ import path from 'path';
 import { config } from './config';
 import { morganStream } from './utils/logger';
 import { OriginNotAllowedError } from './utils/errors';
+import { securitySignalCollector } from './cyber-defense/collectors';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { requestId, accessLog, errorReporter } from './middleware/request-id.middleware';
 import { traceRequest, traceError } from './observability/trace.middleware';
@@ -296,6 +297,9 @@ export function createApp(): express.Application {
 
   // ── Error reporter (structured + Sentry-ready) BEFORE the JSON shaper
   app.use(traceError);
+  // Cyber Defense collectors: refused sign-ins, reused refresh tokens, 403s and
+  // refused origins become security.* events. Reads only; passes every error on.
+  app.use(securitySignalCollector);
   app.use(errorReporter);
 
   // ── Error handler (must be last)

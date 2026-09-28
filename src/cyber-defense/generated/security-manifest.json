@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-28T09:35:37.986Z",
+  "generatedAt": "2026-09-28T10:06:38.236Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -106,32 +106,32 @@
       {
         "route": "GET /api/health",
         "file": "src/app.ts",
-        "line": 225
+        "line": 226
       },
       {
         "route": "GET /app/*",
         "file": "src/app.ts",
-        "line": 290
+        "line": 291
       },
       {
         "route": "GET /healthz",
         "file": "src/app.ts",
-        "line": 226
+        "line": 227
       },
       {
         "route": "GET /invite",
         "file": "src/app.ts",
-        "line": 280
+        "line": 281
       },
       {
         "route": "GET /invite/*",
         "file": "src/app.ts",
-        "line": 280
+        "line": 281
       },
       {
         "route": "GET /reset-password",
         "file": "src/app.ts",
-        "line": 270
+        "line": 271
       }
     ],
     "mounts": [

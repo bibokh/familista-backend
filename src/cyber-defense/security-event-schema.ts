@@ -6,11 +6,11 @@
 // and the catalogue of `security.*` names this build reserves. Step 2 of Cyber
 // Defense: a contract, declared ahead of the collectors that will fill it.
 //
-// Nothing in this build publishes a `security.*` event. Every name below is
-// registered `produced: false` (see `fabric/producers/security.producer.ts`),
-// which is the registry's own way of saying "declared, no producer yet" — the
-// same device `system.deploy.*` uses. The collectors are a later, separately
-// reviewed step.
+// Five of the names have a collector (`cyber-defense/collectors.ts`, Step 4):
+// failed sign-ins, reused refresh tokens, refused access (403), refused
+// browser origins and rate-limit hits. The rest are registered
+// `produced: false` — the registry's own way of saying "declared, no producer
+// yet", the same device `system.deploy.*` uses.
 //
 // WHAT THE ENVELOPE ALREADY CARRIES, AND IS NOT REPEATED HERE
 //
@@ -102,6 +102,11 @@ export interface SecurityEventDeclaration {
   describes: string;
   /** Whether the record that it happened is itself the point. */
   auditRelevant: boolean;
+  /**
+   * Whether this build has a collector for it (`cyber-defense/collectors.ts`).
+   * False declares the name ahead of its collector.
+   */
+  produced: boolean;
 }
 
 /**
@@ -112,29 +117,29 @@ export interface SecurityEventDeclaration {
  * tests pin the set.
  */
 export const SECURITY_EVENT_TYPES: readonly SecurityEventDeclaration[] = Object.freeze([
-  { type: 'security.login.failed', category: 'AUTHENTICATION', auditRelevant: true,
+  { type: 'security.login.failed', category: 'AUTHENTICATION', produced: true, auditRelevant: true,
     describes: 'A sign-in attempt was refused' },
-  { type: 'security.lockout.triggered', category: 'AUTHENTICATION', auditRelevant: true,
+  { type: 'security.lockout.triggered', category: 'AUTHENTICATION', produced: false, auditRelevant: true,
     describes: 'Repeated failures reached the lockout threshold' },
-  { type: 'security.mfa.failed', category: 'AUTHENTICATION', auditRelevant: true,
+  { type: 'security.mfa.failed', category: 'AUTHENTICATION', produced: false, auditRelevant: true,
     describes: 'A second-factor code was refused' },
-  { type: 'security.refresh.reused', category: 'SESSION', auditRelevant: true,
+  { type: 'security.refresh.reused', category: 'SESSION', produced: true, auditRelevant: true,
     describes: 'A refresh token that was already used was presented again' },
-  { type: 'security.access.denied', category: 'ACCESS', auditRelevant: true,
+  { type: 'security.access.denied', category: 'ACCESS', produced: true, auditRelevant: true,
     describes: 'An authenticated request was refused by an access check' },
-  { type: 'security.tenant.mismatch', category: 'ACCESS', auditRelevant: true,
+  { type: 'security.tenant.mismatch', category: 'ACCESS', produced: false, auditRelevant: true,
     describes: 'A request named a club or team outside the caller’s tenancy' },
-  { type: 'security.origin.rejected', category: 'NETWORK', auditRelevant: false,
+  { type: 'security.origin.rejected', category: 'NETWORK', produced: true, auditRelevant: false,
     describes: 'A browser request came from an origin outside the allowlist' },
-  { type: 'security.ratelimit.exceeded', category: 'ABUSE', auditRelevant: false,
+  { type: 'security.ratelimit.exceeded', category: 'ABUSE', produced: true, auditRelevant: false,
     describes: 'A caller exceeded a rate limit' },
-  { type: 'security.device.signature.rejected', category: 'DEVICE', auditRelevant: true,
+  { type: 'security.device.signature.rejected', category: 'DEVICE', produced: false, auditRelevant: true,
     describes: 'A device or camera message failed its signature check' },
-  { type: 'security.device.replay.rejected', category: 'DEVICE', auditRelevant: true,
+  { type: 'security.device.replay.rejected', category: 'DEVICE', produced: false, auditRelevant: true,
     describes: 'A device or camera message reused a nonce' },
-  { type: 'security.audit.chain.broken', category: 'INTEGRITY', auditRelevant: true,
+  { type: 'security.audit.chain.broken', category: 'INTEGRITY', produced: false, auditRelevant: true,
     describes: 'The audit hash chain failed verification' },
-  { type: 'security.ai.action.decided', category: 'AI', auditRelevant: true,
+  { type: 'security.ai.action.decided', category: 'AI', produced: false, auditRelevant: true,
     describes: 'A person approved or rejected an AI-proposed action' },
 ]);
 
