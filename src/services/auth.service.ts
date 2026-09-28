@@ -12,6 +12,7 @@ import {
 } from '../utils/errors';
 import { logger } from '../utils/logger';
 import { publishUserCreated, publishUserLogin, publishUserLogout } from '../fabric/producers/users.producer';
+import { tagSecuritySignal } from '../cyber-defense/collectors';
 import { forgetIdentity } from '../middleware/auth.middleware';
 import { hashPassword, verifyPassword } from '../utils/password';
 
@@ -207,12 +208,20 @@ export async function loginUser(
     include: { club: { select: { name: true } } },
   });
 
+  // Each refusal is tagged for Cyber Defense (`tagSecuritySignal`); the class,
+  // the message and the status are exactly what they were.
   if (!user || !user.isActive) {
-    throw new UnauthorizedError('Invalid email or password');
+    throw tagSecuritySignal(new UnauthorizedError('Invalid email or password'), {
+      type: 'security.login.failed', reason: user ? 'INACTIVE_ACCOUNT' : 'UNKNOWN_ACCOUNT',
+    });
   }
 
   const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) throw new UnauthorizedError('Invalid email or password');
+  if (!valid) {
+    throw tagSecuritySignal(new UnauthorizedError('Invalid email or password'), {
+      type: 'security.login.failed', reason: 'BAD_PASSWORD',
+    });
+  }
 
   // Update last login
   await prisma.user.update({
@@ -241,7 +250,16 @@ export async function refreshTokens(token: string): Promise<TokenPair> {
   }
 
   const stored = await prisma.refreshToken.findUnique({ where: { token } });
-  if (!stored || stored.expiresAt < new Date()) {
+  if (!stored) {
+    // The signature verified and the token has not expired, yet no row holds
+    // it: it was already rotated or revoked. Presenting it again is the
+    // signal Cyber Defense records. Same error as before.
+    const err = new UnauthorizedError('Refresh token expired or revoked');
+    throw typeof payload?.sub === 'string'
+      ? tagSecuritySignal(err, { type: 'security.refresh.reused', userId: payload.sub })
+      : err;
+  }
+  if (stored.expiresAt < new Date()) {
     throw new UnauthorizedError('Refresh token expired or revoked');
   }
 

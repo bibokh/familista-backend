@@ -18,6 +18,7 @@ import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { logSecurityEvent } from '../security/security-event.service';
+import { recordRateLimitHit, type RateLimitBucket } from '../cyber-defense/collectors';
 import type { RateLimitStore } from './rate-limit-store';
 import { memoryStore } from './rate-limit-memory.store';
 
@@ -106,9 +107,12 @@ export function edgeIdentity(req: Request): string {
 
 /** A 429 that tells the caller when to come back, in the header HTTP defines. */
 function deny(
-  res: Response, message: string, refillMs: number,
-  bucket: string,
+  req: Request, res: Response, message: string, refillMs: number,
+  bucket: RateLimitBucket,
 ): void {
+  // Cyber Defense: every 429 is recorded as security.ratelimit.exceeded.
+  // Detached and capped; the response below is unchanged.
+  recordRateLimitHit(req, bucket);
   const retryAfterSec = Math.max(1, Math.ceil(refillMs / 1000));
   res.setHeader('Retry-After', String(retryAfterSec));
   res.setHeader('RateLimit-Policy', bucket);
@@ -138,7 +142,7 @@ export async function rateLimit(req: Request, res: Response, next: NextFunction)
   if (!userId) {
     if (!await Promise.resolve(store.take(`ip:${ip}`, IP_CAPACITY, IP_REFILL_MS))) {
       logSecurityEvent({ kind: 'RATE_LIMITED', severity: 'WARN', ipAddress: ip, payload: { bucket: 'ip' } });
-      deny(res, 'Too many requests (ip)', IP_REFILL_MS, 'ip');
+      deny(req, res, 'Too many requests (ip)', IP_REFILL_MS, 'ip');
       return;
     }
     return next();
@@ -146,13 +150,13 @@ export async function rateLimit(req: Request, res: Response, next: NextFunction)
 
   if (!await Promise.resolve(store.take(`user:${userId}`, USER_CAPACITY, USER_REFILL_MS))) {
     logSecurityEvent({ kind: 'RATE_LIMITED', severity: 'WARN', ipAddress: ip, actorId: userId, payload: { bucket: 'user' } });
-    deny(res, 'Too many requests (user)', USER_REFILL_MS, 'user');
+    deny(req, res, 'Too many requests (user)', USER_REFILL_MS, 'user');
     return;
   }
   // Tenant bucket — protects every OTHER club from one noisy club.
   if (clubId && !await Promise.resolve(store.take(`tenant:${clubId}`, TENANT_CAPACITY, TENANT_REFILL_MS))) {
     logSecurityEvent({ kind: 'RATE_LIMITED', severity: 'WARN', ipAddress: ip, actorId: userId, clubId, payload: { bucket: 'tenant' } });
-    deny(res, 'Too many requests for this club', TENANT_REFILL_MS, 'tenant');
+    deny(req, res, 'Too many requests for this club', TENANT_REFILL_MS, 'tenant');
     return;
   }
   next();
@@ -189,7 +193,7 @@ export async function rateLimitAuth(req: Request, res: Response, next: NextFunct
   // attacker sources from.
   if (email && !await Promise.resolve(store.take(`acct:${email}`, ACCOUNT_CAPACITY, AUTH_REFILL_MS))) {
     logSecurityEvent({ kind: 'RATE_LIMITED', severity: 'CRITICAL', ipAddress: ip, payload: { bucket: 'account' } });
-    deny(res, 'Too many attempts for this account. Try again later.', AUTH_REFILL_MS, 'account');
+    deny(req, res, 'Too many attempts for this account. Try again later.', AUTH_REFILL_MS, 'account');
     return;
   }
 
@@ -203,7 +207,7 @@ export async function rateLimitAuth(req: Request, res: Response, next: NextFunct
     : true);
   if (!room) {
     logSecurityEvent({ kind: 'RATE_LIMITED', severity: 'CRITICAL', ipAddress: ip, payload: { bucket: 'auth' } });
-    deny(res, 'Too many failed auth attempts. Try again later.', AUTH_REFILL_MS, 'auth');
+    deny(req, res, 'Too many failed auth attempts. Try again later.', AUTH_REFILL_MS, 'auth');
     return;
   }
   res.on('finish', () => {

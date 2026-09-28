@@ -14,7 +14,7 @@ import {
   SECURITY_EVENT_TYPES, SECURITY_CATEGORIES, securityEventPayloadV1, ipPrefix,
   type SecurityEventPayloadV1,
 } from '../src/cyber-defense/security-event-schema';
-import { registerSecurityProducer } from '../src/fabric/producers/security.producer';
+import { registerSecurityProducer, publishSecurityEvent } from '../src/fabric/producers/security.producer';
 import { fabricEvent, registeredEventTypes } from '../src/fabric/registry/event-registry';
 import { fabricSchema, validateEventPayload } from '../src/fabric/registry/schema-registry';
 import { sourceForEventDomain } from '../src/fabric/registry/source-registry';
@@ -52,10 +52,20 @@ describe('the security.* names are declared in the Fabric registry', () => {
       .toEqual(SECURITY_EVENT_TYPES.map((d) => d.type).sort());
   });
 
-  it.each(SECURITY_EVENT_TYPES.map((d) => [d.type, d] as const))('%s is declared, private and unproduced', (type, d) => {
+  it('five have a collector (Step 4); the rest are declared ahead of theirs', () => {
+    expect(SECURITY_EVENT_TYPES.filter((d) => d.produced).map((d) => d.type).sort()).toEqual([
+      'security.access.denied',
+      'security.login.failed',
+      'security.origin.rejected',
+      'security.ratelimit.exceeded',
+      'security.refresh.reused',
+    ]);
+  });
+
+  it.each(SECURITY_EVENT_TYPES.map((d) => [d.type, d] as const))('%s is declared and private', (type, d) => {
     const spec = fabricEvent(type)!;
     expect(spec).toBeDefined();
-    expect(spec.produced).toBe(false);
+    expect(spec.produced).toBe(d.produced);
     expect(spec.exposeInLiveStream).toBe(false);
     expect(spec.classification).toBe('CONFIDENTIAL');
     expect(spec.source).toBe('system');
@@ -84,15 +94,39 @@ describe('the security.* names are declared in the Fabric registry', () => {
   });
 });
 
-describe('nothing in this build publishes a security.* event yet', () => {
-  it('the producer module registers and exports no publish helper', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'src/fabric/producers/security.producer.ts'), 'utf8');
-    expect(src).not.toMatch(/publishFabricEvent/);
-    expect(src).not.toMatch(/export function publish/);
+describe('only the collectors publish, and only the types that have one', () => {
+  it('the producer exposes one publish helper, and it refuses a type with no collector', () => {
+    expect(publishSecurityEvent('security.mfa.failed', {}, {
+      outcome: 'FAILURE', severity: 'LOW', actor: { type: 'ANONYMOUS', role: null },
+      source: { component: 'MFA', requestId: null, ipPrefix: null }, evidence: {}, privacyClass: 'PERSONAL',
+    })).toBe(false);
+    expect(publishSecurityEvent('security.not.declared', {}, {
+      outcome: 'FAILURE', severity: 'LOW', actor: { type: 'ANONYMOUS', role: null },
+      source: { component: 'AUTH', requestId: null, ipPrefix: null }, evidence: {}, privacyClass: 'PERSONAL',
+    })).toBe(false);
   });
 
-  it('no source file uses a security.* event type outside the declaration', () => {
-    const hits: string[] = [];
+  it('publishSecurityEvent is called from the collector module and nowhere else', () => {
+    const callers: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) { if (e.name !== 'generated') walk(p); continue; }
+        if (e.name.endsWith('.ts') && /publishSecurityEvent\(/.test(fs.readFileSync(p, 'utf8'))) {
+          callers.push(path.relative(ROOT, p));
+        }
+      }
+    };
+    walk(path.join(ROOT, 'src'));
+    expect(callers.sort()).toEqual([
+      path.join('src', 'cyber-defense', 'collectors.ts'),
+      path.join('src', 'fabric', 'producers', 'security.producer.ts'),
+    ]);
+  });
+
+  it('every security.* event name used in src is declared and has a collector', () => {
+    const produced = new Set(SECURITY_EVENT_TYPES.filter((d) => d.produced).map((d) => d.type));
+    const used = new Map<string, string>();
     const walk = (dir: string) => {
       for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
         const p = path.join(dir, e.name);
@@ -100,13 +134,16 @@ describe('nothing in this build publishes a security.* event yet', () => {
         if (!e.name.endsWith('.ts')) continue;
         const rel = path.relative(ROOT, p);
         if (rel === path.join('src', 'cyber-defense', 'security-event-schema.ts')) continue;
-        // An event type in use: `eventType: 'security.…'` or `type: 'security.…'`.
-        // Other `security.` identifiers (metric names, capability keys) are not events.
-        if (/\b(?:eventType|type)\s*:\s*['"`]security\.[a-z]/.test(fs.readFileSync(p, 'utf8'))) hits.push(rel);
+        // Event names have two or more dots; `security.events_total` (a metric)
+        // and `security.credential` (a classification key) are not events.
+        for (const m of fs.readFileSync(p, 'utf8').matchAll(/['"`](security\.[a-z]+(?:\.[a-z]+)+)['"`]/g)) {
+          used.set(m[1], rel);
+        }
       }
     };
     walk(path.join(ROOT, 'src'));
-    expect(hits).toEqual([]);
+    for (const [name, file] of used) expect(`${name} in ${file}: ${produced.has(name)}`).toBe(`${name} in ${file}: true`);
+    expect([...used.keys()].sort()).toEqual([...produced].sort());
   });
 });
 
