@@ -235,7 +235,12 @@ const controls = [
   control('login-lockout',
     lockoutCallers > 0 ? 'PRESENT' : exists('src/security/login-attempt.service.ts') ? 'PARTIAL' : 'ABSENT',
     cite('src/security/login-attempt.service.ts'),
-    `${lockoutCallers} caller(s) outside the lockout service.`),
+    `${lockoutCallers} enforcing caller(s) outside the lockout service.`),
+  control('login-lockout-shadow',
+    has('src/middleware/rate-limit.middleware.ts', /recordShadowLoginOutcome\(req, email, res\.statusCode\)/)
+      && exists('src/cyber-defense/lockout-shadow.ts') ? 'PRESENT' : 'ABSENT',
+    cite('src/cyber-defense/lockout-shadow.ts'),
+    'Every sign-in is measured against the lockout thresholds and a would-be refusal is recorded; nothing is refused.'),
   control('refresh-token-hashed-at-rest',
     /refreshToken\.findUnique\(\{\s*where:\s*\{\s*token\s*\}/.test(authServiceSrc) ? 'ABSENT' : 'PRESENT', AUTH_SERVICE,
     'Refresh tokens are looked up by their literal value.'),

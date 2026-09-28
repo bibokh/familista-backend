@@ -123,7 +123,11 @@ function admit(type: string, sourceKey: string, now: number): { suppressedBefore
 
 type Payload = Omit<SecurityEventPayloadV1, 'category'>;
 
-function emit(
+/**
+ * Publish one signal through the flood cap. Exported for the other Cyber
+ * Defense evaluators (`lockout-shadow.ts`); not for general use.
+ */
+export function emit(
   type: string,
   req: Request,
   payload: Payload,

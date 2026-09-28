@@ -12,10 +12,12 @@ import { prisma } from '../config/database';
 import { logger } from '../utils/logger';
 import { logSecurityEvent } from './security-event.service';
 
-const EMAIL_FAIL_WINDOW_MS   = 15 * 60_000;
-const EMAIL_FAIL_THRESHOLD   = 5;
-const IP_FAIL_WINDOW_MS      = 5  * 60_000;
-const IP_FAIL_THRESHOLD      = 20;
+// Exported so Cyber Defense's shadow evaluator (`cyber-defense/lockout-shadow.ts`)
+// measures against these exact thresholds rather than a copy of them.
+export const EMAIL_FAIL_WINDOW_MS   = 15 * 60_000;
+export const EMAIL_FAIL_THRESHOLD   = 5;
+export const IP_FAIL_WINDOW_MS      = 5  * 60_000;
+export const IP_FAIL_THRESHOLD      = 20;
 
 export function emailHash(email: string): string {
   return createHash('sha256').update(email.trim().toLowerCase()).digest('hex');

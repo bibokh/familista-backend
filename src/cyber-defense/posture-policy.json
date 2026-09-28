@@ -45,6 +45,7 @@
     "cors-allowlist",
     "cors-rejection-is-403",
     "auth-rate-limit",
+    "login-lockout-shadow",
     "password-hashing-bcrypt",
     "session-revocation-token-version",
     "mfa-service",
@@ -58,7 +59,7 @@
     "no-unsafe-raw-sql"
   ],
   "knownGaps": {
-    "login-lockout": "PARTIAL — the lockout service exists with no callers.",
+    "login-lockout": "PARTIAL — the lockout service has no enforcing caller; it runs in shadow mode only (login-lockout-shadow).",
     "mfa-required-at-login": "ABSENT — the TOTP service exists and is not enforced.",
     "refresh-token-hashed-at-rest": "ABSENT — refresh tokens are stored as issued.",
     "jwt-algorithm-pinned": "ABSENT — jwt.verify is called without an algorithms list.",
