@@ -8,7 +8,9 @@
 //
 // Five of the names have a collector (`cyber-defense/collectors.ts`, Step 4):
 // failed sign-ins, reused refresh tokens, refused access (403), refused
-// browser origins and rate-limit hits. The rest are registered
+// browser origins and rate-limit hits. A sixth, `security.lockout.triggered`,
+// is the lockout evaluated in shadow mode (`cyber-defense/lockout-shadow.ts`,
+// Step 5): recorded, never enforced. The rest are registered
 // `produced: false` — the registry's own way of saying "declared, no producer
 // yet", the same device `system.deploy.*` uses.
 //
@@ -119,8 +121,8 @@ export interface SecurityEventDeclaration {
 export const SECURITY_EVENT_TYPES: readonly SecurityEventDeclaration[] = Object.freeze([
   { type: 'security.login.failed', category: 'AUTHENTICATION', produced: true, auditRelevant: true,
     describes: 'A sign-in attempt was refused' },
-  { type: 'security.lockout.triggered', category: 'AUTHENTICATION', produced: false, auditRelevant: true,
-    describes: 'Repeated failures reached the lockout threshold' },
+  { type: 'security.lockout.triggered', category: 'AUTHENTICATION', produced: true, auditRelevant: true,
+    describes: 'A sign-in attempt that the lockout thresholds would refuse (shadow mode: recorded, not enforced)' },
   { type: 'security.mfa.failed', category: 'AUTHENTICATION', produced: false, auditRelevant: true,
     describes: 'A second-factor code was refused' },
   { type: 'security.refresh.reused', category: 'SESSION', produced: true, auditRelevant: true,

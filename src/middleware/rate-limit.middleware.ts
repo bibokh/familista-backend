@@ -19,6 +19,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { logSecurityEvent } from '../security/security-event.service';
 import { recordRateLimitHit, type RateLimitBucket } from '../cyber-defense/collectors';
+import { recordShadowLoginOutcome } from '../cyber-defense/lockout-shadow';
 import type { RateLimitStore } from './rate-limit-store';
 import { memoryStore } from './rate-limit-memory.store';
 
@@ -214,6 +215,9 @@ export async function rateLimitAuth(req: Request, res: Response, next: NextFunct
     if (res.statusCode >= 400) {
       void Promise.resolve(store.take(`auth:${ip}`, AUTH_CAPACITY, AUTH_REFILL_MS));
     }
+    // Cyber Defense, Step 5: the login lockout measured in shadow mode.
+    // Records what it would have refused; refuses nothing.
+    if (path === '/login') recordShadowLoginOutcome(req, email, res.statusCode);
   });
   next();
 }

@@ -1051,11 +1051,11 @@ describe('the rest of the fabric is unchanged', () => {
     const all = fabricEvents().filter((e) => !e.type.startsWith('futurething'));
     const sources = fabricSources().filter((s) => s.id !== 'future-domain');
     expect(sources).toHaveLength(11);
-    // 177 + the twelve `security.*` names Cyber Defense declares (Step 2), five
-    // of which have a collector since Step 4.
+    // 177 + the twelve `security.*` names Cyber Defense declares (Step 2): five
+    // have a collector since Step 4, and the shadow lockout a sixth (Step 5).
     expect(all).toHaveLength(189);
-    expect(all.filter((e) => e.produced)).toHaveLength(136);
-    expect(all.filter((e) => !e.produced)).toHaveLength(53);
+    expect(all.filter((e) => e.produced)).toHaveLength(137);
+    expect(all.filter((e) => !e.produced)).toHaveLength(52);
   });
 
   it('a produced:false contract did not become historical by being registered', async () => {

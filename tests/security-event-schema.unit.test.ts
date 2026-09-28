@@ -52,9 +52,10 @@ describe('the security.* names are declared in the Fabric registry', () => {
       .toEqual(SECURITY_EVENT_TYPES.map((d) => d.type).sort());
   });
 
-  it('five have a collector (Step 4); the rest are declared ahead of theirs', () => {
+  it('six have a producer (Step 4 collectors, Step 5 shadow lockout); the rest are declared ahead of theirs', () => {
     expect(SECURITY_EVENT_TYPES.filter((d) => d.produced).map((d) => d.type).sort()).toEqual([
       'security.access.denied',
+      'security.lockout.triggered',
       'security.login.failed',
       'security.origin.rejected',
       'security.ratelimit.exceeded',
@@ -106,7 +107,7 @@ describe('only the collectors publish, and only the types that have one', () => 
     })).toBe(false);
   });
 
-  it('publishSecurityEvent is called from the collector module and nowhere else', () => {
+  it('publishSecurityEvent is called from the collector module and nowhere else (the shadow lockout goes through it)', () => {
     const callers: string[] = [];
     const walk = (dir: string) => {
       for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
