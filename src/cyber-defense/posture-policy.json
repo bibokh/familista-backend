@@ -59,7 +59,14 @@
     "audit-hash-chain",
     "security-event-log",
     "ai-action-approval-gate",
-    "no-unsafe-raw-sql"
+    "no-unsafe-raw-sql",
+    "ci-least-privilege",
+    "ci-actions-sha-pinned",
+    "ci-audit-blocking",
+    "ci-secret-scanning",
+    "ci-no-expression-injection",
+    "dependency-updates",
+    "codeowners"
   ],
   "knownGaps": {
     "login-lockout": "PARTIAL — the lockout service has no enforcing caller; it runs in shadow mode only (login-lockout-shadow).",

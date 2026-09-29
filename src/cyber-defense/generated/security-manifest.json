@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-29T10:27:11.674Z",
+  "generatedAt": "2026-09-29T10:38:23.297Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -648,6 +648,47 @@
       "id": "db-audit-append-only",
       "status": "ABSENT",
       "evidence": "prisma/migrations"
+    },
+    {
+      "id": "ci-least-privilege",
+      "status": "PRESENT",
+      "evidence": ".github/workflows",
+      "note": "Every workflow declares permissions: contents: read and grants no write scope."
+    },
+    {
+      "id": "ci-actions-sha-pinned",
+      "status": "PRESENT",
+      "evidence": ".github/workflows",
+      "note": "3 of 3 action reference(s) pinned to a full commit SHA."
+    },
+    {
+      "id": "ci-audit-blocking",
+      "status": "PRESENT",
+      "evidence": ".github/workflows/ci.yml",
+      "note": "npm audit fails the build on a high or critical advisory."
+    },
+    {
+      "id": "ci-secret-scanning",
+      "status": "PRESENT",
+      "evidence": ".github/workflows/ci.yml",
+      "note": "Full-history gitleaks scan, pinned and checksum-verified, blocking; 10 reviewed fixture(s) baselined."
+    },
+    {
+      "id": "ci-no-expression-injection",
+      "status": "PRESENT",
+      "evidence": ".github/workflows",
+      "note": "No ${{ }} expression is expanded inside a run: script; values reach scripts through env."
+    },
+    {
+      "id": "dependency-updates",
+      "status": "PRESENT",
+      "evidence": ".github/dependabot.yml",
+      "note": "Dependabot proposes npm and GitHub Actions updates as reviewed pull requests."
+    },
+    {
+      "id": "codeowners",
+      "status": "PRESENT",
+      "evidence": ".github/CODEOWNERS"
     }
   ],
   "secrets": {
@@ -1084,18 +1125,20 @@
       "registry.npmjs.org": 579
     },
     "auditInCi": true,
-    "auditBlocksCi": false,
-    "actions": 2,
-    "actionsPinnedBySha": 0,
-    "ciPermissionsDeclared": false,
-    "dependencyUpdates": false,
-    "codeowners": false,
+    "auditBlocksCi": true,
+    "actions": 3,
+    "actionsPinnedBySha": 3,
+    "ciPermissionsDeclared": true,
+    "dependencyUpdates": true,
+    "codeowners": true,
     "securityPolicy": false
   },
   "evidence": {
     "filesRead": [
+      ".github/dependabot.yml",
       ".github/workflows/ci.yml",
       ".github/workflows/deploy.yml",
+      ".gitleaksignore",
       "package-lock.json",
       "prisma/migrations",
       "render.yaml",
@@ -1170,7 +1213,7 @@
     ]
   },
   "counts": {
-    "controlsPresent": 19,
+    "controlsPresent": 26,
     "controlsPartial": 2,
     "controlsAbsent": 6,
     "cryptoUses": 9

@@ -10,6 +10,12 @@ on:
   push:
     branches: [main]
 
+# Cyber Defense, Step 9: least privilege. Every job reads the repository and
+# nothing else; no job can push, comment, open issues or touch packages with
+# the token GitHub hands it. A job that needs more must say so itself.
+permissions:
+  contents: read
+
 jobs:
   validate:
     name: validate (tsc + prisma + boot probe + contracts + tests)
@@ -46,12 +52,17 @@ jobs:
       JWT_REFRESH_TTL:    7d
       JWT_ISSUER:         familista
 
+    # Actions are pinned to a full commit SHA, not a tag: a tag can be moved to
+    # different code after review, a commit cannot. The comment names the
+    # release; Dependabot updates both together.
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - name: Setup Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: '20'
           cache: 'npm'
@@ -102,5 +113,46 @@ jobs:
       - name: Test suite
         run: npm test
 
-      - name: Audit (informational)
-        run: npm audit --audit-level=high || true
+      # Blocking since Cyber Defense Step 9: a dependency with a known HIGH or
+      # CRITICAL advisory stops the change from merging. Moderate and low are
+      # still printed. If the advisory service cannot be reached the step
+      # fails rather than passing unchecked.
+      - name: Audit (blocking on high and critical)
+        run: npm audit --audit-level=high
+
+  # Cyber Defense, Step 9: no credential enters the repository. gitleaks scans
+  # the WHOLE history on every pull request and every push to main, so a secret
+  # committed and then deleted is still caught. Findings are printed redacted;
+  # a value never reaches the log.
+  #
+  # The binary is a pinned release whose SHA-256 is checked before it runs; a
+  # tampered or substituted download stops the job. Reviewed test fixtures are
+  # listed by fingerprint (commit:file:rule:line, no values) in .gitleaksignore.
+  secret-scan:
+    name: secret scan (gitleaks, full history)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITLEAKS_VERSION: 8.29.1
+      GITLEAKS_SHA256: e4eb209d04e20339d77122a3bdf9cd41351255cfb27ebcb75e85325e04f88924
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install gitleaks (pinned, checksum verified)
+        run: |
+          set -euo pipefail
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$RUNNER_TEMP/$tarball" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${tarball}"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$tarball" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" version
+
+      - name: Scan history for secrets
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/gitleaks" git . --redact --no-banner --exit-code 1 --log-level info

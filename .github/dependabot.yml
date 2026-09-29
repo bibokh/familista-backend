@@ -1,0 +1,34 @@
+# Cyber Defense, Step 9 — dependency updates, reviewed as pull requests.
+#
+# Every update is an ordinary PR that runs the full CI (tests, contracts, the
+# blocking audit, the secret scan) and waits for a human to merge it. Nothing
+# is merged automatically. Security updates for a known advisory are opened by
+# GitHub independently of this schedule once "Dependabot security updates" is
+# enabled in the repository settings.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    commit-message:
+      prefix: deps
+    groups:
+      # Minor and patch releases arrive together, once a week, as one PR.
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+
+  # Keeps the SHA-pinned actions in .github/workflows current: each PR moves
+  # the pinned commit and the version comment beside it together.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    commit-message:
+      prefix: ci

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-29T10:28:11.102Z",
+  "generatedAt": "2026-09-29T10:38:23.399Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -730,7 +730,7 @@
       "provider": "GitHub",
       "region": null,
       "repositoryPath": ".github/workflows/ci.yml",
-      "sourceEvidence": ".github/workflows/ci.yml — 12 named steps",
+      "sourceEvidence": ".github/workflows/ci.yml — 15 named steps",
       "dependencies": [
         "platform-core"
       ],
@@ -882,7 +882,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 154 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 155 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1423,7 +1423,7 @@
     "middleware": 21,
     "fabricModules": 52,
     "totalTypeScript": 541,
-    "testSuites": 154,
+    "testSuites": 155,
     "migrations": 43,
     "prismaModels": 340,
     "prismaEnums": 209
@@ -1485,7 +1485,7 @@
       {
         "file": ".github/workflows/ci.yml",
         "name": "ci",
-        "jobs": 3,
+        "jobs": 4,
         "steps": [
           "Checkout",
           "Setup Node 20",
@@ -1498,7 +1498,10 @@
           "i18n check (locales synchronized)",
           "API / frontend contract verification",
           "Test suite",
-          "Audit (informational)"
+          "Audit (blocking on high and critical)",
+          "Checkout (full history)",
+          "Install gitleaks (pinned, checksum verified)",
+          "Scan history for secrets"
         ],
         "services": [
           "postgres:16-alpine"
