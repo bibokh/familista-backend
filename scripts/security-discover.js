@@ -378,6 +378,34 @@ const supplyChain = {
   securityPolicy: exists('SECURITY.md') || exists('.github/SECURITY.md'),
 };
 
+// Cyber Defense, Step 9 — the CI and supply-chain controls, derived from the
+// files that define them, so a later edit that loosens one fails the posture
+// test rather than passing unnoticed.
+const dependabotSrc = read(cite('.github/dependabot.yml')) || '';
+const gitleaksIgnore = read(cite('.gitleaksignore')) || '';
+const workflowSrcs = [ciSrc, deploySrc];
+const { expressionInScript: hasExpressionInScript, leastPrivilege } = require('./lib/workflow-checks');
+const expressionInScript = workflowSrcs.some(hasExpressionInScript);
+controls.push(
+  control('ci-least-privilege', leastPrivilege(ciSrc) && leastPrivilege(deploySrc) ? 'PRESENT' : 'ABSENT', '.github/workflows',
+    'Every workflow declares permissions: contents: read and grants no write scope.'),
+  control('ci-actions-sha-pinned',
+    supplyChain.actions > 0 && supplyChain.actionsPinnedBySha === supplyChain.actions ? 'PRESENT' : 'ABSENT', '.github/workflows',
+    `${supplyChain.actionsPinnedBySha} of ${supplyChain.actions} action reference(s) pinned to a full commit SHA.`),
+  control('ci-audit-blocking', supplyChain.auditBlocksCi && /npm audit --audit-level=(high|critical)/.test(ciSrc) ? 'PRESENT' : 'ABSENT', '.github/workflows/ci.yml',
+    'npm audit fails the build on a high or critical advisory.'),
+  control('ci-secret-scanning',
+    /gitleaks[^\n]* git \.[^\n]*--redact[^\n]*--exit-code 1/.test(ciSrc) && /fetch-depth:\s*0/.test(ciSrc)
+      && /sha256sum --check --strict/.test(ciSrc) && !/gitleaks[^\n]*\|\|\s*true/.test(ciSrc) ? 'PRESENT' : 'ABSENT', '.github/workflows/ci.yml',
+    `Full-history gitleaks scan, pinned and checksum-verified, blocking; ${gitleaksIgnore.split('\n').filter((l) => /^[0-9a-f]{40}:/.test(l)).length} reviewed fixture(s) baselined.`),
+  control('ci-no-expression-injection', expressionInScript ? 'ABSENT' : 'PRESENT', '.github/workflows',
+    'No ${{ }} expression is expanded inside a run: script; values reach scripts through env.'),
+  control('dependency-updates',
+    /package-ecosystem:\s*npm/.test(dependabotSrc) && /package-ecosystem:\s*github-actions/.test(dependabotSrc) ? 'PRESENT' : 'ABSENT', '.github/dependabot.yml',
+    'Dependabot proposes npm and GitHub Actions updates as reviewed pull requests.'),
+  control('codeowners', supplyChain.codeowners ? 'PRESENT' : 'ABSENT', '.github/CODEOWNERS'),
+);
+
 // ── the manifest ─────────────────────────────────────────────────────────────
 
 const pkg = (() => { try { return JSON.parse(read('package.json') || '{}'); } catch (_) { return {}; } })();

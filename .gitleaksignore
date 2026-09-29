@@ -1,0 +1,20 @@
+# Cyber Defense, Step 9 — reviewed gitleaks findings (fingerprints only).
+#
+# Each line is commit:file:rule:line for ONE finding that was reviewed and is
+# a deliberate test fixture or documentation placeholder, never a live
+# credential. No value appears here. The files are the redaction tests that
+# prove a secret-shaped value never leaves the platform (they must contain
+# secret-shaped strings to prove it) and the README's example environment.
+#
+# Adding a line here is a security decision: review the finding first, and
+# never add one for a real credential — rotate it instead.
+92f73c333bc5839e34af1db50c0b9d224203c4c0:tests/secrets-by-reference.unit.test.ts:generic-api-key:120
+c22fb7c2a96d9608f1538f03d8234a46a8ae2d5e:tests/fabric-gap-closure.unit.test.ts:generic-api-key:52
+c22fb7c2a96d9608f1538f03d8234a46a8ae2d5e:tests/fabric-gap-closure.unit.test.ts:generic-api-key:54
+c22fb7c2a96d9608f1538f03d8234a46a8ae2d5e:tests/fabric-gap-closure.unit.test.ts:generic-api-key:55
+cdc0798ac660c2697539048e659853fd0e90f645:tests/owner-trace-panel.unit.test.ts:generic-api-key:168
+cdc0798ac660c2697539048e659853fd0e90f645:tests/owner-trace-panel.unit.test.ts:generic-api-key:172
+cdc0798ac660c2697539048e659853fd0e90f645:tests/owner-trace-panel.unit.test.ts:generic-api-key:175
+cdc0798ac660c2697539048e659853fd0e90f645:tests/owner-trace-panel.unit.test.ts:generic-api-key:216
+d2ef3784897913ab04b5c1f14932f5d671ed55c5:tests/fabric-system-producer.unit.test.ts:generic-api-key:39
+efb8c0a20c33b380b11100d78ae16a0b1291b90f:README.md:generic-api-key:62
