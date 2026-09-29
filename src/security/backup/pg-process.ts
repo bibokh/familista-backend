@@ -5,6 +5,7 @@
 // details before it can reach a log or a BackupRecord.
 
 import { spawn, ChildProcess } from 'child_process';
+import { setPriority } from 'os';
 import { pgEnv, PgConnection } from './backup-config';
 
 const MAX_STDERR = 8 * 1024;
@@ -65,4 +66,57 @@ export async function psqlScript(psqlBin: string, c: PgConnection, script: strin
   child.stdin?.end(script);
   await done;
   return out.split('\n').map((l) => l.trim()).filter(Boolean);
+}
+
+/** The oldest pg_dump that can dump the production server (PostgreSQL 16). */
+export const MIN_PG_DUMP_MAJOR = 16;
+
+export interface PgToolVersion { available: boolean; version: string | null; major: number | null }
+
+/**
+ * `pg_dump --version`, parsed. Only the version number is ever returned or
+ * logged — never the tool's other output, and no environment is passed to it.
+ */
+export function pgToolVersion(bin: string, timeoutMs = 10_000): Promise<PgToolVersion> {
+  return new Promise((resolve) => {
+    let out = '';
+    let settled = false;
+    const done = (v: PgToolVersion) => { if (!settled) { settled = true; resolve(v); } };
+    let child: ChildProcess;
+    try {
+      child = spawn(bin, ['--version'], { env: { PATH: process.env.PATH, LANG: 'C' }, stdio: ['ignore', 'pipe', 'ignore'], shell: false });
+    } catch {
+      done({ available: false, version: null, major: null });
+      return;
+    }
+    const timer = setTimeout(() => { child.kill('SIGKILL'); done({ available: false, version: null, major: null }); }, timeoutMs);
+    child.stdout?.on('data', (d: Buffer) => { if (out.length < 256) out += d.toString('utf8'); });
+    child.on('error', () => { clearTimeout(timer); done({ available: false, version: null, major: null }); });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      const m = /^pg_dump \(PostgreSQL\) (\d+)(?:\.(\d+))?/.exec(out.trim());
+      if (code !== 0 || !m) return done({ available: false, version: null, major: null });
+      done({ available: true, version: m[2] ? `${m[1]}.${m[2]}` : m[1], major: Number(m[1]) });
+    });
+  });
+}
+
+/** Refuses to go on unless pg_dump is present and new enough for the server. */
+export async function requirePgDump(bin: string): Promise<PgToolVersion> {
+  const v = await pgToolVersion(bin);
+  if (!v.available) throw new Error('pg_dump is not available on this host');
+  if ((v.major ?? 0) < MIN_PG_DUMP_MAJOR) {
+    throw new Error(`pg_dump ${MIN_PG_DUMP_MAJOR} or newer is required; found ${v.version}`);
+  }
+  return v;
+}
+
+/**
+ * Lowest scheduling priority for a child, so a backup running inside the web
+ * service yields the CPU to request handling. Best effort: a host that forbids
+ * it still gets its backup.
+ */
+export function lowestPriority(child: ChildProcess): void {
+  if (!child.pid) return;
+  try { setPriority(child.pid, 19); } catch { /* not permitted here; the backup still runs */ }
 }

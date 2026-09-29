@@ -1,0 +1,49 @@
+# Familista — the daily encrypted off-site backup (Cyber Defense, Step 10).
+#
+# €0/month: GitHub provides the schedule, the running familista-backend
+# service does the work. This workflow never sees the database, the bucket or
+# any backup key. It wakes the service, asks it — signed with
+# BACKUP_TRIGGER_SECRET — to run its fixed backup, and waits for the result, so
+# a failed backup is a failed run and GitHub emails the owner.
+#
+# Secrets: BACKUP_TRIGGER_SECRET only. Variable: BACKUP_SERVICE_URL (the
+# service's public https address; not a secret). See docs/BACKUP_AND_RESTORE.md.
+
+name: backup
+
+on:
+  schedule:
+    # 03:17 UTC daily. GitHub may start a scheduled run late; the service
+    # refuses a second backup within 20 hours, so a late or repeated run is
+    # harmless.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: trigger and verify the daily backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node 20
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '20'
+
+      - name: Wake the service, trigger the backup, wait for its result
+        env:
+          BACKUP_TRIGGER_SECRET: ${{ secrets.BACKUP_TRIGGER_SECRET }}
+          BACKUP_SERVICE_URL: ${{ vars.BACKUP_SERVICE_URL }}
+        run: node scripts/backup-trigger.js

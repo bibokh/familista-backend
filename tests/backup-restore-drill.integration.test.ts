@@ -32,6 +32,8 @@ import { drillConfigFromEnv, pgConnection, runnerConfigFromEnv } from '../src/se
 import { psqlBackupDb, runBackup } from '../src/security/backup/backup-runner';
 import { runRestoreDrill } from '../src/security/backup/restore-drill';
 import { psqlQuery } from '../src/security/backup/pg-process';
+import { prismaRunStore, recordDbFor } from '../src/security/backup/backup-run-store';
+import { startBackupRun, statusOf } from '../src/security/backup/backup-trigger';
 
 const ADMIN_URL = process.env.BACKUP_DRILL_DATABASE_URL ?? '';
 if (!ADMIN_URL && process.env.BACKUP_DRILL_REQUIRED === '1') {
@@ -155,4 +157,51 @@ suite('backup and restore drill against real PostgreSQL', () => {
     expect(row?.notes).toBe(hostile);
     expect(await src.user.count()).toBe(1);
   }, 60_000);
+
+  // ── the scheduled trigger's path: advisory lock, 20 hours, run state ─────
+  const triggerCfg = () => runnerConfigFromEnv({
+    ...baseEnv(),
+    DATABASE_URL: srcUrl,
+    BACKUP_ENCRYPTION_PUBLIC_KEY: keys.encryptionPublicKey,
+    BACKUP_SIGNING_PRIVATE_KEY: keys.signingPrivateKey,
+    BACKUP_PG_DUMP: PG_DUMP,
+    BACKUP_PSQL: PSQL,
+  });
+
+  it('refuses a scheduled run within 20 hours of the successful backup above', async () => {
+    const res = await startBackupRun({ store: prismaRunStore(src), run: async () => { throw new Error('must not run'); } });
+    expect(res.kind).toBe('recent');
+  }, 60_000);
+
+  it('runs one backup at a time under a real advisory lock, and records its state', async () => {
+    await src.backupRecord.deleteMany({});
+    const cfg = triggerCfg();
+    let finished!: Promise<unknown>;
+    const run = (id: string) => { finished = runBackup(cfg, { db: recordDbFor(src, id) }); return finished; };
+    const [a, b] = await Promise.all([
+      startBackupRun({ store: prismaRunStore(src), run }),
+      startBackupRun({ store: prismaRunStore(src), run, sleep: (ms) => new Promise((r) => setTimeout(r, ms)) }),
+    ]);
+    const kinds = [a.kind, b.kind].sort();
+    expect(kinds).toEqual(['running', 'started']);
+    const started = [a, b].find((x) => x.kind === 'started') as { id: string };
+    expect([a, b].find((x) => x.kind === 'running')).toEqual({ kind: 'running', id: started.id });
+
+    const during = await prismaRunStore(src).find(started.id);
+    expect(statusOf(during!, new Date()).state).toBe('running');
+
+    await finished;
+    // The lock is released when the holding transaction ends.
+    await new Promise((r) => setTimeout(r, 200));
+    const rows = await src.backupRecord.findMany();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: started.id, kind: 'SCHEDULED', ok: true });
+    expect(rows[0].sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(statusOf((await prismaRunStore(src).find(started.id))!, new Date()).state).toBe('succeeded');
+
+    const [held] = await src.$queryRawUnsafe<Array<{ n: bigint }>>(
+      "SELECT count(*) AS n FROM pg_locks WHERE locktype = 'advisory' AND objid = 1178749745");
+    expect(Number(held.n)).toBe(0);
+    expect((await startBackupRun({ store: prismaRunStore(src), run: async () => undefined })).kind).toBe('recent');
+  }, 180_000);
 });

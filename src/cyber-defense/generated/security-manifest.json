@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-29T19:24:05.463Z",
+  "generatedAt": "2026-09-29T20:18:18.671Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -111,32 +111,42 @@
       {
         "route": "GET /api/health",
         "file": "src/app.ts",
-        "line": 226
+        "line": 227
       },
       {
         "route": "GET /app/*",
         "file": "src/app.ts",
-        "line": 291
+        "line": 301
       },
       {
         "route": "GET /healthz",
         "file": "src/app.ts",
-        "line": 227
+        "line": 228
+      },
+      {
+        "route": "GET /internal/backups/runs/:id",
+        "file": "src/app.ts",
+        "line": 237
       },
       {
         "route": "GET /invite",
         "file": "src/app.ts",
-        "line": 281
+        "line": 291
       },
       {
         "route": "GET /invite/*",
         "file": "src/app.ts",
-        "line": 281
+        "line": 291
       },
       {
         "route": "GET /reset-password",
         "file": "src/app.ts",
-        "line": 271
+        "line": 281
+      },
+      {
+        "route": "POST /internal/backups/run",
+        "file": "src/app.ts",
+        "line": 236
       }
     ],
     "mounts": [
@@ -659,7 +669,7 @@
       "id": "ci-actions-sha-pinned",
       "status": "PRESENT",
       "evidence": ".github/workflows",
-      "note": "3 of 3 action reference(s) pinned to a full commit SHA."
+      "note": "5 of 5 action reference(s) pinned to a full commit SHA."
     },
     {
       "id": "ci-audit-blocking",
@@ -729,13 +739,19 @@
     {
       "id": "backup-scheduled",
       "status": "PRESENT",
-      "evidence": "render.yaml",
-      "note": "A Render cron job runs the encrypted backup daily, in the database's region, with the database linked, every credential unsynced and no decryption key."
+      "evidence": ".github/workflows/backup.yml",
+      "note": "GitHub Actions asks the running service daily, over a signed request, to run its fixed backup; the workflow holds only the trigger secret and no database or backup key."
+    },
+    {
+      "id": "backup-trigger-authenticated",
+      "status": "PRESENT",
+      "evidence": "src/security/backup/backup-trigger.ts",
+      "note": "The backup trigger takes no input, authenticates by HMAC-SHA256 with a 5-minute window and constant-time comparison, is closed without a secret, runs one backup at a time and none within 20 hours of a success."
     }
   ],
   "secrets": {
-    "declared": 66,
-    "secretNamed": 22,
+    "declared": 57,
+    "secretNamed": 18,
     "secretNamedInline": [],
     "envVars": [
       {
@@ -767,46 +783,6 @@
         "name": "APP_URL",
         "supply": "dashboard",
         "secretNamed": false
-      },
-      {
-        "name": "BACKUP_ENCRYPTION_PUBLIC_KEY",
-        "supply": "dashboard",
-        "secretNamed": false
-      },
-      {
-        "name": "BACKUP_S3_ACCESS_KEY_ID",
-        "supply": "dashboard",
-        "secretNamed": true
-      },
-      {
-        "name": "BACKUP_S3_BUCKET",
-        "supply": "dashboard",
-        "secretNamed": false
-      },
-      {
-        "name": "BACKUP_S3_ENDPOINT",
-        "supply": "inline",
-        "secretNamed": false
-      },
-      {
-        "name": "BACKUP_S3_REGION",
-        "supply": "inline",
-        "secretNamed": false
-      },
-      {
-        "name": "BACKUP_S3_SECRET_ACCESS_KEY",
-        "supply": "dashboard",
-        "secretNamed": true
-      },
-      {
-        "name": "BACKUP_SIGNING_PRIVATE_KEY",
-        "supply": "dashboard",
-        "secretNamed": true
-      },
-      {
-        "name": "DATABASE_URL",
-        "supply": "linked",
-        "secretNamed": true
       },
       {
         "name": "DATABASE_URL",
@@ -871,11 +847,6 @@
       {
         "name": "MFA_ENCRYPTION_KEY",
         "supply": "dashboard",
-        "secretNamed": false
-      },
-      {
-        "name": "NODE_ENV",
-        "supply": "inline",
         "secretNamed": false
       },
       {
@@ -1103,6 +1074,7 @@
         "src/middleware/vision-access.middleware.ts",
         "src/security-l/attestation.service.ts",
         "src/security-n/signed-recommendations.service.ts",
+        "src/security/backup/backup-trigger.ts",
         "src/security/envelope-sign.ts",
         "src/services/device-auth.service.ts",
         "src/services/device-registry.service.ts",
@@ -1173,6 +1145,7 @@
         "src/knowledge-graph/reasoning.service.ts",
         "src/security-l/attestation.service.ts",
         "src/security-n/signed-recommendations.service.ts",
+        "src/security/backup/backup-trigger.ts",
         "src/security/envelope-sign.ts",
         "src/services/device-auth.service.ts",
         "src/services/device-registry.service.ts",
@@ -1231,8 +1204,8 @@
     },
     "auditInCi": true,
     "auditBlocksCi": true,
-    "actions": 3,
-    "actionsPinnedBySha": 3,
+    "actions": 5,
+    "actionsPinnedBySha": 5,
     "ciPermissionsDeclared": true,
     "dependencyUpdates": true,
     "codeowners": true,
@@ -1241,6 +1214,7 @@
   "evidence": {
     "filesRead": [
       ".github/dependabot.yml",
+      ".github/workflows/backup.yml",
       ".github/workflows/ci.yml",
       ".github/workflows/deploy.yml",
       ".gitleaksignore",
@@ -1252,6 +1226,7 @@
       "scripts/rollback.sh",
       "src/app.ts",
       "src/auth-prod/mfa.service.ts",
+      "src/controllers/internal-backup.controller.ts",
       "src/cyber-defense/lockout-shadow.ts",
       "src/fabric/secrets/keyring.ts",
       "src/middleware/auth.middleware.ts",
@@ -1314,6 +1289,8 @@
       "src/security/audit-chain.service.ts",
       "src/security/backup/backup-config.ts",
       "src/security/backup/backup-crypto.ts",
+      "src/security/backup/backup-run-store.ts",
+      "src/security/backup/backup-trigger.ts",
       "src/security/backup/restore-drill.ts",
       "src/security/login-attempt.service.ts",
       "src/security/security-event.service.ts",
@@ -1324,7 +1301,7 @@
     ]
   },
   "counts": {
-    "controlsPresent": 33,
+    "controlsPresent": 34,
     "controlsPartial": 2,
     "controlsAbsent": 6,
     "cryptoUses": 11

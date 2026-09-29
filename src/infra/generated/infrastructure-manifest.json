@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-29T19:27:07.817Z",
+  "generatedAt": "2026-09-29T20:17:30.128Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,6 +8,7 @@
   },
   "evidence": {
     "filesRead": [
+      ".github/workflows/backup.yml",
       ".github/workflows/ci.yml",
       ".github/workflows/deploy.yml",
       "package-lock.json",
@@ -719,6 +720,25 @@
       "note": null
     },
     {
+      "id": "workflow-backup",
+      "name": "GitHub Actions — backup",
+      "district": "cicd",
+      "category": "cicd",
+      "type": "PIPELINE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": "GitHub",
+      "region": null,
+      "repositoryPath": ".github/workflows/backup.yml",
+      "sourceEvidence": ".github/workflows/backup.yml — 3 named steps",
+      "dependencies": [
+        "platform-core"
+      ],
+      "healthKey": "ci",
+      "note": null
+    },
+    {
       "id": "workflow-ci",
       "name": "GitHub Actions — ci",
       "district": "cicd",
@@ -773,25 +793,6 @@
         "platform-core"
       ],
       "healthKey": "deployment",
-      "note": "autoDeploy is enabled."
-    },
-    {
-      "id": "render-familista-backup",
-      "name": "familista-backup",
-      "district": "cicd",
-      "category": "hosting",
-      "type": "CRON",
-      "version": null,
-      "status": "ACTIVE",
-      "runtime": null,
-      "provider": "Render",
-      "region": "frankfurt",
-      "repositoryPath": "render.yaml",
-      "sourceEvidence": "render.yaml — familista-backup (cron, starter)",
-      "dependencies": [
-        "platform-core"
-      ],
-      "healthKey": null,
       "note": "autoDeploy is enabled."
     },
     {
@@ -901,7 +902,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 161 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 162 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -961,7 +962,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "549 TypeScript modules under src/."
+      "note": "552 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -992,7 +993,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "src/config/index.ts",
-      "sourceEvidence": "src/config/index.ts; render.yaml — 66 declared variables",
+      "sourceEvidence": "src/config/index.ts; render.yaml — 57 declared variables",
       "dependencies": [],
       "healthKey": null,
       "note": "Names only. No value is ever read into this manifest."
@@ -1076,6 +1077,12 @@
       "to": "redis",
       "kind": "USES",
       "evidence": "src/middleware/rate-limit-redis.store.ts"
+    },
+    {
+      "from": "workflow-backup",
+      "to": "render-familista-backend",
+      "kind": "DEPLOYS",
+      "evidence": ".github/workflows/backup.yml; render.yaml autoDeploy"
     },
     {
       "from": "workflow-ci",
@@ -1441,8 +1448,8 @@
     "serviceModules": 101,
     "middleware": 22,
     "fabricModules": 52,
-    "totalTypeScript": 549,
-    "testSuites": 161,
+    "totalTypeScript": 552,
+    "testSuites": 162,
     "migrations": 43,
     "prismaModels": 340,
     "prismaEnums": 209
@@ -1478,15 +1485,6 @@
         "healthCheckPath": "/healthz"
       },
       {
-        "name": "familista-backup",
-        "type": "cron",
-        "runtime": "node",
-        "region": "frankfurt",
-        "plan": "starter",
-        "autoDeploy": true,
-        "healthCheckPath": null
-      },
-      {
         "name": "familista-redis",
         "type": "redis",
         "runtime": null,
@@ -1510,6 +1508,20 @@
   },
   "ci": {
     "workflows": [
+      {
+        "file": ".github/workflows/backup.yml",
+        "name": "backup",
+        "jobs": 3,
+        "steps": [
+          "Checkout",
+          "Setup Node 20",
+          "Wake the service, trigger the backup, wait for its result"
+        ],
+        "services": [],
+        "runsOn": [
+          "ubuntu-latest"
+        ]
+      },
       {
         "file": ".github/workflows/ci.yml",
         "name": "ci",
@@ -1899,16 +1911,12 @@
     }
   ],
   "environment": {
-    "total": 66,
+    "total": 57,
     "architectural": [
       "AI_LLM_MODEL",
       "AI_LLM_TIMEOUT_MS",
       "API_VERSION",
       "APP_URL",
-      "BACKUP_S3_BUCKET",
-      "BACKUP_S3_ENDPOINT",
-      "BACKUP_S3_REGION",
-      "DATABASE_URL",
       "DATABASE_URL",
       "DB_CONNECTION_LIMIT",
       "EMAIL_FROM",
@@ -1918,7 +1926,6 @@
       "JWT_ACCESS_TTL",
       "JWT_ISSUER",
       "JWT_REFRESH_TTL",
-      "NODE_ENV",
       "NODE_ENV",
       "PORT",
       "PUBLIC_APP_URL",
@@ -1949,7 +1956,7 @@
       "WL_ASSETS_S3_REGION",
       "WL_PAYOUT_BACKEND"
     ],
-    "secretShapedCount": 19
+    "secretShapedCount": 15
   },
   "dependencies": [
     {
@@ -2243,7 +2250,7 @@
   "counts": {
     "districts": 18,
     "components": 44,
-    "relationships": 15,
+    "relationships": 16,
     "technologies": 30,
     "future": 7,
     "dependencies": 41

@@ -30,6 +30,7 @@ import { BackupDb, BackupRecordRow, objectKeyFor, psqlBackupDb, runBackup } from
 import { pgConnection } from '../src/security/backup/backup-config';
 import { runRestoreDrill } from '../src/security/backup/restore-drill';
 import { main } from '../src/scripts/backup';
+import { pgToolVersion } from '../src/security/backup/pg-process';
 
 const keys = generateBackupKeys();
 const PW = ['s3', 'cr', 'Et', 'Pw9'].join('');
@@ -42,7 +43,10 @@ let bin: string;
 let storeDir: string;
 let dump: Buffer;
 
+// Every stand-in pg_dump answers `--version` as 16.4 unless its body says otherwise.
+const PG_DUMP_16 = '[ "$1" = "--version" ] && { echo "pg_dump (PostgreSQL) 16.4"; exit 0; }\n';
 function script(name: string, body: string): string {
+  if (name === 'pg_dump' && !body.includes('--version')) body = PG_DUMP_16 + body;
   const p = path.join(bin, name);
   fs.writeFileSync(p, `#!/bin/sh\n${body}\n`, { mode: 0o700 });
   return p;
@@ -149,7 +153,7 @@ describe('backup run', () => {
 
     // pg_dump gets the custom format, no owner/ACL, the database by name — and its password only via the environment.
     expect(fs.readFileSync(path.join(work, 'pg_dump.argv'), 'utf8').trim().split('\n'))
-      .toEqual(['--format=custom', '--no-owner', '--no-acl', '--compress=6', '--dbname=familista']);
+      .toEqual(['--format=custom', '--no-owner', '--no-acl', '--compress=1', '--dbname=familista']);
     expect(fs.existsSync(path.join(work, 'pg_dump.pw'))).toBe(true);
     // Nothing is left in the temporary directory.
     expect(tmpLeftovers('fam-backup-')).toEqual(before);
@@ -220,6 +224,48 @@ describe('backup run', () => {
     const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'scripts', 'backup.ts'), 'utf8')
       + fs.readFileSync(path.join(__dirname, '..', 'src', 'security', 'backup', 'backup-runner.ts'), 'utf8');
     expect(src).not.toMatch(/@prisma\/client|config\/database|from '\.\.\/config'/);
+  });
+});
+
+describe('pg_dump version gate and priority', () => {
+  it('reads the version from pg_dump --version and nothing else', async () => {
+    const b = script('pg_dump', 'if [ "$1" = "--version" ]; then echo "pg_dump (PostgreSQL) 16.15 (Ubuntu 16.15-1.pgdg24.04+2)"; exit 0; fi; exit 9');
+    expect(await pgToolVersion(b)).toEqual({ available: true, version: '16.15', major: 16 });
+  });
+
+  it.each([
+    ['a missing binary', null],
+    ['unparseable output', 'echo "something else entirely"'],
+    ['a failing binary', 'exit 3'],
+  ])('reports %s as unavailable', async (_l, body) => {
+    const b = body === null ? path.join(bin, 'no-such-pg_dump') : script('pg_dump', `if [ "$1" = "--version" ]; then ${body}; fi`);
+    expect(await pgToolVersion(b)).toEqual({ available: false, version: null, major: null });
+  });
+
+  it('refuses pg_dump older than 16 before dumping anything, and records the failure', async () => {
+    script('pg_dump', `if [ "$1" = "--version" ]; then echo "pg_dump (PostgreSQL) 15.8"; exit 0; fi\nprintf '%s\\n' "$@" > '${work}/pg_dump.argv'\ncat '${work}/dump.bin'`);
+    const { db, records } = fakeDb();
+    await expect(runBackup(runnerConfigFromEnv(runnerEnv()), { db })).rejects.toThrow('pg_dump 16 or newer is required; found 15.8');
+    expect(fs.existsSync(path.join(work, 'pg_dump.argv'))).toBe(false);
+    expect(records[0]).toMatchObject({ ok: false });
+    expect(String(records[0].notes)).toContain('pg_dump 16 or newer is required');
+  });
+
+  it('refuses when pg_dump is not installed', async () => {
+    const { db, records } = fakeDb();
+    await expect(runBackup(runnerConfigFromEnv(runnerEnv({ BACKUP_PG_DUMP: path.join(bin, 'absent') })), { db }))
+      .rejects.toThrow('pg_dump is not available on this host');
+    expect(records[0]).toMatchObject({ ok: false });
+  });
+
+  it('runs pg_dump at the lowest scheduling priority, with compression 1', async () => {
+    // The stand-in waits a moment (the priority is set just after spawn), then
+    // reports its own nice value from /proc.
+    script('pg_dump', `sleep 0.5\nawk '{print $19}' /proc/$$/stat > '${work}/pg_dump.nice'\nprintf '%s\\n' "$@" > '${work}/pg_dump.argv'\ncat '${work}/dump.bin'`);
+    const { db } = fakeDb();
+    await runBackup(runnerConfigFromEnv(runnerEnv()), { db });
+    expect(fs.readFileSync(path.join(work, 'pg_dump.nice'), 'utf8').trim()).toBe('19');
+    expect(fs.readFileSync(path.join(work, 'pg_dump.argv'), 'utf8')).toContain('--compress=1');
   });
 });
 

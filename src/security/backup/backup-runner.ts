@@ -22,7 +22,7 @@ import { PassThrough } from 'stream';
 import { createEncryptStream, keyId, signManifest, BackupManifest } from './backup-crypto';
 import { pgConnection, PgConnection, RunnerConfig } from './backup-config';
 import { BackupStore, storeFor } from './backup-store';
-import { psqlQuery, psqlScript, scrub, spawnPg } from './pg-process';
+import { lowestPriority, psqlQuery, psqlScript, requirePgDump, scrub, spawnPg } from './pg-process';
 
 export interface BackupResult {
   ok: true;
@@ -112,8 +112,14 @@ export async function runBackup(cfg: RunnerConfig, deps: { db?: BackupDb; store?
   const manifestPath = path.join(work, 'backup.manifest.json');
 
   try {
+    // A pg_dump older than the server fails part-way; refuse before starting.
+    await requirePgDump(cfg.pgDumpBin);
     const head = await db.migrationHead();
-    const dump = spawnPg(cfg.pgDumpBin, ['--format=custom', '--no-owner', '--no-acl', '--compress=6', `--dbname=${conn.database}`], conn);
+    // Compression 1: the web service may be the host, and its CPU belongs to
+    // requests. The ciphertext does not compress further, so a higher level
+    // buys little but time.
+    const dump = spawnPg(cfg.pgDumpBin, ['--format=custom', '--no-owner', '--no-acl', '--compress=1', `--dbname=${conn.database}`], conn);
+    lowestPriority(dump.child);
     const plain = tap();
     const cipher = tap();
     await Promise.all([

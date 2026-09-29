@@ -1,112 +1,71 @@
 /**
  * tests/backup-schedule.unit.test.ts
  *
- * Cyber Defense, Step 10 in production — the Render cron job that takes the
- * encrypted off-site backup every day.
+ * Cyber Defense, Step 10 — the daily backup at €0/month.
  *
- * What the blueprint must say, and must never say. The job runs the backup
- * wrapper on a schedule, in the database's region (so it reaches it on the
- * private network), with the database URL linked rather than pasted, every
- * credential supplied from the dashboard rather than committed, and nothing
- * beyond what a backup needs: no decryption key, and none of the web
- * service's secrets.
+ * GitHub Actions provides the schedule; the running familista-backend service
+ * does the work. What the workflow may hold is pinned here: one secret (the
+ * trigger's) and the service's public address — never the database, the
+ * bucket's keys, the signing key, the restore key or the decryption key. And
+ * the paid Render cron job is gone from the blueprint, so a sync can never
+ * create a billable service.
  */
 
 import fs from 'fs';
 import path from 'path';
 
-const RAW = fs.readFileSync(path.join(__dirname, '..', 'render.yaml'), 'utf8');
+const ROOT = path.join(__dirname, '..');
+const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+const WF = read('.github/workflows/backup.yml');
+const RENDER = read('render.yaml');
+const code = WF.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
 
-/** The text of one top-level entry under services:, by its `name:`. */
-function serviceBlock(name: string): string {
-  const entries = RAW.split(/\n(?=  - type:)/);
-  const hit = entries.find((e) => new RegExp(`^[ \\t]*name:[ \\t]*${name}[ \\t]*$`, 'm').test(e));
-  if (!hit) throw new Error(`no service ${name} in render.yaml`);
-  // Stop at the databases: section if the entry is the last service.
-  return hit.split(/\ndatabases:/)[0];
-}
-
-/** `{ key: supply }` for each env var of a block: value / sync:false / fromDatabase / fromService. */
-function envOf(block: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  const lines = block.split('\n');
-  lines.forEach((l, i) => {
-    const k = l.match(/^[ \t]*-[ \t]*key:[ \t]*([A-Z0-9_]+)[ \t]*$/);
-    if (!k) return;
-    const nextLine = lines[i + 1] ?? '';
-    const f = nextLine.match(/^[ \t]*(value|sync|fromDatabase|fromService|generateValue):[ \t]*(.*)$/);
-    out[k[1]] = f ? (f[1] === 'sync' ? `sync:${f[2].trim()}` : f[1]) : 'none';
-  });
-  return out;
-}
-
-const cron = serviceBlock('familista-backup');
-const field = (name: string) => (cron.match(new RegExp(`^[ \\t]*${name}:[ \\t]*(.+)$`, 'm')) || [])[1]?.trim();
-const env = envOf(cron);
-const dbRegion = (RAW.slice(RAW.indexOf('\ndatabases:')).match(/^[ \t]*region:[ \t]*(\S+)/m) || [])[1];
-
-describe('render.yaml — the backup cron job', () => {
-  it('is a cron service on main that runs the backup wrapper daily', () => {
-    expect(cron).toMatch(/^  - type: cron$/m);
-    expect(field('branch')).toBe('main');
-    expect(field('schedule')).toBe('"17 3 * * *"');
-    expect(field('startCommand')).toBe('pg_dump --version && bash scripts/backup.sh');
+describe('.github/workflows/backup.yml', () => {
+  it('runs daily at 03:17 UTC and on demand', () => {
+    expect(code).toMatch(/on:\n\s+schedule:\n(?:\s+#.*\n)*\s+- cron: '17 3 \* \* \*'\n\s+workflow_dispatch:/);
   });
 
-  it('builds exactly as the web service does', () => {
-    expect(field('buildCommand')).toBe((serviceBlock('familista-backend').match(/^[ \t]*buildCommand:[ \t]*(.+)$/m) || [])[1]?.trim());
+  it('has a read-only token and never runs two at once', () => {
+    expect(code).toMatch(/^permissions:\n\s+contents: read$/m);
+    expect(code).not.toMatch(/:\s*write\b/);
+    expect(code).toMatch(/concurrency:\n\s+group: backup\n\s+cancel-in-progress: false/);
   });
 
-  it('runs in the database region, so it reaches it on the private network', () => {
-    expect(dbRegion).toBe('frankfurt');
-    expect(field('region')).toBe(dbRegion);
+  it('holds exactly one secret: BACKUP_TRIGGER_SECRET', () => {
+    const secrets = [...new Set([...code.matchAll(/secrets\.([A-Z0-9_]+)/g)].map((m) => m[1]))];
+    expect(secrets).toEqual(['BACKUP_TRIGGER_SECRET']);
+    expect(code).toMatch(/BACKUP_SERVICE_URL: \$\{\{ vars\.BACKUP_SERVICE_URL \}\}/);
   });
 
-  it('takes the database URL by link, never as a value', () => {
-    expect(env.DATABASE_URL).toBe('fromDatabase');
-    expect(cron).toMatch(/- key: DATABASE_URL\n\s+fromDatabase:\n\s+name: familista-postgres\n\s+property: connectionString/);
+  it.each(['DATABASE_URL', 'DIRECT_URL', 'BACKUP_S3_ACCESS_KEY_ID', 'BACKUP_S3_SECRET_ACCESS_KEY', 'BACKUP_SIGNING_PRIVATE_KEY',
+    'BACKUP_ENCRYPTION_PRIVATE_KEY', 'BACKUP_ENCRYPTION_PUBLIC_KEY', 'PGPASSWORD', 'pg_dump', 'psql'])('never names %s', (name) => {
+    expect(code).not.toContain(name);
   });
 
-  it.each(['BACKUP_S3_BUCKET', 'BACKUP_S3_ACCESS_KEY_ID', 'BACKUP_S3_SECRET_ACCESS_KEY', 'BACKUP_ENCRYPTION_PUBLIC_KEY', 'BACKUP_SIGNING_PRIVATE_KEY'])(
-    '%s is set in the dashboard, never committed', (key) => {
-      expect(env[key]).toBe('sync:false');
-    });
-
-  it('states only non-secret values inline: the environment, the B2 region and the B2 endpoint', () => {
-    const inline = Object.entries(env).filter(([, s]) => s === 'value').map(([k]) => k).sort();
-    expect(inline).toEqual(['BACKUP_S3_ENDPOINT', 'BACKUP_S3_REGION', 'NODE_ENV']);
-    expect(cron).toMatch(/- key: NODE_ENV\n\s+value: production/);
+  it('runs only the trigger script, with the values reaching it through env', () => {
+    const runs = [...code.matchAll(/^\s+run:\s*(.+)$/gm)].map((m) => m[1].trim());
+    expect(runs).toEqual(['node scripts/backup-trigger.js']);
   });
 
-  it('targets Backblaze B2 in eu-central-003 through its S3-compatible endpoint, over https', () => {
-    expect(cron).toMatch(/- key: BACKUP_S3_REGION\n\s+value: eu-central-003\n/);
-    expect(cron).toMatch(/- key: BACKUP_S3_ENDPOINT\n\s+value: https:\/\/s3\.eu-central-003\.backblazeb2\.com\n/);
-    // The endpoint's region and the signing region must be the same B2 region.
-    const endpoint = (cron.match(/- key: BACKUP_S3_ENDPOINT\n\s+value: (\S+)/) || [])[1];
-    const region = (cron.match(/- key: BACKUP_S3_REGION\n\s+value: (\S+)/) || [])[1];
-    expect(new URL(endpoint!).hostname).toBe(`s3.${region}.backblazeb2.com`);
-    expect(new URL(endpoint!).protocol).toBe('https:');
+  it('checks out without persisting the token and pins every action to a commit', () => {
+    expect(code).toMatch(/uses: actions\/checkout@[0-9a-f]{40} # v\d+\.\d+\.\d+\n\s+with:\n\s+persist-credentials: false/);
+    for (const line of code.split('\n').filter((l) => /uses:/.test(l))) {
+      expect(line).toMatch(/uses:\s*[\w.-]+\/[\w.-]+@[0-9a-f]{40}\s+#\s*v\d+\.\d+\.\d+\s*$/);
+    }
   });
 
-  it('keeps virtual-hosted addressing: no path-style override (the bucket name has no dots)', () => {
-    expect(env.BACKUP_S3_FORCE_PATH_STYLE).toBeUndefined();
+  it('allows enough time to wake the service and wait for the run', () => {
+    expect(Number((code.match(/timeout-minutes: (\d+)/) || [])[1])).toBeGreaterThanOrEqual(70);
+  });
+});
+
+describe('render.yaml — no paid backup service', () => {
+  it('declares no cron job and no backup service', () => {
+    expect(RENDER).not.toMatch(/^\s*-\s*type:\s*cron\s*$/m);
+    expect(RENDER).not.toMatch(/familista-backup\b/);
   });
 
-  it('declares nothing else — no decryption key, no restore key and none of the web service\'s secrets', () => {
-    expect(Object.keys(env).sort()).toEqual([
-      'BACKUP_ENCRYPTION_PUBLIC_KEY', 'BACKUP_S3_ACCESS_KEY_ID', 'BACKUP_S3_BUCKET', 'BACKUP_S3_ENDPOINT', 'BACKUP_S3_REGION',
-      'BACKUP_S3_SECRET_ACCESS_KEY', 'BACKUP_SIGNING_PRIVATE_KEY', 'DATABASE_URL', 'NODE_ENV',
-    ]);
-    // One bucket credential (the upload-only writer); the read-only restore
-    // key stays offline and has no variable here.
-    expect(Object.keys(env).filter((k) => /ACCESS_KEY_ID$/.test(k))).toEqual(['BACKUP_S3_ACCESS_KEY_ID']);
-    expect(RAW).not.toMatch(/-\s*key:\s*BACKUP_ENCRYPTION_PRIVATE_KEY\b/);
-  });
-
-  it('leaves the web service untouched by the addition', () => {
-    const web = serviceBlock('familista-backend');
-    expect(web).toMatch(/^  - type: web$/m);
-    expect(envOf(web).BACKUP_SIGNING_PRIVATE_KEY).toBeUndefined();
-    expect(envOf(web).BACKUP_S3_SECRET_ACCESS_KEY).toBeUndefined();
+  it('never declares the decryption key', () => {
+    expect(RENDER).not.toMatch(/-\s*key:\s*BACKUP_ENCRYPTION_PRIVATE_KEY\b/);
   });
 });

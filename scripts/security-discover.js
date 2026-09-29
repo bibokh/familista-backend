@@ -363,7 +363,8 @@ for (const [, p] of lockPackages) {
 }
 const ciSrc = read(cite('.github/workflows/ci.yml')) || '';
 const deploySrc = read(cite('.github/workflows/deploy.yml')) || '';
-const workflowUses = [...`${ciSrc}\n${deploySrc}`.matchAll(/uses:\s*([^\s#]+)/g)].map((m) => m[1]);
+const backupWorkflowSrc = read(cite('.github/workflows/backup.yml')) || '';
+const workflowUses = [...`${ciSrc}\n${deploySrc}\n${backupWorkflowSrc}`.matchAll(/uses:\s*([^\s#]+)/g)].map((m) => m[1]);
 const supplyChain = {
   lockfilePackages: lockPackages.length,
   lockfileIntegrity: withIntegrity,
@@ -383,11 +384,11 @@ const supplyChain = {
 // test rather than passing unnoticed.
 const dependabotSrc = read(cite('.github/dependabot.yml')) || '';
 const gitleaksIgnore = read(cite('.gitleaksignore')) || '';
-const workflowSrcs = [ciSrc, deploySrc];
+const workflowSrcs = [ciSrc, deploySrc, backupWorkflowSrc].filter(Boolean);
 const { expressionInScript: hasExpressionInScript, leastPrivilege } = require('./lib/workflow-checks');
 const expressionInScript = workflowSrcs.some(hasExpressionInScript);
 controls.push(
-  control('ci-least-privilege', leastPrivilege(ciSrc) && leastPrivilege(deploySrc) ? 'PRESENT' : 'ABSENT', '.github/workflows',
+  control('ci-least-privilege', workflowSrcs.every(leastPrivilege) ? 'PRESENT' : 'ABSENT', '.github/workflows',
     'Every workflow declares permissions: contents: read and grants no write scope.'),
   control('ci-actions-sha-pinned',
     supplyChain.actions > 0 && supplyChain.actionsPinnedBySha === supplyChain.actions ? 'PRESENT' : 'ABSENT', '.github/workflows',
@@ -408,31 +409,44 @@ controls.push(
 
 // ── backups (Cyber Defense, Step 10) ─────────────────────────────────────────
 
-// The backup cron job, read from render.yaml's shape: it must exist, run the
-// backup on a schedule in the database's region, take the database URL by
-// link, take every credential from the dashboard (never a value in git), and
-// never declare the decryption key. The bucket's region is stated, and a custom
-// (S3-compatible) endpoint, when there is one, is https.
+// The daily backup at €0/month: a GitHub Actions schedule asks the running
+// service, over an HMAC-signed request, to run its fixed backup. Present when
+// the workflow runs daily and on demand with a read-only token, holds exactly
+// one secret (the trigger's), never names the database or a backup key, and
+// the paid Render cron job is gone from the blueprint.
 function backupScheduled() {
+  const wf = backupWorkflowSrc;
+  if (!wf) return false;
+  const secretsUsed = [...new Set([...wf.matchAll(/secrets\.([A-Z0-9_]+)/g)].map((m) => m[1]))];
+  const forbidden = /DATABASE_URL|BACKUP_S3_(?:ACCESS_KEY_ID|SECRET_ACCESS_KEY)|BACKUP_SIGNING_PRIVATE_KEY|BACKUP_ENCRYPTION_PRIVATE_KEY/;
   const raw = read(RENDER) || '';
-  const start = raw.search(/^[ \t]*-[ \t]*type:[ \t]*cron[ \t]*$/m);
-  if (start < 0) return false;
-  const rest = raw.slice(start);
-  const firstNl = rest.indexOf('\n');
-  const next = rest.slice(firstNl).search(/\n[ \t]{0,4}-[ \t]*type:|\ndatabases:/);
-  const block = next < 0 ? rest : rest.slice(0, firstNl + next);
-  const dbRegion = (raw.slice(raw.search(/^databases:/m)).match(/^[ \t]*region:[ \t]*(\S+)/m) || [])[1];
-  const region = (block.match(/^[ \t]*region:[ \t]*(\S+)/m) || [])[1];
-  const unsynced = (key) => new RegExp(`-[ \\t]*key:[ \\t]*${key}[ \\t]*\\n[ \\t]*sync:[ \\t]*false`).test(block);
-  return /^[ \t]*schedule:[ \t]*"?[0-9*/,\- ]+"?[ \t]*$/m.test(block)
-    && /^[ \t]*startCommand:.*\bbash scripts\/backup\.sh\b/m.test(block)
-    && !!region && region === dbRegion
-    && /-[ \t]*key:[ \t]*DATABASE_URL[ \t]*\n[ \t]*fromDatabase:/.test(block)
-    && ['BACKUP_ENCRYPTION_PUBLIC_KEY', 'BACKUP_SIGNING_PRIVATE_KEY', 'BACKUP_S3_BUCKET', 'BACKUP_S3_ACCESS_KEY_ID', 'BACKUP_S3_SECRET_ACCESS_KEY'].every(unsynced)
-    && /-[ \t]*key:[ \t]*BACKUP_S3_REGION[ \t]*\n[ \t]*value:[ \t]*\S+/.test(block)
-    && (!/-[ \t]*key:[ \t]*BACKUP_S3_ENDPOINT\b/.test(block)
-      || /-[ \t]*key:[ \t]*BACKUP_S3_ENDPOINT[ \t]*\n[ \t]*value:[ \t]*https:\/\/\S+/.test(block))
+  return /^\s+-\s*cron:\s*'[0-9*/,\- ]+'\s*$/m.test(wf)
+    && /^\s+workflow_dispatch:/m.test(wf)
+    && leastPrivilege(wf)
+    && !hasExpressionInScript(wf)
+    && secretsUsed.length === 1 && secretsUsed[0] === 'BACKUP_TRIGGER_SECRET'
+    && !forbidden.test(wf)
+    && /run:\s*node scripts\/backup-trigger\.js\s*$/m.test(wf)
+    && !/^[ \t]*-[ \t]*type:[ \t]*cron[ \t]*$/m.test(raw)
     && !/-[ \t]*key:[ \t]*BACKUP_ENCRYPTION_PRIVATE_KEY\b/.test(raw);
+}
+
+// The trigger's door: HMAC-SHA256 over method, path and timestamp, compared in
+// constant time within a freshness window, closed without a secret; one run at
+// a time by advisory lock; none within 20 hours of a success; and the routes
+// mounted with the rate limiter and the check in front of the handler.
+function backupTriggerProtected() {
+  const t = read(cite('src/security/backup/backup-trigger.ts')) || '';
+  const c = read(cite('src/controllers/internal-backup.controller.ts')) || '';
+  const st = read(cite('src/security/backup/backup-run-store.ts')) || '';
+  return /createHmac\('sha256'/.test(t) && /timingSafeEqual\(/.test(t) && /TRIGGER_WINDOW_SECONDS\s*=\s*300\b/.test(t)
+    && /MIN_INTERVAL_MS\s*=\s*20\s*\*\s*60\s*\*\s*60\s*\*\s*1000/.test(t)
+    && /return raw\.length >= MIN_SECRET_LENGTH \? Buffer\.from\(raw, 'utf8'\) : null/.test(t)
+    && /pg_try_advisory_xact_lock/.test(st)
+    && /backup trigger is not configured/.test(c) && /this endpoint takes no parameters/.test(c)
+    && /app\.post\('\/internal\/backups\/run', \.\.\.internalBackup\.run\)/.test(appSrc)
+    && /app\.get\('\/internal\/backups\/runs\/:id', \.\.\.internalBackup\.status\)/.test(appSrc)
+    && /run: \[runLimiter, auth, runHandler\(deps\)\]/.test(c) && /status: \[statusLimiter, auth, statusHandler\(deps\)\]/.test(c);
 }
 
 
@@ -469,8 +483,10 @@ controls.push(
     backupRouteLines.length === 2 && backupRouteLines.every((l) => /requirePlatformAuthority/.test(l) && !/authorize\(/.test(l)) ? 'PRESENT' : 'ABSENT',
     'src/routes/phase-o.routes.ts',
     'Backup records are read and written by platform authority only, never by a club role.'),
-  control('backup-scheduled', backupScheduled() ? 'PRESENT' : 'ABSENT', 'render.yaml',
-    'A Render cron job runs the encrypted backup daily, in the database\'s region, with the database linked, every credential unsynced and no decryption key.'),
+  control('backup-scheduled', backupScheduled() ? 'PRESENT' : 'ABSENT', '.github/workflows/backup.yml',
+    'GitHub Actions asks the running service daily, over a signed request, to run its fixed backup; the workflow holds only the trigger secret and no database or backup key.'),
+  control('backup-trigger-authenticated', backupTriggerProtected() ? 'PRESENT' : 'ABSENT', 'src/security/backup/backup-trigger.ts',
+    'The backup trigger takes no input, authenticates by HMAC-SHA256 with a 5-minute window and constant-time comparison, is closed without a secret, runs one backup at a time and none within 20 hours of a success.'),
 );
 
 // ── the manifest ─────────────────────────────────────────────────────────────

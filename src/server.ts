@@ -29,6 +29,7 @@ import { startOwnedWorkers, stopOwnedWorkers } from './infra/background-workers'
 import { startChannelBridge, stopChannelBridge } from './infra/channel-bridge';
 import { startClusterPrimary, workerIndex } from './infra/cluster';
 import { verifyRedis, redisConfigured, closeRedis } from './infra/redis';
+import { MIN_PG_DUMP_MAJOR, pgToolVersion } from './security/backup/pg-process';
 
 // ── Boot ──────────────────────────────────────────────────
 // NOTE: The legacy GPS demo WebSocket (/ws/live) and its associated
@@ -80,6 +81,16 @@ async function bootstrap() {
       resolve();
     });
   });
+
+  // ── Backup tooling (Cyber Defense, Step 10). The scheduled backup runs in
+  // this process, so say at boot whether it can: the pg_dump version, or that
+  // there is none. Nothing else from the tool's output is logged.
+  void pgToolVersion(process.env.BACKUP_PG_DUMP || 'pg_dump').then((v) => {
+    logger.info('[boot] backup tooling', {
+      pgDump: v.available ? v.version : 'unavailable',
+      meetsMinimum: v.available && (v.major ?? 0) >= MIN_PG_DUMP_MAJOR,
+    });
+  }).catch(() => undefined);
 
   // ── Step 3: background warmup — DB, workers, Phase J seed. ─────────────
   // Failures here do NOT take the server down. /api/v1/health still
