@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-29T09:07:12.176Z",
+  "generatedAt": "2026-09-29T10:27:11.674Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -1081,8 +1081,7 @@
     "lockfilePackages": 579,
     "lockfileIntegrity": 579,
     "registries": {
-      "registry.npmjs.org": 247,
-      "registry.npmmirror.com": 332
+      "registry.npmjs.org": 579
     },
     "auditInCi": true,
     "auditBlocksCi": false,
