@@ -70,6 +70,14 @@ const match = (row: Row, where: Row = {}): boolean =>
     return row[k] === v;
   });
 
+/** `match`, plus the `OR` and the `null` a refresh-token lookup uses (Step 8). */
+const rtMatch = (row: Row, where: Row = {}): boolean =>
+  Object.entries(where).every(([k, v]) => {
+    if (k === 'OR') return (v as Row[]).some((w) => rtMatch(row, w));
+    if (v === null) return row[k] === null || row[k] === undefined;
+    return match(row, { [k]: v });
+  });
+
 /** Prisma hands back detached rows; so does this, or a later update would
  *  mutate a caller's own "before" snapshot. */
 const copy = <T>(row: T): T => (row == null ? row : JSON.parse(JSON.stringify(row)) as T);
@@ -127,20 +135,28 @@ const db: Row = {
     count: async () => 0,
   },
   refreshToken: {
+    // Rows are found by `tokenHash` (Cyber Defense, Step 8) or, for a legacy
+    // row, by `token`; `OR` and a null match are what the auth service asks.
     findUnique: async ({ where }: Row) => {
-      const t = state.refreshTokens.find((r) => r.token === where.token);
+      const t = state.refreshTokens.find((r) => rtMatch(r, where));
+      if (!t) return null;
+      const user = state.users.find((u) => u.id === t.userId);
+      return { ...t, user: user ? { clubId: user.clubId } : null };
+    },
+    findFirst: async ({ where }: Row) => {
+      const t = state.refreshTokens.find((r) => rtMatch(r, where));
       if (!t) return null;
       const user = state.users.find((u) => u.id === t.userId);
       return { ...t, user: user ? { clubId: user.clubId } : null };
     },
     create: async ({ data }: Row) => { state.refreshTokens.push(data); return data; },
     delete: async ({ where }: Row) => {
-      const i = state.refreshTokens.findIndex((r) => r.token === where.token);
+      const i = state.refreshTokens.findIndex((r) => rtMatch(r, where));
       return i >= 0 ? state.refreshTokens.splice(i, 1)[0] : null;
     },
     deleteMany: async ({ where = {} }: Row = {}) => {
       const before = state.refreshTokens.length;
-      state.refreshTokens = state.refreshTokens.filter((r) => !match(r, where));
+      state.refreshTokens = state.refreshTokens.filter((r) => !rtMatch(r, where));
       return { count: before - state.refreshTokens.length };
     },
   },

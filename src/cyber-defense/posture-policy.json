@@ -49,6 +49,7 @@
     "login-lockout-shadow",
     "password-hashing-bcrypt",
     "session-revocation-token-version",
+    "refresh-token-hashed-at-rest",
     "mfa-service",
     "mfa-owner-enforcement-at-login",
     "tenant-guard",
@@ -63,7 +64,7 @@
   "knownGaps": {
     "login-lockout": "PARTIAL — the lockout service has no enforcing caller; it runs in shadow mode only (login-lockout-shadow).",
     "mfa-required-at-login": "PARTIAL — required at sign-in only for an owner who switched it on (Step 7); not required for every account.",
-    "refresh-token-hashed-at-rest": "ABSENT — refresh tokens are stored as issued.",
+    "refresh-token-legacy-fallback-removed": "ABSENT — the nullable legacy token column and the dual-read fallback stay until every pre-Step-8 refresh token has expired; removing them is a later cleanup.",
     "jwt-algorithm-pinned": "ABSENT — jwt.verify is called without an algorithms list.",
     "jwt-issuer-validated": "ABSENT — no issuer or audience is set or checked.",
     "websocket-token-outside-url": "ABSENT — the WebSocket token travels in the query string.",

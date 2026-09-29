@@ -344,7 +344,13 @@ model User {
 
 model RefreshToken {
   id        String   @id @default(uuid())
-  token     String   @unique
+  /// Legacy (before Cyber Defense Step 8): the raw token. No row written since
+  /// carries one; rows from before keep it only until they are rotated, revoked
+  /// or expire, so no signed-in user is logged out by the change.
+  token     String?  @unique
+  /// SHA-256 of the refresh token (`security/refresh-token-hash.ts`). What is
+  /// stored and what a refresh or a logout looks up.
+  tokenHash String?  @unique
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime

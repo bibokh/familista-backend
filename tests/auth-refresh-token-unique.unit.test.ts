@@ -4,7 +4,9 @@
  * Two logins for the same user inside one second must not mint the same
  * refresh token.
  *
- * RefreshToken.token stores the JWT itself and the column is @unique. A JWT's
+ * Since Cyber Defense Step 8 the row stores RefreshToken.tokenHash — the JWT's
+ * SHA-256 — and that column is @unique; before, RefreshToken.token held the JWT
+ * itself under the same constraint. Either way, a JWT's
  * `iat` has one-second resolution, so signing the same payload twice within a
  * second produces byte-identical strings — and the second login dies on the
  * unique constraint. Observed in this repository as `409 A record with this
@@ -70,12 +72,14 @@ beforeEach(() => {
   stored = [];
   userFindUnique.mockResolvedValue(USER);
   userUpdate.mockResolvedValue(USER);
-  refreshTokenCreate.mockImplementation(({ data }: { data: { token: string } }) => {
-    if (stored.includes(data.token)) {
-      return Promise.reject(new Error('Unique constraint failed on the fields: (`token`)'));
+  refreshTokenCreate.mockImplementation(({ data }: { data: { tokenHash: string; token?: string } }) => {
+    // Step 8: the raw token is never written, only its hash.
+    if (data.token !== undefined) return Promise.reject(new Error('raw refresh token written to the database'));
+    if (stored.includes(data.tokenHash)) {
+      return Promise.reject(new Error('Unique constraint failed on the fields: (`tokenHash`)'));
     }
-    stored.push(data.token);
-    return Promise.resolve({ id: 'rt-' + stored.length, token: data.token });
+    stored.push(data.tokenHash);
+    return Promise.resolve({ id: 'rt-' + stored.length, tokenHash: data.tokenHash });
   });
   // Freeze the clock so both logins land in the same second by construction.
   jest.useFakeTimers().setSystemTime(new Date('2026-01-01T12:00:00.000Z'));

@@ -15,6 +15,7 @@ import { publishUserCreated, publishUserLogin, publishUserLogout } from '../fabr
 import { tagSecuritySignal } from '../cyber-defense/collectors';
 import { forgetIdentity } from '../middleware/auth.middleware';
 import { hashPassword, verifyPassword } from '../utils/password';
+import { hashRefreshToken } from '../security/refresh-token-hash';
 import {
   completeLoginSecondFactor, loginSecondFactor, LoginChallengeInvalidError, type LoginChallenge,
 } from '../auth-prod/mfa-enforcement.service';
@@ -300,16 +301,18 @@ export async function refreshTokens(token: string): Promise<TokenPair> {
     throw new UnauthorizedError('Invalid refresh token');
   }
 
-  const stored = await prisma.refreshToken.findUnique({ where: { token } });
-  if (!stored) {
-    // The signature verified and the token has not expired, yet no row holds
-    // it: it was already rotated or revoked. Presenting it again is the
-    // signal Cyber Defense records. Same error as before.
+  // The signature verified and the token has not expired, yet no row holds it
+  // (or it belongs to somebody else): it was already rotated or revoked.
+  // Presenting it again is the signal Cyber Defense records. Same error as before.
+  const reused = () => {
     const err = new UnauthorizedError('Refresh token expired or revoked');
-    throw typeof payload?.sub === 'string'
+    return typeof payload?.sub === 'string'
       ? tagSecuritySignal(err, { type: 'security.refresh.reused', userId: payload.sub })
       : err;
-  }
+  };
+
+  const stored = await findStoredRefreshToken(token);
+  if (!stored || stored.userId !== payload.sub) throw reused();
   if (stored.expiresAt < new Date()) {
     throw new UnauthorizedError('Refresh token expired or revoked');
   }
@@ -320,9 +323,25 @@ export async function refreshTokens(token: string): Promise<TokenPair> {
   });
   if (!user) throw new UnauthorizedError('User not found');
 
-  // Rotate: delete old, issue new
-  await prisma.refreshToken.delete({ where: { token } });
+  // Rotate: claim the old row, then issue the new pair. The claim is one
+  // conditional delete, so of two requests presenting the same token at once
+  // exactly one wins; the other is a reuse, not a second session.
+  const claimed = await prisma.refreshToken.deleteMany({ where: { id: stored.id } });
+  if (claimed.count !== 1) throw reused();
   return issueTokens(user);
+}
+
+/**
+ * Cyber Defense, Step 8: the row for a presented refresh token, found by its
+ * hash — or, for a row issued before this build (or by the previous build
+ * while a deploy is switching over), by its raw value. That fallback is what
+ * keeps everybody signed in across the change; such a row is rotated away the
+ * first time it is used, and expires within a week in any case.
+ */
+async function findStoredRefreshToken(token: string) {
+  const byHash = await prisma.refreshToken.findUnique({ where: { tokenHash: hashRefreshToken(token) } });
+  if (byHash) return byHash;
+  return prisma.refreshToken.findFirst({ where: { token, tokenHash: null } });
 }
 
 // ── Logout ────────────────────────────────────────────────
@@ -332,12 +351,15 @@ export async function logoutUser(refreshToken: string): Promise<void> {
   // cannot say whose session ended. One indexed read on a token that is about
   // to be deleted anyway, and the delete below keeps its existing semantics
   // exactly — including being a no-op for a token that was never there.
-  const stored = await prisma.refreshToken.findUnique({
-    where: { token: refreshToken },
+  // By hash, and by raw value for a row issued before Step 8 (see
+  // `findStoredRefreshToken`).
+  const where = { OR: [{ tokenHash: hashRefreshToken(refreshToken) }, { token: refreshToken }] };
+  const stored = await prisma.refreshToken.findFirst({
+    where,
     select: { userId: true, user: { select: { clubId: true } } },
   });
 
-  await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
+  await prisma.refreshToken.deleteMany({ where });
 
   // A logout of a token that did not exist is not a logout. Presenting an
   // expired or forged token must not put a `user.logout` on the record.
@@ -384,9 +406,11 @@ async function issueTokens(user: User): Promise<TokenPair> {
   const accessToken = generateAccessToken(payload);
   const refreshToken = generateRefreshToken(payload);
 
+  // Cyber Defense, Step 8: only the hash is stored. The token itself goes to
+  // the client and nowhere else.
   await prisma.refreshToken.create({
     data: {
-      token: refreshToken,
+      tokenHash: hashRefreshToken(refreshToken),
       userId: user.id,
       expiresAt: getRefreshExpiry(),
     },
