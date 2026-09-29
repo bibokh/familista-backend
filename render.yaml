@@ -246,12 +246,14 @@ services:
 
   # ── Encrypted off-site backup (Cyber Defense, Step 10) ────────────────────
   # Daily at 03:17 UTC: pg_dump → encrypted to an OFFLINE public key → signed
-  # manifest → AWS S3 (eu-central-1). See docs/BACKUP_AND_RESTORE.md.
+  # manifest → Backblaze B2 through its S3-compatible API (eu-central-003).
+  # See docs/BACKUP_AND_RESTORE.md.
   #
   # Same region as familista-postgres, so it reaches the database on the
   # private network. It holds only what a backup needs: the database URL
   # (linked, never pasted), the encryption PUBLIC key, the manifest signing
-  # key and an upload-only bucket key. Never BACKUP_ENCRYPTION_PRIVATE_KEY —
+  # key and an upload-only bucket key. Never the read-only restore key, and
+  # never BACKUP_ENCRYPTION_PRIVATE_KEY —
   # the job refuses to start if it is present — and none of the web
   # service's own secrets. `pg_dump --version` runs first so a missing or
   # too-old client fails the run loudly on the first line of the log.
@@ -273,7 +275,9 @@ services:
           name: familista-postgres
           property: connectionString
       - key: BACKUP_S3_REGION
-        value: eu-central-1
+        value: eu-central-003
+      - key: BACKUP_S3_ENDPOINT
+        value: https://s3.eu-central-003.backblazeb2.com
       - key: BACKUP_S3_BUCKET
         sync: false
       - key: BACKUP_S3_ACCESS_KEY_ID

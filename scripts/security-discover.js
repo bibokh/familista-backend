@@ -411,7 +411,8 @@ controls.push(
 // The backup cron job, read from render.yaml's shape: it must exist, run the
 // backup on a schedule in the database's region, take the database URL by
 // link, take every credential from the dashboard (never a value in git), and
-// never declare the decryption key.
+// never declare the decryption key. The bucket's region is stated, and a custom
+// (S3-compatible) endpoint, when there is one, is https.
 function backupScheduled() {
   const raw = read(RENDER) || '';
   const start = raw.search(/^[ \t]*-[ \t]*type:[ \t]*cron[ \t]*$/m);
@@ -428,6 +429,9 @@ function backupScheduled() {
     && !!region && region === dbRegion
     && /-[ \t]*key:[ \t]*DATABASE_URL[ \t]*\n[ \t]*fromDatabase:/.test(block)
     && ['BACKUP_ENCRYPTION_PUBLIC_KEY', 'BACKUP_SIGNING_PRIVATE_KEY', 'BACKUP_S3_BUCKET', 'BACKUP_S3_ACCESS_KEY_ID', 'BACKUP_S3_SECRET_ACCESS_KEY'].every(unsynced)
+    && /-[ \t]*key:[ \t]*BACKUP_S3_REGION[ \t]*\n[ \t]*value:[ \t]*\S+/.test(block)
+    && (!/-[ \t]*key:[ \t]*BACKUP_S3_ENDPOINT\b/.test(block)
+      || /-[ \t]*key:[ \t]*BACKUP_S3_ENDPOINT[ \t]*\n[ \t]*value:[ \t]*https:\/\/\S+/.test(block))
     && !/-[ \t]*key:[ \t]*BACKUP_ENCRYPTION_PRIVATE_KEY\b/.test(raw);
 }
 
