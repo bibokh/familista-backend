@@ -79,7 +79,7 @@
     "db-audit-append-only": "ABSENT — the audit table can be updated or deleted by the application role."
   },
   "ratchets": {
-    "maxNonNpmjsLockfilePackages": 332,
+    "maxNonNpmjsLockfilePackages": 0,
     "maxSecretNamedInline": 0,
     "minAuditHashChainSites": 85,
     "minSecurityEventSites": 19
