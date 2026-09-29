@@ -113,6 +113,19 @@ jobs:
       - name: Test suite
         run: npm test
 
+      # Cyber Defense, Step 10: a backup that has never been restored is a
+      # hope, not a backup. The real pg_dump takes an encrypted, signed backup
+      # of a freshly migrated and seeded database; the real pg_restore brings
+      # it back into an empty one, and the drill proves the rows returned.
+      # BACKUP_DRILL_REQUIRED makes a missing URL fail here instead of skipping.
+      - name: Backup restore drill (real PostgreSQL)
+        env:
+          BACKUP_DRILL_DATABASE_URL: postgresql://familista_ci:familista_ci_pw@localhost:5432/postgres
+          BACKUP_DRILL_REQUIRED: '1'
+        run: |
+          pg_dump --version
+          npx jest --runInBand --ci tests/backup-restore-drill.integration.test.ts
+
       # Blocking since Cyber Defense Step 9: a dependency with a known HIGH or
       # CRITICAL advisory stops the change from merging. Moderate and low are
       # still printed. If the advisory service cannot be reached the step

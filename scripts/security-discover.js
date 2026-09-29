@@ -406,6 +406,46 @@ controls.push(
   control('codeowners', supplyChain.codeowners ? 'PRESENT' : 'ABSENT', '.github/CODEOWNERS'),
 );
 
+// ── backups (Cyber Defense, Step 10) ─────────────────────────────────────────
+
+const backupCryptoSrc = read(cite('src/security/backup/backup-crypto.ts')) || '';
+const backupConfigSrc = read(cite('src/security/backup/backup-config.ts')) || '';
+const restoreDrillSrc = read(cite('src/security/backup/restore-drill.ts')) || '';
+const backupShellSrc = ['scripts/backup.sh', 'scripts/restore.sh', 'scripts/rollback.sh'].map((f) => read(cite(f)) || '').join('\n');
+const phaseORoutesSrc = read(cite('src/routes/phase-o.routes.ts')) || '';
+const backupRouteLines = phaseORoutesSrc.split('\n').filter((l) => /^router\.\w+\s*\(\s*'\/monitoring\/backups'/.test(l));
+controls.push(
+  control('backup-encrypted-authenticated',
+    /'aes-256-gcm'/.test(backupCryptoSrc) && /'x25519'/.test(backupCryptoSrc) && /setAuthTag/.test(backupCryptoSrc)
+      && !/\beval\b|aes-256-cbc|psql "\$\{?DATABASE_URL/.test(backupShellSrc) ? 'PRESENT' : 'ABSENT',
+    'src/security/backup/backup-crypto.ts',
+    'Backups are encrypted to an offline X25519 public key with chunked AES-256-GCM; the legacy optional CBC / eval / plain-SQL scripts are gone.'),
+  control('backup-signed-manifest',
+    /export function verifyManifest/.test(backupCryptoSrc) && /verifyManifest\(/.test(restoreDrillSrc) ? 'PRESENT' : 'ABSENT',
+    'src/security/backup/restore-drill.ts',
+    'Each backup carries an Ed25519-signed manifest (hash, size, key ids, schema head) verified before a restore.'),
+  control('backup-runner-cannot-decrypt',
+    /BACKUP_ENCRYPTION_PRIVATE_KEY must not be present/.test(backupConfigSrc) ? 'PRESENT' : 'ABSENT',
+    'src/security/backup/backup-config.ts',
+    'The backup runner refuses to start if the decryption key is in its environment.'),
+  control('backup-restore-guarded',
+    /NODE_ENV === 'production'/.test(backupConfigSrc) && /DRILL_CONFIRM_ISOLATED/.test(backupConfigSrc)
+      && /is a production database/.test(restoreDrillSrc) && /is not empty/.test(restoreDrillSrc) ? 'PRESENT' : 'ABSENT',
+    'src/security/backup/restore-drill.ts',
+    'A restore never runs in production, never targets a protected database and never writes into a non-empty one.'),
+  control('backup-restore-drill-in-ci',
+    /tests\/backup-restore-drill\.integration\.test\.ts/.test(ciSrc) && /BACKUP_DRILL_REQUIRED:\s*'1'/.test(ciSrc) ? 'PRESENT' : 'ABSENT',
+    '.github/workflows/ci.yml',
+    'Every pull request takes a real backup and restores it into an empty PostgreSQL database.'),
+  control('backup-records-platform-only',
+    backupRouteLines.length === 2 && backupRouteLines.every((l) => /requirePlatformAuthority/.test(l) && !/authorize\(/.test(l)) ? 'PRESENT' : 'ABSENT',
+    'src/routes/phase-o.routes.ts',
+    'Backup records are read and written by platform authority only, never by a club role.'),
+  control('backup-scheduled',
+    /backup\.js run/.test(read(RENDER) || '') ? 'PRESENT' : 'ABSENT', 'render.yaml',
+    'A scheduled job runs the backup. Provisioned by the owner as a Render cron job (docs/BACKUP_AND_RESTORE.md), not by the blueprint.'),
+);
+
 // ── the manifest ─────────────────────────────────────────────────────────────
 
 const pkg = (() => { try { return JSON.parse(read('package.json') || '{}'); } catch (_) { return {}; } })();

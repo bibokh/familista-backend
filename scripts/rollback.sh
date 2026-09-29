@@ -3,13 +3,13 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Two-step rollback:
 #   1. Code  → revert git to a known-good SHA + trigger Render deploy
-#   2. Data  → if schema changed, restore from PRE_DEPLOY backup before code
+#   2. Data  → not done here: a backup is restored into a fresh database and
+#              verified first (docs/BACKUP_AND_RESTORE.md, Recovery)
 #
 # Required env:
 #   ROLLBACK_TO_SHA           (git SHA of the last green commit)
 #   RENDER_DEPLOY_HOOK_URL    (Render deploy hook URL)
-#   PRE_DEPLOY_BACKUP_FILE    (optional — restored if set)
-#   DATABASE_URL              (only needed if restoring data)
+#   PRE_DEPLOY_BACKUP_FILE    (refused — in-place restore is not supported)
 #   CONFIRM=yes               (required)
 #
 # Usage:
@@ -36,10 +36,10 @@ echo "▶ Verifying SHA exists: ${ROLLBACK_TO_SHA}"
 git cat-file -e "${ROLLBACK_TO_SHA}^{commit}"
 
 if [ -n "${PRE_DEPLOY_BACKUP_FILE:-}" ]; then
-  : "${DATABASE_URL:?DATABASE_URL required when restoring backup}"
-  echo "▶ Restoring DB from ${PRE_DEPLOY_BACKUP_FILE}"
-  CONFIRM=yes BACKUP_FILE="${PRE_DEPLOY_BACKUP_FILE}" DATABASE_URL="${DATABASE_URL}" \
-    ./scripts/restore.sh
+  # Restoring over the live database is not supported: a backup is restored
+  # into a fresh database first and verified, then the service is repointed.
+  echo "✘ In-place database restore is not supported. Follow docs/BACKUP_AND_RESTORE.md (Recovery)."
+  exit 2
 fi
 
 REVERT_MSG="rollback: revert main to ${ROLLBACK_TO_SHA} at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
