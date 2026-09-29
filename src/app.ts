@@ -21,6 +21,7 @@ import { redisConfigured } from './infra/redis';
 import { apiTrafficMeter } from './infra/api-traffic';
 import routes from './routes';
 import { tenantGuard } from './middleware/tenant-guard.middleware';
+import { internalBackupRoutes } from './controllers/internal-backup.controller';
 
 // ── credentials that travel in a query string ────────────────────────────────
 // Only these parameter names are replaced, and only their values: the path and
@@ -225,6 +226,15 @@ export function createApp(): express.Application {
   });
   app.get('/api/health', (_req, res) => res.json(healthPayload()));
   app.get('/healthz',    (_req, res) => res.json(healthPayload()));
+
+  // ── Scheduled backup trigger (Cyber Defense, Step 10)
+  // Called by .github/workflows/backup.yml. Outside the API: no session, no
+  // tenant, no body — HMAC over method, path and timestamp with
+  // BACKUP_TRIGGER_SECRET, closed when that is unset. It starts the fixed
+  // backup runner with this service's own environment and reports run state.
+  const internalBackup = internalBackupRoutes();
+  app.post('/internal/backups/run', ...internalBackup.run);
+  app.get('/internal/backups/runs/:id', ...internalBackup.status);
 
   // ── Routes
   //

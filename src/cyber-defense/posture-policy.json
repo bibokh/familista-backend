@@ -28,7 +28,9 @@
     "GET /app/*": "Serves the static single-page shell; data is fetched with a session afterwards.",
     "GET /invite": "Serves the static invitation page shell.",
     "GET /invite/*": "Serves the static invitation page shell.",
-    "GET /reset-password": "Serves the static password-reset page shell."
+    "GET /reset-password": "Serves the static password-reset page shell.",
+    "POST /internal/backups/run": "Scheduled backup trigger for .github/workflows/backup.yml. No session by design: authenticated by HMAC-SHA256 (BACKUP_TRIGGER_SECRET) over method, path and timestamp, 5-minute window, constant-time; closed when the secret is unset; takes no body or query; rate-limited; one run at a time; none within 20 hours of a success.",
+    "GET /internal/backups/runs/:id": "Status of one scheduled backup run, same HMAC authentication and rate limit; answers only id, state, start and finish times and ok."
   },
   "dormantRouteModules": {
     "admin-dashboard.routes": "Not mounted. Must not be mounted without a security review.",
@@ -73,7 +75,8 @@
     "backup-restore-guarded",
     "backup-restore-drill-in-ci",
     "backup-records-platform-only",
-    "backup-scheduled"
+    "backup-scheduled",
+    "backup-trigger-authenticated"
   ],
   "knownGaps": {
     "login-lockout": "PARTIAL — the lockout service has no enforcing caller; it runs in shadow mode only (login-lockout-shadow).",
