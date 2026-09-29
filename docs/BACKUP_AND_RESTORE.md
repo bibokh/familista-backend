@@ -44,14 +44,47 @@ retained. The manifest records which key each backup used.
 
 ## Where backups go
 
-Any S3-compatible bucket (Cloudflare R2, Backblaze B2, AWS S3), **separate from
-the application's media storage**, with its own credentials:
+AWS S3, bucket in `eu-central-1` (Frankfurt, the region of the Render
+services), **separate from the application's media storage**, with its own
+credentials. Set up once by the owner:
 
-- The runner's key may `PutObject` only — no `GetObject`, `DeleteObject` or
-  `ListBucket`. A compromised runner then cannot read, delete or enumerate.
-- Enable object lock / versioning and a lifecycle rule for retention
-  (e.g. 35 daily copies) on the bucket itself.
-- A separate read-only key is used only for restores.
+1. Create the bucket. Keep **Block all public access** on. Enable **Bucket
+   Versioning** and **Object Lock**, default retention **Governance, 35 days**
+   (Compliance cannot be shortened by anyone, including the owner). Default
+   encryption SSE-S3 — a second layer, not the protection.
+2. Lifecycle rule on prefix `familista/postgres/`: expire current versions
+   after 36 days, permanently delete noncurrent versions 1 day after they
+   become noncurrent, remove expired delete markers. Object Lock still holds
+   every object for its 35 days.
+3. Bucket policy refusing anything but TLS:
+
+   ```json
+   {"Version":"2012-10-17","Statement":[{"Sid":"DenyInsecureTransport","Effect":"Deny","Principal":"*","Action":"s3:*",
+     "Resource":["arn:aws:s3:::BUCKET","arn:aws:s3:::BUCKET/*"],"Condition":{"Bool":{"aws:SecureTransport":"false"}}}]}
+   ```
+
+4. IAM user `familista-backup-writer` — **upload only**, the one permission
+   the runner uses. Its access key goes into Render and nowhere else:
+
+   ```json
+   {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:PutObject",
+     "Resource":"arn:aws:s3:::BUCKET/familista/postgres/*"}]}
+   ```
+
+5. IAM user `familista-backup-reader` — restores only. Its key is kept
+   offline with `offline-restore.env`, never on Render:
+
+   ```json
+   {"Version":"2012-10-17","Statement":[
+     {"Effect":"Allow","Action":"s3:GetObject","Resource":"arn:aws:s3:::BUCKET/familista/postgres/*"},
+     {"Effect":"Allow","Action":"s3:ListBucket","Resource":"arn:aws:s3:::BUCKET",
+      "Condition":{"StringLike":{"s3:prefix":"familista/postgres/*"}}}]}
+   ```
+
+A compromised runner can then add objects and nothing else: it cannot read,
+list, overwrite or delete a backup. Another S3-compatible store works with
+`BACKUP_S3_ENDPOINT`, but check that it offers an upload-only key before
+choosing it.
 
 Environment for the backup job:
 
@@ -64,7 +97,7 @@ Environment for the backup job:
 | `BACKUP_S3_BUCKET` | yes | |
 | `BACKUP_S3_ACCESS_KEY_ID` / `BACKUP_S3_SECRET_ACCESS_KEY` | yes | Write-only key. |
 | `BACKUP_S3_ENDPOINT` | for non-AWS | Must be `https://` in production. |
-| `BACKUP_S3_REGION` | no | Default `auto`. |
+| `BACKUP_S3_REGION` | no | Default `auto`; `eu-central-1` in production (set in `render.yaml`). |
 | `BACKUP_S3_PREFIX` | no | Default `familista/postgres/`. |
 | `BACKUP_S3_FORCE_PATH_STYLE` | no | `true` for some S3-compatible stores. |
 | `BACKUP_PG_DUMP` | no | pg_dump binary; must be at least the server's major version. |
@@ -80,21 +113,31 @@ No migration is needed: the existing `BackupRecord` table is reused.
 
 ## Scheduling
 
-Not in `render.yaml` on purpose: adding a cron service to the blueprint creates
-a billable service on the next sync. The owner creates it once in the Render
-dashboard (New → Cron Job, same repository), in the same region as the
-database so it reaches it on the private network:
+`render.yaml` declares the job: service `familista-backup`, a Render cron job
+in `frankfurt` (the database's region, so it uses the private network), daily
+at 03:17 UTC, running `pg_dump --version && bash scripts/backup.sh`.
 
-```
-Build command:  npm install && npx prisma generate && npm run build   (as the web service)
-Start command:  bash scripts/backup.sh
-Schedule:       17 3 * * *        (daily, 03:17 UTC)
-Environment:    the table above — never BACKUP_ENCRYPTION_PRIVATE_KEY
-```
+- `DATABASE_URL` is linked from `familista-postgres`; nobody copies it.
+- `NODE_ENV=production` and `BACKUP_S3_REGION=eu-central-1` are the only
+  values in the file.
+- `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`,
+  `BACKUP_S3_SECRET_ACCESS_KEY` (the writer key), `BACKUP_ENCRYPTION_PUBLIC_KEY`
+  and `BACKUP_SIGNING_PRIVATE_KEY` (both from `runner.env`) are `sync: false`:
+  the owner enters them in the Render dashboard on the `familista-backup`
+  service. Until they are set, a run stops at configuration and does nothing.
+- `BACKUP_ENCRYPTION_PRIVATE_KEY` is never declared; the job refuses to start
+  if it is present. `tests/backup-schedule.unit.test.ts` and the posture
+  control `backup-scheduled` both fail if the blueprint drifts from this.
 
-The posture manifest reports `backup-scheduled` as a known gap until a
-schedule exists. Whatever backups the Render database plan provides are
-unaffected; these are an independent, off-site, encrypted copy.
+After the values are set, run it once by hand (Render → `familista-backup` →
+Trigger Run). The log shows the pg_dump version (it must be 16 or newer —
+if it is missing or older the run fails on that line) and one JSON line,
+`{"ok":true,"objectKey":…}`. The object and its `.manifest.json` appear in
+the bucket, and the record in `GET /api/v1/phase-o/monitoring/backups`.
+Then run the restore drill below against that object.
+
+Whatever backups the Render database plan provides are unaffected; these are
+an independent, off-site, encrypted copy.
 
 ## Restore drill (monthly, and after any schema-heavy release)
 
@@ -103,7 +146,7 @@ version, against a **new, empty** database (a local Docker Postgres is fine):
 
 ```
 set -a; . ./offline-restore.env; set +a
-export BACKUP_S3_BUCKET=… BACKUP_S3_ACCESS_KEY_ID=… BACKUP_S3_SECRET_ACCESS_KEY=… BACKUP_S3_ENDPOINT=…   # read-only key
+export BACKUP_S3_BUCKET=… BACKUP_S3_REGION=eu-central-1 BACKUP_S3_ACCESS_KEY_ID=… BACKUP_S3_SECRET_ACCESS_KEY=…   # the reader key
 export DRILL_DATABASE_URL=postgresql://postgres@localhost:5432/familista_drill
 export DRILL_CONFIRM_ISOLATED=yes
 BACKUP_OBJECT=2026/09/29/familista-20260929T031700Z-0a1b2c3d.fbk bash scripts/restore.sh

@@ -244,6 +244,47 @@ services:
       mountPath: /var/data
       sizeGB: 10
 
+  # ── Encrypted off-site backup (Cyber Defense, Step 10) ────────────────────
+  # Daily at 03:17 UTC: pg_dump → encrypted to an OFFLINE public key → signed
+  # manifest → AWS S3 (eu-central-1). See docs/BACKUP_AND_RESTORE.md.
+  #
+  # Same region as familista-postgres, so it reaches the database on the
+  # private network. It holds only what a backup needs: the database URL
+  # (linked, never pasted), the encryption PUBLIC key, the manifest signing
+  # key and an upload-only bucket key. Never BACKUP_ENCRYPTION_PRIVATE_KEY —
+  # the job refuses to start if it is present — and none of the web
+  # service's own secrets. `pg_dump --version` runs first so a missing or
+  # too-old client fails the run loudly on the first line of the log.
+  - type: cron
+    name: familista-backup
+    runtime: node
+    region: frankfurt
+    plan: starter
+    branch: main
+    autoDeploy: true
+    schedule: "17 3 * * *"
+    buildCommand: npm install && npx prisma generate --schema=prisma/schema.prisma && npm run build
+    startCommand: pg_dump --version && bash scripts/backup.sh
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: familista-postgres
+          property: connectionString
+      - key: BACKUP_S3_REGION
+        value: eu-central-1
+      - key: BACKUP_S3_BUCKET
+        sync: false
+      - key: BACKUP_S3_ACCESS_KEY_ID
+        sync: false
+      - key: BACKUP_S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: BACKUP_ENCRYPTION_PUBLIC_KEY
+        sync: false
+      - key: BACKUP_SIGNING_PRIVATE_KEY
+        sync: false
+
   # ── Shared state for every process of every instance ──────────────────────
   # `noeviction` is deliberate and load-bearing. Under memory pressure a
   # default LRU policy would silently discard rate-limit buckets, device
