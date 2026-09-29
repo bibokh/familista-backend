@@ -1,51 +1,21 @@
 #!/usr/bin/env bash
-# Familista — Phase O DB restore
+# Familista — restore a backup into an isolated, empty database (Step 10)
 # ─────────────────────────────────────────────────────────────────────────────
-# Decrypt (if needed) → gunzip → psql apply.  USE WITH CAUTION.
+# A thin wrapper around `node dist/scripts/backup.js drill <object key>`.
+# Before a single byte reaches the target it verifies the manifest's
+# signature, the backup's SHA-256 and size, and that the target is empty and
+# is not the production database; the restore then runs in one transaction
+# and is checked (schema head, tables, core row counts).
 #
-# Env vars:
-#   DATABASE_URL         (target DB — should be EMPTY or a staging clone!)
-#   BACKUP_FILE          (path to the .sql.gz or .sql.gz.enc file)
-#   BACKUP_ENCRYPT_PASS  (set if BACKUP_FILE has .enc suffix)
-#   CONFIRM=yes          (required to actually run — protects against accidents)
+# It never restores over an existing database. A real recovery restores into
+# a fresh database and then points the service at it — see
+# docs/BACKUP_AND_RESTORE.md.
 #
-# Usage:
-#   DATABASE_URL=... BACKUP_FILE=./backups/x.sql.gz CONFIRM=yes ./scripts/restore.sh
+# Required: BACKUP_OBJECT, DRILL_DATABASE_URL, DRILL_CONFIRM_ISOLATED=yes,
+#           BACKUP_ENCRYPTION_PRIVATE_KEY, BACKUP_SIGNING_PUBLIC_KEY,
+#           and the same BACKUP_S3_* settings as the backup.
 
 set -euo pipefail
-
-: "${DATABASE_URL:?DATABASE_URL required}"
-: "${BACKUP_FILE:?BACKUP_FILE required}"
-
-if [ "${CONFIRM:-}" != "yes" ]; then
-  echo "✘ CONFIRM=yes not set. Restore aborts."
-  echo "  Re-run with CONFIRM=yes once you are sure the target DB is the right one."
-  exit 2
-fi
-
-if [ ! -f "${BACKUP_FILE}" ]; then
-  echo "✘ BACKUP_FILE not found: ${BACKUP_FILE}"; exit 2
-fi
-
-WORK="$(mktemp -d)"
-trap 'rm -rf "${WORK}"' EXIT
-
-SRC="${BACKUP_FILE}"
-case "${BACKUP_FILE}" in
-  *.enc)
-    : "${BACKUP_ENCRYPT_PASS:?BACKUP_ENCRYPT_PASS required for .enc file}"
-    DEC="${WORK}/payload.sql.gz"
-    echo "▶ Decrypting → ${DEC}"
-    openssl enc -d -aes-256-cbc -pbkdf2 \
-      -in  "${BACKUP_FILE}" \
-      -out "${DEC}" \
-      -pass env:BACKUP_ENCRYPT_PASS
-    SRC="${DEC}"
-    ;;
-esac
-
-echo "▶ Restoring from ${SRC} → DATABASE_URL"
-gunzip -c "${SRC}" | psql "${DATABASE_URL}" --single-transaction -v ON_ERROR_STOP=1
-
-echo "✔ Restore complete @ $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-echo "Next: run \`npx prisma migrate deploy\` if the dump pre-dates Phase O migrations."
+: "${BACKUP_OBJECT:?BACKUP_OBJECT required (the .fbk object key)}"
+cd "$(dirname "$0")/.."
+exec node dist/scripts/backup.js drill "${BACKUP_OBJECT}"

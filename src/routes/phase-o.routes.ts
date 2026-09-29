@@ -19,6 +19,7 @@ import * as ctrl from '../controllers/phase-o.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { guardTeamScopedRouter } from '../middleware/team-scope.middleware';
 import { tenantGuard } from '../middleware/tenant-guard.middleware';
+import { requirePlatformAuthority } from '../middleware/platform-authority.middleware';
 
 const router = Router();
 router.use(authenticate);
@@ -109,8 +110,9 @@ router.post ('/monitoring/alert-rules',                  authorize('CLUB_ADMIN',
 router.patch('/monitoring/alert-rules/:id/state',        authorize('CLUB_ADMIN','SUPER_ADMIN'),                   ctrl.setAlertRuleState);
 router.get  ('/monitoring/alert-rules',                                                                            ctrl.listAlertRules);
 
-router.post('/monitoring/backups',                       authorize('CLUB_ADMIN','SUPER_ADMIN'),                   ctrl.recordBackup);
-router.get ('/monitoring/backups',                       authorize('CLUB_ADMIN','MANAGER','SUPER_ADMIN'),         ctrl.listBackups);
+// Backups hold the whole platform, not one club: platform authority only.
+router.post('/monitoring/backups',                       requirePlatformAuthority,                                ctrl.recordBackup);
+router.get ('/monitoring/backups',                       requirePlatformAuthority,                                ctrl.listBackups);
 
 // ── Snapshot ───────────────────────────────────────────────────────────
 router.get('/snapshot',                                  authorize('CLUB_ADMIN','MANAGER','ANALYST','HEAD_COACH','SUPER_ADMIN'), ctrl.phaseOSnapshot);

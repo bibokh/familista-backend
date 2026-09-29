@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-29T10:38:23.297Z",
+  "generatedAt": "2026-09-29T17:33:42.155Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -689,6 +689,48 @@
       "id": "codeowners",
       "status": "PRESENT",
       "evidence": ".github/CODEOWNERS"
+    },
+    {
+      "id": "backup-encrypted-authenticated",
+      "status": "PRESENT",
+      "evidence": "src/security/backup/backup-crypto.ts",
+      "note": "Backups are encrypted to an offline X25519 public key with chunked AES-256-GCM; the legacy optional CBC / eval / plain-SQL scripts are gone."
+    },
+    {
+      "id": "backup-signed-manifest",
+      "status": "PRESENT",
+      "evidence": "src/security/backup/restore-drill.ts",
+      "note": "Each backup carries an Ed25519-signed manifest (hash, size, key ids, schema head) verified before a restore."
+    },
+    {
+      "id": "backup-runner-cannot-decrypt",
+      "status": "PRESENT",
+      "evidence": "src/security/backup/backup-config.ts",
+      "note": "The backup runner refuses to start if the decryption key is in its environment."
+    },
+    {
+      "id": "backup-restore-guarded",
+      "status": "PRESENT",
+      "evidence": "src/security/backup/restore-drill.ts",
+      "note": "A restore never runs in production, never targets a protected database and never writes into a non-empty one."
+    },
+    {
+      "id": "backup-restore-drill-in-ci",
+      "status": "PRESENT",
+      "evidence": ".github/workflows/ci.yml",
+      "note": "Every pull request takes a real backup and restores it into an empty PostgreSQL database."
+    },
+    {
+      "id": "backup-records-platform-only",
+      "status": "PRESENT",
+      "evidence": "src/routes/phase-o.routes.ts",
+      "note": "Backup records are read and written by platform authority only, never by a club role."
+    },
+    {
+      "id": "backup-scheduled",
+      "status": "ABSENT",
+      "evidence": "render.yaml",
+      "note": "A scheduled job runs the backup. Provisioned by the owner as a Render cron job (docs/BACKUP_AND_RESTORE.md), not by the blueprint."
     }
   ],
   "secrets": {
@@ -1001,7 +1043,8 @@
       "algorithm": "aes-256-gcm",
       "files": [
         "src/auth-prod/mfa.service.ts",
-        "src/fabric/secrets/secret-store.ts"
+        "src/fabric/secrets/secret-store.ts",
+        "src/security/backup/backup-crypto.ts"
       ]
     },
     {
@@ -1048,6 +1091,9 @@
         "src/player-lifecycle/player-lifecycle.service.ts",
         "src/security-n/signed-recommendations.service.ts",
         "src/security/audit-chain.service.ts",
+        "src/security/backup/backup-crypto.ts",
+        "src/security/backup/backup-runner.ts",
+        "src/security/backup/restore-drill.ts",
         "src/security/login-attempt.service.ts",
         "src/security/refresh-token-hash.ts",
         "src/services/admin-asset.service.ts",
@@ -1111,6 +1157,13 @@
       ]
     },
     {
+      "primitive": "kdf",
+      "algorithm": "hkdf",
+      "files": [
+        "src/security/backup/backup-crypto.ts"
+      ]
+    },
+    {
       "primitive": "password-hash",
       "algorithm": "bcrypt",
       "files": [
@@ -1142,6 +1195,9 @@
       "package-lock.json",
       "prisma/migrations",
       "render.yaml",
+      "scripts/backup.sh",
+      "scripts/restore.sh",
+      "scripts/rollback.sh",
       "src/app.ts",
       "src/auth-prod/mfa.service.ts",
       "src/cyber-defense/lockout-shadow.ts",
@@ -1204,6 +1260,9 @@
       "src/routes/vision.routes.ts",
       "src/security/ai-approval.service.ts",
       "src/security/audit-chain.service.ts",
+      "src/security/backup/backup-config.ts",
+      "src/security/backup/backup-crypto.ts",
+      "src/security/backup/restore-drill.ts",
       "src/security/login-attempt.service.ts",
       "src/security/security-event.service.ts",
       "src/services/auth.service.ts",
@@ -1213,9 +1272,9 @@
     ]
   },
   "counts": {
-    "controlsPresent": 26,
+    "controlsPresent": 32,
     "controlsPartial": 2,
-    "controlsAbsent": 6,
-    "cryptoUses": 9
+    "controlsAbsent": 7,
+    "cryptoUses": 10
   }
 }
