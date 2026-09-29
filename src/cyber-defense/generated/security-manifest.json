@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-29T17:33:42.155Z",
+  "generatedAt": "2026-09-29T18:08:37.997Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -728,14 +728,14 @@
     },
     {
       "id": "backup-scheduled",
-      "status": "ABSENT",
+      "status": "PRESENT",
       "evidence": "render.yaml",
-      "note": "A scheduled job runs the backup. Provisioned by the owner as a Render cron job (docs/BACKUP_AND_RESTORE.md), not by the blueprint."
+      "note": "A Render cron job runs the encrypted backup daily, in the database's region, with the database linked, every credential unsynced and no decryption key."
     }
   ],
   "secrets": {
-    "declared": 57,
-    "secretNamed": 18,
+    "declared": 65,
+    "secretNamed": 22,
     "secretNamedInline": [],
     "envVars": [
       {
@@ -767,6 +767,41 @@
         "name": "APP_URL",
         "supply": "dashboard",
         "secretNamed": false
+      },
+      {
+        "name": "BACKUP_ENCRYPTION_PUBLIC_KEY",
+        "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "BACKUP_S3_ACCESS_KEY_ID",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "BACKUP_S3_BUCKET",
+        "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "BACKUP_S3_REGION",
+        "supply": "inline",
+        "secretNamed": false
+      },
+      {
+        "name": "BACKUP_S3_SECRET_ACCESS_KEY",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "BACKUP_SIGNING_PRIVATE_KEY",
+        "supply": "dashboard",
+        "secretNamed": true
+      },
+      {
+        "name": "DATABASE_URL",
+        "supply": "linked",
+        "secretNamed": true
       },
       {
         "name": "DATABASE_URL",
@@ -831,6 +866,11 @@
       {
         "name": "MFA_ENCRYPTION_KEY",
         "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "NODE_ENV",
+        "supply": "inline",
         "secretNamed": false
       },
       {
@@ -1272,9 +1312,9 @@
     ]
   },
   "counts": {
-    "controlsPresent": 32,
+    "controlsPresent": 33,
     "controlsPartial": 2,
-    "controlsAbsent": 7,
+    "controlsAbsent": 6,
     "cryptoUses": 10
   }
 }

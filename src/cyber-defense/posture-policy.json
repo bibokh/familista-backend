@@ -72,7 +72,8 @@
     "backup-runner-cannot-decrypt",
     "backup-restore-guarded",
     "backup-restore-drill-in-ci",
-    "backup-records-platform-only"
+    "backup-records-platform-only",
+    "backup-scheduled"
   ],
   "knownGaps": {
     "login-lockout": "PARTIAL — the lockout service has no enforcing caller; it runs in shadow mode only (login-lockout-shadow).",
@@ -82,8 +83,7 @@
     "jwt-issuer-validated": "ABSENT — no issuer or audience is set or checked.",
     "websocket-token-outside-url": "ABSENT — the WebSocket token travels in the query string.",
     "db-row-level-security": "ABSENT — tenancy is enforced in the application only.",
-    "db-audit-append-only": "ABSENT — the audit table can be updated or deleted by the application role.",
-    "backup-scheduled": "ABSENT — the backup command exists and is drilled in CI, but no schedule runs it yet: the Render cron job (docs/BACKUP_AND_RESTORE.md) is created by the owner, with its own credentials, not by the blueprint."
+    "db-audit-append-only": "ABSENT — the audit table can be updated or deleted by the application role."
   },
   "ratchets": {
     "maxNonNpmjsLockfilePackages": 0,

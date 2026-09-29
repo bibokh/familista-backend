@@ -408,6 +408,30 @@ controls.push(
 
 // ── backups (Cyber Defense, Step 10) ─────────────────────────────────────────
 
+// The backup cron job, read from render.yaml's shape: it must exist, run the
+// backup on a schedule in the database's region, take the database URL by
+// link, take every credential from the dashboard (never a value in git), and
+// never declare the decryption key.
+function backupScheduled() {
+  const raw = read(RENDER) || '';
+  const start = raw.search(/^[ \t]*-[ \t]*type:[ \t]*cron[ \t]*$/m);
+  if (start < 0) return false;
+  const rest = raw.slice(start);
+  const firstNl = rest.indexOf('\n');
+  const next = rest.slice(firstNl).search(/\n[ \t]{0,4}-[ \t]*type:|\ndatabases:/);
+  const block = next < 0 ? rest : rest.slice(0, firstNl + next);
+  const dbRegion = (raw.slice(raw.search(/^databases:/m)).match(/^[ \t]*region:[ \t]*(\S+)/m) || [])[1];
+  const region = (block.match(/^[ \t]*region:[ \t]*(\S+)/m) || [])[1];
+  const unsynced = (key) => new RegExp(`-[ \\t]*key:[ \\t]*${key}[ \\t]*\\n[ \\t]*sync:[ \\t]*false`).test(block);
+  return /^[ \t]*schedule:[ \t]*"?[0-9*/,\- ]+"?[ \t]*$/m.test(block)
+    && /^[ \t]*startCommand:.*\bbash scripts\/backup\.sh\b/m.test(block)
+    && !!region && region === dbRegion
+    && /-[ \t]*key:[ \t]*DATABASE_URL[ \t]*\n[ \t]*fromDatabase:/.test(block)
+    && ['BACKUP_ENCRYPTION_PUBLIC_KEY', 'BACKUP_SIGNING_PRIVATE_KEY', 'BACKUP_S3_BUCKET', 'BACKUP_S3_ACCESS_KEY_ID', 'BACKUP_S3_SECRET_ACCESS_KEY'].every(unsynced)
+    && !/-[ \t]*key:[ \t]*BACKUP_ENCRYPTION_PRIVATE_KEY\b/.test(raw);
+}
+
+
 const backupCryptoSrc = read(cite('src/security/backup/backup-crypto.ts')) || '';
 const backupConfigSrc = read(cite('src/security/backup/backup-config.ts')) || '';
 const restoreDrillSrc = read(cite('src/security/backup/restore-drill.ts')) || '';
@@ -441,9 +465,8 @@ controls.push(
     backupRouteLines.length === 2 && backupRouteLines.every((l) => /requirePlatformAuthority/.test(l) && !/authorize\(/.test(l)) ? 'PRESENT' : 'ABSENT',
     'src/routes/phase-o.routes.ts',
     'Backup records are read and written by platform authority only, never by a club role.'),
-  control('backup-scheduled',
-    /backup\.js run/.test(read(RENDER) || '') ? 'PRESENT' : 'ABSENT', 'render.yaml',
-    'A scheduled job runs the backup. Provisioned by the owner as a Render cron job (docs/BACKUP_AND_RESTORE.md), not by the blueprint.'),
+  control('backup-scheduled', backupScheduled() ? 'PRESENT' : 'ABSENT', 'render.yaml',
+    'A Render cron job runs the encrypted backup daily, in the database\'s region, with the database linked, every credential unsynced and no decryption key.'),
 );
 
 // ── the manifest ─────────────────────────────────────────────────────────────

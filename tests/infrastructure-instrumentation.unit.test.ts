@@ -403,6 +403,7 @@ describe('instrumentation coverage', () => {
     'boot-probe': 'Runs in CI against a fresh boot, not in production.',
     'i18n-check': 'Runs in CI; its runtime counterpart is the Internationalisation signal.',
     configuration: 'Read once at boot; a missing required value stops the process, so "running" would be a tautology, not a measurement.',
+    'render-familista-backup': 'A Render cron job, not a process the server runs; the server has no signal for it yet. Its evidence is the BackupRecord each run writes.',
   };
 
   it('joins every other component to a live signal the health layer emits', async () => {
