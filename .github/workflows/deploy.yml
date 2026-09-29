@@ -32,15 +32,25 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     timeout-minutes: 5
     steps:
+      # Cyber Defense, Step 9: every value arrives through `env`, never by
+      # `${{ }}` expansion inside the script. A dispatch input expanded into a
+      # script is script injection; read from an environment variable it is
+      # only ever data. The reason is also reduced to a short, safe token.
       - name: Trigger Render deploy hook
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          DEPLOY_REASON: ${{ github.event.inputs.reason }}
+          DEPLOY_REF: ${{ github.sha }}
         run: |
+          set -euo pipefail
           if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
             echo "::warning::RENDER_DEPLOY_HOOK_URL not set; skipping (Render autoDeploy will handle it)"
             exit 0
           fi
-          echo "Triggering Render deploy (reason: ${{ github.event.inputs.reason || 'ci-success' }})"
+          reason="$(printf '%s' "${DEPLOY_REASON:-ci-success}" | tr -cd 'A-Za-z0-9._ -' | cut -c1-80)"
+          reason="${reason:-ci-success}"
+          ref="$(printf '%s' "$DEPLOY_REF" | tr -cd '0-9a-f' | cut -c1-40)"
+          echo "Triggering Render deploy (reason: ${reason})"
           curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL" \
             -H 'content-type: application/json' \
-            -d '{"reason":"${{ github.event.inputs.reason || 'ci-success' }}","ref":"${{ github.sha }}"}'
+            -d "{\"reason\":\"${reason}\",\"ref\":\"${ref}\"}"

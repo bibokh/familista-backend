@@ -1,0 +1,32 @@
+# Cyber Defense, Step 9 — who reviews what.
+#
+# GitHub requests a review from the owner below on every pull request that
+# touches a matching path. The security-critical paths are listed explicitly
+# so that, when a second maintainer joins, ownership can be split without
+# guessing which files matter. The last matching line wins.
+
+*                                   @bibokh
+
+# Authentication, sessions, MFA and the secrets they depend on
+/src/auth-prod/                     @bibokh
+/src/services/auth.service.ts       @bibokh
+/src/services/password-reset.service.ts @bibokh
+/src/middleware/                    @bibokh
+/src/security/                      @bibokh
+/src/fabric/secrets/                @bibokh
+/src/config/                        @bibokh
+
+# Cyber Defense: posture, policy and event schema
+/src/cyber-defense/                 @bibokh
+/scripts/security-discover.js       @bibokh
+
+# Schema and migrations (run in production by render-start.sh)
+/prisma/                            @bibokh
+
+# Supply chain and delivery
+/.github/                           @bibokh
+/.gitleaksignore                    @bibokh
+/package.json                       @bibokh
+/package-lock.json                  @bibokh
+/render.yaml                        @bibokh
+/scripts/render-start.sh            @bibokh
