@@ -1,8 +1,8 @@
 // The platform owner's two-step sign-in, as their Settings screen uses it
 // ─────────────────────────────────────────────────────────────────────────────
-// Cyber Defense, Step 6: enrolment and recovery codes. NOT enforced — sign-in
-// does not ask for a code in this build; turning enforcement on is a separate,
-// later step, taken only once the owner has enrolled and tested recovery.
+// Cyber Defense, Step 6: enrolment and recovery codes. Step 7 adds the owner's
+// switch to require a code at every sign-in (`auth-prod/mfa-enforcement`),
+// switched on only with a working app code AND a working recovery code.
 //
 // Mounted under /auth/mfa, each route behind `authenticate` and the owner check
 // below. The lifecycle itself is `auth-prod/mfa.service.ts`.
@@ -13,6 +13,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import * as mfa from '../auth-prod/mfa.service';
+import * as mfaEnforcement from '../auth-prod/mfa-enforcement.service';
 import { sendSuccess, sendCreated } from '../utils/response';
 import { BadRequestError, ForbiddenError } from '../utils/errors';
 
@@ -39,8 +40,10 @@ export function requirePlatformOwner(req: Request, _res: Response, next: NextFun
 }
 
 export async function status(req: Request, res: Response, next: NextFunction) {
-  try { return sendSuccess(res, await mfa.mfaStatus(req.user!.id)); }
-  catch (err) { return next(err); }
+  try {
+    const [st, enf] = await Promise.all([mfa.mfaStatus(req.user!.id), mfaEnforcement.enforcementStatus(req.user!.id)]);
+    return sendSuccess(res, { ...st, enforced: enf.enforced });
+  } catch (err) { return next(err); }
 }
 
 export async function enroll(req: Request, res: Response, next: NextFunction) {
@@ -68,6 +71,36 @@ export async function recoveryCodes(req: Request, res: Response, next: NextFunct
 }
 
 export async function disable(req: Request, res: Response, next: NextFunction) {
-  try { return sendSuccess(res, await mfa.disableMFA(actorOf(req), codeOf(req)), 'Two-step sign-in is off.'); }
-  catch (err) { return next(err); }
+  try {
+    const out = await mfa.disableMFA(actorOf(req), codeOf(req));
+    // Off means off: no requirement is left stored behind it.
+    await mfaEnforcement.clearEnforcement(actorOf(req));
+    return sendSuccess(res, out, 'Two-step sign-in is off.');
+  } catch (err) { return next(err); }
+}
+
+const enforcementSchema = z.discriminatedUnion('enabled', [
+  z.object({
+    enabled: z.literal(true),
+    code: z.string().trim().min(6).max(32),
+    recoveryCode: z.string().trim().min(6).max(32),
+  }),
+  z.object({ enabled: z.literal(false), code: z.string().trim().min(6).max(32) }),
+]);
+
+/**
+ * POST /auth/mfa/enforcement — require (or stop requiring) a code at sign-in.
+ * On: a current app code and one recovery code, both checked. Off: one code.
+ */
+export async function enforcement(req: Request, res: Response, next: NextFunction) {
+  try {
+    const parsed = enforcementSchema.safeParse(req.body ?? {});
+    if (!parsed.success) throw new BadRequestError('enabled, code and (to switch on) recoveryCode are required');
+    const b = parsed.data;
+    const out = b.enabled
+      ? await mfaEnforcement.enableEnforcement(actorOf(req), b.code, b.recoveryCode)
+      : await mfaEnforcement.disableEnforcement(actorOf(req), b.code);
+    noStore(res);
+    return sendSuccess(res, out, b.enabled ? 'A code is now required at sign-in.' : 'A code is no longer required at sign-in.');
+  } catch (err) { return next(err); }
 }

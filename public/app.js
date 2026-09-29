@@ -790,31 +790,18 @@ async function doLogin() {
 
     // Response envelope: { success, data: { user, tokens: { accessToken, refreshToken } } }
     const payload = (data && data.data) || data;
-    const tokens  = (payload && (payload.tokens || payload)) || {};
-    const user    = (payload && payload.user) || null;
-    const at      = tokens.accessToken;
-    const rt      = tokens.refreshToken;
 
-    if (!at) {
-      console.error('[Login] No accessToken in response:', data);
-      return err('Login succeeded but token missing — please retry.');
+    // Cyber Defense, Step 7: the password was right and this account also
+    // requires a code. The challenge lives in memory only, for this screen.
+    if (payload && payload.mfaRequired === true && typeof payload.challenge === 'string') {
+      _loginChallenge = payload.challenge;
+      document.getElementById('login-password').value = '';
+      showAuthView('mfa');
+      var mfaInput = document.getElementById('login-mfa-code');
+      if (mfaInput) { mfaInput.value = ''; try { mfaInput.focus(); } catch (_) {} }
+      return;
     }
-
-    State.token = at;   // in-memory for WS/SSE ?token= param
-    State.user  = user;
-
-    // Reported here and not on the button, because only this line knows the
-    // sign-in worked. The queue kept anything recorded while signed out, so a
-    // failed attempt followed by this one reaches SYSTEM as the pair it was.
-    try { if (window.FamTelemetry) FamTelemetry.auth('in'); } catch (_) {}
-
-    console.log('[Login] Success →', user && user.email);
-    // Now that there IS a signed-in user, ask the server for THEIR language.
-    // Boot ran before sign-in, when the only clues were the cache and the
-    // browser — which is how a second user on the same machine would otherwise
-    // inherit the first user's language.
-    try { if (window.I18N_APPLY) await I18N_APPLY.boot(); } catch (_) {}
-    await bootApp();
+    await _completeSignIn(data, err);
   } catch (e) {
     // ApiError has .code + .userMessage; fall back to generic
     const msg = (e && e.userMessage) || (e && e.message) || 'Sign-in failed. Please retry.';
@@ -826,6 +813,81 @@ async function doLogin() {
   } finally {
     btn.disabled = false;
     btn.textContent = 'Sign In';
+  }
+}
+
+/**
+ * The second sign-in step's challenge, between the two requests. Memory only —
+ * never storage — and dropped on success, on "back", and when it is refused.
+ */
+let _loginChallenge = null;
+
+/** What both sign-in steps end with: a session in memory, then the app. */
+async function _completeSignIn(data, err) {
+  const payload = (data && data.data) || data;
+  const tokens  = (payload && (payload.tokens || payload)) || {};
+  const user    = (payload && payload.user) || null;
+  const at      = tokens.accessToken;
+  const rt      = tokens.refreshToken;
+
+  if (!at) {
+    console.error('[Login] No accessToken in response:', data);
+    return err('Login succeeded but token missing — please retry.');
+  }
+
+  State.token = at;   // in-memory for WS/SSE ?token= param
+  State.user  = user;
+
+  // Reported here and not on the button, because only this line knows the
+  // sign-in worked. The queue kept anything recorded while signed out, so a
+  // failed attempt followed by this one reaches SYSTEM as the pair it was.
+  try { if (window.FamTelemetry) FamTelemetry.auth('in'); } catch (_) {}
+
+  console.log('[Login] Success →', user && user.email);
+  // Now that there IS a signed-in user, ask the server for THEIR language.
+  // Boot ran before sign-in, when the only clues were the cache and the
+  // browser — which is how a second user on the same machine would otherwise
+  // inherit the first user's language.
+  try { if (window.I18N_APPLY) await I18N_APPLY.boot(); } catch (_) {}
+  await bootApp();
+}
+
+/** POST /auth/login/mfa — the second step. Never retried: each try is counted. */
+async function doLoginMfa() {
+  var input = document.getElementById('login-mfa-code');
+  var btn   = document.getElementById('mfa-btn');
+  var errEl = document.getElementById('mfa-error');
+  var tr = function (k) { return (typeof window.t === 'function') ? window.t('auth.mfa.' + k) : k; };
+  function err(key) { errEl.textContent = tr(key); errEl.classList.add('show'); }
+
+  var code = String((input && input.value) || '').replace(/\s+/g, '');
+  if (!_loginChallenge) { showAuthView('login'); return; }
+  if (code.length < 6) return err('empty');
+
+  btn.disabled = true;
+  btn.textContent = tr('verifying');
+  errEl.classList.remove('show');
+  try {
+    var data = await FamilistaAPI.post('/auth/login/mfa', { challenge: _loginChallenge, code: code }, { auth: false, noRetry: true });
+    _loginChallenge = null;
+    if (input) input.value = '';
+    await _completeSignIn(data, function (m) { errEl.textContent = m; errEl.classList.add('show'); });
+  } catch (e) {
+    var st = e && e.status;
+    try { if (window.FamTelemetry) FamTelemetry.auth('failed'); } catch (_) {}
+    if (input) input.value = '';
+    if (st === 401) {
+      // The challenge is spent or expired: back to the password, with the reason.
+      _loginChallenge = null;
+      showAuthView('login');
+      var le = document.getElementById('login-error');
+      if (le) { le.textContent = tr('expired'); le.classList.add('show'); }
+      return;
+    }
+    err(st === 400 ? 'badCode' : st === 429 ? 'tooMany' : st === 503 ? 'unavailable' : 'failed');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = tr('verify');
   }
 }
 
@@ -45711,6 +45773,14 @@ function showAuthView(name) {
   document.querySelectorAll('[data-auth-view]').forEach(function(el) {
     el.classList.toggle('auth-active', el.dataset.authView === name);
   });
+  // Leaving the second sign-in step drops its challenge and anything typed.
+  if (name !== 'mfa') {
+    _loginChallenge = null;
+    var mfaCode = document.getElementById('login-mfa-code');
+    if (mfaCode) mfaCode.value = '';
+    var mfaErr = document.getElementById('mfa-error');
+    if (mfaErr) { mfaErr.textContent = ''; mfaErr.classList.remove('show'); }
+  }
   // Pre-fill forgot-password email from login field when navigating there
   if (name === 'forgot') {
     var loginEmail = document.getElementById('login-email');
@@ -45848,6 +45918,8 @@ window.addEventListener('DOMContentLoaded', () => {
   // Enter key bindings
   const pw = document.getElementById('login-password');
   if (pw) pw.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  const mfaCode = document.getElementById('login-mfa-code');
+  if (mfaCode) mfaCode.addEventListener('keydown', e => { if (e.key === 'Enter') doLoginMfa(); });
   const fpPw = document.getElementById('fp-email');
   if (fpPw) fpPw.addEventListener('keydown', e => { if (e.key === 'Enter') doForgotPassword(); });
   const rpPw = document.getElementById('rp-confirm');
@@ -49758,6 +49830,7 @@ async function tosBoardSnapshot() {
         case 'closeMobileMenu':     closeMobileMenu();     break;
         case 'toggleMobileMenu':    toggleMobileMenu();    break;
         case 'doLogin':             doLogin();             break;
+        case 'doLoginMfa':          doLoginMfa();          break;
         case 'doForgotPassword':    doForgotPassword();    break;
         case 'doResetPassword':     doResetPassword();     break;
         case 'toggleSidebar':       toggleSidebar();       break;

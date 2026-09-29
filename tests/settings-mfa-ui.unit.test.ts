@@ -96,3 +96,66 @@ describe('secrets stay out of the browser’s storage', () => {
     expect(CODE).not.toMatch(/\+ (?:S\.setup\.|st\.)[a-zA-Z]+ \+/);
   });
 });
+
+describe('Step 7 — requiring a code at sign-in, in the card', () => {
+  it('offers the switch only when enrolled, and needs two recovery codes to offer it', () => {
+    expect(CODE).toContain("data-mfa=\"mode-enforce\"");
+    expect(CODE).toContain("data-mfa=\"mode-unenforce\"");
+    expect(CODE).toMatch(/var canEnforce = st\.recoveryCodesRemaining >= 2;/);
+  });
+
+  it('switching on sends an app code AND a recovery code; off sends one code', () => {
+    expect(CODE).toContain("{ enabled: true, code: code, recoveryCode: recoveryCode }");
+    expect(CODE).toContain("{ enabled: false, code: code }");
+  });
+
+  it('says plainly whether sign-in asks for a code', () => {
+    expect(CODE).toContain("esc(tr('enforcedOn'))");
+    expect(CODE).toContain("esc(tr('enforcedOff'))");
+  });
+});
+
+describe('Step 7 — the second sign-in step', () => {
+  const view = INDEX.slice(INDEX.indexOf('data-auth-view="mfa"'), INDEX.indexOf('data-auth-view="forgot"'));
+  const AUTH_KEYS = Object.keys(JSON.parse(read('public/i18n/locales/en-GB.json')).auth.mfa).sort();
+  const fn = APP.slice(APP.indexOf('async function doLoginMfa()'), APP.indexOf('async function bootApp()'));
+  const usedAuthKeys = [...new Set([
+    ...[...view.matchAll(/data-i18n="auth\.mfa\.([a-zA-Z]+)"/g)].map((m) => m[1]),
+    ...[...fn.matchAll(/tr\('([a-zA-Z]+)'\)/g)].map((m) => m[1]),
+    ...[...fn.matchAll(/'([a-zA-Z]+)'(?= :|\))/g)].map((m) => m[1]).filter((k) => AUTH_KEYS.includes(k)),
+  ])].sort();
+
+  it('is a view on the sign-in screen, owned by the bundle, with no English in the markup', () => {
+    expect(view).toContain('data-no-i18n');
+    expect(view).toContain('data-action="doLoginMfa"');
+    expect(view).toContain('autocomplete="one-time-code"');
+    expect(view.replace(/<!--[\s\S]*?-->/g, '')).not.toMatch(/>[^<]*[A-Za-z]{3,}[^<]*</);
+  });
+
+  it('every auth.mfa key is used, and every language has all of them', () => {
+    expect(usedAuthKeys).toEqual(AUTH_KEYS);
+    for (const file of LOCALES) {
+      const a = JSON.parse(read(`public/i18n/locales/${file}`)).auth.mfa;
+      for (const k of AUTH_KEYS) expect(`${file} ${k}: ${typeof a[k] === 'string' && a[k].trim().length > 0}`).toBe(`${file} ${k}: true`);
+    }
+  });
+
+  it('the password step switches to it on mfaRequired, holding the challenge in memory only', () => {
+    const login = APP.slice(APP.indexOf('async function doLogin()'), APP.indexOf('async function _completeSignIn'));
+    expect(login).toMatch(/payload\.mfaRequired === true[\s\S]*_loginChallenge = payload\.challenge;[\s\S]*showAuthView\('mfa'\)/);
+    const both = login + fn;
+    expect(both).not.toMatch(/localStorage|sessionStorage|indexedDB/);
+  });
+
+  it('the second step is never retried, never refreshes, and drops the challenge when refused', () => {
+    expect(fn).toContain("{ auth: false, noRetry: true }");
+    expect(fn).toMatch(/st === 401\)[\s\S]*_loginChallenge = null;/);
+    const show = APP.slice(APP.indexOf('function showAuthView(name)'), APP.indexOf('/** POST /auth/forgot-password */'));
+    expect(show).toMatch(/if \(name !== 'mfa'\) \{\s*_loginChallenge = null;/);
+  });
+
+  it('the action and the Enter key are wired', () => {
+    expect(APP).toContain("case 'doLoginMfa':          doLoginMfa();          break;");
+    expect(APP).toMatch(/getElementById\('login-mfa-code'\);\s*if \(mfaCode\) mfaCode\.addEventListener\('keydown'/);
+  });
+});

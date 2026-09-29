@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-28T19:16:58.793Z",
+  "generatedAt": "2026-09-29T08:44:29.161Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -314,7 +314,7 @@
       "sourceEvidence": "prisma/schema.prisma — datasource provider",
       "dependencies": [],
       "healthKey": "database",
-      "note": "340 models, 209 enums, 41 migrations."
+      "note": "340 models, 209 enums, 42 migrations."
     },
     {
       "id": "prisma-orm",
@@ -882,7 +882,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 151 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 152 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -942,7 +942,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "539 TypeScript modules under src/."
+      "note": "540 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1422,9 +1422,9 @@
     "serviceModules": 101,
     "middleware": 21,
     "fabricModules": 52,
-    "totalTypeScript": 539,
-    "testSuites": 151,
-    "migrations": 41,
+    "totalTypeScript": 540,
+    "testSuites": 152,
+    "migrations": 42,
     "prismaModels": 340,
     "prismaEnums": 209
   },
@@ -1432,8 +1432,8 @@
     "provider": "postgresql",
     "models": 340,
     "enums": 209,
-    "migrations": 41,
-    "latestMigration": "20260928190000_mfa_persistent_limit_and_single_use"
+    "migrations": 42,
+    "latestMigration": "20260928210000_mfa_owner_enforcement"
   },
   "typescript": {
     "target": "ES2020",

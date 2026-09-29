@@ -4873,6 +4873,10 @@ model MFASetting {
   /// The 30-second TOTP step of the last accepted app code. A code is accepted
   /// only for a strictly later step, so no code is ever accepted twice.
   lastTotpStep    Int?
+  /// When the owner chose to require a code at every sign-in (Cyber Defense,
+  /// Step 7). Effective only while enrolled and only for the enrolment it was
+  /// set under: a later enrolment (enabledAt after this) does not inherit it.
+  enforcedAt      DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }

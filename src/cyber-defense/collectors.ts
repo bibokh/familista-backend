@@ -11,6 +11,8 @@
 //   security.access.denied       a 403 raised anywhere in the request chain
 //   security.origin.rejected     a browser origin refused by CORS
 //   security.ratelimit.exceeded  a request refused by a rate-limit bucket
+//   security.mfa.failed          a second-step code refused at sign-in
+//                                (Step 7; tagged by the enforcement service)
 //
 // HOW EACH ONE IS SEEN
 //
@@ -59,6 +61,11 @@ export type SecuritySignal =
   | {
     type: 'security.login.failed';
     reason: 'UNKNOWN_ACCOUNT' | 'INACTIVE_ACCOUNT' | 'BAD_PASSWORD';
+  }
+  | {
+    type: 'security.mfa.failed';
+    /** The account whose password was right and whose second-step code was not. */
+    userId: string;
   }
   | {
     type: 'security.refresh.reused';
@@ -201,6 +208,19 @@ function collectFromError(err: unknown, req: Request): void {
       evidence: { reason: signal.reason, knownAccount: signal.reason !== 'UNKNOWN_ACCOUNT' },
       privacyClass: 'PERSONAL',
     });
+    return;
+  }
+  if (signal?.type === 'security.mfa.failed') {
+    // The password was right; the second step was not. The account is named
+    // because the challenge proved which one it is — not because it was claimed.
+    emit(signal.type, req, {
+      outcome: 'FAILURE',
+      severity: 'MEDIUM',
+      actor: { type: 'USER', role: null },
+      source: source(req, 'AUTH'),
+      evidence: { stage: 'SIGN_IN' },
+      privacyClass: 'PERSONAL',
+    }, { actorUserId: signal.userId, sourceKey: `u:${signal.userId}` });
     return;
   }
   if (signal?.type === 'security.refresh.reused') {

@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Accesso in due passaggi",
       "intro": "Richiedi un codice da un'app di autenticazione oltre alla password.",
-      "notEnforced": "Non ancora obbligatorio all'accesso: l'obbligo sarà un passaggio separato, più avanti.",
       "on": "Attivo",
       "off": "Disattivo",
       "pending": "Configurazione non completata",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Inserisci un codice dalla tua app, o un codice di recupero, per disattivare l'accesso in due passaggi.",
       "newCodesHelp": "Inserisci un codice dalla tua app. I codici di recupero attuali smetteranno di funzionare.",
       "failed": "Qualcosa è andato storto. Non è stato modificato nulla.",
-      "turnedOff": "L'accesso in due passaggi è disattivato."
+      "turnedOff": "L'accesso in due passaggi è disattivato.",
+      "enforcedOn": "Richiesto a ogni accesso.",
+      "enforcedOff": "Non ancora richiesto all'accesso. Attivalo dopo aver salvato i codici di recupero.",
+      "enforce": "Richiedi all'accesso",
+      "unenforce": "Non richiedere più",
+      "enforceHelp": "Dimostra che entrambi funzionano prima che il codice diventi obbligatorio: un codice attuale della tua app e uno dei tuoi codici di recupero. Quel codice di recupero viene poi consumato.",
+      "unenforceHelp": "Inserisci un codice della tua app, o un codice di recupero, per non richiedere più un codice all'accesso.",
+      "appCode": "Codice della tua app",
+      "recoveryCode": "Un codice di recupero",
+      "needCodes": "Genera prima nuovi codici di recupero: ne servono almeno due per richiedere un codice all'accesso.",
+      "enforcedNow": "Ora è richiesto un codice a ogni accesso.",
+      "unenforcedNow": "All'accesso non è più richiesto un codice."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "E-mail",
     "password": "Password",
     "invalidCredentials": "E-mail o password non corretti",
-    "welcomeBack": "Bentornato"
+    "welcomeBack": "Bentornato",
+    "mfa": {
+      "title": "Accesso in due passaggi",
+      "sub": "Inserisci il codice a 6 cifre della tua app di autenticazione o uno dei tuoi codici di recupero.",
+      "code": "Codice",
+      "verify": "Verifica",
+      "verifying": "Verifica in corso…",
+      "back": "Torna all'accesso",
+      "empty": "Inserisci il codice della tua app o un codice di recupero.",
+      "badCode": "Codice non accettato. Controlla l'ora del telefono e riprova.",
+      "tooMany": "Troppi tentativi. Attendi qualche minuto e riprova.",
+      "expired": "L'accesso è scaduto. Inserisci di nuovo la password.",
+      "unavailable": "L'accesso in due passaggi non è disponibile sul server in questo momento. Riprova più tardi.",
+      "failed": "Qualcosa è andato storto. Riprova."
+    }
   },
   "league": {
     "col": {

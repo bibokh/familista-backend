@@ -230,8 +230,21 @@ const controls = [
   control('password-hashing-bcrypt', has('src/utils/password.ts', /BCRYPT_ROUNDS/) ? 'PRESENT' : 'ABSENT', 'src/utils/password.ts'),
   control('session-revocation-token-version', /tokenVersion/.test(authMwSrc) ? 'PRESENT' : 'ABSENT', AUTH_MW),
   control('mfa-service', exists('src/auth-prod/mfa.service.ts') ? 'PRESENT' : 'ABSENT', cite('src/auth-prod/mfa.service.ts')),
-  control('mfa-required-at-login', /mfa/i.test(loginBody) ? 'PRESENT' : 'ABSENT', AUTH_SERVICE,
-    'loginUser() issues tokens without asking for a second factor.'),
+  // Step 7: the owner can require a code at sign-in. Present when the password
+  // step asks the enforcement service before issuing anything, the second step
+  // has its route, and that route is in the credential rate-limit bucket.
+  control('mfa-owner-enforcement-at-login',
+    /await loginSecondFactor\(user\.id\)[\s\S]*if \(challenge\) return challenge;[\s\S]*issueTokens\(user\)/.test(loginBody)
+      && has('src/routes/auth.routes.ts', /router\.post\('\/login\/mfa',\s*ctrl\.loginMfa\)/)
+      && has('src/middleware/rate-limit.middleware.ts', /'\/login\/mfa'/)
+      ? 'PRESENT' : 'ABSENT', AUTH_SERVICE,
+    'An account whose owner switched it on gets no session from the password alone.'),
+  // Required for EVERY account is a different, stricter claim. Opt-in per
+  // owner is PARTIAL, and says so; nothing here can report it PRESENT.
+  control('mfa-required-at-login', /loginSecondFactor\(/.test(loginBody) ? 'PARTIAL' : 'ABSENT', AUTH_SERVICE,
+    /loginSecondFactor\(/.test(loginBody)
+      ? 'Opt-in: required at sign-in only for an owner who switched it on (mfa-owner-enforcement-at-login).'
+      : 'loginUser() issues tokens without asking for a second factor.'),
   control('login-lockout',
     lockoutCallers > 0 ? 'PRESENT' : exists('src/security/login-attempt.service.ts') ? 'PARTIAL' : 'ABSENT',
     cite('src/security/login-attempt.service.ts'),

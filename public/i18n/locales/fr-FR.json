@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Connexion en deux étapes",
       "intro": "Demander un code d'une application d'authentification en plus de votre mot de passe.",
-      "notEnforced": "Pas encore exigée à la connexion — l'obligation fera l'objet d'une étape distincte, plus tard.",
       "on": "Activée",
       "off": "Désactivée",
       "pending": "Configuration inachevée",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Saisissez un code de votre application, ou un code de récupération, pour désactiver la connexion en deux étapes.",
       "newCodesHelp": "Saisissez un code de votre application. Vos codes de récupération actuels ne fonctionneront plus.",
       "failed": "Une erreur s'est produite. Rien n'a été modifié.",
-      "turnedOff": "La connexion en deux étapes est désactivée."
+      "turnedOff": "La connexion en deux étapes est désactivée.",
+      "enforcedOn": "Exigée à chaque connexion.",
+      "enforcedOff": "Pas encore exigée à la connexion. Activez-la une fois vos codes de récupération enregistrés.",
+      "enforce": "Exiger à la connexion",
+      "unenforce": "Ne plus exiger",
+      "enforceHelp": "Prouvez que les deux fonctionnent avant qu'un code soit exigé : un code actuel de votre application et l'un de vos codes de récupération. Ce code de récupération est alors utilisé.",
+      "unenforceHelp": "Saisissez un code de votre application, ou un code de récupération, pour ne plus exiger de code à la connexion.",
+      "appCode": "Code de votre application",
+      "recoveryCode": "Un code de récupération",
+      "needCodes": "Générez d'abord de nouveaux codes de récupération — il en faut au moins deux pour exiger un code à la connexion.",
+      "enforcedNow": "Un code est désormais exigé à chaque connexion.",
+      "unenforcedNow": "Un code n'est plus exigé à la connexion."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "E-mail",
     "password": "Mot de passe",
     "invalidCredentials": "E-mail ou mot de passe incorrect",
-    "welcomeBack": "Bon retour"
+    "welcomeBack": "Bon retour",
+    "mfa": {
+      "title": "Connexion en deux étapes",
+      "sub": "Saisissez le code à 6 chiffres de votre application d'authentification, ou l'un de vos codes de récupération.",
+      "code": "Code",
+      "verify": "Vérifier",
+      "verifying": "Vérification…",
+      "back": "Retour à la connexion",
+      "empty": "Saisissez le code de votre application ou un code de récupération.",
+      "badCode": "Ce code n'a pas été accepté. Vérifiez l'heure de votre téléphone et réessayez.",
+      "tooMany": "Trop de tentatives. Patientez quelques minutes puis réessayez.",
+      "expired": "Votre connexion a expiré. Saisissez à nouveau votre mot de passe.",
+      "unavailable": "La connexion en deux étapes est indisponible sur le serveur pour le moment. Réessayez plus tard.",
+      "failed": "Une erreur s'est produite. Veuillez réessayer."
+    }
   },
   "league": {
     "col": {

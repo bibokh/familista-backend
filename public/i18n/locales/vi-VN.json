@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Đăng nhập hai bước",
       "intro": "Yêu cầu mã từ ứng dụng xác thực ngoài mật khẩu của bạn.",
-      "notEnforced": "Chưa bắt buộc khi đăng nhập — việc bắt buộc là một bước riêng, sau này.",
       "on": "Bật",
       "off": "Tắt",
       "pending": "Chưa thiết lập xong",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Nhập mã từ ứng dụng hoặc mã khôi phục để tắt đăng nhập hai bước.",
       "newCodesHelp": "Nhập mã từ ứng dụng. Các mã khôi phục hiện tại của bạn sẽ ngừng hoạt động.",
       "failed": "Đã xảy ra lỗi. Không có gì bị thay đổi.",
-      "turnedOff": "Đăng nhập hai bước đã tắt."
+      "turnedOff": "Đăng nhập hai bước đã tắt.",
+      "enforcedOn": "Bắt buộc mỗi lần đăng nhập.",
+      "enforcedOff": "Chưa bắt buộc khi đăng nhập. Hãy bật sau khi bạn đã lưu các mã khôi phục.",
+      "enforce": "Bắt buộc khi đăng nhập",
+      "unenforce": "Ngừng bắt buộc",
+      "enforceHelp": "Chứng minh cả hai đều hoạt động trước khi mã trở thành bắt buộc: một mã hiện tại từ ứng dụng và một trong các mã khôi phục. Mã khôi phục đó sẽ được dùng hết.",
+      "unenforceHelp": "Nhập mã từ ứng dụng hoặc một mã khôi phục để ngừng bắt buộc mã khi đăng nhập.",
+      "appCode": "Mã từ ứng dụng",
+      "recoveryCode": "Một mã khôi phục",
+      "needCodes": "Hãy tạo mã khôi phục mới trước — cần ít nhất hai mã để bắt buộc mã khi đăng nhập.",
+      "enforcedNow": "Giờ đây mỗi lần đăng nhập đều cần mã.",
+      "unenforcedNow": "Không còn cần mã khi đăng nhập."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "Email",
     "password": "Mật khẩu",
     "invalidCredentials": "Email hoặc mật khẩu không đúng",
-    "welcomeBack": "Chào mừng trở lại"
+    "welcomeBack": "Chào mừng trở lại",
+    "mfa": {
+      "title": "Đăng nhập hai bước",
+      "sub": "Nhập mã 6 chữ số từ ứng dụng xác thực hoặc một trong các mã khôi phục của bạn.",
+      "code": "Mã",
+      "verify": "Xác minh",
+      "verifying": "Đang xác minh…",
+      "back": "Quay lại đăng nhập",
+      "empty": "Nhập mã từ ứng dụng hoặc một mã khôi phục.",
+      "badCode": "Mã không được chấp nhận. Hãy kiểm tra giờ trên điện thoại và thử lại.",
+      "tooMany": "Quá nhiều lần thử. Hãy đợi vài phút rồi thử lại.",
+      "expired": "Phiên đăng nhập đã hết hạn. Hãy nhập lại mật khẩu.",
+      "unavailable": "Đăng nhập hai bước hiện không khả dụng trên máy chủ. Hãy thử lại sau.",
+      "failed": "Đã xảy ra lỗi. Vui lòng thử lại."
+    }
   },
   "league": {
     "col": {

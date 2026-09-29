@@ -176,6 +176,8 @@ export async function rateLimit(req: Request, res: Response, next: NextFunction)
  */
 const CREDENTIAL_PATHS = new Set([
   '/login', '/register', '/forgot-password', '/reset-password',
+  // The second sign-in step takes a credential too (Cyber Defense, Step 7).
+  '/login/mfa',
 ]);
 const ACCOUNT_CAPACITY = parseInt(process.env.RATE_ACCOUNT_CAPACITY ?? '10', 10);
 

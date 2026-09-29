@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Inicio de sesión en dos pasos",
       "intro": "Pedir un código de una app de autenticación además de tu contraseña.",
-      "notEnforced": "Todavía no se exige al iniciar sesión: la obligatoriedad será un paso aparte, más adelante.",
       "on": "Activado",
       "off": "Desactivado",
       "pending": "Configuración sin terminar",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Ingresa un código de tu app, o un código de recuperación, para desactivar el inicio de sesión en dos pasos.",
       "newCodesHelp": "Ingresa un código de tu app. Tus códigos de recuperación actuales dejarán de funcionar.",
       "failed": "Algo salió mal. No se cambió nada.",
-      "turnedOff": "El inicio de sesión en dos pasos está desactivado."
+      "turnedOff": "El inicio de sesión en dos pasos está desactivado.",
+      "enforcedOn": "Obligatorio en cada inicio de sesión.",
+      "enforcedOff": "Aún no es obligatorio al iniciar sesión. Actívalo cuando hayas guardado tus códigos de recuperación.",
+      "enforce": "Exigir al iniciar sesión",
+      "unenforce": "Dejar de exigir",
+      "enforceHelp": "Comprueba que ambos funcionan antes de que se exija un código: un código actual de tu app y uno de tus códigos de recuperación. Ese código de recuperación queda usado.",
+      "unenforceHelp": "Ingresa un código de tu app, o un código de recuperación, para dejar de exigir un código al iniciar sesión.",
+      "appCode": "Código de tu app",
+      "recoveryCode": "Un código de recuperación",
+      "needCodes": "Genera primero nuevos códigos de recuperación: se necesitan al menos dos para exigir un código al iniciar sesión.",
+      "enforcedNow": "Ahora se exige un código en cada inicio de sesión.",
+      "unenforcedNow": "Ya no se exige un código al iniciar sesión."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "Correo electrónico",
     "password": "Contraseña",
     "invalidCredentials": "Correo o contraseña incorrectos",
-    "welcomeBack": "Bienvenido de nuevo"
+    "welcomeBack": "Bienvenido de nuevo",
+    "mfa": {
+      "title": "Inicio de sesión en dos pasos",
+      "sub": "Ingresa el código de 6 dígitos de tu app de autenticación o uno de tus códigos de recuperación.",
+      "code": "Código",
+      "verify": "Verificar",
+      "verifying": "Verificando…",
+      "back": "Volver a iniciar sesión",
+      "empty": "Ingresa el código de tu app o un código de recuperación.",
+      "badCode": "No se aceptó ese código. Revisa la hora de tu celular e inténtalo de nuevo.",
+      "tooMany": "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.",
+      "expired": "Tu inicio de sesión expiró. Ingresa tu contraseña de nuevo.",
+      "unavailable": "El inicio de sesión en dos pasos no está disponible en el servidor en este momento. Inténtalo más tarde.",
+      "failed": "Algo salió mal. Inténtalo de nuevo."
+    }
   },
   "league": {
     "col": {

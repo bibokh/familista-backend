@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Prijava u dva koraka",
       "intro": "Traži kod iz aplikacije za autentifikaciju pored tvoje lozinke.",
-      "notEnforced": "Još nije obavezna pri prijavi — obavezivanje je poseban, kasniji korak.",
       "on": "Uključena",
       "off": "Isključena",
       "pending": "Podešavanje nije završeno",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Unesi kod iz aplikacije ili kod za oporavak da bi isključio prijavu u dva koraka.",
       "newCodesHelp": "Unesi kod iz aplikacije. Tvoji trenutni kodovi za oporavak prestaće da rade.",
       "failed": "Nešto nije u redu. Ništa nije promenjeno.",
-      "turnedOff": "Prijava u dva koraka je isključena."
+      "turnedOff": "Prijava u dva koraka je isključena.",
+      "enforcedOn": "Obavezno pri svakoj prijavi.",
+      "enforcedOff": "Još nije obavezno pri prijavi. Uključi kada sačuvaš kodove za oporavak.",
+      "enforce": "Zahtevaj pri prijavi",
+      "unenforce": "Prestani da zahtevaš",
+      "enforceHelp": "Pre nego što kod postane obavezan, dokaži da oba rade: trenutni kod iz aplikacije i jedan od kodova za oporavak. Taj kod za oporavak se tada troši.",
+      "unenforceHelp": "Unesi kod iz aplikacije ili kod za oporavak da prestaneš da zahtevaš kod pri prijavi.",
+      "appCode": "Kod iz aplikacije",
+      "recoveryCode": "Jedan kod za oporavak",
+      "needCodes": "Prvo napravi nove kodove za oporavak — potrebna su najmanje dva da bi se kod zahtevao pri prijavi.",
+      "enforcedNow": "Kod je sada obavezan pri svakoj prijavi.",
+      "unenforcedNow": "Kod više nije obavezan pri prijavi."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "E-pošta",
     "password": "Lozinka",
     "invalidCredentials": "Neispravna e-pošta ili lozinka",
-    "welcomeBack": "Dobrodošao nazad"
+    "welcomeBack": "Dobrodošao nazad",
+    "mfa": {
+      "title": "Prijava u dva koraka",
+      "sub": "Unesi šestocifreni kod iz aplikacije za autentifikaciju ili jedan od kodova za oporavak.",
+      "code": "Kod",
+      "verify": "Potvrdi",
+      "verifying": "Proverava se…",
+      "back": "Nazad na prijavu",
+      "empty": "Unesi kod iz aplikacije ili kod za oporavak.",
+      "badCode": "Kod nije prihvaćen. Proveri vreme na telefonu i pokušaj ponovo.",
+      "tooMany": "Previše pokušaja. Sačekaj nekoliko minuta i pokušaj ponovo.",
+      "expired": "Prijava je istekla. Ponovo unesi lozinku.",
+      "unavailable": "Prijava u dva koraka trenutno nije dostupna na serveru. Pokušaj kasnije.",
+      "failed": "Nešto nije u redu. Pokušaj ponovo."
+    }
   },
   "league": {
     "col": {

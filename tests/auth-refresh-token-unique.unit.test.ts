@@ -29,6 +29,8 @@ jest.mock('../src/config/database', () => ({
     user:         { findUnique: (...a: unknown[]) => userFindUnique(...a),
                     update:     (...a: unknown[]) => userUpdate(...a) },
     refreshToken: { create:     (...a: unknown[]) => refreshTokenCreate(...a) },
+    // No second factor required for this account (Cyber Defense, Step 7).
+    mFASetting:   { findUnique: async () => null },
   },
 }));
 
@@ -42,7 +44,10 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import jwt from 'jsonwebtoken';
-import { loginUser } from '../src/services/auth.service';
+import { loginUser as beginLogin, type LoginSession } from '../src/services/auth.service';
+
+/** This account requires no code, so the password step is the whole sign-in. */
+const loginUser = (email: string, password: string) => beginLogin(email, password) as Promise<LoginSession>;
 import { config } from '../src/config';
 
 const USER = {

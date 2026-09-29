@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Kaksivaiheinen kirjautuminen",
       "intro": "Pyydä salasanan lisäksi koodi todennussovelluksesta.",
-      "notEnforced": "Ei vielä pakollinen kirjautuessa — pakottaminen on erillinen, myöhempi vaihe.",
       "on": "Käytössä",
       "off": "Pois käytöstä",
       "pending": "Käyttöönotto kesken",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Anna sovelluksen koodi tai palautuskoodi poistaaksesi kaksivaiheisen kirjautumisen käytöstä.",
       "newCodesHelp": "Anna sovelluksen koodi. Nykyiset palautuskoodisi lakkaavat toimimasta.",
       "failed": "Jokin meni vikaan. Mitään ei muutettu.",
-      "turnedOff": "Kaksivaiheinen kirjautuminen on pois käytöstä."
+      "turnedOff": "Kaksivaiheinen kirjautuminen on pois käytöstä.",
+      "enforcedOn": "Vaaditaan jokaisella kirjautumiskerralla.",
+      "enforcedOff": "Ei vielä vaadita kirjautuessa. Ota käyttöön, kun olet tallentanut palautuskoodisi.",
+      "enforce": "Vaadi kirjautuessa",
+      "unenforce": "Lopeta vaatiminen",
+      "enforceHelp": "Todista, että molemmat toimivat, ennen kuin koodista tulee pakollinen: sovelluksen nykyinen koodi ja yksi palautuskoodeistasi. Palautuskoodi käytetään samalla.",
+      "unenforceHelp": "Anna sovelluksen koodi tai palautuskoodi, jos haluat lopettaa koodin vaatimisen kirjautuessa.",
+      "appCode": "Sovelluksen koodi",
+      "recoveryCode": "Yksi palautuskoodi",
+      "needCodes": "Luo ensin uudet palautuskoodit — koodin vaatiminen kirjautuessa edellyttää vähintään kahta.",
+      "enforcedNow": "Koodi vaaditaan nyt jokaisella kirjautumiskerralla.",
+      "unenforcedNow": "Koodia ei enää vaadita kirjautuessa."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "Sähköposti",
     "password": "Salasana",
     "invalidCredentials": "Virheellinen sähköposti tai salasana",
-    "welcomeBack": "Tervetuloa takaisin"
+    "welcomeBack": "Tervetuloa takaisin",
+    "mfa": {
+      "title": "Kaksivaiheinen kirjautuminen",
+      "sub": "Anna todennussovelluksen 6-numeroinen koodi tai jokin palautuskoodeistasi.",
+      "code": "Koodi",
+      "verify": "Vahvista",
+      "verifying": "Vahvistetaan…",
+      "back": "Takaisin kirjautumiseen",
+      "empty": "Anna sovelluksen koodi tai palautuskoodi.",
+      "badCode": "Koodia ei hyväksytty. Tarkista puhelimesi kellonaika ja yritä uudelleen.",
+      "tooMany": "Liian monta yritystä. Odota muutama minuutti ja yritä uudelleen.",
+      "expired": "Kirjautumisesi vanheni. Anna salasanasi uudelleen.",
+      "unavailable": "Kaksivaiheinen kirjautuminen ei ole juuri nyt käytettävissä palvelimella. Yritä myöhemmin uudelleen.",
+      "failed": "Jokin meni vikaan. Yritä uudelleen."
+    }
   },
   "league": {
     "col": {

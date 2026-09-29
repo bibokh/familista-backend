@@ -144,6 +144,8 @@ const db: Row = {
       return { count: before - state.refreshTokens.length };
     },
   },
+  // No second factor required for these accounts (Cyber Defense, Step 7).
+  mFASetting: { findUnique: async () => null },
   $transaction: async (fn: any) => (typeof fn === 'function' ? fn(db) : Promise.all(fn)),
 };
 
@@ -593,7 +595,7 @@ describe('a broken fabric does not break a login', () => {
       async read() { return []; },
     } as EventTransport);
 
-    const result = await authService.loginUser(SECRETS.email, PASSWORD);
+    const result = await authService.loginUser(SECRETS.email, PASSWORD) as authService.LoginSession;
     await settle();
     expect(result.user.id).toBe('u-existing');
     expect(result.tokens.accessToken).toBeTruthy();

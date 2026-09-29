@@ -88,6 +88,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
 }
 .login-input:focus{border-color:var(--green);box-shadow:0 0 0 3px var(--green-bg);}
 .login-input::placeholder{color:var(--tx-3);}
+/* The second sign-in step's code: monospaced, grouped by eye, never mirrored. */
+#login-mfa-code{font-family:var(--mono);letter-spacing:.14em;direction:ltr;text-align:left;}
 .login-btn{
   width:100%;padding:10px;border-radius:var(--radius);
   background:var(--green);color:#fff;border:none;
@@ -17126,6 +17128,9 @@ body.club-theme .set-panel .settings-wrap{ padding:0; max-width:none; }
 body.club-theme .set-mfa{ margin-bottom:14px; }
 body.club-theme .set-mfa-hd{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
 body.club-theme .set-mfa-enforce{ margin-top:4px; }
+/* Step 7: when a code is required at sign-in, the line says so with an edge, not a fill. */
+body.club-theme .set-mfa-enforce.is-on{ padding-left:9px; border-left:2px solid rgba(74,222,128,.55); color:var(--tx-2,#cbd5e1); }
+body.club-theme .set-mfa-form .set-mfa-row + .set-field-l{ margin-top:5px; }
 body.club-theme .set-mfa-body{ margin-top:14px; display:flex; flex-direction:column; gap:14px; }
 body.club-theme .set-mfa-step{ display:flex; flex-direction:column; gap:8px; }
 body.club-theme .set-mfa-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }

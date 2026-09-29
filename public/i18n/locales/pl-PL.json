@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Logowanie dwuetapowe",
       "intro": "Wymagaj kodu z aplikacji uwierzytelniającej oprócz hasła.",
-      "notEnforced": "Jeszcze niewymagane przy logowaniu — egzekwowanie to osobny, późniejszy krok.",
       "on": "Włączone",
       "off": "Wyłączone",
       "pending": "Konfiguracja niedokończona",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Wpisz kod z aplikacji lub kod odzyskiwania, aby wyłączyć logowanie dwuetapowe.",
       "newCodesHelp": "Wpisz kod z aplikacji. Obecne kody odzyskiwania przestaną działać.",
       "failed": "Coś poszło nie tak. Niczego nie zmieniono.",
-      "turnedOff": "Logowanie dwuetapowe jest wyłączone."
+      "turnedOff": "Logowanie dwuetapowe jest wyłączone.",
+      "enforcedOn": "Wymagane przy każdym logowaniu.",
+      "enforcedOff": "Jeszcze niewymagane przy logowaniu. Włącz, gdy zapiszesz kody odzyskiwania.",
+      "enforce": "Wymagaj przy logowaniu",
+      "unenforce": "Przestań wymagać",
+      "enforceHelp": "Udowodnij, że oba działają, zanim kod stanie się wymagany: aktualny kod z aplikacji i jeden z kodów odzyskiwania. Ten kod odzyskiwania zostanie wtedy zużyty.",
+      "unenforceHelp": "Wpisz kod z aplikacji lub kod odzyskiwania, aby przestać wymagać kodu przy logowaniu.",
+      "appCode": "Kod z aplikacji",
+      "recoveryCode": "Jeden kod odzyskiwania",
+      "needCodes": "Najpierw wygeneruj nowe kody odzyskiwania — potrzebne są co najmniej dwa, aby wymagać kodu przy logowaniu.",
+      "enforcedNow": "Kod jest teraz wymagany przy każdym logowaniu.",
+      "unenforcedNow": "Kod nie jest już wymagany przy logowaniu."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "E-mail",
     "password": "Hasło",
     "invalidCredentials": "Nieprawidłowy e-mail lub hasło",
-    "welcomeBack": "Witaj ponownie"
+    "welcomeBack": "Witaj ponownie",
+    "mfa": {
+      "title": "Logowanie dwuetapowe",
+      "sub": "Wpisz 6-cyfrowy kod z aplikacji uwierzytelniającej lub jeden z kodów odzyskiwania.",
+      "code": "Kod",
+      "verify": "Zweryfikuj",
+      "verifying": "Weryfikowanie…",
+      "back": "Wróć do logowania",
+      "empty": "Wpisz kod z aplikacji lub kod odzyskiwania.",
+      "badCode": "Kod nie został zaakceptowany. Sprawdź godzinę w telefonie i spróbuj ponownie.",
+      "tooMany": "Zbyt wiele prób. Odczekaj kilka minut i spróbuj ponownie.",
+      "expired": "Logowanie wygasło. Wpisz ponownie hasło.",
+      "unavailable": "Logowanie dwuetapowe jest teraz niedostępne na serwerze. Spróbuj ponownie później.",
+      "failed": "Coś poszło nie tak. Spróbuj ponownie."
+    }
   },
   "league": {
     "col": {

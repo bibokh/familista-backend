@@ -235,7 +235,7 @@ describe('guessing is limited', () => {
   });
 });
 
-describe('not enforced in this build', () => {
+describe('enrolment alone does not require a code at sign-in (Step 7 makes that a separate switch)', () => {
   it('an enrolled owner still signs in with the password alone', async () => {
     await enrolOwner();
     const res = await request(app).post('/api/v1/auth/login').send({ email: 'owner@familista.test', password: 'right-password' });

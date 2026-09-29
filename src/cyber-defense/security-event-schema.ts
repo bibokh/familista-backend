@@ -10,7 +10,9 @@
 // failed sign-ins, reused refresh tokens, refused access (403), refused
 // browser origins and rate-limit hits. A sixth, `security.lockout.triggered`,
 // is the lockout evaluated in shadow mode (`cyber-defense/lockout-shadow.ts`,
-// Step 5): recorded, never enforced. The rest are registered
+// Step 5): recorded, never enforced. A seventh, `security.mfa.failed`, is a
+// refused second-step code at sign-in (`auth-prod/mfa-enforcement.service.ts`,
+// Step 7), seen by the same collector. The rest are registered
 // `produced: false` — the registry's own way of saying "declared, no producer
 // yet", the same device `system.deploy.*` uses.
 //
@@ -123,7 +125,7 @@ export const SECURITY_EVENT_TYPES: readonly SecurityEventDeclaration[] = Object.
     describes: 'A sign-in attempt was refused' },
   { type: 'security.lockout.triggered', category: 'AUTHENTICATION', produced: true, auditRelevant: true,
     describes: 'A sign-in attempt that the lockout thresholds would refuse (shadow mode: recorded, not enforced)' },
-  { type: 'security.mfa.failed', category: 'AUTHENTICATION', produced: false, auditRelevant: true,
+  { type: 'security.mfa.failed', category: 'AUTHENTICATION', produced: true, auditRelevant: true,
     describes: 'A second-factor code was refused' },
   { type: 'security.refresh.reused', category: 'SESSION', produced: true, auditRelevant: true,
     describes: 'A refresh token that was already used was presented again' },

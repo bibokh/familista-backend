@@ -143,13 +143,15 @@ const db: Row = {
     findFirst: async () => null,
   },
   analyticsEvent: { findFirst: async () => null, count: async () => 0, createMany: async () => ({ count: 0 }) },
+  // No second factor required for an invited account (Cyber Defense, Step 7).
+  mFASetting: { findUnique: async () => null },
   $transaction: async (fn: any) => (typeof fn === 'function' ? fn(db) : Promise.all(fn)),
 };
 
 jest.mock('../src/config/database', () => ({ prisma: db }));
 
 import * as invites from '../src/identity/invitation.service';
-import { loginUser } from '../src/services/auth.service';
+import { loginUser, type LoginSession } from '../src/services/auth.service';
 import { config } from '../src/config';
 import { resetInvitationThrottle } from '../src/identity/invitation-throttle';
 import { setEmailProvider } from '../src/platform/email/service';
@@ -521,7 +523,7 @@ describe('the president can actually get into Familista afterwards', () => {
 
     // The same service /auth/login calls, with no special casing for invited
     // accounts. If this passes, a real sign-in on the frontend passes.
-    const session = await loginUser('new.president@club.test', password);
+    const session = await loginUser('new.president@club.test', password) as LoginSession;
     expect(session.user.email).toBe('new.president@club.test');
     expect(session.tokens.accessToken).toBeTruthy();
     expect(session.tokens.refreshToken).toBeTruthy();

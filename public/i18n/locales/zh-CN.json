@@ -66,7 +66,6 @@
     "mfa": {
       "title": "两步登录",
       "intro": "除密码外，还要求输入身份验证器应用中的验证码。",
-      "notEnforced": "登录时暂不强制要求——强制启用是之后单独的一步。",
       "on": "已开启",
       "off": "已关闭",
       "pending": "设置未完成",
@@ -94,7 +93,18 @@
       "turnOffHelp": "输入应用中的验证码或一个恢复码以关闭两步登录。",
       "newCodesHelp": "输入应用中的验证码。你当前的恢复码将失效。",
       "failed": "出现问题，未做任何更改。",
-      "turnedOff": "两步登录已关闭。"
+      "turnedOff": "两步登录已关闭。",
+      "enforcedOn": "每次登录都需要。",
+      "enforcedOff": "登录时尚未要求。请在保存恢复码后开启。",
+      "enforce": "登录时要求",
+      "unenforce": "停止要求",
+      "enforceHelp": "在要求验证码之前，先证明两者都可用：应用中的当前验证码和一个恢复码。该恢复码随即作废。",
+      "unenforceHelp": "输入应用中的验证码或一个恢复码，以停止在登录时要求验证码。",
+      "appCode": "应用中的验证码",
+      "recoveryCode": "一个恢复码",
+      "needCodes": "请先生成新的恢复码——登录时要求验证码至少需要两个。",
+      "enforcedNow": "现在每次登录都需要验证码。",
+      "unenforcedNow": "登录时不再需要验证码。"
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "邮箱",
     "password": "密码",
     "invalidCredentials": "邮箱或密码不正确",
-    "welcomeBack": "欢迎回来"
+    "welcomeBack": "欢迎回来",
+    "mfa": {
+      "title": "两步登录",
+      "sub": "输入身份验证应用中的 6 位验证码，或任一恢复码。",
+      "code": "验证码",
+      "verify": "验证",
+      "verifying": "正在验证…",
+      "back": "返回登录",
+      "empty": "输入应用中的验证码或一个恢复码。",
+      "badCode": "验证码未通过。请检查手机时间后重试。",
+      "tooMany": "尝试次数过多。请等待几分钟后重试。",
+      "expired": "登录已过期，请重新输入密码。",
+      "unavailable": "服务器当前无法使用两步登录，请稍后再试。",
+      "failed": "出现问题，请重试。"
+    }
   },
   "league": {
     "col": {

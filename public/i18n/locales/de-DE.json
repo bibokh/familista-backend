@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Anmeldung in zwei Schritten",
       "intro": "Zusätzlich zu deinem Passwort wird ein Code aus einer Authenticator-App abgefragt.",
-      "notEnforced": "Bei der Anmeldung noch nicht erforderlich — die Pflicht folgt in einem späteren, eigenen Schritt.",
       "on": "An",
       "off": "Aus",
       "pending": "Einrichtung nicht abgeschlossen",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Gib einen Code aus deiner App oder einen Wiederherstellungscode ein, um die Anmeldung in zwei Schritten auszuschalten.",
       "newCodesHelp": "Gib einen Code aus deiner App ein. Deine bisherigen Wiederherstellungscodes funktionieren dann nicht mehr.",
       "failed": "Etwas ist schiefgelaufen. Es wurde nichts geändert.",
-      "turnedOff": "Die Anmeldung in zwei Schritten ist ausgeschaltet."
+      "turnedOff": "Die Anmeldung in zwei Schritten ist ausgeschaltet.",
+      "enforcedOn": "Bei jeder Anmeldung erforderlich.",
+      "enforcedOff": "Bei der Anmeldung noch nicht erforderlich. Aktiviere es, sobald du deine Wiederherstellungscodes gespeichert hast.",
+      "enforce": "Bei Anmeldung verlangen",
+      "unenforce": "Nicht mehr verlangen",
+      "enforceHelp": "Beweise, dass beides funktioniert, bevor ein Code verlangt wird: ein aktueller Code aus deiner App und einer deiner Wiederherstellungscodes. Dieser Wiederherstellungscode ist danach verbraucht.",
+      "unenforceHelp": "Gib einen Code aus deiner App oder einen Wiederherstellungscode ein, um bei der Anmeldung keinen Code mehr zu verlangen.",
+      "appCode": "Code aus deiner App",
+      "recoveryCode": "Ein Wiederherstellungscode",
+      "needCodes": "Erstelle zuerst neue Wiederherstellungscodes – mindestens zwei sind nötig, um bei der Anmeldung einen Code zu verlangen.",
+      "enforcedNow": "Ab jetzt ist bei jeder Anmeldung ein Code erforderlich.",
+      "unenforcedNow": "Bei der Anmeldung ist kein Code mehr erforderlich."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "E-Mail",
     "password": "Passwort",
     "invalidCredentials": "E-Mail oder Passwort ist falsch",
-    "welcomeBack": "Willkommen zurück"
+    "welcomeBack": "Willkommen zurück",
+    "mfa": {
+      "title": "Anmeldung in zwei Schritten",
+      "sub": "Gib den 6-stelligen Code aus deiner Authenticator-App oder einen deiner Wiederherstellungscodes ein.",
+      "code": "Code",
+      "verify": "Bestätigen",
+      "verifying": "Wird geprüft…",
+      "back": "Zurück zur Anmeldung",
+      "empty": "Gib den Code aus deiner App oder einen Wiederherstellungscode ein.",
+      "badCode": "Dieser Code wurde nicht akzeptiert. Prüfe die Uhrzeit auf deinem Handy und versuche es erneut.",
+      "tooMany": "Zu viele Versuche. Warte ein paar Minuten und versuche es erneut.",
+      "expired": "Deine Anmeldung ist abgelaufen. Gib dein Passwort erneut ein.",
+      "unavailable": "Die Anmeldung in zwei Schritten ist auf dem Server gerade nicht verfügbar. Versuche es später erneut.",
+      "failed": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+    }
   },
   "league": {
     "col": {

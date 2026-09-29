@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Login em duas etapas",
       "intro": "Pedir um código de um app autenticador além da sua senha.",
-      "notEnforced": "Ainda não é exigido no login — a obrigatoriedade será uma etapa separada, mais adiante.",
       "on": "Ativado",
       "off": "Desativado",
       "pending": "Configuração não concluída",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Digite um código do seu app, ou um código de recuperação, para desativar o login em duas etapas.",
       "newCodesHelp": "Digite um código do seu app. Seus códigos de recuperação atuais deixarão de funcionar.",
       "failed": "Algo deu errado. Nada foi alterado.",
-      "turnedOff": "O login em duas etapas está desativado."
+      "turnedOff": "O login em duas etapas está desativado.",
+      "enforcedOn": "Obrigatório em todo login.",
+      "enforcedOff": "Ainda não é obrigatório no login. Ative depois de salvar seus códigos de recuperação.",
+      "enforce": "Exigir no login",
+      "unenforce": "Deixar de exigir",
+      "enforceHelp": "Comprove que ambos funcionam antes de o código se tornar obrigatório: um código atual do seu app e um dos seus códigos de recuperação. Esse código de recuperação é então usado.",
+      "unenforceHelp": "Digite um código do seu app, ou um código de recuperação, para deixar de exigir um código no login.",
+      "appCode": "Código do seu app",
+      "recoveryCode": "Um código de recuperação",
+      "needCodes": "Gere novos códigos de recuperação primeiro — são necessários pelo menos dois para exigir um código no login.",
+      "enforcedNow": "Agora um código é exigido em todo login.",
+      "unenforcedNow": "O login não exige mais um código."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "E-mail",
     "password": "Senha",
     "invalidCredentials": "E-mail ou senha incorretos",
-    "welcomeBack": "Bem-vindo de volta"
+    "welcomeBack": "Bem-vindo de volta",
+    "mfa": {
+      "title": "Login em duas etapas",
+      "sub": "Digite o código de 6 dígitos do seu app autenticador ou um dos seus códigos de recuperação.",
+      "code": "Código",
+      "verify": "Verificar",
+      "verifying": "Verificando…",
+      "back": "Voltar ao login",
+      "empty": "Digite o código do seu app ou um código de recuperação.",
+      "badCode": "Esse código não foi aceito. Confira a hora do seu celular e tente novamente.",
+      "tooMany": "Tentativas demais. Aguarde alguns minutos e tente novamente.",
+      "expired": "Seu login expirou. Digite sua senha novamente.",
+      "unavailable": "O login em duas etapas está indisponível no servidor no momento. Tente novamente mais tarde.",
+      "failed": "Algo deu errado. Tente novamente."
+    }
   },
   "league": {
     "col": {

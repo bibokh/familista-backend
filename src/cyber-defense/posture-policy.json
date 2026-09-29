@@ -4,6 +4,7 @@
   "publicRoutes": {
     "POST /auth/register": "Account creation; no session can exist yet. Behind the auth rate limiter.",
     "POST /auth/login": "Credential exchange; no session can exist yet. Behind the auth rate limiter.",
+    "POST /auth/login/mfa": "The second sign-in step; no session can exist yet. Authenticated by a single-use, hashed, five-minute challenge from the password step. Behind the auth rate limiter.",
     "POST /auth/refresh": "Authenticated by the refresh token presented, not by an access token. Behind the auth rate limiter.",
     "POST /auth/logout": "Revokes the presented refresh token; must work with an expired access token. Behind the auth rate limiter.",
     "POST /auth/forgot-password": "Starts a reset for a reader who cannot sign in. Behind the auth rate limiter.",
@@ -49,6 +50,7 @@
     "password-hashing-bcrypt",
     "session-revocation-token-version",
     "mfa-service",
+    "mfa-owner-enforcement-at-login",
     "tenant-guard",
     "device-ingest-hmac",
     "stripe-webhook-signature",
@@ -60,7 +62,7 @@
   ],
   "knownGaps": {
     "login-lockout": "PARTIAL — the lockout service has no enforcing caller; it runs in shadow mode only (login-lockout-shadow).",
-    "mfa-required-at-login": "ABSENT — the TOTP service exists and is not enforced.",
+    "mfa-required-at-login": "PARTIAL — required at sign-in only for an owner who switched it on (Step 7); not required for every account.",
     "refresh-token-hashed-at-rest": "ABSENT — refresh tokens are stored as issued.",
     "jwt-algorithm-pinned": "ABSENT — jwt.verify is called without an algorithms list.",
     "jwt-issuer-validated": "ABSENT — no issuer or audience is set or checked.",
