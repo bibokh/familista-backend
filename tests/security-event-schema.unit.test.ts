@@ -52,11 +52,12 @@ describe('the security.* names are declared in the Fabric registry', () => {
       .toEqual(SECURITY_EVENT_TYPES.map((d) => d.type).sort());
   });
 
-  it('six have a producer (Step 4 collectors, Step 5 shadow lockout); the rest are declared ahead of theirs', () => {
+  it('seven have a producer (Step 4 collectors, Step 5 shadow lockout, Step 7 second step); the rest are declared ahead of theirs', () => {
     expect(SECURITY_EVENT_TYPES.filter((d) => d.produced).map((d) => d.type).sort()).toEqual([
       'security.access.denied',
       'security.lockout.triggered',
       'security.login.failed',
+      'security.mfa.failed',
       'security.origin.rejected',
       'security.ratelimit.exceeded',
       'security.refresh.reused',
@@ -97,9 +98,9 @@ describe('the security.* names are declared in the Fabric registry', () => {
 
 describe('only the collectors publish, and only the types that have one', () => {
   it('the producer exposes one publish helper, and it refuses a type with no collector', () => {
-    expect(publishSecurityEvent('security.mfa.failed', {}, {
+    expect(publishSecurityEvent('security.tenant.mismatch', {}, {
       outcome: 'FAILURE', severity: 'LOW', actor: { type: 'ANONYMOUS', role: null },
-      source: { component: 'MFA', requestId: null, ipPrefix: null }, evidence: {}, privacyClass: 'PERSONAL',
+      source: { component: 'TENANT_GUARD', requestId: null, ipPrefix: null }, evidence: {}, privacyClass: 'PERSONAL',
     })).toBe(false);
     expect(publishSecurityEvent('security.not.declared', {}, {
       outcome: 'FAILURE', severity: 'LOW', actor: { type: 'ANONYMOUS', role: null },

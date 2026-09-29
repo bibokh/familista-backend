@@ -1052,10 +1052,11 @@ describe('the rest of the fabric is unchanged', () => {
     const sources = fabricSources().filter((s) => s.id !== 'future-domain');
     expect(sources).toHaveLength(11);
     // 177 + the twelve `security.*` names Cyber Defense declares (Step 2): five
-    // have a collector since Step 4, and the shadow lockout a sixth (Step 5).
+    // have a collector since Step 4, the shadow lockout a sixth (Step 5), and
+    // the refused second-step code at sign-in a seventh (Step 7).
     expect(all).toHaveLength(189);
-    expect(all.filter((e) => e.produced)).toHaveLength(137);
-    expect(all.filter((e) => !e.produced)).toHaveLength(52);
+    expect(all.filter((e) => e.produced)).toHaveLength(138);
+    expect(all.filter((e) => !e.produced)).toHaveLength(51);
   });
 
   it('a produced:false contract did not become historical by being registered', async () => {

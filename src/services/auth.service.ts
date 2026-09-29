@@ -15,6 +15,9 @@ import { publishUserCreated, publishUserLogin, publishUserLogout } from '../fabr
 import { tagSecuritySignal } from '../cyber-defense/collectors';
 import { forgetIdentity } from '../middleware/auth.middleware';
 import { hashPassword, verifyPassword } from '../utils/password';
+import {
+  completeLoginSecondFactor, loginSecondFactor, LoginChallengeInvalidError, type LoginChallenge,
+} from '../auth-prod/mfa-enforcement.service';
 
 export interface TokenPair {
   accessToken: string;
@@ -199,10 +202,25 @@ export async function registerInvitedUser(input: {
 
 // ── Login ─────────────────────────────────────────────────
 
+/** A signed-in session: what every successful sign-in ends with. */
+export interface LoginSession { user: AuthUser; tokens: TokenPair }
+
+/**
+ * What the password step answers: a session, or — for an account whose owner
+ * requires a code at sign-in (Cyber Defense, Step 7) — a challenge that only
+ * `completeMfaLogin` can turn into one. A challenge carries no tokens and
+ * nothing about the account.
+ */
+export type LoginOutcome = LoginSession | LoginChallenge;
+
+export function isLoginChallenge(o: LoginOutcome): o is LoginChallenge {
+  return (o as LoginChallenge).mfaRequired === true;
+}
+
 export async function loginUser(
   email: string,
   password: string
-): Promise<{ user: AuthUser; tokens: TokenPair }> {
+): Promise<LoginOutcome> {
   const user = await prisma.user.findUnique({
     where: { email: email.toLowerCase().trim() },
     include: { club: { select: { name: true } } },
@@ -223,6 +241,13 @@ export async function loginUser(
     });
   }
 
+  // Cyber Defense, Step 7: a right password is not yet a session when this
+  // account requires a code. Nothing below — last-login, tokens, the login
+  // event — happens until `completeMfaLogin` accepts one. Fails closed: if the
+  // requirement cannot be read or a code cannot be checked, this throws.
+  const challenge = await loginSecondFactor(user.id);
+  if (challenge) return challenge;
+
   // Update last login
   await prisma.user.update({
     where: { id: user.id },
@@ -234,6 +259,32 @@ export async function loginUser(
 
   // Only here. A failed password never reaches this line, so there is no path
   // on which a refused attempt is recorded as a login.
+  publishUserLogin({ userId: user.id, clubId: user.clubId });
+
+  return { user: mapAuthUser(user, user.club.name), tokens };
+}
+
+/**
+ * The second step of a sign-in that requires a code. The challenge proves the
+ * password step; the code is checked by the MFA service with its persistent
+ * limit and single-use rule; the challenge is consumed once. Only then is this
+ * a login — the same last-login, tokens and event as `loginUser`.
+ */
+export async function completeMfaLogin(challenge: string, code: string): Promise<LoginSession> {
+  const userId = await completeLoginSecondFactor(challenge, code);
+  const user = await prisma.user.findFirst({
+    where: { id: userId, isActive: true },
+    include: { club: { select: { name: true } } },
+  });
+  if (!user) throw new LoginChallengeInvalidError();
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  });
+
+  const tokens = await issueTokens(user);
+  logger.info('User logged in', { userId: user.id, secondFactor: true });
   publishUserLogin({ userId: user.id, clubId: user.clubId });
 
   return { user: mapAuthUser(user, user.club.name), tokens };

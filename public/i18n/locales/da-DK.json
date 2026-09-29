@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Totrinslogin",
       "intro": "Bed om en kode fra en godkendelsesapp ud over din adgangskode.",
-      "notEnforced": "Kræves endnu ikke ved login — håndhævelse er et separat, senere trin.",
       "on": "Til",
       "off": "Fra",
       "pending": "Opsætning ikke fuldført",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Indtast en kode fra din app eller en gendannelseskode for at slå totrinslogin fra.",
       "newCodesHelp": "Indtast en kode fra din app. Dine nuværende gendannelseskoder holder op med at virke.",
       "failed": "Noget gik galt. Intet blev ændret.",
-      "turnedOff": "Totrinslogin er slået fra."
+      "turnedOff": "Totrinslogin er slået fra.",
+      "enforcedOn": "Påkrævet ved hvert login.",
+      "enforcedOff": "Endnu ikke påkrævet ved login. Slå det til, når du har gemt dine gendannelseskoder.",
+      "enforce": "Kræv ved login",
+      "unenforce": "Stop med at kræve",
+      "enforceHelp": "Bevis, at begge virker, før en kode bliver påkrævet: en aktuel kode fra din app og en af dine gendannelseskoder. Den gendannelseskode er derefter brugt.",
+      "unenforceHelp": "Indtast en kode fra din app eller en gendannelseskode for ikke længere at kræve en kode ved login.",
+      "appCode": "Kode fra din app",
+      "recoveryCode": "Én gendannelseskode",
+      "needCodes": "Opret først nye gendannelseskoder — der skal mindst to til for at kræve en kode ved login.",
+      "enforcedNow": "Der kræves nu en kode ved hvert login.",
+      "unenforcedNow": "Der kræves ikke længere en kode ved login."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "E-mail",
     "password": "Adgangskode",
     "invalidCredentials": "Forkert e-mail eller adgangskode",
-    "welcomeBack": "Velkommen tilbage"
+    "welcomeBack": "Velkommen tilbage",
+    "mfa": {
+      "title": "Totrinslogin",
+      "sub": "Indtast den 6-cifrede kode fra din godkendelsesapp eller en af dine gendannelseskoder.",
+      "code": "Kode",
+      "verify": "Bekræft",
+      "verifying": "Bekræfter…",
+      "back": "Tilbage til login",
+      "empty": "Indtast koden fra din app eller en gendannelseskode.",
+      "badCode": "Koden blev ikke accepteret. Tjek klokkeslættet på din telefon, og prøv igen.",
+      "tooMany": "For mange forsøg. Vent et par minutter, og prøv igen.",
+      "expired": "Dit login er udløbet. Indtast din adgangskode igen.",
+      "unavailable": "Totrinslogin er ikke tilgængeligt på serveren lige nu. Prøv igen senere.",
+      "failed": "Noget gik galt. Prøv igen."
+    }
   },
   "league": {
     "col": {

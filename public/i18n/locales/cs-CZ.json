@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Dvoufázové přihlášení",
       "intro": "Kromě hesla vyžadovat kód z ověřovací aplikace.",
-      "notEnforced": "Při přihlášení zatím nevyžadováno — vynucení je samostatný, pozdější krok.",
       "on": "Zapnuto",
       "off": "Vypnuto",
       "pending": "Nastavení nedokončeno",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Zadejte kód z aplikace nebo záložní kód, abyste dvoufázové přihlášení vypnuli.",
       "newCodesHelp": "Zadejte kód z aplikace. Vaše současné záložní kódy přestanou fungovat.",
       "failed": "Něco se pokazilo. Nic nebylo změněno.",
-      "turnedOff": "Dvoufázové přihlášení je vypnuto."
+      "turnedOff": "Dvoufázové přihlášení je vypnuto.",
+      "enforcedOn": "Vyžadováno při každém přihlášení.",
+      "enforcedOff": "Při přihlášení zatím nevyžadováno. Zapněte ho, až si uložíte záložní kódy.",
+      "enforce": "Vyžadovat při přihlášení",
+      "unenforce": "Přestat vyžadovat",
+      "enforceHelp": "Než bude kód povinný, ověřte, že obojí funguje: aktuální kód z aplikace a jeden ze záložních kódů. Tento záložní kód se tím spotřebuje.",
+      "unenforceHelp": "Zadejte kód z aplikace nebo záložní kód, abyste přestali vyžadovat kód při přihlášení.",
+      "appCode": "Kód z aplikace",
+      "recoveryCode": "Jeden záložní kód",
+      "needCodes": "Nejprve vygenerujte nové záložní kódy — k vyžadování kódu při přihlášení jsou potřeba alespoň dva.",
+      "enforcedNow": "Kód je nyní vyžadován při každém přihlášení.",
+      "unenforcedNow": "Kód už při přihlášení není vyžadován."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "E-mail",
     "password": "Heslo",
     "invalidCredentials": "Nesprávný e-mail nebo heslo",
-    "welcomeBack": "Vítej zpět"
+    "welcomeBack": "Vítej zpět",
+    "mfa": {
+      "title": "Dvoufázové přihlášení",
+      "sub": "Zadejte 6místný kód z ověřovací aplikace nebo jeden ze záložních kódů.",
+      "code": "Kód",
+      "verify": "Ověřit",
+      "verifying": "Ověřování…",
+      "back": "Zpět na přihlášení",
+      "empty": "Zadejte kód z aplikace nebo záložní kód.",
+      "badCode": "Kód nebyl přijat. Zkontrolujte čas v telefonu a zkuste to znovu.",
+      "tooMany": "Příliš mnoho pokusů. Počkejte několik minut a zkuste to znovu.",
+      "expired": "Platnost přihlášení vypršela. Zadejte znovu heslo.",
+      "unavailable": "Dvoufázové přihlášení je teď na serveru nedostupné. Zkuste to později.",
+      "failed": "Něco se pokazilo. Zkuste to znovu."
+    }
   },
   "league": {
     "col": {

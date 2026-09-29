@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Two-step sign-in",
       "intro": "Ask for a code from an authenticator app as well as your password.",
-      "notEnforced": "Not required at sign-in yet — enforcement is a separate, later step.",
       "on": "On",
       "off": "Off",
       "pending": "Setup not finished",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Enter a code from your app, or a recovery code, to turn two-step sign-in off.",
       "newCodesHelp": "Enter a code from your app. Your current recovery codes will stop working.",
       "failed": "Something went wrong. Nothing was changed.",
-      "turnedOff": "Two-step sign-in is off."
+      "turnedOff": "Two-step sign-in is off.",
+      "enforcedOn": "Required at every sign-in.",
+      "enforcedOff": "Not required at sign-in yet. Require it once you have saved your recovery codes.",
+      "enforce": "Require at sign-in",
+      "unenforce": "Stop requiring",
+      "enforceHelp": "Prove both work before a code becomes required: a current code from your app and one of your recovery codes. That recovery code is then used up.",
+      "unenforceHelp": "Enter a code from your app, or a recovery code, to stop requiring a code at sign-in.",
+      "appCode": "Code from your app",
+      "recoveryCode": "One recovery code",
+      "needCodes": "Issue new recovery codes first — at least two are needed to require a code at sign-in.",
+      "enforcedNow": "A code is now required at every sign-in.",
+      "unenforcedNow": "A code is no longer required at sign-in."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "Email",
     "password": "Password",
     "invalidCredentials": "Incorrect email or password",
-    "welcomeBack": "Welcome back"
+    "welcomeBack": "Welcome back",
+    "mfa": {
+      "title": "Two-step sign-in",
+      "sub": "Enter the 6-digit code from your authenticator app, or one of your recovery codes.",
+      "code": "Code",
+      "verify": "Verify",
+      "verifying": "Verifying…",
+      "back": "Back to sign in",
+      "empty": "Enter the code from your app or a recovery code.",
+      "badCode": "That code was not accepted. Check the time on your phone and try again.",
+      "tooMany": "Too many attempts. Wait a few minutes and try again.",
+      "expired": "Your sign-in expired. Enter your password again.",
+      "unavailable": "Two-step sign-in is unavailable on the server right now. Try again later.",
+      "failed": "Something went wrong. Please try again."
+    }
   },
   "league": {
     "col": {

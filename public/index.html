@@ -26,7 +26,7 @@
 <script src="/familista-api-client.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/app.css?v=20260818-staff-market">
+<link rel="stylesheet" href="/app.css?v=20260928-mfa-enforce">
 <!-- SYSTEM — the platform owner's command centre. Its own stylesheet, because
      SYSTEM and CLUBS are two products and a class defined for one must never
      reach the other. -->
@@ -102,6 +102,22 @@
         <strong>API:</strong> <span style="color:var(--green-l);font-family:var(--mono);font-size:10px;">familista-backend.onrender.com</span>
       </div>
       <div id="connection-status" style="margin-top:10px;padding:8px 10px;border-radius:6px;font-size:11px;text-align:center;display:none;"></div>
+    </div>
+
+    <!-- VIEW: two-step sign-in (Cyber Defense, Step 7). Shown after a right
+         password, for an account that requires a code. Bundle-owned strings: the
+         elements start empty and `data-i18n` fills them; this view is only
+         shown after the language has loaded. -->
+    <div data-auth-view="mfa" data-no-i18n>
+      <div class="auth-title" data-i18n="auth.mfa.title"></div>
+      <div class="auth-sub" data-i18n="auth.mfa.sub"></div>
+      <div class="login-error" id="mfa-error" role="alert"></div>
+      <label class="login-label" for="login-mfa-code" data-i18n="auth.mfa.code"></label>
+      <input class="login-input" id="login-mfa-code" type="text" inputmode="text" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="32">
+      <button class="login-btn" id="mfa-btn" data-action="doLoginMfa" data-i18n="auth.mfa.verify"></button>
+      <div class="auth-link-center">
+        <a class="auth-link" data-show-auth="login" data-i18n="auth.mfa.back"></a>
+      </div>
     </div>
 
     <!-- â”€â”€ VIEW: forgot-password (enter email) â”€â”€ -->
@@ -970,9 +986,9 @@
 <script src="/infrastructure-city/infrastructure-city.js?v=20260917-infra-city" defer></script>
 <script src="/source-core/source-core.js?v=20260920-source-core" defer></script>
 <script src="/familista-vision/familista-vision.js?v=20260926-vision-workstation" defer></script>
-<script src="/app.js?v=20260818-staff-market" defer></script>
+<script src="/app.js?v=20260928-mfa-enforce" defer></script>
 <!-- Settings · Account · two-step sign-in (Cyber Defense, Step 6). After app.js: it reads _isPlatformOwner. -->
-<script src="/settings-mfa.js?v=20260928-settings-mfa" defer></script>
+<script src="/settings-mfa.js?v=20260928-mfa-enforce" defer></script>
 <!-- Club People & Access. After app.js because it registers into it; `defer`
      keeps that order. -->
 <script src="/people-access.js?v=20260909-people-access" defer></script>

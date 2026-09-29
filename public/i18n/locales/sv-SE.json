@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Tvåstegsinloggning",
       "intro": "Be om en kod från en autentiseringsapp utöver ditt lösenord.",
-      "notEnforced": "Krävs ännu inte vid inloggning — tvingande krav är ett separat, senare steg.",
       "on": "På",
       "off": "Av",
       "pending": "Konfigurationen är inte klar",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Ange en kod från appen, eller en återställningskod, för att stänga av tvåstegsinloggning.",
       "newCodesHelp": "Ange en kod från appen. Dina nuvarande återställningskoder slutar fungera.",
       "failed": "Något gick fel. Inget ändrades.",
-      "turnedOff": "Tvåstegsinloggning är avstängd."
+      "turnedOff": "Tvåstegsinloggning är avstängd.",
+      "enforcedOn": "Krävs vid varje inloggning.",
+      "enforcedOff": "Krävs ännu inte vid inloggning. Slå på det när du har sparat dina återställningskoder.",
+      "enforce": "Kräv vid inloggning",
+      "unenforce": "Sluta kräva",
+      "enforceHelp": "Bevisa att båda fungerar innan en kod blir obligatorisk: en aktuell kod från appen och en av dina återställningskoder. Den återställningskoden förbrukas då.",
+      "unenforceHelp": "Ange en kod från appen, eller en återställningskod, för att sluta kräva en kod vid inloggning.",
+      "appCode": "Kod från appen",
+      "recoveryCode": "En återställningskod",
+      "needCodes": "Skapa nya återställningskoder först – minst två behövs för att kräva en kod vid inloggning.",
+      "enforcedNow": "En kod krävs nu vid varje inloggning.",
+      "unenforcedNow": "En kod krävs inte längre vid inloggning."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "E-post",
     "password": "Lösenord",
     "invalidCredentials": "Fel e-post eller lösenord",
-    "welcomeBack": "Välkommen tillbaka"
+    "welcomeBack": "Välkommen tillbaka",
+    "mfa": {
+      "title": "Tvåstegsinloggning",
+      "sub": "Ange den 6-siffriga koden från din autentiseringsapp eller en av dina återställningskoder.",
+      "code": "Kod",
+      "verify": "Verifiera",
+      "verifying": "Verifierar…",
+      "back": "Tillbaka till inloggningen",
+      "empty": "Ange koden från appen eller en återställningskod.",
+      "badCode": "Koden godkändes inte. Kontrollera tiden på telefonen och försök igen.",
+      "tooMany": "För många försök. Vänta några minuter och försök igen.",
+      "expired": "Din inloggning har gått ut. Ange ditt lösenord igen.",
+      "unavailable": "Tvåstegsinloggning är inte tillgänglig på servern just nu. Försök igen senare.",
+      "failed": "Något gick fel. Försök igen."
+    }
   },
   "league": {
     "col": {

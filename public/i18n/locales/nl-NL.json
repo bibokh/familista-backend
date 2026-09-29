@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Inloggen in twee stappen",
       "intro": "Vraag naast je wachtwoord om een code uit een authenticator-app.",
-      "notEnforced": "Nog niet verplicht bij het inloggen — verplichten is een aparte, latere stap.",
       "on": "Aan",
       "off": "Uit",
       "pending": "Instellen niet voltooid",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Voer een code uit je app of een herstelcode in om inloggen in twee stappen uit te zetten.",
       "newCodesHelp": "Voer een code uit je app in. Je huidige herstelcodes werken dan niet meer.",
       "failed": "Er ging iets mis. Er is niets gewijzigd.",
-      "turnedOff": "Inloggen in twee stappen staat uit."
+      "turnedOff": "Inloggen in twee stappen staat uit.",
+      "enforcedOn": "Vereist bij elke keer inloggen.",
+      "enforcedOff": "Nog niet vereist bij het inloggen. Zet het aan zodra je je herstelcodes hebt bewaard.",
+      "enforce": "Vereisen bij inloggen",
+      "unenforce": "Niet meer vereisen",
+      "enforceHelp": "Bewijs dat beide werken voordat een code verplicht wordt: een actuele code uit je app en een van je herstelcodes. Die herstelcode is daarna verbruikt.",
+      "unenforceHelp": "Voer een code uit je app of een herstelcode in om bij het inloggen geen code meer te vereisen.",
+      "appCode": "Code uit je app",
+      "recoveryCode": "Eén herstelcode",
+      "needCodes": "Maak eerst nieuwe herstelcodes aan — er zijn er minstens twee nodig om bij het inloggen een code te vereisen.",
+      "enforcedNow": "Bij elke keer inloggen is nu een code vereist.",
+      "unenforcedNow": "Bij het inloggen is geen code meer vereist."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "E-mail",
     "password": "Wachtwoord",
     "invalidCredentials": "Onjuist e-mailadres of wachtwoord",
-    "welcomeBack": "Welkom terug"
+    "welcomeBack": "Welkom terug",
+    "mfa": {
+      "title": "Inloggen in twee stappen",
+      "sub": "Voer de 6-cijferige code uit je authenticator-app in, of een van je herstelcodes.",
+      "code": "Code",
+      "verify": "Verifiëren",
+      "verifying": "Bezig met verifiëren…",
+      "back": "Terug naar inloggen",
+      "empty": "Voer de code uit je app of een herstelcode in.",
+      "badCode": "Die code is niet geaccepteerd. Controleer de tijd op je telefoon en probeer het opnieuw.",
+      "tooMany": "Te veel pogingen. Wacht een paar minuten en probeer het opnieuw.",
+      "expired": "Je aanmelding is verlopen. Voer je wachtwoord opnieuw in.",
+      "unavailable": "Inloggen in twee stappen is nu niet beschikbaar op de server. Probeer het later opnieuw.",
+      "failed": "Er ging iets mis. Probeer het opnieuw."
+    }
   },
   "league": {
     "col": {

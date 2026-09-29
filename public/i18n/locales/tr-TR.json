@@ -66,7 +66,6 @@
     "mfa": {
       "title": "İki adımlı oturum açma",
       "intro": "Parolanıza ek olarak bir kimlik doğrulama uygulamasından kod iste.",
-      "notEnforced": "Oturum açarken henüz zorunlu değil — zorunlu kılma ayrı ve daha sonraki bir adım.",
       "on": "Açık",
       "off": "Kapalı",
       "pending": "Kurulum tamamlanmadı",
@@ -94,7 +93,18 @@
       "turnOffHelp": "İki adımlı oturum açmayı kapatmak için uygulamandan bir kod veya bir kurtarma kodu gir.",
       "newCodesHelp": "Uygulamandan bir kod gir. Mevcut kurtarma kodların çalışmayı bırakacak.",
       "failed": "Bir şeyler ters gitti. Hiçbir şey değiştirilmedi.",
-      "turnedOff": "İki adımlı oturum açma kapalı."
+      "turnedOff": "İki adımlı oturum açma kapalı.",
+      "enforcedOn": "Her oturum açışta gerekli.",
+      "enforcedOff": "Henüz oturum açarken gerekli değil. Kurtarma kodlarını kaydettikten sonra aç.",
+      "enforce": "Oturum açarken iste",
+      "unenforce": "İstemeyi bırak",
+      "enforceHelp": "Kod zorunlu hale gelmeden önce ikisinin de çalıştığını kanıtla: uygulamandan güncel bir kod ve kurtarma kodlarından biri. O kurtarma kodu bu işlemle kullanılmış olur.",
+      "unenforceHelp": "Oturum açarken kod istemeyi bırakmak için uygulamandan bir kod veya bir kurtarma kodu gir.",
+      "appCode": "Uygulamandaki kod",
+      "recoveryCode": "Bir kurtarma kodu",
+      "needCodes": "Önce yeni kurtarma kodları oluştur — oturum açarken kod istemek için en az iki tane gerekir.",
+      "enforcedNow": "Artık her oturum açışta kod gerekiyor.",
+      "unenforcedNow": "Oturum açarken artık kod gerekmiyor."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "E-posta",
     "password": "Şifre",
     "invalidCredentials": "E-posta veya şifre hatalı",
-    "welcomeBack": "Tekrar hoş geldin"
+    "welcomeBack": "Tekrar hoş geldin",
+    "mfa": {
+      "title": "İki adımlı oturum açma",
+      "sub": "Kimlik doğrulama uygulamandaki 6 haneli kodu veya kurtarma kodlarından birini gir.",
+      "code": "Kod",
+      "verify": "Doğrula",
+      "verifying": "Doğrulanıyor…",
+      "back": "Oturum açmaya dön",
+      "empty": "Uygulamandaki kodu veya bir kurtarma kodu gir.",
+      "badCode": "Kod kabul edilmedi. Telefonundaki saati kontrol edip tekrar dene.",
+      "tooMany": "Çok fazla deneme. Birkaç dakika bekleyip tekrar dene.",
+      "expired": "Oturum açma süren doldu. Şifreni yeniden gir.",
+      "unavailable": "İki adımlı oturum açma şu anda sunucuda kullanılamıyor. Daha sonra tekrar dene.",
+      "failed": "Bir şeyler ters gitti. Lütfen tekrar dene."
+    }
   },
   "league": {
     "col": {

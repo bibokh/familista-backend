@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Início de sessão em dois passos",
       "intro": "Pedir um código de uma aplicação de autenticação além da sua palavra-passe.",
-      "notEnforced": "Ainda não é exigido ao iniciar sessão — a obrigatoriedade será um passo separado, mais tarde.",
       "on": "Ativado",
       "off": "Desativado",
       "pending": "Configuração por concluir",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Introduza um código da sua aplicação, ou um código de recuperação, para desativar o início de sessão em dois passos.",
       "newCodesHelp": "Introduza um código da sua aplicação. Os seus códigos de recuperação atuais deixarão de funcionar.",
       "failed": "Algo correu mal. Nada foi alterado.",
-      "turnedOff": "O início de sessão em dois passos está desativado."
+      "turnedOff": "O início de sessão em dois passos está desativado.",
+      "enforcedOn": "Obrigatório em cada início de sessão.",
+      "enforcedOff": "Ainda não é obrigatório no início de sessão. Ative-o depois de guardar os seus códigos de recuperação.",
+      "enforce": "Exigir no início de sessão",
+      "unenforce": "Deixar de exigir",
+      "enforceHelp": "Comprove que ambos funcionam antes de o código passar a ser obrigatório: um código atual da sua aplicação e um dos seus códigos de recuperação. Esse código de recuperação fica usado.",
+      "unenforceHelp": "Introduza um código da sua aplicação, ou um código de recuperação, para deixar de exigir um código no início de sessão.",
+      "appCode": "Código da sua aplicação",
+      "recoveryCode": "Um código de recuperação",
+      "needCodes": "Gere primeiro novos códigos de recuperação — são necessários pelo menos dois para exigir um código no início de sessão.",
+      "enforcedNow": "Passa a ser exigido um código em cada início de sessão.",
+      "unenforcedNow": "Deixou de ser exigido um código no início de sessão."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "E-mail",
     "password": "Palavra-passe",
     "invalidCredentials": "E-mail ou palavra-passe incorretos",
-    "welcomeBack": "Bem-vindo de volta"
+    "welcomeBack": "Bem-vindo de volta",
+    "mfa": {
+      "title": "Início de sessão em dois passos",
+      "sub": "Introduza o código de 6 dígitos da sua aplicação de autenticação ou um dos seus códigos de recuperação.",
+      "code": "Código",
+      "verify": "Verificar",
+      "verifying": "A verificar…",
+      "back": "Voltar ao início de sessão",
+      "empty": "Introduza o código da sua aplicação ou um código de recuperação.",
+      "badCode": "Esse código não foi aceite. Verifique a hora do telemóvel e tente novamente.",
+      "tooMany": "Demasiadas tentativas. Aguarde alguns minutos e tente novamente.",
+      "expired": "O seu início de sessão expirou. Introduza novamente a palavra-passe.",
+      "unavailable": "O início de sessão em dois passos está indisponível no servidor neste momento. Tente mais tarde.",
+      "failed": "Algo correu mal. Tente novamente."
+    }
   },
   "league": {
     "col": {

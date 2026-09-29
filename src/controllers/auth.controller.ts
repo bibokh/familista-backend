@@ -96,6 +96,30 @@ export async function login(req: Request, res: Response, next: NextFunction) {
   try {
     await loginSchema.parseAsync({ body: req.body });
     const result = await authService.loginUser(req.body.email, req.body.password);
+    if (authService.isLoginChallenge(result)) {
+      // Cyber Defense, Step 7: the password was right and this account also
+      // requires a code. No cookies, no tokens; the challenge is single-use.
+      res.setHeader('Cache-Control', 'no-store');
+      return sendSuccess(res, result, 'Enter your two-step sign-in code');
+    }
+    setAuthCookies(res, result.tokens);
+    return sendSuccess(res, result, 'Login successful');
+  } catch (err) { return next(err); }
+}
+
+const loginMfaSchema = z.object({
+  body: z.object({
+    challenge: z.string().min(1).max(200),
+    code:      z.string().trim().min(6).max(32),
+  }),
+});
+
+/** POST /auth/login/mfa — the second step; the only way from a challenge to a session. */
+export async function loginMfa(req: Request, res: Response, next: NextFunction) {
+  try {
+    const parsed = await loginMfaSchema.parseAsync({ body: req.body ?? {} });
+    const result = await authService.completeMfaLogin(parsed.body.challenge, parsed.body.code);
+    res.setHeader('Cache-Control', 'no-store');
     setAuthCookies(res, result.tokens);
     return sendSuccess(res, result, 'Login successful');
   } catch (err) { return next(err); }

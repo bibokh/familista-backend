@@ -1,9 +1,10 @@
-// Settings · Account · Two-step sign-in (Cyber Defense, Step 6)
+// Settings · Account · Two-step sign-in (Cyber Defense, Steps 6 and 7)
 // ─────────────────────────────────────────────────────────────────────────────
 // The platform owner enrols an authenticator app, keeps a set of single-use
 // recovery codes, replaces them, and can turn two-step sign-in off — each change
-// confirmed with a real code. Sign-in does not ask for a code yet; the card says
-// so, because enforcement is a separate step taken only after this one is used.
+// confirmed with a real code. Step 7 adds the switch that requires a code at
+// every sign-in: switched on only with a working app code AND a working recovery
+// code, so nobody locks themselves out with a phone or codes never tested.
 //
 // One card inside the existing Settings › Account panel, on the Settings card
 // vocabulary (set-card, set-field, btn, badge). Everything happens in place:
@@ -23,7 +24,7 @@
     status: null,      // the server's answer to GET /auth/mfa
     setup: null,       // { base32, otpauth } between enrol and confirm
     codes: null,       // recovery codes on screen, once
-    mode: null,        // 'disable' | 'regen' while asking for a code
+    mode: null,        // 'disable' | 'regen' | 'enforce' | 'unenforce' while asking for a code
     busy: false,
     note: null,        // { key, kind }
     loaded: false,
@@ -76,10 +77,33 @@
       + '<label class="set-field-l" for="set-mfa-code">' + esc(tr(labelKey)) + '</label>'
       + '<div class="set-mfa-row">'
       + '<input class="set-mfa-input" id="set-mfa-code" name="code" autocomplete="one-time-code" inputmode="'
-      + (action === 'disable' ? 'text' : 'numeric') + '" maxlength="32" spellcheck="false" data-no-i18n>'
+      + (action === 'disable' || action === 'unenforce' ? 'text' : 'numeric') + '" maxlength="32" spellcheck="false" data-no-i18n>'
       + '<button class="btn btn-primary btn-sm" type="submit"' + (S.busy ? ' disabled' : '') + '>' + esc(tr(submitKey)) + '</button>'
       + '<button class="btn btn-outline btn-sm" type="button" data-mfa="cancel">' + esc(tr('cancel')) + '</button>'
       + '</div></form>';
+  }
+
+  /** Switching enforcement on: an app code and one recovery code, both checked. */
+  function enforceForm() {
+    return '<form class="set-mfa-form" data-mfa-form="enforce" novalidate>'
+      + '<p class="set-field-help">' + esc(tr('enforceHelp')) + '</p>'
+      + '<label class="set-field-l" for="set-mfa-code">' + esc(tr('appCode')) + '</label>'
+      + '<div class="set-mfa-row">'
+      + '<input class="set-mfa-input" id="set-mfa-code" name="code" autocomplete="one-time-code" inputmode="numeric" maxlength="6" spellcheck="false" data-no-i18n>'
+      + '</div>'
+      + '<label class="set-field-l" for="set-mfa-recovery">' + esc(tr('recoveryCode')) + '</label>'
+      + '<div class="set-mfa-row">'
+      + '<input class="set-mfa-input" id="set-mfa-recovery" name="recoveryCode" autocomplete="off" inputmode="text" maxlength="32" spellcheck="false" data-no-i18n>'
+      + '<button class="btn btn-primary btn-sm" type="submit"' + (S.busy ? ' disabled' : '') + '>' + esc(tr('enforce')) + '</button>'
+      + '<button class="btn btn-outline btn-sm" type="button" data-mfa="cancel">' + esc(tr('cancel')) + '</button>'
+      + '</div></form>';
+  }
+
+  /** One line under the intro: whether sign-in asks for a code, in plain words. */
+  function enforceLine(st) {
+    if (!st || !st.configured || !st.enrolled) return '';
+    return '<p class="set-field-help set-mfa-enforce' + (st.enforced ? ' is-on' : '') + '">'
+      + (st.enforced ? esc(tr('enforcedOn')) : esc(tr('enforcedOff'))) + '</p>';
   }
 
   function body() {
@@ -132,7 +156,15 @@
       + '</dl>';
     if (S.mode === 'regen') return html + codeForm('regen', 'code', 'newCodesHelp', 'newCodes');
     if (S.mode === 'disable') return html + codeForm('disable', 'code', 'turnOffHelp', 'turnOff');
-    return html + '<div class="set-mfa-row">'
+    if (S.mode === 'enforce') return html + enforceForm();
+    if (S.mode === 'unenforce') return html + codeForm('unenforce', 'code', 'unenforceHelp', 'unenforce');
+    // At least two recovery codes: one is spent proving they work, one is left.
+    var canEnforce = st.recoveryCodesRemaining >= 2;
+    return html + (!st.enforced && !canEnforce ? '<p class="set-field-help">' + esc(tr('needCodes')) + '</p>' : '')
+      + '<div class="set-mfa-row">'
+      + (st.enforced
+        ? '<button class="btn btn-outline btn-sm" type="button" data-mfa="mode-unenforce">' + esc(tr('unenforce')) + '</button>'
+        : '<button class="btn btn-primary btn-sm" type="button" data-mfa="mode-enforce"' + (canEnforce ? '' : ' disabled') + '>' + esc(tr('enforce')) + '</button>')
       + '<button class="btn btn-outline btn-sm" type="button" data-mfa="mode-regen">' + esc(tr('newCodes')) + '</button>'
       + '<button class="btn btn-outline btn-sm set-mfa-danger" type="button" data-mfa="mode-disable">' + esc(tr('turnOff')) + '</button>'
       + '</div>';
@@ -144,7 +176,7 @@
     el.innerHTML = '<div class="set-card-hd set-mfa-hd"><span>' + esc(tr('title')) + '</span>'
       + (S.loaded && S.status && S.status.configured ? chip(S.status) : '') + '</div>'
       + '<p class="set-field-help">' + esc(tr('intro')) + '</p>'
-      + '<p class="set-field-help set-mfa-enforce">' + esc(tr('notEnforced')) + '</p>'
+      + (S.loaded ? enforceLine(S.status) : '')
       + '<div class="set-mfa-body">' + body() + '</div>'
       + '<p class="set-field-note' + (S.note ? ' ' + S.note.kind : '') + '" role="status" aria-live="polite">'
       + (S.note ? esc(tr(S.note.key)) : '') + '</p>';
@@ -197,8 +229,8 @@
       run(async function () { S.setup = await call('POST', '/auth/mfa/enroll'); S.codes = null; });
     } else if (a === 'cancel') {
       S.mode = null; S.setup = null; S.note = null; render();
-    } else if (a === 'mode-regen' || a === 'mode-disable') {
-      S.mode = a === 'mode-regen' ? 'regen' : 'disable'; S.note = null; render();
+    } else if (a === 'mode-regen' || a === 'mode-disable' || a === 'mode-enforce' || a === 'mode-unenforce') {
+      S.mode = a.slice(5); S.note = null; render();
     } else if (a === 'copy-key' && S.setup) {
       copy(S.setup.base32);
     } else if (a === 'copy-codes' && S.codes) {
@@ -217,7 +249,8 @@
     if (!action) return;
     ev.preventDefault();
     var code = String((f.elements.code && f.elements.code.value) || '').trim();
-    if (!code) { S.note = { key: 'badCode', kind: 'is-warn' }; render(); return; }
+    var recoveryCode = String((f.elements.recoveryCode && f.elements.recoveryCode.value) || '').trim();
+    if (!code || (action === 'enforce' && !recoveryCode)) { S.note = { key: 'badCode', kind: 'is-warn' }; render(); return; }
     run(async function () {
       if (action === 'confirm') {
         var c = await call('POST', '/auth/mfa/confirm', { code: code });
@@ -228,6 +261,12 @@
       } else if (action === 'disable') {
         await call('POST', '/auth/mfa/disable', { code: code });
         S.mode = null; S.note = { key: 'turnedOff', kind: 'is-ok' };
+      } else if (action === 'enforce') {
+        await call('POST', '/auth/mfa/enforcement', { enabled: true, code: code, recoveryCode: recoveryCode });
+        S.mode = null; S.note = { key: 'enforcedNow', kind: 'is-ok' };
+      } else if (action === 'unenforce') {
+        await call('POST', '/auth/mfa/enforcement', { enabled: false, code: code });
+        S.mode = null; S.note = { key: 'unenforcedNow', kind: 'is-ok' };
       }
       S.status = await call('GET', '/auth/mfa');
     });

@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Totrinnspålogging",
       "intro": "Be om en kode fra en autentiseringsapp i tillegg til passordet ditt.",
-      "notEnforced": "Kreves ikke ved pålogging ennå — håndheving er et eget, senere steg.",
       "on": "På",
       "off": "Av",
       "pending": "Oppsett ikke fullført",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Skriv inn en kode fra appen, eller en gjenopprettingskode, for å slå av totrinnspålogging.",
       "newCodesHelp": "Skriv inn en kode fra appen. De nåværende gjenopprettingskodene slutter å virke.",
       "failed": "Noe gikk galt. Ingenting ble endret.",
-      "turnedOff": "Totrinnspålogging er slått av."
+      "turnedOff": "Totrinnspålogging er slått av.",
+      "enforcedOn": "Kreves ved hver pålogging.",
+      "enforcedOff": "Kreves ikke ved pålogging ennå. Slå det på når du har lagret gjenopprettingskodene.",
+      "enforce": "Krev ved pålogging",
+      "unenforce": "Slutt å kreve",
+      "enforceHelp": "Bevis at begge fungerer før en kode blir påkrevd: en gjeldende kode fra appen og en av gjenopprettingskodene dine. Den gjenopprettingskoden er da brukt opp.",
+      "unenforceHelp": "Skriv inn en kode fra appen, eller en gjenopprettingskode, for å slutte å kreve kode ved pålogging.",
+      "appCode": "Kode fra appen",
+      "recoveryCode": "Én gjenopprettingskode",
+      "needCodes": "Lag nye gjenopprettingskoder først – minst to trengs for å kreve kode ved pålogging.",
+      "enforcedNow": "Nå kreves det en kode ved hver pålogging.",
+      "unenforcedNow": "Det kreves ikke lenger kode ved pålogging."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "E-post",
     "password": "Passord",
     "invalidCredentials": "Feil e-post eller passord",
-    "welcomeBack": "Velkommen tilbake"
+    "welcomeBack": "Velkommen tilbake",
+    "mfa": {
+      "title": "Totrinnspålogging",
+      "sub": "Skriv inn den 6-sifrede koden fra autentiseringsappen eller en av gjenopprettingskodene dine.",
+      "code": "Kode",
+      "verify": "Bekreft",
+      "verifying": "Bekrefter…",
+      "back": "Tilbake til pålogging",
+      "empty": "Skriv inn koden fra appen eller en gjenopprettingskode.",
+      "badCode": "Koden ble ikke godtatt. Sjekk klokkeslettet på telefonen og prøv igjen.",
+      "tooMany": "For mange forsøk. Vent noen minutter og prøv igjen.",
+      "expired": "Påloggingen er utløpt. Skriv inn passordet på nytt.",
+      "unavailable": "Totrinnspålogging er ikke tilgjengelig på serveren akkurat nå. Prøv igjen senere.",
+      "failed": "Noe gikk galt. Prøv igjen."
+    }
   },
   "league": {
     "col": {

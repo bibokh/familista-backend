@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Autentificare în doi pași",
       "intro": "Solicită un cod dintr-o aplicație de autentificare pe lângă parolă.",
-      "notEnforced": "Încă nu este obligatorie la autentificare — impunerea este un pas separat, ulterior.",
       "on": "Activată",
       "off": "Dezactivată",
       "pending": "Configurare neterminată",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Introdu un cod din aplicație sau un cod de recuperare pentru a dezactiva autentificarea în doi pași.",
       "newCodesHelp": "Introdu un cod din aplicație. Codurile de recuperare actuale nu vor mai funcționa.",
       "failed": "Ceva nu a funcționat. Nu s-a modificat nimic.",
-      "turnedOff": "Autentificarea în doi pași este dezactivată."
+      "turnedOff": "Autentificarea în doi pași este dezactivată.",
+      "enforcedOn": "Obligatorie la fiecare autentificare.",
+      "enforcedOff": "Încă nu este obligatorie la autentificare. Activeaz-o după ce ți-ai salvat codurile de recuperare.",
+      "enforce": "Cere la autentificare",
+      "unenforce": "Nu mai cere",
+      "enforceHelp": "Dovedește că ambele funcționează înainte ca un cod să devină obligatoriu: un cod actual din aplicație și unul dintre codurile de recuperare. Acel cod de recuperare este apoi consumat.",
+      "unenforceHelp": "Introdu un cod din aplicație sau un cod de recuperare pentru a nu mai cere un cod la autentificare.",
+      "appCode": "Codul din aplicație",
+      "recoveryCode": "Un cod de recuperare",
+      "needCodes": "Generează mai întâi coduri de recuperare noi — sunt necesare cel puțin două pentru a cere un cod la autentificare.",
+      "enforcedNow": "Acum este necesar un cod la fiecare autentificare.",
+      "unenforcedNow": "Nu mai este necesar un cod la autentificare."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "E-mail",
     "password": "Parolă",
     "invalidCredentials": "E-mail sau parolă incorecte",
-    "welcomeBack": "Bine ai revenit"
+    "welcomeBack": "Bine ai revenit",
+    "mfa": {
+      "title": "Autentificare în doi pași",
+      "sub": "Introdu codul de 6 cifre din aplicația de autentificare sau unul dintre codurile de recuperare.",
+      "code": "Cod",
+      "verify": "Verifică",
+      "verifying": "Se verifică…",
+      "back": "Înapoi la autentificare",
+      "empty": "Introdu codul din aplicație sau un cod de recuperare.",
+      "badCode": "Codul nu a fost acceptat. Verifică ora de pe telefon și încearcă din nou.",
+      "tooMany": "Prea multe încercări. Așteaptă câteva minute și încearcă din nou.",
+      "expired": "Autentificarea a expirat. Introdu din nou parola.",
+      "unavailable": "Autentificarea în doi pași nu este disponibilă acum pe server. Încearcă mai târziu.",
+      "failed": "Ceva nu a mers bine. Încearcă din nou."
+    }
   },
   "league": {
     "col": {

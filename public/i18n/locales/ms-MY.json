@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Log masuk dua langkah",
       "intro": "Minta kod daripada aplikasi pengesah selain kata laluan anda.",
-      "notEnforced": "Belum diwajibkan semasa log masuk — penguatkuasaan ialah langkah berasingan kemudian.",
       "on": "Hidup",
       "off": "Mati",
       "pending": "Persediaan belum selesai",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Masukkan kod daripada aplikasi anda, atau kod pemulihan, untuk mematikan log masuk dua langkah.",
       "newCodesHelp": "Masukkan kod daripada aplikasi anda. Kod pemulihan semasa anda tidak akan berfungsi lagi.",
       "failed": "Berlaku masalah. Tiada apa-apa yang diubah.",
-      "turnedOff": "Log masuk dua langkah dimatikan."
+      "turnedOff": "Log masuk dua langkah dimatikan.",
+      "enforcedOn": "Diperlukan pada setiap log masuk.",
+      "enforcedOff": "Belum diperlukan semasa log masuk. Hidupkan selepas anda menyimpan kod pemulihan.",
+      "enforce": "Perlukan semasa log masuk",
+      "unenforce": "Berhenti memerlukan",
+      "enforceHelp": "Buktikan kedua-duanya berfungsi sebelum kod diwajibkan: kod semasa daripada aplikasi anda dan salah satu kod pemulihan. Kod pemulihan itu kemudian digunakan.",
+      "unenforceHelp": "Masukkan kod daripada aplikasi anda, atau kod pemulihan, untuk berhenti memerlukan kod semasa log masuk.",
+      "appCode": "Kod daripada aplikasi anda",
+      "recoveryCode": "Satu kod pemulihan",
+      "needCodes": "Jana kod pemulihan baharu dahulu — sekurang-kurangnya dua diperlukan untuk memerlukan kod semasa log masuk.",
+      "enforcedNow": "Kod kini diperlukan pada setiap log masuk.",
+      "unenforcedNow": "Kod tidak lagi diperlukan semasa log masuk."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "E-mel",
     "password": "Kata laluan",
     "invalidCredentials": "E-mel atau kata laluan salah",
-    "welcomeBack": "Selamat kembali"
+    "welcomeBack": "Selamat kembali",
+    "mfa": {
+      "title": "Log masuk dua langkah",
+      "sub": "Masukkan kod 6 digit daripada aplikasi pengesah anda, atau salah satu kod pemulihan anda.",
+      "code": "Kod",
+      "verify": "Sahkan",
+      "verifying": "Mengesahkan…",
+      "back": "Kembali ke log masuk",
+      "empty": "Masukkan kod daripada aplikasi anda atau kod pemulihan.",
+      "badCode": "Kod itu tidak diterima. Semak masa pada telefon anda dan cuba lagi.",
+      "tooMany": "Terlalu banyak cubaan. Tunggu beberapa minit dan cuba lagi.",
+      "expired": "Log masuk anda telah tamat tempoh. Masukkan kata laluan anda sekali lagi.",
+      "unavailable": "Log masuk dua langkah tidak tersedia pada pelayan sekarang. Cuba lagi kemudian.",
+      "failed": "Sesuatu tidak kena. Sila cuba lagi."
+    }
   },
   "league": {
     "col": {

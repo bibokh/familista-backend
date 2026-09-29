@@ -66,7 +66,6 @@
     "mfa": {
       "title": "Masuk dua langkah",
       "intro": "Minta kode dari aplikasi autentikator selain kata sandi Anda.",
-      "notEnforced": "Belum diwajibkan saat masuk — penerapan wajib adalah langkah terpisah di kemudian hari.",
       "on": "Aktif",
       "off": "Nonaktif",
       "pending": "Penyiapan belum selesai",
@@ -94,7 +93,18 @@
       "turnOffHelp": "Masukkan kode dari aplikasi Anda, atau kode pemulihan, untuk menonaktifkan masuk dua langkah.",
       "newCodesHelp": "Masukkan kode dari aplikasi Anda. Kode pemulihan Anda saat ini tidak akan berlaku lagi.",
       "failed": "Terjadi kesalahan. Tidak ada yang diubah.",
-      "turnedOff": "Masuk dua langkah nonaktif."
+      "turnedOff": "Masuk dua langkah nonaktif.",
+      "enforcedOn": "Wajib di setiap masuk.",
+      "enforcedOff": "Belum wajib saat masuk. Aktifkan setelah Anda menyimpan kode pemulihan.",
+      "enforce": "Wajibkan saat masuk",
+      "unenforce": "Berhenti mewajibkan",
+      "enforceHelp": "Buktikan keduanya berfungsi sebelum kode diwajibkan: kode terkini dari aplikasi Anda dan salah satu kode pemulihan. Kode pemulihan itu kemudian terpakai.",
+      "unenforceHelp": "Masukkan kode dari aplikasi Anda, atau kode pemulihan, untuk berhenti mewajibkan kode saat masuk.",
+      "appCode": "Kode dari aplikasi Anda",
+      "recoveryCode": "Satu kode pemulihan",
+      "needCodes": "Buat kode pemulihan baru terlebih dahulu — minimal dua diperlukan untuk mewajibkan kode saat masuk.",
+      "enforcedNow": "Kode kini wajib di setiap masuk.",
+      "unenforcedNow": "Kode tidak lagi wajib saat masuk."
     }
   },
   "squad": {
@@ -159,7 +169,21 @@
     "email": "Email",
     "password": "Kata sandi",
     "invalidCredentials": "Email atau kata sandi salah",
-    "welcomeBack": "Selamat datang kembali"
+    "welcomeBack": "Selamat datang kembali",
+    "mfa": {
+      "title": "Masuk dua langkah",
+      "sub": "Masukkan kode 6 digit dari aplikasi autentikator Anda, atau salah satu kode pemulihan Anda.",
+      "code": "Kode",
+      "verify": "Verifikasi",
+      "verifying": "Memverifikasi…",
+      "back": "Kembali ke halaman masuk",
+      "empty": "Masukkan kode dari aplikasi Anda atau kode pemulihan.",
+      "badCode": "Kode tidak diterima. Periksa waktu di ponsel Anda lalu coba lagi.",
+      "tooMany": "Terlalu banyak percobaan. Tunggu beberapa menit lalu coba lagi.",
+      "expired": "Sesi masuk Anda kedaluwarsa. Masukkan kata sandi Anda lagi.",
+      "unavailable": "Masuk dua langkah sedang tidak tersedia di server. Coba lagi nanti.",
+      "failed": "Terjadi kesalahan. Silakan coba lagi."
+    }
   },
   "league": {
     "col": {
