@@ -451,6 +451,55 @@ describe('nothing is published twice', () => {
 
 // ── nothing private travels ──────────────────────────────────────────────────
 
+/**
+ * Is a fixture value present in serialised output as a VALUE, not merely as a
+ * run of characters?
+ *
+ * A purely numeric fixture (a wage) is matched only where it is not part of a
+ * longer run of letters or digits. Every event carries random UUIDs and hex
+ * idempotency keys, and "48500" turns up inside one of those by pure chance on
+ * roughly one run in a thousand — a false alarm with nothing leaked. A real
+ * leak still matches: `"weeklyWage":48500`, `"48500"`, `48500.00`, `-48500`,
+ * `wage 48500`.
+ *
+ * Every other fixture keeps the exact substring match: a date must still be
+ * caught inside `2012-06-04T00:00:00.000Z`, and names, e-mails, phone numbers
+ * and notes cannot occur inside random hex in the first place.
+ */
+function leaks(haystack: string, value: string): boolean {
+  if (!/^\d+$/.test(value)) return haystack.includes(value);
+  return new RegExp(`(?<![0-9A-Za-z])${value}(?![0-9A-Za-z])`).test(haystack);
+}
+
+describe('the leak check itself', () => {
+  const uuid = (hex: string) => `"eventId":"3f2a${hex}-9c1d-4e5b-8a7f-0b1c2d3e4f50"`;
+
+  it('does not flag a wage\'s digits embedded in a random id, hash or number', () => {
+    expect(leaks(uuid('48500'), '48500')).toBe(false);
+    // A 64-hex idempotency key, built here so the source holds no key-shaped literal.
+    const hexKey = `ab48500c${'0123456789abcdef'.repeat(3)}${'d'.repeat(8)}`;
+    expect(hexKey).toHaveLength(64);
+    expect(leaks(`"idempotencyKey":"${hexKey}"`, '48500')).toBe(false);
+    expect(leaks('"at":1790679148500', '48500')).toBe(false);
+    expect(leaks('"eventId":"d-485001-x"', '48500')).toBe(false);
+  });
+
+  it('flags a wage that actually leaked, in any structured form', () => {
+    for (const wire of [
+      '{"weeklyWage":48500}', '{"weeklyWage":"48500"}', '{"wage":48500.00}', '{"delta":-48500}',
+      '{"note":"wage 48500 EUR"}', '[48500]', '48500',
+    ]) {
+      expect(`${wire}: ${leaks(wire, '48500')}`).toBe(`${wire}: true`);
+    }
+  });
+
+  it('keeps the exact match for every non-numeric fixture', () => {
+    expect(leaks('{"dob":"2012-06-04T00:00:00.000Z"}', '2012-06-04')).toBe(true);
+    expect(leaks('{"x":"ingrid.muller@example.com"}', 'ingrid.muller@example.com')).toBe(true);
+    expect(leaks('{"x":"+49 151 23456789"}', '+49 151 23456789')).toBe(true);
+  });
+});
+
 describe('no player secret reaches the fabric or the board', () => {
   async function everything(): Promise<void> {
     await playerService.updatePlayer(ACTOR_CTX, PLAYER, {
@@ -468,11 +517,11 @@ describe('no player secret reaches the fabric or the board', () => {
 
     const wire = JSON.stringify(published);
     for (const [name, value] of Object.entries(SECRETS)) {
-      expect(`${name} in events: ${wire.includes(value)}`).toBe(`${name} in events: false`);
+      expect(`${name} in events: ${leaks(wire, value)}`).toBe(`${name} in events: false`);
     }
     // Nor the values the caller just supplied.
     for (const v of ['+49 151 00000000', 'new note', '99000', 'media:xyz']) {
-      expect(`"${v}" in events: ${wire.includes(v)}`).toBe(`"${v}" in events: false`);
+      expect(`"${v}" in events: ${leaks(wire, v)}`).toBe(`"${v}" in events: false`);
     }
   });
 
@@ -482,7 +531,7 @@ describe('no player secret reaches the fabric or the board', () => {
       const frame = project(event);
       const wire = JSON.stringify(frame);
       for (const [name, value] of Object.entries(SECRETS)) {
-        expect(`${name} in ${event.eventType} frame: ${wire.includes(value)}`)
+        expect(`${name} in ${event.eventType} frame: ${leaks(wire, value)}`)
           .toBe(`${name} in ${event.eventType} frame: false`);
       }
       // A PLAYER subject is a person — often a child. The id never travels.
