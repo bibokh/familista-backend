@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-28T19:45:09.736Z",
+  "generatedAt": "2026-09-29T09:07:12.176Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -571,9 +571,15 @@
     },
     {
       "id": "refresh-token-hashed-at-rest",
+      "status": "PRESENT",
+      "evidence": "src/services/auth.service.ts",
+      "note": "New refresh tokens are stored and looked up as a SHA-256 only."
+    },
+    {
+      "id": "refresh-token-legacy-fallback-removed",
       "status": "ABSENT",
       "evidence": "src/services/auth.service.ts",
-      "note": "Refresh tokens are looked up by their literal value."
+      "note": "Rows issued before Step 8 keep their raw value until rotated, revoked or expired (7 days at most)."
     },
     {
       "id": "jwt-algorithm-pinned",
@@ -1002,6 +1008,7 @@
         "src/security-n/signed-recommendations.service.ts",
         "src/security/audit-chain.service.ts",
         "src/security/login-attempt.service.ts",
+        "src/security/refresh-token-hash.ts",
         "src/services/admin-asset.service.ts",
         "src/services/admin-impersonation.service.ts",
         "src/services/ai-agent-decision.service.ts",
@@ -1164,7 +1171,7 @@
     ]
   },
   "counts": {
-    "controlsPresent": 18,
+    "controlsPresent": 19,
     "controlsPartial": 2,
     "controlsAbsent": 6,
     "cryptoUses": 9

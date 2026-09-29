@@ -254,9 +254,18 @@ const controls = [
       && exists('src/cyber-defense/lockout-shadow.ts') ? 'PRESENT' : 'ABSENT',
     cite('src/cyber-defense/lockout-shadow.ts'),
     'Every sign-in is measured against the lockout thresholds and a would-be refusal is recorded; nothing is refused.'),
+  // Step 8: what is WRITTEN is only the hash, and a lookup starts from the hash.
   control('refresh-token-hashed-at-rest',
-    /refreshToken\.findUnique\(\{\s*where:\s*\{\s*token\s*\}/.test(authServiceSrc) ? 'ABSENT' : 'PRESENT', AUTH_SERVICE,
-    'Refresh tokens are looked up by their literal value.'),
+    /refreshToken\.create\(\{\s*data:\s*\{\s*tokenHash:\s*hashRefreshToken\(refreshToken\)/.test(authServiceSrc)
+      && !/refreshToken\.create\(\{\s*data:\s*\{[^}]*\btoken:/.test(authServiceSrc)
+      && /findUnique\(\{\s*where:\s*\{\s*tokenHash:\s*hashRefreshToken\(token\)/.test(authServiceSrc)
+      ? 'PRESENT' : 'ABSENT', AUTH_SERVICE,
+    'New refresh tokens are stored and looked up as a SHA-256 only.'),
+  // …and the one thing still standing from before it: the legacy raw column and
+  // the dual-read fallback that keeps pre-Step-8 sessions alive.
+  control('refresh-token-legacy-fallback-removed',
+    /tokenHash:\s*null/.test(authServiceSrc) ? 'ABSENT' : 'PRESENT', AUTH_SERVICE,
+    'Rows issued before Step 8 keep their raw value until rotated, revoked or expired (7 days at most).'),
   control('jwt-algorithm-pinned', jwtVerifySites.length && jwtVerifySites.every((s) => /algorithms/.test(s)) ? 'PRESENT' : 'ABSENT', AUTH_MW),
   control('jwt-issuer-validated', jwtVerifySites.length && jwtVerifySites.every((s) => /issuer/.test(s)) ? 'PRESENT' : 'ABSENT', AUTH_MW),
   control('websocket-token-outside-url', /searchParams\.get\('token'\)/.test(realtimeSrc) ? 'ABSENT' : 'PRESENT', 'src/realtime/match-ws.ts'),

@@ -31,7 +31,7 @@ jest.mock('../src/config/database', () => ({
           Object.values(USERS).find((u) => u.id === q.where.id) ?? null,
         update: async () => ({}),
       };
-      if (k === 'refreshToken') return { findUnique: async () => null, delete: async () => ({}), create: async () => ({}) };
+      if (k === 'refreshToken') return { findUnique: async () => null, findFirst: async () => null, delete: async () => ({}), deleteMany: async () => ({ count: 0 }), create: async () => ({}) };
       return new Proxy({}, { get: () => async () => null });
     },
   }),
