@@ -72,24 +72,35 @@ describe('render.yaml — the backup cron job', () => {
       expect(env[key]).toBe('sync:false');
     });
 
-  it('states only non-secret values inline: the environment and the AWS region', () => {
+  it('states only non-secret values inline: the environment, the B2 region and the B2 endpoint', () => {
     const inline = Object.entries(env).filter(([, s]) => s === 'value').map(([k]) => k).sort();
-    expect(inline).toEqual(['BACKUP_S3_REGION', 'NODE_ENV']);
+    expect(inline).toEqual(['BACKUP_S3_ENDPOINT', 'BACKUP_S3_REGION', 'NODE_ENV']);
     expect(cron).toMatch(/- key: NODE_ENV\n\s+value: production/);
-    expect(cron).toMatch(/- key: BACKUP_S3_REGION\n\s+value: eu-central-1/);
   });
 
-  it('declares nothing else — no decryption key and none of the web service\'s secrets', () => {
+  it('targets Backblaze B2 in eu-central-003 through its S3-compatible endpoint, over https', () => {
+    expect(cron).toMatch(/- key: BACKUP_S3_REGION\n\s+value: eu-central-003\n/);
+    expect(cron).toMatch(/- key: BACKUP_S3_ENDPOINT\n\s+value: https:\/\/s3\.eu-central-003\.backblazeb2\.com\n/);
+    // The endpoint's region and the signing region must be the same B2 region.
+    const endpoint = (cron.match(/- key: BACKUP_S3_ENDPOINT\n\s+value: (\S+)/) || [])[1];
+    const region = (cron.match(/- key: BACKUP_S3_REGION\n\s+value: (\S+)/) || [])[1];
+    expect(new URL(endpoint!).hostname).toBe(`s3.${region}.backblazeb2.com`);
+    expect(new URL(endpoint!).protocol).toBe('https:');
+  });
+
+  it('keeps virtual-hosted addressing: no path-style override (the bucket name has no dots)', () => {
+    expect(env.BACKUP_S3_FORCE_PATH_STYLE).toBeUndefined();
+  });
+
+  it('declares nothing else — no decryption key, no restore key and none of the web service\'s secrets', () => {
     expect(Object.keys(env).sort()).toEqual([
-      'BACKUP_ENCRYPTION_PUBLIC_KEY', 'BACKUP_S3_ACCESS_KEY_ID', 'BACKUP_S3_BUCKET', 'BACKUP_S3_REGION',
+      'BACKUP_ENCRYPTION_PUBLIC_KEY', 'BACKUP_S3_ACCESS_KEY_ID', 'BACKUP_S3_BUCKET', 'BACKUP_S3_ENDPOINT', 'BACKUP_S3_REGION',
       'BACKUP_S3_SECRET_ACCESS_KEY', 'BACKUP_SIGNING_PRIVATE_KEY', 'DATABASE_URL', 'NODE_ENV',
     ]);
+    // One bucket credential (the upload-only writer); the read-only restore
+    // key stays offline and has no variable here.
+    expect(Object.keys(env).filter((k) => /ACCESS_KEY_ID$/.test(k))).toEqual(['BACKUP_S3_ACCESS_KEY_ID']);
     expect(RAW).not.toMatch(/-\s*key:\s*BACKUP_ENCRYPTION_PRIVATE_KEY\b/);
-  });
-
-  it('uses AWS directly: no custom endpoint or path-style override', () => {
-    expect(env.BACKUP_S3_ENDPOINT).toBeUndefined();
-    expect(env.BACKUP_S3_FORCE_PATH_STYLE).toBeUndefined();
   });
 
   it('leaves the web service untouched by the addition', () => {

@@ -21,7 +21,8 @@ import { generateBackupKeys } from '../src/security/backup/backup-crypto';
 import {
   BackupConfigError, drillConfigFromEnv, pgConnection, pgEnv, runnerConfigFromEnv, sameDatabase, storeFromEnv,
 } from '../src/security/backup/backup-config';
-import { fileStore, s3Store } from '../src/security/backup/backup-store';
+import { fileStore, s3ClientFor, s3Store } from '../src/security/backup/backup-store';
+import { createHash } from 'crypto';
 import { scrub, spawnPg } from '../src/security/backup/pg-process';
 
 const keys = generateBackupKeys();
@@ -273,5 +274,91 @@ describe('s3 store', () => {
     const client = { send: jest.fn() } as unknown as S3Client;
     await expect(s3Store(cfg, client).getToFile('../x.fbk', '/tmp/never')).rejects.toThrow(/unsafe/);
     expect((client.send as jest.Mock)).not.toHaveBeenCalled();
+  });
+});
+
+describe('s3 store on the wire — Backblaze B2 S3-compatible API', () => {
+  // The real client configuration, with a request handler that records the
+  // signed HTTP request instead of sending it. No network, no credentials:
+  // the key pair below is a placeholder that signs nothing anyone accepts.
+  const B2 = {
+    kind: 's3' as const, bucket: 'familista-backups-2026-739261', region: 'eu-central-003',
+    endpoint: 'https://s3.eu-central-003.backblazeb2.com', forcePathStyle: false,
+    accessKeyId: 'placeholder-key-id', secretAccessKey: 'placeholder-not-a-secret', prefix: 'familista/postgres/',
+  };
+  type Req = { method: string; protocol: string; hostname: string; path: string; headers: Record<string, string>; body?: unknown };
+
+  function capture(cfg: typeof B2) {
+    const seen: Req[] = [];
+    const requestHandler = {
+      handle: async (req: Req) => {
+        seen.push(req);
+        const body = req.body as { on?: unknown } | undefined;
+        if (body && typeof body.on === 'function') for await (const _ of body as AsyncIterable<unknown>) { /* drain */ }
+        return { response: { statusCode: 200, headers: {}, body: Readable.from([Buffer.from('ciphertext')]) } };
+      },
+    };
+    return { store: s3Store(cfg, s3ClientFor(cfg, requestHandler as never)), seen };
+  }
+
+  let dir: string;
+  let file: string;
+  const payload = Buffer.from('FBK1-ciphertext-bytes');
+  beforeAll(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fam-b2-'));
+    file = path.join(dir, 'x.fbk');
+    fs.writeFileSync(file, payload);
+  });
+  afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const checksumHeaders = (h: Record<string, string>) => Object.keys(h).filter((k) => /^x-amz-(sdk-)?checksum|^x-amz-trailer$|^x-amz-decoded-content-length$/i.test(k));
+
+  it('uploads virtual-hosted to the B2 endpoint, signed for eu-central-003, under the prefix', async () => {
+    const { store, seen } = capture(B2);
+    await store.putFile('2026/09/29/x.fbk', file, 'application/octet-stream');
+    const [req] = seen;
+    expect(req.method).toBe('PUT');
+    expect(req.protocol).toBe('https:');
+    expect(req.hostname).toBe('familista-backups-2026-739261.s3.eu-central-003.backblazeb2.com');
+    expect(req.path).toBe('/familista/postgres/2026/09/29/x.fbk');
+    expect(req.headers.authorization).toMatch(/Credential=placeholder-key-id\/\d{8}\/eu-central-003\/s3\/aws4_request/);
+  });
+
+  it('sends no flexible-checksum headers and no aws-chunked body — a plain, length-framed upload', async () => {
+    const { store, seen } = capture(B2);
+    await store.putFile('x.fbk', file, 'application/octet-stream');
+    const h = seen[0].headers;
+    expect(checksumHeaders(h)).toEqual([]);
+    expect(h['content-encoding']).toBeUndefined();
+    expect(h['x-amz-content-sha256']).toBe('UNSIGNED-PAYLOAD');
+    expect(h['content-length']).toBe(String(payload.length));
+  });
+
+  it('sends Content-MD5 of the exact bytes (required by B2 under default Object Lock retention)', async () => {
+    const { store, seen } = capture(B2);
+    await store.putFile('x.fbk', file, 'application/octet-stream');
+    expect(seen[0].headers['content-md5']).toBe(createHash('md5').update(payload).digest('base64'));
+  });
+
+  it('downloads without asking for checksum mode', async () => {
+    const { store, seen } = capture(B2);
+    const out = path.join(dir, 'back.fbk');
+    await store.getToFile('x.fbk', out);
+    expect(seen[0].method).toBe('GET');
+    expect(seen[0].hostname).toBe('familista-backups-2026-739261.s3.eu-central-003.backblazeb2.com');
+    expect(checksumHeaders(seen[0].headers)).toEqual([]);
+    expect(fs.readFileSync(out, 'utf8')).toBe('ciphertext');
+  });
+
+  it('switches to path-style only when BACKUP_S3_FORCE_PATH_STYLE is set (for a bucket name with dots)', async () => {
+    const { store, seen } = capture({ ...B2, bucket: 'fam.backups', forcePathStyle: true });
+    await store.putFile('x.fbk', file, 'application/octet-stream');
+    expect(seen[0].hostname).toBe('s3.eu-central-003.backblazeb2.com');
+    expect(seen[0].path).toBe('/fam.backups/familista/postgres/x.fbk');
+  });
+
+  it('the runner configuration carries the endpoint and region through from the environment', () => {
+    const c = storeFromEnv({ ...S3, NODE_ENV: 'production', BACKUP_S3_REGION: 'eu-central-003', BACKUP_S3_ENDPOINT: 'https://s3.eu-central-003.backblazeb2.com' });
+    expect(c).toMatchObject({ kind: 's3', region: 'eu-central-003', endpoint: 'https://s3.eu-central-003.backblazeb2.com', forcePathStyle: false });
   });
 });

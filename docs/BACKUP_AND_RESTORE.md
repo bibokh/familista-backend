@@ -44,47 +44,47 @@ retained. The manifest records which key each backup used.
 
 ## Where backups go
 
-AWS S3, bucket in `eu-central-1` (Frankfurt, the region of the Render
-services), **separate from the application's media storage**, with its own
-credentials. Set up once by the owner:
+Backblaze B2, through its S3-compatible API, bucket
+`familista-backups-2026-739261` in region `eu-central-003`
+(endpoint `https://s3.eu-central-003.backblazeb2.com`). The bucket is separate
+from the application's media storage and has its own credentials:
 
-1. Create the bucket. Keep **Block all public access** on. Enable **Bucket
-   Versioning** and **Object Lock**, default retention **Governance, 35 days**
-   (Compliance cannot be shortened by anyone, including the owner). Default
-   encryption SSE-S3 — a second layer, not the protection.
-2. Lifecycle rule on prefix `familista/postgres/`: expire current versions
-   after 36 days, permanently delete noncurrent versions 1 day after they
-   become noncurrent, remove expired delete markers. Object Lock still holds
-   every object for its 35 days.
-3. Bucket policy refusing anything but TLS:
+- **Private**, with **default encryption** on — a second layer, not the
+  protection.
+- **Object Lock** on, with default retention (35 days is a sensible start;
+  Governance-style retention can be shortened by the owner, Compliance cannot
+  be shortened by anyone). A lifecycle rule handles expiry after that; Object
+  Lock still holds every file for its retention period.
+- **Writer key** — bucket-scoped, **Write Only**, restricted to the prefix
+  `familista/postgres/`. It goes into Render (`BACKUP_S3_ACCESS_KEY_ID` /
+  `BACKUP_S3_SECRET_ACCESS_KEY` on `familista-backup`) and nowhere else. It is
+  the only permission the runner uses: one `PutObject` per file.
+- **Restore key** — **Read Only**. Kept offline with `offline-restore.env`,
+  never on Render.
 
-   ```json
-   {"Version":"2012-10-17","Statement":[{"Sid":"DenyInsecureTransport","Effect":"Deny","Principal":"*","Action":"s3:*",
-     "Resource":["arn:aws:s3:::BUCKET","arn:aws:s3:::BUCKET/*"],"Condition":{"Bool":{"aws:SecureTransport":"false"}}}]}
-   ```
+A compromised runner can then add files and nothing else: it cannot read,
+list or delete a backup, and Object Lock stops even the owner's keys from
+deleting one early.
 
-4. IAM user `familista-backup-writer` — **upload only**, the one permission
-   the runner uses. Its access key goes into Render and nowhere else:
+How the client talks to B2 (`src/security/backup/backup-store.ts`), all
+covered by `tests/backup-config.unit.test.ts`:
 
-   ```json
-   {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:PutObject",
-     "Resource":"arn:aws:s3:::BUCKET/familista/postgres/*"}]}
-   ```
-
-5. IAM user `familista-backup-reader` — restores only. Its key is kept
-   offline with `offline-restore.env`, never on Render:
-
-   ```json
-   {"Version":"2012-10-17","Statement":[
-     {"Effect":"Allow","Action":"s3:GetObject","Resource":"arn:aws:s3:::BUCKET/familista/postgres/*"},
-     {"Effect":"Allow","Action":"s3:ListBucket","Resource":"arn:aws:s3:::BUCKET",
-      "Condition":{"StringLike":{"s3:prefix":"familista/postgres/*"}}}]}
-   ```
-
-A compromised runner can then add objects and nothing else: it cannot read,
-list, overwrite or delete a backup. Another S3-compatible store works with
-`BACKUP_S3_ENDPOINT`, but check that it offers an upload-only key before
-choosing it.
+- **Addressing:** virtual-hosted —
+  `familista-backups-2026-739261.s3.eu-central-003.backblazeb2.com/familista/postgres/…`.
+  B2 supports it for a bucket name without dots, so no path-style override is
+  set. For a bucket whose name contains a dot, set
+  `BACKUP_S3_FORCE_PATH_STYLE=true` (the wildcard TLS certificate cannot cover
+  an extra label).
+- **Signing:** SigV4 with region `eu-central-003`, which must match the
+  endpoint's region.
+- **Checksums:** the AWS SDK's default flexible checksums (an aws-chunked
+  upload with an `x-amz-checksum-crc32` trailer, and `x-amz-checksum-mode` on
+  download) are switched off with `WHEN_REQUIRED`; S3-compatible stores,
+  B2 among them, have rejected those headers.
+- **Content-MD5** is sent on every upload. B2 requires it on uploads to a
+  bucket with default Object Lock retention, and it checks the transfer. The
+  backup's own integrity is still the authenticated encryption and the signed
+  SHA-256 manifest.
 
 Environment for the backup job:
 
@@ -96,8 +96,8 @@ Environment for the backup job:
 | `BACKUP_SIGNING_PRIVATE_KEY` | yes | From `runner.env`. |
 | `BACKUP_S3_BUCKET` | yes | |
 | `BACKUP_S3_ACCESS_KEY_ID` / `BACKUP_S3_SECRET_ACCESS_KEY` | yes | Write-only key. |
-| `BACKUP_S3_ENDPOINT` | for non-AWS | Must be `https://` in production. |
-| `BACKUP_S3_REGION` | no | Default `auto`; `eu-central-1` in production (set in `render.yaml`). |
+| `BACKUP_S3_ENDPOINT` | for B2 | `https://s3.eu-central-003.backblazeb2.com` (set in `render.yaml`). Must be `https://` in production. |
+| `BACKUP_S3_REGION` | yes for B2 | `eu-central-003` (set in `render.yaml`); must match the endpoint. |
 | `BACKUP_S3_PREFIX` | no | Default `familista/postgres/`. |
 | `BACKUP_S3_FORCE_PATH_STYLE` | no | `true` for some S3-compatible stores. |
 | `BACKUP_PG_DUMP` | no | pg_dump binary; must be at least the server's major version. |
@@ -118,8 +118,9 @@ in `frankfurt` (the database's region, so it uses the private network), daily
 at 03:17 UTC, running `pg_dump --version && bash scripts/backup.sh`.
 
 - `DATABASE_URL` is linked from `familista-postgres`; nobody copies it.
-- `NODE_ENV=production` and `BACKUP_S3_REGION=eu-central-1` are the only
-  values in the file.
+- `NODE_ENV=production`, `BACKUP_S3_REGION=eu-central-003` and
+  `BACKUP_S3_ENDPOINT=https://s3.eu-central-003.backblazeb2.com` are the only
+  values in the file; none is a secret.
 - `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`,
   `BACKUP_S3_SECRET_ACCESS_KEY` (the writer key), `BACKUP_ENCRYPTION_PUBLIC_KEY`
   and `BACKUP_SIGNING_PRIVATE_KEY` (both from `runner.env`) are `sync: false`:
@@ -146,7 +147,9 @@ version, against a **new, empty** database (a local Docker Postgres is fine):
 
 ```
 set -a; . ./offline-restore.env; set +a
-export BACKUP_S3_BUCKET=… BACKUP_S3_REGION=eu-central-1 BACKUP_S3_ACCESS_KEY_ID=… BACKUP_S3_SECRET_ACCESS_KEY=…   # the reader key
+export BACKUP_S3_BUCKET=familista-backups-2026-739261 BACKUP_S3_REGION=eu-central-003
+export BACKUP_S3_ENDPOINT=https://s3.eu-central-003.backblazeb2.com
+export BACKUP_S3_ACCESS_KEY_ID=… BACKUP_S3_SECRET_ACCESS_KEY=…   # the Read Only restore key
 export DRILL_DATABASE_URL=postgresql://postgres@localhost:5432/familista_drill
 export DRILL_CONFIRM_ISOLATED=yes
 BACKUP_OBJECT=2026/09/29/familista-20260929T031700Z-0a1b2c3d.fbk bash scripts/restore.sh

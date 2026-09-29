@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-29T18:08:37.997Z",
+  "generatedAt": "2026-09-29T19:24:05.463Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -734,7 +734,7 @@
     }
   ],
   "secrets": {
-    "declared": 65,
+    "declared": 66,
     "secretNamed": 22,
     "secretNamedInline": [],
     "envVars": [
@@ -781,6 +781,11 @@
       {
         "name": "BACKUP_S3_BUCKET",
         "supply": "dashboard",
+        "secretNamed": false
+      },
+      {
+        "name": "BACKUP_S3_ENDPOINT",
+        "supply": "inline",
         "secretNamed": false
       },
       {
@@ -1106,6 +1111,13 @@
     },
     {
       "primitive": "hash",
+      "algorithm": "md5",
+      "files": [
+        "src/security/backup/backup-store.ts"
+      ]
+    },
+    {
+      "primitive": "hash",
       "algorithm": "sha256",
       "files": [
         "src/auth-prod/mfa-enforcement.service.ts",
@@ -1315,6 +1327,6 @@
     "controlsPresent": 33,
     "controlsPartial": 2,
     "controlsAbsent": 6,
-    "cryptoUses": 10
+    "cryptoUses": 11
   }
 }
