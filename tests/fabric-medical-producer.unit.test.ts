@@ -323,7 +323,12 @@ describe('an injury record', () => {
     // anyone who knows the sport.
     const wire = JSON.stringify(published);
     expect(wire).not.toContain('2026-09-01');
-    expect(wire).not.toContain(String(state.injuries[0].daysAbsent));
+    // The duration is a number, so it is looked for as a whole number, and not
+    // inside the fields the envelope generates at random (event ids, the
+    // idempotency hash, millisecond timestamps), where any three digits turn
+    // up by chance.
+    const content = JSON.stringify(published.map(({ eventId, idempotencyKey, occurredAt, recordedAt, ...rest }) => rest));
+    expect(content).not.toMatch(new RegExp(`(^|[^0-9])${state.injuries[0].daysAbsent}([^0-9]|$)`));
   });
 
   it('closing twice closes once — a record already closed publishes only the amendment', async () => {
