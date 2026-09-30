@@ -38,6 +38,12 @@ const SENIOR_TEAM = '33333333-3333-4333-8333-333333333333';
 const ACADEMY_TEAM = '44444444-4444-4444-8444-444444444444';
 const ACTOR = 'u-actor';
 
+/** Where the transcoder writes an asset's results: its own folder in its own club. */
+const keysFor = (asset: { id: string; clubId?: string | null }) => ({
+  hls: `clubs/${asset.clubId}/videos/${asset.id}/hls/index.m3u8`,
+  thumb: `clubs/${asset.clubId}/videos/${asset.id}/thumb.jpg`,
+});
+
 /** Every string that must never leave the Media module. */
 const SECRETS = {
   storageKey: 'clubs/11111111/videos/asset-1/raw.mp4',
@@ -386,9 +392,10 @@ describe('processing', () => {
   it('a successful transcode publishes one processing.completed with a duration BUCKET', async () => {
     const asset = await ready();
 
+    const keys = keysFor(asset);
     await video.handleTranscodeCallback({
       assetId: asset.id,
-      hlsManifestKey: SECRETS.hlsKey, thumbStorageKey: SECRETS.thumbKey,
+      hlsManifestKey: keys.hls, thumbStorageKey: keys.thumb,
       durationSec: 2712, widthPx: 1920, heightPx: 1080,
     } as never);
     await settle();
@@ -400,9 +407,36 @@ describe('processing', () => {
     expect(state.videos[0].status).toBe('READY');
     // not the manifest, not the thumbnail, not the CDN base, not the pixels
     const wire = JSON.stringify(published);
-    for (const s of [SECRETS.hlsKey, SECRETS.thumbKey, SECRETS.cdnBase, '1920', '2712']) {
+    for (const s of [keys.hls, keys.thumb, SECRETS.cdnBase, '1920', '2712']) {
       expect(`${s}: ${wire.includes(s)}`).toBe(`${s}: false`);
     }
+  });
+
+  it('refuses a result pointing outside the asset\'s own folder, and changes nothing (R1a)', async () => {
+    const asset = await ready();
+    const own = keysFor(asset);
+    const elsewhere = [
+      `clubs/22222222-2222-4222-8222-222222222222/videos/${asset.id}/hls/index.m3u8`, // another club
+      `clubs/${asset.clubId}/videos/another-asset/hls/index.m3u8`,                   // another asset
+      `clubs/${asset.clubId}/videos/${asset.id}/../../x/hls/index.m3u8`,              // climbing out
+      `clubs/${asset.clubId}/videos/${asset.id}//index.m3u8`,
+      `clubs/${asset.clubId}/videos/${asset.id}/`,                                    // the folder itself
+      'https://evil.example/index.m3u8',
+    ];
+    for (const key of elsewhere) {
+      await expect(video.handleTranscodeCallback({ assetId: asset.id, hlsManifestKey: key } as never))
+        .rejects.toThrow(/own storage folder/);
+      await expect(video.handleTranscodeCallback({ assetId: asset.id, hlsManifestKey: own.hls, thumbStorageKey: key } as never))
+        .rejects.toThrow(/own storage folder/);
+    }
+    await settle();
+    expect(state.videos[0].status).not.toBe('READY');
+    expect(state.videos[0].hlsManifestKey ?? null).toBeNull();
+    expect(types()).toEqual([]);
+
+    // its own folder is accepted
+    await video.handleTranscodeCallback({ assetId: asset.id, hlsManifestKey: own.hls, thumbStorageKey: own.thumb } as never);
+    expect(state.videos[0]).toMatchObject({ status: 'READY', hlsManifestKey: own.hls, thumbStorageKey: own.thumb });
   });
 
   it('a failed transcode publishes one processing.failed and never the error text', async () => {
@@ -535,8 +569,8 @@ describe('redaction', () => {
     } as never);
     await video.confirmUpload(VIDEO_ACTOR, { assetId: asset.id } as never);
     await video.handleTranscodeCallback({
-      assetId: asset.id, hlsManifestKey: SECRETS.hlsKey,
-      thumbStorageKey: SECRETS.thumbKey, durationSec: 120,
+      assetId: asset.id, hlsManifestKey: keysFor(asset).hls,
+      thumbStorageKey: keysFor(asset).thumb, durationSec: 120,
     } as never);
     await media.createMediaAsset({
       clubId: CLUB, teamId: SENIOR_TEAM, subjectType: 'CLUB' as never,

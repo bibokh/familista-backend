@@ -206,9 +206,35 @@ export async function confirmUpload(actor: VideoActor, dto: ConfirmUploadDto): P
 
 // ─── Phase 3: transcode callback (called by worker) ──────────────────────────
 
+/**
+ * Where a transcode result may point: under this asset's own folder in its own
+ * club, `clubs/<clubId>/videos/<assetId>/` — the folder the transcoder writes
+ * to. A key anywhere else (another club's video, another asset) is refused, so
+ * a result can never repoint one asset at somebody else's files.
+ */
+export function assetKeyPrefix(asset: Pick<VideoAsset, 'id' | 'clubId'>): string | null {
+  return asset.clubId ? `clubs/${asset.clubId}/videos/${asset.id}/` : null;
+}
+
+const SAFE_STORAGE_KEY = /^[A-Za-z0-9._\-/]+$/;
+
+export function assertKeyWithinAsset(asset: Pick<VideoAsset, 'id' | 'clubId'>, key: string | undefined, field: string): void {
+  if (key === undefined || key === null) return;
+  const prefix = assetKeyPrefix(asset);
+  if (!prefix) throw new ForbiddenError(`${field} cannot be set on a video without a club`);
+  if (typeof key !== 'string' || !SAFE_STORAGE_KEY.test(key) || key.includes('..') || key.includes('//')
+      || !key.startsWith(prefix) || key.length === prefix.length) {
+    throw new ForbiddenError(`${field} must be under the video's own storage folder`);
+  }
+}
+
 export async function handleTranscodeCallback(dto: TranscodeCallbackDto): Promise<VideoAsset> {
   const asset = await prisma.videoAsset.findUnique({ where: { id: dto.assetId } });
   if (!asset) throw new NotFoundError('VideoAsset');
+  if (!dto.errorMessage) {
+    assertKeyWithinAsset(asset, dto.hlsManifestKey, 'hlsManifestKey');
+    assertKeyWithinAsset(asset, dto.thumbStorageKey, 'thumbStorageKey');
+  }
 
   // THE ONE FUNNEL. Both outcomes of a transcode arrive here, from the worker
   // and from any future external callback, so the two events are published

@@ -22,6 +22,7 @@ import { apiTrafficMeter } from './infra/api-traffic';
 import routes from './routes';
 import { tenantGuard } from './middleware/tenant-guard.middleware';
 import { internalBackupRoutes } from './controllers/internal-backup.controller';
+import { transcodeCallbackRoute } from './controllers/internal-video.controller';
 
 // ── credentials that travel in a query string ────────────────────────────────
 // Only these parameter names are replaced, and only their values: the path and
@@ -156,6 +157,14 @@ export function createApp(): express.Application {
   morgan.token('url', (req) => redactUrl((req as Request).originalUrl || req.url || ''));
   app.use(morgan(config.isDev ? 'dev' : 'combined', { stream: morganStream }));
   app.use(accessLog);
+
+  // ── Transcode callback (Cyber Defense, R1a)
+  // For a transcode worker only, never a user session: HMAC over method, path,
+  // timestamp and the raw body with VIDEO_WORKER_CALLBACK_SECRET, closed while
+  // that is unset. Mounted before the JSON parser so the signature covers the
+  // exact bytes received. The in-process worker calls the service directly.
+  // A literal path, so the security scanner lists it among the app-level routes.
+  app.post('/internal/video/transcode-callback', ...transcodeCallbackRoute());
 
   // ── Body parsers (Stripe webhook needs raw body — handled in billing route)
   app.use(express.json({ limit: '2mb' }));
