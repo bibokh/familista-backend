@@ -45,6 +45,13 @@
     "vision-engine.routes": "Not mounted. Must not be mounted without a security review.",
     "whitelabel.routes": "Not mounted. Must not be mounted without a security review."
   },
+  "outboundCallSites": {
+    "src/platform/email/providers/sendgrid.ts": "Fixed host api.sendgrid.com; nothing in the request line comes from a user.",
+    "src/security/outbound-url-guard.ts": "The guard itself (R1b): the only path for a URL a user supplied — public https addresses only, checked at the connection, no redirects, bounded time and size, no response body kept.",
+    "src/services/vision-clip.adapter.ts": "Operator-configured endpoint (VISION_CLIP_WORKER_URL); users supply only ids, which are URL-encoded path segments.",
+    "src/services/vision-inference.adapter.ts": "Operator-configured endpoint (VISION_WORKER_URL); users supply only ids, which are URL-encoded path segments.",
+    "src/workers/notification-dispatch.worker.ts": "WEBHOOK targets are user-supplied and go only through the outbound guard; EMAIL/SMS/PUSH use operator-configured provider URLs from the environment, with redirects not followed and no response body kept."
+  },
   "requiredControls": [
     "csp-script-self",
     "csp-no-plugins-no-frames",
@@ -80,7 +87,8 @@
     "backup-records-platform-only",
     "backup-scheduled",
     "backup-trigger-authenticated",
-    "worker-callback-authenticated"
+    "worker-callback-authenticated",
+    "outbound-url-guard"
   ],
   "knownGaps": {
     "login-lockout": "PARTIAL — the lockout service has no enforcing caller; it runs in shadow mode only (login-lockout-shadow).",

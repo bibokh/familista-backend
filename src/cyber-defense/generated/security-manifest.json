@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-30T15:00:51.822Z",
+  "generatedAt": "2026-09-30T17:35:01.612Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -525,6 +525,13 @@
       "investor.routes",
       "vision-engine.routes",
       "whitelabel.routes"
+    ],
+    "outboundCallSites": [
+      "src/platform/email/providers/sendgrid.ts",
+      "src/security/outbound-url-guard.ts",
+      "src/services/vision-clip.adapter.ts",
+      "src/services/vision-inference.adapter.ts",
+      "src/workers/notification-dispatch.worker.ts"
     ]
   },
   "controls": [
@@ -762,6 +769,12 @@
       "status": "PRESENT",
       "evidence": "src/security/backup/backup-trigger.ts",
       "note": "The backup trigger takes no input, authenticates by HMAC-SHA256 with a 5-minute window and constant-time comparison, is closed without a secret, runs one backup at a time and none within 20 hours of a success."
+    },
+    {
+      "id": "outbound-url-guard",
+      "status": "PRESENT",
+      "evidence": "src/security/outbound-url-guard.ts",
+      "note": "A URL a user supplies (a notification webhook) is called only over https to a public address, checked at registration and again at the connection, with no redirects, a time and size limit, and no response body kept."
     },
     {
       "id": "worker-callback-authenticated",
@@ -1257,6 +1270,7 @@
       "src/middleware/auth.middleware.ts",
       "src/middleware/rate-limit.middleware.ts",
       "src/middleware/tenant-guard.middleware.ts",
+      "src/notifications/notifications.service.ts",
       "src/realtime/market-ws.ts",
       "src/realtime/match-ws.ts",
       "src/routes/ai-ops.routes.ts",
@@ -1318,17 +1332,19 @@
       "src/security/backup/backup-trigger.ts",
       "src/security/backup/restore-drill.ts",
       "src/security/login-attempt.service.ts",
+      "src/security/outbound-url-guard.ts",
       "src/security/security-event.service.ts",
       "src/security/worker-callback.ts",
       "src/services/auth.service.ts",
       "src/services/device-auth.service.ts",
       "src/services/stripe.service.ts",
       "src/utils/password.ts",
-      "src/video/video-asset.service.ts"
+      "src/video/video-asset.service.ts",
+      "src/workers/notification-dispatch.worker.ts"
     ]
   },
   "counts": {
-    "controlsPresent": 35,
+    "controlsPresent": 36,
     "controlsPartial": 2,
     "controlsAbsent": 6,
     "cryptoUses": 11

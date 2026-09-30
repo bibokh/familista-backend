@@ -8,7 +8,14 @@
 //   • EMAIL    — POST to NOTIFY_EMAIL_WEBHOOK (your transactional provider)
 //   • SMS      — POST to NOTIFY_SMS_WEBHOOK
 //   • PUSH     — POST to NOTIFY_PUSH_WEBHOOK
-//   • WEBHOOK  — POST to the channel.target URL directly
+//   • WEBHOOK  — POST to the channel.target URL, a URL a user typed, so only
+//                through the outbound guard (Cyber Defense R1b): public https
+//                addresses only, checked at the connection itself, no
+//                redirects, bounded time and size
+//
+// No response body is ever kept. An attempt records the status code and a
+// fixed reason word: a body copied into the recipient's own notification is
+// how a request to the inside would be read back out.
 //
 // Each successful dispatch writes a `dispatched.<channel>=<ts>` flag into
 // the notification's payload so the worker never re-fires a channel.
@@ -20,6 +27,7 @@ import crypto from 'crypto';
 import { Prisma, UserNotificationChannel } from '@prisma/client';
 import { prisma } from '../config/database';
 import { logger } from '../utils/logger';
+import { postJsonGuarded } from '../security/outbound-url-guard';
 
 const TICK_MS    = parseInt(process.env.NOTIFY_TICK_MS    ?? '15000', 10);
 const BATCH_SIZE = parseInt(process.env.NOTIFY_BATCH_SIZE ?? '50',    10);
@@ -49,7 +57,8 @@ function sign(body: string, secret: string | null | undefined): Record<string, s
   return { 'x-familista-signature': `sha256=${mac}` };
 }
 
-async function postJson(url: string, body: unknown, headers: Record<string, string>): Promise<{ ok: boolean; status: number; bodyText?: string }> {
+/** For the operator-configured providers (EMAIL/SMS/PUSH env URLs) — never a user's URL. */
+async function postJson(url: string, body: unknown, headers: Record<string, string>): Promise<{ ok: boolean; status: number; reason: string }> {
   // Node 20+ has global fetch. Cap at 10s.
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 10_000);
@@ -62,11 +71,12 @@ async function postJson(url: string, body: unknown, headers: Record<string, stri
       headers: { 'content-type': 'application/json', ...sigHeaders, ...cleaned },
       body: payload,
       signal: ctrl.signal,
+      redirect: 'manual',
     });
-    const bodyText = await r.text().catch(() => '');
-    return { ok: r.ok, status: r.status, bodyText: bodyText.slice(0, 200) };
-  } catch (err) {
-    return { ok: false, status: 0, bodyText: (err as Error).message };
+    await r.body?.cancel().catch(() => undefined);
+    return { ok: r.ok, status: r.status, reason: r.ok ? 'delivered' : 'http-error' };
+  } catch {
+    return { ok: false, status: 0, reason: 'network-error' };
   } finally {
     clearTimeout(t);
   }
@@ -121,13 +131,20 @@ async function dispatchOne(
     }
     const headers: Record<string, string> = {};
     if (t.secret) headers['x-familista-secret'] = t.secret;
-    const r = await postJson(t.url, {
+    const message = {
       to:    ch.target,
       kind:  ch.channel,
       title, body, payload,
       notificationId, userId,
-    }, headers);
-    attempts.push({ channel: ch.channel, target: ch.target, ok: r.ok, status: r.status, message: r.bodyText, at: new Date().toISOString() });
+    };
+    let r: { ok: boolean; status: number; reason: string };
+    if (t.kind === 'WEBHOOK') {
+      const json = JSON.stringify(message);
+      r = await postJsonGuarded(t.url, json, sign(json, t.secret));
+    } else {
+      r = await postJson(t.url, message, headers);
+    }
+    attempts.push({ channel: ch.channel, target: ch.target, ok: r.ok, status: r.status, message: r.reason, at: new Date().toISOString() });
   }
   return attempts;
 }
