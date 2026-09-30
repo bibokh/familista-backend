@@ -9,6 +9,7 @@ import { OpsReportRun, OpsReportTemplate, Prisma, UserNotificationChannel } from
 import { prisma } from '../config/database';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
+import { assertOutboundUrl, OutboundUrlError } from '../security/outbound-url-guard';
 
 export interface NotifActor {
   userId: string;
@@ -29,6 +30,17 @@ export interface RegisterChannelDto {
 export async function registerChannel(actor: NotifActor, dto: RegisterChannelDto): Promise<UserNotificationChannel> {
   if (!dto.channel || !dto.target) throw new BadRequestError('channel + target required');
   if (!ALLOWED_CHANNELS.has(dto.channel.toUpperCase())) throw new BadRequestError(`channel must be one of ${[...ALLOWED_CHANNELS].join(', ')}`);
+  // A webhook target is a URL the server will call. It must be a public https
+  // address — never the private network, loopback or a metadata endpoint
+  // (Cyber Defense R1b). Checked again, at the connection, when it is used.
+  if (dto.channel.toUpperCase() === 'WEBHOOK') {
+    try {
+      await assertOutboundUrl(dto.target);
+    } catch (err) {
+      if (err instanceof OutboundUrlError) throw new BadRequestError(`webhook target refused: ${err.reason}`);
+      throw err;
+    }
+  }
   return prisma.userNotificationChannel.upsert({
     where:  { userId_channel_target: { userId: actor.userId, channel: dto.channel.toUpperCase(), target: dto.target } },
     create: { userId: actor.userId, channel: dto.channel.toUpperCase(), target: dto.target, preferences: (dto.preferences ?? Prisma.JsonNull) as Prisma.InputJsonValue },

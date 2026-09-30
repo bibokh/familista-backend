@@ -101,6 +101,18 @@ describe('every route reachable without a session has been reviewed', () => {
   });
 });
 
+describe('every outbound HTTP call site has been reviewed (R1b)', () => {
+  it('the files that open outbound requests are exactly the reviewed set', () => {
+    expect([...manifest.apiSurface.outboundCallSites].sort()).toEqual(Object.keys(policy.outboundCallSites).sort());
+  });
+
+  it('every reviewed call site says whose URL it calls', () => {
+    for (const reason of Object.values(policy.outboundCallSites) as string[]) {
+      expect(reason).toMatch(/operator|guard|fixed/i);
+    }
+  });
+});
+
 describe('dormant route modules stay dormant', () => {
   it('the unmounted modules are exactly the reviewed set', () => {
     expect([...manifest.apiSurface.dormantRouteModules].sort()).toEqual(Object.keys(policy.dormantRouteModules).sort());

@@ -184,6 +184,16 @@ const dormantRouteModules = routeModules.filter((mod) => {
 publicRoutes.sort((a, b) => a.route.localeCompare(b.route));
 appRoutes.sort((a, b) => a.route.localeCompare(b.route));
 
+// Every file that opens an outbound HTTP request (R1b). Comments are blanked
+// first. A new call site changes this list and fails the posture test until
+// it is reviewed: is its URL the operator's configuration, or something a
+// user supplied — which must go through src/security/outbound-url-guard.ts?
+const OUTBOUND_RE = /\bfetch\s*\(|\bhttps?\.request\s*\(|\bhttps?\.get\s*\(|\baxios\b|\bgot\s*\(|\bundici\b/;
+const outboundCallSites = srcFiles.filter((f, i) => {
+  const code = allSrc[i].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  return OUTBOUND_RE.test(code);
+}).sort();
+
 // ── 2 · security controls, each from evidence ────────────────────────────────
 
 const AUTH_SERVICE = cite('src/services/auth.service.ts');
@@ -458,6 +468,21 @@ function backupTriggerProtected() {
 // method, path, timestamp and raw body (constant-time, 5-minute window), closed
 // without its secret, and the service keeps every storage key inside the
 // asset's own club folder whoever calls it.
+// R1b: a URL a user supplied is fetched only through the outbound guard.
+function outboundGuardProtected() {
+  const g = read(cite('src/security/outbound-url-guard.ts')) || '';
+  const n = read(cite('src/notifications/notifications.service.ts')) || '';
+  const w = read(cite('src/workers/notification-dispatch.worker.ts')) || '';
+  const register = (() => { const i = n.indexOf('export async function registerChannel'); return i < 0 ? '' : n.slice(i, n.indexOf('\nexport ', i + 10)); })();
+  return ['127.0.0.0', '10.0.0.0', '172.16.0.0', '192.168.0.0', '169.254.0.0', '100.64.0.0', 'fc00::', 'fe80::', '::1', '64:ff9b::']
+      .every((net) => g.includes(`['${net}',`))
+    && /url\.protocol !== 'https:'/.test(g) && /lookup: guardedLookup\(/.test(g)
+    && /'redirect-refused'/.test(g) && /maxResponseBytes/.test(g)
+    && /=== 'WEBHOOK'[\s\S]{0,200}await assertOutboundUrl\(dto\.target\)/.test(register)
+    && /t\.kind === 'WEBHOOK'[\s\S]{0,200}postJsonGuarded\(t\.url/.test(w)
+    && !/bodyText/.test(w) && /redirect: 'manual'/.test(w);
+}
+
 function workerCallbackProtected() {
   const w = read(cite('src/security/worker-callback.ts')) || '';
   const c = read(cite('src/controllers/internal-video.controller.ts')) || '';
@@ -514,6 +539,8 @@ controls.push(
     'GitHub Actions asks the running service daily, over a signed request, to run its fixed backup; the workflow holds only the trigger secret and no database or backup key.'),
   control('backup-trigger-authenticated', backupTriggerProtected() ? 'PRESENT' : 'ABSENT', 'src/security/backup/backup-trigger.ts',
     'The backup trigger takes no input, authenticates by HMAC-SHA256 with a 5-minute window and constant-time comparison, is closed without a secret, runs one backup at a time and none within 20 hours of a success.'),
+  control('outbound-url-guard', outboundGuardProtected() ? 'PRESENT' : 'ABSENT', 'src/security/outbound-url-guard.ts',
+    'A URL a user supplies (a notification webhook) is called only over https to a public address, checked at registration and again at the connection, with no redirects, a time and size limit, and no response body kept.'),
   control('worker-callback-authenticated', workerCallbackProtected() ? 'PRESENT' : 'ABSENT', 'src/controllers/internal-video.controller.ts',
     'The transcode callback is reachable only outside the API with an HMAC-SHA256 over method, path, timestamp and raw body (5-minute window, constant-time), is closed without a secret, and cannot set a storage key outside the asset\'s own club folder.'),
 );
@@ -534,6 +561,7 @@ const manifest = {
     appLevelRoutes: appRoutes,
     mounts,
     dormantRouteModules,
+    outboundCallSites,
   },
   controls,
   secrets: {
