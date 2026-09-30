@@ -4,8 +4,10 @@
 //
 // Wire format:
 //   Client connects to:   wss://host/ws/match/:matchId?token=<jwt>
-//   Server validates JWT, loads User, verifies User.clubId === Match.clubId,
-//   then subscribes to MatchChannel.subscribe(matchId, …)
+//   Server verifies the session exactly as `authenticate` does (signature,
+//   active user, token version), verifies the acting club === Match.clubId,
+//   then subscribes to MatchChannel.subscribe(matchId, …). The connection is
+//   closed (4401) as soon as that session ends (realtime/session-watch.ts).
 //
 //   Server messages: { type: 'hello' | 'event', ... }
 //   Client messages: { type: 'ping' } → server replies { type: 'pong' }
@@ -16,14 +18,12 @@
 import { registerWebSocketServer } from '../infra/ws-registry';
 import http from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
-import jwt from 'jsonwebtoken';
 import { URL } from 'url';
 import { prisma } from '../config/database';
-import { config } from '../config';
 import { logger } from '../utils/logger';
+import { verifySessionToken, type RealtimeSession } from '../middleware/auth.middleware';
 import { subscribe, subscriberCount, MatchChannelEvent } from './match-channel';
-
-interface JwtPayload { sub: string; clubId: string; }
+import { watchSession } from './session-watch';
 
 const HEARTBEAT_MS = 25_000;
 
@@ -44,38 +44,28 @@ export function mountMatchWebSocket(httpServer: http.Server): WebSocketServer {
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return;
       }
 
-      let payload: JwtPayload;
-      try {
-        payload = jwt.verify(token, config.jwt.secret) as JwtPayload;
-      } catch {
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return;
-      }
-
-      // Resolve user + match in parallel; check tenant scope.
+      // The same session rule as every request: signature, active user and
+      // token version (a session ended server-side is refused here too).
       Promise.all([
-        prisma.user.findUnique({
-          where: { id: payload.sub },
-          select: { id: true, isActive: true, clubId: true, currentClubId: true, role: true },
-        }),
+        verifySessionToken(token).catch(() => null),
         prisma.match.findUnique({
           where: { id: matchId },
           select: { id: true, clubId: true },
         }),
-      ]).then(([user, match]) => {
-        if (!user || !user.isActive) {
+      ]).then(([session, match]) => {
+        if (!session) {
           socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return;
         }
         if (!match) {
           socket.write('HTTP/1.1 404 Not Found\r\n\r\n'); socket.destroy(); return;
         }
-        const effectiveClubId = user.currentClubId ?? user.clubId;
-        if (user.role !== 'SUPER_ADMIN' && match.clubId !== effectiveClubId) {
+        if (session.role !== 'SUPER_ADMIN' && match.clubId !== session.clubId) {
           socket.write('HTTP/1.1 403 Forbidden\r\n\r\n'); socket.destroy(); return;
         }
 
         // Cleared — complete the WS handshake and hand off to our handler.
         wss.handleUpgrade(req, socket, head, (ws) => {
-          wireSocket(ws, matchId, user.id);
+          wireSocket(ws, matchId, session);
         });
       }).catch((err) => {
         logger.warn('[match-ws] upgrade failed', { err: err && err.message });
@@ -90,7 +80,13 @@ export function mountMatchWebSocket(httpServer: http.Server): WebSocketServer {
   return wss;
 }
 
-function wireSocket(ws: WebSocket, matchId: string, userId: string) {
+function wireSocket(ws: WebSocket, matchId: string, session: RealtimeSession) {
+  const userId = session.userId;
+  // Held to the session it opened under for as long as it stays open (R1c).
+  const unwatch = watchSession({
+    userId, tokenVersion: session.tokenVersion, channel: 'match-ws',
+    close: () => { try { ws.close(4401, 'session ended'); } catch (_) {} },
+  });
   ws.send(JSON.stringify({ type: 'hello', matchId, ts: new Date().toISOString() }));
 
   const unsubscribe = subscribe(matchId, (event: MatchChannelEvent) => {
@@ -118,6 +114,7 @@ function wireSocket(ws: WebSocket, matchId: string, userId: string) {
   ws.on('close', () => {
     clearInterval(heartbeat);
     unsubscribe();
+    unwatch();
     logger.info('[match-ws] disconnected', { matchId, userId, remaining: subscriberCount(matchId) });
   });
 

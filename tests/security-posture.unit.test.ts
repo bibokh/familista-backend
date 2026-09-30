@@ -113,6 +113,16 @@ describe('every outbound HTTP call site has been reviewed (R1b)', () => {
   });
 });
 
+describe('every realtime endpoint is held to its session (R1c)', () => {
+  it('the files that open event streams or WebSocket servers are exactly the reviewed set', () => {
+    expect([...manifest.apiSurface.realtimeEndpoints].sort()).toEqual(Object.keys(policy.realtimeEndpoints).sort());
+  });
+
+  it('every reviewed endpoint names how its session is watched', () => {
+    for (const reason of Object.values(policy.realtimeEndpoints) as string[]) expect(reason).toMatch(/watchSession|watchRequestSession/);
+  });
+});
+
 describe('dormant route modules stay dormant', () => {
   it('the unmounted modules are exactly the reviewed set', () => {
     expect([...manifest.apiSurface.dormantRouteModules].sort()).toEqual(Object.keys(policy.dormantRouteModules).sort());

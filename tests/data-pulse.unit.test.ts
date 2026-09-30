@@ -223,6 +223,9 @@ jest.mock('../src/middleware/auth.middleware', () => ({
     req.user = actingAs;
     next();
   },
+  // The realtime session watcher (R1c) the stream registers with.
+  onIdentityForgotten: () => () => undefined,
+  sessionStillValid: async () => true,
 }));
 
 import {

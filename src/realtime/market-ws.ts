@@ -4,7 +4,9 @@
 // different path. One connection per session:
 //
 //   Client connects to:   wss://host/ws/market?token=<jwt>
-//   Server verifies the JWT, loads the User, and resolves the acting club
+//   Server verifies the session exactly as `authenticate` does (signature,
+//   active user, token version — closed with 4401 once it ends, see
+//   realtime/session-watch.ts), and resolves the acting club
 //   FROM THAT USER ROW — currentClubId ?? clubId. The browser does not say
 //   which club it is; it could not be believed if it did.
 //
@@ -20,14 +22,12 @@
 import { registerWebSocketServer } from '../infra/ws-registry';
 import http from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
-import jwt from 'jsonwebtoken';
 import { URL } from 'url';
-import { prisma } from '../config/database';
-import { config } from '../config';
 import { logger } from '../utils/logger';
+import { verifySessionToken, type RealtimeSession } from '../middleware/auth.middleware';
 import { subscribeClub, subscribePublic, marketSubscriberCount, MarketEvent } from './market-channel';
+import { watchSession } from './session-watch';
 
-interface JwtPayload { sub: string; clubId: string }
 
 const HEARTBEAT_MS = 25_000;
 
@@ -44,26 +44,17 @@ export function mountMarketWebSocket(httpServer: http.Server): WebSocketServer {
       const token = reqUrl.searchParams.get('token');
       if (!token) { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return; }
 
-      let payload: JwtPayload;
-      try {
-        payload = jwt.verify(token, config.jwt.secret) as JwtPayload;
-      } catch {
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return;
-      }
-
-      prisma.user.findUnique({
-        where: { id: payload.sub },
-        select: { id: true, isActive: true, clubId: true, currentClubId: true },
-      }).then((user) => {
-        if (!user || !user.isActive) {
+      // The same session rule as every request: signature, active user and
+      // token version (a session ended server-side is refused here too).
+      verifySessionToken(token).catch(() => null).then((session) => {
+        if (!session) {
           socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return;
         }
         // The acting club, read from the user row. Never from the query.
-        const clubId = user.currentClubId ?? user.clubId;
-        if (!clubId) {
+        if (!session.clubId) {
           socket.write('HTTP/1.1 403 Forbidden\r\n\r\n'); socket.destroy(); return;
         }
-        wss.handleUpgrade(req, socket, head, (ws) => wireMarketSocket(ws, clubId, user.id));
+        wss.handleUpgrade(req, socket, head, (ws) => wireMarketSocket(ws, session));
       }).catch((err) => {
         logger.warn('[market-ws] upgrade failed', { err: err && err.message });
         try { socket.write('HTTP/1.1 500 Internal\r\n\r\n'); socket.destroy(); } catch (_) {}
@@ -77,7 +68,13 @@ export function mountMarketWebSocket(httpServer: http.Server): WebSocketServer {
   return wss;
 }
 
-function wireMarketSocket(ws: WebSocket, clubId: string, userId: string) {
+function wireMarketSocket(ws: WebSocket, session: RealtimeSession) {
+  const { clubId, userId } = session;
+  // Held to the session it opened under for as long as it stays open (R1c).
+  const unwatch = watchSession({
+    userId, tokenVersion: session.tokenVersion, channel: 'market-ws',
+    close: () => { try { ws.close(4401, 'session ended'); } catch (_) {} },
+  });
   ws.send(JSON.stringify({ type: 'hello', clubId, ts: new Date().toISOString() }));
 
   const send = (event: MarketEvent) => {
@@ -106,6 +103,7 @@ function wireMarketSocket(ws: WebSocket, clubId: string, userId: string) {
   ws.on('close', () => {
     clearInterval(heartbeat);
     offPublic(); offClub();
+    unwatch();
     logger.info('[market-ws] disconnected', { clubId, userId, remaining: marketSubscriberCount(clubId) });
   });
 

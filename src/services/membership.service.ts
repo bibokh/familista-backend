@@ -14,6 +14,7 @@ import {
 import { prisma } from '../config/database';
 import { NotFoundError, ConflictError, ForbiddenError, BadRequestError } from '../utils/errors';
 import { resolvePlatformAuthority } from '../platform/access-levels';
+import { forgetIdentity } from '../middleware/auth.middleware';
 
 export interface MembershipActor {
   userId:     string;
@@ -263,6 +264,10 @@ export async function endClubSession(userId: string, clubId: string): Promise<vo
     await tx.refreshToken.deleteMany({ where: { userId } });
     await tx.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } });
   });
+  // After the commit: every process drops the cached identity now, so the
+  // next request is refused at once rather than when the cache expires, and
+  // any live stream this person holds is re-checked and closed (R1c).
+  forgetIdentity(userId);
 }
 
 export async function revokeMembership(

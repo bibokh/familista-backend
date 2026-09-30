@@ -24,14 +24,12 @@
 // disconnects this single client but cannot affect other subscribers.
 
 import type { Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
 import { prisma } from '../config/database';
-import { config } from '../config';
 import { logger } from '../utils/logger';
+import { verifySessionToken } from '../middleware/auth.middleware';
 import { subscribe, subscriberCount, MatchChannelEvent } from './match-channel';
 import { getState } from './tactical-state';
-
-interface JwtPayload { sub: string; clubId?: string; }
+import { endStream, watchSession } from './session-watch';
 
 const HEARTBEAT_MS = 25_000;
 
@@ -48,29 +46,34 @@ export async function matchLiveSse(req: Request, res: Response): Promise<void> {
   let userId: string | undefined;
   let effectiveClubId: string | undefined;
   let role: string | undefined;
+  let tokenVersion: number | null = null;
 
   const reqUser = (req as Request & { user?: { id: string; clubId?: string; currentClubId?: string | null; role?: string } }).user;
   if (reqUser?.id) {
     userId          = reqUser.id;
     effectiveClubId = reqUser.currentClubId ?? reqUser.clubId;
     role            = reqUser.role;
+    tokenVersion    = (req as Request & { sessionTokenVersion?: number | null }).sessionTokenVersion ?? null;
   } else {
     const token = String(req.query.token ?? '');
     if (!token) {
       res.status(401).json({ error: 'missing token' });
       return;
     }
-    let payload: JwtPayload;
-    try { payload = jwt.verify(token, config.jwt.secret) as JwtPayload; }
-    catch { res.status(401).json({ error: 'invalid token' }); return; }
-    const u = await prisma.user.findUnique({
-      where:  { id: payload.sub },
-      select: { id: true, isActive: true, clubId: true, currentClubId: true, role: true },
-    });
-    if (!u || !u.isActive) { res.status(401).json({ error: 'inactive user' }); return; }
-    userId          = u.id;
-    effectiveClubId = u.currentClubId ?? u.clubId;
-    role            = u.role;
+    // The same session rule as every request: signature, active user and
+    // token version (a session ended server-side is refused here too).
+    let session;
+    try { session = await verifySessionToken(token); }
+    catch (err) {
+      const msg = (err as Error)?.message ?? '';
+      const error = /deactivated/.test(msg) ? 'inactive user' : /Session ended/.test(msg) ? 'session ended' : 'invalid token';
+      res.status(401).json({ error });
+      return;
+    }
+    userId          = session.userId;
+    effectiveClubId = session.clubId;
+    role            = session.role;
+    tokenVersion    = session.tokenVersion;
   }
 
   // Tenant gate.
@@ -118,9 +121,16 @@ export async function matchLiveSse(req: Request, res: Response): Promise<void> {
     try { res.write(`: keepalive ${Date.now()}\n\n`); } catch { /* ignore */ }
   }, HEARTBEAT_MS);
 
+  // Held to the session it opened under for as long as it stays open (R1c).
+  const unwatch = watchSession({
+    userId: userId!, tokenVersion, channel: 'match-sse',
+    close: () => endStream(res),
+  });
+
   const teardown = () => {
     clearInterval(heartbeat);
     unsubscribe();
+    unwatch();
     logger.info('[match-sse] disconnected', { matchId, userId, remaining: subscriberCount(matchId) });
   };
   req.on('close', teardown);

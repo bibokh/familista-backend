@@ -20,6 +20,7 @@ import {
 } from '../observability/trace-bus';
 import { emit, isTracing, beginTrace } from '../observability/trace-bus';
 import { logger } from '../utils/logger';
+import { watchRequestSession } from '../realtime/session-watch';
 
 const router = Router();
 router.use(authenticate);
@@ -98,6 +99,8 @@ router.get('/stream', (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
+  // Closed as soon as the session that opened it ends (Cyber Defense R1c).
+  watchRequestSession(req, res, 'owner-trace-sse');
   res.flushHeaders?.();
 
   const send = (event: string, data: unknown): void => {

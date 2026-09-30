@@ -52,6 +52,15 @@
     "src/services/vision-inference.adapter.ts": "Operator-configured endpoint (VISION_WORKER_URL); users supply only ids, which are URL-encoded path segments.",
     "src/workers/notification-dispatch.worker.ts": "WEBHOOK targets are user-supplied and go only through the outbound guard; EMAIL/SMS/PUSH use operator-configured provider URLs from the environment, with redirects not followed and no response body kept."
   },
+  "realtimeEndpoints": {
+    "src/realtime/match-sse.ts": "Live match stream: verifySessionToken on open, watchSession while open; the stream is ended when the session ends.",
+    "src/realtime/match-ws.ts": "Match WebSocket: verifySessionToken on upgrade, watchSession while open; closed with 4401 when the session ends.",
+    "src/realtime/market-ws.ts": "Market WebSocket: verifySessionToken on upgrade, watchSession while open; closed with 4401 when the session ends.",
+    "src/routes/data-pulse.routes.ts": "Owner data-pulse stream behind authenticate; watchRequestSession ends it when the session ends.",
+    "src/routes/infrastructure.routes.ts": "Owner infrastructure stream behind authenticate; watchRequestSession ends it when the session ends.",
+    "src/routes/owner-trace.routes.ts": "Owner trace stream behind authenticate; watchRequestSession ends it when the session ends.",
+    "src/services/vision-realtime.service.ts": "Vision stream writer; its only caller (vision-engine.controller, dormant route) calls watchRequestSession before handing it the response."
+  },
   "requiredControls": [
     "csp-script-self",
     "csp-no-plugins-no-frames",
@@ -88,7 +97,8 @@
     "backup-scheduled",
     "backup-trigger-authenticated",
     "worker-callback-authenticated",
-    "outbound-url-guard"
+    "outbound-url-guard",
+    "realtime-session-revocation"
   ],
   "knownGaps": {
     "login-lockout": "PARTIAL — the lockout service has no enforcing caller; it runs in shadow mode only (login-lockout-shadow).",

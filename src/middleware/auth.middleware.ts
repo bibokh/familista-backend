@@ -58,10 +58,24 @@ type RemoteForget = (userId: string | null) => void;
 let remoteForget: RemoteForget | null = null;
 export function setRemoteIdentityPublisher(fn: RemoteForget | null): void { remoteForget = fn; }
 
+// Listeners told when an identity is dropped — in this process, whichever
+// process the change was made in (the bridge calls forgetIdentityLocal
+// everywhere). The realtime session watcher uses it to re-check the open
+// streams of that person at once (Cyber Defense R1c).
+type ForgetListener = (userId: string | null) => void;
+const forgetListeners = new Set<ForgetListener>();
+export function onIdentityForgotten(fn: ForgetListener): () => void {
+  forgetListeners.add(fn);
+  return () => { forgetListeners.delete(fn); };
+}
+
 /** Drop a cached identity in THIS process only. The bridge's receiving end. */
 export function forgetIdentityLocal(userId?: string | null): void {
   if (userId) identityCache.delete(userId);
   else identityCache.clear();
+  for (const fn of forgetListeners) {
+    try { fn(userId ?? null); } catch { /* a listener never breaks a forget */ }
+  }
 }
 
 /** Drop a cached identity — call after anything that changes who a user is. */
@@ -104,6 +118,54 @@ async function loadIdentity(userId: string): Promise<Identity | null> {
 
   identityInflight.set(userId, run);
   return run;
+}
+
+// ── sessions for long-lived connections (Cyber Defense R1c) ────────────────
+//
+// A WebSocket or an event stream is authenticated once, when it opens, and
+// then stays open. It must be held to exactly the rule a request is held to:
+// the same signature check, the same active-user check, the same token-version
+// check that ends a session server-side — and it must keep being held to it
+// while it is open, which is what `sessionStillValid` is for.
+
+export interface RealtimeSession {
+  userId: string;
+  role: UserRole;
+  /** The club the person is acting in: their chosen context, else their primary club. */
+  clubId: string;
+  /** The token's `tv` claim, or null for a token minted before the claim existed. */
+  tokenVersion: number | null;
+}
+
+/** Verifies a token the way `authenticate` does, for a connection that cannot send headers. */
+export async function verifySessionToken(token: string): Promise<RealtimeSession> {
+  let verified: JwtPayload;
+  try { verified = jwt.verify(token, config.jwt.secret) as JwtPayload; } catch {
+    throw new UnauthorizedError('Invalid or expired token');
+  }
+  const user = await loadIdentity(verified.sub);
+  if (!user) throw new UnauthorizedError('User not found or deactivated');
+  const claimed = (verified as unknown as { tv?: number }).tv;
+  if (typeof claimed === 'number' && claimed !== (user.tokenVersion ?? 0)) {
+    throw new UnauthorizedError('Session ended. Please sign in again.');
+  }
+  return {
+    userId: user.id,
+    role: user.role,
+    clubId: user.currentClubId ?? user.clubId,
+    tokenVersion: typeof claimed === 'number' ? claimed : null,
+  };
+}
+
+/**
+ * Whether a session opened earlier would still be accepted now: the person is
+ * still active and their token version has not moved on. Read through the
+ * same short-lived identity cache as every request.
+ */
+export async function sessionStillValid(userId: string, tokenVersion: number | null): Promise<boolean> {
+  const user = await loadIdentity(userId);
+  if (!user) return false;
+  return tokenVersion === null || tokenVersion === (user.tokenVersion ?? 0);
 }
 
 export async function authenticate(
@@ -205,6 +267,10 @@ export async function authenticate(
       isPlatformOwner: user.role === UserRole.SUPER_ADMIN || user.platformAdmin?.isActive === true,
     } as Express.Request['user'];
     req.clubId = effectiveClubId;
+    // The token version this request was accepted under, so an event stream it
+    // opens can be re-checked against it for as long as it stays open (R1c).
+    (req as Request & { sessionTokenVersion?: number | null }).sessionTokenVersion =
+      typeof claimed === 'number' ? claimed : null;
 
     // A club the platform has suspended cannot be OPERATED by its own people,
     // and this is the one place every authenticated request passes through, so

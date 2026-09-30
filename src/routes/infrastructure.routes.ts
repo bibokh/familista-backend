@@ -35,6 +35,7 @@ import {
   INFRASTRUCTURE_RULES, THRESHOLDS,
 } from '../infra/infrastructure-health.service';
 import { queryHistory } from '../fabric/history/history-query.service';
+import { watchRequestSession } from '../realtime/session-watch';
 
 const router = Router();
 router.use(authenticate);
@@ -321,6 +322,8 @@ router.get('/stream', async (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
+  // Closed as soon as the session that opened it ends (Cyber Defense R1c).
+  watchRequestSession(req, res, 'infrastructure-sse');
   res.flushHeaders?.();
 
   let open = true;
