@@ -173,8 +173,55 @@ an independent, off-site, encrypted copy.
 
 ## Restore drill (monthly, and after any schema-heavy release)
 
-On a trusted machine with PostgreSQL client tools of the server's major
-version, against a **new, empty** database (a local Docker Postgres is fine):
+**Versions.** Production backups are written by pg_dump 18 (the version on the
+Render service). Only pg_restore 18 or newer reads them, and pg_restore 18
+sets `transaction_timeout`, which a PostgreSQL 16 server rejects — so a
+backup restores into **PostgreSQL 17 or newer**. The drill therefore uses a
+PostgreSQL 18 target.
+
+### Windows (one command)
+
+Prerequisites: Docker Desktop running, the repository built (`npm run build`),
+`offline-restore.env` in `%USERPROFILE%\familista-backup-keys\`, and the
+backup's object key (from the bucket listing or the `BackupRecord`).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\restore-drill.ps1 -Object 2026/09/30/familista-20260930T031700Z-0a1b2c3d.fbk
+```
+
+Run it as one command — do not paste its steps into the console. It asks for
+the Backblaze **Read Only** key id and key at hidden prompts (a value that is
+not a single token is refused and nothing is stored), then:
+
+1. builds `familista-restore-drill-runner:pg18` once (`scripts/restore-drill/Dockerfile`:
+   the official `postgres:18` image plus Node 20; nothing installed from a
+   package repository);
+2. starts a throwaway `postgres:18` target — new, empty, no published port, a
+   random password nobody sees;
+3. writes the B2 key and the target URL to a temporary env file only you can
+   read, and passes it and `offline-restore.env` with `--env-file` — never on a
+   command line, never through a shared environment variable; the file is
+   deleted whatever happens;
+4. runs `node dist/scripts/backup.js drill <key>` in the runner, on the
+   target's network, with no production URL;
+5. queries the restored database directly, compares it with the drill's
+   report, removes the target (`-KeepDatabase` keeps it) and prints:
+
+```
+STEP 10 RESTORE DRILL: PASS
+Backup object: familista/postgres/…
+Public tables restored: <n>
+Core row counts: User=…, Club=…, Team=…, Player=…, Membership=…
+Migration head: <head>
+```
+
+PASS requires the drill's own `"ok":true` (signature, hash, key, authenticated
+decryption, single-transaction restore) and that the database agrees with it:
+the same table count, schema head and core row counts.
+
+### Linux / macOS
+
+With pg_restore and psql 18 on the PATH and an empty PostgreSQL 17+ database:
 
 ```
 set -a; . ./offline-restore.env; set +a
@@ -186,16 +233,17 @@ export DRILL_CONFIRM_ISOLATED=yes
 BACKUP_OBJECT=2026/09/29/familista-20260929T031700Z-0a1b2c3d.fbk bash scripts/restore.sh
 ```
 
-The output is one JSON line: schema head, table count and row counts of the
-core tables. Compare them with production's. The drill writes nothing to
-production.
+The object key is relative to `familista/postgres/`. The output is one JSON
+line: schema head, table count and row counts of the core tables. The drill
+writes nothing to production.
 
 ## Recovery
 
 Never restore over the live database (`scripts/rollback.sh` refuses to).
 Instead:
 
-1. Create a new, empty PostgreSQL database (Render: new database, same region).
+1. Create a new, empty PostgreSQL database, **version 17 or newer** (Render:
+   new database, same region — see *Versions* above).
 2. Run the drill above with `DRILL_DATABASE_URL` pointing at it.
 3. Check the report, then point the service's `DATABASE_URL` / `DIRECT_URL`
    at the new database and redeploy. `prisma migrate deploy` on start applies
