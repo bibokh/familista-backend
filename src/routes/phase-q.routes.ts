@@ -38,10 +38,9 @@ router.get('/video/shared/:shareToken', C.getSharedClip);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AUTHENTICATED routes — all routes below this line require a valid JWT session.
-// The transcode callback is the sole exception — it is called by the
-// internal VideoTranscodeWorker via direct function import, not over HTTP.
-// If an external transcode provider needs this endpoint it must add a
-// X-Worker-Secret header validated here; for now the worker bypasses HTTP.
+// The transcode callback is not here: a user session must never be able to set
+// where a video plays from. It is POST /internal/video/transcode-callback,
+// authenticated as a worker (src/controllers/internal-video.controller.ts).
 // ─────────────────────────────────────────────────────────────────────────────
 router.use(authenticate);
 
@@ -57,9 +56,6 @@ router.delete('/events/:id',                         C.deleteEvent);
 
 // Bulk ingest (up to 5 000 events from a data provider feed)
 router.post  ('/events/batch',                       C.batchIngestEvents);
-
-// Transcode callback (internal — called by VideoTranscodeWorker, not user-facing)
-router.post  ('/video/transcode-callback',           C.handleTranscodeCallback);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOMAIN 2 — Player Statistics

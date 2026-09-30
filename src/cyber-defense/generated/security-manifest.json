@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-29T20:18:18.671Z",
+  "generatedAt": "2026-09-30T15:00:51.822Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,8 +8,8 @@
   },
   "apiSurface": {
     "mountedRouters": 50,
-    "handlers": 632,
-    "publicHandlers": 19,
+    "handlers": 739,
+    "publicHandlers": 21,
     "publicRoutes": [
       {
         "route": "GET /auth/reset-password/:token/validate",
@@ -25,6 +25,16 @@
         "route": "GET /invitations/preview",
         "file": "src/routes/invitation.routes.ts",
         "line": 29
+      },
+      {
+        "route": "GET /matches/:id/live",
+        "file": "src/routes/match.routes.ts",
+        "line": 31
+      },
+      {
+        "route": "GET /phase-q/video/shared/:shareToken",
+        "file": "src/routes/phase-q.routes.ts",
+        "line": 37
       },
       {
         "route": "POST /auth/forgot-password",
@@ -111,42 +121,47 @@
       {
         "route": "GET /api/health",
         "file": "src/app.ts",
-        "line": 227
+        "line": 236
       },
       {
         "route": "GET /app/*",
         "file": "src/app.ts",
-        "line": 301
+        "line": 310
       },
       {
         "route": "GET /healthz",
         "file": "src/app.ts",
-        "line": 228
+        "line": 237
       },
       {
         "route": "GET /internal/backups/runs/:id",
         "file": "src/app.ts",
-        "line": 237
+        "line": 246
       },
       {
         "route": "GET /invite",
         "file": "src/app.ts",
-        "line": 291
+        "line": 300
       },
       {
         "route": "GET /invite/*",
         "file": "src/app.ts",
-        "line": 291
+        "line": 300
       },
       {
         "route": "GET /reset-password",
         "file": "src/app.ts",
-        "line": 281
+        "line": 290
       },
       {
         "route": "POST /internal/backups/run",
         "file": "src/app.ts",
-        "line": 236
+        "line": 245
+      },
+      {
+        "route": "POST /internal/video/transcode-callback",
+        "file": "src/app.ts",
+        "line": 167
       }
     ],
     "mounts": [
@@ -168,7 +183,7 @@
         "path": "/matches",
         "module": "match.routes",
         "handlers": 38,
-        "public": 0,
+        "public": 1,
         "routerWideAuth": true
       },
       {
@@ -405,22 +420,22 @@
       {
         "path": "/phase-o",
         "module": "phase-o.routes",
-        "handlers": 27,
+        "handlers": 53,
         "public": 0,
         "routerWideAuth": true
       },
       {
         "path": "/phase-p",
         "module": "phase-p.routes",
-        "handlers": 13,
+        "handlers": 15,
         "public": 0,
         "routerWideAuth": true
       },
       {
         "path": "/phase-q",
         "module": "phase-q.routes",
-        "handlers": 11,
-        "public": 0,
+        "handlers": 90,
+        "public": 1,
         "routerWideAuth": true
       },
       {
@@ -747,6 +762,12 @@
       "status": "PRESENT",
       "evidence": "src/security/backup/backup-trigger.ts",
       "note": "The backup trigger takes no input, authenticates by HMAC-SHA256 with a 5-minute window and constant-time comparison, is closed without a secret, runs one backup at a time and none within 20 hours of a success."
+    },
+    {
+      "id": "worker-callback-authenticated",
+      "status": "PRESENT",
+      "evidence": "src/controllers/internal-video.controller.ts",
+      "note": "The transcode callback is reachable only outside the API with an HMAC-SHA256 over method, path, timestamp and raw body (5-minute window, constant-time), is closed without a secret, and cannot set a storage key outside the asset's own club folder."
     }
   ],
   "secrets": {
@@ -1076,6 +1097,7 @@
         "src/security-n/signed-recommendations.service.ts",
         "src/security/backup/backup-trigger.ts",
         "src/security/envelope-sign.ts",
+        "src/security/worker-callback.ts",
         "src/services/device-auth.service.ts",
         "src/services/device-registry.service.ts",
         "src/vision/camera-registry.service.ts"
@@ -1120,6 +1142,7 @@
         "src/security/backup/restore-drill.ts",
         "src/security/login-attempt.service.ts",
         "src/security/refresh-token-hash.ts",
+        "src/security/worker-callback.ts",
         "src/services/admin-asset.service.ts",
         "src/services/admin-impersonation.service.ts",
         "src/services/ai-agent-decision.service.ts",
@@ -1147,6 +1170,7 @@
         "src/security-n/signed-recommendations.service.ts",
         "src/security/backup/backup-trigger.ts",
         "src/security/envelope-sign.ts",
+        "src/security/worker-callback.ts",
         "src/services/device-auth.service.ts",
         "src/services/device-registry.service.ts",
         "src/vision/camera-registry.service.ts",
@@ -1227,6 +1251,7 @@
       "src/app.ts",
       "src/auth-prod/mfa.service.ts",
       "src/controllers/internal-backup.controller.ts",
+      "src/controllers/internal-video.controller.ts",
       "src/cyber-defense/lockout-shadow.ts",
       "src/fabric/secrets/keyring.ts",
       "src/middleware/auth.middleware.ts",
@@ -1294,14 +1319,16 @@
       "src/security/backup/restore-drill.ts",
       "src/security/login-attempt.service.ts",
       "src/security/security-event.service.ts",
+      "src/security/worker-callback.ts",
       "src/services/auth.service.ts",
       "src/services/device-auth.service.ts",
       "src/services/stripe.service.ts",
-      "src/utils/password.ts"
+      "src/utils/password.ts",
+      "src/video/video-asset.service.ts"
     ]
   },
   "counts": {
-    "controlsPresent": 34,
+    "controlsPresent": 35,
     "controlsPartial": 2,
     "controlsAbsent": 6,
     "cryptoUses": 11

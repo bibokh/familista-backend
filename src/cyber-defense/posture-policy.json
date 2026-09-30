@@ -20,7 +20,9 @@
     "POST /devices/sessions/:id/packets/batch": "acceptUserOrDevice: requires a user JWT or a device JWT; the scanner does not recognise that guard by name.",
     "POST /devices/:id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/packet": "acceptUserOrDevice: device-keyed alias of the packet ingest; requires a user JWT or a device JWT.",
     "POST /neuro/streams/:id/event-batch": "Edge camera ingest: HMAC over the batch verified with the camera credential, nonce replay-checked (device-nonce service).",
-    "POST /vision/cameras/:id/frame": "Edge camera ingest: HMAC over ts.nonce.sha256(detections) verified with the camera credential."
+    "POST /vision/cameras/:id/frame": "Edge camera ingest: HMAC over ts.nonce.sha256(detections) verified with the camera credential.",
+    "GET /phase-q/video/shared/:shareToken": "A shared clip link: the 192-bit random share token in the path is the credential, and the service refuses an unknown or expired token. Returns that one clip only.",
+    "GET /matches/:id/live": "Live match stream (SSE). Not anonymous: EventSource cannot send headers, so the handler verifies a user JWT from ?token= itself and checks the match's club. Known weaknesses tracked elsewhere: the token travels in the URL (websocket-token-outside-url) and session revocation is not checked on realtime channels (remediation R1c)."
   },
   "appLevelRoutes": {
     "GET /api/health": "Liveness probe for the load balancer; returns no data.",
@@ -30,7 +32,8 @@
     "GET /invite/*": "Serves the static invitation page shell.",
     "GET /reset-password": "Serves the static password-reset page shell.",
     "POST /internal/backups/run": "Scheduled backup trigger for .github/workflows/backup.yml. No session by design: authenticated by HMAC-SHA256 (BACKUP_TRIGGER_SECRET) over method, path and timestamp, 5-minute window, constant-time; closed when the secret is unset; takes no body or query; rate-limited; one run at a time; none within 20 hours of a success.",
-    "GET /internal/backups/runs/:id": "Status of one scheduled backup run, same HMAC authentication and rate limit; answers only id, state, start and finish times and ok."
+    "GET /internal/backups/runs/:id": "Status of one scheduled backup run, same HMAC authentication and rate limit; answers only id, state, start and finish times and ok.",
+    "POST /internal/video/transcode-callback": "Transcode result from an external transcode worker (R1a). No session by design, and no user token opens it: authenticated by HMAC-SHA256 (VIDEO_WORKER_CALLBACK_SECRET) over method, path, timestamp and the raw body, 5-minute window, constant-time; closed when the secret is unset; rate-limited; strict body schema; the service refuses any storage key outside the asset's own club folder. The in-process transcode worker calls the service directly and never uses this route."
   },
   "dormantRouteModules": {
     "admin-dashboard.routes": "Not mounted. Must not be mounted without a security review.",
@@ -76,7 +79,8 @@
     "backup-restore-drill-in-ci",
     "backup-records-platform-only",
     "backup-scheduled",
-    "backup-trigger-authenticated"
+    "backup-trigger-authenticated",
+    "worker-callback-authenticated"
   ],
   "knownGaps": {
     "login-lockout": "PARTIAL — the lockout service has no enforcing caller; it runs in shadow mode only (login-lockout-shadow).",

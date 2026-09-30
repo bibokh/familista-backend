@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-30T13:12:42.810Z",
+  "generatedAt": "2026-09-30T15:09:27.097Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -902,7 +902,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 164 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 166 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -962,7 +962,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "553 TypeScript modules under src/."
+      "note": "555 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1448,8 +1448,8 @@
     "serviceModules": 101,
     "middleware": 22,
     "fabricModules": 52,
-    "totalTypeScript": 553,
-    "testSuites": 164,
+    "totalTypeScript": 555,
+    "testSuites": 166,
     "migrations": 43,
     "prismaModels": 340,
     "prismaEnums": 209
@@ -1829,7 +1829,7 @@
       "path": "/phase-q",
       "router": "phaseQRoutes",
       "file": "src/routes/phase-q.routes.ts",
-      "writes": 47,
+      "writes": 46,
       "reads": 44
     },
     {

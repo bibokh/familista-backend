@@ -318,13 +318,6 @@ export async function deleteVideoAsset(req: Request, res: Response, next: NextFu
 }
 
 // Transcode callback — called by VideoTranscodeWorker (internal, no auth guard needed in route)
-export async function handleTranscodeCallback(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const result = await VideoAssetSvc.handleTranscodeCallback(req.body);
-    res.json(result);
-  } catch (err) { next(err); }
-}
-
 // HLS streaming proxy — pipes S3 bytes through Express so the browser never
 // hits S3 directly (no CORS / presigned URL complexity for hls.js).
 // Route: GET /video/assets/:assetId/hls/:filename

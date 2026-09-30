@@ -122,7 +122,7 @@ const indexSrc = read(INDEX) || '';
 const importsByName = {};
 for (const m of indexSrc.matchAll(/import\s+(\w+)\s+from\s+'\.\/([\w.-]+)'/g)) importsByName[m[1]] = m[2];
 
-const ROUTE_RE = /router\.(get|post|put|patch|delete)\(\s*(['"`])([^'"`]*)\2/g;
+const ROUTE_RE = /router\.(get|post|put|patch|delete)\s*\(\s*(['"`])([^'"`]*)\2/g;
 
 const mounts = [];
 const publicRoutes = [];
@@ -136,7 +136,10 @@ for (const m of indexSrc.matchAll(/router\.use\(\s*'([^']+)'\s*,([^;]+?)\);/g)) 
   const file = cite(`src/routes/${moduleName}.ts`);
   const src = read(file) || '';
   const mountAuth = args.slice(0, -1).some((a) => /authenticate/.test(a));
-  const gate = src.search(/router\.use\(\s*authenticate\b/);
+  // Comments are blanked (same length, so offsets hold) before looking for the
+  // gate: a comment that merely mentions router.use(authenticate) is not one.
+  const code = src.replace(/\/\/[^\n]*/g, (c) => ' '.repeat(c.length));
+  const gate = code.search(/router\.use\(\s*authenticate\b/);
   let handlers = 0;
   let open = 0;
   for (const r of src.matchAll(ROUTE_RE)) {
@@ -450,6 +453,30 @@ function backupTriggerProtected() {
 }
 
 
+// R1a: the transcode callback is a worker's, never a user session's. It is an
+// app-level route outside every API router, authenticated by an HMAC over the
+// method, path, timestamp and raw body (constant-time, 5-minute window), closed
+// without its secret, and the service keeps every storage key inside the
+// asset's own club folder whoever calls it.
+function workerCallbackProtected() {
+  const w = read(cite('src/security/worker-callback.ts')) || '';
+  const c = read(cite('src/controllers/internal-video.controller.ts')) || '';
+  const v = read(cite('src/video/video-asset.service.ts')) || '';
+  const routesSrc = fs.readdirSync(path.join(ROOT, 'src/routes')).filter((f) => f.endsWith('.ts'))
+    .map((f) => read(`src/routes/${f}`) || '').join('\n');
+  const handler = (() => { const i = v.indexOf('export async function handleTranscodeCallback'); return i < 0 ? '' : v.slice(i, v.indexOf('\nexport ', i + 10)); })();
+  return /createHmac\('sha256'/.test(w) && /timingSafeEqual\(/.test(w)
+    && /createHash\('sha256'\)\.update\(body\)/.test(w)
+    && /return raw\.length >= MIN_SECRET_LENGTH \? Buffer\.from\(raw, 'utf8'\) : null/.test(w)
+    && /worker callback is not configured/.test(c) && /express\.raw\(/.test(c)
+    && /requireWorkerCallback\(deps\),\s*transcodeCallbackHandler\(deps\)/.test(c)
+    && /app\.post\('\/internal\/video\/transcode-callback', \.\.\.transcodeCallbackRoute\(\)\)/.test(appSrc)
+    && appSrc.indexOf("app.post('/internal/video/transcode-callback'") < appSrc.indexOf('app.use(express.json(')
+    && !/router\.\w+\s*\(\s*'[^']*transcode-callback/.test(routesSrc)
+    && /assertKeyWithinAsset\(asset, dto\.hlsManifestKey/.test(handler) && /assertKeyWithinAsset\(asset, dto\.thumbStorageKey/.test(handler)
+    && /clubs\/\$\{asset\.clubId\}\/videos\/\$\{asset\.id\}\//.test(v);
+}
+
 const backupCryptoSrc = read(cite('src/security/backup/backup-crypto.ts')) || '';
 const backupConfigSrc = read(cite('src/security/backup/backup-config.ts')) || '';
 const restoreDrillSrc = read(cite('src/security/backup/restore-drill.ts')) || '';
@@ -487,6 +514,8 @@ controls.push(
     'GitHub Actions asks the running service daily, over a signed request, to run its fixed backup; the workflow holds only the trigger secret and no database or backup key.'),
   control('backup-trigger-authenticated', backupTriggerProtected() ? 'PRESENT' : 'ABSENT', 'src/security/backup/backup-trigger.ts',
     'The backup trigger takes no input, authenticates by HMAC-SHA256 with a 5-minute window and constant-time comparison, is closed without a secret, runs one backup at a time and none within 20 hours of a success.'),
+  control('worker-callback-authenticated', workerCallbackProtected() ? 'PRESENT' : 'ABSENT', 'src/controllers/internal-video.controller.ts',
+    'The transcode callback is reachable only outside the API with an HMAC-SHA256 over method, path, timestamp and raw body (5-minute window, constant-time), is closed without a secret, and cannot set a storage key outside the asset\'s own club folder.'),
 );
 
 // ── the manifest ─────────────────────────────────────────────────────────────
