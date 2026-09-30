@@ -6,6 +6,7 @@
 .DESCRIPTION
   Run it as ONE command from the repository root, after `npm run build`:
 
+    powershell -ExecutionPolicy Bypass -File .\scripts\restore-drill.ps1 -Latest
     powershell -ExecutionPolicy Bypass -File .\scripts\restore-drill.ps1 -Object <backup key>
 
   Why a script and not pasted commands: a pasted block that contains hidden
@@ -20,6 +21,8 @@
     1. checks Docker, the offline key file (names only) and the built CLI
        (dist/scripts/backup.js)
     2. asks for the Backblaze B2 Read Only key id and key, hidden
+       (with -Latest: lists the prefix with that key and picks the newest
+       complete backup - a .fbk whose signed .fbk.manifest.json is beside it)
     3. starts a throwaway PostgreSQL 18 container as the target: new, empty,
        no published port, a random password nobody sees. PostgreSQL 18
        because production backups are written by pg_dump 18, whose restore
@@ -42,10 +45,16 @@
 .PARAMETER Object
   The backup's object key, e.g. 2026/09/30/familista-20260930T031700Z-0a1b2c3d.fbk.
   A leading "familista/postgres/" is accepted and removed.
+
+.PARAMETER Latest
+  Restore the newest complete backup under the prefix instead of a named one.
+  Give either -Latest or -Object, not both. The choice is only a choice: the
+  drill still verifies the manifest signature, hash, size and key.
 #>
 [CmdletBinding()]
 param(
-  [Parameter(Mandatory = $true)] [string] $Object,
+  [string] $Object,
+  [switch] $Latest,
   [string] $KeysFile = (Join-Path ([Environment]::GetFolderPath('UserProfile')) 'familista-backup-keys\offline-restore.env'),
   [string] $Bucket = 'familista-backups-2026-739261',
   [string] $Region = 'eu-central-003',
@@ -88,6 +97,21 @@ function Read-Secret([string] $Name, [string] $Pattern) {
   Fail "$Name was not provided"
 }
 
+# A key the drill accepts as a backup object: a .fbk, never its .manifest.json.
+function Test-BackupKey([string] $Key) {
+  return ($Key -cmatch '^[A-Za-z0-9._\-/]+\.fbk$') -and -not $Key.Contains('..') -and -not $Key.StartsWith('/') -and
+         -not $Key.EndsWith('.manifest.json')
+}
+
+# Output from a container, with the credentials entered here masked, should any
+# error message ever repeat one.
+function Hide-Secrets([string] $Text) {
+  foreach ($s in @($accessKeyId, $secretKey)) { if ($s) { $Text = $Text.Replace($s, '***') } }
+  return $Text
+}
+
+function Prop($o, [string] $n) { $p = $o.PSObject.Properties[$n]; if ($p) { return $p.Value } return $null }
+
 $repo = Split-Path -Parent $PSScriptRoot
 $tmp = $null
 $target = $null
@@ -105,10 +129,11 @@ try {
     if ($keyNames -notcontains $n) { Fail "$n is missing from $KeysFile" }
   }
 
+  if ([bool]$Object -eq [bool]$Latest) { Fail 'give exactly one of -Latest or -Object <backup key>' }
   if ($Prefix -and -not $Prefix.EndsWith('/')) { $Prefix = "$Prefix/" }
-  if ($Object.StartsWith($Prefix)) { $Object = $Object.Substring($Prefix.Length) }
-  if ($Object -notmatch '^[A-Za-z0-9._\-/]+\.fbk$' -or $Object.Contains('..') -or $Object.StartsWith('/')) {
-    Fail 'the object must be a .fbk backup key, e.g. 2026/09/30/familista-...fbk'
+  if (-not $Latest) {
+    if ($Object.StartsWith($Prefix)) { $Object = $Object.Substring($Prefix.Length) }
+    if (-not (Test-BackupKey $Object)) { Fail 'the object must be a .fbk backup key, e.g. 2026/09/30/familista-...fbk' }
   }
 
   # -- 2 - B2 Read Only credentials, hidden ---------------------------------
@@ -125,7 +150,50 @@ try {
     if ($buildExit -ne 0) { Fail "could not build $Image" }
   }
 
-  # -- 4 - the target: a fresh PostgreSQL 18, isolated and empty ---------
+  # -- 4 - the B2 settings to a temporary env file only you can read ------
+  $tmp = Join-Path ([IO.Path]::GetTempPath()) ('fam-drill-' + [guid]::NewGuid().ToString('N'))
+  New-Item -ItemType Directory -Path $tmp | Out-Null
+  if ($env:OS -eq 'Windows_NT') {
+    & icacls $tmp /inheritance:r /grant:r "$($env:USERNAME):(OI)(CI)F" | Out-Null
+    if ($LASTEXITCODE -ne 0) { Fail 'could not restrict the temporary folder' }
+  } else {
+    & chmod 700 $tmp
+  }
+  $storeLines = @(
+    "BACKUP_S3_ACCESS_KEY_ID=$accessKeyId",
+    "BACKUP_S3_SECRET_ACCESS_KEY=$secretKey",
+    "BACKUP_S3_BUCKET=$Bucket",
+    "BACKUP_S3_REGION=$Region",
+    "BACKUP_S3_ENDPOINT=$Endpoint",
+    "BACKUP_S3_PREFIX=$Prefix"
+  )
+  if ($ForcePathStyle) { $storeLines += 'BACKUP_S3_FORCE_PATH_STYLE=true' }
+
+  # -- 5 - with -Latest: the newest complete backup under the prefix --------
+  if ($Latest) {
+    $storeFile = Join-Path $tmp 'store.env'
+    [IO.File]::WriteAllText($storeFile, (($storeLines -join "`n") + "`n"), (New-Object Text.UTF8Encoding($false)))
+    Write-Host "Listing $Prefix in $Bucket (Read Only) ..."
+    # Only the B2 settings go in: no offline key, no database URL.
+    $listArgs = @('run', '--rm', '-v', "${repo}:/app:ro", '--env-file', $storeFile,
+      $Image, 'node', '/app/dist/scripts/backup.js', 'latest')
+    $ErrorActionPreference = 'Continue'
+    $listOutput = @(& docker @listArgs 2>&1 | ForEach-Object { Hide-Secrets "$_" })
+    $listExit = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    Remove-Item -LiteralPath $storeFile -Force
+    $listLine = $listOutput | Where-Object { $_.TrimStart().StartsWith('{') } | Select-Object -Last 1
+    if (-not $listLine) { $listOutput | ForEach-Object { Write-Host $_ }; Fail "the listing produced no report (exit $listExit)" }
+    $found = $listLine | ConvertFrom-Json
+    if ($listExit -ne 0 -or -not (Prop $found 'ok')) { Fail "could not find a backup to restore: $(Prop $found 'error')" }
+    $Object = "$(Prop $found 'objectKey')"
+    if (-not (Test-BackupKey $Object)) { Fail 'the listing returned something that is not a .fbk backup key' }
+    $modified = Prop $found 'lastModified'   # PowerShell 7 reads the ISO time as a date; 5.1 keeps the string
+    if ($modified -is [datetime]) { $modified = $modified.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ') }
+    Write-Host "Latest backup: $Prefix$Object (modified $modified, $(Prop $found 'complete') complete backup(s) found)"
+  }
+
+  # -- 6 - the target: a fresh PostgreSQL 18, isolated and empty ---------
   $pgUser = 'postgres'
   $pgDb = 'familista_drill'
   $pgPass = [guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')
@@ -143,31 +211,16 @@ try {
   $tables = Invoke-Quiet 'docker' @('exec', $target, 'psql', '-U', $pgUser, '-d', $pgDb, '-Atc', "select count(*) from pg_tables where schemaname='public'")
   if ($tables -ne '0') { Fail 'the new target database is not empty' }
 
-  # -- 5 - secrets to a temporary env file only you can read ---------------
-  $tmp = Join-Path ([IO.Path]::GetTempPath()) ('fam-drill-' + [guid]::NewGuid().ToString('N'))
-  New-Item -ItemType Directory -Path $tmp | Out-Null
-  if ($env:OS -eq 'Windows_NT') {
-    & icacls $tmp /inheritance:r /grant:r "$($env:USERNAME):(OI)(CI)F" | Out-Null
-    if ($LASTEXITCODE -ne 0) { Fail 'could not restrict the temporary folder' }
-  } else {
-    & chmod 700 $tmp
-  }
+  # -- 7 - the drill's settings, in the same private folder ---------------
   $drillUrl = 'postgresql://{0}:{1}@127.0.0.1:5432/{2}' -f [uri]::EscapeDataString($pgUser), [uri]::EscapeDataString("$pgPass"), [uri]::EscapeDataString($pgDb)
   $pgPass = $null
-  $lines = @(
-    "BACKUP_S3_ACCESS_KEY_ID=$accessKeyId",
-    "BACKUP_S3_SECRET_ACCESS_KEY=$secretKey",
-    "BACKUP_S3_BUCKET=$Bucket",
-    "BACKUP_S3_REGION=$Region",
-    "BACKUP_S3_ENDPOINT=$Endpoint",
-    "BACKUP_S3_PREFIX=$Prefix",
+  $lines = $storeLines + @(
     "DRILL_DATABASE_URL=$drillUrl",
     'DRILL_CONFIRM_ISOLATED=yes'
   )
-  if ($ForcePathStyle) { $lines += 'BACKUP_S3_FORCE_PATH_STYLE=true' }
   $envFile = Join-Path $tmp 'drill.env'
   [IO.File]::WriteAllText($envFile, (($lines -join "`n") + "`n"), (New-Object Text.UTF8Encoding($false)))
-  $drillUrl = $null; $lines = $null
+  $drillUrl = $null; $lines = $null; $storeLines = $null
 
   # Every name the drill requires, checked before it runs (values never read back).
   $present = @(Get-Content -LiteralPath $envFile, $KeysFile | Where-Object { $_ -match '^[A-Z0-9_]+=.+' } | ForEach-Object { ($_ -split '=', 2)[0] })
@@ -176,13 +229,13 @@ try {
     if ($present -notcontains $n) { Fail "$n is not set" }
   }
 
-  # -- 6 - the drill --------------------------------------------------------
+  # -- 8 - the drill --------------------------------------------------------
   Write-Host "Restoring $Prefix$Object into $pgDb in $target (PostgreSQL 18, isolated) ..."
   $dockerArgs = @('run', '--rm', '--network', "container:$target",
     '-v', "${repo}:/app:ro", '--env-file', $KeysFile, '--env-file', $envFile,
     $Image, 'node', '/app/dist/scripts/backup.js', 'drill', $Object)
   $ErrorActionPreference = 'Continue'
-  $output = @(& docker @dockerArgs 2>&1 | ForEach-Object { "$_" })
+  $output = @(& docker @dockerArgs 2>&1 | ForEach-Object { Hide-Secrets "$_" })
   $drillExit = $LASTEXITCODE
   $ErrorActionPreference = 'Stop'
   Remove-Item -LiteralPath $tmp -Recurse -Force; $tmp = $null
@@ -191,10 +244,9 @@ try {
   if (-not $jsonLine) { $output | ForEach-Object { Write-Host $_ }; Fail "the drill produced no report (exit $drillExit)" }
   Write-Host $jsonLine
   $report = $jsonLine | ConvertFrom-Json
-  function Prop($o, [string] $n) { $p = $o.PSObject.Properties[$n]; if ($p) { return $p.Value } return $null }
   if ($drillExit -ne 0 -or -not (Prop $report 'ok')) { Fail "the drill failed: $(Prop $report 'error')" }
 
-  # -- 7 - independent check, in the restored database itself --------------
+  # -- 9 - independent check, in the restored database itself --------------
   $sql = @'
 SELECT 'public_tables', count(*)::text FROM pg_tables WHERE schemaname = 'public'
 UNION ALL SELECT 'migration_head', coalesce(max(migration_name), '') FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
@@ -242,6 +294,6 @@ finally {
   if ($tmp -and (Test-Path -LiteralPath $tmp)) { Remove-Item -LiteralPath $tmp -Recurse -Force }
   if ($target -and -not $KeepDatabase) { Invoke-Quiet 'docker' @('rm', '-f', '-v', $target) | Out-Null }
   elseif ($target) { Write-Host "Kept the restored database in container $target (remove it with: docker rm -f -v $target)" }
-  $accessKeyId = $null; $secretKey = $null
+  $accessKeyId = $null; $secretKey = $null; $storeLines = $null
   Remove-Item Env:BACKUP_S3_ACCESS_KEY_ID, Env:BACKUP_S3_SECRET_ACCESS_KEY -ErrorAction SilentlyContinue
 }

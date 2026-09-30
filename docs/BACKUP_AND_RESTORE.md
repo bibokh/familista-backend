@@ -182,12 +182,28 @@ PostgreSQL 18 target.
 ### Windows (one command)
 
 Prerequisites: Docker Desktop running, the repository built (`npm run build`),
-`offline-restore.env` in `%USERPROFILE%\familista-backup-keys\`, and the
-backup's object key (from the bucket listing or the `BackupRecord`).
+and `offline-restore.env` in `%USERPROFILE%\familista-backup-keys\`.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\restore-drill.ps1 -Latest
+```
+
+`-Latest` lists the prefix with the same Read Only key and restores the newest
+**complete** backup: a `.fbk` whose signed `.fbk.manifest.json` is beside it.
+A manifest is never chosen, a `.fbk` without its manifest (an interrupted
+upload) is skipped, and an empty prefix stops the drill before anything
+starts. The listing container gets the B2 settings only — not the offline key,
+not a database URL. Choosing is not trusting: the drill still verifies the
+signature, hash, size and key of what was chosen. To restore a particular
+backup instead, name it (give one option or the other, not both):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\restore-drill.ps1 -Object 2026/09/30/familista-20260930T031700Z-0a1b2c3d.fbk
 ```
+
+The same choice is available without PowerShell as
+`node dist/scripts/backup.js latest` (B2 settings in the environment; prints
+one JSON line with `objectKey`).
 
 Run it as one command — do not paste its steps into the console. It asks for
 the Backblaze **Read Only** key id and key at hidden prompts (a value that is
@@ -202,7 +218,8 @@ not a single token is refused and nothing is stored), then:
    read, and passes it and `offline-restore.env` with `--env-file` — never on a
    command line, never through a shared environment variable; the file is
    deleted whatever happens;
-4. runs `node dist/scripts/backup.js drill <key>` in the runner, on the
+4. runs `node dist/scripts/backup.js drill <key>` (the key named, or found by
+   `-Latest`) in the runner, on the
    target's network, with no production URL;
 5. queries the restored database directly, compares it with the drill's
    report, removes the target (`-KeepDatabase` keeps it) and prints:
