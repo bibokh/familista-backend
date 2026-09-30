@@ -3,6 +3,7 @@
 //   node dist/scripts/backup.js keygen <dir>   write two key pairs into <dir> (0600)
 //   node dist/scripts/backup.js run            take one encrypted off-site backup
 //   node dist/scripts/backup.js drill <key>    restore <key> into an isolated database
+//   node dist/scripts/backup.js latest         name the newest complete backup in the store
 //
 // Output is one JSON line. No key, password or connection string is ever
 // printed; keygen writes its keys to files, not to the terminal.
@@ -10,11 +11,26 @@
 import fs from 'fs';
 import path from 'path';
 import { generateBackupKeys } from '../security/backup/backup-crypto';
-import { drillConfigFromEnv, runnerConfigFromEnv } from '../security/backup/backup-config';
+import { drillConfigFromEnv, runnerConfigFromEnv, storeFromEnv } from '../security/backup/backup-config';
+import { findLatestBackup } from '../security/backup/backup-latest';
+import { storeFor } from '../security/backup/backup-store';
 import { runBackup } from '../security/backup/backup-runner';
 import { runRestoreDrill } from '../security/backup/restore-drill';
 
 function out(obj: unknown): void { process.stdout.write(`${JSON.stringify(obj)}\n`); }
+
+/** Settings whose values must never reach the output, even inside an error from a library. */
+const SECRET_SETTINGS = ['BACKUP_S3_ACCESS_KEY_ID', 'BACKUP_S3_SECRET_ACCESS_KEY', 'BACKUP_ENCRYPTION_PRIVATE_KEY',
+  'BACKUP_SIGNING_PRIVATE_KEY', 'DATABASE_URL', 'DIRECT_URL', 'BACKUP_DATABASE_URL', 'DRILL_DATABASE_URL'] as const;
+
+export function redact(message: string, env: NodeJS.ProcessEnv): string {
+  let m = message;
+  for (const name of SECRET_SETTINGS) {
+    const v = (env[name] ?? '').trim();
+    if (v.length >= 8) m = m.split(v).join(`[${name}]`);
+  }
+  return m;
+}
 
 export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env): Promise<number> {
   const [cmd, arg] = argv;
@@ -42,9 +58,14 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
       out(await runRestoreDrill(drillConfigFromEnv(env), arg));
       return 0;
     }
-    throw new Error('usage: backup keygen <dir> | run | drill <object key>');
+    if (cmd === 'latest') {
+      // Needs only the store settings: lists names, reads nothing, writes nothing.
+      out({ ok: true, ...(await findLatestBackup(storeFor(storeFromEnv(env)))) });
+      return 0;
+    }
+    throw new Error('usage: backup keygen <dir> | run | drill <object key> | latest');
   } catch (err) {
-    out({ ok: false, error: (err as Error)?.message ?? String(err) });
+    out({ ok: false, error: redact((err as Error)?.message ?? String(err), env) });
     return 1;
   }
 }

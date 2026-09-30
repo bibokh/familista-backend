@@ -94,6 +94,41 @@ describe('scripts/restore-drill.ps1', () => {
     expect(code).toMatch(/STEP 10 RESTORE DRILL: /);
   });
 
+  it('takes exactly one of -Latest or -Object, and checks a named key the same way as a found one', () => {
+    expect(code).toMatch(/\[string\] \$Object,\n\s+\[switch\] \$Latest,/);
+    expect(code).not.toMatch(/Mandatory/);
+    expect(code).toMatch(/if \(\[bool\]\$Object -eq \[bool\]\$Latest\) \{ Fail /);
+    expect(code).toMatch(/if \(-not \(Test-BackupKey \$Object\)\) \{ Fail 'the object must be/);
+  });
+
+  it('-Latest lists with the Read Only B2 settings only: no offline key, no database URL', () => {
+    const m = /\$listArgs = @\(([^)]*)\)/.exec(code);
+    expect(m).not.toBeNull();
+    const args = m![1];
+    expect(args).toContain("'--env-file', $storeFile");
+    expect(args).not.toMatch(/KeysFile|envFile|--network/);
+    expect(args).toMatch(/'node', '\/app\/dist\/scripts\/backup\.js', 'latest'/);
+    // store.env is written from the B2 lines alone, then deleted as soon as the listing ends.
+    expect(code).toMatch(/WriteAllText\(\$storeFile, \(\(\$storeLines -join/);
+    expect(code).toMatch(/Remove-Item -LiteralPath \$storeFile -Force/);
+    const storeBlock = /\$storeLines = @\(([\s\S]*?)\n\s+\)/.exec(code)![1];
+    expect(storeBlock).not.toMatch(/DRILL_|PRIVATE_KEY/);
+  });
+
+  it('-Latest restores only a .fbk the listing returned, never a manifest, and stops on a failed listing', () => {
+    const fn = /function Test-BackupKey[\s\S]*?\n\}/.exec(code)![0];
+    expect(fn).toContain("-cmatch '^[A-Za-z0-9._\\-/]+\\.fbk$'");
+    expect(fn).toContain("-not $Key.EndsWith('.manifest.json')");
+    expect(code).toMatch(/if \(\$listExit -ne 0 -or -not \(Prop \$found 'ok'\)\) \{ Fail "could not find a backup to restore/);
+    expect(code).toMatch(/\$Object = "\$\(Prop \$found 'objectKey'\)"\n\s+if \(-not \(Test-BackupKey \$Object\)\) \{ Fail /);
+  });
+
+  it('masks the entered credentials in anything it prints from a container', () => {
+    expect(code).toMatch(/function Hide-Secrets[\s\S]{0,160}\$accessKeyId, \$secretKey[\s\S]{0,80}Replace\(\$s, '\*\*\*'\)/);
+    expect(code).toMatch(/\$listOutput = @\(& docker @listArgs 2>&1 \| ForEach-Object \{ Hide-Secrets "\$_" \}\)/);
+    expect(code).toMatch(/\$output = @\(& docker @dockerArgs 2>&1 \| ForEach-Object \{ Hide-Secrets "\$_" \}\)/);
+  });
+
   it('keeps native stderr from ending Windows PowerShell 5.1 early', () => {
     expect(code).toMatch(/function Invoke-Quiet[\s\S]{0,200}\$ErrorActionPreference = 'Continue'/);
   });

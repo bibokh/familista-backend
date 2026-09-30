@@ -23,7 +23,7 @@ import { createHash } from 'crypto';
 import path from 'path';
 import { pipeline } from 'stream/promises';
 import type { Readable } from 'stream';
-import { GetObjectCommand, PutObjectCommand, S3Client, S3ClientConfig } from '@aws-sdk/client-s3';
+import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client, S3ClientConfig } from '@aws-sdk/client-s3';
 import type { StoreConfig } from './backup-config';
 
 export interface BackupStore {
@@ -31,7 +31,14 @@ export interface BackupStore {
   describe(key: string): string;
   putFile(key: string, localPath: string, contentType: string): Promise<void>;
   getToFile(key: string, localPath: string): Promise<void>;
+  /** Every object under the store's prefix, keys relative to it (read-only listing). */
+  list?(): Promise<StoredObject[]>;
 }
+
+export interface StoredObject { key: string; lastModified: Date; size: number }
+
+/** A listing larger than this is refused rather than read without end. */
+export const MAX_LISTED_OBJECTS = 100_000;
 
 const SAFE_KEY = /^[A-Za-z0-9._\-/]+$/;
 function checkKey(key: string): void {
@@ -58,6 +65,23 @@ export function fileStore(dir: string): BackupStore {
     async getToFile(key, localPath) {
       fs.copyFileSync(full(key), localPath);
       fs.chmodSync(localPath, 0o600);
+    },
+    async list() {
+      const found: StoredObject[] = [];
+      const walk = (dirPath: string) => {
+        if (!fs.existsSync(dirPath)) return;
+        for (const e of fs.readdirSync(dirPath, { withFileTypes: true })) {
+          const p = path.join(dirPath, e.name);
+          if (e.isDirectory()) walk(p);
+          else if (e.isFile()) {
+            const st = fs.statSync(p);
+            found.push({ key: path.relative(root, p).split(path.sep).join('/'), lastModified: st.mtime, size: st.size });
+            if (found.length > MAX_LISTED_OBJECTS) throw new Error('too many objects to list');
+          }
+        }
+      };
+      walk(root);
+      return found;
     },
   };
 }
@@ -104,6 +128,20 @@ export function s3Store(cfg: Extract<StoreConfig, { kind: 's3' }>, client?: S3Cl
       const out = await s3.send(new GetObjectCommand({ Bucket: cfg.bucket, Key: fullKey(key) }));
       if (!out.Body) throw new Error('backup object is empty');
       await pipeline(out.Body as Readable, fs.createWriteStream(localPath, { mode: 0o600 }));
+    },
+    async list() {
+      const found: StoredObject[] = [];
+      let token: string | undefined;
+      do {
+        const page = await s3.send(new ListObjectsV2Command({ Bucket: cfg.bucket, Prefix: cfg.prefix, ContinuationToken: token }));
+        for (const o of page.Contents ?? []) {
+          if (!o.Key || !o.Key.startsWith(cfg.prefix)) continue;
+          found.push({ key: o.Key.slice(cfg.prefix.length), lastModified: o.LastModified ?? new Date(0), size: o.Size ?? 0 });
+        }
+        if (found.length > MAX_LISTED_OBJECTS) throw new Error('too many objects to list');
+        token = page.IsTruncated ? page.NextContinuationToken : undefined;
+      } while (token);
+      return found;
     },
   };
 }
