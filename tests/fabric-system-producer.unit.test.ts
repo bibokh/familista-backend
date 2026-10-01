@@ -13,9 +13,9 @@
  *
  * TWO — NOTHING IS INVENTED. There is no CPU figure, no memory figure, no
  * request rate and no uptime here, because this platform measures none of them.
- * The sharpest case is DEPLOYMENT: `deploy.yml` exits successfully without
- * POSTing its hook whenever `RENDER_DEPLOY_HOOK_URL` is unset, which it is, so
- * a green workflow is evidence that a workflow ran and of nothing else.
+ * The sharpest case is DEPLOYMENT: a green deploy workflow is evidence that
+ * a hook was POSTed, not that Render finished a deploy (and without the hook
+ * the workflow now fails rather than passing — Cyber Defense R4).
  * `system.deploy.completed` is registered and produced by nothing, and a test
  * pins that rather than leaving it to a comment.
  *
@@ -439,14 +439,15 @@ describe('deployment telemetry', () => {
     }
   });
 
-  it('the deploy workflow exits successfully without deploying, which is why', () => {
+  it('the deploy workflow only POSTs a hook — it never learns whether Render finished, which is why', () => {
     const wf = fs.readFileSync(
       path.join(__dirname, '..', '.github', 'workflows', 'deploy.yml'), 'utf8',
     );
-    // The condition this platform actually has: no hook, no POST, green tick.
-    expect(wf).toContain('RENDER_DEPLOY_HOOK_URL');
-    expect(wf).toMatch(/if \[ -z "\$RENDER_DEPLOY_HOOK_URL" \]/);
-    expect(wf).toContain('exit 0');
+    // A POST to the hook is all the workflow does; nothing reads a deploy result.
+    expect(wf).toContain('curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"');
+    expect(wf).not.toMatch(/api\.render\.com/);
+    // And without the hook there is no deploy, which is a failure, not a skip.
+    expect(wf).toMatch(/if \[ -z "\$RENDER_DEPLOY_HOOK_URL" \]; then[\s\S]{0,200}exit 1/);
   });
 
   it('never carries a deploy hook, even in the shape it would take', () => {

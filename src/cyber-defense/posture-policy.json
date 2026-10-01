@@ -98,7 +98,9 @@
     "backup-trigger-authenticated",
     "worker-callback-authenticated",
     "outbound-url-guard",
-    "realtime-session-revocation"
+    "realtime-session-revocation",
+    "deploy-gated-by-ci",
+    "security-alert-delivery"
   ],
   "knownGaps": {
     "login-lockout": "PARTIAL — the lockout service has no enforcing caller; it runs in shadow mode only (login-lockout-shadow).",

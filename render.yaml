@@ -10,7 +10,11 @@ services:
     region: frankfurt
     plan: standard
     branch: main
-    autoDeploy: true
+    # Cyber Defense R4: Render does NOT deploy on push. A push to main reaches
+    # production only through .github/workflows/deploy.yml, after CI succeeded
+    # for that exact commit (or by a deliberate manual run of that workflow).
+    # The posture scanner fails the build if this is turned back on.
+    autoDeploy: false
     buildCommand: npm install && npx prisma generate --schema=prisma/schema.prisma && npm run build
     # Pre-Deploy Command is a paid-instance feature. On the free plan the only
     # hook before the server accepts traffic is the start command, so the
@@ -139,6 +143,12 @@ services:
         value: noreply@familista.app
       - key: EMAIL_FROM_NAME
         value: Familista
+      # ── Security alerts (Cyber Defense R6) ───────────────────────────────
+      # The operator mailbox that receives security alerts and the daily
+      # digest. Not a secret, but kept out of git. Unset → alerting is off
+      # and the service logs that once at start-up.
+      - key: SECURITY_ALERT_EMAIL
+        sync: false
       # ── Where emailed links point ────────────────────────────────────────
       # THE BACKEND'S OWN URL, not the frontend's — and the distinction has
       # already cost one broken invitation.

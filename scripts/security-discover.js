@@ -529,6 +529,39 @@ function workerCallbackProtected() {
     && /clubs\/\$\{asset\.clubId\}\/videos\/\$\{asset\.id\}\//.test(v);
 }
 
+// R4: production moves only after CI. Every Render service that builds from
+// the repository has auto-deploy off, and the deploy workflow fires only on a
+// successful 'ci' run on main (for the commit that is still main's head) or by
+// hand — and fails, rather than passing green, when it cannot deploy.
+function deployGatedByCi() {
+  const raw = read(RENDER) || '';
+  const services = (raw.match(/^\s*-\s*type:\s*(?:web|worker|pserv|cron)\s*$/gm) || []).length;
+  const off = (raw.match(/^\s+autoDeploy:\s*false\s*$/gm) || []).length;
+  const wf = deploySrc;
+  const on = wf.slice(wf.indexOf('\non:'), wf.indexOf('\npermissions:'));
+  return services > 0 && off === services && !/autoDeploy:\s*true/.test(raw) && !/autoDeployTrigger:\s*(?!off\b)/.test(raw)
+    && /workflow_run:\s*\n\s+workflows:\s*\['ci'\]\s*\n\s+types:\s*\[completed\]\s*\n\s+branches:\s*\[main\]/.test(on)
+    && !/^\s+(?:push|pull_request|pull_request_target|schedule):/m.test(on)
+    && /github\.event\.workflow_run\.conclusion == 'success' && github\.event\.workflow_run\.head_branch == 'main'/.test(wf)
+    && /if: steps\.head\.outputs\.current == 'true'/.test(wf)
+    && /if \[ -z "\$RENDER_DEPLOY_HOOK_URL" \]; then[\s\S]{0,200}exit 1\s*\n\s*fi/.test(wf);
+}
+
+// R6: security signals are emailed to the operator — by one leased process,
+// to a mailbox declared without a value, with de-duplication and a cap.
+function securityAlertDelivery() {
+  const a = read(cite('src/security/security-alerts.ts')) || '';
+  const w = read(cite('src/infra/background-workers.ts')) || '';
+  const t = read(cite('src/platform/email/templates/security-alert.ts')) || '';
+  const decl = envVars.find((v) => v.name === 'SECURITY_ALERT_EMAIL');
+  return /process\.env\.SECURITY_ALERT_EMAIL/.test(a) && /export const DEDUPE_MS = 15 \* 60_000;/.test(a)
+    && /export const HOURLY_CAP = \d+;/.test(a) && /send: sendEmail/.test(a)
+    && /securityEvent\.groupBy\(/.test(a) && /fabricEventHistory\.groupBy\(/.test(a) && /backupRecord\.count\(/.test(a)
+    && /\{ label: 'security-alerts',\s+start: startSecurityAlerts,\s+stop: stopSecurityAlerts \}/.test(w)
+    && /alertSubject: 'Familista security alert'/.test(t)
+    && !!decl && decl.supply === 'dashboard';
+}
+
 const backupCryptoSrc = read(cite('src/security/backup/backup-crypto.ts')) || '';
 const backupConfigSrc = read(cite('src/security/backup/backup-config.ts')) || '';
 const restoreDrillSrc = read(cite('src/security/backup/restore-drill.ts')) || '';
@@ -572,6 +605,10 @@ controls.push(
     'A URL a user supplies (a notification webhook) is called only over https to a public address, checked at registration and again at the connection, with no redirects, a time and size limit, and no response body kept.'),
   control('worker-callback-authenticated', workerCallbackProtected() ? 'PRESENT' : 'ABSENT', 'src/controllers/internal-video.controller.ts',
     'The transcode callback is reachable only outside the API with an HMAC-SHA256 over method, path, timestamp and raw body (5-minute window, constant-time), is closed without a secret, and cannot set a storage key outside the asset\'s own club folder.'),
+  control('deploy-gated-by-ci', deployGatedByCi() ? 'PRESENT' : 'ABSENT', '.github/workflows/deploy.yml',
+    'Render auto-deploy is off; production is deployed only by the deploy workflow after CI succeeded on main for the commit that is still main\'s head, or by a deliberate manual run, and a deploy that cannot happen fails instead of passing.'),
+  control('security-alert-delivery', securityAlertDelivery() ? 'PRESENT' : 'ABSENT', 'src/security/security-alerts.ts',
+    'Critical security events, cross-club access attempts, a broken audit chain, account lockouts, refresh-token reuse, brute-force runs and failed or stale backups are emailed to SECURITY_ALERT_EMAIL by one leased process, de-duplicated per rule (15 min) and capped per hour, with a daily digest; the email carries counts only.'),
 );
 
 // ── the manifest ─────────────────────────────────────────────────────────────
