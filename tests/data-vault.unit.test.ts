@@ -127,10 +127,17 @@ beforeEach(() => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// A fixed reading clock, mid-month and mid-year. The mock above tells the
+// day, month and year buckets apart by the calendar date of each lower bound,
+// and on the 1st of a month the start of today IS the start of the month — so
+// with the real clock this suite failed on the 1st of every month (and on
+// 1 January). historyStats takes `now` for exactly this reason.
+const NOW = new Date('2030-05-14T12:00:00Z');
+
 describe('historical aggregates are counted by the database', () => {
   it('never fetches rows to count them', async () => {
     historyRows.counts = { total: 4210, today: 12, month: 900, year: 4210 };
-    await historyStats();
+    await historyStats(NOW);
     const fetched = calls.filter((c) => c.op === 'findMany');
     expect(fetched).toHaveLength(0);
     expect(calls.filter((c) => c.op === 'count' || c.op === 'groupBy').length).toBeGreaterThan(0);
@@ -139,7 +146,7 @@ describe('historical aggregates are counted by the database', () => {
   it('issues one grouped query for every source rather than one query per source', async () => {
     // The property that keeps this dashboard alive as sources are added: the
     // number of database round trips must not grow with the registry.
-    await historyStats();
+    await historyStats(NOW);
     const groupBys = calls.filter((c) => c.op === 'groupBy');
     expect(groupBys).toHaveLength(2);           // the rollup, and today's slice
     expect(fabricSources().length).toBeGreaterThan(2);
@@ -147,7 +154,7 @@ describe('historical aggregates are counted by the database', () => {
 
   it('reports real totals and the calendar buckets it was given', async () => {
     historyRows.counts = { total: 4210, today: 12, month: 900, year: 4210 };
-    const s = await historyStats();
+    const s = await historyStats(NOW);
     expect(s.total).toBe(4210);
     expect(s.today).toBe(12);
     expect(s.month).toBe(900);
@@ -164,14 +171,14 @@ describe('historical aggregates are counted by the database', () => {
 
 describe('the source list is the registry, never a second list', () => {
   it('returns one entry per registered source, even one that has recorded nothing', async () => {
-    const s = await historyStats();
+    const s = await historyStats(NOW);
     expect(s.sources).toHaveLength(fabricSources().length);
     const ids = s.sources.map((x) => x.source).sort();
     expect(ids).toEqual(fabricSources().map((x) => x.id).sort());
   });
 
   it('gives a source with no history a measured zero, not an absent value', async () => {
-    const s = await historyStats();
+    const s = await historyStats(NOW);
     const quiet = s.sources[0];
     expect(quiet.total).toBe(0);            // a real zero
     expect(quiet.earliest).toBeNull();      // and an honest absence
@@ -190,7 +197,7 @@ describe('the source list is the registry, never a second list', () => {
       _max: { occurredAt: new Date('2030-06-02T03:04:05Z') },
     }];
     historyRows.groupByToday = [{ source: first.id, _count: { _all: 5 } }];
-    const s = await historyStats();
+    const s = await historyStats(NOW);
     const hit = s.sources.find((x) => x.source === first.id)!;
     expect(hit.total).toBe(77);
     expect(hit.today).toBe(5);
@@ -205,7 +212,7 @@ describe('the source list is the registry, never a second list', () => {
       _min: { occurredAt: new Date('2029-01-01T00:00:00Z') },
       _max: { occurredAt: new Date('2029-01-02T00:00:00Z') },
     }];
-    const s = await historyStats();
+    const s = await historyStats(NOW);
     expect(s.unregisteredSources).toEqual([{ source: 'a-source-that-was-removed', total: 9 }]);
   });
 
@@ -215,7 +222,7 @@ describe('the source list is the registry, never a second list', () => {
       { source: a.id, _count: { _all: 2 }, _min: { occurredAt: new Date('2030-03-01T00:00:00Z') }, _max: { occurredAt: new Date('2030-03-09T00:00:00Z') } },
       { source: b.id, _count: { _all: 3 }, _min: { occurredAt: new Date('2030-01-15T00:00:00Z') }, _max: { occurredAt: new Date('2030-07-20T00:00:00Z') } },
     ];
-    const s = await historyStats();
+    const s = await historyStats(NOW);
     expect(s.window.earliest).toBe('2030-01-15T00:00:00.000Z');
     expect(s.window.latest).toBe('2030-07-20T00:00:00.000Z');
   });
@@ -223,7 +230,7 @@ describe('the source list is the registry, never a second list', () => {
 
 describe('an empty historical store reports emptiness honestly', () => {
   it('returns zero and two nulls rather than inventing a start date', async () => {
-    const s = await historyStats();
+    const s = await historyStats(NOW);
     expect(s.total).toBe(0);
     expect(s.window.earliest).toBeNull();
     expect(s.window.latest).toBeNull();
