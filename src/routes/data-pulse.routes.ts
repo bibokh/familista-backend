@@ -47,6 +47,7 @@ import {
   telemetryStep, TELEMETRY_BATCH, type TelemetryCursor,
 } from '../fabric/pulse/telemetry-tail.service';
 import { ecosystemFootprint } from '../fabric/pulse/ecosystem.service';
+import { watchRequestSession } from '../realtime/session-watch';
 
 const router = Router();
 router.use(authenticate);
@@ -136,6 +137,8 @@ router.get('/stream', async (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
+  // Closed as soon as the session that opened it ends (Cyber Defense R1c).
+  watchRequestSession(req, res, 'data-pulse-sse');
   res.flushHeaders?.();
 
   let open = true;

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-30T17:35:01.612Z",
+  "generatedAt": "2026-09-30T18:38:53.860Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -532,6 +532,15 @@
       "src/services/vision-clip.adapter.ts",
       "src/services/vision-inference.adapter.ts",
       "src/workers/notification-dispatch.worker.ts"
+    ],
+    "realtimeEndpoints": [
+      "src/realtime/market-ws.ts",
+      "src/realtime/match-sse.ts",
+      "src/realtime/match-ws.ts",
+      "src/routes/data-pulse.routes.ts",
+      "src/routes/infrastructure.routes.ts",
+      "src/routes/owner-trace.routes.ts",
+      "src/services/vision-realtime.service.ts"
     ]
   },
   "controls": [
@@ -769,6 +778,12 @@
       "status": "PRESENT",
       "evidence": "src/security/backup/backup-trigger.ts",
       "note": "The backup trigger takes no input, authenticates by HMAC-SHA256 with a 5-minute window and constant-time comparison, is closed without a secret, runs one backup at a time and none within 20 hours of a success."
+    },
+    {
+      "id": "realtime-session-revocation",
+      "status": "PRESENT",
+      "evidence": "src/realtime/session-watch.ts",
+      "note": "WebSockets and event streams verify the session exactly as a request does (signature, active user, token version), and every open one is closed when its session ends: at once on an identity change, and on a timer as a backstop."
     },
     {
       "id": "outbound-url-guard",
@@ -1211,9 +1226,6 @@
         "src/middleware/auth.middleware.ts",
         "src/middleware/device-auth.middleware.ts",
         "src/middleware/rate-limit.middleware.ts",
-        "src/realtime/market-ws.ts",
-        "src/realtime/match-sse.ts",
-        "src/realtime/match-ws.ts",
         "src/services/auth.service.ts",
         "src/services/device-auth.service.ts"
       ]
@@ -1265,6 +1277,7 @@
       "src/auth-prod/mfa.service.ts",
       "src/controllers/internal-backup.controller.ts",
       "src/controllers/internal-video.controller.ts",
+      "src/controllers/vision-engine.controller.ts",
       "src/cyber-defense/lockout-shadow.ts",
       "src/fabric/secrets/keyring.ts",
       "src/middleware/auth.middleware.ts",
@@ -1272,7 +1285,9 @@
       "src/middleware/tenant-guard.middleware.ts",
       "src/notifications/notifications.service.ts",
       "src/realtime/market-ws.ts",
+      "src/realtime/match-sse.ts",
       "src/realtime/match-ws.ts",
+      "src/realtime/session-watch.ts",
       "src/routes/ai-ops.routes.ts",
       "src/routes/ai.routes.ts",
       "src/routes/analytics.routes.ts",
@@ -1337,6 +1352,7 @@
       "src/security/worker-callback.ts",
       "src/services/auth.service.ts",
       "src/services/device-auth.service.ts",
+      "src/services/membership.service.ts",
       "src/services/stripe.service.ts",
       "src/utils/password.ts",
       "src/video/video-asset.service.ts",
@@ -1344,7 +1360,7 @@
     ]
   },
   "counts": {
-    "controlsPresent": 36,
+    "controlsPresent": 37,
     "controlsPartial": 2,
     "controlsAbsent": 6,
     "cryptoUses": 11

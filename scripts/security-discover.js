@@ -189,6 +189,15 @@ appRoutes.sort((a, b) => a.route.localeCompare(b.route));
 // it is reviewed: is its URL the operator's configuration, or something a
 // user supplied — which must go through src/security/outbound-url-guard.ts?
 const OUTBOUND_RE = /\bfetch\s*\(|\bhttps?\.request\s*\(|\bhttps?\.get\s*\(|\baxios\b|\bgot\s*\(|\bundici\b/;
+// Every file that opens a long-lived connection — an event stream or a
+// WebSocket server (R1c). Each must be held to the session it opened under;
+// a new one fails the posture test until it is reviewed.
+const REALTIME_RE = /text\/event-stream|new\s+WebSocketServer\s*\(/;
+const realtimeEndpoints = srcFiles.filter((f, i) => {
+  const code = allSrc[i].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  return REALTIME_RE.test(code);
+}).sort();
+
 const outboundCallSites = srcFiles.filter((f, i) => {
   const code = allSrc[i].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
   return OUTBOUND_RE.test(code);
@@ -468,6 +477,24 @@ function backupTriggerProtected() {
 // method, path, timestamp and raw body (constant-time, 5-minute window), closed
 // without its secret, and the service keeps every storage key inside the
 // asset's own club folder whoever calls it.
+// R1c: a realtime connection is authenticated like a request and closed when
+// its session ends.
+function realtimeSessionsWatched() {
+  const mw = read(cite('src/middleware/auth.middleware.ts')) || '';
+  const sw = read(cite('src/realtime/session-watch.ts')) || '';
+  const ms = read(cite('src/services/membership.service.ts')) || '';
+  const code = (f) => (read(cite(f)) || '').replace(/\/\/[^\n]*/g, '');
+  const endSession = (() => { const i = ms.indexOf('export async function endClubSession'); return i < 0 ? '' : ms.slice(i, ms.indexOf('\nexport ', i + 10)); })();
+  const direct = ['src/realtime/match-ws.ts', 'src/realtime/market-ws.ts', 'src/realtime/match-sse.ts'];
+  const viaRequest = ['src/routes/data-pulse.routes.ts', 'src/routes/infrastructure.routes.ts', 'src/routes/owner-trace.routes.ts', 'src/controllers/vision-engine.controller.ts'];
+  return /export async function verifySessionToken/.test(mw) && /export async function sessionStillValid/.test(mw)
+    && /claimed !== \(user\.tokenVersion \?\? 0\)/.test(mw.slice(mw.indexOf('export async function verifySessionToken')))
+    && /onIdentityForgotten\(/.test(sw) && /setInterval\(/.test(sw) && /sessionStillValid\(/.test(sw)
+    && /forgetIdentity\(userId\)/.test(endSession)
+    && direct.every((f) => /verifySessionToken\(/.test(code(f)) && /watchSession\(/.test(code(f)) && !/jwt\.verify\(/.test(code(f)))
+    && viaRequest.every((f) => /watchRequestSession\(req, res,/.test(code(f)));
+}
+
 // R1b: a URL a user supplied is fetched only through the outbound guard.
 function outboundGuardProtected() {
   const g = read(cite('src/security/outbound-url-guard.ts')) || '';
@@ -539,6 +566,8 @@ controls.push(
     'GitHub Actions asks the running service daily, over a signed request, to run its fixed backup; the workflow holds only the trigger secret and no database or backup key.'),
   control('backup-trigger-authenticated', backupTriggerProtected() ? 'PRESENT' : 'ABSENT', 'src/security/backup/backup-trigger.ts',
     'The backup trigger takes no input, authenticates by HMAC-SHA256 with a 5-minute window and constant-time comparison, is closed without a secret, runs one backup at a time and none within 20 hours of a success.'),
+  control('realtime-session-revocation', realtimeSessionsWatched() ? 'PRESENT' : 'ABSENT', 'src/realtime/session-watch.ts',
+    'WebSockets and event streams verify the session exactly as a request does (signature, active user, token version), and every open one is closed when its session ends: at once on an identity change, and on a timer as a backstop.'),
   control('outbound-url-guard', outboundGuardProtected() ? 'PRESENT' : 'ABSENT', 'src/security/outbound-url-guard.ts',
     'A URL a user supplies (a notification webhook) is called only over https to a public address, checked at registration and again at the connection, with no redirects, a time and size limit, and no response body kept.'),
   control('worker-callback-authenticated', workerCallbackProtected() ? 'PRESENT' : 'ABSENT', 'src/controllers/internal-video.controller.ts',
@@ -562,6 +591,7 @@ const manifest = {
     mounts,
     dormantRouteModules,
     outboundCallSites,
+    realtimeEndpoints,
   },
   controls,
   secrets: {

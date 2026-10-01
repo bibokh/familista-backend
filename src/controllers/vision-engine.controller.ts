@@ -53,6 +53,7 @@ import {
 
 import { sendSuccess, sendCreated, sendNoContent } from '../utils/response';
 import { BadRequestError, ForbiddenError } from '../utils/errors';
+import { watchRequestSession } from '../realtime/session-watch';
 
 function actorOf(req: Request) {
   if (!req.visionActor) throw new ForbiddenError('Vision context required');
@@ -440,6 +441,8 @@ export async function subscribeLive(req: Request, res: Response, next: NextFunct
   try {
     const actor = actorOf(req);
     await assertMatchAccess(actor, req.params.matchId, 'read');
+    // Closed as soon as the session that opened it ends (Cyber Defense R1c).
+    watchRequestSession(req, res, 'vision-sse');
     await realtime.subscribeSse(actor, req.params.matchId, res);
     // Do not call next — SSE keeps the response open
   } catch (err) { return next(err); }
