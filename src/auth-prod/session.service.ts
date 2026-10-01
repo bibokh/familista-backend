@@ -131,10 +131,26 @@ export async function rotateSession(refreshToken: string, ipAddress?: string, us
   return { session: next, refreshToken: newToken };
 }
 
+/**
+ * Who may end somebody's sessions: the person themselves, the platform
+ * administrator, or a club administrator acting for a member of THEIR club
+ * (Cyber Defense R2). The club-admin case used to be unconditional, so an
+ * administrator of one club could sign out any user of any other club.
+ */
+async function assertMayEndSessionsOf(actor: SessionActor, userId: string): Promise<void> {
+  if (userId === actor.userId || actor.role === 'SUPER_ADMIN') return;
+  if (actor.role !== 'CLUB_ADMIN') throw new ForbiddenError();
+  const [home, member] = await Promise.all([
+    prisma.user.findFirst({ where: { id: userId, clubId: actor.clubId }, select: { id: true } }),
+    prisma.membership.findFirst({ where: { userId, clubId: actor.clubId, isActive: true }, select: { id: true } }),
+  ]);
+  if (!home && !member) throw new ForbiddenError();
+}
+
 export async function revoke(actor: SessionActor, sessionId: string, reason = 'manual'): Promise<AuthSession> {
   const s = await prisma.authSession.findUnique({ where: { id: sessionId } });
   if (!s)                                                       throw new NotFoundError('AuthSession');
-  if (s.userId !== actor.userId && actor.role !== 'SUPER_ADMIN' && actor.role !== 'CLUB_ADMIN') throw new ForbiddenError();
+  await assertMayEndSessionsOf(actor, s.userId);
   if (s.status !== 'ACTIVE') return s;
   const updated = await prisma.authSession.update({
     where: { id: sessionId },
@@ -150,7 +166,7 @@ export async function revoke(actor: SessionActor, sessionId: string, reason = 'm
 }
 
 export async function revokeAllForUser(actor: SessionActor, userId: string, reason = 'logout_all'): Promise<{ revoked: number }> {
-  if (actor.userId !== userId && actor.role !== 'SUPER_ADMIN' && actor.role !== 'CLUB_ADMIN') throw new ForbiddenError();
+  await assertMayEndSessionsOf(actor, userId);
   const res = await prisma.authSession.updateMany({
     where: { userId, status: 'ACTIVE' },
     data:  { status: 'REVOKED', revokedAt: new Date(), revokedReason: reason },

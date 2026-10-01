@@ -5,6 +5,7 @@ import { Router } from 'express';
 import * as ctrl from '../controllers/vision.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { guardTeamScopedRouter } from '../middleware/team-scope.middleware';
+import { tenantParam } from '../middleware/tenant-guard.middleware';
 
 const router = Router();
 
@@ -30,12 +31,12 @@ router.get('/sports', ctrl.listSportAdapters);
 // Cameras
 router.get('/cameras',                ctrl.listCameras);
 router.post('/cameras',               authorize('CLUB_ADMIN','HEAD_COACH'), ctrl.registerCamera);
-router.get('/cameras/:id',            ctrl.getCamera);
-router.post('/cameras/:id/retire',    authorize('CLUB_ADMIN','HEAD_COACH'), ctrl.retireCamera);
+router.get('/cameras/:id',            tenantParam('camera'), ctrl.getCamera);
+router.post('/cameras/:id/retire',    tenantParam('camera'), authorize('CLUB_ADMIN','HEAD_COACH'), ctrl.retireCamera);
 
 // Calibration
-router.get('/cameras/:id/calibration', ctrl.getCalibration);
-router.post('/cameras/:id/calibration', authorize('CLUB_ADMIN','HEAD_COACH','ANALYST'), ctrl.applyCalibration);
+router.get('/cameras/:id/calibration', tenantParam('camera'), ctrl.getCalibration);
+router.post('/cameras/:id/calibration', tenantParam('camera'), authorize('CLUB_ADMIN','HEAD_COACH','ANALYST'), ctrl.applyCalibration);
 
 // Frame log (read)
 router.get('/matches/:id/frames', ctrl.listFrames);

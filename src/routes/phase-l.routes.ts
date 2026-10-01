@@ -4,7 +4,7 @@ import { Router } from 'express';
 import * as ctrl from '../controllers/phase-l.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { guardTeamScopedRouter } from '../middleware/team-scope.middleware';
-import { tenantGuard } from '../middleware/tenant-guard.middleware';
+import { tenantParam } from '../middleware/tenant-guard.middleware';
 
 const router = Router();
 router.use(authenticate);
@@ -14,12 +14,11 @@ router.use(authenticate);
 // Familista League use: a team, player or match id from another team or
 // another club is refused with 403 before the handler runs.
 guardTeamScopedRouter(router);
-router.use(tenantGuard);
 
 // Hardware
 router.post('/hardware/sessions',                       authorize('CLUB_ADMIN','SUPER_ADMIN'), ctrl.createHwSession);
 router.get('/hardware/sessions',                        ctrl.listHwSessions);
-router.post('/hardware/sessions/:id/steps',             authorize('CLUB_ADMIN','SUPER_ADMIN'), ctrl.recordHwStep);
+router.post('/hardware/sessions/:id/steps',             tenantParam('hardwareProvisioningSession'), authorize('CLUB_ADMIN','SUPER_ADMIN'), ctrl.recordHwStep);
 router.post('/hardware/capabilities',                   authorize('SUPER_ADMIN','CLUB_ADMIN'), ctrl.publishCapability);
 router.post('/hardware/trust-anchors',                  authorize('SUPER_ADMIN','CLUB_ADMIN'), ctrl.publishTrustAnchor);
 
@@ -42,8 +41,8 @@ router.get('/coaching/recommendations',                 ctrl.listRecommendations
 // Twin simulation
 router.post('/simulation/sessions',                     authorize('CLUB_ADMIN','HEAD_COACH','ANALYST'), ctrl.createSim);
 router.get('/simulation/sessions',                      ctrl.listSims);
-router.post('/simulation/sessions/:sessionId/branches', authorize('CLUB_ADMIN','HEAD_COACH','ANALYST'), ctrl.createBranch);
-router.post('/simulation/sessions/:sessionId/state',    authorize('CLUB_ADMIN','HEAD_COACH','ANALYST'), ctrl.recordSimState);
+router.post('/simulation/sessions/:sessionId/branches', tenantParam('twinSimulationSession', 'sessionId'), authorize('CLUB_ADMIN','HEAD_COACH','ANALYST'), ctrl.createBranch);
+router.post('/simulation/sessions/:sessionId/state',    tenantParam('twinSimulationSession', 'sessionId'), authorize('CLUB_ADMIN','HEAD_COACH','ANALYST'), ctrl.recordSimState);
 
 // Cognitive game graph
 router.post('/cognitive/graph',                          authorize('CLUB_ADMIN','HEAD_COACH','ANALYST'), ctrl.recordGameGraph);

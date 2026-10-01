@@ -10,7 +10,8 @@
 //  • Monitoring: health, alert rules, backups
 //  • Snapshot rollup
 //
-// All endpoints sit behind authenticate → tenantGuard → authorize(role…).
+// All endpoints sit behind authenticate → team scope (guardTeamScopedRouter,
+// plus tenantParam on the routes whose id names another resource) → authorize(role…).
 // SUPER_ADMIN is always implicit at the framework level via Phase I, but we
 // list it explicitly per-route for clarity.
 
@@ -18,7 +19,7 @@ import { Router } from 'express';
 import * as ctrl from '../controllers/phase-o.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { guardTeamScopedRouter } from '../middleware/team-scope.middleware';
-import { tenantGuard } from '../middleware/tenant-guard.middleware';
+import { tenantParam } from '../middleware/tenant-guard.middleware';
 import { requirePlatformAuthority } from '../middleware/platform-authority.middleware';
 
 const router = Router();
@@ -29,7 +30,6 @@ router.use(authenticate);
 // Familista League use: a team, player or match id from another team or
 // another club is refused with 403 before the handler runs.
 guardTeamScopedRouter(router);
-router.use(tenantGuard);
 
 // ── Auth: sessions ─────────────────────────────────────────────────────
 router.get   ('/auth/sessions',                                                                                  ctrl.listAuthSessions);
@@ -60,8 +60,8 @@ router.patch('/ops/payments/:id/state',                  authorize('CLUB_ADMIN',
 router.get ('/ops/payments',                                                                                      ctrl.listPayments);
 
 // ── Operations: invoice lines (composes with Phase J InvoiceDraft) ─────
-router.post('/ops/invoices/:invoiceDraftId/lines',       authorize('CLUB_ADMIN','MANAGER','SUPER_ADMIN'),         ctrl.addInvoiceLine);
-router.get ('/ops/invoices/:invoiceDraftId/lines',                                                                ctrl.listInvoiceLines);
+router.post('/ops/invoices/:invoiceDraftId/lines',       tenantParam('invoiceDraft', 'invoiceDraftId'), authorize('CLUB_ADMIN','MANAGER','SUPER_ADMIN'),         ctrl.addInvoiceLine);
+router.get ('/ops/invoices/:invoiceDraftId/lines',                                                                tenantParam('invoiceDraft', 'invoiceDraftId'), ctrl.listInvoiceLines);
 
 // ── Operations: calendar ───────────────────────────────────────────────
 router.post('/ops/calendar',                             authorize('CLUB_ADMIN','HEAD_COACH','ASSISTANT_COACH','COACH','MANAGER','SUPER_ADMIN'), ctrl.createCalendarEntry);
@@ -83,7 +83,7 @@ router.get  ('/lifecycle/contracts',                                            
 router.post('/hw/inventory',                             authorize('CLUB_ADMIN','MANAGER','SUPER_ADMIN'),         ctrl.upsertInventory);
 router.get ('/hw/inventory',                             authorize('CLUB_ADMIN','MANAGER','ANALYST','SUPER_ADMIN'), ctrl.listInventory);
 router.post('/hw/diagnostics',                           authorize('CLUB_ADMIN','MANAGER','ANALYST','SUPER_ADMIN'), ctrl.recordDiagnostic);
-router.get ('/hw/diagnostics/:deviceId',                 authorize('CLUB_ADMIN','MANAGER','ANALYST','SUPER_ADMIN'), ctrl.listDiagnostics);
+router.get ('/hw/diagnostics/:deviceId',                 tenantParam('device', 'deviceId'), authorize('CLUB_ADMIN','MANAGER','ANALYST','SUPER_ADMIN'), ctrl.listDiagnostics);
 
 // ── Notifications ──────────────────────────────────────────────────────
 router.post('/notifications/channels',                                                                            ctrl.registerChannel);

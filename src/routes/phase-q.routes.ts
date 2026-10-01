@@ -17,6 +17,7 @@ import { Router } from 'express';
 import * as C from '../controllers/phase-q.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { requirePlayerTeamAccess, requireTeamPrivate } from '../middleware/team-scope.middleware';
+import { tenantParam } from '../middleware/tenant-guard.middleware';
 
 const router = Router();
 
@@ -62,11 +63,11 @@ router.post  ('/events/batch',                       C.batchIngestEvents);
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Force rebuild for a match (idempotent — safe to call repeatedly)
-router.post  ('/stats/matches/:matchId/rebuild',     C.computeMatchStats);
+router.post  ('/stats/matches/:matchId/rebuild',     tenantParam('match', 'matchId'), C.computeMatchStats);
 
 // Per-match stats queries
-router.get   ('/stats/matches/:matchId',             C.listMatchStats);
-router.get   ('/stats/matches/:matchId/players/:playerId', C.getMatchStats);
+router.get   ('/stats/matches/:matchId',             tenantParam('match', 'matchId'), C.listMatchStats);
+router.get   ('/stats/matches/:matchId/players/:playerId', tenantParam('match', 'matchId'), C.getMatchStats);
 
 // Season rollup (manual trigger — normally fired by stats-aggregator worker)
 router.post  ('/stats/season-rollup',                C.rollupSeasonStats);
@@ -201,7 +202,7 @@ router.get   ('/competitions/:competitionId',        C.getCompetition);
 
 // Teams in competition
 router.post  ('/competitions/:competitionId/teams',  C.addTeamToCompetition);
-router.get   ('/competitions/:competitionId/teams',  C.listTeamsInCompetition);
+router.get   ('/competitions/:competitionId/teams',  tenantParam('competition', 'competitionId'), C.listTeamsInCompetition);
 router.delete('/competitions/:competitionId/teams/:teamId', C.removeTeamFromCompetition);
 
 // Fixtures

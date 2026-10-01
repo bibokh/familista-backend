@@ -3,11 +3,10 @@
 import { Router } from 'express';
 import * as ctrl from '../controllers/phase-m.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
-import { tenantGuard } from '../middleware/tenant-guard.middleware';
+import { tenantParam } from '../middleware/tenant-guard.middleware';
 
 const router = Router();
 router.use(authenticate);
-router.use(tenantGuard);
 
 // Twins
 router.post('/twins/organization',           authorize('CLUB_ADMIN','SUPER_ADMIN'),                                   ctrl.captureOrgTwin);
@@ -25,9 +24,9 @@ router.get('/executive/decisions',            ctrl.listDecisions);
 
 // Decision council
 router.post('/councils',                                       authorize('CLUB_ADMIN','SUPER_ADMIN','HEAD_COACH'),     ctrl.createCouncil);
-router.post('/councils/:councilId/votes',                      authorize('CLUB_ADMIN','SUPER_ADMIN','HEAD_COACH','ANALYST','ASSISTANT_COACH','MEDICAL_STAFF','SCOUT'), ctrl.submitVote);
-router.post('/councils/:councilId/close',                      authorize('CLUB_ADMIN','SUPER_ADMIN','HEAD_COACH'),     ctrl.closeCouncil);
-router.get('/councils/:councilId',                             ctrl.getCouncil);
+router.post('/councils/:councilId/votes',                      tenantParam('decisionCouncil', 'councilId'), authorize('CLUB_ADMIN','SUPER_ADMIN','HEAD_COACH','ANALYST','ASSISTANT_COACH','MEDICAL_STAFF','SCOUT'), ctrl.submitVote);
+router.post('/councils/:councilId/close',                      tenantParam('decisionCouncil', 'councilId'), authorize('CLUB_ADMIN','SUPER_ADMIN','HEAD_COACH'),     ctrl.closeCouncil);
+router.get('/councils/:councilId',                             tenantParam('decisionCouncil', 'councilId'), ctrl.getCouncil);
 
 // Recruitment
 router.post('/recruitment/targets',           authorize('CLUB_ADMIN','SUPER_ADMIN','HEAD_COACH','ANALYST','SCOUT'), ctrl.createTarget);
@@ -55,8 +54,8 @@ router.get('/scouting/scouts',                ctrl.listScouts);
 
 // Marketplace
 router.post('/marketplace/listings',          authorize('CLUB_ADMIN','SUPER_ADMIN','HEAD_COACH'), ctrl.createListing);
-router.post('/marketplace/listings/:id/activate', authorize('CLUB_ADMIN','SUPER_ADMIN'),          ctrl.activateListing);
-router.post('/marketplace/listings/:id/close',    authorize('CLUB_ADMIN','SUPER_ADMIN','HEAD_COACH'), ctrl.closeListing);
+router.post('/marketplace/listings/:id/activate', tenantParam('marketplaceItem'), authorize('CLUB_ADMIN','SUPER_ADMIN'),          ctrl.activateListing);
+router.post('/marketplace/listings/:id/close',    tenantParam('marketplaceItem'), authorize('CLUB_ADMIN','SUPER_ADMIN','HEAD_COACH'), ctrl.closeListing);
 router.get('/marketplace/listings',           ctrl.listMarketplace);
 
 // Knowledge engine

@@ -160,6 +160,95 @@ for (const m of indexSrc.matchAll(/router\.use\(\s*'([^']+)'\s*,([^;]+?)\);/g)) 
   mounts.push({ path: mountPath, module: moduleName, handlers, public: open, routerWideAuth: gate >= 0 || mountAuth });
 }
 
+// ── tenancy coverage (Cyber Defense R2) ─────────────────────────────────────
+//
+// Every path parameter on every mounted route, and whether the route checks
+// that the row it names belongs to the caller's club BEFORE the handler runs:
+//
+//   GUARDED   a `tenantParam('<resource>', '<param>')` on the route itself, a
+//             `router.param('<param>', …)` hook on its router, or the router's
+//             `guardTeamScopedRouter(router)` for teamId / playerId / matchId;
+//   EXEMPT    named, with the exact routes and a written reason, in
+//             posture-policy.json `tenancyExemptions`;
+//   UNGUARDED anything else — which fails the posture test.
+//
+// `router.use(tenantGuard)` is not a guard: Express fills req.params in only
+// after a route matches, so mounted that way it sees nothing. It is reported.
+//
+// Path parameters only. An id that arrives in a JSON body is checked by the
+// service that reads it and is not inventoried here.
+const tenantMwSrc = read(cite('src/middleware/tenant-guard.middleware.ts')) || '';
+// The exemptions are reviewed decisions, kept with the rest of the posture policy.
+const posturePolicyForScan = (() => { try { return JSON.parse(read('src/cyber-defense/posture-policy.json') || '{}'); } catch (_) { return {}; } })();
+const tenantResources = (() => {
+  const i = tenantMwSrc.indexOf('export const TENANT_RESOURCES');
+  const block = i < 0 ? '' : tenantMwSrc.slice(i, tenantMwSrc.indexOf('} as const;', i));
+  return new Set([...block.matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]));
+})();
+const TEAM_SCOPED_DEFAULT = ['teamId', 'playerId', 'matchId'];
+const tenancyRoutes = [];
+const deadTenantGuardMounts = [];
+const unknownTenantResources = [];
+for (const m of indexSrc.matchAll(/router\.use\(\s*'([^']+)'\s*,([^;]+?)\);/g)) {
+  const args = m[2].split(',').map((x) => x.trim()).filter(Boolean);
+  const moduleName = importsByName[args[args.length - 1]];
+  if (!moduleName) continue;
+  const file = `src/routes/${moduleName}.ts`;
+  const code = (read(file) || '').replace(/\/\/[^\n]*/g, (c) => ' '.repeat(c.length));
+  if (/router\.use\(\s*tenantGuard\s*\)/.test(code)) deadTenantGuardMounts.push(file);
+  const hooked = new Set([...code.matchAll(/router\.param\(\s*'(\w+)'/g)].map((x) => x[1]));
+  if (/guardTeamScopedRouter\(\s*router\s*\)/.test(code)) TEAM_SCOPED_DEFAULT.forEach((x) => hooked.add(x));
+  for (const r of code.matchAll(ROUTE_RE)) {
+    const params = [...r[3].matchAll(/:(\w+)/g)].map((x) => x[1]);
+    if (!params.length) continue;
+    const close = code.indexOf(');', r.index);
+    const own = code.slice(r.index, close < 0 ? r.index + 400 : close);
+    const onRoute = new Map();
+    for (const t of own.matchAll(/tenantParam\(\s*'(\w+)'(?:\s*,\s*'(\w+)')?\s*\)/g)) {
+      onRoute.set(t[2] || 'id', t[1]);
+      if (!tenantResources.has(t[1])) unknownTenantResources.push(`${file}: ${t[1]}`);
+    }
+    const route = `${r[1].toUpperCase()} ${m[1]}${r[3] === '/' ? '' : r[3]}`;
+    for (const param of params) {
+      const how = onRoute.has(param) ? `tenantParam:${onRoute.get(param)}` : hooked.has(param) ? 'router.param' : null;
+      tenancyRoutes.push({ module: moduleName, param, route, guard: how });
+    }
+  }
+}
+const tenancyExemptions = posturePolicyForScan.tenancyExemptions || {};
+const tenancyUnguarded = [];
+const tenancyExempted = [];
+for (const t of tenancyRoutes) {
+  if (t.guard) continue;
+  const ex = tenancyExemptions[`${t.module} :${t.param}`];
+  if (ex && Array.isArray(ex.routes) && ex.routes.includes(t.route)) tenancyExempted.push(t);
+  else tenancyUnguarded.push({ module: t.module, param: t.param, route: t.route });
+}
+const tenancyStaleExemptions = [];
+for (const [key, ex] of Object.entries(tenancyExemptions)) {
+  for (const route of (ex && ex.routes) || []) {
+    const [mod, param] = key.split(' :');
+    if (!tenancyRoutes.some((t) => !t.guard && t.module === mod && t.param === param && t.route === route)) tenancyStaleExemptions.push(`${key} ${route}`);
+  }
+}
+const tenancyByRouter = {};
+for (const t of tenancyRoutes) {
+  const b = tenancyByRouter[t.module] || (tenancyByRouter[t.module] = { guarded: 0, exempt: 0, unguarded: 0 });
+  if (t.guard) b.guarded += 1;
+  else if (tenancyExempted.includes(t)) b.exempt += 1;
+  else b.unguarded += 1;
+}
+const tenancy = {
+  idParameters: tenancyRoutes.length,
+  guarded: tenancyRoutes.filter((t) => t.guard).length,
+  exempt: tenancyExempted.length,
+  unguarded: tenancyUnguarded,
+  staleExemptions: tenancyStaleExemptions,
+  routerWideTenantGuardMounts: deadTenantGuardMounts,
+  unknownTenantResources,
+  byRouter: Object.fromEntries(Object.entries(tenancyByRouter).sort(([a], [b]) => a.localeCompare(b))),
+};
+
 // Routes the application itself declares, outside the API router: health and
 // the pages a browser deep-links into. All public by design.
 const APP = cite('src/app.ts');
@@ -291,8 +380,16 @@ const controls = [
   control('jwt-algorithm-pinned', jwtVerifySites.length && jwtVerifySites.every((s) => /algorithms/.test(s)) ? 'PRESENT' : 'ABSENT', AUTH_MW),
   control('jwt-issuer-validated', jwtVerifySites.length && jwtVerifySites.every((s) => /issuer/.test(s)) ? 'PRESENT' : 'ABSENT', AUTH_MW),
   control('websocket-token-outside-url', /searchParams\.get\('token'\)/.test(realtimeSrc) ? 'ABSENT' : 'PRESENT', 'src/realtime/match-ws.ts'),
-  control('tenant-guard', /export async function tenantGuard/.test(read(cite('src/middleware/tenant-guard.middleware.ts')) || '') ? 'PRESENT' : 'ABSENT',
-    'src/middleware/tenant-guard.middleware.ts'),
+  // R2: present only when it is APPLIED — every id parameter on every mounted
+  // route guarded or exempted by name, no exemption left pointing at a route
+  // that no longer needs it, and no router-wide `router.use(tenantGuard)` that
+  // looks like a guard and checks nothing.
+  control('tenant-guard',
+    /export async function tenantGuard/.test(tenantMwSrc) && /export function tenantParam\(/.test(tenantMwSrc)
+      && tenancy.unguarded.length === 0 && tenancy.staleExemptions.length === 0
+      && tenancy.routerWideTenantGuardMounts.length === 0 && tenancy.unknownTenantResources.length === 0 ? 'PRESENT' : 'ABSENT',
+    'src/middleware/tenant-guard.middleware.ts',
+    `${tenancy.guarded} of ${tenancy.idParameters} route id parameter(s) checked against the caller's club before the handler; ${tenancy.exempt} exempted by name with a reason; ${tenancy.unguarded.length} unguarded.`),
   control('device-ingest-hmac', has('src/services/device-auth.service.ts', /timingSafeEqual/) ? 'PRESENT' : 'ABSENT', 'src/services/device-auth.service.ts'),
   control('stripe-webhook-signature', has('src/services/stripe.service.ts', /webhooks\.constructEvent/) ? 'PRESENT' : 'ABSENT', 'src/services/stripe.service.ts'),
   control('versioned-keyring', has('src/fabric/secrets/keyring.ts', /ACTIVE_KEK_ENV/) ? 'PRESENT' : 'ABSENT', 'src/fabric/secrets/keyring.ts'),
@@ -629,6 +726,7 @@ const manifest = {
     dormantRouteModules,
     outboundCallSites,
     realtimeEndpoints,
+    tenancy,
   },
   controls,
   secrets: {

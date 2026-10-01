@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-01T18:22:58.201Z",
+  "generatedAt": "2026-10-01T19:40:04.770Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -34,7 +34,7 @@
       {
         "route": "GET /phase-q/video/shared/:shareToken",
         "file": "src/routes/phase-q.routes.ts",
-        "line": 37
+        "line": 38
       },
       {
         "route": "POST /auth/forgot-password",
@@ -79,7 +79,7 @@
       {
         "route": "POST /device-infra/devices/by-serial/:serial/activate",
         "file": "src/routes/device-infra.routes.ts",
-        "line": 13
+        "line": 14
       },
       {
         "route": "POST /devices/:id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/packet",
@@ -114,7 +114,7 @@
       {
         "route": "POST /vision/cameras/:id/frame",
         "file": "src/routes/vision.routes.ts",
-        "line": 13
+        "line": 14
       }
     ],
     "appLevelRoutes": [
@@ -541,7 +541,228 @@
       "src/routes/infrastructure.routes.ts",
       "src/routes/owner-trace.routes.ts",
       "src/services/vision-realtime.service.ts"
-    ]
+    ],
+    "tenancy": {
+      "idParameters": 344,
+      "guarded": 136,
+      "exempt": 208,
+      "unguarded": [],
+      "staleExemptions": [],
+      "routerWideTenantGuardMounts": [],
+      "unknownTenantResources": [],
+      "byRouter": {
+        "ai-ops.routes": {
+          "guarded": 0,
+          "exempt": 7,
+          "unguarded": 0
+        },
+        "ai.routes": {
+          "guarded": 0,
+          "exempt": 1,
+          "unguarded": 0
+        },
+        "analytics.routes": {
+          "guarded": 1,
+          "exempt": 0,
+          "unguarded": 0
+        },
+        "auth.routes": {
+          "guarded": 0,
+          "exempt": 1,
+          "unguarded": 0
+        },
+        "automation.routes": {
+          "guarded": 0,
+          "exempt": 8,
+          "unguarded": 0
+        },
+        "billing-j.routes": {
+          "guarded": 0,
+          "exempt": 1,
+          "unguarded": 0
+        },
+        "club.routes": {
+          "guarded": 0,
+          "exempt": 2,
+          "unguarded": 0
+        },
+        "coaches.routes": {
+          "guarded": 1,
+          "exempt": 9,
+          "unguarded": 0
+        },
+        "device-infra.routes": {
+          "guarded": 7,
+          "exempt": 1,
+          "unguarded": 0
+        },
+        "device-session.routes": {
+          "guarded": 0,
+          "exempt": 6,
+          "unguarded": 0
+        },
+        "edge.routes": {
+          "guarded": 5,
+          "exempt": 0,
+          "unguarded": 0
+        },
+        "fabric.routes": {
+          "guarded": 0,
+          "exempt": 1,
+          "unguarded": 0
+        },
+        "familista-league.routes": {
+          "guarded": 0,
+          "exempt": 4,
+          "unguarded": 0
+        },
+        "familista-vision.routes": {
+          "guarded": 0,
+          "exempt": 11,
+          "unguarded": 0
+        },
+        "infrastructure.routes": {
+          "guarded": 0,
+          "exempt": 2,
+          "unguarded": 0
+        },
+        "intelligence.routes": {
+          "guarded": 4,
+          "exempt": 1,
+          "unguarded": 0
+        },
+        "invitation.routes": {
+          "guarded": 0,
+          "exempt": 2,
+          "unguarded": 0
+        },
+        "match-center.routes": {
+          "guarded": 0,
+          "exempt": 5,
+          "unguarded": 0
+        },
+        "match.routes": {
+          "guarded": 35,
+          "exempt": 4,
+          "unguarded": 0
+        },
+        "membership.routes": {
+          "guarded": 0,
+          "exempt": 5,
+          "unguarded": 0
+        },
+        "neuro.routes": {
+          "guarded": 11,
+          "exempt": 3,
+          "unguarded": 0
+        },
+        "observability.routes": {
+          "guarded": 3,
+          "exempt": 0,
+          "unguarded": 0
+        },
+        "phase-l.routes": {
+          "guarded": 4,
+          "exempt": 2,
+          "unguarded": 0
+        },
+        "phase-m.routes": {
+          "guarded": 5,
+          "exempt": 0,
+          "unguarded": 0
+        },
+        "phase-n.routes": {
+          "guarded": 1,
+          "exempt": 0,
+          "unguarded": 0
+        },
+        "phase-o.routes": {
+          "guarded": 9,
+          "exempt": 8,
+          "unguarded": 0
+        },
+        "phase-p.routes": {
+          "guarded": 1,
+          "exempt": 2,
+          "unguarded": 0
+        },
+        "phase-q.routes": {
+          "guarded": 15,
+          "exempt": 48,
+          "unguarded": 0
+        },
+        "player.routes": {
+          "guarded": 13,
+          "exempt": 0,
+          "unguarded": 0
+        },
+        "predictive.routes": {
+          "guarded": 0,
+          "exempt": 1,
+          "unguarded": 0
+        },
+        "provisioning.routes": {
+          "guarded": 0,
+          "exempt": 5,
+          "unguarded": 0
+        },
+        "scouting.routes": {
+          "guarded": 0,
+          "exempt": 5,
+          "unguarded": 0
+        },
+        "security.routes": {
+          "guarded": 2,
+          "exempt": 0,
+          "unguarded": 0
+        },
+        "sources.routes": {
+          "guarded": 0,
+          "exempt": 3,
+          "unguarded": 0
+        },
+        "spatial.routes": {
+          "guarded": 0,
+          "exempt": 3,
+          "unguarded": 0
+        },
+        "staff-market.routes": {
+          "guarded": 0,
+          "exempt": 14,
+          "unguarded": 0
+        },
+        "system.routes": {
+          "guarded": 0,
+          "exempt": 14,
+          "unguarded": 0
+        },
+        "tactical-ai.routes": {
+          "guarded": 2,
+          "exempt": 0,
+          "unguarded": 0
+        },
+        "team.routes": {
+          "guarded": 5,
+          "exempt": 0,
+          "unguarded": 0
+        },
+        "training.routes": {
+          "guarded": 8,
+          "exempt": 0,
+          "unguarded": 0
+        },
+        "transfer-market.routes": {
+          "guarded": 0,
+          "exempt": 27,
+          "unguarded": 0
+        },
+        "vision.routes": {
+          "guarded": 4,
+          "exempt": 2,
+          "unguarded": 0
+        }
+      }
+    }
   },
   "controls": [
     {
@@ -640,7 +861,8 @@
     {
       "id": "tenant-guard",
       "status": "PRESENT",
-      "evidence": "src/middleware/tenant-guard.middleware.ts"
+      "evidence": "src/middleware/tenant-guard.middleware.ts",
+      "note": "136 of 344 route id parameter(s) checked against the caller's club before the handler; 208 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "device-ingest-hmac",
