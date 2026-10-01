@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-30T18:46:17.251Z",
+  "generatedAt": "2026-10-01T18:25:32.190Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -769,7 +769,7 @@
       "provider": "GitHub",
       "region": null,
       "repositoryPath": ".github/workflows/deploy.yml",
-      "sourceEvidence": ".github/workflows/deploy.yml — 1 named steps",
+      "sourceEvidence": ".github/workflows/deploy.yml — 2 named steps",
       "dependencies": [
         "platform-core"
       ],
@@ -793,7 +793,7 @@
         "platform-core"
       ],
       "healthKey": "deployment",
-      "note": "autoDeploy is enabled."
+      "note": null
     },
     {
       "id": "render-familista-redis",
@@ -902,7 +902,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 169 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 171 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -962,7 +962,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "557 TypeScript modules under src/."
+      "note": "559 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -993,7 +993,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "src/config/index.ts",
-      "sourceEvidence": "src/config/index.ts; render.yaml — 57 declared variables",
+      "sourceEvidence": "src/config/index.ts; render.yaml — 58 declared variables",
       "dependencies": [],
       "healthKey": null,
       "note": "Names only. No value is ever read into this manifest."
@@ -1448,8 +1448,8 @@
     "serviceModules": 101,
     "middleware": 22,
     "fabricModules": 52,
-    "totalTypeScript": 557,
-    "testSuites": 169,
+    "totalTypeScript": 559,
+    "testSuites": 171,
     "migrations": 43,
     "prismaModels": 340,
     "prismaEnums": 209
@@ -1481,7 +1481,7 @@
         "runtime": "node",
         "region": "frankfurt",
         "plan": "standard",
-        "autoDeploy": true,
+        "autoDeploy": false,
         "healthCheckPath": "/healthz"
       },
       {
@@ -1556,6 +1556,7 @@
         "name": "deploy",
         "jobs": 3,
         "steps": [
+          "Check the tested commit is still main's head",
           "Trigger Render deploy hook"
         ],
         "services": [],
@@ -1911,7 +1912,7 @@
     }
   ],
   "environment": {
-    "total": 57,
+    "total": 58,
     "architectural": [
       "AI_LLM_MODEL",
       "AI_LLM_TIMEOUT_MS",
@@ -1932,6 +1933,7 @@
       "RATE_LIMIT_MAX",
       "RATE_LIMIT_WINDOW_MS",
       "REDIS_URL",
+      "SECURITY_ALERT_EMAIL",
       "SMTP_HOST",
       "SMTP_PASS",
       "SMTP_PORT",

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-30T18:38:53.860Z",
+  "generatedAt": "2026-10-01T18:22:58.201Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -796,10 +796,22 @@
       "status": "PRESENT",
       "evidence": "src/controllers/internal-video.controller.ts",
       "note": "The transcode callback is reachable only outside the API with an HMAC-SHA256 over method, path, timestamp and raw body (5-minute window, constant-time), is closed without a secret, and cannot set a storage key outside the asset's own club folder."
+    },
+    {
+      "id": "deploy-gated-by-ci",
+      "status": "PRESENT",
+      "evidence": ".github/workflows/deploy.yml",
+      "note": "Render auto-deploy is off; production is deployed only by the deploy workflow after CI succeeded on main for the commit that is still main's head, or by a deliberate manual run, and a deploy that cannot happen fails instead of passing."
+    },
+    {
+      "id": "security-alert-delivery",
+      "status": "PRESENT",
+      "evidence": "src/security/security-alerts.ts",
+      "note": "Critical security events, cross-club access attempts, a broken audit chain, account lockouts, refresh-token reuse, brute-force runs and failed or stale backups are emailed to SECURITY_ALERT_EMAIL by one leased process, de-duplicated per rule (15 min) and capped per hour, with a daily digest; the email carries counts only."
     }
   ],
   "secrets": {
-    "declared": 57,
+    "declared": 58,
     "secretNamed": 18,
     "secretNamedInline": [],
     "envVars": [
@@ -927,6 +939,11 @@
         "name": "REDIS_URL",
         "supply": "linked",
         "secretNamed": true
+      },
+      {
+        "name": "SECURITY_ALERT_EMAIL",
+        "supply": "dashboard",
+        "secretNamed": false
       },
       {
         "name": "SENDGRID_API_KEY",
@@ -1280,10 +1297,12 @@
       "src/controllers/vision-engine.controller.ts",
       "src/cyber-defense/lockout-shadow.ts",
       "src/fabric/secrets/keyring.ts",
+      "src/infra/background-workers.ts",
       "src/middleware/auth.middleware.ts",
       "src/middleware/rate-limit.middleware.ts",
       "src/middleware/tenant-guard.middleware.ts",
       "src/notifications/notifications.service.ts",
+      "src/platform/email/templates/security-alert.ts",
       "src/realtime/market-ws.ts",
       "src/realtime/match-sse.ts",
       "src/realtime/match-ws.ts",
@@ -1348,6 +1367,7 @@
       "src/security/backup/restore-drill.ts",
       "src/security/login-attempt.service.ts",
       "src/security/outbound-url-guard.ts",
+      "src/security/security-alerts.ts",
       "src/security/security-event.service.ts",
       "src/security/worker-callback.ts",
       "src/services/auth.service.ts",
@@ -1360,7 +1380,7 @@
     ]
   },
   "counts": {
-    "controlsPresent": 37,
+    "controlsPresent": 39,
     "controlsPartial": 2,
     "controlsAbsent": 6,
     "cryptoUses": 11

@@ -146,7 +146,8 @@ describe('the secret scan', () => {
 describe('the deploy step keeps a dispatch input as data', () => {
   const script = (() => {
     const lines = DEPLOY.split('\n');
-    const start = lines.findIndex((l) => /^\s+run: \|\s*$/.test(l));
+    const step = lines.findIndex((l) => /name: Trigger Render deploy hook\s*$/.test(l));
+    const start = lines.findIndex((l, i) => i > step && /^\s+run: \|\s*$/.test(l));
     const indent = lines[start + 1].search(/\S/);
     const body: string[] = [];
     for (const l of lines.slice(start + 1)) {
@@ -161,21 +162,29 @@ describe('the deploy step keeps a dispatch input as data', () => {
     const argsFile = path.join(dir, 'curl-args');
     fs.writeFileSync(path.join(dir, 'curl'), `#!/bin/bash\nprintf '%s\\n' "$@" > "${argsFile}"\n`, { mode: 0o755 });
     fs.writeFileSync(path.join(dir, 'step.sh'), script);
-    const out = execFileSync('bash', [path.join(dir, 'step.sh')], {
-      cwd: dir,
-      env: { PATH: `${dir}:${process.env.PATH}`, ...env },
-      encoding: 'utf8',
-    });
+    let out = '';
+    let status = 0;
+    try {
+      out = execFileSync('bash', [path.join(dir, 'step.sh')], {
+        cwd: dir,
+        env: { PATH: `${dir}:${process.env.PATH}`, ...env },
+        encoding: 'utf8',
+      });
+    } catch (err) {
+      const e = err as { status: number; stdout: string };
+      status = e.status; out = String(e.stdout ?? '');
+    }
     const args = fs.existsSync(argsFile) ? fs.readFileSync(argsFile, 'utf8').split('\n') : null;
     const created = fs.readdirSync(dir).filter((f) => !['curl', 'curl-args', 'step.sh'].includes(f));
     fs.rmSync(dir, { recursive: true, force: true });
-    return { out, args, created };
+    return { out, args, created, status };
   }
 
-  it('without a hook it skips and calls nothing', () => {
+  it('without a hook it calls nothing and FAILS — auto-deploy is off, so a skip is a missed deploy (R4)', () => {
     const r = runDeploy({ RENDER_DEPLOY_HOOK_URL: '', DEPLOY_REASON: 'x', DEPLOY_REF: 'a'.repeat(40) });
     expect(r.args).toBeNull();
-    expect(r.out).toMatch(/skipping/);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/::error::RENDER_DEPLOY_HOOK_URL is not set; nothing was deployed/);
   });
 
   it('a hostile reason cannot run a command or break the JSON body', () => {

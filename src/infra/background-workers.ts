@@ -33,6 +33,7 @@ import { stopRetentionWorker } from '../workers/retention.worker';
 import { stopNotificationDispatchWorker } from '../workers/notification-dispatch.worker';
 import { startHeartbeat, stopHeartbeat } from '../distributed/region.service';
 import { startHistoryRecovery, stopHistoryRecovery } from '../fabric/history/history-recovery.service';
+import { startSecurityAlerts, stopSecurityAlerts } from '../security/security-alerts';
 
 /**
  * The set that must run once across the whole deployment.
@@ -68,6 +69,9 @@ const OWNED: Array<{ label: string; start: () => void; stop: () => void | Promis
   // The unique index would make three of them no-ops, but doing the work four
   // times to throw three away is not a design, it is a leak the lease prevents.
   { label: 'history-recovery',    start: startHistoryRecovery,         stop: stopHistoryRecovery },
+  // Cyber Defense R6: security signals emailed to the operator. Leased so one
+  // process sends one email; unleased, every process would send its own copy.
+  { label: 'security-alerts',     start: startSecurityAlerts,          stop: stopSecurityAlerts },
 ];
 
 let running = false;

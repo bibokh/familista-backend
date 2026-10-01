@@ -1,10 +1,18 @@
-# Familista — Deploy: trigger Render deploy after CI passes on main.
-# Render autoDeploy is enabled in render.yaml, so this workflow is mainly a
-# safety net for explicit manual deploys / rollbacks via deploy hook.
+# Familista — Deploy: the ONLY automatic path to production (Cyber Defense R4).
 #
-# Required secrets (set under repo Settings → Secrets and variables → Actions):
-#   • RENDER_DEPLOY_HOOK_URL  — full URL from Render → Service → Settings → Deploy Hook
-#   • RENDER_API_TOKEN        — (optional) for listing deploy history
+# render.yaml sets autoDeploy: false, so Render no longer deploys every push to
+# main on its own — a push whose CI is red used to reach production anyway.
+# Production now moves only when:
+#   · CI ('ci') completed SUCCESSFULLY on main, for the commit that is still
+#     main's head (a newer commit waits for its own CI), or
+#   · a person runs this workflow by hand (rollback / redeploy).
+#
+# Without the hook there is no deploy, and that is a FAILURE, never a green
+# tick: a skipped deploy that looks successful is how production silently falls
+# behind main.
+#
+# Required secret (repo Settings → Secrets and variables → Actions):
+#   • RENDER_DEPLOY_HOOK_URL  — Render → Service → Settings → Deploy Hook
 
 name: deploy
 
@@ -32,11 +40,35 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     timeout-minutes: 5
     steps:
+      # A deploy hook deploys main's LATEST commit, not the one CI just passed.
+      # If main has moved on since, that newer commit has not passed CI yet:
+      # stand down and let its own CI run deploy it.
+      - name: Check the tested commit is still main's head
+        id: head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != "workflow_run" ]; then echo "current=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          head="$(curl -fsS -H "authorization: Bearer ${GH_TOKEN}" -H 'accept: application/vnd.github.sha' \
+            "https://api.github.com/repos/${REPO}/commits/main" | tr -cd '0-9a-f' | cut -c1-40)"
+          tested="$(printf '%s' "$TESTED_SHA" | tr -cd '0-9a-f' | cut -c1-40)"
+          if [ -n "$head" ] && [ "$head" = "$tested" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main has moved past the tested commit; its own CI run will deploy it"
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # Cyber Defense, Step 9: every value arrives through `env`, never by
       # `${{ }}` expansion inside the script. A dispatch input expanded into a
       # script is script injection; read from an environment variable it is
       # only ever data. The reason is also reduced to a short, safe token.
       - name: Trigger Render deploy hook
+        if: steps.head.outputs.current == 'true'
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
           DEPLOY_REASON: ${{ github.event.inputs.reason }}
@@ -44,8 +76,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "::warning::RENDER_DEPLOY_HOOK_URL not set; skipping (Render autoDeploy will handle it)"
-            exit 0
+            echo "::error::RENDER_DEPLOY_HOOK_URL is not set; nothing was deployed (Render auto-deploy is off by design)"
+            exit 1
           fi
           reason="$(printf '%s' "${DEPLOY_REASON:-ci-success}" | tr -cd 'A-Za-z0-9._ -' | cut -c1-80)"
           reason="${reason:-ci-success}"
