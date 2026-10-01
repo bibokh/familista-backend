@@ -123,6 +123,47 @@ describe('every realtime endpoint is held to its session (R1c)', () => {
   });
 });
 
+describe('every id in a route is checked against the caller\'s club (R2)', () => {
+  const t = manifest.apiSurface.tenancy;
+  const exemptions = policy.tenancyExemptions as Record<string, { basis: string; reason: string; routes: string[] }>;
+
+  it('no route id parameter is unguarded and unexempted', () => {
+    expect(t.unguarded).toEqual([]);
+  });
+
+  it('every exempted route still exists and still needs its exemption', () => {
+    expect(t.staleExemptions).toEqual([]);
+  });
+
+  it('nothing relies on router.use(tenantGuard), which checks nothing', () => {
+    expect(t.routerWideTenantGuardMounts).toEqual([]);
+  });
+
+  it('every tenantParam names a resource the guard knows how to resolve', () => {
+    expect(t.unknownTenantResources).toEqual([]);
+  });
+
+  it('the counts add up: every id parameter is guarded or exempted', () => {
+    expect(t.guarded + t.exempt).toBe(t.idParameters);
+    expect(t.guarded).toBeGreaterThan(0);
+  });
+
+  it('every exemption has a known basis, a written reason and an exact route list', () => {
+    const bases = new Set(['service-scoped', 'cross-club-by-design', 'platform-only', 'not-an-identifier', 'device-authenticated', 'own-user', 'open-finding']);
+    for (const [key, ex] of Object.entries(exemptions)) {
+      expect(`${key}: ${bases.has(ex.basis)}`).toBe(`${key}: true`);
+      expect(ex.reason.length).toBeGreaterThan(40);
+      expect(ex.routes.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('open findings are named and stay visible until they are fixed', () => {
+    const open = Object.entries(exemptions).filter(([, ex]) => ex.basis === 'open-finding').map(([k]) => k).sort();
+    expect(open).toEqual(['phase-l.routes :jobId', 'provisioning.routes :releaseId']);
+    for (const k of open) expect(exemptions[k].reason).toMatch(/Batch \d/);
+  });
+});
+
 describe('dormant route modules stay dormant', () => {
   it('the unmounted modules are exactly the reviewed set', () => {
     expect([...manifest.apiSurface.dormantRouteModules].sort()).toEqual(Object.keys(policy.dormantRouteModules).sort());

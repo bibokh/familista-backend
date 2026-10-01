@@ -106,13 +106,75 @@ function ipOf(req: Request): string {
   return typeof xff === 'string' ? xff.split(',')[0].trim() : (req.ip || 'unknown');
 }
 
+interface GuardUser { id: string; clubId: string; role?: UserRole }
+
+/**
+ * The one comparison both guards make: is this row the caller's club's, and —
+ * for a team-pinned membership — the caller's team's? Refuses with 403 and a
+ * logged TENANT_MISMATCH when it is not. Returns true when the request may go on.
+ */
+function admitRow(
+  req: Request, res: Response, u: GuardUser, teamScope: Set<string> | null | undefined,
+  param: string, value: string, row: { clubId: string | null; teamId?: string | null },
+): boolean {
+  // A row with no club is platform-wide (a global competition, a public node):
+  // there is no tenant to compare, and the service decides who may change it.
+  if (row.clubId === null) return true;
+
+  // ── 1. CLUB SCOPE ────────────────────────────────────────────────────
+  if (row.clubId !== u.clubId && u.role !== 'SUPER_ADMIN') {
+    logSecurityEvent({
+      kind:      'TENANT_MISMATCH',
+      severity:  'CRITICAL',
+      clubId:    u.clubId,
+      actorId:   u.id,
+      ipAddress: ipOf(req),
+      userAgent: req.headers['user-agent'] as string | undefined,
+      payload:   { route: req.originalUrl, param, value, scope: 'CLUB', attemptedClub: row.clubId },
+    });
+    res.status(403).json({ success: false, message: 'Forbidden — tenant mismatch' });
+    return false;
+  }
+  if (u.role === 'SUPER_ADMIN' && row.clubId !== u.clubId) {
+    logSecurityEvent({
+      kind:      'TENANT_MISMATCH', severity: 'INFO',
+      clubId:    u.clubId, actorId: u.id, ipAddress: ipOf(req),
+      payload:   { route: req.originalUrl, param, value, scope: 'CLUB', viaRole: 'SUPER_ADMIN', attemptedClub: row.clubId },
+    });
+  }
+
+  // ── 2. TEAM SCOPE ────────────────────────────────────────────────────
+  // Only enforce when:
+  //   • The user's role is team-bound (set computed above is non-undefined).
+  //   • The user has a non-null team scope (i.e. NOT club-wide).
+  //   • The target row carries a teamId (some resources are club-wide).
+  if (teamScope && row.teamId && !teamScope.has(row.teamId)) {
+    logSecurityEvent({
+      kind:      'TENANT_MISMATCH',
+      severity:  'CRITICAL',
+      clubId:    u.clubId,
+      actorId:   u.id,
+      ipAddress: ipOf(req),
+      userAgent: req.headers['user-agent'] as string | undefined,
+      payload:   { route: req.originalUrl, param, value, scope: 'TEAM', attemptedTeam: row.teamId, allowedTeams: [...teamScope] },
+    });
+    res.status(403).json({ success: false, message: 'Forbidden — team scope' });
+    return false;
+  }
+  return true;
+}
+
 /**
  * Defence-in-depth tenant guard. NEVER mutates request data; only refuses.
  * Designed to be cheap: 0 DB hits when no tenant-scoped param is present,
  * 1 hit otherwise.
+ *
+ * It reads `req.params`, which Express fills in only once a route has matched:
+ * mounted with `router.use` it sees an empty object and checks nothing. On a
+ * route, use `tenantParam` (below) or `guardTeamScopedRouter`.
  */
 export async function tenantGuard(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const u = (req as Request & { user?: { id: string; clubId: string; role?: UserRole } }).user;
+  const u = (req as Request & { user?: GuardUser }).user;
   if (!u) return next();   // unauthenticated path — defer to authenticate
 
   try {
@@ -128,47 +190,7 @@ export async function tenantGuard(req: Request, res: Response, next: NextFunctio
       if (!value) continue;
       const row = await loader(value);
       if (!row) continue;  // 404 will surface from the service
-
-      // ── 1. CLUB SCOPE ────────────────────────────────────────────────
-      if (row.clubId !== u.clubId && u.role !== 'SUPER_ADMIN') {
-        logSecurityEvent({
-          kind:      'TENANT_MISMATCH',
-          severity:  'CRITICAL',
-          clubId:    u.clubId,
-          actorId:   u.id,
-          ipAddress: ipOf(req),
-          userAgent: req.headers['user-agent'] as string | undefined,
-          payload:   { route: req.originalUrl, param, value, scope: 'CLUB', attemptedClub: row.clubId },
-        });
-        res.status(403).json({ success: false, message: 'Forbidden — tenant mismatch' });
-        return;
-      }
-      if (u.role === 'SUPER_ADMIN' && row.clubId !== u.clubId) {
-        logSecurityEvent({
-          kind:      'TENANT_MISMATCH', severity: 'INFO',
-          clubId:    u.clubId, actorId: u.id, ipAddress: ipOf(req),
-          payload:   { route: req.originalUrl, param, value, scope: 'CLUB', viaRole: 'SUPER_ADMIN', attemptedClub: row.clubId },
-        });
-      }
-
-      // ── 2. TEAM SCOPE ────────────────────────────────────────────────
-      // Only enforce when:
-      //   • The user's role is team-bound (set computed above is non-undefined).
-      //   • The user has a non-null team scope (i.e. NOT club-wide).
-      //   • The target row carries a teamId (some resources are club-wide).
-      if (teamScope && row.teamId && !teamScope.has(row.teamId)) {
-        logSecurityEvent({
-          kind:      'TENANT_MISMATCH',
-          severity:  'CRITICAL',
-          clubId:    u.clubId,
-          actorId:   u.id,
-          ipAddress: ipOf(req),
-          userAgent: req.headers['user-agent'] as string | undefined,
-          payload:   { route: req.originalUrl, param, value, scope: 'TEAM', attemptedTeam: row.teamId, allowedTeams: [...teamScope] },
-        });
-        res.status(403).json({ success: false, message: 'Forbidden — team scope' });
-        return;
-      }
+      if (!admitRow(req, res, u, teamScope, param, value, row)) return;
     }
     recordOutcome('rbac', true);
     next();
@@ -184,4 +206,85 @@ export async function tenantGuard(req: Request, res: Response, next: NextFunctio
     });
     next();
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Per-route tenant guard (Cyber Defense R2)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// A parameter name does not say what it names: `:id` is an edge node on one
+// router and a camera rig on the next, and `:jobId` is an AI agent job here
+// and a federated training job there. So the route says which resource its
+// parameter is, and the guard resolves THAT row's club:
+//
+//   router.get('/nodes/:id', tenantParam('edgeNode'), ctrl.getOne);
+//
+// Each owner below reads the club from the row itself or, where the row has
+// none, from the parent that does. `scripts/security-discover.js` requires
+// every id parameter on every mounted route to carry this guard (or the
+// router-wide `guardTeamScopedRouter` / `router.param` hook), or a written
+// exemption in `src/cyber-defense/posture-policy.json`.
+
+type Owner = { clubId: string | null; teamId?: string | null } | null;
+const ownerVia = async (parentClub: Promise<{ clubId: string } | null>): Promise<Owner> => {
+  const p = await parentClub;
+  return p ? { clubId: p.clubId } : null;
+};
+
+export const TENANT_RESOURCES = {
+  match:                    (id: string): Promise<Owner> => prisma.match.findUnique({ where: { id }, select: { clubId: true, teamId: true } }),
+  device:                   (id: string): Promise<Owner> => prisma.device.findUnique({ where: { id }, select: { clubId: true } }),
+  camera:                   (id: string): Promise<Owner> => prisma.camera.findUnique({ where: { id }, select: { clubId: true } }),
+  edgeNode:                 (id: string): Promise<Owner> => prisma.edgeNode.findUnique({ where: { id }, select: { clubId: true } }),
+  eventCameraStream:        (id: string): Promise<Owner> => prisma.eventCameraStream.findUnique({ where: { id }, select: { clubId: true } }),
+  cameraRig:                (id: string): Promise<Owner> => prisma.cameraRig.findUnique({ where: { id }, select: { clubId: true } }),
+  cameraSyncSession:        async (id: string): Promise<Owner> => {
+    const s = await prisma.cameraSyncSession.findUnique({ where: { id }, select: { rigId: true } });
+    return s ? ownerVia(prisma.cameraRig.findUnique({ where: { id: s.rigId }, select: { clubId: true } })) : null;
+  },
+  edgeVisionRuntime:        (id: string): Promise<Owner> => prisma.edgeVisionRuntime.findUnique({ where: { id }, select: { clubId: true } }),
+  decisionCouncil:          (id: string): Promise<Owner> => prisma.decisionCouncil.findUnique({ where: { id }, select: { clubId: true } }),
+  marketplaceItem:          (id: string): Promise<Owner> => prisma.marketplaceItem.findUnique({ where: { id }, select: { clubId: true } }),
+  cryptographicGraphAnchor: (id: string): Promise<Owner> => prisma.cryptographicGraphAnchor.findUnique({ where: { id }, select: { clubId: true } }),
+  aIApprovalRequest:        (id: string): Promise<Owner> => prisma.aIApprovalRequest.findUnique({ where: { id }, select: { clubId: true } }),
+  twinSimulationSession:    (id: string): Promise<Owner> => prisma.twinSimulationSession.findUnique({ where: { id }, select: { clubId: true } }),
+  hardwareProvisioningSession: (id: string): Promise<Owner> => prisma.hardwareProvisioningSession.findUnique({ where: { id }, select: { clubId: true } }),
+  invoiceDraft:             async (id: string): Promise<Owner> => {
+    const d = await prisma.invoiceDraft.findUnique({ where: { id }, select: { billingAccountId: true } });
+    return d ? ownerVia(prisma.billingAccount.findUnique({ where: { id: d.billingAccountId }, select: { clubId: true } })) : null;
+  },
+  // A competition with no club is a platform competition, open to every club.
+  competition:              (id: string): Promise<Owner> => prisma.competition.findUnique({ where: { id }, select: { clubId: true } }),
+} as const;
+
+export type TenantResource = keyof typeof TENANT_RESOURCES;
+
+/**
+ * Refuses the request unless the row named by `req.params[param]` belongs to
+ * the caller's club (and, for a team-pinned membership, the caller's team).
+ *
+ * Unlike the router-wide `tenantGuard` it FAILS CLOSED: a lookup that throws
+ * is an error response, not a pass. A route carries this guard because the
+ * question matters there, and "could not check" is not "checked".
+ * Unauthenticated requests pass through untouched — `authenticate` (or a
+ * device signature) decides those.
+ */
+export function tenantParam(resource: TenantResource, param = 'id') {
+  const loader = TENANT_RESOURCES[resource];
+  return async function tenantParamGuard(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const u = (req as Request & { user?: GuardUser }).user;
+    const value = req.params[param];
+    if (!u || !value) return next();
+    try {
+      const row = await loader(value);
+      if (!row) return next();  // 404 will surface from the service
+      const teamScope = isTeamScoped(u.role) ? await loadTeamScope(u.id, u.clubId) : undefined;
+      if (!admitRow(req, res, u, teamScope, param, value, row)) { recordOutcome('rbac', true); return; }
+      recordOutcome('rbac', true);
+      next();
+    } catch (err) {
+      recordOutcome('rbac', false);
+      next(err);
+    }
+  };
 }

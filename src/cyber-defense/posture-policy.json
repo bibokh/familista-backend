@@ -117,5 +117,623 @@
     "maxSecretNamedInline": 0,
     "minAuditHashChainSites": 85,
     "minSecurityEventSites": 19
+  },
+  "tenancyExemptions": {
+    "ai-ops.routes :agent": {
+      "basis": "not-an-identifier",
+      "reason": "An agent kind (enum token), not a row id; the job created is stamped with the caller's club.",
+      "routes": [
+        "POST /ai-ops/agents/:agent/run"
+      ]
+    },
+    "ai-ops.routes :id": {
+      "basis": "service-scoped",
+      "reason": "ai-ops service ack/resolve/mute/getReport take {userId, clubId, role} and compare the row's club; GET /jobs/:id compares the job's club inline in the controller.",
+      "routes": [
+        "GET /ai-ops/jobs/:id",
+        "GET /ai-ops/reports/:id",
+        "POST /ai-ops/alerts/:id/ack",
+        "POST /ai-ops/alerts/:id/mute",
+        "POST /ai-ops/alerts/:id/resolve",
+        "POST /ai-ops/recommendations/:id/ack"
+      ]
+    },
+    "ai.routes :id": {
+      "basis": "service-scoped",
+      "reason": "aiService.analyzePlayer(id, caller's clubId) reads the player within the caller's club.",
+      "routes": [
+        "POST /ai/analyze-player/:id"
+      ]
+    },
+    "auth.routes :token": {
+      "basis": "not-an-identifier",
+      "reason": "A password-reset token, validated by passwordResetService; it names no club row.",
+      "routes": [
+        "GET /auth/reset-password/:token/validate"
+      ]
+    },
+    "automation.routes :id": {
+      "basis": "service-scoped",
+      "reason": "automation.service getTask/listRuns(id, caller's clubId) call assertTaskInClub; update/delete/trigger/cancel take the caller and do the same.",
+      "routes": [
+        "DELETE /automation/tasks/:id",
+        "GET /automation/agents/jobs/:id",
+        "GET /automation/tasks/:id",
+        "GET /automation/tasks/:id/runs",
+        "PATCH /automation/tasks/:id",
+        "POST /automation/agents/jobs/:id/cancel",
+        "POST /automation/tasks/:id/trigger",
+        "PUT /automation/tasks/:id"
+      ]
+    },
+    "billing-j.routes :deviceId": {
+      "basis": "service-scoped",
+      "reason": "billing-j service listDevicePlans takes the caller and compares the device's club.",
+      "routes": [
+        "GET /billing-j/devices/:deviceId/plans"
+      ]
+    },
+    "club.routes :clubId": {
+      "basis": "service-scoped",
+      "reason": "ensureClubAccess (route middleware) refuses a club other than the caller's unless SUPER_ADMIN.",
+      "routes": [
+        "GET /clubs/:clubId",
+        "PATCH /clubs/:clubId"
+      ]
+    },
+    "coaches.routes :clubId": {
+      "basis": "service-scoped",
+      "reason": "coachesClubTeams takes the caller and returns only what the caller's role may see of that club.",
+      "routes": [
+        "GET /coaches/clubs/:clubId/teams"
+      ]
+    },
+    "coaches.routes :entryId": {
+      "basis": "service-scoped",
+      "reason": "deleteCareerEntry: assertEmploys on the staff member, and the entry must belong to that staff member.",
+      "routes": [
+        "DELETE /coaches/staff/:staffUserId/career/:entryId"
+      ]
+    },
+    "coaches.routes :staffUserId": {
+      "basis": "service-scoped",
+      "reason": "Coaches writes call assertEmploys(caller, staffUserId): only the employing club may change its staff.",
+      "routes": [
+        "DELETE /coaches/staff/:staffUserId/achievements/:trophyId",
+        "DELETE /coaches/staff/:staffUserId/career/:entryId",
+        "POST /coaches/staff/:staffUserId/move",
+        "POST /coaches/staff/:staffUserId/release",
+        "PUT /coaches/staff/:staffUserId/achievements",
+        "PUT /coaches/staff/:staffUserId/career"
+      ]
+    },
+    "coaches.routes :trophyId": {
+      "basis": "service-scoped",
+      "reason": "deleteTrophy: assertEmploys on the staff member, and the trophy must belong to that staff member's profile.",
+      "routes": [
+        "DELETE /coaches/staff/:staffUserId/achievements/:trophyId"
+      ]
+    },
+    "device-infra.routes :serial": {
+      "basis": "device-authenticated",
+      "reason": "Device activation by serial: activateDevice requires the device's eFuse fingerprint, a signature, a timestamp within 5 minutes and a nonce; no club row is read for a user by the serial.",
+      "routes": [
+        "POST /device-infra/devices/by-serial/:serial/activate"
+      ]
+    },
+    "device-session.routes :id": {
+      "basis": "service-scoped",
+      "reason": "device-session.service getSession/listPackets(id, caller's clubId), closeSession/ingestPacket/ingestBatch(caller) compare the session's club; the UUID packet route and acceptUserOrDevice routes are authenticated by the device's own signed token.",
+      "routes": [
+        "GET /devices/sessions/:id",
+        "GET /devices/sessions/:id/packets",
+        "POST /devices/:id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/packet",
+        "POST /devices/sessions/:id/close",
+        "POST /devices/sessions/:id/packets",
+        "POST /devices/sessions/:id/packets/batch"
+      ]
+    },
+    "fabric.routes :clubId": {
+      "basis": "platform-only",
+      "reason": "fabric.routes is behind assertPlatformOwner; the platform owner reads any club's history summary by design.",
+      "routes": [
+        "GET /system/fabric/history/clubs/:clubId/summary"
+      ]
+    },
+    "familista-league.routes :fixtureId": {
+      "basis": "cross-club-by-design",
+      "reason": "League fixtures are read by all participants; rescheduling requires assertLeagueAdmin.",
+      "routes": [
+        "GET /familista-league/fixtures/:fixtureId/match",
+        "PATCH /familista-league/manage/fixtures/:fixtureId"
+      ]
+    },
+    "familista-league.routes :teamId": {
+      "basis": "cross-club-by-design",
+      "reason": "The Familista League is a platform competition: every participating club reads every team's record; removal requires assertLeagueAdmin.",
+      "routes": [
+        "DELETE /familista-league/manage/participants/:teamId",
+        "GET /familista-league/teams/:teamId"
+      ]
+    },
+    "familista-vision.routes :id": {
+      "basis": "service-scoped",
+      "reason": "withSession loads the session and answers 404 unless maySeeSession (vision-platform/vision-access.ts): the platform owner, or a viewer whose club is the session's club.",
+      "routes": [
+        "GET /familista-vision/sessions/:id",
+        "GET /familista-vision/sessions/:id/ball",
+        "GET /familista-vision/sessions/:id/calibration",
+        "GET /familista-vision/sessions/:id/events",
+        "GET /familista-vision/sessions/:id/evidence",
+        "GET /familista-vision/sessions/:id/export",
+        "GET /familista-vision/sessions/:id/reports",
+        "GET /familista-vision/sessions/:id/summary",
+        "GET /familista-vision/sessions/:id/teams",
+        "GET /familista-vision/sessions/:id/timeline",
+        "GET /familista-vision/sessions/:id/tracks"
+      ]
+    },
+    "infrastructure.routes :id": {
+      "basis": "platform-only",
+      "reason": "Infrastructure City is behind assertPlatformOwner; incidents and components are platform objects, not club rows.",
+      "routes": [
+        "GET /system/infrastructure/components/:id",
+        "POST /system/infrastructure/incidents/:id/acknowledge"
+      ]
+    },
+    "intelligence.routes :jobId": {
+      "basis": "service-scoped",
+      "reason": "intelligence Svc.getJob takes the caller and compares the job's club.",
+      "routes": [
+        "GET /phase-s/intelligence/jobs/:jobId"
+      ]
+    },
+    "invitation.routes :id": {
+      "basis": "service-scoped",
+      "reason": "invitation.service resendInvitation/revokeInvitation take the caller and compare the invitation's club.",
+      "routes": [
+        "DELETE /invitations/:id",
+        "POST /invitations/:id/resend"
+      ]
+    },
+    "match-center.routes :fixtureId": {
+      "basis": "cross-club-by-design",
+      "reason": "Match Center fixtures are league fixtures between clubs; fixtureAccess decides what each side may do, and change requests are limited to the two clubs.",
+      "routes": [
+        "GET /match-center/fixtures/:fixtureId",
+        "GET /match-center/fixtures/:fixtureId/change-requests",
+        "GET /match-center/fixtures/:fixtureId/scheduling-policy",
+        "POST /match-center/fixtures/:fixtureId/change-requests"
+      ]
+    },
+    "match-center.routes :requestId": {
+      "basis": "cross-club-by-design",
+      "reason": "A change request is between the two clubs of a fixture; actOnRequest allows only the other side or a league admin.",
+      "routes": [
+        "POST /match-center/change-requests/:requestId/action"
+      ]
+    },
+    "match.routes :annotationId": {
+      "basis": "service-scoped",
+      "reason": "annotation.service updateAnnotation/deleteAnnotation take the caller and compare the annotation's club.",
+      "routes": [
+        "DELETE /matches/:id/annotations/:annotationId",
+        "PATCH /matches/:id/annotations/:annotationId"
+      ]
+    },
+    "match.routes :eventId": {
+      "basis": "service-scoped",
+      "reason": "The match is guarded by router.param('id'); match-intelligence editTimelineEvent/deleteTimelineEvent take the caller and the match id and check the event belongs to that match.",
+      "routes": [
+        "DELETE /matches/:id/timeline/:eventId",
+        "PATCH /matches/:id/timeline/:eventId"
+      ]
+    },
+    "membership.routes :id": {
+      "basis": "service-scoped",
+      "reason": "membership.service changeRole/changeTeam/suspend/reactivate/revoke take the caller and compare the membership's club.",
+      "routes": [
+        "DELETE /memberships/:id",
+        "PATCH /memberships/:id/role",
+        "PATCH /memberships/:id/team",
+        "POST /memberships/:id/reactivate",
+        "POST /memberships/:id/suspend"
+      ]
+    },
+    "neuro.routes :id": {
+      "basis": "device-authenticated",
+      "reason": "POST /streams/:id/event-batch is registered before authenticate: event cameras push batches signed with the stream's own key, verified by event-stream.service ingestEventBatch.",
+      "routes": [
+        "POST /neuro/streams/:id/event-batch"
+      ]
+    },
+    "neuro.routes :kind": {
+      "basis": "not-an-identifier",
+      "reason": "A detector kind (FORMATION, PRESSING, …); the match beside it is guarded by tenantParam('match').",
+      "routes": [
+        "POST /neuro/matches/:id/detect/:kind"
+      ]
+    },
+    "neuro.routes :memberId": {
+      "basis": "service-scoped",
+      "reason": "The rig is guarded by tenantParam('cameraRig'); camera-rig.service removeMember refuses a member whose rigId is not that rig.",
+      "routes": [
+        "DELETE /neuro/rigs/:id/members/:memberId"
+      ]
+    },
+    "phase-l.routes :jobId": {
+      "basis": "open-finding",
+      "reason": "Federated training jobs span clubs by design and have no single owning club; submitGradient is gated by the club's trust boundary, but aggregate ignores the caller. Reported for Batch 5 (R8, federated learning).",
+      "routes": [
+        "POST /phase-l/federated/jobs/:jobId/aggregate",
+        "POST /phase-l/federated/jobs/:jobId/gradient"
+      ]
+    },
+    "phase-o.routes :id": {
+      "basis": "service-scoped",
+      "reason": "operations/lifecycle/governance/monitoring services unlinkGuardian, setPaymentState, transitionContractState, transitionRequestState, setAlertRuleState take the caller and compare the row's club.",
+      "routes": [
+        "DELETE /phase-o/ops/guardians/:id",
+        "PATCH /phase-o/governance/gdpr/requests/:id/state",
+        "PATCH /phase-o/lifecycle/contracts/:id/state",
+        "PATCH /phase-o/monitoring/alert-rules/:id/state",
+        "PATCH /phase-o/ops/payments/:id/state"
+      ]
+    },
+    "phase-o.routes :sessionId": {
+      "basis": "service-scoped",
+      "reason": "DELETE /auth/sessions/:sessionId: session.service revoke allows the owner, SUPER_ADMIN, or a CLUB_ADMIN of the user's own club (assertMayEndSessionsOf, R2). GET /ops/attendance/training/:sessionId: operations.service compares the session's club.",
+      "routes": [
+        "DELETE /phase-o/auth/sessions/:sessionId",
+        "GET /phase-o/ops/attendance/training/:sessionId"
+      ]
+    },
+    "phase-o.routes :userId": {
+      "basis": "service-scoped",
+      "reason": "session.service revokeAllForUser allows the user, SUPER_ADMIN, or a CLUB_ADMIN of the user's own club (assertMayEndSessionsOf, R2).",
+      "routes": [
+        "DELETE /phase-o/auth/users/:userId/sessions"
+      ]
+    },
+    "phase-p.routes :id": {
+      "basis": "own-user",
+      "reason": "Inbox items are the caller's own notifications: inbox markRead/archive match on the caller's userId.",
+      "routes": [
+        "DELETE /phase-p/notifications/inbox/:id",
+        "PATCH /phase-p/notifications/inbox/:id/read"
+      ]
+    },
+    "phase-q.routes :annotationId": {
+      "basis": "service-scoped",
+      "reason": "video-annotation.service update/delete take the caller and compare the annotation's club.",
+      "routes": [
+        "DELETE /phase-q/video/annotations/:annotationId",
+        "PATCH /phase-q/video/annotations/:annotationId"
+      ]
+    },
+    "phase-q.routes :assetId": {
+      "basis": "service-scoped",
+      "reason": "video-asset.service getAsset/getStreamUrl/streamHlsFile/deleteAsset take the caller and compare the asset's club.",
+      "routes": [
+        "DELETE /phase-q/video/assets/:assetId",
+        "GET /phase-q/video/assets/:assetId",
+        "GET /phase-q/video/assets/:assetId/hls/:filename",
+        "GET /phase-q/video/assets/:assetId/stream"
+      ]
+    },
+    "phase-q.routes :clipId": {
+      "basis": "service-scoped",
+      "reason": "video-clip/annotation services take the caller and compare the clip's club.",
+      "routes": [
+        "DELETE /phase-q/video/clips/:clipId",
+        "DELETE /phase-q/video/clips/:clipId/share",
+        "DELETE /phase-q/video/playlists/:playlistId/clips/:clipId",
+        "GET /phase-q/video/clips/:clipId",
+        "GET /phase-q/video/clips/:clipId/annotations",
+        "PATCH /phase-q/video/clips/:clipId",
+        "POST /phase-q/video/clips/:clipId/share",
+        "PUT /phase-q/video/clips/:clipId/annotations"
+      ]
+    },
+    "phase-q.routes :competitionId": {
+      "basis": "service-scoped",
+      "reason": "competition.service _assertCompOwner refuses another club's competition (getCompetition, getStandings, rebuild, add/remove team, round robin); listFixtures filters by the caller's clubId.",
+      "routes": [
+        "DELETE /phase-q/competitions/:competitionId/teams/:teamId",
+        "GET /phase-q/competitions/:competitionId",
+        "GET /phase-q/competitions/:competitionId/fixtures",
+        "GET /phase-q/competitions/:competitionId/standings",
+        "POST /phase-q/competitions/:competitionId/fixtures",
+        "POST /phase-q/competitions/:competitionId/fixtures/generate-round-robin",
+        "POST /phase-q/competitions/:competitionId/standings/rebuild",
+        "POST /phase-q/competitions/:competitionId/teams"
+      ]
+    },
+    "phase-q.routes :filename": {
+      "basis": "not-an-identifier",
+      "reason": "An HLS segment file name inside the asset guarded beside it (confined to the asset's own folder).",
+      "routes": [
+        "GET /phase-q/video/assets/:assetId/hls/:filename"
+      ]
+    },
+    "phase-q.routes :fixtureId": {
+      "basis": "service-scoped",
+      "reason": "competition.service _assertFixtureOwner refuses another club's fixture (update, result, cancel).",
+      "routes": [
+        "PATCH /phase-q/competitions/fixtures/:fixtureId",
+        "POST /phase-q/competitions/fixtures/:fixtureId/cancel",
+        "POST /phase-q/competitions/fixtures/:fixtureId/result"
+      ]
+    },
+    "phase-q.routes :id": {
+      "basis": "service-scoped",
+      "reason": "match-event.service deleteEvent takes the caller and compares the event's club.",
+      "routes": [
+        "DELETE /phase-q/events/:id"
+      ]
+    },
+    "phase-q.routes :injuryId": {
+      "basis": "service-scoped",
+      "reason": "workload-science.service injury reads and writes take the caller and compare the injury's club.",
+      "routes": [
+        "DELETE /phase-q/workload/injuries/:injuryId",
+        "GET /phase-q/workload/injuries/:injuryId",
+        "PATCH /phase-q/workload/injuries/:injuryId",
+        "PATCH /phase-q/workload/injuries/:injuryId/return"
+      ]
+    },
+    "phase-q.routes :matchId": {
+      "basis": "service-scoped",
+      "reason": "match-event.service listEvents/getEventSummary load the match and refuse another club's; the video summary composes those and the club-filtered asset/clip lists.",
+      "routes": [
+        "GET /phase-q/events/match/:matchId",
+        "GET /phase-q/events/match/:matchId/summary",
+        "GET /phase-q/video/match/:matchId/summary"
+      ]
+    },
+    "phase-q.routes :playlistId": {
+      "basis": "service-scoped",
+      "reason": "video-clip.service playlist operations take the caller and compare the playlist's club.",
+      "routes": [
+        "DELETE /phase-q/video/playlists/:playlistId",
+        "DELETE /phase-q/video/playlists/:playlistId/clips/:clipId",
+        "GET /phase-q/video/playlists/:playlistId",
+        "POST /phase-q/video/playlists/:playlistId/clips",
+        "PUT /phase-q/video/playlists/:playlistId/order"
+      ]
+    },
+    "phase-q.routes :position": {
+      "basis": "not-an-identifier",
+      "reason": "A playing position (GK, CB, …); the candidates are read within the caller's club.",
+      "routes": [
+        "GET /phase-q/transfer/intelligence/succession/:position"
+      ]
+    },
+    "phase-q.routes :reportId": {
+      "basis": "service-scoped",
+      "reason": "scouting service report reads and writes take the caller and compare the report's club.",
+      "routes": [
+        "DELETE /phase-q/transfer/reports/:reportId",
+        "GET /phase-q/transfer/reports/:reportId",
+        "PATCH /phase-q/transfer/reports/:reportId"
+      ]
+    },
+    "phase-q.routes :shareToken": {
+      "basis": "not-an-identifier",
+      "reason": "A public share token for a clip the owning club chose to share (declared public route).",
+      "routes": [
+        "GET /phase-q/video/shared/:shareToken"
+      ]
+    },
+    "phase-q.routes :targetId": {
+      "basis": "service-scoped",
+      "reason": "scouting service transfer-target writes take the caller and compare the target's club.",
+      "routes": [
+        "PATCH /phase-q/transfer/targets/:targetId",
+        "POST /phase-q/transfer/targets/:targetId/advance"
+      ]
+    },
+    "phase-q.routes :teamId": {
+      "basis": "service-scoped",
+      "reason": "workload squadReadiness and competition removeTeamFromCompetition take the caller and check the team/competition belong to the caller's club.",
+      "routes": [
+        "DELETE /phase-q/competitions/:competitionId/teams/:teamId",
+        "GET /phase-q/workload/teams/:teamId/readiness"
+      ]
+    },
+    "predictive.routes :id": {
+      "basis": "service-scoped",
+      "reason": "predictAll(matchId, caller's clubId) loads the match and refuses another club's with ForbiddenError.",
+      "routes": [
+        "POST /predictive/matches/:id/run"
+      ]
+    },
+    "provisioning.routes :certId": {
+      "basis": "service-scoped",
+      "reason": "provisioning.service revokeCert takes the caller and compares the certificate's device club.",
+      "routes": [
+        "POST /provisioning/certificates/:certId/revoke"
+      ]
+    },
+    "provisioning.routes :deviceId": {
+      "basis": "service-scoped",
+      "reason": "provisioning.service listCertsForDevice takes the caller and compares the device's club.",
+      "routes": [
+        "GET /provisioning/devices/:deviceId/certificates"
+      ]
+    },
+    "provisioning.routes :id": {
+      "basis": "service-scoped",
+      "reason": "provisioning.service getBatch/materialiseBatch take the caller and compare the batch's club.",
+      "routes": [
+        "GET /provisioning/batches/:id",
+        "POST /provisioning/batches/:id/materialise"
+      ]
+    },
+    "provisioning.routes :releaseId": {
+      "basis": "open-finding",
+      "reason": "OTA releases are platform-wide rows with no club, yet CLUB_ADMIN may create and advance them (advanceRollout ignores the caller). Not a tenant-parameter question: it is an authorization gap, reported for Batch 3 (R11).",
+      "routes": [
+        "POST /provisioning/firmware/releases/:releaseId/advance"
+      ]
+    },
+    "scouting.routes :prospectId": {
+      "basis": "service-scoped",
+      "reason": "scouting.service prospect reads and writes take the caller and compare the prospect's club.",
+      "routes": [
+        "DELETE /scouting/:prospectId",
+        "GET /scouting/:prospectId",
+        "PATCH /scouting/:prospectId",
+        "PATCH /scouting/:prospectId/pipeline",
+        "PATCH /scouting/:prospectId/watchlist"
+      ]
+    },
+    "sources.routes :id": {
+      "basis": "platform-only",
+      "reason": "Source Core is behind assertPlatformOwner; a source id names a platform data source, not a club row.",
+      "routes": [
+        "GET /system/sources/:id",
+        "GET /system/sources/:id/consumers",
+        "GET /system/sources/:id/lineage"
+      ]
+    },
+    "spatial.routes :id": {
+      "basis": "service-scoped",
+      "reason": "buildSpatialFrame/twinAt/listAnchors(matchId, caller's clubId) load the match and compare its club.",
+      "routes": [
+        "GET /spatial/matches/:id/frame",
+        "GET /spatial/matches/:id/twin",
+        "GET /spatial/matches/:id/twin/anchors"
+      ]
+    },
+    "staff-market.routes :approachId": {
+      "basis": "cross-club-by-design",
+      "reason": "An approach is between two clubs (and the staff member); staff-market.service lets only its parties act.",
+      "routes": [
+        "GET /staff-market/approaches/:approachId",
+        "POST /staff-market/approaches/:approachId/accept",
+        "POST /staff-market/approaches/:approachId/counter",
+        "POST /staff-market/approaches/:approachId/interview",
+        "POST /staff-market/approaches/:approachId/reject",
+        "POST /staff-market/approaches/:approachId/viewed",
+        "POST /staff-market/approaches/:approachId/withdraw"
+      ]
+    },
+    "staff-market.routes :needId": {
+      "basis": "service-scoped",
+      "reason": "staff-market.service closeNeed takes the caller and compares the need's club.",
+      "routes": [
+        "DELETE /staff-market/needs/:needId"
+      ]
+    },
+    "staff-market.routes :staffUserId": {
+      "basis": "cross-club-by-design",
+      "reason": "The staff market shows staff across clubs by design; notes, shortlist and profile writes are keyed on the caller's club, and profile edits require assertEmploys.",
+      "routes": [
+        "DELETE /staff-market/shortlist/:staffUserId",
+        "GET /staff-market/staff/:staffUserId",
+        "PATCH /staff-market/shortlist/:staffUserId",
+        "PATCH /staff-market/staff/:staffUserId",
+        "PUT /staff-market/notes/:staffUserId",
+        "PUT /staff-market/shortlist/:staffUserId"
+      ]
+    },
+    "system.routes :clubId": {
+      "basis": "platform-only",
+      "reason": "SYSTEM is the platform owner's room: every handler asserts assertPlatformOwner (system.service / club-lifecycle.service / onboarding) before reading or changing any club.",
+      "routes": [
+        "DELETE /system/clubs/:clubId",
+        "GET /system/clubs/:clubId/dependencies",
+        "GET /system/clubs/:clubId/lifecycle",
+        "GET /system/clubs/:clubId/lifecycle/history",
+        "GET /system/clubs/:clubId/setup",
+        "POST /system/clubs/:clubId/archive",
+        "POST /system/clubs/:clubId/deactivate",
+        "POST /system/clubs/:clubId/president/replace",
+        "POST /system/clubs/:clubId/president/resend",
+        "POST /system/clubs/:clubId/president/revoke",
+        "POST /system/clubs/:clubId/reactivate",
+        "POST /system/clubs/:clubId/restore"
+      ]
+    },
+    "system.routes :id": {
+      "basis": "platform-only",
+      "reason": "Experiment decisions are platform-wide and gated by assertPlatformOwner.",
+      "routes": [
+        "POST /system/experiments/:id/decide"
+      ]
+    },
+    "system.routes :key": {
+      "basis": "not-an-identifier",
+      "reason": "A feature-flag key, changed only by the platform owner (assertPlatformOwner).",
+      "routes": [
+        "POST /system/flags/:key"
+      ]
+    },
+    "transfer-market.routes :interestId": {
+      "basis": "cross-club-by-design",
+      "reason": "An interest is between two clubs; respondToInterest allows only the club that received it.",
+      "routes": [
+        "PATCH /transfer-market/interest/:interestId"
+      ]
+    },
+    "transfer-market.routes :listingId": {
+      "basis": "cross-club-by-design",
+      "reason": "The transfer market is shared between clubs: reading another club's listing and bidding on it is the feature. Delist/cancel/extend/close check the caller's club owns the listing in the service.",
+      "routes": [
+        "DELETE /transfer-market/listings/:listingId",
+        "GET /transfer-market/auctions/:listingId",
+        "GET /transfer-market/open-market/:listingId",
+        "POST /transfer-market/auctions/:listingId/bids",
+        "POST /transfer-market/auctions/:listingId/cancel",
+        "POST /transfer-market/listings/:listingId/purchase",
+        "POST /transfer-market/open-market/:listingId/close",
+        "POST /transfer-market/open-market/:listingId/extend"
+      ]
+    },
+    "transfer-market.routes :needId": {
+      "basis": "service-scoped",
+      "reason": "negotiation.service updateNeed/deleteNeed/matchesForNeed take the caller and compare the need's club.",
+      "routes": [
+        "DELETE /transfer-market/needs/:needId",
+        "GET /transfer-market/needs/:needId/matches",
+        "PATCH /transfer-market/needs/:needId"
+      ]
+    },
+    "transfer-market.routes :offerId": {
+      "basis": "cross-club-by-design",
+      "reason": "An offer is between buying and selling clubs; negotiation.service lets only those two act on it.",
+      "routes": [
+        "GET /transfer-market/offers/:offerId",
+        "GET /transfer-market/offers/:offerId/negotiation",
+        "POST /transfer-market/offers/:offerId/accept",
+        "POST /transfer-market/offers/:offerId/counter",
+        "POST /transfer-market/offers/:offerId/reject",
+        "POST /transfer-market/offers/:offerId/withdraw"
+      ]
+    },
+    "transfer-market.routes :playerId": {
+      "basis": "cross-club-by-design",
+      "reason": "Public player cards and offers are read across clubs on the market; contract, shortlist and offer-to-clubs writes are checked against the caller's club in the services.",
+      "routes": [
+        "DELETE /transfer-market/offer-to-clubs/:playerId",
+        "DELETE /transfer-market/shortlist/:playerId",
+        "GET /transfer-market/matches/:playerId",
+        "GET /transfer-market/offered-to-clubs/player/:playerId",
+        "GET /transfer-market/offers/player/:playerId",
+        "GET /transfer-market/players/:playerId",
+        "GET /transfer-market/players/:playerId/contract",
+        "PATCH /transfer-market/offer-to-clubs/:playerId",
+        "POST /transfer-market/players/:playerId/contract/renew"
+      ]
+    },
+    "vision.routes :id": {
+      "basis": "service-scoped",
+      "reason": "POST /cameras/:id/frame is device-signed ingest (HMAC verified by vision-ingest); GET /matches/:id/frames passes the caller's clubId into listVisionFrames' where clause.",
+      "routes": [
+        "GET /vision/matches/:id/frames",
+        "POST /vision/cameras/:id/frame"
+      ]
+    }
   }
 }

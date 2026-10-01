@@ -3,13 +3,12 @@
 // Real-launch surface: status rollup, attendance reports, payer balances,
 // in-app inbox, and the FC Familista bootstrap seed (SUPER_ADMIN only).
 //
-// Middleware chain (inherited): rateLimit → authenticate → tenantGuard → authorize(...)
+// Middleware chain: rateLimit → authenticate → team scope (guardTeamScopedRouter) → authorize(...)
 
 import { Router } from 'express';
 import * as ctrl from '../controllers/phase-p.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { guardTeamScopedRouter } from '../middleware/team-scope.middleware';
-import { tenantGuard } from '../middleware/tenant-guard.middleware';
 
 const router = Router();
 router.use(authenticate);
@@ -19,7 +18,6 @@ router.use(authenticate);
 // Familista League use: a team, player or match id from another team or
 // another club is refused with 403 before the handler runs.
 guardTeamScopedRouter(router);
-router.use(tenantGuard);
 
 // ── Production status ──────────────────────────────────────────────────
 router.get('/status', authorize('CLUB_ADMIN','MANAGER','ANALYST','SUPER_ADMIN'), ctrl.status);

@@ -3,11 +3,10 @@
 import { Router } from 'express';
 import * as ctrl from '../controllers/phase-n.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
-import { tenantGuard } from '../middleware/tenant-guard.middleware';
+import { tenantParam } from '../middleware/tenant-guard.middleware';
 
 const router = Router();
 router.use(authenticate);
-router.use(tenantGuard);
 
 // Knowledge graph
 router.post('/kg/nodes',            authorize('CLUB_ADMIN','SUPER_ADMIN','HEAD_COACH','ANALYST'), ctrl.createNode);
@@ -16,7 +15,7 @@ router.post('/kg/edges',            authorize('CLUB_ADMIN','SUPER_ADMIN','HEAD_C
 router.get('/kg/edges',             ctrl.listEdges);
 router.post('/kg/anchor',           authorize('CLUB_ADMIN','SUPER_ADMIN'),                       ctrl.anchorGraph);
 router.get('/kg/anchors',           ctrl.listAnchors);
-router.get('/kg/anchors/:anchorId/verify', ctrl.verifyAnchor);
+router.get('/kg/anchors/:anchorId/verify', tenantParam('cryptographicGraphAnchor', 'anchorId'), ctrl.verifyAnchor);
 
 // Reasoning layer
 router.post('/reasoning/rules',     authorize('CLUB_ADMIN','SUPER_ADMIN','HEAD_COACH'), ctrl.publishRule);

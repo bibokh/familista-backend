@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import * as ctrl from '../controllers/device-infra.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
+import { tenantParam } from '../middleware/tenant-guard.middleware';
 
 const router = Router();
 
@@ -17,18 +18,18 @@ router.use(authenticate);
 // Device registry
 router.get('/devices',                ctrl.list);
 router.post('/devices',               authorize('CLUB_ADMIN','HEAD_COACH'), ctrl.register);
-router.get('/devices/:id',            ctrl.getOne);
-router.post('/devices/:id/retire',    authorize('CLUB_ADMIN','HEAD_COACH'), ctrl.retire);
-router.post('/devices/:id/revoke',    authorize('CLUB_ADMIN','HEAD_COACH'), ctrl.revoke);
+router.get('/devices/:id',            tenantParam('device'), ctrl.getOne);
+router.post('/devices/:id/retire',    tenantParam('device'), authorize('CLUB_ADMIN','HEAD_COACH'), ctrl.retire);
+router.post('/devices/:id/revoke',    tenantParam('device'), authorize('CLUB_ADMIN','HEAD_COACH'), ctrl.revoke);
 
 // Firmware (OTA)
-router.get('/devices/:id/firmware',   ctrl.fwCheck);
+router.get('/devices/:id/firmware',   tenantParam('device'), ctrl.fwCheck);
 router.get('/firmware',               ctrl.fwList);
 router.post('/firmware',              authorize('CLUB_ADMIN','SUPER_ADMIN'), ctrl.fwPublish);
 
 // Calibration
-router.get('/devices/:id/calibration',         ctrl.calibrationGet);
-router.get('/devices/:id/calibration/history', ctrl.calibrationHistory);
-router.post('/devices/:id/calibration',        authorize('CLUB_ADMIN','HEAD_COACH','ANALYST','MEDICAL_STAFF'), ctrl.calibrationApply);
+router.get('/devices/:id/calibration',         tenantParam('device'), ctrl.calibrationGet);
+router.get('/devices/:id/calibration/history', tenantParam('device'), ctrl.calibrationHistory);
+router.post('/devices/:id/calibration',        tenantParam('device'), authorize('CLUB_ADMIN','HEAD_COACH','ANALYST','MEDICAL_STAFF'), ctrl.calibrationApply);
 
 export default router;
