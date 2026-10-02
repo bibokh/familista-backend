@@ -100,7 +100,11 @@
     "outbound-url-guard",
     "realtime-session-revocation",
     "deploy-gated-by-ci",
-    "security-alert-delivery"
+    "security-alert-delivery",
+    "authz-declared-per-handler",
+    "owner-rooms-pinned",
+    "architecture-fully-mapped",
+    "coverage-ratchet"
   ],
   "knownGaps": {
     "login-lockout": "PARTIAL — the lockout service has no enforcing caller; it runs in shadow mode only (login-lockout-shadow).",
@@ -571,8 +575,8 @@
       ]
     },
     "provisioning.routes :releaseId": {
-      "basis": "open-finding",
-      "reason": "OTA releases are platform-wide rows with no club, yet CLUB_ADMIN may create and advance them (advanceRollout ignores the caller). Not a tenant-parameter question: it is an authorization gap, reported for Batch 3 (R11).",
+      "basis": "platform-only",
+      "reason": "OTA releases are platform-wide rows with no club; creating and advancing them requires requirePlatformAuthority (platform owner or SUPER_ADMIN) since Batch 3 (R11). Before that, any CLUB_ADMIN could.",
       "routes": [
         "POST /provisioning/firmware/releases/:releaseId/advance"
       ]
@@ -735,5 +739,466 @@
         "POST /vision/cameras/:id/frame"
       ]
     }
+  },
+  "ownerRooms": {
+    "system.routes": {
+      "mount": "/system",
+      "except": {
+        "GET /system/whoami": "Any signed-in user may ask whether they are the platform owner; it answers about the caller only and changes nothing."
+      }
+    },
+    "owner-trace.routes": {
+      "mount": "/system/trace"
+    },
+    "data-pulse.routes": {
+      "mount": "/system/data-pulse"
+    },
+    "fabric.routes": {
+      "mount": "/system/fabric"
+    },
+    "infrastructure.routes": {
+      "mount": "/system/infrastructure"
+    },
+    "sources.routes": {
+      "mount": "/system/sources"
+    }
+  },
+  "authorizationMemberHandlers": {
+    "ai-ops.routes": [
+      "GET /ai-ops/alerts",
+      "GET /ai-ops/anomalies",
+      "GET /ai-ops/jobs/:id",
+      "GET /ai-ops/recommendations",
+      "GET /ai-ops/reports",
+      "GET /ai-ops/reports/:id",
+      "POST /ai-ops/alerts/:id/ack",
+      "POST /ai-ops/alerts/:id/resolve",
+      "POST /ai-ops/recommendations/:id/ack"
+    ],
+    "ai.routes": [
+      "GET /ai/history",
+      "POST /ai/analyze",
+      "POST /ai/analyze-player/:id"
+    ],
+    "analytics.routes": [
+      "GET /analytics/gps-load",
+      "GET /analytics/overview",
+      "GET /analytics/performance-trend",
+      "GET /analytics/player/:playerId"
+    ],
+    "auth.routes": [
+      "GET /auth/me",
+      "PUT /auth/change-password"
+    ],
+    "automation.routes": [
+      "GET /automation/agents/jobs",
+      "GET /automation/agents/jobs/:id",
+      "GET /automation/tasks",
+      "GET /automation/tasks/:id",
+      "GET /automation/tasks/:id/runs"
+    ],
+    "billing-j.routes": [
+      "GET /billing-j/account",
+      "GET /billing-j/devices/:deviceId/plans",
+      "GET /billing-j/tiers",
+      "GET /billing-j/usage"
+    ],
+    "billing.routes": [
+      "GET /billing/subscription",
+      "POST /billing/checkout",
+      "POST /billing/portal"
+    ],
+    "club-admin.routes": [
+      "GET /club-admin/audit-log",
+      "GET /club-admin/data-quality",
+      "GET /club-admin/system-health"
+    ],
+    "club.routes": [
+      "GET /clubs/current"
+    ],
+    "coaches.routes": [
+      "GET /coaches/clubs",
+      "GET /coaches/clubs/:clubId/teams",
+      "GET /coaches/directory",
+      "GET /coaches/teams/:teamId/staff"
+    ],
+    "context.routes": [
+      "GET /me/_diag",
+      "GET /me/context",
+      "GET /me/settings",
+      "PATCH /me/settings",
+      "POST /me/context"
+    ],
+    "device-infra.routes": [
+      "GET /device-infra/devices",
+      "GET /device-infra/devices/:id",
+      "GET /device-infra/devices/:id/calibration",
+      "GET /device-infra/devices/:id/calibration/history",
+      "GET /device-infra/devices/:id/firmware",
+      "GET /device-infra/firmware"
+    ],
+    "device-session.routes": [
+      "GET /devices/gps-status",
+      "GET /devices/sessions",
+      "GET /devices/sessions/:id",
+      "GET /devices/sessions/:id/packets"
+    ],
+    "distributed.routes": [
+      "GET /distributed/region/resolve",
+      "GET /distributed/regions",
+      "GET /distributed/whoami"
+    ],
+    "edge.routes": [
+      "GET /edge/nodes",
+      "GET /edge/nodes/:id"
+    ],
+    "familista-league.routes": [
+      "GET /familista-league/fixtures/:fixtureId/match",
+      "GET /familista-league/leaderboards",
+      "GET /familista-league/manage",
+      "GET /familista-league/matches",
+      "GET /familista-league/overview",
+      "GET /familista-league/standings",
+      "GET /familista-league/team-stats",
+      "GET /familista-league/teams/:teamId"
+    ],
+    "familista-vision.routes": [
+      "GET /familista-vision/device",
+      "GET /familista-vision/integrations",
+      "GET /familista-vision/models",
+      "GET /familista-vision/sessions",
+      "GET /familista-vision/sessions/:id",
+      "GET /familista-vision/sessions/:id/ball",
+      "GET /familista-vision/sessions/:id/calibration",
+      "GET /familista-vision/sessions/:id/events",
+      "GET /familista-vision/sessions/:id/evidence",
+      "GET /familista-vision/sessions/:id/export",
+      "GET /familista-vision/sessions/:id/reports",
+      "GET /familista-vision/sessions/:id/summary",
+      "GET /familista-vision/sessions/:id/teams",
+      "GET /familista-vision/sessions/:id/timeline",
+      "GET /familista-vision/sessions/:id/tracks",
+      "GET /familista-vision/sources",
+      "GET /familista-vision/status",
+      "POST /familista-vision/sessions",
+      "POST /familista-vision/sources"
+    ],
+    "home.routes": [
+      "GET /home/dashboard"
+    ],
+    "intelligence.routes": [
+      "GET /phase-s/intelligence/jobs",
+      "GET /phase-s/intelligence/jobs/:jobId",
+      "POST /phase-s/intelligence/jobs/match/:matchId/analysis",
+      "POST /phase-s/intelligence/jobs/recruitment",
+      "POST /phase-s/intelligence/jobs/teams/:teamId/injury-risk",
+      "POST /phase-s/intelligence/jobs/teams/:teamId/tactical",
+      "POST /phase-s/intelligence/jobs/teams/:teamId/training"
+    ],
+    "invitation.routes": [
+      "POST /invitations/accept"
+    ],
+    "match-center.routes": [
+      "GET /match-center/calendar",
+      "GET /match-center/fixtures/:fixtureId",
+      "GET /match-center/fixtures/:fixtureId/change-requests",
+      "GET /match-center/fixtures/:fixtureId/scheduling-policy",
+      "GET /match-center/teams",
+      "POST /match-center/change-requests/:requestId/action",
+      "POST /match-center/fixtures/:fixtureId/change-requests"
+    ],
+    "match.routes": [
+      "GET /matches",
+      "GET /matches/:id",
+      "GET /matches/:id/ai-features",
+      "GET /matches/:id/alerts",
+      "GET /matches/:id/annotations",
+      "GET /matches/:id/brain",
+      "GET /matches/:id/fusion",
+      "GET /matches/:id/lineups",
+      "GET /matches/:id/live-intelligence",
+      "GET /matches/:id/recommendations",
+      "GET /matches/:id/replay",
+      "GET /matches/:id/reports",
+      "GET /matches/:id/tactical",
+      "GET /matches/:id/tactical-state",
+      "GET /matches/:id/timeline",
+      "GET /matches/results"
+    ],
+    "membership.routes": [
+      "GET /memberships"
+    ],
+    "neuro.routes": [
+      "GET /neuro/biomech",
+      "GET /neuro/rigs",
+      "GET /neuro/rigs/:id",
+      "GET /neuro/runtimes",
+      "GET /neuro/streams",
+      "GET /neuro/streams/:id/batches",
+      "POST /neuro/biomech/:deviceId/packet",
+      "POST /neuro/metrics/snapshot",
+      "POST /neuro/runtimes/:id/health"
+    ],
+    "observability.routes": [
+      "GET /observability/devices/:deviceId/health"
+    ],
+    "phase-l.routes": [
+      "GET /phase-l/catalog/plugins",
+      "GET /phase-l/coaching/agents",
+      "GET /phase-l/coaching/recommendations",
+      "GET /phase-l/cognitive/matches/:matchId/graph",
+      "GET /phase-l/federated/jobs",
+      "GET /phase-l/hardware/sessions",
+      "GET /phase-l/quantum/posture",
+      "GET /phase-l/simulation/sessions",
+      "POST /phase-l/security/attestation"
+    ],
+    "phase-m.routes": [
+      "GET /phase-m/councils/:councilId",
+      "GET /phase-m/executive/agents",
+      "GET /phase-m/executive/decisions",
+      "GET /phase-m/knowledge/documents",
+      "GET /phase-m/marketplace/listings",
+      "GET /phase-m/recruitment/targets",
+      "GET /phase-m/scouting/scouts",
+      "GET /phase-m/training/plans",
+      "GET /phase-m/twins"
+    ],
+    "phase-n.routes": [
+      "GET /phase-n/kg/anchors",
+      "GET /phase-n/kg/anchors/:anchorId/verify",
+      "GET /phase-n/kg/edges",
+      "GET /phase-n/kg/nodes",
+      "GET /phase-n/reasoning/rules",
+      "GET /phase-n/reasoning/traces",
+      "GET /phase-n/scouting/discoveries",
+      "GET /phase-n/scouting/nodes",
+      "GET /phase-n/scouting/rankings",
+      "GET /phase-n/trust"
+    ],
+    "phase-o.routes": [
+      "DELETE /phase-o/auth/sessions/:sessionId",
+      "GET /phase-o/auth/sessions",
+      "GET /phase-o/governance/retention",
+      "GET /phase-o/lifecycle/contracts",
+      "GET /phase-o/lifecycle/evaluations/:playerId",
+      "GET /phase-o/lifecycle/onboarding/:playerId",
+      "GET /phase-o/monitoring/alert-rules",
+      "GET /phase-o/notifications/channels",
+      "GET /phase-o/ops/attendance/match/:matchId",
+      "GET /phase-o/ops/attendance/training/:sessionId",
+      "GET /phase-o/ops/calendar",
+      "GET /phase-o/ops/guardians/:playerId",
+      "GET /phase-o/ops/invoices/:invoiceDraftId/lines",
+      "GET /phase-o/ops/payments",
+      "POST /phase-o/auth/mfa/confirm",
+      "POST /phase-o/auth/mfa/disable",
+      "POST /phase-o/auth/mfa/enroll",
+      "POST /phase-o/auth/mfa/verify",
+      "POST /phase-o/auth/sessions/rotate",
+      "POST /phase-o/governance/consent",
+      "POST /phase-o/governance/gdpr/requests",
+      "POST /phase-o/notifications/channels"
+    ],
+    "phase-p.routes": [
+      "DELETE /phase-p/notifications/inbox/:id",
+      "GET /phase-p/finance/balance",
+      "GET /phase-p/finance/history",
+      "GET /phase-p/notifications/inbox",
+      "GET /phase-p/notifications/inbox/counts",
+      "GET /phase-p/reports/attendance/match",
+      "GET /phase-p/reports/attendance/players/:playerId",
+      "GET /phase-p/reports/attendance/training",
+      "PATCH /phase-p/notifications/inbox/:id/read",
+      "PATCH /phase-p/notifications/inbox/read-all"
+    ],
+    "phase-q.routes": [
+      "DELETE /phase-q/competitions/:competitionId/teams/:teamId",
+      "DELETE /phase-q/events/:id",
+      "DELETE /phase-q/transfer/reports/:reportId",
+      "DELETE /phase-q/video/annotations/:annotationId",
+      "DELETE /phase-q/video/assets/:assetId",
+      "DELETE /phase-q/video/clips/:clipId",
+      "DELETE /phase-q/video/clips/:clipId/share",
+      "DELETE /phase-q/video/playlists/:playlistId",
+      "DELETE /phase-q/video/playlists/:playlistId/clips/:clipId",
+      "DELETE /phase-q/workload/injuries/:injuryId",
+      "GET /phase-q/competitions",
+      "GET /phase-q/competitions/:competitionId",
+      "GET /phase-q/competitions/:competitionId/fixtures",
+      "GET /phase-q/competitions/:competitionId/standings",
+      "GET /phase-q/competitions/:competitionId/teams",
+      "GET /phase-q/events/match/:matchId",
+      "GET /phase-q/events/match/:matchId/summary",
+      "GET /phase-q/stats/matches/:matchId",
+      "GET /phase-q/stats/matches/:matchId/players/:playerId",
+      "GET /phase-q/stats/players/:playerId/profile",
+      "GET /phase-q/stats/players/:playerId/seasons",
+      "GET /phase-q/transfer/contracts-expiring",
+      "GET /phase-q/transfer/contracts/:playerId",
+      "GET /phase-q/transfer/intelligence/player/:playerId",
+      "GET /phase-q/transfer/intelligence/squad",
+      "GET /phase-q/transfer/intelligence/squad-future",
+      "GET /phase-q/transfer/intelligence/squad-summary",
+      "GET /phase-q/transfer/intelligence/succession/:position",
+      "GET /phase-q/transfer/intelligence/unified/:playerId",
+      "GET /phase-q/transfer/market-values/:playerId",
+      "GET /phase-q/transfer/market-values/:playerId/latest",
+      "GET /phase-q/transfer/market-values/squad",
+      "GET /phase-q/transfer/pipeline",
+      "GET /phase-q/transfer/reports",
+      "GET /phase-q/transfer/reports/:reportId",
+      "GET /phase-q/transfer/scoring/ranked",
+      "GET /phase-q/transfer/scoring/squad-depth",
+      "GET /phase-q/transfer/targets",
+      "GET /phase-q/video/assets",
+      "GET /phase-q/video/assets/:assetId",
+      "GET /phase-q/video/assets/:assetId/hls/:filename",
+      "GET /phase-q/video/assets/:assetId/stream",
+      "GET /phase-q/video/clips",
+      "GET /phase-q/video/clips/:clipId",
+      "GET /phase-q/video/clips/:clipId/annotations",
+      "GET /phase-q/video/dashboard",
+      "GET /phase-q/video/match/:matchId/summary",
+      "GET /phase-q/video/playlists",
+      "GET /phase-q/video/playlists/:playlistId",
+      "GET /phase-q/workload/injuries",
+      "GET /phase-q/workload/injuries/:injuryId",
+      "GET /phase-q/workload/players/:playerId/medical",
+      "PATCH /phase-q/competitions/fixtures/:fixtureId",
+      "PATCH /phase-q/transfer/reports/:reportId",
+      "PATCH /phase-q/transfer/targets/:targetId",
+      "PATCH /phase-q/video/annotations/:annotationId",
+      "PATCH /phase-q/video/clips/:clipId",
+      "PATCH /phase-q/workload/injuries/:injuryId",
+      "PATCH /phase-q/workload/injuries/:injuryId/return",
+      "POST /phase-q/competitions",
+      "POST /phase-q/competitions/:competitionId/fixtures",
+      "POST /phase-q/competitions/:competitionId/fixtures/generate-round-robin",
+      "POST /phase-q/competitions/:competitionId/standings/rebuild",
+      "POST /phase-q/competitions/:competitionId/teams",
+      "POST /phase-q/competitions/fixtures/:fixtureId/cancel",
+      "POST /phase-q/competitions/fixtures/:fixtureId/result",
+      "POST /phase-q/events",
+      "POST /phase-q/events/batch",
+      "POST /phase-q/stats/matches/:matchId/rebuild",
+      "POST /phase-q/stats/season-rollup",
+      "POST /phase-q/transfer/market-values",
+      "POST /phase-q/transfer/reports",
+      "POST /phase-q/transfer/scoring/scorecard",
+      "POST /phase-q/transfer/targets",
+      "POST /phase-q/transfer/targets/:targetId/advance",
+      "POST /phase-q/video/annotations",
+      "POST /phase-q/video/assets/confirm-upload",
+      "POST /phase-q/video/assets/request-upload",
+      "POST /phase-q/video/clips",
+      "POST /phase-q/video/clips/:clipId/share",
+      "POST /phase-q/video/playlists",
+      "POST /phase-q/video/playlists/:playlistId/clips",
+      "POST /phase-q/workload/gps",
+      "POST /phase-q/workload/injuries",
+      "POST /phase-q/workload/players/:playerId/recompute",
+      "PUT /phase-q/transfer/contracts/:playerId",
+      "PUT /phase-q/video/clips/:clipId/annotations",
+      "PUT /phase-q/video/playlists/:playlistId/order"
+    ],
+    "player.routes": [
+      "GET /players",
+      "GET /players/:id",
+      "GET /players/:id/attendance",
+      "GET /players/:id/attributes",
+      "GET /players/:id/stats",
+      "GET /players/performance/squad",
+      "POST /players/:id/ai-analysis",
+      "POST /players/:id/gps"
+    ],
+    "predictive.routes": [
+      "GET /predictive/predictions"
+    ],
+    "provisioning.routes": [
+      "GET /provisioning/firmware/manifests",
+      "GET /provisioning/firmware/releases"
+    ],
+    "scouting.routes": [
+      "GET /scouting",
+      "GET /scouting/:prospectId",
+      "GET /scouting/compare",
+      "GET /scouting/dashboard",
+      "GET /scouting/pipeline",
+      "GET /scouting/watchlist"
+    ],
+    "spatial.routes": [
+      "GET /spatial/matches/:id/frame",
+      "GET /spatial/matches/:id/twin",
+      "GET /spatial/matches/:id/twin/anchors"
+    ],
+    "staff-market.routes": [
+      "GET /staff-market/activity",
+      "GET /staff-market/approaches/:approachId",
+      "GET /staff-market/clubs",
+      "GET /staff-market/compare",
+      "GET /staff-market/discover",
+      "GET /staff-market/my-staff",
+      "GET /staff-market/needs",
+      "GET /staff-market/shortlist",
+      "GET /staff-market/staff/:staffUserId",
+      "GET /staff-market/summary",
+      "POST /staff-market/approaches/:approachId/viewed"
+    ],
+    "system.routes": [
+      "GET /system/whoami"
+    ],
+    "tactical-ai.routes": [
+      "GET /tactical-ai/matches/:matchId",
+      "GET /tactical-ai/teams/:teamId"
+    ],
+    "team.routes": [
+      "GET /teams",
+      "GET /teams/:id"
+    ],
+    "telemetry.routes": [
+      "POST /telemetry/events"
+    ],
+    "training.routes": [
+      "GET /training",
+      "GET /training/:id",
+      "GET /training/:id/attendance",
+      "GET /training/form",
+      "GET /training/reports"
+    ],
+    "transfer-market.routes": [
+      "GET /transfer-market/auctions",
+      "GET /transfer-market/auctions/:listingId",
+      "GET /transfer-market/balance",
+      "GET /transfer-market/completed",
+      "GET /transfer-market/completed/market",
+      "GET /transfer-market/discover",
+      "GET /transfer-market/feed",
+      "GET /transfer-market/market",
+      "GET /transfer-market/matches/:playerId",
+      "GET /transfer-market/my-club",
+      "GET /transfer-market/my-listings",
+      "GET /transfer-market/needs",
+      "GET /transfer-market/needs/:needId/matches",
+      "GET /transfer-market/needs/mine",
+      "GET /transfer-market/offered-to-clubs",
+      "GET /transfer-market/offered-to-clubs/mine",
+      "GET /transfer-market/offered-to-clubs/player/:playerId",
+      "GET /transfer-market/offers/:offerId",
+      "GET /transfer-market/offers/:offerId/negotiation",
+      "GET /transfer-market/offers/activity",
+      "GET /transfer-market/offers/player/:playerId",
+      "GET /transfer-market/open-market",
+      "GET /transfer-market/open-market/:listingId",
+      "GET /transfer-market/players/:playerId",
+      "GET /transfer-market/shortlist"
+    ],
+    "vision.routes": [
+      "GET /vision/cameras",
+      "GET /vision/cameras/:id",
+      "GET /vision/cameras/:id/calibration",
+      "GET /vision/matches/:id/frames",
+      "GET /vision/sports"
+    ]
   }
 }

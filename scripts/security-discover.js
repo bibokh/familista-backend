@@ -249,6 +249,157 @@ const tenancy = {
   byRouter: Object.fromEntries(Object.entries(tenancyByRouter).sort(([a], [b]) => a.localeCompare(b))),
 };
 
+// ── authorization per handler (Cyber Defense R11) ────────────────────────────
+//
+// What each mounted handler requires beyond a session, read from the route
+// file and — where the route itself says nothing — from the controller
+// function it calls and the service function that calls into, one hop deep:
+//
+//   public          reachable without a session (justified in publicRoutes)
+//   platform-owner  requirePlatformAuthority, or assertPlatformOwner /
+//                   hasPlatformAuthority on the route, router or that call path
+//   roles:<…>       authorize(…) on the route or router-wide before it
+//   scoped:<…>      a require*/ensure* guard on the route (team access, club access…)
+//   member          any signed-in member of the caller's club, and nothing else
+//
+// `member` is a legitimate answer — most reads are exactly that — but it is a
+// reviewed one: the set of member-level handlers is pinned in posture-policy
+// `authorizationMemberHandlers`, so a new handler that checks no role arrives
+// as a diff somebody reads. The platform-owner rooms are pinned whole.
+const OWNER_RE = /assertPlatformOwner\(|requirePlatformAuthority|hasPlatformAuthority\(|assertPlatformAuthority\(/;
+const fnBody = (src, name) => {
+  const i = src.search(new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}\\b|export\\s+const\\s+${name}\\s*=`));
+  if (i < 0) return '';
+  const end = src.indexOf('\nexport ', i + 10);
+  return src.slice(i, end < 0 ? undefined : end);
+};
+const resolveTs = (fromFile, spec) => {
+  if (!spec.startsWith('.')) return null;
+  const base = path.join(path.dirname(fromFile), spec);
+  for (const c of [`${base}.ts`, `${base}/index.ts`]) if (exists(c)) return c;
+  return null;
+};
+const importsOf = (file, src) => {
+  const out = {};
+  for (const m of src.matchAll(/import\s+\*\s+as\s+(\w+)\s+from\s+'([^']+)'/g)) out[m[1]] = { file: resolveTs(file, m[2]), ns: true };
+  for (const m of src.matchAll(/import\s+(?:type\s+)?\{([^}]+)\}\s+from\s+'([^']+)'/g)) {
+    for (const n of m[1].split(',').map((x) => x.trim()).filter(Boolean)) {
+      const [orig, alias] = n.split(/\s+as\s+/);
+      out[(alias || orig).trim()] = { file: resolveTs(file, m[2]), name: orig.trim() };
+    }
+  }
+  return out;
+};
+/** True when the controller function, or a service function it calls, asserts platform authority. */
+function ownerViaCallPath(routeFile, routeSrc, handlerExpr) {
+  const routeImports = importsOf(routeFile, routeSrc);
+  let ctrlFile = null; let ctrlFn = null;
+  const dotted = handlerExpr.match(/^(\w+)\.(\w+)$/);
+  if (dotted && routeImports[dotted[1]] && routeImports[dotted[1]].ns) { ctrlFile = routeImports[dotted[1]].file; ctrlFn = dotted[2]; }
+  else if (/^\w+$/.test(handlerExpr) && routeImports[handlerExpr] && !routeImports[handlerExpr].ns) { ctrlFile = routeImports[handlerExpr].file; ctrlFn = routeImports[handlerExpr].name; }
+  if (!ctrlFile) return false;
+  const csrc = (read(ctrlFile) || '').replace(/\/\/[^\n]*/g, '');
+  const body = fnBody(csrc, ctrlFn);
+  if (OWNER_RE.test(body)) return true;
+  const cImports = importsOf(ctrlFile, csrc);
+  for (const call of body.matchAll(/\b(\w+)\.(\w+)\(|\b(\w+)\(/g)) {
+    const target = call[1] ? (cImports[call[1]] && cImports[call[1]].ns ? { file: cImports[call[1]].file, name: call[2] } : null)
+      : (cImports[call[3]] && !cImports[call[3]].ns ? cImports[call[3]] : null);
+    if (!target || !target.file) continue;
+    const ssrc = (read(target.file) || '').replace(/\/\/[^\n]*/g, '');
+    const sbody = fnBody(ssrc, target.name);
+    if (OWNER_RE.test(sbody)) return true;
+    // …and one helper in the same service file (`transition()` in club-lifecycle).
+    for (const h of sbody.matchAll(/\b(\w+)\(/g)) {
+      if (h[1] === target.name) continue;
+      if (OWNER_RE.test(localFnBody(ssrc, h[1]))) return true;
+    }
+  }
+  return false;
+}
+function localFnBody(src, name) {
+  const i = src.search(new RegExp(`^(?:export\\s+)?(?:async\\s+)?function\\s+${name}\\b`, 'm'));
+  if (i < 0) return '';
+  const end = src.slice(i + 10).search(/^(?:export\s+)?(?:async\s+)?function\s|^export\s/m);
+  return src.slice(i, end < 0 ? undefined : i + 10 + end);
+}
+const publicRouteSet = new Set(publicRoutes.map((r) => r.route));
+const authzHandlers = {};
+const authzByRouter = {};
+for (const m of indexSrc.matchAll(/router\.use\(\s*'([^']+)'\s*,([^;]+?)\);/g)) {
+  const args = m[2].split(',').map((x) => x.trim()).filter(Boolean);
+  const moduleName = importsByName[args[args.length - 1]];
+  if (!moduleName) continue;
+  const file = `src/routes/${moduleName}.ts`;
+  const raw = read(file) || '';
+  const code = raw.replace(/\/\/[^\n]*/g, (c) => ' '.repeat(c.length));
+  const ownerGates = [...code.matchAll(/router\.use\(\s*(?:requirePlatformAuthority\b|async\s*\([^)]*\)\s*(?::\s*\w+\s*)?=>\s*\{)/g)]
+    .filter((g) => g[0].includes('requirePlatformAuthority') || OWNER_RE.test(code.slice(g.index, code.indexOf('\n});', g.index))))
+    .map((g) => g.index);
+  const roleGates = [...code.matchAll(/router\.use\(\s*authorize\(([^)]*)\)/g)].map((g) => ({ at: g.index, roles: g[1] }));
+  // Route files name guard bundles once (`const tradeGuard = [requireMembership(…), …]`)
+  // and use the name on each route: read the name as what it stands for.
+  const guardConsts = [...code.matchAll(/^const\s+(\w+)\s*=\s*(\[[^\]]*\]|authorize\([^)]*\)|(?:require|ensure)\w+\([^;]*\));/gm)];
+  const expand = (txt) => guardConsts.reduce((t, g) => t.replace(new RegExp(`\\b${g[1]}\\b`, 'g'), g[2]), txt);
+  for (const r of code.matchAll(ROUTE_RE)) {
+    const route = `${r[1].toUpperCase()} ${m[1]}${r[3] === '/' ? '' : r[3]}`;
+    const close = code.indexOf(');', r.index);
+    const ownRaw = code.slice(r.index, close < 0 ? r.index + 400 : close);
+    const own = expand(ownRaw);
+    const roles = (own.match(/authorize\(([^)]*)\)/) || [])[1] || (roleGates.filter((g) => g.at < r.index).pop() || {}).roles;
+    const scoped = [...own.matchAll(/\b((?:require|ensure)\w+)\b(?:\(\s*MembershipRole\.(\w+))?/g)]
+      .map((x) => (x[2] ? `${x[1]}(${x[2]})` : x[1])).filter((n) => n !== 'requirePlatformAuthority');
+    const handlerExpr = (ownRaw.replace(/\s+$/, '').match(/([\w.]+)\s*$/) || [])[1] || '';
+    let kind;
+    if (publicRouteSet.has(route)) kind = 'public';
+    else if (/requirePlatformAuthority/.test(own) || OWNER_RE.test(own) || ownerGates.some((at) => at < r.index)
+      || ownerViaCallPath(file, raw, handlerExpr)) kind = 'platform-owner';
+    else if (roles) kind = `roles:${roles.replace(/['"\s]/g, '').replace(/UserRole\./g, '')}`;
+    else if (scoped.length) kind = `scoped:${[...new Set(scoped)].join('+')}`;
+    else kind = 'member';
+    authzHandlers[route] = kind;
+    const b = authzByRouter[moduleName] || (authzByRouter[moduleName] = {});
+    const k = kind.split(':')[0];
+    b[k] = (b[k] || 0) + 1;
+  }
+}
+const memberPolicy = posturePolicyForScan.authorizationMemberHandlers || {};
+const memberReviewed = new Set(Object.values(memberPolicy).flat());
+const memberActual = Object.entries(authzHandlers).filter(([, k]) => k === 'member').map(([r]) => r);
+const ownerRoomsPolicy = posturePolicyForScan.ownerRooms || {};
+const ownerRoomViolations = [];
+for (const [mod, room] of Object.entries(ownerRoomsPolicy)) {
+  const mounted = [...indexSrc.matchAll(/router\.use\(\s*'([^']+)'\s*,([^;]+?)\);/g)]
+    .find((x) => importsByName[x[2].split(',').map((y) => y.trim()).pop()] === mod);
+  if (!mounted || mounted[1] !== room.mount) { ownerRoomViolations.push(`${mod}: not mounted at ${room.mount}`); continue; }
+  const routes = Object.keys(authzHandlers).filter((rt) => rt.split(' ')[1] === room.mount || rt.split(' ')[1].startsWith(`${room.mount}/`))
+    .filter((rt) => authzByRouterOwner(rt, mod));
+  if (!routes.length) ownerRoomViolations.push(`${mod}: no handlers found`);
+  for (const rt of routes) {
+    if (authzHandlers[rt] !== 'platform-owner' && !(room.except && room.except[rt])) ownerRoomViolations.push(`${mod}: ${rt} is ${authzHandlers[rt]}`);
+  }
+}
+function authzByRouterOwner(route, mod) {
+  // A route belongs to the module whose mount path is its longest matching prefix.
+  const p = route.split(' ')[1];
+  let best = null;
+  for (const x of indexSrc.matchAll(/router\.use\(\s*'([^']+)'\s*,([^;]+?)\);/g)) {
+    const mm = importsByName[x[2].split(',').map((y) => y.trim()).pop()];
+    if (!mm) continue;
+    if ((p === x[1] || p.startsWith(`${x[1]}/`)) && (!best || x[1].length > best.len)) best = { mod: mm, len: x[1].length };
+  }
+  return best && best.mod === mod;
+}
+const authorization = {
+  handlers: Object.keys(authzHandlers).length,
+  byKind: Object.entries(authzHandlers).reduce((a, [, k]) => { const kk = k.split(':')[0]; a[kk] = (a[kk] || 0) + 1; return a; }, {}),
+  memberUnreviewed: memberActual.filter((r) => !memberReviewed.has(r)).sort(),
+  memberStale: [...memberReviewed].filter((r) => authzHandlers[r] !== 'member').sort(),
+  ownerRoomViolations,
+  byRouter: Object.fromEntries(Object.entries(authzByRouter).sort(([a], [b]) => a.localeCompare(b))),
+  perHandler: Object.fromEntries(Object.entries(authzHandlers).sort(([a], [b]) => a.localeCompare(b))),
+};
+
 // Routes the application itself declares, outside the API router: health and
 // the pages a browser deep-links into. All public by design.
 const APP = cite('src/app.ts');
@@ -700,12 +851,98 @@ controls.push(
     'WebSockets and event streams verify the session exactly as a request does (signature, active user, token version), and every open one is closed when its session ends: at once on an identity change, and on a timer as a backstop.'),
   control('outbound-url-guard', outboundGuardProtected() ? 'PRESENT' : 'ABSENT', 'src/security/outbound-url-guard.ts',
     'A URL a user supplies (a notification webhook) is called only over https to a public address, checked at registration and again at the connection, with no redirects, a time and size limit, and no response body kept.'),
+  // R11: every handler's authorization is known, and the ones that ask for no
+  // role are a reviewed list; the platform-owner rooms are owner-only, whole.
+  control('authz-declared-per-handler',
+    authorization.handlers > 0 && authorization.memberUnreviewed.length === 0 && authorization.memberStale.length === 0 ? 'PRESENT' : 'ABSENT',
+    'src/cyber-defense/posture-policy.json',
+    `${authorization.handlers} handler(s) classified: ${Object.entries(authorization.byKind).map(([k, n]) => `${n} ${k}`).join(', ')}; every member-level handler reviewed by name.`),
+  control('owner-rooms-pinned',
+    Object.keys(ownerRoomsPolicy).length > 0 && authorization.ownerRoomViolations.length === 0 ? 'PRESENT' : 'ABSENT',
+    'src/cyber-defense/posture-policy.json',
+    `${Object.keys(ownerRoomsPolicy).length} platform-owner room(s) mounted where pinned, every handler in them owner-only.`),
   control('worker-callback-authenticated', workerCallbackProtected() ? 'PRESENT' : 'ABSENT', 'src/controllers/internal-video.controller.ts',
     'The transcode callback is reachable only outside the API with an HMAC-SHA256 over method, path, timestamp and raw body (5-minute window, constant-time), is closed without a secret, and cannot set a storage key outside the asset\'s own club folder.'),
   control('deploy-gated-by-ci', deployGatedByCi() ? 'PRESENT' : 'ABSENT', '.github/workflows/deploy.yml',
     'Render auto-deploy is off; production is deployed only by the deploy workflow after CI succeeded on main for the commit that is still main\'s head, or by a deliberate manual run, and a deploy that cannot happen fails instead of passing.'),
   control('security-alert-delivery', securityAlertDelivery() ? 'PRESENT' : 'ABSENT', 'src/security/security-alerts.ts',
     'Critical security events, cross-club access attempts, a broken audit chain, account lockouts, refresh-token reuse, brute-force runs and failed or stale backups are emailed to SECURITY_ALERT_EMAIL by one leased process, de-duplicated per rule (15 min) and capped per hour, with a daily digest; the email carries counts only.'),
+);
+
+// ── architecture coverage (Cyber Defense R5) ──────────────────────────────────
+//
+// Nothing may exist outside Cyber Defense. The components below are read from
+// the code itself — not from a list somebody keeps — and every one must be
+// declared in src/cyber-defense/coverage-map.json against the trust-boundary
+// rows that govern it. A component the code has and the map does not, or the
+// map has and the code no longer does, fails the posture test.
+const builtins = new Set(require('module').builtinModules.flatMap((b) => [b, `node:${b}`]));
+const packageOf = (spec) => (spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0]);
+const importedPackages = new Set();
+for (const src of allSrc) {
+  for (const m of src.matchAll(/(?:from\s+|require\(\s*|import\(\s*)'([^'.\/][^']*)'/g)) {
+    const pkg = packageOf(m[1]);
+    if (!builtins.has(pkg) && !builtins.has(m[1])) importedPackages.add(pkg);
+  }
+}
+const prismaSections = (() => {
+  const lines = (read(cite('prisma/schema.prisma')) || '').split('\n');
+  const rule = /^\/\/\s*[─═━-]{10,}\s*$/;
+  const out = new Set();
+  let cur = '(top)';
+  for (let i = 0; i < lines.length; i += 1) {
+    if (rule.test(lines[i]) && lines[i + 1] && lines[i + 1].startsWith('//') && !rule.test(lines[i + 1])) {
+      let j = i + 1; const title = [];
+      while (j < lines.length && lines[j].startsWith('//') && !rule.test(lines[j])) { title.push(lines[j].slice(2).trim()); j += 1; }
+      if (j < lines.length && rule.test(lines[j])) { cur = title[0] || cur; i = j; continue; }
+    }
+    if (/^model \w+/.test(lines[i])) out.add(cur);
+  }
+  return out;
+})();
+const ownedWorkers = [...(read(cite('src/infra/background-workers.ts')) || '').matchAll(/\{\s*label:\s*'([\w-]+)'/g)].map((m) => m[1]);
+const renderServices = [...(read(RENDER) || '').matchAll(/^\s*-\s*(?:type:\s*\w+\s*\n\s*)?name:\s*([\w-]+)\s*$/gm)].map((m) => m[1]);
+const infraManifest = (() => { try { return JSON.parse(read('src/infra/generated/infrastructure-manifest.json') || '{}'); } catch (_) { return {}; } })();
+const discoveredComponents = {
+  routers: mounts.map((x) => x.module),
+  srcDomains: fs.readdirSync(path.join(ROOT, 'src'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name),
+  prismaSections: [...prismaSections],
+  packages: [...importedPackages],
+  outboundCallSites: [...outboundCallSites],
+  realtimeEndpoints: [...realtimeEndpoints],
+  leasedWorkers: ownedWorkers,
+  workerFiles: fs.readdirSync(path.join(ROOT, 'src/workers')).filter((f) => f.endsWith('.ts')).map((f) => f.replace(/\.ts$/, '')),
+  envVars: envVars.map((v) => v.name),
+  renderServices,
+  workflows: fs.readdirSync(path.join(ROOT, '.github/workflows')).filter((f) => /\.ya?ml$/.test(f)),
+  infrastructureComponents: (infraManifest.components || []).map((c) => c.id),
+};
+for (const k of Object.keys(discoveredComponents)) discoveredComponents[k] = [...new Set(discoveredComponents[k])].sort();
+
+const coverageMap = (() => { try { return JSON.parse(read(cite('src/cyber-defense/coverage-map.json')) || '{}'); } catch (_) { return {}; } })();
+const rows = coverageMap.boundaries || {};
+const controlStatus = Object.fromEntries(controls.map((c) => [c.id, c.status]));
+const { checkCoverage, ratchetHolds } = require('./lib/coverage-check');
+const { counts: coverageCounts, ...architectureFindings } = checkCoverage(discoveredComponents, coverageMap, controlStatus, exists);
+const ratchet = coverageMap.ratchet || {};
+const architecture = {
+  components: Object.fromEntries(Object.entries(discoveredComponents).map(([k, v]) => [k, v.length])),
+  boundaries: Object.keys(rows).length,
+  coverage: coverageCounts,
+  ratchet,
+  rows: Object.fromEntries(Object.entries(rows).map(([id, r]) => [id, r.coverage])),
+  ...architectureFindings,
+};
+controls.push(
+  control('architecture-fully-mapped',
+    Object.keys(rows).length > 0 && architectureFindings.unmapped.length === 0 && architectureFindings.stale.length === 0
+      && architectureFindings.badRow.length === 0 && architectureFindings.rowProblems.length === 0 ? 'PRESENT' : 'ABSENT',
+    'src/cyber-defense/coverage-map.json',
+    `${Object.values(discoveredComponents).reduce((n, v) => n + v.length, 0)} discovered component(s) across ${Object.keys(discoveredComponents).length} kinds, each declared against the ${Object.keys(rows).length} trust-boundary rows; a covered row's controls are all present.`),
+  control('coverage-ratchet',
+    ratchetHolds(coverageCounts, ratchet) ? 'PRESENT' : 'ABSENT',
+    'src/cyber-defense/coverage-map.json',
+    `${coverageCounts.C} covered, ${coverageCounts.P} partial, ${coverageCounts.U} uncovered; uncovered may not exceed ${ratchet.U}, and partial + uncovered may not exceed ${(ratchet.P || 0) + (ratchet.U || 0)}.`),
 );
 
 // ── the manifest ─────────────────────────────────────────────────────────────
@@ -727,7 +964,9 @@ const manifest = {
     outboundCallSites,
     realtimeEndpoints,
     tenancy,
+    authorization,
   },
+  architecture,
   controls,
   secrets: {
     declared: envVars.length,

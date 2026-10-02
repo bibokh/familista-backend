@@ -1,0 +1,2050 @@
+{
+  "$comment": "Cyber Defense R5 — every component of the platform, declared against the trust-boundary rows that govern it. Components are discovered from the code by scripts/security-discover.js; a component the code has and this map does not, or this map has and the code does not, fails the posture test. A row marked C must have every control it names PRESENT (or a pinning test); P and U must say why and which batch closes them. The ratchet only moves down.",
+  "schemaVersion": 1,
+  "coverageKey": {
+    "C": "Covered by Cyber Defense controls pinned by tests",
+    "P": "Partially covered",
+    "U": "Uncovered"
+  },
+  "ratchet": {
+    "U": 6,
+    "P": 15
+  },
+  "boundaries": {
+    "1": {
+      "name": "Browser → API (SPA, admin app)",
+      "flow": "browser → api",
+      "trustBoundary": "internet → app",
+      "owner": "platform",
+      "dataClass": "personal",
+      "boundaryType": "network",
+      "coverage": "P",
+      "controls": [
+        "csp-script-self",
+        "csp-no-plugins-no-frames",
+        "cors-allowlist",
+        "cors-rejection-is-403"
+      ],
+      "reason": "The React client keeps the access and refresh tokens in localStorage, so one XSS is persistent session theft.",
+      "plannedIn": "Batch 4 (R7)"
+    },
+    "2": {
+      "name": "Sign-in, register, refresh, reset",
+      "flow": "client → identity",
+      "trustBoundary": "anonymous → identity",
+      "owner": "platform",
+      "dataClass": "credentials",
+      "boundaryType": "identity",
+      "coverage": "P",
+      "controls": [
+        "auth-rate-limit",
+        "password-hashing-bcrypt",
+        "refresh-token-hashed-at-rest",
+        "mfa-service",
+        "mfa-owner-enforcement-at-login",
+        "login-lockout-shadow"
+      ],
+      "reason": "Lockout runs in shadow mode; MFA is required of owners only; the legacy refresh-token fallback remains.",
+      "plannedIn": "Batch 4 (R7)"
+    },
+    "3": {
+      "name": "JWT verification",
+      "flow": "token → identity",
+      "trustBoundary": "token → identity",
+      "owner": "platform",
+      "dataClass": "credentials",
+      "boundaryType": "identity",
+      "coverage": "P",
+      "controls": [
+        "session-revocation-token-version"
+      ],
+      "reason": "The JWT algorithm is not pinned and issuer/audience are not checked; one secret can mint any identity.",
+      "plannedIn": "Batch 4 (R7)"
+    },
+    "4": {
+      "name": "API authentication coverage",
+      "flow": "anonymous → api",
+      "trustBoundary": "anonymous → authenticated",
+      "owner": "platform",
+      "dataClass": "all",
+      "boundaryType": "identity",
+      "coverage": "C",
+      "controls": [],
+      "pinnedBy": [
+        "tests/security-posture.unit.test.ts"
+      ]
+    },
+    "5": {
+      "name": "Club / tenant isolation",
+      "flow": "club A → club B",
+      "trustBoundary": "tenant → tenant",
+      "owner": "club",
+      "dataClass": "club",
+      "boundaryType": "tenant",
+      "coverage": "P",
+      "controls": [
+        "tenant-guard"
+      ],
+      "reason": "Every route id is guarded or exempted by name (R2); ids in request bodies are not inventoried, and there is no row-level security in the database.",
+      "plannedIn": "Batch 7 (R14)"
+    },
+    "6": {
+      "name": "Roles and permissions",
+      "flow": "role → action",
+      "trustBoundary": "role → action",
+      "owner": "club",
+      "dataClass": "club",
+      "boundaryType": "authorization",
+      "coverage": "C",
+      "controls": [
+        "authz-declared-per-handler"
+      ]
+    },
+    "7": {
+      "name": "Platform-owner rooms",
+      "flow": "club user → owner",
+      "trustBoundary": "club → platform",
+      "owner": "platform",
+      "dataClass": "platform",
+      "boundaryType": "authorization",
+      "coverage": "C",
+      "controls": [
+        "owner-rooms-pinned"
+      ]
+    },
+    "8": {
+      "name": "WebSocket and SSE",
+      "flow": "token → live stream",
+      "trustBoundary": "token → stream",
+      "owner": "club",
+      "dataClass": "performance",
+      "boundaryType": "identity",
+      "coverage": "P",
+      "controls": [
+        "realtime-session-revocation"
+      ],
+      "reason": "The session token still travels in the WebSocket URL.",
+      "plannedIn": "Batch 4 (R7)"
+    },
+    "9": {
+      "name": "AI Gateway",
+      "flow": "engine → provider",
+      "trustBoundary": "platform → provider",
+      "owner": "platform",
+      "dataClass": "health",
+      "boundaryType": "provider",
+      "coverage": "U",
+      "controls": [],
+      "reason": "The gateway is not wired into any live LLM call.",
+      "plannedIn": "Batch 5 (R3)"
+    },
+    "10": {
+      "name": "LLM calls to Anthropic",
+      "flow": "familista → third party",
+      "trustBoundary": "platform → provider",
+      "owner": "platform",
+      "dataClass": "health",
+      "boundaryType": "provider",
+      "coverage": "U",
+      "controls": [],
+      "reason": "Named players’ injury and heart-rate data reach a third party with no classification or redaction gate.",
+      "plannedIn": "Batch 5 (R3)"
+    },
+    "11": {
+      "name": "AI agents, orchestrator, decisions",
+      "flow": "model → action",
+      "trustBoundary": "model → action",
+      "owner": "club",
+      "dataClass": "club",
+      "boundaryType": "automation",
+      "coverage": "P",
+      "controls": [
+        "ai-action-approval-gate"
+      ],
+      "reason": "The orchestrator and decision writers do not all pass the approval gate.",
+      "plannedIn": "Batch 5 (R8)"
+    },
+    "12": {
+      "name": "Model registry and MLOps",
+      "flow": "artifact → production",
+      "trustBoundary": "artifact → production",
+      "owner": "platform",
+      "dataClass": "platform",
+      "boundaryType": "supply-chain",
+      "coverage": "U",
+      "controls": [],
+      "reason": "No artifact hashing, signing or promotion approval.",
+      "plannedIn": "Batch 5 (R8)"
+    },
+    "13": {
+      "name": "Federated learning",
+      "flow": "club → shared model",
+      "trustBoundary": "club → platform",
+      "owner": "club",
+      "dataClass": "performance",
+      "boundaryType": "tenant",
+      "coverage": "U",
+      "controls": [],
+      "reason": "A club with no trust record is trusted by default, the gradient size is self-reported, and aggregate ignores the caller.",
+      "plannedIn": "Batch 5 (R8)"
+    },
+    "14": {
+      "name": "Feature and training data",
+      "flow": "personal data → model",
+      "trustBoundary": "personal → model",
+      "owner": "club",
+      "dataClass": "health",
+      "boundaryType": "privacy",
+      "coverage": "U",
+      "controls": [],
+      "reason": "No purpose limitation, consent or classification on data used for training.",
+      "plannedIn": "Batch 5 (R8)"
+    },
+    "15": {
+      "name": "Neuro, cognitive, knowledge graph",
+      "flow": "engine → user",
+      "trustBoundary": "engine → user",
+      "owner": "club",
+      "dataClass": "performance",
+      "boundaryType": "tenant",
+      "coverage": "P",
+      "controls": [
+        "tenant-guard"
+      ],
+      "reason": "Route ids are now guarded (R2); HMAC-signed recommendations are not pinned by a posture control and the AI path depends on Batch 5.",
+      "plannedIn": "Batch 5 (R3/R8)"
+    },
+    "16": {
+      "name": "Data Vault → fabric history API",
+      "flow": "owner → history",
+      "trustBoundary": "owner → platform",
+      "owner": "platform",
+      "dataClass": "platform",
+      "boundaryType": "authorization",
+      "coverage": "C",
+      "controls": [
+        "owner-rooms-pinned"
+      ]
+    },
+    "17": {
+      "name": "Data Fabric, outbox, history",
+      "flow": "producer → record",
+      "trustBoundary": "producer → record",
+      "owner": "platform",
+      "dataClass": "platform",
+      "boundaryType": "integrity",
+      "coverage": "P",
+      "controls": [
+        "owner-rooms-pinned"
+      ],
+      "reason": "Schema validation and classification at the producer are not Cyber Defense controls.",
+      "plannedIn": "Batch 6 (R12)"
+    },
+    "18": {
+      "name": "PostgreSQL",
+      "flow": "app → database",
+      "trustBoundary": "app → database",
+      "owner": "platform",
+      "dataClass": "all",
+      "boundaryType": "data",
+      "coverage": "P",
+      "controls": [
+        "no-unsafe-raw-sql",
+        "backup-encrypted-authenticated"
+      ],
+      "reason": "No row-level security; the audit table is not append-only; one application role has full rights.",
+      "plannedIn": "Batch 6 (R9) / Batch 7 (R14)"
+    },
+    "19": {
+      "name": "Redis",
+      "flow": "app → cache",
+      "trustBoundary": "app → cache",
+      "owner": "platform",
+      "dataClass": "platform",
+      "boundaryType": "data",
+      "coverage": "P",
+      "controls": [],
+      "reason": "Private network only; no TLS/auth control and no posture control.",
+      "plannedIn": "Batch 6 (R10)"
+    },
+    "20": {
+      "name": "Object storage and HLS proxy",
+      "flow": "app → media",
+      "trustBoundary": "app → storage",
+      "owner": "club",
+      "dataClass": "club",
+      "boundaryType": "storage",
+      "coverage": "P",
+      "controls": [
+        "worker-callback-authenticated"
+      ],
+      "reason": "The transcode callback is authenticated and keys are confined to the asset (R1a); other media writes have no general club-folder check.",
+      "plannedIn": "Batch 6 (R10)"
+    },
+    "21": {
+      "name": "Video Intelligence workers",
+      "flow": "app ↔ worker",
+      "trustBoundary": "app → worker",
+      "owner": "platform",
+      "dataClass": "performance",
+      "boundaryType": "service",
+      "coverage": "C",
+      "controls": [
+        "worker-callback-authenticated"
+      ]
+    },
+    "22": {
+      "name": "Camera ingest",
+      "flow": "device → app",
+      "trustBoundary": "device → app",
+      "owner": "club",
+      "dataClass": "performance",
+      "boundaryType": "device",
+      "coverage": "C",
+      "controls": [
+        "device-ingest-hmac"
+      ]
+    },
+    "23": {
+      "name": "Device and sensor ingest",
+      "flow": "device → app",
+      "trustBoundary": "device → app",
+      "owner": "club",
+      "dataClass": "health",
+      "boundaryType": "device",
+      "coverage": "C",
+      "controls": [
+        "device-ingest-hmac"
+      ]
+    },
+    "24": {
+      "name": "Edge nodes",
+      "flow": "club → edge",
+      "trustBoundary": "club → edge",
+      "owner": "club",
+      "dataClass": "performance",
+      "boundaryType": "tenant",
+      "coverage": "C",
+      "controls": [
+        "tenant-guard"
+      ]
+    },
+    "25": {
+      "name": "Stripe",
+      "flow": "provider → app",
+      "trustBoundary": "provider → app",
+      "owner": "platform",
+      "dataClass": "commercial",
+      "boundaryType": "provider",
+      "coverage": "C",
+      "controls": [
+        "stripe-webhook-signature"
+      ]
+    },
+    "26": {
+      "name": "Email (SendGrid / SMTP)",
+      "flow": "app → provider",
+      "trustBoundary": "platform → provider",
+      "owner": "platform",
+      "dataClass": "personal",
+      "boundaryType": "provider",
+      "coverage": "P",
+      "controls": [],
+      "reason": "No TLS control for SMTP and no posture control.",
+      "plannedIn": "Batch 6 (R12)"
+    },
+    "27": {
+      "name": "User-registered outbound webhooks",
+      "flow": "app → arbitrary URL",
+      "trustBoundary": "app → internet",
+      "owner": "club",
+      "dataClass": "personal",
+      "boundaryType": "network",
+      "coverage": "C",
+      "controls": [
+        "outbound-url-guard"
+      ]
+    },
+    "28": {
+      "name": "Secrets and keys",
+      "flow": "configuration → runtime",
+      "trustBoundary": "operator → runtime",
+      "owner": "platform",
+      "dataClass": "credentials",
+      "boundaryType": "secrets",
+      "coverage": "P",
+      "controls": [
+        "versioned-keyring",
+        "ci-secret-scanning"
+      ],
+      "reason": "No rotation runbook or evidence for the JWT secret.",
+      "plannedIn": "Batch 6 (R12)"
+    },
+    "29": {
+      "name": "CI (GitHub Actions)",
+      "flow": "pull request → main",
+      "trustBoundary": "contributor → main",
+      "owner": "platform",
+      "dataClass": "platform",
+      "boundaryType": "supply-chain",
+      "coverage": "C",
+      "controls": [
+        "ci-least-privilege",
+        "ci-actions-sha-pinned",
+        "ci-audit-blocking",
+        "ci-secret-scanning",
+        "ci-no-expression-injection"
+      ]
+    },
+    "30": {
+      "name": "Deploys",
+      "flow": "main → production",
+      "trustBoundary": "main → production",
+      "owner": "platform",
+      "dataClass": "platform",
+      "boundaryType": "operations",
+      "coverage": "C",
+      "controls": [
+        "deploy-gated-by-ci"
+      ]
+    },
+    "31": {
+      "name": "Database backup and restore",
+      "flow": "production → off-site",
+      "trustBoundary": "production → off-site",
+      "owner": "platform",
+      "dataClass": "all",
+      "boundaryType": "operations",
+      "coverage": "C",
+      "controls": [
+        "backup-encrypted-authenticated",
+        "backup-signed-manifest",
+        "backup-runner-cannot-decrypt",
+        "backup-restore-guarded",
+        "backup-restore-drill-in-ci",
+        "backup-records-platform-only",
+        "backup-scheduled",
+        "backup-trigger-authenticated"
+      ]
+    },
+    "32": {
+      "name": "Disaster recovery for media and Redis",
+      "flow": "storage → recovery",
+      "trustBoundary": "storage → recovery",
+      "owner": "platform",
+      "dataClass": "club",
+      "boundaryType": "operations",
+      "coverage": "U",
+      "controls": [],
+      "reason": "Media objects are not backed up and there is no region-loss runbook.",
+      "plannedIn": "Batch 6 (R10)"
+    },
+    "33": {
+      "name": "Internal service-to-service",
+      "flow": "worker ↔ app",
+      "trustBoundary": "service → service",
+      "owner": "platform",
+      "dataClass": "platform",
+      "boundaryType": "service",
+      "coverage": "C",
+      "controls": [
+        "worker-callback-authenticated",
+        "backup-trigger-authenticated"
+      ]
+    },
+    "34": {
+      "name": "Logging and metrics",
+      "flow": "app → logs",
+      "trustBoundary": "app → logs",
+      "owner": "platform",
+      "dataClass": "personal",
+      "boundaryType": "operations",
+      "coverage": "P",
+      "controls": [],
+      "reason": "No central field redaction in the logger.",
+      "plannedIn": "Batch 6 (R12)"
+    },
+    "35": {
+      "name": "Audit evidence",
+      "flow": "actions → trail",
+      "trustBoundary": "actions → trail",
+      "owner": "platform",
+      "dataClass": "platform",
+      "boundaryType": "integrity",
+      "coverage": "P",
+      "controls": [
+        "audit-hash-chain",
+        "security-event-log"
+      ],
+      "reason": "The audit table is not append-only.",
+      "plannedIn": "Batch 6 (R9)"
+    },
+    "36": {
+      "name": "Security alerting",
+      "flow": "event → human",
+      "trustBoundary": "platform → operator",
+      "owner": "platform",
+      "dataClass": "platform",
+      "boundaryType": "operations",
+      "coverage": "C",
+      "controls": [
+        "security-alert-delivery"
+      ]
+    },
+    "37": {
+      "name": "Supply chain",
+      "flow": "packages → build",
+      "trustBoundary": "registry → build",
+      "owner": "platform",
+      "dataClass": "platform",
+      "boundaryType": "supply-chain",
+      "coverage": "C",
+      "controls": [
+        "dependency-updates",
+        "ci-audit-blocking",
+        "codeowners"
+      ]
+    },
+    "38": {
+      "name": "Dormant route modules",
+      "flow": "code → surface",
+      "trustBoundary": "code → surface",
+      "owner": "platform",
+      "dataClass": "platform",
+      "boundaryType": "surface",
+      "coverage": "C",
+      "controls": [],
+      "pinnedBy": [
+        "tests/security-posture.unit.test.ts"
+      ]
+    }
+  },
+  "components": {
+    "routers": {
+      "ai-ops.routes": [
+        4,
+        5,
+        6,
+        11,
+        12
+      ],
+      "ai.routes": [
+        4,
+        5,
+        6,
+        10
+      ],
+      "analytics.routes": [
+        4,
+        5,
+        6,
+        15,
+        17
+      ],
+      "auth.routes": [
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "automation.routes": [
+        4,
+        5,
+        6,
+        15,
+        17
+      ],
+      "billing-j.routes": [
+        4,
+        5,
+        6,
+        25
+      ],
+      "billing.routes": [
+        4,
+        5,
+        6,
+        25
+      ],
+      "club-admin.routes": [
+        4,
+        5,
+        6
+      ],
+      "club.routes": [
+        4,
+        5,
+        6
+      ],
+      "coaches.routes": [
+        4,
+        5,
+        6
+      ],
+      "context.routes": [
+        4,
+        5,
+        6
+      ],
+      "data-pulse.routes": [
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "device-infra.routes": [
+        4,
+        5,
+        6,
+        23
+      ],
+      "device-session.routes": [
+        4,
+        5,
+        6,
+        23
+      ],
+      "distributed.routes": [
+        4,
+        5,
+        6,
+        15,
+        17
+      ],
+      "edge.routes": [
+        4,
+        5,
+        6,
+        24
+      ],
+      "fabric.routes": [
+        4,
+        5,
+        6,
+        7,
+        16,
+        17
+      ],
+      "familista-league.routes": [
+        4,
+        5,
+        6
+      ],
+      "familista-vision.routes": [
+        4,
+        5,
+        6,
+        21,
+        22
+      ],
+      "home.routes": [
+        4,
+        5,
+        6
+      ],
+      "infrastructure.routes": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "intelligence.routes": [
+        4,
+        5,
+        6,
+        10,
+        11
+      ],
+      "invitation.routes": [
+        2,
+        4,
+        5,
+        6
+      ],
+      "match-center.routes": [
+        4,
+        5,
+        6
+      ],
+      "match.routes": [
+        4,
+        5,
+        6
+      ],
+      "membership.routes": [
+        2,
+        4,
+        5,
+        6
+      ],
+      "neuro.routes": [
+        4,
+        5,
+        6,
+        15,
+        22
+      ],
+      "observability.routes": [
+        4,
+        5,
+        6,
+        34
+      ],
+      "owner-trace.routes": [
+        4,
+        5,
+        6,
+        7,
+        34
+      ],
+      "phase-l.routes": [
+        4,
+        5,
+        6,
+        13,
+        15,
+        23
+      ],
+      "phase-m.routes": [
+        4,
+        5,
+        6,
+        11,
+        15
+      ],
+      "phase-n.routes": [
+        4,
+        5,
+        6,
+        15
+      ],
+      "phase-o.routes": [
+        2,
+        4,
+        5,
+        6,
+        31
+      ],
+      "phase-p.routes": [
+        4,
+        5,
+        6,
+        26
+      ],
+      "phase-q.routes": [
+        4,
+        5,
+        6,
+        20,
+        21
+      ],
+      "player.routes": [
+        4,
+        5,
+        6
+      ],
+      "predictive.routes": [
+        4,
+        5,
+        6,
+        10,
+        11
+      ],
+      "provisioning.routes": [
+        4,
+        5,
+        6,
+        23
+      ],
+      "scouting.routes": [
+        4,
+        5,
+        6
+      ],
+      "security.routes": [
+        4,
+        5,
+        6,
+        11,
+        35
+      ],
+      "sources.routes": [
+        4,
+        5,
+        6,
+        7,
+        17
+      ],
+      "spatial.routes": [
+        4,
+        5,
+        6,
+        15
+      ],
+      "staff-market.routes": [
+        4,
+        5,
+        6
+      ],
+      "system.routes": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "tactical-ai.routes": [
+        4,
+        5,
+        6,
+        10,
+        11
+      ],
+      "team.routes": [
+        4,
+        5,
+        6
+      ],
+      "telemetry.routes": [
+        4,
+        5,
+        6,
+        23
+      ],
+      "training.routes": [
+        4,
+        5,
+        6
+      ],
+      "transfer-market.routes": [
+        4,
+        5,
+        6
+      ],
+      "vision.routes": [
+        4,
+        5,
+        6,
+        21,
+        22
+      ]
+    },
+    "srcDomains": {
+      "admin": [
+        6,
+        7
+      ],
+      "auth-prod": [
+        2,
+        3
+      ],
+      "big-data": [
+        17,
+        19
+      ],
+      "billing": [
+        25
+      ],
+      "biochem": [
+        15
+      ],
+      "coaching": [
+        11
+      ],
+      "cognitive": [
+        15
+      ],
+      "competition": [
+        5,
+        6,
+        18
+      ],
+      "config": [
+        28
+      ],
+      "contracts": [
+        4
+      ],
+      "controllers": [
+        4,
+        6
+      ],
+      "cyber-defense": [
+        4,
+        5,
+        6,
+        7,
+        36
+      ],
+      "data": [
+        18
+      ],
+      "distributed": [
+        17,
+        19
+      ],
+      "economics": [
+        5,
+        6,
+        18
+      ],
+      "edge": [
+        24
+      ],
+      "executive": [
+        11
+      ],
+      "fabric": [
+        17
+      ],
+      "federated": [
+        13
+      ],
+      "fusion": [
+        15
+      ],
+      "global-scouting": [
+        5,
+        6,
+        18
+      ],
+      "governance": [
+        11
+      ],
+      "gps": [
+        23
+      ],
+      "hardware": [
+        23
+      ],
+      "hardware-deploy": [
+        23
+      ],
+      "i18n": [
+        1
+      ],
+      "identity": [
+        2,
+        3
+      ],
+      "infra": [
+        30,
+        33
+      ],
+      "intel": [
+        10,
+        11
+      ],
+      "intelligence": [
+        10,
+        11
+      ],
+      "knowledge": [
+        15
+      ],
+      "knowledge-graph": [
+        15
+      ],
+      "launch": [
+        26
+      ],
+      "lib": [
+        20,
+        37
+      ],
+      "live-intelligence": [
+        10,
+        11
+      ],
+      "market-intelligence": [
+        10,
+        11
+      ],
+      "marketplace": [
+        5,
+        6,
+        18
+      ],
+      "match-events": [
+        5,
+        6,
+        18
+      ],
+      "middleware": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "monitoring": [
+        34
+      ],
+      "notifications": [
+        26,
+        27
+      ],
+      "observability": [
+        34
+      ],
+      "observability-l": [
+        34
+      ],
+      "operations": [
+        5,
+        6,
+        18
+      ],
+      "platform": [
+        7,
+        9,
+        26
+      ],
+      "player-lifecycle": [
+        5,
+        6,
+        18
+      ],
+      "player-stats": [
+        5,
+        6,
+        18
+      ],
+      "provisioning": [
+        23
+      ],
+      "quantum": [
+        15
+      ],
+      "realtime": [
+        8
+      ],
+      "recruitment": [
+        5,
+        6,
+        18
+      ],
+      "routes": [
+        4,
+        6
+      ],
+      "scouting-graph": [
+        5,
+        6,
+        18
+      ],
+      "scripts": [
+        29
+      ],
+      "security": [
+        3,
+        31,
+        35,
+        36
+      ],
+      "security-l": [
+        3,
+        31,
+        35,
+        36
+      ],
+      "security-n": [
+        3,
+        31,
+        35,
+        36
+      ],
+      "services": [
+        5,
+        6,
+        10,
+        18
+      ],
+      "simulation": [
+        15
+      ],
+      "sources": [
+        17
+      ],
+      "spatial": [
+        15
+      ],
+      "sports": [
+        5,
+        6,
+        18
+      ],
+      "sports-catalog": [
+        5,
+        6,
+        18
+      ],
+      "staff-market": [
+        5,
+        6,
+        18
+      ],
+      "tactical": [
+        15
+      ],
+      "training-engine": [
+        5,
+        6,
+        18
+      ],
+      "transfer": [
+        5,
+        6,
+        18
+      ],
+      "transfer-market": [
+        5,
+        6,
+        18
+      ],
+      "twins": [
+        15
+      ],
+      "types": [
+        37
+      ],
+      "utils": [
+        37
+      ],
+      "video": [
+        20,
+        21
+      ],
+      "vision": [
+        21,
+        22
+      ],
+      "vision-platform": [
+        21,
+        22
+      ],
+      "workers": [
+        33
+      ],
+      "workload": [
+        5,
+        6,
+        18
+      ]
+    },
+    "prismaSections": {
+      "(top)": [
+        5,
+        18
+      ],
+      "AI audit log — separate from the decisions table so admin queries don't": [
+        18,
+        35
+      ],
+      "Analysis runs + outputs": [
+        5,
+        18
+      ],
+      "Audit": [
+        18,
+        35
+      ],
+      "Board resolutions + voting": [
+        5,
+        18
+      ],
+      "COACHES & TECHNICAL STAFF MARKET": [
+        5,
+        18
+      ],
+      "Cap table — time-effective share holdings": [
+        5,
+        18
+      ],
+      "Clips + scouting + real-time": [
+        18,
+        20,
+        21
+      ],
+      "Club Home Dashboard — Announcements": [
+        5,
+        18
+      ],
+      "Color palette templates (system presets + custom saved palettes)": [
+        5,
+        18
+      ],
+      "Cross-tenant platform audit log": [
+        18,
+        35
+      ],
+      "Decisions — immutable audit-grade records": [
+        18,
+        35
+      ],
+      "Executive RBAC — strategic roles, parallel to PlatformAdmin (operator roles)": [
+        6,
+        7,
+        18
+      ],
+      "Executive audit — board-grade, cross-engine": [
+        18,
+        35
+      ],
+      "Exits + distributions": [
+        5,
+        18
+      ],
+      "Expansion + acquisition workflow": [
+        5,
+        18
+      ],
+      "Familista Data Fabric — media": [
+        17,
+        18
+      ],
+      "Familista Data Fabric — secrets": [
+        17,
+        18
+      ],
+      "Feature flag definitions and plan matrix": [
+        5,
+        18
+      ],
+      "Feedback — closes the loop for model improvement": [
+        11,
+        12,
+        18
+      ],
+      "Franchise audit log (separate from PlatformAuditLog — domain-scoped)": [
+        18,
+        35
+      ],
+      "FranchiseUnit — the core node in the franchise hierarchy": [
+        5,
+        18
+      ],
+      "Geography — Territory hierarchy (country → region → city → district)": [
+        5,
+        18
+      ],
+      "Governance — rights + board seats": [
+        5,
+        18
+      ],
+      "Impersonation sessions": [
+        6,
+        7,
+        18
+      ],
+      "Investment rounds": [
+        5,
+        18
+      ],
+      "Investment targets (platform, franchise unit, club, academy)": [
+        5,
+        18
+      ],
+      "Investments": [
+        5,
+        18
+      ],
+      "Investor profiles": [
+        5,
+        18
+      ],
+      "Legal layer": [
+        5,
+        18
+      ],
+      "Legal layer — contracts, renewals, terminations, violations, compliance": [
+        5,
+        18
+      ],
+      "Model registry — versioned, governed": [
+        11,
+        12,
+        18
+      ],
+      "Ownership — owners + time-effective ownership records": [
+        5,
+        18
+      ],
+      "Per-organization limits (quotas) and feature overrides": [
+        5,
+        18
+      ],
+      "Performance snapshots (time series for dashboards)": [
+        5,
+        18
+      ],
+      "Phase A · Global SaaS Foundation": [
+        5,
+        18
+      ],
+      "Phase B · Automation + AI Agent framework (data plane only; workers later)": [
+        11,
+        18
+      ],
+      "Phase B · Hardware / PCB ecosystem (placeholder data plane)": [
+        18,
+        23
+      ],
+      "Phase B · Match Intelligence System": [
+        5,
+        18
+      ],
+      "Phase E — Realtime Tactical Twin + AI Operations": [
+        11,
+        18
+      ],
+      "Phase F — Device PCB Infrastructure + Big Data Foundation": [
+        18,
+        23
+      ],
+      "Phase G — Vision Intelligence + Multi-Sport Twin + Predictive Layer": [
+        18,
+        20,
+        21
+      ],
+      "Phase I — Zero-Trust + Blockchain-Inspired Audit Integrity": [
+        18,
+        35
+      ],
+      "Phase J — Global Distributed Sports Cloud": [
+        5,
+        18
+      ],
+      "Phase K — Autonomous Cognitive Vision + Neuromorphic Sports Intelligence": [
+        18,
+        20,
+        21
+      ],
+      "Phase L — Federated Cognition + Real Hardware + Simulation + Game Graph": [
+        13,
+        15,
+        18
+      ],
+      "Phase M — Autonomous Sports Ecosystem": [
+        5,
+        18
+      ],
+      "Phase N — Global Sports Knowledge Graph + Universal Identity": [
+        15,
+        18
+      ],
+      "Phase O — Production Reality Layer": [
+        5,
+        18
+      ],
+      "Phase P · Real Launch — in-app notification inbox": [
+        18,
+        26
+      ],
+      "Platform admin RBAC": [
+        6,
+        7,
+        18
+      ],
+      "Revenue distribution engine": [
+        5,
+        18
+      ],
+      "Revenue forecasting": [
+        5,
+        18
+      ],
+      "Risk alerts — composite signals from every engine": [
+        5,
+        18
+      ],
+      "Scouting & Recruitment Center — ScoutProspect": [
+        5,
+        18
+      ],
+      "Sensor + vision fusion": [
+        18,
+        20,
+        21
+      ],
+      "Share classes (per investment entity)": [
+        5,
+        18
+      ],
+      "Share transfers (secondary)": [
+        5,
+        18
+      ],
+      "Source video + ingest pipeline": [
+        18,
+        20,
+        21
+      ],
+      "Sponsor pipeline": [
+        5,
+        18
+      ],
+      "Subscription overrides (operator-granted plan/status, audited)": [
+        18,
+        35
+      ],
+      "Territory rights — exclusivity and protection": [
+        5,
+        18
+      ],
+      "White-label assets (logos, favicons, OG images, PDF/email assets)": [
+        18,
+        20
+      ],
+      "Workflow orchestration — multi-step, cross-engine, attestation-gated": [
+        5,
+        18
+      ]
+    },
+    "packages": {
+      "@anthropic-ai/sdk": [
+        10
+      ],
+      "@aws-sdk/client-s3": [
+        20
+      ],
+      "@aws-sdk/s3-request-presigner": [
+        20
+      ],
+      "@prisma/client": [
+        18
+      ],
+      "bcrypt": [
+        2,
+        3
+      ],
+      "bcryptjs": [
+        2,
+        3
+      ],
+      "compression": [
+        1,
+        4,
+        37
+      ],
+      "cookie-parser": [
+        1,
+        4,
+        37
+      ],
+      "cors": [
+        1,
+        4,
+        37
+      ],
+      "dotenv": [
+        28
+      ],
+      "express": [
+        1,
+        4,
+        37
+      ],
+      "express-rate-limit": [
+        1,
+        4,
+        37
+      ],
+      "fluent-ffmpeg": [
+        21,
+        37
+      ],
+      "helmet": [
+        1,
+        4,
+        37
+      ],
+      "ioredis": [
+        19
+      ],
+      "jsonwebtoken": [
+        2,
+        3
+      ],
+      "kafkajs": [
+        17,
+        37
+      ],
+      "morgan": [
+        1,
+        4,
+        37
+      ],
+      "multer": [
+        1,
+        4,
+        37
+      ],
+      "nats": [
+        17,
+        37
+      ],
+      "nodemailer": [
+        26
+      ],
+      "pdfkit": [
+        37
+      ],
+      "redis": [
+        19
+      ],
+      "sharp": [
+        21,
+        37
+      ],
+      "stripe": [
+        25
+      ],
+      "winston": [
+        34
+      ],
+      "ws": [
+        8
+      ],
+      "zod": [
+        1,
+        4,
+        37
+      ]
+    },
+    "outboundCallSites": {
+      "src/platform/email/providers/sendgrid.ts": [
+        26
+      ],
+      "src/security/outbound-url-guard.ts": [
+        27
+      ],
+      "src/services/vision-clip.adapter.ts": [
+        21
+      ],
+      "src/services/vision-inference.adapter.ts": [
+        21
+      ],
+      "src/workers/notification-dispatch.worker.ts": [
+        27
+      ]
+    },
+    "realtimeEndpoints": {
+      "src/realtime/market-ws.ts": [
+        8
+      ],
+      "src/realtime/match-sse.ts": [
+        8
+      ],
+      "src/realtime/match-ws.ts": [
+        8
+      ],
+      "src/routes/data-pulse.routes.ts": [
+        7,
+        8
+      ],
+      "src/routes/infrastructure.routes.ts": [
+        7,
+        8
+      ],
+      "src/routes/owner-trace.routes.ts": [
+        7,
+        8
+      ],
+      "src/services/vision-realtime.service.ts": [
+        8,
+        21
+      ]
+    },
+    "leasedWorkers": {
+      "ai-agent": [
+        11,
+        33
+      ],
+      "auction-settlement": [
+        18,
+        33
+      ],
+      "automation": [
+        11,
+        33
+      ],
+      "history-recovery": [
+        17
+      ],
+      "intel-broadcaster": [
+        8,
+        33
+      ],
+      "region-heartbeat": [
+        34
+      ],
+      "security-alerts": [
+        36
+      ],
+      "stats-aggregator": [
+        18,
+        33
+      ],
+      "video-transcode": [
+        20,
+        21,
+        33
+      ]
+    },
+    "workerFiles": {
+      "agent-handlers": [
+        11,
+        33
+      ],
+      "ai-agent.worker": [
+        11,
+        33
+      ],
+      "auction-settlement.worker": [
+        18,
+        33
+      ],
+      "automation.worker": [
+        11,
+        33
+      ],
+      "notification-dispatch.worker": [
+        27,
+        33
+      ],
+      "retention.worker": [
+        18,
+        33
+      ],
+      "stats-aggregator.worker": [
+        18,
+        33
+      ],
+      "video-transcode.worker": [
+        20,
+        21,
+        33
+      ]
+    },
+    "envVars": {
+      "AI_LLM_MAX_TOKENS": [
+        10,
+        28
+      ],
+      "AI_LLM_MODEL": [
+        10,
+        28
+      ],
+      "AI_LLM_TIMEOUT_MS": [
+        10,
+        28
+      ],
+      "ANTHROPIC_API_KEY": [
+        10,
+        28
+      ],
+      "API_VERSION": [
+        30
+      ],
+      "APP_URL": [
+        1
+      ],
+      "DATABASE_URL": [
+        18,
+        28
+      ],
+      "DB_CONNECTION_LIMIT": [
+        18,
+        28
+      ],
+      "EMAIL_FROM": [
+        26,
+        28
+      ],
+      "EMAIL_FROM_NAME": [
+        26,
+        28
+      ],
+      "FAMILISTA_ACTIVE_KEK": [
+        28
+      ],
+      "FAMILISTA_RETIRED_KEKS": [
+        28
+      ],
+      "FAMILISTA_SECRET_KEK": [
+        28
+      ],
+      "JWT_ACCESS_SECRET": [
+        3,
+        28
+      ],
+      "JWT_ACCESS_TTL": [
+        3,
+        28
+      ],
+      "JWT_ISSUER": [
+        3,
+        28
+      ],
+      "JWT_REFRESH_SECRET": [
+        3,
+        28
+      ],
+      "JWT_REFRESH_TTL": [
+        3,
+        28
+      ],
+      "MFA_ENCRYPTION_KEY": [
+        2,
+        28
+      ],
+      "NODE_ENV": [
+        30
+      ],
+      "PORT": [
+        30
+      ],
+      "PUBLIC_APP_URL": [
+        1
+      ],
+      "RATE_LIMIT_MAX": [
+        2,
+        4
+      ],
+      "RATE_LIMIT_WINDOW_MS": [
+        2,
+        4
+      ],
+      "REDIS_URL": [
+        19,
+        28
+      ],
+      "SECURITY_ALERT_EMAIL": [
+        36
+      ],
+      "SENDGRID_API_KEY": [
+        26,
+        28
+      ],
+      "SMTP_HOST": [
+        26,
+        28
+      ],
+      "SMTP_PASS": [
+        26,
+        28
+      ],
+      "SMTP_PORT": [
+        26,
+        28
+      ],
+      "SMTP_USER": [
+        26,
+        28
+      ],
+      "STRIPE_SECRET_KEY": [
+        25,
+        28
+      ],
+      "STRIPE_WEBHOOK_SECRET": [
+        25,
+        28
+      ],
+      "UV_THREADPOOL_SIZE": [
+        30
+      ],
+      "VISION_CLIP_BACKEND": [
+        21,
+        28
+      ],
+      "VISION_CLIP_WEBHOOK_TOKEN": [
+        21,
+        28
+      ],
+      "VISION_CLIP_WORKER_CALLBACK_URL": [
+        21,
+        28
+      ],
+      "VISION_CLIP_WORKER_TOKEN": [
+        21,
+        28
+      ],
+      "VISION_CLIP_WORKER_URL": [
+        21,
+        28
+      ],
+      "VISION_FUSION_DISTANCE_WEIGHT": [
+        21,
+        28
+      ],
+      "VISION_FUSION_TOPSPEED_WEIGHT": [
+        21,
+        28
+      ],
+      "VISION_INFERENCE_BACKEND": [
+        21,
+        28
+      ],
+      "VISION_WEBHOOK_TOKEN": [
+        21,
+        28
+      ],
+      "VISION_WORKER_CALLBACK_URL": [
+        21,
+        28
+      ],
+      "VISION_WORKER_TOKEN": [
+        21,
+        28
+      ],
+      "VISION_WORKER_URL": [
+        21,
+        28
+      ],
+      "WEB_CONCURRENCY": [
+        30
+      ],
+      "WL_ASSETS_BACKEND": [
+        20,
+        28
+      ],
+      "WL_ASSETS_DIR": [
+        20,
+        28
+      ],
+      "WL_ASSETS_PUBLIC_BASE_URL": [
+        20,
+        28
+      ],
+      "WL_ASSETS_PUBLIC_PREFIX": [
+        20,
+        28
+      ],
+      "WL_ASSETS_S3_ACCESS_KEY_ID": [
+        20,
+        28
+      ],
+      "WL_ASSETS_S3_BUCKET": [
+        20,
+        28
+      ],
+      "WL_ASSETS_S3_ENDPOINT": [
+        20,
+        28
+      ],
+      "WL_ASSETS_S3_FORCE_PATH_STYLE": [
+        20,
+        28
+      ],
+      "WL_ASSETS_S3_REGION": [
+        20,
+        28
+      ],
+      "WL_ASSETS_S3_SECRET_ACCESS_KEY": [
+        20,
+        28
+      ],
+      "WL_PAYOUT_BACKEND": [
+        25,
+        28
+      ]
+    },
+    "renderServices": {
+      "familista-backend": [
+        30
+      ],
+      "familista-postgres": [
+        18,
+        31
+      ],
+      "familista-redis": [
+        19
+      ]
+    },
+    "workflows": {
+      "backup.yml": [
+        31
+      ],
+      "ci.yml": [
+        29,
+        37
+      ],
+      "deploy.yml": [
+        30
+      ]
+    },
+    "infrastructureComponents": {
+      "ai-agents": [
+        11
+      ],
+      "ai-gateway": [
+        9
+      ],
+      "anthropic": [
+        10
+      ],
+      "api-gateway": [
+        4,
+        5,
+        6
+      ],
+      "authentication": [
+        2,
+        3
+      ],
+      "backend-services": [
+        4,
+        5,
+        6
+      ],
+      "boot-probe": [
+        29
+      ],
+      "camera-ingest": [
+        22
+      ],
+      "cold-archive": [
+        17,
+        31
+      ],
+      "configuration": [
+        28
+      ],
+      "data-fabric": [
+        17
+      ],
+      "data-vault-module": [
+        16
+      ],
+      "device-fleet": [
+        23
+      ],
+      "durable-outbox": [
+        17
+      ],
+      "edge-nodes": [
+        24
+      ],
+      "email": [
+        26
+      ],
+      "federated-learning": [
+        13
+      ],
+      "historical-store": [
+        17
+      ],
+      "history-api": [
+        17
+      ],
+      "http-hardening": [
+        1
+      ],
+      "i18n": [
+        1
+      ],
+      "i18n-check": [
+        29
+      ],
+      "knowledge-graph": [
+        15
+      ],
+      "logging": [
+        34
+      ],
+      "media-pipeline": [
+        20,
+        21
+      ],
+      "metrics": [
+        34
+      ],
+      "ml-features": [
+        14
+      ],
+      "model-registry": [
+        12
+      ],
+      "monitoring": [
+        34
+      ],
+      "nodejs": [
+        37
+      ],
+      "object-store": [
+        20,
+        32
+      ],
+      "platform-core": [
+        4,
+        5,
+        6
+      ],
+      "postgres": [
+        18
+      ],
+      "prisma-orm": [
+        18
+      ],
+      "rate-limiting": [
+        2
+      ],
+      "rbac": [
+        6
+      ],
+      "react-client": [
+        1
+      ],
+      "redis": [
+        19
+      ],
+      "render-familista-backend": [
+        30
+      ],
+      "render-familista-postgres": [
+        18
+      ],
+      "render-familista-redis": [
+        19
+      ],
+      "security-audit": [
+        35,
+        36
+      ],
+      "sse-stream": [
+        8
+      ],
+      "stripe": [
+        25
+      ],
+      "system-module": [
+        7
+      ],
+      "test-suite": [
+        29
+      ],
+      "typescript": [
+        29
+      ],
+      "video-intelligence": [
+        21
+      ],
+      "web-app": [
+        1
+      ],
+      "websockets": [
+        8
+      ],
+      "workflow-backup": [
+        31
+      ],
+      "workflow-ci": [
+        29
+      ],
+      "workflow-deploy": [
+        30
+      ]
+    }
+  }
+}

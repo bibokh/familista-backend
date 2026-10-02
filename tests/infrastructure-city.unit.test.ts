@@ -758,6 +758,7 @@ describe('the Infrastructure City speaks English, German and Arabic — and only
       listOf(/var SECTIONS = \[[\s\S]*?\];/),
       listOf(/var GROUP_LABEL = \{[\s\S]*?\};/),
       listOf(/var views = \[[\s\S]*?\];/),
+      listOf(/var COVERAGE_LABEL = \{[\s\S]*?\};/),
     ];
     for (const block of lists) {
       expect(block.length).toBeGreaterThan(0);

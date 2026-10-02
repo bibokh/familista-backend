@@ -136,6 +136,11 @@ export const InfraInventorySchema = z.object({
   // this repository has relationships.
   relationships: z.array(InfraRelationshipSchema).min(1),
   future: z.array(InfraFutureSchema),
+  // Cyber Defense coverage per component id (R5): the weakest row and the rows.
+  coverage: z.record(z.object({
+    state: z.enum(['C', 'P', 'U']),
+    rows: z.array(z.object({ id: z.number().int().positive(), coverage: z.enum(['C', 'P', 'U']) })).min(1),
+  })),
   counts: z.record(z.number()),
   surface: z.record(z.number()),
   database: z.object({
@@ -614,7 +619,7 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
   {
     endpoint: '/system/infrastructure', module: 'Infrastructure City',
     schema: InfraInventorySchema, consumer: 'public/infrastructure-city/infrastructure-city.js',
-    reads: ['state', 'districts', 'components', 'relationships', 'future', 'layout'],
+    reads: ['state', 'districts', 'components', 'relationships', 'future', 'layout', 'coverage'],
   },
   {
     endpoint: '/system/infrastructure/health', module: 'Infrastructure City',

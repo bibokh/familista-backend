@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-01T19:40:09.097Z",
+  "generatedAt": "2026-10-02T10:26:43.676Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -163,6 +163,14 @@
       "category": "APPLICATION",
       "zone": "centre",
       "priority": 18,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "devices",
+      "name": "Devices & Edge",
+      "category": "EDGE",
+      "zone": "west",
+      "priority": 19,
       "status": "ACTIVE"
     }
   ],
@@ -568,6 +576,177 @@
       "note": null
     },
     {
+      "id": "ai-agents",
+      "name": "AI Agents",
+      "district": "ai",
+      "category": "ai",
+      "type": "SERVICE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/services/ai-orchestrator.service.ts",
+      "sourceEvidence": "src/services/ai-orchestrator.service.ts, src/workers/ai-agent.worker.ts, src/routes/ai-ops.routes.ts",
+      "dependencies": [
+        "backend-services"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "model-registry",
+      "name": "Model Registry",
+      "district": "ai",
+      "category": "ai",
+      "type": "STORE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/services/ai-model-registry.service.ts",
+      "sourceEvidence": "src/services/ai-model-registry.service.ts",
+      "dependencies": [
+        "backend-services"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "ml-features",
+      "name": "ML Feature Pipeline",
+      "district": "ai",
+      "category": "ai",
+      "type": "PIPELINE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/services/ai-feature-extraction.service.ts",
+      "sourceEvidence": "src/services/ai-feature-extraction.service.ts",
+      "dependencies": [
+        "backend-services"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "federated-learning",
+      "name": "Federated Learning",
+      "district": "ai",
+      "category": "ai",
+      "type": "SERVICE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/federated/federated.service.ts",
+      "sourceEvidence": "src/federated/federated.service.ts, src/routes/phase-l.routes.ts",
+      "dependencies": [
+        "backend-services"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "knowledge-graph",
+      "name": "Knowledge Graph",
+      "district": "ai",
+      "category": "ai",
+      "type": "STORE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/knowledge-graph/knowledge-graph.service.ts",
+      "sourceEvidence": "src/knowledge-graph/knowledge-graph.service.ts, src/routes/phase-n.routes.ts",
+      "dependencies": [
+        "backend-services"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "video-intelligence",
+      "name": "Video Intelligence",
+      "district": "ai",
+      "category": "ai",
+      "type": "PIPELINE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/vision-platform/vision-intelligence.contract.ts",
+      "sourceEvidence": "src/vision-platform/vision-intelligence.contract.ts, src/routes/familista-vision.routes.ts",
+      "dependencies": [
+        "backend-services"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "device-fleet",
+      "name": "Wearable Devices",
+      "district": "devices",
+      "category": "devices",
+      "type": "SERVICE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/services/device-registry.service.ts",
+      "sourceEvidence": "src/services/device-registry.service.ts, src/routes/device-infra.routes.ts, src/routes/device-session.routes.ts",
+      "dependencies": [
+        "backend-services"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "camera-ingest",
+      "name": "Camera Ingest",
+      "district": "devices",
+      "category": "devices",
+      "type": "PIPELINE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/vision/vision-ingest.service.ts",
+      "sourceEvidence": "src/vision/vision-ingest.service.ts, src/vision/camera-registry.service.ts, src/routes/vision.routes.ts",
+      "dependencies": [
+        "backend-services"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
+      "id": "edge-nodes",
+      "name": "Edge Nodes",
+      "district": "devices",
+      "category": "devices",
+      "type": "SERVICE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": null,
+      "region": null,
+      "repositoryPath": "src/edge/edge-node.service.ts",
+      "sourceEvidence": "src/edge/edge-node.service.ts, src/routes/edge.routes.ts",
+      "dependencies": [
+        "backend-services"
+      ],
+      "healthKey": null,
+      "note": null
+    },
+    {
       "id": "object-store",
       "name": "Object Storage",
       "district": "storage",
@@ -902,7 +1081,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 173 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 175 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -962,7 +1141,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "559 TypeScript modules under src/."
+      "note": "560 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1401,12 +1580,6 @@
   ],
   "future": [
     {
-      "id": "future-scouting",
-      "name": "Scouting",
-      "district": "backend",
-      "reason": "Not implemented in this build."
-    },
-    {
       "id": "future-snapshots",
       "name": "Snapshots",
       "district": "vault",
@@ -1431,16 +1604,22 @@
       "reason": "jest.config.ts sets collectCoverage: false."
     },
     {
-      "id": "future-vuln-scan",
-      "name": "Vulnerability Scanning",
-      "district": "security",
-      "reason": "CI runs npm audit informationally (|| true); no gate."
+      "id": "future-row-level-security",
+      "name": "Row-Level Security",
+      "district": "database",
+      "reason": "Planned: Cyber Defense Batch 7. Tenancy is enforced by the application only."
     },
     {
       "id": "future-ai-diagnostics",
       "name": "AI Infrastructure Assistant",
       "district": "ai",
       "reason": "Reserved integration point. Not implemented."
+    },
+    {
+      "id": "future-smart-ball",
+      "name": "Smart Ball",
+      "district": "devices",
+      "reason": "On the product roadmap. No firmware, ingest or model exists in this build."
     }
   ],
   "surface": {
@@ -1448,8 +1627,8 @@
     "serviceModules": 101,
     "middleware": 22,
     "fabricModules": 52,
-    "totalTypeScript": 559,
-    "testSuites": 173,
+    "totalTypeScript": 560,
+    "testSuites": 175,
     "migrations": 43,
     "prismaModels": 340,
     "prismaEnums": 209
@@ -2250,8 +2429,8 @@
     }
   ],
   "counts": {
-    "districts": 18,
-    "components": 44,
+    "districts": 19,
+    "components": 53,
     "relationships": 16,
     "technologies": 30,
     "future": 7,

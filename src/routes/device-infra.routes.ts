@@ -6,6 +6,7 @@ import { Router } from 'express';
 import * as ctrl from '../controllers/device-infra.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { tenantParam } from '../middleware/tenant-guard.middleware';
+import { requirePlatformAuthority } from '../middleware/platform-authority.middleware';
 
 const router = Router();
 
@@ -25,7 +26,9 @@ router.post('/devices/:id/revoke',    tenantParam('device'), authorize('CLUB_ADM
 // Firmware (OTA)
 router.get('/devices/:id/firmware',   tenantParam('device'), ctrl.fwCheck);
 router.get('/firmware',               ctrl.fwList);
-router.post('/firmware',              authorize('CLUB_ADMIN','SUPER_ADMIN'), ctrl.fwPublish);
+// Published firmware (version, sha256, download URL) is served to every club's
+// devices of that model, so publishing it is the platform's alone (R11).
+router.post('/firmware',              requirePlatformAuthority, ctrl.fwPublish);
 
 // Calibration
 router.get('/devices/:id/calibration',         tenantParam('device'), ctrl.calibrationGet);

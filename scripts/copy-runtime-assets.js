@@ -16,6 +16,10 @@ const ASSETS = [
   // without this the compiled server finds no manifest and the city is empty.
   ['src/infra/generated/infrastructure-manifest.json',
    'dist/infra/generated/infrastructure-manifest.json'],
+  // The Cyber Defense coverage map, read by the same API to show each
+  // component's coverage (src/infra/component-coverage.ts).
+  ['src/cyber-defense/coverage-map.json',
+   'dist/cyber-defense/coverage-map.json'],
 ];
 
 let copied = 0;
