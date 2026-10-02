@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-02T17:40:36.237Z",
+  "generatedAt": "2026-10-02T19:07:52.768Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
     "version": "1.0.0"
   },
   "apiSurface": {
-    "mountedRouters": 51,
-    "handlers": 740,
+    "mountedRouters": 52,
+    "handlers": 743,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -243,6 +243,13 @@
         "routerWideAuth": true
       },
       {
+        "path": "/ai-data-policy",
+        "module": "ai-data-policy.routes",
+        "handlers": 2,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
         "path": "/system",
         "module": "system.routes",
         "handlers": 33,
@@ -406,7 +413,7 @@
       {
         "path": "/phase-l",
         "module": "phase-l.routes",
-        "handlers": 26,
+        "handlers": 27,
         "public": 0,
         "routerWideAuth": true
       },
@@ -771,18 +778,22 @@
       }
     },
     "authorization": {
-      "handlers": 740,
+      "handlers": 743,
       "byKind": {
         "public": 21,
-        "member": 349,
+        "member": 350,
         "scoped": 60,
-        "roles": 235,
-        "platform-owner": 75
+        "roles": 236,
+        "platform-owner": 76
       },
       "memberUnreviewed": [],
       "memberStale": [],
       "ownerRoomViolations": [],
       "byRouter": {
+        "ai-data-policy.routes": {
+          "member": 1,
+          "roles": 1
+        },
         "ai-ops.routes": {
           "member": 9,
           "roles": 6
@@ -899,7 +910,8 @@
         },
         "phase-l.routes": {
           "roles": 17,
-          "member": 9
+          "member": 9,
+          "platform-owner": 1
         },
         "phase-m.routes": {
           "roles": 30,
@@ -1022,6 +1034,7 @@
         "DELETE /transfer-market/needs/:needId": "scoped:requireMembership(HEAD_COACH)+requireClubWideManage",
         "DELETE /transfer-market/offer-to-clubs/:playerId": "scoped:requireMembership(HEAD_COACH)+requireClubWideManage",
         "DELETE /transfer-market/shortlist/:playerId": "scoped:requireActingClubMembership(HEAD_COACH)",
+        "GET /ai-data-policy": "member",
         "GET /ai-ops/alerts": "member",
         "GET /ai-ops/anomalies": "member",
         "GET /ai-ops/jobs/:id": "member",
@@ -1520,6 +1533,7 @@
         "POST /phase-l/federated/jobs/:jobId/aggregate": "roles:SUPER_ADMIN,CLUB_ADMIN",
         "POST /phase-l/federated/jobs/:jobId/gradient": "roles:CLUB_ADMIN,HEAD_COACH,ANALYST",
         "POST /phase-l/federated/privacy-boundary": "roles:SUPER_ADMIN,CLUB_ADMIN",
+        "POST /phase-l/federated/trust": "platform-owner",
         "POST /phase-l/hardware/capabilities": "roles:SUPER_ADMIN,CLUB_ADMIN",
         "POST /phase-l/hardware/sessions": "roles:CLUB_ADMIN,SUPER_ADMIN",
         "POST /phase-l/hardware/sessions/:id/steps": "roles:CLUB_ADMIN,SUPER_ADMIN",
@@ -1709,6 +1723,7 @@
         "POST /vision/cameras/:id/calibration": "roles:CLUB_ADMIN,HEAD_COACH,ANALYST",
         "POST /vision/cameras/:id/frame": "public",
         "POST /vision/cameras/:id/retire": "roles:CLUB_ADMIN,HEAD_COACH",
+        "PUT /ai-data-policy": "roles:SUPER_ADMIN,CLUB_ADMIN",
         "PUT /auth/change-password": "member",
         "PUT /automation/tasks/:id": "roles:CLUB_ADMIN,HEAD_COACH",
         "PUT /coaches/staff/:staffUserId/achievements": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
@@ -1730,7 +1745,7 @@
   },
   "architecture": {
     "components": {
-      "routers": 51,
+      "routers": 52,
       "srcDomains": 76,
       "prismaSections": 64,
       "packages": 28,
@@ -1745,13 +1760,13 @@
     },
     "boundaries": 38,
     "coverage": {
-      "C": 18,
-      "P": 14,
-      "U": 6
+      "C": 25,
+      "P": 12,
+      "U": 1
     },
     "ratchet": {
-      "U": 6,
-      "P": 14
+      "U": 1,
+      "P": 12
     },
     "rows": {
       "1": "P",
@@ -1762,13 +1777,13 @@
       "6": "C",
       "7": "C",
       "8": "P",
-      "9": "U",
-      "10": "U",
-      "11": "P",
-      "12": "U",
-      "13": "U",
-      "14": "U",
-      "15": "P",
+      "9": "C",
+      "10": "C",
+      "11": "C",
+      "12": "C",
+      "13": "C",
+      "14": "C",
+      "15": "C",
       "16": "C",
       "17": "P",
       "18": "P",
@@ -1932,18 +1947,72 @@
       "id": "audit-hash-chain",
       "status": "PRESENT",
       "evidence": "src/security/audit-chain.service.ts",
-      "note": "89 call site(s) append to the chain."
+      "note": "93 call site(s) append to the chain."
     },
     {
       "id": "security-event-log",
       "status": "PRESENT",
       "evidence": "src/security/security-event.service.ts",
-      "note": "19 call site(s) record security events."
+      "note": "20 call site(s) record security events."
     },
     {
       "id": "ai-action-approval-gate",
       "status": "PRESENT",
       "evidence": "src/security/ai-approval.service.ts"
+    },
+    {
+      "id": "ai-single-egress",
+      "status": "PRESENT",
+      "evidence": "src/platform/intelligence/anthropic-provider.ts",
+      "note": "Only the gateway's provider imports @anthropic-ai/sdk; ai.service, ai-llm.adapter and llm-adapter.service call the gateway."
+    },
+    {
+      "id": "ai-egress-classification",
+      "status": "PRESENT",
+      "evidence": "src/platform/intelligence/gateway.ts",
+      "note": "RESTRICTED needs the club's opt-in; names are pseudonymised; a per-club daily budget; output validated. 3 call site(s), every one declaring its data classes."
+    },
+    {
+      "id": "ai-call-audited",
+      "status": "PRESENT",
+      "evidence": "src/platform/intelligence/gateway.ts",
+      "note": "An AiEgressRecord is written before the provider is called (no record, no call) and completed after; it never holds the prompt or the answer."
+    },
+    {
+      "id": "recommendation-signed",
+      "status": "PRESENT",
+      "evidence": "src/security-n/signed-recommendations.service.ts",
+      "note": "Recommendation signatures cover the whole payload (keys sorted at every depth); a pre-fix n1 signature never verifies; a signature is read only by its own club."
+    },
+    {
+      "id": "ai-actions-gated",
+      "status": "PRESENT",
+      "evidence": "src/platform/intelligence/agent-jobs.ts",
+      "note": "Every agent job is put to the tool registry as its agent before it runs; an action needs approval and stops at the kill switch; accepting a decision that acts takes a second person."
+    },
+    {
+      "id": "model-artifact-signed",
+      "status": "PRESENT",
+      "evidence": "src/services/ai-model-promotion.service.ts",
+      "note": "A model becomes ACTIVE only through a promotion a second person approves, Ed25519-signed over the artifact SHA-256; every decision verifies it."
+    },
+    {
+      "id": "federated-default-deny",
+      "status": "PRESENT",
+      "evidence": "src/federated/federated.service.ts",
+      "note": "A club contributes only when trusted by the platform owner and when it has allowed training use; a round is aggregated by its initiator or the owner."
+    },
+    {
+      "id": "federated-server-side-norm",
+      "status": "PRESENT",
+      "evidence": "src/federated/federated.service.ts",
+      "note": "The gradient is hashed and its norm computed by the server; the client's figure is ignored; per-club caps and outlier rejection apply."
+    },
+    {
+      "id": "training-data-classified",
+      "status": "PRESENT",
+      "evidence": "src/platform/intelligence/data-classes.ts",
+      "note": "87 features and 77 factors classified; training needs the club's consent and never uses a minor's RESTRICTED data."
     },
     {
       "id": "no-unsafe-raw-sql",
@@ -2066,7 +2135,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "740 handler(s) classified: 21 public, 349 member, 60 scoped, 235 roles, 75 platform-owner; every member-level handler reviewed by name."
+      "note": "743 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 76 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2096,13 +2165,13 @@
       "id": "architecture-fully-mapped",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "365 discovered component(s) across 12 kinds, each declared against the 38 trust-boundary rows; a covered row's controls are all present."
+      "note": "366 discovered component(s) across 12 kinds, each declared against the 38 trust-boundary rows; a covered row's controls are all present."
     },
     {
       "id": "coverage-ratchet",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "18 covered, 14 partial, 6 uncovered; uncovered may not exceed 6, and partial + uncovered may not exceed 20."
+      "note": "25 covered, 12 partial, 1 uncovered; uncovered may not exceed 1, and partial + uncovered may not exceed 13."
     }
   ],
   "secrets": {
@@ -2487,6 +2556,7 @@
         "src/services/admin-asset.service.ts",
         "src/services/admin-impersonation.service.ts",
         "src/services/ai-agent-decision.service.ts",
+        "src/services/ai-model-promotion.service.ts",
         "src/services/ai-orchestrator.service.ts",
         "src/services/password-reset.service.ts",
         "src/vision-platform/session-normaliser.ts",
@@ -2585,7 +2655,9 @@
       "src/controllers/vision-engine.controller.ts",
       "src/cyber-defense/coverage-map.json",
       "src/cyber-defense/lockout-shadow.ts",
+      "src/data/ai-models.seed.ts",
       "src/fabric/secrets/keyring.ts",
+      "src/federated/federated.service.ts",
       "src/infra/background-workers.ts",
       "src/middleware/auth.middleware.ts",
       "src/middleware/device-auth.middleware.ts",
@@ -2593,11 +2665,17 @@
       "src/middleware/tenant-guard.middleware.ts",
       "src/notifications/notifications.service.ts",
       "src/platform/email/templates/security-alert.ts",
+      "src/platform/intelligence/agent-jobs.ts",
+      "src/platform/intelligence/anthropic-provider.ts",
+      "src/platform/intelligence/data-classes.ts",
+      "src/platform/intelligence/gateway.ts",
+      "src/platform/intelligence/training-data.ts",
       "src/realtime/market-ws.ts",
       "src/realtime/match-sse.ts",
       "src/realtime/match-ws.ts",
       "src/realtime/session-watch.ts",
       "src/realtime/ws-ticket.ts",
+      "src/routes/ai-data-policy.routes.ts",
       "src/routes/ai-ops.routes.ts",
       "src/routes/ai.routes.ts",
       "src/routes/analytics.routes.ts",
@@ -2650,6 +2728,7 @@
       "src/routes/training.routes.ts",
       "src/routes/transfer-market.routes.ts",
       "src/routes/vision.routes.ts",
+      "src/security-n/signed-recommendations.service.ts",
       "src/security/ai-approval.service.ts",
       "src/security/audit-chain.service.ts",
       "src/security/backup/backup-config.ts",
@@ -2663,17 +2742,22 @@
       "src/security/security-alerts.ts",
       "src/security/security-event.service.ts",
       "src/security/worker-callback.ts",
+      "src/services/ai-model-promotion.service.ts",
+      "src/services/ai-model-registry.service.ts",
+      "src/services/ai-orchestrator.service.ts",
       "src/services/auth.service.ts",
       "src/services/device-auth.service.ts",
       "src/services/membership.service.ts",
       "src/services/stripe.service.ts",
+      "src/types/ai-engine.types.ts",
       "src/utils/password.ts",
       "src/video/video-asset.service.ts",
+      "src/workers/ai-agent.worker.ts",
       "src/workers/notification-dispatch.worker.ts"
     ]
   },
   "counts": {
-    "controlsPresent": 49,
+    "controlsPresent": 58,
     "controlsPartial": 1,
     "controlsAbsent": 3,
     "cryptoUses": 10

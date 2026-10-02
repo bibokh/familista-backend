@@ -106,6 +106,18 @@
       "enforcedNow": "Kode kini wajib di setiap masuk.",
       "unenforcedNow": "Kode tidak lagi wajib saat masuk.",
       "required": "Masuk dua langkah wajib untuk akun administrator dan tidak dapat dimatikan."
+    },
+    "aiData": {
+      "title": "AI dan data klub Anda",
+      "intro": "Pilih apa yang boleh dilakukan AI Familista dengan data klub Anda. Keduanya tetap nonaktif sampai administrator klub mengaktifkannya.",
+      "egressTitle": "Kirim data medis ke penyedia AI",
+      "egressHelp": "Mengizinkan ARIA dan penjelasan AI menggunakan detail cedera, kondisi, dan skor risiko kesehatan. Nama selalu diganti sebelum apa pun keluar dari Familista.",
+      "trainingTitle": "Gunakan data kami untuk pelatihan",
+      "trainingHelp": "Mengizinkan klub Anda berkontribusi pada pembelajaran terfederasi. Data medis pemain di bawah 18 tahun tidak pernah digunakan.",
+      "adminOnly": "Hanya administrator klub yang dapat mengubah ini.",
+      "saved": "Tersimpan.",
+      "failed": "Gagal menyimpan. Silakan coba lagi.",
+      "loadFailed": "Pengaturan ini tidak dapat dimuat."
     }
   },
   "squad": {

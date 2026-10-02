@@ -1810,6 +1810,44 @@ model LoginAttempt {
   @@index([ipAddress, createdAt])
 }
 
+/// ClubAiDataPolicy — a club's own choices about its data and AI (Cyber
+/// Defense, R3/R8). Both off by default: a club that never opens the setting
+/// sends no RESTRICTED data (medical details, minors' personal data) to an AI
+/// provider, and none of its data is used for training.
+model ClubAiDataPolicy {
+  clubId           String   @id
+  restrictedEgress Boolean  @default(false)
+  trainingUse      Boolean  @default(false)
+  updatedById      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+/// AiEgressRecord — one row for every call through the AI Gateway (R3), written
+/// BEFORE the provider is called and completed after. Who asked, for what, what
+/// classes of data the prompt carried, which model, how many tokens, how it
+/// ended. Never the prompt and never the answer.
+model AiEgressRecord {
+  id            String   @id @default(uuid())
+  caller        String
+  purpose       String
+  clubId        String?
+  model         String?
+  provider      String?
+  dataClasses   String[]
+  pseudonymised Int      @default(0)
+  /// STARTED | OK | REFUSED | FAILED | INVALID_OUTPUT
+  outcome       String
+  reason        String?
+  tokensIn      Int?
+  tokensOut     Int?
+  durationMs    Int?
+  createdAt     DateTime @default(now())
+
+  @@index([clubId, createdAt])
+  @@index([createdAt])
+}
+
 /// AIApprovalRequest — high-risk AI actions awaiting human approval.
 /// Worker parks AIAgentJob until status=APPROVED.
 model AIApprovalRequest {
@@ -7794,11 +7832,35 @@ model AIModel {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  decisions AIDecision[]
+  decisions  AIDecision[]
+  promotions AIModelPromotion[]
 
   @@unique([slug, version])
   @@index([domain, decisionType, isActive])
   @@index([slug])
+}
+
+/// AIModelPromotion — how a model version becomes ACTIVE (Cyber Defense, R8).
+/// One person requests it, a different person approves it; the approval signs
+/// the SHA-256 of the model's artifact (slug, version, provider, schemas,
+/// parameters) with Ed25519. A model is resolved for a decision only while its
+/// artifact still hashes to what was signed.
+model AIModelPromotion {
+  id             String    @id @default(uuid())
+  modelId        String
+  model          AIModel   @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  artifactSha256 String
+  /// PENDING | APPROVED | REJECTED
+  status         String    @default("PENDING")
+  requestedById  String
+  requestedAt    DateTime  @default(now())
+  decidedById    String?
+  decidedAt      DateTime?
+  keyId          String?
+  signature      String?
+  notes          String?   @db.Text
+
+  @@index([modelId, status])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

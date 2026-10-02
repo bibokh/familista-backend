@@ -28,6 +28,7 @@ import * as history from '../services/ai-decision-history.service';
 import * as feedback from '../services/ai-feedback.service';
 import * as audit from '../services/ai-audit.service';
 import { reviewDecision } from '../services/ai-orchestrator.service';
+import * as promotion from '../services/ai-model-promotion.service';
 import { seedDefaultAIModels } from '../data/ai-models.seed';
 import {
   assertSubjectAccess,
@@ -104,6 +105,36 @@ export async function updateModel(req: Request, res: Response, next: NextFunctio
     if (err instanceof z.ZodError) return next(zerr(err));
     return next(err);
   }
+}
+
+/** R8: ask for a model version to be promoted. */
+export async function requestModelPromotion(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = actorOf(req);
+    assertPlatformAdmin(actor);
+    const notes = typeof req.body?.notes === 'string' ? req.body.notes.slice(0, 2000) : null;
+    return sendCreated(res, await promotion.requestPromotion({ userId: actor.userId, ipAddress: actor.ipAddress, userAgent: actor.userAgent }, req.params.id, notes), 'Promotion requested');
+  } catch (err) { return next(err); }
+}
+
+/** R8: a different platform administrator approves (and signs) it, then it is activated. */
+export async function approveModelPromotion(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = actorOf(req);
+    assertPlatformAdmin(actor);
+    const approved = await promotion.approvePromotion({ userId: actor.userId, ipAddress: actor.ipAddress, userAgent: actor.userAgent }, req.params.id);
+    const model = await registry.activateModel(actor, approved.model.id, { deactivatePeers: true });
+    return sendSuccess(res, { promotion: approved.promotion, model }, 'Promotion approved; model activated');
+  } catch (err) { return next(err); }
+}
+
+export async function rejectModelPromotion(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = actorOf(req);
+    assertPlatformAdmin(actor);
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason.slice(0, 2000) : null;
+    return sendSuccess(res, await promotion.rejectPromotion({ userId: actor.userId }, req.params.id, reason), 'Promotion rejected');
+  } catch (err) { return next(err); }
 }
 
 export async function activateModel(req: Request, res: Response, next: NextFunction) {

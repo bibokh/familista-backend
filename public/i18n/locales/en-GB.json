@@ -106,6 +106,18 @@
       "enforcedNow": "A code is now required at every sign-in.",
       "unenforcedNow": "A code is no longer required at sign-in.",
       "required": "Two-step sign-in is required for administrator accounts and cannot be turned off."
+    },
+    "aiData": {
+      "title": "AI and your club's data",
+      "intro": "Choose what Familista's AI may do with your club's data. Both stay off until a club administrator turns them on.",
+      "egressTitle": "Send medical data to the AI provider",
+      "egressHelp": "Lets ARIA and AI explanations use injury details, condition and health-risk scores. Names are always replaced before anything leaves Familista.",
+      "trainingTitle": "Use our data for training",
+      "trainingHelp": "Lets your club contribute to federated learning. Medical data about players under 18 is never used.",
+      "adminOnly": "Only a club administrator can change these.",
+      "saved": "Saved.",
+      "failed": "Could not save. Please try again.",
+      "loadFailed": "These settings could not be loaded."
     }
   },
   "squad": {

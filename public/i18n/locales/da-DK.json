@@ -106,6 +106,18 @@
       "enforcedNow": "Der kræves nu en kode ved hvert login.",
       "unenforcedNow": "Der kræves ikke længere en kode ved login.",
       "required": "Totrinslogin er påkrævet for administratorkonti og kan ikke slås fra."
+    },
+    "aiData": {
+      "title": "AI og din klubs data",
+      "intro": "Vælg, hvad Familistas AI må gøre med din klubs data. Begge forbliver slået fra, indtil en klubadministrator slår dem til.",
+      "egressTitle": "Send medicinske data til AI-udbyderen",
+      "egressHelp": "Lader ARIA og AI-forklaringer bruge skadesoplysninger, form og sundhedsrisikoscorer. Navne erstattes altid, før noget forlader Familista.",
+      "trainingTitle": "Brug vores data til træning",
+      "trainingHelp": "Lader din klub bidrage til fødereret læring. Medicinske data om spillere under 18 bruges aldrig.",
+      "adminOnly": "Kun en klubadministrator kan ændre disse.",
+      "saved": "Gemt.",
+      "failed": "Kunne ikke gemme. Prøv igen.",
+      "loadFailed": "Disse indstillinger kunne ikke indlæses."
     }
   },
   "squad": {

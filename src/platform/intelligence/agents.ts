@@ -75,8 +75,16 @@ export const TOOLS: ReadonlyArray<ToolDefinition> = Object.freeze([
   { key: 'createReport',       description: 'Write a report for a person to read',   effect: 'DRAFT',     minAutonomy: AutonomyLevel.PREPARE,   classification: 'INTERNAL' },
   { key: 'sendNotification',   description: 'Notify a person',                       effect: 'WRITE',     minAutonomy: AutonomyLevel.ACT,       classification: 'INTERNAL' },
   { key: 'updateAllowedResource', description: 'Update a resource on an allowlist',  effect: 'WRITE',     minAutonomy: AutonomyLevel.ACT,       classification: 'INTERNAL' },
+  // Cyber Defense, R8: the actions an agent JOB can ask for, one per approval
+  // kind (AIApprovalKind). Each is WRITE, so an agent at APPROVE autonomy gets
+  // a person's approval first and the kill switch stops it.
+  { key: 'changeTacticsLive',     description: 'Change tactics during a live match', effect: 'WRITE',     minAutonomy: AutonomyLevel.ACT,       classification: 'INTERNAL' },
+  { key: 'approveTransfer',       description: 'Commit to a transfer',               effect: 'WRITE',     minAutonomy: AutonomyLevel.ACT,       classification: 'CONFIDENTIAL' },
+  { key: 'issueMedicalRecommendation', description: 'Issue a medical recommendation for a player', effect: 'WRITE', minAutonomy: AutonomyLevel.ACT, classification: 'RESTRICTED' },
+  { key: 'initiatePayment',       description: 'Start a payment or payout',          effect: 'WRITE',     minAutonomy: AutonomyLevel.ACT,       classification: 'CONFIDENTIAL' },
   // Named so that they can be refused by name rather than by absence.
   { key: 'deleteClub',            description: 'Delete a club',                      effect: 'PROTECTED', minAutonomy: AutonomyLevel.PROTECTED, classification: 'RESTRICTED' },
+  { key: 'deleteData',            description: 'Delete or purge recorded data',      effect: 'PROTECTED', minAutonomy: AutonomyLevel.PROTECTED, classification: 'RESTRICTED' },
   { key: 'changeClubOwner',       description: 'Change who owns a club',             effect: 'PROTECTED', minAutonomy: AutonomyLevel.PROTECTED, classification: 'RESTRICTED' },
   { key: 'deleteUser',            description: 'Delete a person\'s account',         effect: 'PROTECTED', minAutonomy: AutonomyLevel.PROTECTED, classification: 'RESTRICTED' },
   { key: 'changeGlobalPermissions', description: 'Change platform authorization',    effect: 'PROTECTED', minAutonomy: AutonomyLevel.PROTECTED, classification: 'RESTRICTED' },

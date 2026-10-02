@@ -23,7 +23,7 @@ const SPORTS      = ['FOOTBALL','BASKETBALL','TENNIS','HANDBALL','ATHLETICS','CU
 
 function actor<A>(req: Request): A {
   if (!req.user) throw new BadRequestError('auth');
-  return { userId: req.user.id, clubId: req.user.clubId, role: req.user.role } as unknown as A;
+  return { userId: req.user.id, clubId: req.user.clubId, role: req.user.role, isPlatformOwner: req.user.isPlatformOwner === true } as unknown as A;
 }
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
@@ -128,7 +128,29 @@ export async function createFedJob(req: Request, res: Response, next: NextFuncti
   } catch (err) { return next(err); }
 }
 
-const gradSchema = z.object({ body: z.object({ payloadHash: z.string().trim().length(64), blobRef: z.string().trim().max(800).optional(), nonce: z.string().trim().min(8).max(128), sigB64: z.string().optional(), normValue: z.number().min(0).optional() }) });
+const gradSchema = z.object({ body: z.object({
+  payloadHash: z.string().trim().length(64),
+  // R8: the gradient itself — the server hashes it and computes its norm.
+  gradient: z.array(z.number().finite()).min(1).max(fed.MAX_GRADIENT_LENGTH),
+  blobRef: z.string().trim().max(800).optional(), nonce: z.string().trim().min(8).max(128), sigB64: z.string().optional(),
+  normValue: z.number().min(0).optional(),
+}) });
+
+const fedTrustSchema = z.object({ body: z.object({
+  modelFamily: z.string().trim().min(1).max(120),
+  clubId: z.string().trim().min(1).max(64),
+  trusted: z.boolean(),
+  reason: z.string().trim().max(500).optional(),
+}) });
+
+/** POST /phase-l/federated/trust — R8: the platform owner trusts (or distrusts) a club for a model family. */
+export async function publishFedTrust(req: Request, res: Response, next: NextFunction) {
+  try {
+    const parsed = fedTrustSchema.safeParse({ body: req.body }); if (!parsed.success) throw zerr(parsed.error);
+    const b = parsed.data.body;
+    return sendSuccess(res, bigintSafe(await fed.publishTrust(actor(req), b.modelFamily, b.clubId, b.trusted, b.reason)));
+  } catch (err) { return next(err); }
+}
 
 export async function submitGradient(req: Request, res: Response, next: NextFunction) {
   try {

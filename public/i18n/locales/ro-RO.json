@@ -106,6 +106,18 @@
       "enforcedNow": "Acum este necesar un cod la fiecare autentificare.",
       "unenforcedNow": "Nu mai este necesar un cod la autentificare.",
       "required": "Autentificarea în doi pași este obligatorie pentru conturile de administrator și nu poate fi dezactivată."
+    },
+    "aiData": {
+      "title": "IA și datele clubului tău",
+      "intro": "Alege ce poate face IA Familista cu datele clubului tău. Ambele rămân dezactivate până când un administrator al clubului le activează.",
+      "egressTitle": "Trimite date medicale furnizorului de IA",
+      "egressHelp": "Permite ARIA și explicațiilor IA să folosească detalii despre accidentări, condiția fizică și scorurile de risc pentru sănătate. Numele sunt întotdeauna înlocuite înainte ca ceva să părăsească Familista.",
+      "trainingTitle": "Folosește datele noastre pentru antrenare",
+      "trainingHelp": "Permite clubului tău să contribuie la învățarea federată. Datele medicale ale jucătorilor sub 18 ani nu sunt folosite niciodată.",
+      "adminOnly": "Doar un administrator al clubului poate modifica aceste setări.",
+      "saved": "Salvat.",
+      "failed": "Salvarea a eșuat. Încearcă din nou.",
+      "loadFailed": "Aceste setări nu au putut fi încărcate."
     }
   },
   "squad": {

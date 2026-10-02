@@ -1,11 +1,26 @@
-import { recordOutcome } from '../infra/outcome-meter';
-import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '../config/database';
 import { config } from '../config';
 import { NotFoundError, AppError } from '../utils/errors';
 import { logger } from '../utils/logger';
+import { complete, type GatewayResult } from '../platform/intelligence/gateway';
+import { AI_PURPOSES, aiProviderConfigured, ensureDefaultGateway } from '../platform/intelligence/default-gateway';
+import { clubAiPolicy, type ClubAiPolicy } from '../platform/intelligence/club-ai-policy';
+import { isMinor, type DataClass } from '../platform/intelligence/data-classes';
 
-const anthropic = new Anthropic({ apiKey: config.anthropic.apiKey });
+// Cyber Defense, R3: ARIA reaches the model only through the AI Gateway. What
+// it sends is built here under the club's policy, and the gateway checks it
+// again:
+//
+//   · every player's name is listed as a subject, so the provider sees [P1],
+//     [P2] … and the answer comes back with the names put back;
+//   · condition, injury status and diagnosis, and the GPS risk score are
+//     RESTRICTED (health data). They are included only when the club has
+//     switched restrictedEgress on; otherwise the squad's injury COUNT is all
+//     that is said;
+//   · a minor's workload and physical data are left out unless the club has
+//     allowed RESTRICTED data;
+//   · the question a person types is sent as CONFIDENTIAL, with the squad's
+//     names replaced in it too.
 
 export type AnalysisType =
   | 'player'
@@ -22,11 +37,19 @@ interface AnalysisRequest {
   clubId: string;
   userId: string;
   playerId?: string;
+  /** Extra classes and names a caller's own prompt carries (analyzePlayer). */
+  dataClasses?: DataClass[];
+  subjects?: string[];
 }
 
-// ── Build system context from live DB data ────────────────
+interface SystemContext { system: string; subjects: string[]; dataClasses: DataClass[] }
 
-async function buildSystemContext(clubId: string): Promise<string> {
+const MODEL_NAME = () => process.env.AI_LLM_MODEL || config.anthropic.model;
+
+// ── Build system context from live DB data, under the club's policy ───────
+
+export async function buildSystemContext(clubId: string, policy: ClubAiPolicy): Promise<SystemContext> {
+  const restricted = policy.restrictedEgress;
   const [club, players, recentMatches, injuries] = await Promise.all([
     prisma.club.findUnique({
       where: { id: clubId },
@@ -35,11 +58,11 @@ async function buildSystemContext(clubId: string): Promise<string> {
     prisma.player.findMany({
       where: { clubId },
       select: {
-        firstName: true, lastName: true, number: true,
+        firstName: true, lastName: true, number: true, dateOfBirth: true,
         position: true, overallRating: true, condition: true,
         isInjured: true,
         gpsData: { orderBy: { recordedAt: 'desc' }, take: 1,
-          select: { topSpeed: true, playerLoad: true, riskScore: true, heartRateAvg: true } },
+          select: { topSpeed: true, playerLoad: true, riskScore: true } },
       },
       orderBy: { overallRating: 'desc' },
     }),
@@ -55,27 +78,41 @@ async function buildSystemContext(clubId: string): Promise<string> {
     }),
   ]);
 
+  const classes = new Set<DataClass>(['PUBLIC', 'INTERNAL']);
+  const subjects = players.map((p) => `${p.firstName} ${p.lastName}`);
+
   const playerSummary = players
-    .map(
-      (p) =>
-        `${p.firstName} ${p.lastName} (#${p.number}, ${p.position}): OVR ${p.overallRating}, Cond ${p.condition}%${p.isInjured ? ' [INJURED]' : ''}${
-          p.gpsData[0]
-            ? `, GPS: ${p.gpsData[0].topSpeed.toFixed(1)}km/h, Load ${p.gpsData[0].playerLoad.toFixed(0)}, Risk ${p.gpsData[0].riskScore.toFixed(0)}%`
-            : ''
-        }`
-    )
+    .map((p) => {
+      const minor = isMinor(p.dateOfBirth);
+      let line = `${p.firstName} ${p.lastName} (#${p.number}, ${p.position}): OVR ${p.overallRating}`;
+      if (restricted) {
+        line += `, Cond ${p.condition}%${p.isInjured ? ' [INJURED]' : ''}`;
+        classes.add('RESTRICTED');
+      }
+      const gps = p.gpsData[0];
+      if (gps && (!minor || restricted)) {
+        line += `, GPS: ${gps.topSpeed.toFixed(1)}km/h, Load ${gps.playerLoad.toFixed(0)}`;
+        classes.add(minor ? 'RESTRICTED' : 'CONFIDENTIAL');
+        if (restricted) line += `, Risk ${gps.riskScore.toFixed(0)}%`;
+      }
+      return line;
+    })
     .join('\n');
 
   const matchSummary = recentMatches
     .map((m) => `${m.homeTeam} ${m.homeScore ?? '?'}-${m.awayScore ?? '?'} ${m.awayTeam} (${m.result ?? 'TBD'}, ${m.competition})`)
     .join('\n');
 
-  const injurySummary =
-    injuries.length > 0
-      ? injuries.map((i) => `${i.player.firstName} ${i.player.lastName}: ${i.injuryType} (${i.severity})`).join('\n')
-      : 'No current injuries';
+  let injurySummary: string;
+  if (injuries.length === 0) injurySummary = 'No current injuries';
+  else if (restricted) {
+    injurySummary = injuries.map((i) => `${i.player.firstName} ${i.player.lastName}: ${i.injuryType} (${i.severity})`).join('\n');
+    for (const i of injuries) subjects.push(`${i.player.firstName} ${i.player.lastName}`);
+  } else {
+    injurySummary = `${injuries.length} player(s) currently injured. Injury details are not shared with the AI provider for this club.`;
+  }
 
-  return `You are ARIA, the AI Football Analyst for the Familista Sports Intelligence Platform.
+  const system = `You are ARIA, the AI Football Analyst for the Familista Sports Intelligence Platform.
 
 CLUB: ${club?.name ?? 'Unknown'} | Level ${club?.level} | OVR ${club?.overallRating} | League Position: ${club?.leaguePosition ?? 'N/A'}
 
@@ -90,10 +127,25 @@ ${injurySummary}
 
 INSTRUCTIONS:
 - Respond in the same language as the user (Arabic or English)
-- Be specific and data-driven, reference real player names and stats
+- Be specific and data-driven; refer to players exactly by the labels given above (for example [P3]) and never invent names
 - Keep responses concise (max 4-5 sentences unless a report is requested)
 - Provide actionable recommendations
 - Format important numbers with proper units`;
+
+  return { system, subjects, dataClasses: [...classes] };
+}
+
+/** The status a refusal answers with. */
+function refusalStatus(out: GatewayResult): AppError {
+  switch (out.refusal) {
+    case 'restricted': return new AppError('This analysis needs medical data, which your club has not allowed to be sent to the AI provider', 403);
+    case 'budget':     return new AppError('Your club has used today\'s AI allowance. It resets at midnight UTC.', 429);
+    case 'provider':   return /rate_limited/.test(out.refusedBecause ?? '')
+      ? new AppError('AI rate limit reached, please try again shortly', 429)
+      : new AppError('AI service temporarily unavailable', 503);
+    case 'invalid-output': return new AppError('AI analysis failed', 502);
+    default:           return new AppError('AI service not configured', 503);
+  }
 }
 
 // ── Main analysis endpoint ────────────────────────────────
@@ -103,38 +155,31 @@ export async function analyzeWithAI(req: AnalysisRequest): Promise<{
   tokens: number;
   insightId: string;
 }> {
-  if (!config.anthropic.apiKey) {
+  ensureDefaultGateway();
+  if (!aiProviderConfigured()) {
     throw new AppError('AI service not configured', 503);
   }
 
-  // Build context
-  const systemPrompt = await buildSystemContext(req.clubId);
+  const policy = await clubAiPolicy(req.clubId);
+  const ctx = await buildSystemContext(req.clubId, policy);
 
-  // Call Claude
-  let response: Anthropic.Message;
-  try {
-    response = await anthropic.messages.create({
-      model: config.anthropic.model,
-      max_tokens: config.anthropic.maxTokens,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: req.prompt }],
-    });
-    recordOutcome('anthropic', true);
-  } catch (err: unknown) {
-    recordOutcome('anthropic', false);
-    if (err instanceof Anthropic.RateLimitError) {
-      throw new AppError('AI rate limit reached, please try again shortly', 429);
-    }
-    if (err instanceof Anthropic.APIConnectionError) {
-      throw new AppError('AI service temporarily unavailable', 503);
-    }
-    logger.error('Anthropic API error', { err });
-    throw new AppError('AI analysis failed', 500);
+  const out = await complete({
+    caller: 'ai.service',
+    purpose: AI_PURPOSES.clubAnalysis,
+    clubId: req.clubId,
+    system: ctx.system,
+    prompt: req.prompt,
+    dataClasses: [...ctx.dataClasses, 'CONFIDENTIAL', ...(req.dataClasses ?? [])],
+    subjects: [...ctx.subjects, ...(req.subjects ?? [])],
+    maxOutputTokens: config.anthropic.maxTokens,
+  });
+  if (!out.ok || out.text === null) {
+    logger.warn('AI analysis refused', { type: req.type, refusal: out.refusal ?? null });
+    throw refusalStatus(out);
   }
 
-  const textBlock = response.content.find((b) => b.type === 'text');
-  const text = textBlock && textBlock.type === 'text' ? textBlock.text : 'No response generated';
-  const tokens = response.usage.input_tokens + response.usage.output_tokens;
+  const text = out.text || 'No response generated';
+  const tokens = (out.usage?.inputTokens ?? 0) + (out.usage?.outputTokens ?? 0);
 
   // Persist insight
   const insight = await prisma.aiInsight.create({
@@ -144,7 +189,7 @@ export async function analyzeWithAI(req: AnalysisRequest): Promise<{
       type:     req.type,
       prompt:   req.prompt,
       response: text,
-      model:    config.anthropic.model,
+      model:    MODEL_NAME(),
       tokens,
       playerId: req.playerId,
     },
@@ -192,12 +237,25 @@ export async function analyzePlayer(
 
   if (!player) throw new NotFoundError('Player');
 
-  const prompt = `Provide a detailed performance analysis for ${player.firstName} ${player.lastName} (${player.position}, #${player.number}).
-Current condition: ${player.condition}%. Overall rating: ${player.overallRating}.
-${player.isInjured ? 'CURRENTLY INJURED.' : ''}
-${player.gpsData[0] ? `Latest GPS: Top speed ${player.gpsData[0].topSpeed}km/h, Load ${player.gpsData[0].playerLoad}, Risk ${player.gpsData[0].riskScore}%` : ''}
+  const policy = await clubAiPolicy(clubId);
+  const name = `${player.firstName} ${player.lastName}`;
+  const minor = isMinor(player.dateOfBirth);
+  const gps = player.gpsData[0];
+  const classes: DataClass[] = ['INTERNAL'];
+  const lines = [`Provide a detailed performance analysis for ${name} (${player.position}, #${player.number}).`, `Overall rating: ${player.overallRating}.`];
+  if (policy.restrictedEgress) {
+    lines.push(`Current condition: ${player.condition}%.`);
+    if (player.isInjured) lines.push('CURRENTLY INJURED.');
+    classes.push('RESTRICTED');
+  }
+  if (gps && (!minor || policy.restrictedEgress)) {
+    lines.push(`Latest GPS: Top speed ${gps.topSpeed}km/h, Load ${gps.playerLoad}${policy.restrictedEgress ? `, Risk ${gps.riskScore}%` : ''}`);
+    classes.push(minor ? 'RESTRICTED' : 'CONFIDENTIAL');
+  }
+  lines.push('', policy.restrictedEgress
+    ? 'Include: strengths, weaknesses, training recommendations, and match readiness assessment.'
+    : 'Include: strengths, weaknesses and training recommendations. Medical data is not shared for this club, so do not assess fitness or injury.');
+  const prompt = lines.join('\n');
 
-Include: strengths, weaknesses, training recommendations, and match readiness assessment.`;
-
-  return analyzeWithAI({ type: 'player', prompt, clubId, userId, playerId });
+  return analyzeWithAI({ type: 'player', prompt, clubId, userId, playerId, dataClasses: classes, subjects: [name] });
 }

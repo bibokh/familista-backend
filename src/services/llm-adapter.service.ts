@@ -1,17 +1,20 @@
 // Familista — LLM adapter (Phase C)
 // ─────────────────────────────────────────────────────────────────────────
-// Single facade for every AI agent call. Anthropic is the default backend
-// when `ANTHROPIC_API_KEY` is set; otherwise we fall back to a deterministic
-// stub so the worker can be tested + deployed before keys are configured.
+// The agent worker's way to a model. Without a provider key it answers with a
+// deterministic stub, so the worker can be tested and deployed before keys are
+// configured and never crashes the boot path.
 //
-// Why a thin facade and not a fat agent framework: the workers should fail
-// SAFELY when keys are missing — never crash the boot path. Every agent
-// kind lives in the worker (Phase C), not here.
+// Cyber Defense, R3: with a key, the call goes through the AI Gateway and its
+// egress policy — the caller declares the classes of data it sends and the
+// names that must not leave, RESTRICTED needs the club's permission, and every
+// call is recorded. A failure comes back as a category with the provider's
+// status, never the provider's message (which routinely quotes the prompt).
 
-import { recordOutcome } from '../infra/outcome-meter';
-import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { complete } from '../platform/intelligence/gateway';
+import { AI_PURPOSES, aiProviderConfigured, ensureDefaultGateway } from '../platform/intelligence/default-gateway';
+import type { DataClass } from '../platform/intelligence/data-classes';
 
 export interface LLMRequest {
   system?:    string;
@@ -31,6 +34,14 @@ export interface LLMRequest {
    * publishing the prompt with it.
    */
   observe?: { runId: string; clubId?: string | null; correlationId?: string | null };
+  /** The club this call is for. Defaults to observe.clubId. Its policy and budget apply. */
+  clubId?: string | null;
+  /** What the prompt carries. Undeclared reads as RESTRICTED. */
+  dataClasses?: DataClass[];
+  /** Names that must not reach the provider. */
+  subjects?: string[];
+  /** Which part of the platform is asking, for the egress record. */
+  caller?: string;
 }
 
 export interface LLMResponse {
@@ -47,30 +58,16 @@ export interface LLMResponse {
 // Cost guess (USD / 1M tokens, Sonnet-class pricing — recalibrate per model).
 const TOKEN_COST = { in: 3, out: 15 }; // dollars per 1M tokens
 
-// Lazy client — never instantiates on module load.
-let _anthropic: Anthropic | null = null;
 let _warned = false;
 
 function isAnthropicEnabled(): boolean {
-  return !!(config.anthropic && config.anthropic.apiKey);
-}
-
-function getAnthropic(): Anthropic | null {
-  if (_anthropic) return _anthropic;
-  if (!isAnthropicEnabled()) {
-    if (!_warned) {
-      logger.warn('[llm] Anthropic disabled — ANTHROPIC_API_KEY missing. AI agents will use stub responses.');
-      _warned = true;
-    }
-    return null;
+  ensureDefaultGateway();
+  const on = aiProviderConfigured();
+  if (!on && !_warned) {
+    logger.warn('[llm] Anthropic disabled — ANTHROPIC_API_KEY missing. AI agents will use stub responses.');
+    _warned = true;
   }
-  try {
-    _anthropic = new Anthropic({ apiKey: config.anthropic.apiKey });
-    return _anthropic;
-  } catch (err) {
-    logger.error('[llm] failed to construct Anthropic client', { err });
-    return null;
-  }
+  return on;
 }
 
 function stubResponse(req: LLMRequest, started: Date): LLMResponse {
@@ -90,55 +87,53 @@ function stubResponse(req: LLMRequest, started: Date): LLMResponse {
 
 export async function llmCall(req: LLMRequest): Promise<LLMResponse> {
   const started = new Date();
-  const client  = getAnthropic();
 
-  if (!client) {
+  if (!isAnthropicEnabled()) {
     const stub = stubResponse(req, started);
     announce(req, { model: stub.model, provider: stub.backend, tokens: stub.tokensIn + stub.tokensOut });
     return stub;
   }
 
-  const model = req.model || config.anthropic.model || 'claude-sonnet-4-20250514';
-  try {
-    const result = await client.messages.create({
-      model,
-      max_tokens: req.maxTokens || config.anthropic.maxTokens || 1024,
-      system:     req.system,
-      messages: [{ role: 'user', content: req.prompt }],
-    });
-    recordOutcome('anthropic', true);
+  // The gateway chooses the model (default-gateway.ts); this is what it uses.
+  const model = process.env.AI_LLM_MODEL || config.anthropic.model;
+  const out = await complete({
+    caller: req.caller ?? 'llm-adapter.service',
+    purpose: AI_PURPOSES.agent,
+    clubId: req.clubId ?? req.observe?.clubId ?? null,
+    system: req.system,
+    prompt: req.prompt,
+    dataClasses: req.dataClasses,
+    subjects: req.subjects,
+    maxOutputTokens: req.maxTokens || config.anthropic.maxTokens || 1024,
+  });
 
-    const tokensIn  = result.usage?.input_tokens  ?? Math.ceil(req.prompt.length / 4);
-    const tokensOut = result.usage?.output_tokens ?? 0;
-    const text = (result.content ?? [])
-      .filter((b) => b.type === 'text')
-      .map((b) => (b as { type: 'text'; text: string }).text)
-      .join('');
-
-    const costCents = Math.round(((tokensIn * TOKEN_COST.in) + (tokensOut * TOKEN_COST.out)) / 1000 * 100 / 1000);
-
-    announce(req, { model, provider: 'anthropic', tokens: tokensIn + tokensOut });
-
-    return {
-      text,
-      model,
-      tokensIn,
-      tokensOut,
-      costCents,
-      backend:   'anthropic',
-      startedAt: started,
-      finishedAt: new Date(),
-    };
-  } catch (err) {
-    recordOutcome('anthropic', false);
+  if (!out.ok || out.text === null) {
     // The record of a failed invocation is made here, where the call happened,
-    // and carries a CATEGORY rather than the provider's message — which
-    // routinely quotes the request that caused it, and the request is the
-    // prompt. The message itself still bubbles up unchanged.
+    // and carries a CATEGORY. The error the caller sees says which rule or
+    // which failure — never the provider's own text.
+    const err = Object.assign(new Error(`AI call refused: ${out.refusedBecause ?? 'unknown'}`), {
+      refusal: out.refusal ?? null,
+      ...(typeof out.providerStatus === 'number' ? { status: out.providerStatus } : {}),
+    });
     announce(req, { model, provider: 'anthropic', tokens: null, error: err });
-    // Bubble up — the worker decides what to do.
     throw err;
   }
+
+  const tokensIn  = out.usage?.inputTokens  ?? Math.ceil(req.prompt.length / 4);
+  const tokensOut = out.usage?.outputTokens ?? 0;
+  const costCents = Math.round(((tokensIn * TOKEN_COST.in) + (tokensOut * TOKEN_COST.out)) / 1000 * 100 / 1000);
+  announce(req, { model, provider: 'anthropic', tokens: tokensIn + tokensOut });
+
+  return {
+    text: out.text,
+    model,
+    tokensIn,
+    tokensOut,
+    costCents,
+    backend:   'anthropic',
+    startedAt: started,
+    finishedAt: new Date(),
+  };
 }
 
 /**
@@ -173,7 +168,7 @@ function announce(
 
 export function llmStatus(): { backend: 'anthropic' | 'stub'; model: string | null } {
   return {
-    backend: isAnthropicEnabled() ? 'anthropic' : 'stub',
+    backend: aiProviderConfigured() ? 'anthropic' : 'stub',
     model:   config.anthropic?.model ?? null,
   };
 }

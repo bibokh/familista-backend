@@ -23,7 +23,8 @@ import {
   publishAIAgentStarted, publishAIAgentCompleted, publishAIAgentFailed,
 } from '../fabric/producers/ai.producer';
 import { runDeterministicHandler } from './agent-handlers';
-import { classifyRisk, getJobApproval, requestApproval } from '../security/ai-approval.service';
+import { getJobApproval, requestApproval } from '../security/ai-approval.service';
+import { authorizeAgentJob } from '../platform/intelligence/agent-jobs';
 import { logSecurityEvent } from '../security/security-event.service';
 import { recordDecision, impactFor } from '../services/ai-agent-decision.service';
 import {
@@ -127,12 +128,26 @@ async function reapStalled(): Promise<void> {
 
 async function runOne(job: { id: string; agent: AIAgent; kind: string; input: Prisma.JsonValue; clubId: string }): Promise<void> {
   try {
-    // Phase I — high-risk approval gate. Classify the job; if risky,
-    // ensure there's an APPROVED approval row before continuing. If the
-    // approval is missing or still pending, park the job (revert to
-    // PENDING) so it gets re-picked after a human acts.
-    const riskKind = classifyRisk(job.kind, job.input);
-    if (riskKind) {
+    // Cyber Defense, R8 — what this job may do at all, as this agent: an
+    // action outside the agent's profile, a PROTECTED action, or any action
+    // while the kill switch is engaged is refused here, before an approval is
+    // even asked for (platform/intelligence/agent-jobs.ts).
+    const authz = authorizeAgentJob(job);
+    if (!authz.allowed) {
+      await prisma.aIAgentJob.update({
+        where: { id: job.id },
+        data:  { status: AutomationStatus.FAILED, finishedAt: new Date(), error: `Not authorised: ${authz.reason ?? 'refused'}`.slice(0, 4000) },
+      });
+      logSecurityEvent({ kind: 'UNAUTHORIZED_AI_ATTEMPT', severity: 'WARN', clubId: job.clubId, payload: { jobId: job.id, agent: job.agent, tool: authz.toolKey } });
+      publishAIAgentFailed(agentCtx(job), job.agent, { message: 'not authorised: refused by the agent tool registry' });
+      return;
+    }
+
+    // Phase I — high-risk approval gate. An action needs an APPROVED approval
+    // row before continuing. If the approval is missing or still pending,
+    // park the job (revert to PENDING) so it gets re-picked after a human acts.
+    const riskKind = authz.actionKind;
+    if (riskKind || authz.requiresApproval) {
       const existing = await getJobApproval(job.id);
       if (!existing) {
         // No approval row yet — create one and park the job.
@@ -143,7 +158,7 @@ async function runOne(job: { id: string; agent: AIAgent; kind: string; input: Pr
         try {
           await requestApproval(
             { userId: requesterId, clubId: job.clubId, ipAddress: null, userAgent: null },
-            { agent: job.agent, kind: riskKind, payload: { input: job.input } as Prisma.InputJsonValue, jobId: job.id },
+            { agent: job.agent, kind: riskKind ?? 'OTHER', payload: { input: job.input } as Prisma.InputJsonValue, jobId: job.id },
           );
         } catch (err) {
           logger.warn('[ai-worker] approval requestApproval failed', { id: job.id, err: (err as Error).message });
@@ -238,6 +253,11 @@ async function runOne(job: { id: string; agent: AIAgent; kind: string; input: Pr
     const result = await llmCall({
       system, prompt, maxTokens: 1024,
       observe: { clubId: job.clubId, correlationId: job.id, runId: job.id },
+      caller: 'ai-agent.worker',
+      clubId: job.clubId,
+      // What this agent's jobs carry, by its profile; the gateway refuses
+      // RESTRICTED (the medical agent) unless the club has allowed it.
+      dataClasses: [authz.dataClass],
     });
 
     await prisma.aIAgentJob.update({

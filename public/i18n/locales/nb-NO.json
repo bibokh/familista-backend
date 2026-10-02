@@ -106,6 +106,18 @@
       "enforcedNow": "Nå kreves det en kode ved hver pålogging.",
       "unenforcedNow": "Det kreves ikke lenger kode ved pålogging.",
       "required": "Totrinnspålogging er påkrevd for administratorkontoer og kan ikke slås av."
+    },
+    "aiData": {
+      "title": "AI og klubbens data",
+      "intro": "Velg hva Familistas AI kan gjøre med klubbens data. Begge forblir av til en klubbadministrator slår dem på.",
+      "egressTitle": "Send medisinske data til AI-leverandøren",
+      "egressHelp": "Lar ARIA og AI-forklaringer bruke skadedetaljer, form og helserisikoscorer. Navn erstattes alltid før noe forlater Familista.",
+      "trainingTitle": "Bruk dataene våre til trening",
+      "trainingHelp": "Lar klubben bidra til føderert læring. Medisinske data om spillere under 18 år brukes aldri.",
+      "adminOnly": "Bare en klubbadministrator kan endre disse.",
+      "saved": "Lagret.",
+      "failed": "Kunne ikke lagre. Prøv igjen.",
+      "loadFailed": "Disse innstillingene kunne ikke lastes inn."
     }
   },
   "squad": {

@@ -120,11 +120,11 @@ describe('the repository', () => {
   });
 
   it('the coverage counts match the ratchet exactly (tighten it when a row closes)', () => {
-    expect(a.coverage).toEqual({ C: 18, P: 14, U: 6 });
+    expect(a.coverage).toEqual({ C: 25, P: 12, U: 1 });
     expect(map.ratchet).toEqual({ U: a.coverage.U, P: a.coverage.P });
   });
 
-  it('rows closed by R1a–R2, Batch 1 and Batch 4 are covered, and say by which control', () => {
+  it('rows closed by R1a–R2 and Batches 1, 4 and 5 are covered, and say by which control', () => {
     const covered = (id: number, ctl: string) => {
       expect(map.boundaries[id].coverage).toBe('C');
       expect(map.boundaries[id].controls).toContain(ctl);
@@ -137,6 +137,14 @@ describe('the repository', () => {
     covered(33, 'worker-callback-authenticated');
     // Batch 4 (R7): JWT verification
     for (const ctl of ['jwt-algorithm-pinned', 'jwt-issuer-validated', 'jwt-key-id']) covered(3, ctl);
+    // Batch 5 (R3 + R8): the AI layer
+    for (const id of [9, 10]) for (const ctl of ['ai-single-egress', 'ai-egress-classification', 'ai-call-audited']) covered(id, ctl);
+    covered(11, 'ai-actions-gated');
+    covered(12, 'model-artifact-signed');
+    covered(13, 'federated-default-deny');
+    covered(13, 'federated-server-side-norm');
+    covered(14, 'training-data-classified');
+    covered(15, 'recommendation-signed');
   });
 
   it('both controls are present and required', () => {
@@ -181,7 +189,7 @@ describe('coverage per component (Infrastructure City)', () => {
   it('a component is as covered as its weakest trust boundary', () => {
     const cov = componentCoverage();
     expect(cov.stripe).toEqual({ state: 'C', rows: [{ id: 25, coverage: 'C' }] });
-    expect(cov.anthropic.state).toBe('U');
+    expect(cov.anthropic.state).toBe('C'); // row 10, closed by R3 (Batch 5)
     expect(cov['platform-core']).toEqual({ state: 'P', rows: [{ id: 4, coverage: 'C' }, { id: 5, coverage: 'P' }, { id: 6, coverage: 'C' }] });
     expect(cov['object-store'].state).toBe('U'); // row 32: media disaster recovery
   });

@@ -106,6 +106,18 @@
       "enforcedNow": "En kod krävs nu vid varje inloggning.",
       "unenforcedNow": "En kod krävs inte längre vid inloggning.",
       "required": "Tvåstegsinloggning krävs för administratörskonton och kan inte stängas av."
+    },
+    "aiData": {
+      "title": "AI och klubbens data",
+      "intro": "Välj vad Familistas AI får göra med klubbens data. Båda förblir avstängda tills en klubbadministratör slår på dem.",
+      "egressTitle": "Skicka medicinska data till AI-leverantören",
+      "egressHelp": "Låter ARIA och AI-förklaringar använda skadeinformation, form och hälsoriskpoäng. Namn ersätts alltid innan något lämnar Familista.",
+      "trainingTitle": "Använd våra data för träning",
+      "trainingHelp": "Låter klubben bidra till federerad inlärning. Medicinska data om spelare under 18 år används aldrig.",
+      "adminOnly": "Endast en klubbadministratör kan ändra detta.",
+      "saved": "Sparat.",
+      "failed": "Det gick inte att spara. Försök igen.",
+      "loadFailed": "De här inställningarna kunde inte läsas in."
     }
   },
   "squad": {

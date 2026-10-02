@@ -106,6 +106,18 @@
       "enforcedNow": "Bij elke keer inloggen is nu een code vereist.",
       "unenforcedNow": "Bij het inloggen is geen code meer vereist.",
       "required": "Inloggen in twee stappen is verplicht voor beheerdersaccounts en kan niet worden uitgeschakeld."
+    },
+    "aiData": {
+      "title": "AI en de gegevens van je club",
+      "intro": "Kies wat de AI van Familista met de gegevens van je club mag doen. Beide blijven uit totdat een clubbeheerder ze inschakelt.",
+      "egressTitle": "Medische gegevens naar de AI-aanbieder sturen",
+      "egressHelp": "Laat ARIA en AI-uitleg blessuregegevens, conditie en gezondheidsrisicoscores gebruiken. Namen worden altijd vervangen voordat er iets Familista verlaat.",
+      "trainingTitle": "Onze gegevens gebruiken voor training",
+      "trainingHelp": "Laat je club bijdragen aan federatief leren. Medische gegevens van spelers onder de 18 worden nooit gebruikt.",
+      "adminOnly": "Alleen een clubbeheerder kan dit wijzigen.",
+      "saved": "Opgeslagen.",
+      "failed": "Opslaan mislukt. Probeer het opnieuw.",
+      "loadFailed": "Deze instellingen konden niet worden geladen."
     }
   },
   "squad": {

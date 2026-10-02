@@ -106,6 +106,18 @@
       "enforcedNow": "Kod kini diperlukan pada setiap log masuk.",
       "unenforcedNow": "Kod tidak lagi diperlukan semasa log masuk.",
       "required": "Log masuk dua langkah diwajibkan untuk akaun pentadbir dan tidak boleh dimatikan."
+    },
+    "aiData": {
+      "title": "AI dan data kelab anda",
+      "intro": "Pilih perkara yang boleh dilakukan oleh AI Familista dengan data kelab anda. Kedua-duanya kekal dimatikan sehingga pentadbir kelab menghidupkannya.",
+      "egressTitle": "Hantar data perubatan kepada penyedia AI",
+      "egressHelp": "Membenarkan ARIA dan penjelasan AI menggunakan butiran kecederaan, keadaan fizikal dan skor risiko kesihatan. Nama sentiasa digantikan sebelum apa-apa keluar dari Familista.",
+      "trainingTitle": "Gunakan data kami untuk latihan",
+      "trainingHelp": "Membenarkan kelab anda menyumbang kepada pembelajaran persekutuan. Data perubatan pemain bawah 18 tahun tidak pernah digunakan.",
+      "adminOnly": "Hanya pentadbir kelab boleh menukar tetapan ini.",
+      "saved": "Disimpan.",
+      "failed": "Tidak dapat menyimpan. Sila cuba lagi.",
+      "loadFailed": "Tetapan ini tidak dapat dimuatkan."
     }
   },
   "squad": {

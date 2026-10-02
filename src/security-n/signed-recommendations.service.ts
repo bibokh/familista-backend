@@ -14,17 +14,25 @@ import { BadRequestError, NotFoundError } from '../utils/errors';
 import { config } from '../config';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
 
-const SIGNER_VERSION = 'n1';
+// Cyber Defense, R8: n1 built its canonical form with
+// JSON.stringify(value, Object.keys(value).sort()) — a replacer ARRAY filters
+// keys at every depth, so only `clubId`, `kind` and `payload` survived and the
+// payload itself was signed as {}. An n1 signature therefore covers none of the
+// recommendation and is refused by `verifyRecommendation`. n2 signs the whole
+// payload, keys sorted at every depth.
+export const SIGNER_VERSION = 'n2';
 
 function deriveKey(clubId: string, kind: string): Buffer {
   return createHmac('sha256', config.jwt.secret).update(`rec|${kind}|${clubId}`).digest();
 }
 
-function canonical(payload: unknown): string {
-  // Sort keys for deterministic canonical form.
-  if (payload === null || payload === undefined) return 'null';
-  if (typeof payload !== 'object') return JSON.stringify(payload);
-  return JSON.stringify(payload, Object.keys(payload as object).sort());
+/** Deterministic, recursive: every key at every depth, sorted. */
+export function canonical(value: unknown): string {
+  if (value === undefined) return 'null';
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  const o = value as Record<string, unknown>;
+  return `{${Object.keys(o).filter((k) => o[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${canonical(o[k])}`).join(',')}}`;
 }
 
 /** Sign a recommendation body. Returns the persisted signature row. */
@@ -62,8 +70,9 @@ export async function signRecommendation(
   return row;
 }
 
-/** Verify a signature against a payload. Pure function. */
-export function verifyRecommendation(clubId: string, kind: string, payload: unknown, sigB64: string): boolean {
+/** Verify a signature against a payload. Pure function. An n1 signature never verifies (see above). */
+export function verifyRecommendation(clubId: string, kind: string, payload: unknown, sigB64: string, signerVersion: string = SIGNER_VERSION): boolean {
+  if (signerVersion !== SIGNER_VERSION) return false;
   try {
     const body = canonical({ clubId, kind, payload });
     const key = deriveKey(clubId, kind);

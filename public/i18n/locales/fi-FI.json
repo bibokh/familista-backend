@@ -106,6 +106,18 @@
       "enforcedNow": "Koodi vaaditaan nyt jokaisella kirjautumiskerralla.",
       "unenforcedNow": "Koodia ei enää vaadita kirjautuessa.",
       "required": "Kaksivaiheinen kirjautuminen on pakollinen ylläpitäjätileille, eikä sitä voi poistaa käytöstä."
+    },
+    "aiData": {
+      "title": "Tekoäly ja seurasi tiedot",
+      "intro": "Valitse, mitä Familistan tekoäly saa tehdä seurasi tiedoilla. Molemmat pysyvät pois päältä, kunnes seuran ylläpitäjä ottaa ne käyttöön.",
+      "egressTitle": "Lähetä terveystietoja tekoälypalvelun tarjoajalle",
+      "egressHelp": "Sallii ARIAn ja tekoälyn selitysten käyttää loukkaantumistietoja, kuntoa ja terveysriskipisteitä. Nimet korvataan aina ennen kuin mitään lähtee Familistasta.",
+      "trainingTitle": "Käytä tietojamme koulutukseen",
+      "trainingHelp": "Sallii seurasi osallistua hajautettuun oppimiseen. Alle 18-vuotiaiden pelaajien terveystietoja ei koskaan käytetä.",
+      "adminOnly": "Vain seuran ylläpitäjä voi muuttaa näitä.",
+      "saved": "Tallennettu.",
+      "failed": "Tallennus epäonnistui. Yritä uudelleen.",
+      "loadFailed": "Näitä asetuksia ei voitu ladata."
     }
   },
   "squad": {

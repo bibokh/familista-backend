@@ -17,7 +17,7 @@ import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import { Prisma } from '@prisma/client';
 import type { AIDecision, AIDecisionVisibility, AIDomain, AIDecisionType } from '@prisma/client';
-import { BadRequestError } from '../utils/errors';
+import { BadRequestError, ForbiddenError } from '../utils/errors';
 import { resolveModel } from './ai-model-registry.service';
 import { explain } from './ai-explainability.service';
 import { writeAIAudit } from './ai-audit.service';
@@ -216,6 +216,7 @@ export async function orchestrate<F extends FeatureMap>(
     deterministic: input.deterministic,
     features: input.features,
     useLlm: input.options?.useLlm,
+    clubId: input.scopeContext?.clubId ?? null,
   });
 
   const visibility = input.options?.visibility ?? defaultVisibilityFor(input.domain);
@@ -313,6 +314,24 @@ export async function orchestrate<F extends FeatureMap>(
 // Review + state transitions on existing decisions
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Cyber Defense, R8: the recommendations that, once ACCEPTED, commit the club
+ * to something in the world — selling or buying a player, spending or raising
+ * money, resting a player on health grounds, changing a live match, speaking
+ * for the club outside it. Accepting one is the approval, so it must be a
+ * different person from the one who generated it.
+ */
+export const ACTING_RECOMMENDATIONS: ReadonlySet<string> = new Set([
+  'SELL_PLAYER', 'TRANSFER_ACTIVITY', 'EXPLORE_OFFERS',
+  'INVEST_IN_DEVELOPMENT', 'ALLOCATION_PLAN', 'BUDGET_PLAN', 'EXPANSION_PLAN', 'MARKET_ENTRY_PLAN',
+  'REST_PLAYER', 'SUBSTITUTE', 'SPONSORSHIP_OUTREACH',
+]);
+
+export function decisionActs(recommendation: unknown): boolean {
+  const kind = (recommendation as { kind?: unknown } | null)?.kind;
+  return typeof kind === 'string' && ACTING_RECOMMENDATIONS.has(kind);
+}
+
 export async function reviewDecision(
   actor: AIActor,
   decisionId: string,
@@ -321,7 +340,15 @@ export async function reviewDecision(
 ): Promise<AIDecision> {
   const existing = await prisma.aIDecision.findUnique({ where: { id: decisionId } });
   if (!existing) throw new BadRequestError('Decision not found');
+  // A club's decision is reviewed by that club, or by the platform.
+  if (existing.clubId && !actor.scope.isPlatformAdmin && existing.clubId !== actor.scope.clubId) {
+    throw new BadRequestError('Decision not found');
+  }
   if (existing.status === 'EXPIRED') throw new BadRequestError('Cannot review an expired decision');
+  if (newStatus === 'ACCEPTED' && decisionActs(existing.recommendation)
+      && existing.generatedByUserId && existing.generatedByUserId === actor.userId) {
+    throw new ForbiddenError('A decision that acts must be accepted by someone other than the person who generated it');
+  }
 
   const updated = await prisma.aIDecision.update({
     where: { id: decisionId },

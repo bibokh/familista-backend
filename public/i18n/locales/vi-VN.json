@@ -106,6 +106,18 @@
       "enforcedNow": "Giờ đây mỗi lần đăng nhập đều cần mã.",
       "unenforcedNow": "Không còn cần mã khi đăng nhập.",
       "required": "Đăng nhập hai bước là bắt buộc đối với tài khoản quản trị viên và không thể tắt."
+    },
+    "aiData": {
+      "title": "AI và dữ liệu của câu lạc bộ",
+      "intro": "Chọn những gì AI của Familista được phép làm với dữ liệu của câu lạc bộ. Cả hai đều tắt cho đến khi quản trị viên câu lạc bộ bật lên.",
+      "egressTitle": "Gửi dữ liệu y tế cho nhà cung cấp AI",
+      "egressHelp": "Cho phép ARIA và phần giải thích của AI sử dụng chi tiết chấn thương, thể trạng và điểm rủi ro sức khỏe. Tên luôn được thay thế trước khi bất cứ thứ gì rời khỏi Familista.",
+      "trainingTitle": "Dùng dữ liệu của chúng tôi để huấn luyện",
+      "trainingHelp": "Cho phép câu lạc bộ tham gia học liên kết. Dữ liệu y tế của cầu thủ dưới 18 tuổi không bao giờ được sử dụng.",
+      "adminOnly": "Chỉ quản trị viên câu lạc bộ mới có thể thay đổi các mục này.",
+      "saved": "Đã lưu.",
+      "failed": "Không thể lưu. Vui lòng thử lại.",
+      "loadFailed": "Không thể tải các cài đặt này."
     }
   },
   "squad": {

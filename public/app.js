@@ -44686,6 +44686,8 @@ function renderSettingsPage() {
   try { _crestRepaint(); } catch (_) {}
   // Two-step sign-in (public/settings-mfa.js): shown to the platform owner and administrators.
   try { if (window.SettingsMfa) window.SettingsMfa.mount(); } catch (_) {}
+  // AI and the club's data (public/settings-ai-data.js): everyone sees it, a club administrator changes it.
+  try { if (window.SettingsAiData) window.SettingsAiData.mount(); } catch (_) {}
 }
 window.renderSettingsPage = renderSettingsPage;
 
@@ -44734,6 +44736,7 @@ function renderSettingsHTML() {
         </section>
 
         <section class="set-panel" data-set-panel="platform" style="display:none">
+    <div class="set-card set-aidata" id="set-aidata-card" data-no-i18n hidden></div>
     <div class="settings-wrap">
       <div class="settings-section">
         <div class="settings-sec-title" data-i18n="settings.catPlatform">Platform</div>

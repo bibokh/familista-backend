@@ -90,6 +90,17 @@ const table = (rows: () => Row[], prefix: string, defaults: Row = {}) => ({
 
 const db: Row = {
   aIAgentJob: table(() => state.jobs, 'job', { status: 'PENDING' }),
+  // Cyber Defense R3: the gateway records every call, and the club below has
+  // allowed RESTRICTED data to reach the provider (the prompt quotes a minor's
+  // injury, which the gateway would otherwise refuse before any call).
+  aiEgressRecord: {
+    create: async () => ({ id: 'egress-1' }),
+    update: async () => ({}),
+    aggregate: async () => ({ _sum: { tokensIn: 0, tokensOut: 0 } }),
+  },
+  clubAiDataPolicy: {
+    findUnique: async ({ where }: Row) => ((where as Row).clubId === CLUB ? { restrictedEgress: true, trainingUse: false } : null),
+  },
   videoIngestJob: table(() => state.ingests, 'ingest', { status: 'QUEUED', stage: 'UPLOADED', progress: 0 }),
   team: table(() => state.teams, 'team'),
   visionAuditLog: { create: async ({ data }: Row) => data },
@@ -417,7 +428,7 @@ describe('every model call goes through one place', () => {
       await expect(llmCall({
         prompt: SECRETS.prompt,
         observe: { runId: JOB, clubId: CLUB, correlationId: JOB },
-      })).rejects.toThrow(/invalid_request_error/);   // the caller still sees it all
+      })).rejects.toThrow(/^AI call refused: The provider failed: failed$/);   // a category, never the provider's text (R3)
     });
     await settle();
 
