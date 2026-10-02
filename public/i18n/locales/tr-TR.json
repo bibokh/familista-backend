@@ -106,6 +106,18 @@
       "enforcedNow": "Artık her oturum açışta kod gerekiyor.",
       "unenforcedNow": "Oturum açarken artık kod gerekmiyor.",
       "required": "İki adımlı giriş yönetici hesapları için zorunludur ve kapatılamaz."
+    },
+    "aiData": {
+      "title": "Yapay zekâ ve kulübünüzün verileri",
+      "intro": "Familista yapay zekâsının kulübünüzün verileriyle neler yapabileceğini seçin. İkisi de bir kulüp yöneticisi açana kadar kapalı kalır.",
+      "egressTitle": "Tıbbi verileri yapay zekâ sağlayıcısına gönder",
+      "egressHelp": "ARIA'nın ve yapay zekâ açıklamalarının sakatlık ayrıntılarını, kondisyonu ve sağlık riski puanlarını kullanmasına izin verir. Herhangi bir şey Familista'dan çıkmadan önce isimler her zaman değiştirilir.",
+      "trainingTitle": "Verilerimizi eğitim için kullan",
+      "trainingHelp": "Kulübünüzün federe öğrenmeye katkıda bulunmasına izin verir. 18 yaş altı oyuncuların tıbbi verileri asla kullanılmaz.",
+      "adminOnly": "Bunları yalnızca bir kulüp yöneticisi değiştirebilir.",
+      "saved": "Kaydedildi.",
+      "failed": "Kaydedilemedi. Lütfen tekrar deneyin.",
+      "loadFailed": "Bu ayarlar yüklenemedi."
     }
   },
   "squad": {

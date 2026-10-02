@@ -28,6 +28,10 @@ router.post('/models', ctrl.createModel);
 router.get('/models/:id', ctrl.getModel);
 router.patch('/models/:id', ctrl.updateModel);
 router.post('/models/:id/activate', ctrl.activateModel);
+// Cyber Defense, R8: request → approve (a different person; signs the artifact) → active.
+router.post('/models/:id/promotions', ctrl.requestModelPromotion);
+router.post('/promotions/:id/approve', ctrl.approveModelPromotion);
+router.post('/promotions/:id/reject', ctrl.rejectModelPromotion);
 router.post('/models/:id/deprecate', ctrl.deprecateModel);
 router.get('/models/:modelId/feedback-stats', ctrl.modelFeedbackStats);
 

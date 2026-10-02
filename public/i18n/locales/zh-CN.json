@@ -106,6 +106,18 @@
       "enforcedNow": "现在每次登录都需要验证码。",
       "unenforcedNow": "登录时不再需要验证码。",
       "required": "管理员账户必须使用两步登录，无法关闭。"
+    },
+    "aiData": {
+      "title": "AI 与俱乐部数据",
+      "intro": "选择 Familista 的 AI 可以如何使用俱乐部的数据。在俱乐部管理员开启之前，两项均保持关闭。",
+      "egressTitle": "将医疗数据发送给 AI 提供商",
+      "egressHelp": "允许 ARIA 和 AI 解释使用伤病详情、身体状态和健康风险评分。任何内容离开 Familista 之前，姓名都会被替换。",
+      "trainingTitle": "将我们的数据用于训练",
+      "trainingHelp": "允许俱乐部参与联邦学习。18 岁以下球员的医疗数据永远不会被使用。",
+      "adminOnly": "只有俱乐部管理员可以更改这些设置。",
+      "saved": "已保存。",
+      "failed": "保存失败，请重试。",
+      "loadFailed": "无法加载这些设置。"
     }
   },
   "squad": {

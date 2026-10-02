@@ -31,6 +31,7 @@ router.post('/federated/jobs',                          authorize('SUPER_ADMIN',
 router.get('/federated/jobs',                           ctrl.listFedJobs);
 router.post('/federated/jobs/:jobId/gradient',          authorize('CLUB_ADMIN','HEAD_COACH','ANALYST'), ctrl.submitGradient);
 router.post('/federated/jobs/:jobId/aggregate',         authorize('SUPER_ADMIN','CLUB_ADMIN'), ctrl.aggregateRound);
+router.post('/federated/trust',                         ctrl.publishFedTrust);  // platform owner only (checked in the service)
 
 // Coaching agents
 router.post('/coaching/agents',                         authorize('CLUB_ADMIN','HEAD_COACH'), ctrl.registerCoach);

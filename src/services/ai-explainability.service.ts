@@ -65,6 +65,8 @@ export type ExplainRequest = {
   deterministic: DeterministicScore;
   features: Record<string, unknown>;
   useLlm?: boolean;
+  /** The club the decision is for; its AI data policy governs what is sent. */
+  clubId?: string | null;
 };
 
 export async function explain(req: ExplainRequest): Promise<ExplainabilityResult> {
@@ -73,6 +75,7 @@ export async function explain(req: ExplainRequest): Promise<ExplainabilityResult
 
   if (useLlm) {
     const llm = await generateNarrative({
+      clubId: req.clubId ?? null,
       domain: req.domain,
       decisionType: req.decisionType,
       subject: req.subject,

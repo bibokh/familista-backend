@@ -18,7 +18,7 @@ import {
   type AgentIdentity,
 } from '../src/platform/intelligence/agents';
 import {
-  registerModel, registerProvider, resetGateway, route, complete, listModels,
+  registerModel, registerProvider, resetGateway, route, complete, listModels, setEgressRecorder,
 } from '../src/platform/intelligence/gateway';
 import { decide, listPacks, resetPacks } from '../src/platform/governance/policy';
 import { defineFlag, isEnabled, resetFlags } from '../src/platform/innovation/flags';
@@ -181,6 +181,8 @@ describe('the AI gateway is the only door to a provider', () => {
     registerModel({ id: 'tactics-v1', provider: 'anthropic', providerModel: 'x', purposes: ['tactics'] });
     registerModel({ id: 'eu-forbidden', provider: 'anthropic', providerModel: 'y', purposes: ['scouting'], restrictedIn: ['DE'] });
     registerModel({ id: 'unavailable', provider: 'openai', providerModel: 'z', purposes: ['medical'] });
+    // Cyber Defense R3: every call is recorded before it leaves; here, in memory.
+    setEgressRecorder({ start: async () => 'rec', finish: async () => undefined, spentToday: async () => 0 });
   });
 
   it('routes by purpose and refuses rather than guessing', async () => {
@@ -206,9 +208,14 @@ describe('the AI gateway is the only door to a provider', () => {
   });
 
   it('and a successful call records which model answered', async () => {
-    const out = await complete({ caller: 'ai-coach', purpose: 'tactics', prompt: 'hello' });
+    const out = await complete({ caller: 'ai-coach', purpose: 'tactics', prompt: 'hello', dataClasses: ['INTERNAL'] });
     expect(out).toMatchObject({ ok: true, text: 'ok', model: 'tactics-v1', provider: 'anthropic' });
     expect(out.environment).toBeTruthy();
+  });
+
+  it('a call that does not say what it carries is treated as RESTRICTED and refused (R3)', async () => {
+    const out = await complete({ caller: 'ai-coach', purpose: 'tactics', prompt: 'hello' });
+    expect(out).toMatchObject({ ok: false, refusal: 'restricted' });
   });
 });
 

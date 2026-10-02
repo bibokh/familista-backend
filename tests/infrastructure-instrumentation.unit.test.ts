@@ -463,9 +463,9 @@ describe('each call site records the outcome of the operation it performs', () =
     ['src/middleware/auth.middleware.ts', "recordOutcome('auth', false)"],
     ['src/middleware/tenant-guard.middleware.ts', "recordOutcome('rbac', false)"],
     ['src/security/audit-chain.service.ts', "countOutcome('auditChain'"],
-    ['src/services/ai.service.ts', "recordOutcome('anthropic', false)"],
-    ['src/services/ai-llm.adapter.ts', "recordOutcome('anthropic', false)"],
-    ['src/services/llm-adapter.service.ts', "recordOutcome('anthropic', false)"],
+    // Cyber Defense R3: the provider is called in exactly one place now.
+    ['src/platform/intelligence/anthropic-provider.ts', "recordOutcome('anthropic', true)"],
+    ['src/platform/intelligence/anthropic-provider.ts', "recordOutcome('anthropic', false)"],
     ['src/services/video-hls.service.ts', "countOutcome('media'"],
     ['src/routes/data-pulse.routes.ts', "recordOutcome('sse', false)"],
     ['src/observability/metrics.service.ts', "recordOutcome('metrics', false)"],

@@ -106,6 +106,18 @@
       "enforcedNow": "Ab jetzt ist bei jeder Anmeldung ein Code erforderlich.",
       "unenforcedNow": "Bei der Anmeldung ist kein Code mehr erforderlich.",
       "required": "Die Zwei-Schritt-Anmeldung ist für Administratorkonten erforderlich und kann nicht deaktiviert werden."
+    },
+    "aiData": {
+      "title": "KI und die Daten Ihres Vereins",
+      "intro": "Legen Sie fest, was die KI von Familista mit den Daten Ihres Vereins tun darf. Beides bleibt aus, bis ein Vereinsadministrator es einschaltet.",
+      "egressTitle": "Medizinische Daten an den KI-Anbieter senden",
+      "egressHelp": "Erlaubt ARIA und KI-Erklärungen, Verletzungsdetails, Fitnesszustand und Gesundheitsrisikowerte zu verwenden. Namen werden immer ersetzt, bevor etwas Familista verlässt.",
+      "trainingTitle": "Unsere Daten für Training verwenden",
+      "trainingHelp": "Erlaubt Ihrem Verein, zum föderierten Lernen beizutragen. Medizinische Daten von Spielern unter 18 Jahren werden nie verwendet.",
+      "adminOnly": "Nur ein Vereinsadministrator kann dies ändern.",
+      "saved": "Gespeichert.",
+      "failed": "Speichern fehlgeschlagen. Bitte versuchen Sie es erneut.",
+      "loadFailed": "Diese Einstellungen konnten nicht geladen werden."
     }
   },
   "squad": {

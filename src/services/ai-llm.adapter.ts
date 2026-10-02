@@ -1,77 +1,44 @@
 // Familista — AI Decision Engine
 // File location: src/services/ai-llm.adapter.ts
 //
-// Claude API adapter for the explainability layer. The deterministic scoring
-// engine produces the actual numerical decision; this adapter wraps that with
-// a board-safe natural-language rationale. Decisions remain explainable
-// without the LLM — `isLlmConfigured()` returns false and the orchestrator
-// falls back to a deterministic narrative built from the scored factors.
+// The explainability layer's narrative. The deterministic scoring engine makes
+// the decision; this asks a model for a board-safe rationale around it, and the
+// orchestrator falls back to a deterministic narrative whenever the model is
+// not configured, refuses, or answers in the wrong shape.
 //
-// Features:
-//   • Prompt-cached system block (5-minute TTL) to keep per-decision cost low.
-//   • Structured JSON output: the model is instructed to emit a strict shape
-//     which is parsed and validated. Parse failures degrade to the
-//     deterministic narrative — they don't throw into the decision path.
-//   • Timeout + retry (one retry on transient errors).
-//   • Token-accounting surfaced so AIDecision.llmTokens{In,Out} can be filled.
+// Cyber Defense, R3: it reaches the model only through the AI Gateway.
+//   · Features and factors are filtered by class (data-classes.ts): RESTRICTED
+//     ones — a player's injuries, condition, health-risk score — are sent only
+//     when the club has switched restrictedEgress on. The subject's label is a
+//     pseudonym on the way out.
+//   · The answer is validated against NARRATIVE_SCHEMA by the gateway; anything
+//     else is a refusal and the deterministic narrative is used.
 
-import { recordOutcome } from '../infra/outcome-meter';
+import { z } from 'zod';
 import type { ScoreFactor, RecommendationAction, Alternative } from '../types/ai-engine.types';
+import { complete } from '../platform/intelligence/gateway';
+import { AI_PURPOSES, aiProviderConfigured, ensureDefaultGateway } from '../platform/intelligence/default-gateway';
+import { clubAiPolicy } from '../platform/intelligence/club-ai-policy';
+import { factorClassOf, filterFeatures, withinCeiling, type DataClass } from '../platform/intelligence/data-classes';
 
 const DEFAULT_MODEL = process.env.AI_LLM_MODEL ?? 'claude-sonnet-4-20250514';
 const DEFAULT_MAX_TOKENS = Number(process.env.AI_LLM_MAX_TOKENS ?? 1024);
 const DEFAULT_TIMEOUT_MS = Number(process.env.AI_LLM_TIMEOUT_MS ?? 20_000);
 
-type AnthropicClient = {
-  messages: {
-    create: (req: Record<string, unknown>) => Promise<{
-      content: Array<{ type: string; text?: string }>;
-      usage?: { input_tokens?: number; output_tokens?: number };
-    }>;
-  };
-};
-
-let cachedClient: AnthropicClient | null | undefined;
-
-function getClient(): AnthropicClient | null {
-  if (cachedClient !== undefined) return cachedClient;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    cachedClient = null;
-    return null;
-  }
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const mod = require('@anthropic-ai/sdk') as {
-      default?: new (cfg: { apiKey: string }) => AnthropicClient;
-      Anthropic?: new (cfg: { apiKey: string }) => AnthropicClient;
-    };
-    const Ctor = mod.default ?? mod.Anthropic;
-    if (!Ctor) {
-      cachedClient = null;
-      return null;
-    }
-    cachedClient = new Ctor({ apiKey });
-    return cachedClient;
-  } catch {
-    cachedClient = null;
-    return null;
-  }
-}
-
 export function isLlmConfigured(): boolean {
-  return getClient() !== null;
+  return aiProviderConfigured();
 }
 
-export function _resetLlmAdapterForTests(): void {
-  cachedClient = undefined;
-}
+/** Kept for existing callers; the gateway holds no per-adapter client any more. */
+export function _resetLlmAdapterForTests(): void { /* nothing cached here */ }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Narrative request shape (what the scoring engine hands to the LLM)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type NarrativeRequest = {
+  /** The club the decision is for; its AI data policy applies. */
+  clubId?: string | null;
   domain: string;
   decisionType: string;
   subject: { type: string; id: string; label?: string };
@@ -102,144 +69,107 @@ export type NarrativeResult =
   | { ok: true; narrative: NarrativeResponse; usage: LlmUsage }
   | { ok: false; reason: string; usage: LlmUsage };
 
-const SYSTEM_PROMPT_BLOCK = {
-  type: 'text',
-  text:
-    'You are the explainability layer of Familista OS, the board-safe AI for a multi-tenant football SaaS platform.\n' +
-    'You receive a deterministic decision (already scored) and must produce a concise, audit-ready rationale.\n' +
-    'You DO NOT invent facts beyond the provided features and factors. If a factor is absent, do not speculate.\n' +
-    'Tone: precise, neutral, executive-grade. No hype. No emojis. No marketing language.\n' +
-    'Output a single JSON object with this exact shape (and nothing else, no prose, no markdown fence):\n' +
-    '{\n' +
-    '  "rationale": string,            // 2-4 sentences referencing the strongest factors by name\n' +
-    '  "warnings": string[],           // 0-3 short caveats grounded in the data\n' +
-    '  "alternatives": Array<{ "label": string, "rationale": string, "scoreDelta": number }>,\n' +
-    '  "confidenceDelta": number       // between -0.3 and +0.3, +ve if evidence is unusually strong\n' +
-    '}',
-  cache_control: { type: 'ephemeral' },
-} as const;
+const SYSTEM_PROMPT =
+  'You are the explainability layer of Familista OS, the board-safe AI for a multi-tenant football SaaS platform.\n' +
+  'You receive a deterministic decision (already scored) and must produce a concise, audit-ready rationale.\n' +
+  'You DO NOT invent facts beyond the provided features and factors. If a factor is absent, do not speculate.\n' +
+  'Refer to people only by the labels given (for example [P1]).\n' +
+  'Tone: precise, neutral, executive-grade. No hype. No emojis. No marketing language.\n' +
+  'Output a single JSON object with this exact shape (and nothing else, no prose, no markdown fence):\n' +
+  '{\n' +
+  '  "rationale": string,            // 2-4 sentences referencing the strongest factors by name\n' +
+  '  "warnings": string[],           // 0-3 short caveats grounded in the data\n' +
+  '  "alternatives": Array<{ "label": string, "rationale": string, "scoreDelta": number }>,\n' +
+  '  "confidenceDelta": number       // between -0.3 and +0.3, +ve if evidence is unusually strong\n' +
+  '}';
 
-function buildUserMessage(req: NarrativeRequest): string {
-  return JSON.stringify(
-    {
-      domain: req.domain,
-      decisionType: req.decisionType,
-      subject: req.subject,
-      score: req.score,
-      confidence: req.confidence,
-      urgency: req.urgency,
-      recommendation: req.recommendation,
-      topFactors: req.factors.slice(0, 12),
-      features: req.features,
-      deterministicAlternatives: req.alternatives,
-    },
-    null,
-    2,
-  );
-}
+/** What the model must answer. Anything else is refused by the gateway. */
+export const NARRATIVE_SCHEMA = z.object({
+  rationale: z.string().trim().min(1).max(4000),
+  warnings: z.array(z.string().max(500)).max(10).default([]),
+  alternatives: z.array(z.object({
+    label: z.string().min(1).max(200),
+    rationale: z.string().max(1000).default(''),
+    scoreDelta: z.number().finite().optional(),
+  })).max(10).default([]),
+  confidenceDelta: z.number().finite().default(0),
+});
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-function extractText(blocks: Array<{ type: string; text?: string }>): string {
-  return blocks
-    .filter((b) => b.type === 'text' && typeof b.text === 'string')
-    .map((b) => b.text as string)
-    .join('\n')
-    .trim();
-}
-
-function parseNarrative(raw: string): NarrativeResponse | null {
-  if (!raw) return null;
-  // Strip accidental code fences if the model emits them
-  let cleaned = raw.trim();
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:json)?\s*/, '').replace(/```\s*$/, '');
-  }
-  try {
-    const parsed = JSON.parse(cleaned);
-    if (!parsed || typeof parsed !== 'object') return null;
-    const rationale = typeof parsed.rationale === 'string' ? parsed.rationale.trim() : '';
-    if (!rationale) return null;
-    const warnings = Array.isArray(parsed.warnings)
-      ? parsed.warnings.filter((w: unknown): w is string => typeof w === 'string').slice(0, 5)
-      : [];
-    type RawAlt = { label: string; rationale: string; scoreDelta?: number };
-    const alternatives = Array.isArray(parsed.alternatives)
-      ? (parsed.alternatives as unknown[])
-          .filter((a: unknown): a is RawAlt =>
-            !!a && typeof a === 'object' && typeof (a as { label?: unknown }).label === 'string',
-          )
-          .slice(0, 5)
-          .map((a: RawAlt) => ({
-            action: { kind: 'ALTERNATIVE', label: a.label } as RecommendationAction,
-            score: typeof a.scoreDelta === 'number' ? a.scoreDelta : 0,
-            rationale: typeof a.rationale === 'string' ? a.rationale : '',
-          }))
-      : [];
-    const confidenceDelta = typeof parsed.confidenceDelta === 'number'
-      ? clamp(parsed.confidenceDelta, -0.3, 0.3)
-      : 0;
-    return { rationale, warnings, alternatives, confidenceDelta };
-  } catch {
-    return null;
-  }
+/** The message, under the club's policy, and the classes it carries. */
+export function buildNarrativeMessage(req: NarrativeRequest, ceiling: DataClass): { text: string; classes: DataClass[]; subjects: string[] } {
+  const features = filterFeatures(req.features as Record<string, unknown>, ceiling);
+  const factors = req.factors.filter((f) => withinCeiling(factorClassOf(f.name), ceiling)).slice(0, 12);
+  const classes = new Set<DataClass>(['INTERNAL', ...features.classes, ...factors.map((f) => factorClassOf(f.name))]);
+  const label = req.subject.label?.trim();
+  const text = JSON.stringify(
+    {
+      domain: req.domain,
+      decisionType: req.decisionType,
+      subject: { type: req.subject.type, id: req.subject.id, ...(label ? { label } : {}) },
+      score: req.score,
+      confidence: req.confidence,
+      urgency: req.urgency,
+      recommendation: req.recommendation,
+      topFactors: factors,
+      features: features.features,
+      deterministicAlternatives: req.alternatives,
+    },
+    null,
+    2,
+  );
+  return { text, classes: [...classes], subjects: label ? [label] : [] };
 }
 
 async function callOnce(req: NarrativeRequest): Promise<NarrativeResult> {
   const started = Date.now();
-  const client = getClient();
-  if (!client) {
-    return {
-      ok: false,
-      reason: 'LLM_NOT_CONFIGURED',
-      usage: { tokensIn: null, tokensOut: null, durationMs: 0, model: DEFAULT_MODEL },
-    };
-  }
+  const policy = await clubAiPolicy(req.clubId ?? null);
+  const message = buildNarrativeMessage(req, policy.restrictedEgress ? 'RESTRICTED' : 'CONFIDENTIAL');
 
-  const userMessage = buildUserMessage(req);
-
-  const completion = client.messages.create({
-    model: DEFAULT_MODEL,
-    max_tokens: DEFAULT_MAX_TOKENS,
-    system: [SYSTEM_PROMPT_BLOCK],
-    messages: [{ role: 'user', content: userMessage }],
+  const out = await complete({
+    caller: 'ai-llm.adapter',
+    purpose: AI_PURPOSES.decisionNarrative,
+    clubId: req.clubId ?? null,
+    system: SYSTEM_PROMPT,
+    prompt: message.text,
+    dataClasses: message.classes,
+    subjects: message.subjects,
+    maxOutputTokens: DEFAULT_MAX_TOKENS,
+    timeoutMs: DEFAULT_TIMEOUT_MS,
+    outputSchema: NARRATIVE_SCHEMA,
   });
-
-  let response: Awaited<ReturnType<AnthropicClient['messages']['create']>>;
-  try {
-    response = await Promise.race([
-      completion,
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('LLM_TIMEOUT')), DEFAULT_TIMEOUT_MS),
-      ),
-    ]);
-    recordOutcome('anthropic', true);
-  } catch (err) {
-    recordOutcome('anthropic', false);
-    return {
-      ok: false,
-      reason: (err as Error).message,
-      usage: { tokensIn: null, tokensOut: null, durationMs: Date.now() - started, model: DEFAULT_MODEL },
-    };
-  }
-
-  const text = extractText(response.content);
   const usage: LlmUsage = {
-    tokensIn: response.usage?.input_tokens ?? null,
-    tokensOut: response.usage?.output_tokens ?? null,
+    tokensIn: out.usage?.inputTokens ?? null,
+    tokensOut: out.usage?.outputTokens ?? null,
     durationMs: Date.now() - started,
     model: DEFAULT_MODEL,
   };
-
-  const parsed = parseNarrative(text);
-  if (!parsed) return { ok: false, reason: 'LLM_PARSE_FAILED', usage };
-
-  return { ok: true, narrative: parsed, usage };
+  if (!out.ok) {
+    const reason = out.refusal === 'invalid-output' ? 'LLM_PARSE_FAILED'
+      : out.refusal === 'provider' && /timeout/.test(out.refusedBecause ?? '') ? 'LLM_TIMEOUT'
+      : out.refusal === 'no-model' ? 'LLM_NOT_CONFIGURED'
+      : `LLM_REFUSED_${String(out.refusal ?? 'unknown').toUpperCase().replace(/-/g, '_')}`;
+    return { ok: false, reason, usage };
+  }
+  const parsed = out.data as z.infer<typeof NARRATIVE_SCHEMA>;
+  const narrative: NarrativeResponse = {
+    rationale: parsed.rationale,
+    warnings: parsed.warnings.slice(0, 5),
+    alternatives: parsed.alternatives.slice(0, 5).map((a) => ({
+      action: { kind: 'ALTERNATIVE', label: a.label } as RecommendationAction,
+      score: typeof a.scoreDelta === 'number' ? a.scoreDelta : 0,
+      rationale: a.rationale,
+    })),
+    confidenceDelta: clamp(parsed.confidenceDelta, -0.3, 0.3),
+  };
+  return { ok: true, narrative, usage };
 }
 
 export async function generateNarrative(req: NarrativeRequest): Promise<NarrativeResult> {
+  ensureDefaultGateway();
   if (!isLlmConfigured()) {
     return {
       ok: false,
@@ -253,8 +183,7 @@ export async function generateNarrative(req: NarrativeRequest): Promise<Narrativ
 
   // Single retry on transient failure (timeout / parse failure)
   if (first.reason === 'LLM_TIMEOUT' || first.reason === 'LLM_PARSE_FAILED') {
-    const retry = await callOnce(req);
-    return retry;
+    return callOnce(req);
   }
   return first;
 }

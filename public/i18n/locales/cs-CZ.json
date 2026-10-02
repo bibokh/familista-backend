@@ -106,6 +106,18 @@
       "enforcedNow": "Kód je nyní vyžadován při každém přihlášení.",
       "unenforcedNow": "Kód už při přihlášení není vyžadován.",
       "required": "Dvoufázové přihlášení je pro účty správců povinné a nelze je vypnout."
+    },
+    "aiData": {
+      "title": "AI a data vašeho klubu",
+      "intro": "Zvolte, co smí AI Familista dělat s daty vašeho klubu. Obě volby zůstávají vypnuté, dokud je nezapne správce klubu.",
+      "egressTitle": "Odesílat zdravotní data poskytovateli AI",
+      "egressHelp": "Umožní ARIA a vysvětlením AI používat údaje o zraněních, kondici a zdravotních rizicích. Jména jsou vždy nahrazena dříve, než cokoli opustí Familista.",
+      "trainingTitle": "Používat naše data k trénování",
+      "trainingHelp": "Umožní vašemu klubu zapojit se do federovaného učení. Zdravotní data hráčů mladších 18 let se nikdy nepoužívají.",
+      "adminOnly": "Tato nastavení může změnit pouze správce klubu.",
+      "saved": "Uloženo.",
+      "failed": "Uložení se nezdařilo. Zkuste to prosím znovu.",
+      "loadFailed": "Tato nastavení se nepodařilo načíst."
     }
   },
   "squad": {

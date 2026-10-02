@@ -7,8 +7,8 @@
     "U": "Uncovered"
   },
   "ratchet": {
-    "U": 6,
-    "P": 14
+    "U": 1,
+    "P": 12
   },
   "boundaries": {
     "1": {
@@ -137,10 +137,12 @@
       "owner": "platform",
       "dataClass": "health",
       "boundaryType": "provider",
-      "coverage": "U",
-      "controls": [],
-      "reason": "The gateway is not wired into any live LLM call.",
-      "plannedIn": "Batch 5 (R3)"
+      "coverage": "C",
+      "controls": [
+        "ai-single-egress",
+        "ai-egress-classification",
+        "ai-call-audited"
+      ]
     },
     "10": {
       "name": "LLM calls to Anthropic",
@@ -149,10 +151,12 @@
       "owner": "platform",
       "dataClass": "health",
       "boundaryType": "provider",
-      "coverage": "U",
-      "controls": [],
-      "reason": "Named players’ injury and heart-rate data reach a third party with no classification or redaction gate.",
-      "plannedIn": "Batch 5 (R3)"
+      "coverage": "C",
+      "controls": [
+        "ai-single-egress",
+        "ai-egress-classification",
+        "ai-call-audited"
+      ]
     },
     "11": {
       "name": "AI agents, orchestrator, decisions",
@@ -161,12 +165,11 @@
       "owner": "club",
       "dataClass": "club",
       "boundaryType": "automation",
-      "coverage": "P",
+      "coverage": "C",
       "controls": [
-        "ai-action-approval-gate"
-      ],
-      "reason": "The orchestrator and decision writers do not all pass the approval gate.",
-      "plannedIn": "Batch 5 (R8)"
+        "ai-action-approval-gate",
+        "ai-actions-gated"
+      ]
     },
     "12": {
       "name": "Model registry and MLOps",
@@ -175,10 +178,10 @@
       "owner": "platform",
       "dataClass": "platform",
       "boundaryType": "supply-chain",
-      "coverage": "U",
-      "controls": [],
-      "reason": "No artifact hashing, signing or promotion approval.",
-      "plannedIn": "Batch 5 (R8)"
+      "coverage": "C",
+      "controls": [
+        "model-artifact-signed"
+      ]
     },
     "13": {
       "name": "Federated learning",
@@ -187,10 +190,11 @@
       "owner": "club",
       "dataClass": "performance",
       "boundaryType": "tenant",
-      "coverage": "U",
-      "controls": [],
-      "reason": "A club with no trust record is trusted by default, the gradient size is self-reported, and aggregate ignores the caller.",
-      "plannedIn": "Batch 5 (R8)"
+      "coverage": "C",
+      "controls": [
+        "federated-default-deny",
+        "federated-server-side-norm"
+      ]
     },
     "14": {
       "name": "Feature and training data",
@@ -199,10 +203,10 @@
       "owner": "club",
       "dataClass": "health",
       "boundaryType": "privacy",
-      "coverage": "U",
-      "controls": [],
-      "reason": "No purpose limitation, consent or classification on data used for training.",
-      "plannedIn": "Batch 5 (R8)"
+      "coverage": "C",
+      "controls": [
+        "training-data-classified"
+      ]
     },
     "15": {
       "name": "Neuro, cognitive, knowledge graph",
@@ -211,12 +215,11 @@
       "owner": "club",
       "dataClass": "performance",
       "boundaryType": "tenant",
-      "coverage": "P",
+      "coverage": "C",
       "controls": [
-        "tenant-guard"
-      ],
-      "reason": "Route ids are now guarded (R2); HMAC-signed recommendations are not pinned by a posture control and the AI path depends on Batch 5.",
-      "plannedIn": "Batch 5 (R3/R8)"
+        "tenant-guard",
+        "recommendation-signed"
+      ]
     },
     "16": {
       "name": "Data Vault → fabric history API",
@@ -525,6 +528,13 @@
   },
   "components": {
     "routers": {
+      "ai-data-policy.routes": [
+        4,
+        5,
+        6,
+        10,
+        14
+      ],
       "ai-ops.routes": [
         4,
         5,

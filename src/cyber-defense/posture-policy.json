@@ -110,7 +110,16 @@
     "jwt-key-id",
     "websocket-token-outside-url",
     "login-lockout",
-    "mfa-required-for-admins"
+    "mfa-required-for-admins",
+    "ai-single-egress",
+    "ai-egress-classification",
+    "ai-call-audited",
+    "ai-actions-gated",
+    "model-artifact-signed",
+    "federated-default-deny",
+    "federated-server-side-norm",
+    "training-data-classified",
+    "recommendation-signed"
   ],
   "knownGaps": {
     "mfa-required-at-login": "PARTIAL — required at sign-in for an owner who switched it on (Step 7) and, while MFA_REQUIRED_FOR_ADMINS=true, for administrators (R7); not required for every account.",
@@ -368,8 +377,8 @@
       ]
     },
     "phase-l.routes :jobId": {
-      "basis": "open-finding",
-      "reason": "Federated training jobs span clubs by design and have no single owning club; submitGradient is gated by the club's trust boundary, but aggregate ignores the caller. Reported for Batch 5 (R8, federated learning).",
+      "basis": "cross-club-by-design",
+      "reason": "Federated training jobs span clubs by design and have no single owning club. Since Batch 5 (R8) a gradient is accepted only from a club the platform owner has trusted and that has allowed training use, and a round is aggregated only by the club that started it or the platform owner — both checked in federated.service.",
       "routes": [
         "POST /phase-l/federated/jobs/:jobId/aggregate",
         "POST /phase-l/federated/jobs/:jobId/gradient"
@@ -766,6 +775,9 @@
     }
   },
   "authorizationMemberHandlers": {
+    "ai-data-policy.routes": [
+      "GET /ai-data-policy"
+    ],
     "ai-ops.routes": [
       "GET /ai-ops/alerts",
       "GET /ai-ops/anomalies",

@@ -17168,6 +17168,21 @@ body.club-theme .set-mfa-skel{
 @media (max-width:520px){
   body.club-theme .set-mfa-codes{ grid-template-columns:minmax(0,1fr); }
 }
+/* ── Settings · Platform · AI and your club's data (Cyber Defense, R3 + R8) ──
+   Two switches on the Settings card vocabulary. A row is text then a toggle;
+   the skeleton is the height of a row, so nothing moves when the policy loads. */
+body.club-theme .set-aidata{ margin-bottom:14px; }
+body.club-theme .set-aidata-intro{ margin-bottom:12px; }
+body.club-theme .set-aidata-body{ display:flex; flex-direction:column; gap:14px; }
+body.club-theme .set-aidata-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; min-height:44px; }
+body.club-theme .set-aidata-txt{ display:flex; flex-direction:column; gap:6px; max-width:560px; }
+body.club-theme .set-aidata-row .toggle{ margin-top:2px; padding:0; }
+body.club-theme .set-aidata-row .toggle:disabled{ cursor:not-allowed; opacity:.55; }
+body.club-theme .set-aidata-row .toggle:focus-visible{ outline:2px solid rgba(74,222,128,.6); outline-offset:2px; }
+body.club-theme .set-aidata-skel{
+  height:44px; border-radius:8px;
+  background:linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.08), rgba(255,255,255,.04));
+}
 /* R7: the same card inside the sign-in screen, for an administrator who must
    enrol before anything else. It fits the sign-in column rather than Settings'. */
 body.club-theme #login-screen .set-mfa{ margin:4px 0 16px; text-align:start; }

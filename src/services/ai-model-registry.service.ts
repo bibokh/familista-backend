@@ -7,6 +7,10 @@
 //
 // Each (domain, decisionType) has at most one ACTIVE model at a time.
 // `activateModel` atomically deactivates any peer active model.
+//
+// Cyber Defense, R8: a model becomes ACTIVE only through an approved, signed
+// promotion (ai-model-promotion.service.ts), and is resolved for a decision
+// only while that signature still verifies against the model's artifact.
 
 import { prisma } from '../lib/prisma';
 import { Prisma } from '@prisma/client';
@@ -28,6 +32,7 @@ import type {
 } from '../utils/ai-engine.validators';
 import type { AIActor } from '../types/ai-engine.types';
 import { publishModelDeploymentCompleted } from '../fabric/producers/ai.producer';
+import { assertModelVerified, verifyModel } from './ai-model-promotion.service';
 
 export async function createModel(actor: AIActor, input: CreateModelInput): Promise<AIModel> {
   const dup = await prisma.aIModel.findUnique({
@@ -72,6 +77,13 @@ export async function updateModel(actor: AIActor, id: string, input: UpdateModel
   if (existing.isActive && input.isActive === false) {
     // Direct deactivation is allowed but warn via audit.
   }
+  // R8: activation is a promotion, never an edit; an active model is immutable.
+  if (input.isActive === true && !existing.isActive) {
+    throw new BadRequestError('A model is activated through an approved promotion, not by editing it');
+  }
+  if (existing.isActive && input.parameters !== undefined) {
+    throw new BadRequestError('An active model cannot be changed; register a new version and promote it');
+  }
 
   const updated = await prisma.aIModel.update({
     where: { id },
@@ -107,6 +119,9 @@ export async function activateModel(
     const existing = await tx.aIModel.findUnique({ where: { id } });
     if (!existing) throw new NotFoundError('Model not found');
     if (existing.deprecatedAt) throw new BadRequestError('Cannot activate a deprecated model');
+    // R8: only a model with an approved promotion whose signature verifies.
+    const verified = await verifyModel(existing);
+    if (!verified.ok) throw new BadRequestError(`This model has no approved promotion: ${verified.reason}`);
 
     // How many peers actually stood down, carried out of the transaction. The
     // flag says what was ASKED for; the count says what happened, and an event
@@ -204,11 +219,13 @@ export async function resolveModel(
     if (m.domain !== domain || m.decisionType !== decisionType) {
       throw new BadRequestError('Forced model does not match requested domain / decisionType');
     }
+    await assertModelVerified(m);
     return m;
   }
 
   const active = await getActiveModel(domain, decisionType);
   if (!active) throw new NotFoundError(`No active model for ${domain}/${decisionType}`);
+  await assertModelVerified(active);
   return active;
 }
 

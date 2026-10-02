@@ -467,6 +467,50 @@ const ADMIN_MFA = cite('src/auth-prod/admin-mfa.ts');
 const adminMfaSrc = read(ADMIN_MFA) || '';
 const WS_TICKET = cite('src/realtime/ws-ticket.ts');
 const wsTicketSrc = read(WS_TICKET) || '';
+
+// Batch 5 (R3 + R8): the AI layer. Every rule below reads the code it names.
+const stripComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+const AI_PROVIDER = cite('src/platform/intelligence/anthropic-provider.ts');
+const AI_GATEWAY = cite('src/platform/intelligence/gateway.ts');
+const gatewaySrc = stripComments(read(AI_GATEWAY) || '');
+const sdkImporters = srcFiles.filter((f, i) => /from\s+['"]@anthropic-ai\/sdk['"]|require\(\s*['"]@anthropic-ai\/sdk['"]\s*\)/.test(stripComments(allSrc[i])));
+const AI_CALLERS = ['src/services/ai.service.ts', 'src/services/ai-llm.adapter.ts', 'src/services/llm-adapter.service.ts'];
+const gatewayCallSites = srcFiles.flatMap((f, i) => {
+  if (f.startsWith('src/platform/intelligence/')) return [];
+  const code = stripComments(allSrc[i]);
+  if (!/from\s+['"][./]*(?:\.\.\/)*platform\/intelligence\/gateway['"]/.test(code)) return [];
+  const calls = code.split(/\bcomplete\(\{/).slice(1);
+  return calls.map((body) => ({ file: f, declares: /^[\s\S]{0,1200}?dataClasses:/.test(body) }));
+});
+const completeBody = (() => { const i = gatewaySrc.indexOf('export async function complete('); return i < 0 ? '' : gatewaySrc.slice(i); })();
+const recorderCreate = (() => { const i = gatewaySrc.indexOf('aiEgressRecord.create('); return i < 0 ? '' : gatewaySrc.slice(i, gatewaySrc.indexOf('});', i)); })();
+const egressModel = (() => { const sch = read('prisma/schema.prisma') || ''; const i = sch.indexOf('model AiEgressRecord {'); return i < 0 ? '' : sch.slice(i, sch.indexOf('\n}', i)); })();
+const workerSrc = stripComments(read(cite('src/workers/ai-agent.worker.ts')) || '');
+const agentJobsSrc = stripComments(read(cite('src/platform/intelligence/agent-jobs.ts')) || '');
+const orchestratorSrc = stripComments(read(cite('src/services/ai-orchestrator.service.ts')) || '');
+const promotionSrc = stripComments(read(cite('src/services/ai-model-promotion.service.ts')) || '');
+const registrySrc = stripComments(read(cite('src/services/ai-model-registry.service.ts')) || '');
+const seedSrc = stripComments(read(cite('src/data/ai-models.seed.ts')) || '');
+const fedSrc = stripComments(read(cite('src/federated/federated.service.ts')) || '');
+const dataClassesSrc = read(cite('src/platform/intelligence/data-classes.ts')) || '';
+const trainingSrc = stripComments(read(cite('src/platform/intelligence/training-data.ts')) || '');
+const aiFnBody = (src, name) => { const i = src.indexOf(`function ${name}(`); if (i < 0) return ''; const j = src.indexOf('\nexport ', i + 10); return src.slice(i, j < 0 ? undefined : j); };
+// Every key of every feature type the decision engine extracts, and every factor name it scores, is classified.
+const classifiedKeys = new Set([...dataClassesSrc.matchAll(/^\s{2}([A-Za-z0-9_]+): '(?:PUBLIC|INTERNAL|CONFIDENTIAL|RESTRICTED)',/gm)].map((m) => m[1]));
+const featureKeys = (() => {
+  const t = read(cite('src/types/ai-engine.types.ts')) || '';
+  const keys = [];
+  for (const m of t.matchAll(/export type \w+Features = FeatureMap & \{([\s\S]*?)\n\};/g)) for (const k of m[1].matchAll(/^\s+(\w+):/gm)) keys.push(k[1]);
+  return [...new Set(keys)];
+})();
+const factorNames = (() => {
+  const names = new Set();
+  const files = ['src/lib/ai-scoring.lib.ts', ...srcFiles.filter((f) => /^src\/services\/ai-[a-z-]+-decisions\.service\.ts$/.test(f))];
+  for (const f of files) for (const m of (read(f) || '').matchAll(/name: '([a-z0-9_]+)'/g)) names.add(m[1]);
+  return [...names];
+})();
+const unclassifiedFeatures = featureKeys.filter((k) => !classifiedKeys.has(k));
+const unclassifiedFactors = factorNames.filter((k) => !classifiedKeys.has(k));
 const migrationsSql = (() => {
   const dir = path.join(ROOT, 'prisma/migrations');
   let text = '';
@@ -609,6 +653,79 @@ const controls = [
   control('security-event-log', securityEventCallers > 0 ? 'PRESENT' : 'ABSENT', cite('src/security/security-event.service.ts'),
     `${securityEventCallers} call site(s) record security events.`),
   control('ai-action-approval-gate', exists('src/security/ai-approval.service.ts') ? 'PRESENT' : 'ABSENT', cite('src/security/ai-approval.service.ts')),
+  // ── Batch 5 · R3: the AI Gateway is the only egress, and it has a policy ──
+  control('ai-single-egress',
+    sdkImporters.length === 1 && sdkImporters[0] === AI_PROVIDER
+      && AI_CALLERS.every((f) => /platform\/intelligence\/gateway/.test(read(f) || '') && !/@anthropic-ai\/sdk/.test(stripComments(read(f) || '')))
+      ? 'PRESENT' : 'ABSENT', AI_PROVIDER,
+    sdkImporters.length === 1
+      ? 'Only the gateway\'s provider imports @anthropic-ai/sdk; ai.service, ai-llm.adapter and llm-adapter.service call the gateway.'
+      : `@anthropic-ai/sdk imported by: ${sdkImporters.join(', ') || 'nothing'}`),
+  control('ai-egress-classification',
+    /highest\(dataClasses\) === 'RESTRICTED' && !\(await clubAiPolicy\(clubId\)\)\.restrictedEgress/.test(completeBody)
+      && /: \['RESTRICTED'\]/.test(completeBody)
+      && /pseudo\.apply\(req\.prompt\)/.test(completeBody) && /pseudo\.apply\(req\.system\)/.test(completeBody)
+      && /dailyTokenBudget\(\)/.test(completeBody)
+      && /req\.outputSchema\.parse\(/.test(completeBody)
+      && gatewayCallSites.length >= AI_CALLERS.length && gatewayCallSites.every((c) => c.declares)
+      ? 'PRESENT' : 'ABSENT', AI_GATEWAY,
+    `RESTRICTED needs the club's opt-in; names are pseudonymised; a per-club daily budget; output validated. ${gatewayCallSites.length} call site(s), every one declaring its data classes.`),
+  control('ai-call-audited',
+    completeBody.indexOf('recorder.start({ ...base, pseudonymised })') > 0
+      && completeBody.indexOf('recorder.start({ ...base, pseudonymised })') < completeBody.indexOf('provider.complete(')
+      && !/prompt|text|answer/.test(recorderCreate) && !/\b(prompt|response|answer)\b/.test(egressModel)
+      ? 'PRESENT' : 'ABSENT', AI_GATEWAY,
+    'An AiEgressRecord is written before the provider is called (no record, no call) and completed after; it never holds the prompt or the answer.'),
+  // ── Batch 5 · R8: agents, model registry, federated learning, training data ──
+  control('recommendation-signed',
+    (() => {
+      const rec = stripComments(read(cite('src/security-n/signed-recommendations.service.ts')) || '');
+      return /export const SIGNER_VERSION = 'n2'/.test(rec)
+        && /Object\.keys\(o\)[\s\S]{0,80}\.sort\(\)\.map\(\(k\) => `\$\{JSON\.stringify\(k\)\}:\$\{canonical\(o\[k\]\)\}`/.test(rec)
+        && !/JSON\.stringify\(payload, Object\.keys/.test(rec)
+        && /if \(signerVersion !== SIGNER_VERSION\) return false/.test(rec)
+        && /row\.clubId !== clubId/.test(rec);
+    })() ? 'PRESENT' : 'ABSENT', cite('src/security-n/signed-recommendations.service.ts'),
+    'Recommendation signatures cover the whole payload (keys sorted at every depth); a pre-fix n1 signature never verifies; a signature is read only by its own club.'),
+  control('ai-actions-gated',
+    workerSrc.indexOf('authorizeAgentJob(job)') > 0
+      && workerSrc.indexOf('authorizeAgentJob(job)') < workerSrc.indexOf('getJobApproval(job.id)')
+      && /if \(!authz\.allowed\) \{[\s\S]{0,600}?return;/.test(workerSrc)
+      && /DELETE_DATA: 'deleteData'/.test(agentJobsSrc) && /autonomy: AutonomyLevel\.APPROVE/.test(agentJobsSrc)
+      && /decisionActs\(existing\.recommendation\)[\s\S]{0,200}generatedByUserId === actor\.userId/.test(orchestratorSrc)
+      && /existing\.clubId !== actor\.scope\.clubId/.test(orchestratorSrc)
+      && exists('src/security/ai-approval.service.ts')
+      ? 'PRESENT' : 'ABSENT', cite('src/platform/intelligence/agent-jobs.ts'),
+    'Every agent job is put to the tool registry as its agent before it runs; an action needs approval and stops at the kill switch; accepting a decision that acts takes a second person.'),
+  control('model-artifact-signed',
+    /sign\(null, signedStatement\(/.test(promotionSrc) && /verify\(null, signedStatement\(/.test(promotionSrc)
+      && /p\.requestedById === actor\.userId/.test(promotionSrc)
+      && (aiFnBody(registrySrc, 'resolveModel').match(/await assertModelVerified\(/g) || []).length === 2
+      && /const verified = await verifyModel\(existing\)/.test(aiFnBody(registrySrc, 'activateModel'))
+      && /input\.isActive === true && !existing\.isActive/.test(registrySrc)
+      && !/data:\s*\{[^}]*isActive:\s*true/.test(seedSrc) && /requestPromotion\(/.test(seedSrc)
+      ? 'PRESENT' : 'ABSENT', cite('src/services/ai-model-promotion.service.ts'),
+    'A model becomes ACTIVE only through a promotion a second person approves, Ed25519-signed over the artifact SHA-256; every decision verifies it.'),
+  control('federated-default-deny',
+    /if \(!trust \|\| !trust\.trusted\)/.test(fedSrc) && /\.trainingUse\)/.test(aiFnBody(fedSrc, 'submitGradient'))
+      && /if \(!actor\.isPlatformOwner && actor\.clubId !== job\.initiatorClubId\)/.test(aiFnBody(fedSrc, 'aggregate'))
+      && /await assertPlatformOwner\(/.test(aiFnBody(fedSrc, 'publishTrust'))
+      ? 'PRESENT' : 'ABSENT', cite('src/federated/federated.service.ts'),
+    'A club contributes only when trusted by the platform owner and when it has allowed training use; a round is aggregated by its initiator or the owner.'),
+  control('federated-server-side-norm',
+    /gradientHash\(g\) !== dto\.payloadHash/.test(fedSrc) && /const norm = l2Norm\(g\)/.test(fedSrc)
+      && /normValue:\s+norm,/.test(fedSrc) && !/normValue:\s+dto\.normValue/.test(fedSrc)
+      && /outlierFactor\(\)/.test(aiFnBody(fedSrc, 'aggregate')) && /maxContributionsPerDay\(\)/.test(aiFnBody(fedSrc, 'submitGradient'))
+      ? 'PRESENT' : 'ABSENT', cite('src/federated/federated.service.ts'),
+    'The gradient is hashed and its norm computed by the server; the client\'s figure is ignored; per-club caps and outlier rejection apply.'),
+  control('training-data-classified',
+    featureKeys.length > 0 && unclassifiedFeatures.length === 0 && factorNames.length > 0 && unclassifiedFactors.length === 0
+      && /if \(!policy\.trainingUse\)/.test(trainingSrc) && /policy\.restrictedEgress && !minor/.test(trainingSrc)
+      && /\?\? 'RESTRICTED'/.test(dataClassesSrc)
+      ? 'PRESENT' : 'ABSENT', cite('src/platform/intelligence/data-classes.ts'),
+    unclassifiedFeatures.length || unclassifiedFactors.length
+      ? `Unclassified: ${[...unclassifiedFeatures, ...unclassifiedFactors].join(', ')}`
+      : `${featureKeys.length} features and ${factorNames.length} factors classified; training needs the club's consent and never uses a minor's RESTRICTED data.`),
   control('no-unsafe-raw-sql', unsafeRawSql === 0 ? 'PRESENT' : 'ABSENT', 'src/', `${unsafeRawSql} unsafe raw query call(s).`),
   control('db-row-level-security', /ROW LEVEL SECURITY|CREATE POLICY/i.test(migrationsSql) ? 'PRESENT' : 'ABSENT', 'prisma/migrations'),
   control('db-audit-append-only', /REVOKE\s+(UPDATE|DELETE)|CREATE (OR REPLACE )?TRIGGER[\s\S]{0,200}audit/i.test(migrationsSql) ? 'PRESENT' : 'ABSENT', 'prisma/migrations'),

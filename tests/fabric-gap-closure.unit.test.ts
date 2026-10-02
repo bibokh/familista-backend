@@ -189,6 +189,13 @@ jest.mock('../src/platform/system.service', () => ({
   assertPlatformOwner: jest.fn(async () => undefined),
 }));
 jest.mock('../src/platform/environment', () => ({ currentEnvironment: () => 'test' }));
+// A model activates only with a verified, signed promotion (Cyber Defense R8);
+// that gate is pinned in tests/ai-governance-r8.unit.test.ts. Here the subject
+// is what an activation publishes, so the promotion is taken as verified.
+jest.mock('../src/services/ai-model-promotion.service', () => ({
+  verifyModel: async () => ({ ok: true, promotionId: 'promotion-1' }),
+  assertModelVerified: async () => undefined,
+}));
 jest.mock('../src/platform/email/service', () => ({
   emailConfiguration: () => ({ configured: false, provider: 'none' }),
 }));

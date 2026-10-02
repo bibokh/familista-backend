@@ -106,6 +106,18 @@
       "enforcedNow": "Ora è richiesto un codice a ogni accesso.",
       "unenforcedNow": "All'accesso non è più richiesto un codice.",
       "required": "L’accesso in due passaggi è obbligatorio per gli account amministratore e non può essere disattivato."
+    },
+    "aiData": {
+      "title": "L'IA e i dati del tuo club",
+      "intro": "Scegli cosa può fare l'IA di Familista con i dati del tuo club. Entrambe le opzioni restano disattivate finché un amministratore del club non le attiva.",
+      "egressTitle": "Invia dati medici al fornitore di IA",
+      "egressHelp": "Consente ad ARIA e alle spiegazioni dell'IA di usare dettagli sugli infortuni, condizione fisica e punteggi di rischio per la salute. I nomi vengono sempre sostituiti prima che qualsiasi cosa lasci Familista.",
+      "trainingTitle": "Usa i nostri dati per l'addestramento",
+      "trainingHelp": "Consente al tuo club di contribuire all'apprendimento federato. I dati medici dei giocatori minori di 18 anni non vengono mai usati.",
+      "adminOnly": "Solo un amministratore del club può modificarle.",
+      "saved": "Salvato.",
+      "failed": "Salvataggio non riuscito. Riprova.",
+      "loadFailed": "Impossibile caricare queste impostazioni."
     }
   },
   "squad": {

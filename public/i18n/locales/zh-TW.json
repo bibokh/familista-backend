@@ -106,6 +106,18 @@
       "enforcedNow": "現在每次登入都需要驗證碼。",
       "unenforcedNow": "登入時不再需要驗證碼。",
       "required": "管理員帳戶必須使用兩步驟登入，無法關閉。"
+    },
+    "aiData": {
+      "title": "AI 與俱樂部資料",
+      "intro": "選擇 Familista 的 AI 可以如何使用俱樂部的資料。在俱樂部管理員開啟之前，兩項皆保持關閉。",
+      "egressTitle": "將醫療資料傳送給 AI 供應商",
+      "egressHelp": "允許 ARIA 與 AI 說明使用傷病詳情、身體狀況與健康風險分數。任何內容離開 Familista 之前，姓名一律會被替換。",
+      "trainingTitle": "將我們的資料用於訓練",
+      "trainingHelp": "允許俱樂部參與聯邦學習。18 歲以下球員的醫療資料絕不會被使用。",
+      "adminOnly": "只有俱樂部管理員可以變更這些設定。",
+      "saved": "已儲存。",
+      "failed": "儲存失敗，請再試一次。",
+      "loadFailed": "無法載入這些設定。"
     }
   },
   "squad": {

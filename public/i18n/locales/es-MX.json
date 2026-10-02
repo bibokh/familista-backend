@@ -106,6 +106,18 @@
       "enforcedNow": "Ahora se exige un código en cada inicio de sesión.",
       "unenforcedNow": "Ya no se exige un código al iniciar sesión.",
       "required": "El inicio de sesión en dos pasos es obligatorio para las cuentas de administrador y no se puede desactivar."
+    },
+    "aiData": {
+      "title": "La IA y los datos de tu club",
+      "intro": "Elige qué puede hacer la IA de Familista con los datos de tu club. Ambas opciones permanecen desactivadas hasta que un administrador del club las active.",
+      "egressTitle": "Enviar datos médicos al proveedor de IA",
+      "egressHelp": "Permite que ARIA y las explicaciones de la IA usen detalles de lesiones, condición física e indicadores de riesgo para la salud. Los nombres siempre se reemplazan antes de que algo salga de Familista.",
+      "trainingTitle": "Usar nuestros datos para entrenamiento",
+      "trainingHelp": "Permite que tu club contribuya al aprendizaje federado. Nunca se usan datos médicos de jugadores menores de 18 años.",
+      "adminOnly": "Solo un administrador del club puede cambiar esto.",
+      "saved": "Guardado.",
+      "failed": "No se pudo guardar. Inténtalo de nuevo.",
+      "loadFailed": "No se pudieron cargar estos ajustes."
     }
   },
   "squad": {

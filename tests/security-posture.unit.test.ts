@@ -159,8 +159,10 @@ describe('every id in a route is checked against the caller\'s club (R2)', () =>
 
   it('open findings are named and stay visible until they are fixed', () => {
     const open = Object.entries(exemptions).filter(([, ex]) => ex.basis === 'open-finding').map(([k]) => k).sort();
-    expect(open).toEqual(['phase-l.routes :jobId']);
+    // phase-l.routes :jobId was closed by Batch 5 (R8): aggregate now checks the caller.
+    expect(open).toEqual([]);
     for (const k of open) expect(exemptions[k].reason).toMatch(/Batch \d/);
+    expect(exemptions['phase-l.routes :jobId'].basis).toBe('cross-club-by-design');
   });
 });
 

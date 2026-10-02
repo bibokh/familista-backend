@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-02T17:40:35.014Z",
+  "generatedAt": "2026-10-02T19:07:52.987Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -281,7 +281,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "src/routes/index.ts",
-      "sourceEvidence": "src/routes/index.ts — 50 mounted routers",
+      "sourceEvidence": "src/routes/index.ts — 51 mounted routers",
       "dependencies": [
         "platform-core"
       ],
@@ -300,7 +300,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "src/services/",
-      "sourceEvidence": "src/services/ — 101 modules",
+      "sourceEvidence": "src/services/ — 102 modules",
       "dependencies": [
         "api-gateway",
         "prisma-orm"
@@ -323,7 +323,7 @@
       "sourceEvidence": "prisma/schema.prisma — datasource provider",
       "dependencies": [],
       "healthKey": "database",
-      "note": "340 models, 209 enums, 43 migrations."
+      "note": "343 models, 209 enums, 44 migrations."
     },
     {
       "id": "prisma-orm",
@@ -1081,7 +1081,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 177 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 180 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1141,7 +1141,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "564 TypeScript modules under src/."
+      "note": "572 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1623,22 +1623,22 @@
     }
   ],
   "surface": {
-    "routeModules": 60,
-    "serviceModules": 101,
+    "routeModules": 61,
+    "serviceModules": 102,
     "middleware": 22,
     "fabricModules": 52,
-    "totalTypeScript": 564,
-    "testSuites": 177,
-    "migrations": 43,
-    "prismaModels": 340,
+    "totalTypeScript": 572,
+    "testSuites": 180,
+    "migrations": 44,
+    "prismaModels": 343,
     "prismaEnums": 209
   },
   "database": {
     "provider": "postgresql",
-    "models": 340,
+    "models": 343,
     "enums": 209,
-    "migrations": 43,
-    "latestMigration": "20260929100000_refresh_token_hashed_at_rest"
+    "migrations": 44,
+    "latestMigration": "20261002200000_ai_egress_and_model_promotion"
   },
   "typescript": {
     "target": "ES2020",
@@ -1817,6 +1817,13 @@
       "reads": 0
     },
     {
+      "path": "/ai-data-policy",
+      "router": "aiDataPolicyRoutes",
+      "file": "src/routes/ai-data-policy.routes.ts",
+      "writes": 1,
+      "reads": 1
+    },
+    {
       "path": "/system",
       "router": "systemRoutes",
       "file": "src/routes/system.routes.ts",
@@ -1981,7 +1988,7 @@
       "path": "/phase-l",
       "router": "phaseLRoutes",
       "file": "src/routes/phase-l.routes.ts",
-      "writes": 17,
+      "writes": 18,
       "reads": 9
     },
     {

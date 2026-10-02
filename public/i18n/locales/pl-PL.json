@@ -106,6 +106,18 @@
       "enforcedNow": "Kod jest teraz wymagany przy każdym logowaniu.",
       "unenforcedNow": "Kod nie jest już wymagany przy logowaniu.",
       "required": "Logowanie dwuetapowe jest wymagane dla kont administratorów i nie można go wyłączyć."
+    },
+    "aiData": {
+      "title": "AI i dane Twojego klubu",
+      "intro": "Wybierz, co AI Familista może robić z danymi Twojego klubu. Obie opcje pozostają wyłączone, dopóki administrator klubu ich nie włączy.",
+      "egressTitle": "Wysyłaj dane medyczne do dostawcy AI",
+      "egressHelp": "Pozwala ARIA i objaśnieniom AI korzystać ze szczegółów kontuzji, kondycji i wskaźników ryzyka zdrowotnego. Nazwiska są zawsze zastępowane, zanim cokolwiek opuści Familista.",
+      "trainingTitle": "Używaj naszych danych do trenowania",
+      "trainingHelp": "Pozwala Twojemu klubowi uczestniczyć w uczeniu federacyjnym. Dane medyczne zawodników poniżej 18 lat nigdy nie są wykorzystywane.",
+      "adminOnly": "Tylko administrator klubu może to zmienić.",
+      "saved": "Zapisano.",
+      "failed": "Nie udało się zapisać. Spróbuj ponownie.",
+      "loadFailed": "Nie udało się wczytać tych ustawień."
     }
   },
   "squad": {

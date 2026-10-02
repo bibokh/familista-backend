@@ -2,9 +2,11 @@
 // File location: src/data/ai-models.seed.ts
 //
 // Idempotent seed of the 32 default RULE_BASED models — one per decision type.
-// Each model is created in inactive state on first run; the bootstrap endpoint
-// then activates the freshest version per (domain, decisionType). Subsequent
-// runs upsert (no duplicates).
+// Each model is created in inactive state on first run. Cyber Defense, R8: the
+// seed no longer activates anything — it REQUESTS a promotion for each decision
+// type that has no active model, and a different person approves it (which
+// signs the artifact) before it is activated. Subsequent runs upsert (no
+// duplicates) and never rewrite an active model.
 //
 // After seeding, the engine is fully operational with deterministic scoring.
 // To switch a decision type to a CLAUDE / HYBRID variant, register a new
@@ -13,6 +15,7 @@
 import { prisma } from '../lib/prisma';
 import { Prisma } from '@prisma/client';
 import type { AIDomain, AIDecisionType, AIModelProvider } from '@prisma/client';
+import { requestPromotion } from '../services/ai-model-promotion.service';
 
 type ModelSeed = {
   slug: string;
@@ -131,17 +134,20 @@ const SHARED_OUTPUT_SCHEMA = {
   },
 };
 
-export async function seedDefaultAIModels(actorUserId?: string): Promise<{ created: number; updated: number; activated: number }> {
+export async function seedDefaultAIModels(actorUserId?: string): Promise<{ created: number; updated: number; activated: number; promotionsRequested: number }> {
   let created = 0;
   let updated = 0;
-  let activated = 0;
+  const activated = 0;
+  let promotionsRequested = 0;
 
   for (const seed of SEEDS) {
     const existing = await prisma.aIModel.findUnique({
       where: { slug_version: { slug: seed.slug, version: seed.version } },
     });
 
-    if (existing) {
+    if (existing && existing.isActive) {
+      // An active model is immutable: its artifact is what was signed.
+    } else if (existing) {
       await prisma.aIModel.update({
         where: { id: existing.id },
         data: {
@@ -171,7 +177,8 @@ export async function seedDefaultAIModels(actorUserId?: string): Promise<{ creat
       created++;
     }
 
-    // Ensure there is exactly one active model per (domain, decisionType)
+    // R8: ask for a promotion where nothing is active yet. Nothing is
+    // activated here; `activated` stays 0 and is kept for the response shape.
     const anyActive = await prisma.aIModel.findFirst({
       where: { domain: seed.domain, decisionType: seed.decisionType, isActive: true, deprecatedAt: null },
     });
@@ -180,14 +187,11 @@ export async function seedDefaultAIModels(actorUserId?: string): Promise<{ creat
         where: { slug_version: { slug: seed.slug, version: seed.version } },
       });
       if (fresh) {
-        await prisma.aIModel.update({
-          where: { id: fresh.id },
-          data: { isActive: true, releasedAt: new Date() },
-        });
-        activated++;
+        await requestPromotion({ userId: actorUserId ?? 'system' }, fresh.id, 'Default model (seed)');
+        promotionsRequested++;
       }
     }
   }
 
-  return { created, updated, activated };
+  return { created, updated, activated, promotionsRequested };
 }

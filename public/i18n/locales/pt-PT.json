@@ -106,6 +106,18 @@
       "enforcedNow": "Passa a ser exigido um código em cada início de sessão.",
       "unenforcedNow": "Deixou de ser exigido um código no início de sessão.",
       "required": "O início de sessão em dois passos é obrigatório para contas de administrador e não pode ser desativado."
+    },
+    "aiData": {
+      "title": "A IA e os dados do seu clube",
+      "intro": "Escolha o que a IA da Familista pode fazer com os dados do seu clube. Ambas as opções ficam desativadas até que um administrador do clube as ative.",
+      "egressTitle": "Enviar dados médicos ao fornecedor de IA",
+      "egressHelp": "Permite que a ARIA e as explicações da IA utilizem detalhes de lesões, condição física e índices de risco para a saúde. Os nomes são sempre substituídos antes de qualquer coisa sair da Familista.",
+      "trainingTitle": "Utilizar os nossos dados para treino",
+      "trainingHelp": "Permite que o seu clube contribua para a aprendizagem federada. Os dados médicos de jogadores com menos de 18 anos nunca são utilizados.",
+      "adminOnly": "Apenas um administrador do clube pode alterar isto.",
+      "saved": "Guardado.",
+      "failed": "Não foi possível guardar. Tente novamente.",
+      "loadFailed": "Não foi possível carregar estas definições."
     }
   },
   "squad": {

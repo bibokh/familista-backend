@@ -106,6 +106,18 @@
       "enforcedNow": "Un code est désormais exigé à chaque connexion.",
       "unenforcedNow": "Un code n'est plus exigé à la connexion.",
       "required": "La connexion en deux étapes est obligatoire pour les comptes administrateur et ne peut pas être désactivée."
+    },
+    "aiData": {
+      "title": "L'IA et les données de votre club",
+      "intro": "Choisissez ce que l'IA de Familista peut faire avec les données de votre club. Les deux restent désactivées jusqu'à ce qu'un administrateur du club les active.",
+      "egressTitle": "Envoyer les données médicales au fournisseur d'IA",
+      "egressHelp": "Permet à ARIA et aux explications de l'IA d'utiliser les détails des blessures, la condition physique et les scores de risque pour la santé. Les noms sont toujours remplacés avant que quoi que ce soit ne quitte Familista.",
+      "trainingTitle": "Utiliser nos données pour l'entraînement",
+      "trainingHelp": "Permet à votre club de contribuer à l'apprentissage fédéré. Les données médicales des joueurs de moins de 18 ans ne sont jamais utilisées.",
+      "adminOnly": "Seul un administrateur du club peut modifier ces paramètres.",
+      "saved": "Enregistré.",
+      "failed": "Échec de l'enregistrement. Veuillez réessayer.",
+      "loadFailed": "Impossible de charger ces paramètres."
     }
   },
   "squad": {

@@ -75,6 +75,7 @@ import homeRoutes from './home.routes';
 import familistaLeagueRoutes from './familista-league.routes';
 import matchCenterRoutes from './match-center.routes';
 import realtimeRoutes from './realtime.routes';
+import aiDataPolicyRoutes from './ai-data-policy.routes';
 
 const router = Router();
 
@@ -95,6 +96,7 @@ router.use('/invitations', invitationRoutes);
 // SYSTEM / FOS — the platform's own surface. Never a club's.
 // WebSocket tickets: the session token stays out of socket URLs (Cyber Defense R7).
 router.use('/realtime', realtimeRoutes);
+router.use('/ai-data-policy', aiDataPolicyRoutes);
 router.use('/system', systemRoutes);
 // The platform owner's live request trace. SYSTEM's, like everything above it:
 // the router's own guard is assertPlatformOwner, so a club role reaches none of
