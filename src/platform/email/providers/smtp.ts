@@ -42,7 +42,14 @@ export class SmtpProvider implements EmailProvider {
       const transporter = nodemailer.createTransport({
         host: config.email.smtpHost,
         port: config.email.smtpPort,
+        // Cyber Defense R12: TLS on every port. 465 is TLS from the first
+        // byte; any other port MUST upgrade with STARTTLS — `requireTLS`
+        // refuses to send credentials or mail over a connection that did not
+        // (nodemailer otherwise upgrades only if the server offers it). The
+        // certificate is verified and nothing below TLS 1.2 is accepted.
         secure: config.email.smtpPort === 465,
+        requireTLS: true,
+        tls: { minVersion: 'TLSv1.2', rejectUnauthorized: true },
         connectionTimeout: timeoutMs,
         greetingTimeout: timeoutMs,
         socketTimeout: timeoutMs,

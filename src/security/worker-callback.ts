@@ -57,3 +57,19 @@ export function verifyWorkerCallback(
   if (Math.abs(nowSeconds - Number(ts)) > TRIGGER_WINDOW_SECONDS) return 'stale';
   return 'ok';
 }
+
+/**
+ * Headers that sign a request Familista sends to a worker (Cyber Defense, R13):
+ * the same scheme in the other direction, over the URL's path and the exact
+ * body sent, so a worker can refuse a replayed or edited job.
+ */
+export function signedWorkerHeaders(
+  secret: string, method: string, url: string, body: string = '', nowSeconds: number = Math.floor(Date.now() / 1000),
+): Record<string, string> {
+  const ts = String(nowSeconds);
+  const path = new URL(url).pathname;
+  return {
+    'x-worker-timestamp': ts,
+    'x-worker-signature': signWorkerCallback(secret, method, path, ts, Buffer.from(body, 'utf8')),
+  };
+}

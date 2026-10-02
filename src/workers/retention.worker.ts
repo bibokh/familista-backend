@@ -38,6 +38,19 @@ const BATCH_SIZE = parseInt(process.env.RETENTION_BATCH_SIZE ?? '5000',         
 //     pattern — Prisma doesn't support LIMIT on deleteMany().
 // ─────────────────────────────────────────────────────────────────────────
 
+/**
+ * Cyber Defense, R9: the database refuses to delete a SecurityEvent younger
+ * than 90 days (migration 20261003100000_audit_append_only), so a policy can
+ * never purge recent evidence. The cutoff is clamped here to the same floor,
+ * so a shorter policy purges what it may instead of failing every tick.
+ */
+export const MIN_RETENTION_DAYS: Readonly<Record<string, number>> = Object.freeze({ SecurityEvent: 90 });
+
+/** Days to keep for a policy, never below the entity's floor. */
+export function effectiveRetentionDays(entityType: string, retentionDays: number): number {
+  return Math.max(retentionDays, MIN_RETENTION_DAYS[entityType] ?? 0);
+}
+
 interface SweepArgs { clubId: string | null; cutoff: Date; limit: number }
 type Sweeper = (args: SweepArgs) => Promise<number>;
 
@@ -189,7 +202,8 @@ export async function runRetentionTick(): Promise<{ swept: Array<{ policyId: str
       logger.warn('[retention] no sweeper registered for entity', { entityType: p.entityType });
       continue;
     }
-    const cutoff = new Date(Date.now() - p.retentionDays * 86_400_000);
+    const days = effectiveRetentionDays(p.entityType, p.retentionDays);
+    const cutoff = new Date(Date.now() - days * 86_400_000);
     try {
       const deleted = await sweeper({ clubId: p.clubId, cutoff, limit: BATCH_SIZE });
       out.push({ policyId: p.id, entityType: p.entityType, clubId: p.clubId, deleted });
@@ -201,9 +215,9 @@ export async function runRetentionTick(): Promise<{ swept: Array<{ policyId: str
         logSecurityEvent({
           kind: 'AUDIT_CHAIN_VERIFIED' as never, severity: 'INFO',
           clubId: p.clubId,
-          payload: { event: 'RETENTION_PURGE', entityType: p.entityType, retentionDays: p.retentionDays, cutoffIso: cutoff.toISOString(), deleted },
+          payload: { event: 'RETENTION_PURGE', entityType: p.entityType, retentionDays: days, cutoffIso: cutoff.toISOString(), deleted },
         });
-        logger.info('[retention] purged', { entityType: p.entityType, clubId: p.clubId, retentionDays: p.retentionDays, deleted });
+        logger.info('[retention] purged', { entityType: p.entityType, clubId: p.clubId, retentionDays: days, deleted });
       }
     } catch (err) {
       logger.error('[retention] sweeper failed', { entityType: p.entityType, clubId: p.clubId, err: (err as Error).message });

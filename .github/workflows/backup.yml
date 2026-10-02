@@ -14,7 +14,7 @@ name: backup
 on:
   schedule:
     # 03:17 UTC daily. GitHub may start a scheduled run late; the service
-    # refuses a second backup within 20 hours, so a late or repeated run is
+    # refuses a second backup within 12 hours, so a late or repeated run is
     # harmless.
     - cron: '17 3 * * *'
   workflow_dispatch:

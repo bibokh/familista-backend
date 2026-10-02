@@ -34,6 +34,7 @@ import {
   publishMediaProcessingCompleted, publishMediaProcessingFailed,
 } from '../fabric/producers/media.producer';
 import { withMediaContext } from '../fabric/producers/media-context';
+import { assertClubKey } from '../security/storage-keys';
 
 export interface VideoActor {
   userId: string;
@@ -124,6 +125,7 @@ export async function requestUpload(
   });
 
   const rawKey = `clubs/${actor.clubId}/videos/${asset.id}/raw.${ext}`;
+  assertClubKey(rawKey, actor.clubId); // R10: the presigned upload can only land in this club's folder
 
   const cmd = new PutObjectCommand({
     Bucket:      BUCKET(),

@@ -23,6 +23,7 @@ import crypto from 'crypto';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
 import type { StorageAdapter, StoragePutResult } from './storage.adapter';
+import { assertStorageKey } from '../../security/storage-keys';
 
 export type S3AdapterOptions = {
   bucket?: string;
@@ -68,6 +69,7 @@ export class S3StorageAdapter implements StorageAdapter {
 
   async put(key: string, data: Buffer, contentType: string): Promise<StoragePutResult> {
     const sanitizedKey = key.replace(/^\/+/, '');
+    assertStorageKey(sanitizedKey); // R10: every write, under a known owner's prefix
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
@@ -89,6 +91,7 @@ export class S3StorageAdapter implements StorageAdapter {
   }
 
   async delete(key: string): Promise<void> {
+    assertStorageKey(key.replace(/^\/+/, ''));
     await this.client.send(
       new DeleteObjectCommand({ Bucket: this.bucket, Key: key.replace(/^\/+/, '') }),
     );

@@ -3,14 +3,17 @@
 //
 // Builds a VisionAccessScope per request. Vision is club-scoped data with a
 // platform-admin override. Webhooks from the inference / clip workers carry a
-// shared-secret header instead of a JWT — `requireWebhookAuth` validates that.
+// signed request instead of a JWT — `requireWebhookAuth` verifies the HMAC.
 
 import type { Request, Response, NextFunction } from 'express';
-import crypto from 'crypto';
+import express, { type RequestHandler } from 'express';
 import type { PlatformRole, UserRole } from '@prisma/client';
 
 import { prisma } from '../lib/prisma';
-import { ForbiddenError, UnauthorizedError } from '../utils/errors';
+import { BadRequestError, ForbiddenError, UnauthorizedError } from '../utils/errors';
+import { logger } from '../utils/logger';
+import { MIN_SECRET_LENGTH } from '../security/backup/backup-trigger';
+import { verifyWorkerCallback } from '../security/worker-callback';
 import type {
   VisionActor,
   VisionAccessScope,
@@ -192,24 +195,56 @@ export function assertPlatformAdmin(actor: VisionActor): void {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Webhook authentication — shared-secret header check with constant-time compare
+// Webhook authentication (Cyber Defense, R13) — the worker callback HMAC
 // ─────────────────────────────────────────────────────────────────────────────
+// A vision callback writes analysis results into a club's match. It used to be
+// accepted on a static shared header: whoever saw one request could replay it,
+// or send any body with it, for ever. It now carries the same signature as the
+// transcode callback (security/worker-callback.ts): HMAC-SHA256 over method,
+// full path, timestamp and the SHA-256 of the exact bytes received, within
+// five minutes, in the `x-worker-timestamp` / `x-worker-signature` headers.
+// The secret never travels. Closed while the secret is unset or shorter than
+// 32 characters. The body is read raw here, so these routes must be mounted
+// before the global JSON parser — a body that has already been parsed cannot
+// be verified and is refused rather than trusted.
 
-function timingSafeEqual(a: string, b: string): boolean {
-  const ba = Buffer.from(a);
-  const bb = Buffer.from(b);
-  if (ba.length !== bb.length) return false;
-  return crypto.timingSafeEqual(ba, bb);
+export const VISION_CALLBACK_MAX_BYTES = 10 * 1024 * 1024;
+
+export function visionWebhookSecret(envName: string, env: Record<string, string | undefined> = process.env): Buffer | null {
+  const raw = (env[envName] ?? '').trim();
+  return raw.length >= MIN_SECRET_LENGTH ? Buffer.from(raw, 'utf8') : null;
 }
 
-export function requireWebhookAuth(headerName: string, envName: string) {
-  return (req: Request, _res: Response, next: NextFunction): void => {
-    const expected = process.env[envName];
-    if (!expected) return next(new ForbiddenError(`${envName} not configured`));
-    const provided = req.headers[headerName.toLowerCase()] as string | undefined;
-    if (!provided || !timingSafeEqual(provided, expected)) {
+export function verifyVisionWebhook(envName: string, nowSeconds: () => number = () => Math.floor(Date.now() / 1000)): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    res.setHeader('Cache-Control', 'no-store');
+    const secret = visionWebhookSecret(envName);
+    if (!secret) return next(new ForbiddenError('vision webhook is not configured'));
+    if (!Buffer.isBuffer(req.body)) return next(new UnauthorizedError('Invalid webhook signature'));
+    const verdict = verifyWorkerCallback(secret, {
+      method: req.method,
+      path: `${req.baseUrl ?? ''}${req.path}`,
+      timestamp: req.get('x-worker-timestamp') ?? undefined,
+      signature: req.get('x-worker-signature') ?? undefined,
+      body: req.body,
+    }, nowSeconds());
+    if (verdict !== 'ok') {
+      logger.warn('[vision-webhook] request refused', { reason: verdict, path: req.path });
       return next(new UnauthorizedError('Invalid webhook signature'));
+    }
+    try {
+      req.body = req.body.length ? JSON.parse(req.body.toString('utf8')) : {};
+    } catch {
+      return next(new BadRequestError('invalid JSON body'));
     }
     return next();
   };
+}
+
+/** The chain a vision webhook route mounts: the raw body, then the signature. */
+export function requireWebhookAuth(envName: string): RequestHandler[] {
+  return [
+    express.raw({ type: () => true, limit: VISION_CALLBACK_MAX_BYTES }),
+    verifyVisionWebhook(envName),
+  ];
 }

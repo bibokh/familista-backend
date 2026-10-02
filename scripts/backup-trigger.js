@@ -10,7 +10,7 @@
 //   3. wait     GET /internal/backups/runs/:id, signed, until it succeeds or fails
 //
 // Exit 0 when the run succeeded, or when a backup already succeeded within the
-// last 20 hours; exit 1 otherwise, so a failed backup is a failed workflow run
+// last 12 hours; exit 1 otherwise, so a failed backup is a failed workflow run
 // and GitHub emails the owner. Output is states and status codes only — never
 // the secret, a signature or a response body beyond its state.
 
@@ -91,7 +91,7 @@ async function main({
       if (!id) { log('backup: another backup holds the lock and its run is unknown'); return 1; }
       log('backup: a backup is already running; waiting for it');
       break;
-    case 429: log('backup: a backup already succeeded in the last 20 hours; nothing to do'); return 0;
+    case 429: log('backup: a backup already succeeded in the last 12 hours; nothing to do'); return 0;
     case 401: log('backup: refused as unauthorized (check the secret and the runner clock)'); return 1;
     case 503: log('backup: the service is not configured for backups'); return 1;
     default: log(`backup: unexpected answer ${started.status}`); return 1;

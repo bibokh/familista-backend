@@ -21,6 +21,8 @@
 //   SECOND_SPECTRUM   (stub — wire to Pulse API)
 
 import crypto from 'crypto';
+import { MIN_SECRET_LENGTH } from '../security/backup/backup-trigger';
+import { signedWorkerHeaders } from '../security/worker-callback';
 import type {
   InferenceSubmission,
   InferenceSubmissionResult,
@@ -84,30 +86,32 @@ class InternalWorkerAdapter implements InferenceAdapter {
     const token = process.env.VISION_WORKER_TOKEN;
     if (!endpoint) throw new Error('VISION_WORKER_URL not configured');
     if (!callbackUrl) throw new Error('VISION_WORKER_CALLBACK_URL not configured');
-    if (!token) throw new Error('VISION_WORKER_TOKEN not configured');
+    if (!token || token.trim().length < MIN_SECRET_LENGTH) throw new Error(`VISION_WORKER_TOKEN not configured (${MIN_SECRET_LENGTH}+ characters)`);
     this.endpoint = endpoint.replace(/\/+$/, '');
     this.callbackUrl = callbackUrl;
     this.authToken = token;
   }
 
   async submitVideo(req: InferenceSubmission): Promise<InferenceSubmissionResult> {
-    const res = await fetch(`${this.endpoint}/jobs`, {
+    const url = `${this.endpoint}/jobs`;
+    const body = JSON.stringify({
+      videoAssetId: req.videoAssetId,
+      videoUrl: req.videoUrl,
+      matchId: req.matchId ?? null,
+      trainingSessionId: req.trainingSessionId ?? null,
+      fps: req.fps ?? null,
+      durationMs: req.durationMs ?? null,
+      callbackUrl: this.callbackUrl,
+      metadata: req.metadata ?? null,
+    });
+    const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.authToken}` },
-      body: JSON.stringify({
-        videoAssetId: req.videoAssetId,
-        videoUrl: req.videoUrl,
-        matchId: req.matchId ?? null,
-        trainingSessionId: req.trainingSessionId ?? null,
-        fps: req.fps ?? null,
-        durationMs: req.durationMs ?? null,
-        callbackUrl: this.callbackUrl,
-        metadata: req.metadata ?? null,
-      }),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.authToken}`, ...signedWorkerHeaders(this.authToken, 'POST', url, body) },
+      body,
     });
     if (!res.ok) throw new Error(`worker submit failed (${res.status})`);
-    const body = (await res.json()) as { jobId: string; estimatedDurationSec?: number };
-    return { externalJobId: body.jobId, estimatedDurationSec: body.estimatedDurationSec ?? null };
+    const out = (await res.json()) as { jobId: string; estimatedDurationSec?: number };
+    return { externalJobId: out.jobId, estimatedDurationSec: out.estimatedDurationSec ?? null };
   }
 
   async pollStatus(externalJobId: string): Promise<InferenceStatus> {

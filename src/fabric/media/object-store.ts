@@ -24,6 +24,7 @@
 // the result, rather than pretending to a guarantee it cannot make.
 
 import { createHash } from 'crypto';
+import { assertStorageKey, StorageKeyRefused } from '../../security/storage-keys';
 
 export interface PutObjectArgs {
   key: string;
@@ -133,6 +134,7 @@ export class MemoryObjectStore implements ObjectStore {
   private objects = new Map<string, { body: Buffer; contentType: string; at: Date }>();
 
   async putObject(args: PutObjectArgs): Promise<PutObjectResult> {
+    assertStorageKey(args.key);
     this.objects.set(args.key, { body: args.body, contentType: args.contentType, at: new Date() });
     return {
       key: args.key,
@@ -201,6 +203,7 @@ class LegacyAdapterObjectStore implements ObjectStore {
   }
 
   async putObject(args: PutObjectArgs): Promise<PutObjectResult> {
+    assertStorageKey(args.key);
     const out = await this.adapter.put(args.key, args.body, args.contentType);
     return {
       key: out.key ?? args.key,
@@ -215,6 +218,12 @@ class LegacyAdapterObjectStore implements ObjectStore {
   }
 
   async getSignedReadUrl(key: string, ttlSeconds = DEFAULT_READ_TTL_SECONDS): Promise<SignedUrl> {
+    // Cyber Defense, R10: a club's object is never handed out as a durable,
+    // unsigned public URL. This adapter cannot sign, so a club object is
+    // served through the application (as video already is) or not at all.
+    if (clubIdFromKey(key)) {
+      throw new StorageKeyRefused('a club object is served through the application, never as a public URL');
+    }
     // The local adapter serves from a public prefix and cannot sign. Saying so
     // is the whole value of the `signed` flag: a caller handling RESTRICTED
     // media can refuse rather than hand out a durable link by accident.

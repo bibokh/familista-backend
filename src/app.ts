@@ -21,6 +21,7 @@ import { redisConfigured } from './infra/redis';
 import { apiTrafficMeter } from './infra/api-traffic';
 import routes from './routes';
 import { tenantGuard } from './middleware/tenant-guard.middleware';
+import { rawBodyForSignedWebhooks } from './middleware/raw-body-paths';
 import { internalBackupRoutes } from './controllers/internal-backup.controller';
 import { transcodeCallbackRoute } from './controllers/internal-video.controller';
 
@@ -166,7 +167,13 @@ export function createApp(): express.Application {
   // A literal path, so the security scanner lists it among the app-level routes.
   app.post('/internal/video/transcode-callback', ...transcodeCallbackRoute());
 
-  // ── Body parsers (Stripe webhook needs raw body — handled in billing route)
+  // ── Body parsers
+  // A signed webhook is verified over the exact bytes it was sent with, so its
+  // body is read raw first and the JSON and form parsers then leave it alone
+  // (Cyber Defense, R13). Before this, the Stripe webhook's own express.raw ran
+  // after express.json had already consumed the body: constructEvent was
+  // handed an object and every genuine event was refused.
+  app.use(rawBodyForSignedWebhooks());
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true }));
 
