@@ -7,7 +7,7 @@
  * way the daily GitHub Actions schedule reaches the service. They take no
  * input, are closed without BACKUP_TRIGGER_SECRET, authenticate by HMAC over
  * method, path and timestamp inside a five-minute window, run one backup at a
- * time and none within 20 hours of a success, and answer with run state and
+ * time and none within 12 hours of a success, and answer with run state and
  * nothing else. The client the workflow runs (scripts/backup-trigger.js) is
  * driven end to end against the real handlers.
  *
@@ -198,7 +198,7 @@ describe('starting a backup', () => {
     r.finish(started.id);
   });
 
-  it('refuses a new run within 20 hours of a success, and allows one after', async () => {
+  it('refuses a new run within 12 hours of a success, and allows one after', async () => {
     const lastOk = new Date(NOW * 1000 - MIN_INTERVAL_MS + 60_000);
     const m = memoryStore([{ id: 'prev', startedAt: lastOk, finishedAt: lastOk, ok: true }]);
     const runs: string[] = [];
@@ -211,7 +211,7 @@ describe('starting a backup', () => {
     expect(res2.kind).toBe('started');
   });
 
-  it('does not count a failed run against the 20 hours', async () => {
+  it('does not count a failed run against the 12 hours', async () => {
     const t = new Date(NOW * 1000 - 60_000);
     const m = memoryStore([{ id: 'failed', startedAt: t, finishedAt: t, ok: false }]);
     expect((await startBackupRun({ store: m.store, run: async () => undefined, now })).kind).toBe('started');
@@ -307,7 +307,7 @@ describe('POST /internal/backups/run and GET /internal/backups/runs/:id', () => 
     r.finish(first.body.id);
   });
 
-  it('answers 429 within 20 hours of a success', async () => {
+  it('answers 429 within 12 hours of a success', async () => {
     const t = new Date(NOW * 1000 - 3_600_000);
     const m = memoryStore([{ id: 'p', startedAt: t, finishedAt: t, ok: true }]);
     const app = appWith(depsFor(m.store, async () => undefined));
@@ -464,7 +464,7 @@ describe('scripts/backup-trigger.js against the real handlers', () => {
     expect(lines[lines.length - 1]).toMatch(/FAILED/);
   });
 
-  it('exits 0 without a new backup when one succeeded within 20 hours', async () => {
+  it('exits 0 without a new backup when one succeeded within 12 hours', async () => {
     const t = new Date(Date.now() - 3_600_000);
     const m = memoryStore([{ id: 'p', startedAt: t, finishedAt: t, ok: true }]);
     const deps: InternalBackupDeps = { secret: () => KEY, store: () => m.store, nowSeconds: realNow, start: (st) => startBackupRun({ store: st, run: async () => undefined }) };

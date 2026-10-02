@@ -532,6 +532,7 @@ const securityEventCallers = allSrc.reduce((n, s) => n + (s.match(/\blogSecurity
   - ((read('src/security/security-event.service.ts') || '').match(/\blogSecurityEvent\(/g) || []).length;
 const unsafeRawSql = allSrc.reduce((n, s) => n + (s.match(/\$(?:queryRawUnsafe|executeRawUnsafe)\(/g) || []).length, 0);
 
+const AUDIT_APPEND_ONLY_TABLES = ['SecurityAuditEvent', 'AIAudit', 'DeviceSecurityEvent', 'SecurityEvent', 'AiEgressRecord'];
 const control = (id, status, evidence, note) => ({ id, status, evidence, ...(note ? { note } : {}) });
 const controls = [
   control('csp-script-self',
@@ -728,7 +729,17 @@ const controls = [
       : `${featureKeys.length} features and ${factorNames.length} factors classified; training needs the club's consent and never uses a minor's RESTRICTED data.`),
   control('no-unsafe-raw-sql', unsafeRawSql === 0 ? 'PRESENT' : 'ABSENT', 'src/', `${unsafeRawSql} unsafe raw query call(s).`),
   control('db-row-level-security', /ROW LEVEL SECURITY|CREATE POLICY/i.test(migrationsSql) ? 'PRESENT' : 'ABSENT', 'prisma/migrations'),
-  control('db-audit-append-only', /REVOKE\s+(UPDATE|DELETE)|CREATE (OR REPLACE )?TRIGGER[\s\S]{0,200}audit/i.test(migrationsSql) ? 'PRESENT' : 'ABSENT', 'prisma/migrations'),
+  // R9: the database itself refuses to rewrite the evidence tables — a
+  // BEFORE UPDATE OR DELETE and a BEFORE TRUNCATE trigger on each, never
+  // dropped by a later migration, and proven on real PostgreSQL in CI.
+  control('db-audit-append-only',
+    AUDIT_APPEND_ONLY_TABLES.every((t) => new RegExp(`CREATE TRIGGER "${t}_append_only"\\s+BEFORE UPDATE OR DELETE ON "${t}"`).test(migrationsSql)
+      && new RegExp(`CREATE TRIGGER "${t}_no_truncate"\\s+BEFORE TRUNCATE ON "${t}"`).test(migrationsSql))
+      && !/DROP TRIGGER[^;]*_(append_only|no_truncate)/i.test(migrationsSql)
+      && /tests\/audit-append-only\.integration\.test\.ts/.test(read('.github/workflows/ci.yml') || '')
+      && /AUDIT_DB_REQUIRED:\s*'1'/.test(read('.github/workflows/ci.yml') || '') ? 'PRESENT' : 'ABSENT',
+    'prisma/migrations/20261003100000_audit_append_only/migration.sql',
+    `${AUDIT_APPEND_ONLY_TABLES.join(', ')} refuse UPDATE, DELETE and TRUNCATE in the database (SecurityEvent: DELETE after 90 days; AiEgressRecord: one completion), proven on real PostgreSQL in CI.`),
 ];
 
 // ── 3 · secrets and configuration — names and HOW they are supplied, never values
@@ -880,14 +891,14 @@ function backupScheduled() {
 
 // The trigger's door: HMAC-SHA256 over method, path and timestamp, compared in
 // constant time within a freshness window, closed without a secret; one run at
-// a time by advisory lock; none within 20 hours of a success; and the routes
+// a time by advisory lock; none within 12 hours of a success; and the routes
 // mounted with the rate limiter and the check in front of the handler.
 function backupTriggerProtected() {
   const t = read(cite('src/security/backup/backup-trigger.ts')) || '';
   const c = read(cite('src/controllers/internal-backup.controller.ts')) || '';
   const st = read(cite('src/security/backup/backup-run-store.ts')) || '';
   return /createHmac\('sha256'/.test(t) && /timingSafeEqual\(/.test(t) && /TRIGGER_WINDOW_SECONDS\s*=\s*300\b/.test(t)
-    && /MIN_INTERVAL_MS\s*=\s*20\s*\*\s*60\s*\*\s*60\s*\*\s*1000/.test(t)
+    && /MIN_INTERVAL_MS\s*=\s*12\s*\*\s*60\s*\*\s*60\s*\*\s*1000/.test(t) // R10: tightened from 20 hours
     && /return raw\.length >= MIN_SECRET_LENGTH \? Buffer\.from\(raw, 'utf8'\) : null/.test(t)
     && /pg_try_advisory_xact_lock/.test(st)
     && /backup trigger is not configured/.test(c) && /this endpoint takes no parameters/.test(c)
@@ -1030,7 +1041,7 @@ controls.push(
   control('backup-scheduled', backupScheduled() ? 'PRESENT' : 'ABSENT', '.github/workflows/backup.yml',
     'GitHub Actions asks the running service daily, over a signed request, to run its fixed backup; the workflow holds only the trigger secret and no database or backup key.'),
   control('backup-trigger-authenticated', backupTriggerProtected() ? 'PRESENT' : 'ABSENT', 'src/security/backup/backup-trigger.ts',
-    'The backup trigger takes no input, authenticates by HMAC-SHA256 with a 5-minute window and constant-time comparison, is closed without a secret, runs one backup at a time and none within 20 hours of a success.'),
+    'The backup trigger takes no input, authenticates by HMAC-SHA256 with a 5-minute window and constant-time comparison, is closed without a secret, runs one backup at a time and none within 12 hours of a success.'),
   control('realtime-session-revocation', realtimeSessionsWatched() ? 'PRESENT' : 'ABSENT', 'src/realtime/session-watch.ts',
     'WebSockets and event streams verify the session exactly as a request does (signature, active user, token version), and every open one is closed when its session ends: at once on an identity change, and on a timer as a backstop.'),
   control('outbound-url-guard', outboundGuardProtected() ? 'PRESENT' : 'ABSENT', 'src/security/outbound-url-guard.ts',
@@ -1102,6 +1113,129 @@ const discoveredComponents = {
   infrastructureComponents: (infraManifest.components || []).map((c) => c.id),
 };
 for (const k of Object.keys(discoveredComponents)) discoveredComponents[k] = [...new Set(discoveredComponents[k])].sort();
+
+// ── Batch 6: platform hygiene (R10, R12, R13) ───────────────────────────────
+
+// R10: every storage write is under its owner's prefix. Both legacy adapters
+// guard put and delete, the fabric stores guard put, every writer that knows
+// whose object it writes checks the owner, and the unsigned legacy store never
+// hands a club object out as a public URL.
+function storageKeysOwned() {
+  const guard = read(cite('src/security/storage-keys.ts')) || '';
+  const local = read(cite('src/lib/storage/storage-local.adapter.ts')) || '';
+  const s3 = read(cite('src/lib/storage/storage-s3.adapter.ts')) || '';
+  const store = read(cite('src/fabric/media/object-store.ts')) || '';
+  const writers = [
+    ['src/fabric/media/media-asset.service.ts', /assertClubKey\(/],
+    ['src/video/video-asset.service.ts', /assertClubKey\(/],
+    ['src/services/video-hls.service.ts', /assertClubKey\(/],
+    ['src/services/admin-asset.service.ts', /assertWhiteLabelKey\(/],
+  ];
+  return /export function assertStorageKey/.test(guard) && /'\.\.'/.test(guard)
+    && (local.match(/assertStorageKey\(/g) || []).length >= 2 && /safeResolve/.test(local)
+    && (s3.match(/assertStorageKey\(/g) || []).length >= 2
+    && (store.match(/assertStorageKey\(args\.key\)/g) || []).length >= 2
+    && /clubIdFromKey\(key\)\)\s*\{\s*throw new StorageKeyRefused/.test(store)
+    && writers.every(([f, re]) => re.test(read(cite(f)) || ''));
+}
+
+// R10: media and Redis have a written recovery decision, and the region-loss
+// runbook exists.
+function mediaDrDefined() {
+  const dr = read(cite('docs/security/disaster-recovery.md')) || '';
+  return /## Media: the decision/.test(dr) && /Recovery path: re-upload/.test(dr)
+    && /## Redis: why there is no backup/.test(dr) && /## Region loss/.test(dr)
+    && /Recovery time objective/.test(dr) && /Recovery point objective/.test(dr);
+}
+
+// R10: Redis is reachable on the private network only, through the linked
+// URL, and every key this code writes is in a known, secret-free namespace.
+const REDIS_NAMESPACES = ['ch', 'edge', 'lease', 'nonce', 'once', 'rl', 'ws-ticket'];
+function redisPrivateOnly() {
+  const yaml = read(cite('render.yaml')) || '';
+  const redisBlock = (yaml.match(/- type: redis[\s\S]*?(?=\n  - type:|\n[a-z]|$)/) || [''])[0];
+  const used = new Set();
+  for (const src of allSrc) for (const m of src.matchAll(/\brkey\(\s*'([^']+)'/g)) used.add(m[1]);
+  const rawKeys = allSrc.some((src) => /\b(client|redis)\.(set|get|setex|hset|lpush|rpush|sadd|incr|expire|publish|del)\(\s*['`]/.test(src));
+  return /ipAllowList:\s*\[\]/.test(redisBlock)
+    && /- key: REDIS_URL\s+fromService:\s+type: redis/.test(yaml)
+    && used.size > 0 && [...used].every((n) => REDIS_NAMESPACES.includes(n)) && !rawKeys;
+}
+
+// R12: one redaction format, inside the logger's own format for both
+// pipelines, so no transport can skip it.
+function logRedaction() {
+  const red = read(cite('src/utils/log-redaction.ts')) || '';
+  const logger = read(cite('src/utils/logger.ts')) || '';
+  return /export const redactFormat/.test(red) && /password/.test(red) && /authori\[sz\]ation/.test(red)
+    && /eyJ/.test(red) && /maskEmail/.test(red)
+    && /devFormat[\s\S]*?redactFormat\(\)[\s\S]*?colorize/.test(logger)
+    && /prodFormat[\s\S]*?redactFormat\(\)[\s\S]*?json\(\)/.test(logger);
+}
+
+// R12: mail is never sent in the clear.
+function emailTransportTls() {
+  const smtp = read(cite('src/platform/email/providers/smtp.ts')) || '';
+  return /requireTLS:\s*true/.test(smtp) && /minVersion:\s*'TLSv1\.2'/.test(smtp)
+    && /rejectUnauthorized:\s*true/.test(smtp) && !/rejectUnauthorized:\s*false/.test(smtp);
+}
+
+// R12: every secret the service is given by hand has a rotation entry.
+function secretRotationNames() {
+  const yaml = read(cite('render.yaml')) || '';
+  return [...yaml.matchAll(/- key:\s*([A-Z0-9_]+)\s*\n\s*sync:\s*false/g)].map((m) => m[1]);
+}
+function secretRotationRunbook() {
+  const doc = read(cite('docs/security/secrets-rotation.md')) || '';
+  const table = (doc.split(/^## /m).find((sec) => /^Render environment/.test(sec)) || '');
+  const names = secretRotationNames();
+  return names.length > 0 && names.every((n) => table.includes(`\`${n}\``));
+}
+
+// R13: the vision worker channel is signed both ways with the worker callback
+// HMAC; the routes read the raw body; the old static-header check is gone.
+function visionChannelSigned() {
+  const mw = read(cite('src/middleware/vision-access.middleware.ts')) || '';
+  const routes = read(cite('src/routes/vision-engine.routes.ts')) || '';
+  const raw = read(cite('src/middleware/raw-body-paths.ts')) || '';
+  const app = read(cite(APP)) || '';
+  const inf = read(cite('src/services/vision-inference.adapter.ts')) || '';
+  const clip = read(cite('src/services/vision-clip.adapter.ts')) || '';
+  const webhookLines = routes.split('\n').filter((l) => /requireWebhookAuth\(/.test(l) && !/^\s*\/\//.test(l));
+  return /verifyWorkerCallback\(secret/.test(mw) && /express\.raw\(/.test(mw) && /MIN_SECRET_LENGTH/.test(mw)
+    && !/req\.headers\[headerName/.test(mw)
+    && webhookLines.length === 3 && webhookLines.every((l) => /\.\.\.requireWebhookAuth\('VISION_(CLIP_)?WEBHOOK_TOKEN'\)/.test(l))
+    && /vision\\\/webhooks/.test(raw) && /billing\\\/webhook/.test(raw)
+    && app.indexOf('app.use(rawBodyForSignedWebhooks());') > 0
+    && app.indexOf('app.use(rawBodyForSignedWebhooks());') < app.indexOf('app.use(express.json(')
+    && /signedWorkerHeaders\(/.test(inf) && /signedWorkerHeaders\(/.test(clip);
+}
+
+// R13: a published way to report a vulnerability.
+function securityPolicyPublished() {
+  const policy = read(cite('SECURITY.md')) || '';
+  return /Report a vulnerability/.test(policy) && /do not open a public issue/i.test(policy)
+    && /Acknowledgement/.test(policy) && /Rules for testing/.test(policy);
+}
+
+controls.push(
+  control('storage-key-club-prefixed', storageKeysOwned() ? 'PRESENT' : 'ABSENT', 'src/security/storage-keys.ts',
+    'Every object is written under its owner\'s prefix (club, white-label config or archive); traversal, absolute and unowned keys are refused at every adapter, a writer cannot write under another club, and a club object is never handed out as an unsigned public URL.'),
+  control('media-dr-defined', mediaDrDefined() ? 'PRESENT' : 'ABSENT', 'docs/security/disaster-recovery.md',
+    'Media, Redis and region loss each have a written recovery decision, with a recovery time and point objective.'),
+  control('redis-private-only', redisPrivateOnly() ? 'PRESENT' : 'ABSENT', 'render.yaml',
+    `Redis is on the private network only (empty IP allow list, linked URL) and holds nothing persistent: every key is in one of ${REDIS_NAMESPACES.length} namespaces (${REDIS_NAMESPACES.join(', ')}).`),
+  control('log-redaction', logRedaction() ? 'PRESENT' : 'ABSENT', 'src/utils/log-redaction.ts',
+    'Every log line, dev and prod, passes one format that replaces secrets and personal fields by name and masks tokens, keys, URL credentials and e-mail addresses by shape.'),
+  control('email-transport-tls', emailTransportTls() ? 'PRESENT' : 'ABSENT', 'src/platform/email/providers/smtp.ts',
+    'SMTP requires TLS on every port (STARTTLS is not optional), verifies the certificate and refuses anything below TLS 1.2.'),
+  control('secret-rotation-runbook', secretRotationRunbook() ? 'PRESENT' : 'ABSENT', 'docs/security/secrets-rotation.md',
+    `Each of the ${secretRotationNames().length} variables set by hand in Render (sync: false) has an owner, an overlap and a check in the rotation runbook.`),
+  control('worker-channel-authenticated', visionChannelSigned() ? 'PRESENT' : 'ABSENT', 'src/middleware/vision-access.middleware.ts',
+    'Vision and clip worker callbacks are verified by HMAC-SHA256 over method, path, timestamp and the raw body (5-minute window, 32+ character secret, closed without one); jobs sent to a worker are signed the same way; signed webhooks bypass the global body parsers.'),
+  control('security-policy-published', securityPolicyPublished() ? 'PRESENT' : 'ABSENT', 'SECURITY.md',
+    'A private vulnerability-reporting channel, response targets and safe-harbour testing rules are published.'),
+);
 
 const coverageMap = (() => { try { return JSON.parse(read(cite('src/cyber-defense/coverage-map.json')) || '{}'); } catch (_) { return {}; } })();
 const rows = coverageMap.boundaries || {};

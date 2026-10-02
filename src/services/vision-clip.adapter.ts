@@ -13,6 +13,8 @@
 //   MUX                  (stub — wire to Mux SDK)
 
 import crypto from 'crypto';
+import { MIN_SECRET_LENGTH } from '../security/backup/backup-trigger';
+import { signedWorkerHeaders } from '../security/worker-callback';
 import type {
   ClipRenderRequest,
   ClipRenderSubmission,
@@ -64,8 +66,8 @@ class FfmpegWorkerAdapter implements ClipAdapter {
     const endpoint = process.env.VISION_CLIP_WORKER_URL;
     const callbackUrl = process.env.VISION_CLIP_WORKER_CALLBACK_URL;
     const token = process.env.VISION_CLIP_WORKER_TOKEN;
-    if (!endpoint || !callbackUrl || !token) {
-      throw new Error('VISION_CLIP_WORKER_URL / _CALLBACK_URL / _TOKEN required for FFMPEG_WORKER');
+    if (!endpoint || !callbackUrl || !token || token.trim().length < MIN_SECRET_LENGTH) {
+      throw new Error(`VISION_CLIP_WORKER_URL / _CALLBACK_URL / _TOKEN (${MIN_SECRET_LENGTH}+ characters) required for FFMPEG_WORKER`);
     }
     this.endpoint = endpoint.replace(/\/+$/, '');
     this.callbackUrl = callbackUrl;
@@ -73,22 +75,24 @@ class FfmpegWorkerAdapter implements ClipAdapter {
   }
 
   async submit(req: ClipRenderRequest): Promise<ClipRenderSubmission> {
-    const res = await fetch(`${this.endpoint}/clips`, {
+    const url = `${this.endpoint}/clips`;
+    const body = JSON.stringify({
+      videoUrl: req.videoUrl,
+      startMs: req.startMs,
+      endMs: req.endMs,
+      format: req.format ?? 'MP4',
+      thumbnail: req.thumbnail ?? true,
+      watermarkText: req.watermarkText ?? null,
+      callbackUrl: this.callbackUrl,
+    });
+    const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` },
-      body: JSON.stringify({
-        videoUrl: req.videoUrl,
-        startMs: req.startMs,
-        endMs: req.endMs,
-        format: req.format ?? 'MP4',
-        thumbnail: req.thumbnail ?? true,
-        watermarkText: req.watermarkText ?? null,
-        callbackUrl: this.callbackUrl,
-      }),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}`, ...signedWorkerHeaders(this.token, 'POST', url, body) },
+      body,
     });
     if (!res.ok) throw new Error(`clip submit failed (${res.status})`);
-    const body = (await res.json()) as { renderId: string; estimatedDurationSec?: number };
-    return { externalRenderId: body.renderId, estimatedDurationSec: body.estimatedDurationSec ?? null };
+    const out = (await res.json()) as { renderId: string; estimatedDurationSec?: number };
+    return { externalRenderId: out.renderId, estimatedDurationSec: out.estimatedDurationSec ?? null };
   }
 
   async poll(externalRenderId: string): Promise<ClipRenderResult> {

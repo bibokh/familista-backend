@@ -10,6 +10,7 @@ import path from 'path';
 import crypto from 'crypto';
 
 import type { StorageAdapter, StoragePutResult } from './storage.adapter';
+import { assertStorageKey } from '../../security/storage-keys';
 
 const DEFAULT_ROOT = path.resolve(process.cwd(), 'uploads');
 const DEFAULT_PUBLIC_PREFIX = '/uploads';
@@ -45,6 +46,7 @@ export class LocalStorageAdapter implements StorageAdapter {
   }
 
   async put(key: string, data: Buffer, contentType: string): Promise<StoragePutResult> {
+    assertStorageKey(key); // R10: every write, under a known owner's prefix
     const dest = this.safeResolve(key);
     await fsp.mkdir(path.dirname(dest), { recursive: true });
     await fsp.writeFile(dest, data);
@@ -60,6 +62,7 @@ export class LocalStorageAdapter implements StorageAdapter {
   }
 
   async delete(key: string): Promise<void> {
+    assertStorageKey(key);
     const target = this.safeResolve(key);
     try {
       await fsp.unlink(target);

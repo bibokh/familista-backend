@@ -28,6 +28,7 @@ import {
   PutObjectCommand,
 }                    from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { assertClubKey, assertStorageKey } from '../security/storage-keys';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,6 +113,7 @@ async function transcodeToHlsUncounted(
 
     // ── Step 5: upload HLS dir to S3 ──────────────────────────────────────
     const hlsBaseKey     = `clubs/${clubId}/videos/${assetId}/hls`;
+    assertClubKey(`${hlsBaseKey}/manifest.m3u8`, clubId); // R10
     const hlsManifestKey = await _uploadHlsDir(hlsDir, hlsBaseKey);
 
     // ── Step 6: upload thumbnail ───────────────────────────────────────────
@@ -292,6 +294,7 @@ async function _uploadFile(
   key:         string,
   contentType: string,
 ): Promise<void> {
+  assertStorageKey(key); // R10: every write, under a known owner's prefix
   // Stream directly from disk — never load the whole file into memory.
   const body = fs.createReadStream(filePath);
   await s3().send(

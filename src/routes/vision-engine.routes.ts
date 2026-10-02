@@ -3,10 +3,11 @@
 //
 // Mount under /api/v1/vision. Two auth modes:
 //   • Authenticated routes use authenticate + attachVisionContext.
-//   • Webhook routes use requireWebhookAuth(headerName, envName) — the
-//     inference / clip workers carry a shared secret in the header configured
-//     by env (VISION_WEBHOOK_TOKEN for inference, VISION_CLIP_WEBHOOK_TOKEN
-//     for clip callbacks).
+//   • Webhook routes use requireWebhookAuth(envName) — the inference / clip
+//     workers sign each callback (HMAC over method, path, timestamp and raw
+//     body; Cyber Defense R13) with VISION_WEBHOOK_TOKEN for inference and
+//     VISION_CLIP_WEBHOOK_TOKEN for clips. Mount this router before the global
+//     JSON parser: the webhooks read the raw body to verify it.
 
 import { Router } from 'express';
 
@@ -24,17 +25,17 @@ const router = Router();
 // ── 10. Webhooks (registered before auth so workers can POST) ──────────────
 router.post(
   '/webhooks/inference/:jobId',
-  requireWebhookAuth('x-vision-inference-token', 'VISION_WEBHOOK_TOKEN'),
+  ...requireWebhookAuth('VISION_WEBHOOK_TOKEN'),
   ctrl.inferenceResultsWebhook,
 );
 router.post(
   '/webhooks/inference/:jobId/fail',
-  requireWebhookAuth('x-vision-inference-token', 'VISION_WEBHOOK_TOKEN'),
+  ...requireWebhookAuth('VISION_WEBHOOK_TOKEN'),
   ctrl.ingestFailureWebhook,
 );
 router.post(
   '/webhooks/clip/:externalRenderId',
-  requireWebhookAuth('x-vision-clip-token', 'VISION_CLIP_WEBHOOK_TOKEN'),
+  ...requireWebhookAuth('VISION_CLIP_WEBHOOK_TOKEN'),
   ctrl.clipRenderWebhook,
 );
 

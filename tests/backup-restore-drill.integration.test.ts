@@ -158,7 +158,7 @@ suite('backup and restore drill against real PostgreSQL', () => {
     expect(await src.user.count()).toBe(1);
   }, 60_000);
 
-  // ── the scheduled trigger's path: advisory lock, 20 hours, run state ─────
+  // ── the scheduled trigger's path: advisory lock, 12 hours, run state ─────
   const triggerCfg = () => runnerConfigFromEnv({
     ...baseEnv(),
     DATABASE_URL: srcUrl,
@@ -168,7 +168,7 @@ suite('backup and restore drill against real PostgreSQL', () => {
     BACKUP_PSQL: PSQL,
   });
 
-  it('refuses a scheduled run within 20 hours of the successful backup above', async () => {
+  it('refuses a scheduled run within 12 hours of the successful backup above', async () => {
     const res = await startBackupRun({ store: prismaRunStore(src), run: async () => { throw new Error('must not run'); } });
     expect(res.kind).toBe('recent');
   }, 60_000);

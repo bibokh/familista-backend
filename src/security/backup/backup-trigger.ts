@@ -12,9 +12,13 @@
 //                    travels. Without a configured secret nothing is accepted.
 //   one at a time    a PostgreSQL advisory lock, so two requests — or two
 //                    instances — cannot run two backups.
-//   once a day       a new run is refused while the last successful backup is
-//                    less than 20 hours old, so a replayed or leaked request can
-//                    cause at most one extra backup a day.
+//   twice a day max  a new run is refused while the last successful backup is
+//                    less than 12 hours old, so a replayed or leaked request can
+//                    cause at most one extra backup a day. (Cyber Defense R10:
+//                    it was 20 hours, and a scheduled run that GitHub started
+//                    more than ~4 hours late made the next day's run be refused
+//                    — a skipped day. 12 hours still bounds abuse and tolerates
+//                    a late schedule.)
 //   state            the run is a BackupRecord from its first moment: created
 //                    as running, completed by the runner as succeeded or failed.
 //                    A run the process never finished (a restart mid-backup)
@@ -24,7 +28,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 
 export const TRIGGER_WINDOW_SECONDS = 300;
-export const MIN_INTERVAL_MS = 20 * 60 * 60 * 1000;
+export const MIN_INTERVAL_MS = 12 * 60 * 60 * 1000;
 export const MAX_RUN_MS = 90 * 60 * 1000;
 /** Shortest secret accepted: 32 characters (e.g. `openssl rand -hex 32` gives 64). */
 export const MIN_SECRET_LENGTH = 32;

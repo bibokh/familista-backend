@@ -32,6 +32,7 @@ import {
 import type { AssetUploadMetaInput } from '../utils/admin.validators';
 import type { AssetType, WhiteLabelAsset, AssetStorage } from '@prisma/client';
 import type { PlatformActor } from '../types/admin.types';
+import { assertWhiteLabelKey } from '../security/storage-keys';
 
 // Structural type — avoids hard `import` dependency on the optional `sharp` package.
 type SharpInstance = { metadata(): Promise<{ width?: number; height?: number }> };
@@ -135,6 +136,7 @@ export async function uploadAsset(
   const ext = extensionFromContentType(file.mimetype);
   const filename = `${meta.type.toLowerCase()}-${checksum.slice(0, 12)}.${ext}`;
   const storageKey = path.posix.join('whitelabel', cfg.id, filename);
+  assertWhiteLabelKey(storageKey, cfg.id); // R10: the config is this club's own (clubId is unique on it)
 
   const storage = getStorageAdapter();
   const putResult = await storage.put(storageKey, file.buffer, file.mimetype);

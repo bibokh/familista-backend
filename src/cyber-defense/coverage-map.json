@@ -7,8 +7,8 @@
     "U": "Uncovered"
   },
   "ratchet": {
-    "U": 1,
-    "P": 12
+    "U": 0,
+    "P": 6
   },
   "boundaries": {
     "1": {
@@ -244,8 +244,8 @@
       "controls": [
         "owner-rooms-pinned"
       ],
-      "reason": "Schema validation and classification at the producer are not Cyber Defense controls.",
-      "plannedIn": "Batch 6 (R12)"
+      "reason": "Producer schema validation and classification belong to the Data Fabric's own schema registry, not to a Cyber Defense control; Batch 6 (R12) did not add one, and closing this row needs a decision on whether the registry's publish-time validation should become a posture control.",
+      "plannedIn": "Follow-up outside the approved plan — awaiting scheduling"
     },
     "18": {
       "name": "PostgreSQL",
@@ -257,10 +257,11 @@
       "coverage": "P",
       "controls": [
         "no-unsafe-raw-sql",
-        "backup-encrypted-authenticated"
+        "backup-encrypted-authenticated",
+        "db-audit-append-only"
       ],
-      "reason": "No row-level security; the audit table is not append-only; one application role has full rights.",
-      "plannedIn": "Batch 6 (R9) / Batch 7 (R14)"
+      "reason": "The evidence tables are append-only in the database (R9), but there is no row-level security and one application role has full rights.",
+      "plannedIn": "Batch 7 (R14)"
     },
     "19": {
       "name": "Redis",
@@ -269,10 +270,10 @@
       "owner": "platform",
       "dataClass": "platform",
       "boundaryType": "data",
-      "coverage": "P",
-      "controls": [],
-      "reason": "Private network only; no TLS/auth control and no posture control.",
-      "plannedIn": "Batch 6 (R10)"
+      "coverage": "C",
+      "controls": [
+        "redis-private-only"
+      ]
     },
     "20": {
       "name": "Object storage and HLS proxy",
@@ -281,12 +282,11 @@
       "owner": "club",
       "dataClass": "club",
       "boundaryType": "storage",
-      "coverage": "P",
+      "coverage": "C",
       "controls": [
-        "worker-callback-authenticated"
-      ],
-      "reason": "The transcode callback is authenticated and keys are confined to the asset (R1a); other media writes have no general club-folder check.",
-      "plannedIn": "Batch 6 (R10)"
+        "worker-callback-authenticated",
+        "storage-key-club-prefixed"
+      ]
     },
     "21": {
       "name": "Video Intelligence workers",
@@ -297,7 +297,8 @@
       "boundaryType": "service",
       "coverage": "C",
       "controls": [
-        "worker-callback-authenticated"
+        "worker-callback-authenticated",
+        "worker-channel-authenticated"
       ]
     },
     "22": {
@@ -355,10 +356,10 @@
       "owner": "platform",
       "dataClass": "personal",
       "boundaryType": "provider",
-      "coverage": "P",
-      "controls": [],
-      "reason": "No TLS control for SMTP and no posture control.",
-      "plannedIn": "Batch 6 (R12)"
+      "coverage": "C",
+      "controls": [
+        "email-transport-tls"
+      ]
     },
     "27": {
       "name": "User-registered outbound webhooks",
@@ -379,13 +380,12 @@
       "owner": "platform",
       "dataClass": "credentials",
       "boundaryType": "secrets",
-      "coverage": "P",
+      "coverage": "C",
       "controls": [
         "versioned-keyring",
-        "ci-secret-scanning"
-      ],
-      "reason": "No rotation runbook or evidence for the JWT secret.",
-      "plannedIn": "Batch 6 (R12)"
+        "ci-secret-scanning",
+        "secret-rotation-runbook"
+      ]
     },
     "29": {
       "name": "CI (GitHub Actions)",
@@ -441,10 +441,12 @@
       "owner": "platform",
       "dataClass": "club",
       "boundaryType": "operations",
-      "coverage": "U",
-      "controls": [],
-      "reason": "Media objects are not backed up and there is no region-loss runbook.",
-      "plannedIn": "Batch 6 (R10)"
+      "coverage": "C",
+      "controls": [
+        "media-dr-defined",
+        "redis-private-only",
+        "backup-scheduled"
+      ]
     },
     "33": {
       "name": "Internal service-to-service",
@@ -466,10 +468,10 @@
       "owner": "platform",
       "dataClass": "personal",
       "boundaryType": "operations",
-      "coverage": "P",
-      "controls": [],
-      "reason": "No central field redaction in the logger.",
-      "plannedIn": "Batch 6 (R12)"
+      "coverage": "C",
+      "controls": [
+        "log-redaction"
+      ]
     },
     "35": {
       "name": "Audit evidence",
@@ -478,13 +480,12 @@
       "owner": "platform",
       "dataClass": "platform",
       "boundaryType": "integrity",
-      "coverage": "P",
+      "coverage": "C",
       "controls": [
         "audit-hash-chain",
-        "security-event-log"
-      ],
-      "reason": "The audit table is not append-only.",
-      "plannedIn": "Batch 6 (R9)"
+        "security-event-log",
+        "db-audit-append-only"
+      ]
     },
     "36": {
       "name": "Security alerting",

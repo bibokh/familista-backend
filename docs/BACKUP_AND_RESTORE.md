@@ -15,7 +15,7 @@ recover. Code: `src/security/backup/`, command line `src/scripts/backup.ts`
 | Restore into the wrong database | A restore refuses `NODE_ENV=production`, requires `DRILL_CONFIRM_ISOLATED=yes`, refuses any target equal to `DATABASE_URL` / `DIRECT_URL` / `BACKUP_DATABASE_URL`, and refuses a target that already has tables. It runs in a single transaction. |
 | Credentials leaking | Passwords reach pg tools only through `PGPASSWORD`, never argv; tool output is scrubbed of URLs, user, host and password before it is logged or recorded. No command is built from configuration (the old `eval` is gone). |
 | A backup that silently fails | A failed run is recorded as a failed `BackupRecord`, and the GitHub Actions run that triggered it fails, so GitHub emails the owner. |
-| Abuse of the trigger | `POST /internal/backups/run` takes no input and runs only the fixed runner. HMAC-SHA256 over method, path and timestamp (5-minute window, constant-time), closed without a secret, rate-limited, one run at a time (advisory lock) and none within 20 hours of a success — a leaked or replayed request can cause at most one extra backup a day. |
+| Abuse of the trigger | `POST /internal/backups/run` takes no input and runs only the fixed runner. HMAC-SHA256 over method, path and timestamp (5-minute window, constant-time), closed without a secret, rate-limited, one run at a time (advisory lock) and none within 12 hours of a success — a leaked or replayed request can cause at most one extra backup a day. |
 | A backup that cannot be restored | CI takes a real backup and restores it into an empty PostgreSQL on every pull request. |
 | Forged or leaked backup records | `/api/v1/phase-o/monitoring/backups` (GET and POST) is platform authority only — the owner or `SUPER_ADMIN`; no club role. |
 
@@ -135,14 +135,14 @@ restore key or the decryption key. `scripts/backup-trigger.js`:
    60 minutes, which also keeps the instance awake.
 
 It exits 0 when the backup succeeded, or when one already succeeded within the
-last 20 hours; otherwise 1, so a failed backup is a failed workflow run and
+last 12 hours; otherwise 1, so a failed backup is a failed workflow run and
 GitHub emails the owner.
 
 ### The trigger
 
 | | |
 |---|---|
-| `POST /internal/backups/run` | 202 `{id, state:"running"}` — started. 409 `{id, state:"running"}` — one is already running. 429 `{state:"recent", lastSuccessAt}` — one succeeded less than 20 hours ago. 401 `{error:"unauthorized"}`. 400 — a body or query string was sent. 503 — no trigger secret, or the backup is not configured. |
+| `POST /internal/backups/run` | 202 `{id, state:"running"}` — started. 409 `{id, state:"running"}` — one is already running. 429 `{state:"recent", lastSuccessAt}` — one succeeded less than 12 hours ago. 401 `{error:"unauthorized"}`. 400 — a body or query string was sent. 503 — no trigger secret, or the backup is not configured. |
 | `GET /internal/backups/runs/:id` | 200 `{id, state, startedAt, finishedAt, ok}` with `state` = `running`, `succeeded` or `failed` (a run unfinished after 90 minutes reads `failed`). 404 for an unknown or malformed id. |
 
 Both need `X-Backup-Timestamp` (Unix seconds, within 5 minutes of the server)

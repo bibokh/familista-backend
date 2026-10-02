@@ -29,6 +29,7 @@ import {
   buildObjectKey, clubIdFromKey, getObjectStore, sha256,
   DEFAULT_READ_TTL_SECONDS, type SignedUrl,
 } from './object-store';
+import { assertClubKey } from '../../security/storage-keys';
 
 /** What a caller supplies to store one object. */
 export interface CreateMediaInput {
@@ -112,6 +113,7 @@ export async function createMediaAsset(input: CreateMediaInput) {
     extension: EXT[input.mimeType] ?? null,
   });
 
+  assertClubKey(key, input.clubId); // R10: under this club's prefix, before the store is asked
   const put = await store.putObject({ key, body: input.body, contentType: input.mimeType });
 
   const row = await prisma.mediaAsset.create({

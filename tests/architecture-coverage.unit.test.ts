@@ -120,8 +120,27 @@ describe('the repository', () => {
   });
 
   it('the coverage counts match the ratchet exactly (tighten it when a row closes)', () => {
-    expect(a.coverage).toEqual({ C: 25, P: 12, U: 1 });
+    expect(a.coverage).toEqual({ C: 32, P: 6, U: 0 });
     expect(map.ratchet).toEqual({ U: a.coverage.U, P: a.coverage.P });
+  });
+
+  it('rows closed by Batch 6 (R9, R10, R12, R13) are covered, and say by which control', () => {
+    const covered = (id: number, ctl: string) => {
+      expect(map.boundaries[id].coverage).toBe('C');
+      expect(map.boundaries[id].controls).toContain(ctl);
+    };
+    covered(19, 'redis-private-only');
+    covered(20, 'storage-key-club-prefixed');
+    covered(21, 'worker-channel-authenticated');
+    covered(26, 'email-transport-tls');
+    covered(28, 'secret-rotation-runbook');
+    covered(32, 'media-dr-defined');
+    covered(34, 'log-redaction');
+    covered(35, 'db-audit-append-only');
+    // PostgreSQL stays partial until row-level security (R14), but carries R9.
+    expect(map.boundaries[18].coverage).toBe('P');
+    expect(map.boundaries[18].controls).toContain('db-audit-append-only');
+    expect(map.boundaries[18].plannedIn).toBe('Batch 7 (R14)');
   });
 
   it('rows closed by R1a–R2 and Batches 1, 4 and 5 are covered, and say by which control', () => {
@@ -191,7 +210,7 @@ describe('coverage per component (Infrastructure City)', () => {
     expect(cov.stripe).toEqual({ state: 'C', rows: [{ id: 25, coverage: 'C' }] });
     expect(cov.anthropic.state).toBe('C'); // row 10, closed by R3 (Batch 5)
     expect(cov['platform-core']).toEqual({ state: 'P', rows: [{ id: 4, coverage: 'C' }, { id: 5, coverage: 'P' }, { id: 6, coverage: 'C' }] });
-    expect(cov['object-store'].state).toBe('U'); // row 32: media disaster recovery
+    expect(cov['object-store'].state).toBe('C'); // rows 20 and 32, closed by R10 (Batch 6)
   });
 
   it('the city shows it in the component inspector, translated', () => {

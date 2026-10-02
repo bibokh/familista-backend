@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-02T19:07:52.768Z",
+  "generatedAt": "2026-10-02T23:07:50.910Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -121,47 +121,47 @@
       {
         "route": "GET /api/health",
         "file": "src/app.ts",
-        "line": 236
+        "line": 243
       },
       {
         "route": "GET /app/*",
         "file": "src/app.ts",
-        "line": 310
+        "line": 317
       },
       {
         "route": "GET /healthz",
         "file": "src/app.ts",
-        "line": 237
+        "line": 244
       },
       {
         "route": "GET /internal/backups/runs/:id",
         "file": "src/app.ts",
-        "line": 246
+        "line": 253
       },
       {
         "route": "GET /invite",
         "file": "src/app.ts",
-        "line": 300
+        "line": 307
       },
       {
         "route": "GET /invite/*",
         "file": "src/app.ts",
-        "line": 300
+        "line": 307
       },
       {
         "route": "GET /reset-password",
         "file": "src/app.ts",
-        "line": 290
+        "line": 297
       },
       {
         "route": "POST /internal/backups/run",
         "file": "src/app.ts",
-        "line": 245
+        "line": 252
       },
       {
         "route": "POST /internal/video/transcode-callback",
         "file": "src/app.ts",
-        "line": 167
+        "line": 168
       }
     ],
     "mounts": [
@@ -1760,13 +1760,13 @@
     },
     "boundaries": 38,
     "coverage": {
-      "C": 25,
-      "P": 12,
-      "U": 1
+      "C": 32,
+      "P": 6,
+      "U": 0
     },
     "ratchet": {
-      "U": 1,
-      "P": 12
+      "U": 0,
+      "P": 6
     },
     "rows": {
       "1": "P",
@@ -1787,23 +1787,23 @@
       "16": "C",
       "17": "P",
       "18": "P",
-      "19": "P",
-      "20": "P",
+      "19": "C",
+      "20": "C",
       "21": "C",
       "22": "C",
       "23": "C",
       "24": "C",
       "25": "C",
-      "26": "P",
+      "26": "C",
       "27": "C",
-      "28": "P",
+      "28": "C",
       "29": "C",
       "30": "C",
       "31": "C",
-      "32": "U",
+      "32": "C",
       "33": "C",
-      "34": "P",
-      "35": "P",
+      "34": "C",
+      "35": "C",
       "36": "C",
       "37": "C",
       "38": "C"
@@ -2027,8 +2027,9 @@
     },
     {
       "id": "db-audit-append-only",
-      "status": "ABSENT",
-      "evidence": "prisma/migrations"
+      "status": "PRESENT",
+      "evidence": "prisma/migrations/20261003100000_audit_append_only/migration.sql",
+      "note": "SecurityAuditEvent, AIAudit, DeviceSecurityEvent, SecurityEvent, AiEgressRecord refuse UPDATE, DELETE and TRUNCATE in the database (SecurityEvent: DELETE after 90 days; AiEgressRecord: one completion), proven on real PostgreSQL in CI."
     },
     {
       "id": "ci-least-privilege",
@@ -2117,7 +2118,7 @@
       "id": "backup-trigger-authenticated",
       "status": "PRESENT",
       "evidence": "src/security/backup/backup-trigger.ts",
-      "note": "The backup trigger takes no input, authenticates by HMAC-SHA256 with a 5-minute window and constant-time comparison, is closed without a secret, runs one backup at a time and none within 20 hours of a success."
+      "note": "The backup trigger takes no input, authenticates by HMAC-SHA256 with a 5-minute window and constant-time comparison, is closed without a secret, runs one backup at a time and none within 12 hours of a success."
     },
     {
       "id": "realtime-session-revocation",
@@ -2162,6 +2163,54 @@
       "note": "Critical security events, cross-club access attempts, a broken audit chain, account lockouts, refresh-token reuse, brute-force runs and failed or stale backups are emailed to SECURITY_ALERT_EMAIL by one leased process, de-duplicated per rule (15 min) and capped per hour, with a daily digest; the email carries counts only."
     },
     {
+      "id": "storage-key-club-prefixed",
+      "status": "PRESENT",
+      "evidence": "src/security/storage-keys.ts",
+      "note": "Every object is written under its owner's prefix (club, white-label config or archive); traversal, absolute and unowned keys are refused at every adapter, a writer cannot write under another club, and a club object is never handed out as an unsigned public URL."
+    },
+    {
+      "id": "media-dr-defined",
+      "status": "PRESENT",
+      "evidence": "docs/security/disaster-recovery.md",
+      "note": "Media, Redis and region loss each have a written recovery decision, with a recovery time and point objective."
+    },
+    {
+      "id": "redis-private-only",
+      "status": "PRESENT",
+      "evidence": "render.yaml",
+      "note": "Redis is on the private network only (empty IP allow list, linked URL) and holds nothing persistent: every key is in one of 7 namespaces (ch, edge, lease, nonce, once, rl, ws-ticket)."
+    },
+    {
+      "id": "log-redaction",
+      "status": "PRESENT",
+      "evidence": "src/utils/log-redaction.ts",
+      "note": "Every log line, dev and prod, passes one format that replaces secrets and personal fields by name and masks tokens, keys, URL credentials and e-mail addresses by shape."
+    },
+    {
+      "id": "email-transport-tls",
+      "status": "PRESENT",
+      "evidence": "src/platform/email/providers/smtp.ts",
+      "note": "SMTP requires TLS on every port (STARTTLS is not optional), verifies the certificate and refuses anything below TLS 1.2."
+    },
+    {
+      "id": "secret-rotation-runbook",
+      "status": "PRESENT",
+      "evidence": "docs/security/secrets-rotation.md",
+      "note": "Each of the 29 variables set by hand in Render (sync: false) has an owner, an overlap and a check in the rotation runbook."
+    },
+    {
+      "id": "worker-channel-authenticated",
+      "status": "PRESENT",
+      "evidence": "src/middleware/vision-access.middleware.ts",
+      "note": "Vision and clip worker callbacks are verified by HMAC-SHA256 over method, path, timestamp and the raw body (5-minute window, 32+ character secret, closed without one); jobs sent to a worker are signed the same way; signed webhooks bypass the global body parsers."
+    },
+    {
+      "id": "security-policy-published",
+      "status": "PRESENT",
+      "evidence": "SECURITY.md",
+      "note": "A private vulnerability-reporting channel, response targets and safe-harbour testing rules are published."
+    },
+    {
       "id": "architecture-fully-mapped",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
@@ -2171,7 +2220,7 @@
       "id": "coverage-ratchet",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "25 covered, 12 partial, 1 uncovered; uncovered may not exceed 1, and partial + uncovered may not exceed 13."
+      "note": "32 covered, 6 partial, 0 uncovered; uncovered may not exceed 0, and partial + uncovered may not exceed 6."
     }
   ],
   "secrets": {
@@ -2501,7 +2550,6 @@
         "src/auth-prod/mfa.service.ts",
         "src/fabric/secrets/secret-store.ts",
         "src/identity/invitation.service.ts",
-        "src/middleware/vision-access.middleware.ts",
         "src/security-l/attestation.service.ts",
         "src/security-n/signed-recommendations.service.ts",
         "src/security/backup/backup-trigger.ts",
@@ -2630,7 +2678,7 @@
     "ciPermissionsDeclared": true,
     "dependencyUpdates": true,
     "codeowners": true,
-    "securityPolicy": false
+    "securityPolicy": true
   },
   "evidence": {
     "filesRead": [
@@ -2639,6 +2687,9 @@
       ".github/workflows/ci.yml",
       ".github/workflows/deploy.yml",
       ".gitleaksignore",
+      "SECURITY.md",
+      "docs/security/disaster-recovery.md",
+      "docs/security/secrets-rotation.md",
       "package-lock.json",
       "prisma/migrations",
       "prisma/schema.prisma",
@@ -2656,14 +2707,21 @@
       "src/cyber-defense/coverage-map.json",
       "src/cyber-defense/lockout-shadow.ts",
       "src/data/ai-models.seed.ts",
+      "src/fabric/media/media-asset.service.ts",
+      "src/fabric/media/object-store.ts",
       "src/fabric/secrets/keyring.ts",
       "src/federated/federated.service.ts",
       "src/infra/background-workers.ts",
+      "src/lib/storage/storage-local.adapter.ts",
+      "src/lib/storage/storage-s3.adapter.ts",
       "src/middleware/auth.middleware.ts",
       "src/middleware/device-auth.middleware.ts",
       "src/middleware/rate-limit.middleware.ts",
+      "src/middleware/raw-body-paths.ts",
       "src/middleware/tenant-guard.middleware.ts",
+      "src/middleware/vision-access.middleware.ts",
       "src/notifications/notifications.service.ts",
+      "src/platform/email/providers/smtp.ts",
       "src/platform/email/templates/security-alert.ts",
       "src/platform/intelligence/agent-jobs.ts",
       "src/platform/intelligence/anthropic-provider.ts",
@@ -2727,6 +2785,7 @@
       "src/routes/telemetry.routes.ts",
       "src/routes/training.routes.ts",
       "src/routes/transfer-market.routes.ts",
+      "src/routes/vision-engine.routes.ts",
       "src/routes/vision.routes.ts",
       "src/security-n/signed-recommendations.service.ts",
       "src/security/ai-approval.service.ts",
@@ -2741,7 +2800,9 @@
       "src/security/outbound-url-guard.ts",
       "src/security/security-alerts.ts",
       "src/security/security-event.service.ts",
+      "src/security/storage-keys.ts",
       "src/security/worker-callback.ts",
+      "src/services/admin-asset.service.ts",
       "src/services/ai-model-promotion.service.ts",
       "src/services/ai-model-registry.service.ts",
       "src/services/ai-orchestrator.service.ts",
@@ -2749,7 +2810,12 @@
       "src/services/device-auth.service.ts",
       "src/services/membership.service.ts",
       "src/services/stripe.service.ts",
+      "src/services/video-hls.service.ts",
+      "src/services/vision-clip.adapter.ts",
+      "src/services/vision-inference.adapter.ts",
       "src/types/ai-engine.types.ts",
+      "src/utils/log-redaction.ts",
+      "src/utils/logger.ts",
       "src/utils/password.ts",
       "src/video/video-asset.service.ts",
       "src/workers/ai-agent.worker.ts",
@@ -2757,9 +2823,9 @@
     ]
   },
   "counts": {
-    "controlsPresent": 58,
+    "controlsPresent": 67,
     "controlsPartial": 1,
-    "controlsAbsent": 3,
+    "controlsAbsent": 2,
     "cryptoUses": 10
   }
 }

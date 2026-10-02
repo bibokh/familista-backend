@@ -1,13 +1,17 @@
 import { recordOutcome } from '../infra/outcome-meter';
 import winston from 'winston';
 import { config } from '../config';
+import { redactFormat } from './log-redaction';
 
 const { combine, timestamp, colorize, printf, json, errors } = winston.format;
 
+// Cyber Defense R12: every line passes redaction (utils/log-redaction.ts) after
+// the error's stack is extracted and before it is formatted, in both formats.
 const devFormat = combine(
-  colorize({ all: true }),
   timestamp({ format: 'HH:mm:ss' }),
   errors({ stack: true }),
+  redactFormat(),
+  colorize({ all: true }),
   printf(({ level, message, timestamp, stack, ...meta }) => {
     const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
     return `${timestamp} [${level}] ${message}${metaStr}${stack ? `\n${stack}` : ''}`;
@@ -17,6 +21,7 @@ const devFormat = combine(
 const prodFormat = combine(
   timestamp(),
   errors({ stack: true }),
+  redactFormat(),
   json()
 );
 
