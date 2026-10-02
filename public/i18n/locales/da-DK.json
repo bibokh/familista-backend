@@ -104,7 +104,8 @@
       "recoveryCode": "Én gendannelseskode",
       "needCodes": "Opret først nye gendannelseskoder — der skal mindst to til for at kræve en kode ved login.",
       "enforcedNow": "Der kræves nu en kode ved hvert login.",
-      "unenforcedNow": "Der kræves ikke længere en kode ved login."
+      "unenforcedNow": "Der kræves ikke længere en kode ved login.",
+      "required": "Totrinslogin er påkrævet for administratorkonti og kan ikke slås fra."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Dit login er udløbet. Indtast din adgangskode igen.",
       "unavailable": "Totrinslogin er ikke tilgængeligt på serveren lige nu. Prøv igen senere.",
       "failed": "Noget gik galt. Prøv igen."
+    },
+    "mfaSetup": {
+      "title": "Konfigurer totrinslogin",
+      "sub": "Administratorkonti skal bruge totrinslogin. Tilføj Familista til din godkendelsesapp, gem dine gendannelseskoder, og log derefter ind igen.",
+      "done": "Færdig — log ind igen"
     }
   },
   "league": {

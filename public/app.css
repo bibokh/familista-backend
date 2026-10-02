@@ -17168,6 +17168,12 @@ body.club-theme .set-mfa-skel{
 @media (max-width:520px){
   body.club-theme .set-mfa-codes{ grid-template-columns:minmax(0,1fr); }
 }
+/* R7: the same card inside the sign-in screen, for an administrator who must
+   enrol before anything else. It fits the sign-in column rather than Settings'. */
+body.club-theme #login-screen .set-mfa{ margin:4px 0 16px; text-align:start; }
+body.club-theme #login-screen .set-mfa-key,
+body.club-theme #login-screen .set-mfa-codes,
+body.club-theme #login-screen .set-mfa-form{ max-width:100%; }
 
 @media (max-width:1024px){
   body.club-theme .set-shell{ grid-template-columns:minmax(0,1fr); gap:14px; padding:16px 16px 32px; }

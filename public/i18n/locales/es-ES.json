@@ -104,7 +104,8 @@
       "recoveryCode": "Un código de recuperación",
       "needCodes": "Genera primero nuevos códigos de recuperación: se necesitan al menos dos para exigir un código al iniciar sesión.",
       "enforcedNow": "Ahora se exige un código en cada inicio de sesión.",
-      "unenforcedNow": "Ya no se exige un código al iniciar sesión."
+      "unenforcedNow": "Ya no se exige un código al iniciar sesión.",
+      "required": "El inicio de sesión en dos pasos es obligatorio para las cuentas de administrador y no se puede desactivar."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Tu inicio de sesión ha caducado. Vuelve a introducir tu contraseña.",
       "unavailable": "El inicio de sesión en dos pasos no está disponible en el servidor en este momento. Inténtalo más tarde.",
       "failed": "Algo ha salido mal. Inténtalo de nuevo."
+    },
+    "mfaSetup": {
+      "title": "Configura el inicio de sesión en dos pasos",
+      "sub": "Las cuentas de administrador deben usar el inicio de sesión en dos pasos. Añade Familista a tu aplicación de autenticación, guarda tus códigos de recuperación y vuelve a iniciar sesión.",
+      "done": "Listo — volver a iniciar sesión"
     }
   },
   "league": {

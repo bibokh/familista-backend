@@ -21,10 +21,10 @@
 // Patentable boundary preserved.
 
 import { createHmac, timingSafeEqual } from 'crypto';
-import jwt from 'jsonwebtoken';
 import { prisma } from '../config/database';
 import { config } from '../config';
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/errors';
+import { signToken, verifyToken } from '../security/jwt-tokens';
 
 const MAX_HANDSHAKE_SKEW_SEC = 5 * 60;       // ±5 min clock skew
 const DEVICE_JWT_TTL_SEC     = 60 * 60 * 4;  // 4 hours
@@ -111,7 +111,7 @@ export async function issueDeviceToken(req: DeviceAuthRequest): Promise<DeviceAu
     exp:               now + DEVICE_JWT_TTL_SEC,
   };
 
-  const token = jwt.sign(payload, config.jwt.secret, { algorithm: 'HS256' });
+  const token = signToken('device', payload);
 
   return {
     token,
@@ -124,7 +124,7 @@ export async function issueDeviceToken(req: DeviceAuthRequest): Promise<DeviceAu
 
 export function verifyDeviceToken(token: string): DeviceJwtPayload {
   try {
-    const payload = jwt.verify(token, config.jwt.secret) as DeviceJwtPayload;
+    const payload = verifyToken<DeviceJwtPayload>('device', token);
     if (payload.kind !== 'device') throw new UnauthorizedError('Not a device token');
     return payload;
   } catch (err) {

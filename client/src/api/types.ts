@@ -23,12 +23,34 @@ export interface AuthUser {
   clubName?: string;
 }
 
+/** GET /auth/me — the session's identity and display profile. */
+export interface MeResponse {
+  id: string;
+  email: string;
+  role: string;
+  clubId: string;
+  firstName: string | null;
+  lastName: string | null;
+  clubName: string | null;
+}
+
+/** A sign-in response user, which carries first and last names rather than `name`. */
+export interface LoginUser {
+  id: string;
+  email: string;
+  role: string;
+  clubId: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  clubName?: string | null;
+}
+
 export interface AuthResponse {
   tokens: {
     accessToken: string;
     refreshToken: string;
   };
-  user: AuthUser;
+  user: LoginUser;
 }
 
 // ── Player ───────────────────────────────────────────────────────────────────

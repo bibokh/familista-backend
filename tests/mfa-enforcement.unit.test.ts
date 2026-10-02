@@ -144,6 +144,7 @@ import { LOGIN_CHALLENGE_MAX_ATTEMPTS, LOGIN_CHALLENGE_TTL_MS } from '../src/aut
 import type { FamilistaEvent } from '../src/fabric/event-envelope';
 import { setEventTransport, type EventTransport } from '../src/fabric/event-bus';
 import { resetSecurityCollectors } from '../src/cyber-defense/collectors';
+import { signToken } from '../src/security/jwt-tokens';
 
 const app = createApp();
 const OWNER = 'u-owner';
@@ -151,7 +152,7 @@ const COACH = 'u-coach';
 const EMAIL = 'owner@familista.test';
 const PASSWORD = 'right-password';
 const tokenFor = (id: string, role: string) =>
-  jwt.sign({ sub: id, role }, process.env.JWT_ACCESS_SECRET, { expiresIn: '10m' });
+  signToken('access', { sub: id, role }, { expiresIn: '10m' });
 const asOwner = (r: { set: (k: string, v: string) => unknown }) => r.set('Authorization', `Bearer ${tokenFor(OWNER, 'SUPER_ADMIN')}`);
 const get = (p: string) => asOwner(request(app).get(`/api/v1${p}`)) as ReturnType<typeof request>;
 const post = (p: string, body: Row = {}) => (asOwner(request(app).post(`/api/v1${p}`)) as ReturnType<typeof request>).send(body);
@@ -653,7 +654,8 @@ describe('no other way to a session for an existing account', () => {
 
   it('the password step asks before it records, issues or announces anything', () => {
     const body = AUTH.slice(AUTH.indexOf('export async function loginUser'), AUTH.indexOf('export async function completeMfaLogin'));
-    const gate = body.indexOf('await loginSecondFactor(user.id)');
+    // R7 passes the role too, so administrators can be required to give a code.
+    const gate = body.search(/await loginSecondFactor\(user\.id(?:, user\.role)?\)/);
     expect(gate).toBeGreaterThan(body.indexOf('verifyPassword('));
     for (const after of ['lastLoginAt', 'issueTokens(user)', 'publishUserLogin(']) {
       expect(`${after}: ${body.indexOf(after) > gate}`).toBe(`${after}: true`);
@@ -664,7 +666,8 @@ describe('no other way to a session for an existing account', () => {
     // register (new account), invited register (new account), password login
     // (after the gate), second step, refresh (continues a session one of those
     // began). None signs an existing account in on a password alone.
-    expect((AUTH.match(/await issueTokens\(user\)|return issueTokens\(user\)/g) ?? []).length).toBe(5);
+    // R7: the second step stamps `passedCode`, and refresh carries it forward.
+    expect((AUTH.match(/(?:await|return) issueTokens\(user(?:, \{ passedCode: [^}]+\})?\)/g) ?? []).length).toBe(5);
     expect(AUTH.match(/^async function issueTokens/m)).not.toBeNull();
     expect(AUTH).not.toMatch(/export (async )?function issueTokens/);
   });

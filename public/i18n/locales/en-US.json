@@ -104,7 +104,8 @@
       "recoveryCode": "One recovery code",
       "needCodes": "Issue new recovery codes first — at least two are needed to require a code at sign-in.",
       "enforcedNow": "A code is now required at every sign-in.",
-      "unenforcedNow": "A code is no longer required at sign-in."
+      "unenforcedNow": "A code is no longer required at sign-in.",
+      "required": "Two-step sign-in is required for administrator accounts and cannot be turned off."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Your sign-in expired. Enter your password again.",
       "unavailable": "Two-step sign-in is unavailable on the server right now. Try again later.",
       "failed": "Something went wrong. Please try again."
+    },
+    "mfaSetup": {
+      "title": "Set up two-step sign-in",
+      "sub": "Administrator accounts must use two-step sign-in. Add Familista to your authenticator app and save your recovery codes, then sign in again.",
+      "done": "Done — sign in again"
     }
   },
   "league": {

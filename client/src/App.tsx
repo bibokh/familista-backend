@@ -31,7 +31,10 @@ const queryClient = new QueryClient({
 });
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+  // The session is being restored from its cookie: wait rather than bounce a
+  // signed-in person to the sign-in page on every reload.
+  if (isLoading) return <PageLoader />;
   if (!isAuthenticated) {
     return <Navigate to="/app/login" replace />;
   }

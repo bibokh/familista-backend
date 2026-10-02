@@ -93,12 +93,13 @@ import {
 } from '../src/auth-prod/mfa.service';
 import fs from 'fs';
 import path from 'path';
+import { signToken } from '../src/security/jwt-tokens';
 
 const app = createApp();
 const OWNER = 'u-owner';
 const COACH = 'u-coach';
 const tokenFor = (id: string, role: string) =>
-  jwt.sign({ sub: id, role }, process.env.JWT_ACCESS_SECRET, { expiresIn: '10m' });
+  signToken('access', { sub: id, role }, { expiresIn: '10m' });
 const asOwner = (r: { set: (k: string, v: string) => unknown }) => r.set('Authorization', `Bearer ${tokenFor(OWNER, 'SUPER_ADMIN')}`);
 const get = (p: string) => asOwner(request(app).get(`/api/v1${p}`)) as ReturnType<typeof request>;
 const post = (p: string, body: Row = {}) => (asOwner(request(app).post(`/api/v1${p}`)) as ReturnType<typeof request>).send(body);

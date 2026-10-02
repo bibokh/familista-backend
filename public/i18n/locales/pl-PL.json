@@ -104,7 +104,8 @@
       "recoveryCode": "Jeden kod odzyskiwania",
       "needCodes": "Najpierw wygeneruj nowe kody odzyskiwania — potrzebne są co najmniej dwa, aby wymagać kodu przy logowaniu.",
       "enforcedNow": "Kod jest teraz wymagany przy każdym logowaniu.",
-      "unenforcedNow": "Kod nie jest już wymagany przy logowaniu."
+      "unenforcedNow": "Kod nie jest już wymagany przy logowaniu.",
+      "required": "Logowanie dwuetapowe jest wymagane dla kont administratorów i nie można go wyłączyć."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Logowanie wygasło. Wpisz ponownie hasło.",
       "unavailable": "Logowanie dwuetapowe jest teraz niedostępne na serwerze. Spróbuj ponownie później.",
       "failed": "Coś poszło nie tak. Spróbuj ponownie."
+    },
+    "mfaSetup": {
+      "title": "Skonfiguruj logowanie dwuetapowe",
+      "sub": "Konta administratorów muszą używać logowania dwuetapowego. Dodaj Familista do aplikacji uwierzytelniającej, zapisz kody odzyskiwania, a następnie zaloguj się ponownie.",
+      "done": "Gotowe — zaloguj się ponownie"
     }
   },
   "league": {

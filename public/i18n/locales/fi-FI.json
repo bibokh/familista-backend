@@ -104,7 +104,8 @@
       "recoveryCode": "Yksi palautuskoodi",
       "needCodes": "Luo ensin uudet palautuskoodit — koodin vaatiminen kirjautuessa edellyttää vähintään kahta.",
       "enforcedNow": "Koodi vaaditaan nyt jokaisella kirjautumiskerralla.",
-      "unenforcedNow": "Koodia ei enää vaadita kirjautuessa."
+      "unenforcedNow": "Koodia ei enää vaadita kirjautuessa.",
+      "required": "Kaksivaiheinen kirjautuminen on pakollinen ylläpitäjätileille, eikä sitä voi poistaa käytöstä."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Kirjautumisesi vanheni. Anna salasanasi uudelleen.",
       "unavailable": "Kaksivaiheinen kirjautuminen ei ole juuri nyt käytettävissä palvelimella. Yritä myöhemmin uudelleen.",
       "failed": "Jokin meni vikaan. Yritä uudelleen."
+    },
+    "mfaSetup": {
+      "title": "Ota kaksivaiheinen kirjautuminen käyttöön",
+      "sub": "Ylläpitäjätilien on käytettävä kaksivaiheista kirjautumista. Lisää Familista todennussovellukseesi, tallenna palautuskoodit ja kirjaudu sitten uudelleen.",
+      "done": "Valmis — kirjaudu uudelleen"
     }
   },
   "league": {

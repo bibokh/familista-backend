@@ -11,6 +11,7 @@ import { createHash } from 'crypto';
 import { prisma } from '../config/database';
 import { logger } from '../utils/logger';
 import { logSecurityEvent } from './security-event.service';
+import { TooManyRequestsError } from '../utils/errors';
 
 // Exported so Cyber Defense's shadow evaluator (`cyber-defense/lockout-shadow.ts`)
 // measures against these exact thresholds rather than a copy of them.
@@ -34,7 +35,13 @@ export interface RecordAttemptArgs {
 }
 
 export function recordAttempt(args: RecordAttemptArgs): void {
-  // Fire-and-forget; failure here never blocks login.
+  // Fire-and-forget; failure here never blocks login — not even a synchronous one.
+  try { writeAttempt(args); } catch (err) {
+    logger.warn('[login-attempt] record failed', { err: (err as Error).message });
+  }
+}
+
+function writeAttempt(args: RecordAttemptArgs): void {
   prisma.loginAttempt.create({
     data: {
       emailHash: emailHash(args.email),
@@ -94,8 +101,6 @@ export async function assertNotLocked(email: string, ipAddress: string | null | 
       ipAddress: ipAddress ?? null,
       payload: { reason: byEmail ? 'email_threshold' : 'ip_threshold' },
     });
-    const err = new Error('Too many failed login attempts. Try again later.');
-    (err as Error & { statusCode?: number }).statusCode = 429;
-    throw err;
+    throw new TooManyRequestsError('Too many failed login attempts. Try again later.');
   }
 }

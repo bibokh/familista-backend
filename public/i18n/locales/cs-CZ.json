@@ -104,7 +104,8 @@
       "recoveryCode": "Jeden záložní kód",
       "needCodes": "Nejprve vygenerujte nové záložní kódy — k vyžadování kódu při přihlášení jsou potřeba alespoň dva.",
       "enforcedNow": "Kód je nyní vyžadován při každém přihlášení.",
-      "unenforcedNow": "Kód už při přihlášení není vyžadován."
+      "unenforcedNow": "Kód už při přihlášení není vyžadován.",
+      "required": "Dvoufázové přihlášení je pro účty správců povinné a nelze je vypnout."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Platnost přihlášení vypršela. Zadejte znovu heslo.",
       "unavailable": "Dvoufázové přihlášení je teď na serveru nedostupné. Zkuste to později.",
       "failed": "Něco se pokazilo. Zkuste to znovu."
+    },
+    "mfaSetup": {
+      "title": "Nastavte dvoufázové přihlášení",
+      "sub": "Účty správců musí používat dvoufázové přihlášení. Přidejte Familista do ověřovací aplikace, uložte si záložní kódy a pak se znovu přihlaste.",
+      "done": "Hotovo — přihlásit znovu"
     }
   },
   "league": {

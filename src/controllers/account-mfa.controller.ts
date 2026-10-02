@@ -4,8 +4,8 @@
 // switch to require a code at every sign-in (`auth-prod/mfa-enforcement`),
 // switched on only with a working app code AND a working recovery code.
 //
-// Mounted under /auth/mfa, each route behind `authenticate` and the owner check
-// below. The lifecycle itself is `auth-prod/mfa.service.ts`.
+// Mounted under /auth/mfa, each route behind `authenticate` and the
+// administrator check below (R7 widened it from the owner alone). The lifecycle itself is `auth-prod/mfa.service.ts`.
 //
 // A response that carries a secret or recovery codes is marked `no-store`, so
 // no cache between here and the browser keeps a copy.
@@ -16,6 +16,7 @@ import * as mfa from '../auth-prod/mfa.service';
 import * as mfaEnforcement from '../auth-prod/mfa-enforcement.service';
 import { sendSuccess, sendCreated } from '../utils/response';
 import { BadRequestError, ForbiddenError } from '../utils/errors';
+import { isAdminRole } from '../auth-prod/admin-mfa';
 
 const codeSchema = z.object({ code: z.string().trim().min(6).max(32) });
 
@@ -33,10 +34,15 @@ function noStore(res: Response): void {
   res.setHeader('Cache-Control', 'no-store');
 }
 
-/** The platform owner only: SUPER_ADMIN or an active PlatformAdmin, as `authenticate` resolved it. */
-export function requirePlatformOwner(req: Request, _res: Response, next: NextFunction): void {
-  if (req.user?.isPlatformOwner) return next();
-  next(new ForbiddenError('Two-step sign-in setup here is for the platform owner'));
+/**
+ * Who may set up two-step sign-in here: the platform owner (SUPER_ADMIN or an
+ * active PlatformAdmin, as `authenticate` resolved it) and — R7 — a club
+ * administrator, because MFA_REQUIRED_FOR_ADMINS asks it of them and they must
+ * be able to enrol before and after it is switched on.
+ */
+export function requireMfaSelfService(req: Request, _res: Response, next: NextFunction): void {
+  if (req.user?.isPlatformOwner || isAdminRole(req.user?.role)) return next();
+  next(new ForbiddenError('Two-step sign-in setup here is for administrators'));
 }
 
 export async function status(req: Request, res: Response, next: NextFunction) {

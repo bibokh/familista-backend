@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-02T10:23:39.218Z",
+  "generatedAt": "2026-10-02T17:40:36.237Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
     "version": "1.0.0"
   },
   "apiSurface": {
-    "mountedRouters": 50,
-    "handlers": 739,
+    "mountedRouters": 51,
+    "handlers": 740,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -233,6 +233,13 @@
         "module": "invitation.routes",
         "handlers": 7,
         "public": 2,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/realtime",
+        "module": "realtime.routes",
+        "handlers": 1,
+        "public": 0,
         "routerWideAuth": true
       },
       {
@@ -764,10 +771,10 @@
       }
     },
     "authorization": {
-      "handlers": 739,
+      "handlers": 740,
       "byKind": {
         "public": 21,
-        "member": 348,
+        "member": 349,
         "scoped": 60,
         "roles": 235,
         "platform-owner": 75
@@ -929,6 +936,9 @@
           "member": 2,
           "platform-owner": 3
         },
+        "realtime.routes": {
+          "member": 1
+        },
         "scouting.routes": {
           "member": 6,
           "roles": 5
@@ -1027,7 +1037,7 @@
         "GET /analytics/risks": "roles:CLUB_ADMIN,HEAD_COACH,ASSISTANT_COACH,ANALYST",
         "GET /analytics/team": "roles:CLUB_ADMIN,HEAD_COACH,ASSISTANT_COACH,ANALYST",
         "GET /auth/me": "member",
-        "GET /auth/mfa": "scoped:requirePlatformOwner",
+        "GET /auth/mfa": "scoped:requireMfaSelfService",
         "GET /auth/reset-password/:token/validate": "public",
         "GET /automation/agents/jobs": "member",
         "GET /automation/agents/jobs/:id": "member",
@@ -1417,11 +1427,11 @@
         "POST /auth/login": "public",
         "POST /auth/login/mfa": "public",
         "POST /auth/logout": "public",
-        "POST /auth/mfa/confirm": "scoped:requirePlatformOwner",
-        "POST /auth/mfa/disable": "scoped:requirePlatformOwner",
-        "POST /auth/mfa/enforcement": "scoped:requirePlatformOwner",
-        "POST /auth/mfa/enroll": "scoped:requirePlatformOwner",
-        "POST /auth/mfa/recovery-codes": "scoped:requirePlatformOwner",
+        "POST /auth/mfa/confirm": "scoped:requireMfaSelfService",
+        "POST /auth/mfa/disable": "scoped:requireMfaSelfService",
+        "POST /auth/mfa/enforcement": "scoped:requireMfaSelfService",
+        "POST /auth/mfa/enroll": "scoped:requireMfaSelfService",
+        "POST /auth/mfa/recovery-codes": "scoped:requireMfaSelfService",
         "POST /auth/refresh": "public",
         "POST /auth/register": "public",
         "POST /auth/reset-password": "public",
@@ -1638,6 +1648,7 @@
         "POST /provisioning/firmware/manifests": "platform-owner",
         "POST /provisioning/firmware/releases": "platform-owner",
         "POST /provisioning/firmware/releases/:releaseId/advance": "platform-owner",
+        "POST /realtime/ticket": "member",
         "POST /scouting": "roles:...SCOUT_ROLES",
         "POST /security/approvals/:approvalId/approve": "roles:SUPER_ADMIN,CLUB_ADMIN,HEAD_COACH",
         "POST /security/approvals/:approvalId/reject": "roles:SUPER_ADMIN,CLUB_ADMIN,HEAD_COACH",
@@ -1719,7 +1730,7 @@
   },
   "architecture": {
     "components": {
-      "routers": 50,
+      "routers": 51,
       "srcDomains": 76,
       "prismaSections": 64,
       "packages": 28,
@@ -1734,18 +1745,18 @@
     },
     "boundaries": 38,
     "coverage": {
-      "C": 17,
-      "P": 15,
+      "C": 18,
+      "P": 14,
       "U": 6
     },
     "ratchet": {
       "U": 6,
-      "P": 15
+      "P": 14
     },
     "rows": {
       "1": "P",
       "2": "P",
-      "3": "P",
+      "3": "C",
       "4": "C",
       "5": "P",
       "6": "C",
@@ -1840,13 +1851,19 @@
       "id": "mfa-required-at-login",
       "status": "PARTIAL",
       "evidence": "src/services/auth.service.ts",
-      "note": "Opt-in: required at sign-in only for an owner who switched it on (mfa-owner-enforcement-at-login)."
+      "note": "Required at sign-in for an owner who switched it on (mfa-owner-enforcement-at-login) and, with MFA_REQUIRED_FOR_ADMINS on, for administrators (mfa-required-for-admins); other roles opt in."
+    },
+    {
+      "id": "mfa-required-for-admins",
+      "status": "PRESENT",
+      "evidence": "src/auth-prod/admin-mfa.ts",
+      "note": "Administrators give a code at sign-in, or get a setup-only session until they enrol; in force only while MFA_REQUIRED_FOR_ADMINS=true."
     },
     {
       "id": "login-lockout",
-      "status": "PARTIAL",
+      "status": "PRESENT",
       "evidence": "src/security/login-attempt.service.ts",
-      "note": "0 enforcing caller(s) outside the lockout service."
+      "note": "Enforced in loginUser() before the password is checked; 1 caller(s) outside the lockout service."
     },
     {
       "id": "login-lockout-shadow",
@@ -1868,18 +1885,27 @@
     },
     {
       "id": "jwt-algorithm-pinned",
-      "status": "ABSENT",
-      "evidence": "src/middleware/auth.middleware.ts"
+      "status": "PRESENT",
+      "evidence": "src/security/jwt-tokens.ts",
+      "note": "HS256 on every sign and verify (2 verify site(s), one file); access, refresh, device and WebSocket tickets alike."
     },
     {
       "id": "jwt-issuer-validated",
-      "status": "ABSENT",
-      "evidence": "src/middleware/auth.middleware.ts"
+      "status": "PRESENT",
+      "evidence": "src/security/jwt-tokens.ts",
+      "note": "Issuer and a per-kind audience on every token; an unscoped token is honoured only if issued before 2026-11-01T00:00:00Z."
+    },
+    {
+      "id": "jwt-key-id",
+      "status": "PRESENT",
+      "evidence": "src/security/jwt-tokens.ts",
+      "note": "Every token names its key (a fingerprint, never the secret); the keyring holds the active and, during a rotation, the previous key."
     },
     {
       "id": "websocket-token-outside-url",
-      "status": "ABSENT",
-      "evidence": "src/realtime/match-ws.ts"
+      "status": "PRESENT",
+      "evidence": "src/realtime/ws-ticket.ts",
+      "note": "Sockets open with a 30-second single-use ticket (?ticket=), never the session token."
     },
     {
       "id": "tenant-guard",
@@ -2040,7 +2066,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "739 handler(s) classified: 21 public, 348 member, 60 scoped, 235 roles, 75 platform-owner; every member-level handler reviewed by name."
+      "note": "740 handler(s) classified: 21 public, 349 member, 60 scoped, 235 roles, 75 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2070,13 +2096,13 @@
       "id": "architecture-fully-mapped",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "364 discovered component(s) across 12 kinds, each declared against the 38 trust-boundary rows; a covered row's controls are all present."
+      "note": "365 discovered component(s) across 12 kinds, each declared against the 38 trust-boundary rows; a covered row's controls are all present."
     },
     {
       "id": "coverage-ratchet",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "17 covered, 15 partial, 6 uncovered; uncovered may not exceed 6, and partial + uncovered may not exceed 21."
+      "note": "18 covered, 14 partial, 6 uncovered; uncovered may not exceed 6, and partial + uncovered may not exceed 20."
     }
   ],
   "secrets": {
@@ -2454,6 +2480,7 @@
         "src/security/backup/backup-crypto.ts",
         "src/security/backup/backup-runner.ts",
         "src/security/backup/restore-drill.ts",
+        "src/security/jwt-tokens.ts",
         "src/security/login-attempt.service.ts",
         "src/security/refresh-token-hash.ts",
         "src/security/worker-callback.ts",
@@ -2495,25 +2522,14 @@
       "primitive": "jwt-sign",
       "algorithm": "explicit",
       "files": [
-        "src/services/device-auth.service.ts"
-      ]
-    },
-    {
-      "primitive": "jwt-sign",
-      "algorithm": "library-default-hs256",
-      "files": [
-        "src/services/auth.service.ts"
+        "src/security/jwt-tokens.ts"
       ]
     },
     {
       "primitive": "jwt-verify",
-      "algorithm": "not-pinned",
+      "algorithm": "pinned",
       "files": [
-        "src/middleware/auth.middleware.ts",
-        "src/middleware/device-auth.middleware.ts",
-        "src/middleware/rate-limit.middleware.ts",
-        "src/services/auth.service.ts",
-        "src/services/device-auth.service.ts"
+        "src/security/jwt-tokens.ts"
       ]
     },
     {
@@ -2561,6 +2577,8 @@
       "scripts/restore.sh",
       "scripts/rollback.sh",
       "src/app.ts",
+      "src/auth-prod/admin-mfa.ts",
+      "src/auth-prod/mfa-enforcement.service.ts",
       "src/auth-prod/mfa.service.ts",
       "src/controllers/internal-backup.controller.ts",
       "src/controllers/internal-video.controller.ts",
@@ -2570,6 +2588,7 @@
       "src/fabric/secrets/keyring.ts",
       "src/infra/background-workers.ts",
       "src/middleware/auth.middleware.ts",
+      "src/middleware/device-auth.middleware.ts",
       "src/middleware/rate-limit.middleware.ts",
       "src/middleware/tenant-guard.middleware.ts",
       "src/notifications/notifications.service.ts",
@@ -2578,6 +2597,7 @@
       "src/realtime/match-sse.ts",
       "src/realtime/match-ws.ts",
       "src/realtime/session-watch.ts",
+      "src/realtime/ws-ticket.ts",
       "src/routes/ai-ops.routes.ts",
       "src/routes/ai.routes.ts",
       "src/routes/analytics.routes.ts",
@@ -2617,6 +2637,7 @@
       "src/routes/player.routes.ts",
       "src/routes/predictive.routes.ts",
       "src/routes/provisioning.routes.ts",
+      "src/routes/realtime.routes.ts",
       "src/routes/scouting.routes.ts",
       "src/routes/security.routes.ts",
       "src/routes/sources.routes.ts",
@@ -2636,6 +2657,7 @@
       "src/security/backup/backup-run-store.ts",
       "src/security/backup/backup-trigger.ts",
       "src/security/backup/restore-drill.ts",
+      "src/security/jwt-tokens.ts",
       "src/security/login-attempt.service.ts",
       "src/security/outbound-url-guard.ts",
       "src/security/security-alerts.ts",
@@ -2651,9 +2673,9 @@
     ]
   },
   "counts": {
-    "controlsPresent": 43,
-    "controlsPartial": 2,
-    "controlsAbsent": 6,
-    "cryptoUses": 11
+    "controlsPresent": 49,
+    "controlsPartial": 1,
+    "controlsAbsent": 3,
+    "cryptoUses": 10
   }
 }

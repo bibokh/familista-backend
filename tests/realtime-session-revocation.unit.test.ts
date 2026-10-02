@@ -50,15 +50,18 @@ import { mountMatchWebSocket } from '../src/realtime/match-ws';
 import { mountMarketWebSocket } from '../src/realtime/market-ws';
 import { matchLiveSse } from '../src/realtime/match-sse';
 import { recheckSessions, watchedSessionCount, watchRequestSession } from '../src/realtime/session-watch';
+import { issueWsTicket } from '../src/realtime/ws-ticket';
+
+/** WebSockets open with a single-use ticket (R7); its claims are the session's. */
+const ticket = (sub: string, tv?: number) => issueWsTicket(sub, tv ?? null).ticket;
+import { signToken } from '../src/security/jwt-tokens';
 
 function addUser(id: string, tv = 0): UserRow {
   const u: UserRow = { id, email: `${id}@test.invalid`, role: 'HEAD_COACH', clubId: CLUB, isActive: true, currentClubId: null, currentTeamId: null, tokenVersion: tv, platformAdmin: null };
   users.set(id, u);
   return u;
 }
-const token = (sub: string, tv?: number) => jwt.sign(
-  { sub, email: `${sub}@test.invalid`, role: 'HEAD_COACH', clubId: CLUB, ...(tv === undefined ? {} : { tv }) },
-  config.jwt.secret, { expiresIn: '15m' });
+const token = (sub: string, tv?: number) => signToken('access', { sub, email: `${sub}@test.invalid`, role: 'HEAD_COACH', clubId: CLUB, ...(tv === undefined ? {} : { tv }) }, { expiresIn: '15m' });
 
 /** Ends a session the way the platform does: bump the version, drop the cached identity. */
 function endSession(id: string): void { users.get(id)!.tokenVersion += 1; forgetIdentity(id); }
@@ -125,13 +128,13 @@ describe.each([
 ])('%s', (_name, path) => {
   it('refuses to open with a session that has already ended', async () => {
     addUser('u-1', 1);
-    await expect(openWs(`${path}?token=${token('u-1', 0)}`)).rejects.toMatchObject({ status: 401 });
+    await expect(openWs(`${path}?ticket=${ticket('u-1', 0)}`)).rejects.toMatchObject({ status: 401 });
   });
 
   it('closes an open socket with 4401 the moment its session ends, and leaves other people connected', async () => {
     addUser('u-1', 0); addUser('u-2', 0);
-    const a = await openWs(`${path}?token=${token('u-1', 0)}`);
-    const b = await openWs(`${path}?token=${token('u-2', 0)}`);
+    const a = await openWs(`${path}?ticket=${ticket('u-1', 0)}`);
+    const b = await openWs(`${path}?ticket=${ticket('u-2', 0)}`);
     await a.hello;
     endSession('u-1');
     expect(await a.closed).toBe(4401);
@@ -141,7 +144,7 @@ describe.each([
 
   it('closes an open socket when the account is deactivated', async () => {
     addUser('u-1', 0);
-    const a = await openWs(`${path}?token=${token('u-1', 0)}`);
+    const a = await openWs(`${path}?ticket=${ticket('u-1', 0)}`);
     users.get('u-1')!.isActive = false; forgetIdentity('u-1');
     expect(await a.closed).toBe(4401);
   });
@@ -190,7 +193,7 @@ describe('streams behind authenticate (data-pulse, infrastructure, owner-trace, 
 describe('the timed re-check (backstop for a change nobody announced)', () => {
   it('closes a socket whose session ended without forgetIdentity being called', async () => {
     addUser('u-1', 0);
-    const a = await openWs(`/ws/market?token=${token('u-1', 0)}`);
+    const a = await openWs(`/ws/market?ticket=${ticket('u-1', 0)}`);
     users.get('u-1')!.tokenVersion = 7; // a direct database edit: no forget, no broadcast
     await new Promise((r) => setTimeout(r, 50));
     expect(a.ws.readyState).toBe(WebSocket.OPEN);
@@ -200,7 +203,7 @@ describe('the timed re-check (backstop for a change nobody announced)', () => {
 
   it('keeps connections open when the identity lookup itself fails', async () => {
     addUser('u-1', 0);
-    const a = await openWs(`/ws/market?token=${token('u-1', 0)}`);
+    const a = await openWs(`/ws/market?ticket=${ticket('u-1', 0)}`);
     failLookups = true;
     expect(await recheckSessions()).toBe(0);
     expect(a.ws.readyState).toBe(WebSocket.OPEN);
@@ -210,7 +213,7 @@ describe('the timed re-check (backstop for a change nobody announced)', () => {
 
   it('forgets a connection once it closes, so nothing is left watched', async () => {
     addUser('u-1', 0);
-    const a = await openWs(`/ws/market?token=${token('u-1', 0)}`);
+    const a = await openWs(`/ws/market?ticket=${ticket('u-1', 0)}`);
     a.ws.close(); await a.closed;
     await until(() => watchedSessionCount() === 0);
   });

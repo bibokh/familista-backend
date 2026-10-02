@@ -8,7 +8,7 @@
   },
   "ratchet": {
     "U": 6,
-    "P": 15
+    "P": 14
   },
   "boundaries": {
     "1": {
@@ -25,8 +25,8 @@
         "cors-allowlist",
         "cors-rejection-is-403"
       ],
-      "reason": "The React client keeps the access and refresh tokens in localStorage, so one XSS is persistent session theft.",
-      "plannedIn": "Batch 4 (R7)"
+      "reason": "The React client keeps nothing in browser storage (R7: access token in memory, refresh token in the httpOnly cookie), but the familista-v5 static site (frontend/) still writes the access token to localStorage.",
+      "plannedIn": "Follow-up outside the approved plan — awaiting scheduling"
     },
     "2": {
       "name": "Sign-in, register, refresh, reset",
@@ -42,10 +42,12 @@
         "refresh-token-hashed-at-rest",
         "mfa-service",
         "mfa-owner-enforcement-at-login",
-        "login-lockout-shadow"
+        "login-lockout-shadow",
+        "login-lockout",
+        "mfa-required-for-admins"
       ],
-      "reason": "Lockout runs in shadow mode; MFA is required of owners only; the legacy refresh-token fallback remains.",
-      "plannedIn": "Batch 4 (R7)"
+      "reason": "Lockout is enforced and administrators can be required to use MFA (R7, behind MFA_REQUIRED_FOR_ADMINS), but MFA is not required of every account and the legacy refresh-token fallback remains until pre-Step-8 tokens expire.",
+      "plannedIn": "Follow-up outside the approved plan — awaiting scheduling"
     },
     "3": {
       "name": "JWT verification",
@@ -54,12 +56,13 @@
       "owner": "platform",
       "dataClass": "credentials",
       "boundaryType": "identity",
-      "coverage": "P",
+      "coverage": "C",
       "controls": [
-        "session-revocation-token-version"
-      ],
-      "reason": "The JWT algorithm is not pinned and issuer/audience are not checked; one secret can mint any identity.",
-      "plannedIn": "Batch 4 (R7)"
+        "session-revocation-token-version",
+        "jwt-algorithm-pinned",
+        "jwt-issuer-validated",
+        "jwt-key-id"
+      ]
     },
     "4": {
       "name": "API authentication coverage",
@@ -121,10 +124,11 @@
       "boundaryType": "identity",
       "coverage": "P",
       "controls": [
-        "realtime-session-revocation"
+        "realtime-session-revocation",
+        "websocket-token-outside-url"
       ],
-      "reason": "The session token still travels in the WebSocket URL.",
-      "plannedIn": "Batch 4 (R7)"
+      "reason": "WebSockets open with a single-use ticket (R7), but the match live event stream (GET /matches/:id/live) still takes the session token in its URL.",
+      "plannedIn": "Follow-up outside the approved plan — awaiting scheduling"
     },
     "9": {
       "name": "AI Gateway",
@@ -757,6 +761,12 @@
         5,
         6,
         23
+      ],
+      "realtime.routes": [
+        4,
+        5,
+        6,
+        8
       ],
       "scouting.routes": [
         4,

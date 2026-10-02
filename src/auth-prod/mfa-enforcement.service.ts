@@ -38,6 +38,7 @@ import { BadRequestError, UnauthorizedError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
 import { tagSecuritySignal } from '../cyber-defense/collectors';
 import * as mfa from './mfa.service';
+import { isEnrolled, roleRequiresMfa } from './admin-mfa';
 
 export const LOGIN_CHALLENGE_TTL_MS = 5 * 60_000;
 export const LOGIN_CHALLENGE_MAX_ATTEMPTS = 5;
@@ -62,6 +63,16 @@ export function enforcementActive(s: MFASetting | null | undefined): boolean {
   return s.enforcedAt.getTime() >= s.enabledAt.getTime();
 }
 
+/**
+ * Whether a sign-in to this account must pass a code: the owner switched it
+ * on (Step 7), or the account is an enrolled administrator and the platform
+ * requires it (R7, MFA_REQUIRED_FOR_ADMINS). Either way, only while enrolled.
+ */
+export function codeRequiredAtSignIn(s: MFASetting | null | undefined, role: string | null | undefined): boolean {
+  if (enforcementActive(s)) return true;
+  return roleRequiresMfa(role) && isEnrolled(s) && !!s?.secretEncrypted;
+}
+
 export async function enforcementStatus(userId: string): Promise<{ enforced: boolean }> {
   const s = await prisma.mFASetting.findUnique({ where: { userId } });
   return { enforced: enforcementActive(s) };
@@ -81,9 +92,9 @@ export interface LoginChallenge {
  * require a code; otherwise a fresh challenge. Throws 503 when a code is
  * required and this server cannot check one.
  */
-export async function loginSecondFactor(userId: string): Promise<LoginChallenge | null> {
+export async function loginSecondFactor(userId: string, role?: string | null): Promise<LoginChallenge | null> {
   const s = await prisma.mFASetting.findUnique({ where: { userId } });
-  if (!enforcementActive(s)) return null;
+  if (!codeRequiredAtSignIn(s, role)) return null;
   if (!mfa.mfaConfigured()) throw new mfa.MfaUnavailableError();
 
   const token = randomBytes(32).toString('base64url');
@@ -138,7 +149,7 @@ export async function completeLoginSecondFactor(challenge: string, code: string)
   // Still required? If enforcement was switched off or MFA removed since the
   // password step, this challenge is void: sign in again. Never a pass-through.
   const before = await prisma.mFASetting.findUnique({ where: { userId } });
-  if (!enforcementActive(before)) throw new LoginChallengeInvalidError();
+  if (!codeRequiredAtSignIn(before, String(user.role))) throw new LoginChallengeInvalidError();
 
   const actor: mfa.MfaActor = { userId, clubId: user.clubId, role: String(user.role) };
   const ok = await mfa.verifyLogin(actor, String(code ?? '').trim());
@@ -148,7 +159,7 @@ export async function completeLoginSecondFactor(challenge: string, code: string)
   // `verifyLogin` accepts anything for an account that is not enrolled. Read
   // again after it, so a removal racing this request cannot turn into a pass.
   const after = await prisma.mFASetting.findUnique({ where: { userId } });
-  if (!enforcementActive(after)) throw new LoginChallengeInvalidError();
+  if (!codeRequiredAtSignIn(after, String(user.role))) throw new LoginChallengeInvalidError();
 
   const consumed = await prisma.mFAChallenge.updateMany({
     where: { id, consumedAt: null },

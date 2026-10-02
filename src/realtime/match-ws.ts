@@ -3,7 +3,7 @@
 // Tenant-aware, authenticated WebSocket fan-out for live match events.
 //
 // Wire format:
-//   Client connects to:   wss://host/ws/match/:matchId?token=<jwt>
+//   Client connects to:   wss://host/ws/match/:matchId?ticket=<single-use ticket from POST /api/v1/realtime/ticket>
 //   Server verifies the session exactly as `authenticate` does (signature,
 //   active user, token version), verifies the acting club === Match.clubId,
 //   then subscribes to MatchChannel.subscribe(matchId, …). The connection is
@@ -21,7 +21,8 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { URL } from 'url';
 import { prisma } from '../config/database';
 import { logger } from '../utils/logger';
-import { verifySessionToken, type RealtimeSession } from '../middleware/auth.middleware';
+import { type RealtimeSession } from '../middleware/auth.middleware';
+import { redeemWsTicket } from './ws-ticket';
 import { subscribe, subscriberCount, MatchChannelEvent } from './match-channel';
 import { watchSession } from './session-watch';
 
@@ -39,15 +40,16 @@ export function mountMatchWebSocket(httpServer: http.Server): WebSocketServer {
       if (!m) return;          // not our concern
 
       const matchId = m[1];
-      const token   = reqUrl.searchParams.get('token');
-      if (!token) {
+      // A single-use ticket from POST /api/v1/realtime/ticket, never the
+      // session token itself (R7). Redeeming it applies the same session rule
+      // as every request: active user and token version.
+      const ticket  = reqUrl.searchParams.get('ticket');
+      if (!ticket) {
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return;
       }
 
-      // The same session rule as every request: signature, active user and
-      // token version (a session ended server-side is refused here too).
       Promise.all([
-        verifySessionToken(token).catch(() => null),
+        redeemWsTicket(ticket),
         prisma.match.findUnique({
           where: { id: matchId },
           select: { id: true, clubId: true },

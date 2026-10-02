@@ -104,7 +104,8 @@
       "recoveryCode": "Một mã khôi phục",
       "needCodes": "Hãy tạo mã khôi phục mới trước — cần ít nhất hai mã để bắt buộc mã khi đăng nhập.",
       "enforcedNow": "Giờ đây mỗi lần đăng nhập đều cần mã.",
-      "unenforcedNow": "Không còn cần mã khi đăng nhập."
+      "unenforcedNow": "Không còn cần mã khi đăng nhập.",
+      "required": "Đăng nhập hai bước là bắt buộc đối với tài khoản quản trị viên và không thể tắt."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Phiên đăng nhập đã hết hạn. Hãy nhập lại mật khẩu.",
       "unavailable": "Đăng nhập hai bước hiện không khả dụng trên máy chủ. Hãy thử lại sau.",
       "failed": "Đã xảy ra lỗi. Vui lòng thử lại."
+    },
+    "mfaSetup": {
+      "title": "Thiết lập đăng nhập hai bước",
+      "sub": "Tài khoản quản trị viên phải dùng đăng nhập hai bước. Thêm Familista vào ứng dụng xác thực, lưu mã khôi phục, rồi đăng nhập lại.",
+      "done": "Xong — đăng nhập lại"
     }
   },
   "league": {

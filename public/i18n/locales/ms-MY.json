@@ -104,7 +104,8 @@
       "recoveryCode": "Satu kod pemulihan",
       "needCodes": "Jana kod pemulihan baharu dahulu — sekurang-kurangnya dua diperlukan untuk memerlukan kod semasa log masuk.",
       "enforcedNow": "Kod kini diperlukan pada setiap log masuk.",
-      "unenforcedNow": "Kod tidak lagi diperlukan semasa log masuk."
+      "unenforcedNow": "Kod tidak lagi diperlukan semasa log masuk.",
+      "required": "Log masuk dua langkah diwajibkan untuk akaun pentadbir dan tidak boleh dimatikan."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Log masuk anda telah tamat tempoh. Masukkan kata laluan anda sekali lagi.",
       "unavailable": "Log masuk dua langkah tidak tersedia pada pelayan sekarang. Cuba lagi kemudian.",
       "failed": "Sesuatu tidak kena. Sila cuba lagi."
+    },
+    "mfaSetup": {
+      "title": "Sediakan log masuk dua langkah",
+      "sub": "Akaun pentadbir mesti menggunakan log masuk dua langkah. Tambah Familista pada aplikasi pengesah anda, simpan kod pemulihan, kemudian log masuk semula.",
+      "done": "Selesai — log masuk semula"
     }
   },
   "league": {

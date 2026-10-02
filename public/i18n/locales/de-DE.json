@@ -104,7 +104,8 @@
       "recoveryCode": "Ein Wiederherstellungscode",
       "needCodes": "Erstelle zuerst neue Wiederherstellungscodes – mindestens zwei sind nötig, um bei der Anmeldung einen Code zu verlangen.",
       "enforcedNow": "Ab jetzt ist bei jeder Anmeldung ein Code erforderlich.",
-      "unenforcedNow": "Bei der Anmeldung ist kein Code mehr erforderlich."
+      "unenforcedNow": "Bei der Anmeldung ist kein Code mehr erforderlich.",
+      "required": "Die Zwei-Schritt-Anmeldung ist für Administratorkonten erforderlich und kann nicht deaktiviert werden."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Deine Anmeldung ist abgelaufen. Gib dein Passwort erneut ein.",
       "unavailable": "Die Anmeldung in zwei Schritten ist auf dem Server gerade nicht verfügbar. Versuche es später erneut.",
       "failed": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+    },
+    "mfaSetup": {
+      "title": "Zwei-Schritt-Anmeldung einrichten",
+      "sub": "Administratorkonten müssen die Zwei-Schritt-Anmeldung verwenden. Fügen Sie Familista Ihrer Authenticator-App hinzu, speichern Sie Ihre Wiederherstellungscodes und melden Sie sich dann erneut an.",
+      "done": "Fertig — erneut anmelden"
     }
   },
   "league": {

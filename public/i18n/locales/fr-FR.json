@@ -104,7 +104,8 @@
       "recoveryCode": "Un code de récupération",
       "needCodes": "Générez d'abord de nouveaux codes de récupération — il en faut au moins deux pour exiger un code à la connexion.",
       "enforcedNow": "Un code est désormais exigé à chaque connexion.",
-      "unenforcedNow": "Un code n'est plus exigé à la connexion."
+      "unenforcedNow": "Un code n'est plus exigé à la connexion.",
+      "required": "La connexion en deux étapes est obligatoire pour les comptes administrateur et ne peut pas être désactivée."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Votre connexion a expiré. Saisissez à nouveau votre mot de passe.",
       "unavailable": "La connexion en deux étapes est indisponible sur le serveur pour le moment. Réessayez plus tard.",
       "failed": "Une erreur s'est produite. Veuillez réessayer."
+    },
+    "mfaSetup": {
+      "title": "Configurer la connexion en deux étapes",
+      "sub": "Les comptes administrateur doivent utiliser la connexion en deux étapes. Ajoutez Familista à votre application d’authentification, enregistrez vos codes de récupération, puis reconnectez-vous.",
+      "done": "Terminé — se reconnecter"
     }
   },
   "league": {

@@ -15,13 +15,13 @@
 // SUPER_ADMIN bypasses limits. Auth routes get a much tighter bucket.
 
 import type { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { logSecurityEvent } from '../security/security-event.service';
 import { recordRateLimitHit, type RateLimitBucket } from '../cyber-defense/collectors';
 import { recordShadowLoginOutcome } from '../cyber-defense/lockout-shadow';
 import type { RateLimitStore } from './rate-limit-store';
 import { memoryStore } from './rate-limit-memory.store';
+import { verifyToken } from '../security/jwt-tokens';
 
 // ─── Store selection ──────────────────────────────────────────────────────────
 
@@ -88,7 +88,7 @@ function identify(req: Request): Claims | null {
   const token = cookieToken ?? (header?.startsWith('Bearer ') ? header.slice(7) : undefined);
   if (!token) return null;
   try {
-    return jwt.verify(token, config.jwt.secret) as Claims;
+    return verifyToken<Claims>('access', token);
   } catch {
     return null;
   }

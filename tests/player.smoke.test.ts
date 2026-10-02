@@ -23,6 +23,7 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { createApp } from '../src/app';
 import type { Application } from 'express';
+import { signToken } from '../src/security/jwt-tokens';
 
 const DB_AVAILABLE   = !!process.env.TEST_DATABASE_URL;
 const ACCESS_SECRET  = process.env.JWT_ACCESS_SECRET!;
@@ -41,11 +42,7 @@ beforeAll(() => { app = createApp(); });
 // ─────────────────────────────────────────────────────────────────────────────
 
 function makeToken(role: string, overrides: Record<string, unknown> = {}): string {
-  return jwt.sign(
-    { sub: USER_ID, email: 'test@test.com', role, clubId: CLUB_ID, ...overrides },
-    ACCESS_SECRET,
-    { expiresIn: '15m' }
-  );
+  return signToken('access', { sub: USER_ID, email: 'test@test.com', role, clubId: CLUB_ID, ...overrides }, { expiresIn: '15m' });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -88,11 +85,8 @@ describe('GET /api/v1/players — auth guard (no DB)', () => {
   });
 
   it('expired token → 401', async () => {
-    const expired = jwt.sign(
-      { sub: USER_ID, email: 'x@x.com', role: 'HEAD_COACH', clubId: CLUB_ID,
-        exp: Math.floor(Date.now() / 1000) - 3600 },
-      ACCESS_SECRET
-    );
+    const expired = signToken('access', { sub: USER_ID, email: 'x@x.com', role: 'HEAD_COACH', clubId: CLUB_ID,
+        exp: Math.floor(Date.now() / 1000) - 3600 });
     const res = await request(app)
       .get('/api/v1/players')
       .set('Authorization', `Bearer ${expired}`);

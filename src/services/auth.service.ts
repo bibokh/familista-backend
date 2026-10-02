@@ -1,5 +1,4 @@
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
 import { User, UserRole } from '@prisma/client';
 import { prisma } from '../config/database';
@@ -16,9 +15,12 @@ import { tagSecuritySignal } from '../cyber-defense/collectors';
 import { forgetIdentity } from '../middleware/auth.middleware';
 import { hashPassword, verifyPassword } from '../utils/password';
 import { hashRefreshToken } from '../security/refresh-token-hash';
+import { signToken, verifyToken } from '../security/jwt-tokens';
+import { assertNotLocked, recordAttempt } from '../security/login-attempt.service';
 import {
   completeLoginSecondFactor, loginSecondFactor, LoginChallengeInvalidError, type LoginChallenge,
 } from '../auth-prod/mfa-enforcement.service';
+import { resolveSessionMfaState } from '../auth-prod/admin-mfa';
 
 export interface TokenPair {
   accessToken: string;
@@ -49,14 +51,18 @@ interface JwtPayload {
    * which carries no version, is still accepted.
    */
   tv?: number;
+  /**
+   * Cyber Defense, R7: present (true) only on a session that passed a second
+   * factor at sign-in. Set by `completeMfaLogin`, carried across refresh,
+   * never set by the password step. The admin MFA rule reads it.
+   */
+  mfa?: true;
 }
 
 // ── Token generation ──────────────────────────────────────
 
 function generateAccessToken(payload: JwtPayload): string {
-  return jwt.sign(payload, config.jwt.secret, {
-    expiresIn: config.jwt.expiresIn,
-  } as jwt.SignOptions);
+  return signToken('access', payload, { expiresIn: config.jwt.expiresIn });
 }
 
 // The refresh token is stored, and RefreshToken.token is unique. A JWT's `iat`
@@ -73,9 +79,7 @@ function generateRefreshToken(payload: JwtPayload): string {
   // version 4 value from the same CSPRNG, it is what request-id.middleware.ts
   // already uses, and it is one fewer dependency to keep patched. Node 20 is
   // required by this project's engines, so it is always present.
-  return jwt.sign({ ...payload, jti: randomUUID() }, config.jwt.refreshSecret, {
-    expiresIn: config.jwt.refreshExpiresIn,
-  } as jwt.SignOptions);
+  return signToken('refresh', { ...payload, jti: randomUUID() }, { expiresIn: config.jwt.refreshExpiresIn });
 }
 
 function getRefreshExpiry(): Date {
@@ -204,7 +208,15 @@ export async function registerInvitedUser(input: {
 // ── Login ─────────────────────────────────────────────────
 
 /** A signed-in session: what every successful sign-in ends with. */
-export interface LoginSession { user: AuthUser; tokens: TokenPair }
+export interface LoginSession {
+  user: AuthUser;
+  tokens: TokenPair;
+  /**
+   * R7: this administrator has not enrolled a second factor and the platform
+   * requires one, so the session is setup-only until they do.
+   */
+  mfaEnrolmentRequired?: true;
+}
 
 /**
  * What the password step answers: a session, or — for an account whose owner
@@ -218,10 +230,23 @@ export function isLoginChallenge(o: LoginOutcome): o is LoginChallenge {
   return (o as LoginChallenge).mfaRequired === true;
 }
 
+/** Where a sign-in came from, for the lockout and its audit trail. Never logged in full. */
+export interface LoginContext { ipAddress?: string | null; userAgent?: string | null }
+
 export async function loginUser(
   email: string,
-  password: string
+  password: string,
+  ctx: LoginContext = {},
 ): Promise<LoginOutcome> {
+  // Cyber Defense R7: the lockout is enforced, before the password is even
+  // checked — 5 failures on one account in 15 minutes, or 20 from one address
+  // in 5 (security/login-attempt.service.ts). A locked attempt is refused with
+  // 429 and recorded as a CRITICAL LOGIN_LOCKED security event, which reaches
+  // the operator through the security alerts (R6). The window relaxes on its
+  // own; nothing has to be unlocked by hand.
+  await assertNotLocked(email, ctx.ipAddress);
+  const failed = () => recordAttempt({ email, success: false, ipAddress: ctx.ipAddress, userAgent: ctx.userAgent });
+
   const user = await prisma.user.findUnique({
     where: { email: email.toLowerCase().trim() },
     include: { club: { select: { name: true } } },
@@ -230,6 +255,7 @@ export async function loginUser(
   // Each refusal is tagged for Cyber Defense (`tagSecuritySignal`); the class,
   // the message and the status are exactly what they were.
   if (!user || !user.isActive) {
+    failed();
     throw tagSecuritySignal(new UnauthorizedError('Invalid email or password'), {
       type: 'security.login.failed', reason: user ? 'INACTIVE_ACCOUNT' : 'UNKNOWN_ACCOUNT',
     });
@@ -237,6 +263,7 @@ export async function loginUser(
 
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) {
+    failed();
     throw tagSecuritySignal(new UnauthorizedError('Invalid email or password'), {
       type: 'security.login.failed', reason: 'BAD_PASSWORD',
     });
@@ -246,7 +273,9 @@ export async function loginUser(
   // account requires a code. Nothing below — last-login, tokens, the login
   // event — happens until `completeMfaLogin` accepts one. Fails closed: if the
   // requirement cannot be read or a code cannot be checked, this throws.
-  const challenge = await loginSecondFactor(user.id);
+  recordAttempt({ email, success: true, ipAddress: ctx.ipAddress, userAgent: ctx.userAgent, actorId: user.id, clubId: user.clubId });
+
+  const challenge = await loginSecondFactor(user.id, user.role);
   if (challenge) return challenge;
 
   // Update last login
@@ -262,7 +291,8 @@ export async function loginUser(
   // on which a refused attempt is recorded as a login.
   publishUserLogin({ userId: user.id, clubId: user.clubId });
 
-  return { user: mapAuthUser(user, user.club.name), tokens };
+  const setupOnly = (await resolveSessionMfaState(user.id, user.role, false)) === 'setup-only';
+  return { user: mapAuthUser(user, user.club.name), tokens, ...(setupOnly && { mfaEnrolmentRequired: true as const }) };
 }
 
 /**
@@ -284,7 +314,7 @@ export async function completeMfaLogin(challenge: string, code: string): Promise
     data: { lastLoginAt: new Date() },
   });
 
-  const tokens = await issueTokens(user);
+  const tokens = await issueTokens(user, { passedCode: true });
   logger.info('User logged in', { userId: user.id, secondFactor: true });
   publishUserLogin({ userId: user.id, clubId: user.clubId });
 
@@ -296,7 +326,7 @@ export async function completeMfaLogin(challenge: string, code: string): Promise
 export async function refreshTokens(token: string): Promise<TokenPair> {
   let payload: JwtPayload;
   try {
-    payload = jwt.verify(token, config.jwt.refreshSecret) as JwtPayload;
+    payload = verifyToken<JwtPayload>('refresh', token);
   } catch {
     throw new UnauthorizedError('Invalid refresh token');
   }
@@ -328,7 +358,7 @@ export async function refreshTokens(token: string): Promise<TokenPair> {
   // exactly one wins; the other is a reuse, not a second session.
   const claimed = await prisma.refreshToken.deleteMany({ where: { id: stored.id } });
   if (claimed.count !== 1) throw reused();
-  return issueTokens(user);
+  return issueTokens(user, { passedCode: payload.mfa === true });
 }
 
 /**
@@ -392,7 +422,7 @@ export async function changePassword(
 
 // ── Helpers ───────────────────────────────────────────────
 
-async function issueTokens(user: User): Promise<TokenPair> {
+async function issueTokens(user: User, opts: { passedCode?: boolean } = {}): Promise<TokenPair> {
   const payload: JwtPayload = {
     sub: user.id,
     email: user.email,
@@ -401,6 +431,7 @@ async function issueTokens(user: User): Promise<TokenPair> {
     // Stamped so a token can be told apart from one minted before a
     // server-side session end. Nothing else about the token changes.
     tv: user.tokenVersion ?? 0,
+    ...(opts.passedCode && { mfa: true as const }),
   };
 
   const accessToken = generateAccessToken(payload);
@@ -417,6 +448,19 @@ async function issueTokens(user: User): Promise<TokenPair> {
   });
 
   return { accessToken, refreshToken };
+}
+
+/**
+ * The display half of a profile — names and the primary club's name — for
+ * GET /auth/me. A client that keeps nothing in storage (R7) rebuilds the
+ * signed-in person from this on every load.
+ */
+export async function profileOf(userId: string): Promise<{ firstName: string | null; lastName: string | null; clubName: string | null }> {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { firstName: true, lastName: true, club: { select: { name: true } } },
+  });
+  return { firstName: u?.firstName ?? null, lastName: u?.lastName ?? null, clubName: u?.club?.name ?? null };
 }
 
 function mapAuthUser(

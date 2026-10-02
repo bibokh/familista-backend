@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
 import styles from './VideoPlayer.module.css';
+import { getAccessToken } from '@/api/client';
 
 export interface VideoPlayerProps {
   assetId:      string;
@@ -54,11 +55,14 @@ export function VideoPlayer({ assetId, hlsUrl, thumbUrl, onTimeUpdate }: VideoPl
     }
 
     if (Hls.isSupported()) {
-      const token = localStorage.getItem('familista_token') ?? '';
       const hls = new Hls({
         enableWorker: true,
-        // Attach Authorization header to every XHR (manifest + segments)
+        // The session cookie travels with every manifest and segment request;
+        // the in-memory bearer (if this tab has one) is attached as well.
+        // Nothing is read from storage (R7).
         xhrSetup: (xhr: XMLHttpRequest) => {
+          xhr.withCredentials = true;
+          const token = getAccessToken();
           if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         },
       });

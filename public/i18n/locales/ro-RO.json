@@ -104,7 +104,8 @@
       "recoveryCode": "Un cod de recuperare",
       "needCodes": "Generează mai întâi coduri de recuperare noi — sunt necesare cel puțin două pentru a cere un cod la autentificare.",
       "enforcedNow": "Acum este necesar un cod la fiecare autentificare.",
-      "unenforcedNow": "Nu mai este necesar un cod la autentificare."
+      "unenforcedNow": "Nu mai este necesar un cod la autentificare.",
+      "required": "Autentificarea în doi pași este obligatorie pentru conturile de administrator și nu poate fi dezactivată."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Autentificarea a expirat. Introdu din nou parola.",
       "unavailable": "Autentificarea în doi pași nu este disponibilă acum pe server. Încearcă mai târziu.",
       "failed": "Ceva nu a mers bine. Încearcă din nou."
+    },
+    "mfaSetup": {
+      "title": "Configurați autentificarea în doi pași",
+      "sub": "Conturile de administrator trebuie să folosească autentificarea în doi pași. Adăugați Familista în aplicația de autentificare, salvați codurile de recuperare, apoi conectați-vă din nou.",
+      "done": "Gata — conectați-vă din nou"
     }
   },
   "league": {
