@@ -177,10 +177,16 @@ describe('the address threshold', () => {
 });
 
 describe('what it does not do', () => {
-  it('writes no LoginAttempt row, and records no e-mail, password or full address', async () => {
+  it('records no e-mail, password or full address — and the enforced lockout (R7) keeps only the hash', async () => {
     for (let i = 0; i <= EMAIL_FAIL_THRESHOLD; i += 1) await login('owner@familista.test', 'wrong', '198.51.100.77');
     await settle();
-    expect(loginAttemptWrites).not.toHaveBeenCalled();
+    // Since R7 the lockout is enforced, so each refused sign-in is a
+    // LoginAttempt row — the e-mail as its SHA-256, never in clear, never the password.
+    expect(loginAttemptWrites).toHaveBeenCalled();
+    for (const [arg] of loginAttemptWrites.mock.calls as Array<[{ data: Record<string, unknown> }]>) {
+      expect(arg.data.emailHash).toBe(emailHash('owner@familista.test'));
+      expect(JSON.stringify(arg.data)).not.toMatch(/owner@familista\.test|wrong/);
+    }
     const blob = JSON.stringify(lockouts());
     expect(lockouts().length).toBeGreaterThan(0);
     expect(blob).not.toContain('owner@familista.test');

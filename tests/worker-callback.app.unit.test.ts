@@ -11,6 +11,7 @@ import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import type { Application } from 'express';
 import { createApp } from '../src/app';
+import { signToken } from '../src/security/jwt-tokens';
 
 jest.mock('../src/config/database', () => require('./helpers/stub-database').stubDatabase({
   id: '00000000-0000-0000-0000-000000000002',
@@ -25,11 +26,7 @@ const body = {
 };
 
 function userToken(): string {
-  return jwt.sign(
-    { sub: '00000000-0000-0000-0000-000000000002', email: 't@test.invalid', role: 'CLUB_ADMIN', clubId: '00000000-0000-0000-0000-000000000001' },
-    process.env.JWT_ACCESS_SECRET!,
-    { expiresIn: '15m' },
-  );
+  return signToken('access', { sub: '00000000-0000-0000-0000-000000000002', email: 't@test.invalid', role: 'CLUB_ADMIN', clubId: '00000000-0000-0000-0000-000000000001' }, { expiresIn: '15m' });
 }
 
 let app: Application;

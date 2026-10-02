@@ -82,7 +82,7 @@ describe('the three-tier limiter', () => {
     // it runs before `authenticate`, so req.user is empty; without reading the
     // token the user and tenant buckets were never reached
     const id = fnBody(RL, 'identify');
-    expect(id).toContain('jwt.verify');
+    expect(id).toContain("verifyToken<Claims>('access', token)");
     expect(id).toContain('access_token');
     expect(id).toContain("Bearer ");
     expect(fnBody(RL, 'rateLimit')).toContain('identify(req)');

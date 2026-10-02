@@ -25,11 +25,11 @@ router.put( '/change-password', authenticate, ctrl.changePassword);
 
 // Two-step sign-in for the platform owner (Cyber Defense, Step 6), and the
 // owner's switch to require it at every sign-in (Step 7).
-router.get( '/mfa',                authenticate, mfaCtrl.requirePlatformOwner, mfaCtrl.status);
-router.post('/mfa/enroll',         authenticate, mfaCtrl.requirePlatformOwner, mfaCtrl.enroll);
-router.post('/mfa/confirm',        authenticate, mfaCtrl.requirePlatformOwner, mfaCtrl.confirm);
-router.post('/mfa/recovery-codes', authenticate, mfaCtrl.requirePlatformOwner, mfaCtrl.recoveryCodes);
-router.post('/mfa/disable',        authenticate, mfaCtrl.requirePlatformOwner, mfaCtrl.disable);
-router.post('/mfa/enforcement',    authenticate, mfaCtrl.requirePlatformOwner, mfaCtrl.enforcement);
+router.get( '/mfa',                authenticate, mfaCtrl.requireMfaSelfService, mfaCtrl.status);
+router.post('/mfa/enroll',         authenticate, mfaCtrl.requireMfaSelfService, mfaCtrl.enroll);
+router.post('/mfa/confirm',        authenticate, mfaCtrl.requireMfaSelfService, mfaCtrl.confirm);
+router.post('/mfa/recovery-codes', authenticate, mfaCtrl.requireMfaSelfService, mfaCtrl.recoveryCodes);
+router.post('/mfa/disable',        authenticate, mfaCtrl.requireMfaSelfService, mfaCtrl.disable);
+router.post('/mfa/enforcement',    authenticate, mfaCtrl.requireMfaSelfService, mfaCtrl.enforcement);
 
 export default router;

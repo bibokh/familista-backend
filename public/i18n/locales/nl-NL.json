@@ -104,7 +104,8 @@
       "recoveryCode": "Eén herstelcode",
       "needCodes": "Maak eerst nieuwe herstelcodes aan — er zijn er minstens twee nodig om bij het inloggen een code te vereisen.",
       "enforcedNow": "Bij elke keer inloggen is nu een code vereist.",
-      "unenforcedNow": "Bij het inloggen is geen code meer vereist."
+      "unenforcedNow": "Bij het inloggen is geen code meer vereist.",
+      "required": "Inloggen in twee stappen is verplicht voor beheerdersaccounts en kan niet worden uitgeschakeld."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Je aanmelding is verlopen. Voer je wachtwoord opnieuw in.",
       "unavailable": "Inloggen in twee stappen is nu niet beschikbaar op de server. Probeer het later opnieuw.",
       "failed": "Er ging iets mis. Probeer het opnieuw."
+    },
+    "mfaSetup": {
+      "title": "Stel inloggen in twee stappen in",
+      "sub": "Beheerdersaccounts moeten inloggen in twee stappen gebruiken. Voeg Familista toe aan je authenticator-app, bewaar je herstelcodes en log daarna opnieuw in.",
+      "done": "Klaar — opnieuw inloggen"
     }
   },
   "league": {

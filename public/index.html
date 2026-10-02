@@ -120,6 +120,18 @@
       </div>
     </div>
 
+    <!-- VIEW: required two-step setup (Cyber Defense, R7). Shown when the platform
+         requires two-step sign-in of administrators and this administrator has not
+         enrolled: the session can only enrol. The card is Settings' own
+         (the two-step card), mounted here; signing in again afterwards asks
+         for the code. Bundle-owned strings, as in the view above. -->
+    <div data-auth-view="mfa-setup" data-no-i18n>
+      <div class="auth-title" data-i18n="auth.mfaSetup.title"></div>
+      <div class="auth-sub" data-i18n="auth.mfaSetup.sub"></div>
+      <div class="set-card set-mfa" id="auth-mfa-card" data-no-i18n hidden></div>
+      <button class="login-btn" id="mfa-setup-done" data-action="famMfaSetupDone" data-i18n="auth.mfaSetup.done"></button>
+    </div>
+
     <!-- â”€â”€ VIEW: forgot-password (enter email) â”€â”€ -->
     <div data-auth-view="forgot">
       <div class="auth-title">Reset your password</div>
@@ -988,7 +1000,7 @@
 <script src="/familista-vision/familista-vision.js?v=20260926-vision-workstation" defer></script>
 <script src="/app.js?v=20260928-mfa-enforce" defer></script>
 <!-- Settings · Account · two-step sign-in (Cyber Defense, Step 6). After app.js: it reads _isPlatformOwner. -->
-<script src="/settings-mfa.js?v=20260928-mfa-enforce" defer></script>
+<script src="/settings-mfa.js?v=20261002-admin-mfa" defer></script>
 <!-- Club People & Access. After app.js because it registers into it; `defer`
      keeps that order. -->
 <script src="/people-access.js?v=20260909-people-access" defer></script>

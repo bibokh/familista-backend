@@ -454,7 +454,19 @@ const loginBody = (() => {
   return i < 0 ? '' : authServiceSrc.slice(i, authServiceSrc.indexOf('\nexport ', i + 10));
 })();
 const realtimeSrc = ['src/realtime/match-ws.ts', 'src/realtime/market-ws.ts'].map((f) => read(cite(f)) || '').join('\n');
-const jwtVerifySites = [authMwSrc, realtimeSrc].join('\n').match(/jwt\.verify\([^)]*\)/g) || [];
+// R7: every JWT is signed and verified in src/security/jwt-tokens.ts and
+// nowhere else, so the rules below are read from that one file — and any
+// jwt.sign / jwt.verify that appears elsewhere fails all three JWT controls.
+const JWT_TOKENS = cite('src/security/jwt-tokens.ts');
+const jwtTokensSrc = (read(JWT_TOKENS) || '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+const jwtDirectSites = srcFiles.filter((f, i) => f !== JWT_TOKENS
+  && /\bjwt\.(?:verify|sign)\(/.test(allSrc[i].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')));
+const jwtVerifySites = jwtTokensSrc.match(/jwt\.verify\([^)]*\)/g) || [];
+const jwtLegacyCutoff = (jwtTokensSrc.match(/LEGACY_ISSUED_BEFORE = Date\.parse\('([0-9TZ:.-]+)'\)/) || [])[1] || null;
+const ADMIN_MFA = cite('src/auth-prod/admin-mfa.ts');
+const adminMfaSrc = read(ADMIN_MFA) || '';
+const WS_TICKET = cite('src/realtime/ws-ticket.ts');
+const wsTicketSrc = read(WS_TICKET) || '';
 const migrationsSql = (() => {
   const dir = path.join(ROOT, 'prisma/migrations');
   let text = '';
@@ -496,21 +508,43 @@ const controls = [
   // step asks the enforcement service before issuing anything, the second step
   // has its route, and that route is in the credential rate-limit bucket.
   control('mfa-owner-enforcement-at-login',
-    /await loginSecondFactor\(user\.id\)[\s\S]*if \(challenge\) return challenge;[\s\S]*issueTokens\(user\)/.test(loginBody)
+    /await loginSecondFactor\(user\.id(?:, user\.role)?\)[\s\S]*if \(challenge\) return challenge;[\s\S]*issueTokens\(user\)/.test(loginBody)
       && has('src/routes/auth.routes.ts', /router\.post\('\/login\/mfa',\s*ctrl\.loginMfa\)/)
       && has('src/middleware/rate-limit.middleware.ts', /'\/login\/mfa'/)
       ? 'PRESENT' : 'ABSENT', AUTH_SERVICE,
     'An account whose owner switched it on gets no session from the password alone.'),
   // Required for EVERY account is a different, stricter claim. Opt-in per
-  // owner is PARTIAL, and says so; nothing here can report it PRESENT.
+  // owner, and administrators behind the operator's switch, is PARTIAL and
+  // says so; nothing here can report it PRESENT.
   control('mfa-required-at-login', /loginSecondFactor\(/.test(loginBody) ? 'PARTIAL' : 'ABSENT', AUTH_SERVICE,
     /loginSecondFactor\(/.test(loginBody)
-      ? 'Opt-in: required at sign-in only for an owner who switched it on (mfa-owner-enforcement-at-login).'
+      ? 'Required at sign-in for an owner who switched it on (mfa-owner-enforcement-at-login) and, with MFA_REQUIRED_FOR_ADMINS on, for administrators (mfa-required-for-admins); other roles opt in.'
       : 'loginUser() issues tokens without asking for a second factor.'),
+  // R7: SUPER_ADMIN and CLUB_ADMIN must pass a code, behind one operator
+  // switch. Present when the mechanism is complete end to end: the roles are
+  // named, the password step asks for the code by role, every session check
+  // (API, device routes, realtime) holds a session that did not pass one to
+  // setup-only or refuses it, and an administrator cannot remove the factor.
+  // Whether it is IN FORCE is the switch's value, which this scanner never reads.
+  control('mfa-required-for-admins',
+    /process\.env\.MFA_REQUIRED_FOR_ADMINS === 'true'/.test(adminMfaSrc)
+      && /ADMIN_ROLES[^=]*= \[UserRole\.SUPER_ADMIN, UserRole\.CLUB_ADMIN\]/.test(adminMfaSrc)
+      && /await loginSecondFactor\(user\.id, user\.role\)/.test(loginBody)
+      && has('src/auth-prod/mfa-enforcement.service.ts', /roleRequiresMfa\(role\) && isEnrolled\(s\)/)
+      && /assertSessionMayProceed\(mfaState, req\.method/.test(authMwSrc)
+      && /resolveSessionMfaState\(user\.id, user\.role, passedCode\)\) !== 'full'/.test(authMwSrc)
+      && has('src/middleware/device-auth.middleware.ts', /assertSessionMayProceed\(/)
+      && has('src/auth-prod/mfa.service.ts', /if \(roleRequiresMfa\(actor\.role\)\)/)
+      && /issueTokens\(user, \{ passedCode: true \}\)/.test(authServiceSrc)
+      ? 'PRESENT' : 'ABSENT', ADMIN_MFA,
+    'Administrators give a code at sign-in, or get a setup-only session until they enrol; in force only while MFA_REQUIRED_FOR_ADMINS=true.'),
+  // R7: enforced, before the password is checked, and every outcome recorded.
   control('login-lockout',
-    lockoutCallers > 0 ? 'PRESENT' : exists('src/security/login-attempt.service.ts') ? 'PARTIAL' : 'ABSENT',
+    /await assertNotLocked\([\s\S]*verifyPassword\(/.test(loginBody) && /recordAttempt\(/.test(loginBody)
+      && has('src/security/login-attempt.service.ts', /throw new TooManyRequestsError\(/)
+      ? 'PRESENT' : exists('src/security/login-attempt.service.ts') ? 'PARTIAL' : 'ABSENT',
     cite('src/security/login-attempt.service.ts'),
-    `${lockoutCallers} enforcing caller(s) outside the lockout service.`),
+    `Enforced in loginUser() before the password is checked; ${lockoutCallers} caller(s) outside the lockout service.`),
   control('login-lockout-shadow',
     has('src/middleware/rate-limit.middleware.ts', /recordShadowLoginOutcome\(req, email, res\.statusCode\)/)
       && exists('src/cyber-defense/lockout-shadow.ts') ? 'PRESENT' : 'ABSENT',
@@ -528,9 +562,35 @@ const controls = [
   control('refresh-token-legacy-fallback-removed',
     /tokenHash:\s*null/.test(authServiceSrc) ? 'ABSENT' : 'PRESENT', AUTH_SERVICE,
     'Rows issued before Step 8 keep their raw value until rotated, revoked or expired (7 days at most).'),
-  control('jwt-algorithm-pinned', jwtVerifySites.length && jwtVerifySites.every((s) => /algorithms/.test(s)) ? 'PRESENT' : 'ABSENT', AUTH_MW),
-  control('jwt-issuer-validated', jwtVerifySites.length && jwtVerifySites.every((s) => /issuer/.test(s)) ? 'PRESENT' : 'ABSENT', AUTH_MW),
-  control('websocket-token-outside-url', /searchParams\.get\('token'\)/.test(realtimeSrc) ? 'ABSENT' : 'PRESENT', 'src/realtime/match-ws.ts'),
+  control('jwt-algorithm-pinned',
+    jwtDirectSites.length === 0 && jwtVerifySites.length > 0
+      && jwtVerifySites.every((v) => /algorithms: \[JWT_ALGORITHM\]/.test(v))
+      && /JWT_ALGORITHM = 'HS256'/.test(jwtTokensSrc)
+      && /decoded\.header\.alg !== JWT_ALGORITHM/.test(jwtTokensSrc)
+      && /algorithm: JWT_ALGORITHM/.test(jwtTokensSrc)
+      ? 'PRESENT' : 'ABSENT', JWT_TOKENS,
+    jwtDirectSites.length
+      ? `jwt.sign/verify outside jwt-tokens.ts: ${jwtDirectSites.join(', ')}`
+      : `HS256 on every sign and verify (${jwtVerifySites.length} verify site(s), one file); access, refresh, device and WebSocket tickets alike.`),
+  control('jwt-issuer-validated',
+    jwtDirectSites.length === 0
+      && jwtVerifySites.some((v) => /issuer: ISSUER, audience: AUDIENCE\[kind\]/.test(v))
+      && /issuer: ISSUER,\s*audience: AUDIENCE\[kind\]/.test(jwtTokensSrc.slice(jwtTokensSrc.indexOf('function signToken')))
+      && /payload\.iss !== undefined \|\| payload\.aud !== undefined/.test(jwtTokensSrc)
+      && !!jwtLegacyCutoff
+      ? 'PRESENT' : 'ABSENT', JWT_TOKENS,
+    `Issuer and a per-kind audience on every token; an unscoped token is honoured only if issued before ${jwtLegacyCutoff || '—'}.`),
+  control('jwt-key-id',
+    /keyid: active\.kid/.test(jwtTokensSrc) && /decoded\.header\.kid/.test(jwtTokensSrc)
+      && /function keyring\(/.test(jwtTokensSrc) && /new TokenRejected\('unknown-key'\)/.test(jwtTokensSrc)
+      ? 'PRESENT' : 'ABSENT', JWT_TOKENS,
+    'Every token names its key (a fingerprint, never the secret); the keyring holds the active and, during a rotation, the previous key.'),
+  control('websocket-token-outside-url',
+    !/searchParams\.get\('token'\)/.test(realtimeSrc)
+      && (realtimeSrc.match(/redeemWsTicket\(/g) || []).length >= 2
+      && /'PX', TICKET_TTL_SECONDS \* 2000, 'NX'/.test(wsTicketSrc)
+      ? 'PRESENT' : 'ABSENT', WS_TICKET,
+    'Sockets open with a 30-second single-use ticket (?ticket=), never the session token.'),
   // R2: present only when it is APPLIED — every id parameter on every mounted
   // route guarded or exempted by name, no exemption left pointing at a route
   // that no longer needs it, and no router-wide `router.use(tenantGuard)` that
@@ -733,13 +793,20 @@ function realtimeSessionsWatched() {
   const ms = read(cite('src/services/membership.service.ts')) || '';
   const code = (f) => (read(cite(f)) || '').replace(/\/\/[^\n]*/g, '');
   const endSession = (() => { const i = ms.indexOf('export async function endClubSession'); return i < 0 ? '' : ms.slice(i, ms.indexOf('\nexport ', i + 10)); })();
-  const direct = ['src/realtime/match-ws.ts', 'src/realtime/market-ws.ts', 'src/realtime/match-sse.ts'];
+  // R7: the sockets authenticate with a single-use ticket, redeemed through
+  // the same session rule (realtimeSessionFor) that verifySessionToken uses.
+  const byTicket = ['src/realtime/match-ws.ts', 'src/realtime/market-ws.ts'];
+  const direct = ['src/realtime/match-sse.ts'];
+  const ticket = code('src/realtime/ws-ticket.ts');
   const viaRequest = ['src/routes/data-pulse.routes.ts', 'src/routes/infrastructure.routes.ts', 'src/routes/owner-trace.routes.ts', 'src/controllers/vision-engine.controller.ts'];
   return /export async function verifySessionToken/.test(mw) && /export async function sessionStillValid/.test(mw)
     && /claimed !== \(user\.tokenVersion \?\? 0\)/.test(mw.slice(mw.indexOf('export async function verifySessionToken')))
     && /onIdentityForgotten\(/.test(sw) && /setInterval\(/.test(sw) && /sessionStillValid\(/.test(sw)
     && /forgetIdentity\(userId\)/.test(endSession)
+    && /return realtimeSessionFor\(verified\.sub/.test(mw)
+    && /realtimeSessionFor\(claims\.sub, claims\.tv/.test(ticket)
     && direct.every((f) => /verifySessionToken\(/.test(code(f)) && /watchSession\(/.test(code(f)) && !/jwt\.verify\(/.test(code(f)))
+    && byTicket.every((f) => /redeemWsTicket\(/.test(code(f)) && /watchSession\(/.test(code(f)) && !/jwt\.verify\(/.test(code(f)))
     && viaRequest.every((f) => /watchRequestSession\(req, res,/.test(code(f)));
 }
 

@@ -44,6 +44,7 @@ import type { Application } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
+import { signToken } from '../src/security/jwt-tokens';
 
 process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://u:p@localhost:5432/db';
@@ -111,7 +112,7 @@ const codeOf = (src: string) => src
   .replace(/\/\*[\s\S]*?\*\//g, ' ')
   .split('\n').map((l) => l.replace(/(^|[^:'"\\])\/\/.*$/, '$1')).join('\n');
 
-const TOKEN = jwt.sign({ sub: OWNER.id, role: OWNER.role }, process.env.JWT_ACCESS_SECRET, { expiresIn: '10m' });
+const TOKEN = signToken('access', { sub: OWNER.id, role: OWNER.role }, { expiresIn: '10m' });
 const url = (c: ApiContract) => `/api/v1${c.endpoint}${c.query ?? ''}`;
 
 let app: Application;

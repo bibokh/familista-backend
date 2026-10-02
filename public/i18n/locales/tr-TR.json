@@ -104,7 +104,8 @@
       "recoveryCode": "Bir kurtarma kodu",
       "needCodes": "Önce yeni kurtarma kodları oluştur — oturum açarken kod istemek için en az iki tane gerekir.",
       "enforcedNow": "Artık her oturum açışta kod gerekiyor.",
-      "unenforcedNow": "Oturum açarken artık kod gerekmiyor."
+      "unenforcedNow": "Oturum açarken artık kod gerekmiyor.",
+      "required": "İki adımlı giriş yönetici hesapları için zorunludur ve kapatılamaz."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Oturum açma süren doldu. Şifreni yeniden gir.",
       "unavailable": "İki adımlı oturum açma şu anda sunucuda kullanılamıyor. Daha sonra tekrar dene.",
       "failed": "Bir şeyler ters gitti. Lütfen tekrar dene."
+    },
+    "mfaSetup": {
+      "title": "İki adımlı girişi ayarlayın",
+      "sub": "Yönetici hesapları iki adımlı giriş kullanmak zorundadır. Familista'yı kimlik doğrulama uygulamanıza ekleyin, kurtarma kodlarınızı kaydedin ve ardından tekrar giriş yapın.",
+      "done": "Tamam — tekrar giriş yap"
     }
   },
   "league": {

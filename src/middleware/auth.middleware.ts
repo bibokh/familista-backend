@@ -1,11 +1,12 @@
 import { recordOutcome } from '../infra/outcome-meter';
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
 import { UserRole } from '@prisma/client';
 import { config } from '../config';
 import { prisma } from '../config/database';
 import { UnauthorizedError, ForbiddenError } from '../utils/errors';
 import { assertActingClubOperable } from './club-lifecycle.middleware';
+import { verifyToken } from '../security/jwt-tokens';
+import { assertSessionMayProceed, resolveSessionMfaState } from '../auth-prod/admin-mfa';
 
 interface JwtPayload {
   sub: string;
@@ -140,14 +141,27 @@ export interface RealtimeSession {
 /** Verifies a token the way `authenticate` does, for a connection that cannot send headers. */
 export async function verifySessionToken(token: string): Promise<RealtimeSession> {
   let verified: JwtPayload;
-  try { verified = jwt.verify(token, config.jwt.secret) as JwtPayload; } catch {
+  try { verified = verifyToken<JwtPayload>('access', token); } catch {
     throw new UnauthorizedError('Invalid or expired token');
   }
-  const user = await loadIdentity(verified.sub);
+  const claims = verified as unknown as { tv?: number; mfa?: unknown };
+  return realtimeSessionFor(verified.sub, claims.tv, claims.mfa === true);
+}
+
+/**
+ * The session rule for a long-lived connection, from the claims that opened
+ * it: active user, token version. Shared by a verified token and a redeemed
+ * WebSocket ticket (realtime/ws-ticket.ts), so the two cannot drift apart.
+ */
+export async function realtimeSessionFor(sub: string, claimed: number | undefined, passedCode = false): Promise<RealtimeSession> {
+  const user = await loadIdentity(sub);
   if (!user) throw new UnauthorizedError('User not found or deactivated');
-  const claimed = (verified as unknown as { tv?: number }).tv;
   if (typeof claimed === 'number' && claimed !== (user.tokenVersion ?? 0)) {
     throw new UnauthorizedError('Session ended. Please sign in again.');
+  }
+  // A live connection is never part of enrolment: only a full session opens one.
+  if ((await resolveSessionMfaState(user.id, user.role, passedCode)) !== 'full') {
+    throw new UnauthorizedError('Sign in again with your authentication code.');
   }
   return {
     userId: user.id,
@@ -205,7 +219,7 @@ export async function authenticate(
     let payload: JwtPayload | null = null;
     for (const candidate of candidates) {
       try {
-        payload = jwt.verify(candidate, config.jwt.secret) as JwtPayload;
+        payload = verifyToken<JwtPayload>('access', candidate);
         break;
       } catch {
         // try the next credential; the error is raised below if none verifies
@@ -271,6 +285,14 @@ export async function authenticate(
     // opens can be re-checked against it for as long as it stays open (R1c).
     (req as Request & { sessionTokenVersion?: number | null }).sessionTokenVersion =
       typeof claimed === 'number' ? claimed : null;
+
+    // R7: with MFA_REQUIRED_FOR_ADMINS on, an administrator session that did
+    // not pass a code is setup-only (not enrolled) or refused (enrolled).
+    const passedCode = (payload as unknown as { mfa?: unknown }).mfa === true;
+    const mfaState = await resolveSessionMfaState(user.id, user.role, passedCode);
+    assertSessionMayProceed(mfaState, req.method, req.baseUrl + req.path);
+    (req as Request & { sessionPassedCode?: boolean; sessionMfaState?: string }).sessionPassedCode = passedCode;
+    (req as Request & { sessionMfaState?: string }).sessionMfaState = mfaState;
 
     // A club the platform has suspended cannot be OPERATED by its own people,
     // and this is the one place every authenticated request passes through, so

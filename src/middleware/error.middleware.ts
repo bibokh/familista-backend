@@ -21,9 +21,13 @@ export function errorHandler(
       method: req.method,
     });
 
+    // A few refusals carry a machine-readable code the client acts on (R7:
+    // MFA_ENROLMENT_REQUIRED, MFA_REAUTH_REQUIRED). Only an UPPER_SNAKE token.
+    const appCode = (err as { code?: unknown }).code;
     res.status(err.statusCode).json({
       success: false,
       message: err.message,
+      ...(typeof appCode === 'string' && /^[A-Z][A-Z0-9_]{2,63}$/.test(appCode) && { code: appCode }),
     });
     return;
   }

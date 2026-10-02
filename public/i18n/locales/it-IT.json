@@ -104,7 +104,8 @@
       "recoveryCode": "Un codice di recupero",
       "needCodes": "Genera prima nuovi codici di recupero: ne servono almeno due per richiedere un codice all'accesso.",
       "enforcedNow": "Ora è richiesto un codice a ogni accesso.",
-      "unenforcedNow": "All'accesso non è più richiesto un codice."
+      "unenforcedNow": "All'accesso non è più richiesto un codice.",
+      "required": "L’accesso in due passaggi è obbligatorio per gli account amministratore e non può essere disattivato."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "L'accesso è scaduto. Inserisci di nuovo la password.",
       "unavailable": "L'accesso in due passaggi non è disponibile sul server in questo momento. Riprova più tardi.",
       "failed": "Qualcosa è andato storto. Riprova."
+    },
+    "mfaSetup": {
+      "title": "Configura l’accesso in due passaggi",
+      "sub": "Gli account amministratore devono usare l’accesso in due passaggi. Aggiungi Familista alla tua app di autenticazione, salva i codici di recupero, quindi accedi di nuovo.",
+      "done": "Fatto — accedi di nuovo"
     }
   },
   "league": {

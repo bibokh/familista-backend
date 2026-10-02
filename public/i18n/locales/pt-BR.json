@@ -104,7 +104,8 @@
       "recoveryCode": "Um código de recuperação",
       "needCodes": "Gere novos códigos de recuperação primeiro — são necessários pelo menos dois para exigir um código no login.",
       "enforcedNow": "Agora um código é exigido em todo login.",
-      "unenforcedNow": "O login não exige mais um código."
+      "unenforcedNow": "O login não exige mais um código.",
+      "required": "O login em duas etapas é obrigatório para contas de administrador e não pode ser desativado."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Seu login expirou. Digite sua senha novamente.",
       "unavailable": "O login em duas etapas está indisponível no servidor no momento. Tente novamente mais tarde.",
       "failed": "Algo deu errado. Tente novamente."
+    },
+    "mfaSetup": {
+      "title": "Configure o login em duas etapas",
+      "sub": "Contas de administrador precisam usar o login em duas etapas. Adicione o Familista ao seu app autenticador, salve seus códigos de recuperação e entre novamente.",
+      "done": "Pronto — entrar novamente"
     }
   },
   "league": {

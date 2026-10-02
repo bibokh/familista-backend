@@ -104,7 +104,8 @@
       "recoveryCode": "Én gjenopprettingskode",
       "needCodes": "Lag nye gjenopprettingskoder først – minst to trengs for å kreve kode ved pålogging.",
       "enforcedNow": "Nå kreves det en kode ved hver pålogging.",
-      "unenforcedNow": "Det kreves ikke lenger kode ved pålogging."
+      "unenforcedNow": "Det kreves ikke lenger kode ved pålogging.",
+      "required": "Totrinnspålogging er påkrevd for administratorkontoer og kan ikke slås av."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Påloggingen er utløpt. Skriv inn passordet på nytt.",
       "unavailable": "Totrinnspålogging er ikke tilgjengelig på serveren akkurat nå. Prøv igjen senere.",
       "failed": "Noe gikk galt. Prøv igjen."
+    },
+    "mfaSetup": {
+      "title": "Konfigurer totrinnspålogging",
+      "sub": "Administratorkontoer må bruke totrinnspålogging. Legg til Familista i autentiseringsappen din, lagre gjenopprettingskodene, og logg deretter på igjen.",
+      "done": "Ferdig — logg på igjen"
     }
   },
   "league": {

@@ -18,6 +18,7 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { createApp } from '../src/app';
 import type { Application } from 'express';
+import { signToken } from '../src/security/jwt-tokens';
 
 /**
  * The identity read this suite did not know it was making.
@@ -56,11 +57,7 @@ beforeAll(() => { app = createApp(); });
 // ─────────────────────────────────────────────────────────────────────────────
 
 function makeToken(role: string, overrides: Record<string, unknown> = {}): string {
-  return jwt.sign(
-    { sub: USER_ID, email: 'test@test.com', role, clubId: CLUB_ID, ...overrides },
-    ACCESS_SECRET,
-    { expiresIn: '15m' },
-  );
+  return signToken('access', { sub: USER_ID, email: 'test@test.com', role, clubId: CLUB_ID, ...overrides }, { expiresIn: '15m' });
 }
 
 async function loginAs(email: string, password: string): Promise<string> {

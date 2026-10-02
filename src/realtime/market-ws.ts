@@ -3,7 +3,7 @@
 // The same upgrade pipeline the match socket already uses, pointed at a
 // different path. One connection per session:
 //
-//   Client connects to:   wss://host/ws/market?token=<jwt>
+//   Client connects to:   wss://host/ws/market?ticket=<single-use ticket from POST /api/v1/realtime/ticket>
 //   Server verifies the session exactly as `authenticate` does (signature,
 //   active user, token version — closed with 4401 once it ends, see
 //   realtime/session-watch.ts), and resolves the acting club
@@ -24,7 +24,8 @@ import http from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { URL } from 'url';
 import { logger } from '../utils/logger';
-import { verifySessionToken, type RealtimeSession } from '../middleware/auth.middleware';
+import { type RealtimeSession } from '../middleware/auth.middleware';
+import { redeemWsTicket } from './ws-ticket';
 import { subscribeClub, subscribePublic, marketSubscriberCount, MarketEvent } from './market-channel';
 import { watchSession } from './session-watch';
 
@@ -41,12 +42,13 @@ export function mountMarketWebSocket(httpServer: http.Server): WebSocketServer {
       const reqUrl = new URL(req.url ?? '/', 'http://internal');
       if (reqUrl.pathname !== '/ws/market') return;
 
-      const token = reqUrl.searchParams.get('token');
-      if (!token) { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return; }
+      // A single-use ticket from POST /api/v1/realtime/ticket, never the
+      // session token itself (R7). Redeeming it applies the same session rule
+      // as every request: active user and token version.
+      const ticket = reqUrl.searchParams.get('ticket');
+      if (!ticket) { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return; }
 
-      // The same session rule as every request: signature, active user and
-      // token version (a session ended server-side is refused here too).
-      verifySessionToken(token).catch(() => null).then((session) => {
+      redeemWsTicket(ticket).then((session) => {
         if (!session) {
           socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return;
         }

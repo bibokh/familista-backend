@@ -5012,7 +5012,22 @@ async function openAddTimelinePrompt() {
 }
 
 // ── Live WebSocket subscription ─────────────────────────────────────────
+// Cyber Defense R7 — the socket opens with a single-use ticket asked for with
+// the session; the session token itself never goes in a socket URL.
+let _matchModalWSGen = 0;
+function famWsTicket() {
+  return fetch(FAM_CONFIG.API_BASE + '/realtime/ticket', {
+    method: 'POST',
+    credentials: 'include',
+    headers: State.token ? { Authorization: 'Bearer ' + State.token } : {},
+  }).then(function (r) {
+    if (!r.ok) throw new Error('ticket ' + r.status);
+    return r.json();
+  }).then(function (j) { return j && j.data ? j.data.ticket : null; });
+}
+
 function openMatchModalWS(matchId) {
+  _matchModalWSGen++;
   if (_matchModalWS) { try { _matchModalWS.close(); } catch(_){} _matchModalWS = null; }
   if (_matchModalWSPing) { clearInterval(_matchModalWSPing); _matchModalWSPing = null; }
   if (!State.token) return;
@@ -5021,10 +5036,18 @@ function openMatchModalWS(matchId) {
     .replace(/^https/, 'wss')
     .replace(/^http/,  'ws')
     .replace(/\/api\/v\d+$/, '');
-  const url = wsBase + '/ws/match/' + encodeURIComponent(matchId) + '?token=' + encodeURIComponent(State.token);
-  try {
-    _matchModalWS = new WebSocket(url);
-  } catch (e) { console.warn('[match-ws] connect failed', e); return; }
+  const gen = ++_matchModalWSGen;
+  famWsTicket().then(function (ticket) {
+    if (gen !== _matchModalWSGen || !ticket) return;
+    const url = wsBase + '/ws/match/' + encodeURIComponent(matchId) + '?ticket=' + encodeURIComponent(ticket);
+    try {
+      _matchModalWS = new WebSocket(url);
+    } catch (e) { console.warn('[match-ws] connect failed', e); return; }
+    _wireMatchModalWS(matchId);
+  }).catch(function (e) { console.warn('[match-ws] ticket failed', e); });
+}
+
+function _wireMatchModalWS(matchId) {
 
   _matchModalWS.onopen = () => {
     console.log('%c[match-ws]', 'color:#22C55E;', 'connected', matchId);

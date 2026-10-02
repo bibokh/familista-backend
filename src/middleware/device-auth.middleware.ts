@@ -15,6 +15,8 @@ import { prisma } from '../config/database';
 import { config } from '../config';
 import { UnauthorizedError, ForbiddenError } from '../utils/errors';
 import type { UserRole } from '@prisma/client';
+import { verifyToken } from '../security/jwt-tokens';
+import { assertSessionMayProceed, resolveSessionMfaState } from '../auth-prod/admin-mfa';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -39,7 +41,7 @@ function extractToken(req: Request): string | null {
 
 async function verifyUserToken(tok: string, req: Request): Promise<void> {
   let payload: UserJwtPayload;
-  try { payload = jwt.verify(tok, config.jwt.secret) as UserJwtPayload; }
+  try { payload = verifyToken<UserJwtPayload>('access', tok); }
   catch { throw new UnauthorizedError('Invalid or expired token'); }
 
   const user = await prisma.user.findFirst({
@@ -50,6 +52,11 @@ async function verifyUserToken(tok: string, req: Request): Promise<void> {
     },
   });
   if (!user) throw new UnauthorizedError('User not found or deactivated');
+  // R7: the admin MFA rule holds here too; a setup-only session reaches no device route.
+  assertSessionMayProceed(
+    await resolveSessionMfaState(user.id, user.role, (payload as unknown as { mfa?: unknown }).mfa === true),
+    req.method, req.baseUrl + req.path,
+  );
   const effectiveClubId = user.currentClubId ?? user.clubId;
 
   req.user = {

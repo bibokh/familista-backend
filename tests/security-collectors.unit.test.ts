@@ -47,6 +47,7 @@ import type { FamilistaEvent } from '../src/fabric/event-envelope';
 import { setEventTransport, type EventTransport } from '../src/fabric/event-bus';
 import { validateEventPayload } from '../src/fabric/registry/schema-registry';
 import { hashPassword } from '../src/utils/password';
+import { signToken } from '../src/security/jwt-tokens';
 import {
   recordRateLimitHit, resetSecurityCollectors, securityCollectorStats,
   MAX_PER_TYPE_PER_MINUTE,
@@ -139,7 +140,7 @@ describe('a refused sign-in', () => {
 
 describe('a refresh token presented again after rotation', () => {
   it('→ security.refresh.reused, attributed to the token’s verified subject; response unchanged', async () => {
-    const token = jwt.sign({ sub: 'u-known', jti: 'j-1' }, process.env.JWT_REFRESH_SECRET, { expiresIn: '1h' });
+    const token = signToken('refresh', { sub: 'u-known', jti: 'j-1' }, { expiresIn: '1h' });
     const res = await request(app).post('/api/v1/auth/refresh').set('X-Forwarded-For', nextIp())
       .send({ refreshToken: token });
     await settle();
@@ -182,7 +183,7 @@ describe('a refused browser origin', () => {
 
 describe('a 403 from an access check', () => {
   it('→ security.access.denied with the user, role and route family; response unchanged', async () => {
-    const token = jwt.sign({ sub: 'u-known', role: 'COACH' }, process.env.JWT_ACCESS_SECRET, { expiresIn: '10m' });
+    const token = signToken('access', { sub: 'u-known', role: 'COACH' }, { expiresIn: '10m' });
     const res = await request(app).get('/api/v1/system/overview')
       .set('Authorization', `Bearer ${token}`).set('X-Forwarded-For', nextIp());
     await settle();

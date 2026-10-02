@@ -104,7 +104,8 @@
       "recoveryCode": "Satu kode pemulihan",
       "needCodes": "Buat kode pemulihan baru terlebih dahulu — minimal dua diperlukan untuk mewajibkan kode saat masuk.",
       "enforcedNow": "Kode kini wajib di setiap masuk.",
-      "unenforcedNow": "Kode tidak lagi wajib saat masuk."
+      "unenforcedNow": "Kode tidak lagi wajib saat masuk.",
+      "required": "Masuk dua langkah wajib untuk akun administrator dan tidak dapat dimatikan."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Sesi masuk Anda kedaluwarsa. Masukkan kata sandi Anda lagi.",
       "unavailable": "Masuk dua langkah sedang tidak tersedia di server. Coba lagi nanti.",
       "failed": "Terjadi kesalahan. Silakan coba lagi."
+    },
+    "mfaSetup": {
+      "title": "Siapkan masuk dua langkah",
+      "sub": "Akun administrator wajib menggunakan masuk dua langkah. Tambahkan Familista ke aplikasi autentikator Anda, simpan kode pemulihan, lalu masuk kembali.",
+      "done": "Selesai — masuk kembali"
     }
   },
   "league": {

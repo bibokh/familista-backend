@@ -120,11 +120,11 @@ describe('the repository', () => {
   });
 
   it('the coverage counts match the ratchet exactly (tighten it when a row closes)', () => {
-    expect(a.coverage).toEqual({ C: 17, P: 15, U: 6 });
+    expect(a.coverage).toEqual({ C: 18, P: 14, U: 6 });
     expect(map.ratchet).toEqual({ U: a.coverage.U, P: a.coverage.P });
   });
 
-  it('rows closed by R1a–R2 and Batch 1 are covered, and say by which control', () => {
+  it('rows closed by R1a–R2, Batch 1 and Batch 4 are covered, and say by which control', () => {
     const covered = (id: number, ctl: string) => {
       expect(map.boundaries[id].coverage).toBe('C');
       expect(map.boundaries[id].controls).toContain(ctl);
@@ -135,6 +135,8 @@ describe('the repository', () => {
     covered(6, 'authz-declared-per-handler');
     covered(7, 'owner-rooms-pinned');
     covered(33, 'worker-callback-authenticated');
+    // Batch 4 (R7): JWT verification
+    for (const ctl of ['jwt-algorithm-pinned', 'jwt-issuer-validated', 'jwt-key-id']) covered(3, ctl);
   });
 
   it('both controls are present and required', () => {

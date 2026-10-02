@@ -33,6 +33,8 @@ jest.mock('../src/config/database', () => ({
     refreshToken: { create:     (...a: unknown[]) => refreshTokenCreate(...a) },
     // No second factor required for this account (Cyber Defense, Step 7).
     mFASetting:   { findUnique: async () => null },
+    // The enforced lockout (R7): no prior failures, and attempts are recorded.
+    loginAttempt: { count: async () => 0, create: async () => ({}) },
   },
 }));
 

@@ -161,6 +161,8 @@ const db: Row = {
     },
   },
   // No second factor required for these accounts (Cyber Defense, Step 7).
+  // The sign-in lockout (Cyber Defense, R7): no failures on record.
+  loginAttempt: { count: async () => 0, create: async () => ({}) },
   mFASetting: { findUnique: async () => null },
   $transaction: async (fn: any) => (typeof fn === 'function' ? fn(db) : Promise.all(fn)),
 };

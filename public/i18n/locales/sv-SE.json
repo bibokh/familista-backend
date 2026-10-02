@@ -104,7 +104,8 @@
       "recoveryCode": "En återställningskod",
       "needCodes": "Skapa nya återställningskoder först – minst två behövs för att kräva en kod vid inloggning.",
       "enforcedNow": "En kod krävs nu vid varje inloggning.",
-      "unenforcedNow": "En kod krävs inte längre vid inloggning."
+      "unenforcedNow": "En kod krävs inte längre vid inloggning.",
+      "required": "Tvåstegsinloggning krävs för administratörskonton och kan inte stängas av."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Din inloggning har gått ut. Ange ditt lösenord igen.",
       "unavailable": "Tvåstegsinloggning är inte tillgänglig på servern just nu. Försök igen senare.",
       "failed": "Något gick fel. Försök igen."
+    },
+    "mfaSetup": {
+      "title": "Konfigurera tvåstegsinloggning",
+      "sub": "Administratörskonton måste använda tvåstegsinloggning. Lägg till Familista i din autentiseringsapp, spara dina återställningskoder och logga sedan in igen.",
+      "done": "Klart — logga in igen"
     }
   },
   "league": {

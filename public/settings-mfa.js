@@ -8,8 +8,11 @@
 //
 // One card inside the existing Settings › Account panel, on the Settings card
 // vocabulary (set-card, set-field, btn, badge). Everything happens in place:
-// no navigation, no modal. Shown to the platform owner only; for anyone else the
-// card stays hidden and nothing is requested.
+// no navigation, no modal. Shown to the platform owner and — R7 — to club and
+// platform administrators; for anyone else the card stays hidden and nothing
+// is requested. When the platform requires two-step sign-in of administrators
+// and one has not enrolled, the same card is mounted on the sign-in screen
+// (`mountRequired`), since that session can do nothing else.
 //
 // WHAT NEVER PERSISTS IN THE BROWSER
 //
@@ -38,7 +41,16 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
-  function card() { return document.getElementById('set-mfa-card'); }
+  var required = false;  // mounted on the sign-in screen's setup view (R7)
+  function card() { return document.getElementById(required ? 'auth-mfa-card' : 'set-mfa-card'); }
+  function resetState() {
+    S.status = null; S.setup = null; S.codes = null; S.mode = null;
+    S.busy = false; S.note = null; S.loaded = false;
+  }
+  function isAdmin() {
+    var u = window.State && window.State.user;
+    return !!(u && (u.role === 'SUPER_ADMIN' || u.role === 'CLUB_ADMIN'));
+  }
   function group(s, n) { return (String(s).match(new RegExp('.{1,' + n + '}', 'g')) || []).join(' '); }
   function codeShown(c) { return (String(c).match(/.{1,4}/g) || []).join('-'); }
   function when(iso) {
@@ -58,6 +70,7 @@
   function noteFor(err) {
     var st = err && (err.status || (err.response && err.response.status));
     if (st === 400) return { key: 'badCode', kind: 'is-warn' };
+    if (st === 403) return { key: 'required', kind: 'is-warn' };
     if (st === 429) return { key: 'tooMany', kind: 'is-warn' };
     if (st === 503) return { key: 'unavailable', kind: 'is-warn' };
     return { key: 'failed', kind: 'is-warn' };
@@ -273,15 +286,16 @@
   }
 
   /**
-   * Show the card to the platform owner and load its state. Called when the
-   * Settings page is drawn; for anyone else the card stays hidden.
+   * Show the card to the platform owner or an administrator and load its
+   * state. Called when the Settings page is drawn; for anyone else the card
+   * stays hidden.
    */
   function mount() {
     var el = card();
     if (!el || el.getAttribute('data-mfa-mounted') === '1') return;
     var isOwner = typeof window._isPlatformOwner === 'function' ? window._isPlatformOwner() : Promise.resolve(false);
     Promise.resolve(isOwner).then(function (yes) {
-      if (!yes || !card()) return;
+      if (!(yes || isAdmin()) || !card()) return;
       el.setAttribute('data-mfa-mounted', '1');
       el.hidden = false;
       render();
@@ -295,5 +309,22 @@
   // kept — whenever the language loads or changes.
   try { if (window.I18N && I18N.onChange) I18N.onChange(function () { if (card() && !card().hidden) render(); }); } catch (_) {}
 
-  window.SettingsMfa = { mount: mount, render: render };
+  /** R7: the sign-in screen's required setup. The session can do nothing else. */
+  function mountRequired() {
+    required = true;
+    resetState();
+    var el = card();
+    if (!el) return;
+    el.hidden = false;
+    render();
+    load();
+  }
+  function unmountRequired() {
+    var el = card();
+    if (el) { el.hidden = true; el.innerHTML = ''; }
+    required = false;
+    resetState();
+  }
+
+  window.SettingsMfa = { mount: mount, render: render, mountRequired: mountRequired, unmountRequired: unmountRequired };
 })();

@@ -102,6 +102,7 @@ import { hashRefreshToken, REFRESH_TOKEN_HASH_PREFIX } from '../src/security/ref
 import type { FamilistaEvent } from '../src/fabric/event-envelope';
 import { setEventTransport, type EventTransport } from '../src/fabric/event-bus';
 import { resetSecurityCollectors } from '../src/cyber-defense/collectors';
+import { signToken } from '../src/security/jwt-tokens';
 
 const app = createApp();
 const EMAIL = 'coach@familista.test';
@@ -124,7 +125,7 @@ const refresh = (token: unknown, target: unknown = app) => request(target).post(
 const logout = (token: unknown) => request(app).post('/api/v1/auth/logout').send({ refreshToken: token });
 /** A refresh token as the previous build issued it: same secret, same claims. */
 const legacyToken = (sub = 'u-coach') =>
-  jwt.sign({ sub, email: EMAIL, role: 'HEAD_COACH', clubId: 'c-1', tv: 0, jti: `legacy-${Math.random()}` }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
+  signToken('refresh', { sub, email: EMAIL, role: 'HEAD_COACH', clubId: 'c-1', tv: 0, jti: `legacy-${Math.random()}` }, { expiresIn: '7d' });
 const week = () => new Date(Date.now() + 7 * 24 * 3600_000);
 
 beforeAll(async () => {

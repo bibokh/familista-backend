@@ -104,7 +104,8 @@
       "recoveryCode": "Jedan kod za oporavak",
       "needCodes": "Prvo napravi nove kodove za oporavak — potrebna su najmanje dva da bi se kod zahtevao pri prijavi.",
       "enforcedNow": "Kod je sada obavezan pri svakoj prijavi.",
-      "unenforcedNow": "Kod više nije obavezan pri prijavi."
+      "unenforcedNow": "Kod više nije obavezan pri prijavi.",
+      "required": "Пријављивање у два корака је обавезно за администраторске налоге и не може да се искључи."
     }
   },
   "squad": {
@@ -183,6 +184,11 @@
       "expired": "Prijava je istekla. Ponovo unesi lozinku.",
       "unavailable": "Prijava u dva koraka trenutno nije dostupna na serveru. Pokušaj kasnije.",
       "failed": "Nešto nije u redu. Pokušaj ponovo."
+    },
+    "mfaSetup": {
+      "title": "Подесите пријављивање у два корака",
+      "sub": "Администраторски налози морају да користе пријављивање у два корака. Додајте Familista у апликацију за потврду идентитета, сачувајте кодове за опоравак, а затим се поново пријавите.",
+      "done": "Готово — поново се пријавите"
     }
   },
   "league": {

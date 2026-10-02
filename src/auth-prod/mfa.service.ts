@@ -11,6 +11,7 @@ import { prisma } from '../config/database';
 import { config } from '../config';
 import { AppError, BadRequestError, ForbiddenError, NotFoundError, TooManyRequestsError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
+import { roleRequiresMfa } from './admin-mfa';
 
 const STEP_SECONDS = 30;
 const CODE_DIGITS  = 6;
@@ -374,6 +375,11 @@ async function enrolledSettings(userId: string): Promise<MFASetting> {
  * alone is not enough, or a stolen session could remove the second factor.
  */
 export async function disableMFA(actor: MfaActor, code: string): Promise<{ ok: true }> {
+  // R7: while the platform requires it of administrators, an administrator
+  // cannot remove their own second factor (any route — this is the one place).
+  if (roleRequiresMfa(actor.role)) {
+    throw new ForbiddenError('Two-step sign-in is required for administrator accounts and cannot be turned off.');
+  }
   const s = await enrolledSettings(actor.userId);
   if (!(await checkCode(actor, s, code, true))) throw new InvalidMfaCodeError();
   await prisma.mFASetting.update({

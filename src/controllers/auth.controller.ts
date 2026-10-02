@@ -95,7 +95,10 @@ export async function register(req: Request, res: Response, next: NextFunction) 
 export async function login(req: Request, res: Response, next: NextFunction) {
   try {
     await loginSchema.parseAsync({ body: req.body });
-    const result = await authService.loginUser(req.body.email, req.body.password);
+    const result = await authService.loginUser(req.body.email, req.body.password, {
+      ipAddress: req.ip ?? null,
+      userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'].slice(0, 256) : null,
+    });
     if (authService.isLoginChallenge(result)) {
       // Cyber Defense, Step 7: the password was right and this account also
       // requires a code. No cookies, no tokens; the challenge is single-use.
@@ -152,7 +155,13 @@ export async function logout(req: Request, res: Response, next: NextFunction) {
 
 export async function me(req: Request, res: Response, next: NextFunction) {
   try {
-    return sendSuccess(res, req.user, 'Profile fetched');
+    // Names and club name beside the identity, so a client that stores nothing
+    // (Cyber Defense R7) can show who is signed in after a reload.
+    const profile = await authService.profileOf(req.user!.id);
+    // R7: a setup-only administrator session says so, so a restored session
+    // opens on the two-step setup rather than the app.
+    const setupOnly = (req as Request & { sessionMfaState?: string }).sessionMfaState === 'setup-only';
+    return sendSuccess(res, { ...req.user, ...profile, ...(setupOnly && { mfaEnrolmentRequired: true }) }, 'Profile fetched');
   } catch (err) { return next(err); }
 }
 

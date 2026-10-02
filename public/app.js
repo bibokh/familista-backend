@@ -31,7 +31,9 @@ const FAM_CONFIG = (function () {
   const apiRoot  = apiBase.replace(/\/api\/v\d+$/, '');   // …/api/v1  →  …
   // NOTE: The GPS simulator WebSocket (/ws/live) was removed. WS_URL now holds
   // the base WebSocket root only. Live match WebSocket URLs are constructed
-  // inline as: wsBase + '/ws/match/:id?token=...' (see connectMatchWS).
+  // inline as: wsBase + '/ws/match/:id?ticket=...' (see openMatchModalWS). The
+  // ticket comes from POST /realtime/ticket; the session token never goes in
+  // a socket URL (Cyber Defense R7).
   const wsBase   = apiRoot.replace(/^http/, 'ws');
 
   return Object.freeze({
@@ -577,6 +579,11 @@ const FamilistaAPI = (function () {
       try {
         return await rawFetch(method, url, opts);
       } catch (err) {
+        // R7: this session may only enrol in two-step sign-in.
+        if (err.status === 403 && err.body && err.body.code === 'MFA_ENROLMENT_REQUIRED') {
+          try { if (window._famShowMfaSetup) window._famShowMfaSetup(); } catch (_) {}
+          throw err;
+        }
         // 401 → one transparent refresh attempt
         if (err.status === 401 && !opts._refreshed && opts.auth !== false) {
           const ok = await refreshTokens();
@@ -849,7 +856,40 @@ async function _completeSignIn(data, err) {
   // browser — which is how a second user on the same machine would otherwise
   // inherit the first user's language.
   try { if (window.I18N_APPLY) await I18N_APPLY.boot(); } catch (_) {}
+  // R7: an administrator who must enrol first gets the setup view, not the app.
+  if (payload && payload.mfaEnrolmentRequired === true) { _famShowMfaSetup(); return; }
   await bootApp();
+}
+
+/**
+ * Cyber Defense, R7 — the platform requires two-step sign-in of administrators
+ * and this one has not enrolled, so the session can only enrol. The sign-in
+ * screen shows Settings' own two-step card; "Done" signs out, and the next
+ * sign-in asks for the code. Reached from sign-in, from a restored session and
+ * from any request the server refuses with MFA_ENROLMENT_REQUIRED.
+ */
+let _famMfaSetupShown = false;
+function _famShowMfaSetup() {
+  if (_famMfaSetupShown) return;
+  _famMfaSetupShown = true;
+  var app = document.getElementById('main-app');
+  var login = document.getElementById('login-screen');
+  if (app) app.style.display = 'none';
+  if (login) login.style.display = 'flex';
+  showAuthView('mfa-setup');
+  try { if (window.SettingsMfa) window.SettingsMfa.mountRequired(); } catch (_) {}
+}
+window._famShowMfaSetup = _famShowMfaSetup;
+
+function famMfaSetupDone() {
+  try { FamilistaAPI.invalidateReadCache(); } catch (_) {}
+  api('/auth/logout', { method: 'POST' }).catch(() => {});
+  State.token = null;
+  State.user  = null;
+  _famMfaSetupShown = false;
+  try { if (window.SettingsMfa) window.SettingsMfa.unmountRequired(); } catch (_) {}
+  try { famClearLoginForm(); } catch (_) {}
+  showAuthView('login');
 }
 
 /** POST /auth/login/mfa — the second step. Never retried: each try is counted. */
@@ -1413,6 +1453,7 @@ async function tryAutoLogin() {
           }
         } catch (_) { /* non-fatal: fall back to cookie auth */ }
         console.log('[AutoLogin] Session valid:', user.email, State.token ? '(bearer ready)' : '(cookie only)');
+        if (user.mfaEnrolmentRequired === true) { _famShowMfaSetup(); return; }
         bootApp();
         return;
       }
@@ -1435,7 +1476,10 @@ async function tryAutoLogin() {
         if (mr.ok) {
           const mb = await mr.json();
           State.user = (mb && (mb.data || mb)) || null;
-          if (State.user && State.user.id) { bootApp(); return; }
+          if (State.user && State.user.id) {
+            if (State.user.mfaEnrolmentRequired === true) { _famShowMfaSetup(); return; }
+            bootApp(); return;
+          }
         }
       }
     }
@@ -38394,7 +38438,23 @@ async function openAddTimelinePrompt() {
 }
 
 // ── Live WebSocket subscription ─────────────────────────────────────────
+// Cyber Defense R7 — a WebSocket is opened with a ticket: single-use, 30 s,
+// good for one socket and nothing else. Asked for over an authenticated
+// request, so the session token itself never appears in a socket URL.
+let _matchModalWSGen = 0;
+function famWsTicket() {
+  return fetch(FAM_CONFIG.API_BASE + '/realtime/ticket', {
+    method: 'POST',
+    credentials: 'include',
+    headers: State.token ? { Authorization: 'Bearer ' + State.token } : {},
+  }).then(function (r) {
+    if (!r.ok) throw new Error('ticket ' + r.status);
+    return r.json();
+  }).then(function (j) { return j && j.data ? j.data.ticket : null; });
+}
+
 function openMatchModalWS(matchId) {
+  _matchModalWSGen++;
   if (_matchModalWS) { try { _matchModalWS.close(); } catch(_){} _matchModalWS = null; }
   if (_matchModalWSPing) { clearInterval(_matchModalWSPing); _matchModalWSPing = null; }
   if (!State.token) return;
@@ -38403,10 +38463,20 @@ function openMatchModalWS(matchId) {
     .replace(/^https/, 'wss')
     .replace(/^http/,  'ws')
     .replace(/\/api\/v\d+$/, '');
-  const url = wsBase + '/ws/match/' + encodeURIComponent(matchId) + '?token=' + encodeURIComponent(State.token);
-  try {
-    _matchModalWS = new WebSocket(url);
-  } catch (e) { console.warn('[match-ws] connect failed', e); return; }
+  // A single-use ticket opens the socket; the session token stays out of the
+  // URL. If the modal moved on while the ticket was in flight, it is dropped.
+  const gen = ++_matchModalWSGen;
+  famWsTicket().then(function (ticket) {
+    if (gen !== _matchModalWSGen || !ticket) return;
+    const url = wsBase + '/ws/match/' + encodeURIComponent(matchId) + '?ticket=' + encodeURIComponent(ticket);
+    try {
+      _matchModalWS = new WebSocket(url);
+    } catch (e) { console.warn('[match-ws] connect failed', e); return; }
+    _wireMatchModalWS(matchId);
+  }).catch(function (e) { console.warn('[match-ws] ticket failed', e); });
+}
+
+function _wireMatchModalWS(matchId) {
 
   _matchModalWS.onopen = () => {
     console.log('%c[match-ws]', 'color:#22C55E;', 'connected', matchId);
@@ -44614,7 +44684,7 @@ window.clubCrestSave = clubCrestSave;
 // repainted here.
 function renderSettingsPage() {
   try { _crestRepaint(); } catch (_) {}
-  // Two-step sign-in (public/settings-mfa.js): shown to the platform owner only.
+  // Two-step sign-in (public/settings-mfa.js): shown to the platform owner and administrators.
   try { if (window.SettingsMfa) window.SettingsMfa.mount(); } catch (_) {}
 }
 window.renderSettingsPage = renderSettingsPage;
@@ -49831,6 +49901,7 @@ async function tosBoardSnapshot() {
         case 'toggleMobileMenu':    toggleMobileMenu();    break;
         case 'doLogin':             doLogin();             break;
         case 'doLoginMfa':          doLoginMfa();          break;
+        case 'famMfaSetupDone':     famMfaSetupDone();     break;
         case 'doForgotPassword':    doForgotPassword();    break;
         case 'doResetPassword':     doResetPassword();     break;
         case 'toggleSidebar':       toggleSidebar();       break;
@@ -63564,29 +63635,46 @@ var _TF_RT = {
 // clubs at once — and one burst must not become six requests per screen.
 var TF_RT_FLUSH_MS = 250;
 
-function _tfRtUrl() {
+function _tfRtUrl(ticket) {
   var base = FAM_CONFIG.API_BASE
     .replace(/^https/, 'wss')
     .replace(/^http/, 'ws')
     .replace(/\/api\/v\d+$/, '');
-  return base + '/ws/market?token=' + encodeURIComponent(State.token);
+  return base + '/ws/market?ticket=' + encodeURIComponent(ticket);
 }
 
 function _tfRtConnect() {
-  // A bearer, because the socket is authenticated by ?token= and there is no
-  // cookie on the upgrade. The roster is not part of that: the server resolves
-  // the club from the user row on the token, so a session whose roster never
-  // hydrated still gets its own private stream and the public one.
+  // The socket is opened with a single-use ticket (famWsTicket), asked for
+  // with the session; the token itself never goes in the URL (R7). The roster
+  // is not part of that: the server resolves the club from the user row behind
+  // the ticket, so a session whose roster never hydrated still gets its own
+  // private stream and the public one.
   if (!State.token) return;
   var club = (typeof _TH !== 'undefined' && _TH && _TH.clubId) || _thCurrentClubId();
   // Already connected for this club: one socket, not one per tab opening.
   if (_TF_RT.ws && _TF_RT.clubId === club &&
       (_TF_RT.ws.readyState === 0 || _TF_RT.ws.readyState === 1)) return;
+  if (_TF_RT.ticketing === club) return;
   _tfRtClose();
   _TF_RT.clubId = club;
+  _TF_RT.ticketing = club;
+  var gen = (_TF_RT.gen = (_TF_RT.gen || 0) + 1);
 
-  try { _TF_RT.ws = new WebSocket(_tfRtUrl()); }
-  catch (e) { _tfRtScheduleRetry(); return; }
+  famWsTicket().then(function (ticket) {
+    if (gen !== _TF_RT.gen) return;            // closed or reconnected meanwhile
+    _TF_RT.ticketing = null;
+    if (!ticket) { _tfRtScheduleRetry(); return; }
+    try { _TF_RT.ws = new WebSocket(_tfRtUrl(ticket)); }
+    catch (e) { _tfRtScheduleRetry(); return; }
+    _tfRtWire();
+  }).catch(function () {
+    if (gen !== _TF_RT.gen) return;
+    _TF_RT.ticketing = null;
+    _tfRtScheduleRetry();
+  });
+}
+
+function _tfRtWire() {
 
   _TF_RT.ws.onopen = function () {
     _TF_RT.connected = true;
@@ -63626,6 +63714,8 @@ function _tfRtScheduleRetry() {
 }
 
 function _tfRtClose() {
+  _TF_RT.gen = (_TF_RT.gen || 0) + 1;        // an in-flight ticket is dropped
+  _TF_RT.ticketing = null;
   if (_TF_RT.ping) { clearInterval(_TF_RT.ping); _TF_RT.ping = null; }
   if (_TF_RT.retry) { clearTimeout(_TF_RT.retry); _TF_RT.retry = null; }
   if (_TF_RT.ws) {

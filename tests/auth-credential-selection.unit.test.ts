@@ -36,7 +36,7 @@ describe('the server reads whichever credential is actually valid', () => {
     // The shape that mattered: a list, tried in order, each one VERIFIED.
     expect(SRC).toMatch(/const candidates\s*=\s*\[cookieToken,\s*bearerToken\]/);
     expect(SRC).toContain('for (const candidate of candidates)');
-    expect(SRC).toContain('jwt.verify(candidate, config.jwt.secret)');
+    expect(SRC).toContain("verifyToken<JwtPayload>('access', candidate)");
     // and the old shape is gone
     expect(SRC).not.toMatch(/if \(cookieToken\) \{\s*token = cookieToken;/);
   });

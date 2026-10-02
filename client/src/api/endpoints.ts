@@ -4,6 +4,7 @@
 import { api, qs } from './client';
 import type {
   AuthResponse,
+  MeResponse,
   PaginatedResponse,
   Player,
   Team,
@@ -31,10 +32,13 @@ import type {
 
 export const authApi = {
   login: (email: string, password: string) =>
-    api.post<AuthResponse>('/auth/login', { email, password }),
+    api.post<{ data: AuthResponse }>('/auth/login', { email, password }),
 
-  refreshToken: (refreshToken: string) =>
-    api.post<AuthResponse>('/auth/refresh', { refreshToken }),
+  /** The signed-in person, from the session cookie; null-safe for session restore. */
+  me: () => api.getQuiet<{ data: MeResponse }>('/auth/me'),
+
+  /** Revokes the refresh token and clears the session cookies server-side. */
+  logout: () => api.post<void>('/auth/logout', {}),
 };
 
 // ── Core resources ────────────────────────────────────────────────────────────
