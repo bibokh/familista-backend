@@ -159,7 +159,7 @@ describe('every id in a route is checked against the caller\'s club (R2)', () =>
 
   it('open findings are named and stay visible until they are fixed', () => {
     const open = Object.entries(exemptions).filter(([, ex]) => ex.basis === 'open-finding').map(([k]) => k).sort();
-    expect(open).toEqual(['phase-l.routes :jobId', 'provisioning.routes :releaseId']);
+    expect(open).toEqual(['phase-l.routes :jobId']);
     for (const k of open) expect(exemptions[k].reason).toMatch(/Batch \d/);
   });
 });

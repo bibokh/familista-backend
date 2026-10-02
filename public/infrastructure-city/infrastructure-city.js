@@ -481,7 +481,7 @@
 
   /** A plot with no building on it. Drawn as ground, because that is what it is. */
   function futureHtml(f) {
-    return '<span class="ic-building ic-building--future" title="' + esc(f.reason) + '">'
+    return '<span class="ic-building ic-building--future" title="' + esc(T(f.reason)) + '">'
       + '<span class="ic-tower ic-tower--plot" aria-hidden="true">'
       + '<span class="ic-tower-roof"><span class="ic-building-dot"></span></span>'
       + '<span class="ic-tower-body"></span>'
@@ -1064,6 +1064,23 @@
 
   // ── INSPECTOR ─────────────────────────────────────────────────────────────
 
+  // Cyber Defense coverage (R5): the weakest trust boundary this component
+  // sits on, from the reviewed coverage map the posture test checks. A
+  // component the map does not name says so rather than looking covered.
+  var COVERAGE_LABEL = { C: 'Covered', P: 'Partially covered', U: 'Not covered' };
+  var COVERAGE_KIND = { C: 'ok', P: 'warn', U: 'crit' };
+
+  function coverageHtml(c) {
+    var cov = IC.manifest && IC.manifest.coverage ? IC.manifest.coverage[c.id] : null;
+    if (!cov) return '<div class="ic-insp-note">' + esc(T('Not named in the Cyber Defense coverage map.')) + '</div>';
+    return '<div class="ic-insp-state"><span class="ic-chip ic-chip--' + COVERAGE_KIND[cov.state] + '">'
+      + '<span class="ic-dot"></span>' + esc(T(COVERAGE_LABEL[cov.state])) + '</span></div>'
+      + '<div class="ic-insp-row"><div class="ic-insp-k">' + esc(T('Trust boundaries')) + '</div>'
+      + '<div class="ic-insp-v" data-no-i18n>' + cov.rows.map(function (r) {
+        return '#' + esc(String(r.id)) + ' ' + esc(r.coverage);
+      }).join(' · ') + '</div></div>';
+  }
+
   function inspectorHtml() {
     if (!IC.inspect) return '';
     var c = componentById(IC.inspect);
@@ -1116,6 +1133,9 @@
       + row('Region', c.region, true)
       + row('Repository path', c.repositoryPath, true)
       + (c.note ? '<div class="ic-insp-note">' + esc(c.note) + '</div>' : '')
+
+      + '<div class="ic-insp-sec">' + esc(T('Cyber Defense coverage')) + '</div>'
+      + coverageHtml(c)
 
       + '<div class="ic-insp-sec">' + esc(T('Health')) + '</div>'
       + measurements

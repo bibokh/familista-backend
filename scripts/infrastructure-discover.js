@@ -425,6 +425,7 @@ district('config',       'Configuration',           'OPERATIONS',     'west',   
 district('tooling',      'Build Tooling',           'OPERATIONS',     'north',  16);
 district('language',     'Languages & Runtime',     'FOUNDATION',     'centre', 17);
 district('realtime',     'Realtime Transport',      'APPLICATION',    'centre', 18);
+district('devices',      'Devices & Edge',          'EDGE',           'west',   19);
 
 // ── 9 · components, each with its evidence ───────────────────────────────────
 
@@ -651,6 +652,42 @@ if (deps['@anthropic-ai/sdk']) {
     dependencies: ['ai-gateway'],
   });
   relate('ai-gateway', 'anthropic', 'CALLS', 'src/services/ai-llm.adapter.ts');
+}
+
+// The intelligence and device layers (Cyber Defense R5). Each is a mounted,
+// live part of the platform that the city did not show, so it was invisible to
+// every inventory built on this manifest. Present only where its code is.
+const intelligence = [
+  { id: 'ai-agents', name: 'AI Agents', type: 'SERVICE', path: 'src/services/ai-orchestrator.service.ts',
+    evidence: 'src/services/ai-orchestrator.service.ts, src/workers/ai-agent.worker.ts, src/routes/ai-ops.routes.ts' },
+  { id: 'model-registry', name: 'Model Registry', type: 'STORE', path: 'src/services/ai-model-registry.service.ts',
+    evidence: 'src/services/ai-model-registry.service.ts' },
+  { id: 'ml-features', name: 'ML Feature Pipeline', type: 'PIPELINE', path: 'src/services/ai-feature-extraction.service.ts',
+    evidence: 'src/services/ai-feature-extraction.service.ts' },
+  { id: 'federated-learning', name: 'Federated Learning', type: 'SERVICE', path: 'src/federated/federated.service.ts',
+    evidence: 'src/federated/federated.service.ts, src/routes/phase-l.routes.ts' },
+  { id: 'knowledge-graph', name: 'Knowledge Graph', type: 'STORE', path: 'src/knowledge-graph/knowledge-graph.service.ts',
+    evidence: 'src/knowledge-graph/knowledge-graph.service.ts, src/routes/phase-n.routes.ts' },
+  { id: 'video-intelligence', name: 'Video Intelligence', type: 'PIPELINE', path: 'src/vision-platform/vision-intelligence.contract.ts',
+    evidence: 'src/vision-platform/vision-intelligence.contract.ts, src/routes/familista-vision.routes.ts' },
+];
+for (const c of intelligence) {
+  if (!exists(c.path)) continue;
+  component({ id: c.id, name: c.name, district: 'ai', category: 'ai', type: c.type,
+    repositoryPath: c.path, sourceEvidence: c.evidence, dependencies: ['backend-services'] });
+}
+const devicesLayer = [
+  { id: 'device-fleet', name: 'Wearable Devices', type: 'SERVICE', path: 'src/services/device-registry.service.ts',
+    evidence: 'src/services/device-registry.service.ts, src/routes/device-infra.routes.ts, src/routes/device-session.routes.ts' },
+  { id: 'camera-ingest', name: 'Camera Ingest', type: 'PIPELINE', path: 'src/vision/vision-ingest.service.ts',
+    evidence: 'src/vision/vision-ingest.service.ts, src/vision/camera-registry.service.ts, src/routes/vision.routes.ts' },
+  { id: 'edge-nodes', name: 'Edge Nodes', type: 'SERVICE', path: 'src/edge/edge-node.service.ts',
+    evidence: 'src/edge/edge-node.service.ts, src/routes/edge.routes.ts' },
+];
+for (const c of devicesLayer) {
+  if (!exists(c.path)) continue;
+  component({ id: c.id, name: c.name, district: 'devices', category: 'devices', type: c.type,
+    repositoryPath: c.path, sourceEvidence: c.evidence, dependencies: ['backend-services'] });
 }
 
 if (deps['@aws-sdk/client-s3']) {
@@ -899,13 +936,13 @@ const liveRelationships = relationships.filter((r) => componentIds.has(r.from) &
 // ── 11 · future zones — reserved, and honest about it ────────────────────────
 
 const future = [
-  { id: 'future-scouting',  name: 'Scouting',            district: 'backend',   reason: 'Not implemented in this build.' },
   { id: 'future-snapshots', name: 'Snapshots',           district: 'vault',     reason: 'Designed in docs/FABRIC_HISTORICAL_STORE.md; no engine exists.' },
   { id: 'future-archive-exporter', name: 'Archive Exporter', district: 'vault', reason: 'Contract only; exportArchiveBatch() throws.' },
   { id: 'future-lint',      name: 'Lint',                district: 'testing',   reason: 'No ESLint configuration exists in the repository.' },
   { id: 'future-coverage',  name: 'Coverage Gate',       district: 'testing',   reason: 'jest.config.ts sets collectCoverage: false.' },
-  { id: 'future-vuln-scan', name: 'Vulnerability Scanning', district: 'security', reason: 'CI runs npm audit informationally (|| true); no gate.' },
+  { id: 'future-row-level-security', name: 'Row-Level Security', district: 'database', reason: 'Planned: Cyber Defense Batch 7. Tenancy is enforced by the application only.' },
   { id: 'future-ai-diagnostics', name: 'AI Infrastructure Assistant', district: 'ai', reason: 'Reserved integration point. Not implemented.' },
+  { id: 'future-smart-ball', name: 'Smart Ball', district: 'devices', reason: 'On the product roadmap. No firmware, ingest or model exists in this build.' },
 ].filter((f) => districts.some((d) => d.id === f.district));
 
 // Drop districts nothing landed in, so an empty district never implies a gap.

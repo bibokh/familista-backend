@@ -36,6 +36,7 @@ import {
 } from '../infra/infrastructure-health.service';
 import { queryHistory } from '../fabric/history/history-query.service';
 import { watchRequestSession } from '../realtime/session-watch';
+import { componentCoverage } from '../infra/component-coverage';
 
 const router = Router();
 router.use(authenticate);
@@ -95,6 +96,9 @@ router.get('/', (_req: Request, res: Response) => {
       environment: reg.manifest.environment,
       evidence: reg.manifest.evidence,
       layout: cityLayout(),
+      // Cyber Defense coverage per component (R5), from the reviewed coverage
+      // map: the weakest trust-boundary row each building sits on, and the rows.
+      coverage: componentCoverage(),
     },
   });
 });

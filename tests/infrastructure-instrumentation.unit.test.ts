@@ -404,6 +404,18 @@ describe('instrumentation coverage', () => {
     'boot-probe': 'Runs in CI against a fresh boot, not in production.',
     'i18n-check': 'Runs in CI; its runtime counterpart is the Internationalisation signal.',
     configuration: 'Read once at boot; a missing required value stops the process, so "running" would be a tautology, not a measurement.',
+    // Cyber Defense R5 put the intelligence and device layers on the map. No
+    // health signal measures any of them yet; the city says so rather than
+    // borrowing a neighbour's green.
+    'ai-agents': 'No live signal measures the agent orchestrator yet.',
+    'model-registry': 'No live signal measures the model registry yet.',
+    'ml-features': 'No live signal measures feature extraction yet.',
+    'federated-learning': 'No live signal measures federated rounds yet.',
+    'knowledge-graph': 'No live signal measures the knowledge graph yet.',
+    'video-intelligence': 'Video Intelligence reports its own engine health on its page; the city has no signal for it yet.',
+    'device-fleet': 'No live signal measures the device fleet yet.',
+    'camera-ingest': 'No live signal measures camera ingest yet.',
+    'edge-nodes': 'No live signal measures edge nodes yet.',
   };
 
   it('joins every other component to a live signal the health layer emits', async () => {
