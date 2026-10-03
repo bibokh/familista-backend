@@ -940,7 +940,7 @@ const future = [
   { id: 'future-archive-exporter', name: 'Archive Exporter', district: 'vault', reason: 'Contract only; exportArchiveBatch() throws.' },
   { id: 'future-lint',      name: 'Lint',                district: 'testing',   reason: 'No ESLint configuration exists in the repository.' },
   { id: 'future-coverage',  name: 'Coverage Gate',       district: 'testing',   reason: 'jest.config.ts sets collectCoverage: false.' },
-  { id: 'future-row-level-security', name: 'Row-Level Security', district: 'database', reason: 'Planned: Cyber Defense Batch 7. Tenancy is enforced by the application only.' },
+  { id: 'future-row-level-security', name: 'Row-Level Security', district: 'database', reason: 'Installed, not enforced: fail-closed policies on 18 club tables (Cyber Defense R14); turning enforcement on is an owner decision.' },
   { id: 'future-ai-diagnostics', name: 'AI Infrastructure Assistant', district: 'ai', reason: 'Reserved integration point. Not implemented.' },
   { id: 'future-smart-ball', name: 'Smart Ball', district: 'devices', reason: 'On the product roadmap. No firmware, ingest or model exists in this build.' },
 ].filter((f) => districts.some((d) => d.id === f.district));

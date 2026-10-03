@@ -135,7 +135,7 @@
   "knownGaps": {
     "mfa-required-at-login": "PARTIAL \u2014 required at sign-in for an owner who switched it on (Step 7) and, while MFA_REQUIRED_FOR_ADMINS=true, for administrators (R7); not required for every account.",
     "refresh-token-legacy-fallback-removed": "ABSENT \u2014 the nullable legacy token column and the dual-read fallback stay until every pre-Step-8 refresh token has expired; removing them is a later cleanup.",
-    "db-row-level-security": "PARTIAL \u2014 R14 pilot (Batch 7): policies on Player, Membership, PlayerInjury and VideoAsset are installed and proven on real PostgreSQL, but shipped with enforcement off in the database and DB_RLS_CONTEXT off in the application. Turning either on is an owner decision; every other club table relies on the application's tenancy checks."
+    "db-row-level-security": "PARTIAL \u2014 R14 (Batch 7): fail-closed policies on 18 club tables (the pilot's Player, Membership, PlayerInjury and VideoAsset, and 14 club-private health, safeguarding, contract, attendance, finance, calendar and staff-note tables) are installed and proven on real PostgreSQL, and the application carries the club context to them when DB_RLS_CONTEXT=on, but enforcement in the database is off (familista_rls_enforced() returns false). Turning it on is an owner decision; every other club table relies on the application's tenancy checks."
   },
   "ratchets": {
     "maxNonNpmjsLockfilePackages": 0,
@@ -1242,7 +1242,21 @@
     "Player",
     "Membership",
     "PlayerInjury",
-    "VideoAsset"
+    "VideoAsset",
+    "BiochemicalSignal",
+    "HydrationEstimate",
+    "StressIndex",
+    "NeuromuscularLoad",
+    "TendonRiskEstimate",
+    "PlayerGuardianLink",
+    "PlayerContractRecord",
+    "PlayerEvaluationRecord",
+    "PlayerOnboardingStep",
+    "TrainingAttendanceRecord",
+    "MatchAttendanceRecord",
+    "OperationsPayment",
+    "ClubCalendarEntry",
+    "StaffClubNote"
   ],
   "rlsSystemPaths": {
     "platform-owner": "A platform owner acts across clubs by role (authenticate); the owner rooms are pinned separately (owner-rooms-pinned).",

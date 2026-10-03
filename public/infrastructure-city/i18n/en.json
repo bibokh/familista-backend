@@ -241,7 +241,7 @@
   "Edge Nodes": "Edge Nodes",
   "Row-Level Security": "Row-Level Security",
   "Smart Ball": "Smart Ball",
-  "Planned: Cyber Defense Batch 7. Tenancy is enforced by the application only.": "Planned: Cyber Defense Batch 7. Tenancy is enforced by the application only.",
+  "Installed, not enforced: fail-closed policies on 18 club tables (Cyber Defense R14); turning enforcement on is an owner decision.": "Installed, not enforced: fail-closed policies on 18 club tables (Cyber Defense R14); turning enforcement on is an owner decision.",
   "On the product roadmap. No firmware, ingest or model exists in this build.": "On the product roadmap. No firmware, ingest or model exists in this build.",
   "Designed in docs/FABRIC_HISTORICAL_STORE.md; no engine exists.": "Designed in docs/FABRIC_HISTORICAL_STORE.md; no engine exists.",
   "Contract only; exportArchiveBatch() throws.": "Contract only; exportArchiveBatch() throws.",

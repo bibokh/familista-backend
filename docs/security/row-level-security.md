@@ -1,4 +1,4 @@
-# Row-level security pilot (Cyber Defense R14)
+# Row-level security (Cyber Defense R14)
 
 Club isolation is enforced by the application: tenant guards on every route id
 (R2), and club filters in every service. This pilot adds a second, independent
@@ -18,10 +18,31 @@ the steps below.
 | `Player` | open | own club only | the transfer market reads other clubs' players (public fields, `publicPlayerSelect`) |
 | `Membership` | open | own club only | a user's own clubs and the staff market read across clubs |
 
-`InjuryRecord` and the other medical/video tables are not in the pilot: some
-have no migration yet (the schema/migration drift tracked separately), and the
-list grows table by table — `rlsPilotTables` in `posture-policy.json` is a
-ratchet the security posture check holds.
+Club-private tables (`20261005100000_rls_club_private_tables`): every row
+belongs to exactly one club (`clubId NOT NULL`) and no legitimate path reads
+them across clubs, so each is isolated both ways (`FOR ALL`, `USING` and
+`WITH CHECK`), with the pilot's own policy function:
+
+| Area | Tables |
+|---|---|
+| Health and biometrics (special category) | `BiochemicalSignal`, `HydrationEstimate`, `StressIndex`, `NeuromuscularLoad`, `TendonRiskEstimate` |
+| Minors' safeguarding | `PlayerGuardianLink` |
+| Player lifecycle | `PlayerContractRecord`, `PlayerEvaluationRecord`, `PlayerOnboardingStep` |
+| Attendance | `TrainingAttendanceRecord`, `MatchAttendanceRecord` |
+| Finance | `OperationsPayment` |
+| Club operations | `ClubCalendarEntry` |
+| Staff market (the club's private notes) | `StaffClubNote` |
+
+The AI agent worker runs each job's deterministic handler in that job's own
+club context (`runInClubContext(job.clubId, …)`), not on a system path: the
+finance agent reads `OperationsPayment` as the club it works for.
+
+`InjuryRecord`, `WorkloadRecord` and the other club tables are not covered
+yet: some have no migration (the schema/migration drift tracked separately),
+some are read across clubs by design (markets, competitions), and the list
+grows table by table — `rlsPilotTables` in `posture-policy.json` is a ratchet
+the security posture check holds against `RLS_PILOT_MODELS` and the
+migrations.
 
 ## How it works
 
@@ -88,6 +109,15 @@ Each step is a production change and is not made by this repository.
    ```
    Undoing it is the same migration with `false`.
 
+   `familista_rls_enforced()` is `IMMUTABLE`, so PostgreSQL folds its answer
+   into the plan of every prepared statement. A pooled connection that planned
+   a query before the switch keeps the old answer for that query until the
+   connection is replaced. The switch — either way — therefore takes effect
+   with fresh connections: the restart of the deploy that carries the
+   migration does that. Running the migration by hand against a live service
+   is not enough; restart the service after it. The integration test
+   reconnects after every flip for the same reason.
+
 The posture control `db-row-level-security` reads PRESENT only when step 3 is
 in the migrations and `DB_RLS_CONTEXT: on` is in `render.yaml`; until then it
 is PARTIAL, and coverage rows 5 and 18 stay Partial.
@@ -95,8 +125,13 @@ is PARTIAL, and coverage rows 5 and 18 stay Partial.
 ## Evidence
 
 - `tests/rls-pilot.integration.test.ts`, run in CI on real PostgreSQL as a
-  role that is not a superuser and does not bypass RLS: shipped-off changes
-  nothing; enforced, no context and another club see and change nothing; a
+  role that is not a superuser and does not bypass RLS: every protected table
+  is forced under RLS with its policy; for each club-private table, the same
+  club reads and writes its own rows, another club's rows cannot be read,
+  changed, deleted or moved into, a missing or invalid context (unknown mode,
+  club mode with no or an unknown club, a club without a mode) reads and
+  writes nothing, and the named system path sees every club; shipped-off
+  changes nothing; enforced, no context and another club see and change nothing; a
   club sees its own; the system path sees all; reads stay open where intended;
   a club delete still cascades; the application client carries the context
   through single queries, interactive and batch transactions without leaking

@@ -241,7 +241,7 @@
   "Edge Nodes": "Edge-Knoten",
   "Row-Level Security": "Sicherheit auf Zeilenebene",
   "Smart Ball": "Smart Ball",
-  "Planned: Cyber Defense Batch 7. Tenancy is enforced by the application only.": "Geplant: Cyber Defense Batch 7. Die Mandantentrennung wird nur von der Anwendung durchgesetzt.",
+  "Installed, not enforced: fail-closed policies on 18 club tables (Cyber Defense R14); turning enforcement on is an owner decision.": "Installiert, nicht durchgesetzt: geschlossen versagende Richtlinien auf 18 Vereinstabellen (Cyber Defense R14); die Durchsetzung einzuschalten ist eine Entscheidung des Eigentümers.",
   "On the product roadmap. No firmware, ingest or model exists in this build.": "Auf der Produkt-Roadmap. In diesem Build gibt es weder Firmware noch Datenaufnahme noch Modell.",
   "Designed in docs/FABRIC_HISTORICAL_STORE.md; no engine exists.": "Entworfen in docs/FABRIC_HISTORICAL_STORE.md; es gibt keine Engine.",
   "Contract only; exportArchiveBatch() throws.": "Nur ein Vertrag; exportArchiveBatch() wirft einen Fehler.",
