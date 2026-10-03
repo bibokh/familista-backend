@@ -86,10 +86,12 @@
       "boundaryType": "tenant",
       "coverage": "P",
       "controls": [
-        "tenant-guard"
+        "tenant-guard",
+        "db-rls-pilot",
+        "db-rls-system-paths-reviewed"
       ],
-      "reason": "Every route id is guarded or exempted by name (R2); ids in request bodies are not inventoried, and there is no row-level security in the database.",
-      "plannedIn": "Batch 7 (R14)"
+      "reason": "Every route id is guarded or exempted by name (R2), and PostgreSQL row-level security is installed on Player, Membership, PlayerInjury and VideoAsset (R14 pilot) — but shipped with enforcement off, ids in request bodies are not inventoried, and every other club table relies on the application.",
+      "plannedIn": "Owner decision after Batch 7: DB_RLS_CONTEXT=observe, then on, then the enforcement migration; extend the pilot table by table"
     },
     "6": {
       "name": "Roles and permissions",
@@ -258,10 +260,11 @@
       "controls": [
         "no-unsafe-raw-sql",
         "backup-encrypted-authenticated",
-        "db-audit-append-only"
+        "db-audit-append-only",
+        "db-rls-pilot"
       ],
-      "reason": "The evidence tables are append-only in the database (R9), but there is no row-level security and one application role has full rights.",
-      "plannedIn": "Batch 7 (R14)"
+      "reason": "Evidence tables are append-only (R9) and row-level security policies are installed on four tables (R14 pilot), but enforcement ships off and one application role, the tables' owner, has full rights.",
+      "plannedIn": "Owner decision after Batch 7: turn on pilot enforcement; a separate non-owner application role is a production change"
     },
     "19": {
       "name": "Redis",

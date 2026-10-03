@@ -23,6 +23,7 @@ import { withMediaContext } from '../fabric/producers/media-context';
 import {
   publishSystemServiceStarted, publishSystemServiceStopped,
 } from '../fabric/producers/system.producer';
+import { runAsSystem } from '../security/db-context';
 
 const POLL_INTERVAL = parseInt(process.env.VIDEO_WORKER_INTERVAL_MS ?? '15000', 10);
 const MAX_RETRIES   = 2;
@@ -185,7 +186,8 @@ async function _failJob(jobId: string, reason: string): Promise<void> {
 }
 
 function _schedule(): void {
-  _timer = setTimeout(() => { _tick(); }, POLL_INTERVAL);
+  // R14: the worker belongs to no club; it reads and updates any club's asset.
+  _timer = setTimeout(() => { void runAsSystem('video-transcode', async () => await _tick()); }, POLL_INTERVAL);
 }
 
 function _log(msg: string): void {

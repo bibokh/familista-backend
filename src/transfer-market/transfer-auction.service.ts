@@ -15,6 +15,7 @@ import { notifyClub, fmt as fmtEur } from './transfer-negotiation.service';
 import { publicClubSelect, publicPlayerSelect, toPublicPlayer, UNKNOWN_CLUB } from './public-player';
 import { emitAuctionCreated, emitAuctionBid, emitAuctionCancelled, emitAuctionSettled,
          emitTransferCompleted } from './transfer-events';
+import { runAsSystem } from '../security/db-context';
 
 // the same actor shape the rest of the module uses
 export interface MarketActor { userId: string; clubId: string; role?: string }
@@ -347,7 +348,12 @@ export async function settleDueAuctions(): Promise<Array<{ listingId: string; st
   return out;
 }
 
+// Cyber Defense R14: a settled auction moves the player to the winning club; it runs from the settlement sweep, outside any request, so it acts across clubs on a named system path.
 export async function settleAuction(listingId: string): Promise<{ listingId: string; status: string }> {
+  return runAsSystem('transfer-settlement', async () => await settleAuctionUnscoped(listingId));
+}
+
+async function settleAuctionUnscoped(listingId: string): Promise<{ listingId: string; status: string }> {
   const settled = await prisma.$transaction(async (tx) => {
     const item = await tx.marketplaceItem.findUnique({ where: { id: listingId } });
     if (!item || item.kind !== KIND) throw new NotFoundError('Auction');

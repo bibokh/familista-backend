@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-02T23:07:50.910Z",
+  "generatedAt": "2026-10-03T00:00:36.511Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -2022,8 +2022,9 @@
     },
     {
       "id": "db-row-level-security",
-      "status": "ABSENT",
-      "evidence": "prisma/migrations"
+      "status": "PARTIAL",
+      "evidence": "prisma/migrations",
+      "note": "Pilot on Player, Membership, PlayerInjury, VideoAsset: policies installed and proven on real PostgreSQL; enforcement in the database is off and DB_RLS_CONTEXT is off. Other club tables rely on the application."
     },
     {
       "id": "db-audit-append-only",
@@ -2161,6 +2162,18 @@
       "status": "PRESENT",
       "evidence": "src/security/security-alerts.ts",
       "note": "Critical security events, cross-club access attempts, a broken audit chain, account lockouts, refresh-token reuse, brute-force runs and failed or stale backups are emailed to SECURITY_ALERT_EMAIL by one leased process, de-duplicated per rule (15 min) and capped per hour, with a daily digest; the email carries counts only."
+    },
+    {
+      "id": "db-rls-pilot",
+      "status": "PRESENT",
+      "evidence": "prisma/migrations/20261004100000_rls_pilot/migration.sql",
+      "note": "Row-level security policies on Player, Membership, PlayerInjury, VideoAsset (forced, fail closed without a context), the request's club carried to PostgreSQL per transaction, backups read under the named system context, all proven on real PostgreSQL in CI. Table list is a ratchet in posture-policy.json."
+    },
+    {
+      "id": "db-rls-system-paths-reviewed",
+      "status": "PRESENT",
+      "evidence": "src/cyber-defense/posture-policy.json",
+      "note": "4 named path(s) act across clubs (platform-owner, staff-market-move, transfer-settlement, video-transcode); each is reviewed by name."
     },
     {
       "id": "storage-key-club-prefixed",
@@ -2701,6 +2714,7 @@
       "src/auth-prod/admin-mfa.ts",
       "src/auth-prod/mfa-enforcement.service.ts",
       "src/auth-prod/mfa.service.ts",
+      "src/config/database.ts",
       "src/controllers/internal-backup.controller.ts",
       "src/controllers/internal-video.controller.ts",
       "src/controllers/vision-engine.controller.ts",
@@ -2793,11 +2807,14 @@
       "src/security/backup/backup-config.ts",
       "src/security/backup/backup-crypto.ts",
       "src/security/backup/backup-run-store.ts",
+      "src/security/backup/backup-runner.ts",
       "src/security/backup/backup-trigger.ts",
       "src/security/backup/restore-drill.ts",
+      "src/security/db-context.ts",
       "src/security/jwt-tokens.ts",
       "src/security/login-attempt.service.ts",
       "src/security/outbound-url-guard.ts",
+      "src/security/rls-client.ts",
       "src/security/security-alerts.ts",
       "src/security/security-event.service.ts",
       "src/security/storage-keys.ts",
@@ -2823,9 +2840,9 @@
     ]
   },
   "counts": {
-    "controlsPresent": 67,
-    "controlsPartial": 1,
-    "controlsAbsent": 2,
+    "controlsPresent": 69,
+    "controlsPartial": 2,
+    "controlsAbsent": 1,
     "cryptoUses": 10
   }
 }

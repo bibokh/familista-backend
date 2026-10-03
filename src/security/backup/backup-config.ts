@@ -145,13 +145,19 @@ export function pgConnection(url: string, label: string): PgConnection {
   };
 }
 
+/** The database context every backup tool runs under: the system path, named. */
+export const BACKUP_PG_OPTIONS = '-c familista.rls_mode=system';
+
 /**
  * The environment for pg_dump / pg_restore / psql. The password travels in
  * PGPASSWORD, never on the command line, where every process on the machine
  * could read it.
  */
 export function pgEnv(c: PgConnection, base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { PATH: base.PATH, HOME: base.HOME, LANG: 'C', PGHOST: c.host, PGPORT: c.port, PGUSER: c.user, PGDATABASE: c.database, PGCONNECT_TIMEOUT: '15' };
+  // PGOPTIONS: backup, restore and their checks are a system path (Cyber
+  // Defense R14). Under row-level security they read every club's rows, on
+  // purpose and by name, rather than none of them.
+  const env: NodeJS.ProcessEnv = { PATH: base.PATH, HOME: base.HOME, LANG: 'C', PGHOST: c.host, PGPORT: c.port, PGUSER: c.user, PGDATABASE: c.database, PGCONNECT_TIMEOUT: '15', PGOPTIONS: BACKUP_PG_OPTIONS };
   if (c.password) env.PGPASSWORD = c.password;
   if (c.sslmode) env.PGSSLMODE = c.sslmode;
   return env;

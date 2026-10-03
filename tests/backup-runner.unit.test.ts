@@ -153,7 +153,7 @@ describe('backup run', () => {
 
     // pg_dump gets the custom format, no owner/ACL, the database by name — and its password only via the environment.
     expect(fs.readFileSync(path.join(work, 'pg_dump.argv'), 'utf8').trim().split('\n'))
-      .toEqual(['--format=custom', '--no-owner', '--no-acl', '--compress=1', '--dbname=familista']);
+      .toEqual(['--format=custom', '--no-owner', '--no-acl', '--compress=1', '--enable-row-security', '--dbname=familista']);
     expect(fs.existsSync(path.join(work, 'pg_dump.pw'))).toBe(true);
     // Nothing is left in the temporary directory.
     expect(tmpLeftovers('fam-backup-')).toEqual(before);

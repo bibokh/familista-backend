@@ -25,6 +25,7 @@ import { publicClubSelect, publicPlayerSelect, toPublicPlayer, UNKNOWN_CLUB } fr
 import { leadingCommitmentInTx, cancelAuctionForSettlement, notifyCancelled } from './transfer-auction.service';
 import { notifyClub, fmt } from './transfer-notify';
 import { emitListingCreated, emitListingWithdrawn, emitTransferCompleted } from './transfer-events';
+import { runAsSystem } from '../security/db-context';
 
 export interface MarketActor { userId: string; clubId: string; role?: string }
 
@@ -410,7 +411,12 @@ export async function readOwnListings(actor: MarketActor) {
 // one transaction can win that flip. Everything else in the transaction happens
 // downstream of the claim, so a second buyer, a double-click and a retried
 // request all reach the same place — `claimed.count === 0` — and stop there.
+// Cyber Defense R14: a purchase moves the player from the selling club to the buying club, so it acts across clubs on a named system path.
 export async function purchase(actor: MarketActor, listingId: string) {
+  return runAsSystem('transfer-settlement', async () => await purchaseUnscoped(actor, listingId));
+}
+
+async function purchaseUnscoped(actor: MarketActor, listingId: string) {
   const item = await prisma.marketplaceItem.findUnique({ where: { id: listingId } });
   if (!item || item.kind !== KIND)  throw new NotFoundError('Transfer listing');
   if (item.clubId === actor.clubId) throw new ForbiddenError('A club cannot buy its own player');

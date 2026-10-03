@@ -136,6 +136,17 @@ jobs:
           AUDIT_DB_REQUIRED: '1'
         run: npx jest --runInBand --ci tests/audit-append-only.integration.test.ts
 
+      # Cyber Defense, Batch 7 (R14): row-level security pilot. A role that is
+      # NOT a superuser (a superuser skips every policy) owns a freshly
+      # migrated database; with enforcement on, no context and another club's
+      # context see and change nothing, the named system path sees all, and
+      # the real pg_dump / pg_restore keep every club's rows.
+      - name: Row-level security pilot (real PostgreSQL)
+        env:
+          RLS_DB_DATABASE_URL: postgresql://familista_ci:familista_ci_pw@localhost:5432/postgres
+          RLS_DB_REQUIRED: '1'
+        run: npx jest --runInBand --ci tests/rls-pilot.integration.test.ts
+
       # Blocking since Cyber Defense Step 9: a dependency with a known HIGH or
       # CRITICAL advisory stops the change from merging. Moderate and low are
       # still printed. If the advisory service cannot be reached the step
