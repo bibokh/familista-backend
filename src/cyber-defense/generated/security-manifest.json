@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-03T20:55:34.449Z",
+  "generatedAt": "2026-10-03T22:01:33.201Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -1910,6 +1910,12 @@
       "note": "New refresh tokens are stored and looked up as a SHA-256 only."
     },
     {
+      "id": "self-registration-closed",
+      "status": "PRESENT",
+      "evidence": "src/controllers/auth.controller.ts",
+      "note": "POST /auth/register answers 403 SELF_REGISTRATION_CLOSED before reading the body; a club account comes only from that club's invitation."
+    },
+    {
       "id": "refresh-token-legacy-fallback-removed",
       "status": "ABSENT",
       "evidence": "src/services/auth.service.ts",
@@ -1944,6 +1950,12 @@
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
       "note": "136 of 345 route id parameter(s) checked against the caller's club before the handler; 209 exempted by name with a reason; 0 unguarded."
+    },
+    {
+      "id": "franchise-club-attach-authorised",
+      "status": "PRESENT",
+      "evidence": "src/services/franchise-unit.service.ts",
+      "note": "A club enters a franchise unit only by its president or the platform, leaves one only with write access to it, and is detached only from the unit that holds it."
     },
     {
       "id": "device-ingest-hmac",
@@ -2732,6 +2744,7 @@
       "src/auth-prod/mfa-enforcement.service.ts",
       "src/auth-prod/mfa.service.ts",
       "src/config/database.ts",
+      "src/controllers/auth.controller.ts",
       "src/controllers/internal-backup.controller.ts",
       "src/controllers/internal-video.controller.ts",
       "src/controllers/vision-engine.controller.ts",
@@ -2843,6 +2856,7 @@
       "src/services/ai-orchestrator.service.ts",
       "src/services/auth.service.ts",
       "src/services/device-auth.service.ts",
+      "src/services/franchise-unit.service.ts",
       "src/services/membership.service.ts",
       "src/services/stripe.service.ts",
       "src/services/video-hls.service.ts",
@@ -2858,7 +2872,7 @@
     ]
   },
   "counts": {
-    "controlsPresent": 70,
+    "controlsPresent": 72,
     "controlsPartial": 1,
     "controlsAbsent": 1,
     "cryptoUses": 10

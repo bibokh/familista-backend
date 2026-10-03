@@ -89,62 +89,17 @@ function getRefreshExpiry(): Date {
 }
 
 // ── Register ──────────────────────────────────────────────
-
-export async function registerUser(data: {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  role?: UserRole;
-  clubId: string;
-}): Promise<{ user: AuthUser; tokens: TokenPair }> {
-  // Check duplicate
-  const existing = await prisma.user.findUnique({ where: { email: data.email } });
-  if (existing) throw new ConflictError('Email already registered');
-
-  // Verify club exists
-  const club = await prisma.club.findUnique({ where: { id: data.clubId } });
-  if (!club) throw new NotFoundError('Club');
-
-  // Hash password
-  const passwordHash = await hashPassword(data.password);
-
-  const user = await prisma.user.create({
-    data: {
-      email: data.email.toLowerCase().trim(),
-      passwordHash,
-      firstName: data.firstName.trim(),
-      lastName: data.lastName.trim(),
-      role: data.role ?? UserRole.HEAD_COACH,
-      clubId: data.clubId,
-    },
-    include: { club: { select: { name: true } } },
-  });
-
-  const tokens = await issueTokens(user);
-  logger.info('User registered', { userId: user.id, clubId: user.clubId });
-
-  // After the account exists and a session was issued, never before. An event
-  // announcing an account that a later failure rolls back is an event that is
-  // wrong about whether the account exists.
-  publishUserCreated(
-    { userId: user.id, clubId: user.clubId, actorUserId: user.id },
-    user.role,
-    false,
-  );
-
-  return {
-    user: mapAuthUser(user, user.club.name),
-    tokens,
-  };
-}
+//
+// There is no open registration. The function that created an account in
+// whatever club a request named, with the role it asked for, is gone (Final
+// Security Closure, Task 1): `POST /auth/register` refuses, and an account for
+// a club is created only by `registerInvitedUser` below, from an invitation.
 
 /**
  * Create an account for somebody an invitation named — and only for them.
  *
- * The ordinary `registerUser` above takes a clubId and a role from the request,
- * which is fine for a club administrator creating an account inside their own
- * club and completely wrong for a stranger holding a link. An invited person
+ * The removed open `registerUser` took a clubId and a role from the request,
+ * which let a stranger land in any club with a staff role. An invited person
  * must not be able to name the club they land in, the role they arrive with, or
  * even the address the account is created for: all three come from the
  * invitation the caller proved they hold.

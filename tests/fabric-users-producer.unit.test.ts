@@ -297,21 +297,8 @@ const only = (type: string) => published.filter((e) => e.eventType === type);
 // ── one action, one event ────────────────────────────────────────────────────
 
 describe('a successful Users action publishes exactly one correct event', () => {
-  it('registerUser → user.created', async () => {
-    await authService.registerUser({
-      email: 'new.coach@example.com', password: 'Str0ngPassphrase!',
-      firstName: 'Ana', lastName: 'Silva', clubId: CLUB,
-    });
-    await settle();
-
-    expect(typesPublished()).toEqual(['user.created']);
-    const e = only('user.created')[0];
-    expect(e).toMatchObject({
-      clubId: CLUB, subjectType: 'USER', sourceType: 'USER', schemaVersion: 1,
-      dataClassification: 'CONFIDENTIAL',
-    });
-    expect(e.payload).toEqual({ accountRole: 'HEAD_COACH', invited: false });
-    expect(validateEventPayload('user.created', 1, e.payload)).toEqual({ ok: true, validated: true });
+  it('there is no open registration left to publish from (Task 1: accounts come only from invitations)', () => {
+    expect((authService as unknown as Record<string, unknown>).registerUser).toBeUndefined();
   });
 
   it('registerInvitedUser → user.created, marked invited', async () => {
@@ -443,18 +430,18 @@ describe('a business action that fails publishes no success event', () => {
   });
 
   it('a duplicate address publishes no user.created', async () => {
-    await expect(authService.registerUser({
+    await expect(authService.registerInvitedUser({
       email: SECRETS.email, password: 'Str0ngPassphrase!',
-      firstName: 'A', lastName: 'B', clubId: CLUB,
+      firstName: 'A', lastName: 'B', clubId: CLUB, accountRole: 'ANALYST',
     })).rejects.toBeDefined();
     await settle();
     expect(published).toHaveLength(0);
   });
 
   it('registering into a club that does not exist publishes nothing', async () => {
-    await expect(authService.registerUser({
+    await expect(authService.registerInvitedUser({
       email: 'x@example.com', password: 'Str0ngPassphrase!',
-      firstName: 'A', lastName: 'B', clubId: 'no-such-club',
+      firstName: 'A', lastName: 'B', clubId: 'no-such-club', accountRole: 'ANALYST',
     })).rejects.toBeDefined();
     await settle();
     expect(published).toHaveLength(0);
@@ -514,9 +501,9 @@ describe('a business action that fails publishes no success event', () => {
 describe('no private field reaches the fabric or the board', () => {
   /** Drive every producing path, then search everything that came out. */
   async function everything(): Promise<void> {
-    await authService.registerUser({
+    await authService.registerInvitedUser({
       email: 'fresh@example.com', password: 'Str0ngPassphrase!',
-      firstName: SECRETS.firstName, lastName: SECRETS.lastName, clubId: CLUB,
+      firstName: SECRETS.firstName, lastName: SECRETS.lastName, clubId: CLUB, accountRole: 'ANALYST',
     });
     await authService.loginUser(SECRETS.email, PASSWORD);
     state.refreshTokens.push({ token: SECRETS.token, userId: 'u-existing', expiresAt: new Date(Date.now() + 1e6) });
@@ -764,7 +751,8 @@ describe('no helper is called before its write has committed', () => {
     const body = read('src/services/auth.service.ts');
     const login = body.slice(body.indexOf('export async function loginUser'), body.indexOf('export async function refreshTokens'));
     expect(login.indexOf('issueTokens')).toBeLessThan(login.indexOf('publishUserLogin'));
-    const reg = body.slice(body.indexOf('export async function registerUser'), body.indexOf('export async function registerInvitedUser'));
+    const from = body.indexOf('export async function registerInvitedUser');
+    const reg = body.slice(from, body.indexOf('\nexport ', from + 1));
     expect(reg.indexOf('prisma.user.create')).toBeLessThan(reg.indexOf('publishUserCreated'));
   });
 

@@ -15,6 +15,7 @@ import type {
 import {
   BadRequestError,
   ConflictError,
+  ForbiddenError,
   NotFoundError,
 } from '../utils/errors';
 import { writeFranchiseAudit } from './franchise-audit.service';
@@ -396,6 +397,29 @@ export async function getUnitTree(rootId: string, depth = 4): Promise<FranchiseN
 // Club attachment
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Final Security Closure, Task 1. Write access to a unit is authority over
+// the UNIT, never over a club the request merely names: the clubId comes from
+// the body, so on its own it proves nothing. A club joins a franchise only
+// when somebody with authority over the club itself puts it there — its
+// sitting president (an active CLUB_OWNER membership), or platform authority —
+// and it leaves another franchise only with write access to that franchise too.
+// The controller has already checked write access to the destination unit.
+
+/** True when the actor may commit this club: platform authority, or its president. */
+async function mayCommitClub(actor: FranchiseActor, clubId: string): Promise<boolean> {
+  if (actor.scope.isPlatformAdmin) return true;
+  const president = await prisma.membership.findFirst({
+    where: { userId: actor.userId, clubId, role: 'CLUB_OWNER', isActive: true },
+    select: { id: true },
+  });
+  return president !== null;
+}
+
+/** True when the actor may take a club out of this unit: platform authority, or write access to it. */
+function mayReleaseFrom(actor: FranchiseActor, unitId: string): boolean {
+  return actor.scope.isPlatformAdmin || actor.scope.writableUnitIds.has(unitId);
+}
+
 export async function attachClub(
   actor: FranchiseActor,
   unitId: string,
@@ -410,10 +434,22 @@ export async function attachClub(
   if (unit.status === 'TERMINATED') throw new BadRequestError('Cannot attach club to terminated unit');
 
   // Cast for additive Prisma field added in the franchise schema fragment.
-  await prisma.club.update({
-    where: { id: clubId },
-    data: ({ franchiseUnitId: unitId } as unknown) as Prisma.ClubUpdateInput,
+  const current = (club as unknown as { franchiseUnitId?: string | null }).franchiseUnitId ?? null;
+  if (current === unitId) return;
+  if (!(await mayCommitClub(actor, clubId))) {
+    throw new ForbiddenError('Only the club\'s president or the platform can place a club in a franchise unit');
+  }
+  if (current !== null && !mayReleaseFrom(actor, current)) {
+    throw new ForbiddenError('This club belongs to another franchise unit, which you cannot release it from');
+  }
+
+  // Conditional on the unit read above: a concurrent move is a conflict, not
+  // a silent overwrite of a decision this check never saw.
+  const moved = await prisma.club.updateMany({
+    where: ({ id: clubId, franchiseUnitId: current } as unknown) as Prisma.ClubWhereInput,
+    data: ({ franchiseUnitId: unitId } as unknown) as Prisma.ClubUpdateManyMutationInput,
   });
+  if (moved.count !== 1) throw new ConflictError('The club changed franchise unit while this was being decided');
 
   await writeFranchiseAudit({
     unitId,
@@ -435,11 +471,17 @@ export async function detachClub(
 ): Promise<void> {
   const club = await prisma.club.findUnique({ where: { id: clubId } });
   if (!club) throw new NotFoundError('Club not found');
+  // Only a club this unit holds can leave it: write access to one unit is no
+  // authority over a club in another, or in none.
+  const current = (club as unknown as { franchiseUnitId?: string | null }).franchiseUnitId ?? null;
+  if (current !== unitId) throw new NotFoundError('Club is not attached to this unit');
+  if (!mayReleaseFrom(actor, unitId)) throw new ForbiddenError('You do not have write access to this unit');
 
-  await prisma.club.update({
-    where: { id: clubId },
-    data: ({ franchiseUnitId: null } as unknown) as Prisma.ClubUpdateInput,
+  const released = await prisma.club.updateMany({
+    where: ({ id: clubId, franchiseUnitId: unitId } as unknown) as Prisma.ClubWhereInput,
+    data: ({ franchiseUnitId: null } as unknown) as Prisma.ClubUpdateManyMutationInput,
   });
+  if (released.count !== 1) throw new ConflictError('The club changed franchise unit while this was being decided');
 
   await writeFranchiseAudit({
     unitId,

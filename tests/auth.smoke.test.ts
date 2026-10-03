@@ -61,46 +61,28 @@ describe('POST /api/v1/auth/login — input validation', () => {
   });
 });
 
-// ─── POST /api/v1/auth/register — input validation ───────────────────────────
+// ─── POST /api/v1/auth/register — closed (Final Security Closure, Task 1) ────
+//
+// Self-registration used to create an account in whatever club the body named,
+// with a staff role the body chose. It is refused now for every body — before
+// validation and before the database — so these run without one. Accounts for
+// a club come only from its invitations (tests/security-closure-task1.integration).
 
-describe('POST /api/v1/auth/register — input validation', () => {
-  it('empty body → 400', async () => {
-    const res = await request(app)
-      .post('/api/v1/auth/register')
-      .send({});
+describe('POST /api/v1/auth/register — closed to everybody', () => {
+  const bodies: Array<[string, Record<string, unknown>]> = [
+    ['an empty body', {}],
+    ['a well-formed body naming a club', { email: 'new@club.com', password: 'ValidPass1!', firstName: 'John', lastName: 'Doe', clubId: '00000000-0000-4000-8000-000000000001' }],
+    ['a malformed clubId', { email: 'new@club.com', password: 'ValidPass1!', firstName: 'John', lastName: 'Doe', clubId: 'not-a-uuid' }],
+    ...['HEAD_COACH', 'ASSISTANT_COACH', 'ANALYST', 'MEDICAL_STAFF', 'SCOUT', 'CLUB_ADMIN', 'SUPER_ADMIN'].map((role): [string, Record<string, unknown>] =>
+      [`a staff role (${role})`, { email: `x-${role}@evil.test`, password: 'ValidPass1!', firstName: 'A', lastName: 'B', clubId: '00000000-0000-4000-8000-000000000002', role }]),
+  ];
 
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
-  });
-
-  it('password shorter than 8 chars → 400', async () => {
-    const res = await request(app)
-      .post('/api/v1/auth/register')
-      .send({
-        email: 'new@club.com',
-        password: 'short',
-        firstName: 'John',
-        lastName: 'Doe',
-        clubId: '00000000-0000-0000-0000-000000000001',
-      });
-
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
-  });
-
-  it('non-UUID `clubId` → 400', async () => {
-    const res = await request(app)
-      .post('/api/v1/auth/register')
-      .send({
-        email: 'new@club.com',
-        password: 'ValidPass1!',
-        firstName: 'John',
-        lastName: 'Doe',
-        clubId: 'not-a-uuid',
-      });
-
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
+  it.each(bodies)('refuses %s with 403 SELF_REGISTRATION_CLOSED and issues no session', async (_label, body) => {
+    const res = await request(app).post('/api/v1/auth/register').send(body);
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ success: false, code: 'SELF_REGISTRATION_CLOSED' });
+    expect(res.headers['set-cookie']).toBeUndefined();
+    expect(JSON.stringify(res.body)).not.toMatch(/accessToken|refreshToken/);
   });
 });
 

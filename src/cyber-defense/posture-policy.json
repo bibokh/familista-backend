@@ -2,7 +2,7 @@
   "$comment": "Familista Cyber Defense \u2014 the reviewed security posture. The manifest (generated/security-manifest.json) says what the code IS; this file says what has been REVIEWED and accepted. tests/security-posture.unit.test.ts fails when the two disagree. Changing this file is a security review: say why in the commit.",
   "schemaVersion": 1,
   "publicRoutes": {
-    "POST /auth/register": "Account creation; no session can exist yet. Behind the auth rate limiter.",
+    "POST /auth/register": "Refused for everybody (Final Security Closure, Task 1): 403 SELF_REGISTRATION_CLOSED before the body is read. Kept public so the answer is a clear refusal rather than a sign-in prompt; accounts come only from a club's invitation.",
     "POST /auth/login": "Credential exchange; no session can exist yet. Behind the auth rate limiter.",
     "POST /auth/login/mfa": "The second sign-in step; no session can exist yet. Authenticated by a single-use, hashed, five-minute challenge from the password step. Behind the auth rate limiter.",
     "POST /auth/refresh": "Authenticated by the refresh token presented, not by an access token. Behind the auth rate limiter.",
@@ -131,7 +131,9 @@
     "security-policy-published",
     "db-rls-pilot",
     "db-rls-system-paths-reviewed",
-    "db-row-level-security"
+    "db-row-level-security",
+    "self-registration-closed",
+    "franchise-club-attach-authorised"
   ],
   "knownGaps": {
     "mfa-required-at-login": "PARTIAL \u2014 required at sign-in for an owner who switched it on (Step 7) and, while MFA_REQUIRED_FOR_ADMINS=true, for administrators (R7); not required for every account.",
