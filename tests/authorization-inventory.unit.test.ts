@@ -109,9 +109,11 @@ describe('the authorization inventory (posture)', () => {
     expect(a.memberStale).toEqual([]);
   });
 
-  it('the six owner rooms are pinned, and every handler in them is owner-only (whoami excepted, with a reason)', () => {
+  it('the seven owner rooms are pinned, and every handler in them is owner-only (whoami excepted, with a reason)', () => {
+    // The Cybersecurity Command Center joined as the seventh: two reads, both
+    // the platform owner's.
     expect(Object.keys(policy.ownerRooms).sort()).toEqual(
-      ['data-pulse.routes', 'fabric.routes', 'infrastructure.routes', 'owner-trace.routes', 'sources.routes', 'system.routes']);
+      ['cybersecurity.routes', 'data-pulse.routes', 'fabric.routes', 'infrastructure.routes', 'owner-trace.routes', 'sources.routes', 'system.routes']);
     expect(a.ownerRoomViolations).toEqual([]);
     const sys = Object.entries(a.perHandler).filter(([r]) => / \/system(\/|$)/.test(r));
     expect(sys.length).toBeGreaterThan(60);

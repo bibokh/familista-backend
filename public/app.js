@@ -1085,6 +1085,7 @@ var _FAM_PAGE_RENDER = {
   'infrastructure-city':         ['renderFamilistaInfrastructureCity'],
   'source-core':                 ['renderFamilistaSourceCore'],
   'familista-vision':            ['renderFamilistaVision'],
+  'cybersecurity':               ['renderFamilistaCybersecurity'],
   'fos-core':                    ['renderFOSCore'],
   'fos-ai-orchestrator':         ['renderFOSAIOrchestrator'],
   'multi-club-network':          ['renderMultiClubNetwork'],
@@ -2525,6 +2526,7 @@ function _flushPendingRender() {
     case 'pg-infrastructure-city': renderFamilistaInfrastructureCity(document.getElementById('ic-root')); break;
     case 'pg-source-core':        renderFamilistaSourceCore(document.getElementById('sc-root')); break;
     case 'pg-familista-vision':   renderFamilistaVision(document.getElementById('fv-root')); break;
+    case 'pg-cybersecurity':      renderFamilistaCybersecurity(document.getElementById('cs-root')); break;
     case 'pg-fos-core':           renderFOSCore();           break;
     case 'pg-fos-ai-orchestrator': renderFOSAIOrchestrator(); break;
     case 'pg-fos-knowledge-graph': renderFOSKnowledgeGraph(); break;
@@ -2669,6 +2671,14 @@ function navTo(page, el, _opts) {
     if (_wasVision && page !== 'familista-vision' && typeof window.teardownFamilistaVision === 'function') {
       window.teardownFamilistaVision();
     }
+    // CYBERSECURITY is the seventh product and takes the shell the same way.
+    // It opens no stream and runs no timer; the teardown drops the open
+    // inspector and the map's pointing state so the room opens clean next time.
+    var _wasCyber = document.body.classList.contains('cs-cyber-open');
+    document.body.classList.toggle('cs-cyber-open', page === 'cybersecurity');
+    if (_wasCyber && page !== 'cybersecurity' && typeof window.teardownFamilistaCybersecurity === 'function') {
+      window.teardownFamilistaCybersecurity();
+    }
     // ENTERING IS NOT SYMMETRICAL WITH LEAVING, AND THAT WAS A BUG.
     //
     // Leaving released the module's held session; nothing re-hydrated it on the
@@ -2725,6 +2735,12 @@ function navTo(page, el, _opts) {
     // scoping, and a reader without access gets filtered results or a 404, not
     // a page they were not supposed to reach.
     'familista-vision': 1,
+    // CYBERSECURITY — what protects all of the above, and the evidence for it.
+    // The seventh sibling, beside SYSTEM and CLUBS rather than inside either.
+    // The allow-list is convenience, not security: both endpoints behind it are
+    // guarded by assertPlatformOwner on the server, and a reader who types the
+    // hash without that role gets 403s, not a page.
+    'cybersecurity': 1,
     // PLATFORM (8)
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
@@ -2832,7 +2848,7 @@ function navTo(page, el, _opts) {
 
   const titles = {
     // ── Owner Control ──
-    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'source-core':'Source Core', 'familista-vision':'Familista Vision',
+    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'source-core':'Source Core', 'familista-vision':'Familista Vision', 'cybersecurity':'Cybersecurity',
     // ── Club Workspace ──
     'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League', 'match-center':'Match Center', 'people-access':'People & Access',
     // ── Platform (Phase B labels) ──
@@ -3105,6 +3121,7 @@ function _buildPageTemplateMap() {
     'infrastructure-city':         renderInfrastructureCityHTML,
     'source-core':                 renderSourceCoreHTML,
     'familista-vision':            renderFamilistaVisionHTML,
+    'cybersecurity':               renderCybersecurityHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
@@ -3183,7 +3200,7 @@ function _buildPageTemplateMap() {
 // These are mounted eagerly at boot so the click flow is instant.
 var _EAGER_PAGES = [
   'owner-home', 'clubs', 'club-home', 'squad',
-  'system', 'data-vault', 'infrastructure-city', 'source-core', 'familista-vision',
+  'system', 'data-vault', 'infrastructure-city', 'source-core', 'familista-vision', 'cybersecurity',
   'fos-core', 'fos-observability', 'fos-security-center',
   'fos-automation-center', 'fos-rbac', 'fos-audit-governance',
   'multi-club-network', 'fos-admin-center',
@@ -3643,6 +3660,49 @@ function _fillVisionStatus() {
     .catch(function () { write('warn', 'Vision service unreachable'); });
 }
 
+/**
+ * Ask the Cybersecurity Command Center what the evidence says, and say so on
+ * the CYBERSECURITY card.
+ *
+ * The order is the order of what it would cost to ignore: a domain at risk,
+ * then a live warning, then boundaries the evidence says are only partly
+ * covered. Green is said only when every trust boundary is fully covered and
+ * nothing is warning — a card that is green while the posture is partial is a
+ * card telling the owner something the evidence does not.
+ */
+function _fillCybersecurityStatus() {
+  const slot = document.getElementById('oh-cyber-state');
+  if (!slot) return;
+  const base = (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG.API_BASE) ? FAM_CONFIG.API_BASE : '/api/v1';
+  let token = '';
+  try { token = (window.State && window.State.token) || localStorage.getItem('familista_token') || ''; } catch (_) {}
+  const write = (state, text) => {
+    const el = document.getElementById('oh-cyber-state');
+    if (el) el.outerHTML = _vaultStatusHTML(state, text).replace('class="oh-card-state', 'id="oh-cyber-state" class="oh-card-state');
+  };
+  fetch(base + '/system/cybersecurity', {
+    headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
+    credentials: 'include',
+  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+    .then(function (body) {
+      const d = (body && body.data) || body || {};
+      if (d.state === 'NOT_GENERATED') return write('warn', 'Security evidence not generated');
+      const p = d.posture;
+      const domains = Array.isArray(d.domains) ? d.domains : null;
+      if (!p || !p.boundaries || !domains) return write('idle', 'Security posture unreachable');
+      const atRisk = domains.filter(function (x) { return x.state === 'AT_RISK'; }).length;
+      const warnings = domains.reduce(function (n, x) { return n + (Array.isArray(x.warnings) ? x.warnings.length : 0); }, 0);
+      const b = p.boundaries;
+      // Labels and numbers rather than inflected sentences, for the reason the
+      // other cards give: one catalogue entry then answers for every count.
+      if (atRisk > 0) write('bad', 'Domains at risk: ' + atRisk);
+      else if (warnings > 0) write('warn', 'Security warnings: ' + warnings);
+      else if (b.P + b.U > 0) write('warn', 'Trust boundaries covered: ' + b.C + ' of ' + b.total);
+      else write('ok', 'All trust boundaries covered');
+    })
+    .catch(function () { write('bad', 'Security posture unreachable'); });
+}
+
 function _fillSourceCoreStatus() {
   const slot = document.getElementById('oh-core-state');
   if (!slot) return;
@@ -3766,6 +3826,24 @@ function _ownerHomeForPlatformOwner(user, club) {
           <div class="oh-card-sub">Platform Operations, Infrastructure, Intelligence &amp; Governance</div>
           <div class="oh-card-list">Command Center · Clubs · People &amp; Access · Intelligence · Governance · Innovation Lab · Security · Audit</div>
           <div class="oh-card-cta">Enter system area <span>→</span></div>
+        </button>
+        <!-- CYBERSECURITY is the seventh room and sits between SYSTEM and
+             CLUBS, because it is what protects both — and everything the
+             five rooms below them describe. It is a peer, the same size as
+             every other card. Its status line is read from the security
+             evidence after paint and says what the evidence says, nothing
+             kinder. -->
+        <button class="oh-card oh-card--cyber" data-action="navTo" data-page="cybersecurity" type="button">
+          <div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 40 40" width="40" height="40" fill="none" focusable="false">
+            <path d="M20 4.5 7.5 9.4v9.8c0 7.6 5.3 14.4 12.5 16.8 7.2-2.4 12.5-9.2 12.5-16.8V9.4L20 4.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <circle cx="20" cy="17.6" r="3.4" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M20 21v5.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg></div>
+          <div class="oh-card-title">CYBERSECURITY</div>
+          <div class="oh-card-sub">Security Posture, Protection, Evidence &amp; Monitoring</div>
+          <div class="oh-card-list">Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage &amp; Gaps · Events &amp; Alerts · Evidence</div>
+          <span id="oh-cyber-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading security evidence…</span>
+          <div class="oh-card-cta">Enter Cybersecurity <span>→</span></div>
         </button>
         <button class="oh-card oh-card--clubs" data-action="navTo" data-page="clubs" type="button">
           <div class="oh-card-icon">🏟️</div>
@@ -3954,6 +4032,7 @@ function renderOwnerHome() {
       try { _fillCityStatus(); } catch (_) {}
       try { _fillSourceCoreStatus(); } catch (_) {}
       try { _fillVisionStatus(); } catch (_) {}
+      try { _fillCybersecurityStatus(); } catch (_) {}
     }
   });
 }
@@ -28443,6 +28522,14 @@ function renderInfrastructureCityHTML() {
 // second time from a different dictionary.
 function renderSourceCoreHTML() {
   return `<div class="page" id="pg-source-core" data-no-i18n><div id="sc-root"></div></div>`;
+}
+
+// CYBERSECURITY — the seventh room. Its interface lives in
+// public/cybersecurity/cybersecurity.js and carries its own English, German and
+// Arabic catalogue under /cybersecurity/i18n/, so `data-no-i18n` keeps the
+// platform's club-facing pass out of it — the same boundary the other rooms keep.
+function renderCybersecurityHTML() {
+  return `<div class="page" id="pg-cybersecurity" data-no-i18n><div id="cs-root"></div></div>`;
 }
 
 // FAMILISTA VISION — what the platform can SEE: computer-vision evidence from

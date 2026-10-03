@@ -16,6 +16,7 @@ import dataPulseRoutes from './data-pulse.routes';
 import fabricRoutes from './fabric.routes';
 import infrastructureRoutes from './infrastructure.routes';
 import sourcesRoutes from './sources.routes';
+import cybersecurityRoutes from './cybersecurity.routes';
 import telemetryRoutes from './telemetry.routes';
 import contextRoutes    from './context.routes';
 // Phase B — Match Intelligence + Hardware Sessions + Automation
@@ -108,6 +109,10 @@ router.use('/system/data-pulse', dataPulseRoutes);
 router.use('/system/fabric', fabricRoutes);
 router.use('/system/infrastructure', infrastructureRoutes);
 router.use('/system/sources', sourcesRoutes);
+// The Cybersecurity Command Center: read-only, the platform owner's alone, the
+// same guard as the rooms above. It shows the security architecture; it changes
+// none of it.
+router.use('/system/cybersecurity', cybersecurityRoutes);
 // Product-usage ingestion. Deliberately not '/analytics' — that is a club's own
 // football analytics, and the two must never be confused for one another.
 router.use('/telemetry',   telemetryRoutes);

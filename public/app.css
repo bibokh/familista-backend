@@ -7138,34 +7138,47 @@ body.club-theme .oh-cards--three{ grid-template-columns: repeat(3, 1fr); }
    told with COLUMN instead — SOURCE CORE (where evidence came from) sits
    directly above FAMILISTA VISION (what the evidence says), and the four rooms
    that describe the platform itself hold the outer columns. */
+/* SEVEN ROOMS, SEVEN EQUAL CARDS.
+   CYBERSECURITY joined as the seventh, and it is placed BETWEEN SYSTEM and
+   CLUBS rather than after the last card, because that is what it is: the room
+   that protects both of them and every room below. Seven equal cards do not
+   divide into equal rows, so the grid has eight tracks and every card spans
+   two of them — three on the top row, centred half a card in from each edge,
+   four beneath. Every card is still exactly the same size; the pairing of
+   SOURCE CORE beside FAMILISTA VISION (where evidence came from, what it says)
+   holds the middle of the second row. */
 body.club-theme .oh-cards--core{
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   grid-auto-rows: 1fr;
   grid-template-areas:
-    "system core   clubs"
-    "vault  vision city";
+    ".     system system cyber  cyber  clubs  clubs  .    "
+    "vault vault  core   core   vision vision city   city ";
 }
 body.club-theme .oh-cards--core .oh-card--system{ grid-area: system; }
+body.club-theme .oh-cards--core .oh-card--cyber{  grid-area: cyber; }
 body.club-theme .oh-cards--core .oh-card--clubs{  grid-area: clubs; }
 body.club-theme .oh-cards--core .oh-card--vault{  grid-area: vault; }
 body.club-theme .oh-cards--core .oh-card--city{   grid-area: city; }
 body.club-theme .oh-cards--core .oh-card--core{   grid-area: core; }
 body.club-theme .oh-cards--core .oh-card--vision{ grid-area: vision; }
-/* Two columns keeps the core/vision pairing intact rather than splitting it. */
+/* Two columns: CYBERSECURITY takes its own row beneath SYSTEM and CLUBS,
+   centred across both — still one card wide — and the core/vision pair stays
+   together on the row after it. */
 @media (max-width: 1560px){
   body.club-theme .oh-cards--core{
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     grid-template-areas:
-      "system clubs"
-      "core   vision"
-      "vault  city";
+      "system system clubs  clubs"
+      ".      cyber  cyber  .    "
+      "core   core   vision vision"
+      "vault  vault  city   city";
   }
 }
 @media (max-width: 900px){
   body.club-theme .oh-cards--core{
     grid-template-columns: 1fr; max-width: 560px; margin-inline: auto;
     grid-auto-rows: auto;
-    grid-template-areas: "system" "clubs" "core" "vision" "vault" "city";
+    grid-template-areas: "system" "cyber" "clubs" "core" "vision" "vault" "city";
   }
 }
 body.club-theme .oh-wrap--core{ max-width: 1680px; }
@@ -7231,6 +7244,31 @@ body.club-theme .oh-card--vision .oh-card-icon{
 }
 body.club-theme .oh-card--vision .oh-card-icon svg{ display: block; }
 body.club-theme .oh-card--vision .oh-card-cta{ color: #22d3ee; }
+
+/* Cybersecurity's own accent: ice — a cool near-white blue that no state in
+   the platform uses, because this card's colour must never be mistaken for a
+   verdict. Green, amber and red on this card mean only what its status line
+   says. */
+body.club-theme .oh-card--cyber{
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(184,196,255,0.12), transparent 62%),
+    radial-gradient(90% 70% at -8% 108%, rgba(125,211,252,0.07), transparent 64%),
+    var(--bg-surface);
+  border-color: rgba(184,196,255,0.28);
+  box-shadow: 0 30px 70px -34px rgba(184,196,255,0.30);
+}
+body.club-theme .oh-card--cyber::before{
+  background: linear-gradient(90deg, #b8c4ff, #7dd3fc, #b8c4ff);
+}
+body.club-theme .oh-card--cyber:hover{ box-shadow: 0 30px 72px rgba(184,196,255,0.22); border-color: rgba(184,196,255,0.50); }
+body.club-theme .oh-card--cyber .oh-card-icon{
+  color: #c7d2fe;
+  background: linear-gradient(145deg, rgba(184,196,255,0.20), rgba(125,211,252,0.08));
+  border-color: rgba(184,196,255,0.40);
+  box-shadow: inset 0 0 22px -8px rgba(184,196,255,0.55);
+}
+body.club-theme .oh-card--cyber .oh-card-icon svg{ display: block; }
+body.club-theme .oh-card--cyber .oh-card-cta{ color: #c7d2fe; }
 
 @media (max-width: 900px){ body.club-theme .oh-cards{ grid-template-columns: 1fr; } }
 body.club-theme .oh-wrap--three{ max-width: 1320px; }

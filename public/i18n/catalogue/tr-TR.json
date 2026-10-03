@@ -1570,5 +1570,16 @@
   "Open Vision": "Open Vision",
   "Reading Vision service…": "Reading Vision service…",
   "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
-  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models",
+  "CYBERSECURITY": "SİBER GÜVENLİK",
+  "Security Posture, Protection, Evidence & Monitoring": "Güvenlik duruşu, koruma, kanıt ve izleme",
+  "Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage & Gaps · Events & Alerts · Evidence": "Komuta merkezi · Güvenlik alanları · Satır düzeyinde güvenlik · Güvenlik yaşam döngüsü · Kapsam ve boşluklar · Olaylar ve uyarılar · Kanıtlar",
+  "Reading security evidence…": "Güvenlik kanıtları okunuyor…",
+  "Enter Cybersecurity": "Siber Güvenliğe gir",
+  "Security evidence not generated": "Güvenlik kanıtları oluşturulmadı",
+  "Domains at risk: \u0000": "Risk altındaki alanlar: \u0000",
+  "Security warnings: \u0000": "Güvenlik uyarıları: \u0000",
+  "Trust boundaries covered: \u0000 of \u0000": "Kapsanan güven sınırları: \u0000 / \u0000",
+  "All trust boundaries covered": "Tüm güven sınırları kapsandı",
+  "Security posture unreachable": "Güvenlik duruşuna ulaşılamıyor"
 }

@@ -111,6 +111,13 @@ export interface SecurityEventDeclaration {
    * False declares the name ahead of its collector.
    */
   produced: boolean;
+  /**
+   * The Cybersecurity Command Center domain this signal is evidence for
+   * (`cyber-defense/control-plane/registry.ts`). Declared here, beside the
+   * name, so a new signal joins its domain on the Command Center the moment it
+   * is declared — nothing else has to spell its name.
+   */
+  evidences: string;
 }
 
 /**
@@ -121,29 +128,29 @@ export interface SecurityEventDeclaration {
  * tests pin the set.
  */
 export const SECURITY_EVENT_TYPES: readonly SecurityEventDeclaration[] = Object.freeze([
-  { type: 'security.login.failed', category: 'AUTHENTICATION', produced: true, auditRelevant: true,
+  { type: 'security.login.failed', category: 'AUTHENTICATION', produced: true, auditRelevant: true, evidences: 'identity',
     describes: 'A sign-in attempt was refused' },
-  { type: 'security.lockout.triggered', category: 'AUTHENTICATION', produced: true, auditRelevant: true,
+  { type: 'security.lockout.triggered', category: 'AUTHENTICATION', produced: true, auditRelevant: true, evidences: 'mfa-sessions',
     describes: 'A sign-in attempt that the lockout thresholds would refuse (shadow mode: recorded, not enforced)' },
-  { type: 'security.mfa.failed', category: 'AUTHENTICATION', produced: true, auditRelevant: true,
+  { type: 'security.mfa.failed', category: 'AUTHENTICATION', produced: true, auditRelevant: true, evidences: 'mfa-sessions',
     describes: 'A second-factor code was refused' },
-  { type: 'security.refresh.reused', category: 'SESSION', produced: true, auditRelevant: true,
+  { type: 'security.refresh.reused', category: 'SESSION', produced: true, auditRelevant: true, evidences: 'mfa-sessions',
     describes: 'A refresh token that was already used was presented again' },
-  { type: 'security.access.denied', category: 'ACCESS', produced: true, auditRelevant: true,
+  { type: 'security.access.denied', category: 'ACCESS', produced: true, auditRelevant: true, evidences: 'identity',
     describes: 'An authenticated request was refused by an access check' },
-  { type: 'security.tenant.mismatch', category: 'ACCESS', produced: false, auditRelevant: true,
+  { type: 'security.tenant.mismatch', category: 'ACCESS', produced: false, auditRelevant: true, evidences: 'tenant',
     describes: 'A request named a club or team outside the caller’s tenancy' },
-  { type: 'security.origin.rejected', category: 'NETWORK', produced: true, auditRelevant: false,
+  { type: 'security.origin.rejected', category: 'NETWORK', produced: true, auditRelevant: false, evidences: 'api',
     describes: 'A browser request came from an origin outside the allowlist' },
-  { type: 'security.ratelimit.exceeded', category: 'ABUSE', produced: true, auditRelevant: false,
+  { type: 'security.ratelimit.exceeded', category: 'ABUSE', produced: true, auditRelevant: false, evidences: 'api',
     describes: 'A caller exceeded a rate limit' },
-  { type: 'security.device.signature.rejected', category: 'DEVICE', produced: false, auditRelevant: true,
+  { type: 'security.device.signature.rejected', category: 'DEVICE', produced: false, auditRelevant: true, evidences: 'devices',
     describes: 'A device or camera message failed its signature check' },
-  { type: 'security.device.replay.rejected', category: 'DEVICE', produced: false, auditRelevant: true,
+  { type: 'security.device.replay.rejected', category: 'DEVICE', produced: false, auditRelevant: true, evidences: 'devices',
     describes: 'A device or camera message reused a nonce' },
-  { type: 'security.audit.chain.broken', category: 'INTEGRITY', produced: false, auditRelevant: true,
+  { type: 'security.audit.chain.broken', category: 'INTEGRITY', produced: false, auditRelevant: true, evidences: 'audit',
     describes: 'The audit hash chain failed verification' },
-  { type: 'security.ai.action.decided', category: 'AI', produced: false, auditRelevant: true,
+  { type: 'security.ai.action.decided', category: 'AI', produced: false, auditRelevant: true, evidences: 'ai-ml',
     describes: 'A person approved or rejected an AI-proposed action' },
 ]);
 

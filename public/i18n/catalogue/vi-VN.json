@@ -1567,5 +1567,16 @@
   "Open Vision": "Open Vision",
   "Reading Vision service…": "Reading Vision service…",
   "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
-  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models",
+  "CYBERSECURITY": "AN NINH MẠNG",
+  "Security Posture, Protection, Evidence & Monitoring": "Tư thế bảo mật, bảo vệ, bằng chứng và giám sát",
+  "Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage & Gaps · Events & Alerts · Evidence": "Trung tâm chỉ huy · Miền bảo mật · Bảo mật cấp hàng · Vòng đời bảo mật · Độ bao phủ và khoảng trống · Sự kiện và cảnh báo · Bằng chứng",
+  "Reading security evidence…": "Đang đọc bằng chứng bảo mật…",
+  "Enter Cybersecurity": "Vào An ninh mạng",
+  "Security evidence not generated": "Chưa tạo bằng chứng bảo mật",
+  "Domains at risk: \u0000": "Miền gặp rủi ro: \u0000",
+  "Security warnings: \u0000": "Cảnh báo bảo mật: \u0000",
+  "Trust boundaries covered: \u0000 of \u0000": "Ranh giới tin cậy được bao phủ: \u0000 / \u0000",
+  "All trust boundaries covered": "Mọi ranh giới tin cậy đều được bao phủ",
+  "Security posture unreachable": "Không truy cập được tư thế bảo mật"
 }

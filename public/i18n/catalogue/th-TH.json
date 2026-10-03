@@ -1567,5 +1567,16 @@
   "Open Vision": "Open Vision",
   "Reading Vision service…": "Reading Vision service…",
   "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
-  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models",
+  "CYBERSECURITY": "ความมั่นคงปลอดภัยไซเบอร์",
+  "Security Posture, Protection, Evidence & Monitoring": "สถานะความปลอดภัย การป้องกัน หลักฐาน และการเฝ้าระวัง",
+  "Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage & Gaps · Events & Alerts · Evidence": "ศูนย์บัญชาการ · โดเมนความปลอดภัย · ความปลอดภัยระดับแถว · วงจรชีวิตความปลอดภัย · ความครอบคลุมและช่องว่าง · เหตุการณ์และการแจ้งเตือน · หลักฐาน",
+  "Reading security evidence…": "กำลังอ่านหลักฐานความปลอดภัย…",
+  "Enter Cybersecurity": "เข้าสู่ความมั่นคงปลอดภัยไซเบอร์",
+  "Security evidence not generated": "ยังไม่ได้สร้างหลักฐานความปลอดภัย",
+  "Domains at risk: \u0000": "โดเมนที่มีความเสี่ยง: \u0000",
+  "Security warnings: \u0000": "คำเตือนความปลอดภัย: \u0000",
+  "Trust boundaries covered: \u0000 of \u0000": "ขอบเขตความเชื่อถือที่ครอบคลุม: \u0000 จาก \u0000",
+  "All trust boundaries covered": "ครอบคลุมขอบเขตความเชื่อถือทั้งหมด",
+  "Security posture unreachable": "ไม่สามารถเข้าถึงสถานะความปลอดภัย"
 }

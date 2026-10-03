@@ -1570,5 +1570,16 @@
   "Open Vision": "Open Vision",
   "Reading Vision service…": "Reading Vision service…",
   "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
-  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models",
+  "CYBERSECURITY": "КИБЕРБЕЗОПАСНОСТЬ",
+  "Security Posture, Protection, Evidence & Monitoring": "Состояние защиты, безопасность, доказательства и мониторинг",
+  "Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage & Gaps · Events & Alerts · Evidence": "Командный центр · Домены безопасности · Безопасность на уровне строк · Жизненный цикл безопасности · Покрытие и пробелы · События и оповещения · Доказательства",
+  "Reading security evidence…": "Чтение доказательств безопасности…",
+  "Enter Cybersecurity": "Перейти в кибербезопасность",
+  "Security evidence not generated": "Доказательства безопасности не сформированы",
+  "Domains at risk: \u0000": "Домены под угрозой: \u0000",
+  "Security warnings: \u0000": "Предупреждения безопасности: \u0000",
+  "Trust boundaries covered: \u0000 of \u0000": "Покрытые границы доверия: \u0000 из \u0000",
+  "All trust boundaries covered": "Все границы доверия покрыты",
+  "Security posture unreachable": "Состояние безопасности недоступно"
 }

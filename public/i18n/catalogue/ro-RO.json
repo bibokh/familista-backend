@@ -1570,5 +1570,16 @@
   "Open Vision": "Open Vision",
   "Reading Vision service…": "Reading Vision service…",
   "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
-  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models",
+  "CYBERSECURITY": "SECURITATE CIBERNETICĂ",
+  "Security Posture, Protection, Evidence & Monitoring": "Postura de securitate, protecție, dovezi și monitorizare",
+  "Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage & Gaps · Events & Alerts · Evidence": "Centru de comandă · Domenii de securitate · Securitate la nivel de rând · Ciclul de viață al securității · Acoperire și lacune · Evenimente și alerte · Dovezi",
+  "Reading security evidence…": "Se citesc dovezile de securitate…",
+  "Enter Cybersecurity": "Intră în Securitate cibernetică",
+  "Security evidence not generated": "Dovezile de securitate nu au fost generate",
+  "Domains at risk: \u0000": "Domenii în pericol: \u0000",
+  "Security warnings: \u0000": "Avertismente de securitate: \u0000",
+  "Trust boundaries covered: \u0000 of \u0000": "Limite de încredere acoperite: \u0000 din \u0000",
+  "All trust boundaries covered": "Toate limitele de încredere acoperite",
+  "Security posture unreachable": "Postura de securitate nu poate fi accesată"
 }

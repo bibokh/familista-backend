@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 import { rlsContextMode, rlsModeStartupLine } from '../security/db-context';
 import { withRlsContext } from '../security/rls-client';
+import { noteRlsObservation } from '../security/rls-observations';
 
 declare global {
   // eslint-disable-next-line no-var
@@ -67,6 +68,8 @@ export const prisma: PrismaClient = RLS_MODE === 'off'
   ? basePrisma
   : withRlsContext(basePrisma, RLS_MODE, (model, operation) => {
     logger.warn('[rls] pilot table queried with no database context', { model, operation, mode: RLS_MODE });
+    // The same record, kept in memory for the Cybersecurity Command Center.
+    noteRlsObservation(model, operation);
   });
 
 // A counter, so the cost of a request cycle can be measured rather than

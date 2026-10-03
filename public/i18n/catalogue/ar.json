@@ -1570,5 +1570,16 @@
   "Open Vision": "Open Vision",
   "Reading Vision service…": "Reading Vision service…",
   "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
-  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models",
+  "CYBERSECURITY": "الأمن السيبراني",
+  "Security Posture, Protection, Evidence & Monitoring": "الوضع الأمني والحماية والأدلة والمراقبة",
+  "Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage & Gaps · Events & Alerts · Evidence": "مركز القيادة · النطاقات الأمنية · أمان الصفوف · دورة حياة الأمان · التغطية والثغرات · الأحداث والتنبيهات · الأدلة",
+  "Reading security evidence…": "جارٍ قراءة أدلة الأمان…",
+  "Enter Cybersecurity": "ادخل إلى الأمن السيبراني",
+  "Security evidence not generated": "لم تُنشأ أدلة الأمان",
+  "Domains at risk: \u0000": "نطاقات معرّضة للخطر: \u0000",
+  "Security warnings: \u0000": "تحذيرات أمنية: \u0000",
+  "Trust boundaries covered: \u0000 of \u0000": "حدود الثقة المغطّاة: \u0000 من \u0000",
+  "All trust boundaries covered": "كلّ حدود الثقة مغطّاة",
+  "Security posture unreachable": "تعذّر الوصول إلى الوضع الأمني"
 }

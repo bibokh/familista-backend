@@ -48,6 +48,7 @@
 // so the two cannot drift apart silently.
 
 import { z } from 'zod';
+import { CONFIG_VALUES } from '../cyber-defense/control-plane/registry';
 
 // ── shared leaves ────────────────────────────────────────────────────────────
 
@@ -581,6 +582,205 @@ export const SourceLineageSchema = z.object({
   })),
 });
 
+// ── Cybersecurity Command Center ─────────────────────────────────────────────
+//
+// Every object below is STRICT. This is the one owner surface whose whole job
+// is security evidence, so a field the contract does not name must not travel:
+// a key, a token, an address or an id added to a view by mistake fails CI here
+// before it reaches a screen.
+
+export const PROTECTION_STATES = ['PROTECTED', 'PARTIAL', 'OBSERVING', 'AT_RISK', 'UNKNOWN'] as const;
+export const LIVE_STATES = ['LIVE', 'WARNING', 'NOT_INSTRUMENTED', 'NOT_APPLICABLE', 'UNAVAILABLE'] as const;
+const Protection = z.enum(PROTECTION_STATES);
+const Live = z.enum(LIVE_STATES);
+const ControlStatus = z.enum(['PRESENT', 'PARTIAL', 'ABSENT', 'MISSING']);
+const Count = z.number().int().nonnegative();
+const MaybeCount = Count.nullable();
+
+export const SecFigureSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  value: z.union([z.number(), z.string(), z.boolean(), z.null()]),
+  kind: z.enum(['count', 'flag', 'instant', 'hours', 'text']),
+  source: z.enum(['build', 'runtime', 'process']),
+  why: z.string().nullable(),
+}).strict();
+
+export const SecConfigItemSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  value: z.enum(CONFIG_VALUES),
+}).strict();
+
+export const SecWarningSchema = z.object({ key: z.string().min(1), text: z.string().min(1) }).strict();
+
+export const SecControlSchema = z.object({
+  id: z.string().min(1),
+  status: ControlStatus,
+  required: z.boolean(),
+  knownGap: z.string().nullable(),
+  evidence: z.string().nullable(),
+  note: z.string().nullable(),
+}).strict();
+
+export const SecRowSchema = z.object({
+  id: Count,
+  name: z.string(),
+  coverage: z.enum(['C', 'P', 'U']),
+  boundaryType: z.string(),
+  flow: z.string(),
+  owner: z.string(),
+  dataClass: z.string(),
+  controls: z.array(z.string()),
+  reason: z.string().nullable(),
+  plannedIn: z.string().nullable(),
+}).strict();
+
+export const SecSignalTypeSchema = z.object({
+  type: z.string().min(1),
+  category: z.string(),
+  describes: z.string(),
+  produced: z.boolean(),
+  count24h: MaybeCount,
+  count7d: MaybeCount,
+}).strict();
+
+const SecKindCountSchema = z.object({
+  kind: z.string().min(1),
+  label: z.string().min(1),
+  count24h: MaybeCount,
+  count7d: MaybeCount,
+  critical24h: MaybeCount,
+}).strict();
+
+export const SecDomainEventsSchema = z.object({
+  state: Live,
+  kinds: z.array(SecKindCountSchema),
+  signals: z.array(SecSignalTypeSchema),
+  total24h: MaybeCount,
+  total7d: MaybeCount,
+  why: z.string().nullable(),
+}).strict();
+
+export const SecDomainSummarySchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  protects: z.string().min(1),
+  state: Protection,
+  protection: Protection,
+  live: Live,
+  liveWhy: z.string().nullable(),
+  rows: z.array(Count),
+  controls: z.object({ total: Count, present: Count, partial: Count, absent: Count }).strict(),
+  figures: z.array(SecFigureSchema),
+  config: z.array(SecConfigItemSchema),
+  warnings: z.array(SecWarningSchema),
+  events: SecDomainEventsSchema,
+  areas: z.array(z.string()),
+}).strict();
+
+const RecentState = z.enum(['READ', 'UNAVAILABLE', 'NOT_INSTRUMENTED']);
+
+export const SecDomainDetailSchema = SecDomainSummarySchema.extend({
+  controlList: z.array(SecControlSchema),
+  rowList: z.array(SecRowSchema),
+  recentEvents: z.object({
+    state: RecentState,
+    items: z.array(z.object({ kind: z.string(), label: z.string(), severity: z.string(), at: Instant }).strict()),
+    why: z.string().nullable(),
+  }).strict(),
+  recentSignals: z.object({
+    state: RecentState,
+    items: z.array(z.object({ type: z.string(), at: Instant }).strict()),
+    why: z.string().nullable(),
+  }).strict(),
+}).strict();
+
+export const SecAreaSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  group: z.enum(['PLATFORM', 'DATA', 'INTERFACES', 'AI', 'VISION_DEVICES', 'FOOTBALL', 'OPERATIONS']),
+  state: Protection,
+  rows: z.array(Count),
+  gaps: z.array(SecRowSchema),
+  domains: z.array(z.string()),
+  routers: z.array(z.string()),
+  api: z.object({
+    routers: Count, handlers: Count, publicHandlers: Count, routerWideAuth: Count,
+    authz: z.record(z.string(), Count),
+    tenancy: z.object({ guarded: Count, exempt: Count, unguarded: Count }).strict(),
+  }).strict().nullable(),
+  note: z.string().nullable(),
+}).strict();
+
+export const SecStageSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  describes: z.string().min(1),
+  state: z.enum([...PROTECTION_STATES, 'NOT_INSTRUMENTED', 'INFO']),
+  controls: z.array(z.object({ id: z.string(), status: ControlStatus }).strict()),
+  figures: z.array(SecFigureSchema),
+  outsideView: z.string().nullable(),
+}).strict();
+
+export const SecRlsSchema = z.object({
+  state: Protection,
+  mode: z.enum(['off', 'observe', 'on']),
+  enforced: z.boolean().nullable(),
+  stage: z.object({ index: Count, id: z.string(), title: z.string(), describes: z.string() }).strict(),
+  stages: z.array(z.object({
+    id: z.string(), title: z.string(), describes: z.string(), reached: z.boolean(), current: z.boolean(),
+  }).strict()),
+  tables: z.array(z.string()),
+  systemPaths: z.array(z.object({ reason: z.string(), review: z.string() }).strict()),
+  observations: z.array(z.object({ model: z.string(), operation: z.string(), firstSeenAt: Instant }).strict()),
+  windowStart: Instant,
+  warnings: z.array(SecWarningSchema),
+}).strict();
+
+export const SecEventsOverviewSchema = z.object({
+  state: Live,
+  why: z.string().nullable(),
+  total24h: MaybeCount,
+  total7d: MaybeCount,
+  critical24h: MaybeCount,
+  warning24h: MaybeCount,
+  kinds: z.array(SecKindCountSchema),
+  signals: z.array(SecSignalTypeSchema),
+  alerts: z.object({ dispatcherRunning: z.boolean(), recipientConfigured: z.boolean() }).strict(),
+}).strict();
+
+export const SecPostureSchema = z.object({
+  verdict: Protection,
+  boundaries: z.object({ total: Count, C: Count, P: Count, U: Count }).strict(),
+  controls: z.object({ total: Count, present: Count, partial: Count, absent: Count }).strict(),
+  required: z.object({ total: Count, present: Count }).strict(),
+  knownGaps: z.array(z.object({ id: z.string(), status: ControlStatus, text: z.string() }).strict()),
+  domains: z.object({ PROTECTED: Count, PARTIAL: Count, OBSERVING: Count, AT_RISK: Count, UNKNOWN: Count }).strict(),
+  generatedAt: Instant,
+  generator: z.string(),
+}).strict();
+
+export const CommandCenterSchema = z.object({
+  state: z.enum(['READY', 'NOT_GENERATED']),
+  reason: z.string().nullable(),
+  generatedAt: Instant.nullable(),
+  measuredAt: Instant,
+  instance: z.object({ startedAt: Instant, uptimeHours: Count }).strict(),
+  posture: SecPostureSchema.nullable(),
+  groups: z.array(z.object({
+    id: z.enum(['PLATFORM', 'DATA', 'INTERFACES', 'AI', 'VISION_DEVICES', 'FOOTBALL', 'OPERATIONS']),
+    title: z.string().min(1),
+  }).strict()),
+  domains: z.array(SecDomainSummarySchema),
+  areas: z.array(SecAreaSchema),
+  lifecycle: z.array(SecStageSchema),
+  boundaries: z.array(SecRowSchema),
+  rls: SecRlsSchema.nullable(),
+  events: SecEventsOverviewSchema,
+  unassignedRouters: z.array(z.string()),
+}).strict();
+
 // ── the registry ─────────────────────────────────────────────────────────────
 
 export interface ApiContract {
@@ -722,6 +922,19 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     schema: SystemOverviewSchema, consumer: 'public/system/system.js',
     reads: [],
   },
+
+  // ── Cybersecurity Command Center ──
+  {
+    endpoint: '/system/cybersecurity', module: 'Cybersecurity',
+    schema: CommandCenterSchema, consumer: 'public/cybersecurity/cybersecurity.js',
+    reads: ['state', 'reason', 'measuredAt', 'instance', 'posture', 'groups', 'domains', 'areas',
+      'lifecycle', 'boundaries', 'rls', 'events', 'unassignedRouters'],
+  },
+  {
+    endpoint: '/system/cybersecurity/domains/rls', module: 'Cybersecurity',
+    schema: SecDomainDetailSchema, consumer: 'public/cybersecurity/cybersecurity.js',
+    reads: ['controlList', 'rowList', 'recentEvents', 'recentSignals'],
+  },
 ];
 
 // ── the compile-time pin ─────────────────────────────────────────────────────
@@ -738,6 +951,9 @@ import type { Signal, Incident, InfraRule } from '../infra/infrastructure-health
 import type {
   PlatformSource, SourceControl, LineageStage, ImpactNode,
 } from '../sources/source-registry.service';
+import type {
+  CommandCenterOverview, DomainDetail, DomainSummary, AreaView, StageView, RlsView, EventsOverview, PostureView,
+} from '../cyber-defense/control-plane/control-plane.service';
 
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 
@@ -753,5 +969,14 @@ const _source: Exact<z.infer<typeof PlatformSourceSchema>, PlatformSource> = tru
 const _control: Exact<z.infer<typeof SourceControlSchema>, SourceControl> = true;
 const _stage: Exact<z.infer<typeof SourceLineageSchema>['stages'][number], LineageStage> = true;
 const _impact: Exact<z.infer<typeof SourceConsumersSchema>['impact'][number], ImpactNode> = true;
+const _ccOverview: Exact<z.infer<typeof CommandCenterSchema>, CommandCenterOverview> = true;
+const _ccDomain: Exact<z.infer<typeof SecDomainSummarySchema>, DomainSummary> = true;
+const _ccDetail: Exact<z.infer<typeof SecDomainDetailSchema>, DomainDetail> = true;
+const _ccArea: Exact<z.infer<typeof SecAreaSchema>, AreaView> = true;
+const _ccStage: Exact<z.infer<typeof SecStageSchema>, StageView> = true;
+const _ccRls: Exact<z.infer<typeof SecRlsSchema>, RlsView> = true;
+const _ccEvents: Exact<z.infer<typeof SecEventsOverviewSchema>, EventsOverview> = true;
+const _ccPosture: Exact<z.infer<typeof SecPostureSchema>, PostureView> = true;
 void [_component, _district, _relationship, _technology, _signal, _incident, _rule,
-  _source, _control, _stage, _impact];
+  _source, _control, _stage, _impact,
+  _ccOverview, _ccDomain, _ccDetail, _ccArea, _ccStage, _ccRls, _ccEvents, _ccPosture];

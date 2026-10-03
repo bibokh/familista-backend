@@ -1570,5 +1570,16 @@
   "Open Vision": "Open Vision",
   "Reading Vision service…": "Reading Vision service…",
   "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
-  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models",
+  "CYBERSECURITY": "CYBERBEVEILIGING",
+  "Security Posture, Protection, Evidence & Monitoring": "Beveiligingshouding, bescherming, bewijs en monitoring",
+  "Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage & Gaps · Events & Alerts · Evidence": "Commandocentrum · Beveiligingsdomeinen · Beveiliging op rijniveau · Beveiligingslevenscyclus · Dekking en hiaten · Gebeurtenissen en meldingen · Bewijs",
+  "Reading security evidence…": "Beveiligingsbewijs wordt gelezen…",
+  "Enter Cybersecurity": "Naar Cyberbeveiliging",
+  "Security evidence not generated": "Beveiligingsbewijs niet gegenereerd",
+  "Domains at risk: \u0000": "Domeinen met risico: \u0000",
+  "Security warnings: \u0000": "Beveiligingswaarschuwingen: \u0000",
+  "Trust boundaries covered: \u0000 of \u0000": "Gedekte vertrouwensgrenzen: \u0000 van \u0000",
+  "All trust boundaries covered": "Alle vertrouwensgrenzen gedekt",
+  "Security posture unreachable": "Beveiligingshouding onbereikbaar"
 }
