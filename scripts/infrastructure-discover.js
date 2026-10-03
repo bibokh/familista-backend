@@ -211,7 +211,7 @@ const TECH_PACKAGES = {
   'ts-jest':               ['testing', 'ts-jest', 'testing'],
   supertest:               ['testing', 'Supertest', 'testing'],
   'ts-node':               ['tooling', 'ts-node', 'tooling'],
-  'ts-node-dev':           ['tooling', 'ts-node-dev', 'tooling'],
+  tsx:                     ['tooling', 'tsx', 'tooling'],
 };
 
 for (const [name, range] of Object.entries({ ...deps, ...devDeps })) {

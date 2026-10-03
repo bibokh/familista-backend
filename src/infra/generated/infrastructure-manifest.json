@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-02T23:54:15.152Z",
+  "generatedAt": "2026-10-03T10:13:07.894Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -1075,7 +1075,7 @@
       "district": "testing",
       "category": "testing",
       "type": "SUITE",
-      "version": "29.7.0",
+      "version": "30.5.2",
       "status": "ACTIVE",
       "runtime": null,
       "provider": null,
@@ -1381,7 +1381,7 @@
       "id": "morgan",
       "name": "Morgan",
       "category": "observability",
-      "version": "1.12.0",
+      "version": "1.12.1",
       "usedBy": [
         "monitoring"
       ],
@@ -1531,7 +1531,7 @@
       "id": "jest",
       "name": "Jest",
       "category": "testing",
-      "version": "29.7.0",
+      "version": "30.5.2",
       "usedBy": [
         "testing"
       ],
@@ -1551,7 +1551,7 @@
       "id": "ts-jest",
       "name": "ts-jest",
       "category": "testing",
-      "version": "29.4.11",
+      "version": "29.4.14",
       "usedBy": [
         "testing"
       ],
@@ -1568,10 +1568,10 @@
       "sourceEvidence": "package.json"
     },
     {
-      "id": "ts-node-dev",
-      "name": "ts-node-dev",
+      "id": "tsx",
+      "name": "tsx",
       "category": "tooling",
-      "version": "2.0.0",
+      "version": "4.23.15",
       "usedBy": [
         "tooling"
       ],
@@ -2235,8 +2235,8 @@
     },
     {
       "name": "@types/jest",
-      "declared": "^29.5.14",
-      "resolved": "29.5.14",
+      "declared": "^30.0.0",
+      "resolved": "30.0.0",
       "classification": "DEVELOPMENT",
       "technology": null
     },
@@ -2354,8 +2354,8 @@
     },
     {
       "name": "jest",
-      "declared": "^29.7.0",
-      "resolved": "29.7.0",
+      "declared": "^30.5.2",
+      "resolved": "30.5.2",
       "classification": "DEVELOPMENT",
       "technology": "Jest"
     },
@@ -2368,8 +2368,8 @@
     },
     {
       "name": "morgan",
-      "declared": "^1.10.0",
-      "resolved": "1.12.0",
+      "declared": "^1.12.1",
+      "resolved": "1.12.1",
       "classification": "RUNTIME",
       "technology": "Morgan"
     },
@@ -2396,8 +2396,8 @@
     },
     {
       "name": "ts-jest",
-      "declared": "^29.4.11",
-      "resolved": "29.4.11",
+      "declared": "^29.4.14",
+      "resolved": "29.4.14",
       "classification": "DEVELOPMENT",
       "technology": "ts-jest"
     },
@@ -2409,11 +2409,11 @@
       "technology": "ts-node"
     },
     {
-      "name": "ts-node-dev",
-      "declared": "^2.0.0",
-      "resolved": "2.0.0",
+      "name": "tsx",
+      "declared": "^4.23.15",
+      "resolved": "4.23.15",
       "classification": "DEVELOPMENT",
-      "technology": "ts-node-dev"
+      "technology": "tsx"
     },
     {
       "name": "typescript",

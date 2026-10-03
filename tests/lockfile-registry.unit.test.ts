@@ -12,7 +12,8 @@ import path from 'path';
 
 const ROOT = path.join(__dirname, '..');
 const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'));
-const entries = Object.entries(lock.packages as Record<string, { resolved?: string; integrity?: string; version?: string; link?: boolean }>)
+type LockEntry = { name?: string; resolved?: string; integrity?: string; version?: string; link?: boolean; dependencies?: Record<string, string>; devDependencies?: Record<string, string>; optionalDependencies?: Record<string, string>; peerDependencies?: Record<string, string> };
+const entries = Object.entries(lock.packages as Record<string, LockEntry>)
   .filter(([k]) => k.startsWith('node_modules/'));
 
 describe('the lockfile', () => {
@@ -27,11 +28,34 @@ describe('the lockfile', () => {
   });
 
   it('every resolved URL is the canonical tarball for that exact name and version', () => {
+    // An npm alias ("x": "npm:real@^1") installs `real` under the path `x`; the
+    // lockfile records the real name in `name`. It is accepted only when some
+    // package declares exactly that alias — an undeclared rename still fails.
+    const declaredAliases = new Map<string, Set<string>>();
+    for (const e of Object.values(lock.packages as Record<string, LockEntry>)) {
+      for (const deps of [e.dependencies, e.devDependencies, e.optionalDependencies, e.peerDependencies]) {
+        for (const [alias, spec] of Object.entries(deps ?? {})) {
+          const m = /^npm:((?:@[^/@]+\/)?[^@]+)@/.exec(String(spec));
+          if (m) declaredAliases.set(alias, (declaredAliases.get(alias) ?? new Set()).add(m[1]));
+        }
+      }
+    }
     for (const [k, p] of entries.filter(([, e]) => !e.link)) {
-      const name = k.split('node_modules/').pop()!;
+      const installedAs = k.split('node_modules/').pop()!;
+      const name = p.name && p.name !== installedAs ? p.name : installedAs;
+      if (name !== installedAs) expect(`${installedAs} -> ${[...(declaredAliases.get(installedAs) ?? [])].join(',')}`).toBe(`${installedAs} -> ${name}`);
       const base = name.split('/').pop();
       expect(p.resolved).toBe(`https://registry.npmjs.org/${name}/-/${base}-${p.version}.tgz`);
     }
+  });
+
+  it('an undeclared rename is refused: a path name the real package does not match fails', () => {
+    // Guard on the guard: the alias allowance only applies to declared aliases.
+    const declared = new Set(Object.values(lock.packages as Record<string, LockEntry>)
+      .flatMap((e) => Object.entries({ ...e.dependencies, ...e.devDependencies, ...e.optionalDependencies }))
+      .filter(([, spec]) => String(spec).startsWith('npm:')).map(([alias]) => alias));
+    expect(declared.has('lodash-evil')).toBe(false);
+    expect(declared.size).toBeGreaterThan(0);
   });
 
   it('mentions no mirror anywhere', () => {
