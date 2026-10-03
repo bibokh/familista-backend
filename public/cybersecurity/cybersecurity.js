@@ -340,6 +340,8 @@
 
   function footHtml() {
     var d = CS.data;
+    // A refused or failed read is not "still reading": say it is unavailable.
+    if (!d && CS.error) return '<div class="cs-foot">' + chip('UNAVAILABLE', 'cs-chip--sm') + '</div>';
     if (!d) return '<div class="cs-foot"><span class="cs-chip cs-chip--unknown">' + esc(T('Reading evidence…')) + '</span></div>';
     var at = fmtInstant(d.measuredAt);
     return '<div class="cs-foot">'
