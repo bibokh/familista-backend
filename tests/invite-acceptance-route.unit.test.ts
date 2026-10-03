@@ -502,12 +502,13 @@ describe('nothing that already worked was changed', () => {
     expect(registerAndAccept).not.toMatch(/membership\.create|updateMany|tokenHash:/);
   });
 
-  it('and the ordinary registration endpoint is untouched', () => {
+  it('and open registration is closed, so the invitation is the only way into a club', () => {
     const auth = read('src/controllers/auth.controller.ts');
-    // Still requires a clubId, still excludes CLUB_OWNER — which is exactly why
-    // an invited president could not have used it.
-    expect(auth).toContain('clubId:    z.string().uuid()');
-    expect(auth).toContain("role:      z.enum(['HEAD_COACH','ASSISTANT_COACH','ANALYST','MEDICAL_STAFF','SCOUT']).optional()");
+    // Final Security Closure, Task 1: it used to take a clubId and a staff role
+    // from anybody. It refuses now, before reading the body.
+    expect(auth).toContain('return next(new SelfRegistrationClosedError());');
+    expect(auth).not.toContain('clubId:    z.string().uuid()');
+    expect(read('src/services/auth.service.ts')).not.toMatch(/export async function registerUser\(/);
   });
 });
 

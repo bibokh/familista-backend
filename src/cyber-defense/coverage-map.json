@@ -44,9 +44,10 @@
         "mfa-owner-enforcement-at-login",
         "login-lockout-shadow",
         "login-lockout",
-        "mfa-required-for-admins"
+        "mfa-required-for-admins",
+        "self-registration-closed"
       ],
-      "reason": "Lockout is enforced and administrators can be required to use MFA (R7, behind MFA_REQUIRED_FOR_ADMINS), but MFA is not required of every account and the legacy refresh-token fallback remains until pre-Step-8 tokens expire.",
+      "reason": "Lockout is enforced, self-registration into a club is closed (accounts come only from invitations), and administrators can be required to use MFA (R7, behind MFA_REQUIRED_FOR_ADMINS) — but MFA keys off the account role rather than effective authority and is not required of every privileged account, and the legacy refresh-token fallback remains until pre-Step-8 tokens expire.",
       "plannedIn": "Follow-up outside the approved plan — awaiting scheduling"
     },
     "3": {
@@ -88,7 +89,8 @@
       "controls": [
         "tenant-guard",
         "db-rls-pilot",
-        "db-rls-system-paths-reviewed"
+        "db-rls-system-paths-reviewed",
+        "franchise-club-attach-authorised"
       ],
       "reason": "Every route id is guarded or exempted by name (R2), and PostgreSQL enforces row-level security on 18 club tables (R14 Stage 4: the pilot's four and 14 club-private health, safeguarding, contract, attendance, finance, calendar and staff-note tables), fail closed and proven on real PostgreSQL — but ids in request bodies are not inventoried, and every other club table relies on the application.",
       "plannedIn": "Owner decision after Batch 7: extend the protected tables table by table; inventory ids in request bodies"

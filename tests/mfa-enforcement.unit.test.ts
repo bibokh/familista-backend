@@ -662,12 +662,13 @@ describe('no other way to a session for an existing account', () => {
     }
   });
 
-  it('tokens are issued in exactly five places, each accounted for', () => {
-    // register (new account), invited register (new account), password login
-    // (after the gate), second step, refresh (continues a session one of those
-    // began). None signs an existing account in on a password alone.
+  it('tokens are issued in exactly four places, each accounted for', () => {
+    // invited register (new account), password login (after the gate), second
+    // step, refresh (continues a session one of those began). None signs an
+    // existing account in on a password alone. Open registration, the fifth,
+    // is gone (Final Security Closure, Task 1).
     // R7: the second step stamps `passedCode`, and refresh carries it forward.
-    expect((AUTH.match(/(?:await|return) issueTokens\(user(?:, \{ passedCode: [^}]+\})?\)/g) ?? []).length).toBe(5);
+    expect((AUTH.match(/(?:await|return) issueTokens\(user(?:, \{ passedCode: [^}]+\})?\)/g) ?? []).length).toBe(4);
     expect(AUTH.match(/^async function issueTokens/m)).not.toBeNull();
     expect(AUTH).not.toMatch(/export (async )?function issueTokens/);
   });

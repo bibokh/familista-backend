@@ -602,6 +602,19 @@ const controls = [
       && /findUnique\(\{\s*where:\s*\{\s*tokenHash:\s*hashRefreshToken\(token\)/.test(authServiceSrc)
       ? 'PRESENT' : 'ABSENT', AUTH_SERVICE,
     'New refresh tokens are stored and looked up as a SHA-256 only.'),
+  // Final Security Closure, Task 1: nobody creates an account in a club by
+  // naming it. The public register handler refuses without reading the body,
+  // the service that created a club-linked account from a request is gone, and
+  // the refusal is proven end to end on real PostgreSQL in CI.
+  control('self-registration-closed',
+    (() => {
+      const ctl = read(cite('src/controllers/auth.controller.ts')) || '';
+      const reg = ctl.slice(ctl.indexOf('export async function register('), ctl.indexOf('\n}', ctl.indexOf('export async function register(')));
+      return /next\(new SelfRegistrationClosedError\(\)\)/.test(reg) && !/req\.body|authService\./.test(reg)
+        && !/export async function registerUser\(/.test(authServiceSrc)
+        && /tests\/security-closure-task1\.integration\.test\.ts/.test(read('.github/workflows/ci.yml') || '');
+    })() ? 'PRESENT' : 'ABSENT', cite('src/controllers/auth.controller.ts'),
+    'POST /auth/register answers 403 SELF_REGISTRATION_CLOSED before reading the body; a club account comes only from that club\'s invitation.'),
   // …and the one thing still standing from before it: the legacy raw column and
   // the dual-read fallback that keeps pre-Step-8 sessions alive.
   control('refresh-token-legacy-fallback-removed',
@@ -646,6 +659,19 @@ const controls = [
       && tenancy.routerWideTenantGuardMounts.length === 0 && tenancy.unknownTenantResources.length === 0 ? 'PRESENT' : 'ABSENT',
     'src/middleware/tenant-guard.middleware.ts',
     `${tenancy.guarded} of ${tenancy.idParameters} route id parameter(s) checked against the caller's club before the handler; ${tenancy.exempt} exempted by name with a reason; ${tenancy.unguarded.length} unguarded.`),
+  // Final Security Closure, Task 1: a franchise unit's write access is no
+  // authority over a club the request names. Attaching needs the club's
+  // president or the platform, moving needs write access to the unit the club
+  // leaves, detaching only from the unit that holds it — each write
+  // conditional on the unit read — and all of it is proven on real PostgreSQL.
+  control('franchise-club-attach-authorised',
+    has('src/services/franchise-unit.service.ts', /async function mayCommitClub\(/)
+      && has('src/services/franchise-unit.service.ts', /role: 'CLUB_OWNER', isActive: true/)
+      && has('src/services/franchise-unit.service.ts', /if \(current !== null && !mayReleaseFrom\(actor, current\)\)/)
+      && has('src/services/franchise-unit.service.ts', /if \(current !== unitId\) throw new NotFoundError\('Club is not attached to this unit'\)/)
+      && !has('src/services/franchise-unit.service.ts', /prisma\.club\.update\(\{\s*where: \{ id: clubId \}/)
+      ? 'PRESENT' : 'ABSENT', 'src/services/franchise-unit.service.ts',
+    'A club enters a franchise unit only by its president or the platform, leaves one only with write access to it, and is detached only from the unit that holds it.'),
   control('device-ingest-hmac', has('src/services/device-auth.service.ts', /timingSafeEqual/) ? 'PRESENT' : 'ABSENT', 'src/services/device-auth.service.ts'),
   control('stripe-webhook-signature', has('src/services/stripe.service.ts', /webhooks\.constructEvent/) ? 'PRESENT' : 'ABSENT', 'src/services/stripe.service.ts'),
   control('versioned-keyring', has('src/fabric/secrets/keyring.ts', /ACTIVE_KEK_ENV/) ? 'PRESENT' : 'ABSENT', 'src/fabric/secrets/keyring.ts'),

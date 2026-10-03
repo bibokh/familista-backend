@@ -2,7 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import * as authService from '../services/auth.service';
 import * as passwordResetService from '../services/password-reset.service';
-import { sendSuccess, sendCreated } from '../utils/response';
+import { sendSuccess } from '../utils/response';
+import { ForbiddenError } from '../utils/errors';
 import { config } from '../config';
 
 // ─── Cookie helpers ────────────────────────────────────────────────────────────
@@ -56,17 +57,6 @@ function resolveRefreshToken(req: Request): string | undefined {
 
 // ─── Validation schemas ────────────────────────────────────────────────────────
 
-const registerSchema = z.object({
-  body: z.object({
-    email:     z.string().email(),
-    password:  z.string().min(8, 'Password must be at least 8 characters'),
-    firstName: z.string().min(1),
-    lastName:  z.string().min(1),
-    clubId:    z.string().uuid(),
-    role:      z.enum(['HEAD_COACH','ASSISTANT_COACH','ANALYST','MEDICAL_STAFF','SCOUT']).optional(),
-  }),
-});
-
 const loginSchema = z.object({
   body: z.object({
     email:    z.string().email(),
@@ -83,13 +73,26 @@ const changePasswordSchema = z.object({
 
 // ─── Controllers ───────────────────────────────────────────────────────────────
 
-export async function register(req: Request, res: Response, next: NextFunction) {
-  try {
-    await registerSchema.parseAsync({ body: req.body });
-    const result = await authService.registerUser(req.body);
-    setAuthCookies(res, result.tokens);
-    return sendCreated(res, result, 'Registration successful');
-  } catch (err) { return next(err); }
+/**
+ * Self-registration is closed (Final Security Closure, Task 1).
+ *
+ * It used to create an account tied to whatever club the body named, with a
+ * staff role the body chose — and since a request's club comes from the
+ * account and most routes authorise by role, that was a working membership of
+ * any club for anybody who knew its id. An account for a club now comes only
+ * from that club's invitation (`/invitations/accept-with-account`), where the
+ * club, the address and the role are the invitation's, never the caller's.
+ *
+ * Refused before the body is read and before the database is touched: nothing
+ * about the request decides anything.
+ */
+export class SelfRegistrationClosedError extends ForbiddenError {
+  public readonly code = 'SELF_REGISTRATION_CLOSED';
+  constructor() { super('Accounts are created by invitation from a club. Ask your club to invite you.'); }
+}
+
+export async function register(_req: Request, _res: Response, next: NextFunction) {
+  return next(new SelfRegistrationClosedError());
 }
 
 export async function login(req: Request, res: Response, next: NextFunction) {
