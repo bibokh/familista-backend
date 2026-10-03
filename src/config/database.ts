@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
-import { rlsContextMode } from '../security/db-context';
+import { rlsContextMode, rlsModeStartupLine } from '../security/db-context';
 import { withRlsContext } from '../security/rls-client';
 
 declare global {
@@ -58,6 +58,11 @@ global.__prisma = basePrisma;
  * PostgreSQL who is asking (Cyber Defense R14, security/rls-client.ts).
  */
 const RLS_MODE = rlsContextMode();
+{
+  // Positive confirmation of the effective mode, once per process start.
+  const line = rlsModeStartupLine();
+  logger[line.level](line.message);
+}
 export const prisma: PrismaClient = RLS_MODE === 'off'
   ? basePrisma
   : withRlsContext(basePrisma, RLS_MODE, (model, operation) => {
