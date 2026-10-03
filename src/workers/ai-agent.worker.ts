@@ -23,6 +23,7 @@ import {
   publishAIAgentStarted, publishAIAgentCompleted, publishAIAgentFailed,
 } from '../fabric/producers/ai.producer';
 import { runDeterministicHandler } from './agent-handlers';
+import { runInClubContext } from '../security/db-context';
 import { getJobApproval, requestApproval } from '../security/ai-approval.service';
 import { authorizeAgentJob } from '../platform/intelligence/agent-jobs';
 import { logSecurityEvent } from '../security/security-event.service';
@@ -193,13 +194,15 @@ async function runOne(job: { id: string; agent: AIAgent; kind: string; input: Pr
     // Phase F — deterministic handler runs FIRST. If it returns a result,
     // we skip the LLM entirely. This keeps production working with no
     // external API key configured (the user's constraint #5).
-    const deterministic = await runDeterministicHandler({
+    // R14: a job reads its own club's data, as that club — not as a system
+    // path, and not with no context (which row-level security refuses).
+    const deterministic = await runInClubContext(job.clubId, null, async () => await runDeterministicHandler({
       jobId:  job.id,
       clubId: job.clubId,
       agent:  job.agent,
       kind:   job.kind,
       input:  job.input,
-    });
+    }));
     if (deterministic) {
       await prisma.aIAgentJob.update({
         where: { id: job.id },

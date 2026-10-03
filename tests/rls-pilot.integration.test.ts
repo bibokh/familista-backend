@@ -58,12 +58,36 @@ const CLUB_A = `club-a-${tag}`;
 const CLUB_B = `club-b-${tag}`;
 const CLUB_C = `club-c-${tag}`;
 const ids = {
-  userA: `user-a-${tag}`, userB: `user-b-${tag}`,
+  userA: `user-a-${tag}`, userB: `user-b-${tag}`, userA2: `user-a2-${tag}`, userB2: `user-b2-${tag}`,
   playerA: `player-a-${tag}`, playerB: `player-b-${tag}`, playerC: `player-c-${tag}`,
   injuryA: `injury-a-${tag}`, injuryB: `injury-b-${tag}`,
   videoA: `video-a-${tag}`, videoB: `video-b-${tag}`, videoNone: `video-none-${tag}`,
 };
 const refused = /row-level security|violates row-level/i;
+
+// The club-private tables (20261005100000_rls_club_private_tables): each one
+// row per club, written with SQL on its migrated columns only (as VideoAsset
+// is, for the same drift reason). `cols` and `vals` are the NOT NULL columns
+// beyond "id" and "clubId"; :club and :player stand for the row's club and a
+// player of that club, :user for a user of it.
+type PrivateTable = { table: string; model: string; cols: string; vals: string };
+const PRIVATE_TABLES: PrivateTable[] = [
+  { table: 'BiochemicalSignal', model: 'biochemicalSignal', cols: '"kind", "value", "monotonicMs"', vals: "'LACTATE', 4.2, 1000" },
+  { table: 'HydrationEstimate', model: 'hydrationEstimate', cols: '"playerId", "monotonicMs"', vals: ':player, 1000' },
+  { table: 'StressIndex', model: 'stressIndex', cols: '"playerId", "monotonicMs"', vals: ':player, 1000' },
+  { table: 'NeuromuscularLoad', model: 'neuromuscularLoad', cols: '"playerId", "monotonicMs"', vals: ':player, 1000' },
+  { table: 'TendonRiskEstimate', model: 'tendonRiskEstimate', cols: '"playerId", "monotonicMs"', vals: ':player, 1000' },
+  { table: 'PlayerGuardianLink', model: 'playerGuardianLink', cols: '"playerId", "guardianUserId", "relationship"', vals: ":player, :user, 'PARENT'" },
+  { table: 'PlayerContractRecord', model: 'playerContractRecord', cols: '"playerId", "startsAt", "updatedAt"', vals: ':player, now(), now()' },
+  { table: 'PlayerEvaluationRecord', model: 'playerEvaluationRecord', cols: '"playerId", "kind", "payload"', vals: ":player, 'TECHNICAL', '{}'::jsonb" },
+  { table: 'PlayerOnboardingStep', model: 'playerOnboardingStep', cols: '"playerId", "step", "updatedAt"', vals: ":player, 'MEDICAL', now()" },
+  { table: 'TrainingAttendanceRecord', model: 'trainingAttendanceRecord', cols: '"trainingSessionId", "playerId"', vals: ":id, :player" },
+  { table: 'MatchAttendanceRecord', model: 'matchAttendanceRecord', cols: '"matchId", "playerId"', vals: ":id, :player" },
+  { table: 'OperationsPayment', model: 'operationsPayment', cols: '"amountCents", "category", "updatedAt"', vals: "1500, 'MEMBERSHIP', now()" },
+  { table: 'ClubCalendarEntry', model: 'clubCalendarEntry', cols: '"title", "startsAt", "updatedAt"', vals: "'Training', now(), now()" },
+  { table: 'StaffClubNote', model: 'staffClubNote', cols: '"staffUserId", "body"', vals: ":user, 'private note'" },
+];
+const privateId = (t: PrivateTable, club: 'a' | 'b' | 'x') => `${t.table.toLowerCase()}-${club}-${tag}`;
 
 suite('row-level security pilot on real PostgreSQL', () => {
   let admin: PrismaClient;
@@ -75,8 +99,15 @@ suite('row-level security pilot on real PostgreSQL', () => {
       await tx.$executeRaw`SELECT set_config('familista.rls_mode', ${mode}, true), set_config('familista.club_id', ${clubId}, true)`;
       return fn(tx);
     });
-  const setEnforced = (on: boolean) =>
-    owner.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION familista_rls_enforced() RETURNS boolean LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$ SELECT ${on} $$`);
+  // familista_rls_enforced() is IMMUTABLE, so PostgreSQL folds its answer into
+  // the plan of every prepared statement: a pooled connection that planned a
+  // query before the switch keeps the old answer for that query. Flipping it
+  // therefore takes fresh connections — here a reconnect, in production the
+  // restart of the deploy that carries the migration (docs/security/row-level-security.md).
+  const setEnforced = async (on: boolean) => {
+    await owner.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION familista_rls_enforced() RETURNS boolean LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$ SELECT ${on} $$`);
+    await owner.$disconnect();
+  };
 
   const player = (id: string, clubId: string, n: number) => ({
     id, clubId, firstName: 'Test', lastName: id, number: n, position: 'GK' as const,
@@ -90,6 +121,24 @@ suite('row-level security pilot on real PostgreSQL', () => {
   const insertVideo = (db: PrismaClient | Tx, id: string, clubId: string | null) =>
     db.$executeRaw`INSERT INTO "VideoAsset" ("id", "source", "format", "url", "clubId", "updatedAt")
       VALUES (${id}, 'UPLOAD', 'MP4', ${`https://videos.test.invalid/${id}.mp4`}, ${clubId}, now())`;
+
+  /**
+   * One club-private row for `clubId`, as plain SQL on its migrated columns.
+   * A second row in the same club (`another`) names a different player and
+   * user, so the tables' unique keys are not what refuses it.
+   */
+  const insertPrivate = (db: PrismaClient | Tx, t: PrivateTable, id: string, clubId: string, another = false) => {
+    const [playerId, userId] = clubId === CLUB_A
+      ? [another ? `p-${id}` : ids.playerA, another ? ids.userA2 : ids.userA]
+      : [another ? `p-${id}` : ids.playerB, another ? ids.userB2 : ids.userB];
+    const lit = (v: string) => `'${v.replace(/'/g, "''")}'`;
+    const vals = t.vals.replace(/:player/g, lit(playerId)).replace(/:user/g, lit(userId)).replace(/:id/g, lit(`ref-${id}`));
+    return db.$executeRawUnsafe(`INSERT INTO "${t.table}" ("id", "clubId", ${t.cols}) VALUES (${lit(id)}, ${lit(clubId)}, ${vals})`);
+  };
+  const countPrivate = (db: PrismaClient | Tx, t: PrivateTable) =>
+    db.$queryRawUnsafe<Array<{ n: number }>>(`SELECT count(*)::int AS n FROM "${t.table}"`).then((r) => r[0].n);
+  const idsPrivate = (db: PrismaClient | Tx, t: PrivateTable) =>
+    db.$queryRawUnsafe<Array<{ id: string }>>(`SELECT "id" FROM "${t.table}" ORDER BY "id"`).then((r) => r.map((x) => x.id));
 
   beforeAll(async () => {
     admin = new PrismaClient({ datasources: { db: { url: ADMIN_URL } } });
@@ -106,7 +155,7 @@ suite('row-level security pilot on real PostgreSQL', () => {
     for (const [id, name] of [[CLUB_A, 'A'], [CLUB_B, 'B'], [CLUB_C, 'C']]) {
       await owner.club.create({ data: { id, name: `RLS ${name}`, city: 'Test' } });
     }
-    for (const [id, clubId] of [[ids.userA, CLUB_A], [ids.userB, CLUB_B]]) {
+    for (const [id, clubId] of [[ids.userA, CLUB_A], [ids.userB, CLUB_B], [ids.userA2, CLUB_A], [ids.userB2, CLUB_B]]) {
       await owner.user.create({ data: { id, clubId, email: `${id}@test.invalid`, passwordHash: 'x', firstName: 'T', lastName: id } });
     }
     await owner.player.create({ data: player(ids.playerA, CLUB_A, 1) });
@@ -119,6 +168,10 @@ suite('row-level security pilot on real PostgreSQL', () => {
     await insertVideo(owner, ids.videoNone, null);
     await owner.membership.create({ data: { userId: ids.userA, clubId: CLUB_A, role: 'CLUB_ADMIN' } });
     await owner.membership.create({ data: { userId: ids.userB, clubId: CLUB_B, role: 'CLUB_ADMIN' } });
+    for (const t of PRIVATE_TABLES) {
+      await insertPrivate(owner, t, privateId(t, 'a'), CLUB_A);
+      await insertPrivate(owner, t, privateId(t, 'b'), CLUB_B);
+    }
   }, 240_000);
 
   afterAll(async () => {
@@ -137,11 +190,30 @@ suite('row-level security pilot on real PostgreSQL', () => {
     expect(tables).toEqual(['Membership', 'Player', 'PlayerInjury', 'VideoAsset'].map((relname) => ({ relname, relrowsecurity: true, relforcerowsecurity: true })));
   });
 
+  it('every club-private table is forced under RLS with exactly one fail-closed club policy', async () => {
+    const names = PRIVATE_TABLES.map((t) => t.table);
+    const rows = await owner.$queryRaw<Array<{ relname: string; relrowsecurity: boolean; relforcerowsecurity: boolean }>>`
+      SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relkind = 'r' AND relname = ANY(${names}) ORDER BY relname`;
+    expect(rows).toEqual([...names].sort().map((relname) => ({ relname, relrowsecurity: true, relforcerowsecurity: true })));
+    const policies = await owner.$queryRaw<Array<{ tablename: string; policyname: string; cmd: string; permissive: string; qual: string; with_check: string }>>`
+      SELECT tablename, policyname, cmd, permissive, qual, with_check FROM pg_policies WHERE tablename = ANY(${names}) ORDER BY tablename`;
+    expect(policies.map((p) => p.tablename)).toEqual([...names].sort());
+    for (const p of policies) {
+      expect(p).toMatchObject({ policyname: `${p.tablename}_club_isolation`, cmd: 'ALL', permissive: 'PERMISSIVE' });
+      expect(p.qual).toBe('familista_rls_club_ok("clubId")');
+      expect(p.with_check).toBe('familista_rls_club_ok("clubId")');
+    }
+  });
+
   describe('as shipped: enforcement off', () => {
     it('changes nothing — no context still sees and writes every club, as before', async () => {
       expect(await owner.playerInjury.count()).toBe(2);
       expect(await owner.videoAsset.count()).toBe(3);
       expect((await owner.player.updateMany({ where: { id: ids.playerB }, data: { height: 181 } })).count).toBe(1);
+    });
+
+    it('changes nothing on the club-private tables either: no context sees both clubs', async () => {
+      for (const t of PRIVATE_TABLES) expect([t.table, await countPrivate(owner, t)]).toEqual([t.table, 2]);
     });
   });
 
@@ -199,6 +271,66 @@ suite('row-level security pilot on real PostgreSQL', () => {
     it('deleting a club still cascades through the protected tables', async () => {
       await owner.club.delete({ where: { id: CLUB_C } });
       expect(await as('system', '', (tx) => tx.player.count({ where: { id: ids.playerC } }))).toBe(0);
+    });
+
+    describe.each(PRIVATE_TABLES)('club-private table $table', (t) => {
+      const sameClub = (sql: string) => as('club', CLUB_A, (tx) => tx.$executeRawUnsafe(sql));
+
+      it('same club: reads its own row, and only its own', async () => {
+        expect(await as('club', CLUB_A, (tx) => idsPrivate(tx, t))).toEqual([privateId(t, 'a')]);
+        expect(await as('club', CLUB_B, (tx) => idsPrivate(tx, t))).toEqual([privateId(t, 'b')]);
+      });
+
+      it('same club: writes its own rows', async () => {
+        const id = `${privateId(t, 'a')}-new`;
+        expect(await as('club', CLUB_A, (tx) => insertPrivate(tx, t, id, CLUB_A, true))).toBe(1);
+        expect(await sameClub(`UPDATE "${t.table}" SET "id" = "id" WHERE "id" = '${id}'`)).toBe(1);
+        expect(await sameClub(`DELETE FROM "${t.table}" WHERE "id" = '${id}'`)).toBe(1);
+      });
+
+      it('cross club: another club\'s row cannot be read, even by its id', async () => {
+        const rows = await as('club', CLUB_A, (tx) => tx.$queryRawUnsafe<unknown[]>(`SELECT 1 FROM "${t.table}" WHERE "id" = '${privateId(t, 'b')}'`));
+        expect(rows).toHaveLength(0);
+      });
+
+      it('cross club: another club\'s row cannot be changed, deleted, or moved into', async () => {
+        expect(await sameClub(`UPDATE "${t.table}" SET "id" = "id" WHERE "id" = '${privateId(t, 'b')}'`)).toBe(0);
+        expect(await sameClub(`DELETE FROM "${t.table}" WHERE "id" = '${privateId(t, 'b')}'`)).toBe(0);
+        await expect(as('club', CLUB_A, (tx) => insertPrivate(tx, t, privateId(t, 'x'), CLUB_B))).rejects.toThrow(refused);
+        await expect(sameClub(`UPDATE "${t.table}" SET "clubId" = '${CLUB_B}' WHERE "id" = '${privateId(t, 'a')}'`)).rejects.toThrow(refused);
+        expect(await as('system', '', (tx) => countPrivate(tx, t))).toBe(2);
+      });
+
+      it('missing context: no rows, no writes — fail closed', async () => {
+        expect(await countPrivate(owner, t)).toBe(0);
+        expect(await owner.$executeRawUnsafe(`DELETE FROM "${t.table}"`)).toBe(0);
+        await expect(insertPrivate(owner, t, privateId(t, 'x'), CLUB_A)).rejects.toThrow(refused);
+      });
+
+      it('invalid context: an unknown mode, club mode with no or an unknown club, a club without a mode', async () => {
+        for (const [mode, club] of [['admin', CLUB_A], ['SYSTEM', ''], ['club', ''], ['club', `no-such-club-${tag}`], ['', CLUB_A]]) {
+          expect([mode, club, await as(mode, club, (tx) => countPrivate(tx, t))]).toEqual([mode, club, 0]);
+          expect(await as(mode, club, (tx) => tx.$executeRawUnsafe(`DELETE FROM "${t.table}"`))).toBe(0);
+          await expect(as(mode, club, (tx) => insertPrivate(tx, t, privateId(t, 'x'), CLUB_A))).rejects.toThrow(refused);
+        }
+      });
+
+      it('the explicit system path sees and writes every club', async () => {
+        expect(await as('system', '', (tx) => idsPrivate(tx, t))).toEqual([privateId(t, 'a'), privateId(t, 'b')].sort());
+        const id = `${privateId(t, 'b')}-sys`;
+        expect(await as('system', '', (tx) => insertPrivate(tx, t, id, CLUB_B, true))).toBe(1);
+        expect(await as('system', '', (tx) => tx.$executeRawUnsafe(`DELETE FROM "${t.table}" WHERE "id" = '${id}'`))).toBe(1);
+      });
+
+      it('through the application\'s client: the request\'s club, the named system path, and nothing without a context', async () => {
+        const missing = jest.fn();
+        const app = withRlsContext(owner, 'on', missing);
+        const model = (app as unknown as Record<string, { count: () => Promise<number> }>)[t.model];
+        expect(await runInClubContext(CLUB_A, ids.userA, async () => await model.count())).toBe(1);
+        expect(await runAsSystem('rls-integration-test', async () => await model.count())).toBe(2);
+        expect(await model.count()).toBe(0);
+        expect(missing).toHaveBeenCalledWith(t.table, 'count');
+      });
     });
 
     describe('the application\'s client', () => {

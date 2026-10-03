@@ -114,8 +114,15 @@ describe('the context', () => {
     expect(dbSettings({ mode: 'system', reason: 'video-transcode' })).toEqual({ mode: 'system', clubId: '' });
   });
 
-  it('pilots exactly the four tables the migration protects', () => {
-    expect([...RLS_PILOT_MODELS].sort()).toEqual(['Membership', 'Player', 'PlayerInjury', 'VideoAsset']);
+  it('carries the context to exactly the tables the migrations protect', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fs = require('fs');
+    const dir = 'prisma/migrations';
+    const sql = fs.readdirSync(dir).filter((d: string) => fs.existsSync(`${dir}/${d}/migration.sql`))
+      .map((d: string) => fs.readFileSync(`${dir}/${d}/migration.sql`, 'utf8')).join('\n');
+    const forced = [...sql.matchAll(/ALTER TABLE "([A-Za-z]+)" FORCE ROW LEVEL SECURITY;/g)].map((m) => m[1]).sort();
+    expect([...RLS_PILOT_MODELS].sort()).toEqual(forced);
+    expect(forced).toEqual(expect.arrayContaining(['Membership', 'Player', 'PlayerInjury', 'VideoAsset', 'PlayerGuardianLink', 'OperationsPayment']));
   });
 });
 
