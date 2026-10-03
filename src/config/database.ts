@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
+import { rlsContextMode } from '../security/db-context';
+import { withRlsContext } from '../security/rls-client';
 
 declare global {
   // eslint-disable-next-line no-var
@@ -31,7 +33,7 @@ function datasourceUrl(): string | undefined {
     + `connection_limit=${encodeURIComponent(limit)}&pool_timeout=${encodeURIComponent(timeout)}`;
 }
 
-export const prisma: PrismaClient =
+const basePrisma: PrismaClient =
   global.__prisma ??
   new PrismaClient({
     datasourceUrl: datasourceUrl(),
@@ -47,14 +49,27 @@ export const prisma: PrismaClient =
 // twice — two copies in the dependency graph, a CJS and an ESM build of the
 // same file — silently produced a second client with a second connection pool.
 // A pool limit only means something if there is one pool.
-global.__prisma = prisma;
+global.__prisma = basePrisma;
+
+/**
+ * The client every module imports. With DB_RLS_CONTEXT off (the default) it is
+ * the plain client above, unchanged. With `observe` or `on` it is the same
+ * client wrapped so each query on a row-level-security pilot table tells
+ * PostgreSQL who is asking (Cyber Defense R14, security/rls-client.ts).
+ */
+const RLS_MODE = rlsContextMode();
+export const prisma: PrismaClient = RLS_MODE === 'off'
+  ? basePrisma
+  : withRlsContext(basePrisma, RLS_MODE, (model, operation) => {
+    logger.warn('[rls] pilot table queried with no database context', { model, operation, mode: RLS_MODE });
+  });
 
 // A counter, so the cost of a request cycle can be measured rather than
 // guessed. Off unless PRISMA_QUERY_COUNT is set, because counting every query
 // in production is itself a cost.
 export const queryCounter = { n: 0 };
 if (process.env.PRISMA_QUERY_COUNT === '1') {
-  prisma.$on('query' as never, () => { queryCounter.n++; });
+  basePrisma.$on('query' as never, () => { queryCounter.n++; });
 }
 
 // The owner's live trace, when it is on: a query's model, its operation and how
@@ -66,14 +81,14 @@ if (process.env.PRISMA_QUERY_COUNT === '1') {
 // module from loading — an uninstrumented database is not a broken one.
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
-  require('../observability/prisma-trace').installPrismaTracing(prisma);
+  require('../observability/prisma-trace').installPrismaTracing(basePrisma);
 } catch (_) { /* tracing is a diagnostic, never a dependency */ }
 
-prisma.$on('error' as never, (e: unknown) => {
+basePrisma.$on('error' as never, (e: unknown) => {
   logger.error('Prisma error', { error: e });
 });
 
-prisma.$on('warn' as never, (e: unknown) => {
+basePrisma.$on('warn' as never, (e: unknown) => {
   logger.warn('Prisma warning', { warn: e });
 });
 

@@ -38,6 +38,7 @@ import {
   emitInterest, emitInterestAnswered, emitOffer, emitPlayerOffered, emitNegotiationSuperseded,
   emitTransferCompleted, emitNeedPublished, emitNeedUpdated, emitNeedClosed,
 } from './transfer-events';
+import { runAsSystem } from '../security/db-context';
 
 export interface MarketActor { userId: string; clubId: string; role?: string }
 
@@ -593,7 +594,12 @@ export async function readNegotiation(actor: MarketActor, offerId: string) {
 
 // The seller accepts: the player moves, the money moves, and everything else
 // open on that player is closed — all of it or none of it.
+// Cyber Defense R14: an accepted offer moves the player from the selling club to the buying club, so it acts across clubs on a named system path.
 export async function acceptOffer(actor: MarketActor, offerId: string) {
+  return runAsSystem('transfer-settlement', async () => await acceptOfferUnscoped(actor, offerId));
+}
+
+async function acceptOfferUnscoped(actor: MarketActor, offerId: string) {
   const offer = await prisma.transferOffer.findUnique({ where: { id: offerId } });
   if (!offer) throw new NotFoundError('Offer');
   // Only the club being offered money may accept it. A counter reverses the

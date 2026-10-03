@@ -728,7 +728,11 @@ const controls = [
       ? `Unclassified: ${[...unclassifiedFeatures, ...unclassifiedFactors].join(', ')}`
       : `${featureKeys.length} features and ${factorNames.length} factors classified; training needs the club's consent and never uses a minor's RESTRICTED data.`),
   control('no-unsafe-raw-sql', unsafeRawSql === 0 ? 'PRESENT' : 'ABSENT', 'src/', `${unsafeRawSql} unsafe raw query call(s).`),
-  control('db-row-level-security', /ROW LEVEL SECURITY|CREATE POLICY/i.test(migrationsSql) ? 'PRESENT' : 'ABSENT', 'prisma/migrations'),
+  // R14: database row-level security. PRESENT only when PostgreSQL enforces
+  // it (the latest familista_rls_enforced() returns true) AND the application
+  // carries the context (DB_RLS_CONTEXT=on in render.yaml); the pilot shipped
+  // with both off is PARTIAL, never PRESENT.
+  control('db-row-level-security', rlsStatus().status, 'prisma/migrations', rlsStatus().note),
   // R9: the database itself refuses to rewrite the evidence tables — a
   // BEFORE UPDATE OR DELETE and a BEFORE TRUNCATE trigger on each, never
   // dropped by a later migration, and proven on real PostgreSQL in CI.
@@ -1113,6 +1117,94 @@ const discoveredComponents = {
   infrastructureComponents: (infraManifest.components || []).map((c) => c.id),
 };
 for (const k of Object.keys(discoveredComponents)) discoveredComponents[k] = [...new Set(discoveredComponents[k])].sort();
+
+// ── Batch 7: row-level security pilot (R14) ─────────────────────────────────
+
+
+function migrationFilesSorted() {
+  const dir = path.join(ROOT, 'prisma/migrations');
+  try {
+    return fs.readdirSync(dir).filter((d) => fs.existsSync(path.join(dir, d, 'migration.sql'))).sort()
+      .map((d) => ({ name: d, sql: fs.readFileSync(path.join(dir, d, 'migration.sql'), 'utf8') }));
+  } catch (_) { return []; }
+}
+function rlsPilotTables() { return Array.isArray(posturePolicyForScan.rlsPilotTables) ? posturePolicyForScan.rlsPilotTables : []; }
+function rlsTableProtected(t) {
+  return new RegExp(`ALTER TABLE "${t}" ENABLE ROW LEVEL SECURITY;`).test(migrationsSql)
+    && new RegExp(`ALTER TABLE "${t}" FORCE ROW LEVEL SECURITY;`).test(migrationsSql)
+    && new RegExp(`CREATE POLICY "${t}_[A-Za-z_]+" ON "${t}"`).test(migrationsSql)
+    && !new RegExp(`ALTER TABLE "${t}" (DISABLE|NO FORCE) ROW LEVEL SECURITY`).test(migrationsSql)
+    && !new RegExp(`DROP POLICY[^;]*ON "${t}"`).test(migrationsSql);
+}
+/** The body of the newest definition of familista_rls_enforced(): 'true', 'false' or null. */
+function rlsEnforcedInDatabase() {
+  let latest = null;
+  for (const m of migrationFilesSorted()) {
+    const re = /FUNCTION public\.familista_rls_enforced\(\)[\s\S]*?\$\$\s*SELECT\s+(true|false)\s*\$\$/gi;
+    let x; while ((x = re.exec(m.sql))) latest = x[1].toLowerCase();
+  }
+  return latest;
+}
+function rlsContextInRender() {
+  const yaml = read(cite('render.yaml')) || '';
+  const m = yaml.match(/- key: DB_RLS_CONTEXT\s*\n\s*value:\s*["']?(\w+)/);
+  return m ? m[1] : 'off';
+}
+function rlsPilotPresent() {
+  const tables = rlsPilotTables();
+  const ctxSrc = read(cite('src/security/db-context.ts')) || '';
+  const clientSrc = read(cite('src/security/rls-client.ts')) || '';
+  const dbSrc = read(cite('src/config/database.ts')) || '';
+  const authSrc = read(cite('src/middleware/auth.middleware.ts')) || '';
+  const runnerSrc = read(cite('src/security/backup/backup-runner.ts')) || '';
+  const bcfgSrc = read(cite('src/security/backup/backup-config.ts')) || '';
+  const ci = read('.github/workflows/ci.yml') || '';
+  const modelsDeclared = (ctxSrc.match(/RLS_PILOT_MODELS[^=]*=\s*new Set\(\[([^\]]*)\]/) || [, ''])[1]
+    .split(',').map((x) => x.trim().replace(/'/g, '')).filter(Boolean).sort();
+  return tables.length > 0 && tables.every(rlsTableProtected)
+    && JSON.stringify(modelsDeclared) === JSON.stringify([...tables].sort())
+    && /OR current_setting\('familista\.rls_mode', true\) = 'system'/.test(migrationsSql)
+    && /NOT public\.familista_rls_enforced\(\)/.test(migrationsSql)
+    && rlsEnforcedInDatabase() !== null
+    && /set_config\('familista\.rls_mode', \$\{s\.mode\}, true\)/.test(clientSrc)
+    && /withRlsContext\(basePrisma, RLS_MODE/.test(dbSrc)
+    && /runInClubContext\(ctxUser\.clubId/.test(authSrc) && /runAsSystem\('platform-owner'/.test(authSrc)
+    && /'--enable-row-security'/.test(runnerSrc) && /familista\.rls_mode=system/.test(bcfgSrc)
+    && /tests\/rls-pilot\.integration\.test\.ts/.test(ci) && /RLS_DB_REQUIRED:\s*'1'/.test(ci);
+}
+function rlsStatus() {
+  const pilot = rlsPilotPresent();
+  const db = rlsEnforcedInDatabase();
+  const app = rlsContextInRender();
+  const tables = rlsPilotTables().join(', ');
+  if (pilot && db === 'true' && app === 'on') {
+    return { status: 'PRESENT', note: `Enforced by PostgreSQL on ${tables}; the application carries the club context on every query.` };
+  }
+  if (pilot) {
+    return { status: 'PARTIAL', note: `Pilot on ${tables}: policies installed and proven on real PostgreSQL; enforcement in the database is ${db === 'true' ? 'on' : 'off'} and DB_RLS_CONTEXT is ${app}. Other club tables rely on the application.` };
+  }
+  return { status: 'ABSENT', note: 'Tenancy is enforced in the application only.' };
+}
+/** Every named system path in the source, and the reviewed list in the policy. */
+function rlsSystemPaths() {
+  const used = new Set();
+  for (const src of allSrc) for (const m of src.matchAll(/runAsSystem\(\s*'([a-z][a-z0-9:-]+)'/g)) used.add(m[1]);
+  const reviewed = posturePolicyForScan.rlsSystemPaths || {};
+  return {
+    used: [...used].sort(),
+    unreviewed: [...used].filter((r) => !reviewed[r]).sort(),
+    stale: Object.keys(reviewed).filter((r) => !used.has(r)).sort(),
+  };
+}
+
+controls.push(
+  control('db-rls-pilot', rlsPilotPresent() ? 'PRESENT' : 'ABSENT', 'prisma/migrations/20261004100000_rls_pilot/migration.sql',
+    `Row-level security policies on ${rlsPilotTables().join(', ')} (forced, fail closed without a context), the request's club carried to PostgreSQL per transaction, backups read under the named system context, all proven on real PostgreSQL in CI. Table list is a ratchet in posture-policy.json.`),
+  control('db-rls-system-paths-reviewed',
+    (() => { const p = rlsSystemPaths(); return p.used.length > 0 && p.unreviewed.length === 0 && p.stale.length === 0 ? 'PRESENT' : 'ABSENT'; })(),
+    'src/cyber-defense/posture-policy.json',
+    `${rlsSystemPaths().used.length} named path(s) act across clubs (${rlsSystemPaths().used.join(', ')}); each is reviewed by name.`),
+);
 
 // ── Batch 6: platform hygiene (R10, R12, R13) ───────────────────────────────
 

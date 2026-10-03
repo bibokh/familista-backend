@@ -35,6 +35,7 @@ import {
 } from '../fabric/producers/media.producer';
 import { withMediaContext } from '../fabric/producers/media-context';
 import { assertClubKey } from '../security/storage-keys';
+import { runAsSystem } from '../security/db-context';
 
 export interface VideoActor {
   userId: string;
@@ -230,7 +231,12 @@ export function assertKeyWithinAsset(asset: Pick<VideoAsset, 'id' | 'clubId'>, k
   }
 }
 
+// Cyber Defense R14: called by the transcode worker and the worker callback, never inside a club request, so it acts across clubs on a named system path.
 export async function handleTranscodeCallback(dto: TranscodeCallbackDto): Promise<VideoAsset> {
+  return runAsSystem('video-transcode', async () => await handleTranscodeCallbackUnscoped(dto));
+}
+
+async function handleTranscodeCallbackUnscoped(dto: TranscodeCallbackDto): Promise<VideoAsset> {
   const asset = await prisma.videoAsset.findUnique({ where: { id: dto.assetId } });
   if (!asset) throw new NotFoundError('VideoAsset');
   if (!dto.errorMessage) {

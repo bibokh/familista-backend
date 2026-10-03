@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-02T23:03:43.499Z",
+  "generatedAt": "2026-10-02T23:54:15.152Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -323,7 +323,7 @@
       "sourceEvidence": "prisma/schema.prisma — datasource provider",
       "dependencies": [],
       "healthKey": "database",
-      "note": "343 models, 209 enums, 45 migrations."
+      "note": "343 models, 209 enums, 46 migrations."
     },
     {
       "id": "prisma-orm",
@@ -929,7 +929,7 @@
       "provider": "GitHub",
       "region": null,
       "repositoryPath": ".github/workflows/ci.yml",
-      "sourceEvidence": ".github/workflows/ci.yml — 17 named steps",
+      "sourceEvidence": ".github/workflows/ci.yml — 18 named steps",
       "dependencies": [
         "platform-core"
       ],
@@ -1081,7 +1081,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 186 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 188 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1141,7 +1141,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "575 TypeScript modules under src/."
+      "note": "577 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1627,9 +1627,9 @@
     "serviceModules": 102,
     "middleware": 23,
     "fabricModules": 52,
-    "totalTypeScript": 575,
-    "testSuites": 186,
-    "migrations": 45,
+    "totalTypeScript": 577,
+    "testSuites": 188,
+    "migrations": 46,
     "prismaModels": 343,
     "prismaEnums": 209
   },
@@ -1637,8 +1637,8 @@
     "provider": "postgresql",
     "models": 343,
     "enums": 209,
-    "migrations": 45,
-    "latestMigration": "20261003100000_audit_append_only"
+    "migrations": 46,
+    "latestMigration": "20261004100000_rls_pilot"
   },
   "typescript": {
     "target": "ES2020",
@@ -1719,6 +1719,7 @@
           "Test suite",
           "Backup restore drill (real PostgreSQL)",
           "Audit evidence append-only (real PostgreSQL)",
+          "Row-level security pilot (real PostgreSQL)",
           "Audit (blocking on high and critical)",
           "Checkout (full history)",
           "Install gitleaks (pinned, checksum verified)",

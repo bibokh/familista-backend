@@ -137,10 +137,19 @@ describe('the repository', () => {
     covered(32, 'media-dr-defined');
     covered(34, 'log-redaction');
     covered(35, 'db-audit-append-only');
-    // PostgreSQL stays partial until row-level security (R14), but carries R9.
+    // PostgreSQL stays partial until RLS is enforced, but carries R9.
     expect(map.boundaries[18].coverage).toBe('P');
     expect(map.boundaries[18].controls).toContain('db-audit-append-only');
-    expect(map.boundaries[18].plannedIn).toBe('Batch 7 (R14)');
+  });
+
+  it('Batch 7 (R14) puts the RLS pilot on rows 5 and 18 and does not claim them covered while enforcement is off', () => {
+    for (const id of [5, 18]) {
+      expect(map.boundaries[id].controls).toContain('db-rls-pilot');
+      expect(map.boundaries[id].coverage).toBe('P');
+      expect(map.boundaries[id].plannedIn).toMatch(/^Owner decision after Batch 7/);
+    }
+    expect(manifest.controls.find((c: { id: string }) => c.id === 'db-row-level-security')?.status).toBe('PARTIAL');
+    expect(manifest.controls.find((c: { id: string }) => c.id === 'db-rls-pilot')?.status).toBe('PRESENT');
   });
 
   it('rows closed by R1a–R2 and Batches 1, 4 and 5 are covered, and say by which control', () => {

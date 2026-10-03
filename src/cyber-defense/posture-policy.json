@@ -1,5 +1,5 @@
 {
-  "$comment": "Familista Cyber Defense — the reviewed security posture. The manifest (generated/security-manifest.json) says what the code IS; this file says what has been REVIEWED and accepted. tests/security-posture.unit.test.ts fails when the two disagree. Changing this file is a security review: say why in the commit.",
+  "$comment": "Familista Cyber Defense \u2014 the reviewed security posture. The manifest (generated/security-manifest.json) says what the code IS; this file says what has been REVIEWED and accepted. tests/security-posture.unit.test.ts fails when the two disagree. Changing this file is a security review: say why in the commit.",
   "schemaVersion": 1,
   "publicRoutes": {
     "POST /auth/register": "Account creation; no session can exist yet. Behind the auth rate limiter.",
@@ -47,7 +47,7 @@
   },
   "outboundCallSites": {
     "src/platform/email/providers/sendgrid.ts": "Fixed host api.sendgrid.com; nothing in the request line comes from a user.",
-    "src/security/outbound-url-guard.ts": "The guard itself (R1b): the only path for a URL a user supplied — public https addresses only, checked at the connection, no redirects, bounded time and size, no response body kept.",
+    "src/security/outbound-url-guard.ts": "The guard itself (R1b): the only path for a URL a user supplied \u2014 public https addresses only, checked at the connection, no redirects, bounded time and size, no response body kept.",
     "src/services/vision-clip.adapter.ts": "Operator-configured endpoint (VISION_CLIP_WORKER_URL); users supply only ids, which are URL-encoded path segments.",
     "src/services/vision-inference.adapter.ts": "Operator-configured endpoint (VISION_WORKER_URL); users supply only ids, which are URL-encoded path segments.",
     "src/workers/notification-dispatch.worker.ts": "WEBHOOK targets are user-supplied and go only through the outbound guard; EMAIL/SMS/PUSH use operator-configured provider URLs from the environment, with redirects not followed and no response body kept."
@@ -128,12 +128,14 @@
     "email-transport-tls",
     "secret-rotation-runbook",
     "worker-channel-authenticated",
-    "security-policy-published"
+    "security-policy-published",
+    "db-rls-pilot",
+    "db-rls-system-paths-reviewed"
   ],
   "knownGaps": {
-    "mfa-required-at-login": "PARTIAL — required at sign-in for an owner who switched it on (Step 7) and, while MFA_REQUIRED_FOR_ADMINS=true, for administrators (R7); not required for every account.",
-    "refresh-token-legacy-fallback-removed": "ABSENT — the nullable legacy token column and the dual-read fallback stay until every pre-Step-8 refresh token has expired; removing them is a later cleanup.",
-    "db-row-level-security": "ABSENT — tenancy is enforced in the application only."
+    "mfa-required-at-login": "PARTIAL \u2014 required at sign-in for an owner who switched it on (Step 7) and, while MFA_REQUIRED_FOR_ADMINS=true, for administrators (R7); not required for every account.",
+    "refresh-token-legacy-fallback-removed": "ABSENT \u2014 the nullable legacy token column and the dual-read fallback stay until every pre-Step-8 refresh token has expired; removing them is a later cleanup.",
+    "db-row-level-security": "PARTIAL \u2014 R14 pilot (Batch 7): policies on Player, Membership, PlayerInjury and VideoAsset are installed and proven on real PostgreSQL, but shipped with enforcement off in the database and DB_RLS_CONTEXT off in the application. Turning either on is an owner decision; every other club table relies on the application's tenancy checks."
   },
   "ratchets": {
     "maxNonNpmjsLockfilePackages": 0,
@@ -372,7 +374,7 @@
     },
     "neuro.routes :kind": {
       "basis": "not-an-identifier",
-      "reason": "A detector kind (FORMATION, PRESSING, …); the match beside it is guarded by tenantParam('match').",
+      "reason": "A detector kind (FORMATION, PRESSING, \u2026); the match beside it is guarded by tenantParam('match').",
       "routes": [
         "POST /neuro/matches/:id/detect/:kind"
       ]
@@ -386,7 +388,7 @@
     },
     "phase-l.routes :jobId": {
       "basis": "cross-club-by-design",
-      "reason": "Federated training jobs span clubs by design and have no single owning club. Since Batch 5 (R8) a gradient is accepted only from a club the platform owner has trusted and that has allowed training use, and a round is aggregated only by the club that started it or the platform owner — both checked in federated.service.",
+      "reason": "Federated training jobs span clubs by design and have no single owning club. Since Batch 5 (R8) a gradient is accepted only from a club the platform owner has trusted and that has allowed training use, and a round is aggregated only by the club that started it or the platform owner \u2014 both checked in federated.service.",
       "routes": [
         "POST /phase-l/federated/jobs/:jobId/aggregate",
         "POST /phase-l/federated/jobs/:jobId/gradient"
@@ -527,7 +529,7 @@
     },
     "phase-q.routes :position": {
       "basis": "not-an-identifier",
-      "reason": "A playing position (GK, CB, …); the candidates are read within the caller's club.",
+      "reason": "A playing position (GK, CB, \u2026); the candidates are read within the caller's club.",
       "routes": [
         "GET /phase-q/transfer/intelligence/succession/:position"
       ]
@@ -1225,5 +1227,17 @@
       "GET /vision/matches/:id/frames",
       "GET /vision/sports"
     ]
+  },
+  "rlsPilotTables": [
+    "Player",
+    "Membership",
+    "PlayerInjury",
+    "VideoAsset"
+  ],
+  "rlsSystemPaths": {
+    "platform-owner": "A platform owner acts across clubs by role (authenticate); the owner rooms are pinned separately (owner-rooms-pinned).",
+    "transfer-settlement": "An accepted offer, a purchase or a settled auction moves a player from one club to another; authorization is checked before the move.",
+    "staff-market-move": "A completed staff move ends a membership at one club and starts it at another; both clubs agreed before it runs.",
+    "video-transcode": "The transcode worker and its callback belong to no club; keys are confined to the asset (worker-callback-authenticated)."
   }
 }

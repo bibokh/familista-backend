@@ -32,6 +32,7 @@ import { registerInvitedUser } from '../services/auth.service';
 import { deliverInvitation, type DeliveryOutcome } from './invitation-mail.service';
 import { consume } from './invitation-throttle';
 import { allTeamIds } from './invitation-teams';
+import { runInClubContext } from '../security/db-context';
 
 /** Seven days: long enough for somebody on holiday, short enough to expire. */
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -461,7 +462,9 @@ export async function acceptInvitation(
   const teamIds = allTeamIds(row);
   const memberships: Array<{ id: string }> = [];
   for (const teamId of (teamIds.length ? teamIds : [null])) {
-    memberships.push(await grantMembership(grantActor, { userId: actor.userId, teamId, role: row.role }));
+    // R14: the membership is written in the inviting club, whatever club the
+    // accepting user is currently in, so it runs in that club's context.
+    memberships.push(await runInClubContext(row.clubId, actor.userId, async () => await grantMembership(grantActor, { userId: actor.userId, teamId, role: row.role })));
   }
   const membership = memberships[0];
 

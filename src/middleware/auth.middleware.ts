@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { UserRole } from '@prisma/client';
 import { config } from '../config';
 import { prisma } from '../config/database';
+import { runAsSystem, runInClubContext } from '../security/db-context';
 import { UnauthorizedError, ForbiddenError } from '../utils/errors';
 import { assertActingClubOperable } from './club-lifecycle.middleware';
 import { verifyToken } from '../security/jwt-tokens';
@@ -304,7 +305,11 @@ export async function authenticate(
     await assertActingClubOperable(req);
 
     recordOutcome('auth', true);
-    next();
+    // R14: the rest of this request runs with its club as the database
+    // context; a platform owner acts across clubs on an explicit, named path.
+    const ctxUser = req.user as unknown as { id: string; clubId?: string | null; isPlatformOwner?: boolean };
+    if (ctxUser.isPlatformOwner) runAsSystem('platform-owner', () => next());
+    else runInClubContext(ctxUser.clubId ?? null, ctxUser.id, () => next());
   } catch (err) {
     // A refused credential is the middleware working. Only a server-side
     // failure — the identity lookup throwing, say — counts against it.

@@ -147,6 +147,8 @@ describe('PostgreSQL connections', () => {
     expect(env).toEqual({
       PATH: '/bin', HOME: '/h', LANG: 'C', PGHOST: 'db.internal', PGPORT: '5432', PGUSER: 'fam_user',
       PGDATABASE: 'familista', PGCONNECT_TIMEOUT: '15', PGPASSWORD: PW,
+      // R14: backup tools read under the named system context, never none.
+      PGOPTIONS: '-c familista.rls_mode=system',
     });
   });
 

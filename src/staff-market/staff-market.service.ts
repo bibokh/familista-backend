@@ -40,6 +40,7 @@ import {
   publishStaffNeedCreated, publishStaffNeedClosed,
   type CoachMarketContext,
 } from '../fabric/producers/coach-market.producer';
+import { runAsSystem } from '../security/db-context';
 
 /**
  * The envelope for everything one approach produces.
@@ -1096,7 +1097,12 @@ export async function acceptApproach(actor: StaffActor, approachId: string) {
 // membership is deactivated, and a new engagement and membership are created.
 // Nothing is deleted and nothing is overwritten, so the club that had him keeps
 // its history and the club that has him now shows him as active staff.
+// Cyber Defense R14: a completed move ends the membership at one club and starts it at another, so it acts across clubs on a named system path.
 export async function completeMove(actor: StaffActor, approachId: string) {
+  return runAsSystem('staff-market-move', async () => await completeMoveUnscoped(actor, approachId));
+}
+
+async function completeMoveUnscoped(actor: StaffActor, approachId: string) {
   const result = await prisma.$transaction(async (tx) => {
     // Claim it: only an open approach can be completed, and only once.
     const claimed = await tx.staffApproach.updateMany({

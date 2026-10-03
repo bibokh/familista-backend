@@ -60,6 +60,15 @@ export interface BackupRecordRow {
   notes: string;
 }
 
+/**
+ * pg_dump's arguments. --enable-row-security: without it pg_dump refuses a
+ * table under forced row-level security (R14); with it, the dump reads under
+ * the system context pgEnv sets, so every club's rows are in it.
+ */
+export function pgDumpArgs(database: string): string[] {
+  return ['--format=custom', '--no-owner', '--no-acl', '--compress=1', '--enable-row-security', `--dbname=${database}`];
+}
+
 /** What the run needs from the database besides pg_dump. */
 export interface BackupDb {
   migrationHead(): Promise<string | null>;
@@ -118,7 +127,7 @@ export async function runBackup(cfg: RunnerConfig, deps: { db?: BackupDb; store?
     // Compression 1: the web service may be the host, and its CPU belongs to
     // requests. The ciphertext does not compress further, so a higher level
     // buys little but time.
-    const dump = spawnPg(cfg.pgDumpBin, ['--format=custom', '--no-owner', '--no-acl', '--compress=1', `--dbname=${conn.database}`], conn);
+    const dump = spawnPg(cfg.pgDumpBin, pgDumpArgs(conn.database), conn);
     lowestPriority(dump.child);
     const plain = tap();
     const cipher = tap();

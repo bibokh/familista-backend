@@ -173,8 +173,10 @@ describe('one Prisma client, one connection pool', () => {
   });
 
   it('and the singleton is held in production too, not only outside it', () => {
-    expect(DB).toContain('global.__prisma = prisma;');
-    expect(DB).not.toMatch(/if \(process\.env\.NODE_ENV !== 'production'\) \{\s*global\.__prisma = prisma;/);
+    // R14: the one client is `basePrisma`; the exported `prisma` is that same
+    // object, or (DB_RLS_CONTEXT on) a wrapper around it — never a second pool.
+    expect(DB).toContain('global.__prisma = basePrisma;');
+    expect(DB).not.toMatch(/if \(process\.env\.NODE_ENV !== 'production'\) \{\s*global\.__prisma = (base)?[pP]risma;/);
   });
 
   it('so the whole server constructs exactly one client', () => {
