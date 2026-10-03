@@ -129,6 +129,8 @@ export interface RlsView {
   stage: { index: number; id: string; title: string; describes: string };
   stages: Array<{ id: string; title: string; describes: string; reached: boolean; current: boolean }>;
   tables: string[];
+  /** Of `tables`, those PostgreSQL does not hold to RLS right now (live catalogue read); null when unread. */
+  unprotected: string[] | null;
   systemPaths: Array<{ reason: string; review: string }>;
   observations: Array<{ model: string; operation: string; firstSeenAt: string }>;
   windowStart: string;
@@ -281,6 +283,7 @@ function adapter(d: DomainDecl, ev: Evidence, rt: RuntimeSnapshot): AdapterOut {
         fig('rls.mode', p.rlsMode, 'text', 'process'),
         fig('rls.enforced', r.enforced, 'flag', 'runtime', rt.rlsEnforced.reason ?? UNAVAILABLE_WHY),
         fig('rls.tables', r.tables.length, 'count', 'build'),
+        fig('rls.tablesHeld', r.unprotected === null ? null : r.tables.length - r.unprotected.length, 'count', 'runtime', rt.rlsUnprotected.reason ?? UNAVAILABLE_WHY),
         fig('rls.systemPaths', r.systemPaths.length, 'count', 'build'),
         fig('rls.observations', r.observations.length, 'count', 'process'),
       );
@@ -485,13 +488,20 @@ function rlsView(ev: Evidence, rt: RuntimeSnapshot): RlsView {
   const enforced = rt.rlsEnforced.state === 'READ' ? rt.rlsEnforced.value : null;
   let index = mode === 'on' ? 2 : mode === 'observe' ? 1 : 0;
   if (enforced === true) index = 3;
+  const unprotected = rt.rlsUnprotected.state === 'READ' ? [...(rt.rlsUnprotected.value ?? [])] : null;
   const warnings: Warning[] = [];
   if (enforced === true && mode !== 'on') warnings.push(warn('rls.enforcedWithoutContext'));
-  if (rt.process.rlsObservations.length > 0) warnings.push(warn('rls.observations'));
+  if (rt.process.rlsObservations.length > 0) warnings.push(warn(enforced === true ? 'rls.observationsEnforced' : 'rls.observations'));
+  if (unprotected && unprotected.length > 0) warnings.push(warn('rls.tablesUnprotected'));
   const tables = ev.policy.rlsPilotTables.length ? [...ev.policy.rlsPilotTables] : [...RLS_PILOT_MODELS];
+  // Stage 4 is PROTECTED only on the database's own word, read live: the
+  // switch on, every protected table forced with its policy, and the
+  // application carrying its context. Nothing here is taken from the repository.
   let state: ProtectionState;
   if (warnings.some((w) => w.key === 'rls.enforcedWithoutContext')) state = 'AT_RISK';
-  else if (enforced === true && mode === 'on') state = 'PROTECTED';
+  else if (enforced === true && mode === 'on' && unprotected !== null && unprotected.length === 0) state = 'PROTECTED';
+  else if (enforced === true && mode === 'on' && unprotected === null) state = 'UNKNOWN';
+  else if (enforced === true && mode === 'on') state = 'PARTIAL';
   else if (enforced === null) state = 'UNKNOWN';
   else if (mode === 'off') state = 'PARTIAL';
   else state = 'OBSERVING';
@@ -501,6 +511,7 @@ function rlsView(ev: Evidence, rt: RuntimeSnapshot): RlsView {
     stage: { index, ...stage },
     stages: RLS_STAGES.map((s, i) => ({ ...s, reached: i <= index, current: i === index })),
     tables,
+    unprotected,
     systemPaths: Object.entries(ev.policy.rlsSystemPaths).map(([reason, review]) => ({ reason, review })),
     observations: rt.process.rlsObservations.map((o) => ({ ...o })),
     windowStart: rt.process.rlsObservationWindowStart,

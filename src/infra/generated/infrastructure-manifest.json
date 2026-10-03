@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-03T20:11:53.220Z",
+  "generatedAt": "2026-10-03T20:58:12.519Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -323,7 +323,7 @@
       "sourceEvidence": "prisma/schema.prisma — datasource provider",
       "dependencies": [],
       "healthKey": "database",
-      "note": "343 models, 209 enums, 47 migrations."
+      "note": "343 models, 209 enums, 48 migrations."
     },
     {
       "id": "prisma-orm",
@@ -1607,7 +1607,7 @@
       "id": "future-row-level-security",
       "name": "Row-Level Security",
       "district": "database",
-      "reason": "Installed, not enforced: fail-closed policies on 18 club tables (Cyber Defense R14); turning enforcement on is an owner decision."
+      "reason": "Enforced by PostgreSQL: fail-closed policies on 18 club tables (Cyber Defense R14, Stage 4)."
     },
     {
       "id": "future-ai-diagnostics",
@@ -1629,7 +1629,7 @@
     "fabricModules": 52,
     "totalTypeScript": 583,
     "testSuites": 189,
-    "migrations": 47,
+    "migrations": 48,
     "prismaModels": 343,
     "prismaEnums": 209
   },
@@ -1637,8 +1637,8 @@
     "provider": "postgresql",
     "models": 343,
     "enums": 209,
-    "migrations": 47,
-    "latestMigration": "20261005100000_rls_club_private_tables"
+    "migrations": 48,
+    "latestMigration": "20261006100000_rls_enforce"
   },
   "typescript": {
     "target": "ES2020",

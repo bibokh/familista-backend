@@ -241,7 +241,7 @@
   "Edge Nodes": "عُقد الحافة",
   "Row-Level Security": "الأمان على مستوى الصفوف",
   "Smart Ball": "الكرة الذكية",
-  "Installed, not enforced: fail-closed policies on 18 club tables (Cyber Defense R14); turning enforcement on is an owner decision.": "مُثبَّتة وغير مُفعَّلة: سياسات تُغلق عند الإخفاق على 18 جدولاً للأندية (Cyber Defense R14)؛ تفعيل الإنفاذ قرار يعود إلى المالك.",
+  "Enforced by PostgreSQL: fail-closed policies on 18 club tables (Cyber Defense R14, Stage 4).": "مُفعَّلة بواسطة PostgreSQL: سياسات تُغلق عند الإخفاق على 18 جدولاً للأندية (Cyber Defense R14، المرحلة 4).",
   "On the product roadmap. No firmware, ingest or model exists in this build.": "على خارطة طريق المنتج. لا توجد في هذا الإصدار برامج ثابتة ولا استقبال بيانات ولا نموذج.",
   "Designed in docs/FABRIC_HISTORICAL_STORE.md; no engine exists.": "مُصمَّم في docs/FABRIC_HISTORICAL_STORE.md؛ لا يوجد محرك.",
   "Contract only; exportArchiveBatch() throws.": "عقد فقط؛ الدالة exportArchiveBatch() تُطلق خطأ.",

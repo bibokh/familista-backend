@@ -732,6 +732,7 @@ export const SecRlsSchema = z.object({
     id: z.string(), title: z.string(), describes: z.string(), reached: z.boolean(), current: z.boolean(),
   }).strict()),
   tables: z.array(z.string()),
+  unprotected: z.array(z.string()).nullable(),
   systemPaths: z.array(z.object({ reason: z.string(), review: z.string() }).strict()),
   observations: z.array(z.object({ model: z.string(), operation: z.string(), firstSeenAt: Instant }).strict()),
   windowStart: Instant,

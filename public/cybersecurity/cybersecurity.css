@@ -242,6 +242,7 @@ body.cs-cyber-open { overflow: hidden; }
   color: var(--cs-tx-2); background: rgba(255, 255, 255, .04); border: 1px solid var(--cs-line);
 }
 #pg-cybersecurity code { font-family: var(--cs-mono); font-size: 10.6px; color: var(--cs-tx-2); }
+.cs-token--loose { color: var(--cs-warn); border-color: rgba(251, 191, 36, .45); }
 .cs-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* ── the hero ─────────────────────────────────────────────────────────── */

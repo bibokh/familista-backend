@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-03T20:06:45.323Z",
+  "generatedAt": "2026-10-03T20:55:34.449Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -2039,9 +2039,9 @@
     },
     {
       "id": "db-row-level-security",
-      "status": "PARTIAL",
+      "status": "PRESENT",
       "evidence": "prisma/migrations",
-      "note": "Pilot on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote: policies installed and proven on real PostgreSQL; enforcement in the database is off and DB_RLS_CONTEXT is off. Other club tables rely on the application."
+      "note": "Enforced by PostgreSQL on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote (20261006100000_rls_enforce, guarded: every table forced with its policy). The service's DB_RLS_CONTEXT and the database's switch and catalogue are verified live by the Cybersecurity control plane."
     },
     {
       "id": "db-audit-append-only",
@@ -2858,8 +2858,8 @@
     ]
   },
   "counts": {
-    "controlsPresent": 69,
-    "controlsPartial": 2,
+    "controlsPresent": 70,
+    "controlsPartial": 1,
     "controlsAbsent": 1,
     "cryptoUses": 10
   }

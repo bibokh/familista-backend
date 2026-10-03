@@ -427,6 +427,7 @@
   "Since this instance started: %s": "Seit dem Start dieser Instanz: %s",
   "Some locked packages carry no integrity hash.": "Einige gesperrte Pakete haben keinen Integritäts-Hash.",
   "Some of its boundaries or controls are only partly in place.": "Einige seiner Grenzen oder Kontrollen sind nur teilweise vorhanden.",
+  "Some pilot-table queries ran without a database context while the database enforces RLS: they read nothing and could not write. Give each path its club context or a named system path.": "Einige Abfragen auf Pilottabellen liefen ohne Datenbankkontext, während die Datenbank RLS durchsetzt: Sie haben nichts gelesen und konnten nicht schreiben. Geben Sie jedem Pfad seinen Vereinskontext oder einen benannten Systempfad.",
   "Some pilot-table queries ran without a database context. Resolve them before enforcement is turned on.": "Einige Abfragen auf Pilottabellen liefen ohne Datenbankkontext. Beheben Sie sie, bevor die Durchsetzung eingeschaltet wird.",
   "Some route ids that name a club resource are neither guarded nor exempted by review.": "Einige Routen-IDs, die eine Vereinsressource benennen, sind weder geschützt noch durch Prüfung ausgenommen.",
   "Stage %d of %d": "Stufe %d von %d",
@@ -435,6 +436,7 @@
   "Suspicious request payload": "Verdächtiger Anfrageinhalt",
   "System": "System",
   "Table": "Tabelle",
+  "Tables the database holds to RLS": "Tabellen, die die Datenbank unter RLS hält",
   "The Academy has no router of its own; its teams, players and training are served by the club workspace routers.": "Die Akademie hat keinen eigenen Router; ihre Teams, Spieler und Trainings werden von den Routern des Vereinsarbeitsbereichs bedient.",
   "The Command Center reads the rollout. It does not change the context mode, enable enforcement, or alter any policy or role.": "Die Kommandozentrale liest die Einführung. Sie ändert weder den Kontextmodus noch schaltet sie die Durchsetzung ein oder ändert eine Richtlinie oder Rolle.",
   "The Cybersecurity Command Center could not be read": "Die Cybersicherheits-Kommandozentrale konnte nicht gelesen werden",
@@ -442,6 +444,7 @@
   "The audit hash chain failed verification": "Die Audit-Hashkette hat die Prüfung nicht bestanden",
   "The audit hash chain failed verification in the last 24 hours.": "Die Audit-Hashkette hat in den letzten 24 Stunden die Prüfung nicht bestanden.",
   "The coverage map was not found beside the server.": "Die Abdeckungskarte wurde neben dem Server nicht gefunden.",
+  "The database does not hold every pilot table to row-level security: at least one is not forced or has no policy.": "Die Datenbank hält nicht jede Pilottabelle unter Row-Level-Security: Mindestens eine ist nicht erzwungen oder hat keine Richtlinie.",
   "The database enforces RLS but the application is not sending a context: pilot tables will refuse every query.": "Die Datenbank setzt RLS durch, aber die Anwendung sendet keinen Kontext: Pilottabellen werden jede Abfrage ablehnen.",
   "The database itself; protected at the boundary rows shown.": "Die Datenbank selbst; geschützt an den gezeigten Grenzzeilen.",
   "The database refuses any pilot-table query outside its club or a named system path.": "Die Datenbank lehnt jede Abfrage auf eine Pilottabelle außerhalb ihres Vereins oder eines benannten Systempfads ab.",
@@ -513,5 +516,7 @@
   "Why it is not fully covered, as recorded": "Warum sie nicht vollständig abgedeckt ist, wie erfasst",
   "Why it is not fully protected": "Warum er nicht vollständig geschützt ist",
   "Yes": "Ja",
-  "the response did not carry:": "die Antwort enthielt nicht:"
+  "the response did not carry:": "die Antwort enthielt nicht:",
+  "Not read from the database just now.": "Gerade nicht aus der Datenbank gelesen.",
+  "%d held to RLS by the database, read live": "%d von der Datenbank unter RLS gehalten, live gelesen"
 }

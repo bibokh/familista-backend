@@ -142,13 +142,15 @@ describe('the repository', () => {
     expect(map.boundaries[18].controls).toContain('db-audit-append-only');
   });
 
-  it('Batch 7 (R14) puts the RLS pilot on rows 5 and 18 and does not claim them covered while enforcement is off', () => {
+  it('Batch 7 (R14) puts RLS on rows 5 and 18; Stage 4 enforces it, and the rows stay partial for the gaps RLS does not close', () => {
     for (const id of [5, 18]) {
       expect(map.boundaries[id].controls).toContain('db-rls-pilot');
       expect(map.boundaries[id].coverage).toBe('P');
       expect(map.boundaries[id].plannedIn).toMatch(/^Owner decision after Batch 7/);
     }
-    expect(manifest.controls.find((c: { id: string }) => c.id === 'db-row-level-security')?.status).toBe('PARTIAL');
+    expect(manifest.controls.find((c: { id: string }) => c.id === 'db-row-level-security')?.status).toBe('PRESENT');
+    expect(map.boundaries[5].reason).toMatch(/ids in request bodies are not inventoried/);
+    expect(map.boundaries[18].reason).toMatch(/the tables' owner, has full rights/);
     expect(manifest.controls.find((c: { id: string }) => c.id === 'db-rls-pilot')?.status).toBe('PRESENT');
   });
 

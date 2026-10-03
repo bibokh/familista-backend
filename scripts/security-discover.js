@@ -1145,10 +1145,11 @@ function rlsEnforcedInDatabase() {
   }
   return latest;
 }
+/** DB_RLS_CONTEXT as render.yaml declares it, or null when the blueprint leaves it to the service's own settings. */
 function rlsContextInRender() {
   const yaml = read(cite('render.yaml')) || '';
   const m = yaml.match(/- key: DB_RLS_CONTEXT\s*\n\s*value:\s*["']?(\w+)/);
-  return m ? m[1] : 'off';
+  return m ? m[1] : null;
 }
 function rlsPilotPresent() {
   const tables = rlsPilotTables();
@@ -1177,11 +1178,18 @@ function rlsStatus() {
   const db = rlsEnforcedInDatabase();
   const app = rlsContextInRender();
   const tables = rlsPilotTables().join(', ');
-  if (pilot && db === 'true' && app === 'on') {
-    return { status: 'PRESENT', note: `Enforced by PostgreSQL on ${tables}; the application carries the club context on every query.` };
+  // The repository can prove the database side (the migrations switch
+  // enforcement on, guarded). Whether the running service carries its context
+  // is a runtime fact — DB_RLS_CONTEXT is set on the service, not here — and
+  // the Cybersecurity control plane reads it live, with the database's own
+  // switch and catalogue, before it calls the stage PROTECTED. A blueprint
+  // that pins the context to anything but 'on' is refused here.
+  const guarded = /RAISE EXCEPTION 'R14 enforcement refused/.test(migrationsSql) && /scripts\/rls\/rls-enforcement-off\.sql/.test(read('tests/rls-pilot.integration.test.ts') || '');
+  if (pilot && db === 'true' && guarded && (app === null || app === 'on')) {
+    return { status: 'PRESENT', note: `Enforced by PostgreSQL on ${tables} (20261006100000_rls_enforce, guarded: every table forced with its policy). The service's DB_RLS_CONTEXT and the database's switch and catalogue are verified live by the Cybersecurity control plane.` };
   }
   if (pilot) {
-    return { status: 'PARTIAL', note: `Pilot on ${tables}: policies installed and proven on real PostgreSQL; enforcement in the database is ${db === 'true' ? 'on' : 'off'} and DB_RLS_CONTEXT is ${app}. Other club tables rely on the application.` };
+    return { status: 'PARTIAL', note: `Pilot on ${tables}: policies installed and proven on real PostgreSQL; enforcement in the database is ${db === 'true' ? 'on' : 'off'}${app ? ` and render.yaml pins DB_RLS_CONTEXT to ${app}` : ''}. Other club tables rely on the application.` };
   }
   return { status: 'ABSENT', note: 'Tenancy is enforced in the application only.' };
 }

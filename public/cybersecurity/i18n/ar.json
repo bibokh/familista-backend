@@ -427,6 +427,7 @@
   "Since this instance started: %s": "منذ بدء هذه النسخة: %s",
   "Some locked packages carry no integrity hash.": "بعض الحزم المُقفلة الإصدار لا تحمل تجزئة سلامة.",
   "Some of its boundaries or controls are only partly in place.": "بعض حدوده أو ضوابطه قائمة جزئيًا فقط.",
+  "Some pilot-table queries ran without a database context while the database enforces RLS: they read nothing and could not write. Give each path its club context or a named system path.": "نُفِّذت بعض الاستعلامات على الجداول التجريبية دون سياق لقاعدة البيانات بينما تفرض قاعدة البيانات RLS: لم تقرأ شيئًا ولم تتمكن من الكتابة. امنح كل مسار سياق ناديه أو مسار نظام مُسمّى.",
   "Some pilot-table queries ran without a database context. Resolve them before enforcement is turned on.": "نُفِّذت بعض الاستعلامات على جداول التجربة دون سياق قاعدة بيانات. عالجها قبل تفعيل الإنفاذ.",
   "Some route ids that name a club resource are neither guarded nor exempted by review.": "بعض معرِّفات المسارات التي تسمّي موردًا لنادٍ غير محميّة ولا مُستثناة بالمراجعة.",
   "Stage %d of %d": "المرحلة %d من %d",
@@ -435,6 +436,7 @@
   "Suspicious request payload": "محتوى طلب مريب",
   "System": "النظام",
   "Table": "الجدول",
+  "Tables the database holds to RLS": "الجداول التي تُخضعها قاعدة البيانات لـ RLS",
   "The Academy has no router of its own; its teams, players and training are served by the club workspace routers.": "ليس للأكاديمية موجّه خاص بها؛ إذ تخدم موجّهاتُ مساحة عمل النادي فرقَها ولاعبيها وتدريباتها.",
   "The Command Center reads the rollout. It does not change the context mode, enable enforcement, or alter any policy or role.": "يقرأ مركز القيادة الطرح فقط. ولا يغيّر وضع السياق، ولا يفعّل الإنفاذ، ولا يعدّل أيّ سياسة أو دور.",
   "The Cybersecurity Command Center could not be read": "تعذّرت قراءة مركز قيادة الأمن السيبراني",
@@ -442,6 +444,7 @@
   "The audit hash chain failed verification": "فشل التحقق من سلسلة تجزئة التدقيق",
   "The audit hash chain failed verification in the last 24 hours.": "فشل التحقق من سلسلة تجزئة التدقيق خلال آخر ٢٤ ساعة.",
   "The coverage map was not found beside the server.": "لم يُعثر على خريطة التغطية بجانب الخادم.",
+  "The database does not hold every pilot table to row-level security: at least one is not forced or has no policy.": "لا تُخضع قاعدة البيانات كل جدول تجريبي لأمان مستوى الصف: جدول واحد على الأقل غير مفروض أو بلا سياسة.",
   "The database enforces RLS but the application is not sending a context: pilot tables will refuse every query.": "تُطبّق قاعدة البيانات أمان الصفوف لكنّ التطبيق لا يرسل سياقًا: سترفض جداول التجربة كلّ استعلام.",
   "The database itself; protected at the boundary rows shown.": "قاعدة البيانات نفسها؛ ومحميّة عند صفوف الحدود المعروضة.",
   "The database refuses any pilot-table query outside its club or a named system path.": "ترفض قاعدة البيانات أيّ استعلام على جداول التجربة خارج ناديه أو مسار نظام مسمّى.",
@@ -513,5 +516,7 @@
   "Why it is not fully covered, as recorded": "سبب عدم تغطيتها بالكامل كما سُجّل",
   "Why it is not fully protected": "سبب عدم حمايته بالكامل",
   "Yes": "نعم",
-  "the response did not carry:": "لم تتضمّن الاستجابة:"
+  "the response did not carry:": "لم تتضمّن الاستجابة:",
+  "Not read from the database just now.": "لم تتم القراءة من قاعدة البيانات الآن.",
+  "%d held to RLS by the database, read live": "%d تُخضعها قاعدة البيانات لـ RLS، قراءة مباشرة"
 }

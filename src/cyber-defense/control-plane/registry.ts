@@ -338,6 +338,7 @@ export const METRIC_LABELS: Readonly<Record<string, string>> = {
   'rls.mode': 'Application context mode',
   'rls.enforced': 'Database enforcement',
   'rls.tables': 'Pilot tables',
+  'rls.tablesHeld': 'Tables the database holds to RLS',
   'rls.systemPaths': 'Named cross-club paths',
   'rls.observations': 'Queries seen without a context',
   'ai.calls24h': 'AI calls in 24 hours',
@@ -402,6 +403,8 @@ export function domainById(id: string): DomainDecl | undefined {
 export const WARNING_TEXT: Readonly<Record<string, string>> = {
   'rls.observations': 'Some pilot-table queries ran without a database context. Resolve them before enforcement is turned on.',
   'rls.enforcedWithoutContext': 'The database enforces RLS but the application is not sending a context: pilot tables will refuse every query.',
+  'rls.observationsEnforced': 'Some pilot-table queries ran without a database context while the database enforces RLS: they read nothing and could not write. Give each path its club context or a named system path.',
+  'rls.tablesUnprotected': 'The database does not hold every pilot table to row-level security: at least one is not forced or has no policy.',
   'tenancy.unguarded': 'Some route ids that name a club resource are neither guarded nor exempted by review.',
   'events.tenantMismatch': 'A request named another club’s data in the last 24 hours.',
   'events.critical': 'Critical security events were recorded in the last 24 hours.',

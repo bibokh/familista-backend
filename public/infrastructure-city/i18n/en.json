@@ -241,7 +241,7 @@
   "Edge Nodes": "Edge Nodes",
   "Row-Level Security": "Row-Level Security",
   "Smart Ball": "Smart Ball",
-  "Installed, not enforced: fail-closed policies on 18 club tables (Cyber Defense R14); turning enforcement on is an owner decision.": "Installed, not enforced: fail-closed policies on 18 club tables (Cyber Defense R14); turning enforcement on is an owner decision.",
+  "Enforced by PostgreSQL: fail-closed policies on 18 club tables (Cyber Defense R14, Stage 4).": "Enforced by PostgreSQL: fail-closed policies on 18 club tables (Cyber Defense R14, Stage 4).",
   "On the product roadmap. No firmware, ingest or model exists in this build.": "On the product roadmap. No firmware, ingest or model exists in this build.",
   "Designed in docs/FABRIC_HISTORICAL_STORE.md; no engine exists.": "Designed in docs/FABRIC_HISTORICAL_STORE.md; no engine exists.",
   "Contract only; exportArchiveBatch() throws.": "Contract only; exportArchiveBatch() throws.",
