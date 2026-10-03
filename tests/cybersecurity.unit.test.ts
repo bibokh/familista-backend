@@ -67,6 +67,8 @@ const LEAK = {
 const sim = {
   fail: false,
   enforced: false as unknown,
+  /** The catalogue's answer: protected tables PostgreSQL does not hold to RLS. */
+  unprotected: [] as unknown,
   /** Every call the Command Center made, so a write would be seen. */
   calls: [] as Array<{ model: string; op: string; args: Row }>,
 };
@@ -122,7 +124,7 @@ const db: Row = {
   $queryRaw: async () => {
     sim.calls.push({ model: '$raw', op: '$queryRaw', args: {} });
     if (sim.fail) throw failure();
-    return [{ enforced: sim.enforced }];
+    return [{ enforced: sim.enforced, unprotected: sim.unprotected }];
   },
 };
 
@@ -180,6 +182,7 @@ afterAll(() => {
 beforeEach(() => {
   sim.fail = false;
   sim.enforced = false;
+  sim.unprotected = [];
   sim.calls = [];
   actingAs = null;
   for (const k of ENV_KEYS) delete process.env[k];
@@ -394,6 +397,35 @@ describe('row-level security keeps the context and the wall apart', () => {
     expect(r.stage.id).toBe('enforced');
   });
 
+  it('Stage 4 is PROTECTED only on the database\'s own word: a table it does not hold to RLS makes it PARTIAL, and says which', async () => {
+    process.env.DB_RLS_CONTEXT = 'on';
+    sim.enforced = true;
+    sim.unprotected = ['StaffClubNote'];
+    const r = await rlsOf();
+    expect(r.stage.id).toBe('enforced');
+    expect(r.state).toBe('PARTIAL');
+    expect(r.unprotected).toEqual(['StaffClubNote']);
+    expect(r.warnings.map((w) => w.key)).toContain('rls.tablesUnprotected');
+  });
+
+  it('enforced, but the catalogue did not answer: UNKNOWN, never PROTECTED', async () => {
+    process.env.DB_RLS_CONTEXT = 'on';
+    sim.enforced = true;
+    sim.unprotected = 'garbled';
+    const r = await rlsOf();
+    expect(r.unprotected).toBeNull();
+    expect(r.state).toBe('UNKNOWN');
+  });
+
+  it('a query without a context while enforced is named as refused, not as a rollout to-do', async () => {
+    process.env.DB_RLS_CONTEXT = 'on';
+    sim.enforced = true;
+    noteRlsObservation('OperationsPayment', 'findMany');
+    const keys = (await rlsOf()).warnings.map((w) => w.key);
+    expect(keys).toContain('rls.observationsEnforced');
+    expect(keys).not.toContain('rls.observations');
+  });
+
   it('a non-boolean answer from the database is UNKNOWN, not "off"', async () => {
     sim.enforced = 't';
     const r = await rlsOf();
@@ -576,11 +608,15 @@ describe('only the platform owner, and only to read', () => {
     for (const op of ops) expect(['groupBy', 'count', 'findFirst', 'findMany', '$queryRaw']).toContain(op);
   });
 
-  it('reads the database\'s RLS switch with the one fixed query, and nothing else raw', () => {
+  it('reads the database\'s RLS switch and catalogue with the one fixed query, and nothing else raw', () => {
     const rt = codeOf(read('src/cyber-defense/control-plane/runtime.ts'));
     const raws = rt.match(/\$queryRaw/g) || [];
     expect(raws.length).toBe(1);
     expect(rt).toContain('SELECT public.familista_rls_enforced() AS enforced');
+    // Catalogue only: what PostgreSQL holds to RLS, never a row of club data.
+    expect(rt).toContain('pg_catalog.pg_class');
+    expect(rt).toContain('pg_catalog.pg_policies');
+    expect(rt).toMatch(/c\.relrowsecurity AND c\.relforcerowsecurity/);
   });
 
   it('says NOT GENERATED rather than 404 when the evidence is missing beside the server', () => {

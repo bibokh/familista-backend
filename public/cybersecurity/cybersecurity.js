@@ -1017,8 +1017,13 @@
       + '<div class="cs-dgrid">'
       + '<div class="cs-dcol">'
       + panel('Pilot tables', '<div class="cs-chips">' + r.tables.map(function (t) {
-        return '<span class="cs-token" data-no-i18n>' + esc(t) + '</span>';
-      }).join('') + '</div><div class="cs-note">' + esc(T('Every other club table relies on the application’s tenancy checks.')) + '</div>',
+        // The database's own answer, read live: a table it does not hold to
+        // RLS right now (not forced, or no policy) carries a hairline edge.
+        var loose = r.unprotected && r.unprotected.indexOf(t) !== -1;
+        return '<span class="cs-token' + (loose ? ' cs-token--loose' : '') + '" data-no-i18n>' + esc(t) + '</span>';
+      }).join('') + '</div><div class="cs-note">'
+        + esc(r.unprotected === null ? T('Not read from the database just now.') : tf('%d held to RLS by the database, read live', r.tables.length - r.unprotected.length))
+        + '</div><div class="cs-note">' + esc(T('Every other club table relies on the application’s tenancy checks.')) + '</div>',
         tf('%d tables', r.tables.length))
       + panel('Named cross-club paths', r.systemPaths.length ? '<div class="cs-paths">' + r.systemPaths.map(function (p) {
         return '<div class="cs-path"><code class="cs-path-id" data-no-i18n>' + esc(p.reason) + '</code>' + quote(p.review, 'Review, as recorded') + '</div>';

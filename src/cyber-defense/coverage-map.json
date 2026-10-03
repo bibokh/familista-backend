@@ -90,8 +90,8 @@
         "db-rls-pilot",
         "db-rls-system-paths-reviewed"
       ],
-      "reason": "Every route id is guarded or exempted by name (R2), and PostgreSQL row-level security is installed on 18 club tables (R14: the pilot's four and 14 club-private health, safeguarding, contract, attendance, finance, calendar and staff-note tables), fail closed and proven on real PostgreSQL — but enforcement in the database is off, ids in request bodies are not inventoried, and every other club table relies on the application.",
-      "plannedIn": "Owner decision after Batch 7: with DB_RLS_CONTEXT=on and no unexplained missing-context observations, the enforcement migration; extend the protected tables table by table"
+      "reason": "Every route id is guarded or exempted by name (R2), and PostgreSQL enforces row-level security on 18 club tables (R14 Stage 4: the pilot's four and 14 club-private health, safeguarding, contract, attendance, finance, calendar and staff-note tables), fail closed and proven on real PostgreSQL — but ids in request bodies are not inventoried, and every other club table relies on the application.",
+      "plannedIn": "Owner decision after Batch 7: extend the protected tables table by table; inventory ids in request bodies"
     },
     "6": {
       "name": "Roles and permissions",
@@ -263,8 +263,8 @@
         "db-audit-append-only",
         "db-rls-pilot"
       ],
-      "reason": "Evidence tables are append-only (R9) and row-level security policies are installed on 18 club tables (R14), but enforcement in the database is off and one application role, the tables' owner, has full rights.",
-      "plannedIn": "Owner decision after Batch 7: turn on enforcement; a separate non-owner application role is a production change"
+      "reason": "Evidence tables are append-only (R9) and PostgreSQL enforces row-level security on 18 club tables (R14 Stage 4), but one application role, the tables' owner, has full rights and can set its own context in SQL.",
+      "plannedIn": "Owner decision after Batch 7: a separate non-owner application role is a production change"
     },
     "19": {
       "name": "Redis",

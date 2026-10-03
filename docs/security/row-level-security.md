@@ -3,11 +3,13 @@
 Club isolation is enforced by the application: tenant guards on every route id
 (R2), and club filters in every service. This pilot adds a second, independent
 check inside PostgreSQL, so a query that forgets its club filter cannot read or
-change another club's rows on the pilot tables.
+change another club's rows on the protected tables.
 
-**As shipped, it changes nothing.** Enforcement is off in the database and the
-application does not send a context. Turning it on is an owner decision, in
-the steps below.
+**Stage 4 — enforced.** `20261006100000_rls_enforce` switches
+`familista_rls_enforced()` on, after a guard that refuses (and stops the deploy)
+unless every one of the 18 tables is forced under RLS with its policy.
+PostgreSQL now refuses what the policies refuse. Stages 1–3 below are how it
+got here; the rollback is at the end.
 
 ## What is protected
 
@@ -89,9 +91,10 @@ inside the context. Request handlers do so by construction.
 - **Column-level exposure** of `Player` and `Membership`, whose reads stay
   open. Which columns other clubs see is the application's `publicPlayerSelect`.
 
-## Turning it on (owner decisions, in order)
+## Rollout (owner decisions, in order)
 
-Each step is a production change and is not made by this repository.
+Steps 1 and 2 are settings on the service, not made by this repository. Step 3
+is the migration `20261006100000_rls_enforce`.
 
 1. **Observe.** Set `DB_RLS_CONTEXT=observe` on the service. Behaviour does not
    change; every query on a pilot table that runs without a context logs
@@ -102,12 +105,11 @@ Each step is a production change and is not made by this repository.
    its context on every pilot-table query; the database still does not
    enforce, so nothing is refused yet. Watch latency: each pilot-table query
    outside a transaction becomes a two-statement transaction.
-3. **Enforce.** A reviewed, forward-only migration:
+3. **Enforce.** `20261006100000_rls_enforce`: a guard over the 18 tables, then
    ```sql
    CREATE OR REPLACE FUNCTION public.familista_rls_enforced() RETURNS boolean
      LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$ SELECT true $$;
    ```
-   Undoing it is the same migration with `false`.
 
    `familista_rls_enforced()` is `IMMUTABLE`, so PostgreSQL folds its answer
    into the plan of every prepared statement. A pooled connection that planned
@@ -118,9 +120,56 @@ Each step is a production change and is not made by this repository.
    is not enough; restart the service after it. The integration test
    reconnects after every flip for the same reason.
 
-The posture control `db-row-level-security` reads PRESENT only when step 3 is
-in the migrations and `DB_RLS_CONTEXT: on` is in `render.yaml`; until then it
-is PARTIAL, and coverage rows 5 and 18 stay Partial.
+### What changes in production at Stage 4
+
+- **Behaviour.** A query on a protected table outside its club or a named
+  system path reads no rows and cannot write; a cross-club insert is an error.
+  Every path found by the Stage 4 audit already runs in a club context
+  (`authenticate`), in its own row's club context (invitation acceptance, AI
+  agent jobs, the staff demo fill across a session's authorised clubs) or on a
+  named system path. Production reported no query without a context on the
+  18 tables before the switch.
+- **Latency.** None added by this step. The two-statement transaction per
+  protected-table query outside a transaction has been paid since Stage 3
+  (`DB_RLS_CONTEXT=on`). The policy itself is a comparison of `clubId` with a
+  setting per row; on `PlayerInjury` it is a lookup of the player's club by
+  primary key per row.
+- **Backups** read under the system context (`PGOPTIONS`, `pg_dump
+  --enable-row-security`) and keep every club's rows; the restore drill
+  reads the same way.
+
+### Rollback (Stage 4 → Stage 3)
+
+Forward-only, through the same gates as any change; no manual database edit.
+
+1. Copy `scripts/rls/rls-enforcement-off.sql` to
+   `prisma/migrations/<timestamp>_rls_enforcement_off/migration.sql`.
+2. In `src/cyber-defense/posture-policy.json`, move `db-row-level-security`
+   from `requiredControls` back to `knownGaps` (CI refuses the rollback
+   otherwise: a required control may not regress silently).
+3. `node scripts/security-discover.js`, open the PR, let CI pass, merge.
+4. The deploy starts a new instance, which runs the migration before it
+   serves (`scripts/render-start.sh`); its fresh connections no longer
+   enforce. Policies, FORCE and the application's context stay as they are,
+   so this is Stage 3 exactly, and Stage 4 is re-entered by the same kind of
+   migration with `true` (the guard included).
+
+`tests/rls-pilot.integration.test.ts` runs that exact rollback file on real
+PostgreSQL, checks Stage 3 behaviour, then re-applies the enforcement
+migration and checks its guard refuses while any table is not forced.
+
+### How the Cybersecurity control plane knows
+
+Stage 4 is read from the database, not from the repository: one fixed
+catalogue query returns `familista_rls_enforced()` and which of the declared
+tables PostgreSQL does not hold to RLS right now (not forced, or no policy).
+The RLS view is PROTECTED only when the switch is on, every table is held,
+and the service's own `DB_RLS_CONTEXT` is `on`; a table not held makes it
+PARTIAL and names the table, an unread answer is UNKNOWN. The build-time
+control `db-row-level-security` is PRESENT when the guarded enforcement
+migration and its rollback test are in the repository. Coverage rows 5 and 18
+stay Partial for gaps RLS does not close: ids in request bodies are not
+inventoried, and the application connects as the tables' owner.
 
 ## Evidence
 
@@ -130,8 +179,9 @@ is PARTIAL, and coverage rows 5 and 18 stay Partial.
   club reads and writes its own rows, another club's rows cannot be read,
   changed, deleted or moved into, a missing or invalid context (unknown mode,
   club mode with no or an unknown club, a club without a mode) reads and
-  writes nothing, and the named system path sees every club; shipped-off
-  changes nothing; enforced, no context and another club see and change nothing; a
+  writes nothing, and the named system path sees every club; the migrations
+  ship enforcement on; the rollback file returns Stage 3 and the enforcement
+  migration re-applies, refusing while any table is not forced; enforced, no context and another club see and change nothing; a
   club sees its own; the system path sees all; reads stay open where intended;
   a club delete still cascades; the application client carries the context
   through single queries, interactive and batch transactions without leaking

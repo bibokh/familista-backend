@@ -427,6 +427,7 @@
   "Since this instance started: %s": "Since this instance started: %s",
   "Some locked packages carry no integrity hash.": "Some locked packages carry no integrity hash.",
   "Some of its boundaries or controls are only partly in place.": "Some of its boundaries or controls are only partly in place.",
+  "Some pilot-table queries ran without a database context while the database enforces RLS: they read nothing and could not write. Give each path its club context or a named system path.": "Some pilot-table queries ran without a database context while the database enforces RLS: they read nothing and could not write. Give each path its club context or a named system path.",
   "Some pilot-table queries ran without a database context. Resolve them before enforcement is turned on.": "Some pilot-table queries ran without a database context. Resolve them before enforcement is turned on.",
   "Some route ids that name a club resource are neither guarded nor exempted by review.": "Some route ids that name a club resource are neither guarded nor exempted by review.",
   "Stage %d of %d": "Stage %d of %d",
@@ -435,6 +436,7 @@
   "Suspicious request payload": "Suspicious request payload",
   "System": "System",
   "Table": "Table",
+  "Tables the database holds to RLS": "Tables the database holds to RLS",
   "The Academy has no router of its own; its teams, players and training are served by the club workspace routers.": "The Academy has no router of its own; its teams, players and training are served by the club workspace routers.",
   "The Command Center reads the rollout. It does not change the context mode, enable enforcement, or alter any policy or role.": "The Command Center reads the rollout. It does not change the context mode, enable enforcement, or alter any policy or role.",
   "The Cybersecurity Command Center could not be read": "The Cybersecurity Command Center could not be read",
@@ -442,6 +444,7 @@
   "The audit hash chain failed verification": "The audit hash chain failed verification",
   "The audit hash chain failed verification in the last 24 hours.": "The audit hash chain failed verification in the last 24 hours.",
   "The coverage map was not found beside the server.": "The coverage map was not found beside the server.",
+  "The database does not hold every pilot table to row-level security: at least one is not forced or has no policy.": "The database does not hold every pilot table to row-level security: at least one is not forced or has no policy.",
   "The database enforces RLS but the application is not sending a context: pilot tables will refuse every query.": "The database enforces RLS but the application is not sending a context: pilot tables will refuse every query.",
   "The database itself; protected at the boundary rows shown.": "The database itself; protected at the boundary rows shown.",
   "The database refuses any pilot-table query outside its club or a named system path.": "The database refuses any pilot-table query outside its club or a named system path.",
@@ -513,5 +516,7 @@
   "Why it is not fully covered, as recorded": "Why it is not fully covered, as recorded",
   "Why it is not fully protected": "Why it is not fully protected",
   "Yes": "Yes",
-  "the response did not carry:": "the response did not carry:"
+  "the response did not carry:": "the response did not carry:",
+  "Not read from the database just now.": "Not read from the database just now.",
+  "%d held to RLS by the database, read live": "%d held to RLS by the database, read live"
 }

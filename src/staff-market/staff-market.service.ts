@@ -40,7 +40,7 @@ import {
   publishStaffNeedCreated, publishStaffNeedClosed,
   type CoachMarketContext,
 } from '../fabric/producers/coach-market.producer';
-import { runAsSystem } from '../security/db-context';
+import { runAsSystem, runInClubContext } from '../security/db-context';
 
 /**
  * The envelope for everything one approach produces.
@@ -2373,9 +2373,12 @@ export async function seedDemoStaff(actor: StaffActor, opts: { clubId?: string; 
         select: { id: true },
       });
 
-      await prisma.membership.create({
+      // R14: written as the team's own club. A session may fill several of
+      // its clubs at once (authorisedClubIds above admitted each), but its
+      // request context is only the club it is acting for.
+      await runInClubContext(team.clubId, actor.userId, async () => await prisma.membership.create({
         data: { userId: user.id, clubId: team.clubId, teamId: team.id, role: roles[i], isActive: true },
-      });
+      }));
       await prisma.staffEngagement.create({
         data: {
           userId: user.id, clubId: team.clubId, role: roles[i], teamLabel: team.name,

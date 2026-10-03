@@ -6,7 +6,11 @@
  * superuser skips every policy and would prove nothing). It owns a freshly
  * migrated database, seeds two clubs, and then asks:
  *
- *   enforcement off (as shipped)   everything behaves exactly as before
+ *   as shipped (Stage 4)           the migrations leave enforcement on
+ *   rollback, then re-enforce      the shipped rollback file returns it to
+ *                                  Stage 3 (everything as before) and the
+ *                                  enforcement migration, guard included,
+ *                                  turns it back on — or refuses to
  *   enforcement on                 no context and wrong context see nothing
  *                                  and change nothing; a club sees its own;
  *                                  the named system path sees everything;
@@ -39,6 +43,9 @@ if (!ADMIN_URL && process.env.RLS_DB_REQUIRED === '1') {
 const suite = ADMIN_URL ? describe : describe.skip;
 const PG_DUMP = process.env.BACKUP_PG_DUMP || 'pg_dump';
 const PG_RESTORE = process.env.BACKUP_PG_RESTORE || 'pg_restore';
+const PSQL = process.env.BACKUP_PSQL || 'psql';
+const ENFORCE_SQL = 'prisma/migrations/20261006100000_rls_enforce/migration.sql';
+const ROLLBACK_SQL = 'scripts/rls/rls-enforcement-off.sql';
 
 const tag = randomBytes(4).toString('hex');
 const ROLE = `fam_rls_owner_${tag}`;
@@ -87,6 +94,7 @@ const PRIVATE_TABLES: PrivateTable[] = [
   { table: 'ClubCalendarEntry', model: 'clubCalendarEntry', cols: '"title", "startsAt", "updatedAt"', vals: "'Training', now(), now()" },
   { table: 'StaffClubNote', model: 'staffClubNote', cols: '"staffUserId", "body"', vals: ":user, 'private note'" },
 ];
+const ALL_TABLES = ['Player', 'Membership', 'PlayerInjury', 'VideoAsset', ...PRIVATE_TABLES.map((t) => t.table)];
 const privateId = (t: PrivateTable, club: 'a' | 'b' | 'x') => `${t.table.toLowerCase()}-${club}-${tag}`;
 
 suite('row-level security pilot on real PostgreSQL', () => {
@@ -104,10 +112,18 @@ suite('row-level security pilot on real PostgreSQL', () => {
   // query before the switch keeps the old answer for that query. Flipping it
   // therefore takes fresh connections — here a reconnect, in production the
   // restart of the deploy that carries the migration (docs/security/row-level-security.md).
-  const setEnforced = async (on: boolean) => {
-    await owner.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION familista_rls_enforced() RETURNS boolean LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$ SELECT ${on} $$`);
-    await owner.$disconnect();
+  /** Run a SQL file as the owner role, in one transaction, the way psql would in production; then reconnect. */
+  const runSql = async (sql: string) => {
+    const file = `${require('os').tmpdir()}/fam-rls-${tag}-${randomBytes(3).toString('hex')}.sql`;
+    require('fs').writeFileSync(file, sql);
+    try {
+      const out = spawnSync(PSQL, ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-1', '-f', file], { env: pgEnv(pgConnection(urlFor(DB, ROLE, PASSWORD), 'RLS_DB')), encoding: 'utf8' });
+      await owner.$disconnect();
+      return out;
+    } finally { require('fs').rmSync(file, { force: true }); }
   };
+  const fileSql = (path: string) => require('fs').readFileSync(path, 'utf8') as string;
+  const enforced = async () => (await owner.$queryRaw<Array<{ on: boolean }>>`SELECT public.familista_rls_enforced() AS on`)[0].on;
 
   const player = (id: string, clubId: string, n: number) => ({
     id, clubId, firstName: 'Test', lastName: id, number: n, position: 'GK' as const,
@@ -151,27 +167,30 @@ suite('row-level security pilot on real PostgreSQL', () => {
     if (migrate.status !== 0) throw new Error(`prisma migrate deploy failed (exit ${migrate.status}): ${migrate.stderr}`);
     owner = new PrismaClient({ datasources: { db: { url } } });
 
-    // Seeded with enforcement off — exactly as the migration ships.
-    for (const [id, name] of [[CLUB_A, 'A'], [CLUB_B, 'B'], [CLUB_C, 'C']]) {
-      await owner.club.create({ data: { id, name: `RLS ${name}`, city: 'Test' } });
-    }
-    for (const [id, clubId] of [[ids.userA, CLUB_A], [ids.userB, CLUB_B], [ids.userA2, CLUB_A], [ids.userB2, CLUB_B]]) {
-      await owner.user.create({ data: { id, clubId, email: `${id}@test.invalid`, passwordHash: 'x', firstName: 'T', lastName: id } });
-    }
-    await owner.player.create({ data: player(ids.playerA, CLUB_A, 1) });
-    await owner.player.create({ data: player(ids.playerB, CLUB_B, 2) });
-    await owner.player.create({ data: player(ids.playerC, CLUB_C, 3) });
-    await owner.playerInjury.create({ data: { id: ids.injuryA, playerId: ids.playerA, bodyPart: 'knee', injuryType: 'sprain', severity: 'MINOR' } });
-    await owner.playerInjury.create({ data: { id: ids.injuryB, playerId: ids.playerB, bodyPart: 'ankle', injuryType: 'sprain', severity: 'MODERATE' } });
-    await insertVideo(owner, ids.videoA, CLUB_A);
-    await insertVideo(owner, ids.videoB, CLUB_B);
-    await insertVideo(owner, ids.videoNone, null);
-    await owner.membership.create({ data: { userId: ids.userA, clubId: CLUB_A, role: 'CLUB_ADMIN' } });
-    await owner.membership.create({ data: { userId: ids.userB, clubId: CLUB_B, role: 'CLUB_ADMIN' } });
-    for (const t of PRIVATE_TABLES) {
-      await insertPrivate(owner, t, privateId(t, 'a'), CLUB_A);
-      await insertPrivate(owner, t, privateId(t, 'b'), CLUB_B);
-    }
+    // The migrations ship enforcement on, so the fixtures are written the way
+    // any cross-club writer must be: on the named system path.
+    await as('system', '', async (db) => {
+      for (const [id, name] of [[CLUB_A, 'A'], [CLUB_B, 'B'], [CLUB_C, 'C']]) {
+        await db.club.create({ data: { id, name: `RLS ${name}`, city: 'Test' } });
+      }
+      for (const [id, clubId] of [[ids.userA, CLUB_A], [ids.userB, CLUB_B], [ids.userA2, CLUB_A], [ids.userB2, CLUB_B]]) {
+        await db.user.create({ data: { id, clubId, email: `${id}@test.invalid`, passwordHash: 'x', firstName: 'T', lastName: id } });
+      }
+      await db.player.create({ data: player(ids.playerA, CLUB_A, 1) });
+      await db.player.create({ data: player(ids.playerB, CLUB_B, 2) });
+      await db.player.create({ data: player(ids.playerC, CLUB_C, 3) });
+      await db.playerInjury.create({ data: { id: ids.injuryA, playerId: ids.playerA, bodyPart: 'knee', injuryType: 'sprain', severity: 'MINOR' } });
+      await db.playerInjury.create({ data: { id: ids.injuryB, playerId: ids.playerB, bodyPart: 'ankle', injuryType: 'sprain', severity: 'MODERATE' } });
+      await insertVideo(db, ids.videoA, CLUB_A);
+      await insertVideo(db, ids.videoB, CLUB_B);
+      await insertVideo(db, ids.videoNone, null);
+      await db.membership.create({ data: { userId: ids.userA, clubId: CLUB_A, role: 'CLUB_ADMIN' } });
+      await db.membership.create({ data: { userId: ids.userB, clubId: CLUB_B, role: 'CLUB_ADMIN' } });
+      for (const t of PRIVATE_TABLES) {
+        await insertPrivate(db, t, privateId(t, 'a'), CLUB_A);
+        await insertPrivate(db, t, privateId(t, 'b'), CLUB_B);
+      }
+    });
   }, 240_000);
 
   afterAll(async () => {
@@ -205,21 +224,59 @@ suite('row-level security pilot on real PostgreSQL', () => {
     }
   });
 
-  describe('as shipped: enforcement off', () => {
-    it('changes nothing — no context still sees and writes every club, as before', async () => {
+  describe('as shipped: Stage 4, enforced by PostgreSQL', () => {
+    it('the migrations leave familista_rls_enforced() on', async () => {
+      expect(await enforced()).toBe(true);
+    });
+
+    it('no context reads nothing from any strictly isolated table', async () => {
+      expect(await owner.playerInjury.count()).toBe(0);
+      expect(await owner.videoAsset.count()).toBe(0);
+      for (const t of PRIVATE_TABLES) expect([t.table, await countPrivate(owner, t)]).toEqual([t.table, 0]);
+    });
+  });
+
+  describe('rollback: the shipped rollback file returns to Stage 3, and the enforcement migration re-applies', () => {
+    beforeAll(async () => {
+      const out = await runSql(fileSql(ROLLBACK_SQL));
+      expect([out.status, out.stderr]).toEqual([0, '']);
+    });
+    afterAll(async () => {
+      const out = await runSql(fileSql(ENFORCE_SQL));
+      expect([out.status, out.stderr]).toEqual([0, '']);
+      expect(await enforced()).toBe(true);
+    });
+
+    it('rolled back: familista_rls_enforced() is off, policies and FORCE stay installed', async () => {
+      expect(await enforced()).toBe(false);
+      const [row] = await owner.$queryRaw<Array<{ forced: number; policies: number }>>`
+        SELECT (SELECT count(*)::int FROM pg_class WHERE relkind = 'r' AND relforcerowsecurity AND relname = ANY(${ALL_TABLES})) AS forced,
+               (SELECT count(DISTINCT tablename)::int FROM pg_policies WHERE tablename = ANY(${ALL_TABLES})) AS policies`;
+      expect(row).toEqual({ forced: ALL_TABLES.length, policies: ALL_TABLES.length });
+    });
+
+    it('rolled back: no context still sees and writes every club, as before', async () => {
       expect(await owner.playerInjury.count()).toBe(2);
       expect(await owner.videoAsset.count()).toBe(3);
       expect((await owner.player.updateMany({ where: { id: ids.playerB }, data: { height: 181 } })).count).toBe(1);
     });
 
-    it('changes nothing on the club-private tables either: no context sees both clubs', async () => {
+    it('rolled back: the club-private tables too — no context sees both clubs', async () => {
       for (const t of PRIVATE_TABLES) expect([t.table, await countPrivate(owner, t)]).toEqual([t.table, 2]);
+    });
+
+    it('the enforcement migration refuses to switch on while any of the 18 tables is not forced', async () => {
+      const out = await runSql(`ALTER TABLE "StaffClubNote" NO FORCE ROW LEVEL SECURITY;\n${fileSql(ENFORCE_SQL)}`);
+      expect(out.status).not.toBe(0);
+      expect(out.stderr).toMatch(/R14 enforcement refused: .*StaffClubNote/);
+      // One transaction: nothing of it stayed.
+      expect(await enforced()).toBe(false);
+      const [row] = await owner.$queryRaw<Array<{ f: boolean }>>`SELECT relforcerowsecurity AS f FROM pg_class WHERE relname = 'StaffClubNote' AND relkind = 'r'`;
+      expect(row.f).toBe(true);
     });
   });
 
   describe('enforcement on', () => {
-    beforeAll(() => setEnforced(true));
-    afterAll(() => setEnforced(false));
 
     it('no context: no medical record, no video, and no write — fail closed', async () => {
       expect(await owner.playerInjury.count()).toBe(0);
@@ -376,6 +433,17 @@ suite('row-level security pilot on real PostgreSQL', () => {
         await expect(runInClubContext(CLUB_A, ids.userA, async () => await app.player.update({ where: { id: ids.playerB }, data: { lastName: 'moved' } })))
           .rejects.toThrow();
         expect((await runAsSystem('rls-integration-test', async () => await app.player.findUnique({ where: { id: ids.playerB }, select: { lastName: true } })))?.lastName).toBe(ids.playerB);
+      });
+
+      it('a session acting for one club writes another club it is authorised for only in that club\'s own context', async () => {
+        // The shape seedDemoStaff uses: authorisation decided first, then the
+        // write made as the row's own club, never as the session's.
+        await expect(runInClubContext(CLUB_A, ids.userA, async () => await app.membership.create({ data: { userId: ids.userA2, clubId: CLUB_B, role: 'HEAD_COACH' } })))
+          .rejects.toThrow();
+        const made = await runInClubContext(CLUB_A, ids.userA, async () =>
+          await runInClubContext(CLUB_B, ids.userA, async () => await app.membership.create({ data: { userId: ids.userA2, clubId: CLUB_B, role: 'HEAD_COACH' } })));
+        expect(made.clubId).toBe(CLUB_B);
+        expect(await runAsSystem('rls-integration-test', async () => await app.membership.delete({ where: { id: made.id } }))).toMatchObject({ id: made.id });
       });
 
       it('settings do not leak to the next query on a pooled connection', async () => {

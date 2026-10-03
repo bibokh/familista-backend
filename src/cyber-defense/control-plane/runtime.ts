@@ -17,7 +17,7 @@
 // says "since this instance started".
 
 import { prisma } from '../../config/database';
-import { rlsContextMode } from '../../security/db-context';
+import { rlsContextMode, RLS_PILOT_MODELS } from '../../security/db-context';
 import { rlsObservations, rlsObservationWindowStart } from '../../security/rls-observations';
 import { securityAlertsRunning, parseAlertRecipient, BACKUP_STALE_MS } from '../../security/security-alerts';
 import { securityCollectorStats } from '../collectors';
@@ -49,6 +49,12 @@ export interface RuntimeSnapshot {
   backups: RuntimeRead<{ lastSuccessAt: string | null; failed7d: number }>;
   mfa: RuntimeRead<{ admins: number; adminsEnrolled: number }>;
   rlsEnforced: RuntimeRead<boolean>;
+  /**
+   * Of the tables the application protects, the ones the database itself does
+   * not hold to row-level security right now — not forced, or without a
+   * policy. Read in the same statement as the switch; null when it did not answer.
+   */
+  rlsUnprotected: RuntimeRead<string[]>;
   process: {
     startedAt: string;
     uptimeHours: number;
@@ -68,6 +74,13 @@ export interface RuntimeSnapshot {
 const READ_TIMEOUT_MS = 4000;
 const CACHE_MS = 15_000;
 const DAY = 24 * 60 * 60 * 1000;
+
+/** One field of a read; a field the answer did not carry is unavailable, not empty. */
+function part<T, U>(r: RuntimeRead<T>, pick: (v: T) => U | null): RuntimeRead<U> {
+  if (r.state !== 'READ' || r.value === null) return { state: r.state, value: null, reason: r.reason };
+  const value = pick(r.value);
+  return value === null ? { state: 'UNAVAILABLE', value: null, reason: 'The platform could not read this.' } : { state: 'READ', value, reason: null };
+}
 
 async function read<T>(f: () => Promise<T>): Promise<RuntimeRead<T>> {
   let timer: NodeJS.Timeout | undefined;
@@ -186,12 +199,23 @@ async function mfaCounts() {
   return { admins, adminsEnrolled };
 }
 
-/** The database's own enforcement switch. Null when the function does not answer. */
-async function rlsEnforced(): Promise<boolean> {
-  const rows = await prisma.$queryRaw<Array<{ enforced: unknown }>>`SELECT public.familista_rls_enforced() AS enforced`;
-  const v = Array.isArray(rows) && rows.length ? rows[0]?.enforced : undefined;
-  if (typeof v !== 'boolean') throw new Error('no answer');
-  return v;
+/**
+ * The database's own enforcement switch, and — in the same statement, from the
+ * catalogue — which of the protected tables it does not hold to row-level
+ * security (not FORCE'd, or with no policy). Both are the database's answer,
+ * not the repository's: Stage 4 is reported from what PostgreSQL says now.
+ */
+async function rlsDatabaseFacts(): Promise<{ enforced: boolean; unprotected: string[] | null }> {
+  const tables = [...RLS_PILOT_MODELS];
+  const rows = await prisma.$queryRaw<Array<{ enforced: unknown; unprotected: unknown }>>`SELECT public.familista_rls_enforced() AS enforced,
+    (SELECT coalesce(json_agg(t ORDER BY t), '[]'::json) FROM unnest(${tables}::text[]) AS t
+      WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                        WHERE n.nspname = 'public' AND c.relname = t AND c.relkind = 'r' AND c.relrowsecurity AND c.relforcerowsecurity)
+         OR NOT EXISTS (SELECT 1 FROM pg_catalog.pg_policies p WHERE p.schemaname = 'public' AND p.tablename = t)) AS unprotected`;
+  const row = Array.isArray(rows) && rows.length ? rows[0] : undefined;
+  if (typeof row?.enforced !== 'boolean') throw new Error('no answer');
+  const u = row.unprotected;
+  return { enforced: row.enforced, unprotected: Array.isArray(u) && u.every((x) => typeof x === 'string') ? u as string[] : null };
 }
 
 const secretConfigured = (name: string): boolean => (process.env[name] ?? '').trim().length >= MIN_SECRET_LENGTH;
@@ -230,11 +254,13 @@ export async function runtimeSnapshot(nowMs: number = Date.now()): Promise<Runti
       read(() => auditCounts(nowMs)),
       read(() => backupFacts(nowMs)),
       read(() => mfaCounts()),
-      read(() => rlsEnforced()),
+      read(() => rlsDatabaseFacts()),
     ]);
     const snapshot: RuntimeSnapshot = {
       measuredAt: new Date(nowMs).toISOString(),
-      events, signals, devices, ai, audit, backups, mfa, rlsEnforced: enforced,
+      events, signals, devices, ai, audit, backups, mfa,
+      rlsEnforced: part(enforced, (f) => f.enforced),
+      rlsUnprotected: part(enforced, (f) => f.unprotected),
       process: processFacts(),
     };
     cached = { at: nowMs, snapshot };
