@@ -1570,5 +1570,16 @@
   "Open Vision": "Open Vision",
   "Reading Vision service…": "Reading Vision service…",
   "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
-  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models",
+  "CYBERSECURITY": "САЈБЕР БЕЗБЕДНОСТ",
+  "Security Posture, Protection, Evidence & Monitoring": "Безбедносни положај, заштита, докази и надзор",
+  "Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage & Gaps · Events & Alerts · Evidence": "Командни центар · Безбедносни домени · Безбедност на нивоу реда · Животни циклус безбедности · Покривеност и празнине · Догађаји и упозорења · Докази",
+  "Reading security evidence…": "Читање безбедносних доказа…",
+  "Enter Cybersecurity": "Уђи у сајбер безбедност",
+  "Security evidence not generated": "Безбедносни докази нису генерисани",
+  "Domains at risk: \u0000": "Угрожени домени: \u0000",
+  "Security warnings: \u0000": "Безбедносна упозорења: \u0000",
+  "Trust boundaries covered: \u0000 of \u0000": "Покривене границе поверења: \u0000 од \u0000",
+  "All trust boundaries covered": "Све границе поверења покривене",
+  "Security posture unreachable": "Безбедносни положај није доступан"
 }

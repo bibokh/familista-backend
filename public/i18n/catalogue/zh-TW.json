@@ -1567,5 +1567,16 @@
   "Open Vision": "Open Vision",
   "Reading Vision service…": "Reading Vision service…",
   "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
-  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models",
+  "CYBERSECURITY": "網路安全",
+  "Security Posture, Protection, Evidence & Monitoring": "安全態勢、防護、證據與監控",
+  "Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage & Gaps · Events & Alerts · Evidence": "指揮中心 · 安全領域 · 列級安全 · 安全生命週期 · 涵蓋與缺口 · 事件與警示 · 證據",
+  "Reading security evidence…": "正在讀取安全證據…",
+  "Enter Cybersecurity": "進入網路安全",
+  "Security evidence not generated": "安全證據尚未產生",
+  "Domains at risk: \u0000": "有風險的領域: \u0000",
+  "Security warnings: \u0000": "安全警告: \u0000",
+  "Trust boundaries covered: \u0000 of \u0000": "已涵蓋的信任邊界: \u0000 / \u0000",
+  "All trust boundaries covered": "所有信任邊界皆已涵蓋",
+  "Security posture unreachable": "無法取得安全態勢"
 }

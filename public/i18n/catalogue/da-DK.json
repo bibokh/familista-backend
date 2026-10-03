@@ -1570,5 +1570,16 @@
   "Open Vision": "Open Vision",
   "Reading Vision service…": "Reading Vision service…",
   "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
-  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models",
+  "CYBERSECURITY": "CYBERSIKKERHED",
+  "Security Posture, Protection, Evidence & Monitoring": "Sikkerhedsstatus, beskyttelse, dokumentation og overvågning",
+  "Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage & Gaps · Events & Alerts · Evidence": "Kommandocentral · Sikkerhedsdomæner · Sikkerhed på rækkeniveau · Sikkerhedslivscyklus · Dækning og huller · Hændelser og alarmer · Dokumentation",
+  "Reading security evidence…": "Læser sikkerhedsdokumentation…",
+  "Enter Cybersecurity": "Gå til Cybersikkerhed",
+  "Security evidence not generated": "Sikkerhedsdokumentation ikke genereret",
+  "Domains at risk: \u0000": "Domæner i risiko: \u0000",
+  "Security warnings: \u0000": "Sikkerhedsadvarsler: \u0000",
+  "Trust boundaries covered: \u0000 of \u0000": "Dækkede tillidsgrænser: \u0000 af \u0000",
+  "All trust boundaries covered": "Alle tillidsgrænser dækket",
+  "Security posture unreachable": "Sikkerhedsstatus kan ikke nås"
 }

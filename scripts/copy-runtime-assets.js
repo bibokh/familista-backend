@@ -20,6 +20,14 @@ const ASSETS = [
   // component's coverage (src/infra/component-coverage.ts).
   ['src/cyber-defense/coverage-map.json',
    'dist/cyber-defense/coverage-map.json'],
+  // The Cybersecurity Command Center reads the posture evidence beside the
+  // compiled server (src/cyber-defense/control-plane/posture-source.ts): the
+  // generated security manifest and the reviewed posture policy. Without them
+  // the Command Center says NOT GENERATED rather than drawing a posture.
+  ['src/cyber-defense/generated/security-manifest.json',
+   'dist/cyber-defense/generated/security-manifest.json'],
+  ['src/cyber-defense/posture-policy.json',
+   'dist/cyber-defense/posture-policy.json'],
 ];
 
 let copied = 0;

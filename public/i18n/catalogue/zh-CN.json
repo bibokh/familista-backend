@@ -1567,5 +1567,16 @@
   "Open Vision": "Open Vision",
   "Reading Vision service…": "Reading Vision service…",
   "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
-  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models",
+  "CYBERSECURITY": "网络安全",
+  "Security Posture, Protection, Evidence & Monitoring": "安全态势、防护、证据与监控",
+  "Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage & Gaps · Events & Alerts · Evidence": "指挥中心 · 安全领域 · 行级安全 · 安全生命周期 · 覆盖与缺口 · 事件与告警 · 证据",
+  "Reading security evidence…": "正在读取安全证据…",
+  "Enter Cybersecurity": "进入网络安全",
+  "Security evidence not generated": "安全证据尚未生成",
+  "Domains at risk: \u0000": "有风险的领域: \u0000",
+  "Security warnings: \u0000": "安全警告: \u0000",
+  "Trust boundaries covered: \u0000 of \u0000": "已覆盖的信任边界: \u0000 / \u0000",
+  "All trust boundaries covered": "所有信任边界均已覆盖",
+  "Security posture unreachable": "无法获取安全态势"
 }

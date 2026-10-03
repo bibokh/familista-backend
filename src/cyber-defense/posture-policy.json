@@ -759,6 +759,13 @@
         "GET /vision/matches/:id/frames",
         "POST /vision/cameras/:id/frame"
       ]
+    },
+    "cybersecurity.routes :domain": {
+      "basis": "platform-only",
+      "reason": "The Cybersecurity Command Center is behind assertPlatformOwner; a domain name is a key in the security registry, not a club row.",
+      "routes": [
+        "GET /system/cybersecurity/domains/:domain"
+      ]
     }
   },
   "ownerRooms": {
@@ -782,6 +789,9 @@
     },
     "sources.routes": {
       "mount": "/system/sources"
+    },
+    "cybersecurity.routes": {
+      "mount": "/system/cybersecurity"
     }
   },
   "authorizationMemberHandlers": {

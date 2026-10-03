@@ -1567,5 +1567,16 @@
   "Open Vision": "Open Vision",
   "Reading Vision service…": "Reading Vision service…",
   "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
-  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models",
+  "CYBERSECURITY": "KEAMANAN SIBER",
+  "Security Posture, Protection, Evidence & Monitoring": "Postur keamanan, perlindungan, bukti & pemantauan",
+  "Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage & Gaps · Events & Alerts · Evidence": "Pusat komando · Domain keamanan · Keamanan tingkat baris · Siklus hidup keamanan · Cakupan & celah · Peristiwa & peringatan · Bukti",
+  "Reading security evidence…": "Membaca bukti keamanan…",
+  "Enter Cybersecurity": "Masuki Keamanan Siber",
+  "Security evidence not generated": "Bukti keamanan belum dibuat",
+  "Domains at risk: \u0000": "Domain berisiko: \u0000",
+  "Security warnings: \u0000": "Peringatan keamanan: \u0000",
+  "Trust boundaries covered: \u0000 of \u0000": "Batas kepercayaan tercakup: \u0000 dari \u0000",
+  "All trust boundaries covered": "Semua batas kepercayaan tercakup",
+  "Security posture unreachable": "Postur keamanan tidak dapat dijangkau"
 }

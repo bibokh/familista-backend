@@ -700,18 +700,18 @@ describe('SOURCE CORE is the middle of the landing, not the end of a row', () =>
     expect(app).toContain('<div class="oh-card-title">SOURCE CORE</div>');
   });
 
-  it('holds the middle column at every width, with Vision beneath it', () => {
+  it('holds the middle of its row at every width, with Vision beside it', () => {
     expect(css).toContain('body.club-theme .oh-cards--core{');
-    // Three columns: the core takes the middle of the top row and VISION the
-    // middle of the second. The core no longer spans both rows — six peers get
-    // six equal cards, and the pairing is said with column rather than size.
-    expect(css).toContain('"system core   clubs"');
-    expect(css).toContain('"vault  vision city"');
+    // Eight tracks: CYBERSECURITY took the middle of the top row, between
+    // SYSTEM and CLUBS, and the core moved to the middle of the second row
+    // with VISION beside it. Seven peers, seven equal cards — the pairing is
+    // said by adjacency rather than by size.
+    expect(css).toContain('"vault vault  core   core   vision vision city   city "');
     // Two columns: the core/vision pair stays together on its own row.
-    expect(css).toContain('"system clubs"');
-    expect(css).toContain('"core   vision"');
-    // One column: the core is third, and Vision follows it.
-    expect(css).toContain('grid-template-areas: "system" "clubs" "core" "vision" "vault" "city";');
+    expect(css).toContain('"system system clubs  clubs"');
+    expect(css).toContain('"core   core   vision vision"');
+    // One column: the core follows the three top-row rooms, and Vision follows it.
+    expect(css).toContain('grid-template-areas: "system" "cyber" "clubs" "core" "vision" "vault" "city";');
   });
 
   it('carries a real summary or an honest absence, never a placeholder figure', () => {

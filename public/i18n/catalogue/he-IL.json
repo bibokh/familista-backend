@@ -1570,5 +1570,16 @@
   "Open Vision": "Open Vision",
   "Reading Vision service…": "Reading Vision service…",
   "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
-  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models",
+  "CYBERSECURITY": "אבטחת סייבר",
+  "Security Posture, Protection, Evidence & Monitoring": "מצב אבטחה, הגנה, ראיות וניטור",
+  "Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage & Gaps · Events & Alerts · Evidence": "מרכז פיקוד · תחומי אבטחה · אבטחה ברמת שורה · מחזור חיי האבטחה · כיסוי ופערים · אירועים והתראות · ראיות",
+  "Reading security evidence…": "קורא את ראיות האבטחה…",
+  "Enter Cybersecurity": "כניסה לאבטחת סייבר",
+  "Security evidence not generated": "ראיות האבטחה לא נוצרו",
+  "Domains at risk: \u0000": "תחומים בסיכון: \u0000",
+  "Security warnings: \u0000": "אזהרות אבטחה: \u0000",
+  "Trust boundaries covered: \u0000 of \u0000": "גבולות אמון מכוסים: \u0000 מתוך \u0000",
+  "All trust boundaries covered": "כל גבולות האמון מכוסים",
+  "Security posture unreachable": "לא ניתן להגיע למצב האבטחה"
 }

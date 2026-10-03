@@ -1570,5 +1570,16 @@
   "Open Vision": "Open Vision",
   "Reading Vision service…": "Reading Vision service…",
   "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
-  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models"
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models",
+  "CYBERSECURITY": "ΚΥΒΕΡΝΟΑΣΦΑΛΕΙΑ",
+  "Security Posture, Protection, Evidence & Monitoring": "Στάση ασφαλείας, προστασία, τεκμήρια και παρακολούθηση",
+  "Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage & Gaps · Events & Alerts · Evidence": "Κέντρο ελέγχου · Τομείς ασφαλείας · Ασφάλεια σε επίπεδο γραμμής · Κύκλος ζωής ασφαλείας · Κάλυψη και κενά · Συμβάντα και ειδοποιήσεις · Τεκμήρια",
+  "Reading security evidence…": "Ανάγνωση τεκμηρίων ασφαλείας…",
+  "Enter Cybersecurity": "Είσοδος στην κυβερνοασφάλεια",
+  "Security evidence not generated": "Τα τεκμήρια ασφαλείας δεν έχουν δημιουργηθεί",
+  "Domains at risk: \u0000": "Τομείς σε κίνδυνο: \u0000",
+  "Security warnings: \u0000": "Προειδοποιήσεις ασφαλείας: \u0000",
+  "Trust boundaries covered: \u0000 of \u0000": "Καλυμμένα όρια εμπιστοσύνης: \u0000 από \u0000",
+  "All trust boundaries covered": "Όλα τα όρια εμπιστοσύνης καλύπτονται",
+  "Security posture unreachable": "Η στάση ασφαλείας δεν είναι προσβάσιμη"
 }
