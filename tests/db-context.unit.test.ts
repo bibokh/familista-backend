@@ -11,7 +11,7 @@
  */
 
 import {
-  currentDbContext, dbSettings, RLS_PILOT_MODELS, rlsContextMode, runAsSystem, runInClubContext,
+  currentDbContext, dbSettings, RLS_PILOT_MODELS, rlsContextMode, rlsModeStartupLine, runAsSystem, runInClubContext,
 } from '../src/security/db-context';
 
 describe('the mode switch', () => {
@@ -48,6 +48,35 @@ describe('the mode switch', () => {
     const { prisma, base } = load('on');
     expect(prisma).not.toBe(base);
     expect(typeof (prisma as { $transaction: unknown }).$transaction).toBe('function');
+  });
+});
+
+describe('the startup confirmation', () => {
+  it('names the validated mode, once, at info', () => {
+    expect(rlsModeStartupLine({})).toEqual({ level: 'info', message: '[rls] context mode: off' });
+    expect(rlsModeStartupLine({ DB_RLS_CONTEXT: 'off' })).toEqual({ level: 'info', message: '[rls] context mode: off' });
+    expect(rlsModeStartupLine({ DB_RLS_CONTEXT: 'observe' })).toEqual({ level: 'info', message: '[rls] context mode: observe' });
+    expect(rlsModeStartupLine({ DB_RLS_CONTEXT: ' ON ' })).toEqual({ level: 'info', message: '[rls] context mode: on' });
+  });
+
+  it('an invalid value still falls back to off, says so as a warning, and is never echoed', () => {
+    for (const bad of ['observ', 'enforce', 'true', '1', 'on;DROP', 'postgresql://u:secret@h/db']) {
+      expect(rlsContextMode({ DB_RLS_CONTEXT: bad })).toBe('off');
+      const line = rlsModeStartupLine({ DB_RLS_CONTEXT: bad });
+      expect(line.level).toBe('warn');
+      // One fixed message whatever the input: the raw value is never echoed.
+      expect(line.message).toBe('[rls] context mode: off (DB_RLS_CONTEXT is set to an unrecognised value; expected off, observe or on)');
+    }
+  });
+
+  it('carries nothing but the mode — no other environment value', () => {
+    const env = { DB_RLS_CONTEXT: 'on', DATABASE_URL: 'postgresql://u:secret@h/db', JWT_ACCESS_SECRET: 'jwt-secret-value' };
+    expect(JSON.stringify(rlsModeStartupLine(env))).not.toMatch(/secret|postgresql|jwt/i);
+  });
+
+  it('is logged by the database module when it loads', () => {
+    const src = require('fs').readFileSync(require('path').join(__dirname, '../src/config/database.ts'), 'utf8') as string;
+    expect(src).toMatch(/const line = rlsModeStartupLine\(\);\s*logger\[line\.level\]\(line\.message\);/);
   });
 });
 

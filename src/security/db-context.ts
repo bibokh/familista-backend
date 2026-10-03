@@ -48,6 +48,20 @@ export function rlsContextMode(env: Record<string, string | undefined> = process
   return v === 'on' || v === 'observe' ? v : 'off';
 }
 
+/**
+ * The one startup line that says which mode is in effect. It names the
+ * validated mode only — never the raw value, which is not echoed even when it
+ * is unrecognised (that case is said in words, and falls back to off).
+ */
+export function rlsModeStartupLine(env: Record<string, string | undefined> = process.env): { level: 'info' | 'warn'; message: string } {
+  const mode = rlsContextMode(env);
+  const raw = (env.DB_RLS_CONTEXT ?? '').trim();
+  if (raw !== '' && mode === 'off' && raw.toLowerCase() !== 'off') {
+    return { level: 'warn', message: '[rls] context mode: off (DB_RLS_CONTEXT is set to an unrecognised value; expected off, observe or on)' };
+  }
+  return { level: 'info', message: `[rls] context mode: ${mode}` };
+}
+
 export function currentDbContext(): Held | undefined {
   return store.getStore();
 }
