@@ -1,7 +1,32 @@
 import { PrismaClient, UserRole, PlayerPosition, Foot, CompetitionType, MatchResult, InjurySeverity, DrillType, TransactionType, SubscriptionPlan, SubscriptionStatus, ScoutRecommendation, TeamKind, Gender, MembershipRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 
 const prisma = new PrismaClient();
+
+// ── Seed credentials ─────────────────────────────────────────
+// No password is written in this file. Each comes from the environment, or —
+// on a development database only — is generated for this run and printed once.
+// Production is refused unless SEED_ALLOW_PRODUCTION=true AND every password
+// is supplied: the demo passwords this file used to hard-code were published
+// in the README, and an account seeded with one stayed open to anybody who had
+// read it. tests/published-credentials.unit.test.ts keeps them from returning.
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+if (IS_PRODUCTION && process.env.SEED_ALLOW_PRODUCTION !== 'true') {
+  throw new Error('Refusing to seed a production database. Set SEED_ALLOW_PRODUCTION=true and supply SEED_ADMIN_PASSWORD and SEED_COACH_PASSWORD to override.');
+}
+const generated: Array<{ account: string; password: string }> = [];
+function seedPassword(envName: string, account: string): string {
+  const fromEnv = (process.env[envName] ?? '').trim();
+  if (fromEnv) {
+    if (fromEnv.length < 12) throw new Error(`${envName} must be at least 12 characters.`);
+    return fromEnv;
+  }
+  if (IS_PRODUCTION) throw new Error(`${envName} is required to seed production.`);
+  const password = randomBytes(18).toString('base64url');
+  generated.push({ account, password });
+  return password;
+}
 
 async function main() {
   console.log('🌱 Seeding Familista database...');
@@ -32,7 +57,7 @@ async function main() {
   console.log(`✅ Club: ${club.name}`);
 
   // ── Admin user(s) ─────────────────────────────────────────
-  const adminHash = await bcrypt.hash('Familista2024!', 12);
+  const adminHash = await bcrypt.hash(seedPassword('SEED_ADMIN_PASSWORD', 'khatab@familista.io / admin@familista.io'), 12);
 
   // Original owner account (kept).
   const admin = await prisma.user.upsert({
@@ -49,8 +74,7 @@ async function main() {
   });
   console.log(`✅ Admin: ${admin.email}`);
 
-  // Public demo account — same password as the owner so docs can list one
-  // canonical credential pair for screenshots / first-time testers.
+  // Demo administrator — shares the admin seed password above.
   const demoAdmin = await prisma.user.upsert({
     where: { email: 'admin@familista.io' },
     update: { passwordHash: adminHash, isActive: true },
@@ -81,7 +105,7 @@ async function main() {
   console.log(`✅ Team:  ${seniorTeam.name} (${seniorTeam.id})`);
 
   // Coach — must be created BEFORE membershipSpecs so coach.id is defined.
-  const coachHash = await bcrypt.hash('Coach2024!', 12);
+  const coachHash = await bcrypt.hash(seedPassword('SEED_COACH_PASSWORD', 'coach@familista.io'), 12);
   const coach = await prisma.user.upsert({
     where: { email: 'coach@familista.io' },
     update: {},
@@ -500,15 +524,14 @@ async function main() {
   console.log('✅ Financial records');
 
   console.log('\n🎉 Seed complete!\n');
-  console.log('┌─────────────────────────────────────────┐');
-  console.log('│          DEMO CREDENTIALS               │');
-  console.log('├─────────────────────────────────────────┤');
-  console.log('│ Admin:  khatab@familista.io             │');
-  console.log('│ Pass:   Familista2024!                  │');
-  console.log('├─────────────────────────────────────────┤');
-  console.log('│ Coach:  coach@familista.io              │');
-  console.log('│ Pass:   Coach2024!                      │');
-  console.log('└─────────────────────────────────────────┘\n');
+  // Generated passwords exist only on a development database, and only this
+  // run knows them. Ones taken from the environment are never printed.
+  if (generated.length) {
+    console.log('Development-only passwords generated for this run (not stored anywhere else):');
+    for (const g of generated) console.log(`  ${g.account}: ${g.password}`);
+  } else {
+    console.log('Seed passwords were taken from the environment.');
+  }
 }
 
 main()
