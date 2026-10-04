@@ -782,6 +782,82 @@ export const CommandCenterSchema = z.object({
   unassignedRouters: z.array(z.string()),
 }).strict();
 
+// ── Algorithms ───────────────────────────────────────────────────────────────
+
+const LoopStageEnum = z.enum(['OBSERVE', 'LEARN', 'PROPOSE', 'SIMULATE', 'TEST', 'HUMAN_APPROVAL', 'DEPLOY', 'MEASURE']);
+const GateEnum = z.enum(['APPROVED', 'NO_APPROVAL', 'VERSION_NOT_APPROVED', 'CHANGED_SINCE_APPROVAL',
+  'FINGERPRINT_UNAVAILABLE', 'EVALUATION_FAILED', 'MODE_NOT_ALLOWED']);
+const EvalState = z.enum(['PASS', 'FAIL', 'NOT_SIMULATED']);
+const Fingerprint = z.string().regex(/^[0-9a-f]{64}$/);
+
+export const AlgSummarySchema = z.object({
+  key: z.string().min(1),
+  name: z.string().min(1),
+  domain: z.string().min(1),
+  version: z.string().min(1),
+  mode: z.string().min(1),
+  stage: LoopStageEnum,
+  gate: GateEnum,
+  evaluation: z.object({ state: EvalState, passed: Count, total: Count }).strict(),
+  approval: z.object({ kind: z.enum(['BASELINE', 'CHANGE']), version: z.string().min(1) }).strict().nullable(),
+}).strict();
+
+export const AlgorithmsOverviewSchema = z.object({
+  state: z.enum(['READY', 'NOT_GENERATED']),
+  reason: z.string().nullable(),
+  measuredAt: Instant,
+  mode: z.literal('READ_ANALYZE'),
+  loop: z.array(z.object({
+    id: LoopStageEnum,
+    title: z.string().min(1),
+    describes: z.string().min(1),
+    who: z.enum(['PLATFORM', 'HUMAN']),
+    next: z.array(LoopStageEnum),
+    algorithms: Count,
+  }).strict()),
+  domains: z.array(z.object({
+    id: z.string().min(1), title: z.string().min(1), describes: z.string().min(1), algorithms: Count,
+  }).strict()),
+  algorithms: z.array(AlgSummarySchema),
+  guarantees: z.array(z.object({
+    id: z.string().min(1), basis: z.enum(['RUNTIME', 'BUILD']), text: z.string().min(1), holds: z.boolean(),
+  }).strict()),
+  totals: z.object({
+    registered: Count, approved: Count, awaitingApproval: Count, failing: Count,
+    simulated: Count, checks: Count, checksPassed: Count,
+  }).strict().nullable(),
+  monitoring: z.object({
+    evaluationRuns: Count, failingRuns: Count, lastRunAt: Instant.nullable(),
+    lastDurationMs: z.number().nonnegative().nullable(), refreshSeconds: Count,
+  }).strict().nullable(),
+}).strict();
+
+const Port = z.object({ name: z.string().min(1), unit: z.string() }).strict();
+
+export const AlgDetailSchema = AlgSummarySchema.extend({
+  summary: z.string().min(1),
+  usedBy: z.array(z.string().min(1)),
+  inputs: z.array(Port),
+  outputs: z.array(Port),
+  dependsOn: z.array(z.string().min(1)),
+  source: z.object({
+    file: z.string().min(1), symbols: z.array(z.string().min(1)),
+    error: z.string().nullable(), missing: z.array(z.string()),
+  }).strict(),
+  fingerprint: z.object({ current: Fingerprint.nullable(), approved: Fingerprint.nullable(), matches: z.boolean() }).strict(),
+  approval: z.object({
+    kind: z.enum(['BASELINE', 'CHANGE']), version: z.string().min(1), approvedBy: z.literal('PLATFORM_OWNER'),
+    reference: z.string().min(1), approvedAt: z.string().min(1),
+  }).strict().nullable(),
+  versions: z.array(z.object({ version: z.string().min(1), date: z.string().min(1), note: z.string().min(1) }).strict()),
+  tests: z.array(z.string().min(1)),
+  notSimulatedBecause: z.string().nullable(),
+  scenarios: z.array(z.object({
+    id: z.string().min(1), title: z.string().min(1), pass: z.boolean(),
+    checks: z.array(z.object({ label: z.string().min(1), pass: z.boolean(), observed: z.string(), expected: z.string() }).strict()),
+  }).strict()),
+}).strict();
+
 // ── the registry ─────────────────────────────────────────────────────────────
 
 export interface ApiContract {
@@ -936,6 +1012,19 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     schema: SecDomainDetailSchema, consumer: 'public/cybersecurity/cybersecurity.js',
     reads: ['controlList', 'rowList', 'recentEvents', 'recentSignals'],
   },
+
+  // ── Algorithms ──
+  {
+    endpoint: '/system/algorithms', module: 'Algorithms',
+    schema: AlgorithmsOverviewSchema, consumer: 'public/algorithms/algorithms.js',
+    reads: ['state', 'reason', 'measuredAt', 'loop', 'domains', 'algorithms', 'guarantees', 'totals', 'monitoring'],
+  },
+  {
+    endpoint: '/system/algorithms/xg', module: 'Algorithms',
+    schema: AlgDetailSchema, consumer: 'public/algorithms/algorithms.js',
+    reads: ['summary', 'usedBy', 'inputs', 'outputs', 'dependsOn', 'source', 'fingerprint', 'approval',
+      'versions', 'tests', 'notSimulatedBecause', 'scenarios'],
+  },
 ];
 
 // ── the compile-time pin ─────────────────────────────────────────────────────
@@ -955,6 +1044,7 @@ import type {
 import type {
   CommandCenterOverview, DomainDetail, DomainSummary, AreaView, StageView, RlsView, EventsOverview, PostureView,
 } from '../cyber-defense/control-plane/control-plane.service';
+import type { AlgorithmsOverview, AlgorithmSummary, AlgorithmDetail } from '../algorithms/algorithms.service';
 
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 
@@ -978,6 +1068,10 @@ const _ccStage: Exact<z.infer<typeof SecStageSchema>, StageView> = true;
 const _ccRls: Exact<z.infer<typeof SecRlsSchema>, RlsView> = true;
 const _ccEvents: Exact<z.infer<typeof SecEventsOverviewSchema>, EventsOverview> = true;
 const _ccPosture: Exact<z.infer<typeof SecPostureSchema>, PostureView> = true;
+const _algOverview: Exact<z.infer<typeof AlgorithmsOverviewSchema>, AlgorithmsOverview> = true;
+const _algSummary: Exact<z.infer<typeof AlgSummarySchema>, AlgorithmSummary> = true;
+const _algDetail: Exact<z.infer<typeof AlgDetailSchema>, AlgorithmDetail> = true;
+void [_algOverview, _algSummary, _algDetail];
 void [_component, _district, _relationship, _technology, _signal, _incident, _rule,
   _source, _control, _stage, _impact,
   _ccOverview, _ccDomain, _ccDetail, _ccArea, _ccStage, _ccRls, _ccEvents, _ccPosture];

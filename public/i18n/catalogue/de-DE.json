@@ -1581,5 +1581,15 @@
   "Security warnings: \u0000": "Sicherheitswarnungen: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "Abgedeckte Vertrauensgrenzen: \u0000 von \u0000",
   "All trust boundaries covered": "Alle Vertrauensgrenzen abgedeckt",
-  "Security posture unreachable": "Sicherheitslage nicht erreichbar"
+  "Security posture unreachable": "Sicherheitslage nicht erreichbar",
+  "ALGORITHMS": "ALGORITHMEN",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "Register, Intelligenzkreislauf, Bewertung & menschliche Freigabe",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "Überblick · Register · Intelligenzkreislauf · Bewertung · Freigaben & Prüfpfad · Überwachung",
+  "Reading algorithm evidence…": "Algorithmus-Nachweise werden gelesen…",
+  "Enter Algorithms": "Algorithmen betreten",
+  "Algorithm evidence not generated": "Algorithmus-Nachweise nicht erzeugt",
+  "Algorithms failing evaluation: \u0000": "Algorithmen mit fehlgeschlagener Bewertung: \u0000",
+  "Algorithms awaiting approval: \u0000": "Algorithmen warten auf Freigabe: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "Freigegebene Algorithmen: \u0000 von \u0000",
+  "Algorithms unreachable": "Algorithmen nicht erreichbar"
 }

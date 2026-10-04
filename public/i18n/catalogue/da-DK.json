@@ -1581,5 +1581,15 @@
   "Security warnings: \u0000": "Sikkerhedsadvarsler: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "Dækkede tillidsgrænser: \u0000 af \u0000",
   "All trust boundaries covered": "Alle tillidsgrænser dækket",
-  "Security posture unreachable": "Sikkerhedsstatus kan ikke nås"
+  "Security posture unreachable": "Sikkerhedsstatus kan ikke nås",
+  "ALGORITHMS": "ALGORITMER",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "Register, intelligensloop, evaluering & menneskelig godkendelse",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "Overblik · Register · Intelligensloop · Evaluering · Godkendelser & revision · Overvågning",
+  "Reading algorithm evidence…": "Læser algoritmebeviser…",
+  "Enter Algorithms": "Gå til Algoritmer",
+  "Algorithm evidence not generated": "Algoritmebeviser ikke genereret",
+  "Algorithms failing evaluation: \u0000": "Algoritmer der fejler evaluering: \u0000",
+  "Algorithms awaiting approval: \u0000": "Algoritmer der afventer godkendelse: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "Godkendte algoritmer: \u0000 af \u0000",
+  "Algorithms unreachable": "Algoritmer utilgængelige"
 }

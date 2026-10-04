@@ -1,0 +1,443 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   FAMILISTA ALGORITHMS — the eighth room
+
+   The same surfaces as every owner room — a dark gradient, a blurred
+   backdrop, a hairline border, a 16px radius — and the same rules:
+
+     · Colour is a fact, never decoration. Green: runs exactly what a person
+       approved, or a check passed. Amber: waiting for a person. Red: a check
+       failed, or a mode no approval can allow. Dotted grey: not simulated,
+       never to be read as passing.
+     · The room's own accent is orchid, used for its identity only (the mark,
+       the rail, the human stages of the loop), never for a state.
+     · Nothing moves that the reader did not move. The workspace is a
+       fixed-height flex column whose body scrolls inside itself with a stable
+       gutter; a skeleton is the size of what it stands in for; a repaint
+       replaces the body, never the shell.
+     · No idle motion at all.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#pg-algorithms {
+  --al-bg:       #07060f;
+  --al-panel:    rgba(20, 18, 38, .74);
+  --al-panel-2:  rgba(26, 22, 48, .56);
+  --al-line:     rgba(255, 255, 255, .07);
+  --al-line-2:   rgba(255, 255, 255, .13);
+  --al-tx:       #efeafb;
+  --al-tx-2:     #a49dbd;
+  --al-tx-3:     #6f6889;
+  --al-accent:   #e8a8ff;
+  --al-accent-2: #a5b4fc;
+  --al-ok:       #34d399;
+  --al-warn:     #fbbf24;
+  --al-crit:     #f87171;
+  --al-off:      #635d80;
+  --al-radius:   16px;
+  --al-mono:     "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ── the room owns the viewport, as the other seven do ────────────────── */
+body.al-algorithms-open > .app > .sidebar,
+body.al-algorithms-open > .app > .main > .topbar,
+body.al-algorithms-open .sidebar,
+body.al-algorithms-open .topbar { display: none !important; }
+body.al-algorithms-open .app { display: block !important; }
+body.al-algorithms-open .main { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; }
+body.al-algorithms-open { overflow: hidden; }
+
+#pg-algorithms {
+  background:
+    radial-gradient(1400px 720px at 50% -20%, rgba(232, 168, 255, .08), transparent 62%),
+    radial-gradient(1000px 560px at 6% 106%, rgba(165, 180, 252, .06), transparent 62%),
+    var(--al-bg);
+  color: var(--al-tx);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.al-shell { display: flex; height: 100vh; height: 100dvh; overflow: hidden; }
+
+/* ── rail ─────────────────────────────────────────────────────────────── */
+
+.al-rail {
+  flex: 0 0 252px; display: flex; flex-direction: column; min-height: 0;
+  background: linear-gradient(180deg, rgba(13, 11, 26, .96), rgba(7, 6, 15, .96));
+  border-inline-end: 1px solid var(--al-line);
+}
+.al-rail-head { padding: 18px 16px 12px; border-bottom: 1px solid var(--al-line); }
+.al-rail-home {
+  display: flex; align-items: center; gap: 8px; background: none; border: 0; cursor: pointer;
+  color: var(--al-tx-3); font-size: 11.5px; font-weight: 700; letter-spacing: .4px;
+  padding: 0 0 12px; font-family: inherit;
+}
+.al-rail-home:hover { color: var(--al-accent); }
+#al-root[dir="rtl"] .al-rail-home span[aria-hidden],
+#al-root[dir="rtl"] .al-back span[aria-hidden] { display: inline-block; transform: scaleX(-1); }
+.al-rail-brand { display: flex; align-items: center; gap: 10px; }
+.al-rail-mark {
+  width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px;
+  background: linear-gradient(145deg, rgba(232, 168, 255, .20), rgba(165, 180, 252, .08));
+  border: 1px solid rgba(232, 168, 255, .34); color: var(--al-accent);
+}
+.al-rail-title { font-size: 14px; font-weight: 800; letter-spacing: .2px; }
+.al-rail-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; padding: 12px 10px 18px; }
+.al-rail-group { margin-bottom: 14px; }
+.al-rail-label {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
+  color: var(--al-tx-3); padding: 6px 10px;
+}
+.al-rail-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; margin-bottom: 2px;
+  background: none; border: 0; border-radius: 9px; cursor: pointer;
+  color: var(--al-tx-2); font-size: 12.8px; font-weight: 600; text-align: start; font-family: inherit;
+}
+.al-rail-item:hover { background: rgba(255, 255, 255, .04); color: var(--al-tx); }
+.al-rail-item.is-on {
+  color: var(--al-tx);
+  background: linear-gradient(90deg, rgba(232, 168, 255, .12), transparent 78%);
+  box-shadow: inset 2px 0 0 var(--al-accent);
+}
+#al-root[dir="rtl"] .al-rail-item.is-on {
+  background: linear-gradient(-90deg, rgba(232, 168, 255, .12), transparent 78%);
+  box-shadow: inset -2px 0 0 var(--al-accent);
+}
+.al-rail-icon { width: 18px; text-align: center; opacity: .85; font-size: 13px; }
+.al-rail-text { flex: 1 1 auto; }
+.al-rail-badge { font-family: var(--al-mono); font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; }
+.al-rail-badge--warn { color: var(--al-warn); background: rgba(251, 191, 36, .16); }
+.al-rail-badge--crit { color: var(--al-crit); background: rgba(248, 113, 113, .16); }
+.al-rail-foot { padding: 12px 14px; border-top: 1px solid var(--al-line); }
+.al-foot { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.al-foot-at { font-size: 10px; color: var(--al-tx-3); font-family: var(--al-mono); }
+
+/* ── main ─────────────────────────────────────────────────────────────── */
+
+.al-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+/* Above the body: panels carry a backdrop-filter (a stacking context), and the
+   language menu must paint over the first one. */
+.al-top {
+  position: relative; z-index: 40; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 18px 26px; border-bottom: 1px solid var(--al-line);
+  background: rgba(10, 9, 21, .62); backdrop-filter: blur(10px);
+}
+.al-top-l { min-width: 0; }
+.al-top-eyebrow { font-size: 10px; font-weight: 800; letter-spacing: 1.6px; color: var(--al-tx-3); margin-bottom: 4px; }
+.al-top-title { font-size: 19px; font-weight: 800; margin: 0; letter-spacing: -.2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.al-top-r { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.al-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable;
+  padding: 22px 26px 64px; display: flex; flex-direction: column; gap: 18px;
+}
+
+/* ── buttons ──────────────────────────────────────────────────────────── */
+
+/* A fixed minimum width, so "Refresh" becoming "Reading…" moves nothing. */
+.al-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 112px;
+  padding: 6px 12px; border-radius: 8px; cursor: pointer; font-family: inherit;
+  font-size: 11.5px; font-weight: 700; color: var(--al-tx-2);
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--al-line);
+}
+.al-btn:hover:not([disabled]) { color: var(--al-tx); border-color: var(--al-line-2); }
+.al-btn[disabled] { cursor: progress; opacity: .7; }
+.al-back {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; cursor: pointer;
+  color: var(--al-tx-3); font-size: 11.5px; font-weight: 700; padding: 0; font-family: inherit;
+}
+.al-back:hover { color: var(--al-accent); }
+.al-link {
+  padding: 2px 9px; border-radius: 7px; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 700;
+  background: rgba(232, 168, 255, .08); border: 1px solid rgba(232, 168, 255, .26); color: var(--al-accent);
+}
+.al-link:hover { background: rgba(232, 168, 255, .14); }
+
+:is(.al-rail-item, .al-rail-home, .al-btn, .al-back, .al-link, .al-mini, .al-tr--row, .al-evl-i,
+  .al-lang-pick, .al-lang):focus-visible {
+  outline: 2px solid var(--al-accent); outline-offset: 2px;
+}
+
+/* ── panels ───────────────────────────────────────────────────────────── */
+
+.al-panel {
+  background: linear-gradient(180deg, var(--al-panel), var(--al-panel-2));
+  border: 1px solid var(--al-line); border-radius: var(--al-radius);
+  backdrop-filter: blur(8px); padding: 18px 20px 20px; min-width: 0;
+}
+.al-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+.al-panel-title { font-size: 13px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; margin: 0; }
+.al-panel-note { font-size: 11.5px; color: var(--al-tx-3); }
+.al-intro { font-size: 12.5px; color: var(--al-tx-2); line-height: 1.6; max-width: 980px; }
+.al-note { font-size: 11.6px; color: var(--al-tx-3); line-height: 1.6; margin-top: 10px; }
+.al-dgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+
+/* ── chips: the only place a state becomes a colour ───────────────────── */
+
+.al-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .3px; white-space: nowrap;
+  border: 1px solid var(--al-line); background: rgba(255, 255, 255, .03); color: var(--al-tx-2);
+}
+.al-chip--sm { padding: 2px 8px; font-size: 9.8px; }
+.al-chip--ok      { color: var(--al-ok);   border-color: rgba(52, 211, 153, .32);  background: rgba(52, 211, 153, .10); }
+.al-chip--warn    { color: var(--al-warn); border-color: rgba(251, 191, 36, .32);  background: rgba(251, 191, 36, .10); }
+.al-chip--crit    { color: var(--al-crit); border-color: rgba(248, 113, 113, .34); background: rgba(248, 113, 113, .11); }
+.al-chip--info    { color: var(--al-tx-2); border-color: var(--al-line-2); }
+.al-chip--off     { color: var(--al-off);  border-color: rgba(99, 93, 128, .40); }
+.al-chip--none    { color: var(--al-off);  border-color: rgba(99, 93, 128, .48); border-style: dotted; }
+.al-chip--unknown { color: var(--al-tx-3); }
+.al-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: 0 0 auto; display: inline-block; }
+.al-dot--ok { color: var(--al-ok); }
+.al-dot--warn { color: var(--al-warn); }
+.al-dot--crit { color: var(--al-crit); }
+.al-dot--unknown { color: var(--al-off); }
+.al-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+/* A stage is a position on the loop, not a verdict: neutral, never coloured. */
+.al-stage-tag {
+  display: inline-flex; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: .3px;
+  color: var(--al-tx-2); border: 1px solid var(--al-line-2); white-space: nowrap;
+}
+.al-none { color: var(--al-tx-3); cursor: help; border-bottom: 1px dotted var(--al-tx-3); }
+.al-at { font-family: var(--al-mono); font-size: 10.8px; color: var(--al-tx-2); white-space: nowrap; }
+/* Identifiers carry their own direction, so a key or a path reads
+   left-to-right inside an Arabic sentence. */
+#pg-algorithms code { font-family: var(--al-mono); font-size: 10.6px; color: var(--al-tx-2); unicode-bidi: plaintext; }
+.al-token { padding: 3px 8px; border-radius: 6px; background: rgba(255, 255, 255, .04); border: 1px solid var(--al-line); }
+.al-fp { cursor: help; }
+
+/* ── hero and figures ─────────────────────────────────────────────────── */
+
+.al-hero {
+  display: grid; grid-template-columns: minmax(300px, 1fr) minmax(0, 1.5fr); gap: 22px; align-items: center;
+  padding: 22px; border-radius: 20px;
+  background:
+    radial-gradient(900px 300px at 12% -40%, rgba(232, 168, 255, .13), transparent 66%),
+    linear-gradient(180deg, rgba(22, 19, 42, .86), rgba(13, 11, 28, .78));
+  border: 1px solid rgba(232, 168, 255, .16);
+  box-shadow: 0 26px 60px -40px rgba(0, 0, 0, .9), inset 0 1px 0 rgba(255, 255, 255, .05);
+}
+.al-hero-id { display: flex; gap: 16px; align-items: flex-start; min-width: 0; }
+.al-hero-mark {
+  flex: 0 0 auto; width: 54px; height: 54px; display: grid; place-items: center; border-radius: 14px;
+  color: var(--al-accent); border: 1px solid rgba(232, 168, 255, .34);
+  background: linear-gradient(145deg, rgba(232, 168, 255, .18), rgba(165, 180, 252, .06));
+}
+.al-hero-k { font-size: 10px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: var(--al-accent); }
+.al-hero-t { font-size: 17px; font-weight: 800; margin: 6px 0 8px; line-height: 1.35; }
+.al-hero-s { font-size: 12px; color: var(--al-tx-2); line-height: 1.6; }
+.al-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.al-fig { padding: 14px 14px 12px; border-radius: 12px; border: 1px solid var(--al-line); background: rgba(255, 255, 255, .025); min-width: 0; }
+.al-fig-v { font-size: 26px; font-weight: 800; letter-spacing: -.5px; font-variant-numeric: tabular-nums; min-height: 34px; }
+.al-fig-v small { font-size: 13px; color: var(--al-tx-3); font-weight: 700; }
+.al-fig-l { font-size: 11px; color: var(--al-tx-2); margin-top: 4px; line-height: 1.4; }
+.al-fig--ok   { box-shadow: inset 0 2px 0 rgba(52, 211, 153, .55); }
+.al-fig--warn { box-shadow: inset 0 2px 0 rgba(251, 191, 36, .55); }
+.al-fig--crit { box-shadow: inset 0 2px 0 rgba(248, 113, 113, .6); }
+.al-fig--none { border-style: dotted; }
+
+/* ── guarantees ───────────────────────────────────────────────────────── */
+
+.al-guar { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.al-guar-i {
+  display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  min-height: 40px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--al-line); background: rgba(255, 255, 255, .02);
+}
+.al-guar-t { font-size: 12.5px; }
+.al-guar-b { font-size: 10px; font-weight: 700; letter-spacing: .4px; color: var(--al-tx-3); text-transform: uppercase; }
+
+/* ── the loop, compact ────────────────────────────────────────────────── */
+
+.al-strip { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }
+.al-strip-i {
+  display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 10px; min-width: 0;
+  border: 1px solid var(--al-line); background: rgba(255, 255, 255, .02); position: relative;
+}
+.al-strip-i--human { border-color: rgba(232, 168, 255, .30); background: rgba(232, 168, 255, .05); }
+.al-strip-n { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.al-strip-t { font-size: 11px; color: var(--al-tx-2); font-weight: 600; }
+
+/* ── domain cards ─────────────────────────────────────────────────────── */
+
+.al-dcard-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.al-dcard-d { font-size: 12px; color: var(--al-tx-2); line-height: 1.55; margin: 8px 0 12px; }
+.al-dcard-l { display: flex; flex-direction: column; gap: 6px; }
+.al-mini {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border-radius: 10px; cursor: pointer;
+  background: rgba(255, 255, 255, .025); border: 1px solid var(--al-line); color: var(--al-tx);
+  font-family: inherit; font-size: 12.5px; text-align: start;
+}
+.al-mini:hover { border-color: rgba(232, 168, 255, .32); }
+.al-mini-n { flex: 1 1 auto; min-width: 0; }
+.al-mini-v { font-family: var(--al-mono); font-size: 10.5px; color: var(--al-tx-3); }
+
+/* ── tables ───────────────────────────────────────────────────────────── */
+
+.al-tbl { display: flex; flex-direction: column; gap: 4px; }
+.al-tr {
+  display: grid; grid-template-columns: minmax(0, 2.2fr) 80px 120px 190px 160px; gap: 12px; align-items: center;
+  padding: 9px 12px; border-radius: 10px; text-align: start; font-family: inherit; color: var(--al-tx); width: 100%;
+}
+.al-tbl--appr .al-tr { grid-template-columns: minmax(0, 2.2fr) 130px 120px 190px; }
+.al-tr--h { font-size: 9.5px; font-weight: 800; letter-spacing: 1.1px; text-transform: uppercase; color: var(--al-tx-3); padding-block: 4px; }
+.al-tr--row { background: rgba(255, 255, 255, .02); border: 1px solid var(--al-line); cursor: pointer; min-height: 52px; }
+.al-tr--row:hover { border-color: rgba(232, 168, 255, .30); }
+.al-tr-name { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 12.8px; }
+.al-tr-name code { font-size: 10px; color: var(--al-tx-3); }
+
+/* ── the loop, in full ────────────────────────────────────────────────── */
+
+.al-loop { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.al-stage {
+  display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: var(--al-radius); min-width: 0;
+  background: linear-gradient(180deg, var(--al-panel), var(--al-panel-2)); border: 1px solid var(--al-line);
+}
+.al-stage--human { border-color: rgba(232, 168, 255, .28); }
+.al-stage--gate { box-shadow: inset 0 2px 0 var(--al-accent); }
+.al-stage-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.al-stage-n { font-family: var(--al-mono); font-size: 11px; color: var(--al-tx-3); font-weight: 700; }
+.al-stage-who { font-size: 9.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--al-tx-3); }
+.al-stage--human .al-stage-who { color: var(--al-accent); }
+.al-stage-t { font-size: 15px; font-weight: 800; }
+.al-stage-d { font-size: 12px; color: var(--al-tx-2); line-height: 1.55; flex: 1 1 auto; }
+.al-stage-f { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--al-tx-3); border-top: 1px solid var(--al-line); padding-top: 8px; }
+.al-stage-f b { color: var(--al-tx); font-size: 13px; }
+.al-gate { margin: 0; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 10px; }
+.al-gate li { font-size: 12.2px; color: var(--al-tx-2); line-height: 1.55; }
+.al-gate b { color: var(--al-tx); display: block; font-size: 12.8px; margin-bottom: 2px; }
+
+/* ── evaluation lists and checks ──────────────────────────────────────── */
+
+.al-evl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.al-evl-i {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 8px 12px;
+  border-radius: 10px; cursor: pointer; background: rgba(255, 255, 255, .02); border: 1px solid var(--al-line);
+  color: var(--al-tx); font-family: inherit; font-size: 12.5px; text-align: start;
+}
+.al-evl-i:hover { border-color: rgba(232, 168, 255, .30); }
+.al-evl-n { min-width: 0; }
+.al-scn + .al-scn { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--al-line); }
+.al-scn-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.al-scn-t { font-size: 13px; font-weight: 700; }
+.al-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.al-check {
+  display: grid; grid-template-columns: 18px minmax(0, 1fr) minmax(120px, 190px) minmax(120px, 190px); gap: 10px; align-items: center;
+  padding: 8px 10px; border-radius: 9px; background: rgba(255, 255, 255, .02); border: 1px solid var(--al-line); font-size: 12px;
+}
+.al-check--crit { border-color: rgba(248, 113, 113, .34); }
+.al-check-m { font-weight: 800; text-align: center; }
+.al-check--ok .al-check-m { color: var(--al-ok); }
+.al-check--crit .al-check-m { color: var(--al-crit); }
+.al-check-v { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.al-check-v code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.al-check-k { font-size: 9px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; color: var(--al-tx-3); }
+
+/* ── one algorithm ────────────────────────────────────────────────────── */
+
+.al-ahead {
+  display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 22px; padding: 20px 22px; border-radius: 20px;
+  background: linear-gradient(180deg, rgba(22, 19, 42, .86), rgba(13, 11, 28, .78)); border: 1px solid rgba(232, 168, 255, .16);
+}
+.al-ahead-k { font-size: 10px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: var(--al-accent); }
+.al-ahead-s { font-size: 13.5px; line-height: 1.6; color: var(--al-tx); margin: 8px 0 14px; }
+.al-kv { display: flex; flex-direction: column; gap: 8px; }
+.al-kv-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; align-items: baseline; font-size: 12px; }
+.al-kv-row > span { color: var(--al-tx-3); }
+.al-kv-row > b { font-weight: 600; color: var(--al-tx); min-width: 0; overflow-wrap: anywhere; }
+.al-ports { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.al-ports li {
+  display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 9px; min-height: 36px; align-items: center;
+  background: rgba(255, 255, 255, .02); border: 1px solid var(--al-line); font-size: 12.3px;
+}
+.al-ports em { font-style: normal; font-size: 11px; color: var(--al-tx-3); text-align: end; }
+.al-vers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.al-vers li { display: grid; grid-template-columns: 60px 92px minmax(0, 1fr); gap: 10px; font-size: 12px; color: var(--al-tx-2); align-items: baseline; }
+.al-vers-d { font-family: var(--al-mono); font-size: 10.5px; color: var(--al-tx-3); }
+
+/* ── empty, loading, notices ──────────────────────────────────────────── */
+
+.al-empty { text-align: center; padding: 30px 20px; }
+.al-empty-mark { font-size: 26px; color: var(--al-tx-3); opacity: .5; margin-bottom: 10px; }
+.al-empty-title { font-size: 13.5px; font-weight: 700; color: var(--al-tx-2); }
+.al-empty-detail { font-size: 11.8px; color: var(--al-tx-3); margin-top: 6px; max-width: 560px; margin-inline: auto; line-height: 1.6; }
+.al-notice { text-align: center; margin-top: 4px; }
+.al-notice code {
+  display: inline-block; padding: 7px 13px; border-radius: 8px; font-size: 11.5px !important;
+  color: var(--al-accent) !important; background: rgba(232, 168, 255, .08); border: 1px solid rgba(232, 168, 255, .26);
+}
+.al-skel { display: flex; flex-direction: column; gap: 8px; }
+.al-skel-row, .al-skel-hero, .al-skel-strip {
+  border-radius: 10px; background: linear-gradient(90deg, rgba(255, 255, 255, .028), rgba(255, 255, 255, .05), rgba(255, 255, 255, .028));
+}
+.al-skel-row--guar { height: 40px; }
+.al-skel-row--port { height: 36px; }
+.al-skel-row--check { height: 52px; }
+.al-skel-hero { height: 196px; border-radius: 20px; }
+.al-skel-hero--sm { height: 168px; }
+.al-skel-strip { height: 68px; }
+
+/* ── language switch ──────────────────────────────────────────────────── */
+
+.al-langs { position: relative; }
+.al-lang-pick {
+  display: flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 8px; cursor: pointer;
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--al-line);
+  color: var(--al-tx-2); font-size: 11.5px; font-weight: 600; font-family: inherit;
+}
+.al-lang-pick:hover { color: var(--al-tx); }
+.al-lang-ch { font-size: 10px; opacity: .7; }
+.al-lang-menu {
+  position: absolute; inset-inline-end: 0; top: calc(100% + 6px); z-index: 30;
+  display: none; flex-direction: column; min-width: 150px; padding: 5px;
+  background: #0e0c1e; border: 1px solid var(--al-line-2); border-radius: 10px;
+  box-shadow: 0 18px 46px -14px rgba(0, 0, 0, .7);
+}
+.al-langs.is-open .al-lang-menu { display: flex; }
+.al-lang { padding: 8px 11px; border-radius: 7px; cursor: pointer; text-align: start; background: none; border: 0; color: var(--al-tx-2); font-size: 12.5px; font-family: inherit; }
+.al-lang:hover { background: rgba(255, 255, 255, .05); color: var(--al-tx); }
+.al-lang.is-on { color: var(--al-accent); }
+
+/* ── responsive ───────────────────────────────────────────────────────── */
+
+@media (max-width: 1560px) {
+  .al-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 1360px) {
+  .al-rail { flex-basis: 222px; }
+  .al-hero { grid-template-columns: minmax(0, 1fr); }
+  .al-loop { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .al-tr { grid-template-columns: minmax(0, 1.6fr) 70px 110px 170px 140px; }
+}
+@media (max-width: 1160px) {
+  .al-dgrid, .al-ahead { grid-template-columns: minmax(0, 1fr); }
+  .al-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .al-check { grid-template-columns: 18px minmax(0, 1fr); }
+  .al-check-v { grid-column: 2; }
+}
+
+/* The escape hatch. Below this the workspace stops being a fixed-height column
+   and becomes an ordinary scrolling page, because a panel crushed to fit is
+   worse than a page that scrolls. */
+@media (max-width: 980px), (max-height: 620px) {
+  body.al-algorithms-open { overflow: auto; }
+  .al-shell { display: block; height: auto; overflow: visible; }
+  .al-rail { flex-basis: auto; border-inline-end: 0; border-bottom: 1px solid var(--al-line); }
+  .al-rail-body { overflow: visible; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .al-rail-group { display: contents; }
+  .al-rail-label { flex: 0 0 100%; padding: 8px 10px 2px; }
+  .al-rail-item { width: auto; margin: 0; padding: 7px 12px; }
+  .al-rail-foot { display: flex; align-items: center; gap: 12px; }
+  .al-foot { flex-direction: row; align-items: center; gap: 10px; }
+  .al-top { flex-wrap: wrap; padding: 14px 16px; }
+  .al-top-r { flex-wrap: wrap; }
+  .al-body { overflow: visible; padding: 16px; }
+  .al-hero, .al-ahead { padding: 16px; }
+  .al-loop, .al-evl, .al-strip { grid-template-columns: minmax(0, 1fr); }
+  .al-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .al-guar-i { grid-template-columns: auto minmax(0, 1fr); }
+  .al-guar-b { grid-column: 2; }
+  .al-tr, .al-tbl--appr .al-tr { grid-template-columns: minmax(0, 1fr) auto; }
+  .al-tr > :nth-child(n+3) { grid-column: 1 / -1; }
+  .al-tr--h { display: none; }
+  .al-kv-row { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+  .al-vers li { grid-template-columns: auto minmax(0, 1fr); }
+  .al-vers li > span:last-child { grid-column: 1 / -1; }
+}

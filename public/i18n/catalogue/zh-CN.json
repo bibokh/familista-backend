@@ -1578,5 +1578,15 @@
   "Security warnings: \u0000": "安全警告: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "已覆盖的信任边界: \u0000 / \u0000",
   "All trust boundaries covered": "所有信任边界均已覆盖",
-  "Security posture unreachable": "无法获取安全态势"
+  "Security posture unreachable": "无法获取安全态势",
+  "ALGORITHMS": "算法",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "注册表、智能循环、评估与人工批准",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "概览 · 注册表 · 智能循环 · 评估 · 批准与审计 · 监控",
+  "Reading algorithm evidence…": "正在读取算法证据…",
+  "Enter Algorithms": "进入算法",
+  "Algorithm evidence not generated": "尚未生成算法证据",
+  "Algorithms failing evaluation: \u0000": "评估未通过的算法：\u0000",
+  "Algorithms awaiting approval: \u0000": "等待批准的算法：\u0000",
+  "Algorithms approved: \u0000 of \u0000": "已批准的算法：\u0000/\u0000",
+  "Algorithms unreachable": "无法访问算法"
 }

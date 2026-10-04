@@ -1086,6 +1086,7 @@ var _FAM_PAGE_RENDER = {
   'source-core':                 ['renderFamilistaSourceCore'],
   'familista-vision':            ['renderFamilistaVision'],
   'cybersecurity':               ['renderFamilistaCybersecurity'],
+  'algorithms':                  ['renderFamilistaAlgorithms'],
   'fos-core':                    ['renderFOSCore'],
   'fos-ai-orchestrator':         ['renderFOSAIOrchestrator'],
   'multi-club-network':          ['renderMultiClubNetwork'],
@@ -2527,6 +2528,7 @@ function _flushPendingRender() {
     case 'pg-source-core':        renderFamilistaSourceCore(document.getElementById('sc-root')); break;
     case 'pg-familista-vision':   renderFamilistaVision(document.getElementById('fv-root')); break;
     case 'pg-cybersecurity':      renderFamilistaCybersecurity(document.getElementById('cs-root')); break;
+    case 'pg-algorithms':         renderFamilistaAlgorithms(document.getElementById('al-root')); break;
     case 'pg-fos-core':           renderFOSCore();           break;
     case 'pg-fos-ai-orchestrator': renderFOSAIOrchestrator(); break;
     case 'pg-fos-knowledge-graph': renderFOSKnowledgeGraph(); break;
@@ -2679,6 +2681,13 @@ function navTo(page, el, _opts) {
     if (_wasCyber && page !== 'cybersecurity' && typeof window.teardownFamilistaCybersecurity === 'function') {
       window.teardownFamilistaCybersecurity();
     }
+    // ALGORITHMS is the eighth and takes the shell the same way. No stream, no
+    // timer; the teardown closes the open algorithm so the room opens clean.
+    var _wasAlgorithms = document.body.classList.contains('al-algorithms-open');
+    document.body.classList.toggle('al-algorithms-open', page === 'algorithms');
+    if (_wasAlgorithms && page !== 'algorithms' && typeof window.teardownFamilistaAlgorithms === 'function') {
+      window.teardownFamilistaAlgorithms();
+    }
     // ENTERING IS NOT SYMMETRICAL WITH LEAVING, AND THAT WAS A BUG.
     //
     // Leaving released the module's held session; nothing re-hydrated it on the
@@ -2741,6 +2750,11 @@ function navTo(page, el, _opts) {
     // guarded by assertPlatformOwner on the server, and a reader who types the
     // hash without that role gets 403s, not a page.
     'cybersecurity': 1,
+    // ALGORITHMS — every algorithm the platform runs, the loop it changes by,
+    // and the human approval each one runs under. The eighth sibling: not a
+    // page inside SYSTEM, CYBERSECURITY, INFRASTRUCTURE CITY or VISION. Its two
+    // endpoints are guarded by assertPlatformOwner on the server.
+    'algorithms': 1,
     // PLATFORM (8)
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
@@ -2848,7 +2862,7 @@ function navTo(page, el, _opts) {
 
   const titles = {
     // ── Owner Control ──
-    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'source-core':'Source Core', 'familista-vision':'Familista Vision', 'cybersecurity':'Cybersecurity',
+    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'source-core':'Source Core', 'familista-vision':'Familista Vision', 'cybersecurity':'Cybersecurity', 'algorithms':'Algorithms',
     // ── Club Workspace ──
     'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League', 'match-center':'Match Center', 'people-access':'People & Access',
     // ── Platform (Phase B labels) ──
@@ -3122,6 +3136,7 @@ function _buildPageTemplateMap() {
     'source-core':                 renderSourceCoreHTML,
     'familista-vision':            renderFamilistaVisionHTML,
     'cybersecurity':               renderCybersecurityHTML,
+    'algorithms':                  renderAlgorithmsHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
@@ -3200,7 +3215,7 @@ function _buildPageTemplateMap() {
 // These are mounted eagerly at boot so the click flow is instant.
 var _EAGER_PAGES = [
   'owner-home', 'clubs', 'club-home', 'squad',
-  'system', 'data-vault', 'infrastructure-city', 'source-core', 'familista-vision', 'cybersecurity',
+  'system', 'data-vault', 'infrastructure-city', 'source-core', 'familista-vision', 'cybersecurity', 'algorithms',
   'fos-core', 'fos-observability', 'fos-security-center',
   'fos-automation-center', 'fos-rbac', 'fos-audit-governance',
   'multi-club-network', 'fos-admin-center',
@@ -3703,6 +3718,40 @@ function _fillCybersecurityStatus() {
     .catch(function () { write('bad', 'Security posture unreachable'); });
 }
 
+/**
+ * Ask the Algorithms room where its algorithms stand, and say so on the
+ * ALGORITHMS card.
+ *
+ * In the order of what it would cost to ignore: an algorithm failing its own
+ * evaluation, then one whose code changed without an approval, then green only
+ * when every registered algorithm runs exactly the version a person approved.
+ */
+function _fillAlgorithmsStatus() {
+  const slot = document.getElementById('oh-algorithms-state');
+  if (!slot) return;
+  const base = (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG.API_BASE) ? FAM_CONFIG.API_BASE : '/api/v1';
+  let token = '';
+  try { token = (window.State && window.State.token) || localStorage.getItem('familista_token') || ''; } catch (_) {}
+  const write = (state, text) => {
+    const el = document.getElementById('oh-algorithms-state');
+    if (el) el.outerHTML = _vaultStatusHTML(state, text).replace('class="oh-card-state', 'id="oh-algorithms-state" class="oh-card-state');
+  };
+  fetch(base + '/system/algorithms', {
+    headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
+    credentials: 'include',
+  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+    .then(function (body) {
+      const d = (body && body.data) || body || {};
+      if (d.state === 'NOT_GENERATED') return write('warn', 'Algorithm evidence not generated');
+      const t = d.totals;
+      if (!t) return write('idle', 'Algorithms unreachable');
+      if (t.failing > 0) write('bad', 'Algorithms failing evaluation: ' + t.failing);
+      else if (t.registered - t.approved > 0) write('warn', 'Algorithms awaiting approval: ' + (t.registered - t.approved));
+      else write('ok', 'Algorithms approved: ' + t.approved + ' of ' + t.registered);
+    })
+    .catch(function () { write('bad', 'Algorithms unreachable'); });
+}
+
 function _fillSourceCoreStatus() {
   const slot = document.getElementById('oh-core-state');
   if (!slot) return;
@@ -3851,6 +3900,23 @@ function _ownerHomeForPlatformOwner(user, club) {
           <div class="oh-card-sub">Football Organizations, Teams, People &amp; Operations</div>
           <div class="oh-card-list"><span>Pick a club workspace to enter — currently</span> <span data-user-content>${_esc(club.name || 'FC Familista')}</span></div>
           <div class="oh-card-cta">Select a club <span>→</span></div>
+        </button>
+        <!-- ALGORITHMS is the eighth room and closes the top row: every
+             algorithm the platform runs, the loop it changes by, and the
+             human approval each runs under. A peer, the same size as every
+             other card; its status line is read after paint. -->
+        <button class="oh-card oh-card--algo" data-action="navTo" data-page="algorithms" type="button">
+          <div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 40 40" width="40" height="40" fill="none" focusable="false">
+            <path d="M20 6.5a13.5 13.5 0 1 1-12.1 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M7.4 7.6v6.6h6.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="20" cy="20" r="3.2" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M20 13.4v3.4M20 23.2v3.4M13.4 20h3.4M23.2 20h3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg></div>
+          <div class="oh-card-title">ALGORITHMS</div>
+          <div class="oh-card-sub">Registry, Intelligence Loop, Evaluation &amp; Human Approval</div>
+          <div class="oh-card-list">Overview · Registry · Intelligence Loop · Evaluation · Approvals &amp; Audit · Monitoring</div>
+          <span id="oh-algorithms-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading algorithm evidence…</span>
+          <div class="oh-card-cta">Enter Algorithms <span>→</span></div>
         </button>
         <button class="oh-card oh-card--vault" data-action="navTo" data-page="data-vault" type="button">
           <div class="oh-card-icon">⛁</div>
@@ -4033,6 +4099,7 @@ function renderOwnerHome() {
       try { _fillSourceCoreStatus(); } catch (_) {}
       try { _fillVisionStatus(); } catch (_) {}
       try { _fillCybersecurityStatus(); } catch (_) {}
+      try { _fillAlgorithmsStatus(); } catch (_) {}
     }
   });
 }
@@ -28530,6 +28597,13 @@ function renderSourceCoreHTML() {
 // platform's club-facing pass out of it — the same boundary the other rooms keep.
 function renderCybersecurityHTML() {
   return `<div class="page" id="pg-cybersecurity" data-no-i18n><div id="cs-root"></div></div>`;
+}
+
+// ALGORITHMS — the eighth room. Its interface lives in
+// public/algorithms/algorithms.js with its own English, German and Arabic
+// catalogue under /algorithms/i18n/, behind the same `data-no-i18n` boundary.
+function renderAlgorithmsHTML() {
+  return `<div class="page" id="pg-algorithms" data-no-i18n><div id="al-root"></div></div>`;
 }
 
 // FAMILISTA VISION — what the platform can SEE: computer-vision evidence from

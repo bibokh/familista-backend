@@ -1581,5 +1581,15 @@
   "Security warnings: \u0000": "Säkerhetsvarningar: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "Täckta förtroendegränser: \u0000 av \u0000",
   "All trust boundaries covered": "Alla förtroendegränser täckta",
-  "Security posture unreachable": "Säkerhetsläget går inte att nå"
+  "Security posture unreachable": "Säkerhetsläget går inte att nå",
+  "ALGORITHMS": "ALGORITMER",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "Register, intelligensslinga, utvärdering och mänskligt godkännande",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "Översikt · Register · Intelligensslinga · Utvärdering · Godkännanden och granskning · Övervakning",
+  "Reading algorithm evidence…": "Läser algoritmbevis…",
+  "Enter Algorithms": "Gå till Algoritmer",
+  "Algorithm evidence not generated": "Algoritmbevis har inte genererats",
+  "Algorithms failing evaluation: \u0000": "Algoritmer som inte klarar utvärderingen: \u0000",
+  "Algorithms awaiting approval: \u0000": "Algoritmer som väntar på godkännande: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "Godkända algoritmer: \u0000 av \u0000",
+  "Algorithms unreachable": "Algoritmer kan inte nås"
 }

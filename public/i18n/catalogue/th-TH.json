@@ -1578,5 +1578,15 @@
   "Security warnings: \u0000": "คำเตือนความปลอดภัย: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "ขอบเขตความเชื่อถือที่ครอบคลุม: \u0000 จาก \u0000",
   "All trust boundaries covered": "ครอบคลุมขอบเขตความเชื่อถือทั้งหมด",
-  "Security posture unreachable": "ไม่สามารถเข้าถึงสถานะความปลอดภัย"
+  "Security posture unreachable": "ไม่สามารถเข้าถึงสถานะความปลอดภัย",
+  "ALGORITHMS": "อัลกอริทึม",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "ทะเบียน วงจรอัจฉริยะ การประเมิน และการอนุมัติโดยมนุษย์",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "ภาพรวม · ทะเบียน · วงจรอัจฉริยะ · การประเมิน · การอนุมัติและการตรวจสอบ · การติดตาม",
+  "Reading algorithm evidence…": "กำลังอ่านหลักฐานของอัลกอริทึม…",
+  "Enter Algorithms": "เข้าสู่อัลกอริทึม",
+  "Algorithm evidence not generated": "ยังไม่ได้สร้างหลักฐานของอัลกอริทึม",
+  "Algorithms failing evaluation: \u0000": "อัลกอริทึมที่ไม่ผ่านการประเมิน: \u0000",
+  "Algorithms awaiting approval: \u0000": "อัลกอริทึมที่รอการอนุมัติ: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "อัลกอริทึมที่อนุมัติแล้ว: \u0000 จาก \u0000",
+  "Algorithms unreachable": "ไม่สามารถเข้าถึงอัลกอริทึม"
 }

@@ -1006,6 +1006,38 @@ function workerCallbackProtected() {
 // the repository has auto-deploy off, and the deploy workflow fires only on a
 // successful 'ci' run on main (for the commit that is still main's head) or by
 // hand — and fails, rather than passing green, when it cannot deploy.
+// Algorithms, Step 1: no algorithmic change reaches production without a human
+// approval of that exact code, and the room that shows them can change none.
+//   · every registered algorithm is READ_ANALYZE, and its approval names the
+//     fingerprint of the code as it is now (computed fresh, not read from the
+//     committed manifest);
+//   · on the loop, DEPLOY is reachable only from HUMAN_APPROVAL;
+//   · the routes are owner-guarded and have no write handler;
+//   · the registry is code-owned, so the approval edit itself is reviewed.
+function algorithmChangeGate() {
+  const reg = read(cite('src/algorithms/registry.ts')) || '';
+  const loop = stripComments(read(cite('src/algorithms/loop.ts')) || '');
+  const routes = stripComments(read(cite('src/routes/algorithms.routes.ts')) || '');
+  const owners = read('.github/CODEOWNERS') || '';
+  if (!reg || !loop || !routes) return false;
+  let fresh;
+  try { fresh = require('./algorithms-discover').buildManifest().algorithms; } catch (_) { return false; }
+  const entries = reg.split(/\n  \{\n    key: '/).slice(1);
+  if (!entries.length || entries.length !== Object.keys(fresh).length) return false;
+  for (const e of entries) {
+    const key = e.slice(0, e.indexOf("'"));
+    const mode = (e.match(/\bmode: '([A-Z_]+)'/) || [])[1];
+    const approved = (e.match(/approval: baseline\('[^']+', '([0-9a-f]{64})'\)/) || e.match(/fingerprint: '([0-9a-f]{64})'/) || [])[1];
+    if (mode !== 'READ_ANALYZE' || !fresh[key] || !fresh[key].fingerprint || approved !== fresh[key].fingerprint) return false;
+  }
+  const edges = loop.slice(loop.indexOf('LOOP_EDGES'), loop.indexOf('};', loop.indexOf('LOOP_EDGES')));
+  const intoDeploy = [...edges.matchAll(/^\s*(\w+):\s*\[([^\]]*)\]/gm)].filter((m) => /'DEPLOY'/.test(m[2])).map((m) => m[1]);
+  return intoDeploy.length === 1 && intoDeploy[0] === 'HUMAN_APPROVAL'
+    && /export const ALGORITHM_MODES = \['READ_ANALYZE'\] as const;/.test(loop)
+    && /assertPlatformOwner\(/.test(routes) && !/router\.(post|put|patch|delete|all)\(/.test(routes)
+    && /^\/?src\/algorithms\/\s+@/m.test(owners);
+}
+
 function deployGatedByCi() {
   const raw = read(RENDER) || '';
   const services = (raw.match(/^\s*-\s*type:\s*(?:web|worker|pserv|cron)\s*$/gm) || []).length;
@@ -1090,6 +1122,8 @@ controls.push(
     'The transcode callback is reachable only outside the API with an HMAC-SHA256 over method, path, timestamp and raw body (5-minute window, constant-time), is closed without a secret, and cannot set a storage key outside the asset\'s own club folder.'),
   control('deploy-gated-by-ci', deployGatedByCi() ? 'PRESENT' : 'ABSENT', '.github/workflows/deploy.yml',
     'Render auto-deploy is off; production is deployed only by the deploy workflow after CI succeeded on main for the commit that is still main\'s head, or by a deliberate manual run, and a deploy that cannot happen fails instead of passing.'),
+  control('algorithm-change-gate', algorithmChangeGate() ? 'PRESENT' : 'ABSENT', 'src/algorithms/registry.ts',
+    'Every registered algorithm is read/analyze-only and runs only the exact code its recorded human approval names; on the Continuous Intelligence Loop, Deploy is reachable only from Human approval; the Algorithms room is owner-only and has no write handler; the registry is code-owned.'),
   control('security-alert-delivery', securityAlertDelivery() ? 'PRESENT' : 'ABSENT', 'src/security/security-alerts.ts',
     'Critical security events, cross-club access attempts, a broken audit chain, account lockouts, refresh-token reuse, brute-force runs and failed or stale backups are emailed to SECURITY_ALERT_EMAIL by one leased process, de-duplicated per rule (15 min) and capped per hour, with a daily digest; the email carries counts only.'),
 );

@@ -20,6 +20,12 @@
 /src/cyber-defense/                 @bibokh
 /scripts/security-discover.js       @bibokh
 
+# Algorithms: the registry is the human-approval record for every algorithm in
+# production, so an edit to it — a new version, a new approved fingerprint —
+# is itself a reviewed change.
+/src/algorithms/                    @bibokh
+/scripts/algorithms-discover.js     @bibokh
+
 # Schema and migrations (run in production by render-start.sh)
 /prisma/                            @bibokh
 

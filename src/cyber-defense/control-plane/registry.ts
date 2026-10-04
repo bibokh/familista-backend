@@ -108,7 +108,7 @@ export const SECURITY_DOMAINS: readonly DomainDecl[] = [
   {
     id: 'ai-ml', title: 'AI & ML Security', adapter: 'ai',
     protects: 'What reaches an AI model, what agents may do, and how models and training data are trusted.',
-    rows: [9, 10, 11, 12, 13, 14, 15], extraControls: [],
+    rows: [9, 10, 11, 12, 13, 14, 15, 39], extraControls: [],
     eventKinds: ['PROMPT_INJECTION_SUSPECT', 'UNAUTHORIZED_AI_ATTEMPT', 'APPROVAL_REQUESTED', 'APPROVAL_GRANTED', 'APPROVAL_REJECTED', 'APPROVAL_EXPIRED'],
   },
   {
@@ -235,6 +235,7 @@ export const PLATFORM_AREAS: readonly AreaDecl[] = [
   },
   { id: 'ml-models', title: 'ML, models & training data', group: 'AI', routers: ['ai-ops.routes', 'phase-l.routes'], rows: [12, 13, 14] },
   { id: 'agents', title: 'Agents & multi-agent systems', group: 'AI', routers: ['automation.routes', 'phase-m.routes', 'ai-ops.routes'], rows: [11] },
+  { id: 'algorithms', title: 'Algorithms', group: 'AI', routers: ['algorithms.routes'], rows: [39] },
   // ── vision & devices ──
   { id: 'video-intelligence', title: 'Video Intelligence', group: 'VISION_DEVICES', routers: ['phase-q.routes', 'vision.routes', 'familista-vision.routes'], rows: [21] },
   { id: 'cameras', title: 'Cameras', group: 'VISION_DEVICES', routers: ['vision.routes', 'familista-vision.routes'], rows: [22] },
@@ -289,7 +290,7 @@ export const SECURITY_LIFECYCLE: readonly StageDecl[] = [
   {
     id: 'review', title: 'Human review',
     describes: 'Code owners are requested on security-relevant files.',
-    controls: ['codeowners'],
+    controls: ['codeowners', 'algorithm-change-gate'],
     outsideView: 'Branch protection and review approvals are GitHub settings the platform cannot read.',
   },
   {

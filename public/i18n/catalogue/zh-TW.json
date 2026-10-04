@@ -1578,5 +1578,15 @@
   "Security warnings: \u0000": "安全警告: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "已涵蓋的信任邊界: \u0000 / \u0000",
   "All trust boundaries covered": "所有信任邊界皆已涵蓋",
-  "Security posture unreachable": "無法取得安全態勢"
+  "Security posture unreachable": "無法取得安全態勢",
+  "ALGORITHMS": "演算法",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "登錄表、智慧循環、評估與人工核准",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "概覽 · 登錄表 · 智慧循環 · 評估 · 核准與稽核 · 監控",
+  "Reading algorithm evidence…": "正在讀取演算法證據…",
+  "Enter Algorithms": "進入演算法",
+  "Algorithm evidence not generated": "尚未產生演算法證據",
+  "Algorithms failing evaluation: \u0000": "評估未通過的演算法：\u0000",
+  "Algorithms awaiting approval: \u0000": "等待核准的演算法：\u0000",
+  "Algorithms approved: \u0000 of \u0000": "已核准的演算法：\u0000/\u0000",
+  "Algorithms unreachable": "無法存取演算法"
 }

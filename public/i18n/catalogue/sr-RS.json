@@ -1581,5 +1581,15 @@
   "Security warnings: \u0000": "Безбедносна упозорења: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "Покривене границе поверења: \u0000 од \u0000",
   "All trust boundaries covered": "Све границе поверења покривене",
-  "Security posture unreachable": "Безбедносни положај није доступан"
+  "Security posture unreachable": "Безбедносни положај није доступан",
+  "ALGORITHMS": "АЛГОРИТМИ",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "Регистар, петља интелигенције, процена и људско одобрење",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "Преглед · Регистар · Петља интелигенције · Процена · Одобрења и ревизија · Праћење",
+  "Reading algorithm evidence…": "Читање доказа о алгоритмима…",
+  "Enter Algorithms": "Уђи у Алгоритме",
+  "Algorithm evidence not generated": "Докази о алгоритмима нису генерисани",
+  "Algorithms failing evaluation: \u0000": "Алгоритми који не пролазе процену: \u0000",
+  "Algorithms awaiting approval: \u0000": "Алгоритми који чекају одобрење: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "Одобрени алгоритми: \u0000 од \u0000",
+  "Algorithms unreachable": "Алгоритми нису доступни"
 }

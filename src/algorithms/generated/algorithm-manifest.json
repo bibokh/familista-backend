@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "scripts/algorithms-discover.js",
+  "algorithms": {
+    "xg": {
+      "file": "src/match-events/xg-model.service.ts",
+      "symbols": [
+        "WEIGHTS",
+        "GOAL_X",
+        "GOAL_Y",
+        "POST_HALF_WIDTH",
+        "sigmoid",
+        "computeXG"
+      ],
+      "fingerprint": "c9d12afe302d5d60f4966855a2287e4175b57397d64eed2c9fb4ad25a81dfbe5",
+      "error": null,
+      "missing": []
+    },
+    "xgot": {
+      "file": "src/match-events/xg-model.service.ts",
+      "symbols": [
+        "computeXGOT"
+      ],
+      "fingerprint": "ee86488f712bb3883b79d779db0bebef852825ab281129b40cad00efa58bb05f",
+      "error": null,
+      "missing": []
+    },
+    "xa": {
+      "file": "src/match-events/xg-model.service.ts",
+      "symbols": [
+        "backfillXA"
+      ],
+      "fingerprint": "fad1e834d9dad612191a2da4d68da94876565a59d7bc6c61846b38ac34124ad8",
+      "error": null,
+      "missing": []
+    },
+    "match-rating": {
+      "file": "src/player-stats/player-stats.service.ts",
+      "symbols": [
+        "computeRating",
+        "computeMatchStats"
+      ],
+      "fingerprint": "39f41d381512a1c3dfdc00ae52c9042895c75b5d314ce80636b465408501f690",
+      "error": null,
+      "missing": []
+    },
+    "training-load": {
+      "file": "src/workload/workload-science.service.ts",
+      "symbols": [
+        "recomputeWorkload",
+        "computeInjuryRiskScore"
+      ],
+      "fingerprint": "e6e25c9477251d23823be94972944c3fc632f452effa3b29cea635257d8c7675",
+      "error": null,
+      "missing": []
+    },
+    "biomechanical-load": {
+      "file": "src/fusion/metrics.ts",
+      "symbols": [
+        "FUSION_METRICS_VERSION",
+        "BLI_WEIGHTS",
+        "clamp",
+        "zscore",
+        "biomechanicalLoadIndex"
+      ],
+      "fingerprint": "77e2526c81d7086da67b427bd09b8a1ac98e22ef7849cd5d137643c4e4259528",
+      "error": null,
+      "missing": []
+    },
+    "tactical-attrition": {
+      "file": "src/fusion/metrics.ts",
+      "symbols": [
+        "FUSION_METRICS_VERSION",
+        "TAI_WEIGHTS",
+        "sigmoid",
+        "clamp",
+        "zscore",
+        "tacticalAttritionIndex"
+      ],
+      "fingerprint": "cc896039b3a715e04c887aba0bce7d626799e1e8f569bd7435d325960f007e2f",
+      "error": null,
+      "missing": []
+    },
+    "data-confidence": {
+      "file": "src/intelligence/shared.utils.ts",
+      "symbols": [
+        "computeConfidence"
+      ],
+      "fingerprint": "90640dd6fa2588f7c01f4f674ecc34bea49f90b54cd70021058c6ad7acc73685",
+      "error": null,
+      "missing": []
+    },
+    "medical-risk": {
+      "file": "src/intelligence/shared.utils.ts",
+      "symbols": [
+        "computeMedicalRiskScore"
+      ],
+      "fingerprint": "e0e3daa0c26e175ab2b8b2a8cc50a685a6510021be1e4745740369651b19dc21",
+      "error": null,
+      "missing": []
+    },
+    "form-trend": {
+      "file": "src/intelligence/shared.utils.ts",
+      "symbols": [
+        "trendDirection"
+      ],
+      "fingerprint": "2a33bcbe5ed6572834d86ca516b5d769f5782dceda4214f94b7decde451921ea",
+      "error": null,
+      "missing": []
+    },
+    "age-curve": {
+      "file": "src/intelligence/shared.utils.ts",
+      "symbols": [
+        "ageDecayFactor"
+      ],
+      "fingerprint": "9012ce4801462dbb7c488732a2ebfc2bc7ae96f60571093815f08d582f0942eb",
+      "error": null,
+      "missing": []
+    },
+    "league-eligibility": {
+      "file": "src/competition/league-eligibility.ts",
+      "symbols": [
+        "FIRST_TEAM_KINDS",
+        "eligibilityOf"
+      ],
+      "fingerprint": "4a46fb79e8251a527ff149af6b64830a8aa79af09200745e6a699c5db34c35bc",
+      "error": null,
+      "missing": []
+    },
+    "kickoff-window": {
+      "file": "src/competition/match-scheduling.ts",
+      "symbols": [
+        "DEFAULT_SCHEDULING_POLICY",
+        "minutesOf",
+        "validateKickoff"
+      ],
+      "fingerprint": "f42958301912b226fb602d8e5f56856ec37ddc20fac438d01698531e17dd6693",
+      "error": null,
+      "missing": []
+    }
+  }
+}

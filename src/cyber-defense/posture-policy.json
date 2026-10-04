@@ -133,7 +133,8 @@
     "db-rls-system-paths-reviewed",
     "db-row-level-security",
     "self-registration-closed",
-    "franchise-club-attach-authorised"
+    "franchise-club-attach-authorised",
+    "algorithm-change-gate"
   ],
   "knownGaps": {
     "mfa-required-at-login": "PARTIAL \u2014 required at sign-in for an owner who switched it on (Step 7) and, while MFA_REQUIRED_FOR_ADMINS=true, for administrators (R7); not required for every account.",
@@ -768,6 +769,13 @@
       "routes": [
         "GET /system/cybersecurity/domains/:domain"
       ]
+    },
+    "algorithms.routes :key": {
+      "basis": "platform-only",
+      "reason": "The Algorithms room is behind assertPlatformOwner; a key is a name in the algorithm registry, not a club row.",
+      "routes": [
+        "GET /system/algorithms/:key"
+      ]
     }
   },
   "ownerRooms": {
@@ -794,6 +802,9 @@
     },
     "cybersecurity.routes": {
       "mount": "/system/cybersecurity"
+    },
+    "algorithms.routes": {
+      "mount": "/system/algorithms"
     }
   },
   "authorizationMemberHandlers": {

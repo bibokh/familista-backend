@@ -1581,5 +1581,15 @@
   "Security warnings: \u0000": "Güvenlik uyarıları: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "Kapsanan güven sınırları: \u0000 / \u0000",
   "All trust boundaries covered": "Tüm güven sınırları kapsandı",
-  "Security posture unreachable": "Güvenlik duruşuna ulaşılamıyor"
+  "Security posture unreachable": "Güvenlik duruşuna ulaşılamıyor",
+  "ALGORITHMS": "ALGORİTMALAR",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "Kayıt, zekâ döngüsü, değerlendirme ve insan onayı",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "Genel bakış · Kayıt · Zekâ döngüsü · Değerlendirme · Onaylar ve denetim · İzleme",
+  "Reading algorithm evidence…": "Algoritma kanıtları okunuyor…",
+  "Enter Algorithms": "Algoritmalar’a gir",
+  "Algorithm evidence not generated": "Algoritma kanıtları oluşturulmadı",
+  "Algorithms failing evaluation: \u0000": "Değerlendirmede başarısız algoritmalar: \u0000",
+  "Algorithms awaiting approval: \u0000": "Onay bekleyen algoritmalar: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "Onaylı algoritmalar: \u0000 / \u0000",
+  "Algorithms unreachable": "Algoritmalara ulaşılamıyor"
 }

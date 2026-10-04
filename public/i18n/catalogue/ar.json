@@ -1581,5 +1581,15 @@
   "Security warnings: \u0000": "تحذيرات أمنية: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "حدود الثقة المغطّاة: \u0000 من \u0000",
   "All trust boundaries covered": "كلّ حدود الثقة مغطّاة",
-  "Security posture unreachable": "تعذّر الوصول إلى الوضع الأمني"
+  "Security posture unreachable": "تعذّر الوصول إلى الوضع الأمني",
+  "ALGORITHMS": "الخوارزميات",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "السجل وحلقة الذكاء والتقييم والموافقة البشرية",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "نظرة عامة · السجل · حلقة الذكاء · التقييم · الموافقات والتدقيق · المراقبة",
+  "Reading algorithm evidence…": "جارٍ قراءة أدلة الخوارزميات…",
+  "Enter Algorithms": "ادخل إلى الخوارزميات",
+  "Algorithm evidence not generated": "لم تُولَّد أدلة الخوارزميات",
+  "Algorithms failing evaluation: \u0000": "خوارزميات فاشلة في التقييم: \u0000",
+  "Algorithms awaiting approval: \u0000": "خوارزميات بانتظار الموافقة: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "الخوارزميات الموافق عليها: \u0000 من \u0000",
+  "Algorithms unreachable": "تعذّر الوصول إلى الخوارزميات"
 }

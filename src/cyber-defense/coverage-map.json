@@ -530,6 +530,18 @@
       "pinnedBy": [
         "tests/security-posture.unit.test.ts"
       ]
+    },
+    "39": {
+      "name": "Algorithm change control",
+      "flow": "algorithm code → production",
+      "trustBoundary": "proposal → production",
+      "owner": "platform",
+      "dataClass": "platform",
+      "boundaryType": "integrity",
+      "coverage": "C",
+      "controls": [
+        "algorithm-change-gate"
+      ]
     }
   },
   "components": {
@@ -553,6 +565,13 @@
         5,
         6,
         10
+      ],
+      "algorithms.routes": [
+        4,
+        5,
+        6,
+        7,
+        39
       ],
       "analytics.routes": [
         4,
@@ -868,6 +887,9 @@
       "admin": [
         6,
         7
+      ],
+      "algorithms": [
+        39
       ],
       "auth-prod": [
         2,

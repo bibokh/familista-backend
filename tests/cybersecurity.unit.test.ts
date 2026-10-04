@@ -884,10 +884,12 @@ describe('Cybersecurity is a top-level room, not a page inside another', () => {
   });
 
   it('sits between SYSTEM and CLUBS on the landing, the same size as every other room', () => {
-    expect(css).toContain('".     system system cyber  cyber  clubs  clubs  .    "');
+    // ALGORITHMS joined the top row after CLUBS as the eighth room; Cybersecurity
+    // keeps its place between SYSTEM and CLUBS.
+    expect(css).toContain('"system system cyber  cyber  clubs  clubs  algo   algo "');
     expect(css).toContain('body.club-theme .oh-cards--core .oh-card--cyber{  grid-area: cyber; }');
     expect(css).toMatch(/\.oh-cards--core\{[^}]*grid-auto-rows:\s*1fr/);
-    expect(css).toContain('grid-template-areas: "system" "cyber" "clubs" "core" "vision" "vault" "city";');
+    expect(css).toContain('grid-template-areas: "system" "cyber" "clubs" "algo" "core" "vision" "vault" "city";');
   });
 
   it('says on its card what the evidence says, and only green when every boundary is covered', () => {
