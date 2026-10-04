@@ -175,10 +175,11 @@ Receives: `GPS_UPDATE` events every second with all player positions.
 
 ## Demo Credentials
 
-| Role | Email | Password |
-|------|-------|----------|
-| Club Admin | khatab@familista.io | Familista2024! |
-| Head Coach | coach@familista.io | Coach2024! |
+No credentials are published here. `npm run db:seed` takes the demo passwords
+from `SEED_ADMIN_PASSWORD` and `SEED_COACH_PASSWORD`, or — on a development
+database — generates them for that run and prints them once. Seeding a
+production database is refused unless `SEED_ALLOW_PRODUCTION=true` and both
+passwords are supplied.
 
 ---
 
