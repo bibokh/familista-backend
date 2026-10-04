@@ -29,6 +29,7 @@ import { SCENARIOS, evaluate } from '../src/algorithms/scenarios';
 import { algorithmsOverview, algorithmDetail, resetAlgorithmMonitor } from '../src/algorithms/algorithms.service';
 import { CHECK_LABEL, STORE_UNAVAILABLE_REASON } from '../src/algorithms/monitoring';
 import { MONITORING_SPECS } from '../src/algorithms/monitoring-spec';
+import { LEARN_SPECS, SYNTHETIC_SCENARIOS, JUSTIFICATIONS, REAL_WORLD, SYNTHETIC_NOTICE } from '../src/algorithms/learning-spec';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const discover = require('../scripts/algorithms-discover.js');
@@ -343,10 +344,10 @@ describe('the room is the platform owner’s, and it writes nothing', () => {
     expect(read('src/routes/index.ts')).toContain("router.use('/system/algorithms', algorithmsRoutes);");
   });
 
-  it('has exactly four reads and no write handler', () => {
-    // Step 1's two, and Step 2's production monitoring: the room and one
-    // algorithm, each read-only.
-    expect((code.match(/router\.get\(/g) || []).length).toBe(4);
+  it('has exactly six reads and no write handler', () => {
+    // Step 1's two, Step 2's production monitoring and Step 3's learning: the
+    // room and one algorithm for each, every one read-only.
+    expect((code.match(/router\.get\(/g) || []).length).toBe(6);
     expect(code).not.toMatch(/router\.(post|put|patch|delete|all)\(/);
     expect(read('public/algorithms/algorithms.js')).not.toMatch(/method:\s*['"](POST|PUT|PATCH|DELETE)/i);
   });
@@ -369,7 +370,9 @@ describe('Cybersecurity covers the Algorithms module from the start', () => {
   });
 
   it('its router and source domain are mapped onto the algorithm change-control boundary', () => {
-    expect(map.boundaries['39']).toMatchObject({ name: 'Algorithm change control', coverage: 'C', controls: [CONTROL_FOR_TEST] });
+    // Step 3 adds the learning-separation control to the same boundary: the
+    // evidence a change proposal would be built on must be honest about its kind.
+    expect(map.boundaries['39']).toMatchObject({ name: 'Algorithm change control', coverage: 'C', controls: [CONTROL_FOR_TEST, 'algorithm-learning-separation'] });
     expect(map.components.routers['algorithms.routes']).toContain(39);
     // Row 40 joined with Step 2: the same module also writes production telemetry.
     expect(map.components.srcDomains.algorithms).toEqual([39, 40]);
@@ -378,7 +381,7 @@ describe('Cybersecurity covers the Algorithms module from the start', () => {
   it('appears on the Cybersecurity map as an AI area', () => {
     const reg = read('src/cyber-defense/control-plane/registry.ts');
     expect(reg).toContain("{ id: 'algorithms', title: 'Algorithms', group: 'AI', routers: ['algorithms.routes'], rows: [39, 40] }");
-    expect(reg).toContain("controls: ['codeowners', 'algorithm-change-gate'],");
+    expect(reg).toContain("controls: ['codeowners', 'algorithm-change-gate', 'algorithm-learning-separation'],");
   });
 });
 
@@ -446,7 +449,10 @@ describe('the room speaks English, German and Arabic — every string it can sho
     for (const m of src.matchAll(/(?:\bT|\btf|\bpanel|\bemptyState)\(\s*'((?:[^'\\]|\\.)*)'/g)) out.add(m[1].replace(/\\'/g, "'"));
     for (const name of ['GATE_LABEL', 'GATE_MEANING', 'EVAL_LABEL', 'STAGE_LABEL', 'GROUP_LABEL',
       'MON_LABEL', 'MON_MEANING', 'FINDING_LABEL', 'VERDICT_LABEL', 'REASON_LABEL', 'BASIS_LABEL',
-      'STORE_LABEL', 'CHECK_STATE_LABEL', 'KIND_LABEL']) {
+      'STORE_LABEL', 'CHECK_STATE_LABEL', 'KIND_LABEL',
+      // Learning (Step 3) and the write path.
+      'LEARN_STATUS_LABEL', 'LEARN_VERDICT_LABEL', 'METHOD_CHECK_LABEL', 'SIGNAL_LABEL', 'TRUTH_LABEL',
+      'LEARN_REASON_LABEL', 'WRITE_LABEL', 'WRITE_MEANING', 'STORED_LABEL', 'STORED_MEANING']) {
       expect(`${name}: ${src.includes(`var ${name} = {`)}`).toBe(`${name}: true`);
       const i = src.indexOf(`var ${name} = {`);
       for (const m of src.slice(i, src.indexOf('};', i)).matchAll(/:\s*'((?:[^'\\]|\\.)*)'/g)) out.add(m[1]);
@@ -474,6 +480,12 @@ describe('the room speaks English, German and Arabic — every string it can sho
     for (const sp of MONITORING_SPECS) {
       if (sp.instrumented) { add(sp.output.name); add(sp.quality); add(sp.freshness); } else add(sp.reason);
     }
+    // Learning (Step 3): every sentence the learning read can send.
+    LEARN_SPECS.forEach((sp) => add(sp.reason));
+    SYNTHETIC_SCENARIOS.forEach((sc) => { add(sc.title); add(sc.purpose); });
+    Object.values(JUSTIFICATIONS).forEach(add);
+    add(REAL_WORLD.reason); REAL_WORLD.prerequisites.forEach((p) => add(p.label));
+    add(SYNTHETIC_NOTICE);
     for (const a of o.algorithms) {
       const d = algorithmDetail(a.key);
       if (d.state !== 'READY') continue;

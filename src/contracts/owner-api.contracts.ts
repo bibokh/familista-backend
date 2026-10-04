@@ -913,6 +913,13 @@ export const AlgorithmsMonitoringSchema = z.object({
     lastFlushFailure: z.string().nullable(),
     rowsWritten: Count, pendingEntries: Count, droppedRuns: Count, flushIntervalSeconds: Count,
   }).strict(),
+  writePath: z.object({
+    thisServer: z.enum(['VERIFIED', 'FAILING', 'UNVERIFIED', 'NOT_RUNNING']),
+    serverStartedAt: Instant,
+    verifiedAt: Instant.nullable(),
+    stored: z.enum(['ROWS_PRESENT', 'NO_ROWS', 'UNKNOWN']),
+    storedNewestRunAt: Instant.nullable(),
+  }).strict(),
   loop: z.object({
     measured: Count, notInstrumented: Count, healthy: Count, warning: Count, failing: Count,
     notEnoughData: Count, withFindings: Count,
@@ -967,6 +974,130 @@ export const AlgMonitoringDetailSchema = AlgMonitoringSummarySchema.extend({
     required: z.string().min(1),
   }).strict()),
   findingList: z.array(z.object({ id: FindingEnum, severity: z.enum(['FAILING', 'WARNING', 'INFO']) }).strict()),
+}).strict();
+
+// ── Algorithms — learning (Step 3) ───────────────────────────────────────────
+//
+// Two lanes that never merge: SYNTHETIC method checks, and a REAL_WORLD lane
+// that is DISABLED. `evidence` is a literal on every synthetic object, so a
+// response that dropped or changed it fails here.
+
+const LearnStatusEnum = z.enum(['SYNTHETIC_ONLY', 'DERIVED', 'NO_GROUND_TRUTH', 'EXCLUDED_HEALTH']);
+const LearnVerdictEnum = z.enum(['MISCALIBRATION_DETECTED', 'NONE_DETECTED', 'NOT_ENOUGH_DATA', 'INCONCLUSIVE', 'UNAVAILABLE']);
+const LearnSignalEnum = z.enum(['CITL', 'SLOPE']);
+const MethodCheckEnum = z.enum(['PASSED', 'FAILED', 'UNVERIFIED', 'UNAVAILABLE']);
+const TruthKindEnum = z.enum(['MODEL', 'LOGIT_SHIFT', 'LOGIT_SCALE']);
+const FitFailureEnum = z.enum(['NO_VARIATION_IN_OUTCOMES', 'NO_VARIATION_IN_PREDICTIONS', 'SINGULAR', 'NON_FINITE', 'SEPARATION', 'NO_CONVERGENCE']);
+const ScenarioReasonEnum = z.enum([
+  'NO_SAMPLE', 'NON_FINITE_PREDICTION', 'EXPECTED_GOALS_BELOW_FLOOR', 'EXPECTED_NON_GOALS_BELOW_FLOOR', 'CITL_UNAVAILABLE',
+  'SLOPE_UNAVAILABLE:NO_VARIATION_IN_OUTCOMES', 'SLOPE_UNAVAILABLE:NO_VARIATION_IN_PREDICTIONS', 'SLOPE_UNAVAILABLE:SINGULAR',
+  'SLOPE_UNAVAILABLE:NON_FINITE', 'SLOPE_UNAVAILABLE:SEPARATION', 'SLOPE_UNAVAILABLE:NO_CONVERGENCE',
+  'TIME_BUDGET_EXCEEDED', 'LIMIT_EXCEEDED', 'ERROR',
+]);
+const ScenarioIdEnum = z.enum(['consistent', 'shifted', 'overconfident', 'below-floor']);
+const IntervalSchema = z.object({ value: z.number(), low: z.number(), high: z.number(), level: NonNeg }).strict();
+
+export const LearnMetricsSchema = z.object({
+  shots: Count, goals: Count, expectedGoals: NonNeg, clipped: Count, invalid: Count,
+  brier: IntervalSchema.nullable(), brierReference: NonNeg.nullable(), logLoss: IntervalSchema.nullable(),
+  observedOverExpected: IntervalSchema.nullable(),
+  citl: z.object({ z: z.number(), detected: z.boolean() }).strict().nullable(),
+  slope: IntervalSchema.nullable(), intercept: IntervalSchema.nullable(), slopeDetected: z.boolean().nullable(),
+  fit: z.object({ ok: z.boolean(), reason: FitFailureEnum.nullable(), iterations: Count }).strict(),
+  ece: NonNeg.nullable(), minimumDetectableError: NonNeg.nullable(),
+  bins: z.array(z.object({
+    from: NonNeg, to: NonNeg, shots: Count, meanPredicted: NonNeg.nullable(), observedRate: NonNeg.nullable(),
+    low: NonNeg.nullable(), high: NonNeg.nullable(), readable: z.boolean(),
+  }).strict()),
+}).strict();
+
+const RunMeasuredSchema = z.object({
+  computedAt: Instant, wallMs: NonNeg, busyMs: NonNeg, maxSliceMs: NonNeg, slices: Count, yields: Count,
+  shots: Count, allocatedBytes: Count, peakHeapDeltaBytes: NonNeg, peakArrayBuffersDeltaBytes: NonNeg,
+}).strict();
+
+export const SyntheticScenarioResultSchema = z.object({
+  evidence: z.literal('SYNTHETIC'),
+  id: ScenarioIdEnum, title: z.string().min(1), purpose: z.string().min(1), circular: z.boolean(),
+  truth: z.object({ kind: TruthKindEnum, parameter: z.number().nullable() }).strict(),
+  seed: Count, verdict: LearnVerdictEnum, signals: z.array(LearnSignalEnum), reasons: z.array(ScenarioReasonEnum),
+  expected: z.object({ verdict: LearnVerdictEnum, signal: LearnSignalEnum.nullable() }).strict(),
+  methodCheck: MethodCheckEnum,
+  metrics: LearnMetricsSchema.nullable(),
+  fitAttempted: z.boolean(),
+  measured: z.object({ wallMs: NonNeg, busyMs: NonNeg, maxSliceMs: NonNeg, slices: Count, allocatedBytes: Count }).strict(),
+}).strict();
+
+export const SyntheticEvaluationSchema = z.object({
+  evidence: z.literal('SYNTHETIC'),
+  key: z.enum(['xg', 'xgot']),
+  code: z.object({ verdict: RuntimeVerdictEnum, fingerprint: Fingerprint.nullable() }).strict(),
+  state: z.enum(['COMPLETE', 'ABORTED']),
+  abortReason: z.enum(['TIME_BUDGET_EXCEEDED', 'LIMIT_EXCEEDED', 'ERROR']).nullable(),
+  methodChecks: z.object({ passed: Count, total: Count }).strict(),
+  scenarios: z.array(SyntheticScenarioResultSchema),
+  measured: RunMeasuredSchema,
+}).strict();
+
+const Share = z.object({ value: z.string().min(1), share: NonNeg }).strict();
+
+export const AlgLearningSummarySchema = z.object({
+  key: z.string().min(1), name: z.string().min(1), domain: z.string().min(1), version: z.string().min(1),
+  status: LearnStatusEnum, reason: z.string().min(1), derivedFrom: z.string().min(1).nullable(),
+  synthetic: z.object({
+    evidence: z.literal('SYNTHETIC'),
+    state: z.enum(['COMPLETE', 'ABORTED']),
+    codeVerdict: RuntimeVerdictEnum,
+    methodChecks: z.object({ passed: Count, total: Count }).strict(),
+    scenarios: z.array(z.object({ id: z.string().min(1), verdict: LearnVerdictEnum, methodCheck: MethodCheckEnum }).strict()),
+    measured: RunMeasuredSchema,
+    servedFromCache: z.boolean(),
+  }).strict().nullable(),
+}).strict();
+
+export const AlgorithmsLearningSchema = z.object({
+  evidence: z.object({ synthetic: z.literal('SYNTHETIC'), realWorld: z.literal('DISABLED') }).strict(),
+  notice: z.string().min(1),
+  measuredAt: Instant,
+  realWorld: z.object({
+    state: z.literal('DISABLED'), reason: z.string().min(1),
+    prerequisites: z.array(z.object({ id: z.string().min(1), label: z.string().min(1), met: z.boolean() }).strict()),
+  }).strict(),
+  rules: z.object({
+    minExpectedEvents: Count, alphaPerTest: NonNeg, familyAlpha: NonNeg, testZ: NonNeg, power: NonNeg, ciLevel: NonNeg,
+    minBinShots: Count, probabilityEpsilon: NonNeg, binEdges: z.array(NonNeg),
+    justifications: z.object({
+      sampleFloor: z.string().min(1), miscalibration: z.string().min(1), noneDetected: z.string().min(1),
+      binDisplay: z.string().min(1), probabilityClip: z.string().min(1),
+    }).strict(),
+  }).strict(),
+  limits: z.object({
+    shotsPerScenarioMax: Count, shotsPerAlgorithmMax: Count, sliceShots: Count, busyBudgetMs: Count, scenarioBufferBytesMax: Count,
+  }).strict(),
+  generator: z.object({
+    x: z.array(z.number()), y: z.array(z.number()),
+    bodyPart: z.array(Share), technique: z.array(Share), situation: z.array(Share),
+    pressured: NonNeg, counter: NonNeg,
+  }).strict(),
+  scenarios: z.array(z.object({
+    id: z.string().min(1), title: z.string().min(1), purpose: z.string().min(1), circular: z.boolean(),
+    truth: z.object({ kind: TruthKindEnum, parameter: z.number().nullable() }).strict(),
+    size: z.object({ shots: Count.nullable(), untilExpectedGoals: NonNeg.nullable(), shotCap: Count.nullable() }).strict(),
+    seed: Count,
+    expected: z.object({ verdict: LearnVerdictEnum, signal: LearnSignalEnum.nullable() }).strict(),
+  }).strict()),
+  counts: z.object({ syntheticOnly: Count, derived: Count, noGroundTruth: Count, excludedHealth: Count }).strict(),
+  algorithms: z.array(AlgLearningSummarySchema),
+}).strict();
+
+export const AlgLearningDetailSchema = z.object({
+  key: z.string().min(1), name: z.string().min(1), domain: z.string().min(1), version: z.string().min(1),
+  status: LearnStatusEnum, reason: z.string().min(1), derivedFrom: z.string().min(1).nullable(),
+  evidence: z.enum(['SYNTHETIC', 'NONE']),
+  notice: z.string().min(1).nullable(),
+  realWorld: z.object({ state: z.literal('DISABLED') }).strict(),
+  synthetic: SyntheticEvaluationSchema.nullable(),
+  servedFromCache: z.boolean(),
 }).strict();
 
 // ── the registry ─────────────────────────────────────────────────────────────
@@ -1139,13 +1270,23 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
   {
     endpoint: '/system/algorithms/monitoring', module: 'Algorithms',
     schema: AlgorithmsMonitoringSchema, consumer: 'public/algorithms/algorithms.js',
-    reads: ['state', 'reason', 'measuredAt', 'thresholds', 'coverage', 'states', 'totals', 'runtime', 'store', 'loop', 'algorithms'],
+    reads: ['state', 'reason', 'measuredAt', 'thresholds', 'coverage', 'states', 'totals', 'runtime', 'store', 'writePath', 'loop', 'algorithms'],
   },
   {
     endpoint: '/system/algorithms/medical-risk/monitoring', module: 'Algorithms',
     schema: AlgMonitoringDetailSchema, consumer: 'public/algorithms/algorithms.js',
     reads: ['storeState', 'coverage', 'fingerprint', 'counts', 'firstSeenAt', 'lastFailureAt', 'lastFailureKind',
       'latency', 'distribution', 'quality', 'freshness', 'bySource', 'fingerprintsSeen', 'daily', 'checks', 'findingList'],
+  },
+  {
+    endpoint: '/system/algorithms/learning', module: 'Algorithms',
+    schema: AlgorithmsLearningSchema, consumer: 'public/algorithms/algorithms.js',
+    reads: ['evidence', 'notice', 'measuredAt', 'realWorld', 'rules', 'limits', 'generator', 'scenarios', 'counts', 'algorithms'],
+  },
+  {
+    endpoint: '/system/algorithms/xg/learning', module: 'Algorithms',
+    schema: AlgLearningDetailSchema, consumer: 'public/algorithms/algorithms.js',
+    reads: ['status', 'reason', 'derivedFrom', 'evidence', 'notice', 'realWorld', 'synthetic', 'servedFromCache'],
   },
 ];
 
@@ -1199,6 +1340,16 @@ const _monOverview: Exact<z.infer<typeof AlgorithmsMonitoringSchema>, Monitoring
 const _monSummary: Exact<z.infer<typeof AlgMonitoringSummarySchema>, MonitoringSummary> = true;
 const _monDetail: Exact<z.infer<typeof AlgMonitoringDetailSchema>, AlgorithmMonitoringDetail> = true;
 void [_monOverview, _monSummary, _monDetail];
+import type { LearningOverview, LearningAlgorithmSummary, AlgorithmLearningDetail } from '../algorithms/learning';
+import type { SyntheticEvaluation, SyntheticScenarioResult } from '../algorithms/learning-synthetic';
+import type { Metrics as LearnMetrics } from '../algorithms/learning-stats';
+const _learnOverview: Exact<z.infer<typeof AlgorithmsLearningSchema>, LearningOverview> = true;
+const _learnSummary: Exact<z.infer<typeof AlgLearningSummarySchema>, LearningAlgorithmSummary> = true;
+const _learnDetail: Exact<z.infer<typeof AlgLearningDetailSchema>, AlgorithmLearningDetail> = true;
+const _learnRun: Exact<z.infer<typeof SyntheticEvaluationSchema>, SyntheticEvaluation> = true;
+const _learnScenario: Exact<z.infer<typeof SyntheticScenarioResultSchema>, SyntheticScenarioResult> = true;
+const _learnMetrics: Exact<z.infer<typeof LearnMetricsSchema>, LearnMetrics> = true;
+void [_learnOverview, _learnSummary, _learnDetail, _learnRun, _learnScenario, _learnMetrics];
 void [_component, _district, _relationship, _technology, _signal, _incident, _rule,
   _source, _control, _stage, _impact,
   _ccOverview, _ccDomain, _ccDetail, _ccArea, _ccStage, _ccRls, _ccEvents, _ccPosture];
