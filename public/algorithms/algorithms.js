@@ -673,8 +673,10 @@
 
   // ── one algorithm, in production ──────────────────────────────────────────
 
-  function checksHtml(checks) {
-    return '<ul class="al-checks">' + checks.map(function (c) {
+  // compact: for a half-width panel, where observed and required sit beneath
+  // the label instead of squeezing it into a narrow column.
+  function checksHtml(checks, compact) {
+    return '<ul class="al-checks' + (compact ? ' al-checks--compact' : '') + '">' + checks.map(function (c) {
       var k = CHECK_STATE[c.state] || ['none', '·'];
       return '<li class="al-check al-check--' + k[0] + '">'
         + '<span class="al-check-m" aria-hidden="true">' + k[1] + '</span>'
@@ -745,11 +747,11 @@
       + '</div><div class="al-note">' + esc(T('“Code running” is the source fingerprint the loaded code is proven to be. It must equal the approved one.')) + '</div>');
 
     if (!det.instrumented) {
-      return head + store + panel('In production', '<div class="al-kv">'
-        + kv(T('Why it is not measured'), esc(T(det.coverage.reason || '')))
+      return head + store + panel('Why it is not measured', '<p class="al-reason">' + esc(T(det.coverage.reason || '')) + '</p>'
+        + '<div class="al-kv">'
         + kv(T('Evidence in the repository'), '<span class="al-chips">' + det.coverage.evidence.map(function (f) { return '<code class="al-token" data-no-i18n>' + esc(f) + '</code>'; }).join('') + '</span>')
         + '</div><div class="al-note">' + esc(T('CI re-proves this on every pull request: if this algorithm gains a production caller, the build fails until that caller is measured.')) + '</div>')
-        + '<div class="al-dgrid">' + codePanel + panel('Checks', checksHtml(det.checks)) + '</div>';
+        + '<div class="al-dgrid">' + codePanel + panel('Checks', checksHtml(det.checks, true)) + '</div>';
     }
 
     var c = det.counts;

@@ -326,8 +326,10 @@ body.al-algorithms-open { overflow: hidden; }
 .al-check-m { font-weight: 800; text-align: center; }
 .al-check--ok .al-check-m { color: var(--al-ok); }
 .al-check--crit .al-check-m { color: var(--al-crit); }
-.al-check-v { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.al-check-v code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* flex-start, so a value sits under its label on the reading side in RTL too:
+   a stretched code block takes the direction of its own (Latin) text. */
+.al-check-v { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.al-check-v code { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .al-check-k { font-size: 9px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; color: var(--al-tx-3); }
 
 /* ── one algorithm ────────────────────────────────────────────────────── */
@@ -402,6 +404,11 @@ body.al-algorithms-open { overflow: hidden; }
 .al-check--none { border-style: dotted; }
 .al-check--none .al-check-m { color: var(--al-off); }
 .al-check-s { font-size: 10px; font-weight: 700; color: var(--al-tx-3); white-space: nowrap; }
+.al-checks--compact .al-check { grid-template-columns: 18px minmax(0, 1fr) minmax(0, 1fr); row-gap: 6px; }
+.al-checks--compact .al-check-l { grid-column: 2 / -1; }
+.al-checks--compact .al-check-l + .al-check-v { grid-column: 2; }
+.al-checks--compact .al-check-v + .al-check-v { grid-column: 3; }
+.al-reason { font-size: 13px; font-weight: 600; line-height: 1.6; color: var(--al-tx); margin: 0 0 12px; }
 
 .al-prod-h { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .al-kv--tight { margin-top: 14px; }
