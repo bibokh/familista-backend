@@ -520,5 +520,6 @@
   "Yes": "Ja",
   "the response did not carry:": "die Antwort enthielt nicht:",
   "Not read from the database just now.": "Gerade nicht aus der Datenbank gelesen.",
-  "%d held to RLS by the database, read live": "%d von der Datenbank unter RLS gehalten, live gelesen"
+  "%d held to RLS by the database, read live": "%d von der Datenbank unter RLS gehalten, live gelesen",
+  "Algorithm runtime telemetry": "Laufzeit-Telemetrie der Algorithmen"
 }

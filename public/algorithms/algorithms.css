@@ -326,8 +326,10 @@ body.al-algorithms-open { overflow: hidden; }
 .al-check-m { font-weight: 800; text-align: center; }
 .al-check--ok .al-check-m { color: var(--al-ok); }
 .al-check--crit .al-check-m { color: var(--al-crit); }
-.al-check-v { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.al-check-v code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* flex-start, so a value sits under its label on the reading side in RTL too:
+   a stretched code block takes the direction of its own (Latin) text. */
+.al-check-v { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.al-check-v code { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .al-check-k { font-size: 9px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; color: var(--al-tx-3); }
 
 /* ── one algorithm ────────────────────────────────────────────────────── */
@@ -351,6 +353,116 @@ body.al-algorithms-open { overflow: hidden; }
 .al-vers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .al-vers li { display: grid; grid-template-columns: 60px 92px minmax(0, 1fr); gap: 10px; font-size: 12px; color: var(--al-tx-2); align-items: baseline; }
 .al-vers-d { font-family: var(--al-mono); font-size: 10.5px; color: var(--al-tx-3); }
+
+/* ── production monitoring (Step 2) ───────────────────────────────────── */
+
+/* A section break inside one algorithm's page: what it does in production,
+   then what it is. Typography only — no rule, no colour. */
+.al-sec {
+  margin: 8px 0 -4px; font-size: 10.5px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--al-tx-3);
+}
+.al-banner {
+  padding: 11px 14px; border-radius: 12px; font-size: 12.2px; line-height: 1.55;
+  border: 1px solid var(--al-line-2); background: rgba(255, 255, 255, .03); color: var(--al-tx-2);
+}
+.al-banner--warn { border-color: rgba(251, 191, 36, .34); box-shadow: inset 2px 0 0 var(--al-warn); }
+#al-root[dir="rtl"] .al-banner--warn { box-shadow: inset -2px 0 0 var(--al-warn); }
+
+.al-mstates { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.al-mstate {
+  display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; min-width: 0;
+  border: 1px solid var(--al-line); background: rgba(255, 255, 255, .02);
+}
+.al-mstate-n { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.al-mstate-l { font-size: 12px; font-weight: 700; }
+.al-mstate-d { font-size: 11px; color: var(--al-tx-3); line-height: 1.5; }
+.al-mstate--ok   { box-shadow: inset 0 2px 0 rgba(52, 211, 153, .55); }
+.al-mstate--ok .al-mstate-l { color: var(--al-ok); }
+.al-mstate--warn { box-shadow: inset 0 2px 0 rgba(251, 191, 36, .55); }
+.al-mstate--warn .al-mstate-l { color: var(--al-warn); }
+.al-mstate--crit { box-shadow: inset 0 2px 0 rgba(248, 113, 113, .6); }
+.al-mstate--crit .al-mstate-l { color: var(--al-crit); }
+.al-mstate--none, .al-mstate--off { border-style: dotted; }
+.al-mstate--none .al-mstate-l, .al-mstate--off .al-mstate-l { color: var(--al-off); }
+
+.al-tbl--mon .al-tr { grid-template-columns: minmax(0, 2fr) 136px 112px 128px 112px 150px 160px; }
+.al-num { font-family: var(--al-mono); font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--al-tx-2); }
+/* A measured value is a left-to-right island in any language: inside Arabic
+   the neutral "≤" would otherwise mirror into "≥" and invert the meaning. */
+.al-val, .al-num, .al-dist-v, .al-day-d, .al-mstate-n { direction: ltr; unicode-bidi: isolate; }
+.al-val { display: inline-block; }
+.al-num--crit { color: var(--al-crit); }
+
+.al-rules { margin: 0; padding-inline-start: 18px; display: flex; flex-direction: column; gap: 7px; }
+.al-rules li { font-size: 12px; color: var(--al-tx-2); line-height: 1.55; }
+
+.al-stage-ev { color: var(--al-tx-2); }
+
+.al-check--warn { border-color: rgba(251, 191, 36, .32); }
+.al-check--warn .al-check-m { color: var(--al-warn); }
+.al-check--none { border-style: dotted; }
+.al-check--none .al-check-m { color: var(--al-off); }
+.al-check-s { font-size: 10px; font-weight: 700; color: var(--al-tx-3); white-space: nowrap; }
+.al-checks--compact .al-check { grid-template-columns: 18px minmax(0, 1fr) minmax(0, 1fr); row-gap: 6px; }
+.al-checks--compact .al-check-l { grid-column: 2 / -1; }
+.al-checks--compact .al-check-l + .al-check-v { grid-column: 2; }
+.al-checks--compact .al-check-v + .al-check-v { grid-column: 3; }
+.al-reason { font-size: 13px; font-weight: 600; line-height: 1.6; color: var(--al-tx); margin: 0 0 12px; }
+
+.al-prod-h { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.al-kv--tight { margin-top: 14px; }
+.al-kv--sep { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--al-line); }
+
+/* The output distribution. Each bar's width is one of 21 classes (5% steps):
+   the stylesheet draws it, never an inline style. The exact share is printed
+   beside it. Bars grow from the reading start, so they mirror in Arabic. */
+.al-dist { display: flex; flex-direction: column; gap: 7px; }
+.al-dist-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 11px; color: var(--al-tx-3); margin-bottom: 4px; }
+.al-key { display: inline-block; width: 18px; height: 6px; border-radius: 3px; margin-inline-end: -8px; }
+.al-key--recent { background: var(--al-accent-2); }
+.al-key--base { background: rgba(255, 255, 255, .22); height: 3px; }
+.al-dist-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) 64px 64px; gap: 12px; align-items: center; min-height: 26px; }
+.al-dist-l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.al-dist-bars { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.al-bar { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .035); overflow: hidden; }
+.al-bar--thin { height: 4px; }
+.al-bar-fill { height: 100%; border-radius: 4px; }
+.al-bar-fill--recent { background: var(--al-accent-2); }
+.al-bar-fill--base { background: rgba(255, 255, 255, .24); }
+.al-dist-v { font-family: var(--al-mono); font-size: 11px; color: var(--al-tx-2); text-align: end; font-variant-numeric: tabular-nums; }
+.al-dist-v--base { color: var(--al-tx-3); }
+.al-w-0 { width: 0; } .al-w-1 { width: 5%; } .al-w-2 { width: 10%; } .al-w-3 { width: 15%; } .al-w-4 { width: 20%; }
+.al-w-5 { width: 25%; } .al-w-6 { width: 30%; } .al-w-7 { width: 35%; } .al-w-8 { width: 40%; } .al-w-9 { width: 45%; }
+.al-w-10 { width: 50%; } .al-w-11 { width: 55%; } .al-w-12 { width: 60%; } .al-w-13 { width: 65%; } .al-w-14 { width: 70%; }
+.al-w-15 { width: 75%; } .al-w-16 { width: 80%; } .al-w-17 { width: 85%; } .al-w-18 { width: 90%; } .al-w-19 { width: 95%; }
+.al-w-20 { width: 100%; }
+
+/* Fourteen days of runs. Heights are classes too (10% steps). */
+.al-days { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 5px; align-items: end; }
+.al-day { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; }
+.al-day-col { width: 100%; height: 64px; display: flex; align-items: flex-end; border-radius: 5px; background: rgba(255, 255, 255, .025); }
+.al-day-bar { width: 100%; border-radius: 5px; background: var(--al-accent-2); }
+.al-day-bar--fail { box-shadow: inset 0 2px 0 var(--al-crit); }
+.al-day-d { font-family: var(--al-mono); font-size: 9.5px; color: var(--al-tx-3); }
+.al-h-0 { height: 0; } .al-h-1 { height: 10%; } .al-h-2 { height: 20%; } .al-h-3 { height: 30%; } .al-h-4 { height: 40%; }
+.al-h-5 { height: 50%; } .al-h-6 { height: 60%; } .al-h-7 { height: 70%; } .al-h-8 { height: 80%; } .al-h-9 { height: 90%; }
+.al-h-10 { height: 100%; }
+
+.al-flows { display: flex; flex-direction: column; gap: 8px; }
+.al-flow { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--al-line); background: rgba(255, 255, 255, .02); min-width: 0; }
+.al-flow-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.al-flow-e { overflow-wrap: anywhere; color: var(--al-tx-3) !important; }
+.al-flow-f { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-family: var(--al-mono); font-size: 11px; color: var(--al-tx-2); }
+
+.al-fps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.al-fps li {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 9px;
+  border: 1px solid var(--al-line); background: rgba(255, 255, 255, .02); font-size: 12px;
+}
+.al-fps li .al-num { margin-inline-start: auto; }
+
+.al-skel-row--fig { height: 86px; }
 
 /* ── empty, loading, notices ──────────────────────────────────────────── */
 
@@ -400,8 +512,14 @@ body.al-algorithms-open { overflow: hidden; }
 @media (max-width: 1560px) {
   .al-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+@media (max-width: 1560px) {
+  .al-tbl--mon .al-tr { grid-template-columns: minmax(0, 1.6fr) 130px 96px 110px 100px 140px 150px; }
+}
 @media (max-width: 1360px) {
   .al-rail { flex-basis: 222px; }
+  .al-mstates { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .al-tbl--mon .al-tr { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .al-tbl--mon .al-tr > :nth-child(n+4) { display: none; }
   .al-hero { grid-template-columns: minmax(0, 1fr); }
   .al-loop { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .al-tr { grid-template-columns: minmax(0, 1.6fr) 70px 110px 170px 140px; }
@@ -422,7 +540,7 @@ body.al-algorithms-open { overflow: hidden; }
   .al-rail { flex-basis: auto; border-inline-end: 0; border-bottom: 1px solid var(--al-line); }
   .al-rail-body { overflow: visible; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
   .al-rail-group { display: contents; }
-  .al-rail-label { flex: 0 0 100%; padding: 8px 10px 2px; }
+  .al-rail-label { flex: 0 0 100%; padding: 8px 10px 2px; box-sizing: border-box; }
   .al-rail-item { width: auto; margin: 0; padding: 7px 12px; }
   .al-rail-foot { display: flex; align-items: center; gap: 12px; }
   .al-foot { flex-direction: row; align-items: center; gap: 10px; }
@@ -440,4 +558,10 @@ body.al-algorithms-open { overflow: hidden; }
   .al-kv-row { grid-template-columns: minmax(0, 1fr); gap: 3px; }
   .al-vers li { grid-template-columns: auto minmax(0, 1fr); }
   .al-vers li > span:last-child { grid-column: 1 / -1; }
+  .al-mstates { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .al-tbl--mon .al-tr { grid-template-columns: minmax(0, 1fr) auto; }
+  .al-tbl--mon .al-tr > :nth-child(n+3) { display: none; }
+  .al-dist-row { grid-template-columns: 76px minmax(0, 1fr) 54px; }
+  .al-dist-v--base { display: none; }
+  .al-days { gap: 3px; }
 }

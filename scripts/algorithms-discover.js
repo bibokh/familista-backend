@@ -22,80 +22,16 @@
 
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 
 const ROOT = path.resolve(__dirname, '..');
 const REGISTRY = 'src/algorithms/registry.ts';
 const OUT = 'src/algorithms/generated/algorithm-manifest.json';
 
-/** Blank out comments, keep strings and template literals intact. */
-function stripComments(src) {
-  let out = '';
-  let i = 0;
-  while (i < src.length) {
-    const c = src[i];
-    const n = src[i + 1];
-    if (c === '/' && n === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }
-    if (c === '/' && n === '*') { i += 2; while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++; i += 2; continue; }
-    if (c === '"' || c === "'" || c === '`') {
-      const q = c; out += c; i++;
-      while (i < src.length && src[i] !== q) { if (src[i] === '\\') { out += src[i++]; } out += src[i++]; }
-      out += src[i++] || '';
-      continue;
-    }
-    out += c; i++;
-  }
-  return out;
-}
-
-/**
- * The text of ONE top-level declaration — `function name`, `export function
- * name`, `const name`, `export const name` (async too) — from its keyword to
- * the end of its body or statement. Brackets are balanced over comment-free
- * source, skipping string contents. Returns null when the name is not
- * declared exactly once at the top level.
- */
-function declarationOf(cleanSrc, name) {
-  const re = new RegExp(`^(?:export\\s+)?(?:async\\s+)?(?:function\\s*\\*?\\s*|const\\s+|let\\s+)${name}\\b`, 'gm');
-  const hits = [...cleanSrc.matchAll(re)];
-  if (hits.length !== 1) return null;
-  const start = hits[0].index;
-  let depth = 0;
-  let opened = false;
-  for (let i = start; i < cleanSrc.length; i++) {
-    const c = cleanSrc[i];
-    if (c === '"' || c === "'" || c === '`') {
-      const q = c; i++;
-      while (i < cleanSrc.length && cleanSrc[i] !== q) { if (cleanSrc[i] === '\\') i++; i++; }
-      continue;
-    }
-    if (c === '{' || c === '(' || c === '[') { depth++; opened = true; }
-    else if (c === '}' || c === ')' || c === ']') {
-      depth--;
-      // A top-level function body closes with a brace at the start of its
-      // line, or at the end of the line it began on (a one-line function).
-      // An object return type (`): { ok: boolean } {`) closes mid-line, with
-      // the body's brace still to come, so it is neither.
-      const lineEnd = cleanSrc.indexOf('\n', i);
-      const lastOnLine = !cleanSrc.slice(i + 1, lineEnd === -1 ? undefined : lineEnd).trim();
-      const sameLine = !cleanSrc.slice(start, i).includes('\n');
-      if (depth === 0 && c === '}' && (cleanSrc[i - 1] === '\n' || (sameLine && lastOnLine))
-        && /^(export\s+)?(async\s+)?function/.test(cleanSrc.slice(start, start + 40))) {
-        return cleanSrc.slice(start, i + 1);
-      }
-    } else if (c === ';' && depth === 0) {
-      return cleanSrc.slice(start, i + 1);
-    } else if (c === '\n' && depth === 0 && opened && /^(const|let|export)/.test(cleanSrc.slice(start, start + 10))) {
-      // A const whose initialiser ended without a semicolon.
-      const rest = cleanSrc.slice(i + 1).match(/^\s*(\S)/);
-      if (!rest || !/[.?:+\-*/|&=,]/.test(rest[1])) return cleanSrc.slice(start, i);
-    }
-  }
-  return null;
-}
-
-/** Whitespace collapsed, so formatting is not a change either. */
-const normalise = (s) => s.replace(/\s+/g, ' ').trim();
+// The reader itself — comment stripping, declaration extraction, normalising
+// and hashing — lives in src/algorithms/fingerprint-core.js, the one
+// implementation this script, the build seal (scripts/algorithms-seal.js) and
+// the running server (src/algorithms/runtime-fingerprint.ts) all use.
+const { stripComments, declarationOf, fingerprintText } = require('../src/algorithms/fingerprint-core.js');
 
 /**
  * The fingerprint inputs declared in the registry: for every algorithm, its
@@ -117,16 +53,7 @@ function registeredAlgorithms() {
 function fingerprintOf(file, symbols) {
   const abs = path.join(ROOT, file);
   if (!fs.existsSync(abs)) return { fingerprint: null, missing: symbols.slice(), error: 'SOURCE_MISSING' };
-  const clean = stripComments(fs.readFileSync(abs, 'utf8'));
-  const missing = [];
-  const parts = [];
-  for (const s of symbols) {
-    const d = declarationOf(clean, s);
-    if (d === null) missing.push(s); else parts.push(normalise(d));
-  }
-  if (missing.length) return { fingerprint: null, missing, error: 'SYMBOL_NOT_FOUND' };
-  const fingerprint = crypto.createHash('sha256').update(parts.join('\n')).digest('hex');
-  return { fingerprint, missing: [], error: null };
+  return fingerprintText(fs.readFileSync(abs, 'utf8'), symbols);
 }
 
 function buildManifest() {

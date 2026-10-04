@@ -38,8 +38,11 @@ import {
   resolveVenueTimeZone,
   validateKickoff,
   localClockAt,
+  type KickoffCheck,
+  type VenueZone,
 } from './match-scheduling';
 import * as weather from './match-weather.service';
+import { observed } from '../algorithms/telemetry';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Who "we" are
@@ -564,6 +567,8 @@ export async function schedulingContextFor(fixtureId: string): Promise<{
   fixture: { id: string; scheduledAt: Date; status: string; homeTeamId: string; awayTeamId: string; competitionId: string };
   policy: SchedulingPolicy;
   timeZone: string;
+  /** Where the zone came from; FALLBACK means the venue's zone is unknown and UTC is used. */
+  timeZoneSource: VenueZone['source'];
   homeClubId: string | null;
   awayClubId: string | null;
 }> {
@@ -601,8 +606,22 @@ export async function schedulingContextFor(fixtureId: string): Promise<{
     },
     policy,
     timeZone: zone.timeZone,
+    timeZoneSource: zone.source,
     homeClubId,
     awayClubId,
+  };
+}
+
+/**
+ * Algorithms Step 2: one production run of the kickoff rule, as its verdict
+ * token and the quality of what it was given — never the fixture, the clubs or
+ * the instant.
+ */
+export function inspectKickoff(check: KickoffCheck, zoneSource: VenueZone['source']) {
+  return {
+    outputs: [check.verdict],
+    violations: check.ok === (check.verdict === 'OK') ? 0 : 1,
+    quality: check.verdict === 'MALFORMED' ? 'EMPTY' as const : zoneSource === 'FALLBACK' ? 'PARTIAL' as const : 'OK' as const,
   };
 }
 
@@ -622,12 +641,12 @@ export async function createRequest(actor: MatchCenterActor, input: CreateReques
 
   // The same rule the client applied, applied again where it counts. A client
   // that skipped it, or was bypassed entirely, gets the same refusal.
-  const check = validateKickoff({
+  const check = observed('kickoff-window', 'match-center.change-request', () => validateKickoff({
     at: input.proposedKickoff,
     timeZone: ctx.timeZone,
     policy: ctx.policy,
     current: ctx.fixture.scheduledAt,
-  });
+  }), (c) => inspectKickoff(c, ctx.timeZoneSource));
   if (!check.ok) throw new BadRequestError(check.message);
 
   // One fixture may not carry two live proposals: the second would race the
@@ -773,7 +792,7 @@ export async function actOnRequest(
   let movedMatchId: string | null = null;
   if (next === 'APPROVED') {
     const ctx = await schedulingContextFor(req.fixtureId);
-    const check = validateKickoff({ at: req.proposedKickoff, timeZone: ctx.timeZone, policy: ctx.policy });
+    const check = observed('kickoff-window', 'match-center.approve-change', () => validateKickoff({ at: req.proposedKickoff, timeZone: ctx.timeZone, policy: ctx.policy }), (c) => inspectKickoff(c, ctx.timeZoneSource));
     if (!check.ok) throw new BadRequestError(check.message);
 
     await prisma.$transaction(async (tx) => {

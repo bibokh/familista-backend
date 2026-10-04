@@ -33,6 +33,9 @@ import * as UnifiedSvc     from '../intelligence/unified.service';
 import * as SuccessionSvc  from '../intelligence/succession.service';
 // Domain 6
 import * as CompetitionSvc from '../competition/competition.service';
+// Algorithms Step 2 — production telemetry of the registered algorithms
+import { observedAsync } from '../algorithms/telemetry';
+import { observeMatchRatings } from '../player-stats/rating-observation';
 
 // ─── Actor helpers ────────────────────────────────────────────────────────────
 
@@ -101,7 +104,10 @@ export async function deleteEvent(req: Request, res: Response, next: NextFunctio
 
 export async function computeMatchStats(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const result = await PlayerStatsSvc.computeMatchStats(req.params.matchId);
+    // Algorithms Step 2: one production run of the match rating, recorded as
+    // counts; its ratings are read back after it committed, off this request.
+    const result = await observedAsync('match-rating', 'stats.rebuild', () => PlayerStatsSvc.computeMatchStats(req.params.matchId), (r) => ({ quality: r.rebuilt === 0 ? 'EMPTY' : 'OK' }));
+    void observeMatchRatings(req.params.matchId, 'stats.rebuild');
     res.json(result);
   } catch (err) { next(err); }
 }
@@ -157,7 +163,8 @@ export async function ingestGPSSession(req: Request, res: Response, next: NextFu
 
 export async function recomputeWorkload(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const result = await WorkloadSvc.recomputeWorkload(actor(req), req.params.playerId);
+    // Algorithms Step 2: one production run of the training-load model.
+    const result = await observedAsync('training-load', 'workload.recompute', () => WorkloadSvc.recomputeWorkload(actor(req), req.params.playerId), (r) => WorkloadSvc.inspectWorkload(r));
     res.json(result);
   } catch (err) { next(err); }
 }

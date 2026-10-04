@@ -16,7 +16,9 @@
 // READ/ANALYZE-ONLY. This service reads files that ship with the build and
 // runs pure functions. It does not touch the database, read club data, call a
 // model, change a weight, or deploy anything; there is no function here that
-// could. Monitoring is this process's own record of the evaluations it ran.
+// could. Its `monitoring` figures are this process's own record of the
+// evaluations it ran; production monitoring — how each algorithm actually ran
+// in production — is monitoring.ts (Algorithms Step 2).
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -26,6 +28,7 @@ import {
   LOOP_STAGES, LOOP_EDGES, ALGORITHM_MODES, deploymentGate, stageOf,
   type GateVerdict, type LoopStage,
 } from './loop';
+import { runtimeFingerprints } from './runtime-fingerprint';
 
 const MANIFEST_PATH = path.join(__dirname, 'generated', 'algorithm-manifest.json');
 /** Evaluations are cheap, but a refresh storm should not rerun them all. */
@@ -63,6 +66,11 @@ function evaluations(): Record<string, Evaluation> {
   if (Object.values(results).some((r) => r.state === 'FAIL')) monitor.failingRuns += 1;
   monitor.cache = { at: now, results };
   return results;
+}
+
+/** Every algorithm's evaluation, from the same one-minute cache the room reads. */
+export function evaluationsNow(): Record<string, Evaluation> {
+  return evaluations();
 }
 
 /** For tests: forget the cached evaluation and the counters. */
@@ -141,7 +149,7 @@ const LOOP_TEXT: Record<LoopStage, { title: string; describes: string; who: 'PLA
   TEST: { title: 'Test', describes: 'Each scenario is checked against the properties the algorithm must keep, and CI runs the unit tests.', who: 'PLATFORM' },
   HUMAN_APPROVAL: { title: 'Human approval', describes: 'The platform owner approves the exact version and fingerprint, in a reviewed pull request.', who: 'HUMAN' },
   DEPLOY: { title: 'Deploy', describes: 'Only through the CI-gated deploy of main. Nothing in this room deploys anything.', who: 'HUMAN' },
-  MEASURE: { title: 'Measure', describes: 'The live version is re-evaluated on every visit, and its result is recorded here.', who: 'PLATFORM' },
+  MEASURE: { title: 'Measure', describes: 'Production runs are measured: how often, how fast, whether they failed, what they returned and which code was running. An algorithm that does not run in production says so.', who: 'PLATFORM' },
 };
 
 /**
@@ -166,6 +174,11 @@ function guarantees(rows: Composed[]): GuaranteeView[] {
       id: 'exact-version-approved', basis: 'RUNTIME',
       text: 'Every algorithm in production runs the exact version and code its approval names.',
       holds: rows.every((r) => r.gate === 'APPROVED'),
+    },
+    {
+      id: 'runtime-code-approved', basis: 'RUNTIME',
+      text: 'The code this server is running is the approved code, for every algorithm.',
+      holds: (() => { try { return runtimeFingerprints().list.every((f) => f.verdict === 'MATCH'); } catch { return false; } })(),
     },
     {
       id: 'no-autonomous-change', basis: 'BUILD',

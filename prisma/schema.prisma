@@ -10891,3 +10891,65 @@ model FabricEventHistory {
   @@index([entityType, entityId, occurredAt])
   @@index([correlationId])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Algorithms — production runtime telemetry
+// ─────────────────────────────────────────────────────────────────────────────
+// Algorithms Step 2. How the registered algorithms (src/algorithms/registry.ts)
+// actually behave in production: how often each ran, from which workflow,
+// whether it failed, how long it took, what its outputs looked like and which
+// code was running when it did. The Algorithms room reads it; nothing else
+// does, and nothing in it can change an algorithm.
+//
+// AGGREGATES ONLY, BY CONSTRUCTION. There is no column that could hold a club,
+// a team, a player, a user, a request, an input, an output tied to anybody or
+// an error message. The algorithm key and the workflow come from closed lists
+// in src/algorithms/monitoring-spec.ts; the failure kind is an error class
+// name. One row is one UTC hour of one algorithm, one workflow, one version
+// and one code fingerprint. Written only by src/algorithms/telemetry-store.ts,
+// and kept 42 days.
+
+/// One UTC hour of one registered algorithm's production executions, from one
+/// workflow, under one version and one runtime code fingerprint.
+model AlgorithmTelemetryBucket {
+  id              String    @id @default(cuid())
+  /// Registry key, e.g. `medical-risk`. From the registry, never from a request.
+  algorithmKey    String
+  /// Registry version the process ran, e.g. `v1.0`.
+  version         String
+  /// The runtime code fingerprint: the source fingerprint the running code is
+  /// proven to be (src/algorithms/runtime-fingerprint.ts), or the raw
+  /// fingerprint of the loaded file when that proof is not available.
+  fingerprint     String
+  /// Workflow name from the closed list in monitoring-spec.ts.
+  source          String
+  /// Start of the UTC hour.
+  bucketStart     DateTime  @db.Timestamptz(3)
+  executions      Int       @default(0)
+  failures        Int       @default(0)
+  /// Output values observed (one execution may produce several, e.g. one
+  /// rating per player in a match).
+  outputs         Int       @default(0)
+  /// Outputs outside the algorithm's declared output contract.
+  outOfContract   Int       @default(0)
+  latencySumUs    BigInt    @default(0)
+  latencyMaxUs    Int       @default(0)
+  /// Counts per fixed latency bin (monitoring-spec.ts LATENCY_EDGES_US).
+  latencyBins     Int[]
+  /// Counts per fixed output bin of this algorithm (monitoring-spec.ts).
+  outputBins      Int[]
+  qualityOk       Int       @default(0)
+  qualityPartial  Int       @default(0)
+  qualityEmpty    Int       @default(0)
+  freshnessFresh  Int       @default(0)
+  freshnessStale  Int       @default(0)
+  firstAt         DateTime  @db.Timestamptz(3)
+  lastAt          DateTime  @db.Timestamptz(3)
+  lastFailureAt   DateTime? @db.Timestamptz(3)
+  /// An error class name such as `TypeError` — never a message.
+  lastFailureKind String?
+  updatedAt       DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@unique([algorithmKey, version, fingerprint, source, bucketStart])
+  @@index([bucketStart])
+}

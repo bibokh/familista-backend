@@ -34,6 +34,12 @@ const ASSETS = [
   // than calling anything approved.
   ['src/algorithms/generated/algorithm-manifest.json',
    'dist/algorithms/generated/algorithm-manifest.json'],
+  // The one fingerprint reader (plain JavaScript, so the build script can use
+  // it before tsc runs). The running server requires it to fingerprint the
+  // algorithm code it loaded (src/algorithms/runtime-fingerprint.ts); the seal
+  // that code is compared with is written next, by scripts/algorithms-seal.js.
+  ['src/algorithms/fingerprint-core.js',
+   'dist/algorithms/fingerprint-core.js'],
 ];
 
 let copied = 0;

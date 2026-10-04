@@ -134,7 +134,8 @@
     "db-row-level-security",
     "self-registration-closed",
     "franchise-club-attach-authorised",
-    "algorithm-change-gate"
+    "algorithm-change-gate",
+    "algorithm-telemetry-private"
   ],
   "knownGaps": {
     "mfa-required-at-login": "PARTIAL \u2014 required at sign-in for an owner who switched it on (Step 7) and, while MFA_REQUIRED_FOR_ADMINS=true, for administrators (R7); not required for every account.",
@@ -772,9 +773,10 @@
     },
     "algorithms.routes :key": {
       "basis": "platform-only",
-      "reason": "The Algorithms room is behind assertPlatformOwner; a key is a name in the algorithm registry, not a club row.",
+      "reason": "The Algorithms room is behind assertPlatformOwner; a key is a name in the algorithm registry, not a club row \u2014 for its definition and for its production monitoring alike.",
       "routes": [
-        "GET /system/algorithms/:key"
+        "GET /system/algorithms/:key",
+        "GET /system/algorithms/:key/monitoring"
       ]
     }
   },

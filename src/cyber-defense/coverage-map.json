@@ -542,6 +542,19 @@
       "controls": [
         "algorithm-change-gate"
       ]
+    },
+    "40": {
+      "name": "Algorithm runtime telemetry",
+      "flow": "production algorithm runs → owner monitoring",
+      "trustBoundary": "club request path → platform telemetry",
+      "owner": "platform",
+      "dataClass": "platform",
+      "boundaryType": "privacy",
+      "coverage": "C",
+      "controls": [
+        "algorithm-telemetry-private",
+        "owner-rooms-pinned"
+      ]
     }
   },
   "components": {
@@ -571,7 +584,8 @@
         5,
         6,
         7,
-        39
+        39,
+        40
       ],
       "analytics.routes": [
         4,
@@ -889,7 +903,8 @@
         7
       ],
       "algorithms": [
-        39
+        39,
+        40
       ],
       "auth-prod": [
         2,
@@ -1196,6 +1211,10 @@
       "AI audit log — separate from the decisions table so admin queries don't": [
         18,
         35
+      ],
+      "Algorithms — production runtime telemetry": [
+        18,
+        40
       ],
       "Analysis runs + outputs": [
         5,

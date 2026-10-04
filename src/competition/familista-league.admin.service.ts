@@ -43,7 +43,8 @@ import {
   type CompActor,
 } from './competition.service';
 import { validateKickoff } from './match-scheduling';
-import { schedulingContextFor } from './match-center.service';
+import { schedulingContextFor, inspectKickoff } from './match-center.service';
+import { observed } from '../algorithms/telemetry';
 
 export interface LeagueActor {
   userId: string;
@@ -131,7 +132,7 @@ export async function listParticipants(competitionId: string): Promise<Participa
       playedMatches: playCount.get(t.id) ?? 0,
       stillEligible: eligibilityFor(comp, {
         kind: t.kind, isActive: t.isActive, name: t.name, ageMin: t.ageMin, ageMax: t.ageMax,
-      }).eligible,
+      }, 'league.manage-participants').eligible,
     }))
     .sort((a, b) => a.clubName.localeCompare(b.clubName));
 }
@@ -187,7 +188,7 @@ export async function listEligibleTeams(
     // the verdict decides the band, exactly as the season runner does.
     .filter((t) => eligibilityFor(comp, {
       kind: t.kind, isActive: t.isActive, name: t.name, ageMin: t.ageMin, ageMax: t.ageMax,
-    }).eligible)
+    }, 'league.eligible-teams').eligible)
     .map((t) => ({
     teamId: t.id,
     teamName: t.name,
@@ -219,7 +220,7 @@ export async function addParticipant(
 
   const verdict = eligibilityFor(comp, {
     kind: team.kind, isActive: team.isActive, name: team.name, ageMin: team.ageMin, ageMax: team.ageMax,
-  });
+  }, 'league.add-participant');
   if (!verdict.eligible) {
     throw new BadRequestError(
       verdict.reason === 'NOT_FIRST_TEAM'
@@ -537,11 +538,11 @@ export async function rescheduleFixture(
   // the rule lives in one module and both write paths ask it, so neither can
   // drift from the other.
   const ctx = await schedulingContextFor(fixtureId);
-  const check = validateKickoff({
+  const check = observed('kickoff-window', 'league.reschedule-fixture', () => validateKickoff({
     at: when,
     timeZone: ctx.timeZone,
     policy: ctx.policy,
-  });
+  }), (c) => inspectKickoff(c, ctx.timeZoneSource));
   if (!check.ok && check.verdict !== 'UNCHANGED') throw new BadRequestError(check.message);
 
   await prisma.fixture.update({

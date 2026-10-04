@@ -520,5 +520,6 @@
   "Yes": "Yes",
   "the response did not carry:": "the response did not carry:",
   "Not read from the database just now.": "Not read from the database just now.",
-  "%d held to RLS by the database, read live": "%d held to RLS by the database, read live"
+  "%d held to RLS by the database, read live": "%d held to RLS by the database, read live",
+  "Algorithm runtime telemetry": "Algorithm runtime telemetry"
 }

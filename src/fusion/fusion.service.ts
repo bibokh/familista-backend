@@ -22,6 +22,7 @@ import type {
   FusionFrame, FusionFrameRow, PlayerSpatialState,
   GlobalTimestampMs,
 } from './types';
+import { observed } from '../algorithms/telemetry';
 
 interface SessionPackets {
   sessionId:    string;
@@ -214,7 +215,11 @@ function rollupBLI(
   }
   mechanicalWork *= 0.5 * 75;   // assume 75 kg until per-player mass is known
 
-  return biomechanicalLoadIndex({
+  // Algorithms Step 2: one production run of the registered BLI, recorded as
+  // counts only — the index, which sensor streams the window had, how long it
+  // took. The same call, the same result.
+  const streams = [imu.length > 0, gps.length > 0, hr.length > 0].filter(Boolean).length;
+  return observed('biomechanical-load', 'matches.fusion-frame', () => biomechanicalLoadIndex({
     playerId,
     windowMs,
     accelMagSqSum,
@@ -223,7 +228,10 @@ function rollupBLI(
     jointStrainIntegral,
     mechanicalWork,
     baseline: defaultBaseline(),
-  });
+  }), (bli) => ({
+    outputs: [bli.value],
+    quality: streams === 3 ? 'OK' : streams === 0 ? 'EMPTY' : 'PARTIAL',
+  }));
 }
 
 function rollupTAI(
@@ -289,7 +297,10 @@ function rollupTAI(
   const vMaxLate = gps.reduce((m, p) => Math.max(m, p.payload?.speed ?? 0), 0);
   const sprintMaxRatio = vMaxLate > 0 ? Math.min(1, vMaxLate / 9.5) : 1.0;
 
-  return tacticalAttritionIndex({
+  // Algorithms Step 2: which of its measured inputs this window really had —
+  // the rest fell back to defaults or proxies above.
+  const measured = [patch.length >= 2, gps.length > 1, mine.length >= 2].filter(Boolean).length;
+  return observed('tactical-attrition', 'matches.fusion-frame', () => tacticalAttritionIndex({
     playerId,
     windowMs,
     bli,
@@ -299,7 +310,10 @@ function rollupTAI(
     recoveryLagSec,
     sprintMaxRatio,
     baseline: defaultBaseline(),
-  });
+  }), (tai) => ({
+    outputs: [tai.value],
+    quality: measured === 3 ? 'OK' : measured === 0 ? 'EMPTY' : 'PARTIAL',
+  }));
 }
 
 // ─────────────────────────────────────────────────────────────────────────

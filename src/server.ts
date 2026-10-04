@@ -30,6 +30,7 @@ import { startChannelBridge, stopChannelBridge } from './infra/channel-bridge';
 import { startClusterPrimary, workerIndex } from './infra/cluster';
 import { verifyRedis, redisConfigured, closeRedis } from './infra/redis';
 import { MIN_PG_DUMP_MAJOR, pgToolVersion } from './security/backup/pg-process';
+import { startAlgorithmTelemetry, stopAlgorithmTelemetry } from './algorithms/telemetry-store';
 
 // ── Boot ──────────────────────────────────────────────────
 // NOTE: The legacy GPS demo WebSocket (/ws/live) and its associated
@@ -155,6 +156,14 @@ async function bootstrap() {
       logger.error('[boot] startOwnedWorkers failed (swallowed)', { err: (err as Error).message });
     }
 
+    // Algorithms Step 2: this process's algorithm telemetry writer. In EVERY
+    // process, not leased — each one writes only the runs it served itself,
+    // once a minute and only when something ran. It also fingerprints the
+    // algorithm code this process loaded, now, before any request.
+    try { startAlgorithmTelemetry(); } catch (err) {
+      logger.error('[boot] startAlgorithmTelemetry failed (swallowed)', { err: (err as Error).message });
+    }
+
     // Phase J: region presence + billing tier seed (idempotent, best-effort)
     try {
       const { ensureRegions, registerThisNode } = await import('./distributed/region.service');
@@ -186,6 +195,9 @@ async function bootstrap() {
     try { await stopOwnedWorkers();  } catch (_) {}
     try { await stopChannelBridge(); } catch (_) {}
     server.close(async () => {
+      // The last minute of algorithm telemetry, written while the database is
+      // still connected and after the last request has finished.
+      try { await stopAlgorithmTelemetry(); } catch (_) {}
       await disconnectDatabase();
       try { await closeRedis(); } catch (_) {}
       process.exit(0);

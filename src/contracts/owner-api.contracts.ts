@@ -858,6 +858,117 @@ export const AlgDetailSchema = AlgSummarySchema.extend({
   }).strict()),
 }).strict();
 
+// ── Algorithms — production monitoring (Step 2) ──────────────────────────────
+
+const MonStateEnum = z.enum(['HEALTHY', 'WARNING', 'FAILING', 'NOT_INSTRUMENTED', 'NOT_ENOUGH_DATA']);
+const FindingEnum = z.enum(['FINGERPRINT_MISMATCH', 'FINGERPRINT_UNVERIFIED', 'EVALUATION_FAILED', 'CONTRACT_VIOLATIONS',
+  'REPEATED_FAILURES', 'FAILURES', 'STALE', 'NO_EXECUTIONS', 'DISTRIBUTION_SHIFT', 'LATENCY_REGRESSION']);
+const RuntimeVerdictEnum = z.enum(['MATCH', 'MISMATCH', 'UNVERIFIED']);
+const RuntimeBasisEnum = z.enum(['SOURCE', 'COMPILED']);
+const NonNeg = z.number().nonnegative();
+const RunFingerprint = z.union([Fingerprint, z.literal('unavailable')]);
+
+export const AlgMonitoringSummarySchema = z.object({
+  key: z.string().min(1),
+  name: z.string().min(1),
+  domain: z.string().min(1),
+  version: z.string().min(1),
+  state: MonStateEnum,
+  instrumented: z.boolean(),
+  workflows: Count,
+  executions24h: Count,
+  failures24h: Count,
+  executions7d: Count,
+  failures7d: Count,
+  lastExecutionAt: Instant.nullable(),
+  p95AtMostUs: NonNeg.nullable(),
+  runtimeCode: RuntimeVerdictEnum,
+  evaluation: EvalState,
+  findings: z.array(FindingEnum),
+}).strict();
+
+export const AlgorithmsMonitoringSchema = z.object({
+  state: z.enum(['READY', 'STORE_UNAVAILABLE']),
+  reason: z.string().nullable(),
+  measuredAt: Instant,
+  thresholds: z.object({
+    recentDays: Count, baselineDays: Count, retentionDays: Count, failureWindowHours: Count,
+    staleAfterDays: Count, minHealthySample: Count, minDriftRecent: Count, minDriftBaseline: Count,
+    driftPsiWarn: NonNeg, repeatedFailures: Count, repeatedFailureRate: NonNeg,
+    latencyRegressionRatio: NonNeg, flushIntervalSeconds: Count,
+  }).strict(),
+  coverage: z.object({ registered: Count, instrumented: Count, notInstrumented: Count, workflows: Count }).strict(),
+  states: z.object({ HEALTHY: Count, WARNING: Count, FAILING: Count, NOT_INSTRUMENTED: Count, NOT_ENOUGH_DATA: Count }).strict(),
+  totals: z.object({
+    executions24h: Count, failures24h: Count, executions7d: Count, failures7d: Count,
+    outOfContract7d: Count, lastExecutionAt: Instant.nullable(),
+  }).strict(),
+  runtime: z.object({
+    basis: RuntimeBasisEnum, computedAt: Instant, durationMs: NonNeg,
+    verified: Count, mismatched: Count, unverified: Count,
+  }).strict(),
+  store: z.object({
+    state: z.enum(['OK', 'FAILING', 'NOT_STARTED', 'IDLE']),
+    lastFlushAt: Instant.nullable(),
+    lastFlushFailure: z.string().nullable(),
+    rowsWritten: Count, pendingEntries: Count, droppedRuns: Count, flushIntervalSeconds: Count,
+  }).strict(),
+  loop: z.object({
+    measured: Count, notInstrumented: Count, healthy: Count, warning: Count, failing: Count,
+    notEnoughData: Count, withFindings: Count,
+  }).strict(),
+  algorithms: z.array(AlgMonitoringSummarySchema),
+}).strict();
+
+const LatencyViewSchema = z.object({
+  samples: Count, meanUs: NonNeg.nullable(), p50AtMostUs: NonNeg.nullable(), p95AtMostUs: NonNeg.nullable(),
+  maxUs: NonNeg.nullable(), bins: z.array(Count),
+}).strict();
+const RunCounts = z.object({ executions: Count, failures: Count }).strict();
+const OutCounts = z.object({ executions: Count, failures: Count, outputs: Count, outOfContract: Count }).strict();
+const SourceKindEnum = z.enum(['REQUEST', 'WORKER']);
+
+export const AlgMonitoringDetailSchema = AlgMonitoringSummarySchema.extend({
+  storeState: z.enum(['READY', 'STORE_UNAVAILABLE']),
+  coverage: z.object({
+    reason: z.string().nullable(),
+    evidence: z.array(z.string().min(1)),
+    paths: z.array(z.object({ source: z.string().min(1), kind: SourceKindEnum, entry: z.string().min(1), file: z.string().min(1) }).strict()),
+  }).strict(),
+  fingerprint: z.object({
+    basis: RuntimeBasisEnum, file: z.string().min(1), approved: Fingerprint.nullable(), runtime: Fingerprint.nullable(),
+    source: Fingerprint.nullable(), verdict: RuntimeVerdictEnum, reason: z.string().min(1), computedAt: Instant,
+  }).strict(),
+  counts: z.object({ last24h: RunCounts, recent: OutCounts, baseline: OutCounts, retained: RunCounts }).strict(),
+  firstSeenAt: Instant.nullable(),
+  lastFailureAt: Instant.nullable(),
+  lastFailureKind: z.string().nullable(),
+  latency: z.object({ edgesUs: z.array(Count), recent: LatencyViewSchema.nullable(), baseline: LatencyViewSchema.nullable() }).strict(),
+  distribution: z.object({
+    name: z.string().min(1), kind: z.enum(['NUMERIC', 'CATEGORICAL']), labels: z.array(z.string().min(1)),
+    recent: z.array(Count), baseline: z.array(Count), psi: NonNeg.nullable(),
+  }).strict().nullable(),
+  quality: z.object({ describes: z.string().min(1), ok: Count, partial: Count, empty: Count, notAssessed: Count }).strict().nullable(),
+  freshness: z.object({ describes: z.string().min(1), fresh: Count, stale: Count, notAssessed: Count }).strict().nullable(),
+  bySource: z.array(z.object({
+    source: z.string().min(1), kind: SourceKindEnum, entry: z.string().min(1),
+    executions7d: Count, failures7d: Count, lastAt: Instant.nullable(),
+  }).strict()),
+  fingerprintsSeen: z.array(z.object({
+    fingerprint: RunFingerprint, version: z.string().min(1), executions: Count, lastAt: Instant.nullable(),
+    current: z.boolean(), approved: z.boolean(),
+  }).strict()),
+  daily: z.array(z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), executions: Count, failures: Count }).strict()),
+  checks: z.array(z.object({
+    id: z.enum(['runtime-code', 'evaluation', 'output-contract', 'failures', 'activity', 'distribution', 'latency']),
+    label: z.string().min(1),
+    state: z.enum(['PASS', 'WARN', 'FAIL', 'NOT_ENOUGH_DATA', 'NOT_APPLICABLE']),
+    observed: z.string().min(1),
+    required: z.string().min(1),
+  }).strict()),
+  findingList: z.array(z.object({ id: FindingEnum, severity: z.enum(['FAILING', 'WARNING', 'INFO']) }).strict()),
+}).strict();
+
 // ── the registry ─────────────────────────────────────────────────────────────
 
 export interface ApiContract {
@@ -1025,6 +1136,17 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     reads: ['summary', 'usedBy', 'inputs', 'outputs', 'dependsOn', 'source', 'fingerprint', 'approval',
       'versions', 'tests', 'notSimulatedBecause', 'scenarios'],
   },
+  {
+    endpoint: '/system/algorithms/monitoring', module: 'Algorithms',
+    schema: AlgorithmsMonitoringSchema, consumer: 'public/algorithms/algorithms.js',
+    reads: ['state', 'reason', 'measuredAt', 'thresholds', 'coverage', 'states', 'totals', 'runtime', 'store', 'loop', 'algorithms'],
+  },
+  {
+    endpoint: '/system/algorithms/medical-risk/monitoring', module: 'Algorithms',
+    schema: AlgMonitoringDetailSchema, consumer: 'public/algorithms/algorithms.js',
+    reads: ['storeState', 'coverage', 'fingerprint', 'counts', 'firstSeenAt', 'lastFailureAt', 'lastFailureKind',
+      'latency', 'distribution', 'quality', 'freshness', 'bySource', 'fingerprintsSeen', 'daily', 'checks', 'findingList'],
+  },
 ];
 
 // ── the compile-time pin ─────────────────────────────────────────────────────
@@ -1045,6 +1167,7 @@ import type {
   CommandCenterOverview, DomainDetail, DomainSummary, AreaView, StageView, RlsView, EventsOverview, PostureView,
 } from '../cyber-defense/control-plane/control-plane.service';
 import type { AlgorithmsOverview, AlgorithmSummary, AlgorithmDetail } from '../algorithms/algorithms.service';
+import type { MonitoringOverview, MonitoringSummary, AlgorithmMonitoringDetail } from '../algorithms/monitoring';
 
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 
@@ -1072,6 +1195,10 @@ const _algOverview: Exact<z.infer<typeof AlgorithmsOverviewSchema>, AlgorithmsOv
 const _algSummary: Exact<z.infer<typeof AlgSummarySchema>, AlgorithmSummary> = true;
 const _algDetail: Exact<z.infer<typeof AlgDetailSchema>, AlgorithmDetail> = true;
 void [_algOverview, _algSummary, _algDetail];
+const _monOverview: Exact<z.infer<typeof AlgorithmsMonitoringSchema>, MonitoringOverview> = true;
+const _monSummary: Exact<z.infer<typeof AlgMonitoringSummarySchema>, MonitoringSummary> = true;
+const _monDetail: Exact<z.infer<typeof AlgMonitoringDetailSchema>, AlgorithmMonitoringDetail> = true;
+void [_monOverview, _monSummary, _monDetail];
 void [_component, _district, _relationship, _technology, _signal, _incident, _rule,
   _source, _control, _stage, _impact,
   _ccOverview, _ccDomain, _ccDetail, _ccArea, _ccStage, _ccRls, _ccEvents, _ccPosture];
