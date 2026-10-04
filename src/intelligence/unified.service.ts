@@ -40,6 +40,7 @@ import {
   computeTacticalFitScore,
   computeContractRiskScore,
 } from '../transfer/scoring.service';
+import { observed } from '../algorithms/telemetry';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -218,12 +219,14 @@ export async function getUnifiedPlayerIntelligence(
     : null;
   const acwr = (medical as any)?.workload?.acwr ?? null;
 
-  const medicalRiskRaw  = computeMedicalRiskScore({
+  // Algorithms Step 2: recorded as the score and whether the load ratio was
+  // known — never the player or their injuries.
+  const medicalRiskRaw  = observed('medical-risk', 'intelligence.unified-player', () => computeMedicalRiskScore({
     activeInjuryCount: activeCount,
     totalInjuryCount:  injuries.length,
     recentReturnDays,
     acwr,
-  });
+  }), (score) => ({ outputs: [score], quality: acwr === null ? 'PARTIAL' : 'OK' }));
   const medicalRaw      = _invert(medicalRiskRaw);
   const medicalEvidence = activeCount > 0
     ? `${activeCount} active injury/injuries; ${injuries.length} total recorded`
@@ -265,13 +268,13 @@ export async function getUnifiedPlayerIntelligence(
   ]);
 
   // ── Confidence ────────────────────────────────────────────────────────────
-  const confidence = computeConfidence({
+  const confidence = observed('data-confidence', 'intelligence.unified-player', () => computeConfidence({
     reportCount:     reports.length,
     hasContract:     contract !== null,
     hasMarketValue:  market !== null,
     hasWorkloadData: acwr !== null,
     hasVideoClips:   clips.length > 0,
-  });
+  }), (level) => ({ outputs: [level] }));
 
   // ── Recommendation ────────────────────────────────────────────────────────
   const recommendation = _recommendation(overallScore, medicalRiskRaw, contractRiskRaw);

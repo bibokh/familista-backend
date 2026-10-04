@@ -415,7 +415,9 @@ describe('the reschedule workflow', () => {
   it('the server validates, whatever the client did', () => {
     const create = MCS.slice(MCS.indexOf('export async function createRequest'),
                              MCS.indexOf('export type RequestAction'));
-    expect(create).toContain('const check = validateKickoff({');
+    // Algorithms Step 2 records the call as production telemetry; the rule it
+    // calls and the refusal that follows are exactly what they were.
+    expect(create).toContain("const check = observed('kickoff-window', 'match-center.change-request', () => validateKickoff({");
     expect(create).toContain('if (!check.ok) throw new BadRequestError(check.message)');
     // The administrator's own reschedule path asks the same rule, so the two
     // cannot drift apart.

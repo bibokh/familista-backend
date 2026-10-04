@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-04T10:51:34.722Z",
+  "generatedAt": "2026-10-04T16:55:34.217Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -323,7 +323,7 @@
       "sourceEvidence": "prisma/schema.prisma — datasource provider",
       "dependencies": [],
       "healthKey": "database",
-      "note": "343 models, 209 enums, 48 migrations."
+      "note": "344 models, 209 enums, 49 migrations."
     },
     {
       "id": "prisma-orm",
@@ -929,7 +929,7 @@
       "provider": "GitHub",
       "region": null,
       "repositoryPath": ".github/workflows/ci.yml",
-      "sourceEvidence": ".github/workflows/ci.yml — 19 named steps",
+      "sourceEvidence": ".github/workflows/ci.yml — 20 named steps",
       "dependencies": [
         "platform-core"
       ],
@@ -1081,7 +1081,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 192 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 194 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1141,7 +1141,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "588 TypeScript modules under src/."
+      "note": "594 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1627,18 +1627,18 @@
     "serviceModules": 102,
     "middleware": 23,
     "fabricModules": 52,
-    "totalTypeScript": 588,
-    "testSuites": 192,
-    "migrations": 48,
-    "prismaModels": 343,
+    "totalTypeScript": 594,
+    "testSuites": 194,
+    "migrations": 49,
+    "prismaModels": 344,
     "prismaEnums": 209
   },
   "database": {
     "provider": "postgresql",
-    "models": 343,
+    "models": 344,
     "enums": 209,
-    "migrations": 48,
-    "latestMigration": "20261006100000_rls_enforce"
+    "migrations": 49,
+    "latestMigration": "20261007100000_algorithm_runtime_telemetry"
   },
   "typescript": {
     "target": "ES2020",
@@ -1721,6 +1721,7 @@
           "Audit evidence append-only (real PostgreSQL)",
           "Row-level security pilot (real PostgreSQL)",
           "Security closure Task 1 (real PostgreSQL)",
+          "Algorithm telemetry (real PostgreSQL)",
           "Audit (blocking on high and critical)",
           "Checkout (full history)",
           "Install gitleaks (pinned, checksum verified)",
@@ -1880,7 +1881,7 @@
       "router": "algorithmsRoutes",
       "file": "src/routes/algorithms.routes.ts",
       "writes": 0,
-      "reads": 2
+      "reads": 4
     },
     {
       "path": "/telemetry",

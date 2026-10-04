@@ -27,6 +27,8 @@ import {
 } from '../src/algorithms/loop';
 import { SCENARIOS, evaluate } from '../src/algorithms/scenarios';
 import { algorithmsOverview, algorithmDetail, resetAlgorithmMonitor } from '../src/algorithms/algorithms.service';
+import { CHECK_LABEL, STORE_UNAVAILABLE_REASON } from '../src/algorithms/monitoring';
+import { MONITORING_SPECS } from '../src/algorithms/monitoring-spec';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const discover = require('../scripts/algorithms-discover.js');
@@ -77,11 +79,20 @@ describe('the registry describes real code', () => {
     }
   });
 
-  it('reads nothing from a database: no file in src/algorithms imports one', () => {
+  it('reads no club data: one file in src/algorithms touches a database, and only the telemetry table', () => {
+    // Step 1 read no database at all. Step 2 keeps production telemetry — and
+    // the line moved exactly that far: telemetry-store.ts is the one file
+    // that imports a client, and the only table it names is its own.
     for (const f of fs.readdirSync(path.join(ROOT, 'src/algorithms')).filter((x) => x.endsWith('.ts'))) {
       const src = read(`src/algorithms/${f}`);
-      expect(`${f}: ${/config\/database|@prisma\/client|rls-client|db-context/.test(src)}`).toBe(`${f}: false`);
+      const touches = /config\/database|@prisma\/client|rls-client|db-context/.test(src);
+      expect(`${f}: ${touches}`).toBe(`${f}: ${f === 'telemetry-store.ts'}`);
     }
+    const store = read('src/algorithms/telemetry-store.ts').replace(/\/\/[^\n]*/g, '');
+    const tables = [...store.matchAll(/(?:INSERT INTO|FROM|DELETE FROM|UPDATE)\s+"(\w+)"/g)].map((m) => m[1]);
+    expect(tables.length).toBeGreaterThan(0);
+    expect([...new Set(tables)]).toEqual(['AlgorithmTelemetryBucket']);
+    expect(store).not.toMatch(/prisma\.(?!\$executeRaw|\$queryRaw)\w+\./);
   });
 });
 
@@ -332,8 +343,10 @@ describe('the room is the platform owner’s, and it writes nothing', () => {
     expect(read('src/routes/index.ts')).toContain("router.use('/system/algorithms', algorithmsRoutes);");
   });
 
-  it('has exactly two reads and no write handler', () => {
-    expect((code.match(/router\.get\(/g) || []).length).toBe(2);
+  it('has exactly four reads and no write handler', () => {
+    // Step 1's two, and Step 2's production monitoring: the room and one
+    // algorithm, each read-only.
+    expect((code.match(/router\.get\(/g) || []).length).toBe(4);
     expect(code).not.toMatch(/router\.(post|put|patch|delete|all)\(/);
     expect(read('public/algorithms/algorithms.js')).not.toMatch(/method:\s*['"](POST|PUT|PATCH|DELETE)/i);
   });
@@ -358,12 +371,13 @@ describe('Cybersecurity covers the Algorithms module from the start', () => {
   it('its router and source domain are mapped onto the algorithm change-control boundary', () => {
     expect(map.boundaries['39']).toMatchObject({ name: 'Algorithm change control', coverage: 'C', controls: [CONTROL_FOR_TEST] });
     expect(map.components.routers['algorithms.routes']).toContain(39);
-    expect(map.components.srcDomains.algorithms).toEqual([39]);
+    // Row 40 joined with Step 2: the same module also writes production telemetry.
+    expect(map.components.srcDomains.algorithms).toEqual([39, 40]);
   });
 
   it('appears on the Cybersecurity map as an AI area', () => {
     const reg = read('src/cyber-defense/control-plane/registry.ts');
-    expect(reg).toContain("{ id: 'algorithms', title: 'Algorithms', group: 'AI', routers: ['algorithms.routes'], rows: [39] }");
+    expect(reg).toContain("{ id: 'algorithms', title: 'Algorithms', group: 'AI', routers: ['algorithms.routes'], rows: [39, 40] }");
     expect(reg).toContain("controls: ['codeowners', 'algorithm-change-gate'],");
   });
 });
@@ -430,7 +444,10 @@ describe('the room speaks English, German and Arabic — every string it can sho
     const src = read('public/algorithms/algorithms.js');
     const out = new Set<string>();
     for (const m of src.matchAll(/(?:\bT|\btf|\bpanel|\bemptyState)\(\s*'((?:[^'\\]|\\.)*)'/g)) out.add(m[1].replace(/\\'/g, "'"));
-    for (const name of ['GATE_LABEL', 'GATE_MEANING', 'EVAL_LABEL', 'STAGE_LABEL', 'GROUP_LABEL']) {
+    for (const name of ['GATE_LABEL', 'GATE_MEANING', 'EVAL_LABEL', 'STAGE_LABEL', 'GROUP_LABEL',
+      'MON_LABEL', 'MON_MEANING', 'FINDING_LABEL', 'VERDICT_LABEL', 'REASON_LABEL', 'BASIS_LABEL',
+      'STORE_LABEL', 'CHECK_STATE_LABEL', 'KIND_LABEL']) {
+      expect(`${name}: ${src.includes(`var ${name} = {`)}`).toBe(`${name}: true`);
       const i = src.indexOf(`var ${name} = {`);
       for (const m of src.slice(i, src.indexOf('};', i)).matchAll(/:\s*'((?:[^'\\]|\\.)*)'/g)) out.add(m[1]);
     }
@@ -451,6 +468,12 @@ describe('the room speaks English, German and Arabic — every string it can sho
     o.guarantees.forEach((x) => add(x.text));
     add('The algorithm fingerprints are not beside this server.');
     add('The scenario ran without an error');
+    // Production monitoring (Step 2): every sentence the server can send.
+    Object.values(CHECK_LABEL).forEach(add);
+    add(STORE_UNAVAILABLE_REASON);
+    for (const sp of MONITORING_SPECS) {
+      if (sp.instrumented) { add(sp.output.name); add(sp.quality); add(sp.freshness); } else add(sp.reason);
+    }
     for (const a of o.algorithms) {
       const d = algorithmDetail(a.key);
       if (d.state !== 'READY') continue;

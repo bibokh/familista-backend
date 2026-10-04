@@ -520,5 +520,6 @@
   "Yes": "نعم",
   "the response did not carry:": "لم تتضمّن الاستجابة:",
   "Not read from the database just now.": "لم تتم القراءة من قاعدة البيانات الآن.",
-  "%d held to RLS by the database, read live": "%d تُخضعها قاعدة البيانات لـ RLS، قراءة مباشرة"
+  "%d held to RLS by the database, read live": "%d تُخضعها قاعدة البيانات لـ RLS، قراءة مباشرة",
+  "Algorithm runtime telemetry": "قياسات تشغيل الخوارزميات"
 }

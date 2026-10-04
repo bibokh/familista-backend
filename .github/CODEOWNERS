@@ -25,6 +25,8 @@
 # is itself a reviewed change.
 /src/algorithms/                    @bibokh
 /scripts/algorithms-discover.js     @bibokh
+# The build seal that ties the running code back to that approval.
+/scripts/algorithms-seal.js         @bibokh
 
 # Schema and migrations (run in production by render-start.sh)
 /prisma/                            @bibokh

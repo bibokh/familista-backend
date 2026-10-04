@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-04T10:51:16.796Z",
+  "generatedAt": "2026-10-04T16:55:35.591Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 54,
-    "handlers": 747,
+    "handlers": 749,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -301,7 +301,7 @@
       {
         "path": "/system/algorithms",
         "module": "algorithms.routes",
-        "handlers": 2,
+        "handlers": 4,
         "public": 0,
         "routerWideAuth": true
       },
@@ -571,9 +571,9 @@
       "src/services/vision-realtime.service.ts"
     ],
     "tenancy": {
-      "idParameters": 346,
+      "idParameters": 347,
       "guarded": 136,
-      "exempt": 210,
+      "exempt": 211,
       "unguarded": [],
       "staleExemptions": [],
       "routerWideTenantGuardMounts": [],
@@ -591,7 +591,7 @@
         },
         "algorithms.routes": {
           "guarded": 0,
-          "exempt": 1,
+          "exempt": 2,
           "unguarded": 0
         },
         "analytics.routes": {
@@ -802,13 +802,13 @@
       }
     },
     "authorization": {
-      "handlers": 747,
+      "handlers": 749,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 80
+        "platform-owner": 82
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -826,7 +826,7 @@
           "member": 3
         },
         "algorithms.routes": {
-          "platform-owner": 2
+          "platform-owner": 4
         },
         "analytics.routes": {
           "member": 4,
@@ -1332,6 +1332,8 @@
         "GET /staff-market/summary": "member",
         "GET /system/algorithms": "platform-owner",
         "GET /system/algorithms/:key": "platform-owner",
+        "GET /system/algorithms/:key/monitoring": "platform-owner",
+        "GET /system/algorithms/monitoring": "platform-owner",
         "GET /system/analytics/platform": "platform-owner",
         "GET /system/analytics/product": "platform-owner",
         "GET /system/approvals": "platform-owner",
@@ -1781,7 +1783,7 @@
     "components": {
       "routers": 54,
       "srcDomains": 77,
-      "prismaSections": 64,
+      "prismaSections": 65,
       "packages": 28,
       "outboundCallSites": 5,
       "realtimeEndpoints": 7,
@@ -1792,9 +1794,9 @@
       "workflows": 3,
       "infrastructureComponents": 53
     },
-    "boundaries": 39,
+    "boundaries": 40,
     "coverage": {
-      "C": 33,
+      "C": 34,
       "P": 6,
       "U": 0
     },
@@ -1841,7 +1843,8 @@
       "36": "C",
       "37": "C",
       "38": "C",
-      "39": "C"
+      "39": "C",
+      "40": "C"
     },
     "unmapped": [],
     "stale": [],
@@ -1967,7 +1970,7 @@
       "id": "tenant-guard",
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
-      "note": "136 of 346 route id parameter(s) checked against the caller's club before the handler; 210 exempted by name with a reason; 0 unguarded."
+      "note": "136 of 347 route id parameter(s) checked against the caller's club before the handler; 211 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "franchise-club-attach-authorised",
@@ -2184,7 +2187,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "747 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 80 platform-owner; every member-level handler reviewed by name."
+      "note": "749 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 82 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2209,6 +2212,12 @@
       "status": "PRESENT",
       "evidence": "src/algorithms/registry.ts",
       "note": "Every registered algorithm is read/analyze-only and runs only the exact code its recorded human approval names; on the Continuous Intelligence Loop, Deploy is reachable only from Human approval; the Algorithms room is owner-only and has no write handler; the registry is code-owned."
+    },
+    {
+      "id": "algorithm-telemetry-private",
+      "status": "PRESENT",
+      "evidence": "src/algorithms/telemetry-store.ts",
+      "note": "Production telemetry of the registered algorithms is aggregate counts, histograms and times only: its table has no column for a club, team, player, user, request, input or message, the database refuses free text in it, one file writes it, the recorder refuses any workflow outside its closed list, and only the platform owner reads it, read-only — proven on real PostgreSQL in CI."
     },
     {
       "id": "security-alert-delivery",
@@ -2280,13 +2289,13 @@
       "id": "architecture-fully-mapped",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "369 discovered component(s) across 12 kinds, each declared against the 39 trust-boundary rows; a covered row's controls are all present."
+      "note": "370 discovered component(s) across 12 kinds, each declared against the 40 trust-boundary rows; a covered row's controls are all present."
     },
     {
       "id": "coverage-ratchet",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "33 covered, 6 partial, 0 uncovered; uncovered may not exceed 0, and partial + uncovered may not exceed 6."
+      "note": "34 covered, 6 partial, 0 uncovered; uncovered may not exceed 0, and partial + uncovered may not exceed 6."
     }
   ],
   "secrets": {
@@ -2765,6 +2774,7 @@
       "scripts/rollback.sh",
       "src/algorithms/loop.ts",
       "src/algorithms/registry.ts",
+      "src/algorithms/telemetry.ts",
       "src/app.ts",
       "src/auth-prod/admin-mfa.ts",
       "src/auth-prod/mfa-enforcement.service.ts",
@@ -2899,7 +2909,7 @@
     ]
   },
   "counts": {
-    "controlsPresent": 73,
+    "controlsPresent": 74,
     "controlsPartial": 1,
     "controlsAbsent": 1,
     "cryptoUses": 10

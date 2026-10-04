@@ -15,6 +15,7 @@
 // other fails rather than quietly letting an academy side into the league.
 
 import { Prisma, TeamKind } from '@prisma/client';
+import { observed } from '../algorithms/telemetry';
 
 /**
  * The kinds of team that count as a club's first team.
@@ -195,6 +196,9 @@ export interface CompetitionCategory {
   ageGroup?: string | null;
 }
 
+/** The production workflows that ask this rule, for Algorithms Step 2's telemetry. */
+export type EligibilityWorkflow = 'league.manage-participants' | 'league.eligible-teams' | 'league.add-participant';
+
 /**
  * May this team play in THIS competition?
  *
@@ -202,15 +206,26 @@ export interface CompetitionCategory {
  * team's league takes first teams, and a band's league takes exactly that band.
  * A SENIOR side is refused by every academy competition — it has no academy
  * kind, so it has no band to match with.
+ *
+ * `workflow` names the production request asking, so a run of the registered
+ * first-team rule (`eligibilityOf`, the algorithm `league-eligibility`) is
+ * recorded as one — the verdict token and nothing else. It changes no answer.
+ * The operator's season scripts pass none and are not recorded: they run
+ * outside the server.
  */
-export function eligibilityFor(comp: CompetitionCategory, team: EligibilityInput): EligibilityVerdict {
+export function eligibilityFor(comp: CompetitionCategory, team: EligibilityInput, workflow?: EligibilityWorkflow): EligibilityVerdict {
   if (team.isActive === false) return { eligible: false, reason: 'INACTIVE' };
   const band = comp.ageGroup ? normalizeBand(comp.ageGroup) : null;
-  if (!band) return eligibilityOf(team);
+  if (!band) return workflow ? observed('league-eligibility', workflow, () => eligibilityOf(team), inspectVerdict) : eligibilityOf(team);
   if (!isAcademyTeam(team)) return { eligible: false, reason: 'WRONG_AGE_GROUP' };
   const own = ageBandOf(team);
   if (!own || normalizeBand(own) !== band) return { eligible: false, reason: 'WRONG_AGE_GROUP' };
   return { eligible: true, reason: 'OK' };
+}
+
+/** A verdict that contradicts itself is a broken output, counted as one. */
+function inspectVerdict(v: EligibilityVerdict) {
+  return { outputs: [v.reason], violations: v.eligible === (v.reason === 'OK') ? 0 : 1 };
 }
 
 export function isEligibleFor(comp: CompetitionCategory, team: EligibilityInput): boolean {

@@ -23,6 +23,7 @@ import {
   injuryContextOf,
 } from '../fabric/producers/medical.producer';
 import { withMedicalContext } from '../fabric/producers/medical-context';
+import { observedAsync } from '../algorithms/telemetry';
 
 export interface WorkloadActor {
   userId: string;
@@ -105,7 +106,7 @@ export async function ingestGPSSession(actor: WorkloadActor, dto: GPSSessionDto)
   });
 
   // Trigger async workload recomputation for this player.
-  recomputeWorkloadAsync(actor, dto.playerId).catch(() => {});
+  recomputeWorkloadAsync(actor, dto.playerId, row.startedAt).catch(() => {});
 
   return row;
 }
@@ -123,8 +124,37 @@ function estimatePlayerLoad(dto: GPSSessionDto): number {
 // ATL / CTL / TSB computation
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function recomputeWorkloadAsync(actor: WorkloadActor, playerId: string): Promise<void> {
-  try { await recomputeWorkload(actor, playerId); } catch { /* swallowed — best effort */ }
+/**
+ * Recompute after a GPS session is stored — its one caller, `ingestGPSSession`.
+ * Algorithms Step 2 records the run as production telemetry of the
+ * training-load model (workflow `workload.gps-ingest`), with how old the
+ * stored session was; the recompute itself is unchanged and still best effort.
+ */
+export async function recomputeWorkloadAsync(actor: WorkloadActor, playerId: string, sessionStartedAt?: Date): Promise<void> {
+  try { await observedAsync('training-load', 'workload.gps-ingest', () => recomputeWorkload(actor, playerId), (r) => inspectWorkload(r, sessionStartedAt)); } catch { /* swallowed — best effort */ }
+}
+
+const FRESH_SESSION_MS = 48 * 60 * 60_000;
+
+/**
+ * Algorithms Step 2: one stored workload record, reduced to what production
+ * monitoring keeps — the ratio, whether the record keeps its declared ranges,
+ * whether there was any load to compute from, and (after a GPS ingest) how
+ * old the newest session was. Never the player.
+ */
+export function inspectWorkload(r: WorkloadRecord, sessionStartedAt?: Date) {
+  const inRange = (v: number, lo: number, hi: number) => Number.isFinite(v) && v >= lo && v <= hi;
+  const violations = (inRange(r.injuryRiskScore, 0, 1) ? 0 : 1)
+    + (Number.isFinite(r.trainingStressBalance) ? 0 : 1)
+    + (inRange(r.acuteLoad, 0, Infinity) && inRange(r.chronicLoad, 0, Infinity) ? 0 : 1);
+  return {
+    outputs: [r.acwr],
+    violations,
+    quality: r.acuteLoad === 0 && r.chronicLoad === 0 ? 'EMPTY' as const : 'OK' as const,
+    freshness: sessionStartedAt
+      ? (Date.now() - sessionStartedAt.getTime() <= FRESH_SESSION_MS ? 'FRESH' as const : 'STALE' as const)
+      : undefined,
+  };
 }
 
 export async function recomputeWorkload(actor: WorkloadActor, playerId: string): Promise<WorkloadRecord> {

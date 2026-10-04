@@ -22,6 +22,8 @@
 
 import { prisma } from '../config/database';
 import { computeMatchStats, rollupSeasonStats } from '../player-stats/player-stats.service';
+import { observedAsync } from '../algorithms/telemetry';
+import { observeMatchRatings } from '../player-stats/rating-observation';
 
 const POLL_INTERVAL = parseInt(process.env.STATS_WORKER_INTERVAL_MS ?? '5000', 10);
 const BATCH_SIZE    = parseInt(process.env.STATS_WORKER_BATCH       ?? '20',   10);
@@ -97,7 +99,11 @@ async function _processMatch(matchId: string, group: OutboxRow[]): Promise<void>
     // Step 1: rebuild per-match stats. Safe to run while another aggregation of
     // the same match is in flight — computeMatchStats takes a per-match lock and
     // this call waits for its turn.
-    const { rebuilt } = await computeMatchStats(matchId);
+    // Algorithms Step 2: recorded as one production run of the match rating
+    // (its duration, success, and whether it found anybody to rate); the
+    // ratings themselves are read back afterwards, off this path.
+    const { rebuilt } = await observedAsync('match-rating', 'stats.aggregator', () => computeMatchStats(matchId), (r) => ({ quality: r.rebuilt === 0 ? 'EMPTY' : 'OK' }));
+    void observeMatchRatings(matchId, 'stats.aggregator');
     _log(`match ${matchId}: rebuilt ${rebuilt} player-match-stats for ${group.length} message(s)`);
 
     // Step 2: season rollup for every affected player.

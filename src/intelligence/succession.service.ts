@@ -8,6 +8,7 @@
 import { prisma } from '../config/database';
 import { getPositionCompatibility } from './tactical-matrix.service';
 import { ageDecayFactor } from './shared.utils';
+import { observed } from '../algorithms/telemetry';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -91,7 +92,9 @@ export async function getSuccessionCandidates(
       position:       p.position,
       age,
       compatibility,
-      ageDecay:       ageDecayFactor(age ?? 25),
+      // Algorithms Step 2: the multiplier, and whether the age was known or
+      // read at the default of 25.
+      ageDecay:       observed('age-curve', 'intelligence.succession', () => ageDecayFactor(age ?? 25), (f) => ({ outputs: [f], quality: age === null ? 'PARTIAL' : 'OK' })),
       contractExpiry: expiry ? expiry.toISOString() : null,
       isPrimary:      p.position === targetPosition,
     };

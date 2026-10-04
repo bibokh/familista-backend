@@ -1038,6 +1038,46 @@ function algorithmChangeGate() {
     && /^\/?src\/algorithms\/\s+@/m.test(owners);
 }
 
+// Algorithms, Step 2: production telemetry of the registered algorithms holds
+// no personal data, has one writer, and is read only by the platform owner.
+//   · the AlgorithmTelemetryBucket model has exactly its aggregate columns —
+//     none for a club, team, player, user, request, input or message;
+//   · its migration refuses free text in every identifier column (CHECK);
+//   · src/algorithms/telemetry-store.ts is the only source that names the table
+//     and the only file in src/algorithms that imports a database client;
+//   · the recorder refuses a workflow outside its closed list;
+//   · the room's routes are owner-guarded with no write handler;
+//   · the real-PostgreSQL proof runs in CI, where it cannot be skipped.
+const ALGORITHM_TELEMETRY_COLUMNS = [
+  'id', 'algorithmKey', 'version', 'fingerprint', 'source', 'bucketStart',
+  'executions', 'failures', 'outputs', 'outOfContract', 'latencySumUs', 'latencyMaxUs',
+  'latencyBins', 'outputBins', 'qualityOk', 'qualityPartial', 'qualityEmpty',
+  'freshnessFresh', 'freshnessStale', 'firstAt', 'lastAt', 'lastFailureAt', 'lastFailureKind', 'updatedAt',
+];
+function algorithmTelemetryPrivate() {
+  const schema = read(cite('prisma/schema.prisma')) || '';
+  const block = (schema.match(/^model AlgorithmTelemetryBucket \{([\s\S]*?)^\}/m) || [])[1];
+  if (!block) return false;
+  const cols = [...block.matchAll(/^\s+([A-Za-z]\w*)\s+\S/gm)].map((m) => m[1]);
+  if (JSON.stringify([...cols].sort()) !== JSON.stringify([...ALGORITHM_TELEMETRY_COLUMNS].sort())) return false;
+  const migration = migrationFilesSorted().find((m) => /CREATE TABLE "AlgorithmTelemetryBucket"/.test(m.sql));
+  if (!migration) return false;
+  const checks = ['_key_shape', '_version_shape', '_fingerprint_shape', '_source_shape', '_failure_kind_shape', '_counts_sane', '_bins_bounded'];
+  if (!checks.every((c) => migration.sql.includes(`"AlgorithmTelemetryBucket${c}" CHECK`))) return false;
+  const STORE = 'src/algorithms/telemetry-store.ts';
+  const naming = srcFiles.filter((f, i) => /AlgorithmTelemetryBucket|algorithmTelemetryBucket/.test(stripComments(allSrc[i])));
+  if (naming.length !== 1 || naming[0] !== STORE) return false;
+  const dbInAlgorithms = srcFiles.filter((f, i) => f.startsWith('src/algorithms/')
+    && /config\/database|@prisma\/client|rls-client|db-context/.test(stripComments(allSrc[i])));
+  if (dbInAlgorithms.length !== 1 || dbInAlgorithms[0] !== STORE) return false;
+  const recorder = stripComments(read(cite('src/algorithms/telemetry.ts')) || '');
+  if (!/!\(source in SOURCES\) \|\| !spec\.sources\.includes\(source\)/.test(recorder)) return false;
+  const routes = stripComments(read(cite('src/routes/algorithms.routes.ts')) || '');
+  const ci = read('.github/workflows/ci.yml') || '';
+  return /assertPlatformOwner\(/.test(routes) && !/router\.(post|put|patch|delete|all)\(/.test(routes)
+    && /tests\/algorithm-telemetry\.integration\.test\.ts/.test(ci) && /ALGO_TELEMETRY_DB_REQUIRED:\s*'1'/.test(ci);
+}
+
 function deployGatedByCi() {
   const raw = read(RENDER) || '';
   const services = (raw.match(/^\s*-\s*type:\s*(?:web|worker|pserv|cron)\s*$/gm) || []).length;
@@ -1124,6 +1164,8 @@ controls.push(
     'Render auto-deploy is off; production is deployed only by the deploy workflow after CI succeeded on main for the commit that is still main\'s head, or by a deliberate manual run, and a deploy that cannot happen fails instead of passing.'),
   control('algorithm-change-gate', algorithmChangeGate() ? 'PRESENT' : 'ABSENT', 'src/algorithms/registry.ts',
     'Every registered algorithm is read/analyze-only and runs only the exact code its recorded human approval names; on the Continuous Intelligence Loop, Deploy is reachable only from Human approval; the Algorithms room is owner-only and has no write handler; the registry is code-owned.'),
+  control('algorithm-telemetry-private', algorithmTelemetryPrivate() ? 'PRESENT' : 'ABSENT', 'src/algorithms/telemetry-store.ts',
+    'Production telemetry of the registered algorithms is aggregate counts, histograms and times only: its table has no column for a club, team, player, user, request, input or message, the database refuses free text in it, one file writes it, the recorder refuses any workflow outside its closed list, and only the platform owner reads it, read-only — proven on real PostgreSQL in CI.'),
   control('security-alert-delivery', securityAlertDelivery() ? 'PRESENT' : 'ABSENT', 'src/security/security-alerts.ts',
     'Critical security events, cross-club access attempts, a broken audit chain, account lockouts, refresh-token reuse, brute-force runs and failed or stale backups are emailed to SECURITY_ALERT_EMAIL by one leased process, de-duplicated per rule (15 min) and capped per hour, with a daily digest; the email carries counts only.'),
 );
