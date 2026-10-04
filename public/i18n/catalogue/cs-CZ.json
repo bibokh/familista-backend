@@ -1581,5 +1581,15 @@
   "Security warnings: \u0000": "Bezpečnostní varování: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "Pokryté hranice důvěry: \u0000 z \u0000",
   "All trust boundaries covered": "Všechny hranice důvěry pokryty",
-  "Security posture unreachable": "Bezpečnostní stav je nedostupný"
+  "Security posture unreachable": "Bezpečnostní stav je nedostupný",
+  "ALGORITHMS": "ALGORITMY",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "Registr, smyčka inteligence, hodnocení a lidské schválení",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "Přehled · Registr · Smyčka inteligence · Hodnocení · Schválení a audit · Monitorování",
+  "Reading algorithm evidence…": "Načítání důkazů o algoritmech…",
+  "Enter Algorithms": "Vstoupit do Algoritmů",
+  "Algorithm evidence not generated": "Důkazy o algoritmech nebyly vygenerovány",
+  "Algorithms failing evaluation: \u0000": "Algoritmy neprocházející hodnocením: \u0000",
+  "Algorithms awaiting approval: \u0000": "Algoritmy čekající na schválení: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "Schválené algoritmy: \u0000 z \u0000",
+  "Algorithms unreachable": "Algoritmy nedostupné"
 }

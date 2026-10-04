@@ -1578,5 +1578,15 @@
   "Security warnings: \u0000": "Cảnh báo bảo mật: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "Ranh giới tin cậy được bao phủ: \u0000 / \u0000",
   "All trust boundaries covered": "Mọi ranh giới tin cậy đều được bao phủ",
-  "Security posture unreachable": "Không truy cập được tư thế bảo mật"
+  "Security posture unreachable": "Không truy cập được tư thế bảo mật",
+  "ALGORITHMS": "THUẬT TOÁN",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "Sổ đăng ký, vòng lặp trí tuệ, đánh giá và phê duyệt của con người",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "Tổng quan · Sổ đăng ký · Vòng lặp trí tuệ · Đánh giá · Phê duyệt và kiểm toán · Giám sát",
+  "Reading algorithm evidence…": "Đang đọc bằng chứng thuật toán…",
+  "Enter Algorithms": "Vào Thuật toán",
+  "Algorithm evidence not generated": "Chưa tạo bằng chứng thuật toán",
+  "Algorithms failing evaluation: \u0000": "Thuật toán không đạt đánh giá: \u0000",
+  "Algorithms awaiting approval: \u0000": "Thuật toán chờ phê duyệt: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "Thuật toán đã phê duyệt: \u0000 trên \u0000",
+  "Algorithms unreachable": "Không thể truy cập thuật toán"
 }

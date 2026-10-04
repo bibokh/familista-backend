@@ -1581,5 +1581,15 @@
   "Security warnings: \u0000": "Avertismente de securitate: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "Limite de încredere acoperite: \u0000 din \u0000",
   "All trust boundaries covered": "Toate limitele de încredere acoperite",
-  "Security posture unreachable": "Postura de securitate nu poate fi accesată"
+  "Security posture unreachable": "Postura de securitate nu poate fi accesată",
+  "ALGORITHMS": "ALGORITMI",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "Registru, buclă de inteligență, evaluare și aprobare umană",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "Prezentare generală · Registru · Buclă de inteligență · Evaluare · Aprobări și audit · Monitorizare",
+  "Reading algorithm evidence…": "Se citesc dovezile algoritmilor…",
+  "Enter Algorithms": "Intră în Algoritmi",
+  "Algorithm evidence not generated": "Dovezile algoritmilor nu au fost generate",
+  "Algorithms failing evaluation: \u0000": "Algoritmi care eșuează la evaluare: \u0000",
+  "Algorithms awaiting approval: \u0000": "Algoritmi în așteptarea aprobării: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "Algoritmi aprobați: \u0000 din \u0000",
+  "Algorithms unreachable": "Algoritmii nu pot fi accesați"
 }

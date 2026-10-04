@@ -1581,5 +1581,15 @@
   "Security warnings: \u0000": "Beveiligingswaarschuwingen: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "Gedekte vertrouwensgrenzen: \u0000 van \u0000",
   "All trust boundaries covered": "Alle vertrouwensgrenzen gedekt",
-  "Security posture unreachable": "Beveiligingshouding onbereikbaar"
+  "Security posture unreachable": "Beveiligingshouding onbereikbaar",
+  "ALGORITHMS": "ALGORITMEN",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "Register, intelligentielus, evaluatie & menselijke goedkeuring",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "Overzicht · Register · Intelligentielus · Evaluatie · Goedkeuringen & audit · Monitoring",
+  "Reading algorithm evidence…": "Bewijs van algoritmen wordt gelezen…",
+  "Enter Algorithms": "Naar Algoritmen",
+  "Algorithm evidence not generated": "Bewijs van algoritmen niet gegenereerd",
+  "Algorithms failing evaluation: \u0000": "Algoritmen die de evaluatie niet halen: \u0000",
+  "Algorithms awaiting approval: \u0000": "Algoritmen in afwachting van goedkeuring: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "Goedgekeurde algoritmen: \u0000 van \u0000",
+  "Algorithms unreachable": "Algoritmen onbereikbaar"
 }

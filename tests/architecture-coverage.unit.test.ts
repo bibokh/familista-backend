@@ -11,7 +11,7 @@
  *
  * After: scripts/security-discover.js reads twelve kinds of component from the
  * code; every one must be declared in src/cyber-defense/coverage-map.json
- * against the 38 trust-boundary rows; a covered row's controls must be
+ * against the 39 trust-boundary rows; a covered row's controls must be
  * present; partial and uncovered rows say why and which batch closes them; the
  * number of weak rows may only fall. The city shows each component's coverage.
  */
@@ -112,15 +112,16 @@ describe('the repository', () => {
     expect(a.rowProblems).toEqual([]);
   });
 
-  it('carries all 38 audit rows, each with an owner, a data class and a boundary type', () => {
-    expect(Object.keys(map.boundaries).map(Number).sort((x, y) => x - y)).toEqual(Array.from({ length: 38 }, (_, i) => i + 1));
+  it('carries all 39 audit rows, each with an owner, a data class and a boundary type', () => {
+    expect(Object.keys(map.boundaries).map(Number).sort((x, y) => x - y)).toEqual(Array.from({ length: 39 }, (_, i) => i + 1));
     for (const [id, row] of Object.entries(map.boundaries) as Array<[string, any]>) {
       for (const f of ['name', 'flow', 'trustBoundary', 'owner', 'dataClass', 'boundaryType']) expect(`${id}.${f}: ${!!row[f]}`).toBe(`${id}.${f}: true`);
     }
   });
 
   it('the coverage counts match the ratchet exactly (tighten it when a row closes)', () => {
-    expect(a.coverage).toEqual({ C: 32, P: 6, U: 0 });
+    // Row 39 (algorithm change control) joined covered with Algorithms Step 1.
+    expect(a.coverage).toEqual({ C: 33, P: 6, U: 0 });
     expect(map.ratchet).toEqual({ U: a.coverage.U, P: a.coverage.P });
   });
 
@@ -162,6 +163,7 @@ describe('the repository', () => {
     covered(27, 'outbound-url-guard');
     covered(30, 'deploy-gated-by-ci');
     covered(36, 'security-alert-delivery');
+    covered(39, 'algorithm-change-gate');
     covered(6, 'authz-declared-per-handler');
     covered(7, 'owner-rooms-pinned');
     covered(33, 'worker-callback-authenticated');

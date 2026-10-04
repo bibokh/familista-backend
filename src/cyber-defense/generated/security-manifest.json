@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-03T22:01:33.201Z",
+  "generatedAt": "2026-10-04T10:51:16.796Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
     "version": "1.0.0"
   },
   "apiSurface": {
-    "mountedRouters": 53,
-    "handlers": 745,
+    "mountedRouters": 54,
+    "handlers": 747,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -299,6 +299,13 @@
         "routerWideAuth": true
       },
       {
+        "path": "/system/algorithms",
+        "module": "algorithms.routes",
+        "handlers": 2,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
         "path": "/telemetry",
         "module": "telemetry.routes",
         "handlers": 1,
@@ -564,9 +571,9 @@
       "src/services/vision-realtime.service.ts"
     ],
     "tenancy": {
-      "idParameters": 345,
+      "idParameters": 346,
       "guarded": 136,
-      "exempt": 209,
+      "exempt": 210,
       "unguarded": [],
       "staleExemptions": [],
       "routerWideTenantGuardMounts": [],
@@ -578,6 +585,11 @@
           "unguarded": 0
         },
         "ai.routes": {
+          "guarded": 0,
+          "exempt": 1,
+          "unguarded": 0
+        },
+        "algorithms.routes": {
           "guarded": 0,
           "exempt": 1,
           "unguarded": 0
@@ -790,13 +802,13 @@
       }
     },
     "authorization": {
-      "handlers": 745,
+      "handlers": 747,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 78
+        "platform-owner": 80
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -812,6 +824,9 @@
         },
         "ai.routes": {
           "member": 3
+        },
+        "algorithms.routes": {
+          "platform-owner": 2
         },
         "analytics.routes": {
           "member": 4,
@@ -1315,6 +1330,8 @@
         "GET /staff-market/shortlist": "member",
         "GET /staff-market/staff/:staffUserId": "member",
         "GET /staff-market/summary": "member",
+        "GET /system/algorithms": "platform-owner",
+        "GET /system/algorithms/:key": "platform-owner",
         "GET /system/analytics/platform": "platform-owner",
         "GET /system/analytics/product": "platform-owner",
         "GET /system/approvals": "platform-owner",
@@ -1762,8 +1779,8 @@
   },
   "architecture": {
     "components": {
-      "routers": 53,
-      "srcDomains": 76,
+      "routers": 54,
+      "srcDomains": 77,
       "prismaSections": 64,
       "packages": 28,
       "outboundCallSites": 5,
@@ -1775,9 +1792,9 @@
       "workflows": 3,
       "infrastructureComponents": 53
     },
-    "boundaries": 38,
+    "boundaries": 39,
     "coverage": {
-      "C": 32,
+      "C": 33,
       "P": 6,
       "U": 0
     },
@@ -1823,7 +1840,8 @@
       "35": "C",
       "36": "C",
       "37": "C",
-      "38": "C"
+      "38": "C",
+      "39": "C"
     },
     "unmapped": [],
     "stale": [],
@@ -1949,7 +1967,7 @@
       "id": "tenant-guard",
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
-      "note": "136 of 345 route id parameter(s) checked against the caller's club before the handler; 209 exempted by name with a reason; 0 unguarded."
+      "note": "136 of 346 route id parameter(s) checked against the caller's club before the handler; 210 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "franchise-club-attach-authorised",
@@ -2166,13 +2184,13 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "745 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 78 platform-owner; every member-level handler reviewed by name."
+      "note": "747 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 80 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "7 platform-owner room(s) mounted where pinned, every handler in them owner-only."
+      "note": "8 platform-owner room(s) mounted where pinned, every handler in them owner-only."
     },
     {
       "id": "worker-callback-authenticated",
@@ -2185,6 +2203,12 @@
       "status": "PRESENT",
       "evidence": ".github/workflows/deploy.yml",
       "note": "Render auto-deploy is off; production is deployed only by the deploy workflow after CI succeeded on main for the commit that is still main's head, or by a deliberate manual run, and a deploy that cannot happen fails instead of passing."
+    },
+    {
+      "id": "algorithm-change-gate",
+      "status": "PRESENT",
+      "evidence": "src/algorithms/registry.ts",
+      "note": "Every registered algorithm is read/analyze-only and runs only the exact code its recorded human approval names; on the Continuous Intelligence Loop, Deploy is reachable only from Human approval; the Algorithms room is owner-only and has no write handler; the registry is code-owned."
     },
     {
       "id": "security-alert-delivery",
@@ -2256,13 +2280,13 @@
       "id": "architecture-fully-mapped",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "367 discovered component(s) across 12 kinds, each declared against the 38 trust-boundary rows; a covered row's controls are all present."
+      "note": "369 discovered component(s) across 12 kinds, each declared against the 39 trust-boundary rows; a covered row's controls are all present."
     },
     {
       "id": "coverage-ratchet",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "32 covered, 6 partial, 0 uncovered; uncovered may not exceed 0, and partial + uncovered may not exceed 6."
+      "note": "33 covered, 6 partial, 0 uncovered; uncovered may not exceed 0, and partial + uncovered may not exceed 6."
     }
   ],
   "secrets": {
@@ -2739,6 +2763,8 @@
       "scripts/backup.sh",
       "scripts/restore.sh",
       "scripts/rollback.sh",
+      "src/algorithms/loop.ts",
+      "src/algorithms/registry.ts",
       "src/app.ts",
       "src/auth-prod/admin-mfa.ts",
       "src/auth-prod/mfa-enforcement.service.ts",
@@ -2780,6 +2806,7 @@
       "src/routes/ai-data-policy.routes.ts",
       "src/routes/ai-ops.routes.ts",
       "src/routes/ai.routes.ts",
+      "src/routes/algorithms.routes.ts",
       "src/routes/analytics.routes.ts",
       "src/routes/auth.routes.ts",
       "src/routes/automation.routes.ts",
@@ -2872,7 +2899,7 @@
     ]
   },
   "counts": {
-    "controlsPresent": 72,
+    "controlsPresent": 73,
     "controlsPartial": 1,
     "controlsAbsent": 1,
     "cryptoUses": 10

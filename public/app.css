@@ -7147,29 +7147,36 @@ body.club-theme .oh-cards--three{ grid-template-columns: repeat(3, 1fr); }
    four beneath. Every card is still exactly the same size; the pairing of
    SOURCE CORE beside FAMILISTA VISION (where evidence came from, what it says)
    holds the middle of the second row. */
+/* EIGHT ROOMS, EIGHT EQUAL CARDS.
+   ALGORITHMS joined as the eighth and closes the top row, after CLUBS: the
+   four rooms that run the platform and what it computes on top, the four that
+   describe its evidence beneath. Eight divide into two equal rows, so the
+   half-card inset the seven needed is gone; the grid keeps its eight tracks
+   and every card still spans two of them. */
 body.club-theme .oh-cards--core{
   grid-template-columns: repeat(8, minmax(0, 1fr));
   grid-auto-rows: 1fr;
   grid-template-areas:
-    ".     system system cyber  cyber  clubs  clubs  .    "
+    "system system cyber  cyber  clubs  clubs  algo   algo "
     "vault vault  core   core   vision vision city   city ";
 }
 body.club-theme .oh-cards--core .oh-card--system{ grid-area: system; }
 body.club-theme .oh-cards--core .oh-card--cyber{  grid-area: cyber; }
 body.club-theme .oh-cards--core .oh-card--clubs{  grid-area: clubs; }
+body.club-theme .oh-cards--core .oh-card--algo{   grid-area: algo; }
 body.club-theme .oh-cards--core .oh-card--vault{  grid-area: vault; }
 body.club-theme .oh-cards--core .oh-card--city{   grid-area: city; }
 body.club-theme .oh-cards--core .oh-card--core{   grid-area: core; }
 body.club-theme .oh-cards--core .oh-card--vision{ grid-area: vision; }
-/* Two columns: CYBERSECURITY takes its own row beneath SYSTEM and CLUBS,
-   centred across both — still one card wide — and the core/vision pair stays
+/* Two columns: CYBERSECURITY and ALGORITHMS share the row beneath SYSTEM
+   and CLUBS — no half-card gap any more — and the core/vision pair stays
    together on the row after it. */
 @media (max-width: 1560px){
   body.club-theme .oh-cards--core{
     grid-template-columns: repeat(4, minmax(0, 1fr));
     grid-template-areas:
       "system system clubs  clubs"
-      ".      cyber  cyber  .    "
+      "cyber  cyber  algo   algo "
       "core   core   vision vision"
       "vault  vault  city   city";
   }
@@ -7178,7 +7185,7 @@ body.club-theme .oh-cards--core .oh-card--vision{ grid-area: vision; }
   body.club-theme .oh-cards--core{
     grid-template-columns: 1fr; max-width: 560px; margin-inline: auto;
     grid-auto-rows: auto;
-    grid-template-areas: "system" "cyber" "clubs" "core" "vision" "vault" "city";
+    grid-template-areas: "system" "cyber" "clubs" "algo" "core" "vision" "vault" "city";
   }
 }
 body.club-theme .oh-wrap--core{ max-width: 1680px; }
@@ -7269,6 +7276,30 @@ body.club-theme .oh-card--cyber .oh-card-icon{
 }
 body.club-theme .oh-card--cyber .oh-card-icon svg{ display: block; }
 body.club-theme .oh-card--cyber .oh-card-cta{ color: #c7d2fe; }
+
+/* Algorithms' own accent: orchid — a warm violet-pink no state in the
+   platform uses, so the card's colour can never be read as a verdict. Green,
+   amber and red on this card mean only what its status line says. */
+body.club-theme .oh-card--algo{
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(232,168,255,0.11), transparent 62%),
+    radial-gradient(90% 70% at 108% 108%, rgba(165,180,252,0.07), transparent 64%),
+    var(--bg-surface);
+  border-color: rgba(232,168,255,0.26);
+  box-shadow: 0 30px 70px -34px rgba(232,168,255,0.28);
+}
+body.club-theme .oh-card--algo::before{
+  background: linear-gradient(90deg, #e8a8ff, #a5b4fc, #e8a8ff);
+}
+body.club-theme .oh-card--algo:hover{ box-shadow: 0 30px 72px rgba(232,168,255,0.20); border-color: rgba(232,168,255,0.48); }
+body.club-theme .oh-card--algo .oh-card-icon{
+  color: #efc3ff;
+  background: linear-gradient(145deg, rgba(232,168,255,0.18), rgba(165,180,252,0.08));
+  border-color: rgba(232,168,255,0.38);
+  box-shadow: inset 0 0 22px -8px rgba(232,168,255,0.50);
+}
+body.club-theme .oh-card--algo .oh-card-icon svg{ display: block; }
+body.club-theme .oh-card--algo .oh-card-cta{ color: #efc3ff; }
 
 @media (max-width: 900px){ body.club-theme .oh-cards{ grid-template-columns: 1fr; } }
 body.club-theme .oh-wrap--three{ max-width: 1320px; }

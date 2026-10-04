@@ -28,6 +28,12 @@ const ASSETS = [
    'dist/cyber-defense/generated/security-manifest.json'],
   ['src/cyber-defense/posture-policy.json',
    'dist/cyber-defense/posture-policy.json'],
+  // The Algorithms room compares each algorithm's approved fingerprint with
+  // the fingerprint of the code that shipped (src/algorithms/
+  // algorithms.service.ts). Without it the room says NOT GENERATED rather
+  // than calling anything approved.
+  ['src/algorithms/generated/algorithm-manifest.json',
+   'dist/algorithms/generated/algorithm-manifest.json'],
 ];
 
 let copied = 0;

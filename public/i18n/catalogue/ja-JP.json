@@ -1578,5 +1578,15 @@
   "Security warnings: \u0000": "セキュリティ警告: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "カバー済みの信頼境界: \u0000 / \u0000",
   "All trust boundaries covered": "すべての信頼境界をカバー済み",
-  "Security posture unreachable": "セキュリティ態勢を取得できません"
+  "Security posture unreachable": "セキュリティ態勢を取得できません",
+  "ALGORITHMS": "アルゴリズム",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "レジストリ、インテリジェンスループ、評価、人による承認",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "概要 · レジストリ · インテリジェンスループ · 評価 · 承認と監査 · 監視",
+  "Reading algorithm evidence…": "アルゴリズムの証跡を読み込み中…",
+  "Enter Algorithms": "アルゴリズムへ",
+  "Algorithm evidence not generated": "アルゴリズムの証跡が生成されていません",
+  "Algorithms failing evaluation: \u0000": "評価に失敗しているアルゴリズム: \u0000",
+  "Algorithms awaiting approval: \u0000": "承認待ちのアルゴリズム: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "承認済みアルゴリズム: \u0000 / \u0000",
+  "Algorithms unreachable": "アルゴリズムに接続できません"
 }

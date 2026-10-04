@@ -1581,5 +1581,15 @@
   "Security warnings: \u0000": "Tietoturvavaroitukset: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "Katetut luottamusrajat: \u0000 / \u0000",
   "All trust boundaries covered": "Kaikki luottamusrajat katettu",
-  "Security posture unreachable": "Tietoturvatilaa ei tavoiteta"
+  "Security posture unreachable": "Tietoturvatilaa ei tavoiteta",
+  "ALGORITHMS": "ALGORITMIT",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "Rekisteri, älykkyyssilmukka, arviointi ja ihmisen hyväksyntä",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "Yleiskatsaus · Rekisteri · Älykkyyssilmukka · Arviointi · Hyväksynnät ja tarkastus · Valvonta",
+  "Reading algorithm evidence…": "Luetaan algoritmien todisteita…",
+  "Enter Algorithms": "Siirry Algoritmeihin",
+  "Algorithm evidence not generated": "Algoritmien todisteita ei ole luotu",
+  "Algorithms failing evaluation: \u0000": "Arvioinnissa epäonnistuvat algoritmit: \u0000",
+  "Algorithms awaiting approval: \u0000": "Hyväksyntää odottavat algoritmit: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "Hyväksytyt algoritmit: \u0000/\u0000",
+  "Algorithms unreachable": "Algoritmit eivät ole tavoitettavissa"
 }

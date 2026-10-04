@@ -707,11 +707,13 @@ describe('SOURCE CORE is the middle of the landing, not the end of a row', () =>
     // with VISION beside it. Seven peers, seven equal cards — the pairing is
     // said by adjacency rather than by size.
     expect(css).toContain('"vault vault  core   core   vision vision city   city "');
-    // Two columns: the core/vision pair stays together on its own row.
+    // Two columns: the core/vision pair stays together on its own row, with
+    // CYBERSECURITY and ALGORITHMS sharing the row above it.
     expect(css).toContain('"system system clubs  clubs"');
+    expect(css).toContain('"cyber  cyber  algo   algo "');
     expect(css).toContain('"core   core   vision vision"');
-    // One column: the core follows the three top-row rooms, and Vision follows it.
-    expect(css).toContain('grid-template-areas: "system" "cyber" "clubs" "core" "vision" "vault" "city";');
+    // One column: the core follows the four top-row rooms, and Vision follows it.
+    expect(css).toContain('grid-template-areas: "system" "cyber" "clubs" "algo" "core" "vision" "vault" "city";');
   });
 
   it('carries a real summary or an honest absence, never a placeholder figure', () => {

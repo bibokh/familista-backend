@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-04T10:04:16.975Z",
+  "generatedAt": "2026-10-04T10:51:34.722Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -281,7 +281,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "src/routes/index.ts",
-      "sourceEvidence": "src/routes/index.ts — 52 mounted routers",
+      "sourceEvidence": "src/routes/index.ts — 53 mounted routers",
       "dependencies": [
         "platform-core"
       ],
@@ -1081,7 +1081,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 191 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 192 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1141,7 +1141,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "583 TypeScript modules under src/."
+      "note": "588 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1623,12 +1623,12 @@
     }
   ],
   "surface": {
-    "routeModules": 62,
+    "routeModules": 63,
     "serviceModules": 102,
     "middleware": 23,
     "fabricModules": 52,
-    "totalTypeScript": 583,
-    "testSuites": 191,
+    "totalTypeScript": 588,
+    "testSuites": 192,
     "migrations": 48,
     "prismaModels": 343,
     "prismaEnums": 209
@@ -1872,6 +1872,13 @@
       "path": "/system/cybersecurity",
       "router": "cybersecurityRoutes",
       "file": "src/routes/cybersecurity.routes.ts",
+      "writes": 0,
+      "reads": 2
+    },
+    {
+      "path": "/system/algorithms",
+      "router": "algorithmsRoutes",
+      "file": "src/routes/algorithms.routes.ts",
       "writes": 0,
       "reads": 2
     },

@@ -1578,5 +1578,15 @@
   "Security warnings: \u0000": "보안 경고: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "보호된 신뢰 경계: \u0000 / \u0000",
   "All trust boundaries covered": "모든 신뢰 경계 보호됨",
-  "Security posture unreachable": "보안 태세에 접근할 수 없음"
+  "Security posture unreachable": "보안 태세에 접근할 수 없음",
+  "ALGORITHMS": "알고리즘",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "레지스트리, 인텔리전스 루프, 평가 및 사람의 승인",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "개요 · 레지스트리 · 인텔리전스 루프 · 평가 · 승인 및 감사 · 모니터링",
+  "Reading algorithm evidence…": "알고리즘 증거를 읽는 중…",
+  "Enter Algorithms": "알고리즘 열기",
+  "Algorithm evidence not generated": "알고리즘 증거가 생성되지 않았습니다",
+  "Algorithms failing evaluation: \u0000": "평가에 실패한 알고리즘: \u0000",
+  "Algorithms awaiting approval: \u0000": "승인 대기 중인 알고리즘: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "승인된 알고리즘: \u0000/\u0000",
+  "Algorithms unreachable": "알고리즘에 연결할 수 없습니다"
 }

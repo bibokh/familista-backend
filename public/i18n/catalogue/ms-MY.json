@@ -1578,5 +1578,15 @@
   "Security warnings: \u0000": "Amaran keselamatan: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "Sempadan kepercayaan diliputi: \u0000 daripada \u0000",
   "All trust boundaries covered": "Semua sempadan kepercayaan diliputi",
-  "Security posture unreachable": "Postur keselamatan tidak dapat dicapai"
+  "Security posture unreachable": "Postur keselamatan tidak dapat dicapai",
+  "ALGORITHMS": "ALGORITMA",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "Daftar, gelung kecerdasan, penilaian & kelulusan manusia",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "Gambaran keseluruhan · Daftar · Gelung kecerdasan · Penilaian · Kelulusan & audit · Pemantauan",
+  "Reading algorithm evidence…": "Membaca bukti algoritma…",
+  "Enter Algorithms": "Masuk ke Algoritma",
+  "Algorithm evidence not generated": "Bukti algoritma belum dijana",
+  "Algorithms failing evaluation: \u0000": "Algoritma yang gagal penilaian: \u0000",
+  "Algorithms awaiting approval: \u0000": "Algoritma menunggu kelulusan: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "Algoritma diluluskan: \u0000 daripada \u0000",
+  "Algorithms unreachable": "Algoritma tidak dapat dicapai"
 }

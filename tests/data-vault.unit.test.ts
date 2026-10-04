@@ -785,8 +785,8 @@ describe('the Platform Owner landing offers five rooms around one core', () => {
   const landing = app.slice(app.indexOf('function _ownerHomeForPlatformOwner'),
     app.indexOf('function _ownerHomeForClubMember'));
 
-  it('renders SYSTEM, CYBERSECURITY, CLUBS, DATA VAULT, INFRASTRUCTURE CITY, SOURCE CORE and FAMILISTA VISION in one card grid', () => {
-    for (const title of ['>SYSTEM<', '>CYBERSECURITY<', '>CLUBS<', '>DATA VAULT<', '>INFRASTRUCTURE CITY<', '>SOURCE CORE<']) {
+  it('renders SYSTEM, CYBERSECURITY, CLUBS, ALGORITHMS, DATA VAULT, INFRASTRUCTURE CITY, SOURCE CORE and FAMILISTA VISION in one card grid', () => {
+    for (const title of ['>SYSTEM<', '>CYBERSECURITY<', '>CLUBS<', '>ALGORITHMS<', '>DATA VAULT<', '>INFRASTRUCTURE CITY<', '>SOURCE CORE<']) {
       expect(landing).toContain(title);
     }
     const cards = [...landing.matchAll(/class="oh-card oh-card--(\w+)"/g)].map((m) => m[1]);
@@ -794,8 +794,9 @@ describe('the Platform Owner landing offers five rooms around one core', () => {
     // the seventh and is the one exception: it sits between SYSTEM and CLUBS
     // on screen, so it sits there in the markup too — the order a keyboard and
     // a screen reader walk is the order the top row reads. The six that were
-    // here keep their relative order.
-    expect(cards).toEqual(['system', 'cyber', 'clubs', 'vault', 'city', 'core', 'vision']);
+    // here keep their relative order. ALGORITHMS joined as the eighth and
+    // closes the top row after CLUBS, so it follows CLUBS in the markup too.
+    expect(cards).toEqual(['system', 'cyber', 'clubs', 'algo', 'vault', 'city', 'core', 'vision']);
   });
 
   it('gives the rooms the same grid track, so none is subordinate', () => {
@@ -810,8 +811,12 @@ describe('the Platform Owner landing offers five rooms around one core', () => {
     // SEVEN EQUAL CARDS on eight tracks, every card two tracks wide: three on
     // the top row, centred, and four beneath. CYBERSECURITY sits between
     // SYSTEM and CLUBS; SOURCE CORE and VISION hold the middle of the second.
+    // EIGHT with ALGORITHMS: it closes the top row, which now has four like
+    // the row beneath it, so the half-card inset is gone.
     expect(css).toContain('grid-template-columns: repeat(8, minmax(0, 1fr));');
-    expect(css).toContain('".     system system cyber  cyber  clubs  clubs  .    "');
+    expect(css).toContain('"system system cyber  cyber  clubs  clubs  algo   algo "');
+    expect(css).not.toContain('".     system');
+    expect(css).toContain('body.club-theme .oh-cards--core .oh-card--algo{   grid-area: algo; }');
     expect(css).toContain('"vault vault  core   core   vision vision city   city "');
     expect(css).not.toContain('"vision vision vision"');
     expect(css).toContain('body.club-theme .oh-cards--core .oh-card--cyber{  grid-area: cyber; }');
@@ -827,7 +832,7 @@ describe('the Platform Owner landing offers five rooms around one core', () => {
     // Each card is a direct sibling: six buttons, one container, no card
     // contains another.
     const row = landing.slice(landing.indexOf('oh-cards oh-cards--core'), landing.indexOf('oh-footer'));
-    expect((row.match(/<button class="oh-card/g) || [])).toHaveLength(7);
+    expect((row.match(/<button class="oh-card/g) || [])).toHaveLength(8);
     expect(row).not.toMatch(/<button class="oh-card[\s\S]*?<button class="oh-card[\s\S]*?<\/button>\s*<\/button>/);
   });
 

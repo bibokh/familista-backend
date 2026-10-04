@@ -1581,5 +1581,15 @@
   "Security warnings: \u0000": "Προειδοποιήσεις ασφαλείας: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "Καλυμμένα όρια εμπιστοσύνης: \u0000 από \u0000",
   "All trust boundaries covered": "Όλα τα όρια εμπιστοσύνης καλύπτονται",
-  "Security posture unreachable": "Η στάση ασφαλείας δεν είναι προσβάσιμη"
+  "Security posture unreachable": "Η στάση ασφαλείας δεν είναι προσβάσιμη",
+  "ALGORITHMS": "ΑΛΓΟΡΙΘΜΟΙ",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "Μητρώο, βρόχος νοημοσύνης, αξιολόγηση & ανθρώπινη έγκριση",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "Επισκόπηση · Μητρώο · Βρόχος νοημοσύνης · Αξιολόγηση · Εγκρίσεις & έλεγχος · Παρακολούθηση",
+  "Reading algorithm evidence…": "Ανάγνωση τεκμηρίων αλγορίθμων…",
+  "Enter Algorithms": "Είσοδος στους Αλγορίθμους",
+  "Algorithm evidence not generated": "Δεν έχουν παραχθεί τεκμήρια αλγορίθμων",
+  "Algorithms failing evaluation: \u0000": "Αλγόριθμοι που αποτυγχάνουν στην αξιολόγηση: \u0000",
+  "Algorithms awaiting approval: \u0000": "Αλγόριθμοι σε αναμονή έγκρισης: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "Εγκεκριμένοι αλγόριθμοι: \u0000 από \u0000",
+  "Algorithms unreachable": "Οι αλγόριθμοι δεν είναι προσβάσιμοι"
 }

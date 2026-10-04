@@ -1581,5 +1581,15 @@
   "Security warnings: \u0000": "Предупреждения безопасности: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "Покрытые границы доверия: \u0000 из \u0000",
   "All trust boundaries covered": "Все границы доверия покрыты",
-  "Security posture unreachable": "Состояние безопасности недоступно"
+  "Security posture unreachable": "Состояние безопасности недоступно",
+  "ALGORITHMS": "АЛГОРИТМЫ",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "Реестр, цикл интеллекта, оценка и одобрение человеком",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "Обзор · Реестр · Цикл интеллекта · Оценка · Одобрения и аудит · Мониторинг",
+  "Reading algorithm evidence…": "Чтение данных об алгоритмах…",
+  "Enter Algorithms": "Перейти в Алгоритмы",
+  "Algorithm evidence not generated": "Данные об алгоритмах не сформированы",
+  "Algorithms failing evaluation: \u0000": "Алгоритмы, не прошедшие оценку: \u0000",
+  "Algorithms awaiting approval: \u0000": "Алгоритмы, ожидающие одобрения: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "Одобренные алгоритмы: \u0000 из \u0000",
+  "Algorithms unreachable": "Алгоритмы недоступны"
 }

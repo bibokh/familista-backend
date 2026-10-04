@@ -1581,5 +1581,15 @@
   "Security warnings: \u0000": "אזהרות אבטחה: \u0000",
   "Trust boundaries covered: \u0000 of \u0000": "גבולות אמון מכוסים: \u0000 מתוך \u0000",
   "All trust boundaries covered": "כל גבולות האמון מכוסים",
-  "Security posture unreachable": "לא ניתן להגיע למצב האבטחה"
+  "Security posture unreachable": "לא ניתן להגיע למצב האבטחה",
+  "ALGORITHMS": "אלגוריתמים",
+  "Registry, Intelligence Loop, Evaluation & Human Approval": "מרשם, לולאת מודיעין, הערכה ואישור אנושי",
+  "Overview · Registry · Intelligence Loop · Evaluation · Approvals & Audit · Monitoring": "סקירה · מרשם · לולאת מודיעין · הערכה · אישורים וביקורת · ניטור",
+  "Reading algorithm evidence…": "קורא ראיות אלגוריתמים…",
+  "Enter Algorithms": "כניסה לאלגוריתמים",
+  "Algorithm evidence not generated": "ראיות האלגוריתמים לא נוצרו",
+  "Algorithms failing evaluation: \u0000": "אלגוריתמים שנכשלים בהערכה: \u0000",
+  "Algorithms awaiting approval: \u0000": "אלגוריתמים הממתינים לאישור: \u0000",
+  "Algorithms approved: \u0000 of \u0000": "אלגוריתמים מאושרים: \u0000 מתוך \u0000",
+  "Algorithms unreachable": "האלגוריתמים אינם זמינים"
 }

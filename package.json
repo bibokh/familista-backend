@@ -11,7 +11,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "node scripts/infrastructure-discover.js && prisma generate --schema=prisma/schema.prisma && tsc && node scripts/copy-runtime-assets.js",
+    "build": "node scripts/infrastructure-discover.js && node scripts/algorithms-discover.js && prisma generate --schema=prisma/schema.prisma && tsc && node scripts/copy-runtime-assets.js",
     "build:client": "cd client && npm install && npm run build",
     "build:all": "npm run build && npm run build:client",
     "dev:client": "cd client && npm run dev",
@@ -36,6 +36,8 @@
     "infra:check": "node scripts/infrastructure-discover.js --check",
     "security:discover": "node scripts/security-discover.js",
     "security:check": "node scripts/security-discover.js --check",
+    "algorithms:discover": "node scripts/algorithms-discover.js",
+    "algorithms:check": "node scripts/algorithms-discover.js --check",
     "backup:keygen": "node dist/scripts/backup.js keygen",
     "backup:run": "node dist/scripts/backup.js run",
     "backup:drill": "node dist/scripts/backup.js drill",
