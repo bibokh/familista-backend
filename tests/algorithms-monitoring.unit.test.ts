@@ -260,10 +260,13 @@ describe('coverage is shown, never claimed', () => {
         expect(`${spec.key} · ${fn} called from: ${callers.join(', ') || 'nowhere'}`).toBe(`${spec.key} · ${fn} called from: nowhere`);
       }
     }
-    // The xG model's module is imported by this room's evaluation and nothing else.
-    const importers = [...productionFiles(), 'src/algorithms/scenarios.ts']
+    // The xG model's module is imported by this room's evaluation and nothing
+    // else: Step 1's scenarios and Step 3's synthetic learning — both run it on
+    // invented shots, neither is a production caller.
+    const roomFiles = fs.readdirSync(path.join(ROOT, 'src/algorithms')).filter((f) => f.endsWith('.ts')).map((f) => `src/algorithms/${f}`);
+    const importers = [...productionFiles(), ...roomFiles]
       .filter((f) => /from '[./]*(?:match-events\/)?xg-model\.service'/.test(code(f)));
-    expect(importers).toEqual(['src/algorithms/scenarios.ts']);
+    expect(importers.sort()).toEqual(['src/algorithms/learning-synthetic.ts', 'src/algorithms/scenarios.ts']);
     // And the xG that the platform stores arrives with the event.
     expect(code('src/match-events/match-event.service.ts')).toMatch(/xg:\s*dto\.xg \?\? null,/);
   });

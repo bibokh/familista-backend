@@ -282,4 +282,38 @@ suite('algorithm telemetry on real PostgreSQL', () => {
     expect(d.detail.fingerprintsSeen).toEqual([expect.objectContaining({ current: true, approved: true, executions: 27 })]);
     expect(d.detail.storeState).toBe('READY');
   });
+
+  it('rows an earlier deployment wrote are history: they never verify this server\'s write path', async () => {
+    // A previous deployment wrote these rows.
+    risk(5);
+    await store.flushAlgorithmTelemetry();
+    // Then this process starts afresh: its own record is empty, the rows remain.
+    store.resetTelemetryStore();
+    monitoring.resetMonitoringCache();
+    store.startAlgorithmTelemetry();
+    try {
+      let o = await monitoring.algorithmsMonitoring();
+      expect(o.writePath).toMatchObject({ thisServer: 'UNVERIFIED', verifiedAt: null, stored: 'ROWS_PRESENT' });
+      expect(o.writePath.storedNewestRunAt).not.toBeNull();
+      // Only a write this process completes verifies the running deployment.
+      risk(1);
+      await store.flushAlgorithmTelemetry();
+      monitoring.resetMonitoringCache();
+      o = await monitoring.algorithmsMonitoring();
+      expect(o.writePath.thisServer).toBe('VERIFIED');
+      expect(o.writePath.verifiedAt).not.toBeNull();
+    } finally {
+      await store.stopAlgorithmTelemetry();
+    }
+  });
+
+  it('an empty store and a process that wrote nothing: Unverified and no rows — evidence of nothing', async () => {
+    store.startAlgorithmTelemetry();
+    try {
+      const o = await monitoring.algorithmsMonitoring();
+      expect(o.writePath).toMatchObject({ thisServer: 'UNVERIFIED', verifiedAt: null, stored: 'NO_ROWS', storedNewestRunAt: null });
+    } finally {
+      await store.stopAlgorithmTelemetry();
+    }
+  });
 });

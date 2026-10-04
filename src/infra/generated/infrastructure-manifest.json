@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-04T16:55:34.217Z",
+  "generatedAt": "2026-10-04T21:51:42.443Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -1081,7 +1081,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 194 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 195 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1141,7 +1141,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "594 TypeScript modules under src/."
+      "note": "598 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1627,8 +1627,8 @@
     "serviceModules": 102,
     "middleware": 23,
     "fabricModules": 52,
-    "totalTypeScript": 594,
-    "testSuites": 194,
+    "totalTypeScript": 598,
+    "testSuites": 195,
     "migrations": 49,
     "prismaModels": 344,
     "prismaEnums": 209
@@ -1881,7 +1881,7 @@
       "router": "algorithmsRoutes",
       "file": "src/routes/algorithms.routes.ts",
       "writes": 0,
-      "reads": 4
+      "reads": 6
     },
     {
       "path": "/telemetry",

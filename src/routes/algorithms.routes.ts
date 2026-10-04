@@ -1,6 +1,6 @@
 // Familista — the Algorithms room API
 // ─────────────────────────────────────────────────────────────────────────────
-// Two reads, both the platform owner's, behind the SAME guard as SYSTEM,
+// Reads only, all the platform owner's, behind the SAME guard as SYSTEM,
 // CYBERSECURITY, the Data Vault, Infrastructure City and Source Core. No club
 // role reaches it however senior it is inside its club.
 //
@@ -10,7 +10,8 @@
 // approval) and released by the CI-gated deploy — never by a request to this
 // API. Production monitoring (Step 2) only reads: a finding is evidence for a
 // person, and nothing here retrains, tunes, rolls back or switches off
-// anything.
+// anything. Learning (Step 3) is synthetic only: method checks on invented
+// outcomes, labelled as such; no club data is evaluated and nothing changes.
 //
 //   GET /system/algorithms                  the room: the loop, the domains,
 //                                           every algorithm's stage, gate and
@@ -18,25 +19,33 @@
 //   GET /system/algorithms/monitoring       production monitoring: coverage,
 //                                           states, runs, failures, latency,
 //                                           the code running, the store
+//   GET /system/algorithms/learning         learning: the synthetic method
+//                                           checks, the disabled real-world
+//                                           lane, the rules and their reasons
 //   GET /system/algorithms/:key             one algorithm in full: inputs,
 //                                           outputs, source, fingerprint,
 //                                           approval, scenarios
 //   GET /system/algorithms/:key/monitoring  one algorithm in production:
 //                                           checks, findings, distribution,
 //                                           latency, workflows, fingerprints
+//   GET /system/algorithms/:key/learning    one algorithm's learning: its
+//                                           status and, for xG and xGOT, every
+//                                           synthetic scenario in full
 //
 // WHAT THESE RETURN
 //
 // Registry metadata, fingerprints, the results of synthetic scenarios run in
-// this process, and aggregate production telemetry — counts, histograms and
-// timestamps. Never a player, club, match or sensor record, an environment
-// value, a user, a request or a row id.
+// this process, aggregate production telemetry — counts, histograms and
+// timestamps — and synthetic learning results, each labelled SYNTHETIC. Never a
+// player, club, match or sensor record, an environment value, a user, a
+// request or a row id.
 
 import { Router, type Request, type Response } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
 import { assertPlatformOwner } from '../platform/system.service';
 import { algorithmsOverview, algorithmDetail } from '../algorithms/algorithms.service';
 import { algorithmsMonitoring, algorithmMonitoring } from '../algorithms/monitoring';
+import { algorithmsLearning, algorithmLearning } from '../algorithms/learning';
 import { AppError, NotFoundError } from '../utils/errors';
 
 const router = Router();
@@ -65,6 +74,25 @@ router.get('/', (_req: Request, res: Response, next) => {
 router.get('/monitoring', async (_req: Request, res: Response, next) => {
   try {
     res.json({ success: true, data: await algorithmsMonitoring() });
+  } catch (err) { next(err); }
+});
+
+/**
+ * Learning: synthetic method checks, and the real-world lane (disabled).
+ * Declared before `/:key`, so the word is never read as an algorithm key.
+ */
+router.get('/learning', async (_req: Request, res: Response, next) => {
+  try {
+    res.json({ success: true, data: await algorithmsLearning() });
+  } catch (err) { next(err); }
+});
+
+/** One algorithm's learning. The key is a registry key, never a row id. */
+router.get('/:key/learning', async (req: Request, res: Response, next) => {
+  try {
+    const found = await algorithmLearning(String(req.params.key));
+    if (found.state === 'UNKNOWN_ALGORITHM') throw new NotFoundError('Algorithm');
+    res.json({ success: true, data: found.detail });
   } catch (err) { next(err); }
 });
 

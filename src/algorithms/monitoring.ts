@@ -39,7 +39,7 @@ import {
 } from './monitoring-spec';
 import { peekPending, failureKindOf, type TelemetryEntry } from './telemetry';
 import {
-  readTelemetryAggregates, settledFlush, storeStatus, windowsAt, emptySums,
+  readTelemetryAggregates, settledFlush, storeStatus, windowsAt, emptySums, ownWriteEvidence,
   type GroupAggregate, type DayAggregate, type TelemetryAggregates, type WindowSums, type StoreStatus,
 } from './telemetry-store';
 import { runtimeFingerprints, type RuntimeFingerprint, type RuntimeBasis, type RuntimeVerdict } from './runtime-fingerprint';
@@ -289,6 +289,8 @@ interface Context {
   now: number;
   agg: TelemetryAggregates;
   storeOk: boolean;
+  /** The newest run among rows READ FROM THE STORE — never this process's unwritten minute. */
+  storedNewestAt: number | null;
   runtime: Map<string, RuntimeFingerprint>;
   runtimeAt: string;
   evaluation: Record<string, { state: 'PASS' | 'FAIL' | 'NOT_SIMULATED'; passed: number; total: number }>;
@@ -534,6 +536,7 @@ export interface MonitoringOverview {
   };
   runtime: { basis: RuntimeBasis; computedAt: string; durationMs: number; verified: number; mismatched: number; unverified: number };
   store: StoreStatus;
+  writePath: WritePathEvidence;
   loop: {
     measured: number; notInstrumented: number;
     healthy: number; warning: number; failing: number; notEnoughData: number;
@@ -541,6 +544,47 @@ export interface MonitoringOverview {
     withFindings: number;
   };
   algorithms: MonitoringSummary[];
+}
+
+// ── is the write path of THIS deployment proven? ─────────────────────────────
+
+/** When this server process started — the start of what it can vouch for. */
+const SERVER_STARTED_AT = new Date(Date.now() - process.uptime() * 1000).toISOString();
+
+/**
+ * Two kinds of evidence about writes, kept apart on purpose:
+ *
+ *   thisServer   what this server process has itself done since it started.
+ *                Only a write it completed proves that the running deployment
+ *                can write. Zero runs proves nothing either way: UNVERIFIED.
+ *   stored       rows already in the store. They prove a write happened at some
+ *                point — under an earlier deployment, or by another server —
+ *                and say nothing about this one. UNKNOWN when unreadable.
+ *
+ * Several servers each answer for themselves; none can vouch for another.
+ */
+export interface WritePathEvidence {
+  thisServer: 'VERIFIED' | 'FAILING' | 'UNVERIFIED' | 'NOT_RUNNING';
+  serverStartedAt: string;
+  /** This process's last successful write; null until it has written. */
+  verifiedAt: string | null;
+  stored: 'ROWS_PRESENT' | 'NO_ROWS' | 'UNKNOWN';
+  /** The newest run in the stored history; null when there is none or it could not be read. */
+  storedNewestRunAt: string | null;
+}
+
+export function writePathOf(ctx: { storeOk: boolean; storedNewestAt: number | null }): WritePathEvidence {
+  const own = ownWriteEvidence();
+  const thisServer: WritePathEvidence['thisServer'] = !own.running ? 'NOT_RUNNING'
+    : own.lastAttemptOk === false ? 'FAILING'
+      : own.lastSuccessAt !== null ? 'VERIFIED' : 'UNVERIFIED';
+  return {
+    thisServer,
+    serverStartedAt: SERVER_STARTED_AT,
+    verifiedAt: own.lastSuccessAt,
+    stored: !ctx.storeOk ? 'UNKNOWN' : ctx.storedNewestAt !== null ? 'ROWS_PRESENT' : 'NO_ROWS',
+    storedNewestRunAt: ctx.storeOk && ctx.storedNewestAt !== null ? new Date(ctx.storedNewestAt).toISOString() : null,
+  };
 }
 
 /** Said when the store cannot be read — and then nothing reads as healthy. */
@@ -558,8 +602,11 @@ async function context(now: number): Promise<{ ctx: Context; storeOk: boolean }>
   const local = aggregateEntries(peekPending(), now);
   let agg = local;
   let storeOk = true;
+  let storedNewestAt: number | null = null;
   try {
-    agg = combineAggregates(await readTelemetryAggregates(now), local);
+    const stored = await readTelemetryAggregates(now);
+    storedNewestAt = stored.groups.reduce<number | null>((m, g) => (g.lastAt !== null && (m === null || g.lastAt > m) ? g.lastAt : m), null);
+    agg = combineAggregates(stored, local);
   } catch (err) {
     storeOk = false;
     logger.warn('[algorithms] telemetry store could not be read', { kind: failureKindOf(err) });
@@ -567,7 +614,7 @@ async function context(now: number): Promise<{ ctx: Context; storeOk: boolean }>
   const rt = runtimeFingerprints();
   const evals = evaluationsNow();
   const ctx: Context = {
-    now, agg, storeOk,
+    now, agg, storeOk, storedNewestAt,
     runtime: new Map(rt.list.map((f) => [f.key, f])),
     runtimeAt: rt.at,
     evaluation: Object.fromEntries(Object.entries(evals).map(([k, e]) => [k, { state: e.state, passed: e.passed, total: e.total }])),
@@ -623,6 +670,7 @@ export async function algorithmsMonitoring(now: number = Date.now()): Promise<Mo
       unverified: rt.list.filter((f) => f.verdict === 'UNVERIFIED').length,
     },
     store: storeStatus(),
+    writePath: writePathOf(ctx),
     loop: {
       measured: rows.filter((r) => r.instrumented).length,
       notInstrumented: rows.filter((r) => !r.instrumented).length,

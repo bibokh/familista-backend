@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-04T16:55:35.591Z",
+  "generatedAt": "2026-10-04T21:34:08.897Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 54,
-    "handlers": 749,
+    "handlers": 751,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -301,7 +301,7 @@
       {
         "path": "/system/algorithms",
         "module": "algorithms.routes",
-        "handlers": 4,
+        "handlers": 6,
         "public": 0,
         "routerWideAuth": true
       },
@@ -571,9 +571,9 @@
       "src/services/vision-realtime.service.ts"
     ],
     "tenancy": {
-      "idParameters": 347,
+      "idParameters": 348,
       "guarded": 136,
-      "exempt": 211,
+      "exempt": 212,
       "unguarded": [],
       "staleExemptions": [],
       "routerWideTenantGuardMounts": [],
@@ -591,7 +591,7 @@
         },
         "algorithms.routes": {
           "guarded": 0,
-          "exempt": 2,
+          "exempt": 3,
           "unguarded": 0
         },
         "analytics.routes": {
@@ -802,13 +802,13 @@
       }
     },
     "authorization": {
-      "handlers": 749,
+      "handlers": 751,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 82
+        "platform-owner": 84
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -826,7 +826,7 @@
           "member": 3
         },
         "algorithms.routes": {
-          "platform-owner": 4
+          "platform-owner": 6
         },
         "analytics.routes": {
           "member": 4,
@@ -1332,7 +1332,9 @@
         "GET /staff-market/summary": "member",
         "GET /system/algorithms": "platform-owner",
         "GET /system/algorithms/:key": "platform-owner",
+        "GET /system/algorithms/:key/learning": "platform-owner",
         "GET /system/algorithms/:key/monitoring": "platform-owner",
+        "GET /system/algorithms/learning": "platform-owner",
         "GET /system/algorithms/monitoring": "platform-owner",
         "GET /system/analytics/platform": "platform-owner",
         "GET /system/analytics/product": "platform-owner",
@@ -1970,7 +1972,7 @@
       "id": "tenant-guard",
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
-      "note": "136 of 347 route id parameter(s) checked against the caller's club before the handler; 211 exempted by name with a reason; 0 unguarded."
+      "note": "136 of 348 route id parameter(s) checked against the caller's club before the handler; 212 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "franchise-club-attach-authorised",
@@ -2187,7 +2189,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "749 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 82 platform-owner; every member-level handler reviewed by name."
+      "note": "751 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 84 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2218,6 +2220,12 @@
       "status": "PRESENT",
       "evidence": "src/algorithms/telemetry-store.ts",
       "note": "Production telemetry of the registered algorithms is aggregate counts, histograms and times only: its table has no column for a club, team, player, user, request, input or message, the database refuses free text in it, one file writes it, the recorder refuses any workflow outside its closed list, and only the platform owner reads it, read-only — proven on real PostgreSQL in CI."
+    },
+    {
+      "id": "algorithm-learning-separation",
+      "status": "PRESENT",
+      "evidence": "src/algorithms/learning.ts",
+      "note": "Algorithm learning is synthetic only: every synthetic result is labelled SYNTHETIC and none is presented as real-world accuracy; the real-world lane is disabled, no learning file reads a database, a club record or health data, and synthetic runs never enter production telemetry; a run is bounded by slices and a time budget; only the platform owner reads it, read-only."
     },
     {
       "id": "security-alert-delivery",
@@ -2772,6 +2780,10 @@
       "scripts/backup.sh",
       "scripts/restore.sh",
       "scripts/rollback.sh",
+      "src/algorithms/learning-spec.ts",
+      "src/algorithms/learning-stats.ts",
+      "src/algorithms/learning-synthetic.ts",
+      "src/algorithms/learning.ts",
       "src/algorithms/loop.ts",
       "src/algorithms/registry.ts",
       "src/algorithms/telemetry.ts",
@@ -2780,6 +2792,7 @@
       "src/auth-prod/mfa-enforcement.service.ts",
       "src/auth-prod/mfa.service.ts",
       "src/config/database.ts",
+      "src/contracts/owner-api.contracts.ts",
       "src/controllers/auth.controller.ts",
       "src/controllers/internal-backup.controller.ts",
       "src/controllers/internal-video.controller.ts",
@@ -2909,7 +2922,7 @@
     ]
   },
   "counts": {
-    "controlsPresent": 74,
+    "controlsPresent": 75,
     "controlsPartial": 1,
     "controlsAbsent": 1,
     "cryptoUses": 10

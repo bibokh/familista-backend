@@ -540,7 +540,8 @@
       "boundaryType": "integrity",
       "coverage": "C",
       "controls": [
-        "algorithm-change-gate"
+        "algorithm-change-gate",
+        "algorithm-learning-separation"
       ]
     },
     "40": {

@@ -33,6 +33,16 @@
    others: Healthy, Warning, Failing, Not enough data, Not instrumented. Green
    is drawn only for what was measured; a finding is evidence for a person and
    changes nothing.
+
+   LEARNING (Step 3)
+
+   Synthetic only. Invented outcomes test the measuring method — a planted
+   error must be found, and none reported where none was planted — and say
+   nothing about real-world accuracy, so every view of them carries a banner
+   that says so and a verdict is never drawn green. The real-world lane is
+   disabled; health data is never a learning outcome. Whether this
+   deployment's telemetry writes work is shown as evidence too: only a write
+   this server completed verifies it.
    ───────────────────────────────────────────────────────────────────────────── */
 
 (function () {
@@ -51,6 +61,11 @@
     monError: null,
     monDetail: null,
     monDetailError: null,
+    learn: null,
+    learnError: null,
+    learnDetail: null,
+    learnDetailError: null,
+    learnScenario: 'consistent',
   };
 
   // ── plumbing ──────────────────────────────────────────────────────────────
@@ -278,6 +293,96 @@
   function monChip(st, extra) { return chip(monKind(st), T(MON_LABEL[st] || st), T(MON_MEANING[st] || ''), extra); }
   function verdictChip(v, extra) { return chip(verdictKind(v), T(VERDICT_LABEL[v] || v), '', extra); }
 
+  // ── the learning vocabulary (Step 3) ──────────────────────────────────────
+  //
+  // Synthetic results test the measuring method, never the algorithm, so a
+  // verdict is drawn neutral — "none detected" in green would read as
+  // "accurate". Colour belongs to the method check alone: whether the method
+  // found the error that was planted, and nothing it was not given.
+
+  var LEARN_STATUS_LABEL = {
+    SYNTHETIC_ONLY: 'Synthetic method checks',
+    DERIVED: 'Covered by expected goals',
+    NO_GROUND_TRUTH: 'Nothing to learn from',
+    EXCLUDED_HEALTH: 'Excluded: health data',
+  };
+  function learnStatusKind(s) { return s === 'SYNTHETIC_ONLY' ? 'info' : s === 'DERIVED' ? 'none' : 'off'; }
+  var LEARN_VERDICT_LABEL = {
+    MISCALIBRATION_DETECTED: 'Miscalibration detected',
+    NONE_DETECTED: 'None detected at this sample size',
+    NOT_ENOUGH_DATA: 'Not enough data',
+    INCONCLUSIVE: 'Inconclusive',
+    UNAVAILABLE: 'Unavailable',
+  };
+  var METHOD_CHECK_LABEL = {
+    PASSED: 'Method check passed',
+    FAILED: 'Method check failed',
+    UNVERIFIED: 'Code not proven',
+    UNAVAILABLE: 'Could not run',
+  };
+  function methodKind(m) { return m === 'PASSED' ? 'ok' : m === 'FAILED' ? 'crit' : m === 'UNVERIFIED' ? 'warn' : 'none'; }
+  var SIGNAL_LABEL = { CITL: 'Total goals', SLOPE: 'Calibration slope' };
+  var TRUTH_LABEL = {
+    MODEL: 'The model’s own probabilities',
+    LOGIT_SHIFT: 'The model shifted on the log-odds scale',
+    LOGIT_SCALE: 'The model’s log-odds scaled',
+  };
+  var LEARN_REASON_LABEL = {
+    NO_SAMPLE: 'No shots were drawn.',
+    NON_FINITE_PREDICTION: 'A prediction was not a number between 0 and 1.',
+    EXPECTED_GOALS_BELOW_FLOOR: 'Fewer expected goals than the floor.',
+    EXPECTED_NON_GOALS_BELOW_FLOOR: 'Fewer expected non-goals than the floor.',
+    CITL_UNAVAILABLE: 'The goals test could not run: the predictions carry no variance.',
+    'SLOPE_UNAVAILABLE:NO_VARIATION_IN_OUTCOMES': 'The slope could not be fitted: every outcome is the same.',
+    'SLOPE_UNAVAILABLE:NO_VARIATION_IN_PREDICTIONS': 'The slope could not be fitted: every prediction is the same.',
+    'SLOPE_UNAVAILABLE:SINGULAR': 'The slope could not be fitted: the data cannot separate slope from intercept.',
+    'SLOPE_UNAVAILABLE:NON_FINITE': 'The slope could not be fitted: a value became infinite.',
+    'SLOPE_UNAVAILABLE:SEPARATION': 'The slope could not be fitted: outcomes are perfectly separated.',
+    'SLOPE_UNAVAILABLE:NO_CONVERGENCE': 'The slope could not be fitted: the fit did not settle.',
+    TIME_BUDGET_EXCEEDED: 'Stopped: the time budget was used up.',
+    LIMIT_EXCEEDED: 'Refused: the scenario exceeds a resource limit.',
+    ERROR: 'The run failed with an error.',
+  };
+  var WRITE_LABEL = {
+    VERIFIED: 'Verified by this server',
+    FAILING: 'Write failing in this server',
+    UNVERIFIED: 'Unverified',
+    NOT_RUNNING: 'Not running in this server',
+  };
+  var WRITE_MEANING = {
+    VERIFIED: 'This server completed a write since it started.',
+    FAILING: 'This server’s last write attempt failed.',
+    UNVERIFIED: 'This server has recorded no run yet. Zero runs is not evidence of failure or success.',
+    NOT_RUNNING: 'Telemetry is not running in this server process, so it cannot vouch for its writes.',
+  };
+  function writeKind(w) { return w === 'VERIFIED' ? 'ok' : w === 'FAILING' ? 'crit' : w === 'UNVERIFIED' ? 'none' : 'off'; }
+  var STORED_LABEL = { ROWS_PRESENT: 'Earlier runs are stored', NO_ROWS: 'No stored runs', UNKNOWN: 'Unknown' };
+  var STORED_MEANING = {
+    ROWS_PRESENT: 'History only: written under an earlier deployment or by another server. It does not verify this deployment.',
+    NO_ROWS: 'Nothing is stored within the retention window.',
+    UNKNOWN: 'The store could not be read.',
+  };
+
+  /** A statistic, localised, with a fixed number of decimals. Data, not prose. */
+  function dec(v, d) { return typeof v === 'number' && isFinite(v) ? num(+v.toFixed(d)) : '—'; }
+  /** An interval as value [low – high]. */
+  function ivl(i, d) { return i ? dec(i.value, d) + ' [' + dec(i.low, d) + ' – ' + dec(i.high, d) + ']' : '—'; }
+  function share(v) { return typeof v === 'number' && isFinite(v) ? num(+(100 * v).toFixed(1)) + '%' : '—'; }
+  function bytes(n) {
+    if (typeof n !== 'number' || !isFinite(n)) return '—';
+    if (n >= 1048576) return num(+(n / 1048576).toFixed(1)) + ' MB';
+    if (n >= 1024) return num(Math.round(n / 1024)) + ' KB';
+    return num(n) + ' B';
+  }
+  function ms(v) { return typeof v === 'number' && isFinite(v) ? num(+v.toFixed(v < 10 ? 2 : 1)) + ' ms' : '—'; }
+  function val(text) { return '<span class="al-val" data-no-i18n>' + esc(text) + '</span>'; }
+  function verdictTag(v) { return chip('info', T(LEARN_VERDICT_LABEL[v] || v), '', 'al-chip--sm'); }
+  function methodChip(m, extra) { return chip(methodKind(m), T(METHOD_CHECK_LABEL[m] || m), '', extra); }
+  function syntheticBanner(text) {
+    return '<div class="al-banner al-banner--synthetic" role="note"><span class="al-banner-tag">' + esc(T('Synthetic')) + '</span>'
+      + '<span>' + esc(T(text || 'Synthetic data: these results test the measuring method, not the algorithm’s real-world accuracy.')) + '</span></div>';
+  }
+
   /** A duration in microseconds, as the room shows it. Data, not prose. */
   function dur(us) {
     if (typeof us !== 'number' || !isFinite(us)) return '—';
@@ -299,6 +404,7 @@
     ['evaluation', 'Evaluation', '✓', 'EVIDENCE'],
     ['approvals', 'Approvals & Audit', '◆', 'EVIDENCE'],
     ['monitoring', 'Monitoring', '∿', 'EVIDENCE'],
+    ['learning', 'Learning', '◇', 'EVIDENCE'],
   ];
   var GROUP_ORDER = ['COMMAND', 'EVIDENCE'];
   var GROUP_LABEL = { COMMAND: 'Command', EVIDENCE: 'Evidence' };
@@ -323,6 +429,12 @@
     if (id === 'monitoring' && AL.mon && AL.mon.states) {
       if (AL.mon.states.FAILING) { n = AL.mon.states.FAILING; kind = 'crit'; }
       else n = AL.mon.states.WARNING;
+    }
+    if (id === 'learning' && AL.learn && AL.learn.algorithms) {
+      n = AL.learn.algorithms.reduce(function (c, a) {
+        return c + (a.synthetic ? a.synthetic.scenarios.filter(function (s) { return s.methodCheck === 'FAILED'; }).length : 0);
+      }, 0);
+      kind = 'crit';
     }
     if (!n) return '';
     return '<span class="al-rail-badge al-rail-badge--' + kind + '" data-no-i18n>' + esc(num(n)) + '</span>';
@@ -520,15 +632,28 @@
    */
   function loopEvidence(stage) {
     var L = AL.mon && AL.mon.loop;
-    if (!L) return '';
-    if (stage === 'MEASURE') {
-      return '<span class="al-stage-ev">' + esc(tf('%d measured in production · %d not instrumented', L.measured, L.notInstrumented)) + '</span>'
+    var out = '';
+    if (stage === 'MEASURE' && L) {
+      out += '<span class="al-stage-ev">' + esc(tf('%d measured in production · %d not instrumented', L.measured, L.notInstrumented)) + '</span>'
         + '<span class="al-stage-ev">' + esc(tf('%d healthy · %d warning · %d failing · %d not enough data', L.healthy, L.warning, L.failing, L.notEnoughData)) + '</span>';
+      if (AL.mon.writePath) out += '<span class="al-stage-ev">' + esc(T('Write path of this server')) + ': ' + esc(T(WRITE_LABEL[AL.mon.writePath.thisServer] || AL.mon.writePath.thisServer)) + '</span>';
     }
     if (stage === 'LEARN') {
-      return '<span class="al-stage-ev">' + esc(tf('%d with production findings for a person', L.withFindings)) + '</span>';
+      if (L) out += '<span class="al-stage-ev">' + esc(tf('%d with production findings for a person', L.withFindings)) + '</span>';
+      var c = learnChecks();
+      if (c) out += '<span class="al-stage-ev">' + esc(tf('%d of %d synthetic method checks passing', c.passed, c.total)) + '</span>';
+      if (AL.learn) out += '<span class="al-stage-ev">' + esc(T('Real-world learning: disabled')) + '</span>';
     }
-    return '';
+    return out;
+  }
+
+  /** Method checks across every synthetic algorithm; null until learning has answered. */
+  function learnChecks() {
+    if (!AL.learn || !AL.learn.algorithms) return null;
+    return AL.learn.algorithms.reduce(function (c, a) {
+      if (a.synthetic) { c.passed += a.synthetic.methodChecks.passed; c.total += a.synthetic.methodChecks.total; }
+      return c;
+    }, { passed: 0, total: 0 });
   }
 
   // ── EVALUATION ────────────────────────────────────────────────────────────
@@ -666,7 +791,27 @@
       + rule(tf('Telemetry is kept %d days, then deleted.', th.retentionDays))
       + '</ul><div class="al-note">' + esc(T('These thresholds decide what this room reports. No algorithm reads them, and nothing here changes an algorithm.')) + '</div>');
 
-    return intro + notice + figs + states + table + '<div class="al-dgrid">' + code + store + '</div>' + how + evaluationRunsPanel();
+    return intro + notice + figs + states + table + '<div class="al-dgrid">' + code + store + '</div>' + writePathPanel(M.writePath) + how + evaluationRunsPanel();
+  }
+
+  /**
+   * Is this deployment's write path proven? Only a write this server completed
+   * says so; stored rows are history from earlier deployments or other servers.
+   */
+  function writePathPanel(w) {
+    if (!w) return '';
+    return panel('Write path of this deployment', '<div class="al-dgrid al-dgrid--tight">'
+      + '<div class="al-kv">'
+      + kv(T('This server'), chip(writeKind(w.thisServer), T(WRITE_LABEL[w.thisServer] || w.thisServer), '', 'al-chip--sm'))
+      + kv(T('What that means'), esc(T(WRITE_MEANING[w.thisServer] || '')))
+      + kv(T('Server started'), instantHtml(w.serverStartedAt))
+      + kv(T('Verified at'), instantHtml(w.verifiedAt, T('Not verified by this server yet.')))
+      + '</div><div class="al-kv">'
+      + kv(T('Stored history'), chip(w.stored === 'ROWS_PRESENT' ? 'info' : w.stored === 'NO_ROWS' ? 'none' : 'unknown', T(STORED_LABEL[w.stored] || w.stored), '', 'al-chip--sm'))
+      + kv(T('What that means'), esc(T(STORED_MEANING[w.stored] || '')))
+      + kv(T('Newest stored run'), instantHtml(w.storedNewestRunAt, T('No stored run.')))
+      + '</div></div>'
+      + '<div class="al-note">' + esc(T('Each server answers for itself and none can vouch for another. Stored rows never verify the running deployment; only a write this server completed does.')) + '</div>');
   }
 
   function rule(text) { return '<li>' + esc(text) + '</li>'; }
@@ -851,6 +996,7 @@
     if (!det || det.key !== AL.key) {
       return head + '<div class="al-skel-hero al-skel-hero--sm" aria-hidden="true"></div>'
         + panel('In production', skeleton(5, 'check'))
+        + panel('Learning', skeleton(4, 'check'))
         + '<div class="al-dgrid">' + panel('Inputs', skeleton(4, 'port')) + panel('Outputs', skeleton(4, 'port')) + '</div>'
         + panel('Scenarios', skeleton(3, 'check'));
     }
@@ -871,6 +1017,8 @@
       + '</div></section>'
       + '<h2 class="al-sec">' + esc(T('In production')) + '</h2>'
       + productionHtml()
+      + '<h2 class="al-sec">' + esc(T('Learning')) + '</h2>'
+      + learningDetailHtml()
       + '<h2 class="al-sec">' + esc(T('Definition and approval')) + '</h2>'
       + '<div class="al-dgrid">' + panel('Inputs', ports(det.inputs)) + panel('Outputs', ports(det.outputs)) + '</div>'
       + panel('Scenarios', scenariosHtml(det), det.scenarios.length ? tf('%d of %d checks passing', det.evaluation.passed, det.evaluation.total) : '')
@@ -900,6 +1048,204 @@
       + '</div>';
   }
 
+  // ── LEARNING (Step 3) ─────────────────────────────────────────────────────
+  //
+  // Two lanes, never merged: synthetic method checks, every view of them
+  // carrying the banner that says what they are not; and the real-world lane,
+  // disabled, with the prerequisites that are not met.
+
+  function learningSkeleton() {
+    return '<div class="al-figs" aria-hidden="true">' + [0, 1, 2, 3].map(function () { return '<div class="al-skel-row al-skel-row--fig"></div>'; }).join('') + '</div>'
+      + '<div class="al-dgrid">' + panel('Synthetic method checks', skeleton(4, 'port')) + panel('Real-world evidence', skeleton(4, 'port')) + '</div>';
+  }
+
+  function learningHtml() {
+    var intro = '<div class="al-intro">' + esc(T('Learning compares what an algorithm said with what happened. Here only synthetic outcomes are used: they test the measuring method — whether a planted error is found, and whether no error is reported where none was planted. They say nothing about real-world accuracy, and nothing here changes an algorithm.')) + '</div>';
+    if (AL.learnError && !AL.learn) return intro + panel('', emptyState('Learning could not be read', AL.learnError));
+    var Lr = AL.learn;
+    if (!Lr) return intro + syntheticBanner() + learningSkeleton();
+    var c = learnChecks();
+    var synth = Lr.algorithms.filter(function (a) { return a.synthetic; });
+
+    var figs = '<div class="al-figs">'
+      + figure(esc(num(c.passed)) + '<small> / ' + esc(num(c.total)) + '</small>', T('Synthetic method checks passing'), c.total && c.passed === c.total ? 'ok' : 'crit')
+      + figure(esc(num(Lr.counts.syntheticOnly)) + '<small> / ' + esc(num(Lr.algorithms.length)) + '</small>', T('Algorithms with synthetic checks'))
+      + figure(esc(num(0)), T('Real-world evaluations (disabled)'), 'none')
+      + figure(esc(num(Lr.counts.excludedHealth)), T('Excluded: health data'), 'none')
+      + '</div>';
+
+    var lane = panel('Synthetic method checks', synth.map(function (a) {
+      var sy = a.synthetic;
+      return '<div class="al-lane">'
+        + '<div class="al-lane-h"><button class="al-link" type="button" data-al-open="' + esc(a.key) + '">' + esc(T(a.name)) + '</button>'
+        + '<span class="al-chips">' + verdictChip(sy.codeVerdict, 'al-chip--sm')
+        + chip(sy.methodChecks.passed === sy.methodChecks.total ? 'ok' : 'crit', tf('%d of %d method checks passed', sy.methodChecks.passed, sy.methodChecks.total), '', 'al-chip--sm') + '</span></div>'
+        + '<ul class="al-lane-list">' + sy.scenarios.map(function (r) {
+          var decl = (Lr.scenarios.filter(function (x) { return x.id === r.id; })[0]) || { title: r.id };
+          return '<li><span class="al-lane-t">' + esc(T(decl.title)) + '</span>' + verdictTag(r.verdict) + methodChip(r.methodCheck, 'al-chip--sm') + '</li>';
+        }).join('') + '</ul></div>';
+    }).join(''), T('Synthetic'));
+
+    var real = panel('Real-world evidence', '<div class="al-kv">'
+      + kv(T('State'), chip('off', T('Disabled'), '', 'al-chip--sm'))
+      + kv(T('Why'), esc(T(Lr.realWorld.reason)))
+      + '</div><ul class="al-prereq">' + Lr.realWorld.prerequisites.map(function (p) {
+        return '<li class="al-prereq-i"><span class="al-prereq-m" aria-hidden="true">' + (p.met ? '✓' : '✕') + '</span>'
+          + '<span>' + esc(T(p.label)) + '</span>' + chip(p.met ? 'ok' : 'none', p.met ? T('Met') : T('Not met'), '', 'al-chip--sm') + '</li>';
+      }).join('') + '</ul>');
+
+    var table = panel('Every algorithm', '<div class="al-tbl al-tbl--learn" role="table">'
+      + '<div class="al-tr al-tr--h" role="row"><span role="columnheader">' + esc(T('Algorithm')) + '</span>'
+      + '<span role="columnheader">' + esc(T('Learning')) + '</span>'
+      + '<span role="columnheader">' + esc(T('Why')) + '</span></div>'
+      + Lr.algorithms.map(function (a) {
+        return '<button class="al-tr al-tr--row" role="row" type="button" data-al-open="' + esc(a.key) + '">'
+          + '<span role="cell" class="al-tr-name"><b>' + esc(T(a.name)) + '</b><code data-no-i18n>' + esc(a.key) + '</code></span>'
+          + '<span role="cell">' + chip(learnStatusKind(a.status), T(LEARN_STATUS_LABEL[a.status] || a.status), '', 'al-chip--sm') + '</span>'
+          + '<span role="cell" class="al-tr-why">' + esc(T(a.reason)) + '</span></button>';
+      }).join('') + '</div>', tf('%d synthetic · %d covered · %d nothing to learn from · %d excluded', Lr.counts.syntheticOnly, Lr.counts.derived, Lr.counts.noGroundTruth, Lr.counts.excludedHealth));
+
+    return intro + syntheticBanner(Lr.notice) + figs
+      + '<div class="al-dgrid">' + lane + real + '</div>'
+      + table
+      + '<div class="al-dgrid">' + learnRulesPanel(Lr.rules) + learnUsePanel(Lr) + '</div>'
+      + '<div class="al-dgrid">' + learnScenariosPanel(Lr) + learnShotsPanel(Lr.generator) + '</div>';
+  }
+
+  function learnRulesPanel(r) {
+    var j = r.justifications;
+    var item = function (rule, why) { return '<li><b>' + esc(rule) + '</b><span>' + esc(T(why)) + '</span></li>'; };
+    return panel('How results are judged', '<ol class="al-gate">'
+      + item(tf('Not enough data below %d expected goals or %d expected non-goals.', r.minExpectedEvents, r.minExpectedEvents), j.sampleFloor)
+      + item(T('Miscalibration detected when total goals differ from expected beyond the test, or the calibration slope’s 97.5% interval excludes 1.'), j.miscalibration)
+      + item(T('Otherwise: none detected at this sample size, with the smallest error that could still hide.'), j.noneDetected)
+      + item(tf('Bins with fewer than %d shots are marked too few to read.', r.minBinShots), j.binDisplay)
+      + item(T('Probabilities of exactly 0 or 1 are clipped before a logarithm.'), j.probabilityClip)
+      + '</ol><div class="al-note">' + esc(T('These rules decide what this room reports. No algorithm reads them, and no result changes an algorithm.')) + '</div>');
+  }
+
+  function learnUsePanel(Lr) {
+    var lim = Lr.limits;
+    var rows = Lr.algorithms.filter(function (a) { return a.synthetic; }).map(function (a) {
+      var m = a.synthetic.measured;
+      return '<div class="al-use"><div class="al-use-h"><b>' + esc(T(a.name)) + '</b>'
+        + chip(a.synthetic.servedFromCache ? 'info' : 'none', a.synthetic.servedFromCache ? T('Served from memory') : T('Computed for this request'), '', 'al-chip--sm') + '</div>'
+        + '<div class="al-kv">'
+        + kv(T('Wall time'), val(ms(m.wallMs)))
+        + kv(T('Busy time'), val(ms(m.busyMs) + ' / ' + ms(lim.busyBudgetMs)))
+        + kv(T('Longest uninterrupted slice'), val(ms(m.maxSliceMs)))
+        + kv(T('Slices · yields'), val(num(m.slices) + ' · ' + num(m.yields)))
+        + kv(T('Shots drawn'), val(num(m.shots) + ' / ' + num(lim.shotsPerAlgorithmMax)))
+        + kv(T('Memory allocated (exact)'), val(bytes(m.allocatedBytes)))
+        + kv(T('Peak heap growth (sampled)'), val(bytes(m.peakHeapDeltaBytes)))
+        + kv(T('Computed at'), instantHtml(m.computedAt))
+        + '</div></div>';
+    }).join('');
+    return panel('Resource use, measured', rows
+      + '<div class="al-note">' + esc(tf('Limits, enforced: at most %d shots per scenario, a yield every %d shots and after every fitting step, and a stop when the busy time runs out. Computed once per server and code version, never at start-up.', lim.shotsPerScenarioMax, lim.sliceShots)) + '</div>');
+  }
+
+  function truthText(t) {
+    var base = T(TRUTH_LABEL[t.kind] || t.kind);
+    return t.parameter === null ? base : base + ' (' + (t.kind === 'LOGIT_SHIFT' ? '+' : '×') + dec(t.parameter, 2) + ')';
+  }
+
+  function learnScenariosPanel(Lr) {
+    return panel('The scenarios', '<ul class="al-scn-defs">' + Lr.scenarios.map(function (d) {
+      var size = d.size.shots !== null ? tf('%d shots', d.size.shots) : tf('Until %d goals are expected', d.size.untilExpectedGoals);
+      return '<li><div class="al-scn-defs-h"><b>' + esc(T(d.title)) + '</b>' + (d.circular ? chip('none', T('Circular by design'), '', 'al-chip--sm') : '') + '</div>'
+        + '<span>' + esc(T(d.purpose)) + '</span>'
+        + '<span class="al-scn-defs-m">' + esc(truthText(d.truth)) + ' · ' + esc(size) + ' · ' + esc(T('Expected')) + ': ' + esc(T(LEARN_VERDICT_LABEL[d.expected.verdict] || d.expected.verdict)) + '</span></li>';
+    }).join('') + '</ul>');
+  }
+
+  function learnShotsPanel(g) {
+    var mix = function (list) { return list.map(function (x) { return '<code class="al-token" data-no-i18n>' + esc(x.value) + ' ' + esc(share(x.share)) + '</code>'; }).join(''); };
+    return panel('The invented shots', '<div class="al-kv">'
+      + kv(T('Where'), val('x ' + num(g.x[0]) + '–' + num(g.x[1]) + ' · y ' + num(g.y[0]) + '–' + num(g.y[1])))
+      + kv(T('Body part'), '<span class="al-chips">' + mix(g.bodyPart) + '</span>')
+      + kv(T('Technique'), '<span class="al-chips">' + mix(g.technique) + '</span>')
+      + kv(T('Situation'), '<span class="al-chips">' + mix(g.situation) + '</span>')
+      + kv(T('Under pressure'), val(share(g.pressured)))
+      + kv(T('On the counter'), val(share(g.counter)))
+      + '</div><div class="al-note">' + esc(T('Arbitrary, and documented as such: a different mix gives different figures. One more reason a synthetic result says nothing about the real world.')) + '</div>');
+  }
+
+  /** One algorithm's learning, on its page. */
+  function learningDetailHtml() {
+    if (AL.learnDetailError) return panel('Learning', emptyState('Learning could not be read', AL.learnDetailError));
+    var d = AL.learnDetail;
+    if (!d || d.key !== AL.key) return panel('Learning', skeleton(4, 'check'));
+    var head = '<div class="al-prod-h">' + chip(learnStatusKind(d.status), T(LEARN_STATUS_LABEL[d.status] || d.status))
+      + chip('off', T('Real-world learning: disabled'), '', 'al-chip--sm') + '</div>';
+    if (!d.synthetic) {
+      return head + panel('Learning', '<div class="al-kv">'
+        + kv(T('Why'), esc(T(d.reason)))
+        + (d.derivedFrom ? kv(T('Covered by'), '<button class="al-link" type="button" data-al-open="' + esc(d.derivedFrom) + '">' + esc(algorithmName(d.derivedFrom)) + '</button>') : '')
+        + '</div><div class="al-note">' + esc(T('No synthetic check is run where there is no outcome to compare with: an invented outcome would be an invented truth.')) + '</div>');
+    }
+    var sy = d.synthetic;
+    var sel = sy.scenarios.filter(function (x) { return x.id === AL.learnScenario; })[0] || sy.scenarios[0];
+    var tabs = '<div class="al-scn-tabs" role="tablist">' + sy.scenarios.map(function (r) {
+      var on = r.id === sel.id;
+      return '<button class="al-scn-tab' + (on ? ' is-on' : '') + '" type="button" role="tab" aria-selected="' + (on ? 'true' : 'false') + '" data-al-scn="' + esc(r.id) + '">'
+        + '<span class="al-scn-tab-t">' + esc(T(r.title)) + '</span>'
+        + '<span class="al-chips">' + verdictTag(r.verdict) + methodChip(r.methodCheck, 'al-chip--sm') + '</span></button>';
+    }).join('') + '</div>';
+    // Every scenario's body is drawn into the same grid cell and only the
+    // selected one is visible: the cell is as tall as the tallest, so switching
+    // a tab moves nothing beneath it — and switching repaints nothing at all.
+    var bodies = '<div class="al-scn-bodies">' + sy.scenarios.map(function (r) {
+      var on = r.id === sel.id;
+      return '<div class="al-scn-body' + (on ? ' is-on' : '') + '" role="tabpanel" data-al-scn-body="' + esc(r.id) + '"' + (on ? '' : ' aria-hidden="true"') + '>'
+        + scenarioDetailHtml(r, sy) + '</div>';
+    }).join('') + '</div>';
+    return head + syntheticBanner(d.notice)
+      + panel('Synthetic method checks', tabs + bodies, tf('%d of %d method checks passed', sy.methodChecks.passed, sy.methodChecks.total));
+  }
+
+  function scenarioDetailHtml(r, sy) {
+    var m = r.metrics;
+    var expected = T(LEARN_VERDICT_LABEL[r.expected.verdict] || r.expected.verdict) + (r.expected.signal ? ' · ' + T(SIGNAL_LABEL[r.expected.signal]) : '');
+    var reasons = r.reasons.length ? r.reasons.map(function (x) { return esc(T(LEARN_REASON_LABEL[x] || x)); }).join('<br>') : esc(T('None.'));
+    var left = '<div class="al-kv">'
+      + kv(T('Verdict'), verdictTag(r.verdict))
+      + kv(T('Expected'), esc(expected))
+      + kv(T('Method check'), methodChip(r.methodCheck, 'al-chip--sm'))
+      + kv(T('Found in'), r.signals.length ? esc(r.signals.map(function (x) { return T(SIGNAL_LABEL[x] || x); }).join(' · ')) : absent(T('Nothing was found.')))
+      + kv(T('Notes'), reasons)
+      + kv(T('Shots · goals · expected goals'), m ? val(num(m.shots) + ' · ' + num(m.goals) + ' · ' + dec(m.expectedGoals, 1)) : absent())
+      + kv(T('Goals ÷ expected (97.5%)'), m ? val(ivl(m.observedOverExpected, 3)) : absent())
+      + kv(T('Goals test z'), m && m.citl ? val(dec(m.citl.z, 2)) : absent(T('Not computed.')))
+      + kv(T('Calibration slope (97.5%)'), m && m.slope ? val(ivl(m.slope, 3)) : absent(r.fitAttempted ? T('The fit failed; see the notes.') : T('Not attempted below the sample floor.')))
+      + kv(T('Calibration intercept (97.5%)'), m && m.intercept ? val(ivl(m.intercept, 3)) : absent())
+      + kv(T('Brier score (95%)'), m && m.brier ? val(ivl(m.brier, 4)) : absent())
+      + kv(T('Brier, always the average'), m ? val(dec(m.brierReference, 4)) : absent())
+      + kv(T('Log-loss (95%)'), m && m.logLoss ? val(ivl(m.logLoss, 4)) : absent())
+      + kv(T('Calibration error'), m ? val(dec(m.ece, 4)) : absent())
+      + kv(T('Smallest detectable error'), m && m.minimumDetectableError !== null ? val(share(m.minimumDetectableError)) : absent())
+      + kv(T('Clipped probabilities'), m ? val(num(m.clipped)) : absent())
+      + '</div>';
+    var bins = m ? '<div class="al-bins" role="table">'
+      + '<div class="al-bin al-bin--h" role="row"><span role="columnheader">' + esc(T('Predicted')) + '</span><span role="columnheader">' + esc(T('Shots')) + '</span>'
+      + '<span role="columnheader">' + esc(T('Mean predicted')) + '</span><span role="columnheader">' + esc(T('Observed (95%)')) + '</span></div>'
+      + m.bins.map(function (b) {
+        return '<div class="al-bin' + (b.readable ? '' : ' al-bin--thin') + '" role="row">'
+          + '<span role="cell" class="al-val" data-no-i18n>' + esc(dec(b.from, 2) + '–' + dec(b.to, 2)) + '</span>'
+          + '<span role="cell" class="al-num" data-no-i18n>' + esc(num(b.shots)) + '</span>'
+          + '<span role="cell" class="al-num" data-no-i18n>' + esc(b.meanPredicted === null ? '—' : dec(b.meanPredicted, 3)) + '</span>'
+          + '<span role="cell" class="al-num"' + (b.readable ? ' data-no-i18n>' + esc(b.observedRate === null ? '—' : dec(b.observedRate, 3) + ' [' + dec(b.low, 3) + '–' + dec(b.high, 3) + ']') : '>' + esc(b.shots ? T('Too few to read') : '—')) + '</span></div>';
+      }).join('') + '</div>' : emptyState('No result', T('The scenario could not run.'));
+    var meta = '<div class="al-kv al-kv--sep">'
+      + kv(T('What it checks'), esc(T(r.purpose)))
+      + kv(T('Truth'), esc(truthText(r.truth)))
+      + kv(T('Seed'), val(String(r.seed)))
+      + kv(T('Code evaluated'), verdictChip(sy.code.verdict, 'al-chip--sm') + ' ' + fp(sy.code.fingerprint))
+      + kv(T('Time · longest slice · memory'), val(ms(r.measured.wallMs) + ' · ' + ms(r.measured.maxSliceMs) + ' · ' + bytes(r.measured.allocatedBytes)))
+      + '</div>';
+    return '<div class="al-dgrid al-dgrid--tight">' + left + '<div>' + bins + '</div></div>' + meta;
+  }
+
   // ── content ───────────────────────────────────────────────────────────────
 
   function overviewSkeleton() {
@@ -921,6 +1267,7 @@
       case 'evaluation': return evaluationHtml();
       case 'approvals': return approvalsHtml();
       case 'monitoring': return monitoringHtml();
+      case 'learning': return learningHtml();
       case 'algorithm': return algorithmHtml();
       default: return overviewHtml();
     }
@@ -954,6 +1301,8 @@
     detail: ['summary', 'usedBy', 'inputs', 'outputs', 'dependsOn', 'source', 'fingerprint', 'versions', 'tests', 'scenarios'],
     monitoring: ['state', 'measuredAt', 'thresholds', 'coverage', 'states', 'totals', 'runtime', 'store', 'loop', 'algorithms'],
     production: ['storeState', 'coverage', 'fingerprint', 'counts', 'latency', 'bySource', 'fingerprintsSeen', 'daily', 'checks', 'findingList'],
+    learning: ['evidence', 'notice', 'measuredAt', 'realWorld', 'rules', 'limits', 'generator', 'scenarios', 'counts', 'algorithms'],
+    learnDetail: ['status', 'reason', 'evidence', 'realWorld'],
   };
   function missingFields(payload, required) {
     return required.filter(function (k) { return !payload || payload[k] === undefined || payload[k] === null; });
@@ -993,6 +1342,28 @@
       if (missing.length) { AL.monDetail = null; AL.monDetailError = contractError('/system/algorithms/' + key + '/monitoring', missing); return; }
       AL.monDetail = d;
     }).catch(function (e) { AL.monDetail = null; AL.monDetailError = e.message; });
+  }
+
+  function loadLearning() {
+    return api('/system/algorithms/learning').then(function (d) {
+      var missing = missingFields(d, REQUIRED.learning);
+      // The two lanes are facts, not decoration: a response that does not say
+      // which is synthetic and that the real world is disabled is refused.
+      if (!missing.length && (!d.evidence || d.evidence.synthetic !== 'SYNTHETIC' || d.evidence.realWorld !== 'DISABLED')) missing = ['evidence'];
+      if (missing.length) { AL.learn = null; AL.learnError = contractError('/system/algorithms/learning', missing); return; }
+      AL.learn = d; AL.learnError = null;
+    }).catch(function (e) { AL.learnError = e.message; });
+  }
+
+  function loadAlgorithmLearning(key) {
+    AL.learnDetailError = null;
+    return api('/system/algorithms/' + encodeURIComponent(key) + '/learning').then(function (d) {
+      var missing = missingFields(d, REQUIRED.learnDetail);
+      if (!missing.length) missing = ['derivedFrom', 'notice', 'synthetic'].filter(function (k) { return d[k] === undefined; });
+      if (!missing.length && d.synthetic && d.synthetic.evidence !== 'SYNTHETIC') missing = ['synthetic.evidence'];
+      if (missing.length) { AL.learnDetail = null; AL.learnDetailError = contractError('/system/algorithms/' + key + '/learning', missing); return; }
+      AL.learnDetail = d;
+    }).catch(function (e) { AL.learnDetail = null; AL.learnDetailError = e.message; });
   }
 
   function loadAlgorithm(key) {
@@ -1038,23 +1409,42 @@
     AL.key = key;
     if (!AL.detail || AL.detail.key !== key) AL.detail = null;
     if (!AL.monDetail || AL.monDetail.key !== key) AL.monDetail = null;
+    if (!AL.learnDetail || AL.learnDetail.key !== key) AL.learnDetail = null;
     AL.detailError = null;
     AL.monDetailError = null;
+    AL.learnDetailError = null;
+    AL.learnScenario = 'consistent';
     repaintBody(host, false);
-    // Two reads, drawn as each answers: the definition never waits on the
-    // telemetry store, and the store never waits on the definition.
+    // Three reads, drawn as each answers: the definition never waits on the
+    // telemetry store or on learning, and none of them waits on another.
     var redraw = function () { if (AL.section === 'algorithm' && AL.key === key) repaintBody(host, true); };
     loadAlgorithm(key).then(redraw);
     loadAlgorithmMonitoring(key).then(redraw);
+    loadAlgorithmLearning(key).then(redraw);
   }
 
   function refresh(host) {
     if (AL.refreshing) return;
     AL.refreshing = true;
     repaintBody(host, true);
-    var jobs = [loadOverview(), loadMonitoring()];
-    if (AL.section === 'algorithm' && AL.key) jobs.push(loadAlgorithm(AL.key), loadAlgorithmMonitoring(AL.key));
+    var jobs = [loadOverview(), loadMonitoring(), loadLearning()];
+    if (AL.section === 'algorithm' && AL.key) jobs.push(loadAlgorithm(AL.key), loadAlgorithmMonitoring(AL.key), loadAlgorithmLearning(AL.key));
     Promise.all(jobs).then(function () { AL.refreshing = false; repaintBody(host, true); });
+  }
+
+  /** Switch a scenario tab by toggling classes only: no repaint, so nothing else can move. */
+  function selectScenario(host, id) {
+    AL.learnScenario = id;
+    Array.prototype.forEach.call(host.querySelectorAll('[data-al-scn]'), function (b) {
+      var on = b.getAttribute('data-al-scn') === id;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    Array.prototype.forEach.call(host.querySelectorAll('[data-al-scn-body]'), function (p) {
+      var on = p.getAttribute('data-al-scn-body') === id;
+      p.classList.toggle('is-on', on);
+      if (on) p.removeAttribute('aria-hidden'); else p.setAttribute('aria-hidden', 'true');
+    });
   }
 
   function closeLangs(host) {
@@ -1098,6 +1488,9 @@
       }
       if (AL.langOpen && !t.closest('.al-langs')) closeLangs(host);
 
+      var scn = t.closest('[data-al-scn]');
+      if (scn) { selectScenario(host, scn.getAttribute('data-al-scn')); return; }
+
       var open = t.closest('[data-al-open]');
       if (open) { openAlgorithm(host, open.getAttribute('data-al-open')); return; }
 
@@ -1127,6 +1520,7 @@
       // The overview first — it needs no database — and production monitoring
       // beside it; whichever answers second repaints the body, not the shell.
       loadMonitoring().then(function () { if (AL.data || AL.error) repaintBody(host, true); });
+      loadLearning().then(function () { if (AL.data || AL.error) repaintBody(host, true); });
       return loadOverview();
     }).then(function () { paint(host); });
   };
@@ -1136,9 +1530,12 @@
     // are dropped so the room opens clean next time.
     AL.section = 'overview'; AL.key = null; AL.detail = null; AL.detailError = null; AL.langOpen = false;
     AL.monDetail = null; AL.monDetailError = null;
+    AL.learnDetail = null; AL.learnDetailError = null; AL.learnScenario = 'consistent';
   };
 
   // Exposed for the test suite, which asserts the vocabulary rather than a render.
   window.__familistaAlgorithmsGateKind = gateKind;
   window.__familistaAlgorithmsMonKind = monKind;
+  window.__familistaAlgorithmsMethodKind = methodKind;
+  window.__familistaAlgorithmsWriteKind = writeKind;
 }());

@@ -39,6 +39,8 @@ const status = {
   lastFlushAt: null as number | null,
   lastFlushOk: null as boolean | null,
   lastFlushFailure: null as string | null,
+  /** The last write this process completed. Only this proves the running deployment can write. */
+  lastSuccessAt: null as number | null,
   rowsWritten: 0,
   flushes: 0,
   failedFlushes: 0,
@@ -130,6 +132,7 @@ async function doFlush(): Promise<FlushResult> {
     status.lastFlushAt = now;
     status.lastFlushOk = true;
     status.lastFlushFailure = null;
+    status.lastSuccessAt = now;
     recordOutcome('algorithm-telemetry', true);
     try { await purgeIfDue(now); } catch (err) {
       logger.warn('[algorithms] telemetry retention purge failed (will retry)', { kind: failureKindOf(err) });
@@ -212,10 +215,23 @@ export function storeStatus(): StoreStatus {
 }
 
 /** For tests: forget the writer's state. */
+/**
+ * What THIS process has itself done with its writes — the only evidence that
+ * the running deployment's write path works. Rows already in the store are a
+ * different kind of evidence (history), read by monitoring.ts.
+ */
+export function ownWriteEvidence(): { running: boolean; lastAttemptOk: boolean | null; lastSuccessAt: string | null } {
+  return {
+    running: status.started,
+    lastAttemptOk: status.lastFlushOk,
+    lastSuccessAt: status.lastSuccessAt === null ? null : iso(status.lastSuccessAt),
+  };
+}
+
 export function resetTelemetryStore(): void {
   if (timer) { clearInterval(timer); timer = null; }
   Object.assign(status, {
-    started: false, lastFlushAt: null, lastFlushOk: null, lastFlushFailure: null,
+    started: false, lastFlushAt: null, lastFlushOk: null, lastFlushFailure: null, lastSuccessAt: null,
     rowsWritten: 0, flushes: 0, failedFlushes: 0, lastPurgeAt: null,
   });
 }

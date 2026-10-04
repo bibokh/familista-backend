@@ -18,7 +18,8 @@
 // model, change a weight, or deploy anything; there is no function here that
 // could. Its `monitoring` figures are this process's own record of the
 // evaluations it ran; production monitoring — how each algorithm actually ran
-// in production — is monitoring.ts (Algorithms Step 2).
+// in production — is monitoring.ts (Algorithms Step 2); learning — synthetic
+// method checks, with the real-world lane disabled — is learning.ts (Step 3).
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -143,7 +144,7 @@ function compose(decl: AlgorithmDecl, manifest: Manifest | null, evals: Record<s
 
 const LOOP_TEXT: Record<LoopStage, { title: string; describes: string; who: 'PLATFORM' | 'HUMAN' }> = {
   OBSERVE: { title: 'Observe', describes: 'The registry inventories every algorithm and what it reads and returns.', who: 'PLATFORM' },
-  LEARN: { title: 'Learn', describes: 'Evaluations and their results show where an algorithm is weak or out of date.', who: 'PLATFORM' },
+  LEARN: { title: 'Learn', describes: 'Learning compares what an algorithm said with what happened. Only synthetic outcomes are used, to test the measuring method; they say nothing about real-world accuracy, and no club data is read.', who: 'PLATFORM' },
   PROPOSE: { title: 'Propose', describes: 'A change is written as a new version: new code, a new fingerprint, a reason.', who: 'PLATFORM' },
   SIMULATE: { title: 'Simulate', describes: 'The real function runs on fixed synthetic scenarios. No club data is read.', who: 'PLATFORM' },
   TEST: { title: 'Test', describes: 'Each scenario is checked against the properties the algorithm must keep, and CI runs the unit tests.', who: 'PLATFORM' },
@@ -179,6 +180,13 @@ function guarantees(rows: Composed[]): GuaranteeView[] {
       id: 'runtime-code-approved', basis: 'RUNTIME',
       text: 'The code this server is running is the approved code, for every algorithm.',
       holds: (() => { try { return runtimeFingerprints().list.every((f) => f.verdict === 'MATCH'); } catch { return false; } })(),
+    },
+    {
+      id: 'synthetic-not-real-world', basis: 'BUILD',
+      text: 'Synthetic learning results are labelled synthetic and never shown as real-world accuracy; no club data is evaluated.',
+      // Pinned by tests/algorithms-learning.unit.test.ts and the security
+      // manifest's algorithm-learning-separation control.
+      holds: true,
     },
     {
       id: 'no-autonomous-change', basis: 'BUILD',

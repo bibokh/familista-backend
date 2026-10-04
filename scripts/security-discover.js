@@ -1078,6 +1078,46 @@ function algorithmTelemetryPrivate() {
     && /tests\/algorithm-telemetry\.integration\.test\.ts/.test(ci) && /ALGO_TELEMETRY_DB_REQUIRED:\s*'1'/.test(ci);
 }
 
+// Algorithms, Step 3: learning is synthetic only, labelled as such, and reads
+// nothing real.
+//   · the four learning modules exist; none imports a database client or the
+//     telemetry recorder, and none names a club, match, injury or workload
+//     model — synthetic runs can neither read club data nor enter production
+//     telemetry;
+//   · the real-world lane is declared DISABLED and every synthetic object
+//     carries evidence 'SYNTHETIC', in the code and in the API contract;
+//   · only xG and xGOT have synthetic checks, and the four algorithms whose
+//     outcomes would be health data are declared EXCLUDED_HEALTH;
+//   · the approved functions are imported from where the platform keeps them;
+//   · the run is bounded: a busy-time budget that stops it, and slices;
+//   · the room's routes are owner-guarded with no write handler, and the
+//     learning reads are GETs.
+const LEARNING_FILES = ['src/algorithms/learning-spec.ts', 'src/algorithms/learning-stats.ts', 'src/algorithms/learning-synthetic.ts', 'src/algorithms/learning.ts'];
+const HEALTH_EXCLUDED = ['medical-risk', 'training-load', 'biomechanical-load', 'tactical-attrition'];
+function algorithmLearningSeparated() {
+  const code = LEARNING_FILES.map((f) => stripComments(read(cite(f)) || ''));
+  if (code.some((c) => !c)) return false;
+  for (const c of code) {
+    if (/config\/database|@prisma\/client|rls-client|db-context|\bprisma\.|\$queryRaw|\$executeRaw/.test(c)) return false;
+    if (/from '\.\/telemetry(?:-store)?'|\bobserved(?:Async)?\(|recordOutputs\(/.test(c)) return false;
+    if (/\b(?:MatchEvent|matchEvent|PlayerInjury|playerInjury|InjuryRecord|injuryRecord|WorkloadRecord|workloadRecord|PlayerMatchStats|playerMatchStats)\b/.test(c)) return false;
+  }
+  const [spec, , synthetic, view] = code;
+  const contracts = stripComments(read(cite('src/contracts/owner-api.contracts.ts')) || '');
+  const routes = stripComments(read(cite('src/routes/algorithms.routes.ts')) || '');
+  const realWorld = (spec.match(/export const REAL_WORLD = \{[\s\S]*?\n\} as const;/) || [''])[0];
+  return /state: 'DISABLED' as const/.test(realWorld) && !/'ENABLED'|'ACTIVE'/.test(spec)
+    && /realWorld: \{ state: 'DISABLED' \}/.test(view) && /evidence: \{ synthetic: 'SYNTHETIC', realWorld: 'DISABLED' \}/.test(view)
+    && (synthetic.match(/evidence: 'SYNTHETIC'/g) || []).length >= 3
+    && /evidence: z\.literal\('SYNTHETIC'\)/.test(contracts) && /realWorld: z\.literal\('DISABLED'\)/.test(contracts)
+    && /export const SYNTHETIC_KEYS: readonly SyntheticKey\[\] = \['xg', 'xgot'\];/.test(spec)
+    && HEALTH_EXCLUDED.every((k) => new RegExp(`key: '${k}', status: 'EXCLUDED_HEALTH'`).test(spec))
+    && /from '\.\.\/match-events\/xg-model\.service'/.test(synthetic)
+    && /busyBudgetMs/.test(spec) && /class BudgetExceeded/.test(synthetic) && /setImmediate/.test(synthetic)
+    && /assertPlatformOwner\(/.test(routes) && !/router\.(post|put|patch|delete|all)\(/.test(routes)
+    && /router\.get\('\/learning'/.test(routes) && /router\.get\('\/:key\/learning'/.test(routes);
+}
+
 function deployGatedByCi() {
   const raw = read(RENDER) || '';
   const services = (raw.match(/^\s*-\s*type:\s*(?:web|worker|pserv|cron)\s*$/gm) || []).length;
@@ -1166,6 +1206,8 @@ controls.push(
     'Every registered algorithm is read/analyze-only and runs only the exact code its recorded human approval names; on the Continuous Intelligence Loop, Deploy is reachable only from Human approval; the Algorithms room is owner-only and has no write handler; the registry is code-owned.'),
   control('algorithm-telemetry-private', algorithmTelemetryPrivate() ? 'PRESENT' : 'ABSENT', 'src/algorithms/telemetry-store.ts',
     'Production telemetry of the registered algorithms is aggregate counts, histograms and times only: its table has no column for a club, team, player, user, request, input or message, the database refuses free text in it, one file writes it, the recorder refuses any workflow outside its closed list, and only the platform owner reads it, read-only — proven on real PostgreSQL in CI.'),
+  control('algorithm-learning-separation', algorithmLearningSeparated() ? 'PRESENT' : 'ABSENT', 'src/algorithms/learning.ts',
+    'Algorithm learning is synthetic only: every synthetic result is labelled SYNTHETIC and none is presented as real-world accuracy; the real-world lane is disabled, no learning file reads a database, a club record or health data, and synthetic runs never enter production telemetry; a run is bounded by slices and a time budget; only the platform owner reads it, read-only.'),
   control('security-alert-delivery', securityAlertDelivery() ? 'PRESENT' : 'ABSENT', 'src/security/security-alerts.ts',
     'Critical security events, cross-club access attempts, a broken audit chain, account lockouts, refresh-token reuse, brute-force runs and failed or stale backups are emailed to SECURITY_ALERT_EMAIL by one leased process, de-duplicated per rule (15 min) and capped per hour, with a daily digest; the email carries counts only.'),
 );

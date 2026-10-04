@@ -507,6 +507,72 @@ body.al-algorithms-open { overflow: hidden; }
 .al-lang:hover { background: rgba(255, 255, 255, .05); color: var(--al-tx); }
 .al-lang.is-on { color: var(--al-accent); }
 
+/* ── learning (Step 3) ────────────────────────────────────────────────── */
+
+/* The synthetic label: a dashed hairline and a tag, never a filled block. It
+   is on every view of a synthetic result and has no close button. */
+.al-banner--synthetic {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  border-style: dashed; border-color: rgba(232, 168, 255, .34);
+}
+.al-banner-tag {
+  flex: 0 0 auto; padding: 2px 8px; border-radius: 999px; font-size: 9.5px; font-weight: 800;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--al-accent); border: 1px solid rgba(232, 168, 255, .34);
+}
+.al-dgrid--tight { gap: 14px; align-items: start; }
+
+.al-lane + .al-lane { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--al-line); }
+.al-lane-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.al-lane-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.al-lane-list li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
+  padding: 7px 10px; border-radius: 9px; background: rgba(255, 255, 255, .02); border: 1px solid var(--al-line); font-size: 12px;
+}
+.al-lane-t { min-width: 0; }
+
+.al-prereq { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.al-prereq-i {
+  display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+  padding: 7px 10px; border-radius: 9px; border: 1px dotted rgba(99, 93, 128, .48); font-size: 12px; color: var(--al-tx-2);
+}
+.al-prereq-m { text-align: center; color: var(--al-off); font-weight: 800; }
+
+.al-tbl--learn .al-tr { grid-template-columns: minmax(0, 1.1fr) 200px minmax(0, 2.2fr); }
+.al-tr-why { font-size: 11.6px; color: var(--al-tx-2); line-height: 1.5; min-width: 0; }
+
+.al-use + .al-use { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--al-line); }
+.al-use-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; font-size: 12.5px; }
+
+.al-scn-defs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.al-scn-defs li { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--al-tx-2); line-height: 1.55; }
+.al-scn-defs-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--al-tx); font-size: 12.5px; }
+.al-scn-defs-m { font-size: 11px; color: var(--al-tx-3); }
+
+/* Scenario tabs. Every tab body has the same rows and the same nine bins, so
+   switching one moves nothing beneath it. */
+.al-scn-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.al-scn-tab {
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-start; text-align: start; min-width: 0;
+  padding: 9px 11px; border-radius: 10px; cursor: pointer; font-family: inherit; color: var(--al-tx);
+  background: rgba(255, 255, 255, .02); border: 1px solid var(--al-line);
+}
+.al-scn-tab:hover { border-color: rgba(232, 168, 255, .30); }
+.al-scn-tab.is-on { border-color: rgba(232, 168, 255, .46); box-shadow: inset 0 -2px 0 var(--al-accent); }
+.al-scn-tab-t { font-size: 12px; font-weight: 700; line-height: 1.35; }
+
+.al-scn-bodies { display: grid; }
+.al-scn-body { grid-area: 1 / 1; min-width: 0; visibility: hidden; }
+.al-scn-body.is-on { visibility: visible; }
+
+.al-bins { display: flex; flex-direction: column; gap: 3px; }
+.al-bin {
+  display: grid; grid-template-columns: 84px 58px 96px minmax(0, 1fr); gap: 8px; align-items: center;
+  padding: 5px 8px; border-radius: 7px; font-size: 11.4px; background: rgba(255, 255, 255, .02); border: 1px solid var(--al-line);
+}
+.al-bin > span { min-width: 0; overflow-wrap: anywhere; }
+.al-bin--h { background: none; border-color: transparent; font-size: 9.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--al-tx-3); }
+.al-bin--thin { border-style: dotted; color: var(--al-tx-3); }
+
 /* ── responsive ───────────────────────────────────────────────────────── */
 
 @media (max-width: 1560px) {
@@ -517,6 +583,9 @@ body.al-algorithms-open { overflow: hidden; }
 }
 @media (max-width: 1360px) {
   .al-rail { flex-basis: 222px; }
+  .al-scn-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .al-tbl--learn .al-tr { grid-template-columns: minmax(0, 1fr) auto; }
+  .al-tbl--learn .al-tr > :nth-child(3) { grid-column: 1 / -1; }
   .al-mstates { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .al-tbl--mon .al-tr { grid-template-columns: minmax(0, 1fr) auto auto; }
   .al-tbl--mon .al-tr > :nth-child(n+4) { display: none; }
@@ -562,6 +631,10 @@ body.al-algorithms-open { overflow: hidden; }
   .al-tbl--mon .al-tr { grid-template-columns: minmax(0, 1fr) auto; }
   .al-tbl--mon .al-tr > :nth-child(n+3) { display: none; }
   .al-dist-row { grid-template-columns: 76px minmax(0, 1fr) 54px; }
+  .al-lane-list li { grid-template-columns: minmax(0, 1fr) auto; }
+  .al-lane-list li > :nth-child(3) { grid-column: 1 / -1; justify-self: start; }
+  .al-scn-tabs { grid-template-columns: minmax(0, 1fr); }
+  .al-bin { grid-template-columns: 64px 40px 56px minmax(0, 1fr); gap: 6px; }
   .al-dist-v--base { display: none; }
   .al-days { gap: 3px; }
 }
