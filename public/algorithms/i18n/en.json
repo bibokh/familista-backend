@@ -48,6 +48,7 @@
   "A planted cost is seen": "A planted cost is seen",
   "A planted gain is seen": "A planted gain is seen",
   "A prediction was not a number between 0 and 1.": "A prediction was not a number between 0 and 1.",
+  "A process the run started still held its output open after the run ended, so its report was not accepted. That process was not verified to have stopped.": "A process the run started still held its output open after the run ended, so its report was not accepted. That process was not verified to have stopped.",
   "A production run failed": "A production run failed",
   "A proposal under test. It does not run in production.": "A proposal under test. It does not run in production.",
   "A random property counts only with at least %d probes where the two versions differ.": "A random property counts only with at least %d probes where the two versions differ.",

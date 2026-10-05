@@ -93,6 +93,20 @@ function runOf(outcome: ChildOutcome, timeoutMs: number, state: LabRun['state'] 
   return { state, exitCode: outcome.exitCode, signal: outcome.signal, timeoutMs, reasons };
 }
 
+/** Why a run's report was refused when its output was still held open after it ended. */
+export const OUTPUT_HELD = 'OUTPUT_HELD_BY_DESCENDANT';
+
+/**
+ * A child whose output a process it started still held open after the child
+ * exited (runner.ts, outputHeld) is never accepted, whatever it reported: the
+ * run is refused with OUTPUT_HELD, so the verdict is Unavailable. Null when the
+ * output closed with the child.
+ */
+export function heldRun(outcome: ChildOutcome, timeoutMs: number): LabRun | null {
+  if (!outcome.outputHeld) return null;
+  return runOf(outcome, timeoutMs, outcome.state === 'COMPLETED' ? 'INVALID_OUTPUT' : outcome.state, [OUTPUT_HELD]);
+}
+
 function spec(limits: LabLimits): CandidateEvidence['spec'] {
   return {
     version: LAB_SPEC_VERSION,
@@ -148,11 +162,12 @@ export async function buildEvidence(opts: BuildOptions = {}): Promise<BuildResul
   // ── the method checks itself first ──
   const mo = await runChild(CHILD, ['method-checks'], childLimits, { typescript: true });
   children.push({ job: 'method-checks', outcome: mo });
-  const mLines = mo.state === 'COMPLETED' ? linesOf(mo.stdout) : null;
+  const mHeld = heldRun(mo, limits.jobTimeoutMs);
+  const mLines = mo.state === 'COMPLETED' && !mHeld ? linesOf(mo.stdout) : null;
   const mParsed = mLines && mLines.length === 1 ? MethodLine.safeParse(mLines[0]) : null;
   const methodChecks = mParsed?.success
     ? { run: runOf(mo, limits.jobTimeoutMs), checks: mParsed.data.checks, measured: { ...mParsed.data.measured, wallMs: mo.wallMs } }
-    : { run: runOf(mo, limits.jobTimeoutMs, mo.state === 'COMPLETED' ? 'INVALID_OUTPUT' : mo.state), checks: [], measured: { ...NO_MEASURE, wallMs: mo.wallMs } };
+    : { run: mHeld ?? runOf(mo, limits.jobTimeoutMs, mo.state === 'COMPLETED' ? 'INVALID_OUTPUT' : mo.state), checks: [], measured: { ...NO_MEASURE, wallMs: mo.wallMs } };
 
   // ── each candidate, one at a time ──
   const candidates: CandidateEntry[] = [];
@@ -172,7 +187,9 @@ export async function buildEvidence(opts: BuildOptions = {}): Promise<BuildResul
     let run: LabRun;
     let results: CandidateEntry['results'] = null;
     let measured: LabMeasured = { ...NO_MEASURE, wallMs: outcome.wallMs };
-    if (outcome.state !== 'COMPLETED') run = runOf(outcome, limits.jobTimeoutMs);
+    const held = heldRun(outcome, limits.jobTimeoutMs);
+    if (held) run = held;
+    else if (outcome.state !== 'COMPLETED') run = runOf(outcome, limits.jobTimeoutMs);
     else if (!declaration || !resultLine?.success) run = runOf(outcome, limits.jobTimeoutMs, 'INVALID_OUTPUT', declaration ? [] : ['DECLARATION_INVALID']);
     else {
       const refused = refusals(entry, declaration, code);

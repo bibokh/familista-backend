@@ -18,6 +18,13 @@
 //   cleanup   after every child — finished, killed or crashed — the parent
 //             kills what is left of its process group and confirms no live
 //             process remains in it (on Linux, from /proc).
+//   pipes     a process the child moved out of its group (a new session) is
+//             beyond the group kill, and if it inherited the child's stdout or
+//             stderr it holds them open for as long as it lives. So once the
+//             child itself has exited, the parent waits at most
+//             OUTPUT_CLOSE_GRACE_MS for its output to close, then closes its
+//             own ends and reports outputHeld. Closing the pipes is all it
+//             does: it neither kills that process nor claims it has ended.
 //
 // The parent also keeps a set of live children so a CLI that is interrupted
 // can kill them on its way out (killActiveChildren).
@@ -44,12 +51,20 @@ export interface ChildOutcome {
   exitCode: number | null;
   signal: NodeJS.Signals | null;
   pid: number | null;
+  /** From just before the spawn to the child's own exit. */
   wallMs: number;
   /** What the child wrote to stdout before it ended or was stopped — never more than the cap. */
   stdout: string;
   stderrTail: string;
   /** No live process remained in the child's process group once the parent was done with it. */
   groupGone: boolean;
+  /**
+   * The child had exited, but its stdout or stderr was still held open
+   * OUTPUT_CLOSE_GRACE_MS later — by a process it started that outlived it — so
+   * the parent closed its own ends and stopped waiting. Whatever held them is
+   * NOT verified to have ended: groupGone speaks for the child's group only.
+   */
+  outputHeld: boolean;
 }
 
 export interface ChildOptions {
@@ -64,6 +79,12 @@ export const CHILD_ENV: Readonly<Record<string, string>> = Object.freeze({
   TS_NODE_TRANSPILE_ONLY: 'true',
   TS_NODE_PROJECT: path.join(LAB_ROOT, 'tsconfig.json'),
 });
+
+/**
+ * How long the parent waits, once the child itself has exited, for its output
+ * pipes to close. They normally close with the child, within milliseconds.
+ */
+export const OUTPUT_CLOSE_GRACE_MS = 2_000;
 
 const GROUPS = process.platform !== 'win32';
 const active = new Set<ChildProcess>();
@@ -128,7 +149,7 @@ export async function runChild(entry: string, args: readonly string[], limits: C
       windowsHide: true,
     });
   } catch {
-    return { state: 'CRASHED', exitCode: null, signal: null, pid: null, wallMs: 0, stdout: '', stderrTail: 'spawn failed', groupGone: true };
+    return { state: 'CRASHED', exitCode: null, signal: null, pid: null, wallMs: 0, stdout: '', stderrTail: 'spawn failed', groupGone: true, outputHeld: false };
   }
   active.add(child);
 
@@ -146,12 +167,29 @@ export async function runChild(entry: string, args: readonly string[], limits: C
   });
   const timer = setTimeout(() => { if (!limit) { limit = 'TIMED_OUT'; killGroup(child); } }, limits.timeoutMs);
 
+  // 'close' waits for every holder of the child's output, not only the child,
+  // so once the child itself has exited that wait is bounded.
+  let outputHeld = false;
+  let exitedAt: number | null = null;
   const { code, signal } = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
-    child.once('error', () => resolve({ code: null, signal: null }));
-    child.once('close', (c: number | null, s: NodeJS.Signals | null) => resolve({ code: c, signal: s }));
+    let grace: NodeJS.Timeout | undefined;
+    const done = (c: number | null, s: NodeJS.Signals | null) => { clearTimeout(grace); resolve({ code: c, signal: s }); };
+    child.once('error', () => done(null, null));
+    child.once('exit', (c: number | null, s: NodeJS.Signals | null) => {
+      exitedAt = performance.now();
+      clearTimeout(timer);
+      grace = setTimeout(() => {
+        outputHeld = true;
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        done(c, s);
+      }, OUTPUT_CLOSE_GRACE_MS);
+    });
+    child.once('close', (c: number | null, s: NodeJS.Signals | null) => done(c, s));
   });
   clearTimeout(timer);
-  const wallMs = performance.now() - started;
+  // Start to exit: a grace spent waiting on someone else's hold is not the child's time.
+  const wallMs = (exitedAt ?? performance.now()) - started;
 
   // Whatever the child left in its group goes with it.
   killGroup(child);
@@ -166,6 +204,6 @@ export async function runChild(entry: string, args: readonly string[], limits: C
   return {
     state, exitCode: code, signal, pid: child.pid ?? null, wallMs,
     stdout: Buffer.concat(out).toString('utf8'),
-    stderrTail: errTail, groupGone,
+    stderrTail: errTail, groupGone, outputHeld,
   };
 }

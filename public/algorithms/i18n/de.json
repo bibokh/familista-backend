@@ -48,6 +48,7 @@
   "A planted cost is seen": "Ein eingepflanzter Nachteil wird erkannt",
   "A planted gain is seen": "Ein eingepflanzter Vorteil wird erkannt",
   "A prediction was not a number between 0 and 1.": "Eine Vorhersage war keine Zahl zwischen 0 und 1.",
+  "A process the run started still held its output open after the run ended, so its report was not accepted. That process was not verified to have stopped.": "Ein vom Lauf gestarteter Prozess hielt dessen Ausgabe nach Laufende noch offen, daher wurde der Bericht nicht angenommen. Ob dieser Prozess beendet wurde, ist nicht geprüft.",
   "A production run failed": "Ein Produktivlauf ist fehlgeschlagen",
   "A proposal under test. It does not run in production.": "Ein Vorschlag im Test. Er läuft nicht in Produktion.",
   "A random property counts only with at least %d probes where the two versions differ.": "Eine zufällig geprüfte Eigenschaft zählt nur mit mindestens %d Prüfpunkten, an denen sich die beiden Versionen unterscheiden.",

@@ -438,6 +438,7 @@
     RUN_CRASHED: 'The run crashed.',
     RUN_INVALID_OUTPUT: 'The run’s report could not be read.',
     RUN_REFUSED: 'The proposal was refused before it was judged.',
+    OUTPUT_HELD_BY_DESCENDANT: 'A process the run started still held its output open after the run ended, so its report was not accepted. That process was not verified to have stopped.',
     METHOD_CHECKS_FAILED: 'The comparison method failed its own checks, so no candidate is judged.',
     NO_RESULTS: 'There are no results to judge.',
     BROKEN: 'Breaks a property the approved version keeps:',

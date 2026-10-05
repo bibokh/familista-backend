@@ -5,4 +5,5 @@ import type { CandidateIndexEntry } from '../../../../lab/algorithms/candidates'
 
 export const CANDIDATE_INDEX: readonly CandidateIndexEntry[] = [
   { id: 'hang-v9.9', algorithm: 'xg', file: 'hang-v9.9.ts' },
+  { id: 'escape-v9.7', algorithm: 'xg', file: 'escape-v9.7.ts' },
 ];

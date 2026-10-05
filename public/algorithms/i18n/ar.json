@@ -48,6 +48,7 @@
   "A planted cost is seen": "تُرصَد كلفة مزروعة",
   "A planted gain is seen": "يُرصَد مكسب مزروع",
   "A prediction was not a number between 0 and 1.": "أحد التوقعات لم يكن رقمًا بين 0 و1.",
+  "A process the run started still held its output open after the run ended, so its report was not accepted. That process was not verified to have stopped.": "أبقت عمليةٌ بدأها التشغيل مُخرَجاته مفتوحةً بعد انتهائه، لذا لم يُقبَل تقريره. ولم يُتحقَّق من توقّف تلك العملية.",
   "A production run failed": "فشل تشغيل في الإنتاج",
   "A proposal under test. It does not run in production.": "اقتراح قيد الاختبار. لا يعمل في الإنتاج.",
   "A random property counts only with at least %d probes where the two versions differ.": "لا تُحتسب الخاصية العشوائية إلا مع %d نقطة فحص على الأقل يختلف عندها الإصداران.",

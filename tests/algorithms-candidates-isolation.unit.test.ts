@@ -18,14 +18,22 @@
  *   5. Production never contains or loads a candidate or the engine: the build
  *      compiles src/ only, nothing in src/ imports lab/, and the compiled read
  *      side loads no lab module when it serves candidates.
+ *   6. A process the child moves out of its group cannot hold the parent: once
+ *      the child has exited, the parent waits a bounded grace for its output,
+ *      then closes its own ends of the pipes, says so, and refuses the run as
+ *      Unavailable with the reason. It does not claim that process has ended —
+ *      it has not verified that — so the tests end it themselves.
  */
 
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
-import { runChild, liveGroupMembers, activeChildren, CHILD_ENV, LAB_ROOT, type ChildLimits } from '../lab/algorithms/runner';
-import { buildEvidence } from '../lab/algorithms/evidence';
+import {
+  runChild, liveGroupMembers, activeChildren, CHILD_ENV, LAB_ROOT, OUTPUT_CLOSE_GRACE_MS, type ChildLimits, type ChildOutcome,
+} from '../lab/algorithms/runner';
+import { buildEvidence, heldRun, OUTPUT_HELD } from '../lab/algorithms/evidence';
+import { judge } from '../lab/algorithms/engine/judge';
 import { CandidateEvidenceSchema } from '../src/algorithms/candidate-evidence';
 
 const ROOT = path.join(__dirname, '..');
@@ -47,6 +55,13 @@ function alive(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
+/** End a process a test itself left behind, and wait until it is gone. Never a group, never pid 0 or 1. */
+async function reap(pid: number): Promise<void> {
+  if (!Number.isInteger(pid) || pid <= 1) return;
+  try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ }
+  for (let i = 0; i < 200 && alive(pid); i += 1) await new Promise((r) => setTimeout(r, 10));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1 · termination, enforced by the parent
 // ─────────────────────────────────────────────────────────────────────────────
@@ -58,6 +73,8 @@ describe('the parent stops a child that never stops itself', () => {
     const elapsed = Date.now() - started;
     expect(out.state).toBe('TIMED_OUT');
     expect(out.signal).toBe('SIGKILL');
+    // Its output closed with it: a killed child is not mistaken for a held one.
+    expect(out.outputHeld).toBe(false);
     // Stopped by the parent's clock — not by the test runner's, which is 30 s.
     expect(elapsed).toBeGreaterThanOrEqual(1_400);
     expect(elapsed).toBeLessThan(6_000);
@@ -92,6 +109,74 @@ describe('the parent stops a child that never stops itself', () => {
     expect(out.exitCode).toBe(3);
     expect(Date.now() - started).toBeLessThan(5_000);
     expect(out.groupGone).toBe(true);
+    // Its output closed with it: nothing was held, so nothing waited out the grace.
+    expect(out.outputHeld).toBe(false);
+    expect(Date.now() - started).toBeLessThan(OUTPUT_CLOSE_GRACE_MS);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1b · a process the child moves out of its group cannot hold the parent
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// escape-child.js starts a grandchild in a new session — beyond the group kill —
+// that keeps the child's stdout and stderr open for 20 s. Waiting for those
+// pipes to close would wait for the grandchild; the parent stops waiting
+// OUTPUT_CLOSE_GRACE_MS after the child itself exits instead. The grandchild is
+// still alive when the parent returns — the parent closed pipes, it did not end
+// a process, and claims nothing about it — so each test ends it itself.
+
+describe('a process the child moves out of its group cannot hold the parent', () => {
+  jest.setTimeout(60_000);
+  const HOLD_MS = 20_000;
+  const grandchildOf = (stdout: string) => Number((JSON.parse(stdout.split('\n')[0] || '{}') as { grandchild?: number }).grandchild);
+
+  it('after a timeout: stops waiting a bounded time after the kill, says the output was held, and does not claim the escaped process ended', async () => {
+    const started = Date.now();
+    const out = await runChild(path.join(FIX, 'escape-child.js'), [], limits({ timeoutMs: 1_500 }), { env: { LAB_TEST_HOLD_MS: String(HOLD_MS) } });
+    const elapsed = Date.now() - started;
+    const grandchild = grandchildOf(out.stdout);
+    try {
+      expect(grandchild).toBeGreaterThan(1);
+      expect(out.state).toBe('TIMED_OUT');
+      expect(out.signal).toBe('SIGKILL');
+      expect(out.outputHeld).toBe(true);
+      // The deadline, then the grace — not the 20 s the escaped process would hold the pipes.
+      expect(elapsed).toBeGreaterThanOrEqual(1_500 + OUTPUT_CLOSE_GRACE_MS - 50);
+      expect(elapsed).toBeLessThan(1_500 + OUTPUT_CLOSE_GRACE_MS + 5_000);
+      // The wall time is the child's own, start to exit: the grace is not in it.
+      expect(out.wallMs).toBeLessThan(1_500 + 1_000);
+      // The child and its group are verified gone; the escaped process is not, and is not claimed to be.
+      expect(alive(out.pid as number)).toBe(false);
+      expect(out.groupGone).toBe(true);
+      expect(alive(grandchild)).toBe(true);
+      expect(activeChildren()).toBe(0);
+    } finally {
+      await reap(grandchild);
+    }
+    expect(alive(grandchild)).toBe(false);
+  });
+
+  it('after a normal exit: does not wait out the escaped process either, and still says the output was held', async () => {
+    const started = Date.now();
+    const out = await runChild(path.join(FIX, 'escape-child.js'), [], limits({ timeoutMs: 15_000 }), { env: { LAB_TEST_HOLD_MS: String(HOLD_MS), LAB_TEST_EXIT: '1' } });
+    const elapsed = Date.now() - started;
+    const grandchild = grandchildOf(out.stdout);
+    try {
+      expect(grandchild).toBeGreaterThan(1);
+      // The child's own end was clean; its output did not close with it.
+      expect(out.state).toBe('COMPLETED');
+      expect(out.outputHeld).toBe(true);
+      // Bounded by the grace after the exit — far inside the 15 s deadline, and the 20 s hold.
+      expect(elapsed).toBeGreaterThanOrEqual(OUTPUT_CLOSE_GRACE_MS - 50);
+      expect(elapsed).toBeLessThan(OUTPUT_CLOSE_GRACE_MS + 5_000);
+      expect(out.groupGone).toBe(true);
+      expect(alive(grandchild)).toBe(true);
+      expect(activeChildren()).toBe(0);
+    } finally {
+      await reap(grandchild);
+    }
+    expect(alive(grandchild)).toBe(false);
   });
 });
 
@@ -192,6 +277,55 @@ describe('a candidate that hangs is stopped, recorded and never passed', () => {
     await expect(buildEvidence({ index: [{ id: 'escape', algorithm: 'xg', file: '../../src/server.ts' }], limits: { jobTimeoutMs: 8_000 } }))
       .rejects.toThrow(/not a plain file name/);
     expect(activeChildren()).toBe(0);
+  });
+
+  it('refuses a candidate that leaves a process holding its output: Unavailable, with the reason, in bounded time', async () => {
+    const started = Date.now();
+    const { evidence, children } = await buildEvidence({
+      index: [{ id: 'escape-v9.7', algorithm: 'xg', file: 'escape-v9.7.ts' }],
+      fixtureIndex: 'tests/fixtures/lab/candidates/index.ts',
+      limits: { jobTimeoutMs: 4_000 },
+    });
+    const elapsed = Date.now() - started;
+    const run = children.find((c) => c.job === 'candidate:escape-v9.7');
+    const lines = (run?.outcome.stdout ?? '').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l) as { kind?: string; pid?: number }; } catch { return {}; } });
+    const pid = Number(lines.find((l) => l.kind === 'escaped')?.pid);
+    try {
+      expect(pid).toBeGreaterThan(1);
+      expect(CandidateEvidenceSchema.safeParse(evidence).success).toBe(true);
+      expect(run?.outcome).toMatchObject({ state: 'TIMED_OUT', signal: 'SIGKILL', outputHeld: true, groupGone: true });
+      const entry = evidence.candidates[0];
+      expect(entry.run).toMatchObject({ state: 'TIMED_OUT', signal: 'SIGKILL', timeoutMs: 4_000, reasons: [OUTPUT_HELD] });
+      expect(entry.declaration?.id).toBe('escape-v9.7');
+      expect(entry.results).toBeNull();
+      expect(entry.verdict).toEqual({ test: 'UNAVAILABLE', reasons: ['RUN_TIMED_OUT', OUTPUT_HELD], agreement: null });
+      expect(entry.status).toBe('EXPERIMENTAL');
+      expect(entry.approval).toBe('NOT_APPROVED');
+      // The method checks, the 4 s limit and the grace — not the 20 s the escaped process holds the output.
+      expect(elapsed).toBeLessThan(4_000 + OUTPUT_CLOSE_GRACE_MS + 10_000);
+      // Pipes closed is not a process ended: the escaped one is still there, and nothing above says otherwise.
+      expect(alive(pid)).toBe(true);
+      expect(activeChildren()).toBe(0);
+    } finally {
+      await reap(pid);
+    }
+    expect(alive(pid)).toBe(false);
+  });
+
+  it('never accepts a held output, whatever the child reported, and the room can say why', () => {
+    const base: ChildOutcome = {
+      state: 'COMPLETED', exitCode: 0, signal: null, pid: 4242, wallMs: 10, stdout: '', stderrTail: '', groupGone: true, outputHeld: false,
+    };
+    expect(heldRun(base, 60_000)).toBeNull();
+    const completed = heldRun({ ...base, outputHeld: true }, 60_000);
+    expect(completed).toEqual({ state: 'INVALID_OUTPUT', exitCode: 0, signal: null, timeoutMs: 60_000, reasons: [OUTPUT_HELD] });
+    expect(heldRun({ ...base, state: 'TIMED_OUT', exitCode: null, signal: 'SIGKILL', outputHeld: true }, 60_000))
+      .toEqual({ state: 'TIMED_OUT', exitCode: null, signal: 'SIGKILL', timeoutMs: 60_000, reasons: [OUTPUT_HELD] });
+    // A clean exit whose output was held is still Unavailable, and the verdict names why.
+    expect(judge({ run: completed as NonNullable<typeof completed>, methodChecks: [], declaration: null, results: null }))
+      .toEqual({ test: 'UNAVAILABLE', reasons: ['RUN_INVALID_OUTPUT', OUTPUT_HELD], agreement: null });
+    // The room shows the reason as a sentence, never as a raw code.
+    expect(read('public/algorithms/algorithms.js')).toMatch(new RegExp(`\\n\\s+${OUTPUT_HELD}: '[^']+',\\n`));
   });
 });
 
