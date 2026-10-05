@@ -30,6 +30,8 @@ import { algorithmsOverview, algorithmDetail, resetAlgorithmMonitor } from '../s
 import { CHECK_LABEL, STORE_UNAVAILABLE_REASON } from '../src/algorithms/monitoring';
 import { MONITORING_SPECS } from '../src/algorithms/monitoring-spec';
 import { LEARN_SPECS, SYNTHETIC_SCENARIOS, JUSTIFICATIONS, REAL_WORLD, SYNTHETIC_NOTICE } from '../src/algorithms/learning-spec';
+import { algorithmCandidates, algorithmCandidate } from '../src/algorithms/candidates';
+import { EVIDENCE_REASONS } from '../src/algorithms/candidate-evidence';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const discover = require('../scripts/algorithms-discover.js');
@@ -344,10 +346,10 @@ describe('the room is the platform owner’s, and it writes nothing', () => {
     expect(read('src/routes/index.ts')).toContain("router.use('/system/algorithms', algorithmsRoutes);");
   });
 
-  it('has exactly six reads and no write handler', () => {
-    // Step 1's two, Step 2's production monitoring and Step 3's learning: the
-    // room and one algorithm for each, every one read-only.
-    expect((code.match(/router\.get\(/g) || []).length).toBe(6);
+  it('has exactly eight reads and no write handler', () => {
+    // Step 1's two, Step 2's production monitoring, Step 3's learning and
+    // Step 4's candidates: the room and one item for each, every one read-only.
+    expect((code.match(/router\.get\(/g) || []).length).toBe(8);
     expect(code).not.toMatch(/router\.(post|put|patch|delete|all)\(/);
     expect(read('public/algorithms/algorithms.js')).not.toMatch(/method:\s*['"](POST|PUT|PATCH|DELETE)/i);
   });
@@ -372,7 +374,8 @@ describe('Cybersecurity covers the Algorithms module from the start', () => {
   it('its router and source domain are mapped onto the algorithm change-control boundary', () => {
     // Step 3 adds the learning-separation control to the same boundary: the
     // evidence a change proposal would be built on must be honest about its kind.
-    expect(map.boundaries['39']).toMatchObject({ name: 'Algorithm change control', coverage: 'C', controls: [CONTROL_FOR_TEST, 'algorithm-learning-separation'] });
+    // Step 4 adds candidate isolation: a proposal is built and judged outside production.
+    expect(map.boundaries['39']).toMatchObject({ name: 'Algorithm change control', coverage: 'C', controls: [CONTROL_FOR_TEST, 'algorithm-learning-separation', 'algorithm-candidate-isolation'] });
     expect(map.components.routers['algorithms.routes']).toContain(39);
     // Row 40 joined with Step 2: the same module also writes production telemetry.
     expect(map.components.srcDomains.algorithms).toEqual([39, 40]);
@@ -381,7 +384,7 @@ describe('Cybersecurity covers the Algorithms module from the start', () => {
   it('appears on the Cybersecurity map as an AI area', () => {
     const reg = read('src/cyber-defense/control-plane/registry.ts');
     expect(reg).toContain("{ id: 'algorithms', title: 'Algorithms', group: 'AI', routers: ['algorithms.routes'], rows: [39, 40] }");
-    expect(reg).toContain("controls: ['codeowners', 'algorithm-change-gate', 'algorithm-learning-separation'],");
+    expect(reg).toContain("controls: ['codeowners', 'algorithm-change-gate', 'algorithm-learning-separation', 'algorithm-candidate-isolation'],");
   });
 });
 
@@ -452,7 +455,11 @@ describe('the room speaks English, German and Arabic — every string it can sho
       'STORE_LABEL', 'CHECK_STATE_LABEL', 'KIND_LABEL',
       // Learning (Step 3) and the write path.
       'LEARN_STATUS_LABEL', 'LEARN_VERDICT_LABEL', 'METHOD_CHECK_LABEL', 'SIGNAL_LABEL', 'TRUTH_LABEL',
-      'LEARN_REASON_LABEL', 'WRITE_LABEL', 'WRITE_MEANING', 'STORED_LABEL', 'STORED_MEANING']) {
+      'LEARN_REASON_LABEL', 'WRITE_LABEL', 'WRITE_MEANING', 'STORED_LABEL', 'STORED_MEANING',
+      // Proposals (Step 4).
+      'CAND_TEST_LABEL', 'CAND_TEST_MEANING', 'OUTCOME_LABEL', 'RUN_LABEL', 'ESTIMATE_LABEL', 'WORLD_STATUS_LABEL',
+      'PHASE_LABEL', 'SYMBOL_LABEL', 'PROPOSER_LABEL', 'EVIDENCE_KIND_LABEL', 'LAB_CHECK_LABEL', 'CAND_TAB_LABEL',
+      'CAND_REASON_LABEL']) {
       expect(`${name}: ${src.includes(`var ${name} = {`)}`).toBe(`${name}: true`);
       const i = src.indexOf(`var ${name} = {`);
       for (const m of src.slice(i, src.indexOf('};', i)).matchAll(/:\s*'((?:[^'\\]|\\.)*)'/g)) out.add(m[1]);
@@ -486,6 +493,26 @@ describe('the room speaks English, German and Arabic — every string it can sho
     Object.values(JUSTIFICATIONS).forEach(add);
     add(REAL_WORLD.reason); REAL_WORLD.prerequisites.forEach((p) => add(p.label));
     add(SYNTHETIC_NOTICE);
+    // Proposals (Step 4): every sentence the candidates read can send, from the
+    // server and from the evidence file it shows.
+    Object.values(EVIDENCE_REASONS).forEach(add);
+    const cands = algorithmCandidates();
+    add(cands.notice);
+    if (cands.spec) {
+      cands.spec.mixes.forEach((m) => { add(m.title); add(m.purpose); });
+      cands.spec.worlds.forEach((w) => { add(w.title); add(w.meaning); });
+      Object.values(cands.spec.properties).forEach((list) => list.forEach((p) => add(p.title)));
+      Object.values(cands.spec.justifications).forEach(add);
+      add(cands.spec.conditionalNote);
+    }
+    cands.methodChecks.checks.forEach((m) => { add(m.title); add(m.purpose); });
+    for (const c of cands.candidates) {
+      const found = algorithmCandidate(c.id);
+      if (found.state !== 'FOUND') continue;
+      const decl = found.detail.entry.declaration;
+      if (decl) { add(decl.rationale); add(decl.hypothesis.region); decl.evidence.forEach((r) => { add(r.ref); add(r.note); }); }
+      found.detail.dependants.forEach((x) => add(x.name));
+    }
     for (const a of o.algorithms) {
       const d = algorithmDetail(a.key);
       if (d.state !== 'READY') continue;

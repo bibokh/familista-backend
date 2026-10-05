@@ -19,7 +19,9 @@
 // could. Its `monitoring` figures are this process's own record of the
 // evaluations it ran; production monitoring — how each algorithm actually ran
 // in production — is monitoring.ts (Algorithms Step 2); learning — synthetic
-// method checks, with the real-world lane disabled — is learning.ts (Step 3).
+// method checks, with the real-world lane disabled — is learning.ts (Step 3);
+// candidates — proposed versions, read from the evidence the lab generated in
+// CI, never run here — are candidates.ts (Step 4).
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -145,9 +147,9 @@ function compose(decl: AlgorithmDecl, manifest: Manifest | null, evals: Record<s
 const LOOP_TEXT: Record<LoopStage, { title: string; describes: string; who: 'PLATFORM' | 'HUMAN' }> = {
   OBSERVE: { title: 'Observe', describes: 'The registry inventories every algorithm and what it reads and returns.', who: 'PLATFORM' },
   LEARN: { title: 'Learn', describes: 'Learning compares what an algorithm said with what happened. Only synthetic outcomes are used, to test the measuring method; they say nothing about real-world accuracy, and no club data is read.', who: 'PLATFORM' },
-  PROPOSE: { title: 'Propose', describes: 'A change is written as a new version: new code, a new fingerprint, a reason.', who: 'PLATFORM' },
-  SIMULATE: { title: 'Simulate', describes: 'The real function runs on fixed synthetic scenarios. No club data is read.', who: 'PLATFORM' },
-  TEST: { title: 'Test', describes: 'Each scenario is checked against the properties the algorithm must keep, and CI runs the unit tests.', who: 'PLATFORM' },
+  PROPOSE: { title: 'Propose', describes: 'A change is written as a candidate: separate code with its own version, fingerprint and reason, and the properties it claims to fix. It is experimental and never runs in production.', who: 'PLATFORM' },
+  SIMULATE: { title: 'Simulate', describes: 'Approved versions run on fixed synthetic scenarios on this server. A candidate runs beside its approved version on the same synthetic shots, in a separate process in CI, never on this server. No club data is read.', who: 'PLATFORM' },
+  TEST: { title: 'Test', describes: 'Each scenario is checked against the properties the algorithm must keep. A candidate must keep them on held-out seeds and fix what it claimed; synthetic results never show real-world accuracy. CI runs the unit tests.', who: 'PLATFORM' },
   HUMAN_APPROVAL: { title: 'Human approval', describes: 'The platform owner approves the exact version and fingerprint, in a reviewed pull request.', who: 'HUMAN' },
   DEPLOY: { title: 'Deploy', describes: 'Only through the CI-gated deploy of main. Nothing in this room deploys anything.', who: 'HUMAN' },
   MEASURE: { title: 'Measure', describes: 'Production runs are measured: how often, how fast, whether they failed, what they returned and which code was running. An algorithm that does not run in production says so.', who: 'PLATFORM' },
@@ -186,6 +188,13 @@ function guarantees(rows: Composed[]): GuaranteeView[] {
       text: 'Synthetic learning results are labelled synthetic and never shown as real-world accuracy; no club data is evaluated.',
       // Pinned by tests/algorithms-learning.unit.test.ts and the security
       // manifest's algorithm-learning-separation control.
+      holds: true,
+    },
+    {
+      id: 'candidates-isolated', basis: 'BUILD',
+      text: 'Candidates never run in production: their code is outside the build, each runs in CI in a separate process that is killed if it overruns, and none can pass the deployment gate without a recorded approval.',
+      // Pinned by tests/algorithms-candidates*.unit.test.ts and the security
+      // manifest's algorithm-candidate-isolation control.
       holds: true,
     },
     {

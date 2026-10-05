@@ -12,6 +12,8 @@
 // person, and nothing here retrains, tunes, rolls back or switches off
 // anything. Learning (Step 3) is synthetic only: method checks on invented
 // outcomes, labelled as such; no club data is evaluated and nothing changes.
+// Candidates (Step 4) are read from evidence the lab wrote and CI re-derives:
+// the server runs no candidate, and no request can promote one.
 //
 //   GET /system/algorithms                  the room: the loop, the domains,
 //                                           every algorithm's stage, gate and
@@ -22,6 +24,12 @@
 //   GET /system/algorithms/learning         learning: the synthetic method
 //                                           checks, the disabled real-world
 //                                           lane, the rules and their reasons
+//   GET /system/algorithms/candidates       candidates: proposed versions,
+//                                           their stage, gate and Test verdict,
+//                                           the rules, the method checks
+//   GET /system/algorithms/candidates/:id   one candidate's evidence in full:
+//                                           its change, simulation, held-out
+//                                           test, gate and what its run cost
 //   GET /system/algorithms/:key             one algorithm in full: inputs,
 //                                           outputs, source, fingerprint,
 //                                           approval, scenarios
@@ -36,9 +44,9 @@
 //
 // Registry metadata, fingerprints, the results of synthetic scenarios run in
 // this process, aggregate production telemetry — counts, histograms and
-// timestamps — and synthetic learning results, each labelled SYNTHETIC. Never a
-// player, club, match or sensor record, an environment value, a user, a
-// request or a row id.
+// timestamps — and synthetic learning and candidate results, each labelled
+// SYNTHETIC. Never a player, club, match or sensor record, an environment
+// value, a user, a request or a row id.
 
 import { Router, type Request, type Response } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
@@ -46,6 +54,7 @@ import { assertPlatformOwner } from '../platform/system.service';
 import { algorithmsOverview, algorithmDetail } from '../algorithms/algorithms.service';
 import { algorithmsMonitoring, algorithmMonitoring } from '../algorithms/monitoring';
 import { algorithmsLearning, algorithmLearning } from '../algorithms/learning';
+import { algorithmCandidates, algorithmCandidate } from '../algorithms/candidates';
 import { AppError, NotFoundError } from '../utils/errors';
 
 const router = Router();
@@ -84,6 +93,23 @@ router.get('/monitoring', async (_req: Request, res: Response, next) => {
 router.get('/learning', async (_req: Request, res: Response, next) => {
   try {
     res.json({ success: true, data: await algorithmsLearning() });
+  } catch (err) { next(err); }
+});
+
+/** Candidates: read from the evidence file the lab wrote and CI re-derives. Nothing is run here. */
+router.get('/candidates', (_req: Request, res: Response, next) => {
+  try {
+    res.json({ success: true, data: algorithmCandidates() });
+  } catch (err) { next(err); }
+});
+
+/** One candidate in full. The id is a name in the evidence file, never a row id. */
+router.get('/candidates/:id', (req: Request, res: Response, next) => {
+  try {
+    const found = algorithmCandidate(String(req.params.id));
+    if (found.state === 'UNKNOWN_CANDIDATE') throw new NotFoundError('Candidate');
+    if (found.state !== 'FOUND') throw new AppError('Candidate evidence is not available on this server', 503);
+    res.json({ success: true, data: found.detail });
   } catch (err) { next(err); }
 });
 

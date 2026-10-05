@@ -43,6 +43,17 @@
    disabled; health data is never a learning outcome. Whether this
    deployment's telemetry writes work is shown as evidence too: only a write
    this server completed verifies it.
+
+   PROPOSALS (Step 4)
+
+   A candidate is a proposed new version of an approved algorithm. Its code,
+   and the engine that judges it, live outside the production build: it ran in
+   a separate process in CI, never on this server, and what that run found is
+   read here from a validated evidence file. Every candidate is experimental
+   and not approved, and none can reach Deploy. A Test verdict is a result
+   about properties and is coloured as one; a score difference on synthetic
+   outcomes is a bracket, never a winner, and a sample-size estimate is
+   conditional on the synthetic assumptions and says so.
    ───────────────────────────────────────────────────────────────────────────── */
 
 (function () {
@@ -66,6 +77,12 @@
     learnDetail: null,
     learnDetailError: null,
     learnScenario: 'consistent',
+    cand: null,
+    candError: null,
+    candDetail: null,
+    candDetailError: null,
+    candId: null,
+    candTab: 'change',
   };
 
   // ── plumbing ──────────────────────────────────────────────────────────────
@@ -363,6 +380,88 @@
     UNKNOWN: 'The store could not be read.',
   };
 
+  // ── the proposals vocabulary (Step 4) ─────────────────────────────────────
+  //
+  // A Test verdict is a result about properties, so it carries the result
+  // colours. A score bracket or a sample-size estimate never does: synthetic
+  // outcomes cannot say which version is right.
+
+  var CAND_NOTICE = 'Synthetic data: shows how a candidate differs from the approved version and which properties it keeps, not which is more accurate on real matches. Candidates are experimental and never run in production.';
+  var CAND_TEST_LABEL = {
+    PASSED: 'Held-out test passed',
+    FAILED: 'Held-out test failed',
+    INCONCLUSIVE: 'Inconclusive',
+    UNAVAILABLE: 'Not judged',
+  };
+  var CAND_TEST_MEANING = {
+    PASSED: 'On held-out seeds it kept every property the approved version keeps and fixed what it claimed. This is not a measure of real-world accuracy.',
+    FAILED: 'On held-out seeds it broke a property the approved version keeps, did not fix what it claimed, or returned invalid values.',
+    INCONCLUSIVE: 'The held-out probes did not reach the changed region often enough to judge.',
+    UNAVAILABLE: 'The run or the comparison method did not complete, so no verdict was given.',
+  };
+  function candTestKind(t) { return t === 'PASSED' ? 'ok' : t === 'FAILED' ? 'crit' : t === 'INCONCLUSIVE' ? 'warn' : 'none'; }
+  var OUTCOME_LABEL = { KEPT: 'Kept', FIXED: 'Fixed', BROKEN: 'Broken', STILL_FAILING: 'Broken in both' };
+  function outcomeKind(o) { return o === 'FIXED' ? 'ok' : o === 'BROKEN' ? 'crit' : o === 'STILL_FAILING' ? 'warn' : 'none'; }
+  var RUN_LABEL = {
+    COMPLETED: 'Completed',
+    TIMED_OUT: 'Stopped at its time limit',
+    MEMORY_LIMIT: 'Stopped at its memory limit',
+    OUTPUT_LIMIT: 'Stopped at its output limit',
+    CRASHED: 'Crashed',
+    INVALID_OUTPUT: 'Report unreadable',
+    REFUSED: 'Refused before judging',
+  };
+  function runKind(s) { return s === 'COMPLETED' ? 'none' : s === 'REFUSED' ? 'warn' : 'crit'; }
+  var ESTIMATE_LABEL = { ESTIMATED: 'Estimated', UNSTABLE: 'Unstable', UNDEFINED: 'Undefined' };
+  var WORLD_STATUS_LABEL = { COMPUTED: 'Computed', NOT_ENOUGH_DATA: 'Not enough data', NO_DIFFERENCE: 'No difference' };
+  var PHASE_LABEL = { DEVELOPMENT: 'Development', HELD_OUT: 'Held-out' };
+  var SYMBOL_LABEL = { SAME: 'Unchanged', CHANGED: 'Changed', MISSING: 'Missing' };
+  var PROPOSER_LABEL = { PLATFORM_OWNER: 'The platform owner', AI_ASSISTANT: 'An AI assistant' };
+  var EVIDENCE_KIND_LABEL = { MEASUREMENT: 'Measurement', GEOMETRY: 'Geometry', PROPERTY: 'Property' };
+  var LAB_CHECK_LABEL = {
+    NO_CHANGE: 'No change reported',
+    CHANGE_REPORTED: 'A change was reported',
+    COST_SEEN: 'Cost seen',
+    GAIN_SEEN: 'Gain seen',
+    NOT_SEEN: 'Not seen',
+    CAUGHT: 'Caught',
+    MISSED: 'Missed',
+    NOT_ENOUGH_DATA: 'Not enough data',
+    BRACKET_DRAWN: 'A bracket was drawn',
+  };
+  var CAND_TAB_LABEL = { change: 'Change', simulate: 'Simulate', test: 'Test', approval: 'Approval', resources: 'Resources' };
+  /** Verdict, run, freshness and estimate codes. A code "CODE:id" is followed by that property's title. */
+  var CAND_REASON_LABEL = {
+    RUN_TIMED_OUT: 'The run reached its time limit and was stopped.',
+    RUN_MEMORY_LIMIT: 'The run reached its memory limit and was stopped.',
+    RUN_OUTPUT_LIMIT: 'The run wrote more than its output limit and was stopped.',
+    RUN_CRASHED: 'The run crashed.',
+    RUN_INVALID_OUTPUT: 'The run’s report could not be read.',
+    RUN_REFUSED: 'The proposal was refused before it was judged.',
+    OUTPUT_HELD_BY_DESCENDANT: 'A process the run started still held its output open after the run ended, so its report was not accepted. That process was not verified to have stopped.',
+    METHOD_CHECKS_FAILED: 'The comparison method failed its own checks, so no candidate is judged.',
+    NO_RESULTS: 'There are no results to judge.',
+    BROKEN: 'Breaks a property the approved version keeps:',
+    TARGET_NOT_FIXED: 'Did not fix a property it claimed to fix:',
+    NEW_INVALID_OUTPUTS: 'Returns invalid values where the approved version does not.',
+    NOT_COVERED: 'Too few held-out probes reached the changed region for:',
+    SHARED_FAILURE: 'Broken by both versions, so not the candidate’s doing:',
+    DECLARATION_MISMATCH: 'Its declaration does not match its allow-list entry.',
+    DECLARATION_INVALID: 'Its declaration could not be read.',
+    NO_APPROVED_BASELINE: 'The algorithm has no approved version to compare with.',
+    BASELINE_NOT_CURRENT: 'The approved version it names is no longer the current approval.',
+    VERSION_ALREADY_USED: 'Its version is already used in the registry.',
+    UNKNOWN_TARGET: 'It claims to fix a property that does not exist:',
+    FINGERPRINT_UNAVAILABLE: 'Its code could not be fingerprinted.',
+    NO_CODE_CHANGE: 'Its code is identical to the approved version.',
+    APPROVED_CODE_CHANGED: 'The approved code changed after this evidence was produced.',
+    UNKNOWN_ALGORITHM: 'Its algorithm is not in the registry.',
+    CANDIDATE_MATCHES_APPROVAL: 'It carries the approved version and code, so it is not a candidate.',
+    NO_DIFFERENCE: 'The two versions never differ on these shots.',
+    FEW_CHANGED_SHOTS: 'Fewer than 30 shots differ.',
+    RESAMPLE_WITHOUT_DIFFERENCE: 'Some resamples show no difference at all, so the upper end is unbounded.',
+  };
+
   /** A statistic, localised, with a fixed number of decimals. Data, not prose. */
   function dec(v, d) { return typeof v === 'number' && isFinite(v) ? num(+v.toFixed(d)) : '—'; }
   /** An interval as value [low – high]. */
@@ -394,6 +493,27 @@
   function pct(part, whole) { return whole ? num(+(100 * part / whole).toFixed(1)) + '%' : '—'; }
   /** A share as one of 21 width classes: the stylesheet draws it, never an inline style. */
   function wClass(part, whole) { return 'al-w-' + (whole ? Math.max(0, Math.min(20, Math.round(20 * part / whole))) : 0); }
+  /** A small difference to `p` significant digits, signed. Data, not prose. */
+  function sig(v, p) {
+    if (typeof v !== 'number' || !isFinite(v)) return '—';
+    var s;
+    try { s = Math.abs(v).toLocaleString(AL_LANG, { maximumSignificantDigits: p }); } catch (_) { s = String(+Math.abs(v).toPrecision(p)); }
+    return (v > 0 ? '+' : v < 0 ? '−' : '') + s;
+  }
+  function ivlSig(i, p) { return i ? sig(i.value, p) + ' [' + sig(i.low, p) + ' – ' + sig(i.high, p) + ']' : '—'; }
+  /** A shot count from an estimate: three significant figures, because more would be false precision. */
+  function shotsFig(n) {
+    if (typeof n !== 'number' || !isFinite(n)) return '—';
+    return num(n >= 1000 ? +n.toPrecision(3) : Math.ceil(n));
+  }
+  /** A sentence inside a key–value row: read at text weight, not as a figure. */
+  function prose(text) { return '<span class="al-prose">' + esc(text) + '</span>'; }
+  /** A model output exactly as it was returned: four decimals. Data, not prose. */
+  function fix4(v) {
+    if (typeof v !== 'number' || !isFinite(v)) return '—';
+    try { return v.toLocaleString(AL_LANG, { minimumFractionDigits: 4, maximumFractionDigits: 4 }); } catch (_) { return v.toFixed(4); }
+  }
+  function nsText(v) { return typeof v === 'number' && isFinite(v) ? num(Math.round(v)) + ' ns' : '—'; }
 
   // ── the frame ─────────────────────────────────────────────────────────────
 
@@ -405,6 +525,7 @@
     ['approvals', 'Approvals & Audit', '◆', 'EVIDENCE'],
     ['monitoring', 'Monitoring', '∿', 'EVIDENCE'],
     ['learning', 'Learning', '◇', 'EVIDENCE'],
+    ['proposals', 'Proposals', '✎', 'EVIDENCE'],
   ];
   var GROUP_ORDER = ['COMMAND', 'EVIDENCE'];
   var GROUP_LABEL = { COMMAND: 'Command', EVIDENCE: 'Evidence' };
@@ -436,6 +557,10 @@
       }, 0);
       kind = 'crit';
     }
+    if (id === 'proposals' && AL.cand && AL.cand.state === 'READY') {
+      var failedChecks = AL.cand.methodChecks.total - AL.cand.methodChecks.passed;
+      if (failedChecks) { n = failedChecks; kind = 'crit'; } else n = AL.cand.counts.awaitingApproval;
+    }
     if (!n) return '';
     return '<span class="al-rail-badge al-rail-badge--' + kind + '" data-no-i18n>' + esc(num(n)) + '</span>';
   }
@@ -449,7 +574,7 @@
   }
 
   function railHtml() {
-    var current = AL.section === 'algorithm' ? 'registry' : AL.section;
+    var current = AL.section === 'algorithm' ? 'registry' : AL.section === 'candidate' ? 'proposals' : AL.section;
     var groups = GROUP_ORDER.map(function (g) {
       return '<div class="al-rail-group"><div class="al-rail-label">' + esc(T(GROUP_LABEL[g])) + '</div>'
         + SECTIONS.filter(function (s) { return s[3] === g; }).map(function (s) {
@@ -484,6 +609,10 @@
 
   function titleOf() {
     if (AL.section === 'algorithm') return algorithmName(AL.key);
+    if (AL.section === 'candidate') {
+      var cd = AL.candDetail;
+      return cd && cd.id === AL.candId ? algorithmName(cd.algorithm) + ' ' + (cd.version || '') + ' · ' + T('Candidate') : T('Candidate');
+    }
     return T((SECTIONS.filter(function (s) { return s[0] === AL.section; })[0] || [null, 'Overview'])[1]);
   }
 
@@ -644,6 +773,14 @@
       if (c) out += '<span class="al-stage-ev">' + esc(tf('%d of %d synthetic method checks passing', c.passed, c.total)) + '</span>';
       if (AL.learn) out += '<span class="al-stage-ev">' + esc(T('Real-world learning: disabled')) + '</span>';
     }
+    var Cd = AL.cand && AL.cand.state === 'READY' ? AL.cand : null;
+    if (stage === 'PROPOSE' && Cd) out += '<span class="al-stage-ev">' + esc(tf('Candidates: %d · experimental, none approved', Cd.counts.candidates)) + '</span>';
+    if (stage === 'SIMULATE' && Cd) out += '<span class="al-stage-ev">' + esc(T('Candidates run in CI in a separate process, never on this server')) + '</span>';
+    if (stage === 'TEST' && Cd) {
+      var by = function (t) { return Cd.candidates.filter(function (c) { return c.test === t; }).length; };
+      out += '<span class="al-stage-ev">' + esc(tf('%d held-out tests passed · %d failed · %d inconclusive', by('PASSED'), by('FAILED'), by('INCONCLUSIVE'))) + '</span>';
+    }
+    if (stage === 'HUMAN_APPROVAL' && Cd) out += '<span class="al-stage-ev">' + esc(tf('Candidates waiting for a person: %d', Cd.counts.awaitingApproval)) + '</span>';
     return out;
   }
 
@@ -1246,6 +1383,352 @@
     return '<div class="al-dgrid al-dgrid--tight">' + left + '<div>' + bins + '</div></div>' + meta;
   }
 
+  // ── PROPOSALS (Step 4) ────────────────────────────────────────────────────
+
+  function propTitle(spec, algorithm, id) {
+    var list = (spec && spec.properties && spec.properties[algorithm]) || [];
+    var p = list.filter(function (x) { return x.id === id; })[0];
+    return p ? T(p.title) : id;
+  }
+  /** A reason code as a sentence; "CODE:property-id" adds the property's title. */
+  function reasonText(code, spec, algorithm) {
+    var i = code.indexOf(':');
+    var head = i < 0 ? code : code.slice(0, i);
+    var text = T(CAND_REASON_LABEL[head] || head);
+    return i < 0 ? text : text + ' ' + propTitle(spec, algorithm, code.slice(i + 1));
+  }
+  function candTestChip(t, extra) { return chip(candTestKind(t), T(CAND_TEST_LABEL[t] || t), T(CAND_TEST_MEANING[t] || ''), extra); }
+  function experimentalChip() { return chip('info', T('Experimental'), T('A proposal under test. It does not run in production.'), 'al-chip--sm'); }
+  function notApprovedChip() {
+    return chip('off', T('Not approved for production'), T('Approval exists only in the registry, as a reviewed record of an exact version and fingerprint.'), 'al-chip--sm');
+  }
+
+  function proposalsSkeleton() {
+    return '<div class="al-figs" aria-hidden="true">' + [0, 1, 2, 3].map(function () { return '<div class="al-skel-row al-skel-row--fig"></div>'; }).join('') + '</div>'
+      + panel('Candidates', skeleton(2, 'port'))
+      + '<div class="al-dgrid">' + panel('How a candidate is judged', skeleton(4, 'port')) + panel('The comparison method checks itself', skeleton(4, 'port')) + '</div>';
+  }
+
+  function proposalsHtml() {
+    var intro = '<div class="al-intro">' + esc(T('A candidate is a proposed new version of an approved algorithm. It is written as separate code, run beside the approved version on the same synthetic shots in a separate process in CI, and tested on held-out seeds. Nothing here runs in production or changes an algorithm; only a reviewed change that records a human approval could.')) + '</div>';
+    if (AL.candError && !AL.cand) return intro + panel('', emptyState('Proposals could not be read', AL.candError));
+    var C = AL.cand;
+    if (!C) return intro + syntheticBanner(CAND_NOTICE) + proposalsSkeleton();
+    if (C.state !== 'READY') {
+      return intro + syntheticBanner(C.notice) + panel('', emptyState('Candidate evidence is not available', T(C.reason || ''))
+        + '<div class="al-notice"><code data-no-i18n>npm run algorithms:candidates</code></div>');
+    }
+    var mc = C.methodChecks;
+    var figs = '<div class="al-figs">'
+      + figure(esc(num(C.counts.candidates)), T('Candidates'))
+      + figure(esc(num(C.counts.awaitingApproval)), T('Waiting for a person'), C.counts.awaitingApproval ? 'warn' : '')
+      + figure(esc(num(mc.passed)) + '<small> / ' + esc(num(mc.total)) + '</small>', T('Method checks passing'), mc.total && mc.passed === mc.total ? 'ok' : 'crit')
+      + figure(esc(T('Never')), T('Run in production'), 'none')
+      + '</div>';
+    var list = C.candidates.length ? '<div class="al-tbl al-tbl--cand" role="table">'
+      + '<div class="al-tr al-tr--h" role="row"><span role="columnheader">' + esc(T('Candidate')) + '</span>'
+      + '<span role="columnheader">' + esc(T('Stage')) + '</span>'
+      + '<span role="columnheader">' + esc(T('Held-out test')) + '</span>'
+      + '<span role="columnheader">' + esc(T('Properties')) + '</span>'
+      + '<span role="columnheader">' + esc(T('Step 3 shots changed')) + '</span></div>'
+      + C.candidates.map(function (c) {
+        return '<button class="al-tr al-tr--row" role="row" type="button" data-al-cand="' + esc(c.id) + '">'
+          + '<span role="cell" class="al-tr-name"><b>' + esc(algorithmName(c.algorithm)) + ' ' + val(c.version || '—') + '</b>'
+          + '<span class="al-chips">' + experimentalChip() + notApprovedChip()
+          + (c.freshness === 'STALE' ? chip('warn', T('Stale evidence'), '', 'al-chip--sm') : '') + '</span></span>'
+          + '<span role="cell"><span class="al-cell-l">' + esc(T('Stage')) + '</span>' + stageTag(c.stage) + '</span>'
+          + '<span role="cell">' + candTestChip(c.test, 'al-chip--sm') + '</span>'
+          + '<span role="cell" class="al-tr-why">' + esc(tf('%d kept · %d fixed · %d broken', c.properties.kept, c.properties.fixed, c.properties.broken)) + '</span>'
+          + '<span role="cell"><span class="al-cell-l">' + esc(T('Step 3 shots changed')) + '</span><span class="al-num" data-no-i18n>' + esc(c.changedShare === null ? '—' : share(c.changedShare)) + '</span></span></button>';
+      }).join('') + '</div>'
+      : emptyState('No candidate has been proposed', T('A candidate is added as reviewed code in the lab, outside the production build, with the evidence the lab wrote for it; CI runs the lab again to check that evidence.'));
+    return intro + syntheticBanner(C.notice) + figs
+      + panel('Candidates', list, tf('Candidates: %d · none approved', C.counts.candidates))
+      + '<div class="al-dgrid">' + candRulesPanel(C.spec) + candMethodPanel(C) + '</div>'
+      + candSetsPanel(C.spec)
+      + '<div class="al-dgrid">' + candProcessPanel() + candLimitsPanel(C.spec.limits) + '</div>';
+  }
+
+  function candRulesPanel(spec) {
+    var r = spec.rules, j = spec.justifications;
+    var item = function (rule, why) { return '<li><b>' + esc(rule) + '</b><span>' + esc(T(why)) + '</span></li>'; };
+    return panel('How a candidate is judged', '<ol class="al-gate">'
+      + item(T('The verdict reads held-out seeds only.'), j.heldOut)
+      + item(T('Decides: every property the approved version keeps must still hold, and every property the candidate claims to fix must be fixed.'), j.probes)
+      + item(tf('A random property counts only with at least %d probes where the two versions differ.', r.minRegionProbes), j.minRegionProbes)
+      + item(T('Reported, never decides: score differences, in a world built from each version.'), j.bracket)
+      + item(tf('A score bracket needs at least %d shots that differ.', r.minChangedShots), j.minChangedShots)
+      + item(T('Reported, never decides: how many real shots a test would need, conditional on the synthetic assumptions.'), j.requiredShots)
+      + '</ol><div class="al-note">' + esc(T(spec.conditionalNote)) + '</div>');
+  }
+
+  function candMethodPanel(C) {
+    return panel('The comparison method checks itself', '<ul class="al-mcs">' + C.methodChecks.checks.map(function (m) {
+      return '<li class="al-mc"><div class="al-mc-h"><b>' + esc(T(m.title)) + '</b><span class="al-chips">'
+        + chip('info', T(LAB_CHECK_LABEL[m.observed] || m.observed || '—'), '', 'al-chip--sm')
+        + methodChip(m.passed ? 'PASSED' : 'FAILED', 'al-chip--sm') + '</span></div>'
+        + '<span class="al-mc-p">' + esc(T(m.purpose)) + '</span></li>';
+    }).join('') + '</ul><div class="al-note">' + esc(T('Planted versions with known differences go through exactly the code a candidate goes through, on seeds no candidate is judged on. If any check fails, no candidate is judged.')) + '</div>',
+    tf('%d of %d passed', C.methodChecks.passed, C.methodChecks.total));
+  }
+
+  function candSetsPanel(spec) {
+    var mixTitle = function (id) { var m = spec.mixes.filter(function (x) { return x.id === id; })[0]; return m ? T(m.title) : id; };
+    var phase = function (p) { return chip(p === 'HELD_OUT' ? 'info' : 'none', T(PHASE_LABEL[p] || p), '', 'al-chip--sm'); };
+    var rows = spec.scenarios.map(function (sc) {
+      return '<div class="al-tr al-tr--static" role="row"><span role="cell"><code data-no-i18n>' + esc(sc.id) + '</code></span>'
+        + '<span role="cell">' + phase(sc.phase) + '</span><span role="cell" class="al-tr-name">' + esc(mixTitle(sc.mix)) + '</span>'
+        + '<span role="cell"><span class="al-cell-l">' + esc(T('Shots')) + '</span><span class="al-num" data-no-i18n>' + esc(num(sc.shots)) + '</span></span>'
+        + '<span role="cell"><span class="al-cell-l">' + esc(T('Seed')) + '</span><span class="al-num" data-no-i18n>' + esc(String(sc.seed)) + '</span></span></div>';
+    }).concat(spec.probeSets.map(function (ps) {
+      return '<div class="al-tr al-tr--static" role="row"><span role="cell" class="al-tr-name">' + esc(T('Property probes')) + '</span>'
+        + '<span role="cell">' + phase(ps.phase) + '</span><span role="cell" class="al-tr-name">' + esc(tf('%d per property', ps.instances)) + '</span>'
+        + '<span role="cell"><span class="al-cell-l">' + esc(T('Shots')) + '</span><span class="al-num" data-no-i18n>—</span></span>'
+        + '<span role="cell"><span class="al-cell-l">' + esc(T('Seed')) + '</span><span class="al-num" data-no-i18n>' + esc(String(ps.seed)) + '</span></span></div>';
+    })).join('');
+    return panel('Development and held-out', '<div class="al-tbl al-tbl--sets" role="table">'
+      + '<div class="al-tr al-tr--h" role="row"><span role="columnheader">' + esc(T('Set')) + '</span><span role="columnheader">' + esc(T('Phase')) + '</span>'
+      + '<span role="columnheader">' + esc(T('Shot mix')) + '</span><span role="columnheader">' + esc(T('Shots')) + '</span><span role="columnheader">' + esc(T('Seed')) + '</span></div>'
+      + rows + '</div><ul class="al-scn-defs al-scn-defs--sep">' + spec.mixes.map(function (m) {
+        return '<li><div class="al-scn-defs-h"><b>' + esc(T(m.title)) + '</b></div><span>' + esc(T(m.purpose)) + '</span>'
+          + '<span class="al-scn-defs-m">' + val('x ' + num(m.x[0]) + '–' + num(m.x[1]) + ' · y ' + num(m.y[0]) + '–' + num(m.y[1])) + '</span></li>';
+      }).join('') + '</ul><div class="al-note">' + esc(T('Simulate uses the development seeds; the Test verdict reads only the held-out ones. No seed is shared between them, or with Learning.')) + '</div>');
+  }
+
+  function candProcessPanel() {
+    var steps = [
+      T('Written as separate code in the lab, outside the production build: the approved declarations, changed only where the hypothesis needs.'),
+      T('Declared before it runs: its version, the approved version it is compared with, its reason and the properties it claims to fix.'),
+      T('Run by the lab, each candidate in its own process with a time limit, capped memory and an empty environment; the evidence it writes is committed with the candidate.'),
+      T('Reviewed in a pull request: CI recomputes the evidence and fails if it is stale, the isolation control must hold, and the code owner reviews it.'),
+      T('Merged as an experiment. Promotion would be a separate change that records a human approval of the exact version and fingerprint, and is not part of this step.'),
+    ];
+    return panel('How a candidate is added', '<ol class="al-gate">' + steps.map(function (x) { return '<li><span>' + esc(x) + '</span></li>'; }).join('') + '</ol>');
+  }
+
+  function candLimitsPanel(L) {
+    return panel('Resource limits', '<div class="al-kv">'
+      + kv(T('Time limit per process'), val(dur(L.jobTimeoutMs * 1000)))
+      + kv(T('Heap limit per process'), val(num(L.childHeapMb) + ' MB'))
+      + kv(T('Output limit per process'), val(bytes(L.maxStdoutBytes)))
+      + kv(T('Shots per scenario'), val(num(L.shotsPerScenarioMax)))
+      + kv(T('Probes per property'), val(num(L.probeInstancesMax)))
+      + kv(T('Candidates at most'), val(num(L.candidatesMax)))
+      + '</div><div class="al-note">' + esc(T('The parent process holds the clock: past the limit it kills the whole process group, so even an endless loop stops. Each process starts with an empty environment, so no secret reaches candidate code. This server runs none of it.')) + '</div>');
+  }
+
+  // ── one candidate ──
+
+  var CAND_TABS = ['change', 'simulate', 'test', 'approval', 'resources'];
+
+  function candidateHtml() {
+    var back = '<div class="al-prod-h"><button class="al-link" type="button" data-al-nav="proposals">' + esc(T('All proposals')) + '</button></div>';
+    if (AL.candDetailError) return back + panel('', emptyState('This candidate could not be read', AL.candDetailError));
+    var d = AL.candDetail;
+    if (!d || d.id !== AL.candId) return back + syntheticBanner(CAND_NOTICE) + panel('', skeleton(6, 'check'));
+    var head = '<div class="al-prod-h">' + experimentalChip() + notApprovedChip() + stageTag(d.stage) + candTestChip(d.test)
+      + (d.freshness === 'STALE' ? chip('warn', T('Stale evidence'), d.staleReasons.map(function (r) { return reasonText(r, d.spec, d.algorithm); }).join(' ')) : '')
+      + '<button class="al-link" type="button" data-al-nav="proposals">' + esc(T('All proposals')) + '</button></div>';
+    var tabs = '<div class="al-scn-tabs al-scn-tabs--cand" role="tablist">' + CAND_TABS.map(function (k) {
+      var on = k === AL.candTab;
+      return '<button class="al-scn-tab' + (on ? ' is-on' : '') + '" type="button" role="tab" aria-selected="' + (on ? 'true' : 'false') + '" data-al-ctab="' + k + '">'
+        + '<span class="al-scn-tab-t">' + esc(T(CAND_TAB_LABEL[k])) + '</span></button>';
+    }).join('') + '</div>';
+    // Every tab's body is drawn into the same grid cell and only the selected
+    // one is visible: switching a tab moves nothing beneath it, and repaints nothing.
+    var bodies = '<div class="al-scn-bodies">' + CAND_TABS.map(function (k) {
+      var on = k === AL.candTab;
+      return '<div class="al-scn-body' + (on ? ' is-on' : '') + '" role="tabpanel" data-al-ctab-body="' + k + '"' + (on ? '' : ' aria-hidden="true"') + '>' + candTabHtml(k, d) + '</div>';
+    }).join('') + '</div>';
+    return head + syntheticBanner(d.notice) + tabs + bodies;
+  }
+
+  function candTabHtml(k, d) {
+    switch (k) {
+      case 'simulate': return candPhaseHtml(d, 'development');
+      case 'test': return candTestHtml(d);
+      case 'approval': return candApprovalHtml(d);
+      case 'resources': return candResourcesHtml(d);
+      default: return candChangeHtml(d);
+    }
+  }
+
+  function candChangeHtml(d) {
+    var e = d.entry, dc = e.declaration, code = e.code;
+    var proposal = panel('The proposal', '<div class="al-kv">'
+      + kv(T('Algorithm'), '<button class="al-link" type="button" data-al-open="' + esc(d.algorithm) + '">' + esc(algorithmName(d.algorithm)) + '</button>')
+      + kv(T('Candidate version'), val(d.version || '—'))
+      + kv(T('Compared with'), val(d.baselineVersion || '—') + ' ' + fp(dc ? dc.baseline.fingerprint : null))
+      + kv(T('Proposed by'), dc ? esc(T(PROPOSER_LABEL[dc.proposedBy] || dc.proposedBy)) : absent())
+      + kv(T('Proposed on'), dc ? val(dc.proposedAt) : absent())
+      + kv(T('File'), '<code data-no-i18n>' + esc(code.file) + '</code>')
+      + kv(T('Why'), dc ? prose(T(dc.rationale)) : absent(T('The declaration could not be read.')))
+      + kv(T('Claims to fix'), dc && dc.hypothesis.targets.length ? prose(dc.hypothesis.targets.map(function (t) { return propTitle(d.spec, d.algorithm, t); }).join(' · ')) : absent(T('Nothing.')))
+      + kv(T('Where it should change'), dc ? prose(T(dc.hypothesis.region)) : absent())
+      + '</div>');
+    var codePanel = panel('The code', '<div class="al-kv">'
+      + kv(T('Candidate fingerprint'), fp(code.fingerprint))
+      + kv(T('Approved fingerprint'), fp(code.approvedFingerprint))
+      + '</div><ul class="al-fps al-fps--sep">' + code.symbols.map(function (x) {
+        return '<li><code data-no-i18n>' + esc(x.name) + '</code>'
+          + chip(x.status === 'CHANGED' ? 'warn' : x.status === 'MISSING' ? 'crit' : 'none', T(SYMBOL_LABEL[x.status] || x.status), '', 'al-chip--sm') + '</li>';
+      }).join('') + '</ul>'
+      + code.diff.map(function (df) {
+        return '<div class="al-diff" dir="ltr" data-no-i18n><div class="al-diff-h">' + esc(df.symbol) + '</div>'
+          + df.removed.map(function (l) { return '<div class="al-diff-l al-diff-l--del"><span aria-hidden="true">−</span><code>' + esc(l) + '</code></div>'; }).join('')
+          + df.added.map(function (l) { return '<div class="al-diff-l al-diff-l--add"><span aria-hidden="true">+</span><code>' + esc(l) + '</code></div>'; }).join('')
+          + '</div>';
+      }).join('')
+      + '<div class="al-note">' + esc(T('The candidate keeps the approved declarations’ names, so its fingerprint is the one production would carry if it were ever promoted.')) + '</div>');
+    var refs = panel('What the proposal rests on', dc ? '<ul class="al-scn-defs">' + dc.evidence.map(function (r) {
+      return '<li><div class="al-scn-defs-h">' + chip('info', T(EVIDENCE_KIND_LABEL[r.kind] || r.kind), '', 'al-chip--sm') + '<b>' + esc(T(r.ref)) + '</b></div>'
+        + '<span>' + esc(T(r.note)) + '</span></li>';
+    }).join('') + '</ul>' : emptyState('No declaration', T('The declaration could not be read.')));
+    var deps = panel('Would also change if promoted', d.dependants.length ? '<ul class="al-lane-list">' + d.dependants.map(function (x) {
+      return '<li><button class="al-link" type="button" data-al-open="' + esc(x.key) + '">' + esc(T(x.name)) + '</button>'
+        + chip(x.simulated ? 'info' : 'none', x.simulated ? T('Has synthetic scenarios') : T('No synthetic scenarios'), '', 'al-chip--sm') + '<span></span></li>';
+    }).join('') + '</ul><div class="al-note">' + esc(T('Read from the registry: these algorithms use its output, directly or through another. This step does not simulate them.')) + '</div>'
+      : emptyState('Nothing reads its output', T('No registered algorithm depends on it.')));
+    return '<div class="al-dgrid">' + proposal + codePanel + '</div><div class="al-dgrid">' + refs + deps + '</div>';
+  }
+
+  function candPhaseHtml(d, key) {
+    var R = d.entry.results;
+    if (!R) return panel('', emptyState('No results', d.entry.run.state === 'REFUSED' ? T('The proposal was refused before it was judged.') : T('The run did not complete.')));
+    var ph = R[key];
+    return candPropsPanel(d, ph) + ph.scenarios.map(function (sc) { return candScenarioPanel(d, sc); }).join('');
+  }
+
+  /** One probe that broke a property, as the evidence recorded it: where it was and what came back. */
+  function exampleHtml(d, p, side) {
+    var ex = p[side].example;
+    if (!ex) return '';
+    var from = 0, to = ex.points.length - 1;
+    if (ex.points.length > 2) {
+      for (var k = 1; k < ex.values.length; k++) {
+        if (ex.values[k] !== null && ex.values[k - 1] !== null && ex.values[k] < ex.values[k - 1]) { from = k - 1; to = k; break; }
+      }
+    }
+    var parts = [];
+    for (var i = from; i <= to; i++) {
+      var pt = ex.points[i];
+      parts.push('(' + num(pt.x) + ', ' + num(pt.y) + ') ' + pt.bodyPart + ' → ' + fix4(ex.values[i]));
+    }
+    return '<div class="al-ex"><span>' + esc(side === 'approved' ? T('Where the approved version breaks it:') : T('Where the candidate breaks it:')) + ' ' + esc(propTitle(d.spec, d.algorithm, p.id)) + '</span>'
+      + '<code dir="ltr" data-no-i18n>' + esc(parts.join('   ')) + '</code></div>';
+  }
+
+  function candPropsPanel(d, ph) {
+    var title = ph.phase === 'HELD_OUT' ? T('Properties on held-out probes') : T('Properties on development probes');
+    var cell = function (p, s) { return s.violations ? tf('%d of %d probes', s.violations, p.instances) : T('None'); };
+    var rows = ph.properties.map(function (p) {
+      return '<div class="al-tr al-tr--static" role="row">'
+        + '<span role="cell" class="al-tr-name"><b>' + esc(propTitle(d.spec, d.algorithm, p.id)) + '</b><code data-no-i18n>' + esc(p.id) + '</code></span>'
+        + '<span role="cell" class="al-tr-why' + (p.approved.violations ? ' al-crit-t' : '') + '"><span class="al-cell-l">' + esc(T('Approved breaks it')) + '</span>' + esc(cell(p, p.approved)) + '</span>'
+        + '<span role="cell" class="al-tr-why' + (p.candidate.violations ? ' al-crit-t' : '') + '"><span class="al-cell-l">' + esc(T('Candidate breaks it')) + '</span>' + esc(cell(p, p.candidate)) + '</span>'
+        + '<span role="cell">' + chip(outcomeKind(p.outcome), T(OUTCOME_LABEL[p.outcome] || p.outcome), '', 'al-chip--sm') + '</span>'
+        + '<span role="cell"><span class="al-cell-l">' + esc(T('Probes where they differ')) + '</span><span class="al-num" data-no-i18n>' + esc(num(p.inRegion)) + '</span>'
+        + (p.covered ? '' : ' ' + chip('warn', T('Too few'), '', 'al-chip--sm')) + '</span></div>';
+    }).join('');
+    var examples = ph.properties.filter(function (p) { return p.outcome !== 'KEPT'; }).map(function (p) {
+      return exampleHtml(d, p, p.outcome === 'BROKEN' ? 'candidate' : 'approved');
+    }).join('');
+    return panel(title, '<div class="al-tbl al-tbl--props" role="table">'
+      + '<div class="al-tr al-tr--h" role="row"><span role="columnheader">' + esc(T('Property')) + '</span>'
+      + '<span role="columnheader">' + esc(T('Approved breaks it')) + '</span><span role="columnheader">' + esc(T('Candidate breaks it')) + '</span>'
+      + '<span role="columnheader">' + esc(T('Outcome')) + '</span><span role="columnheader">' + esc(T('Probes where they differ')) + '</span></div>'
+      + rows + '</div>' + examples);
+  }
+
+  function requiredHtml(r, d) {
+    var fig = r.point === null ? '—' : '≈ ' + shotsFig(r.point);
+    var range = r.low === null && r.high === null ? '' : ' [' + shotsFig(r.low) + ' – ' + (r.high === null ? '∞' : shotsFig(r.high)) + ']';
+    return '<span class="al-req"><span class="al-num" data-no-i18n>' + esc(fig + range) + '</span>'
+      + chip(r.status === 'ESTIMATED' ? 'info' : 'none', T(ESTIMATE_LABEL[r.status] || r.status),
+        r.reasons.map(function (x) { return reasonText(x, d.spec, d.algorithm); }).join(' '), 'al-chip--sm') + '</span>';
+  }
+
+  function candScenarioPanel(d, sc) {
+    var spec = d.spec;
+    var mix = spec.mixes.filter(function (m) { return m.id === sc.mix; })[0];
+    var dv = sc.divergence;
+    var facts = '<div class="al-kv">'
+      + kv(T('Shots · seed'), val(num(sc.shots) + ' · ' + sc.seed))
+      + kv(T('Shots that change (95%)'), val(num(dv.changed) + ' · ' + share(dv.share.value) + ' [' + share(dv.share.low) + ' – ' + share(dv.share.high) + ']'))
+      + kv(T('Largest rise · largest fall'), val(sig(dv.maxIncrease, 3) + ' · ' + sig(dv.maxDecrease, 3)))
+      + kv(T('Invalid outputs, approved · candidate'), val(num(sc.invalid.approved) + ' · ' + num(sc.invalid.candidate)))
+      + '</div>';
+    var bands = '<div class="al-bins al-bins--bands" role="table">'
+      + '<div class="al-bin al-bin--h" role="row"><span role="columnheader">' + esc(T('Metres from goal')) + '</span><span role="columnheader">' + esc(T('Shots')) + '</span>'
+      + '<span role="columnheader">' + esc(T('Changed')) + '</span><span role="columnheader">' + esc(T('Mean change')) + '</span></div>'
+      + dv.bands.map(function (b) {
+        return '<div class="al-bin' + (b.shots ? '' : ' al-bin--thin') + '" role="row">'
+          + '<span role="cell" class="al-val" data-no-i18n>' + esc(num(b.from) + (b.to === null ? '+' : '–' + num(b.to))) + '</span>'
+          + '<span role="cell" class="al-num" data-no-i18n>' + esc(num(b.shots)) + '</span>'
+          + '<span role="cell" class="al-num" data-no-i18n>' + esc(num(b.changed)) + '</span>'
+          + '<span role="cell" class="al-num" data-no-i18n>' + esc(b.meanDelta === null ? '—' : sig(b.meanDelta, 3)) + '</span></div>';
+      }).join('') + '</div>';
+    var worlds = '<div class="al-tbl al-tbl--worlds" role="table">'
+      + '<div class="al-tr al-tr--h" role="row"><span role="columnheader">' + esc(T('Outcomes drawn from')) + '</span>'
+      + '<span role="columnheader">' + esc(T('Brier difference (95%)')) + '</span><span role="columnheader">' + esc(T('Log-loss difference (95%)')) + '</span>'
+      + '<span role="columnheader">' + esc(T('Separable here')) + '</span><span role="columnheader">' + esc(T('Real shots a test would need (conditional)')) + '</span></div>'
+      + sc.worlds.map(function (w) {
+        var wd = spec.worlds.filter(function (x) { return x.id === w.world; })[0];
+        return '<div class="al-tr al-tr--static" role="row">'
+          + '<span role="cell" class="al-tr-name"><b>' + esc(wd ? T(wd.title) : w.world) + '</b><span class="al-tr-why">' + esc(wd ? T(wd.meaning) : '') + '</span></span>'
+          + '<span role="cell" class="al-num"><span class="al-cell-l">' + esc(T('Brier')) + '</span><span data-no-i18n>' + esc(ivlSig(w.brierDelta, 2)) + '</span></span>'
+          + '<span role="cell" class="al-num"><span class="al-cell-l">' + esc(T('Log-loss')) + '</span><span data-no-i18n>' + esc(ivlSig(w.logLossDelta, 2)) + '</span></span>'
+          + '<span role="cell"><span class="al-cell-l">' + esc(T('Separable here')) + '</span>' + (w.status === 'COMPUTED'
+            ? chip('info', w.distinguishable ? T('Yes, at this size') : T('No, at this size'), '', 'al-chip--sm')
+            : chip('none', T(WORLD_STATUS_LABEL[w.status] || w.status), '', 'al-chip--sm')) + '</span>'
+          + '<span role="cell"><span class="al-cell-l">' + esc(T('Real shots a test would need (conditional)')) + '</span>' + requiredHtml(w.required, d) + '</span></div>';
+      }).join('') + '</div>'
+      + '<div class="al-note">' + esc(T('A difference is candidate minus approved: above zero, the candidate scored worse in that world. Each world favours one side by construction, so the two rows bound what is at stake rather than name a winner.')) + ' ' + esc(T(spec.conditionalNote)) + '</div>';
+    return panel(mix ? T(mix.title) : sc.mix, '<div class="al-dgrid al-dgrid--tight">' + facts + bands + '</div>' + worlds, T(PHASE_LABEL[sc.phase] || sc.phase));
+  }
+
+  function candTestHtml(d) {
+    var v = d.entry.verdict;
+    var verdict = panel('The verdict', '<div class="al-kv">'
+      + kv(T('Held-out test'), candTestChip(v.test))
+      + kv(T('What it means'), prose(T(CAND_TEST_MEANING[v.test] || '')))
+      + kv(T('Reasons'), v.reasons.length ? v.reasons.map(function (x) { return prose(reasonText(x, d.spec, d.algorithm)); }).join('<br>') : prose(T('None.')))
+      + kv(T('Development and held-out'), v.agreement === null ? absent()
+        : chip(v.agreement === 'AGREE' ? 'info' : 'warn', v.agreement === 'AGREE' ? T('Agree on every property') : T('Disagree on a property'), '', 'al-chip--sm'))
+      + kv(T('Method checks'), esc(tf('%d of %d passed', d.methodChecks.passed, d.methodChecks.total)))
+      + '</div><div class="al-note">' + esc(T('Only properties decide. Score differences and sample sizes are reported beside them and never judged: outcomes drawn from either version favour that version by construction.')) + '</div>');
+    return verdict + candPhaseHtml(d, 'heldOut');
+  }
+
+  function candApprovalHtml(d) {
+    var n = d.approvalNeeds;
+    var arrow = AL_DIR === 'rtl' ? ' ← ' : ' → ';
+    return panel('The approval gate', '<div class="al-kv">'
+      + kv(T('Gate'), gateChip(d.gate))
+      + kv(T('Can reach Deploy'), chip('off', T('No'), '', 'al-chip--sm'))
+      + kv(T('Path on the loop'), esc(d.path.map(function (x) { return T(STAGE_LABEL[x] || x); }).join(arrow)))
+      + kv(T('An approval would have to name'), val(n.version || '—') + ' ' + fp(n.fingerprint))
+      + kv(T('Approved today'), val(n.approvedVersion || '—') + ' ' + fp(n.approvedFingerprint))
+      + '</div><div class="al-note">' + esc(T('An approval is recorded only in the registry, by a reviewed change that names this exact version and fingerprint. Nothing in this room can approve or promote a candidate, and promotion is not part of this step.')) + '</div>');
+  }
+
+  function candResourcesHtml(d) {
+    var m = d.entry.measured, r = d.entry.run, L = d.spec.limits;
+    return panel('What the run cost', '<div class="al-kv">'
+      + kv(T('Run'), chip(runKind(r.state), T(RUN_LABEL[r.state] || r.state), '', 'al-chip--sm') + (r.signal ? ' ' + val(r.signal) : ''))
+      + (r.reasons.length ? kv(T('Why'), r.reasons.map(function (x) { return esc(reasonText(x, d.spec, d.algorithm)); }).join('<br>')) : '')
+      + kv(T('Wall time, start to exit'), val(ms(m.wallMs) + ' / ' + dur(L.jobTimeoutMs * 1000)))
+      + kv(T('Start-up: Node, TypeScript, modules'), val(ms(m.startupMs)))
+      + kv(T('Evaluation'), val(ms(m.evaluationMs)))
+      + kv(T('CPU, user · system'), val(ms(m.cpuUserMs) + ' · ' + ms(m.cpuSystemMs)))
+      + kv(T('Peak memory (RSS)'), val(bytes(m.maxRssBytes)))
+      + kv(T('Heap in use at the end'), val(bytes(m.heapUsedBytes) + ' / ' + num(L.childHeapMb) + ' MB'))
+      + kv(T('Predictions computed'), val(num(m.predictions)))
+      + kv(T('Per call, approved · candidate'), val(nsText(m.approvedNsPerCall) + ' · ' + nsText(m.candidateNsPerCall)))
+      + kv(T('Measured'), instantHtml(d.generatedAt))
+      + '</div><div class="al-note">' + esc(T('Measured when the evidence was generated, in a separate process. This server ran nothing. Figures differ from machine to machine, so they are left out of the freshness check.')) + '</div>');
+  }
+
   // ── content ───────────────────────────────────────────────────────────────
 
   function overviewSkeleton() {
@@ -1268,6 +1751,8 @@
       case 'approvals': return approvalsHtml();
       case 'monitoring': return monitoringHtml();
       case 'learning': return learningHtml();
+      case 'proposals': return proposalsHtml();
+      case 'candidate': return candidateHtml();
       case 'algorithm': return algorithmHtml();
       default: return overviewHtml();
     }
@@ -1303,6 +1788,8 @@
     production: ['storeState', 'coverage', 'fingerprint', 'counts', 'latency', 'bySource', 'fingerprintsSeen', 'daily', 'checks', 'findingList'],
     learning: ['evidence', 'notice', 'measuredAt', 'realWorld', 'rules', 'limits', 'generator', 'scenarios', 'counts', 'algorithms'],
     learnDetail: ['status', 'reason', 'evidence', 'realWorld'],
+    candidates: ['state', 'evidence', 'production', 'notice', 'methodChecks', 'counts', 'candidates'],
+    candidate: ['stage', 'gate', 'test', 'freshness', 'staleReasons', 'path', 'dependants', 'approvalNeeds', 'entry', 'methodChecks', 'spec', 'notice'],
   };
   function missingFields(payload, required) {
     return required.filter(function (k) { return !payload || payload[k] === undefined || payload[k] === null; });
@@ -1366,6 +1853,28 @@
     }).catch(function (e) { AL.learnDetail = null; AL.learnDetailError = e.message; });
   }
 
+  function loadCandidates() {
+    return api('/system/algorithms/candidates').then(function (d) {
+      var missing = missingFields(d, REQUIRED.candidates);
+      if (!missing.length) missing = ['reason', 'generatedAt', 'spec'].filter(function (k) { return d[k] === undefined; });
+      // What a candidate is, is a fact: a response that does not say its results
+      // are synthetic and never ran in production is refused.
+      if (!missing.length && (d.evidence !== 'SYNTHETIC' || d.production !== 'NEVER_RUN')) missing = ['evidence', 'production'];
+      if (missing.length) { AL.cand = null; AL.candError = contractError('/system/algorithms/candidates', missing); return; }
+      AL.cand = d; AL.candError = null;
+    }).catch(function (e) { AL.candError = e.message; });
+  }
+
+  function loadCandidate(id) {
+    AL.candDetailError = null;
+    return api('/system/algorithms/candidates/' + encodeURIComponent(id)).then(function (d) {
+      var missing = missingFields(d, REQUIRED.candidate);
+      if (!missing.length && (d.deployable !== false || d.evidence !== 'SYNTHETIC' || d.production !== 'NEVER_RUN')) missing = ['deployable', 'evidence', 'production'];
+      if (missing.length) { AL.candDetail = null; AL.candDetailError = contractError('/system/algorithms/candidates/' + id, missing); return; }
+      AL.candDetail = d;
+    }).catch(function (e) { AL.candDetail = null; AL.candDetailError = e.message; });
+  }
+
   function loadAlgorithm(key) {
     AL.detailError = null;
     return api('/system/algorithms/' + encodeURIComponent(key)).then(function (d) {
@@ -1423,12 +1932,23 @@
     loadAlgorithmLearning(key).then(redraw);
   }
 
+  function openCandidate(host, id) {
+    AL.section = 'candidate';
+    AL.candId = id;
+    if (!AL.candDetail || AL.candDetail.id !== id) AL.candDetail = null;
+    AL.candDetailError = null;
+    AL.candTab = 'change';
+    repaintBody(host, false);
+    loadCandidate(id).then(function () { if (AL.section === 'candidate' && AL.candId === id) repaintBody(host, true); });
+  }
+
   function refresh(host) {
     if (AL.refreshing) return;
     AL.refreshing = true;
     repaintBody(host, true);
-    var jobs = [loadOverview(), loadMonitoring(), loadLearning()];
+    var jobs = [loadOverview(), loadMonitoring(), loadLearning(), loadCandidates()];
     if (AL.section === 'algorithm' && AL.key) jobs.push(loadAlgorithm(AL.key), loadAlgorithmMonitoring(AL.key), loadAlgorithmLearning(AL.key));
+    if (AL.section === 'candidate' && AL.candId) jobs.push(loadCandidate(AL.candId));
     Promise.all(jobs).then(function () { AL.refreshing = false; repaintBody(host, true); });
   }
 
@@ -1442,6 +1962,21 @@
     });
     Array.prototype.forEach.call(host.querySelectorAll('[data-al-scn-body]'), function (p) {
       var on = p.getAttribute('data-al-scn-body') === id;
+      p.classList.toggle('is-on', on);
+      if (on) p.removeAttribute('aria-hidden'); else p.setAttribute('aria-hidden', 'true');
+    });
+  }
+
+  /** Switch a candidate tab by toggling classes only: no repaint, so nothing else can move. */
+  function selectCandTab(host, k) {
+    AL.candTab = k;
+    Array.prototype.forEach.call(host.querySelectorAll('[data-al-ctab]'), function (b) {
+      var on = b.getAttribute('data-al-ctab') === k;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    Array.prototype.forEach.call(host.querySelectorAll('[data-al-ctab-body]'), function (p) {
+      var on = p.getAttribute('data-al-ctab-body') === k;
       p.classList.toggle('is-on', on);
       if (on) p.removeAttribute('aria-hidden'); else p.setAttribute('aria-hidden', 'true');
     });
@@ -1491,6 +2026,12 @@
       var scn = t.closest('[data-al-scn]');
       if (scn) { selectScenario(host, scn.getAttribute('data-al-scn')); return; }
 
+      var ctab = t.closest('[data-al-ctab]');
+      if (ctab) { selectCandTab(host, ctab.getAttribute('data-al-ctab')); return; }
+
+      var cand = t.closest('[data-al-cand]');
+      if (cand) { openCandidate(host, cand.getAttribute('data-al-cand')); return; }
+
       var open = t.closest('[data-al-open]');
       if (open) { openAlgorithm(host, open.getAttribute('data-al-open')); return; }
 
@@ -1504,6 +2045,7 @@
       if (ev.key !== 'Escape') return;
       if (AL.langOpen) { closeLangs(host); return; }
       if (AL.section === 'algorithm') go(host, 'registry');
+      else if (AL.section === 'candidate') go(host, 'proposals');
     });
   }
 
@@ -1521,6 +2063,7 @@
       // beside it; whichever answers second repaints the body, not the shell.
       loadMonitoring().then(function () { if (AL.data || AL.error) repaintBody(host, true); });
       loadLearning().then(function () { if (AL.data || AL.error) repaintBody(host, true); });
+      loadCandidates().then(function () { if (AL.data || AL.error) repaintBody(host, true); });
       return loadOverview();
     }).then(function () { paint(host); });
   };
@@ -1531,6 +2074,7 @@
     AL.section = 'overview'; AL.key = null; AL.detail = null; AL.detailError = null; AL.langOpen = false;
     AL.monDetail = null; AL.monDetailError = null;
     AL.learnDetail = null; AL.learnDetailError = null; AL.learnScenario = 'consistent';
+    AL.candDetail = null; AL.candDetailError = null; AL.candId = null; AL.candTab = 'change';
   };
 
   // Exposed for the test suite, which asserts the vocabulary rather than a render.
@@ -1538,4 +2082,7 @@
   window.__familistaAlgorithmsMonKind = monKind;
   window.__familistaAlgorithmsMethodKind = methodKind;
   window.__familistaAlgorithmsWriteKind = writeKind;
+  window.__familistaAlgorithmsCandTestKind = candTestKind;
+  window.__familistaAlgorithmsOutcomeKind = outcomeKind;
+  window.__familistaAlgorithmsRunKind = runKind;
 }());

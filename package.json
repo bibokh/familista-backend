@@ -38,6 +38,8 @@
     "security:check": "node scripts/security-discover.js --check",
     "algorithms:discover": "node scripts/algorithms-discover.js",
     "algorithms:check": "node scripts/algorithms-discover.js --check",
+    "algorithms:candidates": "ts-node --transpile-only lab/algorithms/cli.ts",
+    "algorithms:candidates:check": "ts-node --transpile-only lab/algorithms/cli.ts --check",
     "backup:keygen": "node dist/scripts/backup.js keygen",
     "backup:run": "node dist/scripts/backup.js run",
     "backup:drill": "node dist/scripts/backup.js drill",

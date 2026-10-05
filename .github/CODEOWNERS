@@ -27,6 +27,9 @@
 /scripts/algorithms-discover.js     @bibokh
 # The build seal that ties the running code back to that approval.
 /scripts/algorithms-seal.js         @bibokh
+# The algorithm lab: candidates, the engine that judges them, and the process
+# runner that keeps them out of the judging process — outside the build.
+/lab/                               @bibokh
 
 # Schema and migrations (run in production by render-start.sh)
 /prisma/                            @bibokh

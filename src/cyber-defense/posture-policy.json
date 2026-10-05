@@ -136,7 +136,8 @@
     "franchise-club-attach-authorised",
     "algorithm-change-gate",
     "algorithm-telemetry-private",
-    "algorithm-learning-separation"
+    "algorithm-learning-separation",
+    "algorithm-candidate-isolation"
   ],
   "knownGaps": {
     "mfa-required-at-login": "PARTIAL \u2014 required at sign-in for an owner who switched it on (Step 7) and, while MFA_REQUIRED_FOR_ADMINS=true, for administrators (R7); not required for every account.",
@@ -779,6 +780,13 @@
         "GET /system/algorithms/:key",
         "GET /system/algorithms/:key/monitoring",
         "GET /system/algorithms/:key/learning"
+      ]
+    },
+    "algorithms.routes :id": {
+      "basis": "platform-only",
+      "reason": "The Algorithms room is behind assertPlatformOwner; a candidate id is a name in the candidate evidence file the lab wrote, not a club row.",
+      "routes": [
+        "GET /system/algorithms/candidates/:id"
       ]
     }
   },

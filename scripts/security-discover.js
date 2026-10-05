@@ -1118,6 +1118,60 @@ function algorithmLearningSeparated() {
     && /router\.get\('\/learning'/.test(routes) && /router\.get\('\/:key\/learning'/.test(routes);
 }
 
+// Step 4: a candidate — a proposed new version of an approved algorithm —
+// never runs in production. Its code and the engine that compares it live in
+// lab/, outside the build; each runs in a child process the parent kills; the
+// server only reads the evidence file, through its schema.
+const LAB_FILES = tsFiles('lab/algorithms');
+/** Blank the contents of string and template literals, keeping the quotes. */
+const stripStrings = (t) => t.replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g, (m) => m[0] + m[0]);
+const CANDIDATE_FORBIDDEN = /\b(?:require|process|globalThis|global|eval|Function|Reflect|Proxy|prototype|__proto__|setTimeout|setInterval|setImmediate|queueMicrotask|fetch|XMLHttpRequest|WebSocket|Date|Buffer|module|exports)\b|\bimport\s*\(|Math\.random/;
+function algorithmCandidateIsolation() {
+  // The build compiles src/ only, so nothing under lab/ can reach dist/.
+  let tsconfig = null;
+  try { tsconfig = JSON.parse(read(cite('tsconfig.json')) || ''); } catch (_) { return false; }
+  if (!tsconfig || tsconfig.compilerOptions.rootDir !== './src' || JSON.stringify(tsconfig.include) !== JSON.stringify(['src/**/*'])) return false;
+  const pkg = JSON.parse(read('package.json') || '{}');
+  if (/\blab\//.test((pkg.scripts && pkg.scripts.build) || '')) return false;
+  // Nothing in src/ imports the lab.
+  if (srcFiles.some((f, i) => /(?:from\s+|require\(\s*|import\(\s*)['"][^'"]*\blab\//.test(stripComments(allSrc[i])))) return false;
+  // The lab itself: present, and it reads no database or telemetry.
+  if (!LAB_FILES.includes('lab/algorithms/runner.ts') || !LAB_FILES.includes('lab/algorithms/candidates/index.ts')) return false;
+  for (const f of LAB_FILES) {
+    if (/config\/database|@prisma\/client|\bprisma\.|algorithms\/telemetry/.test(stripComments(read(cite(f)) || ''))) return false;
+  }
+  // A candidate file imports types only, and has no capability beyond computing.
+  for (const f of LAB_FILES.filter((x) => x.startsWith('lab/algorithms/candidates/') && !x.endsWith('/index.ts'))) {
+    const code = stripStrings(stripComments(read(cite(f)) || ''));
+    const imports = code.match(/^\s*import\b[^;]*;/gm) || [];
+    if (imports.some((l) => !/^\s*import\s+type\s/.test(l)) || CANDIDATE_FORBIDDEN.test(code)) return false;
+  }
+  // Every job in its own process: killed by process group at the parent's deadline, an empty environment, capped heap and output.
+  const runner = stripComments(read(cite('lab/algorithms/runner.ts')) || '');
+  if (!(/detached: GROUPS/.test(runner) && /process\.kill\(-child\.pid, 'SIGKILL'\)/.test(runner)
+    && /setTimeout\(\(\) => \{ if \(!limit\) \{ limit = 'TIMED_OUT'; killGroup\(child\); \} \}, limits\.timeoutMs\)/.test(runner)
+    && /env: \{ \.\.\.CHILD_ENV, \.\.\.\(opts\.env \?\? \{\}\) \}/.test(runner) && !/\.\.\.process\.env/.test(runner)
+    && /--max-old-space-size=/.test(runner) && /outBytes > limits\.maxStdoutBytes/.test(runner) && /liveGroupMembers\(/.test(runner))) return false;
+  // Candidates only where a synthetic generator exists, never on health data.
+  const spec = stripComments(read(cite('lab/algorithms/spec.ts')) || '');
+  const algs = (((spec.match(/export const CANDIDATE_ALGORITHMS = \[([^\]]*)\] as const;/) || [])[1]) || '').match(/'[a-z0-9-]+'/g) || [];
+  if (!algs.length || algs.some((a) => HEALTH_EXCLUDED.includes(a.slice(1, -1)))) return false;
+  // The server: reads the evidence through its schema, runs nothing, and can call no candidate approved or deployable.
+  const reader = stripComments(read(cite('src/algorithms/candidate-evidence.ts')) || '');
+  const view = stripComments(read(cite('src/algorithms/candidates.ts')) || '');
+  if (!/CandidateEvidenceSchema\.safeParse\(/.test(reader) || /child_process|\bspawn\(|\bfork\(|\bexec(?:File)?\(|\brequire\(/.test(reader + view)) return false;
+  if (!(/evidence: z\.literal\('SYNTHETIC'\)/.test(reader) && /production: z\.literal\('NEVER_RUN'\)/.test(reader)
+    && /status: z\.literal\('EXPERIMENTAL'\)/.test(reader) && /approval: z\.literal\('NOT_APPROVED'\)/.test(reader))) return false;
+  if (!/deployable: false/.test(view) || !/deploymentGate\(/.test(view) || !/canAdvance\(/.test(view)) return false;
+  // Only the evidence ships — data, never lab code.
+  const assets = read(cite('scripts/copy-runtime-assets.js')) || '';
+  if (!/'src\/algorithms\/generated\/candidate-evidence\.json'/.test(assets) || /['"]lab\//.test(assets)) return false;
+  // Owner-only reads.
+  const routes = stripComments(read(cite('src/routes/algorithms.routes.ts')) || '');
+  return /router\.get\('\/candidates'/.test(routes) && /router\.get\('\/candidates\/:id'/.test(routes)
+    && /assertPlatformOwner\(/.test(routes) && !/router\.(post|put|patch|delete|all)\(/.test(routes);
+}
+
 function deployGatedByCi() {
   const raw = read(RENDER) || '';
   const services = (raw.match(/^\s*-\s*type:\s*(?:web|worker|pserv|cron)\s*$/gm) || []).length;
@@ -1208,6 +1262,8 @@ controls.push(
     'Production telemetry of the registered algorithms is aggregate counts, histograms and times only: its table has no column for a club, team, player, user, request, input or message, the database refuses free text in it, one file writes it, the recorder refuses any workflow outside its closed list, and only the platform owner reads it, read-only — proven on real PostgreSQL in CI.'),
   control('algorithm-learning-separation', algorithmLearningSeparated() ? 'PRESENT' : 'ABSENT', 'src/algorithms/learning.ts',
     'Algorithm learning is synthetic only: every synthetic result is labelled SYNTHETIC and none is presented as real-world accuracy; the real-world lane is disabled, no learning file reads a database, a club record or health data, and synthetic runs never enter production telemetry; a run is bounded by slices and a time budget; only the platform owner reads it, read-only.'),
+  control('algorithm-candidate-isolation', algorithmCandidateIsolation() ? 'PRESENT' : 'ABSENT', 'src/algorithms/candidates.ts',
+    'Algorithm candidates never run in production: their code and the comparison engine live in lab/, outside the build, and nothing in src/ imports them; each runs only in CI or on a developer machine, in a separate process with an empty environment, a capped heap and output, and a parent-enforced timeout that kills its whole process group; a candidate file imports types only and has no I/O, globals or clock; the server reads only the schema-validated evidence file, where every candidate is experimental and not approved, and none can pass the deployment gate; only the platform owner reads it, read-only.'),
   control('security-alert-delivery', securityAlertDelivery() ? 'PRESENT' : 'ABSENT', 'src/security/security-alerts.ts',
     'Critical security events, cross-club access attempts, a broken audit chain, account lockouts, refresh-token reuse, brute-force runs and failed or stale backups are emailed to SECURITY_ALERT_EMAIL by one leased process, de-duplicated per rule (15 min) and capped per hour, with a daily digest; the email carries counts only.'),
 );
