@@ -1444,8 +1444,8 @@
     return intro + syntheticBanner(C.notice) + figs
       + panel('Candidates', list, tf('Candidates: %d · none approved', C.counts.candidates))
       + '<div class="al-dgrid">' + candRulesPanel(C.spec) + candMethodPanel(C) + '</div>'
-      + '<div class="al-dgrid">' + candSetsPanel(C.spec) + candProcessPanel() + '</div>'
-      + candLimitsPanel(C.spec.limits);
+      + candSetsPanel(C.spec)
+      + '<div class="al-dgrid">' + candProcessPanel() + candLimitsPanel(C.spec.limits) + '</div>';
   }
 
   function candRulesPanel(spec) {
@@ -1476,12 +1476,12 @@
     var phase = function (p) { return chip(p === 'HELD_OUT' ? 'info' : 'none', T(PHASE_LABEL[p] || p), '', 'al-chip--sm'); };
     var rows = spec.scenarios.map(function (sc) {
       return '<div class="al-tr al-tr--static" role="row"><span role="cell"><code data-no-i18n>' + esc(sc.id) + '</code></span>'
-        + '<span role="cell">' + phase(sc.phase) + '</span><span role="cell">' + esc(mixTitle(sc.mix)) + '</span>'
+        + '<span role="cell">' + phase(sc.phase) + '</span><span role="cell" class="al-tr-name">' + esc(mixTitle(sc.mix)) + '</span>'
         + '<span role="cell"><span class="al-cell-l">' + esc(T('Shots')) + '</span><span class="al-num" data-no-i18n>' + esc(num(sc.shots)) + '</span></span>'
         + '<span role="cell"><span class="al-cell-l">' + esc(T('Seed')) + '</span><span class="al-num" data-no-i18n>' + esc(String(sc.seed)) + '</span></span></div>';
     }).concat(spec.probeSets.map(function (ps) {
-      return '<div class="al-tr al-tr--static" role="row"><span role="cell">' + esc(T('Property probes')) + '</span>'
-        + '<span role="cell">' + phase(ps.phase) + '</span><span role="cell">' + esc(tf('%d per property', ps.instances)) + '</span>'
+      return '<div class="al-tr al-tr--static" role="row"><span role="cell" class="al-tr-name">' + esc(T('Property probes')) + '</span>'
+        + '<span role="cell">' + phase(ps.phase) + '</span><span role="cell" class="al-tr-name">' + esc(tf('%d per property', ps.instances)) + '</span>'
         + '<span role="cell"><span class="al-cell-l">' + esc(T('Shots')) + '</span><span class="al-num" data-no-i18n>—</span></span>'
         + '<span role="cell"><span class="al-cell-l">' + esc(T('Seed')) + '</span><span class="al-num" data-no-i18n>' + esc(String(ps.seed)) + '</span></span></div>';
     })).join('');

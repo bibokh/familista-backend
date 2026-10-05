@@ -578,13 +578,16 @@ body.al-algorithms-open { overflow: hidden; }
 /* A row that is read, not opened. */
 .al-tr--static { background: rgba(255, 255, 255, .02); border: 1px solid var(--al-line); min-height: 44px; }
 .al-tbl--cand .al-tr, .al-tbl--props .al-tr, .al-tbl--worlds .al-tr, .al-tbl--sets .al-tr { box-sizing: border-box; }
-.al-tbl--cand .al-tr { grid-template-columns: minmax(0, 2fr) 130px 180px minmax(0, 1.2fr) 160px; }
+.al-tbl--cand .al-tr { grid-template-columns: minmax(0, 2fr) 160px 180px minmax(0, 1.2fr) 160px; }
 .al-tbl--props .al-tr { grid-template-columns: minmax(0, 2fr) 128px 128px 128px 132px; }
 .al-tbl--worlds .al-tr { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.05fr) minmax(0, 1.05fr) 132px minmax(0, 1.3fr); }
 .al-tbl--sets .al-tr { grid-template-columns: minmax(0, 1.2fr) 112px minmax(0, 1.4fr) 84px 96px; }
 .al-tbl--worlds { margin-top: 14px; }
-/* A state in a cell wraps inside it rather than reaching past it, whatever the language. */
-.al-tbl--cand .al-chip, .al-tbl--props .al-chip, .al-tbl--worlds .al-chip, .al-tbl--sets .al-chip { max-width: 100%; white-space: normal; }
+/* A cell's content wraps inside it rather than reaching past it, whatever the language:
+   a state chip or stage tag breaks its line, and so does a word too long for its column. */
+.al-tbl--cand .al-chip, .al-tbl--props .al-chip, .al-tbl--worlds .al-chip, .al-tbl--sets .al-chip,
+.al-tbl--cand .al-stage-tag { max-width: 100%; white-space: normal; }
+.al-tbl--cand .al-tr > *, .al-tbl--props .al-tr > *, .al-tbl--worlds .al-tr > *, .al-tbl--sets .al-tr > * { overflow-wrap: anywhere; }
 /* A column's label, drawn inside the cell only when the header row is hidden. */
 .al-cell-l { display: none; }
 

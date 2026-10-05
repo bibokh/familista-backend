@@ -708,11 +708,18 @@ describe('the room draws candidates honestly', () => {
     expect(css).not.toMatch(/margin-left|margin-right|padding-left|padding-right|text-align:\s*(left|right)/);
   });
 
-  it('a state chip in the new tables stays inside its cell in every language', () => {
-    // German and Arabic held-out verdicts are wider than half a phone-width card.
-    expect(css).toMatch(/\.al-tbl--cand \.al-chip,[^{]*\{ max-width: 100%; white-space: normal; \}/);
+  it('a cell in the new tables keeps its content inside it in every language', () => {
+    // German and Arabic held-out verdicts are wider than half a phone-width card,
+    // "Menschliche Freigabe" is wider than a narrow stage column, and a German
+    // compound can be wider than any column it lands in.
+    expect(css).toMatch(/\.al-tbl--cand \.al-chip,[^{]*\.al-tbl--cand \.al-stage-tag \{ max-width: 100%; white-space: normal; \}/);
+    expect(css).toContain('.al-tbl--cand .al-tr > *, .al-tbl--props .al-tr > *, .al-tbl--worlds .al-tr > *, .al-tbl--sets .al-tr > * { overflow-wrap: anywhere; }');
     const hatch = css.slice(css.indexOf('@media (max-width: 980px), (max-height: 620px)'));
     expect(hatch).toContain('.al-tbl--cand .al-tr > :nth-child(2), .al-tbl--cand .al-tr > :nth-child(3) { grid-column: 1 / -1; }');
+    // The five-column table of sets gets the full width; the two lists share a row.
+    expect(js).toContain("+ candSetsPanel(C.spec)\n      + '<div class=\"al-dgrid\">' + candProcessPanel() + candLimitsPanel(C.spec.limits) + '</div>';");
+    // Text cells use the table's type scale, never the page's body size.
+    expect(js).toContain('<span role="cell" class="al-tr-name">\' + esc(T(\'Property probes\'))');
   });
 
   it('every registered algorithm is still exactly where it was on the loop', () => {
