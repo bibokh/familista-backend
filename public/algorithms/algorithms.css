@@ -573,6 +573,50 @@ body.al-algorithms-open { overflow: hidden; }
 .al-bin--h { background: none; border-color: transparent; font-size: 9.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--al-tx-3); }
 .al-bin--thin { border-style: dotted; color: var(--al-tx-3); }
 
+/* ── proposals (Step 4) ───────────────────────────────────────────────── */
+
+/* A row that is read, not opened. */
+.al-tr--static { background: rgba(255, 255, 255, .02); border: 1px solid var(--al-line); min-height: 44px; }
+.al-tbl--cand .al-tr, .al-tbl--props .al-tr, .al-tbl--worlds .al-tr, .al-tbl--sets .al-tr { box-sizing: border-box; }
+.al-tbl--cand .al-tr { grid-template-columns: minmax(0, 2fr) 130px 180px minmax(0, 1.2fr) 160px; }
+.al-tbl--props .al-tr { grid-template-columns: minmax(0, 2fr) 128px 128px 128px 132px; }
+.al-tbl--worlds .al-tr { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.05fr) minmax(0, 1.05fr) 132px minmax(0, 1.3fr); }
+.al-tbl--sets .al-tr { grid-template-columns: minmax(0, 1.2fr) 112px minmax(0, 1.4fr) 84px 96px; }
+.al-tbl--worlds { margin-top: 14px; }
+/* A state in a cell wraps inside it rather than reaching past it, whatever the language. */
+.al-tbl--cand .al-chip, .al-tbl--props .al-chip, .al-tbl--worlds .al-chip, .al-tbl--sets .al-chip { max-width: 100%; white-space: normal; }
+/* A column's label, drawn inside the cell only when the header row is hidden. */
+.al-cell-l { display: none; }
+
+/* Five candidate tabs; every body in one grid cell, so a switch moves nothing. */
+.al-scn-tabs--cand { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+/* A method check: its name and result on one line, what it proves beneath, full width. */
+.al-mcs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.al-mc { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 10px; background: rgba(255, 255, 255, .02); border: 1px solid var(--al-line); }
+.al-mc-h { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; font-size: 12.5px; }
+.al-mc-p { font-size: 11.6px; color: var(--al-tx-2); line-height: 1.55; }
+.al-prose { font-weight: 400; line-height: 1.55; }
+.al-crit-t { color: var(--al-crit); }
+.al-scn-defs--sep, .al-fps--sep { margin-top: 14px; }
+
+/* A code change: an edge and a whisper of tint, never a filled block. */
+.al-diff {
+  margin-top: 12px; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--al-line);
+  background: rgba(255, 255, 255, .02); font-family: var(--al-mono); font-size: 11px;
+}
+.al-diff-h { color: var(--al-tx-3); font-size: 10px; margin-bottom: 6px; }
+.al-diff-l { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 6px; padding: 3px 6px; border-radius: 5px; }
+.al-diff-l code { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.al-diff-l + .al-diff-l { margin-top: 3px; }
+.al-diff-l--del { box-shadow: inset 2px 0 0 var(--al-crit); background: rgba(248, 113, 113, .05); }
+.al-diff-l--add { box-shadow: inset 2px 0 0 var(--al-ok); background: rgba(52, 211, 153, .05); }
+
+.al-ex { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; font-size: 11.6px; color: var(--al-tx-2); line-height: 1.5; }
+.al-ex code { font-family: var(--al-mono); font-size: 11px; color: var(--al-tx); overflow-wrap: anywhere; }
+.al-req { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.al-bins--bands .al-bin { grid-template-columns: 96px 64px 64px minmax(0, 1fr); }
+
 /* ── responsive ───────────────────────────────────────────────────────── */
 
 @media (max-width: 1560px) {
@@ -634,7 +678,17 @@ body.al-algorithms-open { overflow: hidden; }
   .al-lane-list li { grid-template-columns: minmax(0, 1fr) auto; }
   .al-lane-list li > :nth-child(3) { grid-column: 1 / -1; justify-self: start; }
   .al-scn-tabs { grid-template-columns: minmax(0, 1fr); }
+  .al-scn-tabs--cand { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  /* The new tables become two-column cards: the name across the top, figures in pairs beneath. */
+  .al-tbl--cand .al-tr, .al-tbl--props .al-tr, .al-tbl--worlds .al-tr, .al-tbl--sets .al-tr { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .al-tbl--cand .al-tr > *, .al-tbl--props .al-tr > *, .al-tbl--worlds .al-tr > *, .al-tbl--sets .al-tr > * { grid-column: auto; }
+  .al-tbl--cand .al-tr > :first-child, .al-tbl--props .al-tr > :first-child, .al-tbl--worlds .al-tr > :first-child,
+  .al-tbl--worlds .al-tr > :nth-child(5), .al-tbl--sets .al-tr > :nth-child(3) { grid-column: 1 / -1; }
+  /* A candidate's stage and held-out verdict each take a line: two states side by side do not fit every language. */
+  .al-tbl--cand .al-tr > :nth-child(2), .al-tbl--cand .al-tr > :nth-child(3) { grid-column: 1 / -1; }
+  .al-cell-l { display: block; margin-bottom: 2px; font-size: 9.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--al-tx-3); }
   .al-bin { grid-template-columns: 64px 40px 56px minmax(0, 1fr); gap: 6px; }
+  .al-bins--bands .al-bin { grid-template-columns: 64px 48px 48px minmax(0, 1fr); }
   .al-dist-v--base { display: none; }
   .al-days { gap: 3px; }
 }

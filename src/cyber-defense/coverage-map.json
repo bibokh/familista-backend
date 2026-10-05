@@ -541,7 +541,8 @@
       "coverage": "C",
       "controls": [
         "algorithm-change-gate",
-        "algorithm-learning-separation"
+        "algorithm-learning-separation",
+        "algorithm-candidate-isolation"
       ]
     },
     "40": {

@@ -1,0 +1,1088 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "lab/algorithms",
+  "evidence": "SYNTHETIC",
+  "production": "NEVER_RUN",
+  "notice": "Synthetic data: shows how a candidate differs from the approved version and which properties it keeps, not which is more accurate on real matches. Candidates are experimental and never run in production.",
+  "spec": {
+    "version": 1,
+    "algorithms": [
+      "xg"
+    ],
+    "mixes": [
+      {
+        "id": "step3-mix",
+        "title": "Step 3 shot mix",
+        "purpose": "The invented shots Learning uses: from the edge of the area to two metres from goal, with the same body parts, techniques and situations.",
+        "x": [
+          84,
+          118
+        ],
+        "y": [
+          18,
+          62
+        ]
+      },
+      {
+        "id": "close-range",
+        "title": "Close-range shots",
+        "purpose": "Shots from inside 12 metres right up to the goal line, where a change near the goal shows most. Used only for the held-out test.",
+        "x": [
+          108,
+          120
+        ],
+        "y": [
+          30,
+          50
+        ]
+      }
+    ],
+    "worlds": [
+      {
+        "id": "APPROVED",
+        "title": "Outcomes drawn from the approved version",
+        "meaning": "The approved version is right here by construction, so the candidate can only lose: this shows the most the change could cost."
+      },
+      {
+        "id": "CANDIDATE",
+        "title": "Outcomes drawn from the candidate",
+        "meaning": "The candidate is right here by construction, so it can only gain: this shows the most the change could gain."
+      }
+    ],
+    "scenarios": [
+      {
+        "id": "dev-step3",
+        "phase": "DEVELOPMENT",
+        "mix": "step3-mix",
+        "shots": 20000,
+        "seed": 40410001
+      },
+      {
+        "id": "held-step3",
+        "phase": "HELD_OUT",
+        "mix": "step3-mix",
+        "shots": 20000,
+        "seed": 40420001
+      },
+      {
+        "id": "held-close",
+        "phase": "HELD_OUT",
+        "mix": "close-range",
+        "shots": 20000,
+        "seed": 40420002
+      }
+    ],
+    "probeSets": [
+      {
+        "phase": "DEVELOPMENT",
+        "seed": 40410101,
+        "instances": 4000
+      },
+      {
+        "phase": "HELD_OUT",
+        "seed": 40420101,
+        "instances": 4000
+      }
+    ],
+    "properties": {
+      "xg": [
+        {
+          "id": "range",
+          "title": "Every output is a number between 0 and 1",
+          "kind": "RANDOM",
+          "stepOne": "Every shot on a 13 × 9 grid stays between 0 and 1"
+        },
+        {
+          "id": "closer-never-worse",
+          "title": "Moving a shot straight towards the goal never lowers its xG",
+          "kind": "RANDOM",
+          "stepOne": "A shot from further out is worth less"
+        },
+        {
+          "id": "wider-view-never-worse",
+          "title": "At the same distance, a wider view of the goal is never worth less",
+          "kind": "RANDOM",
+          "stepOne": "A shot from a tight angle is worth less than one from the centre"
+        },
+        {
+          "id": "header-never-above-foot",
+          "title": "A header is never worth more than the same shot with the foot",
+          "kind": "RANDOM",
+          "stepOne": "A header is worth less than a shot with the foot"
+        },
+        {
+          "id": "deterministic",
+          "title": "The same shot always gets the same value",
+          "kind": "RANDOM",
+          "stepOne": "The same input gives the same output"
+        },
+        {
+          "id": "penalty-spot-plausible",
+          "title": "A penalty-spot shot is a likely but not certain goal",
+          "kind": "FIXED",
+          "stepOne": "A penalty-spot shot is a likely but not certain goal"
+        }
+      ]
+    },
+    "rules": {
+      "minChangedShots": 30,
+      "minRegionProbes": 100,
+      "ciLevel": 0.95,
+      "alpha": 0.05,
+      "power": 0.8,
+      "bootstrapResamples": 200,
+      "nearGoalShare": 0.5,
+      "nearGoalRadius": 6,
+      "distanceBands": [
+        0,
+        2,
+        4,
+        8,
+        16
+      ]
+    },
+    "justifications": {
+      "minChangedShots": "Below 30 shots that differ, an average of the differences is too lumpy for a normal-approximation interval — the same 30 Learning requires before it reads a bin.",
+      "minRegionProbes": "With 100 probes where the versions differ, a fault present in 3% or more of that region is found with 95% probability (1 − 0.97 to the power 100); with fewer, a pass would say little.",
+      "bracket": "Synthetic outcomes have to be drawn from some model. Drawn from either version, that version wins by construction, so the two worlds bound what is at stake rather than name a winner.",
+      "requiredShots": "A paired Brier test at 5% two-sided and 80% power, from the exact per-shot mean and variance of the difference; its interval resamples the synthetic shots 200 times.",
+      "heldOut": "The verdict reads only held-out seeds and a held-out shot mix that a proposer does not work with. In an open repository they can still be read, so this guards against tuning to sample noise; it is not a blind test.",
+      "probes": "Half of every property’s probes fall within 6 metres of the goal centre, so a change near the goal is exercised; the rest cover the attacking half."
+    },
+    "limits": {
+      "shotsPerScenarioMax": 20000,
+      "scenariosMax": 6,
+      "probeInstancesMax": 4000,
+      "bootstrapResamples": 200,
+      "candidatesMax": 5,
+      "jobTimeoutMs": 60000,
+      "childHeapMb": 256,
+      "maxStdoutBytes": 4194304,
+      "maxStderrBytes": 65536
+    },
+    "conditionalNote": "Conditional on the synthetic assumptions: if real shots looked like this mix and real outcomes followed one of the two versions. It is not a real-world requirement; real data could need far more shots or far fewer."
+  },
+  "methodChecks": {
+    "run": {
+      "state": "COMPLETED",
+      "exitCode": 0,
+      "signal": null,
+      "timeoutMs": 60000,
+      "reasons": []
+    },
+    "checks": [
+      {
+        "id": "identical",
+        "title": "Identical versions",
+        "purpose": "The approved version compared with itself: no shot may change, every difference must be exactly zero, and no property may be reported fixed or broken.",
+        "expected": "NO_CHANGE",
+        "observed": "NO_CHANGE",
+        "passed": true
+      },
+      {
+        "id": "planted-cost",
+        "title": "A planted cost is seen",
+        "purpose": "A version half a log-odds lower everywhere, with outcomes drawn from the approved version: the Brier difference must be positive and its interval clear of zero.",
+        "expected": "COST_SEEN",
+        "observed": "COST_SEEN",
+        "passed": true
+      },
+      {
+        "id": "planted-gain",
+        "title": "A planted gain is seen",
+        "purpose": "The same planted version, with outcomes drawn from it: the Brier difference must be negative and its interval clear of zero.",
+        "expected": "GAIN_SEEN",
+        "observed": "GAIN_SEEN",
+        "passed": true
+      },
+      {
+        "id": "probes-catch",
+        "title": "The probes catch planted breaches",
+        "purpose": "One planted version returns 1.2 beyond x = 115 and another halves xG within 5 m of goal: the range and closer-never-worse probes must catch both.",
+        "expected": "CAUGHT",
+        "observed": "CAUGHT",
+        "passed": true
+      },
+      {
+        "id": "below-floor",
+        "title": "Too few changed shots",
+        "purpose": "A planted change on only a handful of shots: no score bracket may be drawn and the sample-size estimate must be marked unstable.",
+        "expected": "NOT_ENOUGH_DATA",
+        "observed": "NOT_ENOUGH_DATA",
+        "passed": true
+      }
+    ],
+    "measured": {
+      "wallMs": 1293.432368,
+      "startupMs": 845.077258,
+      "evaluationMs": 417.2402749999999,
+      "cpuUserMs": 2080.251,
+      "cpuSystemMs": 121.165,
+      "maxRssBytes": 165928960,
+      "heapUsedBytes": 49349680,
+      "predictions": 234762,
+      "approvedNsPerCall": null,
+      "candidateNsPerCall": null
+    }
+  },
+  "candidates": [
+    {
+      "id": "xg-v1.1",
+      "algorithm": "xg",
+      "file": "lab/algorithms/candidates/xg-v1.1.ts",
+      "status": "EXPERIMENTAL",
+      "approval": "NOT_APPROVED",
+      "declaration": {
+        "id": "xg-v1.1",
+        "algorithm": "xg",
+        "version": "v1.1",
+        "baseline": {
+          "version": "v1.0",
+          "fingerprint": "c9d12afe302d5d60f4966855a2287e4175b57397d64eed2c9fb4ad25a81dfbe5"
+        },
+        "rationale": "The approved model scores the view of the goal with the sine of the opening angle. Within 3.66 m of the goal centre that angle passes 90°, where its sine falls, so moving a shot closer lowers its xG. Clamping the angle at 90° removes that reversal and leaves every shot outside the semicircle exactly as it is.",
+        "hypothesis": {
+          "targets": [
+            "closer-never-worse",
+            "wider-view-never-worse"
+          ],
+          "region": "Only shots within 3.66 m of the goal centre change, and none of them goes down."
+        },
+        "evidence": [
+          {
+            "kind": "MEASUREMENT",
+            "ref": "computeXG v1.0 on the central line",
+            "note": "The approved version returns 0.4965 at 3 m, 0.4574 at 2 m, 0.335 at 1 m and 0.1927 at 0.1 m from the goal centre."
+          },
+          {
+            "kind": "GEOMETRY",
+            "ref": "semicircle of radius 3.66 m on the goal mouth",
+            "note": "Inside a semicircle drawn on the goal mouth the opening angle is wider than 90°, and there its sine shrinks as the angle grows."
+          },
+          {
+            "kind": "PROPERTY",
+            "ref": "Moving a shot straight towards the goal never lowers its xG",
+            "note": "Generalises the Step 1 check that a shot from further out is worth less, from one pair of shots to every line towards the goal."
+          }
+        ],
+        "proposedBy": "AI_ASSISTANT",
+        "proposedAt": "2026-10-04"
+      },
+      "code": {
+        "file": "lab/algorithms/candidates/xg-v1.1.ts",
+        "approvedFile": "src/match-events/xg-model.service.ts",
+        "fingerprint": "ab5c3f2dbdb0d60d6f9fa82b31e86f08ab59d90df2cbc5bce5a8d4086b94b42d",
+        "approvedFingerprint": "c9d12afe302d5d60f4966855a2287e4175b57397d64eed2c9fb4ad25a81dfbe5",
+        "symbols": [
+          {
+            "name": "WEIGHTS",
+            "status": "SAME"
+          },
+          {
+            "name": "GOAL_X",
+            "status": "SAME"
+          },
+          {
+            "name": "GOAL_Y",
+            "status": "SAME"
+          },
+          {
+            "name": "POST_HALF_WIDTH",
+            "status": "SAME"
+          },
+          {
+            "name": "sigmoid",
+            "status": "SAME"
+          },
+          {
+            "name": "computeXG",
+            "status": "CHANGED"
+          }
+        ],
+        "diff": [
+          {
+            "symbol": "computeXG",
+            "removed": [
+              "+ WEIGHTS.angleSin * Math.sin(angleRad);"
+            ],
+            "added": [
+              "+ WEIGHTS.angleSin * Math.sin(Math.min(angleRad, Math.PI / 2));"
+            ]
+          }
+        ],
+        "dependants": [
+          {
+            "key": "xgot",
+            "simulated": true
+          },
+          {
+            "key": "xa",
+            "simulated": true
+          },
+          {
+            "key": "match-rating",
+            "simulated": false
+          }
+        ]
+      },
+      "run": {
+        "state": "COMPLETED",
+        "exitCode": 0,
+        "signal": null,
+        "timeoutMs": 60000,
+        "reasons": []
+      },
+      "results": {
+        "development": {
+          "phase": "DEVELOPMENT",
+          "scenarios": [
+            {
+              "id": "dev-step3",
+              "phase": "DEVELOPMENT",
+              "mix": "step3-mix",
+              "shots": 20000,
+              "seed": 40410001,
+              "invalid": {
+                "approved": 0,
+                "candidate": 0
+              },
+              "divergence": {
+                "changed": 88,
+                "share": {
+                  "value": 0.0044,
+                  "low": 0.0035730429977803768,
+                  "high": 0.005417310135189844
+                },
+                "meanAbsDelta": 0.0000768,
+                "maxIncrease": 0.061600000000000044,
+                "maxDecrease": 0,
+                "bands": [
+                  {
+                    "from": 0,
+                    "to": 2,
+                    "shots": 0,
+                    "changed": 0,
+                    "meanDelta": null
+                  },
+                  {
+                    "from": 2,
+                    "to": 4,
+                    "shots": 133,
+                    "changed": 88,
+                    "meanDelta": 0.017454545454545452
+                  },
+                  {
+                    "from": 4,
+                    "to": 8,
+                    "shots": 792,
+                    "changed": 0,
+                    "meanDelta": null
+                  },
+                  {
+                    "from": 8,
+                    "to": 16,
+                    "shots": 3524,
+                    "changed": 0,
+                    "meanDelta": null
+                  },
+                  {
+                    "from": 16,
+                    "to": null,
+                    "shots": 15551,
+                    "changed": 0,
+                    "meanDelta": null
+                  }
+                ]
+              },
+              "worlds": [
+                {
+                  "world": "APPROVED",
+                  "goals": 1087,
+                  "status": "COMPUTED",
+                  "brierDelta": {
+                    "value": -7.854769999999539e-7,
+                    "low": -0.000022308857684702364,
+                    "high": 0.000020737903684702456
+                  },
+                  "logLossDelta": {
+                    "value": -2.6117992544458235e-7,
+                    "low": -0.00004404677292495032,
+                    "high": 0.000043524413074061154
+                  },
+                  "distinguishable": false,
+                  "required": {
+                    "status": "ESTIMATED",
+                    "point": 2882004.496676758,
+                    "low": 2119448.017310202,
+                    "high": 4278515.990289228,
+                    "reasons": []
+                  }
+                },
+                {
+                  "world": "CANDIDATE",
+                  "goals": 1089,
+                  "status": "COMPUTED",
+                  "brierDelta": {
+                    "value": -0.000006785476999999955,
+                    "low": -0.00002852370645875648,
+                    "high": 0.00001495275245875657
+                  },
+                  "logLossDelta": {
+                    "value": -0.000012437315083002515,
+                    "low": -0.000056660414232281996,
+                    "high": 0.00003178578406627696
+                  },
+                  "distinguishable": false,
+                  "required": {
+                    "status": "ESTIMATED",
+                    "point": 2924897.5260766256,
+                    "low": 2154990.5433650464,
+                    "high": 4353212.019937145,
+                    "reasons": []
+                  }
+                }
+              ]
+            }
+          ],
+          "properties": [
+            {
+              "id": "range",
+              "instances": 4126,
+              "inRegion": 725,
+              "approved": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "candidate": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "outcome": "KEPT",
+              "covered": true
+            },
+            {
+              "id": "closer-never-worse",
+              "instances": 4000,
+              "inRegion": 4000,
+              "approved": {
+                "violations": 3986,
+                "invalid": 0,
+                "example": {
+                  "points": [
+                    {
+                      "x": 82.25,
+                      "y": 17.12,
+                      "bodyPart": "FOOT"
+                    },
+                    {
+                      "x": 93.58,
+                      "y": 23.98,
+                      "bodyPart": "FOOT"
+                    },
+                    {
+                      "x": 101.13,
+                      "y": 28.56,
+                      "bodyPart": "FOOT"
+                    },
+                    {
+                      "x": 106.79,
+                      "y": 31.99,
+                      "bodyPart": "FOOT"
+                    },
+                    {
+                      "x": 110.56,
+                      "y": 34.28,
+                      "bodyPart": "FOOT"
+                    },
+                    {
+                      "x": 113.58,
+                      "y": 36.11,
+                      "bodyPart": "FOOT"
+                    },
+                    {
+                      "x": 115.47,
+                      "y": 37.25,
+                      "bodyPart": "FOOT"
+                    },
+                    {
+                      "x": 116.98,
+                      "y": 38.17,
+                      "bodyPart": "FOOT"
+                    },
+                    {
+                      "x": 118.11,
+                      "y": 38.86,
+                      "bodyPart": "FOOT"
+                    },
+                    {
+                      "x": 118.87,
+                      "y": 39.31,
+                      "bodyPart": "FOOT"
+                    },
+                    {
+                      "x": 119.43,
+                      "y": 39.66,
+                      "bodyPart": "FOOT"
+                    },
+                    {
+                      "x": 119.81,
+                      "y": 39.89,
+                      "bodyPart": "FOOT"
+                    }
+                  ],
+                  "values": [
+                    0.0036,
+                    0.0146,
+                    0.0394,
+                    0.0889,
+                    0.1643,
+                    0.2877,
+                    0.4102,
+                    0.4919,
+                    0.4566,
+                    0.3576,
+                    0.2636,
+                    0.205
+                  ]
+                }
+              },
+              "candidate": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "outcome": "FIXED",
+              "covered": true
+            },
+            {
+              "id": "wider-view-never-worse",
+              "instances": 4000,
+              "inRegion": 739,
+              "approved": {
+                "violations": 723,
+                "invalid": 0,
+                "example": {
+                  "points": [
+                    {
+                      "x": 119.77,
+                      "y": 38.11,
+                      "bodyPart": "FOOT"
+                    },
+                    {
+                      "x": 118.57,
+                      "y": 41.25,
+                      "bodyPart": "FOOT"
+                    }
+                  ],
+                  "values": [
+                    0.1586,
+                    0.3462
+                  ]
+                }
+              },
+              "candidate": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "outcome": "FIXED",
+              "covered": true
+            },
+            {
+              "id": "header-never-above-foot",
+              "instances": 4000,
+              "inRegion": 766,
+              "approved": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "candidate": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "outcome": "KEPT",
+              "covered": true
+            },
+            {
+              "id": "deterministic",
+              "instances": 4000,
+              "inRegion": 728,
+              "approved": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "candidate": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "outcome": "KEPT",
+              "covered": true
+            },
+            {
+              "id": "penalty-spot-plausible",
+              "instances": 1,
+              "inRegion": 0,
+              "approved": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "candidate": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "outcome": "KEPT",
+              "covered": true
+            }
+          ]
+        },
+        "heldOut": {
+          "phase": "HELD_OUT",
+          "scenarios": [
+            {
+              "id": "held-step3",
+              "phase": "HELD_OUT",
+              "mix": "step3-mix",
+              "shots": 20000,
+              "seed": 40420001,
+              "invalid": {
+                "approved": 0,
+                "candidate": 0
+              },
+              "divergence": {
+                "changed": 90,
+                "share": {
+                  "value": 0.0045,
+                  "low": 0.0036627625658745694,
+                  "high": 0.005527552158473179
+                },
+                "meanAbsDelta": 0.00007206000000000001,
+                "maxIncrease": 0.06839999999999996,
+                "maxDecrease": 0,
+                "bands": [
+                  {
+                    "from": 0,
+                    "to": 2,
+                    "shots": 0,
+                    "changed": 0,
+                    "meanDelta": null
+                  },
+                  {
+                    "from": 2,
+                    "to": 4,
+                    "shots": 133,
+                    "changed": 90,
+                    "meanDelta": 0.016013333333333338
+                  },
+                  {
+                    "from": 4,
+                    "to": 8,
+                    "shots": 791,
+                    "changed": 0,
+                    "meanDelta": null
+                  },
+                  {
+                    "from": 8,
+                    "to": 16,
+                    "shots": 3634,
+                    "changed": 0,
+                    "meanDelta": null
+                  },
+                  {
+                    "from": 16,
+                    "to": null,
+                    "shots": 15442,
+                    "changed": 0,
+                    "meanDelta": null
+                  }
+                ]
+              },
+              "worlds": [
+                {
+                  "world": "APPROVED",
+                  "goals": 1049,
+                  "status": "COMPUTED",
+                  "brierDelta": {
+                    "value": 0.0000036687179999999862,
+                    "low": -0.00001699588418206765,
+                    "high": 0.000024333320182067622
+                  },
+                  "logLossDelta": {
+                    "value": 0.000008296980159642672,
+                    "low": -0.00003399328823159602,
+                    "high": 0.000050587248550881356
+                  },
+                  "distinguishable": false,
+                  "required": {
+                    "status": "ESTIMATED",
+                    "point": 3265286.7473745574,
+                    "low": 2283387.0424019657,
+                    "high": 5249331.6540732635,
+                    "reasons": []
+                  }
+                },
+                {
+                  "world": "CANDIDATE",
+                  "goals": 1051,
+                  "status": "COMPUTED",
+                  "brierDelta": {
+                    "value": 3.3871799999998126e-7,
+                    "low": -0.000020356747989817884,
+                    "high": 0.00002103418398981785
+                  },
+                  "logLossDelta": {
+                    "value": 0.0000015781824078939937,
+                    "low": -0.00004077466639790237,
+                    "high": 0.00004393103121369036
+                  },
+                  "distinguishable": false,
+                  "required": {
+                    "status": "ESTIMATED",
+                    "point": 3337154.666813577,
+                    "low": 2338913.7276985403,
+                    "high": 5382677.128144463,
+                    "reasons": []
+                  }
+                }
+              ]
+            },
+            {
+              "id": "held-close",
+              "phase": "HELD_OUT",
+              "mix": "close-range",
+              "shots": 20000,
+              "seed": 40420002,
+              "invalid": {
+                "approved": 0,
+                "candidate": 0
+              },
+              "divergence": {
+                "changed": 1747,
+                "share": {
+                  "value": 0.08735,
+                  "low": 0.08351568649516318,
+                  "high": 0.0913428066854667
+                },
+                "meanAbsDelta": 0.00917012000000002,
+                "maxIncrease": 0.3888,
+                "maxDecrease": 0,
+                "bands": [
+                  {
+                    "from": 0,
+                    "to": 2,
+                    "shots": 471,
+                    "changed": 471,
+                    "meanDelta": 0.22055138004246289
+                  },
+                  {
+                    "from": 2,
+                    "to": 4,
+                    "shots": 1619,
+                    "changed": 1276,
+                    "meanDelta": 0.06232186520376172
+                  },
+                  {
+                    "from": 4,
+                    "to": 8,
+                    "shots": 6333,
+                    "changed": 0,
+                    "meanDelta": null
+                  },
+                  {
+                    "from": 8,
+                    "to": 16,
+                    "shots": 11577,
+                    "changed": 0,
+                    "meanDelta": null
+                  },
+                  {
+                    "from": 16,
+                    "to": null,
+                    "shots": 0,
+                    "changed": 0,
+                    "meanDelta": null
+                  }
+                ]
+              },
+              "worlds": [
+                {
+                  "world": "APPROVED",
+                  "goals": 3918,
+                  "status": "COMPUTED",
+                  "brierDelta": {
+                    "value": 0.002139562960000003,
+                    "low": 0.0016054621025458665,
+                    "high": 0.0026736638174541393
+                  },
+                  "logLossDelta": {
+                    "value": 0.004666564841766955,
+                    "low": 0.003452535834216364,
+                    "high": 0.005880593849317547
+                  },
+                  "distinguishable": true,
+                  "required": {
+                    "status": "ESTIMATED",
+                    "point": 2917.5031818315115,
+                    "low": 2692.8870690872327,
+                    "high": 3215.979376600357,
+                    "reasons": []
+                  }
+                },
+                {
+                  "world": "CANDIDATE",
+                  "goals": 4096,
+                  "status": "COMPUTED",
+                  "brierDelta": {
+                    "value": -0.0018707370399999959,
+                    "low": -0.0025105974725595104,
+                    "high": -0.0012308766074404815
+                  },
+                  "logLossDelta": {
+                    "value": -0.004724315115220247,
+                    "low": -0.0062323636930091296,
+                    "high": -0.0032162665374313648
+                  },
+                  "distinguishable": true,
+                  "required": {
+                    "status": "ESTIMATED",
+                    "point": 4128.653310714266,
+                    "low": 3840.5477787777545,
+                    "high": 4488.9605062334,
+                    "reasons": []
+                  }
+                }
+              ]
+            }
+          ],
+          "properties": [
+            {
+              "id": "range",
+              "instances": 4126,
+              "inRegion": 773,
+              "approved": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "candidate": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "outcome": "KEPT",
+              "covered": true
+            },
+            {
+              "id": "closer-never-worse",
+              "instances": 4000,
+              "inRegion": 4000,
+              "approved": {
+                "violations": 3984,
+                "invalid": 0,
+                "example": {
+                  "points": [
+                    {
+                      "x": 69.74,
+                      "y": 34.8,
+                      "bodyPart": "HEAD"
+                    },
+                    {
+                      "x": 84.82,
+                      "y": 36.36,
+                      "bodyPart": "HEAD"
+                    },
+                    {
+                      "x": 94.87,
+                      "y": 37.4,
+                      "bodyPart": "HEAD"
+                    },
+                    {
+                      "x": 102.41,
+                      "y": 38.18,
+                      "bodyPart": "HEAD"
+                    },
+                    {
+                      "x": 107.44,
+                      "y": 38.7,
+                      "bodyPart": "HEAD"
+                    },
+                    {
+                      "x": 111.46,
+                      "y": 39.12,
+                      "bodyPart": "HEAD"
+                    },
+                    {
+                      "x": 113.97,
+                      "y": 39.38,
+                      "bodyPart": "HEAD"
+                    },
+                    {
+                      "x": 115.98,
+                      "y": 39.58,
+                      "bodyPart": "HEAD"
+                    },
+                    {
+                      "x": 117.49,
+                      "y": 39.74,
+                      "bodyPart": "HEAD"
+                    },
+                    {
+                      "x": 118.49,
+                      "y": 39.84,
+                      "bodyPart": "HEAD"
+                    },
+                    {
+                      "x": 119.25,
+                      "y": 39.92,
+                      "bodyPart": "HEAD"
+                    },
+                    {
+                      "x": 119.75,
+                      "y": 39.97,
+                      "bodyPart": "HEAD"
+                    }
+                  ],
+                  "values": [
+                    0.0013,
+                    0.0065,
+                    0.0201,
+                    0.0508,
+                    0.1021,
+                    0.1933,
+                    0.2941,
+                    0.3845,
+                    0.3936,
+                    0.3199,
+                    0.2227,
+                    0.1576
+                  ]
+                }
+              },
+              "candidate": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "outcome": "FIXED",
+              "covered": true
+            },
+            {
+              "id": "wider-view-never-worse",
+              "instances": 4000,
+              "inRegion": 734,
+              "approved": {
+                "violations": 717,
+                "invalid": 0,
+                "example": {
+                  "points": [
+                    {
+                      "x": 118.75,
+                      "y": 42.11,
+                      "bodyPart": "FOOT"
+                    },
+                    {
+                      "x": 117.57,
+                      "y": 39.68,
+                      "bodyPart": "FOOT"
+                    }
+                  ],
+                  "values": [
+                    0.4533,
+                    0.5207
+                  ]
+                }
+              },
+              "candidate": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "outcome": "FIXED",
+              "covered": true
+            },
+            {
+              "id": "header-never-above-foot",
+              "instances": 4000,
+              "inRegion": 708,
+              "approved": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "candidate": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "outcome": "KEPT",
+              "covered": true
+            },
+            {
+              "id": "deterministic",
+              "instances": 4000,
+              "inRegion": 718,
+              "approved": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "candidate": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "outcome": "KEPT",
+              "covered": true
+            },
+            {
+              "id": "penalty-spot-plausible",
+              "instances": 1,
+              "inRegion": 0,
+              "approved": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "candidate": {
+                "violations": 0,
+                "invalid": 0,
+                "example": null
+              },
+              "outcome": "KEPT",
+              "covered": true
+            }
+          ]
+        }
+      },
+      "verdict": {
+        "test": "PASSED",
+        "reasons": [],
+        "agreement": "AGREE"
+      },
+      "measured": {
+        "wallMs": 1425.520869,
+        "startupMs": 682.646807,
+        "evaluationMs": 626.6741720000001,
+        "cpuUserMs": 2226.959,
+        "cpuSystemMs": 44.062,
+        "maxRssBytes": 158474240,
+        "heapUsedBytes": 55215192,
+        "predictions": 424508,
+        "approvedNsPerCall": 413.8964,
+        "candidateNsPerCall": 374.1578
+      }
+    }
+  ],
+  "measured": {
+    "generatedAt": "2026-10-05T16:12:45.358Z",
+    "node": "v22.22.0",
+    "platform": "linux-x64"
+  }
+}

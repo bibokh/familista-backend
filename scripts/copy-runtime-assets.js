@@ -40,6 +40,12 @@ const ASSETS = [
   // that code is compared with is written next, by scripts/algorithms-seal.js.
   ['src/algorithms/fingerprint-core.js',
    'dist/algorithms/fingerprint-core.js'],
+  // What the algorithm lab found about each candidate: written by
+  // lab/algorithms/ (which is NOT compiled into dist) and re-derived by CI.
+  // The server validates and shows it (src/algorithms/candidate-evidence.ts);
+  // it is the only thing of the lab's that ships, and it is data, never code.
+  ['src/algorithms/generated/candidate-evidence.json',
+   'dist/algorithms/generated/candidate-evidence.json'],
 ];
 
 let copied = 0;

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-04T21:34:08.897Z",
+  "generatedAt": "2026-10-05T16:31:10.844Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 54,
-    "handlers": 751,
+    "handlers": 753,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -301,7 +301,7 @@
       {
         "path": "/system/algorithms",
         "module": "algorithms.routes",
-        "handlers": 6,
+        "handlers": 8,
         "public": 0,
         "routerWideAuth": true
       },
@@ -571,9 +571,9 @@
       "src/services/vision-realtime.service.ts"
     ],
     "tenancy": {
-      "idParameters": 348,
+      "idParameters": 349,
       "guarded": 136,
-      "exempt": 212,
+      "exempt": 213,
       "unguarded": [],
       "staleExemptions": [],
       "routerWideTenantGuardMounts": [],
@@ -591,7 +591,7 @@
         },
         "algorithms.routes": {
           "guarded": 0,
-          "exempt": 3,
+          "exempt": 4,
           "unguarded": 0
         },
         "analytics.routes": {
@@ -802,13 +802,13 @@
       }
     },
     "authorization": {
-      "handlers": 751,
+      "handlers": 753,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 84
+        "platform-owner": 86
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -826,7 +826,7 @@
           "member": 3
         },
         "algorithms.routes": {
-          "platform-owner": 6
+          "platform-owner": 8
         },
         "analytics.routes": {
           "member": 4,
@@ -1334,6 +1334,8 @@
         "GET /system/algorithms/:key": "platform-owner",
         "GET /system/algorithms/:key/learning": "platform-owner",
         "GET /system/algorithms/:key/monitoring": "platform-owner",
+        "GET /system/algorithms/candidates": "platform-owner",
+        "GET /system/algorithms/candidates/:id": "platform-owner",
         "GET /system/algorithms/learning": "platform-owner",
         "GET /system/algorithms/monitoring": "platform-owner",
         "GET /system/analytics/platform": "platform-owner",
@@ -1972,7 +1974,7 @@
       "id": "tenant-guard",
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
-      "note": "136 of 348 route id parameter(s) checked against the caller's club before the handler; 212 exempted by name with a reason; 0 unguarded."
+      "note": "136 of 349 route id parameter(s) checked against the caller's club before the handler; 213 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "franchise-club-attach-authorised",
@@ -2189,7 +2191,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "751 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 84 platform-owner; every member-level handler reviewed by name."
+      "note": "753 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 86 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2226,6 +2228,12 @@
       "status": "PRESENT",
       "evidence": "src/algorithms/learning.ts",
       "note": "Algorithm learning is synthetic only: every synthetic result is labelled SYNTHETIC and none is presented as real-world accuracy; the real-world lane is disabled, no learning file reads a database, a club record or health data, and synthetic runs never enter production telemetry; a run is bounded by slices and a time budget; only the platform owner reads it, read-only."
+    },
+    {
+      "id": "algorithm-candidate-isolation",
+      "status": "PRESENT",
+      "evidence": "src/algorithms/candidates.ts",
+      "note": "Algorithm candidates never run in production: their code and the comparison engine live in lab/, outside the build, and nothing in src/ imports them; each runs only in CI or on a developer machine, in a separate process with an empty environment, a capped heap and output, and a parent-enforced timeout that kills its whole process group; a candidate file imports types only and has no I/O, globals or clock; the server reads only the schema-validated evidence file, where every candidate is experimental and not approved, and none can pass the deployment gate; only the platform owner reads it, read-only."
     },
     {
       "id": "security-alert-delivery",
@@ -2773,13 +2781,31 @@
       "SECURITY.md",
       "docs/security/disaster-recovery.md",
       "docs/security/secrets-rotation.md",
+      "lab/algorithms/candidates/index.ts",
+      "lab/algorithms/candidates/xg-v1.1.ts",
+      "lab/algorithms/child.ts",
+      "lab/algorithms/cli.ts",
+      "lab/algorithms/engine/code.ts",
+      "lab/algorithms/engine/compare.ts",
+      "lab/algorithms/engine/judge.ts",
+      "lab/algorithms/engine/method-checks.ts",
+      "lab/algorithms/engine/properties.ts",
+      "lab/algorithms/engine/shots.ts",
+      "lab/algorithms/engine/stats.ts",
+      "lab/algorithms/evidence.ts",
+      "lab/algorithms/jobs.ts",
+      "lab/algorithms/runner.ts",
+      "lab/algorithms/spec.ts",
       "package-lock.json",
       "prisma/migrations",
       "prisma/schema.prisma",
       "render.yaml",
       "scripts/backup.sh",
+      "scripts/copy-runtime-assets.js",
       "scripts/restore.sh",
       "scripts/rollback.sh",
+      "src/algorithms/candidate-evidence.ts",
+      "src/algorithms/candidates.ts",
       "src/algorithms/learning-spec.ts",
       "src/algorithms/learning-stats.ts",
       "src/algorithms/learning-synthetic.ts",
@@ -2918,11 +2944,12 @@
       "src/utils/password.ts",
       "src/video/video-asset.service.ts",
       "src/workers/ai-agent.worker.ts",
-      "src/workers/notification-dispatch.worker.ts"
+      "src/workers/notification-dispatch.worker.ts",
+      "tsconfig.json"
     ]
   },
   "counts": {
-    "controlsPresent": 75,
+    "controlsPresent": 76,
     "controlsPartial": 1,
     "controlsAbsent": 1,
     "cryptoUses": 10

@@ -49,6 +49,9 @@
 
 import { z } from 'zod';
 import { CONFIG_VALUES } from '../cyber-defense/control-plane/registry';
+import {
+  CandidateEntrySchema, LabMethodCheckSchema, LabRunStateSchema, LabSpecSchema,
+} from '../algorithms/candidate-evidence';
 
 // ── shared leaves ────────────────────────────────────────────────────────────
 
@@ -1100,6 +1103,45 @@ export const AlgLearningDetailSchema = z.object({
   servedFromCache: z.boolean(),
 }).strict();
 
+// ── Algorithms — candidates (Step 4) ─────────────────────────────────────────
+//
+// Read from the evidence the lab wrote and CI re-derives; the server runs no
+// candidate. `evidence`, `production`, `status`, `approval` and `deployable`
+// are literals: a response that ever called a candidate approved, deployable
+// or run in production fails here.
+
+const CandidateTestEnum = z.enum(['PASSED', 'FAILED', 'INCONCLUSIVE', 'UNAVAILABLE']);
+export const AlgCandidateSummarySchema = z.object({
+  id: z.string().min(1), algorithm: z.string().min(1),
+  version: z.string().min(1).nullable(), baselineVersion: z.string().min(1).nullable(),
+  status: z.literal('EXPERIMENTAL'), approval: z.literal('NOT_APPROVED'),
+  stage: LoopStageEnum, gate: GateEnum, deployable: z.literal(false),
+  test: CandidateTestEnum, runState: LabRunStateSchema,
+  freshness: z.enum(['CURRENT', 'STALE']), staleReasons: z.array(z.string().min(1)),
+  changedShare: z.number().nullable(),
+  properties: z.object({ kept: Count, fixed: Count, broken: Count, stillFailing: Count }).strict(),
+}).strict();
+export const AlgorithmsCandidatesSchema = z.object({
+  state: z.enum(['READY', 'NOT_GENERATED', 'INVALID']), reason: z.string().min(1).nullable(),
+  evidence: z.literal('SYNTHETIC'), production: z.literal('NEVER_RUN'), notice: z.string().min(1),
+  generatedAt: z.string().min(1).nullable(), spec: LabSpecSchema.nullable(),
+  methodChecks: z.object({ passed: Count, total: Count, runState: LabRunStateSchema.nullable(), checks: z.array(LabMethodCheckSchema) }).strict(),
+  counts: z.object({ candidates: Count, awaitingApproval: Count, returned: Count, inTest: Count, unavailable: Count }).strict(),
+  candidates: z.array(AlgCandidateSummarySchema),
+}).strict();
+export const AlgCandidateDetailSchema = AlgCandidateSummarySchema.extend({
+  evidence: z.literal('SYNTHETIC'), production: z.literal('NEVER_RUN'), notice: z.string().min(1),
+  generatedAt: z.string().min(1), spec: LabSpecSchema,
+  methodChecks: z.object({ passed: Count, total: Count }).strict(),
+  path: z.array(LoopStageEnum).min(1),
+  dependants: z.array(z.object({ key: z.string().min(1), name: z.string().min(1), simulated: z.boolean() }).strict()),
+  approvalNeeds: z.object({
+    version: z.string().min(1).nullable(), fingerprint: z.string().min(1).nullable(),
+    approvedVersion: z.string().min(1).nullable(), approvedFingerprint: z.string().min(1).nullable(),
+  }).strict(),
+  entry: CandidateEntrySchema,
+}).strict();
+
 // ── the registry ─────────────────────────────────────────────────────────────
 
 export interface ApiContract {
@@ -1288,6 +1330,16 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     schema: AlgLearningDetailSchema, consumer: 'public/algorithms/algorithms.js',
     reads: ['status', 'reason', 'derivedFrom', 'evidence', 'notice', 'realWorld', 'synthetic', 'servedFromCache'],
   },
+  {
+    endpoint: '/system/algorithms/candidates', module: 'Algorithms',
+    schema: AlgorithmsCandidatesSchema, consumer: 'public/algorithms/algorithms.js',
+    reads: ['state', 'reason', 'evidence', 'production', 'notice', 'generatedAt', 'spec', 'methodChecks', 'counts', 'candidates'],
+  },
+  {
+    endpoint: '/system/algorithms/candidates/xg-v1.1', module: 'Algorithms',
+    schema: AlgCandidateDetailSchema, consumer: 'public/algorithms/algorithms.js',
+    reads: ['stage', 'gate', 'deployable', 'test', 'freshness', 'staleReasons', 'path', 'dependants', 'approvalNeeds', 'entry', 'methodChecks', 'spec', 'notice'],
+  },
 ];
 
 // ── the compile-time pin ─────────────────────────────────────────────────────
@@ -1349,7 +1401,13 @@ const _learnDetail: Exact<z.infer<typeof AlgLearningDetailSchema>, AlgorithmLear
 const _learnRun: Exact<z.infer<typeof SyntheticEvaluationSchema>, SyntheticEvaluation> = true;
 const _learnScenario: Exact<z.infer<typeof SyntheticScenarioResultSchema>, SyntheticScenarioResult> = true;
 const _learnMetrics: Exact<z.infer<typeof LearnMetricsSchema>, LearnMetrics> = true;
+
+import type { CandidatesOverview, CandidateSummary, CandidateDetail } from '../algorithms/candidates';
+const _candOverview: Exact<z.infer<typeof AlgorithmsCandidatesSchema>, CandidatesOverview> = true;
+const _candSummary: Exact<z.infer<typeof AlgCandidateSummarySchema>, CandidateSummary> = true;
+const _candDetail: Exact<z.infer<typeof AlgCandidateDetailSchema>, CandidateDetail> = true;
 void [_learnOverview, _learnSummary, _learnDetail, _learnRun, _learnScenario, _learnMetrics];
+void [_candOverview, _candSummary, _candDetail];
 void [_component, _district, _relationship, _technology, _signal, _incident, _rule,
   _source, _control, _stage, _impact,
   _ccOverview, _ccDomain, _ccDetail, _ccArea, _ccStage, _ccRls, _ccEvents, _ccPosture];
