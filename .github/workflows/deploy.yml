@@ -13,6 +13,12 @@
 #
 # Required secret (repo Settings → Secrets and variables → Actions):
 #   • RENDER_DEPLOY_HOOK_URL  — Render → Service → Settings → Deploy Hook
+#
+# What this workflow can say, and what it cannot: it knows which commit it
+# asked Render to deploy and whether Render ACCEPTED the request (the deploy id
+# Render answers with). It cannot see whether that deploy went LIVE — Render's
+# dashboard can, and a person checks it there. The run summary says both (and
+# is skipped, not failed, where a runner provides no summary file).
 
 name: deploy
 
@@ -61,6 +67,7 @@ jobs:
           else
             echo "::notice::main has moved past the tested commit; its own CI run will deploy it"
             echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "### Not deployed: main has moved past the tested commit; its own CI run deploys it." >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
           fi
 
       # Cyber Defense, Step 9: every value arrives through `env`, never by
@@ -83,6 +90,20 @@ jobs:
           reason="${reason:-ci-success}"
           ref="$(printf '%s' "$DEPLOY_REF" | tr -cd '0-9a-f' | cut -c1-40)"
           echo "Triggering Render deploy (reason: ${reason})"
-          curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL" \
+          response="$(curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL" \
             -H 'content-type: application/json' \
-            -d "{\"reason\":\"${reason}\",\"ref\":\"${ref}\"}"
+            -d "{\"reason\":\"${reason}\",\"ref\":\"${ref}\"}")"
+          # Render answers with the id of the deploy it queued. Only that id is
+          # kept, reduced to a safe token: never the response, never the hook URL.
+          deploy_id="$(printf '%s' "$response" | { grep -o 'dep-[A-Za-z0-9][A-Za-z0-9]*' || true; } | head -n 1 | tr -cd 'A-Za-z0-9-' | cut -c1-64)"
+          echo "Render accepted the deploy hook (deploy: ${deploy_id:-not reported})"
+          {
+            echo "### Render deploy requested"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Commit | \`${ref}\` |"
+            echo "| Reason | ${reason} |"
+            echo "| Render deploy | \`${deploy_id:-not reported}\` |"
+            echo "| Live | **Not confirmed by this workflow.** Open this deploy in the Render dashboard and check that it reached Live. |"
+          } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"

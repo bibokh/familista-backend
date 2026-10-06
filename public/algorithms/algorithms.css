@@ -276,7 +276,7 @@ body.al-algorithms-open { overflow: hidden; }
   display: grid; grid-template-columns: minmax(0, 2.2fr) 80px 120px 190px 160px; gap: 12px; align-items: center;
   padding: 9px 12px; border-radius: 10px; text-align: start; font-family: inherit; color: var(--al-tx); width: 100%;
 }
-.al-tbl--appr .al-tr { grid-template-columns: minmax(0, 2.2fr) 130px 120px 190px; }
+.al-tbl--appr .al-tr { grid-template-columns: minmax(0, 1.6fr) 104px 96px minmax(150px, 1fr) minmax(150px, 1fr) 184px; }
 .al-tr--h { font-size: 9.5px; font-weight: 800; letter-spacing: 1.1px; text-transform: uppercase; color: var(--al-tx-3); padding-block: 4px; }
 .al-tr--row { background: rgba(255, 255, 255, .02); border: 1px solid var(--al-line); cursor: pointer; min-height: 52px; }
 .al-tr--row:hover { border-color: rgba(232, 168, 255, .30); }
@@ -342,7 +342,7 @@ body.al-algorithms-open { overflow: hidden; }
 .al-ahead-s { font-size: 13.5px; line-height: 1.6; color: var(--al-tx); margin: 8px 0 14px; }
 .al-kv { display: flex; flex-direction: column; gap: 8px; }
 .al-kv-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; align-items: baseline; font-size: 12px; }
-.al-kv-row > span { color: var(--al-tx-3); }
+.al-kv-row > span { color: var(--al-tx-3); min-width: 0; overflow-wrap: anywhere; hyphens: auto; }
 .al-kv-row > b { font-weight: 600; color: var(--al-tx); min-width: 0; overflow-wrap: anywhere; }
 .al-ports { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .al-ports li {
@@ -591,6 +591,23 @@ body.al-algorithms-open { overflow: hidden; }
 /* A column's label, drawn inside the cell only when the header row is hidden. */
 .al-cell-l { display: none; }
 
+/* ── releases (Step 5) ────────────────────────────────────────────────── */
+
+.al-tbl--appr .al-tr, .al-tbl--rel .al-tr { box-sizing: border-box; }
+.al-tbl--rel .al-tr { grid-template-columns: minmax(0, .8fr) minmax(0, .7fr) minmax(0, 1.9fr); }
+.al-tbl--appr .al-chip, .al-tbl--rel .al-chip { max-width: 100%; white-space: normal; }
+.al-tbl--appr .al-tr > *, .al-tbl--rel .al-tr > * { overflow-wrap: anywhere; }
+.al-chip--skel {
+  width: 104px; box-sizing: border-box; color: transparent; border-color: transparent;
+  background: linear-gradient(90deg, rgba(255, 255, 255, .028), rgba(255, 255, 255, .05), rgba(255, 255, 255, .028));
+}
+/* One change approval: a hairline card, its rows read, never opened. */
+.al-change { padding: 14px 16px; border-radius: 12px; border: 1px solid var(--al-line); background: rgba(255, 255, 255, .02); }
+.al-change + .al-change { margin-top: 10px; }
+.al-change .al-kv-row { grid-template-columns: 190px minmax(0, 1fr); }
+.al-dep { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
+.al-dep b { font-weight: 600; }
+
 /* Five candidate tabs; every body in one grid cell, so a switch moves nothing. */
 .al-scn-tabs--cand { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 
@@ -641,6 +658,12 @@ body.al-algorithms-open { overflow: hidden; }
   .al-tr { grid-template-columns: minmax(0, 1.6fr) 70px 110px 170px 140px; }
 }
 @media (max-width: 1160px) {
+  /* Six columns do not fit beside the rail below this width: each approval becomes a card. */
+  .al-tbl--appr .al-tr { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .al-tbl--appr .al-tr > * { grid-column: auto; }
+  .al-tbl--appr .al-tr > :first-child, .al-tbl--appr .al-tr > :nth-child(6) { grid-column: 1 / -1; }
+  .al-tbl--appr .al-tr--h { display: none; }
+  .al-tbl--appr .al-cell-l { display: block; margin-bottom: 2px; font-size: 9.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--al-tx-3); }
   .al-dgrid, .al-ahead { grid-template-columns: minmax(0, 1fr); }
   .al-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .al-check { grid-template-columns: 18px minmax(0, 1fr); }
@@ -668,8 +691,12 @@ body.al-algorithms-open { overflow: hidden; }
   .al-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .al-guar-i { grid-template-columns: auto minmax(0, 1fr); }
   .al-guar-b { grid-column: 2; }
-  .al-tr, .al-tbl--appr .al-tr { grid-template-columns: minmax(0, 1fr) auto; }
+  .al-tr, .al-tbl--rel .al-tr { grid-template-columns: minmax(0, 1fr) auto; }
   .al-tr > :nth-child(n+3) { grid-column: 1 / -1; }
+  /* On a phone the kind sits beside the version; each state takes a line of its own, so no chip wraps when it arrives. */
+  .al-tbl--appr .al-tr { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .al-tbl--appr .al-tr > :nth-child(3) { grid-column: auto; }
+  .al-change .al-kv-row { grid-template-columns: minmax(0, 1fr); }
   .al-tr--h { display: none; }
   .al-kv-row { grid-template-columns: minmax(0, 1fr); gap: 3px; }
   .al-vers li { grid-template-columns: auto minmax(0, 1fr); }

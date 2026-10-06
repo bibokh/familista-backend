@@ -1,15 +1,21 @@
 // Familista — what a lab child process does: one job, reported as JSON lines
 // ─────────────────────────────────────────────────────────────────────────────
-// Runs ONLY inside a child process started by runner.ts. Two jobs exist:
+// Runs ONLY inside a child process started by runner.ts. Three jobs exist:
 //
 //   method-checks       the comparison method checks itself on planted versions
 //   candidate:<id>      one candidate from the allow-list, against the
 //                       approved version, on the development and the held-out
 //                       sets
+//   release:<id>        the same evidence for a candidate being promoted
+//                       (release/dossier.ts), plus what the promotion does to
+//                       each dependant the release tool can run
 //
-// A job names an id, never a path: the file comes from the allow-list
-// (candidates/index.ts). Tests may point at a fixture allow-list, and only one
-// under tests/fixtures/lab/.
+// A job names an id, never a path: a candidate's file comes from the
+// allow-list (candidates/index.ts). Tests may point at a fixture allow-list,
+// and only one under tests/fixtures/lab/. A release job reads three modules
+// from the one directory its parent made for it (RELEASE_DIR) — the approved
+// file, the candidate and the promoted file, each checked by fingerprint
+// before it was written there — and loads nothing else.
 //
 // For a candidate the child reports its declaration FIRST — so a run that is
 // later killed still says what was proposed — then its results and what the
@@ -20,10 +26,13 @@ import * as path from 'path';
 import { performance } from 'perf_hooks';
 import { computeXG, type ShotFeatures } from '../../src/match-events/xg-model.service';
 import { CANDIDATE_INDEX, type CandidateIndexEntry } from './candidates';
-import { ENTRY_POINT, PROBE_SETS, SCENARIOS, TIMING_SEED, type CandidateAlgorithm, type Phase } from './spec';
+import { CANDIDATE_ALGORITHMS, ENTRY_POINT, PROBE_SETS, SCENARIOS, TIMING_SEED, type CandidateAlgorithm, type Phase } from './spec';
+import { dependantsOf } from './engine/code';
 import { evaluatePhase, type Counter } from './engine/compare';
 import { runMethodChecks } from './engine/method-checks';
 import { drawShot, seeded, type Fn } from './engine/shots';
+import { simulateDependant } from './release/dependants';
+import { DEPENDANT_SIMULATIONS, RELEASE_DIR, RELEASE_FILES } from './release/spec';
 
 const APPROVED: Readonly<Record<CandidateAlgorithm, Fn>> = { xg: computeXG };
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -40,6 +49,14 @@ function allowList(): { index: readonly CandidateIndexEntry[]; dir: string } {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const mod = require(file) as { CANDIDATE_INDEX: readonly CandidateIndexEntry[] };
   return { index: mod.CANDIDATE_INDEX, dir: path.dirname(file) };
+}
+
+function releaseModules(): Record<keyof typeof RELEASE_FILES, Record<string, unknown>> {
+  const dir = process.env.LAB_RELEASE_DIR ?? '';
+  if (!path.isAbsolute(dir) || !RELEASE_DIR.test(path.basename(dir))) throw new Error('a release job reads only the directory its parent prepared');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const load = (name: string) => require(path.join(dir, name)) as Record<string, unknown>;
+  return { approved: load(RELEASE_FILES.approved), candidate: load(RELEASE_FILES.candidate), promoted: load(RELEASE_FILES.promoted) };
 }
 
 const probeSet = (phase: Phase) => {
@@ -92,6 +109,27 @@ export async function runJob(job: string, emit: Emit): Promise<void> {
   if (job === 'method-checks') {
     const checks = runMethodChecks(counter);
     emit({ kind: 'result', checks, measured: measured(start, counter, null) });
+    return;
+  }
+
+  const r = /^release:([a-z0-9][a-z0-9.-]{0,47})$/.exec(job);
+  if (r) {
+    const mods = releaseModules();
+    const declaration = (mods.candidate.CANDIDATE ?? null) as { id?: unknown; algorithm?: unknown } | null;
+    emit({ kind: 'declaration', declaration });
+    if (!declaration || declaration.id !== r[1]) throw new Error('the candidate is not the one the job names');
+    const algorithm = CANDIDATE_ALGORITHMS.find((a) => a === declaration.algorithm);
+    if (!algorithm) throw new Error('the candidate names no algorithm the lab can run');
+    const entry = ENTRY_POINT[algorithm];
+    const approved = mods.approved[entry];
+    const candidate = mods.candidate[entry];
+    if (typeof approved !== 'function' || typeof candidate !== 'function') throw new Error(`${entry} is not exported`);
+    const development = evaluatePhase(algorithm, 'DEVELOPMENT', SCENARIOS, probeSet('DEVELOPMENT'), approved as Fn, candidate as Fn, counter);
+    const heldOut = evaluatePhase(algorithm, 'HELD_OUT', SCENARIOS, probeSet('HELD_OUT'), approved as Fn, candidate as Fn, counter);
+    const dependants = dependantsOf(algorithm)
+      .filter((d) => DEPENDANT_SIMULATIONS[d.key])
+      .map((d) => simulateDependant(algorithm, d.key, mods.approved, mods.promoted, counter));
+    emit({ kind: 'result', results: { development, heldOut }, dependants, measured: measured(start, counter, null) });
     return;
   }
 

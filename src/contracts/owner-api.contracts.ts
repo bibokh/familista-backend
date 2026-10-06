@@ -52,6 +52,8 @@ import { CONFIG_VALUES } from '../cyber-defense/control-plane/registry';
 import {
   CandidateEntrySchema, LabMethodCheckSchema, LabRunStateSchema, LabSpecSchema,
 } from '../algorithms/candidate-evidence';
+import { DossierLimitSchema } from '../algorithms/approval-dossier';
+import { BINDING_REASONS, type BindingReason } from '../algorithms/release';
 
 // ── shared leaves ────────────────────────────────────────────────────────────
 
@@ -1142,6 +1144,46 @@ export const AlgCandidateDetailSchema = AlgCandidateSummarySchema.extend({
   entry: CandidateEntrySchema,
 }).strict();
 
+// ── Algorithms — releases (Step 5) ───────────────────────────────────────────
+//
+// What this server can see between a human approval and a measurement, and
+// what it cannot. `deploy.requested` and `deploy.live` are literals: a
+// response that ever claimed to know whether a deploy is live fails here.
+
+const Hex64 = z.string().regex(/^[0-9a-f]{64}$/);
+export const AlgDossierSummarySchema = z.object({
+  file: z.string().min(1), digest: Hex64, candidate: z.string().min(1),
+  baseline: z.object({ version: z.string().min(1), fingerprint: Hex64 }).strict(),
+  engine: z.object({ specVersion: z.number().int().positive(), fingerprint: Hex64, commit: z.string().regex(/^[0-9a-f]{40}$/).nullable() }).strict(),
+  test: z.object({ verdict: z.literal('PASSED'), agreement: z.enum(['AGREE', 'DISAGREE']), methodChecks: z.object({ passed: Count, total: Count }).strict() }).strict(),
+  properties: z.object({ kept: Count, fixed: Count, broken: Count, stillFailing: Count }).strict(),
+  dependants: z.array(z.object({ key: z.string().min(1), path: z.enum(['CODE', 'DATA']), simulated: z.boolean(), broken: Count }).strict()),
+  limits: z.array(DossierLimitSchema),
+}).strict();
+export const AlgReleaseSchema = z.object({
+  key: z.string().min(1), name: z.string().min(1), version: z.string().min(1),
+  approval: z.object({
+    kind: z.enum(['BASELINE', 'CHANGE']), version: z.string().min(1), fingerprint: Hex64,
+    reference: z.string().min(1), approvedAt: z.string().min(1),
+  }).strict().nullable(),
+  binding: z.object({
+    state: z.enum(['NOT_APPLICABLE', 'VALID', 'INVALID']),
+    reasons: z.array(z.enum(BINDING_REASONS as unknown as [BindingReason, ...BindingReason[]])),
+    dossier: AlgDossierSummarySchema.nullable(),
+  }).strict(),
+  runtime: z.object({ verdict: z.enum(['MATCH', 'MISMATCH', 'UNVERIFIED']), basis: z.enum(['SOURCE', 'COMPILED']) }).strict(),
+  production: z.enum(['MEASURED', 'NOT_OBSERVABLE']),
+  history: z.array(z.object({ version: z.string().min(1), date: z.string().min(1), note: z.string().min(1) }).strict()).min(1),
+}).strict();
+export const AlgorithmsReleasesSchema = z.object({
+  build: z.object({ commit: z.string().regex(/^[0-9a-f]{40}$/).nullable() }).strict(),
+  deploy: z.object({ requested: z.literal('NOT_KNOWN_HERE'), live: z.literal('NOT_KNOWN_HERE') }).strict(),
+  algorithms: z.array(AlgReleaseSchema),
+  totals: z.object({
+    registered: Count, baseline: Count, change: Count, bindingValid: Count, bindingInvalid: Count, runtimeMatch: Count, measured: Count,
+  }).strict(),
+}).strict();
+
 // ── the registry ─────────────────────────────────────────────────────────────
 
 export interface ApiContract {
@@ -1336,6 +1378,11 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     reads: ['state', 'reason', 'evidence', 'production', 'notice', 'generatedAt', 'spec', 'methodChecks', 'counts', 'candidates'],
   },
   {
+    endpoint: '/system/algorithms/releases', module: 'Algorithms',
+    schema: AlgorithmsReleasesSchema, consumer: 'public/algorithms/algorithms.js',
+    reads: ['build', 'deploy', 'algorithms', 'totals'],
+  },
+  {
     endpoint: '/system/algorithms/candidates/xg-v1.1', module: 'Algorithms',
     schema: AlgCandidateDetailSchema, consumer: 'public/algorithms/algorithms.js',
     reads: ['stage', 'gate', 'deployable', 'test', 'freshness', 'staleReasons', 'path', 'dependants', 'approvalNeeds', 'entry', 'methodChecks', 'spec', 'notice'],
@@ -1408,6 +1455,12 @@ const _candSummary: Exact<z.infer<typeof AlgCandidateSummarySchema>, CandidateSu
 const _candDetail: Exact<z.infer<typeof AlgCandidateDetailSchema>, CandidateDetail> = true;
 void [_learnOverview, _learnSummary, _learnDetail, _learnRun, _learnScenario, _learnMetrics];
 void [_candOverview, _candSummary, _candDetail];
+
+import type { AlgorithmReleases, AlgorithmRelease, DossierSummary } from '../algorithms/release';
+const _relOverview: Exact<z.infer<typeof AlgorithmsReleasesSchema>, AlgorithmReleases> = true;
+const _relOne: Exact<z.infer<typeof AlgReleaseSchema>, AlgorithmRelease> = true;
+const _relDossier: Exact<z.infer<typeof AlgDossierSummarySchema>, DossierSummary> = true;
+void [_relOverview, _relOne, _relDossier];
 void [_component, _district, _relationship, _technology, _signal, _incident, _rule,
   _source, _control, _stage, _impact,
   _ccOverview, _ccDomain, _ccDetail, _ccArea, _ccStage, _ccRls, _ccEvents, _ccPosture];

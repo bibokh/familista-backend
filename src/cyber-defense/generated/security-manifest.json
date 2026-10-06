@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-05T16:31:10.844Z",
+  "generatedAt": "2026-10-06T09:03:55.669Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 54,
-    "handlers": 753,
+    "handlers": 754,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -301,7 +301,7 @@
       {
         "path": "/system/algorithms",
         "module": "algorithms.routes",
-        "handlers": 8,
+        "handlers": 9,
         "public": 0,
         "routerWideAuth": true
       },
@@ -802,13 +802,13 @@
       }
     },
     "authorization": {
-      "handlers": 753,
+      "handlers": 754,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 86
+        "platform-owner": 87
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -826,7 +826,7 @@
           "member": 3
         },
         "algorithms.routes": {
-          "platform-owner": 8
+          "platform-owner": 9
         },
         "analytics.routes": {
           "member": 4,
@@ -1338,6 +1338,7 @@
         "GET /system/algorithms/candidates/:id": "platform-owner",
         "GET /system/algorithms/learning": "platform-owner",
         "GET /system/algorithms/monitoring": "platform-owner",
+        "GET /system/algorithms/releases": "platform-owner",
         "GET /system/analytics/platform": "platform-owner",
         "GET /system/analytics/product": "platform-owner",
         "GET /system/approvals": "platform-owner",
@@ -2191,7 +2192,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "753 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 86 platform-owner; every member-level handler reviewed by name."
+      "note": "754 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 87 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2234,6 +2235,12 @@
       "status": "PRESENT",
       "evidence": "src/algorithms/candidates.ts",
       "note": "Algorithm candidates never run in production: their code and the comparison engine live in lab/, outside the build, and nothing in src/ imports them; each runs only in CI or on a developer machine, in a separate process with an empty environment, a capped heap and output, and a parent-enforced timeout that kills its whole process group; a candidate file imports types only and has no I/O, globals or clock; the server reads only the schema-validated evidence file, where every candidate is experimental and not approved, and none can pass the deployment gate; only the platform owner reads it, read-only."
+    },
+    {
+      "id": "algorithm-release-binding",
+      "status": "PRESENT",
+      "evidence": "src/algorithms/release.ts",
+      "note": "Every algorithm change approval is bound, link by link, to the evidence it was judged on: a dossier whose digest it records, about its candidate, version, fingerprint and the version it replaced, with an archive for rollback and reproduction; no dossier exists without its approval; the server only reads dossiers, through their schema, and never infers whether a deploy was requested or is live; the release tool writes a promotion only for a named pull request, and CI rehearses a promotion and its exact rollback on every pull request."
     },
     {
       "id": "security-alert-delivery",
@@ -2794,6 +2801,16 @@
       "lab/algorithms/engine/stats.ts",
       "lab/algorithms/evidence.ts",
       "lab/algorithms/jobs.ts",
+      "lab/algorithms/release-cli.ts",
+      "lab/algorithms/release/archive.ts",
+      "lab/algorithms/release/dependants.ts",
+      "lab/algorithms/release/dossier.ts",
+      "lab/algorithms/release/engine.ts",
+      "lab/algorithms/release/rehearsal.ts",
+      "lab/algorithms/release/source.ts",
+      "lab/algorithms/release/spec.ts",
+      "lab/algorithms/release/verify.ts",
+      "lab/algorithms/release/workspace.ts",
       "lab/algorithms/runner.ts",
       "lab/algorithms/spec.ts",
       "package-lock.json",
@@ -2804,6 +2821,7 @@
       "scripts/copy-runtime-assets.js",
       "scripts/restore.sh",
       "scripts/rollback.sh",
+      "src/algorithms/approval-dossier.ts",
       "src/algorithms/candidate-evidence.ts",
       "src/algorithms/candidates.ts",
       "src/algorithms/learning-spec.ts",
@@ -2812,6 +2830,7 @@
       "src/algorithms/learning.ts",
       "src/algorithms/loop.ts",
       "src/algorithms/registry.ts",
+      "src/algorithms/release.ts",
       "src/algorithms/telemetry.ts",
       "src/app.ts",
       "src/auth-prod/admin-mfa.ts",
@@ -2945,11 +2964,12 @@
       "src/video/video-asset.service.ts",
       "src/workers/ai-agent.worker.ts",
       "src/workers/notification-dispatch.worker.ts",
+      "tests/algorithms-release.unit.test.ts",
       "tsconfig.json"
     ]
   },
   "counts": {
-    "controlsPresent": 76,
+    "controlsPresent": 77,
     "controlsPartial": 1,
     "controlsAbsent": 1,
     "cryptoUses": 10

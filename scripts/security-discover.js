@@ -1027,8 +1027,14 @@ function algorithmChangeGate() {
   for (const e of entries) {
     const key = e.slice(0, e.indexOf("'"));
     const mode = (e.match(/\bmode: '([A-Z_]+)'/) || [])[1];
-    const approved = (e.match(/approval: baseline\('[^']+', '([0-9a-f]{64})'\)/) || e.match(/fingerprint: '([0-9a-f]{64})'/) || [])[1];
-    if (mode !== 'READ_ANALYZE' || !fresh[key] || !fresh[key].fingerprint || approved !== fresh[key].fingerprint) return false;
+    // An approval is a baseline or a change (Step 5), and names the entry's own
+    // version; a change writes its version and fingerprint first, so both read
+    // from one place.
+    const version = (e.match(/\n {4}version: '([^']+)',\n/) || [])[1];
+    const approval = e.match(/\n {4}approval: baseline\('([^']+)', '([0-9a-f]{64})'\),\n/)
+      || e.match(/\n {4}approval: change\(\{\n {6}version: '([^']+)', fingerprint: '([0-9a-f]{64})',\n/) || [];
+    if (mode !== 'READ_ANALYZE' || !version || approval[1] !== version) return false;
+    if (!fresh[key] || !fresh[key].fingerprint || approval[2] !== fresh[key].fingerprint) return false;
   }
   const edges = loop.slice(loop.indexOf('LOOP_EDGES'), loop.indexOf('};', loop.indexOf('LOOP_EDGES')));
   const intoDeploy = [...edges.matchAll(/^\s*(\w+):\s*\[([^\]]*)\]/gm)].filter((m) => /'DEPLOY'/.test(m[2])).map((m) => m[1]);
@@ -1172,6 +1178,71 @@ function algorithmCandidateIsolation() {
     && /assertPlatformOwner\(/.test(routes) && !/router\.(post|put|patch|delete|all)\(/.test(routes);
 }
 
+// Step 5: a CHANGE approval is bound, link by link, to the evidence it was
+// judged on, and nothing between the approval and production is guessed.
+//   · every approval is a baseline or a change in the registry's one shape;
+//   · a change names a dossier in src/algorithms/approvals/ whose canonical
+//     digest is the one it records — about this algorithm, candidate, version,
+//     fingerprint and the version it replaced, its evidence digest intact,
+//     its held-out Test passed — and an archive for rollback and
+//     reproduction, whose candidate is held to the candidate rules;
+//   · no dossier or archive belongs to no approval;
+//   · the server reads dossiers through their schema, imports nothing from the
+//     lab and runs nothing; its releases read is an owner-only GET whose deploy
+//     and live states are fixed as not known here;
+//   · the release tool needs a pull-request reference and never overwrites a
+//     dossier; CI rehearses a promotion and its rollback; the deploy workflow
+//     says that whether a deploy is live is a person's check.
+const APPROVALS_DIR = 'src/algorithms/approvals';
+const ARCHIVE_DIR = 'lab/algorithms/archive';
+const CHANGE_APPROVAL = /\n {4}approval: change\(\{\n {6}version: '([^']+)', fingerprint: '([0-9a-f]{64})',\n {6}candidate: '([a-z0-9][a-z0-9.-]*)', baseline: \{ version: '([^']+)', fingerprint: '([0-9a-f]{64})' \},\n {6}dossier: \{ file: '(src\/algorithms\/approvals\/[a-z0-9][a-z0-9.-]*\.json)', digest: '([0-9a-f]{64})' \},\n {6}reference: '[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+#[1-9]\d{0,6}', approvedAt: '\d{4}-\d{2}-\d{2}',\n {4}\}\),\n/;
+function algorithmReleaseBinding() {
+  let core;
+  try { core = require('../src/algorithms/dossier-core.js'); } catch (_) { return false; }
+  const reg = read(cite('src/algorithms/registry.ts')) || '';
+  const entries = reg.split(/\n  \{\n    key: '/).slice(1);
+  if (!entries.length) return false;
+  const changes = [];
+  for (const e of entries) {
+    const key = e.slice(0, e.indexOf("'"));
+    const version = (e.match(/\n {4}version: '([^']+)',\n/) || [])[1];
+    const base = e.match(/\n {4}approval: baseline\('([^']+)', '[0-9a-f]{64}'\),\n/);
+    const chg = e.match(CHANGE_APPROVAL);
+    if (!version || !!base === !!chg || (base ? base[1] : chg[1]) !== version) return false;
+    if (chg) changes.push({ key, version: chg[1], fingerprint: chg[2], candidate: chg[3], baseline: { version: chg[4], fingerprint: chg[5] }, file: chg[6], digest: chg[7] });
+  }
+  for (const c of changes) {
+    let d;
+    try { d = JSON.parse(read(cite(c.file)) || ''); } catch (_) { return false; }
+    if (core.digestOf(d) !== c.digest || core.digestOf(d.reproducible) !== d.evidenceDigest) return false;
+    if (d.kind !== 'CHANGE_APPROVAL_DOSSIER' || d.evidence !== 'SYNTHETIC' || d.algorithm !== c.key) return false;
+    if (!d.candidate || d.candidate.id !== c.candidate || d.candidate.version !== c.version || d.candidate.fingerprint !== c.fingerprint) return false;
+    if (!d.promotion || d.promotion.promotedFingerprint !== c.fingerprint || !d.test || d.test.verdict !== 'PASSED') return false;
+    if (!d.baseline || d.baseline.version !== c.baseline.version || d.baseline.fingerprint !== c.baseline.fingerprint) return false;
+    const archived = ['json', 'approved.ts', 'candidate.ts'].map((x) => `${ARCHIVE_DIR}/${c.candidate}.${x}`);
+    if (!archived.every((f) => read(cite(f)) !== null)) return false;
+    const code = stripStrings(stripComments(read(archived[2]) || ''));
+    const imports = code.match(/^\s*import\b[^;]*;/gm) || [];
+    if (imports.some((l) => !/^\s*import\s+type\s/.test(l)) || CANDIDATE_FORBIDDEN.test(code)) return false;
+  }
+  const listed = (dir) => { try { return fs.readdirSync(path.join(ROOT, dir)).filter((n) => n.endsWith('.json')); } catch (_) { return []; } };
+  if (listed(APPROVALS_DIR).some((n) => !changes.some((c) => c.file === `${APPROVALS_DIR}/${n}`))) return false;
+  if (listed(ARCHIVE_DIR).some((n) => !changes.some((c) => `${c.candidate}.json` === n))) return false;
+  const release = stripComments(read(cite('src/algorithms/release.ts')) || '');
+  const dossier = stripComments(read(cite('src/algorithms/approval-dossier.ts')) || '');
+  const routes = stripComments(read(cite('src/routes/algorithms.routes.ts')) || '');
+  const assets = read(cite('scripts/copy-runtime-assets.js')) || '';
+  if (!/export function checkBinding\(/.test(release) || !/deploy: \{ requested: 'NOT_KNOWN_HERE', live: 'NOT_KNOWN_HERE' \}/.test(release)) return false;
+  if (!/ApprovalDossierSchema\.safeParse\(/.test(dossier)) return false;
+  if (/child_process|\bspawn\(|\bfork\(|\bexec(?:File)?\(|(?:from\s+|require\(\s*|import\(\s*)['"][^'"]*\blab\//.test(release + dossier)) return false;
+  if (!/router\.get\('\/releases'/.test(routes) || !/assertPlatformOwner\(/.test(routes) || /router\.(post|put|patch|delete|all)\(/.test(routes)) return false;
+  if (!/'src\/algorithms\/approvals'/.test(assets)) return false;
+  const tool = stripComments(read(cite('lab/algorithms/release/workspace.ts')) || '');
+  const tests = read(cite('tests/algorithms-release.unit.test.ts')) || '';
+  if (!/PULL_REQUEST_REFERENCE\.test\(opts\.reference\)/.test(tool) || !/'ALREADY_PROMOTED'/.test(tool) || !/\brehearse\(/.test(tests)) return false;
+  return /Not confirmed by this workflow/.test(deploySrc);
+}
+
 function deployGatedByCi() {
   const raw = read(RENDER) || '';
   const services = (raw.match(/^\s*-\s*type:\s*(?:web|worker|pserv|cron)\s*$/gm) || []).length;
@@ -1264,6 +1335,8 @@ controls.push(
     'Algorithm learning is synthetic only: every synthetic result is labelled SYNTHETIC and none is presented as real-world accuracy; the real-world lane is disabled, no learning file reads a database, a club record or health data, and synthetic runs never enter production telemetry; a run is bounded by slices and a time budget; only the platform owner reads it, read-only.'),
   control('algorithm-candidate-isolation', algorithmCandidateIsolation() ? 'PRESENT' : 'ABSENT', 'src/algorithms/candidates.ts',
     'Algorithm candidates never run in production: their code and the comparison engine live in lab/, outside the build, and nothing in src/ imports them; each runs only in CI or on a developer machine, in a separate process with an empty environment, a capped heap and output, and a parent-enforced timeout that kills its whole process group; a candidate file imports types only and has no I/O, globals or clock; the server reads only the schema-validated evidence file, where every candidate is experimental and not approved, and none can pass the deployment gate; only the platform owner reads it, read-only.'),
+  control('algorithm-release-binding', algorithmReleaseBinding() ? 'PRESENT' : 'ABSENT', 'src/algorithms/release.ts',
+    'Every algorithm change approval is bound, link by link, to the evidence it was judged on: a dossier whose digest it records, about its candidate, version, fingerprint and the version it replaced, with an archive for rollback and reproduction; no dossier exists without its approval; the server only reads dossiers, through their schema, and never infers whether a deploy was requested or is live; the release tool writes a promotion only for a named pull request, and CI rehearses a promotion and its exact rollback on every pull request.'),
   control('security-alert-delivery', securityAlertDelivery() ? 'PRESENT' : 'ABSENT', 'src/security/security-alerts.ts',
     'Critical security events, cross-club access attempts, a broken audit chain, account lockouts, refresh-token reuse, brute-force runs and failed or stale backups are emailed to SECURITY_ALERT_EMAIL by one leased process, de-duplicated per rule (15 min) and capped per hour, with a daily digest; the email carries counts only.'),
 );

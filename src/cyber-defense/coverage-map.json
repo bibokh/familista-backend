@@ -542,7 +542,8 @@
       "controls": [
         "algorithm-change-gate",
         "algorithm-learning-separation",
-        "algorithm-candidate-isolation"
+        "algorithm-candidate-isolation",
+        "algorithm-release-binding"
       ]
     },
     "40": {
