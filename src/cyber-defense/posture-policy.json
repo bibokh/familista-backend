@@ -137,7 +137,8 @@
     "algorithm-change-gate",
     "algorithm-telemetry-private",
     "algorithm-learning-separation",
-    "algorithm-candidate-isolation"
+    "algorithm-candidate-isolation",
+    "algorithm-release-binding"
   ],
   "knownGaps": {
     "mfa-required-at-login": "PARTIAL \u2014 required at sign-in for an owner who switched it on (Step 7) and, while MFA_REQUIRED_FOR_ADMINS=true, for administrators (R7); not required for every account.",

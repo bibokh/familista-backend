@@ -13,7 +13,10 @@
 // anything. Learning (Step 3) is synthetic only: method checks on invented
 // outcomes, labelled as such; no club data is evaluated and nothing changes.
 // Candidates (Step 4) are read from evidence the lab wrote and CI re-derives:
-// the server runs no candidate, and no request can promote one.
+// the server runs no candidate, and no request can promote one. Releases
+// (Step 5) are read too: what this build's registry approved, whether each
+// CHANGE approval is still bound to its dossier, and which states between an
+// approval and a measurement this server can see — and which it cannot.
 //
 //   GET /system/algorithms                  the room: the loop, the domains,
 //                                           every algorithm's stage, gate and
@@ -30,6 +33,10 @@
 //   GET /system/algorithms/candidates/:id   one candidate's evidence in full:
 //                                           its change, simulation, held-out
 //                                           test, gate and what its run cost
+//   GET /system/algorithms/releases         releases: every approval, its
+//                                           binding to its dossier, the code
+//                                           running, what is measured, and the
+//                                           states not known here
 //   GET /system/algorithms/:key             one algorithm in full: inputs,
 //                                           outputs, source, fingerprint,
 //                                           approval, scenarios
@@ -55,6 +62,8 @@ import { algorithmsOverview, algorithmDetail } from '../algorithms/algorithms.se
 import { algorithmsMonitoring, algorithmMonitoring } from '../algorithms/monitoring';
 import { algorithmsLearning, algorithmLearning } from '../algorithms/learning';
 import { algorithmCandidates, algorithmCandidate } from '../algorithms/candidates';
+import { algorithmReleases } from '../algorithms/release';
+import { config } from '../config';
 import { AppError, NotFoundError } from '../utils/errors';
 
 const router = Router();
@@ -100,6 +109,17 @@ router.get('/learning', async (_req: Request, res: Response, next) => {
 router.get('/candidates', (_req: Request, res: Response, next) => {
   try {
     res.json({ success: true, data: algorithmCandidates() });
+  } catch (err) { next(err); }
+});
+
+/**
+ * Releases: read from this build's registry, its dossiers and the code this
+ * process loaded. Whether a deploy was requested or is live is not known here
+ * and is never inferred.
+ */
+router.get('/releases', (_req: Request, res: Response, next) => {
+  try {
+    res.json({ success: true, data: algorithmReleases(config.buildCommit) });
   } catch (err) { next(err); }
 });
 

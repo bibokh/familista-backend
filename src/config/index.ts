@@ -25,6 +25,11 @@ export const config = {
   env: optional('NODE_ENV', 'development'),
   port: parseInt(optional('PORT', DEFAULT_PORT)),
   apiVersion: optional('API_VERSION', 'v1'),
+  // The commit Render deployed this service from, when Render says so
+  // (RENDER_GIT_COMMIT). Shown to the platform owner in the Algorithms room as
+  // what this server was built from; absent, the room says it is not known.
+  // Never used to decide anything.
+  buildCommit: process.env.RENDER_GIT_COMMIT ?? null,
 
   db: {
     url: required('DATABASE_URL'),

@@ -27,8 +27,9 @@ Nothing here is production code, and nothing here can reach production:
 - **Never approved here.** Every candidate is `EXPERIMENTAL` and
   `NOT_APPROVED` by type. Approval exists only in the registry
   (`src/algorithms/registry.ts`) as a reviewed record of an exact version and
-  fingerprint, and promoting a candidate into the registry is not part of
-  Step 4.
+  fingerprint. Promoting a candidate is Step 5 (below): a reviewed pull
+  request that records the platform owner's approval, never anything the lab
+  does on its own.
 - **Synthetic only.** No club data, no health data, no production telemetry.
 
 The Cybersecurity control `algorithm-candidate-isolation` fails the build if
@@ -99,6 +100,79 @@ A candidate may only be proposed for an algorithm in `CANDIDATE_ALGORITHMS`
 one that reads health data. Adding an algorithm there means declaring its
 properties first, in their own reviewed change.
 
+## Releasing a candidate — Step 5, only with the owner's approval
+
+```
+… Test → Human approval → Deploy → Measure
+         └── release/ ──┘
+```
+
+The release tool turns a candidate the platform owner has decided to approve
+into the change a pull request carries. It approves nothing, commits nothing,
+merges nothing and deploys nothing: the approval takes effect when the owner
+merges the reviewed pull request, and reaches production only through the
+CI-gated deploy workflow.
+
+```
+npm run algorithms:release -- plan <candidate>                        # writes nothing
+npm run algorithms:release -- apply <candidate> --reference <owner>/<repo>#<pr>
+npm run algorithms:release -- verify [--deep]                         # gates, bindings, reproduction
+npm run algorithms:release -- rollback <candidate>                    # apply's exact inverse
+npm run algorithms:release -- rehearse <candidate>                    # all of it, in a temporary copy
+npm run algorithms:release -- engine                                  # the engine pin, as of now
+```
+
+**`plan`** refuses, with a reason, unless the candidate is judged against
+today's approval; its code changes something; the promotion can be made as
+text — only the changed declarations replaced, the result carrying exactly the
+candidate's fingerprint, every other algorithm in the file keeping its own; a
+fresh run in child processes passes the method checks and the held-out Test
+**and agrees with the committed evidence the owner saw in Proposals**; and
+every registered algorithm whose code reaches the changed code is a declared
+dependant that could be run and broke nothing.
+
+**Dependants** are classified from the code, not assumed (`release/
+dependants.ts`). `CODE`: its own code calls the changed code, so the promoted
+version changes its output — it must be simulated, on the same held-out probes
+and shots (`release/spec.ts`). `DATA`: it only reads values something else
+stored (xA copies a shot's stored xG; the match rating sums stored values) —
+promoting changes none of its inputs today, nothing is run, and the dossier
+says so. The classification reads names, so it can only mistake DATA for CODE,
+never the reverse.
+
+**`apply`** writes the dossier (`src/algorithms/approvals/<id>.json`, see its
+README), the changed declarations into the approved file, the registry entry —
+new version, a `change({...})` approval bound to the dossier's digest, one line
+of history — removes the candidate from the allow-list, keeps what a rollback
+and a reproduction need in `archive/`, and regenerates the algorithm manifest,
+the candidate evidence and the Cybersecurity manifest. It needs the pull
+request's reference, and refuses if anything moved since the plan.
+
+**The engine is pinned.** A dossier records the lab spec version, a
+fingerprint of every engine module (`release/engine.ts`: the import closure of
+the jobs, the evidence assembly, the verdict and the release tool, minus the
+code under test, the candidates, the archive and the registry) and a commit
+that holds it. While that fingerprint is unchanged, `verify` re-runs the
+evidence and requires it to agree with the dossier; after the engine has
+changed it reports `PINNED` and runs nothing — reproduce it at the pinned
+commit.
+
+**Rolling back.** Before a promotion merges, `rollback` undoes it exactly.
+After it has merged and deployed, a rollback is a pull request like any other —
+its diff produced by `rollback` or by `git revert` of the promotion — reviewed,
+CI-gated and deployed. The dossier leaves the tree with the approval it bound;
+both stay in the repository's history. `rehearse` proves the whole path —
+plan, apply, verify, rollback, byte-for-byte comparison, verify — in a copy,
+with a pull-request reference that cannot exist, and checks the repository
+itself was not touched. CI runs it on every pull request.
+
+**What it cannot show.** Every figure is synthetic: how a change behaves on
+invented shots and which properties it keeps, never real-world accuracy. An
+algorithm with no production caller is not measured after release either; the
+room says `NOT_OBSERVABLE`, and that is never read as proof the code is unused.
+Whether a deploy is live is Render's to say: check the Render dashboard for
+the deploy of the merge commit.
+
 ## Files
 
 | File | What it is |
@@ -109,3 +183,5 @@ properties first, in their own reviewed change.
 | `runner.ts` | Child processes: time, memory and output limits, an empty environment, process-group cleanup |
 | `jobs.ts`, `child.ts` | What a child process does |
 | `evidence.ts`, `cli.ts` | Assembling, writing and checking the evidence |
+| `release/`, `release-cli.ts` | Step 5: plan, apply, verify, rollback and rehearse a promotion; the engine pin; dependants |
+| `archive/` | Written by `apply` only: the version a promotion replaced and the candidate it promoted, for rollback and reproduction |

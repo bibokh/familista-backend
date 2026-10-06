@@ -30,6 +30,23 @@
 // `source: { file: '…', symbols: [ … ] }` from this file with a narrow
 // pattern. Keep each on the shape used below; the unit test proves every
 // entry was read.
+//
+// A CHANGE approval (Algorithms Step 5) is written by the lab's release tool
+// (lab/algorithms/release/), never by hand, as
+//
+//   approval: change({
+//     version: 'v1.1', fingerprint: '<64 hex>',
+//     candidate: '<candidate id>', baseline: { version: 'v1.0', fingerprint: '<64 hex>' },
+//     dossier: { file: 'src/algorithms/approvals/<file>.json', digest: '<64 hex>' },
+//     reference: '<owner>/<repo>#<pull request>', approvedAt: '<yyyy-mm-dd>',
+//   }),
+//
+// version and fingerprint first: the change gate (scripts/security-discover.js)
+// reads the approved fingerprint from exactly that position. It binds the
+// approval to the candidate, to the approved version it replaced and to the
+// dossier of evidence it was judged on (src/algorithms/release.ts checks every
+// link). The approval takes effect only when the platform owner merges the
+// reviewed pull request that carries it.
 
 import type { AlgorithmMode, ApprovalRecord } from './loop';
 
@@ -73,9 +90,25 @@ export interface AlgorithmDecl {
    * written inside a database transaction cannot be run that way.
    */
   notSimulatedBecause: string | null;
-  approval: (ApprovalRecord & { kind: 'BASELINE' | 'CHANGE' }) | null;
+  approval: BaselineApproval | ChangeApproval | null;
   versions: AlgorithmVersion[];
 }
+
+/** The algorithm exactly as it already ran in production when the registry was created. */
+export type BaselineApproval = ApprovalRecord & { kind: 'BASELINE' };
+
+/** What a CHANGE approval is bound to, beyond the version and fingerprint every approval names. */
+export interface ChangeBinding {
+  /** The candidate (Algorithms Step 4) this approval promotes. */
+  candidate: string;
+  /** The approved version it replaces, exactly as that approval recorded it. */
+  baseline: { version: string; fingerprint: string };
+  /** The approval dossier, and the SHA-256 of its canonical content (dossier-core.js). */
+  dossier: { file: string; digest: string };
+}
+
+/** A new version, promoted from a candidate, approved by the platform owner in a reviewed pull request. */
+export type ChangeApproval = ApprovalRecord & { kind: 'CHANGE' } & ChangeBinding;
 
 export const ALGORITHM_DOMAINS: readonly AlgorithmDomain[] = [
   { id: 'match-analytics', title: 'Match analytics', describes: 'Chance quality and creation, from recorded match events.' },
@@ -92,6 +125,11 @@ const baseline = (version: string, fingerprint: string) => ({
   kind: 'BASELINE' as const, version, fingerprint, approvedBy: 'PLATFORM_OWNER' as const,
   reference: BASELINE_REF, approvedAt: BASELINE_AT,
 });
+/** A CHANGE approval, in the shape the FORMAT NOTE above describes. */
+export const change = (a: Omit<ChangeApproval, 'kind' | 'approvedBy'>): ChangeApproval => ({
+  kind: 'CHANGE', approvedBy: 'PLATFORM_OWNER', ...a,
+});
+
 const firstVersion = (version: string): AlgorithmVersion[] => [
   { version, date: BASELINE_AT, note: 'Baseline: the algorithm as it already runs in production.' },
 ];

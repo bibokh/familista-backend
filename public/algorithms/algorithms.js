@@ -83,6 +83,8 @@
     candDetailError: null,
     candId: null,
     candTab: 'change',
+    rel: null,
+    relError: null,
   };
 
   // ── plumbing ──────────────────────────────────────────────────────────────
@@ -462,6 +464,46 @@
     RESAMPLE_WITHOUT_DIFFERENCE: 'Some resamples show no difference at all, so the upper end is unbounded.',
   };
 
+  // Releases (Step 5): a CHANGE approval's binding to its evidence, and what
+  // this server can and cannot see between an approval and a measurement.
+  var BINDING_LABEL = { NOT_APPLICABLE: 'No candidate', VALID: 'Bound to its evidence', INVALID: 'Binding broken' };
+  var BINDING_MEANING = {
+    NOT_APPLICABLE: 'A baseline approval records the code as it already ran. No candidate was judged, so there is no evidence to bind.',
+    VALID: 'The approval names its candidate, the version it replaced and a dossier whose digest still matches, and every link between them holds.',
+    INVALID: 'At least one link between the approval and its evidence no longer holds. CI fails until it does.',
+  };
+  function bindingKind(s) { return s === 'VALID' ? 'ok' : s === 'INVALID' ? 'crit' : 'none'; }
+  var BINDING_REASON_LABEL = {
+    DOSSIER_UNREADABLE: 'The dossier it names cannot be read on this server.',
+    DIGEST_MISMATCH: 'The dossier is not the one the approval names: its digest differs.',
+    EVIDENCE_DIGEST_MISMATCH: 'The evidence inside the dossier was changed after it was recorded.',
+    ALGORITHM_MISMATCH: 'The dossier is about another algorithm.',
+    CANDIDATE_MISMATCH: 'The dossier is about another candidate.',
+    VERSION_MISMATCH: 'The approved version is not the registered version, or not the version the dossier promoted.',
+    FINGERPRINT_MISMATCH: 'The approved fingerprint is not the code the dossier promoted.',
+    BASELINE_MISMATCH: 'The version it replaced is not the one the evidence was judged against.',
+    BASELINE_NOT_IN_HISTORY: 'The version it replaced does not come before it in the version history.',
+    VERSION_REUSED: 'It reuses the number of the version it replaced.',
+    VERDICT_MISMATCH: 'The held-out Test in the dossier did not pass.',
+    METHOD_CHECKS_NOT_PASSED: 'Not every method check in the dossier passed.',
+    CODE_DEPENDANT_NOT_SIMULATED: 'An algorithm whose code calls the changed code was not simulated.',
+    CODE_DEPENDANT_BROKEN: 'An algorithm whose code calls the changed code broke a property or returned new invalid values.',
+    REFERENCE_NOT_A_PULL_REQUEST: 'The approval does not name the pull request that carried it.',
+  };
+  var DEP_PATH_LABEL = { CODE: 'Calls the changed code', DATA: 'Reads stored values only' };
+  var LIMIT_LABEL = {
+    SYNTHETIC_ONLY: 'Every input was invented.',
+    NO_REAL_WORLD_ACCURACY: 'Nothing here compares a version with real outcomes.',
+    HELD_OUT_SEEDS_VISIBLE: 'The held-out seeds can be read in the repository, so the split is not a blind test.',
+    DATA_DEPENDANTS_NOT_SIMULATED: 'An algorithm that only reads stored values was not run: the change alters none of its inputs today.',
+    NOT_OBSERVED_IN_PRODUCTION: 'Production telemetry does not record this algorithm, so nothing measures it after release.',
+  };
+  var PRODUCTION_LABEL = { MEASURED: 'Recorded by telemetry', NOT_OBSERVABLE: 'Not observable' };
+  var PRODUCTION_MEANING = {
+    MEASURED: 'A request, worker or job calls it, and production telemetry records every run.',
+    NOT_OBSERVABLE: 'No request, worker or job calls it, so production telemetry has nothing to record. That is never read as proof the code is unused.',
+  };
+
   /** A statistic, localised, with a fixed number of decimals. Data, not prose. */
   function dec(v, d) { return typeof v === 'number' && isFinite(v) ? num(+v.toFixed(d)) : '—'; }
   /** An interval as value [low – high]. */
@@ -557,6 +599,7 @@
       }, 0);
       kind = 'crit';
     }
+    if (id === 'approvals' && AL.rel) { n = AL.rel.totals.bindingInvalid; kind = 'crit'; }
     if (id === 'proposals' && AL.cand && AL.cand.state === 'READY') {
       var failedChecks = AL.cand.methodChecks.total - AL.cand.methodChecks.passed;
       if (failedChecks) { n = failedChecks; kind = 'crit'; } else n = AL.cand.counts.awaitingApproval;
@@ -817,25 +860,115 @@
 
   function approvalsHtml() {
     var list = algorithms();
-    return '<div class="al-intro">' + esc(T('The approval each algorithm runs under, and whether its code still matches it. A baseline approval records an algorithm exactly as it already ran in production when the registry was created; it takes effect when the platform owner merges the pull request that introduces it.')) + '</div>'
+    // A chip still loading is a chip with nothing in it: the same box, so nothing moves when it arrives.
+    var skel = '<span class="al-chip al-chip--sm al-chip--skel" aria-hidden="true">&nbsp;</span>';
+    var cell = function (label, body) { return '<span role="cell"><span class="al-cell-l">' + esc(label) + '</span>' + body + '</span>'; };
+    return '<div class="al-intro">' + esc(T('The approval each algorithm runs under, whether its code still matches it, and — for a change — whether the approval is still bound to the evidence it was judged on. A baseline approval records an algorithm exactly as it already ran in production when the registry was created; it takes effect when the platform owner merges the pull request that introduces it.')) + '</div>'
       + panel('Approvals', '<div class="al-tbl al-tbl--appr" role="table">'
         + '<div class="al-tr al-tr--h" role="row"><span role="columnheader">' + esc(T('Algorithm')) + '</span>'
         + '<span role="columnheader">' + esc(T('Approved version')) + '</span><span role="columnheader">' + esc(T('Kind')) + '</span>'
+        + '<span role="columnheader">' + esc(T('Evidence')) + '</span><span role="columnheader">' + esc(T('Running code')) + '</span>'
         + '<span role="columnheader">' + esc(T('Gate')) + '</span></div>'
         + list.map(function (a) {
+          var r = releaseOf(a.key);
+          var pending = AL.relError ? absent(AL.relError) : skel;
           return '<button class="al-tr al-tr--row" role="row" type="button" data-al-open="' + esc(a.key) + '">'
             + '<span role="cell" class="al-tr-name"><b>' + esc(T(a.name)) + '</b></span>'
-            + '<span role="cell">' + (a.approval ? '<code data-no-i18n>' + esc(a.approval.version) + '</code>' : absent(T('No approval recorded.'))) + '</span>'
-            + '<span role="cell">' + (a.approval ? esc(a.approval.kind === 'BASELINE' ? T('Baseline') : T('Change')) : absent(T('No approval recorded.'))) + '</span>'
-            + '<span role="cell">' + gateChip(a.gate, 'al-chip--sm') + '</span></button>';
+            + cell(T('Approved version'), a.approval ? '<code data-no-i18n>' + esc(a.approval.version) + '</code>' : absent(T('No approval recorded.')))
+            + cell(T('Kind'), a.approval ? esc(a.approval.kind === 'BASELINE' ? T('Baseline') : T('Change')) : absent(T('No approval recorded.')))
+            + cell(T('Evidence'), r ? bindingChip(r.binding, 'al-chip--sm') : pending)
+            + cell(T('Running code'), r ? verdictChip(r.runtime.verdict, 'al-chip--sm') : pending)
+            + cell(T('Gate'), gateChip(a.gate, 'al-chip--sm')) + '</button>';
         }).join('') + '</div>')
+      + releaseStatesPanel()
+      + changeApprovalsPanel()
       + panel('Where the evidence lives', '<div class="al-kv">'
         + kv(T('Approval record'), '<code data-no-i18n>src/algorithms/registry.ts</code>')
+        + kv(T('Approval dossiers'), '<code data-no-i18n>src/algorithms/approvals/</code>')
         + kv(T('Code fingerprints'), '<code data-no-i18n>src/algorithms/generated/algorithm-manifest.json</code>')
         + kv(T('The loop and its gate'), '<code data-no-i18n>src/algorithms/loop.ts</code>')
-        + kv(T('CI gate'), '<code data-no-i18n>tests/algorithms.unit.test.ts</code>')
-        + kv(T('Cybersecurity control'), '<code data-no-i18n>algorithm-change-gate</code>')
-        + '</div><div class="al-note">' + esc(T('Every approval is a change to a code-owned file, so it is reviewed and kept in the repository history with the pull request that carried it.')) + '</div>');
+        + kv(T('Release tool'), '<code data-no-i18n>npm run algorithms:release</code>')
+        + kv(T('CI gate'), '<code data-no-i18n>tests/algorithms.unit.test.ts</code> <code data-no-i18n>tests/algorithms-release.unit.test.ts</code>')
+        + kv(T('Cybersecurity control'), '<code data-no-i18n>algorithm-change-gate</code> <code data-no-i18n>algorithm-release-binding</code>')
+        + '</div><div class="al-note">' + esc(T('Every approval is a change to a code-owned file, so it is reviewed and kept in the repository history with the pull request that carried it.')) + '</div>'
+        + '<div class="al-note">' + esc(T('Rolling back to the previous approved version is a reviewed pull request too — the promotion reverted, or the release tool’s exact rollback — CI-gated and deployed like any change. CI rehearses a promotion and its rollback on every pull request.')) + '</div>');
+  }
+
+  function releaseOf(key) {
+    var list = AL.rel && AL.rel.algorithms;
+    return (list && list.filter(function (r) { return r.key === key; })[0]) || null;
+  }
+  function bindingChip(b, extra) { return chip(bindingKind(b.state), T(BINDING_LABEL[b.state] || b.state), T(BINDING_MEANING[b.state] || ''), extra); }
+  function productionChip(p, extra) { return chip(p === 'MEASURED' ? 'info' : 'none', T(PRODUCTION_LABEL[p] || p), T(PRODUCTION_MEANING[p] || ''), extra); }
+  function notKnownHere(value) {
+    // The only value the contract allows; anything else would be a claim this server cannot make.
+    return value === 'NOT_KNOWN_HERE' ? chip('unknown', T('Not known here'), '', 'al-chip--sm') : absent(String(value));
+  }
+
+  /** The states between an approval and a measurement — and which of them this server can see. */
+  function releaseStatesPanel() {
+    if (AL.relError && !AL.rel) return panel('Release states', emptyState('Release states could not be read', AL.relError));
+    var R = AL.rel;
+    if (!R) return panel('Release states', skeleton(6, 'check'));
+    var t = R.totals;
+    var mismatched = R.algorithms.filter(function (r) { return r.runtime.verdict === 'MISMATCH'; }).length;
+    var row = function (state, here, how) {
+      return '<div class="al-tr al-tr--static" role="row"><span role="cell" class="al-tr-name"><b>' + esc(state) + '</b></span>'
+        + '<span role="cell">' + here + '</span><span role="cell" class="al-tr-why">' + esc(how) + '</span></div>';
+    };
+    return panel('Release states', '<div class="al-tbl al-tbl--rel" role="table">'
+      + '<div class="al-tr al-tr--h" role="row"><span role="columnheader">' + esc(T('State')) + '</span>'
+      + '<span role="columnheader">' + esc(T('On this server')) + '</span><span role="columnheader">' + esc(T('How it is known')) + '</span></div>'
+      + row(T('Approved'), chip(t.baseline + t.change === t.registered && !t.bindingInvalid ? 'ok' : 'warn', tf('%d of %d', t.baseline + t.change, t.registered), '', 'al-chip--sm'),
+        T('The approval records in this build’s registry: a baseline, or a change bound to its evidence.'))
+      + row(T('Built from'), R.build.commit ? '<code class="al-fp" title="' + esc(R.build.commit) + '" data-no-i18n>' + esc(R.build.commit.slice(0, 12)) + '…</code>' : chip('unknown', T('Not reported'), '', 'al-chip--sm'),
+        T('The commit Render built this server from, when Render reports it.'))
+      + row(T('Deploy requested'), notKnownHere(R.deploy.requested), T('The deploy workflow’s summary for the merge commit says whether Render accepted the deploy.'))
+      + row(T('Confirmed live'), notKnownHere(R.deploy.live), T('Render’s dashboard, checked by a person, says whether that deploy is live.'))
+      + row(T('Running code'), chip(mismatched ? 'crit' : t.runtimeMatch === t.registered ? 'ok' : 'warn', tf('%d of %d', t.runtimeMatch, t.registered), '', 'al-chip--sm'),
+        T('The fingerprints of the code this process loaded, proven against each approval.'))
+      + row(T('Measured in production'), chip('info', tf('%d of %d', t.measured, t.registered), '', 'al-chip--sm'),
+        T('Production telemetry, for the algorithms a request, worker or job calls. The others are not observable here, which never means unused.'))
+      + '</div>');
+  }
+
+  function changeApprovalsPanel() {
+    var R = AL.rel;
+    if (!R) return AL.relError ? '' : panel('Change approvals', skeleton(2, 'check'));
+    var changes = R.algorithms.filter(function (r) { return r.approval && r.approval.kind === 'CHANGE'; });
+    if (!changes.length) {
+      return panel('Change approvals', emptyState('No algorithm has changed since its baseline', T('A change approval is written by the release tool in a reviewed pull request. It names the candidate it promotes, the approved version it replaces and the dossier of evidence it was judged on, and binds them by digest.')), tf('Change approvals: %d', 0));
+    }
+    return panel('Change approvals', changes.map(changeCardHtml).join(''), tf('Change approvals: %d', changes.length));
+  }
+
+  function changeCardHtml(r) {
+    var a = r.approval, b = r.binding, d = b.dossier;
+    var rows = kv(T('Algorithm'), esc(T(r.name)))
+      // Version numbers are a left-to-right run in every language, so the arrow points the same way in all of them.
+      + kv(T('Version'), val((d ? d.baseline.version : '—') + ' → ' + a.version))
+      + kv(T('Approved in'), '<code data-no-i18n>' + esc(a.reference) + '</code> ' + val(a.approvedAt))
+      + kv(T('Evidence'), bindingChip(b, 'al-chip--sm'))
+      + (b.reasons.length ? kv(T('Why'), '<ul class="al-rules">' + b.reasons.map(function (x) { return rule(T(BINDING_REASON_LABEL[x] || x)); }).join('') + '</ul>') : '')
+      + kv(T('Running code'), verdictChip(r.runtime.verdict, 'al-chip--sm'))
+      + kv(T('In production'), productionChip(r.production, 'al-chip--sm'));
+    if (d) {
+      rows += kv(T('Candidate'), '<code data-no-i18n>' + esc(d.candidate) + '</code>')
+        + kv(T('Dossier'), '<code data-no-i18n>' + esc(d.file) + '</code> ' + fp(d.digest))
+        + kv(T('Held-out test'), candTestChip(d.test.verdict, 'al-chip--sm'))
+        + kv(T('Method checks passing'), val(num(d.test.methodChecks.passed) + ' / ' + num(d.test.methodChecks.total)))
+        + kv(T('Properties'), esc(tf('%d kept · %d fixed · %d broken', d.properties.kept, d.properties.fixed, d.properties.broken)))
+        + kv(T('Dependants'), d.dependants.length ? '<span class="al-chips">' + d.dependants.map(function (x) {
+          return '<span class="al-dep"><b>' + esc(algorithmName(x.key)) + '</b> '
+            + chip(x.path === 'CODE' ? 'info' : 'none', T(DEP_PATH_LABEL[x.path] || x.path), '', 'al-chip--sm') + ' '
+            + (x.path === 'CODE' ? chip(x.simulated ? 'ok' : 'crit', x.simulated ? T('Simulated') : T('Not simulated'), '', 'al-chip--sm') : '')
+            + (x.broken ? ' ' + chip('crit', T('Broken') + ' · ' + num(x.broken), '', 'al-chip--sm') : '') + '</span>';
+        }).join('') + '</span>' : absent(T('No algorithm depends on it.')))
+        + kv(T('Evaluation engine'), fp(d.engine.fingerprint) + ' ' + val(tf('Lab spec %d', d.engine.specVersion)) + ' '
+          + (d.engine.commit ? '<code class="al-fp" title="' + esc(d.engine.commit) + '" data-no-i18n>' + esc(d.engine.commit.slice(0, 12)) + '…</code>' : absent(T('No commit recorded.'))))
+        + kv(T('What the evidence cannot show'), '<ul class="al-rules">' + d.limits.map(function (l) { return rule(T(LIMIT_LABEL[l] || l)); }).join('') + '</ul>');
+    }
+    return '<div class="al-change"><div class="al-kv">' + rows + '</div></div>';
   }
 
   // ── MONITORING ────────────────────────────────────────────────────────────
@@ -1709,7 +1842,7 @@
       + kv(T('Path on the loop'), esc(d.path.map(function (x) { return T(STAGE_LABEL[x] || x); }).join(arrow)))
       + kv(T('An approval would have to name'), val(n.version || '—') + ' ' + fp(n.fingerprint))
       + kv(T('Approved today'), val(n.approvedVersion || '—') + ' ' + fp(n.approvedFingerprint))
-      + '</div><div class="al-note">' + esc(T('An approval is recorded only in the registry, by a reviewed change that names this exact version and fingerprint. Nothing in this room can approve or promote a candidate, and promotion is not part of this step.')) + '</div>');
+      + '</div><div class="al-note">' + esc(T('An approval is recorded only in the registry, by a reviewed change that names this exact version and fingerprint. Nothing in this room can approve or promote a candidate: the release tool writes a promotion only into a pull request, and it takes effect only when the platform owner merges it.')) + '</div>');
   }
 
   function candResourcesHtml(d) {
@@ -1790,6 +1923,7 @@
     learnDetail: ['status', 'reason', 'evidence', 'realWorld'],
     candidates: ['state', 'evidence', 'production', 'notice', 'methodChecks', 'counts', 'candidates'],
     candidate: ['stage', 'gate', 'test', 'freshness', 'staleReasons', 'path', 'dependants', 'approvalNeeds', 'entry', 'methodChecks', 'spec', 'notice'],
+    releases: ['build', 'deploy', 'algorithms', 'totals'],
   };
   function missingFields(payload, required) {
     return required.filter(function (k) { return !payload || payload[k] === undefined || payload[k] === null; });
@@ -1863,6 +1997,16 @@
       if (missing.length) { AL.cand = null; AL.candError = contractError('/system/algorithms/candidates', missing); return; }
       AL.cand = d; AL.candError = null;
     }).catch(function (e) { AL.candError = e.message; });
+  }
+
+  function loadReleases() {
+    return api('/system/algorithms/releases').then(function (d) {
+      var missing = missingFields(d, REQUIRED.releases);
+      // Whether a deploy was requested or is live is not known to this server: a response that claims otherwise is refused.
+      if (!missing.length && (d.deploy.requested !== 'NOT_KNOWN_HERE' || d.deploy.live !== 'NOT_KNOWN_HERE')) missing = ['deploy'];
+      if (missing.length) { AL.rel = null; AL.relError = contractError('/system/algorithms/releases', missing); return; }
+      AL.rel = d; AL.relError = null;
+    }).catch(function (e) { AL.relError = e.message; });
   }
 
   function loadCandidate(id) {
@@ -1946,7 +2090,7 @@
     if (AL.refreshing) return;
     AL.refreshing = true;
     repaintBody(host, true);
-    var jobs = [loadOverview(), loadMonitoring(), loadLearning(), loadCandidates()];
+    var jobs = [loadOverview(), loadMonitoring(), loadLearning(), loadCandidates(), loadReleases()];
     if (AL.section === 'algorithm' && AL.key) jobs.push(loadAlgorithm(AL.key), loadAlgorithmMonitoring(AL.key), loadAlgorithmLearning(AL.key));
     if (AL.section === 'candidate' && AL.candId) jobs.push(loadCandidate(AL.candId));
     Promise.all(jobs).then(function () { AL.refreshing = false; repaintBody(host, true); });
@@ -2064,6 +2208,7 @@
       loadMonitoring().then(function () { if (AL.data || AL.error) repaintBody(host, true); });
       loadLearning().then(function () { if (AL.data || AL.error) repaintBody(host, true); });
       loadCandidates().then(function () { if (AL.data || AL.error) repaintBody(host, true); });
+      loadReleases().then(function () { if (AL.data || AL.error) repaintBody(host, true); });
       return loadOverview();
     }).then(function () { paint(host); });
   };

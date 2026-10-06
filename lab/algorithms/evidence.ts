@@ -36,7 +36,8 @@ import { codeOf } from './engine/code';
 import { judge } from './engine/judge';
 
 export const EVIDENCE_FILE = path.join(LAB_ROOT, 'src', 'algorithms', 'generated', 'candidate-evidence.json');
-const CHILD = path.join(__dirname, 'child.ts');
+/** The one entry point every lab child process starts from. */
+export const CHILD = path.join(__dirname, 'child.ts');
 
 export interface BuildOptions {
   /** The allow-list to run. Defaults to candidates/index.ts. */
@@ -54,7 +55,7 @@ export interface BuildResult {
   children: Array<{ job: string; outcome: ChildOutcome }>;
 }
 
-const MeasuredLine = z.object({
+export const MeasuredLine = z.object({
   wallMs: z.null(), startupMs: z.number(), evaluationMs: z.number(), cpuUserMs: z.number(), cpuSystemMs: z.number(),
   maxRssBytes: z.number(), heapUsedBytes: z.number(), predictions: z.number().int(),
   approvedNsPerCall: z.number().nullable(), candidateNsPerCall: z.number().nullable(),
@@ -67,7 +68,7 @@ const ResultLine = z.object({
   measured: MeasuredLine,
 });
 
-const NO_MEASURE: LabMeasured = {
+export const NO_MEASURE: LabMeasured = {
   wallMs: null, startupMs: null, evaluationMs: null, cpuUserMs: null, cpuSystemMs: null, maxRssBytes: null,
   heapUsedBytes: null, predictions: null, approvedNsPerCall: null, candidateNsPerCall: null,
 };
@@ -76,7 +77,7 @@ const NO_MEASURE: LabMeasured = {
  * The complete JSON lines a child printed — a line cut off by a kill is not
  * one. Null when a complete line is not JSON.
  */
-function linesOf(stdout: string): unknown[] | null {
+export function linesOf(stdout: string): unknown[] | null {
   const out: unknown[] = [];
   const complete = stdout.split('\n').slice(0, -1);
   for (const line of complete) {
@@ -89,7 +90,7 @@ function linesOf(stdout: string): unknown[] | null {
 /** An allow-list file is a plain name in the candidates directory — never a path. */
 export const CANDIDATE_FILE = /^[a-z0-9][a-z0-9.-]*\.ts$/;
 
-function runOf(outcome: ChildOutcome, timeoutMs: number, state: LabRun['state'] = outcome.state, reasons: string[] = []): LabRun {
+export function runOf(outcome: ChildOutcome, timeoutMs: number, state: LabRun['state'] = outcome.state, reasons: string[] = []): LabRun {
   return { state, exitCode: outcome.exitCode, signal: outcome.signal, timeoutMs, reasons };
 }
 
@@ -107,7 +108,8 @@ export function heldRun(outcome: ChildOutcome, timeoutMs: number): LabRun | null
   return runOf(outcome, timeoutMs, outcome.state === 'COMPLETED' ? 'INVALID_OUTPUT' : outcome.state, [OUTPUT_HELD]);
 }
 
-function spec(limits: LabLimits): CandidateEvidence['spec'] {
+/** The declared spec, as evidence carries it — and as an approval dossier does (release/dossier.ts). */
+export function specOf(limits: LabLimits): CandidateEvidence['spec'] {
   return {
     version: LAB_SPEC_VERSION,
     algorithms: [...CANDIDATE_ALGORITHMS],
@@ -134,7 +136,7 @@ function spec(limits: LabLimits): CandidateEvidence['spec'] {
 }
 
 /** Why a declaration cannot be evaluated against today's approved version; empty when it can. */
-function refusals(entry: CandidateIndexEntry, declaration: z.infer<typeof CandidateDeclarationSchema>, code: CandidateEntry['code']): string[] {
+export function refusals(entry: CandidateIndexEntry, declaration: z.infer<typeof CandidateDeclarationSchema>, code: CandidateEntry['code']): string[] {
   const out: string[] = [];
   const decl = algorithmOf(entry.algorithm);
   if (declaration.id !== entry.id || declaration.algorithm !== entry.algorithm) out.push('DECLARATION_MISMATCH');
@@ -149,25 +151,36 @@ function refusals(entry: CandidateIndexEntry, declaration: z.infer<typeof Candid
   return out;
 }
 
-export async function buildEvidence(opts: BuildOptions = {}): Promise<BuildResult> {
-  const limits: LabLimits = { ...LAB_LIMITS, ...(opts.limits ?? {}) };
-  const index = opts.index ?? CANDIDATE_INDEX;
-  if (index.length > limits.candidatesMax) throw new Error(`${index.length} candidates exceed the limit of ${limits.candidatesMax}`);
-  for (const e of index) if (!CANDIDATE_FILE.test(e.file)) throw new Error(`allow-list entry ${e.id}: ${e.file} is not a plain file name`);
-  const childLimits = { timeoutMs: limits.jobTimeoutMs, heapMb: limits.childHeapMb, maxStdoutBytes: limits.maxStdoutBytes, maxStderrBytes: limits.maxStderrBytes };
-  const env = opts.fixtureIndex ? { LAB_CANDIDATE_INDEX: opts.fixtureIndex } : undefined;
-  const candidatesDir = opts.fixtureIndex ? path.dirname(path.resolve(LAB_ROOT, opts.fixtureIndex)) : path.join(__dirname, 'candidates');
-  const children: BuildResult['children'] = [];
+/** What one child may use, from the lab's limits. */
+export function childLimitsOf(limits: LabLimits) {
+  return { timeoutMs: limits.jobTimeoutMs, heapMb: limits.childHeapMb, maxStdoutBytes: limits.maxStdoutBytes, maxStderrBytes: limits.maxStderrBytes };
+}
 
-  // ── the method checks itself first ──
-  const mo = await runChild(CHILD, ['method-checks'], childLimits, { typescript: true });
-  children.push({ job: 'method-checks', outcome: mo });
+/** The comparison method checks itself, in a child of its own: how that child ended, and the checks as evidence carries them. */
+export async function methodChecksOf(limits: LabLimits): Promise<{ outcome: ChildOutcome; methodChecks: CandidateEvidence['methodChecks'] }> {
+  const mo = await runChild(CHILD, ['method-checks'], childLimitsOf(limits), { typescript: true });
   const mHeld = heldRun(mo, limits.jobTimeoutMs);
   const mLines = mo.state === 'COMPLETED' && !mHeld ? linesOf(mo.stdout) : null;
   const mParsed = mLines && mLines.length === 1 ? MethodLine.safeParse(mLines[0]) : null;
   const methodChecks = mParsed?.success
     ? { run: runOf(mo, limits.jobTimeoutMs), checks: mParsed.data.checks, measured: { ...mParsed.data.measured, wallMs: mo.wallMs } }
     : { run: mHeld ?? runOf(mo, limits.jobTimeoutMs, mo.state === 'COMPLETED' ? 'INVALID_OUTPUT' : mo.state), checks: [], measured: { ...NO_MEASURE, wallMs: mo.wallMs } };
+  return { outcome: mo, methodChecks };
+}
+
+export async function buildEvidence(opts: BuildOptions = {}): Promise<BuildResult> {
+  const limits: LabLimits = { ...LAB_LIMITS, ...(opts.limits ?? {}) };
+  const index = opts.index ?? CANDIDATE_INDEX;
+  if (index.length > limits.candidatesMax) throw new Error(`${index.length} candidates exceed the limit of ${limits.candidatesMax}`);
+  for (const e of index) if (!CANDIDATE_FILE.test(e.file)) throw new Error(`allow-list entry ${e.id}: ${e.file} is not a plain file name`);
+  const childLimits = childLimitsOf(limits);
+  const env = opts.fixtureIndex ? { LAB_CANDIDATE_INDEX: opts.fixtureIndex } : undefined;
+  const candidatesDir = opts.fixtureIndex ? path.dirname(path.resolve(LAB_ROOT, opts.fixtureIndex)) : path.join(__dirname, 'candidates');
+  const children: BuildResult['children'] = [];
+
+  // ── the method checks itself first ──
+  const { outcome: mo, methodChecks } = await methodChecksOf(limits);
+  children.push({ job: 'method-checks', outcome: mo });
 
   // ── each candidate, one at a time ──
   const candidates: CandidateEntry[] = [];
@@ -212,7 +225,7 @@ export async function buildEvidence(opts: BuildOptions = {}): Promise<BuildResul
     evidence: 'SYNTHETIC',
     production: 'NEVER_RUN',
     notice: LAB_NOTICE,
-    spec: spec(limits),
+    spec: specOf(limits),
     methodChecks,
     candidates,
     measured: { generatedAt: (opts.now ?? new Date()).toISOString(), node: process.version, platform: `${process.platform}-${process.arch}` },

@@ -145,13 +145,13 @@ export const MONITORING_SPECS: readonly MonitoringSpec[] = [
   // ── match analytics ──
   {
     key: 'xg', instrumented: false,
-    reason: 'It does not run in production: no request, worker or job calls it. Expected-goals values arrive with each match event, from the client or a data provider, and are stored as they arrive. Its only caller is this room’s own evaluation.',
+    reason: 'It does not run in production: no request, worker or job calls it. Expected-goals values arrive with each match event, from the client or a data provider, and are stored as they arrive. On this server only this room calls it: its evaluation and its synthetic learning, both on invented shots.',
     evidence: NOT_IN_PRODUCTION_EVIDENCE,
     entry: ['computeXG', 'annotateXG'],
   },
   {
     key: 'xgot', instrumented: false,
-    reason: 'It does not run in production: no request, worker or job calls it. Expected-goals-on-target values arrive with each match event and are stored as they arrive. Its only caller is this room’s own evaluation.',
+    reason: 'It does not run in production: no request, worker or job calls it. Expected-goals-on-target values arrive with each match event and are stored as they arrive. On this server only this room calls it: its evaluation and its synthetic learning, both on invented shots.',
     evidence: NOT_IN_PRODUCTION_EVIDENCE,
     entry: ['computeXGOT', 'annotateXG'],
   },

@@ -290,7 +290,7 @@ export const SECURITY_LIFECYCLE: readonly StageDecl[] = [
   {
     id: 'review', title: 'Human review',
     describes: 'Code owners are requested on security-relevant files.',
-    controls: ['codeowners', 'algorithm-change-gate', 'algorithm-learning-separation', 'algorithm-candidate-isolation'],
+    controls: ['codeowners', 'algorithm-change-gate', 'algorithm-learning-separation', 'algorithm-candidate-isolation', 'algorithm-release-binding'],
     outsideView: 'Branch protection and review approvals are GitHub settings the platform cannot read.',
   },
   {

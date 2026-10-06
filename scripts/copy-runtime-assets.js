@@ -46,7 +46,17 @@ const ASSETS = [
   // it is the only thing of the lab's that ships, and it is data, never code.
   ['src/algorithms/generated/candidate-evidence.json',
    'dist/algorithms/generated/candidate-evidence.json'],
+  // The one digest that binds a CHANGE approval to its dossier (plain
+  // JavaScript, shared with the lab and the Cybersecurity scan). The server
+  // requires it to check each approval's binding (src/algorithms/release.ts).
+  ['src/algorithms/dossier-core.js',
+   'dist/algorithms/dossier-core.js'],
 ];
+
+// Approval dossiers (src/algorithms/approvals/*.json): the evidence each CHANGE
+// approval is bound to. Data, never code; there is one per promoted version and
+// none until a candidate is promoted, so the directory is copied as it is.
+const DOSSIERS = ['src/algorithms/approvals', 'dist/algorithms/approvals'];
 
 let copied = 0;
 for (const [from, to] of ASSETS) {
@@ -59,5 +69,11 @@ for (const [from, to] of ASSETS) {
   fs.mkdirSync(path.dirname(dst), { recursive: true });
   fs.copyFileSync(src, dst);
   copied++;
+}
+{
+  const [from, to] = DOSSIERS.map((p) => path.join(process.cwd(), p));
+  const names = fs.existsSync(from) ? fs.readdirSync(from).filter((n) => /^[a-z0-9][a-z0-9.-]*\.json$/.test(n)) : [];
+  fs.mkdirSync(to, { recursive: true });
+  for (const n of names) { fs.copyFileSync(path.join(from, n), path.join(to, n)); copied++; }
 }
 console.log('[assets] copied ' + copied + ' runtime file(s) into dist');

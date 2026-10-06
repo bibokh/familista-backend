@@ -32,6 +32,8 @@ import { MONITORING_SPECS } from '../src/algorithms/monitoring-spec';
 import { LEARN_SPECS, SYNTHETIC_SCENARIOS, JUSTIFICATIONS, REAL_WORLD, SYNTHETIC_NOTICE } from '../src/algorithms/learning-spec';
 import { algorithmCandidates, algorithmCandidate } from '../src/algorithms/candidates';
 import { EVIDENCE_REASONS } from '../src/algorithms/candidate-evidence';
+import { algorithmReleases } from '../src/algorithms/release';
+import { PROMOTION_NOTE } from '../lab/algorithms/release/spec';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const discover = require('../scripts/algorithms-discover.js');
@@ -346,10 +348,11 @@ describe('the room is the platform owner’s, and it writes nothing', () => {
     expect(read('src/routes/index.ts')).toContain("router.use('/system/algorithms', algorithmsRoutes);");
   });
 
-  it('has exactly eight reads and no write handler', () => {
-    // Step 1's two, Step 2's production monitoring, Step 3's learning and
-    // Step 4's candidates: the room and one item for each, every one read-only.
-    expect((code.match(/router\.get\(/g) || []).length).toBe(8);
+  it('has exactly nine reads and no write handler', () => {
+    // Step 1's two, Step 2's production monitoring, Step 3's learning,
+    // Step 4's candidates and Step 5's releases: the room and one item for
+    // each, every one read-only.
+    expect((code.match(/router\.get\(/g) || []).length).toBe(9);
     expect(code).not.toMatch(/router\.(post|put|patch|delete|all)\(/);
     expect(read('public/algorithms/algorithms.js')).not.toMatch(/method:\s*['"](POST|PUT|PATCH|DELETE)/i);
   });
@@ -375,7 +378,8 @@ describe('Cybersecurity covers the Algorithms module from the start', () => {
     // Step 3 adds the learning-separation control to the same boundary: the
     // evidence a change proposal would be built on must be honest about its kind.
     // Step 4 adds candidate isolation: a proposal is built and judged outside production.
-    expect(map.boundaries['39']).toMatchObject({ name: 'Algorithm change control', coverage: 'C', controls: [CONTROL_FOR_TEST, 'algorithm-learning-separation', 'algorithm-candidate-isolation'] });
+    // Step 5 adds the release binding: an approved change is bound to the evidence it was judged on.
+    expect(map.boundaries['39']).toMatchObject({ name: 'Algorithm change control', coverage: 'C', controls: [CONTROL_FOR_TEST, 'algorithm-learning-separation', 'algorithm-candidate-isolation', 'algorithm-release-binding'] });
     expect(map.components.routers['algorithms.routes']).toContain(39);
     // Row 40 joined with Step 2: the same module also writes production telemetry.
     expect(map.components.srcDomains.algorithms).toEqual([39, 40]);
@@ -384,7 +388,7 @@ describe('Cybersecurity covers the Algorithms module from the start', () => {
   it('appears on the Cybersecurity map as an AI area', () => {
     const reg = read('src/cyber-defense/control-plane/registry.ts');
     expect(reg).toContain("{ id: 'algorithms', title: 'Algorithms', group: 'AI', routers: ['algorithms.routes'], rows: [39, 40] }");
-    expect(reg).toContain("controls: ['codeowners', 'algorithm-change-gate', 'algorithm-learning-separation', 'algorithm-candidate-isolation'],");
+    expect(reg).toContain("controls: ['codeowners', 'algorithm-change-gate', 'algorithm-learning-separation', 'algorithm-candidate-isolation', 'algorithm-release-binding'],");
   });
 });
 
@@ -459,7 +463,10 @@ describe('the room speaks English, German and Arabic — every string it can sho
       // Proposals (Step 4).
       'CAND_TEST_LABEL', 'CAND_TEST_MEANING', 'OUTCOME_LABEL', 'RUN_LABEL', 'ESTIMATE_LABEL', 'WORLD_STATUS_LABEL',
       'PHASE_LABEL', 'SYMBOL_LABEL', 'PROPOSER_LABEL', 'EVIDENCE_KIND_LABEL', 'LAB_CHECK_LABEL', 'CAND_TAB_LABEL',
-      'CAND_REASON_LABEL']) {
+      'CAND_REASON_LABEL',
+      // Releases (Step 5).
+      'BINDING_LABEL', 'BINDING_MEANING', 'BINDING_REASON_LABEL', 'DEP_PATH_LABEL', 'LIMIT_LABEL',
+      'PRODUCTION_LABEL', 'PRODUCTION_MEANING']) {
       expect(`${name}: ${src.includes(`var ${name} = {`)}`).toBe(`${name}: true`);
       const i = src.indexOf(`var ${name} = {`);
       for (const m of src.slice(i, src.indexOf('};', i)).matchAll(/:\s*'((?:[^'\\]|\\.)*)'/g)) out.add(m[1]);
@@ -513,6 +520,9 @@ describe('the room speaks English, German and Arabic — every string it can sho
       if (decl) { add(decl.rationale); add(decl.hypothesis.region); decl.evidence.forEach((r) => { add(r.ref); add(r.note); }); }
       found.detail.dependants.forEach((x) => add(x.name));
     }
+    // Releases (Step 5): the history line a promotion writes, and every note the releases read sends.
+    add(PROMOTION_NOTE);
+    algorithmReleases(null).algorithms.forEach((r) => r.history.forEach((v) => add(v.note)));
     for (const a of o.algorithms) {
       const d = algorithmDetail(a.key);
       if (d.state !== 'READY') continue;
