@@ -184,12 +184,14 @@ restore-drill → Run workflow** (on `main`). `scripts/restore-drill-ci.js`:
    `DRILL_DATABASE_URL`) or `NODE_ENV=production`, and names — never shows — a
    missing secret;
 2. builds the runner from `scripts/restore-drill/Dockerfile` (pg_restore 18 from
-   the official `postgres:18` image, plus Node 20);
+   the official `postgres:18` image, plus Node 20 — both pinned to an immutable
+   image digest, so a moved tag cannot change what the drill runs);
 3. picks the newest **complete** backup (`backup.js latest`, store settings
    only);
-4. starts a throwaway `postgres:18` target, labelled with the run's random
-   nonce, **no published port**, a random password nobody sees; proves the
-   container is that one, is empty, and is reached over its own loopback;
+4. starts a throwaway target from the same digest-pinned `postgres:18` image,
+   labelled with the run's random nonce, **no published port**, a random
+   password nobody sees; proves the container is that one, from that image, is
+   empty, and is reached over its own loopback;
 5. runs the repository's drill (`backup.js drill`) in a container sharing only
    the target's network — the same checks as the manual drill: manifest
    signature, object, key, SHA-256 and size, authenticated decryption into a
@@ -222,6 +224,13 @@ printed only when the repository variable `RESTORE_DRILL_SHOW_COUNTS` is
 `true`. A head behind the newest migration fails on purpose: the newest backup
 then predates a schema change, so it would restore an older schema. Run the
 drill again after the next backup.
+
+**Updating the images.** The digests live in one place, the two `FROM` lines of
+`scripts/restore-drill/Dockerfile` (the drill reads its server image from there
+and refuses to run on a tag). To move to a newer PostgreSQL 18 or Node 20
+release, resolve the tag's current index digest from Docker Hub, replace it in
+that file, and open a pull request: the self-test proves the new images before
+they reach `main`.
 
 Pull requests that touch the drill run its **self-test** instead: the same
 script, containers and checks on a synthetic database migrated with the

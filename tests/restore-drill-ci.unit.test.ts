@@ -71,7 +71,10 @@ describe('guards: production is never within reach', () => {
     expect(() => drillCi.proveIsolated(inspect({}, {}, {}), 't', 'n0nce')).toThrow(/not the container this run created/);
     expect(() => drillCi.proveIsolated(inspect(ok, { '5432/tcp': [{ HostIp: '0.0.0.0', HostPort: '5432' }] }, {}), 't', 'n0nce')).toThrow(/publishes a port/);
     expect(() => drillCi.proveIsolated(inspect(ok, {}, { '5432/tcp': [{ HostIp: '127.0.0.1', HostPort: '49153' }] }), 't', 'n0nce')).toThrow(/publishes a port/);
-    expect(() => drillCi.proveIsolated(inspect(ok, {}, {}, 'postgres:16'), 't', 'n0nce')).toThrow(/not a postgres:18/);
+    expect(() => drillCi.proveIsolated(inspect(ok, {}, {}, 'postgres:16'), 't', 'n0nce')).toThrow(/not the pinned postgres:18 image/);
+    // The tag alone is not the image: a digest-less reference is refused too.
+    expect(() => drillCi.proveIsolated(inspect(ok, {}, {}, 'postgres:18-bookworm'), 't', 'n0nce')).toThrow(/not the pinned postgres:18 image/);
+    expect(() => drillCi.proveIsolated(inspect(ok, {}, {}), 't', 'n0nce', null)).toThrow(/not the pinned postgres:18 image/);
     expect(() => drillCi.proveIsolated(inspect(ok, {}, {}, drillCi.PG_IMAGE, 1), 't', 'n0nce')).toThrow(/could not be inspected/);
   });
 
@@ -96,6 +99,27 @@ describe('guards: production is never within reach', () => {
     for (const k of ['2026/10/06/x.fbk.manifest.json', '../x.fbk', '/abs/x.fbk', '2026/x.sql', 'x.fbk; rm -rf /', '']) {
       expect(drillCi.isBackupKey(k)).toBe(false);
     }
+  });
+});
+
+describe('images: pinned to immutable digests', () => {
+  const DOCKERFILE = read('scripts/restore-drill/Dockerfile');
+
+  it('the throwaway server runs the same digest-pinned postgres image the runner is built from', () => {
+    expect(drillCi.PG_IMAGE).toMatch(/^postgres:18-bookworm@sha256:[0-9a-f]{64}$/);
+    expect(DOCKERFILE).toContain(`FROM ${drillCi.PG_IMAGE}\n`);
+  });
+
+  it('a tag alone, another image, or no Dockerfile pins nothing', () => {
+    expect(drillCi.postgresImageFrom('FROM postgres:18-bookworm\n')).toBeNull();
+    expect(drillCi.postgresImageFrom(`FROM postgres:16-bookworm@sha256:${'a'.repeat(64)}\n`)).toBeNull();
+    expect(drillCi.postgresImageFrom(`FROM postgres:18-bookworm@sha256:${'a'.repeat(63)}\n`)).toBeNull();
+    expect(drillCi.postgresImageFrom('')).toBeNull();
+    expect(drillCi.postgresImageFrom(`FROM postgres:18-bookworm@sha256:${'b'.repeat(64)}\n`)).toBe(`postgres:18-bookworm@sha256:${'b'.repeat(64)}`);
+  });
+
+  it('the drill script names no image tag of its own', () => {
+    expect(read('scripts/restore-drill-ci.js')).not.toMatch(/'(postgres|node):\d+[\w.-]*'/);
   });
 });
 
@@ -321,6 +345,7 @@ describe('a whole drill run', () => {
     expect(target.args).not.toContain('-p');
     expect(target.args).not.toContain('--publish');
     expect(target.args[target.args.length - 1]).toBe(drillCi.PG_IMAGE);
+    expect(target.args[target.args.length - 1]).toMatch(/@sha256:[0-9a-f]{64}$/);
     const name = target.args[target.args.indexOf('--name') + 1];
     const order = d.calls.map((c) => c.args[0] === 'inspect' ? 'inspect' : c.args.includes('drill') ? 'drill' : c.args[0] === 'rm' ? 'rm' : '');
     expect(order.indexOf('inspect')).toBeLessThan(order.indexOf('drill'));
@@ -357,6 +382,15 @@ describe('a whole drill run', () => {
       expect(r.out).not.toContain('prod.example.invalid');
       expect(r.leftovers).toEqual([]);
     }
+  });
+
+  it('refuses to run on an unpinned image, before touching Docker', async () => {
+    const d = fakeDocker();
+    const out: string[] = [];
+    const code = await drillCi.main([], { ...SECRETS, RUNNER_TEMP: '' }, { docker: d.docker, out: (l: string) => out.push(l), summaryFile: '', user: '1001:118', pgImage: null });
+    expect(code).toBe(1);
+    expect(out.join('\n')).toMatch(/does not pin postgres:18 by digest/);
+    expect(d.calls).toHaveLength(0);
   });
 
   it('never restores into a target that publishes a port or is not empty — and still removes it', async () => {

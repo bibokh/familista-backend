@@ -137,11 +137,17 @@ describe('scripts/restore-drill.ps1', () => {
 describe('scripts/restore-drill/Dockerfile', () => {
   it('is pg_restore 18 from the official postgres image plus Node 20, nothing from a package repository', () => {
     const lines = DOCKERFILE.split('\n').filter((l) => l && !l.startsWith('#'));
-    expect(lines).toEqual([
+    expect(lines.map((l) => l.replace(/@sha256:[0-9a-f]{64}/, ''))).toEqual([
       'FROM node:20-bookworm AS node',
       'FROM postgres:18-bookworm',
       'COPY --from=node /usr/local/bin/node /usr/local/bin/node',
       'USER postgres',
     ]);
+  });
+
+  it('pins both bases to an immutable digest, so a moved tag cannot change what the drill runs', () => {
+    const froms = DOCKERFILE.split('\n').filter((l) => l.startsWith('FROM '));
+    expect(froms).toHaveLength(2);
+    for (const l of froms) expect(l).toMatch(/^FROM (node:20|postgres:18)-bookworm@sha256:[0-9a-f]{64}( AS node)?$/);
   });
 });

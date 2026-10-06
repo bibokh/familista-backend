@@ -17,12 +17,14 @@
 //      (DATABASE_URL, DIRECT_URL, BACKUP_DATABASE_URL, …) or NODE_ENV is
 //      production, and names — never shows — any required setting that is missing
 //   2. builds the runner image from scripts/restore-drill/Dockerfile
-//      (pg_restore 18 from the official postgres image, plus Node 20)
+//      (pg_restore 18 from the official postgres image, plus Node 20; both
+//      bases pinned by digest)
 //   3. finds the newest complete backup — a .fbk whose signed manifest is
 //      beside it — with the store settings only (`backup.js latest`)
-//   4. starts the target: a new postgres:18 container, labelled with this run's
-//      random nonce, with no published port and a random password nobody sees
-//   5. proves the target is that container (label, image, no published port)
+//   4. starts the target: a new container from the same digest-pinned
+//      postgres:18 image, labelled with this run's random nonce, with no
+//      published port and a random password nobody sees
+//   5. proves the target is that container (label, pinned image, no published port)
 //      and that it is empty, and that the URL it will restore to is loopback
 //   6. runs the repository's own drill (`backup.js drill`) in a container that
 //      shares only the target's network: manifest signature, object binding,
@@ -47,8 +49,22 @@ const { spawnSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 const RUNNER_IMAGE = 'familista-restore-drill-runner:pg18';
-const PG_IMAGE = 'postgres:18-bookworm';
 const PG_USER = 'postgres';
+
+/**
+ * The PostgreSQL image, read from the runner's Dockerfile: one digest-pinned
+ * reference for the client tools and the throwaway server, so the two cannot
+ * drift apart and a moved tag cannot change either. Null when the Dockerfile
+ * does not pin postgres:18 by digest — the drill then refuses to run rather
+ * than fall back to a tag.
+ */
+function postgresImageFrom(dockerfile) {
+  const m = /^FROM (postgres:18-[a-z]+@sha256:[0-9a-f]{64})\s*$/m.exec(String(dockerfile || ''));
+  return m ? m[1] : null;
+}
+const PG_IMAGE = postgresImageFrom((() => {
+  try { return fs.readFileSync(path.join(ROOT, 'scripts', 'restore-drill', 'Dockerfile'), 'utf8'); } catch { return ''; }
+})());
 const DRILL_DB = 'familista_drill';
 const SOURCE_DB = 'familista_selftest';
 const LABEL = 'familista.restore-drill';
@@ -125,16 +141,16 @@ function assertLoopbackTarget(url) {
   }
 }
 
-/** Proves the container about to receive a restore is the one this run created, and is unreachable from outside. */
-function proveIsolated(docker, name, nonce) {
+/** Proves the container about to receive a restore is the one this run created, from the pinned image, and unreachable from outside. */
+function proveIsolated(docker, name, nonce, image = PG_IMAGE) {
   const r = docker(['inspect', '--format',
     '{{json .Config.Labels}}\t{{json .HostConfig.PortBindings}}\t{{json .NetworkSettings.Ports}}\t{{.Config.Image}}', name]);
   if (r.code !== 0) throw new DrillError('the restore target could not be inspected');
-  const [labels, bindings, ports, image] = r.stdout.trim().split('\t');
+  const [labels, bindings, ports, found] = r.stdout.trim().split('\t');
   const parse = (s) => { try { return JSON.parse(s || 'null') || {}; } catch { return null; } };
   const L = parse(labels);
   if (!L || L[LABEL] !== nonce) throw new DrillError('the restore target is not the container this run created');
-  if (String(image || '').trim() !== PG_IMAGE) throw new DrillError('the restore target is not a postgres:18 container');
+  if (!image || String(found || '').trim() !== image) throw new DrillError('the restore target is not the pinned postgres:18 image');
   const published = (o) => o === null || Object.values(o).some((v) => Array.isArray(v) && v.some((b) => b && b.HostPort));
   if (published(parse(bindings)) || published(parse(ports))) {
     throw new DrillError('the restore target publishes a port; a drill target must be unreachable from outside its container');
@@ -237,7 +253,7 @@ function startPostgres(ctx, { name, db, publishLoopback }) {
   try {
     const args = ['run', '-d', '--name', name, '--label', `${LABEL}=${ctx.nonce}`, '--env-file', envFile];
     if (publishLoopback) args.push('-p', '127.0.0.1::5432');
-    args.push(PG_IMAGE);
+    args.push(ctx.pgImage);
     const r = ctx.docker(args, { timeoutMs: 10 * 60_000 });
     if (r.code !== 0) throw new DrillError(`could not start the PostgreSQL 18 container ${name}: ${ctx.redact(lastLine(r.stderr))}`);
     ctx.containers.push(name);
@@ -395,7 +411,7 @@ function drill(ctx, { storeEnv, storeMount, keysFile, rlsTables }) {
   ctx.log(`Newest complete backup: ${objectKey} (${found.complete} complete backup(s) found)`);
 
   const target = startPostgres(ctx, { name: `familista-drill-${ctx.nonce.slice(0, 12)}`, db: DRILL_DB, publishLoopback: false });
-  proveIsolated(ctx.docker, target.name, ctx.nonce);
+  proveIsolated(ctx.docker, target.name, ctx.nonce, ctx.pgImage);
   const [before] = [...psqlRows(ctx.docker, target, "SELECT 'tables', count(*)::text FROM pg_tables WHERE schemaname NOT IN ('pg_catalog','information_schema');\n").values()];
   if (before !== '0') throw new DrillError('the new target database is not empty');
   const url = targetUrl(target.password);
@@ -508,6 +524,7 @@ async function main(argv = process.argv.slice(2), env = process.env, deps = {}) 
   fs.chmodSync(work, 0o700);
   const ctx = {
     docker, work, containers: [],
+    pgImage: deps.pgImage !== undefined ? deps.pgImage : PG_IMAGE,
     nonce: crypto.randomBytes(16).toString('hex'),
     user: deps.user || `${process.getuid()}:${process.getgid()}`,
     log: (line) => write(redact(line)),
@@ -522,6 +539,7 @@ async function main(argv = process.argv.slice(2), env = process.env, deps = {}) 
   let result = { mode, pass: false, checks: [], exactCounts };
   try {
     refuseProductionSettings(env);
+    if (!ctx.pgImage) throw new DrillError('scripts/restore-drill/Dockerfile does not pin postgres:18 by digest; the drill does not run on a tag');
     let storeEnv; let storeMount = null; let keysFile; let store;
     const expectedHead = latestMigration(deps.root || ROOT);
     const rlsTables = protectedTables(deps.root || ROOT);
@@ -568,7 +586,7 @@ async function main(argv = process.argv.slice(2), env = process.env, deps = {}) 
 }
 
 module.exports = {
-  main, evaluate, render, refuseProductionSettings, refuseSecretsInSelfTest, realSettings, isBackupKey,
+  main, evaluate, render, postgresImageFrom, refuseProductionSettings, refuseSecretsInSelfTest, realSettings, isBackupKey,
   targetUrl, assertLoopbackTarget, proveIsolated, latestMigration, protectedTables, redactor, writeEnvFile,
   runnerArgs, lastJsonLine, inspectRestored, DrillError,
   PRODUCTION_SETTINGS, STORE_SETTINGS, KEY_SETTINGS, CORE_TABLES, MUST_HAVE_ROWS, PG_IMAGE, LABEL,
