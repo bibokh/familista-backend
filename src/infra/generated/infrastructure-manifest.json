@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-06T09:11:13.093Z",
+  "generatedAt": "2026-10-06T09:54:39.080Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -1351,7 +1351,7 @@
       "id": "compression",
       "name": "Compression",
       "category": "library",
-      "version": "1.8.1",
+      "version": "1.8.2",
       "usedBy": [
         "backend"
       ],
@@ -2308,7 +2308,7 @@
     {
       "name": "compression",
       "declared": "^1.7.4",
-      "resolved": "1.8.1",
+      "resolved": "1.8.2",
       "classification": "RUNTIME",
       "technology": "Compression"
     },
