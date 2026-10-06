@@ -26,36 +26,37 @@ const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const CI = read('.github/workflows/ci.yml');
 const DEPLOY = read('.github/workflows/deploy.yml');
 const BACKUP = read('.github/workflows/backup.yml');
+const RESTORE = read('.github/workflows/restore-drill.yml');
 const WORKFLOWS = fs.readdirSync(path.join(ROOT, '.github/workflows')).filter((f) => /\.ya?ml$/.test(f));
 
 describe('every workflow', () => {
-  it('is one of the three reviewed workflows (a new one needs these checks too)', () => {
-    expect(WORKFLOWS.sort()).toEqual(['backup.yml', 'ci.yml', 'deploy.yml']);
+  it('is one of the four reviewed workflows (a new one needs these checks too)', () => {
+    expect(WORKFLOWS.sort()).toEqual(['backup.yml', 'ci.yml', 'deploy.yml', 'restore-drill.yml']);
   });
 
-  it.each([['ci.yml', CI], ['deploy.yml', DEPLOY], ['backup.yml', BACKUP]])('%s runs with a read-only token', (_f, src) => {
+  it.each([['ci.yml', CI], ['deploy.yml', DEPLOY], ['backup.yml', BACKUP], ['restore-drill.yml', RESTORE]])('%s runs with a read-only token', (_f, src) => {
     expect(checks.leastPrivilege(src)).toBe(true);
     expect(src).not.toMatch(/permissions:\s*write-all|:\s*write\b/);
   });
 
-  it.each([['ci.yml', CI], ['deploy.yml', DEPLOY], ['backup.yml', BACKUP]])('%s pins every action to a full commit SHA with its release named', (_f, src) => {
+  it.each([['ci.yml', CI], ['deploy.yml', DEPLOY], ['backup.yml', BACKUP], ['restore-drill.yml', RESTORE]])('%s pins every action to a full commit SHA with its release named', (_f, src) => {
     for (const line of src.split('\n').filter((l) => /uses:/.test(l))) {
       expect(line).toMatch(/uses:\s*[\w.-]+\/[\w.-]+@[0-9a-f]{40}\s+#\s*v\d+\.\d+\.\d+\s*$/);
     }
     expect(checks.actionRefs(src).every((r) => r.pinned)).toBe(true);
   });
 
-  it.each([['ci.yml', CI], ['deploy.yml', DEPLOY], ['backup.yml', BACKUP]])('%s expands no expression inside a shell script', (_f, src) => {
+  it.each([['ci.yml', CI], ['deploy.yml', DEPLOY], ['backup.yml', BACKUP], ['restore-drill.yml', RESTORE]])('%s expands no expression inside a shell script', (_f, src) => {
     expect(checks.expressionInScript(src)).toBe(false);
   });
 
-  it.each([['ci.yml', CI], ['backup.yml', BACKUP]])('%s: no checkout leaves the token behind in the working copy', (_f, src) => {
+  it.each([['ci.yml', CI], ['backup.yml', BACKUP], ['restore-drill.yml', RESTORE]])('%s: no checkout leaves the token behind in the working copy', (_f, src) => {
     const checkouts = src.split('uses: actions/checkout@').slice(1);
     expect(checkouts.length).toBeGreaterThan(0);
     for (const c of checkouts) expect(c.slice(0, 200)).toMatch(/persist-credentials:\s*false/);
   });
 
-  it.each([['ci.yml', CI], ['backup.yml', BACKUP]])('nothing in %s is allowed to fail quietly', (_f, src) => {
+  it.each([['ci.yml', CI], ['backup.yml', BACKUP], ['restore-drill.yml', RESTORE]])('nothing in %s is allowed to fail quietly', (_f, src) => {
     const code = src.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
     expect(code).not.toMatch(/continue-on-error:\s*true/);
     expect(code).not.toMatch(/\|\|\s*true/);

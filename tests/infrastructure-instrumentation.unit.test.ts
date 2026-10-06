@@ -400,6 +400,7 @@ describe('instrumentation coverage', () => {
     'workflow-ci': 'CI results live in GitHub Actions; the server has no channel to read them.',
     'workflow-deploy': 'Same: a workflow run is not readable from the running server.',
     'workflow-backup': 'Same: the backup workflow\'s runs live in GitHub Actions; each backup it triggers leaves a BackupRecord.',
+    'workflow-restore-drill': 'Same: the restore drill runs in GitHub Actions against a throwaway database; its verdict is the run, never production.',
     'test-suite': 'Tests run in CI, not in production.',
     'boot-probe': 'Runs in CI against a fresh boot, not in production.',
     'i18n-check': 'Runs in CI; its runtime counterpart is the Internationalisation signal.',

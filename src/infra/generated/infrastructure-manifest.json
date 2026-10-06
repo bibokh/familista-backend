@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-06T09:54:39.080Z",
+  "generatedAt": "2026-10-06T18:02:22.569Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -11,6 +11,7 @@
       ".github/workflows/backup.yml",
       ".github/workflows/ci.yml",
       ".github/workflows/deploy.yml",
+      ".github/workflows/restore-drill.yml",
       "package-lock.json",
       "package.json",
       "prisma/migrations",
@@ -956,6 +957,25 @@
       "note": null
     },
     {
+      "id": "workflow-restore-drill",
+      "name": "GitHub Actions — restore-drill",
+      "district": "cicd",
+      "category": "cicd",
+      "type": "PIPELINE",
+      "version": null,
+      "status": "ACTIVE",
+      "runtime": null,
+      "provider": "GitHub",
+      "region": null,
+      "repositoryPath": ".github/workflows/restore-drill.yml",
+      "sourceEvidence": ".github/workflows/restore-drill.yml — 10 named steps",
+      "dependencies": [
+        "platform-core"
+      ],
+      "healthKey": "ci",
+      "note": null
+    },
+    {
       "id": "render-familista-backend",
       "name": "familista-backend",
       "district": "cicd",
@@ -1081,7 +1101,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 198 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 199 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1274,6 +1294,12 @@
       "to": "render-familista-backend",
       "kind": "DEPLOYS",
       "evidence": ".github/workflows/deploy.yml; render.yaml autoDeploy"
+    },
+    {
+      "from": "workflow-restore-drill",
+      "to": "render-familista-backend",
+      "kind": "DEPLOYS",
+      "evidence": ".github/workflows/restore-drill.yml; render.yaml autoDeploy"
     }
   ],
   "technologies": [
@@ -1628,7 +1654,7 @@
     "middleware": 23,
     "fabricModules": 52,
     "totalTypeScript": 602,
-    "testSuites": 198,
+    "testSuites": 199,
     "migrations": 49,
     "prismaModels": 344,
     "prismaEnums": 209
@@ -1741,6 +1767,27 @@
         "steps": [
           "Check the tested commit is still main's head",
           "Trigger Render deploy hook"
+        ],
+        "services": [],
+        "runsOn": [
+          "ubuntu-latest"
+        ]
+      },
+      {
+        "file": ".github/workflows/restore-drill.yml",
+        "name": "restore-drill",
+        "jobs": 5,
+        "steps": [
+          "Checkout",
+          "Setup Node 20",
+          "Install deps",
+          "Build",
+          "Restore drill self-test",
+          "Checkout",
+          "Setup Node 20",
+          "Install deps",
+          "Build",
+          "Restore and verify the newest backup"
         ],
         "services": [],
         "runsOn": [
@@ -2462,8 +2509,8 @@
   ],
   "counts": {
     "districts": 19,
-    "components": 53,
-    "relationships": 16,
+    "components": 54,
+    "relationships": 17,
     "technologies": 30,
     "future": 7,
     "dependencies": 41

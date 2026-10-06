@@ -1,0 +1,118 @@
+# Familista — the automated restore drill (Cyber Defense, Step 10).
+#
+# A backup that has never been restored is a hope, not a backup. Every Monday,
+# and whenever the owner presses "Run workflow", this restores the newest
+# complete backup from the off-site bucket into a throwaway PostgreSQL 18 on
+# the runner and proves it: manifest signature, SHA-256 and size, the key,
+# authenticated decryption straight into a single-transaction pg_restore, the
+# schema head against the repository's newest migration, and rows in the
+# row-level-security tables. One verdict at the end: RESTORE DRILL: PASS/FAIL.
+# €0: GitHub-hosted runners, free for a public repository.
+#
+# Production is never a target. The drill job is given no database URL; the
+# script refuses to start if one is present, restores only into a container it
+# created itself (labelled, no published port, random password), and checks
+# that before the first byte is restored. It writes nothing anywhere else.
+#
+# Secrets: the job reads the bucket settings, the Backblaze Read Only key and
+# the offline restore keys from the `restore-drill` environment, which only
+# `main` may use (Settings → Environments → restore-drill → deployment
+# branches: main). Logs are public: the script prints no key, password, URL or
+# bucket, and exact row counts only if the repository variable
+# RESTORE_DRILL_SHOW_COUNTS is "true". See docs/BACKUP_AND_RESTORE.md.
+#
+# Pull requests that touch the drill run the self-test only: the same script,
+# containers and checks on a synthetic backup made with throwaway keys. It is
+# given no secret and reads no bucket.
+
+name: restore-drill
+
+on:
+  schedule:
+    # Mondays 13:23 UTC — after the daily 03:17 backup, which GitHub often
+    # starts several hours late.
+    - cron: '23 13 * * 1'
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/restore-drill.yml'
+      - 'scripts/restore-drill-ci.js'
+      - 'scripts/restore-drill/**'
+      - 'src/scripts/backup.ts'
+      - 'src/security/backup/**'
+      - 'src/security/db-context.ts'
+      # A schema change — row-level security above all — is what could break a restore.
+      - 'prisma/schema.prisma'
+      - 'prisma/migrations/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restore-drill-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  self-test:
+    name: self-test (synthetic backup, throwaway keys, no secrets)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node 20
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Restore drill self-test
+        run: node scripts/restore-drill-ci.js --self-test
+
+  drill:
+    name: restore the newest backup into a throwaway PostgreSQL 18 and verify it
+    needs: self-test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: restore-drill
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node 20
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Restore and verify the newest backup
+        env:
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          BACKUP_S3_REGION: ${{ secrets.BACKUP_S3_REGION }}
+          BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+          BACKUP_S3_PREFIX: ${{ secrets.BACKUP_S3_PREFIX }}
+          BACKUP_S3_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+          BACKUP_S3_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+          BACKUP_ENCRYPTION_PRIVATE_KEY: ${{ secrets.BACKUP_ENCRYPTION_PRIVATE_KEY }}
+          BACKUP_SIGNING_PUBLIC_KEY: ${{ secrets.BACKUP_SIGNING_PUBLIC_KEY }}
+          RESTORE_DRILL_SHOW_COUNTS: ${{ vars.RESTORE_DRILL_SHOW_COUNTS }}
+        run: node scripts/restore-drill-ci.js

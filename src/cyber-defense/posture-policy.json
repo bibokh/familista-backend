@@ -93,6 +93,7 @@
     "backup-runner-cannot-decrypt",
     "backup-restore-guarded",
     "backup-restore-drill-in-ci",
+    "backup-restore-drill-automated",
     "backup-records-platform-only",
     "backup-scheduled",
     "backup-trigger-authenticated",

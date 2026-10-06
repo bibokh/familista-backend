@@ -41,3 +41,8 @@
 /package-lock.json                  @bibokh
 /render.yaml                        @bibokh
 /scripts/render-start.sh            @bibokh
+
+# Backups and the restore drill: the drill handles the offline restore key
+/scripts/restore-drill-ci.js        @bibokh
+/scripts/restore-drill/             @bibokh
+/scripts/restore-drill.ps1          @bibokh
