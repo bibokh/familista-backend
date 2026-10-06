@@ -33,6 +33,13 @@ export interface DrillReport {
   tables: number;
   rowCounts: Record<string, number>;
   durationMs: number;
+  /** What was proven, with the values it was proven against (hashes, sizes and key ids; never a key). */
+  ciphertextSha256: string;
+  ciphertextBytes: number;
+  plaintextSha256: string;
+  plaintextBytes: number;
+  encryptionKeyId: string;
+  signingKeyId: string;
 }
 
 const CORE_TABLES = ['User', 'Club', 'Team', 'Player', 'Membership', '_prisma_migrations'];
@@ -121,6 +128,9 @@ export async function runRestoreDrill(cfg: DrillConfig, objectKey: string,
     return {
       ok: true, objectKey, createdAt: manifest.createdAt, migrationHead: manifest.migrationHead,
       restoredMigrationHead, tables: Number(tableCount), rowCounts, durationMs: Date.now() - started,
+      ciphertextSha256: manifest.ciphertextSha256, ciphertextBytes: manifest.ciphertextBytes,
+      plaintextSha256: manifest.plaintextSha256, plaintextBytes: manifest.plaintextBytes,
+      encryptionKeyId: manifest.encryptionKeyId, signingKeyId: keyId(cfg.signingPublicKey),
     };
   } catch (err) {
     if (err instanceof BackupCryptoError || err instanceof BackupConfigError) throw err;

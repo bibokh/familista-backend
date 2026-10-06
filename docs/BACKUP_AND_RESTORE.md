@@ -16,7 +16,8 @@ recover. Code: `src/security/backup/`, command line `src/scripts/backup.ts`
 | Credentials leaking | Passwords reach pg tools only through `PGPASSWORD`, never argv; tool output is scrubbed of URLs, user, host and password before it is logged or recorded. No command is built from configuration (the old `eval` is gone). |
 | A backup that silently fails | A failed run is recorded as a failed `BackupRecord`, and the GitHub Actions run that triggered it fails, so GitHub emails the owner. |
 | Abuse of the trigger | `POST /internal/backups/run` takes no input and runs only the fixed runner. HMAC-SHA256 over method, path and timestamp (5-minute window, constant-time), closed without a secret, rate-limited, one run at a time (advisory lock) and none within 12 hours of a success — a leaked or replayed request can cause at most one extra backup a day. |
-| A backup that cannot be restored | CI takes a real backup and restores it into an empty PostgreSQL on every pull request. |
+| A backup that cannot be restored | CI takes a real backup and restores it into an empty PostgreSQL on every pull request. Every week the `restore-drill` workflow restores the **newest production backup** into a throwaway PostgreSQL 18 and proves it (below). |
+| The restore key, once the automated drill holds it | It is a GitHub **environment** secret that only `main` can use; the drill job gets no database URL, refuses one if present, restores only into a container it made (no published port), and prints no key, password, URL or bucket. Anyone who can push to `main` or edit that environment can reach the key — the price of an unattended drill. Leave the secrets unset to keep the key strictly offline; the manual drill still works. |
 | Forged or leaked backup records | `/api/v1/phase-o/monitoring/backups` (GET and POST) is platform authority only — the owner or `SUPER_ADMIN`; no club role. |
 
 Nothing here makes the platform unbreakable. It narrows what a single
@@ -171,7 +172,93 @@ late or repeated run harmless.
 Whatever backups the Render database plan provides are unaffected; these are
 an independent, off-site, encrypted copy.
 
-## Restore drill (monthly, and after any schema-heavy release)
+## Restore drill (automated: weekly, and on demand)
+
+`.github/workflows/restore-drill.yml` does the whole drill in GitHub Actions —
+nothing to install or run on a workstation, €0 on GitHub's runners. It runs
+every Monday at 13:23 UTC and whenever the owner presses **Actions →
+restore-drill → Run workflow** (on `main`). `scripts/restore-drill-ci.js`:
+
+1. refuses to start if any production setting is in its environment
+   (`DATABASE_URL`, `DIRECT_URL`, `BACKUP_DATABASE_URL`, `MIGRATE_DATABASE_URL`,
+   `DRILL_DATABASE_URL`) or `NODE_ENV=production`, and names — never shows — a
+   missing secret;
+2. builds the runner from `scripts/restore-drill/Dockerfile` (pg_restore 18 from
+   the official `postgres:18` image, plus Node 20 — both pinned to an immutable
+   image digest, so a moved tag cannot change what the drill runs);
+3. picks the newest **complete** backup (`backup.js latest`, store settings
+   only);
+4. starts a throwaway target from the same digest-pinned `postgres:18` image,
+   labelled with the run's random nonce, **no published port**, a random
+   password nobody sees; proves the container is that one, from that image, is
+   empty, and is reached over its own loopback;
+5. runs the repository's drill (`backup.js drill`) in a container sharing only
+   the target's network — the same checks as the manual drill: manifest
+   signature, object, key, SHA-256 and size, authenticated decryption into a
+   single-transaction `pg_restore`, decrypted SHA-256 and size, schema head;
+6. queries the restored database itself and requires: the drill's own report;
+   the same table count and core row counts; schema head = the repository's
+   newest migration; `User`, `Club`, `Player` and `Membership` hold rows; and
+   every row-level-security table (the list in `src/security/db-context.ts`)
+   restored, forced, with its policies;
+7. prints one verdict and writes the job summary, then removes the containers
+   and every temporary file:
+
+```
+RESTORE DRILL: PASS
+Backup: 2026/10/06/familista-20261006T113259Z-….fbk (created …)
+Authenticity: Ed25519 manifest signature verified (signing key …); the manifest names this backup; encrypted to key …
+Integrity: ciphertext SHA-256 …, … bytes — matches the signed manifest
+Decryption: AES-256-GCM, every chunk authenticated; decrypted SHA-256 …, … bytes — matches
+Restore: pg_restore 18, one transaction, into an empty throwaway PostgreSQL 18 with no published port (removed afterwards)
+Schema head: <newest migration> (the repository's newest migration)
+Tables restored: <n>
+Core rows: User present, Club present, Team present, Player present, Membership present
+Row-level security tables: 18; Player present, Membership present; the other 16: …
+Production database: not contacted — …
+Checks: 6 of 6 passed
+```
+
+The repository is public, so its Actions logs are too: exact row counts are
+printed only when the repository variable `RESTORE_DRILL_SHOW_COUNTS` is
+`true`. A head behind the newest migration fails on purpose: the newest backup
+then predates a schema change, so it would restore an older schema. Run the
+drill again after the next backup.
+
+**Updating the images.** The digests live in one place, the two `FROM` lines of
+`scripts/restore-drill/Dockerfile` (the drill reads its server image from there
+and refuses to run on a tag). To move to a newer PostgreSQL 18 or Node 20
+release, resolve the tag's current index digest from Docker Hub, replace it in
+that file, and open a pull request: the self-test proves the new images before
+they reach `main`.
+
+Pull requests that touch the drill run its **self-test** instead: the same
+script, containers and checks on a synthetic database migrated with the
+repository's migrations, backed up by the repository's runner (pg_dump 18)
+with throwaway keys — and a copy with one byte changed must be refused. The
+self-test has no secret and reads no bucket.
+
+### Setup (the owner, once)
+
+1. **Settings → Environments → New environment** `restore-drill`. Under
+   *Deployment branches and tags* choose *Selected branches and tags* and add
+   `main` — the drill job, and only it, can then read the secrets below.
+2. Add these **environment secrets** (values never appear in logs):
+
+| Secret | Value |
+|---|---|
+| `BACKUP_S3_BUCKET`, `BACKUP_S3_REGION`, `BACKUP_S3_ENDPOINT` | the bucket settings (as in *Where backups go*) |
+| `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY` | the Backblaze **Read Only** key — never the service's upload key |
+| `BACKUP_S3_PREFIX` | optional; default `familista/postgres/` |
+| `BACKUP_ENCRYPTION_PRIVATE_KEY`, `BACKUP_SIGNING_PUBLIC_KEY` | the two lines of `offline-restore.env` |
+
+3. Run the workflow once (**Run workflow**, branch `main`) and read the verdict
+   in the run's summary.
+
+Until the secrets are set the drill fails as *not configured*, naming what is
+missing — an unconfigured drill is not a passing one.
+
+## Manual drill (a real recovery, or when GitHub is unavailable)
 
 **Versions.** Production backups are written by pg_dump 18 (the version on the
 Render service). Only pg_restore 18 or newer reads them, and pg_restore 18

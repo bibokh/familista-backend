@@ -852,7 +852,11 @@ for (const [, p] of lockPackages) {
 const ciSrc = read(cite('.github/workflows/ci.yml')) || '';
 const deploySrc = read(cite('.github/workflows/deploy.yml')) || '';
 const backupWorkflowSrc = read(cite('.github/workflows/backup.yml')) || '';
-const workflowUses = [...`${ciSrc}\n${deploySrc}\n${backupWorkflowSrc}`.matchAll(/uses:\s*([^\s#]+)/g)].map((m) => m[1]);
+// Every workflow file, not a named few: a workflow added later is held to the
+// same least-privilege, pinning and injection checks the day it lands.
+const allWorkflowSrcs = fs.readdirSync(path.join(ROOT, '.github/workflows')).filter((f) => /\.ya?ml$/.test(f)).sort()
+  .map((f) => read(cite(`.github/workflows/${f}`)) || '');
+const workflowUses = [...allWorkflowSrcs.join('\n').matchAll(/uses:\s*([^\s#]+)/g)].map((m) => m[1]);
 const supplyChain = {
   lockfilePackages: lockPackages.length,
   lockfileIntegrity: withIntegrity,
@@ -872,7 +876,7 @@ const supplyChain = {
 // test rather than passing unnoticed.
 const dependabotSrc = read(cite('.github/dependabot.yml')) || '';
 const gitleaksIgnore = read(cite('.gitleaksignore')) || '';
-const workflowSrcs = [ciSrc, deploySrc, backupWorkflowSrc].filter(Boolean);
+const workflowSrcs = allWorkflowSrcs.filter(Boolean);
 const { expressionInScript: hasExpressionInScript, leastPrivilege } = require('./lib/workflow-checks');
 const expressionInScript = workflowSrcs.some(hasExpressionInScript);
 controls.push(
@@ -1278,6 +1282,34 @@ const restoreDrillSrc = read(cite('src/security/backup/restore-drill.ts')) || ''
 const backupShellSrc = ['scripts/backup.sh', 'scripts/restore.sh', 'scripts/rollback.sh'].map((f) => read(cite(f)) || '').join('\n');
 const phaseORoutesSrc = read(cite('src/routes/phase-o.routes.ts')) || '';
 const backupRouteLines = phaseORoutesSrc.split('\n').filter((l) => /^router\.\w+\s*\(\s*'\/monitoring\/backups'/.test(l));
+
+// The automated restore drill: scheduled and on demand, on main only, its keys
+// in an environment, never handed a production setting, restoring only into a
+// container it made — and its pull-request self-test holds no secret at all.
+const restoreDrillWorkflowSrc = read(cite('.github/workflows/restore-drill.yml')) || '';
+const restoreDrillCiSrc = read(cite('scripts/restore-drill-ci.js')) || '';
+const restoreDrillDockerfileSrc = read(cite('scripts/restore-drill/Dockerfile')) || '';
+function restoreDrillAutomated() {
+  const w = restoreDrillWorkflowSrc;
+  const s = restoreDrillCiSrc;
+  // Every image the drill runs is pinned to an immutable digest, and the drill
+  // takes its server image from the Dockerfile rather than naming a tag itself.
+  const froms = restoreDrillDockerfileSrc.split('\n').filter((l) => /^FROM /.test(l));
+  const digestPinned = froms.length === 2 && froms.every((l) => /^FROM [a-z0-9./-]+:[\w.-]+@sha256:[0-9a-f]{64}( AS \w+)?\s*$/.test(l))
+    && /postgresImageFrom\(/.test(s) && !/'(postgres|node):\d+[\w.-]*'/.test(s);
+  const selfTestJob = (w.split(/\n {2}self-test:\n/)[1] || '').split(/\n {2}drill:\n/)[0];
+  const drillJob = w.split(/\n {2}drill:\n/)[1] || '';
+  return /\n {4}- cron: '[^']+'/.test(w) && /\n {2}workflow_dispatch:/.test(w)
+    && /node scripts\/restore-drill-ci\.js --self-test/.test(selfTestJob) && !/secrets\./.test(selfTestJob)
+    && /if: github\.event_name != 'pull_request' && github\.ref == 'refs\/heads\/main'/.test(drillJob)
+    && /environment: restore-drill/.test(drillJob) && /run: node scripts\/restore-drill-ci\.js\s*$/.test(drillJob)
+    && !/DATABASE_URL|DIRECT_URL|RENDER_|BACKUP_TRIGGER_SECRET/.test(w)
+    && /const PRODUCTION_SETTINGS = \['DATABASE_URL', 'DIRECT_URL', 'BACKUP_DATABASE_URL'/.test(s)
+    && /refuseProductionSettings\(env\);/.test(s) && /proveIsolated\(ctx\.docker, target\.name, ctx\.nonce, ctx\.pgImage\);/.test(s)
+    && /assertLoopbackTarget\(url\);/.test(s) && /publishLoopback: false/.test(s)
+    && /DRILL_CONFIRM_ISOLATED: 'yes'/.test(s) && /RESTORE DRILL/.test(s)
+    && /fs\.writeFileSync\(file, [^\n]*mode: 0o600/.test(s) && digestPinned;
+}
 controls.push(
   control('backup-encrypted-authenticated',
     /'aes-256-gcm'/.test(backupCryptoSrc) && /'x25519'/.test(backupCryptoSrc) && /setAuthTag/.test(backupCryptoSrc)
@@ -1301,6 +1333,8 @@ controls.push(
     /tests\/backup-restore-drill\.integration\.test\.ts/.test(ciSrc) && /BACKUP_DRILL_REQUIRED:\s*'1'/.test(ciSrc) ? 'PRESENT' : 'ABSENT',
     '.github/workflows/ci.yml',
     'Every pull request takes a real backup and restores it into an empty PostgreSQL database.'),
+  control('backup-restore-drill-automated', restoreDrillAutomated() ? 'PRESENT' : 'ABSENT', '.github/workflows/restore-drill.yml',
+    'Every week, and on demand, GitHub Actions restores the newest backup into a throwaway PostgreSQL 18 with no published port and verifies signature, hashes, decryption, schema head and row-level-security rows; it refuses any production setting, runs only digest-pinned images, and pull requests run a secret-free self-test.'),
   control('backup-records-platform-only',
     backupRouteLines.length === 2 && backupRouteLines.every((l) => /requirePlatformAuthority/.test(l) && !/authorize\(/.test(l)) ? 'PRESENT' : 'ABSENT',
     'src/routes/phase-o.routes.ts',

@@ -434,6 +434,7 @@
         "backup-runner-cannot-decrypt",
         "backup-restore-guarded",
         "backup-restore-drill-in-ci",
+        "backup-restore-drill-automated",
         "backup-records-platform-only",
         "backup-scheduled",
         "backup-trigger-authenticated"
@@ -1950,6 +1951,9 @@
       ],
       "deploy.yml": [
         30
+      ],
+      "restore-drill.yml": [
+        31
       ]
     },
     "infrastructureComponents": {
@@ -2122,6 +2126,9 @@
       ],
       "workflow-deploy": [
         30
+      ],
+      "workflow-restore-drill": [
+        31
       ]
     }
   }

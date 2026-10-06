@@ -280,7 +280,7 @@ export const SECURITY_LIFECYCLE: readonly StageDecl[] = [
   {
     id: 'tests', title: 'Security tests',
     describes: 'Unit tests pin each control; real PostgreSQL proves RLS, append-only audit and restore.',
-    controls: ['backup-restore-drill-in-ci', 'db-rls-pilot', 'db-audit-append-only'],
+    controls: ['backup-restore-drill-in-ci', 'backup-restore-drill-automated', 'db-rls-pilot', 'db-audit-append-only'],
   },
   {
     id: 'gate', title: 'CI security gate',
