@@ -12,11 +12,13 @@
 // "fetch my secret" endpoint. After the first activation we hash-anchor
 // it to the efuseFingerprint so a board swap is detectable.
 
-import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
+import { randomBytes } from 'crypto';
 import { Device, DeviceProvisionStatus, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
-import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
-import { resolveCredential, storeNewCredential } from '../fabric/secrets/device-credentials';
+import { NotFoundError, ForbiddenError, BadRequestError, UnauthorizedError } from '../utils/errors';
+import { resolveCredential, signingKeyOf, storeNewCredential, verifyDeviceHmac } from '../fabric/secrets/device-credentials';
+import { assertFreshAndRemember } from '../security/device-nonce.service';
+import { logDeviceSecurityEvent } from '../security/security-event.service';
 import { publishDeviceRegistered } from '../fabric/producers/devices.producer';
 
 export interface DeviceActor {
@@ -120,12 +122,24 @@ export async function activateDevice(serial: string, dto: ActivateDeviceDto): Pr
 
   const expectedMsg = `${dto.ts}.${dto.nonce}`;
   // The credential, by reference where the row has one and from the legacy
-  // column where it does not. A row that resolves to nothing fails the
-  // signature check below — the same refusal a wrong key produces, which is
-  // what stops this becoming an oracle for which devices have been migrated.
-  const credential = await resolveCredential(d);
-  if (!verifyHmac(credential.value ?? '', expectedMsg, dto.sig)) {
+  // column where it does not. A row that resolves to nothing is refused with
+  // the same answer a wrong key gets, which is what stops this becoming an
+  // oracle for which devices have been migrated — and it is refused, not
+  // checked against an empty key anyone could sign with.
+  const key = signingKeyOf(await resolveCredential(d));
+  if (!key) {
+    logDeviceSecurityEvent({ kind: 'DEVICE_REJECTED', severity: 'CRITICAL', clubId: d.clubId, payload: { reason: 'credential_unresolved', deviceId: d.id } });
     throw new ForbiddenError('Invalid device signature');
+  }
+  if (!verifyHmac(key, expectedMsg, dto.sig)) {
+    throw new ForbiddenError('Invalid device signature');
+  }
+  // The signature covers the timestamp and the nonce, not the fingerprint, so a
+  // captured activation replayed inside the five-minute window could otherwise
+  // re-run with someone else's fingerprint. Each nonce activates once.
+  if (!await assertFreshAndRemember(`device-activate:${d.id}`, dto.nonce)) {
+    logDeviceSecurityEvent({ kind: 'DEVICE_REPLAY', severity: 'CRITICAL', clubId: d.clubId, payload: { reason: 'nonce_reused', deviceId: d.id } });
+    throw new UnauthorizedError('Nonce already used');
   }
 
   // If a fingerprint was already seen and changes now, REVOKE — board swap.
@@ -219,11 +233,7 @@ export async function revokeDevice(actor: DeviceActor, id: string, reason?: stri
 // ─────────────────────────────────────────────────────────────────────────
 
 export function verifyHmac(secretB64: string, message: string, suppliedSigB64: string): boolean {
-  try {
-    const secret   = Buffer.from(secretB64, 'base64');
-    const expected = createHmac('sha256', secret).update(message).digest();
-    const supplied = Buffer.from(suppliedSigB64, 'base64');
-    if (supplied.length !== expected.length) return false;
-    return timingSafeEqual(supplied, expected);
-  } catch { return false; }
+  // The shared verifier refuses an empty key: a device whose credential did
+  // not resolve must not verify against a key anyone can compute.
+  return verifyDeviceHmac(secretB64, message, suppliedSigB64);
 }

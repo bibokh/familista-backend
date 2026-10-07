@@ -13,6 +13,8 @@
 // 3. The device posts { deviceSessionId, ts, nonce, sig } to
 //    /api/v1/devices/auth/token. Server reproduces the HMAC and, if it
 //    matches, issues a device JWT scoped to that session for up to 4h.
+//    Each nonce is accepted once: a captured handshake replayed inside the
+//    clock window is refused, not answered with a second token.
 //
 // 4. The device sends `Authorization: Bearer <deviceJwt>` on every
 //    /devices/sessions/:id/packets call. Tenant (clubId, teamId) is loaded
@@ -25,6 +27,8 @@ import { prisma } from '../config/database';
 import { config } from '../config';
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { signToken, verifyToken } from '../security/jwt-tokens';
+import { assertFreshAndRemember } from '../security/device-nonce.service';
+import { logDeviceSecurityEvent } from '../security/security-event.service';
 
 const MAX_HANDSHAKE_SKEW_SEC = 5 * 60;       // ±5 min clock skew
 const DEVICE_JWT_TTL_SEC     = 60 * 60 * 4;  // 4 hours
@@ -59,6 +63,8 @@ export interface DeviceJwtPayload {
 
 function verifyHmac(secretB64: string, message: string, suppliedSigB64: string): boolean {
   const secret = Buffer.from(secretB64, 'base64');
+  // An empty key is one anyone can sign with, so it verifies nothing.
+  if (secret.length === 0) return false;
   const expected = createHmac('sha256', secret).update(message).digest();
   let supplied: Buffer;
   try { supplied = Buffer.from(suppliedSigB64, 'base64'); }
@@ -96,6 +102,10 @@ export async function issueDeviceToken(req: DeviceAuthRequest): Promise<DeviceAu
   const message = `${req.ts}.${req.nonce}`;
   if (!verifyHmac(session.sessionKey, message, req.sig)) {
     throw new UnauthorizedError('Invalid device signature');
+  }
+  if (!await assertFreshAndRemember(`device-session-auth:${session.id}`, req.nonce)) {
+    logDeviceSecurityEvent({ kind: 'DEVICE_REPLAY', severity: 'CRITICAL', clubId: session.clubId, deviceSessionId: session.id, payload: { reason: 'nonce_reused' } });
+    throw new UnauthorizedError('Nonce already used');
   }
 
   const payload: DeviceJwtPayload = {

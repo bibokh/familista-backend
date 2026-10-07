@@ -181,8 +181,11 @@ jobs:
   # a value never reaches the log.
   #
   # The binary is a pinned release whose SHA-256 is checked before it runs; a
-  # tampered or substituted download stops the job. Reviewed test fixtures are
-  # listed by fingerprint (commit:file:rule:line, no values) in .gitleaksignore.
+  # tampered or substituted download stops the job. It runs with
+  # .gitleaks.toml: the default rules plus Familista's own for PostgreSQL
+  # connection strings and committed environment files, which the defaults
+  # missed. Reviewed findings are listed by fingerprint (commit:file:rule:line,
+  # no values) in .gitleaksignore.
   secret-scan:
     name: secret scan (gitleaks, full history)
     runs-on: ubuntu-latest
@@ -210,4 +213,4 @@ jobs:
       - name: Scan history for secrets
         run: |
           set -euo pipefail
-          "$RUNNER_TEMP/gitleaks" git . --redact --no-banner --exit-code 1 --log-level info
+          "$RUNNER_TEMP/gitleaks" git . --config .gitleaks.toml --redact --no-banner --exit-code 1 --log-level info

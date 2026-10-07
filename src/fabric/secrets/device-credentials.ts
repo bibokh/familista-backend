@@ -28,6 +28,7 @@
 // anything a serialiser can reach. The functions return a value to the caller
 // that verifies with it, and that is the only place it exists.
 
+import { createHmac, timingSafeEqual } from 'crypto';
 import { logger } from '../../utils/logger';
 import { emit } from '../event-bus';
 import { parseSecretRef, makeSecretRef, formatSecretRef, type SecretRef } from './secret-ref';
@@ -66,7 +67,8 @@ export function credentialRefFor(scope: CredentialScope, id: string, version = 1
  * Returns `{ value: null }` rather than throwing when nothing resolves. The
  * caller is a signature check, and a signature check that cannot find a key
  * fails the signature — which is the same refusal it would produce for a wrong
- * key, and does not tell a prober which of the two it was.
+ * key, and does not tell a prober which of the two it was. Callers reach the
+ * key through `signingKeyOf`, never `value ?? ''`.
  */
 export async function resolveCredential(bearer: CredentialBearer): Promise<ResolvedCredential> {
   const ref = parseSecretRef(bearer?.secretRef);
@@ -90,6 +92,42 @@ export async function resolveCredential(bearer: CredentialBearer): Promise<Resol
   }
 
   return { value: null, source: 'NONE', ref: null };
+}
+
+/**
+ * The key a signature may be checked against, or null when there is none.
+ *
+ * `null` means refuse. A credential that did not resolve — a store that could
+ * not answer, a revoked secret, a row with no credential at all — has no key,
+ * and substituting `''` is not a stricter check that fails: an empty HMAC key is
+ * a key anyone can compute, so the signature would verify for whoever knows the
+ * device's id. Every ingest path asks this first and rejects on null, with the
+ * same answer a wrong signature gets, so a prober learns nothing from it.
+ */
+export function signingKeyOf(credential: ResolvedCredential | null | undefined): string | null {
+  const value = credential?.value;
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  return Buffer.from(value, 'base64').length > 0 ? value : null;
+}
+
+/**
+ * HMAC-SHA256 over `message` with the base64 key, compared in constant time.
+ *
+ * The one verifier behind every device and camera signature. It refuses an
+ * empty key outright, so a caller that skipped `signingKeyOf` still cannot
+ * verify against a key that is not secret.
+ */
+export function verifyDeviceHmac(keyB64: string | null | undefined, message: string, suppliedSigB64: string): boolean {
+  try {
+    const key = Buffer.from(keyB64 ?? '', 'base64');
+    if (key.length === 0) return false;
+    const expected = createHmac('sha256', key).update(message).digest();
+    const supplied = Buffer.from(suppliedSigB64 ?? '', 'base64');
+    if (supplied.length !== expected.length) return false;
+    return timingSafeEqual(supplied, expected);
+  } catch {
+    return false;
+  }
 }
 
 /**

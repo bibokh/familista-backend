@@ -11,12 +11,17 @@
 // path bounded under 100 Hz from a 4-camera rig.
 
 import { createHash } from 'crypto';
-import { resolveCredential } from '../fabric/secrets/device-credentials';
+import { resolveCredential, signingKeyOf } from '../fabric/secrets/device-credentials';
 import { VisionFrame, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
-import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
+import { NotFoundError, ForbiddenError, BadRequestError, UnauthorizedError } from '../utils/errors';
 import { verifyCameraHmac } from './camera-registry.service';
 import { publishCustom } from '../big-data/publisher';
+import { assertFreshAndRemember } from '../security/device-nonce.service';
+import { logDeviceSecurityEvent } from '../security/security-event.service';
+
+/** How far a camera's signed clock may sit from ours before a frame is refused. */
+const TS_SKEW_LIMIT_MS = 5 * 60_000;
 
 export interface VisionIngestDto {
   /** Camera-local us timestamp. */
@@ -49,13 +54,35 @@ export async function ingestVisionFrame(cameraId: string, dto: VisionIngestDto):
     .digest('hex');
   const msg = `${dto.cameraTsUs}.${dto.nonce}.${digest}`;
   // Resolved through the credential seam: the reference where the row has one,
-  // the legacy column where it does not. Never `row.hmacSecret` directly.
-  const credential = await resolveCredential(cam);
-  if (!verifyCameraHmac(credential.value ?? '', msg, dto.sigB64)) {
+  // the legacy column where it does not. Never `row.hmacSecret` directly. A
+  // camera whose credential does not resolve is refused with the same answer a
+  // wrong signature gets — never checked against an empty key anyone can sign
+  // with.
+  const key = signingKeyOf(await resolveCredential(cam));
+  if (!key) {
+    logDeviceSecurityEvent({ kind: 'DEVICE_REJECTED', severity: 'CRITICAL', clubId: cam.clubId, cameraId: cam.id, payload: { reason: 'credential_unresolved' } });
+    throw new ForbiddenError('Invalid camera signature');
+  }
+  if (!verifyCameraHmac(key, msg, dto.sigB64)) {
+    logDeviceSecurityEvent({ kind: 'DEVICE_REJECTED', severity: 'CRITICAL', clubId: cam.clubId, cameraId: cam.id, payload: { reason: 'hmac_mismatch' } });
     throw new ForbiddenError('Invalid camera signature');
   }
 
-  const nowMs       = Date.now();
+  // Replay. The camera's timestamp is inside the signature, so a frame whose
+  // clock is more than five minutes from ours is refused, and inside that
+  // window each nonce is accepted once per camera — the same two gates the
+  // neuromorphic stream applies (event-stream.service.ts).
+  const nowMs    = Date.now();
+  const cameraMs = Math.round(dto.cameraTsUs / 1000);
+  if (Math.abs(nowMs - cameraMs) > TS_SKEW_LIMIT_MS) {
+    logDeviceSecurityEvent({ kind: 'DEVICE_TS_SKEW', severity: 'WARN', clubId: cam.clubId, cameraId: cam.id, payload: { skewMs: nowMs - cameraMs } });
+    throw new ForbiddenError('Camera clock skew exceeds 5 min');
+  }
+  if (!await assertFreshAndRemember(`cam-frame:${cam.id}`, dto.nonce)) {
+    logDeviceSecurityEvent({ kind: 'DEVICE_REPLAY', severity: 'CRITICAL', clubId: cam.clubId, cameraId: cam.id, payload: { reason: 'nonce_reused' } });
+    throw new UnauthorizedError('Nonce already used');
+  }
+
   const monotonicMs = BigInt(nowMs);
   const cameraTsUs  = BigInt(Math.round(dto.cameraTsUs));
   // Coarse clock-skew = nowMs - (cameraTsUs / 1000); persisted on the camera row.

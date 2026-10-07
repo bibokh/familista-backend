@@ -1,6 +1,14 @@
 node_modules/
 dist/
+# Environment files hold credentials and are never committed — only templates
+# ending in .example are. `.evn` is here because one was committed by that name
+# and published a database password; the secret scan refuses all of these too.
 .env
+.env.*
+!.env.example
+!.env.*.example
+.evn
+.evn.*
 *.log
 logs/
 .DS_Store

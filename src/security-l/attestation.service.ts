@@ -4,8 +4,7 @@
 // still controls its DeviceTrustAnchor secret. HMAC-signed; nonce
 // replay-protected via Phase I LRU.
 
-import { createHmac, timingSafeEqual } from 'crypto';
-import { resolveCredential } from '../fabric/secrets/device-credentials';
+import { resolveCredential, signingKeyOf, verifyDeviceHmac } from '../fabric/secrets/device-credentials';
 import { AttestationStatus, DeviceAttestation, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError, UnauthorizedError } from '../utils/errors';
@@ -40,13 +39,30 @@ export async function recordAttestation(_actor: AttestationActor, dto: RecordAtt
     logDeviceSecurityEvent({ kind: 'DEVICE_REPLAY', severity: 'CRITICAL', clubId: dev.clubId, payload: { deviceId: dev.id, reason: 'nonce_reused' } });
     throw new UnauthorizedError('Nonce already used');
   }
+  // The signed message carries no timestamp, so the nonce memory above (one
+  // hour) is not enough on its own: replayed after it expires, an old
+  // attestation would verify again. Every attestation keeps its nonce, so a
+  // nonce this device has used before is refused for good.
+  const used = await prisma.deviceAttestation.findFirst({ where: { deviceId: dev.id, nonce: dto.nonce }, select: { id: true } });
+  if (used) {
+    logDeviceSecurityEvent({ kind: 'DEVICE_REPLAY', severity: 'CRITICAL', clubId: dev.clubId, payload: { deviceId: dev.id, reason: 'nonce_reused_recorded' } });
+    throw new UnauthorizedError('Nonce already used');
+  }
 
   // Verify HMAC over (nonce | secureBootHash ?? '').
   const message = `${dto.nonce}|${dto.secureBootHash ?? ''}`;
   // Resolved through the credential seam: the reference where the row has one,
-  // the legacy column where it does not. Never `row.hmacSecret` directly.
-  const credential = await resolveCredential(dev);
-  const ok = verify(credential.value ?? '', message, dto.sigB64);
+  // the legacy column where it does not. Never `row.hmacSecret` directly. A
+  // credential that does not resolve has no key, so the attestation cannot be
+  // checked: the request is refused — never verified against an empty key, and
+  // not recorded as FAILED either, because a FAILED attestation revokes the
+  // device and the device did nothing wrong; the platform could not check it.
+  const key = signingKeyOf(await resolveCredential(dev));
+  if (!key) {
+    logDeviceSecurityEvent({ kind: 'DEVICE_REJECTED', severity: 'CRITICAL', clubId: dev.clubId, payload: { deviceId: dev.id, reason: 'credential_unresolved' } });
+    throw new ForbiddenError('Invalid device signature');
+  }
+  const ok = verifyDeviceHmac(key, message, dto.sigB64);
   let status: AttestationStatus = ok ? 'VERIFIED' : 'FAILED';
   let reason: string | null = null;
 
@@ -103,14 +119,4 @@ export async function listAttestations(actor: AttestationActor, deviceId: string
   const dev = await prisma.device.findUnique({ where: { id: deviceId }, select: { clubId: true } });
   if (!dev || (dev.clubId !== actor.clubId && actor.role !== 'SUPER_ADMIN')) throw new ForbiddenError();
   return prisma.deviceAttestation.findMany({ where: { deviceId }, orderBy: { capturedAt: 'desc' }, take: Math.min(limit, 500) });
-}
-
-function verify(secretB64: string, message: string, suppliedSigB64: string): boolean {
-  try {
-    const secret = Buffer.from(secretB64, 'base64');
-    const expected = createHmac('sha256', secret).update(message).digest();
-    const supplied = Buffer.from(suppliedSigB64, 'base64');
-    if (supplied.length !== expected.length) return false;
-    return timingSafeEqual(supplied, expected);
-  } catch { return false; }
 }
