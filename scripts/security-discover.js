@@ -525,6 +525,31 @@ const migrationsSql = (() => {
 })();
 const has = (rel, re) => re.test(read(cite(rel)) || '');
 
+// The signed device and camera paths. Each must take its key from the
+// credential seam and refuse when there is none — never `value ?? ''`, the
+// empty HMAC key anyone can compute — and the shared verifier must refuse an
+// empty key on its own, as must the device-session handshake's. The replay
+// gates the public frame ingest, activation, attestation and the handshake
+// lacked are part of the same control.
+const DEVICE_INGEST_PATHS = [
+  'src/vision/vision-ingest.service.ts',
+  'src/vision/event-stream.service.ts',
+  'src/vision/biomechanical-ingest.service.ts',
+  'src/services/device-registry.service.ts',
+  'src/security-l/attestation.service.ts',
+];
+const deviceIngestFailsClosed = () =>
+  has('src/services/device-auth.service.ts', /timingSafeEqual/)
+  && has('src/services/device-auth.service.ts', /if \(secret\.length === 0\) return false;/)
+  && has('src/services/device-auth.service.ts', /assertFreshAndRemember\(`device-session-auth:\$\{session\.id\}`, req\.nonce\)/)
+  && has('src/fabric/secrets/device-credentials.ts', /export function signingKeyOf\(/)
+  && has('src/fabric/secrets/device-credentials.ts', /if \(key\.length === 0\) return false;/)
+  && DEVICE_INGEST_PATHS.every((p) => has(p, /signingKeyOf\(await resolveCredential\(/) && !has(p, /credential\.value\s*\?\?\s*''/))
+  && has('src/vision/vision-ingest.service.ts', /Math\.abs\(nowMs - cameraMs\) > TS_SKEW_LIMIT_MS/)
+  && has('src/vision/vision-ingest.service.ts', /assertFreshAndRemember\(`cam-frame:\$\{cam\.id\}`, dto\.nonce\)/)
+  && has('src/services/device-registry.service.ts', /assertFreshAndRemember\(`device-activate:\$\{d\.id\}`, dto\.nonce\)/)
+  && has('src/security-l/attestation.service.ts', /deviceAttestation\.findFirst\(\{ where: \{ deviceId: dev\.id, nonce: dto\.nonce \}/);
+
 const lockoutCallers = callers(srcFiles, /\b(assertNotLocked|recordAttempt)\(/, 'src/security/login-attempt');
 const auditChainCallers = allSrc.reduce((n, s) => n + (s.match(/appendAuditEvent(?:Async)?\(/g) || []).length, 0)
   - ((read('src/security/audit-chain.service.ts') || '').match(/appendAuditEvent(?:Async)?\(/g) || []).length;
@@ -672,7 +697,8 @@ const controls = [
       && !has('src/services/franchise-unit.service.ts', /prisma\.club\.update\(\{\s*where: \{ id: clubId \}/)
       ? 'PRESENT' : 'ABSENT', 'src/services/franchise-unit.service.ts',
     'A club enters a franchise unit only by its president or the platform, leaves one only with write access to it, and is detached only from the unit that holds it.'),
-  control('device-ingest-hmac', has('src/services/device-auth.service.ts', /timingSafeEqual/) ? 'PRESENT' : 'ABSENT', 'src/services/device-auth.service.ts'),
+  control('device-ingest-hmac', deviceIngestFailsClosed() ? 'PRESENT' : 'ABSENT', 'src/services/device-auth.service.ts',
+    'Every signed device and camera path verifies in constant time against a credential that resolved, and refuses one that did not rather than checking it against an empty key anyone could sign with; frame ingest, activation, attestation and the device-session handshake refuse a replayed nonce.'),
   control('stripe-webhook-signature', has('src/services/stripe.service.ts', /webhooks\.constructEvent/) ? 'PRESENT' : 'ABSENT', 'src/services/stripe.service.ts'),
   control('versioned-keyring', has('src/fabric/secrets/keyring.ts', /ACTIVE_KEK_ENV/) ? 'PRESENT' : 'ABSENT', 'src/fabric/secrets/keyring.ts'),
   control('audit-hash-chain', auditChainCallers > 0 ? 'PRESENT' : 'ABSENT', cite('src/security/audit-chain.service.ts'),
@@ -876,6 +902,10 @@ const supplyChain = {
 // test rather than passing unnoticed.
 const dependabotSrc = read(cite('.github/dependabot.yml')) || '';
 const gitleaksIgnore = read(cite('.gitleaksignore')) || '';
+// The defaults missed a Neon connection string and a JWT secret in `.evn`; the
+// repository's own rules are part of the control, so dropping one is ABSENT.
+const gitleaksConfig = read(cite('.gitleaks.toml')) || '';
+const GITLEAKS_OWN_RULES = ['postgres-connection-string', 'committed-env-file', 'env-file-secret-value'];
 const workflowSrcs = allWorkflowSrcs.filter(Boolean);
 const { expressionInScript: hasExpressionInScript, leastPrivilege } = require('./lib/workflow-checks');
 const expressionInScript = workflowSrcs.some(hasExpressionInScript);
@@ -888,9 +918,11 @@ controls.push(
   control('ci-audit-blocking', supplyChain.auditBlocksCi && /npm audit --audit-level=(high|critical)/.test(ciSrc) ? 'PRESENT' : 'ABSENT', '.github/workflows/ci.yml',
     'npm audit fails the build on a high or critical advisory.'),
   control('ci-secret-scanning',
-    /gitleaks[^\n]* git \.[^\n]*--redact[^\n]*--exit-code 1/.test(ciSrc) && /fetch-depth:\s*0/.test(ciSrc)
-      && /sha256sum --check --strict/.test(ciSrc) && !/gitleaks[^\n]*\|\|\s*true/.test(ciSrc) ? 'PRESENT' : 'ABSENT', '.github/workflows/ci.yml',
-    `Full-history gitleaks scan, pinned and checksum-verified, blocking; ${gitleaksIgnore.split('\n').filter((l) => /^[0-9a-f]{40}:/.test(l)).length} reviewed fixture(s) baselined.`),
+    /gitleaks[^\n]* git \. --config \.gitleaks\.toml[^\n]*--redact[^\n]*--exit-code 1/.test(ciSrc) && /fetch-depth:\s*0/.test(ciSrc)
+      && /sha256sum --check --strict/.test(ciSrc) && !/gitleaks[^\n]*\|\|\s*true/.test(ciSrc)
+      && /\[extend\]\s*\nuseDefault = true/.test(gitleaksConfig)
+      && GITLEAKS_OWN_RULES.every((id) => gitleaksConfig.includes(`id = "${id}"`)) ? 'PRESENT' : 'ABSENT', '.github/workflows/ci.yml',
+    `Full-history gitleaks scan, pinned and checksum-verified, blocking, with the default rules plus the repository's own for PostgreSQL connection strings and committed environment files; ${gitleaksIgnore.split('\n').filter((l) => /^[0-9a-f]{40}:/.test(l)).length} reviewed finding(s) baselined.`),
   control('ci-no-expression-injection', expressionInScript ? 'ABSENT' : 'PRESENT', '.github/workflows',
     'No ${{ }} expression is expanded inside a run: script; values reach scripts through env.'),
   control('dependency-updates',

@@ -1,13 +1,17 @@
 # Cyber Defense, Step 9 — reviewed gitleaks findings (fingerprints only).
 #
-# Each line is commit:file:rule:line for ONE finding that was reviewed and is
-# a deliberate test fixture or documentation placeholder, never a live
-# credential. No value appears here. The files are the redaction tests that
-# prove a secret-shaped value never leaves the platform (they must contain
-# secret-shaped strings to prove it) and the README's example environment.
+# Each line is commit:file:rule:line for ONE finding that was reviewed. No
+# value appears here. Two kinds, kept apart below.
 #
 # Adding a line here is a security decision: review the finding first, and
-# never add one for a real credential — rotate it instead.
+# never add one for a live credential — rotate it instead.
+
+# ── Fixtures and placeholders ───────────────────────────────────────────────
+# Deliberate test fixtures or documentation placeholders, never a live
+# credential: the redaction tests that prove a secret-shaped value never leaves
+# the platform (they must contain secret-shaped strings to prove it), the
+# migration-resilience tests' fictitious Neon endpoints, and the README's
+# example environment.
 92f73c333bc5839e34af1db50c0b9d224203c4c0:tests/secrets-by-reference.unit.test.ts:generic-api-key:120
 c22fb7c2a96d9608f1538f03d8234a46a8ae2d5e:tests/fabric-gap-closure.unit.test.ts:generic-api-key:52
 c22fb7c2a96d9608f1538f03d8234a46a8ae2d5e:tests/fabric-gap-closure.unit.test.ts:generic-api-key:54
@@ -17,4 +21,21 @@ cdc0798ac660c2697539048e659853fd0e90f645:tests/owner-trace-panel.unit.test.ts:ge
 cdc0798ac660c2697539048e659853fd0e90f645:tests/owner-trace-panel.unit.test.ts:generic-api-key:175
 cdc0798ac660c2697539048e659853fd0e90f645:tests/owner-trace-panel.unit.test.ts:generic-api-key:216
 d2ef3784897913ab04b5c1f14932f5d671ed55c5:tests/fabric-system-producer.unit.test.ts:generic-api-key:39
+d2ef3784897913ab04b5c1f14932f5d671ed55c5:tests/fabric-system-producer.unit.test.ts:postgres-connection-string:36
+64938317205fdef4878db7c62d9f6c4295a41a0a:tests/cybersecurity.unit.test.ts:postgres-connection-string:73
+c967e271bd60272a651e27c34aad6d68993f4005:tests/db-migrate-resilience.unit.test.ts:postgres-connection-string:101
+c967e271bd60272a651e27c34aad6d68993f4005:tests/db-migrate-resilience.unit.test.ts:postgres-connection-string:102
 efb8c0a20c33b380b11100d78ae16a0b1291b90f:README.md:generic-api-key:62
+
+# ── An exposed credential, revoked ──────────────────────────────────────────
+# `.evn` was committed on 2026-05-16 (efb8c0a) and removed on 2026-10-07. It
+# held a real Neon PostgreSQL connection string with its password, and a JWT
+# refresh secret. This repository is public, so both values were published
+# and stay readable in its history; rewriting history cannot withdraw them.
+# They are listed here ONLY on the condition that both have been rotated in
+# Neon and Render — a value listed here is a value that no longer opens
+# anything. The change that adds these lines does not merge before that.
+25124a4fc032640a77a6c5633f63043cdf843211:.evn:committed-env-file:0
+efb8c0a20c33b380b11100d78ae16a0b1291b90f:.evn:committed-env-file:0
+efb8c0a20c33b380b11100d78ae16a0b1291b90f:.evn:postgres-connection-string:11
+efb8c0a20c33b380b11100d78ae16a0b1291b90f:.evn:env-file-secret-value:13

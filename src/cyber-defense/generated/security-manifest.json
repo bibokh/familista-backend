@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-06T18:35:09.714Z",
+  "generatedAt": "2026-10-07T09:51:46.680Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -1986,7 +1986,8 @@
     {
       "id": "device-ingest-hmac",
       "status": "PRESENT",
-      "evidence": "src/services/device-auth.service.ts"
+      "evidence": "src/services/device-auth.service.ts",
+      "note": "Every signed device and camera path verifies in constant time against a credential that resolved, and refuses one that did not rather than checking it against an empty key anyone could sign with; frame ingest, activation, attestation and the device-session handshake refuse a replayed nonce."
     },
     {
       "id": "stripe-webhook-signature",
@@ -2109,7 +2110,7 @@
       "id": "ci-secret-scanning",
       "status": "PRESENT",
       "evidence": ".github/workflows/ci.yml",
-      "note": "Full-history gitleaks scan, pinned and checksum-verified, blocking; 10 reviewed fixture(s) baselined."
+      "note": "Full-history gitleaks scan, pinned and checksum-verified, blocking, with the default rules plus the repository's own for PostgreSQL connection strings and committed environment files; 18 reviewed finding(s) baselined."
     },
     {
       "id": "ci-no-expression-injection",
@@ -2652,16 +2653,14 @@
       "files": [
         "src/auth-prod/mfa-enforcement.service.ts",
         "src/auth-prod/mfa.service.ts",
+        "src/fabric/secrets/device-credentials.ts",
         "src/fabric/secrets/secret-store.ts",
         "src/identity/invitation.service.ts",
-        "src/security-l/attestation.service.ts",
         "src/security-n/signed-recommendations.service.ts",
         "src/security/backup/backup-trigger.ts",
         "src/security/envelope-sign.ts",
         "src/security/worker-callback.ts",
-        "src/services/device-auth.service.ts",
-        "src/services/device-registry.service.ts",
-        "src/vision/camera-registry.service.ts"
+        "src/services/device-auth.service.ts"
       ]
     },
     {
@@ -2728,15 +2727,13 @@
       "primitive": "hmac",
       "algorithm": "sha256",
       "files": [
+        "src/fabric/secrets/device-credentials.ts",
         "src/knowledge-graph/reasoning.service.ts",
-        "src/security-l/attestation.service.ts",
         "src/security-n/signed-recommendations.service.ts",
         "src/security/backup/backup-trigger.ts",
         "src/security/envelope-sign.ts",
         "src/security/worker-callback.ts",
         "src/services/device-auth.service.ts",
-        "src/services/device-registry.service.ts",
-        "src/vision/camera-registry.service.ts",
         "src/workers/notification-dispatch.worker.ts"
       ]
     },
@@ -2791,6 +2788,7 @@
       ".github/workflows/ci.yml",
       ".github/workflows/deploy.yml",
       ".github/workflows/restore-drill.yml",
+      ".gitleaks.toml",
       ".gitleaksignore",
       "SECURITY.md",
       "docs/security/disaster-recovery.md",
@@ -2856,6 +2854,7 @@
       "src/data/ai-models.seed.ts",
       "src/fabric/media/media-asset.service.ts",
       "src/fabric/media/object-store.ts",
+      "src/fabric/secrets/device-credentials.ts",
       "src/fabric/secrets/keyring.ts",
       "src/federated/federated.service.ts",
       "src/infra/background-workers.ts",
@@ -2936,6 +2935,7 @@
       "src/routes/transfer-market.routes.ts",
       "src/routes/vision-engine.routes.ts",
       "src/routes/vision.routes.ts",
+      "src/security-l/attestation.service.ts",
       "src/security-n/signed-recommendations.service.ts",
       "src/security/ai-approval.service.ts",
       "src/security/audit-chain.service.ts",
@@ -2960,6 +2960,7 @@
       "src/services/ai-orchestrator.service.ts",
       "src/services/auth.service.ts",
       "src/services/device-auth.service.ts",
+      "src/services/device-registry.service.ts",
       "src/services/franchise-unit.service.ts",
       "src/services/membership.service.ts",
       "src/services/stripe.service.ts",
@@ -2971,6 +2972,9 @@
       "src/utils/logger.ts",
       "src/utils/password.ts",
       "src/video/video-asset.service.ts",
+      "src/vision/biomechanical-ingest.service.ts",
+      "src/vision/event-stream.service.ts",
+      "src/vision/vision-ingest.service.ts",
       "src/workers/ai-agent.worker.ts",
       "src/workers/notification-dispatch.worker.ts",
       "tests/algorithms-release.unit.test.ts",

@@ -1,0 +1,73 @@
+# Familista — gitleaks configuration (Cyber Defense, Step 9).
+#
+# The default rules stay on. These add the classes of credential the
+# defaults do not recognise, which this repository has already leaked once:
+# `.evn` carried a Neon connection string with its password, and a JWT
+# refresh secret, from 2026-05-16 to 2026-10-07, and no default rule flagged
+# either. CI runs this file through `--config`; scripts/security-discover.js
+# reports `ci-secret-scanning` ABSENT if any rule below disappears.
+
+title = "Familista"
+
+[extend]
+useDefault = true
+
+# A PostgreSQL URL with a password in it — `postgres[ql]://user:password@host`.
+# Neon, Render, RDS, anywhere. A local or CI database, and a placeholder
+# password, is not a credential.
+[[rules]]
+id = "postgres-connection-string"
+description = "PostgreSQL connection string with an embedded password"
+regex = '''postgres(?:ql)?://[^\s:@/'"`]+:([^\s@/'"`]+)@[^\s/:?'"`]+'''
+secretGroup = 1
+keywords = ["postgres://", "postgresql://"]
+
+  [[rules.allowlists]]
+  description = "A database on this machine or in this CI job, or a host under a reserved example domain"
+  regexTarget = "match"
+  regexes = [
+    '''@(?:localhost|127\.0\.0\.1|0\.0\.0\.0|postgres|db|database|pg|host\.docker\.internal)$''',
+    '''@[^@]*\.(?:invalid|example|test|localhost)$''',
+    '''@(?:[^@]*\.)?example\.(?:com|net|org)$''',
+  ]
+
+  [[rules.allowlists]]
+  description = "A placeholder, a variable reference or a stand-in a few characters long"
+  regexTarget = "secret"
+  regexes = [
+    '''^(?i:password|passw0rd|pass|pw|secret|changeme|change[-_]?me|example|placeholder|redacted)$''',
+    '''^(?:x{3,}|\*{3,}|…+)$''',
+    '''^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$''',
+    '''^<[^>]*>$''',
+    '''^.{1,5}$''',
+  ]
+
+# An environment file committed by name — `.env`, `.evn`, `.env.local`,
+# `.env.production` — is a credential file whatever it holds today. Templates
+# end in `.example`, `.sample` or `.template`; the rule below and every other
+# rule still scan their contents.
+[[rules]]
+id = "committed-env-file"
+description = "Environment file committed to the repository"
+path = '''(?:^|/)\.(?:env|evn)(?:\.[A-Za-z0-9_-]+)*$'''
+
+  [[rules.allowlists]]
+  description = "A template, which holds placeholders by convention"
+  paths = ['''(?:^|/)\.(?:env|evn)(?:\.[A-Za-z0-9_-]+)*\.(?:example|sample|template)$''']
+
+# A secret-named variable given a concrete, random-looking value in an
+# environment file or template — the JWT refresh secret in `.evn` was this.
+# Placeholders read as words ("your-secret-here", "change-me", "sk_live_…") and
+# fall below the entropy floor or match the allowlist.
+[[rules]]
+id = "env-file-secret-value"
+description = "Secret-named variable with a concrete value in an environment file"
+path = '''(?:^|/)\.(?:env|evn)(?:\.[A-Za-z0-9_-]+)*$'''
+regex = '''(?m)^[ \t]*(?:export[ \t]+)?[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY|API_KEY|ACCESS_KEY)[A-Z0-9_]*[ \t]*=[ \t]*['"]?([^\s'"#]{16,})'''
+secretGroup = 1
+entropy = 3.5
+
+  [[rules.allowlists]]
+  description = "A placeholder that says it is one"
+  regexTarget = "secret"
+  regexes = ['''(?i)your|change|replace|example|generate|placeholder|dummy|sample|todo|xxx|…''']

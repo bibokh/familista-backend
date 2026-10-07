@@ -20,7 +20,7 @@ import { EventCameraStream, Prisma, VisionEventBatch, VisionStreamStatus } from 
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError, UnauthorizedError } from '../utils/errors';
 import { verifyCameraHmac } from './camera-registry.service';
-import { resolveCredential } from '../fabric/secrets/device-credentials';
+import { resolveCredential, signingKeyOf } from '../fabric/secrets/device-credentials';
 import { assertFreshAndRemember } from '../security/device-nonce.service';
 import { logDeviceSecurityEvent } from '../security/security-event.service';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
@@ -179,8 +179,14 @@ export async function ingestEventBatch(streamId: string, env: IngestEventBatchEn
   const msg = `${env.cameraTsUs}.${env.nonce}.${digest}`;
   // Resolved through the credential seam: the reference where the row has one,
   // the legacy column where it does not. Never `row.hmacSecret` directly.
-  const credential = await resolveCredential(cam);
-  if (!verifyCameraHmac(credential.value ?? '', msg, env.sigB64)) {
+  // A credential that does not resolve has no key: refused with the same answer
+  // a wrong signature gets, never checked against an empty key.
+  const key = signingKeyOf(await resolveCredential(cam));
+  if (!key) {
+    logDeviceSecurityEvent({ kind: 'DEVICE_REJECTED', severity: 'CRITICAL', clubId: cam.clubId, cameraId: cam.id, payload: { reason: 'credential_unresolved' } });
+    throw new ForbiddenError('Invalid camera signature');
+  }
+  if (!verifyCameraHmac(key, msg, env.sigB64)) {
     logDeviceSecurityEvent({ kind: 'DEVICE_REJECTED', severity: 'CRITICAL', clubId: cam.clubId, cameraId: cam.id, payload: { reason: 'hmac_mismatch' } });
     throw new ForbiddenError('Invalid camera signature');
   }

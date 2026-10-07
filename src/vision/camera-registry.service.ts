@@ -4,10 +4,10 @@
 // CameraCalibration is append-only versioned. The edge node uses this row
 // to sign frame batches with HMAC-SHA256.
 
-import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
+import { randomBytes } from 'crypto';
 import { Camera, CameraCalibration, CameraKind, CameraStatus, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
-import { storeNewCredential } from '../fabric/secrets/device-credentials';
+import { storeNewCredential, verifyDeviceHmac } from '../fabric/secrets/device-credentials';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
 
 export interface CameraActor {
@@ -185,11 +185,7 @@ export async function getActiveCalibration(cameraId: string): Promise<CameraCali
 // ─────────────────────────────────────────────────────────────────────────
 
 export function verifyCameraHmac(secretB64: string, message: string, suppliedSigB64: string): boolean {
-  try {
-    const secret   = Buffer.from(secretB64, 'base64');
-    const expected = createHmac('sha256', secret).update(message).digest();
-    const supplied = Buffer.from(suppliedSigB64, 'base64');
-    if (supplied.length !== expected.length) return false;
-    return timingSafeEqual(supplied, expected);
-  } catch { return false; }
+  // The shared verifier refuses an empty key: a camera whose credential did
+  // not resolve must not verify against a key anyone can compute.
+  return verifyDeviceHmac(secretB64, message, suppliedSigB64);
 }

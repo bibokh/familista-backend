@@ -108,9 +108,29 @@ describe('the dependency audit', () => {
 describe('the secret scan', () => {
   const job = CI.slice(CI.indexOf('secret-scan:'));
 
-  it('scans the whole history, redacted, and fails on a finding', () => {
+  it('scans the whole history, redacted, with the repository rules, and fails on a finding', () => {
     expect(job).toMatch(/fetch-depth:\s*0/);
-    expect(job).toMatch(/gitleaks" git \. --redact --no-banner --exit-code 1/);
+    expect(job).toMatch(/gitleaks" git \. --config \.gitleaks\.toml --redact --no-banner --exit-code 1/);
+  });
+
+  it('keeps the default rules and adds the ones the defaults missed in `.evn`', () => {
+    const config = read('.gitleaks.toml');
+    expect(config).toMatch(/\[extend\]\s*\nuseDefault = true/);
+    for (const id of ['postgres-connection-string', 'committed-env-file', 'env-file-secret-value']) {
+      expect(config).toContain(`id = "${id}"`);
+    }
+    // A Neon connection string is caught by password, not by host name.
+    expect(config).toMatch(/regex = '''postgres\(\?:ql\)\?:\/\//);
+    // Only templates are exempt from the committed-env-file rule, by suffix.
+    expect(config).toMatch(/\\\.\(\?:example\|sample\|template\)\$/);
+  });
+
+  it('`.evn` is gone, and an environment file cannot be added by accident', () => {
+    expect(fs.existsSync(path.join(ROOT, '.evn'))).toBe(false);
+    const ignore = read('.gitignore').split('\n').map((l) => l.trim());
+    for (const rule of ['.env', '.env.*', '!.env.example', '!.env.*.example', '.evn', '.evn.*']) {
+      expect(ignore).toContain(rule);
+    }
   });
 
   it('runs only a pinned release whose checksum was verified first', () => {
@@ -126,21 +146,31 @@ describe('the secret scan', () => {
     expect(job).toMatch(/set -euo pipefail/);
   });
 
-  it('the baseline holds reviewed fixture fingerprints only — no values, no new files', () => {
+  it('the baseline holds reviewed fingerprints only — fixtures, and one revoked exposure whose file is gone', () => {
     const entries = read('.gitleaksignore').split('\n').filter((l) => l.trim() && !l.startsWith('#'));
-    const reviewed = new Set([
+    const fixtures = new Set([
       'README.md',
+      'tests/cybersecurity.unit.test.ts',
+      'tests/db-migrate-resilience.unit.test.ts',
       'tests/fabric-gap-closure.unit.test.ts',
       'tests/fabric-system-producer.unit.test.ts',
       'tests/owner-trace-panel.unit.test.ts',
       'tests/secrets-by-reference.unit.test.ts',
     ]);
-    expect(entries).toHaveLength(10);
-    for (const e of entries) {
-      const m = /^([0-9a-f]{40}):([^:]+):([a-z0-9-]+):(\d+)$/.exec(e);
-      expect(m).not.toBeNull();
-      expect(reviewed.has(m![2])).toBe(true);
-    }
+    const parsed = entries.map((e) => /^([0-9a-f]{40}):([^:]+):([a-z0-9-]+):(\d+)$/.exec(e));
+    expect(parsed.every(Boolean)).toBe(true);
+    const files = parsed.map((m) => m![2]);
+    expect(files.filter((f) => fixtures.has(f))).toHaveLength(14);
+    // The exposed `.evn` credential, and nothing else: its four findings, from
+    // the two commits that carried the file, and the file no longer exists.
+    expect(entries.filter((e) => e.includes(':.evn:')).sort()).toEqual([
+      '25124a4fc032640a77a6c5633f63043cdf843211:.evn:committed-env-file:0',
+      'efb8c0a20c33b380b11100d78ae16a0b1291b90f:.evn:committed-env-file:0',
+      'efb8c0a20c33b380b11100d78ae16a0b1291b90f:.evn:env-file-secret-value:13',
+      'efb8c0a20c33b380b11100d78ae16a0b1291b90f:.evn:postgres-connection-string:11',
+    ]);
+    expect(entries).toHaveLength(18);
+    expect(fs.existsSync(path.join(ROOT, '.evn'))).toBe(false);
   });
 });
 

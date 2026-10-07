@@ -4,7 +4,7 @@
 // HMAC-verified via Device.hmacSecret when sigB64 + nonce are provided.
 
 import { createHash } from 'crypto';
-import { resolveCredential } from '../fabric/secrets/device-credentials';
+import { resolveCredential, signingKeyOf } from '../fabric/secrets/device-credentials';
 import { BiomechanicalPacket, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError, UnauthorizedError } from '../utils/errors';
@@ -34,8 +34,14 @@ export async function ingestBiomechPacket(actor: BiomechActor, deviceId: string,
     const digest = createHash('sha256').update(payloadJson).digest('hex');
     const msg = `${env.payload.deviceTsMs}.${env.nonce}.${digest}`;
     // Resolved through the credential seam — never `row.hmacSecret` directly.
-    const credential = await resolveCredential(dev);
-    if (!verifyHmac(credential.value ?? '', msg, env.sigB64)) {
+    // A credential that does not resolve has no key: a packet claiming this
+    // device's signature is refused, never checked against an empty key.
+    const key = signingKeyOf(await resolveCredential(dev));
+    if (!key) {
+      logDeviceSecurityEvent({ kind: 'DEVICE_REJECTED', severity: 'CRITICAL', clubId: dev.clubId, deviceSessionId: null, payload: { reason: 'credential_unresolved', deviceId } });
+      throw new ForbiddenError('Invalid device signature');
+    }
+    if (!verifyHmac(key, msg, env.sigB64)) {
       logDeviceSecurityEvent({ kind: 'DEVICE_REJECTED', severity: 'CRITICAL', clubId: dev.clubId, deviceSessionId: null, payload: { reason: 'hmac_mismatch', deviceId } });
       throw new ForbiddenError('Invalid device signature');
     }
