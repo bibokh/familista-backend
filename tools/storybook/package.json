@@ -1,0 +1,21 @@
+{
+  "name": "familista-storybook",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Isolated Storybook for the real Familista frontend in public/. Reads public/ and never writes to it. Not part of the production build.",
+  "type": "module",
+  "scripts": {
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build -o storybook-static",
+    "test:golden": "node --test tests/golden.test.mjs",
+    "golden:update": "GOLDEN_UPDATE=1 node --test tests/golden.test.mjs",
+    "fingerprint": "node scripts/fingerprint.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@storybook/addon-a11y": "10.6.1",
+    "@storybook/html-vite": "10.6.1",
+    "storybook": "10.6.1",
+    "vite": "^6.0.0"
+  }
+}

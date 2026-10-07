@@ -1,0 +1,13 @@
+/* Storybook-only. Loaded after the production CSS, never shipped to production.
+   Production CSS is used untouched; this only undoes the page-level rules that
+   assume app.js owns the whole window (a 100vh body that never scrolls). */
+html, body { height: auto !important; min-height: 100%; overflow: auto !important; }
+body { padding: 0; }
+.fam-sb-stage { padding: 24px; }
+.fam-sb-stage--narrow { max-width: 720px; }
+.fam-sb-stage--full { padding: 0; min-height: 100vh; }
+
+/* Arabic and Hebrew fallback. Inter and JetBrains Mono have no Arabic glyphs;
+   Noto Sans Arabic is the approved free fallback. Storybook-only until a later stage. */
+html[dir="rtl"] { --font: 'Inter', 'Noto Sans Arabic', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+html[dir="rtl"] body { font-family: var(--font); }
