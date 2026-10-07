@@ -116,11 +116,14 @@ describe('the secret scan', () => {
   it('keeps the default rules and adds the ones the defaults missed in `.evn`', () => {
     const config = read('.gitleaks.toml');
     expect(config).toMatch(/\[extend\]\s*\nuseDefault = true/);
-    for (const id of ['postgres-connection-string', 'committed-env-file', 'env-file-secret-value']) {
+    for (const id of ['postgres-connection-string', 'neon-password', 'neon-endpoint-credentials', 'committed-env-file', 'env-file-secret-value']) {
       expect(config).toContain(`id = "${id}"`);
     }
-    // A Neon connection string is caught by password, not by host name.
+    // A connection string is caught by its password, whatever the host; a Neon
+    // password by its own prefix, wherever it appears — `.evn` also carried one
+    // inside a malformed URL that no connection-string pattern matches.
     expect(config).toMatch(/regex = '''postgres\(\?:ql\)\?:\/\//);
+    expect(config).toContain("regex = '''\\b(npg_[A-Za-z0-9]{12,})\\b'''");
     // Only templates are exempt from the committed-env-file rule, by suffix.
     expect(config).toMatch(/\\\.\(\?:example\|sample\|template\)\$/);
   });
@@ -160,16 +163,20 @@ describe('the secret scan', () => {
     const parsed = entries.map((e) => /^([0-9a-f]{40}):([^:]+):([a-z0-9-]+):(\d+)$/.exec(e));
     expect(parsed.every(Boolean)).toBe(true);
     const files = parsed.map((m) => m![2]);
-    expect(files.filter((f) => fixtures.has(f))).toHaveLength(14);
-    // The exposed `.evn` credential, and nothing else: its four findings, from
+    expect(files.filter((f) => fixtures.has(f))).toHaveLength(17);
+    // The exposed `.evn` credential, and nothing else: its eight findings, from
     // the two commits that carried the file, and the file no longer exists.
     expect(entries.filter((e) => e.includes(':.evn:')).sort()).toEqual([
       '25124a4fc032640a77a6c5633f63043cdf843211:.evn:committed-env-file:0',
+      '25124a4fc032640a77a6c5633f63043cdf843211:.evn:neon-endpoint-credentials:11',
+      '25124a4fc032640a77a6c5633f63043cdf843211:.evn:neon-password:11',
       'efb8c0a20c33b380b11100d78ae16a0b1291b90f:.evn:committed-env-file:0',
       'efb8c0a20c33b380b11100d78ae16a0b1291b90f:.evn:env-file-secret-value:13',
+      'efb8c0a20c33b380b11100d78ae16a0b1291b90f:.evn:neon-endpoint-credentials:11',
+      'efb8c0a20c33b380b11100d78ae16a0b1291b90f:.evn:neon-password:11',
       'efb8c0a20c33b380b11100d78ae16a0b1291b90f:.evn:postgres-connection-string:11',
     ]);
-    expect(entries).toHaveLength(18);
+    expect(entries).toHaveLength(25);
     expect(fs.existsSync(path.join(ROOT, '.evn'))).toBe(false);
   });
 });

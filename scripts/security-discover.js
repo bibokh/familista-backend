@@ -905,7 +905,7 @@ const gitleaksIgnore = read(cite('.gitleaksignore')) || '';
 // The defaults missed a Neon connection string and a JWT secret in `.evn`; the
 // repository's own rules are part of the control, so dropping one is ABSENT.
 const gitleaksConfig = read(cite('.gitleaks.toml')) || '';
-const GITLEAKS_OWN_RULES = ['postgres-connection-string', 'committed-env-file', 'env-file-secret-value'];
+const GITLEAKS_OWN_RULES = ['postgres-connection-string', 'neon-password', 'neon-endpoint-credentials', 'committed-env-file', 'env-file-secret-value'];
 const workflowSrcs = allWorkflowSrcs.filter(Boolean);
 const { expressionInScript: hasExpressionInScript, leastPrivilege } = require('./lib/workflow-checks');
 const expressionInScript = workflowSrcs.some(hasExpressionInScript);
@@ -922,7 +922,7 @@ controls.push(
       && /sha256sum --check --strict/.test(ciSrc) && !/gitleaks[^\n]*\|\|\s*true/.test(ciSrc)
       && /\[extend\]\s*\nuseDefault = true/.test(gitleaksConfig)
       && GITLEAKS_OWN_RULES.every((id) => gitleaksConfig.includes(`id = "${id}"`)) ? 'PRESENT' : 'ABSENT', '.github/workflows/ci.yml',
-    `Full-history gitleaks scan, pinned and checksum-verified, blocking, with the default rules plus the repository's own for PostgreSQL connection strings and committed environment files; ${gitleaksIgnore.split('\n').filter((l) => /^[0-9a-f]{40}:/.test(l)).length} reviewed finding(s) baselined.`),
+    `Full-history gitleaks scan, pinned and checksum-verified, blocking, with the default rules plus the repository's own for PostgreSQL connection strings, Neon passwords and committed environment files; ${gitleaksIgnore.split('\n').filter((l) => /^[0-9a-f]{40}:/.test(l)).length} reviewed finding(s) baselined.`),
   control('ci-no-expression-injection', expressionInScript ? 'ABSENT' : 'PRESENT', '.github/workflows',
     'No ${{ }} expression is expanded inside a run: script; values reach scripts through env.'),
   control('dependency-updates',

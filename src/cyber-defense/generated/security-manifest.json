@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-07T09:51:46.680Z",
+  "generatedAt": "2026-10-07T10:01:19.145Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -2110,7 +2110,7 @@
       "id": "ci-secret-scanning",
       "status": "PRESENT",
       "evidence": ".github/workflows/ci.yml",
-      "note": "Full-history gitleaks scan, pinned and checksum-verified, blocking, with the default rules plus the repository's own for PostgreSQL connection strings and committed environment files; 18 reviewed finding(s) baselined."
+      "note": "Full-history gitleaks scan, pinned and checksum-verified, blocking, with the default rules plus the repository's own for PostgreSQL connection strings, Neon passwords and committed environment files; 25 reviewed finding(s) baselined."
     },
     {
       "id": "ci-no-expression-injection",
