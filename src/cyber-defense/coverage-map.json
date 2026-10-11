@@ -659,6 +659,12 @@
         7,
         8
       ],
+      "design-system.routes": [
+        4,
+        5,
+        6,
+        7
+      ],
       "device-infra.routes": [
         4,
         5,
@@ -954,6 +960,9 @@
       ],
       "data": [
         18
+      ],
+      "design-system": [
+        7
       ],
       "distributed": [
         17,

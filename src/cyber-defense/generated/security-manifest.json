@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-07T10:01:19.145Z",
+  "generatedAt": "2026-10-11T22:53:56.895Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
     "version": "1.0.0"
   },
   "apiSurface": {
-    "mountedRouters": 54,
-    "handlers": 754,
+    "mountedRouters": 55,
+    "handlers": 756,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -302,6 +302,13 @@
         "path": "/system/algorithms",
         "module": "algorithms.routes",
         "handlers": 9,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/system/design-system",
+        "module": "design-system.routes",
+        "handlers": 2,
         "public": 0,
         "routerWideAuth": true
       },
@@ -802,13 +809,13 @@
       }
     },
     "authorization": {
-      "handlers": 754,
+      "handlers": 756,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 87
+        "platform-owner": 89
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -870,6 +877,9 @@
         },
         "data-pulse.routes": {
           "platform-owner": 5
+        },
+        "design-system.routes": {
+          "platform-owner": 2
         },
         "device-infra.routes": {
           "public": 1,
@@ -1356,6 +1366,8 @@
         "GET /system/data-pulse/snapshot": "platform-owner",
         "GET /system/data-pulse/stream": "platform-owner",
         "GET /system/data-pulse/topology": "platform-owner",
+        "GET /system/design-system": "platform-owner",
+        "GET /system/design-system/tokens": "platform-owner",
         "GET /system/email": "platform-owner",
         "GET /system/fabric/events/catalog": "platform-owner",
         "GET /system/fabric/history": "platform-owner",
@@ -1786,8 +1798,8 @@
   },
   "architecture": {
     "components": {
-      "routers": 54,
-      "srcDomains": 77,
+      "routers": 55,
+      "srcDomains": 78,
       "prismaSections": 65,
       "packages": 28,
       "outboundCallSites": 5,
@@ -2199,13 +2211,13 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "754 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 87 platform-owner; every member-level handler reviewed by name."
+      "note": "756 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 89 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "8 platform-owner room(s) mounted where pinned, every handler in them owner-only."
+      "note": "9 platform-owner room(s) mounted where pinned, every handler in them owner-only."
     },
     {
       "id": "worker-callback-authenticated",
@@ -2319,7 +2331,7 @@
       "id": "architecture-fully-mapped",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "372 discovered component(s) across 12 kinds, each declared against the 40 trust-boundary rows; a covered row's controls are all present."
+      "note": "374 discovered component(s) across 12 kinds, each declared against the 40 trust-boundary rows; a covered row's controls are all present."
     },
     {
       "id": "coverage-ratchet",
@@ -2894,6 +2906,7 @@
       "src/routes/context.routes.ts",
       "src/routes/cybersecurity.routes.ts",
       "src/routes/data-pulse.routes.ts",
+      "src/routes/design-system.routes.ts",
       "src/routes/device-infra.routes.ts",
       "src/routes/device-session.routes.ts",
       "src/routes/distributed.routes.ts",

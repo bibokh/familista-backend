@@ -18,6 +18,9 @@ const SURFACES = [
   { id: 'admin', label: 'Admin console (familista-admin.html)', html: 'public/familista-admin.html' },
   { id: 'invite', label: 'Invitation page (invite/index.html)', html: 'public/invite/index.html' },
   { id: 'react', label: 'React SPA at /app (built assets)', dir: 'public/app/assets' },
+  // Stage 3.1: a room the main app loads on demand (public/app.js, lazy loader).
+  // It is not linked from index.html, so it is named here rather than missed.
+  { id: 'lazy', label: 'Rooms loaded on demand by the main app', files: ['public/design-system/design-system.css'] },
 ];
 
 const rel = (p) => relative(REPO_ROOT, p).split('\\').join('/');
@@ -63,7 +66,7 @@ function allCss(dir, acc = []) {
 export function productionStylesheets() {
   const files = [];
   for (const s of SURFACES) {
-    const list = s.html
+    const list = s.files ? s.files : s.html
       ? linkedStylesheets(s.html)
       : readdirSync(join(REPO_ROOT, s.dir)).filter((f) => f.endsWith('.css')).sort().map((f) => `${s.dir}/${f}`);
     for (const f of list) if (existsSync(join(REPO_ROOT, f)) && !files.some((x) => x.file === f)) files.push({ surface: s.id, file: f });
@@ -91,7 +94,9 @@ export function inventoryProduction() {
     }
   }
   const declared = new Set(declarations.map((d) => d.name));
-  const undefinedRefs = [...refs].filter(([n]) => !declared.has(n))
+  // --fam-* is declared by the published token CSS, which this inventory
+  // excludes on purpose; a room that reads it (Stage 3.1) is not an undefined name.
+  const undefinedRefs = [...refs].filter(([n]) => !declared.has(n) && !n.startsWith('--fam-'))
     .map(([n, r]) => ({ name: n, count: r.count, withFallback: r.withFallback, files: [...r.files].sort() }))
     .sort((a, b) => a.name.localeCompare(b.name));
   // app.js writes var(--…) into inline styles; names it uses that no

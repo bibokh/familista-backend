@@ -819,6 +819,9 @@
     },
     "algorithms.routes": {
       "mount": "/system/algorithms"
+    },
+    "design-system.routes": {
+      "mount": "/system/design-system"
     }
   },
   "authorizationMemberHandlers": {

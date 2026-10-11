@@ -95,7 +95,7 @@ describe('Familista Design Core — generated CSS', () => {
     }
   });
 
-  it('is read by nothing: no production file references the --fam- namespace', () => {
+  it('is read only by the Design System Control room: no other production file references the --fam- namespace', () => {
     expectPass('unread');
     for (const f of ['public/app.css', 'public/app.js', 'public/index.html']) {
       expect(readFileSync(join(ROOT, f), 'utf8')).not.toMatch(/--fam-/);

@@ -1184,6 +1184,67 @@ export const AlgorithmsReleasesSchema = z.object({
   }).strict(),
 }).strict();
 
+// ── Design System Control ────────────────────────────────────────────────────
+
+const DsEvidence = <T extends z.ZodTypeAny>(value: T) =>
+  z.object({ state: z.enum(['MEASURED', 'RECORDED']), value, source: z.string().min(1) }).strict();
+const DsCounts = z.record(z.string(), Count);
+export const DsSourceSchema = z.object({
+  id: z.string().min(1), path: z.string().min(1), label: z.string().min(1),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/), bytes: Count,
+}).strict();
+export const DsLayerSchema = z.object({
+  layer: z.string().min(1), variant: z.string().min(1), base: z.string().nullable(), isDefault: z.boolean(),
+  description: z.string().nullable(), tokenCount: Count, selectors: z.array(z.string()), media: z.string().nullable(),
+}).strict();
+export const DsTokenSchema = z.object({
+  path: z.string().min(1), cssName: z.string().regex(/^--fam-/), layer: z.string().min(1), type: z.string().min(1),
+  declared: z.string().min(1), resolved: z.string().min(1), aliasOf: z.string().nullable(),
+  description: z.string().nullable(), source: z.string().nullable(),
+}).strict();
+export const DsContrastSchema = z.object({
+  id: z.string().min(1), context: z.string().min(1), module: z.string().nullable(), fg: z.string().min(1), bg: z.string().min(1),
+  role: z.enum(['text', 'ui', 'exempt']), ratio: z.number().positive(), required: z.number().nonnegative(),
+  pass: z.boolean(), baseline: z.boolean(),
+}).strict();
+export const DsOverviewDataSchema = z.object({
+  tokens: z.object({ total: DsEvidence(Count), byLayer: DsEvidence(DsCounts), byType: DsEvidence(DsCounts) }).strict(),
+  css: z.object({
+    prefix: z.string().min(1), version: z.string().min(1), declarations: DsEvidence(Count), bytes: DsEvidence(Count),
+    publishedIdentical: DsEvidence(z.boolean()),
+  }).strict(),
+  contexts: DsEvidence(Count),
+  modules: DsEvidence(Count),
+  legacyMap: z.object({
+    declarations: DsEvidence(Count), byStatus: DsEvidence(DsCounts),
+    undefinedNames: DsEvidence(z.object({ css: Count, appJs: Count }).strict()),
+  }).strict(),
+  contrast: z.object({
+    pairs: DsEvidence(Count), byRole: DsEvidence(DsCounts), failing: DsEvidence(Count), newFailures: DsEvidence(Count),
+    baselineFailures: DsEvidence(Count),
+    thresholds: DsEvidence(z.object({ text: z.number(), ui: z.number(), exempt: z.string() }).strict()),
+  }).strict(),
+  storybook: z.object({ storyFiles: DsEvidence(Count), foundationFiles: DsEvidence(Count) }).strict(),
+  unavailable: z.array(z.object({ id: z.string().min(1), reason: z.string().min(1) }).strict()),
+}).strict();
+export const DesignSystemOverviewSchema = z.object({
+  state: z.enum(['READY', 'NOT_GENERATED']),
+  reason: z.string().nullable(),
+  readOnly: z.literal(true),
+  build: z.object({ commit: z.string().nullable() }).strict(),
+  generator: z.string().nullable(),
+  sources: z.array(DsSourceSchema),
+  overview: DsOverviewDataSchema.nullable(),
+  layers: z.array(DsLayerSchema),
+}).strict();
+export const DesignSystemTokensSchema = z.object({
+  state: z.enum(['READY', 'NOT_GENERATED']),
+  reason: z.string().nullable(),
+  tokens: z.array(DsTokenSchema),
+  layers: z.array(DsLayerSchema),
+  contrast: z.array(DsContrastSchema),
+}).strict();
+
 // ── the registry ─────────────────────────────────────────────────────────────
 
 export interface ApiContract {
@@ -1387,6 +1448,18 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     schema: AlgCandidateDetailSchema, consumer: 'public/algorithms/algorithms.js',
     reads: ['stage', 'gate', 'deployable', 'test', 'freshness', 'staleReasons', 'path', 'dependants', 'approvalNeeds', 'entry', 'methodChecks', 'spec', 'notice'],
   },
+
+  // ── Design System Control ──
+  {
+    endpoint: '/system/design-system', module: 'Design System Control',
+    schema: DesignSystemOverviewSchema, consumer: 'public/design-system/design-system.js',
+    reads: ['state', 'reason', 'build', 'generator', 'sources', 'overview', 'layers'],
+  },
+  {
+    endpoint: '/system/design-system/tokens', module: 'Design System Control',
+    schema: DesignSystemTokensSchema, consumer: 'public/design-system/design-system.js',
+    reads: ['state', 'reason', 'tokens', 'layers', 'contrast'],
+  },
 ];
 
 // ── the compile-time pin ─────────────────────────────────────────────────────
@@ -1399,6 +1472,7 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
 import type {
   InfraComponent, InfraDistrict, InfraRelationship, InfraTechnology,
 } from '../infra/infrastructure-registry.service';
+import type { DesignSystemOverview, DesignSystemTokens, DesignToken, DesignLayer, ContrastPair, ManifestSource } from '../design-system/types';
 import type { Signal, Incident, InfraRule } from '../infra/infrastructure-health.service';
 import type {
   PlatformSource, SourceControl, LineageStage, ImpactNode,
@@ -1461,6 +1535,13 @@ const _relOverview: Exact<z.infer<typeof AlgorithmsReleasesSchema>, AlgorithmRel
 const _relOne: Exact<z.infer<typeof AlgReleaseSchema>, AlgorithmRelease> = true;
 const _relDossier: Exact<z.infer<typeof AlgDossierSummarySchema>, DossierSummary> = true;
 void [_relOverview, _relOne, _relDossier];
+const _dsOverview: Exact<z.infer<typeof DesignSystemOverviewSchema>, DesignSystemOverview> = true;
+const _dsTokens: Exact<z.infer<typeof DesignSystemTokensSchema>, DesignSystemTokens> = true;
+const _dsToken: Exact<z.infer<typeof DsTokenSchema>, DesignToken> = true;
+const _dsLayer: Exact<z.infer<typeof DsLayerSchema>, DesignLayer> = true;
+const _dsPair: Exact<z.infer<typeof DsContrastSchema>, ContrastPair> = true;
+const _dsSource: Exact<z.infer<typeof DsSourceSchema>, ManifestSource> = true;
+void [_dsOverview, _dsTokens, _dsToken, _dsLayer, _dsPair, _dsSource];
 void [_component, _district, _relationship, _technology, _signal, _incident, _rule,
   _source, _control, _stage, _impact,
   _ccOverview, _ccDomain, _ccDetail, _ccArea, _ccStage, _ccRls, _ccEvents, _ccPosture];

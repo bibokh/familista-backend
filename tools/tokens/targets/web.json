@@ -4,7 +4,7 @@
   "root": ":root",
   "output": "dist/familista-tokens.css",
   "publish": "../../public/tokens/familista-tokens.css",
-  "version": "20261011-tokens-2b1",
+  "version": "20261012-tokens-3-1",
   "selectors": {
     "context": {
       "club": ["[data-fam-context=\"club\"]"],
@@ -16,7 +16,8 @@
         "#pg-source-core", ".sc-insp", ".sc-insp-scrim",
         "#pg-familista-vision", ".vx-drawer", ".vx-scrim",
         "#pg-cybersecurity", ".cs-insp", ".cs-insp-scrim",
-        "#pg-algorithms"
+        "#pg-algorithms",
+        "#pg-design-system"
       ]
     },
     "module": {

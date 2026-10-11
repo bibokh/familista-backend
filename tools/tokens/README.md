@@ -5,6 +5,14 @@ future **Familista Design Core**. Tokens are the source of truth; everything
 that renders them — the CSS generator, Storybook, later the Owner Design System
 Control and the Club Product Design Studio — is a consumer.
 
+Stage 3.1 adds the first consumer: the Owner-only **Design System Control** room
+(`public/design-system/`, loaded on demand, never linked from `index.html`). It
+reads `--fam-*` and declares none of its own; `#pg-design-system` is bound to the
+Owner context in `targets/web.json`. The room shows a manifest generated from this
+folder by `node scripts/design-system-discover.js` (`--check` fails if stale), served
+read-only at `GET /system/design-system[/tokens]`. `verify.mjs` allows `--fam-`
+consumption under `public/design-system/` and nowhere else.
+
 Stage 2b.1 publishes the generated CSS as `public/tokens/familista-tokens.css` and
 links it **once, from the main app only** (`public/index.html`), ahead of every
 other first-party stylesheet. Nothing in production reads a `--fam-*` property

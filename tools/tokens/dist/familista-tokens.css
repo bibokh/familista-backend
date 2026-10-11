@@ -293,7 +293,8 @@
 #pg-cybersecurity,
 .cs-insp,
 .cs-insp-scrim,
-#pg-algorithms {
+#pg-algorithms,
+#pg-design-system {
   --fam-surface-canvas: var(--fam-ref-navy-950);
   --fam-surface-sunken: var(--fam-ref-navy-925);
   --fam-surface-base: var(--fam-ref-navy-900);

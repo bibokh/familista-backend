@@ -200,7 +200,7 @@ export interface AreaDecl {
 
 export const PLATFORM_AREAS: readonly AreaDecl[] = [
   // ── platform & identity ──
-  { id: 'system', title: 'System', group: 'PLATFORM', routers: ['system.routes', 'owner-trace.routes', 'observability.routes'], rows: [7] },
+  { id: 'system', title: 'System', group: 'PLATFORM', routers: ['system.routes', 'owner-trace.routes', 'observability.routes', 'design-system.routes'], rows: [7] },
   { id: 'clubs', title: 'Clubs & club workspaces', group: 'PLATFORM', routers: ['club.routes', 'club-admin.routes', 'home.routes', 'team.routes', 'player.routes', 'training.routes', 'analytics.routes'], rows: [5] },
   { id: 'users-roles', title: 'Users, roles & permissions', group: 'PLATFORM', routers: ['membership.routes', 'invitation.routes', 'context.routes'], rows: [6] },
   { id: 'auth-sessions', title: 'Authentication, MFA & sessions', group: 'PLATFORM', routers: ['auth.routes'], rows: [2, 3, 8] },
