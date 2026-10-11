@@ -10,12 +10,21 @@ import visionCss from '../../../public/familista-vision/familista-vision.css?raw
 import cyberCss from '../../../public/cybersecurity/cybersecurity.css?raw';
 import algorithmsCss from '../../../public/algorithms/algorithms.css?raw';
 import overridesCss from './storybook-overrides.css?raw';
+// The Familista Design Core tokens, generated from tools/tokens/familista.tokens.json.
+// Storybook only consumes them; the token source does not know Storybook exists.
+// Loaded first — the order Stage 2b would link them in production — and, because
+// the file declares only --fam-* custom properties, it cannot change any rule
+// above (the Stage 1 stories are snapshot-checked against exactly that).
+import tokensCss from '../../tokens/dist/familista-tokens.css?raw';
+import foundationsCss from './foundations.css?raw';
 
 const SHEETS = [
+  ['familista-tokens.css (Design Core; not linked in production)', tokensCss],
   ['app.css', appCss], ['system.css', systemCss], ['data-vault.css', dataVaultCss],
   ['infrastructure-city.css', infraCss], ['source-core.css', sourceCoreCss],
   ['familista-vision.css', visionCss], ['cybersecurity.css', cyberCss],
   ['algorithms.css', algorithmsCss], ['storybook-overrides.css (Storybook only)', overridesCss],
+  ['foundations.css (Storybook only; reads --fam-* tokens)', foundationsCss],
 ];
 for (const [name, css] of SHEETS) {
   if (document.querySelector(`style[data-familista-css="${name}"]`)) continue;
@@ -59,8 +68,28 @@ const direction = (story, context) => {
   return story();
 };
 
+// Theme is <html data-theme>, exactly as production's toggleTheme() sets it.
+// Dark is production's default. "Light" shows production's own partial legacy
+// light override; the Design Core's light and high-contrast layers are reserved.
+const theme = (story, context) => {
+  document.documentElement.setAttribute('data-theme', context.globals.theme || 'dark');
+  return story();
+};
+
+// Workspace context for the Design Core tokens. Club is the default and adds
+// nothing to the markup, so Stage 1 stories render byte-for-byte as before.
+const workspace = (story, context) => {
+  const host = story();
+  const ctx = context.globals.context || 'club';
+  if (host && host.setAttribute) {
+    if (ctx === 'club') host.removeAttribute('data-fam-context');
+    else host.setAttribute('data-fam-context', ctx);
+  }
+  return host;
+};
+
 export default {
-  decorators: [stage, direction],
+  decorators: [stage, workspace, direction, theme], // first = innermost: stage builds the host, workspace marks it
   parameters: {
     layout: 'padded',
     backgrounds: { options: { familista: { name: 'Familista', value: '#09090B' } } },
@@ -68,12 +97,24 @@ export default {
     a11y: { test: 'todo' },
     controls: { expanded: true },
   },
-  initialGlobals: { direction: 'ltr', backgrounds: { value: 'familista' } },
+  initialGlobals: { direction: 'ltr', theme: 'dark', context: 'club', backgrounds: { value: 'familista' } },
   globalTypes: {
     direction: {
       description: 'Text direction',
       toolbar: { title: 'Direction', icon: 'transfer', dynamicTitle: true,
         items: [{ value: 'ltr', title: 'Left-to-right' }, { value: 'rtl', title: 'Right-to-left (Arabic)' }] },
+    },
+    context: {
+      description: 'Familista Design Core workspace context',
+      toolbar: { title: 'Context', icon: 'globe', dynamicTitle: true,
+        items: [{ value: 'club', title: 'Club Workspace (default)' }, { value: 'owner', title: 'Owner / Global' }] },
+    },
+    theme: {
+      description: 'Theme (html[data-theme])',
+      toolbar: { title: 'Theme', icon: 'contrast', dynamicTitle: true,
+        items: [{ value: 'dark', title: 'Dark (production default)' },
+          { value: 'light', title: 'Light — production legacy toggle only; Design Core layer reserved' },
+          { value: 'high-contrast', title: 'High contrast — reserved, no tokens yet' }] },
     },
   },
 };

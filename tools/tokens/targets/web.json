@@ -1,0 +1,40 @@
+{
+  "$description": "Web binding of the Familista Design Core tokens: the CSS prefix and the selector each override variant applies on. Platform-specific; the token source stays platform-free. Owner and module selectors reuse the page roots and floating panels that already scope each module's own tokens in production, plus the future data-fam-* attributes.",
+  "prefix": "fam",
+  "root": ":root",
+  "output": "dist/familista-tokens.css",
+  "selectors": {
+    "context": {
+      "club": ["[data-fam-context=\"club\"]"],
+      "owner": [
+        "[data-fam-context=\"owner\"]",
+        "#pg-system", "#dp-inspector", "#dp-storage",
+        "#pg-data-vault", ".dv-insp", ".dv-insp-scrim",
+        "#pg-infrastructure-city", ".ic-insp", ".ic-insp-scrim",
+        "#pg-source-core", ".sc-insp", ".sc-insp-scrim",
+        "#pg-familista-vision", ".vx-drawer", ".vx-scrim",
+        "#pg-cybersecurity", ".cs-insp", ".cs-insp-scrim",
+        "#pg-algorithms"
+      ]
+    },
+    "module": {
+      "system": ["[data-fam-module=\"system\"]", "#pg-system", "#dp-inspector", "#dp-storage"],
+      "data-vault": ["[data-fam-module=\"data-vault\"]", "#pg-data-vault", ".dv-insp", ".dv-insp-scrim"],
+      "infrastructure-city": ["[data-fam-module=\"infrastructure-city\"]", "#pg-infrastructure-city", ".ic-insp", ".ic-insp-scrim"],
+      "source-core": ["[data-fam-module=\"source-core\"]", "#pg-source-core", ".sc-insp", ".sc-insp-scrim"],
+      "vision": ["[data-fam-module=\"vision\"]", "#pg-familista-vision", ".vx-drawer", ".vx-scrim"],
+      "cybersecurity": ["[data-fam-module=\"cybersecurity\"]", "#pg-cybersecurity", ".cs-insp", ".cs-insp-scrim"],
+      "algorithms": ["[data-fam-module=\"algorithms\"]", "#pg-algorithms"],
+      "transfers": ["[data-fam-module=\"transfers\"]", "#pg-transfers"],
+      "coach-market": ["[data-fam-module=\"coach-market\"]", "#pg-coach-market"],
+      "coaches": ["[data-fam-module=\"coaches\"]", "#pg-coaches"]
+    },
+    "theme": {
+      "light": ["[data-theme=\"light\"]"],
+      "high-contrast": ["[data-theme=\"high-contrast\"]"]
+    },
+    "lang": { "ar": [":lang(ar)"] },
+    "dir": { "rtl": ["[dir=\"rtl\"]"] },
+    "media": { "reduced-motion": { "media": "(prefers-reduced-motion: reduce)", "selector": [":root"] } }
+  }
+}

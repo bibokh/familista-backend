@@ -9,7 +9,9 @@
     "build-storybook": "storybook build -o storybook-static",
     "test:golden": "node --test tests/golden.test.mjs",
     "golden:update": "GOLDEN_UPDATE=1 node --test tests/golden.test.mjs",
-    "fingerprint": "node scripts/fingerprint.mjs"
+    "fingerprint": "node scripts/fingerprint.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:foundations": "node --test tests/foundations.test.mjs"
   },
   "dependencies": {},
   "devDependencies": {

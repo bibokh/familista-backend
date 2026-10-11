@@ -1,0 +1,2795 @@
+{
+  "$description": "Familista Design Core — canonical design tokens (W3C DTCG format). Source of truth; every renderer (CSS generator, Storybook, future Design System Control) consumes this file.",
+  "$extensions": {
+    "com.familista": {
+      "stage": "2a",
+      "version": "0.1.0",
+      "preservesLiveValues": true
+    }
+  },
+  "ref": {
+    "$description": "Reference layer: raw values only, named by colour family and step. Never referenced by product code directly.",
+    "color": {
+      "$type": "color",
+      "navy": {
+        "800": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.086275,
+              0.133333,
+              0.227451
+            ],
+            "hex": "#16223a"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--v-panel-3"
+            }
+          }
+        },
+        "850": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.062745,
+              0.101961,
+              0.172549
+            ],
+            "hex": "#101a2c"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--v-panel-2"
+            }
+          }
+        },
+        "900": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.043137,
+              0.070588,
+              0.12549
+            ],
+            "hex": "#0b1220"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--v-panel"
+            }
+          }
+        },
+        "925": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.027451,
+              0.047059,
+              0.086275
+            ],
+            "hex": "#070c16"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--v-bg-2"
+            }
+          }
+        },
+        "950": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.019608,
+              0.031373,
+              0.058824
+            ],
+            "hex": "#05080f"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--v-bg, --cs-bg"
+            }
+          }
+        },
+        "$description": "Approved Familista navy ramp (Penpot Step 1); live in Familista Vision.",
+        "panel-a72": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.066667,
+              0.094118,
+              0.160784
+            ],
+            "alpha": 0.72,
+            "hex": "#111829"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--dv-panel, --ic-panel, --sc-panel"
+            }
+          }
+        },
+        "panel-a55": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.090196,
+              0.12549,
+              0.207843
+            ],
+            "alpha": 0.55,
+            "hex": "#172035"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--dv-panel-2, --ic-panel-2, --sc-panel-2"
+            }
+          }
+        },
+        "glass-top": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.078431,
+              0.105882,
+              0.172549
+            ],
+            "alpha": 0.46,
+            "hex": "#141b2c"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--lg-glass (first stop)"
+            }
+          }
+        },
+        "glass-bottom": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.043137,
+              0.058824,
+              0.098039
+            ],
+            "alpha": 0.44,
+            "hex": "#0b0f19"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--lg-glass (second stop)"
+            }
+          }
+        }
+      },
+      "midnight": {
+        "850": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.101961,
+              0.133333,
+              0.211765
+            ],
+            "hex": "#1a2236"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--bg-elevated"
+            }
+          }
+        },
+        "900": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.07451,
+              0.094118,
+              0.14902
+            ],
+            "hex": "#131826"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--bg-surface"
+            }
+          }
+        },
+        "950": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.039216,
+              0.054902,
+              0.101961
+            ],
+            "hex": "#0a0e1a"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--bg-canvas"
+            }
+          }
+        },
+        "975": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.027451,
+              0.039216,
+              0.078431
+            ],
+            "hex": "#070a14"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--bg-sunken"
+            }
+          }
+        },
+        "$description": "Premium Club Theme surfaces (body.club-theme)."
+      },
+      "mist": {
+        "50": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.913725,
+              0.933333,
+              0.984314
+            ],
+            "hex": "#e9eefb"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--v-tx, --sy-tx, --dv-tx, --ic-tx, --sc-tx, --cs-tx"
+            }
+          }
+        },
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.592157,
+              0.635294,
+              0.737255
+            ],
+            "hex": "#97a2bc"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--dv-tx-2, --ic-tx-2, --sc-tx-2, --cs-tx-2"
+            }
+          }
+        },
+        "600": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.4,
+              0.439216,
+              0.545098
+            ],
+            "hex": "#66708b"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--dv-tx-3, --ic-tx-3, --sc-tx-3, --cs-tx-3"
+            }
+          }
+        },
+        "700": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.356863,
+              0.392157,
+              0.501961
+            ],
+            "hex": "#5b6480"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--dv-off, --ic-off, --sc-off, --cs-off"
+            }
+          }
+        },
+        "$description": "Approved text ramp; live across the Owner modules."
+      },
+      "slate": {
+        "100": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.945098,
+              0.960784,
+              0.976471
+            ],
+            "hex": "#f1f5f9"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--t-primary; --tx-1 fallback"
+            }
+          }
+        },
+        "600": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.278431,
+              0.333333,
+              0.411765
+            ],
+            "hex": "#475569"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--t-disabled, .sqlu-stat--muted"
+            }
+          }
+        }
+      },
+      "zinc": {
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.631373,
+              0.631373,
+              0.666667
+            ],
+            "hex": "#a1a1aa"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--tx-2"
+            }
+          }
+        },
+        "600": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.321569,
+              0.321569,
+              0.356863
+            ],
+            "hex": "#52525b"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--tx-3"
+            }
+          }
+        }
+      },
+      "gray": {
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.611765,
+              0.639216,
+              0.686275
+            ],
+            "hex": "#9ca3af"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": ".lg-f--d"
+            }
+          }
+        }
+      },
+      "amber": {
+        "300": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.984314,
+              0.74902,
+              0.141176
+            ],
+            "hex": "#fbbf24"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--lg-accent, --*-warn"
+            }
+          }
+        },
+        "350": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.956863,
+              0.717647,
+              0.25098
+            ],
+            "hex": "#f4b740"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": ".sqlu-stat--amber"
+            }
+          }
+        },
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.960784,
+              0.647059,
+              0.141176
+            ],
+            "hex": "#f5a524"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--v-amber (approved brand accent)"
+            }
+          }
+        },
+        "500": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.960784,
+              0.619608,
+              0.043137
+            ],
+            "hex": "#f59e0b"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--c-warning, .sqlu-row--gk"
+            }
+          }
+        }
+      },
+      "green": {
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.290196,
+              0.870588,
+              0.501961
+            ],
+            "hex": "#4ade80"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--pitch-400, .lg-f--w"
+            }
+          }
+        },
+        "500": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.133333,
+              0.772549,
+              0.368627
+            ],
+            "hex": "#22c55e"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--pitch-500, --c-success"
+            }
+          }
+        },
+        "600": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.086275,
+              0.639216,
+              0.290196
+            ],
+            "hex": "#16a34a"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--pitch-600"
+            }
+          }
+        },
+        "700": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.082353,
+              0.501961,
+              0.239216
+            ],
+            "hex": "#15803d"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--pitch-700"
+            }
+          }
+        },
+        "800": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.086275,
+              0.396078,
+              0.203922
+            ],
+            "hex": "#166534"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--pitch-800"
+            }
+          }
+        },
+        "500-a20": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.133333,
+              0.772549,
+              0.368627
+            ],
+            "alpha": 0.2,
+            "hex": "#22c55e"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--pitch-glow"
+            }
+          }
+        }
+      },
+      "emerald": {
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.203922,
+              0.827451,
+              0.6
+            ],
+            "hex": "#34d399"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--*-ok, .sqlu-row--mf"
+            }
+          }
+        }
+      },
+      "jade": {
+        "400-a75": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.062745,
+              0.85098,
+              0.541176
+            ],
+            "alpha": 0.75,
+            "hex": "#10d98a"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--v-glow-green"
+            }
+          }
+        }
+      },
+      "teal": {
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.176471,
+              0.831373,
+              0.74902
+            ],
+            "hex": "#2dd4bf"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "#pg-coach-market --tf-acc"
+            }
+          }
+        },
+        "600": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.05098,
+              0.580392,
+              0.533333
+            ],
+            "hex": "#0d9488"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "#pg-coach-market --tf-acc-d"
+            }
+          }
+        }
+      },
+      "cyan": {
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.133333,
+              0.827451,
+              0.933333
+            ],
+            "hex": "#22d3ee"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--v-cyan, --dv-accent"
+            }
+          }
+        },
+        "400-a34": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.133333,
+              0.827451,
+              0.933333
+            ],
+            "alpha": 0.34,
+            "hex": "#22d3ee"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--v-glow-cyan"
+            }
+          }
+        },
+        "400-a40": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.133333,
+              0.827451,
+              0.933333
+            ],
+            "alpha": 0.4,
+            "hex": "#22d3ee"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--v-glow-cyan"
+            }
+          }
+        }
+      },
+      "sky": {
+        "300": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.490196,
+              0.827451,
+              0.988235
+            ],
+            "hex": "#7dd3fc"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--cs-accent-2"
+            }
+          }
+        },
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.219608,
+              0.741176,
+              0.972549
+            ],
+            "hex": "#38bdf8"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--c-info, --co-accent"
+            }
+          }
+        }
+      },
+      "blue": {
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.376471,
+              0.647059,
+              0.980392
+            ],
+            "hex": "#60a5fa"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--ic-info, --sc-info"
+            }
+          }
+        },
+        "500": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.231373,
+              0.509804,
+              0.964706
+            ],
+            "hex": "#3b82f6"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--sy-accent, --v-blue"
+            }
+          }
+        }
+      },
+      "indigo": {
+        "200": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.721569,
+              0.768627,
+              1
+            ],
+            "hex": "#b8c4ff"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--cs-accent"
+            }
+          }
+        },
+        "300": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.647059,
+              0.705882,
+              0.988235
+            ],
+            "hex": "#a5b4fc"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--al-accent-2"
+            }
+          }
+        }
+      },
+      "violet": {
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.654902,
+              0.545098,
+              0.980392
+            ],
+            "hex": "#a78bfa"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--ic-unver, --sc-unver"
+            }
+          }
+        }
+      },
+      "orchid": {
+        "300": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.909804,
+              0.658824,
+              1
+            ],
+            "hex": "#e8a8ff"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--al-accent"
+            }
+          }
+        }
+      },
+      "red": {
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.972549,
+              0.443137,
+              0.443137
+            ],
+            "hex": "#f87171"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--*-crit, .lg-f--l"
+            }
+          }
+        },
+        "500": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.937255,
+              0.266667,
+              0.266667
+            ],
+            "hex": "#ef4444"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--c-critical"
+            }
+          }
+        }
+      },
+      "rose": {
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.984314,
+              0.443137,
+              0.521569
+            ],
+            "hex": "#fb7185"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": ".sqlu-row--fw"
+            }
+          }
+        }
+      },
+      "pink": {
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.956863,
+              0.447059,
+              0.713725
+            ],
+            "hex": "#f472b6"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": ".dash-v2--elite"
+            }
+          }
+        }
+      },
+      "steel": {
+        "400": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.560784,
+              0.65098,
+              0.768627
+            ],
+            "hex": "#8fa6c4"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--lg-them"
+            }
+          }
+        },
+        "400-a28": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.560784,
+              0.65098,
+              0.768627
+            ],
+            "alpha": 0.28,
+            "hex": "#8fa6c4"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--lg-them-soft"
+            }
+          }
+        },
+        "400-a09": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.560784,
+              0.65098,
+              0.768627
+            ],
+            "alpha": 0.09,
+            "hex": "#8fa6c4"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--lg-them-wash"
+            }
+          }
+        }
+      },
+      "white": {
+        "a028": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              1,
+              1,
+              1
+            ],
+            "alpha": 0.028,
+            "hex": "#ffffff"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--lg-tile"
+            }
+          }
+        },
+        "a048": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              1,
+              1,
+              1
+            ],
+            "alpha": 0.048,
+            "hex": "#ffffff"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--lg-bd-soft"
+            }
+          }
+        },
+        "a05": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              1,
+              1,
+              1
+            ],
+            "alpha": 0.05,
+            "hex": "#ffffff"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--lg-tile-2"
+            }
+          }
+        },
+        "a07": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              1,
+              1,
+              1
+            ],
+            "alpha": 0.07,
+            "hex": "#ffffff"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--*-line"
+            }
+          }
+        },
+        "a072": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              1,
+              1,
+              1
+            ],
+            "alpha": 0.072,
+            "hex": "#ffffff"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--lg-bd"
+            }
+          }
+        },
+        "a13": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              1,
+              1,
+              1
+            ],
+            "alpha": 0.13,
+            "hex": "#ffffff"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--*-line-2"
+            }
+          }
+        },
+        "a22": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              1,
+              1,
+              1
+            ],
+            "alpha": 0.22,
+            "hex": "#ffffff"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--v-line-3"
+            }
+          }
+        }
+      },
+      "black": {
+        "a22": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0,
+              0,
+              0
+            ],
+            "alpha": 0.22,
+            "hex": "#000000"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--lg-shadow"
+            }
+          }
+        },
+        "a40": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0,
+              0,
+              0
+            ],
+            "alpha": 0.4,
+            "hex": "#000000"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--sh-1"
+            }
+          }
+        },
+        "a45": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0,
+              0,
+              0
+            ],
+            "alpha": 0.45,
+            "hex": "#000000"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--sh-2"
+            }
+          }
+        },
+        "a55": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0,
+              0,
+              0
+            ],
+            "alpha": 0.55,
+            "hex": "#000000"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--sh-3"
+            }
+          }
+        },
+        "a96": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0,
+              0,
+              0
+            ],
+            "alpha": 0.96,
+            "hex": "#000000"
+          },
+          "$extensions": {
+            "com.familista": {
+              "source": "--v-shadow"
+            }
+          }
+        }
+      }
+    }
+  },
+  "semantic": {
+    "$description": "Semantic layer. Default values are the live Club Workspace values (body.club-theme is on for every page); the Owner context re-declares them.",
+    "surface": {
+      "$type": "color",
+      "canvas": {
+        "$value": "{ref.color.midnight.950}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --bg-canvas; owner --v-bg"
+          }
+        }
+      },
+      "sunken": {
+        "$value": "{ref.color.midnight.975}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --bg-sunken; owner --v-bg-2"
+          }
+        }
+      },
+      "base": {
+        "$value": "{ref.color.midnight.900}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --bg-surface; owner --v-panel"
+          }
+        }
+      },
+      "raised": {
+        "$value": "{ref.color.midnight.850}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --bg-elevated; owner --v-panel-2"
+          }
+        }
+      },
+      "overlay": {
+        "$value": "{ref.color.navy.800}",
+        "$extensions": {
+          "com.familista": {
+            "source": "owner --v-panel-3; no live Club equivalent"
+          }
+        }
+      },
+      "panel": {
+        "$value": "{ref.color.navy.panel-a72}",
+        "$extensions": {
+          "com.familista": {
+            "source": "owner --dv/--ic/--sc-panel; no live Club equivalent"
+          }
+        }
+      },
+      "panel-muted": {
+        "$value": "{ref.color.navy.panel-a55}",
+        "$extensions": {
+          "com.familista": {
+            "source": "owner --dv/--ic/--sc-panel-2; no live Club equivalent"
+          }
+        }
+      },
+      "glass": {
+        "$type": "gradient",
+        "$value": [
+          {
+            "color": "{ref.color.navy.glass-top}",
+            "position": 0
+          },
+          {
+            "color": "{ref.color.navy.glass-bottom}",
+            "position": 1
+          }
+        ],
+        "$extensions": {
+          "com.familista": {
+            "angle": "170deg",
+            "source": "club --lg-glass"
+          }
+        }
+      },
+      "tile": {
+        "$value": "{ref.color.white.a028}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --lg-tile"
+          }
+        }
+      },
+      "tile-strong": {
+        "$value": "{ref.color.white.a05}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --lg-tile-2"
+          }
+        }
+      }
+    },
+    "text": {
+      "$type": "color",
+      "primary": {
+        "$value": "{ref.color.slate.100}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --t-primary (= --tx-1 fallback); owner --*-tx"
+          }
+        }
+      },
+      "secondary": {
+        "$value": "{ref.color.zinc.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --tx-2 (what _lg renders); owner --*-tx-2"
+          }
+        }
+      },
+      "tertiary": {
+        "$value": "{ref.color.zinc.600}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --tx-3 (what _lg renders; contrast baseline failure); owner --*-tx-3"
+          }
+        }
+      },
+      "disabled": {
+        "$value": "{ref.color.slate.600}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --t-disabled"
+          }
+        }
+      }
+    },
+    "border": {
+      "$type": "color",
+      "subtle": {
+        "$value": "{ref.color.white.a048}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --lg-bd-soft; owner --*-line"
+          }
+        }
+      },
+      "default": {
+        "$value": "{ref.color.white.a072}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --lg-bd; owner --*-line-2"
+          }
+        }
+      },
+      "strong": {
+        "$value": "{ref.color.white.a22}",
+        "$extensions": {
+          "com.familista": {
+            "source": "owner --v-line-3; no live Club equivalent"
+          }
+        }
+      }
+    },
+    "brand": {
+      "$type": "color",
+      "accent": {
+        "$value": "{ref.color.amber.300}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --lg-accent; owner --v-amber (approved)"
+          }
+        }
+      }
+    },
+    "module": {
+      "$type": "color",
+      "$description": "Module / page identity accent. Defaults to the brand accent; each module re-declares it.",
+      "accent": {
+        "$value": "{semantic.brand.accent}"
+      },
+      "accent-2": {
+        "$value": "{semantic.brand.accent}"
+      }
+    },
+    "status": {
+      "$type": "color",
+      "success": {
+        "$value": "{ref.color.green.500}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --c-success; owner --*-ok"
+          }
+        }
+      },
+      "warning": {
+        "$value": "{ref.color.amber.500}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --c-warning; owner --*-warn"
+          }
+        }
+      },
+      "critical": {
+        "$value": "{ref.color.red.500}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --c-critical; owner --*-crit"
+          }
+        }
+      },
+      "info": {
+        "$value": "{ref.color.sky.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": "club --c-info; owner --ic-info"
+          }
+        }
+      },
+      "neutral": {
+        "$value": "{ref.color.mist.700}",
+        "$extensions": {
+          "com.familista": {
+            "source": "owner --*-off; no live Club equivalent"
+          }
+        }
+      },
+      "unverified": {
+        "$value": "{ref.color.violet.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": "owner --*-unver; no live Club equivalent"
+          }
+        }
+      }
+    },
+    "focus": {
+      "$type": "color",
+      "ring": {
+        "$value": "{ref.color.cyan.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": "owner: Vision outline var(--v-cyan); no live Club equivalent"
+          }
+        }
+      }
+    },
+    "space": {
+      "0": {
+        "$value": {
+          "value": 0,
+          "unit": "px"
+        }
+      },
+      "1": {
+        "$value": {
+          "value": 4,
+          "unit": "px"
+        }
+      },
+      "2": {
+        "$value": {
+          "value": 8,
+          "unit": "px"
+        }
+      },
+      "3": {
+        "$value": {
+          "value": 12,
+          "unit": "px"
+        }
+      },
+      "4": {
+        "$value": {
+          "value": 16,
+          "unit": "px"
+        }
+      },
+      "5": {
+        "$value": {
+          "value": 20,
+          "unit": "px"
+        }
+      },
+      "6": {
+        "$value": {
+          "value": 24,
+          "unit": "px"
+        }
+      },
+      "8": {
+        "$value": {
+          "value": 32,
+          "unit": "px"
+        }
+      },
+      "10": {
+        "$value": {
+          "value": 40,
+          "unit": "px"
+        }
+      },
+      "12": {
+        "$value": {
+          "value": 48,
+          "unit": "px"
+        }
+      },
+      "14": {
+        "$value": {
+          "value": 56,
+          "unit": "px"
+        }
+      },
+      "20": {
+        "$value": {
+          "value": 80,
+          "unit": "px"
+        }
+      },
+      "$type": "dimension",
+      "$extensions": {
+        "com.familista": {
+          "source": "club --sp-* (4px grid); Vision --v-1…5; React --gap-*"
+        }
+      }
+    },
+    "radius": {
+      "$type": "dimension",
+      "sm": {
+        "$value": {
+          "value": 6,
+          "unit": "px"
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--r-sm, --v-r-sm"
+          }
+        }
+      },
+      "md": {
+        "$value": {
+          "value": 8,
+          "unit": "px"
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--radius, --v-r"
+          }
+        }
+      },
+      "lg": {
+        "$value": {
+          "value": 12,
+          "unit": "px"
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--radius-lg"
+          }
+        }
+      },
+      "xl": {
+        "$value": {
+          "value": 16,
+          "unit": "px"
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--radius-xl, --lg-r, --*-radius"
+          }
+        }
+      },
+      "2xl": {
+        "$value": {
+          "value": 20,
+          "unit": "px"
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--r-xl"
+          }
+        }
+      },
+      "full": {
+        "$value": {
+          "value": 9999,
+          "unit": "px"
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--r-full"
+          }
+        }
+      },
+      "panel": {
+        "$value": "{semantic.radius.xl}",
+        "$extensions": {
+          "com.familista": {
+            "source": "--lg-r (Training surface: 16px)"
+          }
+        }
+      }
+    },
+    "border-width": {
+      "$type": "dimension",
+      "$extensions": {
+        "com.familista": {
+          "source": "live literals: 1px hairlines, 2px focus outline, 3px accent rule"
+        }
+      },
+      "hairline": {
+        "$value": {
+          "value": 1,
+          "unit": "px"
+        }
+      },
+      "strong": {
+        "$value": {
+          "value": 2,
+          "unit": "px"
+        }
+      },
+      "rule": {
+        "$value": {
+          "value": 3,
+          "unit": "px"
+        }
+      }
+    },
+    "font": {
+      "family": {
+        "$type": "fontFamily",
+        "sans": {
+          "$value": [
+            "Inter",
+            "Noto Sans Arabic",
+            "system-ui",
+            "-apple-system",
+            "Segoe UI",
+            "sans-serif"
+          ],
+          "$extensions": {
+            "com.familista": {
+              "source": "--font 'Inter',system-ui,sans-serif + Noto Sans Arabic fallback (Arabic glyphs only)"
+            }
+          }
+        },
+        "mono": {
+          "$value": [
+            "JetBrains Mono",
+            "ui-monospace",
+            "SFMono-Regular",
+            "Menlo",
+            "monospace"
+          ],
+          "$extensions": {
+            "com.familista": {
+              "source": "--cs-mono, --al-mono"
+            }
+          }
+        },
+        "arabic": {
+          "$value": [
+            "Noto Sans Arabic",
+            "Inter",
+            "system-ui",
+            "sans-serif"
+          ],
+          "$extensions": {
+            "com.familista": {
+              "source": "Stage 0 decision: Noto Sans Arabic is the Arabic fallback"
+            }
+          }
+        }
+      },
+      "size": {
+        "$type": "dimension",
+        "$extensions": {
+          "com.familista": {
+            "source": "no live tokens; scale from live literal frequency (11px×381, 12px×369, 10px×286, 13px×271 …)"
+          }
+        },
+        "2xs": {
+          "$value": {
+            "value": 9,
+            "unit": "px"
+          }
+        },
+        "xs": {
+          "$value": {
+            "value": 10,
+            "unit": "px"
+          }
+        },
+        "sm": {
+          "$value": {
+            "value": 11,
+            "unit": "px"
+          }
+        },
+        "md": {
+          "$value": {
+            "value": 12,
+            "unit": "px"
+          }
+        },
+        "base": {
+          "$value": {
+            "value": 13,
+            "unit": "px"
+          }
+        },
+        "lg": {
+          "$value": {
+            "value": 14,
+            "unit": "px"
+          }
+        },
+        "xl": {
+          "$value": {
+            "value": 16,
+            "unit": "px"
+          }
+        },
+        "2xl": {
+          "$value": {
+            "value": 18,
+            "unit": "px"
+          }
+        },
+        "3xl": {
+          "$value": {
+            "value": 20,
+            "unit": "px"
+          }
+        },
+        "4xl": {
+          "$value": {
+            "value": 22,
+            "unit": "px"
+          }
+        }
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$extensions": {
+          "com.familista": {
+            "source": "live literal weights (800×1087, 700×624, 600×249 …)"
+          }
+        },
+        "regular": {
+          "$value": 400
+        },
+        "medium": {
+          "$value": 500
+        },
+        "semibold": {
+          "$value": 600
+        },
+        "bold": {
+          "$value": 700
+        },
+        "extrabold": {
+          "$value": 800
+        },
+        "black": {
+          "$value": 900
+        }
+      },
+      "line-height": {
+        "$type": "number",
+        "$extensions": {
+          "com.familista": {
+            "source": "live literal line-heights (1×101, 1.5×63, 1.55×52, 1.6×41, 1.4×33)"
+          }
+        },
+        "none": {
+          "$value": 1
+        },
+        "tight": {
+          "$value": 1.2
+        },
+        "snug": {
+          "$value": 1.4
+        },
+        "normal": {
+          "$value": 1.5
+        },
+        "relaxed": {
+          "$value": 1.6
+        }
+      },
+      "tracking": {
+        "$type": "number",
+        "$extensions": {
+          "com.familista": {
+            "unit": "em",
+            "source": "live literal letter-spacing (.05em×85, .04em×65, .08em×52, .12em×35)"
+          }
+        },
+        "none": {
+          "$value": 0
+        },
+        "wide": {
+          "$value": 0.04
+        },
+        "label": {
+          "$value": 0.05
+        },
+        "wider": {
+          "$value": 0.08
+        },
+        "widest": {
+          "$value": 0.12
+        }
+      }
+    },
+    "shadow": {
+      "1": {
+        "$value": {
+          "color": "{ref.color.black.a40}",
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 1,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 3,
+            "unit": "px"
+          },
+          "spread": {
+            "value": 0,
+            "unit": "px"
+          }
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--sh-1"
+          }
+        }
+      },
+      "2": {
+        "$value": {
+          "color": "{ref.color.black.a45}",
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 8,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 24,
+            "unit": "px"
+          },
+          "spread": {
+            "value": 0,
+            "unit": "px"
+          }
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--sh-2"
+          }
+        }
+      },
+      "3": {
+        "$value": {
+          "color": "{ref.color.black.a55}",
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 24,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 56,
+            "unit": "px"
+          },
+          "spread": {
+            "value": 0,
+            "unit": "px"
+          }
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--sh-3"
+          }
+        }
+      },
+      "$type": "shadow",
+      "panel": {
+        "$value": {
+          "color": "{ref.color.black.a22}",
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 8,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 24,
+            "unit": "px"
+          },
+          "spread": {
+            "value": 0,
+            "unit": "px"
+          }
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--lg-shadow"
+          }
+        }
+      },
+      "overlay": {
+        "$value": {
+          "color": "{ref.color.black.a96}",
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 16,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 40,
+            "unit": "px"
+          },
+          "spread": {
+            "value": -28,
+            "unit": "px"
+          }
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--v-shadow"
+          }
+        }
+      }
+    },
+    "glow": {
+      "$type": "shadow",
+      "focus": {
+        "$value": [
+          {
+            "color": "{ref.color.cyan.400-a34}",
+            "offsetX": {
+              "value": 0,
+              "unit": "px"
+            },
+            "offsetY": {
+              "value": 0,
+              "unit": "px"
+            },
+            "blur": {
+              "value": 0,
+              "unit": "px"
+            },
+            "spread": {
+              "value": 1,
+              "unit": "px"
+            }
+          },
+          {
+            "color": "{ref.color.cyan.400-a40}",
+            "offsetX": {
+              "value": 0,
+              "unit": "px"
+            },
+            "offsetY": {
+              "value": 0,
+              "unit": "px"
+            },
+            "blur": {
+              "value": 18,
+              "unit": "px"
+            },
+            "spread": {
+              "value": -4,
+              "unit": "px"
+            }
+          }
+        ],
+        "$extensions": {
+          "com.familista": {
+            "source": "--v-glow-cyan"
+          }
+        }
+      },
+      "success": {
+        "$value": {
+          "color": "{ref.color.jade.400-a75}",
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 0,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 10,
+            "unit": "px"
+          },
+          "spread": {
+            "value": -2,
+            "unit": "px"
+          }
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--v-glow-green"
+          }
+        }
+      }
+    },
+    "blur": {
+      "$type": "dimension",
+      "$extensions": {
+        "com.familista": {
+          "source": "no live tokens; live backdrop-filter literals blur(3|6|10|14|18|20px)"
+        }
+      },
+      "xs": {
+        "$value": {
+          "value": 3,
+          "unit": "px"
+        }
+      },
+      "sm": {
+        "$value": {
+          "value": 6,
+          "unit": "px"
+        }
+      },
+      "md": {
+        "$value": {
+          "value": 10,
+          "unit": "px"
+        }
+      },
+      "lg": {
+        "$value": {
+          "value": 14,
+          "unit": "px"
+        }
+      },
+      "xl": {
+        "$value": {
+          "value": 18,
+          "unit": "px"
+        }
+      },
+      "2xl": {
+        "$value": {
+          "value": 20,
+          "unit": "px"
+        }
+      }
+    },
+    "duration": {
+      "$type": "duration",
+      "fast": {
+        "$value": {
+          "value": 120,
+          "unit": "ms"
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "React --t-fast .12s"
+          }
+        }
+      },
+      "base": {
+        "$value": {
+          "value": 150,
+          "unit": "ms"
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--trans .15s"
+          }
+        }
+      },
+      "slow": {
+        "$value": {
+          "value": 200,
+          "unit": "ms"
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "React --t-base .2s"
+          }
+        }
+      }
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "standard": {
+        "$value": [
+          0.4,
+          0,
+          0.2,
+          1
+        ],
+        "$extensions": {
+          "com.familista": {
+            "source": "--trans cubic-bezier(.4,0,.2,1)"
+          }
+        }
+      },
+      "emphasized": {
+        "$value": [
+          0.16,
+          1,
+          0.3,
+          1
+        ],
+        "$extensions": {
+          "com.familista": {
+            "source": "React --ease"
+          }
+        }
+      }
+    },
+    "size": {
+      "$type": "dimension",
+      "control": {
+        "$extensions": {
+          "com.familista": {
+            "source": "no live tokens; most frequent live control heights (26px, 32px, 36px)"
+          }
+        },
+        "sm": {
+          "$value": {
+            "value": 26,
+            "unit": "px"
+          }
+        },
+        "md": {
+          "$value": {
+            "value": 32,
+            "unit": "px"
+          }
+        },
+        "lg": {
+          "$value": {
+            "value": 36,
+            "unit": "px"
+          }
+        }
+      },
+      "icon": {
+        "$extensions": {
+          "com.familista": {
+            "source": "no live tokens; most frequent live square icon rules (15px×4, 16px×3, 18px×2)"
+          }
+        },
+        "sm": {
+          "$value": {
+            "value": 15,
+            "unit": "px"
+          }
+        },
+        "md": {
+          "$value": {
+            "value": 16,
+            "unit": "px"
+          }
+        },
+        "lg": {
+          "$value": {
+            "value": 18,
+            "unit": "px"
+          }
+        }
+      },
+      "crest": {
+        "16": {
+          "$value": {
+            "value": 16,
+            "unit": "px"
+          }
+        },
+        "20": {
+          "$value": {
+            "value": 20,
+            "unit": "px"
+          }
+        },
+        "24": {
+          "$value": {
+            "value": 24,
+            "unit": "px"
+          }
+        },
+        "26": {
+          "$value": {
+            "value": 26,
+            "unit": "px"
+          }
+        },
+        "30": {
+          "$value": {
+            "value": 30,
+            "unit": "px"
+          }
+        },
+        "34": {
+          "$value": {
+            "value": 34,
+            "unit": "px"
+          }
+        },
+        "40": {
+          "$value": {
+            "value": 40,
+            "unit": "px"
+          }
+        },
+        "44": {
+          "$value": {
+            "value": 44,
+            "unit": "px"
+          }
+        },
+        "56": {
+          "$value": {
+            "value": 56,
+            "unit": "px"
+          }
+        },
+        "64": {
+          "$value": {
+            "value": 64,
+            "unit": "px"
+          }
+        },
+        "74": {
+          "$value": {
+            "value": 74,
+            "unit": "px"
+          }
+        },
+        "88": {
+          "$value": {
+            "value": 88,
+            "unit": "px"
+          }
+        },
+        "120": {
+          "$value": {
+            "value": 120,
+            "unit": "px"
+          }
+        },
+        "160": {
+          "$value": {
+            "value": 160,
+            "unit": "px"
+          }
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": ".club-logo--sNN --club-logo-size"
+          }
+        }
+      }
+    },
+    "layout": {
+      "$type": "dimension",
+      "nav-width": {
+        "$value": {
+          "value": 224,
+          "unit": "px"
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--nav-w"
+          }
+        }
+      },
+      "nav-width-compact": {
+        "$value": {
+          "value": 280,
+          "unit": "px"
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--nav-w @media (max-width:768px)"
+          }
+        }
+      },
+      "header-height": {
+        "$value": {
+          "value": 52,
+          "unit": "px"
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "--hdr-h"
+          }
+        }
+      },
+      "topbar-height": {
+        "$value": {
+          "value": 64,
+          "unit": "px"
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "club --topbar-h"
+          }
+        }
+      },
+      "topbar-height-compact": {
+        "$value": {
+          "value": 56,
+          "unit": "px"
+        },
+        "$extensions": {
+          "com.familista": {
+            "source": "club --topbar-h @media (max-width:600px)"
+          }
+        }
+      }
+    },
+    "pitch": {
+      "400": {
+        "$value": "{ref.color.green.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": "--pitch-400"
+          }
+        }
+      },
+      "500": {
+        "$value": "{ref.color.green.500}",
+        "$extensions": {
+          "com.familista": {
+            "source": "--pitch-500"
+          }
+        }
+      },
+      "600": {
+        "$value": "{ref.color.green.600}",
+        "$extensions": {
+          "com.familista": {
+            "source": "--pitch-600"
+          }
+        }
+      },
+      "700": {
+        "$value": "{ref.color.green.700}",
+        "$extensions": {
+          "com.familista": {
+            "source": "--pitch-700"
+          }
+        }
+      },
+      "800": {
+        "$value": "{ref.color.green.800}",
+        "$extensions": {
+          "com.familista": {
+            "source": "--pitch-800"
+          }
+        }
+      },
+      "$type": "color",
+      "glow": {
+        "$value": "{ref.color.green.500-a20}",
+        "$extensions": {
+          "com.familista": {
+            "source": "--pitch-glow"
+          }
+        }
+      }
+    },
+    "team": {
+      "$type": "color",
+      "$description": "Amber is the current club (CLAUDE.md); the opponent is steel.",
+      "us": {
+        "$value": "{semantic.brand.accent}",
+        "$extensions": {
+          "com.familista": {
+            "source": "--lg-accent"
+          }
+        }
+      },
+      "them": {
+        "$value": "{ref.color.steel.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": "--lg-them"
+          }
+        }
+      },
+      "them-soft": {
+        "$value": "{ref.color.steel.400-a28}",
+        "$extensions": {
+          "com.familista": {
+            "source": "--lg-them-soft"
+          }
+        }
+      },
+      "them-wash": {
+        "$value": "{ref.color.steel.400-a09}",
+        "$extensions": {
+          "com.familista": {
+            "source": "--lg-them-wash"
+          }
+        }
+      }
+    },
+    "position": {
+      "$type": "color",
+      "gk": {
+        "$value": "{ref.color.amber.500}",
+        "$extensions": {
+          "com.familista": {
+            "source": ".sqlu-row--gk"
+          }
+        }
+      },
+      "df": {
+        "$value": "{ref.color.sky.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": ".sqlu-row--df"
+          }
+        }
+      },
+      "mf": {
+        "$value": "{ref.color.emerald.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": ".sqlu-row--mf"
+          }
+        }
+      },
+      "fw": {
+        "$value": "{ref.color.rose.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": ".sqlu-row--fw"
+          }
+        }
+      }
+    },
+    "result": {
+      "$type": "color",
+      "$description": "Green and red mean a result or availability and nothing else.",
+      "win": {
+        "$value": "{ref.color.green.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": ".lg-f--w"
+          }
+        }
+      },
+      "draw": {
+        "$value": "{ref.color.gray.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": ".lg-f--d"
+          }
+        }
+      },
+      "loss": {
+        "$value": "{ref.color.red.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": ".lg-f--l"
+          }
+        }
+      }
+    },
+    "pathway": {
+      "$type": "color",
+      "discovery": {
+        "$value": "{ref.color.green.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": ".dash-v2--discovery"
+          }
+        }
+      },
+      "development": {
+        "$value": "{ref.color.violet.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": ".dash-v2--development"
+          }
+        }
+      },
+      "performance": {
+        "$value": "{ref.color.amber.500}",
+        "$extensions": {
+          "com.familista": {
+            "source": ".dash-v2--performance"
+          }
+        }
+      },
+      "elite": {
+        "$value": "{ref.color.pink.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": ".dash-v2--elite"
+          }
+        }
+      },
+      "propath": {
+        "$value": "{ref.color.red.400}",
+        "$extensions": {
+          "com.familista": {
+            "source": ".dash-v2--propath"
+          }
+        }
+      }
+    },
+    "chart": {
+      "$type": "color",
+      "categorical": {
+        "1": {
+          "$value": "{ref.color.blue.400}",
+          "$extensions": {
+            "com.familista": {
+              "source": "--sc blue"
+            }
+          }
+        },
+        "2": {
+          "$value": "{ref.color.green.400}",
+          "$extensions": {
+            "com.familista": {
+              "source": "--sc green"
+            }
+          }
+        },
+        "3": {
+          "$value": "{ref.color.teal.400}",
+          "$extensions": {
+            "com.familista": {
+              "source": "--sc teal"
+            }
+          }
+        },
+        "4": {
+          "$value": "{ref.color.amber.350}",
+          "$extensions": {
+            "com.familista": {
+              "source": "--sc amber"
+            }
+          }
+        },
+        "5": {
+          "$value": "{ref.color.violet.400}",
+          "$extensions": {
+            "com.familista": {
+              "source": "--sc violet"
+            }
+          }
+        },
+        "6": {
+          "$value": "{ref.color.rose.400}",
+          "$extensions": {
+            "com.familista": {
+              "source": "--sc red"
+            }
+          }
+        },
+        "7": {
+          "$value": "{ref.color.slate.600}",
+          "$extensions": {
+            "com.familista": {
+              "source": "--sc muted"
+            }
+          }
+        },
+        "$description": "The live series set shared by .sqlu-stat--* and .trn-stat--*. Green (2) and red (6) collide with result meanings — a Stage 3 decision."
+      }
+    },
+    "direction": {
+      "multiplier": {
+        "$type": "number",
+        "$value": 1,
+        "$description": "Multiply a horizontal transform by this so it mirrors under dir=\"rtl\"."
+      }
+    }
+  },
+  "context": {
+    "$description": "Workspace context. Club is the default (live today on every page); Owner re-declares the semantic layer.",
+    "$extensions": {
+      "com.familista": {
+        "overrides": "semantic"
+      }
+    },
+    "club": {
+      "$description": "Club Workspace (default)",
+      "$extensions": {
+        "com.familista": {
+          "default": true
+        }
+      }
+    },
+    "owner": {
+      "$description": "Owner / Global systems",
+      "surface": {
+        "canvas": {
+          "$value": "{ref.color.navy.950}"
+        },
+        "sunken": {
+          "$value": "{ref.color.navy.925}"
+        },
+        "base": {
+          "$value": "{ref.color.navy.900}"
+        },
+        "raised": {
+          "$value": "{ref.color.navy.850}"
+        }
+      },
+      "text": {
+        "primary": {
+          "$value": "{ref.color.mist.50}"
+        },
+        "secondary": {
+          "$value": "{ref.color.mist.400}"
+        },
+        "tertiary": {
+          "$value": "{ref.color.mist.600}"
+        }
+      },
+      "border": {
+        "subtle": {
+          "$value": "{ref.color.white.a07}"
+        },
+        "default": {
+          "$value": "{ref.color.white.a13}"
+        }
+      },
+      "brand": {
+        "accent": {
+          "$value": "{ref.color.amber.400}"
+        }
+      },
+      "status": {
+        "success": {
+          "$value": "{ref.color.emerald.400}"
+        },
+        "warning": {
+          "$value": "{ref.color.amber.300}"
+        },
+        "critical": {
+          "$value": "{ref.color.red.400}"
+        },
+        "info": {
+          "$value": "{ref.color.blue.400}"
+        }
+      }
+    }
+  },
+  "module": {
+    "$description": "Module identity accents, from each module's live --*-accent / --*-accent-2.",
+    "$extensions": {
+      "com.familista": {
+        "overrides": "semantic.module"
+      }
+    },
+    "system": {
+      "$description": "Owner: System",
+      "accent": {
+        "$value": "{ref.color.blue.500}"
+      },
+      "accent-2": {
+        "$value": "{ref.color.cyan.400}"
+      }
+    },
+    "data-vault": {
+      "$description": "Owner: Data Vault",
+      "accent": {
+        "$value": "{ref.color.cyan.400}"
+      },
+      "accent-2": {
+        "$value": "{ref.color.blue.500}"
+      }
+    },
+    "infrastructure-city": {
+      "$description": "Owner: Infrastructure City",
+      "accent": {
+        "$value": "{ref.color.cyan.400}"
+      },
+      "accent-2": {
+        "$value": "{ref.color.blue.500}"
+      }
+    },
+    "source-core": {
+      "$description": "Owner: Source Core",
+      "accent": {
+        "$value": "{ref.color.cyan.400}"
+      },
+      "accent-2": {
+        "$value": "{ref.color.blue.500}"
+      }
+    },
+    "vision": {
+      "$description": "Owner: Familista Vision",
+      "accent": {
+        "$value": "{ref.color.cyan.400}"
+      },
+      "accent-2": {
+        "$value": "{ref.color.blue.500}"
+      }
+    },
+    "cybersecurity": {
+      "$description": "Owner: Cybersecurity",
+      "accent": {
+        "$value": "{ref.color.indigo.200}"
+      },
+      "accent-2": {
+        "$value": "{ref.color.sky.300}"
+      }
+    },
+    "algorithms": {
+      "$description": "Owner: Algorithms",
+      "accent": {
+        "$value": "{ref.color.orchid.300}"
+      },
+      "accent-2": {
+        "$value": "{ref.color.indigo.300}"
+      }
+    },
+    "transfers": {
+      "$description": "Club: Transfer Market",
+      "accent": {
+        "$value": "{ref.color.green.500}"
+      },
+      "accent-2": {
+        "$value": "{ref.color.green.700}"
+      }
+    },
+    "coach-market": {
+      "$description": "Club: Coach Market",
+      "accent": {
+        "$value": "{ref.color.teal.400}"
+      },
+      "accent-2": {
+        "$value": "{ref.color.teal.600}"
+      }
+    },
+    "coaches": {
+      "$description": "Club: Coaches",
+      "accent": {
+        "$value": "{ref.color.sky.400}"
+      }
+    }
+  },
+  "theme": {
+    "$description": "Colour themes. Dark is the default (:root, html[data-theme=\"dark\"]). Light and high contrast are reserved: no tokens until approved.",
+    "$extensions": {
+      "com.familista": {
+        "overrides": "semantic"
+      }
+    },
+    "light": {
+      "$description": "Reserved"
+    },
+    "high-contrast": {
+      "$description": "Reserved"
+    }
+  },
+  "lang": {
+    "$description": "Language-specific adjustments.",
+    "$extensions": {
+      "com.familista": {
+        "overrides": "semantic"
+      }
+    },
+    "ar": {
+      "$description": "Arabic: letter-spacing breaks cursive joining, so every tracking step is 0.",
+      "font": {
+        "tracking": {
+          "none": {
+            "$value": 0
+          },
+          "wide": {
+            "$value": 0
+          },
+          "label": {
+            "$value": 0
+          },
+          "wider": {
+            "$value": 0
+          },
+          "widest": {
+            "$value": 0
+          }
+        }
+      }
+    }
+  },
+  "dir": {
+    "$description": "Writing direction.",
+    "$extensions": {
+      "com.familista": {
+        "overrides": "semantic"
+      }
+    },
+    "rtl": {
+      "$description": "Right-to-left",
+      "direction": {
+        "multiplier": {
+          "$value": -1
+        }
+      }
+    }
+  },
+  "media": {
+    "$description": "User preferences.",
+    "$extensions": {
+      "com.familista": {
+        "overrides": "semantic"
+      }
+    },
+    "reduced-motion": {
+      "$description": "prefers-reduced-motion: reduce",
+      "duration": {
+        "fast": {
+          "$value": {
+            "value": 0,
+            "unit": "ms"
+          }
+        },
+        "base": {
+          "$value": {
+            "value": 0,
+            "unit": "ms"
+          }
+        },
+        "slow": {
+          "$value": {
+            "value": 0,
+            "unit": "ms"
+          }
+        }
+      }
+    }
+  }
+}

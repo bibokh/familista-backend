@@ -1,0 +1,4 @@
+# The root .gitignore excludes every dist/ (build output). This dist/ is the
+# generated token CSS, committed on purpose: the ratchet checks it is current,
+# and Storybook (and Stage 2b) read it. Re-include it here only.
+!/dist/
