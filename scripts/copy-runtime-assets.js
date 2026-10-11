@@ -7,6 +7,25 @@
 // event loop blocks again on every sign-in, silently.
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
+
+// The Design System manifest is generated from tools/tokens/ and committed
+// (src/design-system/generated/design-system-manifest.json). This build copies
+// whatever is committed, so a token change that did not regenerate it would ship
+// outdated data to the Owner-only Design System Control room. Check it here,
+// before anything is copied. The check only READS: it never rewrites the
+// manifest, so a stale one fails the build rather than being fixed behind
+// anybody's back. To fix it: node scripts/design-system-discover.js
+{
+  const generator = path.join(__dirname, 'design-system-discover.js');
+  const r = spawnSync(process.execPath, [generator, '--check'], { encoding: 'utf8' });
+  if (r.status !== 0) {
+    console.error('[assets] the Design System manifest is stale or cannot be checked; refusing to build.');
+    console.error(((r.stderr || '') + (r.stdout || '')).trim());
+    console.error('[assets] regenerate it, review the diff and commit it: node scripts/design-system-discover.js');
+    process.exit(1);
+  }
+}
 
 const ASSETS = [
   ['src/utils/password.worker.js', 'dist/utils/password.worker.js'],

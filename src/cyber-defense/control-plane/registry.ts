@@ -200,7 +200,7 @@ export interface AreaDecl {
 
 export const PLATFORM_AREAS: readonly AreaDecl[] = [
   // ── platform & identity ──
-  { id: 'system', title: 'System', group: 'PLATFORM', routers: ['system.routes', 'owner-trace.routes', 'observability.routes'], rows: [7] },
+  { id: 'system', title: 'System', group: 'PLATFORM', routers: ['system.routes', 'owner-trace.routes', 'observability.routes', 'design-system.routes'], rows: [7] },
   { id: 'clubs', title: 'Clubs & club workspaces', group: 'PLATFORM', routers: ['club.routes', 'club-admin.routes', 'home.routes', 'team.routes', 'player.routes', 'training.routes', 'analytics.routes'], rows: [5] },
   { id: 'users-roles', title: 'Users, roles & permissions', group: 'PLATFORM', routers: ['membership.routes', 'invitation.routes', 'context.routes'], rows: [6] },
   { id: 'auth-sessions', title: 'Authentication, MFA & sessions', group: 'PLATFORM', routers: ['auth.routes'], rows: [2, 3, 8] },
@@ -236,7 +236,6 @@ export const PLATFORM_AREAS: readonly AreaDecl[] = [
   { id: 'ml-models', title: 'ML, models & training data', group: 'AI', routers: ['ai-ops.routes', 'phase-l.routes'], rows: [12, 13, 14] },
   { id: 'agents', title: 'Agents & multi-agent systems', group: 'AI', routers: ['automation.routes', 'phase-m.routes', 'ai-ops.routes'], rows: [11] },
   { id: 'algorithms', title: 'Algorithms', group: 'AI', routers: ['algorithms.routes'], rows: [39, 40] },
-  { id: 'design-system', title: 'Design System', group: 'OPERATIONS', routers: ['design-system.routes'], rows: [7] },
   // ── vision & devices ──
   { id: 'video-intelligence', title: 'Video Intelligence', group: 'VISION_DEVICES', routers: ['phase-q.routes', 'vision.routes', 'familista-vision.routes'], rows: [21] },
   { id: 'cameras', title: 'Cameras', group: 'VISION_DEVICES', routers: ['vision.routes', 'familista-vision.routes'], rows: [22] },
