@@ -1087,6 +1087,7 @@ var _FAM_PAGE_RENDER = {
   'familista-vision':            ['renderFamilistaVision'],
   'cybersecurity':               ['renderFamilistaCybersecurity'],
   'algorithms':                  ['renderFamilistaAlgorithms'],
+  'design-system':               ['renderFamilistaDesignSystem'],
   'fos-core':                    ['renderFOSCore'],
   'fos-ai-orchestrator':         ['renderFOSAIOrchestrator'],
   'multi-club-network':          ['renderMultiClubNetwork'],
@@ -2529,6 +2530,7 @@ function _flushPendingRender() {
     case 'pg-familista-vision':   renderFamilistaVision(document.getElementById('fv-root')); break;
     case 'pg-cybersecurity':      renderFamilistaCybersecurity(document.getElementById('cs-root')); break;
     case 'pg-algorithms':         renderFamilistaAlgorithms(document.getElementById('al-root')); break;
+    case 'pg-design-system':      if (typeof renderFamilistaDesignSystem === 'function') renderFamilistaDesignSystem(document.getElementById('ds-root')); break;
     case 'pg-fos-core':           renderFOSCore();           break;
     case 'pg-fos-ai-orchestrator': renderFOSAIOrchestrator(); break;
     case 'pg-fos-knowledge-graph': renderFOSKnowledgeGraph(); break;
@@ -2602,12 +2604,80 @@ function _restoreFocusIn(container, saved) {
 }
 // ────────────────────────────────────────────────────────────────────────────
 
+// ── DESIGN SYSTEM CONTROL: on-demand loading ──
+//
+// The room's stylesheet takes over the application shell, so it must not exist
+// until the room is opened: loading it up front would hide the sidebar for
+// everyone. navTo therefore loads the assets first and re-enters itself once
+// they are in. Only the platform owner (GET /system/whoami, the same answer
+// Owner Home uses) triggers the load; anybody else is sent to Owner Home and
+// downloads nothing. Both assets are same-origin, which `script-src 'self'` and
+// `style-src 'self'` already allow.
+var _DS_ROOM = { state: 'idle', waiting: [] };
+function _loadDesignSystemRoom(done) {
+  if (_DS_ROOM.state === 'ready') { done(true); return; }
+  _DS_ROOM.waiting.push(done);
+  if (_DS_ROOM.state === 'loading') return;
+  _DS_ROOM.state = 'loading';
+  function finish(ok) {
+    _DS_ROOM.state = ok ? 'ready' : 'idle';
+    var list = _DS_ROOM.waiting.splice(0);
+    for (var i = 0; i < list.length; i++) { try { list[i](ok); } catch (_) {} }
+  }
+  // A "no" cached before sign-in must not lock the owner out of a deep link:
+  // ask once more, fresh, before refusing.
+  //
+  // A deep link is routed while this script is still executing, before the
+  // authority latch further down this file has been initialised, so asking can
+  // throw. That is "not yet", not "no": forget the attempt without redirecting,
+  // and the deep-link repair routes here again once startup has settled.
+  var ask;
+  try {
+    ask = _isPlatformOwner().then(function (yes) {
+      if (yes) return true;
+      _platformAuthority = null;
+      return _isPlatformOwner();
+    });
+  } catch (_) {
+    _DS_ROOM.state = 'idle';
+    _DS_ROOM.waiting.length = 0;
+    return;
+  }
+  ask.then(function (yes) {
+    if (!yes) { finish(false); return; }
+    var pending = 2, failed = false;
+    function one(ok) { if (!ok) failed = true; if (--pending === 0) finish(!failed); }
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/design-system/design-system.css?v=20261012-design-system';
+    link.onload = function () { one(true); };
+    link.onerror = function () { one(false); };
+    document.head.appendChild(link);
+    var script = document.createElement('script');
+    script.src = '/design-system/design-system.js?v=20261012-design-system';
+    script.onload = function () { one(true); };
+    script.onerror = function () { one(false); };
+    document.head.appendChild(script);
+  }).catch(function () { finish(false); });
+}
+
 // ── NAVIGATION ──
 function navTo(page, el, _opts) {
   _opts = _opts || {};
   // Never switch pages out from under an open dialog — but a focused control is
   // not a dialog, so release it and carry on.
   if (isNavBlocked()) return;
+  // Design System Control: bring its assets in, then come back through here.
+  if (page === 'design-system' && !(_DS_ROOM && _DS_ROOM.state === 'ready')) {
+    // A deep link is routed while this script is still executing, before the
+    // loader's state below has been assigned: not yet, so do nothing, and the
+    // deep-link repair routes here again once startup has settled.
+    if (!_DS_ROOM) return;
+    _loadDesignSystemRoom(function (ok) {
+      try { navTo(ok ? page : 'owner-home', ok ? el : null, _opts); } catch (_) {}
+    });
+    return;
+  }
   // A deep link can arrive before this session's capabilities have loaded — a
   // hard refresh on #squad routes at DOMContentLoaded, before /me/context has
   // answered. "Not known yet" is not "denied": redirecting here rewrote the
@@ -2688,6 +2758,14 @@ function navTo(page, el, _opts) {
     if (_wasAlgorithms && page !== 'algorithms' && typeof window.teardownFamilistaAlgorithms === 'function') {
       window.teardownFamilistaAlgorithms();
     }
+    // DESIGN SYSTEM CONTROL takes the shell the same way. It is loaded on
+    // demand (see _loadDesignSystemRoom), so its teardown exists only once the
+    // room has been opened; no stream, no timer.
+    var _wasDesign = document.body.classList.contains('ds-design-open');
+    document.body.classList.toggle('ds-design-open', page === 'design-system');
+    if (_wasDesign && page !== 'design-system' && typeof window.teardownFamilistaDesignSystem === 'function') {
+      window.teardownFamilistaDesignSystem();
+    }
     // ENTERING IS NOT SYMMETRICAL WITH LEAVING, AND THAT WAS A BUG.
     //
     // Leaving released the module's held session; nothing re-hydrated it on the
@@ -2755,6 +2833,12 @@ function navTo(page, el, _opts) {
     // page inside SYSTEM, CYBERSECURITY, INFRASTRUCTURE CITY or VISION. Its two
     // endpoints are guarded by assertPlatformOwner on the server.
     'algorithms': 1,
+    // DESIGN SYSTEM CONTROL — what the design system declares and what the
+    // repository records about it. Reached by the #design-system link; not a
+    // card on Owner Home. Loaded on demand, and only for a reader whom
+    // /system/whoami names the platform owner. Convenience, not security: both
+    // endpoints behind it are guarded by assertPlatformOwner on the server.
+    'design-system': 1,
     // PLATFORM (8)
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
@@ -2862,7 +2946,7 @@ function navTo(page, el, _opts) {
 
   const titles = {
     // ── Owner Control ──
-    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'source-core':'Source Core', 'familista-vision':'Familista Vision', 'cybersecurity':'Cybersecurity', 'algorithms':'Algorithms',
+    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'source-core':'Source Core', 'familista-vision':'Familista Vision', 'cybersecurity':'Cybersecurity', 'algorithms':'Algorithms', 'design-system':'Design System',
     // ── Club Workspace ──
     'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League', 'match-center':'Match Center', 'people-access':'People & Access',
     // ── Platform (Phase B labels) ──
@@ -3137,6 +3221,7 @@ function _buildPageTemplateMap() {
     'familista-vision':            renderFamilistaVisionHTML,
     'cybersecurity':               renderCybersecurityHTML,
     'algorithms':                  renderAlgorithmsHTML,
+    'design-system':               renderDesignSystemHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
@@ -28604,6 +28689,15 @@ function renderCybersecurityHTML() {
 // catalogue under /algorithms/i18n/, behind the same `data-no-i18n` boundary.
 function renderAlgorithmsHTML() {
   return `<div class="page" id="pg-algorithms" data-no-i18n><div id="al-root"></div></div>`;
+}
+
+// DESIGN SYSTEM CONTROL — the Owner-only room for the Design Core. Its interface
+// lives in public/design-system/design-system.js with its own English, German and
+// Arabic catalogue under /design-system/i18n/, behind the same `data-no-i18n`
+// boundary. Not in _EAGER_PAGES: its script and stylesheet are fetched the first
+// time the platform owner opens it, so every other session pays nothing for it.
+function renderDesignSystemHTML() {
+  return `<div class="page" id="pg-design-system" data-no-i18n><div id="ds-root"></div></div>`;
 }
 
 // FAMILISTA VISION — what the platform can SEE: computer-vision evidence from

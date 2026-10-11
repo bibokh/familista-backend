@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-11T18:57:47.596Z",
+  "generatedAt": "2026-10-11T23:01:32.504Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -282,7 +282,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "src/routes/index.ts",
-      "sourceEvidence": "src/routes/index.ts — 53 mounted routers",
+      "sourceEvidence": "src/routes/index.ts — 54 mounted routers",
       "dependencies": [
         "platform-core"
       ],
@@ -1101,7 +1101,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 201 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 202 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1161,7 +1161,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "602 TypeScript modules under src/."
+      "note": "605 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1649,12 +1649,12 @@
     }
   ],
   "surface": {
-    "routeModules": 63,
+    "routeModules": 64,
     "serviceModules": 102,
     "middleware": 23,
     "fabricModules": 52,
-    "totalTypeScript": 602,
-    "testSuites": 201,
+    "totalTypeScript": 605,
+    "testSuites": 202,
     "migrations": 49,
     "prismaModels": 344,
     "prismaEnums": 209
@@ -1929,6 +1929,13 @@
       "file": "src/routes/algorithms.routes.ts",
       "writes": 0,
       "reads": 9
+    },
+    {
+      "path": "/system/design-system",
+      "router": "designSystemRoutes",
+      "file": "src/routes/design-system.routes.ts",
+      "writes": 0,
+      "reads": 2
     },
     {
       "path": "/telemetry",

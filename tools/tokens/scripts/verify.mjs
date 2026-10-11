@@ -88,11 +88,15 @@ function walk(dir, acc = []) {
   }
   return acc;
 }
-check('unread: nothing production serves, except the token file itself, references the --fam- namespace', () => {
+// Stage 3.1: the Owner-only Design System Control room is the one consumer of
+// the canonical tokens. Everything else in production still reads none.
+const CONSUMERS = 'public/design-system/';
+check('unread: nothing production serves, except the token file and the Design System Control room, references the --fam- namespace', () => {
   const bad = [];
   const own = join(REPO_ROOT, PUBLISHED_TOKENS);
   for (const f of walk(join(REPO_ROOT, 'public'))) {
     if (f === own) continue;
+    if (f.slice(REPO_ROOT.length + 1).split('\\').join('/').startsWith(CONSUMERS)) continue;
     if (/--fam-/.test(readFileSync(f, 'utf8'))) bad.push(`${f.slice(REPO_ROOT.length + 1)} references --fam-*`);
   }
   return bad;

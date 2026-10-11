@@ -51,6 +51,12 @@ const ASSETS = [
   // requires it to check each approval's binding (src/algorithms/release.ts).
   ['src/algorithms/dossier-core.js',
    'dist/algorithms/dossier-core.js'],
+  // The Design System Control room reads the manifest scripts/design-system-
+  // discover.js generated from tools/tokens/ (src/design-system/
+  // design-system.service.ts). Without it the room says NOT GENERATED rather
+  // than drawing a token it did not read.
+  ['src/design-system/generated/design-system-manifest.json',
+   'dist/design-system/generated/design-system-manifest.json'],
 ];
 
 // Approval dossiers (src/algorithms/approvals/*.json): the evidence each CHANGE

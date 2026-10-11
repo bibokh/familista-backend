@@ -236,6 +236,7 @@ export const PLATFORM_AREAS: readonly AreaDecl[] = [
   { id: 'ml-models', title: 'ML, models & training data', group: 'AI', routers: ['ai-ops.routes', 'phase-l.routes'], rows: [12, 13, 14] },
   { id: 'agents', title: 'Agents & multi-agent systems', group: 'AI', routers: ['automation.routes', 'phase-m.routes', 'ai-ops.routes'], rows: [11] },
   { id: 'algorithms', title: 'Algorithms', group: 'AI', routers: ['algorithms.routes'], rows: [39, 40] },
+  { id: 'design-system', title: 'Design System', group: 'OPERATIONS', routers: ['design-system.routes'], rows: [7] },
   // ── vision & devices ──
   { id: 'video-intelligence', title: 'Video Intelligence', group: 'VISION_DEVICES', routers: ['phase-q.routes', 'vision.routes', 'familista-vision.routes'], rows: [21] },
   { id: 'cameras', title: 'Cameras', group: 'VISION_DEVICES', routers: ['vision.routes', 'familista-vision.routes'], rows: [22] },
