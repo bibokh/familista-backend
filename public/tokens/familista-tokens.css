@@ -1,0 +1,424 @@
+/*
+ * Familista Design Core — design tokens (generated; do not edit).
+ * Source: tools/tokens/familista.tokens.json (W3C DTCG format).
+ * Build:  node tools/tokens/scripts/build.mjs
+ * Source SHA-256: 9b5e8c0c998fcdf77200bba4088ed3d1f1c5734226047b9b06310179cafac038
+ * Declares only --fam-* custom properties. Nothing in production reads them yet.
+ */
+
+:root {
+  /* ref.color */
+  --fam-ref-navy-800: #16223a;
+  --fam-ref-navy-850: #101a2c;
+  --fam-ref-navy-900: #0b1220;
+  --fam-ref-navy-925: #070c16;
+  --fam-ref-navy-950: #05080f;
+  --fam-ref-navy-panel-a72: rgba(17, 24, 41, 0.72);
+  --fam-ref-navy-panel-a55: rgba(23, 32, 53, 0.55);
+  --fam-ref-navy-glass-top: rgba(20, 27, 44, 0.46);
+  --fam-ref-navy-glass-bottom: rgba(11, 15, 25, 0.44);
+  --fam-ref-midnight-850: #1a2236;
+  --fam-ref-midnight-900: #131826;
+  --fam-ref-midnight-950: #0a0e1a;
+  --fam-ref-midnight-975: #070a14;
+  --fam-ref-mist-50: #e9eefb;
+  --fam-ref-mist-400: #97a2bc;
+  --fam-ref-mist-600: #66708b;
+  --fam-ref-mist-700: #5b6480;
+  --fam-ref-slate-100: #f1f5f9;
+  --fam-ref-slate-600: #475569;
+  --fam-ref-zinc-400: #a1a1aa;
+  --fam-ref-zinc-600: #52525b;
+  --fam-ref-gray-400: #9ca3af;
+  --fam-ref-amber-300: #fbbf24;
+  --fam-ref-amber-350: #f4b740;
+  --fam-ref-amber-400: #f5a524;
+  --fam-ref-amber-500: #f59e0b;
+  --fam-ref-green-400: #4ade80;
+  --fam-ref-green-500: #22c55e;
+  --fam-ref-green-600: #16a34a;
+  --fam-ref-green-700: #15803d;
+  --fam-ref-green-800: #166534;
+  --fam-ref-green-500-a20: rgba(34, 197, 94, 0.2);
+  --fam-ref-emerald-400: #34d399;
+  --fam-ref-jade-400-a75: rgba(16, 217, 138, 0.75);
+  --fam-ref-teal-400: #2dd4bf;
+  --fam-ref-teal-600: #0d9488;
+  --fam-ref-cyan-400: #22d3ee;
+  --fam-ref-cyan-400-a34: rgba(34, 211, 238, 0.34);
+  --fam-ref-cyan-400-a40: rgba(34, 211, 238, 0.4);
+  --fam-ref-sky-300: #7dd3fc;
+  --fam-ref-sky-400: #38bdf8;
+  --fam-ref-blue-400: #60a5fa;
+  --fam-ref-blue-500: #3b82f6;
+  --fam-ref-indigo-200: #b8c4ff;
+  --fam-ref-indigo-300: #a5b4fc;
+  --fam-ref-violet-400: #a78bfa;
+  --fam-ref-orchid-300: #e8a8ff;
+  --fam-ref-red-400: #f87171;
+  --fam-ref-red-500: #ef4444;
+  --fam-ref-rose-400: #fb7185;
+  --fam-ref-pink-400: #f472b6;
+  --fam-ref-steel-400: #8fa6c4;
+  --fam-ref-steel-400-a28: rgba(143, 166, 196, 0.28);
+  --fam-ref-steel-400-a09: rgba(143, 166, 196, 0.09);
+  --fam-ref-white-a028: rgba(255, 255, 255, 0.028);
+  --fam-ref-white-a048: rgba(255, 255, 255, 0.048);
+  --fam-ref-white-a05: rgba(255, 255, 255, 0.05);
+  --fam-ref-white-a07: rgba(255, 255, 255, 0.07);
+  --fam-ref-white-a072: rgba(255, 255, 255, 0.072);
+  --fam-ref-white-a13: rgba(255, 255, 255, 0.13);
+  --fam-ref-white-a22: rgba(255, 255, 255, 0.22);
+  --fam-ref-black-a22: rgba(0, 0, 0, 0.22);
+  --fam-ref-black-a40: rgba(0, 0, 0, 0.4);
+  --fam-ref-black-a45: rgba(0, 0, 0, 0.45);
+  --fam-ref-black-a55: rgba(0, 0, 0, 0.55);
+  --fam-ref-black-a96: rgba(0, 0, 0, 0.96);
+  /* semantic.surface */
+  --fam-surface-canvas: var(--fam-ref-midnight-950);
+  --fam-surface-sunken: var(--fam-ref-midnight-975);
+  --fam-surface-base: var(--fam-ref-midnight-900);
+  --fam-surface-raised: var(--fam-ref-midnight-850);
+  --fam-surface-overlay: var(--fam-ref-navy-800);
+  --fam-surface-panel: var(--fam-ref-navy-panel-a72);
+  --fam-surface-panel-muted: var(--fam-ref-navy-panel-a55);
+  --fam-surface-glass: linear-gradient(170deg, var(--fam-ref-navy-glass-top) 0%, var(--fam-ref-navy-glass-bottom) 100%);
+  --fam-surface-tile: var(--fam-ref-white-a028);
+  --fam-surface-tile-strong: var(--fam-ref-white-a05);
+  /* semantic.text */
+  --fam-text-primary: var(--fam-ref-slate-100);
+  --fam-text-secondary: var(--fam-ref-zinc-400);
+  --fam-text-tertiary: var(--fam-ref-zinc-600);
+  --fam-text-disabled: var(--fam-ref-slate-600);
+  /* semantic.border */
+  --fam-border-subtle: var(--fam-ref-white-a048);
+  --fam-border-default: var(--fam-ref-white-a072);
+  --fam-border-strong: var(--fam-ref-white-a22);
+  /* semantic.brand */
+  --fam-brand-accent: var(--fam-ref-amber-300);
+  /* semantic.module */
+  --fam-module-accent: var(--fam-brand-accent);
+  --fam-module-accent-2: var(--fam-brand-accent);
+  /* semantic.status */
+  --fam-status-success: var(--fam-ref-green-500);
+  --fam-status-warning: var(--fam-ref-amber-500);
+  --fam-status-critical: var(--fam-ref-red-500);
+  --fam-status-info: var(--fam-ref-sky-400);
+  --fam-status-neutral: var(--fam-ref-mist-700);
+  --fam-status-unverified: var(--fam-ref-violet-400);
+  /* semantic.focus */
+  --fam-focus-ring: var(--fam-ref-cyan-400);
+  /* semantic.space */
+  --fam-space-0: 0;
+  --fam-space-1: 4px;
+  --fam-space-2: 8px;
+  --fam-space-3: 12px;
+  --fam-space-4: 16px;
+  --fam-space-5: 20px;
+  --fam-space-6: 24px;
+  --fam-space-8: 32px;
+  --fam-space-10: 40px;
+  --fam-space-12: 48px;
+  --fam-space-14: 56px;
+  --fam-space-20: 80px;
+  /* semantic.radius */
+  --fam-radius-sm: 6px;
+  --fam-radius-md: 8px;
+  --fam-radius-lg: 12px;
+  --fam-radius-xl: 16px;
+  --fam-radius-2xl: 20px;
+  --fam-radius-full: 9999px;
+  --fam-radius-panel: var(--fam-radius-xl);
+  /* semantic.border-width */
+  --fam-border-width-hairline: 1px;
+  --fam-border-width-strong: 2px;
+  --fam-border-width-rule: 3px;
+  /* semantic.font */
+  --fam-font-family-sans: 'Inter', 'Noto Sans Arabic', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --fam-font-family-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+  --fam-font-family-arabic: 'Noto Sans Arabic', 'Inter', system-ui, sans-serif;
+  --fam-font-size-2xs: 9px;
+  --fam-font-size-xs: 10px;
+  --fam-font-size-sm: 11px;
+  --fam-font-size-md: 12px;
+  --fam-font-size-base: 13px;
+  --fam-font-size-lg: 14px;
+  --fam-font-size-xl: 16px;
+  --fam-font-size-2xl: 18px;
+  --fam-font-size-3xl: 20px;
+  --fam-font-size-4xl: 22px;
+  --fam-font-weight-regular: 400;
+  --fam-font-weight-medium: 500;
+  --fam-font-weight-semibold: 600;
+  --fam-font-weight-bold: 700;
+  --fam-font-weight-extrabold: 800;
+  --fam-font-weight-black: 900;
+  --fam-font-line-height-none: 1;
+  --fam-font-line-height-tight: 1.2;
+  --fam-font-line-height-snug: 1.4;
+  --fam-font-line-height-normal: 1.5;
+  --fam-font-line-height-relaxed: 1.6;
+  --fam-font-tracking-none: 0;
+  --fam-font-tracking-wide: 0.04em;
+  --fam-font-tracking-label: 0.05em;
+  --fam-font-tracking-wider: 0.08em;
+  --fam-font-tracking-widest: 0.12em;
+  /* semantic.shadow */
+  --fam-shadow-1: 0 1px 3px 0 var(--fam-ref-black-a40);
+  --fam-shadow-2: 0 8px 24px 0 var(--fam-ref-black-a45);
+  --fam-shadow-3: 0 24px 56px 0 var(--fam-ref-black-a55);
+  --fam-shadow-panel: 0 8px 24px 0 var(--fam-ref-black-a22);
+  --fam-shadow-overlay: 0 16px 40px -28px var(--fam-ref-black-a96);
+  /* semantic.glow */
+  --fam-glow-focus: 0 0 0 1px var(--fam-ref-cyan-400-a34), 0 0 18px -4px var(--fam-ref-cyan-400-a40);
+  --fam-glow-success: 0 0 10px -2px var(--fam-ref-jade-400-a75);
+  /* semantic.blur */
+  --fam-blur-xs: 3px;
+  --fam-blur-sm: 6px;
+  --fam-blur-md: 10px;
+  --fam-blur-lg: 14px;
+  --fam-blur-xl: 18px;
+  --fam-blur-2xl: 20px;
+  /* semantic.duration */
+  --fam-duration-fast: 120ms;
+  --fam-duration-base: 150ms;
+  --fam-duration-slow: 200ms;
+  /* semantic.easing */
+  --fam-easing-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --fam-easing-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  /* semantic.size */
+  --fam-size-control-sm: 26px;
+  --fam-size-control-md: 32px;
+  --fam-size-control-lg: 36px;
+  --fam-size-icon-sm: 15px;
+  --fam-size-icon-md: 16px;
+  --fam-size-icon-lg: 18px;
+  --fam-size-crest-16: 16px;
+  --fam-size-crest-20: 20px;
+  --fam-size-crest-24: 24px;
+  --fam-size-crest-26: 26px;
+  --fam-size-crest-30: 30px;
+  --fam-size-crest-34: 34px;
+  --fam-size-crest-40: 40px;
+  --fam-size-crest-44: 44px;
+  --fam-size-crest-56: 56px;
+  --fam-size-crest-64: 64px;
+  --fam-size-crest-74: 74px;
+  --fam-size-crest-88: 88px;
+  --fam-size-crest-120: 120px;
+  --fam-size-crest-160: 160px;
+  /* semantic.layout */
+  --fam-layout-nav-width: 224px;
+  --fam-layout-nav-width-compact: 280px;
+  --fam-layout-header-height: 52px;
+  --fam-layout-topbar-height: 64px;
+  --fam-layout-topbar-height-compact: 56px;
+  /* semantic.pitch */
+  --fam-pitch-400: var(--fam-ref-green-400);
+  --fam-pitch-500: var(--fam-ref-green-500);
+  --fam-pitch-600: var(--fam-ref-green-600);
+  --fam-pitch-700: var(--fam-ref-green-700);
+  --fam-pitch-800: var(--fam-ref-green-800);
+  --fam-pitch-glow: var(--fam-ref-green-500-a20);
+  /* semantic.team */
+  --fam-team-us: var(--fam-brand-accent);
+  --fam-team-them: var(--fam-ref-steel-400);
+  --fam-team-them-soft: var(--fam-ref-steel-400-a28);
+  --fam-team-them-wash: var(--fam-ref-steel-400-a09);
+  /* semantic.position */
+  --fam-position-gk: var(--fam-ref-amber-500);
+  --fam-position-df: var(--fam-ref-sky-400);
+  --fam-position-mf: var(--fam-ref-emerald-400);
+  --fam-position-fw: var(--fam-ref-rose-400);
+  /* semantic.result */
+  --fam-result-win: var(--fam-ref-green-400);
+  --fam-result-draw: var(--fam-ref-gray-400);
+  --fam-result-loss: var(--fam-ref-red-400);
+  /* semantic.pathway */
+  --fam-pathway-discovery: var(--fam-ref-green-400);
+  --fam-pathway-development: var(--fam-ref-violet-400);
+  --fam-pathway-performance: var(--fam-ref-amber-500);
+  --fam-pathway-elite: var(--fam-ref-pink-400);
+  --fam-pathway-propath: var(--fam-ref-red-400);
+  /* semantic.chart */
+  --fam-chart-categorical-1: var(--fam-ref-blue-400);
+  --fam-chart-categorical-2: var(--fam-ref-green-400);
+  --fam-chart-categorical-3: var(--fam-ref-teal-400);
+  --fam-chart-categorical-4: var(--fam-ref-amber-350);
+  --fam-chart-categorical-5: var(--fam-ref-violet-400);
+  --fam-chart-categorical-6: var(--fam-ref-rose-400);
+  --fam-chart-categorical-7: var(--fam-ref-slate-600);
+  /* semantic.direction */
+  --fam-direction-multiplier: 1;
+}
+
+/* context: club — Club Workspace (default) */
+[data-fam-context="club"] {
+  --fam-surface-canvas: var(--fam-ref-midnight-950);
+  --fam-surface-sunken: var(--fam-ref-midnight-975);
+  --fam-surface-base: var(--fam-ref-midnight-900);
+  --fam-surface-raised: var(--fam-ref-midnight-850);
+  --fam-text-primary: var(--fam-ref-slate-100);
+  --fam-text-secondary: var(--fam-ref-zinc-400);
+  --fam-text-tertiary: var(--fam-ref-zinc-600);
+  --fam-border-subtle: var(--fam-ref-white-a048);
+  --fam-border-default: var(--fam-ref-white-a072);
+  --fam-brand-accent: var(--fam-ref-amber-300);
+  --fam-status-success: var(--fam-ref-green-500);
+  --fam-status-warning: var(--fam-ref-amber-500);
+  --fam-status-critical: var(--fam-ref-red-500);
+  --fam-status-info: var(--fam-ref-sky-400);
+  --fam-module-accent: var(--fam-brand-accent);
+  --fam-module-accent-2: var(--fam-brand-accent);
+  --fam-team-us: var(--fam-brand-accent);
+}
+
+/* context: owner — Owner / Global systems */
+[data-fam-context="owner"],
+#pg-system,
+#dp-inspector,
+#dp-storage,
+#pg-data-vault,
+.dv-insp,
+.dv-insp-scrim,
+#pg-infrastructure-city,
+.ic-insp,
+.ic-insp-scrim,
+#pg-source-core,
+.sc-insp,
+.sc-insp-scrim,
+#pg-familista-vision,
+.vx-drawer,
+.vx-scrim,
+#pg-cybersecurity,
+.cs-insp,
+.cs-insp-scrim,
+#pg-algorithms {
+  --fam-surface-canvas: var(--fam-ref-navy-950);
+  --fam-surface-sunken: var(--fam-ref-navy-925);
+  --fam-surface-base: var(--fam-ref-navy-900);
+  --fam-surface-raised: var(--fam-ref-navy-850);
+  --fam-text-primary: var(--fam-ref-mist-50);
+  --fam-text-secondary: var(--fam-ref-mist-400);
+  --fam-text-tertiary: var(--fam-ref-mist-600);
+  --fam-border-subtle: var(--fam-ref-white-a07);
+  --fam-border-default: var(--fam-ref-white-a13);
+  --fam-brand-accent: var(--fam-ref-amber-400);
+  --fam-status-success: var(--fam-ref-emerald-400);
+  --fam-status-warning: var(--fam-ref-amber-300);
+  --fam-status-critical: var(--fam-ref-red-400);
+  --fam-status-info: var(--fam-ref-blue-400);
+  --fam-module-accent: var(--fam-brand-accent);
+  --fam-module-accent-2: var(--fam-brand-accent);
+  --fam-team-us: var(--fam-brand-accent);
+}
+
+/* module: system — Owner: System */
+[data-fam-module="system"],
+#pg-system,
+#dp-inspector,
+#dp-storage {
+  --fam-module-accent: var(--fam-ref-blue-500);
+  --fam-module-accent-2: var(--fam-ref-cyan-400);
+}
+
+/* module: data-vault — Owner: Data Vault */
+[data-fam-module="data-vault"],
+#pg-data-vault,
+.dv-insp,
+.dv-insp-scrim {
+  --fam-module-accent: var(--fam-ref-cyan-400);
+  --fam-module-accent-2: var(--fam-ref-blue-500);
+}
+
+/* module: infrastructure-city — Owner: Infrastructure City */
+[data-fam-module="infrastructure-city"],
+#pg-infrastructure-city,
+.ic-insp,
+.ic-insp-scrim {
+  --fam-module-accent: var(--fam-ref-cyan-400);
+  --fam-module-accent-2: var(--fam-ref-blue-500);
+}
+
+/* module: source-core — Owner: Source Core */
+[data-fam-module="source-core"],
+#pg-source-core,
+.sc-insp,
+.sc-insp-scrim {
+  --fam-module-accent: var(--fam-ref-cyan-400);
+  --fam-module-accent-2: var(--fam-ref-blue-500);
+}
+
+/* module: vision — Owner: Familista Vision */
+[data-fam-module="vision"],
+#pg-familista-vision,
+.vx-drawer,
+.vx-scrim {
+  --fam-module-accent: var(--fam-ref-cyan-400);
+  --fam-module-accent-2: var(--fam-ref-blue-500);
+}
+
+/* module: cybersecurity — Owner: Cybersecurity */
+[data-fam-module="cybersecurity"],
+#pg-cybersecurity,
+.cs-insp,
+.cs-insp-scrim {
+  --fam-module-accent: var(--fam-ref-indigo-200);
+  --fam-module-accent-2: var(--fam-ref-sky-300);
+}
+
+/* module: algorithms — Owner: Algorithms */
+[data-fam-module="algorithms"],
+#pg-algorithms {
+  --fam-module-accent: var(--fam-ref-orchid-300);
+  --fam-module-accent-2: var(--fam-ref-indigo-300);
+}
+
+/* module: transfers — Club: Transfer Market */
+[data-fam-module="transfers"],
+#pg-transfers {
+  --fam-module-accent: var(--fam-ref-green-500);
+  --fam-module-accent-2: var(--fam-ref-green-700);
+}
+
+/* module: coach-market — Club: Coach Market */
+[data-fam-module="coach-market"],
+#pg-coach-market {
+  --fam-module-accent: var(--fam-ref-teal-400);
+  --fam-module-accent-2: var(--fam-ref-teal-600);
+}
+
+/* module: coaches — Club: Coaches */
+[data-fam-module="coaches"],
+#pg-coaches {
+  --fam-module-accent: var(--fam-ref-sky-400);
+}
+
+/* theme: light — Reserved */
+/* (reserved — no tokens yet) */
+
+/* theme: high-contrast — Reserved */
+/* (reserved — no tokens yet) */
+
+/* lang: ar — Arabic: letter-spacing breaks cursive joining, so every tracking step is 0. */
+:lang(ar) {
+  --fam-font-tracking-none: 0;
+  --fam-font-tracking-wide: 0;
+  --fam-font-tracking-label: 0;
+  --fam-font-tracking-wider: 0;
+  --fam-font-tracking-widest: 0;
+}
+
+/* dir: rtl — Right-to-left */
+[dir="rtl"] {
+  --fam-direction-multiplier: -1;
+}
+
+/* media: reduced-motion — prefers-reduced-motion: reduce */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fam-duration-fast: 0ms;
+    --fam-duration-base: 0ms;
+    --fam-duration-slow: 0ms;
+  }
+}

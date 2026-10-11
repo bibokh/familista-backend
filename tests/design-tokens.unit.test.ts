@@ -1,5 +1,5 @@
 /**
- * Familista Design Core — Stage 2a tokens & foundations ratchet.
+ * Familista Design Core — Stage 2a/2b.1 tokens & foundations ratchet.
  *
  * The canonical token source (tools/tokens/familista.tokens.json, W3C DTCG
  * format) is the single source of truth for Familista's design values. This
@@ -13,12 +13,34 @@
  *   - the names production references but never declares stay undefined;
  *   - no contrast failure beyond the recorded baseline appears;
  *   - Arabic tracking resolves to 0 and Noto Sans Arabic is in the stack;
- *   - and the generated CSS is not linked into any production page yet.
+ *   - and (Stage 2b.1) the token CSS is published under public/tokens/, linked
+ *     once from the main app before every other stylesheet, and read by nothing.
  *
  * The checks run in tools/tokens/scripts/verify.mjs (dependency-free ES
  * modules shared with Storybook); this file runs it once and names each
  * guarantee so a red build says which one broke.
  */
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://u:p@localhost:5432/db';
+process.env.DIRECT_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET ?? 'a'.repeat(48);
+process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET ?? 'b'.repeat(48);
+
+// The Stage 2b.1 serving tests drive the real createApp(); only the database is stubbed.
+jest.mock('../src/config/database', () => ({
+  prisma: new Proxy({}, {
+    get: (_t, k: string) => {
+      if (k === '$queryRaw' || k === '$executeRaw') return async () => [{ ok: 1 }];
+      if (k === '$connect' || k === '$disconnect') return async () => {};
+      return new Proxy({}, { get: () => async () => null });
+    },
+  }),
+}));
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const request = require('supertest');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { createApp } = require('../src/app');
 import { execFileSync } from 'child_process';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -62,21 +84,29 @@ describe('Familista Design Core — generated CSS', () => {
   it('is deterministic and the committed file is current', () => expectPass('deterministic'));
   it('declares only --fam-* custom properties on bound selectors', () => expectPass('namespace'));
 
-  it('is not linked into production yet (Stage 2b is a separate, approved step)', () => {
-    for (const page of ['public/index.html', 'public/familista-admin.html', 'public/invite/index.html', 'public/app/index.html']) {
+  it('is published byte-for-byte under public/tokens/ (Stage 2b.1)', () => expectPass('published'));
+
+  it('is linked exactly once, from the main app only, before every other stylesheet', () => {
+    expectPass('linked once');
+    expectPass('main app only');
+    // The pages Stage 2b.1 leaves alone, asserted directly as well.
+    for (const page of ['public/familista-admin.html', 'public/invite/index.html', 'public/app/index.html']) {
       expect(readFileSync(join(ROOT, page), 'utf8')).not.toMatch(/familista-tokens/);
     }
-    expect(existsSync(join(ROOT, 'public', 'tokens'))).toBe(false);
   });
 
-  it('cannot change what production renders: no non-custom property, no --fam-* use in production', () => {
-    const css = readFileSync(join(TOKENS, 'dist', 'familista-tokens.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-    const props = css.match(/[{;]\s*([a-zA-Z0-9-]+)\s*:/g) || [];
-    expect(props.length).toBeGreaterThan(200);
-    for (const p of props) expect(p.replace(/^[{;]\s*/, '')).toMatch(/^--fam-/);
+  it('is read by nothing: no production file references the --fam- namespace', () => {
+    expectPass('unread');
     for (const f of ['public/app.css', 'public/app.js', 'public/index.html']) {
       expect(readFileSync(join(ROOT, f), 'utf8')).not.toMatch(/--fam-/);
     }
+  });
+
+  it('cannot change what production renders: it declares custom properties and nothing else', () => {
+    const css = readFileSync(join(ROOT, 'public', 'tokens', 'familista-tokens.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const props = css.match(/[{;]\s*([a-zA-Z0-9-]+)\s*:/g) || [];
+    expect(props.length).toBeGreaterThan(200);
+    for (const p of props) expect(p.replace(/^[{;]\s*/, '')).toMatch(/^--fam-/);
   });
 });
 
@@ -105,5 +135,40 @@ describe('Familista Design Core — the whole result', () => {
   it('passes every guarantee', () => {
     expect(result.checks.filter((c) => !c.pass).map((c) => c.id)).toEqual([]);
     expect(result.pass).toBe(true);
+  });
+});
+
+const app = createApp();
+const PUBLISHED = readFileSync(join(ROOT, 'public', 'tokens', 'familista-tokens.css'), 'utf8');
+
+describe('the published token CSS, served by the real app', () => {
+  it('answers /tokens/familista-tokens.css as CSS, byte-for-byte what the generator produced', async () => {
+    const res = await request(app).get('/tokens/familista-tokens.css?v=20261011-tokens-2b1');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^text\/css/);
+    expect(res.text).toBe(PUBLISHED);
+    expect(PUBLISHED).toBe(readFileSync(join(TOKENS, 'dist', 'familista-tokens.css'), 'utf8'));
+  });
+
+  it('is a same-origin stylesheet, which the Content-Security-Policy allows', async () => {
+    const res = await request(app).get('/');
+    const csp = String(res.headers['content-security-policy'] || '');
+    expect(csp).toMatch(/style-src 'self'/);
+    expect(csp).not.toMatch(/style-src[^;]*'unsafe-inline'/);
+    // No inline style, no import, no url(): nothing for the policy to refuse.
+    expect(PUBLISHED).not.toMatch(/@import|url\(|<style|javascript:/i);
+  });
+
+  it('is linked by the page the app serves at "/", once, ahead of app.css', async () => {
+    const res = await request(app).get('/');
+    expect(res.status).toBe(200);
+    const links = res.text.match(/href="\/tokens\/familista-tokens\.css\?v=[^"]+"/g) || [];
+    expect(links).toHaveLength(1);
+    expect(res.text.indexOf('/tokens/familista-tokens.css')).toBeLessThan(res.text.indexOf('/app.css'));
+  });
+
+  it('is not served as the HTML document by any catch-all', async () => {
+    const res = await request(app).get('/tokens/familista-tokens.css');
+    expect(res.text).not.toMatch(/<!doctype html/i);
   });
 });

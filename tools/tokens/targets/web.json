@@ -3,6 +3,8 @@
   "prefix": "fam",
   "root": ":root",
   "output": "dist/familista-tokens.css",
+  "publish": "../../public/tokens/familista-tokens.css",
+  "version": "20261011-tokens-2b1",
   "selectors": {
     "context": {
       "club": ["[data-fam-context=\"club\"]"],

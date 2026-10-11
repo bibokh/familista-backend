@@ -1,14 +1,17 @@
-# Familista Design Core — tokens (Stage 2a)
+# Familista Design Core — tokens (Stage 2a, published in 2b.1)
 
 The canonical source of Familista's design values, and the first layer of the
 future **Familista Design Core**. Tokens are the source of truth; everything
 that renders them — the CSS generator, Storybook, later the Owner Design System
 Control and the Club Product Design Studio — is a consumer.
 
-Stage 2a changes nothing in production. The generated CSS is **not linked**
-anywhere under `public/`, no legacy variable is renamed or aliased, and every
-live value is preserved exactly. Linking it (Stage 2b) and aliasing legacy
-variables (Stage 2c onwards) are separate, approved steps.
+Stage 2b.1 publishes the generated CSS as `public/tokens/familista-tokens.css` and
+links it **once, from the main app only** (`public/index.html`), ahead of every
+other first-party stylesheet. Nothing in production reads a `--fam-*` property
+yet, so the link changes no computed style and no pixel; every live value is
+preserved exactly. The admin page, the invitation page and the React SPA do not
+link it. Aliasing legacy variables (Stage 2c onwards) is a separate, approved
+step.
 
 ## Files
 
@@ -17,6 +20,7 @@ variables (Stage 2c onwards) are separate, approved steps.
 | `familista.tokens.json` | The source of truth, in the W3C Design Tokens Community Group (DTCG) format. |
 | `targets/web.json` | The web binding: CSS prefix and the selector each context, module, theme, language, direction and preference applies on. Platform-specific; the token file stays platform-free. |
 | `dist/familista-tokens.css` | Generated. Declares only `--fam-*` custom properties. Do not edit. |
+| `../../public/tokens/familista-tokens.css` | The same bytes, published for production. Written by `build.mjs`; `verify.mjs` fails if it differs from `dist/`. The legacy inventory excludes it (it is the canonical source rendered, not a legacy stylesheet). |
 | `legacy-map.json` | Every custom property production declares today (720), its exact live value, and the token it maps to. |
 | `contrast-baseline.json` | WCAG ratios of every token pair, and the failures recorded at Stage 2a. |
 | `lib/` | Dependency-free ES modules: `dtcg.mjs` (validate, resolve, format), `build-css.mjs` (generator), `css-inventory.mjs` (CSS scanner), `color.mjs` (colour science), `checks.mjs` (ratchet logic), `production.mjs` (reads `public/`, Node only). Everything except `production.mjs` also runs in a browser. |
@@ -52,7 +56,7 @@ from), `overrides` and `default`.
 ## Commands
 
 ```
-node tools/tokens/scripts/build.mjs            # regenerate dist/familista-tokens.css
+node tools/tokens/scripts/build.mjs            # regenerate dist/ and public/tokens/ (byte-identical)
 node tools/tokens/scripts/build.mjs --check    # fail if it is stale
 node tools/tokens/scripts/inventory.mjs        # summary of production custom properties
 node tools/tokens/scripts/inventory.mjs --check
@@ -69,6 +73,10 @@ CI enforces all of it.
 - Deterministic output; the committed `dist/` file is current.
 - The generated CSS declares only `--fam-*` custom properties on bound selectors,
   so linking it cannot change anything a reader sees.
+- **Stage 2b.1:** the published copy is byte-identical to `dist/`; the main app
+  links it exactly once, first among first-party stylesheets, with the version
+  string from `targets/web.json`; admin, invite and the React SPA do not; and no
+  file production serves, other than the token file itself, references `--fam-`.
 - **Inventory ratchet:** every custom property in every stylesheet production
   serves is in `legacy-map.json` with its exact live value, and every
   `equal` / `diverges` verdict is re-verified against the tokens. A stylesheet
@@ -94,6 +102,6 @@ verdict against the tokens, so a wrong `equal` cannot pass.
 ## Storybook
 
 `tools/storybook` loads `dist/familista-tokens.css` before the production
-stylesheets — the order Stage 2b would use — and draws the Foundations stories
+stylesheets — the order production now uses — and draws the Foundations stories
 from this folder. Storybook never writes here, and nothing here imports
 Storybook.
