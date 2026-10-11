@@ -22,6 +22,14 @@ const SURFACES = [
 
 const rel = (p) => relative(REPO_ROOT, p).split('\\').join('/');
 
+/**
+ * The Design Core's own published copy. It is the canonical source rendered,
+ * not a legacy stylesheet: it is verified byte-for-byte against dist/ (see
+ * verify.mjs), so the legacy inventory excludes it. Nothing else under
+ * public/tokens/ is excluded.
+ */
+export const PUBLISHED_TOKENS = 'public/tokens/familista-tokens.css';
+
 function linkedStylesheets(htmlRel) {
   const html = readFileSync(join(REPO_ROOT, htmlRel), 'utf8');
   const out = [];
@@ -32,7 +40,7 @@ function linkedStylesheets(htmlRel) {
     if (!href || /^(https?:)?\/\//i.test(href)) continue; // third-party (fonts) is not ours to inventory
     const path = href.split('?')[0];
     const file = path.startsWith('/') ? join(PUBLIC, path) : join(REPO_ROOT, dirname(htmlRel), path);
-    out.push(rel(file));
+    if (rel(file) !== PUBLISHED_TOKENS) out.push(rel(file));
   }
   return out;
 }
@@ -61,7 +69,7 @@ export function productionStylesheets() {
     for (const f of list) if (existsSync(join(REPO_ROOT, f)) && !files.some((x) => x.file === f)) files.push({ surface: s.id, file: f });
   }
   const assigned = new Set(files.map((f) => f.file));
-  const unassigned = allCss(PUBLIC).filter((f) => !assigned.has(f)).sort();
+  const unassigned = allCss(PUBLIC).filter((f) => !assigned.has(f) && f !== PUBLISHED_TOKENS).sort();
   return { surfaces: SURFACES, files, unassigned };
 }
 

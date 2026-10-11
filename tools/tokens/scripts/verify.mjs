@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-// Every Stage 2a guarantee, checked in one place. Used by the Jest ratchet
+// Every Stage 2a / 2b.1 guarantee, checked in one place. Used by the Jest ratchet
 // (tests/design-tokens.unit.test.ts) and runnable on its own.
 //   node tools/tokens/scripts/verify.mjs                    human summary, exit 1 on any failure
 //   node tools/tokens/scripts/verify.mjs --json             machine-readable result
 //   node tools/tokens/scripts/verify.mjs --write-contrast-baseline
 //                                                           record today's contrast failures
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validate, withVariants, resolvedCss, isRef, overrideLayers } from '../lib/dtcg.mjs';
 import { scanCustomProperties } from '../lib/css-inventory.mjs';
-import { inventoryProduction } from '../lib/production.mjs';
+import { inventoryProduction, REPO_ROOT, PUBLISHED_TOKENS } from '../lib/production.mjs';
 import { checkLegacyMap, contrastPairs, newContrastFailures } from '../lib/checks.mjs';
 import { generate } from './build.mjs';
 
@@ -47,6 +47,54 @@ check('deterministic: two builds are byte-identical and match the committed dist
   if (again !== built.css) bad.push('two builds of the same source differ');
   if (!existsSync(built.out)) bad.push('dist/familista-tokens.css is missing');
   else if (readFileSync(built.out, 'utf8') !== built.css) bad.push('dist/familista-tokens.css is stale — run node tools/tokens/scripts/build.mjs');
+  return bad;
+});
+
+const PAGE = (f) => readFileSync(join(REPO_ROOT, f), 'utf8');
+const LINK = new RegExp('<link\\b[^>]*href="(/tokens/familista-tokens\\.css(?:\\?v=[^"]*)?)"[^>]*>', 'g');
+
+check('published: public/tokens/familista-tokens.css is byte-identical to the generated CSS', () => {
+  const f = join(REPO_ROOT, PUBLISHED_TOKENS);
+  if (!existsSync(f)) return [`${PUBLISHED_TOKENS} is missing — run node tools/tokens/scripts/build.mjs`];
+  return readFileSync(f, 'utf8') === built.css ? [] : [`${PUBLISHED_TOKENS} differs from the generated CSS — run node tools/tokens/scripts/build.mjs`];
+});
+
+check('linked once: the main app links the token CSS exactly once, before every other first-party stylesheet', () => {
+  const html = PAGE('public/index.html');
+  const bad = [];
+  const links = [...html.matchAll(LINK)];
+  if (links.length !== 1) return [`index.html links the token CSS ${links.length} times; it must be exactly once`];
+  if (links[0][1] !== `/tokens/familista-tokens.css?v=${target.version}`) bad.push(`link is ${links[0][1]}; targets/web.json version is ${target.version}`);
+  const sheets = [...html.matchAll(/<link\b[^>]*rel="stylesheet"[^>]*href="(\/[^"]+)"/g)].map((m) => m[1]);
+  if (sheets[0] !== links[0][1]) bad.push(`the token CSS must be the first first-party stylesheet; the first is ${sheets[0]}`);
+  const appAt = sheets.findIndex((h) => h.startsWith('/app.css'));
+  if (!(appAt > 0)) bad.push('app.css must follow the token CSS');
+  return bad;
+});
+
+check('main app only: admin, invite and the React SPA do not link the token CSS', () => {
+  const bad = [];
+  for (const f of ['public/familista-admin.html', 'public/invite/index.html', 'public/app/index.html']) {
+    if (/familista-tokens/.test(PAGE(f))) bad.push(`${f} links the token CSS; Stage 2b.1 is the main app only`);
+  }
+  return bad;
+});
+
+const TEXT = /\.(css|js|mjs|cjs|html|json|svg|webmanifest|map|txt|xml)$/i;
+function walk(dir, acc = []) {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) walk(p, acc); else if (TEXT.test(name)) acc.push(p);
+  }
+  return acc;
+}
+check('unread: nothing production serves, except the token file itself, references the --fam- namespace', () => {
+  const bad = [];
+  const own = join(REPO_ROOT, PUBLISHED_TOKENS);
+  for (const f of walk(join(REPO_ROOT, 'public'))) {
+    if (f === own) continue;
+    if (/--fam-/.test(readFileSync(f, 'utf8'))) bad.push(`${f.slice(REPO_ROOT.length + 1)} references --fam-*`);
+  }
   return bad;
 });
 
