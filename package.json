@@ -93,7 +93,7 @@
     "ts-jest": "^29.4.14",
     "ts-node": "^10.9.2",
     "tsx": "^4.23.15",
-    "typescript": "^5.3.3"
+    "typescript": "^7.0.2"
   },
   "overrides": {
     "qs": "^6.16.0"
