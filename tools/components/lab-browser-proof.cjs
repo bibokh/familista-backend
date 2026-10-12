@@ -61,6 +61,13 @@ fs.mkdirSync(OUT, { recursive: true });
 
 const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
 
+// Console messages that are NOTICES, not errors: the browser's own copy of a CSP violation the event-based accounting below
+// already counts and sorts (securitypolicyviolation), and a failed network load, which is kept with its URL. Chrome words the
+// two CSP ones differently from version to version (141: "Refused to apply inline style…", "Refused to connect…"; 154:
+// "Applying inline style violates…", "Connecting to '…' violates…"), so both wordings are listed. Anything else a browser says
+// about a CSP violation, an inline script or a script load for instance, is NOT listed here and stays an error.
+const NOTICE = /Failed to load resource|Refused to (apply|connect)|(Applying inline style|Connecting to '[^']*') violates the following Content Security Policy directive/;
+
 // The database is the one thing replaced: every query answers "nothing".
 const OWNER = { id: 'u-owner', email: 'owner@familista.test', role: 'SUPER_ADMIN', clubId: null, isActive: true, currentClubId: null, currentTeamId: null, tokenVersion: 0, platformAdmin: { isActive: true } };
 const COACH = { id: 'u-coach', email: 'coach@familista.test', role: 'COACH', clubId: 'club-1', isActive: true, currentClubId: 'club-1', currentTeamId: null, tokenVersion: 0, platformAdmin: null };
@@ -116,7 +123,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     page.on('pageerror', (e) => log.errors.push('pageerror: ' + e.message));
     page.on('console', (m) => {
       if (m.type() !== 'error') return;
-      if (/Failed to load resource|Refused to (apply|connect)/.test(m.text())) log.notices.push({ text: m.text().slice(0, 200), url: String((m.location() && m.location().url) || '').slice(0, 200) });
+      if (NOTICE.test(m.text())) log.notices.push({ text: m.text().slice(0, 200), url: String((m.location() && m.location().url) || '').slice(0, 200) });
       else log.errors.push('console: ' + m.text().slice(0, 200));
     });
     page.on('request', (r) => log.requests.push([r.method(), new URL(r.url()).pathname + new URL(r.url()).search, new URL(r.url()).origin]));

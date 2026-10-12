@@ -1299,6 +1299,28 @@ describe('the browser proof is kept with the code and is a required CI job', () 
     expect(mins.every((n) => n >= 34)).toBe(true);
   });
 
+  it('classifies the browser\'s own copy of a CSP violation as a notice in both Chrome wordings, and nothing else', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'tools/components/lab-browser-proof.cjs'), 'utf8');
+    const m = /^const NOTICE = \/(.+)\/;$/m.exec(src);
+    expect(m).not.toBeNull();
+    const notice = new RegExp(m![1]);
+    const dir = "the following Content Security Policy directive 'style-src 'self' https://fonts.googleapis.com'. Either the 'unsafe-inline' keyword";
+    for (const text of [
+      'Failed to load resource: the server responded with a status of 404 (Not Found)',
+      "Refused to apply inline style because it violates " + dir,
+      "Refused to connect to 'https://fonts.googleapis.com/css2?family=Inter' because it violates the following Content Security Policy directive: \"connect-src 'self'\"",
+      'Applying inline style violates ' + dir,
+      "Connecting to 'https://fonts.googleapis.com/css2?family=Inter:wght@300&display=swap' violates the following Content Security Policy directive: \"connect-src 'self'\"",
+    ]) expect(notice.test(text)).toBe(true);
+    for (const text of [
+      "Executing inline script violates the following Content Security Policy directive 'script-src 'self''.",
+      "Loading the script 'https://evil.example/x.js' violates the following Content Security Policy directive: \"script-src 'self'\"",
+      "Refused to execute script from 'http://127.0.0.1/design-system/x.js' because its MIME type is not executable",
+      'Uncaught TypeError: x is not a function',
+      'lab-control-console-error',
+    ]) expect(notice.test(text)).toBe(false);
+  });
+
   it('is part of the same workflow that deploy.yml waits for', () => {
     const deploy = fs.readFileSync(path.join(ROOT, '.github/workflows/deploy.yml'), 'utf8');
     expect(deploy).toMatch(/workflows:\s*\['ci'\]/);
