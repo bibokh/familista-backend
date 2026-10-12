@@ -148,3 +148,53 @@ a humanised form of the key's last segment. In development the miss is logged
 once per key and listed by `I18N.missingKeys()`; in production it is silent. The
 fallback exists so a gap is not a visible break — it is not a reason to leave the
 gap.
+
+---
+
+## Token & Execution Efficiency
+
+These rules apply to all future Familista tasks.
+
+1. Minimize unnecessary token usage, tool calls and execution time.
+
+2. Read only task-relevant files. Avoid unnecessary repository-wide searches.
+
+3. Run targeted tests during development.
+
+4. Run required full verification once at the final approval gate, unless
+   changes invalidate prior results.
+
+5. Never repeat successful tests without a documented reason.
+
+6. If the same failure occurs twice, stop the debugging loop and report the
+   blocker.
+
+7. Avoid unnecessary polling, duplicate processes, excessive logs and repeated
+   builds.
+
+8. Reuse valid test results from the same commit and environment.
+
+9. Keep progress reports short and informative.
+
+10. For operations expected to take over 15 minutes, explain why they are
+    needed before starting.
+
+11. If execution exceeds 15 minutes, give a concise checkpoint before
+    beginning additional expensive work.
+
+12. Never weaken security or skip required CI, PostgreSQL, authorization or
+    browser-security tests.
+
+13. Do not merge, deploy or begin another stage without explicit owner
+    approval.
+
+14. Prefer: Inspect → Plan → Implement → Targeted Tests → Final Verification →
+    Report → Human Approval.
+
+15. Distinguish wall-clock execution time from actual token consumption.
+
+16. If testing cannot be completed, report the missing verification and block
+    release approval.
+
+17. Existing security, governance and human-approval rules always take
+    precedence.
