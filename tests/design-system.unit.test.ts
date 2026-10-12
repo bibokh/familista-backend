@@ -379,20 +379,17 @@ describe('the room, wired into the application', () => {
     expect(app_js).toContain("document.body.classList.toggle('ds-design-open', page === 'design-system')");
   });
 
-  it('leaves Owner Home exactly as it was: the same eight cards in the same grid, no ninth, no link to the room', () => {
+  it('keeps the eight existing cards, in their order, with their destinations; the ninth is Design System Control', () => {
     const at = app_js.indexOf('<div class="oh-cards oh-cards--core">');
     expect(at).toBeGreaterThan(0);
-    const block = app_js.slice(at, at + 9000);
+    const block = app_js.slice(at, at + 11000);
     const cards = [...block.matchAll(/<button class="oh-card oh-card--([a-z]+)" data-action="navTo" data-page="([a-z-]+)"/g)].map((m) => `${m[1]}:${m[2]}`);
-    expect(cards).toEqual(['system:system', 'cyber:cybersecurity', 'clubs:clubs', 'algo:algorithms', 'vault:data-vault', 'city:infrastructure-city', 'core:source-core', 'vision:familista-vision']);
-    expect(block).not.toMatch(/design-system/);
-    const css = read('public/app.css');
-    expect((css.match(/body\.club-theme \.oh-cards--core \.oh-card--[a-z]+\{\s*grid-area: [a-z]+; \}/g) || [])).toHaveLength(8);
-    expect(css).not.toMatch(/ds-design-open|pg-design-system|\/design-system\//);
+    expect(cards).toEqual(['system:system', 'cyber:cybersecurity', 'clubs:clubs', 'algo:algorithms', 'vault:data-vault', 'city:infrastructure-city', 'core:source-core', 'vision:familista-vision', 'ds:design-system']);
   });
 
-  it('is reachable by one owner-only entry point, the #design-system link', () => {
+  it('is reachable from the Owner Home card and from the #design-system link', () => {
     expect(app_js).toContain('Reached by the #design-system link');
+    expect(app_js).toContain('data-page="design-system"');
   });
 
   it('does not touch Club Workspace or Familista Vision code paths', () => {
@@ -688,5 +685,194 @@ describe('English, German and Arabic — one catalogue each, in step', () => {
 
   it('falls back to English, never to a key path or undefined', () => {
     expect(js).toMatch(/Object\.prototype\.hasOwnProperty\.call\(DS_DICT, s\) \? DS_DICT\[s\] : s/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('Owner Home: the ninth card, DESIGN SYSTEM CONTROL', () => {
+  const appJs = read('public/app.js');
+  const appCss = read('public/app.css');
+  const platform = appJs.slice(appJs.indexOf('function _ownerHomeForPlatformOwner'), appJs.indexOf('function _ownerHomeForClubMember'));
+  const member = appJs.slice(appJs.indexOf('function _ownerHomeForClubMember'), appJs.indexOf('function renderOwnerHome'));
+  const card = platform.slice(platform.indexOf('<button class="oh-card oh-card--ds"'), platform.indexOf('</button>', platform.indexOf('<button class="oh-card oh-card--ds"')) + 9);
+
+  it('exists only in the Platform Owner landing, which is built only after /system/whoami says so', () => {
+    expect(card).toContain('data-page="design-system"');
+    expect(member).not.toMatch(/design-system|oh-card--ds|DESIGN SYSTEM/);
+    expect(appJs).toMatch(/Promise\.all\(\[_isPlatformOwner\(\), _famContextReady\]\)[\s\S]{0,400}yes\s*\n?\s*\?\s*_ownerHomeForPlatformOwner/);
+    // The status read is made only inside the owner branch.
+    expect(appJs).toMatch(/if \(yes\) \{[\s\S]{0,700}_fillDesignSystemStatus\(\)/);
+  });
+
+  it('is the last card in the markup, so the reading order is the grid order', () => {
+    const order = [...platform.matchAll(/<button class="oh-card oh-card--(\w+)"/g)].map((m) => m[1]);
+    expect(order).toEqual(['system', 'cyber', 'clubs', 'algo', 'vault', 'city', 'core', 'vision', 'ds']);
+  });
+
+  it('is a labelled, keyboard-reachable button: a real <button>, a decorative icon, a visible name', () => {
+    expect(card).toMatch(/^<button class="oh-card oh-card--ds" data-action="navTo" data-page="design-system" type="button">/);
+    expect(card).toContain('<div class="oh-card-icon" aria-hidden="true">');
+    expect(card).toContain('<div class="oh-card-title">DESIGN SYSTEM CONTROL</div>');
+    expect(card).toContain('<div class="oh-card-cta">Enter Design System <span>→</span></div>');
+    expect(card).not.toMatch(/tabindex|onclick|style=/);
+  });
+
+  describe('its status line is read from the Overview API and says only what was measured', () => {
+    const src = appJs.slice(appJs.indexOf('function _fillDesignSystemStatus'), appJs.indexOf('function _fillSourceCoreStatus'));
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const vm = require('vm');
+    type Reply = { ok: boolean; status: number; body?: unknown } | 'reject';
+    async function run(reply: Reply) {
+      const writes: string[] = []; const calls: { url: string; opts: Record<string, any> }[] = [];
+      const slot = { set outerHTML(v: string) { writes.push(v); } };
+      const sandbox: any = {
+        window: { State: { token: 'tok' } }, localStorage: { getItem: () => null },
+        document: { getElementById: () => slot },
+        fetch: (url: string, opts: Record<string, any>) => { calls.push({ url, opts }); return reply === 'reject' ? Promise.reject(new Error('net')) : Promise.resolve({ ok: reply.ok, status: reply.status, json: () => Promise.resolve(reply.body) }); },
+        _vaultStatusHTML: (state: string, text: string) => `<span class="oh-card-state oh-card-state--${state}">${text}</span>`,
+        Promise, Error, Object, Number, JSON, String,
+      };
+      sandbox.window.localStorage = sandbox.localStorage;
+      vm.runInNewContext(`${src}\n_fillDesignSystemStatus();`, sandbox);
+      await new Promise((r) => setTimeout(r, 20));
+      return { out: writes.join(''), calls };
+    }
+    const ready = (tokens: unknown, fresh: unknown) => ({ ok: true, status: 200, body: { success: true, data: { state: 'READY', overview: { tokens: { total: { value: tokens } }, contrast: { newFailures: { value: fresh } } } } } });
+
+    it('is green, with a measured 0 printed as 0, when no contrast failure is beyond the recorded baseline', async () => {
+      const r = await run(ready(259, 0));
+      expect(r.out).toContain('oh-card-state--ok');
+      expect(r.out).toContain('Design tokens: 259 · new contrast failures: 0');
+      expect(r.out).toContain('id="oh-design-state"');
+    });
+
+    it('asks the room’s overview endpoint, with GET, carrying the session and nothing else', async () => {
+      const r = await run(ready(259, 0));
+      expect(r.calls).toHaveLength(1);
+      expect(r.calls[0].url).toBe('/api/v1/system/design-system');
+      expect(r.calls[0].opts).toMatchObject({ method: 'GET', credentials: 'include', headers: { Authorization: 'Bearer tok' } });
+      expect(r.calls[0].opts.body).toBeUndefined();
+    });
+
+    it('is red when a contrast failure beyond the baseline exists', async () => {
+      const r = await run(ready(259, 2));
+      expect(r.out).toContain('oh-card-state--bad');
+      expect(r.out).toContain('new contrast failures: 2');
+    });
+
+    it('is amber when the manifest has not been generated, and invents no figure', async () => {
+      const r = await run({ ok: true, status: 200, body: { data: { state: 'NOT_GENERATED', overview: null } } });
+      expect(r.out).toContain('oh-card-state--warn');
+      expect(r.out).toContain('Design System manifest not generated');
+      expect(r.out).not.toMatch(/\d/);
+    });
+
+    it('says unreachable on a refusal or a network failure, and draws no number for an answer it cannot read', async () => {
+      for (const reply of [{ ok: false, status: 403 }, 'reject'] as Reply[]) {
+        const r = await run(reply);
+        expect(r.out).toContain('oh-card-state--bad');
+        expect(r.out).toContain('Design System unreachable');
+      }
+      const malformed = await run({ ok: true, status: 200, body: { data: { state: 'READY', overview: { tokens: {} } } } });
+      expect(malformed.out).toContain('oh-card-state--idle');
+      expect(malformed.out).not.toMatch(/Design tokens:/);
+    });
+
+    it('never fabricates a figure', () => {
+      expect(src).not.toMatch(/Math\.random|\|\|\s*0\b/);
+    });
+  });
+
+  describe('the 3×3 grid', () => {
+    it('is three columns and three rows of equal cards, in reading order', () => {
+      expect(appCss).toMatch(/body\.club-theme \.oh-cards--core\{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);\s*grid-auto-rows: 1fr;\s*grid-template-areas:\s*"system cyber  clubs"\s*"algo   vault  city"\s*"core   vision design";\s*\}/);
+      expect(appCss).toContain('body.club-theme .oh-cards--core .oh-card--ds{     grid-area: design; }');
+    });
+
+    it('is two columns from 1339px down, with the ninth centred at the width of every other card', () => {
+      const m = appCss.match(/@media \(max-width: 1339px\)\{\s*body\.club-theme \.oh-cards--core\{([\s\S]*?)\n  \}\n\}/);
+      expect(m).not.toBeNull();
+      expect(m![1]).toContain('grid-template-columns: repeat(4, minmax(0, 1fr));');
+      expect(m![1]).toMatch(/"system system clubs  clubs"\s*"cyber  cyber  algo   algo "\s*"core   core   vision vision"\s*"vault  vault  city   city"\s*"\.      design design \."/);
+    });
+
+    it('is one column from 900px down, the ninth last, as it was', () => {
+      expect(appCss).toContain('grid-template-areas: "system" "cyber" "clubs" "algo" "core" "vision" "vault" "city" "design";');
+      expect(appCss).toMatch(/@media \(max-width: 900px\)\{\s*body\.club-theme \.oh-cards--core\{\s*grid-template-columns: 1fr; max-width: 560px; margin-inline: auto;\s*grid-auto-rows: auto;/);
+    });
+
+    it('is the old eight-track grid no longer', () => {
+      expect(appCss).not.toContain('grid-template-columns: repeat(8, minmax(0, 1fr));');
+      expect(appCss).not.toMatch(/@media \(max-width: 1560px\)\{\s*body\.club-theme \.oh-cards--core/);
+    });
+
+    it('draws the ninth card’s identity as an edge, a hairline and a whisper of tint, in literal colours', () => {
+      const block = appCss.slice(appCss.indexOf('body.club-theme .oh-cards--core .oh-card--ds{'), appCss.indexOf('body.club-theme .oh-card--ds .oh-card-cta{'));
+      expect(block).toContain('body.club-theme .oh-cards--core .oh-card--ds::before{');
+      expect(block).toContain('body.club-theme .oh-cards--core .oh-card--ds:hover{');
+      expect(block).toContain('linear-gradient(90deg, #fbbf24, #fde68a, #fbbf24)');
+      expect(block).toMatch(/border-color: rgba\(251,191,36,0\.26\)/);
+      expect(block).not.toMatch(/background:\s*#|background-color:\s*#/);
+      // The new card's detail line meets 4.5:1 on #131826 (#7a889e is 4.93:1); the shared tertiary colour is not touched.
+      expect(appCss).toContain('body.club-theme .oh-card--ds .oh-card-list{ color: #7a889e; }');
+      expect(appCss).toContain('body.club-theme .oh-card-list{\n  font-size: 12.5px; color: var(--t-tertiary);');
+      // app.css reads no design token: only the Design System Control room does.
+      expect(appCss).not.toMatch(/--fam-/);
+    });
+
+    it('does not change a single rule of the other cards’ identities', () => {
+      for (const c of ['system', 'cyber', 'clubs', 'algo', 'vault', 'city', 'core', 'vision']) {
+        expect(appCss).toContain(`.oh-card--${c}`);
+      }
+      expect(appCss).toContain("body.club-theme .oh-card--algo .oh-card-cta{ color: #efc3ff; }");
+      expect(appCss).toContain('body.club-theme .oh-card--vision .oh-card-cta{ color: #22d3ee; }');
+    });
+  });
+
+  it('is shipped with fresh asset versions, so no browser mixes the old script with the new stylesheet', () => {
+    const html = read('public/index.html');
+    expect(html).toContain('/app.css?v=20261012-owner-home-ds');
+    expect(html).toContain('/app.js?v=20261012-owner-home-ds');
+    expect(html).not.toMatch(/\/app\.(css|js)\?v=20261004-algorithms/);
+  });
+
+  describe('translation', () => {
+    const N = '\u0000';
+    const KEYS = ['DESIGN SYSTEM CONTROL', 'Design Tokens, Contrast, Provenance & Evidence', 'Enter Design System',
+      'Overview · Design Tokens · Layers · Contrast · Provenance', 'Reading design system evidence…',
+      `Design tokens: ${N} · new contrast failures: ${N}`, 'Design System manifest not generated', 'Design System unreachable'];
+    const dir = path.join(ROOT, 'public/i18n/catalogue');
+    // en-US is an empty overlay on en-GB; every other file is a full catalogue.
+    const tags = fs.readdirSync(dir).filter((f) => /^[a-z]{2,3}(-[A-Z]{2})?\.json$/.test(f)).map((f) => f.replace('.json', '')).filter((t) => t !== 'en-US');
+    const cat = (t: string) => JSON.parse(fs.readFileSync(path.join(dir, `${t}.json`), 'utf8')) as Record<string, string>;
+    const pending = JSON.parse(read('public/i18n/_pending-translation.json'));
+
+    it('is in every locale the platform ships, with the card’s eight strings', () => {
+      expect(tags.length).toBeGreaterThanOrEqual(30);
+      for (const t of tags) for (const k of KEYS) expect(`${t} ${JSON.stringify(k)}: ${typeof cat(t)[k]}`).toBe(`${t} ${JSON.stringify(k)}: string`);
+    });
+
+    it('is genuinely translated into German and Arabic, with the same number slots', () => {
+      for (const t of ['de-DE', 'ar']) {
+        for (const k of KEYS) {
+          expect(cat(t)[k]).not.toBe(k);
+          expect((cat(t)[k].match(/\u0000/g) || []).length).toBe((k.match(/\u0000/g) || []).length);
+        }
+      }
+      for (const k of KEYS) expect(cat('ar')[k]).toMatch(/[؀-ۿ]/);
+    });
+
+    it('marks every other locale’s English stand-in as pending, and presents none as a translation', () => {
+      const inPending = (t: string) => Array.isArray(pending.locales[t]) && pending.locales[t].length > 0;
+      for (const t of tags) {
+        if (t === 'de-DE' || t === 'ar' || t.startsWith('en-')) continue;
+        const placeholders = KEYS.filter((k) => cat(t)[k] === k);
+        if (placeholders.length) expect(`${t} pending: ${inPending(t)}`).toBe(`${t} pending: true`);
+      }
+    });
+
+    it('keeps English the key, so the English screen is unchanged', () => {
+      for (const k of KEYS) expect(cat('en-GB')[k]).toBe(k);
+    });
   });
 });

@@ -407,8 +407,12 @@ describe('the eighth room in the shell', () => {
     expect(index).toContain('/algorithms/algorithms.css?v=');
   });
 
-  it('its card closes the top row, a peer the same size as every other', () => {
-    expect(css).toContain('"system system cyber  cyber  clubs  clubs  algo   algo "');
+  it('its card opens the second row, a peer the same size as every other', () => {
+    // Nine rooms, three equal columns: SYSTEM, CYBERSECURITY and CLUBS on top,
+    // then ALGORITHMS, DATA VAULT and INFRASTRUCTURE CITY.
+    expect(css).toContain('"system cyber  clubs"');
+    expect(css).toContain('"algo   vault  city"');
+    expect(css).toContain('body.club-theme .oh-cards--core .oh-card--algo{   grid-area: algo; }');
     expect(app).toContain('<div class="oh-card-title">ALGORITHMS</div>');
     expect(app).toContain("fetch(base + '/system/algorithms'");
   });

@@ -7147,18 +7147,26 @@ body.club-theme .oh-cards--three{ grid-template-columns: repeat(3, 1fr); }
    four beneath. Every card is still exactly the same size; the pairing of
    SOURCE CORE beside FAMILISTA VISION (where evidence came from, what it says)
    holds the middle of the second row. */
-/* EIGHT ROOMS, EIGHT EQUAL CARDS.
-   ALGORITHMS joined as the eighth and closes the top row, after CLUBS: the
-   four rooms that run the platform and what it computes on top, the four that
-   describe its evidence beneath. Eight divide into two equal rows, so the
-   half-card inset the seven needed is gone; the grid keeps its eight tracks
-   and every card still spans two of them. */
+/* NINE ROOMS, NINE EQUAL CARDS.
+   DESIGN SYSTEM CONTROL joined as the ninth, and nine divide into three equal
+   rows of three, so the eight-track grid the eight needed is gone: three
+   columns, three rows, every card exactly the same size. The reading order is
+   the markup order — SYSTEM, CYBERSECURITY, CLUBS, then ALGORITHMS, DATA VAULT,
+   INFRASTRUCTURE CITY, then SOURCE CORE, FAMILISTA VISION and DESIGN SYSTEM
+   CONTROL — so a keyboard and a screen reader walk the grid in the order the
+   eye does. The platform's own rooms hold the top two rows; the three that
+   describe its evidence and its design hold the third.
+   The title DESIGN SYSTEM CONTROL fits one line in a three-column card from
+   1340px up. Below that the grid is two columns, as it was, with the ninth card
+   centred beneath the eight — the same width as every other card, never a band
+   across the row, because size is a claim about importance. */
 body.club-theme .oh-cards--core{
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-auto-rows: 1fr;
   grid-template-areas:
-    "system system cyber  cyber  clubs  clubs  algo   algo "
-    "vault vault  core   core   vision vision city   city ";
+    "system cyber  clubs"
+    "algo   vault  city"
+    "core   vision design";
 }
 body.club-theme .oh-cards--core .oh-card--system{ grid-area: system; }
 body.club-theme .oh-cards--core .oh-card--cyber{  grid-area: cyber; }
@@ -7168,24 +7176,26 @@ body.club-theme .oh-cards--core .oh-card--vault{  grid-area: vault; }
 body.club-theme .oh-cards--core .oh-card--city{   grid-area: city; }
 body.club-theme .oh-cards--core .oh-card--core{   grid-area: core; }
 body.club-theme .oh-cards--core .oh-card--vision{ grid-area: vision; }
-/* Two columns: CYBERSECURITY and ALGORITHMS share the row beneath SYSTEM
-   and CLUBS — no half-card gap any more — and the core/vision pair stays
-   together on the row after it. */
-@media (max-width: 1560px){
+body.club-theme .oh-cards--core .oh-card--ds{     grid-area: design; }
+/* Two columns: SYSTEM and CLUBS, CYBERSECURITY and ALGORITHMS, the core and
+   VISION, VAULT and CITY — the pairs they have always had — and the ninth
+   centred beneath on the middle two of four tracks. */
+@media (max-width: 1339px){
   body.club-theme .oh-cards--core{
     grid-template-columns: repeat(4, minmax(0, 1fr));
     grid-template-areas:
       "system system clubs  clubs"
       "cyber  cyber  algo   algo "
       "core   core   vision vision"
-      "vault  vault  city   city";
+      "vault  vault  city   city"
+      ".      design design .";
   }
 }
 @media (max-width: 900px){
   body.club-theme .oh-cards--core{
     grid-template-columns: 1fr; max-width: 560px; margin-inline: auto;
     grid-auto-rows: auto;
-    grid-template-areas: "system" "cyber" "clubs" "algo" "core" "vision" "vault" "city";
+    grid-template-areas: "system" "cyber" "clubs" "algo" "core" "vision" "vault" "city" "design";
   }
 }
 body.club-theme .oh-wrap--core{ max-width: 1680px; }
@@ -7300,6 +7310,39 @@ body.club-theme .oh-card--algo .oh-card-icon{
 }
 body.club-theme .oh-card--algo .oh-card-icon svg{ display: block; }
 body.club-theme .oh-card--algo .oh-card-cta{ color: #efc3ff; }
+
+/* Design System Control's own accent: amber, the identity of the room itself
+   (its mark and the edge of its selected item), so a reader who enters from this
+   card arrives somewhere that looks like the door they opened. Amber is also
+   the platform's warning colour, so it is kept to an edge, a hairline and a
+   whisper of tint — never a filled block — and the status line keeps its own
+   green, amber and red, which mean only what that line says.
+   Scoped under .oh-cards--core: the generic .oh-card rules further down the
+   sheet have the same specificity as a bare .oh-card--ds and would win. */
+body.club-theme .oh-cards--core .oh-card--ds{
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(251,191,36,0.09), transparent 62%),
+    var(--bg-surface);
+  border-color: rgba(251,191,36,0.26);
+  box-shadow: 0 30px 70px -34px rgba(251,191,36,0.24);
+}
+body.club-theme .oh-cards--core .oh-card--ds::before{
+  background: linear-gradient(90deg, #fbbf24, #fde68a, #fbbf24);
+}
+body.club-theme .oh-cards--core .oh-card--ds:hover{ box-shadow: 0 30px 72px rgba(251,191,36,0.18); border-color: rgba(251,191,36,0.48); }
+body.club-theme .oh-card--ds .oh-card-icon{
+  color: #fcd34d;
+  background: linear-gradient(145deg, rgba(251,191,36,0.18), rgba(253,230,138,0.06));
+  border-color: rgba(251,191,36,0.38);
+  box-shadow: inset 0 0 22px -8px rgba(251,191,36,0.45);
+}
+body.club-theme .oh-card--ds .oh-card-icon svg{ display: block; }
+body.club-theme .oh-card--ds .oh-card-cta{ color: #fcd34d; }
+/* The detail line meets 4.5:1 on this card. The shared .oh-card-list colour
+   (--t-tertiary, #64748b) is 3.7:1 on the card surface — a failure recorded in
+   the Design Core's contrast baseline and left alone here, so the other eight
+   cards are untouched; new interface does not add to it. */
+body.club-theme .oh-card--ds .oh-card-list{ color: #7a889e; }
 
 @media (max-width: 900px){ body.club-theme .oh-cards{ grid-template-columns: 1fr; } }
 body.club-theme .oh-wrap--three{ max-width: 1320px; }

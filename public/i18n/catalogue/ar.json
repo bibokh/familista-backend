@@ -1591,5 +1591,13 @@
   "Algorithms failing evaluation: \u0000": "خوارزميات فاشلة في التقييم: \u0000",
   "Algorithms awaiting approval: \u0000": "خوارزميات بانتظار الموافقة: \u0000",
   "Algorithms approved: \u0000 of \u0000": "الخوارزميات الموافق عليها: \u0000 من \u0000",
-  "Algorithms unreachable": "تعذّر الوصول إلى الخوارزميات"
+  "Algorithms unreachable": "تعذّر الوصول إلى الخوارزميات",
+  "DESIGN SYSTEM CONTROL": "التحكّم في نظام التصميم",
+  "Design Tokens, Contrast, Provenance & Evidence": "رموز التصميم والتباين والمنشأ والأدلة",
+  "Enter Design System": "ادخل إلى نظام التصميم",
+  "Overview · Design Tokens · Layers · Contrast · Provenance": "نظرة عامة · رموز التصميم · الطبقات · التباين · المنشأ",
+  "Reading design system evidence…": "جارٍ قراءة أدلة نظام التصميم…",
+  "Design tokens: \u0000 · new contrast failures: \u0000": "رموز التصميم: \u0000 · إخفاقات التباين الجديدة: \u0000",
+  "Design System manifest not generated": "لم يُولَّد بيان نظام التصميم",
+  "Design System unreachable": "تعذّر الوصول إلى نظام التصميم"
 }

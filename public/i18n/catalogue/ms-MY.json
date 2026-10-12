@@ -1588,5 +1588,13 @@
   "Algorithms failing evaluation: \u0000": "Algoritma yang gagal penilaian: \u0000",
   "Algorithms awaiting approval: \u0000": "Algoritma menunggu kelulusan: \u0000",
   "Algorithms approved: \u0000 of \u0000": "Algoritma diluluskan: \u0000 daripada \u0000",
-  "Algorithms unreachable": "Algoritma tidak dapat dicapai"
+  "Algorithms unreachable": "Algoritma tidak dapat dicapai",
+  "DESIGN SYSTEM CONTROL": "DESIGN SYSTEM CONTROL",
+  "Design System manifest not generated": "Design System manifest not generated",
+  "Design System unreachable": "Design System unreachable",
+  "Design Tokens, Contrast, Provenance & Evidence": "Design Tokens, Contrast, Provenance & Evidence",
+  "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
+  "Enter Design System": "Enter Design System",
+  "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
+  "Reading design system evidence…": "Reading design system evidence…"
 }

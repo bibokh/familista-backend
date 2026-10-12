@@ -1591,5 +1591,13 @@
   "Algorithms failing evaluation: \u0000": "Algorithmen mit fehlgeschlagener Bewertung: \u0000",
   "Algorithms awaiting approval: \u0000": "Algorithmen warten auf Freigabe: \u0000",
   "Algorithms approved: \u0000 of \u0000": "Freigegebene Algorithmen: \u0000 von \u0000",
-  "Algorithms unreachable": "Algorithmen nicht erreichbar"
+  "Algorithms unreachable": "Algorithmen nicht erreichbar",
+  "DESIGN SYSTEM CONTROL": "DESIGN-SYSTEM-KONTROLLE",
+  "Design Tokens, Contrast, Provenance & Evidence": "Design-Tokens, Kontrast, Herkunft & Nachweise",
+  "Enter Design System": "Design-System betreten",
+  "Overview · Design Tokens · Layers · Contrast · Provenance": "Überblick · Design-Tokens · Ebenen · Kontrast · Herkunft",
+  "Reading design system evidence…": "Design-System-Nachweise werden gelesen…",
+  "Design tokens: \u0000 · new contrast failures: \u0000": "Design-Tokens: \u0000 · neue Kontrast-Fehlschläge: \u0000",
+  "Design System manifest not generated": "Design-System-Manifest nicht erzeugt",
+  "Design System unreachable": "Design-System nicht erreichbar"
 }
