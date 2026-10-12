@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-12T02:15:20.416Z",
+  "generatedAt": "2026-10-12T11:56:44.825Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 55,
-    "handlers": 757,
+    "handlers": 758,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -308,7 +308,7 @@
       {
         "path": "/system/design-system",
         "module": "design-system.routes",
-        "handlers": 3,
+        "handlers": 4,
         "public": 0,
         "routerWideAuth": true
       },
@@ -809,13 +809,13 @@
       }
     },
     "authorization": {
-      "handlers": 757,
+      "handlers": 758,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 90
+        "platform-owner": 91
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -879,7 +879,7 @@
           "platform-owner": 5
         },
         "design-system.routes": {
-          "platform-owner": 3
+          "platform-owner": 4
         },
         "device-infra.routes": {
           "public": 1,
@@ -1367,6 +1367,7 @@
         "GET /system/data-pulse/stream": "platform-owner",
         "GET /system/data-pulse/topology": "platform-owner",
         "GET /system/design-system": "platform-owner",
+        "GET /system/design-system/components": "platform-owner",
         "GET /system/design-system/graph": "platform-owner",
         "GET /system/design-system/tokens": "platform-owner",
         "GET /system/email": "platform-owner",
@@ -2212,7 +2213,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "757 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 90 platform-owner; every member-level handler reviewed by name."
+      "note": "758 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 91 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",

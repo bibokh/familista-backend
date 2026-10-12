@@ -23,8 +23,8 @@
    "id": "surface-loads",
    "path": "tools/tokens/lib/production.mjs",
    "label": "The stylesheets each production page loads (its link tags, the built assets and the on-demand list)",
-   "sha256": "edcaa5e4ad0b4e14af21a4b4ffc31d51e6589ef100aabb3311517cbc9cd1a6f1",
-   "bytes": 2546,
+   "sha256": "ef4f1fbf50e15f57288fe3df53034d4b6be4fc4f20ea97c429a5a13882eda71a",
+   "bytes": 2626,
    "basis": "derived"
   }
  ],
@@ -1422,25 +1422,25 @@
     "A stylesheet that two pages load is drawn once, with an edge to each."
    ],
    "columns": [
-    {"id":"stylesheet","label":"Stylesheets","x":40,"y":40,"w":188,"count":26},
+    {"id":"stylesheet","label":"Stylesheets","x":40,"y":40,"w":188,"count":27},
     {"id":"surface","label":"Production surfaces","x":396,"y":40,"w":188,"count":5}
    ],
    "parked": null,
    "layout": {
     "strategy": "layered",
     "width": 624,
-    "height": 990,
+    "height": 1018,
     "nodeW": 188,
     "nodeH": 22
    },
    "stats": {
-    "nodes": 31,
-    "edges": 26,
+    "nodes": 32,
+    "edges": 27,
     "isolated": 0,
-    "nodesByKind": {"stylesheet":26,"surface":5},
-    "edgesByKind": {"loaded-by":26},
-    "nodesByEvidence": {"MEASURED":31},
-    "edgesByEvidence": {"MEASURED":24,"RECORDED":2}
+    "nodesByKind": {"stylesheet":27,"surface":5},
+    "edgesByKind": {"loaded-by":27},
+    "nodesByEvidence": {"MEASURED":32},
+    "edgesByEvidence": {"MEASURED":24,"RECORDED":3}
    },
    "nodes": [
     {"id":"css:public/tokens/familista-tokens.css","kind":"stylesheet","label":"tokens/familista-tokens.css","group":"tokens","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/tokens/familista-tokens.css"},"props":{"customProperties":279,"canonicalTokenCss":true},"w":188,"h":22,"isolated":false,"x":40,"y":74},
@@ -1469,11 +1469,12 @@
     {"id":"css:public/app/assets/index-[hash].css","kind":"stylesheet","label":"app/assets/index-[hash].css","group":"app/assets","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/app/assets/index-[hash].css"},"props":{"customProperties":47,"canonicalTokenCss":false},"w":188,"h":22,"isolated":false,"x":40,"y":858},
     {"id":"css:public/design-system/design-system.css","kind":"stylesheet","label":"design-system/design-system.css","group":"design-system","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/design-system/design-system.css"},"props":{"customProperties":0,"canonicalTokenCss":false},"w":188,"h":22,"isolated":false,"x":40,"y":900},
     {"id":"css:public/design-system/explorer.css","kind":"stylesheet","label":"design-system/explorer.css","group":"design-system","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/design-system/explorer.css"},"props":{"customProperties":0,"canonicalTokenCss":false},"w":188,"h":22,"isolated":false,"x":40,"y":928},
-    {"id":"surface:main","kind":"surface","label":"Familista app (index.html)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/index.html"},"props":{"how":"link","listedIn":"public/index.html","stylesheets":9},"w":188,"h":22,"isolated":false,"x":396,"y":445},
-    {"id":"surface:admin","kind":"surface","label":"Admin console (familista-admin.html)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/familista-admin.html"},"props":{"how":"link","listedIn":"public/familista-admin.html","stylesheets":1},"w":188,"h":22,"isolated":false,"x":396,"y":473},
-    {"id":"surface:invite","kind":"surface","label":"Invitation page (invite/index.html)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/invite/index.html"},"props":{"how":"link","listedIn":"public/invite/index.html","stylesheets":1},"w":188,"h":22,"isolated":false,"x":396,"y":501},
-    {"id":"surface:react","kind":"surface","label":"React SPA at /app (built assets)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/app/assets"},"props":{"how":"directory","listedIn":"public/app/assets","stylesheets":13},"w":188,"h":22,"isolated":false,"x":396,"y":529},
-    {"id":"surface:lazy","kind":"surface","label":"Rooms loaded on demand by the main app","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs"},"props":{"how":"declared","listedIn":"tools/tokens/lib/production.mjs","stylesheets":2},"w":188,"h":22,"isolated":false,"x":396,"y":557}
+    {"id":"css:public/design-system/components.css","kind":"stylesheet","label":"design-system/components.css","group":"design-system","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/design-system/components.css"},"props":{"customProperties":0,"canonicalTokenCss":false},"w":188,"h":22,"isolated":false,"x":40,"y":956},
+    {"id":"surface:main","kind":"surface","label":"Familista app (index.html)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/index.html"},"props":{"how":"link","listedIn":"public/index.html","stylesheets":9},"w":188,"h":22,"isolated":false,"x":396,"y":459},
+    {"id":"surface:admin","kind":"surface","label":"Admin console (familista-admin.html)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/familista-admin.html"},"props":{"how":"link","listedIn":"public/familista-admin.html","stylesheets":1},"w":188,"h":22,"isolated":false,"x":396,"y":487},
+    {"id":"surface:invite","kind":"surface","label":"Invitation page (invite/index.html)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/invite/index.html"},"props":{"how":"link","listedIn":"public/invite/index.html","stylesheets":1},"w":188,"h":22,"isolated":false,"x":396,"y":515},
+    {"id":"surface:react","kind":"surface","label":"React SPA at /app (built assets)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/app/assets"},"props":{"how":"directory","listedIn":"public/app/assets","stylesheets":13},"w":188,"h":22,"isolated":false,"x":396,"y":543},
+    {"id":"surface:lazy","kind":"surface","label":"Rooms loaded on demand by the main app","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs"},"props":{"how":"declared","listedIn":"tools/tokens/lib/production.mjs","stylesheets":3},"w":188,"h":22,"isolated":false,"x":396,"y":571}
    ],
    "edges": [
     {"id":"css:public/tokens/familista-tokens.css > surface:main : loaded-by","kind":"loaded-by","from":"css:public/tokens/familista-tokens.css","to":"surface:main","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/index.html → public/tokens/familista-tokens.css"},"count":1,"props":{"loadOrder":1,"how":"link"}},
@@ -1501,7 +1502,8 @@
     {"id":"css:public/app/assets/WorkloadDashboard-[hash].css > surface:react : loaded-by","kind":"loaded-by","from":"css:public/app/assets/WorkloadDashboard-[hash].css","to":"surface:react","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/app/assets → public/app/assets/WorkloadDashboard-[hash].css"},"count":1,"props":{"loadOrder":12,"how":"directory"}},
     {"id":"css:public/app/assets/index-[hash].css > surface:react : loaded-by","kind":"loaded-by","from":"css:public/app/assets/index-[hash].css","to":"surface:react","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/app/assets → public/app/assets/index-[hash].css"},"count":1,"props":{"loadOrder":13,"how":"directory"}},
     {"id":"css:public/design-system/design-system.css > surface:lazy : loaded-by","kind":"loaded-by","from":"css:public/design-system/design-system.css","to":"surface:lazy","evidence":"RECORDED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs → public/design-system/design-system.css"},"count":1,"props":{"loadOrder":1,"how":"declared"}},
-    {"id":"css:public/design-system/explorer.css > surface:lazy : loaded-by","kind":"loaded-by","from":"css:public/design-system/explorer.css","to":"surface:lazy","evidence":"RECORDED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs → public/design-system/explorer.css"},"count":1,"props":{"loadOrder":2,"how":"declared"}}
+    {"id":"css:public/design-system/explorer.css > surface:lazy : loaded-by","kind":"loaded-by","from":"css:public/design-system/explorer.css","to":"surface:lazy","evidence":"RECORDED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs → public/design-system/explorer.css"},"count":1,"props":{"loadOrder":2,"how":"declared"}},
+    {"id":"css:public/design-system/components.css > surface:lazy : loaded-by","kind":"loaded-by","from":"css:public/design-system/components.css","to":"surface:lazy","evidence":"RECORDED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs → public/design-system/components.css"},"count":1,"props":{"loadOrder":3,"how":"declared"}}
    ]
   }
  ]

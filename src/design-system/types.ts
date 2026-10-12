@@ -185,3 +185,80 @@ export interface DesignSystemGraphView {
   sources: GraphSource[];
   view: GraphView | null;
 }
+
+// ── Components Library (Stage 3.2.2) ─────────────────────────────────────────
+//
+// The components manifest is written by scripts/design-system-discover.js (built
+// by scripts/design-system-components.js from the reviewed
+// tools/components/registry.json, shaped and validated by components-core.js).
+
+export type ComponentKind = 'component' | 'primitive' | 'pattern' | 'css-family' | 'layout-utility' | 'page-specific' | 'candidate';
+export type ComponentTier = 'verified' | 'catalogued' | 'listed';
+export type ComponentEvidence = 'MEASURED' | 'RECORDED' | 'NONE';
+export type ComponentSectionId = 'overview' | 'anatomy' | 'styling' | 'source' | 'variants' | 'stories' | 'accessibility' | 'dependencies';
+
+export interface TaxonomyEntry { id: string; label: string; description?: string }
+export interface ComponentsTaxonomy {
+  categories: TaxonomyEntry[]; modules: TaxonomyEntry[]; kinds: TaxonomyEntry[]; tiers: TaxonomyEntry[];
+}
+export interface ComponentsCoverage {
+  total: number; byKind: Record<string, number>; byTier: Record<string, number>; byCategory: Record<string, number>;
+  withStories: number; withVariants: number; withSource: number;
+}
+export type ComponentSections = Record<ComponentSectionId, ComponentEvidence>;
+
+export interface ComponentJsSource { file: string; symbol: string; sha256: string; bytes: number }
+export interface ComponentCssSource { file: string; rules: number; sha256: string; bytes: number }
+export interface ComponentPresence { file: string; matched: true }
+export interface ComponentStyling {
+  selectors: string[]; selectorsTotal: number; rules: number; states: string[]; mediaQueries: string[];
+  customProperties: string[]; customPropertiesTotal: number; focusVisible: boolean; rtl: boolean; reducedMotion: boolean;
+}
+export interface ComponentPart { cls: string; rules: number; emitted: boolean | null }
+export interface ComponentVariant { name: string; class: string; rules: number; cases: string[]; stories: string[]; exercised: boolean }
+export interface ComponentStories {
+  file: string; title: string; cases: string[]; golden: string[]; options: string[];
+  review: { rtl: boolean; tablet: boolean; mobile: boolean };
+}
+export interface ComponentFact { id: string; label: string; evidence: 'MEASURED'; where: string }
+export interface ComponentCall { symbol: string; component: string | null }
+
+export interface ComponentRecord {
+  id: string; name: string; category: string; kind: ComponentKind; tier: ComponentTier; module: string; summary: string;
+  depth: 'full' | 'presence';
+  source: { js: ComponentJsSource | null; css: ComponentCssSource[]; presence: ComponentPresence[] };
+  styling: ComponentStyling;
+  anatomy: ComponentPart[];
+  variants: ComponentVariant[];
+  stories: ComponentStories | null;
+  accessibility: { facts: ComponentFact[] };
+  dependencies: { calls: ComponentCall[]; calledBy: string[]; helpers: string[] };
+  referencedIn: string[];
+  sections: ComponentSections;
+}
+/** What the index lists: enough to search, filter, sort and draw a card; the rest comes with the component. */
+export interface ComponentSummary {
+  id: string; name: string; category: string; kind: ComponentKind; tier: ComponentTier; module: string; summary: string;
+  symbol: string | null; sections: ComponentSections;
+  counts: { rules: number; selectors: number; variants: number; anatomy: number; cases: number; facts: number; dependencies: number };
+}
+export interface ComponentsManifest {
+  schema: number; generator: string; description: string; sources: GraphSource[];
+  taxonomy: ComponentsTaxonomy; coverage: ComponentsCoverage; components: ComponentRecord[];
+}
+export interface DesignSystemComponentsIndex {
+  state: 'READY' | 'NOT_GENERATED';
+  reason: string | null;
+  readOnly: true;
+  generator: string | null;
+  sources: GraphSource[];
+  taxonomy: ComponentsTaxonomy | null;
+  coverage: ComponentsCoverage | null;
+  components: ComponentSummary[];
+}
+export interface DesignSystemComponentDetail {
+  state: 'READY' | 'NOT_GENERATED';
+  reason: string | null;
+  sources: GraphSource[];
+  component: ComponentRecord | null;
+}

@@ -1,0 +1,3614 @@
+{
+ "schema": 1,
+ "generator": "scripts/design-system-discover.js",
+ "description": "The reviewed Components Registry, verified against the repository. Generated; do not edit.",
+ "sources": [
+  {
+   "id": "registry",
+   "path": "tools/components/registry.json",
+   "label": "The reviewed Components Registry",
+   "sha256": "8118058e5cfc89a8f6129d471694b0cbc561bdadcdec62a71ee1dd92492c1d80",
+   "bytes": 32924,
+   "basis": "file"
+  },
+  {
+   "id": "storybook-stories",
+   "path": "tools/storybook/stories",
+   "label": "The Storybook story files the registry cites",
+   "sha256": "8fcdea1fc8be085c77ca20f5b5b2e5c993ff1bba7901bf9c2c057d3b896879d4",
+   "bytes": 1084,
+   "basis": "derived"
+  },
+  {
+   "id": "storybook-golden",
+   "path": "tools/storybook/tests/golden/lg-primitives.golden.json",
+   "label": "The golden snapshot cases of the ten competition primitives",
+   "sha256": "af38d742dc7aed2c1d53b61189bdff99507e083b6933785b6c4b41fb3451d52d",
+   "bytes": 17548,
+   "basis": "file"
+  },
+  {
+   "id": "production-slices",
+   "path": "public",
+   "label": "The slices of production source each component owns (render function and CSS rules)",
+   "sha256": "70b53a35e023d37275b6e084f558d0068c97580a193feebe7c50ae215684f1d8",
+   "bytes": 5729,
+   "basis": "derived"
+  }
+ ],
+ "taxonomy": {
+  "categories": [
+   {
+    "id": "identity",
+    "label": "Identity",
+    "description": "Club and team identity marks."
+   },
+   {
+    "id": "data-display",
+    "label": "Data display",
+    "description": "Chips, figures, comparisons and tables."
+   },
+   {
+    "id": "surfaces",
+    "label": "Surfaces and feedback",
+    "description": "Panels, dialogs, messages, empty and loading states."
+   },
+   {
+    "id": "controls",
+    "label": "Controls",
+    "description": "Buttons, switches, filters and fields."
+   },
+   {
+    "id": "shell",
+    "label": "Application shell",
+    "description": "The frame every page sits in."
+   },
+   {
+    "id": "owner-kit",
+    "label": "Owner room kit",
+    "description": "The primitives the Design System Control room is built from."
+   },
+   {
+    "id": "families",
+    "label": "Page and room families",
+    "description": "Styles that belong to one page or room."
+   },
+   {
+    "id": "candidates",
+    "label": "Candidates",
+    "description": "Look like components; not verified as reusable."
+   }
+  ],
+  "modules": [
+   {
+    "id": "core",
+    "label": "Core (app.css)"
+   },
+   {
+    "id": "competition",
+    "label": "Competition"
+   },
+   {
+    "id": "design-system",
+    "label": "Design System Control"
+   },
+   {
+    "id": "owner-home",
+    "label": "Owner Home"
+   },
+   {
+    "id": "system",
+    "label": "System"
+   },
+   {
+    "id": "data-vault",
+    "label": "Data Vault"
+   },
+   {
+    "id": "infrastructure-city",
+    "label": "Infrastructure City"
+   },
+   {
+    "id": "source-core",
+    "label": "Source Core"
+   },
+   {
+    "id": "vision",
+    "label": "Familista Vision"
+   },
+   {
+    "id": "cybersecurity",
+    "label": "Cybersecurity"
+   },
+   {
+    "id": "algorithms",
+    "label": "Algorithms"
+   },
+   {
+    "id": "unclassified",
+    "label": "Unclassified"
+   }
+  ],
+  "kinds": [
+   {
+    "id": "component",
+    "label": "Production UI component",
+    "description": "A named unit with a production render function, CSS and a reviewed name."
+   },
+   {
+    "id": "primitive",
+    "label": "Shared UI primitive",
+    "description": "Base styles for one kind of element that pages share."
+   },
+   {
+    "id": "pattern",
+    "label": "Reusable design pattern",
+    "description": "A recurring composition of several parts."
+   },
+   {
+    "id": "css-family",
+    "label": "CSS family",
+    "description": "The styles of one room or module, catalogued by prefix and not as components."
+   },
+   {
+    "id": "layout-utility",
+    "label": "Layout utility",
+    "description": "A class that arranges or hides, with no look of its own."
+   },
+   {
+    "id": "page-specific",
+    "label": "Page-specific styles",
+    "description": "Styles that belong to a single page."
+   },
+   {
+    "id": "candidate",
+    "label": "Unverified candidate",
+    "description": "Looks like a component; nobody has verified that it is shared."
+   }
+  ],
+  "tiers": [
+   {
+    "id": "verified",
+    "label": "Verified",
+    "description": "Render source, CSS rules and Storybook cases were all found."
+   },
+   {
+    "id": "catalogued",
+    "label": "Catalogued",
+    "description": "Source or CSS rules were found, without a Storybook case."
+   },
+   {
+    "id": "listed",
+    "label": "Listed",
+    "description": "Only the presence of the declared class or prefix was verified."
+   }
+  ]
+ },
+ "coverage": {
+  "total": 60,
+  "byKind": {
+   "candidate": 7,
+   "component": 12,
+   "css-family": 7,
+   "layout-utility": 2,
+   "page-specific": 1,
+   "pattern": 5,
+   "primitive": 26
+  },
+  "byTier": {
+   "catalogued": 35,
+   "listed": 15,
+   "verified": 10
+  },
+  "byCategory": {
+   "candidates": 7,
+   "controls": 5,
+   "data-display": 8,
+   "families": 8,
+   "identity": 5,
+   "owner-kit": 13,
+   "shell": 5,
+   "surfaces": 9
+  },
+  "withStories": 10,
+  "withVariants": 15,
+  "withSource": 13
+ },
+ "components": [
+  {
+   "id": "club-logo",
+   "name": "Club logo",
+   "category": "identity",
+   "kind": "component",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "The club crest in a fixed size ladder, with a shield when there is no crest.",
+   "depth": "full",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"clubLogoHtml","sha256":"a657ba0ff9f237963daae3173a28e19fb83dbba22a145b19c6a1d091fcd2e38e","bytes":711},
+    "css": [{"file":"public/app.css","rules":22,"sha256":"771321219ea4b13776e9e8af92368e1ec2e80619c51e594afe5a65f0703035d6","bytes":1449}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".club-logo",".club-logo--plain",".club-logo--ring",".club-logo--round",".club-logo--s120",".club-logo--s16",".club-logo--s160",".club-logo--s20",".club-logo--s24",".club-logo--s26",".club-logo--s30",".club-logo--s34",".club-logo--s40",".club-logo--s44",".club-logo--s56",".club-logo--s64",".club-logo--s74",".club-logo--s88",".club-logo-img",".club-logo-ph",".lg-crest .club-logo",".set-crest-prev .club-logo"],
+    "selectorsTotal": 22,
+    "rules": 22,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--bd","--bg-2","--club-logo-size","--tx-3"],
+    "customPropertiesTotal": 4,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"club-logo-img","rules":1,"emitted":true},
+    {"cls":"club-logo-ph","rules":1,"emitted":false}
+   ],
+   "variants": [
+    {"name":"plain","class":"club-logo--plain","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"round","class":"club-logo--round","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"ring","class":"club-logo--ring","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s16","class":"club-logo--s16","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s20","class":"club-logo--s20","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s24","class":"club-logo--s24","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s26","class":"club-logo--s26","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s30","class":"club-logo--s30","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s34","class":"club-logo--s34","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s40","class":"club-logo--s40","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s44","class":"club-logo--s44","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s56","class":"club-logo--s56","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s64","class":"club-logo--s64","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s74","class":"club-logo--s74","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s88","class":"club-logo--s88","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s120","class":"club-logo--s120","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s160","class":"club-logo--s160","rules":1,"cases":[],"stories":[],"exercised":false}
+   ],
+   "stories": null,
+   "accessibility": {
+    "facts": [{"id":"img-alt","label":"The function writes alt text on its image.","evidence":"MEASURED","where":"render function"},{"id":"escapes","label":"The function escapes interpolated text before it reaches the page.","evidence":"MEASURED","where":"render function"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": ["club-identity","lg-crest"],
+    "helpers": ["_clubCrestUrl","_clubLogoStep","_clubNameOf","_clubShieldSvg","_esc"]
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "MEASURED",
+    "stories": "NONE",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "club-identity",
+   "name": "Club identity",
+   "category": "identity",
+   "kind": "component",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "A club’s crest and name as one thing, with an optional second line.",
+   "depth": "full",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"clubIdentityHtml","sha256":"7175cd833122f23fce1a607ef72c47c0b8c8740279bdeaddc0046e583e4ea5ac","bytes":651},
+    "css": [{"file":"public/app.css","rules":4,"sha256":"9b9b0e50f3c56e692bd37a694e96528232a87c531e63a73b4e5534665016a4ef","bytes":444}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".club-ident",".club-ident-name",".club-ident-sub",".club-ident-txt"],
+    "selectorsTotal": 4,
+    "rules": 4,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--tx","--tx-3"],
+    "customPropertiesTotal": 2,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"club-ident-txt","rules":1,"emitted":true},
+    {"cls":"club-ident-name","rules":1,"emitted":true},
+    {"cls":"club-ident-sub","rules":1,"emitted":true}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": [{"id":"escapes","label":"The function escapes interpolated text before it reaches the page.","evidence":"MEASURED","where":"render function"}]
+   },
+   "dependencies": {
+    "calls": [{"symbol":"clubLogoHtml","component":"club-logo"}],
+    "calledBy": [],
+    "helpers": ["_clubNameOf","_esc"]
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "lg-crest",
+   "name": "Crest",
+   "category": "identity",
+   "kind": "component",
+   "tier": "verified",
+   "module": "competition",
+   "summary": "A club crest, or the club’s initials when it has none.",
+   "depth": "full",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgCrest","sha256":"9c910811dc8ef32c7197ee4ce28386ce4aaa26309d5d119dc14408a5c394f965","bytes":478},
+    "css": [{"file":"public/app.css","rules":3,"sha256":"87f3a33bbaef38bb0f7f9fd874e2c08dd60fc67f0c8a8a69b1460ec15ebf4eec","bytes":363}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".lg-crest",".lg-crest .club-logo",".lg-crest--mark"],
+    "selectorsTotal": 3,
+    "rules": 3,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--tx-2"],
+    "customPropertiesTotal": 1,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [
+    {"name":"mark","class":"lg-crest--mark","rules":1,"cases":["unknown club, initials mark","single word name"],"stories":["InitialsMark"],"exercised":true}
+   ],
+   "stories": {
+    "file": "tools/storybook/stories/LgCrest.stories.js",
+    "title": "Familista/_lgCrest",
+    "cases": ["WithCrest","WithCrestLarge","KnownClubNoCrest","InitialsMark","NoNameNoClub","RTL","Tablet","Mobile"],
+    "golden": ["with crest","with crest, 44px","known club without crest","unknown club, initials mark","no name, no club","single word name","default size"],
+    "options": ["riverside","northgate","nobody"],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
+   "accessibility": {
+    "facts": [{"id":"escapes","label":"The function escapes interpolated text before it reaches the page.","evidence":"MEASURED","where":"render function"},{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/LgCrest.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/LgCrest.stories.js"}]
+   },
+   "dependencies": {
+    "calls": [{"symbol":"clubLogoHtml","component":"club-logo"}],
+    "calledBy": ["lg-ident"],
+    "helpers": ["_clubCrestUrl","_esc","_lgInitials"]
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "MEASURED",
+    "stories": "MEASURED",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "lg-ident",
+   "name": "Identity",
+   "category": "identity",
+   "kind": "component",
+   "tier": "verified",
+   "module": "competition",
+   "summary": "Crest, club name and the line under it, read the same everywhere.",
+   "depth": "full",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgIdent","sha256":"c41cd8b1b9bd81aeedb386f7efa23322e8d8ce5fa7e3f538deb602f27e4079e9","bytes":396},
+    "css": [{"file":"public/app.css","rules":5,"sha256":"09816c1d35355e493f5ccea5e4a80ced12059a933fe2e1cbd3b17446de7e51a6","bytes":492}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".fl-row.is-mine .lg-ident-name",".lg-ident",".lg-ident-name",".lg-ident-sub",".lg-ident-txt"],
+    "selectorsTotal": 5,
+    "rules": 5,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--lg-accent","--tx-1","--tx-3"],
+    "customPropertiesTotal": 3,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"lg-ident-txt","rules":1,"emitted":true},
+    {"cls":"lg-ident-name","rules":2,"emitted":true},
+    {"cls":"lg-ident-sub","rules":1,"emitted":true}
+   ],
+   "variants": [],
+   "stories": {
+    "file": "tools/storybook/stories/LgIdent.stories.js",
+    "title": "Familista/_lgIdent",
+    "cases": ["CrestNameSub","NoSubLine","InitialsFallback","Large","LongName","MarkupIsEscaped","RTL","Tablet","Mobile"],
+    "golden": ["crest, name and sub line","no sub line","initials fallback","custom class and size","markup in the name is escaped","empty"],
+    "options": ["riverside","northgate","nobody"],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
+   "accessibility": {
+    "facts": [{"id":"escapes","label":"The function escapes interpolated text before it reaches the page.","evidence":"MEASURED","where":"render function"},{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/LgIdent.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/LgIdent.stories.js"}]
+   },
+   "dependencies": {
+    "calls": [{"symbol":"_lgCrest","component":"lg-crest"}],
+    "calledBy": [],
+    "helpers": ["_esc"]
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "MEASURED",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "lg-icon",
+   "name": "Icon",
+   "category": "identity",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "competition",
+   "summary": "One icon set at one size and stroke, inheriting the colour of its control.",
+   "depth": "full",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgIcon","sha256":"491d5c4a8d50adc84fd94ef131ea08403d6f056ae7167390027f264aa72d3a62","bytes":301},
+    "css": [{"file":"public/app.css","rules":3,"sha256":"ff385c10a403ea8a4c6b47dbb107b371c8e3bc28b70e8a62740b54870962bf9c","bytes":171}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".fl-mark .lg-ic",".lg-ic","button:hover > .lg-ic, button:hover .lg-ic"],
+    "selectorsTotal": 3,
+    "rules": 3,
+    "states": [":hover"],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": [{"id":"aria-hidden","label":"The function marks decorative graphics aria-hidden.","evidence":"MEASURED","where":"render function"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "MEASURED",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "lg-chip",
+   "name": "Chip",
+   "category": "data-display",
+   "kind": "component",
+   "tier": "verified",
+   "module": "competition",
+   "summary": "A label and a value in one pill; a measured zero is a value.",
+   "depth": "full",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgChip","sha256":"1577abd9dc9a8f1c398e22510681477f90147d63fbeddbe44c1919fcb9394d85","bytes":232},
+    "css": [{"file":"public/app.css","rules":8,"sha256":"8b46ae4b2e6ceff92498db738d3547f3ead67bf9586ce562e97e607149fd5959","bytes":898}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".lg-chip",".lg-chip b",".lg-chip--done",".lg-chip--live",".lg-chip--none",".lg-chip--post, .lg-chip--cancel",".lg-chip--up",".lg-chip--warn"],
+    "selectorsTotal": 8,
+    "rules": 8,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--lg-accent","--lg-bd-soft","--lg-tile","--tx-2","--tx-3"],
+    "customPropertiesTotal": 5,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [
+    {"name":"up","class":"lg-chip--up","rules":1,"cases":["with modifier: up"],"stories":["AllModifiers"],"exercised":true},
+    {"name":"live","class":"lg-chip--live","rules":1,"cases":["with modifier: live"],"stories":["AllModifiers"],"exercised":true},
+    {"name":"done","class":"lg-chip--done","rules":1,"cases":["with modifier: done"],"stories":["AllModifiers"],"exercised":true},
+    {"name":"post","class":"lg-chip--post","rules":1,"cases":[],"stories":["AllModifiers"],"exercised":true},
+    {"name":"cancel","class":"lg-chip--cancel","rules":1,"cases":[],"stories":["AllModifiers"],"exercised":true},
+    {"name":"none","class":"lg-chip--none","rules":1,"cases":[],"stories":["AllModifiers"],"exercised":true},
+    {"name":"warn","class":"lg-chip--warn","rules":1,"cases":[],"stories":["AllModifiers"],"exercised":true}
+   ],
+   "stories": {
+    "file": "tools/storybook/stories/LgChip.stories.js",
+    "title": "Familista/_lgChip",
+    "cases": ["LabelAndValue","ValueOnly","LabelOnly","ZeroIsAValue","AllModifiers","RTL","Tablet","Mobile"],
+    "golden": ["label and value","value only","label only","zero is a value","with modifier: up","with modifier: live","with modifier: done"],
+    "options": ["up","live","done","post","cancel","none","warn"],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
+   "accessibility": {
+    "facts": [{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/LgChip.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/LgChip.stories.js"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "MEASURED",
+    "stories": "MEASURED",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "lg-status-chip",
+   "name": "Status chip",
+   "category": "data-display",
+   "kind": "component",
+   "tier": "verified",
+   "module": "competition",
+   "summary": "One shape for a match status; unknown input reads as upcoming.",
+   "depth": "full",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgStatusChip","sha256":"84a1ac08156228368b599adf327fa4bf120b20d017dd6e899c6423e7c33f1698","bytes":133},
+    "css": [{"file":"public/app.css","rules":6,"sha256":"b37ad04564f6e48a366f616d688bab095093e59a2678e0ca59aec7fbbd473f63","bytes":711}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".lg-chip",".lg-chip b",".lg-chip--done",".lg-chip--live",".lg-chip--post, .lg-chip--cancel",".lg-chip--up"],
+    "selectorsTotal": 6,
+    "rules": 6,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--lg-accent","--lg-bd-soft","--lg-tile","--tx-2","--tx-3"],
+    "customPropertiesTotal": 5,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [
+    {"name":"upcoming","class":"lg-chip--up","rules":1,"cases":["SCHEDULED","empty falls back to upcoming"],"stories":["Upcoming","UnknownFallsBackToUpcoming"],"exercised":true},
+    {"name":"live","class":"lg-chip--live","rules":1,"cases":["LIVE","HALFTIME","live"],"stories":["Live"],"exercised":true},
+    {"name":"finished","class":"lg-chip--done","rules":1,"cases":["PLAYED","FT"],"stories":["Finished"],"exercised":true},
+    {"name":"postponed","class":"lg-chip--post","rules":1,"cases":["POSTPONED"],"stories":["Postponed"],"exercised":true},
+    {"name":"cancelled","class":"lg-chip--cancel","rules":1,"cases":["CANCELLED","ABANDONED"],"stories":["Cancelled"],"exercised":true}
+   ],
+   "stories": {
+    "file": "tools/storybook/stories/LgStatusChip.stories.js",
+    "title": "Familista/_lgStatusChip",
+    "cases": ["Live","Upcoming","Finished","Postponed","Cancelled","UnknownFallsBackToUpcoming","AllStatuses","RTL","Tablet","Mobile"],
+    "golden": ["SCHEDULED","LIVE","HALFTIME","PLAYED","FT","POSTPONED","CANCELLED","ABANDONED","live","nonsense","empty falls back to upcoming"],
+    "options": ["nonsense"],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
+   "accessibility": {
+    "facts": [{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/LgStatusChip.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/LgStatusChip.stories.js"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": ["_lgStatus"]
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "MEASURED",
+    "stories": "MEASURED",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "lg-form",
+   "name": "Form run",
+   "category": "data-display",
+   "kind": "component",
+   "tier": "verified",
+   "module": "competition",
+   "summary": "The last five results, newest last; no results is a dash.",
+   "depth": "full",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgForm","sha256":"83c50cc1d4ab4476d8d3b14363347ab2310ba63a019375607bdc97f74df5cd63","bytes":301},
+    "css": [{"file":"public/app.css","rules":8,"sha256":"9a2e81319c6a3f4cd1d243aa42d3e266aff19e7351005d4b21aee67a91c017a9","bytes":478}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".lg-f",".lg-f--d",".lg-f--l",".lg-f--w",".lg-form",".lg-form-none, .lg-na",".mcx-mu-form .lg-form",".mcx-mu-form .lg-form:last-of-type"],
+    "selectorsTotal": 8,
+    "rules": 8,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--tx-3"],
+    "customPropertiesTotal": 1,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"lg-form-none","rules":1,"emitted":true}
+   ],
+   "variants": [
+    {"name":"win","class":"lg-f--w","rules":1,"cases":["five results"],"stories":["FiveResults"],"exercised":true},
+    {"name":"draw","class":"lg-f--d","rules":1,"cases":["five results"],"stories":["FiveResults"],"exercised":true},
+    {"name":"loss","class":"lg-f--l","rules":1,"cases":["five results"],"stories":["FiveResults"],"exercised":true}
+   ],
+   "stories": {
+    "file": "tools/storybook/stories/LgForm.stories.js",
+    "title": "Familista/_lgForm",
+    "cases": ["FiveResults","OneResult","EmptyIsADash","NullIsADash","RTL","Tablet","Mobile"],
+    "golden": ["five results","lowercase input","one result","empty list is a dash","null is a dash"],
+    "options": [],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
+   "accessibility": {
+    "facts": [{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/LgForm.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/LgForm.stories.js"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "MEASURED",
+    "stories": "MEASURED",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "lg-metric",
+   "name": "Metric",
+   "category": "data-display",
+   "kind": "component",
+   "tier": "verified",
+   "module": "competition",
+   "summary": "A labelled figure; zero is shown as 0 and an unrecorded figure as a dash.",
+   "depth": "full",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgMetric","sha256":"393f269053fdb33c58069298b0aff1288693c4e47111066805b8936b379500e0","bytes":366},
+    "css": [{"file":"public/app.css","rules":16,"sha256":"077e1fabd7726872dcb7d7de74a31a0df0cbffa4554943b4ebbc7b2c271b69e9","bytes":1457}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".fl-club-grid .lg-metric--hero",".lg-metric",".lg-metric--hero",".lg-metric--hero .lg-metric-v",".lg-metric--hero::before",".lg-metric-l",".lg-metric-s",".lg-metric-v",".lg-metric::before",".lg-metrics",".lg-metrics--wide",".lg-metrics--wide .lg-metric-v"],
+    "selectorsTotal": 12,
+    "rules": 16,
+    "states": [],
+    "mediaQueries": ["@media (max-width:760px)"],
+    "customProperties": ["--lg-accent","--lg-bd","--lg-bd-soft","--lg-tile","--tx-1","--tx-3"],
+    "customPropertiesTotal": 6,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"lg-metric-l","rules":2,"emitted":true},
+    {"cls":"lg-metric-v","rules":4,"emitted":true},
+    {"cls":"lg-metric-s","rules":1,"emitted":true}
+   ],
+   "variants": [
+    {"name":"hero","class":"lg-metric--hero","rules":5,"cases":["with modifier class"],"stories":["Hero"],"exercised":true},
+    {"name":"wide row","class":"lg-metrics--wide","rules":2,"cases":[],"stories":[],"exercised":false}
+   ],
+   "stories": {
+    "file": "tools/storybook/stories/LgMetric.stories.js",
+    "title": "Familista/_lgMetric",
+    "cases": ["Value","MeasuredZero","NotRecorded","EmptyString","Hero","Row","RTL","Tablet","Mobile"],
+    "golden": ["value","with sub line","measured zero renders 0","null renders a dash","empty string renders a dash","with modifier class"],
+    "options": ["lg-metric--hero"],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
+   "accessibility": {
+    "facts": [{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/LgMetric.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/LgMetric.stories.js"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "MEASURED",
+    "stories": "MEASURED",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "lg-versus",
+   "name": "Versus bar",
+   "category": "data-display",
+   "kind": "component",
+   "tier": "verified",
+   "module": "competition",
+   "summary": "Two real figures compared on one bar; a missing side is not drawn.",
+   "depth": "full",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgVersus","sha256":"604258a5f3280e1c415cbe2a84d46abe8e8090dc4dc01aa757b93acbe234b6b9","bytes":1399},
+    "css": [{"file":"public/app.css","rules":14,"sha256":"f2a69d8377b7f44d16fadd3115fcd347ba6399e169fc1507977a4071f71261ec","bytes":1123}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".lg-vs-a",".lg-vs-b",".lg-vs-bar",".lg-vs-bar.is-flat",".lg-vs-head",".lg-vs-head span:last-child",".lg-vs-l",".lg-vs-mid",".lg-vs-row",".lg-vs-row:first-of-type",".lg-vs-v",".lg-vs-v.is-lead",".lg-vs-vs"],
+    "selectorsTotal": 13,
+    "rules": 14,
+    "states": [".is-flat",".is-lead",":last-child"],
+    "mediaQueries": ["@media (max-width:700px)"],
+    "customProperties": ["--lg-accent","--lg-them","--tx-1","--tx-2","--tx-3"],
+    "customPropertiesTotal": 5,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"lg-vs-row","rules":3,"emitted":true},
+    {"cls":"lg-vs-head","rules":2,"emitted":false},
+    {"cls":"lg-vs-l","rules":1,"emitted":true},
+    {"cls":"lg-vs-v","rules":2,"emitted":true},
+    {"cls":"lg-vs-bar","rules":2,"emitted":true},
+    {"cls":"lg-vs-a","rules":1,"emitted":true},
+    {"cls":"lg-vs-b","rules":1,"emitted":true},
+    {"cls":"lg-vs-mid","rules":1,"emitted":true},
+    {"cls":"lg-vs-vs","rules":1,"emitted":false}
+   ],
+   "variants": [],
+   "stories": {
+    "file": "tools/storybook/stories/LgVersus.stories.js",
+    "title": "Familista/_lgVersus",
+    "cases": ["ALeads","BLeads","Level","BothZeroIsFlat","OneSideMissing","BothMissingShownAsUnavailable","LowerIsBetter","Comparison","RTL","Tablet","Mobile"],
+    "golden": ["a leads","b leads","level","both zero is flat","one side missing","both missing draws nothing","both missing, shown as unavailable","lower is better, a leads","lower is better, b leads","custom formatter"],
+    "options": [],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
+   "accessibility": {
+    "facts": [{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/LgVersus.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/LgVersus.stories.js"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "MEASURED",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "lg-table",
+   "name": "Table",
+   "category": "data-display",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "competition",
+   "summary": "The competition table surface and its scrolling wrapper.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":5,"sha256":"17f5fe472c4fc63b0a5334f2252768330d4ea1d5d5388466203aa34578e4aaac","bytes":690}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".lg-table",".lg-table tbody tr:last-child td",".lg-table td",".lg-table th",".lg-table-wrap"],
+    "selectorsTotal": 5,
+    "rules": 5,
+    "states": [":last-child"],
+    "mediaQueries": [],
+    "customProperties": ["--lg-bd","--lg-bd-soft","--tx-2","--tx-3"],
+    "customPropertiesTotal": 4,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "badge",
+   "name": "Badge",
+   "category": "data-display",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "A small rounded label with colour variants.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":7,"sha256":"52a6c85833c8c9c2c754614a79ed950e3e5359546b73f4658afd118fb0b0e0fa","bytes":720}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".badge",".badge-amber",".badge-blue",".badge-gray",".badge-green",".badge-purple",".badge-red"],
+    "selectorsTotal": 7,
+    "rules": 7,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--amber","--amber-bg","--bd","--bg-4","--blue","--blue-bg","--green-bd","--green-bg","--green-l","--mono","--purple","--red","--red-bg","--tx-2"],
+    "customPropertiesTotal": 14,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [
+    {"name":"green","class":"badge-green","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"red","class":"badge-red","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"amber","class":"badge-amber","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"blue","class":"badge-blue","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"purple","class":"badge-purple","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"gray","class":"badge-gray","rules":1,"cases":[],"stories":[],"exercised":false}
+   ],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js",
+    "public/familista-vision/familista-vision.js",
+    "public/index.html",
+    "public/infrastructure-city/infrastructure-city.js",
+    "public/source-core/source-core.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "MEASURED",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "metric-tile",
+   "name": "Metric tile",
+   "category": "data-display",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "The earlier metric tile, with value, label, change and icon parts.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":9,"sha256":"fc50c8931d6e5967838c802756aed2bc99b3a0058d8582217e0a3943806fd013","bytes":1163}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".metric",".metric-chg",".metric-icon",".metric-lbl",".metric-val",".metric-val[style*=\"color:var(--amber)\"], .metric-val[style*=\"color: var(--amber)\"]",".metric-val[style*=\"color:var(--green-l)\"], .metric-val[style*=\"color: var(--green-l)\"]"],
+    "selectorsTotal": 7,
+    "rules": 9,
+    "states": [],
+    "mediaQueries": ["@media (max-width: 480px)"],
+    "customProperties": ["--tx","--tx-2"],
+    "customPropertiesTotal": 2,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"metric-val","rules":5,"emitted":null},
+    {"cls":"metric-lbl","rules":1,"emitted":null},
+    {"cls":"metric-chg","rules":1,"emitted":null},
+    {"cls":"metric-icon","rules":1,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "lg-panel",
+   "name": "Panel",
+   "category": "surfaces",
+   "kind": "component",
+   "tier": "verified",
+   "module": "competition",
+   "summary": "The one surface the competition screens share, with title, sub line and body.",
+   "depth": "full",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgPanel","sha256":"48d67543f6439c646a74f86fa2ecc520a8592df8cd9e021ceb37154d444c6c66","bytes":598},
+    "css": [{"file":"public/app.css","rules":24,"sha256":"cc6456893cf07b3a37b7dbca8590c327ee633c32a46a1ce6153ebaf68fe57dbc","bytes":2123}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".fl-boards > .lg-panel",".fl-boards > .lg-panel > .lg-panel-b",".fl-body > .lg-panel",".lg-panel",".lg-panel--board .lg-panel-b",".lg-panel--fill .lg-empty",".lg-panel--fill .lg-panel-b > *",".lg-panel--fill, .lg-panel--pitch",".lg-panel--pitch .lg-panel-b, .lg-panel--fill .lg-panel-b",".lg-panel--pitch .lg-rule, .mcx-panel--theirs .lg-rule",".lg-panel--table .lg-panel-b",".lg-panel--tall",".lg-panel-b",".lg-panel-h",".lg-panel-h h2",".lg-panel-s",".lg-panel-s span",".mcx-col > .lg-panel",".mcx-col > .lg-panel--fill, .mcx-col > .lg-panel--pitch",".mcx-cols--prep .mcx-col--mu .lg-panel-h",".mcx-cols--prep .mcx-col--pitch > .lg-panel",".mcx-panel--ours .lg-panel-h h2",".mcx-panel--theirs .lg-panel-h h2"],
+    "selectorsTotal": 23,
+    "rules": 24,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--lg-accent","--lg-bd","--lg-bd-soft","--lg-glass","--lg-r","--lg-shadow","--lg-them","--tx-2","--tx-3"],
+    "customPropertiesTotal": 9,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"lg-panel-h","rules":6,"emitted":true},
+    {"cls":"lg-panel-s","rules":2,"emitted":true},
+    {"cls":"lg-panel-b","rules":6,"emitted":true}
+   ],
+   "variants": [
+    {"name":"table","class":"lg-panel--table","rules":1,"cases":["table panel"],"stories":["TablePanel"],"exercised":true},
+    {"name":"fill","class":"lg-panel--fill","rules":5,"cases":["fill panel"],"stories":[],"exercised":true},
+    {"name":"pitch","class":"lg-panel--pitch","rules":4,"cases":[],"stories":[],"exercised":false},
+    {"name":"tall","class":"lg-panel--tall","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"board","class":"lg-panel--board","rules":1,"cases":[],"stories":[],"exercised":false}
+   ],
+   "stories": {
+    "file": "tools/storybook/stories/LgPanel.stories.js",
+    "title": "Familista/_lgPanel",
+    "cases": ["TitleAndBody","WithSubLine","TablePanel","EmptyBody","Composed","RTL","Tablet","Mobile"],
+    "golden": ["title and body","with sub line","table panel","fill panel","empty body"],
+    "options": ["lg-panel--table","lg-panel--fill","lg-panel--pitch","lg-panel--tall","lg-panel--board"],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
+   "accessibility": {
+    "facts": [{"id":"aria-hidden","label":"The function marks decorative graphics aria-hidden.","evidence":"MEASURED","where":"render function"},{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/LgPanel.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/LgPanel.stories.js"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "MEASURED",
+    "stories": "MEASURED",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "lg-float",
+   "name": "Floating panel",
+   "category": "surfaces",
+   "kind": "component",
+   "tier": "verified",
+   "module": "competition",
+   "summary": "A fixed backdrop and a card that opens on opacity and transform only.",
+   "depth": "full",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgFloat","sha256":"4e01b049f1c77bb8bf2586a1af663d4261180d7f99439e55241e3c1e957f6259","bytes":637},
+    "css": [{"file":"public/app.css","rules":18,"sha256":"0382a19fe72568ed33806adf02123708c0f157c23d11b164a1d253505c3d7f84","bytes":2353}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".fl-club .lg-float-b",".fl-club .lg-float-h",".lg-float",".lg-float--lg",".lg-float--md",".lg-float-b",".lg-float-b::-webkit-scrollbar",".lg-float-b::-webkit-scrollbar-thumb",".lg-float-b::-webkit-scrollbar-track",".lg-float-bg",".lg-float-f",".lg-float-h",".lg-float-id",".lg-float-t",".lg-float-x",".lg-float-x:hover",".mcc-float .lg-float-b",".mcx-layer--top .mcx-float-bg, .mcx-layer--top .lg-float-bg"],
+    "selectorsTotal": 18,
+    "rules": 18,
+    "states": [":hover"],
+    "mediaQueries": [],
+    "customProperties": ["--lg-bd","--tx-1","--tx-2"],
+    "customPropertiesTotal": 3,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"lg-float-bg","rules":2,"emitted":true},
+    {"cls":"lg-float-h","rules":2,"emitted":true},
+    {"cls":"lg-float-id","rules":1,"emitted":true},
+    {"cls":"lg-float-t","rules":1,"emitted":false},
+    {"cls":"lg-float-x","rules":2,"emitted":true},
+    {"cls":"lg-float-b","rules":6,"emitted":true},
+    {"cls":"lg-float-f","rules":1,"emitted":true}
+   ],
+   "variants": [
+    {"name":"medium","class":"lg-float--md","rules":1,"cases":["medium width class"],"stories":["Medium"],"exercised":true},
+    {"name":"large","class":"lg-float--lg","rules":1,"cases":["large width class"],"stories":["Large"],"exercised":true}
+   ],
+   "stories": {
+    "file": "tools/storybook/stories/LgFloat.stories.js",
+    "title": "Familista/_lgFloat",
+    "cases": ["HeadAndBody","WithFooter","Medium","Large","LongBodyScrolls","RTL","Tablet","Mobile"],
+    "golden": ["head and body","with footer","medium width class","large width class","no options"],
+    "options": ["lg-float--md","lg-float--lg"],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
+   "accessibility": {
+    "facts": [{"id":"role","label":"The function writes an ARIA role.","evidence":"MEASURED","where":"render function"},{"id":"aria-attr","label":"The function writes ARIA state or label attributes.","evidence":"MEASURED","where":"render function"},{"id":"native-button","label":"The function renders a native button element.","evidence":"MEASURED","where":"render function"},{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/LgFloat.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/LgFloat.stories.js"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "MEASURED",
+    "stories": "MEASURED",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "lg-empty",
+   "name": "Empty state",
+   "category": "surfaces",
+   "kind": "component",
+   "tier": "verified",
+   "module": "competition",
+   "summary": "Names what is missing and what would fill it.",
+   "depth": "full",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgEmpty","sha256":"839554a4422d02582db17ba0b97cfd6d480118e8752ed6a02224efbf12231cb4","bytes":796},
+    "css": [{"file":"public/app.css","rules":7,"sha256":"bbb5e7d7394ca15c2ba44a1ce91056fefc75b555fc1cbead4fa444c63adaf775","bytes":793}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".lg-empty",".lg-empty--error .lg-empty-t",".lg-empty-ic",".lg-empty-s",".lg-empty-t",".lg-panel--fill .lg-empty"],
+    "selectorsTotal": 6,
+    "rules": 7,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--lg-bd-soft","--lg-tile","--tx-2","--tx-3"],
+    "customPropertiesTotal": 4,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"lg-empty-ic","rules":2,"emitted":true},
+    {"cls":"lg-empty-t","rules":2,"emitted":true},
+    {"cls":"lg-empty-s","rules":1,"emitted":true}
+   ],
+   "variants": [
+    {"name":"error","class":"lg-empty--error","rules":1,"cases":[],"stories":[],"exercised":false}
+   ],
+   "stories": {
+    "file": "tools/storybook/stories/LgEmpty.stories.js",
+    "title": "Familista/_lgEmpty",
+    "cases": ["TitleAndSub","TitleOnly","NotRecorded","InsideAPanel","RTL","Tablet","Mobile"],
+    "golden": ["title and sub","title only","ignores icon argument"],
+    "options": [],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
+   "accessibility": {
+    "facts": [{"id":"aria-hidden","label":"The function marks decorative graphics aria-hidden.","evidence":"MEASURED","where":"render function"},{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/LgEmpty.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/LgEmpty.stories.js"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "MEASURED",
+    "stories": "MEASURED",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "card",
+   "name": "Card",
+   "category": "surfaces",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "The base surface with border, radius and optional hover and click states.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":16,"sha256":"2ff9494b1a13e4d480f9a80b89ca917e86bbb5d40e1e205d0688ea7acaf7e249","bytes":2543}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".card",".card-header",".card-sub",".card-title",".card.clickable",".card.clickable:hover",".card.clickable:hover, .match-row:hover, .login-btn:hover, .btn-primary:hover, [class*=\"-tile\"]:hover, [class*=\"-shield\"]:hover, [class*=\"-node\"]:hover, [class*=\"-kpi\"]:hover, [class*=\"-row\"]:hover",".card.hover:hover","body.fos-neural-theme .card, body.fos-neural-theme .fos-holo-card, body.fos-neural-theme [class*=\"-card\"]","body.fos-neural-theme .card, body.fos-neural-theme .modal","body.fos-neural-theme .card, body.fos-neural-theme .modal, body.fos-neural-theme .fos-holo-card, body.fos-neural-theme [class*=\"-card\"]","body:has(.modal-bg.open) .card, body:has(.modal-bg.open) .pc, body:has(.modal-bg.open) .player-card, body:has(.modal-bg.open) .q-card, body:has(.modal-bg.open) .quantum-card","body:has(.sq-plm.is-open) .card, body:has(.sq-plm.is-open) .pc, body:has(.sq-plm.is-open) .player-card, body:has(.tf-modal) .card, body:has(.tf-modal) .pc, body:has(.tf-modal) .player-card"],
+    "selectorsTotal": 13,
+    "rules": 16,
+    "states": [":hover"],
+    "mediaQueries": [],
+    "customProperties": ["--bd","--bd-2","--card","--fos-glass","--fos-glass-bd","--radius-lg","--shadow","--shadow-lg","--trans","--tx","--tx-3"],
+    "customPropertiesTotal": 11,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"card-header","rules":1,"emitted":null},
+    {"cls":"card-title","rules":1,"emitted":null},
+    {"cls":"card-sub","rules":1,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js",
+    "public/design-system/components.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "modal",
+   "name": "Modal",
+   "category": "surfaces",
+   "kind": "pattern",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "A backdrop, a dialog and its header, title, close and body parts.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":17,"sha256":"3953253c084f7eb24201d277c8fb9423e44046b3dd8809c89b37ba6e53ef67ad","bytes":2791}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".modal",".modal-bg",".modal-bg.open",".modal-bg.open, .modal-bg.open .modal, .modal-bg.open *",".modal-body",".modal-body > div",".modal-close",".modal-close:hover",".modal-hdr",".modal-title","body.fos-neural-theme .card, body.fos-neural-theme .modal","body.fos-neural-theme .card, body.fos-neural-theme .modal, body.fos-neural-theme .fos-holo-card, body.fos-neural-theme [class*=\"-card\"]","body:has(.modal-bg.open) .card, body:has(.modal-bg.open) .pc, body:has(.modal-bg.open) .player-card, body:has(.modal-bg.open) .q-card, body:has(.modal-bg.open) .quantum-card","body:has(.modal-bg.open) .page, body:has(.modal-bg.open) #pages-container, body:has(.modal-bg.open) .content","body:has(.sq-plm.is-open)::before, body:has(.sq-plm.is-open)::after, body:has(.tf-modal)::before, body:has(.tf-modal)::after, body:has(.modal-bg.open)::before, body:has(.modal-bg.open)::after, body:has(.pa-scrim)::before, body:has(.pa-scrim)::after"],
+    "selectorsTotal": 15,
+    "rules": 17,
+    "states": [".open",":hover"],
+    "mediaQueries": ["@media (max-width: 768px)"],
+    "customProperties": ["--bd","--bd-2","--card","--fos-glass","--fos-glass-bd","--radius-xl","--red","--red-bg","--trans","--tx"],
+    "customPropertiesTotal": 10,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"modal-bg","rules":7,"emitted":null},
+    {"cls":"modal-hdr","rules":1,"emitted":null},
+    {"cls":"modal-title","rules":1,"emitted":null},
+    {"cls":"modal-close","rules":2,"emitted":null},
+    {"cls":"modal-body","rules":2,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js",
+    "public/index.html"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "toast",
+   "name": "Toast",
+   "category": "surfaces",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "A transient message with success, error and info variants.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":6,"sha256":"4ba469bce9da1fb4e39a1d31300118d94cefc3e7fddf79f6313b4d0abc1e6a06","bytes":526}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": ["#toast-container .toast","#toast-container .toast[data-gone]",".toast",".toast-error",".toast-info",".toast-success"],
+    "selectorsTotal": 6,
+    "rules": 6,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--radius","--shadow-lg"],
+    "customPropertiesTotal": 2,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [
+    {"name":"success","class":"toast-success","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"error","class":"toast-error","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"info","class":"toast-info","rules":1,"cases":[],"stories":[],"exercised":false}
+   ],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "MEASURED",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "empty-legacy",
+   "name": "Empty block",
+   "category": "surfaces",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "The earlier empty state, with icon, title and sub line parts.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":4,"sha256":"646e5670a2e2c357782e4f3c7e56aa5a033bfba93b2fae5a3ca72b65d1a219ac","bytes":281}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".empty",".empty-ico",".empty-sub",".empty-ttl"],
+    "selectorsTotal": 4,
+    "rules": 4,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--tx-2","--tx-3"],
+    "customPropertiesTotal": 2,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"empty-ico","rules":1,"emitted":null},
+    {"cls":"empty-ttl","rules":1,"emitted":null},
+    {"cls":"empty-sub","rules":1,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/algorithms/algorithms.js",
+    "public/app.js",
+    "public/familista-admin.html",
+    "public/familista-vision/familista-vision.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "skeleton",
+   "name": "Skeleton",
+   "category": "surfaces",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "A placeholder block for content that is still loading.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":4,"sha256":"ddeb414584d83bbc4e7cb3e5dc8c7a50795a76b6e1cc63230ec88023bbbebc0b","bytes":510}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".skeleton",".skeleton-card",".skeleton-text"],
+    "selectorsTotal": 3,
+    "rules": 4,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--bg-3","--bg-4","--radius","--radius-lg"],
+    "customPropertiesTotal": 4,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"skeleton-text","rules":1,"emitted":null},
+    {"cls":"skeleton-card","rules":1,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/algorithms/algorithms.js",
+    "public/design-system/design-system.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "spinner",
+   "name": "Spinner",
+   "category": "surfaces",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "The loading indicator.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":1,"sha256":"39a84acdccf1531a482dce255c92652d326ecc4beb825e5a41a27c13b0596875","bytes":148}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".spinner"],
+    "selectorsTotal": 1,
+    "rules": 1,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--bd-2","--green"],
+    "customPropertiesTotal": 2,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "button",
+   "name": "Button",
+   "category": "controls",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "The base button, with primary, outline, ghost and danger variants and two sizes.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":15,"sha256":"d9bcf19eaa7bbf09b2d6d7121be2232c217e3dd3835e30681234602b0e76b4ed","bytes":1505}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".btn",".btn-danger",".btn-ghost",".btn-ghost:hover",".btn-outline",".btn-outline:hover",".btn-primary",".btn-primary:disabled",".btn-primary:hover",".btn-sm",".btn-xs",".card.clickable:hover, .match-row:hover, .login-btn:hover, .btn-primary:hover, [class*=\"-tile\"]:hover, [class*=\"-shield\"]:hover, [class*=\"-node\"]:hover, [class*=\"-kpi\"]:hover, [class*=\"-row\"]:hover","body.club-theme .set-mfa-row a.btn"],
+    "selectorsTotal": 13,
+    "rules": 15,
+    "states": [":disabled",":hover"],
+    "mediaQueries": [],
+    "customProperties": ["--bd","--bd-2","--bg-3","--font","--green","--radius","--red","--red-bg","--trans","--tx","--tx-2","--tx-3"],
+    "customPropertiesTotal": 12,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [
+    {"name":"primary","class":"btn-primary","rules":6,"cases":[],"stories":[],"exercised":false},
+    {"name":"outline","class":"btn-outline","rules":2,"cases":[],"stories":[],"exercised":false},
+    {"name":"ghost","class":"btn-ghost","rules":2,"cases":[],"stories":[],"exercised":false},
+    {"name":"danger","class":"btn-danger","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"sm","class":"btn-sm","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"xs","class":"btn-xs","rules":1,"cases":[],"stories":[],"exercised":false}
+   ],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js",
+    "public/familista-admin.html",
+    "public/index.html"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "MEASURED",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "lg-action",
+   "name": "Action button",
+   "category": "controls",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "competition",
+   "summary": "A competition screen action, primary or ghost, with its row and note.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":7,"sha256":"655a6083ae1dfbf7a1d9e25afbbc54726d84be4b6aefd97f5f0150fbdf447c06","bytes":874}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".lg-act",".lg-act--ghost",".lg-act--primary",".lg-act--primary:hover",".lg-act-note",".lg-act-row",".lg-act:hover"],
+    "selectorsTotal": 7,
+    "rules": 7,
+    "states": [":hover"],
+    "mediaQueries": [],
+    "customProperties": ["--lg-accent","--lg-bd","--lg-tile-2","--tx-1","--tx-2","--tx-3"],
+    "customPropertiesTotal": 6,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"lg-act-row","rules":1,"emitted":null},
+    {"cls":"lg-act-note","rules":1,"emitted":null}
+   ],
+   "variants": [
+    {"name":"primary","class":"lg-act--primary","rules":2,"cases":[],"stories":[],"exercised":false},
+    {"name":"ghost","class":"lg-act--ghost","rules":1,"cases":[],"stories":[],"exercised":false}
+   ],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "MEASURED",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "filter-button",
+   "name": "Filter button",
+   "category": "controls",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "A pill that filters a list, with an active state and a group.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":5,"sha256":"884f4e20969534932d7519af80173e3be4a6deb6ba19655c0bb82bcdee316c11","bytes":441}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".filter-btn",".filter-btn.active",".filter-btn:hover",".filter-group"],
+    "selectorsTotal": 4,
+    "rules": 5,
+    "states": [".active",":hover"],
+    "mediaQueries": ["@media (max-width: 768px)"],
+    "customProperties": ["--bd","--bg-3","--green-bd","--green-bg","--green-l","--trans","--tx","--tx-3"],
+    "customPropertiesTotal": 8,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js",
+    "public/index.html"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "toggle",
+   "name": "Toggle",
+   "category": "controls",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "An on and off switch with a knob.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":7,"sha256":"66413a4bed99e1e768182b1e04de8de695b4f438b5d8339b677158eafd2b3417","bytes":726}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".toggle",".toggle-knob",".toggle.on",".toggle.on .toggle-knob","body.club-theme .set-aidata-row .toggle","body.club-theme .set-aidata-row .toggle:disabled","body.club-theme .set-aidata-row .toggle:focus-visible"],
+    "selectorsTotal": 7,
+    "rules": 7,
+    "states": [".on",":disabled",":focus-visible"],
+    "mediaQueries": [],
+    "customProperties": ["--bd","--bg-4","--green","--trans"],
+    "customPropertiesTotal": 4,
+    "focusVisible": true,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"toggle-knob","rules":2,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": [{"id":"focus-visible","label":"A rule styles :focus-visible.","evidence":"MEASURED","where":"stylesheet"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/algorithms/algorithms.js",
+    "public/app.js",
+    "public/cybersecurity/cybersecurity.js",
+    "public/data-vault/data-vault.js",
+    "public/design-system/components.js",
+    "public/design-system/design-system.js",
+    "public/design-system/explorer.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "input",
+   "name": "Input",
+   "category": "controls",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "The base text field, with a focus ring and a placeholder style.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":3,"sha256":"09b0a5ff3f2dfbbf84ee5510fcafb9caf7945067b7e32adc4b725e9ff256aec2","bytes":331}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".input",".input::placeholder",".input:focus"],
+    "selectorsTotal": 3,
+    "rules": 3,
+    "states": ["::placeholder",":focus"],
+    "mediaQueries": [],
+    "customProperties": ["--bd","--bg-3","--font","--green","--green-bg","--radius","--trans","--tx","--tx-3"],
+    "customPropertiesTotal": 9,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/algorithms/algorithms.js",
+    "public/app.js",
+    "public/familista-admin.html",
+    "public/index.html",
+    "public/source-core/source-core.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "sidebar-nav",
+   "name": "Sidebar navigation",
+   "category": "shell",
+   "kind": "pattern",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "The application sidebar with sections, items, icons and badges.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":61,"sha256":"61c41908533b8d8c2537e5e4727eb15d50bacca30115c94a9f9b2d4d9bc4841d","bytes":9206}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".nav-badge",".nav-icon",".nav-item",".nav-item.active",".nav-item.active .nav-icon",".nav-item.active::before",".nav-item:hover",".nav-section",".nav-tenant-placeholder .nav-icon",".sidebar",".sidebar-footer",".sidebar-nav",".sidebar-nav > .nav-section:nth-of-type(1)",".sidebar-nav > .nav-section:nth-of-type(2)",".sidebar-nav > .nav-section:nth-of-type(3)",".sidebar-nav::-webkit-scrollbar",".sidebar.collapsed",".sidebar.collapsed .nav-badge",".sidebar.collapsed .nav-item",".sidebar.collapsed .nav-label,.sidebar.collapsed .brand-text, .sidebar.collapsed .club-card,.sidebar.collapsed .nav-section, .sidebar.collapsed .user-name,.sidebar.collapsed .user-email",".sidebar.collapsed .sidebar-footer-actions",".sidebar.collapsed .sidebar-settings",".sidebar.mobile-open","[dir=\"rtl\"] .sidebar","body.club-theme .nav-item","body.club-theme .nav-item .nav-badge","body.club-theme .nav-item .nav-icon","body.club-theme .nav-item .nav-label","body.club-theme .nav-item--platform.active","body.club-theme .nav-item--platform.active .nav-icon","body.club-theme .nav-item--platform:hover","body.club-theme .nav-item--workspace.active","body.club-theme .nav-item--workspace.active .nav-icon","body.club-theme .nav-item--workspace:hover","body.club-theme .nav-item.active","body.club-theme .nav-item.active .nav-icon","body.club-theme .nav-item:hover","body.club-theme .nav-section","body.club-theme .nav-section--platform","body.club-theme .nav-section--workspace","body.club-theme .nav-section:first-of-type","body.club-theme .sidebar","body.club-theme .sidebar-footer","body.club-theme .sidebar.collapsed","body.club-theme .sidebar.mobile-open","body.club-theme.area-club .nav-section--platform, body.club-theme.area-club .nav-item--platform","body.club-theme.area-home .sidebar","body.club-theme.area-system .nav-section--workspace, body.club-theme.area-system .nav-item--workspace, body.club-theme.area-system .club-card","body.fos-neural-theme .nav-item.active","body.fos-neural-theme .nav-item.active::before","body.fos-neural-theme .nav-item:hover","body.fos-neural-theme .nav-section","body.fos-neural-theme .sidebar","body.fos-neural-theme .sidebar, body.fos-neural-theme .content, body.fos-neural-theme .main-content, body.fos-neural-theme .topbar, body.fos-neural-theme .auth-overlay","body.fos-neural-theme .sidebar-nav > .nav-section:nth-of-type(1)","body.fos-neural-theme .sidebar-nav > .nav-section:nth-of-type(2)","body.fos-neural-theme .sidebar-nav > .nav-section:nth-of-type(3)"],
+    "selectorsTotal": 57,
+    "rules": 61,
+    "states": [".active",":hover"],
+    "mediaQueries": ["@media (max-width: 1023px)","@media (max-width: 768px)"],
+    "customProperties": ["--b-default","--b-subtle","--bd","--bg-3","--bg-elevated","--card","--fos-glass-bd","--fos-primary","--fos-secondary","--gold-400","--gold-glow","--green","--green-bd","--green-bg","--green-l","--mono","--nav-w","--pitch-400","--pitch-500","--r-md","--radius","--red","--red-bg","--royal-500","--sh-3","--sp-2","--sp-3","--sp-4","--sp-5","--t-primary","--t-secondary","--t-tertiary","--topbar-h","--trans","--tx","--tx-2","--tx-3"],
+    "customPropertiesTotal": 37,
+    "focusVisible": false,
+    "rtl": true,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"sidebar-nav","rules":8,"emitted":null},
+    {"cls":"sidebar-footer","rules":2,"emitted":null},
+    {"cls":"nav-section","rules":11,"emitted":null},
+    {"cls":"nav-label","rules":2,"emitted":null},
+    {"cls":"nav-item","rules":17,"emitted":null},
+    {"cls":"nav-icon","rules":7,"emitted":null},
+    {"cls":"nav-badge","rules":3,"emitted":null}
+   ],
+   "variants": [
+    {"name":"platform item","class":"nav-item--platform","rules":4,"cases":[],"stories":[],"exercised":false},
+    {"name":"workspace item","class":"nav-item--workspace","rules":4,"cases":[],"stories":[],"exercised":false},
+    {"name":"platform section","class":"nav-section--platform","rules":2,"cases":[],"stories":[],"exercised":false},
+    {"name":"workspace section","class":"nav-section--workspace","rules":2,"cases":[],"stories":[],"exercised":false}
+   ],
+   "stories": null,
+   "accessibility": {
+    "facts": [{"id":"rtl-rules","label":"A rule is written for right-to-left or Arabic.","evidence":"MEASURED","where":"stylesheet"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js",
+    "public/familista-admin.html",
+    "public/index.html"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "MEASURED",
+    "stories": "NONE",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "topbar",
+   "name": "Top bar",
+   "category": "shell",
+   "kind": "pattern",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "The top bar with menu button, brand, emblem and titles.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":22,"sha256":"d706d7f7065a67db7e335a7a1c44cee2f42a407865c1f44806b6f93039ad2206","bytes":3628}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".topbar-titles",".topbar-titles .page-title, .topbar-titles .page-subtitle, body.club-theme .topbar-titles","body.club-theme .header, body.club-theme .topbar","body.club-theme .topbar-back","body.club-theme .topbar-back svg","body.club-theme .topbar-back:focus-visible","body.club-theme .topbar-back:hover","body.club-theme .topbar-brand","body.club-theme .topbar-brand:hover","body.club-theme .topbar-emblem","body.club-theme .topbar-menu-btn","body.club-theme .topbar-menu-btn:hover","body.club-theme .topbar-titles","body.club-theme .topbar-titles .page-subtitle","body.club-theme .topbar-titles .page-title","body.club-theme img.topbar-emblem","body.club-theme.area-home .topbar-back","body.club-theme.area-home .topbar-menu-btn","body.fos-neural-theme .sidebar, body.fos-neural-theme .content, body.fos-neural-theme .main-content, body.fos-neural-theme .topbar, body.fos-neural-theme .auth-overlay","body.fos-neural-theme .topbar"],
+    "selectorsTotal": 20,
+    "rules": 22,
+    "states": [":focus-visible",":hover"],
+    "mediaQueries": ["@media (max-width: 1023px)","@media (max-width:900px)"],
+    "customProperties": ["--b-default","--b-strong","--bg-elevated","--fos-glass-bd","--pitch-600","--pitch-700","--pitch-800","--r-md","--sh-1","--sp-2","--sp-3","--sp-4","--sp-6","--t-primary","--t-secondary","--t-tertiary","--topbar-h"],
+    "customPropertiesTotal": 17,
+    "focusVisible": true,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"topbar-menu-btn","rules":4,"emitted":null},
+    {"cls":"topbar-brand","rules":2,"emitted":null},
+    {"cls":"topbar-back","rules":5,"emitted":null},
+    {"cls":"topbar-emblem","rules":2,"emitted":null},
+    {"cls":"topbar-titles","rules":6,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": [{"id":"focus-visible","label":"A rule styles :focus-visible.","evidence":"MEASURED","where":"stylesheet"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js",
+    "public/familista-admin.html",
+    "public/index.html"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "page",
+   "name": "Page container",
+   "category": "shell",
+   "kind": "layout-utility",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "The scrolling page that is shown when it is active.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":7,"sha256":"900adf56f773187cb29339623059d58580b67467bb9c0cb9f30b3f2be035bbc4","bytes":1024}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".page",".page, .content",".page, .content, body.fos-neural-theme",".page.active","body:has(.modal-bg.open) .page, body:has(.modal-bg.open) #pages-container, body:has(.modal-bg.open) .content","body:has(.sq-plm.is-open) .page, body:has(.sq-plm.is-open) #pages-container, body:has(.sq-plm.is-open) .content, body:has(.tf-modal) .page, body:has(.tf-modal) #pages-container, body:has(.tf-modal) .content, body:has(.pa-scrim) .page, body:has(.pa-scrim) #pages-container, body:has(.pa-scrim) .content"],
+    "selectorsTotal": 6,
+    "rules": 7,
+    "states": [".active"],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/algorithms/algorithms.js",
+    "public/app.js",
+    "public/design-system/explorer.js",
+    "public/system/system.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "page-header",
+   "name": "Page header",
+   "category": "shell",
+   "kind": "pattern",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "A page title and subtitle.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":5,"sha256":"e7424176b9a284bc64de3c530bd9e2356c6b41da8308d041dda4c73d9108cfbe","bytes":711}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".page-title",".page-title, .page-subtitle",".topbar-titles .page-title, .topbar-titles .page-subtitle, body.club-theme .topbar-titles","body.club-theme .topbar-titles .page-subtitle","body.club-theme .topbar-titles .page-title"],
+    "selectorsTotal": 5,
+    "rules": 5,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--t-primary","--t-tertiary","--tx"],
+    "customPropertiesTotal": 3,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js",
+    "public/index.html"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "hidden",
+   "name": "Hidden",
+   "category": "shell",
+   "kind": "layout-utility",
+   "tier": "catalogued",
+   "module": "core",
+   "summary": "Removes an element from the layout, with priority.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/app.css","rules":1,"sha256":"f203ebbcf7f5a3533147774a116080ccba3056b15e22f53cdaad2e502aebb430","bytes":35}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".hidden"],
+    "selectorsTotal": 1,
+    "rules": 1,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js",
+    "public/design-system/components.js",
+    "public/design-system/explorer.js",
+    "public/familista-admin.html",
+    "public/index.html"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "ds-shell",
+   "name": "Owner room shell",
+   "category": "owner-kit",
+   "kind": "pattern",
+   "tier": "catalogued",
+   "module": "design-system",
+   "summary": "The fixed-height room: a rail, a top bar and a body that scrolls inside itself.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/design-system/design-system.css","rules":26,"sha256":"8473cf12f71388f4e16da705e68d709a319ae2a59079f93f5a5ed57b9b9e6515","bytes":3754}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": ["#ds-root[dir=\"rtl\"] .ds-rail-item.is-on",".ds-body",".ds-main",".ds-rail",".ds-rail-body",".ds-rail-foot",".ds-rail-head",".ds-rail-item",".ds-rail-item.is-on",".ds-rail-item:hover",".ds-shell",".ds-top",".ds-top-l",".ds-top-r",".ds-top-title",":is(.ds-rail-item, .ds-rail-home, .ds-btn, .ds-lang-pick, .ds-lang, .ds-tab, .ds-seg-b, .ds-input, .ds-body):focus-visible"],
+    "selectorsTotal": 16,
+    "rules": 26,
+    "states": [".is-on",":focus-visible",":hover"],
+    "mediaQueries": ["@media (max-width: 1360px)","@media (max-width: 980px), (max-height: 620px)"],
+    "customProperties": ["--fam-border-default","--fam-border-width-hairline","--fam-border-width-strong","--fam-focus-ring","--fam-font-size-3xl","--fam-font-size-base","--fam-font-weight-extrabold","--fam-font-weight-semibold","--fam-layout-nav-width","--fam-module-accent","--fam-radius-md","--fam-space-1","--fam-space-14","--fam-space-2","--fam-space-3","--fam-space-4","--fam-space-5","--fam-space-6","--fam-surface-canvas","--fam-surface-tile","--fam-surface-tile-strong","--fam-text-primary","--fam-text-secondary"],
+    "customPropertiesTotal": 23,
+    "focusVisible": true,
+    "rtl": true,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"ds-rail-head","rules":1,"emitted":null},
+    {"cls":"ds-rail-body","rules":2,"emitted":null},
+    {"cls":"ds-rail-item","rules":6,"emitted":null},
+    {"cls":"ds-rail-foot","rules":2,"emitted":null},
+    {"cls":"ds-top-l","rules":1,"emitted":null},
+    {"cls":"ds-top-r","rules":2,"emitted":null},
+    {"cls":"ds-top-title","rules":2,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": [{"id":"focus-visible","label":"A rule styles :focus-visible.","evidence":"MEASURED","where":"stylesheet"},{"id":"rtl-rules","label":"A rule is written for right-to-left or Arabic.","evidence":"MEASURED","where":"stylesheet"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/design-system/design-system.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "ds-chip",
+   "name": "Evidence chip",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "design-system",
+   "summary": "A pill that states how a figure is known, never only by colour.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/design-system/design-system.css","rules":14,"sha256":"c9f534119d0fb7a733008adf9b1d6411aede1e0f54fb8b89e8186d19390447f0","bytes":1990}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".ds-chip",".ds-chip--crit",".ds-chip--info",".ds-chip--none",".ds-chip--ok",".ds-chip--rec",".ds-chip--sm",".ds-chip--warn",".ds-dot"],
+    "selectorsTotal": 9,
+    "rules": 14,
+    "states": [],
+    "mediaQueries": ["@supports (background: color-mix(in srgb, red 10%, transparent))"],
+    "customProperties": ["--fam-border-default","--fam-border-width-hairline","--fam-font-size-sm","--fam-font-size-xs","--fam-font-tracking-wide","--fam-font-weight-bold","--fam-radius-full","--fam-space-2","--fam-space-3","--fam-status-critical","--fam-status-info","--fam-status-neutral","--fam-status-success","--fam-status-unverified","--fam-status-warning","--fam-surface-tile","--fam-text-secondary"],
+    "customPropertiesTotal": 17,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"ds-dot","rules":1,"emitted":null}
+   ],
+   "variants": [
+    {"name":"ok","class":"ds-chip--ok","rules":2,"cases":[],"stories":[],"exercised":false},
+    {"name":"warn","class":"ds-chip--warn","rules":2,"cases":[],"stories":[],"exercised":false},
+    {"name":"crit","class":"ds-chip--crit","rules":2,"cases":[],"stories":[],"exercised":false},
+    {"name":"info","class":"ds-chip--info","rules":2,"cases":[],"stories":[],"exercised":false},
+    {"name":"rec","class":"ds-chip--rec","rules":2,"cases":[],"stories":[],"exercised":false},
+    {"name":"none","class":"ds-chip--none","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"sm","class":"ds-chip--sm","rules":1,"cases":[],"stories":[],"exercised":false}
+   ],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/design-system/components.js",
+    "public/design-system/design-system.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "MEASURED",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "ds-panel",
+   "name": "Panel",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "design-system",
+   "summary": "The dark gradient surface with a hairline border and a title row.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/design-system/design-system.css","rules":4,"sha256":"9d32f94456101069e3572b79b11fe2a3ae68f09747e35fe5193bdffbe7b19ed7","bytes":746}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".ds-panel",".ds-panel-head",".ds-panel-note",".ds-panel-title"],
+    "selectorsTotal": 4,
+    "rules": 4,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--fam-blur-md","--fam-border-default","--fam-border-width-hairline","--fam-font-size-base","--fam-font-size-md","--fam-font-tracking-label","--fam-font-weight-extrabold","--fam-radius-panel","--fam-space-4","--fam-space-5","--fam-surface-panel","--fam-surface-panel-muted","--fam-text-secondary"],
+    "customPropertiesTotal": 13,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"ds-panel-head","rules":1,"emitted":null},
+    {"cls":"ds-panel-title","rules":1,"emitted":null},
+    {"cls":"ds-panel-note","rules":1,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/design-system/design-system.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "ds-metric",
+   "name": "Metric",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "design-system",
+   "summary": "A labelled figure with its source and how it is known.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/design-system/design-system.css","rules":6,"sha256":"dab34672e0db54a5ec0602448d03f27df199f4b2452b399e0734ee787cb58f6b","bytes":1083}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".ds-metric",".ds-metric-foot",".ds-metric-label",".ds-metric-src",".ds-metric-sub",".ds-metric-value"],
+    "selectorsTotal": 6,
+    "rules": 6,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--fam-border-default","--fam-border-width-hairline","--fam-font-line-height-tight","--fam-font-size-4xl","--fam-font-size-md","--fam-font-size-sm","--fam-font-tracking-label","--fam-font-weight-black","--fam-font-weight-bold","--fam-radius-panel","--fam-space-1","--fam-space-2","--fam-space-3","--fam-space-4","--fam-space-5","--fam-surface-panel","--fam-surface-panel-muted","--fam-text-secondary"],
+    "customPropertiesTotal": 18,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"ds-metric-label","rules":1,"emitted":null},
+    {"cls":"ds-metric-value","rules":1,"emitted":null},
+    {"cls":"ds-metric-sub","rules":1,"emitted":null},
+    {"cls":"ds-metric-foot","rules":1,"emitted":null},
+    {"cls":"ds-metric-src","rules":1,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/design-system/design-system.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "ds-seg",
+   "name": "Segmented control",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "design-system",
+   "summary": "A row of exclusive choices.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/design-system/design-system.css","rules":5,"sha256":"fbc92207e889877984dbadf37dd9e4bd565001cdf06e0210e8335e47ffe35f3f","bytes":888}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".ds-seg",".ds-seg-b",".ds-seg-b + .ds-seg-b",".ds-seg-b.is-on",":is(.ds-rail-item, .ds-rail-home, .ds-btn, .ds-lang-pick, .ds-lang, .ds-tab, .ds-seg-b, .ds-input, .ds-body):focus-visible"],
+    "selectorsTotal": 5,
+    "rules": 5,
+    "states": [".is-on",":focus-visible"],
+    "mediaQueries": [],
+    "customProperties": ["--fam-border-default","--fam-border-strong","--fam-border-width-hairline","--fam-border-width-strong","--fam-focus-ring","--fam-font-size-md","--fam-font-weight-bold","--fam-module-accent","--fam-radius-md","--fam-size-control-md","--fam-space-4","--fam-surface-tile-strong","--fam-text-primary","--fam-text-secondary"],
+    "customPropertiesTotal": 14,
+    "focusVisible": true,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"ds-seg-b","rules":4,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": [{"id":"focus-visible","label":"A rule styles :focus-visible.","evidence":"MEASURED","where":"stylesheet"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/design-system/components.js",
+    "public/design-system/design-system.js",
+    "public/design-system/explorer.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "ds-tabs",
+   "name": "Tabs",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "design-system",
+   "summary": "A tab list with an amber underline for the selected tab.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/design-system/design-system.css","rules":6,"sha256":"358a4f3a30921f9d5de25bd7dbeb629f8e195751d622597256d5a3127dd09cab","bytes":863}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".ds-tab",".ds-tab.is-on",".ds-tab:hover",".ds-tabs",":is(.ds-rail-item, .ds-rail-home, .ds-btn, .ds-lang-pick, .ds-lang, .ds-tab, .ds-seg-b, .ds-input, .ds-body):focus-visible"],
+    "selectorsTotal": 5,
+    "rules": 6,
+    "states": [".is-on",":focus-visible",":hover"],
+    "mediaQueries": ["@media (max-width: 720px)"],
+    "customProperties": ["--fam-border-default","--fam-border-width-hairline","--fam-border-width-strong","--fam-focus-ring","--fam-font-size-base","--fam-font-weight-bold","--fam-module-accent","--fam-space-1","--fam-space-3","--fam-space-4","--fam-text-primary","--fam-text-secondary"],
+    "customPropertiesTotal": 12,
+    "focusVisible": true,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": [{"id":"focus-visible","label":"A rule styles :focus-visible.","evidence":"MEASURED","where":"stylesheet"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/design-system/design-system.js",
+    "public/design-system/explorer.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "ds-table",
+   "name": "Table",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "design-system",
+   "summary": "A readable data table with a scrolling wrapper.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/design-system/design-system.css","rules":11,"sha256":"0f415662d97d77e44d5807de7d529cf2f8a7a7151917a36ef29d432e9b44022c","bytes":1604}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".ds-sub",".ds-table",".ds-table .ds-num",".ds-table tbody tr:hover",".ds-table td",".ds-table td[data-l]::before",".ds-table th",".ds-table tr",".ds-tablewrap"],
+    "selectorsTotal": 9,
+    "rules": 11,
+    "states": [":hover"],
+    "mediaQueries": ["@media (max-width: 720px)"],
+    "customProperties": ["--fam-border-default","--fam-border-subtle","--fam-border-width-hairline","--fam-font-size-base","--fam-font-size-sm","--fam-font-size-xs","--fam-font-tracking-label","--fam-font-weight-bold","--fam-radius-lg","--fam-space-2","--fam-space-3","--fam-surface-tile","--fam-text-secondary"],
+    "customPropertiesTotal": 13,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"ds-num","rules":2,"emitted":null},
+    {"cls":"ds-sub","rules":1,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/design-system/components.js",
+    "public/design-system/design-system.js",
+    "public/design-system/explorer.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "ds-kv",
+   "name": "Key and value list",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "design-system",
+   "summary": "Labelled facts, one per line.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/design-system/design-system.css","rules":5,"sha256":"96e4e59710aa7a209a05f22e15b980c2b2e5831a509338efbba0140b1e92f0ac","bytes":572}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".ds-kv",".ds-kv-k",".ds-kv-list",".ds-kv-v",".ds-kv:last-child"],
+    "selectorsTotal": 5,
+    "rules": 5,
+    "states": [":last-child"],
+    "mediaQueries": [],
+    "customProperties": ["--fam-border-subtle","--fam-border-width-hairline","--fam-font-size-md","--fam-font-weight-semibold","--fam-space-2","--fam-space-3","--fam-text-secondary"],
+    "customPropertiesTotal": 7,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"ds-kv-list","rules":1,"emitted":null},
+    {"cls":"ds-kv-k","rules":1,"emitted":null},
+    {"cls":"ds-kv-v","rules":1,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/design-system/components.js",
+    "public/design-system/design-system.js",
+    "public/design-system/explorer.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "ds-button",
+   "name": "Button",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "design-system",
+   "summary": "The room’s button, with a fixed minimum width.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/design-system/design-system.css","rules":4,"sha256":"c98c90ee5801f7696d60a4f7f0d237d7c67edd7a51c65658ee212e58f0ea5472","bytes":828}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".ds-btn",".ds-btn:hover:not([disabled])",".ds-btn[disabled]",":is(.ds-rail-item, .ds-rail-home, .ds-btn, .ds-lang-pick, .ds-lang, .ds-tab, .ds-seg-b, .ds-input, .ds-body):focus-visible"],
+    "selectorsTotal": 4,
+    "rules": 4,
+    "states": [":focus-visible",":hover"],
+    "mediaQueries": [],
+    "customProperties": ["--fam-border-default","--fam-border-strong","--fam-border-width-hairline","--fam-border-width-strong","--fam-focus-ring","--fam-font-size-md","--fam-font-weight-bold","--fam-radius-md","--fam-size-control-sm","--fam-space-3","--fam-surface-tile","--fam-text-primary","--fam-text-secondary"],
+    "customPropertiesTotal": 13,
+    "focusVisible": true,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": [{"id":"focus-visible","label":"A rule styles :focus-visible.","evidence":"MEASURED","where":"stylesheet"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/design-system/components.js",
+    "public/design-system/design-system.js",
+    "public/design-system/explorer.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "ds-field",
+   "name": "Field",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "design-system",
+   "summary": "A labelled search or select input.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/design-system/design-system.css","rules":7,"sha256":"708af868b0ba5e626a5cf92e77fa8b84785534dc7aba13fb2fdf5b603894066e","bytes":893}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".ds-field",".ds-field, .ds-field--q",".ds-field--q",".ds-field-l",".ds-input",".ds-input::placeholder",":is(.ds-rail-item, .ds-rail-home, .ds-btn, .ds-lang-pick, .ds-lang, .ds-tab, .ds-seg-b, .ds-input, .ds-body):focus-visible"],
+    "selectorsTotal": 7,
+    "rules": 7,
+    "states": ["::placeholder",":focus-visible"],
+    "mediaQueries": ["@media (max-width: 720px)"],
+    "customProperties": ["--fam-border-strong","--fam-border-width-hairline","--fam-border-width-strong","--fam-focus-ring","--fam-font-size-base","--fam-font-size-sm","--fam-font-weight-bold","--fam-radius-md","--fam-size-control-md","--fam-space-3","--fam-surface-base","--fam-text-primary","--fam-text-secondary"],
+    "customPropertiesTotal": 13,
+    "focusVisible": true,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"ds-field-l","rules":1,"emitted":null},
+    {"cls":"ds-field--q","rules":2,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": [{"id":"focus-visible","label":"A rule styles :focus-visible.","evidence":"MEASURED","where":"stylesheet"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/design-system/components.js",
+    "public/design-system/design-system.js",
+    "public/design-system/explorer.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "ds-empty",
+   "name": "Empty state",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "design-system",
+   "summary": "Says what is missing and what would fill it.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/design-system/design-system.css","rules":4,"sha256":"0694564ad9c64ca19de28bd63ce9907f1bbaff488ae6e26dd0f3634a745ee3d8","bytes":547}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".ds-empty",".ds-empty-mark",".ds-empty-title",".ds-empty-why"],
+    "selectorsTotal": 4,
+    "rules": 4,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--fam-font-line-height-relaxed","--fam-font-size-4xl","--fam-font-size-base","--fam-font-size-xl","--fam-font-weight-black","--fam-font-weight-bold","--fam-space-2","--fam-space-4","--fam-space-8","--fam-text-secondary"],
+    "customPropertiesTotal": 10,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"ds-empty-mark","rules":1,"emitted":null},
+    {"cls":"ds-empty-title","rules":1,"emitted":null},
+    {"cls":"ds-empty-why","rules":1,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/design-system/design-system.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "ds-skeleton",
+   "name": "Skeleton",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "design-system",
+   "summary": "A placeholder the size of the content it stands in for.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/design-system/design-system.css","rules":5,"sha256":"6abadb2b1a28c2abc153769859e2f9dd0e006a85f7c8ff8fbf81cd73e9791db3","bytes":377}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": [".ds-skel",".ds-skel-grid",".ds-skel-intro",".ds-skel-row, .ds-skel-intro, .ds-skel-strip, .ds-skel-grid",".ds-skel-strip"],
+    "selectorsTotal": 5,
+    "rules": 5,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": ["--fam-border-subtle","--fam-border-width-hairline","--fam-radius-lg","--fam-space-2","--fam-surface-tile"],
+    "customPropertiesTotal": 5,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [
+    {"cls":"ds-skel-row","rules":1,"emitted":null},
+    {"cls":"ds-skel-intro","rules":2,"emitted":null},
+    {"cls":"ds-skel-strip","rules":2,"emitted":null},
+    {"cls":"ds-skel-grid","rules":2,"emitted":null}
+   ],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/design-system/design-system.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "MEASURED",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "ds-language",
+   "name": "Language menu",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "tier": "catalogued",
+   "module": "design-system",
+   "summary": "A floating menu that switches the room’s language.",
+   "depth": "full",
+   "source": {
+    "js": null,
+    "css": [{"file":"public/design-system/design-system.css","rules":10,"sha256":"0647dc5ef0bdad5def53d49a60f41a6d3a4ce8c4d63de98e85fe640844153ad8","bytes":2075}],
+    "presence": []
+   },
+   "styling": {
+    "selectors": ["#ds-root[dir=\"rtl\"] .ds-lang.is-on",".ds-lang",".ds-lang-menu",".ds-lang-pick",".ds-lang-pick:hover",".ds-lang.is-on",".ds-lang:hover",".ds-langs",".ds-langs.is-open .ds-lang-menu",":is(.ds-rail-item, .ds-rail-home, .ds-btn, .ds-lang-pick, .ds-lang, .ds-tab, .ds-seg-b, .ds-input, .ds-body):focus-visible"],
+    "selectorsTotal": 10,
+    "rules": 10,
+    "states": [".is-on",".is-open",":focus-visible",":hover"],
+    "mediaQueries": [],
+    "customProperties": ["--fam-border-default","--fam-border-strong","--fam-border-width-hairline","--fam-border-width-strong","--fam-duration-fast","--fam-easing-standard","--fam-focus-ring","--fam-font-size-md","--fam-font-weight-bold","--fam-font-weight-semibold","--fam-module-accent","--fam-radius-lg","--fam-radius-md","--fam-shadow-2","--fam-size-control-sm","--fam-space-1","--fam-space-2","--fam-space-3","--fam-surface-raised","--fam-surface-tile","--fam-surface-tile-strong","--fam-text-primary","--fam-text-secondary"],
+    "customPropertiesTotal": 23,
+    "focusVisible": true,
+    "rtl": true,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": [{"id":"focus-visible","label":"A rule styles :focus-visible.","evidence":"MEASURED","where":"stylesheet"},{"id":"rtl-rules","label":"A rule is written for right-to-left or Arabic.","evidence":"MEASURED","where":"stylesheet"}]
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/design-system/design-system.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "MEASURED",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "MEASURED",
+    "dependencies": "MEASURED"
+   }
+  },
+  {
+   "id": "oh-family",
+   "name": "Owner Home",
+   "category": "families",
+   "kind": "page-specific",
+   "tier": "listed",
+   "module": "owner-home",
+   "summary": "Styles that belong to one page.",
+   "depth": "presence",
+   "source": {
+    "js": null,
+    "css": [],
+    "presence": [{"file":"public/app.css","matched":true}]
+   },
+   "styling": {
+    "selectors": [],
+    "selectorsTotal": 0,
+    "rules": 0,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "NONE",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "sy-family",
+   "name": "System room",
+   "category": "families",
+   "kind": "css-family",
+   "tier": "listed",
+   "module": "system",
+   "summary": "Styles that belong to one Owner room.",
+   "depth": "presence",
+   "source": {
+    "js": null,
+    "css": [],
+    "presence": [{"file":"public/system/system.css","matched":true}]
+   },
+   "styling": {
+    "selectors": [],
+    "selectorsTotal": 0,
+    "rules": 0,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js",
+    "public/system/system.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "NONE",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "dv-family",
+   "name": "Data Vault room",
+   "category": "families",
+   "kind": "css-family",
+   "tier": "listed",
+   "module": "data-vault",
+   "summary": "Styles that belong to one Owner room.",
+   "depth": "presence",
+   "source": {
+    "js": null,
+    "css": [],
+    "presence": [{"file":"public/data-vault/data-vault.css","matched":true}]
+   },
+   "styling": {
+    "selectors": [],
+    "selectorsTotal": 0,
+    "rules": 0,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js",
+    "public/data-vault/data-vault.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "NONE",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "ic-family",
+   "name": "Infrastructure City room",
+   "category": "families",
+   "kind": "css-family",
+   "tier": "listed",
+   "module": "infrastructure-city",
+   "summary": "Styles that belong to one Owner room.",
+   "depth": "presence",
+   "source": {
+    "js": null,
+    "css": [],
+    "presence": [{"file":"public/infrastructure-city/infrastructure-city.css","matched":true}]
+   },
+   "styling": {
+    "selectors": [],
+    "selectorsTotal": 0,
+    "rules": 0,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js",
+    "public/infrastructure-city/infrastructure-city.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "NONE",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "sc-family",
+   "name": "Source Core room",
+   "category": "families",
+   "kind": "css-family",
+   "tier": "listed",
+   "module": "source-core",
+   "summary": "Styles that belong to one Owner room.",
+   "depth": "presence",
+   "source": {
+    "js": null,
+    "css": [],
+    "presence": [{"file":"public/source-core/source-core.css","matched":true}]
+   },
+   "styling": {
+    "selectors": [],
+    "selectorsTotal": 0,
+    "rules": 0,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js",
+    "public/source-core/source-core.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "NONE",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "vx-family",
+   "name": "Familista Vision room",
+   "category": "families",
+   "kind": "css-family",
+   "tier": "listed",
+   "module": "vision",
+   "summary": "Styles that belong to one Owner room.",
+   "depth": "presence",
+   "source": {
+    "js": null,
+    "css": [],
+    "presence": [{"file":"public/familista-vision/familista-vision.css","matched":true}]
+   },
+   "styling": {
+    "selectors": [],
+    "selectorsTotal": 0,
+    "rules": 0,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js",
+    "public/familista-vision/familista-vision.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "NONE",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "cs-family",
+   "name": "Cybersecurity room",
+   "category": "families",
+   "kind": "css-family",
+   "tier": "listed",
+   "module": "cybersecurity",
+   "summary": "Styles that belong to one Owner room.",
+   "depth": "presence",
+   "source": {
+    "js": null,
+    "css": [],
+    "presence": [{"file":"public/cybersecurity/cybersecurity.css","matched":true}]
+   },
+   "styling": {
+    "selectors": [],
+    "selectorsTotal": 0,
+    "rules": 0,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js",
+    "public/cybersecurity/cybersecurity.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "NONE",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "al-family",
+   "name": "Algorithms room",
+   "category": "families",
+   "kind": "css-family",
+   "tier": "listed",
+   "module": "algorithms",
+   "summary": "Styles that belong to one Owner room.",
+   "depth": "presence",
+   "source": {
+    "js": null,
+    "css": [],
+    "presence": [{"file":"public/algorithms/algorithms.css","matched":true}]
+   },
+   "styling": {
+    "selectors": [],
+    "selectorsTotal": 0,
+    "rules": 0,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/algorithms/algorithms.js",
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "NONE",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "tf-btn",
+   "name": "tf button",
+   "category": "candidates",
+   "kind": "candidate",
+   "tier": "listed",
+   "module": "unclassified",
+   "summary": "A button-like family defined for one page; not verified as shared.",
+   "depth": "presence",
+   "source": {
+    "js": null,
+    "css": [],
+    "presence": [{"file":"public/app.css","matched":true}]
+   },
+   "styling": {
+    "selectors": [],
+    "selectorsTotal": 0,
+    "rules": 0,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "NONE",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "trn-btn",
+   "name": "trn button",
+   "category": "candidates",
+   "kind": "candidate",
+   "tier": "listed",
+   "module": "unclassified",
+   "summary": "A button-like family defined for one page; not verified as shared.",
+   "depth": "presence",
+   "source": {
+    "js": null,
+    "css": [],
+    "presence": [{"file":"public/app.css","matched":true}]
+   },
+   "styling": {
+    "selectors": [],
+    "selectorsTotal": 0,
+    "rules": 0,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "NONE",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "cx-btn",
+   "name": "cx button",
+   "category": "candidates",
+   "kind": "candidate",
+   "tier": "listed",
+   "module": "unclassified",
+   "summary": "A button-like family defined for one page; not verified as shared.",
+   "depth": "presence",
+   "source": {
+    "js": null,
+    "css": [],
+    "presence": [{"file":"public/app.css","matched":true}]
+   },
+   "styling": {
+    "selectors": [],
+    "selectorsTotal": 0,
+    "rules": 0,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "NONE",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "co-btn",
+   "name": "co button",
+   "category": "candidates",
+   "kind": "candidate",
+   "tier": "listed",
+   "module": "unclassified",
+   "summary": "A button-like family defined for one page; not verified as shared.",
+   "depth": "presence",
+   "source": {
+    "js": null,
+    "css": [],
+    "presence": [{"file":"public/app.css","matched":true}]
+   },
+   "styling": {
+    "selectors": [],
+    "selectorsTotal": 0,
+    "rules": 0,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "NONE",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "tos-btn",
+   "name": "tos button",
+   "category": "candidates",
+   "kind": "candidate",
+   "tier": "listed",
+   "module": "unclassified",
+   "summary": "A button-like family defined for one page; not verified as shared.",
+   "depth": "presence",
+   "source": {
+    "js": null,
+    "css": [],
+    "presence": [{"file":"public/app.css","matched":true}]
+   },
+   "styling": {
+    "selectors": [],
+    "selectorsTotal": 0,
+    "rules": 0,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "NONE",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "tf-modal",
+   "name": "tf modal",
+   "category": "candidates",
+   "kind": "candidate",
+   "tier": "listed",
+   "module": "unclassified",
+   "summary": "A dialog-like family defined for one page; not verified as shared.",
+   "depth": "presence",
+   "source": {
+    "js": null,
+    "css": [],
+    "presence": [{"file":"public/app.css","matched":true}]
+   },
+   "styling": {
+    "selectors": [],
+    "selectorsTotal": 0,
+    "rules": 0,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "NONE",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  },
+  {
+   "id": "tf-chip-btn",
+   "name": "tf chip button",
+   "category": "candidates",
+   "kind": "candidate",
+   "tier": "listed",
+   "module": "unclassified",
+   "summary": "A chip-like control defined for one page; not verified as shared.",
+   "depth": "presence",
+   "source": {
+    "js": null,
+    "css": [],
+    "presence": [{"file":"public/app.css","matched":true}]
+   },
+   "styling": {
+    "selectors": [],
+    "selectorsTotal": 0,
+    "rules": 0,
+    "states": [],
+    "mediaQueries": [],
+    "customProperties": [],
+    "customPropertiesTotal": 0,
+    "focusVisible": false,
+    "rtl": false,
+    "reducedMotion": false
+   },
+   "anatomy": [],
+   "variants": [],
+   "stories": null,
+   "accessibility": {
+    "facts": []
+   },
+   "dependencies": {
+    "calls": [],
+    "calledBy": [],
+    "helpers": []
+   },
+   "referencedIn": [
+    "public/app.js"
+   ],
+   "sections": {
+    "overview": "RECORDED",
+    "anatomy": "NONE",
+    "styling": "NONE",
+    "source": "MEASURED",
+    "variants": "NONE",
+    "stories": "NONE",
+    "accessibility": "NONE",
+    "dependencies": "NONE"
+   }
+  }
+ ]
+}

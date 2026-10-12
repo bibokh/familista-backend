@@ -1,0 +1,1773 @@
+{
+ "version": 1,
+ "description": "The reviewed Familista Components Registry. A person wrote every classification, name and summary here; scripts/design-system-components.js verifies each one against the repository and refuses to generate if any claim cannot be found. It declares no design values: tokens stay in tools/tokens.",
+ "categories": [
+  {
+   "id": "identity",
+   "label": "Identity",
+   "description": "Club and team identity marks."
+  },
+  {
+   "id": "data-display",
+   "label": "Data display",
+   "description": "Chips, figures, comparisons and tables."
+  },
+  {
+   "id": "surfaces",
+   "label": "Surfaces and feedback",
+   "description": "Panels, dialogs, messages, empty and loading states."
+  },
+  {
+   "id": "controls",
+   "label": "Controls",
+   "description": "Buttons, switches, filters and fields."
+  },
+  {
+   "id": "shell",
+   "label": "Application shell",
+   "description": "The frame every page sits in."
+  },
+  {
+   "id": "owner-kit",
+   "label": "Owner room kit",
+   "description": "The primitives the Design System Control room is built from."
+  },
+  {
+   "id": "families",
+   "label": "Page and room families",
+   "description": "Styles that belong to one page or room."
+  },
+  {
+   "id": "candidates",
+   "label": "Candidates",
+   "description": "Look like components; not verified as reusable."
+  }
+ ],
+ "modules": [
+  {
+   "id": "core",
+   "label": "Core (app.css)"
+  },
+  {
+   "id": "competition",
+   "label": "Competition"
+  },
+  {
+   "id": "design-system",
+   "label": "Design System Control"
+  },
+  {
+   "id": "owner-home",
+   "label": "Owner Home"
+  },
+  {
+   "id": "system",
+   "label": "System"
+  },
+  {
+   "id": "data-vault",
+   "label": "Data Vault"
+  },
+  {
+   "id": "infrastructure-city",
+   "label": "Infrastructure City"
+  },
+  {
+   "id": "source-core",
+   "label": "Source Core"
+  },
+  {
+   "id": "vision",
+   "label": "Familista Vision"
+  },
+  {
+   "id": "cybersecurity",
+   "label": "Cybersecurity"
+  },
+  {
+   "id": "algorithms",
+   "label": "Algorithms"
+  },
+  {
+   "id": "unclassified",
+   "label": "Unclassified"
+  }
+ ],
+ "kinds": [
+  {
+   "id": "component",
+   "label": "Production UI component",
+   "description": "A named unit with a production render function, CSS and a reviewed name."
+  },
+  {
+   "id": "primitive",
+   "label": "Shared UI primitive",
+   "description": "Base styles for one kind of element that pages share."
+  },
+  {
+   "id": "pattern",
+   "label": "Reusable design pattern",
+   "description": "A recurring composition of several parts."
+  },
+  {
+   "id": "css-family",
+   "label": "CSS family",
+   "description": "The styles of one room or module, catalogued by prefix and not as components."
+  },
+  {
+   "id": "layout-utility",
+   "label": "Layout utility",
+   "description": "A class that arranges or hides, with no look of its own."
+  },
+  {
+   "id": "page-specific",
+   "label": "Page-specific styles",
+   "description": "Styles that belong to a single page."
+  },
+  {
+   "id": "candidate",
+   "label": "Unverified candidate",
+   "description": "Looks like a component; nobody has verified that it is shared."
+  }
+ ],
+ "components": [
+  {
+   "id": "club-logo",
+   "name": "Club logo",
+   "category": "identity",
+   "kind": "component",
+   "module": "core",
+   "summary": "The club crest in a fixed size ladder, with a shield when there is no crest.",
+   "css": {
+    "classes": [
+     "club-logo"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "js": {
+    "file": "public/app.js",
+    "symbol": "clubLogoHtml"
+   },
+   "variants": [
+    {
+     "name": "plain",
+     "class": "club-logo--plain"
+    },
+    {
+     "name": "round",
+     "class": "club-logo--round"
+    },
+    {
+     "name": "ring",
+     "class": "club-logo--ring"
+    },
+    {
+     "name": "s16",
+     "class": "club-logo--s16"
+    },
+    {
+     "name": "s20",
+     "class": "club-logo--s20"
+    },
+    {
+     "name": "s24",
+     "class": "club-logo--s24"
+    },
+    {
+     "name": "s26",
+     "class": "club-logo--s26"
+    },
+    {
+     "name": "s30",
+     "class": "club-logo--s30"
+    },
+    {
+     "name": "s34",
+     "class": "club-logo--s34"
+    },
+    {
+     "name": "s40",
+     "class": "club-logo--s40"
+    },
+    {
+     "name": "s44",
+     "class": "club-logo--s44"
+    },
+    {
+     "name": "s56",
+     "class": "club-logo--s56"
+    },
+    {
+     "name": "s64",
+     "class": "club-logo--s64"
+    },
+    {
+     "name": "s74",
+     "class": "club-logo--s74"
+    },
+    {
+     "name": "s88",
+     "class": "club-logo--s88"
+    },
+    {
+     "name": "s120",
+     "class": "club-logo--s120"
+    },
+    {
+     "name": "s160",
+     "class": "club-logo--s160"
+    }
+   ],
+   "anatomy": [
+    "club-logo-img",
+    "club-logo-ph"
+   ]
+  },
+  {
+   "id": "club-identity",
+   "name": "Club identity",
+   "category": "identity",
+   "kind": "component",
+   "module": "core",
+   "summary": "A club’s crest and name as one thing, with an optional second line.",
+   "css": {
+    "classes": [
+     "club-ident"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "js": {
+    "file": "public/app.js",
+    "symbol": "clubIdentityHtml"
+   },
+   "anatomy": [
+    "club-ident-txt",
+    "club-ident-name",
+    "club-ident-sub"
+   ]
+  },
+  {
+   "id": "lg-crest",
+   "name": "Crest",
+   "category": "identity",
+   "kind": "component",
+   "module": "competition",
+   "summary": "A club crest, or the club’s initials when it has none.",
+   "css": {
+    "classes": [
+     "lg-crest"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "js": {
+    "file": "public/app.js",
+    "symbol": "_lgCrest"
+   },
+   "variants": [
+    {
+     "name": "mark",
+     "class": "lg-crest--mark",
+     "cases": [
+      "unknown club, initials mark",
+      "single word name"
+     ],
+     "stories": [
+      "InitialsMark"
+     ]
+    }
+   ],
+   "stories": "LgCrest",
+   "golden": "_lgCrest"
+  },
+  {
+   "id": "lg-ident",
+   "name": "Identity",
+   "category": "identity",
+   "kind": "component",
+   "module": "competition",
+   "summary": "Crest, club name and the line under it, read the same everywhere.",
+   "css": {
+    "classes": [
+     "lg-ident"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "js": {
+    "file": "public/app.js",
+    "symbol": "_lgIdent"
+   },
+   "anatomy": [
+    "lg-ident-txt",
+    "lg-ident-name",
+    "lg-ident-sub"
+   ],
+   "stories": "LgIdent",
+   "golden": "_lgIdent"
+  },
+  {
+   "id": "lg-icon",
+   "name": "Icon",
+   "category": "identity",
+   "kind": "primitive",
+   "module": "competition",
+   "summary": "One icon set at one size and stroke, inheriting the colour of its control.",
+   "css": {
+    "classes": [
+     "lg-ic"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "js": {
+    "file": "public/app.js",
+    "symbol": "_lgIcon"
+   }
+  },
+  {
+   "id": "lg-chip",
+   "name": "Chip",
+   "category": "data-display",
+   "kind": "component",
+   "module": "competition",
+   "summary": "A label and a value in one pill; a measured zero is a value.",
+   "css": {
+    "classes": [
+     "lg-chip"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "js": {
+    "file": "public/app.js",
+    "symbol": "_lgChip"
+   },
+   "variants": [
+    {
+     "name": "up",
+     "class": "lg-chip--up",
+     "cases": [
+      "with modifier: up"
+     ],
+     "stories": [
+      "AllModifiers"
+     ]
+    },
+    {
+     "name": "live",
+     "class": "lg-chip--live",
+     "cases": [
+      "with modifier: live"
+     ],
+     "stories": [
+      "AllModifiers"
+     ]
+    },
+    {
+     "name": "done",
+     "class": "lg-chip--done",
+     "cases": [
+      "with modifier: done"
+     ],
+     "stories": [
+      "AllModifiers"
+     ]
+    },
+    {
+     "name": "post",
+     "class": "lg-chip--post",
+     "stories": [
+      "AllModifiers"
+     ]
+    },
+    {
+     "name": "cancel",
+     "class": "lg-chip--cancel",
+     "stories": [
+      "AllModifiers"
+     ]
+    },
+    {
+     "name": "none",
+     "class": "lg-chip--none",
+     "stories": [
+      "AllModifiers"
+     ]
+    },
+    {
+     "name": "warn",
+     "class": "lg-chip--warn",
+     "stories": [
+      "AllModifiers"
+     ]
+    }
+   ],
+   "stories": "LgChip",
+   "golden": "_lgChip"
+  },
+  {
+   "id": "lg-status-chip",
+   "name": "Status chip",
+   "category": "data-display",
+   "kind": "component",
+   "module": "competition",
+   "summary": "One shape for a match status; unknown input reads as upcoming.",
+   "css": {
+    "classes": [
+     "lg-chip"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "js": {
+    "file": "public/app.js",
+    "symbol": "_lgStatusChip"
+   },
+   "variants": [
+    {
+     "name": "upcoming",
+     "class": "lg-chip--up",
+     "cases": [
+      "SCHEDULED",
+      "empty falls back to upcoming"
+     ],
+     "stories": [
+      "Upcoming",
+      "UnknownFallsBackToUpcoming"
+     ]
+    },
+    {
+     "name": "live",
+     "class": "lg-chip--live",
+     "cases": [
+      "LIVE",
+      "HALFTIME",
+      "live"
+     ],
+     "stories": [
+      "Live"
+     ]
+    },
+    {
+     "name": "finished",
+     "class": "lg-chip--done",
+     "cases": [
+      "PLAYED",
+      "FT"
+     ],
+     "stories": [
+      "Finished"
+     ]
+    },
+    {
+     "name": "postponed",
+     "class": "lg-chip--post",
+     "cases": [
+      "POSTPONED"
+     ],
+     "stories": [
+      "Postponed"
+     ]
+    },
+    {
+     "name": "cancelled",
+     "class": "lg-chip--cancel",
+     "cases": [
+      "CANCELLED",
+      "ABANDONED"
+     ],
+     "stories": [
+      "Cancelled"
+     ]
+    }
+   ],
+   "stories": "LgStatusChip",
+   "golden": "_lgStatusChip"
+  },
+  {
+   "id": "lg-form",
+   "name": "Form run",
+   "category": "data-display",
+   "kind": "component",
+   "module": "competition",
+   "summary": "The last five results, newest last; no results is a dash.",
+   "css": {
+    "classes": [
+     "lg-form",
+     "lg-f"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "js": {
+    "file": "public/app.js",
+    "symbol": "_lgForm"
+   },
+   "variants": [
+    {
+     "name": "win",
+     "class": "lg-f--w",
+     "cases": [
+      "five results"
+     ],
+     "stories": [
+      "FiveResults"
+     ]
+    },
+    {
+     "name": "draw",
+     "class": "lg-f--d",
+     "cases": [
+      "five results"
+     ],
+     "stories": [
+      "FiveResults"
+     ]
+    },
+    {
+     "name": "loss",
+     "class": "lg-f--l",
+     "cases": [
+      "five results"
+     ],
+     "stories": [
+      "FiveResults"
+     ]
+    }
+   ],
+   "anatomy": [
+    "lg-form-none"
+   ],
+   "stories": "LgForm",
+   "golden": "_lgForm"
+  },
+  {
+   "id": "lg-metric",
+   "name": "Metric",
+   "category": "data-display",
+   "kind": "component",
+   "module": "competition",
+   "summary": "A labelled figure; zero is shown as 0 and an unrecorded figure as a dash.",
+   "css": {
+    "classes": [
+     "lg-metric",
+     "lg-metrics"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "js": {
+    "file": "public/app.js",
+    "symbol": "_lgMetric"
+   },
+   "variants": [
+    {
+     "name": "hero",
+     "class": "lg-metric--hero",
+     "cases": [
+      "with modifier class"
+     ],
+     "stories": [
+      "Hero"
+     ]
+    },
+    {
+     "name": "wide row",
+     "class": "lg-metrics--wide"
+    }
+   ],
+   "anatomy": [
+    "lg-metric-l",
+    "lg-metric-v",
+    "lg-metric-s"
+   ],
+   "stories": "LgMetric",
+   "golden": "_lgMetric"
+  },
+  {
+   "id": "lg-versus",
+   "name": "Versus bar",
+   "category": "data-display",
+   "kind": "component",
+   "module": "competition",
+   "summary": "Two real figures compared on one bar; a missing side is not drawn.",
+   "css": {
+    "classes": [],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "js": {
+    "file": "public/app.js",
+    "symbol": "_lgVersus"
+   },
+   "anatomy": [
+    "lg-vs-row",
+    "lg-vs-head",
+    "lg-vs-l",
+    "lg-vs-v",
+    "lg-vs-bar",
+    "lg-vs-a",
+    "lg-vs-b",
+    "lg-vs-mid",
+    "lg-vs-vs"
+   ],
+   "stories": "LgVersus",
+   "golden": "_lgVersus"
+  },
+  {
+   "id": "lg-table",
+   "name": "Table",
+   "category": "data-display",
+   "kind": "primitive",
+   "module": "competition",
+   "summary": "The competition table surface and its scrolling wrapper.",
+   "css": {
+    "classes": [
+     "lg-table",
+     "lg-table-wrap"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   }
+  },
+  {
+   "id": "badge",
+   "name": "Badge",
+   "category": "data-display",
+   "kind": "primitive",
+   "module": "core",
+   "summary": "A small rounded label with colour variants.",
+   "css": {
+    "classes": [
+     "badge"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "variants": [
+    {
+     "name": "green",
+     "class": "badge-green"
+    },
+    {
+     "name": "red",
+     "class": "badge-red"
+    },
+    {
+     "name": "amber",
+     "class": "badge-amber"
+    },
+    {
+     "name": "blue",
+     "class": "badge-blue"
+    },
+    {
+     "name": "purple",
+     "class": "badge-purple"
+    },
+    {
+     "name": "gray",
+     "class": "badge-gray"
+    }
+   ]
+  },
+  {
+   "id": "metric-tile",
+   "name": "Metric tile",
+   "category": "data-display",
+   "kind": "primitive",
+   "module": "core",
+   "summary": "The earlier metric tile, with value, label, change and icon parts.",
+   "css": {
+    "classes": [
+     "metric"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "anatomy": [
+    "metric-val",
+    "metric-lbl",
+    "metric-chg",
+    "metric-icon"
+   ]
+  },
+  {
+   "id": "lg-panel",
+   "name": "Panel",
+   "category": "surfaces",
+   "kind": "component",
+   "module": "competition",
+   "summary": "The one surface the competition screens share, with title, sub line and body.",
+   "css": {
+    "classes": [
+     "lg-panel"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "js": {
+    "file": "public/app.js",
+    "symbol": "_lgPanel"
+   },
+   "variants": [
+    {
+     "name": "table",
+     "class": "lg-panel--table",
+     "cases": [
+      "table panel"
+     ],
+     "stories": [
+      "TablePanel"
+     ]
+    },
+    {
+     "name": "fill",
+     "class": "lg-panel--fill",
+     "cases": [
+      "fill panel"
+     ]
+    },
+    {
+     "name": "pitch",
+     "class": "lg-panel--pitch"
+    },
+    {
+     "name": "tall",
+     "class": "lg-panel--tall"
+    },
+    {
+     "name": "board",
+     "class": "lg-panel--board"
+    }
+   ],
+   "anatomy": [
+    "lg-panel-h",
+    "lg-panel-s",
+    "lg-panel-b"
+   ],
+   "stories": "LgPanel",
+   "golden": "_lgPanel"
+  },
+  {
+   "id": "lg-float",
+   "name": "Floating panel",
+   "category": "surfaces",
+   "kind": "component",
+   "module": "competition",
+   "summary": "A fixed backdrop and a card that opens on opacity and transform only.",
+   "css": {
+    "classes": [
+     "lg-float"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "js": {
+    "file": "public/app.js",
+    "symbol": "_lgFloat"
+   },
+   "variants": [
+    {
+     "name": "medium",
+     "class": "lg-float--md",
+     "cases": [
+      "medium width class"
+     ],
+     "stories": [
+      "Medium"
+     ]
+    },
+    {
+     "name": "large",
+     "class": "lg-float--lg",
+     "cases": [
+      "large width class"
+     ],
+     "stories": [
+      "Large"
+     ]
+    }
+   ],
+   "anatomy": [
+    "lg-float-bg",
+    "lg-float-h",
+    "lg-float-id",
+    "lg-float-t",
+    "lg-float-x",
+    "lg-float-b",
+    "lg-float-f"
+   ],
+   "stories": "LgFloat",
+   "golden": "_lgFloat"
+  },
+  {
+   "id": "lg-empty",
+   "name": "Empty state",
+   "category": "surfaces",
+   "kind": "component",
+   "module": "competition",
+   "summary": "Names what is missing and what would fill it.",
+   "css": {
+    "classes": [
+     "lg-empty"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "js": {
+    "file": "public/app.js",
+    "symbol": "_lgEmpty"
+   },
+   "variants": [
+    {
+     "name": "error",
+     "class": "lg-empty--error"
+    }
+   ],
+   "anatomy": [
+    "lg-empty-ic",
+    "lg-empty-t",
+    "lg-empty-s"
+   ],
+   "stories": "LgEmpty",
+   "golden": "_lgEmpty"
+  },
+  {
+   "id": "card",
+   "name": "Card",
+   "category": "surfaces",
+   "kind": "primitive",
+   "module": "core",
+   "summary": "The base surface with border, radius and optional hover and click states.",
+   "css": {
+    "classes": [
+     "card"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "anatomy": [
+    "card-header",
+    "card-title",
+    "card-sub"
+   ]
+  },
+  {
+   "id": "modal",
+   "name": "Modal",
+   "category": "surfaces",
+   "kind": "pattern",
+   "module": "core",
+   "summary": "A backdrop, a dialog and its header, title, close and body parts.",
+   "css": {
+    "classes": [
+     "modal"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "anatomy": [
+    "modal-bg",
+    "modal-hdr",
+    "modal-title",
+    "modal-close",
+    "modal-body"
+   ]
+  },
+  {
+   "id": "toast",
+   "name": "Toast",
+   "category": "surfaces",
+   "kind": "primitive",
+   "module": "core",
+   "summary": "A transient message with success, error and info variants.",
+   "css": {
+    "classes": [
+     "toast"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "variants": [
+    {
+     "name": "success",
+     "class": "toast-success"
+    },
+    {
+     "name": "error",
+     "class": "toast-error"
+    },
+    {
+     "name": "info",
+     "class": "toast-info"
+    }
+   ]
+  },
+  {
+   "id": "empty-legacy",
+   "name": "Empty block",
+   "category": "surfaces",
+   "kind": "primitive",
+   "module": "core",
+   "summary": "The earlier empty state, with icon, title and sub line parts.",
+   "css": {
+    "classes": [
+     "empty"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "anatomy": [
+    "empty-ico",
+    "empty-ttl",
+    "empty-sub"
+   ]
+  },
+  {
+   "id": "skeleton",
+   "name": "Skeleton",
+   "category": "surfaces",
+   "kind": "primitive",
+   "module": "core",
+   "summary": "A placeholder block for content that is still loading.",
+   "css": {
+    "classes": [
+     "skeleton"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "anatomy": [
+    "skeleton-text",
+    "skeleton-card"
+   ]
+  },
+  {
+   "id": "spinner",
+   "name": "Spinner",
+   "category": "surfaces",
+   "kind": "primitive",
+   "module": "core",
+   "summary": "The loading indicator.",
+   "css": {
+    "classes": [
+     "spinner"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   }
+  },
+  {
+   "id": "button",
+   "name": "Button",
+   "category": "controls",
+   "kind": "primitive",
+   "module": "core",
+   "summary": "The base button, with primary, outline, ghost and danger variants and two sizes.",
+   "css": {
+    "classes": [
+     "btn"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "variants": [
+    {
+     "name": "primary",
+     "class": "btn-primary"
+    },
+    {
+     "name": "outline",
+     "class": "btn-outline"
+    },
+    {
+     "name": "ghost",
+     "class": "btn-ghost"
+    },
+    {
+     "name": "danger",
+     "class": "btn-danger"
+    },
+    {
+     "name": "sm",
+     "class": "btn-sm"
+    },
+    {
+     "name": "xs",
+     "class": "btn-xs"
+    }
+   ]
+  },
+  {
+   "id": "lg-action",
+   "name": "Action button",
+   "category": "controls",
+   "kind": "primitive",
+   "module": "competition",
+   "summary": "A competition screen action, primary or ghost, with its row and note.",
+   "css": {
+    "classes": [
+     "lg-act"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "variants": [
+    {
+     "name": "primary",
+     "class": "lg-act--primary"
+    },
+    {
+     "name": "ghost",
+     "class": "lg-act--ghost"
+    }
+   ],
+   "anatomy": [
+    "lg-act-row",
+    "lg-act-note"
+   ]
+  },
+  {
+   "id": "filter-button",
+   "name": "Filter button",
+   "category": "controls",
+   "kind": "primitive",
+   "module": "core",
+   "summary": "A pill that filters a list, with an active state and a group.",
+   "css": {
+    "classes": [
+     "filter-btn",
+     "filter-group"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   }
+  },
+  {
+   "id": "toggle",
+   "name": "Toggle",
+   "category": "controls",
+   "kind": "primitive",
+   "module": "core",
+   "summary": "An on and off switch with a knob.",
+   "css": {
+    "classes": [
+     "toggle"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "anatomy": [
+    "toggle-knob"
+   ]
+  },
+  {
+   "id": "input",
+   "name": "Input",
+   "category": "controls",
+   "kind": "primitive",
+   "module": "core",
+   "summary": "The base text field, with a focus ring and a placeholder style.",
+   "css": {
+    "classes": [
+     "input"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   }
+  },
+  {
+   "id": "sidebar-nav",
+   "name": "Sidebar navigation",
+   "category": "shell",
+   "kind": "pattern",
+   "module": "core",
+   "summary": "The application sidebar with sections, items, icons and badges.",
+   "css": {
+    "classes": [
+     "sidebar"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "variants": [
+    {
+     "name": "platform item",
+     "class": "nav-item--platform"
+    },
+    {
+     "name": "workspace item",
+     "class": "nav-item--workspace"
+    },
+    {
+     "name": "platform section",
+     "class": "nav-section--platform"
+    },
+    {
+     "name": "workspace section",
+     "class": "nav-section--workspace"
+    }
+   ],
+   "anatomy": [
+    "sidebar-nav",
+    "sidebar-footer",
+    "nav-section",
+    "nav-label",
+    "nav-item",
+    "nav-icon",
+    "nav-badge"
+   ]
+  },
+  {
+   "id": "topbar",
+   "name": "Top bar",
+   "category": "shell",
+   "kind": "pattern",
+   "module": "core",
+   "summary": "The top bar with menu button, brand, emblem and titles.",
+   "css": {
+    "classes": [
+     "topbar"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   },
+   "anatomy": [
+    "topbar-menu-btn",
+    "topbar-brand",
+    "topbar-back",
+    "topbar-emblem",
+    "topbar-titles"
+   ]
+  },
+  {
+   "id": "page",
+   "name": "Page container",
+   "category": "shell",
+   "kind": "layout-utility",
+   "module": "core",
+   "summary": "The scrolling page that is shown when it is active.",
+   "css": {
+    "classes": [
+     "page"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   }
+  },
+  {
+   "id": "page-header",
+   "name": "Page header",
+   "category": "shell",
+   "kind": "pattern",
+   "module": "core",
+   "summary": "A page title and subtitle.",
+   "css": {
+    "classes": [
+     "page-title",
+     "page-subtitle"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   }
+  },
+  {
+   "id": "hidden",
+   "name": "Hidden",
+   "category": "shell",
+   "kind": "layout-utility",
+   "module": "core",
+   "summary": "Removes an element from the layout, with priority.",
+   "css": {
+    "classes": [
+     "hidden"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   }
+  },
+  {
+   "id": "ds-shell",
+   "name": "Owner room shell",
+   "category": "owner-kit",
+   "kind": "pattern",
+   "module": "design-system",
+   "summary": "The fixed-height room: a rail, a top bar and a body that scrolls inside itself.",
+   "css": {
+    "classes": [
+     "ds-shell",
+     "ds-main",
+     "ds-top",
+     "ds-body",
+     "ds-rail"
+    ],
+    "files": [
+     "public/design-system/design-system.css"
+    ]
+   },
+   "anatomy": [
+    "ds-rail-head",
+    "ds-rail-body",
+    "ds-rail-item",
+    "ds-rail-foot",
+    "ds-top-l",
+    "ds-top-r",
+    "ds-top-title"
+   ]
+  },
+  {
+   "id": "ds-chip",
+   "name": "Evidence chip",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "module": "design-system",
+   "summary": "A pill that states how a figure is known, never only by colour.",
+   "css": {
+    "classes": [
+     "ds-chip"
+    ],
+    "files": [
+     "public/design-system/design-system.css"
+    ]
+   },
+   "variants": [
+    {
+     "name": "ok",
+     "class": "ds-chip--ok"
+    },
+    {
+     "name": "warn",
+     "class": "ds-chip--warn"
+    },
+    {
+     "name": "crit",
+     "class": "ds-chip--crit"
+    },
+    {
+     "name": "info",
+     "class": "ds-chip--info"
+    },
+    {
+     "name": "rec",
+     "class": "ds-chip--rec"
+    },
+    {
+     "name": "none",
+     "class": "ds-chip--none"
+    },
+    {
+     "name": "sm",
+     "class": "ds-chip--sm"
+    }
+   ],
+   "anatomy": [
+    "ds-dot"
+   ]
+  },
+  {
+   "id": "ds-panel",
+   "name": "Panel",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "module": "design-system",
+   "summary": "The dark gradient surface with a hairline border and a title row.",
+   "css": {
+    "classes": [
+     "ds-panel"
+    ],
+    "files": [
+     "public/design-system/design-system.css"
+    ]
+   },
+   "anatomy": [
+    "ds-panel-head",
+    "ds-panel-title",
+    "ds-panel-note"
+   ]
+  },
+  {
+   "id": "ds-metric",
+   "name": "Metric",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "module": "design-system",
+   "summary": "A labelled figure with its source and how it is known.",
+   "css": {
+    "classes": [
+     "ds-metric"
+    ],
+    "files": [
+     "public/design-system/design-system.css"
+    ]
+   },
+   "anatomy": [
+    "ds-metric-label",
+    "ds-metric-value",
+    "ds-metric-sub",
+    "ds-metric-foot",
+    "ds-metric-src"
+   ]
+  },
+  {
+   "id": "ds-seg",
+   "name": "Segmented control",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "module": "design-system",
+   "summary": "A row of exclusive choices.",
+   "css": {
+    "classes": [
+     "ds-seg"
+    ],
+    "files": [
+     "public/design-system/design-system.css"
+    ]
+   },
+   "anatomy": [
+    "ds-seg-b"
+   ]
+  },
+  {
+   "id": "ds-tabs",
+   "name": "Tabs",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "module": "design-system",
+   "summary": "A tab list with an amber underline for the selected tab.",
+   "css": {
+    "classes": [
+     "ds-tabs",
+     "ds-tab"
+    ],
+    "files": [
+     "public/design-system/design-system.css"
+    ]
+   }
+  },
+  {
+   "id": "ds-table",
+   "name": "Table",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "module": "design-system",
+   "summary": "A readable data table with a scrolling wrapper.",
+   "css": {
+    "classes": [
+     "ds-table",
+     "ds-tablewrap"
+    ],
+    "files": [
+     "public/design-system/design-system.css"
+    ]
+   },
+   "anatomy": [
+    "ds-num",
+    "ds-sub"
+   ]
+  },
+  {
+   "id": "ds-kv",
+   "name": "Key and value list",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "module": "design-system",
+   "summary": "Labelled facts, one per line.",
+   "css": {
+    "classes": [
+     "ds-kv"
+    ],
+    "files": [
+     "public/design-system/design-system.css"
+    ]
+   },
+   "anatomy": [
+    "ds-kv-list",
+    "ds-kv-k",
+    "ds-kv-v"
+   ]
+  },
+  {
+   "id": "ds-button",
+   "name": "Button",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "module": "design-system",
+   "summary": "The room’s button, with a fixed minimum width.",
+   "css": {
+    "classes": [
+     "ds-btn"
+    ],
+    "files": [
+     "public/design-system/design-system.css"
+    ]
+   }
+  },
+  {
+   "id": "ds-field",
+   "name": "Field",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "module": "design-system",
+   "summary": "A labelled search or select input.",
+   "css": {
+    "classes": [
+     "ds-field",
+     "ds-input"
+    ],
+    "files": [
+     "public/design-system/design-system.css"
+    ]
+   },
+   "anatomy": [
+    "ds-field-l",
+    "ds-field--q"
+   ]
+  },
+  {
+   "id": "ds-empty",
+   "name": "Empty state",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "module": "design-system",
+   "summary": "Says what is missing and what would fill it.",
+   "css": {
+    "classes": [
+     "ds-empty"
+    ],
+    "files": [
+     "public/design-system/design-system.css"
+    ]
+   },
+   "anatomy": [
+    "ds-empty-mark",
+    "ds-empty-title",
+    "ds-empty-why"
+   ]
+  },
+  {
+   "id": "ds-skeleton",
+   "name": "Skeleton",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "module": "design-system",
+   "summary": "A placeholder the size of the content it stands in for.",
+   "css": {
+    "classes": [
+     "ds-skel"
+    ],
+    "files": [
+     "public/design-system/design-system.css"
+    ]
+   },
+   "anatomy": [
+    "ds-skel-row",
+    "ds-skel-intro",
+    "ds-skel-strip",
+    "ds-skel-grid"
+   ]
+  },
+  {
+   "id": "ds-language",
+   "name": "Language menu",
+   "category": "owner-kit",
+   "kind": "primitive",
+   "module": "design-system",
+   "summary": "A floating menu that switches the room’s language.",
+   "css": {
+    "classes": [
+     "ds-langs",
+     "ds-lang",
+     "ds-lang-pick",
+     "ds-lang-menu"
+    ],
+    "files": [
+     "public/design-system/design-system.css"
+    ]
+   }
+  },
+  {
+   "id": "oh-family",
+   "name": "Owner Home",
+   "category": "families",
+   "kind": "page-specific",
+   "module": "owner-home",
+   "summary": "Styles that belong to one page.",
+   "css": {
+    "classes": [],
+    "files": [
+     "public/app.css"
+    ],
+    "prefixes": [
+     "oh-"
+    ]
+   }
+  },
+  {
+   "id": "sy-family",
+   "name": "System room",
+   "category": "families",
+   "kind": "css-family",
+   "module": "system",
+   "summary": "Styles that belong to one Owner room.",
+   "css": {
+    "classes": [],
+    "files": [
+     "public/system/system.css"
+    ],
+    "prefixes": [
+     "sy-"
+    ]
+   }
+  },
+  {
+   "id": "dv-family",
+   "name": "Data Vault room",
+   "category": "families",
+   "kind": "css-family",
+   "module": "data-vault",
+   "summary": "Styles that belong to one Owner room.",
+   "css": {
+    "classes": [],
+    "files": [
+     "public/data-vault/data-vault.css"
+    ],
+    "prefixes": [
+     "dv-"
+    ]
+   }
+  },
+  {
+   "id": "ic-family",
+   "name": "Infrastructure City room",
+   "category": "families",
+   "kind": "css-family",
+   "module": "infrastructure-city",
+   "summary": "Styles that belong to one Owner room.",
+   "css": {
+    "classes": [],
+    "files": [
+     "public/infrastructure-city/infrastructure-city.css"
+    ],
+    "prefixes": [
+     "ic-"
+    ]
+   }
+  },
+  {
+   "id": "sc-family",
+   "name": "Source Core room",
+   "category": "families",
+   "kind": "css-family",
+   "module": "source-core",
+   "summary": "Styles that belong to one Owner room.",
+   "css": {
+    "classes": [],
+    "files": [
+     "public/source-core/source-core.css"
+    ],
+    "prefixes": [
+     "sc-"
+    ]
+   }
+  },
+  {
+   "id": "vx-family",
+   "name": "Familista Vision room",
+   "category": "families",
+   "kind": "css-family",
+   "module": "vision",
+   "summary": "Styles that belong to one Owner room.",
+   "css": {
+    "classes": [],
+    "files": [
+     "public/familista-vision/familista-vision.css"
+    ],
+    "prefixes": [
+     "vx-"
+    ]
+   }
+  },
+  {
+   "id": "cs-family",
+   "name": "Cybersecurity room",
+   "category": "families",
+   "kind": "css-family",
+   "module": "cybersecurity",
+   "summary": "Styles that belong to one Owner room.",
+   "css": {
+    "classes": [],
+    "files": [
+     "public/cybersecurity/cybersecurity.css"
+    ],
+    "prefixes": [
+     "cs-"
+    ]
+   }
+  },
+  {
+   "id": "al-family",
+   "name": "Algorithms room",
+   "category": "families",
+   "kind": "css-family",
+   "module": "algorithms",
+   "summary": "Styles that belong to one Owner room.",
+   "css": {
+    "classes": [],
+    "files": [
+     "public/algorithms/algorithms.css"
+    ],
+    "prefixes": [
+     "al-"
+    ]
+   }
+  },
+  {
+   "id": "tf-btn",
+   "name": "tf button",
+   "category": "candidates",
+   "kind": "candidate",
+   "module": "unclassified",
+   "summary": "A button-like family defined for one page; not verified as shared.",
+   "css": {
+    "classes": [
+     "tf-btn"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   }
+  },
+  {
+   "id": "trn-btn",
+   "name": "trn button",
+   "category": "candidates",
+   "kind": "candidate",
+   "module": "unclassified",
+   "summary": "A button-like family defined for one page; not verified as shared.",
+   "css": {
+    "classes": [
+     "trn-btn"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   }
+  },
+  {
+   "id": "cx-btn",
+   "name": "cx button",
+   "category": "candidates",
+   "kind": "candidate",
+   "module": "unclassified",
+   "summary": "A button-like family defined for one page; not verified as shared.",
+   "css": {
+    "classes": [
+     "cx-btn"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   }
+  },
+  {
+   "id": "co-btn",
+   "name": "co button",
+   "category": "candidates",
+   "kind": "candidate",
+   "module": "unclassified",
+   "summary": "A button-like family defined for one page; not verified as shared.",
+   "css": {
+    "classes": [
+     "co-btn"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   }
+  },
+  {
+   "id": "tos-btn",
+   "name": "tos button",
+   "category": "candidates",
+   "kind": "candidate",
+   "module": "unclassified",
+   "summary": "A button-like family defined for one page; not verified as shared.",
+   "css": {
+    "classes": [
+     "tos-btn"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   }
+  },
+  {
+   "id": "tf-modal",
+   "name": "tf modal",
+   "category": "candidates",
+   "kind": "candidate",
+   "module": "unclassified",
+   "summary": "A dialog-like family defined for one page; not verified as shared.",
+   "css": {
+    "classes": [
+     "tf-modal"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   }
+  },
+  {
+   "id": "tf-chip-btn",
+   "name": "tf chip button",
+   "category": "candidates",
+   "kind": "candidate",
+   "module": "unclassified",
+   "summary": "A chip-like control defined for one page; not verified as shared.",
+   "css": {
+    "classes": [
+     "tf-chip-btn"
+    ],
+    "files": [
+     "public/app.css"
+    ]
+   }
+  }
+ ]
+}

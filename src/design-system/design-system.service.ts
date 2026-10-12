@@ -18,6 +18,7 @@ import { config } from '../config';
 import type {
   DesignManifest, DesignSystemOverview, DesignSystemTokens, GraphManifest, GraphView, GraphViewSummary,
   DesignSystemGraphIndex, DesignSystemGraphView,
+  ComponentsManifest, ComponentRecord, ComponentSummary, DesignSystemComponentsIndex, DesignSystemComponentDetail,
 } from './types';
 
 // The one definition of a well-formed graph (plain JavaScript, copied to dist
@@ -25,6 +26,10 @@ import type {
 interface GraphCore { VIEW_IDS: string[]; validateGraph(graph: unknown): string[] }
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const graphCore: GraphCore = require('./graph-core.js');
+// And the Components Registry's (Stage 3.2.2).
+interface ComponentsCore { validateManifest(manifest: unknown): string[] }
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const componentsCore: ComponentsCore = require('./components-core.js');
 
 export const MANIFEST_SCHEMA = 1;
 const MANIFEST_PATH = path.join(__dirname, 'generated', 'design-system-manifest.json');
@@ -124,4 +129,68 @@ export function designSystemGraphView(id: string): DesignSystemGraphView {
   if (!graph) return { state: 'NOT_GENERATED', reason, sources: [], view: null };
   const view = graph.views.find((v) => v.id === id) ?? null;
   return { state: 'READY', reason: null, sources: graph.sources, view };
+}
+
+// ── Components Library (Stage 3.2.2) ─────────────────────────────────────────
+//
+// Read once and validated before a single component leaves the server, exactly
+// as the graph is: a record that claims a tier its evidence does not earn, a
+// call to a component that does not exist or a malformed field refuses the
+// whole registry. Nothing is repaired and nothing is partly served. The manifest
+// holds metadata and hashes, never source code.
+
+export const COMPONENTS_SCHEMA = 1;
+const COMPONENTS_PATH = path.join(__dirname, 'generated', 'design-system-components.json');
+const COMPONENTS_MISSING = 'The design-system components manifest is not beside this server (run scripts/design-system-discover.js).';
+const COMPONENTS_INVALID = 'The design-system components manifest failed its integrity check, so none of it is served.';
+
+let componentsCached: { manifest: ComponentsManifest | null; ids: Set<string>; reason: string | null } | null = null;
+
+function loadComponents(): { manifest: ComponentsManifest | null; ids: Set<string>; reason: string | null } {
+  if (componentsCached) return componentsCached;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(COMPONENTS_PATH, 'utf8')) as unknown;
+    componentsCached = componentsCore.validateManifest(parsed).length === 0
+      ? { manifest: parsed as ComponentsManifest, ids: new Set((parsed as ComponentsManifest).components.map((c) => c.id)), reason: null }
+      : { manifest: null, ids: new Set(), reason: COMPONENTS_INVALID };
+  } catch {
+    componentsCached = { manifest: null, ids: new Set(), reason: COMPONENTS_MISSING };
+  }
+  return componentsCached;
+}
+
+/** Test seam: forget the cached components read. */
+export function resetDesignSystemComponentsCache(): void { componentsCached = null; }
+
+/** The components a caller may ask for. Anything else is not one. */
+export function isComponentId(id: unknown): id is string {
+  return typeof id === 'string' && loadComponents().ids.has(id);
+}
+
+function summarise(c: ComponentRecord): ComponentSummary {
+  return {
+    id: c.id, name: c.name, category: c.category, kind: c.kind, tier: c.tier, module: c.module, summary: c.summary,
+    symbol: c.source.js ? c.source.js.symbol : null, sections: c.sections,
+    counts: {
+      rules: c.styling.rules, selectors: c.styling.selectorsTotal, variants: c.variants.length, anatomy: c.anatomy.length,
+      cases: c.stories ? c.stories.cases.length : 0, facts: c.accessibility.facts.length,
+      dependencies: c.dependencies.calls.length + c.dependencies.calledBy.length,
+    },
+  };
+}
+
+export function designSystemComponentsIndex(): DesignSystemComponentsIndex {
+  const { manifest, reason } = loadComponents();
+  if (!manifest) return { state: 'NOT_GENERATED', reason, readOnly: true, generator: null, sources: [], taxonomy: null, coverage: null, components: [] };
+  return {
+    state: 'READY', reason: null, readOnly: true, generator: manifest.generator, sources: manifest.sources,
+    taxonomy: manifest.taxonomy, coverage: manifest.coverage, components: manifest.components.map(summarise),
+  };
+}
+
+/** `id` must already have passed isComponentId. */
+export function designSystemComponent(id: string): DesignSystemComponentDetail {
+  const { manifest, reason } = loadComponents();
+  if (!manifest) return { state: 'NOT_GENERATED', reason, sources: [], component: null };
+  return { state: 'READY', reason: null, sources: manifest.sources, component: manifest.components.find((c) => c.id === id) ?? null };
 }

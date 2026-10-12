@@ -1301,6 +1301,74 @@ export const DesignSystemGraphViewSchema = z.object({
   view: GraphViewSchema.nullable(),
 }).strict();
 
+// ── Design System Control: Components Library (Stage 3.2.2) ──────────────────
+
+const CmpKind = z.enum(['component', 'primitive', 'pattern', 'css-family', 'layout-utility', 'page-specific', 'candidate']);
+const CmpTier = z.enum(['verified', 'catalogued', 'listed']);
+const CmpEvidence = z.enum(['MEASURED', 'RECORDED', 'NONE']);
+const CmpText = z.string().min(1).max(400);
+const CmpSha = z.string().regex(/^[0-9a-f]{64}$/);
+const CmpTaxonomyEntry = z.object({ id: z.string().min(1), label: z.string().min(1), description: z.string().optional() }).strict();
+const CmpSections = z.object({
+  overview: CmpEvidence, anatomy: CmpEvidence, styling: CmpEvidence, source: CmpEvidence,
+  variants: CmpEvidence, stories: CmpEvidence, accessibility: CmpEvidence, dependencies: CmpEvidence,
+}).strict();
+export const ComponentsTaxonomySchema = z.object({
+  categories: z.array(CmpTaxonomyEntry), modules: z.array(CmpTaxonomyEntry), kinds: z.array(CmpTaxonomyEntry), tiers: z.array(CmpTaxonomyEntry),
+}).strict();
+export const ComponentsCoverageSchema = z.object({
+  total: Count, byKind: DsCounts, byTier: DsCounts, byCategory: DsCounts, withStories: Count, withVariants: Count, withSource: Count,
+}).strict();
+export const ComponentSummarySchema = z.object({
+  id: z.string().min(1), name: CmpText, category: z.string().min(1), kind: CmpKind, tier: CmpTier, module: z.string().min(1), summary: CmpText,
+  symbol: z.string().nullable(), sections: CmpSections,
+  counts: z.object({ rules: Count, selectors: Count, variants: Count, anatomy: Count, cases: Count, facts: Count, dependencies: Count }).strict(),
+}).strict();
+export const ComponentRecordSchema = z.object({
+  id: z.string().min(1), name: CmpText, category: z.string().min(1), kind: CmpKind, tier: CmpTier, module: z.string().min(1), summary: CmpText,
+  depth: z.enum(['full', 'presence']),
+  source: z.object({
+    js: z.object({ file: z.string().min(1), symbol: z.string().min(1), sha256: CmpSha, bytes: Count }).strict().nullable(),
+    css: z.array(z.object({ file: z.string().min(1), rules: Count, sha256: CmpSha, bytes: Count }).strict()),
+    presence: z.array(z.object({ file: z.string().min(1), matched: z.literal(true) }).strict()),
+  }).strict(),
+  styling: z.object({
+    selectors: z.array(CmpText), selectorsTotal: Count, rules: Count, states: z.array(CmpText), mediaQueries: z.array(CmpText),
+    customProperties: z.array(CmpText), customPropertiesTotal: Count, focusVisible: z.boolean(), rtl: z.boolean(), reducedMotion: z.boolean(),
+  }).strict(),
+  anatomy: z.array(z.object({ cls: z.string().min(1), rules: Count, emitted: z.boolean().nullable() }).strict()),
+  variants: z.array(z.object({
+    name: CmpText, class: z.string().min(1), rules: Count, cases: z.array(CmpText), stories: z.array(CmpText), exercised: z.boolean(),
+  }).strict()),
+  stories: z.object({
+    file: z.string().min(1), title: CmpText, cases: z.array(CmpText), golden: z.array(CmpText), options: z.array(CmpText),
+    review: z.object({ rtl: z.boolean(), tablet: z.boolean(), mobile: z.boolean() }).strict(),
+  }).strict().nullable(),
+  accessibility: z.object({ facts: z.array(z.object({ id: z.string().min(1), label: CmpText, evidence: z.literal('MEASURED'), where: CmpText }).strict()) }).strict(),
+  dependencies: z.object({
+    calls: z.array(z.object({ symbol: z.string().min(1), component: z.string().nullable() }).strict()),
+    calledBy: z.array(z.string().min(1)), helpers: z.array(z.string().min(1)),
+  }).strict(),
+  referencedIn: z.array(z.string().min(1)),
+  sections: CmpSections,
+}).strict();
+export const DesignSystemComponentsIndexSchema = z.object({
+  state: z.enum(['READY', 'NOT_GENERATED']),
+  reason: z.string().nullable(),
+  readOnly: z.literal(true),
+  generator: z.string().nullable(),
+  sources: z.array(GraphSourceSchema),
+  taxonomy: ComponentsTaxonomySchema.nullable(),
+  coverage: ComponentsCoverageSchema.nullable(),
+  components: z.array(ComponentSummarySchema),
+}).strict();
+export const DesignSystemComponentDetailSchema = z.object({
+  state: z.enum(['READY', 'NOT_GENERATED']),
+  reason: z.string().nullable(),
+  sources: z.array(GraphSourceSchema),
+  component: ComponentRecordSchema.nullable(),
+}).strict();
+
 // ── the registry ─────────────────────────────────────────────────────────────
 
 export interface ApiContract {
@@ -1526,6 +1594,16 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     schema: DesignSystemGraphViewSchema, consumer: 'public/design-system/explorer.js',
     reads: ['state', 'reason', 'sources', 'view'],
   },
+  {
+    endpoint: '/system/design-system/components', module: 'Design System Control',
+    schema: DesignSystemComponentsIndexSchema, consumer: 'public/design-system/components.js',
+    reads: ['state', 'reason', 'sources', 'taxonomy', 'coverage', 'components'],
+  },
+  {
+    endpoint: '/system/design-system/components', query: '?id=lg-chip', module: 'Design System Control',
+    schema: DesignSystemComponentDetailSchema, consumer: 'public/design-system/components.js',
+    reads: ['state', 'reason', 'sources', 'component'],
+  },
 ];
 
 // ── the compile-time pin ─────────────────────────────────────────────────────
@@ -1541,6 +1619,7 @@ import type {
 import type {
   DesignSystemOverview, DesignSystemTokens, DesignToken, DesignLayer, ContrastPair, ManifestSource,
   DesignSystemGraphIndex, DesignSystemGraphView, GraphView, GraphViewSummary, GraphNode, GraphEdge, GraphSource,
+  DesignSystemComponentsIndex, DesignSystemComponentDetail, ComponentRecord, ComponentSummary, ComponentsTaxonomy, ComponentsCoverage,
 } from '../design-system/types';
 import type { Signal, Incident, InfraRule } from '../infra/infrastructure-health.service';
 import type {
@@ -1619,6 +1698,13 @@ const _gEdge: Exact<z.infer<typeof GraphEdgeSchema>, GraphEdge> = true;
 const _gSource: Exact<z.infer<typeof GraphSourceSchema>, GraphSource> = true;
 void [_dsOverview, _dsTokens, _dsToken, _dsLayer, _dsPair, _dsSource];
 void [_gIndex, _gView, _gOne, _gSummary, _gNode, _gEdge, _gSource];
+const _cIndex: Exact<z.infer<typeof DesignSystemComponentsIndexSchema>, DesignSystemComponentsIndex> = true;
+const _cDetail: Exact<z.infer<typeof DesignSystemComponentDetailSchema>, DesignSystemComponentDetail> = true;
+const _cRecord: Exact<z.infer<typeof ComponentRecordSchema>, ComponentRecord> = true;
+const _cSummary: Exact<z.infer<typeof ComponentSummarySchema>, ComponentSummary> = true;
+const _cTaxonomy: Exact<z.infer<typeof ComponentsTaxonomySchema>, ComponentsTaxonomy> = true;
+const _cCoverage: Exact<z.infer<typeof ComponentsCoverageSchema>, ComponentsCoverage> = true;
+void [_cIndex, _cDetail, _cRecord, _cSummary, _cTaxonomy, _cCoverage];
 void [_component, _district, _relationship, _technology, _signal, _incident, _rule,
   _source, _control, _stage, _impact,
   _ccOverview, _ccDomain, _ccDetail, _ccArea, _ccStage, _ccRls, _ccEvents, _ccPosture];
