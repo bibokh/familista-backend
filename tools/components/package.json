@@ -1,0 +1,14 @@
+{
+  "name": "familista-components-proof",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Browser proof for the Specimen Lab (Stage 3.2.3 M1). Isolated from the production package: it is installed only by the CI job that runs lab-browser-proof.cjs, and nothing in src/ or public/ reads it.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "axe-core": "4.14.0",
+    "playwright-core": "1.63.0"
+  }
+}

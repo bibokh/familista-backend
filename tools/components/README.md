@@ -60,10 +60,17 @@ translator leaves it alone — are proved in a real browser, not assumed:
 
 ```
 npm run build
-PLAYWRIGHT_CORE=/path/to/playwright-core node tools/components/lab-browser-proof.cjs <output-dir> [--axe]
+npm ci --ignore-scripts --prefix tools/components
+CHROMIUM=$(command -v google-chrome) node tools/components/lab-browser-proof.cjs <output-dir> [--axe]
 ```
 
-It needs a Playwright driver and a Chromium on the machine, adds no dependency and is not part of CI.
+It is a required CI job (`browser-proof` in `.github/workflows/ci.yml`, in two shards: sections `1,2,2b,3,4,5`, and
+`6,7` with `--axe`). Its two tools, `playwright-core` and `axe-core`, are pinned exactly in this folder's own
+`package.json` and lockfile and are installed with `npm ci --ignore-scripts`; they are not production dependencies and
+the root `package.json` does not list them. No browser is downloaded: it uses Google Chrome from the runner image and
+the job fails if there is none. A failed, skipped or missing proof fails the job, a failed job fails the `ci` workflow,
+and `deploy.yml` deploys only after a successful `ci`. The job names must also be marked as required checks in the
+repository's branch protection, which is a setting and not part of the code.
 Every proof is paired with a control that removes the thing being proved: the focus controls serve a `lab.js`
 with `restoreFocus` disabled, or with its 2.5 s limit removed, and require the same measurement to fail.
 

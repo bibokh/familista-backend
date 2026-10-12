@@ -10,16 +10,20 @@
 // compiled application served by the REAL app (only the database is stubbed), as
 // a Platform Owner.
 //
-// It is not part of CI and adds no dependency: it needs Playwright's driver
-// somewhere on this machine and a Chromium it can launch.
+// It is a required CI job (the `browser-proof` jobs in .github/workflows/ci.yml).
+// Its two tools, playwright-core and axe-core, are pinned in tools/components/
+// package.json and installed by `npm ci --prefix tools/components`; nothing in the
+// production package depends on them. It also needs a Chrome or Chromium to launch.
 //
 //   npm run build                                   (the compiled app in dist/)
-//   PLAYWRIGHT_CORE=/path/to/playwright-core \
+//   npm ci --ignore-scripts --prefix tools/components
+//   CHROMIUM=$(command -v google-chrome) \
 //     node tools/components/lab-browser-proof.cjs <output-dir> [--axe]
 //
-//   PLAYWRIGHT_CORE   path of the playwright-core package (default: 'playwright-core')
-//   CHROMIUM          path of a Chromium executable (default: Playwright's own)
-//   AXE_CORE          path of axe.min.js, for --axe (default: the copy Storybook installs)
+//   PLAYWRIGHT_CORE   path of the playwright-core package (default: the pinned copy in tools/components)
+//   CHROMIUM          path of a Chrome or Chromium executable (default: Playwright's own, which is not installed)
+//   AXE_CORE          path of axe.min.js, for --axe (default: the pinned copy in tools/components)
+//   PROOF_ONLY        run only these numbered sections, e.g. 6,7 (CI splits the proof in two this way)
 //
 // Every line is PASS or FAIL with the number behind it. The exit code is 1 if any
 // proof fails. A proof that cannot be run says SKIP and why; it never says PASS.
@@ -523,7 +527,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
 
   // ══ 6. accessibility, languages, directions and sizes (--axe) ══════════════
   if (WANT_AXE && want('6')) {
-    const axePath = process.env.AXE_CORE || path.join(ROOT, 'tools/storybook/node_modules/axe-core/axe.min.js');
+    const axePath = process.env.AXE_CORE || path.join(ROOT, 'tools/components/node_modules/axe-core/axe.min.js');
     if (!fs.existsSync(axePath)) skip('accessibility: axe across en, de, ar and four sizes', 'axe-core is not installed (' + axePath + ')');
     else {
       const AXE = fs.readFileSync(axePath, 'utf8');
@@ -562,7 +566,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
 
   // ══ 6b. the accessibility check can fail (--axe) ═══════════════════════════
   if (WANT_AXE && want('6')) {
-    const axePath = process.env.AXE_CORE || path.join(ROOT, 'tools/storybook/node_modules/axe-core/axe.min.js');
+    const axePath = process.env.AXE_CORE || path.join(ROOT, 'tools/components/node_modules/axe-core/axe.min.js');
     if (fs.existsSync(axePath)) {
       const AXE = fs.readFileSync(axePath, 'utf8');
       const { ctx, page } = await open({ width: 1440, height: 900 }, 'en');

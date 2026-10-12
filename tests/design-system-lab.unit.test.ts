@@ -1245,12 +1245,64 @@ describe('English, German and Arabic: everything the Lab can say is in all three
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe('the browser proofs are kept with the code, and are not part of CI', () => {
+describe('the browser proof is kept with the code and is a required CI job', () => {
   it('lives in tools/, is valid JavaScript, and proves every boundary the Lab claims', () => {
     const file = path.join(ROOT, 'tools/components/lab-browser-proof.cjs');
     expect(spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' }).status).toBe(0);
     const src = fs.readFileSync(file, 'utf8');
     for (const claim of ['lazy:', 'csp:', 'layout:', 'layout (control)', 'events:', 'events (control)', 'sanitizer:', 'keyboard:', 'i18n:', 'isolation:', 'fail closed:', 'stability:', 'api:', 'accessibility ', 'focus ', 'focus (control)', 'errors (control)', 'csp (control)', 'accessibility (control)', 'view (control)']) expect(src).toContain(claim);
     expect(fs.readdirSync(path.join(ROOT, 'tests')).some((f) => f.includes('lab-browser-proof'))).toBe(false);
+  });
+
+  const CI = fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
+  const code = (src: string) => src.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
+
+  it('pins its two tools exactly, in a package of its own with a lockfile, and touches no production dependency', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/components/package.json'), 'utf8'));
+    expect(pkg.private).toBe(true);
+    expect(pkg.dependencies).toBeUndefined();
+    expect(pkg.devDependencies).toEqual({ 'axe-core': '4.14.0', 'playwright-core': '1.63.0' });
+    const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/components/package-lock.json'), 'utf8'));
+    expect(Object.keys(lock.packages).sort()).toEqual(['', 'node_modules/axe-core', 'node_modules/playwright-core']);
+    for (const k of ['node_modules/axe-core', 'node_modules/playwright-core']) {
+      expect(lock.packages[k].integrity).toMatch(/^sha512-/);
+      expect(lock.packages[k].resolved).toMatch(/^https:\/\/registry\.npmjs\.org\//);
+    }
+    expect(lock.packages['node_modules/axe-core'].version).toBe('4.14.0');
+    expect(lock.packages['node_modules/playwright-core'].version).toBe('1.63.0');
+    const root = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+    for (const n of ['axe-core', 'playwright-core', 'playwright', 'puppeteer']) {
+      expect(root.dependencies?.[n]).toBeUndefined();
+      expect(root.devDependencies?.[n]).toBeUndefined();
+    }
+    expect(fs.readFileSync(path.join(ROOT, 'tools/components/lab-browser-proof.cjs'), 'utf8')).toContain("tools/components/node_modules/axe-core/axe.min.js");
+  });
+
+  it('runs in ci.yml on the compiled app, in two shards that together cover every section, and nothing in it can fail quietly', () => {
+    const job = CI.slice(CI.indexOf('  browser-proof:'), CI.indexOf('  secret-scan:'));
+    expect(job.length).toBeGreaterThan(500);
+    const body = code(job);
+    expect(body).toContain('npm ci --ignore-scripts --prefix tools/components');
+    expect(body).toContain('npm audit --audit-level=high --prefix tools/components');
+    expect(body).toContain('npm run build');
+    expect(body).toContain('command -v google-chrome');
+    expect(body).toContain('node tools/components/lab-browser-proof.cjs');
+    expect(body).not.toMatch(/continue-on-error|\|\|\s*true|playwright install|secrets\./);
+    const sections = [...body.matchAll(/sections:\s*'([^']+)'/g)].map((m) => m[1].split(',')).flat().sort();
+    expect(sections).toEqual(['1', '2', '2b', '3', '4', '5', '6', '7']);
+    expect(body).toMatch(/axe:\s*'--axe'/);
+    // a shard that ran nothing, skipped something or failed something is red
+    expect(body).toContain("grep -Eq ', 0 failed, 0 skipped$'");
+    expect(body).toMatch(/test "\$passed" -ge "\$PROOF_MIN"/);
+    const mins = [...body.matchAll(/min:\s*'(\d+)'/g)].map((m) => Number(m[1]));
+    expect(mins.length).toBe(2);
+    expect(mins.every((n) => n >= 34)).toBe(true);
+  });
+
+  it('is part of the same workflow that deploy.yml waits for', () => {
+    const deploy = fs.readFileSync(path.join(ROOT, '.github/workflows/deploy.yml'), 'utf8');
+    expect(deploy).toMatch(/workflows:\s*\['ci'\]/);
+    expect(deploy).toContain("github.event.workflow_run.conclusion == 'success'");
+    expect(CI).toMatch(/^  browser-proof:\s*$/m);
   });
 });
