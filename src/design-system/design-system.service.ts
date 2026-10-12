@@ -15,7 +15,16 @@
 import fs from 'fs';
 import path from 'path';
 import { config } from '../config';
-import type { DesignManifest, DesignSystemOverview, DesignSystemTokens } from './types';
+import type {
+  DesignManifest, DesignSystemOverview, DesignSystemTokens, GraphManifest, GraphView, GraphViewSummary,
+  DesignSystemGraphIndex, DesignSystemGraphView,
+} from './types';
+
+// The one definition of a well-formed graph (plain JavaScript, copied to dist
+// beside the compiled service by scripts/copy-runtime-assets.js).
+interface GraphCore { VIEW_IDS: string[]; validateGraph(graph: unknown): string[] }
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const graphCore: GraphCore = require('./graph-core.js');
 
 export const MANIFEST_SCHEMA = 1;
 const MANIFEST_PATH = path.join(__dirname, 'generated', 'design-system-manifest.json');
@@ -62,4 +71,57 @@ export function designSystemTokens(): DesignSystemTokens {
   const { manifest, reason } = load();
   if (!manifest) return { state: 'NOT_GENERATED', reason, tokens: [], layers: [], contrast: [] };
   return { state: 'READY', reason: null, tokens: manifest.tokens, layers: manifest.layers, contrast: manifest.contrast };
+}
+
+// ── Visual Explorer (Stage 3.2.1) ────────────────────────────────────────────
+//
+// The graph manifest is read once and validated before a single node leaves the
+// server: an unknown relationship, a missing source, a dangling edge or an
+// overlapping node refuses the whole graph. A malformed graph is never repaired
+// and never partly served.
+
+export const GRAPH_SCHEMA = 1;
+const GRAPH_PATH = path.join(__dirname, 'generated', 'design-system-graph.json');
+const GRAPH_MISSING = 'The design-system graph manifest is not beside this server (run scripts/design-system-discover.js).';
+const GRAPH_INVALID = 'The design-system graph manifest failed its integrity check, so none of it is served.';
+
+let graphCached: { graph: GraphManifest | null; reason: string | null } | null = null;
+
+function loadGraph(): { graph: GraphManifest | null; reason: string | null } {
+  if (graphCached) return graphCached;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(GRAPH_PATH, 'utf8')) as unknown;
+    graphCached = graphCore.validateGraph(parsed).length === 0
+      ? { graph: parsed as GraphManifest, reason: null }
+      : { graph: null, reason: GRAPH_INVALID };
+  } catch {
+    graphCached = { graph: null, reason: GRAPH_MISSING };
+  }
+  return graphCached;
+}
+
+/** Test seam: forget the cached graph read. */
+export function resetDesignSystemGraphCache(): void { graphCached = null; }
+
+/** The views a caller may ask for. Anything else is not a view. */
+export function isGraphViewId(id: unknown): id is string {
+  return typeof id === 'string' && graphCore.VIEW_IDS.indexOf(id) >= 0;
+}
+
+function summary(v: GraphView): GraphViewSummary {
+  return { id: v.id, title: v.title, summary: v.summary, flow: v.flow, sources: v.sources, notes: v.notes, layout: v.layout, stats: v.stats };
+}
+
+export function designSystemGraphIndex(): DesignSystemGraphIndex {
+  const { graph, reason } = loadGraph();
+  if (!graph) return { state: 'NOT_GENERATED', reason, readOnly: true, generator: null, sources: [], views: [] };
+  return { state: 'READY', reason: null, readOnly: true, generator: graph.generator, sources: graph.sources, views: graph.views.map(summary) };
+}
+
+/** `id` must already have passed isGraphViewId. */
+export function designSystemGraphView(id: string): DesignSystemGraphView {
+  const { graph, reason } = loadGraph();
+  if (!graph) return { state: 'NOT_GENERATED', reason, sources: [], view: null };
+  const view = graph.views.find((v) => v.id === id) ?? null;
+  return { state: 'READY', reason: null, sources: graph.sources, view };
 }

@@ -13,6 +13,11 @@
 //                                      the platform does not keep
 //   GET /system/design-system/tokens   every token (declared and resolved), the
 //                                      layers, and the contrast of every pair
+//   GET /system/design-system/graph    the Visual Explorer: its three views, with
+//                                      sources and counts (no nodes)
+//   GET /system/design-system/graph?view=<id>
+//                                      one view: every node and edge, each with
+//                                      its source and how it is known
 //
 // WHAT THESE RETURN
 //
@@ -24,7 +29,10 @@
 import { Router, type Request, type Response } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
 import { assertPlatformOwner } from '../platform/system.service';
-import { designSystemOverview, designSystemTokens } from '../design-system/design-system.service';
+import {
+  designSystemOverview, designSystemTokens, designSystemGraphIndex, designSystemGraphView, isGraphViewId,
+} from '../design-system/design-system.service';
+import { BadRequestError, NotFoundError } from '../utils/errors';
 
 const router = Router();
 router.use(authenticate);
@@ -49,6 +57,23 @@ router.get('/', (_req: Request, res: Response, next) => {
 router.get('/tokens', (_req: Request, res: Response, next) => {
   try {
     res.json({ success: true, data: designSystemTokens() });
+  } catch (err) { next(err); }
+});
+
+/**
+ * The Visual Explorer. `view` is looked up in a fixed list, never interpolated
+ * into a path or a query: a value that is not one of the three view ids is a
+ * 404, and anything that is not a single string is a 400.
+ */
+router.get('/graph', (req: Request, res: Response, next) => {
+  try {
+    const keys = Object.keys(req.query);
+    if (keys.some((k) => k !== 'view')) throw new BadRequestError('Only ?view=<id> is accepted');
+    const view = req.query.view;
+    if (view === undefined) { res.json({ success: true, data: designSystemGraphIndex() }); return; }
+    if (typeof view !== 'string') throw new BadRequestError('view must be a single value');
+    if (!isGraphViewId(view)) throw new NotFoundError('View');
+    res.json({ success: true, data: designSystemGraphView(view) });
   } catch (err) { next(err); }
 });
 

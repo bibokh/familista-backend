@@ -10,7 +10,8 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 // The Design System manifest is generated from tools/tokens/ and committed
-// (src/design-system/generated/design-system-manifest.json). This build copies
+// (src/design-system/generated/design-system-manifest.json and design-system-
+// graph.json). This build copies
 // whatever is committed, so a token change that did not regenerate it would ship
 // outdated data to the Owner-only Design System Control room. Check it here,
 // before anything is copied. The check only READS: it never rewrites the
@@ -76,6 +77,12 @@ const ASSETS = [
   // than drawing a token it did not read.
   ['src/design-system/generated/design-system-manifest.json',
    'dist/design-system/generated/design-system-manifest.json'],
+  // Stage 3.2.1 (Visual Explorer): the relationship graph, and the plain-
+  // JavaScript core that validates it before the server serves any of it.
+  ['src/design-system/generated/design-system-graph.json',
+   'dist/design-system/generated/design-system-graph.json'],
+  ['src/design-system/graph-core.js',
+   'dist/design-system/graph-core.js'],
 ];
 
 // Approval dossiers (src/algorithms/approvals/*.json): the evidence each CHANGE

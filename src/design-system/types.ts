@@ -112,3 +112,76 @@ export interface DesignSystemTokens {
   layers: DesignLayer[];
   contrast: ContrastPair[];
 }
+
+// ── Visual Explorer (Stage 3.2.1) ────────────────────────────────────────────
+//
+// The graph manifest is written by scripts/design-system-discover.js (built by
+// scripts/design-system-graph.js, shaped and validated by graph-core.js).
+
+export type GraphEvidence = 'MEASURED' | 'RECORDED';
+export type GraphScalar = string | number | boolean | null;
+export type GraphViewId = 'token-architecture' | 'legacy-to-canonical' | 'stylesheets-to-surfaces';
+export type GraphNodeKind = 'reference' | 'semantic' | 'context' | 'module' | 'legacy' | 'stylesheet' | 'surface';
+export type GraphEdgeKind = 'alias' | 'override' | 'maps-to' | 'loaded-by';
+
+export interface GraphSource {
+  id: string; path: string; label: string; sha256: string; bytes: number; basis: 'file' | 'derived';
+}
+export interface GraphProvenance { id: string; locator: string }
+
+export interface GraphNode {
+  id: string;
+  kind: GraphNodeKind;
+  label: string;
+  group: string;
+  evidence: GraphEvidence;
+  source: GraphProvenance;
+  props: Record<string, GraphScalar>;
+  w: number; h: number; isolated: boolean; x: number; y: number;
+}
+export interface GraphEdge {
+  id: string;
+  kind: GraphEdgeKind;
+  from: string;
+  to: string;
+  evidence: GraphEvidence;
+  source: GraphProvenance;
+  count: number;
+  props: Record<string, GraphScalar>;
+}
+export interface GraphColumn { id: string; label: string; x: number; y: number; w: number; count: number }
+export interface GraphLayout { strategy: 'layered' | 'clusters'; width: number; height: number; nodeW: number; nodeH: number }
+export interface GraphParked { x: number; y: number; w: number; count: number }
+export interface GraphStats {
+  nodes: number; edges: number; isolated: number;
+  nodesByKind: Record<string, number>; edgesByKind: Record<string, number>;
+  nodesByEvidence: Record<string, number>; edgesByEvidence: Record<string, number>;
+}
+export interface GraphViewSummary {
+  id: GraphViewId; title: string; summary: string; flow: string[]; sources: string[]; notes: string[];
+  layout: GraphLayout; stats: GraphStats;
+}
+export interface GraphView extends GraphViewSummary {
+  columns: GraphColumn[];
+  parked: GraphParked | null;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+export interface GraphManifest {
+  schema: number; generator: string; description: string; sources: GraphSource[]; views: GraphView[];
+}
+
+export interface DesignSystemGraphIndex {
+  state: 'READY' | 'NOT_GENERATED';
+  reason: string | null;
+  readOnly: true;
+  generator: string | null;
+  sources: GraphSource[];
+  views: GraphViewSummary[];
+}
+export interface DesignSystemGraphView {
+  state: 'READY' | 'NOT_GENERATED';
+  reason: string | null;
+  sources: GraphSource[];
+  view: GraphView | null;
+}

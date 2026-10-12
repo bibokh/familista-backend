@@ -4,7 +4,9 @@
    WHAT THE DESIGN SYSTEM DECLARES, AND WHAT THE REPOSITORY RECORDS ABOUT IT
 
    An Owner-only room, loaded on demand by public/app.js the first time the
-   platform owner opens it. It draws two sections — Overview and Design Tokens —
+   platform owner opens it. It draws three sections — Overview, Design Tokens
+   and (Stage 3.2.1) the Visual Explorer, whose own script and stylesheet load
+   only when that section first opens (public/design-system/explorer.*) —
    from a manifest the server generated from tools/tokens/ (the Design Core, the
    one canonical token source) and serves read-only at /system/design-system.
 
@@ -31,7 +33,7 @@
   'use strict';
 
   var DS = {
-    section: 'overview',   // overview | tokens
+    section: 'overview',   // overview | tokens | explorer
     tab: 'tokens',         // tokens | layers | contrast  (inside Design Tokens)
     data: null,            // GET /system/design-system
     error: null,
@@ -44,6 +46,8 @@
     cfilter: 'all',        // all | failing | text | ui
     langOpen: false,
     refreshing: false,
+    exAssets: null,        // Promise<boolean>: the Visual Explorer's script and stylesheet, loaded once
+    exMounted: false,
   };
 
   // ── localisation ──────────────────────────────────────────────────────────
@@ -252,7 +256,8 @@
       + '</div></div>';
   }
 
-  var SECTIONS = [['overview', 'Overview'], ['tokens', 'Design Tokens']];
+  var SECTIONS = [['overview', 'Overview'], ['tokens', 'Design Tokens'], ['explorer', 'Visual Explorer']];
+  var SECTION_TITLE = { overview: 'Overview', tokens: 'Design Tokens', explorer: 'Visual Explorer' };
 
   function railHtml() {
     var total = DS.data && DS.data.overview ? DS.data.overview.tokens.total : null;
@@ -279,7 +284,7 @@
   }
 
   function topHtml() {
-    var title = DS.section === 'tokens' ? 'Design Tokens' : 'Overview';
+    var title = SECTION_TITLE[DS.section] || 'Overview';
     return '<header class="ds-top"><div class="ds-top-l">'
       + '<div class="ds-top-eyebrow">' + esc(T('DESIGN SYSTEM CONTROL')) + '</div>'
       + '<h1 class="ds-top-title">' + esc(T(title)) + '</h1></div>'
@@ -537,6 +542,7 @@
       + '<div class="ds-skel-grid" aria-hidden="true"></div>';
   }
   function contentHtml() {
+    if (DS.section === 'explorer') return '<div class="ds-ex-host" id="ex-host">' + skeleton(6, 'row') + '</div>';
     if (DS.section === 'tokens') return tokensHtml();
     if (DS.error && !DS.data) return panel('', emptyState('Design System Control could not be read', DS.error));
     if (!DS.data) return overviewSkeleton();
@@ -618,19 +624,78 @@
     if (!host) return;
     host.setAttribute('dir', DS_DIR);
     host.setAttribute('lang', DS_LANG);
+    DS.exMounted = false;
     host.innerHTML = '<div class="ds-shell">' + railHtml()
-      + '<main class="ds-main">' + topHtml() + '<div class="ds-body" id="ds-body" tabindex="0" role="region" aria-label="' + esc(T(DS.section === 'tokens' ? 'Design Tokens' : 'Overview')) + '">' + contentHtml() + '</div></main></div>';
+      + '<main class="ds-main">' + topHtml() + '<div class="ds-body' + (DS.section === 'explorer' ? ' ds-body--workspace' : '') + '" id="ds-body" tabindex="0" role="region" aria-label="' + esc(T(SECTION_TITLE[DS.section] || 'Overview')) + '">' + contentHtml() + '</div></main></div>';
     paintValues(host);
+    mountExplorer(host);
   }
+
+  // ── the Visual Explorer (Stage 3.2.1) ─────────────────────────────────────
+  //
+  // Its script and stylesheet are fetched the first time the section opens and
+  // never before: Owner Home, the room's other sections and Familista's startup
+  // do not pay for them.
+
+  var EXPLORER_V = '20261012-explorer';
+  function loadExplorerAssets() {
+    if (DS.exAssets) return DS.exAssets;
+    DS.exAssets = new Promise(function (resolve) {
+      var pending = 2, failed = false;
+      function one(ok) { if (!ok) failed = true; if (--pending === 0) { if (failed) DS.exAssets = null; resolve(!failed); } }
+      var link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '/design-system/explorer.css?v=' + EXPLORER_V;
+      link.onload = function () { one(true); };
+      link.onerror = function () { one(false); };
+      document.head.appendChild(link);
+      var script = document.createElement('script');
+      script.src = '/design-system/explorer.js?v=' + EXPLORER_V;
+      script.onload = function () { one(true); };
+      script.onerror = function () { one(false); };
+      document.head.appendChild(script);
+    });
+    return DS.exAssets;
+  }
+  function mountExplorer(host) {
+    if (DS.section !== 'explorer' || !host.querySelector('#ex-host')) return;
+    loadExplorerAssets().then(function (ok) {
+      var slot = host.querySelector('#ex-host');
+      if (DS.section !== 'explorer' || !slot) return;
+      if (!ok || !window.FamilistaDesignExplorer) {
+        slot.innerHTML = emptyState('The Visual Explorer could not be loaded', T('Reload the page and try again.'));
+        return;
+      }
+      window.FamilistaDesignExplorer.mount(slot, window.__familistaDesignSystemKit);
+      DS.exMounted = true;
+    });
+  }
+  function leaveExplorer() {
+    if (DS.exMounted && window.FamilistaDesignExplorer) window.FamilistaDesignExplorer.unmount();
+    DS.exMounted = false;
+  }
+  /** What the Explorer may borrow from this room: its vocabulary, its escaping and its GET-only reader. Nothing that writes. */
+  window.__familistaDesignSystemKit = {
+    T: T, tf: tf, esc: esc, num: num, code: code, kv: kv, evChip: evChip, emptyState: emptyState, skeleton: skeleton,
+    api: function (path) { return api(path); }, contractError: contractError, dir: function () { return DS_DIR; },
+  };
 
   /** Repaint the body, top bar and rail — never the shell, so nothing under the reader moves. */
   function repaintBody(host, keepScroll) {
     var body = host.querySelector('#ds-body');
     if (!body) return paint(host);
     var y = keepScroll ? body.scrollTop : 0;
-    body.innerHTML = contentHtml();
-    body.scrollTop = y;
-    paintValues(body);
+    // A mounted Explorer is not redrawn because the overview finished loading behind it.
+    if (!(keepScroll && DS.section === 'explorer' && DS.exMounted && body.querySelector('#ex-host .ex'))) {
+      if (DS.section !== 'explorer') leaveExplorer();
+      body.classList.toggle('ds-body--workspace', DS.section === 'explorer');
+      body.setAttribute('aria-label', T(SECTION_TITLE[DS.section] || 'Overview'));
+      body.innerHTML = contentHtml();
+      body.scrollTop = y;
+      paintValues(body);
+      DS.exMounted = false;
+      mountExplorer(host);
+    }
     var top = host.querySelector('.ds-top');
     if (top) top.outerHTML = topHtml();
     var rail = host.querySelector('.ds-rail');
@@ -660,6 +725,7 @@
     }
   }
   function go(host, section) {
+    if (section === 'explorer' && DS.section === 'explorer') return;
     DS.section = section;
     repaintBody(host, false);
     ensureSection(host);
@@ -669,7 +735,8 @@
   function refresh(host) {
     if (DS.refreshing) return;
     DS.refreshing = true;
-    repaintBody(host, true);
+    if (DS.section === 'explorer' && window.FamilistaDesignExplorer) { leaveExplorer(); window.FamilistaDesignExplorer.reset(); }
+    repaintBody(host, DS.section !== 'explorer');
     var jobs = [loadOverview()];
     if (DS.section === 'tokens') jobs.push(loadTokens());
     else DS.tk = null;
@@ -790,6 +857,7 @@
   };
 
   window.teardownFamilistaDesignSystem = function () {
+    leaveExplorer();
     // No stream or timer of its own. The section, filters and language menu are
     // dropped so the room opens clean next time.
     DS.section = 'overview'; DS.tab = 'tokens'; DS.q = ''; DS.layer = 'all'; DS.type = 'all'; DS.cfilter = 'all';
