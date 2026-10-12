@@ -10,6 +10,12 @@
 //   node scripts/design-system-discover.js          write the manifest
 //   node scripts/design-system-discover.js --check  exit 1 if the committed one is stale
 //
+// Stage 3.2.1 adds a second generated file from the same run,
+// src/design-system/generated/design-system-graph.json (the relationships the
+// Visual Explorer draws; scripts/design-system-graph.js builds it, and
+// src/design-system/graph-core.js validates and lays it out). --check compares
+// both, and fails if either is stale.
+//
 // Deterministic by construction: no timestamp, no host, no environment value;
 // sources and tokens are sorted or kept in token-file order. Running it twice
 // on the same tree produces the same bytes.
@@ -25,10 +31,12 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { pathToFileURL } = require('url');
+const { buildGraph, stringify } = require('./design-system-graph.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const TOKENS = path.join(ROOT, 'tools', 'tokens');
 const OUT = path.join(ROOT, 'src', 'design-system', 'generated', 'design-system-manifest.json');
+const GRAPH_OUT = path.join(ROOT, 'src', 'design-system', 'generated', 'design-system-graph.json');
 const SCHEMA = 1;
 
 const rel = (p) => path.relative(ROOT, p).split(path.sep).join('/');
@@ -180,7 +188,12 @@ async function build() {
     ],
   };
 
-  return {
+  const graph = await buildGraph({
+    ROOT, dtcg, tokens, tokenFile, mapFile, legacy,
+    overrides: dtcg.overrideLayers(tree, tokens), layersOut: layers,
+  });
+
+  return { manifest: {
     schema: SCHEMA,
     generator: 'scripts/design-system-discover.js',
     description: 'Evidence for the Owner-only Design System Control room, derived from tools/tokens. Generated; do not edit.',
@@ -189,21 +202,25 @@ async function build() {
     layers,
     tokens: list,
     contrast,
-  };
+  }, graph };
 }
 
 (async () => {
-  const text = JSON.stringify(await build(), null, 1) + '\n';
+  const built = await build();
+  const outputs = [
+    [OUT, JSON.stringify(built.manifest, null, 1) + '\n', 'manifest'],
+    [GRAPH_OUT, stringify(built.graph) + '\n', 'graph manifest'],
+  ];
   if (process.argv.includes('--check')) {
-    const current = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : '';
-    if (current !== text) {
-      console.error('[design-system] manifest is stale — run: node scripts/design-system-discover.js');
-      process.exit(1);
-    }
-    console.log('[design-system] manifest is current');
+    const stale = outputs.filter(([file, text]) => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '') !== text);
+    for (const [file, , label] of stale) console.error('[design-system] ' + label + ' is stale (' + rel(file) + ') — run: node scripts/design-system-discover.js');
+    if (stale.length) process.exit(1);
+    console.log('[design-system] manifest and graph manifest are current');
     return;
   }
-  fs.mkdirSync(path.dirname(OUT), { recursive: true });
-  fs.writeFileSync(OUT, text);
-  console.log('[design-system] wrote ' + rel(OUT) + ' (' + text.length + ' bytes)');
+  for (const [file, text] of outputs) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, text);
+    console.log('[design-system] wrote ' + rel(file) + ' (' + text.length + ' bytes)');
+  }
 })().catch((e) => { console.error(e); process.exit(1); });

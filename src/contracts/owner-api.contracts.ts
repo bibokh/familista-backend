@@ -1245,6 +1245,62 @@ export const DesignSystemTokensSchema = z.object({
   contrast: z.array(DsContrastSchema),
 }).strict();
 
+// ── Design System Control: Visual Explorer (Stage 3.2.1) ─────────────────────
+
+const GraphScalar = z.union([z.string().max(400), z.number(), z.boolean(), z.null()]);
+const GraphEvidenceSchema = z.enum(['MEASURED', 'RECORDED']);
+const GraphViewIdSchema = z.enum(['token-architecture', 'legacy-to-canonical', 'stylesheets-to-surfaces']);
+export const GraphSourceSchema = z.object({
+  id: z.string().min(1), path: z.string().min(1), label: z.string().min(1),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/), bytes: Count, basis: z.enum(['file', 'derived']),
+}).strict();
+const GraphProvenanceSchema = z.object({ id: z.string().min(1), locator: z.string().min(1) }).strict();
+export const GraphNodeSchema = z.object({
+  id: z.string().min(1), kind: z.enum(['reference', 'semantic', 'context', 'module', 'legacy', 'stylesheet', 'surface']),
+  label: z.string().min(1), group: z.string().min(1), evidence: GraphEvidenceSchema, source: GraphProvenanceSchema,
+  props: z.record(z.string(), GraphScalar),
+  w: z.number(), h: z.number(), isolated: z.boolean(), x: z.number(), y: z.number(),
+}).strict();
+export const GraphEdgeSchema = z.object({
+  id: z.string().min(1), kind: z.enum(['alias', 'override', 'maps-to', 'loaded-by']),
+  from: z.string().min(1), to: z.string().min(1), evidence: GraphEvidenceSchema, source: GraphProvenanceSchema,
+  count: z.number().int().min(1), props: z.record(z.string(), GraphScalar),
+}).strict();
+const GraphLayoutSchema = z.object({
+  strategy: z.enum(['layered', 'clusters']), width: z.number().positive(), height: z.number().positive(),
+  nodeW: z.number().positive(), nodeH: z.number().positive(),
+}).strict();
+const GraphStatsSchema = z.object({
+  nodes: Count, edges: Count, isolated: Count,
+  nodesByKind: DsCounts, edgesByKind: DsCounts, nodesByEvidence: DsCounts, edgesByEvidence: DsCounts,
+}).strict();
+export const GraphViewSummarySchema = z.object({
+  id: GraphViewIdSchema, title: z.string().min(1), summary: z.string().min(1), flow: z.array(z.string().min(1)),
+  sources: z.array(z.string().min(1)), notes: z.array(z.string().min(1)), layout: GraphLayoutSchema, stats: GraphStatsSchema,
+}).strict();
+export const GraphViewSchema = GraphViewSummarySchema.extend({
+  columns: z.array(z.object({
+    id: z.string().min(1), label: z.string().min(1), x: z.number(), y: z.number(), w: z.number(), count: Count,
+  }).strict()),
+  parked: z.object({ x: z.number(), y: z.number(), w: z.number(), count: Count }).strict().nullable(),
+  nodes: z.array(GraphNodeSchema),
+  edges: z.array(GraphEdgeSchema),
+}).strict();
+export const DesignSystemGraphIndexSchema = z.object({
+  state: z.enum(['READY', 'NOT_GENERATED']),
+  reason: z.string().nullable(),
+  readOnly: z.literal(true),
+  generator: z.string().nullable(),
+  sources: z.array(GraphSourceSchema),
+  views: z.array(GraphViewSummarySchema),
+}).strict();
+export const DesignSystemGraphViewSchema = z.object({
+  state: z.enum(['READY', 'NOT_GENERATED']),
+  reason: z.string().nullable(),
+  sources: z.array(GraphSourceSchema),
+  view: GraphViewSchema.nullable(),
+}).strict();
+
 // ── the registry ─────────────────────────────────────────────────────────────
 
 export interface ApiContract {
@@ -1460,6 +1516,16 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     schema: DesignSystemTokensSchema, consumer: 'public/design-system/design-system.js',
     reads: ['state', 'reason', 'tokens', 'layers', 'contrast'],
   },
+  {
+    endpoint: '/system/design-system/graph', module: 'Design System Control',
+    schema: DesignSystemGraphIndexSchema, consumer: 'public/design-system/explorer.js',
+    reads: ['state', 'reason', 'sources', 'views'],
+  },
+  {
+    endpoint: '/system/design-system/graph', query: '?view=token-architecture', module: 'Design System Control',
+    schema: DesignSystemGraphViewSchema, consumer: 'public/design-system/explorer.js',
+    reads: ['state', 'reason', 'sources', 'view'],
+  },
 ];
 
 // ── the compile-time pin ─────────────────────────────────────────────────────
@@ -1472,7 +1538,10 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
 import type {
   InfraComponent, InfraDistrict, InfraRelationship, InfraTechnology,
 } from '../infra/infrastructure-registry.service';
-import type { DesignSystemOverview, DesignSystemTokens, DesignToken, DesignLayer, ContrastPair, ManifestSource } from '../design-system/types';
+import type {
+  DesignSystemOverview, DesignSystemTokens, DesignToken, DesignLayer, ContrastPair, ManifestSource,
+  DesignSystemGraphIndex, DesignSystemGraphView, GraphView, GraphViewSummary, GraphNode, GraphEdge, GraphSource,
+} from '../design-system/types';
 import type { Signal, Incident, InfraRule } from '../infra/infrastructure-health.service';
 import type {
   PlatformSource, SourceControl, LineageStage, ImpactNode,
@@ -1541,7 +1610,15 @@ const _dsToken: Exact<z.infer<typeof DsTokenSchema>, DesignToken> = true;
 const _dsLayer: Exact<z.infer<typeof DsLayerSchema>, DesignLayer> = true;
 const _dsPair: Exact<z.infer<typeof DsContrastSchema>, ContrastPair> = true;
 const _dsSource: Exact<z.infer<typeof DsSourceSchema>, ManifestSource> = true;
+const _gIndex: Exact<z.infer<typeof DesignSystemGraphIndexSchema>, DesignSystemGraphIndex> = true;
+const _gView: Exact<z.infer<typeof DesignSystemGraphViewSchema>, DesignSystemGraphView> = true;
+const _gOne: Exact<z.infer<typeof GraphViewSchema>, GraphView> = true;
+const _gSummary: Exact<z.infer<typeof GraphViewSummarySchema>, GraphViewSummary> = true;
+const _gNode: Exact<z.infer<typeof GraphNodeSchema>, GraphNode> = true;
+const _gEdge: Exact<z.infer<typeof GraphEdgeSchema>, GraphEdge> = true;
+const _gSource: Exact<z.infer<typeof GraphSourceSchema>, GraphSource> = true;
 void [_dsOverview, _dsTokens, _dsToken, _dsLayer, _dsPair, _dsSource];
+void [_gIndex, _gView, _gOne, _gSummary, _gNode, _gEdge, _gSource];
 void [_component, _district, _relationship, _technology, _signal, _incident, _rule,
   _source, _control, _stage, _impact,
   _ccOverview, _ccDomain, _ccDetail, _ccArea, _ccStage, _ccRls, _ccEvents, _ccPosture];

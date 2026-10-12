@@ -13,6 +13,14 @@ folder by `node scripts/design-system-discover.js` (`--check` fails if stale), s
 read-only at `GET /system/design-system[/tokens]`. `verify.mjs` allows `--fam-`
 consumption under `public/design-system/` and nowhere else.
 
+Stage 3.2.1 adds the **Visual Explorer** section to that room: three relationship
+graphs (token architecture, legacy to canonical, stylesheets to surfaces) read from
+`src/design-system/generated/design-system-graph.json`, written by the same
+`design-system-discover.js` run (`--check` covers both files) and served read-only
+at `GET /system/design-system/graph[?view=<id>]`. `src/design-system/graph-core.js`
+lays the graph out and validates it; the server refuses a graph that fails.
+Its script and stylesheet (`explorer.js`, `explorer.css`) load only when the section opens.
+
 Stage 2b.1 publishes the generated CSS as `public/tokens/familista-tokens.css` and
 links it **once, from the main app only** (`public/index.html`), ahead of every
 other first-party stylesheet. Nothing in production reads a `--fam-*` property

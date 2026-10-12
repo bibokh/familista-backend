@@ -20,7 +20,7 @@ const SURFACES = [
   { id: 'react', label: 'React SPA at /app (built assets)', dir: 'public/app/assets' },
   // Stage 3.1: a room the main app loads on demand (public/app.js, lazy loader).
   // It is not linked from index.html, so it is named here rather than missed.
-  { id: 'lazy', label: 'Rooms loaded on demand by the main app', files: ['public/design-system/design-system.css'] },
+  { id: 'lazy', label: 'Rooms loaded on demand by the main app', files: ['public/design-system/design-system.css', 'public/design-system/explorer.css'] },
 ];
 
 const rel = (p) => relative(REPO_ROOT, p).split('\\').join('/');
@@ -33,7 +33,7 @@ const rel = (p) => relative(REPO_ROOT, p).split('\\').join('/');
  */
 export const PUBLISHED_TOKENS = 'public/tokens/familista-tokens.css';
 
-function linkedStylesheets(htmlRel) {
+function linkedStylesheets(htmlRel, { canonical = false } = {}) {
   const html = readFileSync(join(REPO_ROOT, htmlRel), 'utf8');
   const out = [];
   for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
@@ -43,7 +43,7 @@ function linkedStylesheets(htmlRel) {
     if (!href || /^(https?:)?\/\//i.test(href)) continue; // third-party (fonts) is not ours to inventory
     const path = href.split('?')[0];
     const file = path.startsWith('/') ? join(PUBLIC, path) : join(REPO_ROOT, dirname(htmlRel), path);
-    if (rel(file) !== PUBLISHED_TOKENS) out.push(rel(file));
+    if (canonical || rel(file) !== PUBLISHED_TOKENS) out.push(rel(file));
   }
   return out;
 }
@@ -56,6 +56,26 @@ function allCss(dir, acc = []) {
     else if (name.endsWith('.css')) acc.push(rel(p));
   }
   return acc;
+}
+
+/**
+ * Which stylesheets each surface loads, in load order, with nothing collapsed:
+ * a stylesheet two pages load appears under both, and the canonical token CSS
+ * is included (the inventory excludes it; a map of what loads what must not).
+ * Read-only. Stage 3.2.1 (Visual Explorer).
+ */
+export function surfaceLoads() {
+  return SURFACES.map((s) => {
+    const list = s.files ? s.files : s.html
+      ? linkedStylesheets(s.html, { canonical: true })
+      : readdirSync(join(REPO_ROOT, s.dir)).filter((f) => f.endsWith('.css')).sort().map((f) => `${s.dir}/${f}`);
+    return {
+      id: s.id, label: s.label,
+      via: s.files ? 'declared' : s.html ? 'link' : 'directory',
+      origin: s.html || s.dir || 'tools/tokens/lib/production.mjs',
+      files: list.filter((f) => existsSync(join(REPO_ROOT, f))),
+    };
+  });
 }
 
 /**
