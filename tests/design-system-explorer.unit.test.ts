@@ -88,9 +88,9 @@ beforeEach(() => { forgetIdentity(); resetDesignSystemGraphCache(); });
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the graph manifest is generated, deterministic and current', () => {
-  it('is exactly what the generator writes now (--check), and the same run checks all three manifests', () => {
+  it('is exactly what the generator writes now (--check), and the same run checks all four manifests', () => {
     const out = execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'design-system-discover.js'), '--check'], { cwd: ROOT, encoding: 'utf8' });
-    expect(out).toMatch(/manifest, graph manifest and components manifest are current/);
+    expect(out).toMatch(/manifest, graph manifest, components manifest and previews manifest are current/);
   });
 
   it('carries no timestamp, host or environment value', () => {
@@ -143,7 +143,8 @@ describe('the build refuses a stale graph, exactly as it refuses a stale manifes
       put('tools/tokens', true); put('tools/storybook/stories', true); put('public/tokens', true);
       put('src/design-system/graph-core.js');
       put('src/design-system/generated/design-system-manifest.json'); put('src/design-system/generated/design-system-graph.json');
-      put('scripts/design-system-components.js'); put('src/design-system/components-core.js'); put('tools/components', true); put('tools/storybook/tests/golden', true);
+      put('scripts/design-system-components.js'); put('src/design-system/components-core.js'); put('tools/components', true); put('tools/storybook/tests', true);
+      put('scripts/design-system-previews.js'); put('src/design-system/previews-core.js'); put('src/design-system/generated/design-system-previews.json');
       put('src/design-system/generated/design-system-components.json');
       fs.cpSync(path.join(ROOT, 'public'), path.join(tmp, 'public'), { recursive: true, filter: (src) => fs.statSync(src).isDirectory() || /\.(css|html|js)$/.test(src) });
       const gf = path.join(tmp, 'src/design-system/generated/design-system-graph.json');
@@ -172,7 +173,8 @@ describe('the build refuses a stale graph, exactly as it refuses a stale manifes
       put('tools/tokens', true); put('tools/storybook/stories', true); put('public/tokens', true);
       put('src/design-system/graph-core.js');
       put('src/design-system/generated/design-system-manifest.json'); put('src/design-system/generated/design-system-graph.json');
-      put('scripts/design-system-components.js'); put('src/design-system/components-core.js'); put('tools/components', true); put('tools/storybook/tests/golden', true);
+      put('scripts/design-system-components.js'); put('src/design-system/components-core.js'); put('tools/components', true); put('tools/storybook/tests', true);
+      put('scripts/design-system-previews.js'); put('src/design-system/previews-core.js'); put('src/design-system/generated/design-system-previews.json');
       put('src/design-system/generated/design-system-components.json');
       fs.cpSync(path.join(ROOT, 'public'), path.join(tmp, 'public'), { recursive: true, filter: (src) => fs.statSync(src).isDirectory() || /\.(css|html|js)$/.test(src) });
       // A page that loads one more stylesheet than the graph says.
@@ -328,9 +330,9 @@ describe('nothing in the graph is invented: every node and edge is recomputed fr
       expect(edgesTo('react').map((e: any) => e.from)).toEqual(built);
       expect(edgesTo('react').every((e: any) => e.evidence === 'MEASURED' && e.props.how === 'directory')).toBe(true);
       const listed = edgesTo('lazy').map((e: any) => e.from);
-      expect(listed).toEqual(['css:public/design-system/design-system.css', 'css:public/design-system/explorer.css', 'css:public/design-system/components.css']);
+      expect(listed).toEqual(['css:public/design-system/design-system.css', 'css:public/design-system/explorer.css', 'css:public/design-system/components.css', 'css:public/design-system/lab.css']);
       expect(edgesTo('lazy').every((e: any) => e.evidence === 'RECORDED' && e.props.how === 'declared')).toBe(true);
-      expect(read('tools/tokens/lib/production.mjs')).toContain("files: ['public/design-system/design-system.css', 'public/design-system/explorer.css', 'public/design-system/components.css']");
+      expect(read('tools/tokens/lib/production.mjs')).toContain("files: ['public/design-system/design-system.css', 'public/design-system/explorer.css', 'public/design-system/components.css', 'public/design-system/lab.css']");
     });
 
     it('draws a stylesheet two pages load once, with an edge to each', () => {
@@ -522,7 +524,7 @@ describe('the API: GET-only, authenticated and Platform-Owner-only, on the serve
 
   it('keeps the router GET-only and looks `view` up in a fixed list, never in a path, a query or a shell', () => {
     const src = read('src/routes/design-system.routes.ts');
-    expect(src.match(/router\.(get|post|put|patch|delete|all|use)\(/g)).toEqual(['router.use(', 'router.use(', 'router.get(', 'router.get(', 'router.get(', 'router.get(']);
+    expect(src.match(/router\.(get|post|put|patch|delete|all|use)\(/g)).toEqual(['router.use(', 'router.use(', 'router.get(', 'router.get(', 'router.get(', 'router.get(', 'router.get(']);
     expect(src).toContain("router.get('/graph'");
     expect(src).toContain('isGraphViewId(view)');
     expect(src).not.toMatch(/req\.params|path\.join|readFile|exec\(|spawn\(/);
@@ -851,7 +853,7 @@ describe('English, German and Arabic: everything the Explorer can say is in all 
     for (const k of Object.keys(en)) {
       expect(slots(de[k])).toBe(slots(k));
       // A singular form ("one rule") may spell the number as a word, as Arabic does.
-      if (!/^%d (rule|variant|case)$/.test(k)) expect(slots(ar[k])).toBe(slots(k));
+      if (!/^%d (rule|variant|case|fixture|element|node)$/.test(k)) expect(slots(ar[k])).toBe(slots(k));
     }
     for (const k of ['Visual Explorer', 'Token architecture', 'Legacy to canonical', 'Stylesheets to surfaces', 'Focus neighbourhood', 'Show nodes with no relationship']) {
       expect(de[k]).not.toBe(k);

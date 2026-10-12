@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-12T12:03:13.962Z",
+  "generatedAt": "2026-10-12T18:30:18.346Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -930,7 +930,7 @@
       "provider": "GitHub",
       "region": null,
       "repositoryPath": ".github/workflows/ci.yml",
-      "sourceEvidence": ".github/workflows/ci.yml — 20 named steps",
+      "sourceEvidence": ".github/workflows/ci.yml — 24 named steps",
       "dependencies": [
         "platform-core"
       ],
@@ -1101,7 +1101,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 204 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 205 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1654,7 +1654,7 @@
     "middleware": 23,
     "fabricModules": 52,
     "totalTypeScript": 605,
-    "testSuites": 204,
+    "testSuites": 205,
     "migrations": 49,
     "prismaModels": 344,
     "prismaEnums": 209
@@ -1730,7 +1730,7 @@
       {
         "file": ".github/workflows/ci.yml",
         "name": "ci",
-        "jobs": 4,
+        "jobs": 5,
         "steps": [
           "Checkout",
           "Setup Node 20",
@@ -1749,9 +1749,13 @@
           "Security closure Task 1 (real PostgreSQL)",
           "Algorithm telemetry (real PostgreSQL)",
           "Audit (blocking on high and critical)",
-          "Checkout (full history)",
-          "Install gitleaks (pinned, checksum verified)",
-          "Scan history for secrets"
+          "Checkout",
+          "Setup Node 20",
+          "Install deps",
+          "Install the browser-proof tools (pinned, lockfile-verified, no install scripts)",
+          "Audit the browser-proof tools (blocking on high and critical)",
+          "Build the application",
+          "Find Chrome on this runner"
         ],
         "services": [
           "postgres:16-alpine"
@@ -1935,7 +1939,7 @@
       "router": "designSystemRoutes",
       "file": "src/routes/design-system.routes.ts",
       "writes": 0,
-      "reads": 4
+      "reads": 5
     },
     {
       "path": "/telemetry",

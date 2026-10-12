@@ -1,0 +1,236 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   FAMILISTA DESIGN SYSTEM CONTROL — SPECIMEN LAB — Stage 3.2.3 M1
+
+   Loaded on demand by public/design-system/design-system.js the first time the
+   Specimen Lab section opens; never linked from a page. It sits on the room's own
+   stylesheet (design-system.css) — chips, buttons, segmented controls, tables,
+   key/value lists, the focus ring — and declares no custom property: every colour,
+   size, radius, weight and duration is a canonical --fam-* token.
+
+   THE IDENTITY: A BENCH
+
+   Three zones, one of which is the point. On the left, the rail: every registered
+   component, the ten that can be drawn first and, below them, the fifty that
+   cannot, each with the reason. In the middle, the bench: a large plate with
+   registration marks and a faint grid on which one specimen stands, and under it a
+   strip of the fixtures that produced it. On the right, the inspector: where the
+   specimen came from, what was removed from it, which variants it carries.
+
+   Amber is the chosen component, the chosen fixture and the focus ring, nothing
+   else. Green and red are not used: this screen reports no result.
+
+   WHAT KEEPS THE SPECIMEN IN ITS STAGE
+
+   .lab-specimen is the contained box. `contain: layout paint` makes it the
+   containing block for position:fixed descendants — the overlay the lg-float
+   primitive draws is anchored to this box and clipped by it — and `isolation:
+   isolate` gives it a stacking context of its own, so z-index: 2400 stays inside.
+   Production's own stylesheet, already loaded by the application the room runs in,
+   styles what is inside; nothing here restyles a production class.
+
+   Nothing moves that the reader did not move. The workspace is a fixed-height flex
+   column; the rail, the stage and the inspector scroll inside themselves with a
+   stable gutter; the plate has a fixed minimum height, so changing component or
+   fixture repaints the specimen and shifts nothing around it.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.ds-body--workspace { overflow: hidden; padding-block-end: var(--fam-space-4); }
+.lab-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.lab-host > .ds-skel { flex: 1 1 auto; }
+.lab { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: var(--fam-space-3); }
+.lab [hidden] { display: none !important; }
+.lab-dim { color: var(--fam-text-secondary); }
+.lab-n { font-family: var(--fam-font-family-mono); font-variant-numeric: tabular-nums; color: var(--fam-text-secondary); }
+
+/* ── toolbar ──────────────────────────────────────────────────────────── */
+
+.lab-bar { flex: 0 0 auto; display: flex; align-items: center; gap: var(--fam-space-3); flex-wrap: wrap; }
+.lab-search { position: relative; flex: 1 1 300px; max-width: 480px; display: block; }
+.lab-q { width: 100%; padding-inline-end: 38px; }
+.lab-kbd {
+  position: absolute; inset-inline-end: var(--fam-space-2); top: 50%; transform: translateY(-50%);
+  min-width: 20px; padding: 1px 6px; text-align: center; border-radius: var(--fam-radius-sm);
+  font-family: var(--fam-font-family-mono); font-size: var(--fam-font-size-sm); color: var(--fam-text-secondary);
+  border: var(--fam-border-width-hairline) solid var(--fam-border-strong); background: var(--fam-surface-tile); pointer-events: none;
+}
+.lab-count { flex: 1 1 auto; min-width: 12ch; font-size: var(--fam-font-size-md); color: var(--fam-text-secondary); font-variant-numeric: tabular-nums; }
+
+/* ── the three zones ──────────────────────────────────────────────────── */
+
+.lab-main { flex: 1 1 auto; min-height: 0; display: flex; gap: var(--fam-space-3); }
+
+/* the rail */
+.lab-rail {
+  flex: 0 0 272px; min-height: 0; display: flex; flex-direction: column;
+  border: var(--fam-border-width-hairline) solid var(--fam-border-default); border-radius: var(--fam-radius-panel);
+  background: linear-gradient(180deg, var(--fam-surface-panel), var(--fam-surface-panel-muted));
+}
+.lab-rail-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; padding: var(--fam-space-2); }
+.lab-grp { margin-block-end: var(--fam-space-2); }
+.lab-grp-h { margin: 0; }
+.lab-grp-b {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--fam-space-2); width: 100%;
+  padding: var(--fam-space-2) var(--fam-space-3); cursor: pointer; font: inherit; color: var(--fam-text-secondary); background: none;
+  border: 0; border-bottom: var(--fam-border-width-hairline) solid var(--fam-border-subtle); text-align: start;
+}
+.lab-grp-b:hover { color: var(--fam-text-primary); }
+.lab-grp-b[aria-expanded="false"] .lab-grp-t::before { content: "▸"; margin-inline-end: var(--fam-space-2); }
+.lab-grp-b[aria-expanded="true"] .lab-grp-t::before { content: "▾"; margin-inline-end: var(--fam-space-2); }
+#ds-root[dir="rtl"] .lab-grp-b[aria-expanded="false"] .lab-grp-t::before { content: "◂"; }
+.lab-grp-t { font-size: var(--fam-font-size-sm); font-weight: var(--fam-font-weight-extrabold); letter-spacing: var(--fam-font-tracking-label); text-transform: uppercase; }
+.lab-grp-n { font-family: var(--fam-font-family-mono); font-size: var(--fam-font-size-sm); font-variant-numeric: tabular-nums; }
+.lab-list { list-style: none; margin: var(--fam-space-1) 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.lab-item {
+  position: relative; display: flex; align-items: baseline; justify-content: space-between; gap: var(--fam-space-2); width: 100%;
+  padding: var(--fam-space-2) var(--fam-space-3); cursor: pointer; font: inherit; color: var(--fam-text-primary); text-align: start;
+  background: none; border: var(--fam-border-width-hairline) solid transparent; border-radius: var(--fam-radius-md);
+}
+.lab-item:hover { background: var(--fam-surface-tile); }
+.lab-item.is-sel { background: var(--fam-surface-tile-strong); border-color: var(--fam-module-accent); }
+.lab-item.is-na { color: var(--fam-text-secondary); cursor: default; }
+.lab-item.is-na.is-sel { cursor: default; }
+.lab-item-n { min-width: 0; overflow-wrap: anywhere; font-weight: var(--fam-font-weight-semibold); font-size: var(--fam-font-size-md); }
+.lab-item-r { flex: 0 0 auto; font-size: var(--fam-font-size-xs); color: var(--fam-text-secondary); letter-spacing: var(--fam-font-tracking-wide); text-align: end; }
+.lab-item-r--ok { font-variant-numeric: tabular-nums; }
+.lab-none { padding-block: var(--fam-space-5); }
+
+/* the bench */
+.lab-bench { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: var(--fam-space-3); overflow-y: auto; scrollbar-gutter: stable; padding-inline-end: var(--fam-space-1); }
+.lab-bench-h { flex: 0 0 auto; display: flex; align-items: flex-end; justify-content: space-between; gap: var(--fam-space-3); flex-wrap: wrap; }
+.lab-bench-id { min-width: 0; }
+.lab-title { margin: 0; font-size: var(--fam-font-size-3xl); font-weight: var(--fam-font-weight-extrabold); line-height: var(--fam-font-line-height-tight); overflow-wrap: anywhere; outline: none; }
+.lab-sub { margin-top: 2px; display: flex; align-items: baseline; gap: var(--fam-space-2); flex-wrap: wrap; color: var(--fam-text-secondary); font-size: var(--fam-font-size-md); }
+.lab-sub-f { overflow-wrap: anywhere; }
+.lab-dir .ds-seg-b { min-height: var(--fam-size-control-md); padding-inline: var(--fam-space-4); }
+.lab-evrow { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: var(--fam-space-2) var(--fam-space-5); min-height: 24px; }
+.lab-ev { display: inline-flex; align-items: center; gap: var(--fam-space-2); font-size: var(--fam-font-size-md); color: var(--fam-text-secondary); }
+
+/* The plate: registration marks, a faint grid, one specimen. */
+.lab-plate {
+  position: relative; flex: 1 1 auto; min-height: 380px; display: flex;
+  border: var(--fam-border-width-hairline) solid var(--fam-border-strong); border-radius: var(--fam-radius-lg);
+  background:
+    radial-gradient(circle at center, var(--fam-border-subtle) 1px, transparent 1.5px) 0 0 / 16px 16px,
+    var(--fam-surface-base);
+}
+.lab-plate::before {
+  content: ""; position: absolute; inset: 6px; pointer-events: none; opacity: .7; z-index: 1;
+  background:
+    linear-gradient(var(--fam-text-secondary), var(--fam-text-secondary)) top left / 12px 1px no-repeat,
+    linear-gradient(var(--fam-text-secondary), var(--fam-text-secondary)) top left / 1px 12px no-repeat,
+    linear-gradient(var(--fam-text-secondary), var(--fam-text-secondary)) top right / 12px 1px no-repeat,
+    linear-gradient(var(--fam-text-secondary), var(--fam-text-secondary)) top right / 1px 12px no-repeat,
+    linear-gradient(var(--fam-text-secondary), var(--fam-text-secondary)) bottom left / 12px 1px no-repeat,
+    linear-gradient(var(--fam-text-secondary), var(--fam-text-secondary)) bottom left / 1px 12px no-repeat,
+    linear-gradient(var(--fam-text-secondary), var(--fam-text-secondary)) bottom right / 12px 1px no-repeat,
+    linear-gradient(var(--fam-text-secondary), var(--fam-text-secondary)) bottom right / 1px 12px no-repeat;
+}
+.lab-plate--na { align-items: center; justify-content: center; border-style: dashed; }
+.lab-plate--na::before { display: none; }
+.lab-wait { flex: 1 1 auto; padding: var(--fam-space-6); }
+
+/* THE CONTAINED STAGE. Everything the fixture draws is inside this box, and
+   nothing it draws can leave it: layout and paint containment anchor and clip a
+   fixed-position overlay, and the stacking context keeps z-index inside. */
+.lab-specimen {
+  position: relative; flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column;
+  padding: var(--fam-space-6); overflow: auto; scrollbar-gutter: stable;
+  contain: layout paint; isolation: isolate;
+  color: var(--fam-text-primary); font-family: var(--fam-font-family-sans);
+}
+.lab-col { margin: auto; width: 100%; max-width: 640px; }
+.lab-void, .lab-refuse { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 2; pointer-events: none; }
+.lab-refuse { pointer-events: auto; background: var(--fam-surface-base); }
+.lab-na { width: 100%; padding: var(--fam-space-5); }
+
+/* the fixture strip: one row, fixed height, scrolls inside itself */
+.lab-strip { flex: 0 0 auto; display: flex; gap: var(--fam-space-2); overflow-x: auto; padding-block-end: var(--fam-space-2); min-height: 52px; scrollbar-width: thin; }
+.lab-fx {
+  flex: 0 0 auto; display: inline-flex; align-items: baseline; gap: var(--fam-space-2); max-width: 240px; padding: var(--fam-space-2) var(--fam-space-3);
+  cursor: pointer; font: inherit; font-size: var(--fam-font-size-md); color: var(--fam-text-secondary); background: none;
+  border: var(--fam-border-width-hairline) solid var(--fam-border-default); border-radius: var(--fam-radius-md);
+}
+.lab-fx:hover { color: var(--fam-text-primary); background: var(--fam-surface-tile); }
+.lab-fx.is-on { color: var(--fam-text-primary); background: var(--fam-surface-tile-strong); border-color: var(--fam-module-accent); box-shadow: inset 0 -2px 0 var(--fam-module-accent); }
+.lab-fx-i { font-family: var(--fam-font-family-mono); font-size: var(--fam-font-size-sm); font-variant-numeric: tabular-nums; }
+.lab-fx-l { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: var(--fam-font-weight-semibold); }
+
+/* the inspector */
+.lab-insp {
+  flex: 0 0 380px; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; display: flex; flex-direction: column;
+  border: var(--fam-border-width-hairline) solid var(--fam-border-default); border-radius: var(--fam-radius-panel);
+  background: linear-gradient(180deg, var(--fam-surface-panel), var(--fam-surface-panel-muted));
+}
+.lab-ihead { flex: 0 0 auto; padding: var(--fam-space-4) var(--fam-space-4) var(--fam-space-3); border-bottom: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
+.lab-ikind { display: flex; align-items: center; justify-content: space-between; gap: var(--fam-space-2); font-size: var(--fam-font-size-xs); font-weight: var(--fam-font-weight-extrabold); letter-spacing: var(--fam-font-tracking-label); text-transform: uppercase; color: var(--fam-text-secondary); }
+.lab-tier { font-weight: var(--fam-font-weight-bold); }
+.lab-ititle { margin: var(--fam-space-2) 0 0; font-size: var(--fam-font-size-2xl); font-weight: var(--fam-font-weight-extrabold); line-height: var(--fam-font-line-height-tight); overflow-wrap: anywhere; outline: none; }
+.lab-isub { margin-top: var(--fam-space-1); font-size: var(--fam-font-size-md); color: var(--fam-text-secondary); line-height: var(--fam-font-line-height-snug); }
+.lab-tabs { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: var(--fam-space-1); padding: var(--fam-space-3) var(--fam-space-4) 0; }
+.lab-tab {
+  min-height: var(--fam-size-control-sm); padding: 0 var(--fam-space-3); cursor: pointer; font: inherit; font-size: var(--fam-font-size-md); font-weight: var(--fam-font-weight-semibold);
+  color: var(--fam-text-secondary); background: none; border: var(--fam-border-width-hairline) solid var(--fam-border-default); border-radius: var(--fam-radius-full);
+}
+.lab-tab:hover { color: var(--fam-text-primary); background: var(--fam-surface-tile); }
+.lab-tab.is-on { color: var(--fam-text-primary); background: var(--fam-surface-tile-strong); border-color: var(--fam-module-accent); }
+.lab-ibody { flex: 1 1 auto; min-height: 0; }
+.lab-pane { padding: var(--fam-space-4); display: flex; flex-direction: column; gap: var(--fam-space-2); outline: none; }
+.lab-sechead { display: flex; align-items: center; justify-content: space-between; gap: var(--fam-space-2); margin-top: var(--fam-space-2); }
+.lab-sec-t { font-size: var(--fam-font-size-sm); font-weight: var(--fam-font-weight-extrabold); letter-spacing: var(--fam-font-tracking-label); text-transform: uppercase; color: var(--fam-text-secondary); }
+.lab-ih { margin-top: var(--fam-space-3); font-size: var(--fam-font-size-sm); font-weight: var(--fam-font-weight-extrabold); letter-spacing: var(--fam-font-tracking-label); text-transform: uppercase; color: var(--fam-text-secondary); }
+.lab-p { margin: 0; font-size: var(--fam-font-size-base); line-height: var(--fam-font-line-height-snug); }
+.lab-plain { margin: 0; padding-inline-start: var(--fam-space-4); display: flex; flex-direction: column; gap: var(--fam-space-1); font-size: var(--fam-font-size-md); }
+.lab-hash { display: block; font-family: var(--fam-font-family-mono); font-size: var(--fam-font-size-xs); color: var(--fam-text-secondary); word-break: break-all; unicode-bidi: isolate; }
+.lab-call {
+  margin: 0; padding: var(--fam-space-3); overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; direction: ltr; text-align: start;
+  font-family: var(--fam-font-family-mono); font-size: var(--fam-font-size-md); background: var(--fam-surface-sunken);
+  border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); border-radius: var(--fam-radius-md);
+}
+.lab-tbl { min-width: 0; width: 100%; }
+.lab-tbl th, .lab-tbl td { padding-inline: var(--fam-space-2); }
+.lab-slice { padding-block: var(--fam-space-2); border-bottom: var(--fam-border-width-hairline) dashed var(--fam-border-subtle); }
+.lab-srcs, .lab-neutral, .lab-vars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--fam-space-3); }
+.lab-srcs li { display: flex; flex-direction: column; gap: 2px; font-size: var(--fam-font-size-md); }
+.lab-src-l { font-weight: var(--fam-font-weight-semibold); }
+.lab-neutral li, .lab-var { padding-block-end: var(--fam-space-2); border-bottom: var(--fam-border-width-hairline) dashed var(--fam-border-subtle); font-size: var(--fam-font-size-md); }
+.lab-neutral-h, .lab-var-h { display: flex; align-items: baseline; gap: var(--fam-space-2); flex-wrap: wrap; margin-bottom: 2px; }
+.lab-var-b { display: flex; flex-wrap: wrap; gap: var(--fam-space-1) var(--fam-space-3); }
+.lab-tags { display: flex; flex-wrap: wrap; gap: var(--fam-space-1) var(--fam-space-3); }
+.lab-link { padding: 0; font: inherit; font-size: var(--fam-font-size-md); color: var(--fam-text-primary); text-decoration: underline; text-underline-offset: 3px; background: none; border: 0; cursor: pointer; text-align: start; }
+.lab-ni { padding: var(--fam-space-3); border: var(--fam-border-width-hairline) dashed var(--fam-border-strong); border-radius: var(--fam-radius-md); }
+.lab-ni-t { font-weight: var(--fam-font-weight-extrabold); }
+.lab-ni-d { margin-top: 2px; font-size: var(--fam-font-size-md); color: var(--fam-text-secondary); }
+
+:is(.lab-item, .lab-grp-b, .lab-fx, .lab-tab, .lab-link, .lab-q, .lab-dir .ds-seg-b, .lab-pane):focus-visible {
+  outline: var(--fam-border-width-strong) solid var(--fam-focus-ring); outline-offset: 2px;
+}
+
+/* ── responsive ───────────────────────────────────────────────────────── */
+
+@media (max-width: 1360px) {
+  .lab-rail { flex-basis: 230px; }
+  .lab-insp { flex-basis: 330px; }
+}
+
+/* The escape hatch every workspace carries: below this the page scrolls normally
+   and each part keeps a height of its own, instead of being crushed into a
+   fixed-height shell. */
+@media (max-width: 980px), (max-height: 620px) {
+  .ds-body--workspace { overflow: visible; }
+  .lab { flex: none; }
+  .lab-main { flex-direction: column; }
+  .lab-rail { flex: none; max-height: 320px; }
+  .lab-bench { flex: none; overflow: visible; padding-inline-end: 0; }
+  .lab-insp { flex: none; overflow: visible; }
+  .lab-search { flex: 1 1 100%; max-width: none; }
+  .lab-count { flex: 1 1 100%; order: 3; }
+  .lab-plate { min-height: 320px; }
+}
+@media (max-width: 560px) {
+  .lab-specimen { padding: var(--fam-space-4); }
+  .lab-title { font-size: var(--fam-font-size-2xl); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lab-item, .lab-fx, .lab-tab { transition: none; }
+}

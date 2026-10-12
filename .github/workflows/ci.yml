@@ -175,6 +175,111 @@ jobs:
       - name: Audit (blocking on high and critical)
         run: npm audit --audit-level=high
 
+  # Stage 3.2.3 M1: the Specimen Lab is a security boundary, and Jest has no layout engine,
+  # no real event dispatch and no translator, so the boundary is proved in a real browser.
+  # tools/components/lab-browser-proof.cjs runs the REAL compiled application (only the
+  # database is stubbed) as a Platform Owner and proves, with a negative control beside
+  # each proof, that: events stop at the stage, a fixed overlay stays inside it, the
+  # application's translator leaves it alone, a hostile fixture draws nothing and runs
+  # nothing, the existing CSP is served unchanged, no CSP violation or console error
+  # comes from the Lab (and none is unexplained), focus survives the room redrawing the
+  # Lab, and the Lab passes axe (WCAG 2.2 A/AA) in en, de and ar (RTL) at four sizes.
+  #
+  # Authoritative: no `|| true`, no continue-on-error. A failed proof fails this job, a
+  # failed job fails the `ci` workflow, and deploy.yml deploys only on a successful `ci`.
+  # The proof is split in two jobs only to keep the wall-clock time near `validate`;
+  # `min` is a floor on how many proofs must have passed, so a typo in a section list
+  # cannot turn a shard into an empty, green run.
+  #
+  # Tools: tools/components/package.json pins playwright-core and axe-core exactly, with a
+  # lockfile; `npm ci --ignore-scripts` verifies their integrity hashes. Neither is a
+  # production dependency and neither downloads a browser: Chrome comes from the runner
+  # image, and the step below fails loudly if it is not there.
+  browser-proof:
+    name: browser proof (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: isolation
+            sections: '1,2,2b,3,4,5'
+            axe: ''
+            min: '45'
+          - shard: accessibility and focus
+            sections: '6,7'
+            axe: '--axe'
+            min: '34'
+
+    env:
+      NODE_ENV:           test
+      # `prisma generate` in the build needs a well-formed URL, not a reachable database.
+      DATABASE_URL:       postgresql://familista_ci:familista_ci_pw@localhost:5432/familista_ci
+      DIRECT_URL:         postgresql://familista_ci:familista_ci_pw@localhost:5432/familista_ci
+      PROOF_SECTIONS:     ${{ matrix.sections }}
+      PROOF_AXE:          ${{ matrix.axe }}
+      PROOF_MIN:          ${{ matrix.min }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node 20
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            tools/components/package-lock.json
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install the browser-proof tools (pinned, lockfile-verified, no install scripts)
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --prefix tools/components
+          npm ls --all --prefix tools/components
+
+      - name: Audit the browser-proof tools (blocking on high and critical)
+        run: npm audit --audit-level=high --prefix tools/components
+
+      - name: Build the application
+        run: npm run build
+
+      - name: Find Chrome on this runner
+        run: |
+          set -euo pipefail
+          if ! chrome="$(command -v google-chrome)"; then
+            echo "::error::google-chrome is not installed on this runner image; the browser proof cannot run"
+            exit 1
+          fi
+          "$chrome" --version
+          echo "CHROMIUM=$chrome" >> "$GITHUB_ENV"
+
+      - name: Browser proof
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/browser-proof"
+          mkdir -p "$out"
+          args=()
+          if [ -n "$PROOF_AXE" ]; then args+=("$PROOF_AXE"); fi
+          # The application logs one JSON line per request; the proof's own lines are PASS / FAIL / SUMMARY.
+          PROOF_ONLY="$PROOF_SECTIONS" node tools/components/lab-browser-proof.cjs "$out" "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/browser-proof.log" | grep -v '^{"'
+
+      - name: The proof must have run, in full, with nothing failed or skipped
+        run: |
+          set -euo pipefail
+          line="$(grep -E '^SUMMARY ' "$RUNNER_TEMP/browser-proof.log" | tail -n 1)"
+          echo "$line"
+          passed="$(printf '%s' "$line" | sed -E 's/^SUMMARY ([0-9]+) passed.*/\1/')"
+          printf '%s' "$line" | grep -Eq ', 0 failed, 0 skipped$'
+          test "$passed" -ge "$PROOF_MIN"
+
   # Cyber Defense, Step 9: no credential enters the repository. gitleaks scans
   # the WHOLE history on every pull request and every push to main, so a secret
   # committed and then deleted is still caught. Findings are printed redacted;

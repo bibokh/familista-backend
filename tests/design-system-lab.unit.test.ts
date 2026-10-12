@@ -1,0 +1,1330 @@
+/**
+ * Familista Design System Control — Stage 3.2.3 M1 — the Specimen Lab (Fixture Plate)
+ *
+ * The Owner-only room gains a stage on which the ten verified primitives are drawn
+ * from fixtures: markup their production render functions produced for fixed
+ * inputs, checked and neutralised by ONE sanitizer used at build time, on the
+ * server and in the browser. This suite pins, one guarantee at a time:
+ *
+ *   - the sanitizer is a closed allowlist that fails closed: every hostile input in
+ *     a long corpus is refused, every real fixture passes and round-trips, and the
+ *     browser half builds nodes with createElement and setAttribute, never HTML;
+ *   - the preview manifest is generated, deterministic and current; every fixture is
+ *     the Storybook golden snapshot, sanitised, hashed and bound to the render
+ *     function and CSS the components manifest recorded; the golden snapshot is
+ *     itself re-proved against public/app.js in this suite, so CI refuses drift;
+ *   - the validator the server runs refuses every kind of malformed or tampered
+ *     manifest, and none of it is ever partly served;
+ *   - the API is GET-only, authenticated and Platform-Owner-only, and `id` is looked
+ *     up in a fixed list;
+ *   - the client is CSP-safe, GET-only, lazy, draws no unsanitised HTML (run for
+ *     real in a sandbox, with hostile data), keeps events at the stage's boundary,
+ *     and speaks English, German and Arabic.
+ *
+ * What Jest cannot prove — layout containment of a fixed overlay, event isolation
+ * under real input, the translator leaving the stage alone — is proved in a real
+ * browser by tools/components/lab-browser-proof.cjs, not assumed here.
+ */
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://u:p@localhost:5432/db';
+process.env.DIRECT_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET ?? 'a'.repeat(48);
+process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET ?? 'b'.repeat(48);
+
+type Row = Record<string, unknown>;
+const USERS: Record<string, Row> = {};
+
+jest.mock('../src/config/database', () => ({
+  prisma: new Proxy({}, {
+    get: (_t, k: string) => {
+      if (k === '$queryRaw' || k === '$executeRaw') return async () => [{ ok: 1 }];
+      if (k === '$connect' || k === '$disconnect') return async () => {};
+      if (k === 'user') return {
+        findUnique: async (q: { where: { id?: string } }) => Object.values(USERS).find((u) => u.id === q.where.id) ?? null,
+        findFirst: async (q: { where: { id?: string } }) => Object.values(USERS).find((u) => u.id === q.where.id) ?? null,
+      };
+      if (k === 'platformAdmin') {
+        const row = async (q: { where?: { userId?: string } }) => (q?.where?.userId === 'u-padmin' ? { isActive: true, role: 'ADMIN' } : null);
+        return { findFirst: row, findUnique: row };
+      }
+      return new Proxy({}, { get: () => async () => null });
+    },
+  }),
+}));
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const request = require('supertest');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { createApp } = require('../src/app');
+import { execFileSync, spawnSync } from 'child_process';
+import crypto from 'crypto';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import vm from 'vm';
+import { signToken } from '../src/security/jwt-tokens';
+import { forgetIdentity } from '../src/middleware/auth.middleware';
+import { resetDesignSystemComponentsCache, resetDesignSystemPreviewsCache } from '../src/design-system/design-system.service';
+import { DesignSystemPreviewsIndexSchema, DesignSystemPreviewDetailSchema, OWNER_API_CONTRACTS } from '../src/contracts/owner-api.contracts';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const core = require('../src/design-system/previews-core.js');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const generator = require('../scripts/design-system-previews.js');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const S = require('../public/design-system/lab-sanitize.js');
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const ROOT = path.join(__dirname, '..');
+const read = (p: string, root = ROOT) => fs.readFileSync(path.join(root, p), 'utf8');
+const json = (p: string) => JSON.parse(read(p));
+const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map((l) => l.replace(/^\s*\/\/.*$/, '')).join('\n');
+const sha = (s: string | Buffer) => crypto.createHash('sha256').update(s).digest('hex');
+const MANIFEST_PATH = 'src/design-system/generated/design-system-previews.json';
+const COMPONENTS_PATH = 'src/design-system/generated/design-system-components.json';
+const GOLDEN_PATH = 'tools/storybook/tests/golden/lg-primitives.golden.json';
+const manifest = json(MANIFEST_PATH);
+const components = json(COMPONENTS_PATH);
+const golden = json(GOLDEN_PATH);
+const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
+const byId = (id: string) => manifest.components.find((c: any) => c.id === id);
+const allFixtures = (): { c: any; f: any }[] => manifest.components.flatMap((c: any) => c.fixtures.map((f: any) => ({ c, f })));
+
+const app = createApp();
+const token = (id: string, role: string) => signToken('access', { sub: id, role, tv: 0 }, { expiresIn: '10m' });
+const get = (url: string, who?: [string, string]) => {
+  const r = request(app).get(`/api/v1/system/design-system/components/preview${url}`);
+  return who ? r.set('Authorization', `Bearer ${token(...who)}`) : r;
+};
+const OWNER: [string, string] = ['u-owner', 'SUPER_ADMIN'];
+
+beforeAll(() => {
+  const base = { isActive: true, currentClubId: null, currentTeamId: null, tokenVersion: 0, platformAdmin: null };
+  USERS.owner = { ...base, id: 'u-owner', email: 'o@x.test', role: 'SUPER_ADMIN', clubId: null };
+  USERS.platformAdmin = { ...base, id: 'u-padmin', email: 'p@x.test', role: 'CLUB_ADMIN', clubId: 'c-1', platformAdmin: { isActive: true } };
+  USERS.clubAdmin = { ...base, id: 'u-cadmin', email: 'c@x.test', role: 'CLUB_ADMIN', clubId: 'c-1' };
+  USERS.coach = { ...base, id: 'u-coach', email: 'h@x.test', role: 'HEAD_COACH', clubId: 'c-1' };
+});
+beforeEach(() => { forgetIdentity(); resetDesignSystemComponentsCache(); resetDesignSystemPreviewsCache(); });
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the sanitizer: a closed allowlist that fails closed', () => {
+  it('passes every one of the 65 real fixtures, and what it writes is a fixed point', () => {
+    let n = 0;
+    for (const [sym, cases] of Object.entries<any>(golden)) for (const [label, raw] of Object.entries<string>(cases)) {
+      const a = S.sanitize(raw);
+      expect({ sym, label, ok: a.ok, problems: a.problems }).toEqual({ sym, label, ok: true, problems: [] });
+      const b = S.sanitize(a.html);
+      expect(b.ok && b.html === a.html).toBe(true);
+      const tree = S.parse(a.html).tree;
+      expect(S.serialize(tree)).toBe(a.html);
+      n++;
+    }
+    expect(n).toBe(65);
+  });
+
+  it('has a closed list: eighteen tags, no more, and no attribute outside the ones real fixtures use', () => {
+    const p = S.policy();
+    expect(Object.keys(p.tags)).toEqual(['b', 'button', 'circle', 'div', 'footer', 'h2', 'header', 'i', 'img', 'p', 'path', 'section', 'span', 'svg', 'table', 'tbody', 'td', 'tr']);
+    // Every attribute a real fixture uses is allowed on its tag, and every allowed attribute (but the one the sanitizer adds) is used by a real fixture: the list is as tight as the fixtures.
+    const usedByTag: Record<string, Set<string>> = {};
+    const seeTree = (n: any) => { if (n.t === 'el' && n.tag) { (usedByTag[n.tag] ||= new Set()); n.attrs.forEach((x: any) => usedByTag[n.tag].add(x[0])); } (n.kids || []).forEach(seeTree); };
+    for (const cases of Object.values<any>(golden)) for (const raw of Object.values<string>(cases)) seeTree(S.parse(raw).tree);
+    for (const [tag, set] of Object.entries(usedByTag)) for (const a of set) expect({ tag, a, ok: p.tags[tag].attributes.includes(a) }).toEqual({ tag, a, ok: true });
+    for (const [tag, spec] of Object.entries<any>(p.tags)) for (const a of spec.attributes) if (!(tag === 'button' && a === 'tabindex') && !(tag === 'tbody')) expect({ tag, a, used: usedByTag[tag]?.has(a) }).toEqual({ tag, a, used: true });
+    const allowed = new Set(Object.values<any>(p.tags).flatMap((t) => t.attributes));
+    for (const forbidden of ['style', 'href', 'xlink:href', 'srcdoc', 'action', 'formaction', 'onclick', 'onerror', 'onload', 'id', 'name', 'target', 'data-i18n', 'data-nav', 'data-close-modal']) expect(allowed.has(forbidden)).toBe(false);
+    expect(p.limits).toMatchObject({ bytes: 4096, nodes: 300, depth: 12 });
+  });
+
+  it('neutralises exactly the four things it says it does, and reports every one', () => {
+    const r = S.sanitize(golden._lgFloat['head and body']);
+    expect(r.ok).toBe(true);
+    expect(r.html).not.toMatch(/data-action|aria-modal|data-i18n-aria/);
+    expect(r.html).toContain('<button class="lg-float-x" type="button" aria-label="Close" tabindex="-1">');
+    expect(r.neutralised).toEqual([
+      { code: 'data-action', action: 'removed', count: 2 },
+      { code: 'data-i18n-aria', action: 'removed', count: 1 },
+      { code: 'aria-modal', action: 'removed', count: 1 },
+      { code: 'tabindex', action: 'set to -1 on buttons', count: 1 },
+    ]);
+    expect(S.NEUTRALISED.map((x: any) => x.code)).toEqual(['data-action', 'data-i18n-aria', 'aria-modal', 'tabindex']);
+  });
+
+  const HOSTILE: [string, string][] = [
+    ['a script', '<script>alert(1)</script>'],
+    ['a script in a span', '<span><script>alert(1)</script></span>'],
+    ['an event attribute', '<div onclick="alert(1)">x</div>'],
+    ['an image with onerror', '<img src="data:image/png;base64,AAAA" onerror="alert(1)">'],
+    ['onerror on a broken source', '<img src=x onerror=alert(1)>'],
+    ['a javascript: anchor', '<a href="javascript:alert(1)">x</a>'],
+    ['an iframe', '<iframe src="https://example.invalid"></iframe>'],
+    ['an iframe with srcdoc', '<iframe srcdoc="<script>alert(1)</script>"></iframe>'],
+    ['a form', '<form action="https://example.invalid"><button>x</button></form>'],
+    ['an input', '<input type="text">'],
+    ['a style element', '<style>*{display:none}</style>'],
+    ['a link', '<link rel="stylesheet" href="https://example.invalid/x.css">'],
+    ['a meta', '<meta http-equiv="refresh" content="0;url=https://example.invalid">'],
+    ['a base', '<base href="https://example.invalid/">'],
+    ['an object', '<object data="x"></object>'],
+    ['an embed', '<embed src="x">'],
+    ['an svg with onload', '<svg onload="alert(1)"></svg>'],
+    ['a script inside svg', '<svg><script>alert(1)</script></svg>'],
+    ['foreignObject', '<svg><foreignObject><div>x</div></foreignObject></svg>'],
+    ['svg use with href', '<svg><use href="https://example.invalid/x.svg#a"/></svg>'],
+    ['svg animate', '<svg><animate attributeName="href" values="javascript:alert(1)"/></svg>'],
+    ['math', '<math><mi>x</mi></math>'],
+    ['a template', '<template><div>x</div></template>'],
+    ['a style attribute', '<div style="position:fixed;inset:0">x</div>'],
+    ['a remote image', '<img src="https://example.invalid/pixel.png" alt="x">'],
+    ['a protocol-relative image', '<img src="//example.invalid/pixel.png" alt="x">'],
+    ['a javascript: image', '<img src="javascript:alert(1)" alt="x">'],
+    ['an html data: image', '<img src="data:text/html,<script>alert(1)</script>" alt="x">'],
+    ['a data: svg that embeds a tag', '<img src="data:image/svg+xml,<svg onload=alert(1)>" alt="x">'],
+    ['a comment', '<div>x</div><!-- hi -->'],
+    ['a conditional comment', '<!--[if IE]><script>alert(1)</script><![endif]-->'],
+    ['a doctype', '<!DOCTYPE html><div>x</div>'],
+    ['CDATA', '<div><![CDATA[x]]></div>'],
+    ['a processing instruction', '<?php echo 1 ?>'],
+    ['an upper-case tag', '<DIV>x</DIV>'],
+    ['a mixed-case script', '<ScRiPt>alert(1)</ScRiPt>'],
+    ['an unquoted attribute', '<div class=x>y</div>'],
+    ['a single-quoted attribute', "<div class='x'>y</div>"],
+    ['a duplicated attribute', '<div class="a" class="b">y</div>'],
+    ['an unknown character reference', '<p>a&nbsp;b</p>'],
+    ['a numeric character reference', '<p>&#x3C;script&#x3E;</p>'],
+    ['a reference with no semicolon', '<p>a &lt b</p>'],
+    ['a NUL byte', '<p>a\u0000b</p>'],
+    ['a bidirectional override', '<p>abc\u202Edef</p>'],
+    ['a bidirectional isolate in an attribute', '<span class="a" data-club-logo="x\u2066y">z</span>'],
+    ['a line separator', '<p>a\u2028b</p>'],
+    ['mismatched closing tags', '<b><i>x</b></i>'],
+    ['an unclosed element', '<div><span>x</span>'],
+    ['a stray closing tag', '<div>x</div></div>'],
+    ['text outside any element', 'hello'],
+    ['a bare ">" in text', '<p>a > b</p>'],
+    ['a "<" in an attribute value', '<span class="a<b">x</span>'],
+    ['a button inside a button', '<button><button>x</button></button>'],
+    ['a td outside a tr', '<div><td>x</td></div>'],
+    ['svg children outside an svg', '<div><path d="M0 0"/></div>'],
+    ['html inside svg', '<svg><div>x</div></svg>'],
+    ['a self-closed div', '<div/>'],
+    ['an attribute that is not allowed on the tag', '<p class="x">y</p>'],
+    ['formaction on a button', '<button type="button" formaction="https://example.invalid">x</button>'],
+    ['an invalid role', '<div role="button">x</div>'],
+    ['an invalid aria-hidden', '<div aria-hidden="maybe">x</div>'],
+    ['an invalid bar width', '<i data-mc-width="120%"></i>'],
+    ['a bar width that is an expression', '<i data-mc-width="calc(100% - 1px)"></i>'],
+    ['an invalid path', '<svg><path d="M0 0 <script>"/></svg>'],
+    ['an invalid paint', '<svg><path fill="url(javascript:alert(1))" d="M0 0"/></svg>'],
+    ['an id attribute', '<div id="x">y</div>'],
+    ['a data-i18n attribute', '<span data-i18n="navigation.squad">x</span>'],
+    ['a data-nav attribute', '<span data-nav="home">x</span>'],
+    ['a tabindex that is not -1', '<button type="button" tabindex="0">x</button>'],
+    ['an attribute with no validator', '<span data-club-logo="a b">x</span>'],
+  ];
+  it.each(HOSTILE)('refuses %s', (_n, html) => {
+    const r = S.sanitize(html);
+    expect(r.ok).toBe(false);
+    expect(r.html).toBeNull();
+    expect(r.tree).toBeNull();
+    expect(r.problems.length).toBeGreaterThan(0);
+  });
+
+  it('refuses a fixture over any of its limits', () => {
+    expect(S.sanitize('<p>' + 'x'.repeat(5000) + '</p>').ok).toBe(false);                                            // bytes
+    expect(S.sanitize('<div>'.repeat(14) + 'x' + '</div>'.repeat(14)).ok).toBe(false);                               // depth
+    expect(S.sanitize('<div>' + '<span>a</span>'.repeat(160) + '</div>').ok).toBe(false);                            // nodes
+    expect(S.sanitize('<p>' + 'y'.repeat(401) + '</p>').ok).toBe(false);                                             // one text node
+    expect(S.sanitize('<span class="' + 'a '.repeat(9) + '">x</span>').ok).toBe(false);                             // class tokens
+    expect(S.sanitize('<span ' + Array.from({ length: 13 }, (_, i) => `data-lg-size="${i}"`).join(' ') + '>x</span>').ok).toBe(false);
+  });
+
+  it('accepts text that looks like markup, as text only', () => {
+    const r = S.sanitize('<p>&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;x&quot; &#39;y&#39;</p>');
+    expect(r.ok).toBe(true);
+    expect(r.tree.kids[0].kids).toEqual([{ t: 'tx', v: '<script>alert(1)</script> & "x" \'y\'' }]);
+    expect(r.html).toBe('<p>&lt;script&gt;alert(1)&lt;/script&gt; &amp; "x" \'y\'</p>');
+  });
+
+  it('accepts a small image data: URI, and nothing else as a source', () => {
+    expect(S.sanitize('<img class="a" src="data:image/png;base64,iVBORw0KGgo=" alt="x">').ok).toBe(true);
+    expect(S.sanitize('<img src="data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%2F%3E" alt="x">').ok).toBe(true);
+    for (const bad of ['http://a/b.png', 'https://a/b.png', '/x.png', 'blob:x', 'data:text/plain,hi', 'data:image/png,a b']) expect(S.sanitize(`<img src="${bad}" alt="x">`).ok).toBe(false);
+  });
+
+  it('puts the implicit tbody a browser would, so the tree is the production tree', () => {
+    const r = S.sanitize('<table class="a"><tr><td>1</td></tr></table>');
+    expect(r.html).toBe('<table class="a"><tbody><tr><td>1</td></tr></tbody></table>');
+  });
+
+  it('checks every class against the caller’s provenance, and refuses one it does not approve', () => {
+    expect(S.sanitize('<span class="lg-chip lg-chip--up">x</span>', { classOk: (n: string) => n.startsWith('lg-chip') }).ok).toBe(true);
+    const r = S.sanitize('<span class="lg-chip evil">x</span>', { classOk: (n: string) => n.startsWith('lg-chip') });
+    expect(r.ok).toBe(false);
+    expect(r.problems.join(' ')).toMatch(/"evil" has no approved provenance/);
+    expect(S.sanitize('<span class="1bad">x</span>').ok).toBe(false);
+  });
+
+  it('builds nodes with createElement, createElementNS, setAttribute and createTextNode only', () => {
+    const made: string[] = [];
+    const doc: any = {
+      createDocumentFragment: () => { made.push('fragment'); return { appendChild() {} }; },
+      createElement: (t: string) => { made.push('el:' + t); return { setAttribute: (n: string) => made.push('attr:' + n), appendChild() {} }; },
+      createElementNS: (ns: string, t: string) => { made.push('ns:' + t); expect(ns).toBe('http://www.w3.org/2000/svg'); return { setAttribute: (n: string) => made.push('attr:' + n), appendChild() {} }; },
+      createTextNode: (v: string) => { made.push('text:' + v); return {}; },
+    };
+    const r = S.sanitize('<div class="a"><svg viewBox="0 0 1 1"><path d="M0 0"/></svg><p>&lt;img src=x onerror=alert(1)&gt;</p></div>');
+    S.toDom(r.tree, doc);
+    expect(made).toEqual(['fragment', 'el:div', 'attr:class', 'ns:svg', 'attr:viewBox', 'ns:path', 'attr:d', 'el:p', 'text:<img src=x onerror=alert(1)>']);
+  });
+
+  it('has no way to reach the browser’s parser, an eval, a frame or the network', () => {
+    const src = stripComments(read('public/design-system/lab-sanitize.js'));
+    expect(src).not.toMatch(/\binnerHTML\b|insertAdjacentHTML|outerHTML|DOMParser|createContextualFragment|document\.write|\beval\(|new Function\(|\bFunction\(|srcdoc|<iframe|importScripts|\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket|\bimport\(|\brequire\(/);
+    expect(src).not.toMatch(/\.style\b|setAttribute\(\s*['"]style/);
+  });
+
+  it('is one file, loaded by the build, the server and the browser alike', () => {
+    expect(read('scripts/design-system-previews.js')).toContain("require('../public/design-system/lab-sanitize.js')");
+    expect(read('src/design-system/previews-core.js')).toContain("require('../../public/design-system/lab-sanitize.js')");
+    expect(read('public/design-system/design-system.js')).toContain("pre: ['/design-system/lab-sanitize.js']");
+    expect(read('public/design-system/lab.js')).toContain('window.FamilistaLabSanitize');
+    expect(manifest.sources.find((s: any) => s.id === 'sanitizer').sha256).toBe(sha(fs.readFileSync(path.join(ROOT, 'public/design-system/lab-sanitize.js'))));
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the preview manifest: the golden fixtures, sanitised, hashed and bound to the source', () => {
+  it('previews exactly the ten verified primitives, with the 65 golden fixtures between them', () => {
+    const verified = components.components.filter((c: any) => c.tier === 'verified').map((c: any) => c.id);
+    expect(manifest.components.map((c: any) => c.id)).toEqual(verified);
+    expect(manifest.components.map((c: any) => c.fixtures.length)).toEqual([7, 6, 7, 11, 5, 6, 10, 5, 5, 3]);
+    expect(manifest.coverage).toMatchObject({ registered: 60, previewable: 10, unavailable: 50, fixtures: 65 });
+    expect(allFixtures()).toHaveLength(65);
+  });
+
+  it('is well-formed by the very validator the server runs', () => {
+    expect(core.validateManifest(manifest, { components })).toEqual([]);
+  });
+
+  it('makes every fixture the golden snapshot for it: same labels, same order, same bytes before sanitising', () => {
+    for (const c of manifest.components) {
+      const sym = c.symbol;
+      expect(c.fixtures.map((f: any) => f.label)).toEqual(Object.keys(golden[sym]));
+      for (const f of c.fixtures) {
+        const raw = golden[sym][f.label];
+        expect(f.goldenSha256).toBe(sha(raw));
+        const s = S.sanitize(raw, { classOk: () => true });
+        expect(s.html).toBe(f.html);
+        expect(f.sha256).toBe(sha(f.html));
+        expect(f.bytes).toBe(Buffer.byteLength(f.html));
+        expect(f.neutralised).toEqual(s.neutralised);
+      }
+    }
+  });
+
+  it('records the call that made each fixture, as the case file spells it, and nothing the case file does not say', () => {
+    const cases = read('tools/storybook/tests/cases.mjs');
+    for (const { c, f } of allFixtures()) {
+      expect(f.call.startsWith(c.symbol + '(')).toBe(true);
+      if (c.symbol !== '_lgStatusChip') expect(cases).toContain(f.call);
+    }
+    const status = byId('lg-status-chip').fixtures.map((f: any) => f.call);
+    expect(status).toContain("_lgStatusChip('SCHEDULED')");
+    expect(status).toContain("_lgStatusChip('')");
+    expect(read('tools/storybook/tests/cases.mjs')).toContain("['SCHEDULED', 'LIVE', 'HALFTIME', 'PLAYED', 'FT', 'POSTPONED', 'CANCELLED', 'ABANDONED', 'live', 'nonsense', '']");
+  });
+
+  it('gives every fixture a strict, unique id', () => {
+    const ids = allFixtures().map(({ f }) => f.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const { c, f } of allFixtures()) expect(f.id).toMatch(new RegExp(`^${c.id}\\.[a-z0-9]+(-[a-z0-9]+)*$`));
+    expect(ids).toContain('lg-versus.both-missing-draws-nothing');
+  });
+
+  it('keeps an empty fixture as the real answer it is: the production function drew nothing', () => {
+    const f = byId('lg-versus').fixtures.find((x: any) => x.id === 'lg-versus.both-missing-draws-nothing');
+    expect(golden._lgVersus['both missing draws nothing']).toBe('');
+    expect(f).toMatchObject({ html: '', bytes: 0, nodes: 0, elements: 0 });
+  });
+
+  it('binds each component to the very render function and CSS the components manifest hashed', () => {
+    for (const c of manifest.components) {
+      const rec = components.components.find((x: any) => x.id === c.id);
+      expect(c.source.js).toEqual(rec.source.js);
+      expect(c.source.css).toEqual(rec.source.css);
+      expect(c.mediaQueries).toEqual(rec.styling.mediaQueries);
+      expect(c.variants.map((v: any) => [v.class, v.name, v.rules])).toEqual(rec.variants.map((v: any) => [v.class, v.name, v.rules]));
+      expect(c.symbol).toBe(rec.source.js.symbol);
+    }
+  });
+
+  it('lists a variant under a fixture only if the fixture’s own markup carries the variant’s class', () => {
+    let exercised = 0;
+    for (const c of manifest.components) for (const v of c.variants) {
+      for (const id of v.exercisedBy) {
+        const f = c.fixtures.find((x: any) => x.id === id);
+        expect(f.html).toMatch(new RegExp(`(?<![\\w-])${v.class.replace(/-/g, '\\-')}(?![\\w-])`));
+        exercised++;
+      }
+      for (const f of c.fixtures) if (new RegExp(`(?<![\\w-])${v.class.replace(/-/g, '\\-')}(?![\\w-])`).test(f.html)) expect(v.exercisedBy).toContain(f.id);
+    }
+    expect(exercised).toBeGreaterThan(10);
+    // Some variants no fixture shows; the manifest says so rather than inventing one.
+    expect(manifest.components.flatMap((c: any) => c.variants).filter((v: any) => v.exercisedBy.length === 0).length).toBeGreaterThan(0);
+  });
+
+  it('has a provenance for every class: a registered component, production CSS, or one of two named inert inputs', () => {
+    const owners = new Map<string, number>();
+    for (const { f } of allFixtures()) for (const x of f.classes) { owners.set(x.name, x.rules); expect(['css', 'inert'].includes(x.owner) || components.components.some((c: any) => c.id === x.owner)).toBe(true); }
+    const inert = allFixtures().flatMap(({ f }) => f.classes.filter((x: any) => x.owner === 'inert').map((x: any) => x.name));
+    expect([...new Set(inert)].sort()).toEqual(['lg-ident--hero', 'lg-t']);
+    const css = read('public/app.css');
+    for (const name of inert) expect(css).not.toMatch(new RegExp(`\\.${name.replace(/-/g, '\\-')}(?![\\w-])`));
+    for (const [name, rules] of owners) if (!inert.includes(name)) { expect(rules).toBeGreaterThan(0); expect(css).toMatch(new RegExp(`\\.${name.replace(/-/g, '\\-')}(?![\\w-])`)); }
+  });
+
+  it('says why each of the other 50 cannot be previewed, in a closed set of reasons', () => {
+    const avail = manifest.availability;
+    expect(avail.map((a: any) => a.id)).toEqual(components.components.map((c: any) => c.id));
+    expect(avail.filter((a: any) => a.state === 'preview')).toHaveLength(10);
+    const by = (r: string) => avail.filter((a: any) => a.reason === r).map((a: any) => a.id);
+    expect(by('no-fixtures')).toEqual(['club-logo', 'club-identity', 'lg-icon']);
+    expect(by('application-shell')).toEqual(['sidebar-nav', 'topbar', 'page-header', 'ds-shell']);
+    expect(by('candidate')).toHaveLength(7);
+    expect(by('css-family')).toHaveLength(7);
+    expect(by('utility')).toEqual(['page', 'hidden']);
+    expect(by('page-specific')).toEqual(['oh-family']);
+    expect(by('css-only')).toHaveLength(26);
+    expect(Object.values(manifest.coverage.byReason).reduce((a: any, b: any) => a + b, 0)).toBe(50);
+  });
+
+  it('never previews a component that has no render function', () => {
+    for (const a of manifest.availability) {
+      const rec = components.components.find((c: any) => c.id === a.id);
+      if (a.state === 'preview') expect(rec.source.js).not.toBeNull();
+      if (!rec.source.js) expect(a.state).toBe('unavailable');
+    }
+  });
+
+  it('stays inside its limits: each fixture, the total and the file', () => {
+    for (const { f } of allFixtures()) { expect(f.bytes).toBeLessThanOrEqual(4096); expect(f.nodes).toBeLessThanOrEqual(300); expect(f.depth).toBeLessThanOrEqual(12); }
+    expect(manifest.coverage.bytes).toBeLessThan(32 * 1024);
+    expect(Buffer.byteLength(read(MANIFEST_PATH))).toBeLessThan(160 * 1024);
+  });
+
+  it('is generated, deterministic and current (--check), and the same run checks all four manifests', () => {
+    const out = execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'design-system-discover.js'), '--check'], { cwd: ROOT, encoding: 'utf8' });
+    expect(out).toMatch(/manifest, graph manifest, components manifest and previews manifest are current/);
+    const a = JSON.stringify(generator.build({ ROOT, components }));
+    expect(a).toBe(JSON.stringify(generator.build({ ROOT, components })));
+    expect(JSON.parse(a)).toEqual(manifest);
+  });
+
+  it('carries no timestamp, host, environment value, absolute path or source text', () => {
+    const text = read(MANIFEST_PATH);
+    expect(text).not.toMatch(/generatedAt|timestamp|hostname|\b20\d\d-\d\d-\d\dT\d\d:/i);
+    expect(text).not.toContain(process.env.JWT_ACCESS_SECRET as string);
+    expect(text).not.toMatch(/postgres(ql)?:\/\/|\/home\/|\/tmp\/|function _lg|return ['"`]</);
+  });
+
+  it('is never a public file: it is not under public/, and the build copies it to dist beside the server', () => {
+    expect(MANIFEST_PATH.startsWith('src/design-system/generated/')).toBe(true);
+    expect(fs.existsSync(path.join(ROOT, 'public/design-system/design-system-previews.json'))).toBe(false);
+    const found: string[] = [];
+    const walk = (d: string) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) { if (e.name !== 'node_modules') walk(p); } else if (/previews?\.json$/i.test(e.name)) found.push(path.relative(ROOT, p)); } };
+    walk(path.join(ROOT, 'public'));
+    expect(found).toEqual([]);
+    const copy = read('scripts/copy-runtime-assets.js');
+    expect(copy).toContain("'src/design-system/generated/design-system-previews.json'");
+    expect(copy).toContain("'dist/design-system/generated/design-system-previews.json'");
+    expect(copy).toContain("'dist/design-system/previews-core.js'");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the golden snapshot is re-proved against public/app.js, so CI refuses drift', () => {
+  // The Storybook golden test imports only Node built-ins and the extractor, so it needs no Storybook install.
+  const run = (cwd: string, file: string) => spawnSync(process.execPath, ['--test', file], { cwd, encoding: 'utf8' });
+
+  it('passes: the real render functions in public/app.js still produce exactly the golden markup', () => {
+    const r = run(ROOT, 'tools/storybook/tests/golden.test.mjs');
+    expect(r.stdout + r.stderr).toMatch(/# fail 0/);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/golden snapshots match/);
+  }, 60000);
+
+  it('would fail the moment a render function changed (a control: the same test over an edited copy)', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-golden-drift-'));
+    try {
+      for (const d of ['tools/storybook/lib', 'tools/storybook/tests']) { fs.mkdirSync(path.join(tmp, d), { recursive: true }); fs.cpSync(path.join(ROOT, d), path.join(tmp, d), { recursive: true }); }
+      fs.writeFileSync(path.join(tmp, 'tools/storybook/package.json'), '{"type":"module"}');
+      fs.mkdirSync(path.join(tmp, 'public'), { recursive: true });
+      const app = read('public/app.js');
+      const edited = app.replace(/(\nfunction _lgChip\([^\n]*\n)/, "$1  if (value === 'WWDLW') value = 'DRIFTED';\n");
+      expect(edited).not.toBe(app);
+      fs.writeFileSync(path.join(tmp, 'public/app.js'), edited);
+      const r = run(tmp, 'tools/storybook/tests/golden.test.mjs');
+      expect(r.status).not.toBe(0);
+      expect(r.stdout + r.stderr).toMatch(/_lgChip \/ label and value/);
+    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  }, 120000);
+
+  it('binds the fixtures to the render function slice, so the same drift also makes the manifests stale', () => {
+    const app = read('public/app.js');
+    const i = app.indexOf('\nfunction _lgChip(') + 1;
+    const text = app.slice(i, app.indexOf('\n}\n', i) + 2);
+    expect(byId('lg-chip').source.js.sha256).toBe(sha(text.replace(/\s+/g, ' ').trim()));
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the generator and the validator refuse what they cannot back up', () => {
+  const mutate = (edit: (m: any) => void) => { const m = clone(manifest); edit(m); return core.validateManifest(m, { components }).join('\n'); };
+  const fx = (m: any, id = 'lg-chip', i = 0) => m.components.find((c: any) => c.id === id).fixtures[i];
+
+  it.each([
+    ['markup that carries a script', (m: any) => { fx(m).html = '<span class="lg-chip"><script>alert(1)</script></span>'; }, /fails the sanitizer/],
+    ['markup that still carries data-action', (m: any) => { fx(m, 'lg-float').html = fx(m, 'lg-float').html.replace('<div class="lg-float-bg">', '<div class="lg-float-bg" data-action="closeFloat">'); }, /not exactly what the sanitizer produces/],
+    ['markup that is valid but not canonical', (m: any) => { fx(m).html = '<span  class="lg-chip"><span>Form</span> <b>WWDLW</b></span>'; }, /fails the sanitizer|not exactly/],
+    ['a hash that does not match its markup', (m: any) => { fx(m).sha256 = 'f'.repeat(64); }, /hash does not match/],
+    ['a size that is not the markup’s', (m: any) => { fx(m).bytes += 1; }, /size, node count or depth/],
+    ['a node count that is not the markup’s', (m: any) => { fx(m).nodes += 1; }, /size, node count or depth/],
+    ['a class the markup uses but does not declare', (m: any) => { fx(m).classes = fx(m).classes.slice(1); }, /class list does not match|fails the sanitizer/],
+    ['a declared class the markup does not use', (m: any) => { fx(m).classes.push({ name: 'zzz', owner: 'css', rules: 1 }); }, /class list/],
+    ['a class owned by a component that does not exist', (m: any) => { fx(m).classes[0].owner = 'ghost'; }, /owner that does not exist/],
+    ['a styled class with no rule', (m: any) => { fx(m).classes[0].rules = 0; }, /no rule/],
+    ['an inert class that has rules', (m: any) => { fx(m, 'lg-ident', 3).classes.find((c: any) => c.owner === 'inert').rules = 2; }, /inert but has rules/],
+    ['a fixture id with another component’s prefix', (m: any) => { fx(m).id = 'lg-panel.label-and-value'; }, /invalid fixture id/],
+    ['a duplicate fixture id', (m: any) => { fx(m, 'lg-chip', 1).id = fx(m).id; }, /used twice/],
+    ['a render function that is not the one recorded', (m: any) => { m.components[0].source.js.sha256 = '0'.repeat(64); }, /not the one the components manifest records/],
+    ['CSS that is not what the components manifest records', (m: any) => { m.components[0].source.css[0].sha256 = '0'.repeat(64); }, /not what the components manifest records/],
+    ['media queries that differ', (m: any) => { byIdIn(m, 'lg-metric').mediaQueries = []; }, /media queries differ/],
+    ['a variant that is not verified', (m: any) => { byIdIn(m, 'lg-chip').variants.push({ class: 'lg-chip--ghost', name: 'ghost', rules: 1, exercisedBy: [] }); }, /not one the components manifest records|does not list every/],
+    ['a variant that lists a fixture that does not carry it', (m: any) => { byIdIn(m, 'lg-chip').variants[0].exercisedBy.push(fx(m, 'lg-chip', 0).id); }, /lists fixtures that do not carry it/],
+    ['a preview for a component that is not registered', (m: any) => { m.components[0].id = 'ghost'; }, /not a registered component|availability/],
+    ['availability that is out of order', (m: any) => { m.availability.reverse(); }, /availability does not list/],
+    ['an unavailable component with no valid reason', (m: any) => { m.availability.find((a: any) => a.state === 'unavailable').reason = 'because'; }, /invalid reason/],
+    ['a previewable component with no fixtures', (m: any) => { m.availability.find((a: any) => a.state === 'unavailable').state = 'preview'; m.availability.find((a: any) => a.state === 'preview' && a.reason).reason = null; }, /previewable but has no fixtures/],
+    ['a sanitizer policy that has changed', (m: any) => { m.policy.tags.script = { ns: 'html', void: false, attributes: [] }; }, /sanitizer policy changed/],
+    ['a neutralisation entry that is made up', (m: any) => { fx(m, 'lg-float').neutralised.push({ code: 'onclick', action: 'removed', count: 1 }); }, /neutralisation entry/],
+    ['coverage that does not add up', (m: any) => { m.coverage.fixtures += 1; }, /coverage does not match/],
+    ['a source with a bad hash', (m: any) => { m.sources[0].sha256 = 'abc'; }, /source is malformed/],
+    ['a schema that is not 1', (m: any) => { m.schema = 2; }, /schema 1/],
+  ])('rejects %s', (_n, edit, rx) => { expect(mutate(edit as any)).toMatch(rx as RegExp); });
+
+  const byIdIn = (m: any, id: string) => m.components.find((c: any) => c.id === id);
+
+  it('rejects anything that is not an object, and a manifest missing its parts', () => {
+    for (const bad of [null, [], 'x', 3]) expect(core.validateManifest(bad).length).toBeGreaterThan(0);
+    expect(core.validateManifest({ schema: 1 }).join()).toMatch(/required/);
+  });
+
+  describe('the generator, over a tree whose files lie', () => {
+    let tmp = '';
+    const files = ['public', 'tools/storybook/tests', 'tools/components', 'src/design-system'];
+    beforeAll(() => {
+      tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-previews-reg-'));
+      for (const f of files) { fs.mkdirSync(path.join(tmp, f), { recursive: true }); fs.cpSync(path.join(ROOT, f), path.join(tmp, f), { recursive: true, filter: (src) => fs.statSync(src).isDirectory() || /\.(css|js|html|json|mjs)$/.test(src) }); }
+    }, 60000);
+    afterAll(() => { fs.rmSync(tmp, { recursive: true, force: true }); });
+    const withGolden = (edit: (g: any) => void) => { const g = clone(golden); edit(g); fs.writeFileSync(path.join(tmp, GOLDEN_PATH), JSON.stringify(g)); return () => generator.build({ ROOT: tmp, components }); };
+    afterEach(() => fs.cpSync(path.join(ROOT, GOLDEN_PATH), path.join(tmp, GOLDEN_PATH)));
+
+    it('builds the untouched copy identically', () => {
+      expect(JSON.parse(JSON.stringify(generator.build({ ROOT: tmp, components })))).toEqual(manifest);
+    });
+    it.each([
+      ['a golden fixture with a script', (g: any) => { g._lgChip['label and value'] = '<span class="lg-chip"><script>x</script></span>'; }, /not allowed/],
+      ['a golden fixture with an onclick', (g: any) => { g._lgChip['label and value'] = '<span class="lg-chip" onclick="x">a</span>'; }, /onclick/],
+      ['a golden fixture with a remote image', (g: any) => { g._lgCrest['with crest'] = g._lgCrest['with crest'].replace(/src="[^"]*"/, 'src="https://example.invalid/x.png"'); }, /"src" is not allowed/],
+      ['a golden fixture with a class nobody owns', (g: any) => { g._lgChip['label and value'] = '<span class="lg-chip zzz-unowned">a</span>'; }, /zzz-unowned/],
+      ['a golden fixture that is too large', (g: any) => { g._lgChip['label and value'] = '<span class="lg-chip">' + 'x'.repeat(5000) + '</span>'; }, /larger than 4096/],
+      ['a golden case the case file has no call for', (g: any) => { g._lgChip['a case nobody wrote'] = '<span class="lg-chip">x</span>'; }, /no call for this golden label/],
+      ['a golden snapshot and a components manifest that disagree on the cases', (g: any) => { delete g._lgChip['zero is a value']; }, /list different cases/],
+    ])('refuses %s, naming it, and builds nothing', (_n, edit, rx) => {
+      expect(withGolden(edit as any)).toThrow(rx as RegExp);
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the build refuses a stale previews manifest, exactly as it refuses the other three', () => {
+  const put = (tmp: string, rel: string, recursive = false) => { fs.mkdirSync(path.dirname(path.join(tmp, rel)), { recursive: true }); fs.cpSync(path.join(ROOT, rel), path.join(tmp, rel), { recursive }); };
+  const tree = () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-previews-stale-'));
+    for (const f of ['scripts/copy-runtime-assets.js', 'scripts/design-system-discover.js', 'scripts/design-system-graph.js', 'scripts/design-system-components.js', 'scripts/design-system-previews.js',
+      'src/design-system/graph-core.js', 'src/design-system/components-core.js', 'src/design-system/previews-core.js',
+      'src/design-system/generated/design-system-manifest.json', 'src/design-system/generated/design-system-graph.json', 'src/design-system/generated/design-system-components.json', 'src/design-system/generated/design-system-previews.json']) put(tmp, f);
+    for (const d of ['tools/tokens', 'tools/storybook/stories', 'tools/storybook/tests', 'tools/components', 'public/tokens']) put(tmp, d, true);
+    fs.cpSync(path.join(ROOT, 'public'), path.join(tmp, 'public'), { recursive: true, filter: (src) => fs.statSync(src).isDirectory() || /\.(css|html|js)$/.test(src) });
+    return tmp;
+  };
+  const build = (tmp: string) => spawnSync(process.execPath, [path.join(tmp, 'scripts/copy-runtime-assets.js')], { cwd: tmp, encoding: 'utf8' });
+
+  it('fails on a previews manifest that differs by one byte, names the fix, and rewrites nothing', () => {
+    const tmp = tree();
+    try {
+      const f = path.join(tmp, MANIFEST_PATH);
+      const stale = fs.readFileSync(f, 'utf8').replace('"schema": 1', '"schema": 1, "stale": true');
+      expect(stale).not.toBe(fs.readFileSync(f, 'utf8'));
+      fs.writeFileSync(f, stale);
+      const r = build(tmp);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/previews manifest is stale/);
+      expect(r.stderr).toContain('node scripts/design-system-discover.js');
+      expect(fs.readFileSync(f, 'utf8')).toBe(stale);
+      expect(fs.existsSync(path.join(tmp, 'dist'))).toBe(false);
+    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  }, 90000);
+
+  it('also fails when the golden snapshot a fixture came from changes, and when the sanitizer changes', () => {
+    for (const edit of [
+      (tmp: string) => { const g = path.join(tmp, GOLDEN_PATH); const o = JSON.parse(fs.readFileSync(g, 'utf8')); o._lgChip['label and value'] = '<span class="lg-chip"><span>Form</span> <b>WWDLX</b></span>'; fs.writeFileSync(g, JSON.stringify(o, null, 2) + '\n'); },
+      (tmp: string) => { const s = path.join(tmp, 'public/design-system/lab-sanitize.js'); fs.writeFileSync(s, fs.readFileSync(s, 'utf8').replace('var VERSION = 1;', 'var VERSION = 2;')); },
+    ]) {
+      const tmp = tree();
+      try {
+        edit(tmp);
+        const r = build(tmp);
+        expect(r.status).toBe(1);
+        expect(r.stderr).toMatch(/stale|could not be verified|malformed/);
+        expect(fs.existsSync(path.join(tmp, 'dist'))).toBe(false);
+      } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+    }
+  }, 120000);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the API: GET-only, authenticated and Platform-Owner-only, on the server', () => {
+  const urls = ['', '?id=lg-chip', '?id=lg-float'];
+
+  it.each(urls)('GET /components/preview%s without a session is 401', async (q) => { expect((await get(q)).status).toBe(401); });
+  it.each(urls)('GET /components/preview%s as a club administrator is 403', async (q) => { expect((await get(q, ['u-cadmin', 'CLUB_ADMIN'])).status).toBe(403); });
+  it.each(urls)('GET /components/preview%s as a head coach is 403', async (q) => { expect((await get(q, ['u-coach', 'HEAD_COACH'])).status).toBe(403); });
+  it.each(urls)('GET /components/preview%s as the platform owner is 200 and not cacheable', async (q) => {
+    const res = await get(q, OWNER);
+    expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.body.success).toBe(true);
+  });
+  it.each(urls)('GET /components/preview%s is also open to a platform administrator, whatever their club role', async (q) => {
+    expect((await get(q, ['u-padmin', 'CLUB_ADMIN'])).status).toBe(200);
+  });
+
+  it('refuses the denied roles before it reads a thing: no fixture reaches a club role', async () => {
+    for (const q of ['', '?id=lg-chip']) {
+      const res = await get(q, ['u-cadmin', 'CLUB_ADMIN']);
+      expect(JSON.stringify(res.body)).not.toMatch(/lg-chip\.|"html"|sha256|fixtures/);
+    }
+  });
+
+  it('answers the index under its contract: availability for all 60, counts, the policy, and no markup', async () => {
+    const res = await get('', OWNER);
+    expect(DesignSystemPreviewsIndexSchema.safeParse(res.body.data).success).toBe(true);
+    expect(res.body.data).toMatchObject({ state: 'READY', readOnly: true });
+    expect(res.body.data.availability).toHaveLength(60);
+    expect(res.body.data.components.map((c: any) => c.id)).toEqual(manifest.components.map((c: any) => c.id));
+    expect(res.body.data.coverage).toEqual(manifest.coverage);
+    expect(res.body.data.policy).toEqual(S.policy());
+    expect(JSON.stringify(res.body.data.components)).not.toMatch(/"html"|<span|<div/);
+  });
+
+  it('answers ?id= with that one component, whole, under its contract — for every previewable component', async () => {
+    for (const c of manifest.components) {
+      const res = await get(`?id=${c.id}`, OWNER);
+      expect(res.status).toBe(200);
+      expect(DesignSystemPreviewDetailSchema.safeParse(res.body.data).success).toBe(true);
+      expect(res.body.data.component).toEqual(c);
+      expect(res.body.data.sources.map((s: any) => s.id)).toEqual(['golden', 'cases', 'registry', 'sanitizer', 'class-rules']);
+    }
+  });
+
+  it.each([
+    ['an unknown id', '?id=no-such-component'],
+    ['a registered component with no fixtures', '?id=club-logo'],
+    ['a registered CSS-only component', '?id=button'],
+    ['an id that only looks like a path', '?id=../lg-chip'],
+    ['a prototype key', '?id=__proto__'],
+    ['a constructor key', '?id=constructor'],
+    ['an empty id', '?id='],
+    ['a different case', '?id=Lg-Chip'],
+    ['a fixture id', '?id=lg-chip.label-and-value'],
+    ['an id with a suffix', '?id=lg-chip%00'],
+    ['a script', '?id=%3Cscript%3Ealert(1)%3C%2Fscript%3E'],
+  ])('answers %s with 404', async (_n, q) => { expect((await get(q, OWNER)).status).toBe(404); });
+
+  it.each([
+    ['a second value', '?id=lg-chip&id=lg-panel'],
+    ['an array', '?id[]=lg-chip'],
+    ['an object', '?id[a]=b'],
+    ['any other parameter', '?id=lg-chip&limit=5'],
+    ['a parameter that is not id', '?q=x'],
+  ])('answers %s with 400', async (_n, q) => { expect((await get(q, OWNER)).status).toBe(400); });
+
+  it.each(['post', 'put', 'patch', 'delete'] as const)('refuses %s on /components/preview, as the owner too', async (verb) => {
+    for (const q of ['', '?id=lg-chip']) {
+      const res = await request(app)[verb](`/api/v1/system/design-system/components/preview${q}`).set('Authorization', `Bearer ${token(...OWNER)}`).send({});
+      expect(res.status).toBe(404);
+    }
+  });
+
+  it('serves no secret, environment value, server path, source text or write path', async () => {
+    const text = JSON.stringify((await get('', OWNER)).body) + JSON.stringify((await get('?id=lg-float', OWNER)).body);
+    expect(text).not.toContain(process.env.JWT_ACCESS_SECRET as string);
+    expect(text).not.toMatch(/postgres(ql)?:\/\/|api[_-]?key|password|\/home\/|function _lg/i);
+  });
+
+  it('keeps the router GET-only, looks `id` up in a fixed list, and writes nothing', () => {
+    const src = read('src/routes/design-system.routes.ts');
+    expect(src.match(/router\.(get|post|put|patch|delete|all|use)\(/g)).toEqual(['router.use(', 'router.use(', 'router.get(', 'router.get(', 'router.get(', 'router.get(', 'router.get(']);
+    expect(src).toContain("router.get('/components/preview'");
+    expect(src).toContain('isPreviewId(id)');
+    expect(src).not.toMatch(/req\.params|path\.join|readFile|exec\(|spawn\(/);
+    const svc = read('src/design-system/design-system.service.ts');
+    expect(svc).toMatch(/loadPreviews\(\)\.ids\.has\(id\)/);
+    expect(svc).not.toMatch(/readFileSync\([^)]*\bid\b|prisma|\$queryRaw|\$executeRaw|writeFile/);
+  });
+
+  it('is registered in the API contract registry, with its consumer, for both shapes', () => {
+    const entries = OWNER_API_CONTRACTS.filter((c) => c.endpoint === '/system/design-system/components/preview');
+    expect(entries.map((c) => c.query ?? '')).toEqual(['', '?id=lg-chip']);
+    for (const c of entries) expect(c.consumer).toBe('public/design-system/lab.js');
+  });
+
+  describe('a manifest that cannot be trusted is never served', () => {
+    const file = path.join(ROOT, MANIFEST_PATH);
+    const comp = path.join(ROOT, COMPONENTS_PATH);
+    const withFiles = async (bodies: Record<string, string | Error>, run: () => Promise<void>) => {
+      const spy = jest.spyOn(fs, 'readFileSync').mockImplementation(((p: unknown, ...rest: unknown[]) => {
+        const hit = bodies[String(p)];
+        if (hit !== undefined) { if (hit instanceof Error) throw hit; return hit; }
+        return (jest.requireActual('fs') as typeof fs).readFileSync(p as string, ...(rest as [BufferEncoding]));
+      }) as typeof fs.readFileSync);
+      try { resetDesignSystemComponentsCache(); resetDesignSystemPreviewsCache(); await run(); } finally { spy.mockRestore(); resetDesignSystemComponentsCache(); resetDesignSystemPreviewsCache(); }
+    };
+
+    it('says NOT_GENERATED, and why, when the manifest is not beside the server', async () => {
+      await withFiles({ [file]: new Error('ENOENT') }, async () => {
+        const idx = await get('', OWNER);
+        expect(idx.status).toBe(200);
+        expect(idx.body.data).toMatchObject({ state: 'NOT_GENERATED', components: [], availability: [], sources: [], policy: null, coverage: null });
+        expect(idx.body.data.reason).toMatch(/not beside this server/);
+        expect(DesignSystemPreviewsIndexSchema.safeParse(idx.body.data).success).toBe(true);
+        expect((await get('?id=lg-chip', OWNER)).status).toBe(404);
+      });
+    });
+
+    it('refuses the whole manifest, and serves no fixture of it, when one fixture is tampered with', async () => {
+      const bad = clone(manifest);
+      bad.components[2].fixtures[0].html = '<span class="lg-chip"><script>alert(1)</script></span>';
+      await withFiles({ [file]: JSON.stringify(bad) }, async () => {
+        const idx = await get('', OWNER);
+        expect(idx.body.data).toMatchObject({ state: 'NOT_GENERATED', components: [], availability: [] });
+        expect(idx.body.data.reason).toMatch(/failed its integrity check/);
+        expect(JSON.stringify(idx.body)).not.toMatch(/lg-chip|script/);
+        expect((await get('?id=lg-crest', OWNER)).status).toBe(404);   // an untouched component is refused too
+      });
+    });
+
+    it('refuses a manifest that has drifted from the components manifest: a render function that is no longer the one hashed', async () => {
+      const drifted = clone(components);
+      drifted.components.find((c: any) => c.id === 'lg-chip').source.js.sha256 = 'e'.repeat(64);
+      // The drifted components manifest is itself a valid one (it would be what a regenerated build writes), so only the binding can refuse.
+      await withFiles({ [comp]: JSON.stringify(drifted) }, async () => {
+        const idx = await get('', OWNER);
+        expect(idx.body.data.state).toBe('NOT_GENERATED');
+        expect((await get('?id=lg-chip', OWNER)).status).toBe(404);
+      });
+    });
+
+    it('refuses everything when the components manifest it depends on cannot be trusted', async () => {
+      await withFiles({ [comp]: '{not json' }, async () => { expect((await get('', OWNER)).body.data.state).toBe('NOT_GENERATED'); });
+    });
+
+    it('refuses a manifest that is not JSON, or is not schema 1', async () => {
+      await withFiles({ [file]: '{not json' }, async () => { expect((await get('', OWNER)).body.data.state).toBe('NOT_GENERATED'); });
+      await withFiles({ [file]: JSON.stringify({ ...manifest, schema: 99 }) }, async () => { expect((await get('', OWNER)).body.data.state).toBe('NOT_GENERATED'); });
+    });
+
+    it('refuses a manifest generated under a sanitizer policy that is no longer the one enforced', async () => {
+      const old = clone(manifest);
+      old.policy.limits.nodes = 999;
+      await withFiles({ [file]: JSON.stringify(old) }, async () => { expect((await get('', OWNER)).body.data.state).toBe('NOT_GENERATED'); });
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the Specimen Lab client: CSP-safe, GET-only, lazy, and read-only', () => {
+  const js = stripComments(read('public/design-system/lab.js'));
+  const css = stripComments(read('public/design-system/lab.css'));
+  const room = stripComments(read('public/design-system/design-system.js'));
+
+  it('writes no style attribute, inline handler or inline script', () => {
+    expect(js).not.toMatch(/style="|style='|setAttribute\(\s*['"]style|\.style\.(?!setProperty)|onclick=|onerror=|onload=|javascript:/i);
+  });
+
+  it('never evaluates code, never opens a frame and loads nothing from another origin', () => {
+    expect(js).not.toMatch(/\beval\(|new Function\(|\bFunction\(|document\.write|importScripts|<script|<style|@import|\bsrcdoc\b|<iframe|<object|<embed|createContextualFragment|insertAdjacentHTML|DOMParser|\bimport\(/);
+    expect(js + css).not.toMatch(/https?:\/\//);
+  });
+
+  it('makes no network call of its own: the only reader is the room’s GET-only api(), and it reaches exactly three shapes', () => {
+    expect(js).not.toMatch(/\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource/);
+    expect([...js.matchAll(/K\.api\(\s*('[^']+'(?:\s*\+\s*encodeURIComponent\(id\))?)/g)].map((m) => m[1])).toEqual([
+      "'/system/design-system/components'",
+      "'/system/design-system/components/preview'",
+      "'/system/design-system/components/preview?id=' + encodeURIComponent(id)",
+    ]);
+    expect(room).toContain("method: 'GET'");
+  });
+
+  it('never hands a fixture to the browser’s HTML parser: the specimen is built from the checked tree', () => {
+    expect(js).toContain('Z.toDom(res.tree, document)');
+    expect(js).toContain('Z.sanitize(f.html');
+    expect(js).not.toMatch(/specimen\.innerHTML|spec\.innerHTML|col\.innerHTML|lab-specimen'\)\.innerHTML/);
+    // every innerHTML in the file is the room's own chrome, built from escaped strings
+    const writes = [...js.matchAll(/(\w+)\.innerHTML\s*=/g)].map((m) => m[1]);
+    expect([...new Set(writes)].sort()).toEqual(['bench', 'host', 'insp', 'refuse', 'strip', 'ev', 'rail'].sort().filter((x) => writes.includes(x)));
+    expect(writes).not.toContain('spec');
+  });
+
+  it('calls no production function and imports nothing of the application', () => {
+    expect(js).not.toMatch(/\b_lg[A-Z]\w*\(|clubLogoHtml|clubIdentityHtml|FamilistaApp|window\.(app|_lg)|_mcPaintComputed/);
+  });
+
+  it('keeps events at the specimen’s boundary: every type production listens for at document level, stopped before it bubbles', () => {
+    const list = (/var BOUNDARY = \[([^\]]*)\]/.exec(js) as RegExpExecArray)[1].match(/'[a-z]+'/g)!.map((x) => x.slice(1, -1));
+    expect(list).toEqual(expect.arrayContaining(['click', 'dblclick', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'keydown', 'keyup', 'keypress', 'input', 'change', 'submit', 'contextmenu', 'focusin', 'focusout']));
+    expect(js).toMatch(/function stopAtBoundary\(ev\) \{ ev\.stopPropagation\(\); \}/);
+    expect(js).toMatch(/spec\.addEventListener\(type, stopAtBoundary\)/);
+    // the types the application really listens for at document level must all be in the list
+    const app = read('public/app.js');
+    const used = new Set([...app.matchAll(/document\.addEventListener\('([a-z]+)'/g)].map((m) => m[1]));
+    for (const t of ['click', 'mousedown', 'pointerdown', 'keydown', 'input', 'change']) { expect(used.has(t)).toBe(true); expect(list).toContain(t); }
+  });
+
+  it('applies bar widths and crest sizes with the very lines production does, through the CSSOM', () => {
+    const app = read('public/app.js');
+    for (const line of ["el.style.setProperty('width', el.getAttribute('data-mc-width'));", "var px = el.getAttribute('data-lg-size') + 'px';", "el.style.setProperty('width', px); el.style.setProperty('height', px);"]) {
+      expect(app).toContain(line);
+      expect(js).toContain(line);
+    }
+  });
+
+  it('marks the stage so the translator leaves it alone, and puts the contained root on nothing else', () => {
+    expect(js).toMatch(/id="lab-specimen" dir="' \+ S\.dir \+ '" data-no-i18n data-lab-stage/);
+    expect(js).not.toMatch(/data-i18n(?!-)/);
+  });
+
+  it('is built from the room’s own tokens: every custom property is --fam-*, none is defined here, and no colour is typed', () => {
+    expect(css).not.toMatch(/^\s*--[a-z]/m);
+    for (const m of css.matchAll(/var\(\s*(--[a-z0-9-]+)/gi)) expect(m[1]).toMatch(/^--fam-/);
+    expect(css).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+    expect(css).not.toMatch(/\brgba?\(\s*\d/);
+    expect(css).not.toMatch(/--fam-status-(success|critical|danger|error)/);
+    expect(css).toContain('var(--fam-module-accent)');
+    expect(css).not.toMatch(/!important/g.test(css) ? /^$/ : /!important/);
+  });
+
+  it('contains the stage: layout and paint containment, a stacking context of its own, and a clip', () => {
+    expect(css).toMatch(/\.lab-specimen \{[^}]*contain: layout paint;[^}]*isolation: isolate;/);
+    expect(css).toMatch(/\.lab-specimen \{[^}]*position: relative;[^}]*overflow: auto;/);
+    expect(css).not.toMatch(/\.lg-|\.club-logo|\.lab-specimen[^{]*\s\.[a-z]/);       // nothing restyles a production class
+  });
+
+  it('is loaded only when its section opens, with the sanitizer first, and no page, loader or Owner Home names it', () => {
+    expect(read('public/index.html')).not.toMatch(/lab(-sanitize)?\.(js|css)/);
+    expect(read('public/app.js')).not.toMatch(/design-system\/lab/);
+    expect(room).toMatch(/lab: \{[^}]*host: 'lab-host'[^}]*css: '\/design-system\/lab\.css', js: '\/design-system\/lab\.js', pre: \['\/design-system\/lab-sanitize\.js'\]/);
+    expect(room).toMatch(/pre\.forEach\(function \(src\) \{[\s\S]*?dep\.async = false;/);
+    expect(room).toContain('script.async = false;');
+    expect(room).toContain("['lab', 'Specimen Lab']");
+    expect(room.match(/loadAssets\(/g)).toHaveLength(2);
+    expect(read('tools/tokens/lib/production.mjs')).toContain("'public/design-system/lab.css'");
+  });
+
+  it('gives the page a workspace that scrolls inside itself and a way out below 980px or 620px', () => {
+    expect(css).toMatch(/\.lab-rail-body \{[^}]*overflow-y: auto; scrollbar-gutter: stable;/);
+    expect(css).toMatch(/\.lab-insp \{[^}]*overflow-y: auto; scrollbar-gutter: stable;/);
+    expect(css).toMatch(/\.lab-bench \{[^}]*overflow-y: auto; scrollbar-gutter: stable;/);
+    expect(css).toMatch(/@media \(max-width: 980px\), \(max-height: 620px\)/);
+    expect(css).toMatch(/\.lab-plate \{[^}]*min-height: 380px;/);
+    expect(css).toMatch(/prefers-reduced-motion: reduce/);
+    expect(css).toMatch(/:focus-visible \{\s*outline: var\(--fam-border-width-strong\) solid var\(--fam-focus-ring\)/);
+  });
+
+  it('is operable without a mouse: roving focus in the rail, tabs for fixtures and inspector sections, "/", "[" and "]"', () => {
+    for (const needle of ["ev.key !== '/'", "'[' && ev.key !== ']'", "'ArrowDown'", "'ArrowUp'", "'Home'", "'End'", "'ArrowRight'", "'ArrowLeft'", 'role="tab"', 'role="tablist"', 'aria-selected', 'aria-current', 'aria-expanded', 'aria-pressed', 'aria-disabled="true"', 'aria-live="polite"', 'aria-keyshortcuts="/"', 'tabindex="-1"']) expect(js).toContain(needle);
+    expect(js).toMatch(/var s = \(ev\.key === 'ArrowRight'\) === !rtl\(\) \? 1 : -1;/);
+  });
+
+  it('names the direction buttons by the text they show, then say what it means (WCAG 2.5.3 Label in Name)', () => {
+    expect(js).toContain("aria-label=\"' + esc(d.toUpperCase() + ' · ' + T(d === 'ltr' ? 'Left to right' : 'Right to left')) + '\"><span data-no-i18n>' + d.toUpperCase() + '</span>");
+  });
+
+  it('announces the fixture, refuses a fixture the browser’s own check rejects, and says so as text', () => {
+    expect(js).toContain("live(tf('Fixture %d of %d'");
+    expect(js).toMatch(/if \(!res\.ok\) \{[\s\S]*?refuse\.hidden = false;[\s\S]*?return false;/);
+    expect(js).toContain("K.emptyState('This fixture failed the browser’s check', res.problems.slice(0, 3).join(' · '))");
+  });
+
+  it('draws no state, no hover, no focus emulation, no anatomy overlay and no width control: M1 only', () => {
+    expect(js).not.toMatch(/data-lab-force|forceState|:hover|adoptedStyleSheets|CSSStyleSheet|insertRule|replaceSync|getComputedStyle|getBoundingClientRect|anatomy|overlay|zoom|compare/i);
+    expect(css).not.toMatch(/data-lab-force|\.lab-anatomy|\.lab-zoom/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures, direction, keys', () => {
+  const PAYLOAD = '"><img src=x onerror=alert(1)><script>alert(2)</script>';
+
+  /** A DOM just big enough to run the client, that remembers how every node was made. */
+  function makeDom() {
+    const log = { created: [] as string[], innerHTML: {} as Record<string, string[]>, setAttr: [] as string[], focused: [] as string[] };
+    const listeners = new Map<any, Record<string, ((e: any) => void)[]>>();
+    const byId: Record<string, any> = {};
+    function node(tag: string, ns?: string): any {
+      const n: any = {
+        nodeType: 1, tag, ns, attrs: {} as Record<string, string>, children: [] as any[], parent: null, hidden: false, id: '', textContent: '', value: '', scrollTop: 0,
+        classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+        style: { props: {} as Record<string, string>, setProperty(k: string, v: string) { this.props[k] = v; } },
+        setAttribute(k: string, v: string) { this.attrs[k] = v; log.setAttr.push(tag + '.' + k); if (k === 'id') byId[v] = this; },
+        getAttribute(k: string) { return k in this.attrs ? this.attrs[k] : null; },
+        removeAttribute(k: string) { delete this.attrs[k]; },
+        hasAttribute(k: string) { return k in this.attrs; },
+        appendChild(c: any) { if (c.tag === '#fragment') { for (const k of c.children) { k.parent = this; this.children.push(k); } c.children = []; return c; } c.parent = this; this.children.push(c); return c; },
+        removeChild(c: any) { this.children = this.children.filter((x: any) => x !== c); c.parent = null; return c; },
+        get firstChild() { return this.children[0] || null; },
+        addEventListener(t: string, fn: (e: any) => void) { const m = listeners.get(this) || {}; (m[t] ||= []).push(fn); listeners.set(this, m); },
+        removeEventListener() {},
+        contains(o: any) { for (let x = o; x; x = x.parent) if (x === this) return true; return false; },
+        closest() { return null; }, focus() { (log.focused ||= []).push(this.id || this.tag); }, setSelectionRange() {}, select() {}, click() {},
+        querySelector() { return null; },
+        querySelectorAll(sel: string) {
+          const attr = /^\[([a-z-]+)\]$/.exec(sel);
+          const out: any[] = [];
+          const walk = (x: any) => { for (const c of x.children || []) { if (c.nodeType === 1) { if (attr && attr[1] in c.attrs) out.push(c); walk(c); } } };
+          walk(this);
+          return out;
+        },
+        getElementsByTagName() { const out: any[] = []; const walk = (x: any) => { for (const c of x.children || []) { if (c.nodeType === 1) { out.push(c); walk(c); } } }; walk(this); return out; },
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 600, height: 400 }),
+        parentNode: { querySelectorAll: () => [] },
+      };
+      Object.defineProperty(n, 'innerHTML', { get() { return n._h || ''; }, set(v: string) { n._h = String(v); (log.innerHTML[n.id || tag] ||= []).push(String(v)); register(String(v)); } });
+      return n;
+    }
+    // Writing markup replaces the elements it names, as a real browser would: a fresh node for every id in it.
+    function register(html: string) { for (const m of html.matchAll(/ id="([^"]+)"/g)) byId[m[1]] = Object.assign(node('div'), { id: m[1] }); }
+    const el = (id: string) => byId[id] || (byId[id] = Object.assign(node('div'), { id }));
+    const host = el('host');
+    host.querySelector = (s: string) => (s === '.lab' ? el('lab-root') : /^#[\w-]+$/.test(s) ? byId[s.slice(1)] || null : null);
+    host.contains = () => true;
+    const doc: any = {
+      getElementById: (id: string) => byId[id] || null, addEventListener() {}, removeEventListener() {}, activeElement: null,
+      createElement: (t: string) => { log.created.push(t); return node(t); }, createElementNS: (ns: string, t: string) => { log.created.push('ns:' + t); return node(t, ns); },
+      createTextNode: (v: string) => ({ nodeType: 3, v, parent: null }), createDocumentFragment: () => node('#fragment'),
+      body: node('body'),
+    };
+    return { log, listeners, byId, el, host, doc, node };
+  }
+
+  interface Run { remount: () => void; fire: (type: string, ev: any) => void; dom: ReturnType<typeof makeDom>; click: (m: Record<string, any>) => void; key: (k: string, target: any, extra?: any) => void; type: (v: string) => void; settle: () => Promise<void>; api: string[]; metrics: () => any; text: () => string }
+
+  function launch(opts: { previews?: any; components?: any; detail?: (id: string) => any; dir?: string } = {}): Promise<Run> {
+    const dom = makeDom();
+    const api: string[] = [];
+    const sum = (c: any) => ({ id: c.id, name: c.name, category: c.category, kind: c.kind, tier: c.tier, module: c.module, summary: c.summary, symbol: c.source.js ? c.source.js.symbol : null, sections: c.sections, counts: { rules: 0, selectors: 0, variants: 0, anatomy: 0, cases: 0, facts: 0, dependencies: 0 } });
+    const compIndex = opts.components ?? { state: 'READY', reason: null, readOnly: true, generator: 'g', sources: [], taxonomy: null, coverage: null, components: components.components.map(sum) };
+    const pvIndex = opts.previews ?? { state: 'READY', reason: null, readOnly: true, generator: manifest.generator, sources: manifest.sources, policy: manifest.policy, coverage: manifest.coverage, availability: manifest.availability, components: manifest.components.map((c: any) => ({ id: c.id, symbol: c.symbol, fixtures: c.fixtures.length, bytes: 1, variants: c.variants.length })) };
+    const detail = opts.detail ?? ((id: string) => ({ state: 'READY', reason: null, sources: manifest.sources, component: byId(id) ?? null }));
+    const esc = (v: unknown) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+    const kit = {
+      T: (s: string) => s, tf: (s: string, ...a: unknown[]) => { let i = 0; return s.replace(/%d/g, () => String(a[i++])); }, esc, num: (n: number) => String(n),
+      code: (v: unknown) => `<code data-no-i18n>${esc(v)}</code>`, short: (s: string) => String(s).slice(0, 12), ltr: esc,
+      kv: (l: string, v: string) => `<div class="ds-kv"><div>${l}</div><div>${v}</div></div>`,
+      chip: (_k: string, t: string) => `<span>${esc(t)}</span>`, evChip: (s: string) => `<span>${esc(s)}</span>`,
+      emptyState: (t: string, w: string, x?: string) => `<div class="ds-empty">${esc(t)}${esc(w)}${x || ''}</div>`, skeleton: () => '<div class="sk"></div>',
+      contractError: (e: string, m: string[]) => `${e}${m.join()}`, dir: () => opts.dir || 'ltr',
+      api: (p: string) => { api.push(p); return Promise.resolve(p.includes('/preview?id=') ? detail(decodeURIComponent(p.split('?id=')[1])) : p.endsWith('/preview') ? pvIndex : compIndex); },
+    };
+    const sandbox: any = {
+      window: {} as any, document: dom.doc, performance: { now: () => Date.now() }, requestAnimationFrame: () => 1, cancelAnimationFrame() {}, setTimeout, clearTimeout,
+      Math, JSON, Object, Array, String, Number, Date, Promise, isFinite, parseInt, console, Map, Set, encodeURIComponent,
+    };
+    sandbox.window = sandbox;
+    vm.runInNewContext(read('public/design-system/lab-sanitize.js'), sandbox);
+    vm.runInNewContext(read('public/design-system/lab.js'), sandbox);
+    sandbox.FamilistaDesignLab.mount(dom.host, kit);
+    const settle = () => new Promise<void>((r) => setTimeout(r, 40));
+    const fire = (type: string, ev: any) => (dom.listeners.get(dom.host)?.[type] || []).forEach((fn) => fn(ev));
+    const run: Run = {
+      dom, api, settle, fire, remount: () => sandbox.FamilistaDesignLab.mount(dom.host, kit),
+      click: (m) => fire('click', { target: { closest: (s: string) => m[s] ?? null } }),
+      key: (k, target, extra) => fire('keydown', { key: k, target, preventDefault() {}, ...(extra || {}) }),
+      type: (v) => fire('input', { target: { id: 'lab-q', value: v } }),
+      metrics: () => sandbox.__familistaLabMetrics(),
+      text: () => Object.values(dom.log.innerHTML).flat().join('\n'),
+    };
+    return settle().then(() => settle()).then(() => run);
+  }
+  const attr = (v: string) => ({ getAttribute: () => v });
+
+  it('opens on the first previewable component and its first fixture, built from nodes and never from a string', async () => {
+    const r = await launch();
+    expect(r.api).toEqual(['/system/design-system/components', '/system/design-system/components/preview', '/system/design-system/components/preview?id=lg-crest']);
+    expect(r.metrics()).toMatchObject({ selected: 'lg-crest', fixture: 'lg-crest.with-crest', dir: 'ltr', components: 10, fixtures: 65 });
+    // the specimen element never had innerHTML written; only elements made with createElement were put in it
+    expect(r.dom.log.innerHTML['lab-specimen']).toBeUndefined();
+    expect(r.dom.log.created.length).toBeGreaterThan(5);
+    expect(r.dom.log.created.every((t) => ['div', 'span', 'svg', 'ns:svg', 'ns:path', 'img', 'ns:circle', 'b', 'i', 'section', 'header', 'footer', 'h2', 'p', 'table', 'tbody', 'tr', 'td', 'button'].includes(t))).toBe(true);
+    const spec = r.dom.byId['lab-specimen'];
+    expect(spec.children).toHaveLength(1);
+    expect(spec.children[0].className).toBe('lab-col');
+  });
+
+  it('draws all 65 fixtures without throwing, one node for every element the manifest counts', async () => {
+    const r = await launch();
+    for (const c of manifest.components) {
+      r.click({ '[data-lab-id]': attr(c.id) }); await r.settle();
+      for (const f of c.fixtures) {
+        r.click({ '[data-lab-fx]': attr(f.id) });
+        const spec = r.dom.byId['lab-specimen'];
+        const drawn = spec.children.length ? spec.children[0].getElementsByTagName('*').length : 0;
+        expect({ id: f.id, drawn }).toEqual({ id: f.id, drawn: f.elements });
+      }
+    }
+  });
+
+  it('applies bar widths and crest sizes through the CSSOM, from the attribute, and writes no style attribute', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-id]': attr('lg-versus') }); await r.settle();
+    r.click({ '[data-lab-fx]': attr('lg-versus.a-leads') });
+    const bars = r.dom.byId['lab-specimen'].querySelectorAll('[data-mc-width]');
+    expect(bars.length).toBe(2);
+    for (const b of bars) { expect(b.style.props.width).toBe(b.attrs['data-mc-width']); expect(b.attrs.style).toBeUndefined(); }
+    r.click({ '[data-lab-id]': attr('lg-crest') }); await r.settle();
+    const crest = r.dom.byId['lab-specimen'].querySelectorAll('[data-lg-size]')[0];
+    expect(crest.style.props).toEqual({ width: '30px', height: '30px' });
+  });
+
+  it('switches the stage’s direction without redrawing the fixture, and announces it', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-dir]': attr('rtl') });
+    expect(r.dom.byId['lab-specimen'].attrs.dir).toBe('rtl');
+    expect(r.metrics().dir).toBe('rtl');
+    r.click({ '[data-lab-dir]': attr('sideways') });
+    expect(r.dom.byId['lab-specimen'].attrs.dir).toBe('rtl');
+  });
+
+  it('stops every event at the specimen’s boundary: each listener it registers calls stopPropagation', async () => {
+    const r = await launch();
+    const spec = r.dom.byId['lab-specimen'];
+    const m = r.dom.listeners.get(spec) as Record<string, ((e: any) => void)[]>;
+    expect(Object.keys(m).sort()).toEqual(['auxclick', 'change', 'click', 'contextmenu', 'dblclick', 'focusin', 'focusout', 'input', 'keydown', 'keypress', 'keyup', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'submit', 'touchend', 'touchstart']);
+    for (const fns of Object.values(m)) for (const fn of fns) { let stopped = 0; fn({ stopPropagation() { stopped++; } }); expect(stopped).toBe(1); }
+  });
+
+  it('shows a component it cannot preview as such: the reason, what would change it, and no specimen', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-id]': attr('club-logo') }); await r.settle();
+    const txt = r.dom.log.innerHTML['lab-bench'].join('\n') + r.dom.log.innerHTML['lab-insp'].join('\n');
+    expect(txt).toContain('Not previewable');
+    expect(txt).toContain('A render function exists, but no fixtures are recorded for it yet.');
+    expect(txt).toContain('Not instrumented');
+    expect(r.dom.log.innerHTML['lab-bench'].slice(-1)[0]).not.toContain('lab-specimen');
+    for (const id of ['button', 'topbar', 'page', 'oh-family', 'sy-family', 'tf-btn']) { r.click({ '[data-lab-id]': attr(id) }); await r.settle(); expect(r.dom.log.innerHTML['lab-bench'].slice(-1)[0]).toContain('Not previewable'); }
+    expect(r.api.filter((p) => p.includes('?id='))).toEqual(['/system/design-system/components/preview?id=lg-crest']);   // nothing fetched for a component with no fixtures
+  });
+
+  it('lists all 60: the ten live ones first, and the other fifty grouped by reason with the reason on each', async () => {
+    const r = await launch();
+    const rail = r.dom.log.innerHTML['lab-rail-body'].slice(-1)[0];
+    expect(rail.match(/data-lab-id="/g)).toHaveLength(60);
+    expect(rail.match(/<ul class="lab-list" id="lab-g-[a-z-]+" hidden>/g)).toHaveLength(7);        // the seven unavailable groups start closed
+    expect(rail).toMatch(/<ul class="lab-list" id="lab-g-preview">/);
+    expect(rail.match(/aria-disabled="true"/g)).toHaveLength(50);
+    expect(rail).toContain('CSS only');
+    expect(rail).toContain('No fixtures yet');
+    r.type('o');                                                    // a search opens every group that has a match
+    expect(r.dom.log.innerHTML['lab-rail-body'].slice(-1)[0]).not.toMatch(/ hidden>/);
+    r.type('zzzz-nothing');
+    expect(r.dom.log.innerHTML['lab-rail-body'].slice(-1)[0]).toContain('No component matches');
+    r.type('');
+    r.click({ '[data-lab-grp]': attr('css-only') });
+    expect(r.dom.log.innerHTML['lab-rail-body'].slice(-1)[0].match(/<ul class="lab-list" id="lab-g-[a-z-]+" hidden>/g)).toHaveLength(6);
+  });
+
+  it('searches name, symbol and reason, together, in any order', async () => {
+    const r = await launch();
+    r.type('_lgChip');
+    const rail = r.dom.log.innerHTML['lab-rail-body'].slice(-1)[0];
+    expect(rail).toContain('data-lab-id="lg-chip"');
+    expect(rail).not.toContain('data-lab-id="lg-crest"');
+    r.type('candidate tf');
+    expect(r.dom.log.innerHTML['lab-rail-body'].slice(-1)[0]).toContain('data-lab-id="tf-btn"');
+  });
+
+  it('steps through fixtures with the arrow keys, Home and End, mirrored in a right-to-left room', async () => {
+    for (const dir of ['ltr', 'rtl']) {
+      const r = await launch({ dir });
+      const ids = byId('lg-crest').fixtures.map((f: any) => f.id);
+      // The element returned by closest() must be the same object that indexOf finds, so build the list from it.
+      const nodes = ids.map((x: string) => ({ getAttribute: () => x }));
+      const mk = (at: number) => { const t: any = { getAttribute: () => ids[at] }; t.parentNode = { querySelectorAll: () => nodes.map((n: any, i: number) => (i === at ? t : n)) }; return { id: 'x', closest: (s: string) => (s === '[role="tab"][data-lab-fx]' ? t : null) }; };
+      r.key('ArrowRight', mk(0));
+      expect(r.metrics().fixture).toBe(dir === 'ltr' ? ids[1] : ids[ids.length - 1]);
+      r.key('End', mk(0)); expect(r.metrics().fixture).toBe(ids[ids.length - 1]);
+      r.key('Home', mk(3)); expect(r.metrics().fixture).toBe(ids[0]);
+    }
+  });
+
+  it('prints hostile strings as text in the rail, the stage, the strip and every inspector tab, and draws a hostile fixture as nothing', async () => {
+    const hostile = clone(manifest);
+    for (const c of hostile.components) {
+      Object.assign(c, { symbol: PAYLOAD.replace(/[^\w]/g, '') || 'x' });
+      c.fixtures.forEach((f: any) => { f.label = PAYLOAD; f.call = PAYLOAD; f.classes.forEach((x: any) => { x.owner = 'css'; }); f.html = '<span class="lg-chip"><img src="https://example.invalid/a.png" onerror="alert(1)"></span>'; });
+      c.variants.forEach((v: any) => { v.name = PAYLOAD; });
+      c.mediaQueries = [PAYLOAD];
+    }
+    const comps = components.components.map((c: any) => ({ id: c.id, name: PAYLOAD, category: c.category, kind: c.kind, tier: c.tier, module: c.module, summary: PAYLOAD, symbol: c.source.js ? PAYLOAD : null, sections: c.sections, counts: { rules: 0, selectors: 0, variants: 0, anatomy: 0, cases: 0, facts: 0, dependencies: 0 } }));
+    const r = await launch({
+      components: { state: 'READY', reason: null, readOnly: true, generator: 'g', sources: [], taxonomy: null, coverage: null, components: comps },
+      previews: { state: 'READY', reason: null, readOnly: true, generator: PAYLOAD, sources: manifest.sources.map((s: any) => ({ ...s, label: PAYLOAD, path: PAYLOAD })), policy: manifest.policy, coverage: manifest.coverage, availability: manifest.availability, components: manifest.components.map((c: any) => ({ id: c.id, symbol: c.symbol, fixtures: c.fixtures.length, bytes: 1, variants: c.variants.length })) },
+      detail: (id: string) => ({ state: 'READY', reason: null, sources: manifest.sources.map((s: any) => ({ ...s, label: PAYLOAD, path: PAYLOAD })), component: hostile.components.find((c: any) => c.id === id) }),
+    });
+    r.click({ '[data-lab-id]': attr('lg-chip') }); await r.settle();
+    for (const tab of ['provenance', 'source', 'sanitization', 'variants']) r.click({ '[data-lab-tab]': attr(tab) });
+    r.click({ '[data-lab-id]': attr('club-logo') }); await r.settle();
+    r.type('x');
+    const out = r.text();
+    expect(out.length).toBeGreaterThan(3000);
+    expect(out).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(out).not.toMatch(/<(img|script)\b/);
+    expect(out).not.toMatch(/"[^"<>]*"><img/);
+    expect(out).not.toContain(PAYLOAD);
+    // the hostile fixtures were refused by the browser's own check: nothing was built
+    r.click({ '[data-lab-id]': attr('lg-chip') }); await r.settle();
+    expect(r.dom.byId['lab-specimen'].children).toHaveLength(0);
+    expect(r.dom.byId['lab-refuse'].innerHTML).toContain('failed the browser');
+    expect(r.dom.log.created.filter((t) => t === 'img')).toHaveLength(0);
+  });
+
+  it('refuses a fixture that is not the canonical form the server checked, even if it is otherwise harmless', async () => {
+    const odd = clone(manifest);
+    odd.components[2].fixtures[0].html = '<span  class="lg-chip">x</span>';       // an extra space: valid markup, not canonical
+    const r = await launch({ detail: (id: string) => ({ state: 'READY', reason: null, sources: [], component: id === 'lg-chip' ? odd.components[2] : byId(id) }) });
+    r.click({ '[data-lab-id]': attr('lg-chip') }); await r.settle();
+    expect(r.dom.byId['lab-specimen'].children).toHaveLength(0);
+    expect(r.dom.byId['lab-refuse'].innerHTML).toMatch(/not the canonical form|failed/);
+  });
+
+  it('shows the whole provenance: render function, hashes, the recorded call, classes with owners, and the viewport rules it does not simulate', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-id]': attr('lg-metric') }); await r.settle();
+    const prov = r.dom.log.innerHTML['lab-insp'].slice(-1)[0];
+    for (const needle of ['_lgMetric', 'Fixture sha256', 'Golden snapshot sha256', 'The call', 'RECORDED', 'MEASURED', '@media (max-width:760px)', 'These rules respond to the browser window, not to the stage.', 'data-mc-width', 'data-lg-size']) expect(prov).toContain(needle);
+    r.click({ '[data-lab-tab]': attr('source') });
+    const src = r.dom.log.innerHTML['lab-insp'].slice(-1)[0];
+    expect(src).toContain(byId('lg-metric').source.js.sha256);
+    expect(src).toContain(byId('lg-metric').source.css[0].sha256);
+    expect(src).toContain('Only a hash of the function is shown.');
+    expect(src).not.toMatch(/function _lgMetric|return '</);
+    r.click({ '[data-lab-tab]': attr('sanitization') });
+    expect(r.dom.log.innerHTML['lab-insp'].slice(-1)[0]).toContain('Passed in this browser');
+    r.click({ '[data-lab-tab]': attr('variants') });
+    const vars = r.dom.log.innerHTML['lab-insp'].slice(-1)[0];
+    expect(vars).toContain('lg-metric--hero');
+    expect(vars).toContain('No fixture shows this variant.');
+  });
+
+  it('puts focus back when the room repaints and mounts the Lab again within moments, and not after', async () => {
+    const r = await launch();
+    r.fire('focusin', { target: { id: 'lab-q', getAttribute: () => null } });
+    r.dom.log.focused.length = 0;
+    r.remount();
+    expect(r.dom.log.focused).toContain('lab-q');
+    expect(r.metrics()).toMatchObject({ selected: 'lg-crest' });          // the choice survives the remount, too
+    // a visit, not a repaint: nothing is focused for it
+    const later = await launch();
+    later.fire('focusin', { target: { id: 'lab-q', getAttribute: () => null } });
+    const realNow = Date.now; Date.now = () => realNow() + 10000;
+    try { later.dom.log.focused.length = 0; later.remount(); } finally { Date.now = realNow; }
+    expect(later.dom.log.focused).not.toContain('lab-q');
+  });
+
+  it('says why when the Lab cannot read the manifest, and draws nothing it did not read', async () => {
+    const reason = 'The design-system previews manifest is not beside this server (run scripts/design-system-discover.js).';
+    const r = await launch({ previews: { state: 'NOT_GENERATED', reason, readOnly: true, generator: null, sources: [], policy: null, coverage: null, availability: [], components: [] } });
+    expect(r.dom.log.innerHTML['lab-bench'].slice(-1)[0]).toContain('The Specimen Lab could not be read');
+    expect(r.dom.log.innerHTML['lab-bench'].slice(-1)[0]).toContain('not beside this server');
+    expect(r.dom.byId['lab-specimen']).toBeUndefined();
+  });
+
+  it('names a contract break rather than drawing a half-empty screen', async () => {
+    const r = await launch({ previews: { state: 'READY' } });
+    expect(r.dom.log.innerHTML['lab-bench'].slice(-1)[0]).toContain('/system/design-system/components/preview');
+    expect(r.dom.byId['lab-specimen']).toBeUndefined();
+  });
+
+  it('draws the specimen in under 2,000 nodes and keeps its DOM from growing as fixtures change', async () => {
+    const r = await launch();
+    const counts: number[] = [];
+    for (const c of manifest.components) { r.click({ '[data-lab-id]': attr(c.id) }); await r.settle(); for (const f of c.fixtures) { r.click({ '[data-lab-fx]': attr(f.id) }); counts.push(r.metrics().specimenNodes); } }
+    expect(Math.max(...counts)).toBeLessThan(40);
+    expect(counts).toHaveLength(65);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('English, German and Arabic: everything the Lab can say is in all three catalogues', () => {
+  const dict = (t: string) => json(`public/design-system/i18n/${t}.json`) as Record<string, string>;
+  const en = dict('en'); const de = dict('de'); const ar = dict('ar');
+  const js = read('public/design-system/lab.js');
+  const unescape = (s: string) => s.replace(/\\'/g, "'");
+  const mapValues = (src: string, name: string) => {
+    const at = src.indexOf(`var ${name} = {`);
+    let depth = 0; let end = at;
+    for (let i = src.indexOf('{', at); i < src.length; i++) { if (src[i] === '{') depth++; else if (src[i] === '}' && --depth === 0) { end = i; break; } }
+    return [...src.slice(at, end).matchAll(/:\s*'((?:[^'\\]|\\.)*)'/g)].map((m) => unescape(m[1]));
+  };
+
+  it('covers every literal the Lab passes through T(), tf() and the room’s helpers', () => {
+    const calls = [...js.matchAll(/\b(?:T|tf|K\.kv|K\.emptyState|sectionHead|notInstrumented)\(\s*'((?:[^'\\]|\\.)*)'/g)].map((m) => unescape(m[1]));
+    const keys = [...new Set(calls)].filter((k) => /[A-Za-z]{2}/.test(k));
+    expect(keys.length).toBeGreaterThan(60);
+    expect(keys.filter((k) => !(k in en))).toEqual([]);
+    expect(keys.filter((k) => !(k in de) || !(k in ar))).toEqual([]);
+  });
+
+  it('covers every reason, explanation, neutralisation, owner label and tab held in the Lab’s vocabulary', () => {
+    const values = ['REASON_LABEL', 'REASON_WHY', 'REASON_FIX', 'NEUTRAL_WHY', 'NEUTRAL_ACTION', 'OWNER_LABEL'].flatMap((n) => mapValues(js, n));
+    values.push(...[...js.matchAll(/\['(?:provenance|source|sanitization|variants)', '([^']+)'\]/g)].map((m) => m[1]));
+    expect(values.length).toBeGreaterThan(30);
+    expect(values.filter((v) => !(v in en))).toEqual([]);
+    expect(values.filter((v) => !(v in de) || !(v in ar))).toEqual([]);
+  });
+
+  it('covers every plural form it asks for, in the singular and the plural', () => {
+    for (const w of ['fixture', 'element', 'node', 'rule']) for (const k of [`%d ${w}`, `%d ${w}s`]) { expect(en).toHaveProperty([k]); expect(de).toHaveProperty([k]); expect(ar).toHaveProperty([k]); }
+  });
+
+  it('covers the source labels and the server’s reasons for a previews manifest that is missing or fails its check', () => {
+    for (const s of manifest.sources) { expect(en).toHaveProperty([s.label]); expect(de).toHaveProperty([s.label]); expect(ar).toHaveProperty([s.label]); }
+    const svc = read('src/design-system/design-system.service.ts');
+    for (const reason of ['The design-system previews manifest is not beside this server (run scripts/design-system-discover.js).', 'The design-system previews manifest failed its integrity check, so none of it is served.']) {
+      expect(svc).toContain(reason);
+      expect(en).toHaveProperty([reason]);
+      expect(de[reason]).not.toBe(reason);
+      expect(ar[reason]).toMatch(/[\u0600-\u06FF]/);
+    }
+  });
+
+  it('translates the Lab’s own words into German and Arabic, with every %d slot kept', () => {
+    const slots = (s: string) => (s.match(/%d/g) || []).length;
+    const keys = ['Specimen Lab', 'Live previews', 'Not previewable', 'Sanitization', 'Neutralised for embedding', 'Verified variants', 'Provenance', 'Stage direction', 'Left to right', 'Right to left', 'Fixtures', 'Fixture %d of %d', 'This input draws nothing', 'Checked three times'];
+    for (const k of keys) {
+      expect(en).toHaveProperty([k]);
+      expect(de[k]).toBeTruthy(); expect(de[k]).not.toBe(k);
+      expect(ar[k]).toMatch(/[\u0600-\u06FF]/);
+      expect(slots(de[k])).toBe(slots(k));
+      if (!/^%d (fixture|element|node)$/.test(k)) expect(slots(ar[k])).toBe(slots(k));
+    }
+  });
+
+  it('keeps the room’s boundary: no entry into the club product’s language registry, bundles or catalogue', () => {
+    expect(js).not.toMatch(/\bI18N\b|\/i18n\/locales|\/i18n\/catalogue|familista\.locale/);
+  });
+
+  it('marks what is data, not language: component names, symbols, labels, calls and hashes are never translated', () => {
+    expect(js).toContain('data-no-i18n');
+    expect(js).toContain('code(');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the browser proof is kept with the code and is a required CI job', () => {
+  it('lives in tools/, is valid JavaScript, and proves every boundary the Lab claims', () => {
+    const file = path.join(ROOT, 'tools/components/lab-browser-proof.cjs');
+    expect(spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' }).status).toBe(0);
+    const src = fs.readFileSync(file, 'utf8');
+    for (const claim of ['lazy:', 'csp:', 'layout:', 'layout (control)', 'events:', 'events (control)', 'sanitizer:', 'keyboard:', 'i18n:', 'isolation:', 'fail closed:', 'stability:', 'api:', 'accessibility ', 'focus ', 'focus (control)', 'errors (control)', 'csp (control)', 'accessibility (control)', 'view (control)']) expect(src).toContain(claim);
+    expect(fs.readdirSync(path.join(ROOT, 'tests')).some((f) => f.includes('lab-browser-proof'))).toBe(false);
+  });
+
+  const CI = fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
+  const code = (src: string) => src.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
+
+  it('pins its two tools exactly, in a package of its own with a lockfile, and touches no production dependency', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/components/package.json'), 'utf8'));
+    expect(pkg.private).toBe(true);
+    expect(pkg.dependencies).toBeUndefined();
+    expect(pkg.devDependencies).toEqual({ 'axe-core': '4.14.0', 'playwright-core': '1.63.0' });
+    const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/components/package-lock.json'), 'utf8'));
+    expect(Object.keys(lock.packages).sort()).toEqual(['', 'node_modules/axe-core', 'node_modules/playwright-core']);
+    for (const k of ['node_modules/axe-core', 'node_modules/playwright-core']) {
+      expect(lock.packages[k].integrity).toMatch(/^sha512-/);
+      expect(lock.packages[k].resolved).toMatch(/^https:\/\/registry\.npmjs\.org\//);
+    }
+    expect(lock.packages['node_modules/axe-core'].version).toBe('4.14.0');
+    expect(lock.packages['node_modules/playwright-core'].version).toBe('1.63.0');
+    const root = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+    for (const n of ['axe-core', 'playwright-core', 'playwright', 'puppeteer']) {
+      expect(root.dependencies?.[n]).toBeUndefined();
+      expect(root.devDependencies?.[n]).toBeUndefined();
+    }
+    expect(fs.readFileSync(path.join(ROOT, 'tools/components/lab-browser-proof.cjs'), 'utf8')).toContain("tools/components/node_modules/axe-core/axe.min.js");
+  });
+
+  it('runs in ci.yml on the compiled app, in two shards that together cover every section, and nothing in it can fail quietly', () => {
+    const job = CI.slice(CI.indexOf('  browser-proof:'), CI.indexOf('  secret-scan:'));
+    expect(job.length).toBeGreaterThan(500);
+    const body = code(job);
+    expect(body).toContain('npm ci --ignore-scripts --prefix tools/components');
+    expect(body).toContain('npm audit --audit-level=high --prefix tools/components');
+    expect(body).toContain('npm run build');
+    expect(body).toContain('command -v google-chrome');
+    expect(body).toContain('node tools/components/lab-browser-proof.cjs');
+    expect(body).not.toMatch(/continue-on-error|\|\|\s*true|playwright install|secrets\./);
+    const sections = [...body.matchAll(/sections:\s*'([^']+)'/g)].map((m) => m[1].split(',')).flat().sort();
+    expect(sections).toEqual(['1', '2', '2b', '3', '4', '5', '6', '7']);
+    expect(body).toMatch(/axe:\s*'--axe'/);
+    // a shard that ran nothing, skipped something or failed something is red
+    expect(body).toContain("grep -Eq ', 0 failed, 0 skipped$'");
+    expect(body).toMatch(/test "\$passed" -ge "\$PROOF_MIN"/);
+    const mins = [...body.matchAll(/min:\s*'(\d+)'/g)].map((m) => Number(m[1]));
+    expect(mins.length).toBe(2);
+    expect(mins.every((n) => n >= 34)).toBe(true);
+  });
+
+  it('classifies the browser\'s own copy of a CSP violation as a notice in both Chrome wordings, and nothing else', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'tools/components/lab-browser-proof.cjs'), 'utf8');
+    const m = /^const NOTICE = \/(.+)\/;$/m.exec(src);
+    expect(m).not.toBeNull();
+    const notice = new RegExp(m![1]);
+    const dir = "the following Content Security Policy directive 'style-src 'self' https://fonts.googleapis.com'. Either the 'unsafe-inline' keyword";
+    for (const text of [
+      'Failed to load resource: the server responded with a status of 404 (Not Found)',
+      "Refused to apply inline style because it violates " + dir,
+      "Refused to connect to 'https://fonts.googleapis.com/css2?family=Inter' because it violates the following Content Security Policy directive: \"connect-src 'self'\"",
+      'Applying inline style violates ' + dir,
+      "Connecting to 'https://fonts.googleapis.com/css2?family=Inter:wght@300&display=swap' violates the following Content Security Policy directive: \"connect-src 'self'\"",
+    ]) expect(notice.test(text)).toBe(true);
+    for (const text of [
+      "Executing inline script violates the following Content Security Policy directive 'script-src 'self''.",
+      "Loading the script 'https://evil.example/x.js' violates the following Content Security Policy directive: \"script-src 'self'\"",
+      "Refused to execute script from 'http://127.0.0.1/design-system/x.js' because its MIME type is not executable",
+      'Uncaught TypeError: x is not a function',
+      'lab-control-console-error',
+    ]) expect(notice.test(text)).toBe(false);
+  });
+
+  it('is part of the same workflow that deploy.yml waits for', () => {
+    const deploy = fs.readFileSync(path.join(ROOT, '.github/workflows/deploy.yml'), 'utf8');
+    expect(deploy).toMatch(/workflows:\s*\['ci'\]/);
+    expect(deploy).toContain("github.event.workflow_run.conclusion == 'success'");
+    expect(CI).toMatch(/^  browser-proof:\s*$/m);
+  });
+});

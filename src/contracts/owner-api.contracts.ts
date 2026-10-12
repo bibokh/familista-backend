@@ -1369,6 +1369,58 @@ export const DesignSystemComponentDetailSchema = z.object({
   component: ComponentRecordSchema.nullable(),
 }).strict();
 
+// ── Design System Control: Specimen Lab (Stage 3.2.3 M1) ─────────────────────
+
+const PvReason = z.enum(['no-fixtures', 'css-only', 'application-shell', 'utility', 'css-family', 'page-specific', 'candidate']);
+const PvAvailabilitySchema = z.object({
+  id: z.string().min(1), state: z.enum(['preview', 'unavailable']), reason: PvReason.nullable(),
+}).strict();
+const PvPolicySchema = z.object({
+  version: z.number().int(),
+  tags: z.record(z.string(), z.object({ ns: z.string().min(1), void: z.boolean(), attributes: z.array(z.string().min(1)) }).strict()),
+  limits: z.record(z.string(), z.number()),
+  neutralised: z.array(z.object({ code: z.string().min(1), action: z.string().min(1) }).strict()),
+}).strict();
+const PvCoverageSchema = z.object({
+  registered: Count, previewable: Count, unavailable: Count, fixtures: Count, bytes: Count, nodes: Count,
+  neutralised: z.record(z.string(), Count), byReason: z.record(z.string(), Count),
+}).strict();
+const PvFixtureSchema = z.object({
+  id: z.string().min(1), label: CmpText, call: z.string().min(1).max(600), html: z.string().max(4096), sha256: CmpSha,
+  bytes: Count, nodes: Count, elements: Count, depth: Count, tags: z.array(z.string().min(1)),
+  classes: z.array(z.object({ name: z.string().min(1), owner: z.string().min(1), rules: Count }).strict()),
+  variantClasses: z.array(z.string().min(1)),
+  neutralised: z.array(z.object({ code: z.string().min(1), action: z.string().min(1), count: Count }).strict()),
+  goldenSha256: CmpSha,
+}).strict();
+const PvComponentSchema = z.object({
+  id: z.string().min(1), symbol: z.string().min(1),
+  source: z.object({
+    js: z.object({ file: z.string().min(1), symbol: z.string().min(1), sha256: CmpSha, bytes: Count }).strict(),
+    css: z.array(z.object({ file: z.string().min(1), rules: Count, sha256: CmpSha, bytes: Count }).strict()),
+  }).strict(),
+  mediaQueries: z.array(CmpText),
+  variants: z.array(z.object({ class: z.string().min(1), name: CmpText, rules: Count, exercisedBy: z.array(z.string().min(1)) }).strict()),
+  fixtures: z.array(PvFixtureSchema),
+}).strict();
+export const DesignSystemPreviewsIndexSchema = z.object({
+  state: z.enum(['READY', 'NOT_GENERATED']),
+  reason: z.string().nullable(),
+  readOnly: z.literal(true),
+  generator: z.string().nullable(),
+  sources: z.array(GraphSourceSchema),
+  policy: PvPolicySchema.nullable(),
+  coverage: PvCoverageSchema.nullable(),
+  availability: z.array(PvAvailabilitySchema),
+  components: z.array(z.object({ id: z.string().min(1), symbol: z.string().min(1), fixtures: Count, bytes: Count, variants: Count }).strict()),
+}).strict();
+export const DesignSystemPreviewDetailSchema = z.object({
+  state: z.enum(['READY', 'NOT_GENERATED']),
+  reason: z.string().nullable(),
+  sources: z.array(GraphSourceSchema),
+  component: PvComponentSchema.nullable(),
+}).strict();
+
 // ── the registry ─────────────────────────────────────────────────────────────
 
 export interface ApiContract {
@@ -1604,6 +1656,16 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     schema: DesignSystemComponentDetailSchema, consumer: 'public/design-system/components.js',
     reads: ['state', 'reason', 'sources', 'component'],
   },
+  {
+    endpoint: '/system/design-system/components/preview', module: 'Design System Control',
+    schema: DesignSystemPreviewsIndexSchema, consumer: 'public/design-system/lab.js',
+    reads: ['state', 'reason', 'policy', 'coverage', 'availability', 'components'],
+  },
+  {
+    endpoint: '/system/design-system/components/preview', query: '?id=lg-chip', module: 'Design System Control',
+    schema: DesignSystemPreviewDetailSchema, consumer: 'public/design-system/lab.js',
+    reads: ['state', 'reason', 'sources', 'component'],
+  },
 ];
 
 // ── the compile-time pin ─────────────────────────────────────────────────────
@@ -1620,6 +1682,7 @@ import type {
   DesignSystemOverview, DesignSystemTokens, DesignToken, DesignLayer, ContrastPair, ManifestSource,
   DesignSystemGraphIndex, DesignSystemGraphView, GraphView, GraphViewSummary, GraphNode, GraphEdge, GraphSource,
   DesignSystemComponentsIndex, DesignSystemComponentDetail, ComponentRecord, ComponentSummary, ComponentsTaxonomy, ComponentsCoverage,
+  DesignSystemPreviewsIndex, DesignSystemPreviewDetail, PreviewComponent, PreviewFixture,
 } from '../design-system/types';
 import type { Signal, Incident, InfraRule } from '../infra/infrastructure-health.service';
 import type {
@@ -1705,6 +1768,11 @@ const _cSummary: Exact<z.infer<typeof ComponentSummarySchema>, ComponentSummary>
 const _cTaxonomy: Exact<z.infer<typeof ComponentsTaxonomySchema>, ComponentsTaxonomy> = true;
 const _cCoverage: Exact<z.infer<typeof ComponentsCoverageSchema>, ComponentsCoverage> = true;
 void [_cIndex, _cDetail, _cRecord, _cSummary, _cTaxonomy, _cCoverage];
+const _pIndex: Exact<z.infer<typeof DesignSystemPreviewsIndexSchema>, DesignSystemPreviewsIndex> = true;
+const _pDetail: Exact<z.infer<typeof DesignSystemPreviewDetailSchema>, DesignSystemPreviewDetail> = true;
+const _pComponent: Exact<z.infer<typeof PvComponentSchema>, PreviewComponent> = true;
+const _pFixture: Exact<z.infer<typeof PvFixtureSchema>, PreviewFixture> = true;
+void [_pIndex, _pDetail, _pComponent, _pFixture];
 void [_component, _district, _relationship, _technology, _signal, _incident, _rule,
   _source, _control, _stage, _impact,
   _ccOverview, _ccDomain, _ccDetail, _ccArea, _ccStage, _ccRls, _ccEvents, _ccPosture];

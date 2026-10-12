@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-12T11:56:44.825Z",
+  "generatedAt": "2026-10-12T18:30:18.278Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 55,
-    "handlers": 758,
+    "handlers": 759,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -308,7 +308,7 @@
       {
         "path": "/system/design-system",
         "module": "design-system.routes",
-        "handlers": 4,
+        "handlers": 5,
         "public": 0,
         "routerWideAuth": true
       },
@@ -809,13 +809,13 @@
       }
     },
     "authorization": {
-      "handlers": 758,
+      "handlers": 759,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 91
+        "platform-owner": 92
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -879,7 +879,7 @@
           "platform-owner": 5
         },
         "design-system.routes": {
-          "platform-owner": 4
+          "platform-owner": 5
         },
         "device-infra.routes": {
           "public": 1,
@@ -1368,6 +1368,7 @@
         "GET /system/data-pulse/topology": "platform-owner",
         "GET /system/design-system": "platform-owner",
         "GET /system/design-system/components": "platform-owner",
+        "GET /system/design-system/components/preview": "platform-owner",
         "GET /system/design-system/graph": "platform-owner",
         "GET /system/design-system/tokens": "platform-owner",
         "GET /system/email": "platform-owner",
@@ -2112,7 +2113,7 @@
       "id": "ci-actions-sha-pinned",
       "status": "PRESENT",
       "evidence": ".github/workflows",
-      "note": "9 of 9 action reference(s) pinned to a full commit SHA."
+      "note": "11 of 11 action reference(s) pinned to a full commit SHA."
     },
     {
       "id": "ci-audit-blocking",
@@ -2213,7 +2214,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "758 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 91 platform-owner; every member-level handler reviewed by name."
+      "note": "759 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 92 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2788,8 +2789,8 @@
     },
     "auditInCi": true,
     "auditBlocksCi": true,
-    "actions": 9,
-    "actionsPinnedBySha": 9,
+    "actions": 11,
+    "actionsPinnedBySha": 11,
     "ciPermissionsDeclared": true,
     "dependencyUpdates": true,
     "codeowners": true,

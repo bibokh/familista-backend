@@ -1,0 +1,721 @@
+{
+ "schema": 1,
+ "generator": "scripts/design-system-discover.js",
+ "description": "Fixtures for the Specimen Lab: markup the verified production primitives produced for fixed inputs, checked and neutralised by one sanitizer. Generated; do not edit.",
+ "sources": [
+  {
+   "id": "golden",
+   "path": "tools/storybook/tests/golden/lg-primitives.golden.json",
+   "label": "The golden snapshot: the real render functions run over fixed inputs",
+   "sha256": "af38d742dc7aed2c1d53b61189bdff99507e083b6933785b6c4b41fb3451d52d",
+   "bytes": 17548,
+   "basis": "file"
+  },
+  {
+   "id": "cases",
+   "path": "tools/storybook/tests/cases.mjs",
+   "label": "The fixed inputs and the calls that produced each fixture",
+   "sha256": "ccee83fb987cfddbcf5e22fba8c7a0b407f85a295f59caeaac79127efe7b9e43",
+   "bytes": 5695,
+   "basis": "file"
+  },
+  {
+   "id": "registry",
+   "path": "tools/components/registry.json",
+   "label": "The reviewed Components Registry (class ownership)",
+   "sha256": "8118058e5cfc89a8f6129d471694b0cbc561bdadcdec62a71ee1dd92492c1d80",
+   "bytes": 32924,
+   "basis": "file"
+  },
+  {
+   "id": "sanitizer",
+   "path": "public/design-system/lab-sanitize.js",
+   "label": "The sanitizer the build, the server and the browser share",
+   "sha256": "e3c19e3789a99635938e7e510d3d7e78f04460fb2d222fd164fa523bd85da8f0",
+   "bytes": 24288,
+   "basis": "file"
+  },
+  {
+   "id": "class-rules",
+   "path": "public",
+   "label": "How many production CSS rules mention each class the fixtures use",
+   "sha256": "04112606ef012419d3e37249a9a3f9381b0f3320b32b3fa8e4ca3494ffd1b02a",
+   "bytes": 788,
+   "basis": "derived"
+  }
+ ],
+ "policy": {
+  "version": 1,
+  "tags": {
+   "b": {
+    "ns": "html",
+    "void": false,
+    "attributes": ["class","data-user-content"]
+   },
+   "button": {
+    "ns": "html",
+    "void": false,
+    "attributes": ["aria-label","class","data-action","data-i18n-aria","tabindex","type"]
+   },
+   "circle": {
+    "ns": "svg",
+    "void": false,
+    "attributes": ["cx","cy","r"]
+   },
+   "div": {
+    "ns": "html",
+    "void": false,
+    "attributes": ["aria-hidden","aria-modal","class","data-action","role"]
+   },
+   "footer": {
+    "ns": "html",
+    "void": false,
+    "attributes": ["class"]
+   },
+   "h2": {
+    "ns": "html",
+    "void": false,
+    "attributes": []
+   },
+   "header": {
+    "ns": "html",
+    "void": false,
+    "attributes": ["class"]
+   },
+   "i": {
+    "ns": "html",
+    "void": false,
+    "attributes": ["aria-hidden","class","data-mc-width","data-user-content"]
+   },
+   "img": {
+    "ns": "html",
+    "void": true,
+    "attributes": ["alt","class","decoding","loading","src"]
+   },
+   "p": {
+    "ns": "html",
+    "void": false,
+    "attributes": []
+   },
+   "path": {
+    "ns": "svg",
+    "void": false,
+    "attributes": ["d","fill","fill-opacity","stroke","stroke-linecap","stroke-linejoin","stroke-opacity","stroke-width"]
+   },
+   "section": {
+    "ns": "html",
+    "void": false,
+    "attributes": ["class"]
+   },
+   "span": {
+    "ns": "html",
+    "void": false,
+    "attributes": ["class","data-club-logo","data-lg-size","data-user-content"]
+   },
+   "svg": {
+    "ns": "svg",
+    "void": false,
+    "attributes": ["aria-hidden","class","fill","focusable","height","stroke","stroke-linecap","stroke-linejoin","stroke-width","viewBox","width"]
+   },
+   "table": {
+    "ns": "html",
+    "void": false,
+    "attributes": ["class"]
+   },
+   "tbody": {
+    "ns": "html",
+    "void": false,
+    "attributes": []
+   },
+   "td": {
+    "ns": "html",
+    "void": false,
+    "attributes": []
+   },
+   "tr": {
+    "ns": "html",
+    "void": false,
+    "attributes": []
+   }
+  },
+  "limits": {
+   "bytes": 4096,
+   "nodes": 300,
+   "depth": 12,
+   "attrsPerElement": 12,
+   "text": 400,
+   "classTokens": 8,
+   "classLength": 64,
+   "srcLength": 2048,
+   "value": 200
+  },
+  "neutralised": [
+   {
+    "code": "data-action",
+    "action": "removed"
+   },
+   {
+    "code": "data-i18n-aria",
+    "action": "removed"
+   },
+   {
+    "code": "aria-modal",
+    "action": "removed"
+   },
+   {
+    "code": "tabindex",
+    "action": "set to -1 on buttons"
+   }
+  ]
+ },
+ "coverage": {
+  "registered": 60,
+  "previewable": 10,
+  "unavailable": 50,
+  "fixtures": 65,
+  "bytes": 14342,
+  "nodes": 412,
+  "neutralised": {
+   "aria-modal": 5,
+   "data-action": 10,
+   "data-i18n-aria": 5,
+   "tabindex": 6
+  },
+  "byReason": {
+   "application-shell": 4,
+   "candidate": 7,
+   "css-family": 7,
+   "css-only": 26,
+   "no-fixtures": 3,
+   "page-specific": 1,
+   "utility": 2
+  }
+ },
+ "components": [
+  {
+   "id": "lg-crest",
+   "symbol": "_lgCrest",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgCrest","sha256":"9c910811dc8ef32c7197ee4ce28386ce4aaa26309d5d119dc14408a5c394f965","bytes":478},
+    "css": [{"file":"public/app.css","rules":3,"sha256":"87f3a33bbaef38bb0f7f9fd874e2c08dd60fc67f0c8a8a69b1460ec15ebf4eec","bytes":363}]
+   },
+   "mediaQueries": [],
+   "variants": [
+    {"class":"lg-crest--mark","name":"mark","rules":1,"exercisedBy":["lg-crest.known-club-without-crest","lg-crest.unknown-club-initials-mark","lg-crest.no-name-no-club","lg-crest.single-word-name","lg-crest.default-size"]}
+   ],
+   "fixtures": [
+    {"id":"lg-crest.with-crest","label":"with crest","call":"_lgCrest('riverside', 'Riverside FC', 30)","html":"<span class=\"lg-crest\" data-lg-size=\"30\"><span class=\"club-logo club-logo--s30 club-logo--plain\" data-club-logo=\"riverside\"><svg class=\"club-logo-ph\" viewBox=\"0 0 24 26\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M12 1.6 22 5v8.2c0 5.6-4 9.4-10 11.2C6 22.6 2 18.8 2 13.2V5z\" fill=\"currentColor\" fill-opacity=\".14\" stroke=\"currentColor\" stroke-opacity=\".55\" stroke-width=\"1.4\" stroke-linejoin=\"round\"/><path d=\"M12 7.4v10M7.2 10.2h9.6\" stroke=\"currentColor\" stroke-opacity=\".4\" stroke-width=\"1.3\" stroke-linecap=\"round\"/></svg><img class=\"club-logo-img\" src=\"data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2026%22%3E%3Cpath%20d%3D%22M12%201.6%2022%205v8.2c0%205.6-4%209.4-10%2011.2C6%2022.6%202%2018.8%202%2013.2V5z%22%20fill%3D%22%23fbbf24%22%20fill-opacity%3D%22.9%22%2F%3E%3Cpath%20d%3D%22M12%207.4v10M7.2%2010.2h9.6%22%20stroke%3D%22%2309090B%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E\" alt=\"Riverside FC crest\" loading=\"lazy\" decoding=\"async\"></span></span>","sha256":"64414c52fad18d75ee9abad442db5ea715d05a6b7e4b2393eeec414ea65b99f5","bytes":1063,"nodes":6,"elements":6,"depth":4,"tags":["img","path","span","svg"],"classes":[{"name":"club-logo","owner":"club-logo","rules":3},{"name":"club-logo--plain","owner":"club-logo","rules":1},{"name":"club-logo--s30","owner":"club-logo","rules":1},{"name":"club-logo-img","owner":"club-logo","rules":1},{"name":"club-logo-ph","owner":"club-logo","rules":1},{"name":"lg-crest","owner":"lg-crest","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"64414c52fad18d75ee9abad442db5ea715d05a6b7e4b2393eeec414ea65b99f5"},
+    {"id":"lg-crest.with-crest-44px","label":"with crest, 44px","call":"_lgCrest('riverside', 'Riverside FC', 44)","html":"<span class=\"lg-crest\" data-lg-size=\"44\"><span class=\"club-logo club-logo--s44 club-logo--plain\" data-club-logo=\"riverside\"><svg class=\"club-logo-ph\" viewBox=\"0 0 24 26\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M12 1.6 22 5v8.2c0 5.6-4 9.4-10 11.2C6 22.6 2 18.8 2 13.2V5z\" fill=\"currentColor\" fill-opacity=\".14\" stroke=\"currentColor\" stroke-opacity=\".55\" stroke-width=\"1.4\" stroke-linejoin=\"round\"/><path d=\"M12 7.4v10M7.2 10.2h9.6\" stroke=\"currentColor\" stroke-opacity=\".4\" stroke-width=\"1.3\" stroke-linecap=\"round\"/></svg><img class=\"club-logo-img\" src=\"data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2026%22%3E%3Cpath%20d%3D%22M12%201.6%2022%205v8.2c0%205.6-4%209.4-10%2011.2C6%2022.6%202%2018.8%202%2013.2V5z%22%20fill%3D%22%23fbbf24%22%20fill-opacity%3D%22.9%22%2F%3E%3Cpath%20d%3D%22M12%207.4v10M7.2%2010.2h9.6%22%20stroke%3D%22%2309090B%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E\" alt=\"Riverside FC crest\" loading=\"lazy\" decoding=\"async\"></span></span>","sha256":"340fff91b1bb45451fededc0296108ceb5eae2deb702d6f35a2c30a25b70338f","bytes":1063,"nodes":6,"elements":6,"depth":4,"tags":["img","path","span","svg"],"classes":[{"name":"club-logo","owner":"club-logo","rules":3},{"name":"club-logo--plain","owner":"club-logo","rules":1},{"name":"club-logo--s44","owner":"club-logo","rules":1},{"name":"club-logo-img","owner":"club-logo","rules":1},{"name":"club-logo-ph","owner":"club-logo","rules":1},{"name":"lg-crest","owner":"lg-crest","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"340fff91b1bb45451fededc0296108ceb5eae2deb702d6f35a2c30a25b70338f"},
+    {"id":"lg-crest.known-club-without-crest","label":"known club without crest","call":"_lgCrest('northgate', 'Northgate United', 30)","html":"<span class=\"lg-crest lg-crest--mark\" data-lg-size=\"30\" data-user-content>NU</span>","sha256":"452ed1fe37da8238b48208be636a9eaa5c5bcd43a8e2d34bd20f0efdeb14e1a9","bytes":83,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-crest","owner":"lg-crest","rules":2},{"name":"lg-crest--mark","owner":"lg-crest","rules":1}],"variantClasses":["lg-crest--mark"],"neutralised":[],"goldenSha256":"452ed1fe37da8238b48208be636a9eaa5c5bcd43a8e2d34bd20f0efdeb14e1a9"},
+    {"id":"lg-crest.unknown-club-initials-mark","label":"unknown club, initials mark","call":"_lgCrest('nobody', 'Eastfield Athletic', 30)","html":"<span class=\"lg-crest lg-crest--mark\" data-lg-size=\"30\" data-user-content>EA</span>","sha256":"23b4f87d16a49b585c4885c282c86a577a921eb5e561b3b6a82e7fc96dd33781","bytes":83,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-crest","owner":"lg-crest","rules":2},{"name":"lg-crest--mark","owner":"lg-crest","rules":1}],"variantClasses":["lg-crest--mark"],"neutralised":[],"goldenSha256":"23b4f87d16a49b585c4885c282c86a577a921eb5e561b3b6a82e7fc96dd33781"},
+    {"id":"lg-crest.no-name-no-club","label":"no name, no club","call":"_lgCrest(null, '', 30)","html":"<span class=\"lg-crest lg-crest--mark\" data-lg-size=\"30\" data-user-content>—</span>","sha256":"07a5582207d46e38168baac4bd6b125da464bbfa3919df085b4f412d419c3805","bytes":84,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-crest","owner":"lg-crest","rules":2},{"name":"lg-crest--mark","owner":"lg-crest","rules":1}],"variantClasses":["lg-crest--mark"],"neutralised":[],"goldenSha256":"07a5582207d46e38168baac4bd6b125da464bbfa3919df085b4f412d419c3805"},
+    {"id":"lg-crest.single-word-name","label":"single word name","call":"_lgCrest(null, 'Westvale', 24)","html":"<span class=\"lg-crest lg-crest--mark\" data-lg-size=\"24\" data-user-content>W</span>","sha256":"c153a163abcd100441684ee01f30baf1aaf096357f5c62d61117385073a9e3d4","bytes":82,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-crest","owner":"lg-crest","rules":2},{"name":"lg-crest--mark","owner":"lg-crest","rules":1}],"variantClasses":["lg-crest--mark"],"neutralised":[],"goldenSha256":"c153a163abcd100441684ee01f30baf1aaf096357f5c62d61117385073a9e3d4"},
+    {"id":"lg-crest.default-size","label":"default size","call":"_lgCrest(null, 'Harbour United')","html":"<span class=\"lg-crest lg-crest--mark\" data-lg-size=\"30\" data-user-content>HU</span>","sha256":"81f9ca268c8d49ad31ae63d89d4ce6f24b50a17c926f94e8aac444b92a7ac353","bytes":83,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-crest","owner":"lg-crest","rules":2},{"name":"lg-crest--mark","owner":"lg-crest","rules":1}],"variantClasses":["lg-crest--mark"],"neutralised":[],"goldenSha256":"81f9ca268c8d49ad31ae63d89d4ce6f24b50a17c926f94e8aac444b92a7ac353"}
+   ]
+  },
+  {
+   "id": "lg-ident",
+   "symbol": "_lgIdent",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgIdent","sha256":"c41cd8b1b9bd81aeedb386f7efa23322e8d8ce5fa7e3f538deb602f27e4079e9","bytes":396},
+    "css": [{"file":"public/app.css","rules":5,"sha256":"09816c1d35355e493f5ccea5e4a80ced12059a933fe2e1cbd3b17446de7e51a6","bytes":492}]
+   },
+   "mediaQueries": [],
+   "variants": [],
+   "fixtures": [
+    {"id":"lg-ident.crest-name-and-sub-line","label":"crest, name and sub line","call":"_lgIdent({ clubId: 'riverside', name: 'Riverside FC', sub: 'Familista League · 3rd' })","html":"<span class=\"lg-ident\"><span class=\"lg-crest\" data-lg-size=\"30\"><span class=\"club-logo club-logo--s30 club-logo--plain\" data-club-logo=\"riverside\"><svg class=\"club-logo-ph\" viewBox=\"0 0 24 26\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M12 1.6 22 5v8.2c0 5.6-4 9.4-10 11.2C6 22.6 2 18.8 2 13.2V5z\" fill=\"currentColor\" fill-opacity=\".14\" stroke=\"currentColor\" stroke-opacity=\".55\" stroke-width=\"1.4\" stroke-linejoin=\"round\"/><path d=\"M12 7.4v10M7.2 10.2h9.6\" stroke=\"currentColor\" stroke-opacity=\".4\" stroke-width=\"1.3\" stroke-linecap=\"round\"/></svg><img class=\"club-logo-img\" src=\"data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2026%22%3E%3Cpath%20d%3D%22M12%201.6%2022%205v8.2c0%205.6-4%209.4-10%2011.2C6%2022.6%202%2018.8%202%2013.2V5z%22%20fill%3D%22%23fbbf24%22%20fill-opacity%3D%22.9%22%2F%3E%3Cpath%20d%3D%22M12%207.4v10M7.2%2010.2h9.6%22%20stroke%3D%22%2309090B%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E\" alt=\"Riverside FC crest\" loading=\"lazy\" decoding=\"async\"></span></span><span class=\"lg-ident-txt\"><b class=\"lg-ident-name\" data-user-content>Riverside FC</b><i class=\"lg-ident-sub\" data-user-content>Familista League · 3rd</i></span></span>","sha256":"6cc2a61912242d297d09ee6b219e4940380b3659a4504e770473c31e01a740e1","bytes":1255,"nodes":12,"elements":10,"depth":5,"tags":["b","i","img","path","span","svg"],"classes":[{"name":"club-logo","owner":"club-logo","rules":3},{"name":"club-logo--plain","owner":"club-logo","rules":1},{"name":"club-logo--s30","owner":"club-logo","rules":1},{"name":"club-logo-img","owner":"club-logo","rules":1},{"name":"club-logo-ph","owner":"club-logo","rules":1},{"name":"lg-crest","owner":"lg-crest","rules":2},{"name":"lg-ident","owner":"lg-ident","rules":1},{"name":"lg-ident-name","owner":"lg-ident","rules":2},{"name":"lg-ident-sub","owner":"lg-ident","rules":1},{"name":"lg-ident-txt","owner":"lg-ident","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"6cc2a61912242d297d09ee6b219e4940380b3659a4504e770473c31e01a740e1"},
+    {"id":"lg-ident.no-sub-line","label":"no sub line","call":"_lgIdent({ clubId: 'riverside', name: 'Riverside FC' })","html":"<span class=\"lg-ident\"><span class=\"lg-crest\" data-lg-size=\"30\"><span class=\"club-logo club-logo--s30 club-logo--plain\" data-club-logo=\"riverside\"><svg class=\"club-logo-ph\" viewBox=\"0 0 24 26\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M12 1.6 22 5v8.2c0 5.6-4 9.4-10 11.2C6 22.6 2 18.8 2 13.2V5z\" fill=\"currentColor\" fill-opacity=\".14\" stroke=\"currentColor\" stroke-opacity=\".55\" stroke-width=\"1.4\" stroke-linejoin=\"round\"/><path d=\"M12 7.4v10M7.2 10.2h9.6\" stroke=\"currentColor\" stroke-opacity=\".4\" stroke-width=\"1.3\" stroke-linecap=\"round\"/></svg><img class=\"club-logo-img\" src=\"data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2026%22%3E%3Cpath%20d%3D%22M12%201.6%2022%205v8.2c0%205.6-4%209.4-10%2011.2C6%2022.6%202%2018.8%202%2013.2V5z%22%20fill%3D%22%23fbbf24%22%20fill-opacity%3D%22.9%22%2F%3E%3Cpath%20d%3D%22M12%207.4v10M7.2%2010.2h9.6%22%20stroke%3D%22%2309090B%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E\" alt=\"Riverside FC crest\" loading=\"lazy\" decoding=\"async\"></span></span><span class=\"lg-ident-txt\"><b class=\"lg-ident-name\" data-user-content>Riverside FC</b></span></span>","sha256":"9d17ce12a3f3126599bed620142c41a21b9aa90bbce0aad905beebd54534b279","bytes":1186,"nodes":10,"elements":9,"depth":5,"tags":["b","img","path","span","svg"],"classes":[{"name":"club-logo","owner":"club-logo","rules":3},{"name":"club-logo--plain","owner":"club-logo","rules":1},{"name":"club-logo--s30","owner":"club-logo","rules":1},{"name":"club-logo-img","owner":"club-logo","rules":1},{"name":"club-logo-ph","owner":"club-logo","rules":1},{"name":"lg-crest","owner":"lg-crest","rules":2},{"name":"lg-ident","owner":"lg-ident","rules":1},{"name":"lg-ident-name","owner":"lg-ident","rules":2},{"name":"lg-ident-txt","owner":"lg-ident","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"9d17ce12a3f3126599bed620142c41a21b9aa90bbce0aad905beebd54534b279"},
+    {"id":"lg-ident.initials-fallback","label":"initials fallback","call":"_lgIdent({ clubId: 'nobody', name: 'Eastfield Athletic', sub: 'Away' })","html":"<span class=\"lg-ident\"><span class=\"lg-crest lg-crest--mark\" data-lg-size=\"30\" data-user-content>EA</span><span class=\"lg-ident-txt\"><b class=\"lg-ident-name\" data-user-content>Eastfield Athletic</b><i class=\"lg-ident-sub\" data-user-content>Away</i></span></span>","sha256":"9104996c9f017d154dc44eba4966fa3044df3b97510c1b3fbdc9dff1d247ba01","bytes":262,"nodes":8,"elements":5,"depth":4,"tags":["b","i","span"],"classes":[{"name":"lg-crest","owner":"lg-crest","rules":2},{"name":"lg-crest--mark","owner":"lg-crest","rules":1},{"name":"lg-ident","owner":"lg-ident","rules":1},{"name":"lg-ident-name","owner":"lg-ident","rules":2},{"name":"lg-ident-sub","owner":"lg-ident","rules":1},{"name":"lg-ident-txt","owner":"lg-ident","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"9104996c9f017d154dc44eba4966fa3044df3b97510c1b3fbdc9dff1d247ba01"},
+    {"id":"lg-ident.custom-class-and-size","label":"custom class and size","call":"_lgIdent({ clubId: 'northgate', name: 'Northgate United', size: 44, cls: 'lg-ident--hero' })","html":"<span class=\"lg-ident lg-ident--hero\"><span class=\"lg-crest lg-crest--mark\" data-lg-size=\"44\" data-user-content>NU</span><span class=\"lg-ident-txt\"><b class=\"lg-ident-name\" data-user-content>Northgate United</b></span></span>","sha256":"adb5aa047cfd08d77b1de6585a738f140a8c1942d00d6ebfe1859909709dbc82","bytes":225,"nodes":6,"elements":4,"depth":4,"tags":["b","span"],"classes":[{"name":"lg-crest","owner":"lg-crest","rules":2},{"name":"lg-crest--mark","owner":"lg-crest","rules":1},{"name":"lg-ident","owner":"lg-ident","rules":1},{"name":"lg-ident--hero","owner":"inert","rules":0},{"name":"lg-ident-name","owner":"lg-ident","rules":2},{"name":"lg-ident-txt","owner":"lg-ident","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"adb5aa047cfd08d77b1de6585a738f140a8c1942d00d6ebfe1859909709dbc82"},
+    {"id":"lg-ident.markup-in-the-name-is-escaped","label":"markup in the name is escaped","call":"_lgIdent({ name: '<b>Bad</b> & \"Co\"', sub: '<i>x</i>' })","html":"<span class=\"lg-ident\"><span class=\"lg-crest lg-crest--mark\" data-lg-size=\"30\" data-user-content>&lt;&amp;</span><span class=\"lg-ident-txt\"><b class=\"lg-ident-name\" data-user-content>&lt;b&gt;Bad&lt;/b&gt; &amp; \"Co\"</b><i class=\"lg-ident-sub\" data-user-content>&lt;i&gt;x&lt;/i&gt;</i></span></span>","sha256":"4e3e6b4ab7c7e931196f47fb368e9a82eaad50062c8600de96dfaae1197ac96a","bytes":300,"nodes":8,"elements":5,"depth":4,"tags":["b","i","span"],"classes":[{"name":"lg-crest","owner":"lg-crest","rules":2},{"name":"lg-crest--mark","owner":"lg-crest","rules":1},{"name":"lg-ident","owner":"lg-ident","rules":1},{"name":"lg-ident-name","owner":"lg-ident","rules":2},{"name":"lg-ident-sub","owner":"lg-ident","rules":1},{"name":"lg-ident-txt","owner":"lg-ident","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"ccdfbf02190f304dba6a6615f2a376d23befe134a336216b7aad03e0513b6b06"},
+    {"id":"lg-ident.empty","label":"empty","call":"_lgIdent({})","html":"<span class=\"lg-ident\"><span class=\"lg-crest lg-crest--mark\" data-lg-size=\"30\" data-user-content>—</span><span class=\"lg-ident-txt\"><b class=\"lg-ident-name\" data-user-content></b></span></span>","sha256":"c998507cae639baaf0d49dcdda4a1d30522bec78bdefaef0081132691a14f967","bytes":195,"nodes":5,"elements":4,"depth":3,"tags":["b","span"],"classes":[{"name":"lg-crest","owner":"lg-crest","rules":2},{"name":"lg-crest--mark","owner":"lg-crest","rules":1},{"name":"lg-ident","owner":"lg-ident","rules":1},{"name":"lg-ident-name","owner":"lg-ident","rules":2},{"name":"lg-ident-txt","owner":"lg-ident","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"c998507cae639baaf0d49dcdda4a1d30522bec78bdefaef0081132691a14f967"}
+   ]
+  },
+  {
+   "id": "lg-chip",
+   "symbol": "_lgChip",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgChip","sha256":"1577abd9dc9a8f1c398e22510681477f90147d63fbeddbe44c1919fcb9394d85","bytes":232},
+    "css": [{"file":"public/app.css","rules":8,"sha256":"8b46ae4b2e6ceff92498db738d3547f3ead67bf9586ce562e97e607149fd5959","bytes":898}]
+   },
+   "mediaQueries": [],
+   "variants": [
+    {"class":"lg-chip--up","name":"up","rules":1,"exercisedBy":["lg-chip.with-modifier-up"]},
+    {"class":"lg-chip--live","name":"live","rules":1,"exercisedBy":["lg-chip.with-modifier-live"]},
+    {"class":"lg-chip--done","name":"done","rules":1,"exercisedBy":["lg-chip.with-modifier-done"]},
+    {"class":"lg-chip--post","name":"post","rules":1,"exercisedBy":[]},
+    {"class":"lg-chip--cancel","name":"cancel","rules":1,"exercisedBy":[]},
+    {"class":"lg-chip--none","name":"none","rules":1,"exercisedBy":[]},
+    {"class":"lg-chip--warn","name":"warn","rules":1,"exercisedBy":[]}
+   ],
+   "fixtures": [
+    {"id":"lg-chip.label-and-value","label":"label and value","call":"_lgChip('Form', 'WWDLW')","html":"<span class=\"lg-chip\"><span>Form</span> <b>WWDLW</b></span>","sha256":"d3e107a46ed0b925312e5ed1f96a45c0af755ac935612b725899fff5d641f552","bytes":59,"nodes":6,"elements":3,"depth":3,"tags":["b","span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"d3e107a46ed0b925312e5ed1f96a45c0af755ac935612b725899fff5d641f552"},
+    {"id":"lg-chip.value-only","label":"value only","call":"_lgChip('', '2 – 1')","html":"<span class=\"lg-chip\"><b>2 – 1</b></span>","sha256":"82d8858dac1f5654df721af82767022cceb886642802f8e3ae3c4f90c6ab61ad","bytes":43,"nodes":3,"elements":2,"depth":3,"tags":["b","span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"82d8858dac1f5654df721af82767022cceb886642802f8e3ae3c4f90c6ab61ad"},
+    {"id":"lg-chip.label-only","label":"label only","call":"_lgChip('Imported', null)","html":"<span class=\"lg-chip\"><span>Imported</span> </span>","sha256":"d706135a71d0303d05d6a896e7e698a981efd47dc7393edf1b7aaa0b923f1e18","bytes":51,"nodes":4,"elements":2,"depth":3,"tags":["span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"d706135a71d0303d05d6a896e7e698a981efd47dc7393edf1b7aaa0b923f1e18"},
+    {"id":"lg-chip.zero-is-a-value","label":"zero is a value","call":"_lgChip('Goals', 0)","html":"<span class=\"lg-chip\"><span>Goals</span> <b>0</b></span>","sha256":"91075fea9abca43df657158863c6d34a0d7ba1b44264a32e6ea6b6e90f00212c","bytes":56,"nodes":6,"elements":3,"depth":3,"tags":["b","span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"91075fea9abca43df657158863c6d34a0d7ba1b44264a32e6ea6b6e90f00212c"},
+    {"id":"lg-chip.with-modifier-up","label":"with modifier: up","call":"_lgChip('Kick-off', '15:00', 'up')","html":"<span class=\"lg-chip lg-chip--up\"><span>Kick-off</span> <b>15:00</b></span>","sha256":"54633a88c0a21298b09720c19fe227642867d291ba504a1f3cc2f106b78d8b4e","bytes":75,"nodes":6,"elements":3,"depth":3,"tags":["b","span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2},{"name":"lg-chip--up","owner":"lg-chip","rules":1}],"variantClasses":["lg-chip--up"],"neutralised":[],"goldenSha256":"54633a88c0a21298b09720c19fe227642867d291ba504a1f3cc2f106b78d8b4e"},
+    {"id":"lg-chip.with-modifier-live","label":"with modifier: live","call":"_lgChip('', 'LIVE', 'live')","html":"<span class=\"lg-chip lg-chip--live\"><b>LIVE</b></span>","sha256":"09edfc502c9aca1cbdebbfeece99cdf55e658b57398c4210a9bb3f0ad97ca7cf","bytes":54,"nodes":3,"elements":2,"depth":3,"tags":["b","span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2},{"name":"lg-chip--live","owner":"lg-chip","rules":1}],"variantClasses":["lg-chip--live"],"neutralised":[],"goldenSha256":"09edfc502c9aca1cbdebbfeece99cdf55e658b57398c4210a9bb3f0ad97ca7cf"},
+    {"id":"lg-chip.with-modifier-done","label":"with modifier: done","call":"_lgChip('', 'FT', 'done')","html":"<span class=\"lg-chip lg-chip--done\"><b>FT</b></span>","sha256":"95257d99321e67b208f98c136405010025d00c618ee24033d12d9a523200403c","bytes":52,"nodes":3,"elements":2,"depth":3,"tags":["b","span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2},{"name":"lg-chip--done","owner":"lg-chip","rules":1}],"variantClasses":["lg-chip--done"],"neutralised":[],"goldenSha256":"95257d99321e67b208f98c136405010025d00c618ee24033d12d9a523200403c"}
+   ]
+  },
+  {
+   "id": "lg-status-chip",
+   "symbol": "_lgStatusChip",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgStatusChip","sha256":"84a1ac08156228368b599adf327fa4bf120b20d017dd6e899c6423e7c33f1698","bytes":133},
+    "css": [{"file":"public/app.css","rules":6,"sha256":"b37ad04564f6e48a366f616d688bab095093e59a2678e0ca59aec7fbbd473f63","bytes":711}]
+   },
+   "mediaQueries": [],
+   "variants": [
+    {"class":"lg-chip--up","name":"upcoming","rules":1,"exercisedBy":["lg-status-chip.scheduled","lg-status-chip.nonsense","lg-status-chip.empty-falls-back-to-upcoming"]},
+    {"class":"lg-chip--live","name":"live","rules":1,"exercisedBy":["lg-status-chip.live","lg-status-chip.halftime","lg-status-chip.live-2"]},
+    {"class":"lg-chip--done","name":"finished","rules":1,"exercisedBy":["lg-status-chip.played","lg-status-chip.ft"]},
+    {"class":"lg-chip--post","name":"postponed","rules":1,"exercisedBy":["lg-status-chip.postponed"]},
+    {"class":"lg-chip--cancel","name":"cancelled","rules":1,"exercisedBy":["lg-status-chip.cancelled","lg-status-chip.abandoned"]}
+   ],
+   "fixtures": [
+    {"id":"lg-status-chip.scheduled","label":"SCHEDULED","call":"_lgStatusChip('SCHEDULED')","html":"<span class=\"lg-chip lg-chip--up\">UPCOMING</span>","sha256":"98aaa48fb1ec9703e75f7c87aa049bfbf94093dc5c3e0d04100d18dd48b36568","bytes":49,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2},{"name":"lg-chip--up","owner":"lg-chip","rules":1}],"variantClasses":["lg-chip--up"],"neutralised":[],"goldenSha256":"98aaa48fb1ec9703e75f7c87aa049bfbf94093dc5c3e0d04100d18dd48b36568"},
+    {"id":"lg-status-chip.live","label":"LIVE","call":"_lgStatusChip('LIVE')","html":"<span class=\"lg-chip lg-chip--live\">LIVE</span>","sha256":"bb400de5b12b20786ecaa25894b992aa8e823f1e8565a91f768f1b5e8f8b5431","bytes":47,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2},{"name":"lg-chip--live","owner":"lg-chip","rules":1}],"variantClasses":["lg-chip--live"],"neutralised":[],"goldenSha256":"bb400de5b12b20786ecaa25894b992aa8e823f1e8565a91f768f1b5e8f8b5431"},
+    {"id":"lg-status-chip.halftime","label":"HALFTIME","call":"_lgStatusChip('HALFTIME')","html":"<span class=\"lg-chip lg-chip--live\">LIVE</span>","sha256":"bb400de5b12b20786ecaa25894b992aa8e823f1e8565a91f768f1b5e8f8b5431","bytes":47,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2},{"name":"lg-chip--live","owner":"lg-chip","rules":1}],"variantClasses":["lg-chip--live"],"neutralised":[],"goldenSha256":"bb400de5b12b20786ecaa25894b992aa8e823f1e8565a91f768f1b5e8f8b5431"},
+    {"id":"lg-status-chip.played","label":"PLAYED","call":"_lgStatusChip('PLAYED')","html":"<span class=\"lg-chip lg-chip--done\">FINISHED</span>","sha256":"ea9cf5d804d882ca0f4ae0ad248f26e8433f408c3360251f801dd8d2e05351f5","bytes":51,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2},{"name":"lg-chip--done","owner":"lg-chip","rules":1}],"variantClasses":["lg-chip--done"],"neutralised":[],"goldenSha256":"ea9cf5d804d882ca0f4ae0ad248f26e8433f408c3360251f801dd8d2e05351f5"},
+    {"id":"lg-status-chip.ft","label":"FT","call":"_lgStatusChip('FT')","html":"<span class=\"lg-chip lg-chip--done\">FINISHED</span>","sha256":"ea9cf5d804d882ca0f4ae0ad248f26e8433f408c3360251f801dd8d2e05351f5","bytes":51,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2},{"name":"lg-chip--done","owner":"lg-chip","rules":1}],"variantClasses":["lg-chip--done"],"neutralised":[],"goldenSha256":"ea9cf5d804d882ca0f4ae0ad248f26e8433f408c3360251f801dd8d2e05351f5"},
+    {"id":"lg-status-chip.postponed","label":"POSTPONED","call":"_lgStatusChip('POSTPONED')","html":"<span class=\"lg-chip lg-chip--post\">POSTPONED</span>","sha256":"8516545698ed603731331ce14c54f6af16c24e9680032f011e0b577cece17952","bytes":52,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2},{"name":"lg-chip--post","owner":"lg-chip","rules":1}],"variantClasses":["lg-chip--post"],"neutralised":[],"goldenSha256":"8516545698ed603731331ce14c54f6af16c24e9680032f011e0b577cece17952"},
+    {"id":"lg-status-chip.cancelled","label":"CANCELLED","call":"_lgStatusChip('CANCELLED')","html":"<span class=\"lg-chip lg-chip--cancel\">CANCELLED</span>","sha256":"9b679a15210db387a4905194d928f0291a990d2f82db385043d866f32d8cbf88","bytes":54,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2},{"name":"lg-chip--cancel","owner":"lg-chip","rules":1}],"variantClasses":["lg-chip--cancel"],"neutralised":[],"goldenSha256":"9b679a15210db387a4905194d928f0291a990d2f82db385043d866f32d8cbf88"},
+    {"id":"lg-status-chip.abandoned","label":"ABANDONED","call":"_lgStatusChip('ABANDONED')","html":"<span class=\"lg-chip lg-chip--cancel\">CANCELLED</span>","sha256":"9b679a15210db387a4905194d928f0291a990d2f82db385043d866f32d8cbf88","bytes":54,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2},{"name":"lg-chip--cancel","owner":"lg-chip","rules":1}],"variantClasses":["lg-chip--cancel"],"neutralised":[],"goldenSha256":"9b679a15210db387a4905194d928f0291a990d2f82db385043d866f32d8cbf88"},
+    {"id":"lg-status-chip.live-2","label":"live","call":"_lgStatusChip('live')","html":"<span class=\"lg-chip lg-chip--live\">LIVE</span>","sha256":"bb400de5b12b20786ecaa25894b992aa8e823f1e8565a91f768f1b5e8f8b5431","bytes":47,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2},{"name":"lg-chip--live","owner":"lg-chip","rules":1}],"variantClasses":["lg-chip--live"],"neutralised":[],"goldenSha256":"bb400de5b12b20786ecaa25894b992aa8e823f1e8565a91f768f1b5e8f8b5431"},
+    {"id":"lg-status-chip.nonsense","label":"nonsense","call":"_lgStatusChip('nonsense')","html":"<span class=\"lg-chip lg-chip--up\">UPCOMING</span>","sha256":"98aaa48fb1ec9703e75f7c87aa049bfbf94093dc5c3e0d04100d18dd48b36568","bytes":49,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2},{"name":"lg-chip--up","owner":"lg-chip","rules":1}],"variantClasses":["lg-chip--up"],"neutralised":[],"goldenSha256":"98aaa48fb1ec9703e75f7c87aa049bfbf94093dc5c3e0d04100d18dd48b36568"},
+    {"id":"lg-status-chip.empty-falls-back-to-upcoming","label":"empty falls back to upcoming","call":"_lgStatusChip('')","html":"<span class=\"lg-chip lg-chip--up\">UPCOMING</span>","sha256":"98aaa48fb1ec9703e75f7c87aa049bfbf94093dc5c3e0d04100d18dd48b36568","bytes":49,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-chip","owner":"lg-chip","rules":2},{"name":"lg-chip--up","owner":"lg-chip","rules":1}],"variantClasses":["lg-chip--up"],"neutralised":[],"goldenSha256":"98aaa48fb1ec9703e75f7c87aa049bfbf94093dc5c3e0d04100d18dd48b36568"}
+   ]
+  },
+  {
+   "id": "lg-form",
+   "symbol": "_lgForm",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgForm","sha256":"83c50cc1d4ab4476d8d3b14363347ab2310ba63a019375607bdc97f74df5cd63","bytes":301},
+    "css": [{"file":"public/app.css","rules":8,"sha256":"9a2e81319c6a3f4cd1d243aa42d3e266aff19e7351005d4b21aee67a91c017a9","bytes":478}]
+   },
+   "mediaQueries": [],
+   "variants": [
+    {"class":"lg-f--w","name":"win","rules":1,"exercisedBy":["lg-form.five-results","lg-form.lowercase-input"]},
+    {"class":"lg-f--d","name":"draw","rules":1,"exercisedBy":["lg-form.five-results","lg-form.lowercase-input"]},
+    {"class":"lg-f--l","name":"loss","rules":1,"exercisedBy":["lg-form.five-results","lg-form.lowercase-input","lg-form.one-result"]}
+   ],
+   "fixtures": [
+    {"id":"lg-form.five-results","label":"five results","call":"_lgForm(['W', 'W', 'D', 'L', 'W'])","html":"<span class=\"lg-form\"><i class=\"lg-f lg-f--w\">W</i><i class=\"lg-f lg-f--w\">W</i><i class=\"lg-f lg-f--d\">D</i><i class=\"lg-f lg-f--l\">L</i><i class=\"lg-f lg-f--w\">W</i></span>","sha256":"28bc9bb4e3a2b451dc2fa349e49cfe28a61d44d35cefad2c573ff30adc771134","bytes":174,"nodes":11,"elements":6,"depth":3,"tags":["i","span"],"classes":[{"name":"lg-f","owner":"lg-form","rules":1},{"name":"lg-f--d","owner":"lg-form","rules":1},{"name":"lg-f--l","owner":"lg-form","rules":1},{"name":"lg-f--w","owner":"lg-form","rules":1},{"name":"lg-form","owner":"lg-form","rules":3}],"variantClasses":["lg-f--d","lg-f--l","lg-f--w"],"neutralised":[],"goldenSha256":"28bc9bb4e3a2b451dc2fa349e49cfe28a61d44d35cefad2c573ff30adc771134"},
+    {"id":"lg-form.lowercase-input","label":"lowercase input","call":"_lgForm(['w', 'd', 'l'])","html":"<span class=\"lg-form\"><i class=\"lg-f lg-f--w\">W</i><i class=\"lg-f lg-f--d\">D</i><i class=\"lg-f lg-f--l\">L</i></span>","sha256":"8ce476f9f17f397e182f08b3bccc56f94c998d8578e3d531cecf51284f947ff6","bytes":116,"nodes":7,"elements":4,"depth":3,"tags":["i","span"],"classes":[{"name":"lg-f","owner":"lg-form","rules":1},{"name":"lg-f--d","owner":"lg-form","rules":1},{"name":"lg-f--l","owner":"lg-form","rules":1},{"name":"lg-f--w","owner":"lg-form","rules":1},{"name":"lg-form","owner":"lg-form","rules":3}],"variantClasses":["lg-f--d","lg-f--l","lg-f--w"],"neutralised":[],"goldenSha256":"8ce476f9f17f397e182f08b3bccc56f94c998d8578e3d531cecf51284f947ff6"},
+    {"id":"lg-form.one-result","label":"one result","call":"_lgForm(['L'])","html":"<span class=\"lg-form\"><i class=\"lg-f lg-f--l\">L</i></span>","sha256":"42d74ba1bfa78562591e679b4cdf8adbb9fdf97fd49405f008f7393daf3cfdf5","bytes":58,"nodes":3,"elements":2,"depth":3,"tags":["i","span"],"classes":[{"name":"lg-f","owner":"lg-form","rules":1},{"name":"lg-f--l","owner":"lg-form","rules":1},{"name":"lg-form","owner":"lg-form","rules":3}],"variantClasses":["lg-f--l"],"neutralised":[],"goldenSha256":"42d74ba1bfa78562591e679b4cdf8adbb9fdf97fd49405f008f7393daf3cfdf5"},
+    {"id":"lg-form.empty-list-is-a-dash","label":"empty list is a dash","call":"_lgForm([])","html":"<span class=\"lg-form-none\">—</span>","sha256":"233c26da606ff07ef566124d39230bd0474df0bc6df31af073ff463ec43a0a35","bytes":37,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-form-none","owner":"lg-form","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"233c26da606ff07ef566124d39230bd0474df0bc6df31af073ff463ec43a0a35"},
+    {"id":"lg-form.null-is-a-dash","label":"null is a dash","call":"_lgForm(null)","html":"<span class=\"lg-form-none\">—</span>","sha256":"233c26da606ff07ef566124d39230bd0474df0bc6df31af073ff463ec43a0a35","bytes":37,"nodes":2,"elements":1,"depth":2,"tags":["span"],"classes":[{"name":"lg-form-none","owner":"lg-form","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"233c26da606ff07ef566124d39230bd0474df0bc6df31af073ff463ec43a0a35"}
+   ]
+  },
+  {
+   "id": "lg-metric",
+   "symbol": "_lgMetric",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgMetric","sha256":"393f269053fdb33c58069298b0aff1288693c4e47111066805b8936b379500e0","bytes":366},
+    "css": [{"file":"public/app.css","rules":16,"sha256":"077e1fabd7726872dcb7d7de74a31a0df0cbffa4554943b4ebbc7b2c271b69e9","bytes":1457}]
+   },
+   "mediaQueries": [
+    "@media (max-width:760px)"
+   ],
+   "variants": [
+    {"class":"lg-metric--hero","name":"hero","rules":5,"exercisedBy":["lg-metric.with-modifier-class"]},
+    {"class":"lg-metrics--wide","name":"wide row","rules":2,"exercisedBy":[]}
+   ],
+   "fixtures": [
+    {"id":"lg-metric.value","label":"value","call":"_lgMetric('Minutes played', '1,284')","html":"<div class=\"lg-metric\"><div class=\"lg-metric-l\">Minutes played</div><div class=\"lg-metric-v\">1,284</div></div>","sha256":"e890f3553b87201eb0fc2b641cc6b33d1536292d2a2e5cb5268c256b28adea20","bytes":110,"nodes":5,"elements":3,"depth":3,"tags":["div"],"classes":[{"name":"lg-metric","owner":"lg-metric","rules":3},{"name":"lg-metric-l","owner":"lg-metric","rules":2},{"name":"lg-metric-v","owner":"lg-metric","rules":4}],"variantClasses":[],"neutralised":[],"goldenSha256":"e890f3553b87201eb0fc2b641cc6b33d1536292d2a2e5cb5268c256b28adea20"},
+    {"id":"lg-metric.with-sub-line","label":"with sub line","call":"_lgMetric('High-speed distance', '812 m', 'last 28 days')","html":"<div class=\"lg-metric\"><div class=\"lg-metric-l\">High-speed distance</div><div class=\"lg-metric-v\">812 m</div><div class=\"lg-metric-s\">last 28 days</div></div>","sha256":"89ab98b582ecd76a4ff693e19e6369cdd16e2a34359fe4c1a9ef871973ed91ed","bytes":158,"nodes":7,"elements":4,"depth":3,"tags":["div"],"classes":[{"name":"lg-metric","owner":"lg-metric","rules":3},{"name":"lg-metric-l","owner":"lg-metric","rules":2},{"name":"lg-metric-s","owner":"lg-metric","rules":1},{"name":"lg-metric-v","owner":"lg-metric","rules":4}],"variantClasses":[],"neutralised":[],"goldenSha256":"89ab98b582ecd76a4ff693e19e6369cdd16e2a34359fe4c1a9ef871973ed91ed"},
+    {"id":"lg-metric.measured-zero-renders-0","label":"measured zero renders 0","call":"_lgMetric('Sprints', 0)","html":"<div class=\"lg-metric\"><div class=\"lg-metric-l\">Sprints</div><div class=\"lg-metric-v\">0</div></div>","sha256":"1b101a1df82d79a0e044b1c6d80988f6e3c8c89bc5515c71248e058c9bb029e4","bytes":99,"nodes":5,"elements":3,"depth":3,"tags":["div"],"classes":[{"name":"lg-metric","owner":"lg-metric","rules":3},{"name":"lg-metric-l","owner":"lg-metric","rules":2},{"name":"lg-metric-v","owner":"lg-metric","rules":4}],"variantClasses":[],"neutralised":[],"goldenSha256":"1b101a1df82d79a0e044b1c6d80988f6e3c8c89bc5515c71248e058c9bb029e4"},
+    {"id":"lg-metric.null-renders-a-dash","label":"null renders a dash","call":"_lgMetric('Peak heart rate', null, 'No ECG device paired')","html":"<div class=\"lg-metric\"><div class=\"lg-metric-l\">Peak heart rate</div><div class=\"lg-metric-v\"><span class=\"lg-na\">—</span></div><div class=\"lg-metric-s\">No ECG device paired</div></div>","sha256":"c10587ab6e336294d2e61a9ccf0b0a4dc601aa5fcef7c1ab793796e607927c69","bytes":187,"nodes":8,"elements":5,"depth":4,"tags":["div","span"],"classes":[{"name":"lg-metric","owner":"lg-metric","rules":3},{"name":"lg-metric-l","owner":"lg-metric","rules":2},{"name":"lg-metric-s","owner":"lg-metric","rules":1},{"name":"lg-metric-v","owner":"lg-metric","rules":4},{"name":"lg-na","owner":"css","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"c10587ab6e336294d2e61a9ccf0b0a4dc601aa5fcef7c1ab793796e607927c69"},
+    {"id":"lg-metric.empty-string-renders-a-dash","label":"empty string renders a dash","call":"_lgMetric('Distance', '')","html":"<div class=\"lg-metric\"><div class=\"lg-metric-l\">Distance</div><div class=\"lg-metric-v\"><span class=\"lg-na\">—</span></div></div>","sha256":"c228d19abe6b6ac4998ffc568f0729f871067d6131f6276257f383c0b6494ff4","bytes":129,"nodes":6,"elements":4,"depth":4,"tags":["div","span"],"classes":[{"name":"lg-metric","owner":"lg-metric","rules":3},{"name":"lg-metric-l","owner":"lg-metric","rules":2},{"name":"lg-metric-v","owner":"lg-metric","rules":4},{"name":"lg-na","owner":"css","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"c228d19abe6b6ac4998ffc568f0729f871067d6131f6276257f383c0b6494ff4"},
+    {"id":"lg-metric.with-modifier-class","label":"with modifier class","call":"_lgMetric('Readiness', '86', 'Ready', 'lg-metric--hero')","html":"<div class=\"lg-metric lg-metric--hero\"><div class=\"lg-metric-l\">Readiness</div><div class=\"lg-metric-v\">86</div><div class=\"lg-metric-s\">Ready</div></div>","sha256":"8aa1b0d8668710003c46fcc310461619c30e973f28bf7450a6b5d48fc4062a68","bytes":154,"nodes":7,"elements":4,"depth":3,"tags":["div"],"classes":[{"name":"lg-metric","owner":"lg-metric","rules":3},{"name":"lg-metric--hero","owner":"lg-metric","rules":5},{"name":"lg-metric-l","owner":"lg-metric","rules":2},{"name":"lg-metric-s","owner":"lg-metric","rules":1},{"name":"lg-metric-v","owner":"lg-metric","rules":4}],"variantClasses":["lg-metric--hero"],"neutralised":[],"goldenSha256":"8aa1b0d8668710003c46fcc310461619c30e973f28bf7450a6b5d48fc4062a68"}
+   ]
+  },
+  {
+   "id": "lg-versus",
+   "symbol": "_lgVersus",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgVersus","sha256":"604258a5f3280e1c415cbe2a84d46abe8e8090dc4dc01aa757b93acbe234b6b9","bytes":1399},
+    "css": [{"file":"public/app.css","rules":14,"sha256":"f2a69d8377b7f44d16fadd3115fcd347ba6399e169fc1507977a4071f71261ec","bytes":1123}]
+   },
+   "mediaQueries": [
+    "@media (max-width:700px)"
+   ],
+   "variants": [],
+   "fixtures": [
+    {"id":"lg-versus.a-leads","label":"a leads","call":"_lgVersus('Possession', 58, 42, { fmt: fmtPct })","html":"<div class=\"lg-vs-row\"><div class=\"lg-vs-v is-lead\">58%</div><div class=\"lg-vs-mid\"><div class=\"lg-vs-l\">Possession</div><div class=\"lg-vs-bar\"><i class=\"lg-vs-a\" data-mc-width=\"58%\"></i><i class=\"lg-vs-b\" data-mc-width=\"42%\"></i></div></div><div class=\"lg-vs-v\">42%</div></div>","sha256":"aa43e56c58bf4a6d73091d49e3659518c5022548692b2823b86713549a29b8cb","bytes":278,"nodes":11,"elements":8,"depth":4,"tags":["div","i"],"classes":[{"name":"is-lead","owner":"css","rules":8},{"name":"lg-vs-a","owner":"lg-versus","rules":1},{"name":"lg-vs-b","owner":"lg-versus","rules":1},{"name":"lg-vs-bar","owner":"lg-versus","rules":2},{"name":"lg-vs-l","owner":"lg-versus","rules":1},{"name":"lg-vs-mid","owner":"lg-versus","rules":1},{"name":"lg-vs-row","owner":"lg-versus","rules":3},{"name":"lg-vs-v","owner":"lg-versus","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"aa43e56c58bf4a6d73091d49e3659518c5022548692b2823b86713549a29b8cb"},
+    {"id":"lg-versus.b-leads","label":"b leads","call":"_lgVersus('Shots', 7, 14)","html":"<div class=\"lg-vs-row\"><div class=\"lg-vs-v\">7</div><div class=\"lg-vs-mid\"><div class=\"lg-vs-l\">Shots</div><div class=\"lg-vs-bar\"><i class=\"lg-vs-a\" data-mc-width=\"33%\"></i><i class=\"lg-vs-b\" data-mc-width=\"67%\"></i></div></div><div class=\"lg-vs-v is-lead\">14</div></div>","sha256":"0a94044b3d3eb98c042885b67a08877087f4b8f158e593d488a2c46449a81eb3","bytes":270,"nodes":11,"elements":8,"depth":4,"tags":["div","i"],"classes":[{"name":"is-lead","owner":"css","rules":8},{"name":"lg-vs-a","owner":"lg-versus","rules":1},{"name":"lg-vs-b","owner":"lg-versus","rules":1},{"name":"lg-vs-bar","owner":"lg-versus","rules":2},{"name":"lg-vs-l","owner":"lg-versus","rules":1},{"name":"lg-vs-mid","owner":"lg-versus","rules":1},{"name":"lg-vs-row","owner":"lg-versus","rules":3},{"name":"lg-vs-v","owner":"lg-versus","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"0a94044b3d3eb98c042885b67a08877087f4b8f158e593d488a2c46449a81eb3"},
+    {"id":"lg-versus.level","label":"level","call":"_lgVersus('Corners', 5, 5)","html":"<div class=\"lg-vs-row\"><div class=\"lg-vs-v\">5</div><div class=\"lg-vs-mid\"><div class=\"lg-vs-l\">Corners</div><div class=\"lg-vs-bar\"><i class=\"lg-vs-a\" data-mc-width=\"50%\"></i><i class=\"lg-vs-b\" data-mc-width=\"50%\"></i></div></div><div class=\"lg-vs-v\">5</div></div>","sha256":"6be7f6276d00571faaeab187497cb2e709d2d44eff3808a4626c7e93e8ddd52c","bytes":263,"nodes":11,"elements":8,"depth":4,"tags":["div","i"],"classes":[{"name":"lg-vs-a","owner":"lg-versus","rules":1},{"name":"lg-vs-b","owner":"lg-versus","rules":1},{"name":"lg-vs-bar","owner":"lg-versus","rules":2},{"name":"lg-vs-l","owner":"lg-versus","rules":1},{"name":"lg-vs-mid","owner":"lg-versus","rules":1},{"name":"lg-vs-row","owner":"lg-versus","rules":3},{"name":"lg-vs-v","owner":"lg-versus","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"6be7f6276d00571faaeab187497cb2e709d2d44eff3808a4626c7e93e8ddd52c"},
+    {"id":"lg-versus.both-zero-is-flat","label":"both zero is flat","call":"_lgVersus('Red cards', 0, 0)","html":"<div class=\"lg-vs-row\"><div class=\"lg-vs-v\">0</div><div class=\"lg-vs-mid\"><div class=\"lg-vs-l\">Red cards</div><div class=\"lg-vs-bar is-flat\"><i class=\"lg-vs-a\" data-mc-width=\"0%\"></i><i class=\"lg-vs-b\" data-mc-width=\"0%\"></i></div></div><div class=\"lg-vs-v\">0</div></div>","sha256":"b245242b2e5678bc69b87ff79f227c45d4943eb9abe6fb33a0c75833d3bc66a4","bytes":271,"nodes":11,"elements":8,"depth":4,"tags":["div","i"],"classes":[{"name":"is-flat","owner":"css","rules":2},{"name":"lg-vs-a","owner":"lg-versus","rules":1},{"name":"lg-vs-b","owner":"lg-versus","rules":1},{"name":"lg-vs-bar","owner":"lg-versus","rules":2},{"name":"lg-vs-l","owner":"lg-versus","rules":1},{"name":"lg-vs-mid","owner":"lg-versus","rules":1},{"name":"lg-vs-row","owner":"lg-versus","rules":3},{"name":"lg-vs-v","owner":"lg-versus","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"b245242b2e5678bc69b87ff79f227c45d4943eb9abe6fb33a0c75833d3bc66a4"},
+    {"id":"lg-versus.one-side-missing","label":"one side missing","call":"_lgVersus('xG', null, 1.4)","html":"<div class=\"lg-vs-row\"><div class=\"lg-vs-v\"><span class=\"lg-na\">—</span></div><div class=\"lg-vs-mid\"><div class=\"lg-vs-l\">xG</div><div class=\"lg-vs-bar is-flat\"><i class=\"lg-vs-a\" data-mc-width=\"0%\"></i><i class=\"lg-vs-b\" data-mc-width=\"0%\"></i></div></div><div class=\"lg-vs-v\">1.4</div></div>","sha256":"13fd58dd549a39c727c055276cf3795d606be0d160dc5c90d3dcc6254b095c11","bytes":295,"nodes":12,"elements":9,"depth":4,"tags":["div","i","span"],"classes":[{"name":"is-flat","owner":"css","rules":2},{"name":"lg-na","owner":"css","rules":1},{"name":"lg-vs-a","owner":"lg-versus","rules":1},{"name":"lg-vs-b","owner":"lg-versus","rules":1},{"name":"lg-vs-bar","owner":"lg-versus","rules":2},{"name":"lg-vs-l","owner":"lg-versus","rules":1},{"name":"lg-vs-mid","owner":"lg-versus","rules":1},{"name":"lg-vs-row","owner":"lg-versus","rules":3},{"name":"lg-vs-v","owner":"lg-versus","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"13fd58dd549a39c727c055276cf3795d606be0d160dc5c90d3dcc6254b095c11"},
+    {"id":"lg-versus.both-missing-draws-nothing","label":"both missing draws nothing","call":"_lgVersus('Distance', null, null)","html":"","sha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","bytes":0,"nodes":0,"elements":0,"depth":0,"tags":[],"classes":[],"variantClasses":[],"neutralised":[],"goldenSha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    {"id":"lg-versus.both-missing-shown-as-unavailable","label":"both missing, shown as unavailable","call":"_lgVersus('Distance', null, null, { showUnavailable: true })","html":"<div class=\"lg-vs-row\"><div class=\"lg-vs-v\"><span class=\"lg-na\">—</span></div><div class=\"lg-vs-mid\"><div class=\"lg-vs-l\">Distance</div><div class=\"lg-vs-bar is-flat\"><i class=\"lg-vs-a\" data-mc-width=\"0%\"></i><i class=\"lg-vs-b\" data-mc-width=\"0%\"></i></div></div><div class=\"lg-vs-v\"><span class=\"lg-na\">—</span></div></div>","sha256":"a8c7221adb5a09a3243b61890e0e36facfdb867a986833a3eaafa0f7de742f89","bytes":328,"nodes":13,"elements":10,"depth":4,"tags":["div","i","span"],"classes":[{"name":"is-flat","owner":"css","rules":2},{"name":"lg-na","owner":"css","rules":1},{"name":"lg-vs-a","owner":"lg-versus","rules":1},{"name":"lg-vs-b","owner":"lg-versus","rules":1},{"name":"lg-vs-bar","owner":"lg-versus","rules":2},{"name":"lg-vs-l","owner":"lg-versus","rules":1},{"name":"lg-vs-mid","owner":"lg-versus","rules":1},{"name":"lg-vs-row","owner":"lg-versus","rules":3},{"name":"lg-vs-v","owner":"lg-versus","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"a8c7221adb5a09a3243b61890e0e36facfdb867a986833a3eaafa0f7de742f89"},
+    {"id":"lg-versus.lower-is-better-a-leads","label":"lower is better, a leads","call":"_lgVersus('Fouls', 8, 14, { lowerIsBetter: true })","html":"<div class=\"lg-vs-row\"><div class=\"lg-vs-v is-lead\">8</div><div class=\"lg-vs-mid\"><div class=\"lg-vs-l\">Fouls</div><div class=\"lg-vs-bar\"><i class=\"lg-vs-a\" data-mc-width=\"36%\"></i><i class=\"lg-vs-b\" data-mc-width=\"64%\"></i></div></div><div class=\"lg-vs-v\">14</div></div>","sha256":"7008195ec70d4091b799f7e58f9c3a5ca2c68b5cf7969800b0af989f2674a6d0","bytes":270,"nodes":11,"elements":8,"depth":4,"tags":["div","i"],"classes":[{"name":"is-lead","owner":"css","rules":8},{"name":"lg-vs-a","owner":"lg-versus","rules":1},{"name":"lg-vs-b","owner":"lg-versus","rules":1},{"name":"lg-vs-bar","owner":"lg-versus","rules":2},{"name":"lg-vs-l","owner":"lg-versus","rules":1},{"name":"lg-vs-mid","owner":"lg-versus","rules":1},{"name":"lg-vs-row","owner":"lg-versus","rules":3},{"name":"lg-vs-v","owner":"lg-versus","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"7008195ec70d4091b799f7e58f9c3a5ca2c68b5cf7969800b0af989f2674a6d0"},
+    {"id":"lg-versus.lower-is-better-b-leads","label":"lower is better, b leads","call":"_lgVersus('Fouls', 14, 8, { lowerIsBetter: true })","html":"<div class=\"lg-vs-row\"><div class=\"lg-vs-v\">14</div><div class=\"lg-vs-mid\"><div class=\"lg-vs-l\">Fouls</div><div class=\"lg-vs-bar\"><i class=\"lg-vs-a\" data-mc-width=\"64%\"></i><i class=\"lg-vs-b\" data-mc-width=\"36%\"></i></div></div><div class=\"lg-vs-v is-lead\">8</div></div>","sha256":"17225aa346bd535d8ffc1e577669b5a442399ce41d44ad3ef22371d3ad10a513","bytes":270,"nodes":11,"elements":8,"depth":4,"tags":["div","i"],"classes":[{"name":"is-lead","owner":"css","rules":8},{"name":"lg-vs-a","owner":"lg-versus","rules":1},{"name":"lg-vs-b","owner":"lg-versus","rules":1},{"name":"lg-vs-bar","owner":"lg-versus","rules":2},{"name":"lg-vs-l","owner":"lg-versus","rules":1},{"name":"lg-vs-mid","owner":"lg-versus","rules":1},{"name":"lg-vs-row","owner":"lg-versus","rules":3},{"name":"lg-vs-v","owner":"lg-versus","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"17225aa346bd535d8ffc1e577669b5a442399ce41d44ad3ef22371d3ad10a513"},
+    {"id":"lg-versus.custom-formatter","label":"custom formatter","call":"_lgVersus('Pass accuracy', 91, 84, { fmt: fmtPct })","html":"<div class=\"lg-vs-row\"><div class=\"lg-vs-v is-lead\">91%</div><div class=\"lg-vs-mid\"><div class=\"lg-vs-l\">Pass accuracy</div><div class=\"lg-vs-bar\"><i class=\"lg-vs-a\" data-mc-width=\"52%\"></i><i class=\"lg-vs-b\" data-mc-width=\"48%\"></i></div></div><div class=\"lg-vs-v\">84%</div></div>","sha256":"171b130c4c093e01c94ce71e0d78930091959da37dd658435bbfb22eebef0215","bytes":281,"nodes":11,"elements":8,"depth":4,"tags":["div","i"],"classes":[{"name":"is-lead","owner":"css","rules":8},{"name":"lg-vs-a","owner":"lg-versus","rules":1},{"name":"lg-vs-b","owner":"lg-versus","rules":1},{"name":"lg-vs-bar","owner":"lg-versus","rules":2},{"name":"lg-vs-l","owner":"lg-versus","rules":1},{"name":"lg-vs-mid","owner":"lg-versus","rules":1},{"name":"lg-vs-row","owner":"lg-versus","rules":3},{"name":"lg-vs-v","owner":"lg-versus","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"171b130c4c093e01c94ce71e0d78930091959da37dd658435bbfb22eebef0215"}
+   ]
+  },
+  {
+   "id": "lg-panel",
+   "symbol": "_lgPanel",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgPanel","sha256":"48d67543f6439c646a74f86fa2ecc520a8592df8cd9e021ceb37154d444c6c66","bytes":598},
+    "css": [{"file":"public/app.css","rules":24,"sha256":"cc6456893cf07b3a37b7dbca8590c327ee633c32a46a1ce6153ebaf68fe57dbc","bytes":2123}]
+   },
+   "mediaQueries": [],
+   "variants": [
+    {"class":"lg-panel--table","name":"table","rules":1,"exercisedBy":["lg-panel.table-panel"]},
+    {"class":"lg-panel--fill","name":"fill","rules":5,"exercisedBy":["lg-panel.fill-panel"]},
+    {"class":"lg-panel--pitch","name":"pitch","rules":4,"exercisedBy":[]},
+    {"class":"lg-panel--tall","name":"tall","rules":1,"exercisedBy":[]},
+    {"class":"lg-panel--board","name":"board","rules":1,"exercisedBy":[]}
+   ],
+   "fixtures": [
+    {"id":"lg-panel.title-and-body","label":"title and body","call":"_lgPanel('Standings', '', '<p>Body</p>')","html":"<section class=\"lg-panel\"><div class=\"lg-panel-h\"><h2><i class=\"lg-rule\" aria-hidden=\"true\"></i><span>Standings</span></h2></div><div class=\"lg-panel-b\"><p>Body</p></div></section>","sha256":"7b756f62ccef7d8024f7a432ca61c9eec845dfc5871388681d897fedbedbae45","bytes":180,"nodes":9,"elements":7,"depth":5,"tags":["div","h2","i","p","section","span"],"classes":[{"name":"lg-panel","owner":"lg-panel","rules":6},{"name":"lg-panel-b","owner":"lg-panel","rules":6},{"name":"lg-panel-h","owner":"lg-panel","rules":6},{"name":"lg-rule","owner":"css","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"7b756f62ccef7d8024f7a432ca61c9eec845dfc5871388681d897fedbedbae45"},
+    {"id":"lg-panel.with-sub-line","label":"with sub line","call":"_lgPanel('Standings', 'Matchday 12', '<p>Body</p>')","html":"<section class=\"lg-panel\"><div class=\"lg-panel-h\"><h2><i class=\"lg-rule\" aria-hidden=\"true\"></i><span>Standings</span></h2><span class=\"lg-panel-s\">Matchday 12</span></div><div class=\"lg-panel-b\"><p>Body</p></div></section>","sha256":"b8ef42c4cad8e1524744c952fbf4f905e36d889032419b6eda71c436745d5d3c","bytes":223,"nodes":11,"elements":8,"depth":5,"tags":["div","h2","i","p","section","span"],"classes":[{"name":"lg-panel","owner":"lg-panel","rules":6},{"name":"lg-panel-b","owner":"lg-panel","rules":6},{"name":"lg-panel-h","owner":"lg-panel","rules":6},{"name":"lg-panel-s","owner":"lg-panel","rules":2},{"name":"lg-rule","owner":"css","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"b8ef42c4cad8e1524744c952fbf4f905e36d889032419b6eda71c436745d5d3c"},
+    {"id":"lg-panel.table-panel","label":"table panel","call":"_lgPanel('Player stats', '', '<table class=\"lg-t\"><tr><td>1</td></tr></table>', 'lg-panel--table')","html":"<section class=\"lg-panel lg-panel--table\"><div class=\"lg-panel-h\"><h2><i class=\"lg-rule\" aria-hidden=\"true\"></i><span>Player stats</span></h2></div><div class=\"lg-panel-b\"><table class=\"lg-t\"><tbody><tr><td>1</td></tr></tbody></table></div></section>","sha256":"1966047ec1d06a652eb6bb660e97d92ecc97b6b5d2b11ea442dc8ebaa8b390ca","bytes":250,"nodes":12,"elements":10,"depth":7,"tags":["div","h2","i","section","span","table","tbody","td","tr"],"classes":[{"name":"lg-panel","owner":"lg-panel","rules":6},{"name":"lg-panel--table","owner":"lg-panel","rules":1},{"name":"lg-panel-b","owner":"lg-panel","rules":6},{"name":"lg-panel-h","owner":"lg-panel","rules":6},{"name":"lg-rule","owner":"css","rules":2},{"name":"lg-t","owner":"inert","rules":0}],"variantClasses":["lg-panel--table"],"neutralised":[],"goldenSha256":"4bd92dedecd2a8131391a7bc98699de33a01015ea211d4f6dd95a33454ee2600"},
+    {"id":"lg-panel.fill-panel","label":"fill panel","call":"_lgPanel('Pitch', '', '<div>pitch</div>', 'lg-panel--fill')","html":"<section class=\"lg-panel lg-panel--fill\"><div class=\"lg-panel-h\"><h2><i class=\"lg-rule\" aria-hidden=\"true\"></i><span>Pitch</span></h2></div><div class=\"lg-panel-b\"><div>pitch</div></div></section>","sha256":"28abe0d8a365537800a5b5c889c7aa66169df7362fab7ab97c965ac53e4a6561","bytes":196,"nodes":9,"elements":7,"depth":5,"tags":["div","h2","i","section","span"],"classes":[{"name":"lg-panel","owner":"lg-panel","rules":6},{"name":"lg-panel--fill","owner":"lg-panel","rules":5},{"name":"lg-panel-b","owner":"lg-panel","rules":6},{"name":"lg-panel-h","owner":"lg-panel","rules":6},{"name":"lg-rule","owner":"css","rules":2}],"variantClasses":["lg-panel--fill"],"neutralised":[],"goldenSha256":"28abe0d8a365537800a5b5c889c7aa66169df7362fab7ab97c965ac53e4a6561"},
+    {"id":"lg-panel.empty-body","label":"empty body","call":"_lgPanel('Fixtures', '', '')","html":"<section class=\"lg-panel\"><div class=\"lg-panel-h\"><h2><i class=\"lg-rule\" aria-hidden=\"true\"></i><span>Fixtures</span></h2></div><div class=\"lg-panel-b\"></div></section>","sha256":"d0bdb16a7530624488aa34f040f7a70f5301ef26c530490956dc679d945e41a0","bytes":168,"nodes":7,"elements":6,"depth":5,"tags":["div","h2","i","section","span"],"classes":[{"name":"lg-panel","owner":"lg-panel","rules":6},{"name":"lg-panel-b","owner":"lg-panel","rules":6},{"name":"lg-panel-h","owner":"lg-panel","rules":6},{"name":"lg-rule","owner":"css","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"d0bdb16a7530624488aa34f040f7a70f5301ef26c530490956dc679d945e41a0"}
+   ]
+  },
+  {
+   "id": "lg-float",
+   "symbol": "_lgFloat",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgFloat","sha256":"4e01b049f1c77bb8bf2586a1af663d4261180d7f99439e55241e3c1e957f6259","bytes":637},
+    "css": [{"file":"public/app.css","rules":18,"sha256":"0382a19fe72568ed33806adf02123708c0f157c23d11b164a1d253505c3d7f84","bytes":2353}]
+   },
+   "mediaQueries": [],
+   "variants": [
+    {"class":"lg-float--md","name":"medium","rules":1,"exercisedBy":["lg-float.medium-width-class"]},
+    {"class":"lg-float--lg","name":"large","rules":1,"exercisedBy":["lg-float.large-width-class"]}
+   ],
+   "fixtures": [
+    {"id":"lg-float.head-and-body","label":"head and body","call":"_lgFloat({ close: 'closeFloat', head: '<span class=\"lg-float-t\">Match details</span>', body: '<p>Body</p>' })","html":"<div class=\"lg-float-bg\"><div class=\"lg-float\" role=\"dialog\"><header class=\"lg-float-h\"><div class=\"lg-float-id\"><span class=\"lg-float-t\">Match details</span></div><button class=\"lg-float-x\" type=\"button\" aria-label=\"Close\" tabindex=\"-1\">✕</button></header><div class=\"lg-float-b\"><p>Body</p></div></div></div>","sha256":"755f1b56c7edb678c56b95d4aee9b2fb33367e1fb8b1abaf87380ac7e8c555ae","bytes":312,"nodes":11,"elements":8,"depth":6,"tags":["button","div","header","p","span"],"classes":[{"name":"lg-float","owner":"lg-float","rules":1},{"name":"lg-float-b","owner":"lg-float","rules":6},{"name":"lg-float-bg","owner":"lg-float","rules":2},{"name":"lg-float-h","owner":"lg-float","rules":2},{"name":"lg-float-id","owner":"lg-float","rules":1},{"name":"lg-float-t","owner":"lg-float","rules":1},{"name":"lg-float-x","owner":"lg-float","rules":2}],"variantClasses":[],"neutralised":[{"code":"data-action","action":"removed","count":2},{"code":"data-i18n-aria","action":"removed","count":1},{"code":"aria-modal","action":"removed","count":1},{"code":"tabindex","action":"set to -1 on buttons","count":1}],"goldenSha256":"2f1703753904f2e4b3704e100bde626f461a56402672255ace39366f1caf8f06"},
+    {"id":"lg-float.with-footer","label":"with footer","call":"_lgFloat({ close: 'closeFloat', head: '<span class=\"lg-float-t\">Edit</span>', body: '<p>Body</p>', foot: '<button type=\"button\">Save</button>' })","html":"<div class=\"lg-float-bg\"><div class=\"lg-float\" role=\"dialog\"><header class=\"lg-float-h\"><div class=\"lg-float-id\"><span class=\"lg-float-t\">Edit</span></div><button class=\"lg-float-x\" type=\"button\" aria-label=\"Close\" tabindex=\"-1\">✕</button></header><div class=\"lg-float-b\"><p>Body</p></div><footer class=\"lg-float-f\"><button type=\"button\" tabindex=\"-1\">Save</button></footer></div></div>","sha256":"eff8057ac9321a469a0674274d460e1180c7812c1d9ada459c9cafc88e2c3bd6","bytes":388,"nodes":14,"elements":10,"depth":6,"tags":["button","div","footer","header","p","span"],"classes":[{"name":"lg-float","owner":"lg-float","rules":1},{"name":"lg-float-b","owner":"lg-float","rules":6},{"name":"lg-float-bg","owner":"lg-float","rules":2},{"name":"lg-float-f","owner":"lg-float","rules":1},{"name":"lg-float-h","owner":"lg-float","rules":2},{"name":"lg-float-id","owner":"lg-float","rules":1},{"name":"lg-float-t","owner":"lg-float","rules":1},{"name":"lg-float-x","owner":"lg-float","rules":2}],"variantClasses":[],"neutralised":[{"code":"data-action","action":"removed","count":2},{"code":"data-i18n-aria","action":"removed","count":1},{"code":"aria-modal","action":"removed","count":1},{"code":"tabindex","action":"set to -1 on buttons","count":2}],"goldenSha256":"091bfd37e5a59701c72589e36c16565bd059a2e2440732d6a46b3b1b150669be"},
+    {"id":"lg-float.medium-width-class","label":"medium width class","call":"_lgFloat({ close: 'closeFloat', cls: 'lg-float--md', head: 'H', body: 'B' })","html":"<div class=\"lg-float-bg\"><div class=\"lg-float lg-float--md\" role=\"dialog\"><header class=\"lg-float-h\"><div class=\"lg-float-id\">H</div><button class=\"lg-float-x\" type=\"button\" aria-label=\"Close\" tabindex=\"-1\">✕</button></header><div class=\"lg-float-b\">B</div></div></div>","sha256":"43430789de03464b241b08c6c36edb625ad39e1507a41bd8425baea18e695296","bytes":271,"nodes":9,"elements":6,"depth":5,"tags":["button","div","header"],"classes":[{"name":"lg-float","owner":"lg-float","rules":1},{"name":"lg-float--md","owner":"lg-float","rules":1},{"name":"lg-float-b","owner":"lg-float","rules":6},{"name":"lg-float-bg","owner":"lg-float","rules":2},{"name":"lg-float-h","owner":"lg-float","rules":2},{"name":"lg-float-id","owner":"lg-float","rules":1},{"name":"lg-float-x","owner":"lg-float","rules":2}],"variantClasses":["lg-float--md"],"neutralised":[{"code":"data-action","action":"removed","count":2},{"code":"data-i18n-aria","action":"removed","count":1},{"code":"aria-modal","action":"removed","count":1},{"code":"tabindex","action":"set to -1 on buttons","count":1}],"goldenSha256":"f3ff3cf6f06b4a0693bc0fbd4b8dae6e9026b1f3871c443724bda021fabf9313"},
+    {"id":"lg-float.large-width-class","label":"large width class","call":"_lgFloat({ close: 'closeFloat', cls: 'lg-float--lg', head: 'H', body: 'B' })","html":"<div class=\"lg-float-bg\"><div class=\"lg-float lg-float--lg\" role=\"dialog\"><header class=\"lg-float-h\"><div class=\"lg-float-id\">H</div><button class=\"lg-float-x\" type=\"button\" aria-label=\"Close\" tabindex=\"-1\">✕</button></header><div class=\"lg-float-b\">B</div></div></div>","sha256":"125bf215a28c352beef8a463af30025f19e5a2c67afcf9f0a62df43ae7d88518","bytes":271,"nodes":9,"elements":6,"depth":5,"tags":["button","div","header"],"classes":[{"name":"lg-float","owner":"lg-float","rules":1},{"name":"lg-float--lg","owner":"lg-float","rules":1},{"name":"lg-float-b","owner":"lg-float","rules":6},{"name":"lg-float-bg","owner":"lg-float","rules":2},{"name":"lg-float-h","owner":"lg-float","rules":2},{"name":"lg-float-id","owner":"lg-float","rules":1},{"name":"lg-float-x","owner":"lg-float","rules":2}],"variantClasses":["lg-float--lg"],"neutralised":[{"code":"data-action","action":"removed","count":2},{"code":"data-i18n-aria","action":"removed","count":1},{"code":"aria-modal","action":"removed","count":1},{"code":"tabindex","action":"set to -1 on buttons","count":1}],"goldenSha256":"5351862fe3c4967b3130f2eb999d470f51d9b7dfd84a6346c2b029ecfbf4653d"},
+    {"id":"lg-float.no-options","label":"no options","call":"_lgFloat()","html":"<div class=\"lg-float-bg\"><div class=\"lg-float\" role=\"dialog\"><header class=\"lg-float-h\"><div class=\"lg-float-id\"></div><button class=\"lg-float-x\" type=\"button\" aria-label=\"Close\" tabindex=\"-1\">✕</button></header><div class=\"lg-float-b\"></div></div></div>","sha256":"e9c6f4819e916fcf5620ea71608ee0badd4bbd97bfba53fe7e1a5c89454d0be6","bytes":256,"nodes":7,"elements":6,"depth":5,"tags":["button","div","header"],"classes":[{"name":"lg-float","owner":"lg-float","rules":1},{"name":"lg-float-b","owner":"lg-float","rules":6},{"name":"lg-float-bg","owner":"lg-float","rules":2},{"name":"lg-float-h","owner":"lg-float","rules":2},{"name":"lg-float-id","owner":"lg-float","rules":1},{"name":"lg-float-x","owner":"lg-float","rules":2}],"variantClasses":[],"neutralised":[{"code":"data-action","action":"removed","count":2},{"code":"data-i18n-aria","action":"removed","count":1},{"code":"aria-modal","action":"removed","count":1},{"code":"tabindex","action":"set to -1 on buttons","count":1}],"goldenSha256":"3fd4c528fe2d5caebfd867add8e64a82c496d4925f478540b45f9253577622a9"}
+   ]
+  },
+  {
+   "id": "lg-empty",
+   "symbol": "_lgEmpty",
+   "source": {
+    "js": {"file":"public/app.js","symbol":"_lgEmpty","sha256":"839554a4422d02582db17ba0b97cfd6d480118e8752ed6a02224efbf12231cb4","bytes":796},
+    "css": [{"file":"public/app.css","rules":7,"sha256":"bbb5e7d7394ca15c2ba44a1ce91056fefc75b555fc1cbead4fa444c63adaf775","bytes":793}]
+   },
+   "mediaQueries": [],
+   "variants": [
+    {"class":"lg-empty--error","name":"error","rules":1,"exercisedBy":[]}
+   ],
+   "fixtures": [
+    {"id":"lg-empty.title-and-sub","label":"title and sub","call":"_lgEmpty('No fixtures yet', 'Fixtures appear once the season is scheduled.')","html":"<div class=\"lg-empty\"><div class=\"lg-empty-ic\" aria-hidden=\"true\"><svg viewBox=\"0 0 32 32\" width=\"26\" height=\"26\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"16\" cy=\"16\" r=\"11\"/><path d=\"M16 10.5v7M16 21.2h.01\"/></svg></div><div class=\"lg-empty-t\">No fixtures yet</div><div class=\"lg-empty-s\">Fixtures appear once the season is scheduled.</div></div>","sha256":"3de93e5662ea538657aeeeb202236ba1f95ae7cd862c745c6c98567bccd4a61f","bytes":418,"nodes":9,"elements":7,"depth":4,"tags":["circle","div","path","svg"],"classes":[{"name":"lg-empty","owner":"lg-empty","rules":2},{"name":"lg-empty-ic","owner":"lg-empty","rules":2},{"name":"lg-empty-s","owner":"lg-empty","rules":1},{"name":"lg-empty-t","owner":"lg-empty","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"3de93e5662ea538657aeeeb202236ba1f95ae7cd862c745c6c98567bccd4a61f"},
+    {"id":"lg-empty.title-only","label":"title only","call":"_lgEmpty('Nothing to show')","html":"<div class=\"lg-empty\"><div class=\"lg-empty-ic\" aria-hidden=\"true\"><svg viewBox=\"0 0 32 32\" width=\"26\" height=\"26\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"16\" cy=\"16\" r=\"11\"/><path d=\"M16 10.5v7M16 21.2h.01\"/></svg></div><div class=\"lg-empty-t\">Nothing to show</div></div>","sha256":"f59cfb2e9176afefeb3d9dd887e8e6e0a6cf8ea6a8cbc0b4d745396865a0b604","bytes":343,"nodes":7,"elements":6,"depth":4,"tags":["circle","div","path","svg"],"classes":[{"name":"lg-empty","owner":"lg-empty","rules":2},{"name":"lg-empty-ic","owner":"lg-empty","rules":2},{"name":"lg-empty-t","owner":"lg-empty","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"f59cfb2e9176afefeb3d9dd887e8e6e0a6cf8ea6a8cbc0b4d745396865a0b604"},
+    {"id":"lg-empty.ignores-icon-argument","label":"ignores icon argument","call":"_lgEmpty('No data', 'Not recorded', 'trophy')","html":"<div class=\"lg-empty\"><div class=\"lg-empty-ic\" aria-hidden=\"true\"><svg viewBox=\"0 0 32 32\" width=\"26\" height=\"26\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"16\" cy=\"16\" r=\"11\"/><path d=\"M16 10.5v7M16 21.2h.01\"/></svg></div><div class=\"lg-empty-t\">No data</div><div class=\"lg-empty-s\">Not recorded</div></div>","sha256":"7246e4046472f944178a4df865d6049151294078b6dad31a118187ca17ee5f07","bytes":377,"nodes":9,"elements":7,"depth":4,"tags":["circle","div","path","svg"],"classes":[{"name":"lg-empty","owner":"lg-empty","rules":2},{"name":"lg-empty-ic","owner":"lg-empty","rules":2},{"name":"lg-empty-s","owner":"lg-empty","rules":1},{"name":"lg-empty-t","owner":"lg-empty","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"7246e4046472f944178a4df865d6049151294078b6dad31a118187ca17ee5f07"}
+   ]
+  }
+ ],
+ "availability": [
+  {
+   "id": "club-logo",
+   "state": "unavailable",
+   "reason": "no-fixtures"
+  },
+  {
+   "id": "club-identity",
+   "state": "unavailable",
+   "reason": "no-fixtures"
+  },
+  {
+   "id": "lg-crest",
+   "state": "preview",
+   "reason": null
+  },
+  {
+   "id": "lg-ident",
+   "state": "preview",
+   "reason": null
+  },
+  {
+   "id": "lg-icon",
+   "state": "unavailable",
+   "reason": "no-fixtures"
+  },
+  {
+   "id": "lg-chip",
+   "state": "preview",
+   "reason": null
+  },
+  {
+   "id": "lg-status-chip",
+   "state": "preview",
+   "reason": null
+  },
+  {
+   "id": "lg-form",
+   "state": "preview",
+   "reason": null
+  },
+  {
+   "id": "lg-metric",
+   "state": "preview",
+   "reason": null
+  },
+  {
+   "id": "lg-versus",
+   "state": "preview",
+   "reason": null
+  },
+  {
+   "id": "lg-table",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "badge",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "metric-tile",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "lg-panel",
+   "state": "preview",
+   "reason": null
+  },
+  {
+   "id": "lg-float",
+   "state": "preview",
+   "reason": null
+  },
+  {
+   "id": "lg-empty",
+   "state": "preview",
+   "reason": null
+  },
+  {
+   "id": "card",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "modal",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "toast",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "empty-legacy",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "skeleton",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "spinner",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "button",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "lg-action",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "filter-button",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "toggle",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "input",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "sidebar-nav",
+   "state": "unavailable",
+   "reason": "application-shell"
+  },
+  {
+   "id": "topbar",
+   "state": "unavailable",
+   "reason": "application-shell"
+  },
+  {
+   "id": "page",
+   "state": "unavailable",
+   "reason": "utility"
+  },
+  {
+   "id": "page-header",
+   "state": "unavailable",
+   "reason": "application-shell"
+  },
+  {
+   "id": "hidden",
+   "state": "unavailable",
+   "reason": "utility"
+  },
+  {
+   "id": "ds-shell",
+   "state": "unavailable",
+   "reason": "application-shell"
+  },
+  {
+   "id": "ds-chip",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "ds-panel",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "ds-metric",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "ds-seg",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "ds-tabs",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "ds-table",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "ds-kv",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "ds-button",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "ds-field",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "ds-empty",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "ds-skeleton",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "ds-language",
+   "state": "unavailable",
+   "reason": "css-only"
+  },
+  {
+   "id": "oh-family",
+   "state": "unavailable",
+   "reason": "page-specific"
+  },
+  {
+   "id": "sy-family",
+   "state": "unavailable",
+   "reason": "css-family"
+  },
+  {
+   "id": "dv-family",
+   "state": "unavailable",
+   "reason": "css-family"
+  },
+  {
+   "id": "ic-family",
+   "state": "unavailable",
+   "reason": "css-family"
+  },
+  {
+   "id": "sc-family",
+   "state": "unavailable",
+   "reason": "css-family"
+  },
+  {
+   "id": "vx-family",
+   "state": "unavailable",
+   "reason": "css-family"
+  },
+  {
+   "id": "cs-family",
+   "state": "unavailable",
+   "reason": "css-family"
+  },
+  {
+   "id": "al-family",
+   "state": "unavailable",
+   "reason": "css-family"
+  },
+  {
+   "id": "tf-btn",
+   "state": "unavailable",
+   "reason": "candidate"
+  },
+  {
+   "id": "trn-btn",
+   "state": "unavailable",
+   "reason": "candidate"
+  },
+  {
+   "id": "cx-btn",
+   "state": "unavailable",
+   "reason": "candidate"
+  },
+  {
+   "id": "co-btn",
+   "state": "unavailable",
+   "reason": "candidate"
+  },
+  {
+   "id": "tos-btn",
+   "state": "unavailable",
+   "reason": "candidate"
+  },
+  {
+   "id": "tf-modal",
+   "state": "unavailable",
+   "reason": "candidate"
+  },
+  {
+   "id": "tf-chip-btn",
+   "state": "unavailable",
+   "reason": "candidate"
+  }
+ ]
+}

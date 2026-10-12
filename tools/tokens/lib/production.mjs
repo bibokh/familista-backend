@@ -20,7 +20,7 @@ const SURFACES = [
   { id: 'react', label: 'React SPA at /app (built assets)', dir: 'public/app/assets' },
   // Stage 3.1: a room the main app loads on demand (public/app.js, lazy loader).
   // It is not linked from index.html, so it is named here rather than missed.
-  { id: 'lazy', label: 'Rooms loaded on demand by the main app', files: ['public/design-system/design-system.css', 'public/design-system/explorer.css', 'public/design-system/components.css'] },
+  { id: 'lazy', label: 'Rooms loaded on demand by the main app', files: ['public/design-system/design-system.css', 'public/design-system/explorer.css', 'public/design-system/components.css', 'public/design-system/lab.css'] },
 ];
 
 const rel = (p) => relative(REPO_ROOT, p).split('\\').join('/');

@@ -89,6 +89,12 @@ const ASSETS = [
    'dist/design-system/generated/design-system-components.json'],
   ['src/design-system/components-core.js',
    'dist/design-system/components-core.js'],
+  // The Specimen Lab's fixtures and their validator (Stage 3.2.3). The
+  // validator reads the shared sanitizer from public/, which ships beside dist/.
+  ['src/design-system/generated/design-system-previews.json',
+   'dist/design-system/generated/design-system-previews.json'],
+  ['src/design-system/previews-core.js',
+   'dist/design-system/previews-core.js'],
 ];
 
 // Approval dossiers (src/algorithms/approvals/*.json): the evidence each CHANGE

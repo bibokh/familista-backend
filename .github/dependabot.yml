@@ -21,6 +21,18 @@ updates:
       npm-minor-and-patch:
         update-types: [minor, patch]
 
+  # The browser proof's two tools (playwright-core, axe-core): their own package and
+  # lockfile, installed only by the browser-proof CI job.
+  - package-ecosystem: npm
+    directory: /tools/components
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    labels: [dependencies]
+    commit-message:
+      prefix: deps
+
   # Keeps the SHA-pinned actions in .github/workflows current: each PR moves
   # the pinned commit and the version comment beside it together.
   - package-ecosystem: github-actions
