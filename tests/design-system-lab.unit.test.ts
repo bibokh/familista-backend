@@ -1250,7 +1250,7 @@ describe('the browser proofs are kept with the code, and are not part of CI', ()
     const file = path.join(ROOT, 'tools/components/lab-browser-proof.cjs');
     expect(spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' }).status).toBe(0);
     const src = fs.readFileSync(file, 'utf8');
-    for (const claim of ['lazy:', 'csp:', 'layout:', 'layout (control)', 'events:', 'events (control)', 'sanitizer:', 'keyboard:', 'i18n:', 'isolation:', 'fail closed:', 'stability:', 'api:', 'accessibility ']) expect(src).toContain(claim);
+    for (const claim of ['lazy:', 'csp:', 'layout:', 'layout (control)', 'events:', 'events (control)', 'sanitizer:', 'keyboard:', 'i18n:', 'isolation:', 'fail closed:', 'stability:', 'api:', 'accessibility ', 'focus ', 'focus (control)', 'errors (control)', 'csp (control)', 'accessibility (control)', 'view (control)']) expect(src).toContain(claim);
     expect(fs.readdirSync(path.join(ROOT, 'tests')).some((f) => f.includes('lab-browser-proof'))).toBe(false);
   });
 });

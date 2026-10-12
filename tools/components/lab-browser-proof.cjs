@@ -26,7 +26,16 @@
 //
 // Each isolation proof is paired with a control that removes the thing being
 // proved and shows the proof can see the difference, so a PASS is not a probe that
-// would pass whatever the page did.
+// would pass whatever the page did. That includes the focus, error and CSP proofs
+// (section 7): their controls serve a lab.js with one behaviour switched off, or
+// break the policy on purpose, and require the same measurement to turn red.
+//
+// Console errors and CSP violations are never filtered away. The application's own
+// pre-existing inline-style violations (style-src-attr, raised by /app.js or by the
+// page's own HTML) are counted and reported apart, because their number depends on
+// how much of the application has painted. A violation is the Lab's if it was raised
+// on an element inside .lab, by a Lab script (its sourceFile), or names a Lab file;
+// any report that can be placed nowhere is "unexplained". Both of those must be zero.
 'use strict';
 
 process.env.NODE_ENV = 'production';
@@ -79,19 +88,33 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined, args: ['--no-sandbox'] });
   const token = signToken('access', { sub: OWNER.id, role: OWNER.role }, { expiresIn: '60m' });
 
-  async function open(viewport, locale) {
+  // `labPatch`, used only by the negative controls, serves lab.js with one edit applied (a control that breaks
+  // the behaviour under proof, so the proof can be seen to fail); everything else is the file on disk.
+  async function open(viewport, locale, labPatch) {
     const ctx = await browser.newContext({ viewport, reducedMotion: 'reduce' });
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+    if (labPatch) {
+      const original = fs.readFileSync(path.join(ROOT, 'public/design-system/lab.js'), 'utf8');
+      const patched = labPatch(original);
+      if (patched === original) throw new Error('negative control: the edit did not change lab.js, so it would prove nothing');
+      await ctx.route(/\/design-system\/lab\.js(\?|$)/, (r) => r.fulfill({ contentType: 'application/javascript', body: patched }));
+    }
     await ctx.addCookies([{ name: 'access_token', value: token, domain: '127.0.0.1', path: '/', httpOnly: true }]);
     await ctx.addInitScript((l) => {
       try { if (l) localStorage.setItem('familista_design_system_locale', l); } catch (_) { /* private mode */ }
       window.__csp = [];
-      document.addEventListener('securitypolicyviolation', (e) => window.__csp.push({ d: e.violatedDirective, uri: String(e.blockedURI).slice(0, 80), inLab: !!(e.target && e.target.closest && e.target.closest('.lab')) }));
+      document.addEventListener('securitypolicyviolation', (e) => window.__csp.push({ d: e.violatedDirective, uri: String(e.blockedURI).slice(0, 80), inLab: !!(e.target && e.target.closest && e.target.closest('.lab')), src: String(e.sourceFile || '').replace(location.origin, '').slice(0, 80) }));
     }, locale || null);
     const page = await ctx.newPage();
-    const log = { errors: [], requests: [] };
+    // `errors` holds every page error and every console error that is not a network or CSP notice. Those two notices
+    // are kept too, in `notices` with the URL they name, never dropped: a notice that names a Lab file is a Lab error.
+    const log = { errors: [], notices: [], requests: [] };
     page.on('pageerror', (e) => log.errors.push('pageerror: ' + e.message));
-    page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|Refused to (apply|connect)/.test(m.text())) log.errors.push('console: ' + m.text().slice(0, 200)); });
+    page.on('console', (m) => {
+      if (m.type() !== 'error') return;
+      if (/Failed to load resource|Refused to (apply|connect)/.test(m.text())) log.notices.push({ text: m.text().slice(0, 200), url: String((m.location() && m.location().url) || '').slice(0, 200) });
+      else log.errors.push('console: ' + m.text().slice(0, 200));
+    });
     page.on('request', (r) => log.requests.push([r.method(), new URL(r.url()).pathname + new URL(r.url()).search, new URL(r.url()).origin]));
     await page.goto(BASE + '/#design-system', { waitUntil: 'load' });
     await page.waitForSelector('.ds-metric', { timeout: 30000 });
@@ -103,6 +126,87 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     await page.waitForTimeout(300);
   }
   const frames = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+
+  // ── what counts as the Lab's fault ───────────────────────────────────────────
+  // Every CSP violation the page reported is sorted, and none is discarded. Two facts place a report, and either is enough:
+  // the element it was raised on is inside .lab, or the script that raised it is a Lab file (`sourceFile`). The second matters
+  // because Chromium reports against the document, not the element, once the element has been removed, and the Lab redraws
+  // itself by removing nodes; the application's own 99 such reports all carry /app.js as their source.
+  //   lab          the Lab's: raised on a Lab element, by a Lab script, or naming a Lab file. Must be zero.
+  //   application  style-src-attr raised by a first-party script that is not a Lab file, or by the page's own HTML as it is parsed
+  //                (source "/"). Pre-existing; reported, never compared, because its number depends on how much of the
+  //                application has painted.
+  //   axeProbe     see below.
+  //   unexplained  everything else: another directive, or a report no script or element can be placed. Must be zero.
+  //
+  // `axeProbe` exists for one thing: axe-core, while it runs, fetches the page's cross-origin web-font stylesheet to read its
+  // rules, and the page's connect-src refuses it. That is the measuring tool being refused, not the Lab and not the application.
+  // It counts only if it arrives inside an axe.run window AND is a connect-src violation for that exact stylesheet; the same
+  // violation outside an axe run, or any other connect-src violation, is unexplained.
+  const cspSplit = (page) => page.evaluate(() => {
+    const v = window.__csp || [];
+    const ranges = window.__axeRanges || [];
+    const LAB = /design-system\/lab/;
+    const lab = (c) => c.inLab || LAB.test(c.uri) || LAB.test(c.src);
+    const app = (c) => !lab(c) && c.d === 'style-src-attr' && /^\//.test(c.src);
+    const probe = (c, i) => !lab(c) && c.d === 'connect-src' && /^https:\/\/fonts\.googleapis\.com\/css/.test(c.uri) && ranges.some((r) => i >= r[0] && i < r[1]);
+    const unexplained = v.filter((c, i) => !lab(c) && !app(c) && !probe(c, i));
+    return { total: v.length, lab: v.filter(lab).length, application: v.filter(app).length, axeProbe: v.filter(probe).length, unexplained: unexplained.length, unexplainedDirectives: [...new Set(unexplained.map((c) => c.d + (c.src ? ' @' + c.src : ' (no source)')))] };
+  });
+  // Wait until the application has stopped painting (no new violation for 800 ms), so a before/after comparison measures only
+  // what the control did. The application's late paint can also remount the Lab, which would detach what a control injected.
+  async function quiet(page) {
+    let last = -1;
+    for (let i = 0; i < 20; i++) { const n = await page.evaluate(() => (window.__csp || []).length); if (n === last) return n; last = n; await page.waitForTimeout(800); }
+    return last;
+  }
+  // The room can be redrawn under a probe by the application's own late painting (the same remount the focus proofs exercise on
+  // purpose). A probe waits for the room and the Lab to be there, and is retried at most twice if the page was replaced under it.
+  // Every retry is counted and reported with the result; a probe that still fails after that throws, it is never swallowed.
+  const settled = (page) => page.waitForFunction(() => document.getElementById('ds-body') && document.querySelector('.lab') && document.querySelector('.lab #lab-rail-body'), null, { timeout: 15000 }).then(() => page.waitForTimeout(300));
+  async function steady(page, fn) {
+    for (let attempt = 0; ; attempt++) {
+      await settled(page);
+      try { const out = await fn(); return { out, retries: attempt }; } catch (e) { if (attempt >= 2 || !/Cannot read properties of null|Execution context was destroyed|Target (page|closed)/.test(String(e))) throw e; }
+    }
+  }
+  // A page error, a console error, or a network/CSP notice that names a Lab file.
+  const LAB_URL = /design-system\/lab|components\/preview|design-system\/components/;
+  const labErrors = (log) => log.errors.concat(log.notices.filter((n) => LAB_URL.test(n.url) || LAB_URL.test(n.text)).map((n) => 'notice: ' + n.text + ' @ ' + n.url));
+  const activeKey = (page) => page.evaluate(() => { const a = document.activeElement; return a ? (a.id || a.getAttribute('data-lab-id') || a.getAttribute('data-lab-fx') || a.getAttribute('data-lab-tab') || a.getAttribute('data-lab-dir') || a.tagName) : null; });
+  // Redraw the room the way the application does when a page is shown again: through the page-render registry. True only if
+  // a NEW Lab root replaced the old one, so a remount that never happened cannot pass for a restored focus.
+  async function remount(page) {
+    await page.evaluate(() => { window.__mark = document.querySelector('.lab'); window.renderFamilistaDesignSystem(); });
+    try { await page.waitForFunction(() => { const l = document.querySelector('.lab'); return l && l !== window.__mark && document.getElementById('lab-specimen'); }, null, { timeout: 8000 }); } catch (_) { return false; }
+    await page.waitForTimeout(400);
+    return true;
+  }
+  const FOCUS_TARGETS = [['rail item', '[data-lab-id="lg-chip"]'], ['fixture tab', '.lab-fx.is-on'], ['search', '#lab-q'], ['inspector tab', '[data-lab-tab="source"]'], ['direction', '[data-lab-dir="rtl"]']];
+  // Focus each target in turn, remount, and say where focus went. Never reads the Lab's own state: only the page.
+  async function focusTrials(page) {
+    await page.keyboard.press('/'); await page.keyboard.type('chip'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await frames(page);
+    const trials = [];
+    for (const [label, sel] of FOCUS_TARGETS) {
+      if (!(await page.$(sel))) { trials.push({ label, ok: false, why: 'target not found' }); continue; }
+      await page.focus(sel);
+      const before = await activeKey(page);
+      const remounted = await remount(page);
+      const after = await activeKey(page);
+      trials.push({ label, before, after, remounted, ok: remounted && before === after });
+      if (label === 'direction') await page.evaluate(() => { const b = document.querySelector('[data-lab-dir="ltr"]'); if (b) b.click(); });
+    }
+    return trials;
+  }
+  // A remount long after the last focus is a visit: focus must not be pulled to a control the reader left 2.5 s ago.
+  async function staleRemount(page) {
+    await page.focus('#lab-q'); await page.waitForTimeout(3000);
+    await page.evaluate(() => document.activeElement.blur());
+    const remounted = await remount(page);
+    const key = await activeKey(page);
+    const inLab = await page.evaluate(() => !!(document.activeElement && document.activeElement.closest && document.activeElement.closest('.lab')));
+    return { remounted, key, kept: remounted && !inLab };
+  }
 
   // ══ 1. the server boundary ═════════════════════════════════════════════════
   if (want('1')) {
@@ -427,9 +531,14 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       for (const loc of ['en', 'de', 'ar']) for (const [vn, w, h] of views) {
         const { ctx, page, log } = await open({ width: w, height: h }, loc);
         await openLab(page);
-        const run = (label) => page.evaluate(async (src) => {
+        let axeRetries = 0;
+        const run = async (label) => { const r = await steady(page, () => axeOnce(label)); axeRetries += r.retries; return r.out; };
+        const axeOnce = (label) => page.evaluate(async (src) => {
           if (!window.axe) (0, eval)(src);        // eslint-disable-line no-eval -- this script's own tool, never the page's code
+          const from = (window.__csp || []).length;
           const r = await window.axe.run({ include: ['#pg-design-system'] }, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] }, resultTypes: ['violations'] });
+          await new Promise((done) => setTimeout(done, 150));          // let the policy's own reports for this run arrive
+          (window.__axeRanges = window.__axeRanges || []).push([from, (window.__csp || []).length]);
           const b = document.getElementById('ds-body');
           return { violations: r.violations.map((v) => v.id + ':' + v.nodes.length + ' ' + v.nodes.slice(0, 2).map((n) => n.target.join(' ')).join('|')), overflowX: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1, bodyOverflow: b.scrollWidth > b.clientWidth + 1, missing: window.__familistaDesignSystemMissing ? window.__familistaDesignSystemMissing() : [], dir: document.getElementById('ds-root').dir };
         }, AXE).then((x) => ({ label, ...x }));
@@ -443,9 +552,155 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
         const v = states.flatMap((s) => s.violations.map((x) => s.label + ': ' + x));
         const missing = [...new Set(states.flatMap((s) => s.missing))];
         const ovf = states.some((s) => s.overflowX || s.bodyOverflow);
-        check(`accessibility ${loc} ${vn}: 0 axe violations (WCAG 2.2 A/AA rules), no horizontal overflow, nothing untranslated`, v.length === 0 && !ovf && missing.length === 0 && (loc !== 'ar' || states[0].dir === 'rtl'), { violations: v, overflow: ovf, missing, dir: states[0].dir, errors: log.errors.length });
+        const errs = labErrors(log);
+        const split = await cspSplit(page);
+        check(`accessibility ${loc} ${vn}: 0 axe violations (WCAG 2.2 A/AA rules), no horizontal overflow, nothing untranslated, no console error, no Lab or unexplained CSP violation`, v.length === 0 && !ovf && missing.length === 0 && (loc !== 'ar' || states[0].dir === 'rtl') && errs.length === 0 && split.lab === 0 && split.unexplained === 0, { violations: v, overflow: ovf, missing, dir: states[0].dir, errors: errs, csp: split, probeRetries: axeRetries });
         await ctx.close();
       }
+    }
+  }
+
+  // ══ 6b. the accessibility check can fail (--axe) ═══════════════════════════
+  if (WANT_AXE && want('6')) {
+    const axePath = process.env.AXE_CORE || path.join(ROOT, 'tools/storybook/node_modules/axe-core/axe.min.js');
+    if (fs.existsSync(axePath)) {
+      const AXE = fs.readFileSync(axePath, 'utf8');
+      const { ctx, page } = await open({ width: 1440, height: 900 }, 'en');
+      await openLab(page);
+      // Break what is protected: a control with no accessible name, and a name that does not match its visible label.
+      const broken = await page.evaluate(async (src) => {
+        if (!window.axe) (0, eval)(src);        // eslint-disable-line no-eval -- this script's own tool, never the page's code
+        const host = document.querySelector('.lab');
+        const b = document.createElement('button'); b.type = 'button'; host.appendChild(b);
+        const from = (window.__csp || []).length;
+        const r = await window.axe.run({ include: ['#pg-design-system'] }, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] }, resultTypes: ['violations'] });
+        await new Promise((done) => setTimeout(done, 150));
+        (window.__axeRanges = window.__axeRanges || []).push([from, (window.__csp || []).length]);
+        return r.violations.map((v) => v.id);
+      }, AXE);
+      check('accessibility (control): a button with no name inside the Lab is reported by the same axe run, so a clean result means something', broken.includes('button-name'), broken);
+      const probeSplit = await cspSplit(page);
+      check('csp: the only violation an axe run causes is its own fetch of the web-font stylesheet, attributed to the tool; none to the Lab, none unexplained', probeSplit.axeProbe >= 1 && probeSplit.lab === 0 && probeSplit.unexplained === 0, probeSplit);
+      await ctx.close();
+    }
+  }
+
+  // ══ 7. focus, errors and CSP in a real browser, in every view ═══════════════
+  // Not axe: this needs no accessibility engine, so it runs by default. It is what keeps the Lab usable by keyboard when
+  // the room redraws under it, and what attributes every console error and CSP violation to its owner.
+  if (want('7')) {
+    // Horizontal overflow of the page, the room body or the Lab; strings the room's catalogue has no entry for (always empty in
+    // English, where the key is the text, so that part of the proof means something only in de and ar); and the room's direction.
+    const viewProbe = (page) => page.evaluate(() => {
+      const b = document.getElementById('ds-body'); const lab = document.querySelector('.lab');
+      return { overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 || b.scrollWidth > b.clientWidth + 1 || (lab ? lab.scrollWidth > lab.clientWidth + 1 : false), missing: window.__familistaDesignSystemMissing ? window.__familistaDesignSystemMissing() : ['no catalogue probe'], dir: document.getElementById('ds-root').dir };
+    });
+    const NO_RESTORE = (src) => src.replace('function restoreFocus() {', 'function restoreFocus() { return;');
+    const NO_EXPIRY = (src) => src.replace('var FOCUS_MS = 2500;', 'var FOCUS_MS = 1e12;');
+    for (const loc of ['en', 'de', 'ar']) for (const [vn, w, h] of [['desktop', 1440, 900], ['laptop', 1100, 760], ['tablet', 834, 1112], ['mobile', 390, 844]]) {
+      const { ctx, page, log } = await open({ width: w, height: h }, loc);
+      await openLab(page);
+      let retries = 0;
+      const probe = async () => { const r = await steady(page, () => viewProbe(page)); retries += r.retries; return r.out; };
+      const trials = await focusTrials(page);
+      const stale = await staleRemount(page);
+      const st = await probe();
+      const errs = labErrors(log);
+      const split = await cspSplit(page);
+      check(`focus ${loc} ${vn}: focus returns to the same control after the room redraws the Lab (5 of 5), is not pulled back after 2.5 s, and the view has no overflow, no untranslated text, no console error, no Lab or unexplained CSP violation`,
+        trials.every((t) => t.ok) && stale.kept && !st.overflow && st.missing.length === 0 && errs.length === 0 && split.lab === 0 && split.unexplained === 0 && ((loc === 'ar') === (st.dir === 'rtl')),
+        { trials, stale, overflow: st.overflow, missing: st.missing, dir: st.dir, errors: errs, csp: split, probeRetries: retries });
+      await ctx.close();
+    }
+
+    // Controls: each breaks the behaviour a proof above protects and shows the same measurement turning red.
+    {
+      const { ctx, page } = await open({ width: 1440, height: 900 }, 'en', NO_RESTORE);
+      await openLab(page);
+      const trials = await focusTrials(page);
+      check('focus (control): with restoreFocus disabled, the same redraw drops focus on the page for all 5 controls, so the proof can fail', trials.length === 5 && trials.every((t) => t.remounted && !t.ok && t.after === 'BODY'), trials);
+      await ctx.close();
+    }
+    {
+      const { ctx, page } = await open({ width: 1440, height: 900 }, 'en', NO_EXPIRY);
+      await openLab(page);
+      await page.keyboard.press('/'); await page.keyboard.type('chip');
+      const stale = await staleRemount(page);
+      check('focus (control): with the 2.5 s limit removed, a redraw long after the last focus steals it back into the Lab, so the no-steal proof can fail', stale.remounted && !stale.kept, stale);
+      await ctx.close();
+    }
+    {
+      const { ctx, page } = await open({ width: 390, height: 844 }, 'de');
+      await openLab(page);
+      const clean = await viewProbe(page);
+      await page.evaluate(() => {
+        window.__familistaDesignSystemKit.T('A string the German catalogue does not have');                                   // an untranslated string
+        const wide = document.createElement('div'); wide.style.setProperty('width', '3000px'); wide.style.setProperty('height', '4px'); document.querySelector('.lab').appendChild(wide);   // a Lab that overflows
+      });
+      const broken = await viewProbe(page);
+      check('view (control): an untranslated string and a 3000px-wide element inside the Lab are each reported by the same probe the views use, so a clean view means something',
+        !clean.overflow && clean.missing.length === 0 && broken.overflow && broken.missing.includes('A string the German catalogue does not have'), { clean, broken });
+      await ctx.close();
+    }
+    {
+      const { ctx, page, log } = await open({ width: 1440, height: 900 }, 'en');
+      await openLab(page);
+      const mark = log.errors.length;
+      await page.evaluate(() => {
+        console.error('lab-control-console-error');
+        setTimeout(() => { throw new Error('lab-control-page-error'); }, 0);
+        const s = document.createElement('script'); s.src = '/design-system/lab-control-missing.js'; document.head.appendChild(s);
+      });
+      await page.waitForTimeout(600);
+      const fresh = labErrors(log).slice(0);
+      check('errors (control): a console error, a page error and a failed load of a Lab file are each attributed to the Lab, so the error proof can fail',
+        fresh.some((e) => /lab-control-console-error/.test(e)) && fresh.some((e) => /lab-control-page-error/.test(e)) && fresh.some((e) => /lab-control-missing/.test(e)) && log.errors.length >= mark + 2, fresh);
+      // a notice that does NOT name a Lab file stays out of the Lab's count but is kept, not dropped
+      check('errors: network and CSP notices are kept with their URL, never discarded, and only those naming a Lab file count against the Lab', log.notices.length >= 1 && log.notices.every((n) => typeof n.url === 'string'), { notices: log.notices.length, forLab: log.notices.filter((n) => LAB_URL.test(n.url) || LAB_URL.test(n.text)).length });
+      await ctx.close();
+    }
+    {
+      // 1. By element: a violation raised on a node that is inside the Lab, from a script that says nothing about the Lab.
+      const { ctx, page } = await open({ width: 1440, height: 900 }, 'en');
+      await openLab(page);
+      await quiet(page);
+      const base = await cspSplit(page);
+      await page.evaluate(() => {
+        const inLab = document.createElement('div'); inLab.setAttribute('style', 'color:red'); document.querySelector('.lab').appendChild(inLab);
+        const sc = document.createElement('script'); sc.textContent = 'window.__ran = 1'; document.head.appendChild(sc);                       // inline script: blocked, and not the Lab's
+        fetch('https://fonts.googleapis.com/css2?family=Inter').catch(() => {});                                                              // the axe-probe URL, but outside any axe run
+        const gone = document.createElement('div'); document.body.appendChild(gone); gone.setAttribute('style', 'color:red'); gone.remove();  // raised, then the node removed: no element, no source
+      });
+      await quiet(page);
+      const after = await cspSplit(page);
+      const ran = await page.evaluate(() => window.__ran === 1);
+      check('csp (control): an inline style on a Lab element is counted as the Lab\'s; an inline script, the axe-probe URL fetched outside an axe run and a report with no element and no source are unexplained; the policy still stops the script',
+        after.lab === base.lab + 1 && after.axeProbe === base.axeProbe && after.unexplained >= base.unexplained + 3 && !ran, { base, after, scriptRan: ran });
+      await ctx.close();
+    }
+    {
+      // 2. By source: a Lab script writes an inline style and removes the node in the same task, so Chromium reports it against the
+      // document. Only the script that raised it says whose it is.
+      const { ctx, page } = await open({ width: 1440, height: 900 }, 'en', (src) => src.replace('function mount(host, kit) {', "function mount(host, kit) { (function () { var q = document.createElement('div'); document.body.appendChild(q); q.setAttribute('style', 'color:red'); q.remove(); })();"));
+      await openLab(page);
+      await quiet(page);
+      const split = await cspSplit(page);
+      const entry = await page.evaluate(() => (window.__csp || []).filter((c) => /design-system\/lab\.js/.test(c.src)).map((c) => ({ d: c.d, inLab: c.inLab, src: c.src })));
+      check('csp (control): an inline style written by lab.js and removed in the same task is still counted as the Lab\'s, by its source file, though the element is gone', split.lab >= 1 && entry.length >= 1 && entry.every((e) => !e.inLab), { split, entry });
+      await ctx.close();
+    }
+    {
+      // 3. By source, the other way: a first-party script that is not a Lab file is the application's, not the Lab's.
+      const { ctx, page } = await open({ width: 1440, height: 900 }, 'en');
+      await ctx.route(/\/app-control\.js$/, (r) => r.fulfill({ contentType: 'application/javascript', body: "var d = document.createElement('div'); document.body.appendChild(d); d.setAttribute('style', 'color:red'); d.remove();" }));
+      await openLab(page);
+      await quiet(page);
+      const base = await cspSplit(page);
+      await page.evaluate(() => { const s = document.createElement('script'); s.src = '/app-control.js'; document.head.appendChild(s); });
+      await quiet(page);
+      const after = await cspSplit(page);
+      check('csp (control): the same write from a first-party script that is not a Lab file is counted as the application\'s and leaves the Lab\'s count at zero', after.application === base.application + 1 && after.lab === base.lab && after.unexplained === base.unexplained, { base, after });
+      await ctx.close();
     }
   }
 

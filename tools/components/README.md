@@ -64,4 +64,16 @@ PLAYWRIGHT_CORE=/path/to/playwright-core node tools/components/lab-browser-proof
 ```
 
 It needs a Playwright driver and a Chromium on the machine, adds no dependency and is not part of CI.
-Every proof is paired with a control that removes the thing being proved.
+Every proof is paired with a control that removes the thing being proved: the focus controls serve a `lab.js`
+with `restoreFocus` disabled, or with its 2.5 s limit removed, and require the same measurement to fail.
+
+Console errors and CSP violations are never filtered away. A violation is the Lab's if it was raised on an element
+inside `.lab`, by a Lab script (its `sourceFile`: Chromium reports against the document, not the element, once the
+element has been removed, and the Lab redraws by removing nodes), or names a Lab file. The application's own
+pre-existing inline-style violations (`style-src-attr`, raised by `/app.js` or by the page's own HTML) are counted and
+reported apart, because their number depends on how much of the application has painted. Anything that can be placed
+nowhere is "unexplained". The Lab's count and the unexplained count must both be zero, in every view. The one
+exception is named: axe-core's own fetch of the web-font stylesheet, refused by `connect-src`, is counted as `axeProbe`
+when it happens inside an axe run. Probes that find the room mid-redraw wait for it and retry at most twice; the retries
+are reported with the result.
+`PROOF_ONLY=7` runs the focus, error and CSP proofs alone (they need no axe).
