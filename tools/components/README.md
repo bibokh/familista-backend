@@ -42,3 +42,26 @@ and any accessibility conformance claim (only facts found in the source).
 A record hashes only its own slice: the render function (whitespace-squashed) and the CSS
 rules that mention its classes. Editing one of those requires regenerating the manifest;
 editing anything else does not.
+
+## The Specimen Lab (Stage 3.2.3 M1)
+
+`scripts/design-system-previews.js` turns the ten verified primitives' Storybook golden
+fixtures into `src/design-system/generated/design-system-previews.json`. It reads the golden
+snapshot as text and executes nothing; `tests/design-system-lab.unit.test.ts` re-runs the Storybook
+golden test so CI refuses a snapshot that has drifted from `public/app.js`.
+
+One sanitizer — `public/design-system/lab-sanitize.js` — is used by the generator, by the server's
+validator (`src/design-system/previews-core.js`) and by the browser. It is a closed allowlist that
+fails closed, and it neutralises (and reports) `data-action`, `data-i18n-aria`, `aria-modal` and
+button tab stops.
+
+The boundaries the Lab claims — events stop at the stage, a fixed overlay stays in it, the application's
+translator leaves it alone — are proved in a real browser, not assumed:
+
+```
+npm run build
+PLAYWRIGHT_CORE=/path/to/playwright-core node tools/components/lab-browser-proof.cjs <output-dir> [--axe]
+```
+
+It needs a Playwright driver and a Chromium on the machine, adds no dependency and is not part of CI.
+Every proof is paired with a control that removes the thing being proved.

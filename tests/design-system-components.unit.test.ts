@@ -273,9 +273,9 @@ describe('nothing is invented: every claim is recomputed independently from the 
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the manifest is generated, deterministic, current, and holds no source', () => {
-  it('is exactly what the generator writes now (--check), and the same run checks all three manifests', () => {
+  it('is exactly what the generator writes now (--check), and the same run checks all four manifests', () => {
     const out = execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'design-system-discover.js'), '--check'], { cwd: ROOT, encoding: 'utf8' });
-    expect(out).toMatch(/manifest, graph manifest and components manifest are current/);
+    expect(out).toMatch(/manifest, graph manifest, components manifest and previews manifest are current/);
   });
 
   it('builds the same bytes twice', () => {
@@ -328,7 +328,7 @@ describe('the manifest is generated, deterministic, current, and holds no source
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the generator refuses a registry its repository cannot back up', () => {
   let tmp = '';
-  const files = ['public', 'tools/storybook/stories', 'tools/storybook/tests/golden', 'src/design-system'];
+  const files = ['public', 'tools/storybook/stories', 'tools/storybook/tests', 'src/design-system'];
   beforeAll(() => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-components-reg-'));
     fs.mkdirSync(path.join(tmp, 'tools/components'), { recursive: true });
@@ -464,10 +464,11 @@ describe('the build refuses a stale components manifest, exactly as it refuses a
   };
   const tree = () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-components-stale-'));
-    for (const f of ['scripts/copy-runtime-assets.js', 'scripts/design-system-discover.js', 'scripts/design-system-graph.js', 'scripts/design-system-components.js',
-      'src/design-system/graph-core.js', 'src/design-system/components-core.js',
-      'src/design-system/generated/design-system-manifest.json', 'src/design-system/generated/design-system-graph.json', 'src/design-system/generated/design-system-components.json']) put(tmp, f);
-    for (const d of ['tools/tokens', 'tools/storybook/stories', 'tools/storybook/tests/golden', 'tools/components', 'public/tokens']) put(tmp, d, true);
+    for (const f of ['scripts/copy-runtime-assets.js', 'scripts/design-system-discover.js', 'scripts/design-system-graph.js', 'scripts/design-system-components.js', 'scripts/design-system-previews.js',
+      'src/design-system/graph-core.js', 'src/design-system/components-core.js', 'src/design-system/previews-core.js',
+      'src/design-system/generated/design-system-manifest.json', 'src/design-system/generated/design-system-graph.json', 'src/design-system/generated/design-system-components.json',
+      'src/design-system/generated/design-system-previews.json']) put(tmp, f);
+    for (const d of ['tools/tokens', 'tools/storybook/stories', 'tools/storybook/tests', 'tools/components', 'public/tokens']) put(tmp, d, true);
     fs.cpSync(path.join(ROOT, 'public'), path.join(tmp, 'public'), { recursive: true, filter: (src) => fs.statSync(src).isDirectory() || /\.(css|html|js)$/.test(src) });
     return tmp;
   };
@@ -594,7 +595,7 @@ describe('the API: GET-only, authenticated and Platform-Owner-only, on the serve
 
   it('keeps the router GET-only, looks `id` up in a fixed list, and never builds a path, a query or a shell from it', () => {
     const src = read('src/routes/design-system.routes.ts');
-    expect(src.match(/router\.(get|post|put|patch|delete|all|use)\(/g)).toEqual(['router.use(', 'router.use(', 'router.get(', 'router.get(', 'router.get(', 'router.get(']);
+    expect(src.match(/router\.(get|post|put|patch|delete|all|use)\(/g)).toEqual(['router.use(', 'router.use(', 'router.get(', 'router.get(', 'router.get(', 'router.get(', 'router.get(']);
     expect(src).toContain("router.get('/components'");
     expect(src).toContain('isComponentId(id)');
     expect(src).not.toMatch(/req\.params|path\.join|readFile|exec\(|spawn\(/);

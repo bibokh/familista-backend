@@ -257,8 +257,8 @@
       + '</div></div>';
   }
 
-  var SECTIONS = [['overview', 'Overview'], ['tokens', 'Design Tokens'], ['explorer', 'Visual Explorer'], ['components', 'Components']];
-  var SECTION_TITLE = { overview: 'Overview', tokens: 'Design Tokens', explorer: 'Visual Explorer', components: 'Components' };
+  var SECTIONS = [['overview', 'Overview'], ['tokens', 'Design Tokens'], ['explorer', 'Visual Explorer'], ['components', 'Components'], ['lab', 'Specimen Lab']];
+  var SECTION_TITLE = { overview: 'Overview', tokens: 'Design Tokens', explorer: 'Visual Explorer', components: 'Components', lab: 'Specimen Lab' };
 
   function railHtml() {
     var total = DS.data && DS.data.overview ? DS.data.overview.tokens.total : null;
@@ -650,12 +650,19 @@
       css: '/design-system/components.css', js: '/design-system/components.js',
       failed: 'The Components Library could not be loaded',
     },
+    // `pre` are scripts the section's own script needs first (the Lab's shared sanitizer).
+    lab: {
+      host: 'lab-host', hostClass: 'lab-host', root: '.lab', api: 'FamilistaDesignLab', v: '20261012-lab',
+      css: '/design-system/lab.css', js: '/design-system/lab.js', pre: ['/design-system/lab-sanitize.js'],
+      failed: 'The Specimen Lab could not be loaded',
+    },
   };
   function loadAssets(key) {
     if (DS.assets[key]) return DS.assets[key];
     var L = LAZY[key];
     DS.assets[key] = new Promise(function (resolve) {
-      var pending = 2, failed = false;
+      var pre = L.pre || [];
+      var pending = 2 + pre.length, failed = false;
       function one(ok) { if (!ok) failed = true; if (--pending === 0) { if (failed) DS.assets[key] = null; resolve(!failed); } }
       var link = document.createElement('link');
       link.rel = 'stylesheet';
@@ -663,8 +670,18 @@
       link.onload = function () { one(true); };
       link.onerror = function () { one(false); };
       document.head.appendChild(link);
+      // Inserted in order and not async, so each runs after the ones before it.
+      pre.forEach(function (src) {
+        var dep = document.createElement('script');
+        dep.src = src + '?v=' + L.v;
+        dep.async = false;
+        dep.onload = function () { one(true); };
+        dep.onerror = function () { one(false); };
+        document.head.appendChild(dep);
+      });
       var script = document.createElement('script');
       script.src = L.js + '?v=' + L.v;
+      script.async = false;
       script.onload = function () { one(true); };
       script.onerror = function () { one(false); };
       document.head.appendChild(script);

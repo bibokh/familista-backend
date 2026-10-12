@@ -23,6 +23,12 @@
 //                                      registered component
 //   GET /system/design-system/components?id=<id>
 //                                      one component, with every inspector section
+//   GET /system/design-system/components/preview
+//                                      the Specimen Lab's index: which components
+//                                      can be previewed and why the rest cannot
+//   GET /system/design-system/components/preview?id=<id>
+//                                      one component's fixtures, already checked
+//                                      and neutralised by the shared sanitizer
 //
 // WHAT THESE RETURN
 //
@@ -37,6 +43,7 @@ import { assertPlatformOwner } from '../platform/system.service';
 import {
   designSystemOverview, designSystemTokens, designSystemGraphIndex, designSystemGraphView, isGraphViewId,
   designSystemComponentsIndex, designSystemComponent, isComponentId,
+  designSystemPreviewsIndex, designSystemPreview, isPreviewId,
 } from '../design-system/design-system.service';
 import { BadRequestError, NotFoundError } from '../utils/errors';
 
@@ -97,6 +104,24 @@ router.get('/components', (req: Request, res: Response, next) => {
     if (typeof id !== 'string') throw new BadRequestError('id must be a single value');
     if (!isComponentId(id)) throw new NotFoundError('Component');
     res.json({ success: true, data: designSystemComponent(id) });
+  } catch (err) { next(err); }
+});
+
+/**
+ * The Specimen Lab's fixtures. Read-only like every route here; the only accepted
+ * query key is `id`, looked up in the fixed list of components that have
+ * fixtures — never in a path, a query or a shell — and anything that is not a
+ * single `id` string is a 400. The manifest is never under public/.
+ */
+router.get('/components/preview', (req: Request, res: Response, next) => {
+  try {
+    const keys = Object.keys(req.query);
+    if (keys.some((k) => k !== 'id')) throw new BadRequestError('Only ?id=<id> is accepted');
+    const id = req.query.id;
+    if (id === undefined) { res.json({ success: true, data: designSystemPreviewsIndex() }); return; }
+    if (typeof id !== 'string') throw new BadRequestError('id must be a single value');
+    if (!isPreviewId(id)) throw new NotFoundError('Preview');
+    res.json({ success: true, data: designSystemPreview(id) });
   } catch (err) { next(err); }
 });
 

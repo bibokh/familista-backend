@@ -19,6 +19,7 @@ import type {
   DesignManifest, DesignSystemOverview, DesignSystemTokens, GraphManifest, GraphView, GraphViewSummary,
   DesignSystemGraphIndex, DesignSystemGraphView,
   ComponentsManifest, ComponentRecord, ComponentSummary, DesignSystemComponentsIndex, DesignSystemComponentDetail,
+  PreviewsManifest, DesignSystemPreviewsIndex, DesignSystemPreviewDetail,
 } from './types';
 
 // The one definition of a well-formed graph (plain JavaScript, copied to dist
@@ -30,6 +31,10 @@ const graphCore: GraphCore = require('./graph-core.js');
 interface ComponentsCore { validateManifest(manifest: unknown): string[] }
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const componentsCore: ComponentsCore = require('./components-core.js');
+// And the Specimen Lab's (Stage 3.2.3), which shares one sanitizer with the browser.
+interface PreviewsCore { validateManifest(manifest: unknown, ctx: { components: ComponentsManifest }): string[] }
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const previewsCore: PreviewsCore = require('./previews-core.js');
 
 export const MANIFEST_SCHEMA = 1;
 const MANIFEST_PATH = path.join(__dirname, 'generated', 'design-system-manifest.json');
@@ -160,7 +165,7 @@ function loadComponents(): { manifest: ComponentsManifest | null; ids: Set<strin
 }
 
 /** Test seam: forget the cached components read. */
-export function resetDesignSystemComponentsCache(): void { componentsCached = null; }
+export function resetDesignSystemComponentsCache(): void { componentsCached = null; previewsCached = null; }
 
 /** The components a caller may ask for. Anything else is not one. */
 export function isComponentId(id: unknown): id is string {
@@ -191,6 +196,63 @@ export function designSystemComponentsIndex(): DesignSystemComponentsIndex {
 /** `id` must already have passed isComponentId. */
 export function designSystemComponent(id: string): DesignSystemComponentDetail {
   const { manifest, reason } = loadComponents();
+  if (!manifest) return { state: 'NOT_GENERATED', reason, sources: [], component: null };
+  return { state: 'READY', reason: null, sources: manifest.sources, component: manifest.components.find((c) => c.id === id) ?? null };
+}
+
+// ── Specimen Lab (Stage 3.2.3 M1) ────────────────────────────────────────────
+//
+// The fixtures the Lab draws: markup the verified primitives produced for fixed
+// inputs, already checked and neutralised by the shared sanitizer. Read once and
+// validated before a single fixture leaves the server — every one is run back
+// through the sanitizer, its hash and size recomputed, and its binding to the
+// components manifest checked — so a fixture that is not exactly what the
+// sanitizer would produce, or that has drifted from the source it was made from,
+// refuses the whole manifest. The file is never placed under public/: it is
+// reachable only through the owner-only router below.
+
+export const PREVIEWS_SCHEMA = 1;
+const PREVIEWS_PATH = path.join(__dirname, 'generated', 'design-system-previews.json');
+const PREVIEWS_MISSING = 'The design-system previews manifest is not beside this server (run scripts/design-system-discover.js).';
+const PREVIEWS_INVALID = 'The design-system previews manifest failed its integrity check, so none of it is served.';
+
+let previewsCached: { manifest: PreviewsManifest | null; ids: Set<string>; reason: string | null } | null = null;
+
+function loadPreviews(): { manifest: PreviewsManifest | null; ids: Set<string>; reason: string | null } {
+  if (previewsCached) return previewsCached;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(PREVIEWS_PATH, 'utf8')) as unknown;
+    const components = loadComponents().manifest;
+    previewsCached = components && previewsCore.validateManifest(parsed, { components }).length === 0
+      ? { manifest: parsed as PreviewsManifest, ids: new Set((parsed as PreviewsManifest).components.map((c) => c.id)), reason: null }
+      : { manifest: null, ids: new Set(), reason: PREVIEWS_INVALID };
+  } catch {
+    previewsCached = { manifest: null, ids: new Set(), reason: PREVIEWS_MISSING };
+  }
+  return previewsCached;
+}
+
+/** Test seam: forget the cached previews read. */
+export function resetDesignSystemPreviewsCache(): void { previewsCached = null; }
+
+/** The components that have fixtures. Anything else is not one. */
+export function isPreviewId(id: unknown): id is string {
+  return typeof id === 'string' && loadPreviews().ids.has(id);
+}
+
+export function designSystemPreviewsIndex(): DesignSystemPreviewsIndex {
+  const { manifest, reason } = loadPreviews();
+  if (!manifest) return { state: 'NOT_GENERATED', reason, readOnly: true, generator: null, sources: [], policy: null, coverage: null, availability: [], components: [] };
+  return {
+    state: 'READY', reason: null, readOnly: true, generator: manifest.generator, sources: manifest.sources, policy: manifest.policy,
+    coverage: manifest.coverage, availability: manifest.availability,
+    components: manifest.components.map((c) => ({ id: c.id, symbol: c.symbol, fixtures: c.fixtures.length, bytes: c.fixtures.reduce((n, f) => n + f.bytes, 0), variants: c.variants.length })),
+  };
+}
+
+/** `id` must already have passed isPreviewId. */
+export function designSystemPreview(id: string): DesignSystemPreviewDetail {
+  const { manifest, reason } = loadPreviews();
   if (!manifest) return { state: 'NOT_GENERATED', reason, sources: [], component: null };
   return { state: 'READY', reason: null, sources: manifest.sources, component: manifest.components.find((c) => c.id === id) ?? null };
 }

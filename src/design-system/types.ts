@@ -262,3 +262,56 @@ export interface DesignSystemComponentDetail {
   sources: GraphSource[];
   component: ComponentRecord | null;
 }
+
+// ── Specimen Lab (Stage 3.2.3 M1) ────────────────────────────────────────────
+
+export type PreviewReason = 'no-fixtures' | 'css-only' | 'application-shell' | 'utility' | 'css-family' | 'page-specific' | 'candidate';
+export interface PreviewNeutralised { code: string; action: string; count: number }
+export interface PreviewClass { name: string; owner: string; rules: number }
+export interface PreviewFixture {
+  id: string; label: string; call: string; html: string; sha256: string; bytes: number; nodes: number; elements: number; depth: number;
+  tags: string[]; classes: PreviewClass[]; variantClasses: string[]; neutralised: PreviewNeutralised[]; goldenSha256: string;
+}
+export interface PreviewVariant { class: string; name: string; rules: number; exercisedBy: string[] }
+export interface PreviewComponent {
+  id: string; symbol: string;
+  source: { js: ComponentJsSource; css: ComponentCssSource[] };
+  mediaQueries: string[];
+  variants: PreviewVariant[];
+  fixtures: PreviewFixture[];
+}
+export interface PreviewAvailability { id: string; state: 'preview' | 'unavailable'; reason: PreviewReason | null }
+export interface PreviewPolicyTag { ns: string; void: boolean; attributes: string[] }
+export interface PreviewPolicy {
+  version: number;
+  tags: Record<string, PreviewPolicyTag>;
+  limits: Record<string, number>;
+  neutralised: { code: string; action: string }[];
+}
+export interface PreviewCoverage {
+  registered: number; previewable: number; unavailable: number; fixtures: number; bytes: number; nodes: number;
+  neutralised: Record<string, number>; byReason: Record<string, number>;
+}
+export interface PreviewsManifest {
+  schema: number; generator: string; description: string; sources: GraphSource[];
+  policy: PreviewPolicy; coverage: PreviewCoverage; components: PreviewComponent[]; availability: PreviewAvailability[];
+}
+/** The index never carries markup: counts and availability for every registered component, and the policy the markup was checked under. */
+export interface PreviewComponentSummary { id: string; symbol: string; fixtures: number; bytes: number; variants: number }
+export interface DesignSystemPreviewsIndex {
+  state: 'READY' | 'NOT_GENERATED';
+  reason: string | null;
+  readOnly: true;
+  generator: string | null;
+  sources: GraphSource[];
+  policy: PreviewPolicy | null;
+  coverage: PreviewCoverage | null;
+  availability: PreviewAvailability[];
+  components: PreviewComponentSummary[];
+}
+export interface DesignSystemPreviewDetail {
+  state: 'READY' | 'NOT_GENERATED';
+  reason: string | null;
+  sources: GraphSource[];
+  component: PreviewComponent | null;
+}
