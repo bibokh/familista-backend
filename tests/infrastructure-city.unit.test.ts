@@ -852,10 +852,9 @@ describe('the platform owner reaches the city from the landing, and nobody else 
     expect(app).toContain('oh-cards--core');
     expect(app).not.toContain('oh-cards--three');
     expect(app).not.toContain('oh-cards--four');
-    // Eight equal cards on eight tracks, each two tracks wide. The city holds
-    // the second row's far end — a full sibling track, the same size as every
-    // other.
-    expect(read(APP_CSS)).toContain('"vault vault  core   core   vision vision city   city "');
+    // Nine equal cards in three columns. The city holds the second row's far
+    // end — a full sibling track, the same size as every other.
+    expect(read(APP_CSS)).toContain('"algo   vault  city"');
   });
 
   it('shows a real status on the card rather than a decorative one', () => {

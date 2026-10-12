@@ -785,8 +785,8 @@ describe('the Platform Owner landing offers five rooms around one core', () => {
   const landing = app.slice(app.indexOf('function _ownerHomeForPlatformOwner'),
     app.indexOf('function _ownerHomeForClubMember'));
 
-  it('renders SYSTEM, CYBERSECURITY, CLUBS, ALGORITHMS, DATA VAULT, INFRASTRUCTURE CITY, SOURCE CORE and FAMILISTA VISION in one card grid', () => {
-    for (const title of ['>SYSTEM<', '>CYBERSECURITY<', '>CLUBS<', '>ALGORITHMS<', '>DATA VAULT<', '>INFRASTRUCTURE CITY<', '>SOURCE CORE<']) {
+  it('renders SYSTEM, CYBERSECURITY, CLUBS, ALGORITHMS, DATA VAULT, INFRASTRUCTURE CITY, SOURCE CORE, FAMILISTA VISION and DESIGN SYSTEM CONTROL in one card grid', () => {
+    for (const title of ['>SYSTEM<', '>CYBERSECURITY<', '>CLUBS<', '>ALGORITHMS<', '>DATA VAULT<', '>INFRASTRUCTURE CITY<', '>SOURCE CORE<', '>DESIGN SYSTEM CONTROL<']) {
       expect(landing).toContain(title);
     }
     const cards = [...landing.matchAll(/class="oh-card oh-card--(\w+)"/g)].map((m) => m[1]);
@@ -796,7 +796,9 @@ describe('the Platform Owner landing offers five rooms around one core', () => {
     // a screen reader walk is the order the top row reads. The six that were
     // here keep their relative order. ALGORITHMS joined as the eighth and
     // closes the top row after CLUBS, so it follows CLUBS in the markup too.
-    expect(cards).toEqual(['system', 'cyber', 'clubs', 'algo', 'vault', 'city', 'core', 'vision']);
+    // DESIGN SYSTEM CONTROL joined as the ninth and is appended, closing the
+    // third row. In the three-column grid the markup order IS the reading order.
+    expect(cards).toEqual(['system', 'cyber', 'clubs', 'algo', 'vault', 'city', 'core', 'vision', 'ds']);
   });
 
   it('gives the rooms the same grid track, so none is subordinate', () => {
@@ -813,15 +815,17 @@ describe('the Platform Owner landing offers five rooms around one core', () => {
     // SYSTEM and CLUBS; SOURCE CORE and VISION hold the middle of the second.
     // EIGHT with ALGORITHMS: it closes the top row, which now has four like
     // the row beneath it, so the half-card inset is gone.
-    expect(css).toContain('grid-template-columns: repeat(8, minmax(0, 1fr));');
-    expect(css).toContain('"system system cyber  cyber  clubs  clubs  algo   algo "');
-    expect(css).not.toContain('".     system');
-    expect(css).toContain('body.club-theme .oh-cards--core .oh-card--algo{   grid-area: algo; }');
-    expect(css).toContain('"vault vault  core   core   vision vision city   city "');
-    expect(css).not.toContain('"vision vision vision"');
-    expect(css).toContain('body.club-theme .oh-cards--core .oh-card--cyber{  grid-area: cyber; }');
-    expect(css).toContain('body.club-theme .oh-cards--core .oh-card--vision{ grid-area: vision; }');
-    expect(css).toContain('body.club-theme .oh-cards--core .oh-card--core{   grid-area: core; }');
+    // NINE EQUAL CARDS in three columns and three rows (see the comment above
+    // the grid in app.css): no half-card inset, no band, every card one track.
+    expect(css).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));');
+    expect(css).toContain('"system cyber  clubs"');
+    expect(css).toContain('"algo   vault  city"');
+    expect(css).toContain('"core   vision design"');
+    expect(css).not.toContain('"system system cyber  cyber  clubs  clubs  algo   algo "');
+    for (const [k, v] of [['system', 'system'], ['cyber', 'cyber'], ['clubs', 'clubs'], ['algo', 'algo'], ['vault', 'vault'], ['city', 'city'], ['core', 'core'], ['vision', 'vision'], ['ds', 'design']]) {
+      expect(css).toContain(`body.club-theme .oh-cards--core .oh-card--${k}{`);
+      expect(css).toMatch(new RegExp(`\\.oh-card--${k}\\{\\s*grid-area: ${v}; \\}`));
+    }
     // Equal rows, so no card can grow taller than its peers.
     expect(css).toMatch(/\.oh-cards--core\{[^}]*grid-auto-rows:\s*1fr/);
     // The orphaned four-column rule is gone rather than left behind to rot.
@@ -832,7 +836,7 @@ describe('the Platform Owner landing offers five rooms around one core', () => {
     // Each card is a direct sibling: six buttons, one container, no card
     // contains another.
     const row = landing.slice(landing.indexOf('oh-cards oh-cards--core'), landing.indexOf('oh-footer'));
-    expect((row.match(/<button class="oh-card/g) || [])).toHaveLength(8);
+    expect((row.match(/<button class="oh-card/g) || [])).toHaveLength(9);
     expect(row).not.toMatch(/<button class="oh-card[\s\S]*?<button class="oh-card[\s\S]*?<\/button>\s*<\/button>/);
   });
 

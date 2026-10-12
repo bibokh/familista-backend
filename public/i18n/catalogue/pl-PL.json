@@ -1591,5 +1591,13 @@
   "Algorithms failing evaluation: \u0000": "Algorytmy niezaliczające oceny: \u0000",
   "Algorithms awaiting approval: \u0000": "Algorytmy oczekujące na zatwierdzenie: \u0000",
   "Algorithms approved: \u0000 of \u0000": "Zatwierdzone algorytmy: \u0000 z \u0000",
-  "Algorithms unreachable": "Algorytmy niedostępne"
+  "Algorithms unreachable": "Algorytmy niedostępne",
+  "DESIGN SYSTEM CONTROL": "DESIGN SYSTEM CONTROL",
+  "Design System manifest not generated": "Design System manifest not generated",
+  "Design System unreachable": "Design System unreachable",
+  "Design Tokens, Contrast, Provenance & Evidence": "Design Tokens, Contrast, Provenance & Evidence",
+  "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
+  "Enter Design System": "Enter Design System",
+  "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
+  "Reading design system evidence…": "Reading design system evidence…"
 }

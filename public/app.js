@@ -3837,6 +3837,43 @@ function _fillAlgorithmsStatus() {
     .catch(function () { write('bad', 'Algorithms unreachable'); });
 }
 
+/**
+ * Ask the Design System Control room where the design system stands, and say so
+ * on the DESIGN SYSTEM CONTROL card.
+ *
+ * Read from the room's own overview endpoint and nothing else. Green only when
+ * the measured count of contrast failures beyond the recorded baseline is 0 —
+ * which is a measured 0, printed as 0; red when it is not; amber when the
+ * manifest has not been generated. Labels and numbers rather than inflected
+ * sentences, for the reason the Source Core card gives.
+ */
+function _fillDesignSystemStatus() {
+  const slot = document.getElementById('oh-design-state');
+  if (!slot) return;
+  const base = (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG.API_BASE) ? FAM_CONFIG.API_BASE : '/api/v1';
+  let token = '';
+  try { token = (window.State && window.State.token) || localStorage.getItem('familista_token') || ''; } catch (_) {}
+  const write = (state, text) => {
+    const el = document.getElementById('oh-design-state');
+    if (el) el.outerHTML = _vaultStatusHTML(state, text).replace('class="oh-card-state', 'id="oh-design-state" class="oh-card-state');
+  };
+  fetch(base + '/system/design-system', {
+    method: 'GET',
+    headers: token ? { Authorization: 'Bearer ' + token } : {},
+    credentials: 'include',
+  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+    .then(function (body) {
+      const d = (body && body.data) || body || {};
+      if (d.state === 'NOT_GENERATED') return write('warn', 'Design System manifest not generated');
+      const o = d.overview;
+      const tokens = o && o.tokens && o.tokens.total && o.tokens.total.value;
+      const fresh = o && o.contrast && o.contrast.newFailures && o.contrast.newFailures.value;
+      if (typeof tokens !== 'number' || typeof fresh !== 'number') return write('idle', 'Design System unreachable');
+      write(fresh > 0 ? 'bad' : 'ok', 'Design tokens: ' + tokens.toLocaleString() + ' · new contrast failures: ' + fresh.toLocaleString());
+    })
+    .catch(function () { write('bad', 'Design System unreachable'); });
+}
+
 function _fillSourceCoreStatus() {
   const slot = document.getElementById('oh-core-state');
   if (!slot) return;
@@ -4056,6 +4093,23 @@ function _ownerHomeForPlatformOwner(user, club) {
           <span id="oh-vision-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading Vision service…</span>
           <div class="oh-card-cta">Open Vision <span>→</span></div>
         </button>
+        <!-- DESIGN SYSTEM CONTROL is the ninth room and closes the third row:
+             what the design system declares and what the repository records
+             about it. A peer, the same size as every other card, opening the
+             existing #design-system room. It exists only inside this function,
+             which is built only for the platform owner (see renderOwnerHome),
+             so nobody else is ever offered it; its status line is read after
+             paint from the room's own overview endpoint. -->
+        <button class="oh-card oh-card--ds" data-action="navTo" data-page="design-system" type="button">
+          <div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>
+          </svg></div>
+          <div class="oh-card-title">DESIGN SYSTEM CONTROL</div>
+          <div class="oh-card-sub">Design Tokens, Contrast, Provenance &amp; Evidence</div>
+          <div class="oh-card-list">Overview · Design Tokens · Layers · Contrast · Provenance</div>
+          <span id="oh-design-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading design system evidence…</span>
+          <div class="oh-card-cta">Enter Design System <span>→</span></div>
+        </button>
       </div>
       <div class="oh-footer">
         Familista · ${_esc((user.email || 'Owner') + '')} · ${clubCount} club${clubCount === 1 ? '' : 's'} in your network
@@ -4185,6 +4239,7 @@ function renderOwnerHome() {
       try { _fillVisionStatus(); } catch (_) {}
       try { _fillCybersecurityStatus(); } catch (_) {}
       try { _fillAlgorithmsStatus(); } catch (_) {}
+      try { _fillDesignSystemStatus(); } catch (_) {}
     }
   });
 }

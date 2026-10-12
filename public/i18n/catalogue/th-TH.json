@@ -1588,5 +1588,13 @@
   "Algorithms failing evaluation: \u0000": "อัลกอริทึมที่ไม่ผ่านการประเมิน: \u0000",
   "Algorithms awaiting approval: \u0000": "อัลกอริทึมที่รอการอนุมัติ: \u0000",
   "Algorithms approved: \u0000 of \u0000": "อัลกอริทึมที่อนุมัติแล้ว: \u0000 จาก \u0000",
-  "Algorithms unreachable": "ไม่สามารถเข้าถึงอัลกอริทึม"
+  "Algorithms unreachable": "ไม่สามารถเข้าถึงอัลกอริทึม",
+  "DESIGN SYSTEM CONTROL": "DESIGN SYSTEM CONTROL",
+  "Design System manifest not generated": "Design System manifest not generated",
+  "Design System unreachable": "Design System unreachable",
+  "Design Tokens, Contrast, Provenance & Evidence": "Design Tokens, Contrast, Provenance & Evidence",
+  "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
+  "Enter Design System": "Enter Design System",
+  "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
+  "Reading design system evidence…": "Reading design system evidence…"
 }

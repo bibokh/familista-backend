@@ -1588,5 +1588,13 @@
   "Algorithms failing evaluation: \u0000": "Thuật toán không đạt đánh giá: \u0000",
   "Algorithms awaiting approval: \u0000": "Thuật toán chờ phê duyệt: \u0000",
   "Algorithms approved: \u0000 of \u0000": "Thuật toán đã phê duyệt: \u0000 trên \u0000",
-  "Algorithms unreachable": "Không thể truy cập thuật toán"
+  "Algorithms unreachable": "Không thể truy cập thuật toán",
+  "DESIGN SYSTEM CONTROL": "DESIGN SYSTEM CONTROL",
+  "Design System manifest not generated": "Design System manifest not generated",
+  "Design System unreachable": "Design System unreachable",
+  "Design Tokens, Contrast, Provenance & Evidence": "Design Tokens, Contrast, Provenance & Evidence",
+  "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
+  "Enter Design System": "Enter Design System",
+  "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
+  "Reading design system evidence…": "Reading design system evidence…"
 }
