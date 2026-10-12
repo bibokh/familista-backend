@@ -4,9 +4,10 @@
    WHAT THE DESIGN SYSTEM DECLARES, AND WHAT THE REPOSITORY RECORDS ABOUT IT
 
    An Owner-only room, loaded on demand by public/app.js the first time the
-   platform owner opens it. It draws three sections — Overview, Design Tokens
-   and (Stage 3.2.1) the Visual Explorer, whose own script and stylesheet load
-   only when that section first opens (public/design-system/explorer.*) —
+   platform owner opens it. It draws four sections — Overview, Design Tokens,
+   the Visual Explorer (Stage 3.2.1) and the Components Library (Stage 3.2.2).
+   The last two bring their own script and stylesheet, which load only when that
+   section first opens (public/design-system/explorer.*, components.*) —
    from a manifest the server generated from tools/tokens/ (the Design Core, the
    one canonical token source) and serves read-only at /system/design-system.
 
@@ -33,7 +34,7 @@
   'use strict';
 
   var DS = {
-    section: 'overview',   // overview | tokens | explorer
+    section: 'overview',   // overview | tokens | explorer | components
     tab: 'tokens',         // tokens | layers | contrast  (inside Design Tokens)
     data: null,            // GET /system/design-system
     error: null,
@@ -46,8 +47,8 @@
     cfilter: 'all',        // all | failing | text | ui
     langOpen: false,
     refreshing: false,
-    exAssets: null,        // Promise<boolean>: the Visual Explorer's script and stylesheet, loaded once
-    exMounted: false,
+    assets: {},            // section → Promise<boolean>: a lazy section's script and stylesheet, loaded once
+    mounted: null,         // the lazy section currently drawn, or null
   };
 
   // ── localisation ──────────────────────────────────────────────────────────
@@ -256,8 +257,8 @@
       + '</div></div>';
   }
 
-  var SECTIONS = [['overview', 'Overview'], ['tokens', 'Design Tokens'], ['explorer', 'Visual Explorer']];
-  var SECTION_TITLE = { overview: 'Overview', tokens: 'Design Tokens', explorer: 'Visual Explorer' };
+  var SECTIONS = [['overview', 'Overview'], ['tokens', 'Design Tokens'], ['explorer', 'Visual Explorer'], ['components', 'Components']];
+  var SECTION_TITLE = { overview: 'Overview', tokens: 'Design Tokens', explorer: 'Visual Explorer', components: 'Components' };
 
   function railHtml() {
     var total = DS.data && DS.data.overview ? DS.data.overview.tokens.total : null;
@@ -542,7 +543,7 @@
       + '<div class="ds-skel-grid" aria-hidden="true"></div>';
   }
   function contentHtml() {
-    if (DS.section === 'explorer') return '<div class="ds-ex-host" id="ex-host">' + skeleton(6, 'row') + '</div>';
+    if (LAZY[DS.section]) return '<div class="' + LAZY[DS.section].hostClass + '" id="' + LAZY[DS.section].host + '">' + skeleton(6, 'row') + '</div>';
     if (DS.section === 'tokens') return tokensHtml();
     if (DS.error && !DS.data) return panel('', emptyState('Design System Control could not be read', DS.error));
     if (!DS.data) return overviewSkeleton();
@@ -624,59 +625,75 @@
     if (!host) return;
     host.setAttribute('dir', DS_DIR);
     host.setAttribute('lang', DS_LANG);
-    DS.exMounted = false;
+    DS.mounted = null;
     host.innerHTML = '<div class="ds-shell">' + railHtml()
-      + '<main class="ds-main">' + topHtml() + '<div class="ds-body' + (DS.section === 'explorer' ? ' ds-body--workspace' : '') + '" id="ds-body" tabindex="0" role="region" aria-label="' + esc(T(SECTION_TITLE[DS.section] || 'Overview')) + '">' + contentHtml() + '</div></main></div>';
+      + '<main class="ds-main">' + topHtml() + '<div class="ds-body' + (LAZY[DS.section] ? ' ds-body--workspace' : '') + '" id="ds-body" tabindex="0" role="region" aria-label="' + esc(T(SECTION_TITLE[DS.section] || 'Overview')) + '">' + contentHtml() + '</div></main></div>';
     paintValues(host);
-    mountExplorer(host);
+    mountLazy(host);
   }
 
-  // ── the Visual Explorer (Stage 3.2.1) ─────────────────────────────────────
+  // ── the lazy sections: Visual Explorer (3.2.1), Components Library (3.2.2) ──
   //
-  // Its script and stylesheet are fetched the first time the section opens and
-  // never before: Owner Home, the room's other sections and Familista's startup
-  // do not pay for them.
+  // Each brings its own script and stylesheet, fetched the first time its section
+  // opens and never before: Owner Home, the room's other sections and Familista's
+  // startup do not pay for them. Each draws into a host element, and each
+  // exposes mount / unmount / reset on a window object of its own.
 
-  var EXPLORER_V = '20261012-explorer';
-  function loadExplorerAssets() {
-    if (DS.exAssets) return DS.exAssets;
-    DS.exAssets = new Promise(function (resolve) {
+  var LAZY = {
+    explorer: {
+      host: 'ex-host', hostClass: 'ds-ex-host', root: '.ex', api: 'FamilistaDesignExplorer', v: '20261012-explorer',
+      css: '/design-system/explorer.css', js: '/design-system/explorer.js',
+      failed: 'The Visual Explorer could not be loaded',
+    },
+    components: {
+      host: 'cl-host', hostClass: 'cl-host', root: '.cl', api: 'FamilistaDesignComponents', v: '20261012-components',
+      css: '/design-system/components.css', js: '/design-system/components.js',
+      failed: 'The Components Library could not be loaded',
+    },
+  };
+  function loadAssets(key) {
+    if (DS.assets[key]) return DS.assets[key];
+    var L = LAZY[key];
+    DS.assets[key] = new Promise(function (resolve) {
       var pending = 2, failed = false;
-      function one(ok) { if (!ok) failed = true; if (--pending === 0) { if (failed) DS.exAssets = null; resolve(!failed); } }
+      function one(ok) { if (!ok) failed = true; if (--pending === 0) { if (failed) DS.assets[key] = null; resolve(!failed); } }
       var link = document.createElement('link');
       link.rel = 'stylesheet';
-      link.href = '/design-system/explorer.css?v=' + EXPLORER_V;
+      link.href = L.css + '?v=' + L.v;
       link.onload = function () { one(true); };
       link.onerror = function () { one(false); };
       document.head.appendChild(link);
       var script = document.createElement('script');
-      script.src = '/design-system/explorer.js?v=' + EXPLORER_V;
+      script.src = L.js + '?v=' + L.v;
       script.onload = function () { one(true); };
       script.onerror = function () { one(false); };
       document.head.appendChild(script);
     });
-    return DS.exAssets;
+    return DS.assets[key];
   }
-  function mountExplorer(host) {
-    if (DS.section !== 'explorer' || !host.querySelector('#ex-host')) return;
-    loadExplorerAssets().then(function (ok) {
-      var slot = host.querySelector('#ex-host');
-      if (DS.section !== 'explorer' || !slot) return;
-      if (!ok || !window.FamilistaDesignExplorer) {
-        slot.innerHTML = emptyState('The Visual Explorer could not be loaded', T('Reload the page and try again.'));
+  function mountLazy(host) {
+    var key = DS.section, L = LAZY[key];
+    if (!L || !host.querySelector('#' + L.host)) return;
+    loadAssets(key).then(function (ok) {
+      var slot = host.querySelector('#' + L.host);
+      if (DS.section !== key || !slot) return;
+      if (!ok || !window[L.api]) {
+        slot.innerHTML = emptyState(L.failed, T('Reload the page and try again.'));
         return;
       }
-      window.FamilistaDesignExplorer.mount(slot, window.__familistaDesignSystemKit);
-      DS.exMounted = true;
+      window[L.api].mount(slot, window.__familistaDesignSystemKit);
+      DS.mounted = key;
     });
   }
-  function leaveExplorer() {
-    if (DS.exMounted && window.FamilistaDesignExplorer) window.FamilistaDesignExplorer.unmount();
-    DS.exMounted = false;
+  function leaveLazy() {
+    var key = DS.mounted;
+    if (key && window[LAZY[key].api]) window[LAZY[key].api].unmount();
+    DS.mounted = null;
   }
-  /** What the Explorer may borrow from this room: its vocabulary, its escaping and its GET-only reader. Nothing that writes. */
+  /** What a lazy section may borrow from this room: its vocabulary, its escaping and its GET-only reader. Nothing that writes. */
   window.__familistaDesignSystemKit = {
-    T: T, tf: tf, esc: esc, num: num, code: code, kv: kv, evChip: evChip, emptyState: emptyState, skeleton: skeleton,
+    T: T, tf: tf, esc: esc, num: num, code: code, kv: kv, evChip: evChip, chip: chip, emptyState: emptyState, skeleton: skeleton,
+    ltr: ltr, short: short,
     api: function (path) { return api(path); }, contractError: contractError, dir: function () { return DS_DIR; },
   };
 
@@ -685,16 +702,17 @@
     var body = host.querySelector('#ds-body');
     if (!body) return paint(host);
     var y = keepScroll ? body.scrollTop : 0;
-    // A mounted Explorer is not redrawn because the overview finished loading behind it.
-    if (!(keepScroll && DS.section === 'explorer' && DS.exMounted && body.querySelector('#ex-host .ex'))) {
-      if (DS.section !== 'explorer') leaveExplorer();
-      body.classList.toggle('ds-body--workspace', DS.section === 'explorer');
+    // A mounted lazy section is not redrawn because the overview finished loading behind it.
+    var L = LAZY[DS.section];
+    if (!(keepScroll && L && DS.mounted === DS.section && body.querySelector('#' + L.host + ' ' + L.root))) {
+      if (!L || DS.mounted !== DS.section) leaveLazy();
+      body.classList.toggle('ds-body--workspace', !!L);
       body.setAttribute('aria-label', T(SECTION_TITLE[DS.section] || 'Overview'));
       body.innerHTML = contentHtml();
       body.scrollTop = y;
       paintValues(body);
-      DS.exMounted = false;
-      mountExplorer(host);
+      DS.mounted = null;
+      mountLazy(host);
     }
     var top = host.querySelector('.ds-top');
     if (top) top.outerHTML = topHtml();
@@ -725,7 +743,7 @@
     }
   }
   function go(host, section) {
-    if (section === 'explorer' && DS.section === 'explorer') return;
+    if (LAZY[section] && DS.section === section) return;
     DS.section = section;
     repaintBody(host, false);
     ensureSection(host);
@@ -735,8 +753,8 @@
   function refresh(host) {
     if (DS.refreshing) return;
     DS.refreshing = true;
-    if (DS.section === 'explorer' && window.FamilistaDesignExplorer) { leaveExplorer(); window.FamilistaDesignExplorer.reset(); }
-    repaintBody(host, DS.section !== 'explorer');
+    if (LAZY[DS.section] && window[LAZY[DS.section].api]) { leaveLazy(); window[LAZY[DS.section].api].reset(); }
+    repaintBody(host, !LAZY[DS.section]);
     var jobs = [loadOverview()];
     if (DS.section === 'tokens') jobs.push(loadTokens());
     else DS.tk = null;
@@ -857,7 +875,7 @@
   };
 
   window.teardownFamilistaDesignSystem = function () {
-    leaveExplorer();
+    leaveLazy();
     // No stream or timer of its own. The section, filters and language menu are
     // dropped so the room opens clean next time.
     DS.section = 'overview'; DS.tab = 'tokens'; DS.q = ''; DS.layer = 'all'; DS.type = 'all'; DS.cfilter = 'all';

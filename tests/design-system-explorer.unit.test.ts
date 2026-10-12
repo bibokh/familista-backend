@@ -88,9 +88,9 @@ beforeEach(() => { forgetIdentity(); resetDesignSystemGraphCache(); });
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the graph manifest is generated, deterministic and current', () => {
-  it('is exactly what the generator writes now (--check), and the same run checks both manifests', () => {
+  it('is exactly what the generator writes now (--check), and the same run checks all three manifests', () => {
     const out = execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'design-system-discover.js'), '--check'], { cwd: ROOT, encoding: 'utf8' });
-    expect(out).toMatch(/manifest and graph manifest are current/);
+    expect(out).toMatch(/manifest, graph manifest and components manifest are current/);
   });
 
   it('carries no timestamp, host or environment value', () => {
@@ -143,7 +143,9 @@ describe('the build refuses a stale graph, exactly as it refuses a stale manifes
       put('tools/tokens', true); put('tools/storybook/stories', true); put('public/tokens', true);
       put('src/design-system/graph-core.js');
       put('src/design-system/generated/design-system-manifest.json'); put('src/design-system/generated/design-system-graph.json');
-      fs.cpSync(path.join(ROOT, 'public'), path.join(tmp, 'public'), { recursive: true, filter: (src) => fs.statSync(src).isDirectory() || /\.(css|html)$/.test(src) });
+      put('scripts/design-system-components.js'); put('src/design-system/components-core.js'); put('tools/components', true); put('tools/storybook/tests/golden', true);
+      put('src/design-system/generated/design-system-components.json');
+      fs.cpSync(path.join(ROOT, 'public'), path.join(tmp, 'public'), { recursive: true, filter: (src) => fs.statSync(src).isDirectory() || /\.(css|html|js)$/.test(src) });
       const gf = path.join(tmp, 'src/design-system/generated/design-system-graph.json');
       const stale = fs.readFileSync(gf, 'utf8').replace('"schema": 1', '"schema": 1, "stale": true');
       expect(stale).not.toBe(fs.readFileSync(gf, 'utf8'));
@@ -170,7 +172,9 @@ describe('the build refuses a stale graph, exactly as it refuses a stale manifes
       put('tools/tokens', true); put('tools/storybook/stories', true); put('public/tokens', true);
       put('src/design-system/graph-core.js');
       put('src/design-system/generated/design-system-manifest.json'); put('src/design-system/generated/design-system-graph.json');
-      fs.cpSync(path.join(ROOT, 'public'), path.join(tmp, 'public'), { recursive: true, filter: (src) => fs.statSync(src).isDirectory() || /\.(css|html)$/.test(src) });
+      put('scripts/design-system-components.js'); put('src/design-system/components-core.js'); put('tools/components', true); put('tools/storybook/tests/golden', true);
+      put('src/design-system/generated/design-system-components.json');
+      fs.cpSync(path.join(ROOT, 'public'), path.join(tmp, 'public'), { recursive: true, filter: (src) => fs.statSync(src).isDirectory() || /\.(css|html|js)$/.test(src) });
       // A page that loads one more stylesheet than the graph says.
       const html = path.join(tmp, 'public/invite/index.html');
       fs.writeFileSync(html, fs.readFileSync(html, 'utf8').replace('</head>', '<link rel="stylesheet" href="/app.css"></head>'));
@@ -324,9 +328,9 @@ describe('nothing in the graph is invented: every node and edge is recomputed fr
       expect(edgesTo('react').map((e: any) => e.from)).toEqual(built);
       expect(edgesTo('react').every((e: any) => e.evidence === 'MEASURED' && e.props.how === 'directory')).toBe(true);
       const listed = edgesTo('lazy').map((e: any) => e.from);
-      expect(listed).toEqual(['css:public/design-system/design-system.css', 'css:public/design-system/explorer.css']);
+      expect(listed).toEqual(['css:public/design-system/design-system.css', 'css:public/design-system/explorer.css', 'css:public/design-system/components.css']);
       expect(edgesTo('lazy').every((e: any) => e.evidence === 'RECORDED' && e.props.how === 'declared')).toBe(true);
-      expect(read('tools/tokens/lib/production.mjs')).toContain("files: ['public/design-system/design-system.css', 'public/design-system/explorer.css']");
+      expect(read('tools/tokens/lib/production.mjs')).toContain("files: ['public/design-system/design-system.css', 'public/design-system/explorer.css', 'public/design-system/components.css']");
     });
 
     it('draws a stylesheet two pages load once, with an edge to each', () => {
@@ -518,7 +522,7 @@ describe('the API: GET-only, authenticated and Platform-Owner-only, on the serve
 
   it('keeps the router GET-only and looks `view` up in a fixed list, never in a path, a query or a shell', () => {
     const src = read('src/routes/design-system.routes.ts');
-    expect(src.match(/router\.(get|post|put|patch|delete|all|use)\(/g)).toEqual(['router.use(', 'router.use(', 'router.get(', 'router.get(', 'router.get(']);
+    expect(src.match(/router\.(get|post|put|patch|delete|all|use)\(/g)).toEqual(['router.use(', 'router.use(', 'router.get(', 'router.get(', 'router.get(', 'router.get(']);
     expect(src).toContain("router.get('/graph'");
     expect(src).toContain('isGraphViewId(view)');
     expect(src).not.toMatch(/req\.params|path\.join|readFile|exec\(|spawn\(/);
@@ -617,11 +621,14 @@ describe('the Explorer client: CSP-safe, GET-only, lazy, and read-only', () => {
   it('is loaded only when its section opens: no page, no loader and no Owner Home reference names it', () => {
     expect(read('public/index.html')).not.toMatch(/explorer\.(js|css)/);
     expect(read('public/app.js')).not.toMatch(/design-system\/explorer/);
-    expect(room).toContain('/design-system/explorer.css?v=');
-    expect(room).toContain('/design-system/explorer.js?v=');
+    expect(room).toContain("css: '/design-system/explorer.css'");
+    expect(room).toContain("js: '/design-system/explorer.js'");
+    expect(room).toContain("L.css + '?v=' + L.v");
+    expect(room).toContain("L.js + '?v=' + L.v");
     // The loader is reached from exactly one place: mounting the section.
-    expect(room.match(/loadExplorerAssets\(\)/g)).toHaveLength(2);   // its definition and mountExplorer
-    expect(room).toMatch(/function mountExplorer\(host\) \{\s*if \(DS\.section !== 'explorer'/);
+    expect(room.match(/loadAssets\(/g)).toHaveLength(2);         // its definition and mountLazy, the one place that calls it
+    expect(room).toMatch(/function mountLazy\(host\) \{\s*var key = DS\.section, L = LAZY\[key\];/);
+    expect(room).toMatch(/explorer: \{[^}]*host: 'ex-host'/);
   });
 
   it('leaves Owner Home alone: the room’s only change there is a section of its own', () => {
@@ -840,10 +847,11 @@ describe('English, German and Arabic: everything the Explorer can say is in all 
 
   it('translates every new key into German and Arabic, with every %d slot kept and Arabic in Arabic script', () => {
     const slots = (s: string) => (s.match(/%d/g) || []).length;
-    const SAME = new Set(['Alias', 'Details', 'Graph', 'Name', 'Stylesheet', 'Stylesheets', 'Zoom']);
+    const SAME = new Set(['Alias', 'Details', 'Graph', 'Name', 'Stylesheet', 'Stylesheets', 'Zoom']);   // the Components Library's own SAME set lives in its suite
     for (const k of Object.keys(en)) {
       expect(slots(de[k])).toBe(slots(k));
-      expect(slots(ar[k])).toBe(slots(k));
+      // A singular form ("one rule") may spell the number as a word, as Arabic does.
+      if (!/^%d (rule|variant|case)$/.test(k)) expect(slots(ar[k])).toBe(slots(k));
     }
     for (const k of ['Visual Explorer', 'Token architecture', 'Legacy to canonical', 'Stylesheets to surfaces', 'Focus neighbourhood', 'Show nodes with no relationship']) {
       expect(de[k]).not.toBe(k);

@@ -83,6 +83,12 @@ const ASSETS = [
    'dist/design-system/generated/design-system-graph.json'],
   ['src/design-system/graph-core.js',
    'dist/design-system/graph-core.js'],
+  // Stage 3.2.2 (Components Library): the verified registry, and the plain-
+  // JavaScript core that validates it before the server serves any component.
+  ['src/design-system/generated/design-system-components.json',
+   'dist/design-system/generated/design-system-components.json'],
+  ['src/design-system/components-core.js',
+   'dist/design-system/components-core.js'],
 ];
 
 // Approval dossiers (src/algorithms/approvals/*.json): the evidence each CHANGE

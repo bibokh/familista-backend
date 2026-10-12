@@ -16,6 +16,11 @@
 // src/design-system/graph-core.js validates and lays it out). --check compares
 // both, and fails if either is stale.
 //
+// Stage 3.2.2 adds a third, src/design-system/generated/design-system-components.json
+// (the Components Registry, verified against the repository; built by
+// scripts/design-system-components.js from tools/components/registry.json and
+// validated by src/design-system/components-core.js). --check covers all three.
+//
 // Deterministic by construction: no timestamp, no host, no environment value;
 // sources and tokens are sorted or kept in token-file order. Running it twice
 // on the same tree produces the same bytes.
@@ -32,11 +37,13 @@ const path = require('path');
 const crypto = require('crypto');
 const { pathToFileURL } = require('url');
 const { buildGraph, stringify } = require('./design-system-graph.js');
+const components = require('./design-system-components.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const TOKENS = path.join(ROOT, 'tools', 'tokens');
 const OUT = path.join(ROOT, 'src', 'design-system', 'generated', 'design-system-manifest.json');
 const GRAPH_OUT = path.join(ROOT, 'src', 'design-system', 'generated', 'design-system-graph.json');
+const COMPONENTS_OUT = path.join(ROOT, 'src', 'design-system', 'generated', 'design-system-components.json');
 const SCHEMA = 1;
 
 const rel = (p) => path.relative(ROOT, p).split(path.sep).join('/');
@@ -202,7 +209,7 @@ async function build() {
     layers,
     tokens: list,
     contrast,
-  }, graph };
+  }, graph, components: components.build({ ROOT }) };
 }
 
 (async () => {
@@ -210,12 +217,13 @@ async function build() {
   const outputs = [
     [OUT, JSON.stringify(built.manifest, null, 1) + '\n', 'manifest'],
     [GRAPH_OUT, stringify(built.graph) + '\n', 'graph manifest'],
+    [COMPONENTS_OUT, stringify(built.components) + '\n', 'components manifest'],
   ];
   if (process.argv.includes('--check')) {
     const stale = outputs.filter(([file, text]) => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '') !== text);
     for (const [file, , label] of stale) console.error('[design-system] ' + label + ' is stale (' + rel(file) + ') — run: node scripts/design-system-discover.js');
     if (stale.length) process.exit(1);
-    console.log('[design-system] manifest and graph manifest are current');
+    console.log('[design-system] manifest, graph manifest and components manifest are current');
     return;
   }
   for (const [file, text] of outputs) {

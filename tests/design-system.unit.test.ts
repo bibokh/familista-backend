@@ -155,12 +155,12 @@ describe('the build refuses a stale manifest (scripts/copy-runtime-assets.js)', 
         fs.mkdirSync(path.dirname(path.join(tmp, rel)), { recursive: true });
         fs.cpSync(path.join(ROOT, rel), path.join(tmp, rel), { recursive });
       };
-      put('scripts/copy-runtime-assets.js'); put('scripts/design-system-discover.js'); put('scripts/design-system-graph.js');
-      put('tools/tokens', true); put('tools/storybook/stories', true); put('public/tokens', true);
-      put('src/design-system/graph-core.js');
-      put('src/design-system/generated/design-system-manifest.json'); put('src/design-system/generated/design-system-graph.json');
-      // The graph reads which stylesheets each page loads: the pages and the stylesheets, nothing else of public/.
-      fs.cpSync(path.join(ROOT, 'public'), path.join(tmp, 'public'), { recursive: true, filter: (src) => fs.statSync(src).isDirectory() || /\.(css|html)$/.test(src) });
+      put('scripts/copy-runtime-assets.js'); put('scripts/design-system-discover.js'); put('scripts/design-system-graph.js'); put('scripts/design-system-components.js');
+      put('tools/tokens', true); put('tools/storybook/stories', true); put('tools/storybook/tests/golden', true); put('tools/components', true); put('public/tokens', true);
+      put('src/design-system/graph-core.js'); put('src/design-system/components-core.js');
+      put('src/design-system/generated/design-system-manifest.json'); put('src/design-system/generated/design-system-graph.json'); put('src/design-system/generated/design-system-components.json');
+      // The graph and the registry read the pages, the stylesheets and the scripts, nothing else of public/.
+      fs.cpSync(path.join(ROOT, 'public'), path.join(tmp, 'public'), { recursive: true, filter: (src) => fs.statSync(src).isDirectory() || /\.(css|html|js)$/.test(src) });
       const mf = path.join(tmp, 'src/design-system/generated/design-system-manifest.json');
       const stale = fs.readFileSync(mf, 'utf8').replace('"schema": 1', '"schema": 1,\n "stale": true');
       expect(stale).not.toBe(fs.readFileSync(mf, 'utf8'));
@@ -304,7 +304,7 @@ describe('the API: GET-only, authenticated and Platform-Owner-only, on the serve
 
   it('has only GET handlers in its router, behind authenticate and assertPlatformOwner', () => {
     const src = read('src/routes/design-system.routes.ts');
-    expect(src.match(/router\.(get|post|put|patch|delete|all|use)\(/g)).toEqual(['router.use(', 'router.use(', 'router.get(', 'router.get(', 'router.get(']);
+    expect(src.match(/router\.(get|post|put|patch|delete|all|use)\(/g)).toEqual(['router.use(', 'router.use(', 'router.get(', 'router.get(', 'router.get(', 'router.get(']);
     expect(src).toContain('router.use(authenticate)');
     expect(src).toContain('assertPlatformOwner');
     expect(src).toMatch(/assertPlatformOwner[\s\S]*router\.get\('\/'/);
@@ -473,8 +473,8 @@ describe('CSP, safety and public assets', () => {
     expect(everything).not.toMatch(/\b[0-9a-f]{64}\b/);
     expect(everything).not.toMatch(/process\.env|JWT_|DATABASE_URL|RENDER_|ANTHROPIC|password|secret/i);
     expect(fs.existsSync(path.join(ROOT, 'public/design-system/design-system-manifest.json'))).toBe(false);
-    // Stage 3.2.1: the Visual Explorer's two files, loaded only when its section opens.
-    expect(fs.readdirSync(path.join(ROOT, 'public/design-system')).sort()).toEqual(['design-system.css', 'design-system.js', 'explorer.css', 'explorer.js', 'i18n']);
+    // The Visual Explorer's (3.2.1) and the Components Library's (3.2.2) two files each, loaded only when their section opens.
+    expect(fs.readdirSync(path.join(ROOT, 'public/design-system')).sort()).toEqual(['components.css', 'components.js', 'design-system.css', 'design-system.js', 'explorer.css', 'explorer.js', 'i18n']);
   });
 
   it('serves its assets from the real app as static files, with the strict CSP unchanged', async () => {
@@ -621,7 +621,9 @@ describe('English, German and Arabic — one catalogue each, in step', () => {
   const slots = (s: string) => (s.match(/%d/g) || []).length;
   // Identifiers, product names and technical terms that are the same in every language.
   const SAME = new Set(['Dimension', 'Storybook', 'Text', 'Version', 'Theme', 'Token', 'Tokens', 'prefers-reduced-motion: reduce',
-    'Alias', 'Details', 'Graph', 'Name', 'Stylesheet', 'Stylesheets', 'Zoom']);
+    'Alias', 'Details', 'Graph', 'Name', 'Stylesheet', 'Stylesheets', 'Zoom',
+    // Stage 3.2.2: product names and technical terms that read the same in every language.
+    'SHA-256', 'Symbol', 'System', 'Tablet', 'Stories', 'Data Vault', 'Infrastructure City', 'Source Core', 'Familista Vision']);
 
   it('has the same keys in all three, and English maps each key to itself', () => {
     expect(Object.keys(de).sort()).toEqual(Object.keys(en).sort());
@@ -633,7 +635,8 @@ describe('English, German and Arabic — one catalogue each, in step', () => {
     for (const k of Object.keys(en)) {
       for (const d of [de, ar]) {
         expect(d[k].trim().length).toBeGreaterThan(0);
-        expect(slots(d[k])).toBe(slots(k));
+        // A singular form ("one rule") may spell the number as a word, as Arabic does.
+        if (!/^%d (rule|variant|case)$/.test(k)) expect(slots(d[k])).toBe(slots(k));
       }
       if (!SAME.has(k)) {
         expect(de[k]).not.toBe(k);

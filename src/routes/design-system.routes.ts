@@ -18,6 +18,11 @@
 //   GET /system/design-system/graph?view=<id>
 //                                      one view: every node and edge, each with
 //                                      its source and how it is known
+//   GET /system/design-system/components   the Components Library index: the
+//                                      taxonomy, the coverage and one summary per
+//                                      registered component
+//   GET /system/design-system/components?id=<id>
+//                                      one component, with every inspector section
 //
 // WHAT THESE RETURN
 //
@@ -31,6 +36,7 @@ import { authenticate } from '../middleware/auth.middleware';
 import { assertPlatformOwner } from '../platform/system.service';
 import {
   designSystemOverview, designSystemTokens, designSystemGraphIndex, designSystemGraphView, isGraphViewId,
+  designSystemComponentsIndex, designSystemComponent, isComponentId,
 } from '../design-system/design-system.service';
 import { BadRequestError, NotFoundError } from '../utils/errors';
 
@@ -74,6 +80,23 @@ router.get('/graph', (req: Request, res: Response, next) => {
     if (typeof view !== 'string') throw new BadRequestError('view must be a single value');
     if (!isGraphViewId(view)) throw new NotFoundError('View');
     res.json({ success: true, data: designSystemGraphView(view) });
+  } catch (err) { next(err); }
+});
+
+/**
+ * The Components Library. `id` is looked up in the registry's own list, never
+ * interpolated into a path or a query: an id that is not registered is a 404,
+ * and anything that is not a single `id` string is a 400.
+ */
+router.get('/components', (req: Request, res: Response, next) => {
+  try {
+    const keys = Object.keys(req.query);
+    if (keys.some((k) => k !== 'id')) throw new BadRequestError('Only ?id=<id> is accepted');
+    const id = req.query.id;
+    if (id === undefined) { res.json({ success: true, data: designSystemComponentsIndex() }); return; }
+    if (typeof id !== 'string') throw new BadRequestError('id must be a single value');
+    if (!isComponentId(id)) throw new NotFoundError('Component');
+    res.json({ success: true, data: designSystemComponent(id) });
   } catch (err) { next(err); }
 });
 
