@@ -154,16 +154,22 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
   // rules, and the page's connect-src refuses it. That is the measuring tool being refused, not the Lab and not the application.
   // It counts only if it arrives inside an axe.run window AND is a connect-src violation for that exact stylesheet; the same
   // violation outside an axe run, or any other connect-src violation, is unexplained.
-  const cspSplit = (page) => page.evaluate(() => {
-    const v = window.__csp || [];
+  //
+  // `from` limits the sorting to the reports that arrived at or after that index of the page's list. Only the negative controls
+  // use it, to measure what one injection caused against a baseline taken immediately before it, so the application's own
+  // late painting, which keeps adding application reports for seconds after the page is quiet, cannot move a control's count.
+  const cspSplit = (page, from = 0) => page.evaluate((from) => {
     const ranges = window.__axeRanges || [];
+    const v = (window.__csp || []).map((c, i) => ({ c, i })).filter((x) => x.i >= from);
     const LAB = /design-system\/lab/;
     const lab = (c) => c.inLab || LAB.test(c.uri) || LAB.test(c.src);
     const app = (c) => !lab(c) && c.d === 'style-src-attr' && /^\//.test(c.src);
     const probe = (c, i) => !lab(c) && c.d === 'connect-src' && /^https:\/\/fonts\.googleapis\.com\/css/.test(c.uri) && ranges.some((r) => i >= r[0] && i < r[1]);
-    const unexplained = v.filter((c, i) => !lab(c) && !app(c) && !probe(c, i));
-    return { total: v.length, lab: v.filter(lab).length, application: v.filter(app).length, axeProbe: v.filter(probe).length, unexplained: unexplained.length, unexplainedDirectives: [...new Set(unexplained.map((c) => c.d + (c.src ? ' @' + c.src : ' (no source)')))] };
-  });
+    const unexplained = v.filter(({ c, i }) => !lab(c) && !app(c) && !probe(c, i)).map((x) => x.c);
+    return { total: v.length, lab: v.filter((x) => lab(x.c)).length, application: v.filter((x) => app(x.c)).length, axeProbe: v.filter((x) => probe(x.c, x.i)).length, unexplained: unexplained.length, unexplainedDirectives: [...new Set(unexplained.map((c) => c.d + (c.src ? ' @' + c.src : ' (no source)')))] };
+  }, from);
+  // The number of reports so far: the baseline for one injection.
+  const cspMark = (page) => page.evaluate(() => (window.__csp || []).length);
   // Wait until the application has stopped painting (no new violation for 800 ms), so a before/after comparison measures only
   // what the control did. The application's late paint can also remount the Lab, which would detach what a control injected.
   async function quiet(page) {
@@ -195,16 +201,28 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
   }
   const FOCUS_TARGETS = [['rail item', '[data-lab-id="lg-chip"]'], ['fixture tab', '.lab-fx.is-on'], ['search', '#lab-q'], ['inspector tab', '[data-lab-tab="source"]'], ['direction', '[data-lab-dir="rtl"]']];
   // Focus each target in turn, remount, and say where focus went. Never reads the Lab's own state: only the page.
+  // Give `sel` focus and confirm it holds it: the application's late repaint can take focus away between the call and the check.
+  // At most one retry, after the room has settled. Returns how many retries it took (0 or 1), or -1 if focus could not be held,
+  // in which case nothing may be measured: BODY before and BODY after is not evidence of anything.
+  async function holdFocus(page, sel) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt) await settled(page);
+      try { await page.focus(sel); } catch (_) { continue; }
+      if (await page.evaluate((q) => !!document.activeElement && document.activeElement.matches(q), sel)) return attempt;
+    }
+    return -1;
+  }
   async function focusTrials(page) {
     await page.keyboard.press('/'); await page.keyboard.type('chip'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await frames(page);
     const trials = [];
     for (const [label, sel] of FOCUS_TARGETS) {
-      if (!(await page.$(sel))) { trials.push({ label, ok: false, why: 'target not found' }); continue; }
-      await page.focus(sel);
+      if (!(await page.$(sel))) { trials.push({ label, applied: false, ok: false, why: 'control not applied: target not found' }); continue; }
+      const held = await holdFocus(page, sel);
+      if (held < 0) { trials.push({ label, applied: false, ok: false, why: 'control not applied: the target could not be given focus, so there was no focus to lose' }); continue; }
       const before = await activeKey(page);
       const remounted = await remount(page);
       const after = await activeKey(page);
-      trials.push({ label, before, after, remounted, ok: remounted && before === after });
+      trials.push({ label, applied: true, retried: held, before, after, remounted, ok: remounted && before === after });
       if (label === 'direction') await page.evaluate(() => { const b = document.querySelector('[data-lab-dir="ltr"]'); if (b) b.click(); });
     }
     return trials;
@@ -629,7 +647,9 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       const { ctx, page } = await open({ width: 1440, height: 900 }, 'en', NO_RESTORE);
       await openLab(page);
       const trials = await focusTrials(page);
-      check('focus (control): with restoreFocus disabled, the same redraw drops focus on the page for all 5 controls, so the proof can fail', trials.length === 5 && trials.every((t) => t.remounted && !t.ok && t.after === 'BODY'), trials);
+      const unapplied = trials.filter((t) => !t.applied);
+      if (unapplied.length) fail('focus (control): control not applied: the controls could not be focused, so the loss of focus was not measured', trials);
+      else check('focus (control): with restoreFocus disabled, the same redraw drops focus on the page for all 5 controls, so the proof can fail', trials.length === 5 && trials.every((t) => t.applied && t.before !== 'BODY' && t.remounted && !t.ok && t.after === 'BODY'), trials);
       await ctx.close();
     }
     {
@@ -672,21 +692,33 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     }
     {
       // 1. By element: a violation raised on a node that is inside the Lab, from a script that says nothing about the Lab.
+      // Measured from a baseline taken immediately before the injection, so the application's late painting cannot move it. The
+      // injected Lab node must still be in the Lab afterwards: if the room redrew the Lab under it the report may have been filed
+      // against the document, nothing was measured, and the injection is repeated once. A node that stayed and was not counted
+      // is a failure of the classifier, and is never retried.
       const { ctx, page } = await open({ width: 1440, height: 900 }, 'en');
       await openLab(page);
-      await quiet(page);
-      const base = await cspSplit(page);
-      await page.evaluate(() => {
-        const inLab = document.createElement('div'); inLab.setAttribute('style', 'color:red'); document.querySelector('.lab').appendChild(inLab);
-        const sc = document.createElement('script'); sc.textContent = 'window.__ran = 1'; document.head.appendChild(sc);                       // inline script: blocked, and not the Lab's
-        fetch('https://fonts.googleapis.com/css2?family=Inter').catch(() => {});                                                              // the axe-probe URL, but outside any axe run
-        const gone = document.createElement('div'); document.body.appendChild(gone); gone.setAttribute('style', 'color:red'); gone.remove();  // raised, then the node removed: no element, no source
-      });
-      await quiet(page);
-      const after = await cspSplit(page);
+      const attempts = [];
+      for (let n = 0; n < 2; n++) {
+        await quiet(page);
+        const from = await cspMark(page);
+        await page.evaluate(() => {
+          const inLab = document.createElement('div'); inLab.setAttribute('style', 'color:red'); document.querySelector('.lab').appendChild(inLab); window.__ctlLab = inLab;
+          const sc = document.createElement('script'); sc.textContent = 'window.__ran = 1'; document.head.appendChild(sc);                       // inline script: blocked, and not the Lab's
+          fetch('https://fonts.googleapis.com/css2?family=Inter').catch(() => {});                                                              // the axe-probe URL, but outside any axe run
+          const gone = document.createElement('div'); document.body.appendChild(gone); gone.setAttribute('style', 'color:red'); gone.remove();  // raised, then the node removed: no element, no source
+        });
+        await quiet(page);
+        const win = await cspSplit(page, from);
+        const stayed = await page.evaluate(() => !!(window.__ctlLab && window.__ctlLab.isConnected && window.__ctlLab.closest('.lab')));
+        attempts.push({ from, stayed, win });
+        if (stayed) break;
+      }
+      const last = attempts[attempts.length - 1];
       const ran = await page.evaluate(() => window.__ran === 1);
-      check('csp (control): an inline style on a Lab element is counted as the Lab\'s; an inline script, the axe-probe URL fetched outside an axe run and a report with no element and no source are unexplained; the policy still stops the script',
-        after.lab === base.lab + 1 && after.axeProbe === base.axeProbe && after.unexplained >= base.unexplained + 3 && !ran, { base, after, scriptRan: ran });
+      if (!last.stayed) fail('csp (control): control not applied: the Lab was redrawn under the injected node twice, so nothing was measured', { attempts });
+      else check('csp (control): an inline style on a Lab element is counted as the Lab\'s (exactly once); an inline script, the axe-probe URL fetched outside an axe run and a report with no element and no source are unexplained; the policy still stops the script',
+        last.win.lab === 1 && last.win.axeProbe === 0 && last.win.unexplained >= 3 && !ran, { attempts, scriptRan: ran });
       await ctx.close();
     }
     {
@@ -701,16 +733,22 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       await ctx.close();
     }
     {
-      // 3. By source, the other way: a first-party script that is not a Lab file is the application's, not the Lab's.
+      // 3. By source, the other way: a first-party script that is not a Lab file is the application's, not the Lab's. Measured from a
+      // baseline taken immediately before the injection: the application's own late painting adds application reports of its own
+      // for seconds after the page is quiet, so the control looks for the ONE report whose source is the injected script, and
+      // requires that nothing else in the window is the Lab's or unexplained. Extra application reports are expected and counted;
+      // an extra Lab or unexplained report is not, and fails.
       const { ctx, page } = await open({ width: 1440, height: 900 }, 'en');
       await ctx.route(/\/app-control\.js$/, (r) => r.fulfill({ contentType: 'application/javascript', body: "var d = document.createElement('div'); document.body.appendChild(d); d.setAttribute('style', 'color:red'); d.remove();" }));
       await openLab(page);
       await quiet(page);
-      const base = await cspSplit(page);
+      const from = await cspMark(page);
       await page.evaluate(() => { const s = document.createElement('script'); s.src = '/app-control.js'; document.head.appendChild(s); });
       await quiet(page);
-      const after = await cspSplit(page);
-      check('csp (control): the same write from a first-party script that is not a Lab file is counted as the application\'s and leaves the Lab\'s count at zero', after.application === base.application + 1 && after.lab === base.lab && after.unexplained === base.unexplained, { base, after });
+      const win = await cspSplit(page, from);
+      const own = await page.evaluate((f) => (window.__csp || []).slice(f).filter((c) => c.src === '/app-control.js').map((c) => ({ d: c.d, inLab: c.inLab })), from);
+      check('csp (control): the same write from a first-party script that is not a Lab file is counted as the application\'s (one report from that script) and adds nothing to the Lab\'s or the unexplained count',
+        own.length === 1 && own[0].d === 'style-src-attr' && !own[0].inLab && win.application >= 1 && win.lab === 0 && win.unexplained === 0, { win, own });
       await ctx.close();
     }
   }
