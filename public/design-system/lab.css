@@ -102,6 +102,19 @@
 .lab-sub { margin-top: 2px; display: flex; align-items: baseline; gap: var(--fam-space-2); flex-wrap: wrap; color: var(--fam-text-secondary); font-size: var(--fam-font-size-md); }
 .lab-sub-f { overflow-wrap: anywhere; }
 .lab-dir .ds-seg-b { min-height: var(--fam-size-control-md); padding-inline: var(--fam-space-4); }
+
+/* M2 / S1 — the stage's tools: zoom, then direction. One quiet row; amber only marks
+   the mode that is on (Fit) and the focus ring, as everywhere in the room. */
+.lab-tools { flex: 1 0 100%; display: flex; align-items: center; flex-wrap: wrap; gap: var(--fam-space-2) var(--fam-space-3); }   /* always its own row: a long name never pushes it down */
+.lab-zoom { align-items: stretch; }
+.lab-zoom .ds-seg-b { min-height: var(--fam-size-control-md); min-width: var(--fam-size-control-md); padding-inline: var(--fam-space-3); }
+.lab-zoom .ds-seg-b[aria-disabled="true"] { opacity: .45; cursor: default; }
+.lab-zoom-v {
+  display: inline-flex; align-items: center; justify-content: center; inline-size: 7ch; padding-inline: var(--fam-space-2); /* fixed: 25% and 200% take the same room */
+  border-inline-start: var(--fam-border-width-hairline) solid var(--fam-border-default);
+  font-family: var(--fam-font-family-mono); font-size: var(--fam-font-size-md); font-variant-numeric: tabular-nums; color: var(--fam-text-primary);
+}
+.lab-zoom-v + .ds-seg-b { border-inline-start: var(--fam-border-width-hairline) solid var(--fam-border-default); }
 .lab-evrow { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: var(--fam-space-2) var(--fam-space-5); min-height: 24px; }
 .lab-ev { display: inline-flex; align-items: center; gap: var(--fam-space-2); font-size: var(--fam-font-size-md); color: var(--fam-text-secondary); }
 
@@ -138,6 +151,19 @@
   contain: layout paint; isolation: isolate;
   color: var(--fam-text-primary); font-family: var(--fam-font-family-sans);
 }
+/* M2 / S1 — viewport → frame → canvas. The viewport is a second contained box and the
+   one that scrolls when the specimen is larger than the stage; the frame is given the
+   scaled canvas's size through the CSSOM, so it reserves exactly the space the scaled
+   specimen takes; the canvas is the specimen element itself, which keeps every wall above and
+   is the only element transformed. Unzoomed, the frame and canvas simply fill the
+   viewport and nothing is transformed. No transition: a zoom step is instant. */
+.lab-viewport {
+  position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column;
+  overflow: auto; contain: strict; isolation: isolate;   /* strict: its size comes from the plate, never from the specimen, so a zoom lays out this box alone */
+}
+.lab-frame { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.lab-frame.is-zoomed { flex: none; margin: auto; overflow: hidden; }
+.lab-frame.is-zoomed > .lab-specimen { flex: none; overflow: visible; }
 .lab-col { margin: auto; width: 100%; max-width: 640px; }
 .lab-void, .lab-refuse { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 2; pointer-events: none; }
 .lab-refuse { pointer-events: auto; background: var(--fam-surface-base); }

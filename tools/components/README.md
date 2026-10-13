@@ -64,7 +64,7 @@ npm ci --ignore-scripts --prefix tools/components
 CHROMIUM=$(command -v google-chrome) node tools/components/lab-browser-proof.cjs <output-dir> [--axe]
 ```
 
-It is a required CI job (`browser-proof` in `.github/workflows/ci.yml`, in two shards: sections `1,2,2b,3,4,5`, and
+It is a required CI job (`browser-proof` in `.github/workflows/ci.yml`, in two shards: sections `1,2,2b,3,4,5,8`, and
 `6,7` with `--axe`). Its two tools, `playwright-core` and `axe-core`, are pinned exactly in this folder's own
 `package.json` and lockfile and are installed with `npm ci --ignore-scripts`; they are not production dependencies and
 the root `package.json` does not list them. No browser is downloaded: it uses Google Chrome from the runner image and

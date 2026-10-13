@@ -34,6 +34,11 @@
      leaves a fixture exactly as recorded.
    - Assistive technology: aria-modal is removed, so a specimen never hides the
      rest of the page from a screen reader.
+   - Zoom: the stage is viewport → frame → canvas. The canvas (#lab-specimen) keeps
+     every wall above and is the one element scaled, with a CSSOM transform; the frame
+     is sized to the scaled canvas; the viewport is a second contained box and the
+     only one that scrolls. At exactly 100% there is no transform at all, so the
+     unzoomed stage is the M1 stage. Every number comes from lab-view.js, clamped.
    These are claims, and tools/components/lab-browser-proof.cjs proves each one in a
    real browser; the Jest suite checks that this file wires them.
 
@@ -41,7 +46,7 @@
 
    No state simulation, no hover or focus emulation, no anatomy overlay, no width
    control, no light theme: the stage is one surface, dark, with a left-to-right or
-   right-to-left direction. Viewport @media rules respond to the browser window, not
+   right-to-left direction, and a zoom (M2 / S1) that scales the specimen inside it. Viewport @media rules respond to the browser window, not
    to the stage, and the inspector says so for the two primitives that have them.
 
    READ-ONLY, CSP-SAFE
@@ -57,6 +62,7 @@
 
   var K = null;                 // the room's kit
   var Z = null;                 // the shared sanitizer
+  var V = null;                 // the view maths (lab-view.js)
   function T(s) { return K.T(s); }
   function tf() { return K.tf.apply(null, arguments); }
   function esc(s) { return K.esc(s); }
@@ -111,12 +117,13 @@
       pv: null, avail: Object.create(null),        // the previews index
       detail: Object.create(null), detailError: Object.create(null), detailLoading: Object.create(null),
       sel: null, fixture: null, dir: 'ltr', tab: 'provenance', q: '', open: { preview: true },
+      zoom: 1, fit: false,
       loading: false, error: null, check: null, focus: null,
     };
   }
   var S = fresh();
-  var R = { host: null, root: null, bound: [], specimenBound: null };
-  var M = { loadMs: null, renderMs: null, switchMs: null, specimenNodes: 0, fixtures: 0, components: 0 };
+  var R = { host: null, root: null, bound: [], specimenBound: null, ro: null, raf: 0, nat: null };
+  var M = { loadMs: null, renderMs: null, switchMs: null, zoomMs: null, specimenNodes: 0, fixtures: 0, components: 0 };
 
   function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
   function rtl() { return K && K.dir() === 'rtl'; }
@@ -255,17 +262,135 @@
       return head + '</header><div class="lab-plate lab-plate--na">' + (S.detailError[id] ? '<div class="lab-na">' + K.emptyState('The fixtures could not be read', T(S.detailError[id])) + '</div>' : '<div class="lab-wait">' + K.skeleton(4, 'row') + '</div>') + '</div>';
     }
     return head
+      + '<div class="lab-tools">' + zoomHtml()
       + '<div class="ds-seg lab-dir" role="group" aria-label="' + esc(T('Stage direction')) + '">'
       + ['ltr', 'rtl'].map(function (d) {
         return '<button type="button" class="ds-seg-b' + (S.dir === d ? ' is-on' : '') + '" data-lab-dir="' + d + '" aria-pressed="' + (S.dir === d ? 'true' : 'false') + '" aria-label="' + esc(d.toUpperCase() + ' · ' + T(d === 'ltr' ? 'Left to right' : 'Right to left')) + '"><span data-no-i18n>' + d.toUpperCase() + '</span></button>';
-      }).join('') + '</div></header>'
+      }).join('') + '</div></div></header>'
       + '<div class="lab-evrow" id="lab-evrow"></div>'
       + '<div class="lab-plate" id="lab-plate" role="tabpanel" aria-labelledby="lab-tab-current">'
+      + '<div class="lab-viewport" id="lab-viewport"><div class="lab-frame" id="lab-frame" dir="' + S.dir + '">'
       + '<div class="lab-specimen" id="lab-specimen" dir="' + S.dir + '" data-no-i18n data-lab-stage role="group" aria-label="' + esc(T('Specimen')) + '"></div>'
+      + '</div></div>'
       + '<div class="lab-void" id="lab-void" hidden>' + K.emptyState('This input draws nothing', T('The production function returned no markup for this input, which is the answer it gives.')) + '</div>'
       + '<div class="lab-refuse" id="lab-refuse" hidden></div>'
       + '</div>'
       + '<div class="lab-strip" id="lab-strip" role="tablist" aria-label="' + esc(T('Fixtures')) + '"></div>';
+  }
+
+  // ── zoom (M2 / S1) ────────────────────────────────────────────────────────
+
+  var ZOOM_KEYS = { out: '-', 'in': '=', fit: 'F', reset: '0' };
+  function zoomOff(act) {
+    if (act === 'out') return !S.fit && S.zoom <= V.MIN;
+    if (act === 'in') return !S.fit && S.zoom >= V.MAX;
+    if (act === 'reset') return !S.fit && S.zoom === 1;
+    return false;
+  }
+  function zoomBtn(act, label, inner) {
+    var off = zoomOff(act);
+    return '<button type="button" class="ds-seg-b lab-zoom-b' + (act === 'fit' && S.fit ? ' is-on' : '') + '" data-lab-zoom="' + act + '" aria-label="' + esc(label) + '"'
+      + (act === 'fit' ? ' aria-pressed="' + (S.fit ? 'true' : 'false') + '"' : '')
+      + ' aria-disabled="' + (off ? 'true' : 'false') + '" aria-keyshortcuts="' + ZOOM_KEYS[act] + '">' + inner + '</button>';
+  }
+  function zoomHtml() {
+    return '<div class="ds-seg lab-zoom" role="group" aria-label="' + esc(T('Zoom')) + '">'
+      + zoomBtn('out', T('Zoom out'), '<span aria-hidden="true">&minus;</span>')
+      + '<span class="lab-zoom-v" id="lab-zoom-v" data-no-i18n>' + esc(num(V.percent(S.zoom))) + '%</span>'
+      + zoomBtn('in', T('Zoom in'), '<span aria-hidden="true">+</span>')
+      + zoomBtn('fit', T('Fit to stage'), '<span>' + esc(T('Fit')) + '</span>')
+      + zoomBtn('reset', tf('Reset to %d%', 100), '<span data-no-i18n>' + esc(num(100)) + '%</span>')
+      + '</div>';
+  }
+  /** Bring the controls in line with the state without redrawing them, so focus stays where it is. */
+  function syncZoom() {
+    var v = document.getElementById('lab-zoom-v'); if (v) v.textContent = num(V.percent(S.zoom)) + '%';
+    if (!R.host) return;
+    [].forEach.call(R.host.querySelectorAll('[data-lab-zoom]'), function (b) {
+      var act = b.getAttribute('data-lab-zoom');
+      b.setAttribute('aria-disabled', zoomOff(act) ? 'true' : 'false');
+      if (act === 'fit') { b.setAttribute('aria-pressed', S.fit ? 'true' : 'false'); b.classList.toggle('is-on', S.fit); }
+    });
+  }
+  function unsetStyle(el, prop) { if (el && el.style && typeof el.style.removeProperty === 'function') el.style.removeProperty(prop); }
+  function px(el, side) {
+    if (!el || typeof window.getComputedStyle !== 'function') return 0;
+    var v = parseFloat(window.getComputedStyle(el)[side]); return isFinite(v) ? v : 0;
+  }
+  /** The scale at which the whole specimen is visible in the viewport, measured at 100%; never above 100%. */
+  function fitScale(vp, spec) {
+    var col = spec.firstElementChild;
+    if (!col) return 1;
+    return V.fit(vp.clientWidth, vp.clientHeight,
+      col.offsetWidth + px(spec, 'paddingLeft') + px(spec, 'paddingRight'),
+      col.offsetHeight + px(spec, 'paddingTop') + px(spec, 'paddingBottom'));
+  }
+  function clearZoom(fr, spec) {
+    ['width', 'height'].forEach(function (p) { unsetStyle(fr, p); });
+    ['width', 'min-height', 'transform', 'transform-origin'].forEach(function (p) { unsetStyle(spec, p); });
+    if (fr.classList) fr.classList.remove('is-zoomed');
+  }
+  /**
+   * Lay the stage out at the current zoom. The specimen's natural (100%) size is measured once,
+   * with the stage back at 100%, whenever what it depends on changes (`measure`: a new fixture,
+   * a new direction, a resized viewport); a zoom step reuses it and only writes, so stepping never
+   * forces a layout. The canvas is held at its natural size, scaled through the CSSOM, and the frame
+   * is given the scaled size so the viewport scrolls exactly as far as the scaled specimen reaches.
+   */
+  function applyZoom(measure) {
+    var vp = document.getElementById('lab-viewport'), fr = document.getElementById('lab-frame'), spec = document.getElementById('lab-specimen');
+    if (!vp || !fr || !spec || !V) return;
+    if (measure && !S.fit && V.clamp(S.zoom) === 1) { R.nat = null; clearZoom(fr, spec); return; }   // unzoomed: nothing to measure yet
+    if (measure || !R.nat || R.nat.spec !== spec) {
+      clearZoom(fr, spec);
+      R.nat = { spec: spec, w: spec.offsetWidth, h: Math.max(spec.offsetHeight || 0, spec.scrollHeight || 0), fit: fitScale(vp, spec) };
+    }
+    var s = S.fit ? R.nat.fit : V.clamp(S.zoom);
+    S.zoom = s;
+    var size = V.frameSize(R.nat.w, R.nat.h, s);
+    if (s === 1 || !size.width || !size.height) { clearZoom(fr, spec); return; }   // 100%, or nothing measurable (a hidden stage): no transform at all
+    spec.style.setProperty('width', R.nat.w + 'px');
+    spec.style.setProperty('min-height', R.nat.h + 'px');
+    spec.style.setProperty('transform-origin', V.origin(S.dir));
+    spec.style.setProperty('transform', V.transform(s));
+    fr.classList.add('is-zoomed');
+    fr.style.setProperty('width', size.width + 'px');
+    fr.style.setProperty('height', size.height + 'px');
+  }
+  function zoomable() { var c = current(); return !!(c && S.avail[S.sel] && S.avail[S.sel].state === 'preview' && document.getElementById('lab-specimen')); }
+  function zoomAction(act) {
+    if (!V || !zoomable() || zoomOff(act)) return;
+    if (act === 'in') { S.fit = false; S.zoom = V.zoomIn(S.zoom); }
+    else if (act === 'out') { S.fit = false; S.zoom = V.zoomOut(S.zoom); }
+    else if (act === 'reset') { S.fit = false; S.zoom = 1; }
+    else if (act === 'fit') { S.fit = true; }
+    else return;
+    var t0 = now();
+    applyZoom();
+    M.zoomMs = Math.round((now() - t0) * 10) / 10;
+    syncZoom();
+    live(S.fit ? tf('Fit to stage: %d%', V.percent(S.zoom)) : tf('Zoom %d%', V.percent(S.zoom)));
+  }
+  /** The viewport is watched for size changes (window, sidebar, escape hatch) and the zoom is laid out again. */
+  function observeStage() {
+    stopObserving();
+    var vp = document.getElementById('lab-viewport');
+    if (!vp || typeof window.ResizeObserver !== 'function') return;
+    var last = '';
+    R.ro = new window.ResizeObserver(function () {
+      var k = vp.clientWidth + 'x' + vp.clientHeight;
+      if (k === last) return;
+      last = k;
+      if (!(S.fit || S.zoom !== 1) || typeof window.requestAnimationFrame !== 'function') return;
+      if (R.raf) window.cancelAnimationFrame(R.raf);
+      R.raf = window.requestAnimationFrame(function () { R.raf = 0; applyZoom(true); syncZoom(); });
+    });
+    R.ro.observe(vp);
+  }
+  function stopObserving() {
+    if (R.ro) { R.ro.disconnect(); R.ro = null; }
+    if (R.raf && typeof window.cancelAnimationFrame === 'function') window.cancelAnimationFrame(R.raf);
+    R.raf = 0;
   }
 
   function stripHtml(c) {
@@ -316,12 +441,14 @@
     });
     M.specimenNodes = spec.getElementsByTagName('*').length;
     M.renderMs = Math.round((now() - t0) * 10) / 10;
+    applyZoom(true); syncZoom();
     return true;
   }
 
   function drawBench() {
     var bench = document.getElementById('lab-bench');
     if (!bench) return;
+    stopObserving();
     bench.innerHTML = benchHtml();
     var c = current();
     if (!c || !S.avail[S.sel] || S.avail[S.sel].state !== 'preview') { drawInspector(); return; }
@@ -332,6 +459,7 @@
     var nm = document.getElementById('lab-fixture-name'); if (nm) nm.textContent = ' · ' + f.label;
     bindSpecimen();
     paintSpecimen(f);
+    observeStage();
     drawInspector();
   }
 
@@ -361,6 +489,8 @@
     if (d !== 'ltr' && d !== 'rtl') return;
     S.dir = d;
     var spec = document.getElementById('lab-specimen'); if (spec) spec.setAttribute('dir', d);
+    var fr = document.getElementById('lab-frame'); if (fr) fr.setAttribute('dir', d);
+    applyZoom(true);
     [].forEach.call(R.host.querySelectorAll('[data-lab-dir]'), function (b) { var on = b.getAttribute('data-lab-dir') === d; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
     live(T(d === 'ltr' ? 'Left to right' : 'Right to left'));
   }
@@ -556,6 +686,8 @@
     if (q) { showFixture(q.getAttribute('data-lab-fx-go'), { focus: false }); return; }
     q = t.closest('[data-lab-dir]');
     if (q) { setDir(q.getAttribute('data-lab-dir')); return; }
+    q = t.closest('[data-lab-zoom]');
+    if (q) { zoomAction(q.getAttribute('data-lab-zoom')); return; }
     q = t.closest('[data-lab-tab]');
     if (q) { S.tab = q.getAttribute('data-lab-tab'); drawInspector(); var f = document.getElementById('lab-itab-' + S.tab); if (f) f.focus(); return; }
   }
@@ -614,7 +746,7 @@
   function focusKey(el) {
     if (!el || !el.getAttribute) return null;
     if (el.id === 'lab-q') return 'q';
-    var m = [['data-lab-id', 'i'], ['data-lab-grp', 'g'], ['data-lab-fx', 'f'], ['data-lab-tab', 't'], ['data-lab-dir', 'd']];
+    var m = [['data-lab-id', 'i'], ['data-lab-grp', 'g'], ['data-lab-fx', 'f'], ['data-lab-tab', 't'], ['data-lab-dir', 'd'], ['data-lab-zoom', 'z']];
     for (var i = 0; i < m.length; i++) { var v = el.getAttribute(m[i][0]); if (v) return m[i][1] + ':' + v; }
     return null;
   }
@@ -624,7 +756,7 @@
     if (!f || !R.host || now() - f.at > FOCUS_MS) return;
     var a = document.activeElement;
     if (a && a !== document.body && R.host.contains(a)) return;
-    var sel = f.key === 'q' ? '#lab-q' : '[data-lab-' + ({ i: 'id', g: 'grp', f: 'fx', t: 'tab', d: 'dir' })[f.key.charAt(0)] + '="' + cssq(f.key.slice(2)) + '"]';
+    var sel = f.key === 'q' ? '#lab-q' : '[data-lab-' + ({ i: 'id', g: 'grp', f: 'fx', t: 'tab', d: 'dir', z: 'zoom' })[f.key.charAt(0)] + '="' + cssq(f.key.slice(2)) + '"]';
     var el = R.host.querySelector(sel);
     if (!el) return;
     el.focus({ preventScroll: true });
@@ -656,10 +788,10 @@
   }
 
   function mount(host, kit) {
-    K = kit; Z = window.FamilistaLabSanitize;
+    K = kit; Z = window.FamilistaLabSanitize; V = window.FamilistaLabView;
     unbind();
     R.host = host;
-    if (!Z) { host.innerHTML = K.emptyState('The Specimen Lab could not be loaded', T('Reload the page and try again.')); return; }
+    if (!Z || !V) { host.innerHTML = K.emptyState('The Specimen Lab could not be loaded', T('Reload the page and try again.')); return; }
     host.innerHTML = shellHtml();
     R.root = host.querySelector('.lab');
     bind(host, 'click', onClick);
@@ -682,6 +814,17 @@
       var at = fixtureIndex(c); if (at < 0) return;
       ev.preventDefault(); showFixture(c.fixtures[(at + (ev.key === ']' ? 1 : -1) + c.fixtures.length) % c.fixtures.length].id, { focus: false });
     });
+    bind(document, 'keydown', function (ev) {
+      // Zoom: "-" and "=" (or "+"), "0" for 100%, "F" to fit. Never with Ctrl, Cmd or Alt: those
+      // are the browser's own zoom and stay the reader's. Never while the reader is typing.
+      if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      var act = ({ '-': 'out', '_': 'out', '=': 'in', '+': 'in', '0': 'reset', f: 'fit', F: 'fit' })[ev.key];
+      if (!act) return;
+      var a = document.activeElement, tag = a && a.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (a && a.isContentEditable)) return;
+      if (!R.host || !zoomable()) return;
+      ev.preventDefault(); zoomAction(act);
+    });
     if (S.comps) { drawAll(); restoreFocus(); if (S.sel && !S.detail[S.sel]) loadDetail(S.sel).then(function () { if (R.root) { drawRail(); drawBench(); restoreFocus(); } }); return; }
     drawRail(); drawBench(); drawInspector();
     loadIndexes().then(function () {
@@ -695,16 +838,17 @@
   }
   function unmount() {
     unbind();
+    stopObserving();
     R.root = null; R.host = null;
   }
   /** Forget everything read from the server (the room's Refresh). */
-  function reset() { unbind(); var keep = { dir: S.dir }; S = fresh(); S.dir = keep.dir; }
+  function reset() { unbind(); stopObserving(); var keep = { dir: S.dir, zoom: S.zoom, fit: S.fit }; S = fresh(); S.dir = keep.dir; S.zoom = keep.zoom; S.fit = keep.fit; }
 
   window.FamilistaDesignLab = { mount: mount, unmount: unmount, reset: reset };
 
   // Figures the page itself produced, for the test suite and the performance record. Nothing else.
   window.__familistaLabMetrics = function () {
     var spec = document.getElementById('lab-specimen');
-    return { loadMs: M.loadMs, renderMs: M.renderMs, switchMs: M.switchMs, specimenNodes: spec ? spec.getElementsByTagName('*').length : 0, components: M.components, fixtures: M.fixtures, selected: S.sel, fixture: S.fixture, dir: S.dir };
+    return { loadMs: M.loadMs, renderMs: M.renderMs, switchMs: M.switchMs, specimenNodes: spec ? spec.getElementsByTagName('*').length : 0, components: M.components, fixtures: M.fixtures, selected: S.sel, fixture: S.fixture, dir: S.dir, zoom: S.zoom, fit: S.fit, zoomMs: M.zoomMs };
   };
 }());

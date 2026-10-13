@@ -184,6 +184,9 @@ jobs:
   # nothing, the existing CSP is served unchanged, no CSP violation or console error
   # comes from the Lab (and none is unexplained), focus survives the room redrawing the
   # Lab, and the Lab passes axe (WCAG 2.2 A/AA) in en, de and ar (RTL) at four sizes.
+  # Section 8 (M2 / S1) proves the same walls hold with the specimen zoomed to 25%, 50%
+  # and 200%: the overlay stays in the stage, no tool is covered, events stay inside,
+  # and the browser's own Ctrl/Cmd zoom keys are left alone.
   #
   # Authoritative: no `|| true`, no continue-on-error. A failed proof fails this job, a
   # failed job fails the `ci` workflow, and deploy.yml deploys only on a successful `ci`.
@@ -204,9 +207,9 @@ jobs:
       matrix:
         include:
           - shard: isolation
-            sections: '1,2,2b,3,4,5'
+            sections: '1,2,2b,3,4,5,8'
             axe: ''
-            min: '45'
+            min: '67'
           - shard: accessibility and focus
             sections: '6,7'
             axe: '--axe'

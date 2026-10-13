@@ -473,8 +473,8 @@ describe('CSP, safety and public assets', () => {
     expect(everything).not.toMatch(/\b[0-9a-f]{64}\b/);
     expect(everything).not.toMatch(/process\.env|JWT_|DATABASE_URL|RENDER_|ANTHROPIC|password|secret/i);
     expect(fs.existsSync(path.join(ROOT, 'public/design-system/design-system-manifest.json'))).toBe(false);
-    // The Visual Explorer's (3.2.1) and the Components Library's (3.2.2) two files each, loaded only when their section opens.
-    expect(fs.readdirSync(path.join(ROOT, 'public/design-system')).sort()).toEqual(['components.css', 'components.js', 'design-system.css', 'design-system.js', 'explorer.css', 'explorer.js', 'i18n', 'lab-sanitize.js', 'lab.css', 'lab.js']);
+    // The Visual Explorer's (3.2.1) and the Components Library's (3.2.2) two files each, and the Specimen Lab's (3.2.3), loaded only when their section opens.
+    expect(fs.readdirSync(path.join(ROOT, 'public/design-system')).sort()).toEqual(['components.css', 'components.js', 'design-system.css', 'design-system.js', 'explorer.css', 'explorer.js', 'i18n', 'lab-sanitize.js', 'lab-view.js', 'lab.css', 'lab.js']);
   });
 
   it('serves its assets from the real app as static files, with the strict CSP unchanged', async () => {

@@ -199,7 +199,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     await page.waitForTimeout(400);
     return true;
   }
-  const FOCUS_TARGETS = [['rail item', '[data-lab-id="lg-chip"]'], ['fixture tab', '.lab-fx.is-on'], ['search', '#lab-q'], ['inspector tab', '[data-lab-tab="source"]'], ['direction', '[data-lab-dir="rtl"]']];
+  const FOCUS_TARGETS = [['rail item', '[data-lab-id="lg-chip"]'], ['fixture tab', '.lab-fx.is-on'], ['search', '#lab-q'], ['inspector tab', '[data-lab-tab="source"]'], ['direction', '[data-lab-dir="rtl"]'], ['zoom in', '[data-lab-zoom="in"]']];
   // Focus each target in turn, remount, and say where focus went. Never reads the Lab's own state: only the page.
   // Give `sel` focus and confirm it holds it: the application's late repaint can take focus away between the call and the check.
   // At most one retry, after the room has settled. Returns how many retries it took (0 or 1), or -1 if focus could not be held,
@@ -246,7 +246,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     await openLab(page);
     const after = log.requests.slice(mark).filter(([, p]) => !/^\/(i18n|tokens)\//.test(p));
     const lab = after.filter(([, p]) => /design-system\/lab|components\/preview|design-system\/components$/.test(p));
-    check('lazy: opening the Lab fetches its own stylesheet, sanitizer, script and exactly three GETs', lab.length === 6 && lab.every(([m]) => m === 'GET'), lab.map((x) => x[0] + ' ' + x[1]));
+    check('lazy: opening the Lab fetches its own stylesheet, sanitizer, view maths, script and exactly three GETs', lab.length === 7 && lab.every(([m]) => m === 'GET'), lab.map((x) => x[0] + ' ' + x[1]));
     check('lazy: the production app is not loaded again', !after.some(([, p]) => /^\/app\.(js|css)/.test(p)), { appRequests: after.filter(([, p]) => /^\/app\./.test(p)).length });
     const foreign = log.requests.filter((x) => x[2] !== BASE && !/^https:\/\/fonts\.(googleapis|gstatic)\.com$/.test(x[2]));
     check('no request leaves the origin (the application\'s own web-font links aside; the test aborts them)', foreign.length === 0, { foreign });
@@ -291,16 +291,18 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     check('layout: the overlay does not cover the rail, the inspector or the room navigation', covers.every(([, ok]) => ok === true), covers);
     // control: take the containment away and the same overlay covers the whole window
     const control = await page.evaluate(() => {
-      const spec = document.getElementById('lab-specimen');
-      const keep = [spec.style.getPropertyValue('contain'), spec.style.getPropertyValue('isolation')];
-      spec.style.setProperty('contain', 'none'); spec.style.setProperty('isolation', 'auto');
+      // Both walls go: the specimen's own and, since M2 / S1, the viewport around it.
+      const walls = [document.getElementById('lab-specimen'), document.getElementById('lab-viewport')].filter(Boolean);
+      const keep = walls.map((w) => [w.style.getPropertyValue('contain'), w.style.getPropertyValue('isolation')]);
+      for (const w of walls) { w.style.setProperty('contain', 'none'); w.style.setProperty('isolation', 'auto'); }
       const r = document.querySelector('#lab-specimen .lg-float-bg').getBoundingClientRect();
       const out = [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)];
-      spec.style.setProperty('contain', keep[0]); spec.style.setProperty('isolation', keep[1]);
-      if (!keep[0]) spec.style.removeProperty('contain'); if (!keep[1]) spec.style.removeProperty('isolation');
-      return { without: out, viewport: [innerWidth, innerHeight] };
+      walls.forEach((w, n) => {
+        for (const [k, prop] of [[0, 'contain'], [1, 'isolation']]) { if (keep[n][k]) w.style.setProperty(prop, keep[n][k]); else w.style.removeProperty(prop); }
+      });
+      return { without: out, viewport: [innerWidth, innerHeight], walls: walls.length };
     });
-    check('layout (control): without containment the same overlay fills the whole window', control.without[0] <= 0 && control.without[1] <= 0 && control.without[2] >= control.viewport[0] - 24 && control.without[3] >= control.viewport[1] - 2, control);
+    check('layout (control): without containment (the specimen\'s and the viewport\'s) the same overlay fills the whole window', control.walls === 2 && control.without[0] <= 0 && control.without[1] <= 0 && control.without[2] >= control.viewport[0] - 24 && control.without[3] >= control.viewport[1] - 2, control);
     await page.screenshot({ path: path.join(OUT, 'proof-overlay-contained.png') });
 
     // ── events: nothing that starts in the specimen reaches a document-level handler
@@ -550,6 +552,181 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     void b3;
   }
 
+  // ══ 8. zoom (M2 / S1): the stage's walls hold at every scale ═════════════════
+  // The specimen is scaled with a transform. A transform is a containing block of its own, so it should not let a fixed
+  // overlay out; that is a claim, and so is "nothing outside the stage moves". Each is measured at 25%, 50% and 200%.
+  if (want('8')) {
+    const { ctx, page, log } = await open({ width: 1440, height: 900 }, 'en');
+    await openLab(page);
+    await page.click('[data-lab-id="lg-float"]');
+    await page.waitForSelector('#lab-specimen .lg-float-bg'); await frames(page);
+    const blur = (pg) => pg.evaluate(() => { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
+    const zoomTo = async (pct) => {
+      await page.click('[data-lab-zoom="reset"]', { force: true });
+      const dir = pct < 100 ? 'out' : 'in';
+      for (let n = 0; n < 12 && Number((await page.textContent('#lab-zoom-v')).replace(/[^0-9]/g, '')) !== pct; n++) await page.click(`[data-lab-zoom="${dir}"]`, { force: true });
+      await frames(page);
+      return Number((await page.textContent('#lab-zoom-v')).replace(/[^0-9]/g, ''));
+    };
+    const geom = () => page.evaluate(() => {
+      const r = (el) => { if (!el) return null; const b = el.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top), Math.round(b.right), Math.round(b.bottom)]; };
+      const spec = document.getElementById('lab-specimen');
+      const m = getComputedStyle(spec).transform;
+      return {
+        viewport: r(document.getElementById('lab-viewport')), frame: r(document.getElementById('lab-frame')), canvas: r(spec),
+        overlay: r(document.querySelector('#lab-specimen .lg-float-bg')), dialog: r(document.querySelector('#lab-specimen .lg-float')),
+        rail: r(document.querySelector('.lab-rail')), insp: r(document.getElementById('lab-insp')), plate: r(document.getElementById('lab-plate')),
+        tools: r(document.querySelector('.lab-tools')), transform: m, scale: m === 'none' ? 1 : Number(m.split('(')[1].split(',')[0]),
+      };
+    });
+    const inside = (a, b, tol = 1) => !!a && !!b && a[0] >= b[0] - tol && a[1] >= b[1] - tol && a[2] <= b[2] + tol && a[3] <= b[3] + tol;
+    const at100 = await geom();
+    check('zoom: at 100% nothing is transformed, so the unzoomed stage is exactly the M1 stage', at100.transform === 'none' && inside(at100.overlay, at100.canvas), at100);
+
+    for (const pct of [25, 50, 200]) {
+      const got = await zoomTo(pct);
+      const g = await geom();
+      // whatever is larger than the stage is clipped by it: just outside each edge of the viewport, inside the overlay's own
+      // (unclipped) rectangle, the element on screen is never part of the specimen
+      const clip = await page.evaluate(() => {
+        const vp = document.getElementById('lab-viewport').getBoundingClientRect(), spec = document.getElementById('lab-specimen');
+        const pts = [[vp.right + 6, vp.top + 30], [vp.left + 30, vp.bottom + 6], [vp.right + 6, vp.bottom + 6], [vp.left - 6, vp.top + 30], [vp.left + 30, vp.top - 6]];
+        return pts.map(([x, y]) => { const e = document.elementFromPoint(x, y); return [Math.round(x), Math.round(y), !!e && spec.contains(e)]; });
+      });
+      const hits = await page.evaluate(() => [...document.querySelectorAll('[data-lab-zoom], [data-lab-dir]')].map((b) => {
+        const r = b.getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return [b.getAttribute('data-lab-zoom') || b.getAttribute('data-lab-dir'), !!e && (e === b || b.contains(e))];
+      }));
+      check(`zoom ${pct}%: the specimen is scaled to ${pct}%, its fixed overlay stays inside the scaled canvas, and ${pct < 100 ? 'inside the stage\'s viewport' : 'whatever reaches past the viewport is clipped by it'}`,
+        got === pct && Math.abs(g.scale - pct / 100) < 0.005 && inside(g.overlay, g.canvas) && (pct < 100 ? inside(g.overlay, g.viewport) : true) && clip.every((c) => !c[2]), { got, clip, ...g });
+      check(`zoom ${pct}%: the overlay covers no tool: every zoom and direction button is the element under its own centre`, hits.length === 6 && hits.every((h) => h[1]), hits);
+      check(`zoom ${pct}%: nothing outside the stage moved: the rail, the inspector, the tools and the plate are where they were at 100%`,
+        JSON.stringify([g.rail, g.insp, g.tools, g.plate]) === JSON.stringify([at100.rail, at100.insp, at100.tools, at100.plate]), { now: [g.rail, g.insp, g.tools, g.plate], at100: [at100.rail, at100.insp, at100.tools, at100.plate] });
+    }
+
+    // control: take away both walls and the transform, at 50%, and the same overlay covers the window
+    await zoomTo(50);
+    const escaped = await page.evaluate(() => {
+      const vp = document.getElementById('lab-viewport'), spec = document.getElementById('lab-specimen'), fr = document.getElementById('lab-frame');
+      for (const el of [vp, spec, fr]) { el.style.setProperty('contain', 'none'); el.style.setProperty('isolation', 'auto'); el.style.setProperty('overflow', 'visible'); }
+      spec.style.setProperty('transform', 'none');
+      const b = document.querySelector('#lab-specimen .lg-float-bg').getBoundingClientRect();
+      return { overlay: [Math.round(b.left), Math.round(b.top), Math.round(b.right), Math.round(b.bottom)], window: [innerWidth, innerHeight] };
+    });
+    check('zoom (control): with the containment and the transform removed, the same overlay at 50% fills the whole window', escaped.overlay[0] <= 0 && escaped.overlay[1] <= 0 && escaped.overlay[2] >= escaped.window[0] - 24 && escaped.overlay[3] >= escaped.window[1] - 2, escaped);
+    await ctx.close();
+
+    // events at 25% and 200%, in a fresh page
+    {
+      const { ctx: c2, page: p2, log: log2 } = await open({ width: 1440, height: 900 }, 'en');
+      await openLab(p2);
+      await p2.click('[data-lab-id="lg-float"]'); await p2.waitForSelector('#lab-specimen .lg-float-bg');
+      await p2.evaluate((types) => {
+        window.__seen = { inside: {}, outside: {} };
+        const rec = (e) => { const spec = document.getElementById('lab-specimen'); const k = spec && spec.contains(e.target) ? 'inside' : 'outside'; window.__seen[k][e.type] = (window.__seen[k][e.type] || 0) + 1; };
+        for (const t of types) { document.addEventListener(t, rec); window.addEventListener(t, rec); document.body.addEventListener(t, rec); }
+      }, ['click', 'mousedown', 'pointerdown', 'mouseup', 'pointerup', 'dblclick', 'contextmenu', 'keydown', 'keyup']);
+      const results = [];
+      for (const dir of ['out', 'in']) {
+        await p2.click('[data-lab-zoom="reset"]', { force: true });
+        for (let n = 0; n < (dir === 'out' ? 7 : 5); n++) await p2.click(`[data-lab-zoom="${dir}"]`, { force: true });
+        await frames(p2);
+        const pct = (await p2.textContent('#lab-zoom-v')).trim();
+        for (const sel of ['#lab-specimen .lg-float-x', '#lab-specimen .lg-float']) {
+          const b = await p2.locator(sel).first().boundingBox();
+          if (!b) continue;
+          const x = b.x + Math.min(b.width / 2, 8), y = b.y + Math.min(b.height / 2, 8);
+          await p2.mouse.click(x, y); await p2.mouse.dblclick(x, y); await p2.mouse.click(x, y, { button: 'right' });
+        }
+        await p2.focus('#lab-specimen .lg-float-x');
+        for (const k of ['Enter', 'Escape', 'Minus', 'Equal', 'Digit0']) await p2.keyboard.press(k);
+        results.push([pct, (await p2.textContent('#lab-zoom-v')).trim()]);
+      }
+      const seen = await p2.evaluate(() => window.__seen);
+      check('zoom: at 25% and 200% nothing that starts inside the scaled specimen reaches a document, window or body listener, and a zoom key pressed inside the specimen stays inside it',
+        Object.keys(seen.inside).length === 0 && results.every(([a, b]) => a === b), { inside: seen.inside, zoomKeptWhileFocusInside: results });
+      await p2.click('[data-lab-zoom="reset"]', { force: true });
+      const outside = await p2.evaluate(() => window.__seen.outside.click || 0);
+      check('zoom (control): a click on a zoom button, outside the specimen, is seen by those listeners', outside >= 3, { clicks: outside });
+
+      // keys: plain keys zoom; with Ctrl, Cmd or Alt they are the browser's and are not touched
+      await blur(p2);
+      const read = async () => (await p2.textContent('#lab-zoom-v')).trim();
+      await p2.keyboard.press('Equal'); const k1 = await read();
+      await p2.keyboard.press('Minus'); const k2 = await read();
+      await p2.keyboard.press('Minus'); const k3 = await read();
+      await p2.keyboard.press('Digit0'); const k4 = await read();
+      const browserKeys = await p2.evaluate(() => {
+        const out = [];
+        for (const mod of ['ctrlKey', 'metaKey', 'altKey']) for (const key of ['=', '-', '0', '+']) {
+          const e = new KeyboardEvent('keydown', { key, [mod]: true, bubbles: true, cancelable: true });
+          document.body.dispatchEvent(e);
+          out.push([mod, key, e.defaultPrevented, document.getElementById('lab-zoom-v').textContent.trim()]);
+        }
+        return out;
+      });
+      check('zoom: "=", "-" and "0" zoom in, out and back to 100% from the keyboard', k1 === '110%' && k2 === '100%' && k3 === '90%' && k4 === '100%', [k1, k2, k3, k4]);
+      check('zoom: with Ctrl, Cmd or Alt the same keys are left to the browser: not prevented, and the stage does not zoom', browserKeys.every((b) => b[2] === false && b[3] === '100%'), browserKeys);
+      await p2.focus('#lab-q'); await p2.keyboard.press('Equal'); await p2.keyboard.press('Digit0');
+      const typed = await p2.evaluate(() => [document.getElementById('lab-q').value, document.getElementById('lab-zoom-v').textContent.trim()]);
+      check('zoom: typing "=" or "0" in the search types it, and does not zoom', typed[0] === '=0' && typed[1] === '100%', typed);
+      await p2.fill('#lab-q', ''); await blur(p2);
+      for (let n = 0; n < 12; n++) await p2.keyboard.press('Minus');
+      const floor = await p2.evaluate(() => [document.getElementById('lab-zoom-v').textContent.trim(), document.querySelector('[data-lab-zoom="out"]').getAttribute('aria-disabled'), document.activeElement === document.body]);
+      check('zoom: the floor is 25%, Zoom out says it is disabled there, and nothing lost focus on the way', floor[0] === '25%' && floor[1] === 'true', floor);
+      const split = await cspSplit(p2);
+      check('zoom: no Lab or unexplained CSP violation, and no console error, after every zoom above', split.lab === 0 && split.unexplained === 0 && labErrors(log2).length === 0, { csp: split, errors: labErrors(log2) });
+      await c2.close();
+    }
+
+    // fit: every previewable component, never above 100%, and the whole specimen visible without scrolling
+    {
+      const { ctx: c3, page: p3, log: log3 } = await open({ width: 1100, height: 760 }, 'en');
+      await openLab(p3);
+      const ids = await p3.evaluate(() => [...document.querySelectorAll('[data-lab-id]')].filter((b) => b.getAttribute('aria-disabled') !== 'true' && !b.closest('[hidden]')).map((b) => b.getAttribute('data-lab-id')));
+      const fits = [];
+      for (const id of ids.slice(0, 10)) {
+        await p3.click(`[data-lab-id="${id}"]`); await p3.waitForSelector('#lab-zoom-v'); await frames(p3);
+        await p3.click('[data-lab-zoom="fit"]', { force: true }); await frames(p3);
+        fits.push(await p3.evaluate((cid) => {
+          const vp = document.getElementById('lab-viewport');
+          return { id: cid, pct: Number(document.getElementById('lab-zoom-v').textContent.replace(/[^0-9]/g, '')), pressed: document.querySelector('[data-lab-zoom="fit"]').getAttribute('aria-pressed'),
+            scrolls: vp.scrollHeight > vp.clientHeight + 1 || vp.scrollWidth > vp.clientWidth + 1 };
+        }, id));
+        await p3.click('[data-lab-zoom="reset"]', { force: true });
+      }
+      check('zoom: Fit never enlarges past 100%, and every previewable component\'s specimen is then wholly visible without scrolling', fits.length === 10 && fits.every((f) => f.pct >= 25 && f.pct <= 100 && f.pressed === 'true' && !f.scrolls), fits);
+
+      // right to left: the canvas scales from its inline-start edge, so it stays aligned to that edge
+      await p3.click('[data-lab-id="lg-chip"]'); await frames(p3);
+      const edge = async () => p3.evaluate(() => { const f = document.getElementById('lab-frame').getBoundingClientRect(), c = document.getElementById('lab-specimen').getBoundingClientRect(); return { left: Math.round(c.left - f.left), right: Math.round(f.right - c.right), origin: getComputedStyle(document.getElementById('lab-specimen')).transformOrigin }; });
+      await p3.click('[data-lab-zoom="out"]', { force: true }); await p3.click('[data-lab-zoom="out"]', { force: true }); await p3.click('[data-lab-zoom="out"]', { force: true }); await frames(p3);
+      const ltr = await edge();
+      await p3.click('[data-lab-dir="rtl"]'); await frames(p3);
+      const rtlEdge = await edge();
+      check('zoom: the transform origin follows the stage direction: left-aligned in LTR, right-aligned in RTL', Math.abs(ltr.left) <= 1 && Math.abs(rtlEdge.right) <= 1 && /^0px 0px/.test(ltr.origin) && !/^0px 0px/.test(rtlEdge.origin), { ltr, rtl: rtlEdge });
+
+      // stability and cost: 40 steps, no node added, and the time from the click to the next frame
+      const dom0 = await p3.evaluate(() => document.querySelector('.lab').getElementsByTagName('*').length);
+      const times = await p3.evaluate(async () => {
+        const out = []; const fr = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        for (let n = 0; n < 40; n++) {
+          const b = document.querySelector(`[data-lab-zoom="${n % 10 < 5 ? 'in' : 'out'}"]`);
+          const t0 = performance.now(); b.click(); await fr(); out.push(performance.now() - t0);
+        }
+        return out;
+      });
+      const dom1 = await p3.evaluate(() => document.querySelector('.lab').getElementsByTagName('*').length);
+      const sorted = [...times].sort((a, b) => a - b);
+      const measure = { zoomStepToFrameMedianMs: Math.round(sorted[20] * 10) / 10, zoomStepToFrameP95Ms: Math.round(sorted[37] * 10) / 10, zoomComputeMs: await p3.evaluate(() => window.__familistaLabMetrics().zoomMs), domBefore: dom0, domAfter: dom1 };
+      console.log('MEASURE ' + JSON.stringify(measure));
+      check('zoom: forty zoom steps add no node to the Lab', dom0 === dom1, measure);
+      const split3 = await cspSplit(p3);
+      check('zoom: still no Lab or unexplained CSP violation and no console error after Fit, direction and forty steps', split3.lab === 0 && split3.unexplained === 0 && labErrors(log3).length === 0, { csp: split3, errors: labErrors(log3) });
+      await c3.close();
+    }
+  }
+
   // ══ 6. accessibility, languages, directions and sizes (--axe) ══════════════
   if (WANT_AXE && want('6')) {
     const axePath = process.env.AXE_CORE || path.join(ROOT, 'tools/components/node_modules/axe-core/axe.min.js');
@@ -575,6 +752,9 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
         await page.click('[data-lab-id="lg-float"]'); await page.waitForSelector('#lab-specimen .lg-float-bg'); await frames(page);
         if (loc === 'ar') { await page.click('[data-lab-dir="rtl"]'); }
         states.push(await run('overlay fixture'));
+        await page.click('[data-lab-zoom="out"]', { force: true }); await page.click('[data-lab-zoom="out"]', { force: true }); await frames(page);
+        states.push(await run('overlay fixture, zoomed to 80%'));
+        await page.click('[data-lab-zoom="reset"]', { force: true });
         await page.click('[data-lab-tab="sanitization"]'); states.push(await run('sanitization tab'));
         await page.click('[data-lab-grp="no-fixtures"]'); await page.click('[data-lab-id="lg-icon"]', { force: true }); await frames(page); states.push(await run('unavailable component'));
         await page.screenshot({ path: path.join(OUT, `axe-${loc}-${vn}.png`) });
@@ -636,7 +816,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       const st = await probe();
       const errs = labErrors(log);
       const split = await cspSplit(page);
-      check(`focus ${loc} ${vn}: focus returns to the same control after the room redraws the Lab (5 of 5), is not pulled back after 2.5 s, and the view has no overflow, no untranslated text, no console error, no Lab or unexplained CSP violation`,
+      check(`focus ${loc} ${vn}: focus returns to the same control after the room redraws the Lab (every control: rail, fixture, search, inspector, direction, zoom), is not pulled back after 2.5 s, and the view has no overflow, no untranslated text, no console error, no Lab or unexplained CSP violation`,
         trials.every((t) => t.ok) && stale.kept && !st.overflow && st.missing.length === 0 && errs.length === 0 && split.lab === 0 && split.unexplained === 0 && ((loc === 'ar') === (st.dir === 'rtl')),
         { trials, stale, overflow: st.overflow, missing: st.missing, dir: st.dir, errors: errs, csp: split, probeRetries: retries });
       await ctx.close();
@@ -649,7 +829,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       const trials = await focusTrials(page);
       const unapplied = trials.filter((t) => !t.applied);
       if (unapplied.length) fail('focus (control): control not applied: the controls could not be focused, so the loss of focus was not measured', trials);
-      else check('focus (control): with restoreFocus disabled, the same redraw drops focus on the page for all 5 controls, so the proof can fail', trials.length === 5 && trials.every((t) => t.applied && t.before !== 'BODY' && t.remounted && !t.ok && t.after === 'BODY'), trials);
+      else check('focus (control): with restoreFocus disabled, the same redraw drops focus on the page for every control, so the proof can fail', trials.length === FOCUS_TARGETS.length && trials.every((t) => t.applied && t.before !== 'BODY' && t.remounted && !t.ok && t.after === 'BODY'), trials);
       await ctx.close();
     }
     {
