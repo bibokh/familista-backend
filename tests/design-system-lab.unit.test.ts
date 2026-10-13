@@ -287,7 +287,7 @@ describe('the sanitizer: a closed allowlist that fails closed', () => {
   it('is one file, loaded by the build, the server and the browser alike', () => {
     expect(read('scripts/design-system-previews.js')).toContain("require('../public/design-system/lab-sanitize.js')");
     expect(read('src/design-system/previews-core.js')).toContain("require('../../public/design-system/lab-sanitize.js')");
-    expect(read('public/design-system/design-system.js')).toContain("pre: ['/design-system/lab-sanitize.js']");
+    expect(read('public/design-system/design-system.js')).toContain("pre: ['/design-system/lab-sanitize.js', '/design-system/lab-view.js']");
     expect(read('public/design-system/lab.js')).toContain('window.FamilistaLabSanitize');
     expect(manifest.sources.find((s: any) => s.id === 'sanitizer').sha256).toBe(sha(fs.readFileSync(path.join(ROOT, 'public/design-system/lab-sanitize.js'))));
   });
@@ -762,7 +762,7 @@ describe('the Specimen Lab client: CSP-safe, GET-only, lazy, and read-only', () 
   const room = stripComments(read('public/design-system/design-system.js'));
 
   it('writes no style attribute, inline handler or inline script', () => {
-    expect(js).not.toMatch(/style="|style='|setAttribute\(\s*['"]style|\.style\.(?!setProperty)|onclick=|onerror=|onload=|javascript:/i);
+    expect(js).not.toMatch(/style="|style='|setAttribute\(\s*['"]style|\.style\.(?!setProperty|removeProperty)|onclick=|onerror=|onload=|javascript:/i);
   });
 
   it('never evaluates code, never opens a frame and loads nothing from another origin', () => {
@@ -835,9 +835,9 @@ describe('the Specimen Lab client: CSP-safe, GET-only, lazy, and read-only', () 
   });
 
   it('is loaded only when its section opens, with the sanitizer first, and no page, loader or Owner Home names it', () => {
-    expect(read('public/index.html')).not.toMatch(/lab(-sanitize)?\.(js|css)/);
+    expect(read('public/index.html')).not.toMatch(/lab(-sanitize|-view)?\.(js|css)/);
     expect(read('public/app.js')).not.toMatch(/design-system\/lab/);
-    expect(room).toMatch(/lab: \{[^}]*host: 'lab-host'[^}]*css: '\/design-system\/lab\.css', js: '\/design-system\/lab\.js', pre: \['\/design-system\/lab-sanitize\.js'\]/);
+    expect(room).toMatch(/lab: \{[^}]*host: 'lab-host'[^}]*css: '\/design-system\/lab\.css', js: '\/design-system\/lab\.js', pre: \['\/design-system\/lab-sanitize\.js', '\/design-system\/lab-view\.js'\]/);
     expect(room).toMatch(/pre\.forEach\(function \(src\) \{[\s\S]*?dep\.async = false;/);
     expect(room).toContain('script.async = false;');
     expect(room).toContain("['lab', 'Specimen Lab']");
@@ -870,13 +870,73 @@ describe('the Specimen Lab client: CSP-safe, GET-only, lazy, and read-only', () 
     expect(js).toContain("K.emptyState('This fixture failed the browser’s check', res.problems.slice(0, 3).join(' · '))");
   });
 
-  it('draws no state, no hover, no focus emulation, no anatomy overlay and no width control: M1 only', () => {
-    expect(js).not.toMatch(/data-lab-force|forceState|:hover|adoptedStyleSheets|CSSStyleSheet|insertRule|replaceSync|getComputedStyle|getBoundingClientRect|anatomy|overlay|zoom|compare/i);
-    expect(css).not.toMatch(/data-lab-force|\.lab-anatomy|\.lab-zoom/);
+  it('draws no state, no hover, no focus emulation, no anatomy overlay, no width control and no comparison: M1 plus the M2 / S1 zoom only', () => {
+    expect(js).not.toMatch(/data-lab-force|forceState|:hover|adoptedStyleSheets|CSSStyleSheet|insertRule|replaceSync|getBoundingClientRect|anatomy|overlay|compare|viewport preset|data-lab-width/i);
+    expect(css).not.toMatch(/data-lab-force|\.lab-anatomy|\.lab-compare|\.lab-width/);
+    // getComputedStyle is read for one thing only: the specimen's padding, for Fit.
+    expect(js.match(/getComputedStyle\(/g) || []).toHaveLength(1);
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+describe('the zoom view maths (M2 / S1): pure, deterministic and clamped', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const V = require('../public/design-system/lab-view.js');
+  const junk: unknown[] = [NaN, Infinity, -Infinity, '2', '0.5', null, undefined, {}, [], true, () => 1];
+
+  it('clamps any value to 25%–200% in two decimals, and treats anything that is not a finite number as 100%', () => {
+    for (const j of junk) expect(V.clamp(j)).toBe(1);
+    expect([V.clamp(-5), V.clamp(0), V.clamp(0.1), V.clamp(0.333), V.clamp(1), V.clamp(1.999), V.clamp(9)]).toEqual([0.25, 0.25, 0.25, 0.33, 1, 2, 2]);
+    expect(V.MIN).toBe(0.25); expect(V.MAX).toBe(2);
+    expect(V.STEPS).toContain(1); expect(V.STEPS[0]).toBe(V.MIN); expect(V.STEPS[V.STEPS.length - 1]).toBe(V.MAX);
+    expect([...V.STEPS].sort((a: number, b: number) => a - b)).toEqual(V.STEPS);
+  });
+
+  it('steps up and down the ladder, stops at the limits, and joins it from any value', () => {
+    const up: number[] = []; let s = 1; for (let i = 0; i < 8; i++) { s = V.zoomIn(s); up.push(s); }
+    expect(up).toEqual([1.1, 1.25, 1.5, 1.75, 2, 2, 2, 2]);
+    const down: number[] = []; s = 1; for (let i = 0; i < 10; i++) { s = V.zoomOut(s); down.push(s); }
+    expect(down).toEqual([0.9, 0.8, 0.75, 0.67, 0.5, 0.33, 0.25, 0.25, 0.25, 0.25]);
+    expect([V.zoomIn(0.6), V.zoomOut(0.6), V.zoomIn(NaN), V.zoomOut('x'), V.zoomIn(99), V.zoomOut(-1)]).toEqual([0.67, 0.5, 1.1, 0.9, 2, 0.25]);
+  });
+
+  it('fits by shrinking only, rounds down so it really fits, and says 100% for any size it cannot trust', () => {
+    expect(V.fit(2000, 2000, 100, 100)).toBe(1);                 // small content is never enlarged
+    expect(V.fit(500, 300, 1000, 300)).toBe(0.5);
+    expect(V.fit(333, 1000, 1000, 1000)).toBe(0.33);             // 0.333 rounds down
+    expect(V.fit(999, 1000, 1000, 1000)).toBe(0.99);
+    expect(V.fit(100, 100, 1000, 1000)).toBe(0.25);              // never below the floor
+    for (const j of junk) { expect(V.fit(j, 100, 100, 100)).toBe(1); expect(V.fit(100, 100, j, 100)).toBe(1); }
+    expect(V.fit(0, 100, 100, 100)).toBe(1); expect(V.fit(100, 100, -1, 100)).toBe(1);
+  });
+
+  it('derives every value written to the stylesheet from a clamped number, and nothing else', () => {
+    expect([V.transform(1), V.transform(0.5), V.transform(NaN), V.transform(5), V.transform('scale(9);background:url(x)')]).toEqual(['none', 'scale(0.5)', 'none', 'scale(2)', 'none']);
+    expect(V.frameSize(1000, 500, 0.5)).toEqual({ width: 500, height: 250 });
+    expect(V.frameSize(333, 101, 0.33)).toEqual({ width: 110, height: 34 });
+    expect(V.frameSize(NaN, 500, 0.5)).toEqual({ width: 0, height: 250 });
+    expect(V.frameSize(-4, '9', 2)).toEqual({ width: 0, height: 0 });
+    expect([V.origin('rtl'), V.origin('ltr'), V.origin(undefined), V.origin('rtl;x')]).toEqual(['top right', 'top left', 'top left', 'top left']);
+    expect([V.percent(0.333), V.percent(NaN), V.percent(2)]).toEqual([33, 100, 200]);
+    // a deterministic sweep: every output is a plain number or one of two exact shapes
+    for (let i = -50; i <= 500; i += 7) {
+      const s = i / 100;
+      expect(V.transform(s)).toMatch(/^(none|scale\((0|1|2)(\.\d{1,2})?\))$/);
+      expect(V.clamp(s)).toBe(V.clamp(s));
+      const f = V.frameSize(1234, 567, s);
+      expect(Number.isInteger(f.width) && Number.isInteger(f.height)).toBe(true);
+    }
+  });
+
+  it('touches no DOM, keeps no state and exports the same object to the browser and to Node', () => {
+    const src = read('public/design-system/lab-view.js');
+    expect(src).not.toMatch(/document|window\.(?!FamilistaLabView)|innerHTML|eval\(|new Function|setTimeout|Date\.now|Math\.random|localStorage/);
+    const sandbox: any = {}; sandbox.window = sandbox;
+    vm.runInNewContext(src, sandbox);
+    expect(Object.keys(sandbox.FamilistaLabView).sort()).toEqual(Object.keys(V).sort());
+  });
+});
+
 describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures, direction, keys', () => {
   const PAYLOAD = '"><img src=x onerror=alert(1)><script>alert(2)</script>';
 
@@ -923,7 +983,8 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     host.querySelector = (s: string) => (s === '.lab' ? el('lab-root') : /^#[\w-]+$/.test(s) ? byId[s.slice(1)] || null : null);
     host.contains = () => true;
     const doc: any = {
-      getElementById: (id: string) => byId[id] || null, addEventListener() {}, removeEventListener() {}, activeElement: null,
+      getElementById: (id: string) => byId[id] || null, activeElement: null,
+      addEventListener(ty: string, fn: (e: any) => void) { const m = listeners.get(doc) || {}; (m[ty] ||= []).push(fn); listeners.set(doc, m); }, removeEventListener() {},
       createElement: (t: string) => { log.created.push(t); return node(t); }, createElementNS: (ns: string, t: string) => { log.created.push('ns:' + t); return node(t, ns); },
       createTextNode: (v: string) => ({ nodeType: 3, v, parent: null }), createDocumentFragment: () => node('#fragment'),
       body: node('body'),
@@ -956,6 +1017,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     };
     sandbox.window = sandbox;
     vm.runInNewContext(read('public/design-system/lab-sanitize.js'), sandbox);
+    vm.runInNewContext(read('public/design-system/lab-view.js'), sandbox);
     vm.runInNewContext(read('public/design-system/lab.js'), sandbox);
     sandbox.FamilistaDesignLab.mount(dom.host, kit);
     const settle = () => new Promise<void>((r) => setTimeout(r, 40));
@@ -1176,6 +1238,97 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     expect(Math.max(...counts)).toBeLessThan(40);
     expect(counts).toHaveLength(65);
   });
+
+  // ── M2 / S1: zoom ──────────────────────────────────────────────────────────
+  const docKey = (r: Run, key: string, extra: Record<string, unknown> = {}) => {
+    let prevented = false;
+    (r.dom.listeners.get(r.dom.doc)?.keydown || []).forEach((fn) => fn({ key, preventDefault() { prevented = true; }, ...extra }));
+    return prevented;
+  };
+  const zoomTool = (r: Run) => r.dom.log.innerHTML['lab-bench'].slice(-1)[0];
+
+  it('draws the zoom tools beside the direction, each with a name, a shortcut and a state, and opens at 100%', async () => {
+    const r = await launch();
+    const bench = zoomTool(r);
+    expect(bench).toContain('class="ds-seg lab-zoom" role="group" aria-label="Zoom"');
+    for (const [act, key] of [['out', '-'], ['in', '='], ['fit', 'F'], ['reset', '0']]) expect(bench).toMatch(new RegExp(`data-lab-zoom="${act}"[^>]*aria-keyshortcuts="${key}"`));
+    expect(bench).toMatch(/data-lab-zoom="reset" aria-label="Reset to 100%" aria-disabled="true"/);
+    expect(bench).toMatch(/data-lab-zoom="fit" aria-label="Fit to stage" aria-pressed="false"/);
+    expect(bench).toContain('<span class="lab-zoom-v" id="lab-zoom-v" data-no-i18n>100%</span>');
+    expect(bench).toContain('<div class="lab-viewport" id="lab-viewport"><div class="lab-frame" id="lab-frame" dir="ltr"><div class="lab-specimen" id="lab-specimen"');
+    expect(r.metrics()).toMatchObject({ zoom: 1, fit: false });
+  });
+
+  it('walks the zoom ladder with the buttons and stops at both limits, announcing each step', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-zoom]': attr('in') });
+    expect(r.metrics().zoom).toBe(1.1);
+    expect(r.dom.byId['lab-live'].textContent).toBe('Zoom 110%');
+    expect(r.dom.byId['lab-zoom-v'].textContent).toBe('110%');
+    for (let i = 0; i < 20; i++) r.click({ '[data-lab-zoom]': attr('in') });
+    expect(r.metrics().zoom).toBe(2);
+    for (let i = 0; i < 30; i++) r.click({ '[data-lab-zoom]': attr('out') });
+    expect(r.metrics().zoom).toBe(0.25);
+    r.click({ '[data-lab-zoom]': attr('reset') });
+    expect(r.metrics()).toMatchObject({ zoom: 1, fit: false });
+    r.click({ '[data-lab-zoom]': attr('fit') });
+    expect(r.metrics().fit).toBe(true);
+    expect(r.metrics().zoom).toBeLessThanOrEqual(1);              // fit never enlarges; nothing is measurable here, so 100%
+    expect(r.dom.byId['lab-live'].textContent).toBe('Fit to stage: 100%');
+  });
+
+  it('answers "-", "=", "+", "0" and "F" outside text fields, and never takes Ctrl, Cmd or Alt from the browser', async () => {
+    const r = await launch();
+    expect(docKey(r, '=')).toBe(true); expect(r.metrics().zoom).toBe(1.1);
+    expect(docKey(r, '+')).toBe(true); expect(r.metrics().zoom).toBe(1.25);
+    expect(docKey(r, '-')).toBe(true); expect(r.metrics().zoom).toBe(1.1);
+    for (const mod of ['ctrlKey', 'metaKey', 'altKey']) for (const k of ['=', '-', '0', '+']) {
+      expect(docKey(r, k, { [mod]: true })).toBe(false);                     // not prevented: the browser's own zoom
+      expect(r.metrics().zoom).toBe(1.1);
+    }
+    r.dom.doc.activeElement = { tagName: 'INPUT' };
+    expect(docKey(r, '0')).toBe(false); expect(docKey(r, 'f')).toBe(false);
+    expect(r.metrics()).toMatchObject({ zoom: 1.1, fit: false });
+    r.dom.doc.activeElement = null;
+    expect(docKey(r, '0')).toBe(true); expect(r.metrics().zoom).toBe(1);
+    expect(docKey(r, 'F')).toBe(true); expect(r.metrics().fit).toBe(true);
+    expect(docKey(r, 'x')).toBe(false);
+  });
+
+  it('keeps the zoom across fixtures, components, a direction change and a remount, and draws the tools in that state', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-zoom]': attr('out') }); r.click({ '[data-lab-zoom]': attr('out') });
+    expect(r.metrics().zoom).toBe(0.8);
+    r.click({ '[data-lab-fx]': attr('lg-crest.no-crest') });
+    r.click({ '[data-lab-id]': attr('lg-chip') }); await r.settle();
+    r.click({ '[data-lab-dir]': attr('rtl') });
+    r.remount(); await r.settle();
+    expect(r.metrics()).toMatchObject({ zoom: 0.8, fit: false, dir: 'rtl' });
+    expect(zoomTool(r)).toContain('data-no-i18n>80%</span>');
+    expect(zoomTool(r)).toContain('<div class="lab-frame" id="lab-frame" dir="rtl">');
+    for (let i = 0; i < 20; i++) r.click({ '[data-lab-zoom]': attr('out') });
+    r.click({ '[data-lab-id]': attr('lg-crest') }); await r.settle();
+    expect(zoomTool(r)).toMatch(/data-lab-zoom="out" aria-label="Zoom out" aria-disabled="true"/);
+  });
+
+  it('a component it cannot preview has no zoom, and the zoom keys do nothing there', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-id]': attr('ds-chip') }); await r.settle();
+    expect(zoomTool(r)).not.toContain('data-lab-zoom');
+    expect(docKey(r, '=')).toBe(false);
+    expect(r.metrics().zoom).toBe(1);
+  });
+
+  it('puts focus back on a zoom control after the room redraws the Lab', async () => {
+    const r = await launch();
+    r.fire('focusin', { target: { getAttribute: (k: string) => (k === 'data-lab-zoom' ? 'in' : null), id: '' } });
+    const zin = Object.assign(r.dom.node('button'), { id: 'zin' });
+    const q = r.dom.host.querySelector;
+    r.dom.host.querySelector = (s: string) => (s === '[data-lab-zoom="in"]' ? zin : q(s));
+    r.remount(); await r.settle();
+    expect(r.dom.log.focused).toContain('zin');
+  });
+
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1289,7 +1442,7 @@ describe('the browser proof is kept with the code and is a required CI job', () 
     expect(body).toContain('node tools/components/lab-browser-proof.cjs');
     expect(body).not.toMatch(/continue-on-error|\|\|\s*true|playwright install|secrets\./);
     const sections = [...body.matchAll(/sections:\s*'([^']+)'/g)].map((m) => m[1].split(',')).flat().sort();
-    expect(sections).toEqual(['1', '2', '2b', '3', '4', '5', '6', '7']);
+    expect(sections).toEqual(['1', '2', '2b', '3', '4', '5', '6', '7', '8']);
     expect(body).toMatch(/axe:\s*'--axe'/);
     // a shard that ran nothing, skipped something or failed something is red
     expect(body).toContain("grep -Eq ', 0 failed, 0 skipped$'");

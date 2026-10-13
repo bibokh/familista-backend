@@ -650,10 +650,10 @@
       css: '/design-system/components.css', js: '/design-system/components.js',
       failed: 'The Components Library could not be loaded',
     },
-    // `pre` are scripts the section's own script needs first (the Lab's shared sanitizer).
+    // `pre` are scripts the section's own script needs first (the Lab's shared sanitizer, and its view maths).
     lab: {
-      host: 'lab-host', hostClass: 'lab-host', root: '.lab', api: 'FamilistaDesignLab', v: '20261012-lab',
-      css: '/design-system/lab.css', js: '/design-system/lab.js', pre: ['/design-system/lab-sanitize.js'],
+      host: 'lab-host', hostClass: 'lab-host', root: '.lab', api: 'FamilistaDesignLab', v: '20261013-lab-s1',
+      css: '/design-system/lab.css', js: '/design-system/lab.js', pre: ['/design-system/lab-sanitize.js', '/design-system/lab-view.js'],
       failed: 'The Specimen Lab could not be loaded',
     },
   };
