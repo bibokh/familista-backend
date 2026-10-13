@@ -286,6 +286,21 @@ describe('an AI recommendation', () => {
     });
   });
 
+  // Whether `value` carries the number `n` anywhere: as a number, or as a standalone numeric token inside a string or a key.
+  // A substring search over the serialised events is not enough: every envelope carries a timestamp, and "…:30.919Z" contains
+  // "0.91" while carrying no score at all. A token here may not be glued to another digit or decimal point on either side.
+  const carriesNumber = (value: unknown, n: number): boolean => {
+    const token = new RegExp('(^|[^0-9.])' + String(n).replace('.', '\\.') + '(?![0-9])');
+    const walk = (v: unknown): boolean => {
+      if (typeof v === 'number') return v === n;
+      if (typeof v === 'string') return token.test(v);
+      if (Array.isArray(v)) return v.some(walk);
+      if (v && typeof v === 'object') return Object.entries(v).some(([k, x]) => token.test(k) || walk(x));
+      return false;
+    };
+    return walk(value);
+  };
+
   it('never carries the recommendation itself', async () => {
     await aiOps.createRecommendation(aRec() as never);
     await settle();
@@ -294,7 +309,29 @@ describe('an AI recommendation', () => {
     expect(surfaces).not.toContain(SECRETS.recommendationTitle);
     expect(surfaces).not.toContain(PLAYER);
     // A precise confidence beside a named player is a judgement about a person.
-    expect(surfaces).not.toContain('0.91');
+    expect(published.length).toBeGreaterThan(0);
+    expect(carriesNumber(published, 0.91)).toBe(false);
+  });
+
+  it('a timestamp or an id that happens to contain the score is not a leak', () => {
+    const envelope = {
+      eventId: '8f9772c4-0509-4492-9795-b447970ecb1e', occurredAt: '2026-10-13T09:16:30.919Z',
+      other: ['2026-10-13T09:16:40.910Z', 'build-10.91', 'v20.912', '0.912', '10.91', 'x0.911'],
+      payload: { analysisKind: 'SUBSTITUTION', agent: 'TACTICAL', scope: 'PLAYER', confidence: 'HIGH' },
+    };
+    expect(JSON.stringify(envelope)).toContain('0.91');          // the old substring check would have failed here
+    expect(carriesNumber(envelope, 0.91)).toBe(false);
+  });
+
+  it('a score that really leaks is still caught, wherever it is', () => {
+    const clean = { payload: { confidence: 'HIGH' } };
+    expect(carriesNumber({ ...clean, payload: { confidence: 'HIGH', score: 0.91 } }, 0.91)).toBe(true);           // as a number
+    expect(carriesNumber({ ...clean, note: 'model confidence 0.91 for p-child' }, 0.91)).toBe(true);              // inside a sentence
+    expect(carriesNumber({ ...clean, payload: { raw: '0.91' } }, 0.91)).toBe(true);                               // as a string
+    expect(carriesNumber({ ...clean, deep: [{ x: [{ conf: 0.91 }] }] }, 0.91)).toBe(true);                       // nested in arrays
+    expect(carriesNumber({ ...clean, scores: { '0.91': 'PLAYER' } }, 0.91)).toBe(true);                         // as a key
+    expect(carriesNumber({ ...clean, at: '2026-10-13T09:16:30.919Z', s: 'score=0.91;' }, 0.91)).toBe(true);    // beside a timestamp
+    expect(carriesNumber(clean, 0.91)).toBe(false);
   });
 
   it('bands a score, and admits when a model gave none', () => {
