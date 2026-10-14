@@ -45,6 +45,12 @@
      measured in the same pass. It is a width simulation, not a device: the window's
      media queries and viewport units are untouched, the stage says so, and the
      inspector marks each recorded viewport rule against the width without running it.
+   - Comparison (M2 / S3): a second pane, Preview B, shows another fixture of the same
+     component beside Preview A. It is the same stage with every id suffixed "-b": its own
+     walls, event boundary, fail-closed check, measurement and readouts. The toolbar is
+     shared, so both panes are at one zoom and one width; under Fit they take the smaller
+     scale. Preview B is built when comparison starts and removed when it ends. The
+     inspector compares the two fixtures from the manifest the Lab already holds.
    These are claims, and tools/components/lab-browser-proof.cjs proves each one in a
    real browser; the Jest suite checks that this file wires them.
 
@@ -52,8 +58,8 @@
 
    No state simulation, no hover or focus emulation, no anatomy overlay, no device
    emulation, no light theme: the stage is one surface, dark, with a left-to-right or
-   right-to-left direction, a zoom (M2 / S1) that scales the specimen inside it, and a
-   content width (M2 / S2). Viewport @media rules respond to the browser window, not
+   right-to-left direction, a zoom (M2 / S1) that scales the specimen inside it, a
+   content width (M2 / S2), and a second pane to compare two fixtures of one component (M2 / S3). Viewport @media rules respond to the browser window, not
    to the stage, and the inspector says so for the two primitives that have them.
 
    READ-ONLY, CSP-SAFE
@@ -124,13 +130,13 @@
       pv: null, avail: Object.create(null),        // the previews index
       detail: Object.create(null), detailError: Object.create(null), detailLoading: Object.create(null),
       sel: null, fixture: null, dir: 'ltr', tab: 'provenance', q: '', open: { preview: true },
-      zoom: 1, fit: false, width: null,
+      zoom: 1, fit: false, width: null, compare: false, fixtureB: null, checkB: null,
       loading: false, error: null, check: null, focus: null,
     };
   }
   var S = fresh();
-  var R = { host: null, root: null, bound: [], specimenBound: null, ro: null, raf: 0, nat: null, rafW: 0, say: null };
-  var M = { loadMs: null, renderMs: null, switchMs: null, zoomMs: null, widthMs: null, specimenNodes: 0, fixtures: 0, components: 0 };
+  var R = { host: null, root: null, bound: [], specimenBound: null, ro: null, raf: 0, rafW: 0, say: null, pane: { a: { nat: null, empty: false }, b: { nat: null, empty: false } } };
+  var M = { loadMs: null, renderMs: null, switchMs: null, zoomMs: null, widthMs: null, modeMs: null, switchBMs: null, specimenNodes: 0, specimenNodesB: 0, fixtures: 0, components: 0 };
 
   function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
   function rtl() { return K && K.dir() === 'rtl'; }
@@ -273,16 +279,10 @@
       + '<div class="ds-seg lab-dir" role="group" aria-label="' + esc(T('Stage direction')) + '">'
       + ['ltr', 'rtl'].map(function (d) {
         return '<button type="button" class="ds-seg-b' + (S.dir === d ? ' is-on' : '') + '" data-lab-dir="' + d + '" aria-pressed="' + (S.dir === d ? 'true' : 'false') + '" aria-label="' + esc(d.toUpperCase() + ' · ' + T(d === 'ltr' ? 'Left to right' : 'Right to left')) + '"><span data-no-i18n>' + d.toUpperCase() + '</span></button>';
-      }).join('') + '</div></div></header>'
+      }).join('') + '</div>' + modeHtml() + '</div></header>'
       + '<div class="lab-evrow" id="lab-evrow"></div>'
       + '<div class="lab-wbar" id="lab-wbar"' + (S.width == null ? ' data-off' : '') + '>' + wbarHtml() + '</div>'
-      + '<div class="lab-plate" id="lab-plate" role="tabpanel" aria-labelledby="lab-tab-current">'
-      + '<div class="lab-viewport" id="lab-viewport"><div class="lab-frame" id="lab-frame" dir="' + S.dir + '">'
-      + '<div class="lab-specimen" id="lab-specimen" dir="' + S.dir + '" data-no-i18n data-lab-stage role="group" aria-label="' + esc(T('Specimen')) + '"></div>'
-      + '</div></div>'
-      + '<div class="lab-void" id="lab-void" hidden>' + K.emptyState('This input draws nothing', T('The production function returned no markup for this input, which is the answer it gives.')) + '</div>'
-      + '<div class="lab-refuse" id="lab-refuse" hidden></div>'
-      + '</div>'
+      + (S.compare ? compareHtml(S.detail[id]) : '<div class="lab-plate" id="lab-plate" role="tabpanel" aria-labelledby="lab-tab-current">' + stageHtml('a') + '</div>')
       + '<div class="lab-strip" id="lab-strip" role="tablist" aria-label="' + esc(T('Fixtures')) + '"></div>';
   }
 
@@ -325,6 +325,62 @@
     if (!el || typeof window.getComputedStyle !== 'function') return 0;
     var v = parseFloat(window.getComputedStyle(el)[side]); return isFinite(v) ? v : 0;
   }
+  // ── panes (M2 / S3) ───────────────────────────────────────────────────────
+  //
+  // The stage is one pane (A) or two (A and B). Preview A keeps the stage's original ids, so in single mode it is the
+  // S2 stage exactly; Preview B is the same markup with every id suffixed "-b". Each pane has its own walls, event
+  // boundary, fixture check, measurement and readouts. The toolbar, and with it the zoom and the width, is shared.
+
+  var SUFFIX = { a: '', b: '-b' };
+  function panes() { return S.compare ? ['a', 'b'] : ['a']; }
+  function pel(p, name) { return document.getElementById('lab-' + name + SUFFIX[p]); }
+  function paneName(p) { return T(p === 'a' ? 'Preview A' : 'Preview B'); }
+  /** The stage of each pane that is drawn: its viewport, frame and canvas, and its measurement. */
+  function stages() {
+    return panes().map(function (p) { return { p: p, vp: pel(p, 'viewport'), fr: pel(p, 'frame'), spec: pel(p, 'specimen'), st: R.pane[p] }; })
+      .filter(function (g) { return g.vp && g.fr && g.spec; });
+  }
+  /** One pane's stage: the viewport, the frame, the canvas inside every wall, and what is shown when the canvas draws nothing. */
+  function stageHtml(p) {
+    var x = SUFFIX[p];
+    return '<div class="lab-viewport" id="lab-viewport' + x + '"><div class="lab-frame" id="lab-frame' + x + '" dir="' + S.dir + '">'
+      + '<div class="lab-specimen" id="lab-specimen' + x + '" dir="' + S.dir + '" data-no-i18n data-lab-stage' + (p === 'b' ? '="b"' : '') + ' role="group" aria-label="' + esc(S.compare ? paneName(p) : T('Specimen')) + '"></div>'
+      + '</div></div>'
+      + '<div class="lab-void" id="lab-void' + x + '" hidden>' + K.emptyState('This input draws nothing', T('The production function returned no markup for this input, which is the answer it gives.')) + '</div>'
+      + '<div class="lab-refuse" id="lab-refuse' + x + '" hidden></div>';
+  }
+  function fxNum(i) { return i < 9 ? '0' + (i + 1) : String(i + 1); }
+  function fixtureById(c, id) { for (var i = 0; i < c.fixtures.length; i++) if (c.fixtures[i].id === id) return c.fixtures[i]; return null; }
+  /** Preview B keeps its fixture while it belongs to the component; otherwise it shows the one after Preview A's. */
+  function pickB(c) {
+    if (S.fixtureB && fixtureById(c, S.fixtureB)) return S.fixtureB;
+    var at = fixtureIndex(c);
+    return c.fixtures[((at < 0 ? 0 : at) + 1) % c.fixtures.length].id;
+  }
+  /** The two panes, side by side or stacked by the stage's own width (a container query in lab.css), each with its own walls. */
+  function compareHtml(c) {
+    return '<div class="lab-plate is-compare" id="lab-plate"><div class="lab-cmp">'
+      + '<div class="lab-cmp-pane" id="lab-pane-a" role="tabpanel" aria-labelledby="lab-tab-current">'
+      + '<div class="lab-cmp-h"><span class="lab-cmp-t">' + esc(paneName('a')) + '</span><span class="lab-cmp-f" id="lab-pane-a-f" data-no-i18n></span></div>'
+      + '<div class="lab-cmp-b">' + stageHtml('a') + '</div></div>'
+      + '<div class="lab-cmp-pane" id="lab-pane-b" role="group" aria-labelledby="lab-pane-b-t">'
+      + '<div class="lab-cmp-h"><span class="lab-cmp-t" id="lab-pane-b-t">' + esc(paneName('b')) + '</span>'
+      + '<label class="lab-fxb"><span class="ds-sr">' + esc(T('Fixture for Preview B')) + '</span>'
+      + '<select class="ds-input lab-fxb-s" id="lab-fx-b" data-no-i18n>' + c.fixtures.map(function (f, i) {
+        return '<option value="' + esc(f.id) + '"' + (f.id === S.fixtureB ? ' selected' : '') + '>' + esc(fxNum(i) + ' · ' + f.label) + '</option>';
+      }).join('') + '</select></label>'
+      + '<button type="button" class="ds-btn lab-swap" data-lab-swap="ab">' + esc(T('Swap A and B')) + '</button></div>'
+      + '<div class="lab-cmp-b">' + stageHtml('b') + '</div></div>'
+      + '</div></div>';
+  }
+  function modeHtml() {
+    return '<div class="ds-seg lab-mode" role="group" aria-label="' + esc(T('View')) + '">'
+      + [['single', 'Single', 'Single preview'], ['compare', 'Compare', 'Compare side by side']].map(function (m) {
+        var on = (m[0] === 'compare') === S.compare;
+        return '<button type="button" class="ds-seg-b' + (on ? ' is-on' : '') + '" data-lab-mode="' + m[0] + '" aria-pressed="' + (on ? 'true' : 'false') + '" aria-label="' + esc(T(m[2])) + '"><span>' + esc(T(m[1])) + '</span></button>';
+      }).join('') + '</div>';
+  }
+
   /**
    * Everything the stage needs, read once with the stage at 100%: the canvas's natural size,
    * the content container's size, how far content reaches past it, and the scale at which
@@ -358,43 +414,52 @@
     if (fr.classList) { fr.classList.remove('is-zoomed'); fr.classList.remove('is-sized'); }
   }
   /**
-   * Lay the stage out at the current zoom and width. The specimen's natural (100%) size is
-   * measured once, with the stage back at 100%, whenever what it depends on changes (`measure`:
-   * a new fixture, a new direction, a new width, a resized viewport); a zoom step reuses it and
-   * only writes, so stepping never forces a layout. The canvas is held at its natural size,
-   * scaled through the CSSOM, and the frame is given the scaled size so the viewport scrolls
-   * exactly as far as the scaled specimen reaches.
+   * Lay the stage out at the current zoom and width, in every pane that is drawn. A pane's natural (100%) size is
+   * measured once, with the stage back at 100%, whenever what it depends on changes (`measure`: true for every pane,
+   * or the one pane whose fixture changed; a new direction, a new width, a resized viewport); a zoom step reuses it and
+   * only writes, so stepping never forces a layout. Each canvas is held at its natural size, scaled through the CSSOM,
+   * and its frame is given the scaled size so its viewport scrolls exactly as far as the scaled specimen reaches. Every
+   * pane is cleared and sized before any is read, so two panes cost one layout, not two. A pane that draws nothing (an
+   * empty or a refused fixture) is left unsized. Under Fit both panes take the smaller fit scale.
    */
   function applyZoom(measure) {
-    var vp = document.getElementById('lab-viewport'), fr = document.getElementById('lab-frame'), spec = document.getElementById('lab-specimen');
-    if (!vp || !fr || !spec || !V) return;
-    // Fill at 100%: the M1 stage. Nothing is measured, so a fixture switch costs exactly what it did before S2.
-    if (measure && !S.fit && V.clamp(S.zoom) === 1 && S.width == null) { R.nat = null; clearZoom(fr, spec); sizeColumn(spec); return; }
-    // A width at 100%, Fit off: the stylesheet sizes the frame to the canvas (.is-sized), so nothing is read here and the change
-    // costs the one layout pass the next frame does anyway. The readouts are read once that layout is done (readoutsLater).
-    if (measure && !S.fit && V.clamp(S.zoom) === 1) { R.nat = null; clearZoom(fr, spec); sizeColumn(spec); fr.classList.add('is-sized'); readoutsLater(); return; }
-    if (measure || !R.nat || R.nat.spec !== spec) {
-      clearZoom(fr, spec);
-      sizeColumn(spec);
-      R.nat = measureStage(vp, spec);
+    if (!V) return;
+    var list = stages();
+    if (!list.length) return;
+    // At 100% with Fit off nothing is measured. Fill: the M1 stage, so a fixture switch costs exactly what it did before S2.
+    // A width: the stylesheet sizes each frame to its canvas (.is-sized), and the readouts are read once that layout is done.
+    if (measure && !S.fit && V.clamp(S.zoom) === 1) {
+      list.forEach(function (g) {
+        g.st.nat = null; clearZoom(g.fr, g.spec); sizeColumn(g.spec);
+        if (S.width != null && !g.st.empty) g.fr.classList.add('is-sized');
+      });
+      if (S.width != null) readoutsLater();
+      return;
     }
-    var s = S.fit ? R.nat.fit : V.clamp(S.zoom);
+    var need = list.filter(function (g) { return !g.st.empty && (measure === true || measure === g.p || !g.st.nat || g.st.nat.spec !== g.spec); });
+    need.forEach(function (g) { clearZoom(g.fr, g.spec); sizeColumn(g.spec); });
+    need.forEach(function (g) { g.st.nat = measureStage(g.vp, g.spec); });
+    var drawn = list.filter(function (g) { if (g.st.empty) { g.st.nat = null; clearZoom(g.fr, g.spec); } return !g.st.empty && g.st.nat; });
+    if (!drawn.length) return;
+    var s = S.fit ? V.sharedFit(drawn.map(function (g) { return g.st.nat.fit; })) : V.clamp(S.zoom);
     S.zoom = s;
-    var size = V.frameSize(R.nat.w, R.nat.h, s);
-    if ((s === 1 && S.width == null) || !size.width || !size.height) { clearZoom(fr, spec); return; }   // Fill at 100%, or nothing measurable (a hidden stage): no transform, no frame size
-    spec.style.setProperty('width', R.nat.w + 'px');
-    spec.style.setProperty('min-height', R.nat.h + 'px');
-    spec.style.setProperty('transform-origin', V.origin(S.dir));
-    spec.style.setProperty('transform', V.transform(s));
-    fr.classList.remove('is-sized'); fr.classList.add('is-zoomed');
-    fr.style.setProperty('width', size.width + 'px');
-    fr.style.setProperty('height', size.height + 'px');
+    drawn.forEach(function (g) {
+      var n = g.st.nat, size = V.frameSize(n.w, n.h, s);
+      if ((s === 1 && S.width == null) || !size.width || !size.height) { clearZoom(g.fr, g.spec); return; }   // Fill at 100%, or nothing measurable (a hidden stage): no transform, no frame size
+      g.spec.style.setProperty('width', n.w + 'px');
+      g.spec.style.setProperty('min-height', n.h + 'px');
+      g.spec.style.setProperty('transform-origin', V.origin(S.dir));
+      g.spec.style.setProperty('transform', V.transform(s));
+      g.fr.classList.remove('is-sized'); g.fr.classList.add('is-zoomed');
+      g.fr.style.setProperty('width', size.width + 'px');
+      g.fr.style.setProperty('height', size.height + 'px');
+    });
   }
-  /** Nothing is drawn (a refused or an empty fixture): no sizing, and readouts that say nothing was measured. */
-  function stageEmpty() {
-    var fr = document.getElementById('lab-frame'), spec = document.getElementById('lab-specimen');
+  /** Nothing is drawn in this pane (a refused or an empty fixture): no sizing, and readouts that say nothing was measured. */
+  function stageEmpty(p) {
+    var fr = pel(p, 'frame'), spec = pel(p, 'specimen');
     if (fr && spec) clearZoom(fr, spec);
-    R.nat = null;
+    R.pane[p].nat = null; R.pane[p].empty = true;
     syncZoom(); syncWidth();
   }
   function zoomable() { var c = current(); return !!(c && S.avail[S.sel] && S.avail[S.sel].state === 'preview' && document.getElementById('lab-specimen')); }
@@ -411,21 +476,21 @@
     syncZoom();
     live(S.fit ? tf('Fit to stage: %d%', V.percent(S.zoom)) : tf('Zoom %d%', V.percent(S.zoom)));
   }
-  /** The viewport is watched for size changes (window, sidebar, escape hatch); the stage is measured and laid out again. */
+  /** Each pane's viewport is watched for size changes (window, sidebar, escape hatch); the stage is measured and laid out again. */
   function observeStage() {
     stopObserving();
-    var vp = document.getElementById('lab-viewport');
-    if (!vp || typeof window.ResizeObserver !== 'function') return;
-    var last = '';
+    var list = stages();
+    if (!list.length || typeof window.ResizeObserver !== 'function') return;
+    var last = {};
     R.ro = new window.ResizeObserver(function () {
-      var k = vp.clientWidth + 'x' + vp.clientHeight;
-      if (k === last) return;
-      last = k;
+      var changed = false;
+      list.forEach(function (g) { var k = g.vp.clientWidth + 'x' + g.vp.clientHeight; if (last[g.p] !== k) { last[g.p] = k; changed = true; } });
+      if (!changed) return;
       if (!(S.fit || S.zoom !== 1 || S.width != null) || typeof window.requestAnimationFrame !== 'function') return;
       if (R.raf) window.cancelAnimationFrame(R.raf);
       R.raf = window.requestAnimationFrame(function () { R.raf = 0; applyZoom(true); syncZoom(); syncWidth(); });
     });
-    R.ro.observe(vp);
+    list.forEach(function (g) { R.ro.observe(g.vp); });
   }
   function stopObserving() {
     if (R.ro) { R.ro.disconnect(); R.ro = null; }
@@ -442,18 +507,22 @@
     R.rafW = window.requestAnimationFrame(function () { R.rafW = window.requestAnimationFrame(function () { R.rafW = 0; readoutsNow(); }); });
   }
   function readoutsNow() {
-    var vp = document.getElementById('lab-viewport'), fr = document.getElementById('lab-frame'), spec = document.getElementById('lab-specimen');
-    if (vp && fr && spec && fr.classList.contains('is-sized')) R.nat = measureStage(vp, spec);   // still the stylesheet's layout: measure it
+    stages().forEach(function (g) { if (g.fr.classList.contains('is-sized')) g.st.nat = measureStage(g.vp, g.spec); });   // still the stylesheet's layout: measure it
     syncWidth();
     announceWidth();
   }
-  /** Say what the width is, with the overflow measured for it; once. */
+  /** Say what the width is, with the overflow measured for it in each pane; once. */
   function announceWidth() {
     if (R.say == null) return;
-    var o = R.nat ? R.nat.ov : null;
-    live(R.say + (o ? ' · ' + tf('Content overflows by %d px', o) : ''));
+    var parts = [];
+    stages().forEach(function (g) {
+      var o = g.st.nat ? g.st.nat.ov : null;
+      if (o) parts.push((S.compare ? paneName(g.p) + ': ' : '') + tf('Content overflows by %d px', o));
+    });
+    live(R.say + (parts.length ? ' · ' + parts.join(' · ') : ''));
     R.say = null;
   }
+  function anySized() { return stages().some(function (g) { return g.fr.classList.contains('is-sized'); }); }
 
   // ── width (M2 / S2) ───────────────────────────────────────────────────────
   //
@@ -486,8 +555,11 @@
    * out and only shown while a width is set, so showing it moves nothing; at Fill nothing is simulated and nothing is measured.
    */
   function wbarHtml() {
-    return '<span class="lab-wdim" id="lab-wdim" data-no-i18n>—</span>'
-      + '<span class="lab-ov" id="lab-ov">—</span>'
+    return panes().map(function (p) {
+      return (S.compare ? '<span class="lab-wtag">' + esc(paneName(p)) + '</span>' : '')
+        + '<span class="lab-wdim" id="lab-wdim' + SUFFIX[p] + '" data-no-i18n>—</span>'
+        + '<span class="lab-ov" id="lab-ov' + SUFFIX[p] + '">—</span>';
+    }).join('')
       + '<span class="lab-wnote" id="lab-wnote">' + esc(T('Width simulation — not full device emulation.')) + '</span>';
   }
   /** Bring the width controls and readouts in line with the state and the last measurement, without redrawing them. */
@@ -499,15 +571,17 @@
       b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     var inp = document.getElementById('lab-w'); if (inp) inp.value = S.width == null ? '' : String(S.width);
-    var n = R.nat;
-    var dim = document.getElementById('lab-wdim');
-    if (dim) dim.textContent = n && n.cw ? num(n.cw) + ' × ' + num(n.ch) + ' px' : '—';
-    var ov = document.getElementById('lab-ov');
-    if (ov) {
-      var o = n ? n.ov : null;
-      ov.textContent = o == null ? '—' : o > 0 ? tf('Content overflows by %d px', o) : T('No horizontal overflow');
-      ov.classList.toggle('is-over', !!o);
-    }
+    panes().forEach(function (p) {
+      var n = R.pane[p].nat;
+      var dim = pel(p, 'wdim');
+      if (dim) dim.textContent = n && n.cw ? num(n.cw) + ' × ' + num(n.ch) + ' px' : '—';
+      var ov = pel(p, 'ov');
+      if (ov) {
+        var o = n ? n.ov : null;
+        ov.textContent = o == null ? '—' : o > 0 ? tf('Content overflows by %d px', o) : T('No horizontal overflow');
+        ov.classList.toggle('is-over', !!o);
+      }
+    });
     var bar = document.getElementById('lab-wbar');
     if (bar) { if (S.width == null) bar.setAttribute('data-off', ''); else bar.removeAttribute('data-off'); }
     syncMq();
@@ -521,8 +595,7 @@
     applyZoom(true);
     M.widthMs = Math.round((now() - t0) * 10) / 10;
     syncZoom(); syncWidth();
-    var fr = document.getElementById('lab-frame');
-    if (!(fr && fr.classList.contains('is-sized'))) announceWidth();          // otherwise the readouts, after layout, announce it with its overflow
+    if (!anySized()) announceWidth();          // otherwise the readouts, after layout, announce it with its overflow
   }
   function widthAction(mode) {
     if (mode === 'fill') setWidth(null);
@@ -555,7 +628,7 @@
     return c.fixtures.map(function (f, i) {
       var on = f.id === S.fixture;
       return '<button type="button" class="lab-fx' + (on ? ' is-on' : '') + '" role="tab" id="' + (on ? 'lab-tab-current' : 'lab-tab-' + i) + '" aria-selected="' + (on ? 'true' : 'false') + '" tabindex="' + (on ? '0' : '-1') + '" data-lab-fx="' + esc(f.id) + '">'
-        + '<span class="lab-fx-i" data-no-i18n>' + esc(i < 9 ? '0' + (i + 1) : String(i + 1)) + '</span><span class="lab-fx-l" data-no-i18n>' + esc(f.label) + '</span></button>';
+        + '<span class="lab-fx-i" data-no-i18n>' + esc(fxNum(i)) + '</span><span class="lab-fx-l" data-no-i18n>' + esc(f.label) + '</span></button>';
     }).join('');
   }
 
@@ -564,26 +637,37 @@
       + '<span class="lab-ev">' + K.evChip('RECORDED') + '<span>' + esc(T('The call that produced it')) + '</span></span>';
   }
 
-  /** Builds the specimen from the checked tree, inside the contained root. Returns false if the fixture is refused. */
-  function paintSpecimen(f) {
+  /**
+   * Builds one pane's specimen from the checked tree, inside its contained root. Returns false if the fixture is refused.
+   * Each pane checks its own fixture and fails closed on its own: a fixture refused in one pane draws nothing there and
+   * leaves the other pane as it was. `batch` leaves the layout to the caller, who lays out every pane at once.
+   */
+  function paintSpecimen(f, p, batch) {
+    p = p || 'a';
     var t0 = now();
-    var spec = document.getElementById('lab-specimen');
-    var refuse = document.getElementById('lab-refuse');
-    var voidEl = document.getElementById('lab-void');
+    var spec = pel(p, 'specimen');
+    var refuse = pel(p, 'refuse');
+    var voidEl = pel(p, 'void');
     if (!spec) return false;
     while (spec.firstChild) spec.removeChild(spec.firstChild);
     var res = checkFixture(f);
-    S.check = { id: f.id, ok: res.ok, problems: res.problems, stats: res.stats };
+    var chk = { id: f.id, ok: res.ok, problems: res.problems, stats: res.stats };
+    if (p === 'a') S.check = chk; else S.checkB = chk;
     refuse.hidden = true; voidEl.hidden = true;
     if (!res.ok) {
       // Fail closed: nothing is drawn, and the reason is shown as text.
       refuse.hidden = false;
       refuse.innerHTML = K.emptyState('This fixture failed the browser’s check', res.problems.slice(0, 3).join(' · '));
-      M.specimenNodes = 0;
-      stageEmpty();
+      if (p === 'a') M.specimenNodes = 0; else M.specimenNodesB = 0;
+      stageEmpty(p);
       return false;
     }
-    if (!res.tree.kids.length) { voidEl.hidden = false; M.specimenNodes = 0; M.renderMs = Math.round((now() - t0) * 10) / 10; stageEmpty(); return true; }
+    if (!res.tree.kids.length) {
+      voidEl.hidden = false;
+      if (p === 'a') { M.specimenNodes = 0; M.renderMs = Math.round((now() - t0) * 10) / 10; } else M.specimenNodesB = 0;
+      stageEmpty(p);
+      return true;
+    }
     var col = document.createElement('div');
     col.className = 'lab-col';
     col.appendChild(Z.toDom(res.tree, document));
@@ -598,9 +682,10 @@
       var px = el.getAttribute('data-lg-size') + 'px';
       el.style.setProperty('width', px); el.style.setProperty('height', px);
     });
-    M.specimenNodes = spec.getElementsByTagName('*').length;
-    M.renderMs = Math.round((now() - t0) * 10) / 10;
-    applyZoom(true); syncZoom(); syncWidth();
+    R.pane[p].empty = false;
+    if (p === 'a') { M.specimenNodes = spec.getElementsByTagName('*').length; M.renderMs = Math.round((now() - t0) * 10) / 10; }
+    else M.specimenNodesB = spec.getElementsByTagName('*').length;
+    if (!batch) { applyZoom(p); syncZoom(); syncWidth(); }
     return true;
   }
 
@@ -608,18 +693,40 @@
     var bench = document.getElementById('lab-bench');
     if (!bench) return;
     stopObserving();
+    var c = current(), on = !!(c && S.avail[S.sel] && S.avail[S.sel].state === 'preview');
+    if (on) { S.fixture = (curFixture() || c.fixtures[0]).id; if (S.compare) S.fixtureB = pickB(c); }
+    R.pane.a = { nat: null, empty: false }; R.pane.b = { nat: null, empty: false };
     bench.innerHTML = benchHtml();
-    var c = current();
-    if (!c || !S.avail[S.sel] || S.avail[S.sel].state !== 'preview') { drawInspector(); return; }
-    var f = curFixture() || c.fixtures[0];
-    S.fixture = f.id;
+    if (!on) { drawInspector(); return; }
+    var f = curFixture();
     var strip = document.getElementById('lab-strip'); if (strip) strip.innerHTML = stripHtml(c);
     var ev = document.getElementById('lab-evrow'); if (ev) ev.innerHTML = evRowHtml();
-    var nm = document.getElementById('lab-fixture-name'); if (nm) nm.textContent = ' · ' + f.label;
-    bindSpecimen();
-    paintSpecimen(f);
+    nameFixture(f);
+    bindSpecimen('a');
+    if (!S.compare) paintSpecimen(f, 'a');
+    else {
+      bindSpecimen('b');
+      paintSpecimen(f, 'a', true); paintSpecimen(fixtureById(c, S.fixtureB), 'b', true);
+      applyZoom(true); syncZoom(); syncWidth();
+    }
     observeStage();
     drawInspector();
+  }
+  function nameFixture(f) {
+    var nm = document.getElementById('lab-fixture-name'); if (nm) nm.textContent = ' · ' + f.label;
+    var pa = document.getElementById('lab-pane-a-f'); if (pa) pa.textContent = f.label;
+  }
+  /** The strip follows Preview A's fixture without being redrawn, so focus stays where it is. */
+  function syncStrip(id) {
+    var strip = document.getElementById('lab-strip');
+    if (!strip) return null;
+    [].forEach.call(strip.querySelectorAll('[data-lab-fx]'), function (b) {
+      var on = b.getAttribute('data-lab-fx') === id;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false'); b.setAttribute('tabindex', on ? '0' : '-1');
+      b.id = on ? 'lab-tab-current' : 'lab-tab-x-' + b.getAttribute('data-lab-fx');
+    });
+    return strip;
   }
 
   function showFixture(id, opts) {
@@ -627,36 +734,74 @@
     var t0 = now();
     S.fixture = id;
     var f = curFixture(); if (!f) return;
-    var strip = document.getElementById('lab-strip');
-    if (strip) {
-      [].forEach.call(strip.querySelectorAll('[data-lab-fx]'), function (b) {
-        var on = b.getAttribute('data-lab-fx') === id;
-        b.classList.toggle('is-on', on);
-        b.setAttribute('aria-selected', on ? 'true' : 'false'); b.setAttribute('tabindex', on ? '0' : '-1');
-        b.id = on ? 'lab-tab-current' : 'lab-tab-x-' + b.getAttribute('data-lab-fx');
-      });
-      if (opts && opts.focus) { var cur = strip.querySelector('.is-on'); if (cur) cur.focus(); }
-    }
-    var nm = document.getElementById('lab-fixture-name'); if (nm) nm.textContent = ' · ' + f.label;
-    paintSpecimen(f);
+    var strip = syncStrip(id);
+    if (strip && opts && opts.focus) { var cur = strip.querySelector('.is-on'); if (cur) cur.focus(); }
+    nameFixture(f);
+    paintSpecimen(f, 'a');
     drawInspector();
     M.switchMs = Math.round((now() - t0) * 10) / 10;
     live(tf('Fixture %d of %d', fixtureIndex(c) + 1, c.fixtures.length) + ': ' + f.label);
   }
 
+  // ── comparison (M2 / S3) ──────────────────────────────────────────────────
+
+  /** Single preview or side-by-side comparison. Preview B is built when comparison starts and removed, node for node, when it ends. */
+  function setMode(m) {
+    var want = m === 'compare';
+    if ((m !== 'compare' && m !== 'single') || want === S.compare || !zoomable()) return;
+    var t0 = now();
+    S.compare = want;
+    if (!want) { S.checkB = null; M.specimenNodesB = 0; }
+    drawBench();
+    M.modeMs = Math.round((now() - t0) * 10) / 10;
+    restoreFocus();
+    live(T(want ? 'Compare side by side' : 'Single preview'));
+  }
+  /** Preview B shows another fixture of the same component; Preview A, the strip and the zoom are not touched. */
+  function showFixtureB(id) {
+    var c = current();
+    if (!S.compare || !c) return;
+    var f = fixtureById(c, id);
+    var sel = document.getElementById('lab-fx-b');
+    if (!f) { if (sel) sel.value = S.fixtureB; return; }
+    var t0 = now();
+    S.fixtureB = id;
+    if (sel && sel.value !== id) sel.value = id;
+    paintSpecimen(f, 'b', true);
+    applyZoom('b'); syncZoom(); syncWidth();
+    drawInspector();
+    M.switchBMs = Math.round((now() - t0) * 10) / 10;
+    live(paneName('b') + ': ' + f.label);
+  }
+  function swapPanes() {
+    var c = current();
+    if (!S.compare || !c || !fixtureById(c, S.fixtureB)) return;
+    var a = S.fixture; S.fixture = S.fixtureB; S.fixtureB = a;
+    syncStrip(S.fixture);
+    var sel = document.getElementById('lab-fx-b'); if (sel) sel.value = S.fixtureB;
+    var f = curFixture();
+    nameFixture(f);
+    paintSpecimen(f, 'a', true); paintSpecimen(fixtureById(c, S.fixtureB), 'b', true);
+    applyZoom(true); syncZoom(); syncWidth();
+    drawInspector();
+    live(T('Preview A and Preview B swapped'));
+  }
+
   function setDir(d) {
     if (d !== 'ltr' && d !== 'rtl') return;
     S.dir = d;
-    var spec = document.getElementById('lab-specimen'); if (spec) spec.setAttribute('dir', d);
-    var fr = document.getElementById('lab-frame'); if (fr) fr.setAttribute('dir', d);
+    panes().forEach(function (p) {
+      var spec = pel(p, 'specimen'); if (spec) spec.setAttribute('dir', d);
+      var fr = pel(p, 'frame'); if (fr) fr.setAttribute('dir', d);
+    });
     applyZoom(true); syncWidth();
     [].forEach.call(R.host.querySelectorAll('[data-lab-dir]'), function (b) { var on = b.getAttribute('data-lab-dir') === d; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
     live(T(d === 'ltr' ? 'Left to right' : 'Right to left'));
   }
 
-  // The specimen's boundary: bound once per specimen element, removed with it.
-  function bindSpecimen() {
-    var spec = document.getElementById('lab-specimen');
+  // Each specimen's boundary: bound once per specimen element, removed with it.
+  function bindSpecimen(p) {
+    var spec = pel(p || 'a', 'specimen');
     if (!spec) return;
     BOUNDARY.forEach(function (type) { spec.addEventListener(type, stopAtBoundary); });
   }
@@ -703,6 +848,27 @@
   function kindLabel(k) { return ({ component: 'Production UI component', primitive: 'Shared UI primitive', pattern: 'Reusable design pattern', 'css-family': 'CSS family', 'layout-utility': 'Layout utility', 'page-specific': 'Page-specific styles', candidate: 'Unverified candidate' })[k] || k; }
   function tierLabel(t) { return ({ verified: 'Verified', catalogued: 'Catalogued', listed: 'Listed' })[t] || t; }
 
+  /**
+   * What differs between the two fixtures being compared, read from the manifest the Lab already holds: nothing is
+   * fetched and nothing is run. A measured empty set reads 0, not a dash.
+   */
+  function comparisonHtml(c, f) {
+    if (!S.compare) return '';
+    var b = fixtureById(c, S.fixtureB);
+    if (!b) return '';
+    var names = function (x) { return x.classes.map(function (k) { return k.name; }); };
+    var d = V.diffSets(names(f), names(b));
+    var list = function (l) { return '<span class="lab-cmp-n" data-no-i18n>' + esc(num(l.length)) + '</span>' + (l.length ? ' ' + l.map(code).join(' ') : ''); };
+    return '<div class="lab-cmp-i" id="lab-cmp-i">' + sectionHead('Comparison', K.evChip('MEASURED'))
+      + K.kv('Preview A', code(f.id))
+      + K.kv('Preview B', code(b.id))
+      + K.kv('Markup', esc(T(f.sha256 === b.sha256 ? 'Identical in both' : 'Different')))
+      + K.kv('Elements', '<span data-no-i18n>' + esc(num(f.elements)) + ' · ' + esc(num(b.elements)) + '</span>')
+      + K.kv('Only in A', list(d.onlyA))
+      + K.kv('Only in B', list(d.onlyB))
+      + K.kv('In both', list(d.both))
+      + '</div>';
+  }
   function paneProvenance(c, f) {
     var mq = c.mediaQueries.length
       ? '<div class="lab-ih">' + esc(T('Viewport rules')) + '</div><ul class="lab-plain lab-mq" id="lab-mq">' + c.mediaQueries.map(function (q, i) { return '<li>' + code(q) + '<span class="lab-mq-s" data-lab-mq="' + i + '">' + esc(mqText(q)) + '</span></li>'; }).join('') + '</ul>'
@@ -712,7 +878,7 @@
         var own = OWNER_LABEL[x.owner] ? '<span>' + esc(T(OWNER_LABEL[x.owner])) + '</span>' : code(x.owner);
         return '<tr><td>' + code(x.name) + '</td><td>' + own + '</td><td class="ds-num">' + esc(num(x.rules)) + '</td></tr>';
       }).join('') + '</tbody></table>';
-    return sectionHead('Where this specimen comes from', K.evChip('MEASURED'))
+    return comparisonHtml(c, f) + sectionHead('Where this specimen comes from', K.evChip('MEASURED'))
       + K.kv('Render function', code(c.symbol))
       + K.kv('Fixture', code(f.id))
       + K.kv('Fixture sha256', '<span class="lab-hash" dir="ltr">' + esc(f.sha256) + '</span>')
@@ -849,6 +1015,10 @@
     if (q) { zoomAction(q.getAttribute('data-lab-zoom')); return; }
     q = t.closest('[data-lab-width]');
     if (q) { widthAction(q.getAttribute('data-lab-width')); return; }
+    q = t.closest('[data-lab-mode]');
+    if (q) { setMode(q.getAttribute('data-lab-mode')); return; }
+    q = t.closest('[data-lab-swap]');
+    if (q) { swapPanes(); return; }
     q = t.closest('[data-lab-tab]');
     if (q) { S.tab = q.getAttribute('data-lab-tab'); drawInspector(); var f = document.getElementById('lab-itab-' + S.tab); if (f) f.focus(); return; }
   }
@@ -859,6 +1029,7 @@
   function onChange(ev) {
     var t = ev.target;
     if (t && t.id === 'lab-w') applyCustom(t);
+    else if (t && t.id === 'lab-fx-b') showFixtureB(t.value);
   }
   function step(list, from, key) {
     var at = list.indexOf(from), n = list.length;
@@ -917,7 +1088,8 @@
     if (!el || !el.getAttribute) return null;
     if (el.id === 'lab-q') return 'q';
     if (el.id === 'lab-w') return 'c';
-    var m = [['data-lab-id', 'i'], ['data-lab-grp', 'g'], ['data-lab-fx', 'f'], ['data-lab-tab', 't'], ['data-lab-dir', 'd'], ['data-lab-zoom', 'z'], ['data-lab-width', 'w']];
+    if (el.id === 'lab-fx-b') return 'b';
+    var m = [['data-lab-id', 'i'], ['data-lab-grp', 'g'], ['data-lab-fx', 'f'], ['data-lab-tab', 't'], ['data-lab-dir', 'd'], ['data-lab-zoom', 'z'], ['data-lab-width', 'w'], ['data-lab-mode', 'm'], ['data-lab-swap', 's']];
     for (var i = 0; i < m.length; i++) { var v = el.getAttribute(m[i][0]); if (v) return m[i][1] + ':' + v; }
     return null;
   }
@@ -927,7 +1099,7 @@
     if (!f || !R.host || now() - f.at > FOCUS_MS) return;
     var a = document.activeElement;
     if (a && a !== document.body && R.host.contains(a)) return;
-    var sel = f.key === 'q' ? '#lab-q' : f.key === 'c' ? '#lab-w' : '[data-lab-' + ({ i: 'id', g: 'grp', f: 'fx', t: 'tab', d: 'dir', z: 'zoom', w: 'width' })[f.key.charAt(0)] + '="' + cssq(f.key.slice(2)) + '"]';
+    var sel = f.key === 'q' ? '#lab-q' : f.key === 'c' ? '#lab-w' : f.key === 'b' ? '#lab-fx-b' : '[data-lab-' + ({ i: 'id', g: 'grp', f: 'fx', t: 'tab', d: 'dir', z: 'zoom', w: 'width', m: 'mode', s: 'swap' })[f.key.charAt(0)] + '="' + cssq(f.key.slice(2)) + '"]';
     var el = R.host.querySelector(sel);
     if (!el) return;
     el.focus({ preventScroll: true });
@@ -1014,14 +1186,16 @@
     R.root = null; R.host = null;
   }
   /** Forget everything read from the server (the room's Refresh). */
-  function reset() { unbind(); stopObserving(); var keep = { dir: S.dir, zoom: S.zoom, fit: S.fit, width: S.width }; S = fresh(); S.dir = keep.dir; S.zoom = keep.zoom; S.fit = keep.fit; S.width = keep.width; }
+  function reset() { unbind(); stopObserving(); var keep = { dir: S.dir, zoom: S.zoom, fit: S.fit, width: S.width, compare: S.compare }; S = fresh(); S.dir = keep.dir; S.zoom = keep.zoom; S.fit = keep.fit; S.width = keep.width; S.compare = keep.compare; }
 
   window.FamilistaDesignLab = { mount: mount, unmount: unmount, reset: reset };
 
   // Figures the page itself produced, for the test suite and the performance record. Nothing else.
   window.__familistaLabMetrics = function () {
-    var spec = document.getElementById('lab-specimen');
+    var spec = document.getElementById('lab-specimen'), specB = document.getElementById('lab-specimen-b');
     return { loadMs: M.loadMs, renderMs: M.renderMs, switchMs: M.switchMs, specimenNodes: spec ? spec.getElementsByTagName('*').length : 0, components: M.components, fixtures: M.fixtures, selected: S.sel, fixture: S.fixture, dir: S.dir, zoom: S.zoom, fit: S.fit, zoomMs: M.zoomMs,
-      width: S.width, widthMs: M.widthMs, container: R.nat ? { w: R.nat.cw, h: R.nat.ch } : null, overflowPx: R.nat ? R.nat.ov : null };
+      width: S.width, widthMs: M.widthMs, container: R.pane.a.nat ? { w: R.pane.a.nat.cw, h: R.pane.a.nat.ch } : null, overflowPx: R.pane.a.nat ? R.pane.a.nat.ov : null,
+      compare: S.compare, fixtureB: S.compare ? S.fixtureB : null, modeMs: M.modeMs, switchBMs: M.switchBMs,
+      specimenNodesB: S.compare && specB ? specB.getElementsByTagName('*').length : 0, containerB: R.pane.b.nat ? { w: R.pane.b.nat.cw, h: R.pane.b.nat.ch } : null, overflowPxB: R.pane.b.nat ? R.pane.b.nat.ov : null };
   };
 }());

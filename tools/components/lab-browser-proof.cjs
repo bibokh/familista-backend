@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Familista — Specimen Lab: browser proofs (Stage 3.2.3 M1, M2 / S1 zoom, M2 / S2 width).
+// Familista — Specimen Lab: browser proofs (Stage 3.2.3 M1, M2 / S1 zoom, M2 / S2 width, M2 / S3 comparison).
 //
 // The Lab claims four boundaries around a specimen and one around the server:
 // events stop at the stage, fixed overlays stay in it, the application's
@@ -191,8 +191,26 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
   }
   // A page error, a console error, or a network/CSP notice that names a Lab file.
   const LAB_URL = /design-system\/lab|components\/preview|design-system\/components/;
+  // Who made a request. The application keeps refreshing its own data in the background while the reader works in the Lab, so a
+  // "nothing was fetched" proof cannot count every request in its window. Every request is placed instead, from the browser's own
+  // record of the script stack that started it (async parents included): it is the Lab's if it is for a Lab endpoint OR any frame
+  // that started it is a Lab file, whatever the path; otherwise it is the application's. A Lab request to any URL is caught.
+  const LAB_FILE = /\/design-system\/lab(-view|-sanitize)?\.js/;
+  async function netWatch(pg) {
+    const cdp = await pg.context().newCDPSession(pg);
+    const seen = [];
+    cdp.on('Network.requestWillBeSent', (e) => {
+      const frames = [];
+      for (let st = e.initiator && e.initiator.stack; st; st = st.parent) for (const f of st.callFrames || []) frames.push(f.url);
+      let path = e.request.url;
+      try { const u = new URL(e.request.url); path = u.origin === BASE ? u.pathname + u.search : e.request.url; } catch (_) { /* keep the raw url */ }
+      seen.push({ method: e.request.method, path, lab: LAB_URL.test(path) || frames.some((u) => LAB_FILE.test(u)), by: [...new Set(frames.map((u) => u.replace(/^https?:\/\/[^/]+/, '').split('?')[0]))].slice(0, 3) });
+    });
+    await cdp.send('Network.enable'); await cdp.send('Debugger.enable'); await cdp.send('Debugger.setAsyncCallStackDepth', { maxDepth: 32 });
+    return { seen, stop: () => cdp.detach() };
+  }
   const labErrors = (log) => log.errors.concat(log.notices.filter((n) => LAB_URL.test(n.url) || LAB_URL.test(n.text)).map((n) => 'notice: ' + n.text + ' @ ' + n.url));
-  const activeKey = (page) => page.evaluate(() => { const a = document.activeElement; return a ? (a.id || a.getAttribute('data-lab-id') || a.getAttribute('data-lab-fx') || a.getAttribute('data-lab-tab') || a.getAttribute('data-lab-dir') || a.getAttribute('data-lab-zoom') || a.getAttribute('data-lab-width') || a.tagName) : null; });
+  const activeKey = (page) => page.evaluate(() => { const a = document.activeElement; return a ? (a.id || a.getAttribute('data-lab-id') || a.getAttribute('data-lab-fx') || a.getAttribute('data-lab-tab') || a.getAttribute('data-lab-dir') || a.getAttribute('data-lab-zoom') || a.getAttribute('data-lab-width') || a.getAttribute('data-lab-mode') || a.tagName) : null; });
   // Redraw the room the way the application does when a page is shown again: through the page-render registry. True only if
   // a NEW Lab root replaced the old one, so a remount that never happened cannot pass for a restored focus.
   async function remount(page) {
@@ -201,7 +219,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     await page.waitForTimeout(400);
     return true;
   }
-  const FOCUS_TARGETS = [['rail item', '[data-lab-id="lg-chip"]'], ['fixture tab', '.lab-fx.is-on'], ['search', '#lab-q'], ['inspector tab', '[data-lab-tab="source"]'], ['direction', '[data-lab-dir="rtl"]'], ['zoom in', '[data-lab-zoom="in"]'], ['width preset', '[data-lab-width="mobile"]'], ['custom width', '#lab-w']];
+  const FOCUS_TARGETS = [['rail item', '[data-lab-id="lg-chip"]'], ['fixture tab', '.lab-fx.is-on'], ['search', '#lab-q'], ['inspector tab', '[data-lab-tab="source"]'], ['direction', '[data-lab-dir="rtl"]'], ['zoom in', '[data-lab-zoom="in"]'], ['width preset', '[data-lab-width="mobile"]'], ['custom width', '#lab-w'], ['view', '[data-lab-mode="compare"]']];
   // Focus each target in turn, remount, and say where focus went. Never reads the Lab's own state: only the page.
   // Give `sel` focus and confirm it holds it: the application's late repaint can take focus away between the call and the check.
   // At most one retry, after the room has settled. Returns how many retries it took (0 or 1), or -1 if focus could not be held,
@@ -1039,6 +1057,297 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       sizes.every((x) => !x.pageOverflowX && x.visible && x.colW === 1280 && x.labErrors === 0) && ar.dir === 'rtl' && /محاكاة/.test(ar.note) && /[؀-ۿ]/.test(ar.fill) && /Simulation/i.test(de.note), sizes);
   }
 
+  // ══ 10. comparison (M2 / S3): two panes, each inside its own walls ═══════════
+  // Preview B is the same stage as A with every id suffixed "-b". Claims: B draws exactly what A would for the same fixture,
+  // each pane is contained and isolated on its own and from the other, the toolbar is shared (one zoom, one width, Fit at the
+  // smaller scale), B is removed node for node when comparison ends, nothing is fetched, and the layout follows the stage's
+  // width. Each has a control where one applies.
+  if (want('10')) {
+    const { ctx, page, log } = await open({ width: 1440, height: 900 }, 'en');
+    await openLab(page);
+    await page.click('[data-lab-id="lg-float"]');
+    await page.waitForSelector('#lab-specimen .lg-float-bg'); await frames(page);
+    const mode = async (pg, m) => { await pg.click(`[data-lab-mode="${m}"]`); await frames(pg); };
+    const markup = (pg, p) => pg.evaluate((x) => { const c = document.querySelector('#lab-specimen' + x + ' .lab-col'); return c ? c.innerHTML : null; }, p === 'b' ? '-b' : '');
+    const labNodes = (pg) => pg.evaluate(() => document.querySelector('.lab').getElementsByTagName('*').length);
+    const r4 = (b) => [Math.round(b.left), Math.round(b.top), Math.round(b.right), Math.round(b.bottom)];
+    const geo = (pg) => pg.evaluate(() => {
+      const r = (el) => { if (!el) return null; const b = el.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top), Math.round(b.right), Math.round(b.bottom)]; };
+      const one = (x) => {
+        const spec = document.getElementById('lab-specimen' + x), t = spec ? getComputedStyle(spec).transform : 'none';
+        return { pane: r(document.getElementById(x ? 'lab-pane-b' : 'lab-pane-a')), viewport: r(document.getElementById('lab-viewport' + x)), canvas: r(spec), overlay: r(spec && spec.querySelector('.lg-float-bg')),
+          scale: t === 'none' ? 1 : Number(t.split('(')[1].split(',')[0]), colW: spec && spec.querySelector('.lab-col') ? spec.querySelector('.lab-col').offsetWidth : null,
+          contain: spec ? getComputedStyle(spec).contain : null, vpContain: document.getElementById('lab-viewport' + x) ? getComputedStyle(document.getElementById('lab-viewport' + x)).contain : null,
+          isolation: spec ? getComputedStyle(spec).isolation : null, origin: spec ? getComputedStyle(spec).transformOrigin : null, dir: spec ? spec.getAttribute('dir') : null };
+      };
+      return { a: one(''), b: one('-b'), rail: r(document.querySelector('.lab-rail')), insp: r(document.getElementById('lab-insp')), tools: r(document.querySelector('.lab-tools')) };
+    });
+    // Whether anything of one pane's specimen is visible inside the other pane's viewport: a 7 × 7 grid of points over that
+    // viewport, each asked what is on screen there. A box that reaches past its own viewport but is clipped by it never shows.
+    const shows = (pg, from, over) => pg.evaluate(([from, over]) => {
+      const vp = document.getElementById('lab-viewport' + over).getBoundingClientRect(), spec = document.getElementById('lab-specimen' + from);
+      const hits = [];
+      for (let i = 1; i < 8; i++) for (let j = 1; j < 8; j++) { const x = vp.left + vp.width * i / 8, y = vp.top + vp.height * j / 8, e = document.elementFromPoint(x, y); if (e && spec.contains(e)) hits.push([Math.round(x), Math.round(y)]); }
+      return hits.length;
+    }, [from, over]);
+    const outsideClipped = (pg, x) => pg.evaluate((x) => {
+      const vp = document.getElementById('lab-viewport' + x).getBoundingClientRect(), spec = document.getElementById('lab-specimen' + x);
+      return [[vp.right + 3, vp.top + 20], [vp.left + 20, vp.bottom + 3], [vp.left - 3, vp.top + 20], [vp.left + 20, vp.top - 3]].every(([px, py]) => { const e = document.elementFromPoint(px, py); return !(e && spec.contains(e)); });
+    }, x);
+
+    // single: exactly the S2 stage, nothing of B
+    const single0 = await page.evaluate(() => ({ b: document.querySelectorAll('.lab [id$="-b"], .lab .lab-cmp, .lab [data-lab-swap]').length, plate: document.getElementById('lab-plate').getAttribute('role'), parent: document.getElementById('lab-viewport').parentElement.id }));
+    const nodes0 = await labNodes(page);
+    const aSingle = await markup(page, 'a');
+    check('compare: single preview is the S2 stage: no Preview B node, the plate is the strip\'s tab panel and holds the viewport itself', single0.b === 0 && single0.plate === 'tabpanel' && single0.parent === 'lab-plate', single0);
+
+    // open comparison: B shows the next fixture, drawn exactly as A would draw it; nothing fetched; every id unique
+    const net = await netWatch(page);
+    const fx = await page.evaluate(() => [...document.querySelectorAll('.lab-fx')].map((b) => b.getAttribute('data-lab-fx')));
+    await mode(page, 'compare');
+    const opened = await page.evaluate(() => ({ b: document.getElementById('lab-fx-b').value, a: window.__familistaLabMetrics().fixture, cur: document.querySelector('.lab-fx.is-on').getAttribute('data-lab-fx'),
+      ids: [...document.querySelectorAll('[id]')].map((e) => e.id), live: document.getElementById('lab-live').textContent }));
+    const dupes = opened.ids.filter((x, i) => opened.ids.indexOf(x) !== i);
+    const aCmp = await markup(page, 'a'), bCmp = await markup(page, 'b');
+    await page.click(`[data-lab-fx="${fx[1]}"]`); await frames(page);
+    const aFx1 = await markup(page, 'a');
+    await page.click(`[data-lab-fx="${fx[0]}"]`); await frames(page);
+    check('compare: Preview B opens on the fixture after A\'s, drawn node for node as A draws that same fixture, A unchanged, every id in the page unique',
+      opened.a === fx[0] && opened.b === fx[1] && opened.cur === fx[0] && aCmp === aSingle && bCmp === aFx1 && bCmp !== aCmp && dupes.length === 0 && opened.live === 'Compare side by side', { opened: { a: opened.a, b: opened.b, cur: opened.cur }, dupes, sameA: aCmp === aSingle, bAsA: bCmp === aFx1 });
+    const walls = await geo(page);
+    check('compare: each pane has every wall: layout and paint containment and isolation on its canvas, strict containment on its viewport',
+      ['a', 'b'].every((p) => /layout/.test(walls[p].contain) && /paint/.test(walls[p].contain) && walls[p].isolation === 'isolate' && /strict|size layout paint/.test(walls[p].vpContain)), { a: [walls.a.contain, walls.a.vpContain, walls.a.isolation], b: [walls.b.contain, walls.b.vpContain, walls.b.isolation] });
+
+    // B on its own; Swap; nothing fetched by any of it
+    const aBefore = await markup(page, 'a');
+    await page.selectOption('#lab-fx-b', fx[3]); await frames(page);
+    const afterPick = { a: await markup(page, 'a'), b: await markup(page, 'b'), cur: await page.getAttribute('.lab-fx.is-on', 'data-lab-fx'), m: await page.evaluate(() => window.__familistaLabMetrics()) };
+    await page.click('[data-lab-fx="' + fx[3] + '"]'); await frames(page);
+    const aFx3 = await markup(page, 'a');
+    await page.click('[data-lab-fx="' + fx[0] + '"]'); await frames(page);
+    check('compare: choosing Preview B\'s fixture changes B alone: A\'s markup, the strip and A\'s fixture stay as they were',
+      afterPick.a === aBefore && afterPick.b === aFx3 && afterPick.cur === fx[0] && afterPick.m.fixture === fx[0] && afterPick.m.fixtureB === fx[3], { cur: afterPick.cur, fixture: afterPick.m.fixture, fixtureB: afterPick.m.fixtureB });
+    const bBefore = await markup(page, 'b');
+    await page.click('[data-lab-swap]'); await frames(page);
+    const sw = { a: await markup(page, 'a'), b: await markup(page, 'b'), cur: await page.getAttribute('.lab-fx.is-on', 'data-lab-fx'), sel: await page.inputValue('#lab-fx-b'), live: await page.textContent('#lab-live') };
+    check('compare: Swap exchanges the two panes, the strip following A and the selector following B', sw.a === bBefore && sw.b === aBefore && sw.cur === fx[3] && sw.sel === fx[0] && sw.live === 'Preview A and Preview B swapped', { cur: sw.cur, sel: sw.sel, live: sw.live });
+    await page.click('[data-lab-swap]'); await frames(page);
+    await frames(page); await net.stop();
+    const fetched = net.seen.filter((x) => x.lab);
+    check('compare: opening comparison, choosing B\'s fixture and swapping make no request from the Lab (to a Lab endpoint or, from a Lab script, to any URL); the application\'s own background requests are counted apart',
+      fetched.length === 0, { lab: fetched, application: net.seen.length - fetched.length });
+
+    // containment: each overlay in its own canvas, never over the other pane, clipped by its own viewport, at every scale and width
+    const zoomTo = async (pct) => { await page.click('[data-lab-zoom="reset"]', { force: true }); const dir = pct < 100 ? 'out' : 'in'; for (let n = 0; n < 12 && Number((await page.textContent('#lab-zoom-v')).replace(/[^0-9]/g, '')) !== pct; n++) await page.click(`[data-lab-zoom="${dir}"]`, { force: true }); await frames(page); };
+    const cont = [];
+    for (const w of ['fill', 'mobile', 'desktop']) {
+      await page.click(`[data-lab-width="${w}"]`); await frames(page);
+      for (const pct of [25, 100, 200]) {
+        await zoomTo(pct);
+        const g = await geo(page);
+        cont.push({ w, pct, aIn: inside(g.a.overlay, g.a.canvas), bIn: inside(g.b.overlay, g.b.canvas), aNotB: (await shows(page, '', '-b')) === 0, bNotA: (await shows(page, '-b', '')) === 0,
+          aClip: await outsideClipped(page, ''), bClip: await outsideClipped(page, '-b'), scales: [g.a.scale, g.b.scale] });
+      }
+    }
+    await zoomTo(100); await page.click('[data-lab-width="fill"]'); await frames(page);
+    check('compare: at Fill, Mobile and Desktop and at 25%, 100% and 200%, each pane\'s fixed overlay stays inside its own canvas, never reaches the other pane, and is clipped by its own viewport; both panes share the scale',
+      cont.length === 9 && cont.every((c) => c.aIn && c.bIn && c.aNotB && c.bNotA && c.aClip && c.bClip && Math.abs(c.scales[0] - c.scales[1]) < 0.005 && Math.abs(c.scales[0] - c.pct / 100) < 0.005), cont.filter((c) => !(c.aIn && c.bIn && c.aNotB && c.bNotA && c.aClip && c.bClip)));
+    const escaped = await page.evaluate(() => {
+      const els = ['lab-viewport-b', 'lab-specimen-b', 'lab-frame-b'].map((i) => document.getElementById(i));
+      for (const el of els) { el.style.setProperty('contain', 'none'); el.style.setProperty('isolation', 'auto'); el.style.setProperty('overflow', 'visible'); }
+      const b = document.querySelector('#lab-specimen-b .lg-float-bg').getBoundingClientRect();
+      const out = { overlay: [Math.round(b.left), Math.round(b.top), Math.round(b.right), Math.round(b.bottom)], window: [innerWidth, innerHeight] };
+      for (const el of els) { el.style.removeProperty('contain'); el.style.removeProperty('isolation'); el.style.removeProperty('overflow'); }
+      return out;
+    });
+    check('compare (control): with Preview B\'s walls removed, its overlay fills the whole window, over Preview A too', escaped.overlay[0] <= 0 && escaped.overlay[1] <= 0 && escaped.overlay[2] >= escaped.window[0] - 24 && escaped.overlay[3] >= escaped.window[1] - 2, escaped);
+
+    // events: nothing that starts in one pane reaches the other pane or the page
+    await page.evaluate((types) => {
+      window.__seen10 = { page: {}, inA: {}, inB: {} };
+      const where = (e) => { const a = document.getElementById('lab-specimen'), b = document.getElementById('lab-specimen-b'); return a && a.contains(e.target) ? 'A' : b && b.contains(e.target) ? 'B' : 'out'; };
+      const rec = (bucket) => (e) => { const k = bucket + ':' + where(e); window.__seen10.page[k] = (window.__seen10.page[k] || 0) + 1; };
+      for (const t of types) { document.addEventListener(t, rec('doc')); window.addEventListener(t, rec('win')); document.body.addEventListener(t, rec('body')); }
+      // each pane's own frame listens too: an event from the other pane must never arrive there
+      for (const [id, k] of [['lab-frame', 'inA'], ['lab-frame-b', 'inB']]) for (const t of types) document.getElementById(id).addEventListener(t, (e) => { window.__seen10[k][t + ':' + where(e)] = (window.__seen10[k][t + ':' + where(e)] || 0) + 1; });
+    }, ['click', 'mousedown', 'pointerdown', 'mouseup', 'pointerup', 'dblclick', 'contextmenu', 'keydown', 'keyup', 'input', 'change']);
+    for (const x of ['', '-b']) for (const sel of [`#lab-specimen${x} .lg-float-x`, `#lab-specimen${x} .lg-float`]) {
+      const b = await page.locator(sel).first().boundingBox();
+      if (!b) continue;
+      const px = b.x + Math.min(b.width / 2, 8), py = b.y + Math.min(b.height / 2, 8);
+      await page.mouse.click(px, py); await page.mouse.dblclick(px, py); await page.mouse.click(px, py, { button: 'right' });
+    }
+    for (const x of ['', '-b']) { await page.focus(`#lab-specimen${x} .lg-float-x`); for (const k of ['Enter', 'Escape', 'Digit0', 'BracketRight']) await page.keyboard.press(k); }
+    await page.click('[data-lab-swap]'); await page.click('[data-lab-swap]'); await frames(page);
+    const seen = await page.evaluate(() => window.__seen10);
+    const fromPanes = Object.keys(seen.page).filter((k) => !/:out$/.test(k));
+    const crossed = Object.keys(seen.inA).filter((k) => /:B$/.test(k)).concat(Object.keys(seen.inB).filter((k) => /:A$/.test(k)));
+    const ownFrame = Object.keys(seen.inA).filter((k) => /:A$/.test(k)).concat(Object.keys(seen.inB).filter((k) => /:B$/.test(k)));
+    check('compare: nothing that starts inside either pane reaches the other pane or a document, window or body listener', fromPanes.length === 0 && crossed.length === 0 && ownFrame.length === 0, { fromPanes, crossed, ownFrame });
+    check('compare (control): a click on Swap, outside both panes, is seen by those listeners', (seen.page['doc:out'] || 0) >= 1, { out: seen.page['doc:out'] || 0 });
+
+    // shared toolbar: one zoom, one width, Fit at the smaller scale
+    await page.click('[data-lab-width="desktop"]'); await frames(page);
+    const fitEach = await page.evaluate(() => ['', '-b'].map((x) => {
+      const vp = document.getElementById('lab-viewport' + x), spec = document.getElementById('lab-specimen' + x), col = spec.querySelector('.lab-col'), cs = getComputedStyle(spec);
+      const w = col.offsetWidth + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight), h = col.offsetHeight + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      return Math.max(0.25, Math.floor(Math.min(1, vp.clientWidth / w, vp.clientHeight / h) * 100 + 1e-6) / 100);
+    }));
+    await page.click('[data-lab-zoom="fit"]', { force: true }); await frames(page);
+    const fitG = await geo(page);
+    const fitScroll = await page.evaluate(() => ['', '-b'].map((x) => { const vp = document.getElementById('lab-viewport' + x); return vp.scrollWidth > vp.clientWidth + 1 || vp.scrollHeight > vp.clientHeight + 1; }));
+    check('compare + Fit: both panes take the smaller of their two fit scales, and neither scrolls', Math.abs(fitG.a.scale - Math.min(...fitEach)) < 0.005 && Math.abs(fitG.b.scale - Math.min(...fitEach)) < 0.005 && fitScroll.every((x) => !x), { each: fitEach, scales: [fitG.a.scale, fitG.b.scale], fitScroll });
+    await page.click('[data-lab-zoom="reset"]', { force: true });
+    await page.click('#lab-w', { clickCount: 3 }); await page.keyboard.type('777'); await page.keyboard.press('Enter'); await frames(page);
+    const w777 = await geo(page);
+    await page.click('[data-lab-dir="rtl"]'); await page.click('[data-lab-zoom="out"]', { force: true }); await frames(page);
+    const rtlG = await geo(page);
+    await page.click('[data-lab-dir="ltr"]'); await page.click('[data-lab-zoom="reset"]', { force: true }); await frames(page);
+    check('compare: one custom width (777 px) reaches both containers, and in RTL both canvases scale from their right edge',
+      w777.a.colW === 777 && w777.b.colW === 777 && rtlG.a.dir === 'rtl' && rtlG.b.dir === 'rtl' && !/^0px 0px/.test(rtlG.a.origin) && !/^0px 0px/.test(rtlG.b.origin), { colW: [w777.a.colW, w777.b.colW], origin: [rtlG.a.origin, rtlG.b.origin] });
+
+    // overflow per pane, against a wide block in B only
+    await page.click('[data-lab-width="mobile"]'); await frames(page);
+    await page.evaluate(() => { const d = document.createElement('div'); d.id = 'proof-wide-b'; d.style.setProperty('width', '900px'); d.style.setProperty('height', '4px'); document.querySelector('#lab-specimen-b .lab-col').appendChild(d); });
+    await page.click('[data-lab-width="mobile"]'); await frames(page);
+    const ovr = await page.evaluate(() => ({ a: document.getElementById('lab-ov').textContent, b: document.getElementById('lab-ov-b').textContent, m: window.__familistaLabMetrics(), live: document.getElementById('lab-live').textContent }));
+    await page.evaluate(() => document.getElementById('proof-wide-b').remove());
+    await page.click('[data-lab-width="mobile"]'); await frames(page);
+    const ovr2 = await page.evaluate(() => ({ b: document.getElementById('lab-ov-b').textContent, m: window.__familistaLabMetrics() }));
+    check('compare overflow: a 900 px block in Preview B alone reads 510 px there, 0 in Preview A, is announced as B\'s, and reads 0 once removed',
+      ovr.m.overflowPxB === 510 && ovr.m.overflowPx === 0 && ovr.b === 'Content overflows by 510 px' && ovr.a === 'No horizontal overflow' && /Preview B: Content overflows by 510 px/.test(ovr.live) && ovr2.m.overflowPxB === 0 && ovr2.b === 'No horizontal overflow', { a: ovr.a, b: ovr.b, live: ovr.live, after: ovr2.b });
+    await page.click('[data-lab-width="fill"]'); await frames(page);
+
+    // keyboard and focus
+    await page.focus('#lab-fx-b');
+    const fx0 = await page.evaluate(() => [window.__familistaLabMetrics().fixture, window.__familistaLabMetrics().fixtureB, document.getElementById('lab-zoom-v').textContent.trim()]);
+    for (const k of ['Digit0', 'Minus', 'BracketRight', 'Slash']) await page.keyboard.press(k);
+    await page.keyboard.press('ArrowDown'); await frames(page);
+    const kb = await page.evaluate(() => [window.__familistaLabMetrics().fixture, window.__familistaLabMetrics().fixtureB, document.getElementById('lab-zoom-v').textContent.trim(), document.activeElement.id]);
+    await page.focus('[data-lab-mode="compare"]'); await page.keyboard.press('Tab');
+    const tab1 = await page.evaluate(() => document.activeElement.getAttribute('data-lab-mode') || document.activeElement.id || document.activeElement.className);
+    check('compare keys: keys typed on Preview B\'s selector zoom nothing and step nothing; ArrowDown changes B only; the View buttons are in the tab order',
+      kb[0] === fx0[0] && kb[2] === fx0[2] && kb[1] !== fx0[1] && kb[3] === 'lab-fx-b' && !!tab1, { before: fx0, after: kb, tab1 });
+    const restores = [];
+    for (const sel of ['#lab-fx-b', '[data-lab-swap]', '[data-lab-mode="compare"]']) {
+      await page.focus(sel);
+      const ok = await remount(page);
+      restores.push([sel, ok, await page.evaluate((q) => !!document.activeElement && document.activeElement.matches(q), sel)]);
+    }
+    check('compare focus: after the room redraws the Lab, focus is back on Preview B\'s selector, on Swap and on the View button', restores.every((x) => x[1] && x[2]), restores);
+
+    // the layout follows the stage's own width: stacked here (the stage is under 720 px wide)
+    const stack = await geo(page);
+    check('compare layout: on a stage under 720 px wide the panes are stacked, B under A, both as wide as the stage', stack.b.pane[1] >= stack.a.pane[3] - 1 && Math.abs(stack.a.pane[0] - stack.b.pane[0]) <= 1 && Math.abs(stack.a.pane[2] - stack.b.pane[2]) <= 1, { a: stack.a.pane, b: stack.b.pane });
+
+    // cost: opening comparison, B's fixture, and the shared tools in comparison; DOM and memory over 40 toggles
+    const client = await ctx.newCDPSession(page);
+    await client.send('Performance.enable'); await client.send('HeapProfiler.enable');
+    const heap = async () => { await client.send('HeapProfiler.collectGarbage'); return (await client.send('Performance.getMetrics')).metrics.find((m) => m.name === 'JSHeapUsedSize').value; };
+    const stat = (a) => { const s = [...a].sort((x, y) => x - y); return { median: Math.round(s[Math.floor(s.length / 2)] * 10) / 10, p95: Math.round(s[Math.floor(s.length * 0.95)] * 10) / 10 }; };
+    await mode(page, 'single');
+    const nodesSingle = await labNodes(page);
+    const hasB = await page.evaluate(() => document.querySelectorAll('.lab [id$="-b"], .lab .lab-cmp').length);
+    const h0 = await heap();
+    const toggles = await page.evaluate(async () => {
+      const fr = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const open = [], close = [], sync = [];
+      for (let i = 0; i < 40; i++) {
+        let t0 = performance.now(); document.querySelector('[data-lab-mode="compare"]').click(); await fr(); open.push(performance.now() - t0); sync.push(window.__familistaLabMetrics().modeMs);
+        t0 = performance.now(); document.querySelector('[data-lab-mode="single"]').click(); await fr(); close.push(performance.now() - t0);
+      }
+      return { open, close, sync };
+    });
+    const h1 = await heap();
+    const nodesAfter = await labNodes(page);
+    const hasBAfter = await page.evaluate(() => document.querySelectorAll('.lab [id$="-b"], .lab .lab-cmp').length);
+    await mode(page, 'compare');
+    const timed = (kind, n) => page.evaluate(async ({ kind, n }) => {
+      const fr = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const out = [], sync = [], sel = document.getElementById('lab-fx-b'), opts = [...sel.options].map((o) => o.value), cyc = ['desktop', 'tablet', 'mobile', 'fill'];
+      for (let i = 0; i < n; i++) {
+        const t0 = performance.now();
+        if (kind === 'b') { sel.value = opts[(i + 2) % opts.length]; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+        else if (kind === 'zoom') document.querySelector(`[data-lab-zoom="${i % 10 < 5 ? 'in' : 'out'}"]`).click();
+        else if (kind === 'width') document.querySelector(`[data-lab-width="${cyc[i % 4]}"]`).click();
+        else if (kind === 'fit') document.querySelector(`[data-lab-width="${cyc[i % 3]}"]`).click();
+        await fr();
+        out.push(performance.now() - t0);
+        const m = window.__familistaLabMetrics(); sync.push(kind === 'b' ? m.switchBMs : kind === 'zoom' ? m.zoomMs : m.widthMs);
+      }
+      return { out, sync };
+    }, { kind, n });
+    const tb = await timed('b', 30);
+    const tz = await timed('zoom', 40);
+    const tw = await timed('width', 40);
+    const tr = await page.evaluate(async () => {
+      const fr = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))), cyc = ['desktop', 'tablet', 'mobile'], out = [];
+      for (let i = 0; i < 30; i++) { const t0 = performance.now(); document.querySelector(`[data-lab-width="${cyc[i % 3]}"]`).click(); await fr(); await new Promise((r) => requestAnimationFrame(r)); out.push(performance.now() - t0); }
+      return out;
+    });
+    await page.click('[data-lab-zoom="fit"]', { force: true });
+    const tf2 = await timed('fit', 21);
+    await page.click('[data-lab-zoom="reset"]', { force: true }); await page.click('[data-lab-width="fill"]'); await frames(page);
+    const so = stat(toggles.open), sc = stat(toggles.close);
+    const measure = { compareOpenToFrameMedianMs: so.median, compareOpenToFrameP95Ms: so.p95, compareOpenSyncMedianMs: stat(toggles.sync).median, compareCloseToFrameMedianMs: sc.median,
+      fixtureBToFrameMedianMs: stat(tb.out).median, fixtureBToFrameP95Ms: stat(tb.out).p95, fixtureBSyncMedianMs: stat(tb.sync).median,
+      zoomInCompareToFrameMedianMs: stat(tz.out).median, zoomInCompareToFrameP95Ms: stat(tz.out).p95, zoomInCompareSyncMedianMs: stat(tz.sync).median,
+      widthInCompareToFrameMedianMs: stat(tw.out).median, widthInCompareToFrameP95Ms: stat(tw.out).p95, widthInCompareSyncMedianMs: stat(tw.sync).median, widthReadoutsInCompareMedianMs: stat(tr).median,
+      fitInCompareToFrameMedianMs: stat(tf2.out).median, fitInCompareToFrameP95Ms: stat(tf2.out).p95,
+      toggles: 40, labNodesSingle: nodesSingle, labNodesAfterToggles: nodesAfter, heapGrowthKB: Math.round((h1 - h0) / 1024) };
+    console.log('MEASURE ' + JSON.stringify(measure));
+    check('compare: forty times into comparison and back leave the Lab with exactly the nodes of single preview and no Preview B node', nodesAfter === nodesSingle && hasB === 0 && hasBAfter === 0 && single0.b === 0, { ...measure, nodesAtOpen: nodes0, hasB, hasBAfter });
+    const split = await cspSplit(page);
+    check('compare: no Lab or unexplained CSP violation, and no console error, after everything above', split.lab === 0 && split.unexplained === 0 && labErrors(log).length === 0, { csp: split, errors: labErrors(log) });
+    await ctx.close();
+
+    // control: a width written as a style attribute is refused in both panes and counted as the Lab's, once for each
+    {
+      const { ctx: c2, page: p2 } = await open({ width: 1440, height: 900 }, 'en', (src) => src.replace("col.style.setProperty('width', S.width + 'px');", "col.setAttribute('style', 'width:' + S.width + 'px');"));
+      await openLab(p2); await mode(p2, 'compare'); await quiet(p2);
+      const from = await cspMark(p2);
+      await p2.click('[data-lab-width="mobile"]'); await frames(p2); await p2.waitForTimeout(300);
+      const win = await cspSplit(p2, from);
+      check('compare (control): a lab.js that writes the width as a style attribute is refused in both panes and counted as the Lab\'s, at least once for each', win.lab >= 2, win);
+      await c2.close();
+    }
+
+    // control: the same watch, on a lab.js that makes two extra requests when comparison opens: one to a Lab endpoint, and one from
+    // the Lab's own code to an application path. Both must be caught, the second by who started it, not by where it went.
+    {
+      const { ctx: c4, page: p4 } = await open({ width: 1440, height: 900 }, 'en', (src) => src.replace('    S.compare = want;\n', "    S.compare = want;\n    if (want) { K.api('/system/design-system/components/preview?id=' + encodeURIComponent(S.sel) + '&proof-control=1').catch(function () {}); fetch('/api/v1/teams?proof-control=1').catch(function () {}); }\n"));
+      await openLab(p4);
+      const n4 = await netWatch(p4);
+      await mode(p4, 'compare'); await p4.waitForTimeout(500);
+      await n4.stop();
+      const caught = n4.seen.filter((x) => x.lab).map((x) => x.path);
+      check('compare (control): a lab.js that makes two extra requests when comparison opens is caught twice, the Lab endpoint by its path and the application path by the Lab script that started it',
+        caught.some((x) => /components\/preview\?id=.*proof-control=1/.test(x)) && caught.some((x) => /^\/api\/v1\/teams\?proof-control=1$/.test(x)), { caught });
+      await c4.close();
+    }
+
+    // sizes and languages: side by side on a wide stage, stacked in the escape hatch and on a phone, in Arabic too
+    const sizes = [];
+    for (const [loc, w, h] of [['en', 1920, 1080], ['de', 980, 760], ['ar', 390, 844]]) {
+      const { ctx: c3, page: p3, log: log3 } = await open({ width: w, height: h }, loc);
+      await openLab(p3); await mode(p3, 'compare');
+      sizes.push(await p3.evaluate(([loc, w]) => {
+        const r = (el) => { const b = el.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top), Math.round(b.right), Math.round(b.bottom)]; };
+        const a = r(document.getElementById('lab-pane-a')), b = r(document.getElementById('lab-pane-b')), plate = document.getElementById('lab-plate').clientWidth;
+        const doc = document.documentElement, body = document.getElementById('ds-body');
+        const ctrls = [...document.querySelectorAll('[data-lab-mode], #lab-fx-b, [data-lab-swap]')];
+        const reach = ctrls.every((c) => { c.scrollIntoView({ block: 'center', inline: 'center' }); const q = c.getBoundingClientRect(); const e = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2); return q.width > 0 && !!e && (e === c || c.contains(e) || (c.id === 'lab-fx-b' && e.closest('.lab-fxb'))); });
+        return { loc, w, plate, side: Math.abs(a[1] - b[1]) <= 1 && b[0] >= a[2] - 1, stacked: b[1] >= a[3] - 1, pageOverflowX: doc.scrollWidth > doc.clientWidth + 1 || (body && body.scrollWidth > body.clientWidth + 1), reach,
+          labelB: document.getElementById('lab-pane-b-t').textContent, dir: document.getElementById('ds-root').dir, ok: !!document.querySelector('#lab-specimen-b .lab-col') };
+      }, [loc, w]));
+      sizes[sizes.length - 1].labErrors = labErrors(log3).length;
+      await c3.close();
+    }
+    const [wide, hatch, phone] = sizes;
+    check('compare layout: side by side wherever the stage is at least 720 px wide (a wide window, the 980 px escape hatch), stacked where it is not (a phone), never a sideways page scroll, every control reachable, and in the reader\'s language',
+      wide.plate >= 720 && phone.plate < 720 && sizes.every((x) => (x.plate >= 720 ? x.side && !x.stacked : x.stacked && !x.side) && !x.pageOverflowX && x.reach && x.ok && x.labErrors === 0) && hatch.labelB === 'Vorschau B' && phone.labelB === 'المعاينة B' && phone.dir === 'rtl', sizes);
+  }
+
   // ══ 6. accessibility, languages, directions and sizes (--axe) ══════════════
   if (WANT_AXE && want('6')) {
     const axePath = process.env.AXE_CORE || path.join(ROOT, 'tools/components/node_modules/axe-core/axe.min.js');
@@ -1069,6 +1378,9 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
         await page.click('[data-lab-zoom="reset"]', { force: true });
         await page.click('[data-lab-width="mobile"]'); await frames(page);
         states.push(await run('overlay fixture, at the Mobile width'));
+        await page.click('[data-lab-mode="compare"]'); await page.waitForSelector('#lab-specimen-b .lab-col', { state: 'attached' }); await frames(page);
+        states.push(await run('comparison, at the Mobile width'));
+        await page.click('[data-lab-mode="single"]'); await frames(page);
         await page.click('[data-lab-width="fill"]'); await frames(page);
         await page.click('[data-lab-tab="sanitization"]'); states.push(await run('sanitization tab'));
         await page.click('[data-lab-grp="no-fixtures"]'); await page.click('[data-lab-id="lg-icon"]', { force: true }); await frames(page); states.push(await run('unavailable component'));

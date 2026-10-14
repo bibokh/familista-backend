@@ -191,6 +191,10 @@ jobs:
   # presets, custom 320-1600 px), with the zoom kept and Fit recomputed, the overflow figure
   # checked against an independent measurement, input read strictly, and a lab.js that
   # writes the width as an inline style refused by the unchanged policy.
+  # Section 10 (M2 / S3) proves the comparison: Preview B draws exactly what A draws for the
+  # same fixture, each pane keeps its own walls and event boundary (and neither shows in the
+  # other), the toolbar is shared with Fit at the smaller scale, nothing is fetched, and
+  # Preview B is removed node for node when comparison ends.
   #
   # Authoritative: no `|| true`, no continue-on-error. A failed proof fails this job, a
   # failed job fails the `ci` workflow, and deploy.yml deploys only on a successful `ci`.
@@ -211,9 +215,9 @@ jobs:
       matrix:
         include:
           - shard: isolation
-            sections: '1,2,2b,3,4,5,8,9'
+            sections: '1,2,2b,3,4,5,8,9,10'
             axe: ''
-            min: '93'
+            min: '113'
           - shard: accessibility and focus
             sections: '6,7'
             axe: '--axe'

@@ -1,8 +1,8 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   FAMILISTA DESIGN SYSTEM CONTROL — SPECIMEN LAB — Stage 3.2.3 M2 / S1–S2 — View maths
+   FAMILISTA DESIGN SYSTEM CONTROL — SPECIMEN LAB — Stage 3.2.3 M2 / S1–S3 — View maths
 
-   Pure, deterministic arithmetic for the Lab's zoom (S1) and width (S2): no DOM, no
-   state, no time.
+   Pure, deterministic arithmetic for the Lab's zoom (S1), width (S2) and comparison (S3):
+   no DOM, no state, no time.
    Every input is validated and clamped, so a value that is not a finite number can
    never reach the stylesheet: what comes out is always a number inside the limits,
    and the caller applies it through the CSSOM.
@@ -156,12 +156,42 @@
     return unknown ? null : false;
   }
 
+  // ── comparison (M2 / S3) ─────────────────────────────────────────────────
+
+  /**
+   * The one scale two panes share under Fit: the smaller of their fit scales, so both are
+   * wholly visible and still at the same scale. Values that are not a fit scale are ignored;
+   * none left: 100%.
+   */
+  function sharedFit(list) {
+    var best = null;
+    if (Object.prototype.toString.call(list) === '[object Array]') {
+      for (var i = 0; i < list.length; i++) if (finite(list[i]) && list[i] > 0) best = best === null ? list[i] : Math.min(best, list[i]);
+    }
+    return best === null ? 1 : Math.max(MIN, Math.min(1, Math.floor(best * 100 + EPS) / 100));
+  }
+
+  /** Two lists of names, compared as sets: what only the first has, what only the second has, what both have. Sorted, deduplicated, strings only. */
+  function diffSets(a, b) {
+    function set(l) {
+      var o = Object.create(null);
+      if (Object.prototype.toString.call(l) === '[object Array]') for (var i = 0; i < l.length; i++) if (typeof l[i] === 'string') o[l[i]] = true;
+      return o;
+    }
+    var A = set(a), B = set(b), out = { onlyA: [], onlyB: [], both: [] }, k;
+    for (k in A) (B[k] ? out.both : out.onlyA).push(k);
+    for (k in B) if (!A[k]) out.onlyB.push(k);
+    out.onlyA.sort(); out.onlyB.sort(); out.both.sort();
+    return out;
+  }
+
   var api = {
     MIN: MIN, MAX: MAX, STEPS: STEPS.slice(),
     clamp: clamp, zoomIn: zoomIn, zoomOut: zoomOut, fit: fit,
     percent: percent, origin: origin, frameSize: frameSize, transform: transform,
     WIDTH_MIN: WIDTH_MIN, WIDTH_MAX: WIDTH_MAX, PRESETS: { desktop: PRESETS.desktop, tablet: PRESETS.tablet, mobile: PRESETS.mobile },
     clampWidth: clampWidth, parseWidth: parseWidth, overflowPx: overflowPx, mqAt: mqAt,
+    sharedFit: sharedFit, diffSets: diffSets,
   };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.FamilistaLabView = api;
