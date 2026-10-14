@@ -191,6 +191,24 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
   }
   // A page error, a console error, or a network/CSP notice that names a Lab file.
   const LAB_URL = /design-system\/lab|components\/preview|design-system\/components/;
+  // Who made a request. The application keeps refreshing its own data in the background while the reader works in the Lab, so a
+  // "nothing was fetched" proof cannot count every request in its window. Every request is placed instead, from the browser's own
+  // record of the script stack that started it (async parents included): it is the Lab's if it is for a Lab endpoint OR any frame
+  // that started it is a Lab file, whatever the path; otherwise it is the application's. A Lab request to any URL is caught.
+  const LAB_FILE = /\/design-system\/lab(-view|-sanitize)?\.js/;
+  async function netWatch(pg) {
+    const cdp = await pg.context().newCDPSession(pg);
+    const seen = [];
+    cdp.on('Network.requestWillBeSent', (e) => {
+      const frames = [];
+      for (let st = e.initiator && e.initiator.stack; st; st = st.parent) for (const f of st.callFrames || []) frames.push(f.url);
+      let path = e.request.url;
+      try { const u = new URL(e.request.url); path = u.origin === BASE ? u.pathname + u.search : e.request.url; } catch (_) { /* keep the raw url */ }
+      seen.push({ method: e.request.method, path, lab: LAB_URL.test(path) || frames.some((u) => LAB_FILE.test(u)), by: [...new Set(frames.map((u) => u.replace(/^https?:\/\/[^/]+/, '').split('?')[0]))].slice(0, 3) });
+    });
+    await cdp.send('Network.enable'); await cdp.send('Debugger.enable'); await cdp.send('Debugger.setAsyncCallStackDepth', { maxDepth: 32 });
+    return { seen, stop: () => cdp.detach() };
+  }
   const labErrors = (log) => log.errors.concat(log.notices.filter((n) => LAB_URL.test(n.url) || LAB_URL.test(n.text)).map((n) => 'notice: ' + n.text + ' @ ' + n.url));
   const activeKey = (page) => page.evaluate(() => { const a = document.activeElement; return a ? (a.id || a.getAttribute('data-lab-id') || a.getAttribute('data-lab-fx') || a.getAttribute('data-lab-tab') || a.getAttribute('data-lab-dir') || a.getAttribute('data-lab-zoom') || a.getAttribute('data-lab-width') || a.getAttribute('data-lab-mode') || a.tagName) : null; });
   // Redraw the room the way the application does when a page is shown again: through the page-render registry. True only if
@@ -1084,7 +1102,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     check('compare: single preview is the S2 stage: no Preview B node, the plate is the strip\'s tab panel and holds the viewport itself', single0.b === 0 && single0.plate === 'tabpanel' && single0.parent === 'lab-plate', single0);
 
     // open comparison: B shows the next fixture, drawn exactly as A would draw it; nothing fetched; every id unique
-    const mark = log.requests.length;
+    const net = await netWatch(page);
     const fx = await page.evaluate(() => [...document.querySelectorAll('.lab-fx')].map((b) => b.getAttribute('data-lab-fx')));
     await mode(page, 'compare');
     const opened = await page.evaluate(() => ({ b: document.getElementById('lab-fx-b').value, a: window.__familistaLabMetrics().fixture, cur: document.querySelector('.lab-fx.is-on').getAttribute('data-lab-fx'),
@@ -1114,8 +1132,10 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     const sw = { a: await markup(page, 'a'), b: await markup(page, 'b'), cur: await page.getAttribute('.lab-fx.is-on', 'data-lab-fx'), sel: await page.inputValue('#lab-fx-b'), live: await page.textContent('#lab-live') };
     check('compare: Swap exchanges the two panes, the strip following A and the selector following B', sw.a === bBefore && sw.b === aBefore && sw.cur === fx[3] && sw.sel === fx[0] && sw.live === 'Preview A and Preview B swapped', { cur: sw.cur, sel: sw.sel, live: sw.live });
     await page.click('[data-lab-swap]'); await frames(page);
-    const fetched = log.requests.slice(mark).filter(([, p]) => !/^\/(i18n|tokens)\//.test(p));
-    check('compare: opening comparison, choosing B\'s fixture and swapping fetch nothing', fetched.length === 0, fetched);
+    await frames(page); await net.stop();
+    const fetched = net.seen.filter((x) => x.lab);
+    check('compare: opening comparison, choosing B\'s fixture and swapping make no request from the Lab (to a Lab endpoint or, from a Lab script, to any URL); the application\'s own background requests are counted apart',
+      fetched.length === 0, { lab: fetched, application: net.seen.length - fetched.length });
 
     // containment: each overlay in its own canvas, never over the other pane, clipped by its own viewport, at every scale and width
     const zoomTo = async (pct) => { await page.click('[data-lab-zoom="reset"]', { force: true }); const dir = pct < 100 ? 'out' : 'in'; for (let n = 0; n < 12 && Number((await page.textContent('#lab-zoom-v')).replace(/[^0-9]/g, '')) !== pct; n++) await page.click(`[data-lab-zoom="${dir}"]`, { force: true }); await frames(page); };
@@ -1290,6 +1310,20 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       const win = await cspSplit(p2, from);
       check('compare (control): a lab.js that writes the width as a style attribute is refused in both panes and counted as the Lab\'s, at least once for each', win.lab >= 2, win);
       await c2.close();
+    }
+
+    // control: the same watch, on a lab.js that makes two extra requests when comparison opens: one to a Lab endpoint, and one from
+    // the Lab's own code to an application path. Both must be caught, the second by who started it, not by where it went.
+    {
+      const { ctx: c4, page: p4 } = await open({ width: 1440, height: 900 }, 'en', (src) => src.replace('    S.compare = want;\n', "    S.compare = want;\n    if (want) { K.api('/system/design-system/components/preview?id=' + encodeURIComponent(S.sel) + '&proof-control=1').catch(function () {}); fetch('/api/v1/teams?proof-control=1').catch(function () {}); }\n"));
+      await openLab(p4);
+      const n4 = await netWatch(p4);
+      await mode(p4, 'compare'); await p4.waitForTimeout(500);
+      await n4.stop();
+      const caught = n4.seen.filter((x) => x.lab).map((x) => x.path);
+      check('compare (control): a lab.js that makes two extra requests when comparison opens is caught twice, the Lab endpoint by its path and the application path by the Lab script that started it',
+        caught.some((x) => /components\/preview\?id=.*proof-control=1/.test(x)) && caught.some((x) => /^\/api\/v1\/teams\?proof-control=1$/.test(x)), { caught });
+      await c4.close();
     }
 
     // sizes and languages: side by side on a wide stage, stacked in the escape hatch and on a phone, in Arabic too
