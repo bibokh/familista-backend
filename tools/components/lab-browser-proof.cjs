@@ -748,7 +748,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
         colW: col ? col.offsetWidth : null, pad: parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight), canvasW: spec.offsetWidth,
         viewport: r(document.getElementById('lab-viewport')), frame: r(document.getElementById('lab-frame')), canvas: r(spec), overlay: r(spec.querySelector('.lg-float-bg')),
         rail: r(document.querySelector('.lab-rail')), insp: r(document.getElementById('lab-insp')), plate: r(document.getElementById('lab-plate')), tools: r(document.querySelector('.lab-tools')), wbar: r(document.getElementById('lab-wbar')),
-        scale: t === 'none' ? 1 : Number(t.split('(')[1].split(',')[0]), sized: document.getElementById('lab-frame').classList.contains('is-zoomed'),
+        scale: t === 'none' ? 1 : Number(t.split('(')[1].split(',')[0]), sized: ['is-zoomed', 'is-sized'].some((c) => document.getElementById('lab-frame').classList.contains(c)),
         colStyle: col ? col.getAttribute('style') : null, dim: document.getElementById('lab-wdim').textContent, ov: document.getElementById('lab-ov').textContent,
         note: getComputedStyle(document.getElementById('lab-wnote')).visibility, live: document.getElementById('lab-live').textContent,
         pressed: [...document.querySelectorAll('[data-lab-width]')].filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.getAttribute('data-lab-width')),
@@ -977,8 +977,11 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       const out = [], sync = []; const fr = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       const cycle = ['desktop', 'tablet', 'mobile', 'fill'];
       for (let i = 0; i < n; i++) {
-        const b = mode === 'width' ? document.querySelector(`[data-lab-width="${cycle[i % 4]}"]`) : mode === 'fitwidth' ? document.querySelector(`[data-lab-width="${cycle[i % 3]}"]`) : document.querySelector(`[data-lab-zoom="${i % 10 < 5 ? 'in' : 'out'}"]`);
-        const t0 = performance.now(); b.click(); await fr(); out.push(performance.now() - t0);
+        const b = mode === 'width' || mode === 'readouts' ? document.querySelector(`[data-lab-width="${cycle[i % 4]}"]`) : mode === 'fitwidth' ? document.querySelector(`[data-lab-width="${cycle[i % 3]}"]`) : document.querySelector(`[data-lab-zoom="${i % 10 < 5 ? 'in' : 'out'}"]`);
+        const t0 = performance.now(); b.click(); await fr();
+        // 'readouts': one frame more, so the readouts (read after the stage's layout and written in the next frame) are laid out too
+        if (mode === 'readouts') await new Promise((r) => requestAnimationFrame(r));
+        out.push(performance.now() - t0);
         sync.push(mode === 'zoom' ? window.__familistaLabMetrics().zoomMs : window.__familistaLabMetrics().widthMs);
       }
       return { times: out, sync };
@@ -987,6 +990,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     const dom0 = await page.evaluate(() => document.querySelector('.lab').getElementsByTagName('*').length);
     const h0 = await heap();
     const w1 = await timed(null, 40, 'width');
+    const r1 = await timed(null, 40, 'readouts');
     await setW(page, 'tablet');
     const z1 = await timed(null, 40, 'zoom');
     await page.click('[data-lab-zoom="fit"]', { force: true });
@@ -996,11 +1000,11 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     await setW(page, 'fill');
     const h1 = await heap();
     const dom1 = await page.evaluate(() => document.querySelector('.lab').getElementsByTagName('*').length);
-    const ws = stat(w1.times), zs = stat(z1.times), fs2 = stat(f1.times);
+    const ws = stat(w1.times), zs = stat(z1.times), fs2 = stat(f1.times), rs = stat(r1.times);
     // synchronous work per change (the Lab's own figure), median, so one cheap Fill at the end cannot stand for the rest
-    const measure = { widthChangeToFrameMedianMs: ws.median, widthChangeToFrameP95Ms: ws.p95, widthComputeMedianMs: stat(w1.sync).median, widthComputeP95Ms: stat(w1.sync).p95, zoomStepAtWidthToFrameMedianMs: zs.median, zoomStepAtWidthToFrameP95Ms: zs.p95, zoomComputeMedianMs: stat(z1.sync).median, fitRecalcToFrameMedianMs: fs2.median, fitRecalcToFrameP95Ms: fs2.p95, widthChanges: 120, domBefore: dom0, domAfter: dom1, heapGrowthKB: Math.round((h1 - h0) / 1024) };
+    const measure = { widthChangeToFrameMedianMs: ws.median, widthChangeToFrameP95Ms: ws.p95, widthComputeMedianMs: stat(w1.sync).median, widthComputeP95Ms: stat(w1.sync).p95, widthChangeToReadoutsMedianMs: rs.median, widthChangeToReadoutsP95Ms: rs.p95, zoomStepAtWidthToFrameMedianMs: zs.median, zoomStepAtWidthToFrameP95Ms: zs.p95, zoomComputeMedianMs: stat(z1.sync).median, fitRecalcToFrameMedianMs: fs2.median, fitRecalcToFrameP95Ms: fs2.p95, widthChanges: 160, domBefore: dom0, domAfter: dom1, heapGrowthKB: Math.round((h1 - h0) / 1024) };
     console.log('MEASURE ' + JSON.stringify(measure));
-    check('width: a hundred and twenty width changes, forty zoom steps and twenty-one Fit recalculations add no node to the Lab', dom0 === dom1, measure);
+    check('width: a hundred and sixty width changes, forty zoom steps and twenty-one Fit recalculations add no node to the Lab', dom0 === dom1, measure);
     const split = await cspSplit(page);
     check('width: no Lab or unexplained CSP violation, and no console error, after everything above', split.lab === 0 && split.unexplained === 0 && labErrors(log).length === 0, { csp: split, errors: labErrors(log) });
     await ctx.close();

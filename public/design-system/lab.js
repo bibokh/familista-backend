@@ -129,7 +129,7 @@
     };
   }
   var S = fresh();
-  var R = { host: null, root: null, bound: [], specimenBound: null, ro: null, raf: 0, nat: null };
+  var R = { host: null, root: null, bound: [], specimenBound: null, ro: null, raf: 0, nat: null, rafW: 0, say: null };
   var M = { loadMs: null, renderMs: null, switchMs: null, zoomMs: null, widthMs: null, specimenNodes: 0, fixtures: 0, components: 0 };
 
   function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
@@ -355,7 +355,7 @@
   function clearZoom(fr, spec) {
     ['width', 'height'].forEach(function (p) { unsetStyle(fr, p); });
     ['width', 'min-height', 'transform', 'transform-origin'].forEach(function (p) { unsetStyle(spec, p); });
-    if (fr.classList) fr.classList.remove('is-zoomed');
+    if (fr.classList) { fr.classList.remove('is-zoomed'); fr.classList.remove('is-sized'); }
   }
   /**
    * Lay the stage out at the current zoom and width. The specimen's natural (100%) size is
@@ -370,6 +370,9 @@
     if (!vp || !fr || !spec || !V) return;
     // Fill at 100%: the M1 stage. Nothing is measured, so a fixture switch costs exactly what it did before S2.
     if (measure && !S.fit && V.clamp(S.zoom) === 1 && S.width == null) { R.nat = null; clearZoom(fr, spec); sizeColumn(spec); return; }
+    // A width at 100%, Fit off: the stylesheet sizes the frame to the canvas (.is-sized), so nothing is read here and the change
+    // costs the one layout pass the next frame does anyway. The readouts are read once that layout is done (readoutsLater).
+    if (measure && !S.fit && V.clamp(S.zoom) === 1) { R.nat = null; clearZoom(fr, spec); sizeColumn(spec); fr.classList.add('is-sized'); readoutsLater(); return; }
     if (measure || !R.nat || R.nat.spec !== spec) {
       clearZoom(fr, spec);
       sizeColumn(spec);
@@ -383,7 +386,7 @@
     spec.style.setProperty('min-height', R.nat.h + 'px');
     spec.style.setProperty('transform-origin', V.origin(S.dir));
     spec.style.setProperty('transform', V.transform(s));
-    fr.classList.add('is-zoomed');
+    fr.classList.remove('is-sized'); fr.classList.add('is-zoomed');
     fr.style.setProperty('width', size.width + 'px');
     fr.style.setProperty('height', size.height + 'px');
   }
@@ -426,8 +429,30 @@
   }
   function stopObserving() {
     if (R.ro) { R.ro.disconnect(); R.ro = null; }
-    if (R.raf && typeof window.cancelAnimationFrame === 'function') window.cancelAnimationFrame(R.raf);
-    R.raf = 0;
+    if (typeof window.cancelAnimationFrame === 'function') { if (R.raf) window.cancelAnimationFrame(R.raf); if (R.rafW) window.cancelAnimationFrame(R.rafW); }
+    R.raf = 0; R.rafW = 0;
+  }
+  /**
+   * The readouts for a stage the stylesheet laid out: read two frames on, when the frame that drew the new width has already
+   * done its layout, so the read costs nothing and forces nothing; then the readouts and any pending announcement are written.
+   */
+  function readoutsLater() {
+    if (typeof window.requestAnimationFrame !== 'function') { readoutsNow(); return; }
+    if (R.rafW) window.cancelAnimationFrame(R.rafW);
+    R.rafW = window.requestAnimationFrame(function () { R.rafW = window.requestAnimationFrame(function () { R.rafW = 0; readoutsNow(); }); });
+  }
+  function readoutsNow() {
+    var vp = document.getElementById('lab-viewport'), fr = document.getElementById('lab-frame'), spec = document.getElementById('lab-specimen');
+    if (vp && fr && spec && fr.classList.contains('is-sized')) R.nat = measureStage(vp, spec);   // still the stylesheet's layout: measure it
+    syncWidth();
+    announceWidth();
+  }
+  /** Say what the width is, with the overflow measured for it; once. */
+  function announceWidth() {
+    if (R.say == null) return;
+    var o = R.nat ? R.nat.ov : null;
+    live(R.say + (o ? ' · ' + tf('Content overflows by %d px', o) : ''));
+    R.say = null;
   }
 
   // ── width (M2 / S2) ───────────────────────────────────────────────────────
@@ -492,11 +517,12 @@
     if (!V || !zoomable()) return;
     var t0 = now();
     S.width = w == null ? null : V.clampWidth(w);
+    R.say = (S.width == null ? T('Width: fill the stage') : tf('Width %d px', S.width)) + (note ? ' · ' + note : '');
     applyZoom(true);
     M.widthMs = Math.round((now() - t0) * 10) / 10;
     syncZoom(); syncWidth();
-    var o = R.nat ? R.nat.ov : null;
-    live((S.width == null ? T('Width: fill the stage') : tf('Width %d px', S.width)) + (note ? ' · ' + note : '') + (o ? ' · ' + tf('Content overflows by %d px', o) : ''));
+    var fr = document.getElementById('lab-frame');
+    if (!(fr && fr.classList.contains('is-sized'))) announceWidth();          // otherwise the readouts, after layout, announce it with its overflow
   }
   function widthAction(mode) {
     if (mode === 'fill') setWidth(null);

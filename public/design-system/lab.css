@@ -186,6 +186,11 @@
 /* is-zoomed: the frame is sized, for a zoom other than 100% or a set width (S2). */
 .lab-frame.is-zoomed { flex: none; margin: auto; overflow: hidden; }
 .lab-frame.is-zoomed > .lab-specimen { flex: none; overflow: visible; }
+/* is-sized: a width at 100%, laid out by the stylesheet alone. The frame grows to the viewport's height and, with auto inline
+   margins, takes the canvas's own width (the container plus its padding), so a width change is one layout pass; the readouts
+   are read after it. Any other zoom, and Fit, size the frame through the CSSOM as above. */
+.lab-frame.is-sized { flex: 1 0 auto; margin-inline: auto; }
+.lab-frame.is-sized > .lab-specimen { flex: 1 0 auto; overflow: visible; }
 .lab-col { margin: auto; width: 100%; max-width: 640px; }
 .lab-void, .lab-refuse { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 2; pointer-events: none; }
 .lab-refuse { pointer-events: auto; background: var(--fam-surface-base); }
