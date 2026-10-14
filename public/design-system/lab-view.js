@@ -1,7 +1,8 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   FAMILISTA DESIGN SYSTEM CONTROL — SPECIMEN LAB — Stage 3.2.3 M2 / S1 — View maths
+   FAMILISTA DESIGN SYSTEM CONTROL — SPECIMEN LAB — Stage 3.2.3 M2 / S1–S2 — View maths
 
-   Pure, deterministic arithmetic for the Lab's zoom: no DOM, no state, no time.
+   Pure, deterministic arithmetic for the Lab's zoom (S1) and width (S2): no DOM, no
+   state, no time.
    Every input is validated and clamped, so a value that is not a finite number can
    never reach the stylesheet: what comes out is always a number inside the limits,
    and the caller applies it through the CSSOM.
@@ -71,10 +72,96 @@
     return k === 1 ? 'none' : 'scale(' + k + ')';
   }
 
+  // ── width (M2 / S2) ──────────────────────────────────────────────────────
+  //
+  // A width is the width of the component's content container, in whole CSS pixels.
+  // It is a width simulation, not a device: the browser window, its media queries,
+  // its viewport units and its pixel ratio stay what they are.
+
+  var WIDTH_MIN = 320;
+  var WIDTH_MAX = 1600;
+  var PRESETS = { desktop: 1280, tablet: 834, mobile: 390 };
+  // Digits, optionally a decimal part, optionally surrounded by spaces. No sign, no
+  // exponent, no unit, no hex: anything else is not a width.
+  var WIDTH_RE = /^\s*\d{1,5}(\.\d{1,4})?\s*$/;
+
+  /** A finite, positive number in, a whole width between WIDTH_MIN and WIDTH_MAX out. Anything else: null. */
+  function clampWidth(n) {
+    if (!finite(n) || n <= 0) return null;
+    return Math.min(WIDTH_MAX, Math.max(WIDTH_MIN, Math.round(n)));
+  }
+
+  /**
+   * What a reader typed, read strictly. Returns null when it is not a width at all, otherwise
+   * { value, clamped } where value is inside the limits and clamped says it had to be moved there.
+   */
+  function parseWidth(raw) {
+    var n;
+    if (typeof raw === 'number') n = raw;
+    else if (typeof raw === 'string' && WIDTH_RE.test(raw)) n = parseFloat(raw);
+    else return null;
+    var v = clampWidth(n);
+    if (v === null) return null;
+    return { value: v, clamped: v !== Math.round(n) };
+  }
+
+  /**
+   * How far content reaches past the box it is laid out in, in whole pixels. Under 1px is
+   * sub-pixel rounding and reads 0. Either size not a finite number (or the box empty): null,
+   * which the Lab shows as "—", never as 0.
+   */
+  function overflowPx(contentW, boxW) {
+    if (!finite(contentW) || !finite(boxW) || boxW <= 0 || contentW < 0) return null;
+    var d = contentW - boxW;
+    return d > 1 ? Math.round(d) : 0;
+  }
+
+  /** One condition list of a media query (the part between commas) at a window width. */
+  function mqPart(part, w) {
+    var p = part.trim().toLowerCase().replace(/^only\s+/, '');
+    if (!p || /^not\b/.test(p)) return null;
+    p = p.replace(/^(all|screen)(\s+and\s+|$)/, '');
+    if (!p) return true;
+    var conds = p.split(/\s+and\s+/), unknown = false;
+    for (var i = 0; i < conds.length; i++) {
+      var m = /^\(\s*(min|max)-width\s*:\s*(\d+(?:\.\d+)?)px\s*\)$/.exec(conds[i].trim());
+      if (!m) { unknown = true; continue; }
+      var n = parseFloat(m[2]);
+      if (m[1] === 'max' ? w > n : w < n) return false;
+    }
+    return unknown ? null : true;
+  }
+
+  /**
+   * Would this recorded media query match a browser window `w` pixels wide? Only plain
+   * min-width and max-width in px are judged; anything else (height, orientation, em, hover,
+   * a feature this reads no further than its name) makes the answer null: not knowable from a
+   * width alone. A list matches when any of its parts does. This reads text; it never asks the
+   * browser, and nothing is executed or applied.
+   */
+  function mqAt(query, w) {
+    if (typeof query !== 'string' || !finite(w)) return null;
+    var s = query.trim();
+    if (/^@/.test(s)) {
+      if (!/^@media\b/i.test(s)) return null;
+      s = s.replace(/^@media\s*/i, '');
+    }
+    if (!s) return null;
+    var parts = s.split(','), unknown = false;
+    for (var i = 0; i < parts.length; i++) {
+      var r = mqPart(parts[i], w);
+      if (r === true) return true;
+      if (r === null) unknown = true;
+    }
+    return unknown ? null : false;
+  }
+
   var api = {
     MIN: MIN, MAX: MAX, STEPS: STEPS.slice(),
     clamp: clamp, zoomIn: zoomIn, zoomOut: zoomOut, fit: fit,
     percent: percent, origin: origin, frameSize: frameSize, transform: transform,
+    WIDTH_MIN: WIDTH_MIN, WIDTH_MAX: WIDTH_MAX, PRESETS: { desktop: PRESETS.desktop, tablet: PRESETS.tablet, mobile: PRESETS.mobile },
+    clampWidth: clampWidth, parseWidth: parseWidth, overflowPx: overflowPx, mqAt: mqAt,
   };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.FamilistaLabView = api;
