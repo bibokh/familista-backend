@@ -135,6 +135,7 @@
 }
 .lab-ov.is-over { color: var(--fam-text-primary); border-inline-start-color: var(--fam-border-strong); }   /* an edge, not a fill: overflow is a fact, not a result */
 .lab-wbar[data-off] { visibility: hidden; }
+.lab-wtag { flex: none; color: var(--fam-text-primary); font-weight: var(--fam-font-weight-semibold); }
 .lab-wnote { flex: 1 1 18ch; min-width: 0; }
 .lab-evrow { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: var(--fam-space-2) var(--fam-space-5); min-height: 24px; }
 .lab-ev { display: inline-flex; align-items: center; gap: var(--fam-space-2); font-size: var(--fam-font-size-md); color: var(--fam-text-secondary); }
@@ -183,6 +184,32 @@
   overflow: auto; contain: strict; isolation: isolate;   /* strict: its size comes from the plate, never from the specimen, so a zoom lays out this box alone */
 }
 .lab-frame { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+/* M2 / S3 — comparison. The plate holds two panes, each a full stage of its own (viewport, frame, canvas, and the
+   void and refusal shown over it). The plate is the size container: side by side when the stage is at least 720px
+   wide, stacked below that. Only the Lab's own layout responds to it; nothing in a specimen does. */
+.lab-plate.is-compare { container: lab-stage / inline-size; padding: var(--fam-space-2); }
+.lab-cmp { flex: 1 1 auto; min-width: 0; min-height: 0; display: grid; gap: var(--fam-space-2); grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+@container lab-stage (min-width: 720px) {
+  .lab-cmp { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); }
+}
+.lab-cmp-pane {
+  min-width: 0; min-height: 0; display: flex; flex-direction: column;
+  border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); border-radius: var(--fam-radius-md); background: var(--fam-surface-base);
+}
+.lab-cmp-h {
+  flex: 0 0 auto; display: flex; align-items: center; flex-wrap: wrap; gap: var(--fam-space-2); min-height: var(--fam-size-control-md);
+  padding: var(--fam-space-1) var(--fam-space-2); border-bottom: var(--fam-border-width-hairline) solid var(--fam-border-subtle);
+  font-size: var(--fam-font-size-md); color: var(--fam-text-secondary);
+}
+.lab-cmp-t { flex: none; color: var(--fam-text-primary); font-weight: var(--fam-font-weight-semibold); }
+.lab-cmp-f { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lab-fxb { min-width: 0; flex: 1 1 12ch; display: flex; }
+.lab-fxb-s { min-width: 0; inline-size: 100%; min-height: var(--fam-size-control-sm); }
+.lab-swap { flex: none; }
+.lab-cmp-b { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; }
+.lab-cmp-n { font-variant-numeric: tabular-nums; color: var(--fam-text-primary); }
+.lab-cmp-i { margin-bottom: var(--fam-space-4); }
+
 /* is-zoomed: the frame is sized, for a zoom other than 100% or a set width (S2). */
 .lab-frame.is-zoomed { flex: none; margin: auto; overflow: hidden; }
 .lab-frame.is-zoomed > .lab-specimen { flex: none; overflow: visible; }
@@ -256,7 +283,7 @@
 .lab-ni-t { font-weight: var(--fam-font-weight-extrabold); }
 .lab-ni-d { margin-top: 2px; font-size: var(--fam-font-size-md); color: var(--fam-text-secondary); }
 
-:is(.lab-item, .lab-grp-b, .lab-fx, .lab-tab, .lab-link, .lab-q, .lab-dir .ds-seg-b, .lab-width .ds-seg-b, .lab-w, .lab-pane):focus-visible {
+:is(.lab-item, .lab-grp-b, .lab-fx, .lab-tab, .lab-link, .lab-q, .lab-dir .ds-seg-b, .lab-width .ds-seg-b, .lab-w, .lab-mode .ds-seg-b, .lab-fxb-s, .lab-swap, .lab-pane):focus-visible {
   outline: var(--fam-border-width-strong) solid var(--fam-focus-ring); outline-offset: 2px;
 }
 
@@ -280,6 +307,7 @@
   .lab-search { flex: 1 1 100%; max-width: none; }
   .lab-count { flex: 1 1 100%; order: 3; }
   .lab-plate { min-height: 320px; }
+  .lab-cmp { grid-template-rows: none; grid-auto-rows: minmax(280px, auto); }
 }
 @media (max-width: 560px) {
   .lab-specimen { padding: var(--fam-space-4); }

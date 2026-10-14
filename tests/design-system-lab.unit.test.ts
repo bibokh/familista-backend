@@ -814,7 +814,9 @@ describe('the Specimen Lab client: CSP-safe, GET-only, lazy, and read-only', () 
   });
 
   it('marks the stage so the translator leaves it alone, and puts the contained root on nothing else', () => {
-    expect(js).toMatch(/id="lab-specimen" dir="' \+ S\.dir \+ '" data-no-i18n data-lab-stage/);
+    // One builder draws every pane's canvas (Preview A's id is "lab-specimen", Preview B's "lab-specimen-b"), so both carry the marker.
+    expect(js).toMatch(/id="lab-specimen' \+ x \+ '" dir="' \+ S\.dir \+ '" data-no-i18n data-lab-stage/);
+    expect(js.match(/class="lab-specimen"/g) || []).toHaveLength(1);
     expect(js).not.toMatch(/data-i18n(?!-)/);
   });
 
@@ -870,9 +872,11 @@ describe('the Specimen Lab client: CSP-safe, GET-only, lazy, and read-only', () 
     expect(js).toContain("K.emptyState('This fixture failed the browser’s check', res.problems.slice(0, 3).join(' · '))");
   });
 
-  it('draws no state, no hover, no focus emulation, no anatomy overlay, no device emulation and no comparison: M1, the M2 / S1 zoom and the S2 width only', () => {
-    expect(js).not.toMatch(/data-lab-force|forceState|:hover|adoptedStyleSheets|CSSStyleSheet|insertRule|replaceSync|getBoundingClientRect|anatomy|overlay|compare|viewport preset/i);
-    expect(css).not.toMatch(/data-lab-force|\.lab-anatomy|\.lab-compare/);
+  it('draws no state, no hover, no focus emulation, no anatomy overlay, no device emulation and no pixel diff: M1, the M2 / S1 zoom, the S2 width and the S3 comparison only', () => {
+    expect(js).not.toMatch(/data-lab-force|forceState|:hover|adoptedStyleSheets|CSSStyleSheet|insertRule|replaceSync|getBoundingClientRect|anatomy|overlay|viewport preset/i);
+    expect(css).not.toMatch(/data-lab-force|\.lab-anatomy/);
+    // The comparison draws the second pane from the same checked tree, the same way: no cloned node, no canvas, no pixel read, no image of a specimen.
+    expect(js).not.toMatch(/cloneNode|importNode|<canvas|getImageData|toDataURL|drawImage|html2canvas|outerHTML/i);
     // The width is a container width: the window, its media queries and its pixel ratio are never asked or faked, and nothing is kept between visits.
     expect(js).not.toMatch(/matchMedia|innerWidth|outerWidth|devicePixelRatio|visualViewport|<iframe|localStorage|sessionStorage|@container|container-type/i);
     // getComputedStyle is read for one thing only: the specimen's padding, for Fit.
@@ -981,6 +985,22 @@ describe('the width view maths (M2 / S2): strict, clamped, and honest about what
     for (const q of ['@media (max-width: 40em)', '@media print', '@media not all and (max-width: 500px)', '@media (orientation: portrait)', '@media (hover: hover)', '@supports (display: grid)', '@container (max-width: 400px)', '', 7, null])
       expect({ q, r: V.mqAt(q, 390) }).toEqual({ q, r: null });
     expect(V.mqAt('@media (max-width:760px)', NaN)).toBeNull();
+  });
+});
+
+describe('the comparison view maths (M2 / S3): one shared Fit, and a set difference of class names', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const V = require('../public/design-system/lab-view.js');
+  it('shares the smaller fit scale, floored to two decimals and kept in 25%–100%, and ignores anything that is not a scale', () => {
+    expect([V.sharedFit([0.53, 0.35]), V.sharedFit([1, 1]), V.sharedFit([0.999, 0.5]), V.sharedFit([0.1, 0.9]), V.sharedFit([2, 3])]).toEqual([0.35, 1, 0.5, 0.25, 1]);
+    for (const j of [[], [NaN, 0, -1, Infinity], 'x', null, undefined, {}, [null, '0.5']]) expect(V.sharedFit(j)).toBe(1);
+    expect(V.sharedFit([NaN, 0.6])).toBe(0.6);
+  });
+  it('compares two lists of names as sets: sorted, deduplicated, strings only', () => {
+    expect(V.diffSets(['b', 'a', 'a', 'c'], ['c', 'd', 3, null])).toEqual({ onlyA: ['a', 'b'], onlyB: ['d'], both: ['c'] });
+    expect(V.diffSets([], [])).toEqual({ onlyA: [], onlyB: [], both: [] });
+    expect(V.diffSets('x', { a: 1 })).toEqual({ onlyA: [], onlyB: [], both: [] });
+    expect(V.diffSets(['__proto__', 'constructor'], ['constructor'])).toEqual({ onlyA: ['__proto__'], onlyB: [], both: ['constructor'] });
   });
 });
 
@@ -1509,6 +1529,144 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     expect(r.metrics()).toMatchObject({ zoom: 1, fit: false, fixture: 'lg-crest.with-crest' });
   });
 
+  // ── M2 / S3: comparison ────────────────────────────────────────────────────
+  const bench = (r: Run) => r.dom.log.innerHTML['lab-bench'].slice(-1)[0];
+  const ids = (html: string) => [...html.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
+  const pickB = (r: Run, value: string) => r.fire('change', { target: { id: 'lab-fx-b', value } });
+
+  it('opens in single preview, exactly the S2 stage, with a View group to switch to comparison', async () => {
+    const r = await launch();
+    const b = bench(r);
+    expect(b).toContain('class="ds-seg lab-mode" role="group" aria-label="View"');
+    expect(b).toMatch(/data-lab-mode="single" aria-pressed="true" aria-label="Single preview"><span>Single<\/span>/);
+    expect(b).toMatch(/data-lab-mode="compare" aria-pressed="false" aria-label="Compare side by side"><span>Compare<\/span>/);
+    expect(b).toContain('<div class="lab-plate" id="lab-plate" role="tabpanel" aria-labelledby="lab-tab-current"><div class="lab-viewport" id="lab-viewport">');
+    expect(b).not.toMatch(/ id="[^"]*-b"|lab-cmp|lab-fx-b|data-lab-swap/);
+    expect(r.metrics()).toMatchObject({ compare: false, fixtureB: null, specimenNodesB: 0 });
+  });
+
+  it('opens Preview B beside A with the next fixture, its own walls and boundary, every id unique, and no new request', async () => {
+    const r = await launch();
+    const before = r.api.length;
+    r.click({ '[data-lab-mode]': attr('compare') });
+    const b = bench(r);
+    expect(r.metrics()).toMatchObject({ compare: true, fixture: 'lg-crest.with-crest', fixtureB: byId('lg-crest').fixtures[1].id });
+    const all = ids(b);
+    expect(all.length).toBeGreaterThan(20);
+    expect(new Set(all).size).toBe(all.length);
+    for (const name of ['viewport', 'frame', 'specimen', 'void', 'refuse', 'wdim', 'ov']) { expect(all).toContain(`lab-${name}`); expect(all).toContain(`lab-${name}-b`); }
+    expect(b).toContain('<div class="lab-cmp-pane" id="lab-pane-a" role="tabpanel" aria-labelledby="lab-tab-current">');
+    expect(b).toContain('<div class="lab-specimen" id="lab-specimen-b" dir="ltr" data-no-i18n data-lab-stage="b" role="group" aria-label="Preview B">');
+    expect(b).toContain('<select class="ds-input lab-fxb-s" id="lab-fx-b" data-no-i18n>');
+    expect(b).toContain('data-lab-swap="ab">Swap A and B</button>');
+    const specB = r.dom.byId['lab-specimen-b'];
+    expect(Object.keys(r.dom.listeners.get(specB) || {}).sort()).toEqual(Object.keys(r.dom.listeners.get(r.dom.byId['lab-specimen']) || {}).sort());
+    expect(specB.children[0].className).toBe('lab-col');
+    expect(specB.children[0].getElementsByTagName('*').length).toBe(byId('lg-crest').fixtures[1].elements);
+    expect(r.dom.log.innerHTML['lab-specimen-b']).toBeUndefined();          // built from nodes, never from a string
+    expect(r.api.length).toBe(before);
+    expect(r.dom.byId['lab-live'].textContent).toBe('Compare side by side');
+  });
+
+  it('changes Preview B on its own, refuses a fixture that is not this component’s, and leaves A, the strip and the zoom alone', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-zoom]': attr('out') });
+    r.click({ '[data-lab-mode]': attr('compare') });
+    const c = byId('lg-crest');
+    const nodesA = r.dom.byId['lab-specimen'].getElementsByTagName('*').length;
+    pickB(r, c.fixtures[2].id);
+    expect(r.metrics()).toMatchObject({ fixture: c.fixtures[0].id, fixtureB: c.fixtures[2].id, zoom: 0.9 });
+    expect(r.dom.byId['lab-specimen-b'].children[0].getElementsByTagName('*').length).toBe(c.fixtures[2].elements);
+    expect(r.dom.byId['lab-specimen'].getElementsByTagName('*').length).toBe(nodesA);
+    expect(r.dom.byId['lab-live'].textContent).toBe('Preview B: ' + c.fixtures[2].label);
+    for (const bad of ['lg-chip.label-and-value', '__proto__', '', '"><script>']) { pickB(r, bad); expect(r.metrics().fixtureB).toBe(c.fixtures[2].id); }
+    r.click({ '[data-lab-fx]': attr(c.fixtures[1].id) });
+    expect(r.metrics()).toMatchObject({ fixture: c.fixtures[1].id, fixtureB: c.fixtures[2].id });
+  });
+
+  it('swaps A and B, the strip following A', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-mode]': attr('compare') });
+    const c = byId('lg-crest');
+    pickB(r, c.fixtures[3].id);
+    r.click({ '[data-lab-swap]': attr('ab') });
+    expect(r.metrics()).toMatchObject({ fixture: c.fixtures[3].id, fixtureB: c.fixtures[0].id });
+    expect(r.dom.byId['lab-specimen'].children[0].getElementsByTagName('*').length).toBe(c.fixtures[3].elements);
+    expect(r.dom.byId['lab-specimen-b'].children[0].getElementsByTagName('*').length).toBe(c.fixtures[0].elements);
+    expect(r.dom.byId['lab-live'].textContent).toBe('Preview A and Preview B swapped');
+  });
+
+  it('compares the two fixtures in Provenance from the manifest alone: ids, markup, elements and classes, 0 for an empty set', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-mode]': attr('compare') });
+    const c = byId('lg-crest'), a = c.fixtures[0], b = c.fixtures[1];
+    const insp = r.dom.log.innerHTML['lab-insp'].slice(-1)[0];
+    expect(insp).toContain('id="lab-cmp-i"');
+    expect(insp.indexOf('lab-cmp-i')).toBeLessThan(insp.indexOf('Where this specimen comes from'));
+    expect(insp).toContain(`<code data-no-i18n>${a.id}</code>`); expect(insp).toContain(`<code data-no-i18n>${b.id}</code>`);
+    expect(insp).toContain(a.sha256 === b.sha256 ? 'Identical in both' : 'Different');
+    expect(insp).toContain(`<span data-no-i18n>${a.elements} · ${b.elements}</span>`);
+    const names = (f: any) => new Set(f.classes.map((k: any) => k.name));
+    const onlyA = [...names(a)].filter((n) => !names(b).has(n));
+    expect(insp).toMatch(new RegExp(`Only in A</div><div><span class="lab-cmp-n" data-no-i18n>${onlyA.length}</span>`));
+    r.click({ '[data-lab-mode]': attr('single') });
+    expect(r.dom.log.innerHTML['lab-insp'].slice(-1)[0]).not.toContain('lab-cmp-i');
+  });
+
+  it('a fixture refused in Preview B draws nothing there, says why, and leaves Preview A drawn', async () => {
+    const bad = clone(manifest);
+    const c = bad.components.find((x: any) => x.id === 'lg-crest');
+    c.fixtures[1].html = '<span class="lg-crest"><img src="https://example.invalid/a.png" onerror="alert(1)"></span>';
+    const r = await launch({ detail: (id: string) => ({ state: 'READY', reason: null, sources: manifest.sources, component: bad.components.find((x: any) => x.id === id) }) });
+    r.click({ '[data-lab-mode]': attr('compare') });
+    expect(r.metrics().fixtureB).toBe(c.fixtures[1].id);
+    expect(r.dom.byId['lab-specimen-b'].children).toHaveLength(0);
+    expect(r.dom.byId['lab-refuse-b'].hidden).toBe(false);
+    expect(r.dom.log.innerHTML['lab-refuse-b'].slice(-1)[0]).toContain('This fixture failed the browser’s check');
+    expect(r.dom.byId['lab-specimen'].children).toHaveLength(1);
+    expect(r.dom.byId['lab-refuse'].hidden).toBe(true);
+  });
+
+  it('removes Preview B completely when comparison ends, and keeps the mode across a remount and the room’s Refresh', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-mode]': attr('compare') });
+    r.click({ '[data-lab-mode]': attr('single') });
+    expect(bench(r)).not.toMatch(/ id="[^"]*-b"|lab-cmp|lab-fx-b/);
+    expect(r.metrics()).toMatchObject({ compare: false, fixtureB: null, specimenNodesB: 0 });
+    r.click({ '[data-lab-mode]': attr('compare') });
+    r.remount(); await r.settle();
+    expect(r.metrics().compare).toBe(true);
+    expect(bench(r)).toContain('id="lab-specimen-b"');
+    for (const junk of ['both', '', '__proto__']) { r.click({ '[data-lab-mode]': attr(junk) }); expect(r.metrics().compare).toBe(true); }
+  });
+
+  it('shares the toolbar: width and zoom reach both containers, and a component it cannot preview has no comparison', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-mode]': attr('compare') });
+    r.click({ '[data-lab-width]': attr('mobile') });
+    expect(r.dom.byId['lab-specimen'].children[0].style.props.width).toBe('390px');
+    expect(r.dom.byId['lab-specimen-b'].children[0].style.props.width).toBe('390px');
+    r.click({ '[data-lab-dir]': attr('rtl') });
+    expect([r.dom.byId['lab-specimen'].attrs.dir, r.dom.byId['lab-specimen-b'].attrs.dir]).toEqual(['rtl', 'rtl']);
+    r.click({ '[data-lab-id]': attr('ds-chip') }); await r.settle();
+    expect(bench(r)).not.toContain('data-lab-mode');
+  });
+
+  it('puts focus back on the View group, Preview B’s fixture and Swap after the room redraws the Lab', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-mode]': attr('compare') });
+    const made: Record<string, any> = {};
+    const q = r.dom.host.querySelector;
+    r.dom.host.querySelector = (sel: string) => ({ '[data-lab-mode="compare"]': 'mode', '#lab-fx-b': 'pick', '[data-lab-swap="ab"]': 'swap' } as Record<string, string>)[sel]
+      ? (made[sel] ||= Object.assign(r.dom.node('button'), { id: ({ '[data-lab-mode="compare"]': 'mode', '#lab-fx-b': 'pick', '[data-lab-swap="ab"]': 'swap' } as Record<string, string>)[sel] })) : q(sel);
+    for (const [target, id] of [[{ getAttribute: (k: string) => (k === 'data-lab-mode' ? 'compare' : null), id: '' }, 'mode'], [{ getAttribute: () => null, id: 'lab-fx-b' }, 'pick'], [{ getAttribute: (k: string) => (k === 'data-lab-swap' ? 'ab' : null), id: '' }, 'swap']] as const) {
+      r.fire('focusin', { target });
+      r.dom.doc.activeElement = null;
+      r.remount(); await r.settle();
+      expect(r.dom.log.focused).toContain(id);
+    }
+  });
+
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1583,6 +1741,17 @@ describe('English, German and Arabic: everything the Lab can say is in all three
     expect(ar['Width simulation — not full device emulation.']).toMatch(/محاكاة/);
   });
 
+  it('translates every comparison word (M2 / S3) into German and Arabic, and each View button’s name holds its visible word', () => {
+    const keys = ['View', 'Single', 'Single preview', 'Compare', 'Compare side by side', 'Preview A', 'Preview B', 'Fixture for Preview B', 'Swap A and B', 'Preview A and Preview B swapped', 'Comparison', 'Markup', 'Identical in both', 'Different', 'Elements', 'Only in A', 'Only in B', 'In both'];
+    for (const k of keys) { expect(en[k]).toBe(k); expect(de[k]).toBeTruthy(); expect(de[k]).not.toBe(k); expect(ar[k]).toMatch(/[\u0600-\u06FF]/); }
+    // Whole words, as axe's label-content-name-mismatch reads them: "Einzeln" is not a word of "Einzelne Vorschau".
+    const words = (x: string) => x.toLowerCase().split(/\s+/);
+    for (const d of [en, de, ar]) {
+      expect(words(d['Single preview'])).toContain(d.Single.toLowerCase());
+      expect(words(d['Compare side by side'])).toContain(d.Compare.toLowerCase());
+    }
+  });
+
   it('keeps the room’s boundary: no entry into the club product’s language registry, bundles or catalogue', () => {
     expect(js).not.toMatch(/\bI18N\b|\/i18n\/locales|\/i18n\/catalogue|familista\.locale/);
   });
@@ -1638,7 +1807,7 @@ describe('the browser proof is kept with the code and is a required CI job', () 
     expect(body).toContain('node tools/components/lab-browser-proof.cjs');
     expect(body).not.toMatch(/continue-on-error|\|\|\s*true|playwright install|secrets\./);
     const sections = [...body.matchAll(/sections:\s*'([^']+)'/g)].map((m) => m[1].split(',')).flat().sort();
-    expect(sections).toEqual(['1', '2', '2b', '3', '4', '5', '6', '7', '8', '9']);
+    expect(sections).toEqual(['1', '10', '2', '2b', '3', '4', '5', '6', '7', '8', '9']);
     expect(body).toMatch(/axe:\s*'--axe'/);
     // a shard that ran nothing, skipped something or failed something is red
     expect(body).toContain("grep -Eq ', 0 failed, 0 skipped$'");

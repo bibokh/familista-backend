@@ -652,7 +652,7 @@
     },
     // `pre` are scripts the section's own script needs first (the Lab's shared sanitizer, and its view maths).
     lab: {
-      host: 'lab-host', hostClass: 'lab-host', root: '.lab', api: 'FamilistaDesignLab', v: '20261014-lab-s2',
+      host: 'lab-host', hostClass: 'lab-host', root: '.lab', api: 'FamilistaDesignLab', v: '20261014-lab-s3',
       css: '/design-system/lab.css', js: '/design-system/lab.js', pre: ['/design-system/lab-sanitize.js', '/design-system/lab-view.js'],
       failed: 'The Specimen Lab could not be loaded',
     },
