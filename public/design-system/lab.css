@@ -115,6 +115,27 @@
   font-family: var(--fam-font-family-mono); font-size: var(--fam-font-size-md); font-variant-numeric: tabular-nums; color: var(--fam-text-primary);
 }
 .lab-zoom-v + .ds-seg-b { border-inline-start: var(--fam-border-width-hairline) solid var(--fam-border-default); }
+
+/* M2 / S2 — width: Fill and three presets, then a custom width in whole pixels. The same
+   segmented control as zoom and direction; amber marks only the width that is on and the
+   focus ring. The readouts below sit in fixed slots, so a new figure changes no line break,
+   and their row is always laid out and only shown while a width is set, so it moves nothing. */
+.lab-width .ds-seg-b { min-height: var(--fam-size-control-md); padding-inline: var(--fam-space-3); }
+.lab-wc { display: inline-flex; align-items: center; gap: var(--fam-space-2); color: var(--fam-text-secondary); font-size: var(--fam-font-size-md); }
+.lab-w {
+  inline-size: 10ch; min-height: var(--fam-size-control-md); padding-inline: var(--fam-space-2);
+  font-family: var(--fam-font-family-mono); font-variant-numeric: tabular-nums; text-align: end;
+}
+.lab-wc-u { font-family: var(--fam-font-family-mono); }
+.lab-wbar { flex: 0 0 auto; display: flex; align-items: center; flex-wrap: wrap; gap: var(--fam-space-2) var(--fam-space-5); min-height: 24px; font-size: var(--fam-font-size-md); color: var(--fam-text-secondary); }
+.lab-wdim { inline-size: 18ch; flex: none; white-space: nowrap; font-family: var(--fam-font-family-mono); font-variant-numeric: tabular-nums; color: var(--fam-text-primary); }
+.lab-ov {
+  inline-size: 32ch; max-inline-size: 100%; flex: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  padding-inline-start: var(--fam-space-2); border-inline-start: var(--fam-border-width-strong) solid transparent;
+}
+.lab-ov.is-over { color: var(--fam-text-primary); border-inline-start-color: var(--fam-border-strong); }   /* an edge, not a fill: overflow is a fact, not a result */
+.lab-wbar[data-off] { visibility: hidden; }
+.lab-wnote { flex: 1 1 18ch; min-width: 0; }
 .lab-evrow { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: var(--fam-space-2) var(--fam-space-5); min-height: 24px; }
 .lab-ev { display: inline-flex; align-items: center; gap: var(--fam-space-2); font-size: var(--fam-font-size-md); color: var(--fam-text-secondary); }
 
@@ -162,8 +183,14 @@
   overflow: auto; contain: strict; isolation: isolate;   /* strict: its size comes from the plate, never from the specimen, so a zoom lays out this box alone */
 }
 .lab-frame { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+/* is-zoomed: the frame is sized, for a zoom other than 100% or a set width (S2). */
 .lab-frame.is-zoomed { flex: none; margin: auto; overflow: hidden; }
 .lab-frame.is-zoomed > .lab-specimen { flex: none; overflow: visible; }
+/* is-sized: a width at 100%, laid out by the stylesheet alone. The frame grows to the viewport's height and, with auto inline
+   margins, takes the canvas's own width (the container plus its padding), so a width change is one layout pass; the readouts
+   are read after it. Any other zoom, and Fit, size the frame through the CSSOM as above. */
+.lab-frame.is-sized { flex: 1 0 auto; margin-inline: auto; }
+.lab-frame.is-sized > .lab-specimen { flex: 1 0 auto; overflow: visible; }
 .lab-col { margin: auto; width: 100%; max-width: 640px; }
 .lab-void, .lab-refuse { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 2; pointer-events: none; }
 .lab-refuse { pointer-events: auto; background: var(--fam-surface-base); }
@@ -206,6 +233,8 @@
 .lab-ih { margin-top: var(--fam-space-3); font-size: var(--fam-font-size-sm); font-weight: var(--fam-font-weight-extrabold); letter-spacing: var(--fam-font-tracking-label); text-transform: uppercase; color: var(--fam-text-secondary); }
 .lab-p { margin: 0; font-size: var(--fam-font-size-base); line-height: var(--fam-font-line-height-snug); }
 .lab-plain { margin: 0; padding-inline-start: var(--fam-space-4); display: flex; flex-direction: column; gap: var(--fam-space-1); font-size: var(--fam-font-size-md); }
+.lab-mq-s { display: block; margin-top: 2px; color: var(--fam-text-secondary); font-size: var(--fam-font-size-sm); }
+.lab-mq-s:empty { display: none; }
 .lab-hash { display: block; font-family: var(--fam-font-family-mono); font-size: var(--fam-font-size-xs); color: var(--fam-text-secondary); word-break: break-all; unicode-bidi: isolate; }
 .lab-call {
   margin: 0; padding: var(--fam-space-3); overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; direction: ltr; text-align: start;
@@ -227,7 +256,7 @@
 .lab-ni-t { font-weight: var(--fam-font-weight-extrabold); }
 .lab-ni-d { margin-top: 2px; font-size: var(--fam-font-size-md); color: var(--fam-text-secondary); }
 
-:is(.lab-item, .lab-grp-b, .lab-fx, .lab-tab, .lab-link, .lab-q, .lab-dir .ds-seg-b, .lab-pane):focus-visible {
+:is(.lab-item, .lab-grp-b, .lab-fx, .lab-tab, .lab-link, .lab-q, .lab-dir .ds-seg-b, .lab-width .ds-seg-b, .lab-w, .lab-pane):focus-visible {
   outline: var(--fam-border-width-strong) solid var(--fam-focus-ring); outline-offset: 2px;
 }
 

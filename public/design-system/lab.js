@@ -39,14 +39,21 @@
      is sized to the scaled canvas; the viewport is a second contained box and the
      only one that scrolls. At exactly 100% there is no transform at all, so the
      unzoomed stage is the M1 stage. Every number comes from lab-view.js, clamped.
+   - Width (M2 / S2): Fill, Desktop, Tablet, Mobile or a custom width sets the width of
+     the component's content container (.lab-col) through the CSSOM, and the zoom path
+     lays the canvas out at that width. The overflow figure and the container's size are
+     measured in the same pass. It is a width simulation, not a device: the window's
+     media queries and viewport units are untouched, the stage says so, and the
+     inspector marks each recorded viewport rule against the width without running it.
    These are claims, and tools/components/lab-browser-proof.cjs proves each one in a
    real browser; the Jest suite checks that this file wires them.
 
    WHAT IS NOT HERE
 
-   No state simulation, no hover or focus emulation, no anatomy overlay, no width
-   control, no light theme: the stage is one surface, dark, with a left-to-right or
-   right-to-left direction, and a zoom (M2 / S1) that scales the specimen inside it. Viewport @media rules respond to the browser window, not
+   No state simulation, no hover or focus emulation, no anatomy overlay, no device
+   emulation, no light theme: the stage is one surface, dark, with a left-to-right or
+   right-to-left direction, a zoom (M2 / S1) that scales the specimen inside it, and a
+   content width (M2 / S2). Viewport @media rules respond to the browser window, not
    to the stage, and the inspector says so for the two primitives that have them.
 
    READ-ONLY, CSP-SAFE
@@ -117,13 +124,13 @@
       pv: null, avail: Object.create(null),        // the previews index
       detail: Object.create(null), detailError: Object.create(null), detailLoading: Object.create(null),
       sel: null, fixture: null, dir: 'ltr', tab: 'provenance', q: '', open: { preview: true },
-      zoom: 1, fit: false,
+      zoom: 1, fit: false, width: null,
       loading: false, error: null, check: null, focus: null,
     };
   }
   var S = fresh();
-  var R = { host: null, root: null, bound: [], specimenBound: null, ro: null, raf: 0, nat: null };
-  var M = { loadMs: null, renderMs: null, switchMs: null, zoomMs: null, specimenNodes: 0, fixtures: 0, components: 0 };
+  var R = { host: null, root: null, bound: [], specimenBound: null, ro: null, raf: 0, nat: null, rafW: 0, say: null };
+  var M = { loadMs: null, renderMs: null, switchMs: null, zoomMs: null, widthMs: null, specimenNodes: 0, fixtures: 0, components: 0 };
 
   function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
   function rtl() { return K && K.dir() === 'rtl'; }
@@ -262,12 +269,13 @@
       return head + '</header><div class="lab-plate lab-plate--na">' + (S.detailError[id] ? '<div class="lab-na">' + K.emptyState('The fixtures could not be read', T(S.detailError[id])) + '</div>' : '<div class="lab-wait">' + K.skeleton(4, 'row') + '</div>') + '</div>';
     }
     return head
-      + '<div class="lab-tools">' + zoomHtml()
+      + '<div class="lab-tools">' + zoomHtml() + widthHtml()
       + '<div class="ds-seg lab-dir" role="group" aria-label="' + esc(T('Stage direction')) + '">'
       + ['ltr', 'rtl'].map(function (d) {
         return '<button type="button" class="ds-seg-b' + (S.dir === d ? ' is-on' : '') + '" data-lab-dir="' + d + '" aria-pressed="' + (S.dir === d ? 'true' : 'false') + '" aria-label="' + esc(d.toUpperCase() + ' · ' + T(d === 'ltr' ? 'Left to right' : 'Right to left')) + '"><span data-no-i18n>' + d.toUpperCase() + '</span></button>';
       }).join('') + '</div></div></header>'
       + '<div class="lab-evrow" id="lab-evrow"></div>'
+      + '<div class="lab-wbar" id="lab-wbar"' + (S.width == null ? ' data-off' : '') + '>' + wbarHtml() + '</div>'
       + '<div class="lab-plate" id="lab-plate" role="tabpanel" aria-labelledby="lab-tab-current">'
       + '<div class="lab-viewport" id="lab-viewport"><div class="lab-frame" id="lab-frame" dir="' + S.dir + '">'
       + '<div class="lab-specimen" id="lab-specimen" dir="' + S.dir + '" data-no-i18n data-lab-stage role="group" aria-label="' + esc(T('Specimen')) + '"></div>'
@@ -317,45 +325,77 @@
     if (!el || typeof window.getComputedStyle !== 'function') return 0;
     var v = parseFloat(window.getComputedStyle(el)[side]); return isFinite(v) ? v : 0;
   }
-  /** The scale at which the whole specimen is visible in the viewport, measured at 100%; never above 100%. */
-  function fitScale(vp, spec) {
+  /**
+   * Everything the stage needs, read once with the stage at 100%: the canvas's natural size,
+   * the content container's size, how far content reaches past it, and the scale at which
+   * the whole specimen is visible in the viewport (never above 100%). With a width set, the
+   * canvas is the container plus the canvas's own padding, whatever the stage's width.
+   */
+  function measureStage(vp, spec) {
     var col = spec.firstElementChild;
-    if (!col) return 1;
-    return V.fit(vp.clientWidth, vp.clientHeight,
-      col.offsetWidth + px(spec, 'paddingLeft') + px(spec, 'paddingRight'),
-      col.offsetHeight + px(spec, 'paddingTop') + px(spec, 'paddingBottom'));
+    var padX = px(spec, 'paddingLeft') + px(spec, 'paddingRight'), padY = px(spec, 'paddingTop') + px(spec, 'paddingBottom');
+    var cw = col ? col.offsetWidth : 0, ch = col ? col.offsetHeight : 0;
+    return {
+      spec: spec,
+      w: S.width != null && col ? cw + padX : spec.offsetWidth,
+      h: Math.max(spec.offsetHeight || 0, spec.scrollHeight || 0),
+      cw: cw, ch: ch,
+      ov: col ? V.overflowPx(col.scrollWidth, col.clientWidth) : null,
+      fit: col ? V.fit(vp.clientWidth, vp.clientHeight, cw + padX, ch + padY) : 1,
+    };
+  }
+  /** The content container takes the set width, or goes back to the stylesheet's own (Fill). */
+  function sizeColumn(spec) {
+    var col = spec.firstElementChild;
+    if (!col) return;
+    if (S.width == null) { unsetStyle(col, 'width'); unsetStyle(col, 'max-width'); return; }
+    col.style.setProperty('width', S.width + 'px');
+    col.style.setProperty('max-width', 'none');
   }
   function clearZoom(fr, spec) {
     ['width', 'height'].forEach(function (p) { unsetStyle(fr, p); });
     ['width', 'min-height', 'transform', 'transform-origin'].forEach(function (p) { unsetStyle(spec, p); });
-    if (fr.classList) fr.classList.remove('is-zoomed');
+    if (fr.classList) { fr.classList.remove('is-zoomed'); fr.classList.remove('is-sized'); }
   }
   /**
-   * Lay the stage out at the current zoom. The specimen's natural (100%) size is measured once,
-   * with the stage back at 100%, whenever what it depends on changes (`measure`: a new fixture,
-   * a new direction, a resized viewport); a zoom step reuses it and only writes, so stepping never
-   * forces a layout. The canvas is held at its natural size, scaled through the CSSOM, and the frame
-   * is given the scaled size so the viewport scrolls exactly as far as the scaled specimen reaches.
+   * Lay the stage out at the current zoom and width. The specimen's natural (100%) size is
+   * measured once, with the stage back at 100%, whenever what it depends on changes (`measure`:
+   * a new fixture, a new direction, a new width, a resized viewport); a zoom step reuses it and
+   * only writes, so stepping never forces a layout. The canvas is held at its natural size,
+   * scaled through the CSSOM, and the frame is given the scaled size so the viewport scrolls
+   * exactly as far as the scaled specimen reaches.
    */
   function applyZoom(measure) {
     var vp = document.getElementById('lab-viewport'), fr = document.getElementById('lab-frame'), spec = document.getElementById('lab-specimen');
     if (!vp || !fr || !spec || !V) return;
-    if (measure && !S.fit && V.clamp(S.zoom) === 1) { R.nat = null; clearZoom(fr, spec); return; }   // unzoomed: nothing to measure yet
+    // Fill at 100%: the M1 stage. Nothing is measured, so a fixture switch costs exactly what it did before S2.
+    if (measure && !S.fit && V.clamp(S.zoom) === 1 && S.width == null) { R.nat = null; clearZoom(fr, spec); sizeColumn(spec); return; }
+    // A width at 100%, Fit off: the stylesheet sizes the frame to the canvas (.is-sized), so nothing is read here and the change
+    // costs the one layout pass the next frame does anyway. The readouts are read once that layout is done (readoutsLater).
+    if (measure && !S.fit && V.clamp(S.zoom) === 1) { R.nat = null; clearZoom(fr, spec); sizeColumn(spec); fr.classList.add('is-sized'); readoutsLater(); return; }
     if (measure || !R.nat || R.nat.spec !== spec) {
       clearZoom(fr, spec);
-      R.nat = { spec: spec, w: spec.offsetWidth, h: Math.max(spec.offsetHeight || 0, spec.scrollHeight || 0), fit: fitScale(vp, spec) };
+      sizeColumn(spec);
+      R.nat = measureStage(vp, spec);
     }
     var s = S.fit ? R.nat.fit : V.clamp(S.zoom);
     S.zoom = s;
     var size = V.frameSize(R.nat.w, R.nat.h, s);
-    if (s === 1 || !size.width || !size.height) { clearZoom(fr, spec); return; }   // 100%, or nothing measurable (a hidden stage): no transform at all
+    if ((s === 1 && S.width == null) || !size.width || !size.height) { clearZoom(fr, spec); return; }   // Fill at 100%, or nothing measurable (a hidden stage): no transform, no frame size
     spec.style.setProperty('width', R.nat.w + 'px');
     spec.style.setProperty('min-height', R.nat.h + 'px');
     spec.style.setProperty('transform-origin', V.origin(S.dir));
     spec.style.setProperty('transform', V.transform(s));
-    fr.classList.add('is-zoomed');
+    fr.classList.remove('is-sized'); fr.classList.add('is-zoomed');
     fr.style.setProperty('width', size.width + 'px');
     fr.style.setProperty('height', size.height + 'px');
+  }
+  /** Nothing is drawn (a refused or an empty fixture): no sizing, and readouts that say nothing was measured. */
+  function stageEmpty() {
+    var fr = document.getElementById('lab-frame'), spec = document.getElementById('lab-specimen');
+    if (fr && spec) clearZoom(fr, spec);
+    R.nat = null;
+    syncZoom(); syncWidth();
   }
   function zoomable() { var c = current(); return !!(c && S.avail[S.sel] && S.avail[S.sel].state === 'preview' && document.getElementById('lab-specimen')); }
   function zoomAction(act) {
@@ -371,7 +411,7 @@
     syncZoom();
     live(S.fit ? tf('Fit to stage: %d%', V.percent(S.zoom)) : tf('Zoom %d%', V.percent(S.zoom)));
   }
-  /** The viewport is watched for size changes (window, sidebar, escape hatch) and the zoom is laid out again. */
+  /** The viewport is watched for size changes (window, sidebar, escape hatch); the stage is measured and laid out again. */
   function observeStage() {
     stopObserving();
     var vp = document.getElementById('lab-viewport');
@@ -381,16 +421,134 @@
       var k = vp.clientWidth + 'x' + vp.clientHeight;
       if (k === last) return;
       last = k;
-      if (!(S.fit || S.zoom !== 1) || typeof window.requestAnimationFrame !== 'function') return;
+      if (!(S.fit || S.zoom !== 1 || S.width != null) || typeof window.requestAnimationFrame !== 'function') return;
       if (R.raf) window.cancelAnimationFrame(R.raf);
-      R.raf = window.requestAnimationFrame(function () { R.raf = 0; applyZoom(true); syncZoom(); });
+      R.raf = window.requestAnimationFrame(function () { R.raf = 0; applyZoom(true); syncZoom(); syncWidth(); });
     });
     R.ro.observe(vp);
   }
   function stopObserving() {
     if (R.ro) { R.ro.disconnect(); R.ro = null; }
-    if (R.raf && typeof window.cancelAnimationFrame === 'function') window.cancelAnimationFrame(R.raf);
-    R.raf = 0;
+    if (typeof window.cancelAnimationFrame === 'function') { if (R.raf) window.cancelAnimationFrame(R.raf); if (R.rafW) window.cancelAnimationFrame(R.rafW); }
+    R.raf = 0; R.rafW = 0;
+  }
+  /**
+   * The readouts for a stage the stylesheet laid out: read two frames on, when the frame that drew the new width has already
+   * done its layout, so the read costs nothing and forces nothing; then the readouts and any pending announcement are written.
+   */
+  function readoutsLater() {
+    if (typeof window.requestAnimationFrame !== 'function') { readoutsNow(); return; }
+    if (R.rafW) window.cancelAnimationFrame(R.rafW);
+    R.rafW = window.requestAnimationFrame(function () { R.rafW = window.requestAnimationFrame(function () { R.rafW = 0; readoutsNow(); }); });
+  }
+  function readoutsNow() {
+    var vp = document.getElementById('lab-viewport'), fr = document.getElementById('lab-frame'), spec = document.getElementById('lab-specimen');
+    if (vp && fr && spec && fr.classList.contains('is-sized')) R.nat = measureStage(vp, spec);   // still the stylesheet's layout: measure it
+    syncWidth();
+    announceWidth();
+  }
+  /** Say what the width is, with the overflow measured for it; once. */
+  function announceWidth() {
+    if (R.say == null) return;
+    var o = R.nat ? R.nat.ov : null;
+    live(R.say + (o ? ' · ' + tf('Content overflows by %d px', o) : ''));
+    R.say = null;
+  }
+
+  // ── width (M2 / S2) ───────────────────────────────────────────────────────
+  //
+  // The width of the component's content container: Fill (the stylesheet's own), a preset,
+  // or a custom whole number of pixels. Every value passes through lab-view.js and is
+  // written through the CSSOM; the zoom path above lays it out, so a width change is one
+  // measurement and a few writes, and nothing in the specimen is rebuilt.
+
+  var WIDTHS = [['fill', 'Fill'], ['desktop', 'Desktop'], ['tablet', 'Tablet'], ['mobile', 'Mobile']];
+  function widthMode() {
+    if (S.width == null) return 'fill';
+    for (var k in V.PRESETS) if (V.PRESETS[k] === S.width) return k;
+    return 'custom';
+  }
+  function widthHtml() {
+    var mode = widthMode();
+    return '<div class="ds-seg lab-width" role="group" aria-label="' + esc(T('Width')) + '">'
+      + WIDTHS.map(function (w) {
+        var on = mode === w[0];
+        var label = w[0] === 'fill' ? T('Fill the stage') : T(w[1]) + ' · ' + num(V.PRESETS[w[0]]) + ' px';
+        return '<button type="button" class="ds-seg-b' + (on ? ' is-on' : '') + '" data-lab-width="' + w[0] + '" aria-pressed="' + (on ? 'true' : 'false') + '" aria-label="' + esc(label) + '"><span>' + esc(T(w[1])) + '</span></button>';
+      }).join('') + '</div>'
+      + '<label class="lab-wc"><span class="lab-wc-l">' + esc(T('Custom width')) + '</span>'
+      + '<input class="ds-input lab-w" id="lab-w" type="number" inputmode="numeric" min="' + V.WIDTH_MIN + '" max="' + V.WIDTH_MAX + '" step="1" autocomplete="off" value="' + (S.width == null ? '' : S.width) + '" aria-describedby="lab-w-h">'
+      + '<span class="lab-wc-u" aria-hidden="true" data-no-i18n>px</span></label>'
+      + '<span class="ds-sr" id="lab-w-h">' + esc(tf('From %d to %d px. Press Enter to apply.', V.WIDTH_MIN, V.WIDTH_MAX)) + '</span>';
+  }
+  /**
+   * The width's readouts: the container's measured size, its horizontal overflow, and the disclosure. The row is always laid
+   * out and only shown while a width is set, so showing it moves nothing; at Fill nothing is simulated and nothing is measured.
+   */
+  function wbarHtml() {
+    return '<span class="lab-wdim" id="lab-wdim" data-no-i18n>—</span>'
+      + '<span class="lab-ov" id="lab-ov">—</span>'
+      + '<span class="lab-wnote" id="lab-wnote">' + esc(T('Width simulation — not full device emulation.')) + '</span>';
+  }
+  /** Bring the width controls and readouts in line with the state and the last measurement, without redrawing them. */
+  function syncWidth() {
+    if (!R.host) return;
+    var mode = widthMode();
+    [].forEach.call(R.host.querySelectorAll('[data-lab-width]'), function (b) {
+      var on = b.getAttribute('data-lab-width') === mode;
+      b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    var inp = document.getElementById('lab-w'); if (inp) inp.value = S.width == null ? '' : String(S.width);
+    var n = R.nat;
+    var dim = document.getElementById('lab-wdim');
+    if (dim) dim.textContent = n && n.cw ? num(n.cw) + ' × ' + num(n.ch) + ' px' : '—';
+    var ov = document.getElementById('lab-ov');
+    if (ov) {
+      var o = n ? n.ov : null;
+      ov.textContent = o == null ? '—' : o > 0 ? tf('Content overflows by %d px', o) : T('No horizontal overflow');
+      ov.classList.toggle('is-over', !!o);
+    }
+    var bar = document.getElementById('lab-wbar');
+    if (bar) { if (S.width == null) bar.setAttribute('data-off', ''); else bar.removeAttribute('data-off'); }
+    syncMq();
+  }
+  /** Set the width (null: Fill). The zoom is kept; Fit, when on, is worked out again for the new width. */
+  function setWidth(w, note) {
+    if (!V || !zoomable()) return;
+    var t0 = now();
+    S.width = w == null ? null : V.clampWidth(w);
+    R.say = (S.width == null ? T('Width: fill the stage') : tf('Width %d px', S.width)) + (note ? ' · ' + note : '');
+    applyZoom(true);
+    M.widthMs = Math.round((now() - t0) * 10) / 10;
+    syncZoom(); syncWidth();
+    var fr = document.getElementById('lab-frame');
+    if (!(fr && fr.classList.contains('is-sized'))) announceWidth();          // otherwise the readouts, after layout, announce it with its overflow
+  }
+  function widthAction(mode) {
+    if (mode === 'fill') setWidth(null);
+    else if (Object.prototype.hasOwnProperty.call(V.PRESETS, mode)) setWidth(V.PRESETS[mode]);
+  }
+  /** A custom width is read strictly: not a width, and the field goes back to the one in force; outside the limits, and it is held at the nearest. */
+  function applyCustom(inp) {
+    var p = V.parseWidth(inp.value);
+    if (!p) { syncWidth(); live(tf('Enter a width between %d and %d px', V.WIDTH_MIN, V.WIDTH_MAX)); return; }
+    if (p.value === S.width) { syncWidth(); return; }
+    setWidth(p.value, p.clamped ? tf('Kept within %d to %d px', V.WIDTH_MIN, V.WIDTH_MAX) : '');
+  }
+  /** What a recorded viewport rule would do in a window as wide as the set width. Read from its text; never run. */
+  function mqText(q) {
+    if (S.width == null) return '';
+    var r = V.mqAt(q, S.width);
+    return r === true ? tf('Would apply in a %d px window — not simulated', S.width)
+      : r === false ? tf('Would not apply in a %d px window', S.width) : T('Cannot be judged from a width alone');
+  }
+  function syncMq() {
+    var c = current(), list = document.getElementById('lab-mq');
+    if (!c || !list) return;
+    [].forEach.call(list.querySelectorAll('[data-lab-mq]'), function (el) {
+      var q = c.mediaQueries[+el.getAttribute('data-lab-mq')];
+      el.textContent = q == null ? '' : mqText(q);
+    });
   }
 
   function stripHtml(c) {
@@ -422,9 +580,10 @@
       refuse.hidden = false;
       refuse.innerHTML = K.emptyState('This fixture failed the browser’s check', res.problems.slice(0, 3).join(' · '));
       M.specimenNodes = 0;
+      stageEmpty();
       return false;
     }
-    if (!res.tree.kids.length) { voidEl.hidden = false; M.specimenNodes = 0; M.renderMs = Math.round((now() - t0) * 10) / 10; return true; }
+    if (!res.tree.kids.length) { voidEl.hidden = false; M.specimenNodes = 0; M.renderMs = Math.round((now() - t0) * 10) / 10; stageEmpty(); return true; }
     var col = document.createElement('div');
     col.className = 'lab-col';
     col.appendChild(Z.toDom(res.tree, document));
@@ -441,7 +600,7 @@
     });
     M.specimenNodes = spec.getElementsByTagName('*').length;
     M.renderMs = Math.round((now() - t0) * 10) / 10;
-    applyZoom(true); syncZoom();
+    applyZoom(true); syncZoom(); syncWidth();
     return true;
   }
 
@@ -490,7 +649,7 @@
     S.dir = d;
     var spec = document.getElementById('lab-specimen'); if (spec) spec.setAttribute('dir', d);
     var fr = document.getElementById('lab-frame'); if (fr) fr.setAttribute('dir', d);
-    applyZoom(true);
+    applyZoom(true); syncWidth();
     [].forEach.call(R.host.querySelectorAll('[data-lab-dir]'), function (b) { var on = b.getAttribute('data-lab-dir') === d; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
     live(T(d === 'ltr' ? 'Left to right' : 'Right to left'));
   }
@@ -546,7 +705,7 @@
 
   function paneProvenance(c, f) {
     var mq = c.mediaQueries.length
-      ? '<div class="lab-ih">' + esc(T('Viewport rules')) + '</div><ul class="lab-plain">' + c.mediaQueries.map(function (q) { return '<li>' + code(q) + '</li>'; }).join('') + '</ul>'
+      ? '<div class="lab-ih">' + esc(T('Viewport rules')) + '</div><ul class="lab-plain lab-mq" id="lab-mq">' + c.mediaQueries.map(function (q, i) { return '<li>' + code(q) + '<span class="lab-mq-s" data-lab-mq="' + i + '">' + esc(mqText(q)) + '</span></li>'; }).join('') + '</ul>'
         + '<div class="ds-note">' + esc(T('These rules respond to the browser window, not to the stage.')) + '</div>' : '';
     var classes = '<table class="ds-table lab-tbl"><caption class="ds-sr">' + esc(T('Classes this fixture uses')) + '</caption><thead><tr><th scope="col">' + esc(T('Class')) + '</th><th scope="col">' + esc(T('Owner')) + '</th><th scope="col" class="ds-num">' + esc(T('Rules')) + '</th></tr></thead><tbody>'
       + f.classes.map(function (x) {
@@ -688,12 +847,18 @@
     if (q) { setDir(q.getAttribute('data-lab-dir')); return; }
     q = t.closest('[data-lab-zoom]');
     if (q) { zoomAction(q.getAttribute('data-lab-zoom')); return; }
+    q = t.closest('[data-lab-width]');
+    if (q) { widthAction(q.getAttribute('data-lab-width')); return; }
     q = t.closest('[data-lab-tab]');
     if (q) { S.tab = q.getAttribute('data-lab-tab'); drawInspector(); var f = document.getElementById('lab-itab-' + S.tab); if (f) f.focus(); return; }
   }
   function onInput(ev) {
     var t = ev.target;
     if (t && t.id === 'lab-q') { S.q = t.value; drawRail(); }
+  }
+  function onChange(ev) {
+    var t = ev.target;
+    if (t && t.id === 'lab-w') applyCustom(t);
   }
   function step(list, from, key) {
     var at = list.indexOf(from), n = list.length;
@@ -704,6 +869,11 @@
   }
   function onKey(ev) {
     var t = ev.target;
+    if (t && t.id === 'lab-w') {
+      if (ev.key === 'Enter') { ev.preventDefault(); applyCustom(t); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); syncWidth(); }
+      return;
+    }
     if (t && t.id === 'lab-q') {
       if (ev.key === 'Escape' && S.q) { ev.preventDefault(); S.q = ''; t.value = ''; drawRail(); }
       else if (ev.key === 'ArrowDown') { var first = R.host.querySelector('#lab-rail-body button[tabindex="0"]'); if (first) { ev.preventDefault(); first.focus(); } }
@@ -746,7 +916,8 @@
   function focusKey(el) {
     if (!el || !el.getAttribute) return null;
     if (el.id === 'lab-q') return 'q';
-    var m = [['data-lab-id', 'i'], ['data-lab-grp', 'g'], ['data-lab-fx', 'f'], ['data-lab-tab', 't'], ['data-lab-dir', 'd'], ['data-lab-zoom', 'z']];
+    if (el.id === 'lab-w') return 'c';
+    var m = [['data-lab-id', 'i'], ['data-lab-grp', 'g'], ['data-lab-fx', 'f'], ['data-lab-tab', 't'], ['data-lab-dir', 'd'], ['data-lab-zoom', 'z'], ['data-lab-width', 'w']];
     for (var i = 0; i < m.length; i++) { var v = el.getAttribute(m[i][0]); if (v) return m[i][1] + ':' + v; }
     return null;
   }
@@ -756,7 +927,7 @@
     if (!f || !R.host || now() - f.at > FOCUS_MS) return;
     var a = document.activeElement;
     if (a && a !== document.body && R.host.contains(a)) return;
-    var sel = f.key === 'q' ? '#lab-q' : '[data-lab-' + ({ i: 'id', g: 'grp', f: 'fx', t: 'tab', d: 'dir', z: 'zoom' })[f.key.charAt(0)] + '="' + cssq(f.key.slice(2)) + '"]';
+    var sel = f.key === 'q' ? '#lab-q' : f.key === 'c' ? '#lab-w' : '[data-lab-' + ({ i: 'id', g: 'grp', f: 'fx', t: 'tab', d: 'dir', z: 'zoom', w: 'width' })[f.key.charAt(0)] + '="' + cssq(f.key.slice(2)) + '"]';
     var el = R.host.querySelector(sel);
     if (!el) return;
     el.focus({ preventScroll: true });
@@ -796,6 +967,7 @@
     R.root = host.querySelector('.lab');
     bind(host, 'click', onClick);
     bind(host, 'input', onInput);
+    bind(host, 'change', onChange);
     bind(host, 'keydown', onKey);
     bind(host, 'focusin', trackFocus);
     bind(document, 'keydown', function (ev) {
@@ -842,13 +1014,14 @@
     R.root = null; R.host = null;
   }
   /** Forget everything read from the server (the room's Refresh). */
-  function reset() { unbind(); stopObserving(); var keep = { dir: S.dir, zoom: S.zoom, fit: S.fit }; S = fresh(); S.dir = keep.dir; S.zoom = keep.zoom; S.fit = keep.fit; }
+  function reset() { unbind(); stopObserving(); var keep = { dir: S.dir, zoom: S.zoom, fit: S.fit, width: S.width }; S = fresh(); S.dir = keep.dir; S.zoom = keep.zoom; S.fit = keep.fit; S.width = keep.width; }
 
   window.FamilistaDesignLab = { mount: mount, unmount: unmount, reset: reset };
 
   // Figures the page itself produced, for the test suite and the performance record. Nothing else.
   window.__familistaLabMetrics = function () {
     var spec = document.getElementById('lab-specimen');
-    return { loadMs: M.loadMs, renderMs: M.renderMs, switchMs: M.switchMs, specimenNodes: spec ? spec.getElementsByTagName('*').length : 0, components: M.components, fixtures: M.fixtures, selected: S.sel, fixture: S.fixture, dir: S.dir, zoom: S.zoom, fit: S.fit, zoomMs: M.zoomMs };
+    return { loadMs: M.loadMs, renderMs: M.renderMs, switchMs: M.switchMs, specimenNodes: spec ? spec.getElementsByTagName('*').length : 0, components: M.components, fixtures: M.fixtures, selected: S.sel, fixture: S.fixture, dir: S.dir, zoom: S.zoom, fit: S.fit, zoomMs: M.zoomMs,
+      width: S.width, widthMs: M.widthMs, container: R.nat ? { w: R.nat.cw, h: R.nat.ch } : null, overflowPx: R.nat ? R.nat.ov : null };
   };
 }());

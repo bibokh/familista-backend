@@ -870,9 +870,11 @@ describe('the Specimen Lab client: CSP-safe, GET-only, lazy, and read-only', () 
     expect(js).toContain("K.emptyState('This fixture failed the browser’s check', res.problems.slice(0, 3).join(' · '))");
   });
 
-  it('draws no state, no hover, no focus emulation, no anatomy overlay, no width control and no comparison: M1 plus the M2 / S1 zoom only', () => {
-    expect(js).not.toMatch(/data-lab-force|forceState|:hover|adoptedStyleSheets|CSSStyleSheet|insertRule|replaceSync|getBoundingClientRect|anatomy|overlay|compare|viewport preset|data-lab-width/i);
-    expect(css).not.toMatch(/data-lab-force|\.lab-anatomy|\.lab-compare|\.lab-width/);
+  it('draws no state, no hover, no focus emulation, no anatomy overlay, no device emulation and no comparison: M1, the M2 / S1 zoom and the S2 width only', () => {
+    expect(js).not.toMatch(/data-lab-force|forceState|:hover|adoptedStyleSheets|CSSStyleSheet|insertRule|replaceSync|getBoundingClientRect|anatomy|overlay|compare|viewport preset/i);
+    expect(css).not.toMatch(/data-lab-force|\.lab-anatomy|\.lab-compare/);
+    // The width is a container width: the window, its media queries and its pixel ratio are never asked or faked, and nothing is kept between visits.
+    expect(js).not.toMatch(/matchMedia|innerWidth|outerWidth|devicePixelRatio|visualViewport|<iframe|localStorage|sessionStorage|@container|container-type/i);
     // getComputedStyle is read for one thing only: the specimen's padding, for Fit.
     expect(js.match(/getComputedStyle\(/g) || []).toHaveLength(1);
   });
@@ -937,6 +939,51 @@ describe('the zoom view maths (M2 / S1): pure, deterministic and clamped', () =>
   });
 });
 
+describe('the width view maths (M2 / S2): strict, clamped, and honest about what a width cannot tell', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const V = require('../public/design-system/lab-view.js');
+  const junk: unknown[] = [NaN, Infinity, -Infinity, null, undefined, {}, [], true, () => 1, 0, -390, '', ' ', 'abc', '1e3', '-5', '+5', '0x200', '390px', '390 px', '3 90', '123456', '1.23456', '.5', 'Infinity', '١٢٣', '390\n;x'];
+
+  it('declares the approved limits and presets, and hands out a copy', () => {
+    expect([V.WIDTH_MIN, V.WIDTH_MAX]).toEqual([320, 1600]);
+    expect(V.PRESETS).toEqual({ desktop: 1280, tablet: 834, mobile: 390 });
+    V.PRESETS.desktop = 1; // eslint-disable-line no-param-reassign
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    expect(require('vm').runInNewContext(read('public/design-system/lab-view.js') + ';this.FamilistaLabView.PRESETS.desktop', { window: undefined })).toBe(1280);
+  });
+
+  it('clamps a positive number to a whole width in 320–1600, and refuses everything else', () => {
+    expect([V.clampWidth(1), V.clampWidth(319.4), V.clampWidth(320), V.clampWidth(390.5), V.clampWidth(834), V.clampWidth(1600.4), V.clampWidth(1e9)]).toEqual([320, 320, 320, 391, 834, 1600, 1600]);
+    for (const j of junk) if (typeof j !== 'string') expect(V.clampWidth(j)).toBeNull();
+  });
+
+  it('reads typed text strictly: digits with an optional decimal part, nothing else, and says when it had to clamp', () => {
+    expect(V.parseWidth('390')).toEqual({ value: 390, clamped: false });
+    expect(V.parseWidth(' 834 ')).toEqual({ value: 834, clamped: false });
+    expect(V.parseWidth('390.6')).toEqual({ value: 391, clamped: false });
+    expect(V.parseWidth('100')).toEqual({ value: 320, clamped: true });
+    expect(V.parseWidth('99999')).toEqual({ value: 1600, clamped: true });
+    expect(V.parseWidth(1280)).toEqual({ value: 1280, clamped: false });
+    for (const j of junk) expect({ j, out: V.parseWidth(j) }).toEqual({ j, out: null });
+  });
+
+  it('measures overflow in whole pixels, calls sub-pixel rounding 0, and returns null when nothing was measured', () => {
+    expect([V.overflowPx(390, 390), V.overflowPx(391, 390), V.overflowPx(392.4, 390), V.overflowPx(300, 390), V.overflowPx(1700, 1600)]).toEqual([0, 0, 2, 0, 100]);
+    for (const [a, b] of [[NaN, 390], [390, 0], [390, -1], [-1, 390], [undefined, 390], [390, null]]) expect(V.overflowPx(a, b)).toBeNull();
+  });
+
+  it('judges a recorded viewport rule against a window width from its text alone, and says when it cannot', () => {
+    expect([V.mqAt('@media (max-width:760px)', 390), V.mqAt('@media (max-width:760px)', 760), V.mqAt('@media (max-width:760px)', 834)]).toEqual([true, true, false]);
+    expect([V.mqAt('@media (min-width: 600px) and (max-width: 900px)', 834), V.mqAt('@media screen and (min-width: 600px)', 390), V.mqAt('@media only screen and (max-width: 480px)', 390)]).toEqual([true, false, true]);
+    expect(V.mqAt('@media (max-width: 980px), (max-height: 620px)', 390)).toBe(true);    // one part is enough
+    expect(V.mqAt('@media (max-width: 980px), (max-height: 620px)', 1280)).toBeNull();  // the other part needs a height
+    expect(V.mqAt('@media (max-width: 300px) and (orientation: portrait)', 390)).toBe(false);
+    for (const q of ['@media (max-width: 40em)', '@media print', '@media not all and (max-width: 500px)', '@media (orientation: portrait)', '@media (hover: hover)', '@supports (display: grid)', '@container (max-width: 400px)', '', 7, null])
+      expect({ q, r: V.mqAt(q, 390) }).toEqual({ q, r: null });
+    expect(V.mqAt('@media (max-width:760px)', NaN)).toBeNull();
+  });
+});
+
 describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures, direction, keys', () => {
   const PAYLOAD = '"><img src=x onerror=alert(1)><script>alert(2)</script>';
 
@@ -949,7 +996,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
       const n: any = {
         nodeType: 1, tag, ns, attrs: {} as Record<string, string>, children: [] as any[], parent: null, hidden: false, id: '', textContent: '', value: '', scrollTop: 0,
         classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
-        style: { props: {} as Record<string, string>, setProperty(k: string, v: string) { this.props[k] = v; } },
+        style: { props: {} as Record<string, string>, setProperty(k: string, v: string) { this.props[k] = v; }, removeProperty(k: string) { delete this.props[k]; } },
         setAttribute(k: string, v: string) { this.attrs[k] = v; log.setAttr.push(tag + '.' + k); if (k === 'id') byId[v] = this; },
         getAttribute(k: string) { return k in this.attrs ? this.attrs[k] : null; },
         removeAttribute(k: string) { delete this.attrs[k]; },
@@ -957,6 +1004,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
         appendChild(c: any) { if (c.tag === '#fragment') { for (const k of c.children) { k.parent = this; this.children.push(k); } c.children = []; return c; } c.parent = this; this.children.push(c); return c; },
         removeChild(c: any) { this.children = this.children.filter((x: any) => x !== c); c.parent = null; return c; },
         get firstChild() { return this.children[0] || null; },
+        get firstElementChild() { return this.children.find((c: any) => c.nodeType === 1) || null; },
         addEventListener(t: string, fn: (e: any) => void) { const m = listeners.get(this) || {}; (m[t] ||= []).push(fn); listeners.set(this, m); },
         removeEventListener() {},
         contains(o: any) { for (let x = o; x; x = x.parent) if (x === this) return true; return false; },
@@ -1329,6 +1377,138 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     expect(r.dom.log.focused).toContain('zin');
   });
 
+  // ── M2 / S2: width ─────────────────────────────────────────────────────────
+  const widthKey = (r: Run, value: string, how: 'change' | 'Enter' | 'Escape' = 'change') => {
+    const t = { id: 'lab-w', value };
+    if (how === 'change') r.fire('change', { target: t }); else r.key(how, t);
+  };
+  const col = (r: Run) => r.dom.byId['lab-specimen'].children[0];
+  const live = (r: Run) => r.dom.byId['lab-live'].textContent;
+
+  it('draws Fill, Desktop, Tablet and Mobile beside the zoom, a strict custom field, and readouts that are always laid out', async () => {
+    const r = await launch();
+    const bench = zoomTool(r);
+    expect(bench).toContain('class="ds-seg lab-width" role="group" aria-label="Width"');
+    expect(bench).toMatch(/data-lab-width="fill" aria-pressed="true" aria-label="Fill the stage"/);
+    for (const [k, w] of [['desktop', 1280], ['tablet', 834], ['mobile', 390]]) expect(bench).toMatch(new RegExp(`data-lab-width="${k}" aria-pressed="false" aria-label="[A-Za-z]+ · ${w} px"`));
+    expect(bench).toContain('<input class="ds-input lab-w" id="lab-w" type="number" inputmode="numeric" min="320" max="1600" step="1" autocomplete="off" value="" aria-describedby="lab-w-h">');
+    expect(bench).toContain('id="lab-w-h">From 320 to 1600 px. Press Enter to apply.</span>');
+    expect(bench).toContain('<div class="lab-wbar" id="lab-wbar" data-off><span class="lab-wdim" id="lab-wdim" data-no-i18n>—</span><span class="lab-ov" id="lab-ov">—</span><span class="lab-wnote" id="lab-wnote">Width simulation — not full device emulation.</span></div>');
+    expect(bench.indexOf('lab-zoom')).toBeLessThan(bench.indexOf('lab-width'));
+    expect(bench.indexOf('lab-width')).toBeLessThan(bench.indexOf('lab-dir'));
+    expect(r.metrics()).toMatchObject({ width: null, zoom: 1, fit: false });
+  });
+
+  it('sets the content container, not the canvas, through the CSSOM, and Fill hands it back to the stylesheet', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-width]': attr('mobile') });
+    expect(r.metrics().width).toBe(390);
+    expect(col(r).className).toBe('lab-col');
+    expect(col(r).style.props).toEqual({ width: '390px', 'max-width': 'none' });
+    expect(col(r).attrs.style).toBeUndefined();
+    expect(r.dom.byId['lab-specimen'].attrs.style).toBeUndefined();
+    expect(live(r)).toBe('Width 390 px');
+    expect(r.dom.byId['lab-w'].value).toBe('390');
+    expect(r.dom.byId['lab-wbar'].attrs['data-off']).toBeUndefined();
+    for (const [k, w] of [['desktop', 1280], ['tablet', 834]] as const) { r.click({ '[data-lab-width]': attr(k) }); expect(r.metrics().width).toBe(w); expect(col(r).style.props.width).toBe(`${w}px`); }
+    r.click({ '[data-lab-width]': attr('fill') });
+    expect(r.metrics().width).toBeNull();
+    expect(col(r).style.props).toEqual({});
+    expect(live(r)).toBe('Width: fill the stage');
+    expect(r.dom.byId['lab-w'].value).toBe('');
+    expect(r.dom.byId['lab-wbar'].attrs['data-off']).toBe('');
+    for (const junk of ['huge', '__proto__', 'constructor', 'custom', '']) { r.click({ '[data-lab-width]': attr(junk) }); expect(r.metrics().width).toBeNull(); }
+  });
+
+  it('reads a custom width strictly: clamps a number outside 320–1600, and refuses anything that is not a number', async () => {
+    const r = await launch();
+    widthKey(r, '500'); expect(r.metrics().width).toBe(500); expect(live(r)).toBe('Width 500 px');
+    widthKey(r, ' 834.4 ', 'Enter'); expect(r.metrics().width).toBe(834);
+    widthKey(r, '100'); expect(r.metrics().width).toBe(320); expect(live(r)).toBe('Width 320 px · Kept within 320 to 1600 px'); expect(r.dom.byId['lab-w'].value).toBe('320');
+    widthKey(r, '0.4'); expect(r.metrics().width).toBe(320);                  // a positive number, only too small: held at the floor
+    widthKey(r, '99999', 'Enter'); expect(r.metrics().width).toBe(1600);
+    for (const bad of ['', ' ', 'abc', '1e3', '-5', '+400', '0x200', '390px', '39 0', '123456', '0', 'Infinity', 'NaN', '400;color:red', '١٢٣']) {
+      widthKey(r, bad, bad.length % 2 ? 'Enter' : 'change');
+      expect({ bad, width: r.metrics().width }).toEqual({ bad, width: 1600 });
+      expect(r.dom.byId['lab-w'].value).toBe('1600');                       // the field goes back to the width in force
+      expect(live(r)).toBe('Enter a width between 320 and 1600 px');
+    }
+    widthKey(r, '700', 'Escape'); expect(r.metrics().width).toBe(1600); expect(r.dom.byId['lab-w'].value).toBe('1600');
+    for (const v of Object.values(col(r).style.props)) expect(String(v)).toMatch(/^(\d+px|none)$/);
+  });
+
+  it('keeps the zoom when the width changes, never turns Fit on by itself, and works Fit out again when it is on', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-zoom]': attr('out') });
+    expect(r.metrics().zoom).toBe(0.9);
+    for (const k of ['desktop', 'mobile', 'fill', 'tablet']) { r.click({ '[data-lab-width]': attr(k) }); expect(r.metrics()).toMatchObject({ zoom: 0.9, fit: false }); }
+    r.click({ '[data-lab-zoom]': attr('fit') });
+    r.click({ '[data-lab-width]': attr('desktop') });
+    expect(r.metrics()).toMatchObject({ fit: true, width: 1280 });
+    r.click({ '[data-lab-zoom]': attr('reset') });
+    expect(r.metrics()).toMatchObject({ zoom: 1, fit: false, width: 1280 });  // Reset is the zoom's; the width stays
+  });
+
+  it('keeps the width across fixtures, components, a direction change, a remount and the room’s Refresh, and draws the tools in that state', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-width]': attr('tablet') });
+    r.click({ '[data-lab-fx]': attr('lg-crest.no-crest') });
+    expect(col(r).style.props.width).toBe('834px');                            // a fresh specimen is sized too
+    r.click({ '[data-lab-id]': attr('lg-chip') }); await r.settle();
+    r.click({ '[data-lab-dir]': attr('rtl') });
+    r.remount(); await r.settle();
+    expect(r.metrics()).toMatchObject({ width: 834, dir: 'rtl' });
+    expect(zoomTool(r)).toMatch(/data-lab-width="tablet" aria-pressed="true"/);
+    expect(zoomTool(r)).toContain('value="834"');
+    expect(zoomTool(r)).toContain('<div class="lab-wbar" id="lab-wbar"><span class="lab-wdim"');
+    widthKey(r, '1000');
+    expect(zoomTool(r)).toBeTruthy();
+    expect(r.metrics().width).toBe(1000);
+  });
+
+  it('a component it cannot preview has no width tools, and an empty or refused fixture measures nothing', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-id]': attr('ds-chip') }); await r.settle();
+    expect(zoomTool(r)).not.toContain('data-lab-width');
+    r.click({ '[data-lab-width]': attr('mobile') });
+    expect(r.metrics().width).toBeNull();
+  });
+
+  it('marks each recorded viewport rule against the width, from its text, and says it is not simulated', async () => {
+    const r = await launch();
+    r.click({ '[data-lab-id]': attr('lg-metric') }); await r.settle();
+    const insp = () => r.dom.log.innerHTML['lab-insp'].slice(-1)[0];
+    expect(insp()).toContain('<ul class="lab-plain lab-mq" id="lab-mq"><li><code data-no-i18n>@media (max-width:760px)</code><span class="lab-mq-s" data-lab-mq="0"></span></li></ul>');
+    expect(insp()).toContain('These rules respond to the browser window, not to the stage.');
+    r.click({ '[data-lab-width]': attr('mobile') });
+    r.click({ '[data-lab-fx]': attr(byId('lg-metric').fixtures[1].id) });
+    expect(insp()).toContain('data-lab-mq="0">Would apply in a 390 px window — not simulated</span>');
+    r.click({ '[data-lab-width]': attr('tablet') });
+    r.click({ '[data-lab-fx]': attr(byId('lg-metric').fixtures[0].id) });
+    expect(insp()).toContain('data-lab-mq="0">Would not apply in a 834 px window</span>');
+  });
+
+  it('puts focus back on a width preset or on the custom field after the room redraws the Lab', async () => {
+    const r = await launch();
+    r.fire('focusin', { target: { getAttribute: (k: string) => (k === 'data-lab-width' ? 'mobile' : null), id: '' } });
+    const mob = Object.assign(r.dom.node('button'), { id: 'mob' });
+    const q = r.dom.host.querySelector;
+    r.dom.host.querySelector = (s: string) => (s === '[data-lab-width="mobile"]' ? mob : s === '#lab-w' ? Object.assign(r.dom.node('input'), { id: 'wf' }) : q(s));
+    r.remount(); await r.settle();
+    expect(r.dom.log.focused).toContain('mob');
+    r.fire('focusin', { target: { getAttribute: () => null, id: 'lab-w' } });
+    r.dom.doc.activeElement = null;
+    r.remount(); await r.settle();
+    expect(r.dom.log.focused).toContain('wf');
+  });
+
+  it('never lets a key typed in the custom field zoom, step a fixture or jump to the search', async () => {
+    const r = await launch();
+    r.dom.doc.activeElement = { tagName: 'INPUT', id: 'lab-w' };
+    for (const k of ['0', '-', '=', 'F', '[', ']', '/']) expect(docKey(r, k)).toBe(false);
+    expect(r.metrics()).toMatchObject({ zoom: 1, fit: false, fixture: 'lg-crest.with-crest' });
+  });
+
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1387,6 +1567,22 @@ describe('English, German and Arabic: everything the Lab can say is in all three
     }
   });
 
+  it('translates every width word (M2 / S2) into German and Arabic, with every %d slot kept', () => {
+    const slots = (s: string) => (s.match(/%d/g) || []).length;
+    const keys = ['Width', 'Fill', 'Fill the stage', 'Desktop', 'Tablet', 'Mobile', 'Custom width', 'From %d to %d px. Press Enter to apply.', 'Width simulation — not full device emulation.', 'Content overflows by %d px', 'No horizontal overflow', 'Width: fill the stage', 'Width %d px', 'Enter a width between %d and %d px', 'Kept within %d to %d px', 'Would apply in a %d px window — not simulated', 'Would not apply in a %d px window', 'Cannot be judged from a width alone'];
+    for (const k of keys) {
+      expect(en[k]).toBe(k);
+      expect(de[k]).toBeTruthy();
+      if (k !== 'Tablet') expect(de[k]).not.toBe(k);     // the same word in German
+      expect(ar[k]).toMatch(/[\u0600-\u06FF]/);
+      expect([slots(de[k]), slots(ar[k])]).toEqual([slots(k), slots(k)]);
+    }
+    expect(de['Width simulation — not full device emulation.']).toMatch(/simulation/i);
+    // A preset's accessible name holds its visible word (WCAG 2.5.3, label in name), in every language.
+    for (const d of [en, de, ar]) expect(d['Fill the stage'].toLowerCase()).toContain(d.Fill.toLowerCase());
+    expect(ar['Width simulation — not full device emulation.']).toMatch(/محاكاة/);
+  });
+
   it('keeps the room’s boundary: no entry into the club product’s language registry, bundles or catalogue', () => {
     expect(js).not.toMatch(/\bI18N\b|\/i18n\/locales|\/i18n\/catalogue|familista\.locale/);
   });
@@ -1442,7 +1638,7 @@ describe('the browser proof is kept with the code and is a required CI job', () 
     expect(body).toContain('node tools/components/lab-browser-proof.cjs');
     expect(body).not.toMatch(/continue-on-error|\|\|\s*true|playwright install|secrets\./);
     const sections = [...body.matchAll(/sections:\s*'([^']+)'/g)].map((m) => m[1].split(',')).flat().sort();
-    expect(sections).toEqual(['1', '2', '2b', '3', '4', '5', '6', '7', '8']);
+    expect(sections).toEqual(['1', '2', '2b', '3', '4', '5', '6', '7', '8', '9']);
     expect(body).toMatch(/axe:\s*'--axe'/);
     // a shard that ran nothing, skipped something or failed something is red
     expect(body).toContain("grep -Eq ', 0 failed, 0 skipped$'");

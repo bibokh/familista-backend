@@ -187,6 +187,10 @@ jobs:
   # Section 8 (M2 / S1) proves the same walls hold with the specimen zoomed to 25%, 50%
   # and 200%: the overlay stays in the stage, no tool is covered, events stay inside,
   # and the browser's own Ctrl/Cmd zoom keys are left alone.
+  # Section 9 (M2 / S2) proves the same walls hold at every content width (Fill, the three
+  # presets, custom 320-1600 px), with the zoom kept and Fit recomputed, the overflow figure
+  # checked against an independent measurement, input read strictly, and a lab.js that
+  # writes the width as an inline style refused by the unchanged policy.
   #
   # Authoritative: no `|| true`, no continue-on-error. A failed proof fails this job, a
   # failed job fails the `ci` workflow, and deploy.yml deploys only on a successful `ci`.
@@ -207,9 +211,9 @@ jobs:
       matrix:
         include:
           - shard: isolation
-            sections: '1,2,2b,3,4,5,8'
+            sections: '1,2,2b,3,4,5,8,9'
             axe: ''
-            min: '67'
+            min: '93'
           - shard: accessibility and focus
             sections: '6,7'
             axe: '--axe'
