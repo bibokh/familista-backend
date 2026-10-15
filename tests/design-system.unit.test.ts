@@ -846,6 +846,34 @@ describe('Owner Home: the ninth card, DESIGN SYSTEM CONTROL', () => {
     expect(html).not.toMatch(/\/app\.(css|js)\?v=20261004-algorithms/);
   });
 
+  it('loads the design system under a version no older than any section it lazy-loads, so no cached loader can hide a new stage', () => {
+    // Each lazy section's version lives inside design-system.js, which app.js fetches at a fixed URL. If that URL
+    // stays put while a section moves on, a cached loader keeps requesting the previous section's script.
+    const day = (v: string) => Number((/^(\d{8})/.exec(v) ?? [])[1]);
+    const loaderVersions = (src: string) => [...src.matchAll(/\/design-system\/design-system\.(?:css|js)\?v=([\w-]+)/g)].map((m) => m[1]);
+    const sectionVersions = (src: string) => [...objectLiteral(src, 'LAZY').matchAll(/\bv: '([\w-]+)'/g)].map((m) => m[1]);
+    const behind = (appSrc: string, dsSrc: string) => {
+      const loader = loaderVersions(appSrc);
+      const newest = sectionVersions(dsSrc).sort((a, b) => day(b) - day(a))[0];
+      return loader.filter((v) => !(day(v) >= day(newest))).map((v) => `${v} < ${newest}`);
+    };
+    const appSrc = read('public/app.js');
+    const dsSrc = read('public/design-system/design-system.js');
+
+    // One version for the stylesheet and the script, so neither is ever fetched without the other.
+    const loader = loaderVersions(appSrc);
+    expect(loader).toHaveLength(2);
+    expect(new Set(loader).size).toBe(1);
+    expect(sectionVersions(dsSrc).length).toBeGreaterThanOrEqual(3);
+    expect(sectionVersions(dsSrc).every((v) => day(v) > 0)).toBe(true);
+    expect(behind(appSrc, dsSrc)).toEqual([]);
+
+    // The guard bites: a loader left on the version that hid S3 is reported, and so is a section that moves past it.
+    expect(behind(appSrc.split(loader[0]).join('20261012-design-system'), dsSrc)).toEqual([
+      '20261012-design-system < 20261014-lab-s3', '20261012-design-system < 20261014-lab-s3']);
+    expect(behind(appSrc, dsSrc.replace("v: '20261014-lab-s3'", "v: '20261101-lab-s4'"))).toHaveLength(2);
+  });
+
   describe('translation', () => {
     const N = '\u0000';
     const KEYS = ['DESIGN SYSTEM CONTROL', 'Design Tokens, Contrast, Provenance & Evidence', 'Enter Design System',

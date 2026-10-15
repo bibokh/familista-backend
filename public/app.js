@@ -2649,12 +2649,12 @@ function _loadDesignSystemRoom(done) {
     function one(ok) { if (!ok) failed = true; if (--pending === 0) finish(!failed); }
     var link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = '/design-system/design-system.css?v=20261012-design-system';
+    link.href = '/design-system/design-system.css?v=20261015-design-system-s3';
     link.onload = function () { one(true); };
     link.onerror = function () { one(false); };
     document.head.appendChild(link);
     var script = document.createElement('script');
-    script.src = '/design-system/design-system.js?v=20261012-design-system';
+    script.src = '/design-system/design-system.js?v=20261015-design-system-s3';
     script.onload = function () { one(true); };
     script.onerror = function () { one(false); };
     document.head.appendChild(script);
