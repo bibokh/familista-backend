@@ -786,7 +786,7 @@ describe('the Specimen Lab client: CSP-safe, GET-only, lazy, and read-only', () 
     expect(js).not.toMatch(/specimen\.innerHTML|spec\.innerHTML|col\.innerHTML|lab-specimen'\)\.innerHTML/);
     // every innerHTML in the file is the room's own chrome, built from escaped strings
     const writes = [...js.matchAll(/(\w+)\.innerHTML\s*=/g)].map((m) => m[1]);
-    expect([...new Set(writes)].sort()).toEqual(['bench', 'host', 'insp', 'refuse', 'strip', 'ev', 'rail'].sort().filter((x) => writes.includes(x)));
+    expect([...new Set(writes)].sort()).toEqual(['bench', 'host', 'insp', 'refuse', 'strip', 'ev', 'rail', 'nav'].sort().filter((x) => writes.includes(x)));
     expect(writes).not.toContain('spec');
   });
 
@@ -858,7 +858,7 @@ describe('the Specimen Lab client: CSP-safe, GET-only, lazy, and read-only', () 
   });
 
   it('is operable without a mouse: roving focus in the rail, tabs for fixtures and inspector sections, "/", "[" and "]"', () => {
-    for (const needle of ["ev.key !== '/'", "'[' && ev.key !== ']'", "'ArrowDown'", "'ArrowUp'", "'Home'", "'End'", "'ArrowRight'", "'ArrowLeft'", 'role="tab"', 'role="tablist"', 'aria-selected', 'aria-current', 'aria-expanded', 'aria-pressed', 'aria-disabled="true"', 'aria-live="polite"', 'aria-keyshortcuts="/"', 'tabindex="-1"']) expect(js).toContain(needle);
+    for (const needle of ["ev.key !== '/'", 'var act = V.navAction(ev); if (!act) return;', "tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (a && a.isContentEditable)", 'aria-keyshortcuts="\' + esc(key)', "'ArrowDown'", "'ArrowUp'", "'Home'", "'End'", "'ArrowRight'", "'ArrowLeft'", 'role="tab"', 'role="tablist"', 'aria-selected', 'aria-current', 'aria-expanded', 'aria-pressed', 'aria-disabled="true"', 'aria-live="polite"', 'aria-keyshortcuts="/"', 'tabindex="-1"']) expect(js).toContain(needle);
     expect(js).toMatch(/var s = \(ev\.key === 'ArrowRight'\) === !rtl\(\) \? 1 : -1;/);
   });
 
@@ -1763,12 +1763,58 @@ describe('English, German and Arabic: everything the Lab can say is in all three
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+describe('the navigation helpers (M2 / S4): steps that wrap, and keys that never take a browser shortcut', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const V = require('../public/design-system/lab-view.js');
+  const ev = (key: string, more: Record<string, unknown> = {}) => ({ key, code: '', shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, ...more });
+  const altGr = (on: boolean) => ({ ctrlKey: true, altKey: true, getModifierState: (m: string) => on && m === 'AltGraph' });
+
+  it('steps one place and wraps at both ends; from outside the list forward is the first and back the last; an empty list goes nowhere', () => {
+    expect([V.wrapStep(0, 1, 5), V.wrapStep(3, 1, 5), V.wrapStep(4, 1, 5), V.wrapStep(0, -1, 5), V.wrapStep(2, -1, 5)]).toEqual([1, 4, 0, 4, 1]);
+    expect([V.wrapStep(0, 1, 1), V.wrapStep(0, -1, 1)]).toEqual([0, 0]);
+    expect([V.wrapStep(-1, 1, 4), V.wrapStep(-1, -1, 4), V.wrapStep(9, 1, 4), V.wrapStep(NaN, -1, 4)]).toEqual([0, 3, 0, 3]);
+    for (const n of [0, -1, NaN, undefined]) expect(V.wrapStep(0, 1, n)).toBe(-1);
+  });
+
+  it('reads "[" "]" as the fixtures and "{" "}" as the components, with or without the Shift the layout needs, and nothing else', () => {
+    expect(['[', ']', '{', '}'].map((k) => V.navAction(ev(k)))).toEqual(['fixture-prev', 'fixture-next', 'component-prev', 'component-next']);
+    expect(V.navAction(ev('{', { shiftKey: true, code: 'BracketLeft' }))).toBe('component-prev');
+    for (const k of ['(', ')', '<', '>', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Tab', 'f', '/', 'Dead', '']) expect({ k, a: V.navAction(ev(k)) }).toEqual({ k, a: null });
+    expect(V.navAction(null)).toBeNull();
+  });
+
+  it('never takes Ctrl, Cmd or Alt, and takes Ctrl+Alt only when the browser itself reports AltGr', () => {
+    for (const more of [{ ctrlKey: true }, { metaKey: true }, { altKey: true }, { ctrlKey: true, altKey: true }, altGr(false), { ...altGr(true), metaKey: true }])
+      for (const k of ['[', ']', '{', '}']) expect({ more: Object.keys(more), k, a: V.navAction(ev(k, more)) }).toEqual({ more: Object.keys(more), k, a: null });
+    expect(['[', ']', '{', '}'].map((k) => V.navAction(ev(k, altGr(true))))).toEqual(['fixture-prev', 'fixture-next', 'component-prev', 'component-next']);
+    // Linux reports AltGr as the modifier alone, with neither Ctrl nor Alt
+    expect(V.navAction(ev('[', { getModifierState: (m: string) => m === 'AltGraph' }))).toBe('fixture-prev');
+    expect([V.plainKey(ev('a')), V.plainKey(ev('a', { altKey: true })), V.plainKey(null)]).toEqual([true, false, false]);
+  });
+
+  it('reads the physical key only when the layout types a non-Latin character, so Latin letters are never remapped', () => {
+    // Arabic (101) types ج and د on the bracket keys and ب on F; Russian types х and ъ
+    expect(V.navAction(ev('ج', { code: 'BracketLeft' }))).toBe('fixture-prev');
+    expect(V.navAction(ev('د', { code: 'BracketRight' }))).toBe('fixture-next');
+    expect(V.navAction(ev('Х', { code: 'BracketLeft', shiftKey: true }))).toBe('component-prev');
+    expect(V.navAction(ev('ъ', { code: 'BracketRight' }))).toBe('fixture-next');
+    expect([V.shortcutKey(ev('ب', { code: 'KeyF' })), V.shortcutKey(ev('ب', { code: 'KeyF', shiftKey: true }))]).toEqual(['f', 'F']);
+    // German ü and +, French ^, and every Latin letter stay themselves; an unknown physical key is never invented
+    for (const [k, code] of [['ü', 'BracketLeft'], ['+', 'BracketRight'], ['Dead', 'BracketLeft'], ['é', 'BracketLeft'], ['x', 'KeyF'], ['ش', 'KeyA'], ['ش', '']]) {
+      expect({ k, code, a: V.navAction(ev(k, { code })) }).toEqual({ k, code, a: null });
+      expect(V.shortcutKey(ev(k, { code }))).toBe(k);
+    }
+    // the modifier rule holds for a remapped key too
+    expect(V.navAction(ev('ج', { code: 'BracketLeft', ctrlKey: true }))).toBeNull();
+  });
+});
+
 describe('the browser proof is kept with the code and is a required CI job', () => {
   it('lives in tools/, is valid JavaScript, and proves every boundary the Lab claims', () => {
     const file = path.join(ROOT, 'tools/components/lab-browser-proof.cjs');
     expect(spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' }).status).toBe(0);
     const src = fs.readFileSync(file, 'utf8');
-    for (const claim of ['lazy:', 'csp:', 'layout:', 'layout (control)', 'events:', 'events (control)', 'sanitizer:', 'keyboard:', 'i18n:', 'isolation:', 'fail closed:', 'stability:', 'api:', 'accessibility ', 'focus ', 'focus (control)', 'errors (control)', 'csp (control)', 'accessibility (control)', 'view (control)']) expect(src).toContain(claim);
+    for (const claim of ['lazy:', 'csp:', 'layout:', 'layout (control)', 'events:', 'events (control)', 'sanitizer:', 'keyboard:', 'i18n:', 'isolation:', 'fail closed:', 'stability:', 'api:', 'accessibility ', 'focus ', 'focus (control)', 'errors (control)', 'csp (control)', 'accessibility (control)', 'view (control)', 'compare announce:', 'compare announce (control)', 'nav component:', 'nav search:', 'nav fixture:', 'nav keys:', 'nav keys (control)', 'nav compare:', 'nav focus:', 'nav isolation:', 'nav stability:', 'nav languages:']) expect(src).toContain(claim);
     expect(fs.readdirSync(path.join(ROOT, 'tests')).some((f) => f.includes('lab-browser-proof'))).toBe(false);
   });
 
@@ -1807,7 +1853,7 @@ describe('the browser proof is kept with the code and is a required CI job', () 
     expect(body).toContain('node tools/components/lab-browser-proof.cjs');
     expect(body).not.toMatch(/continue-on-error|\|\|\s*true|playwright install|secrets\./);
     const sections = [...body.matchAll(/sections:\s*'([^']+)'/g)].map((m) => m[1].split(',')).flat().sort();
-    expect(sections).toEqual(['1', '10', '2', '2b', '3', '4', '5', '6', '7', '8', '9']);
+    expect(sections).toEqual(['1', '10', '11', '2', '2b', '3', '4', '5', '6', '7', '8', '9']);
     expect(body).toMatch(/axe:\s*'--axe'/);
     // a shard that ran nothing, skipped something or failed something is red
     expect(body).toContain("grep -Eq ', 0 failed, 0 skipped$'");

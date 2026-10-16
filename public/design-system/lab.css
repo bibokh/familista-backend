@@ -103,6 +103,22 @@
 .lab-sub-f { overflow-wrap: anywhere; }
 .lab-dir .ds-seg-b { min-height: var(--fam-size-control-md); padding-inline: var(--fam-space-4); }
 
+/* M2 / S4 — previous and next, in the bench's own row above the name and out of the tools
+   row. Each readout keeps one width, so a step never moves the buttons; amber stays the
+   focus ring's. */
+.lab-bench-in { display: contents; }          /* what drawBench redraws; its parts stay the bench's own flex items */
+.lab-navrow { flex: 0 0 auto; }
+.lab-navrow[hidden] { display: none; }
+.lab-nav { display: flex; align-items: center; flex-wrap: wrap; gap: var(--fam-space-2); }
+.lab-nav-g { align-items: stretch; }
+.lab-nav .ds-seg-b { min-height: var(--fam-size-control-md); min-width: var(--fam-size-control-md); padding-inline: var(--fam-space-2); font-size: var(--fam-font-size-lg); line-height: 1; }
+.lab-nav .ds-seg-b[aria-disabled="true"] { opacity: .45; cursor: default; }
+.lab-nav-v {
+  display: inline-flex; align-items: center; justify-content: center; min-inline-size: 19ch; padding-inline: var(--fam-space-2);
+  border-inline: var(--fam-border-width-hairline) solid var(--fam-border-default);
+  font-size: var(--fam-font-size-sm); font-variant-numeric: tabular-nums; color: var(--fam-text-secondary); white-space: nowrap;
+}
+
 /* M2 / S1 — the stage's tools: zoom, then direction. One quiet row; amber only marks
    the mode that is on (Fit) and the focus ring, as everywhere in the room. */
 .lab-tools { flex: 1 0 100%; display: flex; align-items: center; flex-wrap: wrap; gap: var(--fam-space-2) var(--fam-space-3); }   /* always its own row: a long name never pushes it down */
@@ -283,7 +299,7 @@
 .lab-ni-t { font-weight: var(--fam-font-weight-extrabold); }
 .lab-ni-d { margin-top: 2px; font-size: var(--fam-font-size-md); color: var(--fam-text-secondary); }
 
-:is(.lab-item, .lab-grp-b, .lab-fx, .lab-tab, .lab-link, .lab-q, .lab-dir .ds-seg-b, .lab-width .ds-seg-b, .lab-w, .lab-mode .ds-seg-b, .lab-fxb-s, .lab-swap, .lab-pane):focus-visible {
+:is(.lab-item, .lab-grp-b, .lab-fx, .lab-tab, .lab-link, .lab-q, .lab-dir .ds-seg-b, .lab-width .ds-seg-b, .lab-w, .lab-mode .ds-seg-b, .lab-nav .ds-seg-b, .lab-fxb-s, .lab-swap, .lab-pane):focus-visible {
   outline: var(--fam-border-width-strong) solid var(--fam-focus-ring); outline-offset: 2px;
 }
 

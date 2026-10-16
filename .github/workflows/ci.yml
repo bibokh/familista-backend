@@ -215,9 +215,9 @@ jobs:
       matrix:
         include:
           - shard: isolation
-            sections: '1,2,2b,3,4,5,8,9,10'
+            sections: '1,2,2b,3,4,5,8,9,10,11'
             axe: ''
-            min: '113'
+            min: '133'
           - shard: accessibility and focus
             sections: '6,7'
             axe: '--axe'
