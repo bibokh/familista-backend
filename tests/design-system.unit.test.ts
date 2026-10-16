@@ -868,10 +868,14 @@ describe('Owner Home: the ninth card, DESIGN SYSTEM CONTROL', () => {
     expect(sectionVersions(dsSrc).every((v) => day(v) > 0)).toBe(true);
     expect(behind(appSrc, dsSrc)).toEqual([]);
 
-    // The guard bites: a loader left on the version that hid S3 is reported, and so is a section that moves past it.
+    // The guard bites, whatever the current versions are: a loader left on the version that hid M2 / S3 is reported, and so is
+    // a section that moves a day past today's loader.
+    const newest = sectionVersions(dsSrc).sort((a, b) => day(b) - day(a))[0];
     expect(behind(appSrc.split(loader[0]).join('20261012-design-system'), dsSrc)).toEqual([
-      '20261012-design-system < 20261014-lab-s3', '20261012-design-system < 20261014-lab-s3']);
-    expect(behind(appSrc, dsSrc.replace("v: '20261014-lab-s3'", "v: '20261101-lab-s4'"))).toHaveLength(2);
+      `20261012-design-system < ${newest}`, `20261012-design-system < ${newest}`]);
+    const next = String(day(loader[0]) + 1) + '-lab-next';
+    expect(day(next)).toBeGreaterThan(day(loader[0]));
+    expect(behind(appSrc, dsSrc.replace(`v: '${newest}'`, `v: '${next}'`))).toEqual([`${loader[0]} < ${next}`, `${loader[0]} < ${next}`]);
   });
 
   describe('translation', () => {

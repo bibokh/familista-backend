@@ -185,6 +185,38 @@
     return out;
   }
 
+  // ── navigation (M2 / S4) ───────────────────────────────────────────────
+
+  /** The index one step from `at` (d < 0 back, otherwise forward) in a list of `n`, wrapping at both ends. From outside the
+   *  list, forward is the first and back the last; an empty list has nowhere to go (-1). */
+  function wrapStep(at, d, n) {
+    if (!(n > 0)) return -1;
+    if (!(at >= 0 && at < n)) return d < 0 ? n - 1 : 0;
+    return ((at + (d < 0 ? -1 : 1)) % n + n) % n;
+  }
+
+  // The physical keys a Lab shortcut may be read from, as [unshifted, shifted] on a Latin layout.
+  var PHYSICAL = { BracketLeft: ['[', '{'], BracketRight: [']', '}'], KeyF: ['f', 'F'] };
+  var LATIN = /^[\u0000-\u024f]$/;     // Basic Latin through Latin Extended-B: ü, é, ß and the rest stay themselves
+  /** The character a shortcut is read as: the key the layout typed, or, only when that is a single non-Latin character
+   *  (Arabic, Cyrillic, Greek…), the Latin character of the same physical key. A Latin layout is never remapped. */
+  function shortcutKey(e) {
+    var k = e && typeof e.key === 'string' ? e.key : '';
+    if (k.length === 1 && !LATIN.test(k) && e.code && PHYSICAL[e.code]) return PHYSICAL[e.code][e.shiftKey ? 1 : 0];
+    return k;
+  }
+  /** No Ctrl, Cmd or Alt: those are the browser's and the system's. The one exception is a key the browser itself reports as
+   *  typed with AltGr (getModifierState), which is how a German layout types "[" and "{"; a Ctrl+Alt it does not report so is
+   *  left alone. */
+  function plainKey(e) {
+    if (!e || e.metaKey) return false;
+    if (!e.ctrlKey && !e.altKey) return true;
+    return typeof e.getModifierState === 'function' && e.getModifierState('AltGraph') === true;
+  }
+  var NAV_KEYS = { '[': 'fixture-prev', ']': 'fixture-next', '{': 'component-prev', '}': 'component-next' };
+  /** What a key press asks the Lab's navigation for, or null. */
+  function navAction(e) { return plainKey(e) ? NAV_KEYS[shortcutKey(e)] || null : null; }
+
   var api = {
     MIN: MIN, MAX: MAX, STEPS: STEPS.slice(),
     clamp: clamp, zoomIn: zoomIn, zoomOut: zoomOut, fit: fit,
@@ -192,6 +224,7 @@
     WIDTH_MIN: WIDTH_MIN, WIDTH_MAX: WIDTH_MAX, PRESETS: { desktop: PRESETS.desktop, tablet: PRESETS.tablet, mobile: PRESETS.mobile },
     clampWidth: clampWidth, parseWidth: parseWidth, overflowPx: overflowPx, mqAt: mqAt,
     sharedFit: sharedFit, diffSets: diffSets,
+    wrapStep: wrapStep, shortcutKey: shortcutKey, plainKey: plainKey, navAction: navAction,
   };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.FamilistaLabView = api;

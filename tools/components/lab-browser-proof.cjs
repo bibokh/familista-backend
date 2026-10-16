@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Familista — Specimen Lab: browser proofs (Stage 3.2.3 M1, M2 / S1 zoom, M2 / S2 width, M2 / S3 comparison).
+// Familista — Specimen Lab: browser proofs (Stage 3.2.3 M1, M2 / S1 zoom, M2 / S2 width, M2 / S3 comparison, M2 / S4 navigation).
 //
 // The Lab claims four boundaries around a specimen and one around the server:
 // events stop at the stage, fixed overlays stay in it, the application's
@@ -210,7 +210,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     return { seen, stop: () => cdp.detach() };
   }
   const labErrors = (log) => log.errors.concat(log.notices.filter((n) => LAB_URL.test(n.url) || LAB_URL.test(n.text)).map((n) => 'notice: ' + n.text + ' @ ' + n.url));
-  const activeKey = (page) => page.evaluate(() => { const a = document.activeElement; return a ? (a.id || a.getAttribute('data-lab-id') || a.getAttribute('data-lab-fx') || a.getAttribute('data-lab-tab') || a.getAttribute('data-lab-dir') || a.getAttribute('data-lab-zoom') || a.getAttribute('data-lab-width') || a.getAttribute('data-lab-mode') || a.tagName) : null; });
+  const activeKey = (page) => page.evaluate(() => { const a = document.activeElement; return a ? (a.id || a.getAttribute('data-lab-id') || a.getAttribute('data-lab-fx') || a.getAttribute('data-lab-tab') || a.getAttribute('data-lab-dir') || a.getAttribute('data-lab-zoom') || a.getAttribute('data-lab-width') || a.getAttribute('data-lab-mode') || a.getAttribute('data-lab-nav') || a.tagName) : null; });
   // Redraw the room the way the application does when a page is shown again: through the page-render registry. True only if
   // a NEW Lab root replaced the old one, so a remount that never happened cannot pass for a restored focus.
   async function remount(page) {
@@ -219,7 +219,20 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     await page.waitForTimeout(400);
     return true;
   }
-  const FOCUS_TARGETS = [['rail item', '[data-lab-id="lg-chip"]'], ['fixture tab', '.lab-fx.is-on'], ['search', '#lab-q'], ['inspector tab', '[data-lab-tab="source"]'], ['direction', '[data-lab-dir="rtl"]'], ['zoom in', '[data-lab-zoom="in"]'], ['width preset', '[data-lab-width="mobile"]'], ['custom width', '#lab-w'], ['view', '[data-lab-mode="compare"]']];
+  // Redraw the room the way background club data does (app.js _famDataChanged → the page-render registry → this room), and
+  // record every write into a live region from that moment on. Null if no NEW Lab root replaced the old one.
+  async function dataRedraw(page) {
+    await page.evaluate(() => {
+      window.__mark = document.querySelector('.lab'); window.__liveWrites = [];
+      window.__liveMo = new MutationObserver((ms) => ms.forEach((m) => { if (m.target && m.target.id === 'lab-live') window.__liveWrites.push(m.target.textContent); }));
+      window.__liveMo.observe(document.body, { subtree: true, childList: true, characterData: true });
+      window._famDataChanged();
+    });
+    try { await page.waitForFunction(() => { const l = document.querySelector('.lab'); return l && l !== window.__mark && document.getElementById('lab-specimen'); }, null, { timeout: 8000 }); } catch (_) { return null; }
+    await page.waitForTimeout(600);
+    return page.evaluate(() => { window.__liveMo.disconnect(); return { live: document.getElementById('lab-live').textContent, writes: window.__liveWrites.slice() }; });
+  }
+  const FOCUS_TARGETS = [['rail item', '[data-lab-id="lg-chip"]'], ['fixture tab', '.lab-fx.is-on'], ['search', '#lab-q'], ['inspector tab', '[data-lab-tab="source"]'], ['direction', '[data-lab-dir="rtl"]'], ['zoom in', '[data-lab-zoom="in"]'], ['width preset', '[data-lab-width="mobile"]'], ['custom width', '#lab-w'], ['view', '[data-lab-mode="compare"]'], ['navigation', '[data-lab-nav="component-next"]']];
   // Focus each target in turn, remount, and say where focus went. Never reads the Lab's own state: only the page.
   // Give `sel` focus and confirm it holds it: the application's late repaint can take focus away between the call and the check.
   // At most one retry, after the room has settled. Returns how many retries it took (0 or 1), or -1 if focus could not be held,
@@ -1137,6 +1150,18 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     check('compare: opening comparison, choosing B\'s fixture and swapping make no request from the Lab (to a Lab endpoint or, from a Lab script, to any URL); the application\'s own background requests are counted apart',
       fetched.length === 0, { lab: fetched, application: net.seen.length - fetched.length });
 
+    // Swap, then at once the redraw background club data causes: the announcement must reach the new live region, once.
+    await page.click('[data-lab-swap]');
+    const swapRedraw = await dataRedraw(page);
+    const swapState = await page.evaluate(() => [window.__familistaLabMetrics().fixture, window.__familistaLabMetrics().fixtureB]);
+    check('compare announce: Swap followed at once by a club-data redraw of the room still announces "Preview A and Preview B swapped" in the new live region, written once, and the panes stay swapped',
+      !!swapRedraw && swapRedraw.live === 'Preview A and Preview B swapped' && swapRedraw.writes.filter((w) => w).length === 1 && swapState[0] === fx[3] && swapState[1] === fx[0], { redraw: swapRedraw, state: swapState });
+    await page.click('[data-lab-swap]'); await frames(page);
+    await page.waitForTimeout(2700);
+    const staleRedraw = await dataRedraw(page);
+    check('compare announce (control): the same redraw 2.7 s after Swap writes nothing into the new live region: an old announcement is not repeated',
+      !!staleRedraw && staleRedraw.live === '' && staleRedraw.writes.filter((w) => w).length === 0, { redraw: staleRedraw });
+
     // containment: each overlay in its own canvas, never over the other pane, clipped by its own viewport, at every scale and width
     const zoomTo = async (pct) => { await page.click('[data-lab-zoom="reset"]', { force: true }); const dir = pct < 100 ? 'out' : 'in'; for (let n = 0; n < 12 && Number((await page.textContent('#lab-zoom-v')).replace(/[^0-9]/g, '')) !== pct; n++) await page.click(`[data-lab-zoom="${dir}"]`, { force: true }); await frames(page); };
     const cont = [];
@@ -1346,6 +1371,226 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     const [wide, hatch, phone] = sizes;
     check('compare layout: side by side wherever the stage is at least 720 px wide (a wide window, the 980 px escape hatch), stacked where it is not (a phone), never a sideways page scroll, every control reachable, and in the reader\'s language',
       wide.plate >= 720 && phone.plate < 720 && sizes.every((x) => (x.plate >= 720 ? x.side && !x.stacked : x.stacked && !x.side) && !x.pageOverflowX && x.reach && x.ok && x.labErrors === 0) && hatch.labelB === 'Vorschau B' && phone.labelB === 'المعاينة B' && phone.dir === 'rtl', sizes);
+  }
+
+  // ══ 11. navigation (M2 / S4) ═══════════════════════════════════════════════
+  // Previous and next component (the rail's order, search included, the unavailable ones too) and previous and next fixture
+  // (Preview A only), from the bench header's buttons and from "[" "]" "{" "}". Each key proof has its control beside it: the
+  // same key pressed with a modifier the browser keeps, typed into a field, or started inside the specimen, does nothing.
+  if (want('11')) {
+    const { ctx, page, log } = await open({ width: 1440, height: 900 }, 'en');
+    await openLab(page);
+    const st = (pg) => pg.evaluate(() => {
+      const m = window.__familistaLabMetrics(), a = document.activeElement, t = (id) => { const e = document.getElementById(id); return e ? e.textContent : null; };
+      const cur = document.querySelector('#lab-rail-body .lab-item[aria-current="true"]'), on = document.querySelector('#lab-strip .lab-fx.is-on');
+      return { sel: m.selected, fx: m.fixture, fxB: m.fixtureB, compare: m.compare, zoom: m.zoom, fit: m.fit, width: m.width, c: t('lab-nav-c'), f: t('lab-nav-f'), live: t('lab-live'),
+        active: a ? (a.getAttribute('data-lab-nav') || a.getAttribute('data-lab-fx') || a.id || a.tagName) : null, na: !!document.querySelector('#lab-bench .lab-plate--na'),
+        current: cur ? cur.getAttribute('data-lab-id') : null, strip: [...document.querySelectorAll('#lab-strip [data-lab-fx]')].map((b) => b.getAttribute('data-lab-fx')), stripOn: on ? on.getAttribute('data-lab-fx') : null,
+        off: [...document.querySelectorAll('[data-lab-nav]')].map((b) => b.getAttribute('aria-disabled')) };
+    });
+    const railIds = (pg) => pg.evaluate(() => [...document.querySelectorAll('#lab-rail-body [data-lab-id]')].map((b) => b.getAttribute('data-lab-id')));
+    // A component step has landed when the Lab shows that component with its fixtures read, or its unavailable panel.
+    const landed = (pg, id) => pg.waitForFunction((id) => window.__familistaLabMetrics().selected === id && !document.querySelector('#lab-bench .lab-wait')
+      && !!(document.querySelector('#lab-bench .lab-plate--na') || document.querySelector('#lab-specimen .lab-col, #lab-void:not([hidden]), #lab-refuse:not([hidden])')), id, { timeout: 10000 }).then(() => frames(pg));
+    const labNodes = (pg) => pg.evaluate(() => document.querySelector('.lab').getElementsByTagName('*').length);
+
+    // the header
+    const rail0 = await railIds(page), s0 = await st(page), n = rail0.length, at0 = rail0.indexOf(s0.sel);
+    const head = await page.evaluate(() => ({ inHeader: !!document.querySelector('#lab-navrow:not([hidden]) > .lab-nav') && !!(document.getElementById('lab-navrow').compareDocumentPosition(document.querySelector('.lab-bench-h')) & Node.DOCUMENT_POSITION_FOLLOWING), inTools: !!document.querySelector('.lab-tools [data-lab-nav]'),
+      buttons: [...document.querySelectorAll('[data-lab-nav]')].map((b) => [b.tagName, b.getAttribute('type'), b.getAttribute('data-lab-nav'), b.getAttribute('aria-label'), b.getAttribute('aria-keyshortcuts')]) }));
+    check('nav: the bench\'s own row above the name, not the tools row, holds Previous and Next component and fixture as real buttons with a name and a shortcut each, reading "Component n of m" from the rail and "Fixture n of m" from the strip',
+      head.inHeader && !head.inTools && JSON.stringify(head.buttons) === JSON.stringify([['BUTTON', 'button', 'component-prev', 'Previous component', '{'], ['BUTTON', 'button', 'component-next', 'Next component', '}'], ['BUTTON', 'button', 'fixture-prev', 'Previous fixture', '['], ['BUTTON', 'button', 'fixture-next', 'Next fixture', ']']])
+      && at0 >= 0 && s0.c === `Component ${at0 + 1} of ${n}` && s0.f === `Fixture ${s0.strip.indexOf(s0.fx) + 1} of ${s0.strip.length}` && s0.off[0] === 'false' && s0.off[1] === 'false', { head, c: s0.c, f: s0.f, sel: s0.sel, n });
+
+    // Next, all the way round
+    // Whether a step redrew the Next button is asked of each step on its own; a step during which the application's own late
+    // repaint remounted the whole Lab (a new .lab root) cannot answer it, and is counted apart instead of being passed.
+    const seq = [];
+    for (let i = 1; i <= n; i++) {
+      const want = rail0[(at0 + i) % n];
+      await page.evaluate(() => { window.__cnb = document.querySelector('[data-lab-nav="component-next"]'); window.__labRoot = document.querySelector('.lab'); });
+      await page.click('[data-lab-nav="component-next"]'); await landed(page, want);
+      const s = await st(page), kept = await page.evaluate(() => document.querySelector('.lab') !== window.__labRoot ? null : document.querySelector('[data-lab-nav="component-next"]') === window.__cnb);
+      seq.push({ want, sel: s.sel, cur: s.current, na: s.na, c: s.c, active: s.active, live: s.live, kept });
+    }
+    const naSeen = seq.filter((x) => x.na).length, remounted = seq.filter((x) => x.kept === null).length, redrawn = seq.filter((x) => x.kept === false).length;
+    const bad = seq.filter((x, i) => !(x.sel === x.want && x.cur === x.want && x.c === `Component ${(at0 + i + 1) % n + 1} of ${n}` && x.active === 'component-next'));
+    check('nav component: Next walks the rail\'s order and wraps back to the start; the components that cannot be previewed are visited and show their own unavailable panel; the rail marks each, the readout counts it, and focus stays on the same Next button, never redrawn',
+      bad.length === 0 && seq[n - 1].sel === s0.sel && naSeen > 0 && naSeen < n && redrawn === 0 && remounted < n / 2, { n, naSeen, redrawn, remountedByTheApplication: remounted, bad: bad.slice(0, 3) });
+    await page.click('[data-lab-nav="component-prev"]'); await landed(page, rail0[(at0 - 1 + n) % n]);
+    const sPrev = await st(page);
+    await page.click('[data-lab-nav="component-next"]'); await landed(page, s0.sel);
+    const said = seq.map((x) => x.live).concat(sPrev.live);
+    check('nav component: Previous goes back one, from the first to the last, and every step is announced as "Component n of m: name · Fixture 1 of k" or "· Not previewable"',
+      sPrev.sel === rail0[(at0 - 1 + n) % n] && sPrev.active === 'component-prev' && said.every((x) => /^Component \d+ of \d+: .+ · (Fixture 1 of \d+|Not previewable)$/.test(x)), { prev: sPrev.sel, live: said.filter((x) => !/^Component \d+ of \d+: .+ · (Fixture 1 of \d+|Not previewable)$/.test(x)).slice(0, 3) });
+
+    // the search decides the order
+    await page.fill('#lab-q', 'chip'); await frames(page);
+    const railQ = await railIds(page), sq = await st(page), atQ = railQ.indexOf(sq.sel);
+    const qseq = [];
+    for (let i = 0; i < railQ.length; i++) {
+      const want = railQ[atQ < 0 ? i : (atQ + i + 1) % railQ.length];
+      await page.click('[data-lab-nav="component-next"]'); await landed(page, want);
+      const s = await st(page); qseq.push([want, s.sel, s.c]);
+    }
+    check('nav search: with "chip" typed, Next steps through the components the rail shows for it and no other, wrapping, and the readout counts those; where the current one is not among them the readout says "—" and Next starts at the first',
+      railQ.length >= 2 && railQ.length < n && sq.c === (atQ < 0 ? '—' : `Component ${atQ + 1} of ${railQ.length}`) && qseq.every(([w, s, c]) => w === s && c === `Component ${railQ.indexOf(s) + 1} of ${railQ.length}`), { railQ, before: sq.c, qseq });
+    await page.fill('#lab-q', 'versus'); await frames(page);
+    const railV = await railIds(page), sv = await st(page);
+    await page.click('[data-lab-nav="component-next"]'); await landed(page, railV[0]);
+    const sv2 = await st(page);
+    check('nav search: with one match, Next reaches it, the readout reads "Component 1 of 1", and both component buttons then say they are disabled',
+      railV.length === 1 && sv.c === '—' && sv.off[0] === 'false' && sv2.sel === railV[0] && sv2.c === 'Component 1 of 1' && sv2.off[0] === 'true' && sv2.off[1] === 'true', { railV, before: [sv.c, sv.off], after: [sv2.sel, sv2.c, sv2.off] });
+    await page.fill('#lab-q', ''); await frames(page);
+
+    // fixtures: Preview A, the strip and the readout, nothing redrawn
+    await page.click('[data-lab-id="lg-status-chip"]'); await landed(page, 'lg-status-chip');
+    const sf = await st(page), k = sf.strip.length, f0 = sf.strip.indexOf(sf.fx);
+    await page.evaluate(() => { window.__hdr = document.querySelector('.lab-bench-h'); window.__fnb = document.querySelector('[data-lab-nav="fixture-next"]'); });
+    const fseq = [];
+    for (let i = 1; i <= k; i++) { await page.click('[data-lab-nav="fixture-next"]'); await frames(page); fseq.push(await st(page)); }
+    const kept = await page.evaluate(() => document.querySelector('.lab-bench-h') === window.__hdr && document.querySelector('[data-lab-nav="fixture-next"]') === window.__fnb);
+    await page.click('[data-lab-nav="fixture-prev"]'); await frames(page);
+    const fprev = await st(page);
+    const fbad = fseq.filter((s, i) => { const j = (f0 + i + 1) % k; return !(s.fx === sf.strip[j] && s.stripOn === s.fx && s.f === `Fixture ${j + 1} of ${k}` && /^Fixture \d+ of \d+: /.test(s.live) && s.active === 'fixture-next' && s.sel === 'lg-status-chip'); });
+    check('nav fixture: Next fixture steps Preview A through the strip in order and wraps; the strip, the readout and the announcement follow, focus stays on the button, the header is not redrawn; Previous wraps from the first to the last',
+      k >= 3 && fbad.length === 0 && kept && fseq[k - 1].fx === sf.fx && fprev.fx === sf.strip[(f0 - 1 + k) % k] && fprev.active === 'fixture-prev', { k, fbad: fbad.slice(0, 2), kept, prev: fprev.fx });
+
+    // keys
+    await blur(page);
+    const kpress = async (key) => { await page.keyboard.press(key); await frames(page); return st(page); };
+    const kb0 = await st(page), kR = await kpress(']'), kL = await kpress('[');
+    await page.keyboard.press('}'); await landed(page, rail0[(rail0.indexOf('lg-status-chip') + 1) % n]);
+    const kN = await st(page);
+    await page.keyboard.press('{'); await landed(page, 'lg-status-chip');
+    const kP = await st(page);
+    await page.focus('.lab-fx.is-on'); await page.keyboard.press('}'); await landed(page, kN.sel);
+    const kT = await st(page);
+    await page.keyboard.press('{'); await landed(page, 'lg-status-chip');
+    check('nav keys: "]" and "[" step the fixtures, "}" and "{" the components, without moving focus; a "}" pressed on a fixture tab leaves focus on the new component\'s current fixture tab',
+      kR.fx === kb0.strip[(kb0.strip.indexOf(kb0.fx) + 1) % kb0.strip.length] && kL.fx === kb0.fx && kN.sel !== 'lg-status-chip' && kP.sel === 'lg-status-chip' && kR.active === 'BODY' && kN.active === 'BODY' && kT.sel === kN.sel && kT.active === kT.stripOn && !!kT.stripOn,
+      { fx: [kb0.fx, kR.fx, kL.fx], sel: [kN.sel, kP.sel], active: [kR.active, kN.active, kT.active, kT.stripOn] });
+
+    await blur(page);
+    await page.evaluate(() => { window.__kd = []; document.addEventListener('keydown', (e) => window.__kd.push([e.key, e.defaultPrevented])); });
+    const m0 = await st(page);
+    for (const key of ['Control+BracketRight', 'Alt+BracketRight', 'Meta+BracketRight', 'Control+Alt+BracketRight', 'Control+Shift+BracketRight', 'Alt+Shift+BracketRight', 'Meta+Shift+BracketLeft']) await page.keyboard.press(key);
+    await frames(page);
+    const m1 = await st(page), kd = await page.evaluate(() => window.__kd);
+    // A Ctrl+Alt the browser itself reports as AltGr is how a German layout on Windows types "]": that one is the character.
+    const altgr = await page.evaluate(() => { const e = new KeyboardEvent('keydown', { key: ']', code: 'Digit9', ctrlKey: true, altKey: true, modifierAltGraph: true, bubbles: true, cancelable: true }); document.body.dispatchEvent(e); return [e.getModifierState('AltGraph'), e.defaultPrevented]; });
+    await frames(page);
+    const m2 = await st(page);
+    const plain = await page.evaluate(() => { const e = new KeyboardEvent('keydown', { key: ']', code: 'BracketRight', ctrlKey: true, altKey: true, bubbles: true, cancelable: true }); document.body.dispatchEvent(e); return [e.getModifierState('AltGraph'), e.defaultPrevented]; });
+    await frames(page);
+    const m3 = await st(page);
+    check('nav keys (control): with Ctrl, Alt, Cmd or Ctrl+Alt the same keys are left to the browser: not prevented, and nothing steps; a Ctrl+Alt "]" the browser reports as AltGr steps, one it does not report so does not',
+      m1.fx === m0.fx && m1.sel === m0.sel && kd.length >= 7 && kd.every((x) => x[1] === false) && altgr[0] === true && altgr[1] === true && m2.fx !== m0.fx && plain[0] === false && plain[1] === false && m3.fx === m2.fx,
+      { fx: [m0.fx, m1.fx, m2.fx, m3.fx], kd, altgr, plain });
+    await page.focus('#lab-q'); await page.keyboard.type('[]{}'); await frames(page);
+    const ty = await st(page), tyv = await page.inputValue('#lab-q');
+    await page.fill('#lab-q', ''); await frames(page);
+    check('nav keys: "[", "]", "{" and "}" typed into the search are typed, and step nothing', tyv === '[]{}' && ty.fx === m3.fx && ty.sel === m3.sel, { typed: tyv, fx: [m3.fx, ty.fx] });
+
+    // layouts that type no Latin bracket: the physical key is read, and only for a non-Latin character
+    await blur(page);
+    const cdp = await ctx.newCDPSession(page);
+    const raw = async (key, code, vk, shift) => {
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, text: key, unmodifiedText: key, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers: shift ? 8 : 0 });
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers: shift ? 8 : 0 });
+      await frames(page); return st(page);
+    };
+    const a0 = await st(page);
+    const aR = await raw('د', 'BracketRight', 221), aL = await raw('ج', 'BracketLeft', 219), aDe = await raw('ü', 'BracketLeft', 219);
+    const aF = await raw('ب', 'KeyF', 70);
+    await page.keyboard.press('0'); await frames(page);
+    const aRu = await raw('Ъ', 'BracketRight', 221, true); await landed(page, rail0[(rail0.indexOf('lg-status-chip') + 1) % n]);
+    const aRu2 = await st(page);
+    await page.click('[data-lab-id="lg-status-chip"]'); await landed(page, 'lg-status-chip');
+    check('nav keys: on an Arabic layout the bracket keys (د, ج) step the fixtures and the F key (ب) fits the stage; a Russian Shift+Ъ steps the components; a German ü on the same key does nothing',
+      aR.fx === a0.strip[(a0.strip.indexOf(a0.fx) + 1) % a0.strip.length] && aL.fx === a0.fx && aDe.fx === a0.fx && aF.fit === true && aRu2.sel !== 'lg-status-chip' && aRu.sel !== undefined,
+      { fx: [a0.fx, aR.fx, aL.fx, aDe.fx], fit: aF.fit, ru: aRu2.sel });
+    await cdp.detach();
+
+    // Single and Compare
+    await page.click(`[data-lab-id="${rail0[0]}"]`); await landed(page, rail0[0]);
+    await page.click('[data-lab-mode="compare"]'); await frames(page);
+    await page.click('[data-lab-zoom="out"]'); await page.click('[data-lab-zoom="out"]'); await page.click('[data-lab-width="mobile"]'); await frames(page);
+    const c0 = await st(page);
+    await page.click('[data-lab-nav="component-next"]'); await landed(page, rail0[1]);
+    const c1 = await st(page);
+    const hasB = await page.evaluate(() => !!document.querySelector('#lab-specimen-b .lab-col'));
+    check('nav compare: Next component changes both previews, Preview A to the new component\'s first fixture and Preview B to the one after it (the S3 rule), says both, and keeps the zoom and the width',
+      c1.compare && hasB && c1.sel === rail0[1] && c1.fx === c1.strip[0] && c1.fxB === c1.strip[1 % c1.strip.length] && c1.zoom === c0.zoom && c0.zoom < 1 && c1.width === 390 && c1.fit === c0.fit
+      && new RegExp('^Component 2 of ' + n + ': .+ · Fixture 1 of \\d+ · Preview B: .+$').test(c1.live), { c0: [c0.zoom, c0.width], c1: [c1.sel, c1.fx, c1.fxB, c1.zoom, c1.width, c1.live] });
+    await page.click('[data-lab-nav="fixture-next"]'); await frames(page);
+    const c2 = await st(page);
+    await page.click('[data-lab-swap]'); await frames(page);
+    const c3 = await st(page);
+    await page.focus('#lab-fx-b'); await page.keyboard.press('}'); await page.keyboard.press(']'); await frames(page);
+    const c4 = await st(page);
+    check('nav compare: Next fixture moves Preview A only; Swap still exchanges the panes and the readout follows Preview A; "}" and "]" on Preview B\'s selector step nothing',
+      c2.fx === c1.strip[1] && c2.fxB === c1.fxB && c2.f === `Fixture 2 of ${c1.strip.length}` && c3.fx === c2.fxB && c3.fxB === c2.fx && c3.f === `Fixture ${c3.strip.indexOf(c3.fx) + 1} of ${c3.strip.length}` && c4.sel === c3.sel && c4.fx === c3.fx,
+      { a: [c1.fx, c2.fx, c3.fx, c4.fx], b: [c1.fxB, c2.fxB, c3.fxB], f: [c2.f, c3.f] });
+    await page.click('[data-lab-zoom="reset"]'); await page.click('[data-lab-width="fill"]'); await page.click('[data-lab-mode="single"]'); await frames(page);
+
+    // focus after the room redraws, and the stage's own boundary
+    const rest = [];
+    for (const act of ['component-next', 'fixture-prev']) { await page.focus(`[data-lab-nav="${act}"]`); const ok = await remount(page); rest.push([act, ok, (await st(page)).active]); }
+    check('nav focus: after the room redraws the Lab, focus is back on the navigation button that had it', rest.every((x) => x[1] && x[0] === x[2]), rest);
+    const iso = await page.evaluate(() => {
+      const fx = () => window.__familistaLabMetrics().fixture, before = fx(), el = document.querySelector('#lab-specimen .lab-col').firstElementChild || document.querySelector('#lab-specimen .lab-col');
+      const e1 = new KeyboardEvent('keydown', { key: ']', bubbles: true, cancelable: true, composed: true }); el.dispatchEvent(e1);
+      const mid = fx();
+      const e2 = new KeyboardEvent('keydown', { key: ']', bubbles: true, cancelable: true }); document.body.dispatchEvent(e2);
+      return { before, mid, after: fx(), inside: e1.defaultPrevented, outside: e2.defaultPrevented };
+    });
+    check('nav isolation: a "]" that starts inside the specimen never reaches the Lab\'s navigation; (control) the same key outside it steps', iso.mid === iso.before && !iso.inside && iso.after !== iso.before && iso.outside, iso);
+
+    // stability and cost: 200 cached steps
+    const client = await ctx.newCDPSession(page);
+    await client.send('Performance.enable'); await client.send('HeapProfiler.enable');
+    const heap = async () => { await client.send('HeapProfiler.collectGarbage'); return (await client.send('Performance.getMetrics')).metrics.find((m) => m.name === 'JSHeapUsedSize').value; };
+    const stat = (a) => { const s = [...a].sort((x, y) => x - y); return { median: Math.round(s[Math.floor(s.length / 2)] * 10) / 10, p95: Math.round(s[Math.floor(s.length * 0.95)] * 10) / 10 }; };
+    await page.click('[data-lab-id="lg-status-chip"]'); await landed(page, 'lg-status-chip'); await blur(page);
+    const dom0 = await labNodes(page), h0 = await heap(), sStart = await st(page);
+    const runs = await page.evaluate(async ({ n, k }) => {
+      window.__clsNav = []; const po = new PerformanceObserver((l) => l.getEntries().forEach((e) => window.__clsNav.push({ v: e.value, outside: (e.sources || []).some((s) => s.node && s.node.nodeType === 1 && s.node.closest('.lab') && !s.node.closest('#lab-plate')) }))); po.observe({ type: 'layout-shift' });
+      const fr = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const out = { comp: [], compSync: [], fix: [], fixSync: [] };
+      for (let i = 0; i < n * Math.ceil(100 / n); i++) { const t0 = performance.now(); document.querySelector('[data-lab-nav="component-next"]').click(); await fr(); out.comp.push(performance.now() - t0); out.compSync.push(window.__familistaLabMetrics().switchMs); }
+      for (let i = 0; i < k * Math.ceil(100 / k); i++) { const t0 = performance.now(); document.querySelector('[data-lab-nav="fixture-next"]').click(); await fr(); out.fix.push(performance.now() - t0); out.fixSync.push(window.__familistaLabMetrics().switchMs); }
+      po.disconnect(); return out;
+    }, { n, k });
+    const h1 = await heap(), dom1 = await labNodes(page), sEnd = await st(page);
+    const shifts = await page.evaluate(() => window.__clsNav.filter((e) => e.outside).length);
+    const measure = { componentSteps: runs.comp.length, componentNavToFrameMedianMs: stat(runs.comp).median, componentNavToFrameP95Ms: stat(runs.comp).p95, componentNavSyncMedianMs: stat(runs.compSync).median, componentNavSyncP95Ms: stat(runs.compSync).p95,
+      fixtureSteps: runs.fix.length, fixtureNavToFrameMedianMs: stat(runs.fix).median, fixtureNavToFrameP95Ms: stat(runs.fix).p95, fixtureNavSyncMedianMs: stat(runs.fixSync).median, fixtureNavSyncP95Ms: stat(runs.fixSync).p95,
+      domBefore: dom0, domAfter: dom1, heapGrowthKB: Math.round((h1 - h0) / 1024), layoutShiftsOutsideStage: shifts };
+    console.log('MEASURE ' + JSON.stringify(measure));
+    check('nav stability: over 200 cached steps (components round the rail, fixtures round the strip) the Lab ends with exactly its nodes, back where it started, and nothing outside the stage shifted',
+      runs.comp.length + runs.fix.length >= 200 && dom1 === dom0 && sEnd.sel === sStart.sel && sEnd.fx === sStart.fx && shifts === 0, measure);
+    const split = await cspSplit(page);
+    check('nav: no Lab or unexplained CSP violation, and no console error, after everything above', split.lab === 0 && split.unexplained === 0 && labErrors(log).length === 0, { csp: split, errors: labErrors(log) });
+    await ctx.close();
+
+    // German and Arabic: the names, the readouts, and arrows that point the way the page reads
+    const langs = [];
+    for (const loc of ['de', 'ar']) {
+      const { ctx: c5, page: p5, log: l5 } = await open({ width: 1440, height: 900 }, loc);
+      await openLab(p5);
+      langs.push(await p5.evaluate((loc) => {
+        const b = (a) => document.querySelector(`[data-lab-nav="${a}"]`), x = (a) => b(a).getBoundingClientRect().left;
+        return { loc, labels: ['component-prev', 'component-next', 'fixture-prev', 'fixture-next'].map((a) => b(a).getAttribute('aria-label')), c: document.getElementById('lab-nav-c').textContent, f: document.getElementById('lab-nav-f').textContent,
+          glyph: b('component-prev').textContent, prevRight: x('component-prev') > x('component-next'), dir: getComputedStyle(document.querySelector('.lab')).direction };
+      }, loc));
+      langs[langs.length - 1].labErrors = labErrors(l5).length;
+      await c5.close();
+    }
+    const [de, ar] = langs;
+    check('nav languages: German and Arabic name every button and readout in the reader\'s language; in Arabic "previous" points right and stands on the right, in German it points left and stands on the left',
+      JSON.stringify(de.labels) === JSON.stringify(['Vorherige Komponente', 'Nächste Komponente', 'Vorheriger Musterfall', 'Nächster Musterfall']) && /^Komponente \S+ von \S+$/.test(de.c) && /^Musterfall \S+ von \S+$/.test(de.f) && de.glyph === '‹' && !de.prevRight && de.dir === 'ltr'
+      && ar.labels.every((l) => /[؀-ۿ]/.test(l)) && /^المكوّن /.test(ar.c) && /^النموذج /.test(ar.f) && ar.glyph === '›' && ar.prevRight && ar.dir === 'rtl' && de.labErrors === 0 && ar.labErrors === 0, langs);
   }
 
   // ══ 6. accessibility, languages, directions and sizes (--axe) ══════════════

@@ -135,12 +135,23 @@
     };
   }
   var S = fresh();
-  var R = { host: null, root: null, bound: [], specimenBound: null, ro: null, raf: 0, rafW: 0, say: null, pane: { a: { nat: null, empty: false }, b: { nat: null, empty: false } } };
+  var R = { host: null, root: null, bound: [], specimenBound: null, ro: null, raf: 0, rafW: 0, say: null, said: null, raSay: 0, pane: { a: { nat: null, empty: false }, b: { nat: null, empty: false } } };
   var M = { loadMs: null, renderMs: null, switchMs: null, zoomMs: null, widthMs: null, modeMs: null, switchBMs: null, specimenNodes: 0, specimenNodesB: 0, fixtures: 0, components: 0 };
 
   function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
   function rtl() { return K && K.dir() === 'rtl'; }
-  function live(text) { var l = document.getElementById('lab-live'); if (l) l.textContent = text; }
+  function live(text) { var l = document.getElementById('lab-live'); if (l) l.textContent = text; R.said = { text: text, at: now() }; }
+  // The room redraws its shell when club data lands behind it, and the Lab's live region is drawn again, empty, with it. An
+  // announcement made just before (SAY_MS) is said once more into the new region, on the next frame so the region is in the
+  // accessibility tree first. It keeps its first timestamp, so it can never outlive SAY_MS or repeat itself into a loop; a
+  // newer announcement already in the region wins.
+  var SAY_MS = 2500;
+  function sayAgain() {
+    R.raSay = 0;
+    var s = R.said, l = document.getElementById('lab-live');
+    if (!s || !s.text || !l || l.textContent || now() - s.at > SAY_MS) return;
+    l.textContent = s.text;
+  }
   function countText(n, one, many) { return n === 1 ? tf('%d ' + one, n) : tf('%d ' + many, n); }
 
   // ── loading ───────────────────────────────────────────────────────────────
@@ -215,11 +226,23 @@
       + '</button></li>';
   }
 
+  /** The rail's groups for a search, each in the registry's order. */
+  function railGroups(q) {
+    var groups = {};
+    S.comps.components.forEach(function (c) { if (matches(c, q)) (groups[groupOf(c.id)] = groups[groupOf(c.id)] || []).push(c); });
+    return groups;
+  }
+  /** Every component the rail lists for the current search, in the rail's order. A collapsed group counts: stepping into it opens it. */
+  function navIds() {
+    if (!S.comps) return [];
+    var groups = railGroups(S.q.trim().toLowerCase());
+    return ['preview'].concat(REASON_ORDER).reduce(function (out, k) { return out.concat((groups[k] || []).map(function (c) { return c.id; })); }, []);
+  }
+
   function railHtml() {
     if (!S.comps) return S.error ? '' : K.skeleton(10, 'row');
     var q = S.q.trim().toLowerCase();
-    var groups = {};
-    S.comps.components.forEach(function (c) { if (matches(c, q)) (groups[groupOf(c.id)] = groups[groupOf(c.id)] || []).push(c); });
+    var groups = railGroups(q);
     var total = S.comps.components.length;
     var keys = ['preview'].concat(REASON_ORDER);
     var shown = 0;
@@ -244,6 +267,7 @@
     var keep = document.activeElement && rail.contains(document.activeElement) ? (document.activeElement.getAttribute('data-lab-id') || document.activeElement.getAttribute('data-lab-grp')) : null;
     rail.innerHTML = railHtml();
     setRove(keep);
+    syncNav();
     if (keep) { var again = rail.querySelector('[data-lab-id="' + cssq(keep) + '"], [data-lab-grp="' + cssq(keep) + '"]'); if (again) again.focus(); }
   }
   function cssq(s) { return String(s).replace(/["\\]/g, '\\$&'); }
@@ -284,6 +308,92 @@
       + '<div class="lab-wbar" id="lab-wbar"' + (S.width == null ? ' data-off' : '') + '>' + wbarHtml() + '</div>'
       + (S.compare ? compareHtml(S.detail[id]) : '<div class="lab-plate" id="lab-plate" role="tabpanel" aria-labelledby="lab-tab-current">' + stageHtml('a') + '</div>')
       + '<div class="lab-strip" id="lab-strip" role="tablist" aria-label="' + esc(T('Fixtures')) + '"></div>';
+  }
+
+  // ── navigation (M2 / S4) ──────────────────────────────────────────────────
+  //
+  // Previous and next component, in the order the rail lists them for the current search (the groups that cannot be previewed
+  // included, each showing its own unavailable state), and previous and next fixture of the component on the stage. Both wrap.
+  // The buttons are the way in; "[" "]" and "{" "}" are shortcuts for them (lab-view.js navAction says which key is which).
+  // A component step redraws the bench as choosing it in the rail does, so Preview B follows the S3 rule (pickB); a fixture
+  // step moves Preview A only. The buttons sit in a row of the bench's own, above the name, that is drawn once per mount and
+  // only brought up to date after that (syncNav): removing a focused button and focusing its replacement each forced a full
+  // layout of the room (75–105 ms a step, measured), and a row that is never redrawn keeps focus where the reader left it.
+
+  function navState() {
+    var ids = navIds(), c = current(), a = S.avail[S.sel];
+    var fx = c && a && a.state === 'preview' ? c.fixtures : null, at = ids.indexOf(S.sel);
+    return { ids: ids, at: at, fx: fx, fat: fx ? fixtureIndex(c) : -1,
+      cOff: !ids.length || (ids.length === 1 && at === 0), fOff: !fx || fx.length < 2 };
+  }
+  function navText(n) {
+    return { c: n.at >= 0 ? tf('Component %d of %d', n.at + 1, n.ids.length) : '—', f: n.fx && n.fat >= 0 ? tf('Fixture %d of %d', n.fat + 1, n.fx.length) : '—' };
+  }
+  function navBtn(act, label, key, off, glyph) {
+    return '<button type="button" class="ds-seg-b lab-nav-b" data-lab-nav="' + act + '" aria-label="' + esc(label) + '" aria-keyshortcuts="' + esc(key) + '" aria-disabled="' + (off ? 'true' : 'false') + '">'
+      + '<span aria-hidden="true">' + glyph + '</span></button>';
+  }
+  /** The arrows point the way the page reads: in Arabic, "previous" points right. */
+  function navHtml() {
+    var n = navState(), t = navText(n), back = rtl() ? '&rsaquo;' : '&lsaquo;', fwd = rtl() ? '&lsaquo;' : '&rsaquo;';
+    return '<div class="lab-nav" role="group" aria-label="' + esc(T('Browse')) + '">'
+      + '<div class="ds-seg lab-nav-g" role="group" aria-label="' + esc(T('Components')) + '">' + navBtn('component-prev', T('Previous component'), '{', n.cOff, back)
+      + '<span class="lab-nav-v" id="lab-nav-c">' + esc(t.c) + '</span>' + navBtn('component-next', T('Next component'), '}', n.cOff, fwd) + '</div>'
+      + '<div class="ds-seg lab-nav-g" role="group" aria-label="' + esc(T('Fixtures')) + '">' + navBtn('fixture-prev', T('Previous fixture'), '[', n.fOff, back)
+      + '<span class="lab-nav-v" id="lab-nav-f">' + esc(t.f) + '</span>' + navBtn('fixture-next', T('Next fixture'), ']', n.fOff, fwd) + '</div>'
+      + '</div>';
+  }
+  /** The row is drawn once per mount, and only while there is a component to step from. */
+  function drawNav() {
+    var nav = document.getElementById('lab-navrow');
+    if (!nav) return;
+    var show = !!(S.comps && S.sel && !S.error);
+    if (show && !nav.firstChild) nav.innerHTML = navHtml();
+    nav.hidden = !show;
+    if (show) syncNav();
+  }
+  /** Bring the readouts and the disabled states in line without redrawing the buttons, so focus stays where it is. */
+  function syncNav() {
+    if (!R.host) return;
+    var n = navState(), t = navText(n);
+    var vc = document.getElementById('lab-nav-c'); if (vc) vc.textContent = t.c;
+    var vf = document.getElementById('lab-nav-f'); if (vf) vf.textContent = t.f;
+    [].forEach.call(R.host.querySelectorAll('[data-lab-nav]'), function (b) {
+      b.setAttribute('aria-disabled', (b.getAttribute('data-lab-nav').indexOf('component') === 0 ? n.cOff : n.fOff) ? 'true' : 'false');
+    });
+  }
+  function navComponent(d, focus) {
+    var ids = navIds(), to = V.wrapStep(ids.indexOf(S.sel), d, ids.length);
+    if (to < 0 || ids[to] === S.sel) return;
+    var a = document.activeElement, held = a && R.host && R.host.contains(a) ? focusKey(a) : null;
+    select(ids[to], { nav: focus ? (d < 0 ? 'component-prev' : 'component-next') : null, held: held, announce: true });
+  }
+  function navFixture(d) {
+    var n = navState();
+    if (n.fOff || n.fat < 0) return;
+    showFixture(n.fx[V.wrapStep(n.fat, d, n.fx.length)].id, { focus: false });
+  }
+  function navGo(act, focus) {
+    if (act === 'component-prev' || act === 'component-next') navComponent(act === 'component-prev' ? -1 : 1, focus);
+    else if (act === 'fixture-prev' || act === 'fixture-next') navFixture(act === 'fixture-prev' ? -1 : 1);
+  }
+  /** After a component step the rail shows the new item, on the next frame, when its layout is already known (reading it now
+   *  would force one). Focus stays on a navigation button, which is never redrawn; a shortcut pressed on a control the bench
+   *  redrew goes back to that control (a fixture tab becomes the new component's current one). */
+  function navAfter(opts) {
+    if (!opts || !opts.announce || !R.host) return;
+    if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(railReveal);
+    var want = null, cur = document.activeElement;
+    if (opts.nav && !(cur && cur.getAttribute && cur.getAttribute('data-lab-nav') === opts.nav)) want = '[data-lab-nav="' + opts.nav + '"]';
+    else if (!opts.nav && opts.held && (!cur || cur === document.body || !R.host.contains(cur))) want = opts.held.charAt(0) === 'f' ? '.lab-fx.is-on' : focusSel(opts.held);
+    var el = want ? R.host.querySelector(want) : null;
+    if (el) el.focus({ preventScroll: true });
+  }
+  function railReveal() {
+    var body = document.getElementById('lab-rail-body'), it = body && body.querySelector('.lab-item.is-sel');
+    if (!it || it.offsetParent !== body.offsetParent) return;     // the rail scrolls itself; nothing outside it is moved
+    var top = it.offsetTop - body.offsetTop - body.clientTop, bottom = top + it.offsetHeight;
+    if (top < body.scrollTop) body.scrollTop = top; else if (bottom > body.scrollTop + body.clientHeight) body.scrollTop = bottom - body.clientHeight;
   }
 
   // ── zoom (M2 / S1) ────────────────────────────────────────────────────────
@@ -697,6 +807,7 @@
     if (on) { S.fixture = (curFixture() || c.fixtures[0]).id; if (S.compare) S.fixtureB = pickB(c); }
     R.pane.a = { nat: null, empty: false }; R.pane.b = { nat: null, empty: false };
     bench.innerHTML = benchHtml();
+    drawNav();
     if (!on) { drawInspector(); return; }
     var f = curFixture();
     var strip = document.getElementById('lab-strip'); if (strip) strip.innerHTML = stripHtml(c);
@@ -739,6 +850,7 @@
     nameFixture(f);
     paintSpecimen(f, 'a');
     drawInspector();
+    syncNav();
     M.switchMs = Math.round((now() - t0) * 10) / 10;
     live(tf('Fixture %d of %d', fixtureIndex(c) + 1, c.fixtures.length) + ': ' + f.label);
   }
@@ -784,6 +896,7 @@
     paintSpecimen(f, 'a', true); paintSpecimen(fixtureById(c, S.fixtureB), 'b', true);
     applyZoom(true); syncZoom(); syncWidth();
     drawInspector();
+    syncNav();
     live(T('Preview A and Preview B swapped'));
   }
 
@@ -987,12 +1100,16 @@
       M.switchMs = Math.round((now() - t0) * 10) / 10;
       var t = document.getElementById('lab-title');
       if (opts && opts.focusTitle && t) t.focus({ preventScroll: true });
-      var c = current();
-      if (a && a.state === 'preview' && c) live(S.byId[id].name + ' · ' + tf('Fixture %d of %d', fixtureIndex(c) + 1, c.fixtures.length));
-      else live(S.byId[id].name + ' · ' + T('Not previewable'));
+      navAfter(opts);
+      var c = current(), ids = opts && opts.announce ? navIds() : null;
+      var pos = ids && ids.indexOf(id) >= 0 ? tf('Component %d of %d', ids.indexOf(id) + 1, ids.length) + ': ' : '';
+      var fb = ids && S.compare && c ? fixtureById(c, S.fixtureB) : null;
+      if (a && a.state === 'preview' && c) live(pos + S.byId[id].name + ' · ' + tf('Fixture %d of %d', fixtureIndex(c) + 1, c.fixtures.length) + (fb ? ' · ' + paneName('b') + ': ' + fb.label : ''));
+      else live(pos + S.byId[id].name + ' · ' + T('Not previewable'));
     };
     if (a && a.state === 'preview' && !S.detail[id]) {
       drawRail(); drawBench();           // the plate and the inspector show a skeleton meanwhile
+      navAfter(opts);
       loadDetail(id).then(go);
     } else go();
   }
@@ -1003,6 +1120,8 @@
     var t = ev.target; if (!t || !t.closest) return;
     var q = t.closest('[data-lab-id]');
     if (q) { select(q.getAttribute('data-lab-id'), { focusTitle: true }); return; }
+    q = t.closest('[data-lab-nav]');
+    if (q) { if (q.getAttribute('aria-disabled') !== 'true') navGo(q.getAttribute('data-lab-nav'), true); return; }
     q = t.closest('[data-lab-grp]');
     if (q) { var g = q.getAttribute('data-lab-grp'); S.open[g] = !(q.getAttribute('aria-expanded') === 'true'); drawRail(); var again = R.host.querySelector('[data-lab-grp="' + g + '"]'); if (again) again.focus(); return; }
     q = t.closest('[data-lab-fx]');
@@ -1089,9 +1208,12 @@
     if (el.id === 'lab-q') return 'q';
     if (el.id === 'lab-w') return 'c';
     if (el.id === 'lab-fx-b') return 'b';
-    var m = [['data-lab-id', 'i'], ['data-lab-grp', 'g'], ['data-lab-fx', 'f'], ['data-lab-tab', 't'], ['data-lab-dir', 'd'], ['data-lab-zoom', 'z'], ['data-lab-width', 'w'], ['data-lab-mode', 'm'], ['data-lab-swap', 's']];
+    var m = [['data-lab-id', 'i'], ['data-lab-grp', 'g'], ['data-lab-fx', 'f'], ['data-lab-tab', 't'], ['data-lab-dir', 'd'], ['data-lab-zoom', 'z'], ['data-lab-width', 'w'], ['data-lab-mode', 'm'], ['data-lab-swap', 's'], ['data-lab-nav', 'n']];
     for (var i = 0; i < m.length; i++) { var v = el.getAttribute(m[i][0]); if (v) return m[i][1] + ':' + v; }
     return null;
+  }
+  function focusSel(k) {
+    return k === 'q' ? '#lab-q' : k === 'c' ? '#lab-w' : k === 'b' ? '#lab-fx-b' : '[data-lab-' + ({ i: 'id', g: 'grp', f: 'fx', t: 'tab', d: 'dir', z: 'zoom', w: 'width', m: 'mode', s: 'swap', n: 'nav' })[k.charAt(0)] + '="' + cssq(k.slice(2)) + '"]';
   }
   function trackFocus(ev) { var k = focusKey(ev.target); if (k) S.focus = { key: k, at: now() }; }
   function restoreFocus() {
@@ -1099,8 +1221,7 @@
     if (!f || !R.host || now() - f.at > FOCUS_MS) return;
     var a = document.activeElement;
     if (a && a !== document.body && R.host.contains(a)) return;
-    var sel = f.key === 'q' ? '#lab-q' : f.key === 'c' ? '#lab-w' : f.key === 'b' ? '#lab-fx-b' : '[data-lab-' + ({ i: 'id', g: 'grp', f: 'fx', t: 'tab', d: 'dir', z: 'zoom', w: 'width', m: 'mode', s: 'swap' })[f.key.charAt(0)] + '="' + cssq(f.key.slice(2)) + '"]';
-    var el = R.host.querySelector(sel);
+    var el = R.host.querySelector(focusSel(f.key));
     if (!el) return;
     el.focus({ preventScroll: true });
     if (f.key === 'q' && el.setSelectionRange) { var n = (el.value || '').length; el.setSelectionRange(n, n); }
@@ -1116,7 +1237,7 @@
       + '<span class="lab-count" id="lab-count" role="status" aria-live="polite"></span></div>'
       + '<div class="lab-main">'
       + '<nav class="lab-rail" aria-label="' + esc(T('Components')) + '"><div class="lab-rail-body" id="lab-rail-body"></div></nav>'
-      + '<section class="lab-bench" id="lab-bench" aria-label="' + esc(T('Preview stage')) + '"></section>'
+      + '<section class="lab-bench" aria-label="' + esc(T('Preview stage')) + '"><div class="lab-navrow" id="lab-navrow" hidden></div><div class="lab-bench-in" id="lab-bench"></div></section>'
       + '<aside class="lab-insp" id="lab-insp" aria-label="' + esc(T('Component inspector')) + '"></aside>'
       + '</div><div class="ds-sr" id="lab-live" aria-live="polite" aria-atomic="true"></div></div>';
   }
@@ -1137,6 +1258,8 @@
     if (!Z || !V) { host.innerHTML = K.emptyState('The Specimen Lab could not be loaded', T('Reload the page and try again.')); return; }
     host.innerHTML = shellHtml();
     R.root = host.querySelector('.lab');
+    if (R.raSay) window.cancelAnimationFrame(R.raSay);
+    R.raSay = typeof window.requestAnimationFrame === 'function' ? window.requestAnimationFrame(sayAgain) : 0;
     bind(host, 'click', onClick);
     bind(host, 'input', onInput);
     bind(host, 'change', onChange);
@@ -1150,19 +1273,21 @@
       var q = document.getElementById('lab-q'); if (q && R.host && R.host.contains(q)) { ev.preventDefault(); q.focus(); q.select(); }
     });
     bind(document, 'keydown', function (ev) {
-      // "[" and "]" step through the fixtures of the chosen component.
-      if ((ev.key !== '[' && ev.key !== ']') || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      // "[" and "]" step through the fixtures of the chosen component, "{" and "}" through the components the rail lists.
+      // Never while the reader is typing, never with Ctrl, Cmd or Alt (lab-view.js navAction), and only when there is a step.
+      var act = V.navAction(ev); if (!act) return;
       var a = document.activeElement, tag = a && a.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (a && a.isContentEditable)) return;
-      var c = current(); if (!c || !R.host || !R.host.contains(document.getElementById('lab-bench'))) return;
-      var at = fixtureIndex(c); if (at < 0) return;
-      ev.preventDefault(); showFixture(c.fixtures[(at + (ev.key === ']' ? 1 : -1) + c.fixtures.length) % c.fixtures.length].id, { focus: false });
+      if (!R.host || !R.host.contains(document.getElementById('lab-bench'))) return;
+      var n = navState();
+      if (act.indexOf('fixture') === 0 ? n.fOff || n.fat < 0 : n.cOff) return;
+      ev.preventDefault(); navGo(act, false);
     });
     bind(document, 'keydown', function (ev) {
       // Zoom: "-" and "=" (or "+"), "0" for 100%, "F" to fit. Never with Ctrl, Cmd or Alt: those
       // are the browser's own zoom and stay the reader's. Never while the reader is typing.
       if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
-      var act = ({ '-': 'out', '_': 'out', '=': 'in', '+': 'in', '0': 'reset', f: 'fit', F: 'fit' })[ev.key];
+      var act = ({ '-': 'out', '_': 'out', '=': 'in', '+': 'in', '0': 'reset', f: 'fit', F: 'fit' })[V.shortcutKey(ev)];
       if (!act) return;
       var a = document.activeElement, tag = a && a.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (a && a.isContentEditable)) return;
@@ -1182,6 +1307,7 @@
   }
   function unmount() {
     unbind();
+    if (R.raSay) { window.cancelAnimationFrame(R.raSay); R.raSay = 0; }
     stopObserving();
     R.root = null; R.host = null;
   }
