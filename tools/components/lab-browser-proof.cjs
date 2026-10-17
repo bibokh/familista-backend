@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Familista — Specimen Lab: browser proofs (Stage 3.2.3 M1, M2 / S1 zoom, M2 / S2 width, M2 / S3 comparison, M2 / S4 navigation).
+// Familista — Specimen Lab: browser proofs (Stage 3.2.3 M1, M2 / S1 zoom, M2 / S2 width, M2 / S3 comparison, M2 / S4 navigation,
+// M3 / S1 room stability).
 //
 // The Lab claims four boundaries around a specimen and one around the server:
 // events stop at the stage, fixed overlays stay in it, the application's
@@ -87,7 +88,7 @@ const { signToken } = require(path.join(ROOT, 'dist/security/jwt-tokens'));
 const results = [];
 // Every time the Lab is mounted on a page (a new .lab root), by the application or by a proof, as milliseconds since the epoch,
 // recorded from the page through a binding (see open()). `LAB_EXPECTED` counts the mounts a proof caused on purpose (remount(),
-// dataRedraw()); `LAB_READY` is when settleRoom() found the room quiet. A FAIL prints the history of the page under test, so a
+// roomRedraw()); `LAB_READY` is when settleRoom() found the room quiet. A FAIL prints the history of the page under test, so a
 // failure that coincides with the application remounting the Lab says so instead of leaving it to be guessed.
 const LAB_MOUNTS = new Map(), LAB_EXPECTED = new Map(), LAB_READY = new Map();
 let LAB_PAGE = null;
@@ -111,17 +112,21 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined, args: ['--no-sandbox'] });
   const token = signToken('access', { sub: OWNER.id, role: OWNER.role }, { expiresIn: '60m' });
 
-  // `labPatch`, used only by the negative controls, serves lab.js with one edit applied (a control that breaks
-  // the behaviour under proof, so the proof can be seen to fail); everything else is the file on disk.
-  async function open(viewport, locale, labPatch) {
+  // `labPatch` and `opts.appPatch`, used only by the negative controls, serve lab.js or app.js with one edit applied (a control
+  // that breaks the behaviour under proof, so the proof can be seen to fail); everything else is the file on disk. `opts.wait`
+  // false returns as soon as the page has loaded, for a control whose room is expected never to draw.
+  async function open(viewport, locale, labPatch, opts) {
+    opts = opts || {};
     const ctx = await browser.newContext({ viewport, reducedMotion: 'reduce' });
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-    if (labPatch) {
-      const original = fs.readFileSync(path.join(ROOT, 'public/design-system/lab.js'), 'utf8');
-      const patched = labPatch(original);
-      if (patched === original) throw new Error('negative control: the edit did not change lab.js, so it would prove nothing');
-      await ctx.route(/\/design-system\/lab\.js(\?|$)/, (r) => r.fulfill({ contentType: 'application/javascript', body: patched }));
-    }
+    const patch = async (file, url, fn) => {
+      const original = fs.readFileSync(path.join(ROOT, 'public', file), 'utf8');
+      const patched = fn(original);
+      if (patched === original) throw new Error('negative control: the edit did not change ' + file + ', so it would prove nothing');
+      await ctx.route(url, (r) => r.fulfill({ contentType: 'application/javascript', body: patched }));
+    };
+    if (labPatch) await patch('design-system/lab.js', /\/design-system\/lab\.js(\?|$)/, labPatch);
+    if (opts.appPatch) await patch('app.js', /\/app\.js(\?|$)/, opts.appPatch);
     await ctx.addCookies([{ name: 'access_token', value: token, domain: '127.0.0.1', path: '/', httpOnly: true }]);
     await ctx.exposeBinding('__famProofLabMounted', (src) => { const a = LAB_MOUNTS.get(src.page) || []; a.push(Date.now()); LAB_MOUNTS.set(src.page, a); });
     await ctx.addInitScript(() => {
@@ -158,7 +163,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     });
     page.on('request', (r) => log.requests.push([r.method(), new URL(r.url()).pathname + new URL(r.url()).search, new URL(r.url()).origin]));
     await page.goto(BASE + '/#design-system', { waitUntil: 'load' });
-    await page.waitForSelector('.ds-metric', { timeout: 30000 });
+    if (opts.wait !== false) await page.waitForSelector('.ds-metric', { timeout: 30000 });
     return { ctx, page, log };
   }
   async function openLab(page, opts) {
@@ -168,11 +173,11 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     await page.waitForTimeout(300);
     if (opts && opts.settle) await settleRoom(page);
   }
-  // The application repaints the Design System room when its start-up data lands (app.js AppContext.load → _famDataChanged, twice
-  // at start-up → the page-render registry → renderFamilistaDesignSystem), and each repaint mounts the Lab again: every element is
-  // replaced, the Lab's state is kept. Measured: the Lab can draw before the second data change, and the two repaints it causes
-  // mount the Lab 0.4 and 0.9 s later. That is when the M2 sections start clicking, so a click could be aimed at an element
-  // replaced under it (M2 CI: section 10's Swap announcement on #107, section 8's zoom button on #108).
+  // Until M3 / S1 the application repainted the Design System room when its start-up data landed (app.js AppContext.load →
+  // _famDataChanged, twice at start-up → the page-render registry → renderFamilistaDesignSystem), and each repaint mounted the Lab
+  // again under the M2 sections' clicks (M2 CI: section 10's Swap announcement on #107, section 8's zoom button on #108). The room
+  // is no longer among the club-data pages and section 12 proves it is left alone; settleRoom stays as the guard it always was, so
+  // a regression shows up as section 12 failing rather than as these sections flaking.
   // settleRoom waits until that is over, from the application's own signals, not from a quiet interval: the page's network has
   // gone idle (so /me/context has answered), the data version has not moved for SETTLE_STABLE_MS, and the latest room render is
   // that old and has mounted the Lab. It asserts nothing and changes nothing; the Lab must still be there after it, and a room that
@@ -279,19 +284,32 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     await page.waitForTimeout(400);
     return true;
   }
-  // Redraw the room the way background club data does (app.js _famDataChanged → the page-render registry → this room), and
-  // record every write into a live region from that moment on. Null if no NEW Lab root replaced the old one.
-  async function dataRedraw(page) {
+  // Redraw the room as a navigation, a Refresh or a language switch does (they all go through this renderer), and record every
+  // write into a live region from that moment on. Null if no NEW Lab root replaced the old one.
+  const liveRecord = () => {
+    window.__liveWrites = [];
+    window.__liveMo = new MutationObserver((ms) => ms.forEach((m) => { if (m.target && m.target.id === 'lab-live') window.__liveWrites.push(m.target.textContent); }));
+    window.__liveMo.observe(document.body, { subtree: true, childList: true, characterData: true });
+  };
+  async function roomRedraw(page) {
     LAB_EXPECTED.set(page, (LAB_EXPECTED.get(page) || 0) + 1);
-    await page.evaluate(() => {
-      window.__mark = document.querySelector('.lab'); window.__liveWrites = [];
-      window.__liveMo = new MutationObserver((ms) => ms.forEach((m) => { if (m.target && m.target.id === 'lab-live') window.__liveWrites.push(m.target.textContent); }));
-      window.__liveMo.observe(document.body, { subtree: true, childList: true, characterData: true });
-      window._famDataChanged();
-    });
+    await page.evaluate(liveRecord);
+    await page.evaluate(() => { window.__mark = document.querySelector('.lab'); window.renderFamilistaDesignSystem(); });
     try { await page.waitForFunction(() => { const l = document.querySelector('.lab'); return l && l !== window.__mark && document.getElementById('lab-specimen'); }, null, { timeout: 8000 }); } catch (_) { return null; }
     await page.waitForTimeout(600);
     return page.evaluate(() => { window.__liveMo.disconnect(); return { live: document.getElementById('lab-live').textContent, writes: window.__liveWrites.slice() }; });
+  }
+  // What background club data does to the room (app.js _famDataChanged), which since M3 / S1 is nothing: the room draws no club
+  // data. Records the live region's writes from that moment, and whether the Lab root and the room shell are the same elements
+  // afterwards (`same`) and how many room renders it caused.
+  async function dataChange(page, settleMs = 600, recording = false) {
+    if (!recording) await page.evaluate(liveRecord);
+    await page.evaluate(() => {
+      window.__mark = document.querySelector('.lab'); window.__markShell = document.querySelector('.ds-shell'); window.__markRenders = window.__proofRenders;
+      window._famDataChanged();
+    });
+    await page.waitForTimeout(settleMs);
+    return page.evaluate(() => { window.__liveMo.disconnect(); return { same: document.querySelector('.lab') === window.__mark && document.querySelector('.ds-shell') === window.__markShell, renders: window.__proofRenders - window.__markRenders, live: (document.getElementById('lab-live') || {}).textContent, writes: window.__liveWrites.slice() }; });
   }
   const FOCUS_TARGETS = [['rail item', '[data-lab-id="lg-chip"]'], ['fixture tab', '.lab-fx.is-on'], ['search', '#lab-q'], ['inspector tab', '[data-lab-tab="source"]'], ['direction', '[data-lab-dir="rtl"]'], ['zoom in', '[data-lab-zoom="in"]'], ['width preset', '[data-lab-width="mobile"]'], ['custom width', '#lab-w'], ['view', '[data-lab-mode="compare"]'], ['navigation', '[data-lab-nav="component-next"]']];
   // Focus each target in turn, remount, and say where focus went. Never reads the Lab's own state: only the page.
@@ -1211,17 +1229,27 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     check('compare: opening comparison, choosing B\'s fixture and swapping make no request from the Lab (to a Lab endpoint or, from a Lab script, to any URL); the application\'s own background requests are counted apart',
       fetched.length === 0, { lab: fetched, application: net.seen.length - fetched.length });
 
-    // Swap, then at once the redraw background club data causes: the announcement must reach the new live region, once.
+    // Swap, then at once a redraw of the room (a navigation, a Refresh or a language switch all redraw it): the announcement must
+    // reach the new live region, once.
     await page.click('[data-lab-swap]');
-    const swapRedraw = await dataRedraw(page);
+    const swapRedraw = await roomRedraw(page);
     const swapState = await page.evaluate(() => [window.__familistaLabMetrics().fixture, window.__familistaLabMetrics().fixtureB]);
-    check('compare announce: Swap followed at once by a club-data redraw of the room still announces "Preview A and Preview B swapped" in the new live region, written once, and the panes stay swapped',
+    check('compare announce: Swap followed at once by a redraw of the room still announces "Preview A and Preview B swapped" in the new live region, written once, and the panes stay swapped',
       !!swapRedraw && swapRedraw.live === 'Preview A and Preview B swapped' && swapRedraw.writes.filter((w) => w).length === 1 && swapState[0] === fx[3] && swapState[1] === fx[0], { redraw: swapRedraw, state: swapState });
     await page.click('[data-lab-swap]'); await frames(page);
     await page.waitForTimeout(2700);
-    const staleRedraw = await dataRedraw(page);
+    const staleRedraw = await roomRedraw(page);
     check('compare announce (control): the same redraw 2.7 s after Swap writes nothing into the new live region: an old announcement is not repeated',
       !!staleRedraw && staleRedraw.live === '' && staleRedraw.writes.filter((w) => w).length === 0, { redraw: staleRedraw });
+    // Swap, then at once the change background club data makes. The room draws no club data, so it is left exactly as it was:
+    // the announcement is written once, from the click, into the live region the reader's screen reader is already watching.
+    await page.evaluate(liveRecord);
+    await page.click('[data-lab-swap]');
+    const swapData = await dataChange(page, 600, true);
+    const dataState = await page.evaluate(() => [window.__familistaLabMetrics().fixture, window.__familistaLabMetrics().fixtureB]);
+    check('compare announce: Swap followed at once by a club-data change leaves the room alone (the same Lab and room elements, no room render), "Preview A and Preview B swapped" is written once into the same live region, and the panes stay swapped',
+      swapData.same && swapData.renders === 0 && swapData.live === 'Preview A and Preview B swapped' && swapData.writes.filter((w) => w).length === 1 && dataState[0] === fx[3] && dataState[1] === fx[0], { change: swapData, state: dataState });
+    await page.click('[data-lab-swap]'); await frames(page);
 
     // containment: each overlay in its own canvas, never over the other pane, clipped by its own viewport, at every scale and width
     const zoomTo = async (pct) => { await page.click('[data-lab-zoom="reset"]', { force: true }); const dir = pct < 100 ? 'out' : 'in'; for (let n = 0; n < 12 && Number((await page.textContent('#lab-zoom-v')).replace(/[^0-9]/g, '')) !== pct; n++) await page.click(`[data-lab-zoom="${dir}"]`, { force: true }); await frames(page); };
@@ -1864,6 +1892,319 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
         own.length === 1 && own[0].d === 'style-src-attr' && !own[0].inLab && win.application >= 1 && win.lab === 0 && win.unexplained === 0, { win, own });
       await ctx.close();
     }
+  }
+
+  // ══ 12. the room under background data (M3 / S1) ═══════════════════════════
+  // The Design System room draws no club data. Until M3 / S1 it was listed with the pages that do (app.js _FAM_PAGE_RENDER), so
+  // every club-data change redrew it and mounted the Lab again under the reader: a click pressed before the redraw and released
+  // after it landed on a replaced element and was lost, the bench scrolled back to the top, and the room read its overview again.
+  // The room was also drawn on entry only when the data had moved since its last draw, so coming back to it unchanged left the Lab
+  // its teardown had unbound on screen, deaf to the pointer. These proofs hold the room still under club data, and hold every
+  // redraw that must still happen: the first entry, every later entry, Refresh, the room's language, its sections, and a page whose
+  // room is missing. Each control serves app.js or lab.js with the fix taken out and requires the same measurement to turn red.
+  if (want('12')) {
+    const CLUB_READ = /^\/api\/v1\/(analytics|players|matches|training|transfer-market)(\/|\?|$)/;
+    const mounts = (pg) => (LAB_MOUNTS.get(pg) || []).length;
+    const renders = (pg) => pg.evaluate(() => window.__proofRenders);
+    const fromRoom = (seen) => seen.filter((x) => x.by.some((u) => /^\/design-system\//.test(u)));
+    const stat = (a) => { const s = [...a].sort((x, y) => x - y); return { median: Math.round(s[Math.floor(s.length / 2)] * 10) / 10, p95: Math.round(s[Math.floor(s.length * 0.95)] * 10) / 10, n: s.length }; };
+    const SCROLLERS = ['#ds-body', '#lab-rail-body', '.lab-bench', '#lab-insp'];
+    const view = (pg) => pg.evaluate((sc) => {
+      const m = window.__familistaLabMetrics();
+      return { sel: m.selected, fixture: m.fixture, fixtureB: m.fixtureB, zoom: m.zoom, fit: m.fit, width: m.width, compare: m.compare, dir: m.dir, q: document.getElementById('lab-q').value,
+        scroll: sc.map((q) => { const e = document.querySelector(q); return e ? e.scrollTop : null; }), live: document.getElementById('lab-live').textContent };
+    }, SCROLLERS);
+    const selects = (pg, id) => pg.waitForFunction((i) => window.__familistaLabMetrics().selected === i, id, { timeout: 1500 }).then(() => true, () => false);
+    // A click pressed on a rail item, a club-data change, then the release: did the press land? `target` is a component id.
+    async function splitClick(pg, target) {
+      const b = await pg.evaluate((t) => { const e = document.querySelector(`[data-lab-id="${t}"]`); e.scrollIntoView({ block: 'nearest' }); const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, width: r.width, height: r.height }; }, target);
+      await pg.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+      await pg.mouse.down();
+      await pg.evaluate(() => window._famDataChanged());
+      await pg.waitForTimeout(150);
+      await pg.mouse.up();
+      return selects(pg, target);
+    }
+    // The listeners on `document`, from the browser's own record: the Lab adds three keyboard listeners there on each mount and
+    // must take them away on the next, so the number stays put however often the room is redrawn.
+    async function docListeners(pg) {
+      const cdp = await pg.context().newCDPSession(pg);
+      const { result } = await cdp.send('Runtime.evaluate', { expression: 'document' });
+      const { listeners } = await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId });
+      await cdp.detach();
+      return listeners.length;
+    }
+    // A control whose edit cannot be applied (the code it removes is not there) is a FAIL that says so, never a crash or a pass.
+    async function control(name, fn) {
+      try { await fn(); } catch (e) { fail(name + ': control not applied: ' + String(e.message || e).split('\n')[0]); }
+    }
+
+    // start-up: one draw, one Lab mount per opening, no club data
+    {
+      const { ctx, page, log } = await open({ width: 1440, height: 900 }, 'en');
+      LAB_PAGE = page;
+      await page.click('[data-ds-nav="lab"]');
+      await page.waitForSelector('#lab-specimen .lab-col', { timeout: 30000 });
+      try { await page.waitForLoadState('networkidle', { timeout: 8000 }); } catch (_) { /* the counts below decide */ }
+      await page.waitForTimeout(3000);
+      const r = await renders(page), m = mounts(page);
+      const club = log.requests.filter((x) => x[2] === BASE && CLUB_READ.test(x[1]));
+      check('room start-up: a deep link into the Design System draws the room once and mounts the Lab once when it is opened, and the club data the room never reads is not read',
+        r === 1 && m === 1 && club.length === 0, { renders: r, labMounts: m, clubReads: club.map((x) => x[0] + ' ' + x[1]) });
+      await ctx.close();
+    }
+
+    const { ctx, page, log } = await open({ width: 1100, height: 700 }, 'en');
+    await openLab(page, SETTLE);
+    await page.click('[data-lab-id="lg-chip"]');
+    await page.waitForFunction(() => window.__familistaLabMetrics().selected === 'lg-chip' && window.__familistaLabMetrics().fixture);
+    const fx = await page.evaluate(() => [...document.querySelectorAll('.lab-fx')].map((b) => b.getAttribute('data-lab-fx')));
+    await page.click(`[data-lab-fx="${fx[1]}"]`); await frames(page);
+    await page.click('[data-lab-mode="compare"]'); await frames(page);
+    await page.click('[data-lab-zoom="in"]', { force: true }); await page.click('[data-lab-zoom="in"]', { force: true }); await frames(page);
+
+    // one club-data change: nothing in the room moves
+    {
+      const scrolled = await page.evaluate((sc) => sc.map((q) => { const e = document.querySelector(q); if (!e || e.scrollHeight - e.clientHeight < 8) return 0; e.scrollTop = Math.min(40, e.scrollHeight - e.clientHeight); return e.scrollTop; }), SCROLLERS);
+      await page.focus('[data-lab-zoom="in"]');
+      await page.evaluate(() => { window.__mkFocus = document.activeElement; window.__mkSpec = document.getElementById('lab-specimen'); });
+      const before = await view(page);
+      const net = await netWatch(page);
+      const ch = await dataChange(page, 1000);
+      await net.stop();
+      const after = await view(page);
+      const kept = await page.evaluate(() => ({ focus: document.activeElement === window.__mkFocus && window.__mkFocus !== document.body, specimen: document.getElementById('lab-specimen') === window.__mkSpec }));
+      const own = fromRoom(net.seen);
+      if (!(scrolled[1] > 0 && scrolled[2] > 0)) fail('room data change: control not applied: the rail and the bench could not be scrolled, so a lost scroll position could not be seen', { scrolled });
+      else check('room data change: a club-data change leaves the room alone: the same room, Lab and specimen elements, no room render, no request from the room or the Lab, nothing written to the live region, focus on the same element, and every scroll position, the selection, both fixtures, Compare, zoom, width, Fit, direction and search exactly as they were',
+        ch.same && ch.renders === 0 && ch.writes.length === 0 && kept.focus && kept.specimen && own.length === 0 && JSON.stringify(after) === JSON.stringify(before), { change: ch, kept, roomRequests: own.map((x) => x.method + ' ' + x.path), scrolled, before, after });
+    }
+    // what a club-data change costs the main thread while the room is open: from the call to the next task, so a redraw scheduled
+    // as a promise is counted with it. The next task is a MessageChannel message, not a timer: nested timers are clamped to 4 ms,
+    // which would be measured instead of the room.
+    {
+      const cost = await page.evaluate(async () => {
+        const ch = new MessageChannel(), next = () => new Promise((r) => { ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
+        const out = [];
+        for (let i = 0; i < 43; i++) { const t0 = performance.now(); window._famDataChanged(); await next(); out.push(performance.now() - t0); await new Promise((r) => setTimeout(r, 40)); }
+        return out.slice(3);
+      });
+      await page.waitForTimeout(800);
+      const s = stat(cost);
+      console.log('MEASURE ' + JSON.stringify({ dataChangeToNextTaskMedianMs: s.median, dataChangeToNextTaskP95Ms: s.p95, runs: s.n }));
+      // Gated on the median: one slow run on a busy machine (a garbage collection, another task) is the p95 of 40 runs, and it is
+      // reported. The redraw this replaces cost a median of hundreds of milliseconds, so the margin is not the threshold's.
+      check('room data change: a club-data change costs the open room a median of at most 2 ms of main-thread work to the next task (40 runs after 3 warm-ups; p95 reported)', s.n === 40 && s.median <= 2, s);
+    }
+    // a click pressed before a club-data change and released after it
+    {
+      const lost = [];
+      for (let i = 0; i < 10; i++) { const target = i % 2 ? 'lg-chip' : 'lg-metric'; if (!(await splitClick(page, target))) lost.push(target); }
+      check('room data change: ten clicks, each pressed before a club-data change and released after it, all land: the component under the pointer is selected every time', lost.length === 0, { lost, trials: 10 });
+    }
+    // leaving a club's data behind (a club switch resets every page version) and redrawing the brand
+    {
+      const out = await page.evaluate(async () => {
+        const lab = document.querySelector('.lab'), r0 = window.__proofRenders;
+        window._famResetPageVersions(); window._famDataChanged();
+        try { window.hydrateTopbarBrand('design-system'); } catch (_) { /* not every build has it */ }
+        await new Promise((r) => setTimeout(r, 800));
+        return { same: document.querySelector('.lab') === lab, renders: window.__proofRenders - r0 };
+      });
+      check('room data change: dropping the club\'s data (page versions reset, as a club switch does) and redrawing the brand change nothing in the room', out.same && out.renders === 0, out);
+    }
+    // the search: the field being typed in keeps its focus, text and caret, and the list stays filtered
+    {
+      await page.click('#lab-q'); await page.keyboard.type('ch');
+      await page.evaluate(() => { const q = document.getElementById('lab-q'); q.setSelectionRange(1, 1); window.__mkFocus = q; });
+      const ids = () => page.evaluate(() => [...document.querySelectorAll('[data-lab-id]')].map((b) => b.getAttribute('data-lab-id')).join());
+      const ids0 = await ids();
+      const ch = await dataChange(page, 800);
+      const q = await page.evaluate(() => { const e = document.getElementById('lab-q'); return { focus: document.activeElement === window.__mkFocus, value: e.value, caret: e.selectionStart }; });
+      const ids1 = await ids();
+      check('room data change: while the reader types in the Lab search, a club-data change keeps the same focused field, its text, its caret and the filtered list',
+        ch.same && ch.renders === 0 && q.focus && q.value === 'ch' && q.caret === 1 && ids1 === ids0, { change: ch, search: q, filtered: ids0 === ids1 });
+      await page.fill('#lab-q', ''); await frames(page);
+      await page.click('[data-lab-id="lg-chip"]'); await selects(page, 'lg-chip');
+    }
+    // twenty changes, then Compare and Swap
+    {
+      if (!(await page.evaluate(() => window.__familistaLabMetrics().compare))) { await page.click('[data-lab-mode="compare"]'); await frames(page); }
+      const m0 = mounts(page);
+      for (let i = 0; i < 20; i++) await page.evaluate(() => window._famDataChanged());
+      await page.waitForTimeout(600);
+      await page.evaluate(liveRecord);
+      const pre = await page.evaluate(() => [window.__familistaLabMetrics().fixture, window.__familistaLabMetrics().fixtureB]);
+      await page.click('[data-lab-swap]'); await page.waitForTimeout(600);
+      const post = await page.evaluate(() => [window.__familistaLabMetrics().fixture, window.__familistaLabMetrics().fixtureB]);
+      const writes = await page.evaluate(() => { window.__liveMo.disconnect(); return window.__liveWrites.filter((w) => w); });
+      await page.click('[data-lab-mode="single"]'); await frames(page);
+      const leftB = await page.evaluate(() => document.querySelectorAll('.lab [id$="-b"], .lab .lab-cmp, .lab [data-lab-swap]').length);
+      check('room data change: after twenty club-data changes Compare still works: the Lab was never mounted again, Swap exchanges the panes and is announced once, and Single removes every Preview B node',
+        mounts(page) === m0 && pre[0] !== pre[1] && post[0] === pre[1] && post[1] === pre[0] && writes.length === 1 && writes[0] === 'Preview A and Preview B swapped' && leftB === 0, { mounts: [m0, mounts(page)], pre, post, writes, leftB });
+    }
+    // growth: fifty changes, then ten deliberate redraws
+    {
+      const client = await ctx.newCDPSession(page);
+      await client.send('Performance.enable'); await client.send('HeapProfiler.enable');
+      const heap = async () => { await client.send('HeapProfiler.collectGarbage'); return (await client.send('Performance.getMetrics')).metrics.find((m) => m.name === 'JSHeapUsedSize').value; };
+      const nodes = () => page.evaluate(() => ({ all: document.getElementsByTagName('*').length, labs: document.querySelectorAll('.lab').length }));
+      const n0 = await nodes(), h0 = await heap();
+      for (let i = 0; i < 50; i++) await page.evaluate(() => window._famDataChanged());
+      await page.waitForTimeout(800);
+      const n1 = await nodes(), h1 = await heap();
+      await client.detach();
+      check('room growth: fifty club-data changes add no node to the page, leave exactly one Lab, and grow the heap by at most 256 KB after garbage collection',
+        n1.all === n0.all && n1.labs === 1 && h1 - h0 <= 256 * 1024, { nodes: [n0, n1], heapGrowthKB: Math.round((h1 - h0) / 1024) });
+      const l0 = await docListeners(page);
+      let redrawn = 0;
+      for (let i = 0; i < 10; i++) if (await roomRedraw(page)) redrawn++;
+      const l1 = await docListeners(page);
+      check('room growth: ten deliberate redraws of the room mount the Lab ten times and leave exactly as many listeners on the document as before', redrawn === 10 && l1 === l0, { redrawn, listeners: [l0, l1] });
+    }
+
+    // the redraws that must still happen
+    {
+      const net = await netWatch(page);
+      const mk0 = mounts(page);
+      const keep = await page.evaluate(() => { const m = window.__familistaLabMetrics(); return JSON.stringify([m.zoom, m.compare, m.width, m.dir]); });
+      await page.click('[data-ds-refresh]');
+      await page.waitForFunction(() => { const b = document.querySelector('[data-ds-refresh]'); return b && !b.disabled && document.querySelector('#lab-specimen .lab-col'); }, null, { timeout: 15000 });
+      await page.waitForTimeout(600);
+      await net.stop();
+      const reads = fromRoom(net.seen).filter((x) => x.path === '/api/v1/system/design-system');
+      const kept = await page.evaluate(() => { const m = window.__familistaLabMetrics(); return JSON.stringify([m.zoom, m.compare, m.width, m.dir]); });
+      const answers = await page.click('[data-lab-id="lg-metric"]').then(() => selects(page, 'lg-metric'));
+      check('room refresh: Refresh still reads the room again (one overview read, from the room), mounts the Lab again, keeps zoom, Compare, width and direction, and the Lab answers the pointer',
+        reads.length === 1 && mounts(page) > mk0 && kept === keep && answers, { overviewReads: reads.length, mounts: [mk0, mounts(page)], keep, kept, answers });
+    }
+    {
+      const before = await view(page);
+      const mk0 = mounts(page);
+      const pick = async (l) => { await page.click('[data-ds-langs]'); await page.click(`[data-ds-lang="${l}"]`); await page.waitForFunction((x) => document.getElementById('ds-root').getAttribute('lang') === x && document.querySelector('#lab-specimen .lab-col'), l, { timeout: 15000 }); await page.waitForTimeout(600); };
+      await pick('de');
+      const de = await view(page), deDir = await page.getAttribute('#ds-root', 'lang');
+      await pick('en');
+      const en = await view(page);
+      const same = (a) => a.sel === before.sel && a.fixture === before.fixture && a.fixtureB === before.fixtureB && a.compare === before.compare && a.zoom === before.zoom;
+      check('room language: switching the room to German and back redraws it in that language each time and mounts the Lab again with its selection, fixtures, Compare and zoom kept',
+        deDir === 'de' && mounts(page) >= mk0 + 2 && same(de) && same(en), { mounts: [mk0, mounts(page)], before, de, en });
+    }
+    {
+      await page.click('[data-ds-nav="components"]'); await page.waitForSelector('#cl-host .cl', { timeout: 15000 });
+      await page.click('[data-ds-nav="lab"]'); await page.waitForSelector('#lab-specimen .lab-col', { timeout: 15000 }); await frames(page);
+      const z0 = await page.textContent('#lab-zoom-v'); await page.click('[data-lab-zoom="out"]', { force: true }); await frames(page);
+      const z1 = await page.textContent('#lab-zoom-v');
+      check('room sections: going to Components and back to the Specimen Lab mounts a Lab that answers the pointer', z1 !== z0, { zoom: [z0, z1] });
+    }
+    {
+      const where = () => page.evaluate(() => ({ active: (document.querySelector('.page.active') || {}).id, shellClass: document.body.classList.contains('ds-design-open'), shell: !!document.querySelector('#ds-root .ds-shell'),
+        section: (document.querySelector('.ds-rail [aria-current="page"]') || { getAttribute: () => null }).getAttribute('data-ds-nav'), lab: !!document.querySelector('.lab') }));
+      const r0 = await renders(page);
+      await page.evaluate(() => window.navTo('owner-home')); await page.waitForTimeout(600);
+      const away = await where();
+      await page.evaluate(() => window.navTo('design-system')); await page.waitForTimeout(1200);
+      const back = await where(), r1 = await renders(page);
+      let answers = false, z = null;
+      if (!back.lab) {
+        await page.click('[data-ds-nav="lab"]'); await page.waitForSelector('#lab-specimen .lab-col', { timeout: 15000 }); await frames(page);
+      }
+      const z0 = await page.textContent('#lab-zoom-v'); await page.click('[data-lab-zoom="in"]', { force: true }); await frames(page);
+      z = [z0, await page.textContent('#lab-zoom-v')]; answers = z[0] !== z[1];
+      check('room re-entry: leaving for Owner Home and coming back with no data change draws the room once and opens it clean on Overview, with no Lab left on screen, and the Lab opened from there answers the pointer',
+        away.active === 'pg-owner-home' && !away.shellClass && back.active === 'pg-design-system' && back.shellClass && back.shell && r1 - r0 === 1 && back.section === 'overview' && !back.lab && answers, { away, back, renders: r1 - r0, zoom: z });
+      const r2 = await renders(page), lab = await page.evaluate(() => { window.__mk = document.querySelector('.lab'); return !!window.__mk; });
+      await page.evaluate(() => window.navTo('design-system')); await page.waitForTimeout(800);
+      const again = await page.evaluate(() => document.querySelector('.lab') === window.__mk);
+      check('room navigation: routing to the room while it is already open (a deep link applied again) draws nothing and keeps the Lab', lab && again && (await renders(page)) === r2, { again, renders: (await renders(page)) - r2 });
+      const r3 = await renders(page);
+      await page.evaluate(() => window.navTo('algorithms')); await page.waitForTimeout(800);
+      const algo = await where();
+      await page.evaluate(() => window.navTo('design-system')); await page.waitForTimeout(1200);
+      const ds = await where();
+      check('room navigation: Design System → Algorithms → Design System lands on each room, the Design System shell class follows, and the room is drawn once on the way back',
+        algo.active === 'pg-algorithms' && !algo.shellClass && ds.active === 'pg-design-system' && ds.shellClass && ds.shell && (await renders(page)) - r3 === 1, { algo, ds, renders: (await renders(page)) - r3 });
+      // The page rebuilt under the reader, as a start-up rebuild of the page shells does: a new, empty root in the same page.
+      await page.evaluate(() => { document.getElementById('pg-design-system').innerHTML = '<div id="ds-root"></div>'; });
+      await page.evaluate(() => window.navTo('design-system')); await page.waitForTimeout(1200);
+      const refilled = await where();
+      check('room navigation: a room page rebuilt under the reader (a new, empty root) is drawn again when it is routed to, though the reader never left it', refilled.active === 'pg-design-system' && refilled.shell, refilled);
+    }
+    {
+      const split = await cspSplit(page);
+      check('room: no console error and no Lab or unexplained CSP violation through every step above', labErrors(log).length === 0 && split.lab === 0 && split.unexplained === 0, { errors: labErrors(log), csp: split });
+    }
+    await ctx.close();
+
+    // budgets: opening Compare and Fit's recalculation, 40 runs each after 3 warm-ups, input to the second frame
+    {
+      const { ctx: pc, page: pp } = await open({ width: 1440, height: 900 }, 'en');
+      await openLab(pp, SETTLE);
+      await pp.click('[data-lab-id="lg-float"]'); await pp.waitForSelector('#lab-specimen .lg-float-bg'); await frames(pp);
+      const cmp = await pp.evaluate(async () => {
+        const fr = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))), out = [];
+        for (let i = 0; i < 43; i++) { const t0 = performance.now(); document.querySelector('[data-lab-mode="compare"]').click(); await fr(); out.push(performance.now() - t0); document.querySelector('[data-lab-mode="single"]').click(); await fr(); }
+        return out.slice(3);
+      });
+      await pp.click('[data-lab-mode="compare"]'); await frames(pp);
+      await pp.click('[data-lab-zoom="fit"]', { force: true }); await frames(pp);
+      const fit = await pp.evaluate(async () => {
+        const fr = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))), cyc = ['desktop', 'tablet', 'mobile'], out = [];
+        for (let i = 0; i < 43; i++) { const t0 = performance.now(); document.querySelector(`[data-lab-width="${cyc[i % 3]}"]`).click(); await fr(); out.push(performance.now() - t0); }
+        return { out: out.slice(3), fit: window.__familistaLabMetrics().fit };
+      });
+      const sc = stat(cmp), sf = stat(fit.out);
+      console.log('MEASURE ' + JSON.stringify({ compareOpenToFrameMedianMs: sc.median, compareOpenToFrameP95Ms: sc.p95, fitRecalcInCompareToFrameMedianMs: sf.median, fitRecalcInCompareToFrameP95Ms: sf.p95, runs: sc.n, warmUps: 3 }));
+      // Wall-clock time depends on the machine (a local run measured these two to three times CI's figures), so the owner's budget
+      // is reported against, not gated on: a result over it is a finding for the owner, never a red build and never a reason to
+      // optimise something else in the same change. What is gated is that the measurement was taken as specified.
+      const budget = (name, s) => console.log('BUDGET ' + name + ': p95 ' + s.p95 + ' ms against 100 ms, ' + (s.p95 <= 100 ? 'within' : 'OVER') + ' (median ' + s.median + ' ms, ' + s.n + ' runs after 3 warm-ups)');
+      budget('compare open', sc); budget('fit recalculation in compare', sf);
+      check('performance: Compare opening and Fit recalculation were each measured 40 times after 3 warm-ups, Fit staying on throughout, and reported against the 100 ms p95 budget', sc.n === 40 && sf.n === 40 && fit.fit === true, { compare: sc, fit: { ...sf, on: fit.fit } });
+      await pc.close();
+    }
+
+    // controls
+    const RESTORE_REGISTRY = (src) => src.replace("  'algorithms':                  ['renderFamilistaAlgorithms'],\n", "  'algorithms':                  ['renderFamilistaAlgorithms'],\n  'design-system':               ['renderFamilistaDesignSystem'],\n");
+    const NO_ENTRY_HOOK = (src) => src.replace("if (page === 'design-system' && typeof window.renderFamilistaDesignSystem === 'function'", "if (false && typeof window.renderFamilistaDesignSystem === 'function'");
+    const NO_DOM_GUARD = (src) => src.replace("(_leaving !== 'pg-design-system' || !_dsRoot.__famDrawn)", "_leaving !== 'pg-design-system'");
+    const NO_UNBIND = (src) => src.replace('    unbind();\n    R.host = host;', '    R.host = host;');
+    await control('room (control): club-data registry restored', async () => {
+      const { ctx: c, page: p } = await open({ width: 1100, height: 700 }, 'en', null, { appPatch: RESTORE_REGISTRY });
+      await openLab(p, SETTLE);
+      const ch = await dataChange(p, 1000);
+      await p.click('[data-lab-id="lg-chip"]'); await selects(p, 'lg-chip');
+      const landed = await splitClick(p, 'lg-metric');
+      check('room (control): with the Design System put back among the club-data pages, a club-data change redraws the room and mounts the Lab again, and a click split by one is lost, so the proofs above can fail',
+        !ch.same && ch.renders === 1 && !landed, { change: ch, landed });
+      await c.close();
+    });
+    await control('room (control): entry hook removed', async () => {
+      const { ctx: c, page: p } = await open({ width: 1440, height: 900 }, 'en', null, { appPatch: NO_ENTRY_HOOK, wait: false });
+      await p.waitForTimeout(6000);
+      const st = await p.evaluate(() => ({ active: (document.querySelector('.page.active') || {}).id, shell: !!document.querySelector('#ds-root .ds-shell'), renders: window.__proofRenders }));
+      check('room (control): with the entry hook removed, a deep link reaches the Design System page and nothing draws it, so the start-up and re-entry proofs can fail', st.active === 'pg-design-system' && !st.shell && st.renders === 0, st);
+      await c.close();
+    });
+    await control('room (control): DOM guard removed', async () => {
+      const { ctx: c, page: p } = await open({ width: 1440, height: 900 }, 'en', null, { appPatch: NO_DOM_GUARD });
+      await p.waitForTimeout(1500);
+      await p.evaluate(() => { document.getElementById('pg-design-system').innerHTML = '<div id="ds-root"></div>'; });
+      await p.evaluate(() => window.navTo('design-system')); await p.waitForTimeout(1200);
+      const st = await p.evaluate(() => ({ active: (document.querySelector('.page.active') || {}).id, shell: !!document.querySelector('#ds-root .ds-shell') }));
+      check('room (control): with the entry hook asking only whether the reader came from another page, a room page rebuilt under the reader stays empty, so the rebuilt-room proof can fail', st.active === 'pg-design-system' && !st.shell, st);
+      await c.close();
+    });
+    await control('room (control): Lab listener cleanup removed', async () => {
+      const { ctx: c, page: p } = await open({ width: 1440, height: 900 }, 'en', NO_UNBIND);
+      await openLab(p, SETTLE);
+      const l0 = await docListeners(p);
+      let redrawn = 0;
+      for (let i = 0; i < 10; i++) if (await roomRedraw(p)) redrawn++;
+      const l1 = await docListeners(p);
+      check('room (control): with the Lab\'s listener cleanup removed, ten redraws leave more listeners on the document, so the growth proof can fail', redrawn === 10 && l1 > l0, { redrawn, listeners: [l0, l1] });
+      await c.close();
+    });
   }
 
   await browser.close(); server.close();
