@@ -1,5 +1,6 @@
 // Reads public/app.js (read-only) and cuts out the exact declarations the ten
-// _lg* primitives need. Nothing is executed here and nothing is written.
+// _lg* primitives and the three identity components (_lgIcon, clubLogoHtml,
+// clubIdentityHtml) need. Nothing is executed here and nothing is written.
 //
 // app.js itself is never loaded: it starts the health monitor, auto-login,
 // telemetry and a dozen page-wide listeners the moment it runs. Only these
@@ -21,7 +22,7 @@ export const WANTED = [
   ['fn', '_esc'],
   ['var', 'CLUB_IDENT'], ['var', '_CLUB_LOGO_STEPS'], ['var', '_CLUB_LOGO_NAMES'],
   ['fn', '_clubIdentOf'], ['fn', '_clubCrestUrl'], ['fn', '_clubNameOf'],
-  ['fn', '_clubShieldSvg'], ['fn', '_clubLogoStep'], ['fn', 'clubLogoHtml'],
+  ['fn', '_clubShieldSvg'], ['fn', '_clubLogoStep'], ['fn', 'clubLogoHtml'], ['fn', 'clubIdentityHtml'],
   ['fn', '_lgInitials'], ['fn', '_lgCrest'], ['var', '_LG_ICON'], ['fn', '_lgIcon'],
   ['fn', '_lgIdent'], ['var', '_LG_STATUS'], ['fn', '_lgStatus'], ['fn', '_lgStatusChip'],
   ['fn', '_lgChip'], ['fn', '_lgForm'], ['fn', '_lgMetric'], ['fn', '_lgPanel'],

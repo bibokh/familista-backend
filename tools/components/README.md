@@ -45,10 +45,31 @@ editing anything else does not.
 
 ## The Specimen Lab (Stage 3.2.3 M1)
 
-`scripts/design-system-previews.js` turns the ten verified primitives' Storybook golden
+`scripts/design-system-previews.js` turns the verified components' Storybook golden
 fixtures into `src/design-system/generated/design-system-previews.json`. It reads the golden
 snapshot as text and executes nothing; `tests/design-system-lab.unit.test.ts` re-runs the Storybook
 golden test so CI refuses a snapshot that has drifted from `public/app.js`.
+
+Thirteen components are previewable, with 94 fixtures: the ten `_lg*` primitives (65 fixtures, pinned
+byte for byte by digest) and, since M3 / S2.1b, `_lgIcon` (12), `clubLogoHtml` (9) and `clubIdentityHtml` (8),
+each cut by name from `public/app.js` by `tools/storybook/lib/extract-lg.mjs` and run over the fixed inputs in
+`tools/storybook/tests/cases.mjs`. A case section, a call or a golden key that names a function the components
+manifest did not resolve in `public/app.js` fails the build. Three exclusions are deliberate, and the sanitizer
+was not widened for any of them:
+
+- the `lock` icon is not previewed: it draws a `<rect>`, which the sanitizer does not carry;
+- `clubLogoHtml` is previewed with `title: false` only, as fourteen of its fifteen production call sites pass it;
+  the default writes a `title` attribute the sanitizer does not allow;
+- crests are the deterministic sample data URI; the sanitizer's crest rules (an image `data:` URI of at most
+  2048 characters) are unchanged.
+
+`clubIdentityHtml` is exported on `window` but has no production caller today; the registry records that.
+
+`is-empty` is the one class accepted by a component-scoped reviewed entry (`SCOPED_INERT` in the generator):
+`clubLogoHtml` writes it when a club has no crest, and no production rule styles `.club-logo.is-empty`. It is
+accepted only on an element that also carries `club-logo`; the unrelated `.tfx-lane.is-empty` and
+`.de-vid.is-empty` rules are never borrowed as its provenance, and a rule that could style it on a club logo
+(`.is-empty`, `.club-logo.is-empty`) fails the build so the entry is reviewed again.
 
 One sanitizer — `public/design-system/lab-sanitize.js` — is used by the generator, by the server's
 validator (`src/design-system/previews-core.js`) and by the browser. It is a closed allowlist that

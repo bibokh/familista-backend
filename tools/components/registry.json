@@ -153,19 +153,43 @@
    "variants": [
     {
      "name": "plain",
-     "class": "club-logo--plain"
+     "class": "club-logo--plain",
+     "cases": [
+      "with crest, plain, 44px",
+      "plain and round, 56px",
+      "named size xs",
+      "no club, plain, 88px"
+     ],
+     "stories": [
+      "Shapes"
+     ]
     },
     {
      "name": "round",
-     "class": "club-logo--round"
+     "class": "club-logo--round",
+     "cases": [
+      "plain and round, 56px"
+     ],
+     "stories": [
+      "Shapes"
+     ]
     },
     {
      "name": "ring",
-     "class": "club-logo--ring"
+     "class": "club-logo--ring",
+     "cases": [
+      "ring, named size lg"
+     ],
+     "stories": [
+      "Shapes"
+     ]
     },
     {
      "name": "s16",
-     "class": "club-logo--s16"
+     "class": "club-logo--s16",
+     "cases": [
+      "named size xs"
+     ]
     },
     {
      "name": "s20",
@@ -173,7 +197,10 @@
     },
     {
      "name": "s24",
-     "class": "club-logo--s24"
+     "class": "club-logo--s24",
+     "cases": [
+      "unknown club, shield placeholder"
+     ]
     },
     {
      "name": "s26",
@@ -185,7 +212,11 @@
     },
     {
      "name": "s34",
-     "class": "club-logo--s34"
+     "class": "club-logo--s34",
+     "cases": [
+      "with crest, default size",
+      "known club without crest"
+     ]
     },
     {
      "name": "s40",
@@ -193,11 +224,18 @@
     },
     {
      "name": "s44",
-     "class": "club-logo--s44"
+     "class": "club-logo--s44",
+     "cases": [
+      "with crest, plain, 44px",
+      "ring, named size lg"
+     ]
     },
     {
      "name": "s56",
-     "class": "club-logo--s56"
+     "class": "club-logo--s56",
+     "cases": [
+      "plain and round, 56px"
+     ]
     },
     {
      "name": "s64",
@@ -205,11 +243,17 @@
     },
     {
      "name": "s74",
-     "class": "club-logo--s74"
+     "class": "club-logo--s74",
+     "cases": [
+      "off-ladder size snaps to the nearest step"
+     ]
     },
     {
      "name": "s88",
-     "class": "club-logo--s88"
+     "class": "club-logo--s88",
+     "cases": [
+      "no club, plain, 88px"
+     ]
     },
     {
      "name": "s120",
@@ -223,7 +267,9 @@
    "anatomy": [
     "club-logo-img",
     "club-logo-ph"
-   ]
+   ],
+   "stories": "ClubLogo",
+   "golden": "clubLogoHtml"
   },
   {
    "id": "club-identity",
@@ -248,7 +294,10 @@
     "club-ident-txt",
     "club-ident-name",
     "club-ident-sub"
-   ]
+   ],
+   "stories": "ClubIdentity",
+   "golden": "clubIdentityHtml",
+   "notes": "clubIdentityHtml is exported on window and previewed from its real source; public/app.js has no production caller for it today (M3/S2.1b)."
   },
   {
    "id": "lg-crest",
@@ -330,7 +379,9 @@
    "js": {
     "file": "public/app.js",
     "symbol": "_lgIcon"
-   }
+   },
+   "stories": "LgIcon",
+   "golden": "_lgIcon"
   },
   {
    "id": "lg-chip",

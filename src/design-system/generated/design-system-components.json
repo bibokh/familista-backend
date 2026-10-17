@@ -7,24 +7,24 @@
    "id": "registry",
    "path": "tools/components/registry.json",
    "label": "The reviewed Components Registry",
-   "sha256": "8118058e5cfc89a8f6129d471694b0cbc561bdadcdec62a71ee1dd92492c1d80",
-   "bytes": 32924,
+   "sha256": "7a615a2441452eb6c216a75dfa07986086c6c00f8037428d2685627eb9d70848",
+   "bytes": 34081,
    "basis": "file"
   },
   {
    "id": "storybook-stories",
    "path": "tools/storybook/stories",
    "label": "The Storybook story files the registry cites",
-   "sha256": "8fcdea1fc8be085c77ca20f5b5b2e5c993ff1bba7901bf9c2c057d3b896879d4",
-   "bytes": 1084,
+   "sha256": "a525b49121c2e9358a9941aae54016ed8e4ea156ee3866ee3f667c64d7bc8f87",
+   "bytes": 1413,
    "basis": "derived"
   },
   {
    "id": "storybook-golden",
    "path": "tools/storybook/tests/golden/lg-primitives.golden.json",
    "label": "The golden snapshot cases of the ten competition primitives",
-   "sha256": "af38d742dc7aed2c1d53b61189bdff99507e083b6933785b6c4b41fb3451d52d",
-   "bytes": 17548,
+   "sha256": "0b60dcaa11d3d91b5fd910c263d89e689eca526ec48eadb048016333b3278d7a",
+   "bytes": 36507,
    "basis": "file"
   },
   {
@@ -196,9 +196,9 @@
    "primitive": 26
   },
   "byTier": {
-   "catalogued": 35,
+   "catalogued": 32,
    "listed": 15,
-   "verified": 10
+   "verified": 13
   },
   "byCategory": {
    "candidates": 7,
@@ -210,7 +210,7 @@
    "shell": 5,
    "surfaces": 9
   },
-  "withStories": 10,
+  "withStories": 13,
   "withVariants": 15,
   "withSource": 13
  },
@@ -220,7 +220,7 @@
    "name": "Club logo",
    "category": "identity",
    "kind": "component",
-   "tier": "catalogued",
+   "tier": "verified",
    "module": "core",
    "summary": "The club crest in a fixed size ladder, with a shield when there is no crest.",
    "depth": "full",
@@ -246,27 +246,34 @@
     {"cls":"club-logo-ph","rules":1,"emitted":false}
    ],
    "variants": [
-    {"name":"plain","class":"club-logo--plain","rules":1,"cases":[],"stories":[],"exercised":false},
-    {"name":"round","class":"club-logo--round","rules":1,"cases":[],"stories":[],"exercised":false},
-    {"name":"ring","class":"club-logo--ring","rules":1,"cases":[],"stories":[],"exercised":false},
-    {"name":"s16","class":"club-logo--s16","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"plain","class":"club-logo--plain","rules":1,"cases":["with crest, plain, 44px","plain and round, 56px","named size xs","no club, plain, 88px"],"stories":["Shapes"],"exercised":true},
+    {"name":"round","class":"club-logo--round","rules":1,"cases":["plain and round, 56px"],"stories":["Shapes"],"exercised":true},
+    {"name":"ring","class":"club-logo--ring","rules":1,"cases":["ring, named size lg"],"stories":["Shapes"],"exercised":true},
+    {"name":"s16","class":"club-logo--s16","rules":1,"cases":["named size xs"],"stories":[],"exercised":true},
     {"name":"s20","class":"club-logo--s20","rules":1,"cases":[],"stories":[],"exercised":false},
-    {"name":"s24","class":"club-logo--s24","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s24","class":"club-logo--s24","rules":1,"cases":["unknown club, shield placeholder"],"stories":[],"exercised":true},
     {"name":"s26","class":"club-logo--s26","rules":1,"cases":[],"stories":[],"exercised":false},
     {"name":"s30","class":"club-logo--s30","rules":1,"cases":[],"stories":[],"exercised":false},
-    {"name":"s34","class":"club-logo--s34","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s34","class":"club-logo--s34","rules":1,"cases":["with crest, default size","known club without crest"],"stories":[],"exercised":true},
     {"name":"s40","class":"club-logo--s40","rules":1,"cases":[],"stories":[],"exercised":false},
-    {"name":"s44","class":"club-logo--s44","rules":1,"cases":[],"stories":[],"exercised":false},
-    {"name":"s56","class":"club-logo--s56","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s44","class":"club-logo--s44","rules":1,"cases":["with crest, plain, 44px","ring, named size lg"],"stories":[],"exercised":true},
+    {"name":"s56","class":"club-logo--s56","rules":1,"cases":["plain and round, 56px"],"stories":[],"exercised":true},
     {"name":"s64","class":"club-logo--s64","rules":1,"cases":[],"stories":[],"exercised":false},
-    {"name":"s74","class":"club-logo--s74","rules":1,"cases":[],"stories":[],"exercised":false},
-    {"name":"s88","class":"club-logo--s88","rules":1,"cases":[],"stories":[],"exercised":false},
+    {"name":"s74","class":"club-logo--s74","rules":1,"cases":["off-ladder size snaps to the nearest step"],"stories":[],"exercised":true},
+    {"name":"s88","class":"club-logo--s88","rules":1,"cases":["no club, plain, 88px"],"stories":[],"exercised":true},
     {"name":"s120","class":"club-logo--s120","rules":1,"cases":[],"stories":[],"exercised":false},
     {"name":"s160","class":"club-logo--s160","rules":1,"cases":[],"stories":[],"exercised":false}
    ],
-   "stories": null,
+   "stories": {
+    "file": "tools/storybook/stories/ClubLogo.stories.js",
+    "title": "Familista/clubLogoHtml",
+    "cases": ["WithCrest","WithoutCrest","UnknownClub","Shapes","SizeLadder","RTL","Tablet","Mobile"],
+    "golden": ["with crest, default size","with crest, plain, 44px","plain and round, 56px","ring, named size lg","off-ladder size snaps to the nearest step","named size xs","known club without crest","unknown club, shield placeholder","no club, plain, 88px"],
+    "options": ["riverside","northgate","nobody","xs","sm","md","lg","xl","club-logo--plain","club-logo--round","club-logo--ring"],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
    "accessibility": {
-    "facts": [{"id":"img-alt","label":"The function writes alt text on its image.","evidence":"MEASURED","where":"render function"},{"id":"escapes","label":"The function escapes interpolated text before it reaches the page.","evidence":"MEASURED","where":"render function"}]
+    "facts": [{"id":"img-alt","label":"The function writes alt text on its image.","evidence":"MEASURED","where":"render function"},{"id":"escapes","label":"The function escapes interpolated text before it reaches the page.","evidence":"MEASURED","where":"render function"},{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/ClubLogo.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/ClubLogo.stories.js"}]
    },
    "dependencies": {
     "calls": [],
@@ -282,7 +289,7 @@
     "styling": "MEASURED",
     "source": "MEASURED",
     "variants": "MEASURED",
-    "stories": "NONE",
+    "stories": "MEASURED",
     "accessibility": "MEASURED",
     "dependencies": "MEASURED"
    }
@@ -292,7 +299,7 @@
    "name": "Club identity",
    "category": "identity",
    "kind": "component",
-   "tier": "catalogued",
+   "tier": "verified",
    "module": "core",
    "summary": "A club’s crest and name as one thing, with an optional second line.",
    "depth": "full",
@@ -319,9 +326,16 @@
     {"cls":"club-ident-sub","rules":1,"emitted":true}
    ],
    "variants": [],
-   "stories": null,
+   "stories": {
+    "file": "tools/storybook/stories/ClubIdentity.stories.js",
+    "title": "Familista/clubIdentityHtml",
+    "cases": ["CrestNameAndSub","NoSubLine","WithoutCrest","UnknownClubFallsBackToClub","LogoOnly","NameOnly","RTL","Tablet","Mobile"],
+    "golden": ["crest, name and sub line","no sub line","known club without crest","unknown club falls back to Club","name from the caller","logo only","name only","markup in the name is escaped"],
+    "options": ["riverside","northgate","nobody","xs","sm","md","lg","xl"],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
    "accessibility": {
-    "facts": [{"id":"escapes","label":"The function escapes interpolated text before it reaches the page.","evidence":"MEASURED","where":"render function"}]
+    "facts": [{"id":"escapes","label":"The function escapes interpolated text before it reaches the page.","evidence":"MEASURED","where":"render function"},{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/ClubIdentity.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/ClubIdentity.stories.js"}]
    },
    "dependencies": {
     "calls": [{"symbol":"clubLogoHtml","component":"club-logo"}],
@@ -337,7 +351,7 @@
     "styling": "MEASURED",
     "source": "MEASURED",
     "variants": "NONE",
-    "stories": "NONE",
+    "stories": "MEASURED",
     "accessibility": "MEASURED",
     "dependencies": "MEASURED"
    }
@@ -469,7 +483,7 @@
    "name": "Icon",
    "category": "identity",
    "kind": "primitive",
-   "tier": "catalogued",
+   "tier": "verified",
    "module": "competition",
    "summary": "One icon set at one size and stroke, inheriting the colour of its control.",
    "depth": "full",
@@ -492,9 +506,16 @@
    },
    "anatomy": [],
    "variants": [],
-   "stories": null,
+   "stories": {
+    "file": "tools/storybook/stories/LgIcon.stories.js",
+    "title": "Familista/_lgIcon",
+    "cases": ["One","UnknownNameDrawsNothing","AllIcons","RTL","Tablet","Mobile"],
+    "golden": ["back","info","teams","trophy","cup","friendly","preseason","preparation","fixture","clock","weather","unknown name draws nothing"],
+    "options": ["back","info","teams","trophy","cup","friendly","preseason","preparation","fixture","clock","weather"],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
    "accessibility": {
-    "facts": [{"id":"aria-hidden","label":"The function marks decorative graphics aria-hidden.","evidence":"MEASURED","where":"render function"}]
+    "facts": [{"id":"aria-hidden","label":"The function marks decorative graphics aria-hidden.","evidence":"MEASURED","where":"render function"},{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/LgIcon.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/LgIcon.stories.js"}]
    },
    "dependencies": {
     "calls": [],
@@ -510,7 +531,7 @@
     "styling": "MEASURED",
     "source": "MEASURED",
     "variants": "NONE",
-    "stories": "NONE",
+    "stories": "MEASURED",
     "accessibility": "MEASURED",
     "dependencies": "NONE"
    }

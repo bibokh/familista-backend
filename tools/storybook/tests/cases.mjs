@@ -91,4 +91,45 @@ export const CASES = {
     'lower is better, b leads': (l) => l._lgVersus('Fouls', 14, 8, { lowerIsBetter: true }),
     'custom formatter': (l) => l._lgVersus('Pass accuracy', 91, 84, { fmt: fmtPct }),
   },
+  // M3/S2.1b. Every icon the shared sanitizer can carry. `lock` is excluded on
+  // purpose: it draws a <rect>, which the sanitizer does not allow, and the
+  // sanitizer is not widened for a preview.
+  _lgIcon: {
+    'back': (l) => l._lgIcon('back'),
+    'info': (l) => l._lgIcon('info'),
+    'teams': (l) => l._lgIcon('teams'),
+    'trophy': (l) => l._lgIcon('trophy'),
+    'cup': (l) => l._lgIcon('cup'),
+    'friendly': (l) => l._lgIcon('friendly'),
+    'preseason': (l) => l._lgIcon('preseason'),
+    'preparation': (l) => l._lgIcon('preparation'),
+    'fixture': (l) => l._lgIcon('fixture'),
+    'clock': (l) => l._lgIcon('clock'),
+    'weather': (l) => l._lgIcon('weather'),
+    'unknown name draws nothing': (l) => l._lgIcon('not-an-icon'),
+  },
+  // title:false throughout, as fourteen of the fifteen production call sites
+  // pass it: the default writes a title attribute the sanitizer does not allow.
+  clubLogoHtml: {
+    'with crest, default size': (l) => l.clubLogoHtml('riverside', { title: false }),
+    'with crest, plain, 44px': (l) => l.clubLogoHtml('riverside', { size: 44, cls: 'club-logo--plain', title: false }),
+    'plain and round, 56px': (l) => l.clubLogoHtml('riverside', { size: 56, cls: 'club-logo--plain club-logo--round', title: false }),
+    'ring, named size lg': (l) => l.clubLogoHtml('riverside', { size: 'lg', cls: 'club-logo--ring', title: false }),
+    'off-ladder size snaps to the nearest step': (l) => l.clubLogoHtml('riverside', { size: 70, title: false }),
+    'named size xs': (l) => l.clubLogoHtml('riverside', { size: 'xs', cls: 'club-logo--plain', title: false }),
+    'known club without crest': (l) => l.clubLogoHtml('northgate', { size: 34, title: false }),
+    'unknown club, shield placeholder': (l) => l.clubLogoHtml('nobody', { size: 'sm', title: false }),
+    'no club, plain, 88px': (l) => l.clubLogoHtml(null, { size: 88, cls: 'club-logo--plain', title: false }),
+  },
+  // The exported component; public/app.js has no caller for it today.
+  clubIdentityHtml: {
+    'crest, name and sub line': (l) => l.clubIdentityHtml('riverside', { sub: 'Familista League · 3rd' }),
+    'no sub line': (l) => l.clubIdentityHtml('riverside'),
+    'known club without crest': (l) => l.clubIdentityHtml('northgate', { size: 'lg', sub: 'Away' }),
+    'unknown club falls back to Club': (l) => l.clubIdentityHtml('nobody'),
+    'name from the caller': (l) => l.clubIdentityHtml('nobody', { name: 'Eastfield Athletic', sub: 'Trialist club' }),
+    'logo only': (l) => l.clubIdentityHtml('riverside', { showName: false }),
+    'name only': (l) => l.clubIdentityHtml('riverside', { showLogo: false, sub: 'Home' }),
+    'markup in the name is escaped': (l) => l.clubIdentityHtml(null, { name: '<b>Bad</b> & "Co"', sub: '<i>x</i>' }),
+  },
 };

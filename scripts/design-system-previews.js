@@ -23,8 +23,10 @@
 //      attributes production writes that must not reach the application the
 //      specimen sits in are removed and reported;
 //   2. checks every class against a provenance it can show: a class a registered
-//      component owns, a class production's CSS defines, or one of two reviewed
-//      classes a Storybook test passes in that production's CSS does not define;
+//      component owns, a class production's CSS defines, one of two reviewed
+//      classes a Storybook test passes in that production's CSS does not define,
+//      or a reviewed state class that is inert on one component's own element
+//      (SCOPED_INERT);
 //   3. binds it to the render function and CSS slices the components manifest
 //      hashed, so a change to either invalidates it;
 //   4. records the call that produced it, as the case file spells it (Recorded).
@@ -52,6 +54,20 @@ const REVIEWED_INERT = {
   'lg-t': 'The class of a table a Storybook case passes to _lgPanel as its body; app.css has no rule for it.',
 };
 
+// State classes a production render function writes on its own root element that
+// no production rule styles there. Keyed by the component class the element must
+// also carry. Not a global allowlist: the class is accepted only on an element of
+// that component, and only while no CSS rule could style it there — a rule naming
+// the class alone, or together with only that component's classes, fails the
+// build so the entry is reviewed again. Rules elsewhere that need another class
+// (.tfx-lane.is-empty, .de-vid.is-empty) cannot match the element and are never
+// borrowed as provenance.
+const SCOPED_INERT = {
+  'club-logo': {
+    'is-empty': 'clubLogoHtml writes it when the club has no crest (and _clubLogoFallback when a crest fails to load); no production CSS or JS targets .club-logo.is-empty — the shield placeholder is drawn either way.',
+  },
+};
+
 // Registered components that draw only inside the application's own shell: a
 // person recorded this; the generator checks each id exists.
 const APPLICATION_SHELL = ['sidebar-nav', 'topbar', 'page-header', 'ds-shell'];
@@ -61,15 +77,29 @@ function slug(label) {
   return s || 'fixture';
 }
 
-/** Reads the call each case file entry makes, as text. Nothing is evaluated. */
-function readCalls(casesText, golden) {
+/**
+ * Reads the call each case file entry makes, as text. Nothing is evaluated.
+ * `symbols` is the set of render functions the components manifest resolved in
+ * public/app.js; a case section or a call naming any other function is refused,
+ * so a fixture can only ever be the output of an extracted production function.
+ */
+function readCalls(casesText, golden, symbols) {
   const calls = {};
-  const parts = casesText.split(/^  (_lg\w+): /m);
+  const problems = [];
+  const at = casesText.search(/^export const CASES = \{$/m);
+  const body = at < 0 ? '' : casesText.slice(at);
+  const parts = body.split(/^  (\w+): /m);
   for (let i = 1; i < parts.length; i += 2) {
     const name = parts[i];
+    if (!symbols.has(name)) { problems.push('cases.mjs: "' + name + '" is not a render function extracted from public/app.js'); continue; }
     calls[name] = {};
-    for (const m of parts[i + 1].matchAll(/^    '((?:[^'\\]|\\.)*)':\s*\(l\)\s*=>\s*l\.(_lg\w+\(.*\)),?\s*$/gm)) calls[name][m[1].replace(/\\'/g, "'")] = m[2];
+    for (const m of parts[i + 1].matchAll(/^    '((?:[^'\\]|\\.)*)':\s*\(l\)\s*=>\s*l\.(\w+)\((.*)\),?\s*$/gm)) {
+      const label = m[1].replace(/\\'/g, "'");
+      if (m[2] !== name) { problems.push('cases.mjs: ' + name + ' / ' + label + ' calls ' + m[2] + ', not ' + name); continue; }
+      calls[name][label] = m[2] + '(' + m[3] + ')';
+    }
   }
+  if (problems.length) throw new Error('the Specimen Lab case file could not be read:\n  ' + problems.join('\n  '));
   // _lgStatusChip's cases are generated from a list of raw statuses; the label is the status.
   for (const label of Object.keys(golden._lgStatusChip || {})) {
     if (!calls._lgStatusChip) calls._lgStatusChip = {};
@@ -89,9 +119,11 @@ function build({ ROOT, components }) {
   const registry = JSON.parse(read(registryRel).toString('utf8'));
   const golden = JSON.parse(read(goldenRel).toString('utf8'));
   const casesText = read(casesRel).toString('utf8');
-  const calls = readCalls(casesText, golden);
+  const symbols = new Set(components.components.map((c) => c.source.js && c.source.js.symbol).filter(Boolean));
+  const calls = readCalls(casesText, golden, symbols);
   const errors = [];
   const fail = (m) => errors.push(m);
+  for (const k of Object.keys(golden)) if (!symbols.has(k)) fail('the golden snapshot has cases for "' + k + '", which is not a render function the components manifest resolved in public/app.js');
 
   // ── class provenance ────────────────────────────────────────────────────
   const owner = new Map();
@@ -100,7 +132,25 @@ function build({ ROOT, components }) {
   }
   const files = [...new Set(registry.components.flatMap((c) => c.css.files))].sort();
   const ruleCount = new Map();
-  for (const f of files) for (const r of cssRules(read(f).toString('utf8'))) for (const k of new Set(classesOf(r.sel))) ruleCount.set(k, (ruleCount.get(k) || 0) + 1);
+  const selectors = [];
+  for (const f of files) for (const r of cssRules(read(f).toString('utf8'))) { const ks = new Set(classesOf(r.sel)); selectors.push(ks); for (const k of ks) ruleCount.set(k, (ruleCount.get(k) || 0) + 1); }
+  // A scoped inert class must stay unstyled on its component: every rule that names
+  // it must also need a class the component's element never carries.
+  for (const [host, names] of Object.entries(SCOPED_INERT)) {
+    const reg = registry.components.find((c) => (c.css.classes || []).indexOf(host) >= 0);
+    if (!reg) { fail('SCOPED_INERT names component class "' + host + '", which no registered component owns'); continue; }
+    const own = new Set([...(reg.css.classes || []), ...(reg.variants || []).map((v) => v.class)]);
+    for (const name of Object.keys(names)) {
+      if (owner.has(name)) fail('SCOPED_INERT: "' + name + '" is owned by ' + owner.get(name) + ', so it is not inert');
+      for (const ks of selectors) if (ks.has(name) && [...ks].every((k) => k === name || own.has(k))) fail('SCOPED_INERT: a production rule can style .' + host + '.' + name + '; review the entry');
+    }
+  }
+  // Scoped entries the classes on one element answer: { name: host }.
+  const scopedOn = (tokens) => {
+    const found = {};
+    for (const [host, names] of Object.entries(SCOPED_INERT)) if (tokens.indexOf(host) >= 0) for (const n of Object.keys(names)) if (tokens.indexOf(n) >= 0) found[n] = host;
+    return found;
+  };
   const provenance = (name) => {
     if (owner.has(name)) { const n = ruleCount.get(name) || 0; return n ? { owner: owner.get(name), rules: n } : null; }
     if (ruleCount.get(name)) return { owner: 'css', rules: ruleCount.get(name) };
@@ -126,8 +176,17 @@ function build({ ROOT, components }) {
       const call = calls[symbol] && calls[symbol][label];
       if (!call) { fail(where + ': the case file has no call for this golden label'); continue; }
       const used = {};
+      // A scoped inert class is answered by the element it sits on, before any
+      // unrelated production rule that merely shares its name.
+      const scoped = {};
+      for (const m of raw.matchAll(/\bclass="([^"]*)"/g)) { const tokens = m[1].split(/\s+/).filter(Boolean); Object.assign(scoped, scopedOn(tokens)); }
+      const bare = [...raw.matchAll(/\bclass="([^"]*)"/g)].some((m) => { const t = m[1].split(/\s+/); return Object.entries(SCOPED_INERT).some(([host, names]) => t.indexOf(host) < 0 && Object.keys(names).some((n) => t.indexOf(n) >= 0)); });
+      if (bare) { fail(where + ': a scoped inert class appears on an element that is not its component'); continue; }
       const res = sanitizer.sanitize(raw, {
-        classOk: (n) => { const p = provenance(n); if (p) used[n] = p; return !!p; },
+        classOk: (n) => {
+          const p = Object.prototype.hasOwnProperty.call(scoped, n) ? { owner: 'inert', rules: 0 } : provenance(n);
+          if (p) used[n] = p; return !!p;
+        },
       });
       if (!res.ok) { fail(where + ': ' + res.problems.join('; ')); continue; }
       let id = slug(label), n = 2;
@@ -204,4 +263,4 @@ function build({ ROOT, components }) {
   return manifest;
 }
 
-module.exports = { build, readCalls, REVIEWED_INERT, APPLICATION_SHELL };
+module.exports = { build, readCalls, REVIEWED_INERT, SCOPED_INERT, APPLICATION_SHELL };

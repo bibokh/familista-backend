@@ -183,7 +183,7 @@
   "storybook": {
    "storyFiles": {
     "state": "MEASURED",
-    "value": 24,
+    "value": 27,
     "source": "tools/storybook/stories"
    },
    "foundationFiles": {
