@@ -302,7 +302,7 @@ function clubIdentityHtml(clubId, opts) {
   var parts = '';
   if (showLogo) parts += clubLogoHtml(clubId, { size: opts.size || 'md', name: name, title: false });
   if (showName) {
-    parts += '<span class="club-ident-txt"><b class="club-ident-name">' + _esc(name || 'Club') + '</b>'
+    parts += '<span class="club-ident-txt"><b class="club-ident-name" data-user-content>' + _esc(name || 'Club') + '</b>'
       + (opts.sub ? '<i class="club-ident-sub">' + _esc(String(opts.sub)) + '</i>' : '')
       + '</span>';
   }

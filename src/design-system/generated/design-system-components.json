@@ -31,7 +31,7 @@
    "id": "production-slices",
    "path": "public",
    "label": "The slices of production source each component owns (render function and CSS rules)",
-   "sha256": "70b53a35e023d37275b6e084f558d0068c97580a193feebe7c50ae215684f1d8",
+   "sha256": "632c3dcba36ef71df76bbd428b85fee4dadc36df48fd92825d0a8b604a0d0fe0",
    "bytes": 5729,
    "basis": "derived"
   }
@@ -297,7 +297,7 @@
    "summary": "A club’s crest and name as one thing, with an optional second line.",
    "depth": "full",
    "source": {
-    "js": {"file":"public/app.js","symbol":"clubIdentityHtml","sha256":"7175cd833122f23fce1a607ef72c47c0b8c8740279bdeaddc0046e583e4ea5ac","bytes":651},
+    "js": {"file":"public/app.js","symbol":"clubIdentityHtml","sha256":"09ca91d927e33f392174c0ae0b442b5170311fb00c583789b457c07a67ab5986","bytes":669},
     "css": [{"file":"public/app.css","rules":4,"sha256":"9b9b0e50f3c56e692bd37a694e96528232a87c531e63a73b4e5534665016a4ef","bytes":444}],
     "presence": []
    },
