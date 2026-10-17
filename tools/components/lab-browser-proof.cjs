@@ -85,8 +85,20 @@ require.cache[require.resolve(path.join(ROOT, 'dist/config/database'))] = { expo
 const { signToken } = require(path.join(ROOT, 'dist/security/jwt-tokens'));
 
 const results = [];
+// Every time the Lab is mounted on a page (a new .lab root), by the application or by a proof, as milliseconds since the epoch,
+// recorded from the page through a binding (see open()). `LAB_EXPECTED` counts the mounts a proof caused on purpose (remount(),
+// dataRedraw()); `LAB_READY` is when settleRoom() found the room quiet. A FAIL prints the history of the page under test, so a
+// failure that coincides with the application remounting the Lab says so instead of leaving it to be guessed.
+const LAB_MOUNTS = new Map(), LAB_EXPECTED = new Map(), LAB_READY = new Map();
+let LAB_PAGE = null;
+const mountNote = () => {
+  if (!LAB_PAGE) return;
+  const all = LAB_MOUNTS.get(LAB_PAGE) || [], ready = LAB_READY.get(LAB_PAGE), after = ready ? all.filter((t) => t > ready) : [];
+  const byProof = LAB_EXPECTED.get(LAB_PAGE) || 0;
+  console.log('NOTE lab mounts on the page under test: ' + all.length + ' in all' + (ready ? ', ' + after.length + ' after it was settled (' + byProof + ' of them by a proof on purpose), at +' + after.map((t) => t - ready).join(', +') + ' ms' : ', and it was never settled'));
+};
 const pass = (name, detail) => { results.push(['PASS', name]); console.log('PASS ' + name + (detail !== undefined ? ' :: ' + JSON.stringify(detail) : '')); };
-const fail = (name, detail) => { results.push(['FAIL', name]); console.log('FAIL ' + name + (detail !== undefined ? ' :: ' + JSON.stringify(detail) : '')); };
+const fail = (name, detail) => { results.push(['FAIL', name]); console.log('FAIL ' + name + (detail !== undefined ? ' :: ' + JSON.stringify(detail) : '')); mountNote(); };
 const skip = (name, why) => { results.push(['SKIP', name]); console.log('SKIP ' + name + ' :: ' + why); };
 const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail));
 
@@ -111,6 +123,24 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       await ctx.route(/\/design-system\/lab\.js(\?|$)/, (r) => r.fulfill({ contentType: 'application/javascript', body: patched }));
     }
     await ctx.addCookies([{ name: 'access_token', value: token, domain: '127.0.0.1', path: '/', httpOnly: true }]);
+    await ctx.exposeBinding('__famProofLabMounted', (src) => { const a = LAB_MOUNTS.get(src.page) || []; a.push(Date.now()); LAB_MOUNTS.set(src.page, a); });
+    await ctx.addInitScript(() => {
+      // A Lab mount writes a new .lab root into its host; that one added element is all this looks for. Each mount also says
+      // which room render it answered (__proofLabForRender), for settleRoom.
+      window.__proofRenders = 0; window.__proofRenderAt = 0; window.__proofLabMountAt = 0; window.__proofLabForRender = 0;
+      new MutationObserver((ms) => {
+        for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1 && n.classList.contains('lab')) {
+          window.__proofLabMountAt = performance.now(); window.__proofLabForRender = window.__proofRenders;
+          try { window.__famProofLabMounted(); } catch (_) { /* binding gone with the page */ }
+        }
+      }).observe(document, { childList: true, subtree: true });
+      // Count the room's renders (the page-render registry, a navigation and remount() all call it by this name): whatever
+      // design-system.js assigns here is called exactly as before, with its own arguments and `this`, and only counted.
+      let render;
+      Object.defineProperty(window, 'renderFamilistaDesignSystem', { configurable: true, enumerable: true,
+        get() { return render; },
+        set(fn) { render = typeof fn !== 'function' ? fn : function () { window.__proofRenders++; window.__proofRenderAt = performance.now(); return fn.apply(this, arguments); }; } });
+    });
     await ctx.addInitScript((l) => {
       try { if (l) localStorage.setItem('familista_design_system_locale', l); } catch (_) { /* private mode */ }
       window.__csp = [];
@@ -131,10 +161,39 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     await page.waitForSelector('.ds-metric', { timeout: 30000 });
     return { ctx, page, log };
   }
-  async function openLab(page) {
+  async function openLab(page, opts) {
+    LAB_PAGE = page;
     await page.click('[data-ds-nav="lab"]');
     await page.waitForSelector('#lab-specimen .lab-col', { timeout: 30000 });
     await page.waitForTimeout(300);
+    if (opts && opts.settle) await settleRoom(page);
+  }
+  // The application repaints the Design System room when its start-up data lands (app.js AppContext.load → _famDataChanged, twice
+  // at start-up → the page-render registry → renderFamilistaDesignSystem), and each repaint mounts the Lab again: every element is
+  // replaced, the Lab's state is kept. Measured: the Lab can draw before the second data change, and the two repaints it causes
+  // mount the Lab 0.4 and 0.9 s later. That is when the M2 sections start clicking, so a click could be aimed at an element
+  // replaced under it (M2 CI: section 10's Swap announcement on #107, section 8's zoom button on #108).
+  // settleRoom waits until that is over, from the application's own signals, not from a quiet interval: the page's network has
+  // gone idle (so /me/context has answered), the data version has not moved for SETTLE_STABLE_MS, and the latest room render is
+  // that old and has mounted the Lab. It asserts nothing and changes nothing; the Lab must still be there after it, and a room that
+  // has not settled by SETTLE_MAX_MS is an error that fails the run, never a pass.
+  const SETTLE_STABLE_MS = 1000, SETTLE_MAX_MS = 15000, SETTLE = { settle: true };
+  async function settleRoom(page) {
+    const t0 = Date.now();
+    try { await page.waitForLoadState('networkidle', { timeout: 8000 }); } catch (_) { /* a page that polls never idles: the signals below decide */ }
+    try {
+      await page.waitForFunction((stable) => {
+        const now = performance.now(), v = window._FAM_DATA_VERSION;
+        if (window.__proofVer !== v) { window.__proofVer = v; window.__proofVerAt = now; }
+        return now - window.__proofVerAt >= stable && now - window.__proofRenderAt >= stable && window.__proofLabForRender === window.__proofRenders && !!document.querySelector('#lab-specimen .lab-col');
+      }, SETTLE_STABLE_MS, { timeout: SETTLE_MAX_MS, polling: 100 });
+    } catch (_) {
+      const st = await page.evaluate(() => ({ version: window._FAM_DATA_VERSION, renders: window.__proofRenders, labMountedForRender: window.__proofLabForRender, lab: !!document.querySelector('#lab-specimen .lab-col') }));
+      throw new Error('settle: the room had not settled ' + SETTLE_MAX_MS + ' ms after the Lab first drew: ' + JSON.stringify(st) + ', Lab mounts ' + (LAB_MOUNTS.get(page) || []).length);
+    }
+    LAB_READY.set(page, Date.now());
+    const st = await page.evaluate(() => ({ version: window._FAM_DATA_VERSION, renders: window.__proofRenders }));
+    console.log('NOTE settle: room settled ' + (Date.now() - t0) + ' ms after the Lab first drew (data version ' + st.version + ', room renders ' + st.renders + ', Lab mounts ' + (LAB_MOUNTS.get(page) || []).length + ')');
   }
   const frames = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   const blur = (pg) => pg.evaluate(() => { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
@@ -214,6 +273,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
   // Redraw the room the way the application does when a page is shown again: through the page-render registry. True only if
   // a NEW Lab root replaced the old one, so a remount that never happened cannot pass for a restored focus.
   async function remount(page) {
+    LAB_EXPECTED.set(page, (LAB_EXPECTED.get(page) || 0) + 1);
     await page.evaluate(() => { window.__mark = document.querySelector('.lab'); window.renderFamilistaDesignSystem(); });
     try { await page.waitForFunction(() => { const l = document.querySelector('.lab'); return l && l !== window.__mark && document.getElementById('lab-specimen'); }, null, { timeout: 8000 }); } catch (_) { return false; }
     await page.waitForTimeout(400);
@@ -222,6 +282,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
   // Redraw the room the way background club data does (app.js _famDataChanged → the page-render registry → this room), and
   // record every write into a live region from that moment on. Null if no NEW Lab root replaced the old one.
   async function dataRedraw(page) {
+    LAB_EXPECTED.set(page, (LAB_EXPECTED.get(page) || 0) + 1);
     await page.evaluate(() => {
       window.__mark = document.querySelector('.lab'); window.__liveWrites = [];
       window.__liveMo = new MutationObserver((ms) => ms.forEach((m) => { if (m.target && m.target.id === 'lab-live') window.__liveWrites.push(m.target.textContent); }));
@@ -590,7 +651,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
   // overlay out; that is a claim, and so is "nothing outside the stage moves". Each is measured at 25%, 50% and 200%.
   if (want('8')) {
     const { ctx, page, log } = await open({ width: 1440, height: 900 }, 'en');
-    await openLab(page);
+    await openLab(page, SETTLE);
     await page.click('[data-lab-id="lg-float"]');
     await page.waitForSelector('#lab-specimen .lg-float-bg'); await frames(page);
     const zoomTo = async (pct) => {
@@ -650,7 +711,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     // events at 25% and 200%, in a fresh page
     {
       const { ctx: c2, page: p2, log: log2 } = await open({ width: 1440, height: 900 }, 'en');
-      await openLab(p2);
+      await openLab(p2, SETTLE);
       await p2.click('[data-lab-id="lg-float"]'); await p2.waitForSelector('#lab-specimen .lg-float-bg');
       await p2.evaluate((types) => {
         window.__seen = { inside: {}, outside: {} };
@@ -713,7 +774,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     // fit: every previewable component, never above 100%, and the whole specimen visible without scrolling
     {
       const { ctx: c3, page: p3, log: log3 } = await open({ width: 1100, height: 760 }, 'en');
-      await openLab(p3);
+      await openLab(p3, SETTLE);
       const ids = await p3.evaluate(() => [...document.querySelectorAll('[data-lab-id]')].filter((b) => b.getAttribute('aria-disabled') !== 'true' && !b.closest('[hidden]')).map((b) => b.getAttribute('data-lab-id')));
       const fits = [];
       for (const id of ids.slice(0, 10)) {
@@ -765,7 +826,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
   // input is read strictly, the keys stay where they belong, and nothing of it costs a CSP report. Each has a control.
   if (want('9')) {
     const { ctx, page, log } = await open({ width: 1440, height: 900 }, 'en');
-    await openLab(page);
+    await openLab(page, SETTLE);
     await page.click('[data-lab-id="lg-float"]');
     await page.waitForSelector('#lab-specimen .lg-float-bg'); await frames(page);
     const W = { desktop: 1280, tablet: 834, mobile: 390 };
@@ -976,7 +1037,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     const kept1 = await page.evaluate(() => document.querySelector('#lab-specimen .lab-col').offsetWidth);
     const remounted = await remount(page); await frames(page);
     const kept2 = await page.evaluate(() => [document.querySelector('#lab-specimen .lab-col').offsetWidth, document.querySelector('[data-lab-width="tablet"]').getAttribute('aria-pressed'), document.getElementById('lab-w').value]);
-    await page.reload({ waitUntil: 'load' }); await page.waitForSelector('.ds-metric', { timeout: 30000 }); await openLab(page);
+    await page.reload({ waitUntil: 'load' }); await page.waitForSelector('.ds-metric', { timeout: 30000 }); await openLab(page, SETTLE);
     const reloaded = await page.evaluate(() => [window.__familistaLabMetrics().width, document.querySelector('[data-lab-width="fill"]').getAttribute('aria-pressed')]);
     check('width: kept across a component change and a remount of the room, and not kept across a reload (it is never stored)', kept1 === 834 && remounted && kept2[0] === 834 && kept2[1] === 'true' && kept2[2] === '834' && reloaded[0] === null && reloaded[1] === 'true', { kept1, remounted, kept2, reloaded });
 
@@ -1043,7 +1104,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     // control: the same width written as an inline style is refused by the policy and counted as the Lab's, so the check above can fail
     {
       const { ctx: c2, page: p2 } = await open({ width: 1440, height: 900 }, 'en', (src) => src.replace("col.style.setProperty('width', S.width + 'px');", "col.setAttribute('style', 'width:' + S.width + 'px');"));
-      await openLab(p2); await quiet(p2);
+      await openLab(p2, SETTLE); await quiet(p2);
       const from = await cspMark(p2);
       await setW(p2, 'mobile'); await p2.waitForTimeout(300);
       const win = await cspSplit(p2, from);
@@ -1055,7 +1116,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     const sizes = [];
     for (const [loc, w, h] of [['en', 980, 760], ['de', 560, 900], ['en', 390, 844], ['ar', 1440, 900]]) {
       const { ctx: c3, page: p3, log: log3 } = await open({ width: w, height: h }, loc);
-      await openLab(p3); await setW(p3, 'desktop');
+      await openLab(p3, SETTLE); await setW(p3, 'desktop');
       sizes.push(await p3.evaluate(([loc, w]) => {
         const doc = document.documentElement, b = document.getElementById('ds-body');
         const ctrls = [...document.querySelectorAll('[data-lab-width], #lab-w')];
@@ -1077,7 +1138,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
   // width. Each has a control where one applies.
   if (want('10')) {
     const { ctx, page, log } = await open({ width: 1440, height: 900 }, 'en');
-    await openLab(page);
+    await openLab(page, SETTLE);
     await page.click('[data-lab-id="lg-float"]');
     await page.waitForSelector('#lab-specimen .lg-float-bg'); await frames(page);
     const mode = async (pg, m) => { await pg.click(`[data-lab-mode="${m}"]`); await frames(pg); };
@@ -1329,7 +1390,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     // control: a width written as a style attribute is refused in both panes and counted as the Lab's, once for each
     {
       const { ctx: c2, page: p2 } = await open({ width: 1440, height: 900 }, 'en', (src) => src.replace("col.style.setProperty('width', S.width + 'px');", "col.setAttribute('style', 'width:' + S.width + 'px');"));
-      await openLab(p2); await mode(p2, 'compare'); await quiet(p2);
+      await openLab(p2, SETTLE); await mode(p2, 'compare'); await quiet(p2);
       const from = await cspMark(p2);
       await p2.click('[data-lab-width="mobile"]'); await frames(p2); await p2.waitForTimeout(300);
       const win = await cspSplit(p2, from);
@@ -1341,7 +1402,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     // the Lab's own code to an application path. Both must be caught, the second by who started it, not by where it went.
     {
       const { ctx: c4, page: p4 } = await open({ width: 1440, height: 900 }, 'en', (src) => src.replace('    S.compare = want;\n', "    S.compare = want;\n    if (want) { K.api('/system/design-system/components/preview?id=' + encodeURIComponent(S.sel) + '&proof-control=1').catch(function () {}); fetch('/api/v1/teams?proof-control=1').catch(function () {}); }\n"));
-      await openLab(p4);
+      await openLab(p4, SETTLE);
       const n4 = await netWatch(p4);
       await mode(p4, 'compare'); await p4.waitForTimeout(500);
       await n4.stop();
@@ -1355,7 +1416,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     const sizes = [];
     for (const [loc, w, h] of [['en', 1920, 1080], ['de', 980, 760], ['ar', 390, 844]]) {
       const { ctx: c3, page: p3, log: log3 } = await open({ width: w, height: h }, loc);
-      await openLab(p3); await mode(p3, 'compare');
+      await openLab(p3, SETTLE); await mode(p3, 'compare');
       sizes.push(await p3.evaluate(([loc, w]) => {
         const r = (el) => { const b = el.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top), Math.round(b.right), Math.round(b.bottom)]; };
         const a = r(document.getElementById('lab-pane-a')), b = r(document.getElementById('lab-pane-b')), plate = document.getElementById('lab-plate').clientWidth;
@@ -1379,7 +1440,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
   // same key pressed with a modifier the browser keeps, typed into a field, or started inside the specimen, does nothing.
   if (want('11')) {
     const { ctx, page, log } = await open({ width: 1440, height: 900 }, 'en');
-    await openLab(page);
+    await openLab(page, SETTLE);
     const st = (pg) => pg.evaluate(() => {
       const m = window.__familistaLabMetrics(), a = document.activeElement, t = (id) => { const e = document.getElementById(id); return e ? e.textContent : null; };
       const cur = document.querySelector('#lab-rail-body .lab-item[aria-current="true"]'), on = document.querySelector('#lab-strip .lab-fx.is-on');
@@ -1578,7 +1639,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     const langs = [];
     for (const loc of ['de', 'ar']) {
       const { ctx: c5, page: p5, log: l5 } = await open({ width: 1440, height: 900 }, loc);
-      await openLab(p5);
+      await openLab(p5, SETTLE);
       langs.push(await p5.evaluate((loc) => {
         const b = (a) => document.querySelector(`[data-lab-nav="${a}"]`), x = (a) => b(a).getBoundingClientRect().left;
         return { loc, labels: ['component-prev', 'component-next', 'fixture-prev', 'fixture-next'].map((a) => b(a).getAttribute('aria-label')), c: document.getElementById('lab-nav-c').textContent, f: document.getElementById('lab-nav-f').textContent,
@@ -1602,7 +1663,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       const views = [['desktop', 1440, 900], ['laptop', 1100, 760], ['tablet', 834, 1112], ['mobile', 390, 844]];
       for (const loc of ['en', 'de', 'ar']) for (const [vn, w, h] of views) {
         const { ctx, page, log } = await open({ width: w, height: h }, loc);
-        await openLab(page);
+        await openLab(page, SETTLE);
         let axeRetries = 0;
         const run = async (label) => { const r = await steady(page, () => axeOnce(label)); axeRetries += r.retries; return r.out; };
         const axeOnce = (label) => page.evaluate(async (src) => {
@@ -1647,7 +1708,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     if (fs.existsSync(axePath)) {
       const AXE = fs.readFileSync(axePath, 'utf8');
       const { ctx, page } = await open({ width: 1440, height: 900 }, 'en');
-      await openLab(page);
+      await openLab(page, SETTLE);
       // Break what is protected: a control with no accessible name, and a name that does not match its visible label.
       const broken = await page.evaluate(async (src) => {
         if (!window.axe) (0, eval)(src);        // eslint-disable-line no-eval -- this script's own tool, never the page's code
@@ -1680,7 +1741,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     const NO_EXPIRY = (src) => src.replace('var FOCUS_MS = 2500;', 'var FOCUS_MS = 1e12;');
     for (const loc of ['en', 'de', 'ar']) for (const [vn, w, h] of [['desktop', 1440, 900], ['laptop', 1100, 760], ['tablet', 834, 1112], ['mobile', 390, 844]]) {
       const { ctx, page, log } = await open({ width: w, height: h }, loc);
-      await openLab(page);
+      await openLab(page, SETTLE);
       let retries = 0;
       const probe = async () => { const r = await steady(page, () => viewProbe(page)); retries += r.retries; return r.out; };
       const trials = await focusTrials(page);
@@ -1697,7 +1758,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     // Controls: each breaks the behaviour a proof above protects and shows the same measurement turning red.
     {
       const { ctx, page } = await open({ width: 1440, height: 900 }, 'en', NO_RESTORE);
-      await openLab(page);
+      await openLab(page, SETTLE);
       const trials = await focusTrials(page);
       const unapplied = trials.filter((t) => !t.applied);
       if (unapplied.length) fail('focus (control): control not applied: the controls could not be focused, so the loss of focus was not measured', trials);
@@ -1706,7 +1767,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     }
     {
       const { ctx, page } = await open({ width: 1440, height: 900 }, 'en', NO_EXPIRY);
-      await openLab(page);
+      await openLab(page, SETTLE);
       await page.keyboard.press('/'); await page.keyboard.type('chip');
       const stale = await staleRemount(page);
       check('focus (control): with the 2.5 s limit removed, a redraw long after the last focus steals it back into the Lab, so the no-steal proof can fail', stale.remounted && !stale.kept, stale);
@@ -1714,7 +1775,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     }
     {
       const { ctx, page } = await open({ width: 390, height: 844 }, 'de');
-      await openLab(page);
+      await openLab(page, SETTLE);
       const clean = await viewProbe(page);
       await page.evaluate(() => {
         window.__familistaDesignSystemKit.T('A string the German catalogue does not have');                                   // an untranslated string
@@ -1727,7 +1788,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     }
     {
       const { ctx, page, log } = await open({ width: 1440, height: 900 }, 'en');
-      await openLab(page);
+      await openLab(page, SETTLE);
       const mark = log.errors.length;
       await page.evaluate(() => {
         console.error('lab-control-console-error');
@@ -1749,7 +1810,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       // against the document, nothing was measured, and the injection is repeated once. A node that stayed and was not counted
       // is a failure of the classifier, and is never retried.
       const { ctx, page } = await open({ width: 1440, height: 900 }, 'en');
-      await openLab(page);
+      await openLab(page, SETTLE);
       const attempts = [];
       for (let n = 0; n < 2; n++) {
         await quiet(page);
@@ -1777,7 +1838,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       // 2. By source: a Lab script writes an inline style and removes the node in the same task, so Chromium reports it against the
       // document. Only the script that raised it says whose it is.
       const { ctx, page } = await open({ width: 1440, height: 900 }, 'en', (src) => src.replace('function mount(host, kit) {', "function mount(host, kit) { (function () { var q = document.createElement('div'); document.body.appendChild(q); q.setAttribute('style', 'color:red'); q.remove(); })();"));
-      await openLab(page);
+      await openLab(page, SETTLE);
       await quiet(page);
       const split = await cspSplit(page);
       const entry = await page.evaluate(() => (window.__csp || []).filter((c) => /design-system\/lab\.js/.test(c.src)).map((c) => ({ d: c.d, inLab: c.inLab, src: c.src })));
@@ -1792,7 +1853,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       // an extra Lab or unexplained report is not, and fails.
       const { ctx, page } = await open({ width: 1440, height: 900 }, 'en');
       await ctx.route(/\/app-control\.js$/, (r) => r.fulfill({ contentType: 'application/javascript', body: "var d = document.createElement('div'); document.body.appendChild(d); d.setAttribute('style', 'color:red'); d.remove();" }));
-      await openLab(page);
+      await openLab(page, SETTLE);
       await quiet(page);
       const from = await cspMark(page);
       await page.evaluate(() => { const s = document.createElement('script'); s.src = '/app-control.js'; document.head.appendChild(s); });
