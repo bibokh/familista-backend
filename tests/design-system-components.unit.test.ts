@@ -222,11 +222,11 @@ describe('nothing is invented: every claim is recomputed independently from the 
       expect({ id: c.id, tier: c.tier }).toEqual({ id: c.id, tier: expected });
     }
     const verified = manifest.components.filter((c: any) => c.tier === 'verified').map((c: any) => c.id).sort();
-    expect(verified).toEqual(['lg-chip', 'lg-crest', 'lg-empty', 'lg-float', 'lg-form', 'lg-ident', 'lg-metric', 'lg-panel', 'lg-status-chip', 'lg-versus']);
+    expect(verified).toEqual(['club-identity', 'club-logo', 'lg-chip', 'lg-crest', 'lg-empty', 'lg-float', 'lg-form', 'lg-icon', 'lg-ident', 'lg-metric', 'lg-panel', 'lg-status-chip', 'lg-versus']);
   });
 
-  it('records the Storybook case counts of the ten primitives exactly as their story files export them', () => {
-    const want: Record<string, number> = { 'lg-crest': 8, 'lg-ident': 9, 'lg-chip': 8, 'lg-status-chip': 10, 'lg-form': 7, 'lg-metric': 9, 'lg-versus': 11, 'lg-panel': 8, 'lg-float': 8, 'lg-empty': 7 };
+  it('records the Storybook case counts of the thirteen verified components exactly as their story files export them', () => {
+    const want: Record<string, number> = { 'lg-icon': 6, 'club-logo': 8, 'club-identity': 9, 'lg-crest': 8, 'lg-ident': 9, 'lg-chip': 8, 'lg-status-chip': 10, 'lg-form': 7, 'lg-metric': 9, 'lg-versus': 11, 'lg-panel': 8, 'lg-float': 8, 'lg-empty': 7 };
     for (const [id, n] of Object.entries(want)) expect({ id, n: byId(id).stories.cases.length }).toEqual({ id, n });
   });
 
@@ -635,7 +635,7 @@ describe('the API: GET-only, authenticated and Platform-Owner-only, on the serve
 
     it('refuses the whole manifest, and serves no component of it, when one record is malformed', async () => {
       const bad = clone(manifest);
-      bad.components[0].tier = 'verified';
+      bad.components.find((c: any) => c.tier !== 'verified').tier = 'verified';
       await withFile(JSON.stringify(bad), async () => {
         const idx = await get('', OWNER);
         expect(idx.body.data).toMatchObject({ state: 'NOT_GENERATED', components: [] });
@@ -908,7 +908,7 @@ describe('the Library, run for real in a sandbox: hostile data, search, filters,
     expect(shown().every((id) => byId(id).kind === 'component' && byId(id).tier !== 'listed')).toBe(true);
     r.click({ '[data-cl-fhas]': { getAttribute: () => 'stories' } });
     expect(shown().every((id) => byId(id).sections.stories !== 'NONE')).toBe(true);
-    expect(shown()).toHaveLength(10);
+    expect(shown()).toHaveLength(12);                                // the verified components; lg-icon is a primitive
     r.click({ '[data-cl-reset]': {} });
     expect(shown()).toHaveLength(60);
   });

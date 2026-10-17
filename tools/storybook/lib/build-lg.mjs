@@ -11,12 +11,16 @@
 export const PRIMITIVES = [
   '_lgCrest', '_lgIdent', '_lgChip', '_lgStatusChip', '_lgForm',
   '_lgMetric', '_lgPanel', '_lgEmpty', '_lgFloat', '_lgVersus',
+  // M3/S2.1b: the identity components, appended so the ten above keep their order.
+  '_lgIcon', 'clubLogoHtml', 'clubIdentityHtml',
 ];
+
+// Helpers the cases and stories read; one that is also a primitive is returned once.
+const HELPERS = ['CLUB_IDENT', '_esc', '_lgIcon', '_lgInitials', '_lgStatus'];
 
 export function buildLg(snippets) {
   const body = snippets.map((s) => s.code).join('\n\n')
-    + '\nreturn { CLUB_IDENT: CLUB_IDENT, _esc: _esc, _lgIcon: _lgIcon, _lgInitials: _lgInitials,'
-    + ' _lgStatus: _lgStatus, ' + PRIMITIVES.map((n) => n + ': ' + n).join(', ') + ' };';
+    + '\nreturn { ' + [...new Set([...HELPERS, ...PRIMITIVES])].map((n) => n + ': ' + n).join(', ') + ' };';
   // eslint-disable-next-line no-new-func
   return new Function(body)();
 }

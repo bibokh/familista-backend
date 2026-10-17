@@ -108,7 +108,7 @@ beforeEach(() => { forgetIdentity(); resetDesignSystemComponentsCache(); resetDe
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the sanitizer: a closed allowlist that fails closed', () => {
-  it('passes every one of the 65 real fixtures, and what it writes is a fixed point', () => {
+  it('passes every one of the 94 real fixtures, and what it writes is a fixed point', () => {
     let n = 0;
     for (const [sym, cases] of Object.entries<any>(golden)) for (const [label, raw] of Object.entries<string>(cases)) {
       const a = S.sanitize(raw);
@@ -119,7 +119,7 @@ describe('the sanitizer: a closed allowlist that fails closed', () => {
       expect(S.serialize(tree)).toBe(a.html);
       n++;
     }
-    expect(n).toBe(65);
+    expect(n).toBe(94);
   });
 
   it('has a closed list: eighteen tags, no more, and no attribute outside the ones real fixtures use', () => {
@@ -295,12 +295,13 @@ describe('the sanitizer: a closed allowlist that fails closed', () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the preview manifest: the golden fixtures, sanitised, hashed and bound to the source', () => {
-  it('previews exactly the ten verified primitives, with the 65 golden fixtures between them', () => {
+  it('previews exactly the thirteen verified components, with the 94 golden fixtures between them', () => {
     const verified = components.components.filter((c: any) => c.tier === 'verified').map((c: any) => c.id);
     expect(manifest.components.map((c: any) => c.id)).toEqual(verified);
-    expect(manifest.components.map((c: any) => c.fixtures.length)).toEqual([7, 6, 7, 11, 5, 6, 10, 5, 5, 3]);
-    expect(manifest.coverage).toMatchObject({ registered: 60, previewable: 10, unavailable: 50, fixtures: 65 });
-    expect(allFixtures()).toHaveLength(65);
+    expect(manifest.components.map((c: any) => c.id)).toEqual(['club-logo', 'club-identity', 'lg-crest', 'lg-ident', 'lg-icon', 'lg-chip', 'lg-status-chip', 'lg-form', 'lg-metric', 'lg-versus', 'lg-panel', 'lg-float', 'lg-empty']);
+    expect(manifest.components.map((c: any) => c.fixtures.length)).toEqual([9, 8, 7, 6, 12, 7, 11, 5, 6, 10, 5, 5, 3]);
+    expect(manifest.coverage).toMatchObject({ registered: 60, previewable: 13, unavailable: 47, fixtures: 94 });
+    expect(allFixtures()).toHaveLength(94);
   });
 
   it('is well-formed by the very validator the server runs', () => {
@@ -374,29 +375,37 @@ describe('the preview manifest: the golden fixtures, sanitised, hashed and bound
     expect(manifest.components.flatMap((c: any) => c.variants).filter((v: any) => v.exercisedBy.length === 0).length).toBeGreaterThan(0);
   });
 
-  it('has a provenance for every class: a registered component, production CSS, or one of two named inert inputs', () => {
+  it('has a provenance for every class: a registered component, production CSS, one of two named inert inputs, or one state class inert on its own component', () => {
     const owners = new Map<string, number>();
     for (const { f } of allFixtures()) for (const x of f.classes) { owners.set(x.name, x.rules); expect(['css', 'inert'].includes(x.owner) || components.components.some((c: any) => c.id === x.owner)).toBe(true); }
     const inert = allFixtures().flatMap(({ f }) => f.classes.filter((x: any) => x.owner === 'inert').map((x: any) => x.name));
-    expect([...new Set(inert)].sort()).toEqual(['lg-ident--hero', 'lg-t']);
+    expect([...new Set(inert)].sort()).toEqual(['is-empty', 'lg-ident--hero', 'lg-t']);
     const css = read('public/app.css');
-    for (const name of inert) expect(css).not.toMatch(new RegExp(`\\.${name.replace(/-/g, '\\-')}(?![\\w-])`));
+    for (const name of ['lg-ident--hero', 'lg-t']) expect(css).not.toMatch(new RegExp(`\\.${name.replace(/-/g, '\\-')}(?![\\w-])`));
+    // is-empty is inert only on the club-logo element: production styles it elsewhere (.tfx-lane.is-empty,
+    // .de-vid.is-empty), never alone and never on .club-logo, and the fixtures carry it nowhere else.
+    expect(css).toMatch(/\.tfx-lane\.is-empty(?![\w-])/);
+    expect(css).not.toMatch(/(^|[^\w-])\.is-empty(?![\w-])/m);
+    expect(css).not.toMatch(/\.club-logo[\w-]*\.is-empty(?![\w-])|\.is-empty\.club-logo/);
+    const carriers = allFixtures().flatMap(({ f }) => [...f.html.matchAll(/class="([^"]*)"/g)].map((m) => m[1].split(' ')).filter((t) => t.includes('is-empty')));
+    expect(carriers.length).toBeGreaterThan(0);
+    for (const t of carriers) expect(t).toContain('club-logo');
     for (const [name, rules] of owners) if (!inert.includes(name)) { expect(rules).toBeGreaterThan(0); expect(css).toMatch(new RegExp(`\\.${name.replace(/-/g, '\\-')}(?![\\w-])`)); }
   });
 
-  it('says why each of the other 50 cannot be previewed, in a closed set of reasons', () => {
+  it('says why each of the other 47 cannot be previewed, in a closed set of reasons', () => {
     const avail = manifest.availability;
     expect(avail.map((a: any) => a.id)).toEqual(components.components.map((c: any) => c.id));
-    expect(avail.filter((a: any) => a.state === 'preview')).toHaveLength(10);
+    expect(avail.filter((a: any) => a.state === 'preview')).toHaveLength(13);
     const by = (r: string) => avail.filter((a: any) => a.reason === r).map((a: any) => a.id);
-    expect(by('no-fixtures')).toEqual(['club-logo', 'club-identity', 'lg-icon']);
+    expect(by('no-fixtures')).toEqual([]);                          // every registered render function now has fixtures
     expect(by('application-shell')).toEqual(['sidebar-nav', 'topbar', 'page-header', 'ds-shell']);
     expect(by('candidate')).toHaveLength(7);
     expect(by('css-family')).toHaveLength(7);
     expect(by('utility')).toEqual(['page', 'hidden']);
     expect(by('page-specific')).toEqual(['oh-family']);
     expect(by('css-only')).toHaveLength(26);
-    expect(Object.values(manifest.coverage.byReason).reduce((a: any, b: any) => a + b, 0)).toBe(50);
+    expect(Object.values(manifest.coverage.byReason).reduce((a: any, b: any) => a + b, 0)).toBe(47);
   });
 
   it('never previews a component that has no render function', () => {
@@ -545,6 +554,66 @@ describe('the generator and the validator refuse what they cannot back up', () =
     ])('refuses %s, naming it, and builds nothing', (_n, edit, rx) => {
       expect(withGolden(edit as any)).toThrow(rx as RegExp);
     });
+
+    // ── M3/S2.1b: the three identity components keep every control the ten have ──
+    const CASES_PATH = 'tools/storybook/tests/cases.mjs';
+    const withCases = (edit: (t: string) => string) => { const t = edit(read(CASES_PATH)); expect(t).not.toBe(read(CASES_PATH)); fs.writeFileSync(path.join(tmp, CASES_PATH), t); return () => generator.build({ ROOT: tmp, components }); };
+    const withCss = (rule: string) => { fs.appendFileSync(path.join(tmp, 'public/app.css'), '\n' + rule + '\n'); return () => generator.build({ ROOT: tmp, components }); };
+    afterEach(() => { fs.cpSync(path.join(ROOT, CASES_PATH), path.join(tmp, CASES_PATH)); fs.cpSync(path.join(ROOT, 'public/app.css'), path.join(tmp, 'public/app.css')); });
+    // The real lock glyph, read from public/app.js: the one icon the Lab does not preview.
+    const LOCK = (/^  lock: '([^']*)',$/m.exec(read('public/app.js')) || [])[1] || '';
+    const crest = (g: any) => g.clubLogoHtml['with crest, default size'];
+    const src = (g: any, v: string) => { g.clubLogoHtml['with crest, default size'] = crest(g).replace(/src="[^"]*"/, 'src="' + v + '"'); };
+
+    it('builds the untouched cases and stylesheet identically, and the lock glyph it excludes draws a <rect>', () => {
+      expect(JSON.parse(JSON.stringify(generator.build({ ROOT: tmp, components })))).toEqual(manifest);
+      expect(LOCK).toMatch(/^<rect /);
+      expect(Object.keys(golden._lgIcon)).not.toContain('lock');
+    });
+    it.each([
+      ['a case section for a function that was not extracted', (t: string) => t.replace('  _lgIcon: {', "  _lgIconFake: {\n    'x': (l) => l._lgIconFake('x'),\n  },\n  _lgIcon: {"), /"_lgIconFake" is not a render function extracted from public\/app\.js/],
+      ['a case that calls another function than the one it is filed under', (t: string) => t.replace("'back': (l) => l._lgIcon('back')", "'back': (l) => l._lgChip('back')"), /_lgIcon \/ back calls _lgChip, not _lgIcon/],
+    ])('refuses %s, naming it', (_n, edit, rx) => {
+      expect(withCases(edit as any)).toThrow(rx as RegExp);
+    });
+    it.each([
+      ['golden cases for a function that was not extracted', (g: any) => { g._lgIconFake = { x: '' }; }, /"_lgIconFake", which is not a render function/],
+      ['the lock icon, whose <rect> the sanitizer does not carry', (g: any) => { g._lgIcon.back = g._lgIcon.back.replace(/<path[\s\S]*<\/svg>$/, LOCK + '</svg>'); }, /lg-icon \/ back: the tag <rect> is not allowed/],
+      ['a crest with the default title attribute', (g: any) => { g.clubLogoHtml['with crest, default size'] = crest(g).replace('club-logo--s34"', 'club-logo--s34" title="Riverside FC"'); }, /club-logo \/ with crest, default size: the attribute "title" is not allowed on <span>/],
+      ['an https crest', (g: any) => src(g, 'https://example.invalid/crest.png'), /club-logo \/ with crest, default size: the value of "src" is not allowed/],
+      ['a data:text/html crest', (g: any) => src(g, 'data:text/html;base64,PHNjcmlwdD4='), /club-logo \/ with crest, default size: the value of "src" is not allowed/],
+      ['a crest data URI over 2048 characters', (g: any) => src(g, 'data:image/png;base64,' + 'A'.repeat(2100)), /club-logo \/ with crest, default size: the value of "src" is not allowed/],
+      ['an invalid data-club-logo value', (g: any) => { g.clubLogoHtml['with crest, default size'] = crest(g).replace('data-club-logo="riverside"', 'data-club-logo="river side/../x"'); }, /club-logo \/ with crest, default size: the value of "data-club-logo" is not allowed/],
+      ['a club-logo class with no rule and no reviewed entry', (g: any) => { g.clubLogoHtml['with crest, default size'] = crest(g).replace('club-logo--s34', 'club-logo--s99'); }, /the class "club-logo--s99" has no approved provenance/],
+      ['is-empty borrowed by an element that is not a club logo', (g: any) => { g._lgChip['label and value'] = '<span class="lg-chip is-empty">a</span>'; }, /lg-chip \/ label and value: a scoped inert class appears on an element that is not its component/],
+      ['is-empty on a club-identity root rather than its logo', (g: any) => { g.clubIdentityHtml['no sub line'] = g.clubIdentityHtml['no sub line'].replace('<span class="club-ident">', '<span class="club-ident is-empty">'); }, /club-identity \/ no sub line: a scoped inert class appears/],
+    ])('refuses %s, naming it, and builds nothing', (_n, edit, rx) => {
+      expect(withGolden(edit as any)).toThrow(rx as RegExp);
+    });
+    it.each([
+      ['.club-logo.is-empty', '.club-logo.is-empty{opacity:.5}'],
+      ['.is-empty alone', '.is-empty{opacity:.5}'],
+      ['.club-logo--s34.is-empty', '.club-logo--s34.is-empty{opacity:.5}'],
+    ])('stops treating is-empty as inert once production styles %s, so the entry is reviewed again', (_n, rule) => {
+      expect(withCss(rule)).toThrow(/SCOPED_INERT: a production rule can style \.club-logo\.is-empty; review the entry/);
+    });
+    it('keeps is-empty inert while the only rules for it need another component (.tfx-lane, .de-vid)', () => {
+      expect(withCss('#pg-transfers .tfx-lane.is-empty .zzz{opacity:.5}')).not.toThrow();
+    });
+  });
+
+  it('keeps the 65 fixtures of the ten original primitives byte for byte, and notices a one-byte change', () => {
+    const TEN = ['_lgCrest', '_lgIdent', '_lgChip', '_lgStatusChip', '_lgForm', '_lgMetric', '_lgPanel', '_lgEmpty', '_lgFloat', '_lgVersus'];
+    const digest = (g: any) => sha(JSON.stringify(Object.fromEntries(TEN.map((k) => [k, g[k]]))));
+    // The digest of the whole golden snapshot at 11efcc3, before the three identity components were added.
+    const S21A = '671829c01e24f216fd19d9e548fe54286cf78b2f2be0db7087309fb612ceeebe';
+    expect(Object.keys(golden).slice(0, 10)).toEqual(TEN);
+    expect(TEN.reduce((n, k) => n + Object.keys(golden[k]).length, 0)).toBe(65);
+    expect(digest(golden)).toBe(S21A);
+    const g = clone(golden); g._lgChip['label and value'] = g._lgChip['label and value'].replace('WWDLW', 'WWDLX');
+    expect(digest(g)).not.toBe(S21A);
+    const h = clone(golden); h._lgVersus = Object.fromEntries(Object.entries(h._lgVersus).reverse());
+    expect(digest(h)).not.toBe(S21A);
   });
 });
 
@@ -642,7 +711,7 @@ describe('the API: GET-only, authenticated and Platform-Owner-only, on the serve
 
   it.each([
     ['an unknown id', '?id=no-such-component'],
-    ['a registered component with no fixtures', '?id=club-logo'],
+    ['a registered component of the application shell', '?id=topbar'],
     ['a registered CSS-only component', '?id=button'],
     ['an id that only looks like a path', '?id=../lg-chip'],
     ['a prototype key', '?id=__proto__'],
@@ -1104,8 +1173,8 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
 
   it('opens on the first previewable component and its first fixture, built from nodes and never from a string', async () => {
     const r = await launch();
-    expect(r.api).toEqual(['/system/design-system/components', '/system/design-system/components/preview', '/system/design-system/components/preview?id=lg-crest']);
-    expect(r.metrics()).toMatchObject({ selected: 'lg-crest', fixture: 'lg-crest.with-crest', dir: 'ltr', components: 10, fixtures: 65 });
+    expect(r.api).toEqual(['/system/design-system/components', '/system/design-system/components/preview', '/system/design-system/components/preview?id=club-logo']);
+    expect(r.metrics()).toMatchObject({ selected: 'club-logo', fixture: 'club-logo.with-crest-default-size', dir: 'ltr', components: 13, fixtures: 94 });
     // the specimen element never had innerHTML written; only elements made with createElement were put in it
     expect(r.dom.log.innerHTML['lab-specimen']).toBeUndefined();
     expect(r.dom.log.created.length).toBeGreaterThan(5);
@@ -1115,7 +1184,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     expect(spec.children[0].className).toBe('lab-col');
   });
 
-  it('draws all 65 fixtures without throwing, one node for every element the manifest counts', async () => {
+  it('draws all 94 fixtures without throwing, one node for every element the manifest counts', async () => {
     const r = await launch();
     for (const c of manifest.components) {
       r.click({ '[data-lab-id]': attr(c.id) }); await r.settle();
@@ -1158,7 +1227,11 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
   });
 
   it('shows a component it cannot preview as such: the reason, what would change it, and no specimen', async () => {
-    const r = await launch();
+    // Every registered render function has fixtures now, so the no-fixtures state is drawn from an index that says club-logo has none.
+    const pv = { state: 'READY', reason: null, readOnly: true, generator: manifest.generator, sources: manifest.sources, policy: manifest.policy, coverage: manifest.coverage,
+      availability: manifest.availability.map((a: any) => (a.id === 'club-logo' ? { id: a.id, state: 'unavailable', reason: 'no-fixtures' } : a)),
+      components: manifest.components.filter((c: any) => c.id !== 'club-logo').map((c: any) => ({ id: c.id, symbol: c.symbol, fixtures: c.fixtures.length, bytes: 1, variants: c.variants.length })) };
+    const r = await launch({ previews: pv });
     r.click({ '[data-lab-id]': attr('club-logo') }); await r.settle();
     const txt = r.dom.log.innerHTML['lab-bench'].join('\n') + r.dom.log.innerHTML['lab-insp'].join('\n');
     expect(txt).toContain('Not previewable');
@@ -1166,25 +1239,25 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     expect(txt).toContain('Not instrumented');
     expect(r.dom.log.innerHTML['lab-bench'].slice(-1)[0]).not.toContain('lab-specimen');
     for (const id of ['button', 'topbar', 'page', 'oh-family', 'sy-family', 'tf-btn']) { r.click({ '[data-lab-id]': attr(id) }); await r.settle(); expect(r.dom.log.innerHTML['lab-bench'].slice(-1)[0]).toContain('Not previewable'); }
-    expect(r.api.filter((p) => p.includes('?id='))).toEqual(['/system/design-system/components/preview?id=lg-crest']);   // nothing fetched for a component with no fixtures
+    expect(r.api.filter((p) => p.includes('?id='))).toEqual(['/system/design-system/components/preview?id=club-identity']);   // nothing fetched for a component with no fixtures
   });
 
-  it('lists all 60: the ten live ones first, and the other fifty grouped by reason with the reason on each', async () => {
+  it('lists all 60: the thirteen live ones first, and the other forty-seven grouped by reason with the reason on each', async () => {
     const r = await launch();
     const rail = r.dom.log.innerHTML['lab-rail-body'].slice(-1)[0];
     expect(rail.match(/data-lab-id="/g)).toHaveLength(60);
-    expect(rail.match(/<ul class="lab-list" id="lab-g-[a-z-]+" hidden>/g)).toHaveLength(7);        // the seven unavailable groups start closed
+    expect(rail.match(/<ul class="lab-list" id="lab-g-[a-z-]+" hidden>/g)).toHaveLength(6);        // the six unavailable groups start closed
     expect(rail).toMatch(/<ul class="lab-list" id="lab-g-preview">/);
-    expect(rail.match(/aria-disabled="true"/g)).toHaveLength(50);
+    expect(rail.match(/aria-disabled="true"/g)).toHaveLength(47);
     expect(rail).toContain('CSS only');
-    expect(rail).toContain('No fixtures yet');
+    expect(rail).not.toContain('No fixtures yet');                 // no registered render function is without fixtures
     r.type('o');                                                    // a search opens every group that has a match
     expect(r.dom.log.innerHTML['lab-rail-body'].slice(-1)[0]).not.toMatch(/ hidden>/);
     r.type('zzzz-nothing');
     expect(r.dom.log.innerHTML['lab-rail-body'].slice(-1)[0]).toContain('No component matches');
     r.type('');
     r.click({ '[data-lab-grp]': attr('css-only') });
-    expect(r.dom.log.innerHTML['lab-rail-body'].slice(-1)[0].match(/<ul class="lab-list" id="lab-g-[a-z-]+" hidden>/g)).toHaveLength(6);
+    expect(r.dom.log.innerHTML['lab-rail-body'].slice(-1)[0].match(/<ul class="lab-list" id="lab-g-[a-z-]+" hidden>/g)).toHaveLength(5);
   });
 
   it('searches name, symbol and reason, together, in any order', async () => {
@@ -1276,7 +1349,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     r.dom.log.focused.length = 0;
     r.remount();
     expect(r.dom.log.focused).toContain('lab-q');
-    expect(r.metrics()).toMatchObject({ selected: 'lg-crest' });          // the choice survives the remount, too
+    expect(r.metrics()).toMatchObject({ selected: 'club-logo' });         // the choice survives the remount, too
     // a visit, not a repaint: nothing is focused for it
     const later = await launch();
     later.fire('focusin', { target: { id: 'lab-q', getAttribute: () => null } });
@@ -1304,7 +1377,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     const counts: number[] = [];
     for (const c of manifest.components) { r.click({ '[data-lab-id]': attr(c.id) }); await r.settle(); for (const f of c.fixtures) { r.click({ '[data-lab-fx]': attr(f.id) }); counts.push(r.metrics().specimenNodes); } }
     expect(Math.max(...counts)).toBeLessThan(40);
-    expect(counts).toHaveLength(65);
+    expect(counts).toHaveLength(94);
   });
 
   // ── M2 / S1: zoom ──────────────────────────────────────────────────────────
@@ -1526,7 +1599,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     const r = await launch();
     r.dom.doc.activeElement = { tagName: 'INPUT', id: 'lab-w' };
     for (const k of ['0', '-', '=', 'F', '[', ']', '/']) expect(docKey(r, k)).toBe(false);
-    expect(r.metrics()).toMatchObject({ zoom: 1, fit: false, fixture: 'lg-crest.with-crest' });
+    expect(r.metrics()).toMatchObject({ zoom: 1, fit: false, fixture: 'club-logo.with-crest-default-size' });
   });
 
   // ── M2 / S3: comparison ────────────────────────────────────────────────────
@@ -1550,7 +1623,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     const before = r.api.length;
     r.click({ '[data-lab-mode]': attr('compare') });
     const b = bench(r);
-    expect(r.metrics()).toMatchObject({ compare: true, fixture: 'lg-crest.with-crest', fixtureB: byId('lg-crest').fixtures[1].id });
+    expect(r.metrics()).toMatchObject({ compare: true, fixture: 'club-logo.with-crest-default-size', fixtureB: byId('club-logo').fixtures[1].id });
     const all = ids(b);
     expect(all.length).toBeGreaterThan(20);
     expect(new Set(all).size).toBe(all.length);
@@ -1562,7 +1635,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     const specB = r.dom.byId['lab-specimen-b'];
     expect(Object.keys(r.dom.listeners.get(specB) || {}).sort()).toEqual(Object.keys(r.dom.listeners.get(r.dom.byId['lab-specimen']) || {}).sort());
     expect(specB.children[0].className).toBe('lab-col');
-    expect(specB.children[0].getElementsByTagName('*').length).toBe(byId('lg-crest').fixtures[1].elements);
+    expect(specB.children[0].getElementsByTagName('*').length).toBe(byId('club-logo').fixtures[1].elements);
     expect(r.dom.log.innerHTML['lab-specimen-b']).toBeUndefined();          // built from nodes, never from a string
     expect(r.api.length).toBe(before);
     expect(r.dom.byId['lab-live'].textContent).toBe('Compare side by side');
@@ -1572,7 +1645,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     const r = await launch();
     r.click({ '[data-lab-zoom]': attr('out') });
     r.click({ '[data-lab-mode]': attr('compare') });
-    const c = byId('lg-crest');
+    const c = byId('club-logo');
     const nodesA = r.dom.byId['lab-specimen'].getElementsByTagName('*').length;
     pickB(r, c.fixtures[2].id);
     expect(r.metrics()).toMatchObject({ fixture: c.fixtures[0].id, fixtureB: c.fixtures[2].id, zoom: 0.9 });
@@ -1587,7 +1660,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
   it('swaps A and B, the strip following A', async () => {
     const r = await launch();
     r.click({ '[data-lab-mode]': attr('compare') });
-    const c = byId('lg-crest');
+    const c = byId('club-logo');
     pickB(r, c.fixtures[3].id);
     r.click({ '[data-lab-swap]': attr('ab') });
     expect(r.metrics()).toMatchObject({ fixture: c.fixtures[3].id, fixtureB: c.fixtures[0].id });
@@ -1599,7 +1672,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
   it('compares the two fixtures in Provenance from the manifest alone: ids, markup, elements and classes, 0 for an empty set', async () => {
     const r = await launch();
     r.click({ '[data-lab-mode]': attr('compare') });
-    const c = byId('lg-crest'), a = c.fixtures[0], b = c.fixtures[1];
+    const c = byId('club-logo'), a = c.fixtures[0], b = c.fixtures[1];
     const insp = r.dom.log.innerHTML['lab-insp'].slice(-1)[0];
     expect(insp).toContain('id="lab-cmp-i"');
     expect(insp.indexOf('lab-cmp-i')).toBeLessThan(insp.indexOf('Where this specimen comes from'));
@@ -1615,8 +1688,8 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
 
   it('a fixture refused in Preview B draws nothing there, says why, and leaves Preview A drawn', async () => {
     const bad = clone(manifest);
-    const c = bad.components.find((x: any) => x.id === 'lg-crest');
-    c.fixtures[1].html = '<span class="lg-crest"><img src="https://example.invalid/a.png" onerror="alert(1)"></span>';
+    const c = bad.components.find((x: any) => x.id === 'club-logo');
+    c.fixtures[1].html = '<span class="club-logo"><img src="https://example.invalid/a.png" onerror="alert(1)"></span>';
     const r = await launch({ detail: (id: string) => ({ state: 'READY', reason: null, sources: manifest.sources, component: bad.components.find((x: any) => x.id === id) }) });
     r.click({ '[data-lab-mode]': attr('compare') });
     expect(r.metrics().fixtureB).toBe(c.fixtures[1].id);
@@ -1861,6 +1934,8 @@ describe('the browser proof is kept with the code and is a required CI job', () 
     const mins = [...body.matchAll(/min:\s*'(\d+)'/g)].map((m) => Number(m[1]));
     expect(mins.length).toBe(2);
     expect(mins.every((n) => n >= 34)).toBe(true);
+    // M3/S2.1b: the floors are the counts measured with thirteen previewable components; they never go below S2.0's 187 and 58.
+    expect(mins).toEqual([193, 64]);
   });
 
   it('classifies the browser\'s own copy of a CSP violation as a notice in both Chrome wordings, and nothing else', () => {

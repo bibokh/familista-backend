@@ -1,4 +1,5 @@
-// Golden HTML snapshots for the ten _lg* primitives, produced from the REAL
+// Golden HTML snapshots for the ten _lg* primitives and the three identity
+// components (_lgIcon, clubLogoHtml, clubIdentityHtml), produced from the REAL
 // source in public/app.js.
 //
 //   npm run test:golden          compare against tests/golden/lg-primitives.golden.json
@@ -21,8 +22,8 @@ const GOLDEN = path.join(HERE, 'golden', 'lg-primitives.golden.json');
 const APP = readAppJs();
 const lg = seedClubs(buildLg(extractLg()));
 
-test('all ten primitives are defined exactly once in public/app.js', () => {
-  assert.equal(PRIMITIVES.length, 10);
+test('all thirteen primitives are defined exactly once in public/app.js', () => {
+  assert.equal(PRIMITIVES.length, 13);
   for (const name of PRIMITIVES) {
     const n = (APP.match(new RegExp(`^function ${name}\\(`, 'gm')) || []).length;
     assert.equal(n, 1, `${name} is defined ${n} times`);
