@@ -1087,7 +1087,8 @@ var _FAM_PAGE_RENDER = {
   'familista-vision':            ['renderFamilistaVision'],
   'cybersecurity':               ['renderFamilistaCybersecurity'],
   'algorithms':                  ['renderFamilistaAlgorithms'],
-  'design-system':               ['renderFamilistaDesignSystem'],
+  // Not 'design-system': it reads no club data, so a club-data change must not
+  // redraw it under the reader. navTo draws it on entry instead.
   'fos-core':                    ['renderFOSCore'],
   'fos-ai-orchestrator':         ['renderFOSAIOrchestrator'],
   'multi-club-network':          ['renderMultiClubNetwork'],
@@ -2932,6 +2933,24 @@ function navTo(page, el, _opts) {
   // this page needs club data nobody has read yet, that read starts now and
   // repaints when it lands, rather than every club entry paying for it.
   try { if (typeof _famRenderPage === 'function') _famRenderPage(page); } catch (_) {}
+  // Design System Control reads no club data, so it is not in _FAM_PAGE_RENDER
+  // and a club-data change never redraws it: a redraw under the reader took the
+  // click they were making and the scroll they were at. It is drawn here instead,
+  // on every real entry — leaving tears its Lab down, so an entry that drew
+  // nothing would leave a Lab on screen that no longer listens — and whenever
+  // the root on the page is not the one that was drawn. The element is asked,
+  // not a memory of the last visit, because the page can be rebuilt under a
+  // reader who never left it; and it is marked when the draw starts, because the
+  // room paints a moment later and a second route in that moment must not draw
+  // it twice.
+  try {
+    var _dsRoot = document.getElementById('ds-root');
+    if (page === 'design-system' && typeof window.renderFamilistaDesignSystem === 'function'
+        && _dsRoot && (_leaving !== 'pg-design-system' || !_dsRoot.__famDrawn)) {
+      _dsRoot.__famDrawn = true;
+      window.renderFamilistaDesignSystem(_dsRoot);
+    }
+  } catch (_) {}
   try {
     if (typeof _famNeedsClubData === 'function' && _famNeedsClubData(page)
         && State.context && State.context.clubId) _famEnsureClubData();

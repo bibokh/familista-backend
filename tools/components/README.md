@@ -64,8 +64,8 @@ npm ci --ignore-scripts --prefix tools/components
 CHROMIUM=$(command -v google-chrome) node tools/components/lab-browser-proof.cjs <output-dir> [--axe]
 ```
 
-It is a required CI job (`browser-proof` in `.github/workflows/ci.yml`, in two shards: sections `1,2,2b,3,4,5,8,9,10`, and
-`6,7` with `--axe`). Its two tools, `playwright-core` and `axe-core`, are pinned exactly in this folder's own
+It is a required CI job (`browser-proof` in `.github/workflows/ci.yml`, in two shards: sections `1,2,2b,3,4,5,8,9,10,11,12`,
+and `6,7` with `--axe`). Its two tools, `playwright-core` and `axe-core`, are pinned exactly in this folder's own
 `package.json` and lockfile and are installed with `npm ci --ignore-scripts`; they are not production dependencies and
 the root `package.json` does not list them. No browser is downloaded: it uses Google Chrome from the runner image and
 the job fails if there is none. A failed, skipped or missing proof fails the job, a failed job fails the `ci` workflow,
@@ -84,3 +84,22 @@ exception is named: axe-core's own fetch of the web-font stylesheet, refused by 
 when it happens inside an axe run. Probes that find the room mid-redraw wait for it and retry at most twice; the retries
 are reported with the result.
 `PROOF_ONLY=7` runs the focus, error and CSP proofs alone (they need no axe).
+
+### What each later section proves
+
+| Section | Stage | Proves |
+| --- | --- | --- |
+| 8 | M2 / S1 | The same walls hold with the specimen zoomed (25 %–200 %), no tool is covered, and the browser's own Ctrl/Cmd zoom keys are left alone. |
+| 9 | M2 / S2 | The walls hold at every content width (Fill, the presets, custom 320–1600 px), Fit is recomputed, and a width written as an inline style is refused by the unchanged policy. |
+| 10 | M2 / S3 | Compare: Preview B draws exactly what A draws, each pane keeps its own walls and events, nothing is fetched, Swap is announced once, and B is removed node for node. |
+| 11 | M2 / S4 | Navigation: the buttons and the `[ ]` `{ }` keys step through fixtures and listed components, Ctrl/Cmd/Alt stay the browser's, focus and the live region follow. |
+| 12 | M3 / S1 | The room is left alone by club data, which it does not read (no redraw, request, lost click, scroll, focus or caret; no DOM, heap or listener growth), and every redraw that must happen still does: first entry, every later entry, Refresh, the room's language, its sections, a rebuilt page. |
+
+Section 12's controls serve `app.js` or `lab.js` with one part of the fix taken out (the room back among the club-data
+pages, the entry hook removed, the hook without its check on the drawn root, the Lab's listener cleanup removed) and
+require the matching proof to fail. A control whose edit cannot be applied is a FAIL that says so, never a pass.
+
+Compare opening and Fit recalculation are measured 40 times after 3 warm-ups, from the input to the second frame, and
+written to the log as `BUDGET` lines against the owner's 100 ms p95 budget. Wall-clock time is the machine's (a local run
+measured two to three times CI's figures), so these are reported, not gated; what is gated is that they were measured as
+specified.

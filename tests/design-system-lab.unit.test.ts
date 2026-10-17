@@ -1853,7 +1853,7 @@ describe('the browser proof is kept with the code and is a required CI job', () 
     expect(body).toContain('node tools/components/lab-browser-proof.cjs');
     expect(body).not.toMatch(/continue-on-error|\|\|\s*true|playwright install|secrets\./);
     const sections = [...body.matchAll(/sections:\s*'([^']+)'/g)].map((m) => m[1].split(',')).flat().sort();
-    expect(sections).toEqual(['1', '10', '11', '2', '2b', '3', '4', '5', '6', '7', '8', '9']);
+    expect(sections).toEqual(['1', '10', '11', '12', '2', '2b', '3', '4', '5', '6', '7', '8', '9']);
     expect(body).toMatch(/axe:\s*'--axe'/);
     // a shard that ran nothing, skipped something or failed something is red
     expect(body).toContain("grep -Eq ', 0 failed, 0 skipped$'");

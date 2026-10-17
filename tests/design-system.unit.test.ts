@@ -372,11 +372,10 @@ describe('the room, wired into the application', () => {
     expect(app_js).toMatch(/if \(page === 'design-system' && !\(_DS_ROOM && _DS_ROOM\.state === 'ready'\)\)/);
   });
 
-  it('registers the page in the allow-list, the title map, the template map and the render registry', () => {
+  it('registers the page in the allow-list, the title map and the template map', () => {
     expect(app_js).toContain("'design-system': 1,");
     expect(app_js).toContain("'design-system':'Design System'");
     expect(app_js).toContain("'design-system':               renderDesignSystemHTML,");
-    expect(app_js).toContain("'design-system':               ['renderFamilistaDesignSystem']");
     expect(app_js).toContain("case 'pg-design-system':");
     expect(app_js).toContain('<div class="page" id="pg-design-system" data-no-i18n><div id="ds-root"></div></div>');
     expect(app_js).toContain("document.body.classList.toggle('ds-design-open', page === 'design-system')");
@@ -839,10 +838,30 @@ describe('Owner Home: the ninth card, DESIGN SYSTEM CONTROL', () => {
     });
   });
 
+  it('is drawn on entry and never by club data, which it does not read (M3 / S1)', () => {
+    // Listed among the club-data pages, every club-data change redrew the room and mounted the Lab again under the reader,
+    // losing the click they were making and their scroll, and club data was read for a room that never shows it.
+    const app = read('public/app.js');
+    const registry = app.slice(app.indexOf('var _FAM_PAGE_RENDER = {'), app.indexOf('var _FAM_GIS_PAGES'));
+    expect(registry.length).toBeGreaterThan(0);
+    expect(registry).not.toMatch(/^\s*'design-system'\s*:\s*\[/m);
+    // Drawn by navTo on every real entry (leaving tears its Lab down), after the page is mounted and activated, and again when
+    // the root on the page is not the one drawn; the root is marked when the draw starts, so two routes a moment apart draw once.
+    const nav = app.slice(app.indexOf('function navTo(page, el, _opts) {'));
+    const hook = nav.indexOf("if (page === 'design-system' && typeof window.renderFamilistaDesignSystem === 'function'");
+    expect(hook).toBeGreaterThan(nav.indexOf("_ensurePageMounted(page); } catch (_) {}"));
+    expect(hook).toBeGreaterThan(nav.indexOf("_famRenderPage(page); } catch (_) {}"));
+    const guard = nav.slice(hook, hook + 400);
+    expect(guard).toContain("&& _dsRoot && (_leaving !== 'pg-design-system' || !_dsRoot.__famDrawn)) {");
+    expect(guard).toContain('_dsRoot.__famDrawn = true;');
+    expect(guard).toContain('window.renderFamilistaDesignSystem(_dsRoot);');
+  });
+
   it('is shipped with fresh asset versions, so no browser mixes the old script with the new stylesheet', () => {
     const html = read('public/index.html');
     expect(html).toContain('/app.css?v=20261012-owner-home-ds');
-    expect(html).toContain('/app.js?v=20261012-owner-home-ds');
+    expect(html).toContain('/app.js?v=20261017-design-system-room');
+    expect(html).not.toContain('/app.js?v=20261012-owner-home-ds');
     expect(html).not.toMatch(/\/app\.(css|js)\?v=20261004-algorithms/);
   });
 
