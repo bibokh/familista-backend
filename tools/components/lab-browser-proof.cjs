@@ -539,13 +539,19 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     await page.keyboard.press('ArrowDown');
     const a1 = await active();
     check('keyboard: ArrowDown from the search lands on the rail', !!a1.lab, a1);
-    await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await page.waitForTimeout(300);
+    await page.keyboard.press('ArrowDown');
+    // The component Enter must select is the one focus is on now: a previewable component among those the search left, as the
+    // manifest says, not a name written here.
+    const a2 = await active();
+    const previewable = await page.evaluate(async () => (await window.__familistaDesignSystemKit.api('/system/design-system/components/preview')).availability.filter((x) => x.state === 'preview').map((x) => x.id));
+    await page.keyboard.press('Enter'); await page.waitForTimeout(300);
     const m1 = await metrics();
-    check('keyboard: Enter on a rail item selects it and shows its first fixture', ['lg-chip', 'lg-status-chip'].includes(m1.selected) && /\.\w/.test(m1.fixture), m1);
+    check('keyboard: Enter on a rail item selects it and shows its first fixture', !!a2.lab && shown.includes(a2.lab) && previewable.includes(a2.lab) && m1.selected === a2.lab && /\.\w/.test(m1.fixture), { focused: a2.lab, selected: m1.selected, fixture: m1.fixture });
     await page.keyboard.press('Escape');
     check('keyboard: Escape in the search clears it', await page.evaluate(() => document.getElementById('lab-q').value === '') || (await active()).id !== 'lab-q');
     await page.focus('#lab-q'); await page.keyboard.press('Escape'); await page.waitForTimeout(100);
-    check('keyboard: Escape clears the search and the whole list returns', (await page.evaluate(() => [...document.querySelectorAll('#lab-rail-body [data-lab-id]')].length)) === 60);
+    const registered = await page.evaluate(async () => (await window.__familistaDesignSystemKit.api('/system/design-system/components/preview')).availability.length);
+    check('keyboard: Escape clears the search and the whole list returns', (await page.evaluate(() => [...document.querySelectorAll('#lab-rail-body [data-lab-id]')].length)) === registered);
     await page.click('[data-lab-id="lg-status-chip"]'); await page.waitForSelector('#lab-specimen .lg-chip'); 
     const ids = await page.evaluate(() => [...document.querySelectorAll('.lab-fx')].map((b) => b.getAttribute('data-lab-fx')));
     await page.focus('.lab-fx.is-on');
@@ -795,7 +801,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       await openLab(p3, SETTLE);
       const ids = await p3.evaluate(() => [...document.querySelectorAll('[data-lab-id]')].filter((b) => b.getAttribute('aria-disabled') !== 'true' && !b.closest('[hidden]')).map((b) => b.getAttribute('data-lab-id')));
       const fits = [];
-      for (const id of ids.slice(0, 10)) {
+      for (const id of ids) {
         await p3.click(`[data-lab-id="${id}"]`); await p3.waitForSelector('#lab-zoom-v'); await frames(p3);
         await p3.click('[data-lab-zoom="fit"]', { force: true }); await frames(p3);
         fits.push(await p3.evaluate((cid) => {
@@ -805,7 +811,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
         }, id));
         await p3.click('[data-lab-zoom="reset"]', { force: true });
       }
-      check('zoom: Fit never enlarges past 100%, and every previewable component\'s specimen is then wholly visible without scrolling', fits.length === 10 && fits.every((f) => f.pct >= 25 && f.pct <= 100 && f.pressed === 'true' && !f.scrolls), fits);
+      check('zoom: Fit never enlarges past 100%, and every previewable component\'s specimen is then wholly visible without scrolling', ids.length > 0 && fits.length === ids.length && fits.every((f) => f.pct >= 25 && f.pct <= 100 && f.pressed === 'true' && !f.scrolls), fits);
 
       // right to left: the canvas scales from its inline-start edge, so it stays aligned to that edge
       await p3.click('[data-lab-id="lg-chip"]'); await frames(p3);
@@ -1717,7 +1723,15 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
         await page.click('[data-lab-mode="single"]'); await frames(page);
         await page.click('[data-lab-width="fill"]'); await frames(page);
         await page.click('[data-lab-tab="sanitization"]'); states.push(await run('sanitization tab'));
-        await page.click('[data-lab-grp="no-fixtures"]'); await page.click('[data-lab-id="lg-icon"]', { force: true }); await frames(page); states.push(await run('unavailable component'));
+        // An unavailable component, the first the rail lists, whichever it is: opened through its group if the group is closed.
+        const na = await page.evaluate(() => {
+          const b = document.querySelector('#lab-rail-body [data-lab-id][aria-disabled="true"]'); if (!b) return null;
+          const g = b.closest('.lab-grp'), gb = g ? g.querySelector('[data-lab-grp]') : null;
+          return { id: b.getAttribute('data-lab-id'), grp: gb ? gb.getAttribute('data-lab-grp') : null, open: gb ? gb.getAttribute('aria-expanded') === 'true' : true };
+        });
+        if (na && na.grp && !na.open) await page.click(`[data-lab-grp="${na.grp}"]`);
+        if (na) { await page.click(`[data-lab-id="${na.id}"]`, { force: true }); await frames(page); states.push(await run('unavailable component ' + na.id)); }
+        else states.push({ label: 'unavailable component', violations: ['no unavailable component is listed, so this state was not checked'], missing: [] });
         await page.screenshot({ path: path.join(OUT, `axe-${loc}-${vn}.png`) });
         const v = states.flatMap((s) => s.violations.map((x) => s.label + ': ' + x));
         const missing = [...new Set(states.flatMap((s) => s.missing))];
@@ -2205,6 +2219,319 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       check('room (control): with the Lab\'s listener cleanup removed, ten redraws leave more listeners on the document, so the growth proof can fail', redrawn === 10 && l1 > l0, { redrawn, listeners: [l0, l1] });
       await c.close();
     });
+  }
+
+  // ══ 13. every previewable component, discovered (M3 / S2.0) ════════════════
+  // The sections above prove the Lab's walls on the components they name. This one proves them on every component the
+  // server says is previewable, and finds them in the server's own index, never in a list here: a component added to the
+  // manifest is checked the day it is added, and one the Lab enables without the manifest (or the other way round) fails.
+  // For each: every fixture's served markup hashes to the sha256 the manifest recorded; what the Lab draws has the element
+  // count and exactly the classes the manifest recorded for it, in Single and in Compare, and in RTL; cycling every fixture
+  // twice leaves the Lab as large as it was; and nothing that starts in the specimen reaches a document-level listener, no
+  // specimen element is in the tab order, no CSP violation is the Lab's, and the Lab asks for nothing but that component's
+  // fixtures. Then application memory over three warm passes, measured by heap category (see memoryOf).
+  // Each control serves a tampered response or a lab.js with one thing broken and requires the matching proof to fail.
+  const TYPES13 = ['click', 'dblclick', 'auxclick', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'keydown', 'keyup', 'keypress', 'input', 'change', 'submit', 'contextmenu', 'focusin', 'focusout'];
+  // The server's index and every previewable component's fixtures, as the Lab reads them, beside the rail's enabled items.
+  const manifestOf = (pg) => pg.evaluate(async () => {
+    const K = window.__familistaDesignSystemKit;
+    const idx = await K.api('/system/design-system/components/preview');
+    const ids = idx.availability.filter((a) => a.state === 'preview').map((a) => a.id);
+    const details = {};
+    for (const id of ids) {
+      const d = await K.api('/system/design-system/components/preview?id=' + encodeURIComponent(id));
+      details[id] = d.component.fixtures.map((f) => ({ id: f.id, html: f.html, sha256: f.sha256, elements: f.elements, classes: f.classes.map((c) => c.name).sort() }));
+    }
+    const rail = [...document.querySelectorAll('#lab-rail-body [data-lab-id]')].filter((b) => b.getAttribute('aria-disabled') !== 'true').map((b) => b.getAttribute('data-lab-id'));
+    return { ids, previewable: idx.coverage ? idx.coverage.previewable : null, registered: idx.availability.length, details, rail };
+  });
+  const selectComponent = async (pg, id) => {
+    await pg.evaluate((i) => document.querySelector(`[data-lab-id="${i}"]`).click(), id);
+    await pg.waitForFunction((i) => window.__familistaLabMetrics().selected === i && !!window.__familistaLabMetrics().fixture, id, { timeout: 15000 });
+    await frames(pg);
+  };
+  const selectFixture = (pg, fid) => pg.evaluate((f) => new Promise((done) => {
+    const b = [...document.querySelectorAll('.lab-fx')].find((x) => x.getAttribute('data-lab-fx') === f);
+    if (!b) { done(false); return; }
+    b.click(); requestAnimationFrame(() => requestAnimationFrame(() => done(window.__familistaLabMetrics().fixture === f)));
+  }), fid);
+  // What one pane drew, beside what the manifest recorded for the fixture it says it drew.
+  const drawnAgainst = (pg, sfx, fx) => pg.evaluate(async ({ sfx, fx }) => {
+    const hex = async (s) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, '0')).join('');
+    const spec = document.getElementById('lab-specimen' + sfx), col = spec ? spec.querySelector('.lab-col') : null;
+    const cls = new Set(); if (col) col.querySelectorAll('[class]').forEach((e) => e.classList.forEach((c) => cls.add(c)));
+    const sha = await hex(fx.html), elements = col ? col.getElementsByTagName('*').length : 0, classes = [...cls].sort();
+    const problems = [];
+    if (sha !== fx.sha256) problems.push('served markup hashes to ' + sha.slice(0, 12) + ', the manifest recorded ' + fx.sha256.slice(0, 12));
+    if (elements !== fx.elements) problems.push('drew ' + elements + ' elements, the manifest recorded ' + fx.elements);
+    if (JSON.stringify(classes) !== JSON.stringify(fx.classes)) problems.push('drew classes [' + classes.join(' ') + '], the manifest recorded [' + fx.classes.join(' ') + ']');
+    const refuse = document.getElementById('lab-refuse' + sfx);
+    if (refuse && !refuse.hidden) problems.push('the browser refused it: ' + refuse.textContent.trim().slice(0, 120));
+    return { fixture: fx.id, ok: problems.length === 0, problems };
+  }, { sfx, fx });
+  const labNodes13 = (pg) => pg.evaluate(() => document.querySelector('.lab').getElementsByTagName('*').length);
+  // Single (every fixture, twice, the Lab no larger after), Compare (B drawn as recorded, gone after), RTL.
+  async function rendering(pg, id, fixtures) {
+    const problems = [];
+    await selectComponent(pg, id);
+    let base = null;
+    for (let round = 0; round < 2; round++) {
+      for (const fx of fixtures) {
+        if (!(await selectFixture(pg, fx.id))) { problems.push(fx.id + ': could not be selected'); continue; }
+        if (base === null) base = await labNodes13(pg);
+        if (round === 0) { const d = await drawnAgainst(pg, '', fx); if (!d.ok) problems.push(fx.id + ': ' + d.problems.join('; ')); }
+      }
+    }
+    if (fixtures.length) { await selectFixture(pg, fixtures[0].id); const after = await labNodes13(pg); if (after !== base) problems.push('the Lab held ' + base + ' nodes at the first fixture and ' + after + ' after cycling every fixture twice'); }
+    await pg.evaluate(() => document.querySelector('[data-lab-mode="compare"]').click());
+    await pg.waitForFunction(() => !!document.getElementById('lab-specimen-b') && !!document.getElementById('lab-fx-b'), null, { timeout: 8000 }).catch(() => problems.push('Compare did not open'));
+    await frames(pg);
+    const bId = await pg.evaluate(() => (document.getElementById('lab-fx-b') || {}).value);
+    const bFx = fixtures.find((f) => f.id === bId);
+    if (!bFx) problems.push('Preview B names ' + bId + ', not a fixture of ' + id);
+    else { const d = await drawnAgainst(pg, '-b', bFx); if (!d.ok) problems.push('Preview B ' + bFx.id + ': ' + d.problems.join('; ')); }
+    await pg.evaluate(() => document.querySelector('[data-lab-mode="single"]').click()); await frames(pg);
+    const leftB = await pg.evaluate(() => document.querySelectorAll('.lab [id$="-b"], .lab .lab-cmp').length);
+    if (leftB) problems.push(leftB + ' Preview B nodes left after returning to Single');
+    await pg.evaluate(() => document.querySelector('[data-lab-dir="rtl"]').click()); await frames(pg);
+    const rtl = await pg.evaluate(() => ({ dir: (document.getElementById('lab-specimen') || {}).getAttribute ? document.getElementById('lab-specimen').getAttribute('dir') : null, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 }));
+    if (rtl.dir !== 'rtl' || rtl.overflow) problems.push('RTL: specimen dir ' + rtl.dir + (rtl.overflow ? ', the page scrolls sideways' : ''));
+    const curId = await pg.evaluate(() => window.__familistaLabMetrics().fixture);
+    const cur = fixtures.find((f) => f.id === curId);
+    if (cur) { const d = await drawnAgainst(pg, '', cur); if (!d.ok) problems.push('RTL: ' + d.problems.join('; ')); } else if (fixtures.length) problems.push('RTL: the Lab shows ' + curId + ', not a fixture of ' + id);
+    await pg.evaluate(() => document.querySelector('[data-lab-dir="ltr"]').click()); await frames(pg);
+    return { id, fixtures: fixtures.length, ok: problems.length === 0, problems };
+  }
+  const installRecorder = (pg) => pg.evaluate((types) => {
+    window.__seen13 = { inside: 0, outside: 0, types: {} };
+    const rec = (e) => { const spec = document.getElementById('lab-specimen'), specB = document.getElementById('lab-specimen-b'); const inside = (spec && spec.contains(e.target)) || (specB && specB.contains(e.target)); if (inside) { window.__seen13.inside++; window.__seen13.types[e.type] = (window.__seen13.types[e.type] || 0) + 1; } else window.__seen13.outside++; };
+    for (const t of types) { document.addEventListener(t, rec); window.addEventListener(t, rec); document.documentElement.addEventListener(t, rec); document.body.addEventListener(t, rec); }
+  }, TYPES13);
+  // Events, focus, CSP and network, for one component, every fixture.
+  async function isolation(pg, id, fixtures) {
+    const problems = [];
+    const from = await cspMark(pg);
+    const net = await netWatch(pg);
+    await pg.evaluate(() => { window.__seen13.inside = 0; window.__seen13.types = {}; });
+    await selectComponent(pg, id);
+    for (const fx of fixtures) {
+      if (!(await selectFixture(pg, fx.id))) { problems.push(fx.id + ': could not be selected'); continue; }
+      const pts = await pg.evaluate(() => {
+        const spec = document.getElementById('lab-specimen'), vp = document.getElementById('lab-viewport');
+        const box = (vp || spec).getBoundingClientRect(), out = [[box.left + box.width / 2, box.top + box.height / 2], [box.left + 12, box.top + 12]];
+        spec.querySelectorAll('button').forEach((b) => { const r = b.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2; if (r.width && r.height && x > box.left && x < box.right && y > box.top && y < box.bottom) out.push([x, y]); });
+        return out;
+      });
+      for (const [x, y] of pts) { await pg.mouse.move(x, y); await pg.mouse.down(); await pg.mouse.up(); await pg.mouse.click(x, y, { button: 'right' }); }
+      const focusedOne = await pg.evaluate(() => { const b = document.querySelector('#lab-specimen button'); if (!b) return false; b.focus(); return document.activeElement === b; });
+      if (focusedOne) for (const k of ['Enter', 'Space', 'Escape', 'a']) await pg.keyboard.press(k);
+      const tabbable = await pg.evaluate(() => [...document.querySelectorAll('#lab-specimen *')].filter((e) => e.tabIndex >= 0 && (e.matches('a[href],button,input,select,textarea,[tabindex],[contenteditable=""],[contenteditable="true"],summary,iframe') || e.isContentEditable)).map((e) => e.tagName.toLowerCase() + (e.className ? '.' + String(e.className).split(' ')[0] : '')));
+      if (tabbable.length) problems.push(fx.id + ': ' + tabbable.length + ' specimen element(s) in the tab order: ' + tabbable.slice(0, 3).join(', '));
+      await pg.evaluate(() => { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
+    }
+    await frames(pg); await net.stop();
+    const seen = await pg.evaluate(() => ({ inside: window.__seen13.inside, types: window.__seen13.types }));
+    if (seen.inside) problems.push(seen.inside + ' event(s) that started in the specimen reached a document, window, html or body listener: ' + JSON.stringify(seen.types));
+    const still = await pg.evaluate((i) => location.hash === '#design-system' && window.__familistaLabMetrics().selected === i, id);
+    if (!still) problems.push('the room moved: a production handler ran');
+    const want = '/api/v1/system/design-system/components/preview?id=' + encodeURIComponent(id);
+    const lab = net.seen.filter((x) => x.lab);
+    const stray = lab.filter((x) => !(x.method === 'GET' && x.path === want));
+    if (stray.length || lab.length > 1) problems.push('the Lab asked for ' + JSON.stringify(lab.map((x) => x.method + ' ' + x.path)) + '; only ' + want + ', at most once, is allowed');
+    const split = await cspSplit(pg, from);
+    if (split.lab || split.unexplained) problems.push('CSP: ' + split.lab + ' Lab and ' + split.unexplained + ' unexplained violation(s): ' + split.unexplainedDirectives.join(', '));
+    return { id, ok: problems.length === 0, problems, labRequests: lab.length, eventsOutsideSeen: (await pg.evaluate(() => window.__seen13.outside)) > 0 };
+  }
+  // Application memory, by heap category, from a heap snapshot taken after two forced collections. V8's compiled code (code
+  // space) and the browser's own buffers (the performance timeline fills to its caps, then stops) are reported apart and never
+  // counted against the Lab: measured in M3 / S2.0, they are about 95% of what JSHeapUsedSize gains over the first passes, while
+  // JavaScript objects, strings and DOM stay within a few kilobytes. Application = JavaScript objects, arrays, closures, strings,
+  // numbers, regexps and DOM nodes. Listeners are counted on window and on the document and everything under it.
+  async function memoryOf(pg) {
+    const cdp = await pg.context().newCDPSession(pg);
+    await cdp.send('HeapProfiler.enable'); await cdp.send('Performance.enable');
+    await cdp.send('HeapProfiler.collectGarbage'); await cdp.send('HeapProfiler.collectGarbage');
+    const heap = (await cdp.send('Performance.getMetrics')).metrics.find((m) => m.name === 'JSHeapUsedSize').value;
+    const parts = []; const onChunk = (e) => parts.push(e.chunk);
+    cdp.on('HeapProfiler.addHeapSnapshotChunk', onChunk);
+    await cdp.send('HeapProfiler.takeHeapSnapshot', { reportProgress: false });
+    cdp.off('HeapProfiler.addHeapSnapshotChunk', onChunk);
+    const s = JSON.parse(parts.join('')); parts.length = 0;
+    const m = s.snapshot.meta, f = m.node_fields, nf = f.length, types = m.node_types[0];
+    const iT = f.indexOf('type'), iN = f.indexOf('name'), iS = f.indexOf('self_size'), iD = f.indexOf('detachedness');
+    const APP = { object: 1, closure: 1, array: 1, string: 1, 'concatenated string': 1, 'sliced string': 1, number: 1, regexp: 1, bigint: 1, symbol: 1 };
+    const DOM = /^(Detached )?(HTML\w*Element|SVG\w*Element|Text|Comment|DocumentFragment|Attr|NodeList|HTMLCollection|DOMTokenList|NamedNodeMap|CSSStyleDeclaration)\b/;
+    const out = { code: 0, app: 0, browser: 0, detached: 0 };
+    for (let i = 0; i < s.nodes.length; i += nf) {
+      const t = types[s.nodes[i + iT]], name = s.strings[s.nodes[i + iN]], size = s.nodes[i + iS];
+      if (iD >= 0 && s.nodes[i + iD] === 2) out.detached++;
+      if (t === 'code') out.code += size;
+      else if (APP[t] || (t === 'native' && DOM.test(name))) out.app += size;
+      else out.browser += size;
+    }
+    // Listeners where a Lab leak would land: window, document, <html>, <body>, and everything under the Lab's root. Not the
+    // whole document tree: listing listeners there makes Chrome compile the application's own inline onerror attributes,
+    // which the policy refuses (script-src-attr), so the measurement would itself raise violations.
+    const count = async (expression, depth) => { const { result } = await cdp.send('Runtime.evaluate', { expression }); if (!result.objectId) return 0; const { listeners } = await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId, depth }); await cdp.send('Runtime.releaseObject', { objectId: result.objectId }); return listeners.length; };
+    out.listeners = (await count('window', 0)) + (await count('document', 0)) + (await count('document.documentElement', 0)) + (await count('document.body', 0)) + (await count("document.querySelector('.lab')", -1));
+    out.heap = heap;
+    out.domNodes = await pg.evaluate(() => document.getElementsByTagName('*').length);
+    await cdp.detach();
+    return out;
+  }
+  const memDelta = (a, b) => ({ appKB: Math.round((b.app - a.app) / 102.4) / 10, codeKB: Math.round((b.code - a.code) / 102.4) / 10, browserKB: Math.round((b.browser - a.browser) / 102.4) / 10, totalHeapKB: Math.round((b.heap - a.heap) / 102.4) / 10, listeners: b.listeners - a.listeners, detached: b.detached - a.detached, domNodes: b.domNodes - a.domNodes });
+  const passAll = async (pg, man) => { for (const id of man.ids) { await selectComponent(pg, id); for (const fx of man.details[id]) await selectFixture(pg, fx.id); } };
+  const APP_MEMORY_BUDGET_KB = 32;
+
+  if (want('13')) {
+    const { ctx, page, log } = await open({ width: 1440, height: 900 }, 'en');
+    await openLab(page, SETTLE);
+    LAB_PAGE = page;
+    const man = await manifestOf(page);
+    const same = man.ids.length > 0 && man.ids.length === man.previewable && JSON.stringify([...man.ids].sort()) === JSON.stringify([...man.rail].sort());
+    check('every component: the components the server\'s index calls previewable are exactly the ones the Lab enables, and each has its fixtures', same && man.ids.every((id) => man.details[id].length > 0),
+      { previewable: man.previewable, registered: man.registered, ids: man.ids, rail: man.rail, fixtures: Object.fromEntries(man.ids.map((id) => [id, man.details[id].length])) });
+    await installRecorder(page);
+    for (const id of man.ids) {
+      const r = await rendering(page, id, man.details[id]);
+      check(`component ${id}: every fixture's served markup hashes to the recorded sha256 and is drawn with the recorded element count and classes, in Single, in Compare and in RTL, and cycling its fixtures twice leaves the Lab as large as it was`, r.ok, r);
+      const s = await isolation(page, id, man.details[id]);
+      check(`component ${id}: nothing that starts in its specimen reaches a document-level listener or moves the room, no specimen element is in the tab order, no CSP violation is the Lab's, and the Lab asks for nothing but its fixtures`, s.ok && s.eventsOutsideSeen, s);
+    }
+    // Application memory: one pass unmeasured (compiled code, caches and the browser's buffers warm up), then three measured.
+    await passAll(page, man);
+    const m0 = await memoryOf(page);
+    for (let k = 0; k < 3; k++) await passAll(page, man);
+    const m1 = await memoryOf(page);
+    const d = memDelta(m0, m1);
+    console.log('MEASURE ' + JSON.stringify({ section: 13, passes: 3, switchesPerPass: man.ids.reduce((n, id) => n + man.details[id].length, 0), ...d, budgetKB: APP_MEMORY_BUDGET_KB, listenersAfter: m1.listeners, detachedAfter: m1.detached }));
+    check(`every component: three warm passes over every fixture grow application memory (JavaScript objects, strings and DOM) by at most ${APP_MEMORY_BUDGET_KB} KB, and leave no new listener and no new detached node (compiled code and browser buffers are reported apart)`,
+      d.appKB <= APP_MEMORY_BUDGET_KB && d.listeners === 0 && d.detached <= 0, d);
+    const split = await cspSplit(page);
+    check('every component: no console error and no Lab or unexplained CSP violation through all of the above', labErrors(log).length === 0 && split.lab === 0 && split.unexplained === 0, { errors: labErrors(log), csp: split });
+    await ctx.close();
+
+    // ── controls ─────────────────────────────────────────────────────────────
+    const target = man.ids[Math.min(1, man.ids.length - 1)];
+    const control13 = async (name, fn) => { try { await fn(); } catch (e) { fail(name + ': control not applied: ' + String(e.message || e).split('\n')[0]); } };
+    const tamperRoute = async (c, id, edit) => {
+      await c.route(new RegExp('/api/v1/system/design-system/components/preview\\?id=' + id.replace(/[-.]/g, '\\$&') + '$'), async (route) => {
+        const res = await route.fetch(); const body = await res.json();
+        const fx = body.data.component.fixtures[0];
+        edit(fx);
+        await route.fulfill({ response: res, json: body });
+      });
+    };
+    await control13('component (control): tampered markup', async () => {
+      const { ctx: c, page: p } = await open({ width: 1440, height: 900 }, 'en');
+      let changed = false;
+      await tamperRoute(c, target, (fx) => { const m = />([A-Za-z])/.exec(fx.html); if (m) { fx.html = fx.html.slice(0, m.index + 1) + (m[1] === 'Z' ? 'Y' : 'Z') + fx.html.slice(m.index + 2); changed = true; } });
+      await openLab(p, SETTLE);
+      const mm = await manifestOf(p);
+      if (!changed) throw new Error('the first fixture of ' + target + ' has no text to change');
+      const r = await rendering(p, target, mm.details[target]);
+      check('component (control): markup changed in transit with its recorded sha256 left alone is caught by the hash check, so the integrity proof can fail', !r.ok && r.problems.some((x) => /hashes to/.test(x)), r);
+      await c.close();
+    });
+    await control13('component (control): unowned class', async () => {
+      const { ctx: c, page: p } = await open({ width: 1440, height: 900 }, 'en');
+      const crypto = require('crypto');
+      await tamperRoute(c, target, (fx) => { fx.html = fx.html.replace('class="', 'class="lab-proof-unowned '); fx.sha256 = crypto.createHash('sha256').update(fx.html).digest('hex'); });
+      await openLab(p, SETTLE);
+      const mm = await manifestOf(p);
+      const r = await rendering(p, target, mm.details[target]);
+      check('component (control): a class the manifest does not record, with the hash recomputed so integrity passes, is refused by the browser and drawn as nothing, so the provenance proof can fail', !r.ok && r.problems.some((x) => /refused it|drew 0 elements/.test(x)) && !r.problems.some((x) => /hashes to/.test(x)), r);
+      await c.close();
+    });
+    const isolationControl = async (name, patch, expect, label) => control13(name, async () => {
+      const { ctx: c, page: p } = await open({ width: 1440, height: 900 }, 'en', patch);
+      await openLab(p, SETTLE);
+      const mm = await manifestOf(p);
+      await installRecorder(p);
+      const s = await isolation(p, target, mm.details[target]);
+      check(label, !s.ok && s.problems.some((x) => expect.test(x)), s);
+      await c.close();
+    });
+    await isolationControl('component (control): event boundary removed', (src) => src.replace('BOUNDARY.forEach(function (type) { spec.addEventListener(type, stopAtBoundary); });', 'void BOUNDARY;'),
+      /reached a document, window, html or body listener/, 'component (control): with the stage\'s event boundary removed, clicks and keys in the specimen reach document-level listeners, so the event proof can fail');
+    await isolationControl('component (control): unexpected request', (src) => src.replace('  function checkFixture(f) {\n', "  function checkFixture(f) {\n    fetch('/api/v1/teams?proof-control=13').catch(function () {});\n"),
+      /the Lab asked for/, 'component (control): a lab.js that makes a request when it draws a fixture is caught, so the network proof can fail');
+    await isolationControl('component (control): inline style', (src) => src.replace('    spec.appendChild(col);\n', "    spec.appendChild(col);\n    col.setAttribute('style', 'outline:0');\n"),
+      /CSP: [1-9]/, 'component (control): a lab.js that writes a style attribute on the specimen is refused by the unchanged policy and counted as the Lab\'s, so the CSP proof can fail');
+    await control13('component (control): specimen not cleared', async () => {
+      const { ctx: c, page: p } = await open({ width: 1440, height: 900 }, 'en', (src) => src.replace('    while (spec.firstChild) spec.removeChild(spec.firstChild);\n    var res = checkFixture(f);', '    var res = checkFixture(f);'));
+      await openLab(p, SETTLE);
+      const mm = await manifestOf(p);
+      const r = await rendering(p, target, mm.details[target]);
+      check('component (control): a lab.js that draws each fixture without clearing the last grows the Lab, so the DOM-stability proof can fail', !r.ok && r.problems.some((x) => /after cycling every fixture twice/.test(x)), r);
+      await c.close();
+    });
+    const memoryControl = async (name, patch, label, pass, passes) => control13(name, async () => {
+      const { ctx: c, page: p } = await open({ width: 1440, height: 900 }, 'en', patch);
+      await openLab(p, SETTLE);
+      const mm = await manifestOf(p);
+      await passAll(p, mm);
+      const a = await memoryOf(p);
+      for (let k = 0; k < passes; k++) await passAll(p, mm);
+      const b = await memoryOf(p);
+      const dd = memDelta(a, b);
+      console.log('MEASURE ' + JSON.stringify({ section: '13 control', name, passes, ...dd }));
+      check(label, pass(dd), dd);
+      await c.close();
+    });
+    await memoryControl('component (control): a listener per draw', (src) => src.replace('    spec.appendChild(col);\n', "    spec.appendChild(col);\n    document.addEventListener('pointermove', function () {});\n"),
+      'component (control): a lab.js that adds a document listener on every draw is caught by the listener count after a single pass, so the listener proof can fail', (dd) => dd.listeners > 0, 1);
+    await memoryControl('component (control): retained specimens', (src) => src.replace('    spec.appendChild(col);\n', "    spec.appendChild(col);\n    (window.__proofRetained = window.__proofRetained || []).push(col.cloneNode(true), f.html + ' ' + Math.random());\n"),
+      `component (control): a lab.js that keeps every drawn specimen and its markup grows application memory past ${APP_MEMORY_BUDGET_KB} KB and leaves detached nodes over the same three warm passes the proof measures, so the memory proof can fail on either`, (dd) => dd.appKB > APP_MEMORY_BUDGET_KB && dd.detached > 0, 3);
+  }
+
+  // ══ 13a. every previewable component, under axe (--axe) ═══════════════════════
+  // The same discovery as section 13. axe (WCAG 2.2 A/AA) on the stage alone, for every fixture of every component, in English,
+  // and again in Arabic with the specimen right to left. A violation is reported as found: never filtered, never skipped.
+  if (WANT_AXE && want('13a')) {
+    const axePath = process.env.AXE_CORE || path.join(ROOT, 'tools/components/node_modules/axe-core/axe.min.js');
+    if (!fs.existsSync(axePath)) skip('every component under axe', 'axe-core is not installed (' + axePath + ')');
+    else {
+      const AXE = fs.readFileSync(axePath, 'utf8');
+      const axeStage = (pg) => pg.evaluate(async (src) => {
+        if (!window.axe) (0, eval)(src);        // eslint-disable-line no-eval -- this script's own tool, never the page's code
+        const from = (window.__csp || []).length;
+        const r = await window.axe.run({ include: ['#lab-specimen'] }, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] }, resultTypes: ['violations'] });
+        await new Promise((done) => setTimeout(done, 150));
+        (window.__axeRanges = window.__axeRanges || []).push([from, (window.__csp || []).length]);
+        return r.violations.map((v) => v.id + ':' + v.nodes.length + ' ' + v.nodes.slice(0, 2).map((n) => n.target.join(' ')).join('|'));
+      }, AXE);
+      for (const loc of ['en', 'ar']) {
+        const { ctx, page, log } = await open({ width: 1440, height: 900 }, loc);
+        await openLab(page, SETTLE);
+        const man = await manifestOf(page);
+        if (loc === 'en') check('every component under axe: the components the server\'s index calls previewable are exactly the ones the Lab enables', man.ids.length > 0 && man.ids.length === man.previewable && JSON.stringify([...man.ids].sort()) === JSON.stringify([...man.rail].sort()), { ids: man.ids, rail: man.rail });
+        for (const id of man.ids) {
+          await selectComponent(page, id);
+          if (loc === 'ar') { await page.evaluate(() => document.querySelector('[data-lab-dir="rtl"]').click()); await frames(page); }
+          const found = [];
+          let dir = null;
+          for (const fx of man.details[id]) {
+            if (!(await selectFixture(page, fx.id))) { found.push(fx.id + ': could not be selected'); continue; }
+            if (dir === null) dir = await page.evaluate(() => document.getElementById('lab-specimen').getAttribute('dir'));
+            for (const v of await axeStage(page)) found.push(fx.id + ': ' + v);
+          }
+          if (loc === 'ar') await page.evaluate(() => document.querySelector('[data-lab-dir="ltr"]').click());
+          check(loc === 'en' ? `component ${id} under axe: 0 violations (WCAG 2.2 A/AA) on the stage, for every one of its ${man.details[id].length} fixtures, in English`
+            : `component ${id} under axe, Arabic and right to left: the specimen is drawn right to left and has 0 violations (WCAG 2.2 A/AA) on the stage, for every one of its ${man.details[id].length} fixtures`,
+            found.length === 0 && (loc === 'en' || dir === 'rtl'), { violations: found, dir });
+        }
+        const split = await cspSplit(page);
+        check(`every component under axe (${loc}): no console error and no Lab or unexplained CSP violation (axe's own font fetch is counted apart)`, labErrors(log).length === 0 && split.lab === 0 && split.unexplained === 0, split);
+        if (loc === 'en') {
+          // control: the same stage-scoped run sees a button with no name placed in the specimen
+          const broken = await page.evaluate(() => { const col = document.querySelector('#lab-specimen .lab-col'); const b = document.createElement('button'); b.type = 'button'; col.appendChild(b); return !!b.isConnected; });
+          const v = broken ? await axeStage(page) : [];
+          check('every component under axe (control): a button with no name placed in the specimen is reported by the same stage-scoped run, so a clean result means something', v.some((x) => /^button-name:/.test(x)), v);
+        }
+        await ctx.close();
+      }
+    }
   }
 
   await browser.close(); server.close();
