@@ -198,3 +198,71 @@ These rules apply to all future Familista tasks.
 
 17. Existing security, governance and human-approval rules always take
     precedence.
+
+---
+
+## Engineering depth and verification
+
+These apply to every substantial Familista task. They never override the owner's
+approval gates, the security controls or the rules above, which stay where they are.
+
+### Depth over length
+
+The owner's working prompt, kept verbatim:
+
+> "A simple prompt that often helps me:
+>
+> I want a deeper version of this task, not a bigger
+> one. Before rewriting it: (1) say what a top
+> professional in this field would do here that
+> I’m not asking for; (2) name the rawest material
+> they would start from instead of what has already
+> been digested for me; (3) name the specific methods
+> and tools they would use; (4) say what, other than
+> you or me, would show the result is right.
+> Then rewrite my prompt to ask for exactly that."
+
+Before a major design or change, answer those four questions for yourself: what an
+expert would also investigate (missing requirements, hidden risks, weak architecture);
+the primary evidence (source code, schemas, raw measurements, specifications, official
+standards, reproducible experiments) rather than summaries of it; the methods and tools
+that actually improve the result; and the independent evidence that would show it is
+right. Prefer better evidence to more text, and better verification to confident claims.
+Read no more than the task needs.
+
+### Verified, not just completed
+
+Code that compiles and a test that passes do not prove the system is correct. An
+important result is done when evidence independent of the author and the owner says
+so: deterministic tests with negative controls, the failure reproduced before the fix,
+measurements against stated budgets, security controls, and, for production, production
+observation. Report which of these exist and which do not, and never claim more.
+
+### Advanced systems engineering
+
+Familista is built as a high-reliability football intelligence and club-management
+platform, at the level of serious systems engineering: architecture, distributed and
+real-time systems, AI/ML and multi-agent workflows under human supervision, computer
+vision, secure and auditable data, automated verification, simulation, observability,
+and performance at scale. Keep the whole system in view (Owner Control Plane, Club
+Workspaces, Infrastructure City, Cybersecurity, Algorithms, Intelligence, Vision, Video
+Intelligence, data, Design Universe, devices and sensors, roles and privacy), but never
+widen an approved task without asking.
+
+An advanced capability is proposed only with: why Familista needs it and the real
+problem it solves; the primary evidence for it; the professional method that applies;
+the simpler alternative; its cost; the new risks; how it will be tested independently;
+whether the infrastructure can carry it; and what measurable success is. Complexity is
+never a goal, and advanced never means autonomous.
+
+### The two loops
+
+Continuous intelligence: observe → learn → propose → simulate → test → **human
+approval** → deploy → measure → learn again.
+
+Security lifecycle: new development → security tests and controls → CI gate →
+review / **human approval** → merge → deploy → monitoring.
+
+No step marked human approval is skipped or automated away, and nothing reaches
+production without explicit authorisation. EUR 0 is the default cost; any spend is
+proposed and approved first.
