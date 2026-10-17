@@ -64,8 +64,8 @@ npm ci --ignore-scripts --prefix tools/components
 CHROMIUM=$(command -v google-chrome) node tools/components/lab-browser-proof.cjs <output-dir> [--axe]
 ```
 
-It is a required CI job (`browser-proof` in `.github/workflows/ci.yml`, in two shards: sections `1,2,2b,3,4,5,8,9,10,11,12`,
-and `6,7` with `--axe`). Its two tools, `playwright-core` and `axe-core`, are pinned exactly in this folder's own
+It is a required CI job (`browser-proof` in `.github/workflows/ci.yml`, in two shards: sections `1,2,2b,3,4,5,8,9,10,11,12,13`,
+and `6,7,13a` with `--axe`). Its two tools, `playwright-core` and `axe-core`, are pinned exactly in this folder's own
 `package.json` and lockfile and are installed with `npm ci --ignore-scripts`; they are not production dependencies and
 the root `package.json` does not list them. No browser is downloaded: it uses Google Chrome from the runner image and
 the job fails if there is none. A failed, skipped or missing proof fails the job, a failed job fails the `ci` workflow,
@@ -94,6 +94,8 @@ are reported with the result.
 | 10 | M2 / S3 | Compare: Preview B draws exactly what A draws, each pane keeps its own walls and events, nothing is fetched, Swap is announced once, and B is removed node for node. |
 | 11 | M2 / S4 | Navigation: the buttons and the `[ ]` `{ }` keys step through fixtures and listed components, Ctrl/Cmd/Alt stay the browser's, focus and the live region follow. |
 | 12 | M3 / S1 | The room is left alone by club data, which it does not read (no redraw, request, lost click, scroll, focus or caret; no DOM, heap or listener growth), and every redraw that must happen still does: first entry, every later entry, Refresh, the room's language, its sections, a rebuilt page. |
+| 13 | M3 / S2.0 | Every previewable component, found in the server's index (a different set enabled in the Lab fails): each fixture's served markup hashes to its recorded sha256 and is drawn with the recorded elements and classes in Single, Compare and RTL; cycling its fixtures leaves the Lab as large as it was; no event escapes, nothing in the specimen is tabbable, no CSP violation is the Lab's, and the Lab asks for nothing but that component's fixtures. Then application memory over three warm passes. |
+| 13a | M3 / S2.0 | axe (WCAG 2.2 A/AA) on the stage, for every fixture of every previewable component, in English and in Arabic right to left. |
 
 Section 12's controls serve `app.js` or `lab.js` with one part of the fix taken out (the room back among the club-data
 pages, the entry hook removed, the hook without its check on the drawn root, the Lab's listener cleanup removed) and
@@ -103,3 +105,29 @@ Compare opening and Fit recalculation are measured 40 times after 3 warm-ups, fr
 written to the log as `BUDGET` lines against the owner's 100 ms p95 budget. Wall-clock time is the machine's (a local run
 measured two to three times CI's figures), so these are reported, not gated; what is gated is that they were measured as
 specified.
+
+### Coverage grows the proofs, not the other way round
+
+Sections 2b, 6, 8, 13 and 13a read the previewable components from the server's index. A component added to the manifest
+is checked by every one of them the day it is added; no proof names a count. The unit tests keep exact pins on the manifest
+(how many components, how many fixtures) on purpose: a change in coverage has to be made, and seen, in a reviewed commit.
+
+### Memory: what is measured, and what is not counted against the Lab
+
+`JSHeapUsedSize` includes V8's compiled code. Measured in M3 / S2.0 over 24 passes of every fixture, about 95% of what it
+gains is compiled code and the browser's own performance-timeline buffers (which fill to their caps and stop); JavaScript
+objects, strings and DOM stay within a few kilobytes, listeners and detached nodes do not move. So section 13 takes a heap
+snapshot after two forced collections, before and after three warm passes (one unmeasured pass first), and splits it:
+
+| Category | Counted as | Gate |
+| --- | --- | --- |
+| JavaScript objects, arrays, closures, strings, numbers, regexps, DOM nodes | application | at most 32 KB growth |
+| Listeners on window, document, `<html>`, `<body>` and under the Lab's root | application | no growth |
+| Detached DOM nodes | application | no growth |
+| Compiled code | V8 | reported only |
+| Everything else (browser internals, timeline buffers) | browser | reported only |
+
+The listener count does not walk the whole document: listing listeners there makes Chrome compile the application's own
+inline `onerror` attributes, which the page's policy refuses, so the measurement would raise violations of its own.
+The 32 KB budget is about ten times the largest growth measured over twelve warm passes (3.2 KB); a Lab that kept every
+specimen it drew measured 66 KB and 222 detached nodes over the same three passes, and is one of section 13's controls.

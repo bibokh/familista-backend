@@ -207,6 +207,14 @@ jobs:
   # Compare opening and Fit recalculation are measured against the owner's 100 ms p95
   # budget and reported in the log (BUDGET lines); wall-clock time is the runner's, so
   # they are reported, not gated.
+  # Section 13 (M3 / S2.0) finds every previewable component in the server's index (and
+  # fails if the Lab enables a different set) and proves, for each: fixture markup hashes to
+  # its recorded sha256 and is drawn with the recorded elements and classes in Single,
+  # Compare and RTL; no event escapes, nothing is tabbable, no CSP violation, no request but
+  # its fixtures; and application memory (JavaScript objects, strings, DOM) over three warm
+  # passes stays within 32 KB with no new listener or detached node. Compiled code and the
+  # browser's own buffers are reported apart. Section 13a runs axe on every fixture of every
+  # previewable component, in English and in Arabic right to left.
   #
   # Authoritative: no `|| true`, no continue-on-error. A failed proof fails this job, a
   # failed job fails the `ci` workflow, and deploy.yml deploys only on a successful `ci`.
@@ -227,13 +235,13 @@ jobs:
       matrix:
         include:
           - shard: isolation
-            sections: '1,2,2b,3,4,5,8,9,10,11,12'
+            sections: '1,2,2b,3,4,5,8,9,10,11,12,13'
             axe: ''
-            min: '156'
+            min: '187'
           - shard: accessibility and focus
-            sections: '6,7'
+            sections: '6,7,13a'
             axe: '--axe'
-            min: '34'
+            min: '58'
 
     env:
       NODE_ENV:           test
