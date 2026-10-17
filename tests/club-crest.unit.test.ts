@@ -259,3 +259,44 @@ describe('a club switch reaches every worker', () => {
     expect(AUTH).toContain('export function setRemoteIdentityPublisher');
   });
 });
+
+// ── M3 / S2.1a: a club's name is data, and says so ────────────────────────────
+// clubIdentityHtml marks the name the way _lgIdent does. The translation pass
+// already skipped it by its class (.club-ident-name in public/i18n/dom.js); the
+// marker is the repository's convention for a name, so the protection no longer
+// rests on a selector list alone. Run for real: the function is sliced out of
+// public/app.js and called with the real _esc and stand-ins for the registry.
+describe('a club identity marks the club name as data', () => {
+  const fnOf = (src: string, name: string) => { const at = src.indexOf('function ' + name + '('); return src.slice(at, src.indexOf('\n}\n', at) + 2); };
+  const IDENT_FN = fnOf(APP, 'clubIdentityHtml');
+  const ESC_FN = fnOf(APP, '_esc');
+  const render = (identSrc: string, opts: Record<string, unknown>): string => {
+    // eslint-disable-next-line no-new-func
+    const make = new Function('clubLogoHtml', '_clubNameOf', ESC_FN + '\n' + identSrc + '\nreturn clubIdentityHtml;');
+    return make(() => '<span class="club-logo"></span>', (_id: unknown, fallback: string) => fallback)('club-1', opts);
+  };
+  const MARKED = '<b class="club-ident-name" data-user-content>';
+
+  it('writes the name inside an element marked data-user-content, still escaped', () => {
+    const html = render(IDENT_FN, { name: 'Home <b>&</b> "FC"', sub: 'Away' });
+    expect(html).toContain(MARKED + 'Home &lt;b&gt;&amp;&lt;/b&gt; &quot;FC&quot;</b>');
+    expect(html.match(/data-user-content/g)).toHaveLength(1);
+  });
+
+  it('and the same check fails on the function without the marker, so it means something', () => {
+    const before = IDENT_FN.replace(MARKED, '<b class="club-ident-name">');
+    expect(before).not.toBe(IDENT_FN);
+    const html = render(before, { name: 'Riverside FC' });
+    expect(html).toContain('<b class="club-ident-name">Riverside FC</b>');
+    expect(html).not.toContain('data-user-content');
+  });
+
+  it('and the translation pass still skips it, by the marker and by the class', () => {
+    const DOM = read('public/i18n/dom.js');
+    const at = DOM.indexOf('var USER_CONTENT = [');
+    const list = DOM.slice(at, DOM.indexOf('];', at));
+    expect(at).toBeGreaterThan(0);
+    expect(list).toContain("'[data-user-content]'");
+    expect(list).toContain("'.club-ident-name'");
+  });
+});
