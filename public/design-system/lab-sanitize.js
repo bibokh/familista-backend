@@ -70,14 +70,14 @@
   // The closed list. Every tag and every attribute below appears in a production
   // fixture; anything else is refused. Reviewed against the 65 golden fixtures.
   var TAGS = {
-    div: { ns: HTML, attrs: ['class', 'role', 'aria-hidden', 'data-action', 'aria-modal'] },
-    span: { ns: HTML, attrs: ['class', 'data-lg-size', 'data-club-logo', 'data-user-content'] },
+    div: { ns: HTML, attrs: ['class', 'role', 'aria-hidden', 'aria-label', 'data-action', 'aria-modal'] },
+    span: { ns: HTML, attrs: ['class', 'aria-hidden', 'data-lg-size', 'data-club-logo', 'data-user-content'] },
     b: { ns: HTML, attrs: ['class', 'data-user-content'] },
     i: { ns: HTML, attrs: ['class', 'data-user-content', 'aria-hidden', 'data-mc-width'] },
     section: { ns: HTML, attrs: ['class'] },
     header: { ns: HTML, attrs: ['class'] },
     footer: { ns: HTML, attrs: ['class'] },
-    h2: { ns: HTML, attrs: [] },
+    h2: { ns: HTML, attrs: ['class'] },
     p: { ns: HTML, attrs: [] },
     table: { ns: HTML, attrs: ['class'] },
     tbody: { ns: HTML, attrs: [] },
@@ -121,7 +121,7 @@
 
   // One validator per attribute. A value either passes or the fixture is refused.
   var VALUE = {
-    'role': function (v) { return v === 'dialog'; },
+    'role': function (v) { return v === 'dialog' || v === 'status'; },
     'aria-hidden': function (v) { return v === 'true' || v === 'false'; },
     'aria-modal': function (v) { return v === 'true'; },
     'focusable': function (v) { return v === 'false'; },
@@ -257,7 +257,7 @@
       if (!spec) { fail('the tag <' + tag + '> is not allowed'); break; }
 
       var attrs = [];
-      var seen = {};
+      var seen = Object.create(null);   // no prototype: "constructor" is a name like any other
       var selfClose = false;
       var closed = false;
       while (k < n) {
@@ -334,6 +334,11 @@
    * provenance test for a class; without it only the token shape is checked.
    * Returns { ok, problems, neutralised, stats } and edits the tree in place.
    */
+  function hasAttr(attrs, name, value) {
+    for (var i = 0; i < attrs.length; i++) if (attrs[i][0] === name && (value === undefined || attrs[i][1] === value)) return true;
+    return false;
+  }
+
   function check(tree, ctx) {
     var problems = [];
     var counts = {};
@@ -380,6 +385,9 @@
         stats.attributes[name] = true;
       }
       if (node.tag === 'button') { kept.push(['tabindex', '-1']); bump('tabindex'); stats.attributes.tabindex = true; }
+      // A div names itself only as a status region (the Owner Kit's skeleton): an
+      // aria-label on any other div is refused, whatever order the attributes came in.
+      if (node.tag === 'div' && hasAttr(kept, 'aria-label') && !hasAttr(kept, 'role', 'status')) problems.push('the attribute "aria-label" is only allowed on a <div> with role="status"');
       node.attrs = kept;
     }, 0);
 

@@ -227,11 +227,11 @@ describe('nothing is invented: every claim is recomputed independently from the 
       expect({ id: c.id, tier: c.tier }).toEqual({ id: c.id, tier: expected });
     }
     const verified = manifest.components.filter((c: any) => c.tier === 'verified').map((c: any) => c.id).sort();
-    expect(verified).toEqual(['club-identity', 'club-logo', 'ds-kv', 'ds-panel', 'lg-chip', 'lg-crest', 'lg-empty', 'lg-float', 'lg-form', 'lg-icon', 'lg-ident', 'lg-metric', 'lg-panel', 'lg-status-chip', 'lg-versus']);
+    expect(verified).toEqual(['club-identity', 'club-logo', 'ds-chip', 'ds-empty', 'ds-kv', 'ds-panel', 'ds-skeleton', 'lg-chip', 'lg-crest', 'lg-empty', 'lg-float', 'lg-form', 'lg-icon', 'lg-ident', 'lg-metric', 'lg-panel', 'lg-status-chip', 'lg-versus']);
   });
 
-  it('records the Storybook case counts of the fifteen verified components exactly as their story files export them', () => {
-    const want: Record<string, number> = { 'ds-kv': 8, 'ds-panel': 6, 'lg-icon': 6, 'club-logo': 8, 'club-identity': 9, 'lg-crest': 8, 'lg-ident': 9, 'lg-chip': 8, 'lg-status-chip': 10, 'lg-form': 7, 'lg-metric': 9, 'lg-versus': 11, 'lg-panel': 8, 'lg-float': 8, 'lg-empty': 7 };
+  it('records the Storybook case counts of the eighteen verified components exactly as their story files export them', () => {
+    const want: Record<string, number> = { 'ds-chip': 6, 'ds-empty': 5, 'ds-skeleton': 6, 'ds-kv': 8, 'ds-panel': 10, 'lg-icon': 6, 'club-logo': 8, 'club-identity': 9, 'lg-crest': 8, 'lg-ident': 9, 'lg-chip': 8, 'lg-status-chip': 10, 'lg-form': 7, 'lg-metric': 9, 'lg-versus': 11, 'lg-panel': 8, 'lg-float': 8, 'lg-empty': 7 };
     for (const [id, n] of Object.entries(want)) expect({ id, n: byId(id).stories.cases.length }).toEqual({ id, n });
   });
 

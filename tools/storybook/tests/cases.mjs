@@ -155,5 +155,45 @@ export const CASES = {
     'untitled, a key-value list': (l) => l.panel('', '<div class="ds-kv-list">' + l.kv('Tokens', '128') + l.kv('New failures', '0') + '</div>'),
     'untitled, a list and a note': (l) => l.panel('', '<div class="ds-kv-list">' + l.kv('Usage telemetry', '—') + '</div><div class="ds-note">A layer with no tokens is a measured 0.</div>'),
     'untitled, a note only': (l) => l.panel('', '<div class="ds-note">Ratios are computed from the token values; a translucent surface is measured over its context’s canvas.</div>'),
+    // M3/S2.2b-2: the sanitizer now carries class on h2, role="status" and a
+    // status region's aria-label, so production's own untitled bodies and its
+    // titled panels can be recorded. The first two are design-system.js lines
+    // 527 and 528 exactly, with the room's real strings.
+    'untitled, the tokens could not be read': (l) => l.panel('', l.emptyState('The tokens could not be read', 'The design-system manifest is not beside this server (run scripts/design-system-discover.js).')),
+    'untitled, the tokens loading': (l) => l.panel('', l.skeleton(8, 'row')),
+    'titled, contrast': (l) => l.panel('Contrast', '<div class="ds-kv-list">' + l.kv('Pairs below their threshold', '0') + l.kv('Failures beyond that record', l.chip('ok', 'None', '', 'ds-chip--sm')) + '</div>'),
+    'titled with a note': (l) => l.panel('Token layers', '<div class="ds-kv-list">' + l.kv('Tokens', '128') + '</div>', '3 contexts · 9 modules'),
+    'markup in the title is escaped': (l) => l.panel('<b>Bad</b> & "Co"', '<div class="ds-note">x</div>'),
+  },
+  // M3/S2.2b-2. The Owner Kit's chip(kind, label, title, extra), untitled. A
+  // title writes title="…" on the span, which the sanitizer does not allow, so
+  // titled chips and evChip (which always writes one) are not recorded. Pass,
+  // New failure and Platform Owner only are production's own untitled calls
+  // (design-system.js lines 483, 486, 282); warn, rec and none are the kinds
+  // production draws with a title, shown here without one.
+  chip: {
+    'ok, small': (l) => l.chip('ok', 'Pass', '', 'ds-chip--sm'),
+    'crit, small': (l) => l.chip('crit', 'New failure', '', 'ds-chip--sm'),
+    'info, small': (l) => l.chip('info', 'Platform Owner only', '', 'ds-chip--sm'),
+    'warn, small': (l) => l.chip('warn', 'Known failure', '', 'ds-chip--sm'),
+    'rec, small': (l) => l.chip('rec', 'Recorded', '', 'ds-chip--sm'),
+    'none, small': (l) => l.chip('none', 'Not recorded', '', 'ds-chip--sm'),
+    'info, default size': (l) => l.chip('info', 'Read-only', ''),
+    'markup in the label is escaped': (l) => l.chip('ok', '<b>Bad</b> & "Co"', '', 'ds-chip--sm'),
+  },
+  // M3/S2.2b-2. The Owner Kit's emptyState(title, why, extra): role="status",
+  // as production writes it. The titles are the room's real messages.
+  emptyState: {
+    'title only': (l) => l.emptyState('The components could not be read'),
+    'title and reason': (l) => l.emptyState('The tokens could not be read', 'The design-system manifest is not beside this server (run scripts/design-system-discover.js).'),
+    'markup is escaped': (l) => l.emptyState('<b>Bad</b> & "Co"', '<i>x</i>'),
+  },
+  // M3/S2.2b-2. The Owner Kit's skeleton(n, cls): a role="status" region named
+  // by its aria-label, with n aria-hidden rows. 'row' is the only modifier with a
+  // rule, and the row counts are the ones production asks for.
+  skeleton: {
+    '4 rows': (l) => l.skeleton(4, 'row'),
+    '6 rows': (l) => l.skeleton(6, 'row'),
+    '8 rows': (l) => l.skeleton(8, 'row'),
   },
 };

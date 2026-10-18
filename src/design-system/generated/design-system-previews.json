@@ -7,40 +7,40 @@
    "id": "golden",
    "path": "tools/storybook/tests/golden/lg-primitives.golden.json",
    "label": "The golden snapshot: the real render functions run over fixed inputs",
-   "sha256": "5fde4b60da90e389d211f730f4006caa40778c224db17ad518bb2d6451a3ba24",
-   "bytes": 38133,
+   "sha256": "4888cf2479114b9bbb15312485ade313ae1869adccad83df31de64b1fb6f7278",
+   "bytes": 43915,
    "basis": "file"
   },
   {
    "id": "cases",
    "path": "tools/storybook/tests/cases.mjs",
    "label": "The fixed inputs and the calls that produced each fixture",
-   "sha256": "f5b7ec4f4b6c8af0f19a35495578ee3dbf0d5e791b00e46442d7659b540c04e6",
-   "bytes": 10235,
+   "sha256": "00cd2940f0794782a7f8bfdca9c6e1308c33699373fd9b6916970386fab779f5",
+   "bytes": 13243,
    "basis": "file"
   },
   {
    "id": "registry",
    "path": "tools/components/registry.json",
    "label": "The reviewed Components Registry (class ownership)",
-   "sha256": "e9f4f23a160d88fd79cbb0aa27e99e45d94432bd5ce6435659b0552705b1b308",
-   "bytes": 34553,
+   "sha256": "6329203a6332060782b57159a5b699aca29e3582e4da609d343d4bd508d925f4",
+   "bytes": 35611,
    "basis": "file"
   },
   {
    "id": "sanitizer",
    "path": "public/design-system/lab-sanitize.js",
    "label": "The sanitizer the build, the server and the browser share",
-   "sha256": "e3c19e3789a99635938e7e510d3d7e78f04460fb2d222fd164fa523bd85da8f0",
-   "bytes": 24288,
+   "sha256": "55dd1d5cf5c8e7ea51e37ef68470fdde9efea81c45661135fe9cd6195724ab2f",
+   "bytes": 24972,
    "basis": "file"
   },
   {
    "id": "class-rules",
    "path": "public",
    "label": "How many production CSS rules mention each class the fixtures use",
-   "sha256": "6c5d141cc2101db247f43055675b483aee5d67d7e400a4b067e2b0ffce082fc7",
-   "bytes": 1073,
+   "sha256": "1ebd79fc4d1b6d3303485c796ec965c18f157f31e1e0b75da3e69a9b5538d72c",
+   "bytes": 1350,
    "basis": "derived"
   }
  ],
@@ -65,7 +65,7 @@
    "div": {
     "ns": "html",
     "void": false,
-    "attributes": ["aria-hidden","aria-modal","class","data-action","role"]
+    "attributes": ["aria-hidden","aria-label","aria-modal","class","data-action","role"]
    },
    "footer": {
     "ns": "html",
@@ -75,7 +75,7 @@
    "h2": {
     "ns": "html",
     "void": false,
-    "attributes": []
+    "attributes": ["class"]
    },
    "header": {
     "ns": "html",
@@ -110,7 +110,7 @@
    "span": {
     "ns": "html",
     "void": false,
-    "attributes": ["class","data-club-logo","data-lg-size","data-user-content"]
+    "attributes": ["aria-hidden","class","data-club-logo","data-lg-size","data-user-content"]
    },
    "svg": {
     "ns": "svg",
@@ -170,11 +170,11 @@
  },
  "coverage": {
   "registered": 60,
-  "previewable": 15,
-  "unavailable": 45,
-  "fixtures": 103,
-  "bytes": 32633,
-  "nodes": 611,
+  "previewable": 18,
+  "unavailable": 42,
+  "fixtures": 122,
+  "bytes": 37521,
+  "nodes": 728,
   "neutralised": {
    "aria-modal": 5,
    "data-action": 10,
@@ -185,7 +185,7 @@
    "application-shell": 4,
    "candidate": 7,
    "css-family": 7,
-   "css-only": 24,
+   "css-only": 21,
    "page-specific": 1,
    "utility": 2
   }
@@ -498,6 +498,36 @@
    ]
   },
   {
+   "id": "ds-chip",
+   "symbol": "chip",
+   "source": {
+    "js": {"file":"public/design-system/design-system.js","symbol":"chip","sha256":"5b5c450c7e0ee0c3bbddbcfcb44b9c1c968c9155fd42e055c064382db9f1be8a","bytes":267},
+    "css": [{"file":"public/design-system/design-system.css","rules":14,"sha256":"c9f534119d0fb7a733008adf9b1d6411aede1e0f54fb8b89e8186d19390447f0","bytes":1990}]
+   },
+   "mediaQueries": [
+    "@supports (background: color-mix(in srgb, red 10%, transparent))"
+   ],
+   "variants": [
+    {"class":"ds-chip--ok","name":"ok","rules":2,"exercisedBy":["ds-chip.ok-small","ds-chip.markup-in-the-label-is-escaped"]},
+    {"class":"ds-chip--warn","name":"warn","rules":2,"exercisedBy":["ds-chip.warn-small"]},
+    {"class":"ds-chip--crit","name":"crit","rules":2,"exercisedBy":["ds-chip.crit-small"]},
+    {"class":"ds-chip--info","name":"info","rules":2,"exercisedBy":["ds-chip.info-small","ds-chip.info-default-size"]},
+    {"class":"ds-chip--rec","name":"rec","rules":2,"exercisedBy":["ds-chip.rec-small"]},
+    {"class":"ds-chip--none","name":"none","rules":1,"exercisedBy":["ds-chip.none-small"]},
+    {"class":"ds-chip--sm","name":"sm","rules":1,"exercisedBy":["ds-chip.ok-small","ds-chip.crit-small","ds-chip.info-small","ds-chip.warn-small","ds-chip.rec-small","ds-chip.none-small","ds-chip.markup-in-the-label-is-escaped"]}
+   ],
+   "fixtures": [
+    {"id":"ds-chip.ok-small","label":"ok, small","call":"chip('ok', 'Pass', '', 'ds-chip--sm')","html":"<span class=\"ds-chip ds-chip--ok ds-chip--sm\"><span class=\"ds-dot\" aria-hidden=\"true\"></span>Pass</span>","sha256":"16fa09bfee882cd2fe4e68477e49504fb484776da2c1fd6f9997b6ade798717a","bytes":104,"nodes":3,"elements":2,"depth":2,"tags":["span"],"classes":[{"name":"ds-chip","owner":"ds-chip","rules":1},{"name":"ds-chip--ok","owner":"ds-chip","rules":2},{"name":"ds-chip--sm","owner":"ds-chip","rules":1},{"name":"ds-dot","owner":"ds-chip","rules":1}],"variantClasses":["ds-chip--ok","ds-chip--sm"],"neutralised":[],"goldenSha256":"16fa09bfee882cd2fe4e68477e49504fb484776da2c1fd6f9997b6ade798717a"},
+    {"id":"ds-chip.crit-small","label":"crit, small","call":"chip('crit', 'New failure', '', 'ds-chip--sm')","html":"<span class=\"ds-chip ds-chip--crit ds-chip--sm\"><span class=\"ds-dot\" aria-hidden=\"true\"></span>New failure</span>","sha256":"4adaab79f6ae678047287fc1fc187cd846863fb9d1bb6ba25abc3c93ebf9b0cc","bytes":113,"nodes":3,"elements":2,"depth":2,"tags":["span"],"classes":[{"name":"ds-chip","owner":"ds-chip","rules":1},{"name":"ds-chip--crit","owner":"ds-chip","rules":2},{"name":"ds-chip--sm","owner":"ds-chip","rules":1},{"name":"ds-dot","owner":"ds-chip","rules":1}],"variantClasses":["ds-chip--crit","ds-chip--sm"],"neutralised":[],"goldenSha256":"4adaab79f6ae678047287fc1fc187cd846863fb9d1bb6ba25abc3c93ebf9b0cc"},
+    {"id":"ds-chip.info-small","label":"info, small","call":"chip('info', 'Platform Owner only', '', 'ds-chip--sm')","html":"<span class=\"ds-chip ds-chip--info ds-chip--sm\"><span class=\"ds-dot\" aria-hidden=\"true\"></span>Platform Owner only</span>","sha256":"37ad0f8c2d231e375fd6873fd15a36462fb06cc604000e9fa2e23bcd08fddd80","bytes":121,"nodes":3,"elements":2,"depth":2,"tags":["span"],"classes":[{"name":"ds-chip","owner":"ds-chip","rules":1},{"name":"ds-chip--info","owner":"ds-chip","rules":2},{"name":"ds-chip--sm","owner":"ds-chip","rules":1},{"name":"ds-dot","owner":"ds-chip","rules":1}],"variantClasses":["ds-chip--info","ds-chip--sm"],"neutralised":[],"goldenSha256":"37ad0f8c2d231e375fd6873fd15a36462fb06cc604000e9fa2e23bcd08fddd80"},
+    {"id":"ds-chip.warn-small","label":"warn, small","call":"chip('warn', 'Known failure', '', 'ds-chip--sm')","html":"<span class=\"ds-chip ds-chip--warn ds-chip--sm\"><span class=\"ds-dot\" aria-hidden=\"true\"></span>Known failure</span>","sha256":"9bb48ee9174e1254a3aaec135ab7a2807fb4370cca32891999d9865ab14be899","bytes":115,"nodes":3,"elements":2,"depth":2,"tags":["span"],"classes":[{"name":"ds-chip","owner":"ds-chip","rules":1},{"name":"ds-chip--sm","owner":"ds-chip","rules":1},{"name":"ds-chip--warn","owner":"ds-chip","rules":2},{"name":"ds-dot","owner":"ds-chip","rules":1}],"variantClasses":["ds-chip--sm","ds-chip--warn"],"neutralised":[],"goldenSha256":"9bb48ee9174e1254a3aaec135ab7a2807fb4370cca32891999d9865ab14be899"},
+    {"id":"ds-chip.rec-small","label":"rec, small","call":"chip('rec', 'Recorded', '', 'ds-chip--sm')","html":"<span class=\"ds-chip ds-chip--rec ds-chip--sm\"><span class=\"ds-dot\" aria-hidden=\"true\"></span>Recorded</span>","sha256":"9f213a2ccb5fb16ce01fdc4406ebad683f2e24c6c1e0f4ab1a8708fbc2b6c1dd","bytes":109,"nodes":3,"elements":2,"depth":2,"tags":["span"],"classes":[{"name":"ds-chip","owner":"ds-chip","rules":1},{"name":"ds-chip--rec","owner":"ds-chip","rules":2},{"name":"ds-chip--sm","owner":"ds-chip","rules":1},{"name":"ds-dot","owner":"ds-chip","rules":1}],"variantClasses":["ds-chip--rec","ds-chip--sm"],"neutralised":[],"goldenSha256":"9f213a2ccb5fb16ce01fdc4406ebad683f2e24c6c1e0f4ab1a8708fbc2b6c1dd"},
+    {"id":"ds-chip.none-small","label":"none, small","call":"chip('none', 'Not recorded', '', 'ds-chip--sm')","html":"<span class=\"ds-chip ds-chip--none ds-chip--sm\"><span class=\"ds-dot\" aria-hidden=\"true\"></span>Not recorded</span>","sha256":"945d8e28d218c509f15491d5689c496eafa8b5a31283496a952f81a99bb823c5","bytes":114,"nodes":3,"elements":2,"depth":2,"tags":["span"],"classes":[{"name":"ds-chip","owner":"ds-chip","rules":1},{"name":"ds-chip--none","owner":"ds-chip","rules":1},{"name":"ds-chip--sm","owner":"ds-chip","rules":1},{"name":"ds-dot","owner":"ds-chip","rules":1}],"variantClasses":["ds-chip--none","ds-chip--sm"],"neutralised":[],"goldenSha256":"945d8e28d218c509f15491d5689c496eafa8b5a31283496a952f81a99bb823c5"},
+    {"id":"ds-chip.info-default-size","label":"info, default size","call":"chip('info', 'Read-only', '')","html":"<span class=\"ds-chip ds-chip--info\"><span class=\"ds-dot\" aria-hidden=\"true\"></span>Read-only</span>","sha256":"b388bb4396242fba4cadec11d6c135119dc2577b1ec4041cc62c063da8f8ff2d","bytes":99,"nodes":3,"elements":2,"depth":2,"tags":["span"],"classes":[{"name":"ds-chip","owner":"ds-chip","rules":1},{"name":"ds-chip--info","owner":"ds-chip","rules":2},{"name":"ds-dot","owner":"ds-chip","rules":1}],"variantClasses":["ds-chip--info"],"neutralised":[],"goldenSha256":"b388bb4396242fba4cadec11d6c135119dc2577b1ec4041cc62c063da8f8ff2d"},
+    {"id":"ds-chip.markup-in-the-label-is-escaped","label":"markup in the label is escaped","call":"chip('ok', '<b>Bad</b> & \"Co\"', '', 'ds-chip--sm')","html":"<span class=\"ds-chip ds-chip--ok ds-chip--sm\"><span class=\"ds-dot\" aria-hidden=\"true\"></span>&lt;b&gt;Bad&lt;/b&gt; &amp; \"Co\"</span>","sha256":"d601fc2df0634a799dd80fe0e9885c220e4694e1e9acaefe61e8f7f07e399759","bytes":133,"nodes":3,"elements":2,"depth":2,"tags":["span"],"classes":[{"name":"ds-chip","owner":"ds-chip","rules":1},{"name":"ds-chip--ok","owner":"ds-chip","rules":2},{"name":"ds-chip--sm","owner":"ds-chip","rules":1},{"name":"ds-dot","owner":"ds-chip","rules":1}],"variantClasses":["ds-chip--ok","ds-chip--sm"],"neutralised":[],"goldenSha256":"5d88b2c400cd8df124fe9dc538cf34be95f4ddc5385de5a783e2a2c2d9ec3745"}
+   ]
+  },
+  {
    "id": "ds-panel",
    "symbol": "panel",
    "source": {
@@ -509,7 +539,12 @@
    "fixtures": [
     {"id":"ds-panel.untitled-a-key-value-list","label":"untitled, a key-value list","call":"panel('', '<div class=\"ds-kv-list\">' + l.kv('Tokens', '128') + l.kv('New failures', '0') + '</div>')","html":"<section class=\"ds-panel\"><div class=\"ds-kv-list\"><div class=\"ds-kv\"><div class=\"ds-kv-k\">Tokens</div><div class=\"ds-kv-v\">128</div></div><div class=\"ds-kv\"><div class=\"ds-kv-k\">New failures</div><div class=\"ds-kv-v\">0</div></div></div></section>","sha256":"c04d524ff90b59226a13249052866297528e37e839c1932c13837f3adf65f065","bytes":246,"nodes":12,"elements":8,"depth":5,"tags":["div","section"],"classes":[{"name":"ds-kv","owner":"ds-kv","rules":2},{"name":"ds-kv-k","owner":"ds-kv","rules":1},{"name":"ds-kv-list","owner":"ds-kv","rules":1},{"name":"ds-kv-v","owner":"ds-kv","rules":1},{"name":"ds-panel","owner":"ds-panel","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"c04d524ff90b59226a13249052866297528e37e839c1932c13837f3adf65f065"},
     {"id":"ds-panel.untitled-a-list-and-a-note","label":"untitled, a list and a note","call":"panel('', '<div class=\"ds-kv-list\">' + l.kv('Usage telemetry', '—') + '</div><div class=\"ds-note\">A layer with no tokens is a measured 0.</div>')","html":"<section class=\"ds-panel\"><div class=\"ds-kv-list\"><div class=\"ds-kv\"><div class=\"ds-kv-k\">Usage telemetry</div><div class=\"ds-kv-v\">—</div></div></div><div class=\"ds-note\">A layer with no tokens is a measured 0.</div></section>","sha256":"bf84db18cee904eae7afb6b5818033710f6227a5a6f48ea0f7d558b565c92e77","bytes":229,"nodes":9,"elements":6,"depth":5,"tags":["div","section"],"classes":[{"name":"ds-kv","owner":"ds-kv","rules":2},{"name":"ds-kv-k","owner":"ds-kv","rules":1},{"name":"ds-kv-list","owner":"ds-kv","rules":1},{"name":"ds-kv-v","owner":"ds-kv","rules":1},{"name":"ds-note","owner":"css","rules":1},{"name":"ds-panel","owner":"ds-panel","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"bf84db18cee904eae7afb6b5818033710f6227a5a6f48ea0f7d558b565c92e77"},
-    {"id":"ds-panel.untitled-a-note-only","label":"untitled, a note only","call":"panel('', '<div class=\"ds-note\">Ratios are computed from the token values; a translucent surface is measured over its context’s canvas.</div>')","html":"<section class=\"ds-panel\"><div class=\"ds-note\">Ratios are computed from the token values; a translucent surface is measured over its context’s canvas.</div></section>","sha256":"1f3067dcb5c4edd7846580e9089820e937f492bf3fd3c7a17b83fa6123a38151","bytes":168,"nodes":3,"elements":2,"depth":3,"tags":["div","section"],"classes":[{"name":"ds-note","owner":"css","rules":1},{"name":"ds-panel","owner":"ds-panel","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"1f3067dcb5c4edd7846580e9089820e937f492bf3fd3c7a17b83fa6123a38151"}
+    {"id":"ds-panel.untitled-a-note-only","label":"untitled, a note only","call":"panel('', '<div class=\"ds-note\">Ratios are computed from the token values; a translucent surface is measured over its context’s canvas.</div>')","html":"<section class=\"ds-panel\"><div class=\"ds-note\">Ratios are computed from the token values; a translucent surface is measured over its context’s canvas.</div></section>","sha256":"1f3067dcb5c4edd7846580e9089820e937f492bf3fd3c7a17b83fa6123a38151","bytes":168,"nodes":3,"elements":2,"depth":3,"tags":["div","section"],"classes":[{"name":"ds-note","owner":"css","rules":1},{"name":"ds-panel","owner":"ds-panel","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"1f3067dcb5c4edd7846580e9089820e937f492bf3fd3c7a17b83fa6123a38151"},
+    {"id":"ds-panel.untitled-the-tokens-could-not-be-read","label":"untitled, the tokens could not be read","call":"panel('', l.emptyState('The tokens could not be read', 'The design-system manifest is not beside this server (run scripts/design-system-discover.js).'))","html":"<section class=\"ds-panel\"><div class=\"ds-empty\" role=\"status\"><div class=\"ds-empty-mark\" aria-hidden=\"true\">—</div><div class=\"ds-empty-title\">The tokens could not be read</div><div class=\"ds-empty-why\">The design-system manifest is not beside this server (run scripts/design-system-discover.js).</div></div></section>","sha256":"1fd00834a38c934fd0b3d5f4b46828de57793e9735f27422b80cb07865151569","bytes":320,"nodes":8,"elements":5,"depth":4,"tags":["div","section"],"classes":[{"name":"ds-empty","owner":"ds-empty","rules":1},{"name":"ds-empty-mark","owner":"ds-empty","rules":1},{"name":"ds-empty-title","owner":"ds-empty","rules":1},{"name":"ds-empty-why","owner":"ds-empty","rules":1},{"name":"ds-panel","owner":"ds-panel","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"1fd00834a38c934fd0b3d5f4b46828de57793e9735f27422b80cb07865151569"},
+    {"id":"ds-panel.untitled-the-tokens-loading","label":"untitled, the tokens loading","call":"panel('', l.skeleton(8, 'row'))","html":"<section class=\"ds-panel\"><div class=\"ds-skel\" role=\"status\" aria-label=\"Reading the manifest…\"><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div></div></section>","sha256":"2db8343e64c1d7087ec1273b4a3617fdfc22a3baa9d91deab2fde021924287dd","bytes":650,"nodes":10,"elements":10,"depth":3,"tags":["div","section"],"classes":[{"name":"ds-panel","owner":"ds-panel","rules":1},{"name":"ds-skel","owner":"ds-skeleton","rules":1},{"name":"ds-skel-row","owner":"ds-skeleton","rules":1},{"name":"ds-skel-row--row","owner":"css","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"2db8343e64c1d7087ec1273b4a3617fdfc22a3baa9d91deab2fde021924287dd"},
+    {"id":"ds-panel.titled-contrast","label":"titled, contrast","call":"panel('Contrast', '<div class=\"ds-kv-list\">' + l.kv('Pairs below their threshold', '0') + l.kv('Failures beyond that record', l.chip('ok', 'None', '', 'ds-chip--sm')) + '</div>')","html":"<section class=\"ds-panel\"><div class=\"ds-panel-head\"><h2 class=\"ds-panel-title\">Contrast</h2></div><div class=\"ds-kv-list\"><div class=\"ds-kv\"><div class=\"ds-kv-k\">Pairs below their threshold</div><div class=\"ds-kv-v\">0</div></div><div class=\"ds-kv\"><div class=\"ds-kv-k\">Failures beyond that record</div><div class=\"ds-kv-v\"><span class=\"ds-chip ds-chip--ok ds-chip--sm\"><span class=\"ds-dot\" aria-hidden=\"true\"></span>None</span></div></div></div></section>","sha256":"53f11c74f759d53ae1f4f230021fc89aa471cce6a33433b21987741c25589baa","bytes":456,"nodes":17,"elements":12,"depth":6,"tags":["div","h2","section","span"],"classes":[{"name":"ds-chip","owner":"ds-chip","rules":1},{"name":"ds-chip--ok","owner":"ds-chip","rules":2},{"name":"ds-chip--sm","owner":"ds-chip","rules":1},{"name":"ds-dot","owner":"ds-chip","rules":1},{"name":"ds-kv","owner":"ds-kv","rules":2},{"name":"ds-kv-k","owner":"ds-kv","rules":1},{"name":"ds-kv-list","owner":"ds-kv","rules":1},{"name":"ds-kv-v","owner":"ds-kv","rules":1},{"name":"ds-panel","owner":"ds-panel","rules":1},{"name":"ds-panel-head","owner":"ds-panel","rules":1},{"name":"ds-panel-title","owner":"ds-panel","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"53f11c74f759d53ae1f4f230021fc89aa471cce6a33433b21987741c25589baa"},
+    {"id":"ds-panel.titled-with-a-note","label":"titled with a note","call":"panel('Token layers', '<div class=\"ds-kv-list\">' + l.kv('Tokens', '128') + '</div>', '3 contexts · 9 modules')","html":"<section class=\"ds-panel\"><div class=\"ds-panel-head\"><h2 class=\"ds-panel-title\">Token layers</h2><span class=\"ds-panel-note\">3 contexts · 9 modules</span></div><div class=\"ds-kv-list\"><div class=\"ds-kv\"><div class=\"ds-kv-k\">Tokens</div><div class=\"ds-kv-v\">128</div></div></div></section>","sha256":"2d1478e9044c6b598b79b7e97bedb3fc01b4945925b060b6687887baf0a234de","bytes":289,"nodes":12,"elements":8,"depth":5,"tags":["div","h2","section","span"],"classes":[{"name":"ds-kv","owner":"ds-kv","rules":2},{"name":"ds-kv-k","owner":"ds-kv","rules":1},{"name":"ds-kv-list","owner":"ds-kv","rules":1},{"name":"ds-kv-v","owner":"ds-kv","rules":1},{"name":"ds-panel","owner":"ds-panel","rules":1},{"name":"ds-panel-head","owner":"ds-panel","rules":1},{"name":"ds-panel-note","owner":"ds-panel","rules":1},{"name":"ds-panel-title","owner":"ds-panel","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"2d1478e9044c6b598b79b7e97bedb3fc01b4945925b060b6687887baf0a234de"},
+    {"id":"ds-panel.markup-in-the-title-is-escaped","label":"markup in the title is escaped","call":"panel('<b>Bad</b> & \"Co\"', '<div class=\"ds-note\">x</div>')","html":"<section class=\"ds-panel\"><div class=\"ds-panel-head\"><h2 class=\"ds-panel-title\">&lt;b&gt;Bad&lt;/b&gt; &amp; \"Co\"</h2></div><div class=\"ds-note\">x</div></section>","sha256":"b68fefd0944cb299646f08b787a3f137dc70880eae0d710097bd764a71f4bbaa","bytes":162,"nodes":6,"elements":4,"depth":4,"tags":["div","h2","section"],"classes":[{"name":"ds-note","owner":"css","rules":1},{"name":"ds-panel","owner":"ds-panel","rules":1},{"name":"ds-panel-head","owner":"ds-panel","rules":1},{"name":"ds-panel-title","owner":"ds-panel","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"973e630f94d73182d902001cfb82900d7bd96cdb5067b8e56f38a59409b38796"}
    ]
   },
   {
@@ -528,6 +563,36 @@
     {"id":"ds-kv.empty-value","label":"empty value","call":"kv('Notes', '')","html":"<div class=\"ds-kv\"><div class=\"ds-kv-k\">Notes</div><div class=\"ds-kv-v\"></div></div>","sha256":"6d520a90006eb75d23a0c14855960e42cb5e63f034985e95faddec4c4a9f524b","bytes":84,"nodes":4,"elements":3,"depth":3,"tags":["div"],"classes":[{"name":"ds-kv","owner":"ds-kv","rules":2},{"name":"ds-kv-k","owner":"ds-kv","rules":1},{"name":"ds-kv-v","owner":"ds-kv","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"6d520a90006eb75d23a0c14855960e42cb5e63f034985e95faddec4c4a9f524b"},
     {"id":"ds-kv.long-label","label":"long label","call":"kv('Failures beyond the Stage 2a record', '3')","html":"<div class=\"ds-kv\"><div class=\"ds-kv-k\">Failures beyond the Stage 2a record</div><div class=\"ds-kv-v\">3</div></div>","sha256":"fc7b88d023efe4a570ec5696b7e8bc8bfa4e3851f5043639f956af1f14802de5","bytes":115,"nodes":5,"elements":3,"depth":3,"tags":["div"],"classes":[{"name":"ds-kv","owner":"ds-kv","rules":2},{"name":"ds-kv-k","owner":"ds-kv","rules":1},{"name":"ds-kv-v","owner":"ds-kv","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"fc7b88d023efe4a570ec5696b7e8bc8bfa4e3851f5043639f956af1f14802de5"},
     {"id":"ds-kv.markup-in-the-label-is-escaped","label":"markup in the label is escaped","call":"kv('<b>Bad</b> & \"Co\"', 'x')","html":"<div class=\"ds-kv\"><div class=\"ds-kv-k\">&lt;b&gt;Bad&lt;/b&gt; &amp; \"Co\"</div><div class=\"ds-kv-v\">x</div></div>","sha256":"b7e2f8e9c8bfd5366de5bdc5e7b3583236b2631b3aaf8649a29402c61a0ebf5b","bytes":113,"nodes":5,"elements":3,"depth":3,"tags":["div"],"classes":[{"name":"ds-kv","owner":"ds-kv","rules":2},{"name":"ds-kv-k","owner":"ds-kv","rules":1},{"name":"ds-kv-v","owner":"ds-kv","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"c7267fecef34e42049d2482f4a48e6587760b98504c7a48ce278240ff86194a2"}
+   ]
+  },
+  {
+   "id": "ds-empty",
+   "symbol": "emptyState",
+   "source": {
+    "js": {"file":"public/design-system/design-system.js","symbol":"emptyState","sha256":"cb919e723287d5b4098ebf4fa246b7cef7dc95af7d4e32d8d51f911965572281","bytes":307},
+    "css": [{"file":"public/design-system/design-system.css","rules":4,"sha256":"0694564ad9c64ca19de28bd63ce9907f1bbaff488ae6e26dd0f3634a745ee3d8","bytes":547}]
+   },
+   "mediaQueries": [],
+   "variants": [],
+   "fixtures": [
+    {"id":"ds-empty.title-only","label":"title only","call":"emptyState('The components could not be read')","html":"<div class=\"ds-empty\" role=\"status\"><div class=\"ds-empty-mark\" aria-hidden=\"true\">—</div><div class=\"ds-empty-title\">The components could not be read</div></div>","sha256":"4cf8661d94cf9557c60e211bf22b0d12fc6b6b049420f0c776f358fd0ea7a18f","bytes":163,"nodes":5,"elements":3,"depth":3,"tags":["div"],"classes":[{"name":"ds-empty","owner":"ds-empty","rules":1},{"name":"ds-empty-mark","owner":"ds-empty","rules":1},{"name":"ds-empty-title","owner":"ds-empty","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"4cf8661d94cf9557c60e211bf22b0d12fc6b6b049420f0c776f358fd0ea7a18f"},
+    {"id":"ds-empty.title-and-reason","label":"title and reason","call":"emptyState('The tokens could not be read', 'The design-system manifest is not beside this server (run scripts/design-system-discover.js).')","html":"<div class=\"ds-empty\" role=\"status\"><div class=\"ds-empty-mark\" aria-hidden=\"true\">—</div><div class=\"ds-empty-title\">The tokens could not be read</div><div class=\"ds-empty-why\">The design-system manifest is not beside this server (run scripts/design-system-discover.js).</div></div>","sha256":"82c7e0f0184ed8463ce14fc15486f0853c9f8f2737dde6fa356ff611f2e3be9a","bytes":284,"nodes":7,"elements":4,"depth":3,"tags":["div"],"classes":[{"name":"ds-empty","owner":"ds-empty","rules":1},{"name":"ds-empty-mark","owner":"ds-empty","rules":1},{"name":"ds-empty-title","owner":"ds-empty","rules":1},{"name":"ds-empty-why","owner":"ds-empty","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"82c7e0f0184ed8463ce14fc15486f0853c9f8f2737dde6fa356ff611f2e3be9a"},
+    {"id":"ds-empty.markup-is-escaped","label":"markup is escaped","call":"emptyState('<b>Bad</b> & \"Co\"', '<i>x</i>')","html":"<div class=\"ds-empty\" role=\"status\"><div class=\"ds-empty-mark\" aria-hidden=\"true\">—</div><div class=\"ds-empty-title\">&lt;b&gt;Bad&lt;/b&gt; &amp; \"Co\"</div><div class=\"ds-empty-why\">&lt;i&gt;x&lt;/i&gt;</div></div>","sha256":"b3d2ba810e6c930e48c9e52faae6262cb76a055514c1c34b787340ff65054dad","bytes":216,"nodes":7,"elements":4,"depth":3,"tags":["div"],"classes":[{"name":"ds-empty","owner":"ds-empty","rules":1},{"name":"ds-empty-mark","owner":"ds-empty","rules":1},{"name":"ds-empty-title","owner":"ds-empty","rules":1},{"name":"ds-empty-why","owner":"ds-empty","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"97d4a11555a5c2c998d37aa16a9d6f52a8f07e4d5cac6dc0956de574a7c3aa77"}
+   ]
+  },
+  {
+   "id": "ds-skeleton",
+   "symbol": "skeleton",
+   "source": {
+    "js": {"file":"public/design-system/design-system.js","symbol":"skeleton","sha256":"f5e9c0ef60ccf394d4acfe14a726a5d4b789037b911927b6eb8bc16f9026fa85","bytes":281},
+    "css": [{"file":"public/design-system/design-system.css","rules":5,"sha256":"6abadb2b1a28c2abc153769859e2f9dd0e006a85f7c8ff8fbf81cd73e9791db3","bytes":377}]
+   },
+   "mediaQueries": [],
+   "variants": [],
+   "fixtures": [
+    {"id":"ds-skeleton.4-rows","label":"4 rows","call":"skeleton(4, 'row')","html":"<div class=\"ds-skel\" role=\"status\" aria-label=\"Reading the manifest…\"><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div></div>","sha256":"d650b4948ed4574ede1d1a6fd77f57a86d70a019b4e08252ed5aca8f60b18ce0","bytes":346,"nodes":5,"elements":5,"depth":2,"tags":["div"],"classes":[{"name":"ds-skel","owner":"ds-skeleton","rules":1},{"name":"ds-skel-row","owner":"ds-skeleton","rules":1},{"name":"ds-skel-row--row","owner":"css","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"d650b4948ed4574ede1d1a6fd77f57a86d70a019b4e08252ed5aca8f60b18ce0"},
+    {"id":"ds-skeleton.6-rows","label":"6 rows","call":"skeleton(6, 'row')","html":"<div class=\"ds-skel\" role=\"status\" aria-label=\"Reading the manifest…\"><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div></div>","sha256":"789ac0da8bc6b4119e0cd4ec5121f223c9d5917eea87b2de6d5286d2f0c5da59","bytes":480,"nodes":7,"elements":7,"depth":2,"tags":["div"],"classes":[{"name":"ds-skel","owner":"ds-skeleton","rules":1},{"name":"ds-skel-row","owner":"ds-skeleton","rules":1},{"name":"ds-skel-row--row","owner":"css","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"789ac0da8bc6b4119e0cd4ec5121f223c9d5917eea87b2de6d5286d2f0c5da59"},
+    {"id":"ds-skeleton.8-rows","label":"8 rows","call":"skeleton(8, 'row')","html":"<div class=\"ds-skel\" role=\"status\" aria-label=\"Reading the manifest…\"><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div><div class=\"ds-skel-row ds-skel-row--row\" aria-hidden=\"true\"></div></div>","sha256":"a40e987f471cc2017cb652ecf47414de1a70eb9a2399a38dd2b92bc39a6a0a54","bytes":614,"nodes":9,"elements":9,"depth":2,"tags":["div"],"classes":[{"name":"ds-skel","owner":"ds-skeleton","rules":1},{"name":"ds-skel-row","owner":"ds-skeleton","rules":1},{"name":"ds-skel-row--row","owner":"css","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"a40e987f471cc2017cb652ecf47414de1a70eb9a2399a38dd2b92bc39a6a0a54"}
    ]
   }
  ],
@@ -699,8 +764,8 @@
   },
   {
    "id": "ds-chip",
-   "state": "unavailable",
-   "reason": "css-only"
+   "state": "preview",
+   "reason": null
   },
   {
    "id": "ds-panel",
@@ -744,13 +809,13 @@
   },
   {
    "id": "ds-empty",
-   "state": "unavailable",
-   "reason": "css-only"
+   "state": "preview",
+   "reason": null
   },
   {
    "id": "ds-skeleton",
-   "state": "unavailable",
-   "reason": "css-only"
+   "state": "preview",
+   "reason": null
   },
   {
    "id": "ds-language",

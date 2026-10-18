@@ -108,7 +108,7 @@ beforeEach(() => { forgetIdentity(); resetDesignSystemComponentsCache(); resetDe
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the sanitizer: a closed allowlist that fails closed', () => {
-  it('passes every one of the 103 real fixtures, and what it writes is a fixed point', () => {
+  it('passes every one of the 122 real fixtures, and what it writes is a fixed point', () => {
     let n = 0;
     for (const [sym, cases] of Object.entries<any>(golden)) for (const [label, raw] of Object.entries<string>(cases)) {
       const a = S.sanitize(raw);
@@ -119,7 +119,7 @@ describe('the sanitizer: a closed allowlist that fails closed', () => {
       expect(S.serialize(tree)).toBe(a.html);
       n++;
     }
-    expect(n).toBe(103);
+    expect(n).toBe(122);
   });
 
   it('has a closed list: eighteen tags, no more, and no attribute outside the ones real fixtures use', () => {
@@ -134,6 +134,64 @@ describe('the sanitizer: a closed allowlist that fails closed', () => {
     const allowed = new Set(Object.values<any>(p.tags).flatMap((t) => t.attributes));
     for (const forbidden of ['style', 'href', 'xlink:href', 'srcdoc', 'action', 'formaction', 'onclick', 'onerror', 'onload', 'id', 'name', 'target', 'data-i18n', 'data-nav', 'data-close-modal']) expect(allowed.has(forbidden)).toBe(false);
     expect(p.limits).toMatchObject({ bytes: 4096, nodes: 300, depth: 12 });
+  });
+
+  // ── M3/S2.2b-2: four narrow additions, each held to the one rule that admits it ──
+  const DOT = '<span class="ds-dot" aria-hidden="true"></span>';
+  const STATUS = (label: string) => '<div class="ds-skel" role="status" aria-label="' + label + '">x</div>';
+  it('admits exactly the four additions the Owner Kit writes, in any attribute order', () => {
+    expect(S.sanitize('<span class="ds-chip">' + DOT + 'Pass</span>').ok).toBe(true);
+    expect(S.sanitize('<span aria-hidden="false">x</span>').ok).toBe(true);
+    expect(S.sanitize('<h2 class="ds-panel-title">Contrast</h2>').ok).toBe(true);
+    expect(S.sanitize('<div class="ds-empty" role="status">x</div>').ok).toBe(true);
+    expect(S.sanitize('<div role="dialog">x</div>').ok).toBe(true);                          // dialog is still allowed
+    expect(S.sanitize(STATUS('Reading the manifest…')).ok).toBe(true);
+    expect(S.sanitize('<div aria-label="Reading" class="ds-skel" role="status">x</div>').ok).toBe(true);   // label before role
+    expect(S.sanitize(STATUS('a'.repeat(200))).ok).toBe(true);                                // the 200-character boundary
+    // An entity is text, not markup: it is kept as text and written back escaped, so no element appears.
+    const ent = S.sanitize(STATUS('&lt;b&gt;'));
+    expect(ent.ok).toBe(true);
+    expect(ent.html).toBe(STATUS('&lt;b&gt;'));
+    expect(ent.stats.elements).toBe(1);
+  });
+
+  it.each([
+    ['1. aria-hidden="yes" on a span', '<span class="ds-dot" aria-hidden="yes"></span>', 'the value of "aria-hidden" is not allowed'],
+    ['2a. an empty aria-hidden', '<span aria-hidden=""></span>', 'the value of "aria-hidden" is not allowed'],
+    ['2b. aria-hidden="TRUE"', '<span aria-hidden="TRUE"></span>', 'the value of "aria-hidden" is not allowed'],
+    ['2c. a valueless aria-hidden', '<span aria-hidden></span>', 'the attribute "aria-hidden" needs a value'],
+    ['3. role="alert" on a div', '<div role="alert">x</div>', 'the value of "role" is not allowed'],
+    ['4a. role="STATUS"', '<div role="STATUS">x</div>', 'the value of "role" is not allowed'],
+    ['4b. role=" status"', '<div role=" status">x</div>', 'the value of "role" is not allowed'],
+    ['4c. role="status "', '<div role="status ">x</div>', 'the value of "role" is not allowed'],
+    ['4d. role="status dialog"', '<div role="status dialog">x</div>', 'the value of "role" is not allowed'],
+    ['5a. aria-label on a div with no role', '<div aria-label="Reading">x</div>', 'the attribute "aria-label" is only allowed on a <div> with role="status"'],
+    ['5b. aria-label on a dialog div', '<div role="dialog" aria-label="Reading">x</div>', 'the attribute "aria-label" is only allowed on a <div> with role="status"'],
+    ['6. aria-label longer than 200 characters', STATUS('a'.repeat(201)), 'the value of "aria-label" is not allowed'],
+    ['7. aria-label holding markup', STATUS('<b>x</b>'), 'a "<" inside the value of "aria-label" (at 0)'],
+    ['8a. aria-label holding a bidi override', STATUS('a\u202Eb'), 'the value of "aria-label" holds a control or bidirectional character'],
+    ['8b. aria-label holding a bidi isolate', STATUS('a\u2066b'), 'the value of "aria-label" holds a control or bidirectional character'],
+    ['9. onclick on h2', '<h2 class="ds-panel-title" onclick="x">t</h2>', 'the attribute "onclick" is not allowed on <h2>'],
+    ['10. style on h2', '<h2 style="color:red">t</h2>', 'the attribute "style" is not allowed on <h2>'],
+    ['12. title on a span', '<span class="ds-chip" title="Known failure">x</span>', 'the attribute "title" is not allowed on <span>'],
+    ['13a. role on a span', '<span role="status">x</span>', 'the attribute "role" is not allowed on <span>'],
+    ['13b. aria-label on a span', '<span aria-label="x">x</span>', 'the attribute "aria-label" is not allowed on <span>'],
+    ['14a. a "constructor" attribute', '<div constructor="x">x</div>', 'the attribute "constructor" is not allowed on <div>'],
+    ['14b. a "hasOwnProperty" attribute', '<span hasOwnProperty="x">x</span>', 'the attribute "hasOwnProperty" is not allowed on <span>'],
+    ['14c. a "toString" attribute', '<h2 toString="x">t</h2>', 'the attribute "toString" is not allowed on <h2>'],
+    ['14d. a "__proto__" attribute', '<div __proto__="x">x</div>', 'a malformed attribute in <div> (at 0)'],
+    ['14e. a <constructor> element', '<constructor>x</constructor>', 'the tag <constructor> is not allowed (at 0)'],
+  ])('refuses %s, for that reason and no other', (_n, html, cause) => {
+    const r = S.sanitize(html);
+    expect(r.ok).toBe(false);
+    expect(r.problems).toEqual([cause]);
+  });
+
+  it('11. refuses an h2 class nobody owns, and still catches a genuinely repeated attribute', () => {
+    const owned = (n: string) => n === 'ds-panel-title';
+    expect(S.sanitize('<h2 class="ds-panel-title">t</h2>', { classOk: owned }).ok).toBe(true);
+    expect(S.sanitize('<h2 class="ds-panel-title ds-bogus">t</h2>', { classOk: owned }).problems).toEqual(['the class "ds-bogus" has no approved provenance']);
+    expect(S.sanitize('<div class="a" class="b">x</div>').problems).toEqual(['the attribute "class" is written twice (at 0)']);
   });
 
   it('neutralises exactly the four things it says it does, and reports every one', () => {
@@ -295,13 +353,13 @@ describe('the sanitizer: a closed allowlist that fails closed', () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the preview manifest: the golden fixtures, sanitised, hashed and bound to the source', () => {
-  it('previews exactly the fifteen verified components, with the 103 golden fixtures between them', () => {
+  it('previews exactly the eighteen verified components, with the 122 golden fixtures between them', () => {
     const verified = components.components.filter((c: any) => c.tier === 'verified').map((c: any) => c.id);
     expect(manifest.components.map((c: any) => c.id)).toEqual(verified);
-    expect(manifest.components.map((c: any) => c.id)).toEqual(['club-logo', 'club-identity', 'lg-crest', 'lg-ident', 'lg-icon', 'lg-chip', 'lg-status-chip', 'lg-form', 'lg-metric', 'lg-versus', 'lg-panel', 'lg-float', 'lg-empty', 'ds-panel', 'ds-kv']);
-    expect(manifest.components.map((c: any) => c.fixtures.length)).toEqual([9, 8, 7, 6, 12, 7, 11, 5, 6, 10, 5, 5, 3, 3, 6]);
-    expect(manifest.coverage).toMatchObject({ registered: 60, previewable: 15, unavailable: 45, fixtures: 103 });
-    expect(allFixtures()).toHaveLength(103);
+    expect(manifest.components.map((c: any) => c.id)).toEqual(['club-logo', 'club-identity', 'lg-crest', 'lg-ident', 'lg-icon', 'lg-chip', 'lg-status-chip', 'lg-form', 'lg-metric', 'lg-versus', 'lg-panel', 'lg-float', 'lg-empty', 'ds-chip', 'ds-panel', 'ds-kv', 'ds-empty', 'ds-skeleton']);
+    expect(manifest.components.map((c: any) => c.fixtures.length)).toEqual([9, 8, 7, 6, 12, 7, 11, 5, 6, 10, 5, 5, 3, 8, 8, 6, 3, 3]);
+    expect(manifest.coverage).toMatchObject({ registered: 60, previewable: 18, unavailable: 42, fixtures: 122 });
+    expect(allFixtures()).toHaveLength(122);
   });
 
   it('is well-formed by the very validator the server runs', () => {
@@ -394,10 +452,10 @@ describe('the preview manifest: the golden fixtures, sanitised, hashed and bound
     for (const [name, rules] of owners) if (!inert.includes(name)) { expect(rules).toBeGreaterThan(0); expect(css).toMatch(new RegExp(`\\.${name.replace(/-/g, '\\-')}(?![\\w-])`)); }
   });
 
-  it('says why each of the other 45 cannot be previewed, in a closed set of reasons', () => {
+  it('says why each of the other 42 cannot be previewed, in a closed set of reasons', () => {
     const avail = manifest.availability;
     expect(avail.map((a: any) => a.id)).toEqual(components.components.map((c: any) => c.id));
-    expect(avail.filter((a: any) => a.state === 'preview')).toHaveLength(15);
+    expect(avail.filter((a: any) => a.state === 'preview')).toHaveLength(18);
     const by = (r: string) => avail.filter((a: any) => a.reason === r).map((a: any) => a.id);
     expect(by('no-fixtures')).toEqual([]);                          // every registered render function now has fixtures
     expect(by('application-shell')).toEqual(['sidebar-nav', 'topbar', 'page-header', 'ds-shell']);
@@ -405,8 +463,8 @@ describe('the preview manifest: the golden fixtures, sanitised, hashed and bound
     expect(by('css-family')).toHaveLength(7);
     expect(by('utility')).toEqual(['page', 'hidden']);
     expect(by('page-specific')).toEqual(['oh-family']);
-    expect(by('css-only')).toHaveLength(24);
-    expect(Object.values(manifest.coverage.byReason).reduce((a: any, b: any) => a + b, 0)).toBe(45);
+    expect(by('css-only')).toHaveLength(21);
+    expect(Object.values(manifest.coverage.byReason).reduce((a: any, b: any) => a + b, 0)).toBe(42);
   });
 
   it('never previews a component that has no render function', () => {
@@ -419,7 +477,9 @@ describe('the preview manifest: the golden fixtures, sanitised, hashed and bound
 
   it('stays inside its limits: each fixture, the total and the file', () => {
     for (const { f } of allFixtures()) { expect(f.bytes).toBeLessThanOrEqual(4096); expect(f.nodes).toBeLessThanOrEqual(300); expect(f.depth).toBeLessThanOrEqual(12); }
-    expect(manifest.coverage.bytes).toBeLessThan(32 * 1024);
+    // Raised from 32 KB with the owner's approval in M3/S2.2b-2 (the 103 earlier fixtures were 32,633 bytes); the
+    // validator the server runs refuses more than 128 KB, and the per-fixture limits above are unchanged.
+    expect(manifest.coverage.bytes).toBeLessThan(64 * 1024);
     expect(Buffer.byteLength(read(MANIFEST_PATH))).toBeLessThan(160 * 1024);
   });
 
@@ -495,6 +555,9 @@ describe('the golden snapshot is re-proved against public/app.js, so CI refuses 
     return tmp;
   };
   it.each([
+    ['chip itself changes', (ds: string) => ds.replace("'<span class=\"ds-dot\" aria-hidden=\"true\"></span>'", "'<span class=\"ds-dot\" aria-hidden=\"false\"></span>'"), /panel \/ titled, contrast/],   // first failure: the titled panel that composes a chip
+    ['emptyState itself changes', (ds: string) => ds.replace("'<div class=\"ds-empty\" role=\"status\">", "'<div role=\"status\" class=\"ds-empty\">"), /panel \/ untitled, the tokens could not be read/],   // first failure: production's own panel(emptyState) body
+    ['skeleton itself changes', (ds: string) => ds.replace("esc(T('Reading the manifest…'))", "esc(T('Reading…'))"), /panel \/ untitled, the tokens loading/],   // first failure: production's own panel(skeleton) body
     ['panel itself changes', (ds: string) => ds.replace("'<section class=\"ds-panel'", "'<section data-drift class=\"ds-panel'"), /panel \/ untitled, a key-value list/],
     ['kv itself changes', (ds: string) => ds.replace("'<div class=\"ds-kv\"><div class=\"ds-kv-k\">'", "'<div class=\"ds-kv\"><div class=\"ds-kv-k\" data-drift>'"), /kv \/ label and value/],
     ['the translator stops returning English as it is', (ds: string) => ds.replace("if (DS_LANG === 'en') return s;", "if (DS_LANG === 'en') return s.toUpperCase();"), /kv \/ label and value|translator is the room's own/],
@@ -526,6 +589,8 @@ describe('the generator and the validator refuse what they cannot back up', () =
     ['markup that still carries data-action', (m: any) => { fx(m, 'lg-float').html = fx(m, 'lg-float').html.replace('<div class="lg-float-bg">', '<div class="lg-float-bg" data-action="closeFloat">'); }, /not exactly what the sanitizer produces/],
     ['markup that is valid but not canonical', (m: any) => { fx(m).html = '<span  class="lg-chip"><span>Form</span> <b>WWDLW</b></span>'; }, /fails the sanitizer|not exactly/],
     ['a hash that does not match its markup', (m: any) => { fx(m).sha256 = 'f'.repeat(64); }, /hash does not match/],
+    ['an Owner Kit fixture whose hash does not match its markup', (m: any) => { fx(m, 'ds-skeleton', 0).sha256 = '0'.repeat(64); }, /hash does not match/],
+    ['an Owner Kit fixture whose markup was changed in place', (m: any) => { fx(m, 'ds-chip', 0).html = fx(m, 'ds-chip', 0).html.replace('Pass', 'Fail'); }, /hash does not match|not exactly what the sanitizer produces/],
     ['a size that is not the markup’s', (m: any) => { fx(m).bytes += 1; }, /size, node count or depth/],
     ['a node count that is not the markup’s', (m: any) => { fx(m).nodes += 1; }, /size, node count or depth/],
     ['a class the markup uses but does not declare', (m: any) => { fx(m).classes = fx(m).classes.slice(1); }, /class list does not match|fails the sanitizer/],
@@ -615,6 +680,9 @@ describe('the generator and the validator refuse what they cannot back up', () =
       ['an invalid data-club-logo value', (g: any) => { g.clubLogoHtml['with crest, default size'] = crest(g).replace('data-club-logo="riverside"', 'data-club-logo="river side/../x"'); }, /club-logo \/ with crest, default size: the value of "data-club-logo" is not allowed/],
       ['a club-logo class with no rule and no reviewed entry', (g: any) => { g.clubLogoHtml['with crest, default size'] = crest(g).replace('club-logo--s34', 'club-logo--s99'); }, /the class "club-logo--s99" has no approved provenance/],
       ['is-empty borrowed by an element that is not a club logo', (g: any) => { g._lgChip['label and value'] = '<span class="lg-chip is-empty">a</span>'; }, /lg-chip \/ label and value: a scoped inert class appears on an element that is not its component/],
+      ['a skeleton with a row modifier production\u2019s CSS does not define', (g: any) => { g.skeleton['4 rows'] = g.skeleton['4 rows'].replace(/ds-skel-row--row/g, 'ds-skel-row--card'); }, /ds-skeleton \/ 4 rows: the class "ds-skel-row--card" has no approved provenance/],
+      ['a titled panel whose h2 carries a class nobody owns', (g: any) => { g.panel['titled with a note'] = g.panel['titled with a note'].replace('class="ds-panel-title"', 'class="ds-panel-title ds-bogus"'); }, /ds-panel \/ titled with a note: the class "ds-bogus" has no approved provenance/],
+      ['a chip fixture that writes a title', (g: any) => { g.chip['ok, small'] = g.chip['ok, small'].replace('<span class="ds-chip ds-chip--ok ds-chip--sm">', '<span class="ds-chip ds-chip--ok ds-chip--sm" title="t">'); }, /ds-chip \/ ok, small: the attribute "title" is not allowed on <span>/],
       ['a panel fixture with a class nobody owns', (g: any) => { g.panel['untitled, a note only'] = g.panel['untitled, a note only'].replace('class="ds-panel"', 'class="ds-panel ds-panel--bogus"'); }, /ds-panel \/ untitled, a note only: the class "ds-panel--bogus" has no approved provenance/],
       ['a kv fixture with a class nobody owns', (g: any) => { g.kv['label and value'] = g.kv['label and value'].replace('ds-kv-k', 'ds-kv-k ds-kv-bogus'); }, /ds-kv \/ label and value: the class "ds-kv-bogus" has no approved provenance/],
       ['a kv fixture whose value carries markup the sanitizer refuses', (g: any) => { g.kv['label and value'] = g.kv['label and value'].replace('>128<', '><code>128</code><'); }, /ds-kv \/ label and value: the tag <code> is not allowed/],
@@ -639,30 +707,43 @@ describe('the generator and the validator refuse what they cannot back up', () =
     const digest = (g: any) => sha(JSON.stringify(Object.fromEntries(FOURTEEN.map((k) => [k, g[k]]))));
     // The digest of the whole golden snapshot at f400a4f, before panel was added.
     const S22A = 'd602fa8b2e03e7b2f748e96922db1b413e5d29ab73d4e7eca5ba8c11519104a3';
-    expect(Object.keys(golden)).toEqual([...FOURTEEN, 'panel']);
+    expect(Object.keys(golden).slice(0, 15)).toEqual([...FOURTEEN, 'panel']);
     expect(FOURTEEN.reduce((n, k) => n + Object.keys(golden[k]).length, 0)).toBe(100);
     expect(digest(golden)).toBe(S22A);
     const g = clone(golden); g.kv['zero is a value'] = g.kv['zero is a value'].replace('>0<', '>1<');
     expect(digest(g)).not.toBe(S22A);
   });
 
-  it('refuses the titled panel the real panel() writes, so only the untitled form is previewed (the sanitizer is unchanged)', () => {
-    // The real function, cut by the Storybook extractor, called as production calls it with a title.
+  it('keeps the 103 fixtures that predate chip, emptyState and skeleton byte for byte, and notices a one-byte change', () => {
+    const FOURTEEN = ['_lgCrest', '_lgIdent', '_lgChip', '_lgStatusChip', '_lgForm', '_lgMetric', '_lgPanel', '_lgEmpty', '_lgFloat', '_lgVersus', '_lgIcon', 'clubLogoHtml', 'clubIdentityHtml', 'kv'];
+    const PANEL3 = ['untitled, a key-value list', 'untitled, a list and a note', 'untitled, a note only'];
+    const project = (g: any) => Object.fromEntries([...FOURTEEN.map((k) => [k, g[k]]), ['panel', Object.fromEntries(PANEL3.map((l) => [l, g.panel[l]]))]]);
+    // The digest of the whole golden snapshot at b13808d, before the S2.2b-2 fixtures were added.
+    const S22B1 = '97b9d423c2fb9411796b38b22cb9399133b4a8491d6c3aea5870b76f775a7533';
+    expect(Object.keys(golden)).toEqual([...FOURTEEN, 'panel', 'chip', 'emptyState', 'skeleton']);
+    expect(Object.keys(golden.panel).slice(0, 3)).toEqual(PANEL3);
+    expect(FOURTEEN.reduce((n, k) => n + Object.keys(golden[k]).length, 0) + PANEL3.length).toBe(103);
+    expect(sha(JSON.stringify(project(golden)))).toBe(S22B1);
+    const g = clone(golden); g.panel['untitled, a note only'] = g.panel['untitled, a note only'].replace('Ratios', 'ratios');
+    expect(sha(JSON.stringify(project(g)))).not.toBe(S22B1);
+  });
+
+  it('records the titled panel the real panel() writes, now that the sanitizer carries class on h2, byte for byte', () => {
+    // The real function, cut by the Storybook extractor, called exactly as two golden cases call it.
     const out = spawnSync(process.execPath, ['--input-type=module', '-e',
       "const m = await import(process.argv[1]); const b = await import(process.argv[2]);"
       + " const k = b.buildDs(m.extractDs());"
-      + " process.stdout.write(JSON.stringify([k.panel('Token layers', '<div class=\"ds-kv-list\">' + k.kv('Tokens', '128') + '</div>', '3 contexts'), k.panel('', '<div class=\"ds-kv-list\">' + k.kv('Tokens', '128') + k.kv('New failures', '0') + '</div>')]));",
+      + " process.stdout.write(JSON.stringify([k.panel('Token layers', '<div class=\"ds-kv-list\">' + k.kv('Tokens', '128') + '</div>', '3 contexts · 9 modules'), k.panel('', '<div class=\"ds-kv-list\">' + k.kv('Tokens', '128') + k.kv('New failures', '0') + '</div>')]));",
       path.join(ROOT, 'tools/storybook/lib/extract-lg.mjs'), path.join(ROOT, 'tools/storybook/lib/build-lg.mjs')], { encoding: 'utf8' });
     expect(out.status).toBe(0);
     const [titled, untitled] = JSON.parse(out.stdout);
-    expect(titled).toContain('<h2 class="ds-panel-title">Token layers</h2>');
-    const r = S.sanitize(titled);
-    expect(r.ok).toBe(false);
-    expect(r.problems).toContain('the attribute "class" is not allowed on <h2>');
-    expect(S.sanitize(untitled).ok).toBe(true);
-    expect(untitled).toBe(golden.panel['untitled, a key-value list']);   // the same call, the same bytes as the recorded fixture
-    expect(Object.keys(golden.panel).every((k) => k.startsWith('untitled'))).toBe(true);
-    expect(Object.values<string>(golden.panel).some((h) => h.includes('<h2'))).toBe(false);
+    expect(titled).toContain('<h2 class="ds-panel-title">Token layers</h2><span class="ds-panel-note">3 contexts · 9 modules</span>');
+    expect(titled).toBe(golden.panel['titled with a note']);
+    expect(untitled).toBe(golden.panel['untitled, a key-value list']);
+    expect(S.sanitize(titled).ok).toBe(true);
+    // The h2 class still has to be one production's CSS defines for the panel: any other is refused by provenance.
+    const owned = (n: string) => n.startsWith('ds-');
+    expect(S.sanitize(titled.replace('class="ds-panel-title"', 'class="ds-panel-title evil"'), { classOk: owned }).problems).toEqual(['the class "evil" has no approved provenance']);
   });
 
   it('keeps the 94 fixtures that predate the Owner Kit byte for byte, and notices a one-byte change', () => {
@@ -1249,7 +1330,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
   it('opens on the first previewable component and its first fixture, built from nodes and never from a string', async () => {
     const r = await launch();
     expect(r.api).toEqual(['/system/design-system/components', '/system/design-system/components/preview', '/system/design-system/components/preview?id=club-logo']);
-    expect(r.metrics()).toMatchObject({ selected: 'club-logo', fixture: 'club-logo.with-crest-default-size', dir: 'ltr', components: 15, fixtures: 103 });
+    expect(r.metrics()).toMatchObject({ selected: 'club-logo', fixture: 'club-logo.with-crest-default-size', dir: 'ltr', components: 18, fixtures: 122 });
     // the specimen element never had innerHTML written; only elements made with createElement were put in it
     expect(r.dom.log.innerHTML['lab-specimen']).toBeUndefined();
     expect(r.dom.log.created.length).toBeGreaterThan(5);
@@ -1259,7 +1340,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     expect(spec.children[0].className).toBe('lab-col');
   });
 
-  it('draws all 103 fixtures without throwing, one node for every element the manifest counts', async () => {
+  it('draws all 122 fixtures without throwing, one node for every element the manifest counts', async () => {
     const r = await launch();
     for (const c of manifest.components) {
       r.click({ '[data-lab-id]': attr(c.id) }); await r.settle();
@@ -1317,13 +1398,13 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     expect(r.api.filter((p) => p.includes('?id='))).toEqual(['/system/design-system/components/preview?id=club-identity']);   // nothing fetched for a component with no fixtures
   });
 
-  it('lists all 60: the fifteen live ones first, and the other forty-five grouped by reason with the reason on each', async () => {
+  it('lists all 60: the eighteen live ones first, and the other forty-two grouped by reason with the reason on each', async () => {
     const r = await launch();
     const rail = r.dom.log.innerHTML['lab-rail-body'].slice(-1)[0];
     expect(rail.match(/data-lab-id="/g)).toHaveLength(60);
     expect(rail.match(/<ul class="lab-list" id="lab-g-[a-z-]+" hidden>/g)).toHaveLength(6);        // the six unavailable groups start closed
     expect(rail).toMatch(/<ul class="lab-list" id="lab-g-preview">/);
-    expect(rail.match(/aria-disabled="true"/g)).toHaveLength(45);
+    expect(rail.match(/aria-disabled="true"/g)).toHaveLength(42);
     expect(rail).toContain('CSS only');
     expect(rail).not.toContain('No fixtures yet');                 // no registered render function is without fixtures
     r.type('o');                                                    // a search opens every group that has a match
@@ -1452,7 +1533,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     const counts: number[] = [];
     for (const c of manifest.components) { r.click({ '[data-lab-id]': attr(c.id) }); await r.settle(); for (const f of c.fixtures) { r.click({ '[data-lab-fx]': attr(f.id) }); counts.push(r.metrics().specimenNodes); } }
     expect(Math.max(...counts)).toBeLessThan(40);
-    expect(counts).toHaveLength(103);
+    expect(counts).toHaveLength(122);
   });
 
   // ── M2 / S1: zoom ──────────────────────────────────────────────────────────
@@ -1529,7 +1610,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
 
   it('a component it cannot preview has no zoom, and the zoom keys do nothing there', async () => {
     const r = await launch();
-    r.click({ '[data-lab-id]': attr('ds-chip') }); await r.settle();
+    r.click({ '[data-lab-id]': attr('ds-button') }); await r.settle();
     expect(zoomTool(r)).not.toContain('data-lab-zoom');
     expect(docKey(r, '=')).toBe(false);
     expect(r.metrics().zoom).toBe(1);
@@ -1636,7 +1717,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
 
   it('a component it cannot preview has no width tools, and an empty or refused fixture measures nothing', async () => {
     const r = await launch();
-    r.click({ '[data-lab-id]': attr('ds-chip') }); await r.settle();
+    r.click({ '[data-lab-id]': attr('ds-button') }); await r.settle();
     expect(zoomTool(r)).not.toContain('data-lab-width');
     r.click({ '[data-lab-width]': attr('mobile') });
     expect(r.metrics().width).toBeNull();
@@ -1796,7 +1877,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     expect(r.dom.byId['lab-specimen-b'].children[0].style.props.width).toBe('390px');
     r.click({ '[data-lab-dir]': attr('rtl') });
     expect([r.dom.byId['lab-specimen'].attrs.dir, r.dom.byId['lab-specimen-b'].attrs.dir]).toEqual(['rtl', 'rtl']);
-    r.click({ '[data-lab-id]': attr('ds-chip') }); await r.settle();
+    r.click({ '[data-lab-id]': attr('ds-button') }); await r.settle();
     expect(bench(r)).not.toContain('data-lab-mode');
   });
 
@@ -2009,8 +2090,8 @@ describe('the browser proof is kept with the code and is a required CI job', () 
     const mins = [...body.matchAll(/min:\s*'(\d+)'/g)].map((m) => Number(m[1]));
     expect(mins.length).toBe(2);
     expect(mins.every((n) => n >= 34)).toBe(true);
-    // M3/S2.2b-1: the floors are the counts measured with fifteen previewable components; they never go below S2.2a's 195 and 66.
-    expect(mins).toEqual([197, 68]);
+    // M3/S2.2b-2: the floors are the counts measured with eighteen previewable components; they never go below S2.2b-1's 197 and 68.
+    expect(mins).toEqual([203, 74]);
   });
 
   it('classifies the browser\'s own copy of a CSP violation as a notice in both Chrome wordings, and nothing else', () => {
