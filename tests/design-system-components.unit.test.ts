@@ -157,12 +157,17 @@ describe('nothing is invented: every claim is recomputed independently from the 
     let n = 0;
     for (const r of registry.components) {
       if (!r.js) continue;
-      expect(r.js.file).toBe('public/app.js');
-      expect(appJs.match(new RegExp(`^function ${r.js.symbol.replace(/\$/g, '\\$')}\\(`, 'gm'))).toHaveLength(1);
-      const i = appJs.indexOf(`\nfunction ${r.js.symbol}(`) + 1;
-      const text = appJs.slice(i, appJs.indexOf('\n}\n', i) + 2);
+      expect(['public/app.js', 'public/design-system/design-system.js']).toContain(r.js.file);
+      // app.js: a top-level declaration. design-system.js: one at the top level of its IIFE, two spaces in,
+      // recorded with that indent removed. Cut here independently, by its closing brace at the same depth.
+      const ind = r.js.file === 'public/app.js' ? '' : '  ';
+      const src = r.js.file === 'public/app.js' ? appJs : read(r.js.file);
+      expect(src.match(new RegExp(`^${ind}function ${r.js.symbol.replace(/\$/g, '\\$')}\\(`, 'gm'))).toHaveLength(1);
+      expect(src.match(new RegExp(`\\bfunction ${r.js.symbol.replace(/\$/g, '\\$')}\\s*\\(`, 'g'))).toHaveLength(1);
+      const i = src.indexOf(`\n${ind}function ${r.js.symbol}(`) + 1;
+      const text = src.slice(i, src.indexOf(`\n${ind}}\n`, i) + ind.length + 2).replace(new RegExp(`^${ind}`, 'gm'), '');
       const rec = byId(r.id).source.js;
-      expect(rec).toEqual({ file: 'public/app.js', symbol: r.js.symbol, sha256: sha(squash(text)), bytes: Buffer.byteLength(text) });
+      expect(rec).toEqual({ file: r.js.file, symbol: r.js.symbol, sha256: sha(squash(text)), bytes: Buffer.byteLength(text) });
       n++;
     }
     expect(n).toBe(manifest.coverage.withSource);
@@ -222,11 +227,11 @@ describe('nothing is invented: every claim is recomputed independently from the 
       expect({ id: c.id, tier: c.tier }).toEqual({ id: c.id, tier: expected });
     }
     const verified = manifest.components.filter((c: any) => c.tier === 'verified').map((c: any) => c.id).sort();
-    expect(verified).toEqual(['club-identity', 'club-logo', 'lg-chip', 'lg-crest', 'lg-empty', 'lg-float', 'lg-form', 'lg-icon', 'lg-ident', 'lg-metric', 'lg-panel', 'lg-status-chip', 'lg-versus']);
+    expect(verified).toEqual(['club-identity', 'club-logo', 'ds-kv', 'lg-chip', 'lg-crest', 'lg-empty', 'lg-float', 'lg-form', 'lg-icon', 'lg-ident', 'lg-metric', 'lg-panel', 'lg-status-chip', 'lg-versus']);
   });
 
-  it('records the Storybook case counts of the thirteen verified components exactly as their story files export them', () => {
-    const want: Record<string, number> = { 'lg-icon': 6, 'club-logo': 8, 'club-identity': 9, 'lg-crest': 8, 'lg-ident': 9, 'lg-chip': 8, 'lg-status-chip': 10, 'lg-form': 7, 'lg-metric': 9, 'lg-versus': 11, 'lg-panel': 8, 'lg-float': 8, 'lg-empty': 7 };
+  it('records the Storybook case counts of the fourteen verified components exactly as their story files export them', () => {
+    const want: Record<string, number> = { 'ds-kv': 8, 'lg-icon': 6, 'club-logo': 8, 'club-identity': 9, 'lg-crest': 8, 'lg-ident': 9, 'lg-chip': 8, 'lg-status-chip': 10, 'lg-form': 7, 'lg-metric': 9, 'lg-versus': 11, 'lg-panel': 8, 'lg-float': 8, 'lg-empty': 7 };
     for (const [id, n] of Object.entries(want)) expect({ id, n: byId(id).stories.cases.length }).toEqual({ id, n });
   });
 
@@ -369,6 +374,57 @@ describe('the generator refuses a registry its repository cannot back up', () =>
   ])('throws for %s', (_n, edit, rx) => {
     const run = withRegistry(edit);
     expect(run).toThrow(rx);
+  });
+
+  // ── M3/S2.2a: a render function comes from one of two approved files, by one unambiguous declaration ──
+  const DS_JS = 'public/design-system/design-system.js';
+  it.each([
+    ['a render-function file outside the approved two', (r: any) => { entry(r, 'ds-kv').js.file = 'public/system/system.js'; }, /"public\/system\/system\.js" is not one of the approved sources/],
+    ['a path that climbs out with ..', (r: any) => { entry(r, 'ds-kv').js.file = 'public/design-system/../app.js'; }, /path traversal is refused/],
+    ['an absolute path', (r: any) => { entry(r, 'ds-kv').js.file = '/etc/passwd'; }, /path traversal is refused/],
+    ['a backslash path', (r: any) => { entry(r, 'ds-kv').js.file = 'public\\app.js'; }, /path traversal is refused/],
+    ['a ./ path to an approved file', (r: any) => { entry(r, 'ds-kv').js.file = './public/app.js'; }, /path traversal is refused/],
+    ['the same symbol registered twice', (r: any) => { entry(r, 'ds-panel').js = { file: DS_JS, symbol: 'kv' }; }, /render function "kv" is already registered by ds-panel/],
+    ['an app.js symbol claimed from design-system.js', (r: any) => { entry(r, 'lg-chip').js.file = DS_JS; }, /"function _lgChip" is declared 0 times/],
+  ])('throws for %s', (_n, edit, rx) => {
+    const run = withRegistry(edit);
+    expect(run).toThrow(rx);
+  });
+
+  describe('over a design-system.js whose declarations are ambiguous', () => {
+    afterEach(() => { fs.cpSync(path.join(ROOT, DS_JS), path.join(tmp, DS_JS)); fs.writeFileSync(path.join(tmp, REGISTRY_PATH), JSON.stringify(registry)); });
+    const withSource = (edit: (t: string) => string) => {
+      const t = read(DS_JS), e = edit(t);
+      expect(e).not.toBe(t);
+      fs.writeFileSync(path.join(tmp, DS_JS), e);
+      fs.writeFileSync(path.join(tmp, REGISTRY_PATH), JSON.stringify(registry));
+      return () => generator.build({ ROOT: tmp });
+    };
+    it.each([
+      ['a second kv at the top level of the IIFE', (t: string) => t.replace('\n  function emptyState(', "\n  function kv(a) { return a; }\n  function emptyState("), /"function kv" is declared 2 times at any depth/],
+      ['a second kv nested inside another function', (t: string) => t.replace('  function emptyState(title, why, extra) {\n', "  function emptyState(title, why, extra) {\n    function kv(a) { return a; }\n"), /"function kv" is declared 2 times at any depth/],
+      ['kv only nested, not at the top level', (t: string) => t.replace('\n  function kv(label, value) {', '\n    function kv(label, value) {'), /expected exactly one "function kv" at the top level, found 0/],
+      ['kv reassigned after its declaration', (t: string) => t.replace('\n  function emptyState(', '\n  kv = function (a) { return a; };\n  function emptyState('), /"kv" is reassigned/],
+      ['a second IIFE in the file', (t: string) => t + '\n(function () {\n  \'use strict\';\n}());\n', /expected exactly one top-level "\(function \(\) \{" \.\.\. "\}\(\)\);", found 2 and 2/],
+    ])('throws for %s', (_n, edit, rx) => {
+      expect(withSource(edit as any)).toThrow(rx as RegExp);
+    });
+    it('records a different hash the moment kv changes, so every fixture bound to it goes stale', () => {
+      const built = withSource((t) => t.replace("'<div class=\"ds-kv\"><div class=\"ds-kv-k\">'", "'<div class=\"ds-kv\"><div class=\"ds-kv-k\" >'"))();
+      const kv = built.components.find((c: any) => c.id === 'ds-kv').source.js;
+      expect(kv.sha256).not.toBe(byId('ds-kv').source.js.sha256);
+      expect(built.components.filter((c: any) => c.id !== 'ds-kv').map((c: any) => c.source.js)).toEqual(manifest.components.filter((c: any) => c.id !== 'ds-kv').map((c: any) => c.source.js));
+    });
+  });
+
+  it('cuts kv exactly as the Storybook extractor does: the same text, so the same hash the fixtures are bound to', () => {
+    const out = spawnSync(process.execPath, ['--input-type=module', '-e',
+      "const m = await import(process.argv[1]); process.stdout.write(JSON.stringify(m.extractDs().find((s) => s.name === 'kv').code));",
+      path.join(ROOT, 'tools/storybook/lib/extract-lg.mjs')], { encoding: 'utf8' });
+    expect(out.status).toBe(0);
+    const code = JSON.parse(out.stdout);
+    expect(byId('ds-kv').source.js).toEqual({ file: DS_JS, symbol: 'kv', sha256: sha(squash(code)), bytes: Buffer.byteLength(code) });
+    expect(generator.SOURCE_FILES).toEqual(['public/app.js', DS_JS]);
   });
 
   it('never downgrades a failed claim silently: the error names the component and the generator writes nothing', () => {

@@ -9,6 +9,10 @@ import sourceCoreCss from '../../../public/source-core/source-core.css?raw';
 import visionCss from '../../../public/familista-vision/familista-vision.css?raw';
 import cyberCss from '../../../public/cybersecurity/cybersecurity.css?raw';
 import algorithmsCss from '../../../public/algorithms/algorithms.css?raw';
+// The Design System room's own stylesheet, which the Owner Kit stories need. Every
+// rule in it is .ds-* or scoped to the room's root (body.ds-design-open, #ds-root),
+// so it cannot restyle the other stories.
+import designSystemCss from '../../../public/design-system/design-system.css?raw';
 import overridesCss from './storybook-overrides.css?raw';
 // The Familista Design Core tokens, generated from tools/tokens/familista.tokens.json.
 // Storybook only consumes them; the token source does not know Storybook exists.
@@ -23,7 +27,8 @@ const SHEETS = [
   ['app.css', appCss], ['system.css', systemCss], ['data-vault.css', dataVaultCss],
   ['infrastructure-city.css', infraCss], ['source-core.css', sourceCoreCss],
   ['familista-vision.css', visionCss], ['cybersecurity.css', cyberCss],
-  ['algorithms.css', algorithmsCss], ['storybook-overrides.css (Storybook only)', overridesCss],
+  ['algorithms.css', algorithmsCss], ['design-system.css (the Design System room)', designSystemCss],
+  ['storybook-overrides.css (Storybook only)', overridesCss],
   ['foundations.css (Storybook only; reads --fam-* tokens)', foundationsCss],
 ];
 for (const [name, css] of SHEETS) {

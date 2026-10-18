@@ -7,32 +7,32 @@
    "id": "registry",
    "path": "tools/components/registry.json",
    "label": "The reviewed Components Registry",
-   "sha256": "7a615a2441452eb6c216a75dfa07986086c6c00f8037428d2685627eb9d70848",
-   "bytes": 34081,
+   "sha256": "668850b4951b185ea68bc0f4c53ff4b0530df68e54567f10b8d0e90e2a4b5a67",
+   "bytes": 34211,
    "basis": "file"
   },
   {
    "id": "storybook-stories",
    "path": "tools/storybook/stories",
    "label": "The Storybook story files the registry cites",
-   "sha256": "a525b49121c2e9358a9941aae54016ed8e4ea156ee3866ee3f667c64d7bc8f87",
-   "bytes": 1413,
+   "sha256": "e832eeb453511e9e07e9a1beddba0448301b41d96600a258aa862c332d10b5d3",
+   "bytes": 1518,
    "basis": "derived"
   },
   {
    "id": "storybook-golden",
    "path": "tools/storybook/tests/golden/lg-primitives.golden.json",
    "label": "The golden snapshot cases of the ten competition primitives",
-   "sha256": "0b60dcaa11d3d91b5fd910c263d89e689eca526ec48eadb048016333b3278d7a",
-   "bytes": 36507,
+   "sha256": "7a6970571ea9daae878cb8d44e789975db9e8bac6c56a9b5f25b4e266c0d0966",
+   "bytes": 37331,
    "basis": "file"
   },
   {
    "id": "production-slices",
    "path": "public",
    "label": "The slices of production source each component owns (render function and CSS rules)",
-   "sha256": "632c3dcba36ef71df76bbd428b85fee4dadc36df48fd92825d0a8b604a0d0fe0",
-   "bytes": 5729,
+   "sha256": "d61d61d970f586ca98210bde3c027c754c97922a162020d99afe47a6773873d2",
+   "bytes": 5793,
    "basis": "derived"
   }
  ],
@@ -196,9 +196,9 @@
    "primitive": 26
   },
   "byTier": {
-   "catalogued": 32,
+   "catalogued": 31,
    "listed": 15,
-   "verified": 13
+   "verified": 14
   },
   "byCategory": {
    "candidates": 7,
@@ -210,9 +210,9 @@
    "shell": 5,
    "surfaces": 9
   },
-  "withStories": 13,
+  "withStories": 14,
   "withVariants": 15,
-  "withSource": 13
+  "withSource": 14
  },
  "components": [
   {
@@ -2536,12 +2536,12 @@
    "name": "Key and value list",
    "category": "owner-kit",
    "kind": "primitive",
-   "tier": "catalogued",
+   "tier": "verified",
    "module": "design-system",
    "summary": "Labelled facts, one per line.",
    "depth": "full",
    "source": {
-    "js": null,
+    "js": {"file":"public/design-system/design-system.js","symbol":"kv","sha256":"af183852a16a946cc96c23db3b25a2f6167d74490abc5e0b20e09e9714e10be3","bytes":155},
     "css": [{"file":"public/design-system/design-system.css","rules":5,"sha256":"96e4e59710aa7a209a05f22e15b980c2b2e5831a509338efbba0140b1e92f0ac","bytes":572}],
     "presence": []
    },
@@ -2558,19 +2558,26 @@
     "reducedMotion": false
    },
    "anatomy": [
-    {"cls":"ds-kv-list","rules":1,"emitted":null},
-    {"cls":"ds-kv-k","rules":1,"emitted":null},
-    {"cls":"ds-kv-v","rules":1,"emitted":null}
+    {"cls":"ds-kv-list","rules":1,"emitted":false},
+    {"cls":"ds-kv-k","rules":1,"emitted":true},
+    {"cls":"ds-kv-v","rules":1,"emitted":true}
    ],
    "variants": [],
-   "stories": null,
+   "stories": {
+    "file": "tools/storybook/stories/DsKv.stories.js",
+    "title": "Familista/kv",
+    "cases": ["LabelAndValue","ZeroIsAValue","NotRecorded","LongLabel","InAList","RTL","Tablet","Mobile"],
+    "golden": ["label and value","zero is a value","not recorded is a dash","empty value","long label","markup in the label is escaped"],
+    "options": [],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
    "accessibility": {
-    "facts": []
+    "facts": [{"id":"escapes","label":"The function escapes interpolated text before it reaches the page.","evidence":"MEASURED","where":"render function"},{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/DsKv.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/DsKv.stories.js"}]
    },
    "dependencies": {
     "calls": [],
     "calledBy": [],
-    "helpers": []
+    "helpers": ["T","esc"]
    },
    "referencedIn": [
     "public/design-system/components.js",
@@ -2583,8 +2590,8 @@
     "styling": "MEASURED",
     "source": "MEASURED",
     "variants": "NONE",
-    "stories": "NONE",
-    "accessibility": "NONE",
+    "stories": "MEASURED",
+    "accessibility": "MEASURED",
     "dependencies": "MEASURED"
    }
   },
