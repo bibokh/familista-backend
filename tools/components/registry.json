@@ -1366,11 +1366,18 @@
      "public/design-system/design-system.css"
     ]
    },
+   "js": {
+    "file": "public/design-system/design-system.js",
+    "symbol": "panel"
+   },
    "anatomy": [
     "ds-panel-head",
     "ds-panel-title",
     "ds-panel-note"
-   ]
+   ],
+   "stories": "DsPanel",
+   "golden": "panel",
+   "notes": "Previewed untitled only, as panel('', body): the title draws <h2 class=\"ds-panel-title\">, which the Lab sanitizer does not allow, so the head, title and note are not shown (M3/S2.2b-1)."
   },
   {
    "id": "ds-metric",

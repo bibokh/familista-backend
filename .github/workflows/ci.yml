@@ -237,11 +237,11 @@ jobs:
           - shard: isolation
             sections: '1,2,2b,3,4,5,8,9,10,11,12,13'
             axe: ''
-            min: '195'
+            min: '197'
           - shard: accessibility and focus
             sections: '6,7,13a'
             axe: '--axe'
-            min: '66'
+            min: '68'
 
     env:
       NODE_ENV:           test

@@ -227,11 +227,11 @@ describe('nothing is invented: every claim is recomputed independently from the 
       expect({ id: c.id, tier: c.tier }).toEqual({ id: c.id, tier: expected });
     }
     const verified = manifest.components.filter((c: any) => c.tier === 'verified').map((c: any) => c.id).sort();
-    expect(verified).toEqual(['club-identity', 'club-logo', 'ds-kv', 'lg-chip', 'lg-crest', 'lg-empty', 'lg-float', 'lg-form', 'lg-icon', 'lg-ident', 'lg-metric', 'lg-panel', 'lg-status-chip', 'lg-versus']);
+    expect(verified).toEqual(['club-identity', 'club-logo', 'ds-kv', 'ds-panel', 'lg-chip', 'lg-crest', 'lg-empty', 'lg-float', 'lg-form', 'lg-icon', 'lg-ident', 'lg-metric', 'lg-panel', 'lg-status-chip', 'lg-versus']);
   });
 
-  it('records the Storybook case counts of the fourteen verified components exactly as their story files export them', () => {
-    const want: Record<string, number> = { 'ds-kv': 8, 'lg-icon': 6, 'club-logo': 8, 'club-identity': 9, 'lg-crest': 8, 'lg-ident': 9, 'lg-chip': 8, 'lg-status-chip': 10, 'lg-form': 7, 'lg-metric': 9, 'lg-versus': 11, 'lg-panel': 8, 'lg-float': 8, 'lg-empty': 7 };
+  it('records the Storybook case counts of the fifteen verified components exactly as their story files export them', () => {
+    const want: Record<string, number> = { 'ds-kv': 8, 'ds-panel': 6, 'lg-icon': 6, 'club-logo': 8, 'club-identity': 9, 'lg-crest': 8, 'lg-ident': 9, 'lg-chip': 8, 'lg-status-chip': 10, 'lg-form': 7, 'lg-metric': 9, 'lg-versus': 11, 'lg-panel': 8, 'lg-float': 8, 'lg-empty': 7 };
     for (const [id, n] of Object.entries(want)) expect({ id, n: byId(id).stories.cases.length }).toEqual({ id, n });
   });
 
@@ -403,6 +403,7 @@ describe('the generator refuses a registry its repository cannot back up', () =>
     it.each([
       ['a second kv at the top level of the IIFE', (t: string) => t.replace('\n  function emptyState(', "\n  function kv(a) { return a; }\n  function emptyState("), /"function kv" is declared 2 times at any depth/],
       ['a second kv nested inside another function', (t: string) => t.replace('  function emptyState(title, why, extra) {\n', "  function emptyState(title, why, extra) {\n    function kv(a) { return a; }\n"), /"function kv" is declared 2 times at any depth/],
+      ['a second panel nested inside another function', (t: string) => t.replace('  function emptyState(title, why, extra) {\n', "  function emptyState(title, why, extra) {\n    function panel(a) { return a; }\n"), /"function panel" is declared 2 times at any depth/],
       ['kv only nested, not at the top level', (t: string) => t.replace('\n  function kv(label, value) {', '\n    function kv(label, value) {'), /expected exactly one "function kv" at the top level, found 0/],
       ['kv reassigned after its declaration', (t: string) => t.replace('\n  function emptyState(', '\n  kv = function (a) { return a; };\n  function emptyState('), /"kv" is reassigned/],
       ['a second IIFE in the file', (t: string) => t + '\n(function () {\n  \'use strict\';\n}());\n', /expected exactly one top-level "\(function \(\) \{" \.\.\. "\}\(\)\);", found 2 and 2/],
@@ -415,6 +416,18 @@ describe('the generator refuses a registry its repository cannot back up', () =>
       expect(kv.sha256).not.toBe(byId('ds-kv').source.js.sha256);
       expect(built.components.filter((c: any) => c.id !== 'ds-kv').map((c: any) => c.source.js)).toEqual(manifest.components.filter((c: any) => c.id !== 'ds-kv').map((c: any) => c.source.js));
     });
+  });
+
+  it('cuts panel exactly as the Storybook extractor does, and the extractor refuses a symbol the file does not declare', () => {
+    const out = spawnSync(process.execPath, ['--input-type=module', '-e',
+      "const m = await import(process.argv[1]); let refused = '';"
+      + " try { m.extractDs(m.DS_JS, [['fn', 'panelNoSuch']]); } catch (e) { refused = e.message; }"
+      + " process.stdout.write(JSON.stringify({ code: m.extractDs().find((s) => s.name === 'panel').code, refused }));",
+      path.join(ROOT, 'tools/storybook/lib/extract-lg.mjs')], { encoding: 'utf8' });
+    expect(out.status).toBe(0);
+    const { code, refused } = JSON.parse(out.stdout);
+    expect(byId('ds-panel').source.js).toEqual({ file: DS_JS, symbol: 'panel', sha256: sha(squash(code)), bytes: Buffer.byteLength(code) });
+    expect(refused).toMatch(/expected exactly one declaration of panelNoSuch at any depth, found 0/);
   });
 
   it('cuts kv exactly as the Storybook extractor does: the same text, so the same hash the fixtures are bound to', () => {

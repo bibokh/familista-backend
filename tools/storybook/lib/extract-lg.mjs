@@ -40,7 +40,7 @@ export const WANTED = [
 // an empty dictionary), its escaper, and the render functions previewed.
 export const DS_WANTED = [
   ['var', 'DS_DICT'], ['var', 'DS_LANG'], ['var', 'DS_SEEN'],
-  ['fn', 'T'], ['fn', 'esc'], ['fn', 'kv'],
+  ['fn', 'T'], ['fn', 'esc'], ['fn', 'kv'], ['fn', 'panel'],
 ];
 
 function lineOf(src, index) { return src.slice(0, index).split('\n').length; }
