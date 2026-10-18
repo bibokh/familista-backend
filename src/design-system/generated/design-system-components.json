@@ -7,32 +7,32 @@
    "id": "registry",
    "path": "tools/components/registry.json",
    "label": "The reviewed Components Registry",
-   "sha256": "668850b4951b185ea68bc0f4c53ff4b0530df68e54567f10b8d0e90e2a4b5a67",
-   "bytes": 34211,
+   "sha256": "e9f4f23a160d88fd79cbb0aa27e99e45d94432bd5ce6435659b0552705b1b308",
+   "bytes": 34553,
    "basis": "file"
   },
   {
    "id": "storybook-stories",
    "path": "tools/storybook/stories",
    "label": "The Storybook story files the registry cites",
-   "sha256": "e832eeb453511e9e07e9a1beddba0448301b41d96600a258aa862c332d10b5d3",
-   "bytes": 1518,
+   "sha256": "6030377a711756dd95c62831e243af92ff0a428cd416e1612ba0cf7b20ca0412",
+   "bytes": 1626,
    "basis": "derived"
   },
   {
    "id": "storybook-golden",
    "path": "tools/storybook/tests/golden/lg-primitives.golden.json",
    "label": "The golden snapshot cases of the ten competition primitives",
-   "sha256": "7a6970571ea9daae878cb8d44e789975db9e8bac6c56a9b5f25b4e266c0d0966",
-   "bytes": 37331,
+   "sha256": "5fde4b60da90e389d211f730f4006caa40778c224db17ad518bb2d6451a3ba24",
+   "bytes": 38133,
    "basis": "file"
   },
   {
    "id": "production-slices",
    "path": "public",
    "label": "The slices of production source each component owns (render function and CSS rules)",
-   "sha256": "d61d61d970f586ca98210bde3c027c754c97922a162020d99afe47a6773873d2",
-   "bytes": 5793,
+   "sha256": "ace503a99cd708b2bdf88f478d6d007ef7294c2618fccc4732cd4bc8b9ef943f",
+   "bytes": 5857,
    "basis": "derived"
   }
  ],
@@ -196,9 +196,9 @@
    "primitive": 26
   },
   "byTier": {
-   "catalogued": 31,
+   "catalogued": 30,
    "listed": 15,
-   "verified": 14
+   "verified": 15
   },
   "byCategory": {
    "candidates": 7,
@@ -210,9 +210,9 @@
    "shell": 5,
    "surfaces": 9
   },
-  "withStories": 14,
+  "withStories": 15,
   "withVariants": 15,
-  "withSource": 14
+  "withSource": 15
  },
  "components": [
   {
@@ -2261,12 +2261,12 @@
    "name": "Panel",
    "category": "owner-kit",
    "kind": "primitive",
-   "tier": "catalogued",
+   "tier": "verified",
    "module": "design-system",
    "summary": "The dark gradient surface with a hairline border and a title row.",
    "depth": "full",
    "source": {
-    "js": null,
+    "js": {"file":"public/design-system/design-system.js","symbol":"panel","sha256":"204eba21366d4a72a0a13f72b0989f76fefd6e65ee176a39567c1f38384bdf4a","bytes":330},
     "css": [{"file":"public/design-system/design-system.css","rules":4,"sha256":"9d32f94456101069e3572b79b11fe2a3ae68f09747e35fe5193bdffbe7b19ed7","bytes":746}],
     "presence": []
    },
@@ -2283,19 +2283,26 @@
     "reducedMotion": false
    },
    "anatomy": [
-    {"cls":"ds-panel-head","rules":1,"emitted":null},
-    {"cls":"ds-panel-title","rules":1,"emitted":null},
-    {"cls":"ds-panel-note","rules":1,"emitted":null}
+    {"cls":"ds-panel-head","rules":1,"emitted":true},
+    {"cls":"ds-panel-title","rules":1,"emitted":true},
+    {"cls":"ds-panel-note","rules":1,"emitted":true}
    ],
    "variants": [],
-   "stories": null,
+   "stories": {
+    "file": "tools/storybook/stories/DsPanel.stories.js",
+    "title": "Familista/panel",
+    "cases": ["KeyValueList","ListAndNote","NoteOnly","RTL","Tablet","Mobile"],
+    "golden": ["untitled, a key-value list","untitled, a list and a note","untitled, a note only"],
+    "options": [],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
    "accessibility": {
-    "facts": []
+    "facts": [{"id":"escapes","label":"The function escapes interpolated text before it reaches the page.","evidence":"MEASURED","where":"render function"},{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/DsPanel.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/DsPanel.stories.js"}]
    },
    "dependencies": {
     "calls": [],
     "calledBy": [],
-    "helpers": []
+    "helpers": ["T","esc"]
    },
    "referencedIn": [
     "public/design-system/design-system.js"
@@ -2306,8 +2313,8 @@
     "styling": "MEASURED",
     "source": "MEASURED",
     "variants": "NONE",
-    "stories": "NONE",
-    "accessibility": "NONE",
+    "stories": "MEASURED",
+    "accessibility": "MEASURED",
     "dependencies": "MEASURED"
    }
   },

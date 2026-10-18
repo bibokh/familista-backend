@@ -50,9 +50,10 @@ fixtures into `src/design-system/generated/design-system-previews.json`. It read
 snapshot as text and executes nothing; `tests/design-system-lab.unit.test.ts` re-runs the Storybook
 golden test so CI refuses a snapshot that has drifted from `public/app.js`.
 
-Fourteen components are previewable, with 100 fixtures: the ten `_lg*` primitives (65 fixtures, pinned
+Fifteen components are previewable, with 103 fixtures: the ten `_lg*` primitives (65 fixtures, pinned
 byte for byte by digest), since M3 / S2.1b `_lgIcon` (12), `clubLogoHtml` (9) and `clubIdentityHtml` (8)
-(the 94 together pinned by digest), and since M3 / S2.2a the Owner Kit's `kv` (6). The `app.js` ones are
+(the 94 together pinned by digest), since M3 / S2.2a the Owner Kit's `kv` (6) (the 100 together pinned by
+digest), and since M3 / S2.2b-1 the Owner Kit's `panel` (3). The `app.js` ones are
 each cut by name from `public/app.js` by `tools/storybook/lib/extract-lg.mjs` and run over the fixed inputs in
 `tools/storybook/tests/cases.mjs`. A case section, a call or a golden key that names a function the components
 manifest did not resolve in `public/app.js` fails the build. Three exclusions are deliberate, and the sanitizer
@@ -76,6 +77,15 @@ two-space indent removed, by the same cutter (`extractDs()` in `tools/storybook/
 registered twice, a name declared more than once anywhere in its file, or one found only nested deeper than the
 IIFE's top level fails the build. Storybook loads `design-system.css` for these stories; every rule in it is
 `.ds-*` or scoped to the room's root.
+
+`ds-panel` (M3 / S2.2b-1) is the real `panel(title, body, note, extra)`, previewed **untitled only**, as six
+production call sites write it (`panel('', body)`). A title draws `<h2 class="ds-panel-title">`, and the
+sanitizer does not allow `class` on `h2`; a test runs the real titled call and shows the unchanged sanitizer
+refusing it, so the head, title and note are not shown. The bodies production passes to an untitled panel
+(`emptyState`, `skeleton`, `notGenerated`, the token tables) are themselves refused today (`role="status"`,
+`aria-label` on a `div`, `<code>`, `<thead>`), so the fixtures' bodies are the room's own key-value list and
+note: real `kv()` rows in the `.ds-kv-list` wrapper and the `.ds-note` line production writes. The sanitizer
+was not changed.
 
 `is-empty` is the one class accepted by a component-scoped reviewed entry (`SCOPED_INERT` in the generator):
 `clubLogoHtml` writes it when a club has no crest, and no production rule styles `.club-logo.is-empty`. It is

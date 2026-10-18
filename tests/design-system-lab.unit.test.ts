@@ -108,7 +108,7 @@ beforeEach(() => { forgetIdentity(); resetDesignSystemComponentsCache(); resetDe
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the sanitizer: a closed allowlist that fails closed', () => {
-  it('passes every one of the 100 real fixtures, and what it writes is a fixed point', () => {
+  it('passes every one of the 103 real fixtures, and what it writes is a fixed point', () => {
     let n = 0;
     for (const [sym, cases] of Object.entries<any>(golden)) for (const [label, raw] of Object.entries<string>(cases)) {
       const a = S.sanitize(raw);
@@ -119,7 +119,7 @@ describe('the sanitizer: a closed allowlist that fails closed', () => {
       expect(S.serialize(tree)).toBe(a.html);
       n++;
     }
-    expect(n).toBe(100);
+    expect(n).toBe(103);
   });
 
   it('has a closed list: eighteen tags, no more, and no attribute outside the ones real fixtures use', () => {
@@ -295,13 +295,13 @@ describe('the sanitizer: a closed allowlist that fails closed', () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the preview manifest: the golden fixtures, sanitised, hashed and bound to the source', () => {
-  it('previews exactly the fourteen verified components, with the 100 golden fixtures between them', () => {
+  it('previews exactly the fifteen verified components, with the 103 golden fixtures between them', () => {
     const verified = components.components.filter((c: any) => c.tier === 'verified').map((c: any) => c.id);
     expect(manifest.components.map((c: any) => c.id)).toEqual(verified);
-    expect(manifest.components.map((c: any) => c.id)).toEqual(['club-logo', 'club-identity', 'lg-crest', 'lg-ident', 'lg-icon', 'lg-chip', 'lg-status-chip', 'lg-form', 'lg-metric', 'lg-versus', 'lg-panel', 'lg-float', 'lg-empty', 'ds-kv']);
-    expect(manifest.components.map((c: any) => c.fixtures.length)).toEqual([9, 8, 7, 6, 12, 7, 11, 5, 6, 10, 5, 5, 3, 6]);
-    expect(manifest.coverage).toMatchObject({ registered: 60, previewable: 14, unavailable: 46, fixtures: 100 });
-    expect(allFixtures()).toHaveLength(100);
+    expect(manifest.components.map((c: any) => c.id)).toEqual(['club-logo', 'club-identity', 'lg-crest', 'lg-ident', 'lg-icon', 'lg-chip', 'lg-status-chip', 'lg-form', 'lg-metric', 'lg-versus', 'lg-panel', 'lg-float', 'lg-empty', 'ds-panel', 'ds-kv']);
+    expect(manifest.components.map((c: any) => c.fixtures.length)).toEqual([9, 8, 7, 6, 12, 7, 11, 5, 6, 10, 5, 5, 3, 3, 6]);
+    expect(manifest.coverage).toMatchObject({ registered: 60, previewable: 15, unavailable: 45, fixtures: 103 });
+    expect(allFixtures()).toHaveLength(103);
   });
 
   it('is well-formed by the very validator the server runs', () => {
@@ -394,10 +394,10 @@ describe('the preview manifest: the golden fixtures, sanitised, hashed and bound
     for (const [name, rules] of owners) if (!inert.includes(name)) { expect(rules).toBeGreaterThan(0); expect(css).toMatch(new RegExp(`\\.${name.replace(/-/g, '\\-')}(?![\\w-])`)); }
   });
 
-  it('says why each of the other 46 cannot be previewed, in a closed set of reasons', () => {
+  it('says why each of the other 45 cannot be previewed, in a closed set of reasons', () => {
     const avail = manifest.availability;
     expect(avail.map((a: any) => a.id)).toEqual(components.components.map((c: any) => c.id));
-    expect(avail.filter((a: any) => a.state === 'preview')).toHaveLength(14);
+    expect(avail.filter((a: any) => a.state === 'preview')).toHaveLength(15);
     const by = (r: string) => avail.filter((a: any) => a.reason === r).map((a: any) => a.id);
     expect(by('no-fixtures')).toEqual([]);                          // every registered render function now has fixtures
     expect(by('application-shell')).toEqual(['sidebar-nav', 'topbar', 'page-header', 'ds-shell']);
@@ -405,8 +405,8 @@ describe('the preview manifest: the golden fixtures, sanitised, hashed and bound
     expect(by('css-family')).toHaveLength(7);
     expect(by('utility')).toEqual(['page', 'hidden']);
     expect(by('page-specific')).toEqual(['oh-family']);
-    expect(by('css-only')).toHaveLength(25);
-    expect(Object.values(manifest.coverage.byReason).reduce((a: any, b: any) => a + b, 0)).toBe(46);
+    expect(by('css-only')).toHaveLength(24);
+    expect(Object.values(manifest.coverage.byReason).reduce((a: any, b: any) => a + b, 0)).toBe(45);
   });
 
   it('never previews a component that has no render function', () => {
@@ -495,6 +495,7 @@ describe('the golden snapshot is re-proved against public/app.js, so CI refuses 
     return tmp;
   };
   it.each([
+    ['panel itself changes', (ds: string) => ds.replace("'<section class=\"ds-panel'", "'<section data-drift class=\"ds-panel'"), /panel \/ untitled, a key-value list/],
     ['kv itself changes', (ds: string) => ds.replace("'<div class=\"ds-kv\"><div class=\"ds-kv-k\">'", "'<div class=\"ds-kv\"><div class=\"ds-kv-k\" data-drift>'"), /kv \/ label and value/],
     ['the translator stops returning English as it is', (ds: string) => ds.replace("if (DS_LANG === 'en') return s;", "if (DS_LANG === 'en') return s.toUpperCase();"), /kv \/ label and value|translator is the room's own/],
     ['the room starts in another language', (ds: string) => ds.replace("var DS_LANG = 'en';", "var DS_LANG = 'de';"), /translator is the room's own|kv \/ /],
@@ -614,6 +615,7 @@ describe('the generator and the validator refuse what they cannot back up', () =
       ['an invalid data-club-logo value', (g: any) => { g.clubLogoHtml['with crest, default size'] = crest(g).replace('data-club-logo="riverside"', 'data-club-logo="river side/../x"'); }, /club-logo \/ with crest, default size: the value of "data-club-logo" is not allowed/],
       ['a club-logo class with no rule and no reviewed entry', (g: any) => { g.clubLogoHtml['with crest, default size'] = crest(g).replace('club-logo--s34', 'club-logo--s99'); }, /the class "club-logo--s99" has no approved provenance/],
       ['is-empty borrowed by an element that is not a club logo', (g: any) => { g._lgChip['label and value'] = '<span class="lg-chip is-empty">a</span>'; }, /lg-chip \/ label and value: a scoped inert class appears on an element that is not its component/],
+      ['a panel fixture with a class nobody owns', (g: any) => { g.panel['untitled, a note only'] = g.panel['untitled, a note only'].replace('class="ds-panel"', 'class="ds-panel ds-panel--bogus"'); }, /ds-panel \/ untitled, a note only: the class "ds-panel--bogus" has no approved provenance/],
       ['a kv fixture with a class nobody owns', (g: any) => { g.kv['label and value'] = g.kv['label and value'].replace('ds-kv-k', 'ds-kv-k ds-kv-bogus'); }, /ds-kv \/ label and value: the class "ds-kv-bogus" has no approved provenance/],
       ['a kv fixture whose value carries markup the sanitizer refuses', (g: any) => { g.kv['label and value'] = g.kv['label and value'].replace('>128<', '><code>128</code><'); }, /ds-kv \/ label and value: the tag <code> is not allowed/],
       ['is-empty on a club-identity root rather than its logo', (g: any) => { g.clubIdentityHtml['no sub line'] = g.clubIdentityHtml['no sub line'].replace('<span class="club-ident">', '<span class="club-ident is-empty">'); }, /club-identity \/ no sub line: a scoped inert class appears/],
@@ -632,12 +634,43 @@ describe('the generator and the validator refuse what they cannot back up', () =
     });
   });
 
+  it('keeps the 100 fixtures that predate ds-panel byte for byte, and notices a one-byte change', () => {
+    const FOURTEEN = ['_lgCrest', '_lgIdent', '_lgChip', '_lgStatusChip', '_lgForm', '_lgMetric', '_lgPanel', '_lgEmpty', '_lgFloat', '_lgVersus', '_lgIcon', 'clubLogoHtml', 'clubIdentityHtml', 'kv'];
+    const digest = (g: any) => sha(JSON.stringify(Object.fromEntries(FOURTEEN.map((k) => [k, g[k]]))));
+    // The digest of the whole golden snapshot at f400a4f, before panel was added.
+    const S22A = 'd602fa8b2e03e7b2f748e96922db1b413e5d29ab73d4e7eca5ba8c11519104a3';
+    expect(Object.keys(golden)).toEqual([...FOURTEEN, 'panel']);
+    expect(FOURTEEN.reduce((n, k) => n + Object.keys(golden[k]).length, 0)).toBe(100);
+    expect(digest(golden)).toBe(S22A);
+    const g = clone(golden); g.kv['zero is a value'] = g.kv['zero is a value'].replace('>0<', '>1<');
+    expect(digest(g)).not.toBe(S22A);
+  });
+
+  it('refuses the titled panel the real panel() writes, so only the untitled form is previewed (the sanitizer is unchanged)', () => {
+    // The real function, cut by the Storybook extractor, called as production calls it with a title.
+    const out = spawnSync(process.execPath, ['--input-type=module', '-e',
+      "const m = await import(process.argv[1]); const b = await import(process.argv[2]);"
+      + " const k = b.buildDs(m.extractDs());"
+      + " process.stdout.write(JSON.stringify([k.panel('Token layers', '<div class=\"ds-kv-list\">' + k.kv('Tokens', '128') + '</div>', '3 contexts'), k.panel('', '<div class=\"ds-kv-list\">' + k.kv('Tokens', '128') + k.kv('New failures', '0') + '</div>')]));",
+      path.join(ROOT, 'tools/storybook/lib/extract-lg.mjs'), path.join(ROOT, 'tools/storybook/lib/build-lg.mjs')], { encoding: 'utf8' });
+    expect(out.status).toBe(0);
+    const [titled, untitled] = JSON.parse(out.stdout);
+    expect(titled).toContain('<h2 class="ds-panel-title">Token layers</h2>');
+    const r = S.sanitize(titled);
+    expect(r.ok).toBe(false);
+    expect(r.problems).toContain('the attribute "class" is not allowed on <h2>');
+    expect(S.sanitize(untitled).ok).toBe(true);
+    expect(untitled).toBe(golden.panel['untitled, a key-value list']);   // the same call, the same bytes as the recorded fixture
+    expect(Object.keys(golden.panel).every((k) => k.startsWith('untitled'))).toBe(true);
+    expect(Object.values<string>(golden.panel).some((h) => h.includes('<h2'))).toBe(false);
+  });
+
   it('keeps the 94 fixtures that predate the Owner Kit byte for byte, and notices a one-byte change', () => {
     const THIRTEEN = ['_lgCrest', '_lgIdent', '_lgChip', '_lgStatusChip', '_lgForm', '_lgMetric', '_lgPanel', '_lgEmpty', '_lgFloat', '_lgVersus', '_lgIcon', 'clubLogoHtml', 'clubIdentityHtml'];
     const digest = (g: any) => sha(JSON.stringify(Object.fromEntries(THIRTEEN.map((k) => [k, g[k]]))));
     // The digest of the whole golden snapshot at 0a5c90c, before kv was added.
     const S21B = '0f9c6444649abb946d3d54bc2d818bebd57239a42d6a73d1e026fd8d339de2cd';
-    expect(Object.keys(golden)).toEqual([...THIRTEEN, 'kv']);
+    expect(Object.keys(golden).slice(0, 14)).toEqual([...THIRTEEN, 'kv']);
     expect(THIRTEEN.reduce((n, k) => n + Object.keys(golden[k]).length, 0)).toBe(94);
     expect(digest(golden)).toBe(S21B);
     const g = clone(golden); g.clubLogoHtml['named size xs'] = g.clubLogoHtml['named size xs'].replace('s16', 's20');
@@ -1216,7 +1249,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
   it('opens on the first previewable component and its first fixture, built from nodes and never from a string', async () => {
     const r = await launch();
     expect(r.api).toEqual(['/system/design-system/components', '/system/design-system/components/preview', '/system/design-system/components/preview?id=club-logo']);
-    expect(r.metrics()).toMatchObject({ selected: 'club-logo', fixture: 'club-logo.with-crest-default-size', dir: 'ltr', components: 14, fixtures: 100 });
+    expect(r.metrics()).toMatchObject({ selected: 'club-logo', fixture: 'club-logo.with-crest-default-size', dir: 'ltr', components: 15, fixtures: 103 });
     // the specimen element never had innerHTML written; only elements made with createElement were put in it
     expect(r.dom.log.innerHTML['lab-specimen']).toBeUndefined();
     expect(r.dom.log.created.length).toBeGreaterThan(5);
@@ -1226,7 +1259,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     expect(spec.children[0].className).toBe('lab-col');
   });
 
-  it('draws all 100 fixtures without throwing, one node for every element the manifest counts', async () => {
+  it('draws all 103 fixtures without throwing, one node for every element the manifest counts', async () => {
     const r = await launch();
     for (const c of manifest.components) {
       r.click({ '[data-lab-id]': attr(c.id) }); await r.settle();
@@ -1284,13 +1317,13 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     expect(r.api.filter((p) => p.includes('?id='))).toEqual(['/system/design-system/components/preview?id=club-identity']);   // nothing fetched for a component with no fixtures
   });
 
-  it('lists all 60: the fourteen live ones first, and the other forty-six grouped by reason with the reason on each', async () => {
+  it('lists all 60: the fifteen live ones first, and the other forty-five grouped by reason with the reason on each', async () => {
     const r = await launch();
     const rail = r.dom.log.innerHTML['lab-rail-body'].slice(-1)[0];
     expect(rail.match(/data-lab-id="/g)).toHaveLength(60);
     expect(rail.match(/<ul class="lab-list" id="lab-g-[a-z-]+" hidden>/g)).toHaveLength(6);        // the six unavailable groups start closed
     expect(rail).toMatch(/<ul class="lab-list" id="lab-g-preview">/);
-    expect(rail.match(/aria-disabled="true"/g)).toHaveLength(46);
+    expect(rail.match(/aria-disabled="true"/g)).toHaveLength(45);
     expect(rail).toContain('CSS only');
     expect(rail).not.toContain('No fixtures yet');                 // no registered render function is without fixtures
     r.type('o');                                                    // a search opens every group that has a match
@@ -1419,7 +1452,7 @@ describe('the Lab, run for real in a sandbox: hostile data, selection, fixtures,
     const counts: number[] = [];
     for (const c of manifest.components) { r.click({ '[data-lab-id]': attr(c.id) }); await r.settle(); for (const f of c.fixtures) { r.click({ '[data-lab-fx]': attr(f.id) }); counts.push(r.metrics().specimenNodes); } }
     expect(Math.max(...counts)).toBeLessThan(40);
-    expect(counts).toHaveLength(100);
+    expect(counts).toHaveLength(103);
   });
 
   // ── M2 / S1: zoom ──────────────────────────────────────────────────────────
@@ -1976,8 +2009,8 @@ describe('the browser proof is kept with the code and is a required CI job', () 
     const mins = [...body.matchAll(/min:\s*'(\d+)'/g)].map((m) => Number(m[1]));
     expect(mins.length).toBe(2);
     expect(mins.every((n) => n >= 34)).toBe(true);
-    // M3/S2.2a: the floors are the counts measured with fourteen previewable components; they never go below S2.1b's 193 and 64.
-    expect(mins).toEqual([195, 66]);
+    // M3/S2.2b-1: the floors are the counts measured with fifteen previewable components; they never go below S2.2a's 195 and 66.
+    expect(mins).toEqual([197, 68]);
   });
 
   it('classifies the browser\'s own copy of a CSP violation as a notice in both Chrome wordings, and nothing else', () => {

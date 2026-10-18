@@ -143,4 +143,17 @@ export const CASES = {
     'long label': (l) => l.kv('Failures beyond the Stage 2a record', '3'),
     'markup in the label is escaped': (l) => l.kv('<b>Bad</b> & "Co"', 'x'),
   },
+  // M3/S2.2b-1. The Owner Kit's panel(title, body, note, extra), untitled, as six
+  // production call sites write it: panel('', body). The title draws an
+  // <h2 class="ds-panel-title">, which the sanitizer does not allow, so no titled
+  // case is recorded. The bodies production passes to an untitled panel
+  // (emptyState, skeleton, notGenerated, the token tables) are themselves refused
+  // today, so these bodies are the room's own key-value list and note: real kv()
+  // rows in the .ds-kv-list wrapper and the .ds-note line production writes,
+  // with notes the room really shows.
+  panel: {
+    'untitled, a key-value list': (l) => l.panel('', '<div class="ds-kv-list">' + l.kv('Tokens', '128') + l.kv('New failures', '0') + '</div>'),
+    'untitled, a list and a note': (l) => l.panel('', '<div class="ds-kv-list">' + l.kv('Usage telemetry', '—') + '</div><div class="ds-note">A layer with no tokens is a measured 0.</div>'),
+    'untitled, a note only': (l) => l.panel('', '<div class="ds-note">Ratios are computed from the token values; a translucent surface is measured over its context’s canvas.</div>'),
+  },
 };

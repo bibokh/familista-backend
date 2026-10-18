@@ -7,24 +7,24 @@
    "id": "golden",
    "path": "tools/storybook/tests/golden/lg-primitives.golden.json",
    "label": "The golden snapshot: the real render functions run over fixed inputs",
-   "sha256": "7a6970571ea9daae878cb8d44e789975db9e8bac6c56a9b5f25b4e266c0d0966",
-   "bytes": 37331,
+   "sha256": "5fde4b60da90e389d211f730f4006caa40778c224db17ad518bb2d6451a3ba24",
+   "bytes": 38133,
    "basis": "file"
   },
   {
    "id": "cases",
    "path": "tools/storybook/tests/cases.mjs",
    "label": "The fixed inputs and the calls that produced each fixture",
-   "sha256": "ffac33f119fe4c8cdac3b5683b817626e1755f37b35b257eba5cee3e943d9aea",
-   "bytes": 9102,
+   "sha256": "f5b7ec4f4b6c8af0f19a35495578ee3dbf0d5e791b00e46442d7659b540c04e6",
+   "bytes": 10235,
    "basis": "file"
   },
   {
    "id": "registry",
    "path": "tools/components/registry.json",
    "label": "The reviewed Components Registry (class ownership)",
-   "sha256": "668850b4951b185ea68bc0f4c53ff4b0530df68e54567f10b8d0e90e2a4b5a67",
-   "bytes": 34211,
+   "sha256": "e9f4f23a160d88fd79cbb0aa27e99e45d94432bd5ce6435659b0552705b1b308",
+   "bytes": 34553,
    "basis": "file"
   },
   {
@@ -39,8 +39,8 @@
    "id": "class-rules",
    "path": "public",
    "label": "How many production CSS rules mention each class the fixtures use",
-   "sha256": "aaa460d39b7ab2d663ebb92bee4d64dee70a12fe1a577dba13a23bb49301900c",
-   "bytes": 1039,
+   "sha256": "6c5d141cc2101db247f43055675b483aee5d67d7e400a4b067e2b0ffce082fc7",
+   "bytes": 1073,
    "basis": "derived"
   }
  ],
@@ -170,11 +170,11 @@
  },
  "coverage": {
   "registered": 60,
-  "previewable": 14,
-  "unavailable": 46,
-  "fixtures": 100,
-  "bytes": 31990,
-  "nodes": 587,
+  "previewable": 15,
+  "unavailable": 45,
+  "fixtures": 103,
+  "bytes": 32633,
+  "nodes": 611,
   "neutralised": {
    "aria-modal": 5,
    "data-action": 10,
@@ -185,7 +185,7 @@
    "application-shell": 4,
    "candidate": 7,
    "css-family": 7,
-   "css-only": 25,
+   "css-only": 24,
    "page-specific": 1,
    "utility": 2
   }
@@ -498,6 +498,21 @@
    ]
   },
   {
+   "id": "ds-panel",
+   "symbol": "panel",
+   "source": {
+    "js": {"file":"public/design-system/design-system.js","symbol":"panel","sha256":"204eba21366d4a72a0a13f72b0989f76fefd6e65ee176a39567c1f38384bdf4a","bytes":330},
+    "css": [{"file":"public/design-system/design-system.css","rules":4,"sha256":"9d32f94456101069e3572b79b11fe2a3ae68f09747e35fe5193bdffbe7b19ed7","bytes":746}]
+   },
+   "mediaQueries": [],
+   "variants": [],
+   "fixtures": [
+    {"id":"ds-panel.untitled-a-key-value-list","label":"untitled, a key-value list","call":"panel('', '<div class=\"ds-kv-list\">' + l.kv('Tokens', '128') + l.kv('New failures', '0') + '</div>')","html":"<section class=\"ds-panel\"><div class=\"ds-kv-list\"><div class=\"ds-kv\"><div class=\"ds-kv-k\">Tokens</div><div class=\"ds-kv-v\">128</div></div><div class=\"ds-kv\"><div class=\"ds-kv-k\">New failures</div><div class=\"ds-kv-v\">0</div></div></div></section>","sha256":"c04d524ff90b59226a13249052866297528e37e839c1932c13837f3adf65f065","bytes":246,"nodes":12,"elements":8,"depth":5,"tags":["div","section"],"classes":[{"name":"ds-kv","owner":"ds-kv","rules":2},{"name":"ds-kv-k","owner":"ds-kv","rules":1},{"name":"ds-kv-list","owner":"ds-kv","rules":1},{"name":"ds-kv-v","owner":"ds-kv","rules":1},{"name":"ds-panel","owner":"ds-panel","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"c04d524ff90b59226a13249052866297528e37e839c1932c13837f3adf65f065"},
+    {"id":"ds-panel.untitled-a-list-and-a-note","label":"untitled, a list and a note","call":"panel('', '<div class=\"ds-kv-list\">' + l.kv('Usage telemetry', '—') + '</div><div class=\"ds-note\">A layer with no tokens is a measured 0.</div>')","html":"<section class=\"ds-panel\"><div class=\"ds-kv-list\"><div class=\"ds-kv\"><div class=\"ds-kv-k\">Usage telemetry</div><div class=\"ds-kv-v\">—</div></div></div><div class=\"ds-note\">A layer with no tokens is a measured 0.</div></section>","sha256":"bf84db18cee904eae7afb6b5818033710f6227a5a6f48ea0f7d558b565c92e77","bytes":229,"nodes":9,"elements":6,"depth":5,"tags":["div","section"],"classes":[{"name":"ds-kv","owner":"ds-kv","rules":2},{"name":"ds-kv-k","owner":"ds-kv","rules":1},{"name":"ds-kv-list","owner":"ds-kv","rules":1},{"name":"ds-kv-v","owner":"ds-kv","rules":1},{"name":"ds-note","owner":"css","rules":1},{"name":"ds-panel","owner":"ds-panel","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"bf84db18cee904eae7afb6b5818033710f6227a5a6f48ea0f7d558b565c92e77"},
+    {"id":"ds-panel.untitled-a-note-only","label":"untitled, a note only","call":"panel('', '<div class=\"ds-note\">Ratios are computed from the token values; a translucent surface is measured over its context’s canvas.</div>')","html":"<section class=\"ds-panel\"><div class=\"ds-note\">Ratios are computed from the token values; a translucent surface is measured over its context’s canvas.</div></section>","sha256":"1f3067dcb5c4edd7846580e9089820e937f492bf3fd3c7a17b83fa6123a38151","bytes":168,"nodes":3,"elements":2,"depth":3,"tags":["div","section"],"classes":[{"name":"ds-note","owner":"css","rules":1},{"name":"ds-panel","owner":"ds-panel","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"1f3067dcb5c4edd7846580e9089820e937f492bf3fd3c7a17b83fa6123a38151"}
+   ]
+  },
+  {
    "id": "ds-kv",
    "symbol": "kv",
    "source": {
@@ -689,8 +704,8 @@
   },
   {
    "id": "ds-panel",
-   "state": "unavailable",
-   "reason": "css-only"
+   "state": "preview",
+   "reason": null
   },
   {
    "id": "ds-metric",

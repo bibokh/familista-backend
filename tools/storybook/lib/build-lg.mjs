@@ -18,8 +18,8 @@ export const PRIMITIVES = [
 // Helpers the cases and stories read; one that is also a primitive is returned once.
 const HELPERS = ['CLUB_IDENT', '_esc', '_lgIcon', '_lgInitials', '_lgStatus'];
 
-// M3/S2.2a: Owner Kit render functions, cut from the design-system.js IIFE.
-export const DS_PRIMITIVES = ['kv'];
+// Owner Kit render functions, cut from the design-system.js IIFE: kv (M3/S2.2a), panel (M3/S2.2b-1).
+export const DS_PRIMITIVES = ['kv', 'panel'];
 
 export function buildLg(snippets) {
   const body = snippets.map((s) => s.code).join('\n\n')

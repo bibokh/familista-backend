@@ -126,5 +126,10 @@
     "empty value": "<div class=\"ds-kv\"><div class=\"ds-kv-k\">Notes</div><div class=\"ds-kv-v\"></div></div>",
     "long label": "<div class=\"ds-kv\"><div class=\"ds-kv-k\">Failures beyond the Stage 2a record</div><div class=\"ds-kv-v\">3</div></div>",
     "markup in the label is escaped": "<div class=\"ds-kv\"><div class=\"ds-kv-k\">&lt;b&gt;Bad&lt;/b&gt; &amp; &quot;Co&quot;</div><div class=\"ds-kv-v\">x</div></div>"
+  },
+  "panel": {
+    "untitled, a key-value list": "<section class=\"ds-panel\"><div class=\"ds-kv-list\"><div class=\"ds-kv\"><div class=\"ds-kv-k\">Tokens</div><div class=\"ds-kv-v\">128</div></div><div class=\"ds-kv\"><div class=\"ds-kv-k\">New failures</div><div class=\"ds-kv-v\">0</div></div></div></section>",
+    "untitled, a list and a note": "<section class=\"ds-panel\"><div class=\"ds-kv-list\"><div class=\"ds-kv\"><div class=\"ds-kv-k\">Usage telemetry</div><div class=\"ds-kv-v\">—</div></div></div><div class=\"ds-note\">A layer with no tokens is a measured 0.</div></section>",
+    "untitled, a note only": "<section class=\"ds-panel\"><div class=\"ds-note\">Ratios are computed from the token values; a translucent surface is measured over its context’s canvas.</div></section>"
   }
 }
