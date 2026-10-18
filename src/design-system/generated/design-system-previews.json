@@ -7,24 +7,24 @@
    "id": "golden",
    "path": "tools/storybook/tests/golden/lg-primitives.golden.json",
    "label": "The golden snapshot: the real render functions run over fixed inputs",
-   "sha256": "0b60dcaa11d3d91b5fd910c263d89e689eca526ec48eadb048016333b3278d7a",
-   "bytes": 36507,
+   "sha256": "7a6970571ea9daae878cb8d44e789975db9e8bac6c56a9b5f25b4e266c0d0966",
+   "bytes": 37331,
    "basis": "file"
   },
   {
    "id": "cases",
    "path": "tools/storybook/tests/cases.mjs",
    "label": "The fixed inputs and the calls that produced each fixture",
-   "sha256": "2bee12491c0822b291dabae68b912d725d541f8a3c0d46e83ea0b2fd0fc7168d",
-   "bytes": 8472,
+   "sha256": "ffac33f119fe4c8cdac3b5683b817626e1755f37b35b257eba5cee3e943d9aea",
+   "bytes": 9102,
    "basis": "file"
   },
   {
    "id": "registry",
    "path": "tools/components/registry.json",
    "label": "The reviewed Components Registry (class ownership)",
-   "sha256": "7a615a2441452eb6c216a75dfa07986086c6c00f8037428d2685627eb9d70848",
-   "bytes": 34081,
+   "sha256": "668850b4951b185ea68bc0f4c53ff4b0530df68e54567f10b8d0e90e2a4b5a67",
+   "bytes": 34211,
    "basis": "file"
   },
   {
@@ -39,8 +39,8 @@
    "id": "class-rules",
    "path": "public",
    "label": "How many production CSS rules mention each class the fixtures use",
-   "sha256": "9b4b9a56c6cbffbd888945205984fd96d42790f59ee2401820853ae73a70d3bc",
-   "bytes": 1011,
+   "sha256": "aaa460d39b7ab2d663ebb92bee4d64dee70a12fe1a577dba13a23bb49301900c",
+   "bytes": 1039,
    "basis": "derived"
   }
  ],
@@ -170,11 +170,11 @@
  },
  "coverage": {
   "registered": 60,
-  "previewable": 13,
-  "unavailable": 47,
-  "fixtures": 94,
-  "bytes": 31401,
-  "nodes": 558,
+  "previewable": 14,
+  "unavailable": 46,
+  "fixtures": 100,
+  "bytes": 31990,
+  "nodes": 587,
   "neutralised": {
    "aria-modal": 5,
    "data-action": 10,
@@ -185,7 +185,7 @@
    "application-shell": 4,
    "candidate": 7,
    "css-family": 7,
-   "css-only": 26,
+   "css-only": 25,
    "page-specific": 1,
    "utility": 2
   }
@@ -496,6 +496,24 @@
     {"id":"lg-empty.title-only","label":"title only","call":"_lgEmpty('Nothing to show')","html":"<div class=\"lg-empty\"><div class=\"lg-empty-ic\" aria-hidden=\"true\"><svg viewBox=\"0 0 32 32\" width=\"26\" height=\"26\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"16\" cy=\"16\" r=\"11\"/><path d=\"M16 10.5v7M16 21.2h.01\"/></svg></div><div class=\"lg-empty-t\">Nothing to show</div></div>","sha256":"f59cfb2e9176afefeb3d9dd887e8e6e0a6cf8ea6a8cbc0b4d745396865a0b604","bytes":343,"nodes":7,"elements":6,"depth":4,"tags":["circle","div","path","svg"],"classes":[{"name":"lg-empty","owner":"lg-empty","rules":2},{"name":"lg-empty-ic","owner":"lg-empty","rules":2},{"name":"lg-empty-t","owner":"lg-empty","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"f59cfb2e9176afefeb3d9dd887e8e6e0a6cf8ea6a8cbc0b4d745396865a0b604"},
     {"id":"lg-empty.ignores-icon-argument","label":"ignores icon argument","call":"_lgEmpty('No data', 'Not recorded', 'trophy')","html":"<div class=\"lg-empty\"><div class=\"lg-empty-ic\" aria-hidden=\"true\"><svg viewBox=\"0 0 32 32\" width=\"26\" height=\"26\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"16\" cy=\"16\" r=\"11\"/><path d=\"M16 10.5v7M16 21.2h.01\"/></svg></div><div class=\"lg-empty-t\">No data</div><div class=\"lg-empty-s\">Not recorded</div></div>","sha256":"7246e4046472f944178a4df865d6049151294078b6dad31a118187ca17ee5f07","bytes":377,"nodes":9,"elements":7,"depth":4,"tags":["circle","div","path","svg"],"classes":[{"name":"lg-empty","owner":"lg-empty","rules":2},{"name":"lg-empty-ic","owner":"lg-empty","rules":2},{"name":"lg-empty-s","owner":"lg-empty","rules":1},{"name":"lg-empty-t","owner":"lg-empty","rules":2}],"variantClasses":[],"neutralised":[],"goldenSha256":"7246e4046472f944178a4df865d6049151294078b6dad31a118187ca17ee5f07"}
    ]
+  },
+  {
+   "id": "ds-kv",
+   "symbol": "kv",
+   "source": {
+    "js": {"file":"public/design-system/design-system.js","symbol":"kv","sha256":"af183852a16a946cc96c23db3b25a2f6167d74490abc5e0b20e09e9714e10be3","bytes":155},
+    "css": [{"file":"public/design-system/design-system.css","rules":5,"sha256":"96e4e59710aa7a209a05f22e15b980c2b2e5831a509338efbba0140b1e92f0ac","bytes":572}]
+   },
+   "mediaQueries": [],
+   "variants": [],
+   "fixtures": [
+    {"id":"ds-kv.label-and-value","label":"label and value","call":"kv('Tokens', '128')","html":"<div class=\"ds-kv\"><div class=\"ds-kv-k\">Tokens</div><div class=\"ds-kv-v\">128</div></div>","sha256":"bdc060836fc5a997d27f288acce92dc236008d65a4c28d3d08d8ea5efbf4c4b9","bytes":88,"nodes":5,"elements":3,"depth":3,"tags":["div"],"classes":[{"name":"ds-kv","owner":"ds-kv","rules":2},{"name":"ds-kv-k","owner":"ds-kv","rules":1},{"name":"ds-kv-v","owner":"ds-kv","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"bdc060836fc5a997d27f288acce92dc236008d65a4c28d3d08d8ea5efbf4c4b9"},
+    {"id":"ds-kv.zero-is-a-value","label":"zero is a value","call":"kv('New failures', '0')","html":"<div class=\"ds-kv\"><div class=\"ds-kv-k\">New failures</div><div class=\"ds-kv-v\">0</div></div>","sha256":"2767dcadd9b4760233c11066f30883187c964ff0f056909f8de1a6d729be39de","bytes":92,"nodes":5,"elements":3,"depth":3,"tags":["div"],"classes":[{"name":"ds-kv","owner":"ds-kv","rules":2},{"name":"ds-kv-k","owner":"ds-kv","rules":1},{"name":"ds-kv-v","owner":"ds-kv","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"2767dcadd9b4760233c11066f30883187c964ff0f056909f8de1a6d729be39de"},
+    {"id":"ds-kv.not-recorded-is-a-dash","label":"not recorded is a dash","call":"kv('Usage telemetry', '—')","html":"<div class=\"ds-kv\"><div class=\"ds-kv-k\">Usage telemetry</div><div class=\"ds-kv-v\">—</div></div>","sha256":"4af3af29a658d6106ef84df8c0cde2f97b9c3f4261db128da12ebab8ec21dade","bytes":97,"nodes":5,"elements":3,"depth":3,"tags":["div"],"classes":[{"name":"ds-kv","owner":"ds-kv","rules":2},{"name":"ds-kv-k","owner":"ds-kv","rules":1},{"name":"ds-kv-v","owner":"ds-kv","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"4af3af29a658d6106ef84df8c0cde2f97b9c3f4261db128da12ebab8ec21dade"},
+    {"id":"ds-kv.empty-value","label":"empty value","call":"kv('Notes', '')","html":"<div class=\"ds-kv\"><div class=\"ds-kv-k\">Notes</div><div class=\"ds-kv-v\"></div></div>","sha256":"6d520a90006eb75d23a0c14855960e42cb5e63f034985e95faddec4c4a9f524b","bytes":84,"nodes":4,"elements":3,"depth":3,"tags":["div"],"classes":[{"name":"ds-kv","owner":"ds-kv","rules":2},{"name":"ds-kv-k","owner":"ds-kv","rules":1},{"name":"ds-kv-v","owner":"ds-kv","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"6d520a90006eb75d23a0c14855960e42cb5e63f034985e95faddec4c4a9f524b"},
+    {"id":"ds-kv.long-label","label":"long label","call":"kv('Failures beyond the Stage 2a record', '3')","html":"<div class=\"ds-kv\"><div class=\"ds-kv-k\">Failures beyond the Stage 2a record</div><div class=\"ds-kv-v\">3</div></div>","sha256":"fc7b88d023efe4a570ec5696b7e8bc8bfa4e3851f5043639f956af1f14802de5","bytes":115,"nodes":5,"elements":3,"depth":3,"tags":["div"],"classes":[{"name":"ds-kv","owner":"ds-kv","rules":2},{"name":"ds-kv-k","owner":"ds-kv","rules":1},{"name":"ds-kv-v","owner":"ds-kv","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"fc7b88d023efe4a570ec5696b7e8bc8bfa4e3851f5043639f956af1f14802de5"},
+    {"id":"ds-kv.markup-in-the-label-is-escaped","label":"markup in the label is escaped","call":"kv('<b>Bad</b> & \"Co\"', 'x')","html":"<div class=\"ds-kv\"><div class=\"ds-kv-k\">&lt;b&gt;Bad&lt;/b&gt; &amp; \"Co\"</div><div class=\"ds-kv-v\">x</div></div>","sha256":"b7e2f8e9c8bfd5366de5bdc5e7b3583236b2631b3aaf8649a29402c61a0ebf5b","bytes":113,"nodes":5,"elements":3,"depth":3,"tags":["div"],"classes":[{"name":"ds-kv","owner":"ds-kv","rules":2},{"name":"ds-kv-k","owner":"ds-kv","rules":1},{"name":"ds-kv-v","owner":"ds-kv","rules":1}],"variantClasses":[],"neutralised":[],"goldenSha256":"c7267fecef34e42049d2482f4a48e6587760b98504c7a48ce278240ff86194a2"}
+   ]
   }
  ],
  "availability": [
@@ -696,8 +714,8 @@
   },
   {
    "id": "ds-kv",
-   "state": "unavailable",
-   "reason": "css-only"
+   "state": "preview",
+   "reason": null
   },
   {
    "id": "ds-button",

@@ -50,8 +50,9 @@ fixtures into `src/design-system/generated/design-system-previews.json`. It read
 snapshot as text and executes nothing; `tests/design-system-lab.unit.test.ts` re-runs the Storybook
 golden test so CI refuses a snapshot that has drifted from `public/app.js`.
 
-Thirteen components are previewable, with 94 fixtures: the ten `_lg*` primitives (65 fixtures, pinned
-byte for byte by digest) and, since M3 / S2.1b, `_lgIcon` (12), `clubLogoHtml` (9) and `clubIdentityHtml` (8),
+Fourteen components are previewable, with 100 fixtures: the ten `_lg*` primitives (65 fixtures, pinned
+byte for byte by digest), since M3 / S2.1b `_lgIcon` (12), `clubLogoHtml` (9) and `clubIdentityHtml` (8)
+(the 94 together pinned by digest), and since M3 / S2.2a the Owner Kit's `kv` (6). The `app.js` ones are
 each cut by name from `public/app.js` by `tools/storybook/lib/extract-lg.mjs` and run over the fixed inputs in
 `tools/storybook/tests/cases.mjs`. A case section, a call or a golden key that names a function the components
 manifest did not resolve in `public/app.js` fails the build. Three exclusions are deliberate, and the sanitizer
@@ -64,6 +65,17 @@ was not widened for any of them:
   2048 characters) are unchanged.
 
 `clubIdentityHtml` is exported on `window` but has no production caller today; the registry records that.
+
+Since M3 / S2.2a a render function may also come from the Owner Kit in `public/design-system/design-system.js`,
+whose functions live at the top level of the one IIFE that is that file. They are cut from that level, with its
+two-space indent removed, by the same cutter (`extractDs()` in `tools/storybook/lib/extract-lg.mjs`, and
+`iifeScope()` in `scripts/design-system-components.js`, which a test holds to the same text); the IIFE is never run.
+`ds-kv` is the first: the real `kv(label, value)` with the room's own `T` and `esc`, `T` at its initial state
+(English, an empty dictionary), 6 fixtures. The registry's `js.file` must be exactly `public/app.js` or
+`public/design-system/design-system.js`; any other path, a `..`, `.` or absolute path, a backslash, a symbol
+registered twice, a name declared more than once anywhere in its file, or one found only nested deeper than the
+IIFE's top level fails the build. Storybook loads `design-system.css` for these stories; every rule in it is
+`.ds-*` or scoped to the room's root.
 
 `is-empty` is the one class accepted by a component-scoped reviewed entry (`SCOPED_INERT` in the generator):
 `clubLogoHtml` writes it when a club has no crest, and no production rule styles `.club-logo.is-empty`. It is

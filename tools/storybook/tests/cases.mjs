@@ -132,4 +132,15 @@ export const CASES = {
     'name only': (l) => l.clubIdentityHtml('riverside', { showLogo: false, sub: 'Home' }),
     'markup in the name is escaped': (l) => l.clubIdentityHtml(null, { name: '<b>Bad</b> & "Co"', sub: '<i>x</i>' }),
   },
+  // M3/S2.2a. The Owner Kit's kv(label, value), cut from the design-system.js
+  // IIFE with its real T and esc. The label is escaped; the value is HTML the
+  // caller composes, so these cases pass plain text, as the room does for counts.
+  kv: {
+    'label and value': (l) => l.kv('Tokens', '128'),
+    'zero is a value': (l) => l.kv('New failures', '0'),
+    'not recorded is a dash': (l) => l.kv('Usage telemetry', '—'),
+    'empty value': (l) => l.kv('Notes', ''),
+    'long label': (l) => l.kv('Failures beyond the Stage 2a record', '3'),
+    'markup in the label is escaped': (l) => l.kv('<b>Bad</b> & "Co"', 'x'),
+  },
 };

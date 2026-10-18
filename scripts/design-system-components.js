@@ -115,10 +115,49 @@ function endOfFunction(src, start) {
   throw new Error('unbalanced braces');
 }
 
-function cutFunction(src, file, name) {
-  const re = new RegExp('^function ' + name.replace(/[$]/g, '\\$') + '\\(', 'gm');
+// The production files a render function may be cut from, and nothing else. A
+// registry entry naming any other path, or a path that climbs out of public/, is
+// refused before anything is read.
+const SOURCE_FILES = ['public/app.js', 'public/design-system/design-system.js'];
+
+function sourceFile(file) {
+  if (typeof file !== 'string' || !file || path.isAbsolute(file) || /\\/.test(file) || file.split('/').some((p) => p === '..' || p === '.' || p === '')) {
+    throw new Error('render-function file "' + file + '" is not a plain repository path (path traversal is refused)');
+  }
+  if (SOURCE_FILES.indexOf(file) < 0) throw new Error('render-function file "' + file + '" is not one of the approved sources: ' + SOURCE_FILES.join(', '));
+  return file;
+}
+
+/**
+ * The top level of the one IIFE a file consists of, with its two-space indent
+ * removed: a declaration at that level starts at column 0 and one nested deeper
+ * does not. Mirrors iifeScope() in tools/storybook/lib/extract-lg.mjs, and a test
+ * holds the two to the same text. Read as text; the IIFE is never run.
+ */
+function iifeScope(src, file) {
+  const open = [...src.matchAll(/^\(function \(\) \{$/gm)];
+  const close = [...src.matchAll(/^\}\(\)\);$/gm)];
+  if (open.length !== 1 || close.length !== 1 || close[0].index < open[0].index) {
+    throw new Error(file + ': expected exactly one top-level "(function () {" ... "}());", found ' + open.length + ' and ' + close.length);
+  }
+  const body = src.slice(open[0].index + open[0][0].length, close[0].index);
+  if (!/^\n  'use strict';\n/.test(body)) throw new Error(file + ": the IIFE does not begin with 'use strict'");
+  return body.replace(/^  /gm, '');
+}
+
+/** The text a declaration is cut from: app.js as it is, design-system.js as the top level of its IIFE. */
+function scopeOf(file, text) { return file === 'public/app.js' ? text : iifeScope(text, file); }
+
+function cutFunction(src, file, name, whole = src) {
+  const esc$ = name.replace(/[$]/g, '\\$');
+  // Declared once anywhere in the file, at any depth; otherwise "the" function is ambiguous.
+  const anywhere = [...whole.matchAll(new RegExp('\\bfunction ' + esc$ + '\\s*\\(', 'g'))].length;
+  if (anywhere !== 1) throw new Error(file + ': "function ' + name + '" is declared ' + anywhere + ' times at any depth; exactly one is required');
+  // Nor is it assigned a new value anywhere, which would make the running function another one.
+  if (new RegExp('(?<![\\w$.])' + esc$ + '\\s*=(?![=>])').test(whole)) throw new Error(file + ': "' + name + '" is reassigned; the declaration cut is not the function that runs');
+  const re = new RegExp('^function ' + esc$ + '\\(', 'gm');
   const all = [...src.matchAll(re)];
-  if (all.length !== 1) throw new Error(file + ': expected exactly one "function ' + name + '", found ' + all.length);
+  if (all.length !== 1) throw new Error(file + ': expected exactly one "function ' + name + '" at the top level, found ' + all.length);
   const text = src.slice(all[0].index, endOfFunction(src, all[0].index));
   new vm.Script(text, { filename: file + '#' + name });   // compiled, never run
   return text;
@@ -163,8 +202,18 @@ function build({ ROOT }) {
   const readFile = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   const cssCache = new Map();
   const css = (f) => { if (!cssCache.has(f)) cssCache.set(f, cssRules(readFile(f))); return cssCache.get(f); };
-  const appJs = readFile('public/app.js');
-  const topFunctions = [...appJs.matchAll(/^function ([\w$]+)\(/gm)].map((m) => m[1]);
+  // Each approved source, read once: its text, the scope declarations are cut from, and the functions at that level.
+  const jsSources = new Map();
+  const sourceOf = (file) => {
+    if (!jsSources.has(file)) {
+      const text = readFile(sourceFile(file));
+      const scope = scopeOf(file, text);
+      jsSources.set(file, { text, scope, fns: [...scope.matchAll(/^function ([\w$]+)\(/gm)].map((m) => m[1]) });
+    }
+    return jsSources.get(file);
+  };
+  const appJs = sourceOf('public/app.js').text;
+  const topFunctions = sourceOf('public/app.js').fns;
   const topSet = new Set(topFunctions);
   const refSources = REFERENCE_FILES.filter((f) => fs.existsSync(path.join(ROOT, f))).map((f) => [f, readFile(f)]);
 
@@ -174,7 +223,12 @@ function build({ ROOT }) {
 
   // symbol → component id, for dependency edges.
   const symbolOwner = new Map();
-  for (const c of reg.components) if (c.js) symbolOwner.set(c.js.symbol, c.id);
+  for (const c of reg.components) {
+    if (!c.js) continue;
+    // A symbol names one render function: the golden snapshot and the previews are keyed by it.
+    if (symbolOwner.has(c.js.symbol)) fail(c.id + ': render function "' + c.js.symbol + '" is already registered by ' + symbolOwner.get(c.js.symbol));
+    else symbolOwner.set(c.js.symbol, c.id);
+  }
 
   const out = [];
   for (const c of reg.components) {
@@ -215,7 +269,8 @@ function build({ ROOT }) {
     // source
     let js = null, jsText = '';
     if (c.js) {
-      jsText = cutFunction(appJs, c.js.file, c.js.symbol);
+      const src = sourceOf(c.js.file);
+      jsText = cutFunction(src.scope, c.js.file, c.js.symbol, src.text);
       js = { file: c.js.file, symbol: c.js.symbol, sha256: sha(Buffer.from(squash(jsText))), bytes: Buffer.byteLength(jsText) };
     }
     const cssSource = [];
@@ -301,7 +356,7 @@ function build({ ROOT }) {
       if (/\brole="/.test(jsText)) add('role', 'The function writes an ARIA role.', 'render function');
       if (/aria-(label|labelledby|describedby|live|pressed|expanded|current)/.test(jsText)) add('aria-attr', 'The function writes ARIA state or label attributes.', 'render function');
       if (/<button\b/.test(jsText)) add('native-button', 'The function renders a native button element.', 'render function');
-      if (/\b_esc\(/.test(jsText)) add('escapes', 'The function escapes interpolated text before it reaches the page.', 'render function');
+      if ((c.js.file === 'public/app.js' ? /\b_esc\(/ : /(?<![\w$.])esc\(/).test(jsText)) add('escapes', 'The function escapes interpolated text before it reaches the page.', 'render function');
     }
     if (!presence) {
       if (styling.focusVisible) add('focus-visible', 'A rule styles :focus-visible.', 'stylesheet');
@@ -315,7 +370,7 @@ function build({ ROOT }) {
     const calls = [];
     const helpers = [];
     if (jsText) {
-      for (const name of topFunctions) {
+      for (const name of sourceOf(c.js.file).fns) {
         if (name === c.js.symbol) continue;
         if (new RegExp('(?<![\\w$.])' + name.replace(/\$/g, '\\$') + '\\(').test(jsText)) {
           const owner = symbolOwner.get(name) || null;
@@ -387,4 +442,4 @@ function build({ ROOT }) {
   return manifest;
 }
 
-module.exports = { build, cssRules, classesOf, cutFunction };
+module.exports = { build, cssRules, classesOf, cutFunction, iifeScope, sourceFile, SOURCE_FILES };

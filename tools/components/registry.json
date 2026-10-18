@@ -1467,11 +1467,17 @@
      "public/design-system/design-system.css"
     ]
    },
+   "js": {
+    "file": "public/design-system/design-system.js",
+    "symbol": "kv"
+   },
    "anatomy": [
     "ds-kv-list",
     "ds-kv-k",
     "ds-kv-v"
-   ]
+   ],
+   "stories": "DsKv",
+   "golden": "kv"
   },
   {
    "id": "ds-button",

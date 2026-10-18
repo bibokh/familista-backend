@@ -18,9 +18,21 @@ export const PRIMITIVES = [
 // Helpers the cases and stories read; one that is also a primitive is returned once.
 const HELPERS = ['CLUB_IDENT', '_esc', '_lgIcon', '_lgInitials', '_lgStatus'];
 
+// M3/S2.2a: Owner Kit render functions, cut from the design-system.js IIFE.
+export const DS_PRIMITIVES = ['kv'];
+
 export function buildLg(snippets) {
   const body = snippets.map((s) => s.code).join('\n\n')
     + '\nreturn { ' + [...new Set([...HELPERS, ...PRIMITIVES])].map((n) => n + ': ' + n).join(', ') + ' };';
+  // eslint-disable-next-line no-new-func
+  return new Function(body)();
+}
+
+// The Owner Kit scope. Strict mode, as the IIFE the snippets come from is; the
+// translator is the room's real T at its initial state, so every string is English.
+export function buildDs(snippets) {
+  const body = "'use strict';\n" + snippets.map((s) => s.code).join('\n\n')
+    + '\nreturn { T: T, esc: esc, DS_LANG: DS_LANG, DS_DICT: DS_DICT, DS_SEEN: DS_SEEN, ' + DS_PRIMITIVES.map((n) => n + ': ' + n).join(', ') + ' };';
   // eslint-disable-next-line no-new-func
   return new Function(body)();
 }
