@@ -2123,3 +2123,112 @@ describe('the browser proof is kept with the code and is a required CI job', () 
     expect(CI).toMatch(/^  browser-proof:\s*$/m);
   });
 });
+
+// ── M3/S3.1 L2a — loaded CSS provenance ─────────────────────────────────────
+describe('M3/S3.1 L2a — every class a fixture uses has a rule in a stylesheet the Specimen Lab has loaded', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { cssRules, classesOf } = require('../scripts/design-system-components.js');
+  const { REVIEWED_INERT, SCOPED_INERT } = generator;
+
+  // The page loads its stylesheets in three steps, each read from its own source:
+  //   1. public/index.html links its stylesheets, before any script runs;
+  //   2. app.js's room loader adds the room's own stylesheet when the Design System room opens;
+  //   3. design-system.js's LAZY table adds the Lab's stylesheet when the Specimen Lab section opens.
+  // explorer.css and components.css load only if the reader opened those sections first. That depends on
+  // what they did before, so neither is counted: no fixture may rely on a stylesheet it is not promised.
+  const linked = [...read('public/index.html').matchAll(/<link\b[^>]*>/gi)].map((m) => m[0])
+    .filter((t) => /rel=["']?stylesheet/i.test(t))
+    .map((t) => (t.match(/href=["']([^"']+)["']/i) || [])[1])
+    .filter((h): h is string => !!h && !/^(https?:)?\/\//i.test(h))
+    .map((h) => 'public' + h.split('?')[0]);
+  const roomLoader = [...read('public/app.js').matchAll(/link\.href\s*=\s*'(\/design-system\/[\w-]+\.css)\?/g)].map((m) => 'public' + m[1]);
+  const dsJs = read('public/design-system/design-system.js');
+  const labEntry = (dsJs.slice(dsJs.indexOf('var LAZY = {')).match(/\blab:\s*\{[^}]*?\bcss:\s*'([^']+)'/) || [])[1];
+  const LOADED = [...linked, ...roomLoader, ...(labEntry ? ['public' + labEntry] : [])];
+
+  const graphView = json('src/design-system/generated/design-system-graph.json').views.find((v: any) => v.id === 'stylesheets-to-surfaces');
+  const surface = (id: string) => graphView.edges.filter((e: any) => e.to === 'surface:' + id).map((e: any) => e.from.replace(/^css:/, '')).sort();
+
+  /** Class → the stylesheets with a rule that styles it. A class named only inside :not() is excluded by that rule, not styled by it. */
+  const supportIndex = (sheets: Record<string, string>) => {
+    const index = new Map<string, string[]>();
+    for (const [file, text] of Object.entries(sheets)) {
+      for (const r of cssRules(text)) {
+        for (const k of classesOf(r.sel.replace(/:not\((?:[^()]|\([^()]*\))*\)/g, ''))) index.set(k, [...(index.get(k) || []), file]);
+      }
+    }
+    return index;
+  };
+  const approvedInert = new Set<string>([...Object.keys(REVIEWED_INERT), ...Object.values(SCOPED_INERT).flatMap((v: any) => Object.keys(v))]);
+  /** The classes in `classes` that nothing the page has loaded styles, and that no approved exception covers. */
+  const unsupported = (classes: { name: string; owner: string }[], index: Map<string, string[]>) =>
+    classes.filter((x) => (x.owner === 'inert' ? !approvedInert.has(x.name) : !index.has(x.name))).map((x) => x.name);
+
+  const sheetsOf = (files: string[]) => Object.fromEntries(files.map((f) => [f, read(f)]));
+  const index = supportIndex(sheetsOf(LOADED));
+
+  it('reads the loading order from the page, the room loader and the Lab entry, and it agrees with the graph manifest', () => {
+    expect(roomLoader).toEqual(['public/design-system/design-system.css']);
+    expect(labEntry).toBe('/design-system/lab.css');
+    expect([...linked].sort()).toEqual(surface('main'));
+    for (const f of [...roomLoader, 'public' + labEntry]) expect(surface('lazy')).toContain(f);
+    for (const f of LOADED) expect(fs.existsSync(path.join(ROOT, f))).toBe(true);
+    expect(LOADED).not.toContain('public/design-system/explorer.css');
+    expect(LOADED).not.toContain('public/design-system/components.css');
+  });
+
+  it('every stylesheet a previewable component declares is one the Lab has loaded', () => {
+    const registry = json('tools/components/registry.json');
+    const previewable = new Set(manifest.components.map((c: any) => c.id));
+    const declared = registry.components.filter((c: any) => previewable.has(c.id)).flatMap((c: any) => c.css.files.map((f: string) => ({ id: c.id, f })));
+    expect(declared.length).toBeGreaterThanOrEqual(previewable.size);
+    expect(declared.filter((d: any) => !LOADED.includes(d.f))).toEqual([]);
+  });
+
+  it('every class of every fixture is styled by a loaded stylesheet, or is one of the approved inert exceptions', () => {
+    let checked = 0;
+    const problems: string[] = [];
+    for (const { c, f } of allFixtures()) {
+      checked += f.classes.length;
+      for (const name of unsupported(f.classes, index)) problems.push(`${c.id} · ${f.id}: .${name}`);
+    }
+    expect(problems).toEqual([]);
+    expect(checked).toBeGreaterThan(400);
+    expect(allFixtures()).toHaveLength(manifest.coverage.fixtures);
+  });
+
+  // Controls: the same predicate, with real classes from real stylesheets where one exists.
+  it('control: a class whose only rule is in a stylesheet the Lab has not loaded is refused', () => {
+    const everywhere = supportIndex(sheetsOf([...LOADED, 'public/design-system/explorer.css', 'public/invite/invite.css']));
+    for (const [name, home] of [['ex-bar', 'public/design-system/explorer.css'], ['brand-mark', 'public/invite/invite.css']]) {
+      expect(everywhere.get(name)).toEqual([home]);   // the rule exists, in that file only
+      expect(unsupported([{ name, owner: 'css' }], index)).toEqual([name]);
+      expect(unsupported([{ name, owner: 'css' }], everywhere)).toEqual([]);
+    }
+  });
+
+  it('control: a class with a rule in a loaded stylesheet passes', () => {
+    expect(index.get('club-logo')).toContain('public/app.css');
+    expect(index.get('ds-chip')).toContain('public/design-system/design-system.css');
+    expect(unsupported([{ name: 'club-logo', owner: 'club-logo' }, { name: 'ds-chip', owner: 'ds-chip' }], index)).toEqual([]);
+  });
+
+  it('control: a class no stylesheet styles is refused, and so is an inert class nobody approved', () => {
+    expect(index.has('lab-proof-unowned')).toBe(false);
+    expect(unsupported([{ name: 'lab-proof-unowned', owner: 'css' }], index)).toEqual(['lab-proof-unowned']);
+    expect(unsupported([{ name: 'lab-proof-unowned', owner: 'inert' }], index)).toEqual(['lab-proof-unowned']);
+  });
+
+  it('control: the approved exceptions still pass, exactly the three the manifest records', () => {
+    expect([...approvedInert].sort()).toEqual(['is-empty', 'lg-ident--hero', 'lg-t']);
+    expect(index.has('lg-ident--hero')).toBe(false);
+    expect(index.has('lg-t')).toBe(false);
+    expect(unsupported([...approvedInert].map((name) => ({ name, owner: 'inert' })), index)).toEqual([]);
+  });
+
+  it('control: a class named only inside :not() is not styled by that rule; a class in a descendant selector is', () => {
+    const synthetic = supportIndex({ 'x.css': '.a:not(.only-negated){color:inherit} .ctx .leaf{color:inherit}' });
+    expect(unsupported([{ name: 'only-negated', owner: 'css' }], synthetic)).toEqual(['only-negated']);
+    expect(unsupported([{ name: 'a', owner: 'css' }, { name: 'ctx', owner: 'css' }, { name: 'leaf', owner: 'css' }], synthetic)).toEqual([]);
+  });
+});

@@ -42,8 +42,9 @@ const request = require('supertest');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { createApp } = require('../src/app');
 import { execFileSync } from 'child_process';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
+import { pathToFileURL } from 'url';
 
 const ROOT = join(__dirname, '..');
 const TOKENS = join(ROOT, 'tools', 'tokens');
@@ -170,5 +171,237 @@ describe('the published token CSS, served by the real app', () => {
   it('is not served as the HTML document by any catch-all', async () => {
     const res = await request(app).get('/tokens/familista-tokens.css');
     expect(res.text).not.toMatch(/<!doctype html/i);
+  });
+});
+
+// ── M3/S3.1 — static design-quality gates (L1a, L1b) ─────────────────────────
+
+/**
+ * Every var() reference in a stylesheet, nested ones included, and whether it
+ * carries a fallback (a comma at its own depth). Comments and quoted strings
+ * are not CSS values, so they are blanked first.
+ */
+function varReferences(css: string): { name: string; fallback: boolean }[] {
+  const s = css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""');
+  const out: { name: string; fallback: boolean }[] = [];
+  const re = /var\(\s*(--[A-Za-z0-9_-]+)/g;
+  for (let m = re.exec(s); m; m = re.exec(s)) {
+    let depth = 0, fallback = false;
+    for (let i = m.index + 4; i < s.length; i++) {
+      if (s[i] === '(') depth++;
+      else if (s[i] === ')') { if (depth === 0) break; depth--; }
+      else if (s[i] === ',' && depth === 0) { fallback = true; break; }
+    }
+    out.push({ name: m[1], fallback });
+  }
+  return out;
+}
+
+/** The names a stylesheet declares in a block whose selector is exactly `:root`. */
+function rootDeclarations(css: string): Set<string> {
+  const s = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const out = new Set<string>();
+  for (const b of s.matchAll(/([^{};]+)\{([^{}]*)\}/g)) {
+    if (b[1].trim() !== ':root') continue;
+    for (const d of b[2].matchAll(/(?:^|;)\s*(--[A-Za-z0-9_-]+)\s*:/g)) out.add(d[1]);
+  }
+  return out;
+}
+
+/**
+ * The --fam-* names a stylesheet reads that are neither declared at :root by
+ * the published token stylesheet nor written at run time by a proven source.
+ * A fallback does not excuse an unknown name: var(--fam-txet, #fff) is a
+ * misspelling that would quietly render the fallback.
+ */
+function unresolvedTokens(css: string, declared: Set<string>, runtime: Record<string, string>): string[] {
+  const own = (n: string) => Object.prototype.hasOwnProperty.call(runtime, n);
+  return [...new Set(varReferences(css).map((r) => r.name).filter((n) => n.startsWith('--fam-') && !declared.has(n) && !own(n)))].sort();
+}
+
+/**
+ * --fam-* properties a page or script sets at run time, with the file that sets
+ * each. Empty: at M3/S3.1 no public script or page writes one (no
+ * setProperty('--fam-…') and no "--fam-…:" outside the token stylesheet). An
+ * entry is accepted only while its file really writes that property.
+ */
+const RUNTIME_TOKENS: Record<string, string> = {};
+const RUNTIME_WRITE = /setProperty\(\s*['"`](--fam-[A-Za-z0-9_-]+)|(--fam-[A-Za-z0-9_-]+)['"]?\s*:/g;
+
+function publicPagesAndScripts(dir: string, acc: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    if (name === 'node_modules') continue;
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) publicPagesAndScripts(p, acc);
+    else if (/\.(m?js|html)$/.test(name)) acc.push(p);
+  }
+  return acc;
+}
+
+const TOKEN_CSS = readFileSync(join(ROOT, 'public', 'tokens', 'familista-tokens.css'), 'utf8');
+const DECLARED = rootDeclarations(TOKEN_CSS);
+const ROOM_DIR = join(ROOT, 'public', 'design-system');
+const ROOM_SHEETS = readdirSync(ROOM_DIR).filter((f) => f.endsWith('.css')).sort();
+
+describe('M3/S3.1 L1a — every --fam-* token the Design System room reads is published', () => {
+  it('reads the room stylesheets the graph manifest says the room loads, and no others', () => {
+    const graph = JSON.parse(readFileSync(join(ROOT, 'src', 'design-system', 'generated', 'design-system-graph.json'), 'utf8'));
+    const view = graph.views.find((v: { id: string }) => v.id === 'stylesheets-to-surfaces');
+    const lazy = view.edges.filter((e: { to: string }) => e.to === 'surface:lazy').map((e: { from: string }) => e.from.replace(/^css:public\/design-system\//, '')).sort();
+    expect(ROOM_SHEETS).toEqual(lazy);
+    expect(ROOM_SHEETS).toEqual(expect.arrayContaining(['components.css', 'design-system.css', 'explorer.css', 'lab.css']));
+  });
+
+  it('finds the published tokens at :root, the only block the room can rely on', () => {
+    expect(DECLARED.size).toBeGreaterThan(200);
+    for (const n of DECLARED) expect(n).toMatch(/^--fam-/);
+  });
+
+  it.each(ROOM_SHEETS)('%s reads only --fam-* names declared at :root by the published token stylesheet', (sheet) => {
+    const css = readFileSync(join(ROOM_DIR, sheet), 'utf8');
+    const names = varReferences(css).map((r) => r.name).filter((n) => n.startsWith('--fam-'));
+    expect(names.length).toBeGreaterThan(0);
+    expect({ sheet, unresolved: unresolvedTokens(css, DECLARED, RUNTIME_TOKENS) }).toEqual({ sheet, unresolved: [] });
+  });
+
+  it('accepts a runtime token only with source evidence, and every runtime write it finds is accounted for', () => {
+    const writes = new Map<string, string>();
+    for (const file of publicPagesAndScripts(join(ROOT, 'public'))) {
+      for (const m of readFileSync(file, 'utf8').matchAll(RUNTIME_WRITE)) writes.set(m[1] || m[2], file.slice(ROOT.length + 1));
+    }
+    expect([...writes.keys()].sort()).toEqual(Object.keys(RUNTIME_TOKENS).sort());
+    for (const [name, file] of Object.entries(RUNTIME_TOKENS)) expect(writes.get(name)).toBe(file);
+  });
+
+  // Controls: the same function the gate runs, on stylesheets written to pass or to fail.
+  const real = [...DECLARED].sort();
+  const known = real.find((n) => n.slice(-1) !== n.slice(-2, -1)) as string, other = real[real.length - 1];
+  const misspelt = known.slice(0, -2) + known.slice(-1) + known.slice(-2, -1);   // the last two letters swapped
+  it.each([
+    ['a published token', `.x{color:var(${known})}`, {}, []],
+    ['a published token with a fallback', `.x{color:var(${known}, #fff)}`, {}, []],
+    ['a published token whose fallback is another published token', `.x{color:var(${known}, var(${other}))}`, {}, []],
+    ['a misspelt token', `.x{color:var(${misspelt})}`, {}, [misspelt]],
+    ['an unknown token without a fallback', '.x{color:var(--fam-not-a-token)}', {}, ['--fam-not-a-token']],
+    ['an unknown token hidden behind a fallback', '.x{color:var(--fam-not-a-token, #fff)}', {}, ['--fam-not-a-token']],
+    ['an unknown token inside a published token’s fallback', `.x{color:var(${known}, var(--fam-not-a-token))}`, {}, ['--fam-not-a-token']],
+    ['an approved runtime token', '.x{color:var(--fam-runtime-demo)}', { '--fam-runtime-demo': 'public/demo.js' }, []],
+    ['the same token with no runtime source', '.x{color:var(--fam-runtime-demo)}', {}, ['--fam-runtime-demo']],
+    ['a token named only in a comment', '/* var(--fam-not-a-token) */ .x{color:var(' + known + ')}', {}, []],
+    ['a token named only in a string', '.x::after{content:"var(--fam-not-a-token)"}', {}, []],
+    ['spacing inside var()', `.x{color:var( ${known} )}`, {}, []],
+  ] as [string, string, Record<string, string>, string[]][])('control: %s', (_label, css, runtime, expected) => {
+    expect(unresolvedTokens(css, DECLARED, runtime)).toEqual(expected);
+  });
+
+  it('control: records which references carry a fallback, nested ones included', () => {
+    expect(varReferences('.x{a:var(--fam-a, var(--fam-b));b:var(--fam-c, calc(1px + var(--fam-d, 2px)))}')).toEqual([
+      { name: '--fam-a', fallback: true }, { name: '--fam-b', fallback: false },
+      { name: '--fam-c', fallback: true }, { name: '--fam-d', fallback: true },
+    ]);
+  });
+});
+
+/** Runs the existing DTCG validator (tools/tokens/lib/dtcg.mjs, unchanged) on each tree, in one process. */
+function validateTrees(trees: Record<string, unknown>): Record<string, string[]> {
+  const url = pathToFileURL(join(TOKENS, 'lib', 'dtcg.mjs')).href;
+  const script = `import { validate } from ${JSON.stringify(url)};
+let s = '';
+process.stdin.on('data', (d) => { s += d; }).on('end', () => {
+  const out = {};
+  for (const [k, t] of Object.entries(JSON.parse(s))) out[k] = validate(t).errors;
+  process.stdout.write(JSON.stringify(out));
+});`;
+  return JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], { cwd: ROOT, input: JSON.stringify(trees), encoding: 'utf8' }));
+}
+
+describe('M3/S3.1 L1b — the token validator refuses each defect for its own reason', () => {
+  const px = (value: number) => ({ value, unit: 'px' });
+  const rgb = (components: number[], hex: string) => ({ colorSpace: 'srgb', components, hex });
+  // A small tree with every shape the defects need: aliases, a composite, a duration and an override layer.
+  const BASE = {
+    ref: { color: { $type: 'color', ink: { $value: rgb([0, 0, 0], '#000000') }, paper: { $value: rgb([1, 1, 1], '#ffffff') } } },
+    semantic: {
+      color: { $type: 'color', text: { $value: '{ref.color.ink}' }, surface: { $value: '{ref.color.paper}' }, accent: { $value: '{ref.color.ink}' } },
+      space: { $type: 'dimension', md: { $value: px(8) } },
+      motion: { $type: 'duration', fast: { $value: { value: 120, unit: 'ms' } } },
+      shadow: { $type: 'shadow', card: { $value: { offsetX: px(0), offsetY: px(1), blur: px(2), spread: px(0), color: '{semantic.color.text}' } } },
+    },
+    context: { $extensions: { 'com.familista': { overrides: 'semantic' } }, owner: { color: { surface: { $value: '{ref.color.ink}' } } } },
+  };
+  // A defect is a deep copy of BASE with one edit; the copy is untyped so an edit may add or delete a member.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mutate = (f: (t: any) => void): unknown => { const t = JSON.parse(JSON.stringify(BASE)); f(t); return t; };
+
+  // [label, the defect, the exact errors, the reason every one of those errors must give]
+  const CASES: [string, unknown, string[], RegExp][] = [
+    ['1. a direct cycle: a token that references itself', mutate((t) => { t.semantic.color.text.$value = '{semantic.color.text}'; }), [
+      'semantic.color.text: reference loop semantic.color.text → semantic.color.text',
+      'semantic.color.text: composite reference loop through {semantic.color.text}',
+    ], /reference loop/],
+    ['1. a direct cycle: two tokens that reference each other', mutate((t) => { t.semantic.color.text.$value = '{semantic.color.surface}'; t.semantic.color.surface.$value = '{semantic.color.text}'; }), [
+      'semantic.color.text: reference loop semantic.color.text → semantic.color.surface → semantic.color.text',
+      'semantic.color.text: composite reference loop through {semantic.color.surface}',
+      'semantic.color.surface: reference loop semantic.color.surface → semantic.color.text → semantic.color.surface',
+      'semantic.color.surface: composite reference loop through {semantic.color.text}',
+    ], /reference loop/],
+    ['2. an indirect cycle through three tokens', mutate((t) => { t.semantic.color.text.$value = '{semantic.color.surface}'; t.semantic.color.surface.$value = '{semantic.color.accent}'; t.semantic.color.accent.$value = '{semantic.color.text}'; }), [
+      'semantic.color.text: reference loop semantic.color.text → semantic.color.surface → semantic.color.accent → semantic.color.text',
+      'semantic.color.text: composite reference loop through {semantic.color.surface}',
+      'semantic.color.surface: reference loop semantic.color.surface → semantic.color.accent → semantic.color.text → semantic.color.surface',
+      'semantic.color.surface: composite reference loop through {semantic.color.accent}',
+      'semantic.color.accent: reference loop semantic.color.accent → semantic.color.text → semantic.color.surface → semantic.color.accent',
+      'semantic.color.accent: composite reference loop through {semantic.color.text}',
+    ], /reference loop/],
+    // A colour that points back at the shadow whose colour it is. DTCG types every member, so a loop
+    // through a composite always also mistypes one reference: both reasons are asserted, nothing else.
+    ['3. a cycle through a composite token', mutate((t) => { t.semantic.color.text.$value = '{semantic.shadow.card}'; }), [
+      'semantic.color.text: reference {semantic.shadow.card} is shadow, expected color',
+      'semantic.color.text: composite reference loop through {semantic.shadow.card}',
+      'semantic.shadow.card: composite reference loop through {semantic.color.text}',
+    ], /composite reference loop|is shadow, expected color/],
+    ['4. an unresolved reference', mutate((t) => { t.semantic.color.text.$value = '{ref.color.missing}'; }), [
+      'semantic.color.text: reference {ref.color.missing} does not resolve',
+    ], /does not resolve/],
+    ['5. an unsupported $type', mutate((t) => { t.semantic.space.$type = 'spacing'; }), [
+      'semantic.space.md: unsupported $type "spacing"',
+    ], /unsupported \$type/],
+    ['5. a reference to a token of the wrong type', mutate((t) => { t.semantic.color.text.$value = '{semantic.space.md}'; }), [
+      'semantic.color.text: reference {semantic.space.md} is dimension, expected color',
+    ], /is dimension, expected color/],
+    ['6. a dimension in a unit the platform does not use', mutate((t) => { t.semantic.space.md.$value = { value: 8, unit: 'pt' }; }), [
+      'semantic.space.md: dimension must be { value: number, unit: px|rem }',
+    ], /unit: px\|rem/],
+    // The validator reuses its dimension check for durations, so the message says "dimension"; the unit list is the duration's.
+    ['6. a duration in a unit that is not time', mutate((t) => { t.semantic.motion.fast.$value = { value: 120, unit: 'px' }; }), [
+      'semantic.motion.fast: dimension must be { value: number, unit: ms|s }',
+    ], /unit: ms\|s/],
+    // With no base there is nothing to inherit a $type from, so that is reported too, for the same token.
+    ['7. an override with no base token', mutate((t) => { t.context.owner.color.ghost = { $value: '{ref.color.ink}' }; }), [
+      'context.owner.color.ghost: re-declares semantic.color.ghost, which does not exist',
+      'context.owner.color.ghost: no $type on the token or any ancestor group',
+    ], /^context\.owner\.color\.ghost: (re-declares semantic\.color\.ghost, which does not exist|no \$type)/],
+    ['7. an override layer that names no base at all', mutate((t) => { delete t.context.$extensions; }), [
+      'context: override layer has no $extensions["com.familista"].overrides',
+      'context.owner.color.surface: no $type on the token or any ancestor group',
+    ], /override layer has no|^context\.owner\.color\.surface: no \$type/],
+  ];
+
+  const real = JSON.parse(readFileSync(join(TOKENS, 'familista.tokens.json'), 'utf8'));
+  const errors = validateTrees({ base: BASE, real, ...Object.fromEntries(CASES.map(([label, tree]) => [label, tree])) });
+
+  it('control: the defect-free tree and the real token source both validate with no error', () => {
+    expect(errors.base).toEqual([]);
+    expect(errors.real).toEqual([]);
+  });
+
+  it.each(CASES)('%s', (label, _tree, expected, reason) => {
+    expect(errors[label]).toEqual(expected);
+    for (const e of errors[label]) expect(e).toMatch(reason);
+  });
+
+  it('runs the same defects to the same errors every time', () => {
+    expect(validateTrees(Object.fromEntries(CASES.map(([label, tree]) => [label, tree])))).toEqual(
+      Object.fromEntries(CASES.map(([label]) => [label, errors[label]])));
   });
 });
