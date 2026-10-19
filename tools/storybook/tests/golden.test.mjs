@@ -36,7 +36,7 @@ test('all thirteen primitives are defined exactly once in public/app.js', () => 
 });
 
 test('the Owner Kit render functions are declared exactly once, at the top level of the design-system.js IIFE', () => {
-  assert.deepEqual(DS_PRIMITIVES, ['kv', 'panel']);
+  assert.deepEqual(DS_PRIMITIVES, ['kv', 'panel', 'chip', 'emptyState', 'skeleton']);
   for (const name of DS_PRIMITIVES) {
     assert.equal((DS.match(new RegExp(`^  function ${name}\\(`, 'gm')) || []).length, 1, `${name} at the IIFE's top level`);
     assert.equal((DS.match(new RegExp(`\\bfunction ${name}\\s*\\(`, 'g')) || []).length, 1, `${name} anywhere`);

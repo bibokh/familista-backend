@@ -1317,39 +1317,68 @@
      "public/design-system/design-system.css"
     ]
    },
+   "js": {
+    "file": "public/design-system/design-system.js",
+    "symbol": "chip"
+   },
    "variants": [
     {
      "name": "ok",
-     "class": "ds-chip--ok"
+     "class": "ds-chip--ok",
+     "cases": [
+      "ok, small"
+     ]
     },
     {
      "name": "warn",
-     "class": "ds-chip--warn"
+     "class": "ds-chip--warn",
+     "cases": [
+      "warn, small"
+     ]
     },
     {
      "name": "crit",
-     "class": "ds-chip--crit"
+     "class": "ds-chip--crit",
+     "cases": [
+      "crit, small"
+     ]
     },
     {
      "name": "info",
-     "class": "ds-chip--info"
+     "class": "ds-chip--info",
+     "cases": [
+      "info, small",
+      "info, default size"
+     ]
     },
     {
      "name": "rec",
-     "class": "ds-chip--rec"
+     "class": "ds-chip--rec",
+     "cases": [
+      "rec, small"
+     ]
     },
     {
      "name": "none",
-     "class": "ds-chip--none"
+     "class": "ds-chip--none",
+     "cases": [
+      "none, small"
+     ]
     },
     {
      "name": "sm",
-     "class": "ds-chip--sm"
+     "class": "ds-chip--sm",
+     "cases": [
+      "ok, small"
+     ]
     }
    ],
    "anatomy": [
     "ds-dot"
-   ]
+   ],
+   "stories": "DsChip",
+   "golden": "chip",
+   "notes": "Previewed untitled only: a title writes title=\"…\" on the span, which the Lab sanitizer does not allow, so titled chips and evChip (which always writes one) are not shown (M3/S2.2b-2)."
   },
   {
    "id": "ds-panel",
@@ -1377,7 +1406,7 @@
    ],
    "stories": "DsPanel",
    "golden": "panel",
-   "notes": "Previewed untitled only, as panel('', body): the title draws <h2 class=\"ds-panel-title\">, which the Lab sanitizer does not allow, so the head, title and note are not shown (M3/S2.2b-1)."
+   "notes": "Previewed untitled and titled (M3/S2.2b-1, M3/S2.2b-2). Untitled bodies include production's own (an empty state, a skeleton); titled bodies are the room's own kv list, chip and note as production composes them, without the evChip and code() values the sanitizer does not allow."
   },
   {
    "id": "ds-metric",
@@ -1538,11 +1567,17 @@
      "public/design-system/design-system.css"
     ]
    },
+   "js": {
+    "file": "public/design-system/design-system.js",
+    "symbol": "emptyState"
+   },
    "anatomy": [
     "ds-empty-mark",
     "ds-empty-title",
     "ds-empty-why"
-   ]
+   ],
+   "stories": "DsEmpty",
+   "golden": "emptyState"
   },
   {
    "id": "ds-skeleton",
@@ -1559,12 +1594,18 @@
      "public/design-system/design-system.css"
     ]
    },
+   "js": {
+    "file": "public/design-system/design-system.js",
+    "symbol": "skeleton"
+   },
    "anatomy": [
     "ds-skel-row",
     "ds-skel-intro",
     "ds-skel-strip",
     "ds-skel-grid"
-   ]
+   ],
+   "stories": "DsSkeleton",
+   "golden": "skeleton"
   },
   {
    "id": "ds-language",

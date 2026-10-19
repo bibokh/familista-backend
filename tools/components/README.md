@@ -50,10 +50,11 @@ fixtures into `src/design-system/generated/design-system-previews.json`. It read
 snapshot as text and executes nothing; `tests/design-system-lab.unit.test.ts` re-runs the Storybook
 golden test so CI refuses a snapshot that has drifted from `public/app.js`.
 
-Fifteen components are previewable, with 103 fixtures: the ten `_lg*` primitives (65 fixtures, pinned
+Eighteen components are previewable, with 122 fixtures: the ten `_lg*` primitives (65 fixtures, pinned
 byte for byte by digest), since M3 / S2.1b `_lgIcon` (12), `clubLogoHtml` (9) and `clubIdentityHtml` (8)
 (the 94 together pinned by digest), since M3 / S2.2a the Owner Kit's `kv` (6) (the 100 together pinned by
-digest), and since M3 / S2.2b-1 the Owner Kit's `panel` (3). The `app.js` ones are
+digest), since M3 / S2.2b-1 the Owner Kit's `panel` (3, untitled) (the 103 together pinned by digest), and since
+M3 / S2.2b-2 `chip` (8), `emptyState` (3), `skeleton` (3) and five more `panel` fixtures. The `app.js` ones are
 each cut by name from `public/app.js` by `tools/storybook/lib/extract-lg.mjs` and run over the fixed inputs in
 `tools/storybook/tests/cases.mjs`. A case section, a call or a golden key that names a function the components
 manifest did not resolve in `public/app.js` fails the build. Three exclusions are deliberate, and the sanitizer
@@ -86,6 +87,20 @@ refusing it, so the head, title and note are not shown. The bodies production pa
 `aria-label` on a `div`, `<code>`, `<thead>`), so the fixtures' bodies are the room's own key-value list and
 note: real `kv()` rows in the `.ds-kv-list` wrapper and the `.ds-note` line production writes. The sanitizer
 was not changed.
+
+M3 / S2.2b-2 widened the sanitizer by exactly four rules, each with the value rule it already had: `aria-hidden`
+on `span` (`true` or `false`, for the chip's decorative dot), `class` on `h2` (token rules and provenance, for the
+panel title), `role="status"` beside `role="dialog"` (the only tag that takes a role is `div`), and `aria-label` on
+`div`, admitted **only** on a `div` that also carries `role="status"` (the skeleton's name), checked after every
+attribute is read so the order does not matter. The parser's duplicate-attribute check was made prototype-free
+(`Object.create(null)`), so `constructor` or `toString` is refused as an attribute the list does not allow rather
+than as "written twice". The policy version stays 1: the manifest embeds the whole policy and the sanitizer's
+hash, and either change makes it stale. With that, `ds-panel` gains production's own untitled bodies
+(`panel('', emptyState(...))` and `panel('', skeleton(8, 'row'))`, lines 527 and 528) and its titled form, and
+`ds-chip`, `ds-empty` and `ds-skeleton` are previewed. Chips are untitled only: `title` on `span` is still refused,
+so titled chips and `evChip` are not shown. `ds-empty` and `ds-skeleton` carry `role="status"` live regions into
+the specimen, as production writes them; how a screen reader voices a status region inserted into the stage is not
+something this proof can hear (see the S2.2b-2 report).
 
 `is-empty` is the one class accepted by a component-scoped reviewed entry (`SCOPED_INERT` in the generator):
 `clubLogoHtml` writes it when a club has no crest, and no production rule styles `.club-logo.is-empty`. It is

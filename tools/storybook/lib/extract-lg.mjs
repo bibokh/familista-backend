@@ -41,6 +41,7 @@ export const WANTED = [
 export const DS_WANTED = [
   ['var', 'DS_DICT'], ['var', 'DS_LANG'], ['var', 'DS_SEEN'],
   ['fn', 'T'], ['fn', 'esc'], ['fn', 'kv'], ['fn', 'panel'],
+  ['fn', 'chip'], ['fn', 'emptyState'], ['fn', 'skeleton'],
 ];
 
 function lineOf(src, index) { return src.slice(0, index).split('\n').length; }

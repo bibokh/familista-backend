@@ -7,32 +7,32 @@
    "id": "registry",
    "path": "tools/components/registry.json",
    "label": "The reviewed Components Registry",
-   "sha256": "e9f4f23a160d88fd79cbb0aa27e99e45d94432bd5ce6435659b0552705b1b308",
-   "bytes": 34553,
+   "sha256": "6329203a6332060782b57159a5b699aca29e3582e4da609d343d4bd508d925f4",
+   "bytes": 35611,
    "basis": "file"
   },
   {
    "id": "storybook-stories",
    "path": "tools/storybook/stories",
    "label": "The Storybook story files the registry cites",
-   "sha256": "6030377a711756dd95c62831e243af92ff0a428cd416e1612ba0cf7b20ca0412",
-   "bytes": 1626,
+   "sha256": "b93da5a0abd757c0fff44771bc6a9ed590b66b3e454163e0d220f77818796d55",
+   "bytes": 1952,
    "basis": "derived"
   },
   {
    "id": "storybook-golden",
    "path": "tools/storybook/tests/golden/lg-primitives.golden.json",
    "label": "The golden snapshot cases of the ten competition primitives",
-   "sha256": "5fde4b60da90e389d211f730f4006caa40778c224db17ad518bb2d6451a3ba24",
-   "bytes": 38133,
+   "sha256": "4888cf2479114b9bbb15312485ade313ae1869adccad83df31de64b1fb6f7278",
+   "bytes": 43915,
    "basis": "file"
   },
   {
    "id": "production-slices",
    "path": "public",
    "label": "The slices of production source each component owns (render function and CSS rules)",
-   "sha256": "ace503a99cd708b2bdf88f478d6d007ef7294c2618fccc4732cd4bc8b9ef943f",
-   "bytes": 5857,
+   "sha256": "261eec526940e34d2affe851d11fbc4c4e4644e2fc09bdc44bbde2821213b586",
+   "bytes": 6049,
    "basis": "derived"
   }
  ],
@@ -196,9 +196,9 @@
    "primitive": 26
   },
   "byTier": {
-   "catalogued": 30,
+   "catalogued": 27,
    "listed": 15,
-   "verified": 15
+   "verified": 18
   },
   "byCategory": {
    "candidates": 7,
@@ -210,9 +210,9 @@
    "shell": 5,
    "surfaces": 9
   },
-  "withStories": 15,
+  "withStories": 18,
   "withVariants": 15,
-  "withSource": 15
+  "withSource": 18
  },
  "components": [
   {
@@ -2199,12 +2199,12 @@
    "name": "Evidence chip",
    "category": "owner-kit",
    "kind": "primitive",
-   "tier": "catalogued",
+   "tier": "verified",
    "module": "design-system",
    "summary": "A pill that states how a figure is known, never only by colour.",
    "depth": "full",
    "source": {
-    "js": null,
+    "js": {"file":"public/design-system/design-system.js","symbol":"chip","sha256":"5b5c450c7e0ee0c3bbddbcfcb44b9c1c968c9155fd42e055c064382db9f1be8a","bytes":267},
     "css": [{"file":"public/design-system/design-system.css","rules":14,"sha256":"c9f534119d0fb7a733008adf9b1d6411aede1e0f54fb8b89e8186d19390447f0","bytes":1990}],
     "presence": []
    },
@@ -2221,25 +2221,32 @@
     "reducedMotion": false
    },
    "anatomy": [
-    {"cls":"ds-dot","rules":1,"emitted":null}
+    {"cls":"ds-dot","rules":1,"emitted":true}
    ],
    "variants": [
-    {"name":"ok","class":"ds-chip--ok","rules":2,"cases":[],"stories":[],"exercised":false},
-    {"name":"warn","class":"ds-chip--warn","rules":2,"cases":[],"stories":[],"exercised":false},
-    {"name":"crit","class":"ds-chip--crit","rules":2,"cases":[],"stories":[],"exercised":false},
-    {"name":"info","class":"ds-chip--info","rules":2,"cases":[],"stories":[],"exercised":false},
-    {"name":"rec","class":"ds-chip--rec","rules":2,"cases":[],"stories":[],"exercised":false},
-    {"name":"none","class":"ds-chip--none","rules":1,"cases":[],"stories":[],"exercised":false},
-    {"name":"sm","class":"ds-chip--sm","rules":1,"cases":[],"stories":[],"exercised":false}
+    {"name":"ok","class":"ds-chip--ok","rules":2,"cases":["ok, small"],"stories":[],"exercised":true},
+    {"name":"warn","class":"ds-chip--warn","rules":2,"cases":["warn, small"],"stories":[],"exercised":true},
+    {"name":"crit","class":"ds-chip--crit","rules":2,"cases":["crit, small"],"stories":[],"exercised":true},
+    {"name":"info","class":"ds-chip--info","rules":2,"cases":["info, small","info, default size"],"stories":[],"exercised":true},
+    {"name":"rec","class":"ds-chip--rec","rules":2,"cases":["rec, small"],"stories":[],"exercised":true},
+    {"name":"none","class":"ds-chip--none","rules":1,"cases":["none, small"],"stories":[],"exercised":true},
+    {"name":"sm","class":"ds-chip--sm","rules":1,"cases":["ok, small"],"stories":[],"exercised":true}
    ],
-   "stories": null,
+   "stories": {
+    "file": "tools/storybook/stories/DsChip.stories.js",
+    "title": "Familista/chip",
+    "cases": ["Pass","AllKinds","DefaultSize","RTL","Tablet","Mobile"],
+    "golden": ["ok, small","crit, small","info, small","warn, small","rec, small","none, small","info, default size","markup in the label is escaped"],
+    "options": ["ok","warn","crit","info","rec","none","ds-chip--sm"],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
    "accessibility": {
-    "facts": []
+    "facts": [{"id":"aria-hidden","label":"The function marks decorative graphics aria-hidden.","evidence":"MEASURED","where":"render function"},{"id":"escapes","label":"The function escapes interpolated text before it reaches the page.","evidence":"MEASURED","where":"render function"},{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/DsChip.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/DsChip.stories.js"}]
    },
    "dependencies": {
     "calls": [],
     "calledBy": [],
-    "helpers": []
+    "helpers": ["esc"]
    },
    "referencedIn": [
     "public/design-system/components.js",
@@ -2251,8 +2258,8 @@
     "styling": "MEASURED",
     "source": "MEASURED",
     "variants": "MEASURED",
-    "stories": "NONE",
-    "accessibility": "NONE",
+    "stories": "MEASURED",
+    "accessibility": "MEASURED",
     "dependencies": "MEASURED"
    }
   },
@@ -2291,8 +2298,8 @@
    "stories": {
     "file": "tools/storybook/stories/DsPanel.stories.js",
     "title": "Familista/panel",
-    "cases": ["KeyValueList","ListAndNote","NoteOnly","RTL","Tablet","Mobile"],
-    "golden": ["untitled, a key-value list","untitled, a list and a note","untitled, a note only"],
+    "cases": ["KeyValueList","ListAndNote","NoteOnly","TokensCouldNotBeRead","TokensLoading","Titled","TitledWithNote","RTL","Tablet","Mobile"],
+    "golden": ["untitled, a key-value list","untitled, a list and a note","untitled, a note only","untitled, the tokens could not be read","untitled, the tokens loading","titled, contrast","titled with a note","markup in the title is escaped"],
     "options": [],
     "review": {"rtl":true,"tablet":true,"mobile":true}
    },
@@ -2716,12 +2723,12 @@
    "name": "Empty state",
    "category": "owner-kit",
    "kind": "primitive",
-   "tier": "catalogued",
+   "tier": "verified",
    "module": "design-system",
    "summary": "Says what is missing and what would fill it.",
    "depth": "full",
    "source": {
-    "js": null,
+    "js": {"file":"public/design-system/design-system.js","symbol":"emptyState","sha256":"cb919e723287d5b4098ebf4fa246b7cef7dc95af7d4e32d8d51f911965572281","bytes":307},
     "css": [{"file":"public/design-system/design-system.css","rules":4,"sha256":"0694564ad9c64ca19de28bd63ce9907f1bbaff488ae6e26dd0f3634a745ee3d8","bytes":547}],
     "presence": []
    },
@@ -2738,19 +2745,26 @@
     "reducedMotion": false
    },
    "anatomy": [
-    {"cls":"ds-empty-mark","rules":1,"emitted":null},
-    {"cls":"ds-empty-title","rules":1,"emitted":null},
-    {"cls":"ds-empty-why","rules":1,"emitted":null}
+    {"cls":"ds-empty-mark","rules":1,"emitted":true},
+    {"cls":"ds-empty-title","rules":1,"emitted":true},
+    {"cls":"ds-empty-why","rules":1,"emitted":true}
    ],
    "variants": [],
-   "stories": null,
+   "stories": {
+    "file": "tools/storybook/stories/DsEmpty.stories.js",
+    "title": "Familista/emptyState",
+    "cases": ["TitleAndReason","TitleOnly","RTL","Tablet","Mobile"],
+    "golden": ["title only","title and reason","markup is escaped"],
+    "options": [],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
    "accessibility": {
-    "facts": []
+    "facts": [{"id":"aria-hidden","label":"The function marks decorative graphics aria-hidden.","evidence":"MEASURED","where":"render function"},{"id":"role","label":"The function writes an ARIA role.","evidence":"MEASURED","where":"render function"},{"id":"escapes","label":"The function escapes interpolated text before it reaches the page.","evidence":"MEASURED","where":"render function"},{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/DsEmpty.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/DsEmpty.stories.js"}]
    },
    "dependencies": {
     "calls": [],
     "calledBy": [],
-    "helpers": []
+    "helpers": ["T","esc"]
    },
    "referencedIn": [
     "public/design-system/design-system.js"
@@ -2761,8 +2775,8 @@
     "styling": "MEASURED",
     "source": "MEASURED",
     "variants": "NONE",
-    "stories": "NONE",
-    "accessibility": "NONE",
+    "stories": "MEASURED",
+    "accessibility": "MEASURED",
     "dependencies": "MEASURED"
    }
   },
@@ -2771,12 +2785,12 @@
    "name": "Skeleton",
    "category": "owner-kit",
    "kind": "primitive",
-   "tier": "catalogued",
+   "tier": "verified",
    "module": "design-system",
    "summary": "A placeholder the size of the content it stands in for.",
    "depth": "full",
    "source": {
-    "js": null,
+    "js": {"file":"public/design-system/design-system.js","symbol":"skeleton","sha256":"f5e9c0ef60ccf394d4acfe14a726a5d4b789037b911927b6eb8bc16f9026fa85","bytes":281},
     "css": [{"file":"public/design-system/design-system.css","rules":5,"sha256":"6abadb2b1a28c2abc153769859e2f9dd0e006a85f7c8ff8fbf81cd73e9791db3","bytes":377}],
     "presence": []
    },
@@ -2793,20 +2807,27 @@
     "reducedMotion": false
    },
    "anatomy": [
-    {"cls":"ds-skel-row","rules":1,"emitted":null},
-    {"cls":"ds-skel-intro","rules":2,"emitted":null},
-    {"cls":"ds-skel-strip","rules":2,"emitted":null},
-    {"cls":"ds-skel-grid","rules":2,"emitted":null}
+    {"cls":"ds-skel-row","rules":1,"emitted":true},
+    {"cls":"ds-skel-intro","rules":2,"emitted":false},
+    {"cls":"ds-skel-strip","rules":2,"emitted":false},
+    {"cls":"ds-skel-grid","rules":2,"emitted":false}
    ],
    "variants": [],
-   "stories": null,
+   "stories": {
+    "file": "tools/storybook/stories/DsSkeleton.stories.js",
+    "title": "Familista/skeleton",
+    "cases": ["SixRows","FourRows","EightRows","RTL","Tablet","Mobile"],
+    "golden": ["4 rows","6 rows","8 rows"],
+    "options": [],
+    "review": {"rtl":true,"tablet":true,"mobile":true}
+   },
    "accessibility": {
-    "facts": []
+    "facts": [{"id":"aria-hidden","label":"The function marks decorative graphics aria-hidden.","evidence":"MEASURED","where":"render function"},{"id":"role","label":"The function writes an ARIA role.","evidence":"MEASURED","where":"render function"},{"id":"aria-attr","label":"The function writes ARIA state or label attributes.","evidence":"MEASURED","where":"render function"},{"id":"escapes","label":"The function escapes interpolated text before it reaches the page.","evidence":"MEASURED","where":"render function"},{"id":"story-rtl","label":"A Storybook case renders it right to left.","evidence":"MEASURED","where":"tools/storybook/stories/DsSkeleton.stories.js"},{"id":"story-viewports","label":"A Storybook case renders it at a tablet or phone width.","evidence":"MEASURED","where":"tools/storybook/stories/DsSkeleton.stories.js"}]
    },
    "dependencies": {
     "calls": [],
     "calledBy": [],
-    "helpers": []
+    "helpers": ["T","esc"]
    },
    "referencedIn": [
     "public/design-system/design-system.js"
@@ -2817,8 +2838,8 @@
     "styling": "MEASURED",
     "source": "MEASURED",
     "variants": "NONE",
-    "stories": "NONE",
-    "accessibility": "NONE",
+    "stories": "MEASURED",
+    "accessibility": "MEASURED",
     "dependencies": "MEASURED"
    }
   },
