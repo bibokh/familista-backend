@@ -311,6 +311,15 @@ jobs:
           printf '%s' "$line" | grep -Eq ', 0 failed, 0 skipped$'
           test "$passed" -ge "$PROOF_MIN"
 
+      # M3/S3.2: the performance budget report, in the job summary. Timing is report-only (an OVER is shown, never a red
+      # build); a missing or invalid official measurement fails this step. It runs after the proof's own pass/fail step, and
+      # even when that step failed, so it can report but cannot change or hide the proof's result.
+      - name: Performance budget report (timing report-only; missing or invalid official data fails)
+        if: always()
+        run: |
+          set -euo pipefail
+          node tools/components/budget-report.cjs "$RUNNER_TEMP/browser-proof.log" --sections "$PROOF_SECTIONS" | tee -a "$GITHUB_STEP_SUMMARY"
+
   # Cyber Defense, Step 9: no credential enters the repository. gitleaks scans
   # the WHOLE history on every pull request and every push to main, so a secret
   # committed and then deleted is still caught. Findings are printed redacted;

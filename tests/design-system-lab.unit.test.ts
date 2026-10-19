@@ -2232,3 +2232,275 @@ describe('M3/S3.1 L2a — every class a fixture uses has a rule in a stylesheet 
     expect(unsupported([{ name: 'a', owner: 'css' }, { name: 'ctx', owner: 'css' }, { name: 'leaf', owner: 'css' }], synthetic)).toEqual([]);
   });
 });
+
+// ── M3/S3.2 — the performance budget report ─────────────────────────────────
+describe('M3/S3.2 — the performance budget report: eight official budgets, diagnostics apart, no PASS without a measurement', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const R = require('../tools/components/budget-report.cjs');
+  const REPORT_PATH = 'tools/components/budget-report.cjs';
+  const PROOF_SRC = read('tools/components/lab-browser-proof.cjs');
+  const CI = read('.github/workflows/ci.yml');
+  const ISOLATION = ['1', '2', '2b', '3', '4', '5', '8', '9', '10', '11', '12', '13'];
+  const line = (o: object) => 'METRIC ' + JSON.stringify(o);
+  // Every metric the proof writes. The values are main 4173c02's CI figures where its log printed them; n and max are illustrative.
+  const FULL: Record<string, object> = {
+    'nav.component.median': { value: 44.6, unit: 'ms', n: 120, max: 70.1 },
+    'nav.component.p95': { value: 52.8, unit: 'ms', n: 120, max: 70.1 },
+    'compare.open.p95': { value: 66.8, unit: 'ms', n: 40, max: 70.2 },
+    'fit.recalc.p95': { value: 77.7, unit: 'ms', n: 40, max: 83.4 },
+    'mem.app.growth': { value: 0.1, unit: 'KB' },
+    'mem.listeners.growth': { value: 0, unit: 'count' },
+    'mem.detached.growth': { value: 0, unit: 'count' },
+    'dom.growth': { value: 0, unit: 'count' },
+    'diag.nav.component.app.median': { value: 1.7, unit: 'ms', n: 120 },
+    'diag.nav.component.browser.median': { value: 42.9, unit: 'ms', n: 120 },
+    'diag.nav.component.frames': { unit: 'frames', interval: 16.67, n: 120, distribution: { 2: 70, 3: 45, 4: 5 } },
+    'diag.nav.fixture.median': { value: 33.3, unit: 'ms', n: 110 },
+    'diag.nav.fixture.p95': { value: 34.8, unit: 'ms', n: 110, max: 51 },
+    'diag.compare.open.frames': { unit: 'frames', interval: 16.67, n: 40, distribution: { 3: 30, 4: 10 } },
+    'diag.fit.recalc.frames': { unit: 'frames', interval: 16.67, n: 40, distribution: { 4: 28, 5: 12 } },
+    'diag.compare.open.s10.p95': { value: 105.1, unit: 'ms', n: 40, max: 118.4 },
+    'diag.compare.open.s10.median': { value: 80.3, unit: 'ms', n: 40 },
+    'diag.compare.open.s10.app.median': { value: 2.8, unit: 'ms', n: 40 },
+    'diag.compare.open.s10.browser.median': { value: 77.1, unit: 'ms', n: 40 },
+    'diag.compare.open.s10.frames': { unit: 'frames', interval: 16.67, n: 40, distribution: { 4: 12, 5: 24, 6: 4 } },
+  };
+  /** A proof log: its SUMMARY line, every metric (null drops one, an object replaces it) and any extra lines. */
+  const log = (edit: Record<string, object | null> = {}, extra: string[] = []) => ['{"level":"info","msg":"an application log line"}', 'SUMMARY 203 passed, 0 failed, 0 skipped',
+    ...Object.entries({ ...FULL, ...edit }).filter(([, v]) => v !== null).map(([id, v]) => line({ id, ...(v as object) })), ...extra].join('\n');
+  const run = (text: string | null, sections: string[] | null = ISOLATION) => R.report(text, { sections });
+  const row = (r: any, id: string) => r.rows.find((x: any) => x.def.id === id);
+  const OFFICIAL = ['nav.component.median', 'nav.component.p95', 'compare.open.p95', 'fit.recalc.p95', 'mem.app.growth', 'mem.listeners.growth', 'mem.detached.growth', 'dom.growth'];
+
+  it('9. knows exactly the eight approved budgets at their approved thresholds, frozen, and nothing else carries a budget', () => {
+    expect(R.METRICS.filter((m: any) => m.cls === 'OFFICIAL').map((m: any) => [m.id, m.unit, m.budget.op, m.budget.value])).toEqual([
+      ['nav.component.median', 'ms', '<=', 50], ['nav.component.p95', 'ms', '<=', 80], ['compare.open.p95', 'ms', '<=', 100], ['fit.recalc.p95', 'ms', '<=', 100],
+      ['mem.app.growth', 'KB', '<=', 32], ['mem.listeners.growth', 'count', '=', 0], ['mem.detached.growth', 'count', '<=', 0], ['dom.growth', 'count', '<=', 0],
+    ]);
+    expect(R.METRICS.filter((m: any) => m.cls === 'DIAGNOSTIC').every((m: any) => m.budget === null)).toBe(true);
+    expect(new Set(R.METRICS.map((m: any) => m.id)).size).toBe(R.METRICS.length);
+    expect(R.METRICS.every((m: any) => ['OFFICIAL', 'DIAGNOSTIC'].includes(m.cls) && ['ms', 'KB', 'count', 'frames'].includes(m.unit))).toBe(true);
+    expect(Object.isFrozen(R.METRICS) && R.METRICS.every((m: any) => Object.isFrozen(m) && (m.budget === null || Object.isFrozen(m.budget)))).toBe(true);
+    expect(() => { R.METRICS[2].budget.value = 1000; }).toThrow(TypeError);
+    expect(R.METRICS[2].budget.value).toBe(100);
+    // D1: the official navigation is section 11's component navigation; D6: section 10's Compare figure is diagnostic, with a 100 ms reference.
+    expect(R.METRICS.filter((m: any) => m.id.startsWith('nav.')).every((m: any) => m.section === '11' && /component navigation/.test(m.method))).toBe(true);
+    const s10 = R.METRICS.find((m: any) => m.id === 'diag.compare.open.s10.p95');
+    expect([s10.cls, s10.section, s10.reference, s10.budget]).toEqual(['DIAGNOSTIC', '10', 100, null]);
+    expect(R.METRICS.find((m: any) => m.id === 'compare.open.p95').section).toBe('12');
+  });
+
+  it('a complete log: every official budget PASS, every diagnostic INFO, the section 10 figure visibly above its reference, and the step passes', () => {
+    const r = run(log());
+    expect(r.failures).toEqual([]);
+    expect(r.ok).toBe(true);
+    expect(OFFICIAL.map((id) => row(r, id).status)).toEqual(Array(8).fill('PASS'));
+    expect(r.rows.filter((x: any) => x.def.cls === 'DIAGNOSTIC').every((x: any) => /^INFO/.test(x.status))).toBe(true);
+    expect(row(r, 'diag.compare.open.s10.p95').status).toBe('INFO (above reference)');
+    expect(r.markdown).toContain('Proof: 203 passed, 0 failed, 0 skipped');
+    expect(r.markdown).toContain('Report: every official measurement is present and valid.');
+    expect(r.markdown).toMatch(/Compare opening p95 \(`compare\.open\.p95`\) \| OFFICIAL \| 66\.8 ms, n 40, max 70\.2 ms \| ≤ 100 ms \| \*\*PASS\*\*/);
+  });
+
+  it.each([
+    ['nav.component.median', { value: 50.1, unit: 'ms', n: 120, max: 90 }], ['nav.component.p95', { value: 80.1, unit: 'ms', n: 120, max: 90 }],
+    ['compare.open.p95', { value: 100.1, unit: 'ms', n: 40, max: 120 }], ['fit.recalc.p95', { value: 100.1, unit: 'ms', n: 40, max: 120 }],
+    ['mem.app.growth', { value: 32.1, unit: 'KB' }], ['mem.listeners.growth', { value: 1, unit: 'count' }], ['mem.listeners.growth', { value: -1, unit: 'count' }],
+    ['mem.detached.growth', { value: 1, unit: 'count' }], ['dom.growth', { value: 1, unit: 'count' }],
+  ] as [string, object][])('1. %s over its budget is OVER, shown, and (report-only) does not fail the step', (id, rec) => {
+    const r = run(log({ [id]: rec }));
+    expect(row(r, id).status).toBe('OVER');
+    expect(r.ok).toBe(true);
+    expect(r.markdown.split('\n').find((l: string) => l.includes('`' + id + '`'))).toContain('**OVER**');
+  });
+
+  it('1. a value exactly at its budget passes: the budgets are inclusive, as approved', () => {
+    const r = run(log({ 'nav.component.median': { value: 50, unit: 'ms', n: 120, max: 60 }, 'compare.open.p95': { value: 100, unit: 'ms', n: 40, max: 100 }, 'mem.app.growth': { value: 32, unit: 'KB' } }));
+    expect(['nav.component.median', 'compare.open.p95', 'mem.app.growth'].map((id) => row(r, id).status)).toEqual(['PASS', 'PASS', 'PASS']);
+  });
+
+  it('2. a diagnostic above its reference stays visible as INFO (above reference), never PASS; below it, INFO', () => {
+    const r = run(log({ 'diag.compare.open.s10.p95': { value: 250, unit: 'ms', n: 40, max: 300 } }));
+    expect(row(r, 'diag.compare.open.s10.p95').status).toBe('INFO (above reference)');
+    expect(r.ok).toBe(true);
+    const md = r.markdown.split('\n').find((l: string) => l.includes('`diag.compare.open.s10.p95`'));
+    expect(md).toContain('250.0 ms, n 40, max 300.0 ms');
+    expect(md).toContain('reference 100 ms (no budget)');
+    expect(md).toContain('**INFO (above reference)**');
+    expect(md).not.toMatch(/PASS|OVER/);
+    expect(row(run(log({ 'diag.compare.open.s10.p95': { value: 99.9, unit: 'ms', n: 40, max: 100 } })), 'diag.compare.open.s10.p95').status).toBe('INFO');
+    // a diagnostic with no reference is INFO however large: no budget is borrowed for it
+    expect(row(run(log({ 'diag.nav.fixture.p95': { value: 999, unit: 'ms', n: 110, max: 999 } })), 'diag.nav.fixture.p95').status).toBe('INFO');
+  });
+
+  it.each(OFFICIAL)('3. %s missing is MISSING, never PASS, and fails the step', (id) => {
+    const r = run(log({ [id]: null }));
+    expect(row(r, id).status).toBe('MISSING');
+    expect(r.ok).toBe(false);
+    expect(r.failures).toContain(`${id}: the official measurement is missing`);
+    expect(r.markdown.split('\n').find((l: string) => l.includes('`' + id + '`'))).not.toContain('PASS');
+  });
+
+  it('3. a missing diagnostic is NOT MEASURED and does not fail the step', () => {
+    const r = run(log({ 'diag.nav.fixture.p95': null, 'diag.compare.open.s10.frames': null }));
+    expect([row(r, 'diag.nav.fixture.p95').status, row(r, 'diag.compare.open.s10.frames').status]).toEqual(['NOT MEASURED', 'NOT MEASURED']);
+    expect(r.ok).toBe(true);
+  });
+
+  it('4. an unknown metric id fails the step, and what it shows of the id cannot carry markup', () => {
+    const r = run(log({}, [line({ id: 'nav.component.mean', value: 1, unit: 'ms' }), line({ id: '<img src=x onerror=alert(1)>|`x`', value: 1, unit: 'ms' }), line({ value: 1, unit: 'ms' })]));
+    expect(r.ok).toBe(false);
+    expect(r.failures).toEqual(expect.arrayContaining(['unknown metric id "nav.component.mean"', 'unknown metric id "(empty)"']));
+    expect(r.failures.join(' ')).not.toMatch(/[<>|`]/);
+    expect(r.markdown).not.toMatch(/[<>`]x|<img|onerror=alert\(1\)>/);
+    expect(r.markdown.replace(/`[a-z0-9.]+`/g, '')).not.toMatch(/[<>]/);
+  });
+
+  it('5. a duplicate metric id fails the step and the metric is not used', () => {
+    const r = run(log({}, [line({ id: 'compare.open.p95', value: 12, unit: 'ms', n: 40, max: 20 })]));
+    expect(r.ok).toBe(false);
+    expect(r.failures).toEqual(expect.arrayContaining(['duplicate metric id "compare.open.p95"', 'compare.open.p95: reported more than once']));
+    expect(row(r, 'compare.open.p95').status).toBe('INVALID');
+  });
+
+  it.each([
+    ['compare.open.p95', { value: 0.0668, unit: 's', n: 40, max: 0.07 }],
+    ['mem.app.growth', { value: 0.0001, unit: 'MB' }],
+    ['mem.listeners.growth', { value: 0, unit: 'ms' }],
+    ['diag.nav.component.frames', { unit: 'ms', interval: 16.67, n: 120, distribution: { 2: 120 } }],
+  ] as [string, object][])('6. %s in the wrong unit is INVALID and fails the step', (id, rec) => {
+    const r = run(log({ [id]: rec }));
+    expect(row(r, id).status).toBe('INVALID');
+    expect(r.ok).toBe(false);
+    expect(r.failures.find((f: string) => f.startsWith(id + ': unit'))).toBeDefined();
+  });
+
+  it.each([
+    ['NaN (JSON writes it as null)', 'nav.component.median', line({ id: 'nav.component.median', value: NaN, unit: 'ms', n: 120, max: 1 }), 'the value is not a finite number'],
+    ['Infinity read from the log', 'nav.component.p95', 'METRIC {"id":"nav.component.p95","value":1e999,"unit":"ms","n":120,"max":1e999}', 'the value is not a finite number'],
+    ['a negative duration', 'compare.open.p95', line({ id: 'compare.open.p95', value: -0.1, unit: 'ms', n: 40, max: 1 }), 'a duration is negative'],
+    ['a value as a string', 'fit.recalc.p95', line({ id: 'fit.recalc.p95', value: '77.7', unit: 'ms', n: 40, max: 80 }), 'the value is not a finite number'],
+    ['a fractional listener count', 'mem.listeners.growth', line({ id: 'mem.listeners.growth', value: 0.5, unit: 'count' }), 'the value is not a whole number'],
+    ['a maximum below the value', 'compare.open.p95', line({ id: 'compare.open.p95', value: 66.8, unit: 'ms', n: 40, max: 50 }), 'max is below the value'],
+    ['n that is not a positive whole number', 'nav.component.median', line({ id: 'nav.component.median', value: 40, unit: 'ms', n: 0, max: 50 }), 'n is not a positive whole number'],
+    ['a frame distribution that does not add up to n', 'diag.compare.open.frames', line({ id: 'diag.compare.open.frames', unit: 'frames', interval: 16.67, n: 40, distribution: { 3: 30 } }), 'the distribution counts 30 samples, n is 40'],
+    ['a frame count of zero', 'diag.fit.recalc.frames', line({ id: 'diag.fit.recalc.frames', unit: 'frames', interval: 16.67, n: 40, distribution: { 0: 40 } }), 'a frame count is not a positive whole number'],
+    ['a frame interval of zero', 'diag.nav.component.frames', line({ id: 'diag.nav.component.frames', unit: 'frames', interval: 0, n: 120, distribution: { 2: 120 } }), 'the frame interval is not a positive number'],
+    ['a negative diagnostic duration', 'diag.compare.open.s10.browser.median', line({ id: 'diag.compare.open.s10.browser.median', value: -3, unit: 'ms', n: 40 }), 'a duration is negative'],
+  ] as [string, string, string, string][])('7. %s is INVALID and fails the step', (_label, id, bad, problem) => {
+    const r = run(log({ [id]: null }, [bad]));
+    expect(row(r, id).status).toBe('INVALID');
+    expect(r.failures).toContain(`${id}: ${problem}`);
+    expect(r.ok).toBe(false);
+  });
+
+  it('7. a negative memory growth is a measurement, not an error: memory can shrink after garbage collection', () => {
+    const r = run(log({ 'mem.app.growth': { value: -0.3, unit: 'KB' } }));
+    expect(row(r, 'mem.app.growth').status).toBe('PASS');
+    expect(r.ok).toBe(true);
+  });
+
+  it('7. a METRIC line that is not JSON, or not an object, fails the step', () => {
+    expect(run(log({}, ['METRIC {"id":"compare.open.p95","value":NaN}'])).failures).toContain('a METRIC line is not valid JSON');
+    expect(run(log({}, ['METRIC [1,2,3]'])).failures).toContain('a METRIC line is not a JSON object');
+  });
+
+  it('8. no log, or an empty one, cannot pass: every official measurement is MISSING and the step fails', () => {
+    for (const [text, said] of [[null, '**no proof log was found**'], ['', 'no SUMMARY line'], ['SUMMARY 203 passed, 0 failed, 0 skipped', '203 passed']] as [string | null, string][]) {
+      const r = run(text);
+      expect(r.ok).toBe(false);
+      expect(OFFICIAL.map((id) => row(r, id).status)).toEqual(Array(8).fill('MISSING'));
+      expect(r.markdown).toContain(said);
+      expect(r.markdown).not.toContain('**PASS**');
+    }
+  });
+
+  it('8. from the command line: a missing log exits 1, an OVER exits 0 (report-only), a missing official measurement exits 1', () => {
+    const cli = (args: string[]) => spawnSync(process.execPath, [path.join(ROOT, REPORT_PATH), ...args], { encoding: 'utf8' });
+    const none = cli([path.join(os.tmpdir(), 'familista-s32-no-such-log-' + process.pid), '--sections', ISOLATION.join(',')]);
+    expect(none.status).toBe(1);
+    expect(none.stdout).toContain('no proof log was found');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'familista-s32-'));
+    try {
+      const over = path.join(dir, 'over.log'); fs.writeFileSync(over, log({ 'compare.open.p95': { value: 140, unit: 'ms', n: 40, max: 150 } }));
+      const r1 = cli([over, '--sections', ISOLATION.join(',')]);
+      expect([r1.status, /\*\*OVER\*\*/.test(r1.stdout)]).toEqual([0, true]);
+      const missing = path.join(dir, 'missing.log'); fs.writeFileSync(missing, log({ 'mem.app.growth': null }));
+      const r2 = cli([missing, '--sections', ISOLATION.join(',')]);
+      expect([r2.status, r2.stdout.includes('mem.app.growth: the official measurement is missing')]).toEqual([1, true]);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it('the accessibility shard runs no timed section: every metric is NOT IN THIS SHARD and the step passes; a metric it did not run fails', () => {
+    const a11y = ['6', '7', '13a'];
+    const r = run('SUMMARY 74 passed, 0 failed, 0 skipped', a11y);
+    expect(r.rows.every((x: any) => x.status === 'NOT IN THIS SHARD')).toBe(true);
+    expect(r.ok).toBe(true);
+    const stray = run(['SUMMARY 74 passed, 0 failed, 0 skipped', line({ id: 'compare.open.p95', value: 50, unit: 'ms', n: 40, max: 60 })].join('\n'), a11y);
+    expect(row(stray, 'compare.open.p95').status).toBe('INVALID');
+    expect(stray.ok).toBe(false);
+  });
+
+  it('shows the proof\'s SUMMARY only in its exact form, and the same log gives the same report every time, in the registry\'s order', () => {
+    expect(run(log({}, ['SUMMARY <b>203</b> passed'])).markdown).toContain('Proof: unreadable');
+    const a = run(log()).markdown, b = run(log()).markdown;
+    expect(a).toBe(b);
+    expect(run(log()).rows.map((x: any) => x.def.id)).toEqual(R.METRICS.map((m: any) => m.id));
+  });
+
+  it('writes safe Markdown: the registry\'s own text has no table or markup characters, and esc() neutralises any that arrive', () => {
+    for (const m of R.METRICS) for (const s of [m.id, m.name, m.method]) expect(s).not.toMatch(/[|<>\r\n`]/);
+    expect(R.esc('<script>a|b</script>\n`c`')).toBe('&lt;script&gt;a&#124;b&lt;/script&gt; \\`c\\`');
+    expect(R.safeId('a<b>|c')).toBe('a?b??c');
+  });
+
+  it('is pure: it reads one file from the command line and nothing else — no network, no environment, no other module, no eval', () => {
+    const src = read(REPORT_PATH);
+    expect([...src.matchAll(/require\(\s*'([^']+)'\s*\)/g)].map((m) => m[1])).toEqual(['fs']);
+    expect(src).toMatch(/if \(require\.main === module\) \{[\s\S]*require\('fs'\)\.readFileSync\(args\[0\], 'utf8'\)/);
+    expect(src).not.toMatch(/process\.env|https?:|\bfetch\(|\beval\(|new Function|child_process|writeFile|\bnet\b|\bdns\b/);
+  });
+
+  it('10. the proof writes every registered metric exactly once, and nothing else, while its official loops and gates are unchanged', () => {
+    const written = [...PROOF_SRC.matchAll(/\bemitMetric\('([^']+)'/g)].map((m) => m[1]);
+    expect([...written].sort()).toEqual(R.METRICS.map((m: any) => m.id).sort());
+    // The official measurements, as audited at M3/S3.2: section 11's component loop and section 12's budget loops.
+    expect(PROOF_SRC).toContain("for (let i = 0; i < n * Math.ceil(100 / n); i++) { const t0 = performance.now(); document.querySelector('[data-lab-nav=\"component-next\"]').click(); await fr(); out.comp.push(performance.now() - t0); out.compSync.push(window.__familistaLabMetrics().switchMs); }");
+    expect(PROOF_SRC).toContain("for (let i = 0; i < 43; i++) { const t0 = performance.now(); document.querySelector('[data-lab-mode=\"compare\"]').click(); await fr(); out.push(performance.now() - t0); document.querySelector('[data-lab-mode=\"single\"]').click(); await fr(); }");
+    expect(PROOF_SRC).toContain('for (let i = 0; i < 43; i++) { const t0 = performance.now(); document.querySelector(`[data-lab-width="${cyc[i % 3]}"]`).click(); await fr(); out.push(performance.now() - t0); }');
+    // The estimator (D7) and the resource gate, unchanged; the budget lines are still printed.
+    expect(PROOF_SRC).toContain('const stat = (a) => { const s = [...a].sort((x, y) => x - y); return { median: Math.round(s[Math.floor(s.length / 2)] * 10) / 10, p95: Math.round(s[Math.floor(s.length * 0.95)] * 10) / 10, n: s.length }; };');
+    expect(PROOF_SRC).toContain('const APP_MEMORY_BUDGET_KB = 32;');
+    expect(PROOF_SRC).toContain('d.appKB <= APP_MEMORY_BUDGET_KB && d.listeners === 0 && d.detached <= 0, d);');
+    expect(PROOF_SRC).toMatch(/console\.log\('BUDGET ' \+ name \+ ': p95 ' \+ s\.p95 \+ ' ms against 100 ms, '/);
+  });
+
+  it('12. a proof that failed stays a failure: the report says so plainly, and a complete set of metrics does not soften it', () => {
+    const failed = run(log({}, ['SUMMARY 202 passed, 1 failed, 0 skipped']));
+    expect(failed.summary).toBe('202 passed, 1 failed, 0 skipped');
+    expect(failed.markdown).toContain('**The proof itself did not pass (1 failed, 0 skipped).** Its own pass/fail step fails this job, whatever this report says.');
+    expect(run(log({}, ['SUMMARY 203 passed, 0 failed, 2 skipped'])).markdown).toContain('(0 failed, 2 skipped)');
+    expect(run(log()).markdown).not.toContain('The proof itself did not pass');
+  });
+
+  it('10. the browser-proof floors stay 203 and 74: the report adds no browser check, so nothing raises them', () => {
+    const job = CI.slice(CI.indexOf('  browser-proof:'), CI.indexOf('  secret-scan:'));
+    expect([...job.matchAll(/min:\s*'(\d+)'/g)].map((m) => Number(m[1]))).toEqual([203, 74]);
+    expect(PROOF_SRC.match(/\bemitMetric\(/g)!.length).toBe(R.METRICS.length);   // one call per metric; the helper is `emitMetric = (`
+    expect(PROOF_SRC).not.toMatch(/emitMetric\([^)]*\)\s*;\s*check\(|check\([^;]*emitMetric/);
+  });
+
+  it('12. CI runs the report in the existing browser-proof job, after its pass/fail step, even when that failed, and fails on what the report fails', () => {
+    const job = CI.slice(CI.indexOf('  browser-proof:'), CI.indexOf('  secret-scan:'));
+    const gate = job.indexOf('- name: The proof must have run, in full, with nothing failed or skipped');
+    const step = job.indexOf('- name: Performance budget report');
+    expect(gate).toBeGreaterThan(0);
+    expect(step).toBeGreaterThan(gate);
+    const body = job.slice(step);
+    expect(body).toMatch(/^\s+if: always\(\)$/m);
+    expect(body).toContain('set -euo pipefail');
+    expect(body).toContain('node tools/components/budget-report.cjs "$RUNNER_TEMP/browser-proof.log" --sections "$PROOF_SECTIONS" | tee -a "$GITHUB_STEP_SUMMARY"');
+    expect(body).not.toMatch(/continue-on-error|\|\|\s*true|\$\{\{/);
+    expect([...CI.slice(CI.indexOf('\njobs:')).matchAll(/^  ([a-z-]+):\s*$/gm)].map((m) => m[1])).toEqual(['validate', 'browser-proof', 'secret-scan']);
+  });
+});

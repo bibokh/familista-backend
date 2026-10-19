@@ -164,6 +164,32 @@ written to the log as `BUDGET` lines against the owner's 100 ms p95 budget. Wall
 measured two to three times CI's figures), so these are reported, not gated; what is gated is that they were measured as
 specified.
 
+### The performance budget report (M3 / S3.2)
+
+The proof also prints one `METRIC {json}` line per measurement the budget report owes, from samples its loops have
+already taken. `budget-report.cjs` reads them after the proof's own pass/fail step, in the same browser-proof job, and
+writes a table to the GitHub Actions job summary. It keeps a closed list of metrics:
+
+- **OFFICIAL**, the eight approved budgets, each from one named measurement and no other:
+  - navigation median ≤ 50 ms and p95 ≤ 80 ms: section 11's component navigation;
+  - Compare opening p95 ≤ 100 ms and Fit recalculation p95 ≤ 100 ms: section 12's budget block (40 samples after 3 warm-ups);
+  - application-memory growth ≤ 32 KB, listener growth = 0, detached-node growth ≤ 0 and DOM growth ≤ 0: section 13.
+
+  Each is PASS or OVER. Timing is report-only, so an OVER never fails the build. The memory, listener, detached-node and DOM
+  checks in the proof still enforce those budgets, unchanged.
+- **DIAGNOSTIC**, everything that explains a figure without being one:
+  - section 10's Compare toggles, shown against a 100 ms reference as `INFO (above reference)` when over it;
+  - fixture navigation;
+  - the Lab's own work and the browser's time per sample;
+  - frames per sample, counted in the frame interval measured on the page after its loops.
+
+  A diagnostic is INFO and never carries an official status.
+
+The report fails its step when an official measurement is missing or invalid, or when any line names an unknown or
+duplicate id, the wrong unit, a non-finite number or a negative duration. A metric whose section did not run in the
+shard is `NOT IN THIS SHARD`, never PASS. The p95 estimator is the proof's own (`sorted[floor(0.95 n)]`), shown with n and
+the maximum.
+
 ### Coverage grows the proofs, not the other way round
 
 Sections 2b, 6, 8, 13 and 13a read the previewable components from the server's index. A component added to the manifest
