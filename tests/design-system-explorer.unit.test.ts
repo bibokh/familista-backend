@@ -620,6 +620,22 @@ describe('the Explorer client: CSP-safe, GET-only, lazy, and read-only', () => {
     expect(css).not.toMatch(/--fam-status-(success|critical)/);
   });
 
+  // M3/S3.1: the rule the room's other stylesheets already keep (design-system, components, lab),
+  // now kept here too. Comments are stripped first, as the sibling checks do.
+  const typedColour = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\(\s*[\d.]/i;
+  it('types no colour: no hex, rgb() or hsl() literal, only tokens', () => {
+    expect(css.match(typedColour)).toBeNull();
+  });
+  it.each([
+    ['a new hex literal is refused', css + '\n.ex-bar{border-color:#1f2937}', true],
+    ['a new rgba() literal is refused', css + '\n.ex-bar{background:rgba(0,0,0,.4)}', true],
+    ['a new hsl() literal is refused', css + '\n.ex-bar{color:hsl(210 20% 30%)}', true],
+    ['colour-like text in a comment is not a colour', stripComments(css + '\n/* was #1f2937 */'), false],
+    ['a token read through var() is allowed', css + '\n.ex-bar{color:var(--fam-module-accent)}', false],
+  ] as [string, string, boolean][])('control: %s', (_label, text, refused) => {
+    expect(typedColour.test(text)).toBe(refused);
+  });
+
   it('is loaded only when its section opens: no page, no loader and no Owner Home reference names it', () => {
     expect(read('public/index.html')).not.toMatch(/explorer\.(js|css)/);
     expect(read('public/app.js')).not.toMatch(/design-system\/explorer/);

@@ -1173,3 +1173,127 @@ describe('English, German and Arabic: everything the Library can say is in all t
     expect(js).toContain('K.code(');
   });
 });
+
+// ── M3/S3.1 L1c — raw colour ratchet ────────────────────────────────────────
+describe('M3/S3.1 L1c — no new raw colour in a catalogued component, nor anywhere in the stylesheets that host one', () => {
+  const baseline = json('tools/components/colour-baseline.json');
+  const NAMED = ('aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate coral '
+    + 'cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred '
+    + 'darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite '
+    + 'forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen '
+    + 'lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray '
+    + 'lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue '
+    + 'mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid '
+    + 'palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon '
+    + 'sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white '
+    + 'whitesmoke yellow yellowgreen').split(' ');
+  const NAMED_RE = new RegExp('(?<![\\w-])(?:' + NAMED.join('|') + ')(?![\\w(-])', 'gi');
+  const COLOUR_PROP = /color|^background|^border|^outline|shadow$|^fill$|^stroke$|^column-rule|^text-decoration|^filter$|^mask|^--/i;
+
+  /** Raw colour literals in the declarations of a stylesheet, or of one rule's body (colour-baseline.json, "counted"). */
+  const rawColours = (text: string): number => {
+    let n = 0;
+    for (const m of text.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/[{;]\s*(-{0,2}[A-Za-z][\w-]*)\s*:([^;{}]*)/g)) {
+      const v = m[2].replace(/url\([^)]*\)/gi, 'url()').replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""');
+      n += (v.match(/#[0-9a-fA-F]{3,8}(?![\w-])/g) || []).length;
+      n += (v.match(/(?<![\w-])(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(\s*(?!var\()/gi) || []).length;
+      if (COLOUR_PROP.test(m[1])) n += (v.match(NAMED_RE) || []).length;
+    }
+    return n;
+  };
+
+  const catalogued = manifest.components.filter((c: any) => c.tier === 'catalogued');
+  /** The generator's own slice: every rule (of one parsed stylesheet) whose selector names a class the component owns (scripts/design-system-components.js). */
+  const slice = (id: string, rules: any[]) => {
+    const c = registry.components.find((x: any) => x.id === id);
+    const owned = new Set([...(c.css.classes || []), ...(c.variants || []).map((v: any) => v.class), ...(c.anatomy || [])]);
+    const prefixes: string[] = c.css.prefixes || [];
+    return rules.filter((r: any) => generator.classesOf(r.sel).some((k: string) => owned.has(k) || prefixes.some((p) => k.startsWith(p))));
+  };
+  const HOSTS = [...new Set(catalogued.flatMap((c: any) => c.source.css.map((x: any) => x.file)))].sort() as string[];
+
+  /** Every catalogued slice's count, its sha256 as the generator would record it, and every host stylesheet's count. */
+  const measure = (texts: Record<string, string>) => {
+    const slices: Record<string, Record<string, number>> = {}, shas: Record<string, Record<string, string>> = {}, files: Record<string, number> = {};
+    const parsed = Object.fromEntries(HOSTS.map((f) => [f, generator.cssRules(texts[f])]));
+    for (const c of catalogued) {
+      slices[c.id] = {}; shas[c.id] = {};
+      for (const { file } of c.source.css) {
+        const rules = slice(c.id, parsed[file]);
+        slices[c.id][file] = rules.reduce((n: number, r: any) => n + rawColours('{' + r.body), 0);
+        shas[c.id][file] = sha(rules.map((r: any) => (r.ctx ? r.ctx + ' ' : '') + r.sel + ' {' + r.body + '}').join('\n'));
+      }
+    }
+    for (const f of HOSTS) files[f] = rawColours(texts[f]);
+    return { slices, shas, files };
+  };
+  /** Every count above its baseline, said the way a red build should say it. */
+  // A slice or stylesheet the baseline does not list yet has a baseline of 0 (and the first test below names it).
+  const base = (id: string, f: string): number => (baseline.slices[id] || {})[f] ?? 0;
+  const over = (m: ReturnType<typeof measure>) => [
+    ...Object.entries(m.slices).flatMap(([id, by]) => Object.entries(by).filter(([f, n]) => n > base(id, f)).map(([f, n]) => `${id} in ${f}: ${n} raw colours, baseline ${base(id, f)}`)),
+    ...Object.entries(m.files).filter(([f, n]) => n > (baseline.files[f] ?? 0)).map(([f, n]) => `${f}: ${n} raw colours, baseline ${baseline.files[f] ?? 0}`),
+  ];
+
+  const real = Object.fromEntries(HOSTS.map((f) => [f, read(f)]));
+  const now = measure(real);
+
+  it('monitors exactly the catalogued components and the stylesheets that host their slices', () => {
+    expect(catalogued.length).toBe(manifest.coverage.byTier.catalogued);
+    expect(Object.keys(baseline.slices).sort()).toEqual(catalogued.map((c: any) => c.id).sort());
+    for (const c of catalogued) expect(Object.keys(baseline.slices[c.id]).sort()).toEqual(c.source.css.map((x: any) => x.file).sort());
+    expect(Object.keys(baseline.files).sort()).toEqual(HOSTS);
+    expect(HOSTS).toEqual(['public/app.css', 'public/design-system/design-system.css']);
+  });
+
+  it('monitors the very slices the components manifest attests: each recomputed slice has its recorded sha256', () => {
+    for (const c of catalogued) for (const x of c.source.css) expect({ id: c.id, file: x.file, sha256: now.shas[c.id][x.file] }).toEqual({ id: c.id, file: x.file, sha256: x.sha256 });
+  });
+
+  it('finds no slice and no host stylesheet with more raw colours than its baseline', () => {
+    expect(over(now)).toEqual([]);
+    expect(Object.values(now.slices).flatMap((by) => Object.values(by)).reduce((a, b) => a + b, 0)).toBeGreaterThan(0);
+  });
+
+  it('counts the same text the same way every time', () => {
+    expect(measure(real)).toEqual(now);
+  });
+
+  // Controls: real app.css with one edit, through the same measure and the same baseline.
+  const APP = 'public/app.css';
+  const withApp = (edit: (t: string) => string) => measure({ ...real, [APP]: edit(real[APP]) });
+  // The first hex in a rule naming one of toast's own registered classes (its variants carry its colours), found in the
+  // comment-free text: comments are not counted, so removing them changes no count.
+  const toast = registry.components.find((x: any) => x.id === 'toast');
+  const toastClasses = [...toast.css.classes, ...(toast.variants || []).map((v: any) => v.class)].join('|');
+  const firstToastHex = new RegExp(`(\\.(?:${toastClasses})(?![\\w-])[^{}]*\\{[^{}]*?)(#[0-9a-fA-F]{3,8})(?![\\w-])`);
+  const uncommented = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, '');
+  it.each([
+    ['a new hex in the component’s own rule', (t: string) => t + '\n.toast{border-color:#123456}', 1, 1, true],
+    ['a raw colour removed from the component', (t: string) => uncommented(t).replace(firstToastHex, '$1var(--s31-removed)'), -1, -1, false],
+    ['colour-like text in a comment', (t: string) => t + '\n/* .toast{color:#123456} */', 0, 0, false],
+    ['a token read through var()', (t: string) => t + '\n.toast{color:var(--fam-module-accent)}', 0, 0, false],
+    ['a colour moved to a helper class beside the component', (t: string) => t + '\n.toast-s31-helper{color:#123456}', 0, 1, true],
+    ['a colour inside @keyframes', (t: string) => t + '\n@keyframes s31-pulse{from{background:#123456}}', 0, 1, true],
+    ['a colour inside @starting-style', (t: string) => t + '\n@starting-style{.toast{background:#123456}}', 0, 1, true],
+    ['a colour inside @scope', (t: string) => t + '\n@scope (.toast){p{color:#123456}}', 0, 1, true],
+    ['a colour through a custom property defined in the same stylesheet', (t: string) => t + '\n:root{--s31-red:#123456}\n.toast{color:var(--s31-red)}', 0, 1, true],
+    ['a named colour in a colour property', (t: string) => t + '\n.toast{color:red}', 1, 1, true],
+    ['a colour word that is not a colour value', (t: string) => t + '\n.toast{animation-name:gold}', 0, 0, false],
+    ['channels read through var()', (t: string) => t + '\n.toast{color:rgba(var(--s31-rgb), .5)}', 0, 0, false],
+    ['a url() fragment and a quoted string', (t: string) => t + '\n.toast{fill:url(#abc123);content:"#fff"}', 0, 0, false],
+  ] as [string, (t: string) => string, number, number, boolean][])('control: %s', (_label, edit, sliceDelta, fileDelta, refused) => {
+    const m = withApp(edit);
+    expect(m.slices.toast[APP] - now.slices.toast[APP]).toBe(sliceDelta);
+    expect(m.files[APP] - now.files[APP]).toBe(fileDelta);
+    expect(over(m).length > 0).toBe(refused);
+  });
+
+  it('control: a new hex in design-system.css is refused against its baseline of 0', () => {
+    const f = 'public/design-system/design-system.css';
+    expect(baseline.files[f]).toBe(0);
+    expect(over(measure({ ...real, [f]: real[f] + '\n.ds-btn{color:#123456}' }))).toEqual([
+      `ds-button in ${f}: 1 raw colours, baseline 0`, `${f}: 1 raw colours, baseline 0`,
+    ]);
+  });
+});

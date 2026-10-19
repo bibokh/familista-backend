@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "description": "M3/S3.1 L1c — raw colour literals in the catalogued components’ CSS slices, and in the stylesheets that host those slices. Read by tests/design-system-components.unit.test.ts. A count may fall without a change here; it may rise only in a reviewed change that raises it here, which is how a new raw colour is approved.",
+  "counted": "In declaration values, comments, quoted strings and url() removed: every hex literal; every rgb(), rgba(), hsl(), hsla(), hwb(), lab(), lch(), oklab(), oklch() and color() whose channels are typed rather than read through var(); and every CSS named colour in a colour-bearing property. Slices are the generator’s own (scripts/design-system-components.js cssRules + classesOf), bound to the components manifest by their sha256. Host files are counted whole, so @keyframes, @starting-style, @scope and custom-property definitions are counted too.",
+  "slices": {
+    "badge": {
+      "public/app.css": 5
+    },
+    "button": {
+      "public/app.css": 12
+    },
+    "card": {
+      "public/app.css": 6
+    },
+    "ds-button": {
+      "public/design-system/design-system.css": 0
+    },
+    "ds-field": {
+      "public/design-system/design-system.css": 0
+    },
+    "ds-language": {
+      "public/design-system/design-system.css": 0
+    },
+    "ds-metric": {
+      "public/design-system/design-system.css": 0
+    },
+    "ds-seg": {
+      "public/design-system/design-system.css": 0
+    },
+    "ds-shell": {
+      "public/design-system/design-system.css": 0
+    },
+    "ds-table": {
+      "public/design-system/design-system.css": 0
+    },
+    "ds-tabs": {
+      "public/design-system/design-system.css": 0
+    },
+    "empty-legacy": {
+      "public/app.css": 0
+    },
+    "filter-button": {
+      "public/app.css": 0
+    },
+    "hidden": {
+      "public/app.css": 0
+    },
+    "input": {
+      "public/app.css": 0
+    },
+    "lg-action": {
+      "public/app.css": 7
+    },
+    "lg-table": {
+      "public/app.css": 4
+    },
+    "metric-tile": {
+      "public/app.css": 4
+    },
+    "modal": {
+      "public/app.css": 6
+    },
+    "page": {
+      "public/app.css": 0
+    },
+    "page-header": {
+      "public/app.css": 0
+    },
+    "sidebar-nav": {
+      "public/app.css": 39
+    },
+    "skeleton": {
+      "public/app.css": 3
+    },
+    "spinner": {
+      "public/app.css": 0
+    },
+    "toast": {
+      "public/app.css": 9
+    },
+    "toggle": {
+      "public/app.css": 3
+    },
+    "topbar": {
+      "public/app.css": 4
+    }
+  },
+  "files": {
+    "public/app.css": 7124,
+    "public/design-system/design-system.css": 0
+  }
+}
