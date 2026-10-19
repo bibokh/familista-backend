@@ -201,6 +201,17 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     console.log('NOTE settle: room settled ' + (Date.now() - t0) + ' ms after the Lab first drew (data version ' + st.version + ', room renders ' + st.renders + ', Lab mounts ' + (LAB_MOUNTS.get(page) || []).length + ')');
   }
   const frames = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  // M3/S3.2: one line per measurement the budget report reads (tools/components/budget-report.cjs, which decides each status;
+  // an id it does not know fails it). Each is written from samples a loop has already taken: nothing here runs inside a loop.
+  const emitMetric = (id, fields) => console.log('METRIC ' + JSON.stringify({ id, ...fields }));
+  const maxOf = (a) => Math.round(Math.max(...a) * 10) / 10;
+  // The frame interval, measured on the page after its loops have finished: the median of twenty gaps between idle frames.
+  const frameInterval = (page) => page.evaluate(() => new Promise((resolve) => {
+    const t = [];
+    const step = (now) => { t.push(now); if (t.length <= 20) requestAnimationFrame(step); else { const d = t.slice(1).map((x, i) => x - t[i]).sort((a, b) => a - b); resolve(Math.round(d[10] * 100) / 100); } };
+    requestAnimationFrame(step);
+  }));
+  const frameCounts = (samples, interval) => { const out = {}; for (const v of samples) { const f = Math.max(1, Math.round(v / interval)); out[f] = (out[f] || 0) + 1; } return out; };
   const blur = (pg) => pg.evaluate(() => { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
   const inside = (a, b, tol = 1) => !!a && !!b && a[0] >= b[0] - tol && a[1] >= b[1] - tol && a[2] <= b[2] + tol && a[3] <= b[3] + tol;
 
@@ -1416,6 +1427,16 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       fitInCompareToFrameMedianMs: stat(tf2.out).median, fitInCompareToFrameP95Ms: stat(tf2.out).p95,
       toggles: 40, labNodesSingle: nodesSingle, labNodesAfterToggles: nodesAfter, heapGrowthKB: Math.round((h1 - h0) / 1024) };
     console.log('MEASURE ' + JSON.stringify(measure));
+    // M3/S3.2 D6: this Compare figure is diagnostic. Its samples are not the budget block's, and the 100 ms budget does not apply.
+    {
+      const interval = await frameInterval(page);
+      const browser = toggles.open.map((v, i) => v - toggles.sync[i]);
+      emitMetric('diag.compare.open.s10.p95', { value: so.p95, unit: 'ms', n: toggles.open.length, max: maxOf(toggles.open) });
+      emitMetric('diag.compare.open.s10.median', { value: so.median, unit: 'ms', n: toggles.open.length });
+      emitMetric('diag.compare.open.s10.app.median', { value: stat(toggles.sync).median, unit: 'ms', n: toggles.sync.length });
+      emitMetric('diag.compare.open.s10.browser.median', { value: stat(browser).median, unit: 'ms', n: browser.length });
+      emitMetric('diag.compare.open.s10.frames', { unit: 'frames', interval, n: toggles.open.length, distribution: frameCounts(toggles.open, interval) });
+    }
     check('compare: forty times into comparison and back leave the Lab with exactly the nodes of single preview and no Preview B node', nodesAfter === nodesSingle && hasB === 0 && hasBAfter === 0 && single0.b === 0, { ...measure, nodesAtOpen: nodes0, hasB, hasBAfter });
     const split = await cspSplit(page);
     check('compare: no Lab or unexplained CSP violation, and no console error, after everything above', split.lab === 0 && split.unexplained === 0 && labErrors(log).length === 0, { csp: split, errors: labErrors(log) });
@@ -1663,6 +1684,18 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       fixtureSteps: runs.fix.length, fixtureNavToFrameMedianMs: stat(runs.fix).median, fixtureNavToFrameP95Ms: stat(runs.fix).p95, fixtureNavSyncMedianMs: stat(runs.fixSync).median, fixtureNavSyncP95Ms: stat(runs.fixSync).p95,
       domBefore: dom0, domAfter: dom1, heapGrowthKB: Math.round((h1 - h0) / 1024), layoutShiftsOutsideStage: shifts };
     console.log('MEASURE ' + JSON.stringify(measure));
+    // M3/S3.2 D1: component navigation is the official navigation measurement; fixture navigation and the split are diagnostic.
+    {
+      const sc = stat(runs.comp), sf = stat(runs.fix), interval = await frameInterval(page);
+      const browser = runs.comp.map((v, i) => v - runs.compSync[i]);
+      emitMetric('nav.component.median', { value: sc.median, unit: 'ms', n: runs.comp.length, max: maxOf(runs.comp) });
+      emitMetric('nav.component.p95', { value: sc.p95, unit: 'ms', n: runs.comp.length, max: maxOf(runs.comp) });
+      emitMetric('diag.nav.component.app.median', { value: stat(runs.compSync).median, unit: 'ms', n: runs.compSync.length });
+      emitMetric('diag.nav.component.browser.median', { value: stat(browser).median, unit: 'ms', n: browser.length });
+      emitMetric('diag.nav.component.frames', { unit: 'frames', interval, n: runs.comp.length, distribution: frameCounts(runs.comp, interval) });
+      emitMetric('diag.nav.fixture.median', { value: sf.median, unit: 'ms', n: runs.fix.length });
+      emitMetric('diag.nav.fixture.p95', { value: sf.p95, unit: 'ms', n: runs.fix.length, max: maxOf(runs.fix) });
+    }
     check('nav stability: over 200 cached steps (components round the rail, fixtures round the strip) the Lab ends with exactly its nodes, back where it started, and nothing outside the stage shifted',
       runs.comp.length + runs.fix.length >= 200 && dom1 === dom0 && sEnd.sel === sStart.sel && sEnd.fx === sStart.fx && shifts === 0, measure);
     const split = await cspSplit(page);
@@ -2174,6 +2207,14 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       // optimise something else in the same change. What is gated is that the measurement was taken as specified.
       const budget = (name, s) => console.log('BUDGET ' + name + ': p95 ' + s.p95 + ' ms against 100 ms, ' + (s.p95 <= 100 ? 'within' : 'OVER') + ' (median ' + s.median + ' ms, ' + s.n + ' runs after 3 warm-ups)');
       budget('compare open', sc); budget('fit recalculation in compare', sf);
+      // M3/S3.2: the official Compare and Fit figures, from these samples alone (D7: the same estimator, with n and the maximum).
+      {
+        const interval = await frameInterval(pp);
+        emitMetric('compare.open.p95', { value: sc.p95, unit: 'ms', n: sc.n, max: maxOf(cmp) });
+        emitMetric('fit.recalc.p95', { value: sf.p95, unit: 'ms', n: sf.n, max: maxOf(fit.out) });
+        emitMetric('diag.compare.open.frames', { unit: 'frames', interval, n: cmp.length, distribution: frameCounts(cmp, interval) });
+        emitMetric('diag.fit.recalc.frames', { unit: 'frames', interval, n: fit.out.length, distribution: frameCounts(fit.out, interval) });
+      }
       check('performance: Compare opening and Fit recalculation were each measured 40 times after 3 warm-ups, Fit staying on throughout, and reported against the 100 ms p95 budget', sc.n === 40 && sf.n === 40 && fit.fit === true, { compare: sc, fit: { ...sf, on: fit.fit } });
       await pc.close();
     }
@@ -2404,6 +2445,11 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     for (let k = 0; k < 3; k++) await passAll(page, man);
     const m1 = await memoryOf(page);
     const d = memDelta(m0, m1);
+    // M3/S3.2: the official memory and resource figures; the check below still enforces them, unchanged.
+    emitMetric('mem.app.growth', { value: d.appKB, unit: 'KB' });
+    emitMetric('mem.listeners.growth', { value: d.listeners, unit: 'count' });
+    emitMetric('mem.detached.growth', { value: d.detached, unit: 'count' });
+    emitMetric('dom.growth', { value: d.domNodes, unit: 'count' });
     console.log('MEASURE ' + JSON.stringify({ section: 13, passes: 3, switchesPerPass: man.ids.reduce((n, id) => n + man.details[id].length, 0), ...d, budgetKB: APP_MEMORY_BUDGET_KB, listenersAfter: m1.listeners, detachedAfter: m1.detached }));
     check(`every component: three warm passes over every fixture grow application memory (JavaScript objects, strings and DOM) by at most ${APP_MEMORY_BUDGET_KB} KB, and leave no new listener and no new detached node (compiled code and browser buffers are reported apart)`,
       d.appKB <= APP_MEMORY_BUDGET_KB && d.listeners === 0 && d.detached <= 0, d);
