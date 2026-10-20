@@ -436,9 +436,9 @@ describe('the room reads the canonical tokens and declares none of its own', () 
     expect(read('public/tokens/familista-tokens.css')).toContain('#pg-design-system');
   });
 
-  it('is the only consumer: the token verifier allows --fam- under public/design-system/ and nowhere else', () => {
+  it('is one of two consumers: the token verifier allows --fam- under public/design-system/ and Familista Design Studio\'s public/design-studio/, and nowhere else', () => {
     const v = read('tools/tokens/scripts/verify.mjs');
-    expect(v).toContain("const CONSUMERS = 'public/design-system/'");
+    expect(v).toContain("const CONSUMERS = ['public/design-system/', 'public/design-studio/'];");
     expect(json('tools/tokens/targets/web.json').version).toBe(/tokens\.css\?v=([^"]+)"/.exec(read('public/index.html'))![1]);
   });
 });
@@ -860,7 +860,9 @@ describe('Owner Home: the ninth card, DESIGN SYSTEM CONTROL', () => {
   it('is shipped with fresh asset versions, so no browser mixes the old script with the new stylesheet', () => {
     const html = read('public/index.html');
     expect(html).toContain('/app.css?v=20261012-owner-home-ds');
-    expect(html).toContain('/app.js?v=20261017-design-system-room');
+    // Slice 1a of Familista Design Studio changed app.js (its owner-only entry), so app.js moved on again.
+    expect(html).toContain('/app.js?v=20261020-design-studio');
+    expect(html).not.toContain('/app.js?v=20261017-design-system-room');
     expect(html).not.toContain('/app.js?v=20261012-owner-home-ds');
     expect(html).not.toMatch(/\/app\.(css|js)\?v=20261004-algorithms/);
   });

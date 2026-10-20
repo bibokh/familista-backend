@@ -215,6 +215,17 @@ jobs:
   # passes stays within 32 KB with no new listener or detached node. Compiled code and the
   # browser's own buffers are reported apart. Section 13a runs axe on every fixture of every
   # previewable component, in English and in Arabic right to left.
+  # Section 14 (Familista Design Studio, Slice 1a) proves the owner's design tool: it is its
+  # own page at #design-studio, opened for the platform owner only (a club role or a visitor
+  # never fetches it); a drag moves exactly the screen distance divided by the zoom at 50%,
+  # 100% and 200%; all eight resize handles, Shift and Alt, the keyboard and Tab without a
+  # trap; every operation undoes to the empty design and redoes to the same bytes; tokens
+  # reach the frames as var(--fam-*); each frame is an about:blank document sandboxed with
+  # allow-same-origin only, where no script runs and media queries follow the frame's width;
+  # markup in an imported design stays text, a non-token value or a polluted, oversized or
+  # broken file is refused; the design never leaves the browser; no CSP violation in the page
+  # or any frame; nothing left behind after leaving. Its controls break each of those on
+  # purpose. Section 14a runs axe on the Studio in English and in Arabic right to left.
   # Section 15 proves the application's translator (public/i18n/dom.js) keeps nothing that
   # has left the page: in de-DE, en-US and en-GB sessions whose language is read back from
   # the page, three measured cycles of Owner Home → Clubs and Owner Home → Design System
@@ -242,13 +253,13 @@ jobs:
       matrix:
         include:
           - shard: isolation
-            sections: '1,2,2b,3,4,5,8,9,10,11,12,13,15'
+            sections: '1,2,2b,3,4,5,8,9,10,11,12,13,14,15'
             axe: ''
-            min: '224'
+            min: '260'
           - shard: accessibility and focus
-            sections: '6,7,13a'
+            sections: '6,7,13a,14a'
             axe: '--axe'
-            min: '74'
+            min: '77'
 
     env:
       NODE_ENV:           test

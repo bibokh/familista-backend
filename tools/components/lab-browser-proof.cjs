@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Familista — Specimen Lab: browser proofs (Stage 3.2.3 M1, M2 / S1 zoom, M2 / S2 width, M2 / S3 comparison, M2 / S4 navigation,
-// M3 / S1 room stability).
+// M3 / S1 room stability), and Familista Design Studio, Slice 1a (sections 14 and 14a).
 //
 // The Lab claims four boundaries around a specimen and one around the server:
 // events stop at the stage, fixed overlays stay in it, the application's
@@ -2576,6 +2576,621 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
           check('every component under axe (control): a button with no name placed in the specimen is reported by the same stage-scoped run, so a clean result means something', v.some((x) => /^button-name:/.test(x)), v);
         }
         await ctx.close();
+      }
+    }
+  }
+
+  // ══ 14. Familista Design Studio (Slice 1a): a product of its own, and an editor that does exactly what the pointer did ══
+  // The Studio is not a section of Design System Control: it is its own page at #design-studio, loaded on demand for the
+  // platform owner only. These proofs drive it with the real mouse and keyboard, read every result back from the design the
+  // Studio saves in this browser (Ctrl+S writes it synchronously), and look inside each frame's own document. A frame is an
+  // about:blank iframe sandboxed with allow-same-origin only; its CSP violations are caught by a listener attached to its
+  // document the moment it appears (a violation is reported as a task, after the frame is in the page), and a control proves
+  // that listener sees one.
+  const ST_KEY = 'familista_design_studio_document';
+  // Chrome's own message when a sandboxed frame refuses a script: the frames have no allow-scripts, so the proof harness's
+  // init scripts (which Playwright tries to run in every frame) and the proofs' own probes are refused in each of them. That
+  // is the sandbox doing its job. It is counted and reported apart, never as an error and never dropped.
+  const SANDBOX_REFUSAL = /^Blocked script execution in 'about:blank' because the document's frame is sandboxed and the 'allow-scripts' permission is not set\.$/;
+  async function openStudio(viewport, opts) {
+    opts = opts || {};
+    const ctx = await browser.newContext({ viewport, reducedMotion: 'reduce', acceptDownloads: true });
+    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+    if (opts.studioPatch) {
+      const original = fs.readFileSync(path.join(ROOT, 'public/design-studio/studio.js'), 'utf8');
+      const patched = opts.studioPatch(original);
+      if (patched === original) throw new Error('negative control: the edit did not change studio.js, so it would prove nothing');
+      await ctx.route(/\/design-studio\/studio\.js(\?|$)/, (r) => r.fulfill({ contentType: 'application/javascript', body: patched }));
+    }
+    if (!opts.anonymous) await ctx.addCookies([{ name: 'access_token', value: token, domain: '127.0.0.1', path: '/', httpOnly: true }]);
+    await ctx.addInitScript((pre) => {
+      window.__csp = [];
+      const note = (inFrame) => (e) => {
+        let src = '';
+        try { src = e.sourceFile ? new URL(e.sourceFile).pathname : ''; } catch (_) { src = String(e.sourceFile || ''); }
+        window.__csp.push({ d: e.violatedDirective, uri: String(e.blockedURI).slice(0, 120), src, inFrame,
+          inStudio: !inFrame && !!(e.target && e.target.closest && e.target.closest('#pg-design-studio')) });
+      };
+      document.addEventListener('securitypolicyviolation', note(false));
+      new MutationObserver((ms) => {
+        for (const m of ms) for (const n of m.addedNodes) {
+          if (n.nodeType !== 1) continue;
+          const found = n.tagName === 'IFRAME' ? [n] : (n.querySelectorAll ? [...n.querySelectorAll('iframe')] : []);
+          for (const f of found) {
+            if (f.__stWatched || !f.closest('.st-frame')) continue;
+            f.__stWatched = true;
+            try { f.contentDocument.addEventListener('securitypolicyviolation', note(true)); } catch (_) { window.__csp.push({ d: 'unwatchable-frame', uri: '', src: '', inFrame: true }); }
+          }
+        }
+      }).observe(document, { childList: true, subtree: true });
+      // Seed storage once per context (sessionStorage survives a reload; the seed must not).
+      try {
+        if (pre && !sessionStorage.getItem('__stSeeded')) {
+          sessionStorage.setItem('__stSeeded', '1');
+          if (pre.locale) localStorage.setItem('familista_design_studio_locale', pre.locale);
+        }
+      } catch (_) { /* private mode */ }
+    }, { locale: opts.locale || null });
+    const page = await ctx.newPage();
+    const log = { errors: [], notices: [], requests: [], sandbox: 0 };
+    page.on('pageerror', (e) => log.errors.push('pageerror: ' + e.message));
+    page.on('console', (m) => {
+      if (m.type() !== 'error') return;
+      if (SANDBOX_REFUSAL.test(m.text())) { log.sandbox++; return; }
+      if (NOTICE.test(m.text())) log.notices.push({ text: m.text().slice(0, 200), url: String((m.location() && m.location().url) || '').slice(0, 200) });
+      else log.errors.push('console: ' + m.text().slice(0, 200));
+    });
+    page.on('request', (r) => { const u = new URL(r.url()); log.requests.push({ m: r.method(), p: u.pathname, q: u.search, o: u.origin, body: r.postData() || '' }); });
+    await page.goto(BASE + (opts.hash || '/#design-studio'), { waitUntil: 'load' });
+    if (opts.wait !== false) await page.waitForSelector('.st-canvas', { timeout: 30000 });
+    return { ctx, page, log };
+  }
+  // A CSP report is the Studio's if it was raised inside the Studio's page, inside one of its frames, by one of its files, or
+  // names one of them. The application's own inline-style reports (style-src-attr from a first-party script or the page's
+  // HTML) are counted apart, as the Lab's proofs count them. Anything else is unexplained.
+  const stCsp = (page) => page.evaluate(() => {
+    const v = window.__csp || [];
+    const studio = (c) => c.inStudio || c.inFrame || /design-studio\//.test(c.src) || /design-studio\//.test(c.uri);
+    const app = (c) => !studio(c) && c.d === 'style-src-attr' && /^\//.test(c.src);
+    const unexplained = v.filter((c) => !studio(c) && !app(c));
+    return { total: v.length, studio: v.filter(studio).length, studioDirectives: [...new Set(v.filter(studio).map((c) => c.d + (c.inFrame ? ' (frame)' : '')))],
+      application: v.filter(app).length, unexplained: unexplained.length, unexplainedDirectives: [...new Set(unexplained.map((c) => c.d + ' @' + (c.src || '(no source)')))] };
+  });
+  const stState = (page) => page.evaluate(() => window.__familistaStudioMetrics && window.__familistaStudioMetrics());
+  async function stSaved(page) {
+    await page.keyboard.press('Control+s');
+    return page.evaluate((k) => { try { return localStorage.getItem(k); } catch (_) { return null; } }, ST_KEY);
+  }
+  const stDoc = async (page) => { const s = await stSaved(page); return s ? JSON.parse(s) : null; };
+  async function stScreen(page, wx, wy) {
+    const b = await page.locator('.st-canvas').boundingBox();
+    const m = await stState(page);
+    return { x: b.x + m.camera.x + wx * m.camera.z, y: b.y + m.camera.y + wy * m.camera.z };
+  }
+  async function stDrag(page, a, b, mods) {
+    for (const k of mods || []) await page.keyboard.down(k);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move(b.x, b.y, { steps: 8 });
+    await page.mouse.up();
+    for (const k of (mods || []).slice().reverse()) await page.keyboard.up(k);
+  }
+  const stFind = (doc, id) => { for (const f of (doc && doc.frames) || []) { if (f.id === id) return f; for (const c of f.children) if (c.id === id) return c; } return null; };
+  const stGeom = (n) => (n ? { x: n.x, y: n.y, w: n.w, h: n.h } : null);
+  const sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  // Every frame's document, as the page holds it.
+  const stFrames = (page) => page.evaluate(() => [...document.querySelectorAll('.st-frame > iframe')].map((f) => {
+    const d = f.contentDocument, w = f.contentWindow;
+    return { sandbox: f.getAttribute('sandbox'), src: f.getAttribute('src'), url: d && d.URL, scripts: d ? d.querySelectorAll('script').length : -1,
+      pointer: getComputedStyle(f).pointerEvents, width: f.offsetWidth, narrow: w ? w.matchMedia('(max-width: 980px)').matches : null,
+      onAttrs: d ? [...d.querySelectorAll('*')].filter((e) => [...e.attributes].some((a) => /^on/i.test(a.name))).length : -1,
+      tags: d ? [...new Set([...d.body.querySelectorAll('*')].map((e) => e.tagName.toLowerCase()))].sort() : [] };
+  }));
+  // Wait for the Studio's next announcement after `before` (or give up after `ms` and return what is there).
+  async function stHeard(page, before, ms) {
+    try { await page.waitForFunction((b) => { const m = window.__familistaStudioMetrics && window.__familistaStudioMetrics(); return m && m.announced !== b; }, before, { timeout: ms || 3000, polling: 50 }); } catch (_) { /* reported below */ }
+    return (await stState(page)).announced;
+  }
+  async function stImport(page, name, text) {
+    const before = (await stState(page)).announced;
+    await page.setInputFiles('.st-shell input[type="file"]', { name, mimeType: 'application/json', buffer: Buffer.from(text, 'utf8') });
+    return stHeard(page, before, 3000);
+  }
+  const STUDIO_FILES = ['/design-studio/studio.css', '/design-studio/studio-core.js', '/design-studio/studio.js'];
+  // Can a script run in a frame? The probe is a same-origin script file (the Studio's own core, which defines a global), so the
+  // page's policy (script-src 'self') allows it and only the frame's sandbox can stop it. An inline probe would prove nothing:
+  // the policy refuses inline scripts with or without the sandbox.
+  const stFrameScript = (page) => page.evaluate(async () => {
+    const f = document.querySelector('.st-frame iframe'), d = f.contentDocument;
+    const s = d.createElement('script');
+    s.src = '/design-studio/studio-core.js?proof=sandbox';
+    d.body.appendChild(s);
+    await new Promise((r) => setTimeout(r, 400));
+    const ran = typeof f.contentWindow.FamilistaStudioCore === 'object';
+    s.remove();
+    return ran;
+  });
+
+  if (want('14')) {
+    // ── entry: its own page, for the platform owner only ──
+    const { ctx, page, log } = await openStudio({ width: 1440, height: 900 });
+    const entry = await page.evaluate(() => {
+      const side = document.querySelector('.sidebar');
+      return { studio: !!document.querySelector('#pg-design-studio.active'), dsOpen: !!document.querySelector('#pg-design-system.active'),
+        bodyClass: document.body.classList.contains('st-studio-open'), sidebarHidden: !side || getComputedStyle(side).display === 'none',
+        empty: !!document.querySelector('.st-empty') && !document.querySelector('.st-empty').hidden, boundary: document.getElementById('pg-design-studio').hasAttribute('data-no-i18n'),
+        context: document.getElementById('pg-design-studio').getAttribute('data-fam-context'), dsRender: typeof window.renderFamilistaDesignSystem };
+    });
+    const dsAssets = log.requests.filter((r) => r.o === BASE && r.p.startsWith('/design-system/'));
+    check('studio entry: the platform owner reaches Familista Design Studio at #design-studio, a page of its own: Design System Control is not open and none of its files was fetched, the shell is the Studio\'s, and the empty canvas says what to do',
+      entry.studio && !entry.dsOpen && entry.bodyClass && entry.sidebarHidden && entry.empty && entry.boundary && entry.context === 'owner' && dsAssets.length === 0 && entry.dsRender === 'undefined', { entry, dsAssets: dsAssets.map((r) => r.p) });
+    const own = log.requests.filter((r) => r.o === BASE && r.p.startsWith('/design-studio/'));
+    const versions = [...new Set(own.map((r) => r.q))];
+    check('studio entry: it fetched exactly its own three files, under one version, and nothing else of its own',
+      sameJson(own.map((r) => r.p).sort(), STUDIO_FILES.slice().sort()) && versions.length === 1 && /^\?v=[\w.-]+$/.test(versions[0]), { own: own.map((r) => r.p + r.q) });
+
+    // ── drawing: a frame, then a rectangle and a text inside it, exactly where the pointer went ──
+    const box = await page.locator('.st-canvas').boundingBox();
+    const m0 = await stState(page);
+    const fx = Math.round(box.width / 2 - m0.camera.x) - 180, fy = Math.round(box.height / 2 - m0.camera.y) - 240;
+    await page.keyboard.press('f');
+    await stDrag(page, await stScreen(page, fx, fy), await stScreen(page, fx + 360, fy + 480));
+    let doc = await stDoc(page);
+    const fr = await stFrames(page);
+    check('draw: the Frame tool draws a frame exactly where the pointer went, as an about:blank document of its own, sandboxed with allow-same-origin only, holding no script and taking no pointer',
+      doc && doc.frames.length === 1 && sameJson(stGeom(doc.frames[0]), { x: fx, y: fy, w: 360, h: 480 }) && fr.length === 1 && fr[0].sandbox === 'allow-same-origin' && fr[0].src === null
+        && fr[0].url === 'about:blank' && fr[0].scripts === 0 && fr[0].pointer === 'none', { frame: doc && stGeom(doc.frames[0]), want: { x: fx, y: fy, w: 360, h: 480 }, fr });
+    const FID = doc.frames[0].id;
+    await page.keyboard.press('r');
+    await stDrag(page, await stScreen(page, fx + 80, fy + 190), await stScreen(page, fx + 280, fy + 290));
+    await page.keyboard.press('t');
+    const tp = await stScreen(page, fx + 80, fy + 330);
+    await page.mouse.click(tp.x, tp.y);
+    await page.waitForSelector('.st-textedit:not([hidden])', { timeout: 5000 });
+    await page.keyboard.type('Squad overview');
+    await page.keyboard.press('Escape');
+    doc = await stDoc(page);
+    const kids = doc.frames[0].children;
+    const RID = kids[0] && kids[0].id, TID = kids[1] && kids[1].id;
+    const drawn = await page.evaluate(([fid, rid, tid]) => {
+      const f = document.querySelector('[data-st-frame="' + fid + '"] iframe').contentDocument;
+      const r = f.querySelector('[data-st-id="' + rid + '"]'), t = f.querySelector('[data-st-id="' + tid + '"]');
+      return { r: r && [r.offsetLeft, r.offsetTop, r.offsetWidth, r.offsetHeight], t: t && t.textContent, tBox: t && [t.offsetLeft, t.offsetTop, t.offsetWidth, t.offsetHeight] };
+    }, [FID, RID, TID]);
+    check('draw: the Rectangle and Text tools draw inside the frame, at frame coordinates, and the frame\'s own document lays them out at exactly those pixels; typed text is the text',
+      kids.length === 2 && kids[0].type === 'rect' && sameJson(stGeom(kids[0]), { x: 80, y: 190, w: 200, h: 100 }) && kids[1].type === 'text' && sameJson(stGeom(kids[1]), { x: 80, y: 330, w: 200, h: 48 })
+        && kids[1].text === 'Squad overview' && sameJson(drawn.r, [80, 190, 200, 100]) && drawn.t === 'Squad overview' && sameJson(drawn.tBox, [80, 330, 200, 48]), { kids: kids.map((k) => [k.id, k.type, stGeom(k), k.text]), drawn });
+
+    // ── moving under zoom: a screen drag is the canvas distance at the current zoom, in whole pixels ──
+    const zoomTo = async (z) => {
+      await page.keyboard.press('Control+0');
+      const key = z < 1 ? 'Control+-' : 'Control+=';
+      for (let i = 0; i < 12 && (await stState(page)).camera.z !== z; i++) await page.keyboard.press(key);
+      return (await stState(page)).camera.z;
+    };
+    for (const z of [0.5, 1, 2]) {
+      const got = await zoomTo(z);
+      const c = await stScreen(page, fx + 180, fy + 240);
+      await stDrag(page, c, { x: c.x + 100, y: c.y + 50 });
+      const moved = stGeom(stFind(await stDoc(page), RID));
+      await page.keyboard.press('Control+z');
+      const back = stGeom(stFind(await stDoc(page), RID));
+      const want = { x: 80 + Math.round(100 / z), y: 190 + Math.round(50 / z), w: 200, h: 100 };
+      check(`move at ${z * 100}%: a 100 × 50 screen-pixel drag moves the rectangle ${Math.round(100 / z)} × ${Math.round(50 / z)} canvas pixels, and one undo puts it back`,
+        got === z && sameJson(moved, want) && sameJson(back, { x: 80, y: 190, w: 200, h: 100 }), { zoom: got, moved, want, back });
+    }
+
+    // ── resizing: each of the eight handles, Shift keeps the proportions, Alt resizes from the centre ──
+    await zoomTo(1);
+    const rc = await stScreen(page, fx + 180, fy + 240);
+    await page.mouse.click(rc.x, rc.y);
+    const G0 = { x: 80, y: 190, w: 200, h: 100 };
+    const WANT = { nw: { x: 100, y: 200, w: 180, h: 90 }, n: { x: 80, y: 200, w: 200, h: 90 }, ne: { x: 80, y: 200, w: 220, h: 90 }, e: { x: 80, y: 190, w: 220, h: 100 },
+      se: { x: 80, y: 190, w: 220, h: 110 }, s: { x: 80, y: 190, w: 200, h: 110 }, sw: { x: 100, y: 190, w: 180, h: 110 }, w: { x: 100, y: 190, w: 180, h: 100 } };
+    const handleDrag = async (h, mods) => {
+      const hb = await page.locator('.st-h-' + h).boundingBox();
+      const a = { x: hb.x + hb.width / 2, y: hb.y + hb.height / 2 };
+      await stDrag(page, a, { x: a.x + 20, y: a.y + 10 }, mods);
+      const g = stGeom(stFind(await stDoc(page), RID));
+      await page.keyboard.press('Control+z');
+      return g;
+    };
+    const resized = {};
+    for (const h of Object.keys(WANT)) resized[h] = await handleDrag(h);
+    const after = stGeom(stFind(await stDoc(page), RID));
+    check('resize: each of the eight handles moves only its own edges by the drag (20 × 10 px at 100%), the opposite edges stay put, and undo restores the rectangle every time',
+      Object.keys(WANT).every((h) => sameJson(resized[h], WANT[h])) && sameJson(after, G0), { resized, after });
+    const ratio = await handleDrag('se', ['Shift']);
+    check('resize: Shift on a corner keeps the proportions (200 × 100 dragged 20 px wide becomes 220 × 110)', sameJson(ratio, { x: 80, y: 190, w: 220, h: 110 }), ratio);
+    const centred = await handleDrag('e', ['Alt']);
+    check('resize: Alt resizes from the centre (the right edge dragged 20 px makes it 40 px wider, 20 px on each side)', sameJson(centred, { x: 60, y: 190, w: 240, h: 100 }), centred);
+
+    // ── the keyboard: move, resize, walk, leave, duplicate, delete ──
+    await page.focus('.st-canvas');
+    const step = async (key) => { await page.keyboard.press(key); return stGeom(stFind(await stDoc(page), RID)); };
+    const k1 = await step('ArrowRight'), k2 = await step('Shift+ArrowDown'), k3 = await step('Alt+ArrowRight');
+    for (let i = 0; i < 3; i++) await page.keyboard.press('Control+z');
+    const k4 = stGeom(stFind(await stDoc(page), RID));
+    check('keyboard: an arrow moves the selection 1 px, Shift and an arrow 10 px, Alt and an arrow resizes it, each one undo step',
+      sameJson(k1, { x: 81, y: 190, w: 200, h: 100 }) && sameJson(k2, { x: 81, y: 200, w: 200, h: 100 }) && sameJson(k3, { x: 81, y: 200, w: 201, h: 100 }) && sameJson(k4, G0), { k1, k2, k3, k4 });
+    await page.keyboard.press('Tab');
+    const t1 = (await stState(page)).selected;
+    await page.keyboard.press('Shift+Tab');
+    const t2 = (await stState(page)).selected;
+    await page.keyboard.press('Escape');
+    const t3 = (await stState(page)).selected;
+    const focusBefore = await page.evaluate(() => document.activeElement && document.activeElement.className);
+    await page.keyboard.press('Tab');
+    const focusAfter = await page.evaluate(() => document.activeElement && document.activeElement.className);
+    check('keyboard: Tab and Shift+Tab walk the elements while one is selected, Escape clears the selection, and Tab then leaves the canvas (no keyboard trap)',
+      t1 === TID && t2 === RID && t3 === null && /st-canvas/.test(focusBefore) && !/st-canvas/.test(String(focusAfter)), { t1, t2, t3, focusBefore, focusAfter });
+    await page.mouse.click(rc.x, rc.y);
+    await page.keyboard.press('Control+d');
+    const dup = (await stState(page)).selected;
+    const dDoc = await stDoc(page);
+    await page.keyboard.press('Delete');
+    const gone = !stFind(await stDoc(page), dup);
+    await page.keyboard.press('Control+z');
+    const backDup = !!stFind(await stDoc(page), dup);
+    await page.keyboard.press('Control+z');
+    const undupped = !stFind(await stDoc(page), dup);
+    check('keyboard: Ctrl+D duplicates beside the original (10 px down and right) under a new id, Delete removes it, and each undoes',
+      dup && dup !== RID && sameJson(stGeom(stFind(dDoc, dup)), { x: 90, y: 200, w: 200, h: 100 }) && gone && backDup && undupped, { dup, copy: stGeom(stFind(dDoc, dup)), gone, backDup, undupped });
+
+    // ── token styling: what the panel chooses reaches the frame as a var(--fam-*) reference and resolves to the token ──
+    await page.mouse.click(rc.x, rc.y);
+    await page.selectOption('.st-panel [data-st-prop="fill"]', 'status-info');
+    await page.selectOption('.st-panel [data-st-prop="radius"]', 'radius-xl');
+    const tc = await stScreen(page, fx + 180, fy + 354);
+    await page.mouse.click(tc.x, tc.y);
+    await page.selectOption('.st-panel [data-st-prop="style"]', 'title');
+    await page.selectOption('.st-panel [data-st-prop="color"]', 'brand-accent');
+    const tok = await page.evaluate(([fid, rid, tid]) => {
+      const d = document.querySelector('[data-st-frame="' + fid + '"] iframe').contentDocument, w = d.defaultView;
+      const r = d.querySelector('[data-st-id="' + rid + '"]'), t = d.querySelector('[data-st-id="' + tid + '"]');
+      const probe = d.createElement('div');
+      d.body.appendChild(probe);
+      const resolve = (prop, v) => { probe.style.setProperty(prop, v); const out = w.getComputedStyle(probe)[prop.replace(/-(\w)/g, (_, c) => c.toUpperCase())]; probe.style.removeProperty(prop); return out; };
+      const out = {
+        rBg: r.style.getPropertyValue('background'), rRad: r.style.getPropertyValue('border-radius'), tSize: t.style.getPropertyValue('font-size'), tColor: t.style.getPropertyValue('color'),
+        rBgC: w.getComputedStyle(r).backgroundColor, rBgT: resolve('background-color', 'var(--fam-status-info)'),
+        rRadC: w.getComputedStyle(r).borderTopLeftRadius, rRadT: resolve('border-top-left-radius', 'var(--fam-radius-xl)'),
+        tSizeC: w.getComputedStyle(t).fontSize, tSizeT: resolve('font-size', 'var(--fam-font-size-2xl)'),
+        tColorC: w.getComputedStyle(t).color, tColorT: resolve('color', 'var(--fam-brand-accent)'),
+      };
+      probe.remove();
+      return out;
+    }, [FID, RID, TID]);
+    check('tokens: a fill, a corner radius, a text style and a colour chosen in the panel reach the frame as var(--fam-*) references and resolve there to the token\'s own value',
+      tok.rBg === 'var(--fam-status-info)' && tok.rRad === 'var(--fam-radius-xl)' && tok.tSize === 'var(--fam-font-size-2xl)' && tok.tColor === 'var(--fam-brand-accent)'
+        && tok.rBgC === tok.rBgT && tok.rRadC === tok.rRadT && tok.tSizeC === tok.tSizeT && tok.tColorC === tok.tColorT && tok.rBgT !== 'rgba(0, 0, 0, 0)', tok);
+
+    // ── the inspector gives the keyboard back: Enter commits and returns to the canvas, Escape restores the value first ──
+    await page.mouse.click(rc.x, rc.y);
+    await page.fill('.st-panel [data-st-prop="name"]', 'Match card');
+    await page.press('.st-panel [data-st-prop="name"]', 'Enter');
+    const afterEnter = await page.evaluate(() => document.activeElement && document.activeElement.className);
+    const renamed = stFind(await stDoc(page), RID).name;
+    await page.keyboard.press('r');
+    const toolAfter = (await stState(page)).tool;
+    await page.keyboard.press('v');
+    await page.fill('.st-panel [data-st-prop="x"]', '999');
+    await page.press('.st-panel [data-st-prop="x"]', 'Escape');
+    const xField = await page.inputValue('.st-panel [data-st-prop="x"]');
+    const afterEscape = await page.evaluate(() => document.activeElement && document.activeElement.className);
+    const xKept = stFind(await stDoc(page), RID).x;
+    await page.keyboard.press('Control+z');
+    check('inspector: Enter commits a field and gives the keyboard back to the canvas, so the next key is a shortcut, not typing; Escape puts the value back first',
+      renamed === 'Match card' && /st-canvas/.test(afterEnter) && toolAfter === 'rect' && xField === '80' && xKept === 80 && /st-canvas/.test(afterEscape) && stFind(await stDoc(page), RID).name !== 'Match card',
+      { renamed, afterEnter, toolAfter, xField, xKept, afterEscape });
+
+    // ── a drawing tool draws even where a frame's name sits: names and handles answer to the Select tool only ──
+    const framesBefore = (await stDoc(page)).frames.length;
+    const lab0 = await stScreen(page, fx + 10, fy - 6);
+    await page.keyboard.press('f');
+    await stDrag(page, lab0, { x: lab0.x + 120, y: lab0.y - 100 });
+    const drawnOver = await stDoc(page);
+    const firstStill = sameJson(stGeom(drawnOver.frames[0]), { x: fx, y: fy, w: 360, h: 480 });
+    await page.keyboard.press('Control+z');
+    check('draw: with the Frame tool, a press on an existing frame\'s name draws a new frame and leaves the existing one where it was',
+      drawnOver.frames.length === framesBefore + 1 && firstStill && (await stDoc(page)).frames.length === framesBefore, { frames: [framesBefore, drawnOver.frames.length], firstStill });
+
+    // ── frames: media queries answer to the frame's own width, and no script runs inside one ──
+    const fl = await stScreen(page, fx + 10, fy - 6);
+    await page.mouse.click(fl.x, fl.y);
+    const narrowFirst = (await stFrames(page))[0].narrow;
+    await page.fill('.st-panel [data-st-prop="w"]', '1280');
+    await page.press('.st-panel [data-st-prop="w"]', 'Enter');
+    await page.focus('.st-canvas');
+    const wide = (await stFrames(page))[0];
+    await page.keyboard.press('Control+z');
+    const narrowAgain = (await stFrames(page))[0];
+    const ran = await stFrameScript(page);
+    check('frames: a media query inside a frame answers to the frame\'s own width (max-width 980px holds at 360 px, not at 1280 px), and a script placed in a frame does not run',
+      narrowFirst === true && wide.width === 1280 && wide.narrow === false && narrowAgain.narrow === true && ran === false, { narrowFirst, wide: [wide.width, wide.narrow], narrowAgain: [narrowAgain.width, narrowAgain.narrow], ran });
+
+    // ── import: markup is text, CSS is refused, a polluted or oversized or broken file changes nothing ──
+    const valid = (over) => JSON.stringify(Object.assign({ format: 'familista.studio.document', version: 1, name: 'Imported design', frames: [
+      { id: 'frame-1', type: 'frame', name: 'Imported frame', x: 0, y: 0, w: 360, h: 480, fill: 'surface-base', children: [
+        { id: 'rect-1', type: 'rect', name: 'Card', x: 20, y: 20, w: 120, h: 80, fill: 'surface-raised', radius: 'radius-md' },
+        { id: 'text-1', type: 'text', name: 'Heading', x: 20, y: 120, w: 200, h: 40, text: 'Hello', style: 'heading', color: 'text-primary' }] }] }, over || {}));
+    const before = await stSaved(page);
+    const xss = JSON.parse(valid());
+    xss.name = '<script>window.__stPwned=1</script>';
+    xss.frames[0].name = '<img src=x onerror="window.__stPwned=2">';
+    xss.frames[0].children[0].name = '"><svg onload="window.__stPwned=3">';
+    xss.frames[0].children[1].text = '<img src=x onerror="window.__stPwned=4"><script>window.__stPwned=5</script>';
+    const saidXss = await stImport(page, 'xss.json', JSON.stringify(xss));
+    await page.waitForTimeout(300);
+    const inert = await page.evaluate(() => {
+      const fd = document.querySelector('.st-frame iframe').contentDocument;
+      const t = fd.querySelector('.st-text');
+      const studio = document.getElementById('pg-design-studio');
+      return { pwned: window.__stPwned === undefined ? null : window.__stPwned, text: t && t.textContent, label: (document.querySelector('.st-flabel') || {}).textContent,
+        name: document.querySelector('.st-docname').value, frameTags: [...new Set([...fd.body.querySelectorAll('*')].map((e) => e.tagName.toLowerCase()))].sort(),
+        studioInjected: studio.querySelectorAll('img, script, svg[onload]').length, onAttrs: [...studio.querySelectorAll('*')].filter((e) => [...e.attributes].some((a) => /^on/i.test(a.name))).length };
+    });
+    check('xss: names and text full of markup are imported as text: nothing runs, no element is created from them in the page or in a frame, and they read back exactly as typed',
+      /Imported/.test(saidXss) && inert.pwned === null && inert.text === xss.frames[0].children[1].text && inert.label === xss.frames[0].name && inert.name === xss.name
+        && sameJson(inert.frameTags, ['div']) && inert.studioInjected === 0 && inert.onAttrs === 0, { said: saidXss, inert });
+    await page.focus('.st-canvas');
+    await page.keyboard.press('Control+z');
+    const restored = await stSaved(page);
+    const cssBad = JSON.parse(valid());
+    cssBad.frames[0].children[0].fill = 'surface-raised; background-image: url(https://evil.test/x.png)';
+    const saidCss = await stImport(page, 'css.json', JSON.stringify(cssBad));
+    const evil = log.requests.filter((r) => /evil\.test/.test(r.o + r.p));
+    const afterCss = await stSaved(page);
+    check('css injection: a colour that is not a token name (here one carrying a url()) refuses the whole file, changes nothing and fetches nothing',
+      /Not imported/.test(saidCss) && evil.length === 0 && afterCss === restored && restored === before, { said: saidCss, evil: evil.length, unchanged: afterCss === restored, undoneImport: restored === before });
+    const polluted = '{"__proto__":{"stPolluted":true},' + valid().slice(1);
+    const saidProto = await stImport(page, 'proto.json', polluted);
+    const protoClean = await page.evaluate(() => ({}).stPolluted === undefined && Object.prototype.stPolluted === undefined);
+    const saidBig = await stImport(page, 'big.json', ' '.repeat(1048577));
+    const saidBroken = await stImport(page, 'broken.json', '{"format": "familista.studio.document", ');
+    const saidUnknown = await stImport(page, 'unknown.json', valid({ extra: true }));
+    const afterBad = await stSaved(page);
+    check('import: a file with a __proto__ key, one over 1 MB, one that is not JSON and one with an unknown field are each refused with their reason, pollute nothing and change nothing',
+      /Not imported/.test(saidProto) && protoClean && /larger than 1 MB/.test(saidBig) && /not valid JSON/.test(saidBroken) && /field the Studio does not know/.test(saidUnknown) && afterBad === before,
+      { saidProto, protoClean, saidBig, saidBroken, saidUnknown, unchanged: afterBad === before });
+    const saidOk = await stImport(page, 'ok.json', valid());
+    const imported = await stDoc(page);
+    await page.focus('.st-canvas');
+    await page.keyboard.press('Control+z');
+    const undone = await stSaved(page);
+    check('import: a valid file replaces the design in one undoable step', /Imported Imported design: 1 frames, 2 elements/.test(saidOk) && imported.name === 'Imported design' && imported.frames[0].children.length === 2 && undone === before, { saidOk, undone: undone === before });
+
+    // ── export: the file is the saved design, byte for byte ──
+    const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 10000 }), page.click('[data-st-act="export"]')]);
+    const exported = fs.readFileSync(await dl.path(), 'utf8');
+    const savedNow = await stSaved(page);
+    check('export: the downloaded file is the design exactly as saved, under a safe file name, and it imports back unchanged',
+      exported === savedNow && /^[a-z0-9-]+\.familista-design\.json$/.test(dl.suggestedFilename()) && /Imported/.test(await stImport(page, dl.suggestedFilename(), exported)) && (await stSaved(page)) === savedNow,
+      { name: dl.suggestedFilename(), bytes: exported.length });
+
+    // ── the design never leaves this browser; nothing of the Studio's is an error or a CSP violation ──
+    const leaks = log.requests.filter((r) => r.body.includes('Squad overview') || (r.m !== 'GET' && /design/i.test(r.p)));
+    const ownFiles = [...new Set(log.requests.filter((r) => r.o === BASE && r.p.startsWith('/design-studio/')).map((r) => r.p))].sort();
+    check('privacy: the design never leaves the browser: no request carries its content, the Studio writes nothing to the server, and it fetched only its own files and its frames\' stylesheet',
+      leaks.length === 0 && sameJson(ownFiles, ['/design-studio/studio-core.js', '/design-studio/studio-frame.css', '/design-studio/studio.css', '/design-studio/studio.js']), { leaks: leaks.map((r) => r.m + ' ' + r.p), ownFiles });
+    const split = await stCsp(page);
+    check('csp: across everything above, the Studio raised no CSP violation, in the page or in any frame, nothing is unexplained, and no script error was logged (the application\'s own inline-style reports are counted apart)',
+      split.studio === 0 && split.unexplained === 0 && log.errors.length === 0, { split, errors: log.errors.slice(0, 5), sandboxRefusals: log.sandbox });
+    const ms = await stState(page);
+    console.log('MEASURE ' + JSON.stringify({ section: 14, name: 'studio pointer work', moves: ms.moves, moveMsMedian: ms.moveMsMedian, moveMsP95: ms.moveMsP95, moveMsMax: ms.moveMsMax, commits: ms.commits, nodePaints: ms.nodePaints }));
+    await ctx.close();
+
+    // ── a club role, and nobody signed in: the Studio never opens and none of its files is fetched ──
+    CURRENT = COACH;
+    const coach = await openStudio({ width: 1440, height: 900 }, { wait: false });
+    await coach.page.waitForTimeout(2500);
+    const coachSaw = await coach.page.evaluate(() => ({ open: !!document.querySelector('#pg-design-studio.active'), render: typeof window.renderFamilistaDesignStudio, canvas: !!document.querySelector('.st-canvas') }));
+    const coachFiles = coach.log.requests.filter((r) => r.p.startsWith('/design-studio/')).map((r) => r.p);
+    await coach.ctx.close();
+    CURRENT = OWNER;
+    const anon = await openStudio({ width: 1440, height: 900 }, { wait: false, anonymous: true });
+    await anon.page.waitForTimeout(2500);
+    const anonSaw = await anon.page.evaluate(() => ({ open: !!document.querySelector('#pg-design-studio.active'), render: typeof window.renderFamilistaDesignStudio }));
+    const anonFiles = anon.log.requests.filter((r) => r.p.startsWith('/design-studio/')).map((r) => r.p);
+    await anon.ctx.close();
+    check('access: a club role who types #design-studio is sent away and nobody signed in reaches it either: the Studio never opens and none of its files is fetched',
+      !coachSaw.open && coachSaw.render === 'undefined' && !coachSaw.canvas && coachFiles.length === 0 && !anonSaw.open && anonSaw.render === 'undefined' && anonFiles.length === 0,
+      { coachSaw, coachFiles, anonSaw, anonFiles });
+
+    // ── every operation undoes to the empty design and redoes to the same bytes; the design survives a reload ──
+    const u = await openStudio({ width: 1440, height: 900 });
+    const p2 = u.page;
+    const empty = await stSaved(p2);
+    const b2 = await p2.locator('.st-canvas').boundingBox();
+    const s0 = await stState(p2);
+    const gx = Math.round(b2.width / 2 - s0.camera.x) - 180, gy = Math.round(b2.height / 2 - s0.camera.y) - 240;
+    await p2.keyboard.press('f');
+    await stDrag(p2, await stScreen(p2, gx, gy), await stScreen(p2, gx + 360, gy + 480));
+    await p2.keyboard.press('r');
+    await stDrag(p2, await stScreen(p2, gx + 40, gy + 40), await stScreen(p2, gx + 200, gy + 140));
+    await p2.keyboard.press('t');
+    const tq = await stScreen(p2, gx + 40, gy + 200);
+    await p2.mouse.click(tq.x, tq.y);
+    await p2.waitForSelector('.st-textedit:not([hidden])');
+    await p2.keyboard.type('Training load');
+    await p2.keyboard.press('Escape');
+    const rq = await stScreen(p2, gx + 120, gy + 90);
+    await stDrag(p2, rq, { x: rq.x + 30, y: rq.y + 20 });
+    const hse = await p2.locator('.st-h-se').boundingBox();
+    await stDrag(p2, { x: hse.x + hse.width / 2, y: hse.y + hse.height / 2 }, { x: hse.x + hse.width / 2 + 25, y: hse.y + hse.height / 2 + 15 });
+    await p2.selectOption('.st-panel [data-st-prop="fill"]', 'brand-accent');
+    await p2.focus('.st-canvas');
+    await p2.keyboard.press('Control+d');
+    await p2.keyboard.press('Delete');
+    await p2.fill('.st-docname', 'Training board');
+    await p2.press('.st-docname', 'Enter');
+    await p2.focus('.st-canvas');
+    const final = await stSaved(p2);
+    const steps = (await stState(p2)).undo;
+    for (let i = 0; i < steps; i++) await p2.keyboard.press('Control+z');
+    const undoneAll = await stSaved(p2);
+    for (let i = 0; i < steps; i++) await p2.keyboard.press('Control+Shift+z');
+    const redoneAll = await stSaved(p2);
+    check(`history: ${steps} operations (draw, type, move, resize, restyle, duplicate, delete, rename) undo back to the empty design and redo to the same bytes`,
+      steps >= 10 && undoneAll === empty && redoneAll === final, { steps, undoneToEmpty: undoneAll === empty, redoneToFinal: redoneAll === final });
+    await p2.reload({ waitUntil: 'load' });
+    await p2.waitForSelector('.st-canvas', { timeout: 30000 });
+    const reopenedSaid = await stHeard(p2, '', 3000);
+    const reopened = await stSaved(p2);
+    const reFrames = await stFrames(p2);
+    check('save: a reload reopens the design saved in this browser, byte for byte, drawn again in its frames, and says so',
+      reopened === final && reFrames.length === 1 && /Opened Training board/.test(reopenedSaid), { same: reopened === final, frames: reFrames.length, said: reopenedSaid });
+    await p2.evaluate((k) => localStorage.setItem(k, '{"format": "not a design"'), ST_KEY);
+    await p2.reload({ waitUntil: 'load' });
+    await p2.waitForSelector('.st-canvas', { timeout: 30000 });
+    const corruptSaid = await stHeard(p2, '', 3000);
+    const kept = await p2.evaluate(() => localStorage.getItem('familista_design_studio_document_unreadable'));
+    const fresh = JSON.parse(await stSaved(p2));
+    check('save: an unreadable saved design is never opened: a new design starts, the unreadable copy is kept aside, and the reader is told',
+      fresh.frames.length === 0 && kept === '{"format": "not a design"' && /could not be read/.test(corruptSaid), { frames: fresh.frames.length, kept, said: corruptSaid });
+    await p2.keyboard.press('f');
+    await p2.focus('.st-canvas');
+    await p2.keyboard.press('Enter');
+    await p2.keyboard.press('Shift+ArrowLeft');
+    await p2.waitForTimeout(150);
+    const live = await p2.evaluate(() => { const l = document.getElementById('st-live'); return { role: l.getAttribute('role'), polite: l.getAttribute('aria-live'), text: l.textContent }; });
+    check('announcements: an operation is announced in a polite status region by name and number (a frame nudged 10 px says where it went)',
+      live.role === 'status' && live.polite === 'polite' && /^Frame 1 moved to -?\d+, -?\d+$/.test(live.text), live);
+    const uSplit = await stCsp(p2);
+    check('csp: the history, reload and recovery run raised no Studio CSP violation and no script error', uSplit.studio === 0 && uSplit.unexplained === 0 && u.log.errors.length === 0, { split: uSplit, errors: u.log.errors.slice(0, 5), sandboxRefusals: u.log.sandbox });
+    await u.ctx.close();
+
+    // ── Arabic: the room is right to left, the canvas is not, and a drag is still exact ──
+    const a = await openStudio({ width: 1440, height: 900 }, { locale: 'ar' });
+    const ar = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/design-studio/i18n/ar.json'), 'utf8'));
+    const ba = await a.page.locator('.st-canvas').boundingBox();
+    const sa = await stState(a.page);
+    const ax = Math.round(ba.width / 2 - sa.camera.x) - 180, ay = Math.round(ba.height / 2 - sa.camera.y) - 240;
+    await a.page.keyboard.press('f');
+    await stDrag(a.page, await stScreen(a.page, ax, ay), await stScreen(a.page, ax + 360, ay + 480));
+    const before30 = stGeom((await stDoc(a.page)).frames[0]);
+    const lab = await stScreen(a.page, ax + 10, ay - 6);
+    await stDrag(a.page, lab, { x: lab.x + 30, y: lab.y });
+    const after30 = stGeom((await stDoc(a.page)).frames[0]);
+    const rtl = await a.page.evaluate(() => ({ dir: document.getElementById('st-root').getAttribute('dir'), lang: document.getElementById('st-root').getAttribute('lang'),
+      canvas: document.querySelector('.st-canvas').getAttribute('dir'), title: document.querySelector('.st-title').textContent, frameLabel: (document.querySelector('.st-flabel') || {}).textContent,
+      panelLeft: document.querySelector('.st-panel').getBoundingClientRect().left < document.querySelector('.st-canvas').getBoundingClientRect().left }));
+    const arSplit = await stCsp(a.page);
+    check('arabic: the Studio speaks Arabic right to left with the panel on the left, the canvas keeps left-to-right coordinates, a 30 px drag of a frame\'s name moves it 30 px, and nothing is a CSP violation',
+      rtl.dir === 'rtl' && rtl.lang === 'ar' && rtl.canvas === 'ltr' && rtl.title === ar['Design Studio'] && rtl.frameLabel === ar['Frame'] + ' 1' && rtl.panelLeft
+        && after30.x === before30.x + 30 && after30.y === before30.y && arSplit.studio === 0 && arSplit.unexplained === 0 && a.log.errors.length === 0, { rtl, before30, after30, split: arSplit, errors: a.log.errors.slice(0, 5), sandboxRefusals: a.log.sandbox });
+    await a.ctx.close();
+
+    // ── small windows: the escape hatch gives a normal page that scrolls down, never sideways ──
+    const small = [];
+    for (const vp of [{ width: 900, height: 700 }, { width: 390, height: 844 }]) {
+      const s = await openStudio(vp);
+      small.push(await s.page.evaluate(() => {
+        const se = document.scrollingElement;
+        return { w: innerWidth, sideways: se.scrollWidth > innerWidth + 1, scrolls: se.scrollHeight > innerHeight, canvasH: Math.round(document.querySelector('.st-canvas').getBoundingClientRect().height),
+          panelBelow: document.querySelector('.st-panel').getBoundingClientRect().top >= document.querySelector('.st-canvas').getBoundingClientRect().bottom - 1 };
+      }));
+      await s.ctx.close();
+    }
+    check('responsive: at 900 × 700 and at 390 × 844 the Studio becomes a normal scrolling page (canvas at least 420 px tall, the panel below it) and never scrolls sideways',
+      small.every((s) => !s.sideways && s.scrolls && s.canvasH >= 420 && s.panelBelow), small);
+
+    // ── resources: entering and leaving, with work done each time, leaves nothing behind ──
+    const r = await openStudio({ width: 1440, height: 900 }, { hash: '/#owner-home', wait: false });
+    await r.page.waitForFunction(() => typeof window.navTo === 'function' && document.querySelector('.page.active'), null, { timeout: 30000 });
+    await r.page.waitForTimeout(1500);
+    const cdp = await r.ctx.newCDPSession(r.page);
+    await cdp.send('HeapProfiler.enable');
+    const listeners = async () => {
+      let n = 0;
+      for (const expr of ['window', 'document']) {
+        const o = await cdp.send('Runtime.evaluate', { expression: expr });
+        n += (await cdp.send('DOMDebugger.getEventListeners', { objectId: o.result.objectId })).listeners.length;
+      }
+      return n;
+    };
+    const heap = async () => { await cdp.send('HeapProfiler.collectGarbage'); return (await cdp.send('Runtime.getHeapUsage')).usedSize; };
+    const cycle = async () => {
+      const t0 = Date.now();
+      await r.page.evaluate(() => window.navTo('design-studio'));
+      await r.page.waitForSelector('.st-canvas', { timeout: 30000 });
+      const openMs = Date.now() - t0;
+      await r.page.keyboard.press('f');
+      await r.page.focus('.st-canvas');
+      await r.page.keyboard.press('Enter');
+      for (let i = 0; i < 25; i++) await r.page.keyboard.press('ArrowRight');
+      for (let i = 0; i < 25; i++) await r.page.keyboard.press('Control+z');
+      await r.page.evaluate(() => window.navTo('owner-home'));
+      await r.page.waitForFunction(() => !document.querySelector('.st-canvas'), null, { timeout: 10000 });
+      return openMs;
+    };
+    await cycle();                                         // one unmeasured pass: the application's own first-entry work
+    const l0 = await listeners(), h0 = await heap();
+    const opens = [];
+    for (let i = 0; i < 3; i++) opens.push(await cycle());
+    const l1 = await listeners(), h1 = await heap();
+    const left = await r.page.evaluate(() => ({ frames: document.querySelectorAll('.st-frame, iframe.st-frame-doc').length, rootKids: (document.getElementById('st-root') || { childElementCount: -1 }).childElementCount, bodyClass: document.body.classList.contains('st-studio-open') }));
+    console.log('MEASURE ' + JSON.stringify({ section: 14, name: 'studio enter and leave', cycles: 3, opsPerCycle: 51, openMs: opens, listenersBefore: l0, listenersAfter: l1, heapGrowthKB: Math.round((h1 - h0) / 102.4) / 10 }));
+    check('resources: three more entries and exits, 51 operations each, leave no listener on window or document, no frame and no Studio node behind (one unmeasured pass first)',
+      l1 === l0 && left.frames === 0 && left.rootKids === 0 && !left.bodyClass, { listeners: [l0, l1], left });
+    await r.ctx.close();
+
+    // ── controls: each detector above can fail ──
+    const c1 = await openStudio({ width: 1440, height: 900 }, { studioPatch: (s) => s.replace("E.empty = h('div', { class: 'st-empty' }", "E.empty = h('div', { class: 'st-empty', style: 'outline: 1px solid red' }") });
+    await c1.page.waitForTimeout(400);
+    const c1Split = await stCsp(c1.page);
+    check('csp (control): a studio.js that writes one inline style attribute in the Studio\'s page is caught as the Studio\'s violation, so a clean count means something',
+      c1Split.studio >= 1, c1Split);
+    await c1.ctx.close();
+    const c2 = await openStudio({ width: 1440, height: 900 }, { studioPatch: (s) => s.replace("el.className = 'st-el st-' + n.type;", "el.className = 'st-el st-' + n.type; el.setAttribute('style', 'outline: 1px solid red');") });
+    await c2.page.keyboard.press('f');
+    await c2.page.focus('.st-canvas');
+    await c2.page.keyboard.press('Enter');
+    await c2.page.keyboard.press('r');
+    await c2.page.keyboard.press('Enter');
+    await c2.page.waitForTimeout(400);
+    const c2Split = await stCsp(c2.page);
+    check('csp (control): a studio.js that writes an inline style attribute inside a frame is caught, so frames inherit the page\'s policy and their reports are seen',
+      c2Split.studio >= 1 && c2Split.studioDirectives.some((d) => /\(frame\)/.test(d)), c2Split);
+    await c2.ctx.close();
+    const c3 = await openStudio({ width: 1440, height: 900 }, { studioPatch: (s) => s.replace("sandbox: 'allow-same-origin'", "sandbox: 'allow-same-origin allow-scripts'") });
+    await c3.page.keyboard.press('f');
+    await c3.page.focus('.st-canvas');
+    await c3.page.keyboard.press('Enter');
+    const c3f = await stFrames(c3.page);
+    const c3ran = await stFrameScript(c3.page);
+    check('frames (control): a studio.js that also allows scripts in a frame fails the sandbox check above, and the same injected script then runs, so both proofs can fail',
+      c3f.length === 1 && c3f[0].sandbox !== 'allow-same-origin' && c3ran === true, { frames: c3f, ran: c3ran });
+    await c3.ctx.close();
+  }
+
+  if (WANT_AXE && want('14a')) {
+    const axePath = process.env.AXE_CORE || path.join(ROOT, 'tools/components/node_modules/axe-core/axe.min.js');
+    if (!fs.existsSync(axePath)) skip('studio under axe', 'axe-core is not installed (' + axePath + ')');
+    else {
+      const AXE = fs.readFileSync(axePath, 'utf8');
+      const axeStudio = (pg) => pg.evaluate(async (src) => {
+        if (!window.axe) (0, eval)(src);        // eslint-disable-line no-eval -- this script's own tool, never the page's code
+        const r = await window.axe.run({ include: ['#pg-design-studio'], exclude: [['.st-frame-doc']] }, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] }, resultTypes: ['violations'] });
+        return r.violations.map((v) => v.id + ':' + v.nodes.length + ' ' + v.nodes.slice(0, 2).map((n) => n.target.join(' ')).join('|'));
+      }, AXE);
+      for (const loc of ['en', 'ar']) {
+        const s = await openStudio({ width: 1440, height: 900 }, { locale: loc });
+        const found = { empty: await axeStudio(s.page) };
+        await s.page.keyboard.press('f');
+        await s.page.focus('.st-canvas');
+        await s.page.keyboard.press('Enter');
+        await s.page.keyboard.press('r');
+        await s.page.keyboard.press('Enter');
+        found.selected = await axeStudio(s.page);
+        check(`studio under axe (${loc}): the empty Studio and the Studio with a rectangle selected and its properties open have 0 violations (WCAG 2.2 A/AA)`,
+          found.empty.length === 0 && found.selected.length === 0, found);
+        if (loc === 'en') {
+          await s.page.evaluate(() => { const b = document.createElement('button'); b.type = 'button'; document.querySelector('.st-bar .st-group').appendChild(b); });
+          const v = await axeStudio(s.page);
+          check('studio under axe (control): a button with no name placed in the tool bar is reported by the same run, so a clean result means something', v.some((x) => /^button-name/.test(x)), v);
+        }
+        await s.ctx.close();
       }
     }
   }

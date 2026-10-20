@@ -2662,6 +2662,61 @@ function _loadDesignSystemRoom(done) {
   }).catch(function () { finish(false); });
 }
 
+// FAMILISTA DESIGN STUDIO — the platform owner's design tool: a product of its
+// own beside Design System Control, not a section of it. Loaded the same way and
+// for the same reader: only when /system/whoami names the platform owner, so
+// anybody else downloads nothing and is sent to Owner Home. It asks the server
+// for nothing else. Its three files are same-origin, which `script-src 'self'`
+// and `style-src 'self'` already allow, and share one version; the core runs
+// before the editor (async = false keeps the order).
+var _ST_ROOM = { state: 'idle', waiting: [] };
+function _loadDesignStudio(done) {
+  if (_ST_ROOM.state === 'ready') { done(true); return; }
+  _ST_ROOM.waiting.push(done);
+  if (_ST_ROOM.state === 'loading') return;
+  _ST_ROOM.state = 'loading';
+  function finish(ok) {
+    _ST_ROOM.state = ok ? 'ready' : 'idle';
+    var list = _ST_ROOM.waiting.splice(0);
+    for (var i = 0; i < list.length; i++) { try { list[i](ok); } catch (_) {} }
+  }
+  // As for Design System Control: a cached "no" must not lock the owner out of a
+  // deep link, and asking before the authority latch exists is "not yet".
+  var ask;
+  try {
+    ask = _isPlatformOwner().then(function (yes) {
+      if (yes) return true;
+      _platformAuthority = null;
+      return _isPlatformOwner();
+    });
+  } catch (_) {
+    _ST_ROOM.state = 'idle';
+    _ST_ROOM.waiting.length = 0;
+    return;
+  }
+  ask.then(function (yes) {
+    if (!yes) { finish(false); return; }
+    var v = '20261020-design-studio-1a';
+    var scripts = ['/design-studio/studio-core.js?v=' + v, '/design-studio/studio.js?v=' + v];
+    var pending = scripts.length + 1, failed = false;
+    function one(ok) { if (!ok) failed = true; if (--pending === 0) finish(!failed); }
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/design-studio/studio.css?v=' + v;
+    link.onload = function () { one(true); };
+    link.onerror = function () { one(false); };
+    document.head.appendChild(link);
+    for (var i = 0; i < scripts.length; i++) {
+      var script = document.createElement('script');
+      script.async = false;
+      script.src = scripts[i];
+      script.onload = function () { one(true); };
+      script.onerror = function () { one(false); };
+      document.head.appendChild(script);
+    }
+  }).catch(function () { finish(false); });
+}
+
 // ── NAVIGATION ──
 function navTo(page, el, _opts) {
   _opts = _opts || {};
@@ -2675,6 +2730,14 @@ function navTo(page, el, _opts) {
     // deep-link repair routes here again once startup has settled.
     if (!_DS_ROOM) return;
     _loadDesignSystemRoom(function (ok) {
+      try { navTo(ok ? page : 'owner-home', ok ? el : null, _opts); } catch (_) {}
+    });
+    return;
+  }
+  // Familista Design Studio: the same, for its own assets.
+  if (page === 'design-studio' && !(_ST_ROOM && _ST_ROOM.state === 'ready')) {
+    if (!_ST_ROOM) return;
+    _loadDesignStudio(function (ok) {
       try { navTo(ok ? page : 'owner-home', ok ? el : null, _opts); } catch (_) {}
     });
     return;
@@ -2767,6 +2830,13 @@ function navTo(page, el, _opts) {
     if (_wasDesign && page !== 'design-system' && typeof window.teardownFamilistaDesignSystem === 'function') {
       window.teardownFamilistaDesignSystem();
     }
+    // FAMILISTA DESIGN STUDIO takes the shell the same way. Its teardown saves the
+    // open design in this browser and removes every listener the editor added.
+    var _wasStudio = document.body.classList.contains('st-studio-open');
+    document.body.classList.toggle('st-studio-open', page === 'design-studio');
+    if (_wasStudio && page !== 'design-studio' && typeof window.teardownFamilistaDesignStudio === 'function') {
+      window.teardownFamilistaDesignStudio();
+    }
     // ENTERING IS NOT SYMMETRICAL WITH LEAVING, AND THAT WAS A BUG.
     //
     // Leaving released the module's held session; nothing re-hydrated it on the
@@ -2840,6 +2910,11 @@ function navTo(page, el, _opts) {
     // /system/whoami names the platform owner. Convenience, not security: both
     // endpoints behind it are guarded by assertPlatformOwner on the server.
     'design-system': 1,
+    // FAMILISTA DESIGN STUDIO — where the platform owner designs: a product of its
+    // own, not a section of Design System Control. Loaded on demand, and only for a
+    // reader whom /system/whoami names the platform owner. It has no endpoint of its
+    // own; everything it holds stays in the owner's browser.
+    'design-studio': 1,
     // PLATFORM (8)
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
@@ -2951,6 +3026,15 @@ function navTo(page, el, _opts) {
       window.renderFamilistaDesignSystem(_dsRoot);
     }
   } catch (_) {}
+  // Familista Design Studio reads no club data either: drawn on entry, by the same rule.
+  try {
+    var _stRoot = document.getElementById('st-root');
+    if (page === 'design-studio' && typeof window.renderFamilistaDesignStudio === 'function'
+        && _stRoot && (_leaving !== 'pg-design-studio' || !_stRoot.__famDrawn)) {
+      _stRoot.__famDrawn = true;
+      window.renderFamilistaDesignStudio(_stRoot);
+    }
+  } catch (_) {}
   try {
     if (typeof _famNeedsClubData === 'function' && _famNeedsClubData(page)
         && State.context && State.context.clubId) _famEnsureClubData();
@@ -2965,7 +3049,7 @@ function navTo(page, el, _opts) {
 
   const titles = {
     // ── Owner Control ──
-    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'source-core':'Source Core', 'familista-vision':'Familista Vision', 'cybersecurity':'Cybersecurity', 'algorithms':'Algorithms', 'design-system':'Design System',
+    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'source-core':'Source Core', 'familista-vision':'Familista Vision', 'cybersecurity':'Cybersecurity', 'algorithms':'Algorithms', 'design-system':'Design System', 'design-studio':'Design Studio',
     // ── Club Workspace ──
     'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League', 'match-center':'Match Center', 'people-access':'People & Access',
     // ── Platform (Phase B labels) ──
@@ -3241,6 +3325,7 @@ function _buildPageTemplateMap() {
     'cybersecurity':               renderCybersecurityHTML,
     'algorithms':                  renderAlgorithmsHTML,
     'design-system':               renderDesignSystemHTML,
+    'design-studio':               renderDesignStudioHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
@@ -28772,6 +28857,14 @@ function renderAlgorithmsHTML() {
 // time the platform owner opens it, so every other session pays nothing for it.
 function renderDesignSystemHTML() {
   return `<div class="page" id="pg-design-system" data-no-i18n><div id="ds-root"></div></div>`;
+}
+
+// FAMILISTA DESIGN STUDIO — the platform owner's design tool, a product of its own.
+// Its interface lives in public/design-studio/studio.js with its own English, German
+// and Arabic catalogue under /design-studio/i18n/, behind the same `data-no-i18n`
+// boundary, and in the owner context of the design tokens. Not in _EAGER_PAGES.
+function renderDesignStudioHTML() {
+  return `<div class="page" id="pg-design-studio" data-no-i18n data-fam-context="owner"><div id="st-root"></div></div>`;
 }
 
 // FAMILISTA VISION — what the platform can SEE: computer-vision evidence from

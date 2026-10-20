@@ -2082,7 +2082,7 @@ describe('the browser proof is kept with the code and is a required CI job', () 
     expect(body).toContain('node tools/components/lab-browser-proof.cjs');
     expect(body).not.toMatch(/continue-on-error|\|\|\s*true|playwright install|secrets\./);
     const sections = [...body.matchAll(/sections:\s*'([^']+)'/g)].map((m) => m[1].split(',')).flat().sort();
-    expect(sections).toEqual(['1', '10', '11', '12', '13', '13a', '15', '2', '2b', '3', '4', '5', '6', '7', '8', '9']);
+    expect(sections).toEqual(['1', '10', '11', '12', '13', '13a', '14', '14a', '15', '2', '2b', '3', '4', '5', '6', '7', '8', '9']);
     expect(body).toMatch(/axe:\s*'--axe'/);
     // a shard that ran nothing, skipped something or failed something is red
     expect(body).toContain("grep -Eq ', 0 failed, 0 skipped$'");
@@ -2090,9 +2090,10 @@ describe('the browser proof is kept with the code and is a required CI job', () 
     const mins = [...body.matchAll(/min:\s*'(\d+)'/g)].map((m) => Number(m[1]));
     expect(mins.length).toBe(2);
     expect(mins.every((n) => n >= 34)).toBe(true);
-    // M3/S2.2b-2: the floors are the counts measured with eighteen previewable components; they never go below S2.2b-1's 197 and 68.
-    // The translator's memory (section 15) adds its 21 checks to the isolation shard.
-    expect(mins).toEqual([224, 74]);
+    // M3/S2.2b-2: the floors were the counts measured with eighteen previewable components (203 and 74, never below S2.2b-1's
+    // 197 and 68). Familista Design Studio, Slice 1a, adds section 14 (36 proofs) and 14a (3), and the translator's memory
+    // (section 15) adds 21 to the isolation shard: the measured counts are 260 and 77.
+    expect(mins).toEqual([260, 77]);
   });
 
   it('classifies the browser\'s own copy of a CSP violation as a notice in both Chrome wordings, and nothing else', () => {
@@ -2484,9 +2485,9 @@ describe('M3/S3.2 — the performance budget report: eight official budgets, dia
     expect(run(log()).markdown).not.toContain('The proof itself did not pass');
   });
 
-  it('10. the budget report adds no browser check: the floors moved only with the translator\'s memory section (203 + 21, 74)', () => {
+  it('10. the budget report adds no browser check: the floors moved only with Familista Design Studio\'s own sections and the translator\'s memory section (203 + 36 + 21, 74 + 3)', () => {
     const job = CI.slice(CI.indexOf('  browser-proof:'), CI.indexOf('  secret-scan:'));
-    expect([...job.matchAll(/min:\s*'(\d+)'/g)].map((m) => Number(m[1]))).toEqual([224, 74]);
+    expect([...job.matchAll(/min:\s*'(\d+)'/g)].map((m) => Number(m[1]))).toEqual([260, 77]);
     expect(PROOF_SRC.match(/\bemitMetric\(/g)!.length).toBe(R.METRICS.length);   // one call per metric; the helper is `emitMetric = (`
     expect(PROOF_SRC).not.toMatch(/emitMetric\([^)]*\)\s*;\s*check\(|check\([^;]*emitMetric/);
   });
