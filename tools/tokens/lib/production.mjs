@@ -21,6 +21,10 @@ const SURFACES = [
   // Stage 3.1: a room the main app loads on demand (public/app.js, lazy loader).
   // It is not linked from index.html, so it is named here rather than missed.
   { id: 'lazy', label: 'Rooms loaded on demand by the main app', files: ['public/design-system/design-system.css', 'public/design-system/explorer.css', 'public/design-system/components.css', 'public/design-system/lab.css'] },
+  // Familista Design Studio (Slice 1a): the owner's design tool, a product of its own, loaded on
+  // demand by the main app (public/app.js, _loadDesignStudio). studio-frame.css is what each of its
+  // frame documents loads beside the published tokens.
+  { id: 'studio', label: 'Familista Design Studio, loaded on demand by the main app', files: ['public/design-studio/studio.css', 'public/design-studio/studio-frame.css'] },
 ];
 
 const rel = (p) => relative(REPO_ROOT, p).split('\\').join('/');

@@ -88,15 +88,17 @@ function walk(dir, acc = []) {
   }
   return acc;
 }
-// Stage 3.1: the Owner-only Design System Control room is the one consumer of
-// the canonical tokens. Everything else in production still reads none.
-const CONSUMERS = 'public/design-system/';
-check('unread: nothing production serves, except the token file and the Design System Control room, references the --fam- namespace', () => {
+// Stage 3.1: the Owner-only Design System Control room was the first consumer of
+// the canonical tokens; Familista Design Studio (Slice 1a), the owner's design
+// tool, is the second. Everything else in production still reads none.
+const CONSUMERS = ['public/design-system/', 'public/design-studio/'];
+check('unread: nothing production serves, except the token file, the Design System Control room and Familista Design Studio, references the --fam- namespace', () => {
   const bad = [];
   const own = join(REPO_ROOT, PUBLISHED_TOKENS);
   for (const f of walk(join(REPO_ROOT, 'public'))) {
     if (f === own) continue;
-    if (f.slice(REPO_ROOT.length + 1).split('\\').join('/').startsWith(CONSUMERS)) continue;
+    const rel = f.slice(REPO_ROOT.length + 1).split('\\').join('/');
+    if (CONSUMERS.some((c) => rel.startsWith(c))) continue;
     if (/--fam-/.test(readFileSync(f, 'utf8'))) bad.push(`${f.slice(REPO_ROOT.length + 1)} references --fam-*`);
   }
   return bad;
