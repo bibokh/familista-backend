@@ -2580,6 +2580,247 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     }
   }
 
+  // ══ 15. the translator keeps nothing that has left the page ═════════════════
+  // public/i18n/dom.js remembers the English of every node it translates, so that a change of language can put it back. Every
+  // screen here paints by replacing its markup, so the nodes it remembers leave the page all the time. Held strongly, each of
+  // them keeps alive the whole tree it was part of: in any session not in en-GB (en-GB translates nothing, so remembers
+  // nothing), one Owner Home of old cards, about 280 nodes, stayed in memory for every visit to Owner Home.
+  //
+  // Chrome's "detached" label cannot be used to see that: it marks a node detached only while the node still has a JavaScript
+  // wrapper, and most of a discarded tree has none. So detached nodes are counted from the heap graph (domRetention), in real
+  // sessions whose language is read back from the page, over three measured cycles of the two ways a reader leaves Owner Home
+  // and returns: through Clubs, and through Design System Control (a room loaded on demand that takes the shell and tears
+  // itself down on the way out). No Playwright element handle is held: every wait returns true or false and is disposed, and
+  // every navigation is the application's own navTo.
+  // The control serves a dom.js whose bookkeeping holds nodes strongly again and requires the same counts to turn red. The
+  // contract checks hold the translator to what it already did: text and attributes, inserted or rewritten later, removed and
+  // put back, through a change of language and back to English, behind the same public API.
+  if (want('15')) {
+    CURRENT = OWNER;
+    const HOME_CARDS = () => document.querySelectorAll('#owner-home-content .oh-card').length >= 9;
+    // The page's requests in flight, so a measurement is taken with no status line still on its way into a card.
+    const quietNet = async (pg, net) => {
+      for (let i = 0; i < 60; i++) {
+        if (net.n <= 0) { await pg.waitForTimeout(200); if (net.n <= 0) return; } else await pg.waitForTimeout(100);
+      }
+    };
+    async function openHome(tag, domPatch) {
+      const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce', locale: tag });
+      await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+      if (domPatch) {
+        const original = fs.readFileSync(path.join(ROOT, 'public/i18n/dom.js'), 'utf8');
+        const patched = domPatch(original);
+        if (patched === original) throw new Error('negative control: the edit did not change i18n/dom.js, so it would prove nothing');
+        await ctx.route(/\/i18n\/dom\.js(\?|$)/, (r) => r.fulfill({ contentType: 'application/javascript', body: patched }));
+      }
+      await ctx.addCookies([{ name: 'access_token', value: token, domain: '127.0.0.1', path: '/', httpOnly: true }]);
+      // The language is chosen the way a returning reader's is: from the cache the application itself keeps (public/i18n/i18n.js).
+      await ctx.addInitScript((t) => { try { localStorage.setItem('familista.locale', t); } catch (_) { /* private mode */ } }, tag);
+      const page = await ctx.newPage();
+      const net = { n: 0 };
+      page.on('request', () => net.n++); page.on('requestfinished', () => net.n--); page.on('requestfailed', () => net.n--);
+      await page.goto(BASE + '/#owner-home', { waitUntil: 'load' });
+      await (await page.waitForFunction(HOME_CARDS, null, { timeout: 30000 })).dispose();
+      await quietNet(page, net); await frames(page);
+      return { ctx, page, net };
+    }
+    const visit = async (pg, net, to, ready) => {
+      await pg.evaluate((p) => window.navTo(p), to);
+      await (await pg.waitForFunction(ready, null, { timeout: 30000 })).dispose();
+      await quietNet(pg, net); await frames(pg);
+    };
+    const ROUTES = {
+      'Owner Home → Clubs → Owner Home': async (pg, net) => {
+        await visit(pg, net, 'clubs', () => { const a = document.querySelector('.page.active'); return !!a && a.id === 'pg-clubs'; });
+        await visit(pg, net, 'owner-home', HOME_CARDS);
+      },
+      'Owner Home → Design System Control → Owner Home': async (pg, net) => {
+        await visit(pg, net, 'design-system', () => !!document.querySelector('#pg-design-system.active .ds-metric'));
+        await visit(pg, net, 'owner-home', HOME_CARDS);
+      },
+    };
+
+    // A heap snapshot after the same two forced collections memoryOf uses, read as a graph. A DOM node is a native object that
+    // names a node and has an edge to a document. It is attached if a document reaches it through DOM-tree edges, and detached
+    // if none does, or if Chrome labels it so (which it never does for a node a document reaches). `held` is how many detached
+    // nodes the translator's own bookkeeping reaches: window.I18N_DOM.start's closure, its `tracked` and `trackedAttr`, their
+    // tables, then the DOM tree, never a weak edge. `holders` groups detached nodes by the last steps of their shortest
+    // retaining path from the heap's root, so a failure names what keeps them.
+    async function domRetention(pg) {
+      const cdp = await pg.context().newCDPSession(pg);
+      await cdp.send('HeapProfiler.enable');
+      await cdp.send('HeapProfiler.collectGarbage'); await cdp.send('HeapProfiler.collectGarbage');
+      const parts = []; const onChunk = (e) => parts.push(e.chunk);
+      cdp.on('HeapProfiler.addHeapSnapshotChunk', onChunk);
+      await cdp.send('HeapProfiler.takeHeapSnapshot', { reportProgress: false });
+      cdp.off('HeapProfiler.addHeapSnapshotChunk', onChunk);
+      await cdp.detach();
+      const s = JSON.parse(parts.join('')); parts.length = 0;
+      const m = s.snapshot.meta, nf = m.node_fields.length, ef = m.edge_fields.length, nT = m.node_types[0], eT = m.edge_types[0];
+      const iT = m.node_fields.indexOf('type'), iN = m.node_fields.indexOf('name'), iE = m.node_fields.indexOf('edge_count'), iD = m.node_fields.indexOf('detachedness');
+      const N = s.nodes.length / nf, first = new Uint32Array(N + 1);
+      for (let i = 0, e = 0; i < N; i++) { first[i] = e; e += s.nodes[i * nf + iE] * ef; }
+      first[N] = s.edges.length;
+      const name = (o) => s.strings[s.nodes[o * nf + iN]], native = (o) => nT[s.nodes[o * nf + iT]] === 'native';
+      const ELEMENT = eT.indexOf('element'), HIDDEN = eT.indexOf('hidden'), WEAK = eT.indexOf('weak');
+      const CONTEXT = eT.indexOf('context'), PROPERTY = eT.indexOf('property'), INTERNAL = eT.indexOf('internal');
+      const edgeName = (e) => (s.edges[e] === ELEMENT || s.edges[e] === HIDDEN ? String(s.edges[e + 1]) : s.strings[s.edges[e + 1]]);
+      const to = (e) => s.edges[e + 2] / nf;
+      const DOC = /^(Detached )?(HTML|XML)?Document\b|^#document|^<#document/;
+      const NODE = /^(Detached )?(<[a-zA-Z#!]|Text$|Comment$|CDATASection$|DocumentFragment$|ShadowRoot$|DocumentType$|(HTML|SVG|MathML)\w*Element$)/;
+      const isDoc = new Uint8Array(N), isNode = new Uint8Array(N);
+      for (let o = 0; o < N; o++) if (native(o) && DOC.test(name(o))) isDoc[o] = 1;
+      for (let o = 0; o < N; o++) {
+        if (!native(o) || isDoc[o] || !NODE.test(name(o))) continue;
+        for (let e = first[o]; e < first[o + 1]; e += ef) if (s.edges[e] === ELEMENT && isDoc[to(e)]) { isNode[o] = 1; break; }
+      }
+      const attached = new Uint8Array(N), q = [];
+      for (let o = 0; o < N; o++) if (isDoc[o]) { attached[o] = 1; q.push(o); }
+      while (q.length) {
+        const o = q.pop();
+        for (let e = first[o]; e < first[o + 1]; e += ef) if (s.edges[e] === ELEMENT && isNode[to(e)] && !attached[to(e)]) { attached[to(e)] = 1; q.push(to(e)); }
+      }
+      const detached = new Uint8Array(N);
+      let documents = 0, domNodes = 0, count = 0, labelled = 0;
+      for (let o = 0; o < N; o++) {
+        if (isDoc[o]) documents++;
+        if (!isNode[o]) continue;
+        domNodes++;
+        const lab = iD >= 0 && s.nodes[o * nf + iD] === 2;
+        if (lab) labelled++;
+        if (!attached[o] || lab) { detached[o] = 1; count++; }
+      }
+      const step = (o, type, n) => { for (let e = first[o]; e < first[o + 1]; e += ef) if (s.edges[e] === type && edgeName(e) === n) return to(e); return -1; };
+      let maps = [];
+      for (let o = 0; o < N && !maps.length; o++) {
+        if (native(o) || !/^Window\b/.test(name(o))) continue;
+        const api = step(o, PROPERTY, 'I18N_DOM'), start = api < 0 ? -1 : step(api, PROPERTY, 'start'), scope = start < 0 ? -1 : step(start, INTERNAL, 'context');
+        if (scope >= 0) maps = ['tracked', 'trackedAttr'].map((v) => step(scope, CONTEXT, v)).filter((x) => x >= 0);
+      }
+      const seen = new Uint8Array(N), stack = [];
+      for (const mp of maps) {
+        const table = step(mp, INTERNAL, 'table');
+        if (table >= 0) for (let e = first[table]; e < first[table + 1]; e += ef) if (s.edges[e] !== WEAK && isNode[to(e)] && !seen[to(e)]) { seen[to(e)] = 1; stack.push(to(e)); }
+      }
+      let held = 0;
+      while (stack.length) {
+        const o = stack.pop();
+        if (!detached[o]) continue;
+        held++;
+        for (let e = first[o]; e < first[o + 1]; e += ef) if (s.edges[e] === ELEMENT && isNode[to(e)] && !seen[to(e)]) { seen[to(e)] = 1; stack.push(to(e)); }
+      }
+      const parent = new Int32Array(N).fill(-1), via = new Int32Array(N).fill(-1), bq = new Uint32Array(N);
+      let h = 0, t = 0; parent[0] = 0; bq[t++] = 0;
+      while (h < t) {
+        const o = bq[h++];
+        for (let e = first[o]; e < first[o + 1]; e += ef) { if (s.edges[e] === WEAK || parent[to(e)] !== -1) continue; parent[to(e)] = o; via[to(e)] = e; bq[t++] = to(e); }
+      }
+      const label = (o) => { const n = edgeName(via[o]); return eT[s.edges[via[o]]] + ':' + (/^\d+$/.test(n) ? '#' : n.slice(0, 32)) + ' > ' + name(o).replace(/\s+/g, ' ').slice(0, 48); };
+      const holders = {};
+      for (let o = 0; o < N; o++) {
+        if (!detached[o]) continue;
+        let sig = '(no strong path from the root)';
+        if (parent[o] !== -1) {
+          const p = []; for (let x = o, g = 0; x !== 0 && g < 400; x = parent[x], g++) p.push(x);
+          p.reverse();
+          const k = p.findIndex((x) => detached[x]);
+          sig = p.slice(Math.max(0, k - 3), k + 1).map(label).join('  |  ');
+        }
+        holders[sig] = (holders[sig] || 0) + 1;
+      }
+      return { documents, domNodes, detached: count, labelledDetached: labelled, held, bookkeeping: maps.length, holders };
+    }
+    const growing = (a, b) => Object.entries(b.holders).map(([k, n]) => [n - (a.holders[k] || 0), k]).filter(([d]) => d > 0).sort((x, y) => y[0] - x[0]).slice(0, 3);
+    const brief = (r) => ({ documents: r.documents, domNodes: r.domNodes, detached: r.detached, labelledDetached: r.labelledDetached, held: r.held, bookkeeping: r.bookkeeping });
+    async function retention(tag, route, domPatch) {
+      const { ctx, page, net } = await openHome(tag, domPatch);
+      const lang = await page.evaluate(() => {
+        const st = window.I18N_DOM ? window.I18N_DOM.stats() : null;
+        return { application: window.I18N ? window.I18N.locale() : null, translator: window.I18N_DOM ? window.I18N_DOM.locale() : null, entries: st ? st.entries : -1, tracked: st ? st.tracked : -1 };
+      });
+      await ROUTES[route](page, net);                         // one unmeasured cycle, as the official memory gate does
+      const before = await domRetention(page);
+      for (let i = 0; i < 3; i++) await ROUTES[route](page, net);
+      const after = await domRetention(page);
+      return { ctx, page, lang, before, after, growth: after.detached - before.detached, documentGrowth: after.documents - before.documents };
+    }
+
+    let contractsPage = null, contractsCtx = null;
+    for (const [tag, route] of [['de-DE', 'Owner Home → Clubs → Owner Home'], ['de-DE', 'Owner Home → Design System Control → Owner Home'], ['en-US', 'Owner Home → Clubs → Owner Home'], ['en-GB', 'Owner Home → Clubs → Owner Home']]) {
+      const r = await retention(tag, route);
+      const base = tag === 'en-GB';
+      const id = `translator memory (${tag}, ${route})`;
+      check(`${id}: the page is in ${tag} by the application's account and the translator's, and the translator ${base ? 'has nothing to translate' : 'is translating it'}`,
+        r.lang.application === tag && r.lang.translator === tag && (base ? r.lang.entries === 0 && r.lang.tracked === 0 : r.lang.entries > 0 && r.lang.tracked > 0), r.lang);
+      check(`${id}: over three measured cycles no DOM node that left the page stays in memory, and no document is added (counted from the heap graph, not from Chrome's label)`,
+        r.growth <= 0 && r.documentGrowth <= 0, { growth: r.growth, perCycle: Math.round(r.growth / 3), documentGrowth: r.documentGrowth, before: brief(r.before), after: brief(r.after), growingHolders: growing(r.before, r.after) });
+      check(`${id}: the translator's bookkeeping holds no node that has left the page`, r.after.bookkeeping === 2 && r.after.held === 0, { before: r.before.held, after: r.after.held, bookkeepingFound: r.after.bookkeeping });
+      if (!contractsPage && tag === 'de-DE') { contractsPage = r.page; contractsCtx = r.ctx; } else await r.ctx.close();
+    }
+
+    // control: the same measurement of a dom.js that remembers translated nodes strongly again
+    try {
+      const c = await retention('de-DE', 'Owner Home → Clubs → Owner Home', (src) => src.replace(/new WeakMap\(\)/g, 'new Map()'));
+      check('translator memory (control): a dom.js whose bookkeeping holds translated nodes strongly again keeps old Owner Home trees in memory, and the same counts see it',
+        c.growth > 0 && c.after.held > 0, { growth: c.growth, perCycle: Math.round(c.growth / 3), before: brief(c.before), after: brief(c.after), growingHolders: growing(c.before, c.after) });
+      await c.ctx.close();
+    } catch (e) { fail('translator memory (control): a dom.js whose bookkeeping holds translated nodes strongly again keeps old Owner Home trees in memory, and the same counts see it', String(e && e.message || e)); }
+
+    // The translator's contracts, on the de-DE page measured above: three catalogue words that de-DE and fr-FR translate
+    // differently, in text, in a title and in an aria-label, inserted after start, rewritten in place, removed and put back.
+    const k = await contractsPage.evaluate(async () => {
+      const D = window.I18N_DOM;
+      const two = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const de = await D.load('de-DE'), fr = await D.load('fr-FR');
+      const keys = Object.keys(de).filter((x) => /^[A-Z][a-z]{4,12}$/.test(x) && typeof de[x] === 'string' && typeof fr[x] === 'string'
+        && de[x] !== x && fr[x] !== x && de[x] !== fr[x] && de[x].indexOf('%') < 0 && fr[x].indexOf('%') < 0 && !(de[x] in de) && !(fr[x] in fr)).slice(0, 3);
+      if (keys.length < 3) return { skipped: 'fewer than three suitable catalogue words in de-DE and fr-FR' };
+      const [K1, K2, K3] = keys;
+      const box = document.createElement('div'); box.id = 'proof-i18n-contracts';
+      const text = document.createElement('span'); text.textContent = K1;
+      const button = document.createElement('button'); button.type = 'button'; button.title = K1; button.setAttribute('aria-label', K2); button.textContent = K3;
+      const rewritten = document.createElement('span'); rewritten.textContent = '—';      // not prose: left alone until rewritten
+      const moved = document.createElement('span'); moved.textContent = K2;
+      const user = document.createElement('span'); user.setAttribute('data-no-i18n', ''); user.textContent = K1;
+      box.append(text, button, rewritten, moved, user);
+      const read = () => ({ text: text.textContent, title: button.title, aria: button.getAttribute('aria-label'), button: button.textContent, rewritten: rewritten.textContent, moved: moved.textContent, user: user.textContent });
+      document.body.appendChild(box); await two(); await two();
+      const inserted = read();
+      rewritten.firstChild.nodeValue = K3; await two(); await two();
+      const afterRewrite = rewritten.textContent;
+      moved.remove(); await two(); box.appendChild(moved); await two(); await two();
+      const afterReinsert = moved.textContent;
+      const scan = D.scan(box).map((x) => x.text + ' | ' + x.where + ' | ' + x.translated).sort();
+      const stats = D.stats(), api = Object.keys(D).sort();
+      await D.setLocale('fr-FR'); await two();
+      const french = read();
+      await D.setLocale('en-GB'); await two();
+      const english = read();
+      await D.setLocale('de-DE'); await two();
+      const again = read();
+      box.remove();
+      return { keys, de: [de[K1], de[K2], de[K3]], fr: [fr[K1], fr[K2], fr[K3]], inserted, afterRewrite, afterReinsert, scan, stats, api, french, english, again };
+    });
+    const tc = 'translation contracts (de-DE, then fr-FR, en-GB and de-DE again)';
+    if (k.skipped) skip(tc, k.skipped);
+    else {
+      const [K1, K2, K3] = k.keys, [d1, d2, d3] = k.de, [f1, f2, f3] = k.fr;
+      const all = (o, a, b, c) => o.text === a && o.title === a && o.aria === b && o.button === c && o.user === K1;
+      check(`${tc}: text, a title and an aria-label inserted after start are translated, and a data-no-i18n subtree is not`, all(k.inserted, d1, d2, d3) && k.inserted.moved === d2, { keys: k.keys, got: k.inserted });
+      check(`${tc}: a text node rewritten in place with catalogue English is translated (the observer's characterData path)`, k.afterRewrite === d3, { want: d3, got: k.afterRewrite });
+      check(`${tc}: a translated node removed and put back is still translated`, k.afterReinsert === d2, { want: d2, got: k.afterReinsert });
+      check(`${tc}: scan reports the English each node was built from, flagged translated`, JSON.stringify(k.scan) === JSON.stringify([K1 + ' | text | true', K2 + ' | aria-label | true', K3 + ' | text | true'].sort()), k.scan);
+      check(`${tc}: switching to fr-FR translates every node again from its English, text and attributes, the rewritten and the re-inserted node included`, all(k.french, f1, f2, f3) && k.french.rewritten === f3 && k.french.moved === f2, k.french);
+      check(`${tc}: switching to en-GB restores every original, text and attributes`, all(k.english, K1, K2, K3) && k.english.rewritten === K3 && k.english.moved === K2, k.english);
+      check(`${tc}: switching back to de-DE translates the restored English again`, all(k.again, d1, d2, d3) && k.again.rewritten === d3 && k.again.moved === d2, k.again);
+      check(`${tc}: the public API is the same ten functions, and stats() the same six fields`,
+        JSON.stringify(k.api) === JSON.stringify(['disable', 'enable', 'load', 'locale', 'missing', 'scan', 'setLocale', 'start', 'stats', 'translateTree'])
+        && JSON.stringify(Object.keys(k.stats).sort()) === JSON.stringify(['entries', 'locale', 'missing', 'passes', 'replaced', 'tracked'])
+        && typeof k.stats.tracked === 'number' && k.stats.tracked > 0 && k.stats.locale === 'de-DE', { api: k.api, stats: k.stats });
+    }
+    await contractsCtx.close();
+  }
+
   await browser.close(); server.close();
   const failed = results.filter((r) => r[0] === 'FAIL').length;
   console.log(`SUMMARY ${results.filter((r) => r[0] === 'PASS').length} passed, ${failed} failed, ${results.filter((r) => r[0] === 'SKIP').length} skipped`);

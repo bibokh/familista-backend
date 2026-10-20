@@ -228,8 +228,15 @@ describe('it keeps up with a document that repaints itself', () => {
     expect(APPLY).not.toContain('location.reload');
   });
 
-  it('and disconnected nodes are dropped as it goes', () => {
-    expect(DOM).toContain('if (!node.isConnected) { tracked.delete(node); return; }');
+  it('and remembers nodes weakly, so a node that has left the page is not kept alive by it', () => {
+    // A strong Map kept every tree it had translated in memory after the screen
+    // replaced it; the browser proof (section 15) measures that from the heap.
+    expect(DOM).toContain('var tracked = new WeakMap();');
+    expect(DOM).toContain('var trackedAttr = new WeakMap();');
+    expect(DOM).not.toMatch(/\bnew Map\(/);
+    // A WeakMap cannot be listed, so restoring walks the document instead.
+    expect(DOM).toMatch(/function restoreAll\(\) \{\s*\n\s*eachNode\(/);
+    expect(DOM).toMatch(/tracked = new WeakMap\(\);\s*\n\s*trackedAttr = new WeakMap\(\);/);
   });
 });
 

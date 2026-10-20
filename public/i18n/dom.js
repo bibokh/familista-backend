@@ -53,8 +53,9 @@
 //
 // Each translated node remembers the English it came from. Switching language
 // restores those originals and translates again, so nothing needs to re-render
-// and no screen state is lost. Nodes that have since left the document are
-// dropped on the way past, which is what keeps that bookkeeping bounded.
+// and no screen state is lost. The memory is weak: a node that has left the
+// document and is referenced by nothing else is collected with what it
+// remembered, so the bookkeeping is bounded by what is on the page.
 
 (function (root) {
   var CFG = root.FAMILISTA_I18N_CONFIG || {};
@@ -303,10 +304,14 @@
 
   // ── remembering the English ────────────────────────────────────────────────
   // Keyed by the node, so a language change restores and re-translates without
-  // asking any screen to re-render. Disconnected entries are dropped on the way
-  // past, which bounds it without a second sweep.
-  var tracked = new Map();     // node -> original English (text nodes)
-  var trackedAttr = new Map(); // element -> { attr: originalEnglish }
+  // asking any screen to re-render. Weakly, because every screen paints by
+  // replacing its markup: remembered nodes leave the page all the time, and a
+  // strong Map kept each of them alive and, through its parent, the whole tree it
+  // had been part of — an old Owner Home for every visit to Owner Home, in any
+  // language but English. A WeakMap cannot be listed, so restoring walks the
+  // document instead (restoreAll), which is where the nodes worth restoring are.
+  var tracked = new WeakMap();     // node -> original English (text nodes)
+  var trackedAttr = new WeakMap(); // element -> { attr: originalEnglish }
 
   function applyText(node) {
     var out = translate(node.nodeValue);
@@ -368,18 +373,37 @@
     passes++;
   }
 
-  /** Put every tracked node back to the English it was built with. */
+  /**
+   * Every element and text node in the document, skipped containers included: a
+   * node translated before it was moved into one is still remembered.
+   */
+  function eachNode(fn) {
+    var doc = root.document;
+    if (!doc || !doc.body || !doc.createTreeWalker) return;
+    var walker = doc.createTreeWalker(doc.body, 1 | 4 /* ELEMENT | TEXT */);
+    for (var n = doc.body; n; n = walker.nextNode()) fn(n);
+  }
+
+  /**
+   * Put every tracked node in the document back to the English it was built
+   * with. A node that is not in the document is not restored, as it never was;
+   * it is forgotten with the old maps.
+   */
   function restoreAll() {
-    tracked.forEach(function (orig, node) {
-      if (!node.isConnected) { tracked.delete(node); return; }
-      node.nodeValue = orig;
+    eachNode(function (n) {
+      if (n.nodeType === 3) { if (tracked.has(n)) n.nodeValue = tracked.get(n); return; }
+      var store = trackedAttr.get(n);
+      if (store) for (var a in store) if (store[a] != null) n.setAttribute(a, store[a]);
     });
-    trackedAttr.forEach(function (store, el) {
-      if (!el.isConnected) { trackedAttr.delete(el); return; }
-      for (var a in store) if (store[a] != null) el.setAttribute(a, store[a]);
-    });
-    tracked = new Map();
-    trackedAttr = new Map();
+    tracked = new WeakMap();
+    trackedAttr = new WeakMap();
+  }
+
+  /** How many text nodes in the document are remembered (stats().tracked). */
+  function countTracked() {
+    var count = 0;
+    eachNode(function (n) { if (n.nodeType === 3 && tracked.has(n)) count++; });
+    return count;
   }
 
   // ── keeping up with renders ────────────────────────────────────────────────
@@ -528,7 +552,7 @@
       return {
         locale: activeTag, passes: passes, replaced: replaced,
         entries: active ? Object.keys(active).length : 0,
-        tracked: tracked.size, missing: Object.keys(misses).length,
+        tracked: countTracked(), missing: Object.keys(misses).length,
       };
     },
     /** For the extractor and the audit, which need the untranslated document. */

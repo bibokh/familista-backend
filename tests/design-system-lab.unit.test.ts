@@ -2082,7 +2082,7 @@ describe('the browser proof is kept with the code and is a required CI job', () 
     expect(body).toContain('node tools/components/lab-browser-proof.cjs');
     expect(body).not.toMatch(/continue-on-error|\|\|\s*true|playwright install|secrets\./);
     const sections = [...body.matchAll(/sections:\s*'([^']+)'/g)].map((m) => m[1].split(',')).flat().sort();
-    expect(sections).toEqual(['1', '10', '11', '12', '13', '13a', '2', '2b', '3', '4', '5', '6', '7', '8', '9']);
+    expect(sections).toEqual(['1', '10', '11', '12', '13', '13a', '15', '2', '2b', '3', '4', '5', '6', '7', '8', '9']);
     expect(body).toMatch(/axe:\s*'--axe'/);
     // a shard that ran nothing, skipped something or failed something is red
     expect(body).toContain("grep -Eq ', 0 failed, 0 skipped$'");
@@ -2091,7 +2091,8 @@ describe('the browser proof is kept with the code and is a required CI job', () 
     expect(mins.length).toBe(2);
     expect(mins.every((n) => n >= 34)).toBe(true);
     // M3/S2.2b-2: the floors are the counts measured with eighteen previewable components; they never go below S2.2b-1's 197 and 68.
-    expect(mins).toEqual([203, 74]);
+    // The translator's memory (section 15) adds its 21 checks to the isolation shard.
+    expect(mins).toEqual([224, 74]);
   });
 
   it('classifies the browser\'s own copy of a CSP violation as a notice in both Chrome wordings, and nothing else', () => {
@@ -2483,9 +2484,9 @@ describe('M3/S3.2 — the performance budget report: eight official budgets, dia
     expect(run(log()).markdown).not.toContain('The proof itself did not pass');
   });
 
-  it('10. the browser-proof floors stay 203 and 74: the report adds no browser check, so nothing raises them', () => {
+  it('10. the budget report adds no browser check: the floors moved only with the translator\'s memory section (203 + 21, 74)', () => {
     const job = CI.slice(CI.indexOf('  browser-proof:'), CI.indexOf('  secret-scan:'));
-    expect([...job.matchAll(/min:\s*'(\d+)'/g)].map((m) => Number(m[1]))).toEqual([203, 74]);
+    expect([...job.matchAll(/min:\s*'(\d+)'/g)].map((m) => Number(m[1]))).toEqual([224, 74]);
     expect(PROOF_SRC.match(/\bemitMetric\(/g)!.length).toBe(R.METRICS.length);   // one call per metric; the helper is `emitMetric = (`
     expect(PROOF_SRC).not.toMatch(/emitMetric\([^)]*\)\s*;\s*check\(|check\([^;]*emitMetric/);
   });

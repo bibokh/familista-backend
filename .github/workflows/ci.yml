@@ -215,6 +215,13 @@ jobs:
   # passes stays within 32 KB with no new listener or detached node. Compiled code and the
   # browser's own buffers are reported apart. Section 13a runs axe on every fixture of every
   # previewable component, in English and in Arabic right to left.
+  # Section 15 proves the application's translator (public/i18n/dom.js) keeps nothing that
+  # has left the page: in de-DE, en-US and en-GB sessions whose language is read back from
+  # the page, three measured cycles of Owner Home → Clubs and Owner Home → Design System
+  # Control add no detached DOM node, counted from the heap graph rather than Chrome's
+  # label, and none is held by the translator. Its control serves a dom.js that holds nodes
+  # strongly again; its contract checks hold text, attributes, later insertions, rewrites,
+  # removal and re-insertion, language changes and the public API to what they were.
   #
   # Authoritative: no `|| true`, no continue-on-error. A failed proof fails this job, a
   # failed job fails the `ci` workflow, and deploy.yml deploys only on a successful `ci`.
@@ -235,9 +242,9 @@ jobs:
       matrix:
         include:
           - shard: isolation
-            sections: '1,2,2b,3,4,5,8,9,10,11,12,13'
+            sections: '1,2,2b,3,4,5,8,9,10,11,12,13,15'
             axe: ''
-            min: '203'
+            min: '224'
           - shard: accessibility and focus
             sections: '6,7,13a'
             axe: '--axe'
