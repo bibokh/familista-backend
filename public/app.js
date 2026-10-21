@@ -37236,12 +37236,15 @@ async function loadPlayerAIAnalysis(playerId) {
           '<div style="font-size:13px;font-weight:600;color:var(--tx);">ARIA Analysis</div>' +
           '<span class="badge badge-green">Live</span>' +
         '</div>' +
-        '<div style="font-size:13px;color:var(--tx-2);line-height:1.7;">' + res.data.response.replace(/\n/g, '<br>') + '</div>';
+        '<div style="font-size:13px;color:var(--tx-2);line-height:1.7;" data-ai-text></div>';
+      // The reply is untrusted text: nodes only, never HTML.
+      FamilistaModelText.render(el.querySelector('[data-ai-text]'), res.data.response);
     } else {
       el.innerHTML = '<div style="color:var(--tx-3);font-size:12px;">No AI response.</div>';
     }
   } catch (err) {
-    el.innerHTML = '<div style="color:var(--red);font-size:12px;">Analysis failed — ' + ((err && err.message) || 'error') + '</div>';
+    el.innerHTML = '<div style="color:var(--red);font-size:12px;" data-ai-text></div>';
+    el.querySelector('[data-ai-text]').textContent = 'Analysis failed — ' + ((err && err.message) || 'error');
   }
 }
 
@@ -40481,11 +40484,18 @@ function aiQuick(p) {
 function addAIMsg(text, role) {
   const box = document.getElementById('ai-msgs');
   if (!box) return;
+  const who = role === 'ai' ? 'ai' : 'user';
   const d = document.createElement('div');
-  d.className = `ai-msg ${role}`;
-  d.innerHTML = `
-    <div class="ai-msg-av ${role==='ai'?'ai-msg-av-aria':'ai-msg-av-user'}">${role==='ai'?'⚡':'K'}</div>
-    <div class="ai-msg-bubble ${role}">${text.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong style="color:var(--tx);">$1</strong>')}</div>`;
+  d.className = `ai-msg ${who}`;
+  const av = document.createElement('div');
+  av.className = `ai-msg-av ${who==='ai'?'ai-msg-av-aria':'ai-msg-av-user'}`;
+  av.textContent = who==='ai' ? '⚡' : 'K';
+  // The reply and the question are untrusted text: nodes only, never HTML.
+  const bubble = document.createElement('div');
+  bubble.className = `ai-msg-bubble ${who}`;
+  FamilistaModelText.render(bubble, text);
+  d.appendChild(av);
+  d.appendChild(bubble);
   box.appendChild(d);
   box.scrollTop = 99999;
 }

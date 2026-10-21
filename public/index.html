@@ -29,7 +29,7 @@
 <!-- Familista Design Core tokens: custom properties only, loaded before every other
      stylesheet. Nothing reads them yet (Stage 2b.1), so this changes no pixel. -->
 <link rel="stylesheet" href="/tokens/familista-tokens.css?v=20261012-tokens-3-1">
-<link rel="stylesheet" href="/app.css?v=20261012-owner-home-ds">
+<link rel="stylesheet" href="/app.css?v=20261020-ai-safe-text">
 <!-- SYSTEM — the platform owner's command centre. Its own stylesheet, because
      SYSTEM and CLUBS are two products and a class defined for one must never
      reach the other. -->
@@ -1005,7 +1005,9 @@
 <script src="/familista-vision/familista-vision.js?v=20260926-vision-workstation" defer></script>
 <script src="/cybersecurity/cybersecurity.js?v=20261003-cybersecurity" defer></script>
 <script src="/algorithms/algorithms.js?v=20261004-algorithms" defer></script>
-<script src="/app.js?v=20261020-design-studio" defer></script>
+<!-- Model text is drawn as nodes, never HTML. Before app.js, which calls it. -->
+<script src="/ai-model-text.js?v=20261020-ai-safe-text" defer></script>
+<script src="/app.js?v=20261020-ai-safe-text" defer></script>
 <!-- Settings · Account · two-step sign-in (Cyber Defense, Step 6). After app.js: it reads _isPlatformOwner. -->
 <script src="/settings-mfa.js?v=20261002-admin-mfa" defer></script>
 <script src="/settings-ai-data.js?v=20261002-ai-data" defer></script>
