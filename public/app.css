@@ -658,6 +658,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
 .ai-msg-bubble{max-width:74%;padding:10px 13px;font-size:13px;line-height:1.6;color:var(--tx-2);}
 .ai-msg-bubble.ai{background:var(--bg-3);border:1px solid var(--bd);border-radius:4px 12px 12px 12px;}
 .ai-msg-bubble.user{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--tx);border-radius:12px 4px 12px 12px;}
+.ai-text-strong{color:var(--tx);}
 .ai-typing{display:flex;gap:4px;padding:4px 0;}
 .ai-typing span{width:6px;height:6px;border-radius:50%;background:var(--green-l);animation:typBounce 1.2s ease infinite;}
 .ai-typing span:nth-child(2){animation-delay:.2s;}
