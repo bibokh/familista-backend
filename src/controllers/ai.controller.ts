@@ -40,7 +40,7 @@ export async function getHistory(req: Request, res: Response, next: NextFunction
   try {
     const page  = req.query.page  ? parseInt(req.query.page  as string) : 1;
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
-    const data  = await aiService.getInsightHistory(req.user!.clubId, page, limit);
+    const data  = await aiService.getInsightHistory({ userId: req.user!.id, clubId: req.user!.clubId, role: req.user!.role }, page, limit);
     return sendSuccess(res, data);
   } catch (err) { return next(err); }
 }

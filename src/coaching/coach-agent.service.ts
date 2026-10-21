@@ -11,6 +11,7 @@ import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
 import { requestApproval, classifyRisk } from '../security/ai-approval.service';
+import { assertAIReader, coachListKinds, presentCoachRecommendation, presentList } from '../security/ai-read-policy';
 
 export interface CoachActor {
   userId: string;
@@ -115,18 +116,26 @@ export async function issueRecommendation(actor: CoachActor, dto: IssueRecommend
   return row;
 }
 
+// Coaching recommendations are AI agent records: who may see which, and how
+// much of each, is src/security/ai-read-policy.ts. An INJURY_RISK one is
+// medical; the other kinds are operational.
 export async function listRecommendations(actor: CoachActor, opts: { matchId?: string; kind?: CoachRecommendationKind; playerId?: string; page?: number; limit?: number } = {}) {
   const { page = 1, limit = 50 } = opts;
+  assertAIReader(actor);
+  const kinds = coachListKinds(actor);
+  if (kinds.length === 0) return { items: [], total: 0, page, limit };
   const where: Prisma.CoachRecommendationWhereInput = {
     clubId: actor.clubId,
     ...(opts.matchId  ? { matchId: opts.matchId } : {}),
     ...(opts.kind     ? { kind: opts.kind } : {}),
     ...(opts.playerId ? { playerId: opts.playerId } : {}),
+    AND: [{ kind: { in: kinds } }],
   };
-  const [items, total] = await Promise.all([
+  const [rows, total] = await Promise.all([
     prisma.coachRecommendation.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * limit, take: Math.min(limit, 500) }),
     prisma.coachRecommendation.count({ where }),
   ]);
+  const items = presentList(actor, 'coach', rows, (r, tier) => presentCoachRecommendation(r, tier)) as CoachRecommendation[];
   return { items, total, page, limit };
 }
 

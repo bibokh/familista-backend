@@ -6,6 +6,7 @@ import { complete, type GatewayResult } from '../platform/intelligence/gateway';
 import { AI_PURPOSES, aiProviderConfigured, ensureDefaultGateway } from '../platform/intelligence/default-gateway';
 import { clubAiPolicy, type ClubAiPolicy } from '../platform/intelligence/club-ai-policy';
 import { isMinor, type DataClass } from '../platform/intelligence/data-classes';
+import { AIReader, assertAIReader } from '../security/ai-read-policy';
 
 // Cyber Defense, R3: ARIA reaches the model only through the AI Gateway. What
 // it sends is built here under the club's policy, and the gateway checks it
@@ -202,11 +203,18 @@ export async function analyzeWithAI(req: AnalysisRequest): Promise<{
 
 // ── Get insight history ───────────────────────────────────
 
-export async function getInsightHistory(clubId: string, page = 1, limit = 20) {
+// A person's own ARIA history: what they asked and what came back. Not the
+// club's: another member's questions and the answers to them (a player
+// analysis quotes injuries) are theirs. Staff roles only, as for every AI
+// record (src/security/ai-read-policy.ts).
+export async function getInsightHistory(reader: AIReader, page = 1, limit = 20) {
+  assertAIReader(reader);
+  if (!reader.clubId) return { insights: [], total: 0, page, limit };
   const skip = (page - 1) * limit;
+  const where = { clubId: reader.clubId, userId: reader.userId };
   const [insights, total] = await Promise.all([
     prisma.aiInsight.findMany({
-      where: { clubId },
+      where,
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
@@ -214,7 +222,7 @@ export async function getInsightHistory(clubId: string, page = 1, limit = 20) {
         user: { select: { firstName: true, lastName: true } },
       },
     }),
-    prisma.aiInsight.count({ where: { clubId } }),
+    prisma.aiInsight.count({ where }),
   ]);
   return { insights, total, page, limit };
 }

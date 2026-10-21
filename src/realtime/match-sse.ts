@@ -30,6 +30,7 @@ import { verifySessionToken } from '../middleware/auth.middleware';
 import { subscribe, subscriberCount, MatchChannelEvent } from './match-channel';
 import { getState } from './tactical-state';
 import { endStream, watchSession } from './session-watch';
+import { presentMatchEvent } from '../security/ai-read-policy';
 
 const HEARTBEAT_MS = 25_000;
 
@@ -111,7 +112,10 @@ export async function matchLiveSse(req: Request, res: Response): Promise<void> {
   // Subscribe to MatchChannel.
   const unsubscribe = subscribe(matchId, (event: MatchChannelEvent) => {
     if (res.writableEnded) return;
-    try { writeEvent(res, event.kind, event); }
+    // AI events are filtered for this subscriber's role (ai-read-policy.ts).
+    const visible = presentMatchEvent(role, event);
+    if (!visible) return;
+    try { writeEvent(res, visible.kind, visible); }
     catch (err) { logger.warn('[match-sse] write failed', { matchId, err: (err as Error)?.message }); }
   });
 

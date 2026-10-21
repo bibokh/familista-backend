@@ -16,7 +16,9 @@ router.get('/alerts',                ctrl.listAlerts);
 router.post('/alerts',               authorize('CLUB_ADMIN','HEAD_COACH','ANALYST','ASSISTANT_COACH','MEDICAL_STAFF'), ctrl.createAlert);
 router.post('/alerts/:id/ack',       ctrl.ackAlert);
 router.post('/alerts/:id/resolve',   ctrl.resolveAlert);
-router.post('/alerts/:id/mute',      authorize('CLUB_ADMIN','HEAD_COACH','ANALYST'), ctrl.muteAlert);
+// Medical staff may mute only an alert that may hold medical data, and the
+// other roles only one that does not (ai-ops.service muteAlert).
+router.post('/alerts/:id/mute',      authorize('CLUB_ADMIN','HEAD_COACH','ANALYST','MEDICAL_STAFF'), ctrl.muteAlert);
 
 // ── Recommendations ────────────────────────────────────────────────────
 router.get('/recommendations',                  ctrl.listRecommendations);
