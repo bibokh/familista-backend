@@ -74,7 +74,11 @@ function pickSystemPrompt(agent: AIAgent, kind: string): string {
 // One tick
 // ─────────────────────────────────────────────────────────────────────────
 
-async function pickOneJob(): Promise<{ id: string; agent: AIAgent; kind: string; input: Prisma.JsonValue; clubId: string } | null> {
+// A claimed job. `triggeredBy` is the row's column, written from the
+// authenticated session by every enqueue path; `input` is caller-supplied JSON.
+type ClaimedJob = { id: string; agent: AIAgent; kind: string; input: Prisma.JsonValue; clubId: string; triggeredBy: string | null };
+
+async function pickOneJob(): Promise<ClaimedJob | null> {
   // Atomic claim — single SQL update guarded by status=PENDING.
   // We avoid Prisma's findFirst+update race by issuing one updateMany then re-reading.
   const candidate = await prisma.aIAgentJob.findFirst({
@@ -102,7 +106,7 @@ async function pickOneJob(): Promise<{ id: string; agent: AIAgent; kind: string;
     j.agent,
   );
 
-  return { id: j.id, agent: j.agent, kind: j.kind, input: j.input, clubId: j.clubId };
+  return { id: j.id, agent: j.agent, kind: j.kind, input: j.input, clubId: j.clubId, triggeredBy: j.triggeredBy };
 }
 
 async function reapStalled(): Promise<void> {
@@ -127,7 +131,7 @@ async function reapStalled(): Promise<void> {
   }
 }
 
-async function runOne(job: { id: string; agent: AIAgent; kind: string; input: Prisma.JsonValue; clubId: string }): Promise<void> {
+async function runOne(job: ClaimedJob): Promise<void> {
   try {
     // Cyber Defense, R8 — what this job may do at all, as this agent: an
     // action outside the agent's profile, a PROTECTED action, or any action
@@ -149,13 +153,35 @@ async function runOne(job: { id: string; agent: AIAgent; kind: string; input: Pr
     // park the job (revert to PENDING) so it gets re-picked after a human acts.
     const riskKind = authz.actionKind;
     if (riskKind || authz.requiresApproval) {
+      // The requester is who the server authenticated when the job was queued:
+      // the row's triggeredBy. Never job.input, which is JSON the caller wrote
+      // and could name anyone, so a user could make "someone else" the
+      // requester and then approve their own action. With no authenticated
+      // requester there is nobody for the approver to be different from, so the
+      // action is refused rather than parked.
+      const requesterId = typeof job.triggeredBy === 'string' && job.triggeredBy.trim() ? job.triggeredBy : null;
+      if (!requesterId) {
+        await refuseApproval(job, 'no authenticated requester for an action that needs approval', 'NO_AUTHENTICATED_REQUESTER');
+        return;
+      }
       const existing = await getJobApproval(job.id);
+      if (existing && existing.requesterId !== requesterId) {
+        // An approval raised for someone other than the job's requester (one
+        // written before this check existed) does not authorise this job.
+        await refuseApproval(job, 'the approval names a different requester than the job', 'APPROVAL_REQUESTER_MISMATCH');
+        return;
+      }
+      if (existing && existing.status === 'APPROVED' && existing.approvedBy === requesterId) {
+        await refuseApproval(job, 'an action may not be approved by the user who requested it', 'SELF_APPROVAL');
+        return;
+      }
       if (!existing) {
-        // No approval row yet — create one and park the job.
-        const requesterId = (() => {
-          const t = (job.input as { triggeredBy?: string } | null);
-          return (t && typeof t.triggeredBy === 'string') ? t.triggeredBy : 'system';
-        })();
+        // No approval row yet — create one and park the job. Once per job: a
+        // parked job is picked again every tick, and this branch is not.
+        const claimed = (job.input as { triggeredBy?: unknown } | null)?.triggeredBy;
+        if (claimed !== undefined && claimed !== requesterId) {
+          logSecurityEvent({ kind: 'UNAUTHORIZED_AI_ATTEMPT', severity: 'WARN', clubId: job.clubId, actorId: requesterId, payload: { jobId: job.id, agent: job.agent, reason: 'INPUT_CLAIMS_ANOTHER_REQUESTER' } });
+        }
         try {
           await requestApproval(
             { userId: requesterId, clubId: job.clubId, ipAddress: null, userAgent: null },
@@ -311,6 +337,20 @@ async function runOne(job: { id: string; agent: AIAgent; kind: string; input: Pr
     // on the job row: a provider's message routinely quotes the prompt back.
     publishAIAgentFailed(agentCtx(job), job.agent, err);
   }
+}
+
+/**
+ * Refuse a job at the approval gate: a terminal failure, a security event and
+ * the same failure the producer publishes for any refused run. The approval
+ * row, if any, is left as it is for the audit trail.
+ */
+async function refuseApproval(job: ClaimedJob, why: string, reason: string): Promise<void> {
+  await prisma.aIAgentJob.update({
+    where: { id: job.id },
+    data:  { status: AutomationStatus.FAILED, finishedAt: new Date(), error: `Not authorised: ${why}`.slice(0, 4000) },
+  });
+  logSecurityEvent({ kind: 'UNAUTHORIZED_AI_ATTEMPT', severity: 'WARN', clubId: job.clubId, actorId: job.triggeredBy, payload: { jobId: job.id, agent: job.agent, reason } });
+  publishAIAgentFailed(agentCtx(job), job.agent, { message: 'not authorised: refused at the approval gate' });
 }
 
 /** The same envelope for every event about one run. */

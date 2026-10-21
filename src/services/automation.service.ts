@@ -155,7 +155,6 @@ export interface EnqueueAgentJobDto {
   input:  Prisma.JsonValue;
   teamId?: string | null;
   model?: string;
-  triggeredBy?: string;
 }
 
 export async function enqueueAgentJob(actor: AutomationActor, dto: EnqueueAgentJobDto): Promise<AIAgentJob> {
@@ -170,7 +169,9 @@ export async function enqueueAgentJob(actor: AutomationActor, dto: EnqueueAgentJ
       input:       dto.input as Prisma.InputJsonValue,
       status:      AutomationStatus.PENDING,
       model:       dto.model ?? null,
-      triggeredBy: dto.triggeredBy ?? actor.userId,
+      // Always the authenticated actor: the approval gate reads this column as
+      // the requester, so no caller may name somebody else.
+      triggeredBy: actor.userId,
     },
   });
 

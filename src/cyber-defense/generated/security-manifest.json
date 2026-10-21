@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-12T18:30:18.278Z",
+  "generatedAt": "2026-10-21T00:06:27.346Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -2024,7 +2024,7 @@
       "id": "security-event-log",
       "status": "PRESENT",
       "evidence": "src/security/security-event.service.ts",
-      "note": "20 call site(s) record security events."
+      "note": "22 call site(s) record security events."
     },
     {
       "id": "ai-action-approval-gate",
