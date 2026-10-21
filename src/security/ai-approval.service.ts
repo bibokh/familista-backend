@@ -10,8 +10,10 @@
 //   2. We create an AIApprovalRequest row (status=PENDING, expiresAt=now+24h).
 //   3. The worker, on picking up that job, calls `getJobApproval(jobId)` —
 //      if status != APPROVED, the job is left in PENDING and re-tried later.
-//   4. A DIFFERENT user (not the requester) calls approve(). The worker
-//      then sees status=APPROVED on its next tick and runs the job.
+//   4. A DIFFERENT user (not the requester, whatever their role) with an
+//      approver role calls approve(). The worker then sees status=APPROVED on
+//      its next tick, checks the approval belongs to the job's authenticated
+//      requester and was not decided by them, and runs the job.
 //
 // Auditability: every state transition appends a SecurityAuditEvent
 // AND logs a SecurityEvent. The chain hash records the approver identity.
@@ -23,6 +25,9 @@ import { appendAuditEventAsync } from './audit-chain.service';
 import { logSecurityEvent } from './security-event.service';
 
 const TTL_MS = 24 * 60 * 60_000;
+
+/** Who may decide an approval: the same roles routes/security.routes.ts admits. */
+export const APPROVER_ROLES: readonly string[] = ['SUPER_ADMIN', 'CLUB_ADMIN', 'HEAD_COACH'];
 
 export interface ApprovalActor {
   userId:    string;
@@ -76,8 +81,10 @@ export async function requestApproval(actor: ApprovalActor, dto: CreateApprovalD
 export async function approve(actor: ApprovalActor, id: string): Promise<AIApprovalRequest> {
   const r = await prisma.aIApprovalRequest.findUnique({ where: { id } });
   if (!r)                                                        throw new NotFoundError('AIApprovalRequest');
+  if (!actor.role || !APPROVER_ROLES.includes(actor.role))       throw new ForbiddenError('Role may not decide approvals');
   if (r.clubId !== actor.clubId && actor.role !== 'SUPER_ADMIN') throw new ForbiddenError();
-  if (r.requesterId === actor.userId && actor.role !== 'SUPER_ADMIN') {
+  // Segregation of duties holds for every role: nobody approves their own request.
+  if (r.requesterId === actor.userId) {
     throw new ForbiddenError('Approver must be different from requester (segregation of duties)');
   }
   if (r.status !== 'PENDING') throw new BadRequestError(`Approval is ${r.status}`);
@@ -111,6 +118,7 @@ export async function approve(actor: ApprovalActor, id: string): Promise<AIAppro
 export async function reject(actor: ApprovalActor, id: string, reason?: string): Promise<AIApprovalRequest> {
   const r = await prisma.aIApprovalRequest.findUnique({ where: { id } });
   if (!r)                                                        throw new NotFoundError('AIApprovalRequest');
+  if (!actor.role || !APPROVER_ROLES.includes(actor.role))       throw new ForbiddenError('Role may not decide approvals');
   if (r.clubId !== actor.clubId && actor.role !== 'SUPER_ADMIN') throw new ForbiddenError();
   if (r.status !== 'PENDING') throw new BadRequestError(`Approval is ${r.status}`);
   const updated = await prisma.aIApprovalRequest.update({
