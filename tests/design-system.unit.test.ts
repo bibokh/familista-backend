@@ -859,9 +859,12 @@ describe('Owner Home: the ninth card, DESIGN SYSTEM CONTROL', () => {
 
   it('is shipped with fresh asset versions, so no browser mixes the old script with the new stylesheet', () => {
     const html = read('public/index.html');
-    expect(html).toContain('/app.css?v=20261012-owner-home-ds');
-    // Slice 1a of Familista Design Studio changed app.js (its owner-only entry), so app.js moved on again.
-    expect(html).toContain('/app.js?v=20261020-design-studio');
+    // Model text is now drawn as nodes (public/ai-model-text.js) and its bold is styled by app.css,
+    // so the script and the stylesheet moved on together.
+    expect(html).toContain('/app.css?v=20261020-ai-safe-text');
+    expect(html).toContain('/app.js?v=20261020-ai-safe-text');
+    expect(html).not.toContain('/app.css?v=20261012-owner-home-ds');
+    expect(html).not.toContain('/app.js?v=20261020-design-studio');
     expect(html).not.toContain('/app.js?v=20261017-design-system-room');
     expect(html).not.toContain('/app.js?v=20261012-owner-home-ds');
     expect(html).not.toMatch(/\/app\.(css|js)\?v=20261004-algorithms/);
