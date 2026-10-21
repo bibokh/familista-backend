@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-21T10:46:12.812Z",
+  "generatedAt": "2026-10-21T13:48:47.177Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -1101,7 +1101,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 209 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 210 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1654,7 +1654,7 @@
     "middleware": 23,
     "fabricModules": 52,
     "totalTypeScript": 606,
-    "testSuites": 209,
+    "testSuites": 210,
     "migrations": 49,
     "prismaModels": 344,
     "prismaEnums": 209
@@ -1748,14 +1748,14 @@
           "Row-level security pilot (real PostgreSQL)",
           "Security closure Task 1 (real PostgreSQL)",
           "Algorithm telemetry (real PostgreSQL)",
+          "AI read authorization (real PostgreSQL)",
           "Audit (blocking on high and critical)",
           "Checkout",
           "Setup Node 20",
           "Install deps",
           "Install the browser-proof tools (pinned, lockfile-verified, no install scripts)",
           "Audit the browser-proof tools (blocking on high and critical)",
-          "Build the application",
-          "Find Chrome on this runner"
+          "Build the application"
         ],
         "services": [
           "postgres:16-alpine"

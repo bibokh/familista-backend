@@ -23,6 +23,8 @@ router.get('/tasks/:id/runs',         ctrl.listTaskRuns);
 router.get('/agents/jobs',            ctrl.listAgentJobs);
 router.post('/agents/jobs',           authorize('CLUB_ADMIN','HEAD_COACH','ANALYST','MEDICAL_STAFF'), ctrl.enqueueAgentJob);
 router.get('/agents/jobs/:id',        ctrl.getAgentJob);
-router.post('/agents/jobs/:id/cancel', authorize('CLUB_ADMIN','HEAD_COACH'), ctrl.cancelAgentJob);
+// Medical staff may cancel only a job that may hold medical data, and the
+// other roles only one that does not (automation.service cancelAgentJob).
+router.post('/agents/jobs/:id/cancel', authorize('CLUB_ADMIN','HEAD_COACH','MEDICAL_STAFF'), ctrl.cancelAgentJob);
 
 export default router;

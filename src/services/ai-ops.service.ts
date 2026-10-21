@@ -12,8 +12,8 @@
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError } from '../utils/errors';
 import {
-  AIReader, accessTier, assertAIReader, listConditions, presentAlert, presentList,
-  presentRecommendation, presentReport, recordClass,
+  AIReader, accessTier, assertAIReader, assertMayAct, listConditions, presentAlert, presentList,
+  presentRecommendation, presentReport,
 } from '../security/ai-read-policy';
 import { publish } from '../realtime/match-channel';
 import { logger } from '../utils/logger';
@@ -136,7 +136,7 @@ export async function listAlerts(
   const { matchId, status, severity, kind, page = 1, limit = 50 } = opts;
   // Who may see which alerts: src/security/ai-read-policy.ts.
   assertAIReader(reader);
-  const readable = listConditions(reader, { agentNullable: true });
+  const readable = listConditions(reader, 'alert', { agentNullable: true });
   if (!readable || !reader.clubId) return { items: [], total: 0, page, limit };
   const where = {
     clubId: reader.clubId,
@@ -155,16 +155,20 @@ export async function listAlerts(
     }),
     prisma.aIAlert.count({ where }),
   ]);
-  const items = presentList(reader, rows, (a) => recordClass(a.agent, a.kind), (a, tier) => presentAlert(a, tier));
+  const items = presentList(reader, 'alert', rows, (a, tier) => presentAlert(a, tier));
   return { items, total, page, limit };
 }
 
-// Acknowledging says "seen": anyone who may see the alert at all. Resolving or
-// muting closes it: only someone who may read all of it.
+// Acknowledging says "seen": anyone who may see the alert at all. Resolving
+// closes it: only someone who may read all of it. Muting silences it: on an
+// alert that may hold medical data, medical staff; on any other, the roles the
+// route has always allowed.
+const OPERATIONAL_MUTE_ROLES = ['CLUB_ADMIN', 'HEAD_COACH', 'ANALYST'] as const;
+
 export async function ackAlert(actor: AlertActor, alertId: string) {
   const a = await prisma.aIAlert.findUnique({ where: { id: alertId } });
   if (!a)                       throw new NotFoundError('AIAlert');
-  const tier = accessTier(actor, a, 'AIAlert');
+  const tier = accessTier(actor, 'alert', a, 'AIAlert');
   if (a.status !== 'OPEN') return presentAlert(a, tier);
   return presentAlert(await prisma.aIAlert.update({
     where: { id: alertId },
@@ -175,7 +179,7 @@ export async function ackAlert(actor: AlertActor, alertId: string) {
 export async function resolveAlert(actor: AlertActor, alertId: string) {
   const a = await prisma.aIAlert.findUnique({ where: { id: alertId } });
   if (!a)                       throw new NotFoundError('AIAlert');
-  if (accessTier(actor, a, 'AIAlert') !== 'FULL') throw new ForbiddenError('Only someone who may read this alert in full may resolve it');
+  if (accessTier(actor, 'alert', a, 'AIAlert') !== 'FULL') throw new ForbiddenError('Only someone who may read this alert in full may resolve it');
   if (a.status === 'RESOLVED') return a;
   return prisma.aIAlert.update({
     where: { id: alertId },
@@ -186,7 +190,7 @@ export async function resolveAlert(actor: AlertActor, alertId: string) {
 export async function muteAlert(actor: AlertActor, alertId: string) {
   const a = await prisma.aIAlert.findUnique({ where: { id: alertId } });
   if (!a)                       throw new NotFoundError('AIAlert');
-  if (accessTier(actor, a, 'AIAlert') !== 'FULL') throw new ForbiddenError('Only someone who may read this alert in full may mute it');
+  assertMayAct(actor, 'alert', a, accessTier(actor, 'alert', a, 'AIAlert'), OPERATIONAL_MUTE_ROLES, 'mute');
   return prisma.aIAlert.update({
     where: { id: alertId },
     data:  { status: 'MUTED', ackedBy: actor.userId },
@@ -250,7 +254,7 @@ export async function listRecommendations(
 ) {
   const { matchId, status, agent, page = 1, limit = 50 } = opts;
   assertAIReader(reader);
-  const readable = listConditions(reader, { agentNullable: false });
+  const readable = listConditions(reader, 'recommendation', { agentNullable: false });
   if (!readable || !reader.clubId) return { items: [], total: 0, page, limit };
   const where = {
     clubId: reader.clubId,
@@ -268,14 +272,14 @@ export async function listRecommendations(
     }),
     prisma.aIRecommendation.count({ where }),
   ]);
-  const items = presentList(reader, rows, (r) => recordClass(r.agent, r.kind), (r, tier) => presentRecommendation(r, tier));
+  const items = presentList(reader, 'recommendation', rows, (r, tier) => presentRecommendation(r, tier));
   return { items, total, page, limit };
 }
 
 export async function ackRecommendation(actor: AlertActor, id: string) {
   const r = await prisma.aIRecommendation.findUnique({ where: { id } });
   if (!r)                                                  throw new NotFoundError('AIRecommendation');
-  const tier = accessTier(actor, r, 'AIRecommendation');
+  const tier = accessTier(actor, 'recommendation', r, 'AIRecommendation');
   return presentRecommendation(await prisma.aIRecommendation.update({
     where: { id },
     data:  { status: 'ACK', ackedAt: new Date(), ackedBy: actor.userId },
@@ -320,7 +324,7 @@ export async function listReports(
 ) {
   const { matchId, agent, kind, page = 1, limit = 50 } = opts;
   assertAIReader(reader);
-  const readable = listConditions(reader, { agentNullable: false });
+  const readable = listConditions(reader, 'report', { agentNullable: false });
   if (!readable || !reader.clubId) return { items: [], total: 0, page, limit };
   const where = {
     clubId: reader.clubId,
@@ -338,12 +342,12 @@ export async function listReports(
     }),
     prisma.aIReport.count({ where }),
   ]);
-  const items = presentList(reader, rows, (r) => recordClass(r.agent, r.kind), (r, tier) => presentReport(r, tier, 'list'));
+  const items = presentList(reader, 'report', rows, (r, tier) => presentReport(r, tier, 'list'));
   return { items, total, page, limit };
 }
 
 export async function getReport(actor: AlertActor, id: string) {
   const r = await prisma.aIReport.findUnique({ where: { id } });
   if (!r)                                                   throw new NotFoundError('AIReport');
-  return presentReport(r, accessTier(actor, r, 'AIReport'), 'detail');
+  return presentReport(r, accessTier(actor, 'report', r, 'AIReport'), 'detail');
 }

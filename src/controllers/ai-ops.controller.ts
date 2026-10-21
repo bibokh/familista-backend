@@ -8,7 +8,7 @@ import * as svc from '../services/ai-ops.service';
 import * as anomaly from '../services/anomaly-detector.service';
 import { sendSuccess, sendCreated, sendPaginated } from '../utils/response';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
-import { AIReader, accessTier, presentJob, tierFor } from '../security/ai-read-policy';
+import { AIReader, accessTier, assertNotDeclaredKind, presentJob, tierFor } from '../security/ai-read-policy';
 import type { Prisma } from '@prisma/client';
 import { publishAIRequestCreated } from '../fabric/producers/ai.producer';
 
@@ -56,6 +56,8 @@ export async function createAlert(req: Request, res: Response, next: NextFunctio
   try {
     const parsed = createAlertSchema.safeParse({ body: req.body });
     if (!parsed.success) throw zerr(parsed.error);
+    // A hand-written alert cannot pass as one a platform producer wrote.
+    assertNotDeclaredKind('alert', parsed.data.body.agent, parsed.data.body.kind);
     const a = await svc.createAlert({ ...parsed.data.body, clubId: req.user!.clubId });
     return sendCreated(res, a);
   } catch (err) { return next(err); }
@@ -121,6 +123,7 @@ export async function createRecommendation(req: Request, res: Response, next: Ne
     const parsed = createRecSchema.safeParse({ body: req.body });
     if (!parsed.success) throw zerr(parsed.error);
     const body = parsed.data.body;
+    assertNotDeclaredKind('recommendation', body.agent, body.kind);
     const r = await svc.createRecommendation({
       ...body,
       clubId:  req.user!.clubId,
@@ -174,6 +177,7 @@ export async function createReport(req: Request, res: Response, next: NextFuncti
   try {
     const parsed = createReportSchema.safeParse({ body: req.body });
     if (!parsed.success) throw zerr(parsed.error);
+    assertNotDeclaredKind('report', parsed.data.body.agent, parsed.data.body.kind);
     const r = await svc.createReport({ ...parsed.data.body, clubId: req.user!.clubId });
     return sendCreated(res, r);
   } catch (err) { return next(err); }
@@ -217,6 +221,9 @@ export async function runAgent(req: Request, res: Response, next: NextFunction) 
     const parsed = runAgentSchema.safeParse({ body: req.body ?? {} });
     if (!parsed.success) throw zerr(parsed.error);
     const body = parsed.data.body;
+    // A job's input here is whatever the caller sent; it cannot pass as one
+    // whose input the server assembled.
+    assertNotDeclaredKind('job', agentParam, body.kind);
 
     // Enqueue an AIAgentJob — the worker will pick it up on its next tick
     // (deterministic handler first, LLM fallback only if configured).
@@ -247,7 +254,7 @@ export async function getAgentJob(req: Request, res: Response, next: NextFunctio
   try {
     const j = await prisma.aIAgentJob.findUnique({ where: { id: req.params.id } });
     if (!j) throw new NotFoundError('AIAgentJob');
-    return sendSuccess(res, presentJob(j, accessTier(readerOf(req), j, 'AIAgentJob'), 'detail'));
+    return sendSuccess(res, presentJob(j, accessTier(readerOf(req), 'job', j, 'AIAgentJob'), 'detail'));
   } catch (err) { return next(err); }
 }
 

@@ -22,7 +22,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma }  from '../config/database';
 import { NotFoundError } from '../utils/errors';
-import { accessTier, assertAIReader, listConditions, presentJob, presentList, recordClass, tierFor } from '../security/ai-read-policy';
+import { accessTier, assertAIReader, listConditions, presentJob, presentList, tierOf } from '../security/ai-read-policy';
 import { publishAIRequestCreated } from '../fabric/producers/ai.producer';
 
 export interface IntelligenceActor {
@@ -267,8 +267,12 @@ export async function triggerTrainingPlanner(
   // Squad readiness from Phase Q workload (graceful degradation).
   let workloadData: unknown[] = [];
   try {
+    // Load figures only (CONFIDENTIAL in data-classes.ts). The injury-risk
+    // score, the high-risk flag and the risk flags are health inferences and do
+    // not go to the TRAINING agent, whose records are operational.
     const records = await (prisma as any).workloadRecord?.findMany?.({
       where:    { playerId: { in: team.players.map((p: { id: string }) => p.id) } },
+      select:   { playerId: true, weekStart: true, acuteLoad: true, chronicLoad: true, trainingStressBalance: true, acwr: true, monotony: true, strain: true },
       orderBy:  { recordedAt: 'desc' },
       take:     team.players.length,
       distinct: ['playerId'],
@@ -405,7 +409,7 @@ export async function listJobs(
   // Who may see which jobs, and how much of each: src/security/ai-read-policy.ts.
   // A list never carries a job's input, output or error.
   assertAIReader(actor);
-  const readable = listConditions(actor, { agentNullable: false });
+  const readable = listConditions(actor, 'job', { agentNullable: false });
   if (!readable || !actor.clubId) return [];
   const rows = await prisma.aIAgentJob.findMany({
     where: {
@@ -416,13 +420,13 @@ export async function listJobs(
     orderBy: { createdAt: 'desc' },
     take:    Math.min(limit, 50),
   });
-  return presentList(actor, rows, (j) => recordClass(j.agent, j.kind), (j, tier) => presentJob(j, tier, 'list'));
+  return presentList(actor, 'job', rows, (j, tier) => presentJob(j, tier, 'list'));
 }
 
 export async function getJob(actor: IntelligenceActor, jobId: string) {
   const job = await prisma.aIAgentJob.findUnique({ where: { id: jobId } });
   if (!job || job.clubId !== actor.clubId) throw new NotFoundError('AIAgentJob');
-  return presentJob(job, accessTier(actor, job, 'AIAgentJob'), 'detail');
+  return presentJob(job, accessTier(actor, 'job', job, 'AIAgentJob'), 'detail');
 }
 
 /**
@@ -434,7 +438,7 @@ export async function getJob(actor: IntelligenceActor, jobId: string) {
  */
 export function presentTriggered(actor: IntelligenceActor, job: { clubId: string; agent: string; kind: string } & Record<string, unknown>) {
   if (job.clubId !== actor.clubId) throw new NotFoundError('AIAgentJob');
-  const tier = tierFor(actor.role, recordClass(job.agent, job.kind));
+  const tier = tierOf(actor, 'job', job);
   return presentJob(job, tier === 'NONE' ? 'SUMMARY' : tier, 'detail');
 }
 

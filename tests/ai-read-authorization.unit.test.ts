@@ -8,12 +8,14 @@
  * a player or a parent included, could list every agent job with its prompt and
  * output, every medical alert with its payload, and any member's ARIA history.
  *
- * The expected matrix below is written out by hand, not derived from the module
- * under test, and pinned against it. Every sensitive field of every seeded record
- * carries a unique marker, so a leak is found in the serialized response however
- * it got there. The in-memory database evaluates conditions with SQL's
- * three-valued logic, so a filter that silently drops or reveals rows whose
- * `agent` is NULL fails here the way it would in PostgreSQL.
+ * The expected matrix and every record's classes are written out by hand in
+ * tests/helpers/ai-read-fixtures.ts, not derived from the module under test,
+ * and pinned against it. Every sensitive field of every seeded record carries a
+ * unique marker, so a leak is found in the serialized response however it got
+ * there. The in-memory database evaluates conditions with SQL's three-valued
+ * logic, so a filter that silently drops or reveals rows whose `agent` is NULL
+ * fails here the way it would in PostgreSQL; the same expectations run against
+ * real PostgreSQL in tests/ai-read-authorization.integration.test.ts.
  */
 
 process.env.NODE_ENV = 'test';
@@ -115,88 +117,32 @@ import path from 'path';
 import { signToken } from '../src/security/jwt-tokens';
 import { forgetIdentity } from '../src/middleware/auth.middleware';
 import {
-  AI_READ_MATRIX, AI_READER_ROLES, AGENT_RECORD_CLASS, presentMatchEvent, recordClass,
+  AI_READ_MATRIX, AI_READER_ROLES, AGENT_RECORD_CLASS, COACH_KIND_CLASS, DECLARED_KINDS, HEALTH_FIELDS,
+  classify, holdsHealthData, presentMatchEvent, tierOf,
 } from '../src/security/ai-read-policy';
 import { AGENT_PROFILES } from '../src/platform/intelligence/agent-jobs';
+import { FACTOR_CLASSES, FEATURE_CLASSES } from '../src/platform/intelligence/data-classes';
 import * as intelligenceCtrl from '../src/controllers/intelligence.controller';
+import {
+  C1, C2, C2_LABELS, CANCEL_ROUTE_ROLES, DETAILS, EXPECT, ID, LISTS, MUTE_ROUTE_ROLES, NO_ACCESS, OPERATIONAL_CANCEL_ROLES,
+  OPERATIONAL_MUTE_ROLES, READERS, ROLES, SPECS, SUMMARY_KEYS, buildRecords, expectTier, intelligenceOnly, itemsOf, mayAct,
+  secret, spec, specsOf, totalOf, uid, type Role, type Spec,
+} from './helpers/ai-read-fixtures';
 
 const app = createApp();
 const ROOT = path.join(__dirname, '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
-
-// ── The expected matrix, by hand ────────────────────────────────────────────
-type Cls = 'OPERATIONAL' | 'SCOUTING' | 'FINANCE' | 'MEDICAL';
-type Tier = 'FULL' | 'SUMMARY' | 'NONE';
-const ROLES = ['SUPER_ADMIN', 'CLUB_ADMIN', 'MANAGER', 'HEAD_COACH', 'ASSISTANT_COACH', 'COACH', 'ANALYST', 'MEDICAL_STAFF', 'SCOUT', 'PARENT', 'PLAYER'] as const;
-type Role = typeof ROLES[number];
-const EXPECT: Record<Role, Record<Cls, Tier>> = {
-  SUPER_ADMIN:     { OPERATIONAL: 'FULL', SCOUTING: 'FULL', FINANCE: 'FULL', MEDICAL: 'SUMMARY' },
-  CLUB_ADMIN:      { OPERATIONAL: 'FULL', SCOUTING: 'FULL', FINANCE: 'FULL', MEDICAL: 'SUMMARY' },
-  MANAGER:         { OPERATIONAL: 'FULL', SCOUTING: 'FULL', FINANCE: 'FULL', MEDICAL: 'SUMMARY' },
-  HEAD_COACH:      { OPERATIONAL: 'FULL', SCOUTING: 'FULL', FINANCE: 'NONE', MEDICAL: 'SUMMARY' },
-  ASSISTANT_COACH: { OPERATIONAL: 'FULL', SCOUTING: 'NONE', FINANCE: 'NONE', MEDICAL: 'SUMMARY' },
-  COACH:           { OPERATIONAL: 'FULL', SCOUTING: 'NONE', FINANCE: 'NONE', MEDICAL: 'SUMMARY' },
-  ANALYST:         { OPERATIONAL: 'FULL', SCOUTING: 'FULL', FINANCE: 'NONE', MEDICAL: 'NONE' },
-  MEDICAL_STAFF:   { OPERATIONAL: 'FULL', SCOUTING: 'NONE', FINANCE: 'NONE', MEDICAL: 'FULL' },
-  SCOUT:           { OPERATIONAL: 'NONE', SCOUTING: 'FULL', FINANCE: 'NONE', MEDICAL: 'NONE' },
-  PARENT:          { OPERATIONAL: 'NONE', SCOUTING: 'NONE', FINANCE: 'NONE', MEDICAL: 'NONE' },
-  PLAYER:          { OPERATIONAL: 'NONE', SCOUTING: 'NONE', FINANCE: 'NONE', MEDICAL: 'NONE' },
-};
-const NO_ACCESS: Role[] = ['PARENT', 'PLAYER'];
-const MUTE_ROLES: Role[] = ['CLUB_ADMIN', 'HEAD_COACH', 'ANALYST']; // the route's own list, unchanged
-
-const C1 = 'c-1', C2 = 'c-2';
-const uid = (r: Role) => `u-${r.toLowerCase()}`;
-const OTHER_CLUB_ADMIN = { id: 'u-other-admin', role: 'CLUB_ADMIN', clubId: C2 };
-
-// ── Seeded records: one per class, plus the cases a class is decided by kind ─
-// [label, agent, kind, expected class]
-const SPECS: Array<[string, string | null, string, Cls]> = [
-  ['ops',       'TACTICAL', 'MATCH_REVIEW',      'OPERATIONAL'],
-  ['scouting',  'SCOUTING', 'SHORTLIST',         'SCOUTING'],
-  ['finance',   'FINANCE',  'FINANCE_ANOMALY',   'FINANCE'],
-  ['medical',   'MEDICAL',  'INJURY_RISK',       'MEDICAL'],
-  ['medkind',   'TACTICAL', 'FATIGUE_WARNING',   'MEDICAL'],
-];
-const ALERT_EXTRA: Array<[string, string | null, string, Cls]> = [
-  ['agentless',     null, 'DEVICE_FLEET_STALE', 'OPERATIONAL'],
-  ['agentless-med', null, 'INJURY_NOTE',        'MEDICAL'],
-];
-const secret = (type: string, label: string, f: string) => `SECRET:${type}:${label}:${f}`;
-const ID = (type: string, label: string, club = C1) => `${type}-${label}-${club}`;
-const T0 = Date.now();
-const at = (i: number) => new Date(T0 - i * 1000);
+const TYPE: Record<string, 'job' | 'alert' | 'recommendation' | 'report' | 'coach'> = { job: 'job', alert: 'alert', rec: 'recommendation', report: 'report', coach: 'coach' };
+const MODEL: Record<string, string> = { job: 'aIAgentJob', alert: 'aIAlert', rec: 'aIRecommendation', report: 'aIReport', coach: 'coachRecommendation' };
+const OTHER_CLUB_ADMIN = { id: uid('CLUB_ADMIN', C2), role: 'CLUB_ADMIN' };
 
 function seed() {
   TABLES.clear(); forgetIdentity();
   const base = { isActive: true, currentClubId: null, currentTeamId: null, tokenVersion: 0, platformAdmin: null };
-  for (const r of ROLES) rows('user').push({ ...base, id: uid(r), email: `${uid(r)}@x.test`, role: r, clubId: C1 });
-  rows('user').push({ ...base, ...OTHER_CLUB_ADMIN, email: 'other@x.test' });
-  let i = 0;
-  for (const club of [C1, C2]) {
-    const specs = club === C1 ? SPECS : SPECS.slice(0, 1);
-    for (const [label, agent, kind] of specs) {
-      const L = club === C1 ? label : `${label}-c2`;
-      rows('aIAgentJob').push({ id: ID('job', label, club), clubId: club, teamId: null, agent, kind: club === C1 && label === 'ops' ? 'INTELLIGENCE.TACTICAL_ADVISOR' : `INTELLIGENCE.${kind}`, status: 'SUCCESS', model: 'm', costTokens: 1, costCents: 0, triggeredBy: uid('HEAD_COACH'), createdAt: at(i++), startedAt: null, finishedAt: null,
-        input: { prompt: secret('job', L, 'input') }, output: { text: secret('job', L, 'output') }, error: secret('job', L, 'error') });
-      rows('aIRecommendation').push({ id: ID('rec', label, club), clubId: club, matchId: null, teamId: null, playerId: 'p-1', agent, kind, status: 'OPEN', createdAt: at(i++), ackedAt: null, ackedBy: null,
-        title: secret('rec', L, 'title'), content: { x: secret('rec', L, 'content') }, score: 0.9 });
-      rows('aIReport').push({ id: ID('report', label, club), clubId: club, matchId: null, teamId: null, agent, kind, createdAt: at(i++),
-        title: secret('report', L, 'title'), content: secret('report', L, 'content'), payload: { x: secret('report', L, 'payload') } });
-    }
-    for (const [label, agent, kind] of club === C1 ? [...SPECS, ...ALERT_EXTRA] : SPECS.slice(0, 1)) {
-      const L = club === C1 ? label : `${label}-c2`;
-      rows('aIAlert').push({ id: ID('alert', label, club), clubId: club, matchId: null, teamId: null, playerId: 'p-1', agent, kind, severity: 'CRITICAL', status: 'OPEN', createdAt: at(i++), ackedAt: null, ackedBy: null, resolvedAt: null,
-        title: secret('alert', L, 'title'), message: secret('alert', L, 'message'), payload: { x: secret('alert', L, 'payload') } });
-    }
-    for (const [label, kind] of [['coach-tactical', 'TACTICAL'], ['coach-injury', 'INJURY_RISK']] as const) {
-      const L = club === C1 ? label : `${label}-c2`;
-      rows('coachRecommendation').push({ id: ID('coach', label, club), clubId: club, matchId: null, teamId: null, playerId: 'p-1', agentId: null, kind, tacticalImpact: 'LOW', approvalRequestId: null, status: 'OPEN', createdAt: at(i++), ackedAt: null, ackedBy: null,
-        title: secret('coach', L, 'title'), rationale: secret('coach', L, 'rationale'), payload: { x: secret('coach', L, 'payload') }, confidence: 0.7 });
-    }
-  }
+  for (const club of [C1, C2]) for (const r of ROLES) rows('user').push({ ...base, id: uid(r, club), email: `${uid(r, club)}@x.test`, role: r, clubId: club });
+  for (const [model, list] of Object.entries(buildRecords())) rows(model).push(...list.map((x) => ({ ...x })));
   for (const r of ['HEAD_COACH', 'CLUB_ADMIN'] as Role[]) {
-    rows('aiInsight').push({ id: `insight-${r}`, clubId: C1, userId: uid(r), type: 'medical', prompt: secret('insight', r, 'prompt'), response: secret('insight', r, 'response'), model: 'm', createdAt: at(i++) });
+    rows('aiInsight').push({ id: `insight-${r}`, clubId: C1, userId: uid(r), type: 'medical', prompt: secret('insight', r, 'prompt'), response: secret('insight', r, 'response'), model: 'm', createdAt: new Date() });
   }
 }
 
@@ -205,20 +151,22 @@ const as = (role: Role | 'OTHER') => {
   const [id, r] = role === 'OTHER' ? [OTHER_CLUB_ADMIN.id, OTHER_CLUB_ADMIN.role] : [uid(role), role];
   return {
     get: (url: string) => request(app).get(url).set('Authorization', bearer(id, r)),
-    post: (url: string) => request(app).post(url).set('Authorization', bearer(id, r)).send({}),
+    post: (url: string, payload: Row = {}) => request(app).post(url).set('Authorization', bearer(id, r)).send(payload),
   };
 };
 const body = (res: Row) => JSON.stringify(res.body);
-const itemsOf = (res: Row): Row[] => (Array.isArray(res.body.data) ? res.body.data : res.body.data?.items ?? res.body.items ?? res.body.data?.insights ?? []);
-const classOfSpec = (label: string): Cls => [...SPECS, ...ALERT_EXTRA].find((s) => s[0] === label)![3];
+const rowOf = (s: Spec, club = C1) => rows(MODEL[s.type]).find((x) => x.id === ID(s.type, s.label, club))!;
+const reader = (role: Role) => ({ userId: uid(role), clubId: C1, role });
+const recordCount = () => [...TABLES.entries()].filter(([m]) => Object.values(MODEL).includes(m)).reduce((n, [, t]) => n + t.length, 0);
 
 beforeEach(seed);
 
-// ── 1. The matrix and the classes ───────────────────────────────────────────
+// ── 1. The matrix and the classification ────────────────────────────────────
 describe('the policy', () => {
-  it('is exactly the hand-written matrix, with no role left undecided', () => {
+  it('is exactly the hand-written matrix: medical for medical staff alone, no summary granted by role', () => {
     expect(AI_READ_MATRIX).toEqual(EXPECT);
-    expect([...AI_READER_ROLES].sort()).toEqual(ROLES.filter((r) => !NO_ACCESS.includes(r)).sort());
+    expect([...AI_READER_ROLES].sort()).toEqual([...READERS].sort());
+    for (const r of ROLES) if (r !== 'MEDICAL_STAFF') expect([r, AI_READ_MATRIX[r].MEDICAL]).toEqual([r, 'NONE']);
   });
 
   it('classifies every agent the way its egress profile does', () => {
@@ -231,161 +179,309 @@ describe('the policy', () => {
     expect(Object.keys(AGENT_RECORD_CLASS).sort()).toEqual(Object.keys(AGENT_PROFILES).sort());
   });
 
-  it('makes a record medical by its kind whoever raised it, and an unknown agent the most sensitive', () => {
-    for (const [, agent, kind, cls] of [...SPECS, ...ALERT_EXTRA]) expect(recordClass(agent, kind)).toBe(cls);
-    expect(recordClass('TACTICAL', 'post_injury_return')).toBe('MEDICAL');
-    expect(recordClass('SOMETHING_NEW', 'X')).toBe('MEDICAL');
+  it('every hand-classified record gets exactly the tier the matrix gives it, for every role', () => {
+    for (const s of SPECS) for (const role of ROLES) {
+      const want = NO_ACCESS.includes(role) ? 'NONE' : expectTier(role, s);
+      expect([s.type, s.label, role, tierOf(reader(role), TYPE[s.type], rowOf(s))]).toEqual([s.type, s.label, role, want]);
+    }
+  });
+
+  it('does not decide by words: no medical word is needed to restrict, nor is one enough to restrict', () => {
+    // An undeclared kind with no medical word in it, under a non-medical agent, is restricted.
+    expect(classify('alert', 'TACTICAL', 'PLAYER_UPDATE')).toMatchObject({ declared: false, classes: ['OPERATIONAL', 'MEDICAL'] });
+    // Decided by the vocabulary, not by "FATIGUE" in the string: the rules engine's is medical, a hand-written one unclassified.
+    expect(classify('alert', null, 'FATIGUE')).toMatchObject({ declared: true, medical: true, classes: ['MEDICAL'] });
+    expect(classify('alert', 'TACTICAL', 'FATIGUE')).toMatchObject({ declared: false, medical: false, classes: ['OPERATIONAL', 'MEDICAL'] });
+    expect(classify('alert', 'TACTICAL', 'TACTICAL_COLLAPSE_RISK')).toMatchObject({ declared: true, classes: ['OPERATIONAL'] });
+    // An agent the policy does not know is the most sensitive.
+    expect(classify('alert', 'SOMETHING_NEW', 'X')).toMatchObject({ classes: ['MEDICAL'] });
+  });
+
+  it('finds health data by structured field, from the egress data classes, at any depth', () => {
+    for (const [k, c] of [...Object.entries(FEATURE_CLASSES), ...Object.entries(FACTOR_CLASSES)]) {
+      expect([k, HEALTH_FIELDS.has(k)]).toEqual([k, c === 'RESTRICTED']);
+    }
+    expect(holdsHealthData({ context: { players: [{ workload: { injuryRiskScore: 0.9 } }] } })).toBe(true);
+    expect(holdsHealthData({ formation: '4-3-3', goalsFor: 2, workload: { acwr: 1.3, acuteLoad: 400 } })).toBe(false);
+    expect(holdsHealthData('a string that says injury')).toBe(false);
+  });
+
+  it('every kind a platform producer writes is declared, and every declared kind has its producer', () => {
+    const found = new Set<string>();
+    const add = (type: string, agent: string | null, kind: string) => found.add(`${type}|${agent ?? '-'}|${kind}`);
+    for (const m of read('src/services/rules-engine.service.ts').matchAll(/kind:\s*'([A-Z_]+)'/g)) add('alert', null, m[1]);
+    expect(read('src/services/rules-engine.service.ts')).toContain('agent:    null,');
+    for (const m of read('src/services/anomaly-detector.service.ts').matchAll(/kind:\s*'([A-Z_]+)'/g)) add('alert', 'CLUB_MANAGER', m[1]);
+    expect(read('src/services/anomaly-detector.service.ts')).toContain("agent:    'CLUB_MANAGER'");
+    for (const m of read('src/intel/predictive.service.ts').matchAll(/safeAlert\([^,]+,[^,]+,[^,]+,\s*'([A-Z_]+)'/g)) add('alert', 'TACTICAL', m[1]);
+    expect(read('src/intel/predictive.service.ts')).toContain("agent: 'TACTICAL' });");
+    const handlers = read('src/workers/agent-handlers.ts');
+    for (const m of handlers.matchAll(/aiOps\.createAlert\(\{[\s\S]*?agent:\s*'([A-Z_]+)',\s*kind:\s*'([A-Z_]+)'/g)) add('alert', m[1], m[2]);
+    for (const m of handlers.matchAll(/emitRecommendation\(ctx\.clubId,\s*\w+,\s*'([A-Z_]+)',\s*'([A-Z_]+)'/g)) add('recommendation', m[1], m[2]);
+    for (const m of handlers.matchAll(/emitReport\(ctx\.clubId,\s*\w+,\s*'([A-Z_]+)',\s*'([A-Z_]+)'/g)) add('report', m[1], m[2]);
+    const intel = read('src/intelligence/intelligence.service.ts');
+    const kinds = Object.fromEntries([...intel.matchAll(/(\w+):\s*'(INTELLIGENCE\.[A-Z_]+)'/g)].map((m) => [m[1], m[2]]));
+    for (const m of intel.matchAll(/_createJob\(actor,\s*'([A-Z_]+)',\s*KIND\.(\w+)/g)) add('job', m[1], kinds[m[2]]);
+    const declared = new Set(Object.entries(DECLARED_KINDS).flatMap(([type, list]) => list.map((d) => `${type}|${d.agent ?? '-'}|${d.kind}`)));
+    expect([...found].sort()).toEqual([...declared].sort());
+    // Every place an AI record is written is one of the producers read above, or a hand-written path that refuses declared kinds.
+    const writers = [...walk('src')].filter((f) => /aiOps\.createAlert\(|aiOps\.createRecommendation\(|aiOps\.createReport\(|aIAgentJob\.create\(|await createAlert\(|safeAlert\(/.test(read(f)));
+    expect(writers.sort()).toEqual([
+      'src/controllers/ai-ops.controller.ts', 'src/intel/predictive.service.ts', 'src/intelligence/intelligence.service.ts',
+      'src/services/anomaly-detector.service.ts', 'src/services/automation.service.ts', 'src/services/rules-engine.service.ts',
+      'src/workers/agent-handlers.ts',
+    ]);
+  });
+
+  it('classifies every coaching-recommendation kind, and only INJURY_RISK as medical', () => {
+    expect(Object.entries(COACH_KIND_CLASS).filter(([, c]) => c === 'MEDICAL').map(([k]) => k)).toEqual(['INJURY_RISK']);
   });
 
   it('(control) the test database drops a NULL agent from IN and from NOT, as PostgreSQL does', () => {
     const r = { agent: null, kind: 'X' };
     expect(matches(r, { agent: { in: ['TACTICAL'] } })).toBe(false);
     expect(matches(r, { NOT: { agent: 'MEDICAL' } })).toBe(false);
-    expect(matches(r, { OR: [{ agent: null }, { agent: { in: ['TACTICAL'] } }] })).toBe(true);
+    expect(matches(r, { agent: null, kind: { notIn: ['Y'] } })).toBe(true);
   });
 });
 
-// ── 2. Lists, for every role ────────────────────────────────────────────────
-const LISTS: Array<{ name: string; url: string; type: string; labels: string[]; listHides: string[]; fullShows: string[] }> = [
-  { name: 'GET /ai-ops/alerts', url: '/api/v1/ai-ops/alerts', type: 'alert', labels: [...SPECS, ...ALERT_EXTRA].map((s) => s[0]), listHides: [], fullShows: ['title', 'message', 'payload'] },
-  { name: 'GET /ai-ops/recommendations', url: '/api/v1/ai-ops/recommendations', type: 'rec', labels: SPECS.map((s) => s[0]), listHides: [], fullShows: ['title', 'content'] },
-  { name: 'GET /ai-ops/reports', url: '/api/v1/ai-ops/reports', type: 'report', labels: SPECS.map((s) => s[0]), listHides: ['content', 'payload'], fullShows: ['title'] },
-  { name: 'GET /automation/agents/jobs', url: '/api/v1/automation/agents/jobs', type: 'job', labels: SPECS.map((s) => s[0]), listHides: ['input', 'output', 'error'], fullShows: [] },
-  { name: 'GET /phase-s/intelligence/jobs', url: '/api/v1/phase-s/intelligence/jobs?limit=50', type: 'job', labels: SPECS.map((s) => s[0]), listHides: ['input', 'output', 'error'], fullShows: [] },
-];
+function* walk(dir: string): Generator<string> {
+  for (const e of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+    const p = `${dir}/${e.name}`;
+    if (e.isDirectory()) yield* walk(p);
+    else if (p.endsWith('.ts')) yield p;
+  }
+}
 
-describe.each(LISTS)('$name', ({ url, type, labels, listHides, fullShows }) => {
+// ── 2. Lists, for every role ────────────────────────────────────────────────
+describe.each(LISTS)('$name', ({ url, type, fullShows, listHides, paged }) => {
+  const specs = specsOf(type).filter((s) => intelligenceOnly(url, s));
+
   it.each(NO_ACCESS)('negative: %s is refused', async (role) => {
     const res = await as(role).get(url);
     expect(res.status).toBe(403);
     expect(body(res)).not.toMatch(/SECRET:/);
   });
 
-  it.each(ROLES.filter((r) => !NO_ACCESS.includes(r)))('%s sees exactly its tiers, never another club, never a raw input or output', async (role) => {
+  it.each(READERS)('%s sees exactly what it is cleared for, each at its tier, never another club’s', async (role) => {
     const res = await as(role).get(url);
     expect(res.status).toBe(200);
-    const items = itemsOf(res);
-    const expected = labels.filter((l) => EXPECT[role][classOfSpec(l)] !== 'NONE').map((l) => ID(type, l)).sort();
-    expect(items.map((x) => x.id).sort()).toEqual(expected);
-    expect(body(res)).not.toMatch(/-c2:/);                                  // another club's markers
-    for (const l of labels) {
-      const tier = EXPECT[role][classOfSpec(l)];
-      for (const f of listHides) expect(body(res)).not.toContain(secret(type, l, f));
+    const items = itemsOf(res.body);
+    const expected = specs.filter((s) => expectTier(role, s) !== 'NONE');
+    expect(items.map((x) => x.id).sort()).toEqual(expected.map((s) => ID(type, s.label)).sort());
+    expect(body(res)).not.toMatch(/-c2:/);
+    for (const s of specs) {
+      const tier = expectTier(role, s);
+      for (const f of listHides) expect(body(res)).not.toContain(secret(type, s.label, f));
       for (const f of fullShows) {
-        if (tier === 'FULL') expect(body(res)).toContain(secret(type, l, f));
-        else expect(body(res)).not.toContain(secret(type, l, f));
+        if (tier === 'FULL') expect(body(res)).toContain(secret(type, s.label, f));
+        else expect(body(res)).not.toContain(secret(type, s.label, f));
       }
-      const item = items.find((x) => x.id === ID(type, l)) as Row;
+      const item = items.find((x) => x.id === ID(type, s.label));
       if (tier === 'SUMMARY') {
-        expect(item.restricted).toBe(true);
-        expect(body({ body: item })).not.toMatch(/SECRET:/);
+        expect(item!.restricted).toBe(true);
+        expect([s.label, Object.keys(item!).filter((k) => !SUMMARY_KEYS[type].includes(k))]).toEqual([s.label, []]);
+        expect(JSON.stringify(item)).not.toMatch(/SECRET:/);
       }
+      if (tier === 'FULL') expect(item!.restricted).toBeUndefined();
     }
-    const total = res.body.meta?.total ?? res.body.total;
+    const total = totalOf(res.body);
     if (total !== undefined) expect(total).toBe(expected.length);
   });
+
+  if (paged) {
+    it.each(['CLUB_ADMIN', 'MEDICAL_STAFF', 'ANALYST'] as Role[])('%s: pages add up to the list, and every page reports the same total', async (role) => {
+      const all = itemsOf((await as(role).get(url)).body).map((x) => x.id);
+      const seen: string[] = [];
+      for (let page = 1; page <= all.length + 1; page++) {
+        const res = await as(role).get(`${url}?page=${page}&limit=2`);
+        expect(totalOf(res.body)).toBe(all.length);
+        seen.push(...itemsOf(res.body).map((x) => x.id as string));
+      }
+      expect(seen).toEqual(all);
+    });
+  }
 
   it('negative: another club’s administrator sees none of this club’s records', async () => {
     const res = await as('OTHER').get(url);
     expect(res.status).toBe(200);
-    expect(itemsOf(res).every((x) => x.clubId === C2)).toBe(true);
+    expect(itemsOf(res.body).every((x) => x.clubId === C2)).toBe(true);
     expect((body(res).match(/SECRET:[^"]*/g) ?? []).every((m) => m.includes('-c2:'))).toBe(true);
   });
 });
 
 // ── 3. Detail reads, for every role and every record ────────────────────────
-const DETAILS: Array<{ name: string; url: (id: string) => string; type: string; fields: string[]; envelope: (res: Row) => Row }> = [
-  { name: 'GET /ai-ops/jobs/:id', url: (id) => `/api/v1/ai-ops/jobs/${id}`, type: 'job', fields: ['input', 'output', 'error'], envelope: (r) => r.body.data },
-  { name: 'GET /automation/agents/jobs/:id', url: (id) => `/api/v1/automation/agents/jobs/${id}`, type: 'job', fields: ['input', 'output', 'error'], envelope: (r) => r.body.data },
-  { name: 'GET /phase-s/intelligence/jobs/:jobId', url: (id) => `/api/v1/phase-s/intelligence/jobs/${id}`, type: 'job', fields: ['input', 'output', 'error'], envelope: (r) => r.body },
-  { name: 'GET /ai-ops/reports/:id', url: (id) => `/api/v1/ai-ops/reports/${id}`, type: 'report', fields: ['title', 'content', 'payload'], envelope: (r) => r.body.data },
-];
-
 describe.each(DETAILS)('$name', ({ url, type, fields, envelope }) => {
-  it.each(ROLES)('%s: FULL shows everything, SUMMARY nothing it says, NONE is refused', async (role) => {
-    for (const [label] of SPECS) {
-      const res = await as(role).get(url(ID(type, label)));
-      const tier = EXPECT[role][classOfSpec(label)];
+  const specs = specsOf(type).filter((s) => intelligenceOnly(url('x'), s));
+
+  it.each(ROLES)('%s: FULL shows everything, SUMMARY nothing it says, anything else is not found', async (role) => {
+    for (const s of specs) {
+      const res = await as(role).get(url(ID(type, s.label)));
+      if (NO_ACCESS.includes(role)) { expect([s.label, res.status]).toEqual([s.label, 403]); continue; }
+      const tier = expectTier(role, s);
       if (tier === 'NONE') {
-        expect(res.status).toBe(403);
-        expect(body(res)).not.toMatch(/SECRET:/);
+        // Exactly as a record that does not exist: neither its existence nor its class is confirmed.
+        expect([s.label, res.status]).toEqual([s.label, 404]);
+        expect(body(res)).not.toMatch(/SECRET:|medical/i);
         continue;
       }
-      expect(res.status).toBe(200);
-      const rec = envelope(res);
-      expect(rec.id).toBe(ID(type, label));
+      expect([s.label, res.status]).toEqual([s.label, 200]);
+      const rec = envelope(res.body);
+      expect(rec.id).toBe(ID(type, s.label));
       for (const f of fields) {
-        if (tier === 'FULL') expect(body(res)).toContain(secret(type, label, f));
-        else expect(body(res)).not.toContain(secret(type, label, f));
+        if (tier === 'FULL') expect(body(res)).toContain(secret(type, s.label, f));
+        else expect(body(res)).not.toContain(secret(type, s.label, f));
       }
-      if (tier === 'SUMMARY') expect(rec.restricted).toBe(true);
+      if (tier === 'SUMMARY') {
+        expect(rec.restricted).toBe(true);
+        expect([s.label, Object.keys(rec).filter((k) => !SUMMARY_KEYS[type].includes(k))]).toEqual([s.label, []]);
+      }
     }
   });
 
-  it('negative: another club’s record is not found, even by id', async () => {
+  it('list and detail agree: restricted in one is restricted in the other, and what a list omits is not found', async () => {
+    const list = LISTS.find((l) => l.type === type && intelligenceOnly(l.url, specs[0]) && l.url.includes('/phase-s/') === url('x').includes('/phase-s/'))!;
+    for (const role of READERS) {
+      const listed = new Map(itemsOf((await as(role).get(list.url)).body).map((x) => [x.id as string, x]));
+      for (const s of specs) {
+        const res = await as(role).get(url(ID(type, s.label)));
+        const item = listed.get(ID(type, s.label));
+        if (!item) { expect([role, s.label, res.status]).toEqual([role, s.label, 404]); continue; }
+        expect([role, s.label, res.status, !!envelope(res.body).restricted]).toEqual([role, s.label, 200, !!item.restricted]);
+      }
+    }
+  });
+
+  it('negative: another club’s record is not found, even by id, in both directions', async () => {
     const res = await as('CLUB_ADMIN').get(url(ID(type, 'ops', C2)));
     expect(res.status).toBe(404);
     expect(body(res)).not.toMatch(/SECRET:/);
-    const back = await as('OTHER').get(url(ID(type, 'medical')));
-    expect(back.status).toBe(404);
+    expect((await as('OTHER').get(url(ID(type, 'ops')))).status).toBe(404);
   });
 });
 
-// ── 4. Acting on alerts and recommendations ─────────────────────────────────
-describe('alert and recommendation actions', () => {
-  const alertLabels = [...SPECS, ...ALERT_EXTRA].map((s) => s[0]);
-  it.each(ROLES)('%s: acknowledging needs any access, resolving and muting need full access', async (role) => {
-    for (const label of alertLabels) {
-      const tier = EXPECT[role][classOfSpec(label)];
+// ── 4. Acting on alerts, recommendations and jobs ───────────────────────────
+describe('actions', () => {
+  it.each(ROLES)('%s: ack needs to see it; resolve needs it in full; mute follows the record’s medical class', async (role) => {
+    for (const s of specsOf('alert')) {
+      const tier = NO_ACCESS.includes(role) ? 'NONE' : expectTier(role, s);
+      const p = `/api/v1/ai-ops/alerts/${ID('alert', s.label)}`;
       seed();
-      const ack = await as(role).post(`/api/v1/ai-ops/alerts/${ID('alert', label)}/ack`);
-      expect([label, ack.status]).toEqual([label, tier === 'NONE' ? 403 : 200]);
+      const ack = await as(role).post(`${p}/ack`);
+      expect([s.label, ack.status]).toEqual([s.label, NO_ACCESS.includes(role) ? 403 : tier === 'NONE' ? 404 : 200]);
+      expect([s.label, rowOf(s).status]).toEqual([s.label, tier === 'NONE' ? 'OPEN' : 'ACK']);
       if (tier === 'SUMMARY') expect(body(ack)).not.toMatch(/SECRET:/);
-      if (tier !== 'NONE') expect(rows('aIAlert').find((a) => a.id === ID('alert', label))!.status).toBe('ACK');
       seed();
-      const resolve = await as(role).post(`/api/v1/ai-ops/alerts/${ID('alert', label)}/resolve`);
-      expect([label, resolve.status]).toEqual([label, tier === 'FULL' ? 200 : 403]);
-      if (tier !== 'FULL') expect(rows('aIAlert').find((a) => a.id === ID('alert', label))!.status).toBe('OPEN');
+      const resolve = await as(role).post(`${p}/resolve`);
+      expect([s.label, resolve.status]).toEqual([s.label, NO_ACCESS.includes(role) ? 403 : tier === 'NONE' ? 404 : tier === 'FULL' ? 200 : 403]);
+      expect([s.label, rowOf(s).status]).toEqual([s.label, tier === 'FULL' ? 'RESOLVED' : 'OPEN']);
       seed();
-      const mute = await as(role).post(`/api/v1/ai-ops/alerts/${ID('alert', label)}/mute`);
-      expect([label, mute.status]).toEqual([label, tier === 'FULL' && MUTE_ROLES.includes(role) ? 200 : 403]);
+      const mute = await as(role).post(`${p}/mute`);
+      const muteOk = MUTE_ROUTE_ROLES.includes(role) && mayAct(role, s, OPERATIONAL_MUTE_ROLES);
+      expect([s.label, mute.status]).toEqual([s.label, !MUTE_ROUTE_ROLES.includes(role) ? 403 : tier === 'NONE' ? 404 : muteOk ? 200 : 403]);
+      expect([s.label, rowOf(s).status]).toEqual([s.label, muteOk ? 'MUTED' : 'OPEN']);
     }
-    for (const [label] of SPECS) {
-      const tier = EXPECT[role][classOfSpec(label)];
+    for (const s of specsOf('rec')) {
+      const tier = NO_ACCESS.includes(role) ? 'NONE' : expectTier(role, s);
       seed();
-      const ack = await as(role).post(`/api/v1/ai-ops/recommendations/${ID('rec', label)}/ack`);
-      expect([label, ack.status]).toEqual([label, tier === 'NONE' ? 403 : 200]);
-      if (tier === 'SUMMARY') expect(body(ack)).not.toMatch(/SECRET:/);
+      const ack = await as(role).post(`/api/v1/ai-ops/recommendations/${ID('rec', s.label)}/ack`);
+      expect([s.label, ack.status]).toEqual([s.label, NO_ACCESS.includes(role) ? 403 : tier === 'NONE' ? 404 : 200]);
     }
   });
 
-  it('negative: nobody acts on another club’s alert or recommendation', async () => {
-    for (const p of [`/api/v1/ai-ops/alerts/${ID('alert', 'ops', C2)}/ack`, `/api/v1/ai-ops/alerts/${ID('alert', 'ops', C2)}/resolve`, `/api/v1/ai-ops/recommendations/${ID('rec', 'ops', C2)}/ack`]) {
-      expect((await as('CLUB_ADMIN').post(p)).status).toBe(404);
+  it('medical staff can acknowledge, resolve and mute every medical alert; nobody else can touch one', async () => {
+    for (const label of ['fatigue', 'medical', 'ops-health']) {
+      for (const action of ['ack', 'resolve', 'mute']) {
+        seed();
+        expect([label, action, (await as('MEDICAL_STAFF').post(`/api/v1/ai-ops/alerts/${ID('alert', label)}/${action}`)).status]).toEqual([label, action, 200]);
+      }
     }
-    expect(rows('aIAlert').find((a) => a.id === ID('alert', 'ops', C2))!.status).toBe('OPEN');
+    for (const role of ['SUPER_ADMIN', 'CLUB_ADMIN', 'HEAD_COACH', 'ANALYST'] as Role[]) {
+      for (const action of ['ack', 'resolve', 'mute']) {
+        seed();
+        const res = await as(role).post(`/api/v1/ai-ops/alerts/${ID('alert', 'medical')}/${action}`);
+        // Not found to anyone the route lets in; the mute route turns the others away first.
+        const want = action === 'mute' && !MUTE_ROUTE_ROLES.includes(role) ? 403 : 404;
+        expect([role, action, res.status]).toEqual([role, action, want]);
+        expect(rowOf(spec('alert', 'medical')).status).toBe('OPEN');
+      }
+    }
+  });
+
+  it.each(ROLES)('%s: cancelling a job follows the job’s medical class, and answers at the canceller’s tier', async (role) => {
+    for (const s of specsOf('job')) {
+      seed();
+      rowOf(s).status = 'PENDING';
+      const res = await as(role).post(`/api/v1/automation/agents/jobs/${ID('job', s.label)}/cancel`);
+      const tier = NO_ACCESS.includes(role) ? 'NONE' : expectTier(role, s);
+      const ok = CANCEL_ROUTE_ROLES.includes(role) && mayAct(role, s, OPERATIONAL_CANCEL_ROLES);
+      expect([s.label, res.status]).toEqual([s.label, !CANCEL_ROUTE_ROLES.includes(role) ? 403 : tier === 'NONE' ? 404 : ok ? 200 : 403]);
+      expect([s.label, rowOf(s).status]).toEqual([s.label, ok ? 'CANCELLED' : 'PENDING']);
+      if (ok && tier !== 'FULL') expect(body(res)).not.toMatch(/SECRET:/);
+    }
+  });
+
+  it('a requester can cancel their own unclassified job, and medical staff can cancel a medical one', async () => {
+    rowOf(spec('job', 'chat')).status = 'PENDING';
+    expect((await as('HEAD_COACH').post(`/api/v1/automation/agents/jobs/${ID('job', 'chat')}/cancel`)).status).toBe(200);
+    seed();
+    rowOf(spec('job', 'medical')).status = 'PENDING';
+    const medic = await as('MEDICAL_STAFF').post(`/api/v1/automation/agents/jobs/${ID('job', 'medical')}/cancel`);
+    expect(medic.status).toBe(200);
+    expect(medic.body.data).toMatchObject({ id: ID('job', 'medical'), status: 'CANCELLED' });
+  });
+
+  it('negative: nobody acts on another club’s alert, recommendation or job', async () => {
+    rowOf(spec('job', 'ops'), C2).status = 'PENDING';
+    for (const p of [`/api/v1/ai-ops/alerts/${ID('alert', 'ops', C2)}/ack`, `/api/v1/ai-ops/alerts/${ID('alert', 'ops', C2)}/resolve`,
+      `/api/v1/ai-ops/alerts/${ID('alert', 'ops', C2)}/mute`, `/api/v1/ai-ops/recommendations/${ID('rec', 'ops', C2)}/ack`,
+      `/api/v1/automation/agents/jobs/${ID('job', 'ops', C2)}/cancel`]) {
+      expect([p, (await as('CLUB_ADMIN').post(p)).status]).toEqual([p, 404]);
+    }
+    expect(rowOf(spec('alert', 'ops'), C2).status).toBe('OPEN');
+    expect(rowOf(spec('job', 'ops'), C2).status).toBe('PENDING');
   });
 });
 
-// ── 5. Anomalies, coaching recommendations, the ARIA history ────────────────
+// ── 5. Hand-written records cannot pass as the platform's own ───────────────
+describe('hand-written AI records', () => {
+  const cases: Array<[string, string, Row]> = [
+    ['an alert', '/api/v1/ai-ops/alerts', { agent: null, kind: 'FATIGUE', title: 'x' }],
+    ['an alert', '/api/v1/ai-ops/alerts', { agent: 'TACTICAL', kind: 'TACTICAL_COLLAPSE_RISK', title: 'x' }],
+    ['a recommendation', '/api/v1/ai-ops/recommendations', { agent: 'TACTICAL', kind: 'TACTICAL_ADJUSTMENT', content: { x: 1 } }],
+    ['a report', '/api/v1/ai-ops/reports', { agent: 'MATCH_OPS', kind: 'MATCH_SUMMARY', title: 't', content: 'c' }],
+    ['a job (run)', '/api/v1/ai-ops/agents/TACTICAL/run', { kind: 'INTELLIGENCE.TACTICAL_ADVISOR', input: { prompt: 'x' } }],
+    ['a job (enqueue)', '/api/v1/automation/agents/jobs', { agent: 'TRAINING', kind: 'INTELLIGENCE.TRAINING_PLANNER', input: { prompt: 'x' } }],
+  ];
+  it.each(cases)('negative: %s cannot take a declared producer kind (%s)', async (_what, url, payload) => {
+    const before = recordCount();
+    const res = await as('CLUB_ADMIN').post(url, payload);
+    expect(res.status).toBe(400);
+    expect(body(res)).toContain('reserved');
+    expect(recordCount()).toBe(before);
+  });
+
+  it('a hand-written record with its own kind is written, and is restricted as unclassified', async () => {
+    const res = await as('HEAD_COACH').post('/api/v1/ai-ops/alerts', { agent: 'TACTICAL', kind: 'NOTE', title: 'SECRET:hand:title', message: 'hamstring' });
+    expect(res.status).toBe(201);
+    const id = res.body.data.id;
+    for (const role of READERS) {
+      const listed = itemsOf((await as(role).get('/api/v1/ai-ops/alerts')).body).some((x) => x.id === id);
+      expect([role, listed]).toEqual([role, role === 'MEDICAL_STAFF']);
+    }
+    const job = await as('HEAD_COACH').post('/api/v1/ai-ops/agents/TACTICAL/run', { kind: 'CHAT', input: { prompt: 'SECRET:hand:prompt' } });
+    expect([200, 201, 202]).toContain(job.status);
+    const jid = job.body.data.id;
+    expect((await as('HEAD_COACH').get(`/api/v1/ai-ops/jobs/${jid}`)).body.data.input).toEqual({ prompt: 'SECRET:hand:prompt' });
+    expect((await as('ASSISTANT_COACH').get(`/api/v1/ai-ops/jobs/${jid}`)).status).toBe(404);
+  });
+});
+
+// ── 6. Anomalies, the ARIA history ──────────────────────────────────────────
 describe('the remaining AI reads', () => {
   it.each(ROLES)('%s: an anomaly scan needs operational access', async (role) => {
     const res = await as(role).get('/api/v1/ai-ops/anomalies');
     expect(res.status).toBe(EXPECT[role].OPERATIONAL === 'FULL' ? 200 : 403);
-  });
-
-  it.each(ROLES)('%s: coaching recommendations follow the matrix (INJURY_RISK is medical)', async (role) => {
-    const res = await as(role).get('/api/v1/phase-l/coaching/recommendations');
-    if (NO_ACCESS.includes(role)) { expect(res.status).toBe(403); return; }
-    expect(res.status).toBe(200);
-    const want = (['coach-tactical', 'coach-injury'] as const).filter((l) => EXPECT[role][l === 'coach-injury' ? 'MEDICAL' : 'OPERATIONAL'] !== 'NONE');
-    expect(itemsOf(res).map((x) => x.id).sort()).toEqual(want.map((l) => ID('coach', l)).sort());
-    const injury = EXPECT[role].MEDICAL;
-    for (const f of ['title', 'rationale', 'payload']) {
-      if (injury === 'FULL') expect(body(res)).toContain(secret('coach', 'coach-injury', f));
-      else expect(body(res)).not.toContain(secret('coach', 'coach-injury', f));
-    }
-    expect(body(res)).not.toMatch(/-c2:/);
   });
 
   it.each(ROLES)('%s: the ARIA history is the reader’s own, and nobody else’s', async (role) => {
@@ -393,29 +489,32 @@ describe('the remaining AI reads', () => {
     if (NO_ACCESS.includes(role)) { expect(res.status).toBe(403); return; }
     expect(res.status).toBe(200);
     const mine = ['HEAD_COACH', 'CLUB_ADMIN'].includes(role) ? [`insight-${role}`] : [];
-    expect(itemsOf(res).map((x) => x.id)).toEqual(mine);
+    expect(itemsOf(res.body).map((x) => x.id)).toEqual(mine);
     for (const other of ['HEAD_COACH', 'CLUB_ADMIN'].filter((r) => r !== role)) {
       expect(body(res)).not.toContain(secret('insight', other, 'response'));
     }
   });
 });
 
-// ── 6. The live match channel ───────────────────────────────────────────────
+// ── 7. The live match channel ───────────────────────────────────────────────
 describe('the live match channel', () => {
-  const medical = { kind: 'RULES_ALERT', matchId: 'm', clubId: C1, payload: { id: 'a', kind: 'INJURY_RISK', agent: 'MEDICAL', severity: 'CRITICAL', title: 'SECRET:live:title', message: 'SECRET:live:message', createdAt: 't' } };
-  const scouting = { kind: 'AI_RECOMMENDATION', matchId: 'm', clubId: C1, payload: { id: 'r', kind: 'SHORTLIST', agent: 'SCOUTING', title: 'SECRET:live:scout', score: 1, createdAt: 't' } };
+  const ev = (kind: string, agent: string | null, k: string) => ({ kind, matchId: 'm', clubId: C1, payload: { id: 'x', kind: k, agent, severity: 'CRITICAL', title: 'SECRET:live:title', message: 'SECRET:live:message', createdAt: 't' } });
   const timeline = { kind: 'TIMELINE_ADDED', matchId: 'm', clubId: C1, payload: { id: 'e' } };
+  const live: Array<[string, Row, Spec]> = [
+    ['a medical alert', ev('RULES_ALERT', 'MEDICAL', 'INJURY_RISK'), spec('alert', 'medical')],
+    ['a fatigue alert', ev('RULES_ALERT', null, 'FATIGUE'), spec('alert', 'fatigue')],
+    ['an operational alert', ev('RULES_ALERT', null, 'FORMATION_DRIFT'), spec('alert', 'ops-agentless')],
+    ['an unclassified alert', ev('RULES_ALERT', 'TACTICAL', 'PLAYER_UPDATE'), spec('alert', 'undeclared')],
+    ['a tactical recommendation', ev('AI_RECOMMENDATION', 'TACTICAL', 'TACTICAL_ADJUSTMENT'), spec('rec', 'ops')],
+    ['a medical report', ev('AI_REPORT', 'MEDICAL', 'WEEKLY_HEALTH'), spec('report', 'medical')],
+  ];
 
-  it.each(ROLES)('%s: AI events are dropped, summarised or passed by the matrix; other events pass', (role) => {
-    for (const [event, cls] of [[medical, 'MEDICAL'], [scouting, 'SCOUTING']] as const) {
-      const out = presentMatchEvent(role, event);
-      const tier = EXPECT[role][cls];
-      if (tier === 'NONE') expect(out).toBeNull();
-      else if (tier === 'FULL') expect(out).toEqual(event);
-      else {
-        expect(JSON.stringify(out)).not.toMatch(/SECRET:/);
-        expect((out as Row).payload).toMatchObject({ id: event.payload.id, kind: event.payload.kind, restricted: true });
-      }
+  it.each(ROLES)('%s: an AI event reaches only a subscriber cleared for all of it; others pass unchanged', (role) => {
+    for (const [what, event, s] of live) {
+      const out = presentMatchEvent(role, event as never);
+      const want = NO_ACCESS.includes(role) ? 'NONE' : expectTier(role, s);
+      expect([what, out === null ? 'dropped' : 'passed']).toEqual([what, want === 'FULL' ? 'passed' : 'dropped']);
+      if (out) expect(out).toEqual(event);
     }
     expect(presentMatchEvent(role, timeline)).toBe(timeline);
   });
@@ -427,11 +526,10 @@ describe('the live match channel', () => {
   });
 });
 
-// ── 7. Responses to writes carry no more than a read would ──────────────────
+// ── 8. Responses to writes carry no more than a read would ──────────────────
 describe('write responses', () => {
   const call = async (role: Role, label: string) => {
     const job = rows('aIAgentJob').find((j) => j.id === ID('job', label))!;
-    job.kind = 'INTELLIGENCE.INJURY_RISK_SCAN';
     job.input = { ...job.input, entityId: 'team-1' };
     let sent: Row | undefined;
     const res: Row = { status: () => res, json: (b: Row) => { sent = b; return res; } };
@@ -440,20 +538,17 @@ describe('write responses', () => {
     return { sent, next };
   };
 
-  it('an injury-risk trigger that returns the recent scan shows it at the trigger’s tier', async () => {
-    const coach = await call('HEAD_COACH', 'medical');
-    expect(coach.next).not.toHaveBeenCalled();
-    expect(coach.sent).toMatchObject({ id: ID('job', 'medical'), restricted: true });
-    expect(JSON.stringify(coach.sent)).not.toMatch(/SECRET:/);
-    seed();
+  it('an injury-risk trigger that returns the recent scan gives medical staff the scan, anyone else its bare receipt', async () => {
     const medic = await call('MEDICAL_STAFF', 'medical');
     expect(JSON.stringify(medic.sent)).toContain(secret('job', 'medical', 'output'));
-    // A role with no read tier on medical still started the job: it gets the summary, not a refusal.
-    seed();
-    const analyst = await call('ANALYST', 'medical');
-    expect(analyst.next).not.toHaveBeenCalled();
-    expect(analyst.sent).toMatchObject({ id: ID('job', 'medical'), restricted: true });
-    expect(JSON.stringify(analyst.sent)).not.toMatch(/SECRET:/);
+    for (const role of ['HEAD_COACH', 'ANALYST', 'CLUB_ADMIN'] as Role[]) {
+      seed();
+      const r = await call(role, 'medical');
+      expect(r.next).not.toHaveBeenCalled();
+      expect(r.sent).toMatchObject({ id: ID('job', 'medical'), restricted: true });
+      expect([role, Object.keys(r.sent!).filter((k) => !SUMMARY_KEYS.job.includes(k))]).toEqual([role, []]);
+      expect(JSON.stringify(r.sent)).not.toMatch(/SECRET:/);
+    }
   });
 
   it('every intelligence trigger answers through the policy', () => {
@@ -461,26 +556,35 @@ describe('write responses', () => {
     expect(src.match(/res\.status\(202\)\.json\(Svc\.presentTriggered\(actor\(req\), job\)\);/g)).toHaveLength(5);
     expect(src).not.toMatch(/res\.status\(202\)\.json\(job\)/);
   });
-
-  it('cancelling a job answers at the canceller’s tier', async () => {
-    rows('aIAgentJob').find((j) => j.id === ID('job', 'medical'))!.status = 'PENDING';
-    const res = await as('HEAD_COACH').post(`/api/v1/automation/agents/jobs/${ID('job', 'medical')}/cancel`);
-    expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ id: ID('job', 'medical'), status: 'CANCELLED', restricted: true });
-    expect(body(res)).not.toMatch(/SECRET:/);
-  });
 });
 
-// ── 8. One place decides ────────────────────────────────────────────────────
+// ── 9. Medical data does not travel through non-medical agents ──────────────
 describe('the source', () => {
+  it('the training planner gives the TRAINING agent load figures, never the injury-risk inference', () => {
+    const src = read('src/intelligence/intelligence.service.ts');
+    const query = src.slice(src.indexOf('workloadRecord?.findMany?.('), src.indexOf('if (records) workloadData = records;'));
+    expect(query).toMatch(/select:\s*\{[^}]*acwr: true[^}]*\}/);
+    expect(query).not.toMatch(/injuryRiskScore|isHighRisk|riskFlags/);
+  });
+
+  it('the mute and cancel routes admit medical staff; the service limits them to medical or unclassified records', () => {
+    expect(read('src/routes/ai-ops.routes.ts')).toContain("router.post('/alerts/:id/mute',      authorize('CLUB_ADMIN','HEAD_COACH','ANALYST','MEDICAL_STAFF'), ctrl.muteAlert);");
+    expect(read('src/routes/automation.routes.ts')).toContain("router.post('/agents/jobs/:id/cancel', authorize('CLUB_ADMIN','HEAD_COACH','MEDICAL_STAFF'), ctrl.cancelAgentJob);");
+  });
+
   it('every AI read path goes through the policy module', () => {
     for (const f of ['src/services/ai-ops.service.ts', 'src/controllers/ai-ops.controller.ts', 'src/services/automation.service.ts', 'src/intelligence/intelligence.service.ts', 'src/services/ai.service.ts', 'src/coaching/coach-agent.service.ts', 'src/realtime/match-sse.ts', 'src/realtime/match-ws.ts']) {
       expect([f, read(f).includes("from '../security/ai-read-policy'")]).toEqual([f, true]);
     }
-    // The match routes reuse the same, now policy-bound, handlers.
     const match = read('src/routes/match.routes.ts');
     expect(match).toContain("router.get('/:id/alerts',          ai.listAlerts);");
     expect(match).toContain("router.get('/:id/recommendations', ai.listRecommendations);");
     expect(match).toContain("router.get('/:id/reports',         ai.listReports);");
+  });
+
+  it('(control) another club holds the records the cross-club tests read', () => {
+    for (const [type, labels] of Object.entries(C2_LABELS)) for (const l of labels) {
+      expect(rows(MODEL[type]).some((x) => x.id === ID(type, l, C2))).toBe(true);
+    }
   });
 });

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-21T00:06:27.346Z",
+  "generatedAt": "2026-10-21T13:50:06.720Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -1484,7 +1484,7 @@
         "POST /ai-ops/agents/:agent/run": "roles:CLUB_ADMIN,HEAD_COACH,ANALYST,ASSISTANT_COACH,MEDICAL_STAFF",
         "POST /ai-ops/alerts": "roles:CLUB_ADMIN,HEAD_COACH,ANALYST,ASSISTANT_COACH,MEDICAL_STAFF",
         "POST /ai-ops/alerts/:id/ack": "member",
-        "POST /ai-ops/alerts/:id/mute": "roles:CLUB_ADMIN,HEAD_COACH,ANALYST",
+        "POST /ai-ops/alerts/:id/mute": "roles:CLUB_ADMIN,HEAD_COACH,ANALYST,MEDICAL_STAFF",
         "POST /ai-ops/alerts/:id/resolve": "member",
         "POST /ai-ops/anomalies/materialise": "roles:CLUB_ADMIN,HEAD_COACH,ANALYST",
         "POST /ai-ops/recommendations": "roles:CLUB_ADMIN,HEAD_COACH,ANALYST,ASSISTANT_COACH,MEDICAL_STAFF",
@@ -1505,7 +1505,7 @@
         "POST /auth/register": "public",
         "POST /auth/reset-password": "public",
         "POST /automation/agents/jobs": "roles:CLUB_ADMIN,HEAD_COACH,ANALYST,MEDICAL_STAFF",
-        "POST /automation/agents/jobs/:id/cancel": "roles:CLUB_ADMIN,HEAD_COACH",
+        "POST /automation/agents/jobs/:id/cancel": "roles:CLUB_ADMIN,HEAD_COACH,MEDICAL_STAFF",
         "POST /automation/tasks": "roles:CLUB_ADMIN,HEAD_COACH",
         "POST /automation/tasks/:id/trigger": "roles:CLUB_ADMIN,HEAD_COACH",
         "POST /billing-j/account/cancel": "roles:CLUB_ADMIN,SUPER_ADMIN",

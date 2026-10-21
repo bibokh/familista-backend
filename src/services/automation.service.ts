@@ -13,7 +13,7 @@ import {
 } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
-import { AIReader, accessTier, assertAIReader, listConditions, presentJob, presentList, recordClass } from '../security/ai-read-policy';
+import { AIReader, accessTier, assertAIReader, assertMayAct, assertNotDeclaredKind, listConditions, presentJob, presentList } from '../security/ai-read-policy';
 import { publishAIRequestCreated } from '../fabric/producers/ai.producer';
 
 export interface AutomationActor {
@@ -40,13 +40,6 @@ async function assertTaskInClub(taskId: string, clubId: string): Promise<Automat
   if (!t)                  throw new NotFoundError('AutomationTask');
   if (t.clubId !== clubId) throw new ForbiddenError();
   return t;
-}
-
-async function assertJobInClub(jobId: string, clubId: string): Promise<AIAgentJob> {
-  const j = await prisma.aIAgentJob.findUnique({ where: { id: jobId } });
-  if (!j)                  throw new NotFoundError('AIAgentJob');
-  if (j.clubId !== clubId) throw new ForbiddenError();
-  return j;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -162,6 +155,8 @@ export interface EnqueueAgentJobDto {
 export async function enqueueAgentJob(actor: AutomationActor, dto: EnqueueAgentJobDto): Promise<AIAgentJob> {
   await assertTeamInClub(actor.clubId, dto.teamId ?? null);
   if (!dto.kind || dto.kind.length > 80) throw new BadRequestError('kind must be 1..80 chars');
+  // The input is the caller's; the job cannot pass as one the server assembled.
+  assertNotDeclaredKind('job', dto.agent, dto.kind);
   const job = await prisma.aIAgentJob.create({
     data: {
       clubId:      actor.clubId,
@@ -196,7 +191,7 @@ export async function enqueueAgentJob(actor: AutomationActor, dto: EnqueueAgentJ
 export async function listAgentJobs(reader: AIReader, filters: { agent?: AIAgent; status?: AutomationStatus; page?: number; limit?: number } = {}) {
   const { agent, status, page = 1, limit = 50 } = filters;
   assertAIReader(reader);
-  const readable = listConditions(reader, { agentNullable: false });
+  const readable = listConditions(reader, 'job', { agentNullable: false });
   if (!readable || !reader.clubId) return { items: [], total: 0, page, limit };
   const where = {
     clubId: reader.clubId,
@@ -208,22 +203,28 @@ export async function listAgentJobs(reader: AIReader, filters: { agent?: AIAgent
     prisma.aIAgentJob.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * limit, take: limit }),
     prisma.aIAgentJob.count({ where }),
   ]);
-  const items = presentList(reader, rows, (j) => recordClass(j.agent, j.kind), (j, tier) => presentJob(j, tier, 'list'));
+  const items = presentList(reader, 'job', rows, (j, tier) => presentJob(j, tier, 'list'));
   return { items, total, page, limit };
 }
 
 export async function getAgentJob(reader: AIReader, jobId: string) {
   const j = await prisma.aIAgentJob.findUnique({ where: { id: jobId } });
   if (!j) throw new NotFoundError('AIAgentJob');
-  return presentJob(j, accessTier(reader, j, 'AIAgentJob'), 'detail');
+  return presentJob(j, accessTier(reader, 'job', j, 'AIAgentJob'), 'detail');
 }
 
 // Cancel a pending job. Running jobs are flagged for cancellation;
 // the (future) worker honours it on next checkpoint.
-export async function cancelAgentJob(actor: AutomationActor, jobId: string, reason?: string) {
-  const job = await assertJobInClub(jobId, actor.clubId);
-  // Cancelling answers with the job: at the tier the canceller may read it.
-  const tier = accessTier(actor, job, 'AIAgentJob');
+// A job that may hold medical data is cancelled by medical staff; any other by
+// the roles the route has always allowed. Either way the canceller must be able
+// to see the job, and the answer is the job at the tier they may read it.
+const OPERATIONAL_CANCEL_ROLES = ['CLUB_ADMIN', 'HEAD_COACH'] as const;
+
+export async function cancelAgentJob(actor: AutomationActor & AIReader, jobId: string, reason?: string) {
+  const job = await prisma.aIAgentJob.findUnique({ where: { id: jobId } });
+  if (!job) throw new NotFoundError('AIAgentJob');
+  const tier = accessTier(actor, 'job', job, 'AIAgentJob');
+  assertMayAct(actor, 'job', job, tier, OPERATIONAL_CANCEL_ROLES, 'cancel');
   if (job.status === AutomationStatus.SUCCESS || job.status === AutomationStatus.FAILED || job.status === AutomationStatus.CANCELLED) {
     return presentJob(job, tier, 'detail');
   }
