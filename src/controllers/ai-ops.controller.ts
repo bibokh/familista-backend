@@ -7,9 +7,13 @@ import { prisma } from '../config/database';
 import * as svc from '../services/ai-ops.service';
 import * as anomaly from '../services/anomaly-detector.service';
 import { sendSuccess, sendCreated, sendPaginated } from '../utils/response';
-import { BadRequestError } from '../utils/errors';
+import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
+import { AIReader, accessTier, presentJob, tierFor } from '../security/ai-read-policy';
 import type { Prisma } from '@prisma/client';
 import { publishAIRequestCreated } from '../fabric/producers/ai.producer';
+
+// The reader every AI read is decided for: src/security/ai-read-policy.ts.
+const readerOf = (req: Request): AIReader => ({ userId: req.user!.id, clubId: req.user!.clubId, role: req.user!.role });
 
 const AGENTS = ['CLUB_MANAGER','TACTICAL','MEDICAL','SCOUTING','FINANCE','TRAINING','MATCH_OPS','COMMS','DEVICE_MGMT','BIG_DATA'] as const;
 const SEVERITIES = ['INFO','WARN','CRITICAL'] as const;
@@ -61,7 +65,7 @@ export async function listAlerts(req: Request, res: Response, next: NextFunction
   try {
     const parsed = listAlertSchema.safeParse({ query: req.query });
     if (!parsed.success) throw zerr(parsed.error);
-    const out = await svc.listAlerts(req.user!.clubId, parsed.data.query);
+    const out = await svc.listAlerts(readerOf(req), parsed.data.query);
     return sendPaginated(res, out.items, out.total, out.page, out.limit);
   } catch (err) { return next(err); }
 }
@@ -130,7 +134,7 @@ export async function listRecommendations(req: Request, res: Response, next: Nex
   try {
     const parsed = listRecSchema.safeParse({ query: req.query });
     if (!parsed.success) throw zerr(parsed.error);
-    const out = await svc.listRecommendations(req.user!.clubId, parsed.data.query);
+    const out = await svc.listRecommendations(readerOf(req), parsed.data.query);
     return sendPaginated(res, out.items, out.total, out.page, out.limit);
   } catch (err) { return next(err); }
 }
@@ -179,7 +183,7 @@ export async function listReports(req: Request, res: Response, next: NextFunctio
   try {
     const parsed = listReportSchema.safeParse({ query: req.query });
     if (!parsed.success) throw zerr(parsed.error);
-    const out = await svc.listReports(req.user!.clubId, parsed.data.query);
+    const out = await svc.listReports(readerOf(req), parsed.data.query);
     return sendPaginated(res, out.items, out.total, out.page, out.limit);
   } catch (err) { return next(err); }
 }
@@ -242,14 +246,15 @@ export async function runAgent(req: Request, res: Response, next: NextFunction) 
 export async function getAgentJob(req: Request, res: Response, next: NextFunction) {
   try {
     const j = await prisma.aIAgentJob.findUnique({ where: { id: req.params.id } });
-    if (!j) throw new BadRequestError('Job not found');
-    if (j.clubId !== req.user!.clubId && req.user!.role !== 'SUPER_ADMIN') throw new BadRequestError('Forbidden');
-    return sendSuccess(res, j);
+    if (!j) throw new NotFoundError('AIAgentJob');
+    return sendSuccess(res, presentJob(j, accessTier(readerOf(req), j, 'AIAgentJob'), 'detail'));
   } catch (err) { return next(err); }
 }
 
 export async function scanAnomalies(req: Request, res: Response, next: NextFunction) {
   try {
+    // An anomaly scan is about the platform's own operation: operational access.
+    if (tierFor(req.user!.role, 'OPERATIONAL') !== 'FULL') throw new ForbiddenError('This role may not read operational AI records');
     const report = await anomaly.scanClub(req.user!.clubId);
     return sendSuccess(res, report);
   } catch (err) { return next(err); }

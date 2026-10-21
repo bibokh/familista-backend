@@ -25,6 +25,7 @@ import { type RealtimeSession } from '../middleware/auth.middleware';
 import { redeemWsTicket } from './ws-ticket';
 import { subscribe, subscriberCount, MatchChannelEvent } from './match-channel';
 import { watchSession } from './session-watch';
+import { presentMatchEvent } from '../security/ai-read-policy';
 
 const HEARTBEAT_MS = 25_000;
 
@@ -93,8 +94,11 @@ function wireSocket(ws: WebSocket, matchId: string, session: RealtimeSession) {
 
   const unsubscribe = subscribe(matchId, (event: MatchChannelEvent) => {
     if (ws.readyState !== WebSocket.OPEN) return;
+    // AI events are filtered for this subscriber's role (ai-read-policy.ts).
+    const visible = presentMatchEvent(session.role, event);
+    if (!visible) return;
     try {
-      ws.send(JSON.stringify({ type: 'event', event }));
+      ws.send(JSON.stringify({ type: 'event', event: visible }));
     } catch (_err) { /* dropped */ }
   });
 

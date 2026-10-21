@@ -22,6 +22,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma }  from '../config/database';
 import { NotFoundError } from '../utils/errors';
+import { accessTier, assertAIReader, listConditions, presentJob, presentList, recordClass, tierFor } from '../security/ai-read-policy';
 import { publishAIRequestCreated } from '../fabric/producers/ai.producer';
 
 export interface IntelligenceActor {
@@ -401,20 +402,40 @@ export async function listJobs(
   };
   const kind = domain ? (kindMap[domain.toLowerCase()] ?? domain) : undefined;
 
-  return prisma.aIAgentJob.findMany({
+  // Who may see which jobs, and how much of each: src/security/ai-read-policy.ts.
+  // A list never carries a job's input, output or error.
+  assertAIReader(actor);
+  const readable = listConditions(actor, { agentNullable: false });
+  if (!readable || !actor.clubId) return [];
+  const rows = await prisma.aIAgentJob.findMany({
     where: {
       clubId: actor.clubId,
       ...(kind ? { kind } : { kind: { startsWith: 'INTELLIGENCE.' } }),
-    },
+      AND: readable,
+    } as Prisma.AIAgentJobWhereInput,
     orderBy: { createdAt: 'desc' },
     take:    Math.min(limit, 50),
   });
+  return presentList(actor, rows, (j) => recordClass(j.agent, j.kind), (j, tier) => presentJob(j, tier, 'list'));
 }
 
 export async function getJob(actor: IntelligenceActor, jobId: string) {
   const job = await prisma.aIAgentJob.findUnique({ where: { id: jobId } });
   if (!job || job.clubId !== actor.clubId) throw new NotFoundError('AIAgentJob');
-  return job;
+  return presentJob(job, accessTier(actor, job, 'AIAgentJob'), 'detail');
+}
+
+/**
+ * A job as the person who triggered it may see it. The trigger answers with
+ * the job, and its input is the context the server assembled (an injury-risk
+ * scan's holds the squad's medical data), not anything the caller sent. The
+ * job was started either way, so a role that may not read its class still
+ * gets the summary (id, kind, status) rather than a refusal.
+ */
+export function presentTriggered(actor: IntelligenceActor, job: { clubId: string; agent: string; kind: string } & Record<string, unknown>) {
+  if (job.clubId !== actor.clubId) throw new NotFoundError('AIAgentJob');
+  const tier = tierFor(actor.role, recordClass(job.agent, job.kind));
+  return presentJob(job, tier === 'NONE' ? 'SUMMARY' : tier, 'detail');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

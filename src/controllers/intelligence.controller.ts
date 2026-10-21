@@ -23,7 +23,7 @@ export async function triggerMatchAnalysis(req: Request, res: Response, next: Ne
   try {
     const { matchId } = req.params;
     const job = await Svc.triggerMatchAnalysis(actor(req), matchId);
-    res.status(202).json(job);
+    res.status(202).json(Svc.presentTriggered(actor(req), job));
   } catch (err) { next(err); }
 }
 
@@ -31,14 +31,14 @@ export async function triggerTacticalAdvisor(req: Request, res: Response, next: 
   try {
     const { teamId } = req.params;
     const job = await Svc.triggerTacticalAdvisor(actor(req), teamId);
-    res.status(202).json(job);
+    res.status(202).json(Svc.presentTriggered(actor(req), job));
   } catch (err) { next(err); }
 }
 
 export async function triggerRecruitmentAdvisor(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const job = await Svc.triggerRecruitmentAdvisor(actor(req));
-    res.status(202).json(job);
+    res.status(202).json(Svc.presentTriggered(actor(req), job));
   } catch (err) { next(err); }
 }
 
@@ -46,7 +46,7 @@ export async function triggerTrainingPlanner(req: Request, res: Response, next: 
   try {
     const { teamId } = req.params;
     const job = await Svc.triggerTrainingPlanner(actor(req), teamId);
-    res.status(202).json(job);
+    res.status(202).json(Svc.presentTriggered(actor(req), job));
   } catch (err) { next(err); }
 }
 
@@ -54,7 +54,7 @@ export async function triggerInjuryRiskScan(req: Request, res: Response, next: N
   try {
     const { teamId } = req.params;
     const job = await Svc.triggerInjuryRiskScan(actor(req), teamId);
-    res.status(202).json(job);
+    res.status(202).json(Svc.presentTriggered(actor(req), job));
   } catch (err) { next(err); }
 }
 

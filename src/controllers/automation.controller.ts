@@ -75,6 +75,7 @@ function actorOf(req: Request): svc.AutomationActor {
   return {
     userId:    req.user.id,
     clubId:    req.user.clubId,
+    role:      req.user.role,
     ipAddress: ip ?? null,
     userAgent: (req.headers['user-agent'] as string) ?? null,
   };
@@ -161,7 +162,7 @@ export async function listAgentJobs(req: Request, res: Response, next: NextFunct
     const parsed = agentListQuerySchema.safeParse({ query: req.query });
     if (!parsed.success) throw zerr(parsed.error);
     const q = parsed.data.query;
-    const out = await svc.listAgentJobs(req.user!.clubId, {
+    const out = await svc.listAgentJobs(actorOf(req), {
       agent:  q.agent,
       status: q.status,
       page:   q.page,
@@ -173,7 +174,7 @@ export async function listAgentJobs(req: Request, res: Response, next: NextFunct
 
 export async function getAgentJob(req: Request, res: Response, next: NextFunction) {
   try {
-    const job = await svc.getAgentJob(req.params.id, req.user!.clubId);
+    const job = await svc.getAgentJob(actorOf(req), req.params.id);
     return sendSuccess(res, job);
   } catch (err) { return next(err); }
 }

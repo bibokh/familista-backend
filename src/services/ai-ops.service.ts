@@ -11,6 +11,10 @@
 
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError } from '../utils/errors';
+import {
+  AIReader, accessTier, assertAIReader, listConditions, presentAlert, presentList,
+  presentRecommendation, presentReport, recordClass,
+} from '../security/ai-read-policy';
 import { publish } from '../realtime/match-channel';
 import { logger } from '../utils/logger';
 import type { AlertSeverity, AlertStatus, AIAgent, Prisma } from '@prisma/client';
@@ -90,7 +94,9 @@ export async function createAlert(dto: CreateAlertDto) {
         kind:    'RULES_ALERT',
         matchId: row.matchId,
         clubId:  row.clubId,
-        payload: { id: row.id, kind: row.kind, severity: row.severity, title: row.title, message: row.message, createdAt: row.createdAt },
+        // `agent` travels so each subscriber's stream can apply the AI read
+        // policy (presentMatchEvent): a medical alert's text is not for everyone.
+        payload: { id: row.id, kind: row.kind, agent: row.agent, severity: row.severity, title: row.title, message: row.message, createdAt: row.createdAt },
       });
     } catch (err) { logger.warn('[ai-ops] alert publish failed', { err: (err as Error).message }); }
   }
@@ -117,7 +123,7 @@ export async function createAlert(dto: CreateAlertDto) {
 }
 
 export async function listAlerts(
-  clubId: string,
+  reader: AIReader,
   opts: {
     matchId?:  string;
     status?:   AlertStatus;
@@ -128,14 +134,19 @@ export async function listAlerts(
   } = {},
 ) {
   const { matchId, status, severity, kind, page = 1, limit = 50 } = opts;
-  const where: Prisma.AIAlertWhereInput = {
-    clubId,
+  // Who may see which alerts: src/security/ai-read-policy.ts.
+  assertAIReader(reader);
+  const readable = listConditions(reader, { agentNullable: true });
+  if (!readable || !reader.clubId) return { items: [], total: 0, page, limit };
+  const where = {
+    clubId: reader.clubId,
     ...(matchId  && { matchId }),
     ...(status   && { status }),
     ...(severity && { severity }),
     ...(kind     && { kind }),
-  };
-  const [items, total] = await Promise.all([
+    AND: readable,
+  } as Prisma.AIAlertWhereInput;
+  const [rows, total] = await Promise.all([
     prisma.aIAlert.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -144,24 +155,27 @@ export async function listAlerts(
     }),
     prisma.aIAlert.count({ where }),
   ]);
+  const items = presentList(reader, rows, (a) => recordClass(a.agent, a.kind), (a, tier) => presentAlert(a, tier));
   return { items, total, page, limit };
 }
 
+// Acknowledging says "seen": anyone who may see the alert at all. Resolving or
+// muting closes it: only someone who may read all of it.
 export async function ackAlert(actor: AlertActor, alertId: string) {
   const a = await prisma.aIAlert.findUnique({ where: { id: alertId } });
   if (!a)                       throw new NotFoundError('AIAlert');
-  if (a.clubId !== actor.clubId && actor.role !== 'SUPER_ADMIN') throw new ForbiddenError();
-  if (a.status !== 'OPEN') return a;
-  return prisma.aIAlert.update({
+  const tier = accessTier(actor, a, 'AIAlert');
+  if (a.status !== 'OPEN') return presentAlert(a, tier);
+  return presentAlert(await prisma.aIAlert.update({
     where: { id: alertId },
     data:  { status: 'ACK', ackedAt: new Date(), ackedBy: actor.userId },
-  });
+  }), tier);
 }
 
 export async function resolveAlert(actor: AlertActor, alertId: string) {
   const a = await prisma.aIAlert.findUnique({ where: { id: alertId } });
   if (!a)                       throw new NotFoundError('AIAlert');
-  if (a.clubId !== actor.clubId && actor.role !== 'SUPER_ADMIN') throw new ForbiddenError();
+  if (accessTier(actor, a, 'AIAlert') !== 'FULL') throw new ForbiddenError('Only someone who may read this alert in full may resolve it');
   if (a.status === 'RESOLVED') return a;
   return prisma.aIAlert.update({
     where: { id: alertId },
@@ -172,7 +186,7 @@ export async function resolveAlert(actor: AlertActor, alertId: string) {
 export async function muteAlert(actor: AlertActor, alertId: string) {
   const a = await prisma.aIAlert.findUnique({ where: { id: alertId } });
   if (!a)                       throw new NotFoundError('AIAlert');
-  if (a.clubId !== actor.clubId && actor.role !== 'SUPER_ADMIN') throw new ForbiddenError();
+  if (accessTier(actor, a, 'AIAlert') !== 'FULL') throw new ForbiddenError('Only someone who may read this alert in full may mute it');
   return prisma.aIAlert.update({
     where: { id: alertId },
     data:  { status: 'MUTED', ackedBy: actor.userId },
@@ -225,7 +239,7 @@ export async function createRecommendation(dto: CreateRecommendationDto) {
 }
 
 export async function listRecommendations(
-  clubId: string,
+  reader: AIReader,
   opts: {
     matchId?: string;
     status?:  AlertStatus;
@@ -235,13 +249,17 @@ export async function listRecommendations(
   } = {},
 ) {
   const { matchId, status, agent, page = 1, limit = 50 } = opts;
-  const where: Prisma.AIRecommendationWhereInput = {
-    clubId,
+  assertAIReader(reader);
+  const readable = listConditions(reader, { agentNullable: false });
+  if (!readable || !reader.clubId) return { items: [], total: 0, page, limit };
+  const where = {
+    clubId: reader.clubId,
     ...(matchId && { matchId }),
     ...(status  && { status }),
     ...(agent   && { agent }),
-  };
-  const [items, total] = await Promise.all([
+    AND: readable,
+  } as Prisma.AIRecommendationWhereInput;
+  const [rows, total] = await Promise.all([
     prisma.aIRecommendation.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -250,17 +268,18 @@ export async function listRecommendations(
     }),
     prisma.aIRecommendation.count({ where }),
   ]);
+  const items = presentList(reader, rows, (r) => recordClass(r.agent, r.kind), (r, tier) => presentRecommendation(r, tier));
   return { items, total, page, limit };
 }
 
 export async function ackRecommendation(actor: AlertActor, id: string) {
   const r = await prisma.aIRecommendation.findUnique({ where: { id } });
   if (!r)                                                  throw new NotFoundError('AIRecommendation');
-  if (r.clubId !== actor.clubId && actor.role !== 'SUPER_ADMIN') throw new ForbiddenError();
-  return prisma.aIRecommendation.update({
+  const tier = accessTier(actor, r, 'AIRecommendation');
+  return presentRecommendation(await prisma.aIRecommendation.update({
     where: { id },
     data:  { status: 'ACK', ackedAt: new Date(), ackedBy: actor.userId },
-  });
+  }), tier);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -293,18 +312,24 @@ export async function createReport(dto: CreateReportDto) {
   return row;
 }
 
+// A list carries a report's title, never its body: the body is the model's
+// output and comes from getReport, at FULL only.
 export async function listReports(
-  clubId: string,
+  reader: AIReader,
   opts: { matchId?: string; agent?: AIAgent; kind?: string; page?: number; limit?: number } = {},
 ) {
   const { matchId, agent, kind, page = 1, limit = 50 } = opts;
-  const where: Prisma.AIReportWhereInput = {
-    clubId,
+  assertAIReader(reader);
+  const readable = listConditions(reader, { agentNullable: false });
+  if (!readable || !reader.clubId) return { items: [], total: 0, page, limit };
+  const where = {
+    clubId: reader.clubId,
     ...(matchId && { matchId }),
     ...(agent   && { agent }),
     ...(kind    && { kind }),
-  };
-  const [items, total] = await Promise.all([
+    AND: readable,
+  } as Prisma.AIReportWhereInput;
+  const [rows, total] = await Promise.all([
     prisma.aIReport.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -313,12 +338,12 @@ export async function listReports(
     }),
     prisma.aIReport.count({ where }),
   ]);
+  const items = presentList(reader, rows, (r) => recordClass(r.agent, r.kind), (r, tier) => presentReport(r, tier, 'list'));
   return { items, total, page, limit };
 }
 
 export async function getReport(actor: AlertActor, id: string) {
   const r = await prisma.aIReport.findUnique({ where: { id } });
   if (!r)                                                   throw new NotFoundError('AIReport');
-  if (r.clubId !== actor.clubId && actor.role !== 'SUPER_ADMIN') throw new ForbiddenError();
-  return r;
+  return presentReport(r, accessTier(actor, r, 'AIReport'), 'detail');
 }
