@@ -1421,6 +1421,51 @@ export const DesignSystemPreviewDetailSchema = z.object({
   component: PvComponentSchema.nullable(),
 }).strict();
 
+// ── the AI Agents Operations Room ────────────────────────────────────────────
+//
+// Domains, roles, tool keys and data classes are strings here, not enums: the
+// room discovers them from the registry and must keep drawing when a domain or
+// a role is added, and this file may not import the registry (only the room's
+// router does). Scope and lifecycle are closed sets the room styles by, and the
+// activation block is pinned to its AI-0.1 values: nothing is activated.
+
+const Sha256 = z.string().regex(/^[0-9a-f]{64}$/);
+const AgentScopeSchema = z.enum(['CLUB', 'PLATFORM']);
+const AgentLifecycleSchema = z.enum(['DRAFT', 'LAB', 'RUNNING', 'RETIRED']);
+export const AgentsRoomSummarySchema = z.object({
+  id: z.string().min(1), version: z.string().min(1), title: z.string().min(1), domain: z.string().min(1),
+  scope: AgentScopeSchema, lifecycle: AgentLifecycleSchema, autonomyCeiling: z.string().min(1),
+  tools: Count, dataCeiling: z.string().min(1), outputs: Count, supervisor: z.string().min(1),
+  runtimeAgent: z.string().min(1).nullable(), digest: z.string().regex(/^[0-9a-f]{12}$/),
+}).strict();
+export const AgentsRoomOverviewSchema = z.object({
+  environment: z.enum(['PRODUCTION', 'STAGING', 'LAB', 'PREVIEW']),
+  activation: z.object({ newAgentsActive: z.literal(0), labRuntime: z.literal('NOT_PRESENT') }).strict(),
+  killSwitch: z.object({ engaged: z.boolean() }).strict(),
+  registry: z.object({
+    digest: Sha256, agents: Count,
+    byScope: z.record(z.string(), Count), byLifecycle: z.record(z.string(), Count), byDomain: z.record(z.string(), Count),
+  }).strict(),
+  invariants: z.array(z.object({ id: z.string().min(1), holds: z.boolean(), detail: z.string().min(1) }).strict()),
+  agents: z.array(AgentsRoomSummarySchema),
+}).strict();
+export const AgentsRoomDetailSchema = z.object({
+  agent: z.object({
+    id: z.string().min(1), version: z.string().min(1), title: z.string().min(1), purpose: z.string().min(1),
+    domain: z.string().min(1), scope: AgentScopeSchema, lifecycle: AgentLifecycleSchema,
+    autonomyCeiling: z.number().int().nonnegative(), tools: z.array(z.string().min(1)),
+    data: z.object({ reads: z.array(z.string().min(1)), writes: z.array(z.string().min(1)) }).strict(),
+    outputs: z.array(z.object({ type: z.enum(['alert', 'recommendation', 'report', 'job']), kind: z.string().min(1) }).strict()),
+    supervisor: z.string().min(1),
+    binding: z.object({ legacyAgent: z.string().min(1) }).strict().optional(),
+    digest: Sha256,
+  }).strict(),
+  autonomyCeiling: z.string().min(1),
+  tools: z.array(z.object({ key: z.string().min(1), effect: z.string().min(1), minAutonomy: z.string().min(1), classification: z.string().min(1) }).strict()),
+  outputs: z.array(z.object({ type: z.string().min(1), kind: z.string().min(1), classes: z.array(z.string().min(1)), readableBy: z.array(z.string().min(1)) }).strict()),
+  issues: z.array(z.object({ code: z.string().min(1), message: z.string().min(1) }).strict()),
+}).strict();
+
 // ── the registry ─────────────────────────────────────────────────────────────
 
 export interface ApiContract {
@@ -1665,6 +1710,18 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     endpoint: '/system/design-system/components/preview', query: '?id=lg-chip', module: 'Design System Control',
     schema: DesignSystemPreviewDetailSchema, consumer: 'public/design-system/lab.js',
     reads: ['state', 'reason', 'sources', 'component'],
+  },
+
+  // ── The AI Agents Operations Room ──
+  {
+    endpoint: '/system/agents', module: 'AI Agents Operations Room',
+    schema: AgentsRoomOverviewSchema, consumer: 'public/agents-room/agents-room.js',
+    reads: ['environment', 'activation', 'killSwitch', 'registry', 'invariants', 'agents'],
+  },
+  {
+    endpoint: '/system/agents/club.tactical', module: 'AI Agents Operations Room',
+    schema: AgentsRoomDetailSchema, consumer: 'public/agents-room/agents-room.js',
+    reads: ['agent', 'autonomyCeiling', 'tools', 'outputs', 'issues'],
   },
 ];
 

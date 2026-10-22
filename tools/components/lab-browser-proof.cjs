@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Familista — Specimen Lab: browser proofs (Stage 3.2.3 M1, M2 / S1 zoom, M2 / S2 width, M2 / S3 comparison, M2 / S4 navigation,
-// M3 / S1 room stability), and Familista Design Studio, Slice 1a (sections 14 and 14a).
+// M3 / S1 room stability), Familista Design Studio, Slice 1a (sections 14 and 14a), and the AI Agents Operations Room (sections 16
+// and 16a).
 //
 // The Lab claims four boundaries around a specimen and one around the server:
 // events stop at the stage, fixed overlays stay in it, the application's
@@ -3434,6 +3435,367 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
         && typeof k.stats.tracked === 'number' && k.stats.tracked > 0 && k.stats.locale === 'de-DE', { api: k.api, stats: k.stats });
     }
     await contractsCtx.close();
+  }
+
+  // ══ 16. The AI Agents Operations Room: discovered, read-only, owner-only, and still where it was drawn ═══════════
+  // The platform owner's room for the Agent Registry, at #agents-room, loaded on demand for the owner only and reached from
+  // SYSTEM → AI Agent Control. These proofs read the room against the server's own registry response, add a domain and an
+  // agent to that response to show the room discovers rather than lists, drive it with the real mouse and keyboard, and
+  // watch every request it makes. Each is paired with a control that breaks the property on purpose (a patched room
+  // script) and must turn the same measurement red.
+  const AR_FILES = ['/agents-room/agents-room.css', '/agents-room/agents-room.js'];
+  async function openRoom(viewport, opts) {
+    opts = opts || {};
+    const ctx = await browser.newContext({ viewport, reducedMotion: 'reduce' });
+    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+    if (opts.roomPatch) {
+      const original = fs.readFileSync(path.join(ROOT, 'public/agents-room/agents-room.js'), 'utf8');
+      const patched = opts.roomPatch(original);
+      if (patched === original) throw new Error('negative control: the edit did not change agents-room.js, so it would prove nothing');
+      await ctx.route(/\/agents-room\/agents-room\.js(\?|$)/, (r) => r.fulfill({ contentType: 'application/javascript', body: patched }));
+    }
+    // The registry's own answer, extended or failed on purpose; /system/agents/:agentId is never touched.
+    if (opts.overview || opts.fail) {
+      await ctx.route(/\/api\/v1\/system\/agents(\?|$)/, async (r) => {
+        if (opts.fail) return r.fulfill({ status: 500, contentType: 'application/json', body: '{"success":false,"message":"proof"}' });
+        const res = await r.fetch();
+        const body = await res.json();
+        body.data = opts.overview(body.data);
+        return r.fulfill({ response: res, json: body });
+      });
+    }
+    if (!opts.anonymous) await ctx.addCookies([{ name: 'access_token', value: opts.token || token, domain: '127.0.0.1', path: '/', httpOnly: true }]);
+    await ctx.addInitScript((pre) => {
+      window.__csp = [];
+      document.addEventListener('securitypolicyviolation', (e) => {
+        let src = '';
+        try { src = e.sourceFile ? new URL(e.sourceFile).pathname : ''; } catch (_) { src = String(e.sourceFile || ''); }
+        window.__csp.push({ d: e.violatedDirective, uri: String(e.blockedURI).slice(0, 120), src,
+          inRoom: !!(e.target && e.target.closest && e.target.closest('#pg-agents-room')) });
+      });
+      try {
+        if (pre && !sessionStorage.getItem('__arSeeded')) {
+          sessionStorage.setItem('__arSeeded', '1');
+          if (pre.locale) localStorage.setItem('familista_agents_room_locale', pre.locale);
+        }
+      } catch (_) { /* private mode */ }
+    }, { locale: opts.locale || null });
+    const page = await ctx.newPage();
+    const log = { errors: [], notices: [], requests: [] };
+    page.on('pageerror', (e) => log.errors.push('pageerror: ' + e.message));
+    page.on('console', (m) => {
+      if (m.type() !== 'error') return;
+      if (NOTICE.test(m.text())) log.notices.push({ text: m.text().slice(0, 200), url: String((m.location() && m.location().url) || '').slice(0, 200) });
+      else log.errors.push('console: ' + m.text().slice(0, 200));
+    });
+    page.on('request', (r) => { const u = new URL(r.url()); log.requests.push({ m: r.method(), p: u.pathname, q: u.search, o: u.origin }); });
+    await page.goto(BASE + (opts.hash || '/#agents-room'), { waitUntil: 'load' });
+    if (opts.wait !== false) await page.waitForSelector(opts.waitFor || '.ar-map', { timeout: 30000 });
+    return { ctx, page, log };
+  }
+  // A CSP report is the room's if it was raised inside the room's page or by one of its files, or names one. The application's
+  // own inline-style reports (style-src-attr from a first-party script or the page's HTML) are counted apart; anything else is
+  // unexplained.
+  const arCsp = (page) => page.evaluate(() => {
+    const v = window.__csp || [];
+    const room = (c) => c.inRoom || /agents-room\//.test(c.src) || /agents-room\//.test(c.uri);
+    const app = (c) => !room(c) && c.d === 'style-src-attr' && /^\//.test(c.src);
+    return { total: v.length, room: v.filter(room).length, application: v.filter(app).length,
+      unexplained: v.filter((c) => !room(c) && !app(c)).map((c) => c.d + ' @' + (c.src || '(no source)')) };
+  });
+  // The registry exactly as the server answers it to this owner, read beside the room.
+  const registryOf = (page) => page.evaluate(() => fetch('/api/v1/system/agents', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()).then((b) => b.data));
+  const drawn = (page) => page.evaluate(() => ({
+    nodes: [...document.querySelectorAll('.ar-map .ar-node')].map((n) => n.getAttribute('data-ar-agent')),
+    sectors: [...document.querySelectorAll('.ar-map .ar-sec')].map((n) => n.getAttribute('data-ar-sector')),
+    chips: [...document.querySelectorAll('.ar-dom')].map((n) => n.getAttribute('data-ar-domain')),
+  }));
+  // Where each node is drawn, and whether a pointer held still on its centre keeps it there and keeps hitting it.
+  async function hoverHold(page) {
+    const at = await page.evaluate(() => [...document.querySelectorAll('.ar-map .ar-node')].map((n) => {
+      const r = n.querySelector('.ar-node-body').getBoundingClientRect();
+      return { id: n.getAttribute('data-ar-agent'), x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }));
+    const slipped = [];
+    for (const n of at) {
+      await page.mouse.move(n.x, n.y);
+      // Every frame for eight frames: a node that slips out from under the pointer and back is caught in either phase.
+      const seen = await page.evaluate(async (p) => {
+        const bad = [];
+        for (let k = 0; k < 8; k++) {
+          await new Promise((r) => requestAnimationFrame(() => r()));
+          const hit = document.elementFromPoint(p.x, p.y);
+          const owner = hit && hit.closest ? hit.closest('[data-ar-agent]') : null;
+          const r = document.querySelector('.ar-map .ar-node[data-ar-agent="' + p.id + '"] .ar-node-body').getBoundingClientRect();
+          const dx = Math.round(r.left + r.width / 2 - p.x), dy = Math.round(r.top + r.height / 2 - p.y);
+          const id = owner && owner.getAttribute('data-ar-agent');
+          if (id !== p.id || dx !== 0 || dy !== 0) bad.push({ frame: k, hit: id, dx, dy });
+        }
+        return bad;
+      }, n);
+      if (seen.length) slipped.push({ id: n.id, frames: seen.length, first: seen[0] });
+    }
+    await page.mouse.move(2, 2);
+    return { nodes: at.length, slipped };
+  }
+  const rectsOf = (page) => page.evaluate(() => ['.ar-top', '.ar-rail', '.ar-toolbar', '.ar-map', '.ar-side'].map((s) => {
+    const el = document.querySelector(s);
+    if (!el) return s + ' (not drawn)';
+    const r = el.getBoundingClientRect();
+    return s + ' ' + [r.left, r.top, r.width, r.height].map((v) => Math.round(v * 10) / 10).join(',');
+  }));
+  // The room's own API traffic, and anything at all that is not a read.
+  const roomTraffic = (log) => ({
+    room: log.requests.filter((r) => r.o === BASE && r.p.startsWith('/api/v1/system/agents')).map((r) => r.m + ' ' + r.p),
+    writes: log.requests.filter((r) => r.o === BASE && r.p.startsWith('/api/v1/system/') && r.m !== 'GET').map((r) => r.m + ' ' + r.p),
+  });
+
+  if (want('16')) {
+    // ── entry: its own page, for the platform owner only, and only its own two files ──
+    const { ctx, page, log } = await openRoom({ width: 1440, height: 900 });
+    const entry = await page.evaluate(() => {
+      const side = document.querySelector('.sidebar');
+      const pg = document.getElementById('pg-agents-room');
+      return { open: !!document.querySelector('#pg-agents-room.active'), bodyClass: document.body.classList.contains('ar-agents-open'),
+        sidebarHidden: !side || getComputedStyle(side).display === 'none', boundary: pg.hasAttribute('data-no-i18n'), context: pg.getAttribute('data-fam-context'),
+        clubShell: !!document.querySelector('#pg-agents-room .club-shell, #pg-agents-room [data-club-workspace]') };
+    });
+    const own = log.requests.filter((r) => r.o === BASE && r.p.startsWith('/agents-room/') && !r.p.includes('/i18n/'));
+    const versions = [...new Set(own.map((r) => r.q))];
+    check('agents room entry: the platform owner reaches the AI Agents Operations Room at #agents-room, a page of its own in the owner context, outside the club shell, and it fetched exactly its own two files under one version',
+      entry.open && entry.bodyClass && entry.sidebarHidden && entry.boundary && entry.context === 'owner' && !entry.clubShell
+        && sameJson(own.map((r) => r.p).sort(), AR_FILES) && versions.length === 1 && /^\?v=[\w.-]+$/.test(versions[0]), { entry, own: own.map((r) => r.p + r.q) });
+
+    // ── discovered: every agent and every domain the server reports, drawn, and nothing else ──
+    const reg = await registryOf(page);
+    const d0 = await drawn(page);
+    const ids = reg.agents.map((a) => a.id).sort();
+    check('agents room discovery: every agent the registry reports is a node, every domain it counts is a sector and a chip, in the order it gave, and nothing is drawn that it did not report',
+      sameJson(d0.nodes.slice().sort(), ids) && sameJson(d0.sectors, Object.keys(reg.registry.byDomain)) && sameJson(d0.chips, Object.keys(reg.registry.byDomain)) && ids.length > 0,
+      { agents: ids.length, nodes: d0.nodes.length, domains: Object.keys(reg.registry.byDomain).length, sectors: d0.sectors.length });
+
+    // ── the real mouse: a node held under the pointer stays there, and a click opens its manifest ──
+    const hover = await hoverHold(page);
+    check('agents room pointer: a pointer held on each node keeps hitting that node, and the node does not move under it',
+      hover.nodes === ids.length && hover.slipped.length === 0, hover);
+    const rects0 = await rectsOf(page);
+    await page.evaluate(() => { window.__arMap = document.querySelector('.ar-map'); });
+    const target = await page.evaluate(() => { const r = document.querySelector('.ar-map .ar-node[data-ar-agent="club.medical"] .ar-node-body').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+    await page.mouse.click(target[0], target[1]);
+    await page.waitForSelector('.ar-insp.is-open .ar-ladder', { timeout: 15000 });
+    await page.waitForTimeout(300);
+    const opened = await page.evaluate(() => {
+      const box = document.querySelector('.ar-insp');
+      const r = box.getBoundingClientRect();
+      return { title: document.getElementById('ar-insp-title').textContent, role: box.getAttribute('role'), modal: box.getAttribute('aria-modal'),
+        focus: !!(document.activeElement && box.contains(document.activeElement)), right: document.documentElement.clientWidth - r.right <= 8 && r.left > document.documentElement.clientWidth / 2, fixed: getComputedStyle(box).position,
+        sameMap: window.__arMap === document.querySelector('.ar-map'), tools: box.querySelectorAll('.ar-mini tbody tr').length };
+    });
+    const rects1 = await rectsOf(page);
+    check('agents room inspector: a real click on a node opens its manifest in a floating dialog at the inline end, with the focus inside it',
+      opened.title === 'Medical' && opened.role === 'dialog' && opened.modal === 'true' && opened.focus && opened.right && opened.fixed === 'fixed' && opened.tools > 0, opened);
+    check('agents room stability: opening the manifest moved nothing under it and redrew nothing under it (the same map element, the same rectangles)',
+      opened.sameMap && sameJson(rects0, rects1), { sameMap: opened.sameMap, before: rects0, after: rects1 });
+
+    // ── the keyboard: the focus stays in the open manifest, Escape closes it and returns the focus to the node ──
+    const ring = [];
+    for (let k = 0; k < 14; k++) {
+      await page.keyboard.press('Tab');
+      ring.push(await page.evaluate(() => !!document.activeElement && document.querySelector('.ar-insp').contains(document.activeElement)));
+    }
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(250);
+    const closed = await page.evaluate(() => ({ open: document.querySelector('.ar-insp').classList.contains('is-open'), hidden: document.querySelector('.ar-insp').getAttribute('aria-hidden'),
+      back: document.activeElement && document.activeElement.getAttribute && document.activeElement.getAttribute('data-ar-agent') }));
+    await page.focus('.ar-map .ar-node[data-ar-agent="club.tactical"]');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.ar-insp.is-open', { timeout: 10000 });
+    const byKey = await page.evaluate(() => document.getElementById('ar-insp-title').textContent);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(250);
+    check('agents room keyboard: Tab never leaves the open manifest, Escape closes it and gives the focus back to the node, and Enter on a focused node opens it',
+      ring.every(Boolean) && !closed.open && closed.hidden === 'true' && closed.back === 'club.medical' && byKey === 'Tactical', { ring, closed, byKey });
+
+    // ── filters and views: a filter repaints the view, never the shell ──
+    const shell0 = (await rectsOf(page)).filter((r) => !r.startsWith('.ar-map'));
+    await page.selectOption('#ar-domain', 'MEDICAL');
+    await page.waitForTimeout(150);
+    const dim = await page.evaluate(() => ({ lit: [...document.querySelectorAll('.ar-map .ar-node:not(.is-dim)')].map((n) => n.getAttribute('data-ar-agent')),
+      count: document.getElementById('ar-count').textContent, on: [...document.querySelectorAll('.ar-sec.is-on')].map((s) => s.getAttribute('data-ar-sector')) }));
+    await page.click('#ar-tab-catalogue');
+    await page.waitForSelector('.ar-table', { timeout: 5000 });
+    const rows = await page.evaluate(() => [...document.querySelectorAll('.ar-table tbody tr')].map((r) => r.getAttribute('data-ar-agent')));
+    const shell1 = (await rectsOf(page)).filter((r) => !r.startsWith('.ar-map'));
+    await page.click('.ar-row-open[data-ar-agent="club.medical"]');
+    await page.waitForSelector('.ar-insp.is-open .ar-ladder', { timeout: 10000 });
+    const fromRow = await page.evaluate(() => document.getElementById('ar-insp-title').textContent);
+    await page.keyboard.press('Escape');
+    check('agents room filters: choosing a domain lights only its agents and its sector, the catalogue lists exactly them and opens each one, and the shell around the view did not move',
+      sameJson(dim.lit, ['club.medical']) && sameJson(dim.on, ['MEDICAL']) && /\b1\b/.test(dim.count) && sameJson(rows, ['club.medical']) && fromRow === 'Medical'
+        && shell0.length === 4 && sameJson(shell0.filter((r) => !r.startsWith('.ar-toolbar')), shell1.filter((r) => !r.startsWith('.ar-toolbar'))),
+      { dim, rows, fromRow, shell0, shell1 });
+
+    // ── read-only, and clean ──
+    const t1 = roomTraffic(log);
+    const split = await arCsp(page);
+    check('agents room read-only: everything the room asked the server for was a GET of /system/agents or one manifest under it, nothing was written anywhere under /system, and the kill switch was never called',
+      t1.room.length >= 3 && t1.room.every((r) => /^GET \/api\/v1\/system\/agents(\/[\w.-]+)?$/.test(r)) && t1.writes.length === 0 && !t1.room.some((r) => /kill-switch/.test(r)), t1);
+    check('agents room csp: the room raised no CSP violation, nothing is unexplained, and no script error was logged (the application\'s own inline-style reports are counted apart)',
+      split.room === 0 && split.unexplained.length === 0 && log.errors.length === 0, { split, errors: log.errors.slice(0, 5) });
+    await ctx.close();
+
+    // ── control: a node positioned by a transform on its group slips out from under the pointer that hovers it ──
+    const c1 = await openRoom({ width: 1440, height: 900 }, {
+      roomPatch: (src) => src.replace("var at = ' cx=\"' + f1(p.x) + '\" cy=\"' + f1(p.y) + '\"';", "var at = '';")
+        .replace("nodes += '<g class=\"ar-node ar-node--' + lc + (on ? '' : ' is-dim') + (open ? ' is-open' : '') + '\"'",
+          "nodes += '<g class=\"ar-node ar-node--' + lc + (on ? '' : ' is-dim') + (open ? ' is-open' : '') + '\" transform=\"translate(' + f1(p.x) + ' ' + f1(p.y) + ')\"'"),
+    });
+    const ch = await hoverHold(c1.page);
+    check('agents room pointer (control): the same nodes positioned by a transform on their group fail the hover proof above, so it can fail', ch.slipped.length > 0, { slipped: ch.slipped.length, of: ch.nodes });
+    await c1.ctx.close();
+
+    // ── control: an inspector that redraws the room as it opens fails the stability proof above ──
+    const c2 = await openRoom({ width: 1440, height: 900 }, { roomPatch: (src) => src.replace('    AR.open = id;\n    AR.opener = opener || null;\n', '    AR.open = id;\n    AR.opener = opener || null;\n    paint(host);\n') });
+    await c2.page.evaluate(() => { window.__arMap = document.querySelector('.ar-map'); });
+    await c2.page.focus('.ar-map .ar-node[data-ar-agent="club.medical"]');
+    await c2.page.keyboard.press('Enter');
+    await c2.page.waitForTimeout(400);
+    const c2same = await c2.page.evaluate(() => window.__arMap === document.querySelector('.ar-map'));
+    check('agents room stability (control): a room that redraws itself when a manifest opens fails the same-map proof above, so it can fail', c2same === false, { sameMap: c2same });
+    await c2.ctx.close();
+
+    // ── discovered, not listed: a domain and an agent the registry adds appear with no change to the room ──
+    const synthetic = (data) => {
+      const d = JSON.parse(JSON.stringify(data));
+      d.registry.byDomain.SPACE_OPERATIONS = 1;
+      d.registry.agents += 1;
+      d.registry.byScope.PLATFORM = (d.registry.byScope.PLATFORM || 0) + 1;
+      d.registry.byLifecycle.LAB = (d.registry.byLifecycle.LAB || 0) + 1;
+      d.agents.push(Object.assign({}, d.agents[0], { id: 'platform.synthetic-proof', title: 'Synthetic proof agent', domain: 'SPACE_OPERATIONS', scope: 'PLATFORM', lifecycle: 'LAB', runtimeAgent: null }));
+      return d;
+    };
+    const g = await openRoom({ width: 1440, height: 900 }, { overview: synthetic });
+    const d1 = await drawn(g.page);
+    const placed = await g.page.evaluate(() => {
+      const n = document.querySelector('.ar-map .ar-node[data-ar-agent="platform.synthetic-proof"]');
+      const c = n && n.querySelector('.ar-node-body');
+      return n ? { cls: n.getAttribute('class'), r: Math.round(Math.hypot(+c.getAttribute('cx'), +c.getAttribute('cy'))), chip: (document.querySelector('.ar-dom[data-ar-domain="SPACE_OPERATIONS"]') || {}).textContent } : null;
+    });
+    check('agents room discovery: a domain and a LAB platform agent added to the registry\'s answer appear as a sixteenth sector, a chip and a node on the platform orbit, drawn as LAB, with no change to the room',
+      d1.sectors.length === d0.sectors.length + 1 && d1.nodes.length === d0.nodes.length + 1 && placed && /ar-node--lab/.test(placed.cls) && placed.r === 344 && /Space operations/.test(placed.chip || ''),
+      { sectors: d1.sectors.length, nodes: d1.nodes.length, placed });
+    await g.ctx.close();
+
+    // ── a registry that does not answer is said, with a way to ask again ──
+    const f = await openRoom({ width: 1440, height: 900 }, { fail: true, waitFor: '.ar-empty' });
+    const failed = await f.page.evaluate(() => ({ text: document.querySelector('.ar-view').textContent, retry: !!document.querySelector('.ar-view [data-ar-refresh]'), nodes: document.querySelectorAll('.ar-node').length }));
+    check('agents room error: when the registry does not answer, the room says it could not be read and offers to try again, and draws no agent',
+      /The registry could not be read/.test(failed.text) && /HTTP 500/.test(failed.text) && failed.retry && failed.nodes === 0, failed);
+    await f.ctx.close();
+
+    // ── three languages: every string the room drew has a German and an Arabic entry, and Arabic runs right to left ──
+    const langs = {};
+    for (const loc of ['de', 'ar']) {
+      const s = await openRoom({ width: 1440, height: 900 }, { locale: loc });
+      await s.page.click('#ar-tab-catalogue');
+      await s.page.waitForSelector('.ar-table', { timeout: 5000 });
+      await s.page.click('.ar-row-open[data-ar-agent="club.finance"]');
+      await s.page.waitForSelector('.ar-insp.is-open .ar-ladder', { timeout: 10000 });
+      await s.page.waitForTimeout(300);
+      langs[loc] = await s.page.evaluate(() => {
+        const r = document.querySelector('.ar-insp').getBoundingClientRect();
+        return { dir: document.getElementById('ar-root').getAttribute('dir'), lang: document.getElementById('ar-root').getAttribute('lang'),
+          // At the inline end: flush (within the app shell's own few-pixel inset) with that edge, and wholly in that half.
+          missing: window.__familistaAgentsRoomMissing(), left: r.left <= 8 && r.right < document.documentElement.clientWidth / 2,
+          right: document.documentElement.clientWidth - r.right <= 8 && r.left > document.documentElement.clientWidth / 2, title: document.getElementById('ar-insp-title').textContent };
+      });
+      await s.ctx.close();
+    }
+    check('agents room languages: in German and in Arabic every string the room drew (map, catalogue, a manifest) is in its catalogue, Arabic runs right to left and its manifest opens at the inline end, the left edge',
+      langs.de.missing.length === 0 && langs.ar.missing.length === 0 && langs.de.dir === 'ltr' && langs.ar.dir === 'rtl' && langs.ar.lang === 'ar'
+        && langs.ar.left && !langs.ar.right && langs.de.right && !langs.de.left && langs.de.title === 'Finanzen' && langs.ar.title === 'المالية', langs);
+    const cl = await openRoom({ width: 1440, height: 900 }, { locale: 'de', roomPatch: (src) => src.replace("chip('info', T('Read-only')", "chip('info', T('Read-only (an untranslated proof string)')") });
+    const clMissing = await cl.page.evaluate(() => window.__familistaAgentsRoomMissing());
+    check('agents room languages (control): a string the catalogue does not hold is reported missing by the same check, so it can fail', sameJson(clMissing, ['Read-only (an untranslated proof string)']), clMissing);
+    await cl.ctx.close();
+
+    // ── a phone: no horizontal scroll, and the domains are reachable without the map ──
+    const m = await openRoom({ width: 390, height: 844 });
+    const phone = await m.page.evaluate(() => ({ overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      chips: document.querySelectorAll('.ar-dom').length, labels: getComputedStyle(document.querySelector('.ar-sec-t')).display }));
+    await m.page.click('.ar-dom[data-ar-domain="FINANCE"]');
+    const tapped = await m.page.evaluate(() => [...document.querySelectorAll('.ar-map .ar-node:not(.is-dim)')].map((n) => n.getAttribute('data-ar-agent')));
+    check('agents room phone: at 390 px the page does not scroll sideways, the ring gives its labels to the domain list, and a domain chosen there filters the map',
+      phone.overflow <= 0 && phone.chips === d0.chips.length && phone.labels === 'none' && sameJson(tapped, ['club.finance']), { phone, tapped });
+    await m.ctx.close();
+
+    // ── a club role, and nobody signed in: the room never opens and none of its files is fetched ──
+    // The coach signs in with a token of its own: the server keeps a verified identity for a few seconds by user id, so the
+    // owner's token would still be answered as the owner it was just verified as.
+    CURRENT = COACH;
+    const coach = await openRoom({ width: 1440, height: 900 }, { wait: false, token: signToken('access', { sub: COACH.id, role: COACH.role }, { expiresIn: '60m' }) });
+    await coach.page.waitForTimeout(2500);
+    const coachSaw = await coach.page.evaluate(() => ({ open: !!document.querySelector('#pg-agents-room.active'), render: typeof window.renderFamilistaAgentsRoom, map: !!document.querySelector('.ar-map') }));
+    const coachFiles = coach.log.requests.filter((r) => r.p.startsWith('/agents-room/')).map((r) => r.p);
+    const coachApi = coach.log.requests.filter((r) => r.p.startsWith('/api/v1/system/agents')).map((r) => r.p);
+    // And the server itself, asked directly by the coach's session: the room's guard is the server's, not the page's.
+    const coachAsked = await coach.page.evaluate(() => Promise.all(['/api/v1/system/agents', '/api/v1/system/agents/club.medical'].map((u) => fetch(u, { credentials: 'include' }).then((r) => r.status))));
+    await coach.ctx.close();
+    CURRENT = OWNER;
+    const anon = await openRoom({ width: 1440, height: 900 }, { wait: false, anonymous: true });
+    await anon.page.waitForTimeout(2500);
+    const anonSaw = await anon.page.evaluate(() => ({ open: !!document.querySelector('#pg-agents-room.active'), render: typeof window.renderFamilistaAgentsRoom }));
+    const anonFiles = anon.log.requests.filter((r) => r.p.startsWith('/agents-room/')).map((r) => r.p);
+    await anon.ctx.close();
+    check('agents room access: a club role who types #agents-room is sent away and nobody signed in reaches it either: the room never opens and none of its files is fetched, and the server answers the coach 403 on both endpoints',
+      !coachSaw.open && coachSaw.render === 'undefined' && !coachSaw.map && coachFiles.length === 0 && coachApi.length === 0 && sameJson(coachAsked, [403, 403])
+        && !anonSaw.open && anonSaw.render === 'undefined' && anonFiles.length === 0,
+      { coachSaw, coachFiles, coachApi, coachAsked, anonSaw, anonFiles });
+
+    // ── SYSTEM → AI Agent Control is the way in ──
+    const sy = await openRoom({ width: 1440, height: 900 }, { hash: '/#system', wait: false });
+    await sy.page.waitForSelector('.sy-shell', { timeout: 30000 });
+    await sy.page.evaluate(() => { const b = document.querySelector('[data-sy-go="agents"]'); if (b) b.click(); });
+    await sy.page.waitForSelector('[data-sy-room="agents-room"]', { timeout: 15000 });
+    await sy.page.click('[data-sy-room="agents-room"]');
+    await sy.page.waitForSelector('#pg-agents-room.active .ar-map', { timeout: 30000 });
+    const via = await sy.page.evaluate(() => location.hash);
+    check('agents room entry: SYSTEM → AI Agent Control carries an Operations Room panel whose button opens the room', via === '#agents-room', { via });
+    await sy.ctx.close();
+  }
+
+  if (WANT_AXE && want('16a')) {
+    const axePath = process.env.AXE_CORE || path.join(ROOT, 'tools/components/node_modules/axe-core/axe.min.js');
+    if (!fs.existsSync(axePath)) skip('agents room under axe', 'axe-core is not installed (' + axePath + ')');
+    else {
+      const AXE = fs.readFileSync(axePath, 'utf8');
+      const axeRoom = (pg) => pg.evaluate(async (src) => {
+        if (!window.axe) (0, eval)(src);        // eslint-disable-line no-eval -- this script's own tool, never the page's code
+        const r = await window.axe.run({ include: ['#pg-agents-room'] }, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] }, resultTypes: ['violations'] });
+        return r.violations.map((v) => v.id + ':' + v.nodes.length + ' ' + v.nodes.slice(0, 2).map((n) => n.target.join(' ')).join('|'));
+      }, AXE);
+      for (const loc of ['en', 'ar']) {
+        const s = await openRoom({ width: 1440, height: 900 }, { locale: loc });
+        const found = { map: await axeRoom(s.page) };
+        await s.page.focus('.ar-map .ar-node[data-ar-agent="club.scouting"]');
+        await s.page.keyboard.press('Enter');
+        await s.page.waitForSelector('.ar-insp.is-open .ar-ladder', { timeout: 10000 });
+        await s.page.waitForTimeout(300);
+        found.manifest = await axeRoom(s.page);
+        await s.page.keyboard.press('Escape');
+        await s.page.click('#ar-tab-catalogue');
+        await s.page.waitForSelector('.ar-table', { timeout: 5000 });
+        found.catalogue = await axeRoom(s.page);
+        check(`agents room under axe (${loc}): the map, an open manifest and the catalogue have 0 violations (WCAG 2.2 A/AA)`,
+          found.map.length === 0 && found.manifest.length === 0 && found.catalogue.length === 0, found);
+        if (loc === 'en') {
+          await s.page.evaluate(() => { const b = document.createElement('button'); b.type = 'button'; document.querySelector('.ar-top-r').appendChild(b); });
+          const v = await axeRoom(s.page);
+          check('agents room under axe (control): a button with no name placed in the top bar is reported by the same run, so a clean result means something', v.some((x) => /^button-name/.test(x)), v);
+        }
+        await s.ctx.close();
+      }
+    }
   }
 
   await browser.close(); server.close();

@@ -438,7 +438,7 @@ describe('the room reads the canonical tokens and declares none of its own', () 
 
   it('is one of two consumers: the token verifier allows --fam- under public/design-system/ and Familista Design Studio\'s public/design-studio/, and nowhere else', () => {
     const v = read('tools/tokens/scripts/verify.mjs');
-    expect(v).toContain("const CONSUMERS = ['public/design-system/', 'public/design-studio/'];");
+    expect(v).toContain("const CONSUMERS = ['public/design-system/', 'public/design-studio/', 'public/agents-room/'];");
     expect(json('tools/tokens/targets/web.json').version).toBe(/tokens\.css\?v=([^"]+)"/.exec(read('public/index.html'))![1]);
   });
 });
@@ -862,7 +862,9 @@ describe('Owner Home: the ninth card, DESIGN SYSTEM CONTROL', () => {
     // Model text is now drawn as nodes (public/ai-model-text.js) and its bold is styled by app.css,
     // so the script and the stylesheet moved on together.
     expect(html).toContain('/app.css?v=20261020-ai-safe-text');
-    expect(html).toContain('/app.js?v=20261020-ai-safe-text');
+    // The AI Agents Operations Room's loader and entry moved app.js on again; app.css did not change.
+    expect(html).toContain('/app.js?v=20261022-agents-room');
+    expect(html).not.toContain('/app.js?v=20261020-ai-safe-text');
     expect(html).not.toContain('/app.css?v=20261012-owner-home-ds');
     expect(html).not.toContain('/app.js?v=20261020-design-studio');
     expect(html).not.toContain('/app.js?v=20261017-design-system-room');

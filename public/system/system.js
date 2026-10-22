@@ -1224,12 +1224,21 @@
       + rows + '</section>' + capabilityTable('people');
   }
 
+  /** The way into the AI Agents Operations Room: a room of its own, read-only, beside this one. */
+  function agentsRoomLink() {
+    return '<section class="sy-panel sy-room-link"><div class="sy-panel-h"><h2>AI Agents Operations Room</h2>'
+      + '<span class="sy-chip sy-chip--safe">READ-ONLY</span></div>'
+      + '<p class="sy-room-link-p">Every agent in the Agent Registry, by domain and scope: its manifest, what it may do and touch, '
+      + 'who answers for it, and whether the registry still agrees with what runs.</p>'
+      + '<button class="sy-btn" type="button" data-sy-room="agents-room">Open the Operations Room</button></section>';
+  }
+
   function agentsHtml() {
     var i = SY.intelligence;
-    if (!i) return moduleHeader('agents') + skeleton();
+    if (!i) return moduleHeader('agents') + agentsRoomLink() + skeleton();
     var ks = i.killSwitch || {};
     var jobs = i.jobs;
-    return moduleHeader('agents')
+    return moduleHeader('agents') + agentsRoomLink()
       + '<section class="sy-panel"><div class="sy-panel-h"><h2>Global AI action kill switch</h2>'
       + '<span class="sy-chip sy-chip--critical">CRITICAL</span></div>'
       + '<p style="margin:0 0 14px;font-size:12px;color:var(--sy-tx-2)">'
@@ -1753,6 +1762,10 @@
 
       var home = ev.target.closest('[data-sy-home]');
       if (home) { ev.preventDefault(); try { navTo('owner-home'); } catch (_) {} return; }
+
+      // A room of its own beside SYSTEM; navTo's allow-list and owner gate decide whether it opens.
+      var room = ev.target.closest('[data-sy-room]');
+      if (room) { ev.preventDefault(); try { navTo(room.getAttribute('data-sy-room')); } catch (_) {} return; }
 
       var kill = ev.target.closest('[data-sy-kill]');
       if (kill) {
