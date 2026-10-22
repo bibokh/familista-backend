@@ -26,6 +26,12 @@ const runner = require('../scripts/db-migrate.js') as {
   withConnectTimeout: (url: string, seconds: number) => string;
   redactUrl: (url?: string) => string;
   suggestedDirectHost: (url?: string) => string | null;
+  runDeploy: (env: NodeJS.ProcessEnv, opts: {
+    timeoutMs?: number; command?: string; args?: string[]; graceMs?: number;
+    write?: (s: string) => void; log?: (s: string) => void;
+    onStall?: (s: { applying: boolean }) => Promise<void>;
+  }) => Promise<{ code: number; out: string; stalled: boolean }>;
+  EXIT_UNAVAILABLE: number;
 };
 const { redactUrl, suggestedDirectHost } = runner;
 
@@ -191,5 +197,117 @@ describe('what the runner is allowed to do to a database', () => {
     // The existing recovery path is unchanged: a real failure still falls
     // through to resolving the baseline migrations, exactly as before.
     expect(PREDEPLOY).toContain('prisma migrate resolve --applied 00000000000000_baseline');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A deploy that waits on a lock does not fail: it waits, silently, past the
+// moment Render stops waiting for the port. These pin the one place that bounds
+// it — a stand-in for `prisma migrate deploy` (a node script) plays each case,
+// so nothing here needs a database.
+describe('a migrate deploy that goes silent', () => {
+  // Every stand-in prints its pid first, and whatever a test started is killed
+  // after it: a regression that stops the bound must fail the test, not hang CI.
+  const started: number[] = [];
+  const track = (s: string) => { for (const m of s.matchAll(/(?:PID|ENGINE) (\d+)/g)) started.push(Number(m[1])); };
+  afterEach(() => { for (const pid of started.splice(0)) { try { process.kill(pid, 'SIGKILL'); } catch (_) { /* gone */ } } });
+  const quiet = { write: track, log: () => {} };
+  const fake = (script: string) => ({ command: process.execPath, args: ['-e', `console.log('PID ' + process.pid); ${script}`] });
+  const alive = (pid: number) => {
+    // A zombie still answers kill(pid, 0); /proc says what it really is.
+    if (fs.existsSync(`/proc/${pid}/stat`)) return !/^\d+ \(.*\) Z/.test(fs.readFileSync(`/proc/${pid}/stat`, 'utf8'));
+    if (fs.existsSync('/proc')) return false;
+    try { process.kill(pid, 0); return true; } catch (_) { return false; }
+  };
+  const gone = async (pid: number) => {
+    for (let i = 0; i < 40 && alive(pid); i++) await new Promise((r) => setTimeout(r, 50));
+    return !alive(pid);
+  };
+
+  it('relays Prisma\'s output as it arrives, not when the run ends', async () => {
+    const seen: Array<{ s: string; at: number }> = [];
+    const r = await runner.runDeploy(process.env, {
+      ...fake("process.stdout.write('first\\n'); setTimeout(() => { process.stderr.write('second\\n'); process.exit(3); }, 300)"),
+      write: (s) => { track(s); seen.push({ s, at: Date.now() }); }, log: () => {},
+    });
+    const ended = Date.now();
+    expect(r).toMatchObject({ code: 3, stalled: false });
+    expect(r.out).toContain('first');
+    expect(r.out).toContain('second');
+    expect(ended - seen.find((x) => x.s.includes('first'))!.at).toBeGreaterThanOrEqual(200);
+  });
+
+  it('stops a run silent before applying anything, with everything it started, after reporting the locks', async () => {
+    const stalls: boolean[] = [];
+    const t0 = Date.now();
+    const r = await runner.runDeploy(process.env, {
+      ...fake("const g = require('child_process').spawn('sleep', ['300'], { stdio: 'ignore' }); console.log('ENGINE ' + g.pid); setInterval(() => {}, 1000)"),
+      ...quiet, timeoutMs: 300, graceMs: 200,
+      onStall: async ({ applying }) => { stalls.push(applying); },
+    });
+    expect(r.stalled).toBe(true);
+    expect(r.code).not.toBe(0);
+    expect(stalls).toEqual([false]);
+    expect(Date.now() - t0).toBeLessThan(5000);
+    // The schema engine Prisma starts is a grandchild: the whole group is stopped.
+    const engine = Number(/ENGINE (\d+)/.exec(r.out)![1]);
+    expect(await gone(engine)).toBe(true);
+  });
+
+  it('and one that ignores SIGTERM is killed after the grace period', async () => {
+    const t0 = Date.now();
+    const r = await runner.runDeploy(process.env, {
+      ...fake("process.on('SIGTERM', () => {}); console.log('up'); setInterval(() => {}, 1000)"),
+      ...quiet, timeoutMs: 300, graceMs: 200,
+    });
+    expect(r.stalled).toBe(true);
+    expect(Date.now() - t0).toBeLessThan(5000);
+  });
+
+  it('never interrupts a run that has started applying a migration, however long it is silent', async () => {
+    const stalls: boolean[] = [];
+    const r = await runner.runDeploy(process.env, {
+      ...fake("console.log('Applying migration `20990101000000_slow`'); setTimeout(() => { console.log('All migrations have been successfully applied.'); process.exit(0); }, 1200)"),
+      ...quiet, timeoutMs: 300, graceMs: 100,
+      onStall: async ({ applying }) => { stalls.push(applying); },
+    });
+    expect(r).toMatchObject({ code: 0, stalled: false });
+    expect(r.out).toContain('successfully applied');
+    // Reported each time it went silent, and left to finish every time.
+    expect(stalls.length).toBeGreaterThanOrEqual(2);
+    expect(stalls.every((a) => a)).toBe(true);
+  });
+
+  it('a command that cannot start is a failed attempt, not a crash', async () => {
+    const r = await runner.runDeploy(process.env, { command: 'familista-no-such-command', args: [], ...quiet, timeoutMs: 300 });
+    expect(r).toMatchObject({ code: 1, stalled: false });
+    expect(r.out).toMatch(/ENOENT/);
+  });
+
+  it('the deploy step is bounded, and the lock report reads no statement text', () => {
+    expect(SRC).not.toContain('spawnSync(');
+    expect(SRC).toContain('detached: true');
+    expect(SRC).toMatch(/MIGRATE_ATTEMPT_TIMEOUT_MS \|\| 90000/);
+    expect(SRC).toMatch(/MIGRATE_BUDGET_MS \|\| 300000/);
+    // pg_stat_activity.query is read only through its first word.
+    expect(SRC.match(/a\.query\b/g)).toHaveLength(1);
+    expect(SRC).toContain("split_part(ltrim(coalesce(a.query, '')), ' ', 1)");
+    expect(SRC).not.toMatch(/pg_(cancel|terminate)_backend/);
+  });
+
+  it('a run the database never let happen stops the boot instead of running recovery against it', () => {
+    expect(runner.EXIT_UNAVAILABLE).toBe(75);
+    // render-predeploy.sh: 75 returns before any `migrate resolve`.
+    const stop = PREDEPLOY.indexOf('if [ "$rc" -eq 75 ]; then');
+    expect(stop).toBeGreaterThan(-1);
+    expect(stop).toBeLessThan(PREDEPLOY.indexOf('prisma migrate resolve --applied'));
+    expect(PREDEPLOY).toContain('node scripts/db-migrate.js || rc=$?');
+    // render-start.sh: the code is read first thing in the else branch, and 75
+    // refuses before the reconciliation loop.
+    const START = read('scripts/render-start.sh');
+    expect(START).toMatch(/if bash scripts\/render-predeploy\.sh; then\n[^\n]*\nelse\n {2}rc=\$\?\n/);
+    const refuse = START.indexOf('if [ "$rc" -eq 75 ]; then');
+    expect(refuse).toBeGreaterThan(-1);
+    expect(refuse).toBeLessThan(START.indexOf('for _attempt in $(seq 1 25)'));
   });
 });
