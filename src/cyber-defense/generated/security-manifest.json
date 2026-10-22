@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-21T13:50:06.720Z",
+  "generatedAt": "2026-10-21T18:49:38.230Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
     "version": "1.0.0"
   },
   "apiSurface": {
-    "mountedRouters": 55,
-    "handlers": 759,
+    "mountedRouters": 56,
+    "handlers": 761,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -313,6 +313,13 @@
         "routerWideAuth": true
       },
       {
+        "path": "/system/agents",
+        "module": "agents-room.routes",
+        "handlers": 2,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
         "path": "/telemetry",
         "module": "telemetry.routes",
         "handlers": 1,
@@ -578,14 +585,19 @@
       "src/services/vision-realtime.service.ts"
     ],
     "tenancy": {
-      "idParameters": 349,
+      "idParameters": 350,
       "guarded": 136,
-      "exempt": 213,
+      "exempt": 214,
       "unguarded": [],
       "staleExemptions": [],
       "routerWideTenantGuardMounts": [],
       "unknownTenantResources": [],
       "byRouter": {
+        "agents-room.routes": {
+          "guarded": 0,
+          "exempt": 1,
+          "unguarded": 0
+        },
         "ai-ops.routes": {
           "guarded": 0,
           "exempt": 7,
@@ -809,18 +821,21 @@
       }
     },
     "authorization": {
-      "handlers": 759,
+      "handlers": 761,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 92
+        "platform-owner": 94
       },
       "memberUnreviewed": [],
       "memberStale": [],
       "ownerRoomViolations": [],
       "byRouter": {
+        "agents-room.routes": {
+          "platform-owner": 2
+        },
         "ai-data-policy.routes": {
           "member": 1,
           "roles": 1
@@ -1340,6 +1355,8 @@
         "GET /staff-market/shortlist": "member",
         "GET /staff-market/staff/:staffUserId": "member",
         "GET /staff-market/summary": "member",
+        "GET /system/agents": "platform-owner",
+        "GET /system/agents/:agentId": "platform-owner",
         "GET /system/algorithms": "platform-owner",
         "GET /system/algorithms/:key": "platform-owner",
         "GET /system/algorithms/:key/learning": "platform-owner",
@@ -1801,7 +1818,7 @@
   },
   "architecture": {
     "components": {
-      "routers": 55,
+      "routers": 56,
       "srcDomains": 78,
       "prismaSections": 65,
       "packages": 28,
@@ -1990,7 +2007,7 @@
       "id": "tenant-guard",
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
-      "note": "136 of 349 route id parameter(s) checked against the caller's club before the handler; 213 exempted by name with a reason; 0 unguarded."
+      "note": "136 of 350 route id parameter(s) checked against the caller's club before the handler; 214 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "franchise-club-attach-authorised",
@@ -2214,13 +2231,13 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "759 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 92 platform-owner; every member-level handler reviewed by name."
+      "note": "761 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 94 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "9 platform-owner room(s) mounted where pinned, every handler in them owner-only."
+      "note": "10 platform-owner room(s) mounted where pinned, every handler in them owner-only."
     },
     {
       "id": "worker-callback-authenticated",
@@ -2334,7 +2351,7 @@
       "id": "architecture-fully-mapped",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "374 discovered component(s) across 12 kinds, each declared against the 40 trust-boundary rows; a covered row's controls are all present."
+      "note": "375 discovered component(s) across 12 kinds, each declared against the 40 trust-boundary rows; a covered row's controls are all present."
     },
     {
       "id": "coverage-ratchet",
@@ -2707,6 +2724,7 @@
         "src/lib/storage/storage-local.adapter.ts",
         "src/lib/storage/storage-s3.adapter.ts",
         "src/notifications/notifications.service.ts",
+        "src/platform/agents/registry.ts",
         "src/platform/email/service.ts",
         "src/platform/innovation/flags.ts",
         "src/player-lifecycle/player-lifecycle.service.ts",
@@ -2894,6 +2912,7 @@
       "src/realtime/match-ws.ts",
       "src/realtime/session-watch.ts",
       "src/realtime/ws-ticket.ts",
+      "src/routes/agents-room.routes.ts",
       "src/routes/ai-data-policy.routes.ts",
       "src/routes/ai-ops.routes.ts",
       "src/routes/ai.routes.ts",

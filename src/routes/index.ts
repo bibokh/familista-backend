@@ -19,6 +19,7 @@ import sourcesRoutes from './sources.routes';
 import cybersecurityRoutes from './cybersecurity.routes';
 import algorithmsRoutes from './algorithms.routes';
 import designSystemRoutes from './design-system.routes';
+import agentsRoomRoutes from './agents-room.routes';
 import telemetryRoutes from './telemetry.routes';
 import contextRoutes    from './context.routes';
 // Phase B — Match Intelligence + Hardware Sessions + Automation
@@ -123,6 +124,11 @@ router.use('/system/algorithms', algorithmsRoutes);
 // again. It shows the Design Core's tokens and the evidence behind them; it
 // changes none of it.
 router.use('/system/design-system', designSystemRoutes);
+// The AI Agents Operations Room: read-only, the platform owner's alone, the same
+// guard again. It shows every agent's manifest, what it may do and touch, who
+// answers for it and whether the registry agrees with what runs; it starts,
+// stops and changes none of them.
+router.use('/system/agents', agentsRoomRoutes);
 // Product-usage ingestion. Deliberately not '/analytics' — that is a club's own
 // football analytics, and the two must never be confused for one another.
 router.use('/telemetry',   telemetryRoutes);

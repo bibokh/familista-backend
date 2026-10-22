@@ -563,6 +563,12 @@
   },
   "components": {
     "routers": {
+      "agents-room.routes": [
+        4,
+        5,
+        6,
+        7
+      ],
       "ai-data-policy.routes": [
         4,
         5,

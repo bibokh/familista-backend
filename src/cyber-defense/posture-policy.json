@@ -790,6 +790,13 @@
       "routes": [
         "GET /system/algorithms/candidates/:id"
       ]
+    },
+    "agents-room.routes :agentId": {
+      "basis": "platform-only",
+      "reason": "The AI Agents Operations Room is behind assertPlatformOwner; an agent id is a manifest id in the agent registry (src/platform/agents/catalog.ts), not a club row.",
+      "routes": [
+        "GET /system/agents/:agentId"
+      ]
     }
   },
   "ownerRooms": {
@@ -822,6 +829,9 @@
     },
     "design-system.routes": {
       "mount": "/system/design-system"
+    },
+    "agents-room.routes": {
+      "mount": "/system/agents"
     }
   },
   "authorizationMemberHandlers": {
