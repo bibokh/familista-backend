@@ -43,6 +43,16 @@ echo "════════════════════════�
 if bash scripts/render-predeploy.sh; then
   echo "✅ migrations: up to date"
 else
+  rc=$?
+  # 75: the database never let a migration run — `migrate deploy` stalled on a
+  # lock another session holds, or the database did not answer, within the
+  # budget scripts/db-migrate.js sets. Reconciling would run the same command
+  # against the same lock, so the boot stops here, with the lock holders printed
+  # above, and Render keeps the previous deploy serving.
+  if [ "$rc" -eq 75 ]; then
+    echo "❌ migrations could not run: the database stalled or did not answer. Refusing to start."
+    exit 1
+  fi
   # ── reconciling a database that was bootstrapped by `db push` ──────────────
   # This database's schema was created directly from the Prisma models, so it
   # already contains objects that the migration history would otherwise create.

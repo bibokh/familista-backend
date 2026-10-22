@@ -15,7 +15,9 @@
 #     "relation/type already exists" → mark the baseline migrations resolved
 #     (no SQL re-run), then retry. Subsequent deploys are a clean no-op.
 #
-# Exit code: 0 on success, non-zero only on an unrecoverable migration error.
+# Exit code: 0 on success, 75 when the database never let a migration run
+# (stalled on a lock, or unreachable), other non-zero on an unrecoverable
+# migration error.
 
 set -euo pipefail
 
@@ -29,9 +31,18 @@ SCHEMA="--schema=prisma/schema.prisma"
 familista_resolve_direct_url
 
 echo "==> prisma migrate deploy (with wake-up wait and connection retry)"
-if node scripts/db-migrate.js; then
+rc=0
+node scripts/db-migrate.js || rc=$?
+if [ "$rc" -eq 0 ]; then
   echo "==> Migrations up to date."
   exit 0
+fi
+# 75: the database never let a migration run — it stalled on a lock or did not
+# answer. The recovery below needs that same database and would wait on the same
+# lock, so it is not attempted; the caller refuses to boot instead.
+if [ "$rc" -eq 75 ]; then
+  echo "==> migrate deploy could not run (stalled or unreachable) — not attempting baseline recovery."
+  exit 75
 fi
 
 echo ""

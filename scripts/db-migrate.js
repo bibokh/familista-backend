@@ -41,10 +41,38 @@
 // So a retry either resumes where the last one stopped or is a no-op. Nothing
 // here resets, drops, seeds or force-marks anything: this file only ever calls
 // `migrate deploy`.
+//
+// ── Why a silent deploy is stopped, and when it never is
+//
+// The server binds its port only after this script returns, and Render fails a
+// deploy whose port does not open in time. A `migrate deploy` that waits on a
+// lock another session holds — the ledger table, or Prisma's advisory lock held
+// by a connection that never let go — does not fail: it waits, silently, until
+// Render gives up. So Prisma's output is relayed as it arrives, and a run that
+// has been silent for MIGRATE_ATTEMPT_TIMEOUT_MS BEFORE applying anything is
+// stopped, after printing who holds those locks (read-only, no statement text).
+// Stopping it then is a retry like any other: nothing was applied. A run that
+// has started applying a migration is never interrupted by this script — its
+// silence is reported, and it is left to finish.
+//
+// Every attempt, and the wake-up wait, share one budget, MIGRATE_BUDGET_MS. A
+// run that ends without the database ever letting a migration run — it stalled,
+// or never answered — exits EXIT_UNAVAILABLE (75), and the start scripts then
+// refuse to boot instead of running recovery steps that need the same database:
+// the previous deploy keeps serving, and the log says why.
 
-const { spawnSync } = require('child_process');
+const { spawn } = require('child_process');
 
 const SCHEMA = '--schema=prisma/schema.prisma';
+
+/** The database never let a migration run: it stalled, or did not answer. Not a migration error. */
+const EXIT_UNAVAILABLE = 75; // EX_TEMPFAIL
+
+/** Prisma prints this before it runs a migration's SQL. From then on the run is left to finish. */
+const APPLYING = /Applying migration/;
+
+/** Prisma waits ten seconds for its advisory lock; an attempt shorter than this proves nothing. */
+const MIN_ATTEMPT_MS = 15000;
 
 /**
  * Failures that mean "the database did not answer", as opposed to "the
@@ -174,18 +202,122 @@ async function waitForDatabase(url, { deadlineMs, log = console.log }) {
   }
 }
 
-function runDeploy(env, log = console.log) {
-  const res = spawnSync('npx', ['prisma', 'migrate', 'deploy', SCHEMA], {
-    env,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
+/**
+ * Who holds, or waits for, what `migrate deploy` needs: Prisma's advisory lock
+ * (72707369) and the ledger table. Read-only — pg_locks and pg_stat_activity —
+ * and it prints a session's pid, application name, state, lock, transaction age
+ * and the first word of its statement. Never the statement, never a value.
+ * Bounded, because it is asked exactly when the database is not answering well.
+ */
+async function migrationLockReport(url, { log = console.log, timeoutMs = 10000 } = {}) {
+  let PrismaClient;
+  try { ({ PrismaClient } = require('@prisma/client')); } catch (_) { return; }
+  const client = new PrismaClient({ datasourceUrl: url });
+  const bounded = (p) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('timed out')), timeoutMs).unref())]);
+  try {
+    const rows = await bounded(client.$queryRaw`
+      SELECT a.pid, coalesce(a.application_name, '') AS app, coalesce(a.state, '') AS state,
+             l.locktype, l.mode, l.granted,
+             coalesce(extract(epoch FROM now() - a.xact_start)::int, -1) AS xact_seconds,
+             upper(split_part(ltrim(coalesce(a.query, '')), ' ', 1)) AS statement
+        FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid
+       WHERE a.pid <> pg_backend_pid()
+         AND ((l.locktype = 'advisory' AND l.objid = 72707369)
+              OR l.relation = to_regclass('"_prisma_migrations"'))
+       ORDER BY l.granted DESC, a.pid`);
+    if (rows.length === 0) {
+      log('==> no other session holds Prisma\'s migration lock or the ledger table');
+    } else {
+      log('==> sessions on the migration locks (pid · application · state · lock · held/waiting · transaction age · statement):');
+      for (const r of rows) {
+        const age = r.xact_seconds < 0 ? 'no transaction' : `${r.xact_seconds}s`;
+        log(`==>   ${r.pid} · ${r.app || '(unnamed)'} · ${r.state || '-'} · ${r.locktype} ${r.mode} · ${r.granted ? 'held' : 'waiting'} · ${age} · ${r.statement || '-'}`);
+      }
+    }
+  } catch (err) {
+    log(`==> could not read the lock table: ${String((err && err.message) || err).split('\n')[0]}`);
+  } finally {
+    await bounded(client.$disconnect()).catch(() => { /* already gone */ });
+  }
+}
+
+/**
+ * One `prisma migrate deploy`, its output relayed line by line as it arrives.
+ *
+ * In its own process group, so stopping it reaches the schema engine Prisma
+ * starts and not only npx; and signals this script receives are passed on, so
+ * nothing outlives it. `onStall` runs each time the run has been silent for
+ * `timeoutMs`; the run is then stopped only if it has applied nothing.
+ */
+function runDeploy(env, {
+  timeoutMs = 0,
+  command = 'npx',
+  args = ['prisma', 'migrate', 'deploy', SCHEMA],
+  write = (s) => process.stdout.write(s),
+  log = console.log,
+  onStall = async () => {},
+  graceMs = 5000,
+} = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, { env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+    let out = '';
+    let stalled = false;
+    let done = false;
+    let timer = null;
+
+    const group = (sig) => { try { process.kill(-child.pid, sig); } catch (_) { /* already gone */ } };
+    const passOn = (sig) => { group(sig); process.exit(sig === 'SIGINT' ? 130 : 143); };
+    const onTerm = () => passOn('SIGTERM');
+    const onInt = () => passOn('SIGINT');
+    process.on('SIGTERM', onTerm);
+    process.on('SIGINT', onInt);
+
+    const arm = () => {
+      if (!timeoutMs || done) return;
+      clearTimeout(timer);
+      timer = setTimeout(onSilence, timeoutMs);
+    };
+    async function onSilence() {
+      const heard = out.length;
+      const applying = APPLYING.test(out);
+      log(`==> migrate deploy silent for ${Math.round(timeoutMs / 1000)}s${applying ? ' while applying a migration' : ' before applying anything'}`);
+      await onStall({ applying });
+      // It spoke or finished while we looked: the next silence is a new one.
+      if (done || out.length !== heard) return;
+      if (APPLYING.test(out)) {
+        log('==> a migration is being applied — not interrupting it');
+        arm();
+        return;
+      }
+      stalled = true;
+      log('==> stopping it: nothing has been applied, so this is a retry like any other');
+      group('SIGTERM');
+      setTimeout(() => group('SIGKILL'), graceMs).unref();
+    }
+
+    const relay = (chunk) => { const s = chunk.toString('utf8'); out += s; write(s); arm(); };
+    child.stdout.on('data', relay);
+    child.stderr.on('data', relay);
+
+    const finish = (code) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      process.removeListener('SIGTERM', onTerm);
+      process.removeListener('SIGINT', onInt);
+      resolve({ code, out, stalled });
+    };
+    child.on('error', (err) => { out += `${err.message}\n`; finish(1); });
+    child.on('close', (code) => finish(code == null ? 1 : code));
+    arm();
   });
-  const out = `${res.stdout || ''}${res.stderr || ''}`;
-  if (out.trim()) log(out.trimEnd());
-  return { code: res.status == null ? 1 : res.status, out };
 }
 
 async function main() {
+  const startedAt = Date.now();
+  const budgetMs = Number(process.env.MIGRATE_BUDGET_MS || 300000);
+  const attemptMs = Number(process.env.MIGRATE_ATTEMPT_TIMEOUT_MS || 90000);
+  const remaining = () => budgetMs - (Date.now() - startedAt);
   const chosen = migrationUrl();
   if (!chosen.url) {
     console.error('==> no DATABASE_URL (or DIRECT_URL / MIGRATE_DATABASE_URL) is set');
@@ -208,8 +340,9 @@ async function main() {
 
   const timeout = Number(process.env.MIGRATE_CONNECT_TIMEOUT || 30);
   const url = withConnectTimeout(chosen.url, timeout);
-  const deadline = Number(process.env.MIGRATE_WAIT_MS || 180000);
+  const deadline = Math.min(Number(process.env.MIGRATE_WAIT_MS || 180000), budgetMs);
 
+  console.log(`==> budget ${Math.round(budgetMs / 1000)}s for the whole run; an attempt silent for ${Math.round(attemptMs / 1000)}s before applying anything is stopped`);
   console.log(`==> waiting for the database (up to ${Math.round(deadline / 1000)}s, connect_timeout=${timeout}s)`);
   await waitForDatabase(url, { deadlineMs: deadline });
 
@@ -225,25 +358,35 @@ async function main() {
   const env = { ...process.env, DATABASE_URL: url, DIRECT_URL: url };
   const attempts = Number(process.env.MIGRATE_MAX_ATTEMPTS || 5);
   let delay = 5000;
+  let stalledOnce = false;
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     console.log(`==> prisma migrate deploy (attempt ${attempt}/${attempts})`);
-    const { code, out } = runDeploy(env);
+    const { code, out, stalled } = await runDeploy(env, {
+      timeoutMs: Math.max(MIN_ATTEMPT_MS, Math.min(attemptMs, remaining())),
+      onStall: () => migrationLockReport(url),
+    });
+    stalledOnce = stalledOnce || stalled;
     if (code === 0) {
       console.log('==> migrations up to date');
       process.exit(0);
     }
-    if (!isTransientConnectionError(out)) {
+    if (!stalled && !isTransientConnectionError(out)) {
       // A real migration problem. Returned as-is so the caller's existing
       // recovery path — resolving baseline migrations — runs exactly as before.
       console.log('==> migrate deploy failed for a reason a retry cannot fix');
       process.exit(code);
     }
-    if (attempt === attempts) {
-      console.log('==> migrate deploy still timing out after every attempt');
-      process.exit(code);
+    if (attempt === attempts || remaining() < delay + MIN_ATTEMPT_MS) {
+      // Nothing was applied and no migration error was seen: the database did
+      // not let a migration run. Recovery steps need that same database, so the
+      // caller is told to stop rather than to try them.
+      console.log(stalledOnce
+        ? `==> migrate deploy stalled on a lock and did not get past it within the ${Math.round(budgetMs / 1000)}s budget — the sessions listed above hold it`
+        : '==> migrate deploy still timing out after every attempt');
+      process.exit(EXIT_UNAVAILABLE);
     }
-    console.log(`==> connection-level failure — retrying in ${delay / 1000}s`);
+    console.log(`==> ${stalled ? 'stopped before applying anything' : 'connection-level failure'} — retrying in ${delay / 1000}s`);
     await new Promise((r) => setTimeout(r, delay));
     delay = Math.min(delay * 2, 30000);
   }
@@ -251,7 +394,7 @@ async function main() {
 
 module.exports = {
   isTransientConnectionError, migrationUrl, withConnectTimeout, waitForDatabase, sleep,
-  redactUrl, suggestedDirectHost,
+  redactUrl, suggestedDirectHost, runDeploy, migrationLockReport, EXIT_UNAVAILABLE,
 };
 
 if (require.main === module) {
