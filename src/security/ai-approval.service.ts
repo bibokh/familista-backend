@@ -23,11 +23,11 @@ import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
 import { appendAuditEventAsync } from './audit-chain.service';
 import { logSecurityEvent } from './security-event.service';
+import { APPROVER_ROLES } from './approver-roles';
+
+export { APPROVER_ROLES };
 
 const TTL_MS = 24 * 60 * 60_000;
-
-/** Who may decide an approval: the same roles routes/security.routes.ts admits. */
-export const APPROVER_ROLES: readonly string[] = ['SUPER_ADMIN', 'CLUB_ADMIN', 'HEAD_COACH'];
 
 export interface ApprovalActor {
   userId:    string;
