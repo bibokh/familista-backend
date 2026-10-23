@@ -18,7 +18,7 @@ import { AgentManifestError, validateManifest, type AgentDomain, type AgentManif
 export type RegisteredAgent = Readonly<AgentManifest> & { readonly digest: string };
 
 /** A canonical form: object keys sorted, arrays as given, so equal manifests hash equally. */
-function canonical(value: unknown): string {
+export function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   if (value && typeof value === 'object') {
     return `{${Object.keys(value as Record<string, unknown>).sort().map((k) => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`).join(',')}}`;
@@ -28,7 +28,7 @@ function canonical(value: unknown): string {
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
-function deepFreeze<T>(value: T): T {
+export function deepFreeze<T>(value: T): T {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     Object.freeze(value);
     for (const v of Object.values(value as Record<string, unknown>)) deepFreeze(v);
