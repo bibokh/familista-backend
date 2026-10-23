@@ -25,6 +25,8 @@ const SURFACES = [
   // demand by the main app (public/app.js, _loadDesignStudio). studio-frame.css is what each of its
   // frame documents loads beside the published tokens.
   { id: 'studio', label: 'Familista Design Studio, loaded on demand by the main app', files: ['public/design-studio/studio.css', 'public/design-studio/studio-frame.css'] },
+  // The AI Agents Operations Room: an owner room the main app loads on demand (public/app.js, _loadAgentsRoom).
+  { id: 'agents-room', label: 'The AI Agents Operations Room, loaded on demand by the main app', files: ['public/agents-room/agents-room.css'] },
 ];
 
 const rel = (p) => relative(REPO_ROOT, p).split('\\').join('/');

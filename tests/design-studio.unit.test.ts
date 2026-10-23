@@ -466,7 +466,7 @@ describe('wiring: a separate product, for the platform owner only, asking the se
   });
 
   it('the Design Core knows it as a consumer: the token verifier allows it, and the production inventory lists its two stylesheets as a surface of their own', () => {
-    expect(read('tools/tokens/scripts/verify.mjs')).toContain("const CONSUMERS = ['public/design-system/', 'public/design-studio/'];");
+    expect(read('tools/tokens/scripts/verify.mjs')).toContain("const CONSUMERS = ['public/design-system/', 'public/design-studio/', 'public/agents-room/'];");
     expect(read('tools/tokens/lib/production.mjs')).toContain("{ id: 'studio', label: 'Familista Design Studio, loaded on demand by the main app', files: ['public/design-studio/studio.css', 'public/design-studio/studio-frame.css'] },");
   });
 

@@ -285,6 +285,9 @@ body.sy-system-open { overflow: hidden; }
 }
 .sy-panel-h { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
 .sy-panel-h h2 { margin: 0; font-size: 14px; font-weight: 800; letter-spacing: -.2px; }
+/* The way into the AI Agents Operations Room: a room of its own, beside SYSTEM. */
+.sy-room-link { border-color: var(--sy-accent); }
+.sy-room-link-p { margin: 0 0 14px; font-size: 12px; line-height: 1.5; color: var(--sy-tx-2); max-width: 760px; }
 .sy-panel-h span { margin-left: auto; font-size: 10px; color: var(--sy-tx-3); }
 
 .sy-bar-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 12px; }

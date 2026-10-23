@@ -555,5 +555,9 @@
   "Withdraw this invitation?": "Diese Einladung zurückziehen?",
   "World map": "Weltkarte",
   "Write latency": "Schreiblatenz",
-  "Yes": "Ja"
+  "Yes": "Ja",
+  "AI Agents Operations Room": "KI-Agenten-Operationsraum",
+  "READ-ONLY": "NUR LESEN",
+  "Every agent in the Agent Registry, by domain and scope: its manifest, what it may do and touch, who answers for it, and whether the registry still agrees with what runs.": "Jeder Agent im Agentenregister, nach Bereich und Geltungsbereich: sein Manifest, was er tun und berühren darf, wer für ihn verantwortlich ist und ob das Register noch mit dem übereinstimmt, was läuft.",
+  "Open the Operations Room": "Operationsraum öffnen"
 }

@@ -554,5 +554,9 @@
   "Withdraw this invitation?": "Withdraw this invitation?",
   "World map": "World map",
   "Write latency": "Write latency",
-  "Yes": "Yes"
+  "Yes": "Yes",
+  "AI Agents Operations Room": "AI Agents Operations Room",
+  "READ-ONLY": "READ-ONLY",
+  "Every agent in the Agent Registry, by domain and scope: its manifest, what it may do and touch, who answers for it, and whether the registry still agrees with what runs.": "Every agent in the Agent Registry, by domain and scope: its manifest, what it may do and touch, who answers for it, and whether the registry still agrees with what runs.",
+  "Open the Operations Room": "Open the Operations Room"
 }

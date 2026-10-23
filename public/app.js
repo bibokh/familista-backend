@@ -2717,6 +2717,57 @@ function _loadDesignStudio(done) {
   }).catch(function () { finish(false); });
 }
 
+// THE AI AGENTS OPERATIONS ROOM — every agent in the Agent Registry, for the
+// platform owner, outside every Club Workspace. Reached from SYSTEM → AI Agent
+// Control, and loaded the same way and for the same reader as the rooms above:
+// only when /system/whoami names the platform owner, so anybody else downloads
+// nothing and is sent to Owner Home. Both of its endpoints are guarded by
+// assertPlatformOwner on the server; this is convenience, not security. Its two
+// files are same-origin, which `script-src 'self'` and `style-src 'self'` allow.
+var _AR_ROOM = { state: 'idle', waiting: [] };
+function _loadAgentsRoom(done) {
+  if (_AR_ROOM.state === 'ready') { done(true); return; }
+  _AR_ROOM.waiting.push(done);
+  if (_AR_ROOM.state === 'loading') return;
+  _AR_ROOM.state = 'loading';
+  function finish(ok) {
+    _AR_ROOM.state = ok ? 'ready' : 'idle';
+    var list = _AR_ROOM.waiting.splice(0);
+    for (var i = 0; i < list.length; i++) { try { list[i](ok); } catch (_) {} }
+  }
+  // As for Design System Control: a cached "no" must not lock the owner out of a
+  // deep link, and asking before the authority latch exists is "not yet".
+  var ask;
+  try {
+    ask = _isPlatformOwner().then(function (yes) {
+      if (yes) return true;
+      _platformAuthority = null;
+      return _isPlatformOwner();
+    });
+  } catch (_) {
+    _AR_ROOM.state = 'idle';
+    _AR_ROOM.waiting.length = 0;
+    return;
+  }
+  ask.then(function (yes) {
+    if (!yes) { finish(false); return; }
+    var v = '20261022-agents-room-1';
+    var pending = 2, failed = false;
+    function one(ok) { if (!ok) failed = true; if (--pending === 0) finish(!failed); }
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/agents-room/agents-room.css?v=' + v;
+    link.onload = function () { one(true); };
+    link.onerror = function () { one(false); };
+    document.head.appendChild(link);
+    var script = document.createElement('script');
+    script.src = '/agents-room/agents-room.js?v=' + v;
+    script.onload = function () { one(true); };
+    script.onerror = function () { one(false); };
+    document.head.appendChild(script);
+  }).catch(function () { finish(false); });
+}
+
 // ── NAVIGATION ──
 function navTo(page, el, _opts) {
   _opts = _opts || {};
@@ -2738,6 +2789,14 @@ function navTo(page, el, _opts) {
   if (page === 'design-studio' && !(_ST_ROOM && _ST_ROOM.state === 'ready')) {
     if (!_ST_ROOM) return;
     _loadDesignStudio(function (ok) {
+      try { navTo(ok ? page : 'owner-home', ok ? el : null, _opts); } catch (_) {}
+    });
+    return;
+  }
+  // The AI Agents Operations Room: the same, for its own assets.
+  if (page === 'agents-room' && !(_AR_ROOM && _AR_ROOM.state === 'ready')) {
+    if (!_AR_ROOM) return;
+    _loadAgentsRoom(function (ok) {
       try { navTo(ok ? page : 'owner-home', ok ? el : null, _opts); } catch (_) {}
     });
     return;
@@ -2837,6 +2896,13 @@ function navTo(page, el, _opts) {
     if (_wasStudio && page !== 'design-studio' && typeof window.teardownFamilistaDesignStudio === 'function') {
       window.teardownFamilistaDesignStudio();
     }
+    // THE AI AGENTS OPERATIONS ROOM takes the shell the same way. Loaded on demand
+    // (see _loadAgentsRoom); no stream, no timer.
+    var _wasAgents = document.body.classList.contains('ar-agents-open');
+    document.body.classList.toggle('ar-agents-open', page === 'agents-room');
+    if (_wasAgents && page !== 'agents-room' && typeof window.teardownFamilistaAgentsRoom === 'function') {
+      window.teardownFamilistaAgentsRoom();
+    }
     // ENTERING IS NOT SYMMETRICAL WITH LEAVING, AND THAT WAS A BUG.
     //
     // Leaving released the module's held session; nothing re-hydrated it on the
@@ -2915,6 +2981,12 @@ function navTo(page, el, _opts) {
     // reader whom /system/whoami names the platform owner. It has no endpoint of its
     // own; everything it holds stays in the owner's browser.
     'design-studio': 1,
+    // THE AI AGENTS OPERATIONS ROOM — every agent in the Agent Registry: its
+    // manifest, what it may do and who answers for it. Reached from SYSTEM → AI
+    // Agent Control; not a card on Owner Home. Loaded on demand, and only for a
+    // reader whom /system/whoami names the platform owner. Read-only: both of its
+    // endpoints are GETs guarded by assertPlatformOwner on the server.
+    'agents-room': 1,
     // PLATFORM (8)
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
@@ -3035,6 +3107,15 @@ function navTo(page, el, _opts) {
       window.renderFamilistaDesignStudio(_stRoot);
     }
   } catch (_) {}
+  // The AI Agents Operations Room reads no club data either: drawn on entry, by the same rule.
+  try {
+    var _arRoot = document.getElementById('ar-root');
+    if (page === 'agents-room' && typeof window.renderFamilistaAgentsRoom === 'function'
+        && _arRoot && (_leaving !== 'pg-agents-room' || !_arRoot.__famDrawn)) {
+      _arRoot.__famDrawn = true;
+      window.renderFamilistaAgentsRoom(_arRoot);
+    }
+  } catch (_) {}
   try {
     if (typeof _famNeedsClubData === 'function' && _famNeedsClubData(page)
         && State.context && State.context.clubId) _famEnsureClubData();
@@ -3049,7 +3130,7 @@ function navTo(page, el, _opts) {
 
   const titles = {
     // ── Owner Control ──
-    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'source-core':'Source Core', 'familista-vision':'Familista Vision', 'cybersecurity':'Cybersecurity', 'algorithms':'Algorithms', 'design-system':'Design System', 'design-studio':'Design Studio',
+    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'source-core':'Source Core', 'familista-vision':'Familista Vision', 'cybersecurity':'Cybersecurity', 'algorithms':'Algorithms', 'design-system':'Design System', 'design-studio':'Design Studio', 'agents-room':'AI Agents Operations Room',
     // ── Club Workspace ──
     'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League', 'match-center':'Match Center', 'people-access':'People & Access',
     // ── Platform (Phase B labels) ──
@@ -3326,6 +3407,7 @@ function _buildPageTemplateMap() {
     'algorithms':                  renderAlgorithmsHTML,
     'design-system':               renderDesignSystemHTML,
     'design-studio':               renderDesignStudioHTML,
+    'agents-room':                 renderAgentsRoomHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
@@ -28865,6 +28947,15 @@ function renderDesignSystemHTML() {
 // boundary, and in the owner context of the design tokens. Not in _EAGER_PAGES.
 function renderDesignStudioHTML() {
   return `<div class="page" id="pg-design-studio" data-no-i18n data-fam-context="owner"><div id="st-root"></div></div>`;
+}
+
+// THE AI AGENTS OPERATIONS ROOM — the platform owner's global room for the Agent
+// Registry, outside every Club Workspace. Its interface lives in
+// public/agents-room/agents-room.js with its own English, German and Arabic
+// catalogue under /agents-room/i18n/, behind the same `data-no-i18n` boundary,
+// and in the owner context of the design tokens. Not in _EAGER_PAGES.
+function renderAgentsRoomHTML() {
+  return `<div class="page" id="pg-agents-room" data-no-i18n data-fam-context="owner"><div id="ar-root"></div></div>`;
 }
 
 // FAMILISTA VISION — what the platform can SEE: computer-vision evidence from

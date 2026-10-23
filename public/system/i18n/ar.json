@@ -555,5 +555,9 @@
   "Withdraw this invitation?": "سحب هذه الدعوة؟",
   "World map": "خريطة العالم",
   "Write latency": "زمن الكتابة",
-  "Yes": "نعم"
+  "Yes": "نعم",
+  "AI Agents Operations Room": "غرفة عمليات وكلاء الذكاء الاصطناعي",
+  "READ-ONLY": "للقراءة فقط",
+  "Every agent in the Agent Registry, by domain and scope: its manifest, what it may do and touch, who answers for it, and whether the registry still agrees with what runs.": "كل وكيل في سجل الوكلاء، حسب المجال والنطاق: بيانه، وما يجوز له فعله ولمسه، ومن المسؤول عنه، وما إذا كان السجل لا يزال يطابق ما يعمل فعلاً.",
+  "Open the Operations Room": "افتح غرفة العمليات"
 }

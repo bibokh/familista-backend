@@ -244,6 +244,17 @@ jobs:
   # label, and none is held by the translator. Its control serves a dom.js that holds nodes
   # strongly again; its contract checks hold text, attributes, later insertions, rewrites,
   # removal and re-insertion, language changes and the public API to what they were.
+  # Section 16 proves the AI Agents Operations Room: it is its own page at #agents-room, for
+  # the platform owner only (a club role or a visitor never fetches it, and the server answers
+  # a coach 403), reached from SYSTEM → AI Agent Control; it draws exactly the agents and the
+  # domains the registry endpoint reports, and a domain and an agent added to that answer
+  # appear with no change to the room; a node held under the real pointer stays there and a
+  # click opens its manifest in a floating dialog that moves and redraws nothing beneath it;
+  # Tab stays in the open manifest and Escape returns the focus to the node; a filter repaints
+  # the view, never the shell; everything it asks the server for is a GET of /system/agents or
+  # one manifest; German and Arabic cover every string it draws, Arabic right to left; a phone
+  # does not scroll sideways; no CSP violation. Its controls break each of those on purpose.
+  # Section 16a runs axe on the map, an open manifest and the catalogue, in English and Arabic.
   #
   # Authoritative: no `|| true`, no continue-on-error. A failed proof fails this job, a
   # failed job fails the `ci` workflow, and deploy.yml deploys only on a successful `ci`.
@@ -264,13 +275,13 @@ jobs:
       matrix:
         include:
           - shard: isolation
-            sections: '1,2,2b,3,4,5,8,9,10,11,12,13,14,15'
+            sections: '1,2,2b,3,4,5,8,9,10,11,12,13,14,15,16'
             axe: ''
-            min: '260'
+            min: '278'
           - shard: accessibility and focus
-            sections: '6,7,13a,14a'
+            sections: '6,7,13a,14a,16a'
             axe: '--axe'
-            min: '77'
+            min: '80'
 
     env:
       NODE_ENV:           test
