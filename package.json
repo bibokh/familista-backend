@@ -52,9 +52,9 @@
     "contract:check": "jest tests/api-contract.unit.test.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.20.0",
-    "@aws-sdk/client-s3": "^3.1053.0",
-    "@aws-sdk/s3-request-presigner": "^3.1053.0",
+    "@anthropic-ai/sdk": "^0.135.0",
+    "@aws-sdk/client-s3": "^3.1152.0",
+    "@aws-sdk/s3-request-presigner": "^3.1152.0",
     "@prisma/client": "^5.10.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/ioredis": "^4.28.10",
@@ -74,7 +74,7 @@
     "prisma": "^5.10.0",
     "stripe": "^14.18.0",
     "winston": "^3.11.0",
-    "ws": "^8.16.0",
+    "ws": "^8.22.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
@@ -88,10 +88,10 @@
     "@types/morgan": "^1.9.9",
     "@types/node": "^20.11.5",
     "@types/supertest": "^6.0.3",
-    "@types/ws": "^8.5.10",
+    "@types/ws": "^8.18.2",
     "jest": "^30.5.2",
     "supertest": "^6.3.4",
-    "ts-jest": "^29.4.14",
+    "ts-jest": "^29.4.15",
     "ts-node": "^10.9.2",
     "tsx": "^4.23.15",
     "typescript": "^5.3.3"
