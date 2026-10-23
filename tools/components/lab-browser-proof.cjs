@@ -3753,14 +3753,30 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       { coachSaw, coachFiles, coachApi, coachAsked, anonSaw, anonFiles });
 
     // ── SYSTEM → AI Agent Control is the way in ──
+    // Both clicks are Playwright's own, so each waits for its target to be on screen, stable and the thing a pointer would hit,
+    // and is never skipped because the target was not there yet. A miss is this check failing with what SYSTEM was showing,
+    // not an exception that ends the proof before its summary.
     const sy = await openRoom({ width: 1440, height: 900 }, { hash: '/#system', wait: false });
-    await sy.page.waitForSelector('.sy-shell', { timeout: 30000 });
-    await sy.page.evaluate(() => { const b = document.querySelector('[data-sy-go="agents"]'); if (b) b.click(); });
-    await sy.page.waitForSelector('[data-sy-room="agents-room"]', { timeout: 15000 });
-    await sy.page.click('[data-sy-room="agents-room"]');
-    await sy.page.waitForSelector('#pg-agents-room.active .ar-map', { timeout: 30000 });
-    const via = await sy.page.evaluate(() => location.hash);
-    check('agents room entry: SYSTEM → AI Agent Control carries an Operations Room panel whose button opens the room', via === '#agents-room', { via });
+    let via = null;
+    let missed = null;
+    try {
+      await sy.page.click('.sy-shell:not(.sy-shell--denied) [data-sy-go="agents"]', { timeout: 30000 });
+      await sy.page.click('[data-sy-room="agents-room"]', { timeout: 30000 });
+      await sy.page.waitForSelector('#pg-agents-room.active .ar-map', { timeout: 30000 });
+      via = await sy.page.evaluate(() => location.hash);
+    } catch (e) {
+      missed = await sy.page.evaluate(() => ({
+        hash: location.hash,
+        active: (document.querySelector('.page.active') || {}).id || null,
+        denied: !!document.querySelector('.sy-shell--denied'),
+        module: (document.querySelector('.sy-nav-item.is-on') || { getAttribute: () => null }).getAttribute('data-sy-go'),
+        roomButton: !!document.querySelector('[data-sy-room="agents-room"]'),
+        body: ((document.querySelector('#sy-body') || {}).textContent || '').replace(/\s+/g, ' ').slice(0, 160),
+      })).catch(() => ({}));
+      missed.error = String(e && e.message).split('\n')[0];
+      missed.pageErrors = sy.log.errors.slice(0, 3);
+    }
+    check('agents room entry: SYSTEM → AI Agent Control carries an Operations Room panel whose button opens the room', via === '#agents-room', { via, missed });
     await sy.ctx.close();
   }
 
