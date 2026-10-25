@@ -3464,6 +3464,16 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
         return r.fulfill({ response: res, json: body });
       });
     }
+    // The LAB evidence as the server answers it, edited on purpose; read from the server once and answered from that copy.
+    if (opts.orch) {
+      let first = null;
+      await ctx.route(/\/api\/v1\/system\/agents\/orchestration(\?|$)/, async (r) => {
+        if (!first) first = await (await r.fetch()).json();
+        const body = JSON.parse(JSON.stringify(first));
+        body.data = opts.orch(body.data);
+        return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+      });
+    }
     if (!opts.anonymous) await ctx.addCookies([{ name: 'access_token', value: opts.token || token, domain: '127.0.0.1', path: '/', httpOnly: true }]);
     await ctx.addInitScript((pre) => {
       window.__csp = [];
@@ -3739,7 +3749,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     const coachFiles = coach.log.requests.filter((r) => r.p.startsWith('/agents-room/')).map((r) => r.p);
     const coachApi = coach.log.requests.filter((r) => r.p.startsWith('/api/v1/system/agents')).map((r) => r.p);
     // And the server itself, asked directly by the coach's session: the room's guard is the server's, not the page's.
-    const coachAsked = await coach.page.evaluate(() => Promise.all(['/api/v1/system/agents', '/api/v1/system/agents/club.medical'].map((u) => fetch(u, { credentials: 'include' }).then((r) => r.status))));
+    const coachAsked = await coach.page.evaluate(() => Promise.all(['/api/v1/system/agents', '/api/v1/system/agents/club.medical', '/api/v1/system/agents/orchestration'].map((u) => fetch(u, { credentials: 'include' }).then((r) => r.status))));
     await coach.ctx.close();
     CURRENT = OWNER;
     const anon = await openRoom({ width: 1440, height: 900 }, { wait: false, anonymous: true });
@@ -3747,8 +3757,8 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     const anonSaw = await anon.page.evaluate(() => ({ open: !!document.querySelector('#pg-agents-room.active'), render: typeof window.renderFamilistaAgentsRoom }));
     const anonFiles = anon.log.requests.filter((r) => r.p.startsWith('/agents-room/')).map((r) => r.p);
     await anon.ctx.close();
-    check('agents room access: a club role who types #agents-room is sent away and nobody signed in reaches it either: the room never opens and none of its files is fetched, and the server answers the coach 403 on both endpoints',
-      !coachSaw.open && coachSaw.render === 'undefined' && !coachSaw.map && coachFiles.length === 0 && coachApi.length === 0 && sameJson(coachAsked, [403, 403])
+    check('agents room access: a club role who types #agents-room is sent away and nobody signed in reaches it either: the room never opens and none of its files is fetched, and the server answers the coach 403 on all three endpoints, the LAB evidence included',
+      !coachSaw.open && coachSaw.render === 'undefined' && !coachSaw.map && coachFiles.length === 0 && coachApi.length === 0 && sameJson(coachAsked, [403, 403, 403])
         && !anonSaw.open && anonSaw.render === 'undefined' && anonFiles.length === 0,
       { coachSaw, coachFiles, coachApi, coachAsked, anonSaw, anonFiles });
 
@@ -3780,6 +3790,206 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     await sy.ctx.close();
   }
 
+
+  // ── LAB workflows (AI-0.3): what the LAB orchestrator decided, drawn only from the evidence the server verified ──
+  // Every run, task, handoff and state on screen is read against the server's own answer for the same owner; the six
+  // states must be told apart without colour; choosing a task moves and redraws nothing on the canvas; a reply that did
+  // not verify, or broke its contract, draws nothing and is not asked for again on its own. Controls break each on purpose.
+  const WF_KIND = { SUCCEEDED: 'done', AWAITING_APPROVAL: 'approval', PENDING: 'waiting', REJECTED: 'rejected', FAILED: 'failed', SKIPPED: 'skipped', REFUSED: 'blocked' };
+  const evidenceOf = (page) => page.evaluate(() => fetch('/api/v1/system/agents/orchestration', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()).then((b) => b.data));
+  const wfDrawn = (page) => page.evaluate(() => ({
+    runs: [...document.querySelectorAll('.ar-wf-runs [data-ar-wf]')].map((b) => b.getAttribute('data-ar-wf')),
+    on: (document.querySelector('.ar-wf-run.is-on') || { getAttribute: () => null }).getAttribute('data-ar-wf'),
+    nodes: [...document.querySelectorAll('.ar-wf-node')].map((n) => n.getAttribute('data-ar-task') + ':' + ((/ar-wf-node--([a-z]+)/.exec(n.getAttribute('class')) || [])[1])),
+    edges: [...document.querySelectorAll('.ar-wf-edge')].map((e) => (/ar-wf-edge--([a-z]+)/.exec(e.getAttribute('class')) || [])[1]).sort(),
+  }));
+  const wantEdges = (run) => run.tasks.flatMap((t) => t.dependsOn.map((d) => { const i = t.inputs.find((x) => x.from === d); return i ? i.status.toLowerCase() : 'unreached'; })).sort();
+  const shellOf = (page) => page.evaluate(() => ['.ar-top', '.ar-rail', '.ar-toolbar', '.ar-side', '.ar-view'].map((s) => {
+    const r = document.querySelector(s).getBoundingClientRect();
+    return s + ' ' + [r.left, r.top, r.width, r.height].map((v) => Math.round(v * 10) / 10).join(',');
+  }));
+  const boxesOf = (page) => page.evaluate(() => [...document.querySelectorAll('.ar-wf-node')].map((n) => {
+    const r = n.querySelector('.ar-wf-box').getBoundingClientRect();
+    return n.getAttribute('data-ar-task') + ' ' + [r.left, r.top, r.width, r.height].map((v) => Math.round(v * 10) / 10).join(',');
+  }));
+  async function openWorkflows(page) {
+    await page.click('#ar-tab-workflows');
+    await page.waitForSelector('.ar-view .ar-wf-node, .ar-view .ar-empty', { timeout: 15000 });
+  }
+  async function chooseRun(page, id) {
+    await page.click('.ar-wf-runs [data-ar-wf="' + id + '"]');
+    await page.waitForFunction((x) => { const b = document.querySelector('.ar-wf-run.is-on'); return b && b.getAttribute('data-ar-wf') === x; }, id, { timeout: 10000 });
+  }
+  const askedForEvidence = (log) => log.requests.filter((r) => r.o === BASE && r.p === '/api/v1/system/agents/orchestration').length;
+
+  if (want('16')) {
+    const { ctx, page, log } = await openRoom({ width: 1440, height: 900 });
+    const ev = await evidenceOf(page);
+    const before = askedForEvidence(log);
+    const shell0 = await shellOf(page);
+    await openWorkflows(page);
+    const w0 = await wfDrawn(page);
+    const shell1 = await shellOf(page);
+    const first = ev.runs[0];
+    check('agents room workflows: opening LAB workflows reads the verified evidence once and draws every run it holds, the first run\'s tasks as nodes and its dependencies as edges, and the shell around the view did not move',
+      ev.state === 'VERIFIED' && ev.runs.length > 0 && before === 1 && askedForEvidence(log) === 2 && sameJson(w0.runs, ev.runs.map((r) => r.id)) && w0.on === first.id
+        && sameJson(w0.nodes, first.tasks.map((t) => t.id + ':' + WF_KIND[t.state])) && sameJson(w0.edges, wantEdges(first)) && sameJson(shell0, shell1),
+      { state: ev.state, runs: ev.runs.length, drawnRuns: w0.runs.length, asked: [before, askedForEvidence(log)], nodes: w0.nodes, edges: w0.edges, shell0, shell1 });
+
+    // ── every run, by a real click: each state its own kind, each handoff as recorded, the kinds told apart without colour ──
+    const perRun = [];
+    const signature = {};
+    for (const r of ev.runs) {
+      await chooseRun(page, r.id);
+      const d = await wfDrawn(page);
+      const ok = sameJson(d.nodes, r.tasks.map((t) => t.id + ':' + WF_KIND[t.state])) && sameJson(d.edges, wantEdges(r));
+      if (!ok) perRun.push({ run: r.scenario, nodes: d.nodes, edges: d.edges });
+      Object.assign(signature, await page.evaluate(() => {
+        const out = {};
+        for (const n of document.querySelectorAll('.ar-wf-node')) {
+          const kind = (/ar-wf-node--([a-z]+)/.exec(n.getAttribute('class')) || [])[1];
+          const g = [...n.querySelectorAll('.ar-wf-g')];
+          const bb = g.map((x) => x.getBBox()).reduce((a, b) => ({ w: Math.max(a.w, b.width), h: Math.max(a.h, b.height) }), { w: 0, h: 0 });
+          out[kind] = getComputedStyle(n.querySelector('.ar-wf-box')).strokeDasharray + '|' + g.map((x) => x.tagName).join('+') + '|' + Math.round(bb.w) + 'x' + Math.round(bb.h);
+        }
+        return out;
+      }));
+    }
+    const kinds = Object.keys(signature).sort();
+    check('agents room workflows states: every run, chosen by a real click, draws each task as the kind its state is and each handoff as the evidence recorded it, and completed, awaiting approval, rejected, failed, skipped and blocked by governance are each drawn with an outline and a glyph of their own, so none is told apart by colour alone',
+      perRun.length === 0 && sameJson(kinds, ['approval', 'blocked', 'done', 'failed', 'rejected', 'skipped']) && new Set(Object.values(signature)).size === kinds.length,
+      { wrong: perRun, signature });
+
+    // ── governance, as decided: the medical action blocked, the medical report never handed on ──
+    const med = ev.runs.find((r) => r.scenario === 'medical-boundary');
+    await chooseRun(page, med.id);
+    await page.click('.ar-wf-node[data-ar-task="recommendation"] .ar-wf-box');
+    await page.waitForFunction(() => /recommendation/.test((document.getElementById('ar-wf-detail') || {}).textContent || ''), null, { timeout: 5000 });
+    const medSaw = await page.evaluate(() => document.querySelector('.ar-view').textContent.replace(/\s+/g, ' '));
+    const hand = ev.runs.find((r) => r.scenario === 'medical-handoff');
+    await chooseRun(page, hand.id);
+    const handSaw = await page.evaluate(() => ({ blocked: document.querySelectorAll('.ar-wf-edge--blocked').length, stops: document.querySelectorAll('.ar-wf-stop').length }));
+    check('agents room workflows governance: the medical recommendation is shown waiting with no approver role that may read it and its refused approval, and the medical report handed to the training agent is drawn as a blocked handoff',
+      /No approver role may read/.test(medSaw) && /refused/i.test(medSaw) && handSaw.blocked === 1 && handSaw.stops >= 1, { medSaw: medSaw.slice(0, 400), handSaw });
+
+    // ── the real pointer, and the keyboard: a node held under the pointer stays there; choosing one redraws nothing on the canvas ──
+    await chooseRun(page, first.id);
+    const at = await page.evaluate(() => [...document.querySelectorAll('.ar-wf-node')].map((n) => { const r = n.querySelector('.ar-wf-box').getBoundingClientRect(); return { id: n.getAttribute('data-ar-task'), x: r.left + r.width / 2, y: r.top + r.height / 2 }; }));
+    const slipped = [];
+    for (const n of at) {
+      await page.mouse.move(n.x, n.y);
+      const bad = await page.evaluate(async (p) => {
+        const out = [];
+        for (let k = 0; k < 8; k++) {
+          await new Promise((r) => requestAnimationFrame(() => r()));
+          const hit = document.elementFromPoint(p.x, p.y);
+          const owner = hit && hit.closest ? hit.closest('[data-ar-task]') : null;
+          if (!owner || owner.getAttribute('data-ar-task') !== p.id) out.push(k);
+        }
+        return out;
+      }, n);
+      if (bad.length) slipped.push({ id: n.id, frames: bad.length });
+    }
+    await page.mouse.move(2, 2);
+    await page.evaluate(() => { window.__wfCanvas = document.querySelector('.ar-wf-canvas svg'); });
+    const boxes0 = await boxesOf(page);
+    await page.mouse.click(at[1].x, at[1].y);
+    await page.waitForFunction((id) => /./.test(id) && (document.querySelector('.ar-wf-node[data-ar-task="' + id + '"]') || { getAttribute: () => '' }).getAttribute('aria-pressed') === 'true', at[1].id, { timeout: 5000 });
+    const picked = await page.evaluate(() => ({ same: window.__wfCanvas === document.querySelector('.ar-wf-canvas svg'), detail: document.getElementById('ar-wf-detail').textContent,
+      pressed: [...document.querySelectorAll('.ar-wf-node[aria-pressed="true"]')].map((n) => n.getAttribute('data-ar-task')) }));
+    const boxes1 = await boxesOf(page);
+    await page.focus('.ar-wf-node[data-ar-task="' + at[1].id + '"]');
+    await page.keyboard.press('ArrowRight');
+    const moved = await page.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-ar-task'));
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(150);
+    const byKey = await page.evaluate(() => [...document.querySelectorAll('.ar-wf-node[aria-pressed="true"]')].map((n) => n.getAttribute('data-ar-task')));
+    check('agents room workflows pointer and keyboard: a pointer held on each task keeps hitting it; a real click chooses it, shows what was decided for it and redraws nothing on the canvas; the arrow keys move between tasks and Enter chooses one',
+      at.length === first.tasks.length && slipped.length === 0 && picked.same && sameJson(picked.pressed, [at[1].id]) && picked.detail.includes(at[1].id) && sameJson(boxes0, boxes1)
+        && moved === at[2].id && sameJson(byKey, [at[2].id]),
+      { slipped, picked: { same: picked.same, pressed: picked.pressed }, moved, byKey, boxesSame: sameJson(boxes0, boxes1) });
+
+    // ── read-only, and clean ──
+    const t2 = roomTraffic(log);
+    const split2 = await arCsp(page);
+    check('agents room workflows read-only: every request the workflows made was a GET of /system/agents/orchestration, nothing was written anywhere under /system, no control submits, runs or decides anything, and no CSP violation or script error was raised',
+      t2.writes.length === 0 && t2.room.filter((r) => /orchestration/.test(r)).every((r) => r === 'GET /api/v1/system/agents/orchestration') && askedForEvidence(log) === 2
+        && (await page.$$('[data-ar-submit], [data-ar-execute], [data-ar-approve], [data-ar-reject], [data-ar-decide]')).length === 0
+        && split2.room === 0 && split2.unexplained.length === 0 && log.errors.length === 0,
+      { t2, split2, errors: log.errors.slice(0, 5) });
+    await ctx.close();
+
+    // ── nothing unverified: evidence the server did not verify, or a reply that broke its contract, draws nothing ──
+    const bad = await openRoom({ width: 1440, height: 900 }, { orch: (d) => Object.assign(d, { state: 'INVALID', reason: 'integrity: run match-preparation: the trace chain breaks at event 4' }) });
+    await openWorkflows(bad.page);
+    const badSaw = await bad.page.evaluate(() => ({ text: document.querySelector('.ar-view').textContent, nodes: document.querySelectorAll('.ar-wf-node').length, runs: document.querySelectorAll('[data-ar-wf]').length }));
+    await bad.ctx.close();
+    const broke = await openRoom({ width: 1440, height: 900 }, { orch: (d) => { delete d.notice; return d; } });
+    await openWorkflows(broke.page);
+    await broke.page.waitForTimeout(1500);
+    const brokeSaw = await broke.page.evaluate(() => ({ text: document.querySelector('.ar-view').textContent, retry: !!document.querySelector('[data-ar-wf-retry]'), nodes: document.querySelectorAll('.ar-wf-node').length }));
+    const brokeAsked = askedForEvidence(broke.log);
+    await broke.page.click('[data-ar-wf-retry]');
+    await broke.page.waitForTimeout(800);
+    const brokeRetried = askedForEvidence(broke.log);
+    await broke.ctx.close();
+    check('agents room workflows unverified: a reply that says the evidence did not verify draws no run and no task even when it carries them, and a reply that breaks its contract names what is missing, offers to try again, and is asked for once, not again on its own',
+      /did not verify/.test(badSaw.text) && badSaw.nodes === 0 && badSaw.runs === 0 && /notice/.test(brokeSaw.text) && brokeSaw.retry && brokeSaw.nodes === 0 && brokeAsked === 1 && brokeRetried === 2,
+      { badSaw: { nodes: badSaw.nodes, runs: badSaw.runs }, brokeSaw: { retry: brokeSaw.retry, nodes: brokeSaw.nodes }, brokeAsked, brokeRetried });
+
+    // ── control: a broken reply re-asked on every repaint is caught by the same count ──
+    const loop = await openRoom({ width: 1440, height: 900 }, { orch: (d) => { delete d.notice; return d; },
+      roomPatch: (src) => src.replace('if (AR.wf || AR.wfLoading || AR.wfError) return;', 'if (AR.wf || AR.wfLoading) return;') });
+    await openWorkflows(loop.page);
+    await loop.page.waitForTimeout(1500);
+    const looped = askedForEvidence(loop.log);
+    await loop.ctx.close();
+    check('agents room workflows unverified (control): a room that asks again whenever the reply was refused fails the asked-once proof above, so it can fail', looped > 2, { asked: looped });
+
+    // ── control: a task that redraws the view when chosen fails the same-canvas proof above ──
+    const redraw = await openRoom({ width: 1440, height: 900 }, { roomPatch: (src) => src.replace('    AR.task = AR.task === id ? null : id;\n', '    AR.task = AR.task === id ? null : id;\n    repaintView(host, true);\n') });
+    await openWorkflows(redraw.page);
+    await redraw.page.evaluate(() => { window.__wfCanvas = document.querySelector('.ar-wf-canvas svg'); });
+    await redraw.page.click('.ar-wf-node .ar-wf-box');
+    await redraw.page.waitForTimeout(300);
+    const redrawSame = await redraw.page.evaluate(() => window.__wfCanvas === document.querySelector('.ar-wf-canvas svg'));
+    await redraw.ctx.close();
+    check('agents room workflows stability (control): a room that redraws the view when a task is chosen fails the same-canvas proof above, so it can fail', redrawSame === false, { same: redrawSame });
+
+    // ── languages: German and Arabic hold every string the workflows draw, and Arabic draws the flow right to left ──
+    const wl = {};
+    for (const loc of ['de', 'ar']) {
+      const s = await openRoom({ width: 1440, height: 900 }, { locale: loc });
+      await openWorkflows(s.page);
+      for (const r of ev.runs) {
+        await chooseRun(s.page, r.id);
+        for (const t of r.tasks) await s.page.click('.ar-wf-node[data-ar-task="' + t.id + '"] .ar-wf-box');
+        const seg = await s.page.$('[data-ar-trace="task"]:not([disabled])');
+        if (seg) { await seg.click(); await s.page.click('[data-ar-trace="all"]'); }
+      }
+      await chooseRun(s.page, first.id);
+      wl[loc] = await s.page.evaluate(() => {
+        const x = (id) => document.querySelector('.ar-wf-node[data-ar-task="' + id + '"] .ar-wf-box').getBoundingClientRect().left;
+        return { missing: window.__familistaAgentsRoomMissing(), dir: document.getElementById('ar-root').getAttribute('dir'), startX: x('opponent'), endX: x('briefing'),
+          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+      });
+      wl[loc].errors = s.log.errors.slice(0, 3);
+      await s.ctx.close();
+    }
+    check('agents room workflows languages: in German and in Arabic every string drawn across every run, task and trace view is in its catalogue, German draws the flow left to right and Arabic right to left, and neither scrolls sideways',
+      wl.de.missing.length === 0 && wl.ar.missing.length === 0 && wl.de.dir === 'ltr' && wl.ar.dir === 'rtl' && wl.de.startX < wl.de.endX && wl.ar.startX > wl.ar.endX
+        && wl.de.overflow <= 0 && wl.ar.overflow <= 0 && wl.de.errors.length === 0 && wl.ar.errors.length === 0, wl);
+
+    // ── a phone: the workflows stack, and the page does not scroll sideways ──
+    const ph = await openRoom({ width: 390, height: 844 });
+    await openWorkflows(ph.page);
+    const phSaw = await ph.page.evaluate(() => ({ overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, nodes: document.querySelectorAll('.ar-wf-node').length,
+      runs: document.querySelectorAll('[data-ar-wf]').length }));
+    await ph.ctx.close();
+    check('agents room workflows phone: at 390 px the workflows draw every run and the chosen run\'s tasks, and the page does not scroll sideways',
+      phSaw.overflow <= 0 && phSaw.nodes === first.tasks.length && phSaw.runs === ev.runs.length, phSaw);
+  }
+
   if (WANT_AXE && want('16a')) {
     const axePath = process.env.AXE_CORE || path.join(ROOT, 'tools/components/node_modules/axe-core/axe.min.js');
     if (!fs.existsSync(axePath)) skip('agents room under axe', 'axe-core is not installed (' + axePath + ')');
@@ -3804,6 +4014,14 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
         found.catalogue = await axeRoom(s.page);
         check(`agents room under axe (${loc}): the map, an open manifest and the catalogue have 0 violations (WCAG 2.2 A/AA)`,
           found.map.length === 0 && found.manifest.length === 0 && found.catalogue.length === 0, found);
+        await s.page.click('#ar-tab-workflows');
+        await s.page.waitForSelector('.ar-wf-node', { timeout: 15000 });
+        const wfFound = { workflow: await axeRoom(s.page) };
+        await s.page.click('.ar-wf-node .ar-wf-box');
+        await s.page.waitForTimeout(200);
+        wfFound.task = await axeRoom(s.page);
+        check(`agents room workflows under axe (${loc}): a LAB workflow and a chosen task, with its detail and trace, have 0 violations (WCAG 2.2 A/AA)`,
+          wfFound.workflow.length === 0 && wfFound.task.length === 0, wfFound);
         if (loc === 'en') {
           await s.page.evaluate(() => { const b = document.createElement('button'); b.type = 'button'; document.querySelector('.ar-top-r').appendChild(b); });
           const v = await axeRoom(s.page);

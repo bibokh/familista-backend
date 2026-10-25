@@ -11,6 +11,8 @@
 //                                 profiles and the read policy, every agent
 //   GET /system/agents/:agentId   one agent's manifest in full: its tools, the
 //                                 records it writes and who may read them
+//   GET /system/agents/orchestration  (AI-0.3) the LAB orchestrator's published
+//                                 evidence, verified: synthetic runs, never live
 //
 // There is no write. A manifest changes in a reviewed pull request
 // (src/platform/agents/catalog.ts), never by a request; the kill switch stays
@@ -21,6 +23,8 @@ import { Router, type Request, type Response } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
 import { assertPlatformOwner } from '../platform/system.service';
 import { operationsRoomAgent, operationsRoomOverview } from '../platform/agents/operations-room.service';
+import { orchestrationRoomView } from '../platform/agents/orchestration-evidence';
+import { platformAgentRegistry } from '../platform/agents/catalog';
 import { NotFoundError } from '../utils/errors';
 
 const router = Router();
@@ -38,6 +42,16 @@ router.use(async (req: Request, res: Response, next) => {
 router.get('/', (_req: Request, res: Response, next) => {
   try {
     res.json({ success: true, data: operationsRoomOverview() });
+  } catch (err) { next(err); }
+});
+
+/**
+ * AI-0.3: the LAB orchestration evidence, verified (orchestration-evidence.ts). Synthetic runs the Lab
+ * published as data; this server reads them and runs nothing. Declared before /:agentId, which it is not.
+ */
+router.get('/orchestration', (_req: Request, res: Response, next) => {
+  try {
+    res.json({ success: true, data: orchestrationRoomView(platformAgentRegistry()) });
   } catch (err) { next(err); }
 });
 

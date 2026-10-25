@@ -46,10 +46,16 @@
     detailError: {},
     open: null,            // the agent in the inspector, or null
     opener: null,          // where focus returns when the inspector closes
-    view: 'map',           // map | catalogue
+    view: 'map',           // map | catalogue | workflows
     q: '', scope: 'all', domain: 'all', lifecycle: 'all',
     langOpen: false,
     refreshing: false,
+    wf: null,              // GET /system/agents/orchestration: verified LAB evidence (AI-0.3)
+    wfError: null,
+    wfLoading: false,
+    run: null,             // the LAB workflow drawn
+    task: null,            // the task whose decisions are shown
+    traceAll: true,        // the trace shows every event, or only the chosen task's
   };
 
   // ── localisation ──────────────────────────────────────────────────────────
@@ -258,6 +264,7 @@
   var REQUIRED = {
     overview: ['environment', 'activation', 'killSwitch', 'registry', 'invariants', 'agents'],
     detail: ['agent', 'autonomyCeiling', 'tools', 'outputs', 'issues'],
+    orchestration: ['state', 'notice', 'registry', 'agents', 'operations', 'runs'],
   };
   function missingFields(payload, required) {
     return required.filter(function (k) { return !payload || payload[k] === undefined || payload[k] === null; });
@@ -411,8 +418,8 @@
         + ' aria-selected="' + (on ? 'true' : 'false') + '" aria-controls="ar-view" tabindex="' + (on ? '0' : '-1') + '">' + esc(T(text)) + '</button>';
     };
     return '<div class="ar-toolbar"><div class="ar-tabs" role="tablist" aria-label="' + esc(T('Views')) + '">'
-      + tab('map', 'Registry map') + tab('catalogue', 'Catalogue') + '</div>'
-      + '<div class="ar-filters">'
+      + tab('map', 'Registry map') + tab('catalogue', 'Catalogue') + tab('workflows', 'LAB workflows') + '</div>'
+      + '<div class="ar-filters' + (AR.view === 'workflows' ? ' is-idle' : '') + '"' + (AR.view === 'workflows' ? ' aria-hidden="true"' : '') + '>'
       + '<label class="ar-field ar-field--q"><span class="ar-sr">' + esc(T('Search agents')) + '</span>'
       + '<input class="ar-input" id="ar-q" type="search" autocomplete="off" spellcheck="false" value="' + esc(AR.q) + '" placeholder="' + esc(T('Search agents, ids, domains…')) + '"></label>'
       + select('ar-scope', 'Scope', 'All scopes', scopes(), SCOPE_LABEL, AR.scope)
@@ -421,7 +428,10 @@
       + '<span class="ar-count" id="ar-count" role="status">' + esc(countText()) + '</span>'
       + '</div></div>';
   }
-  function countText() { return tf('Showing %d of %d agents', filtered().length, agents().length); }
+  function countText() {
+    if (AR.view === 'workflows') return AR.wf ? tf('LAB workflows: %d', wfRuns().length) : '';
+    return tf('Showing %d of %d agents', filtered().length, agents().length);
+  }
 
   // ── the registry map ──────────────────────────────────────────────────────
   //
@@ -704,6 +714,338 @@
       + '<div class="ar-insp-body" id="ar-insp-body" tabindex="0" role="region" aria-labelledby="ar-insp-title">' + inspectorBodyHtml(id) + '</div>';
   }
 
+  // ── LAB workflows (AI-0.3) ────────────────────────────────────────────────
+  //
+  // The LAB Multi-Agent Orchestrator's published evidence, as the server verified
+  // it: synthetic runs over the Agent Registry, never anything production ran.
+  // Each run is drawn as its tasks, left to right in dependency order, each on
+  // the agent routing chose, each edge the handoff it was. Everything drawn is a
+  // field of the evidence; a task or an edge the evidence does not hold is not
+  // drawn, and evidence the server did not verify is not drawn at all.
+
+  var STATE_KIND = { SUCCEEDED: 'done', AWAITING_APPROVAL: 'approval', PENDING: 'waiting', REJECTED: 'rejected', FAILED: 'failed', SKIPPED: 'skipped', REFUSED: 'blocked' };
+  var STATE_CHIP = { done: 'ok', approval: 'info', waiting: 'none', rejected: 'neutral', failed: 'crit', skipped: 'none', blocked: 'blocked' };
+  var STATE_LABEL = {
+    SUCCEEDED: 'Completed', AWAITING_APPROVAL: 'Pending approval', PENDING: 'Waiting', REJECTED: 'Rejected',
+    FAILED: 'Failed', SKIPPED: 'Skipped', REFUSED: 'Blocked by governance',
+  };
+  var STATE_MEANING = {
+    SUCCEEDED: 'Ran in the Lab, and its output validated.',
+    AWAITING_APPROVAL: 'An action that waits for a person to decide.',
+    PENDING: 'Waits for something it consumes to be decided.',
+    REJECTED: 'A person declined the action.',
+    FAILED: 'Ran, or tried to, and produced no valid output.',
+    SKIPPED: 'Something it consumes did not succeed, so it never ran.',
+    REFUSED: 'A governance rule stopped it before it ran.',
+  };
+  var STATE_ORDER = ['SUCCEEDED', 'AWAITING_APPROVAL', 'PENDING', 'REJECTED', 'FAILED', 'SKIPPED', 'REFUSED'];
+  var OUTCOME_LABEL = { COMPLETED: 'Completed', PARTIAL: 'Partly completed', FAILED: 'Failed', AWAITING_APPROVAL: 'Awaiting approval', REFUSED: 'Refused' };
+  var OUTCOME_CHIP = { COMPLETED: 'ok', PARTIAL: 'neutral', FAILED: 'crit', AWAITING_APPROVAL: 'info', REFUSED: 'blocked' };
+  var TRACE_LABEL = {
+    PLAN_RECEIVED: 'Plan received', PLAN_REFUSED: 'Plan refused', PLAN_ACCEPTED: 'Plan accepted', TASK_ROUTED: 'Task routed',
+    TASK_REFUSED: 'Task stopped', APPROVAL_REQUIRED: 'Approval required', APPROVAL_DECIDED: 'Approval decided',
+    APPROVAL_DECISION_REFUSED: 'Decision refused', HANDOFF_ACCEPTED: 'Handoff accepted', HANDOFF_BLOCKED: 'Handoff blocked',
+    TASK_SUCCEEDED: 'Task completed', TASK_FAILED: 'Task failed', TASK_SKIPPED: 'Task skipped', RUN_SETTLED: 'Run settled',
+  };
+  var CODE_LABEL = {
+    AUTHORIZATION: 'Not authorized', KILL_SWITCH: 'Kill switch', CROSS_TENANT: 'Another club named', INPUT_TOO_LARGE: 'Input too large',
+    INPUT_HEALTH_DATA: 'Health data outside a medical agent', INPUT_INVALID: 'Invalid input', HANDOFF_BLOCKED: 'Handoff blocked',
+    OPERATION_FAILED: 'Operation failed', OUTPUT_INVALID: 'Invalid output', OUTPUT_TOO_LARGE: 'Output too large',
+    OUTPUT_MISLABELLED: 'Health data in an output declared below Restricted', OUTPUT_ABOVE_CEILING: 'Output above what the agent may write',
+    DEPENDENCY_NOT_SUCCEEDED: 'Something it consumes did not succeed', REJECTED_BY_APPROVER: 'Rejected by a person',
+    CONTRACT_INVALID: 'Invalid plan', ENVIRONMENT_NOT_LAB: 'Outside the Lab', TASK_DUPLICATE: 'Duplicate task',
+    DEPENDENCY_UNKNOWN: 'Unknown dependency', DEPENDENCY_SELF: 'Depends on itself', CYCLE: 'Dependency cycle',
+    OPERATION_UNKNOWN: 'Unknown operation', HANDOFF_UNDECLARED: 'Undeclared exchange', REQUESTER_SCOPE: 'Requester outside the plan\'s scope',
+    REQUESTER_CANNOT_READ: 'Requester may not read what it writes', NO_ELIGIBLE_AGENT: 'No eligible agent',
+    APPROVAL_NOT_PENDING: 'Not waiting for a decision', APPROVER_ROLE: 'Not an approver role', APPROVER_CLUB: 'Approver of another club',
+    SEGREGATION_OF_DUTIES: 'The requester may not decide', APPROVER_CANNOT_READ: 'Approver may not read the record',
+    DECISION_INVALID: 'Invalid decision', NO_ELIGIBLE_APPROVER: 'No eligible approver',
+    APPROVED: 'Approved', REJECTED: 'Rejected', COMPLETED: 'Completed', PARTIAL: 'Partly completed', FAILED: 'Failed',
+    AWAITING_APPROVAL: 'Awaiting approval', REFUSED: 'Refused',
+  };
+
+  function wfRuns() { return (AR.wf && AR.wf.runs) || []; }
+  function runOf(id) { var list = wfRuns(); for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; }
+  function taskOf(run, id) { var list = (run && run.tasks) || []; for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; }
+  function operationOf(key) { var list = (AR.wf && AR.wf.operations) || []; for (var i = 0; i < list.length; i++) if (list[i].key === key) return list[i]; return null; }
+  function evidenceAgent(id) { var list = (AR.wf && AR.wf.agents) || []; for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; }
+  function stateKind(s) { return STATE_KIND[s] || 'waiting'; }
+  function stateChip(s, extra) { return chip(STATE_CHIP[stateKind(s)], label(STATE_LABEL, s), STATE_MEANING[s] ? T(STATE_MEANING[s]) : '', extra || 'ar-chip--sm'); }
+  /** Server text inside SVG, where only plain text may go: the catalogue's words, or the English it came in. */
+  function plainX(text) {
+    var s = String(text == null ? '' : text);
+    if (AR_LANG === 'en' || !s) return s;
+    var nums = [];
+    var key = s.replace(/\d+/g, function (m) { nums.push(Number(m)); return '%d'; });
+    if (!hasKey(key)) return s;
+    var i = 0;
+    return AR_DICT[key].replace(/%d/g, function () { return num(nums[i++]); });
+  }
+  function clip(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  /** At most two lines of about n characters, broken between words; what is left over ends in an ellipsis. */
+  function wrap2(s, n) {
+    var words = String(s).split(/\s+/), lines = [''], i;
+    for (i = 0; i < words.length; i++) {
+      var w = words[i], cur = lines[lines.length - 1];
+      if (!cur) lines[lines.length - 1] = w;
+      else if ((cur + ' ' + w).length <= n) lines[lines.length - 1] = cur + ' ' + w;
+      else if (lines.length < 2) lines.push(w);
+      else { lines[1] = clip(lines[1] + ' ' + words.slice(i).join(' '), n); break; }
+    }
+    return lines.map(function (l) { return clip(l, n); });
+  }
+  function agentTitle(id) { var a = id ? summaryOf(id) : null; return a ? a.title : (id || '—'); }
+  function technical(s) { return '<span class="ar-tech" lang="en" dir="ltr">' + esc(s) + '</span>'; }
+
+  function loadOrchestration() {
+    AR.wfLoading = true;
+    return api('/system/agents/orchestration').then(function (d) {
+      var missing = missingFields(d, REQUIRED.orchestration);
+      if (!missing.length && !Array.isArray(d.runs)) missing = ['runs'];
+      if (missing.length) { AR.wf = null; AR.wfError = contractError('/system/agents/orchestration', missing); return; }
+      AR.wf = {
+        state: d.state, reason: d.reason, notice: d.notice, evidenceDigest: d.evidenceDigest, registry: d.registry,
+        agents: d.agents || [], operations: d.operations || [], runs: d.state === 'VERIFIED' ? d.runs : [],
+      };
+      AR.wfError = null;
+      if (!runOf(AR.run)) { AR.run = AR.wf.runs.length ? AR.wf.runs[0].id : null; AR.task = null; }
+    }).catch(function (e) { AR.wf = null; AR.wfError = e.message; }).then(function () { AR.wfLoading = false; });
+  }
+
+  // The DAG: a column per dependency depth, rows centred, so the same run is always drawn the same way.
+  var WF_W = 256, WF_H = 92, WF_COL = 320, WF_ROW = 116, WF_PAD = 28;
+  function wfLayout(run) {
+    var depth = {}, cols = [], pos = {};
+    for (var i = 0; i < run.order.length; i++) {
+      var t = taskOf(run, run.order[i]), d = 0;
+      for (var j = 0; j < t.dependsOn.length; j++) d = Math.max(d, (depth[t.dependsOn[j]] || 0) + 1);
+      depth[t.id] = d;
+      (cols[d] = cols[d] || []).push(t.id);
+    }
+    var rows = 1;
+    for (var c = 0; c < cols.length; c++) rows = Math.max(rows, cols[c].length);
+    var W = WF_PAD * 2 + Math.max(0, cols.length - 1) * WF_COL + WF_W, H = WF_PAD * 2 + (rows - 1) * WF_ROW + WF_H;
+    for (var k = 0; k < cols.length; k++) {
+      var off = (rows - cols[k].length) * WF_ROW / 2;
+      for (var r = 0; r < cols[k].length; r++) {
+        var x = WF_PAD + k * WF_COL;
+        pos[cols[k][r]] = { x: AR_DIR === 'rtl' ? W - x - WF_W : x, y: WF_PAD + off + r * WF_ROW };
+      }
+    }
+    return { W: W, H: H, pos: pos };
+  }
+  /** A small glyph per state, drawn in the node's own coordinates, so it reads without colour too. */
+  function glyph(kind, cx, cy) {
+    var P = function (pts) { return pts.map(function (p) { return f1(cx + p[0]) + ',' + f1(cy + p[1]); }).join(' '); };
+    switch (kind) {
+      case 'done': return '<polyline class="ar-wf-g" points="' + P([[-5, 0], [-1.5, 4], [5, -4]]) + '"/>';
+      case 'failed': return '<polyline class="ar-wf-g" points="' + P([[-4, -4], [4, 4]]) + '"/><polyline class="ar-wf-g" points="' + P([[4, -4], [-4, 4]]) + '"/>';
+      case 'approval': return '<polygon class="ar-wf-g" points="' + P([[-4, -5], [4, -5], [-4, 5], [4, 5]]) + '"/>';
+      case 'rejected': return '<circle class="ar-wf-g" cx="' + f1(cx) + '" cy="' + f1(cy) + '" r="5"/><polyline class="ar-wf-g" points="' + P([[-3.5, 3.5], [3.5, -3.5]]) + '"/>';
+      case 'skipped': return '<polyline class="ar-wf-g" points="' + P([[-5, -4], [-1, 0], [-5, 4]]) + '"/><polyline class="ar-wf-g" points="' + P([[1, -4], [5, 0], [1, 4]]) + '"/>';
+      case 'blocked': return '<polyline class="ar-wf-g ar-wf-g--bar" points="' + P([[-5, 0], [5, 0]]) + '"/>';
+      default: return '<polyline class="ar-wf-g" points="' + P([[-5, 0], [5, 0]]) + '"/>';
+    }
+  }
+  function wfSvg(run) {
+    var L = wfLayout(run), edges = '', nodes = '', rtl = AR_DIR === 'rtl';
+    for (var i = 0; i < run.tasks.length; i++) {
+      var to = run.tasks[i];
+      for (var j = 0; j < to.dependsOn.length; j++) {
+        var from = to.dependsOn[j], a = L.pos[from], b = L.pos[to.id];
+        if (!a || !b) continue;
+        var got = null;
+        for (var k = 0; k < to.inputs.length; k++) if (to.inputs[k].from === from) got = to.inputs[k].status;
+        var kind = got === 'ACCEPTED' ? 'accepted' : got === 'BLOCKED' ? 'blocked' : 'unreached';
+        var x1 = rtl ? a.x : a.x + WF_W, y1 = a.y + WF_H / 2, x2 = rtl ? b.x + WF_W : b.x, y2 = b.y + WF_H / 2, dx = (x2 - x1) / 2;
+        var tip = rtl ? 9 : -9;
+        edges += '<path class="ar-wf-edge ar-wf-edge--' + kind + '" d="M' + f1(x1) + ' ' + f1(y1) + ' C' + f1(x1 + dx) + ' ' + f1(y1) + ' ' + f1(x2 - dx) + ' ' + f1(y2) + ' ' + f1(x2 + tip) + ' ' + f1(y2) + '"/>'
+          + '<polygon class="ar-wf-tip ar-wf-tip--' + kind + '" points="' + f1(x2) + ',' + f1(y2) + ' ' + f1(x2 + tip) + ',' + f1(y2 - 5) + ' ' + f1(x2 + tip) + ',' + f1(y2 + 5) + '"/>';
+        if (kind === 'blocked') {
+          var mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+          edges += '<circle class="ar-wf-stop" cx="' + f1(mx) + '" cy="' + f1(my) + '" r="9"/>' + glyph('failed', mx, my);
+        }
+      }
+    }
+    for (var n = 0; n < run.order.length; n++) {
+      var t = taskOf(run, run.order[n]), p = L.pos[t.id], sk = stateKind(t.state), op = operationOf(t.operation);
+      var sel = AR.task === t.id, start = rtl ? p.x + WF_W - 20 : p.x + 20, tx = rtl ? p.x + WF_W - 42 : p.x + 42, anchor = rtl ? 'end' : 'start';
+      // Its name is the text it shows, in the order shown (WCAG 2.5.3): what was asked, by whom, where it stands.
+      var name = plainX(op ? op.title : t.operation) + ' · ' + plainX(agentTitle(t.agent && t.agent.id)) + ' · ' + t.id + ' · ' + label(STATE_LABEL, t.state);
+      nodes += '<g class="ar-wf-node ar-wf-node--' + sk + (sel ? ' is-selected' : '') + '" tabindex="0" role="button" data-ar-task="' + esc(t.id) + '" aria-pressed="' + (sel ? 'true' : 'false') + '" aria-label="' + esc(name) + '">'
+        + '<title>' + esc(name) + '</title>'
+        + '<rect class="ar-wf-box" x="' + f1(p.x) + '" y="' + f1(p.y) + '" width="' + WF_W + '" height="' + WF_H + '" rx="12"/>'
+        + '<circle class="ar-wf-dot" cx="' + f1(start) + '" cy="' + f1(p.y + 22) + '" r="11"/>' + glyph(sk, start, p.y + 22)
+        + wrap2(plainX(op ? op.title : t.operation), 27).map(function (line, li) {
+          return '<text class="ar-wf-t1" x="' + f1(tx) + '" y="' + f1(p.y + 26 + li * 17) + '" text-anchor="' + anchor + '">' + esc(line) + '</text>';
+        }).join(' ')
+        // A space between the lines: drawn nowhere, it keeps the words apart where the node's text is read as one.
+        + ' <text class="ar-wf-t2" x="' + f1(tx) + '" y="' + f1(p.y + 66) + '" text-anchor="' + anchor + '">' + esc(clip(plainX(agentTitle(t.agent && t.agent.id)) + ' · ' + t.id, 30)) + '</text>'
+        + ' <text class="ar-wf-t3" x="' + f1(tx) + '" y="' + f1(p.y + 83) + '" text-anchor="' + anchor + '">' + esc(clip(label(STATE_LABEL, t.state), 30)) + '</text>'
+        + '</g>';
+    }
+    return '<svg class="ar-wf-svg" viewBox="0 0 ' + L.W + ' ' + L.H + '" width="' + L.W + '" height="' + L.H + '" role="group" aria-label="' + esc(T('Tasks, in dependency order')) + '">'
+      + '<g class="ar-wf-edges" aria-hidden="true">' + edges + '</g>' + nodes + '</svg>';
+  }
+  function wfLegendHtml() {
+    var states = STATE_ORDER.map(function (s) { return '<li>' + stateChip(s, 'ar-chip--xs') + '</li>'; }).join('');
+    var edge = function (kind, text) { return '<li class="ar-wf-key"><span class="ar-wf-key-line ar-wf-key-line--' + kind + '" aria-hidden="true"></span>' + esc(T(text)) + '</li>'; };
+    return '<ul class="ar-wf-legend" aria-label="' + esc(T('Legend')) + '">' + states
+      + edge('accepted', 'Handoff accepted') + edge('blocked', 'Handoff blocked') + edge('unreached', 'Not reached') + '</ul>';
+  }
+  function stripHtml() {
+    var w = AR.wf;
+    var reg = w.registry || {};
+    return '<div class="ar-wf-strip" role="group" aria-label="' + esc(T('Evidence')) + '">'
+      + chip('blocked', T('LAB evidence'), T('Produced by the LAB orchestrator, outside the production build.'))
+      + chip('none', T('Synthetic data'), T('Invented clubs and people only.'))
+      + chip('none', T('Never run in production'), T('This server reads the evidence and runs nothing.'))
+      + chip('ok', T('Verified by the server'), T('Schema, file digest and every run\'s hash chain.'))
+      + (reg.matches ? chip('ok', T('Routed over the current registry')) : chip('warn', T('Routed over an earlier registry'), T('The registry has changed since this evidence was produced.')))
+      + '<span class="ar-wf-digest">' + esc(T('Evidence')) + ' ' + code(short(w.evidenceDigest, 16)) + '</span>'
+      + '</div><p class="ar-wf-notice">' + TX(w.notice) + '</p>';
+  }
+  function runListHtml() {
+    return '<nav class="ar-wf-runs" aria-label="' + esc(T('LAB workflows')) + '"><ul>' + wfRuns().map(function (r) {
+      var on = r.id === AR.run;
+      var agentsIn = {};
+      r.tasks.forEach(function (t) { if (t.agent) agentsIn[t.agent.id] = 1; });
+      return '<li><button class="ar-wf-run' + (on ? ' is-on' : '') + '" type="button" data-ar-wf="' + esc(r.id) + '" aria-pressed="' + (on ? 'true' : 'false') + '">'
+        + '<span class="ar-wf-run-t">' + TX(r.title) + '</span>'
+        + '<span class="ar-wf-run-m">' + chip(OUTCOME_CHIP[r.outcome] || 'neutral', label(OUTCOME_LABEL, r.outcome), '', 'ar-chip--xs')
+        + '<span class="ar-wf-run-n">' + esc(tf('Tasks: %d · Agents: %d', r.tasks.length, keysOf(agentsIn).length)) + '</span></span>'
+        + decisionLine(r) + '</button></li>';
+    }).join('') + '</ul></nav>';
+  }
+  /** What a person decided in a run, in one line, so runs of the same plan are told apart. */
+  function decisionLine(run) {
+    var d = run.steps.filter(function (s) { return s.kind === 'DECISION'; });
+    if (!d.length) return '';
+    return '<span class="ar-wf-run-d">' + esc(d.map(function (s) {
+      return label(ROLE_LABEL, s.byRole) + ': ' + label(CODE_LABEL, s.decision) + (s.accepted ? '' : ' (' + T('Refused') + ')');
+    }).join(' · ')) + '</span>';
+  }
+  function stepsHtml(run) {
+    return '<ol class="ar-wf-steps">' + run.steps.map(function (s) {
+      if (s.kind === 'START') return '<li>' + esc(T('Started')) + '</li>';
+      var what = label(ROLE_LABEL, s.byRole) + ': ' + label(CODE_LABEL, s.decision);
+      return '<li>' + esc(what) + ' ' + code(s.taskId) + (s.accepted ? '' : ' ' + chip('blocked', T('Refused'), T('The run refused to take this decision.'), 'ar-chip--xs')) + '</li>';
+    }).join('') + '</ol>';
+  }
+  function countsHtml(run) {
+    var n = {};
+    run.tasks.forEach(function (t) { n[t.state] = (n[t.state] || 0) + 1; });
+    return '<ul class="ar-wf-counts">' + STATE_ORDER.filter(function (s) { return n[s]; }).map(function (s) {
+      return '<li>' + stateChip(s, 'ar-chip--xs') + ' <b>' + esc(num(n[s])) + '</b></li>';
+    }).join('') + '</ul>';
+  }
+  function taskDetailHtml(run) {
+    var t = taskOf(run, AR.task);
+    if (!t) return '<div class="ar-wf-pick">' + esc(T('Choose a task in the workflow to see what was decided for it.')) + '</div>';
+    var op = operationOf(t.operation), ag = t.agent, ev = ag ? evidenceAgent(ag.id) : null;
+    var agentCell = ag
+      ? '<button class="ar-link" type="button" data-ar-agent="' + esc(ag.id) + '">' + TX(agentTitle(ag.id)) + '</button> ' + code(ag.id + '@' + ag.version)
+        + (ev && !ev.current ? ' ' + chip('warn', ev.known ? T('Manifest changed since') : T('No longer in the registry'), '', 'ar-chip--xs') : '')
+      : '—';
+    var ranked = t.eligibleAgents.length
+      ? '<ol class="ar-wf-ranked">' + t.eligibleAgents.map(function (id) { return '<li>' + code(id) + '</li>'; }).join('') + '</ol>' : '—';
+    var inputs = t.dependsOn.length ? '<ul class="ar-wf-inputs">' + t.dependsOn.map(function (d) {
+      var got = null;
+      t.inputs.forEach(function (i) { if (i.from === d) got = i.status; });
+      var k = got === 'ACCEPTED' ? 'ok' : got === 'BLOCKED' ? 'crit' : 'none';
+      var tx = got === 'ACCEPTED' ? 'Handoff accepted' : got === 'BLOCKED' ? 'Handoff blocked' : 'Not reached';
+      return '<li>' + code(d) + ' ' + chip(k, T(tx), '', 'ar-chip--xs') + '</li>';
+    }).join('') + '</ul>' : esc(T('Consumes nothing'));
+    var approval = '—';
+    if (t.approval) {
+      approval = t.approval.eligibleRoles.length
+        ? esc(t.approval.eligibleRoles.map(function (r) { return label(ROLE_LABEL, r); }).join(', '))
+        : esc(T('No approver role may read %s records').replace('%s', label(RECORD_CLASS_LABEL, t.recordClass)));
+      if (t.approval.decision) approval += '<br>' + esc(label(CODE_LABEL, t.approval.decision) + ' · ' + label(ROLE_LABEL, t.approval.decidedByRole));
+    }
+    return '<header class="ar-wf-d-top"><div><div class="ar-eyebrow">' + esc(T('Task')) + ' ' + code(t.id) + '</div>'
+      + '<h3 class="ar-wf-d-title">' + TX(op ? op.title : t.operation) + '</h3></div>' + stateChip(t.state, ' ') + '</header>'
+      + '<p class="ar-wf-d-why">' + esc(T(STATE_MEANING[t.state] || '')) + '</p>'
+      + (t.reason ? '<div class="ar-wf-reason">' + chip(STATE_CHIP[stateKind(t.state)], label(CODE_LABEL, t.reason.code), '', 'ar-chip--xs') + ' ' + technical(t.reason.message) + '</div>' : '')
+      + '<div class="ar-kvs">'
+      + kv('Operation', code(t.operation)) + kv('Tool', code(t.tool)) + kv('Agent', agentCell)
+      + kv('Ranked by routing', ranked)
+      + kv('Output class', t.dataClass ? esc(label(CLASS_LABEL, t.dataClass) + ' · ' + label(RECORD_CLASS_LABEL, t.recordClass)) : '—')
+      + kv('Output digest', t.outputDigest ? code(short(t.outputDigest, 16)) : '—')
+      + kv('Consumes', inputs) + kv('Approval', approval)
+      + '</div>';
+  }
+  function traceHtml(run) {
+    var only = !AR.traceAll && !!AR.task;
+    var list = run.trace.filter(function (e) { return !only || e.taskId === AR.task; });
+    var head = run.trace[run.trace.length - 1];
+    var btn = function (all, text) {
+      var on = AR.traceAll === all || (!AR.task && all);
+      return '<button class="ar-seg-btn' + (on ? ' is-on' : '') + '" type="button" data-ar-trace="' + (all ? 'all' : 'task') + '" aria-pressed="' + (on ? 'true' : 'false') + '"' + (!all && !AR.task ? ' disabled' : '') + '>' + esc(T(text)) + '</button>';
+    };
+    return '<div class="ar-wf-tr-top"><h3 class="ar-wf-d-title">' + esc(T('Trace')) + '</h3>'
+      + '<div class="ar-seg" role="group" aria-label="' + esc(T('Trace')) + '">' + btn(true, 'Every event') + btn(false, 'This task') + '</div></div>'
+      + '<p class="ar-wf-chain">' + chip('ok', T('Hash chain verified by the server'), '', 'ar-chip--xs') + ' '
+      + esc(tf('Events: %d', run.trace.length)) + ' · ' + esc(T('head')) + ' ' + code(short(head && head.hash, 16)) + '</p>'
+      + '<ol class="ar-wf-events">' + list.map(function (e) {
+        return '<li class="ar-wf-ev' + (AR.task && e.taskId === AR.task ? ' is-task' : '') + '">'
+          + '<span class="ar-wf-ev-seq">' + esc(num(e.seq)) + '</span>'
+          + '<span class="ar-wf-ev-main"><span class="ar-wf-ev-type">' + esc(label(TRACE_LABEL, e.type)) + '</span>'
+          + (e.taskId ? ' ' + code(e.taskId) : '') + (e.agentId ? ' ' + code(e.agentId) : '')
+          + (e.code ? ' ' + chip('neutral', label(CODE_LABEL, e.code), '', 'ar-chip--xs') : '')
+          + '<span class="ar-wf-ev-detail">' + technical(e.detail) + '</span></span></li>';
+      }).join('') + '</ol>';
+  }
+  function workflowsHtml() {
+    if (AR.wfError && !AR.wf) {
+      return emptyState('The LAB evidence could not be read', AR.wfError, '<button class="ar-btn ar-btn--sm" type="button" data-ar-wf-retry>' + esc(T('Try again')) + '</button>');
+    }
+    if (!AR.wf) return '<div class="ar-skel-map" role="status" aria-label="' + esc(T('Reading the LAB evidence…')) + '"></div>';
+    if (AR.wf.state !== 'VERIFIED') {
+      return emptyState(AR.wf.state === 'NOT_GENERATED' ? 'No LAB evidence has been published' : 'The LAB evidence did not verify, so none of it is shown',
+        AR.wf.reason || '', '<p class="ar-wf-notice">' + esc(T('Evidence is published by the LAB orchestrator: FAMILISTA_ENV=LAB npm run lab:orchestrator:evidence.')) + '</p>');
+    }
+    var run = runOf(AR.run);
+    if (!run) return stripHtml() + emptyState('The evidence holds no workflow', T('A workflow appears here once the LAB orchestrator publishes a run of it.'));
+    var participants = {};
+    run.tasks.forEach(function (t) { if (t.agent) participants[t.agent.id] = 1; });
+    var main = '<header class="ar-wf-head"><div><div class="ar-eyebrow">' + esc(T('LAB workflow')) + ' ' + code(run.scenario) + '</div>'
+      + '<h2 class="ar-wf-title">' + TX(run.title) + '</h2>'
+      + '<div class="ar-wf-meta">' + chip(OUTCOME_CHIP[run.outcome] || 'neutral', label(OUTCOME_LABEL, run.outcome), '', 'ar-chip--sm')
+      + '<span>' + esc(T('Requested by')) + ' ' + esc(label(ROLE_LABEL, run.requestedByRole)) + '</span>'
+      + (run.scope.kind === 'CLUB' ? '<span>' + esc(T('Club')) + ' ' + code(run.scope.clubId) + '</span>' : '<span>' + esc(T('Platform')) + '</span>')
+      + '<span>' + esc(T('Run')) + ' ' + code(short(run.id, 16)) + '</span></div></div>' + stepsHtml(run) + '</header>'
+      + (run.refusal ? '<div class="ar-wf-refused" role="note"><strong>' + esc(T('The plan was refused before anything was routed or ran')) + '</strong> '
+        + chip('blocked', label(CODE_LABEL, run.refusal.code), '', 'ar-chip--xs') + ' ' + technical(run.refusal.message) + '</div>' : '')
+      + (run.tasks.length ? countsHtml(run)
+        + '<figure class="ar-wf-canvas">' + wfSvg(run) + '</figure>' + wfLegendHtml()
+        + '<div class="ar-wf-agents"><span class="ar-kv-k">' + esc(T('Agents in this workflow')) + '</span> '
+        + keysOf(participants).sort().map(function (id) { return '<button class="ar-chip ar-chip--neutral ar-chip--sm ar-chip-btn" type="button" data-ar-agent="' + esc(id) + '">' + TX(agentTitle(id)) + '</button>'; }).join(' ') + '</div>' : '')
+      + '<div class="ar-wf-split"><section class="ar-wf-detail" id="ar-wf-detail" aria-live="polite">' + (run.tasks.length ? taskDetailHtml(run) : '') + '</section>'
+      + '<section class="ar-wf-trace" id="ar-wf-trace">' + traceHtml(run) + '</section></div>';
+    return stripHtml() + '<div class="ar-wf-grid">' + runListHtml() + '<div class="ar-wf-main">' + main + '</div></div>';
+  }
+  /** A task chosen: its detail and the trace are redrawn, the canvas is not, so nothing on it moves. */
+  function selectTask(host, id) {
+    var run = runOf(AR.run);
+    if (!run || !taskOf(run, id)) return;
+    AR.task = AR.task === id ? null : id;
+    var d = host.querySelector('#ar-wf-detail'), tr = host.querySelector('#ar-wf-trace');
+    if (d) d.innerHTML = taskDetailHtml(run);
+    if (tr) tr.innerHTML = traceHtml(run);
+    var nodes = host.querySelectorAll('.ar-wf-node');
+    for (var i = 0; i < nodes.length; i++) {
+      var on = nodes[i].getAttribute('data-ar-task') === AR.task;
+      nodes[i].classList.toggle('is-selected', on);
+      nodes[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+  /** Read once. A failed read waits for the owner's "Try again" or Refresh, so a broken reply is never re-requested in a loop. */
+  function openWorkflows(host) {
+    if (AR.wf || AR.wfLoading || AR.wfError) return;
+    loadOrchestration().then(function () { if (AR.view === 'workflows') repaintView(host, false); });
+  }
+
   // ── paint ─────────────────────────────────────────────────────────────────
 
   function viewHtml() {
@@ -712,6 +1054,7 @@
         '<button class="ar-btn ar-btn--sm" type="button" data-ar-refresh>' + esc(T('Try again')) + '</button>');
     }
     if (!AR.data) return '<div class="ar-skel-map" role="status" aria-label="' + esc(T('Reading the registry…')) + '"></div>';
+    if (AR.view === 'workflows') return workflowsHtml();
     return AR.view === 'catalogue' ? catalogueHtml() : mapViewHtml();
   }
 
@@ -738,6 +1081,13 @@
     view.scrollTop = y;
     var count = host.querySelector('#ar-count');
     if (count) count.textContent = countText();
+    // The filters belong to the agents; on the workflows they stand idle, in place, so the toolbar does not move.
+    var filters = host.querySelector('.ar-filters');
+    if (filters) {
+      filters.classList.toggle('is-idle', AR.view === 'workflows');
+      if (AR.view === 'workflows') filters.setAttribute('aria-hidden', 'true'); else filters.removeAttribute('aria-hidden');
+    }
+    if (AR.view === 'workflows') openWorkflows(host);
     var tabs = host.querySelectorAll('[data-ar-view]');
     for (var i = 0; i < tabs.length; i++) {
       var on = tabs[i].getAttribute('data-ar-view') === AR.view;
@@ -819,6 +1169,7 @@
     if (AR.refreshing) return;
     AR.refreshing = true;
     AR.detail = {}; AR.detailError = {};
+    AR.wf = null; AR.wfError = null;
     var btn = host.querySelector('.ar-top [data-ar-refresh]');
     if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.textContent = T('Reading…'); }
     loadOverview().then(function () {
@@ -826,6 +1177,7 @@
       var open = AR.open;
       AR.open = null;
       paint(host);
+      if (AR.view === 'workflows') openWorkflows(host);
       if (open && summaryOf(open)) openAgent(host, open, null);
     });
   }
@@ -897,6 +1249,26 @@
       }
       var view = t.closest('[data-ar-view]');
       if (view) { AR.view = view.getAttribute('data-ar-view'); repaintView(host, false); return; }
+      var runBtn = t.closest('[data-ar-wf]');
+      if (runBtn) {
+        var rid2 = runBtn.getAttribute('data-ar-wf');
+        if (rid2 !== AR.run) { AR.run = rid2; AR.task = null; AR.traceAll = true; repaintView(host, true); }
+        var again = host.querySelector('[data-ar-wf="' + rid2 + '"]');
+        if (again) again.focus({ preventScroll: true });
+        return;
+      }
+      var taskEl = t.closest('[data-ar-task]');
+      if (taskEl) { selectTask(host, taskEl.getAttribute('data-ar-task')); return; }
+      var tr = t.closest('[data-ar-trace]');
+      if (tr && !tr.disabled) {
+        AR.traceAll = tr.getAttribute('data-ar-trace') === 'all';
+        var run0 = runOf(AR.run), box0 = host.querySelector('#ar-wf-trace');
+        if (run0 && box0) box0.innerHTML = traceHtml(run0);
+        var same0 = host.querySelector('[data-ar-trace="' + (AR.traceAll ? 'all' : 'task') + '"]');
+        if (same0) same0.focus({ preventScroll: true });
+        return;
+      }
+      if (t.closest('[data-ar-wf-retry]')) { AR.wfError = null; repaintView(host, false); openWorkflows(host); return; }
       var dom = t.closest('[data-ar-domain], [data-ar-sector]');
       if (dom) {
         var key = dom.getAttribute('data-ar-domain') || dom.getAttribute('data-ar-sector');
@@ -978,9 +1350,22 @@
           return;
         }
       }
+      var task = t.closest('.ar-wf-node');
+      if (task) {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); selectTask(host, task.getAttribute('data-ar-task')); return; }
+        if (/^Arrow(Right|Left|Up|Down)$/.test(ev.key)) {
+          var tasks = Array.prototype.slice.call(host.querySelectorAll('.ar-wf-node'));
+          var ti = tasks.indexOf(task);
+          var fw = ev.key === 'ArrowDown' || (ev.key === 'ArrowRight') !== (AR_DIR === 'rtl');
+          if (ev.key === 'ArrowUp') fw = false;
+          var nt = tasks[(ti + (fw ? 1 : -1) + tasks.length) % tasks.length];
+          if (nt) { ev.preventDefault(); nt.focus(); }
+          return;
+        }
+      }
       var tab = t.closest('[data-ar-view]');
       if (tab && /^(ArrowRight|ArrowLeft|Home|End)$/.test(ev.key)) {
-        var order = ['map', 'catalogue'];
+        var order = ['map', 'catalogue', 'workflows'];
         var rtl = AR_DIR === 'rtl';
         var at2 = order.indexOf(AR.view);
         var step = ev.key === 'ArrowRight' ? (rtl ? -1 : 1) : ev.key === 'ArrowLeft' ? (rtl ? 1 : -1) : 0;
@@ -1017,6 +1402,7 @@
     // No stream or timer of its own. The inspector, filters and language menu are
     // dropped so the room opens clean next time; the read registry is kept.
     AR.open = null; AR.opener = null; AR.view = 'map';
+    AR.run = null; AR.task = null; AR.traceAll = true;
     AR.q = ''; AR.scope = 'all'; AR.domain = 'all'; AR.lifecycle = 'all';
     AR.langOpen = false; AR.refreshing = false;
   };

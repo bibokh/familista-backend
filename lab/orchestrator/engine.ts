@@ -203,9 +203,11 @@ class Working {
           ? `"${p.id}" is a medical record, and ${agent.id} is not a medical agent`
           : null;
       if (blocked) {
+        t.inputs.push({ from: p.id, status: 'BLOCKED' });
         this.trace.append('HANDOFF_BLOCKED', { taskId: t.id, agentId: agent.id, code: 'HANDOFF_BLOCKED', detail: blocked });
         return this.end(t, 'REFUSED', 'HANDOFF_BLOCKED', blocked);
       }
+      t.inputs.push({ from: p.id, status: 'ACCEPTED' });
       this.trace.append('HANDOFF_ACCEPTED', {
         taskId: t.id, agentId: agent.id,
         detail: `"${p.id}" (${p.agent?.id}, ${p.dataClass} ${p.recordClass}, ${String(p.outputDigest).slice(0, 12)}) → "${t.id}"`,
@@ -325,7 +327,7 @@ export function startRun(request: unknown, ctx: RunContext): PlanRun {
     tasks.push({
       id, operation: op.key, tool: op.tool, state: 'PENDING',
       agent: { id: r.agent.id, version: r.agent.version, digest: r.agent.digest }, eligibleAgents: r.ranked,
-      dataClass: op.output, recordClass, output: null, outputDigest: null, approval: null, reason: null,
+      dataClass: op.output, recordClass, output: null, outputDigest: null, approval: null, reason: null, inputs: [],
     });
   }
 
@@ -341,7 +343,7 @@ export function startRun(request: unknown, ctx: RunContext): PlanRun {
 export function decideApproval(run: PlanRun, decision: unknown, ctx: RunContext): PlanRun {
   const environment = ctx.environment ?? currentEnvironment();
   const trace = new Trace(run.trace);
-  const tasks = run.tasks.map((t) => ({ ...t, approval: t.approval ? { ...t.approval } : null })) as TaskOutcome[];
+  const tasks = run.tasks.map((t) => ({ ...t, approval: t.approval ? { ...t.approval } : null, inputs: t.inputs.map((i) => ({ ...i })) })) as TaskOutcome[];
   const w = run.plan ? new Working(ctx, environment, trace, run.plan, run.order, tasks) : null;
   const refuse = (code: ApprovalRefusalCode | 'ENVIRONMENT_NOT_LAB', detail: string, taskId: string | null = null): PlanRun => {
     trace.append('APPROVAL_DECISION_REFUSED', { taskId, code, detail: cap(detail) });

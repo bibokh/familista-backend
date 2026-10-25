@@ -4,12 +4,14 @@
  * The Platform Owner's global room for the Agent Registry (public/agents-room/). What Jest can prove:
  *   - it is wired as an owner-only room of its own, loaded on demand, reached from SYSTEM → AI Agent Control, outside
  *     every Club Workspace and with no Owner Home card;
- *   - it is read-only by construction: one GET-only reader, two endpoints, no verb that writes, no kill-switch call;
+ *   - it is read-only by construction: one GET-only reader, three endpoints, no verb that writes, no kill-switch call;
  *   - it discovers what it draws: rendered against the real registry it draws every agent and every domain, and a
  *     domain and an agent added to the registry appear with no change to the room;
  *   - it prints whatever the registry holds as text, and says so when the registry does not answer as its contract says;
  *   - its source is CSP-safe and its stylesheet reads only tokens that exist and keeps the owner rooms' layout rules;
- *   - its English, German and Arabic catalogues cover everything it says, the manifests' own titles and purposes too.
+ *   - its English, German and Arabic catalogues cover everything it says, the manifests' own titles and purposes too;
+ *   - its LAB workflows (AI-0.3) draw only what the server verified: every run, task and handoff of the published
+ *     evidence, each state as its own kind, nothing at all when the evidence is missing or did not verify.
  * What it cannot prove (real pointer and keyboard input, layout, hit-testing, focus, CSP in a browser, axe) is proved by
  * sections 16 and 16a of tools/components/lab-browser-proof.cjs.
  */
@@ -18,6 +20,7 @@ import path from 'path';
 import { operationsRoomAgent, operationsRoomOverview } from '../src/platform/agents/operations-room.service';
 import { platformAgentRegistry } from '../src/platform/agents/catalog';
 import { OWNER_API_CONTRACTS } from '../src/contracts/owner-api.contracts';
+import { orchestrationRoomView, ORCHESTRATION_EVIDENCE_NOTICE } from '../src/platform/agents/orchestration-evidence';
 
 const ROOT = path.resolve(__dirname, '..');
 const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -87,10 +90,10 @@ describe('read-only by construction', () => {
     expect(CODE).not.toMatch(/\b(XMLHttpRequest|sendBeacon|WebSocket|EventSource)\b/);
   });
 
-  it('asks for the registry and one manifest, and for nothing else', () => {
+  it('asks for the registry, one manifest and the LAB evidence, and for nothing else', () => {
     const calls = [...CODE.matchAll(/\bapi\(('[^']*'(?: \+ encodeURIComponent\(id\))?|[a-z]+)\)/g)].map((m) => m[1]).filter((a) => a !== 'path');
     expect(CODE.match(/\bapi\(/g)).toHaveLength(calls.length + 1); // + its definition: no other call reaches the reader
-    expect(calls.sort()).toEqual(["'/system/agents'", "'/system/agents/' + encodeURIComponent(id)"].sort());
+    expect(calls.sort()).toEqual(["'/system/agents'", "'/system/agents/' + encodeURIComponent(id)", "'/system/agents/orchestration'"].sort());
     expect(CODE).not.toContain('kill-switch');
     expect(CODE).not.toMatch(/data-ar-(kill|engage|activate|start|stop|run)/);
   });
@@ -102,7 +105,7 @@ describe('read-only by construction', () => {
 
   it('is covered by the owner API contract, in both directions', () => {
     const mine = OWNER_API_CONTRACTS.filter((c) => c.consumer === 'public/agents-room/agents-room.js').map((c) => c.endpoint);
-    expect(mine).toEqual(['/system/agents', '/system/agents/club.tactical']);
+    expect(mine).toEqual(['/system/agents', '/system/agents/club.tactical', '/system/agents/orchestration']);
   });
 });
 
@@ -111,9 +114,16 @@ describe('read-only by construction', () => {
 
 const PAYLOAD = '"><img src=x onerror=alert(1)><script>alert(2)</script>';
 /* eslint-disable @typescript-eslint/no-explicit-any */
-type Room = { html: () => string; click: (target: any) => Promise<void>; insp: () => string };
+type Room = {
+  html: () => string; click: (target: any) => Promise<void>; insp: () => string;
+  /** The latest HTML of one repainted region, and how many times it was painted (with `regions`). */
+  region: (sel: string) => string; paints: (sel: string) => number;
+  calls: string[]; missing: () => string[];
+};
+/** `orch` answers /system/agents/orchestration; `regions` gives the room the view and workflow regions it repaints in place. */
+type RoomOpts = { orch?: unknown; regions?: boolean; lang?: string };
 
-function runRoom(overview: unknown, detail?: (id: string) => unknown, locale?: Record<string, string>): Promise<Room> {
+function runRoom(overview: unknown, detail?: (id: string) => unknown, locale?: Record<string, string>, opts: RoomOpts = {}): Promise<Room> {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const vm = require('vm');
   const html: string[] = [];
@@ -123,18 +133,29 @@ function runRoom(overview: unknown, detail?: (id: string) => unknown, locale?: R
     set innerHTML(v: string) { inspHtml.push(v); }, get innerHTML() { return inspHtml[inspHtml.length - 1] || ''; },
     classList: { add() {}, remove() {}, toggle() {} }, setAttribute() {}, removeAttribute() {}, querySelector: () => null,
   };
+  const painted: Record<string, string[]> = {};
+  const regions: Record<string, any> = {};
+  const region = (sel: string): any => ({
+    set innerHTML(v: string) { (painted[sel] = painted[sel] || []).push(v); }, get innerHTML() { const r = painted[sel]; return r ? r[r.length - 1] : ''; },
+    setAttribute() {}, removeAttribute() {}, classList: { add() {}, remove() {}, toggle() {} }, scrollTop: 0, textContent: '',
+  });
+  const REGIONS = ['#ar-view', '#ar-count', '#ar-wf-detail', '#ar-wf-trace'];
+  const calls: string[] = [];
   const host: any = {
     set innerHTML(v: string) { html.push(v); }, get innerHTML() { return html[html.length - 1] || ''; },
-    setAttribute() {}, querySelector: (s: string) => (s === '#ar-insp' ? insp : null), querySelectorAll: () => [], contains: () => false,
+    setAttribute() {}, contains: () => false, querySelectorAll: () => [],
+    querySelector: (s: string) => (s === '#ar-insp' ? insp : opts.regions && REGIONS.includes(s) ? (regions[s] = regions[s] || region(s)) : null),
     addEventListener: (t: string, fn: (e: unknown) => void) => { listeners[t] = fn; },
   };
   const reply = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ success: true, data: body }) });
   const sandbox: any = {
     document: { getElementById: () => host },
-    localStorage: { getItem: () => (locale ? 'de' : null), setItem: () => {} },
+    localStorage: { getItem: () => opts.lang || (locale ? 'de' : null), setItem: () => {} },
     fetch: (u: string) => {
       if (String(u).includes('/i18n/')) return Promise.resolve({ ok: true, json: () => Promise.resolve(locale || {}) });
+      calls.push(String(u).replace(/^.*\/system\//, '/system/'));
       const m = /\/system\/agents\/(.+)$/.exec(String(u));
+      if (m && m[1] === 'orchestration') return reply(opts.orch ?? null);
       return m ? reply(detail ? detail(decodeURIComponent(m[1])) : null) : reply(overview);
     },
     Intl, console, Promise, Object, Array, String, Number, Date, Math, JSON, isFinite, encodeURIComponent, decodeURIComponent,
@@ -146,6 +167,9 @@ function runRoom(overview: unknown, detail?: (id: string) => unknown, locale?: R
   return settle().then(() => ({
     html: () => html[html.length - 1] || '',
     insp: () => inspHtml[inspHtml.length - 1] || '',
+    region: (sel: string) => { const r = painted[sel]; return r ? r[r.length - 1] : ''; },
+    paints: (sel: string) => (painted[sel] || []).length,
+    calls, missing: () => sandbox.__familistaAgentsRoomMissing(),
     click: (target: any) => { listeners.click({ target }); return settle(); },
   }));
 }
@@ -365,7 +389,8 @@ describe('English, German and Arabic — one catalogue each, in step', () => {
 
   it('covers every label and meaning held in the room’s vocabulary maps', () => {
     const names = ['DOMAIN_LABEL', 'SCOPE_LABEL', 'SCOPE_MEANING', 'LIFECYCLE_LABEL', 'LIFECYCLE_MEANING', 'ENV_LABEL', 'CLASS_LABEL',
-      'RECORD_CLASS_LABEL', 'RECORD_TYPE_LABEL', 'EFFECT_LABEL', 'AUTONOMY_LABEL', 'ROLE_LABEL', 'INVARIANT_LABEL'];
+      'RECORD_CLASS_LABEL', 'RECORD_TYPE_LABEL', 'EFFECT_LABEL', 'AUTONOMY_LABEL', 'ROLE_LABEL', 'INVARIANT_LABEL',
+      'STATE_LABEL', 'STATE_MEANING', 'OUTCOME_LABEL', 'TRACE_LABEL', 'CODE_LABEL'];
     const values = names.flatMap((n) => [...objectLiteral(JS, n).matchAll(/:\s*'((?:[^'\\]|\\.)*)'/g)].map((x) => x[1].replace(/\\'/g, "'")));
     expect(values.length).toBeGreaterThan(70);
     expect(values.filter((v) => !(v in en))).toEqual([]);
@@ -404,5 +429,146 @@ describe('English, German and Arabic — one catalogue each, in step', () => {
     expect(h).toContain(de['Every invariant holds']);
     expect(h).toContain(de['Club operations']);
     expect(h).not.toContain('>Club operations<');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('LAB workflows (AI-0.3): what the LAB orchestrator decided, drawn only from verified evidence', () => {
+  const en = json('public/agents-room/i18n/en.json') as Record<string, string>;
+  const verified = () => JSON.parse(JSON.stringify(orchestrationRoomView(platformAgentRegistry())));
+  /** How the room draws each task state: a kind of its own for each, so none is told apart by colour alone. */
+  const KIND: Record<string, string> = { SUCCEEDED: 'done', AWAITING_APPROVAL: 'approval', PENDING: 'waiting', REJECTED: 'rejected', FAILED: 'failed', SKIPPED: 'skipped', REFUSED: 'blocked' };
+  const taskNodes = (h: string) => [...h.matchAll(/<g class="ar-wf-node ar-wf-node--([a-z]+)[^"]*"[^>]*data-ar-task="([^"]+)"/g)].map((m) => ({ kind: m[1], id: m[2] }));
+  const runButtons = (h: string) => [...h.matchAll(/data-ar-wf="([0-9a-f]{64})"/g)].map((m) => m[1]);
+  const edges = (h: string) => [...h.matchAll(/<path class="ar-wf-edge ar-wf-edge--([a-z]+)"/g)].map((m) => m[1]);
+  const open = async (orch: unknown, locale?: Record<string, string>, lang?: string) => {
+    const room = await runRoom(real(), (id) => operationsRoomAgent(id), locale, { orch, regions: true, lang });
+    await room.click(on('[data-ar-view]', { 'data-ar-view': 'workflows' }));
+    return room;
+  };
+
+  it('reads the LAB evidence only when the workflows are opened', async () => {
+    const room = await runRoom(real(), undefined, undefined, { orch: verified(), regions: true });
+    expect(room.calls).toEqual(['/system/agents']);
+    await room.click(on('[data-ar-view]', { 'data-ar-view': 'workflows' }));
+    expect(room.calls).toEqual(['/system/agents', '/system/agents/orchestration']);
+  });
+
+  it('lists every published run, and draws every task of the first as a node and every dependency as an edge', async () => {
+    const orch = verified();
+    const room = await open(orch);
+    const h = room.region('#ar-view');
+    expect([...new Set(runButtons(h))]).toEqual(orch.runs.map((r: { id: string }) => r.id));
+    const first = orch.runs[0];
+    expect(taskNodes(h).map((n) => n.id)).toEqual(first.tasks.map((t: { id: string }) => t.id));
+    expect(edges(h)).toHaveLength(first.tasks.reduce((n: number, t: { dependsOn: string[] }) => n + t.dependsOn.length, 0));
+    expect(h).toContain(orch.evidenceDigest.slice(0, 16));
+    expect(h).toContain('Hash chain verified by the server');
+    expect(h).toContain(ORCHESTRATION_EVIDENCE_NOTICE);
+  });
+
+  it('draws each state as its own kind across the runs: completed, awaiting approval, rejected, failed, skipped, blocked', async () => {
+    const orch = verified();
+    const room = await open(orch);
+    const seen = new Set<string>();
+    for (const r of orch.runs) {
+      await room.click(on('[data-ar-wf]', { 'data-ar-wf': r.id }));
+      const h = room.region('#ar-view');
+      const drawn = taskNodes(h);
+      expect([r.scenario, drawn.map((n) => `${n.id}:${n.kind}`)]).toEqual([r.scenario, r.tasks.map((t: { id: string; state: string }) => `${t.id}:${KIND[t.state]}`)]);
+      drawn.forEach((n) => seen.add(n.kind));
+      // A handoff is drawn as the evidence recorded it: accepted, blocked, or never reached.
+      const want = r.tasks.flatMap((t: { dependsOn: string[]; inputs: Array<{ from: string; status: string }> }) =>
+        t.dependsOn.map((d) => { const i = t.inputs.find((x) => x.from === d); return i ? i.status.toLowerCase() : 'unreached'; })).sort();
+      expect([r.scenario, edges(h).sort()]).toEqual([r.scenario, want]);
+      if (r.refusal) expect(h).toContain('The plan was refused before anything was routed or ran');
+    }
+    expect([...seen].sort()).toEqual(['approval', 'blocked', 'done', 'failed', 'rejected', 'skipped']);
+  });
+
+  it('a task chosen repaints its detail and the trace only; the canvas is not redrawn', async () => {
+    const orch = verified();
+    const med = orch.runs.find((r: { scenario: string }) => r.scenario === 'medical-boundary');
+    const room = await open(orch);
+    await room.click(on('[data-ar-wf]', { 'data-ar-wf': med.id }));
+    const views = room.paints('#ar-view');
+    await room.click(on('[data-ar-task]', { 'data-ar-task': 'recommendation' }));
+    expect(room.paints('#ar-view')).toBe(views);
+    const d = room.region('#ar-wf-detail');
+    expect(d).toContain('No approver role may read');
+    expect(d).toContain('data-ar-agent="club.medical"');
+    expect(room.region('#ar-wf-trace')).toContain('is-task');
+  });
+
+  it.each([
+    ['NOT_GENERATED', 'No LAB evidence has been published'],
+    ['INVALID', 'The LAB evidence did not verify, so none of it is shown'],
+  ] as const)('negative: %s evidence is an empty state, and not one run, node or edge', async (state, title) => {
+    const orch = orchestrationRoomView(platformAgentRegistry(), { state, reason: 'integrity: run x: the trace chain breaks at event 2' });
+    const h = (await open(orch)).region('#ar-view');
+    expect(h).toContain(title);
+    expect(runButtons(h)).toEqual([]);
+    expect(taskNodes(h)).toEqual([]);
+    expect(edges(h)).toEqual([]);
+  });
+
+  it('negative: even if a reply that is not VERIFIED carried runs, none is drawn', async () => {
+    const orch = { ...verified(), state: 'INVALID', reason: 'integrity: tampered' };
+    const h = (await open(orch)).region('#ar-view');
+    expect(taskNodes(h)).toEqual([]);
+    expect(runButtons(h)).toEqual([]);
+  });
+
+  it('negative: a reply that breaks its contract names what is missing, offers to try again, and draws nothing', async () => {
+    const orch = verified();
+    delete orch.notice;
+    const room = await open(orch);
+    const h = room.region('#ar-view');
+    expect(h).toContain('notice');
+    expect(h).toContain('data-ar-wf-retry');
+    expect(taskNodes(h)).toEqual([]);
+    // Asked once, not again and again: the next read is the owner's.
+    const asked = () => room.calls.filter((c) => c === '/system/agents/orchestration').length;
+    expect(asked()).toBe(1);
+    await room.click(on('[data-ar-wf-retry]', {}));
+    expect(asked()).toBe(2);
+  });
+
+  it('prints hostile evidence text as text: a run title, a reason, a trace detail', async () => {
+    const orch = verified();
+    orch.runs[0].title = PAYLOAD;
+    orch.runs[0].tasks[0].reason = { code: 'OPERATION_FAILED', message: PAYLOAD };
+    orch.runs[0].trace[0].detail = PAYLOAD;
+    const room = await open(orch);
+    await room.click(on('[data-ar-task]', { 'data-ar-task': orch.runs[0].tasks[0].id }));
+    const all = room.region('#ar-view') + room.region('#ar-wf-detail') + room.region('#ar-wf-trace');
+    expect(all).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(all).not.toMatch(/<(img|script)\b/);
+    expect(all).not.toContain(PAYLOAD);
+  });
+
+  it('holds no list of runs, scenarios or states of the evidence\'s own, and has no control that would run one', () => {
+    for (const r of verified().runs) expect(`${r.scenario}:${CODE.includes(r.scenario)}`).toBe(`${r.scenario}:false`);
+    expect(CODE).not.toMatch(/data-ar-(submit|execute|approve|reject|decide)/);
+  });
+
+  it('carries every run title and operation title the published evidence holds into the catalogue', () => {
+    const orch = verified();
+    const titles = [...orch.runs.map((r: { title: string }) => r.title), ...orch.operations.map((o: { title: string }) => o.title)];
+    expect(titles.filter((k: string) => !(k in en))).toEqual([]);
+  });
+
+  it.each(['de', 'ar'])('%s: every run, task and trace view asks the catalogue for nothing it does not hold', async (tag) => {
+    const dict = json(`public/agents-room/i18n/${tag}.json`) as Record<string, string>;
+    const orch = verified();
+    const room = await open(orch, dict, tag);
+    for (const r of orch.runs) {
+      await room.click(on('[data-ar-wf]', { 'data-ar-wf': r.id }));
+      for (const t of r.tasks) await room.click(on('[data-ar-task]', { 'data-ar-task': t.id }));
+      await room.click(on('[data-ar-trace]', { 'data-ar-trace': 'task' }));
+      await room.click(on('[data-ar-trace]', { 'data-ar-trace': 'all' }));
+    }
+    expect(room.missing()).toEqual([]);
+    expect(room.region('#ar-view')).toContain(dict['LAB workflow']);
   });
 });

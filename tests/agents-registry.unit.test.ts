@@ -280,7 +280,7 @@ describe('the AI Agents Operations Room', () => {
 // ── 5. Nothing is activated ─────────────────────────────────────────────────
 describe('isolation', () => {
   const MODULE = 'src/platform/agents';
-  const files = fs.readdirSync(path.join(ROOT, MODULE)).map((f) => `${MODULE}/${f}`);
+  const files = fs.readdirSync(path.join(ROOT, MODULE)).filter((f) => f.endsWith('.ts')).map((f) => `${MODULE}/${f}`);
 
   it('the registry reaches no database, provider, worker or network', () => {
     for (const f of files) {

@@ -42,6 +42,7 @@
     "algorithms:candidates:check": "ts-node --transpile-only lab/algorithms/cli.ts --check",
     "algorithms:release": "ts-node --transpile-only lab/algorithms/release-cli.ts",
     "lab:orchestrator": "ts-node --transpile-only lab/orchestrator/cli.ts",
+    "lab:orchestrator:evidence": "ts-node --transpile-only lab/orchestrator/evidence-cli.ts",
     "backup:keygen": "node dist/scripts/backup.js keygen",
     "backup:run": "node dist/scripts/backup.js run",
     "backup:drill": "node dist/scripts/backup.js drill",
