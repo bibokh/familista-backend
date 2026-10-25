@@ -100,8 +100,11 @@ describe('the checks catch what they exist for', () => {
 });
 
 describe('the dependency audit', () => {
-  it('blocks on high and critical advisories', () => {
-    expect(CI).toMatch(/run:\s*npm audit --audit-level=high\s*$/m);
+  it('blocks on high and critical advisories, through the gate that runs the same audit with no argument that could loosen it', () => {
+    expect(CI).toMatch(/run:\s*node scripts\/npm-audit-gate\.js\s*$/m);
+    expect(CI).not.toMatch(/npm-audit-gate\.js[^\n]*(--report|--policy|--lockfile|\|\||continue-on-error)/);
+    const gate = require('../scripts/npm-audit-gate.js');
+    expect(gate.AUDIT_ARGS).toEqual(['audit', '--audit-level=high', '--json']);
   });
 });
 

@@ -12,6 +12,7 @@ import { morganStream } from './utils/logger';
 import { OriginNotAllowedError } from './utils/errors';
 import { securitySignalCollector } from './cyber-defense/collectors';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
+import { bodyShapeGuard } from './middleware/body-shape-guard';
 import { requestId, accessLog, errorReporter } from './middleware/request-id.middleware';
 import { traceRequest, traceError } from './observability/trace.middleware';
 import { withRequestId } from './observability/trace-context';
@@ -176,6 +177,10 @@ export function createApp(): express.Application {
   app.use(rawBodyForSignedWebhooks());
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true }));
+  // Bounds every parsed body before any route or schema walks it: zod 3 keeps an
+  // issue per failing element with no cap (GHSA-mrhx-c7xc-m3w5), so a 2 MB array
+  // alone could allocate hundreds of MB (middleware/body-shape-guard.ts).
+  app.use(bodyShapeGuard());
 
   // ── Trust proxy (for Railway / Render / Vercel)
   // Set BEFORE any limiter, so req.ip is the client rather than the proxy.
