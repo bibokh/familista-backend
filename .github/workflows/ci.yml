@@ -183,8 +183,13 @@ jobs:
       # CRITICAL advisory stops the change from merging. Moderate and low are
       # still printed. If the advisory service cannot be reached the step
       # fails rather than passing unchecked.
+      # The gate runs exactly `npm audit --audit-level=high --json` and fails on
+      # every HIGH or CRITICAL advisory, except one an entry in
+      # docs/security/npm-audit-exceptions.json names, still matches in full and
+      # has not expired (31 days at most). It fails closed on a missing,
+      # malformed or inconsistent report, and on a stale or expired exception.
       - name: Audit (blocking on high and critical)
-        run: npm audit --audit-level=high
+        run: node scripts/npm-audit-gate.js
 
   # Stage 3.2.3 M1: the Specimen Lab is a security boundary, and Jest has no layout engine,
   # no real event dispatch and no translator, so the boundary is proved in a real browser.

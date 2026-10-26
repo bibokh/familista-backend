@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-25T19:44:03.490Z",
+  "generatedAt": "2026-10-26T09:51:44.704Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -121,47 +121,47 @@
       {
         "route": "GET /api/health",
         "file": "src/app.ts",
-        "line": 243
+        "line": 248
       },
       {
         "route": "GET /app/*",
         "file": "src/app.ts",
-        "line": 317
+        "line": 322
       },
       {
         "route": "GET /healthz",
         "file": "src/app.ts",
-        "line": 244
+        "line": 249
       },
       {
         "route": "GET /internal/backups/runs/:id",
         "file": "src/app.ts",
-        "line": 253
+        "line": 258
       },
       {
         "route": "GET /invite",
         "file": "src/app.ts",
-        "line": 307
+        "line": 312
       },
       {
         "route": "GET /invite/*",
         "file": "src/app.ts",
-        "line": 307
+        "line": 312
       },
       {
         "route": "GET /reset-password",
         "file": "src/app.ts",
-        "line": 297
+        "line": 302
       },
       {
         "route": "POST /internal/backups/run",
         "file": "src/app.ts",
-        "line": 252
+        "line": 257
       },
       {
         "route": "POST /internal/video/transcode-callback",
         "file": "src/app.ts",
-        "line": 168
+        "line": 169
       }
     ],
     "mounts": [
@@ -2137,7 +2137,7 @@
       "id": "ci-audit-blocking",
       "status": "PRESENT",
       "evidence": ".github/workflows/ci.yml",
-      "note": "npm audit fails the build on a high or critical advisory."
+      "note": "npm audit fails the build on a high or critical advisory, except GHSA-mrhx-c7xc-m3w5 (zod, until 2026-11-01T00:00:00Z), reviewed, dated and matched in full by scripts/npm-audit-gate.js."
     },
     {
       "id": "ci-secret-scanning",
@@ -2827,6 +2827,7 @@
       ".gitleaksignore",
       "SECURITY.md",
       "docs/security/disaster-recovery.md",
+      "docs/security/npm-audit-exceptions.json",
       "docs/security/secrets-rotation.md",
       "lab/algorithms/candidates/index.ts",
       "lab/algorithms/candidates/xg-v1.1.ts",
@@ -2859,6 +2860,7 @@
       "render.yaml",
       "scripts/backup.sh",
       "scripts/copy-runtime-assets.js",
+      "scripts/npm-audit-gate.js",
       "scripts/restore-drill-ci.js",
       "scripts/restore-drill/Dockerfile",
       "scripts/restore.sh",
