@@ -47,7 +47,7 @@ export const registerVideoSchema = z
     trainingSessionId: cuidOrUuid.optional().nullable(),
     title: z.string().max(200).optional().nullable(),
     description: z.string().max(5000).optional().nullable(),
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 
@@ -59,7 +59,7 @@ export const startIngestSchema = z
   .object({
     provider: z.string().min(1).max(80).optional(),
     notes: z.string().max(2000).optional().nullable(),
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 
@@ -119,7 +119,7 @@ const inferenceEventSchema = z
     pitchX: z.number().min(0).max(100).optional().nullable(),
     pitchY: z.number().min(0).max(100).optional().nullable(),
     confidence: z.number().min(0).max(1).default(1),
-    payload: z.record(z.unknown()).optional().nullable(),
+    payload: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 
@@ -238,7 +238,7 @@ export const upsertLiveStreamSchema = z
   .object({
     streamUrl: z.string().url().optional().nullable(),
     ingestJobId: cuidOrUuid.optional().nullable(),
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 
@@ -251,7 +251,7 @@ export const publishLiveEventSchema = z
     teamSide: z.enum(TEAM_SIDES).default('UNKNOWN'),
     pitchX: z.number().min(0).max(100).optional().nullable(),
     pitchY: z.number().min(0).max(100).optional().nullable(),
-    payload: z.record(z.unknown()).optional().nullable(),
+    payload: z.record(z.string(), z.unknown()).optional().nullable(),
     confidence: z.number().min(0).max(1).default(1),
   })
   .strict();

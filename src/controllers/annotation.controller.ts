@@ -12,7 +12,7 @@ function actorOf(req: Request): svc.AnnotationActor {
 }
 
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
 }
 
 const createSchema = z.object({

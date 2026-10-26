@@ -17,7 +17,7 @@ const RT_STATUS     = ['PROVISIONED','ACTIVE','DEGRADED','OFFLINE','RETIRED'] as
 const STREAM_STATUS = ['ACTIVE','PAUSED','CLOSED'] as const;
 
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
 }
 function actor<A>(req: Request): A {
   if (!req.user) throw new BadRequestError('auth');

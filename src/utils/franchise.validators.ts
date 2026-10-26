@@ -45,7 +45,7 @@ export const createTerritorySchema = z
     population: z.number().int().min(0).optional().nullable(),
     currency: currency.optional().nullable(),
     timezone: optionalText(64),
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 
@@ -69,7 +69,7 @@ export const createFranchiseUnitSchema = z
     currency: currency.optional().default('EUR'),
     foundedAt: iso8601.optional().nullable(),
     launchedAt: iso8601.optional().nullable(),
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 
@@ -180,8 +180,8 @@ export const createExpansionRequestSchema = z
     targetLevel: z.enum(FRANCHISE_LEVELS),
     proposedName: optionalText(160),
     proposedCode: z.string().min(3).max(40).regex(/^[A-Z0-9-]+$/).optional().nullable(),
-    businessPlan: z.record(z.unknown()).optional().nullable(),
-    financialProjection: z.record(z.unknown()).optional().nullable(),
+    businessPlan: z.record(z.string(), z.unknown()).optional().nullable(),
+    financialProjection: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 
@@ -209,7 +209,7 @@ export const createAcquisitionRequestSchema = z
     proposedEquity: percent.refine((v) => v > 0, 'must be > 0'),
     proposedAmount: positiveAmount,
     currency: currency.optional().default('EUR'),
-    dueDiligence: z.record(z.unknown()).optional().nullable(),
+    dueDiligence: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict()
   .refine(
@@ -313,7 +313,7 @@ export const createContractSchema = z
     renewalNoticeMonths: z.number().int().min(0).max(60).optional().default(6),
     governingLaw: optionalText(120),
     jurisdiction: optionalText(120),
-    terms: z.record(z.unknown()).optional().nullable(),
+    terms: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 
@@ -331,7 +331,7 @@ export const requestRenewalSchema = z
   .object({
     effectiveFrom: iso8601,
     effectiveTo: iso8601.optional().nullable(),
-    termsDelta: z.record(z.unknown()).optional().nullable(),
+    termsDelta: z.record(z.string(), z.unknown()).optional().nullable(),
     notes: optionalText(2000),
   })
   .strict();
@@ -372,7 +372,7 @@ export const reportViolationSchema = z
     description: z.string().min(8).max(5000),
     dueByAt: iso8601.optional().nullable(),
     assignedTo: cuidOrUuid.optional().nullable(),
-    evidence: z.record(z.unknown()).optional().nullable(),
+    evidence: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 
@@ -394,7 +394,7 @@ export const upsertComplianceCheckSchema = z
     periodEndAt: iso8601,
     status: z.enum(COMPLIANCE_STATUSES).optional(),
     score: z.number().min(0).max(100).optional().nullable(),
-    findings: z.record(z.unknown()).optional().nullable(),
+    findings: z.record(z.string(), z.unknown()).optional().nullable(),
     remediation: optionalText(5000),
     dueByAt: iso8601.optional().nullable(),
   })
@@ -407,7 +407,7 @@ export const generateSnapshotSchema = z
     period: z.string().min(4).max(20).regex(/^\d{4}(-(Q[1-4]|\d{2}))?$/),
     periodStartAt: iso8601,
     periodEndAt: iso8601,
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 

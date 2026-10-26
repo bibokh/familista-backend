@@ -12,7 +12,7 @@ const CAMERA_KINDS  = ['RGB','DEPTH','EVENT','PANORAMIC','AERIAL'] as const;
 const CAMERA_STATUS = ['REGISTERED','CALIBRATED','ACTIVE','OFFLINE','RETIRED'] as const;
 
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
 }
 
 function actorOf(req: Request): registry.CameraActor {

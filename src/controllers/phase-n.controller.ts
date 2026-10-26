@@ -22,7 +22,7 @@ function actor<A>(req: Request): A {
   return { userId: req.user.id, clubId: req.user.clubId, role: req.user.role } as unknown as A;
 }
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
 }
 function bigintSafe<T>(row: T): T {
   if (row === null || row === undefined) return row;
@@ -114,7 +114,7 @@ export async function listRules(req: Request, res: Response, next: NextFunction)
   catch (err) { return next(err); }
 }
 
-const reasonSchema = z.object({ body: z.object({ topic: z.string().trim().min(1).max(200), question: z.string().trim().min(1).max(2000), kind: z.enum(REASON_KIND), sources: z.array(z.string().trim().min(1).max(200)).max(50).optional(), inputs: z.record(z.any()) }) });
+const reasonSchema = z.object({ body: z.object({ topic: z.string().trim().min(1).max(200), question: z.string().trim().min(1).max(2000), kind: z.enum(REASON_KIND), sources: z.array(z.string().trim().min(1).max(200)).max(50).optional(), inputs: z.record(z.string(), z.any()) }) });
 
 export async function runReason(req: Request, res: Response, next: NextFunction) {
   try {

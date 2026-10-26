@@ -60,7 +60,7 @@ export const createWorkflowSchema = z
     matchId: cuidOrUuid.optional().nullable(),
     decisionIds: z.array(cuidOrUuid).max(50).optional().default([]),
     dueByAt: iso8601.optional().nullable(),
-    payload: z.record(z.unknown()).optional().default({}),
+    payload: z.record(z.string(), z.unknown()).optional().default({}),
     customSteps: z
       .array(
         z
@@ -69,7 +69,7 @@ export const createWorkflowSchema = z
             description: z.string().max(2000).optional().nullable(),
             engine: z.string().min(2).max(40),
             action: z.string().min(2).max(80),
-            params: z.record(z.unknown()).optional().default({}),
+            params: z.record(z.string(), z.unknown()).optional().default({}),
           })
           .strict(),
       )
@@ -88,7 +88,7 @@ export const transitionWorkflowSchema = z
 export const updateStepSchema = z
   .object({
     status: z.enum(STEP_STATUSES).optional(),
-    result: z.record(z.unknown()).optional().nullable(),
+    result: z.record(z.string(), z.unknown()).optional().nullable(),
     error: z.string().max(5000).optional().nullable(),
     blockedReason: z.string().max(2000).optional().nullable(),
   })
@@ -112,7 +112,7 @@ export const createResolutionSchema = z
     quorumRequired: z.number().int().min(1).max(50).optional().default(3),
     passingMajority: z.number().min(0.5).max(1).optional().default(0.5),
     votingClosesAt: iso8601.optional().nullable(),
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 
@@ -149,7 +149,7 @@ export const createSponsorSchema = z
     proposedValue: z.number().min(0).max(1_000_000_000).optional().nullable(),
     currency: currency.optional().default('EUR'),
     termMonths: z.number().int().min(1).max(120).optional().nullable(),
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 
@@ -171,7 +171,7 @@ export const updateSponsorSchema = z
     endsAt: iso8601.optional().nullable(),
     agreementUrl: z.string().url().optional().nullable(),
     agreementChecksum: z.string().max(128).optional().nullable(),
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 
@@ -193,7 +193,7 @@ export const generateForecastSchema = z
     periodEndAt: iso8601,
     scenarios: z.array(z.enum(FORECAST_SCENARIOS)).min(1).max(FORECAST_SCENARIOS.length).optional().default(['BASE', 'OPTIMISTIC', 'PESSIMISTIC', 'STRESS']),
     currency: currency.optional().default('EUR'),
-    assumptions: z.record(z.unknown()).optional().default({}),
+    assumptions: z.record(z.string(), z.unknown()).optional().default({}),
   })
   .strict();
 
@@ -214,7 +214,7 @@ export const createRiskAlertSchema = z
     fingerprint: z.string().min(4).max(160),
     score: z.number().min(0).max(100).optional().nullable(),
     dueByAt: iso8601.optional().nullable(),
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 

@@ -84,7 +84,7 @@ async function trainingScope(req: Request, named?: string | null): Promise<{
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
   );
 }
 

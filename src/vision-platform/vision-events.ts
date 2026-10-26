@@ -146,7 +146,7 @@ export const VISION_PAYLOAD_SCHEMA = z.object({
   origin: z.enum(['MEASURED', 'PROPAGATED', 'SYNTHETIC', 'UNKNOWN']),
   frameNumber: z.number().nullable().optional(),
   timestampSeconds: z.number().nullable().optional(),
-  detail: z.record(z.unknown()).optional(),
+  detail: z.record(z.string(), z.unknown()).optional(),
 });
 
 let registered: FabricEventSpec[] | null = null;

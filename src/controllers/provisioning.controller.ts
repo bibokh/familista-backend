@@ -11,7 +11,7 @@ function actor(req: Request): svc.ProvisioningActor {
   return { userId: req.user.id, clubId: req.user.clubId, role: req.user.role };
 }
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.slice(1).join('.') || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || 'body'}: ${e.message}`).join(', '));
 }
 
 const batchSchema = z.object({

@@ -57,7 +57,7 @@ export const createInvestorProfileSchema = z
     targetSectors: z.array(z.string().min(1).max(60)).max(50).optional().default([]),
     targetGeographies: z.array(z.string().min(1).max(60)).max(50).optional().default([]),
     notes: optionalText(2000),
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 
@@ -86,7 +86,7 @@ export const createInvestmentEntitySchema = z
     clubId: cuidOrUuid.optional().nullable(),
     currency: currency.optional().default('EUR'),
     currentValuation: positiveAmount.optional().nullable(),
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict()
   .refine(
@@ -102,7 +102,7 @@ export const updateInvestmentEntitySchema = z
     name: z.string().min(1).max(160).optional(),
     description: optionalText(2000),
     currency: currency.optional(),
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
     isActive: z.boolean().optional(),
   })
   .strict();
@@ -150,7 +150,7 @@ export const createRoundSchema = z
     sharesAuthorized: positiveInt.optional().nullable(),
     shareClassId: cuidOrUuid.optional().nullable(),
     leadInvestorId: cuidOrUuid.optional().nullable(),
-    terms: z.record(z.unknown()).optional().nullable(),
+    terms: z.record(z.string(), z.unknown()).optional().nullable(),
     notes: optionalText(5000),
   })
   .strict();
@@ -198,7 +198,7 @@ export const createInvestmentSchema = z
     linkedClubId: cuidOrUuid.optional().nullable(),
 
     notes: optionalText(5000),
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict()
   .refine(
@@ -251,7 +251,7 @@ export const grantRightSchema = z
   .object({
     investorId: cuidOrUuid,
     type: z.enum(RIGHT_TYPES),
-    terms: z.record(z.unknown()).optional().nullable(),
+    terms: z.record(z.string(), z.unknown()).optional().nullable(),
     effectiveFrom: iso8601.optional(),
     effectiveTo: iso8601.optional().nullable(),
   })
@@ -259,7 +259,7 @@ export const grantRightSchema = z
 
 export const updateRightSchema = z
   .object({
-    terms: z.record(z.unknown()).optional().nullable(),
+    terms: z.record(z.string(), z.unknown()).optional().nullable(),
     effectiveTo: iso8601.optional().nullable(),
     isActive: z.boolean().optional(),
   })
@@ -299,7 +299,7 @@ export const createAgreementSchema = z
     effectiveTo: iso8601.optional().nullable(),
     governingLaw: optionalText(120),
     jurisdiction: optionalText(120),
-    terms: z.record(z.unknown()).optional().nullable(),
+    terms: z.record(z.string(), z.unknown()).optional().nullable(),
     notes: optionalText(5000),
   })
   .strict();
@@ -324,7 +324,7 @@ export const createExitSchema = z
     currency: currency.optional().default('EUR'),
     pricePerShare: positiveAmount.optional().nullable(),
     acquirerName: optionalText(160),
-    terms: z.record(z.unknown()).optional().nullable(),
+    terms: z.record(z.string(), z.unknown()).optional().nullable(),
     notes: optionalText(5000),
   })
   .strict();

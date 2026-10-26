@@ -29,7 +29,7 @@ function actorOf(req: Request) {
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.errors.map((e) => `${e.path.join('.') || 'query'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.join('.') || 'query'}: ${e.message}`).join(', '),
   );
 }
 

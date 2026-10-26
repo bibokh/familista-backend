@@ -26,7 +26,7 @@ function actor<A>(req: Request): A {
   return { userId: req.user.id, clubId: req.user.clubId, role: req.user.role, isPlatformOwner: req.user.isPlatformOwner === true } as unknown as A;
 }
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
 }
 // BigInt-safe JSON shim — converts every BigInt in a row to its string form.
 function bigintSafe<T>(row: T): T {

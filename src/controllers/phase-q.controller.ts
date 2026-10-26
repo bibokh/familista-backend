@@ -206,7 +206,7 @@ const updateInjurySchema = z.object({
 
 function injZerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.errors.map((e) => `${e.path.join('.') || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.join('.') || 'body'}: ${e.message}`).join(', '),
   );
 }
 
