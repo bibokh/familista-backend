@@ -317,6 +317,9 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 /** What the API exposes: success, the parsed data, and each issue's path and message (codes are zod-internal). */
 const visible = (r) => (r.threw ? { threw: r.threw } : r.ok ? { ok: true, data: r.data } : { ok: false, issues: r.issues.map((i) => ({ path: i.path, message: i.message })) });
 
+/** One JSON line on stdout, flushed before the process exits (a pipe would otherwise lose its tail). */
+const emit = (value) => new Promise((resolve) => process.stdout.write(`${JSON.stringify(value)}\n`, resolve));
+
 async function main() {
   const generate = process.argv.includes('--generate');
   const { schemas, failed } = loadSchemas();
@@ -340,7 +343,7 @@ async function main() {
     }
     fs.writeFileSync(BASELINE, `${JSON.stringify(out)}\n`);
     const n = Object.values(out.schemas).reduce((a, c) => a + c.length, 0);
-    process.stdout.write(`${JSON.stringify({ wrote: path.relative(ROOT, BASELINE), zod: ZOD_VERSION, schemas: Object.keys(out.schemas).length, cases: n, failed })}\n`);
+    await emit({ wrote: path.relative(ROOT, BASELINE), zod: ZOD_VERSION, schemas: Object.keys(out.schemas).length, cases: n, failed });
     return;
   }
   const base = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
@@ -362,7 +365,7 @@ async function main() {
       if (!same(want, got)) diffs.push({ schema: key, case: c.name, input: c.input, want, got, codes: { was: (c.issues || []).map((i) => i.code), now: (now.issues || []).map((i) => i.code) } });
     }
   }
-  process.stdout.write(`${JSON.stringify({ zod: ZOD_VERSION, baselineZod: base.zod, schemas: schemas.size, compared, missing, unbaselined, failed, diffCount: diffs.length, diffs: diffs.slice(0, 400) })}\n`);
+  await emit({ zod: ZOD_VERSION, baselineZod: base.zod, schemas: schemas.size, compared, missing, unbaselined, failed, diffCount: diffs.length, diffs: process.env.ZOD_BASELINE_ALL ? diffs : diffs.slice(0, 400) });
 }
 
 main().then(() => process.exit(0), (e) => { process.stderr.write(`${e && e.stack}\n`); process.exit(2); });
