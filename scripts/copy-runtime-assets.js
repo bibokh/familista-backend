@@ -66,6 +66,12 @@ const ASSETS = [
   // it is the only thing of the lab's that ships, and it is data, never code.
   ['src/algorithms/generated/candidate-evidence.json',
    'dist/algorithms/generated/candidate-evidence.json'],
+  // What the LAB Multi-Agent Orchestrator decided (AI-0.3): written by
+  // lab/orchestrator/ (which is NOT compiled into dist) and re-derived by its test.
+  // The server verifies it and shows it in the AI Agents Operations Room
+  // (src/platform/agents/orchestration-evidence.ts); it is data, never code.
+  ['src/platform/agents/generated/orchestration-evidence.json',
+   'dist/platform/agents/generated/orchestration-evidence.json'],
   // The one digest that binds a CHANGE approval to its dossier (plain
   // JavaScript, shared with the lab and the Cybersecurity scan). The server
   // requires it to check each approval's binding (src/algorithms/release.ts).

@@ -2751,7 +2751,7 @@ function _loadAgentsRoom(done) {
   }
   ask.then(function (yes) {
     if (!yes) { finish(false); return; }
-    var v = '20261022-agents-room-1';
+    var v = '20261025-agents-room-2';
     var pending = 2, failed = false;
     function one(ok) { if (!ok) failed = true; if (--pending === 0) finish(!failed); }
     var link = document.createElement('link');

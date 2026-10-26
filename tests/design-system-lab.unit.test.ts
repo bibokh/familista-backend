@@ -2093,8 +2093,8 @@ describe('the browser proof is kept with the code and is a required CI job', () 
     // M3/S2.2b-2: the floors were the counts measured with eighteen previewable components (203 and 74, never below S2.2b-1's
     // 197 and 68). Familista Design Studio, Slice 1a, adds section 14 (36 proofs) and 14a (3), and the translator's memory
     // (section 15) adds 21 to the isolation shard: the measured counts are 260 and 77. The AI Agents Operations Room adds
-    // section 16 (18 proofs) and 16a (3): 278 and 80.
-    expect(mins).toEqual([278, 80]);
+    // section 16 (18 proofs) and 16a (3): 278 and 80. Its LAB workflows (AI-0.3) add 10 to section 16 and 2 to 16a: 288 and 82.
+    expect(mins).toEqual([288, 82]);
   });
 
   it('classifies the browser\'s own copy of a CSP violation as a notice in both Chrome wordings, and nothing else', () => {
@@ -2486,9 +2486,9 @@ describe('M3/S3.2 — the performance budget report: eight official budgets, dia
     expect(run(log()).markdown).not.toContain('The proof itself did not pass');
   });
 
-  it('10. the budget report adds no browser check: the floors moved only with Familista Design Studio\'s own sections, the translator\'s memory section and the AI Agents Operations Room\'s (203 + 36 + 21 + 18, 74 + 3 + 3)', () => {
+  it('10. the budget report adds no browser check: the floors moved only with Familista Design Studio\'s own sections, the translator\'s memory section and the AI Agents Operations Room\'s, its LAB workflows included (203 + 36 + 21 + 18 + 10, 74 + 3 + 3 + 2)', () => {
     const job = CI.slice(CI.indexOf('  browser-proof:'), CI.indexOf('  secret-scan:'));
-    expect([...job.matchAll(/min:\s*'(\d+)'/g)].map((m) => Number(m[1]))).toEqual([278, 80]);
+    expect([...job.matchAll(/min:\s*'(\d+)'/g)].map((m) => Number(m[1]))).toEqual([288, 82]);
     expect(PROOF_SRC.match(/\bemitMetric\(/g)!.length).toBe(R.METRICS.length);   // one call per metric; the helper is `emitMetric = (`
     expect(PROOF_SRC).not.toMatch(/emitMetric\([^)]*\)\s*;\s*check\(|check\([^;]*emitMetric/);
   });

@@ -257,9 +257,35 @@ const medicalRecommendation: LabOperation<Record<string, never>, z.infer<typeof 
   },
 };
 
+const AvailabilityLoad = z.object({
+  availablePlayers: z.number().int().min(0),
+  groups: z.number().int().min(1),
+  committed: z.literal(false),
+}).strict();
+
+/**
+ * A training load built on the medical availability report. It names a real
+ * exchange a coach would ask for, so the platform's rule shows where it stops:
+ * the availability report is RESTRICTED medical output, and the training agent
+ * that would build this may not read it, so the handoff is blocked before it
+ * runs. Its output would carry a count, never a player or a status.
+ */
+const availabilityLoad: LabOperation<{ minutes: number }, z.infer<typeof AvailabilityLoad>> = {
+  key: 'training.availability-load@1',
+  title: 'Plan the training load around medical availability',
+  tool: 'createTrainingDraft', domain: 'TRAINING', output: 'INTERNAL', consumes: ['medical.availability@1'],
+  input: z.object({ minutes: z.number().int().min(45).max(120) }).strict(),
+  result: AvailabilityLoad,
+  run(_input, upstream) {
+    const a = only(upstream, 'medical.availability@1')[0]?.output as z.infer<typeof Availability> | undefined;
+    const n = a?.available.length ?? 0;
+    return { availablePlayers: n, groups: Math.max(1, Math.ceil(n / 8)), committed: false };
+  },
+};
+
 /** The operations of the first LAB slice. */
 export function labOperations(): OperationCatalog {
   const c = new OperationCatalog();
-  for (const op of [opponentProfile, sessionDraft, matchBriefing, liveChange, availability, medicalRecommendation]) c.register(op as LabOperation);
+  for (const op of [opponentProfile, sessionDraft, matchBriefing, liveChange, availability, medicalRecommendation, availabilityLoad]) c.register(op as LabOperation);
   return c;
 }

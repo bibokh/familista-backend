@@ -482,10 +482,12 @@ describe('the lab stays out of production', () => {
 
   it('the orchestrator imports only the rules it reuses: no database, gateway, provider, worker or network module', () => {
     const allowed = new Set([
-      'zod', 'crypto',
+      'zod', 'crypto', 'fs', 'path',
       '../../src/platform/intelligence/agents', '../../src/platform/intelligence/data-classes', '../../src/platform/environment',
       '../../src/platform/agents/registry', '../../src/platform/agents/manifest', '../../src/platform/agents/catalog',
       '../../src/security/ai-read-policy', '../../src/security/approver-roles',
+      // AI-0.3: the hash chain and the evidence verifier are production's, so the Lab publishes only what production accepts.
+      '../../src/platform/agents/trace-chain', '../../src/platform/agents/orchestration-evidence',
     ]);
     for (const f of fs.readdirSync(LAB_DIR).filter((x) => x.endsWith('.ts'))) {
       const specs = [...fs.readFileSync(path.join(LAB_DIR, f), 'utf8').matchAll(/from '([^']+)'/g)].map((m) => m[1]).filter((s) => !s.startsWith('./'));

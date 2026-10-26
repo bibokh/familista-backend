@@ -55,3 +55,27 @@ export const partialFailure = (): PlanRequest => plan('partial-failure', 'Two op
   { id: 'opponent-b', operation: 'tactics.opponent-profile@1', input: { opponent: 'Lab United', matches: [] }, dependsOn: [] },
   { id: 'session-b', operation: 'training.session-draft@1', input: { minutes: 75, squadSize: 20 }, dependsOn: ['opponent-b'] },
 ]);
+
+/** The same action, declined: the change ends REJECTED. */
+export const rejectLiveChange = (): ApprovalDecision => ({ taskId: 'change', decision: 'REJECTED', by: { ...CLUB_ADMIN } });
+
+/** A club admin tries to approve the medical action; no approver role may read what it writes, so it is refused. */
+export const attemptMedicalApproval = (): ApprovalDecision => ({ taskId: 'recommendation', decision: 'APPROVED', by: { ...CLUB_ADMIN } });
+
+/** The live change again, while the global kill switch is engaged: the analysis runs, the action does not. */
+export const killSwitchStop = (): PlanRequest => ({ ...liveAdjustment(), id: 'kill-switch-stop', title: 'A change while the kill switch is engaged' });
+
+/** One task's input names another club: that task is refused, the other completes. */
+export const crossTenantInput = (): PlanRequest => plan('cross-tenant-input', 'An input that names another club', { ...HEAD_COACH }, [
+  { id: 'own', operation: 'tactics.opponent-profile@1', input: opponentInput('Lab Rovers'), dependsOn: [] },
+  { id: 'foreign', operation: 'tactics.opponent-profile@1', input: { ...opponentInput('Lab United'), context: { clubId: OTHER_LAB_CLUB } }, dependsOn: [] },
+]);
+
+/** The training agent would build on the medical report; the handoff is blocked, and the medical agent's own report still completes. */
+export const medicalHandoff = (): PlanRequest => plan('medical-handoff', 'Training load from medical availability', { ...MEDICAL_STAFF }, [
+  { id: 'availability', operation: 'medical.availability@1', input: medicalBoundary().tasks[0].input, dependsOn: [] },
+  { id: 'load', operation: 'training.availability-load@1', input: { minutes: 75 }, dependsOn: ['availability'] },
+]);
+
+/** A head coach asks for the medical plan; the agents would write records a head coach may not read. */
+export const requesterRefused = (): PlanRequest => ({ ...medicalBoundary(), id: 'requester-refused', title: 'A head coach asks for the medical plan', requestedBy: { ...HEAD_COACH } });

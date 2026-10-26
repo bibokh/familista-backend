@@ -19,7 +19,9 @@ import { z } from 'zod';
 import type { DataClass } from '../../src/platform/intelligence/data-classes';
 import type { AIRecordClass } from '../../src/security/ai-read-policy';
 
-export const ORCHESTRATION_CONTRACT = 'familista.orchestration/v1' as const;
+import { ORCHESTRATION_CONTRACT } from '../../src/platform/agents/trace-chain';
+
+export { ORCHESTRATION_CONTRACT };
 
 /** Every bound the orchestrator keeps. A plan beyond one is refused before anything runs. */
 export const LIMITS = Object.freeze({
@@ -121,4 +123,6 @@ export interface TaskOutcome {
   outputDigest: string | null;
   approval: TaskApproval | null;
   reason: Reason<TaskReasonCode> | null;
+  /** Each output this task consumed, in the order it was checked, and whether the handoff was allowed. */
+  inputs: Array<{ from: string; status: 'ACCEPTED' | 'BLOCKED' }>;
 }

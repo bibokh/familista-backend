@@ -259,7 +259,14 @@ jobs:
   # the view, never the shell; everything it asks the server for is a GET of /system/agents or
   # one manifest; German and Arabic cover every string it draws, Arabic right to left; a phone
   # does not scroll sideways; no CSP violation. Its controls break each of those on purpose.
-  # Section 16a runs axe on the map, an open manifest and the catalogue, in English and Arabic.
+  # Its LAB workflows (AI-0.3) draw every run, task, handoff and state of the evidence the
+  # server verified, read against the server's own answer; the six states are told apart by
+  # outline and glyph, not colour alone; choosing a task redraws nothing on the canvas; a reply
+  # that did not verify or broke its contract draws nothing and is asked for once; German and
+  # Arabic cover every string, Arabic right to left; and a coach is answered 403 on the
+  # evidence too. Its controls re-ask a broken reply in a loop and redraw the canvas on purpose.
+  # Section 16a runs axe on the map, an open manifest, the catalogue and a LAB workflow with a
+  # chosen task, in English and Arabic.
   #
   # Authoritative: no `|| true`, no continue-on-error. A failed proof fails this job, a
   # failed job fails the `ci` workflow, and deploy.yml deploys only on a successful `ci`.
@@ -282,11 +289,11 @@ jobs:
           - shard: isolation
             sections: '1,2,2b,3,4,5,8,9,10,11,12,13,14,15,16'
             axe: ''
-            min: '278'
+            min: '288'
           - shard: accessibility and focus
             sections: '6,7,13a,14a,16a'
             axe: '--axe'
-            min: '80'
+            min: '82'
 
     env:
       NODE_ENV:           test

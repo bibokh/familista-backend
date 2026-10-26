@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-25T20:37:02.457Z",
+  "generatedAt": "2026-10-26T09:51:44.704Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 56,
-    "handlers": 761,
+    "handlers": 762,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -315,7 +315,7 @@
       {
         "path": "/system/agents",
         "module": "agents-room.routes",
-        "handlers": 2,
+        "handlers": 3,
         "public": 0,
         "routerWideAuth": true
       },
@@ -821,20 +821,20 @@
       }
     },
     "authorization": {
-      "handlers": 761,
+      "handlers": 762,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 94
+        "platform-owner": 95
       },
       "memberUnreviewed": [],
       "memberStale": [],
       "ownerRoomViolations": [],
       "byRouter": {
         "agents-room.routes": {
-          "platform-owner": 2
+          "platform-owner": 3
         },
         "ai-data-policy.routes": {
           "member": 1,
@@ -1357,6 +1357,7 @@
         "GET /staff-market/summary": "member",
         "GET /system/agents": "platform-owner",
         "GET /system/agents/:agentId": "platform-owner",
+        "GET /system/agents/orchestration": "platform-owner",
         "GET /system/algorithms": "platform-owner",
         "GET /system/algorithms/:key": "platform-owner",
         "GET /system/algorithms/:key/learning": "platform-owner",
@@ -2231,7 +2232,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "761 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 94 platform-owner; every member-level handler reviewed by name."
+      "note": "762 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 95 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2725,6 +2726,7 @@
         "src/lib/storage/storage-s3.adapter.ts",
         "src/notifications/notifications.service.ts",
         "src/platform/agents/registry.ts",
+        "src/platform/agents/trace-chain.ts",
         "src/platform/email/service.ts",
         "src/platform/innovation/flags.ts",
         "src/player-lifecycle/player-lifecycle.service.ts",

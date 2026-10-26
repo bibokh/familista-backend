@@ -1449,6 +1449,53 @@ export const AgentsRoomOverviewSchema = z.object({
   invariants: z.array(z.object({ id: z.string().min(1), holds: z.boolean(), detail: z.string().min(1) }).strict()),
   agents: z.array(AgentsRoomSummarySchema),
 }).strict();
+// AI-0.3: the LAB orchestration evidence the room draws, as the server verified it
+// (the orchestration evidence reader beside the Agent Registry). States, outcomes and trace event
+// types are closed sets the room styles by; agent ids, roles, domains and codes are
+// strings, for the same reason as above.
+const OrchTaskStateSchema = z.enum(['PENDING', 'AWAITING_APPROVAL', 'SUCCEEDED', 'FAILED', 'REFUSED', 'SKIPPED', 'REJECTED']);
+const OrchOutcomeSchema = z.enum(['COMPLETED', 'PARTIAL', 'FAILED', 'AWAITING_APPROVAL', 'REFUSED']);
+const OrchReasonSchema = z.object({ code: z.string().min(1), message: z.string().min(1) }).strict();
+export const AgentsRoomOrchestrationSchema = z.object({
+  state: z.enum(['VERIFIED', 'NOT_GENERATED', 'INVALID']),
+  reason: z.string().min(1).nullable(),
+  notice: z.string().min(1),
+  contract: z.literal('familista.orchestration-evidence/v1'),
+  evidenceDigest: Sha256.nullable(),
+  registry: z.object({ evidence: Sha256.nullable(), current: Sha256, matches: z.boolean() }).strict(),
+  agents: z.array(z.object({ id: z.string().min(1), known: z.boolean(), current: z.boolean() }).strict()),
+  operations: z.array(z.object({
+    key: z.string().min(1), title: z.string().min(1), tool: z.string().min(1), domain: z.string().min(1).nullable(),
+    output: z.string().min(1),
+  }).strict()),
+  runs: z.array(z.object({
+    id: Sha256, scenario: z.string().min(1), title: z.string().min(1), planId: z.string().min(1).nullable(),
+    scope: z.union([z.object({ kind: z.literal('CLUB'), clubId: z.string().regex(/^lab-/) }).strict(), z.object({ kind: z.literal('PLATFORM') }).strict()]),
+    requestedByRole: z.string().min(1),
+    steps: z.array(z.union([
+      z.object({ kind: z.literal('START') }).strict(),
+      z.object({ kind: z.literal('DECISION'), taskId: z.string().min(1), decision: z.enum(['APPROVED', 'REJECTED']), byRole: z.string().min(1), accepted: z.boolean() }).strict(),
+    ])).min(1),
+    outcome: OrchOutcomeSchema,
+    refusal: OrchReasonSchema.nullable(),
+    order: z.array(z.string().min(1)),
+    tasks: z.array(z.object({
+      id: z.string().min(1), operation: z.string().min(1), tool: z.string().min(1), state: OrchTaskStateSchema,
+      dependsOn: z.array(z.string().min(1)),
+      agent: z.object({ id: z.string().min(1), version: z.string().min(1), digest: Sha256 }).strict().nullable(),
+      eligibleAgents: z.array(z.string().min(1)), dataClass: z.string().min(1).nullable(), recordClass: z.string().min(1).nullable(),
+      outputDigest: Sha256.nullable(),
+      approval: z.object({ eligibleRoles: z.array(z.string().min(1)), decision: z.enum(['APPROVED', 'REJECTED']).nullable(), decidedByRole: z.string().min(1).nullable() }).strict().nullable(),
+      reason: OrchReasonSchema.nullable(),
+      inputs: z.array(z.object({ from: z.string().min(1), status: z.enum(['ACCEPTED', 'BLOCKED']) }).strict()),
+    }).strict()),
+    trace: z.array(z.object({
+      seq: Count, type: z.string().regex(/^[A-Z_]+$/), taskId: z.string().min(1).nullable(), agentId: z.string().min(1).nullable(),
+      code: z.string().min(1).nullable(), detail: z.string().min(1), prev: Sha256, hash: Sha256,
+    }).strict()).min(1),
+    digest: Sha256,
+  }).strict()),
+}).strict();
 export const AgentsRoomDetailSchema = z.object({
   agent: z.object({
     id: z.string().min(1), version: z.string().min(1), title: z.string().min(1), purpose: z.string().min(1),
@@ -1722,6 +1769,11 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     endpoint: '/system/agents/club.tactical', module: 'AI Agents Operations Room',
     schema: AgentsRoomDetailSchema, consumer: 'public/agents-room/agents-room.js',
     reads: ['agent', 'autonomyCeiling', 'tools', 'outputs', 'issues'],
+  },
+  {
+    endpoint: '/system/agents/orchestration', module: 'AI Agents Operations Room',
+    schema: AgentsRoomOrchestrationSchema, consumer: 'public/agents-room/agents-room.js',
+    reads: ['state', 'reason', 'notice', 'evidenceDigest', 'registry', 'agents', 'operations', 'runs'],
   },
 ];
 
