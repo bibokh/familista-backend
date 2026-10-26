@@ -70,7 +70,7 @@ const playerCoreShape = {
   notes:        z.string().max(2000).optional().or(z.literal('')),
   joinedAt:     z.string().optional().or(z.literal('')),
   // Phase A — optional team scoping (null = unassign)
-  teamId:       z.string().uuid().nullable().optional(),
+  teamId:       z.string().guid().nullable().optional(),
 };
 
 const createPlayerSchema = z.object({ body: z.object(playerCoreShape) });
@@ -109,7 +109,7 @@ const reasonSchema = z.object({ body: z.object({ reason: z.string().max(500).opt
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '),
   );
 }
 

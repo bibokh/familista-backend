@@ -118,7 +118,7 @@ describe('each team has its own Match Center, and the data is scoped on the serv
   it('the route accepts the team and the controller parses it', () => {
     expect(ROUTES).toContain("router.get('/calendar', ctrl.getCalendar)");
     expect(ROUTES).toContain("router.get('/teams', ctrl.getTeamContexts)");
-    expect(CTRL).toContain('teamId: z.string().uuid().optional()');
+    expect(CTRL).toContain('teamId: z.string().guid().optional()');
     // The parse says the shape is possible; team-access says the answer is
     // this caller's to have. The controller never decides access itself.
     expect(codeOnly(CTRL)).not.toMatch(/canManage|canView/);

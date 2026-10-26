@@ -3,6 +3,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { partialUpdate } from '../config/zod';
 import * as svc from '../services/match-intelligence.service';
 import { sendSuccess, sendCreated, sendNoContent } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
@@ -15,7 +16,7 @@ const SOURCE= ['MANUAL','AUTO_INTERVAL','AI_AGENT','VISION'] as const;
 
 const positionSchema = z.union([
   z.object({
-    playerId:     z.string().uuid(),
+    playerId:     z.string().guid(),
     position:     z.string().max(8).optional(),
     x:            z.number().min(0).max(100).optional(),
     y:            z.number().min(0).max(100).optional(),
@@ -49,8 +50,8 @@ const addTimelineSchema = z.object({
     period:            z.number().int().min(1).max(5).optional(),
     kind:              z.enum(KIND),
     side:              z.enum(SIDE),
-    primaryPlayerId:   z.string().uuid().nullable().optional(),
-    secondaryPlayerId: z.string().uuid().nullable().optional(),
+    primaryPlayerId:   z.string().guid().nullable().optional(),
+    secondaryPlayerId: z.string().guid().nullable().optional(),
     opponentName:      z.string().max(120).nullable().optional(),
     pitchX:            z.number().min(0).max(100).nullable().optional(),
     pitchY:            z.number().min(0).max(100).nullable().optional(),
@@ -60,7 +61,7 @@ const addTimelineSchema = z.object({
 });
 
 const editTimelineSchema = z.object({
-  body: addTimelineSchema.shape.body.partial()
+  body: partialUpdate(addTimelineSchema.shape.body)
     .refine((b) => Object.keys(b).length > 0, { message: 'No fields supplied to update' }),
 });
 
@@ -81,7 +82,7 @@ const reasonSchema = z.object({ body: z.object({ reason: z.string().max(500).opt
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '),
   );
 }
 function actorOf(req: Request): MatchActor {

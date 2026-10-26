@@ -7,6 +7,7 @@
 // Registry. The process must say it is the Lab; anywhere else the orchestrator
 // refuses every plan, and this prints that refusal.
 
+import '../../src/config/zod'; // zod 4 with zod 3's messages, as the server has them, before anything validates
 import { platformAgentRegistry } from '../../src/platform/agents/catalog';
 import { decideApproval, startRun, type PlanRun } from './engine';
 import { labOperations } from './operations';

@@ -17,7 +17,7 @@ const taskCreateSchema = z.object({
     schedule:    z.string().max(120).nullable().optional(),
     isActive:    z.boolean().optional(),
     budgetCents: z.number().int().min(0).max(1_000_000_000).optional(),
-    teamId:      z.string().uuid().nullable().optional(),
+    teamId:      z.string().guid().nullable().optional(),
     params:      z.any().optional(),
   }),
 });
@@ -28,7 +28,7 @@ const taskUpdateSchema = z.object({
     schedule:    z.string().max(120).nullable().optional(),
     isActive:    z.boolean().optional(),
     budgetCents: z.number().int().min(0).max(1_000_000_000).optional(),
-    teamId:      z.string().uuid().nullable().optional(),
+    teamId:      z.string().guid().nullable().optional(),
     params:      z.any().optional(),
   }).refine((b) => Object.keys(b).length > 0, { message: 'No fields supplied to update' }),
 });
@@ -47,7 +47,7 @@ const agentEnqueueSchema = z.object({
     agent:  z.enum(AGENTS),
     kind:   z.string().trim().min(1).max(80),
     input:  z.any().optional(),
-    teamId: z.string().uuid().nullable().optional(),
+    teamId: z.string().guid().nullable().optional(),
     model:  z.string().max(80).optional(),
   }),
 });
@@ -65,7 +65,7 @@ const reasonSchema = z.object({ body: z.object({ reason: z.string().max(500).opt
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '),
   );
 }
 function actorOf(req: Request): svc.AutomationActor {

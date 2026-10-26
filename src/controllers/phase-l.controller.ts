@@ -26,7 +26,7 @@ function actor<A>(req: Request): A {
   return { userId: req.user.id, clubId: req.user.clubId, role: req.user.role, isPlatformOwner: req.user.isPlatformOwner === true } as unknown as A;
 }
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '));
 }
 // BigInt-safe JSON shim — converts every BigInt in a row to its string form.
 function bigintSafe<T>(row: T): T {
@@ -46,7 +46,7 @@ function bigintSafe<T>(row: T): T {
 // Hardware
 // ─────────────────────────────────────────────────────────────────────────
 
-const hwSessSchema = z.object({ body: z.object({ serial: z.string().trim().min(1).max(120), batchId: z.string().uuid().optional(), deviceId: z.string().uuid().optional(), notes: z.string().trim().max(2000).optional() }) });
+const hwSessSchema = z.object({ body: z.object({ serial: z.string().trim().min(1).max(120), batchId: z.string().guid().optional(), deviceId: z.string().guid().optional(), notes: z.string().trim().max(2000).optional() }) });
 
 export async function createHwSession(req: Request, res: Response, next: NextFunction) {
   try {
@@ -84,7 +84,7 @@ export async function publishCapability(req: Request, res: Response, next: NextF
   } catch (err) { return next(err); }
 }
 
-const trustSchema = z.object({ body: z.object({ deviceId: z.string().uuid(), certFingerprint: z.string().trim().min(16).max(256), secureBootHash: z.string().trim().max(256).optional(), hwSerial: z.string().trim().max(120).optional(), issuer: z.string().trim().max(200).optional(), validUntil: z.string().datetime().optional() }) });
+const trustSchema = z.object({ body: z.object({ deviceId: z.string().guid(), certFingerprint: z.string().trim().min(16).max(256), secureBootHash: z.string().trim().max(256).optional(), hwSerial: z.string().trim().max(120).optional(), issuer: z.string().trim().max(200).optional(), validUntil: z.string().datetime().optional() }) });
 
 export async function publishTrustAnchor(req: Request, res: Response, next: NextFunction) {
   try {
@@ -97,7 +97,7 @@ export async function publishTrustAnchor(req: Request, res: Response, next: Next
 // Attestation
 // ─────────────────────────────────────────────────────────────────────────
 
-const attestSchema = z.object({ body: z.object({ deviceId: z.string().uuid(), fwVersion: z.string().trim().max(40).optional(), secureBootHash: z.string().trim().max(256).optional(), nonce: z.string().trim().min(8).max(128), sigB64: z.string().trim().min(8).max(512) }) });
+const attestSchema = z.object({ body: z.object({ deviceId: z.string().guid(), fwVersion: z.string().trim().max(40).optional(), secureBootHash: z.string().trim().max(256).optional(), nonce: z.string().trim().min(8).max(128), sigB64: z.string().trim().min(8).max(512) }) });
 
 export async function recordAttestation(req: Request, res: Response, next: NextFunction) {
   try {
@@ -197,10 +197,10 @@ export async function listCoaches(req: Request, res: Response, next: NextFunctio
 }
 
 const recSchema = z.object({ body: z.object({
-  matchId:        z.string().uuid().nullable().optional(),
-  teamId:         z.string().uuid().nullable().optional(),
-  playerId:       z.string().uuid().nullable().optional(),
-  agentId:        z.string().uuid().nullable().optional(),
+  matchId:        z.string().guid().nullable().optional(),
+  teamId:         z.string().guid().nullable().optional(),
+  playerId:       z.string().guid().nullable().optional(),
+  agentId:        z.string().guid().nullable().optional(),
   kind:           z.enum(COACH_KINDS),
   title:          z.string().trim().max(200).optional(),
   rationale:      z.string().trim().min(1).max(10_000),
@@ -232,7 +232,7 @@ export async function listRecommendations(req: Request, res: Response, next: Nex
 // Simulation
 // ─────────────────────────────────────────────────────────────────────────
 
-const simCreateSchema = z.object({ body: z.object({ label: z.string().trim().min(1).max(200), matchId: z.string().uuid().optional(), sourceFrameId: z.string().uuid().optional(), notes: z.string().trim().max(2000).optional() }) });
+const simCreateSchema = z.object({ body: z.object({ label: z.string().trim().min(1).max(200), matchId: z.string().guid().optional(), sourceFrameId: z.string().guid().optional(), notes: z.string().trim().max(2000).optional() }) });
 
 export async function createSim(req: Request, res: Response, next: NextFunction) {
   try {
@@ -246,7 +246,7 @@ export async function listSims(req: Request, res: Response, next: NextFunction) 
   catch (err) { return next(err); }
 }
 
-const branchSchema = z.object({ body: z.object({ label: z.string().trim().min(1).max(200), parentBranchId: z.string().uuid().optional(), divergencePayload: z.any().optional() }).refine((v) => v.divergencePayload !== undefined, { message: 'divergencePayload required', path: ['divergencePayload'] }) });
+const branchSchema = z.object({ body: z.object({ label: z.string().trim().min(1).max(200), parentBranchId: z.string().guid().optional(), divergencePayload: z.any().optional() }).refine((v) => v.divergencePayload !== undefined, { message: 'divergencePayload required', path: ['divergencePayload'] }) });
 
 export async function createBranch(req: Request, res: Response, next: NextFunction) {
   try {
@@ -256,7 +256,7 @@ export async function createBranch(req: Request, res: Response, next: NextFuncti
   } catch (err) { return next(err); }
 }
 
-const stateSchema = z.object({ body: z.object({ branchId: z.string().uuid().optional(), tickMs: z.number().int().min(0), state: z.any().optional() }).refine((v) => v.state !== undefined, { message: 'state required', path: ['state'] }) });
+const stateSchema = z.object({ body: z.object({ branchId: z.string().guid().optional(), tickMs: z.number().int().min(0), state: z.any().optional() }).refine((v) => v.state !== undefined, { message: 'state required', path: ['state'] }) });
 
 export async function recordSimState(req: Request, res: Response, next: NextFunction) {
   try {
@@ -269,7 +269,7 @@ export async function recordSimState(req: Request, res: Response, next: NextFunc
 // Cognitive graph
 // ─────────────────────────────────────────────────────────────────────────
 
-const graphSchema = z.object({ body: z.object({ matchId: z.string().uuid(), monotonicMs: z.number().int().min(0), nodes: z.any().optional(), edges: z.any().optional() }).refine((v) => v.nodes !== undefined && v.edges !== undefined, { message: 'nodes + edges required' }) });
+const graphSchema = z.object({ body: z.object({ matchId: z.string().guid(), monotonicMs: z.number().int().min(0), nodes: z.any().optional(), edges: z.any().optional() }).refine((v) => v.nodes !== undefined && v.edges !== undefined, { message: 'nodes + edges required' }) });
 
 export async function recordGameGraph(req: Request, res: Response, next: NextFunction) {
   try {
@@ -294,7 +294,7 @@ export async function listGameGraphs(req: Request, res: Response, next: NextFunc
 // Biochem expansion
 // ─────────────────────────────────────────────────────────────────────────
 
-const signalSchema = z.object({ body: z.object({ playerId: z.string().uuid().nullable().optional(), matchId: z.string().uuid().nullable().optional(), kind: z.string().trim().min(1).max(40), value: z.number(), unit: z.string().trim().max(40).optional(), monotonicMs: z.number().int().min(0).optional(), sourceDeviceId: z.string().uuid().nullable().optional() }) });
+const signalSchema = z.object({ body: z.object({ playerId: z.string().guid().nullable().optional(), matchId: z.string().guid().nullable().optional(), kind: z.string().trim().min(1).max(40), value: z.number(), unit: z.string().trim().max(40).optional(), monotonicMs: z.number().int().min(0).optional(), sourceDeviceId: z.string().guid().nullable().optional() }) });
 
 export async function recordBiochemSignal(req: Request, res: Response, next: NextFunction) {
   try {

@@ -34,3 +34,6 @@ process.env.MFA_ENCRYPTION_KEY = process.env.MFA_ENCRYPTION_KEY ?? 'test-mfa-key
 // grants or retires that row inside one file must see the change immediately,
 // so the window is closed here rather than branching on NODE_ENV in the source.
 process.env.PLATFORM_AUTHORITY_TTL_MS = '0';
+
+// zod 4 with zod 3's messages, as the server loads it (src/config/zod.ts).
+import '../src/config/zod';

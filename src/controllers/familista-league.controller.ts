@@ -22,7 +22,7 @@ const querySchema = z.object({
    * reads its own league. Omitting it is the First Team's path, unchanged: the
    * platform league by code and season, exactly as before.
    */
-  teamId: z.string().uuid().optional(),
+  teamId: z.string().guid().optional(),
 });
 
 /** The caller's active club, as the auth layer resolved it. Never from input. */
@@ -130,7 +130,7 @@ export async function getLeaderboards(req: Request, res: Response, next: NextFun
   } catch (err) { next(err); }
 }
 
-const teamSchema = z.object({ teamId: z.string().uuid() });
+const teamSchema = z.object({ teamId: z.string().guid() });
 
 export async function getTeamRecord(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -149,7 +149,7 @@ export async function getTeamStats(req: Request, res: Response, next: NextFuncti
   } catch (err) { next(err); }
 }
 
-const fixtureSchema = z.object({ fixtureId: z.string().uuid() });
+const fixtureSchema = z.object({ fixtureId: z.string().guid() });
 
 /**
  * One league match in full — the payload the Match Centre opens with. Readable
@@ -236,7 +236,7 @@ export async function getEligibleTeams(req: Request, res: Response, next: NextFu
   } catch (err) { next(err); }
 }
 
-const addSchema = z.object({ teamId: z.string().uuid() });
+const addSchema = z.object({ teamId: z.string().guid() });
 
 export async function addParticipant(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

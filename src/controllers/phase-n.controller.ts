@@ -22,7 +22,7 @@ function actor<A>(req: Request): A {
   return { userId: req.user.id, clubId: req.user.clubId, role: req.user.role } as unknown as A;
 }
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '));
 }
 function bigintSafe<T>(row: T): T {
   if (row === null || row === undefined) return row;
@@ -60,7 +60,7 @@ export async function listNodes(req: Request, res: Response, next: NextFunction)
   } catch (err) { return next(err); }
 }
 
-const edgeSchema = z.object({ body: z.object({ fromNodeId: z.string().uuid(), toNodeId: z.string().uuid(), edgeKind: z.enum(EDGE_KINDS), weight: z.number().min(0).max(1).optional(), metadata: z.any().optional(), global: z.boolean().optional() }) });
+const edgeSchema = z.object({ body: z.object({ fromNodeId: z.string().guid(), toNodeId: z.string().guid(), edgeKind: z.enum(EDGE_KINDS), weight: z.number().min(0).max(1).optional(), metadata: z.any().optional(), global: z.boolean().optional() }) });
 
 export async function createEdge(req: Request, res: Response, next: NextFunction) {
   try {
@@ -130,7 +130,7 @@ export async function listTraces(req: Request, res: Response, next: NextFunction
 
 // ── Universal identity ─────────────────────────────────────────────────
 
-const regAthleteSchema = z.object({ body: z.object({ firstName: z.string().trim().min(1).max(120), lastName: z.string().trim().min(1).max(120), dateOfBirth: z.string().datetime(), sport: z.enum(SPORTS).optional(), playerId: z.string().uuid().optional(), confidence: z.number().min(0).max(1).optional() }) });
+const regAthleteSchema = z.object({ body: z.object({ firstName: z.string().trim().min(1).max(120), lastName: z.string().trim().min(1).max(120), dateOfBirth: z.string().datetime(), sport: z.enum(SPORTS).optional(), playerId: z.string().guid().optional(), confidence: z.number().min(0).max(1).optional() }) });
 
 export async function registerAthlete(req: Request, res: Response, next: NextFunction) {
   try {
@@ -139,7 +139,7 @@ export async function registerAthlete(req: Request, res: Response, next: NextFun
   } catch (err) { return next(err); }
 }
 
-const linkSchema = z.object({ body: z.object({ athleteIdHash: z.string().trim().length(64), playerId: z.string().uuid(), confidence: z.number().min(0).max(1).optional() }) });
+const linkSchema = z.object({ body: z.object({ athleteIdHash: z.string().trim().length(64), playerId: z.string().guid(), confidence: z.number().min(0).max(1).optional() }) });
 
 export async function linkPlayer(req: Request, res: Response, next: NextFunction) {
   try {
@@ -148,7 +148,7 @@ export async function linkPlayer(req: Request, res: Response, next: NextFunction
   } catch (err) { return next(err); }
 }
 
-const perfSchema = z.object({ body: z.object({ athleteId: z.string().uuid(), season: z.string().trim().min(3).max(40), payload: z.any().optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
+const perfSchema = z.object({ body: z.object({ athleteId: z.string().guid(), season: z.string().trim().min(3).max(40), payload: z.any().optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
 
 export async function recordPerformance(req: Request, res: Response, next: NextFunction) {
   try {
@@ -158,7 +158,7 @@ export async function recordPerformance(req: Request, res: Response, next: NextF
   } catch (err) { return next(err); }
 }
 
-const medSchema = z.object({ body: z.object({ athleteId: z.string().uuid(), recordKind: z.string().trim().min(1).max(40), plainPayload: z.any().optional(), anonymisedPayload: z.any().optional() }).refine((v) => v.plainPayload !== undefined && v.anonymisedPayload !== undefined, { message: 'plainPayload + anonymisedPayload required' }) });
+const medSchema = z.object({ body: z.object({ athleteId: z.string().guid(), recordKind: z.string().trim().min(1).max(40), plainPayload: z.any().optional(), anonymisedPayload: z.any().optional() }).refine((v) => v.plainPayload !== undefined && v.anonymisedPayload !== undefined, { message: 'plainPayload + anonymisedPayload required' }) });
 
 export async function recordMedical(req: Request, res: Response, next: NextFunction) {
   try {
@@ -168,7 +168,7 @@ export async function recordMedical(req: Request, res: Response, next: NextFunct
   } catch (err) { return next(err); }
 }
 
-const transferSchema = z.object({ body: z.object({ athleteId: z.string().uuid(), fromClubRef: z.string().trim().max(120).optional(), toClubRef: z.string().trim().max(120).optional(), feeCents: z.number().int().min(0).optional(), currency: z.string().trim().max(8).optional(), occurredAt: z.string().datetime(), payload: z.any().optional() }) });
+const transferSchema = z.object({ body: z.object({ athleteId: z.string().guid(), fromClubRef: z.string().trim().max(120).optional(), toClubRef: z.string().trim().max(120).optional(), feeCents: z.number().int().min(0).optional(), currency: z.string().trim().max(8).optional(), occurredAt: z.string().datetime(), payload: z.any().optional() }) });
 
 export async function recordTransfer(req: Request, res: Response, next: NextFunction) {
   try {
@@ -193,7 +193,7 @@ export async function listScoutingNodes(req: Request, res: Response, next: NextF
   catch (err) { return next(err); }
 }
 
-const discoverySchema = z.object({ body: z.object({ scoutingNodeId: z.string().uuid().optional(), athleteIdHash: z.string().trim().length(64).optional(), externalRef: z.string().trim().max(200).optional(), prospectName: z.string().trim().min(1).max(200), position: z.string().trim().max(40).optional(), age: z.number().int().min(8).max(60).optional(), region: z.string().trim().max(40).optional(), status: z.enum(DISCOVERY).optional(), payload: z.any().optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
+const discoverySchema = z.object({ body: z.object({ scoutingNodeId: z.string().guid().optional(), athleteIdHash: z.string().trim().length(64).optional(), externalRef: z.string().trim().max(200).optional(), prospectName: z.string().trim().min(1).max(200), position: z.string().trim().max(40).optional(), age: z.number().int().min(8).max(60).optional(), region: z.string().trim().max(40).optional(), status: z.enum(DISCOVERY).optional(), payload: z.any().optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
 
 export async function recordDiscovery(req: Request, res: Response, next: NextFunction) {
   try {
@@ -208,7 +208,7 @@ export async function listDiscoveries(req: Request, res: Response, next: NextFun
   catch (err) { return next(err); }
 }
 
-const rankingSchema = z.object({ body: z.object({ discoveryId: z.string().uuid().optional(), athleteIdHash: z.string().trim().length(64).optional(), position: z.string().trim().max(40).optional(), input: z.object({ scoutScore: z.number().min(0).max(100), marketScarcity: z.number().min(0).max(1), positionalNeed: z.number().min(0).max(1), financialFit: z.number().min(0).max(1), developmentFit: z.number().min(0).max(1) }) }) });
+const rankingSchema = z.object({ body: z.object({ discoveryId: z.string().guid().optional(), athleteIdHash: z.string().trim().length(64).optional(), position: z.string().trim().max(40).optional(), input: z.object({ scoutScore: z.number().min(0).max(100), marketScarcity: z.number().min(0).max(1), positionalNeed: z.number().min(0).max(1), financialFit: z.number().min(0).max(1), developmentFit: z.number().min(0).max(1) }) }) });
 
 export async function recordRanking(req: Request, res: Response, next: NextFunction) {
   try {
@@ -222,7 +222,7 @@ export async function listRankings(req: Request, res: Response, next: NextFuncti
   catch (err) { return next(err); }
 }
 
-const evalSchema = z.object({ body: z.object({ discoveryId: z.string().uuid().optional(), athleteIdHash: z.string().trim().length(64).optional(), payload: z.any().optional(), score: z.number().min(0).max(1).optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
+const evalSchema = z.object({ body: z.object({ discoveryId: z.string().guid().optional(), athleteIdHash: z.string().trim().length(64).optional(), payload: z.any().optional(), score: z.number().min(0).max(1).optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
 
 export async function recordEvaluation(req: Request, res: Response, next: NextFunction) {
   try {

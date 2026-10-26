@@ -86,7 +86,7 @@ export const eligibleApproverRoles = (recordClass: AIRecordClass): string[] =>
   APPROVER_ROLES.filter((r) => tierFor(r, recordClass) === 'FULL');
 
 const cap = (s: string, n = 200) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
-const firstIssue = (e: { issues: Array<{ path: Array<string | number>; message: string }> }) => {
+const firstIssue = (e: { issues: Array<{ path: PropertyKey[]; message: string }> }) => {
   const i = e.issues[0];
   return i ? `${i.path.join('.') || '(root)'}: ${i.message}` : 'invalid';
 };

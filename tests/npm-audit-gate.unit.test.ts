@@ -1,9 +1,12 @@
 /**
- * The dependency audit gate (scripts/npm-audit-gate.js) and its one exception.
+ * The dependency audit gate (scripts/npm-audit-gate.js) and its exceptions.
  *
- * The gate replaces a bare `npm audit --audit-level=high` in CI. It must block exactly what that did, except one
+ * The gate replaces a bare `npm audit --audit-level=high` in CI. It must block exactly what that did, except a
  * reviewed advisory, and fail closed on anything it cannot read or does not recognise. Each rule below is shown
  * holding and, from the same inputs with one thing changed, failing.
+ *
+ * The committed policy holds no exception: its one, GHSA-mrhx-c7xc-m3w5 in zod 3.25.76, was removed with the upgrade
+ * to a patched zod. The rules are proven on that exception as it was approved, kept here as a fixture.
  */
 
 import fs from 'fs';
@@ -16,7 +19,18 @@ const gate = require('../scripts/npm-audit-gate.js');
 const ROOT = path.join(__dirname, '..');
 type Row = Record<string, any>;
 
-const POLICY: Row = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/security/npm-audit-exceptions.json'), 'utf8'));
+const COMMITTED: Row = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/security/npm-audit-exceptions.json'), 'utf8'));
+/** The exception approved on 2026-10-25 and removed with zod 4: a whole, valid record for the rules to act on. */
+const EXCEPTION: Row = {
+  id: 'GHSA-mrhx-c7xc-m3w5', cve: 'CVE-2023-54404', package: 'zod', severity: 'high', vulnerableRange: '<4.6.6',
+  installedVersion: '3.25.76', patchedVersion: '4.6.6', title: 'Zod can exhaust memory while validating oversized constrained collections (CWE-770)',
+  approvedOn: '2026-10-25T00:00:00Z', expires: '2026-11-01T00:00:00Z', owner: 'Platform Owner (bibokh)',
+  approvedBy: 'Platform Owner: security remediation decision of 2026-10-25, conditionally approved',
+  justification: 'No zod 3 release is patched; the body shape guard bounds every request body before any schema runs.',
+  compensatingControls: ['src/middleware/body-shape-guard.ts, mounted in src/app.ts before every route and auth check'],
+  remediationPlan: 'Staged zod 4.6.6+ migration; this exception is removed in the same change',
+};
+const POLICY: Row = { exceptions: [EXCEPTION] };
 const BEFORE = Date.parse('2026-10-26T00:00:00Z');
 const LOCK = { packages: { 'node_modules/zod': { version: '3.25.76' }, 'node_modules/body-parser': { version: '1.20.9' }, 'node_modules/left-pad': { version: '1.0.0' } } };
 
@@ -34,20 +48,28 @@ const BODY_PARSER = { name: 'body-parser', severity: 'high', via: [advisory('bod
 const run = (r: unknown, over: Row = {}) => gate.evaluate({ report: r, policy: POLICY, lockfile: LOCK, now: BEFORE, ...over });
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 
-describe('the committed exception', () => {
-  it('is one exception, for GHSA-mrhx-c7xc-m3w5 in zod 3.25.76 (<4.6.6, high), expiring 2026-11-01, with its full record', () => {
-    expect(POLICY.exceptions).toHaveLength(1);
-    const e = POLICY.exceptions[0];
-    expect(e).toMatchObject({ id: 'GHSA-mrhx-c7xc-m3w5', cve: 'CVE-2023-54404', package: 'zod', severity: 'high', vulnerableRange: '<4.6.6', installedVersion: '3.25.76', expires: '2026-11-01T00:00:00Z' });
-    expect(gate.readPolicy(POLICY).problems).toEqual([]);
-    for (const k of ['owner', 'approvedBy', 'justification', 'remediationPlan']) expect(e[k].length).toBeGreaterThan(10);
-    // Each compensating control it names exists in the repository.
-    for (const c of e.compensatingControls.join(' ').match(/(src|tests|docs)\/[\w./-]+\.(ts|md|json)/g)) expect([c, fs.existsSync(path.join(ROOT, c))]).toEqual([c, true]);
+describe('the committed policy', () => {
+  const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'));
+
+  it('holds no exception, and is a whole policy', () => {
+    expect(COMMITTED.exceptions).toEqual([]);
+    expect(gate.readPolicy(COMMITTED).problems).toEqual([]);
   });
 
-  it('names the version package-lock.json installs', () => {
-    const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'));
-    expect(lock.packages['node_modules/zod'].version).toBe(POLICY.exceptions[0].installedVersion);
+  it('the advisory its last exception was for no longer applies: every zod package-lock.json installs is 4.6.6 or later', () => {
+    const zods = Object.entries(lock.packages as Record<string, Row>).filter(([k]) => /(^|\/)node_modules\/zod$/.test(k));
+    expect(zods.length).toBeGreaterThan(0);
+    for (const [k, v] of zods) {
+      const [major, minor, patch] = String(v.version).split('.').map(Number);
+      expect([k, major > 4 || (major === 4 && (minor > 6 || (minor === 6 && patch >= 6)))]).toEqual([k, true]);
+    }
+  });
+
+  it('negative: were the zod advisory reported again, the committed policy would fail the build', () => {
+    const v = gate.evaluate({ report: report(ZOD), policy: COMMITTED, lockfile: lock, now: BEFORE });
+    expect(v.ok).toBe(false);
+    expect(v.failures).toEqual([expect.stringMatching(/^HIGH GHSA-mrhx-c7xc-m3w5 in zod/)]);
+    expect(gate.evaluate({ report: report(), policy: COMMITTED, lockfile: lock, now: BEFORE }).ok).toBe(true);
   });
 });
 
@@ -160,10 +182,10 @@ describe('it fails closed', () => {
 });
 
 describe('the security posture records it', () => {
-  it('keeps ci-audit-blocking PRESENT through the gate, and names the exception and its expiry', () => {
+  it('keeps ci-audit-blocking PRESENT through the gate, with no exception left to name', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/cyber-defense/generated/security-manifest.json'), 'utf8'));
     const controls = JSON.stringify(manifest);
     expect(controls).toMatch(/"id":\s*"ci-audit-blocking"[^}]*"status":\s*"PRESENT"/);
-    expect(controls).toContain('except GHSA-mrhx-c7xc-m3w5 (zod, until 2026-11-01T00:00:00Z)');
+    expect(controls).not.toContain('GHSA-mrhx-c7xc-m3w5');
   });
 });

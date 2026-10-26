@@ -17,9 +17,9 @@ const DEVICE_MODELS = [
 
 const openSchema = z.object({
   body: z.object({
-    teamId:           z.string().uuid().nullable().optional(),
-    matchId:          z.string().uuid().nullable().optional(),
-    trainingSessionId: z.string().uuid().nullable().optional(),
+    teamId:           z.string().guid().nullable().optional(),
+    matchId:          z.string().guid().nullable().optional(),
+    trainingSessionId: z.string().guid().nullable().optional(),
     deviceModel:      z.enum(DEVICE_MODELS),
     deviceSerial:     z.string().trim().min(1).max(120),
     edgeFwVersion:    z.string().trim().max(40).optional(),
@@ -40,8 +40,8 @@ const ingestBatchSchema = z.object({ body: z.object({ packets: z.array(packetSch
 const listQuerySchema = z.object({
   query: z.object({
     deviceModel: z.enum(DEVICE_MODELS).optional(),
-    teamId:      z.string().uuid().optional(),
-    matchId:     z.string().uuid().optional(),
+    teamId:      z.string().guid().optional(),
+    matchId:     z.string().guid().optional(),
     activeOnly:  z.enum(['true','false']).optional(),
     page:        z.coerce.number().int().min(1).max(10_000).optional(),
     limit:       z.coerce.number().int().min(1).max(200).optional(),
@@ -59,7 +59,7 @@ const packetsQuerySchema = z.object({
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '),
   );
 }
 

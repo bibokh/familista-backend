@@ -12,6 +12,7 @@ if (!process.env.UV_THREADPOOL_SIZE) {
   process.env.UV_THREADPOOL_SIZE = String(Math.max(4, Math.min(cores * 2, 16)));
 }
 
+import './config/zod'; // zod 4 with zod 3's messages, before anything validates
 import http from 'http';
 import { createApp } from './app';
 import { config } from './config';

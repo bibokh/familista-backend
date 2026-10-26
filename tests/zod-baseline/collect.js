@@ -32,6 +32,9 @@ for (const [k, v] of Object.entries({
 const ts = require('typescript');
 require('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'commonjs' } });
 const { z } = require('zod');
+// The server loads zod's message configuration before anything validates; so does this (absent before the migration).
+const ZOD_CONFIG = path.join(ROOT, 'src', 'config', 'zod.ts');
+if (fs.existsSync(ZOD_CONFIG)) require(ZOD_CONFIG);
 const ZOD_VERSION = require('zod/package.json').version;
 
 // ── which modules, and the names each declares at its top level ─────────────
@@ -362,7 +365,7 @@ async function main() {
       compared += 1;
       const want = c.unstable ? (c.threw ? { threw: c.threw } : c.ok ? { ok: true } : { ok: false, issues: c.issues.map((i) => ({ path: i.path, message: i.message })) }) : visible(c);
       const got = c.unstable ? (now.threw ? { threw: now.threw } : now.ok ? { ok: true } : visible(now)) : visible(now);
-      if (!same(want, got)) diffs.push({ schema: key, case: c.name, input: c.input, want, got, codes: { was: (c.issues || []).map((i) => i.code), now: (now.issues || []).map((i) => i.code) } });
+      if (!same(want, got)) diffs.push({ schema: key, case: c.name, value: c.at ? dec(c.value) : input, want, got, codes: { was: (c.issues || []).map((i) => i.code), now: (now.issues || []).map((i) => i.code) } });
     }
   }
   await emit({ zod: ZOD_VERSION, baselineZod: base.zod, schemas: schemas.size, compared, missing, unbaselined, failed, diffCount: diffs.length, diffs: process.env.ZOD_BASELINE_ALL ? diffs : diffs.slice(0, 400) });

@@ -1,8 +1,10 @@
 /**
- * The body shape guard — the compensating control for GHSA-mrhx-c7xc-m3w5 (zod < 4.6.6).
+ * The body shape guard — the compensating control for GHSA-mrhx-c7xc-m3w5 (zod < 4.6.6), kept as defence in depth
+ * now that the installed zod is patched.
  *
- * 1. The advisory, reproduced on the zod this repository installs: an array schema keeps one issue per failing
- *    element, with no cap, even when it declares .max(). This is why a bound must act before any schema runs.
+ * 1. The advisory, on the zod this repository installs: an array past its .max() is refused for its length alone,
+ *    without parsing its elements (zod 3.25.76 kept 100,001 issues here). A collection that declares no bound is
+ *    still parsed element by element, one issue per failing element: the reason the guard stays.
  * 2. The guard refuses each limit at its first value past it, accepts each at exactly the limit, never recurses,
  *    and never copies an oversized object to count it.
  * 3. Every legitimate body the platform documents passes: a device batch, a provisioning batch, a notification fan-out.
@@ -33,11 +35,20 @@ const objectWith = (keys: number) => Object.fromEntries(Array.from({ length: key
 
 // ── 1. The advisory, as the installed zod behaves ───────────────────────────
 describe('GHSA-mrhx-c7xc-m3w5 on the installed zod', () => {
-  it('keeps one issue per failing element, and a declared .max() does not stop it', () => {
+  it('is a patched release', () => {
+    const [major, minor, patch] = (require('zod/package.json').version as string).split('.').map(Number);
+    expect(major > 4 || (major === 4 && (minor > 6 || (minor === 6 && patch >= 6)))).toBe(true);
+  });
+
+  it('refuses an array past its .max() for its length alone, without parsing a single element', () => {
     const r = z.array(z.string()).max(10).safeParse(zeros(100_000));
     expect(r.success).toBe(false);
-    // 100,000 element issues plus the one for the length: every element was parsed after the length had already failed.
-    expect(!r.success && r.error.issues.length).toBe(100_001);
+    expect(!r.success && r.error.issues.map((i) => [i.code, i.path.length])).toEqual([['too_big', 0]]);
+  });
+
+  it('still parses a collection with no declared bound element by element: the guard\'s limit is what bounds it', () => {
+    const r = z.array(z.string()).safeParse(zeros(L.maxArrayLength));
+    expect(!r.success && r.error.issues.length).toBe(L.maxArrayLength);
   });
 });
 

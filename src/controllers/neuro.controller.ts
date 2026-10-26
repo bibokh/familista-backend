@@ -17,7 +17,7 @@ const RT_STATUS     = ['PROVISIONED','ACTIVE','DEGRADED','OFFLINE','RETIRED'] as
 const STREAM_STATUS = ['ACTIVE','PAUSED','CLOSED'] as const;
 
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '));
 }
 function actor<A>(req: Request): A {
   if (!req.user) throw new BadRequestError('auth');
@@ -28,9 +28,9 @@ function actor<A>(req: Request): A {
 
 const openStreamSchema = z.object({
   body: z.object({
-    cameraId:   z.string().uuid(),
+    cameraId:   z.string().guid(),
     sessionRef: z.string().trim().min(1).max(200),
-    matchId:    z.string().uuid().nullable().optional(),
+    matchId:    z.string().guid().nullable().optional(),
     metadata:   z.any().optional(),
   }),
 });
@@ -46,7 +46,7 @@ export async function openStream(req: Request, res: Response, next: NextFunction
 
 const listStreamsSchema = z.object({
   query: z.object({
-    matchId: z.string().uuid().optional(),
+    matchId: z.string().guid().optional(),
     status:  z.enum(STREAM_STATUS).optional(),
     page:    z.coerce.number().int().min(1).max(10_000).optional(),
     limit:   z.coerce.number().int().min(1).max(200).optional(),
@@ -76,7 +76,7 @@ const eventBatchSchema = z.object({
     payload:    z.any().optional(),
     sigB64:     z.string().trim().min(8).max(512),
     nonce:      z.string().trim().min(8).max(128),
-    matchId:    z.string().uuid().nullable().optional(),
+    matchId:    z.string().guid().nullable().optional(),
   }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }),
 });
 
@@ -110,7 +110,7 @@ export async function listBatches(req: Request, res: Response, next: NextFunctio
 
 const syncSchema = z.object({
   body: z.object({
-    cameraId:   z.string().uuid(),
+    cameraId:   z.string().guid(),
     sessionRef: z.string().trim().min(1).max(200),
     deviceUs:   z.number().int().min(0),
     jitterMs:   z.number().min(0).optional(),
@@ -158,7 +158,7 @@ export async function getRig(req: Request, res: Response, next: NextFunction) {
 
 const addMemberSchema = z.object({
   body: z.object({
-    cameraId: z.string().uuid(),
+    cameraId: z.string().guid(),
     role:     z.enum(RIG_ROLES).optional(),
     position: z.any().optional(),
   }),
@@ -182,7 +182,7 @@ export async function removeRigMember(req: Request, res: Response, next: NextFun
 
 const startSyncSchema = z.object({
   body: z.object({
-    matchId:    z.string().uuid().nullable().optional(),
+    matchId:    z.string().guid().nullable().optional(),
     anchorTsUs: z.number().int().min(0).optional(),
     skews:      z.any().optional(),
   }),
@@ -234,8 +234,8 @@ export async function recordObservation(req: Request, res: Response, next: NextF
 const provisionRtSchema = z.object({
   body: z.object({
     label:      z.string().trim().min(1).max(200),
-    edgeNodeId: z.string().uuid().optional(),
-    cameraId:   z.string().uuid().optional(),
+    edgeNodeId: z.string().guid().optional(),
+    cameraId:   z.string().guid().optional(),
     fwVersion:  z.string().trim().max(40).optional(),
     os:         z.string().trim().max(60).optional(),
     hwClass:    z.string().trim().max(60).optional(),
@@ -299,9 +299,9 @@ export async function publishModelVersion(req: Request, res: Response, next: Nex
 
 const inferenceSchema = z.object({
   body: z.object({
-    matchId:        z.string().uuid().nullable().optional(),
-    cameraId:       z.string().uuid().nullable().optional(),
-    modelVersionId: z.string().uuid().nullable().optional(),
+    matchId:        z.string().guid().nullable().optional(),
+    cameraId:       z.string().guid().nullable().optional(),
+    modelVersionId: z.string().guid().nullable().optional(),
     monotonicMs:    z.number().int().min(0).optional(),
     kind:           z.string().trim().min(1).max(60),
     payload:        z.any().optional(),
@@ -376,8 +376,8 @@ const biomechSchema = z.object({
       cortisolProxy: z.number().optional(),
       extra:         z.any().optional(),
     }),
-    playerId: z.string().uuid().nullable().optional(),
-    matchId:  z.string().uuid().nullable().optional(),
+    playerId: z.string().guid().nullable().optional(),
+    matchId:  z.string().guid().nullable().optional(),
     sigB64:   z.string().optional(),
     nonce:    z.string().optional(),
   }),

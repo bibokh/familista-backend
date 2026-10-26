@@ -2,6 +2,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { partialUpdate } from '../config/zod';
 import * as teamService from '../services/team.service';
 import { sendSuccess, sendCreated, sendNoContent, sendPaginated } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
@@ -32,7 +33,7 @@ const createTeamSchema = z.object({
 });
 
 const updateTeamSchema = z.object({
-  body: teamBodyShape.partial()
+  body: partialUpdate(teamBodyShape)
     .refine((b) => Object.keys(b).length > 0, { message: 'No fields supplied to update' })
     .refine(ageRangeOk, { message: 'ageMax must be ≥ ageMin' }),
 });
@@ -49,7 +50,7 @@ const listQuerySchema = z.object({
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '),
   );
 }
 

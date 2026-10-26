@@ -2,6 +2,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { nativeEnum } from '../config/zod';
 import { MembershipRole } from '@prisma/client';
 import * as svc from '../services/membership.service';
 import { sendSuccess, sendCreated, sendNoContent, sendPaginated } from '../utils/response';
@@ -15,24 +16,24 @@ import { BadRequestError } from '../utils/errors';
 
 const grantSchema = z.object({
   body: z.object({
-    userId: z.string().uuid(),
-    teamId: z.string().uuid().nullable().optional(),
-    role:   z.nativeEnum(MembershipRole),
+    userId: z.string().guid(),
+    teamId: z.string().guid().nullable().optional(),
+    role:   nativeEnum(MembershipRole),
   }),
 });
 
 const changeRoleSchema = z.object({
   body: z.object({
-    role:   z.nativeEnum(MembershipRole),
+    role:   nativeEnum(MembershipRole),
     reason: z.string().max(500).optional(),
   }),
 });
 
 const listQuerySchema = z.object({
   query: z.object({
-    userId:   z.string().uuid().optional(),
+    userId:   z.string().guid().optional(),
     teamId:   z.string().optional(),   // 'NULL' for club-wide
-    role:     z.nativeEnum(MembershipRole).optional(),
+    role:     nativeEnum(MembershipRole).optional(),
     isActive: z.enum(['true','false']).optional(),
     page:     z.coerce.number().int().min(1).max(10_000).optional(),
     limit:    z.coerce.number().int().min(1).max(200).optional(),
@@ -41,7 +42,7 @@ const listQuerySchema = z.object({
 
 const auditQuerySchema = z.object({
   query: z.object({
-    membershipId: z.string().uuid().optional(),
+    membershipId: z.string().guid().optional(),
     page:         z.coerce.number().int().min(1).max(10_000).optional(),
     limit:        z.coerce.number().int().min(1).max(200).optional(),
   }),
@@ -51,7 +52,7 @@ const revokeBodySchema = z.object({ body: z.object({ reason: z.string().max(500)
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '),
   );
 }
 
@@ -120,7 +121,7 @@ const changeTeamSchema = z.object({
   body: z.object({
     // Explicitly nullable: null is the instruction "make this club-wide", and
     // it has to be distinguishable from the field being absent.
-    teamId: z.string().uuid().nullable(),
+    teamId: z.string().guid().nullable(),
     reason: z.string().max(500).optional(),
   }),
 });

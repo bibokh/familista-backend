@@ -9,7 +9,7 @@ import { BadRequestError } from '../utils/errors';
 const KINDS = ['TACTICAL_COLLAPSE','INJURY_RISK','FATIGUE_TRAJECTORY','POSITIONING_DEGRADATION','MOMENTUM_SHIFT','SUBSTITUTION_WINDOW'] as const;
 
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '));
 }
 
 const runSchema = z.object({
@@ -29,8 +29,8 @@ export async function runPredictors(req: Request, res: Response, next: NextFunct
 
 const listSchema = z.object({
   query: z.object({
-    matchId:  z.string().uuid().optional(),
-    playerId: z.string().uuid().optional(),
+    matchId:  z.string().guid().optional(),
+    playerId: z.string().guid().optional(),
     kind:     z.enum(KINDS).optional(),
     page:     z.coerce.number().int().min(1).max(10_000).optional(),
     limit:    z.coerce.number().int().min(1).max(200).optional(),

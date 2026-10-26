@@ -4,6 +4,7 @@
 // Zod input validators. Strict mode — unknown keys rejected.
 
 import { z } from 'zod';
+import { partialUpdate } from '../config/zod';
 
 const cuidOrUuid = z.string().min(8).max(64);
 const iso8601 = z.string().datetime();
@@ -61,7 +62,7 @@ export const createInvestorProfileSchema = z
   })
   .strict();
 
-export const updateInvestorProfileSchema = createInvestorProfileSchema.partial().strict().extend({
+export const updateInvestorProfileSchema = partialUpdate(createInvestorProfileSchema).strict().extend({
   isActive: z.boolean().optional(),
 });
 
@@ -135,7 +136,7 @@ export const createShareClassSchema = z
   })
   .strict();
 
-export const updateShareClassSchema = createShareClassSchema.partial().strict();
+export const updateShareClassSchema = partialUpdate(createShareClassSchema).strict();
 
 // ─── Investment rounds ───────────────────────────────────────────────────────
 
@@ -155,7 +156,7 @@ export const createRoundSchema = z
   })
   .strict();
 
-export const updateRoundSchema = createRoundSchema.partial().strict();
+export const updateRoundSchema = partialUpdate(createRoundSchema).strict();
 
 export const openRoundSchema = z
   .object({ openedAt: iso8601.optional() })
@@ -304,7 +305,7 @@ export const createAgreementSchema = z
   })
   .strict();
 
-export const updateAgreementSchema = createAgreementSchema.partial().strict();
+export const updateAgreementSchema = partialUpdate(createAgreementSchema).strict();
 
 export const signAgreementSchema = z
   .object({

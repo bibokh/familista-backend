@@ -24,9 +24,9 @@ const createSchema = z.object({
     scheduledAt: DATE_OR_ISO,
     duration:    z.number().int().min(1).max(480),
     drills:      z.array(z.enum(DRILLS)).optional(),
-    playerIds:   z.array(z.string().uuid()).optional(),
+    playerIds:   z.array(z.string().guid()).optional(),
     // The team whose session this is. Parsed here; authorized in the route.
-    teamId:      z.string().uuid().nullable().optional(),
+    teamId:      z.string().guid().nullable().optional(),
   }),
 });
 
@@ -38,8 +38,8 @@ const updateSchema = z.object({
     scheduledAt: DATE_OR_ISO.optional(),
     duration:    z.number().int().min(1).max(480).optional(),
     drills:      z.array(z.enum(DRILLS)).optional(),
-    playerIds:   z.array(z.string().uuid()).optional(),
-    teamId:      z.string().uuid().nullable().optional(),
+    playerIds:   z.array(z.string().guid()).optional(),
+    teamId:      z.string().guid().nullable().optional(),
   }).refine((b) => Object.keys(b).length > 0, { message: 'No fields supplied to update' }),
 });
 
@@ -47,7 +47,7 @@ const ATTENDANCE_MARKS = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED', 'INJURED'] as 
 const attendanceSchema = z.object({
   body: z.object({
     marks: z.array(z.object({
-      playerId: z.string().uuid(),
+      playerId: z.string().guid(),
       mark:     z.enum(ATTENDANCE_MARKS),
       notes:    z.string().max(500).optional(),
     })).min(1),
@@ -84,7 +84,7 @@ async function trainingScope(req: Request, named?: string | null): Promise<{
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '),
   );
 }
 
@@ -99,8 +99,8 @@ const newSessionSchema = z.object({
     location:      z.string().trim().max(200).optional(),
     notes:         z.string().max(4000).optional(),
     drills:        z.array(z.enum(DRILLS)).optional(),
-    playerIds:     z.array(z.string().uuid()).optional(),
-    teamId:        z.string().uuid().nullable().optional(),
+    playerIds:     z.array(z.string().guid()).optional(),
+    teamId:        z.string().guid().nullable().optional(),
     startTime:     z.string().trim().max(10).optional(),
     sessionType:   z.string().trim().max(40).optional(),
     objective:     z.string().trim().max(500).optional(),
@@ -119,7 +119,7 @@ const newSessionSchema = z.object({
 const performanceSchema = z.object({
   body: z.object({
     marks: z.array(z.object({
-      playerId:      z.string().uuid(),
+      playerId:      z.string().guid(),
       rating:        z.number().min(0).max(10).nullable().optional(),
       participation: z.enum(['full', 'partial']).nullable().optional(),
       notes:         z.string().max(500).nullable().optional(),
@@ -130,10 +130,10 @@ const performanceSchema = z.object({
 const completeSchema = z.object({
   body: z.object({
     sessionRating: z.number().min(0).max(10).nullable().optional(),
-    bestPlayerId:  z.string().uuid().nullable().optional(),
+    bestPlayerId:  z.string().guid().nullable().optional(),
     coachNote:     z.string().max(2000).nullable().optional(),
     performance:   z.array(z.object({
-      playerId:      z.string().uuid(),
+      playerId:      z.string().guid(),
       rating:        z.number().min(0).max(10).nullable().optional(),
       participation: z.enum(['full', 'partial']).nullable().optional(),
       notes:         z.string().max(500).nullable().optional(),

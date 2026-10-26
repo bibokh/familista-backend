@@ -6,6 +6,7 @@
 // Writes src/platform/agents/generated/orchestration-evidence.json (evidence.ts).
 // Outside the Lab it refuses and writes nothing.
 
+import '../../src/config/zod'; // zod 4 with zod 3's messages, as the server has them, before anything validates
 import { buildEvidence, EVIDENCE_FILE, readCommittedEvidence, serialise, writeEvidence } from './evidence';
 
 try {

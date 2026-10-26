@@ -20,11 +20,11 @@ function zerr(err: z.ZodError): BadRequestError {
 const registerSchema = z.object({
   body: z.object({
     kind:        z.enum(KINDS),
-    deviceId:    z.string().uuid().nullable().optional(),
-    cameraId:    z.string().uuid().nullable().optional(),
+    deviceId:    z.string().guid().nullable().optional(),
+    cameraId:    z.string().guid().nullable().optional(),
     label:       z.string().trim().max(200).optional(),
     fwVersion:   z.string().trim().max(40).optional(),
-    teamId:      z.string().uuid().nullable().optional(),
+    teamId:      z.string().guid().nullable().optional(),
     compression: z.enum(COMP).optional(),
     metadata:    z.any().optional(),
   }),
@@ -101,7 +101,7 @@ export async function recordBuffer(req: Request, res: Response, next: NextFuncti
 
 const inferenceSchema = z.object({
   body: z.object({
-    matchId:    z.string().uuid().nullable().optional(),
+    matchId:    z.string().guid().nullable().optional(),
     kind:       z.string().trim().min(1).max(60),
     payload:    z.any().optional(),
     confidence: z.number().min(0).max(1).optional(),

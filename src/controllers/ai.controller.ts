@@ -7,7 +7,7 @@ const analyzeSchema = z.object({
   body: z.object({
     prompt:   z.string().min(3).max(2000),
     type:     z.enum(['player','team','match','training','medical','transfer','financial']).default('team'),
-    playerId: z.string().uuid().optional(),
+    playerId: z.string().guid().optional(),
   }),
 });
 
