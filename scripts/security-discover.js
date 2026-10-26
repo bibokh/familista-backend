@@ -883,12 +883,22 @@ const backupWorkflowSrc = read(cite('.github/workflows/backup.yml')) || '';
 const allWorkflowSrcs = fs.readdirSync(path.join(ROOT, '.github/workflows')).filter((f) => /\.ya?ml$/.test(f)).sort()
   .map((f) => read(cite(`.github/workflows/${f}`)) || '');
 const workflowUses = [...allWorkflowSrcs.join('\n').matchAll(/uses:\s*([^\s#]+)/g)].map((m) => m[1]);
+// The audit runs through scripts/npm-audit-gate.js: the same `npm audit --audit-level=high`, failing on every HIGH or
+// CRITICAL advisory except a reviewed, dated, advisory-specific exception. It counts as the audit only while CI runs it
+// bare and it still audits at HIGH with HIGH and CRITICAL blocking.
+const auditGateSrc = read(cite('scripts/npm-audit-gate.js')) || '';
+const auditViaGate = /run:\s*node scripts\/npm-audit-gate\.js\s*$/m.test(ciSrc)
+  && auditGateSrc.includes("AUDIT_ARGS = Object.freeze(['audit', '--audit-level=high', '--json'])")
+  && auditGateSrc.includes("BLOCKING = new Set(['high', 'critical'])");
+const auditExceptions = (() => {
+  try { return JSON.parse(read(cite('docs/security/npm-audit-exceptions.json')) || '{"exceptions":[]}').exceptions || []; } catch { return null; }
+})();
 const supplyChain = {
   lockfilePackages: lockPackages.length,
   lockfileIntegrity: withIntegrity,
   registries: Object.fromEntries(Object.entries(registries).sort()),
-  auditInCi: /npm audit/.test(ciSrc),
-  auditBlocksCi: /npm audit/.test(ciSrc) && !/npm audit[^\n]*\|\|\s*true/.test(ciSrc),
+  auditInCi: /npm audit/.test(ciSrc) || auditViaGate,
+  auditBlocksCi: (/npm audit/.test(ciSrc) || auditViaGate) && !/(npm audit|npm-audit-gate)[^\n]*\|\|\s*true/.test(ciSrc),
   actions: workflowUses.length,
   actionsPinnedBySha: workflowUses.filter((u) => /@[0-9a-f]{40}$/.test(u)).length,
   ciPermissionsDeclared: /^permissions:/m.test(ciSrc),
@@ -915,8 +925,9 @@ controls.push(
   control('ci-actions-sha-pinned',
     supplyChain.actions > 0 && supplyChain.actionsPinnedBySha === supplyChain.actions ? 'PRESENT' : 'ABSENT', '.github/workflows',
     `${supplyChain.actionsPinnedBySha} of ${supplyChain.actions} action reference(s) pinned to a full commit SHA.`),
-  control('ci-audit-blocking', supplyChain.auditBlocksCi && /npm audit --audit-level=(high|critical)/.test(ciSrc) ? 'PRESENT' : 'ABSENT', '.github/workflows/ci.yml',
-    'npm audit fails the build on a high or critical advisory.'),
+  control('ci-audit-blocking', supplyChain.auditBlocksCi && (/run:\s*npm audit --audit-level=(high|critical)/.test(ciSrc) || auditViaGate) && Array.isArray(auditExceptions) ? 'PRESENT' : 'ABSENT', '.github/workflows/ci.yml',
+    'npm audit fails the build on a high or critical advisory'
+      + (auditExceptions && auditExceptions.length ? `, except ${auditExceptions.map((e) => `${e.id} (${e.package}, until ${e.expires})`).join(', ')}, reviewed, dated and matched in full by scripts/npm-audit-gate.js.` : '.')),
   control('ci-secret-scanning',
     /gitleaks[^\n]* git \. --config \.gitleaks\.toml[^\n]*--redact[^\n]*--exit-code 1/.test(ciSrc) && /fetch-depth:\s*0/.test(ciSrc)
       && /sha256sum --check --strict/.test(ciSrc) && !/gitleaks[^\n]*\|\|\s*true/.test(ciSrc)
