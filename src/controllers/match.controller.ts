@@ -87,7 +87,7 @@ const reasonSchema = z.object({ body: z.object({ reason: z.string().max(500).opt
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
   );
 }
 

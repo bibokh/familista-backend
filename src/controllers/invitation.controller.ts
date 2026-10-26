@@ -29,7 +29,7 @@ function actorOf(req: Request): invites.InviteActor {
 }
 
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.join('.') || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.join('.') || 'body'}: ${e.message}`).join(', '));
 }
 
 const createSchema = z.object({

@@ -17,7 +17,7 @@ const RT_STATUS     = ['PROVISIONED','ACTIVE','DEGRADED','OFFLINE','RETIRED'] as
 const STREAM_STATUS = ['ACTIVE','PAUSED','CLOSED'] as const;
 
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
 }
 function actor<A>(req: Request): A {
   if (!req.user) throw new BadRequestError('auth');
@@ -73,7 +73,7 @@ const eventBatchSchema = z.object({
   body: z.object({
     cameraTsUs: z.number().int().min(0),
     kind:       z.enum(['RAW','AGGREGATED','DOWNSAMPLED']).optional(),
-    payload:    z.any(),
+    payload:    z.any().optional(),
     sigB64:     z.string().trim().min(8).max(512),
     nonce:      z.string().trim().min(8).max(128),
     matchId:    z.string().uuid().nullable().optional(),
@@ -304,7 +304,7 @@ const inferenceSchema = z.object({
     modelVersionId: z.string().uuid().nullable().optional(),
     monotonicMs:    z.number().int().min(0).optional(),
     kind:           z.string().trim().min(1).max(60),
-    payload:        z.any(),
+    payload:        z.any().optional(),
     confidence:     z.number().min(0).max(1).optional(),
     latencyMs:      z.number().int().min(0).optional(),
     sigB64:         z.string().optional(),
@@ -410,14 +410,14 @@ export async function listBiomech(req: Request, res: Response, next: NextFunctio
 
 const snapshotSchema = z.object({
   body: z.object({
-    motion:    z.any(),
-    reaction:  z.any(),
-    visual:    z.any(),
-    pressure:  z.any(),
-    collapse:  z.any(),
-    transition: z.any(),
-    defense:    z.any(),
-    synchrony:  z.any(),
+    motion:    z.any().optional(),
+    reaction:  z.any().optional(),
+    visual:    z.any().optional(),
+    pressure:  z.any().optional(),
+    collapse:  z.any().optional(),
+    transition: z.any().optional(),
+    defense:    z.any().optional(),
+    synchrony:  z.any().optional(),
   }),
 });
 

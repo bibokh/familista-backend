@@ -60,7 +60,7 @@ function actorOf(req: Request) {
   return req.visionActor;
 }
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.join('.') || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.join('.') || 'body'}: ${e.message}`).join(', '));
 }
 
 // ─── 1. Videos ──────────────────────────────────────────────────────────────

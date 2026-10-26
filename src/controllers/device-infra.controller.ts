@@ -13,7 +13,7 @@ const PROV_STATUS = ['REGISTERED','PROVISIONED','ACTIVE','RETIRED','REVOKED'] as
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
   );
 }
 
@@ -166,7 +166,7 @@ export async function fwList(req: Request, res: Response, next: NextFunction) {
 const calibSchema = z.object({
   body: z.object({
     sensorKind: z.string().trim().min(1).max(60),
-    payload:    z.any(),
+    payload:    z.any().optional(),
     notes:      z.string().trim().max(2000).optional(),
   }).refine((v) => v.payload !== undefined, { message: 'payload is required', path: ['payload'] }),
 });

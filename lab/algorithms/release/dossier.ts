@@ -81,7 +81,7 @@ export interface PlanOptions {
   evidenceFile?: string;
 }
 
-const DeclarationLine = z.object({ kind: z.literal('declaration'), declaration: z.unknown() });
+const DeclarationLine = z.object({ kind: z.literal('declaration'), declaration: z.unknown().optional() });
 const DependantRunSchema = z.object({
   key: z.string(),
   properties: DossierDependantSchema.shape.properties.unwrap(),

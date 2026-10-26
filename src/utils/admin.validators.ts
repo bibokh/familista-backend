@@ -83,7 +83,7 @@ export const adminUpsertBrandingSchema = z
     customHeadHtml: optionalText(8000),
     defaultLocale: z.string().min(2).max(8).optional(),
     isActive: z.boolean().optional(),
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 

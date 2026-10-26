@@ -61,7 +61,7 @@ export const MeasuredLine = z.object({
   approvedNsPerCall: z.number().nullable(), candidateNsPerCall: z.number().nullable(),
 });
 const MethodLine = z.object({ kind: z.literal('result'), checks: z.array(LabMethodCheckSchema), measured: MeasuredLine });
-const DeclarationLine = z.object({ kind: z.literal('declaration'), declaration: z.unknown() });
+const DeclarationLine = z.object({ kind: z.literal('declaration'), declaration: z.unknown().optional() });
 const ResultLine = z.object({
   kind: z.literal('result'),
   results: z.object({ development: LabPhaseResultSchema, heldOut: LabPhaseResultSchema }),

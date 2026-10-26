@@ -12,7 +12,7 @@ const CAMERA_KINDS  = ['RGB','DEPTH','EVENT','PANORAMIC','AERIAL'] as const;
 const CAMERA_STATUS = ['REGISTERED','CALIBRATED','ACTIVE','OFFLINE','RETIRED'] as const;
 
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
 }
 
 function actorOf(req: Request): registry.CameraActor {
@@ -81,8 +81,8 @@ export async function retireCamera(req: Request, res: Response, next: NextFuncti
 
 const calibSchema = z.object({
   body: z.object({
-    intrinsics:          z.any(),
-    extrinsics:          z.any(),
+    intrinsics:          z.any().optional(),
+    extrinsics:          z.any().optional(),
     frameOfReference:    z.string().trim().max(60).optional(),
     reprojectionErrorPx: z.number().min(0).max(100).optional(),
   }).refine((v) => v.intrinsics !== undefined && v.extrinsics !== undefined, { message: 'intrinsics + extrinsics required' }),
@@ -115,7 +115,7 @@ export async function getCalibration(req: Request, res: Response, next: NextFunc
 const ingestSchema = z.object({
   body: z.object({
     cameraTsUs:         z.number().int().min(0),
-    detections:         z.any(),
+    detections:         z.any().optional(),
     kind:               z.string().trim().max(40).optional(),
     matchId:            z.string().uuid().nullable().optional(),
     calibrationVersion: z.number().int().min(1).optional(),

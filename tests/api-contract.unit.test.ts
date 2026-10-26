@@ -189,11 +189,8 @@ describe('every covered owner endpoint returns the shape its contract promises',
 
 describe('every consumer reads only fields its contract promises', () => {
   /** The keys a schema promises at the top level of `data`. */
-  const topKeys = (schema: z.ZodTypeAny): Set<string> => {
-    const s = schema as unknown as { _def?: { typeName?: string; shape?: () => Record<string, unknown> } };
-    if (s._def?.typeName === 'ZodObject' && s._def.shape) return new Set(Object.keys(s._def.shape()));
-    return new Set();
-  };
+  const topKeys = (schema: z.ZodTypeAny): Set<string> =>
+    new Set(schema instanceof z.ZodObject ? Object.keys(schema.shape) : []);
 
   it.each(OWNER_API_CONTRACTS.filter((c) => c.reads.length)
     .map((c) => [`${c.module} · ${c.endpoint}`, c] as const))(
@@ -562,9 +559,7 @@ describe('a malformed payload that reaches production fails loudly, not blankly'
     };
     const inventory = OWNER_API_CONTRACTS.find((c) => c.endpoint === '/system/infrastructure')!;
     const health = OWNER_API_CONTRACTS.find((c) => c.endpoint === '/system/infrastructure/health')!;
-    const promised = (schema: z.ZodTypeAny) => new Set(Object.keys(
-      (schema as unknown as { _def: { shape: () => Record<string, unknown> } })._def.shape(),
-    ));
+    const promised = (schema: z.ZodTypeAny) => new Set(Object.keys((schema as z.ZodObject<z.ZodRawShape>).shape));
 
     for (const f of declared('manifest')) {
       expect({ field: f, promisedBy: '/system/infrastructure', ok: promised(inventory.schema).has(f) })

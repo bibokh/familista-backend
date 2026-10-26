@@ -71,7 +71,7 @@ const snapshotSchema = z.object({
     phase:      z.enum(PHASE).optional(),
     formation:  z.string().regex(/^\d-\d(-\d){1,2}$/).optional(),
     possession: z.number().min(0).max(100).optional(),
-    positions:  z.any(),
+    positions:  z.any().optional(),
     notes:      z.string().max(2000).optional(),
     source:     z.enum(SOURCE).optional(),
   }),
@@ -81,7 +81,7 @@ const reasonSchema = z.object({ body: z.object({ reason: z.string().max(500).opt
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
   );
 }
 function actorOf(req: Request): MatchActor {

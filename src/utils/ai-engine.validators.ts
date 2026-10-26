@@ -48,9 +48,9 @@ export const createModelSchema = z
     version: z.string().min(1).max(40).regex(/^[\d.a-zA-Z+-]+$/),
     provider: z.enum(AI_MODEL_PROVIDERS),
     description: z.string().max(5000).optional().nullable(),
-    inputSchema: z.record(z.unknown()),
-    outputSchema: z.record(z.unknown()),
-    parameters: z.record(z.unknown()),
+    inputSchema: z.record(z.string(), z.unknown()),
+    outputSchema: z.record(z.string(), z.unknown()),
+    parameters: z.record(z.string(), z.unknown()),
   })
   .strict();
 
@@ -58,7 +58,7 @@ export const updateModelSchema = z
   .object({
     name: z.string().min(1).max(200).optional(),
     description: z.string().max(5000).optional().nullable(),
-    parameters: z.record(z.unknown()).optional(),
+    parameters: z.record(z.string(), z.unknown()).optional(),
     isActive: z.boolean().optional(),
     deprecatedAt: iso8601.optional().nullable(),
   })
@@ -92,7 +92,7 @@ export const decisionRequestSchema = z
       .strict()
       .optional()
       .default({}),
-    inputs: z.record(z.union([z.number(), z.boolean(), z.string(), z.null()])).optional(),
+    inputs: z.record(z.string(), z.union([z.number(), z.boolean(), z.string(), z.null()])).optional(),
     options: z
       .object({
         useLlm: z.boolean().optional(),
@@ -130,7 +130,7 @@ export const submitFeedbackSchema = z
     type: z.enum(AI_FEEDBACK_TYPES),
     rating: z.number().int().min(1).max(5).optional().nullable(),
     notes: z.string().max(5000).optional().nullable(),
-    correctedAction: z.record(z.unknown()).optional().nullable(),
+    correctedAction: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .strict();
 

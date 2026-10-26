@@ -73,7 +73,7 @@ export const upsertConfigSchema = z
     customCss: optionalText(50_000),
     customHeadHtml: optionalText(8000),
     defaultLocale: z.string().min(2).max(8).optional(),
-    metadata: z.record(z.unknown()).optional().nullable(),
+    metadata: z.record(z.string(), z.unknown()).optional().nullable(),
 
     isActive: z.boolean().optional(),
   })

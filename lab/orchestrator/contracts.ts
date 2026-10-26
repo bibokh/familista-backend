@@ -41,7 +41,7 @@ export const OPERATION_KEY = /^[a-z]+\.[a-z][a-z-]{1,40}@[1-9]\d*$/;
 export const TaskSpecSchema = z.object({
   id: z.string().regex(ID),
   operation: z.string().regex(OPERATION_KEY),
-  input: z.record(z.unknown()),
+  input: z.record(z.string(), z.unknown()),
   /** The tasks whose outputs this one consumes. An edge is a data handoff, never only an ordering. */
   dependsOn: z.array(z.string().regex(ID)).max(LIMITS.maxDependencies).default([]),
 }).strict();

@@ -12,14 +12,14 @@ function actorOf(req: Request): svc.AnnotationActor {
 }
 
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
 }
 
 const createSchema = z.object({
   body: z.object({
     atMs:       z.number().int().min(0),
     kind:       z.enum(['ARROW','ZONE','NOTE','DRAW','TAG_PLAYER']),
-    payload:    z.any(),
+    payload:    z.any().optional(),
     visibility: z.enum(['CLUB','COACHES','PRIVATE']).optional(),
   }).refine((v) => v.payload !== undefined, { message: 'payload required' }),
 });

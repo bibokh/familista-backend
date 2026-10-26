@@ -30,7 +30,7 @@ const openSchema = z.object({
 const packetSchema = z.object({
   kind:       z.enum(SENSOR_KIND),
   capturedAt: z.string(),
-  payload:    z.any(),
+  payload:    z.any().optional(),
   sigB64:     z.string().optional(),
 });
 
@@ -59,7 +59,7 @@ const packetsQuerySchema = z.object({
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
   );
 }
 

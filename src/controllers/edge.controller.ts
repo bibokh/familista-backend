@@ -14,7 +14,7 @@ function actor(req: Request): svc.EdgeActor {
   return { userId: req.user.id, clubId: req.user.clubId, role: req.user.role };
 }
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.slice(1).join('.') || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || 'body'}: ${e.message}`).join(', '));
 }
 
 const registerSchema = z.object({
@@ -103,7 +103,7 @@ const inferenceSchema = z.object({
   body: z.object({
     matchId:    z.string().uuid().nullable().optional(),
     kind:       z.string().trim().min(1).max(60),
-    payload:    z.any(),
+    payload:    z.any().optional(),
     confidence: z.number().min(0).max(1).optional(),
     capturedAt: z.number().int().min(0),
   }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }),

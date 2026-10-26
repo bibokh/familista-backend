@@ -27,7 +27,7 @@ function clientContext(req: Request) {
 }
 
 function zodErrorToMessage(err: z.ZodError): string {
-  return err.errors.map((e) => `${e.path.join('.') || 'body'}: ${e.message}`).join(', ');
+  return err.issues.map((e) => `${e.path.join('.') || 'body'}: ${e.message}`).join(', ');
 }
 
 // ── Admin endpoints ──────────────────────────────────────────────────────────

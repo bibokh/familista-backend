@@ -143,12 +143,12 @@ export const InfraInventorySchema = z.object({
   relationships: z.array(InfraRelationshipSchema).min(1),
   future: z.array(InfraFutureSchema),
   // Cyber Defense coverage per component id (R5): the weakest row and the rows.
-  coverage: z.record(z.object({
+  coverage: z.record(z.string(), z.object({
     state: z.enum(['C', 'P', 'U']),
     rows: z.array(z.object({ id: z.number().int().positive(), coverage: z.enum(['C', 'P', 'U']) })).min(1),
   })),
-  counts: z.record(z.number()),
-  surface: z.record(z.number()),
+  counts: z.record(z.string(), z.number()),
+  surface: z.record(z.string(), z.number()),
   database: z.object({
     provider: z.string(),
     models: z.number(),
@@ -156,7 +156,7 @@ export const InfraInventorySchema = z.object({
     migrations: z.number(),
     latestMigration: z.string().nullable(),
   }),
-  typescript: z.record(z.unknown()).nullable(),
+  typescript: z.record(z.string(), z.unknown()).nullable(),
   deployment: z.object({
     provider: z.string(),
     services: z.array(z.object({
@@ -196,7 +196,7 @@ export const InfraSignalSchema = z.object({
   key: z.string().min(1),
   state: z.enum(HEALTH_STATES),
   summary: z.string(),
-  measurements: z.record(z.union([z.number(), z.string(), z.boolean(), z.null()])),
+  measurements: z.record(z.string(), z.union([z.number(), z.string(), z.boolean(), z.null()])),
   evidence: z.string().min(1),
   measuredAt: Instant,
 });
@@ -214,7 +214,7 @@ export const InfraIncidentSchema = z.object({
   resolvedAt: Instant.nullable(),
   acknowledgedAt: Instant.nullable(),
   occurrences: z.number().int().positive(),
-  evidence: z.record(z.unknown()),
+  evidence: z.record(z.string(), z.unknown()),
   summary: z.string(),
   impact: z.string().min(1),
   nextStep: z.string().min(1),
@@ -229,7 +229,7 @@ export const InfraHealthSchema = z.object({
     critical: z.number(), warning: z.number(), info: z.number(),
     healthy: z.number(), notInstrumented: z.number(),
   }),
-  thresholds: z.record(z.number()),
+  thresholds: z.record(z.string(), z.number()),
   scope: z.literal('PROCESS'),
   measuredAt: Instant,
 });
@@ -269,7 +269,7 @@ export const InfraIncidentsSchema = z.object({
   open: z.array(InfraIncidentSchema),
   resolved: z.array(InfraIncidentSchema),
   rules: z.array(InfraRuleSchema).min(1),
-  thresholds: z.record(z.number()),
+  thresholds: z.record(z.string(), z.number()),
   scope: z.literal('PROCESS'),
   scopeNote: z.string().min(1),
 });
@@ -297,7 +297,7 @@ export const InfraTechnologyMapSchema = z.object({
 });
 
 export const InfraChangesSchema = z.object({
-  changes: z.array(z.record(z.unknown())),
+  changes: z.array(z.record(z.string(), z.unknown())),
   window: z.object({ from: Instant, to: Instant }),
   source: z.literal('Historical Event Store'),
   build: z.object({
@@ -360,7 +360,7 @@ export const VaultHistoryHealthSchema = z.object({
     missing: z.array(z.string()),
     format: z.string(),
     partitioning: z.string(),
-    lastBatch: z.unknown().nullable(),
+    lastBatch: z.unknown().nullable().optional(),
     objectStore: z.object({ port: z.string(), provider: z.string() }),
   }),
   retention: z.object({
@@ -395,7 +395,7 @@ export const VaultStatsSchema = z.object({
  * so both are pinned.
  */
 export const VaultHistoryPageSchema = z.object({
-  rows: z.array(z.record(z.unknown())),
+  rows: z.array(z.record(z.string(), z.unknown())),
   nextCursor: z.string().nullable(),
   more: z.boolean(),
 });
@@ -464,8 +464,8 @@ export const MetricSchema = z.object({
 });
 
 export const SystemOverviewSchema = z.object({
-  access: z.record(MetricSchema),
-  activity: z.record(MetricSchema),
+  access: z.record(z.string(), MetricSchema),
+  activity: z.record(z.string(), MetricSchema),
 }).passthrough();
 
 // ── Source Core ──────────────────────────────────────────────────────────────
@@ -552,8 +552,8 @@ export const SourceHealthSchema = z.object({
 });
 
 export const SourceFlowSchema = z.object({
-  origins: z.record(z.array(PlatformSourceSchema)),
-  intake: z.record(z.number()),
+  origins: z.record(z.string(), z.array(PlatformSourceSchema)),
+  intake: z.record(z.string(), z.number()),
   validation: z.array(SourceControlSchema),
   consumers: z.array(z.string()),
   counts: SourceCountsSchema,

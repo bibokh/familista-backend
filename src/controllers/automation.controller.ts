@@ -46,7 +46,7 @@ const agentEnqueueSchema = z.object({
   body: z.object({
     agent:  z.enum(AGENTS),
     kind:   z.string().trim().min(1).max(80),
-    input:  z.any(),
+    input:  z.any().optional(),
     teamId: z.string().uuid().nullable().optional(),
     model:  z.string().max(80).optional(),
   }),
@@ -65,7 +65,7 @@ const reasonSchema = z.object({ body: z.object({ reason: z.string().max(500).opt
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
   );
 }
 function actorOf(req: Request): svc.AutomationActor {

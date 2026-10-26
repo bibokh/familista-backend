@@ -11,7 +11,7 @@ function actor(req: Request): svc.ProvisioningActor {
   return { userId: req.user.id, clubId: req.user.clubId, role: req.user.role };
 }
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.slice(1).join('.') || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || 'body'}: ${e.message}`).join(', '));
 }
 
 const batchSchema = z.object({
@@ -91,7 +91,7 @@ const manifestSchema = z.object({
     model:        z.string().trim().min(1).max(120),
     channel:      z.string().trim().min(1).max(40).optional(),
     version:      z.string().trim().min(3).max(40),
-    files:        z.any(),
+    files:        z.any().optional(),
     releaseNotes: z.string().trim().max(2000).optional(),
     minHwRev:     z.string().trim().max(40).optional(),
   }).refine((v) => v.files !== undefined, { message: 'files required', path: ['files'] }),

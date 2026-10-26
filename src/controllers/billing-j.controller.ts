@@ -12,7 +12,7 @@ function actor(req: Request): svc.BillingActor {
   return { userId: req.user.id, clubId: req.user.clubId, role: req.user.role };
 }
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.slice(1).join('.') || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || 'body'}: ${e.message}`).join(', '));
 }
 
 export async function listTiers(req: Request, res: Response, next: NextFunction) {

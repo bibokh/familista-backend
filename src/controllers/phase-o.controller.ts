@@ -30,7 +30,7 @@ function actor<A>(req: Request): A {
   return { userId: req.user.id, clubId: req.user.clubId, role: req.user.role } as unknown as A;
 }
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
 }
 function bigintSafe<T>(row: T): T {
   if (row === null || row === undefined) return row;
@@ -251,7 +251,7 @@ export async function listOnboarding(req: Request, res: Response, next: NextFunc
   catch (err) { return next(err); }
 }
 
-const evaluationSchema = z.object({ body: z.object({ playerId: z.string().uuid(), kind: z.string().trim().min(1).max(40), payload: z.any(), score: z.number().min(0).max(1).optional(), notes: z.string().trim().max(10_000).optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
+const evaluationSchema = z.object({ body: z.object({ playerId: z.string().uuid(), kind: z.string().trim().min(1).max(40), payload: z.any().optional(), score: z.number().min(0).max(1).optional(), notes: z.string().trim().max(10_000).optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
 
 export async function recordEvaluation(req: Request, res: Response, next: NextFunction) {
   try {
@@ -312,7 +312,7 @@ export async function listInventory(req: Request, res: Response, next: NextFunct
   } catch (err) { return next(err); }
 }
 
-const diagSchema = z.object({ body: z.object({ deviceId: z.string().uuid(), reportKind: z.string().trim().min(1).max(40), payload: z.any(), score: z.number().min(0).max(1).optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
+const diagSchema = z.object({ body: z.object({ deviceId: z.string().uuid(), reportKind: z.string().trim().min(1).max(40), payload: z.any().optional(), score: z.number().min(0).max(1).optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
 
 export async function recordDiagnostic(req: Request, res: Response, next: NextFunction) {
   try {
@@ -343,7 +343,7 @@ export async function listChannels(req: Request, res: Response, next: NextFuncti
   catch (err) { return next(err); }
 }
 
-const reportTplSchema = z.object({ body: z.object({ code: z.string().trim().min(1).max(120), label: z.string().trim().min(1).max(200), definition: z.any(), global: z.boolean().optional() }).refine((v) => v.definition !== undefined, { message: 'definition required', path: ['definition'] }) });
+const reportTplSchema = z.object({ body: z.object({ code: z.string().trim().min(1).max(120), label: z.string().trim().min(1).max(200), definition: z.any().optional(), global: z.boolean().optional() }).refine((v) => v.definition !== undefined, { message: 'definition required', path: ['definition'] }) });
 
 export async function publishReportTemplate(req: Request, res: Response, next: NextFunction) {
   try {
@@ -353,7 +353,7 @@ export async function publishReportTemplate(req: Request, res: Response, next: N
   } catch (err) { return next(err); }
 }
 
-const runSchema = z.object({ body: z.object({ templateId: z.string().uuid(), parameters: z.any(), output: z.any() }).refine((v) => v.output !== undefined, { message: 'output required', path: ['output'] }) });
+const runSchema = z.object({ body: z.object({ templateId: z.string().uuid(), parameters: z.any().optional(), output: z.any().optional() }).refine((v) => v.output !== undefined, { message: 'output required', path: ['output'] }) });
 
 export async function recordReportRun(req: Request, res: Response, next: NextFunction) {
   try {

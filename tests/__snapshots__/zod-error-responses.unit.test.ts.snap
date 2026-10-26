@@ -1,0 +1,109 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`a controller's own validation message a body that is not an object at all 1`] = `"Create training failed: body: Expected object, received string"`;
+
+exports[`a controller's own validation message is 400 with "<field>: <message>" for each issue, in order 1`] = `"Create training failed: title: Expected string, received number, scheduledAt: Invalid input, duration: Required, drills.0: Invalid enum value. Expected 'TECHNICAL_PASSING' | 'SPRINT_INTERVALS' | 'SHOOTING_PRACTICE' | 'DEFENSIVE_SHAPE' | 'TRANSITION_PLAY' | 'RECOVERY' | 'SET_PIECES' | 'POSSESSION' | 'PRESSING' | 'CUSTOM', received 'NOT_A_DRILL', playerIds.0: Invalid uuid"`;
+
+exports[`the messages zod itself writes, for each kind of failure the API relays type, required, bounds, formats, enums, literals, unions, unknown keys, integers and custom refinements 1`] = `
+{
+  "arrayMax": [
+    "Array must contain at most 1 element(s)",
+  ],
+  "arrayMin": [
+    "Array must contain at least 2 element(s)",
+  ],
+  "arrayNonEmpty": [
+    "Array must contain at least 1 element(s)",
+  ],
+  "arrayType": [
+    "Expected string, received array",
+  ],
+  "boolean": [
+    "Expected boolean, received string",
+  ],
+  "coerceNumber": [
+    "Expected number, received nan",
+  ],
+  "custom": [
+    "custom message",
+  ],
+  "customDefault": [
+    "Invalid input",
+  ],
+  "date": [
+    "Expected date, received string",
+  ],
+  "datetime": [
+    "Invalid datetime",
+  ],
+  "email": [
+    "Invalid email",
+  ],
+  "enumValue": [
+    "Invalid enum value. Expected 'A' | 'B', received 'C'",
+  ],
+  "int": [
+    "Expected integer, received float",
+  ],
+  "invalidDate": [
+    "Invalid date",
+  ],
+  "literal": [
+    "Invalid literal value, expected "x"",
+  ],
+  "nan": [
+    "Expected number, received nan",
+  ],
+  "nativeEnum": [
+    "Invalid enum value. Expected 'A' | 'B', received 'C'",
+  ],
+  "nullType": [
+    "Expected string, received null",
+  ],
+  "numberGt": [
+    "Number must be greater than 0",
+  ],
+  "numberLt": [
+    "Number must be less than 0",
+  ],
+  "numberMax": [
+    "Number must be less than or equal to 3",
+  ],
+  "numberMin": [
+    "Number must be greater than or equal to 3",
+  ],
+  "objectType": [
+    "Expected string, received object",
+  ],
+  "regex": [
+    "Invalid",
+  ],
+  "required": [
+    "Required",
+  ],
+  "strict": [
+    "Unrecognized key(s) in object: 'b', 'c'",
+  ],
+  "stringLength": [
+    "String must contain exactly 2 character(s)",
+  ],
+  "stringMax": [
+    "String must contain at most 2 character(s)",
+  ],
+  "stringMin": [
+    "String must contain at least 3 character(s)",
+  ],
+  "type": [
+    "Expected string, received number",
+  ],
+  "union": [
+    "Invalid input",
+  ],
+  "url": [
+    "Invalid url",
+  ],
+  "uuid": [
+    "Invalid uuid",
+  ],
+}
+`;

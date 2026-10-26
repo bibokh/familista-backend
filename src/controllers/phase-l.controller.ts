@@ -26,7 +26,7 @@ function actor<A>(req: Request): A {
   return { userId: req.user.id, clubId: req.user.clubId, role: req.user.role, isPlatformOwner: req.user.isPlatformOwner === true } as unknown as A;
 }
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
 }
 // BigInt-safe JSON shim — converts every BigInt in a row to its string form.
 function bigintSafe<T>(row: T): T {
@@ -75,7 +75,7 @@ export async function listHwSessions(req: Request, res: Response, next: NextFunc
   } catch (err) { return next(err); }
 }
 
-const capSchema = z.object({ body: z.object({ model: z.string().trim().min(1).max(120), hwRevision: z.string().trim().max(40).optional(), capabilities: z.any() }).refine((v) => v.capabilities !== undefined, { message: 'capabilities required', path: ['capabilities'] }) });
+const capSchema = z.object({ body: z.object({ model: z.string().trim().min(1).max(120), hwRevision: z.string().trim().max(40).optional(), capabilities: z.any().optional() }).refine((v) => v.capabilities !== undefined, { message: 'capabilities required', path: ['capabilities'] }) });
 
 export async function publishCapability(req: Request, res: Response, next: NextFunction) {
   try {
@@ -204,7 +204,7 @@ const recSchema = z.object({ body: z.object({
   kind:           z.enum(COACH_KINDS),
   title:          z.string().trim().max(200).optional(),
   rationale:      z.string().trim().min(1).max(10_000),
-  payload:        z.any(),
+  payload:        z.any().optional(),
   confidence:     z.number().min(0).max(1).optional(),
   tacticalImpact: z.enum(['LOW','MEDIUM','HIGH']).optional(),
 }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
@@ -246,7 +246,7 @@ export async function listSims(req: Request, res: Response, next: NextFunction) 
   catch (err) { return next(err); }
 }
 
-const branchSchema = z.object({ body: z.object({ label: z.string().trim().min(1).max(200), parentBranchId: z.string().uuid().optional(), divergencePayload: z.any() }).refine((v) => v.divergencePayload !== undefined, { message: 'divergencePayload required', path: ['divergencePayload'] }) });
+const branchSchema = z.object({ body: z.object({ label: z.string().trim().min(1).max(200), parentBranchId: z.string().uuid().optional(), divergencePayload: z.any().optional() }).refine((v) => v.divergencePayload !== undefined, { message: 'divergencePayload required', path: ['divergencePayload'] }) });
 
 export async function createBranch(req: Request, res: Response, next: NextFunction) {
   try {
@@ -256,7 +256,7 @@ export async function createBranch(req: Request, res: Response, next: NextFuncti
   } catch (err) { return next(err); }
 }
 
-const stateSchema = z.object({ body: z.object({ branchId: z.string().uuid().optional(), tickMs: z.number().int().min(0), state: z.any() }).refine((v) => v.state !== undefined, { message: 'state required', path: ['state'] }) });
+const stateSchema = z.object({ body: z.object({ branchId: z.string().uuid().optional(), tickMs: z.number().int().min(0), state: z.any().optional() }).refine((v) => v.state !== undefined, { message: 'state required', path: ['state'] }) });
 
 export async function recordSimState(req: Request, res: Response, next: NextFunction) {
   try {
@@ -269,7 +269,7 @@ export async function recordSimState(req: Request, res: Response, next: NextFunc
 // Cognitive graph
 // ─────────────────────────────────────────────────────────────────────────
 
-const graphSchema = z.object({ body: z.object({ matchId: z.string().uuid(), monotonicMs: z.number().int().min(0), nodes: z.any(), edges: z.any() }).refine((v) => v.nodes !== undefined && v.edges !== undefined, { message: 'nodes + edges required' }) });
+const graphSchema = z.object({ body: z.object({ matchId: z.string().uuid(), monotonicMs: z.number().int().min(0), nodes: z.any().optional(), edges: z.any().optional() }).refine((v) => v.nodes !== undefined && v.edges !== undefined, { message: 'nodes + edges required' }) });
 
 export async function recordGameGraph(req: Request, res: Response, next: NextFunction) {
   try {

@@ -58,7 +58,7 @@ export const LabSpecSchema = z.object({
   worlds: z.array(z.object({ id: LabWorldSchema, title: Prose, meaning: Prose })),
   scenarios: z.array(z.object({ id: Id, phase: LabPhaseSchema, mix: Id, shots: Count, seed: z.number().int() })),
   probeSets: z.array(z.object({ phase: LabPhaseSchema, seed: z.number().int(), instances: Count })),
-  properties: z.record(z.array(z.object({ id: Id, title: Prose, kind: z.enum(['RANDOM', 'FIXED']), stepOne: Prose }))),
+  properties: z.record(z.string(), z.array(z.object({ id: Id, title: Prose, kind: z.enum(['RANDOM', 'FIXED']), stepOne: Prose }))),
   rules: z.object({
     minChangedShots: Count,
     minRegionProbes: Count,
