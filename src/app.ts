@@ -1,3 +1,4 @@
+import './config/zod'; // zod 4 with zod 3's messages, before anything validates
 import express, { Request } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';

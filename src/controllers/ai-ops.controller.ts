@@ -21,7 +21,7 @@ const STATUSES = ['OPEN','ACK','RESOLVED','MUTED'] as const;
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '),
   );
 }
 
@@ -29,9 +29,9 @@ function zerr(err: z.ZodError): BadRequestError {
 
 const createAlertSchema = z.object({
   body: z.object({
-    matchId:  z.string().uuid().nullable().optional(),
-    teamId:   z.string().uuid().nullable().optional(),
-    playerId: z.string().uuid().nullable().optional(),
+    matchId:  z.string().guid().nullable().optional(),
+    teamId:   z.string().guid().nullable().optional(),
+    playerId: z.string().guid().nullable().optional(),
     agent:    z.enum(AGENTS).nullable().optional(),
     kind:     z.string().trim().min(1).max(80),
     severity: z.enum(SEVERITIES).optional(),
@@ -43,7 +43,7 @@ const createAlertSchema = z.object({
 
 const listAlertSchema = z.object({
   query: z.object({
-    matchId:  z.string().uuid().optional(),
+    matchId:  z.string().guid().optional(),
     status:   z.enum(STATUSES).optional(),
     severity: z.enum(SEVERITIES).optional(),
     kind:     z.string().optional(),
@@ -97,9 +97,9 @@ export async function muteAlert(req: Request, res: Response, next: NextFunction)
 
 const createRecSchema = z.object({
   body: z.object({
-    matchId:  z.string().uuid().nullable().optional(),
-    teamId:   z.string().uuid().nullable().optional(),
-    playerId: z.string().uuid().nullable().optional(),
+    matchId:  z.string().guid().nullable().optional(),
+    teamId:   z.string().guid().nullable().optional(),
+    playerId: z.string().guid().nullable().optional(),
     agent:    z.enum(AGENTS),
     kind:     z.string().trim().min(1).max(80),
     title:    z.string().trim().max(200).optional(),
@@ -110,7 +110,7 @@ const createRecSchema = z.object({
 
 const listRecSchema = z.object({
   query: z.object({
-    matchId: z.string().uuid().optional(),
+    matchId: z.string().guid().optional(),
     status:  z.enum(STATUSES).optional(),
     agent:   z.enum(AGENTS).optional(),
     page:    z.coerce.number().int().min(1).max(10_000).optional(),
@@ -153,8 +153,8 @@ export async function ackRecommendation(req: Request, res: Response, next: NextF
 
 const createReportSchema = z.object({
   body: z.object({
-    matchId: z.string().uuid().nullable().optional(),
-    teamId:  z.string().uuid().nullable().optional(),
+    matchId: z.string().guid().nullable().optional(),
+    teamId:  z.string().guid().nullable().optional(),
     agent:   z.enum(AGENTS),
     kind:    z.string().trim().min(1).max(80),
     title:   z.string().trim().min(1).max(200),
@@ -165,7 +165,7 @@ const createReportSchema = z.object({
 
 const listReportSchema = z.object({
   query: z.object({
-    matchId: z.string().uuid().optional(),
+    matchId: z.string().guid().optional(),
     agent:   z.enum(AGENTS).optional(),
     kind:    z.string().optional(),
     page:    z.coerce.number().int().min(1).max(10_000).optional(),
@@ -206,8 +206,8 @@ export async function getReport(req: Request, res: Response, next: NextFunction)
 const runAgentSchema = z.object({
   body: z.object({
     kind:    z.string().trim().min(1).max(80).default('AD_HOC'),
-    teamId:  z.string().uuid().optional(),
-    matchId: z.string().uuid().optional(),
+    teamId:  z.string().guid().optional(),
+    matchId: z.string().guid().optional(),
     input:   z.any().optional(),
   }),
 });

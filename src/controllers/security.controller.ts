@@ -21,7 +21,7 @@ const SEV:   SecuritySeverity[]  = ['INFO','WARN','CRITICAL'];
 const APPROVAL_STATUS: AIApprovalStatus[] = ['PENDING','APPROVED','REJECTED','EXPIRED','EXECUTED'];
 
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '));
 }
 
 function ipOf(req: Request): string | null {
@@ -121,7 +121,7 @@ const eventsSchema = z.object({
   query: z.object({
     kind:     z.enum(KINDS as [SecurityEventKind, ...SecurityEventKind[]]).optional(),
     severity: z.enum(SEV   as [SecuritySeverity,  ...SecuritySeverity[]]).optional(),
-    actorId:  z.string().uuid().optional(),
+    actorId:  z.string().guid().optional(),
     fromTs:   z.string().datetime().optional(),
     toTs:     z.string().datetime().optional(),
     page:     z.coerce.number().int().min(1).max(10_000).optional(),
@@ -169,7 +169,7 @@ export async function listApprovals(req: Request, res: Response, next: NextFunct
   } catch (err) { return next(err); }
 }
 
-const approveSchema = z.object({ body: z.object({ id: z.string().uuid() }) });
+const approveSchema = z.object({ body: z.object({ id: z.string().guid() }) });
 
 export async function approveOne(req: Request, res: Response, next: NextFunction) {
   try {

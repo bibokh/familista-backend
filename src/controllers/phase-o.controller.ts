@@ -30,7 +30,7 @@ function actor<A>(req: Request): A {
   return { userId: req.user.id, clubId: req.user.clubId, role: req.user.role } as unknown as A;
 }
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '));
 }
 function bigintSafe<T>(row: T): T {
   if (row === null || row === undefined) return row;
@@ -115,7 +115,7 @@ export async function mfaVerify(req: Request, res: Response, next: NextFunction)
 
 // ── Operations: guardians ──────────────────────────────────────────────
 
-const guardianSchema = z.object({ body: z.object({ playerId: z.string().uuid(), guardianUserId: z.string().uuid(), relationship: z.string().trim().max(40).optional(), isPrimary: z.boolean().optional() }) });
+const guardianSchema = z.object({ body: z.object({ playerId: z.string().guid(), guardianUserId: z.string().guid(), relationship: z.string().trim().max(40).optional(), isPrimary: z.boolean().optional() }) });
 
 export async function linkGuardian(req: Request, res: Response, next: NextFunction) {
   try {
@@ -136,7 +136,7 @@ export async function unlinkGuardian(req: Request, res: Response, next: NextFunc
 
 // ── Operations: attendance ─────────────────────────────────────────────
 
-const trainingAttSchema = z.object({ body: z.object({ trainingSessionId: z.string().uuid(), playerId: z.string().uuid(), mark: z.enum(ATTENDANCE).optional(), notes: z.string().trim().max(2000).optional() }) });
+const trainingAttSchema = z.object({ body: z.object({ trainingSessionId: z.string().guid(), playerId: z.string().guid(), mark: z.enum(ATTENDANCE).optional(), notes: z.string().trim().max(2000).optional() }) });
 
 export async function markTrainingAttendance(req: Request, res: Response, next: NextFunction) {
   try {
@@ -150,7 +150,7 @@ export async function listTrainingAttendance(req: Request, res: Response, next: 
   catch (err) { return next(err); }
 }
 
-const matchAttSchema = z.object({ body: z.object({ matchId: z.string().uuid(), playerId: z.string().uuid(), mark: z.enum(ATTENDANCE).optional(), minutesOnPitch: z.number().int().min(0).max(200).optional(), notes: z.string().trim().max(2000).optional() }) });
+const matchAttSchema = z.object({ body: z.object({ matchId: z.string().guid(), playerId: z.string().guid(), mark: z.enum(ATTENDANCE).optional(), minutesOnPitch: z.number().int().min(0).max(200).optional(), notes: z.string().trim().max(2000).optional() }) });
 
 export async function markMatchAttendance(req: Request, res: Response, next: NextFunction) {
   try {
@@ -166,7 +166,7 @@ export async function listMatchAttendance(req: Request, res: Response, next: Nex
 
 // ── Operations: payments / invoice lines ───────────────────────────────
 
-const paymentSchema = z.object({ body: z.object({ payerUserId: z.string().uuid().optional(), payerPlayerId: z.string().uuid().optional(), amountCents: z.number().int().min(0), currency: z.string().trim().max(8).optional(), category: z.string().trim().min(1).max(40), dueDate: z.string().datetime().optional(), invoiceRef: z.string().trim().max(200).optional(), notes: z.string().trim().max(2000).optional() }) });
+const paymentSchema = z.object({ body: z.object({ payerUserId: z.string().guid().optional(), payerPlayerId: z.string().guid().optional(), amountCents: z.number().int().min(0), currency: z.string().trim().max(8).optional(), category: z.string().trim().min(1).max(40), dueDate: z.string().datetime().optional(), invoiceRef: z.string().trim().max(200).optional(), notes: z.string().trim().max(2000).optional() }) });
 
 export async function createPayment(req: Request, res: Response, next: NextFunction) {
   try {
@@ -210,7 +210,7 @@ export async function listInvoiceLines(req: Request, res: Response, next: NextFu
 
 // ── Calendar ───────────────────────────────────────────────────────────
 
-const calendarSchema = z.object({ body: z.object({ teamId: z.string().uuid().optional(), kind: z.enum(EVENT_KIND).optional(), title: z.string().trim().min(1).max(200), startsAt: z.string().datetime(), endsAt: z.string().datetime().optional(), location: z.string().trim().max(200).optional(), payload: z.any().optional(), externalRef: z.string().trim().max(200).optional() }) });
+const calendarSchema = z.object({ body: z.object({ teamId: z.string().guid().optional(), kind: z.enum(EVENT_KIND).optional(), title: z.string().trim().min(1).max(200), startsAt: z.string().datetime(), endsAt: z.string().datetime().optional(), location: z.string().trim().max(200).optional(), payload: z.any().optional(), externalRef: z.string().trim().max(200).optional() }) });
 
 export async function createCalendarEntry(req: Request, res: Response, next: NextFunction) {
   try {
@@ -251,7 +251,7 @@ export async function listOnboarding(req: Request, res: Response, next: NextFunc
   catch (err) { return next(err); }
 }
 
-const evaluationSchema = z.object({ body: z.object({ playerId: z.string().uuid(), kind: z.string().trim().min(1).max(40), payload: z.any().optional(), score: z.number().min(0).max(1).optional(), notes: z.string().trim().max(10_000).optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
+const evaluationSchema = z.object({ body: z.object({ playerId: z.string().guid(), kind: z.string().trim().min(1).max(40), payload: z.any().optional(), score: z.number().min(0).max(1).optional(), notes: z.string().trim().max(10_000).optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
 
 export async function recordEvaluation(req: Request, res: Response, next: NextFunction) {
   try {
@@ -266,7 +266,7 @@ export async function listEvaluations(req: Request, res: Response, next: NextFun
   catch (err) { return next(err); }
 }
 
-const contractSchema = z.object({ body: z.object({ playerId: z.string().uuid(), startsAt: z.string().datetime(), endsAt: z.string().datetime().optional(), weeklyWageCents: z.number().int().min(0).optional(), signingBonusCents: z.number().int().min(0).optional(), releaseClauseCents: z.number().int().min(0).optional(), payload: z.any().optional() }) });
+const contractSchema = z.object({ body: z.object({ playerId: z.string().guid(), startsAt: z.string().datetime(), endsAt: z.string().datetime().optional(), weeklyWageCents: z.number().int().min(0).optional(), signingBonusCents: z.number().int().min(0).optional(), releaseClauseCents: z.number().int().min(0).optional(), payload: z.any().optional() }) });
 
 export async function createContract(req: Request, res: Response, next: NextFunction) {
   try {
@@ -296,7 +296,7 @@ export async function listContracts(req: Request, res: Response, next: NextFunct
 
 // ── Hardware deploy ────────────────────────────────────────────────────
 
-const inventorySchema = z.object({ body: z.object({ serial: z.string().trim().min(1).max(120), deviceId: z.string().uuid().optional(), state: z.enum(INV_STATE).optional(), location: z.string().trim().max(200).optional(), shippedAt: z.string().datetime().optional(), receivedAt: z.string().datetime().optional(), rmaReason: z.string().trim().max(500).optional(), notes: z.string().trim().max(2000).optional() }) });
+const inventorySchema = z.object({ body: z.object({ serial: z.string().trim().min(1).max(120), deviceId: z.string().guid().optional(), state: z.enum(INV_STATE).optional(), location: z.string().trim().max(200).optional(), shippedAt: z.string().datetime().optional(), receivedAt: z.string().datetime().optional(), rmaReason: z.string().trim().max(500).optional(), notes: z.string().trim().max(2000).optional() }) });
 
 export async function upsertInventory(req: Request, res: Response, next: NextFunction) {
   try {
@@ -312,7 +312,7 @@ export async function listInventory(req: Request, res: Response, next: NextFunct
   } catch (err) { return next(err); }
 }
 
-const diagSchema = z.object({ body: z.object({ deviceId: z.string().uuid(), reportKind: z.string().trim().min(1).max(40), payload: z.any().optional(), score: z.number().min(0).max(1).optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
+const diagSchema = z.object({ body: z.object({ deviceId: z.string().guid(), reportKind: z.string().trim().min(1).max(40), payload: z.any().optional(), score: z.number().min(0).max(1).optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
 
 export async function recordDiagnostic(req: Request, res: Response, next: NextFunction) {
   try {
@@ -353,7 +353,7 @@ export async function publishReportTemplate(req: Request, res: Response, next: N
   } catch (err) { return next(err); }
 }
 
-const runSchema = z.object({ body: z.object({ templateId: z.string().uuid(), parameters: z.any().optional(), output: z.any().optional() }).refine((v) => v.output !== undefined, { message: 'output required', path: ['output'] }) });
+const runSchema = z.object({ body: z.object({ templateId: z.string().guid(), parameters: z.any().optional(), output: z.any().optional() }).refine((v) => v.output !== undefined, { message: 'output required', path: ['output'] }) });
 
 export async function recordReportRun(req: Request, res: Response, next: NextFunction) {
   try {
@@ -379,7 +379,7 @@ export async function listRetention(req: Request, res: Response, next: NextFunct
   catch (err) { return next(err); }
 }
 
-const gdprSchema = z.object({ body: z.object({ kind: z.enum(GDPR_KIND), subjectUserId: z.string().uuid().optional(), subjectPlayerId: z.string().uuid().optional(), scope: z.any().optional() }) });
+const gdprSchema = z.object({ body: z.object({ kind: z.enum(GDPR_KIND), subjectUserId: z.string().guid().optional(), subjectPlayerId: z.string().guid().optional(), scope: z.any().optional() }) });
 
 export async function openGdprRequest(req: Request, res: Response, next: NextFunction) {
   try {
@@ -407,7 +407,7 @@ export async function listGdprRequests(req: Request, res: Response, next: NextFu
   } catch (err) { return next(err); }
 }
 
-const consentSchema = z.object({ body: z.object({ scope: z.enum(CONSENT_SCOPE), granted: z.boolean().optional(), userId: z.string().uuid().optional(), playerId: z.string().uuid().optional(), payload: z.any().optional() }) });
+const consentSchema = z.object({ body: z.object({ scope: z.enum(CONSENT_SCOPE), granted: z.boolean().optional(), userId: z.string().guid().optional(), playerId: z.string().guid().optional(), payload: z.any().optional() }) });
 
 export async function recordConsent(req: Request, res: Response, next: NextFunction) {
   try {

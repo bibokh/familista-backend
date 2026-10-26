@@ -4,6 +4,7 @@
 // Zod input validators. Strict mode everywhere.
 
 import { z } from 'zod';
+import { partialUpdate } from '../config/zod';
 
 const cuidOrUuid = z.string().min(8).max(64);
 const hex = z.string().regex(/^#(?:[0-9a-fA-F]{3,8})$/, 'Invalid hex color');
@@ -117,7 +118,7 @@ export const createPaletteSchema = z
   })
   .strict();
 
-export const updatePaletteSchema = createPaletteSchema.partial().strict();
+export const updatePaletteSchema = partialUpdate(createPaletteSchema).strict();
 
 export const applyPaletteSchema = z
   .object({

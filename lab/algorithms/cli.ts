@@ -6,6 +6,7 @@
 // Every job runs in its own child process (runner.ts). If this process is
 // interrupted, its children's process groups are killed on the way out.
 
+import '../../src/config/zod'; // zod 4 with zod 3's messages, as the server has them, before anything validates
 import { buildEvidence, deterministicView, firstDifference, readCommittedEvidence, writeEvidence, EVIDENCE_FILE } from './evidence';
 import { killActiveChildren } from './runner';
 

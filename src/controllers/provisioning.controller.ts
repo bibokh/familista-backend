@@ -20,7 +20,7 @@ const batchSchema = z.object({
     serials:    z.array(z.string().trim().min(1).max(120)).min(1).max(1000),
     hwRevision: z.string().trim().max(40).optional(),
     factoryRef: z.string().trim().max(200).optional(),
-    manifestId: z.string().uuid().nullable().optional(),
+    manifestId: z.string().guid().nullable().optional(),
     metadata:   z.any().optional(),
   }),
 });
@@ -60,7 +60,7 @@ export async function materialiseBatch(req: Request, res: Response, next: NextFu
 
 const certSchema = z.object({
   body: z.object({
-    deviceId:    z.string().uuid(),
+    deviceId:    z.string().guid(),
     fingerprint: z.string().trim().min(8).max(256),
     issuer:      z.string().trim().max(200).optional(),
     validUntil:  z.string().datetime().optional(),
@@ -126,7 +126,7 @@ export async function listManifests(req: Request, res: Response, next: NextFunct
 
 const releaseSchema = z.object({
   body: z.object({
-    manifestId:  z.string().uuid(),
+    manifestId:  z.string().guid(),
     rolloutPct:  z.number().int().min(0).max(100).optional(),
     scheduledAt: z.string().datetime().optional(),
   }),

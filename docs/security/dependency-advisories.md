@@ -21,7 +21,7 @@ Both were published after the last green `main` run, against dependencies
 | Advisory | Package | Installed | Decision |
 |---|---|---|---|
 | [GHSA-27r3-jxmh-p828](https://github.com/advisories/GHSA-27r3-jxmh-p828), HIGH: denial of service via trailing bytes after a compressed request body | `body-parser`, via `express@4.22.1` (`~1.20.3`) | 1.20.6 | **Fixed:** 1.20.9, lockfile only. `overrides.qs: ^6.16.0` already satisfies its `qs ~6.16.0` range, so no other package moved. |
-| [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) (CVE-2023-54404, CWE-770), HIGH: memory exhaustion validating oversized collections | `zod` (direct) | 3.25.76 | **Excepted until 2026-11-01T00:00:00Z** behind the controls below. No zod 3 release is patched; the fix is zod 4.6.6, a major upgrade (plan below). |
+| [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) (CVE-2023-54404, CWE-770), HIGH: memory exhaustion validating oversized collections | `zod` (direct) | 3.25.76 | Excepted until 2026-11-01T00:00:00Z behind the controls below, then **fixed:** zod 4.6.7 and the exception removed (see *2026-10-26: the zod 4 migration*). |
 
 ## Zod exposure assessment (GHSA-mrhx-c7xc-m3w5)
 
@@ -87,7 +87,7 @@ Tests: `tests/body-shape-guard.unit.test.ts` covers:
 
 Its negative control: without the guard, the oversized body reaches auth (401) and then zod.
 
-## Remaining risk while the exception stands
+## Remaining risk while the exception stood
 
 - An accepted body can still cost about 23 MB and 44 ms of validation. Rate limits and the 2 MB parse cost bound concurrency as they did before.
 - A holder of a worker secret can send the vision webhook up to 10 MB, and its schema declares up to 50,000 events: trusted, not guarded.
@@ -95,6 +95,8 @@ Its negative control: without the guard, the oversized body reaches auth (401) a
 - The application's error handler answers body-parser's own 413 (`parameters.too.many`, `entity.too.large`) as 500. The request is still refused; only the status is wrong.
 
 ## Zod 4 migration plan (removes the exception)
+
+*The plan as approved on 2026-10-25. What was done, and where it departs from the plan, is in the next section.*
 
 Target: `zod@^4.6.6`, imported as `zod` (the v4 API). The legacy `zod/v3`
 entry point is not a remediation and is forbidden by a check added in stage 1.
@@ -119,3 +121,56 @@ Each stage is its own pull request, under the Platform Owner's approval. The
 exception expires on 2026-11-01. If the upgrade is not merged by then, CI
 fails until the owner extends the exception (at most 31 days, recorded) or the
 upgrade lands.
+
+## 2026-10-26: the zod 4 migration
+
+Two pull requests, under the Platform Owner's decision of 2026-10-26: phase 1 on zod 3, phase 2 the upgrade.
+
+**Phase 1, on zod 3, behaviour unchanged.**
+- A behaviour baseline (`tests/zod-baseline/`), recorded on zod 3.25.76 before any edit: 481 schemas, every module that imports zod outside `src/contracts`, `src/algorithms` and the evidence reader, 15,314 inputs. For each it records the success and the parsed data, or the issue paths and messages a client is told. `tests/zod-request-baseline.unit.test.ts` replays it.
+- The 400 response bodies, pinned exactly: `tests/zod-error-responses.unit.test.ts`, covering the error handler, a controller's own `zerr()`, and zod's default messages for each kind of failure.
+- Changes that mean the same in both versions:
+  - two-argument `z.record(z.string(), …)`;
+  - `.issues` for `.errors`;
+  - `ZodType` for `AnyZodObject`;
+  - `.optional()` on object fields of `z.any()` / `z.unknown()`, which zod 4 otherwise requires.
+- The baseline replays with 0 differences on zod 3. A check forbids the `zod/v3` (and any other version subpath) entry point.
+
+**Phase 2, the upgrade.**
+- `zod@^4.6.7`. It is the only zod in the dependency tree, and `npm audit` reports 0 vulnerabilities at every level.
+- `src/config/zod.ts` is loaded first by `src/server.ts`, `src/app.ts` and the Jest setup. It holds:
+  - an error map that returns zod 3's wording for every kind of issue, so clients are told what they were told before;
+  - `partialUpdate()`, which is zod 3's `.partial()`. zod 4's `.partial()` still fills a missing field's `.default()`, so a PATCH would have written the defaults over stored values (found by the baseline in 6 update schemas, 27 inputs). Every `.partial()` now goes through it;
+  - `nativeEnum()`, which keeps zod 3's message for a number given to a native enum.
+- `.uuid()` became `.guid()` everywhere, which keeps what is accepted. zod 4's `.uuid()` checks the RFC version and variant nibbles, where zod 3 accepted any 8-4-4-4-12 hex id; `.guid()` is zod 3's pattern. Ids Prisma generates are RFC v4 and pass either way. A fixed id such as `00000000-0000-0000-0000-000000000001`, used throughout the test fixtures, or any id written outside Prisma would otherwise be refused.
+- The advisory, measured on zod 4.6.7: `z.array(z.string()).max(10)` given the 2 MB array of a million numbers returns **1 issue** (zod 3: 1,000,001, ≈ 290 MB) and parses no element.
+- The worst body the guard accepts (9 unbounded lists of 5,000 failing items, 45,000 issues), the same harness on both versions, 7 runs, warm:
+
+  | Version | Time | Heap |
+  |---|---|---|
+  | zod 3.25.76 | 58–72 ms | ≈ 20 MB |
+  | zod 4.6.7, with the message map | 59–84 ms | ≈ 22 MB |
+
+- The exception was removed from `npm-audit-exceptions.json` (now `"exceptions": []`). The gate keeps the mechanism and its tests, now on a fixture of the removed exception.
+- The body shape guard stays, as defence in depth.
+
+**What zod 4 answers differently, accepted and pinned.** 530 of the 15,314 replayed inputs answer differently. Each one is classified, and the count of each kind is pinned in the baseline test. A difference of any other kind fails it: a value accepted that was refused, other parsed data, another message, another path.
+
+| Kind | Count | What changed |
+|---|---|---|
+| Unsafe integer refused | 166 | `.int()` takes safe integers only. 1e21 and 2^53, accepted by zod 3, are refused as past ±(2^53 − 1). No integer column holds them, and JavaScript cannot tell them from their neighbours. A tightening. |
+| Unsafe integer, also out of range | 295 | The same values on fields with a range: refused before, now told the safe-integer bound first. |
+| Length checked after a type failure | 48 | An array given for a string, or a string for an array, is also told the length bound. |
+| Stops earlier on a refused input | 20 | zod 4 stops at a fraction given to `.int()`, and skips an object's refinement once one of its fields has failed. The input is refused as before, with the same first issues and without the later ones. |
+| Same issues, reordered | 1 | An array's own length issue and its elements' issues, the other way round. |
+
+No valid input parses differently, and no input zod 3 refused is accepted.
+
+The safe-integer tightening cannot refuse a legitimate value:
+- **The fields it touches carry small values.** There are 48 of them: timestamps in milliseconds or microseconds, money in cents, sizes in bytes, counts and frame numbers. A microsecond epoch timestamp is about 1.8 × 10^15, below 2^53 (about 9.0 × 10^15) until the year 2255.
+- **No client could send such a value exactly.** `JSON.parse` already turns any integer above 2^53 into the nearest double before validation runs.
+
+**Departures from the plan.**
+- Stage 1's explicit `.max()` on every untrusted collection was not done. It changes what requests are accepted, which phase 1 was not to do. The body shape guard bounds every collection at 5,000 items, and zod 4 now stops at a declared `.max()`. Per-field bounds remain a separate hardening, for the Platform Owner to decide.
+- `.default()` semantics were reviewed through the baseline rather than schema by schema. The one difference it found is the `.partial()` one above.
+

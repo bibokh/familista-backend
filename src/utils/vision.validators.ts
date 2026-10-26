@@ -4,6 +4,7 @@
 // Zod schemas for all vision endpoints. Strict mode — unknown keys rejected.
 
 import { z } from 'zod';
+import { partialUpdate } from '../config/zod';
 
 const cuidOrUuid = z.string().min(8).max(64);
 const iso8601 = z.string().datetime();
@@ -51,7 +52,7 @@ export const registerVideoSchema = z
   })
   .strict();
 
-export const updateVideoSchema = registerVideoSchema.partial().strict();
+export const updateVideoSchema = partialUpdate(registerVideoSchema).strict();
 
 // ─── Ingest ──────────────────────────────────────────────────────────────────
 

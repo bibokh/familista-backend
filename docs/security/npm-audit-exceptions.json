@@ -1,26 +1,4 @@
 {
   "$comment": "Read by scripts/npm-audit-gate.js in CI. Each entry excepts ONE advisory, only while id, package, severity, vulnerable range and installed version all still match, and only until it expires (at most 31 days from approval). Anything else HIGH or CRITICAL fails the build. See docs/security/dependency-advisories.md.",
-  "exceptions": [
-    {
-      "id": "GHSA-mrhx-c7xc-m3w5",
-      "cve": "CVE-2023-54404",
-      "package": "zod",
-      "severity": "high",
-      "vulnerableRange": "<4.6.6",
-      "installedVersion": "3.25.76",
-      "patchedVersion": "4.6.6",
-      "title": "Zod can exhaust memory while validating oversized constrained collections (CWE-770)",
-      "approvedOn": "2026-10-25T00:00:00Z",
-      "expires": "2026-11-01T00:00:00Z",
-      "owner": "Platform Owner (bibokh)",
-      "approvedBy": "Platform Owner: security remediation decision of 2026-10-25, conditionally approved",
-      "justification": "No zod 3 release is patched (3.25.76 is the latest 3.x); the fix is zod 4.6.6, a major upgrade across 83 files that is planned separately. The exposure is the JSON request body: an array or record schema keeps one issue per failing element with no cap, even with .max(), so a 2 MB body cost about 290 MB in one validation. The body shape guard now refuses any body past 5,000 items in a list, 1,000 keys in an object, depth 32 or 50,000 values before any schema runs, which bounds the worst accepted case to about 45,000 issues (about 23 MB, measured). Query strings (qs: 1,000 parameters), form bodies (urlencoded: 1,000 parameters) and signed raw bodies (HMAC-verified before parsing) were measured or read and are bounded or unreachable without a secret.",
-      "compensatingControls": [
-        "src/middleware/body-shape-guard.ts, mounted in src/app.ts after the body parsers and before every route and auth check (tests/body-shape-guard.unit.test.ts)",
-        "express.json limit 2 MB, urlencoded parameterLimit 1,000 and qs parameterLimit 1,000 inside Node's 16 KB header limit",
-        "HMAC verification before JSON.parse on every raw-body path (billing webhook, vision webhooks, transcode callback)"
-      ],
-      "remediationPlan": "Staged zod 4.6.6+ migration, docs/security/dependency-advisories.md (Zod 4 migration plan); this exception is removed in the same change"
-    }
-  ]
+  "exceptions": []
 }

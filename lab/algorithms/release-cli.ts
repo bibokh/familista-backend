@@ -20,6 +20,7 @@
 // own child process (runner.ts); an interrupted command kills them on the way
 // out.
 
+import '../../src/config/zod'; // zod 4 with zod 3's messages, as the server has them, before anything validates
 import { LAB_ROOT, killActiveChildren } from './runner';
 import { planRelease, type ReleasePlan } from './release/dossier';
 import { enginePin } from './release/engine';

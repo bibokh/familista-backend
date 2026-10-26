@@ -23,7 +23,7 @@ const createSchema = z.object({
     competitionName: z.string().trim().max(200).optional(),
     venue:           z.string().trim().max(200).optional(),
     scheduledAt:     DATE_OR_ISO,
-    teamId:          z.string().uuid().nullable().optional(),
+    teamId:          z.string().guid().nullable().optional(),
     formationHome:   z.string().regex(/^\d-\d(-\d){1,2}$/).optional(),
     formationAway:   z.string().regex(/^\d-\d(-\d){1,2}$/).optional(),
     opponentNotes:   z.string().max(4000).optional(),
@@ -52,7 +52,7 @@ const updateSchema = z.object({
     fouls:         z.number().int().min(0).max(99).optional(),
     yellowCards:   z.number().int().min(0).max(99).optional(),
     redCards:      z.number().int().min(0).max(99).optional(),
-    teamId:        z.string().uuid().nullable().optional(),
+    teamId:        z.string().guid().nullable().optional(),
     status:        z.enum(STATUS).optional(),
     periodNow:     z.number().int().min(1).max(5).optional(),
     liveMinute:    z.number().int().min(0).max(130).optional(),
@@ -87,7 +87,7 @@ const reasonSchema = z.object({ body: z.object({ reason: z.string().max(500).opt
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '),
   );
 }
 

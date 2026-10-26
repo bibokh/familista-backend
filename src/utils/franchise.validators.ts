@@ -4,6 +4,7 @@
 // Zod schemas for every franchise endpoint. Strict mode — unknown keys rejected.
 
 import { z } from 'zod';
+import { partialUpdate } from '../config/zod';
 
 const cuidOrUuid = z.string().min(8).max(64);
 const iso8601 = z.string().datetime();
@@ -49,7 +50,7 @@ export const createTerritorySchema = z
   })
   .strict();
 
-export const updateTerritorySchema = createTerritorySchema.partial().strict();
+export const updateTerritorySchema = partialUpdate(createTerritorySchema).strict();
 
 // ─── Franchise unit ──────────────────────────────────────────────────────────
 
@@ -73,9 +74,7 @@ export const createFranchiseUnitSchema = z
   })
   .strict();
 
-export const updateFranchiseUnitSchema = createFranchiseUnitSchema
-  .omit({ code: true, level: true })
-  .partial()
+export const updateFranchiseUnitSchema = partialUpdate(createFranchiseUnitSchema.omit({ code: true, level: true }))
   .extend({
     status: z.enum(FRANCHISE_STATUSES).optional(),
   })
@@ -105,7 +104,7 @@ export const createOwnerSchema = z
   })
   .strict();
 
-export const updateOwnerSchema = createOwnerSchema.partial().strict().extend({
+export const updateOwnerSchema = partialUpdate(createOwnerSchema).strict().extend({
   isActive: z.boolean().optional(),
 });
 
@@ -317,7 +316,7 @@ export const createContractSchema = z
   })
   .strict();
 
-export const updateContractSchema = createContractSchema.partial().strict();
+export const updateContractSchema = partialUpdate(createContractSchema).strict();
 
 export const signContractSchema = z
   .object({

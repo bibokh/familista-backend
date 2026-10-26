@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-26T09:51:44.704Z",
+  "generatedAt": "2026-10-26T11:37:26.757Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -121,47 +121,47 @@
       {
         "route": "GET /api/health",
         "file": "src/app.ts",
-        "line": 248
+        "line": 249
       },
       {
         "route": "GET /app/*",
         "file": "src/app.ts",
-        "line": 322
+        "line": 323
       },
       {
         "route": "GET /healthz",
         "file": "src/app.ts",
-        "line": 249
+        "line": 250
       },
       {
         "route": "GET /internal/backups/runs/:id",
         "file": "src/app.ts",
-        "line": 258
+        "line": 259
       },
       {
         "route": "GET /invite",
         "file": "src/app.ts",
-        "line": 312
+        "line": 313
       },
       {
         "route": "GET /invite/*",
         "file": "src/app.ts",
-        "line": 312
+        "line": 313
       },
       {
         "route": "GET /reset-password",
         "file": "src/app.ts",
-        "line": 302
+        "line": 303
       },
       {
         "route": "POST /internal/backups/run",
         "file": "src/app.ts",
-        "line": 257
+        "line": 258
       },
       {
         "route": "POST /internal/video/transcode-callback",
         "file": "src/app.ts",
-        "line": 169
+        "line": 170
       }
     ],
     "mounts": [
@@ -2137,7 +2137,7 @@
       "id": "ci-audit-blocking",
       "status": "PRESENT",
       "evidence": ".github/workflows/ci.yml",
-      "note": "npm audit fails the build on a high or critical advisory, except GHSA-mrhx-c7xc-m3w5 (zod, until 2026-11-01T00:00:00Z), reviewed, dated and matched in full by scripts/npm-audit-gate.js."
+      "note": "npm audit fails the build on a high or critical advisory."
     },
     {
       "id": "ci-secret-scanning",

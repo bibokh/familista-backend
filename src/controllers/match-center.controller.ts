@@ -28,11 +28,11 @@ function actorOf(req: Request): mc.MatchCenterActor {
 const calendarSchema = z.object({
   from: z.string().trim().min(4).max(40).optional(),
   to: z.string().trim().min(4).max(40).optional(),
-  competitionId: z.string().uuid().optional(),
+  competitionId: z.string().guid().optional(),
   // The team whose calendar this is. Validated as a uuid here and checked
   // against this caller's assignments in the service — the parse says the shape
   // is possible, team-access says the answer is theirs to have.
-  teamId: z.string().uuid().optional(),
+  teamId: z.string().guid().optional(),
 });
 
 export async function getCalendar(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -58,7 +58,7 @@ export async function getTeamContexts(req: Request, res: Response, next: NextFun
   } catch (err) { next(err); }
 }
 
-const fixtureSchema = z.object({ fixtureId: z.string().uuid() });
+const fixtureSchema = z.object({ fixtureId: z.string().guid() });
 
 export async function getFixture(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -109,7 +109,7 @@ const actSchema = z.object({
 
 export async function actOnRequest(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { requestId } = z.object({ requestId: z.string().uuid() }).parse(req.params);
+    const { requestId } = z.object({ requestId: z.string().guid() }).parse(req.params);
     const body = actSchema.parse(req.body ?? {});
     const request = await mc.actOnRequest(actorOf(req), requestId, body.action, body.note);
     res.json({ success: true, data: { request } });

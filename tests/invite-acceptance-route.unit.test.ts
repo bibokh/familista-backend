@@ -507,7 +507,7 @@ describe('nothing that already worked was changed', () => {
     // Final Security Closure, Task 1: it used to take a clubId and a staff role
     // from anybody. It refuses now, before reading the body.
     expect(auth).toContain('return next(new SelfRegistrationClosedError());');
-    expect(auth).not.toContain('clubId:    z.string().uuid()');
+    expect(auth).not.toMatch(/clubId:\s+z\.string\(\)\.(uuid|guid)\(\)/);
     expect(read('src/services/auth.service.ts')).not.toMatch(/export async function registerUser\(/);
   });
 });

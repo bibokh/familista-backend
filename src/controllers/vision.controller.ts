@@ -12,7 +12,7 @@ const CAMERA_KINDS  = ['RGB','DEPTH','EVENT','PANORAMIC','AERIAL'] as const;
 const CAMERA_STATUS = ['REGISTERED','CALIBRATED','ACTIVE','OFFLINE','RETIRED'] as const;
 
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '));
 }
 
 function actorOf(req: Request): registry.CameraActor {
@@ -30,7 +30,7 @@ const registerSchema = z.object({
     vendor:     z.string().trim().max(120).optional(),
     model:      z.string().trim().max(120).optional(),
     hwRevision: z.string().trim().max(40).optional(),
-    teamId:     z.string().uuid().nullable().optional(),
+    teamId:     z.string().guid().nullable().optional(),
     metadata:   z.any().optional(),
   }),
 });
@@ -48,7 +48,7 @@ const listSchema = z.object({
   query: z.object({
     kind:   z.enum(CAMERA_KINDS).optional(),
     status: z.enum(CAMERA_STATUS).optional(),
-    teamId: z.string().uuid().optional(),
+    teamId: z.string().guid().optional(),
     page:   z.coerce.number().int().min(1).max(10_000).optional(),
     limit:  z.coerce.number().int().min(1).max(200).optional(),
   }),
@@ -117,7 +117,7 @@ const ingestSchema = z.object({
     cameraTsUs:         z.number().int().min(0),
     detections:         z.any().optional(),
     kind:               z.string().trim().max(40).optional(),
-    matchId:            z.string().uuid().nullable().optional(),
+    matchId:            z.string().guid().nullable().optional(),
     calibrationVersion: z.number().int().min(1).optional(),
     sigB64:             z.string().trim().min(8).max(512),
     nonce:              z.string().trim().min(8).max(128),

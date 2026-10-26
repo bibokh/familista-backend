@@ -13,7 +13,7 @@ const PROV_STATUS = ['REGISTERED','PROVISIONED','ACTIVE','RETIRED','REVOKED'] as
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '),
   );
 }
 
@@ -31,7 +31,7 @@ const registerSchema = z.object({
     serial:     z.string().trim().min(1).max(120),
     model:      z.enum(DEVICE_MODELS),
     hwRevision: z.string().trim().max(40).optional(),
-    teamId:     z.string().uuid().nullable().optional(),
+    teamId:     z.string().guid().nullable().optional(),
     notes:      z.string().trim().max(2000).optional(),
     metadata:   z.any().optional(),
   }),
@@ -71,7 +71,7 @@ const listSchema = z.object({
   query: z.object({
     model:  z.enum(DEVICE_MODELS).optional(),
     status: z.enum(PROV_STATUS).optional(),
-    teamId: z.string().uuid().optional(),
+    teamId: z.string().guid().optional(),
     page:   z.coerce.number().int().min(1).max(10_000).optional(),
     limit:  z.coerce.number().int().min(1).max(200).optional(),
   }),

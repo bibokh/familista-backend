@@ -180,7 +180,7 @@ export async function squadReadiness(req: Request, res: Response, next: NextFunc
 const DATE_STR = z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'Must be YYYY-MM-DD or ISO datetime');
 
 const createInjurySchema = z.object({
-  playerId:       z.string().uuid('playerId must be a UUID'),
+  playerId:       z.string().guid('playerId must be a UUID'),
   injuryDate:     DATE_STR,
   bodyLocation:   z.string().trim().min(1).max(200),
   osicsCategory:  z.string().trim().max(200).optional(),

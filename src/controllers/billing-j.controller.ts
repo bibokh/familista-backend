@@ -43,7 +43,7 @@ export async function cancelAccount(req: Request, res: Response, next: NextFunct
   catch (err) { return next(err); }
 }
 
-const assignSchema = z.object({ body: z.object({ deviceId: z.string().uuid(), planCode: z.string().trim().min(1) }) });
+const assignSchema = z.object({ body: z.object({ deviceId: z.string().guid(), planCode: z.string().trim().min(1) }) });
 
 export async function assignDevicePlan(req: Request, res: Response, next: NextFunction) {
   try {

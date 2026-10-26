@@ -22,7 +22,7 @@ function actor<A>(req: Request): A {
   return { userId: req.user.id, clubId: req.user.clubId, role: req.user.role } as unknown as A;
 }
 function zerr(err: z.ZodError): BadRequestError {
-  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '));
+  return new BadRequestError(err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '));
 }
 function bigintSafe<T>(row: T): T {
   if (row === null || row === undefined) return row;
@@ -47,8 +47,8 @@ export async function status(req: Request, res: Response, next: NextFunction) {
 // ── Attendance reports ─────────────────────────────────────────────────
 
 const reportQuery = z.object({
-  teamId:     z.string().uuid().optional(),
-  playerId:   z.string().uuid().optional(),
+  teamId:     z.string().guid().optional(),
+  playerId:   z.string().guid().optional(),
   windowDays: z.coerce.number().int().min(1).max(365).optional(),
 });
 
@@ -76,8 +76,8 @@ export async function combinedAttendance(req: Request, res: Response, next: Next
 // ── Balance + history ──────────────────────────────────────────────────
 
 const balanceQuery = z.object({
-  payerPlayerId: z.string().uuid().optional(),
-  payerUserId:   z.string().uuid().optional(),
+  payerPlayerId: z.string().guid().optional(),
+  payerUserId:   z.string().guid().optional(),
 }).refine((v) => v.payerPlayerId || v.payerUserId, { message: 'payerPlayerId or payerUserId required' });
 
 export async function balanceFor(req: Request, res: Response, next: NextFunction) {
@@ -105,7 +105,7 @@ export async function opsSummary(req: Request, res: Response, next: NextFunction
 
 const notifySchema = z.object({
   body: z.object({
-    userId:  z.string().uuid(),
+    userId:  z.string().guid(),
     kind:    z.enum(NOTIFICATION_KIND).optional(),
     title:   z.string().trim().min(1).max(200),
     body:    z.string().trim().max(5000).optional(),
@@ -122,7 +122,7 @@ export async function sendNotification(req: Request, res: Response, next: NextFu
 
 const notifyManySchema = z.object({
   body: z.object({
-    userIds: z.array(z.string().uuid()).min(1).max(500),
+    userIds: z.array(z.string().guid()).min(1).max(500),
     kind:    z.enum(NOTIFICATION_KIND).optional(),
     title:   z.string().trim().min(1).max(200),
     body:    z.string().trim().max(5000).optional(),

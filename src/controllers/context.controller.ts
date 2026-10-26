@@ -10,14 +10,14 @@ import { getActiveMembershipsForUser } from '../services/membership.service';
 
 const switchSchema = z.object({
   body: z.object({
-    clubId: z.string().uuid(),
-    teamId: z.string().uuid().nullable().optional(),
+    clubId: z.string().guid(),
+    teamId: z.string().guid().nullable().optional(),
   }),
 });
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
-    err.issues.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+    err.issues.map((e) => `${e.path.slice(1).join('.') || String(e.path[0] || 'body')}: ${e.message}`).join(', '),
   );
 }
 
