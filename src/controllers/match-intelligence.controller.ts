@@ -71,7 +71,7 @@ const snapshotSchema = z.object({
     phase:      z.enum(PHASE).optional(),
     formation:  z.string().regex(/^\d-\d(-\d){1,2}$/).optional(),
     possession: z.number().min(0).max(100).optional(),
-    positions:  z.any(),
+    positions:  z.any().optional(),
     notes:      z.string().max(2000).optional(),
     source:     z.enum(SOURCE).optional(),
   }),

@@ -19,7 +19,7 @@ const createSchema = z.object({
   body: z.object({
     atMs:       z.number().int().min(0),
     kind:       z.enum(['ARROW','ZONE','NOTE','DRAW','TAG_PLAYER']),
-    payload:    z.any(),
+    payload:    z.any().optional(),
     visibility: z.enum(['CLUB','COACHES','PRIVATE']).optional(),
   }).refine((v) => v.payload !== undefined, { message: 'payload required' }),
 });

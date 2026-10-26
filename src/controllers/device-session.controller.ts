@@ -30,7 +30,7 @@ const openSchema = z.object({
 const packetSchema = z.object({
   kind:       z.enum(SENSOR_KIND),
   capturedAt: z.string(),
-  payload:    z.any(),
+  payload:    z.any().optional(),
   sigB64:     z.string().optional(),
 });
 

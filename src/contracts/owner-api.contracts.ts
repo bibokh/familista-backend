@@ -360,7 +360,7 @@ export const VaultHistoryHealthSchema = z.object({
     missing: z.array(z.string()),
     format: z.string(),
     partitioning: z.string(),
-    lastBatch: z.unknown().nullable(),
+    lastBatch: z.unknown().nullable().optional(),
     objectStore: z.object({ port: z.string(), provider: z.string() }),
   }),
   retention: z.object({

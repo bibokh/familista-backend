@@ -46,7 +46,7 @@ const agentEnqueueSchema = z.object({
   body: z.object({
     agent:  z.enum(AGENTS),
     kind:   z.string().trim().min(1).max(80),
-    input:  z.any(),
+    input:  z.any().optional(),
     teamId: z.string().uuid().nullable().optional(),
     model:  z.string().max(80).optional(),
   }),

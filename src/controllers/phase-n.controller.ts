@@ -39,7 +39,7 @@ function bigintSafe<T>(row: T): T {
 
 // ── Knowledge graph ────────────────────────────────────────────────────
 
-const nodeSchema = z.object({ body: z.object({ nodeKind: z.enum(NODE_KINDS), label: z.string().trim().min(1).max(200), payload: z.any(), externalRef: z.string().trim().max(200).optional(), global: z.boolean().optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
+const nodeSchema = z.object({ body: z.object({ nodeKind: z.enum(NODE_KINDS), label: z.string().trim().min(1).max(200), payload: z.any().optional(), externalRef: z.string().trim().max(200).optional(), global: z.boolean().optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
 
 export async function createNode(req: Request, res: Response, next: NextFunction) {
   try {
@@ -99,7 +99,7 @@ export async function verifyAnchor(req: Request, res: Response, next: NextFuncti
 
 // ── Reasoning ──────────────────────────────────────────────────────────
 
-const ruleSchema = z.object({ body: z.object({ code: z.string().trim().min(1).max(120), label: z.string().trim().min(1).max(200), kind: z.enum(REASON_KIND), rule: z.any(), global: z.boolean().optional() }).refine((v) => v.rule !== undefined, { message: 'rule required', path: ['rule'] }) });
+const ruleSchema = z.object({ body: z.object({ code: z.string().trim().min(1).max(120), label: z.string().trim().min(1).max(200), kind: z.enum(REASON_KIND), rule: z.any().optional(), global: z.boolean().optional() }).refine((v) => v.rule !== undefined, { message: 'rule required', path: ['rule'] }) });
 
 export async function publishRule(req: Request, res: Response, next: NextFunction) {
   try {
@@ -148,7 +148,7 @@ export async function linkPlayer(req: Request, res: Response, next: NextFunction
   } catch (err) { return next(err); }
 }
 
-const perfSchema = z.object({ body: z.object({ athleteId: z.string().uuid(), season: z.string().trim().min(3).max(40), payload: z.any() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
+const perfSchema = z.object({ body: z.object({ athleteId: z.string().uuid(), season: z.string().trim().min(3).max(40), payload: z.any().optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
 
 export async function recordPerformance(req: Request, res: Response, next: NextFunction) {
   try {
@@ -158,7 +158,7 @@ export async function recordPerformance(req: Request, res: Response, next: NextF
   } catch (err) { return next(err); }
 }
 
-const medSchema = z.object({ body: z.object({ athleteId: z.string().uuid(), recordKind: z.string().trim().min(1).max(40), plainPayload: z.any(), anonymisedPayload: z.any() }).refine((v) => v.plainPayload !== undefined && v.anonymisedPayload !== undefined, { message: 'plainPayload + anonymisedPayload required' }) });
+const medSchema = z.object({ body: z.object({ athleteId: z.string().uuid(), recordKind: z.string().trim().min(1).max(40), plainPayload: z.any().optional(), anonymisedPayload: z.any().optional() }).refine((v) => v.plainPayload !== undefined && v.anonymisedPayload !== undefined, { message: 'plainPayload + anonymisedPayload required' }) });
 
 export async function recordMedical(req: Request, res: Response, next: NextFunction) {
   try {
@@ -193,7 +193,7 @@ export async function listScoutingNodes(req: Request, res: Response, next: NextF
   catch (err) { return next(err); }
 }
 
-const discoverySchema = z.object({ body: z.object({ scoutingNodeId: z.string().uuid().optional(), athleteIdHash: z.string().trim().length(64).optional(), externalRef: z.string().trim().max(200).optional(), prospectName: z.string().trim().min(1).max(200), position: z.string().trim().max(40).optional(), age: z.number().int().min(8).max(60).optional(), region: z.string().trim().max(40).optional(), status: z.enum(DISCOVERY).optional(), payload: z.any() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
+const discoverySchema = z.object({ body: z.object({ scoutingNodeId: z.string().uuid().optional(), athleteIdHash: z.string().trim().length(64).optional(), externalRef: z.string().trim().max(200).optional(), prospectName: z.string().trim().min(1).max(200), position: z.string().trim().max(40).optional(), age: z.number().int().min(8).max(60).optional(), region: z.string().trim().max(40).optional(), status: z.enum(DISCOVERY).optional(), payload: z.any().optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
 
 export async function recordDiscovery(req: Request, res: Response, next: NextFunction) {
   try {
@@ -222,7 +222,7 @@ export async function listRankings(req: Request, res: Response, next: NextFuncti
   catch (err) { return next(err); }
 }
 
-const evalSchema = z.object({ body: z.object({ discoveryId: z.string().uuid().optional(), athleteIdHash: z.string().trim().length(64).optional(), payload: z.any(), score: z.number().min(0).max(1).optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
+const evalSchema = z.object({ body: z.object({ discoveryId: z.string().uuid().optional(), athleteIdHash: z.string().trim().length(64).optional(), payload: z.any().optional(), score: z.number().min(0).max(1).optional() }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }) });
 
 export async function recordEvaluation(req: Request, res: Response, next: NextFunction) {
   try {

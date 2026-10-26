@@ -103,7 +103,7 @@ const createRecSchema = z.object({
     agent:    z.enum(AGENTS),
     kind:     z.string().trim().min(1).max(80),
     title:    z.string().trim().max(200).optional(),
-    content:  z.any(),
+    content:  z.any().optional(),
     score:    z.number().min(0).max(1).optional(),
   }).refine((v) => v.content !== undefined && v.content !== null, { message: 'content is required', path: ['content'] }),
 });

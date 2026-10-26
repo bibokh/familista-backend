@@ -166,7 +166,7 @@ export async function fwList(req: Request, res: Response, next: NextFunction) {
 const calibSchema = z.object({
   body: z.object({
     sensorKind: z.string().trim().min(1).max(60),
-    payload:    z.any(),
+    payload:    z.any().optional(),
     notes:      z.string().trim().max(2000).optional(),
   }).refine((v) => v.payload !== undefined, { message: 'payload is required', path: ['payload'] }),
 });

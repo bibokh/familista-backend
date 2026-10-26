@@ -24,7 +24,7 @@ const packetSchema = z.object({
   body: z.object({
     kind:           z.enum(SENSOR_KIND),
     capturedAt:     z.string(),
-    payload:        z.any(),
+    payload:        z.any().optional(),
     sigB64:         z.string().optional(),
     // Optional explicit override; otherwise we resolve the open session.
     deviceSessionId: z.string().uuid().optional(),
@@ -86,7 +86,7 @@ const fusionEnvelopeSchema = z.object({
   body: z.object({
     kind:            z.enum(SENSOR_KIND).default('EVENT'),
     capturedAt:      z.string(),
-    payload:         z.any(),
+    payload:         z.any().optional(),
     sigB64:          z.string().optional(),
     deviceSessionId: z.string().uuid().optional(),
   }).refine((v) => v.payload !== undefined, { message: 'payload is required', path: ['payload'] }),

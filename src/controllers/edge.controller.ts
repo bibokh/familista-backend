@@ -103,7 +103,7 @@ const inferenceSchema = z.object({
   body: z.object({
     matchId:    z.string().uuid().nullable().optional(),
     kind:       z.string().trim().min(1).max(60),
-    payload:    z.any(),
+    payload:    z.any().optional(),
     confidence: z.number().min(0).max(1).optional(),
     capturedAt: z.number().int().min(0),
   }).refine((v) => v.payload !== undefined, { message: 'payload required', path: ['payload'] }),

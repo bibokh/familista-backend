@@ -91,7 +91,7 @@ const manifestSchema = z.object({
     model:        z.string().trim().min(1).max(120),
     channel:      z.string().trim().min(1).max(40).optional(),
     version:      z.string().trim().min(3).max(40),
-    files:        z.any(),
+    files:        z.any().optional(),
     releaseNotes: z.string().trim().max(2000).optional(),
     minHwRev:     z.string().trim().max(40).optional(),
   }).refine((v) => v.files !== undefined, { message: 'files required', path: ['files'] }),
