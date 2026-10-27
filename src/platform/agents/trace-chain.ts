@@ -33,7 +33,12 @@ export const chainHash = (e: Omit<ChainedEvent, 'hash'>): string =>
 
 /** Whether a trace is the chain it claims to be; the first event that is not, if any. */
 export function verifyChain(events: readonly ChainedEvent[]): { ok: boolean; brokenAt: number | null } {
-  let prev = GENESIS;
+  return verifyChainFrom(events, GENESIS);
+}
+
+/** The same rule for a chain with a genesis of its own (AI-0.4's execution log starts from its contract's hash). */
+export function verifyChainFrom(events: readonly ChainedEvent[], genesis: string): { ok: boolean; brokenAt: number | null } {
+  let prev = genesis;
   for (let i = 0; i < events.length; i++) {
     const e = events[i];
     if (e.seq !== i + 1 || e.prev !== prev || e.hash !== chainHash(e)) return { ok: false, brokenAt: i + 1 };

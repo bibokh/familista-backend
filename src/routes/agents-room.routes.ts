@@ -13,6 +13,8 @@
 //                                 records it writes and who may read them
 //   GET /system/agents/orchestration  (AI-0.3) the LAB orchestrator's published
 //                                 evidence, verified: synthetic runs, never live
+//   GET /system/agents/publications   (AI-0.5) LAB executions the Platform Owner
+//                                 approved for publication (v2 evidence), verified
 //
 // There is no write. A manifest changes in a reviewed pull request
 // (src/platform/agents/catalog.ts), never by a request; the kill switch stays
@@ -24,6 +26,7 @@ import { authenticate } from '../middleware/auth.middleware';
 import { assertPlatformOwner } from '../platform/system.service';
 import { operationsRoomAgent, operationsRoomOverview } from '../platform/agents/operations-room.service';
 import { orchestrationRoomView } from '../platform/agents/orchestration-evidence';
+import { publicationsRoomView } from '../platform/agents/execution-evidence';
 import { platformAgentRegistry } from '../platform/agents/catalog';
 import { NotFoundError } from '../utils/errors';
 
@@ -52,6 +55,17 @@ router.get('/', (_req: Request, res: Response, next) => {
 router.get('/orchestration', (_req: Request, res: Response, next) => {
   try {
     res.json({ success: true, data: orchestrationRoomView(platformAgentRegistry()) });
+  } catch (err) { next(err); }
+});
+
+/**
+ * AI-0.5: the LAB executions approved for publication (execution-evidence.ts). The approval is the Platform
+ * Owner's merge of the pull request that carried each one; this server reads what that build shipped,
+ * verifies it again and runs nothing. There is no write: a publication arrives in a reviewed pull request.
+ */
+router.get('/publications', (_req: Request, res: Response, next) => {
+  try {
+    res.json({ success: true, data: publicationsRoomView(platformAgentRegistry()) });
   } catch (err) { next(err); }
 });
 

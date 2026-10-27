@@ -52,6 +52,8 @@ const Semver = z.string().regex(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/);
 const Text = (max: number) => z.string().min(1).max(max);
 const DataClass = z.enum(['PUBLIC', 'INTERNAL', 'CONFIDENTIAL', 'RESTRICTED']);
 const RecordClass = z.enum(['OPERATIONAL', 'SCOUTING', 'FINANCE', 'MEDICAL']);
+/** The field rules every version of the evidence contract shares; v2 (execution-evidence.ts) is built from them. */
+export const EvidenceFields = Object.freeze({ Hex64, LabRef, Slug, OpKey, AgentId, Token, ToolKey, Text });
 
 export const TASK_STATES = ['PENDING', 'AWAITING_APPROVAL', 'SUCCEEDED', 'FAILED', 'REFUSED', 'SKIPPED', 'REJECTED'] as const;
 export const RUN_OUTCOMES = ['COMPLETED', 'PARTIAL', 'FAILED', 'AWAITING_APPROVAL', 'REFUSED'] as const;
@@ -60,11 +62,11 @@ export const TRACE_TYPES = [
   'APPROVAL_DECISION_REFUSED', 'HANDOFF_ACCEPTED', 'HANDOFF_BLOCKED', 'TASK_SUCCEEDED', 'TASK_FAILED', 'TASK_SKIPPED', 'RUN_SETTLED',
 ] as const;
 
-const OperationSchema = z.object({
+export const OperationSchema = z.object({
   key: OpKey, title: Text(120), tool: ToolKey, domain: Token.nullable(), output: DataClass,
 }).strict();
 
-const TaskSchema = z.object({
+export const TaskSchema = z.object({
   id: Slug,
   operation: OpKey,
   tool: ToolKey,
@@ -90,7 +92,7 @@ const StepSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('DECISION'), taskId: Slug, decision: z.enum(['APPROVED', 'REJECTED']), byRole: Token, accepted: z.boolean() }).strict(),
 ]);
 
-const TraceEventSchema = z.object({
+export const TraceEventSchema = z.object({
   seq: z.number().int().min(1),
   type: z.enum(TRACE_TYPES),
   taskId: Slug.nullable(),
@@ -149,6 +151,11 @@ function strings(value: unknown, out: string[] = [], depth = 0): string[] {
   else if (Array.isArray(value)) for (const v of value) strings(v, out, depth + 1);
   else if (value && typeof value === 'object') for (const v of Object.values(value as Record<string, unknown>)) strings(v, out, depth + 1);
   return out;
+}
+
+/** Whether any string in it looks like a real person's e-mail address or a real (UUID) id. Synthetic evidence holds neither. */
+export function holdsRealLookingIds(value: unknown): boolean {
+  return strings(value).some((s) => EMAIL.test(s) || UUID.test(s));
 }
 
 type EvidenceTaskState = (typeof TASK_STATES)[number];
@@ -216,9 +223,7 @@ export function verifyOrchestrationEvidence(input: unknown): { evidence: Orchest
     if (decided(true) !== events('APPROVAL_DECIDED') || decided(false) !== events('APPROVAL_DECISION_REFUSED')) reasons.push(`coherence: ${where}: its steps are not the decisions its trace records`);
     if (run.outcome === 'REFUSED' ? !run.refusal || run.tasks.length > 0 : run.refusal !== null) reasons.push(`coherence: ${where}: its outcome and refusal disagree`);
   }
-  for (const s of strings(e)) {
-    if (EMAIL.test(s) || UUID.test(s)) { reasons.push('synthetic: it holds what looks like a real person\'s address or a real id'); break; }
-  }
+  if (holdsRealLookingIds(e)) reasons.push('synthetic: it holds what looks like a real person\'s address or a real id');
   if (holdsHealthData(e)) reasons.push('no health data: a field in it is a health field');
   return { evidence: reasons.length ? null : e, reasons };
 }

@@ -83,6 +83,8 @@ body.ar-agents-open { overflow: hidden; }
   font-size: var(--fam-font-size-xs); font-weight: var(--fam-font-weight-extrabold);
   letter-spacing: var(--fam-font-tracking-widest); color: var(--fam-text-secondary); text-transform: uppercase;
 }
+/* An id in an eyebrow is shown as it is: a hex id or a slug uppercased is a different string. */
+.ar-eyebrow code { text-transform: none; letter-spacing: normal; }
 .ar-title {
   font-size: var(--fam-font-size-2xl); font-weight: var(--fam-font-weight-extrabold);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -544,6 +546,24 @@ select.ar-input { min-width: 132px; cursor: pointer; }
 .ar-wf-ev-type { font-size: var(--fam-font-size-sm); font-weight: var(--fam-font-weight-semibold); color: var(--fam-text-primary); }
 .ar-wf-ev-detail { flex-basis: 100%; }
 
+/* ── Approved LAB executions (AI-0.5) ──
+   A publication is a workflow drawn as AI-0.3 draws one, listed above them in
+   a group of its own. A cancelled task is a square glyph and a dotted outline;
+   a halt is the warning hairline, an operator's cancellation a neutral one. */
+.ar-wf-runs { display: flex; flex-direction: column; gap: var(--fam-space-4); }
+.ar-wf-group { display: flex; flex-direction: column; gap: var(--fam-space-2); min-width: 0; }
+.ar-wf-group + .ar-wf-group { padding-top: var(--fam-space-3); border-top: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
+.ar-wf-group-t { margin: 0; display: flex; align-items: baseline; gap: var(--fam-space-2); font-size: var(--fam-font-size-2xs); font-weight: var(--fam-font-weight-bold); letter-spacing: var(--fam-font-tracking-label); text-transform: uppercase; color: var(--fam-text-secondary); }
+.ar-wf-group-n { color: var(--fam-text-primary); font-variant-numeric: tabular-nums; }
+.ar-wf-group-note { margin: 0; font-size: var(--fam-font-size-xs); color: var(--fam-text-secondary); line-height: var(--fam-font-line-height-relaxed); overflow-wrap: anywhere; }
+.ar-wf-node--cancelled { color: var(--fam-status-warning); }
+.ar-wf-node--cancelled .ar-wf-box { stroke: currentColor; stroke-dasharray: 1 4; }
+.ar-wf-stopped { border-style: solid; border-color: var(--fam-status-warning); }
+.ar-wf-pub-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--fam-space-4); margin-top: var(--fam-space-3); align-items: start; }
+.ar-wf-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--fam-space-2); font-size: var(--fam-font-size-xs); color: var(--fam-text-secondary); }
+.ar-wf-checks li { display: flex; align-items: baseline; gap: var(--fam-space-2); }
+.ar-wf-checks .ar-chip { flex: none; }
+
 @media (max-width: 1360px) {
   .ar-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ar-side { flex-basis: 320px; }
@@ -553,7 +573,7 @@ select.ar-input { min-width: 132px; cursor: pointer; }
 @media (max-width: 1160px) {
   .ar-wf-grid { grid-template-columns: minmax(0, 1fr); }
   .ar-wf-runs ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-  .ar-wf-split { grid-template-columns: minmax(0, 1fr); }
+  .ar-wf-split, .ar-wf-pub-grid { grid-template-columns: minmax(0, 1fr); }
   .ar-table th:nth-child(5), .ar-table td:nth-child(5), .ar-table th:nth-child(6), .ar-table td:nth-child(6) { display: none; }
 }
 

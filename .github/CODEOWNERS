@@ -31,6 +31,12 @@
 # runner that keeps them out of the judging process — outside the build.
 /lab/                               @bibokh
 
+# Approved LAB execution evidence (AI-0.5): the approval record and its dossiers.
+# An entry takes effect only when the Platform Owner merges the reviewed pull
+# request that carries it; the verifier that decides what production shows.
+/src/platform/agents/published/     @bibokh
+/src/platform/agents/execution-evidence.ts @bibokh
+
 # Schema and migrations (run in production by render-start.sh)
 /prisma/                            @bibokh
 

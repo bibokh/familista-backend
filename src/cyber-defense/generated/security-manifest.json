@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-26T11:37:26.757Z",
+  "generatedAt": "2026-10-27T18:22:27.034Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 56,
-    "handlers": 762,
+    "handlers": 763,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -315,7 +315,7 @@
       {
         "path": "/system/agents",
         "module": "agents-room.routes",
-        "handlers": 3,
+        "handlers": 4,
         "public": 0,
         "routerWideAuth": true
       },
@@ -821,20 +821,20 @@
       }
     },
     "authorization": {
-      "handlers": 762,
+      "handlers": 763,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 95
+        "platform-owner": 96
       },
       "memberUnreviewed": [],
       "memberStale": [],
       "ownerRoomViolations": [],
       "byRouter": {
         "agents-room.routes": {
-          "platform-owner": 3
+          "platform-owner": 4
         },
         "ai-data-policy.routes": {
           "member": 1,
@@ -1358,6 +1358,7 @@
         "GET /system/agents": "platform-owner",
         "GET /system/agents/:agentId": "platform-owner",
         "GET /system/agents/orchestration": "platform-owner",
+        "GET /system/agents/publications": "platform-owner",
         "GET /system/algorithms": "platform-owner",
         "GET /system/algorithms/:key": "platform-owner",
         "GET /system/algorithms/:key/learning": "platform-owner",
@@ -2232,7 +2233,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "762 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 95 platform-owner; every member-level handler reviewed by name."
+      "note": "763 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 96 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",

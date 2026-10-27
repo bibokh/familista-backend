@@ -106,7 +106,13 @@ const ASSETS = [
 // Approval dossiers (src/algorithms/approvals/*.json): the evidence each CHANGE
 // approval is bound to. Data, never code; there is one per promoted version and
 // none until a candidate is promoted, so the directory is copied as it is.
-const DOSSIERS = ['src/algorithms/approvals', 'dist/algorithms/approvals'];
+// Approved LAB executions (AI-0.5, src/platform/agents/published/): the approval
+// record and one v2 dossier per publication, which the server verifies again
+// before the AI Agents Operations Room shows any of it (execution-evidence.ts).
+const DOSSIER_DIRS = [
+  ['src/algorithms/approvals', 'dist/algorithms/approvals'],
+  ['src/platform/agents/published', 'dist/platform/agents/published'],
+];
 
 let copied = 0;
 for (const [from, to] of ASSETS) {
@@ -120,8 +126,8 @@ for (const [from, to] of ASSETS) {
   fs.copyFileSync(src, dst);
   copied++;
 }
-{
-  const [from, to] = DOSSIERS.map((p) => path.join(process.cwd(), p));
+for (const pair of DOSSIER_DIRS) {
+  const [from, to] = pair.map((p) => path.join(process.cwd(), p));
   const names = fs.existsSync(from) ? fs.readdirSync(from).filter((n) => /^[a-z0-9][a-z0-9.-]*\.json$/.test(n)) : [];
   fs.mkdirSync(to, { recursive: true });
   for (const n of names) { fs.copyFileSync(path.join(from, n), path.join(to, n)); copied++; }

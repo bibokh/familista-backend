@@ -39,7 +39,8 @@ import { z } from 'zod';
 import { killSwitchEngaged, killSwitchReason, TOOLS } from '../../src/platform/intelligence/agents';
 import { currentEnvironment, type FamilistaEnvironment } from '../../src/platform/environment';
 import { deepFreeze, type AgentRegistry } from '../../src/platform/agents/registry';
-import { chainHash, digestOf, sha256, type ChainedEvent } from '../../src/platform/agents/trace-chain';
+import { chainHash, digestOf, type ChainedEvent } from '../../src/platform/agents/trace-chain';
+import { EXECUTION_GENESIS, executionIdFor, LAB_EXECUTION_CONTRACT } from '../../src/platform/agents/execution-evidence';
 import {
   evidenceDigest, verifyOrchestrationEvidence, ORCHESTRATION_EVIDENCE_CONTRACT, ORCHESTRATION_EVIDENCE_NOTICE,
   type EvidenceRun, type OrchestrationEvidence,
@@ -57,9 +58,9 @@ import { authorizeOperator, LAB_OPERATORS, type LabOperator, type OperatorRefusa
 import { recordClassOf, route } from './routing';
 import { verifyTrace } from './trace';
 
-export const EXECUTION_CONTRACT = 'familista.lab-execution/v1' as const;
-/** The execution log's first `prev`: its own contract, so it can never be mistaken for a run trace. */
-export const EXECUTION_GENESIS = sha256(EXECUTION_CONTRACT);
+/** The record's contract, its log's genesis and its id rule are production's (execution-evidence.ts), which re-checks them on publication. */
+export const EXECUTION_CONTRACT = LAB_EXECUTION_CONTRACT;
+export { EXECUTION_GENESIS, executionIdFor };
 
 export const EXECUTION_LIMITS = Object.freeze({
   maxRequestBytes: 65_536,
@@ -254,10 +255,6 @@ const firstIssue = (e: { issues: Array<{ path: PropertyKey[]; message: string }>
 const scopeText = (s: PlanScope) => (s.kind === 'CLUB' ? s.clubId : 'the platform');
 const open = (run: PlanRun) => !run.stop && run.tasks.some((t) => t.state === 'PENDING' || t.state === 'AWAITING_APPROVAL');
 const killSwitchMessage = () => `the global kill switch is engaged (${killSwitchReason() ?? 'no reason given'})`;
-
-/** The same operator and key: the same execution, always. */
-export const executionIdFor = (operatorId: string, requestId: string): string =>
-  `exec-${digestOf({ contract: EXECUTION_CONTRACT, operator: operatorId, requestId }).slice(0, 24)}`;
 
 export function securityContext(registry: AgentRegistry, operations: OperationCatalog, operators: readonly LabOperator[]): SecurityContext {
   const registryDigest = registry.digest();

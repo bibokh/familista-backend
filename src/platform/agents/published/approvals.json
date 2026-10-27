@@ -1,0 +1,5 @@
+{
+  "contract": "familista.evidence-approvals/v1",
+  "rule": "An entry takes effect only when the Platform Owner merges the reviewed pull request its reference names. No entry names who approved it: the merge is the approval.",
+  "publications": []
+}

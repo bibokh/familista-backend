@@ -11,7 +11,9 @@
  *   - its source is CSP-safe and its stylesheet reads only tokens that exist and keeps the owner rooms' layout rules;
  *   - its English, German and Arabic catalogues cover everything it says, the manifests' own titles and purposes too;
  *   - its LAB workflows (AI-0.3) draw only what the server verified: every run, task and handoff of the published
- *     evidence, each state as its own kind, nothing at all when the evidence is missing or did not verify.
+ *     evidence, each state as its own kind, nothing at all when the evidence is missing or did not verify;
+ *   - its approved LAB executions (AI-0.5) are drawn only as the server verified them: every outcome, the stop, every
+ *     governance decision, the execution log and the checks, and nothing at all of a reply that is not VERIFIED.
  * What it cannot prove (real pointer and keyboard input, layout, hit-testing, focus, CSP in a browser, axe) is proved by
  * sections 16 and 16a of tools/components/lab-browser-proof.cjs.
  */
@@ -21,6 +23,7 @@ import { operationsRoomAgent, operationsRoomOverview } from '../src/platform/age
 import { platformAgentRegistry } from '../src/platform/agents/catalog';
 import { OWNER_API_CONTRACTS } from '../src/contracts/owner-api.contracts';
 import { orchestrationRoomView, ORCHESTRATION_EVIDENCE_NOTICE } from '../src/platform/agents/orchestration-evidence';
+import { publicationsRoomView, APPROVAL_RULE, EXECUTION_EVIDENCE_NOTICE } from '../src/platform/agents/execution-evidence';
 
 const ROOT = path.resolve(__dirname, '..');
 const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -90,12 +93,12 @@ describe('read-only by construction', () => {
     expect(CODE).not.toMatch(/\b(XMLHttpRequest|sendBeacon|WebSocket|EventSource)\b/);
   });
 
-  it('asks for the registry, one manifest and the LAB evidence, and for nothing else', () => {
+  it('asks for the registry, one manifest, the LAB evidence and the approved executions, and for nothing else', () => {
     const calls = [...CODE.matchAll(/\bapi\(('[^']*'(?: \+ encodeURIComponent\(id\))?|[a-z]+)\)/g)].map((m) => m[1]).filter((a) => a !== 'path');
     expect(CODE.match(/\bapi\(/g)).toHaveLength(calls.length + 1); // + its definition: no other call reaches the reader
-    expect(calls.sort()).toEqual(["'/system/agents'", "'/system/agents/' + encodeURIComponent(id)", "'/system/agents/orchestration'"].sort());
+    expect(calls.sort()).toEqual(["'/system/agents'", "'/system/agents/' + encodeURIComponent(id)", "'/system/agents/orchestration'", "'/system/agents/publications'"].sort());
     expect(CODE).not.toContain('kill-switch');
-    expect(CODE).not.toMatch(/data-ar-(kill|engage|activate|start|stop|run)/);
+    expect(CODE).not.toMatch(/data-ar-(kill|engage|activate|start|stop|run|approve|publish|prepare|merge)/);
   });
 
   it('draws the kill switch as a state only, as the registry endpoint reports it', () => {
@@ -105,7 +108,7 @@ describe('read-only by construction', () => {
 
   it('is covered by the owner API contract, in both directions', () => {
     const mine = OWNER_API_CONTRACTS.filter((c) => c.consumer === 'public/agents-room/agents-room.js').map((c) => c.endpoint);
-    expect(mine).toEqual(['/system/agents', '/system/agents/club.tactical', '/system/agents/orchestration']);
+    expect(mine).toEqual(['/system/agents', '/system/agents/club.tactical', '/system/agents/orchestration', '/system/agents/publications']);
   });
 });
 
@@ -120,8 +123,11 @@ type Room = {
   region: (sel: string) => string; paints: (sel: string) => number;
   calls: string[]; missing: () => string[];
 };
-/** `orch` answers /system/agents/orchestration; `regions` gives the room the view and workflow regions it repaints in place. */
-type RoomOpts = { orch?: unknown; regions?: boolean; lang?: string };
+/**
+ * `orch` answers /system/agents/orchestration and `pub` /system/agents/publications (by default what this build
+ * ships: verified, and empty); `regions` gives the room the view and workflow regions it repaints in place.
+ */
+type RoomOpts = { orch?: unknown; pub?: unknown; regions?: boolean; lang?: string };
 
 function runRoom(overview: unknown, detail?: (id: string) => unknown, locale?: Record<string, string>, opts: RoomOpts = {}): Promise<Room> {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -156,6 +162,7 @@ function runRoom(overview: unknown, detail?: (id: string) => unknown, locale?: R
       calls.push(String(u).replace(/^.*\/system\//, '/system/'));
       const m = /\/system\/agents\/(.+)$/.exec(String(u));
       if (m && m[1] === 'orchestration') return reply(opts.orch ?? null);
+      if (m && m[1] === 'publications') return reply(opts.pub === undefined ? JSON.parse(JSON.stringify(publicationsRoomView(platformAgentRegistry()))) : opts.pub);
       return m ? reply(detail ? detail(decodeURIComponent(m[1])) : null) : reply(overview);
     },
     Intl, console, Promise, Object, Array, String, Number, Date, Math, JSON, isFinite, encodeURIComponent, decodeURIComponent,
@@ -378,7 +385,7 @@ describe('English, German and Arabic — one catalogue each, in step', () => {
   });
 
   it('covers every literal the room passes through T(), tf() and its helpers', () => {
-    const calls = [...CODE.matchAll(/\b(?:T|tf|panel|kv|emptyState|cell|th|td|chip\([^,]+,)\(\s*'((?:[^'\\]|\\.)*)'/g)].map((m) => m[1].replace(/\\'/g, "'"));
+    const calls = [...CODE.matchAll(/\b(?:T|tf|panel|kv|emptyState|groupNote|cell|th|td|chip\([^,]+,)\(\s*'((?:[^'\\]|\\.)*)'/g)].map((m) => m[1].replace(/\\'/g, "'"));
     const pairs = [...CODE.matchAll(/\b(?:tab|select)\('[^']+',\s*'((?:[^'\\]|\\.)*)'(?:,\s*'((?:[^'\\]|\\.)*)')?/g)].flatMap((m) => [m[1], m[2]]).filter(Boolean) as string[];
     const ternary = [...CODE.matchAll(/\bT\([^()']*\?\s*'((?:[^'\\]|\\.)*)'\s*:\s*'((?:[^'\\]|\\.)*)'\)/g)].flatMap((m) => [m[1], m[2]]);
     const keys = [...new Set([...calls, ...pairs, ...ternary])].filter((k) => /[A-Za-z]{2}/.test(k));
@@ -390,7 +397,7 @@ describe('English, German and Arabic — one catalogue each, in step', () => {
   it('covers every label and meaning held in the room’s vocabulary maps', () => {
     const names = ['DOMAIN_LABEL', 'SCOPE_LABEL', 'SCOPE_MEANING', 'LIFECYCLE_LABEL', 'LIFECYCLE_MEANING', 'ENV_LABEL', 'CLASS_LABEL',
       'RECORD_CLASS_LABEL', 'RECORD_TYPE_LABEL', 'EFFECT_LABEL', 'AUTONOMY_LABEL', 'ROLE_LABEL', 'INVARIANT_LABEL',
-      'STATE_LABEL', 'STATE_MEANING', 'OUTCOME_LABEL', 'TRACE_LABEL', 'CODE_LABEL'];
+      'STATE_LABEL', 'STATE_MEANING', 'OUTCOME_LABEL', 'TRACE_LABEL', 'CODE_LABEL', 'LOG_LABEL', 'CHECK_LABEL'];
     const values = names.flatMap((n) => [...objectLiteral(JS, n).matchAll(/:\s*'((?:[^'\\]|\\.)*)'/g)].map((x) => x[1].replace(/\\'/g, "'")));
     expect(values.length).toBeGreaterThan(70);
     expect(values.filter((v) => !(v in en))).toEqual([]);
@@ -451,7 +458,7 @@ describe('LAB workflows (AI-0.3): what the LAB orchestrator decided, drawn only 
     const room = await runRoom(real(), undefined, undefined, { orch: verified(), regions: true });
     expect(room.calls).toEqual(['/system/agents']);
     await room.click(on('[data-ar-view]', { 'data-ar-view': 'workflows' }));
-    expect(room.calls).toEqual(['/system/agents', '/system/agents/orchestration']);
+    expect(room.calls).toEqual(['/system/agents', '/system/agents/orchestration', '/system/agents/publications']);
   });
 
   it('lists every published run, and draws every task of the first as a node and every dependency as an edge', async () => {
@@ -570,5 +577,152 @@ describe('LAB workflows (AI-0.3): what the LAB orchestrator decided, drawn only 
     }
     expect(room.missing()).toEqual([]);
     expect(room.region('#ar-view')).toContain(dict['LAB workflow']);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('approved LAB executions (AI-0.5): drawn only as the server verified them', () => {
+  const en = json('public/agents-room/i18n/en.json') as Record<string, string>;
+  /** What the room WOULD draw were every gallery execution approved: the Lab's rehearsal (lab:publish -- gallery). None is. */
+  const gallery = () => json('tests/fixtures/agents/publications-room-view.json');
+  const shipped = () => JSON.parse(JSON.stringify(publicationsRoomView(platformAgentRegistry())));
+  const pubButtons = (h: string) => [...h.matchAll(/data-ar-wf="x:(pub-[0-9a-f]{24})"/g)].map((m) => m[1]);
+  const taskNodes = (h: string) => [...h.matchAll(/<g class="ar-wf-node ar-wf-node--([a-z]+)[^"]*"[^>]*data-ar-task="([^"]+)"/g)].map((m) => ({ kind: m[1], id: m[2] }));
+  const open = async (pub: unknown, locale?: Record<string, string>, lang?: string) => {
+    const room = await runRoom(real(), (id) => operationsRoomAgent(id), locale, { orch: JSON.parse(JSON.stringify(orchestrationRoomView(platformAgentRegistry()))), pub, regions: true, lang });
+    await room.click(on('[data-ar-view]', { 'data-ar-view': 'workflows' }));
+    return room;
+  };
+  type Pub = { publicationId: string; reference: string; dossierDigest: string; evidence: { run: { outcome: string; stop: { code: string } | null; tasks: Array<{ id: string; state: string }> }; log: Array<{ type: string; code: string | null }>; plan: { title: string } } };
+
+  it('this build ships none: the group says so, with the rule, and the AI-0.3 workflows are drawn as before', async () => {
+    const v = shipped();
+    expect([v.state, v.publications.length, v.unapproved]).toEqual(['VERIFIED', 0, []]);
+    const h = (await open(v)).region('#ar-view');
+    expect(h).toContain('Approved LAB executions');
+    expect(h).toContain('No LAB execution has been approved for publication yet.');
+    expect(h).toContain(APPROVAL_RULE);
+    expect(pubButtons(h)).toEqual([]);
+    expect(h).toContain('LAB workflow'); // the first AI-0.3 run is the one drawn
+  });
+
+  it('lists every approved execution first, and draws the first: its approval, its checks, its log', async () => {
+    const v = gallery();
+    const h = (await open(v)).region('#ar-view');
+    expect(pubButtons(h)).toEqual(v.publications.map((p: Pub) => p.publicationId));
+    const first = v.publications[0] as Pub;
+    expect(h).toContain('Approved LAB execution');
+    expect(h).toContain(first.reference);
+    expect(h).toContain(first.dossierDigest.slice(0, 16));
+    expect(h).toContain('Approved for publication');
+    expect(h).toContain(EXECUTION_EVIDENCE_NOTICE);
+    expect(h).toContain('Submitted by (synthetic LAB operator, not an approver)');
+    for (const c of v.checks) expect(h).toContain(c.detail);
+    expect(h).toContain('Execution log');
+    expect(h).toContain('The submitter may not approve'); // the head coach's own approval, refused and recorded
+  });
+
+  it('draws every outcome, every stop and every cancelled task as its own kind', async () => {
+    const v = gallery();
+    const room = await open(v);
+    const outcomes = new Set<string>();
+    const kinds = new Set<string>();
+    for (const p of v.publications as Pub[]) {
+      await room.click(on('[data-ar-wf]', { 'data-ar-wf': `x:${p.publicationId}` }));
+      const h = room.region('#ar-view');
+      const r = p.evidence.run;
+      outcomes.add(r.outcome);
+      const drawn = taskNodes(h);
+      expect([p.publicationId, drawn.map((n) => n.id)]).toEqual([p.publicationId, r.tasks.map((t) => t.id)]);
+      drawn.forEach((n) => kinds.add(n.kind));
+      expect(drawn.filter((n) => n.kind === 'cancelled').map((n) => n.id)).toEqual(r.tasks.filter((t) => t.state === 'CANCELLED').map((t) => t.id));
+      if (r.outcome === 'HALTED') expect(h).toContain('Halted by governance before it finished');
+      if (r.outcome === 'CANCELLED') expect(h).toContain('Cancelled by an operator before it finished');
+      if (r.stop?.code === 'KILL_SWITCH') { expect(h).toContain('Kill switch'); expect(h).toContain('Decision refused'); }
+      if (r.stop?.code === 'EXECUTION_LIMIT') expect(h).toContain('Execution limit reached');
+      if (p.evidence.log.some((e) => e.type === 'CANCEL_REFUSED')) expect(h).toContain('Cancellation refused');
+      if (!r.stop) expect(h).not.toContain('ar-wf-stopped');
+    }
+    expect([...outcomes].sort()).toEqual(['AWAITING_APPROVAL', 'CANCELLED', 'COMPLETED', 'HALTED', 'PARTIAL']);
+    expect([...kinds].sort()).toEqual(['approval', 'cancelled', 'done', 'failed', 'rejected', 'skipped']);
+  });
+
+  it('counts every refusal the log records, the orchestrator\'s included: a cross-club approval refused is "Refused: 1"', async () => {
+    const v = gallery();
+    const p = v.publications.find((x: Pub) => x.evidence.run.outcome === 'AWAITING_APPROVAL');
+    expect(p.evidence.log.filter((e: { type: string; code: string | null }) => e.type === 'DECISION_SUBMITTED' && e.code === 'REFUSED')).toHaveLength(1);
+    const room = await open(v);
+    await room.click(on('[data-ar-wf]', { 'data-ar-wf': `x:${p.publicationId}` }));
+    const h = room.region('#ar-view');
+    expect(h).toContain('Decisions: 1 · Refused: 1');
+    expect(h).toMatch(/ar-chip--blocked[^>]*><span class="ar-dot" aria-hidden="true"><\/span>Refused</);
+  });
+
+  it('negative: even if a reply that is not VERIFIED carried publications, none is drawn', async () => {
+    for (const state of ['INVALID', 'NOT_GENERATED']) {
+      const h = (await open({ ...gallery(), state, reason: 'publication pub-0: integrity: tampered' })).region('#ar-view');
+      expect(pubButtons(h)).toEqual([]);
+      expect(h).toContain(state === 'INVALID' ? 'The approved executions did not verify, so none of them is shown' : 'No approval record is beside this server');
+      expect(h).toContain('LAB workflow'); // the AI-0.3 evidence is still drawn: one failing does not take the other down
+    }
+  });
+
+  it('negative: a reply that breaks its contract names what is missing, offers to try again, and draws nothing of it', async () => {
+    const v = gallery();
+    delete v.rule;
+    const room = await open(v);
+    const h = room.region('#ar-view');
+    expect(h).toContain('rule');
+    expect(h).toContain('data-ar-pub-retry');
+    expect(pubButtons(h)).toEqual([]);
+    const asked = () => room.calls.filter((c) => c === '/system/agents/publications').length;
+    expect(asked()).toBe(1);
+    await room.click(on('[data-ar-pub-retry]', {}));
+    expect(asked()).toBe(2);
+  });
+
+  it('says how many dossiers sit beside the record without an approval, and shows none of them', async () => {
+    const h = (await open({ ...shipped(), unapproved: ['pub-0123456789abcdef01234567'] })).region('#ar-view');
+    expect(h).toContain('Without approval: 1');
+    expect(pubButtons(h)).toEqual([]);
+    expect(h).not.toContain('pub-0123456789abcdef01234567');
+  });
+
+  it('prints hostile publication text as text: a title, a stop, a log detail, a reference', async () => {
+    const v = gallery();
+    const p = v.publications.find((x: Pub) => x.evidence.run.stop);
+    p.evidence.plan.title = PAYLOAD;
+    p.evidence.run.stop.message = PAYLOAD;
+    p.evidence.log[0].detail = PAYLOAD;
+    p.reference = PAYLOAD;
+    const room = await open(v);
+    await room.click(on('[data-ar-wf]', { 'data-ar-wf': `x:${p.publicationId}` }));
+    const all = room.region('#ar-view');
+    expect(all).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(all).not.toMatch(/<(img|script)\b/);
+    expect(all).not.toContain(PAYLOAD);
+  });
+
+  it('carries every sentence the server writes for a publication, and every title it carries, into the catalogue', () => {
+    const v = gallery();
+    const texts = [v.notice, v.rule, ...v.checks.map((c: { detail: string }) => c.detail),
+      ...v.publications.flatMap((p: Pub & { evidence: { operations: Array<{ title: string }> } }) => [p.evidence.plan.title, ...p.evidence.operations.map((o) => o.title)])]
+      .map((t: string) => t.replace(/\d+/g, '%d'));
+    expect(texts.filter((k: string) => !(k in en))).toEqual([]);
+  });
+
+  it.each(['de', 'ar'])('%s: every publication, task and log view asks the catalogue for nothing it does not hold', async (tag) => {
+    const dict = json(`public/agents-room/i18n/${tag}.json`) as Record<string, string>;
+    const v = gallery();
+    const room = await open(v, dict, tag);
+    for (const p of v.publications as Pub[]) {
+      await room.click(on('[data-ar-wf]', { 'data-ar-wf': `x:${p.publicationId}` }));
+      for (const t of p.evidence.run.tasks) await room.click(on('[data-ar-task]', { 'data-ar-task': t.id }));
+      await room.click(on('[data-ar-trace]', { 'data-ar-trace': 'task' }));
+    }
+    expect(room.missing()).toEqual([]);
+    const h = room.region('#ar-view');
+    expect(h).toContain(dict['Approved LAB execution']);
+    expect(h).toContain(dict['Verification and publication']);
   });
 });

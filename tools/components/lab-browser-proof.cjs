@@ -3474,6 +3474,17 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
         return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
       });
     }
+    // The approved executions (AI-0.5) as the server answers them, edited or replaced on purpose — the Lab's rehearsed gallery
+    // stands in for approvals the server would only ever hold after the Platform Owner's merge. Read once, answered from that copy.
+    if (opts.pub) {
+      let first = null;
+      await ctx.route(/\/api\/v1\/system\/agents\/publications(\?|$)/, async (r) => {
+        if (!first) first = await (await r.fetch()).json();
+        const body = JSON.parse(JSON.stringify(first));
+        body.data = opts.pub(body.data);
+        return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+      });
+    }
     if (!opts.anonymous) await ctx.addCookies([{ name: 'access_token', value: opts.token || token, domain: '127.0.0.1', path: '/', httpOnly: true }]);
     await ctx.addInitScript((pre) => {
       window.__csp = [];
@@ -3749,7 +3760,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     const coachFiles = coach.log.requests.filter((r) => r.p.startsWith('/agents-room/')).map((r) => r.p);
     const coachApi = coach.log.requests.filter((r) => r.p.startsWith('/api/v1/system/agents')).map((r) => r.p);
     // And the server itself, asked directly by the coach's session: the room's guard is the server's, not the page's.
-    const coachAsked = await coach.page.evaluate(() => Promise.all(['/api/v1/system/agents', '/api/v1/system/agents/club.medical', '/api/v1/system/agents/orchestration'].map((u) => fetch(u, { credentials: 'include' }).then((r) => r.status))));
+    const coachAsked = await coach.page.evaluate(() => Promise.all(['/api/v1/system/agents', '/api/v1/system/agents/club.medical', '/api/v1/system/agents/orchestration', '/api/v1/system/agents/publications'].map((u) => fetch(u, { credentials: 'include' }).then((r) => r.status))));
     await coach.ctx.close();
     CURRENT = OWNER;
     const anon = await openRoom({ width: 1440, height: 900 }, { wait: false, anonymous: true });
@@ -3757,8 +3768,8 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     const anonSaw = await anon.page.evaluate(() => ({ open: !!document.querySelector('#pg-agents-room.active'), render: typeof window.renderFamilistaAgentsRoom }));
     const anonFiles = anon.log.requests.filter((r) => r.p.startsWith('/agents-room/')).map((r) => r.p);
     await anon.ctx.close();
-    check('agents room access: a club role who types #agents-room is sent away and nobody signed in reaches it either: the room never opens and none of its files is fetched, and the server answers the coach 403 on all three endpoints, the LAB evidence included',
-      !coachSaw.open && coachSaw.render === 'undefined' && !coachSaw.map && coachFiles.length === 0 && coachApi.length === 0 && sameJson(coachAsked, [403, 403, 403])
+    check('agents room access: a club role who types #agents-room is sent away and nobody signed in reaches it either: the room never opens and none of its files is fetched, and the server answers the coach 403 on all four endpoints, the LAB evidence and the approved executions included',
+      !coachSaw.open && coachSaw.render === 'undefined' && !coachSaw.map && coachFiles.length === 0 && coachApi.length === 0 && sameJson(coachAsked, [403, 403, 403, 403])
         && !anonSaw.open && anonSaw.render === 'undefined' && anonFiles.length === 0,
       { coachSaw, coachFiles, coachApi, coachAsked, anonSaw, anonFiles });
 
@@ -3821,6 +3832,21 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     await page.waitForFunction((x) => { const b = document.querySelector('.ar-wf-run.is-on'); return b && b.getAttribute('data-ar-wf') === x; }, id, { timeout: 10000 });
   }
   const askedForEvidence = (log) => log.requests.filter((r) => r.o === BASE && r.p === '/api/v1/system/agents/orchestration').length;
+  // AI-0.5: the Lab's rehearsed gallery — one execution per outcome — as the room would be sent it were each approved. None is.
+  const GALLERY = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests/fixtures/agents/publications-room-view.json'), 'utf8'));
+  const gallery = () => JSON.parse(JSON.stringify(GALLERY));
+  const PUB_KIND = Object.assign({}, WF_KIND, { CANCELLED: 'cancelled' });
+  const askedForPublications = (log) => log.requests.filter((r) => r.o === BASE && r.p === '/api/v1/system/agents/publications').length;
+  const pubDrawn = (page) => page.evaluate(() => [...document.querySelectorAll('.ar-wf-runs [data-ar-wf^="x:"]')].map((b) => b.getAttribute('data-ar-wf').slice(2)));
+  const kindSignature = (page) => page.evaluate(() => {
+    const out = {};
+    for (const n of document.querySelectorAll('.ar-wf-node')) {
+      const kind = (/ar-wf-node--([a-z]+)/.exec(n.getAttribute('class')) || [])[1];
+      const g = [...n.querySelectorAll('.ar-wf-g')];
+      out[kind] = getComputedStyle(n.querySelector('.ar-wf-box')).strokeDasharray + '|' + g.map((x) => x.tagName).join('+') + '|' + getComputedStyle(n).color;
+    }
+    return out;
+  });
 
   if (want('16')) {
     const { ctx, page, log } = await openRoom({ width: 1440, height: 900 });
@@ -3939,7 +3965,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
 
     // ── control: a broken reply re-asked on every repaint is caught by the same count ──
     const loop = await openRoom({ width: 1440, height: 900 }, { orch: (d) => { delete d.notice; return d; },
-      roomPatch: (src) => src.replace('if (AR.wf || AR.wfLoading || AR.wfError) return;', 'if (AR.wf || AR.wfLoading) return;') });
+      roomPatch: (src) => src.replace('if (!AR.wf && !AR.wfLoading && !AR.wfError) reads.push(loadOrchestration());', 'if (!AR.wf && !AR.wfLoading) reads.push(loadOrchestration());') });
     await openWorkflows(loop.page);
     await loop.page.waitForTimeout(1500);
     const looped = askedForEvidence(loop.log);
@@ -3988,6 +4014,112 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     await ph.ctx.close();
     check('agents room workflows phone: at 390 px the workflows draw every run and the chosen run\'s tasks, and the page does not scroll sideways',
       phSaw.overflow <= 0 && phSaw.nodes === first.tasks.length && phSaw.runs === ev.runs.length, phSaw);
+
+    // ── Approved LAB executions (AI-0.5): what this build approved — nothing — and then, with the Lab's rehearsed gallery
+    // standing in for approvals (SIMULATED: none of it is approved), every outcome, stop and governance event as the
+    // answer says. A reply that did not verify or broke its contract draws none of it. Controls break each on purpose.
+    const sh = await openRoom({ width: 1440, height: 900 });
+    const shipped = await sh.page.evaluate(() => fetch('/api/v1/system/agents/publications', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()).then((b) => b.data));
+    await openWorkflows(sh.page);
+    const shText = await sh.page.evaluate(() => document.querySelector('.ar-wf-runs').textContent.replace(/\s+/g, ' '));
+    const shDrawn = await pubDrawn(sh.page);
+    const shAsked = askedForPublications(sh.log);
+    const shT = roomTraffic(sh.log);
+    await sh.ctx.close();
+    check('agents room publications shipped: the server answers that this build approved no LAB execution, the room says so with the rule that would change it, draws none, and read it by GET once',
+      shipped.state === 'VERIFIED' && shipped.publications.length === 0 && shipped.unapproved.length === 0 && /No LAB execution has been approved for publication yet/.test(shText)
+        && /the merge is the approval/.test(shText) && shDrawn.length === 0 && shAsked === 2 && shT.writes.length === 0,
+      { state: shipped.state, n: shipped.publications.length, drawn: shDrawn, asked: shAsked, writes: shT.writes });
+
+    const gal = await openRoom({ width: 1440, height: 900 }, { pub: gallery });
+    await openWorkflows(gal.page);
+    const galIds = await pubDrawn(gal.page);
+    const galOn = (await wfDrawn(gal.page)).on;
+    const wrongPub = [];
+    const pubSig = {};
+    for (const p of GALLERY.publications) {
+      await chooseRun(gal.page, 'x:' + p.publicationId);
+      const d = await wfDrawn(gal.page);
+      const r = p.evidence.run;
+      const text = await gal.page.evaluate(() => document.querySelector('.ar-wf-main').textContent.replace(/\s+/g, ' '));
+      const want = [p.reference, 'Verification and publication', 'Execution log', 'Approvals and governance', 'not an approver'];
+      if (r.stop) want.push(r.stop.outcome === 'HALTED' ? 'Halted by governance before it finished' : 'Cancelled by an operator before it finished');
+      if (r.stop && r.stop.code === 'KILL_SWITCH') want.push('Kill switch');
+      if (r.stop && r.stop.code === 'EXECUTION_LIMIT') want.push('Execution limit reached');
+      if (p.evidence.log.some((e) => e.code === 'SELF_APPROVAL')) want.push('The submitter may not approve');
+      if (p.evidence.log.some((e) => e.type === 'CANCEL_REFUSED')) want.push('Cancellation refused');
+      const checks = await gal.page.evaluate(() => document.querySelectorAll('.ar-wf-checks li').length);
+      const missingText = want.filter((w) => !text.includes(w));
+      if (!sameJson(d.nodes, r.tasks.map((t) => t.id + ':' + PUB_KIND[t.state])) || !sameJson(d.edges, wantEdges(r)) || missingText.length || checks !== GALLERY.checks.length) {
+        wrongPub.push({ pub: p.publicationId, outcome: r.outcome, nodes: d.nodes, missingText, checks });
+      }
+      Object.assign(pubSig, await kindSignature(gal.page));
+    }
+    const pubKinds = Object.keys(pubSig).sort();
+    const galT = roomTraffic(gal.log);
+    const galCsp = await arCsp(gal.page);
+    check('agents room publications states (SIMULATED approvals: the Lab\'s rehearsed gallery): every publication is listed above the LAB workflows and the first is drawn; each, chosen by a real click, draws its tasks as their states, its handoffs as recorded, its stop, its governance decisions, its execution log, its approval reference and every server check; and a cancelled task is drawn with an outline, a glyph and a colour of its own',
+      sameJson(galIds, GALLERY.publications.map((p) => p.publicationId)) && galOn === 'x:' + GALLERY.publications[0].publicationId && wrongPub.length === 0
+        && sameJson(pubKinds, ['approval', 'cancelled', 'done', 'failed', 'rejected', 'skipped']) && new Set(Object.values(pubSig)).size === pubKinds.length,
+      { galIds: galIds.length, galOn, wrong: wrongPub, pubSig });
+    check('agents room publications read-only: every request the room made for them was a GET of /system/agents/publications, made once; nothing was written anywhere under /system; no control publishes, approves or merges; no CSP violation or script error',
+      galT.writes.length === 0 && galT.room.filter((x) => /publications/.test(x)).every((x) => x === 'GET /api/v1/system/agents/publications') && askedForPublications(gal.log) === 1
+        && (await gal.page.$$('[data-ar-publish], [data-ar-approve], [data-ar-prepare], [data-ar-merge]')).length === 0 && galCsp.room === 0 && galCsp.unexplained.length === 0 && gal.log.errors.length === 0,
+      { galT, galCsp, errors: gal.log.errors.slice(0, 5) });
+    await gal.ctx.close();
+
+    const kindCtl = await openRoom({ width: 1440, height: 900 }, { pub: gallery, roomPatch: (src) => src.replace("REFUSED: 'blocked', CANCELLED: 'cancelled' };", "REFUSED: 'blocked', CANCELLED: 'skipped' };") });
+    await openWorkflows(kindCtl.page);
+    const ctlSig = {};
+    for (const p of GALLERY.publications) { await chooseRun(kindCtl.page, 'x:' + p.publicationId); Object.assign(ctlSig, await kindSignature(kindCtl.page)); }
+    await kindCtl.ctx.close();
+    check('agents room publications states (control): a room that draws a cancelled task as a skipped one fails the told-apart proof above, so it can fail', !('cancelled' in ctlSig), Object.keys(ctlSig));
+
+    const pbad = await openRoom({ width: 1440, height: 900 }, { pub: () => Object.assign(gallery(), { state: 'INVALID', reason: 'publication pub-0: integrity: the dossier\'s digest is not the digest of its content' }) });
+    await openWorkflows(pbad.page);
+    const pbadSaw = await pbad.page.evaluate(() => ({ text: document.querySelector('.ar-view').textContent, pubs: document.querySelectorAll('[data-ar-wf^="x:"]').length, nodes: document.querySelectorAll('.ar-wf-node').length }));
+    await pbad.ctx.close();
+    const pbroke = await openRoom({ width: 1440, height: 900 }, { pub: () => { const d = gallery(); delete d.rule; return d; } });
+    await openWorkflows(pbroke.page);
+    await pbroke.page.waitForTimeout(1500);
+    const pbrokeSaw = await pbroke.page.evaluate(() => ({ text: document.querySelector('.ar-wf-runs').textContent, retry: !!document.querySelector('[data-ar-pub-retry]'), pubs: document.querySelectorAll('[data-ar-wf^="x:"]').length }));
+    const pbrokeAsked = askedForPublications(pbroke.log);
+    await pbroke.page.click('[data-ar-pub-retry]');
+    await pbroke.page.waitForTimeout(800);
+    const pbrokeRetried = askedForPublications(pbroke.log);
+    await pbroke.ctx.close();
+    check('agents room publications unverified: a reply that says they did not verify draws none of them even when it carries them, and the LAB workflows are still drawn; a reply that breaks its contract names what is missing, offers to try again, and is asked for once, not again on its own',
+      /did not verify, so none of them is shown/.test(pbadSaw.text) && pbadSaw.pubs === 0 && pbadSaw.nodes === first.tasks.length
+        && /rule/.test(pbrokeSaw.text) && pbrokeSaw.retry && pbrokeSaw.pubs === 0 && pbrokeAsked === 1 && pbrokeRetried === 2,
+      { pbadSaw: { pubs: pbadSaw.pubs, nodes: pbadSaw.nodes }, pbrokeSaw: { retry: pbrokeSaw.retry, pubs: pbrokeSaw.pubs }, pbrokeAsked, pbrokeRetried });
+    const ploop = await openRoom({ width: 1440, height: 900 }, { pub: () => { const d = gallery(); delete d.rule; return d; },
+      roomPatch: (src) => src.replace('if (!AR.pub && !AR.pubLoading && !AR.pubError) reads.push(loadPublications());', 'if (!AR.pub && !AR.pubLoading) reads.push(loadPublications());') });
+    await openWorkflows(ploop.page);
+    await ploop.page.waitForTimeout(1500);
+    const plooped = askedForPublications(ploop.log);
+    await ploop.ctx.close();
+    check('agents room publications unverified (control): a room that asks again whenever the reply was refused fails the asked-once proof above, so it can fail', plooped > 2, { asked: plooped });
+
+    const pl = {};
+    for (const loc of ['de', 'ar']) {
+      const s = await openRoom({ width: 1440, height: 900 }, { locale: loc, pub: gallery });
+      await openWorkflows(s.page);
+      for (const p of GALLERY.publications) {
+        await chooseRun(s.page, 'x:' + p.publicationId);
+        for (const t of p.evidence.run.tasks) await s.page.click('.ar-wf-node[data-ar-task="' + t.id + '"] .ar-wf-box');
+      }
+      pl[loc] = await s.page.evaluate(() => ({ missing: window.__familistaAgentsRoomMissing(), dir: document.getElementById('ar-root').getAttribute('dir'),
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
+      pl[loc].errors = s.log.errors.slice(0, 3);
+      await s.ctx.close();
+    }
+    const pph = await openRoom({ width: 390, height: 844 }, { pub: gallery });
+    await openWorkflows(pph.page);
+    const pphSaw = await pph.page.evaluate(() => ({ overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, pubs: document.querySelectorAll('[data-ar-wf^="x:"]').length }));
+    await pph.ctx.close();
+    check('agents room publications languages and phone: in German and in Arabic every string drawn across every publication and task is in its catalogue, Arabic runs right to left, and neither — nor a 390 px phone — scrolls sideways',
+      pl.de.missing.length === 0 && pl.ar.missing.length === 0 && pl.de.dir === 'ltr' && pl.ar.dir === 'rtl' && pl.de.overflow <= 0 && pl.ar.overflow <= 0
+        && pl.de.errors.length === 0 && pl.ar.errors.length === 0 && pphSaw.overflow <= 0 && pphSaw.pubs === GALLERY.publications.length, { pl, pphSaw });
   }
 
   if (WANT_AXE && want('16a')) {
@@ -4022,6 +4154,20 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
         wfFound.task = await axeRoom(s.page);
         check(`agents room workflows under axe (${loc}): a LAB workflow and a chosen task, with its detail and trace, have 0 violations (WCAG 2.2 A/AA)`,
           wfFound.workflow.length === 0 && wfFound.task.length === 0, wfFound);
+        // AI-0.5, with the Lab's rehearsed gallery standing in for approvals: the halted execution, and a cancelled task in it.
+        const ps = await openRoom({ width: 1440, height: 900 }, { locale: loc, pub: () => JSON.parse(fs.readFileSync(path.join(ROOT, 'tests/fixtures/agents/publications-room-view.json'), 'utf8')) });
+        await ps.page.click('#ar-tab-workflows');
+        await ps.page.waitForSelector('[data-ar-wf^="x:"]', { timeout: 15000 });
+        const halted = await ps.page.evaluate(() => { const b = [...document.querySelectorAll('[data-ar-wf^="x:"]')]; return b.length ? b[b.length - 2].getAttribute('data-ar-wf') : null; });
+        await ps.page.click('[data-ar-wf="' + halted + '"]');
+        await ps.page.waitForSelector('.ar-wf-stopped', { timeout: 10000 });
+        const pubFound = { publication: await axeRoom(ps.page) };
+        await ps.page.click('.ar-wf-node--cancelled .ar-wf-box');
+        await ps.page.waitForTimeout(200);
+        pubFound.cancelled = await axeRoom(ps.page);
+        await ps.ctx.close();
+        check(`agents room publications under axe (${loc}): a halted approved execution — its stop, governance, log and checks — and a cancelled task in it have 0 violations (WCAG 2.2 A/AA)`,
+          pubFound.publication.length === 0 && pubFound.cancelled.length === 0, pubFound);
         if (loc === 'en') {
           await s.page.evaluate(() => { const b = document.createElement('button'); b.type = 'button'; document.querySelector('.ar-top-r').appendChild(b); });
           const v = await axeRoom(s.page);

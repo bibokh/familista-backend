@@ -150,6 +150,89 @@ The AI-0.3 evidence keeps to `labOperations()`. Controlled execution routes over
 `labExecutionOperations()`, which adds the club manager's staff notice
 (`sendNotification`, an action that waits for a person).
 
+## Approved evidence publication (AI-0.5)
+
+A controlled execution can become something the AI Agents Operations Room
+shows. It does so only as v2 evidence, and only after the Platform Owner
+approves it by merging the pull request that carries it.
+
+```
+FAMILISTA_ENV=LAB npm run lab:publish -- candidate <execution-id>      # writes nothing
+FAMILISTA_ENV=LAB npm run lab:publish -- prepare <execution-id> --reference bibokh/familista-backend#<pr>
+FAMILISTA_ENV=LAB npm run lab:publish -- verify                         # the directory, read as the server reads it
+FAMILISTA_ENV=LAB npm run lab:publish -- rehearse <execution-id>        # prepare → verify in a throwaway directory
+FAMILISTA_ENV=LAB npm run lab:publish -- demo                           # end to end, stopping at the owner's boundary
+```
+
+**The pipeline** runs in this order:
+
+1. The record is verified by the Lab's own rule (`verifyExecution`).
+2. It is projected into one dossier, `familista.orchestration-evidence/v2`. The
+   dossier carries what was decided, never an input or an output:
+   - the routing;
+   - every task transition and handoff;
+   - the decisions;
+   - the stop;
+   - both chains, the run trace and the execution log;
+   - the security context's digests.
+3. Production's verifier (`src/platform/agents/execution-evidence.ts`) must
+   accept the dossier.
+4. `prepare` writes the dossier and an entry in
+   `src/platform/agents/published/approvals.json` for the pull request named. It
+   then reads the directory back exactly as the server will.
+
+**The approval is the merge.** An entry names its:
+- publication;
+- execution;
+- dossier file and digest;
+- pull request.
+
+It never names who approved it.
+
+- **An entry that claims an approver is refused.** That includes any
+  `approvedBy`, `owner`, `signature` or `approvedAt`, because a typed name
+  proves nothing. The AI-0.4 operator name is not authenticated either.
+- **The tool cannot approve.** It has no `approve` and no `publish` command, and
+  it refuses any flag that names an approver.
+- **The boundary is GitHub's.** The approval is the Platform Owner's review and
+  merge of the reviewed pull request, with the directory code-owned in
+  `.github/CODEOWNERS`. It is not cryptographic owner authentication.
+- **Until the merge, production shows nothing.** The build it runs holds no
+  entry.
+
+**The server shows a publication only if all of this holds:**
+- the record lists it exactly once, with that digest, for a pull request of this
+  repository;
+- the dossier verifies as a whole, on every one of these points:
+  - its version;
+  - its strict shape;
+  - its digest and derived ids;
+  - both hash chains, and the log's commitment to the trace;
+  - every state, agent, decision and stop against the chains;
+  - an outcome that follows from its tasks;
+  - its governance: no self-approval, no medical approval, every kill-switch
+    refusal halted;
+  - synthetic data only;
+  - every agent and tool registered.
+
+Anything else makes the whole read `INVALID`, and nothing is shown. The other
+cases:
+- **A dossier with no entry** is listed as unapproved, and is never read.
+- **A rehearsal** uses `#9999999`, a pull request that cannot exist. The server
+  refuses it.
+
+**What the chains do not prove.** The hash chains are unkeyed. They prove that a
+dossier is internally consistent, and that it is exactly the one whose digest
+was approved. They do not prove that the Lab produced it: a fabricated dossier
+that is consistent in every part would verify. Two things stop that from
+reaching production:
+- the owner's review of the pull request;
+- the digest that pins what was reviewed.
+
+The demonstration's dossiers are reproducible from their scenarios
+(`publication-demo.ts`), byte for byte, and
+`tests/fixtures/agents/publications-room-view.json` is checked against them.
+
 ## Adding an agent or a domain
 
 1. Add the agent's manifest to the registry (`src/platform/agents/catalog.ts`), as DRAFT or LAB, in a reviewed pull request.
