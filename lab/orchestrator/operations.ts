@@ -289,3 +289,41 @@ export function labOperations(): OperationCatalog {
   for (const op of [opponentProfile, sessionDraft, matchBriefing, liveChange, availability, medicalRecommendation, availabilityLoad]) c.register(op as LabOperation);
   return c;
 }
+
+// ── AI-0.4: what controlled execution adds ───────────────────────────────────
+
+const StaffNotice = z.object({
+  audience: z.literal('STAFF'),
+  subject: z.string(),
+  lines: z.array(z.string()).min(1).max(20),
+  sent: z.literal(false),
+  simulated: z.literal(true),
+}).strict();
+
+/**
+ * An action: the club manager circulates the match briefing to the staff. It
+ * exercises `sendNotification`, so it waits for a person, and in the Lab it only
+ * describes the notice that person approved; nothing is sent.
+ */
+const staffNotice: LabOperation<{ audience: 'STAFF'; subject: string }, z.infer<typeof StaffNotice>> = {
+  key: 'operations.staff-notice@1',
+  title: 'Circulate the match briefing to the staff',
+  tool: 'sendNotification', domain: 'CLUB_OPERATIONS', output: 'INTERNAL', consumes: ['operations.match-briefing@1'],
+  input: z.object({ audience: z.literal('STAFF'), subject: z.string().min(1).max(80) }).strict(),
+  result: StaffNotice,
+  run({ audience, subject }, upstream) {
+    const b = only(upstream, 'operations.match-briefing@1')[0]?.output as z.infer<typeof Briefing> | undefined;
+    if (!b) throw new Error('A staff notice circulates exactly one match briefing');
+    return { audience, subject, lines: [b.title, ...b.sections.map((x) => x.heading)].slice(0, 20), sent: false, simulated: true };
+  },
+};
+
+/**
+ * The operations a controlled execution may route (AI-0.4): the first slice's,
+ * and those it adds. The published AI-0.3 evidence keeps to labOperations().
+ */
+export function labExecutionOperations(): OperationCatalog {
+  const c = labOperations();
+  c.register(staffNotice as LabOperation);
+  return c;
+}

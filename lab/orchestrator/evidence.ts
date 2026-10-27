@@ -24,7 +24,7 @@ import { killSwitchEngaged, engageKillSwitch, releaseKillSwitch } from '../../sr
 import { currentEnvironment, type FamilistaEnvironment } from '../../src/platform/environment';
 import {
   evidenceDigest, verifyOrchestrationEvidence, ORCHESTRATION_EVIDENCE_CONTRACT, ORCHESTRATION_EVIDENCE_FILE,
-  ORCHESTRATION_EVIDENCE_NOTICE, type EvidenceRun, type OrchestrationEvidence,
+  ORCHESTRATION_EVIDENCE_NOTICE, RUN_OUTCOMES, TASK_STATES, TRACE_TYPES, type EvidenceRun, type OrchestrationEvidence,
 } from '../../src/platform/agents/orchestration-evidence';
 import { ORCHESTRATION_CONTRACT, type ApprovalDecision, type PlanRequest } from './contracts';
 import { decideApproval, startRun, type PlanRun, type RunContext } from './engine';
@@ -49,23 +49,33 @@ export const SCENARIOS: readonly Scenario[] = Object.freeze([
   { slug: 'requester-refused', plan: S.requesterRefused },
 ]);
 
-function toEvidence(slug: string, request: PlanRequest, run: PlanRun, steps: EvidenceRun['steps']): EvidenceRun {
+/**
+ * Only what the published v1 contract can say. A run an AI-0.4 execution stopped
+ * (CANCELLED, HALTED) is LAB evidence that has not been approved for publication.
+ */
+function published<T extends string>(value: string, allowed: readonly T[], what: string): T {
+  if (!(allowed as readonly string[]).includes(value)) throw new Error(`${what} "${value}" is not part of the published evidence contract: a stopped run stays in the Lab`);
+  return value as T;
+}
+
+/** One run as published evidence. AI-0.4's execution records reuse it to build a publication candidate. */
+export function toEvidence(slug: string, request: PlanRequest, run: PlanRun, steps: EvidenceRun['steps']): EvidenceRun {
   const spec = (id: string) => request.tasks.find((t) => t.id === id);
   return {
     id: run.digest, scenario: slug, title: request.title, planId: run.planId,
     scope: request.scope.kind === 'CLUB' ? { kind: 'CLUB', clubId: request.scope.clubId } : { kind: 'PLATFORM' },
-    requestedByRole: request.requestedBy.role, steps, outcome: run.outcome,
+    requestedByRole: request.requestedBy.role, steps, outcome: published(run.outcome, RUN_OUTCOMES, 'outcome'),
     refusal: run.refusal ? { code: run.refusal.code, message: run.refusal.message } : null,
     order: [...run.order],
     tasks: run.tasks.map((t) => ({
-      id: t.id, operation: t.operation, tool: t.tool, state: t.state, dependsOn: [...(spec(t.id)?.dependsOn ?? [])],
+      id: t.id, operation: t.operation, tool: t.tool, state: published(t.state, TASK_STATES, 'task state'), dependsOn: [...(spec(t.id)?.dependsOn ?? [])],
       agent: t.agent ? { ...t.agent } : null, eligibleAgents: [...t.eligibleAgents], dataClass: t.dataClass, recordClass: t.recordClass,
       outputDigest: t.outputDigest,
       approval: t.approval ? { eligibleRoles: [...t.approval.eligibleRoles], decision: t.approval.decision, decidedByRole: t.approval.decidedBy?.role ?? null } : null,
       reason: t.reason ? { code: t.reason.code, message: t.reason.message } : null,
       inputs: t.inputs.map((i) => ({ ...i })),
     })),
-    trace: run.trace.map((e) => ({ seq: e.seq, type: e.type, taskId: e.taskId, agentId: e.agentId, code: e.code, detail: e.detail, prev: e.prev, hash: e.hash })),
+    trace: run.trace.map((e) => ({ seq: e.seq, type: published(e.type, TRACE_TYPES, 'trace event'), taskId: e.taskId, agentId: e.agentId, code: e.code, detail: e.detail, prev: e.prev, hash: e.hash })),
     digest: run.digest,
   };
 }

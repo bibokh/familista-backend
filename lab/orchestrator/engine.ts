@@ -33,6 +33,13 @@
 // in the trace (trace.ts). Nothing reaches a database, the AI Gateway, a model
 // or the network, and no action is ever made: in the Lab an action operation
 // describes the change a person approved.
+//
+// AI-0.4 adds two things a controlled execution (execution.ts) needs, both
+// opt-in, so a run without them is exactly what it was: a `guard` the context
+// may carry, asked before every task starts (the kill switch, an execution
+// limit), which stops the run there; and `stopRun`, which ends a run that has
+// not settled on its own. Either way every task not yet finished is CANCELLED,
+// in the trace, and nothing that consumes it runs.
 
 import { authorizeTool, killSwitchEngaged, tool, type AgentIdentity } from '../../src/platform/intelligence/agents';
 import { currentEnvironment, type FamilistaEnvironment } from '../../src/platform/environment';
@@ -43,7 +50,7 @@ import { APPROVER_ROLES } from '../../src/security/approver-roles';
 import {
   ApprovalDecisionSchema, LIMITS, ORCHESTRATION_CONTRACT, PlanRequestSchema, TERMINAL_FAILURES,
   type ApprovalRefusalCode, type PlanRefusalCode, type PlanRequest, type PlanScope, type Reason, type RunOutcome,
-  type TaskOutcome, type TaskReasonCode, type TaskSpec,
+  type StopCode, type TaskOutcome, type TaskReasonCode, type TaskSpec,
 } from './contracts';
 import { frozenCopy, type Handoff, type OperationCatalog } from './operations';
 import { readCeiling, recordClassOf, route, writeCeiling } from './routing';
@@ -54,7 +61,15 @@ export interface RunContext {
   operations: OperationCatalog;
   /** Defaults to this process's own environment. */
   environment?: FamilistaEnvironment;
+  /**
+   * AI-0.4: asked before every task starts, with how many have started in this
+   * run (this one included). A reason stops the run there: HALTED.
+   */
+  guard?: (at: { taskId: string; step: number }) => Reason<StopCode> | null;
 }
+
+/** How a run was stopped before it settled on its own. */
+export interface RunStop { outcome: 'HALTED' | 'CANCELLED'; code: StopCode; message: string }
 
 export interface PlanRun {
   contract: typeof ORCHESTRATION_CONTRACT;
@@ -70,6 +85,9 @@ export interface PlanRun {
   trace: readonly TraceEvent[];
   /** The trace's head: one hash for everything that was decided. */
   digest: string;
+  /** How many tasks were started, across every call on this run. */
+  steps: number;
+  stop: RunStop | null;
 }
 
 /** The identity a registry agent acts as in the Lab: its manifest's tools and ceiling, and nothing else. */
@@ -135,6 +153,8 @@ class Working {
     readonly plan: PlanRequest,
     readonly order: string[],
     tasks: TaskOutcome[],
+    public steps = 0,
+    public stop: RunStop | null = null,
   ) { for (const t of tasks) this.byId.set(t.id, t); }
 
   spec(id: string): TaskSpec { return this.plan.tasks.find((t) => t.id === id) as TaskSpec; }
@@ -149,12 +169,35 @@ class Working {
   /** One pass in topological order: everything that can move, moves. */
   advance(): void {
     for (const id of this.order) {
+      if (this.stop) return;
       const t = this.byId.get(id) as TaskOutcome;
       if (t.state !== 'PENDING') continue;
       const deps = this.spec(id).dependsOn.map((d) => this.byId.get(d) as TaskOutcome);
       const failed = deps.find((d) => TERMINAL_FAILURES.has(d.state));
       if (failed) { this.end(t, 'SKIPPED', 'DEPENDENCY_NOT_SUCCEEDED', `"${failed.id}" ${failed.state.toLowerCase()}, so this never ran`); continue; }
-      if (deps.every((d) => d.state === 'SUCCEEDED')) this.execute(t, false);
+      if (!deps.every((d) => d.state === 'SUCCEEDED')) continue;
+      const stop = this.admit(id);
+      if (stop) return this.halt('HALTED', stop.code, stop.message);
+      this.execute(t, false);
+    }
+  }
+
+  /** A task is about to start: count it, and ask the guard whether it may. */
+  admit(taskId: string): Reason<StopCode> | null {
+    this.steps += 1;
+    return this.ctx.guard?.({ taskId, step: this.steps }) ?? null;
+  }
+
+  /** Stop the run: every task not yet finished is CANCELLED, and nothing more starts. */
+  halt(outcome: RunStop['outcome'], code: StopCode, message: string): void {
+    this.stop = { outcome, code, message: cap(message) };
+    this.trace.append(outcome === 'HALTED' ? 'RUN_HALTED' : 'RUN_CANCELLED', { code, detail: this.stop.message });
+    for (const id of this.order) {
+      const t = this.byId.get(id) as TaskOutcome;
+      if (t.state !== 'PENDING' && t.state !== 'AWAITING_APPROVAL') continue;
+      t.state = 'CANCELLED';
+      t.reason = { code, message: cap(`${outcome === 'HALTED' ? 'halted' : 'cancelled'} before it finished: ${message}`) };
+      this.trace.append('TASK_CANCELLED', { taskId: t.id, agentId: t.agent?.id ?? null, code, detail: t.reason.message });
     }
   }
 
@@ -237,6 +280,7 @@ class Working {
   }
 
   outcome(): RunOutcome {
+    if (this.stop) return this.stop.outcome;
     const states = [...this.byId.values()].map((t) => t.state);
     if (states.some((s) => s === 'AWAITING_APPROVAL' || s === 'PENDING')) return 'AWAITING_APPROVAL';
     if (states.every((s) => s === 'SUCCEEDED')) return 'COMPLETED';
@@ -246,14 +290,17 @@ class Working {
   settle(): PlanRun {
     const outcome = this.outcome();
     const count = (s: string) => [...this.byId.values()].filter((t) => t.state === s).length;
+    // A run nothing stopped reads exactly as it did before AI-0.4.
+    const cancelled = count('CANCELLED') ? `, ${count('CANCELLED')} cancelled` : '';
     this.trace.append('RUN_SETTLED', {
       code: outcome,
-      detail: `${count('SUCCEEDED')} succeeded, ${count('AWAITING_APPROVAL')} awaiting approval, ${count('FAILED')} failed, ${count('REFUSED')} refused, ${count('SKIPPED')} skipped, ${count('REJECTED')} rejected`,
+      detail: `${count('SUCCEEDED')} succeeded, ${count('AWAITING_APPROVAL')} awaiting approval, ${count('FAILED')} failed, ${count('REFUSED')} refused, ${count('SKIPPED')} skipped, ${count('REJECTED')} rejected${cancelled}`,
     });
     return deepFreeze({
       contract: ORCHESTRATION_CONTRACT, planId: this.plan.id, environment: this.environment,
       registryDigest: this.ctx.registry.digest(), outcome, refusal: null, plan: this.plan, order: this.order,
       tasks: this.order.map((id) => this.byId.get(id) as TaskOutcome), trace: this.trace.events, digest: this.trace.head,
+      steps: this.steps, stop: this.stop,
     });
   }
 }
@@ -264,8 +311,13 @@ function refused(ctx: RunContext, environment: FamilistaEnvironment, trace: Trac
   return deepFreeze({
     contract: ORCHESTRATION_CONTRACT, planId, environment, registryDigest: ctx.registry.digest(), outcome: 'REFUSED',
     refusal: { code, message: cap(message) }, plan: null, order: [], tasks: [], trace: trace.events, digest: trace.head,
+    steps: 0, stop: null,
   });
 }
+
+/** A run's tasks as working copies a call may change; the run itself stays frozen. */
+const workingTasks = (run: PlanRun): TaskOutcome[] =>
+  run.tasks.map((t) => ({ ...t, approval: t.approval ? { ...t.approval } : null, inputs: t.inputs.map((i) => ({ ...i })) })) as TaskOutcome[];
 
 /** Check a plan and run everything in it that may run now. */
 export function startRun(request: unknown, ctx: RunContext): PlanRun {
@@ -343,8 +395,8 @@ export function startRun(request: unknown, ctx: RunContext): PlanRun {
 export function decideApproval(run: PlanRun, decision: unknown, ctx: RunContext): PlanRun {
   const environment = ctx.environment ?? currentEnvironment();
   const trace = new Trace(run.trace);
-  const tasks = run.tasks.map((t) => ({ ...t, approval: t.approval ? { ...t.approval } : null, inputs: t.inputs.map((i) => ({ ...i })) })) as TaskOutcome[];
-  const w = run.plan ? new Working(ctx, environment, trace, run.plan, run.order, tasks) : null;
+  const tasks = workingTasks(run);
+  const w = run.plan ? new Working(ctx, environment, trace, run.plan, run.order, tasks, run.steps, run.stop) : null;
   const refuse = (code: ApprovalRefusalCode | 'ENVIRONMENT_NOT_LAB', detail: string, taskId: string | null = null): PlanRun => {
     trace.append('APPROVAL_DECISION_REFUSED', { taskId, code, detail: cap(detail) });
     return deepFreeze({ ...run, tasks, trace: trace.events, digest: trace.head });
@@ -362,6 +414,14 @@ export function decideApproval(run: PlanRun, decision: unknown, ctx: RunContext)
   if (d.by.userId === run.plan.requestedBy.userId) return refuse('SEGREGATION_OF_DUTIES', 'the requester may not decide their own plan\'s action', t.id);
   if (tierFor(d.by.role, t.recordClass as AIRecordClass) !== 'FULL') return refuse('APPROVER_CANNOT_READ', `${d.by.role} may not read the ${t.recordClass} record this task writes`, t.id);
 
+  // An approval starts the task, so the guard is asked first; a stop refuses the decision and ends the run.
+  const stop = d.decision === 'APPROVED' ? w.admit(t.id) : null;
+  if (stop) {
+    trace.append('APPROVAL_DECISION_REFUSED', { taskId: t.id, code: stop.code, detail: cap(`not applied: ${stop.message}`) });
+    w.halt('HALTED', stop.code, stop.message);
+    return w.settle();
+  }
+
   t.approval = { eligibleRoles: t.approval?.eligibleRoles ?? [], decision: d.decision, decidedBy: { userId: d.by.userId, role: d.by.role } };
   trace.append('APPROVAL_DECIDED', { taskId: t.id, agentId: t.agent?.id ?? null, code: d.decision, detail: `${d.decision.toLowerCase()} by ${d.by.role} ${d.by.userId}` });
   if (d.decision === 'REJECTED') {
@@ -373,5 +433,18 @@ export function decideApproval(run: PlanRun, decision: unknown, ctx: RunContext)
     w.execute(t, true);
   }
   w.advance();
+  return w.settle();
+}
+
+/**
+ * AI-0.4: end a run that has not settled on its own. Every task still PENDING
+ * or AWAITING_APPROVAL is CANCELLED; a run already settled, refused or stopped
+ * is returned as it is. Stopping is always allowed: it can only take work away.
+ */
+export function stopRun(run: PlanRun, outcome: RunStop['outcome'], reason: Reason<StopCode>, ctx: RunContext): PlanRun {
+  const open = run.tasks.some((t) => t.state === 'PENDING' || t.state === 'AWAITING_APPROVAL');
+  if (!run.plan || run.stop || !open) return run;
+  const w = new Working(ctx, run.environment, new Trace(run.trace), run.plan, run.order, workingTasks(run), run.steps, null);
+  w.halt(outcome, reason.code, reason.message);
   return w.settle();
 }
