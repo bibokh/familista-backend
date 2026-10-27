@@ -244,6 +244,12 @@ try {
       var t = e && e.target;
       if (t && t.classList && t.classList.contains('club-logo-img')) _clubLogoFallback(t);
     }, true);
+    // A player photo's fallback chain (_sqImgTag), by the same rule and for the same reason. An image that has
+    // reached the silhouette is marked .is-sil and is left alone.
+    document.addEventListener('error', function (e) {
+      var t = e && e.target;
+      if (t && t.tagName === 'IMG' && t.hasAttribute('data-fallbacks') && !t.classList.contains('is-sil')) _sqImgFallback(t);
+    }, true);
   }
 } catch (_) {}
 try { if (typeof window !== 'undefined') window._clubLogoFallback = _clubLogoFallback; } catch (_) {}
@@ -677,7 +683,7 @@ const BackendHealth = (function () {
     el.innerHTML =
       '<span class="dot"></span>' +
       '<span class="msg">' + (text || '') + '</span>' +
-      '<button class="retry" onclick="BackendHealth.retryNow()">Retry now</button>';
+      '<button class="retry" type="button" data-backend-retry>Retry now</button>';
   }
   function hide() {
     const el = banner();
@@ -751,6 +757,12 @@ const BackendHealth = (function () {
     lastState = 'down';
   }
   function retryNow() { check(); }
+  // The banner's Retry, wired once on the document: an onclick attribute is refused by the CSP (script-src-attr 'none').
+  try {
+    document.addEventListener('click', function (e) {
+      if (e.target && e.target.closest && e.target.closest('#backend-banner [data-backend-retry]')) retryNow();
+    });
+  } catch (_) {}
 
   return { start, stop, ping, check, notifyOffline, retryNow };
 })();
@@ -8149,16 +8161,28 @@ function _sqImgChain(photo, name, id) {
   var first = chain.length ? chain[0] : _SQ_SILHOUETTE;
   return { first: first, rest: chain.slice(1).concat([_SQ_SILHOUETTE]), isSil: first === _SQ_SILHOUETTE };
 }
-// One reusable <img> with an onerror chain that ends on the silhouette placeholder.
+// One reusable <img> whose failed load walks its fallback chain, ending on the silhouette placeholder.
+// The chain is run by the document's capture-phase error listener (top of this file), never by an onerror
+// attribute: the CSP's script-src-attr 'none' refuses every inline handler, and Chrome 156 reports one the
+// moment it is inserted. An image that starts as, or reaches, the silhouette is marked .is-sil and left alone.
 function _sqImgTag(cls, photo, name, id) {
   var r = _sqImgChain(photo, name, id);
-  var onerr = "var n=JSON.parse(this.getAttribute('data-fallbacks')||'[]');var u=n.shift();"
-    + "this.setAttribute('data-fallbacks',JSON.stringify(n));"
-    + "if(u){this.src=u;if(u.indexOf('data:image')===0){this.onerror=null;this.classList.add('is-sil');}}"
-    + "else{this.onerror=null;this.classList.add('is-sil');}";
   return '<img class="' + cls + (r.isSil ? ' is-sil' : '') + '" src="' + _sqEsc(r.first) + '" alt="" loading="lazy"'
-    + ' data-fallbacks="' + _sqEsc(JSON.stringify(r.rest)) + '"'
-    + (r.isSil ? '' : ' onerror="' + onerr + '"') + '>';
+    + ' data-fallbacks="' + _sqEsc(JSON.stringify(r.rest)) + '">';
+}
+// The next source in the chain, or the silhouette and stop: what the old inline handler meant to do.
+function _sqImgFallback(img) {
+  var n;
+  try { n = JSON.parse(img.getAttribute('data-fallbacks') || '[]'); } catch (_) { n = []; }
+  if (!Array.isArray(n)) n = [];
+  var u = n.shift();
+  img.setAttribute('data-fallbacks', JSON.stringify(n));
+  if (typeof u === 'string' && u) {
+    img.src = u;
+    if (u.indexOf('data:image') === 0) img.classList.add('is-sil');
+  } else {
+    img.classList.add('is-sil');
+  }
 }
 function _sqPlayerPortrait(photo, name, id, side, num, ovr) {
   return '<span class="sqpm-av sqpm-av--' + side + '">' + _sqImgTag('sqmd-pimg', photo, name, id) + '</span>'
@@ -50300,9 +50324,11 @@ async function tosBoardSnapshot() {
 }
 // ── CSP-SAFE EVENT DELEGATION ─────────────────────────────────────────────────
 // Replaces the 53 inline onclick/onchange/onsubmit handlers removed from
-// index.html static markup. Handlers embedded in JS template literals (inside
-// innerHTML strings) are unaffected — they live in this external file and are
-// not subject to script-src CSP restrictions.
+// index.html static markup. An on* attribute written into an innerHTML string
+// is subject to the same CSP (script-src-attr 'none'): it never runs, and
+// Chrome 156 reports it as soon as it is inserted. Wire new behaviour here or
+// with addEventListener, never as an attribute
+// (tests/csp-inline-handlers.unit.test.ts holds the line).
 (function wireStaticHandlers() {
   // ── Click delegation ────────────────────────────────────────────────────────
   document.addEventListener('click', function delegateClick(e) {
@@ -50588,7 +50614,8 @@ async function tosBoardSnapshot() {
   document.addEventListener('submit', function delegateSubmit(e) {
     // These forms save ONLY via their explicit Save button — never on submit.
     // Swallow any Enter-key submit so the page can't reload mid-edit.
-    if (e.target && (e.target.id === 'player-edit-form' || e.target.id === 'club-edit-form')) { e.preventDefault(); return; }
+    // The onboarding request is sent only by its Submit request button (data-action="submitOnboardClub").
+    if (e.target && (e.target.id === 'player-edit-form' || e.target.id === 'club-edit-form' || e.target.id === 'onboard-club-form')) { e.preventDefault(); return; }
     const el = e.target.closest('[data-form-submit]');
     if (!el) return;
     switch (el.dataset.formSubmit) {

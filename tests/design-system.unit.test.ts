@@ -863,7 +863,9 @@ describe('Owner Home: the ninth card, DESIGN SYSTEM CONTROL', () => {
     // so the script and the stylesheet moved on together.
     expect(html).toContain('/app.css?v=20261020-ai-safe-text');
     // The AI Agents Operations Room's loader and entry moved app.js on again; app.css did not change.
-    expect(html).toContain('/app.js?v=20261022-agents-room');
+    // Then the Chrome 156 CSP remediation (inline handlers moved to listeners) moved it on once more.
+    expect(html).toContain('/app.js?v=20261027-csp-handlers');
+    expect(html).not.toContain('/app.js?v=20261022-agents-room');
     expect(html).not.toContain('/app.js?v=20261020-ai-safe-text');
     expect(html).not.toContain('/app.css?v=20261012-owner-home-ds');
     expect(html).not.toContain('/app.js?v=20261020-design-studio');

@@ -955,7 +955,7 @@
       <div style="padding:12px 14px;border-radius:10px;background:rgba(99,102,241,0.10);border:1px solid rgba(99,102,241,0.30);font-size:12.5px;color:#A5B4FC;line-height:1.55;margin-bottom:18px;">
         Onboarding a club provisions a new tenant on the platform. Submit this form and a platform admin will complete the backend setup. No tenant data is created until provisioning is confirmed.
       </div>
-      <form id="onboard-club-form" onsubmit="return false;">
+      <form id="onboard-club-form">
         <div style="display:flex;flex-direction:column;gap:14px;">
           <label style="display:flex;flex-direction:column;gap:6px;">
             <span style="font-size:11px;font-weight:700;color:var(--t-tertiary, #94A3B8);letter-spacing:0.06em;text-transform:uppercase;">Club name *</span>
@@ -1007,7 +1007,7 @@
 <script src="/algorithms/algorithms.js?v=20261004-algorithms" defer></script>
 <!-- Model text is drawn as nodes, never HTML. Before app.js, which calls it. -->
 <script src="/ai-model-text.js?v=20261020-ai-safe-text" defer></script>
-<script src="/app.js?v=20261022-agents-room" defer></script>
+<script src="/app.js?v=20261027-csp-handlers" defer></script>
 <!-- Settings · Account · two-step sign-in (Cyber Defense, Step 6). After app.js: it reads _isPlatformOwner. -->
 <script src="/settings-mfa.js?v=20261002-admin-mfa" defer></script>
 <script src="/settings-ai-data.js?v=20261002-ai-data" defer></script>
