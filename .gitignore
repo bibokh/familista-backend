@@ -20,3 +20,6 @@ coverage/
 # real browser write here; they are evidence for a review, not source, and a
 # few dozen full-page PNGs would weigh more than the code they document.
 vision-screenshots-tmp/
+
+# AI-0.4: LAB execution records and the LAB kill switch state (lab/orchestrator/execute-cli.ts); they never leave the Lab
+lab/orchestrator/.executions/

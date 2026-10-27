@@ -1,0 +1,88 @@
+{
+  "contract": "familista.lab-execution/v1",
+  "requestId": "matchday-example-0001",
+  "operator": {
+    "userId": "lab-user-head-coach",
+    "role": "HEAD_COACH"
+  },
+  "plan": {
+    "contract": "familista.orchestration/v1",
+    "id": "matchday-workflow",
+    "title": "Matchday: analyse, plan, brief and inform the staff",
+    "scope": {
+      "kind": "CLUB",
+      "clubId": "lab-club-north"
+    },
+    "requestedBy": {
+      "userId": "lab-user-head-coach",
+      "role": "HEAD_COACH",
+      "clubId": "lab-club-north"
+    },
+    "tasks": [
+      {
+        "id": "opponent",
+        "operation": "tactics.opponent-profile@1",
+        "input": {
+          "opponent": "Lab Rovers",
+          "matches": [
+            {
+              "goalsFor": 2,
+              "goalsAgainst": 1,
+              "pressingActions": 168,
+              "attacksLeft": 31,
+              "attacksRight": 18
+            },
+            {
+              "goalsFor": 1,
+              "goalsAgainst": 1,
+              "pressingActions": 155,
+              "attacksLeft": 27,
+              "attacksRight": 21
+            },
+            {
+              "goalsFor": 3,
+              "goalsAgainst": 0,
+              "pressingActions": 171,
+              "attacksLeft": 35,
+              "attacksRight": 16
+            }
+          ]
+        },
+        "dependsOn": []
+      },
+      {
+        "id": "session",
+        "operation": "training.session-draft@1",
+        "input": {
+          "minutes": 90,
+          "squadSize": 22
+        },
+        "dependsOn": [
+          "opponent"
+        ]
+      },
+      {
+        "id": "briefing",
+        "operation": "operations.match-briefing@1",
+        "input": {
+          "fixture": "Lab Rovers (home)"
+        },
+        "dependsOn": [
+          "opponent",
+          "session"
+        ]
+      },
+      {
+        "id": "notice",
+        "operation": "operations.staff-notice@1",
+        "input": {
+          "audience": "STAFF",
+          "subject": "Saturday: briefing and training plan"
+        },
+        "dependsOn": [
+          "briefing"
+        ]
+      }
+    ]
+  }
+}

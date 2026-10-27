@@ -18,7 +18,9 @@ export { digestOf, GENESIS };
 export type TraceType =
   | 'PLAN_RECEIVED' | 'PLAN_REFUSED' | 'PLAN_ACCEPTED'
   | 'TASK_ROUTED' | 'TASK_REFUSED' | 'APPROVAL_REQUIRED' | 'APPROVAL_DECIDED' | 'APPROVAL_DECISION_REFUSED'
-  | 'HANDOFF_ACCEPTED' | 'HANDOFF_BLOCKED' | 'TASK_SUCCEEDED' | 'TASK_FAILED' | 'TASK_SKIPPED' | 'RUN_SETTLED';
+  | 'HANDOFF_ACCEPTED' | 'HANDOFF_BLOCKED' | 'TASK_SUCCEEDED' | 'TASK_FAILED' | 'TASK_SKIPPED' | 'RUN_SETTLED'
+  // AI-0.4: a run stopped before it settled on its own
+  | 'RUN_HALTED' | 'RUN_CANCELLED' | 'TASK_CANCELLED';
 
 export interface TraceEvent extends ChainedEvent { type: TraceType }
 

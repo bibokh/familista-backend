@@ -80,11 +80,18 @@ export type ApprovalDecision = z.infer<typeof ApprovalDecisionSchema>;
  *   REFUSED            not allowed: authorization, kill switch, tenancy, data class
  *   SKIPPED            something it consumes did not succeed, so it never ran
  *   REJECTED           a person declined the action
+ *   CANCELLED          the run was stopped before this task finished (AI-0.4):
+ *                      an operator cancelled it, or the kill switch, an
+ *                      execution limit or a changed security context halted it
  */
-export type TaskState = 'PENDING' | 'AWAITING_APPROVAL' | 'SUCCEEDED' | 'FAILED' | 'REFUSED' | 'SKIPPED' | 'REJECTED';
-export const TERMINAL_FAILURES: ReadonlySet<TaskState> = new Set(['FAILED', 'REFUSED', 'SKIPPED', 'REJECTED']);
+export type TaskState = 'PENDING' | 'AWAITING_APPROVAL' | 'SUCCEEDED' | 'FAILED' | 'REFUSED' | 'SKIPPED' | 'REJECTED' | 'CANCELLED';
+export const TERMINAL_FAILURES: ReadonlySet<TaskState> = new Set(['FAILED', 'REFUSED', 'SKIPPED', 'REJECTED', 'CANCELLED']);
 
-export type RunOutcome = 'COMPLETED' | 'PARTIAL' | 'FAILED' | 'AWAITING_APPROVAL' | 'REFUSED';
+/** CANCELLED: an operator stopped the run. HALTED: governance stopped it (kill switch, a limit, a changed context). */
+export type RunOutcome = 'COMPLETED' | 'PARTIAL' | 'FAILED' | 'AWAITING_APPROVAL' | 'REFUSED' | 'CANCELLED' | 'HALTED';
+
+/** Why a run stopped before it settled on its own (AI-0.4). */
+export type StopCode = 'KILL_SWITCH' | 'EXECUTION_LIMIT' | 'APPROVAL_CONTEXT_CHANGED' | 'CANCELLED_BY_OPERATOR';
 
 export type PlanRefusalCode =
   | 'CONTRACT_INVALID' | 'ENVIRONMENT_NOT_LAB' | 'TASK_DUPLICATE' | 'DEPENDENCY_UNKNOWN' | 'DEPENDENCY_SELF'
@@ -94,7 +101,7 @@ export type PlanRefusalCode =
 export type TaskReasonCode =
   | 'AUTHORIZATION' | 'KILL_SWITCH' | 'CROSS_TENANT' | 'INPUT_TOO_LARGE' | 'INPUT_HEALTH_DATA' | 'INPUT_INVALID'
   | 'HANDOFF_BLOCKED' | 'OPERATION_FAILED' | 'OUTPUT_INVALID' | 'OUTPUT_TOO_LARGE' | 'OUTPUT_MISLABELLED'
-  | 'OUTPUT_ABOVE_CEILING' | 'DEPENDENCY_NOT_SUCCEEDED' | 'REJECTED_BY_APPROVER';
+  | 'OUTPUT_ABOVE_CEILING' | 'DEPENDENCY_NOT_SUCCEEDED' | 'REJECTED_BY_APPROVER' | StopCode;
 
 export type ApprovalRefusalCode =
   | 'APPROVAL_NOT_PENDING' | 'APPROVER_ROLE' | 'APPROVER_CLUB' | 'SEGREGATION_OF_DUTIES' | 'APPROVER_CANNOT_READ'
