@@ -1,0 +1,4480 @@
+{
+  "notice": "Synthetic LAB evidence of a controlled execution, approved for publication when the Platform Owner merged the reviewed pull request that carries it. It ran in the Lab over invented clubs and people; nothing here ran in production, and no agent acted.",
+  "contract": "familista.orchestration-evidence/v2",
+  "supported": [
+    "familista.orchestration-evidence/v1",
+    "familista.orchestration-evidence/v2"
+  ],
+  "rule": "An entry takes effect only when the Platform Owner merges the reviewed pull request its reference names. No entry names who approved it: the merge is the approval.",
+  "checks": [
+    {
+      "id": "version",
+      "detail": "The evidence contract is version 2, the version this server reads for a publication."
+    },
+    {
+      "id": "shape",
+      "detail": "Every field is one the contract names, within its bounds: no input, output or payload."
+    },
+    {
+      "id": "integrity",
+      "detail": "The dossier digest is the digest of its content, and its execution and publication ids derive from what it records."
+    },
+    {
+      "id": "trace",
+      "detail": "The run trace is an unbroken hash chain, and the run id is its head."
+    },
+    {
+      "id": "log",
+      "detail": "The execution log is an unbroken hash chain of its own, and every step of it commits to the run trace."
+    },
+    {
+      "id": "coherence",
+      "detail": "Every state, agent, handoff, decision and outcome shown is the one the chains record."
+    },
+    {
+      "id": "governance",
+      "detail": "Every decision was an eligible role’s and never the submitter’s, and no medical action was approved."
+    },
+    {
+      "id": "synthetic",
+      "detail": "Synthetic LAB data only: lab references, no address or real id, no health field."
+    },
+    {
+      "id": "identity",
+      "detail": "Every agent and tool it names is registered on this server."
+    },
+    {
+      "id": "approval",
+      "detail": "The approval record lists it once, with this digest, for a reviewed pull request."
+    }
+  ],
+  "unapproved": [],
+  "state": "VERIFIED",
+  "reason": null,
+  "record": {
+    "digest": "33d38e537e08910d1c0ea4e244207f6dcdc9414dc439b3d9d37c0d8291dcc520",
+    "entries": 7
+  },
+  "publications": [
+    {
+      "publicationId": "pub-d88d2d1825a54306f7d17bab",
+      "reference": "bibokh/familista-backend#9999999",
+      "dossierDigest": "41f9a4fad6fdd352ec8380402ab2f976d99133292943659d70e56389c68b1059",
+      "registry": {
+        "evidence": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+        "current": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+        "matches": true
+      },
+      "agents": [
+        {
+          "id": "club.club-manager",
+          "known": true,
+          "current": true
+        },
+        {
+          "id": "club.tactical",
+          "known": true,
+          "current": true
+        },
+        {
+          "id": "club.training",
+          "known": true,
+          "current": true
+        }
+      ],
+      "evidence": {
+        "contract": "familista.orchestration-evidence/v2",
+        "orchestration": "familista.orchestration/v1",
+        "notice": "Synthetic LAB evidence of a controlled execution, approved for publication when the Platform Owner merged the reviewed pull request that carries it. It ran in the Lab over invented clubs and people; nothing here ran in production, and no agent acted.",
+        "environment": "LAB",
+        "classification": "SYNTHETIC",
+        "publicationId": "pub-d88d2d1825a54306f7d17bab",
+        "source": {
+          "contract": "familista.lab-execution/v1",
+          "executionId": "exec-3222ed2fa1350e6f66a049ea",
+          "requestId": "matchday-0001",
+          "recordDigest": "2b952f3ae23fead1fac6ff3e892bf00da73354166fb02de3895541fdd0f44196"
+        },
+        "operator": {
+          "userId": "lab-user-head-coach",
+          "role": "HEAD_COACH"
+        },
+        "plan": {
+          "id": "matchday-workflow",
+          "title": "Matchday: analyse, plan, brief and inform the staff",
+          "digest": "1611335c0bd5387f82fe9793436ce04afe00034f17387befc82c2e97fa06b709",
+          "scope": {
+            "kind": "CLUB",
+            "clubId": "lab-club-north"
+          },
+          "requestedByRole": "HEAD_COACH"
+        },
+        "limits": {
+          "maxSteps": 24
+        },
+        "context": {
+          "digest": "61dface87b1cbf8b67f79c33cb5f9916a6f6f41af1e01f31c5164989784e2d35",
+          "registryDigest": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+          "operationsDigest": "8817ff5e22a56b5842ab53684853863048d79a4225f40fd5e8bd29baf19be300",
+          "policyDigest": "acafe92624e690b9c1dcc8f09936850c1b092e2029dc96756b259e29162e3015"
+        },
+        "operations": [
+          {
+            "key": "operations.match-briefing@1",
+            "title": "Compile a match briefing for the staff",
+            "tool": "createReport",
+            "domain": "CLUB_OPERATIONS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "operations.staff-notice@1",
+            "title": "Circulate the match briefing to the staff",
+            "tool": "sendNotification",
+            "domain": "CLUB_OPERATIONS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "tactics.opponent-profile@1",
+            "title": "Profile an opponent from its recorded matches",
+            "tool": "analyzeOpponent",
+            "domain": "TACTICS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "training.session-draft@1",
+            "title": "Draft a training session for the next opponent",
+            "tool": "createTrainingDraft",
+            "domain": "TRAINING",
+            "output": "INTERNAL"
+          }
+        ],
+        "routing": [
+          {
+            "taskId": "opponent",
+            "operation": "tactics.opponent-profile@1",
+            "tool": "analyzeOpponent",
+            "domain": "TACTICS",
+            "selected": "club.tactical",
+            "ranked": [
+              "club.tactical"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not TACTICS"
+              },
+              {
+                "agentId": "club.club-manager",
+                "reason": "domain CLUB_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not TACTICS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not TACTICS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not TACTICS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not TACTICS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not TACTICS"
+              }
+            ]
+          },
+          {
+            "taskId": "session",
+            "operation": "training.session-draft@1",
+            "tool": "createTrainingDraft",
+            "domain": "TRAINING",
+            "selected": "club.training",
+            "ranked": [
+              "club.training"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not TRAINING"
+              },
+              {
+                "agentId": "club.club-manager",
+                "reason": "domain CLUB_OPERATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not TRAINING"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not TRAINING"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not TRAINING"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not TRAINING"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not TRAINING"
+              }
+            ]
+          },
+          {
+            "taskId": "briefing",
+            "operation": "operations.match-briefing@1",
+            "tool": "createReport",
+            "domain": "CLUB_OPERATIONS",
+            "selected": "club.club-manager",
+            "ranked": [
+              "club.club-manager"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not CLUB_OPERATIONS"
+              }
+            ]
+          },
+          {
+            "taskId": "notice",
+            "operation": "operations.staff-notice@1",
+            "tool": "sendNotification",
+            "domain": "CLUB_OPERATIONS",
+            "selected": "club.club-manager",
+            "ranked": [
+              "club.club-manager"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not CLUB_OPERATIONS"
+              }
+            ]
+          }
+        ],
+        "decisions": [
+          {
+            "taskId": "notice",
+            "decision": "APPROVED",
+            "byRole": "CLUB_ADMIN",
+            "accepted": true
+          }
+        ],
+        "run": {
+          "outcome": "COMPLETED",
+          "refusal": null,
+          "stop": null,
+          "steps": 5,
+          "order": [
+            "opponent",
+            "session",
+            "briefing",
+            "notice"
+          ],
+          "tasks": [
+            {
+              "id": "opponent",
+              "operation": "tactics.opponent-profile@1",
+              "tool": "analyzeOpponent",
+              "state": "SUCCEEDED",
+              "dependsOn": [],
+              "agent": {
+                "id": "club.tactical",
+                "version": "1.0.0",
+                "digest": "0b8ec9143de5f055c3fef9bbb4d9f804c9a00d740a1eb0498030da50f26277d8"
+              },
+              "eligibleAgents": [
+                "club.tactical"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "f81818f6a51d2d63f0ceb4c36c2a30c7d97d3d6cb51854fad10904e194c2d8e2",
+              "approval": null,
+              "reason": null,
+              "inputs": []
+            },
+            {
+              "id": "session",
+              "operation": "training.session-draft@1",
+              "tool": "createTrainingDraft",
+              "state": "SUCCEEDED",
+              "dependsOn": [
+                "opponent"
+              ],
+              "agent": {
+                "id": "club.training",
+                "version": "1.0.0",
+                "digest": "4b1455791a654adae4c6140b7f137241df16fc489a43f6fa8677a94bdcb54117"
+              },
+              "eligibleAgents": [
+                "club.training"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "79699ff33405a399631a3db206fb475f6a5ff936ee409fc8d14d7e70bdb59fd9",
+              "approval": null,
+              "reason": null,
+              "inputs": [
+                {
+                  "from": "opponent",
+                  "status": "ACCEPTED"
+                }
+              ]
+            },
+            {
+              "id": "briefing",
+              "operation": "operations.match-briefing@1",
+              "tool": "createReport",
+              "state": "SUCCEEDED",
+              "dependsOn": [
+                "opponent",
+                "session"
+              ],
+              "agent": {
+                "id": "club.club-manager",
+                "version": "1.0.0",
+                "digest": "c6f995368c3f41a0ca4c1bbfd9f6a2f6e1bf831e907c5ba4c9919dbcddf2af91"
+              },
+              "eligibleAgents": [
+                "club.club-manager"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "bfe1516507145a1fc3eb81c671560122ba173acecca43cc2554176f62d8f0ef0",
+              "approval": null,
+              "reason": null,
+              "inputs": [
+                {
+                  "from": "opponent",
+                  "status": "ACCEPTED"
+                },
+                {
+                  "from": "session",
+                  "status": "ACCEPTED"
+                }
+              ]
+            },
+            {
+              "id": "notice",
+              "operation": "operations.staff-notice@1",
+              "tool": "sendNotification",
+              "state": "SUCCEEDED",
+              "dependsOn": [
+                "briefing"
+              ],
+              "agent": {
+                "id": "club.club-manager",
+                "version": "1.0.0",
+                "digest": "c6f995368c3f41a0ca4c1bbfd9f6a2f6e1bf831e907c5ba4c9919dbcddf2af91"
+              },
+              "eligibleAgents": [
+                "club.club-manager"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "3ca394a4e8a719c3a8d0e97d231fa1b12acb6a56687eaa76f41b973eb34d6fe1",
+              "approval": {
+                "eligibleRoles": [
+                  "SUPER_ADMIN",
+                  "CLUB_ADMIN",
+                  "HEAD_COACH"
+                ],
+                "decision": "APPROVED",
+                "decidedByRole": "CLUB_ADMIN"
+              },
+              "reason": null,
+              "inputs": [
+                {
+                  "from": "briefing",
+                  "status": "ACCEPTED"
+                }
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "seq": 1,
+              "type": "PLAN_RECEIVED",
+              "taskId": null,
+              "agentId": null,
+              "code": null,
+              "detail": "plan matchday-workflow in LAB",
+              "prev": "76cfe564aa250677646d8e3678ac75ffc9888fb8f4c6ba302507142ac43184a8",
+              "hash": "ca6c74eb09b8382afd80f329dd03b08b9e76184e6324a26fe255ef57a723489b"
+            },
+            {
+              "seq": 2,
+              "type": "PLAN_ACCEPTED",
+              "taskId": null,
+              "agentId": null,
+              "code": null,
+              "detail": "4 tasks for lab-club-north, requested by HEAD_COACH",
+              "prev": "ca6c74eb09b8382afd80f329dd03b08b9e76184e6324a26fe255ef57a723489b",
+              "hash": "4e24307a5fba07028dffdd01783dc1a658fc07eb64a666e6cc6d4d2fdb23b2bf"
+            },
+            {
+              "seq": 3,
+              "type": "TASK_ROUTED",
+              "taskId": "opponent",
+              "agentId": "club.tactical",
+              "code": null,
+              "detail": "tactics.opponent-profile@1 via \"analyzeOpponent\"; ranked club.tactical",
+              "prev": "4e24307a5fba07028dffdd01783dc1a658fc07eb64a666e6cc6d4d2fdb23b2bf",
+              "hash": "90b20c83455cd6e9f24b250698573b59b9e494d04d3e526b749176c46a3aa129"
+            },
+            {
+              "seq": 4,
+              "type": "TASK_ROUTED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "training.session-draft@1 via \"createTrainingDraft\"; ranked club.training",
+              "prev": "90b20c83455cd6e9f24b250698573b59b9e494d04d3e526b749176c46a3aa129",
+              "hash": "8bfe209c1287c83efb0651174b26d789e8784092dd298c19b4272bc735c1a88b"
+            },
+            {
+              "seq": 5,
+              "type": "TASK_ROUTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "operations.match-briefing@1 via \"createReport\"; ranked club.club-manager",
+              "prev": "8bfe209c1287c83efb0651174b26d789e8784092dd298c19b4272bc735c1a88b",
+              "hash": "576af9b98850068013410c140add27216d25ee8ff17a1493a52a74aa0bc5da71"
+            },
+            {
+              "seq": 6,
+              "type": "TASK_ROUTED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "operations.staff-notice@1 via \"sendNotification\"; ranked club.club-manager",
+              "prev": "576af9b98850068013410c140add27216d25ee8ff17a1493a52a74aa0bc5da71",
+              "hash": "99b6c9afb4c7e112614cdc4cf6f67896be053d71087377917b8a8c7f70a8efbc"
+            },
+            {
+              "seq": 7,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "opponent",
+              "agentId": "club.tactical",
+              "code": null,
+              "detail": "INTERNAL output f81818f6a51d",
+              "prev": "99b6c9afb4c7e112614cdc4cf6f67896be053d71087377917b8a8c7f70a8efbc",
+              "hash": "46c2d9e74708da48a05091e643f8d4bd46c864a2298192b55cc06ebcb4f0e298"
+            },
+            {
+              "seq": 8,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "\"opponent\" (club.tactical, INTERNAL OPERATIONAL, f81818f6a51d) → \"session\"",
+              "prev": "46c2d9e74708da48a05091e643f8d4bd46c864a2298192b55cc06ebcb4f0e298",
+              "hash": "42b6c9a78fd50a501e43461228b45a6de856535e74d1753af5fdd3eff4c7d216"
+            },
+            {
+              "seq": 9,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "INTERNAL output 79699ff33405",
+              "prev": "42b6c9a78fd50a501e43461228b45a6de856535e74d1753af5fdd3eff4c7d216",
+              "hash": "5fb0bf409c74dd0da8be4c72fc4d7fadc886e56ecf0b235aa2bb19140025e742"
+            },
+            {
+              "seq": 10,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"opponent\" (club.tactical, INTERNAL OPERATIONAL, f81818f6a51d) → \"briefing\"",
+              "prev": "5fb0bf409c74dd0da8be4c72fc4d7fadc886e56ecf0b235aa2bb19140025e742",
+              "hash": "21e8329612055e11ff5933f66c6ed96ac99f166fcc05351d897c269d24c69430"
+            },
+            {
+              "seq": 11,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"session\" (club.training, INTERNAL OPERATIONAL, 79699ff33405) → \"briefing\"",
+              "prev": "21e8329612055e11ff5933f66c6ed96ac99f166fcc05351d897c269d24c69430",
+              "hash": "1c91b274dd48ebc60ce4098b4372853c7bc7995f94f1b1d1806843aa879e8f43"
+            },
+            {
+              "seq": 12,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "INTERNAL output bfe151650714",
+              "prev": "1c91b274dd48ebc60ce4098b4372853c7bc7995f94f1b1d1806843aa879e8f43",
+              "hash": "7c436150b6d4f161f6c6aab3e7a5b6c48b6d260369310575698c0bc5f03045d2"
+            },
+            {
+              "seq": 13,
+              "type": "APPROVAL_REQUIRED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"sendNotification\" waits for a person: SUPER_ADMIN, CLUB_ADMIN, HEAD_COACH",
+              "prev": "7c436150b6d4f161f6c6aab3e7a5b6c48b6d260369310575698c0bc5f03045d2",
+              "hash": "8c039950c75b3cdb0dc07b2faf732679e6d83c1168c970df63dfa058af984ed3"
+            },
+            {
+              "seq": 14,
+              "type": "RUN_SETTLED",
+              "taskId": null,
+              "agentId": null,
+              "code": "AWAITING_APPROVAL",
+              "detail": "3 succeeded, 1 awaiting approval, 0 failed, 0 refused, 0 skipped, 0 rejected",
+              "prev": "8c039950c75b3cdb0dc07b2faf732679e6d83c1168c970df63dfa058af984ed3",
+              "hash": "cee46504ef2c3aa434e2b189a04262b73bb946f51854865be5fc2ad569635dd3"
+            },
+            {
+              "seq": 15,
+              "type": "APPROVAL_DECIDED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": "APPROVED",
+              "detail": "approved by CLUB_ADMIN lab-user-club-admin",
+              "prev": "cee46504ef2c3aa434e2b189a04262b73bb946f51854865be5fc2ad569635dd3",
+              "hash": "550e798f12136163d680e00d7b85e4d13f41fcaeffcc89236a7a333edd8eefe1"
+            },
+            {
+              "seq": 16,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"briefing\" (club.club-manager, INTERNAL OPERATIONAL, bfe151650714) → \"notice\"",
+              "prev": "550e798f12136163d680e00d7b85e4d13f41fcaeffcc89236a7a333edd8eefe1",
+              "hash": "66ee7a16150cae05de895744d22111fa5068546d4a8587993ac802650ddd2c99"
+            },
+            {
+              "seq": 17,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "INTERNAL output 3ca394a4e8a7",
+              "prev": "66ee7a16150cae05de895744d22111fa5068546d4a8587993ac802650ddd2c99",
+              "hash": "c0d759a99e4a7c101de5602cf93ce3d455e90d7a5975febc9255dc22f7adc178"
+            },
+            {
+              "seq": 18,
+              "type": "RUN_SETTLED",
+              "taskId": null,
+              "agentId": null,
+              "code": "COMPLETED",
+              "detail": "4 succeeded, 0 awaiting approval, 0 failed, 0 refused, 0 skipped, 0 rejected",
+              "prev": "c0d759a99e4a7c101de5602cf93ce3d455e90d7a5975febc9255dc22f7adc178",
+              "hash": "235928aaf56a6e81455eaf8b18bc21585ed53766a64be4df3cac0113a50bad5f"
+            }
+          ],
+          "digest": "235928aaf56a6e81455eaf8b18bc21585ed53766a64be4df3cac0113a50bad5f"
+        },
+        "log": [
+          {
+            "seq": 1,
+            "type": "EXECUTION_SUBMITTED",
+            "taskId": null,
+            "agentId": null,
+            "code": "SUBMIT",
+            "detail": "request matchday-0001 by HEAD_COACH lab-user-head-coach: plan matchday-workflow 1611335c0bd5387f, at most 24 steps, security context 61dface87b1cbf8b",
+            "prev": "9c02081e26d8f19166f4c7ab5a9db8ea7639ebed958a54e10a4604ac0e853204",
+            "hash": "8e3e1320f8970edacc63f097753c0e70247b342ca16707247aeb32199b856c70"
+          },
+          {
+            "seq": 2,
+            "type": "OPERATOR_AUTHORIZED",
+            "taskId": null,
+            "agentId": null,
+            "code": "SUBMIT",
+            "detail": "lab-user-head-coach (HEAD_COACH) may submit for lab-club-north, and may read what its agents write",
+            "prev": "8e3e1320f8970edacc63f097753c0e70247b342ca16707247aeb32199b856c70",
+            "hash": "13f791eff239525562bd92615bfb6e18a9ea589129222f3c790d90e88655e1a0"
+          },
+          {
+            "seq": 3,
+            "type": "PLAN_VALIDATED",
+            "taskId": null,
+            "agentId": null,
+            "code": null,
+            "detail": "4 tasks: synthetic, bounded, acyclic, every handoff declared; order opponent → session → briefing → notice",
+            "prev": "13f791eff239525562bd92615bfb6e18a9ea589129222f3c790d90e88655e1a0",
+            "hash": "787853f7bb1fb662f656782117e66952b2d20f0223d336359027c062026ec62e"
+          },
+          {
+            "seq": 4,
+            "type": "AGENTS_ASSIGNED",
+            "taskId": null,
+            "agentId": null,
+            "code": null,
+            "detail": "opponent → club.tactical, session → club.training, briefing → club.club-manager, notice → club.club-manager",
+            "prev": "787853f7bb1fb662f656782117e66952b2d20f0223d336359027c062026ec62e",
+            "hash": "26a854afb6e6620ad71e664b7cb1e211923e27155435576c2b51d7169ab623f0"
+          },
+          {
+            "seq": 5,
+            "type": "RUN_ADVANCED",
+            "taskId": null,
+            "agentId": null,
+            "code": "AWAITING_APPROVAL",
+            "detail": "run cee46504ef2c3aa434e2b189a04262b73bb946f51854865be5fc2ad569635dd3: started, 4 of 24 steps",
+            "prev": "26a854afb6e6620ad71e664b7cb1e211923e27155435576c2b51d7169ab623f0",
+            "hash": "b7552e329b949dfa76d768997446ef3c6b4c62d57d658759a3d61adab74f2537"
+          },
+          {
+            "seq": 6,
+            "type": "DECISION_REFUSED",
+            "taskId": "notice",
+            "agentId": null,
+            "code": "SELF_APPROVAL",
+            "detail": "approved on \"notice\" by HEAD_COACH lab-user-head-coach, refused: lab-user-head-coach submitted this execution",
+            "prev": "b7552e329b949dfa76d768997446ef3c6b4c62d57d658759a3d61adab74f2537",
+            "hash": "88b33103bb4c11ae031f8826d0f39ad909c09d978115111ad080fa364d0c2668"
+          },
+          {
+            "seq": 7,
+            "type": "DECISION_SUBMITTED",
+            "taskId": "notice",
+            "agentId": null,
+            "code": "APPROVED",
+            "detail": "approved on \"notice\" by CLUB_ADMIN lab-user-club-admin",
+            "prev": "88b33103bb4c11ae031f8826d0f39ad909c09d978115111ad080fa364d0c2668",
+            "hash": "2bc2b35baf396175cb016fd531bf670f73ae20e388d42d53b65ec5c22381b8e9"
+          },
+          {
+            "seq": 8,
+            "type": "RUN_ADVANCED",
+            "taskId": null,
+            "agentId": null,
+            "code": "COMPLETED",
+            "detail": "run 235928aaf56a6e81455eaf8b18bc21585ed53766a64be4df3cac0113a50bad5f: decision applied, 5 of 24 steps",
+            "prev": "2bc2b35baf396175cb016fd531bf670f73ae20e388d42d53b65ec5c22381b8e9",
+            "hash": "41edcb286e56b91f1c6ee2e5de56c75e1b5fcc500f71e6412d0cdaa517b0dfb7"
+          }
+        ],
+        "digest": "41f9a4fad6fdd352ec8380402ab2f976d99133292943659d70e56389c68b1059"
+      }
+    },
+    {
+      "publicationId": "pub-e74293058876dffa7d37a2a9",
+      "reference": "bibokh/familista-backend#9999999",
+      "dossierDigest": "1ce522f6fc86d620dc7fb173f55e938d553ea6749be851d334a40de23ede701b",
+      "registry": {
+        "evidence": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+        "current": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+        "matches": true
+      },
+      "agents": [
+        {
+          "id": "club.club-manager",
+          "known": true,
+          "current": true
+        },
+        {
+          "id": "club.tactical",
+          "known": true,
+          "current": true
+        },
+        {
+          "id": "club.training",
+          "known": true,
+          "current": true
+        }
+      ],
+      "evidence": {
+        "contract": "familista.orchestration-evidence/v2",
+        "orchestration": "familista.orchestration/v1",
+        "notice": "Synthetic LAB evidence of a controlled execution, approved for publication when the Platform Owner merged the reviewed pull request that carries it. It ran in the Lab over invented clubs and people; nothing here ran in production, and no agent acted.",
+        "environment": "LAB",
+        "classification": "SYNTHETIC",
+        "publicationId": "pub-e74293058876dffa7d37a2a9",
+        "source": {
+          "contract": "familista.lab-execution/v1",
+          "executionId": "exec-b54d565568d70f1b26b2bf6f",
+          "requestId": "awaiting-0001",
+          "recordDigest": "23eaa1734f6c2413c9bb880d969798787b64480f4372751ee2f97623785bc632"
+        },
+        "operator": {
+          "userId": "lab-user-head-coach",
+          "role": "HEAD_COACH"
+        },
+        "plan": {
+          "id": "matchday-workflow",
+          "title": "Matchday: analyse, plan, brief and inform the staff",
+          "digest": "1611335c0bd5387f82fe9793436ce04afe00034f17387befc82c2e97fa06b709",
+          "scope": {
+            "kind": "CLUB",
+            "clubId": "lab-club-north"
+          },
+          "requestedByRole": "HEAD_COACH"
+        },
+        "limits": {
+          "maxSteps": 24
+        },
+        "context": {
+          "digest": "61dface87b1cbf8b67f79c33cb5f9916a6f6f41af1e01f31c5164989784e2d35",
+          "registryDigest": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+          "operationsDigest": "8817ff5e22a56b5842ab53684853863048d79a4225f40fd5e8bd29baf19be300",
+          "policyDigest": "acafe92624e690b9c1dcc8f09936850c1b092e2029dc96756b259e29162e3015"
+        },
+        "operations": [
+          {
+            "key": "operations.match-briefing@1",
+            "title": "Compile a match briefing for the staff",
+            "tool": "createReport",
+            "domain": "CLUB_OPERATIONS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "operations.staff-notice@1",
+            "title": "Circulate the match briefing to the staff",
+            "tool": "sendNotification",
+            "domain": "CLUB_OPERATIONS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "tactics.opponent-profile@1",
+            "title": "Profile an opponent from its recorded matches",
+            "tool": "analyzeOpponent",
+            "domain": "TACTICS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "training.session-draft@1",
+            "title": "Draft a training session for the next opponent",
+            "tool": "createTrainingDraft",
+            "domain": "TRAINING",
+            "output": "INTERNAL"
+          }
+        ],
+        "routing": [
+          {
+            "taskId": "opponent",
+            "operation": "tactics.opponent-profile@1",
+            "tool": "analyzeOpponent",
+            "domain": "TACTICS",
+            "selected": "club.tactical",
+            "ranked": [
+              "club.tactical"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not TACTICS"
+              },
+              {
+                "agentId": "club.club-manager",
+                "reason": "domain CLUB_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not TACTICS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not TACTICS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not TACTICS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not TACTICS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not TACTICS"
+              }
+            ]
+          },
+          {
+            "taskId": "session",
+            "operation": "training.session-draft@1",
+            "tool": "createTrainingDraft",
+            "domain": "TRAINING",
+            "selected": "club.training",
+            "ranked": [
+              "club.training"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not TRAINING"
+              },
+              {
+                "agentId": "club.club-manager",
+                "reason": "domain CLUB_OPERATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not TRAINING"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not TRAINING"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not TRAINING"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not TRAINING"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not TRAINING"
+              }
+            ]
+          },
+          {
+            "taskId": "briefing",
+            "operation": "operations.match-briefing@1",
+            "tool": "createReport",
+            "domain": "CLUB_OPERATIONS",
+            "selected": "club.club-manager",
+            "ranked": [
+              "club.club-manager"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not CLUB_OPERATIONS"
+              }
+            ]
+          },
+          {
+            "taskId": "notice",
+            "operation": "operations.staff-notice@1",
+            "tool": "sendNotification",
+            "domain": "CLUB_OPERATIONS",
+            "selected": "club.club-manager",
+            "ranked": [
+              "club.club-manager"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not CLUB_OPERATIONS"
+              }
+            ]
+          }
+        ],
+        "decisions": [
+          {
+            "taskId": "notice",
+            "decision": "APPROVED",
+            "byRole": "CLUB_ADMIN",
+            "accepted": false
+          }
+        ],
+        "run": {
+          "outcome": "AWAITING_APPROVAL",
+          "refusal": null,
+          "stop": null,
+          "steps": 4,
+          "order": [
+            "opponent",
+            "session",
+            "briefing",
+            "notice"
+          ],
+          "tasks": [
+            {
+              "id": "opponent",
+              "operation": "tactics.opponent-profile@1",
+              "tool": "analyzeOpponent",
+              "state": "SUCCEEDED",
+              "dependsOn": [],
+              "agent": {
+                "id": "club.tactical",
+                "version": "1.0.0",
+                "digest": "0b8ec9143de5f055c3fef9bbb4d9f804c9a00d740a1eb0498030da50f26277d8"
+              },
+              "eligibleAgents": [
+                "club.tactical"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "f81818f6a51d2d63f0ceb4c36c2a30c7d97d3d6cb51854fad10904e194c2d8e2",
+              "approval": null,
+              "reason": null,
+              "inputs": []
+            },
+            {
+              "id": "session",
+              "operation": "training.session-draft@1",
+              "tool": "createTrainingDraft",
+              "state": "SUCCEEDED",
+              "dependsOn": [
+                "opponent"
+              ],
+              "agent": {
+                "id": "club.training",
+                "version": "1.0.0",
+                "digest": "4b1455791a654adae4c6140b7f137241df16fc489a43f6fa8677a94bdcb54117"
+              },
+              "eligibleAgents": [
+                "club.training"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "79699ff33405a399631a3db206fb475f6a5ff936ee409fc8d14d7e70bdb59fd9",
+              "approval": null,
+              "reason": null,
+              "inputs": [
+                {
+                  "from": "opponent",
+                  "status": "ACCEPTED"
+                }
+              ]
+            },
+            {
+              "id": "briefing",
+              "operation": "operations.match-briefing@1",
+              "tool": "createReport",
+              "state": "SUCCEEDED",
+              "dependsOn": [
+                "opponent",
+                "session"
+              ],
+              "agent": {
+                "id": "club.club-manager",
+                "version": "1.0.0",
+                "digest": "c6f995368c3f41a0ca4c1bbfd9f6a2f6e1bf831e907c5ba4c9919dbcddf2af91"
+              },
+              "eligibleAgents": [
+                "club.club-manager"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "bfe1516507145a1fc3eb81c671560122ba173acecca43cc2554176f62d8f0ef0",
+              "approval": null,
+              "reason": null,
+              "inputs": [
+                {
+                  "from": "opponent",
+                  "status": "ACCEPTED"
+                },
+                {
+                  "from": "session",
+                  "status": "ACCEPTED"
+                }
+              ]
+            },
+            {
+              "id": "notice",
+              "operation": "operations.staff-notice@1",
+              "tool": "sendNotification",
+              "state": "AWAITING_APPROVAL",
+              "dependsOn": [
+                "briefing"
+              ],
+              "agent": {
+                "id": "club.club-manager",
+                "version": "1.0.0",
+                "digest": "c6f995368c3f41a0ca4c1bbfd9f6a2f6e1bf831e907c5ba4c9919dbcddf2af91"
+              },
+              "eligibleAgents": [
+                "club.club-manager"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": null,
+              "approval": {
+                "eligibleRoles": [
+                  "SUPER_ADMIN",
+                  "CLUB_ADMIN",
+                  "HEAD_COACH"
+                ],
+                "decision": null,
+                "decidedByRole": null
+              },
+              "reason": null,
+              "inputs": []
+            }
+          ],
+          "trace": [
+            {
+              "seq": 1,
+              "type": "PLAN_RECEIVED",
+              "taskId": null,
+              "agentId": null,
+              "code": null,
+              "detail": "plan matchday-workflow in LAB",
+              "prev": "76cfe564aa250677646d8e3678ac75ffc9888fb8f4c6ba302507142ac43184a8",
+              "hash": "ca6c74eb09b8382afd80f329dd03b08b9e76184e6324a26fe255ef57a723489b"
+            },
+            {
+              "seq": 2,
+              "type": "PLAN_ACCEPTED",
+              "taskId": null,
+              "agentId": null,
+              "code": null,
+              "detail": "4 tasks for lab-club-north, requested by HEAD_COACH",
+              "prev": "ca6c74eb09b8382afd80f329dd03b08b9e76184e6324a26fe255ef57a723489b",
+              "hash": "4e24307a5fba07028dffdd01783dc1a658fc07eb64a666e6cc6d4d2fdb23b2bf"
+            },
+            {
+              "seq": 3,
+              "type": "TASK_ROUTED",
+              "taskId": "opponent",
+              "agentId": "club.tactical",
+              "code": null,
+              "detail": "tactics.opponent-profile@1 via \"analyzeOpponent\"; ranked club.tactical",
+              "prev": "4e24307a5fba07028dffdd01783dc1a658fc07eb64a666e6cc6d4d2fdb23b2bf",
+              "hash": "90b20c83455cd6e9f24b250698573b59b9e494d04d3e526b749176c46a3aa129"
+            },
+            {
+              "seq": 4,
+              "type": "TASK_ROUTED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "training.session-draft@1 via \"createTrainingDraft\"; ranked club.training",
+              "prev": "90b20c83455cd6e9f24b250698573b59b9e494d04d3e526b749176c46a3aa129",
+              "hash": "8bfe209c1287c83efb0651174b26d789e8784092dd298c19b4272bc735c1a88b"
+            },
+            {
+              "seq": 5,
+              "type": "TASK_ROUTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "operations.match-briefing@1 via \"createReport\"; ranked club.club-manager",
+              "prev": "8bfe209c1287c83efb0651174b26d789e8784092dd298c19b4272bc735c1a88b",
+              "hash": "576af9b98850068013410c140add27216d25ee8ff17a1493a52a74aa0bc5da71"
+            },
+            {
+              "seq": 6,
+              "type": "TASK_ROUTED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "operations.staff-notice@1 via \"sendNotification\"; ranked club.club-manager",
+              "prev": "576af9b98850068013410c140add27216d25ee8ff17a1493a52a74aa0bc5da71",
+              "hash": "99b6c9afb4c7e112614cdc4cf6f67896be053d71087377917b8a8c7f70a8efbc"
+            },
+            {
+              "seq": 7,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "opponent",
+              "agentId": "club.tactical",
+              "code": null,
+              "detail": "INTERNAL output f81818f6a51d",
+              "prev": "99b6c9afb4c7e112614cdc4cf6f67896be053d71087377917b8a8c7f70a8efbc",
+              "hash": "46c2d9e74708da48a05091e643f8d4bd46c864a2298192b55cc06ebcb4f0e298"
+            },
+            {
+              "seq": 8,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "\"opponent\" (club.tactical, INTERNAL OPERATIONAL, f81818f6a51d) → \"session\"",
+              "prev": "46c2d9e74708da48a05091e643f8d4bd46c864a2298192b55cc06ebcb4f0e298",
+              "hash": "42b6c9a78fd50a501e43461228b45a6de856535e74d1753af5fdd3eff4c7d216"
+            },
+            {
+              "seq": 9,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "INTERNAL output 79699ff33405",
+              "prev": "42b6c9a78fd50a501e43461228b45a6de856535e74d1753af5fdd3eff4c7d216",
+              "hash": "5fb0bf409c74dd0da8be4c72fc4d7fadc886e56ecf0b235aa2bb19140025e742"
+            },
+            {
+              "seq": 10,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"opponent\" (club.tactical, INTERNAL OPERATIONAL, f81818f6a51d) → \"briefing\"",
+              "prev": "5fb0bf409c74dd0da8be4c72fc4d7fadc886e56ecf0b235aa2bb19140025e742",
+              "hash": "21e8329612055e11ff5933f66c6ed96ac99f166fcc05351d897c269d24c69430"
+            },
+            {
+              "seq": 11,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"session\" (club.training, INTERNAL OPERATIONAL, 79699ff33405) → \"briefing\"",
+              "prev": "21e8329612055e11ff5933f66c6ed96ac99f166fcc05351d897c269d24c69430",
+              "hash": "1c91b274dd48ebc60ce4098b4372853c7bc7995f94f1b1d1806843aa879e8f43"
+            },
+            {
+              "seq": 12,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "INTERNAL output bfe151650714",
+              "prev": "1c91b274dd48ebc60ce4098b4372853c7bc7995f94f1b1d1806843aa879e8f43",
+              "hash": "7c436150b6d4f161f6c6aab3e7a5b6c48b6d260369310575698c0bc5f03045d2"
+            },
+            {
+              "seq": 13,
+              "type": "APPROVAL_REQUIRED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"sendNotification\" waits for a person: SUPER_ADMIN, CLUB_ADMIN, HEAD_COACH",
+              "prev": "7c436150b6d4f161f6c6aab3e7a5b6c48b6d260369310575698c0bc5f03045d2",
+              "hash": "8c039950c75b3cdb0dc07b2faf732679e6d83c1168c970df63dfa058af984ed3"
+            },
+            {
+              "seq": 14,
+              "type": "RUN_SETTLED",
+              "taskId": null,
+              "agentId": null,
+              "code": "AWAITING_APPROVAL",
+              "detail": "3 succeeded, 1 awaiting approval, 0 failed, 0 refused, 0 skipped, 0 rejected",
+              "prev": "8c039950c75b3cdb0dc07b2faf732679e6d83c1168c970df63dfa058af984ed3",
+              "hash": "cee46504ef2c3aa434e2b189a04262b73bb946f51854865be5fc2ad569635dd3"
+            },
+            {
+              "seq": 15,
+              "type": "APPROVAL_DECISION_REFUSED",
+              "taskId": "notice",
+              "agentId": null,
+              "code": "APPROVER_CLUB",
+              "detail": "the approver belongs to lab-club-south, not lab-club-north",
+              "prev": "cee46504ef2c3aa434e2b189a04262b73bb946f51854865be5fc2ad569635dd3",
+              "hash": "15aea868b1cc6d0d2af3422002c8d59923d53e8a207c4cab322c3d91a12f9221"
+            }
+          ],
+          "digest": "15aea868b1cc6d0d2af3422002c8d59923d53e8a207c4cab322c3d91a12f9221"
+        },
+        "log": [
+          {
+            "seq": 1,
+            "type": "EXECUTION_SUBMITTED",
+            "taskId": null,
+            "agentId": null,
+            "code": "SUBMIT",
+            "detail": "request awaiting-0001 by HEAD_COACH lab-user-head-coach: plan matchday-workflow 1611335c0bd5387f, at most 24 steps, security context 61dface87b1cbf8b",
+            "prev": "9c02081e26d8f19166f4c7ab5a9db8ea7639ebed958a54e10a4604ac0e853204",
+            "hash": "84980182d85c46bacb6b15f927c5eafe07d089d8edcc5a9f4493e6429aa51c6a"
+          },
+          {
+            "seq": 2,
+            "type": "OPERATOR_AUTHORIZED",
+            "taskId": null,
+            "agentId": null,
+            "code": "SUBMIT",
+            "detail": "lab-user-head-coach (HEAD_COACH) may submit for lab-club-north, and may read what its agents write",
+            "prev": "84980182d85c46bacb6b15f927c5eafe07d089d8edcc5a9f4493e6429aa51c6a",
+            "hash": "80acdc65b0d937744e08134333b0f38d5d66281a89ac834ed61d5b24675c289d"
+          },
+          {
+            "seq": 3,
+            "type": "PLAN_VALIDATED",
+            "taskId": null,
+            "agentId": null,
+            "code": null,
+            "detail": "4 tasks: synthetic, bounded, acyclic, every handoff declared; order opponent → session → briefing → notice",
+            "prev": "80acdc65b0d937744e08134333b0f38d5d66281a89ac834ed61d5b24675c289d",
+            "hash": "b1408df7482131271aa9da039eabebc96a41641265034725071d66353b3ffa86"
+          },
+          {
+            "seq": 4,
+            "type": "AGENTS_ASSIGNED",
+            "taskId": null,
+            "agentId": null,
+            "code": null,
+            "detail": "opponent → club.tactical, session → club.training, briefing → club.club-manager, notice → club.club-manager",
+            "prev": "b1408df7482131271aa9da039eabebc96a41641265034725071d66353b3ffa86",
+            "hash": "27861ca0dec0843972ccef407ba41bc3e7177b3eb960f1289ed81f6897d8ae2a"
+          },
+          {
+            "seq": 5,
+            "type": "RUN_ADVANCED",
+            "taskId": null,
+            "agentId": null,
+            "code": "AWAITING_APPROVAL",
+            "detail": "run cee46504ef2c3aa434e2b189a04262b73bb946f51854865be5fc2ad569635dd3: started, 4 of 24 steps",
+            "prev": "27861ca0dec0843972ccef407ba41bc3e7177b3eb960f1289ed81f6897d8ae2a",
+            "hash": "0214762eb1cc4470c0cd8c7db29dfdd0a112c82e7ac2e986d33f7861f4e1f324"
+          },
+          {
+            "seq": 6,
+            "type": "DECISION_SUBMITTED",
+            "taskId": "notice",
+            "agentId": null,
+            "code": "REFUSED",
+            "detail": "approved on \"notice\" by CLUB_ADMIN lab-user-south-admin, refused: APPROVER_CLUB the approver belongs to lab-club-south, not lab-club-north",
+            "prev": "0214762eb1cc4470c0cd8c7db29dfdd0a112c82e7ac2e986d33f7861f4e1f324",
+            "hash": "107eeaedeb0b83c4756a7a2b328122b96970a38a9b6ed70e7ce1bd057fe8e728"
+          },
+          {
+            "seq": 7,
+            "type": "RUN_ADVANCED",
+            "taskId": null,
+            "agentId": null,
+            "code": "AWAITING_APPROVAL",
+            "detail": "run 15aea868b1cc6d0d2af3422002c8d59923d53e8a207c4cab322c3d91a12f9221: decision refused; nothing changed",
+            "prev": "107eeaedeb0b83c4756a7a2b328122b96970a38a9b6ed70e7ce1bd057fe8e728",
+            "hash": "e80e73a465f72c86a3ce5d18604b682d23e7f0717e89bcdf5e7c03e6625234a2"
+          }
+        ],
+        "digest": "1ce522f6fc86d620dc7fb173f55e938d553ea6749be851d334a40de23ede701b"
+      }
+    },
+    {
+      "publicationId": "pub-12515dc779dd3a299335ef38",
+      "reference": "bibokh/familista-backend#9999999",
+      "dossierDigest": "05650b55a49ce32cc95262b6db9a3ce3d16227da524b298eb199a4861fea4c94",
+      "registry": {
+        "evidence": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+        "current": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+        "matches": true
+      },
+      "agents": [
+        {
+          "id": "club.club-manager",
+          "known": true,
+          "current": true
+        },
+        {
+          "id": "club.tactical",
+          "known": true,
+          "current": true
+        },
+        {
+          "id": "club.training",
+          "known": true,
+          "current": true
+        }
+      ],
+      "evidence": {
+        "contract": "familista.orchestration-evidence/v2",
+        "orchestration": "familista.orchestration/v1",
+        "notice": "Synthetic LAB evidence of a controlled execution, approved for publication when the Platform Owner merged the reviewed pull request that carries it. It ran in the Lab over invented clubs and people; nothing here ran in production, and no agent acted.",
+        "environment": "LAB",
+        "classification": "SYNTHETIC",
+        "publicationId": "pub-12515dc779dd3a299335ef38",
+        "source": {
+          "contract": "familista.lab-execution/v1",
+          "executionId": "exec-ff27d778437610b274d5d5c1",
+          "requestId": "rejected-0001",
+          "recordDigest": "ed69296318eaafa0447fa4368ed9ffcd2e5f7aed29902df07592002dd5848ce8"
+        },
+        "operator": {
+          "userId": "lab-user-head-coach",
+          "role": "HEAD_COACH"
+        },
+        "plan": {
+          "id": "matchday-workflow",
+          "title": "Matchday: analyse, plan, brief and inform the staff",
+          "digest": "1611335c0bd5387f82fe9793436ce04afe00034f17387befc82c2e97fa06b709",
+          "scope": {
+            "kind": "CLUB",
+            "clubId": "lab-club-north"
+          },
+          "requestedByRole": "HEAD_COACH"
+        },
+        "limits": {
+          "maxSteps": 24
+        },
+        "context": {
+          "digest": "61dface87b1cbf8b67f79c33cb5f9916a6f6f41af1e01f31c5164989784e2d35",
+          "registryDigest": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+          "operationsDigest": "8817ff5e22a56b5842ab53684853863048d79a4225f40fd5e8bd29baf19be300",
+          "policyDigest": "acafe92624e690b9c1dcc8f09936850c1b092e2029dc96756b259e29162e3015"
+        },
+        "operations": [
+          {
+            "key": "operations.match-briefing@1",
+            "title": "Compile a match briefing for the staff",
+            "tool": "createReport",
+            "domain": "CLUB_OPERATIONS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "operations.staff-notice@1",
+            "title": "Circulate the match briefing to the staff",
+            "tool": "sendNotification",
+            "domain": "CLUB_OPERATIONS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "tactics.opponent-profile@1",
+            "title": "Profile an opponent from its recorded matches",
+            "tool": "analyzeOpponent",
+            "domain": "TACTICS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "training.session-draft@1",
+            "title": "Draft a training session for the next opponent",
+            "tool": "createTrainingDraft",
+            "domain": "TRAINING",
+            "output": "INTERNAL"
+          }
+        ],
+        "routing": [
+          {
+            "taskId": "opponent",
+            "operation": "tactics.opponent-profile@1",
+            "tool": "analyzeOpponent",
+            "domain": "TACTICS",
+            "selected": "club.tactical",
+            "ranked": [
+              "club.tactical"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not TACTICS"
+              },
+              {
+                "agentId": "club.club-manager",
+                "reason": "domain CLUB_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not TACTICS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not TACTICS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not TACTICS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not TACTICS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not TACTICS"
+              }
+            ]
+          },
+          {
+            "taskId": "session",
+            "operation": "training.session-draft@1",
+            "tool": "createTrainingDraft",
+            "domain": "TRAINING",
+            "selected": "club.training",
+            "ranked": [
+              "club.training"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not TRAINING"
+              },
+              {
+                "agentId": "club.club-manager",
+                "reason": "domain CLUB_OPERATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not TRAINING"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not TRAINING"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not TRAINING"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not TRAINING"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not TRAINING"
+              }
+            ]
+          },
+          {
+            "taskId": "briefing",
+            "operation": "operations.match-briefing@1",
+            "tool": "createReport",
+            "domain": "CLUB_OPERATIONS",
+            "selected": "club.club-manager",
+            "ranked": [
+              "club.club-manager"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not CLUB_OPERATIONS"
+              }
+            ]
+          },
+          {
+            "taskId": "notice",
+            "operation": "operations.staff-notice@1",
+            "tool": "sendNotification",
+            "domain": "CLUB_OPERATIONS",
+            "selected": "club.club-manager",
+            "ranked": [
+              "club.club-manager"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not CLUB_OPERATIONS"
+              }
+            ]
+          }
+        ],
+        "decisions": [
+          {
+            "taskId": "notice",
+            "decision": "REJECTED",
+            "byRole": "CLUB_ADMIN",
+            "accepted": true
+          }
+        ],
+        "run": {
+          "outcome": "PARTIAL",
+          "refusal": null,
+          "stop": null,
+          "steps": 4,
+          "order": [
+            "opponent",
+            "session",
+            "briefing",
+            "notice"
+          ],
+          "tasks": [
+            {
+              "id": "opponent",
+              "operation": "tactics.opponent-profile@1",
+              "tool": "analyzeOpponent",
+              "state": "SUCCEEDED",
+              "dependsOn": [],
+              "agent": {
+                "id": "club.tactical",
+                "version": "1.0.0",
+                "digest": "0b8ec9143de5f055c3fef9bbb4d9f804c9a00d740a1eb0498030da50f26277d8"
+              },
+              "eligibleAgents": [
+                "club.tactical"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "f81818f6a51d2d63f0ceb4c36c2a30c7d97d3d6cb51854fad10904e194c2d8e2",
+              "approval": null,
+              "reason": null,
+              "inputs": []
+            },
+            {
+              "id": "session",
+              "operation": "training.session-draft@1",
+              "tool": "createTrainingDraft",
+              "state": "SUCCEEDED",
+              "dependsOn": [
+                "opponent"
+              ],
+              "agent": {
+                "id": "club.training",
+                "version": "1.0.0",
+                "digest": "4b1455791a654adae4c6140b7f137241df16fc489a43f6fa8677a94bdcb54117"
+              },
+              "eligibleAgents": [
+                "club.training"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "79699ff33405a399631a3db206fb475f6a5ff936ee409fc8d14d7e70bdb59fd9",
+              "approval": null,
+              "reason": null,
+              "inputs": [
+                {
+                  "from": "opponent",
+                  "status": "ACCEPTED"
+                }
+              ]
+            },
+            {
+              "id": "briefing",
+              "operation": "operations.match-briefing@1",
+              "tool": "createReport",
+              "state": "SUCCEEDED",
+              "dependsOn": [
+                "opponent",
+                "session"
+              ],
+              "agent": {
+                "id": "club.club-manager",
+                "version": "1.0.0",
+                "digest": "c6f995368c3f41a0ca4c1bbfd9f6a2f6e1bf831e907c5ba4c9919dbcddf2af91"
+              },
+              "eligibleAgents": [
+                "club.club-manager"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "bfe1516507145a1fc3eb81c671560122ba173acecca43cc2554176f62d8f0ef0",
+              "approval": null,
+              "reason": null,
+              "inputs": [
+                {
+                  "from": "opponent",
+                  "status": "ACCEPTED"
+                },
+                {
+                  "from": "session",
+                  "status": "ACCEPTED"
+                }
+              ]
+            },
+            {
+              "id": "notice",
+              "operation": "operations.staff-notice@1",
+              "tool": "sendNotification",
+              "state": "REJECTED",
+              "dependsOn": [
+                "briefing"
+              ],
+              "agent": {
+                "id": "club.club-manager",
+                "version": "1.0.0",
+                "digest": "c6f995368c3f41a0ca4c1bbfd9f6a2f6e1bf831e907c5ba4c9919dbcddf2af91"
+              },
+              "eligibleAgents": [
+                "club.club-manager"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": null,
+              "approval": {
+                "eligibleRoles": [
+                  "SUPER_ADMIN",
+                  "CLUB_ADMIN",
+                  "HEAD_COACH"
+                ],
+                "decision": "REJECTED",
+                "decidedByRole": "CLUB_ADMIN"
+              },
+              "reason": {
+                "code": "REJECTED_BY_APPROVER",
+                "message": "rejected by CLUB_ADMIN"
+              },
+              "inputs": []
+            }
+          ],
+          "trace": [
+            {
+              "seq": 1,
+              "type": "PLAN_RECEIVED",
+              "taskId": null,
+              "agentId": null,
+              "code": null,
+              "detail": "plan matchday-workflow in LAB",
+              "prev": "76cfe564aa250677646d8e3678ac75ffc9888fb8f4c6ba302507142ac43184a8",
+              "hash": "ca6c74eb09b8382afd80f329dd03b08b9e76184e6324a26fe255ef57a723489b"
+            },
+            {
+              "seq": 2,
+              "type": "PLAN_ACCEPTED",
+              "taskId": null,
+              "agentId": null,
+              "code": null,
+              "detail": "4 tasks for lab-club-north, requested by HEAD_COACH",
+              "prev": "ca6c74eb09b8382afd80f329dd03b08b9e76184e6324a26fe255ef57a723489b",
+              "hash": "4e24307a5fba07028dffdd01783dc1a658fc07eb64a666e6cc6d4d2fdb23b2bf"
+            },
+            {
+              "seq": 3,
+              "type": "TASK_ROUTED",
+              "taskId": "opponent",
+              "agentId": "club.tactical",
+              "code": null,
+              "detail": "tactics.opponent-profile@1 via \"analyzeOpponent\"; ranked club.tactical",
+              "prev": "4e24307a5fba07028dffdd01783dc1a658fc07eb64a666e6cc6d4d2fdb23b2bf",
+              "hash": "90b20c83455cd6e9f24b250698573b59b9e494d04d3e526b749176c46a3aa129"
+            },
+            {
+              "seq": 4,
+              "type": "TASK_ROUTED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "training.session-draft@1 via \"createTrainingDraft\"; ranked club.training",
+              "prev": "90b20c83455cd6e9f24b250698573b59b9e494d04d3e526b749176c46a3aa129",
+              "hash": "8bfe209c1287c83efb0651174b26d789e8784092dd298c19b4272bc735c1a88b"
+            },
+            {
+              "seq": 5,
+              "type": "TASK_ROUTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "operations.match-briefing@1 via \"createReport\"; ranked club.club-manager",
+              "prev": "8bfe209c1287c83efb0651174b26d789e8784092dd298c19b4272bc735c1a88b",
+              "hash": "576af9b98850068013410c140add27216d25ee8ff17a1493a52a74aa0bc5da71"
+            },
+            {
+              "seq": 6,
+              "type": "TASK_ROUTED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "operations.staff-notice@1 via \"sendNotification\"; ranked club.club-manager",
+              "prev": "576af9b98850068013410c140add27216d25ee8ff17a1493a52a74aa0bc5da71",
+              "hash": "99b6c9afb4c7e112614cdc4cf6f67896be053d71087377917b8a8c7f70a8efbc"
+            },
+            {
+              "seq": 7,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "opponent",
+              "agentId": "club.tactical",
+              "code": null,
+              "detail": "INTERNAL output f81818f6a51d",
+              "prev": "99b6c9afb4c7e112614cdc4cf6f67896be053d71087377917b8a8c7f70a8efbc",
+              "hash": "46c2d9e74708da48a05091e643f8d4bd46c864a2298192b55cc06ebcb4f0e298"
+            },
+            {
+              "seq": 8,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "\"opponent\" (club.tactical, INTERNAL OPERATIONAL, f81818f6a51d) → \"session\"",
+              "prev": "46c2d9e74708da48a05091e643f8d4bd46c864a2298192b55cc06ebcb4f0e298",
+              "hash": "42b6c9a78fd50a501e43461228b45a6de856535e74d1753af5fdd3eff4c7d216"
+            },
+            {
+              "seq": 9,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "INTERNAL output 79699ff33405",
+              "prev": "42b6c9a78fd50a501e43461228b45a6de856535e74d1753af5fdd3eff4c7d216",
+              "hash": "5fb0bf409c74dd0da8be4c72fc4d7fadc886e56ecf0b235aa2bb19140025e742"
+            },
+            {
+              "seq": 10,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"opponent\" (club.tactical, INTERNAL OPERATIONAL, f81818f6a51d) → \"briefing\"",
+              "prev": "5fb0bf409c74dd0da8be4c72fc4d7fadc886e56ecf0b235aa2bb19140025e742",
+              "hash": "21e8329612055e11ff5933f66c6ed96ac99f166fcc05351d897c269d24c69430"
+            },
+            {
+              "seq": 11,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"session\" (club.training, INTERNAL OPERATIONAL, 79699ff33405) → \"briefing\"",
+              "prev": "21e8329612055e11ff5933f66c6ed96ac99f166fcc05351d897c269d24c69430",
+              "hash": "1c91b274dd48ebc60ce4098b4372853c7bc7995f94f1b1d1806843aa879e8f43"
+            },
+            {
+              "seq": 12,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "INTERNAL output bfe151650714",
+              "prev": "1c91b274dd48ebc60ce4098b4372853c7bc7995f94f1b1d1806843aa879e8f43",
+              "hash": "7c436150b6d4f161f6c6aab3e7a5b6c48b6d260369310575698c0bc5f03045d2"
+            },
+            {
+              "seq": 13,
+              "type": "APPROVAL_REQUIRED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"sendNotification\" waits for a person: SUPER_ADMIN, CLUB_ADMIN, HEAD_COACH",
+              "prev": "7c436150b6d4f161f6c6aab3e7a5b6c48b6d260369310575698c0bc5f03045d2",
+              "hash": "8c039950c75b3cdb0dc07b2faf732679e6d83c1168c970df63dfa058af984ed3"
+            },
+            {
+              "seq": 14,
+              "type": "RUN_SETTLED",
+              "taskId": null,
+              "agentId": null,
+              "code": "AWAITING_APPROVAL",
+              "detail": "3 succeeded, 1 awaiting approval, 0 failed, 0 refused, 0 skipped, 0 rejected",
+              "prev": "8c039950c75b3cdb0dc07b2faf732679e6d83c1168c970df63dfa058af984ed3",
+              "hash": "cee46504ef2c3aa434e2b189a04262b73bb946f51854865be5fc2ad569635dd3"
+            },
+            {
+              "seq": 15,
+              "type": "APPROVAL_DECIDED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": "REJECTED",
+              "detail": "rejected by CLUB_ADMIN lab-user-club-admin",
+              "prev": "cee46504ef2c3aa434e2b189a04262b73bb946f51854865be5fc2ad569635dd3",
+              "hash": "15428636ec31c377c4d314cfab189016b77a7e4d83304a021f8ff8080964716e"
+            },
+            {
+              "seq": 16,
+              "type": "TASK_REFUSED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": "REJECTED_BY_APPROVER",
+              "detail": "rejected by CLUB_ADMIN",
+              "prev": "15428636ec31c377c4d314cfab189016b77a7e4d83304a021f8ff8080964716e",
+              "hash": "3c2a17e090fc260e4328b3b5753e0b12cfda46a168f186592828dcd35434d183"
+            },
+            {
+              "seq": 17,
+              "type": "RUN_SETTLED",
+              "taskId": null,
+              "agentId": null,
+              "code": "PARTIAL",
+              "detail": "3 succeeded, 0 awaiting approval, 0 failed, 0 refused, 0 skipped, 1 rejected",
+              "prev": "3c2a17e090fc260e4328b3b5753e0b12cfda46a168f186592828dcd35434d183",
+              "hash": "ea720c6b1ac2a241677ee28e86f1a58c249dd219537ec221bb664ecf49205339"
+            }
+          ],
+          "digest": "ea720c6b1ac2a241677ee28e86f1a58c249dd219537ec221bb664ecf49205339"
+        },
+        "log": [
+          {
+            "seq": 1,
+            "type": "EXECUTION_SUBMITTED",
+            "taskId": null,
+            "agentId": null,
+            "code": "SUBMIT",
+            "detail": "request rejected-0001 by HEAD_COACH lab-user-head-coach: plan matchday-workflow 1611335c0bd5387f, at most 24 steps, security context 61dface87b1cbf8b",
+            "prev": "9c02081e26d8f19166f4c7ab5a9db8ea7639ebed958a54e10a4604ac0e853204",
+            "hash": "aadcda18b47990e4e5d22685b762856e3234768f3b64e2b1ad552fc04e117b7b"
+          },
+          {
+            "seq": 2,
+            "type": "OPERATOR_AUTHORIZED",
+            "taskId": null,
+            "agentId": null,
+            "code": "SUBMIT",
+            "detail": "lab-user-head-coach (HEAD_COACH) may submit for lab-club-north, and may read what its agents write",
+            "prev": "aadcda18b47990e4e5d22685b762856e3234768f3b64e2b1ad552fc04e117b7b",
+            "hash": "5c9440c0f24af09849859b282bcb0c33dfffde80932523c4a440d1f1ce91f96e"
+          },
+          {
+            "seq": 3,
+            "type": "PLAN_VALIDATED",
+            "taskId": null,
+            "agentId": null,
+            "code": null,
+            "detail": "4 tasks: synthetic, bounded, acyclic, every handoff declared; order opponent → session → briefing → notice",
+            "prev": "5c9440c0f24af09849859b282bcb0c33dfffde80932523c4a440d1f1ce91f96e",
+            "hash": "2eea8c73dfa43015dfebd7d3547feab552b41589885821c9481cd2af6f5ca0dd"
+          },
+          {
+            "seq": 4,
+            "type": "AGENTS_ASSIGNED",
+            "taskId": null,
+            "agentId": null,
+            "code": null,
+            "detail": "opponent → club.tactical, session → club.training, briefing → club.club-manager, notice → club.club-manager",
+            "prev": "2eea8c73dfa43015dfebd7d3547feab552b41589885821c9481cd2af6f5ca0dd",
+            "hash": "e626e7f6db769f82eea87b23a0ceab9a59d4fb13df34af9e22e8367927744a82"
+          },
+          {
+            "seq": 5,
+            "type": "RUN_ADVANCED",
+            "taskId": null,
+            "agentId": null,
+            "code": "AWAITING_APPROVAL",
+            "detail": "run cee46504ef2c3aa434e2b189a04262b73bb946f51854865be5fc2ad569635dd3: started, 4 of 24 steps",
+            "prev": "e626e7f6db769f82eea87b23a0ceab9a59d4fb13df34af9e22e8367927744a82",
+            "hash": "0813e6123ee9189fef4af41efdd9118ea37b6a86471ebe2c8a6e4c25429c1750"
+          },
+          {
+            "seq": 6,
+            "type": "DECISION_SUBMITTED",
+            "taskId": "notice",
+            "agentId": null,
+            "code": "REJECTED",
+            "detail": "rejected on \"notice\" by CLUB_ADMIN lab-user-club-admin",
+            "prev": "0813e6123ee9189fef4af41efdd9118ea37b6a86471ebe2c8a6e4c25429c1750",
+            "hash": "a00a34889f2c23f26ec4286788f8f5081dac6dd94358c6c52ae69e0f2f92c07e"
+          },
+          {
+            "seq": 7,
+            "type": "RUN_ADVANCED",
+            "taskId": null,
+            "agentId": null,
+            "code": "PARTIAL",
+            "detail": "run ea720c6b1ac2a241677ee28e86f1a58c249dd219537ec221bb664ecf49205339: decision applied, 4 of 24 steps",
+            "prev": "a00a34889f2c23f26ec4286788f8f5081dac6dd94358c6c52ae69e0f2f92c07e",
+            "hash": "505c89810361d42caa8240480d54814bba13fdeaae1868f14f999394378e37f6"
+          }
+        ],
+        "digest": "05650b55a49ce32cc95262b6db9a3ce3d16227da524b298eb199a4861fea4c94"
+      }
+    },
+    {
+      "publicationId": "pub-c1299a2e890b74cd4b051abf",
+      "reference": "bibokh/familista-backend#9999999",
+      "dossierDigest": "ee193d82537a09298025797dfa39b854c3f596a91571aa0cd98328a2cd235b06",
+      "registry": {
+        "evidence": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+        "current": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+        "matches": true
+      },
+      "agents": [
+        {
+          "id": "club.tactical",
+          "known": true,
+          "current": true
+        },
+        {
+          "id": "club.training",
+          "known": true,
+          "current": true
+        }
+      ],
+      "evidence": {
+        "contract": "familista.orchestration-evidence/v2",
+        "orchestration": "familista.orchestration/v1",
+        "notice": "Synthetic LAB evidence of a controlled execution, approved for publication when the Platform Owner merged the reviewed pull request that carries it. It ran in the Lab over invented clubs and people; nothing here ran in production, and no agent acted.",
+        "environment": "LAB",
+        "classification": "SYNTHETIC",
+        "publicationId": "pub-c1299a2e890b74cd4b051abf",
+        "source": {
+          "contract": "familista.lab-execution/v1",
+          "executionId": "exec-5c8d30be9c27debe1932e61e",
+          "requestId": "failure-0001",
+          "recordDigest": "26ccb8908be936fded7ca1d03751f5fdf2e5bc5dbf5a6118976499e4c3afcf36"
+        },
+        "operator": {
+          "userId": "lab-user-head-coach",
+          "role": "HEAD_COACH"
+        },
+        "plan": {
+          "id": "partial-failure",
+          "title": "Two opponents, one with no recorded matches",
+          "digest": "4ac3eae5077c3184b5f41be74739fd7951fe6af8b431ee0e93ea99c05a76a9ba",
+          "scope": {
+            "kind": "CLUB",
+            "clubId": "lab-club-north"
+          },
+          "requestedByRole": "HEAD_COACH"
+        },
+        "limits": {
+          "maxSteps": 24
+        },
+        "context": {
+          "digest": "61dface87b1cbf8b67f79c33cb5f9916a6f6f41af1e01f31c5164989784e2d35",
+          "registryDigest": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+          "operationsDigest": "8817ff5e22a56b5842ab53684853863048d79a4225f40fd5e8bd29baf19be300",
+          "policyDigest": "acafe92624e690b9c1dcc8f09936850c1b092e2029dc96756b259e29162e3015"
+        },
+        "operations": [
+          {
+            "key": "tactics.opponent-profile@1",
+            "title": "Profile an opponent from its recorded matches",
+            "tool": "analyzeOpponent",
+            "domain": "TACTICS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "training.session-draft@1",
+            "title": "Draft a training session for the next opponent",
+            "tool": "createTrainingDraft",
+            "domain": "TRAINING",
+            "output": "INTERNAL"
+          }
+        ],
+        "routing": [
+          {
+            "taskId": "opponent-a",
+            "operation": "tactics.opponent-profile@1",
+            "tool": "analyzeOpponent",
+            "domain": "TACTICS",
+            "selected": "club.tactical",
+            "ranked": [
+              "club.tactical"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not TACTICS"
+              },
+              {
+                "agentId": "club.club-manager",
+                "reason": "domain CLUB_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not TACTICS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not TACTICS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not TACTICS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not TACTICS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not TACTICS"
+              }
+            ]
+          },
+          {
+            "taskId": "opponent-b",
+            "operation": "tactics.opponent-profile@1",
+            "tool": "analyzeOpponent",
+            "domain": "TACTICS",
+            "selected": "club.tactical",
+            "ranked": [
+              "club.tactical"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not TACTICS"
+              },
+              {
+                "agentId": "club.club-manager",
+                "reason": "domain CLUB_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not TACTICS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not TACTICS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not TACTICS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not TACTICS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not TACTICS"
+              }
+            ]
+          },
+          {
+            "taskId": "session-b",
+            "operation": "training.session-draft@1",
+            "tool": "createTrainingDraft",
+            "domain": "TRAINING",
+            "selected": "club.training",
+            "ranked": [
+              "club.training"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not TRAINING"
+              },
+              {
+                "agentId": "club.club-manager",
+                "reason": "domain CLUB_OPERATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not TRAINING"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not TRAINING"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not TRAINING"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not TRAINING"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not TRAINING"
+              }
+            ]
+          }
+        ],
+        "decisions": [],
+        "run": {
+          "outcome": "PARTIAL",
+          "refusal": null,
+          "stop": null,
+          "steps": 2,
+          "order": [
+            "opponent-a",
+            "opponent-b",
+            "session-b"
+          ],
+          "tasks": [
+            {
+              "id": "opponent-a",
+              "operation": "tactics.opponent-profile@1",
+              "tool": "analyzeOpponent",
+              "state": "SUCCEEDED",
+              "dependsOn": [],
+              "agent": {
+                "id": "club.tactical",
+                "version": "1.0.0",
+                "digest": "0b8ec9143de5f055c3fef9bbb4d9f804c9a00d740a1eb0498030da50f26277d8"
+              },
+              "eligibleAgents": [
+                "club.tactical"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "f81818f6a51d2d63f0ceb4c36c2a30c7d97d3d6cb51854fad10904e194c2d8e2",
+              "approval": null,
+              "reason": null,
+              "inputs": []
+            },
+            {
+              "id": "opponent-b",
+              "operation": "tactics.opponent-profile@1",
+              "tool": "analyzeOpponent",
+              "state": "FAILED",
+              "dependsOn": [],
+              "agent": {
+                "id": "club.tactical",
+                "version": "1.0.0",
+                "digest": "0b8ec9143de5f055c3fef9bbb4d9f804c9a00d740a1eb0498030da50f26277d8"
+              },
+              "eligibleAgents": [
+                "club.tactical"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": null,
+              "approval": null,
+              "reason": {
+                "code": "INPUT_INVALID",
+                "message": "matches: Array must contain at least 1 element(s)"
+              },
+              "inputs": []
+            },
+            {
+              "id": "session-b",
+              "operation": "training.session-draft@1",
+              "tool": "createTrainingDraft",
+              "state": "SKIPPED",
+              "dependsOn": [
+                "opponent-b"
+              ],
+              "agent": {
+                "id": "club.training",
+                "version": "1.0.0",
+                "digest": "4b1455791a654adae4c6140b7f137241df16fc489a43f6fa8677a94bdcb54117"
+              },
+              "eligibleAgents": [
+                "club.training"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": null,
+              "approval": null,
+              "reason": {
+                "code": "DEPENDENCY_NOT_SUCCEEDED",
+                "message": "\"opponent-b\" failed, so this never ran"
+              },
+              "inputs": []
+            }
+          ],
+          "trace": [
+            {
+              "seq": 1,
+              "type": "PLAN_RECEIVED",
+              "taskId": null,
+              "agentId": null,
+              "code": null,
+              "detail": "plan partial-failure in LAB",
+              "prev": "76cfe564aa250677646d8e3678ac75ffc9888fb8f4c6ba302507142ac43184a8",
+              "hash": "d05e8b7f5810b1853fe55dfa575ea00972373e86f45238fa08f10fe030d19c01"
+            },
+            {
+              "seq": 2,
+              "type": "PLAN_ACCEPTED",
+              "taskId": null,
+              "agentId": null,
+              "code": null,
+              "detail": "3 tasks for lab-club-north, requested by HEAD_COACH",
+              "prev": "d05e8b7f5810b1853fe55dfa575ea00972373e86f45238fa08f10fe030d19c01",
+              "hash": "2f2d095baaf574dc9a9f55b501c2c109fc204db4e11dcf15418b38c172e19bad"
+            },
+            {
+              "seq": 3,
+              "type": "TASK_ROUTED",
+              "taskId": "opponent-a",
+              "agentId": "club.tactical",
+              "code": null,
+              "detail": "tactics.opponent-profile@1 via \"analyzeOpponent\"; ranked club.tactical",
+              "prev": "2f2d095baaf574dc9a9f55b501c2c109fc204db4e11dcf15418b38c172e19bad",
+              "hash": "d31110cd2272d762971f7b4b4ef30b6f95e85e9b4a72783f17fab1fa53a35501"
+            },
+            {
+              "seq": 4,
+              "type": "TASK_ROUTED",
+              "taskId": "opponent-b",
+              "agentId": "club.tactical",
+              "code": null,
+              "detail": "tactics.opponent-profile@1 via \"analyzeOpponent\"; ranked club.tactical",
+              "prev": "d31110cd2272d762971f7b4b4ef30b6f95e85e9b4a72783f17fab1fa53a35501",
+              "hash": "f219330d6833f50af24f911f67836b6390e93a3128c0a1dd7f51f4efdf314bdf"
+            },
+            {
+              "seq": 5,
+              "type": "TASK_ROUTED",
+              "taskId": "session-b",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "training.session-draft@1 via \"createTrainingDraft\"; ranked club.training",
+              "prev": "f219330d6833f50af24f911f67836b6390e93a3128c0a1dd7f51f4efdf314bdf",
+              "hash": "aecdb560eb3fb0d9e2b308db6d7658a82ca4225d7bab7a4bb4be59d59ba51f76"
+            },
+            {
+              "seq": 6,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "opponent-a",
+              "agentId": "club.tactical",
+              "code": null,
+              "detail": "INTERNAL output f81818f6a51d",
+              "prev": "aecdb560eb3fb0d9e2b308db6d7658a82ca4225d7bab7a4bb4be59d59ba51f76",
+              "hash": "949c38a6855a27a9ea54b9d5e34bc371e8c28da7786d2a590238b1b5a24d462e"
+            },
+            {
+              "seq": 7,
+              "type": "TASK_FAILED",
+              "taskId": "opponent-b",
+              "agentId": "club.tactical",
+              "code": "INPUT_INVALID",
+              "detail": "matches: Array must contain at least 1 element(s)",
+              "prev": "949c38a6855a27a9ea54b9d5e34bc371e8c28da7786d2a590238b1b5a24d462e",
+              "hash": "f4ab79d353a511e1d35fb006cba68d8ffe1c120ef52f597f16e1226e6afbfb4b"
+            },
+            {
+              "seq": 8,
+              "type": "TASK_SKIPPED",
+              "taskId": "session-b",
+              "agentId": "club.training",
+              "code": "DEPENDENCY_NOT_SUCCEEDED",
+              "detail": "\"opponent-b\" failed, so this never ran",
+              "prev": "f4ab79d353a511e1d35fb006cba68d8ffe1c120ef52f597f16e1226e6afbfb4b",
+              "hash": "278fffd645f16eaaca718e76f474f9b267a2358a98f541dfe49441da127f4115"
+            },
+            {
+              "seq": 9,
+              "type": "RUN_SETTLED",
+              "taskId": null,
+              "agentId": null,
+              "code": "PARTIAL",
+              "detail": "1 succeeded, 0 awaiting approval, 1 failed, 0 refused, 1 skipped, 0 rejected",
+              "prev": "278fffd645f16eaaca718e76f474f9b267a2358a98f541dfe49441da127f4115",
+              "hash": "680fc553f43f8066fcd18f661dbda4234d95b6d6ead898afd8064993088c8562"
+            }
+          ],
+          "digest": "680fc553f43f8066fcd18f661dbda4234d95b6d6ead898afd8064993088c8562"
+        },
+        "log": [
+          {
+            "seq": 1,
+            "type": "EXECUTION_SUBMITTED",
+            "taskId": null,
+            "agentId": null,
+            "code": "SUBMIT",
+            "detail": "request failure-0001 by HEAD_COACH lab-user-head-coach: plan partial-failure 4ac3eae5077c3184, at most 24 steps, security context 61dface87b1cbf8b",
+            "prev": "9c02081e26d8f19166f4c7ab5a9db8ea7639ebed958a54e10a4604ac0e853204",
+            "hash": "c5a64cad535438e7ee8ba230f22ce199df3981dc514ee4f847e22f139350b23a"
+          },
+          {
+            "seq": 2,
+            "type": "OPERATOR_AUTHORIZED",
+            "taskId": null,
+            "agentId": null,
+            "code": "SUBMIT",
+            "detail": "lab-user-head-coach (HEAD_COACH) may submit for lab-club-north, and may read what its agents write",
+            "prev": "c5a64cad535438e7ee8ba230f22ce199df3981dc514ee4f847e22f139350b23a",
+            "hash": "4042fd7a7e8547863a6fd1515a8e64b2dc6c30f73ca03bae4ceac4f3620218ea"
+          },
+          {
+            "seq": 3,
+            "type": "PLAN_VALIDATED",
+            "taskId": null,
+            "agentId": null,
+            "code": null,
+            "detail": "3 tasks: synthetic, bounded, acyclic, every handoff declared; order opponent-a → opponent-b → session-b",
+            "prev": "4042fd7a7e8547863a6fd1515a8e64b2dc6c30f73ca03bae4ceac4f3620218ea",
+            "hash": "bff57439b17c6e1adc08cbb07a65bc805614b5c96fad15175b69c66c3091e33f"
+          },
+          {
+            "seq": 4,
+            "type": "AGENTS_ASSIGNED",
+            "taskId": null,
+            "agentId": null,
+            "code": null,
+            "detail": "opponent-a → club.tactical, opponent-b → club.tactical, session-b → club.training",
+            "prev": "bff57439b17c6e1adc08cbb07a65bc805614b5c96fad15175b69c66c3091e33f",
+            "hash": "df6535b0d8f449c87943e5afb89c4c87489221ce58cd340d2964fedbca4f2d32"
+          },
+          {
+            "seq": 5,
+            "type": "RUN_ADVANCED",
+            "taskId": null,
+            "agentId": null,
+            "code": "PARTIAL",
+            "detail": "run 680fc553f43f8066fcd18f661dbda4234d95b6d6ead898afd8064993088c8562: started, 2 of 24 steps",
+            "prev": "df6535b0d8f449c87943e5afb89c4c87489221ce58cd340d2964fedbca4f2d32",
+            "hash": "c5b9791ad633a92346a2f37cd70e9207197b73d1edc0d9e20c1cb3ca3a51e437"
+          }
+        ],
+        "digest": "ee193d82537a09298025797dfa39b854c3f596a91571aa0cd98328a2cd235b06"
+      }
+    },
+    {
+      "publicationId": "pub-bc8c55a49ee0956fa74acc5a",
+      "reference": "bibokh/familista-backend#9999999",
+      "dossierDigest": "269d65170a355b6da02213839d30261dcb2002bbf3c2488623feae8c3350cf2f",
+      "registry": {
+        "evidence": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+        "current": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+        "matches": true
+      },
+      "agents": [
+        {
+          "id": "club.club-manager",
+          "known": true,
+          "current": true
+        },
+        {
+          "id": "club.tactical",
+          "known": true,
+          "current": true
+        },
+        {
+          "id": "club.training",
+          "known": true,
+          "current": true
+        }
+      ],
+      "evidence": {
+        "contract": "familista.orchestration-evidence/v2",
+        "orchestration": "familista.orchestration/v1",
+        "notice": "Synthetic LAB evidence of a controlled execution, approved for publication when the Platform Owner merged the reviewed pull request that carries it. It ran in the Lab over invented clubs and people; nothing here ran in production, and no agent acted.",
+        "environment": "LAB",
+        "classification": "SYNTHETIC",
+        "publicationId": "pub-bc8c55a49ee0956fa74acc5a",
+        "source": {
+          "contract": "familista.lab-execution/v1",
+          "executionId": "exec-314fad17904e0201308e81fc",
+          "requestId": "cancel-0001",
+          "recordDigest": "16475cd7af238bdf02e6f95cdd049d48bc733c3c909bfc6c86134d2ac30f1638"
+        },
+        "operator": {
+          "userId": "lab-user-head-coach",
+          "role": "HEAD_COACH"
+        },
+        "plan": {
+          "id": "matchday-workflow",
+          "title": "Matchday: analyse, plan, brief and inform the staff",
+          "digest": "1611335c0bd5387f82fe9793436ce04afe00034f17387befc82c2e97fa06b709",
+          "scope": {
+            "kind": "CLUB",
+            "clubId": "lab-club-north"
+          },
+          "requestedByRole": "HEAD_COACH"
+        },
+        "limits": {
+          "maxSteps": 24
+        },
+        "context": {
+          "digest": "61dface87b1cbf8b67f79c33cb5f9916a6f6f41af1e01f31c5164989784e2d35",
+          "registryDigest": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+          "operationsDigest": "8817ff5e22a56b5842ab53684853863048d79a4225f40fd5e8bd29baf19be300",
+          "policyDigest": "acafe92624e690b9c1dcc8f09936850c1b092e2029dc96756b259e29162e3015"
+        },
+        "operations": [
+          {
+            "key": "operations.match-briefing@1",
+            "title": "Compile a match briefing for the staff",
+            "tool": "createReport",
+            "domain": "CLUB_OPERATIONS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "operations.staff-notice@1",
+            "title": "Circulate the match briefing to the staff",
+            "tool": "sendNotification",
+            "domain": "CLUB_OPERATIONS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "tactics.opponent-profile@1",
+            "title": "Profile an opponent from its recorded matches",
+            "tool": "analyzeOpponent",
+            "domain": "TACTICS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "training.session-draft@1",
+            "title": "Draft a training session for the next opponent",
+            "tool": "createTrainingDraft",
+            "domain": "TRAINING",
+            "output": "INTERNAL"
+          }
+        ],
+        "routing": [
+          {
+            "taskId": "opponent",
+            "operation": "tactics.opponent-profile@1",
+            "tool": "analyzeOpponent",
+            "domain": "TACTICS",
+            "selected": "club.tactical",
+            "ranked": [
+              "club.tactical"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not TACTICS"
+              },
+              {
+                "agentId": "club.club-manager",
+                "reason": "domain CLUB_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not TACTICS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not TACTICS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not TACTICS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not TACTICS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not TACTICS"
+              }
+            ]
+          },
+          {
+            "taskId": "session",
+            "operation": "training.session-draft@1",
+            "tool": "createTrainingDraft",
+            "domain": "TRAINING",
+            "selected": "club.training",
+            "ranked": [
+              "club.training"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not TRAINING"
+              },
+              {
+                "agentId": "club.club-manager",
+                "reason": "domain CLUB_OPERATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not TRAINING"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not TRAINING"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not TRAINING"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not TRAINING"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not TRAINING"
+              }
+            ]
+          },
+          {
+            "taskId": "briefing",
+            "operation": "operations.match-briefing@1",
+            "tool": "createReport",
+            "domain": "CLUB_OPERATIONS",
+            "selected": "club.club-manager",
+            "ranked": [
+              "club.club-manager"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not CLUB_OPERATIONS"
+              }
+            ]
+          },
+          {
+            "taskId": "notice",
+            "operation": "operations.staff-notice@1",
+            "tool": "sendNotification",
+            "domain": "CLUB_OPERATIONS",
+            "selected": "club.club-manager",
+            "ranked": [
+              "club.club-manager"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not CLUB_OPERATIONS"
+              }
+            ]
+          }
+        ],
+        "decisions": [],
+        "run": {
+          "outcome": "CANCELLED",
+          "refusal": null,
+          "stop": {
+            "outcome": "CANCELLED",
+            "code": "CANCELLED_BY_OPERATOR",
+            "message": "cancelled by HEAD_COACH lab-user-head-coach"
+          },
+          "steps": 4,
+          "order": [
+            "opponent",
+            "session",
+            "briefing",
+            "notice"
+          ],
+          "tasks": [
+            {
+              "id": "opponent",
+              "operation": "tactics.opponent-profile@1",
+              "tool": "analyzeOpponent",
+              "state": "SUCCEEDED",
+              "dependsOn": [],
+              "agent": {
+                "id": "club.tactical",
+                "version": "1.0.0",
+                "digest": "0b8ec9143de5f055c3fef9bbb4d9f804c9a00d740a1eb0498030da50f26277d8"
+              },
+              "eligibleAgents": [
+                "club.tactical"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "f81818f6a51d2d63f0ceb4c36c2a30c7d97d3d6cb51854fad10904e194c2d8e2",
+              "approval": null,
+              "reason": null,
+              "inputs": []
+            },
+            {
+              "id": "session",
+              "operation": "training.session-draft@1",
+              "tool": "createTrainingDraft",
+              "state": "SUCCEEDED",
+              "dependsOn": [
+                "opponent"
+              ],
+              "agent": {
+                "id": "club.training",
+                "version": "1.0.0",
+                "digest": "4b1455791a654adae4c6140b7f137241df16fc489a43f6fa8677a94bdcb54117"
+              },
+              "eligibleAgents": [
+                "club.training"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "79699ff33405a399631a3db206fb475f6a5ff936ee409fc8d14d7e70bdb59fd9",
+              "approval": null,
+              "reason": null,
+              "inputs": [
+                {
+                  "from": "opponent",
+                  "status": "ACCEPTED"
+                }
+              ]
+            },
+            {
+              "id": "briefing",
+              "operation": "operations.match-briefing@1",
+              "tool": "createReport",
+              "state": "SUCCEEDED",
+              "dependsOn": [
+                "opponent",
+                "session"
+              ],
+              "agent": {
+                "id": "club.club-manager",
+                "version": "1.0.0",
+                "digest": "c6f995368c3f41a0ca4c1bbfd9f6a2f6e1bf831e907c5ba4c9919dbcddf2af91"
+              },
+              "eligibleAgents": [
+                "club.club-manager"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "bfe1516507145a1fc3eb81c671560122ba173acecca43cc2554176f62d8f0ef0",
+              "approval": null,
+              "reason": null,
+              "inputs": [
+                {
+                  "from": "opponent",
+                  "status": "ACCEPTED"
+                },
+                {
+                  "from": "session",
+                  "status": "ACCEPTED"
+                }
+              ]
+            },
+            {
+              "id": "notice",
+              "operation": "operations.staff-notice@1",
+              "tool": "sendNotification",
+              "state": "CANCELLED",
+              "dependsOn": [
+                "briefing"
+              ],
+              "agent": {
+                "id": "club.club-manager",
+                "version": "1.0.0",
+                "digest": "c6f995368c3f41a0ca4c1bbfd9f6a2f6e1bf831e907c5ba4c9919dbcddf2af91"
+              },
+              "eligibleAgents": [
+                "club.club-manager"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": null,
+              "approval": {
+                "eligibleRoles": [
+                  "SUPER_ADMIN",
+                  "CLUB_ADMIN",
+                  "HEAD_COACH"
+                ],
+                "decision": null,
+                "decidedByRole": null
+              },
+              "reason": {
+                "code": "CANCELLED_BY_OPERATOR",
+                "message": "cancelled before it finished: cancelled by HEAD_COACH lab-user-head-coach"
+              },
+              "inputs": []
+            }
+          ],
+          "trace": [
+            {
+              "seq": 1,
+              "type": "PLAN_RECEIVED",
+              "taskId": null,
+              "agentId": null,
+              "code": null,
+              "detail": "plan matchday-workflow in LAB",
+              "prev": "76cfe564aa250677646d8e3678ac75ffc9888fb8f4c6ba302507142ac43184a8",
+              "hash": "ca6c74eb09b8382afd80f329dd03b08b9e76184e6324a26fe255ef57a723489b"
+            },
+            {
+              "seq": 2,
+              "type": "PLAN_ACCEPTED",
+              "taskId": null,
+              "agentId": null,
+              "code": null,
+              "detail": "4 tasks for lab-club-north, requested by HEAD_COACH",
+              "prev": "ca6c74eb09b8382afd80f329dd03b08b9e76184e6324a26fe255ef57a723489b",
+              "hash": "4e24307a5fba07028dffdd01783dc1a658fc07eb64a666e6cc6d4d2fdb23b2bf"
+            },
+            {
+              "seq": 3,
+              "type": "TASK_ROUTED",
+              "taskId": "opponent",
+              "agentId": "club.tactical",
+              "code": null,
+              "detail": "tactics.opponent-profile@1 via \"analyzeOpponent\"; ranked club.tactical",
+              "prev": "4e24307a5fba07028dffdd01783dc1a658fc07eb64a666e6cc6d4d2fdb23b2bf",
+              "hash": "90b20c83455cd6e9f24b250698573b59b9e494d04d3e526b749176c46a3aa129"
+            },
+            {
+              "seq": 4,
+              "type": "TASK_ROUTED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "training.session-draft@1 via \"createTrainingDraft\"; ranked club.training",
+              "prev": "90b20c83455cd6e9f24b250698573b59b9e494d04d3e526b749176c46a3aa129",
+              "hash": "8bfe209c1287c83efb0651174b26d789e8784092dd298c19b4272bc735c1a88b"
+            },
+            {
+              "seq": 5,
+              "type": "TASK_ROUTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "operations.match-briefing@1 via \"createReport\"; ranked club.club-manager",
+              "prev": "8bfe209c1287c83efb0651174b26d789e8784092dd298c19b4272bc735c1a88b",
+              "hash": "576af9b98850068013410c140add27216d25ee8ff17a1493a52a74aa0bc5da71"
+            },
+            {
+              "seq": 6,
+              "type": "TASK_ROUTED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "operations.staff-notice@1 via \"sendNotification\"; ranked club.club-manager",
+              "prev": "576af9b98850068013410c140add27216d25ee8ff17a1493a52a74aa0bc5da71",
+              "hash": "99b6c9afb4c7e112614cdc4cf6f67896be053d71087377917b8a8c7f70a8efbc"
+            },
+            {
+              "seq": 7,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "opponent",
+              "agentId": "club.tactical",
+              "code": null,
+              "detail": "INTERNAL output f81818f6a51d",
+              "prev": "99b6c9afb4c7e112614cdc4cf6f67896be053d71087377917b8a8c7f70a8efbc",
+              "hash": "46c2d9e74708da48a05091e643f8d4bd46c864a2298192b55cc06ebcb4f0e298"
+            },
+            {
+              "seq": 8,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "\"opponent\" (club.tactical, INTERNAL OPERATIONAL, f81818f6a51d) → \"session\"",
+              "prev": "46c2d9e74708da48a05091e643f8d4bd46c864a2298192b55cc06ebcb4f0e298",
+              "hash": "42b6c9a78fd50a501e43461228b45a6de856535e74d1753af5fdd3eff4c7d216"
+            },
+            {
+              "seq": 9,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "INTERNAL output 79699ff33405",
+              "prev": "42b6c9a78fd50a501e43461228b45a6de856535e74d1753af5fdd3eff4c7d216",
+              "hash": "5fb0bf409c74dd0da8be4c72fc4d7fadc886e56ecf0b235aa2bb19140025e742"
+            },
+            {
+              "seq": 10,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"opponent\" (club.tactical, INTERNAL OPERATIONAL, f81818f6a51d) → \"briefing\"",
+              "prev": "5fb0bf409c74dd0da8be4c72fc4d7fadc886e56ecf0b235aa2bb19140025e742",
+              "hash": "21e8329612055e11ff5933f66c6ed96ac99f166fcc05351d897c269d24c69430"
+            },
+            {
+              "seq": 11,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"session\" (club.training, INTERNAL OPERATIONAL, 79699ff33405) → \"briefing\"",
+              "prev": "21e8329612055e11ff5933f66c6ed96ac99f166fcc05351d897c269d24c69430",
+              "hash": "1c91b274dd48ebc60ce4098b4372853c7bc7995f94f1b1d1806843aa879e8f43"
+            },
+            {
+              "seq": 12,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "INTERNAL output bfe151650714",
+              "prev": "1c91b274dd48ebc60ce4098b4372853c7bc7995f94f1b1d1806843aa879e8f43",
+              "hash": "7c436150b6d4f161f6c6aab3e7a5b6c48b6d260369310575698c0bc5f03045d2"
+            },
+            {
+              "seq": 13,
+              "type": "APPROVAL_REQUIRED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"sendNotification\" waits for a person: SUPER_ADMIN, CLUB_ADMIN, HEAD_COACH",
+              "prev": "7c436150b6d4f161f6c6aab3e7a5b6c48b6d260369310575698c0bc5f03045d2",
+              "hash": "8c039950c75b3cdb0dc07b2faf732679e6d83c1168c970df63dfa058af984ed3"
+            },
+            {
+              "seq": 14,
+              "type": "RUN_SETTLED",
+              "taskId": null,
+              "agentId": null,
+              "code": "AWAITING_APPROVAL",
+              "detail": "3 succeeded, 1 awaiting approval, 0 failed, 0 refused, 0 skipped, 0 rejected",
+              "prev": "8c039950c75b3cdb0dc07b2faf732679e6d83c1168c970df63dfa058af984ed3",
+              "hash": "cee46504ef2c3aa434e2b189a04262b73bb946f51854865be5fc2ad569635dd3"
+            },
+            {
+              "seq": 15,
+              "type": "RUN_CANCELLED",
+              "taskId": null,
+              "agentId": null,
+              "code": "CANCELLED_BY_OPERATOR",
+              "detail": "cancelled by HEAD_COACH lab-user-head-coach",
+              "prev": "cee46504ef2c3aa434e2b189a04262b73bb946f51854865be5fc2ad569635dd3",
+              "hash": "98a111bcf0edcca5640da7a4acc0a3756f9aaa174d24b2e47e14c4f824a88c29"
+            },
+            {
+              "seq": 16,
+              "type": "TASK_CANCELLED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": "CANCELLED_BY_OPERATOR",
+              "detail": "cancelled before it finished: cancelled by HEAD_COACH lab-user-head-coach",
+              "prev": "98a111bcf0edcca5640da7a4acc0a3756f9aaa174d24b2e47e14c4f824a88c29",
+              "hash": "6911f6a4cebb9fdedbc6c5d80d65637d9ade25a847f9f24bcf01de06774a9b67"
+            },
+            {
+              "seq": 17,
+              "type": "RUN_SETTLED",
+              "taskId": null,
+              "agentId": null,
+              "code": "CANCELLED",
+              "detail": "3 succeeded, 0 awaiting approval, 0 failed, 0 refused, 0 skipped, 0 rejected, 1 cancelled",
+              "prev": "6911f6a4cebb9fdedbc6c5d80d65637d9ade25a847f9f24bcf01de06774a9b67",
+              "hash": "9a4bd6b81cd92348d684000fcec8a3965b6489aacbdafebaa40abd40305bf8f2"
+            }
+          ],
+          "digest": "9a4bd6b81cd92348d684000fcec8a3965b6489aacbdafebaa40abd40305bf8f2"
+        },
+        "log": [
+          {
+            "seq": 1,
+            "type": "EXECUTION_SUBMITTED",
+            "taskId": null,
+            "agentId": null,
+            "code": "SUBMIT",
+            "detail": "request cancel-0001 by HEAD_COACH lab-user-head-coach: plan matchday-workflow 1611335c0bd5387f, at most 24 steps, security context 61dface87b1cbf8b",
+            "prev": "9c02081e26d8f19166f4c7ab5a9db8ea7639ebed958a54e10a4604ac0e853204",
+            "hash": "99a08debdb4889ed8faeed06a084e97aa61255fbcddf4bad6fd664227f21c743"
+          },
+          {
+            "seq": 2,
+            "type": "OPERATOR_AUTHORIZED",
+            "taskId": null,
+            "agentId": null,
+            "code": "SUBMIT",
+            "detail": "lab-user-head-coach (HEAD_COACH) may submit for lab-club-north, and may read what its agents write",
+            "prev": "99a08debdb4889ed8faeed06a084e97aa61255fbcddf4bad6fd664227f21c743",
+            "hash": "4b64b1a7faba39a89df7fd0d824277a136762da93484a95d093eb69edf16b32b"
+          },
+          {
+            "seq": 3,
+            "type": "PLAN_VALIDATED",
+            "taskId": null,
+            "agentId": null,
+            "code": null,
+            "detail": "4 tasks: synthetic, bounded, acyclic, every handoff declared; order opponent → session → briefing → notice",
+            "prev": "4b64b1a7faba39a89df7fd0d824277a136762da93484a95d093eb69edf16b32b",
+            "hash": "03937a293008cd96668b851e02887dab06bec5a4d448487fd08ec5daaf53c1d1"
+          },
+          {
+            "seq": 4,
+            "type": "AGENTS_ASSIGNED",
+            "taskId": null,
+            "agentId": null,
+            "code": null,
+            "detail": "opponent → club.tactical, session → club.training, briefing → club.club-manager, notice → club.club-manager",
+            "prev": "03937a293008cd96668b851e02887dab06bec5a4d448487fd08ec5daaf53c1d1",
+            "hash": "7ea9911017ed13732f1845cdd63862d2400bb600590b9d6543bffbba941abd2b"
+          },
+          {
+            "seq": 5,
+            "type": "RUN_ADVANCED",
+            "taskId": null,
+            "agentId": null,
+            "code": "AWAITING_APPROVAL",
+            "detail": "run cee46504ef2c3aa434e2b189a04262b73bb946f51854865be5fc2ad569635dd3: started, 4 of 24 steps",
+            "prev": "7ea9911017ed13732f1845cdd63862d2400bb600590b9d6543bffbba941abd2b",
+            "hash": "c9bfbaeefcd2b48aea7074380dbae0e1d9842cabbbd8cab5be2c8ad9cd905c40"
+          },
+          {
+            "seq": 6,
+            "type": "CANCEL_REFUSED",
+            "taskId": null,
+            "agentId": null,
+            "code": "OPERATOR_NOT_PERMITTED",
+            "detail": "cancellation by ANALYST lab-user-analyst refused: lab-user-analyst may not cancel executions",
+            "prev": "c9bfbaeefcd2b48aea7074380dbae0e1d9842cabbbd8cab5be2c8ad9cd905c40",
+            "hash": "a65262cc57fc91b10047e3de3afde3efea84b7301580105ea7847fdbd4ff4f07"
+          },
+          {
+            "seq": 7,
+            "type": "EXECUTION_CANCELLED",
+            "taskId": null,
+            "agentId": null,
+            "code": "CANCELLED_BY_OPERATOR",
+            "detail": "cancelled by HEAD_COACH lab-user-head-coach",
+            "prev": "a65262cc57fc91b10047e3de3afde3efea84b7301580105ea7847fdbd4ff4f07",
+            "hash": "af94769ef045978d3fe199a857cc67282088bf6519478aaacf58518b437f62b6"
+          },
+          {
+            "seq": 8,
+            "type": "RUN_ADVANCED",
+            "taskId": null,
+            "agentId": null,
+            "code": "CANCELLED",
+            "detail": "run 9a4bd6b81cd92348d684000fcec8a3965b6489aacbdafebaa40abd40305bf8f2: cancelled",
+            "prev": "af94769ef045978d3fe199a857cc67282088bf6519478aaacf58518b437f62b6",
+            "hash": "399ab8f620b9804683b9f5911168ec5f37783fa0c84760c2801adbd204187982"
+          }
+        ],
+        "digest": "269d65170a355b6da02213839d30261dcb2002bbf3c2488623feae8c3350cf2f"
+      }
+    },
+    {
+      "publicationId": "pub-6cc98ca34610978e88064fb1",
+      "reference": "bibokh/familista-backend#9999999",
+      "dossierDigest": "19bd140f9edf530b0416fe3fa6b1f119663aa00af7915798cc37f5840aff830d",
+      "registry": {
+        "evidence": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+        "current": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+        "matches": true
+      },
+      "agents": [
+        {
+          "id": "club.club-manager",
+          "known": true,
+          "current": true
+        },
+        {
+          "id": "club.tactical",
+          "known": true,
+          "current": true
+        },
+        {
+          "id": "club.training",
+          "known": true,
+          "current": true
+        }
+      ],
+      "evidence": {
+        "contract": "familista.orchestration-evidence/v2",
+        "orchestration": "familista.orchestration/v1",
+        "notice": "Synthetic LAB evidence of a controlled execution, approved for publication when the Platform Owner merged the reviewed pull request that carries it. It ran in the Lab over invented clubs and people; nothing here ran in production, and no agent acted.",
+        "environment": "LAB",
+        "classification": "SYNTHETIC",
+        "publicationId": "pub-6cc98ca34610978e88064fb1",
+        "source": {
+          "contract": "familista.lab-execution/v1",
+          "executionId": "exec-8948cf0c0b043fe79aa081d7",
+          "requestId": "kill-0003",
+          "recordDigest": "598160bb4e09627da6096673bf4332613c8adfdb7a264b1447129868db400c75"
+        },
+        "operator": {
+          "userId": "lab-user-head-coach",
+          "role": "HEAD_COACH"
+        },
+        "plan": {
+          "id": "matchday-workflow",
+          "title": "Matchday: analyse, plan, brief and inform the staff",
+          "digest": "1611335c0bd5387f82fe9793436ce04afe00034f17387befc82c2e97fa06b709",
+          "scope": {
+            "kind": "CLUB",
+            "clubId": "lab-club-north"
+          },
+          "requestedByRole": "HEAD_COACH"
+        },
+        "limits": {
+          "maxSteps": 24
+        },
+        "context": {
+          "digest": "61dface87b1cbf8b67f79c33cb5f9916a6f6f41af1e01f31c5164989784e2d35",
+          "registryDigest": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+          "operationsDigest": "8817ff5e22a56b5842ab53684853863048d79a4225f40fd5e8bd29baf19be300",
+          "policyDigest": "acafe92624e690b9c1dcc8f09936850c1b092e2029dc96756b259e29162e3015"
+        },
+        "operations": [
+          {
+            "key": "operations.match-briefing@1",
+            "title": "Compile a match briefing for the staff",
+            "tool": "createReport",
+            "domain": "CLUB_OPERATIONS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "operations.staff-notice@1",
+            "title": "Circulate the match briefing to the staff",
+            "tool": "sendNotification",
+            "domain": "CLUB_OPERATIONS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "tactics.opponent-profile@1",
+            "title": "Profile an opponent from its recorded matches",
+            "tool": "analyzeOpponent",
+            "domain": "TACTICS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "training.session-draft@1",
+            "title": "Draft a training session for the next opponent",
+            "tool": "createTrainingDraft",
+            "domain": "TRAINING",
+            "output": "INTERNAL"
+          }
+        ],
+        "routing": [
+          {
+            "taskId": "opponent",
+            "operation": "tactics.opponent-profile@1",
+            "tool": "analyzeOpponent",
+            "domain": "TACTICS",
+            "selected": "club.tactical",
+            "ranked": [
+              "club.tactical"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not TACTICS"
+              },
+              {
+                "agentId": "club.club-manager",
+                "reason": "domain CLUB_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not TACTICS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not TACTICS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not TACTICS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not TACTICS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not TACTICS"
+              }
+            ]
+          },
+          {
+            "taskId": "session",
+            "operation": "training.session-draft@1",
+            "tool": "createTrainingDraft",
+            "domain": "TRAINING",
+            "selected": "club.training",
+            "ranked": [
+              "club.training"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not TRAINING"
+              },
+              {
+                "agentId": "club.club-manager",
+                "reason": "domain CLUB_OPERATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not TRAINING"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not TRAINING"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not TRAINING"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not TRAINING"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not TRAINING"
+              }
+            ]
+          },
+          {
+            "taskId": "briefing",
+            "operation": "operations.match-briefing@1",
+            "tool": "createReport",
+            "domain": "CLUB_OPERATIONS",
+            "selected": "club.club-manager",
+            "ranked": [
+              "club.club-manager"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not CLUB_OPERATIONS"
+              }
+            ]
+          },
+          {
+            "taskId": "notice",
+            "operation": "operations.staff-notice@1",
+            "tool": "sendNotification",
+            "domain": "CLUB_OPERATIONS",
+            "selected": "club.club-manager",
+            "ranked": [
+              "club.club-manager"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not CLUB_OPERATIONS"
+              }
+            ]
+          }
+        ],
+        "decisions": [],
+        "run": {
+          "outcome": "HALTED",
+          "refusal": null,
+          "stop": {
+            "outcome": "HALTED",
+            "code": "KILL_SWITCH",
+            "message": "the global kill switch is engaged (LAB demonstration: engaged while an approval waits)"
+          },
+          "steps": 4,
+          "order": [
+            "opponent",
+            "session",
+            "briefing",
+            "notice"
+          ],
+          "tasks": [
+            {
+              "id": "opponent",
+              "operation": "tactics.opponent-profile@1",
+              "tool": "analyzeOpponent",
+              "state": "SUCCEEDED",
+              "dependsOn": [],
+              "agent": {
+                "id": "club.tactical",
+                "version": "1.0.0",
+                "digest": "0b8ec9143de5f055c3fef9bbb4d9f804c9a00d740a1eb0498030da50f26277d8"
+              },
+              "eligibleAgents": [
+                "club.tactical"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "f81818f6a51d2d63f0ceb4c36c2a30c7d97d3d6cb51854fad10904e194c2d8e2",
+              "approval": null,
+              "reason": null,
+              "inputs": []
+            },
+            {
+              "id": "session",
+              "operation": "training.session-draft@1",
+              "tool": "createTrainingDraft",
+              "state": "SUCCEEDED",
+              "dependsOn": [
+                "opponent"
+              ],
+              "agent": {
+                "id": "club.training",
+                "version": "1.0.0",
+                "digest": "4b1455791a654adae4c6140b7f137241df16fc489a43f6fa8677a94bdcb54117"
+              },
+              "eligibleAgents": [
+                "club.training"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "79699ff33405a399631a3db206fb475f6a5ff936ee409fc8d14d7e70bdb59fd9",
+              "approval": null,
+              "reason": null,
+              "inputs": [
+                {
+                  "from": "opponent",
+                  "status": "ACCEPTED"
+                }
+              ]
+            },
+            {
+              "id": "briefing",
+              "operation": "operations.match-briefing@1",
+              "tool": "createReport",
+              "state": "SUCCEEDED",
+              "dependsOn": [
+                "opponent",
+                "session"
+              ],
+              "agent": {
+                "id": "club.club-manager",
+                "version": "1.0.0",
+                "digest": "c6f995368c3f41a0ca4c1bbfd9f6a2f6e1bf831e907c5ba4c9919dbcddf2af91"
+              },
+              "eligibleAgents": [
+                "club.club-manager"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "bfe1516507145a1fc3eb81c671560122ba173acecca43cc2554176f62d8f0ef0",
+              "approval": null,
+              "reason": null,
+              "inputs": [
+                {
+                  "from": "opponent",
+                  "status": "ACCEPTED"
+                },
+                {
+                  "from": "session",
+                  "status": "ACCEPTED"
+                }
+              ]
+            },
+            {
+              "id": "notice",
+              "operation": "operations.staff-notice@1",
+              "tool": "sendNotification",
+              "state": "CANCELLED",
+              "dependsOn": [
+                "briefing"
+              ],
+              "agent": {
+                "id": "club.club-manager",
+                "version": "1.0.0",
+                "digest": "c6f995368c3f41a0ca4c1bbfd9f6a2f6e1bf831e907c5ba4c9919dbcddf2af91"
+              },
+              "eligibleAgents": [
+                "club.club-manager"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": null,
+              "approval": {
+                "eligibleRoles": [
+                  "SUPER_ADMIN",
+                  "CLUB_ADMIN",
+                  "HEAD_COACH"
+                ],
+                "decision": null,
+                "decidedByRole": null
+              },
+              "reason": {
+                "code": "KILL_SWITCH",
+                "message": "halted before it finished: the global kill switch is engaged (LAB demonstration: engaged while an approval waits)"
+              },
+              "inputs": []
+            }
+          ],
+          "trace": [
+            {
+              "seq": 1,
+              "type": "PLAN_RECEIVED",
+              "taskId": null,
+              "agentId": null,
+              "code": null,
+              "detail": "plan matchday-workflow in LAB",
+              "prev": "76cfe564aa250677646d8e3678ac75ffc9888fb8f4c6ba302507142ac43184a8",
+              "hash": "ca6c74eb09b8382afd80f329dd03b08b9e76184e6324a26fe255ef57a723489b"
+            },
+            {
+              "seq": 2,
+              "type": "PLAN_ACCEPTED",
+              "taskId": null,
+              "agentId": null,
+              "code": null,
+              "detail": "4 tasks for lab-club-north, requested by HEAD_COACH",
+              "prev": "ca6c74eb09b8382afd80f329dd03b08b9e76184e6324a26fe255ef57a723489b",
+              "hash": "4e24307a5fba07028dffdd01783dc1a658fc07eb64a666e6cc6d4d2fdb23b2bf"
+            },
+            {
+              "seq": 3,
+              "type": "TASK_ROUTED",
+              "taskId": "opponent",
+              "agentId": "club.tactical",
+              "code": null,
+              "detail": "tactics.opponent-profile@1 via \"analyzeOpponent\"; ranked club.tactical",
+              "prev": "4e24307a5fba07028dffdd01783dc1a658fc07eb64a666e6cc6d4d2fdb23b2bf",
+              "hash": "90b20c83455cd6e9f24b250698573b59b9e494d04d3e526b749176c46a3aa129"
+            },
+            {
+              "seq": 4,
+              "type": "TASK_ROUTED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "training.session-draft@1 via \"createTrainingDraft\"; ranked club.training",
+              "prev": "90b20c83455cd6e9f24b250698573b59b9e494d04d3e526b749176c46a3aa129",
+              "hash": "8bfe209c1287c83efb0651174b26d789e8784092dd298c19b4272bc735c1a88b"
+            },
+            {
+              "seq": 5,
+              "type": "TASK_ROUTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "operations.match-briefing@1 via \"createReport\"; ranked club.club-manager",
+              "prev": "8bfe209c1287c83efb0651174b26d789e8784092dd298c19b4272bc735c1a88b",
+              "hash": "576af9b98850068013410c140add27216d25ee8ff17a1493a52a74aa0bc5da71"
+            },
+            {
+              "seq": 6,
+              "type": "TASK_ROUTED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "operations.staff-notice@1 via \"sendNotification\"; ranked club.club-manager",
+              "prev": "576af9b98850068013410c140add27216d25ee8ff17a1493a52a74aa0bc5da71",
+              "hash": "99b6c9afb4c7e112614cdc4cf6f67896be053d71087377917b8a8c7f70a8efbc"
+            },
+            {
+              "seq": 7,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "opponent",
+              "agentId": "club.tactical",
+              "code": null,
+              "detail": "INTERNAL output f81818f6a51d",
+              "prev": "99b6c9afb4c7e112614cdc4cf6f67896be053d71087377917b8a8c7f70a8efbc",
+              "hash": "46c2d9e74708da48a05091e643f8d4bd46c864a2298192b55cc06ebcb4f0e298"
+            },
+            {
+              "seq": 8,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "\"opponent\" (club.tactical, INTERNAL OPERATIONAL, f81818f6a51d) → \"session\"",
+              "prev": "46c2d9e74708da48a05091e643f8d4bd46c864a2298192b55cc06ebcb4f0e298",
+              "hash": "42b6c9a78fd50a501e43461228b45a6de856535e74d1753af5fdd3eff4c7d216"
+            },
+            {
+              "seq": 9,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "INTERNAL output 79699ff33405",
+              "prev": "42b6c9a78fd50a501e43461228b45a6de856535e74d1753af5fdd3eff4c7d216",
+              "hash": "5fb0bf409c74dd0da8be4c72fc4d7fadc886e56ecf0b235aa2bb19140025e742"
+            },
+            {
+              "seq": 10,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"opponent\" (club.tactical, INTERNAL OPERATIONAL, f81818f6a51d) → \"briefing\"",
+              "prev": "5fb0bf409c74dd0da8be4c72fc4d7fadc886e56ecf0b235aa2bb19140025e742",
+              "hash": "21e8329612055e11ff5933f66c6ed96ac99f166fcc05351d897c269d24c69430"
+            },
+            {
+              "seq": 11,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"session\" (club.training, INTERNAL OPERATIONAL, 79699ff33405) → \"briefing\"",
+              "prev": "21e8329612055e11ff5933f66c6ed96ac99f166fcc05351d897c269d24c69430",
+              "hash": "1c91b274dd48ebc60ce4098b4372853c7bc7995f94f1b1d1806843aa879e8f43"
+            },
+            {
+              "seq": 12,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "INTERNAL output bfe151650714",
+              "prev": "1c91b274dd48ebc60ce4098b4372853c7bc7995f94f1b1d1806843aa879e8f43",
+              "hash": "7c436150b6d4f161f6c6aab3e7a5b6c48b6d260369310575698c0bc5f03045d2"
+            },
+            {
+              "seq": 13,
+              "type": "APPROVAL_REQUIRED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "\"sendNotification\" waits for a person: SUPER_ADMIN, CLUB_ADMIN, HEAD_COACH",
+              "prev": "7c436150b6d4f161f6c6aab3e7a5b6c48b6d260369310575698c0bc5f03045d2",
+              "hash": "8c039950c75b3cdb0dc07b2faf732679e6d83c1168c970df63dfa058af984ed3"
+            },
+            {
+              "seq": 14,
+              "type": "RUN_SETTLED",
+              "taskId": null,
+              "agentId": null,
+              "code": "AWAITING_APPROVAL",
+              "detail": "3 succeeded, 1 awaiting approval, 0 failed, 0 refused, 0 skipped, 0 rejected",
+              "prev": "8c039950c75b3cdb0dc07b2faf732679e6d83c1168c970df63dfa058af984ed3",
+              "hash": "cee46504ef2c3aa434e2b189a04262b73bb946f51854865be5fc2ad569635dd3"
+            },
+            {
+              "seq": 15,
+              "type": "RUN_HALTED",
+              "taskId": null,
+              "agentId": null,
+              "code": "KILL_SWITCH",
+              "detail": "the global kill switch is engaged (LAB demonstration: engaged while an approval waits)",
+              "prev": "cee46504ef2c3aa434e2b189a04262b73bb946f51854865be5fc2ad569635dd3",
+              "hash": "544ec3b92ec08313b7bac6273c6bd663f327603467f60961fc4a4be4a8dbe424"
+            },
+            {
+              "seq": 16,
+              "type": "TASK_CANCELLED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": "KILL_SWITCH",
+              "detail": "halted before it finished: the global kill switch is engaged (LAB demonstration: engaged while an approval waits)",
+              "prev": "544ec3b92ec08313b7bac6273c6bd663f327603467f60961fc4a4be4a8dbe424",
+              "hash": "5a5134f22bbbd3ceec31cfa333b59ae4cdae34b0b1db7e2c19eebdd6d8a5be87"
+            },
+            {
+              "seq": 17,
+              "type": "RUN_SETTLED",
+              "taskId": null,
+              "agentId": null,
+              "code": "HALTED",
+              "detail": "3 succeeded, 0 awaiting approval, 0 failed, 0 refused, 0 skipped, 0 rejected, 1 cancelled",
+              "prev": "5a5134f22bbbd3ceec31cfa333b59ae4cdae34b0b1db7e2c19eebdd6d8a5be87",
+              "hash": "270149def4ea31003c9eba477bbd5ae8bc20ee3ffbe41d69be320f970b9c8d2a"
+            }
+          ],
+          "digest": "270149def4ea31003c9eba477bbd5ae8bc20ee3ffbe41d69be320f970b9c8d2a"
+        },
+        "log": [
+          {
+            "seq": 1,
+            "type": "EXECUTION_SUBMITTED",
+            "taskId": null,
+            "agentId": null,
+            "code": "SUBMIT",
+            "detail": "request kill-0003 by HEAD_COACH lab-user-head-coach: plan matchday-workflow 1611335c0bd5387f, at most 24 steps, security context 61dface87b1cbf8b",
+            "prev": "9c02081e26d8f19166f4c7ab5a9db8ea7639ebed958a54e10a4604ac0e853204",
+            "hash": "0ff79e2cb69237076208188cbdcb166ae3ae0ea9b8c94515e3da7c39e98dd5b9"
+          },
+          {
+            "seq": 2,
+            "type": "OPERATOR_AUTHORIZED",
+            "taskId": null,
+            "agentId": null,
+            "code": "SUBMIT",
+            "detail": "lab-user-head-coach (HEAD_COACH) may submit for lab-club-north, and may read what its agents write",
+            "prev": "0ff79e2cb69237076208188cbdcb166ae3ae0ea9b8c94515e3da7c39e98dd5b9",
+            "hash": "f316a4bde3bc2e88fb11eefb7dd87b03d7ab8b402ea323b1ecc1a342c3392d83"
+          },
+          {
+            "seq": 3,
+            "type": "PLAN_VALIDATED",
+            "taskId": null,
+            "agentId": null,
+            "code": null,
+            "detail": "4 tasks: synthetic, bounded, acyclic, every handoff declared; order opponent → session → briefing → notice",
+            "prev": "f316a4bde3bc2e88fb11eefb7dd87b03d7ab8b402ea323b1ecc1a342c3392d83",
+            "hash": "208e574e163509dc137fd77e36e1b86bf71b305f8f0cf7c812f1ac23d9c7a3ef"
+          },
+          {
+            "seq": 4,
+            "type": "AGENTS_ASSIGNED",
+            "taskId": null,
+            "agentId": null,
+            "code": null,
+            "detail": "opponent → club.tactical, session → club.training, briefing → club.club-manager, notice → club.club-manager",
+            "prev": "208e574e163509dc137fd77e36e1b86bf71b305f8f0cf7c812f1ac23d9c7a3ef",
+            "hash": "e01a89e5e5a6ada00f4cc23c2d00220ad2412049f548b978a1cc4a26bfe9b3bf"
+          },
+          {
+            "seq": 5,
+            "type": "RUN_ADVANCED",
+            "taskId": null,
+            "agentId": null,
+            "code": "AWAITING_APPROVAL",
+            "detail": "run cee46504ef2c3aa434e2b189a04262b73bb946f51854865be5fc2ad569635dd3: started, 4 of 24 steps",
+            "prev": "e01a89e5e5a6ada00f4cc23c2d00220ad2412049f548b978a1cc4a26bfe9b3bf",
+            "hash": "bbf74cf28c6b47b11a0a652649351563800608ba6ac285bed018981afc924970"
+          },
+          {
+            "seq": 6,
+            "type": "DECISION_REFUSED",
+            "taskId": "notice",
+            "agentId": null,
+            "code": "KILL_SWITCH",
+            "detail": "approved on \"notice\" by CLUB_ADMIN lab-user-club-admin, not applied: the global kill switch is engaged (LAB demonstration: engaged while an approval waits)",
+            "prev": "bbf74cf28c6b47b11a0a652649351563800608ba6ac285bed018981afc924970",
+            "hash": "0730c4430f16370e13d2ec9191bc921cafd7f2636965a270d8a3ff128b604a28"
+          },
+          {
+            "seq": 7,
+            "type": "EXECUTION_HALTED",
+            "taskId": null,
+            "agentId": null,
+            "code": "KILL_SWITCH",
+            "detail": "the global kill switch is engaged (LAB demonstration: engaged while an approval waits)",
+            "prev": "0730c4430f16370e13d2ec9191bc921cafd7f2636965a270d8a3ff128b604a28",
+            "hash": "d74da3930d1de34b7229900f2fe7017a1c41a065c569e69959e28bbd451c42ca"
+          },
+          {
+            "seq": 8,
+            "type": "RUN_ADVANCED",
+            "taskId": null,
+            "agentId": null,
+            "code": "HALTED",
+            "detail": "run 270149def4ea31003c9eba477bbd5ae8bc20ee3ffbe41d69be320f970b9c8d2a: halted by the kill switch while it waited for a decision",
+            "prev": "d74da3930d1de34b7229900f2fe7017a1c41a065c569e69959e28bbd451c42ca",
+            "hash": "8b31d7a6844df9da3ab8ed7a9459ec7f65cdfa5883f8b11b07f6fc33f9b63e75"
+          }
+        ],
+        "digest": "19bd140f9edf530b0416fe3fa6b1f119663aa00af7915798cc37f5840aff830d"
+      }
+    },
+    {
+      "publicationId": "pub-a536cc2d1b1c5b2aca46f330",
+      "reference": "bibokh/familista-backend#9999999",
+      "dossierDigest": "1e155adc985b1a133e8bc6406ed43403398c132e8bdfa400f41a1fc636f751a6",
+      "registry": {
+        "evidence": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+        "current": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+        "matches": true
+      },
+      "agents": [
+        {
+          "id": "club.club-manager",
+          "known": true,
+          "current": true
+        },
+        {
+          "id": "club.tactical",
+          "known": true,
+          "current": true
+        },
+        {
+          "id": "club.training",
+          "known": true,
+          "current": true
+        }
+      ],
+      "evidence": {
+        "contract": "familista.orchestration-evidence/v2",
+        "orchestration": "familista.orchestration/v1",
+        "notice": "Synthetic LAB evidence of a controlled execution, approved for publication when the Platform Owner merged the reviewed pull request that carries it. It ran in the Lab over invented clubs and people; nothing here ran in production, and no agent acted.",
+        "environment": "LAB",
+        "classification": "SYNTHETIC",
+        "publicationId": "pub-a536cc2d1b1c5b2aca46f330",
+        "source": {
+          "contract": "familista.lab-execution/v1",
+          "executionId": "exec-646016cb6352322ce44ed964",
+          "requestId": "limit-0001",
+          "recordDigest": "9b26cced76bc59de49c5f9d5114e4033ae7545923fc6aa6a65eef73b5f7b0fc4"
+        },
+        "operator": {
+          "userId": "lab-user-head-coach",
+          "role": "HEAD_COACH"
+        },
+        "plan": {
+          "id": "matchday-workflow",
+          "title": "Matchday: analyse, plan, brief and inform the staff",
+          "digest": "1611335c0bd5387f82fe9793436ce04afe00034f17387befc82c2e97fa06b709",
+          "scope": {
+            "kind": "CLUB",
+            "clubId": "lab-club-north"
+          },
+          "requestedByRole": "HEAD_COACH"
+        },
+        "limits": {
+          "maxSteps": 2
+        },
+        "context": {
+          "digest": "61dface87b1cbf8b67f79c33cb5f9916a6f6f41af1e01f31c5164989784e2d35",
+          "registryDigest": "c8596a7704d8b55dd0fd6ed361e0dd36827c48e29d198700be53455fda214de9",
+          "operationsDigest": "8817ff5e22a56b5842ab53684853863048d79a4225f40fd5e8bd29baf19be300",
+          "policyDigest": "acafe92624e690b9c1dcc8f09936850c1b092e2029dc96756b259e29162e3015"
+        },
+        "operations": [
+          {
+            "key": "operations.match-briefing@1",
+            "title": "Compile a match briefing for the staff",
+            "tool": "createReport",
+            "domain": "CLUB_OPERATIONS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "operations.staff-notice@1",
+            "title": "Circulate the match briefing to the staff",
+            "tool": "sendNotification",
+            "domain": "CLUB_OPERATIONS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "tactics.opponent-profile@1",
+            "title": "Profile an opponent from its recorded matches",
+            "tool": "analyzeOpponent",
+            "domain": "TACTICS",
+            "output": "INTERNAL"
+          },
+          {
+            "key": "training.session-draft@1",
+            "title": "Draft a training session for the next opponent",
+            "tool": "createTrainingDraft",
+            "domain": "TRAINING",
+            "output": "INTERNAL"
+          }
+        ],
+        "routing": [
+          {
+            "taskId": "opponent",
+            "operation": "tactics.opponent-profile@1",
+            "tool": "analyzeOpponent",
+            "domain": "TACTICS",
+            "selected": "club.tactical",
+            "ranked": [
+              "club.tactical"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not TACTICS"
+              },
+              {
+                "agentId": "club.club-manager",
+                "reason": "domain CLUB_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not TACTICS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not TACTICS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not TACTICS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not TACTICS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not TACTICS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not TACTICS"
+              }
+            ]
+          },
+          {
+            "taskId": "session",
+            "operation": "training.session-draft@1",
+            "tool": "createTrainingDraft",
+            "domain": "TRAINING",
+            "selected": "club.training",
+            "ranked": [
+              "club.training"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not TRAINING"
+              },
+              {
+                "agentId": "club.club-manager",
+                "reason": "domain CLUB_OPERATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not TRAINING"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not TRAINING"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not TRAINING"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not TRAINING"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not TRAINING"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not TRAINING"
+              }
+            ]
+          },
+          {
+            "taskId": "briefing",
+            "operation": "operations.match-briefing@1",
+            "tool": "createReport",
+            "domain": "CLUB_OPERATIONS",
+            "selected": "club.club-manager",
+            "ranked": [
+              "club.club-manager"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not CLUB_OPERATIONS"
+              }
+            ]
+          },
+          {
+            "taskId": "notice",
+            "operation": "operations.staff-notice@1",
+            "tool": "sendNotification",
+            "domain": "CLUB_OPERATIONS",
+            "selected": "club.club-manager",
+            "ranked": [
+              "club.club-manager"
+            ],
+            "passedOver": [
+              {
+                "agentId": "club.big-data",
+                "reason": "domain DATA, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.comms",
+                "reason": "domain COMMUNICATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.device-mgmt",
+                "reason": "domain DEVICES, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.finance",
+                "reason": "domain FINANCE, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.match-ops",
+                "reason": "domain MATCH_OPERATIONS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.medical",
+                "reason": "domain MEDICAL, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.scouting",
+                "reason": "domain SCOUTING, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.tactical",
+                "reason": "domain TACTICS, not CLUB_OPERATIONS"
+              },
+              {
+                "agentId": "club.training",
+                "reason": "domain TRAINING, not CLUB_OPERATIONS"
+              }
+            ]
+          }
+        ],
+        "decisions": [],
+        "run": {
+          "outcome": "HALTED",
+          "refusal": null,
+          "stop": {
+            "outcome": "HALTED",
+            "code": "EXECUTION_LIMIT",
+            "message": "task \"briefing\" would be step 3, past this execution's limit of 2"
+          },
+          "steps": 3,
+          "order": [
+            "opponent",
+            "session",
+            "briefing",
+            "notice"
+          ],
+          "tasks": [
+            {
+              "id": "opponent",
+              "operation": "tactics.opponent-profile@1",
+              "tool": "analyzeOpponent",
+              "state": "SUCCEEDED",
+              "dependsOn": [],
+              "agent": {
+                "id": "club.tactical",
+                "version": "1.0.0",
+                "digest": "0b8ec9143de5f055c3fef9bbb4d9f804c9a00d740a1eb0498030da50f26277d8"
+              },
+              "eligibleAgents": [
+                "club.tactical"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "f81818f6a51d2d63f0ceb4c36c2a30c7d97d3d6cb51854fad10904e194c2d8e2",
+              "approval": null,
+              "reason": null,
+              "inputs": []
+            },
+            {
+              "id": "session",
+              "operation": "training.session-draft@1",
+              "tool": "createTrainingDraft",
+              "state": "SUCCEEDED",
+              "dependsOn": [
+                "opponent"
+              ],
+              "agent": {
+                "id": "club.training",
+                "version": "1.0.0",
+                "digest": "4b1455791a654adae4c6140b7f137241df16fc489a43f6fa8677a94bdcb54117"
+              },
+              "eligibleAgents": [
+                "club.training"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": "79699ff33405a399631a3db206fb475f6a5ff936ee409fc8d14d7e70bdb59fd9",
+              "approval": null,
+              "reason": null,
+              "inputs": [
+                {
+                  "from": "opponent",
+                  "status": "ACCEPTED"
+                }
+              ]
+            },
+            {
+              "id": "briefing",
+              "operation": "operations.match-briefing@1",
+              "tool": "createReport",
+              "state": "CANCELLED",
+              "dependsOn": [
+                "opponent",
+                "session"
+              ],
+              "agent": {
+                "id": "club.club-manager",
+                "version": "1.0.0",
+                "digest": "c6f995368c3f41a0ca4c1bbfd9f6a2f6e1bf831e907c5ba4c9919dbcddf2af91"
+              },
+              "eligibleAgents": [
+                "club.club-manager"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": null,
+              "approval": null,
+              "reason": {
+                "code": "EXECUTION_LIMIT",
+                "message": "halted before it finished: task \"briefing\" would be step 3, past this execution's limit of 2"
+              },
+              "inputs": []
+            },
+            {
+              "id": "notice",
+              "operation": "operations.staff-notice@1",
+              "tool": "sendNotification",
+              "state": "CANCELLED",
+              "dependsOn": [
+                "briefing"
+              ],
+              "agent": {
+                "id": "club.club-manager",
+                "version": "1.0.0",
+                "digest": "c6f995368c3f41a0ca4c1bbfd9f6a2f6e1bf831e907c5ba4c9919dbcddf2af91"
+              },
+              "eligibleAgents": [
+                "club.club-manager"
+              ],
+              "dataClass": "INTERNAL",
+              "recordClass": "OPERATIONAL",
+              "outputDigest": null,
+              "approval": null,
+              "reason": {
+                "code": "EXECUTION_LIMIT",
+                "message": "halted before it finished: task \"briefing\" would be step 3, past this execution's limit of 2"
+              },
+              "inputs": []
+            }
+          ],
+          "trace": [
+            {
+              "seq": 1,
+              "type": "PLAN_RECEIVED",
+              "taskId": null,
+              "agentId": null,
+              "code": null,
+              "detail": "plan matchday-workflow in LAB",
+              "prev": "76cfe564aa250677646d8e3678ac75ffc9888fb8f4c6ba302507142ac43184a8",
+              "hash": "ca6c74eb09b8382afd80f329dd03b08b9e76184e6324a26fe255ef57a723489b"
+            },
+            {
+              "seq": 2,
+              "type": "PLAN_ACCEPTED",
+              "taskId": null,
+              "agentId": null,
+              "code": null,
+              "detail": "4 tasks for lab-club-north, requested by HEAD_COACH",
+              "prev": "ca6c74eb09b8382afd80f329dd03b08b9e76184e6324a26fe255ef57a723489b",
+              "hash": "4e24307a5fba07028dffdd01783dc1a658fc07eb64a666e6cc6d4d2fdb23b2bf"
+            },
+            {
+              "seq": 3,
+              "type": "TASK_ROUTED",
+              "taskId": "opponent",
+              "agentId": "club.tactical",
+              "code": null,
+              "detail": "tactics.opponent-profile@1 via \"analyzeOpponent\"; ranked club.tactical",
+              "prev": "4e24307a5fba07028dffdd01783dc1a658fc07eb64a666e6cc6d4d2fdb23b2bf",
+              "hash": "90b20c83455cd6e9f24b250698573b59b9e494d04d3e526b749176c46a3aa129"
+            },
+            {
+              "seq": 4,
+              "type": "TASK_ROUTED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "training.session-draft@1 via \"createTrainingDraft\"; ranked club.training",
+              "prev": "90b20c83455cd6e9f24b250698573b59b9e494d04d3e526b749176c46a3aa129",
+              "hash": "8bfe209c1287c83efb0651174b26d789e8784092dd298c19b4272bc735c1a88b"
+            },
+            {
+              "seq": 5,
+              "type": "TASK_ROUTED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "operations.match-briefing@1 via \"createReport\"; ranked club.club-manager",
+              "prev": "8bfe209c1287c83efb0651174b26d789e8784092dd298c19b4272bc735c1a88b",
+              "hash": "576af9b98850068013410c140add27216d25ee8ff17a1493a52a74aa0bc5da71"
+            },
+            {
+              "seq": 6,
+              "type": "TASK_ROUTED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": null,
+              "detail": "operations.staff-notice@1 via \"sendNotification\"; ranked club.club-manager",
+              "prev": "576af9b98850068013410c140add27216d25ee8ff17a1493a52a74aa0bc5da71",
+              "hash": "99b6c9afb4c7e112614cdc4cf6f67896be053d71087377917b8a8c7f70a8efbc"
+            },
+            {
+              "seq": 7,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "opponent",
+              "agentId": "club.tactical",
+              "code": null,
+              "detail": "INTERNAL output f81818f6a51d",
+              "prev": "99b6c9afb4c7e112614cdc4cf6f67896be053d71087377917b8a8c7f70a8efbc",
+              "hash": "46c2d9e74708da48a05091e643f8d4bd46c864a2298192b55cc06ebcb4f0e298"
+            },
+            {
+              "seq": 8,
+              "type": "HANDOFF_ACCEPTED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "\"opponent\" (club.tactical, INTERNAL OPERATIONAL, f81818f6a51d) → \"session\"",
+              "prev": "46c2d9e74708da48a05091e643f8d4bd46c864a2298192b55cc06ebcb4f0e298",
+              "hash": "42b6c9a78fd50a501e43461228b45a6de856535e74d1753af5fdd3eff4c7d216"
+            },
+            {
+              "seq": 9,
+              "type": "TASK_SUCCEEDED",
+              "taskId": "session",
+              "agentId": "club.training",
+              "code": null,
+              "detail": "INTERNAL output 79699ff33405",
+              "prev": "42b6c9a78fd50a501e43461228b45a6de856535e74d1753af5fdd3eff4c7d216",
+              "hash": "5fb0bf409c74dd0da8be4c72fc4d7fadc886e56ecf0b235aa2bb19140025e742"
+            },
+            {
+              "seq": 10,
+              "type": "RUN_HALTED",
+              "taskId": null,
+              "agentId": null,
+              "code": "EXECUTION_LIMIT",
+              "detail": "task \"briefing\" would be step 3, past this execution's limit of 2",
+              "prev": "5fb0bf409c74dd0da8be4c72fc4d7fadc886e56ecf0b235aa2bb19140025e742",
+              "hash": "58c06c41ecf220335e1f589f704b515cbd754c5051d6d5a9104cfe4e7ba58518"
+            },
+            {
+              "seq": 11,
+              "type": "TASK_CANCELLED",
+              "taskId": "briefing",
+              "agentId": "club.club-manager",
+              "code": "EXECUTION_LIMIT",
+              "detail": "halted before it finished: task \"briefing\" would be step 3, past this execution's limit of 2",
+              "prev": "58c06c41ecf220335e1f589f704b515cbd754c5051d6d5a9104cfe4e7ba58518",
+              "hash": "de159adfbb9bcb0bb49f638c5c8710d20b4397039e251dbbe7fb52044198fba5"
+            },
+            {
+              "seq": 12,
+              "type": "TASK_CANCELLED",
+              "taskId": "notice",
+              "agentId": "club.club-manager",
+              "code": "EXECUTION_LIMIT",
+              "detail": "halted before it finished: task \"briefing\" would be step 3, past this execution's limit of 2",
+              "prev": "de159adfbb9bcb0bb49f638c5c8710d20b4397039e251dbbe7fb52044198fba5",
+              "hash": "4a4890193cd792f248881a212622d422d3007dc9f3d91baf46d6ae38180db09e"
+            },
+            {
+              "seq": 13,
+              "type": "RUN_SETTLED",
+              "taskId": null,
+              "agentId": null,
+              "code": "HALTED",
+              "detail": "2 succeeded, 0 awaiting approval, 0 failed, 0 refused, 0 skipped, 0 rejected, 2 cancelled",
+              "prev": "4a4890193cd792f248881a212622d422d3007dc9f3d91baf46d6ae38180db09e",
+              "hash": "e7e7dcb35f4c0bdc83b24b533195e6818cd0c8012cacc9f228d23ed12b14e3ab"
+            }
+          ],
+          "digest": "e7e7dcb35f4c0bdc83b24b533195e6818cd0c8012cacc9f228d23ed12b14e3ab"
+        },
+        "log": [
+          {
+            "seq": 1,
+            "type": "EXECUTION_SUBMITTED",
+            "taskId": null,
+            "agentId": null,
+            "code": "SUBMIT",
+            "detail": "request limit-0001 by HEAD_COACH lab-user-head-coach: plan matchday-workflow 1611335c0bd5387f, at most 2 steps, security context 61dface87b1cbf8b",
+            "prev": "9c02081e26d8f19166f4c7ab5a9db8ea7639ebed958a54e10a4604ac0e853204",
+            "hash": "b16392b0584cafc670df8c3f2d57f67692dbe3e9308461f82c13c5f9218ad547"
+          },
+          {
+            "seq": 2,
+            "type": "OPERATOR_AUTHORIZED",
+            "taskId": null,
+            "agentId": null,
+            "code": "SUBMIT",
+            "detail": "lab-user-head-coach (HEAD_COACH) may submit for lab-club-north, and may read what its agents write",
+            "prev": "b16392b0584cafc670df8c3f2d57f67692dbe3e9308461f82c13c5f9218ad547",
+            "hash": "68e1a10e37467f950946293a62fea3dacb624cafd6bd3b2bb824f23780d8877d"
+          },
+          {
+            "seq": 3,
+            "type": "PLAN_VALIDATED",
+            "taskId": null,
+            "agentId": null,
+            "code": null,
+            "detail": "4 tasks: synthetic, bounded, acyclic, every handoff declared; order opponent → session → briefing → notice",
+            "prev": "68e1a10e37467f950946293a62fea3dacb624cafd6bd3b2bb824f23780d8877d",
+            "hash": "145f8e28581f4f1a498733587d0ca4824b5c5f60e864ae8c3c905dffc13078f7"
+          },
+          {
+            "seq": 4,
+            "type": "AGENTS_ASSIGNED",
+            "taskId": null,
+            "agentId": null,
+            "code": null,
+            "detail": "opponent → club.tactical, session → club.training, briefing → club.club-manager, notice → club.club-manager",
+            "prev": "145f8e28581f4f1a498733587d0ca4824b5c5f60e864ae8c3c905dffc13078f7",
+            "hash": "db489a1fd12876c903c35a9c507d615b2763f499783a50fc357e14216dcc3216"
+          },
+          {
+            "seq": 5,
+            "type": "RUN_ADVANCED",
+            "taskId": null,
+            "agentId": null,
+            "code": "HALTED",
+            "detail": "run e7e7dcb35f4c0bdc83b24b533195e6818cd0c8012cacc9f228d23ed12b14e3ab: started, 3 of 2 steps",
+            "prev": "db489a1fd12876c903c35a9c507d615b2763f499783a50fc357e14216dcc3216",
+            "hash": "b2f652c0e9882ecf7c41c0b5790020061afe8b1de3c595a8468e3460183f8a94"
+          }
+        ],
+        "digest": "1e155adc985b1a133e8bc6406ed43403398c132e8bdfa400f41a1fc636f751a6"
+      }
+    }
+  ]
+}

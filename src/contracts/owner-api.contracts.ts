@@ -1496,6 +1496,75 @@ export const AgentsRoomOrchestrationSchema = z.object({
     digest: Sha256,
   }).strict()),
 }).strict();
+// AI-0.5: LAB executions approved for publication — v2 evidence as the server verified it
+// (the execution evidence reader beside the Agent Registry). The task states, outcomes and stop
+// codes are v1's closed sets plus what AI-0.4 added; event types are strings, as above.
+const PubTaskStateSchema = z.enum(['PENDING', 'AWAITING_APPROVAL', 'SUCCEEDED', 'FAILED', 'REFUSED', 'SKIPPED', 'REJECTED', 'CANCELLED']);
+const PubOutcomeSchema = z.enum(['COMPLETED', 'PARTIAL', 'FAILED', 'AWAITING_APPROVAL', 'REFUSED', 'CANCELLED', 'HALTED']);
+const PubChainEventSchema = z.object({
+  seq: Count, type: z.string().regex(/^[A-Z_]+$/), taskId: z.string().min(1).nullable(), agentId: z.string().min(1).nullable(),
+  code: z.string().min(1).nullable(), detail: z.string().min(1), prev: Sha256, hash: Sha256,
+}).strict();
+export const AgentsRoomPublicationsSchema = z.object({
+  state: z.enum(['VERIFIED', 'NOT_GENERATED', 'INVALID']),
+  reason: z.string().min(1).nullable(),
+  notice: z.string().min(1),
+  contract: z.literal('familista.orchestration-evidence/v2'),
+  supported: z.array(z.string().regex(/^familista\.orchestration-evidence\/v\d+$/)).min(1),
+  rule: z.string().min(1),
+  record: z.object({ digest: Sha256.nullable(), entries: Count }).strict(),
+  checks: z.array(z.object({ id: z.string().min(1), detail: z.string().min(1) }).strict()).min(1),
+  unapproved: z.array(z.string().regex(/^pub-[0-9a-f]{24}$/)),
+  publications: z.array(z.object({
+    publicationId: z.string().regex(/^pub-[0-9a-f]{24}$/),
+    reference: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+#[1-9]\d*$/),
+    dossierDigest: Sha256,
+    registry: z.object({ evidence: Sha256, current: Sha256, matches: z.boolean() }).strict(),
+    agents: z.array(z.object({ id: z.string().min(1), known: z.boolean(), current: z.boolean() }).strict()),
+    evidence: z.object({
+      contract: z.literal('familista.orchestration-evidence/v2'), orchestration: z.string().min(1), notice: z.string().min(1),
+      environment: z.literal('LAB'), classification: z.literal('SYNTHETIC'), publicationId: z.string().min(1),
+      source: z.object({ contract: z.string().min(1), executionId: z.string().regex(/^exec-[0-9a-f]{24}$/), requestId: z.string().min(1), recordDigest: Sha256 }).strict(),
+      operator: z.object({ userId: z.string().regex(/^lab-/), role: z.string().min(1) }).strict(),
+      plan: z.object({
+        id: z.string().min(1), title: z.string().min(1), digest: Sha256, requestedByRole: z.string().min(1),
+        scope: z.union([z.object({ kind: z.literal('CLUB'), clubId: z.string().regex(/^lab-/) }).strict(), z.object({ kind: z.literal('PLATFORM') }).strict()]),
+      }).strict(),
+      limits: z.object({ maxSteps: Count }).strict(),
+      context: z.object({ digest: Sha256, registryDigest: Sha256, operationsDigest: Sha256, policyDigest: Sha256 }).strict(),
+      operations: z.array(z.object({
+        key: z.string().min(1), title: z.string().min(1), tool: z.string().min(1), domain: z.string().min(1).nullable(), output: z.string().min(1),
+      }).strict()),
+      routing: z.array(z.object({
+        taskId: z.string().min(1), operation: z.string().min(1), tool: z.string().min(1), domain: z.string().min(1).nullable(),
+        selected: z.string().min(1).nullable(), ranked: z.array(z.string().min(1)),
+        passedOver: z.array(z.object({ agentId: z.string().min(1), reason: z.string().min(1) }).strict()),
+      }).strict()),
+      decisions: z.array(z.object({ taskId: z.string().min(1), decision: z.enum(['APPROVED', 'REJECTED']), byRole: z.string().min(1), accepted: z.boolean() }).strict()),
+      run: z.object({
+        outcome: PubOutcomeSchema,
+        refusal: OrchReasonSchema.nullable(),
+        stop: z.object({ outcome: z.enum(['HALTED', 'CANCELLED']), code: z.string().min(1), message: z.string().min(1) }).strict().nullable(),
+        steps: Count,
+        order: z.array(z.string().min(1)),
+        tasks: z.array(z.object({
+          id: z.string().min(1), operation: z.string().min(1), tool: z.string().min(1), state: PubTaskStateSchema,
+          dependsOn: z.array(z.string().min(1)),
+          agent: z.object({ id: z.string().min(1), version: z.string().min(1), digest: Sha256 }).strict().nullable(),
+          eligibleAgents: z.array(z.string().min(1)), dataClass: z.string().min(1).nullable(), recordClass: z.string().min(1).nullable(),
+          outputDigest: Sha256.nullable(),
+          approval: z.object({ eligibleRoles: z.array(z.string().min(1)), decision: z.enum(['APPROVED', 'REJECTED']).nullable(), decidedByRole: z.string().min(1).nullable() }).strict().nullable(),
+          reason: OrchReasonSchema.nullable(),
+          inputs: z.array(z.object({ from: z.string().min(1), status: z.enum(['ACCEPTED', 'BLOCKED']) }).strict()),
+        }).strict()).min(1),
+        trace: z.array(PubChainEventSchema).min(1),
+        digest: Sha256,
+      }).strict(),
+      log: z.array(PubChainEventSchema).min(1),
+      digest: Sha256,
+    }).strict(),
+  }).strict()),
+}).strict();
 export const AgentsRoomDetailSchema = z.object({
   agent: z.object({
     id: z.string().min(1), version: z.string().min(1), title: z.string().min(1), purpose: z.string().min(1),
@@ -1774,6 +1843,11 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     endpoint: '/system/agents/orchestration', module: 'AI Agents Operations Room',
     schema: AgentsRoomOrchestrationSchema, consumer: 'public/agents-room/agents-room.js',
     reads: ['state', 'reason', 'notice', 'evidenceDigest', 'registry', 'agents', 'operations', 'runs'],
+  },
+  {
+    endpoint: '/system/agents/publications', module: 'AI Agents Operations Room',
+    schema: AgentsRoomPublicationsSchema, consumer: 'public/agents-room/agents-room.js',
+    reads: ['state', 'reason', 'notice', 'rule', 'record', 'checks', 'unapproved', 'publications'],
   },
 ];
 

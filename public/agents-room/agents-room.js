@@ -53,7 +53,10 @@
     wf: null,              // GET /system/agents/orchestration: verified LAB evidence (AI-0.3)
     wfError: null,
     wfLoading: false,
-    run: null,             // the LAB workflow drawn
+    pub: null,             // GET /system/agents/publications: approved LAB executions, verified (AI-0.5)
+    pubError: null,
+    pubLoading: false,
+    run: null,             // the LAB workflow drawn: a v1 run's id, or 'x:' + a publication's id
     task: null,            // the task whose decisions are shown
     traceAll: true,        // the trace shows every event, or only the chosen task's
   };
@@ -265,6 +268,7 @@
     overview: ['environment', 'activation', 'killSwitch', 'registry', 'invariants', 'agents'],
     detail: ['agent', 'autonomyCeiling', 'tools', 'outputs', 'issues'],
     orchestration: ['state', 'notice', 'registry', 'agents', 'operations', 'runs'],
+    publications: ['state', 'notice', 'rule', 'record', 'checks', 'unapproved', 'publications'],
   };
   function missingFields(payload, required) {
     return required.filter(function (k) { return !payload || payload[k] === undefined || payload[k] === null; });
@@ -723,11 +727,11 @@
   // field of the evidence; a task or an edge the evidence does not hold is not
   // drawn, and evidence the server did not verify is not drawn at all.
 
-  var STATE_KIND = { SUCCEEDED: 'done', AWAITING_APPROVAL: 'approval', PENDING: 'waiting', REJECTED: 'rejected', FAILED: 'failed', SKIPPED: 'skipped', REFUSED: 'blocked' };
-  var STATE_CHIP = { done: 'ok', approval: 'info', waiting: 'none', rejected: 'neutral', failed: 'crit', skipped: 'none', blocked: 'blocked' };
+  var STATE_KIND = { SUCCEEDED: 'done', AWAITING_APPROVAL: 'approval', PENDING: 'waiting', REJECTED: 'rejected', FAILED: 'failed', SKIPPED: 'skipped', REFUSED: 'blocked', CANCELLED: 'cancelled' };
+  var STATE_CHIP = { done: 'ok', approval: 'info', waiting: 'none', rejected: 'neutral', failed: 'crit', skipped: 'none', blocked: 'blocked', cancelled: 'warn' };
   var STATE_LABEL = {
     SUCCEEDED: 'Completed', AWAITING_APPROVAL: 'Pending approval', PENDING: 'Waiting', REJECTED: 'Rejected',
-    FAILED: 'Failed', SKIPPED: 'Skipped', REFUSED: 'Blocked by governance',
+    FAILED: 'Failed', SKIPPED: 'Skipped', REFUSED: 'Blocked by governance', CANCELLED: 'Cancelled',
   };
   var STATE_MEANING = {
     SUCCEEDED: 'Ran in the Lab, and its output validated.',
@@ -737,15 +741,20 @@
     FAILED: 'Ran, or tried to, and produced no valid output.',
     SKIPPED: 'Something it consumes did not succeed, so it never ran.',
     REFUSED: 'A governance rule stopped it before it ran.',
+    CANCELLED: 'The execution was stopped before this task finished, so it did not complete.',
   };
-  var STATE_ORDER = ['SUCCEEDED', 'AWAITING_APPROVAL', 'PENDING', 'REJECTED', 'FAILED', 'SKIPPED', 'REFUSED'];
-  var OUTCOME_LABEL = { COMPLETED: 'Completed', PARTIAL: 'Partly completed', FAILED: 'Failed', AWAITING_APPROVAL: 'Awaiting approval', REFUSED: 'Refused' };
-  var OUTCOME_CHIP = { COMPLETED: 'ok', PARTIAL: 'neutral', FAILED: 'crit', AWAITING_APPROVAL: 'info', REFUSED: 'blocked' };
+  var STATE_ORDER = ['SUCCEEDED', 'AWAITING_APPROVAL', 'PENDING', 'REJECTED', 'FAILED', 'SKIPPED', 'REFUSED', 'CANCELLED'];
+  var OUTCOME_LABEL = {
+    COMPLETED: 'Completed', PARTIAL: 'Partly completed', FAILED: 'Failed', AWAITING_APPROVAL: 'Awaiting approval', REFUSED: 'Refused',
+    CANCELLED: 'Cancelled', HALTED: 'Halted',
+  };
+  var OUTCOME_CHIP = { COMPLETED: 'ok', PARTIAL: 'neutral', FAILED: 'crit', AWAITING_APPROVAL: 'info', REFUSED: 'blocked', CANCELLED: 'neutral', HALTED: 'warn' };
   var TRACE_LABEL = {
     PLAN_RECEIVED: 'Plan received', PLAN_REFUSED: 'Plan refused', PLAN_ACCEPTED: 'Plan accepted', TASK_ROUTED: 'Task routed',
     TASK_REFUSED: 'Task stopped', APPROVAL_REQUIRED: 'Approval required', APPROVAL_DECIDED: 'Approval decided',
     APPROVAL_DECISION_REFUSED: 'Decision refused', HANDOFF_ACCEPTED: 'Handoff accepted', HANDOFF_BLOCKED: 'Handoff blocked',
     TASK_SUCCEEDED: 'Task completed', TASK_FAILED: 'Task failed', TASK_SKIPPED: 'Task skipped', RUN_SETTLED: 'Run settled',
+    RUN_HALTED: 'Run halted', RUN_CANCELLED: 'Run cancelled', TASK_CANCELLED: 'Task cancelled',
   };
   var CODE_LABEL = {
     AUTHORIZATION: 'Not authorized', KILL_SWITCH: 'Kill switch', CROSS_TENANT: 'Another club named', INPUT_TOO_LARGE: 'Input too large',
@@ -762,13 +771,38 @@
     DECISION_INVALID: 'Invalid decision', NO_ELIGIBLE_APPROVER: 'No eligible approver',
     APPROVED: 'Approved', REJECTED: 'Rejected', COMPLETED: 'Completed', PARTIAL: 'Partly completed', FAILED: 'Failed',
     AWAITING_APPROVAL: 'Awaiting approval', REFUSED: 'Refused',
+    EXECUTION_LIMIT: 'Execution limit reached', APPROVAL_CONTEXT_CHANGED: 'Security context changed', CANCELLED_BY_OPERATOR: 'Cancelled by an operator',
+    SELF_APPROVAL: 'The submitter may not approve', SUBMIT: 'Submit', OPERATOR_UNKNOWN: 'Not a LAB operator', OPERATOR_ROLE_MISMATCH: 'Role not held',
+    OPERATOR_NOT_PERMITTED: 'Operator not permitted', OPERATOR_SCOPE: 'Outside the operator\'s scope', CANCELLED: 'Cancelled', HALTED: 'Halted',
+  };
+  // AI-0.5: the execution log an approved publication carries, and the checks the server ran on it.
+  var LOG_LABEL = {
+    EXECUTION_SUBMITTED: 'Submitted', OPERATOR_AUTHORIZED: 'Operator authorized', PLAN_VALIDATED: 'Plan validated', AGENTS_ASSIGNED: 'Agents assigned',
+    RUN_ADVANCED: 'Run advanced', DECISION_SUBMITTED: 'Decision submitted', DECISION_REFUSED: 'Decision refused', APPROVAL_INVALIDATED: 'Approvals invalidated',
+    EXECUTION_CANCELLED: 'Execution cancelled', CANCEL_REFUSED: 'Cancellation refused', EXECUTION_HALTED: 'Execution halted',
+  };
+  /** Governance in the log: what it is drawn as. Everything else is the execution's own progress. */
+  var LOG_KIND = {
+    DECISION_SUBMITTED: 'info', DECISION_REFUSED: 'blocked', APPROVAL_INVALIDATED: 'blocked', CANCEL_REFUSED: 'blocked',
+    EXECUTION_CANCELLED: 'neutral', EXECUTION_HALTED: 'warn',
+  };
+  var CHECK_LABEL = {
+    version: 'Contract version', shape: 'Shape', integrity: 'Integrity', trace: 'Run trace', log: 'Execution log', coherence: 'Coherence',
+    governance: 'Governance', synthetic: 'Synthetic data', identity: 'Identity', approval: 'Approval record',
   };
 
   function wfRuns() { return (AR.wf && AR.wf.runs) || []; }
-  function runOf(id) { var list = wfRuns(); for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; }
+  function pubRuns() { return (AR.pub && AR.pub.runs) || []; }
+  function runOf(id) {
+    var p = pubRuns(), list = wfRuns(), i;
+    for (i = 0; i < p.length; i++) if (p[i].key === id) return p[i];
+    for (i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
   function taskOf(run, id) { var list = (run && run.tasks) || []; for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; }
-  function operationOf(key) { var list = (AR.wf && AR.wf.operations) || []; for (var i = 0; i < list.length; i++) if (list[i].key === key) return list[i]; return null; }
-  function evidenceAgent(id) { var list = (AR.wf && AR.wf.agents) || []; for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; }
+  /** A publication carries its own operations and agents; a v1 run shares the evidence file's. */
+  function operationOf(key, run) { var list = (run && run.operations) || (AR.wf && AR.wf.operations) || []; for (var i = 0; i < list.length; i++) if (list[i].key === key) return list[i]; return null; }
+  function evidenceAgent(id, run) { var list = (run && run.agents) || (AR.wf && AR.wf.agents) || []; for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; }
   function stateKind(s) { return STATE_KIND[s] || 'waiting'; }
   function stateChip(s, extra) { return chip(STATE_CHIP[stateKind(s)], label(STATE_LABEL, s), STATE_MEANING[s] ? T(STATE_MEANING[s]) : '', extra || 'ar-chip--sm'); }
   /** Server text inside SVG, where only plain text may go: the catalogue's words, or the English it came in. */
@@ -808,9 +842,40 @@
         agents: d.agents || [], operations: d.operations || [], runs: d.state === 'VERIFIED' ? d.runs : [],
       };
       AR.wfError = null;
-      if (!runOf(AR.run)) { AR.run = AR.wf.runs.length ? AR.wf.runs[0].id : null; AR.task = null; }
     }).catch(function (e) { AR.wf = null; AR.wfError = e.message; }).then(function () { AR.wfLoading = false; });
   }
+  /** AI-0.5: the LAB executions the Platform Owner approved for publication, as the server verified them. Nothing else is drawn. */
+  function loadPublications() {
+    AR.pubLoading = true;
+    return api('/system/agents/publications').then(function (d) {
+      var missing = missingFields(d, REQUIRED.publications);
+      if (!missing.length && !Array.isArray(d.publications)) missing = ['publications'];
+      if (missing.length) { AR.pub = null; AR.pubError = contractError('/system/agents/publications', missing); return; }
+      AR.pub = {
+        state: d.state, reason: d.reason, notice: d.notice, rule: d.rule, record: d.record, checks: d.checks || [], unapproved: d.unapproved || [],
+        runs: d.state === 'VERIFIED' ? d.publications.map(asRun) : [],
+      };
+      AR.pubError = null;
+    }).catch(function (e) { AR.pub = null; AR.pubError = e.message; }).then(function () { AR.pubLoading = false; });
+  }
+  /** A publication in the shape the workflow drawing reads; what only a publication has stays under `pub`. */
+  function asRun(p) {
+    var e = p.evidence, r = e.run;
+    return {
+      key: 'x:' + p.publicationId, id: r.digest, scenario: e.source.requestId, title: e.plan.title, planId: e.plan.id, scope: e.plan.scope,
+      requestedByRole: e.plan.requestedByRole,
+      steps: [{ kind: 'START' }].concat(e.decisions.map(function (d) { return { kind: 'DECISION', taskId: d.taskId, decision: d.decision, byRole: d.byRole, accepted: d.accepted }; })),
+      outcome: r.outcome, refusal: r.refusal, order: r.order, tasks: r.tasks, trace: r.trace, operations: e.operations, agents: p.agents, pub: p,
+    };
+  }
+  /** The first approved execution, else the first published workflow. */
+  function pickRun() {
+    if (runOf(AR.run)) return;
+    var p = pubRuns(), w = wfRuns();
+    AR.run = p.length ? p[0].key : w.length ? w[0].id : null;
+    AR.task = null;
+  }
+  function runKey(r) { return r.key || r.id; }
 
   // The DAG: a column per dependency depth, rows centred, so the same run is always drawn the same way.
   var WF_W = 256, WF_H = 92, WF_COL = 320, WF_ROW = 116, WF_PAD = 28;
@@ -844,6 +909,7 @@
       case 'rejected': return '<circle class="ar-wf-g" cx="' + f1(cx) + '" cy="' + f1(cy) + '" r="5"/><polyline class="ar-wf-g" points="' + P([[-3.5, 3.5], [3.5, -3.5]]) + '"/>';
       case 'skipped': return '<polyline class="ar-wf-g" points="' + P([[-5, -4], [-1, 0], [-5, 4]]) + '"/><polyline class="ar-wf-g" points="' + P([[1, -4], [5, 0], [1, 4]]) + '"/>';
       case 'blocked': return '<polyline class="ar-wf-g ar-wf-g--bar" points="' + P([[-5, 0], [5, 0]]) + '"/>';
+      case 'cancelled': return '<polygon class="ar-wf-g" points="' + P([[-4, -4], [4, -4], [4, 4], [-4, 4]]) + '"/>';
       default: return '<polyline class="ar-wf-g" points="' + P([[-5, 0], [5, 0]]) + '"/>';
     }
   }
@@ -868,7 +934,7 @@
       }
     }
     for (var n = 0; n < run.order.length; n++) {
-      var t = taskOf(run, run.order[n]), p = L.pos[t.id], sk = stateKind(t.state), op = operationOf(t.operation);
+      var t = taskOf(run, run.order[n]), p = L.pos[t.id], sk = stateKind(t.state), op = operationOf(t.operation, run);
       var sel = AR.task === t.id, start = rtl ? p.x + WF_W - 20 : p.x + 20, tx = rtl ? p.x + WF_W - 42 : p.x + 42, anchor = rtl ? 'end' : 'start';
       // Its name is the text it shows, in the order shown (WCAG 2.5.3): what was asked, by whom, where it stands.
       var name = plainX(op ? op.title : t.operation) + ' · ' + plainX(agentTitle(t.agent && t.agent.id)) + ' · ' + t.id + ' · ' + label(STATE_LABEL, t.state);
@@ -905,17 +971,41 @@
       + '<span class="ar-wf-digest">' + esc(T('Evidence')) + ' ' + code(short(w.evidenceDigest, 16)) + '</span>'
       + '</div><p class="ar-wf-notice">' + TX(w.notice) + '</p>';
   }
-  function runListHtml() {
-    return '<nav class="ar-wf-runs" aria-label="' + esc(T('LAB workflows')) + '"><ul>' + wfRuns().map(function (r) {
-      var on = r.id === AR.run;
-      var agentsIn = {};
-      r.tasks.forEach(function (t) { if (t.agent) agentsIn[t.agent.id] = 1; });
-      return '<li><button class="ar-wf-run' + (on ? ' is-on' : '') + '" type="button" data-ar-wf="' + esc(r.id) + '" aria-pressed="' + (on ? 'true' : 'false') + '">'
-        + '<span class="ar-wf-run-t">' + TX(r.title) + '</span>'
-        + '<span class="ar-wf-run-m">' + chip(OUTCOME_CHIP[r.outcome] || 'neutral', label(OUTCOME_LABEL, r.outcome), '', 'ar-chip--xs')
-        + '<span class="ar-wf-run-n">' + esc(tf('Tasks: %d · Agents: %d', r.tasks.length, keysOf(agentsIn).length)) + '</span></span>'
-        + decisionLine(r) + '</button></li>';
-    }).join('') + '</ul></nav>';
+  function runItemHtml(r) {
+    var key = runKey(r), on = key === AR.run;
+    var agentsIn = {};
+    r.tasks.forEach(function (t) { if (t.agent) agentsIn[t.agent.id] = 1; });
+    return '<li><button class="ar-wf-run' + (on ? ' is-on' : '') + '" type="button" data-ar-wf="' + esc(key) + '" aria-pressed="' + (on ? 'true' : 'false') + '">'
+      + '<span class="ar-wf-run-t">' + TX(r.title) + '</span>'
+      + '<span class="ar-wf-run-m">' + chip(OUTCOME_CHIP[r.outcome] || 'neutral', label(OUTCOME_LABEL, r.outcome), '', 'ar-chip--xs')
+      + '<span class="ar-wf-run-n">' + esc(tf('Tasks: %d · Agents: %d', r.tasks.length, keysOf(agentsIn).length)) + '</span></span>'
+      + decisionLine(r) + (r.pub ? '<span class="ar-wf-run-d">' + esc(T('Approved in')) + ' ' + code(r.pub.reference) + '</span>' : '') + '</button></li>';
+  }
+  function groupNote(text, extra) { return '<p class="ar-wf-group-note">' + esc(T(text)) + (extra || '') + '</p>'; }
+  /** AI-0.5: what the Platform Owner approved for publication, or why nothing is listed. */
+  function pubGroupHtml() {
+    var P = AR.pub, list = pubRuns(), body;
+    if (AR.pubError && !P) body = groupNote('The approved executions could not be read', ' ' + technical(AR.pubError)) + '<button class="ar-btn ar-btn--sm" type="button" data-ar-pub-retry>' + esc(T('Try again')) + '</button>';
+    else if (P.state !== 'VERIFIED') body = groupNote(P.state === 'NOT_GENERATED' ? 'No approval record is beside this server' : 'The approved executions did not verify, so none of them is shown', P.reason ? '<br>' + technical(P.reason) : '');
+    else if (!list.length) body = groupNote('No LAB execution has been approved for publication yet.') + '<p class="ar-wf-group-note">' + TX(P.rule) + '</p>';
+    else body = '<ul>' + list.map(runItemHtml).join('') + '</ul>';
+    if (P && P.unapproved.length) {
+      body += '<p class="ar-wf-group-note">' + chip('blocked', tf('Without approval: %d', P.unapproved.length), T('Dossier files beside the approval record that no entry approves. They are never read or shown.'), 'ar-chip--xs') + '</p>';
+    }
+    var n = P && P.state === 'VERIFIED' ? ' <span class="ar-wf-group-n">' + esc(num(list.length)) + '</span>' : '';
+    return '<section class="ar-wf-group" aria-labelledby="ar-wf-g-pub"><h3 class="ar-wf-group-t" id="ar-wf-g-pub">' + esc(T('Approved LAB executions')) + n + '</h3>' + body + '</section>';
+  }
+  /** AI-0.3's published workflows; when there are none to list, one line says why (the main panel says the rest). */
+  function wfGroupHtml(withRetry) {
+    var W = AR.wf, body;
+    if (AR.wfError && !W) body = groupNote('The LAB evidence could not be read', withRetry ? ' <button class="ar-btn ar-btn--sm" type="button" data-ar-wf-retry>' + esc(T('Try again')) + '</button>' : '');
+    else if (W.state !== 'VERIFIED') body = groupNote(W.state === 'NOT_GENERATED' ? 'No LAB evidence has been published' : 'The LAB evidence did not verify, so none of it is shown');
+    else if (!wfRuns().length) body = groupNote('The evidence holds no workflow');
+    else body = '<ul>' + wfRuns().map(runItemHtml).join('') + '</ul>';
+    return '<section class="ar-wf-group" aria-labelledby="ar-wf-g-lab"><h3 class="ar-wf-group-t" id="ar-wf-g-lab">' + esc(T('LAB workflows')) + '</h3>' + body + '</section>';
+  }
+  function runListHtml(withRetry) {
+    return '<nav class="ar-wf-runs" aria-label="' + esc(T('LAB workflows')) + '">' + pubGroupHtml() + wfGroupHtml(withRetry) + '</nav>';
   }
   /** What a person decided in a run, in one line, so runs of the same plan are told apart. */
   function decisionLine(run) {
@@ -942,7 +1032,7 @@
   function taskDetailHtml(run) {
     var t = taskOf(run, AR.task);
     if (!t) return '<div class="ar-wf-pick">' + esc(T('Choose a task in the workflow to see what was decided for it.')) + '</div>';
-    var op = operationOf(t.operation), ag = t.agent, ev = ag ? evidenceAgent(ag.id) : null;
+    var op = operationOf(t.operation, run), ag = t.agent, ev = ag ? evidenceAgent(ag.id, run) : null;
     var agentCell = ag
       ? '<button class="ar-link" type="button" data-ar-agent="' + esc(ag.id) + '">' + TX(agentTitle(ag.id)) + '</button> ' + code(ag.id + '@' + ag.version)
         + (ev && !ev.current ? ' ' + chip('warn', ev.known ? T('Manifest changed since') : T('No longer in the registry'), '', 'ar-chip--xs') : '')
@@ -996,34 +1086,110 @@
           + '<span class="ar-wf-ev-detail">' + technical(e.detail) + '</span></span></li>';
       }).join('') + '</ol>';
   }
-  function workflowsHtml() {
+  /** No run to draw: why, as AI-0.3 said it. */
+  function noRunHtml() {
     if (AR.wfError && !AR.wf) {
       return emptyState('The LAB evidence could not be read', AR.wfError, '<button class="ar-btn ar-btn--sm" type="button" data-ar-wf-retry>' + esc(T('Try again')) + '</button>');
     }
-    if (!AR.wf) return '<div class="ar-skel-map" role="status" aria-label="' + esc(T('Reading the LAB evidence…')) + '"></div>';
     if (AR.wf.state !== 'VERIFIED') {
       return emptyState(AR.wf.state === 'NOT_GENERATED' ? 'No LAB evidence has been published' : 'The LAB evidence did not verify, so none of it is shown',
         AR.wf.reason || '', '<p class="ar-wf-notice">' + esc(T('Evidence is published by the LAB orchestrator: FAMILISTA_ENV=LAB npm run lab:orchestrator:evidence.')) + '</p>');
     }
+    return emptyState('The evidence holds no workflow', T('A workflow appears here once the LAB orchestrator publishes a run of it.'));
+  }
+  function workflowsHtml() {
+    if ((!AR.wf && !AR.wfError) || (!AR.pub && !AR.pubError)) return '<div class="ar-skel-map" role="status" aria-label="' + esc(T('Reading the LAB evidence…')) + '"></div>';
     var run = runOf(AR.run);
-    if (!run) return stripHtml() + emptyState('The evidence holds no workflow', T('A workflow appears here once the LAB orchestrator publishes a run of it.'));
-    var participants = {};
+    var strip = run && run.pub ? pubStripHtml(run) : AR.wf && AR.wf.state === 'VERIFIED' ? stripHtml() : '';
+    return strip + '<div class="ar-wf-grid">' + runListHtml(!!run) + '<div class="ar-wf-main">' + (run ? runHtml(run) : noRunHtml()) + '</div></div>';
+  }
+  function runHtml(run) {
+    var participants = {}, P = run.pub, E = P && P.evidence;
     run.tasks.forEach(function (t) { if (t.agent) participants[t.agent.id] = 1; });
-    var main = '<header class="ar-wf-head"><div><div class="ar-eyebrow">' + esc(T('LAB workflow')) + ' ' + code(run.scenario) + '</div>'
+    var eyebrow = P ? esc(T('Approved LAB execution')) + ' ' + code(P.publicationId) : esc(T('LAB workflow')) + ' ' + code(run.scenario);
+    return '<header class="ar-wf-head"><div><div class="ar-eyebrow">' + eyebrow + '</div>'
       + '<h2 class="ar-wf-title">' + TX(run.title) + '</h2>'
       + '<div class="ar-wf-meta">' + chip(OUTCOME_CHIP[run.outcome] || 'neutral', label(OUTCOME_LABEL, run.outcome), '', 'ar-chip--sm')
       + '<span>' + esc(T('Requested by')) + ' ' + esc(label(ROLE_LABEL, run.requestedByRole)) + '</span>'
       + (run.scope.kind === 'CLUB' ? '<span>' + esc(T('Club')) + ' ' + code(run.scope.clubId) + '</span>' : '<span>' + esc(T('Platform')) + '</span>')
+      + (E ? '<span>' + esc(tf('Steps: %d of %d', E.run.steps, E.limits.maxSteps)) + '</span>' : '')
       + '<span>' + esc(T('Run')) + ' ' + code(short(run.id, 16)) + '</span></div></div>' + stepsHtml(run) + '</header>'
       + (run.refusal ? '<div class="ar-wf-refused" role="note"><strong>' + esc(T('The plan was refused before anything was routed or ran')) + '</strong> '
         + chip('blocked', label(CODE_LABEL, run.refusal.code), '', 'ar-chip--xs') + ' ' + technical(run.refusal.message) + '</div>' : '')
+      + (E ? stopHtml(E) : '')
       + (run.tasks.length ? countsHtml(run)
         + '<figure class="ar-wf-canvas">' + wfSvg(run) + '</figure>' + wfLegendHtml()
         + '<div class="ar-wf-agents"><span class="ar-kv-k">' + esc(T('Agents in this workflow')) + '</span> '
         + keysOf(participants).sort().map(function (id) { return '<button class="ar-chip ar-chip--neutral ar-chip--sm ar-chip-btn" type="button" data-ar-agent="' + esc(id) + '">' + TX(agentTitle(id)) + '</button>'; }).join(' ') + '</div>' : '')
       + '<div class="ar-wf-split"><section class="ar-wf-detail" id="ar-wf-detail" aria-live="polite">' + (run.tasks.length ? taskDetailHtml(run) : '') + '</section>'
-      + '<section class="ar-wf-trace" id="ar-wf-trace">' + traceHtml(run) + '</section></div>';
-    return stripHtml() + '<div class="ar-wf-grid">' + runListHtml() + '<div class="ar-wf-main">' + main + '</div></div>';
+      + '<section class="ar-wf-trace" id="ar-wf-trace">' + traceHtml(run) + '</section></div>'
+      + (P ? '<div class="ar-wf-split"><section class="ar-wf-detail">' + governanceHtml(E) + '</section><section class="ar-wf-trace">' + logHtml(E) + '</section></div>' + verificationHtml(P) : '');
+  }
+
+  // ── approved LAB executions (AI-0.5) ──────────────────────────────────────
+  //
+  // A publication is drawn as the workflow above draws a run, and then what only
+  // an execution has: why it stopped, every governance decision its log records,
+  // the log itself, and what the server checked before showing any of it. Its
+  // approval is the Platform Owner's merge of the pull request it names; the
+  // room says so, and claims nothing more.
+
+  function pubStripHtml(run) {
+    var P = run.pub;
+    return '<div class="ar-wf-strip" role="group" aria-label="' + esc(T('Publication')) + '">'
+      + chip('ok', T('Approved for publication'), T('Its approval is the Platform Owner\'s merge of the reviewed pull request it names. The server checks that the approval record lists it; it does not authenticate who merged.'))
+      + chip('none', T('Synthetic data'), T('Invented clubs and people only.'))
+      + chip('none', T('Never run in production'), T('This server reads the evidence and runs nothing.'))
+      + chip('ok', T('Verified by the server'), T('Contract version, digest, both hash chains, coherence, governance and identity.'))
+      + (P.registry.matches ? chip('ok', T('Routed over the current registry')) : chip('warn', T('Routed over an earlier registry'), T('The registry has changed since this evidence was produced.')))
+      + '<span class="ar-wf-digest">' + esc(T('Dossier')) + ' ' + code(short(P.dossierDigest, 16)) + '</span>'
+      + '</div><p class="ar-wf-notice">' + TX(AR.pub.notice) + '</p>';
+  }
+  /** An operator's cancellation or governance's halt: what stopped it, in its own words. */
+  function stopHtml(E) {
+    var s = E.run.stop;
+    if (!s) return '';
+    var halted = s.outcome === 'HALTED';
+    return '<div class="ar-wf-refused ar-wf-stopped" role="note"><strong>' + esc(T(halted ? 'Halted by governance before it finished' : 'Cancelled by an operator before it finished')) + '</strong> '
+      + chip(halted ? 'warn' : 'neutral', label(CODE_LABEL, s.code), '', 'ar-chip--xs') + ' ' + technical(s.message) + '</div>';
+  }
+  /** A decision the orchestrator refused is a refusal, however it reached the log. */
+  function logKind(e) { return e.type === 'DECISION_SUBMITTED' && e.code === 'REFUSED' ? 'blocked' : LOG_KIND[e.type]; }
+  function logLine(e) {
+    return '<li class="ar-wf-ev"><span class="ar-wf-ev-seq">' + esc(num(e.seq)) + '</span>'
+      + '<span class="ar-wf-ev-main"><span class="ar-wf-ev-type">' + esc(label(LOG_LABEL, e.type)) + '</span>'
+      + (e.taskId ? ' ' + code(e.taskId) : '') + (e.code ? ' ' + chip(logKind(e) || 'neutral', label(CODE_LABEL, e.code), '', 'ar-chip--xs') : '')
+      + '<span class="ar-wf-ev-detail">' + technical(e.detail) + '</span></span></li>';
+  }
+  /** Every approval decision, refusal, cancellation and halt the log records, in order. */
+  function governanceHtml(E) {
+    var gov = E.log.filter(function (e) { return logKind(e); });
+    var passed = E.routing.reduce(function (n, r) { return n + r.passedOver.length; }, 0);
+    return '<h3 class="ar-wf-d-title">' + esc(T('Approvals and governance')) + '</h3>'
+      + '<p class="ar-wf-chain">' + esc(tf('Decisions: %d · Refused: %d', E.decisions.length, gov.filter(function (e) { return logKind(e) === 'blocked'; }).length))
+      + ' · ' + esc(tf('Agents passed over by routing: %d', passed)) + '</p>'
+      + (gov.length ? '<ol class="ar-wf-events">' + gov.map(logLine).join('') + '</ol>' : '<div class="ar-wf-pick">' + esc(T('No decision, refusal, cancellation or halt was recorded.')) + '</div>');
+  }
+  function logHtml(E) {
+    var head = E.log[E.log.length - 1];
+    return '<h3 class="ar-wf-d-title">' + esc(T('Execution log')) + '</h3>'
+      + '<p class="ar-wf-chain">' + chip('ok', T('Hash chain verified by the server'), '', 'ar-chip--xs') + ' '
+      + esc(tf('Events: %d', E.log.length)) + ' · ' + esc(T('head')) + ' ' + code(short(head && head.hash, 16)) + '</p>'
+      + '<ol class="ar-wf-events">' + E.log.map(logLine).join('') + '</ol>';
+  }
+  function verificationHtml(P) {
+    var E = P.evidence;
+    var checks = '<ul class="ar-wf-checks">' + AR.pub.checks.map(function (c) {
+      return '<li>' + chip('ok', label(CHECK_LABEL, c.id), '', 'ar-chip--xs') + ' <span>' + TX(c.detail) + '</span></li>';
+    }).join('') + '</ul>';
+    return '<section class="ar-wf-detail ar-wf-pub" aria-labelledby="ar-wf-pub-t"><h3 class="ar-wf-d-title" id="ar-wf-pub-t">' + esc(T('Verification and publication')) + '</h3>'
+      + '<div class="ar-wf-pub-grid"><div>' + checks + '</div><div class="ar-kvs">'
+      + kv('Approved in', code(P.reference)) + kv('Publication', code(P.publicationId)) + kv('Dossier digest', code(short(P.dossierDigest, 16)))
+      + kv('Approval record', code(short(AR.pub.record.digest, 16))) + kv('Execution', code(E.source.executionId))
+      + kv('LAB record', code(short(E.source.recordDigest, 16)))
+      + kv('Submitted by (synthetic LAB operator, not an approver)', esc(label(ROLE_LABEL, E.operator.role)) + ' ' + code(E.operator.userId))
+      + kv('Evidence contract', code(E.contract)) + '</div></div>'
+      + '<p class="ar-wf-notice">' + TX(AR.pub.rule) + '</p></section>';
   }
   /** A task chosen: its detail and the trace are redrawn, the canvas is not, so nothing on it moves. */
   function selectTask(host, id) {
@@ -1042,8 +1208,11 @@
   }
   /** Read once. A failed read waits for the owner's "Try again" or Refresh, so a broken reply is never re-requested in a loop. */
   function openWorkflows(host) {
-    if (AR.wf || AR.wfLoading || AR.wfError) return;
-    loadOrchestration().then(function () { if (AR.view === 'workflows') repaintView(host, false); });
+    var reads = [];
+    if (!AR.wf && !AR.wfLoading && !AR.wfError) reads.push(loadOrchestration());
+    if (!AR.pub && !AR.pubLoading && !AR.pubError) reads.push(loadPublications());
+    if (!reads.length) return;
+    Promise.all(reads).then(function () { pickRun(); if (AR.view === 'workflows') repaintView(host, false); });
   }
 
   // ── paint ─────────────────────────────────────────────────────────────────
@@ -1170,6 +1339,7 @@
     AR.refreshing = true;
     AR.detail = {}; AR.detailError = {};
     AR.wf = null; AR.wfError = null;
+    AR.pub = null; AR.pubError = null;
     var btn = host.querySelector('.ar-top [data-ar-refresh]');
     if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.textContent = T('Reading…'); }
     loadOverview().then(function () {
@@ -1269,6 +1439,7 @@
         return;
       }
       if (t.closest('[data-ar-wf-retry]')) { AR.wfError = null; repaintView(host, false); openWorkflows(host); return; }
+      if (t.closest('[data-ar-pub-retry]')) { AR.pubError = null; repaintView(host, false); openWorkflows(host); return; }
       var dom = t.closest('[data-ar-domain], [data-ar-sector]');
       if (dom) {
         var key = dom.getAttribute('data-ar-domain') || dom.getAttribute('data-ar-sector');

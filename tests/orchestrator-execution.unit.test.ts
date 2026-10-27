@@ -541,9 +541,12 @@ describe('isolation', () => {
   const walk = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]));
 
   it('there is no production way in: nothing in src/ names controlled execution, and no route serves it', () => {
-    const offenders = walk(path.join(ROOT, 'src')).filter((f) => /\.(ts|js)$/.test(f))
-      .filter((f) => /lab-execution|execute-cli|submitExecution|decideExecution|cancelExecution/.test(fs.readFileSync(f, 'utf8')));
+    const files = walk(path.join(ROOT, 'src')).filter((f) => /\.(ts|js)$/.test(f));
+    const offenders = files.filter((f) => /execute-cli|submitExecution|decideExecution|cancelExecution|haltOpenExecutions/.test(fs.readFileSync(f, 'utf8')));
     expect(offenders.map((f) => path.relative(ROOT, f))).toEqual([]);
+    // AI-0.5: the record's contract is named once, by the verifier of approved publications, which re-derives ids from it.
+    const naming = files.filter((f) => /lab-execution/.test(fs.readFileSync(f, 'utf8')));
+    expect(naming.map((f) => path.relative(ROOT, f))).toEqual(['src/platform/agents/execution-evidence.ts']);
   });
 
   it('the store refuses to exist outside the Lab, and refuses an id that is not an execution\'s', () => {

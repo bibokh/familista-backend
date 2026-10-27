@@ -488,6 +488,8 @@ describe('the lab stays out of production', () => {
       '../../src/security/ai-read-policy', '../../src/security/approver-roles',
       // AI-0.3: the hash chain and the evidence verifier are production's, so the Lab publishes only what production accepts.
       '../../src/platform/agents/trace-chain', '../../src/platform/agents/orchestration-evidence',
+      // AI-0.5: the v2 contract, its verifier and the shared id rules, so the Lab prepares only what production accepts.
+      '../../src/platform/agents/execution-evidence',
     ]);
     for (const f of fs.readdirSync(LAB_DIR).filter((x) => x.endsWith('.ts'))) {
       const specs = [...fs.readFileSync(path.join(LAB_DIR, f), 'utf8').matchAll(/from '([^']+)'/g)].map((m) => m[1]).filter((s) => !s.startsWith('./'));
