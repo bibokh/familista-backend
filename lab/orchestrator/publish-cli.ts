@@ -160,7 +160,7 @@ switch (command) {
     out(`PREPARED — NOT APPROVED: ${r.entry.publicationId} for ${r.entry.reference}`);
     for (const f of r.files) out(`  wrote ${path.relative(process.cwd(), f)}`);
     printRead(r.read, '  read back as production will');
-    out('  commit both files to that pull request. The entry takes effect only when the Platform Owner merges it; until then production shows nothing.');
+    out('  commit the three files to that pull request: the publication gate replays them in CI. The entry takes effect only when that pull request is merged; until then production shows nothing.');
     break;
   }
   case 'verify': {

@@ -712,6 +712,12 @@ describe('approved LAB executions (AI-0.5): drawn only as the server verified th
     expect(h).toContain('Rehearsal: no commit was measured');
     expect(h).toContain('None (rehearsal)');
     expect(h).not.toContain('Reproducible by deterministic replay');
+    // Nothing was measured, so nothing is shown as a figure: absent, never zero.
+    const prov = h.slice(h.indexOf('ar-wf-prov'));
+    expect(prov).toMatch(/Source files<\/div><div class="ar-kv-v">—</);
+    expect(prov).toMatch(/Operator steps replayed<\/div><div class="ar-kv-v">—</);
+    expect(prov).not.toContain(first.provenance.source.digest.slice(0, 16));
+    expect(prov).not.toContain('Definition reviewed in the repository'); // a rehearsal's definition is no file of the repository
     expect(h).toContain(first.provenance.definition.path);
     expect(h).toContain(first.provenance.statement);
     // Provenance from a real commit is drawn as such: the commit, the source digest, the packages it locked.
@@ -719,6 +725,8 @@ describe('approved LAB executions (AI-0.5): drawn only as the server verified th
     real.publications[0].provenance.source = { ...real.publications[0].provenance.source, revision: 'ab12'.repeat(10), digest: 'cd34'.repeat(16), files: 26, packages: [{ name: 'zod', version: '4.6.7' }] };
     h = (await open(real)).region('#ar-view');
     expect(h).toContain('Reproducible by deterministic replay');
+    expect(h).toMatch(/Source files<\/div><div class="ar-kv-v">26</);
+    expect(h).toContain('Definition reviewed in the repository');
     expect(h).not.toContain('Rehearsal: no commit was measured');
     expect(h).toContain('<code data-no-i18n>ab12ab12ab12</code>');
     expect(h).toContain('<code data-no-i18n>cd34cd34cd34cd34</code>');

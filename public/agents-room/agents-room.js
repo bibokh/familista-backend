@@ -1206,15 +1206,17 @@
       + '<div class="ar-wf-strip" role="group" aria-label="' + esc(T('Provenance')) + '">'
       + (rehearsal
         ? chip('warn', T('Rehearsal: no commit was measured'), T('A rehearsal names no commit and no source. This server refuses it; it is drawn here only as a simulation.'))
-        : chip('ok', T('Reproducible by deterministic replay'), T('The AI-0.4 record holds no clock and no random value, so running the definition again at this source gives this dossier, byte for byte, or a difference.')))
-      + chip('none', T('Definition reviewed in the repository'), T('A file under lab/orchestrator/definitions: the synthetic request and every operator step, nothing else.'))
+        : chip('ok', T('Reproducible by deterministic replay'), T('The AI-0.4 record holds no clock and no random value, so running the definition again at this source gives this dossier, byte for byte, or a difference.'))
+          + chip('none', T('Definition reviewed in the repository'), T('A file under lab/orchestrator/definitions: the synthetic request and every operator step, nothing else.')))
       + '</div>'
       + '<div class="ar-wf-pub-grid"><div class="ar-kvs">'
-      + kv('Definition', code(V.definition.name)) + kv('Definition file', code(V.definition.path)) + kv('Definition digest', code(short(V.definition.digest, 16)))
-      + kv('Operator steps replayed', esc(num(V.replay.steps)))
+      // A rehearsal measured nothing: its digests, counts and commit are not figures, so they are shown as absent, not as zero.
+      + kv('Definition', code(V.definition.name)) + kv('Definition file', code(V.definition.path))
+      + kv('Definition digest', rehearsal ? '—' : code(short(V.definition.digest, 16)))
+      + kv('Operator steps replayed', rehearsal ? '—' : esc(num(V.replay.steps)))
       + '</div><div class="ar-kvs">'
       + kv('Source commit', rehearsal ? esc(T('None (rehearsal)')) : code(short(V.source.revision, 12)))
-      + kv('Source digest', code(short(V.source.digest, 16))) + kv('Source files', esc(num(V.source.files)))
+      + kv('Source digest', rehearsal ? '—' : code(short(V.source.digest, 16))) + kv('Source files', rehearsal ? '—' : esc(num(V.source.files)))
       + kv('Packages', pkgs ? code(pkgs) : '—') + kv('Provenance digest', code(short(V.digest, 16))) + kv('Provenance contract', code(V.contract))
       + '</div></div>'
       + '<p class="ar-wf-notice">' + TX(V.statement) + '</p></section>';
