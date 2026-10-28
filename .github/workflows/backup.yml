@@ -6,8 +6,11 @@
 # BACKUP_TRIGGER_SECRET — to run its fixed backup, and waits for the result, so
 # a failed backup is a failed run and GitHub emails the owner.
 #
-# Secrets: BACKUP_TRIGGER_SECRET only. Variable: BACKUP_SERVICE_URL (the
-# service's public https address; not a secret). See docs/BACKUP_AND_RESTORE.md.
+# Secrets: BACKUP_TRIGGER_SECRET only, in the `backup` environment, which only
+# `main` may use (Settings → Environments → backup → deployment branches: main),
+# so a workflow on any other branch cannot read it. Variable: BACKUP_SERVICE_URL
+# (the service's public https address; not a secret). See
+# docs/BACKUP_AND_RESTORE.md and docs/security/github-governance.md.
 
 name: backup
 
@@ -30,6 +33,7 @@ jobs:
   backup:
     name: trigger and verify the daily backup
     runs-on: ubuntu-latest
+    environment: backup
     timeout-minutes: 75
     steps:
       - name: Checkout

@@ -31,6 +31,11 @@ describe('.github/workflows/backup.yml', () => {
     expect(code).toMatch(/concurrency:\n\s+group: backup\n\s+cancel-in-progress: false/);
   });
 
+  it('reads its one secret from the backup environment, which only main may use', () => {
+    expect(WF).toMatch(/^    environment: backup$/m);
+    expect(WF).toContain('only\n# `main` may use (Settings → Environments → backup → deployment branches: main)');
+  });
+
   it('holds exactly one secret: BACKUP_TRIGGER_SECRET', () => {
     const secrets = [...new Set([...code.matchAll(/secrets\.([A-Z0-9_]+)/g)].map((m) => m[1]))];
     expect(secrets).toEqual(['BACKUP_TRIGGER_SECRET']);

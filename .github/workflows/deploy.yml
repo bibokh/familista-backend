@@ -11,8 +11,18 @@
 # tick: a skipped deploy that looks successful is how production silently falls
 # behind main.
 #
-# Required secret (repo Settings → Secrets and variables → Actions):
+# Required secret, in the `production` environment (Settings → Environments →
+# production), which only `main` may use (deployment branches: main):
 #   • RENDER_DEPLOY_HOOK_URL  — Render → Service → Settings → Deploy Hook
+# An environment secret reaches only a job that names the environment, and only
+# from a branch the environment allows. A workflow added on any other branch, by
+# anyone with write access, cannot read it (docs/security/github-governance.md).
+#
+# By hand, only the Platform Owner deploys. Anyone with write access can press
+# "Run workflow"; this job runs only when the person who triggered it, or
+# re-ran it, is the Platform Owner's account. An automation account with write
+# access never moves production by itself; its work reaches production only as
+# a merge the ruleset allowed, through ci, through this job.
 #
 # What this workflow can say, and what it cannot: it knows which commit it
 # asked Render to deploy and whether Render ACCEPTED the request (the deploy id
@@ -42,8 +52,9 @@ jobs:
     name: Trigger Render deploy
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+      (github.event_name == 'workflow_dispatch' && github.triggering_actor == 'bibokh') ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push')
+    environment: production
     timeout-minutes: 5
     steps:
       # A deploy hook deploys main's LATEST commit, not the one CI just passed.

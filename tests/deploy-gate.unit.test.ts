@@ -61,6 +61,24 @@ describe('deploy.yml', () => {
     expect(DEPLOY).toContain("if: steps.head.outputs.current == 'true'");
   });
 
+  // Governance: write access is not production access (docs/security/github-governance.md).
+  it('by hand, only the Platform Owner deploys; automatically, only ci on a push to main does', () => {
+    const job = DEPLOY.slice(DEPLOY.indexOf('  trigger-render:'));
+    const cond = job.slice(job.indexOf('if: |'), job.indexOf('environment:'));
+    expect(cond).toContain("(github.event_name == 'workflow_dispatch' && github.triggering_actor == 'bibokh')");
+    expect(cond).toContain("github.event.workflow_run.event == 'push'");
+    // Negative control: no other way in — no bare dispatch, no other actor, no other event.
+    expect(cond).not.toMatch(/github\.event_name == 'workflow_dispatch' \|\|/);
+    expect(cond.match(/triggering_actor|github\.actor/g)).toEqual(['triggering_actor']);
+  });
+
+  it('reads its deploy hook from the production environment, which only main may use', () => {
+    const job = DEPLOY.slice(DEPLOY.indexOf('  trigger-render:'));
+    expect(job).toMatch(/^    environment: production$/m);
+    expect(DEPLOY.match(/secrets\.[A-Z_]+/g)).toEqual(['secrets.RENDER_DEPLOY_HOOK_URL']);
+    expect(DEPLOY).toContain('only `main` may use (deployment branches: main)');
+  });
+
   describe('the head check', () => {
     function runHead(env: Record<string, string>, mainHead: string) {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'deploy-head-'));

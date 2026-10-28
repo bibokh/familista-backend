@@ -288,7 +288,8 @@ describe('3. the server shows a publication only with a provenance record that d
 const RULES_OBSERVED = JSON.parse(read('tests/fixtures/agents/github-rules-main.json')) as Array<{ type: string; parameters?: Record<string, unknown> }>;
 /** The rules the gate requires: the observed ruleset with code-owner review, one approval and last-push approval turned on. */
 const RULES_ENFORCED = RULES_OBSERVED.map((r) => (r.type === 'pull_request'
-  ? { ...r, parameters: { ...r.parameters, require_code_owner_review: true, required_approving_review_count: 1, require_last_push_approval: true, dismiss_stale_reviews_on_push: true } } : r));
+  ? { ...r, parameters: { ...r.parameters, require_code_owner_review: true, required_approving_review_count: 1, require_last_push_approval: true, dismiss_stale_reviews_on_push: true } }
+  : r.type === 'required_status_checks' ? { ...r, parameters: { ...r.parameters, strict_required_status_checks_policy: true } } : r));
 const CODEOWNERS_TODAY = read('.github/CODEOWNERS');
 const CODEOWNERS_OWNER_REVIEWS = `${CODEOWNERS_TODAY}\n/src/platform/agents/published/ @bibokh\n`;
 
@@ -337,9 +338,10 @@ describe('4. the publication gate reproduces every publication a change adds, an
     expect(r.enforcement.ok).toBe(false);
     expect(r.enforcement.findings.filter((f) => f.state === 'NOT_MET').map((f) => f.requirement)).toEqual([
       'review from Code Owners is required', 'at least one approving review is required', 'the last push must be approved by someone other than its author',
+      'stale approvals are dismissed when new commits are pushed', 'branches must be up to date with main before merging',
       'a code owner of the publications other than the author',
     ]);
-    expect(r.enforcement.findings.find((f) => f.requirement.startsWith('the validate check'))?.state).toBe('MET');
+    expect(r.enforcement.findings.find((f) => f.requirement.startsWith('every CI check'))?.state).toBe('MET');
     expect(r.enforcement.findings.find((f) => f.requirement === 'no actor may bypass the ruleset')?.state).toBe('UNVERIFIED');
   });
 

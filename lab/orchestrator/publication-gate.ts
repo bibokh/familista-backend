@@ -24,7 +24,8 @@
 //   4. when there is a candidate, requires the repository to ENFORCE the
 //      Platform Owner's approval, as GitHub reports the rules active on main:
 //      code-owner review, at least one approval, approval of the last push by
-//      someone else, the required checks, no force push or deletion; and a code
+//      someone else, stale approvals dismissed, all four CI checks from GitHub
+//      Actions, branches up to date, no force push or deletion; and a code
 //      owner of the publications other than the pull request's author. GitHub
 //      does not tell this token who may bypass the ruleset, so that is reported
 //      as unverified, never as passed.
@@ -48,8 +49,13 @@ import { executionSource, type SourceReader } from './source';
 
 /** The publications directory, as a repository path. */
 export const PUBLISHED_PATH = path.relative(path.join(__dirname, '..', '..'), PUBLICATIONS_DIR).split(path.sep).join('/');
-/** The check every publication pull request must pass, as the ruleset names it, and GitHub Actions' app id. */
-export const VALIDATE_CHECK_PREFIX = 'validate (';
+/** The checks every pull request must pass, as ci.yml names its jobs and the ruleset requires them, and GitHub Actions' app id. */
+export const REQUIRED_CHECKS = Object.freeze([
+  'validate (tsc + prisma + boot probe + contracts + tests)',
+  'browser proof (isolation)',
+  'browser proof (accessibility and focus)',
+  'secret scan (gitleaks, full history)',
+]);
 export const GITHUB_ACTIONS_APP_ID = 15368;
 
 /** What the gate needs of git; the CLI runs git, tests give it a map. */
@@ -108,6 +114,8 @@ export function publicationChanges(head: SourceReader, git: GateGit, base: strin
 }
 
 // ── enforcement of the Platform Owner's approval ────────────────────────────────
+// The configuration this checks is the one docs/security/github-governance.md
+// specifies for ruleset 25019943, in full: a weaker ruleset is not "enforced".
 
 interface Rule { type?: string; parameters?: Record<string, unknown> }
 
@@ -129,16 +137,19 @@ export function codeOwnersOf(codeowners: string, file: string): string[] {
 export function enforcementOf(rules: unknown, codeowners: string | null, author: string | null): { ok: boolean; findings: EnforcementFinding[] } {
   const list: Rule[] = Array.isArray(rules) ? rules as Rule[] : [];
   const pr = list.find((r) => r.type === 'pull_request')?.parameters ?? null;
-  const checks = (list.find((r) => r.type === 'required_status_checks')?.parameters?.required_status_checks ?? []) as Array<{ context?: string; integration_id?: number }>;
+  const status = list.find((r) => r.type === 'required_status_checks')?.parameters ?? null;
+  const checks = (status?.required_status_checks ?? []) as Array<{ context?: string; integration_id?: number }>;
   const findings: EnforcementFinding[] = [];
   const need = (requirement: string, met: boolean, detail: string) => findings.push({ requirement, state: met ? 'MET' : 'NOT_MET', detail });
   need('a pull request is required to change main', !!pr, pr ? 'the pull_request rule is active' : 'no active pull_request rule on main');
   need('review from Code Owners is required', pr?.require_code_owner_review === true, `require_code_owner_review: ${String(pr?.require_code_owner_review ?? 'absent')}`);
   need('at least one approving review is required', typeof pr?.required_approving_review_count === 'number' && (pr.required_approving_review_count as number) >= 1, `required_approving_review_count: ${String(pr?.required_approving_review_count ?? 'absent')}`);
   need('the last push must be approved by someone other than its author', pr?.require_last_push_approval === true, `require_last_push_approval: ${String(pr?.require_last_push_approval ?? 'absent')}`);
-  const validate = checks.find((c) => typeof c.context === 'string' && c.context.startsWith(VALIDATE_CHECK_PREFIX));
-  need('the validate check, which runs this gate, is required, from GitHub Actions', !!validate && validate.integration_id === GITHUB_ACTIONS_APP_ID,
-    validate ? `"${validate.context}" from app ${String(validate.integration_id ?? 'any')}` : 'not among the required status checks');
+  need('stale approvals are dismissed when new commits are pushed', pr?.dismiss_stale_reviews_on_push === true, `dismiss_stale_reviews_on_push: ${String(pr?.dismiss_stale_reviews_on_push ?? 'absent')}`);
+  const missing = REQUIRED_CHECKS.filter((name) => !checks.some((c) => c.context === name && c.integration_id === GITHUB_ACTIONS_APP_ID));
+  need('every CI check, this gate\'s validate among them, is required from GitHub Actions', missing.length === 0,
+    missing.length ? `not required from app ${GITHUB_ACTIONS_APP_ID}: ${missing.map((m) => `"${m}"`).join(', ')}` : `${REQUIRED_CHECKS.length} checks from app ${GITHUB_ACTIONS_APP_ID}`);
+  need('branches must be up to date with main before merging', status?.strict_required_status_checks_policy === true, `strict_required_status_checks_policy: ${String(status?.strict_required_status_checks_policy ?? 'absent')}`);
   need('force pushes and deletion of main are blocked', list.some((r) => r.type === 'non_fast_forward') && list.some((r) => r.type === 'deletion'), 'non_fast_forward and deletion rules');
   const owners = codeowners === null ? [] : codeOwnersOf(codeowners, recordPath);
   if (author === null) {
