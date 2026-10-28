@@ -615,3 +615,37 @@ select.ar-input { min-width: 132px; cursor: pointer; }
     letter-spacing: var(--fam-font-tracking-label); text-transform: uppercase; color: var(--fam-text-secondary); margin-bottom: 2px;
   }
 }
+
+/* ── AI cost control (read-only) ──────────────────────────────────────── */
+
+.ar-cost { display: flex; flex-direction: column; gap: var(--fam-space-4); }
+.ar-cost-rail { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--fam-space-3); }
+.ar-cost-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--fam-space-4); align-items: start; }
+.ar-cost-figure { display: flex; flex-direction: column; gap: var(--fam-space-1); margin-bottom: var(--fam-space-4); }
+.ar-cost-num { display: flex; align-items: baseline; gap: var(--fam-space-2); flex-wrap: wrap; }
+/* Used against its limit: neutral, and amber only as the limit nears. */
+.ar-cost-meter.is-near .ar-bar-fill { fill: var(--fam-status-warning); }
+.ar-cost-alert {
+  padding: var(--fam-space-3) var(--fam-space-4); border-radius: var(--fam-radius-lg); font-size: var(--fam-font-size-md);
+  color: var(--fam-text-secondary); border: var(--fam-border-width-hairline) solid var(--fam-border-default);
+  border-inline-start: 2px solid var(--fam-status-warning); background: var(--fam-surface-panel);
+}
+.ar-cost-alert strong { color: var(--fam-text-primary); }
+.ar-cost-alert code { margin-inline-end: var(--fam-space-1); }
+.ar-cost-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--fam-space-2); }
+.ar-cost-events li { display: flex; align-items: center; justify-content: space-between; gap: var(--fam-space-3); font-size: var(--fam-font-size-md); }
+.ar-cost-when { font-variant-numeric: tabular-nums; color: var(--fam-text-secondary); }
+/* The catalogue's narrow-screen rule hides its 5th and 6th columns; the cost tables keep every figure. */
+.ar-table--cost th:nth-child(5), .ar-table--cost td:nth-child(5) { display: table-cell; }
+
+@media (max-width: 1160px) {
+  .ar-cost-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ar-cost-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .ar-cost-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ar-table--cost td:nth-child(5) { display: block; }
+  /* Four views do not fit one line in every language on a phone: the tabs wrap rather than push the page sideways. */
+  .ar-tabs { display: flex; flex-wrap: wrap; max-width: 100%; }
+  .ar-tab { flex: 1 1 auto; }
+}

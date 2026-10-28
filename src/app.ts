@@ -26,6 +26,7 @@ import { tenantGuard } from './middleware/tenant-guard.middleware';
 import { rawBodyForSignedWebhooks } from './middleware/raw-body-paths';
 import { internalBackupRoutes } from './controllers/internal-backup.controller';
 import { transcodeCallbackRoute } from './controllers/internal-video.controller';
+import { aiRequestScope } from './platform/intelligence/execution-gate';
 
 // ── credentials that travel in a query string ────────────────────────────────
 // Only these parameter names are replaced, and only their values: the path and
@@ -283,6 +284,9 @@ export function createApp(): express.Application {
   // responses counted here: every completed response through this mount, and
   // whether it was a server error. Nothing about the request is kept.
   app.use(`/api/${config.apiVersion}`, apiTrafficMeter);
+  // Every API request is an origin the AI execution gate can attribute a model
+  // call to (execution-gate.ts): a call made anywhere else is refused.
+  app.use(`/api/${config.apiVersion}`, aiRequestScope);
   app.use(`/api/${config.apiVersion}`, tenantGuard, routes);
 
   // ── Legacy SPA static assets (public/index.html + app.js + app.css)

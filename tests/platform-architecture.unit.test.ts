@@ -25,6 +25,7 @@ import { defineFlag, isEnabled, resetFlags } from '../src/platform/innovation/fl
 import {
   registerExperiment, decideExperiment, listExperiments, resetExperiments,
 } from '../src/platform/innovation/experiments';
+import { asUser, memoryLedger, TEST_PRICING } from './helpers/ai-gate';
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('SYSTEM and CLUBS are two products, and never mix', () => {
@@ -182,8 +183,10 @@ describe('the AI gateway is the only door to a provider', () => {
     registerModel({ id: 'eu-forbidden', provider: 'anthropic', providerModel: 'y', purposes: ['scouting'], restrictedIn: ['DE'] });
     registerModel({ id: 'unavailable', provider: 'openai', providerModel: 'z', purposes: ['medical'] });
     // Cyber Defense R3: every call is recorded before it leaves; here, in memory.
-    setEgressRecorder({ start: async () => 'rec', finish: async () => undefined, spentToday: async () => 0 });
+    setEgressRecorder(memoryLedger({ enabled: true }));
+    process.env.AI_MODEL_PRICING = TEST_PRICING;
   });
+  afterAll(() => { delete process.env.AI_MODEL_PRICING; });
 
   it('routes by purpose and refuses rather than guessing', async () => {
     expect(route({ caller: 'e', purpose: 'tactics', prompt: '' }).model?.id).toBe('tactics-v1');
@@ -208,13 +211,13 @@ describe('the AI gateway is the only door to a provider', () => {
   });
 
   it('and a successful call records which model answered', async () => {
-    const out = await complete({ caller: 'ai-coach', purpose: 'tactics', prompt: 'hello', dataClasses: ['INTERNAL'] });
+    const out = await asUser('u-1', () => complete({ caller: 'ai-coach', purpose: 'tactics', prompt: 'hello', dataClasses: ['INTERNAL'] }));
     expect(out).toMatchObject({ ok: true, text: 'ok', model: 'tactics-v1', provider: 'anthropic' });
     expect(out.environment).toBeTruthy();
   });
 
   it('a call that does not say what it carries is treated as RESTRICTED and refused (R3)', async () => {
-    const out = await complete({ caller: 'ai-coach', purpose: 'tactics', prompt: 'hello' });
+    const out = await asUser('u-1', () => complete({ caller: 'ai-coach', purpose: 'tactics', prompt: 'hello' }));
     expect(out).toMatchObject({ ok: false, refusal: 'restricted' });
   });
 });

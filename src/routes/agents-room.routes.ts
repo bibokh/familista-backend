@@ -15,10 +15,15 @@
 //                                 evidence, verified: synthetic runs, never live
 //   GET /system/agents/publications   (AI-0.5) LAB executions the Platform Owner
 //                                 approved for publication (v2 evidence), verified
+//   GET /system/agents/cost       paid AI execution: the owner's switch, the
+//                                 configured limits and prices, and what the
+//                                 execution gate has counted — platform-wide,
+//                                 never by club, and estimates, never billing
 //
 // There is no write. A manifest changes in a reviewed pull request
 // (src/platform/agents/catalog.ts), never by a request; the kill switch stays
-// where it always was (POST /system/agents/kill-switch, system.routes.ts).
+// where it always was (POST /system/agents/kill-switch, system.routes.ts), and
+// so does the AI EXECUTION switch (POST /system/agents/ai-execution).
 // What travels: manifests and computed checks. No club, person or record.
 
 import { Router, type Request, type Response } from 'express';
@@ -28,6 +33,7 @@ import { operationsRoomAgent, operationsRoomOverview } from '../platform/agents/
 import { orchestrationRoomView } from '../platform/agents/orchestration-evidence';
 import { publicationsRoomView } from '../platform/agents/execution-evidence';
 import { platformAgentRegistry } from '../platform/agents/catalog';
+import { aiCostRoomView } from '../platform/intelligence/ai-cost-view';
 import { NotFoundError } from '../utils/errors';
 
 const router = Router();
@@ -55,6 +61,13 @@ router.get('/', (_req: Request, res: Response, next) => {
 router.get('/orchestration', (_req: Request, res: Response, next) => {
   try {
     res.json({ success: true, data: orchestrationRoomView(platformAgentRegistry()) });
+  } catch (err) { next(err); }
+});
+
+/** Paid AI execution, read-only: the switch, limits, prices and counted usage (ai-cost-view.ts). Before /:agentId. */
+router.get('/cost', async (_req: Request, res: Response, next) => {
+  try {
+    res.json({ success: true, data: await aiCostRoomView() });
   } catch (err) { next(err); }
 });
 

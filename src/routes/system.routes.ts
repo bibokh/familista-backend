@@ -75,6 +75,7 @@ router.get('/clubs/:clubId/dependencies',       ctrl.clubDependencies);
 router.delete('/clubs/:clubId',                 ctrl.deleteClubForever);
 
 router.post('/agents/kill-switch',      ctrl.killSwitch);
+router.post('/agents/ai-execution',     ctrl.aiExecution);
 router.post('/flags/:key',              ctrl.setFlag);
 router.post('/experiments',             ctrl.createExperiment);
 router.post('/experiments/:id/decide',  ctrl.decideExperimentState);

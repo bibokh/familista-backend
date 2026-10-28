@@ -32,7 +32,9 @@ let clientKey = '';
 function anthropic(): Anthropic | null {
   const key = config.anthropic.apiKey;
   if (!key) return null;
-  if (!client || clientKey !== key) { client = new Anthropic({ apiKey: key }); clientKey = key; }
+  // No retries: a retried call is a second paid call nobody asked for, and the
+  // gateway reserved budget for one. A failure is returned and recorded instead.
+  if (!client || clientKey !== key) { client = new Anthropic({ apiKey: key, maxRetries: 0 }); clientKey = key; }
   return client;
 }
 
@@ -44,16 +46,21 @@ export const anthropicProvider: ProviderAdapter = {
     if (!c) throw new ProviderFailure('unavailable');
     const timeoutMs = req.timeoutMs ?? 30_000;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    // At the timeout the request is aborted, not merely abandoned: an abandoned
+    // request runs on and can still be charged after the caller has given up.
+    const abort = new AbortController();
     try {
       const call = c.messages.create({
         model: model.providerModel,
         max_tokens: req.maxOutputTokens ?? config.anthropic.maxTokens,
         ...(req.system ? { system: req.system } : {}),
         messages: [{ role: 'user', content: req.prompt }],
-      });
+      }, { maxRetries: 0, timeout: timeoutMs, signal: abort.signal });
       const res = await Promise.race([
         call,
-        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new ProviderFailure('timeout')), timeoutMs); }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => { reject(new ProviderFailure('timeout')); abort.abort(); }, timeoutMs);
+        }),
       ]);
       recordOutcome('anthropic', true);
       const text = res.content

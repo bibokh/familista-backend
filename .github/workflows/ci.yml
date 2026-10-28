@@ -197,6 +197,17 @@ jobs:
           AI_READ_DB_REQUIRED: '1'
         run: npx jest --runInBand --ci tests/ai-read-authorization.integration.test.ts
 
+      # AI cost control: the execution gate's ledger on a freshly migrated
+      # database in a non-UTC session. No switch row is OFF; switching is
+      # audited in the same transaction; concurrent reservations cannot
+      # overspend a budget or the concurrency limit; the SQL budgets equal the
+      # gate's own arithmetic; a settlement cannot shrink a reservation.
+      - name: AI execution gate (real PostgreSQL)
+        env:
+          AI_GATE_DB_DATABASE_URL: postgresql://familista_ci:familista_ci_pw@localhost:5432/postgres
+          AI_GATE_DB_REQUIRED: '1'
+        run: npx jest --runInBand --ci tests/ai-execution-gate.integration.test.ts
+
       # Blocking since Cyber Defense Step 9: a dependency with a known HIGH or
       # CRITICAL advisory stops the change from merging. Moderate and low are
       # still printed. If the advisory service cannot be reached the step

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-28T12:58:11.578Z",
+  "generatedAt": "2026-10-28T19:33:05.023Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -324,7 +324,7 @@
       "sourceEvidence": "prisma/schema.prisma — datasource provider",
       "dependencies": [],
       "healthKey": "database",
-      "note": "344 models, 209 enums, 49 migrations."
+      "note": "345 models, 209 enums, 50 migrations."
     },
     {
       "id": "prisma-orm",
@@ -1101,7 +1101,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 223 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 225 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1161,7 +1161,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "618 TypeScript modules under src/."
+      "note": "621 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1653,18 +1653,18 @@
     "serviceModules": 102,
     "middleware": 24,
     "fabricModules": 52,
-    "totalTypeScript": 618,
-    "testSuites": 223,
-    "migrations": 49,
-    "prismaModels": 344,
+    "totalTypeScript": 621,
+    "testSuites": 225,
+    "migrations": 50,
+    "prismaModels": 345,
     "prismaEnums": 209
   },
   "database": {
     "provider": "postgresql",
-    "models": 344,
+    "models": 345,
     "enums": 209,
-    "migrations": 49,
-    "latestMigration": "20261007100000_algorithm_runtime_telemetry"
+    "migrations": 50,
+    "latestMigration": "20261028120000_ai_execution_gate"
   },
   "typescript": {
     "target": "ES2020",
@@ -1750,12 +1750,12 @@
           "Security closure Task 1 (real PostgreSQL)",
           "Algorithm telemetry (real PostgreSQL)",
           "AI read authorization (real PostgreSQL)",
+          "AI execution gate (real PostgreSQL)",
           "Audit (blocking on high and critical)",
           "Checkout",
           "Setup Node 20",
           "Install deps",
-          "Install the browser-proof tools (pinned, lockfile-verified, no install scripts)",
-          "Audit the browser-proof tools (blocking on high and critical)"
+          "Install the browser-proof tools (pinned, lockfile-verified, no install scripts)"
         ],
         "services": [
           "postgres:16-alpine"
@@ -1882,7 +1882,7 @@
       "path": "/system",
       "router": "systemRoutes",
       "file": "src/routes/system.routes.ts",
-      "writes": 13,
+      "writes": 14,
       "reads": 20
     },
     {
@@ -1946,7 +1946,7 @@
       "router": "agentsRoomRoutes",
       "file": "src/routes/agents-room.routes.ts",
       "writes": 0,
-      "reads": 4
+      "reads": 5
     },
     {
       "path": "/telemetry",

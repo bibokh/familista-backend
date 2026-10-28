@@ -1505,6 +1505,41 @@ const PubChainEventSchema = z.object({
   seq: Count, type: z.string().regex(/^[A-Z_]+$/), taskId: z.string().min(1).nullable(), agentId: z.string().min(1).nullable(),
   code: z.string().min(1).nullable(), detail: z.string().min(1), prev: Sha256, hash: Sha256,
 }).strict();
+/** Paid AI execution, as the owner's room reads it (ai-cost-view.ts). Platform-wide: no club field exists in it. Costs are estimates. */
+const UsdEstimate = z.number().nonnegative();
+const CostWindowSchema = z.object({
+  chargedTokens: Count, reportedTokensIn: Count, reportedTokensOut: Count,
+  estimatedCostUsd: UsdEstimate, reportedEstimatedCostUsd: UsdEstimate, calls: Count, refused: Count,
+}).strict();
+export const AgentsRoomCostSchema = z.object({
+  basis: z.literal('estimate'),
+  execution: z.object({ enabled: z.boolean(), reason: z.string().nullable(), changedAt: z.string().nullable(), readable: z.boolean() }).strict(),
+  killSwitch: z.object({ engaged: z.boolean(), reason: z.string().nullable() }).strict(),
+  autonomous: z.literal(false),
+  providerConfigured: z.boolean(),
+  limits: z.object({
+    perRequestTokens: Count, perWorkflowTokens: Count, perAgentRunTokens: Count, clubDailyTokens: Count,
+    dailyTokens: Count, monthlyTokens: Count, dailyCostUsd: UsdEstimate, monthlyCostUsd: UsdEstimate, maxConcurrent: Count,
+  }).strict(),
+  configErrors: z.array(z.string().regex(/^AI_[A-Z_]+$/)),
+  models: z.array(z.object({
+    id: z.string().min(1), providerModel: z.string().min(1), priced: z.boolean(),
+    inputPerMTokUsd: z.number().positive().nullable(), outputPerMTokUsd: z.number().positive().nullable(),
+  }).strict()),
+  usage: z.object({
+    day: CostWindowSchema,
+    month: CostWindowSchema,
+    remaining: z.object({ dayTokens: Count, monthTokens: Count, dayCostUsd: UsdEstimate, monthCostUsd: UsdEstimate }).strict(),
+    inFlight: Count,
+    byModel: z.array(z.object({ model: z.string().min(1), calls: Count, tokensIn: Count, tokensOut: Count, estimatedCostUsd: UsdEstimate }).strict()),
+    byAgent: z.array(z.object({ agent: z.string().min(1), calls: Count, tokens: Count, estimatedCostUsd: UsdEstimate }).strict()),
+    refusals: z.array(z.object({ reason: z.string().min(1), count: Count }).strict()),
+    budgetEvents: z.array(z.object({ at: z.string().min(1), reason: z.string().min(1) }).strict()),
+    overruns: Count,
+  }).strict().nullable(),
+  unavailable: z.string().min(1).optional(),
+}).strict();
+
 export const AgentsRoomPublicationsSchema = z.object({
   state: z.enum(['VERIFIED', 'NOT_GENERATED', 'INVALID']),
   reason: z.string().min(1).nullable(),
@@ -1862,6 +1897,11 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     schema: AgentsRoomPublicationsSchema, consumer: 'public/agents-room/agents-room.js',
     reads: ['state', 'reason', 'notice', 'rule', 'record', 'checks', 'unapproved', 'publications'],
   },
+  {
+    endpoint: '/system/agents/cost', module: 'AI Agents Operations Room',
+    schema: AgentsRoomCostSchema, consumer: 'public/agents-room/agents-room.js',
+    reads: ['execution', 'killSwitch', 'providerConfigured', 'limits', 'configErrors', 'models', 'usage', 'unavailable'],
+  },
 ];
 
 // ── the compile-time pin ─────────────────────────────────────────────────────
@@ -1889,6 +1929,7 @@ import type {
 } from '../cyber-defense/control-plane/control-plane.service';
 import type { AlgorithmsOverview, AlgorithmSummary, AlgorithmDetail } from '../algorithms/algorithms.service';
 import type { MonitoringOverview, MonitoringSummary, AlgorithmMonitoringDetail } from '../algorithms/monitoring';
+import type { AiCostRoomView } from '../platform/intelligence/ai-cost-view';
 
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 
@@ -1968,6 +2009,7 @@ const _pIndex: Exact<z.infer<typeof DesignSystemPreviewsIndexSchema>, DesignSyst
 const _pDetail: Exact<z.infer<typeof DesignSystemPreviewDetailSchema>, DesignSystemPreviewDetail> = true;
 const _pComponent: Exact<z.infer<typeof PvComponentSchema>, PreviewComponent> = true;
 const _pFixture: Exact<z.infer<typeof PvFixtureSchema>, PreviewFixture> = true;
+const _aiCost: Exact<z.infer<typeof AgentsRoomCostSchema>, AiCostRoomView> = true;
 void [_pIndex, _pDetail, _pComponent, _pFixture];
 void [_component, _district, _relationship, _technology, _signal, _incident, _rule,
   _source, _control, _stage, _impact,

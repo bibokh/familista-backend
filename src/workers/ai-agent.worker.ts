@@ -26,6 +26,7 @@ import { runDeterministicHandler } from './agent-handlers';
 import { runInClubContext } from '../security/db-context';
 import { getJobApproval, requestApproval } from '../security/ai-approval.service';
 import { authorizeAgentJob } from '../platform/intelligence/agent-jobs';
+import { runAsAgentJob } from '../platform/intelligence/execution-gate';
 import { logSecurityEvent } from '../security/security-event.service';
 import { recordDecision, impactFor } from '../services/ai-agent-decision.service';
 import {
@@ -379,7 +380,10 @@ async function tick(): Promise<void> {
     for (let i = 0; i < 5; i++) {
       const j = await pickOneJob();
       if (!j) break;
-      await runOne(j);
+      // The job's origin, for the AI execution gate: this job, for the person
+      // who queued it. Its model calls count against its own budget, and it
+      // cannot create another job (execution-gate.ts).
+      await runAsAgentJob({ id: j.id, agent: j.agent, triggeredBy: j.triggeredBy }, () => runOne(j));
       processed++;
     }
     if (processed > 0) logger.info('[ai-worker] tick', { processed });

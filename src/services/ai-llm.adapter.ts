@@ -178,12 +178,7 @@ export async function generateNarrative(req: NarrativeRequest): Promise<Narrativ
     };
   }
 
-  const first = await callOnce(req);
-  if (first.ok) return first;
-
-  // Single retry on transient failure (timeout / parse failure)
-  if (first.reason === 'LLM_TIMEOUT' || first.reason === 'LLM_PARSE_FAILED') {
-    return callOnce(req);
-  }
-  return first;
+  // One call, never retried: a retry is a second paid call nobody asked for. A
+  // timeout or an unusable answer falls back to the deterministic narrative.
+  return callOnce(req);
 }

@@ -11,6 +11,7 @@ import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors'
 import { AIReader, accessTier, assertNotDeclaredKind, presentJob, tierFor } from '../security/ai-read-policy';
 import type { Prisma } from '@prisma/client';
 import { publishAIRequestCreated } from '../fabric/producers/ai.producer';
+import { assertMayCreateAgentWork } from '../platform/intelligence/execution-gate';
 
 // The reader every AI read is decided for: src/security/ai-read-policy.ts.
 const readerOf = (req: Request): AIReader => ({ userId: req.user!.id, clubId: req.user!.clubId, role: req.user!.role });
@@ -226,7 +227,9 @@ export async function runAgent(req: Request, res: Response, next: NextFunction) 
     assertNotDeclaredKind('job', agentParam, body.kind);
 
     // Enqueue an AIAgentJob — the worker will pick it up on its next tick
-    // (deterministic handler first, LLM fallback only if configured).
+    // (deterministic handler first, LLM fallback only if configured). Only a
+    // signed-in person's request creates AI work; never an agent or a timer.
+    assertMayCreateAgentWork();
     const job = await prisma.aIAgentJob.create({
       data: {
         clubId: req.user!.clubId,

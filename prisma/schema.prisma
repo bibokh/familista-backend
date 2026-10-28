@@ -1828,24 +1828,54 @@ model ClubAiDataPolicy {
 /// classes of data the prompt carried, which model, how many tokens, how it
 /// ended. Never the prompt and never the answer.
 model AiEgressRecord {
-  id            String   @id @default(uuid())
-  caller        String
-  purpose       String
-  clubId        String?
-  model         String?
-  provider      String?
-  dataClasses   String[]
-  pseudonymised Int      @default(0)
+  id                 String   @id @default(uuid())
+  caller             String
+  purpose            String
+  clubId             String?
+  model              String?
+  provider           String?
+  dataClasses        String[]
+  pseudonymised      Int      @default(0)
   /// STARTED | OK | REFUSED | FAILED | INVALID_OUTPUT
-  outcome       String
-  reason        String?
-  tokensIn      Int?
-  tokensOut     Int?
-  durationMs    Int?
-  createdAt     DateTime @default(now())
+  outcome            String
+  reason             String?
+  tokensIn           Int?
+  tokensOut          Int?
+  durationMs         Int?
+  /// The execution gate's reservation (execution-gate.ts): the most this call
+  /// could use, input upper bound plus the output cap, held before it is sent.
+  /// A call whose usage the provider never reported is counted at this amount.
+  reservedTokens     Int?
+  /// Estimated cost of the reservation and of the reported usage, in millionths
+  /// of a US dollar, from the configured price. Estimates, never an invoice.
+  reservedCostMicros Int?
+  costMicros         Int?
+  /// The executive workflow and the agent job this call belongs to, when it
+  /// belongs to one: their budgets are counted from these.
+  workflowId         String?
+  agentRunId         String?
+  /// The agent (AIAgent) whose job made the call, when an agent job made it.
+  agent              String?
+  /// request | agent-job: where the call came from.
+  origin             String?
+  createdAt          DateTime @default(now())
 
   @@index([clubId, createdAt])
   @@index([createdAt])
+  @@index([workflowId])
+  @@index([agentRunId])
+}
+
+/// AiExecutionControl — the Platform Owner's AI EXECUTION switch for paid model
+/// calls. At most one row, id "global". No row means OFF. Written only by the
+/// owner-only endpoint, under the advisory lock every reservation takes, with a
+/// PlatformAuditLog row in the same transaction.
+model AiExecutionControl {
+  id        String   @id
+  enabled   Boolean  @default(false)
+  reason    String?
+  changedBy String?
+  changedAt DateTime @default(now())
 }
 
 /// AIApprovalRequest — high-risk AI actions awaiting human approval.
