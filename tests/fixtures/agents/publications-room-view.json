@@ -44,6 +44,10 @@
       "detail": "Every agent and tool it names is registered on this server."
     },
     {
+      "id": "provenance",
+      "detail": "A provenance record names the reviewed definition and the commit on main that produced it, and describes this dossier. The publication gate must replay that definition and reproduce this dossier exactly before it is merged."
+    },
+    {
       "id": "approval",
       "detail": "The approval record lists it once, with this digest, for a reviewed pull request."
     }
@@ -748,6 +752,32 @@
           }
         ],
         "digest": "41f9a4fad6fdd352ec8380402ab2f976d99133292943659d70e56389c68b1059"
+      },
+      "provenance": {
+        "contract": "familista.evidence-provenance/v1",
+        "publicationId": "pub-d88d2d1825a54306f7d17bab",
+        "executionId": "exec-3222ed2fa1350e6f66a049ea",
+        "dossierDigest": "41f9a4fad6fdd352ec8380402ab2f976d99133292943659d70e56389c68b1059",
+        "recordDigest": "2b952f3ae23fead1fac6ff3e892bf00da73354166fb02de3895541fdd0f44196",
+        "definition": {
+          "contract": "familista.lab-definition/v1",
+          "name": "rehearsal-completed",
+          "path": "lab/orchestrator/definitions/rehearsal-completed.json",
+          "digest": "89c953f49ae2cd0600615d0487b5c706585b1009b423888ba5ea868885bb1ad9"
+        },
+        "source": {
+          "repository": "bibokh/familista-backend",
+          "revision": "0000000000000000000000000000000000000000",
+          "digest": "89c953f49ae2cd0600615d0487b5c706585b1009b423888ba5ea868885bb1ad9",
+          "files": 0,
+          "packages": []
+        },
+        "replay": {
+          "method": "DETERMINISTIC_REPLAY",
+          "steps": 0
+        },
+        "digest": "6f49c33c3809a21141f32dc0c1eb586c8329301d5046ae13032ac0bb58192293",
+        "statement": "The publication gate replays this definition through the LAB execution engine at this source, and must reproduce this record and this dossier exactly, before the pull request that carries them can pass."
       }
     },
     {
@@ -1397,6 +1427,32 @@
           }
         ],
         "digest": "1ce522f6fc86d620dc7fb173f55e938d553ea6749be851d334a40de23ede701b"
+      },
+      "provenance": {
+        "contract": "familista.evidence-provenance/v1",
+        "publicationId": "pub-e74293058876dffa7d37a2a9",
+        "executionId": "exec-b54d565568d70f1b26b2bf6f",
+        "dossierDigest": "1ce522f6fc86d620dc7fb173f55e938d553ea6749be851d334a40de23ede701b",
+        "recordDigest": "23eaa1734f6c2413c9bb880d969798787b64480f4372751ee2f97623785bc632",
+        "definition": {
+          "contract": "familista.lab-definition/v1",
+          "name": "rehearsal-pending-approval",
+          "path": "lab/orchestrator/definitions/rehearsal-pending-approval.json",
+          "digest": "89c953f49ae2cd0600615d0487b5c706585b1009b423888ba5ea868885bb1ad9"
+        },
+        "source": {
+          "repository": "bibokh/familista-backend",
+          "revision": "0000000000000000000000000000000000000000",
+          "digest": "89c953f49ae2cd0600615d0487b5c706585b1009b423888ba5ea868885bb1ad9",
+          "files": 0,
+          "packages": []
+        },
+        "replay": {
+          "method": "DETERMINISTIC_REPLAY",
+          "steps": 0
+        },
+        "digest": "e7425cb418fb3c625ad76ed78b5a306705699878f8a1fa28d4a17c8f83fbaadc",
+        "statement": "The publication gate replays this definition through the LAB execution engine at this source, and must reproduce this record and this dossier exactly, before the pull request that carries them can pass."
       }
     },
     {
@@ -2069,6 +2125,32 @@
           }
         ],
         "digest": "05650b55a49ce32cc95262b6db9a3ce3d16227da524b298eb199a4861fea4c94"
+      },
+      "provenance": {
+        "contract": "familista.evidence-provenance/v1",
+        "publicationId": "pub-12515dc779dd3a299335ef38",
+        "executionId": "exec-ff27d778437610b274d5d5c1",
+        "dossierDigest": "05650b55a49ce32cc95262b6db9a3ce3d16227da524b298eb199a4861fea4c94",
+        "recordDigest": "ed69296318eaafa0447fa4368ed9ffcd2e5f7aed29902df07592002dd5848ce8",
+        "definition": {
+          "contract": "familista.lab-definition/v1",
+          "name": "rehearsal-rejected",
+          "path": "lab/orchestrator/definitions/rehearsal-rejected.json",
+          "digest": "89c953f49ae2cd0600615d0487b5c706585b1009b423888ba5ea868885bb1ad9"
+        },
+        "source": {
+          "repository": "bibokh/familista-backend",
+          "revision": "0000000000000000000000000000000000000000",
+          "digest": "89c953f49ae2cd0600615d0487b5c706585b1009b423888ba5ea868885bb1ad9",
+          "files": 0,
+          "packages": []
+        },
+        "replay": {
+          "method": "DETERMINISTIC_REPLAY",
+          "steps": 0
+        },
+        "digest": "6935d145f2e73e78b87d375038a54856868e1bd12d1c04edabbadbc6b662fdaa",
+        "statement": "The publication gate replays this definition through the LAB execution engine at this source, and must reproduce this record and this dossier exactly, before the pull request that carries them can pass."
       }
     },
     {
@@ -2521,6 +2603,32 @@
           }
         ],
         "digest": "ee193d82537a09298025797dfa39b854c3f596a91571aa0cd98328a2cd235b06"
+      },
+      "provenance": {
+        "contract": "familista.evidence-provenance/v1",
+        "publicationId": "pub-c1299a2e890b74cd4b051abf",
+        "executionId": "exec-5c8d30be9c27debe1932e61e",
+        "dossierDigest": "ee193d82537a09298025797dfa39b854c3f596a91571aa0cd98328a2cd235b06",
+        "recordDigest": "26ccb8908be936fded7ca1d03751f5fdf2e5bc5dbf5a6118976499e4c3afcf36",
+        "definition": {
+          "contract": "familista.lab-definition/v1",
+          "name": "rehearsal-failure",
+          "path": "lab/orchestrator/definitions/rehearsal-failure.json",
+          "digest": "89c953f49ae2cd0600615d0487b5c706585b1009b423888ba5ea868885bb1ad9"
+        },
+        "source": {
+          "repository": "bibokh/familista-backend",
+          "revision": "0000000000000000000000000000000000000000",
+          "digest": "89c953f49ae2cd0600615d0487b5c706585b1009b423888ba5ea868885bb1ad9",
+          "files": 0,
+          "packages": []
+        },
+        "replay": {
+          "method": "DETERMINISTIC_REPLAY",
+          "steps": 0
+        },
+        "digest": "c69f5a7b8f6cbdbcd1ca3b1b7f1f6e2e691e02ca255d3a9f143ab59afce15798",
+        "statement": "The publication gate replays this definition through the LAB execution engine at this source, and must reproduce this record and this dossier exactly, before the pull request that carries them can pass."
       }
     },
     {
@@ -3200,6 +3308,32 @@
           }
         ],
         "digest": "269d65170a355b6da02213839d30261dcb2002bbf3c2488623feae8c3350cf2f"
+      },
+      "provenance": {
+        "contract": "familista.evidence-provenance/v1",
+        "publicationId": "pub-bc8c55a49ee0956fa74acc5a",
+        "executionId": "exec-314fad17904e0201308e81fc",
+        "dossierDigest": "269d65170a355b6da02213839d30261dcb2002bbf3c2488623feae8c3350cf2f",
+        "recordDigest": "16475cd7af238bdf02e6f95cdd049d48bc733c3c909bfc6c86134d2ac30f1638",
+        "definition": {
+          "contract": "familista.lab-definition/v1",
+          "name": "rehearsal-cancelled",
+          "path": "lab/orchestrator/definitions/rehearsal-cancelled.json",
+          "digest": "89c953f49ae2cd0600615d0487b5c706585b1009b423888ba5ea868885bb1ad9"
+        },
+        "source": {
+          "repository": "bibokh/familista-backend",
+          "revision": "0000000000000000000000000000000000000000",
+          "digest": "89c953f49ae2cd0600615d0487b5c706585b1009b423888ba5ea868885bb1ad9",
+          "files": 0,
+          "packages": []
+        },
+        "replay": {
+          "method": "DETERMINISTIC_REPLAY",
+          "steps": 0
+        },
+        "digest": "06e6d35b2c355f99531bba70cabdb67e87cd308595fa6bb9fb6871446a82d234",
+        "statement": "The publication gate replays this definition through the LAB execution engine at this source, and must reproduce this record and this dossier exactly, before the pull request that carries them can pass."
       }
     },
     {
@@ -3879,6 +4013,32 @@
           }
         ],
         "digest": "19bd140f9edf530b0416fe3fa6b1f119663aa00af7915798cc37f5840aff830d"
+      },
+      "provenance": {
+        "contract": "familista.evidence-provenance/v1",
+        "publicationId": "pub-6cc98ca34610978e88064fb1",
+        "executionId": "exec-8948cf0c0b043fe79aa081d7",
+        "dossierDigest": "19bd140f9edf530b0416fe3fa6b1f119663aa00af7915798cc37f5840aff830d",
+        "recordDigest": "598160bb4e09627da6096673bf4332613c8adfdb7a264b1447129868db400c75",
+        "definition": {
+          "contract": "familista.lab-definition/v1",
+          "name": "rehearsal-kill-switch",
+          "path": "lab/orchestrator/definitions/rehearsal-kill-switch.json",
+          "digest": "89c953f49ae2cd0600615d0487b5c706585b1009b423888ba5ea868885bb1ad9"
+        },
+        "source": {
+          "repository": "bibokh/familista-backend",
+          "revision": "0000000000000000000000000000000000000000",
+          "digest": "89c953f49ae2cd0600615d0487b5c706585b1009b423888ba5ea868885bb1ad9",
+          "files": 0,
+          "packages": []
+        },
+        "replay": {
+          "method": "DETERMINISTIC_REPLAY",
+          "steps": 0
+        },
+        "digest": "284ac7abe43cfa10711d7c9a024a4c3323d05fe5c594efdf07a571f5325ced44",
+        "statement": "The publication gate replays this definition through the LAB execution engine at this source, and must reproduce this record and this dossier exactly, before the pull request that carries them can pass."
       }
     },
     {
@@ -4474,6 +4634,32 @@
           }
         ],
         "digest": "1e155adc985b1a133e8bc6406ed43403398c132e8bdfa400f41a1fc636f751a6"
+      },
+      "provenance": {
+        "contract": "familista.evidence-provenance/v1",
+        "publicationId": "pub-a536cc2d1b1c5b2aca46f330",
+        "executionId": "exec-646016cb6352322ce44ed964",
+        "dossierDigest": "1e155adc985b1a133e8bc6406ed43403398c132e8bdfa400f41a1fc636f751a6",
+        "recordDigest": "9b26cced76bc59de49c5f9d5114e4033ae7545923fc6aa6a65eef73b5f7b0fc4",
+        "definition": {
+          "contract": "familista.lab-definition/v1",
+          "name": "rehearsal-execution-limit",
+          "path": "lab/orchestrator/definitions/rehearsal-execution-limit.json",
+          "digest": "89c953f49ae2cd0600615d0487b5c706585b1009b423888ba5ea868885bb1ad9"
+        },
+        "source": {
+          "repository": "bibokh/familista-backend",
+          "revision": "0000000000000000000000000000000000000000",
+          "digest": "89c953f49ae2cd0600615d0487b5c706585b1009b423888ba5ea868885bb1ad9",
+          "files": 0,
+          "packages": []
+        },
+        "replay": {
+          "method": "DETERMINISTIC_REPLAY",
+          "steps": 0
+        },
+        "digest": "56b2a85103434363ba2250092ee1d9c1ac44ba49b48b34cbded4c010e6cd1ea1",
+        "statement": "The publication gate replays this definition through the LAB execution engine at this source, and must reproduce this record and this dossier exactly, before the pull request that carries them can pass."
       }
     }
   ]

@@ -2763,7 +2763,7 @@ function _loadAgentsRoom(done) {
   }
   ask.then(function (yes) {
     if (!yes) { finish(false); return; }
-    var v = '20261027-agents-room-3';
+    var v = '20261028-agents-room-4';
     var pending = 2, failed = false;
     function one(ok) { if (!ok) failed = true; if (--pending === 0) finish(!failed); }
     var link = document.createElement('link');

@@ -56,7 +56,8 @@ import { OWNER_API_CONTRACTS } from '../src/contracts/owner-api.contracts';
 import agentsRoomRoutes from '../src/routes/agents-room.routes';
 import { labExecutionOperations } from '../lab/orchestrator/operations';
 import { publicationCandidate, verifyExecution, EXECUTION_CONTRACT, EXECUTION_GENESIS as LAB_GENESIS, executionIdFor } from '../lab/orchestrator/execution';
-import { executionPublicationCandidate, preparePublication, toExecutionEvidence, type PublicationDeps } from '../lab/orchestrator/publication';
+import { buildProvenance, executionPublicationCandidate, preparePublication, toExecutionEvidence, type ProvenanceClaim, type PublicationDeps } from '../lab/orchestrator/publication';
+import { provenanceFileFor } from '../src/platform/agents/execution-provenance';
 import { galleryExecutions, matchdayExecution, rehearsedRoomView, runPublicationDemonstration } from '../lab/orchestrator/publication-demo';
 
 const ROOT = path.resolve(__dirname, '..');
@@ -96,9 +97,20 @@ const entryFor = (e: ExecutionEvidence, reference = 'bibokh/familista-backend#14
   publicationId: e.publicationId, executionId: e.source.executionId, evidence: EXECUTION_EVIDENCE_CONTRACT,
   dossier: { file: `${e.publicationId}.json`, digest: e.digest }, reference,
 });
+/**
+ * A provenance claim of the right shape. The server checks a provenance record's shape and that it describes its
+ * dossier; whether the claim is TRUE is the publication gate's to establish (tests/publication-provenance.unit.test.ts).
+ */
+const CLAIM: ProvenanceClaim = {
+  definition: { name: 'matchday-staff-notice', path: 'lab/orchestrator/definitions/matchday-staff-notice.json', digest: 'd'.repeat(64) },
+  source: { revision: 'c'.repeat(40), digest: 'e'.repeat(64), files: 26, packages: [{ name: 'zod', version: '4.6.7' }] }, steps: 2,
+};
 function stage(files: { dossiers?: ExecutionEvidence[]; entries?: unknown[]; record?: unknown }): string {
   const dir = tmp();
-  for (const d of files.dossiers ?? []) fs.writeFileSync(path.join(dir, `${d.publicationId}.json`), JSON.stringify(d));
+  for (const d of files.dossiers ?? []) {
+    fs.writeFileSync(path.join(dir, `${d.publicationId}.json`), JSON.stringify(d));
+    fs.writeFileSync(path.join(dir, provenanceFileFor(d.publicationId)), JSON.stringify(buildProvenance(d, CLAIM)));
+  }
   const record = files.record ?? { contract: APPROVAL_RECORD_CONTRACT, rule: APPROVAL_RULE, publications: files.entries ?? [] };
   fs.writeFileSync(path.join(dir, APPROVAL_RECORD_FILE), JSON.stringify(record));
   return dir;
@@ -250,7 +262,7 @@ describe('3. nothing is shown that the Platform Owner did not approve by merging
     const e = dossier();
     const dir = stage({ dossiers: [e], entries: [] });
     const r = readPublications(registry, dir);
-    expect(r).toMatchObject({ state: 'VERIFIED', publications: [], unapproved: [e.publicationId] });
+    expect(r).toMatchObject({ state: 'VERIFIED', publications: [], unapproved: [e.publicationId, `${e.publicationId}.provenance`] });
     const v = publicationsRoomView(registry, r);
     expect(v.publications).toEqual([]);
     expect(JSON.stringify(v)).not.toContain(e.run.digest);
@@ -289,9 +301,9 @@ describe('3. nothing is shown that the Platform Owner did not approve by merging
     expect(twice.record).toBeNull();
     expect(twice.reasons).toEqual(expect.arrayContaining([`approval record: publication ${e.publicationId} is approved twice`, `approval record: execution ${e.source.executionId} is approved twice`]));
     const dir = tmp();
-    const first = preparePublication(gallery[0].record, pub, { reference: 'bibokh/familista-backend#140', dir, environment: 'LAB' });
+    const first = preparePublication(gallery[0].record, pub, { reference: 'bibokh/familista-backend#140', dir, environment: 'LAB', provenance: CLAIM });
     expect(first.status).toBe('PREPARED');
-    const again = preparePublication(gallery[0].record, pub, { reference: 'bibokh/familista-backend#141', dir, environment: 'LAB' });
+    const again = preparePublication(gallery[0].record, pub, { reference: 'bibokh/familista-backend#141', dir, environment: 'LAB', provenance: CLAIM });
     expect(again).toMatchObject({ status: 'REFUSED', code: 'ALREADY_PUBLISHED' });
   });
 
@@ -315,11 +327,11 @@ describe('3. nothing is shown that the Platform Owner did not approve by merging
     expect(elsewhere.reasons[0]).toMatch(/^approval record: publications\.0\.reference/);
     const rehearsal = readPublications(registry, stage({ dossiers: [e], entries: [entryFor(e, REHEARSAL_REFERENCE)] }));
     expect(rehearsal.state === 'INVALID' && rehearsal.reason).toContain('was prepared in a rehearsal, and a rehearsal is never an approval');
-    expect(preparePublication(gallery[0].record, pub, { reference: 'bibokh/familista-backend#140', dir: tmp(), environment: 'PRODUCTION' }))
+    expect(preparePublication(gallery[0].record, pub, { reference: 'bibokh/familista-backend#140', dir: tmp(), environment: 'PRODUCTION', provenance: CLAIM }))
       .toMatchObject({ status: 'REFUSED', code: 'ENVIRONMENT_NOT_LAB' });
-    expect(preparePublication(gallery[0].record, pub, { reference: 'bibokh/other#1', dir: tmp(), environment: 'LAB' })).toMatchObject({ status: 'REFUSED', code: 'REFERENCE_INVALID' });
+    expect(preparePublication(gallery[0].record, pub, { reference: 'bibokh/other#1', dir: tmp(), environment: 'LAB', provenance: CLAIM })).toMatchObject({ status: 'REFUSED', code: 'REFERENCE_INVALID' });
     const tampered = { ...clone(gallery[0].record), run: { ...clone(gallery[0].record.run), outcome: 'FAILED' } };
-    expect(preparePublication(tampered, pub, { reference: 'bibokh/familista-backend#140', dir: tmp(), environment: 'LAB' })).toMatchObject({ status: 'REFUSED', code: 'RECORD_INVALID' });
+    expect(preparePublication(tampered, pub, { reference: 'bibokh/familista-backend#140', dir: tmp(), environment: 'LAB', provenance: CLAIM })).toMatchObject({ status: 'REFUSED', code: 'RECORD_INVALID' });
   });
 
   it('a malformed, oversized or missing record shows nothing', () => {
@@ -337,9 +349,9 @@ describe('3. nothing is shown that the Platform Owner did not approve by merging
 
   it('prepare writes the dossier and the entry for the pull request named, and production reads them back', () => {
     const dir = tmp();
-    const r = preparePublication(gallery[0].record, pub, { reference: 'bibokh/familista-backend#140', dir, environment: 'LAB' });
+    const r = preparePublication(gallery[0].record, pub, { reference: 'bibokh/familista-backend#140', dir, environment: 'LAB', provenance: CLAIM });
     if (r.status !== 'PREPARED') throw new Error(r.message);
-    expect(fs.readdirSync(dir).sort()).toEqual([APPROVAL_RECORD_FILE, `${r.entry.publicationId}.json`].sort());
+    expect(fs.readdirSync(dir).sort()).toEqual([APPROVAL_RECORD_FILE, `${r.entry.publicationId}.json`, provenanceFileFor(r.entry.publicationId)].sort());
     expect(JSON.parse(fs.readFileSync(path.join(dir, APPROVAL_RECORD_FILE), 'utf8')).publications).toEqual([r.entry]);
     expect(Object.keys(r.entry).sort()).toEqual(['dossier', 'evidence', 'executionId', 'publicationId', 'reference']);
     expect(readPublications(registry, dir)).toMatchObject({ state: 'VERIFIED', publications: [{ entry: r.entry }] });
@@ -508,7 +520,7 @@ describe('8. production reads approved files and runs nothing; the Lab prepares 
     const f = 'src/platform/agents/execution-evidence.ts';
     const src = read(f);
     const imports = [...src.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
-    expect(imports.filter((i) => !['fs', 'path', 'zod', '../../security/ai-read-policy', '../intelligence/agents', './orchestration-evidence', './registry', './trace-chain'].includes(i))).toEqual([]);
+    expect(imports.filter((i) => !['fs', 'path', 'zod', '../../security/ai-read-policy', '../intelligence/agents', './execution-provenance', './orchestration-evidence', './registry', './trace-chain'].includes(i))).toEqual([]);
     expect(/lab\/|child_process|\bfetch\(|https?\.request\(|\beval\(|new Function|require\(/.test(src.replace(/\/\/.*$/gm, ''))).toBe(false);
     expect(/writeFile|appendFile|mkdir|unlink|rmSync|renameSync/.test(src)).toBe(false);
     // Only the Lab's read-back passes `rehearsal`; what serves the room reads with the defaults.
@@ -568,7 +580,9 @@ describe('8. production reads approved files and runs nothing; the Lab prepares 
   it('the demonstration blocks every unapproved path and approves nothing', () => {
     const steps = runPublicationDemonstration(tmp());
     expect(steps.filter((s) => s.result === 'REFUSED')).toEqual([]);
-    expect(steps.filter((s) => s.result === 'BLOCKED').map((s) => s.n)).toEqual([5, 6, 7, 8, 9, 13]);
+    expect(steps.filter((s) => s.result === 'BLOCKED').map((s) => s.n)).toEqual([6, 7, 8, 9, 10, 11, 15]);
+    // The canonical definition, replayed from nothing, is the execution the demonstration ran, byte for byte.
+    expect(steps[4]).toMatchObject({ n: 5, result: 'VERIFIED', step: expect.stringContaining('Deterministic replay') });
     expect(steps.filter((s) => s.result === 'SIMULATED').map((s) => s.step)).toEqual(['Read-only room presentation (SIMULATED: as if the pull request were merged)']);
     resetPublications();
     expect(readShippedPublications(registry)).toMatchObject({ state: 'VERIFIED', publications: [] });

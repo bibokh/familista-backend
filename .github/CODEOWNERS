@@ -37,6 +37,17 @@
 /src/platform/agents/published/     @bibokh
 /src/platform/agents/execution-evidence.ts @bibokh
 
+# Published LAB evidence, and what decides whether it is shown: the dossiers,
+# their provenance and the approval record; the server's verifiers; the
+# definitions they were replayed from. Advisory until the ruleset on main
+# requires review from Code Owners, and only an approval by someone other than
+# the pull request's author counts
+# (docs/security/evidence-publication-enforcement.md).
+/src/platform/agents/published/     @bibokh
+/src/platform/agents/execution-evidence.ts   @bibokh
+/src/platform/agents/execution-provenance.ts @bibokh
+/lab/orchestrator/definitions/      @bibokh
+
 # Schema and migrations (run in production by render-start.sh)
 /prisma/                            @bibokh
 

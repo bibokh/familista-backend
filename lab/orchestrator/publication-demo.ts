@@ -1,17 +1,21 @@
 // Publication, demonstrated — from an AI-0.4 execution to the Platform Owner's boundary
 // ─────────────────────────────────────────────────────────────────────────────
 // Global Multi-Agent Intelligence, AI-0.5 (LAB). One synthetic workflow,
-// Tactical → Training → Club Manager, taken as far as the Lab can take it: run
-// under governance, recorded, verified, made a candidate, refused every way a
-// publication without the owner's approval could be attempted, then prepared
-// for review in a rehearsal directory with a pull request that cannot exist.
-// It stops there. Nothing here approves, and nothing it writes is in the tree
-// production is built from.
+// Tactical → Training → Club Manager, the canonical definition
+// (lab/orchestrator/definitions/matchday-staff-notice.json), taken as far as
+// the Lab can take it: run under governance, recorded, verified, replayed from
+// nothing and compared byte for byte, made a candidate, refused every way a
+// publication without the owner's approval or without reproduction could be
+// attempted, then prepared for review in a rehearsal directory with a pull
+// request that cannot exist and a commit that cannot exist. It stops there.
+// Nothing here approves, and nothing it writes is in the tree production is
+// built from.
 //
 // The gallery is the same pipeline over one execution of every outcome a
 // publication can show. Its rehearsed room view is what the Operations Room's
 // tests draw (tests/fixtures/publications-room-view.json): what the room WOULD
-// show if each were approved, which none is.
+// show if each were approved, which none is. Its provenance is the rehearsal's:
+// no commit and no source were measured, and the server refuses it as such.
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -27,8 +31,12 @@ import {
   type ExecutionDeps, type ExecutionRecord,
 } from './execution';
 import { ANALYST, approveNotice, executionRequest, matchdayPlan, NORTH_OPERATOR, SOUTH_CLUB_ADMIN } from './execution-scenarios';
+import { applyDefinition, parseDefinition } from './definition';
+import { replayDefinition } from './replay';
+import { executionSource } from './source';
 import { labExecutionOperations } from './operations';
-import { executionPublicationCandidate, preparePublication, REHEARSAL_REFERENCE, type PublicationDeps } from './publication';
+import { executionPublicationCandidate, preparePublication, rehearsalProvenance, REHEARSAL_REFERENCE, type PublicationDeps } from './publication';
+import { REHEARSAL_REVISION } from '../../src/platform/agents/execution-provenance';
 import * as S from './scenarios';
 
 export interface DemoStep { n: number; step: string; result: 'DONE' | 'BLOCKED' | 'VERIFIED' | 'REFUSED' | 'SIMULATED'; detail: string }
@@ -85,6 +93,10 @@ export function galleryExecutions(): Array<{ slug: string; record: ExecutionReco
   return out;
 }
 
+const REPO = path.join(__dirname, '..', '..');
+/** The first publication candidate's definition: Tactical → Training → Club Manager, and the staff notice a club admin approves. */
+export const CANONICAL_DEFINITION = 'lab/orchestrator/definitions/matchday-staff-notice.json';
+
 const fresh = (dir: string) => { fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true }); };
 
 /**
@@ -95,7 +107,7 @@ export function rehearsedRoomView(dir: string): PublicationsRoomView {
   const pub: PublicationDeps = { registry: platformAgentRegistry(), operations: labExecutionOperations() };
   fresh(dir);
   for (const { slug, record } of galleryExecutions()) {
-    const r = preparePublication(record, pub, { reference: REHEARSAL_REFERENCE, dir, environment: 'LAB' });
+    const r = preparePublication(record, pub, { reference: REHEARSAL_REFERENCE, dir, environment: 'LAB', provenance: rehearsalProvenance(`rehearsal-${slug}`, 0) });
     if (r.status !== 'PREPARED') throw new Error(`gallery ${slug}: ${r.code}: ${r.message}`);
   }
   return publicationsRoomView(pub.registry, readPublications(pub.registry, dir, { rehearsal: true }));
@@ -109,10 +121,15 @@ export function runPublicationDemonstration(stagingDir: string): DemoStep[] {
   const pub: PublicationDeps = { registry, operations: labExecutionOperations() };
   fresh(stagingDir);
 
-  // 1–3: the execution, its record, the record verified
-  const record = matchdayExecution();
+  // 1–3: the execution of the canonical definition, its record, the record verified
+  const defText = fs.readFileSync(path.join(REPO, CANONICAL_DEFINITION), 'utf8');
+  const parsed = parseDefinition(defText, CANONICAL_DEFINITION);
+  if ('reason' in parsed) { say('Canonical definition', 'REFUSED', parsed.reason); return steps; }
+  const ran = applyDefinition(parsed.definition, depsFor());
+  if (!ran.ok) { say('AI-0.4 LAB execution of the canonical definition', 'REFUSED', ran.reason); return steps; }
+  const record = ran.record;
   const tasks = record.run.tasks.map((t) => `${t.id} ${t.agent?.id ?? '-'} ${t.state}`).join(', ');
-  say('AI-0.4 LAB execution: Tactical → Training → Club Manager', 'DONE', `${record.executionId} ${record.run.outcome}: ${tasks}`);
+  say('AI-0.4 LAB execution: Tactical → Training → Club Manager', 'DONE', `${CANONICAL_DEFINITION} (${parsed.digest.slice(0, 16)}): ${record.executionId} ${record.run.outcome}: ${tasks}`);
   const refusedSelf = record.log.find((e) => e.type === 'DECISION_REFUSED' && e.code === 'SELF_APPROVAL');
   say('Evidence generated', 'DONE', `record ${record.digest.slice(0, 16)}: ${record.run.trace.length} trace events, ${record.log.length} log events; self-approval ${refusedSelf ? 'refused and recorded' : 'NOT recorded'}`);
   const check = verifyExecution(record);
@@ -123,6 +140,18 @@ export function runPublicationDemonstration(stagingDir: string): DemoStep[] {
   if (!candidate.evidence) { say('Publication candidate', 'REFUSED', candidate.reasons.join('; ')); return steps; }
   const dossier = candidate.evidence;
   say('Publication candidate (v2), checked by production\'s verifier', 'VERIFIED', `${dossier.publicationId}, dossier digest ${dossier.digest}`);
+
+  // 5–6: replayed from nothing, compared byte for byte; a changed definition does not reproduce it
+  const replay = replayDefinition(defText, CANONICAL_DEFINITION, { environment: 'LAB' });
+  const same = replay.ok && replay.record.digest === record.digest && replay.dossierText === `${JSON.stringify(dossier, null, 2)}\n`;
+  say('Deterministic replay: the definition run again, from nothing, gives the same record and dossier byte for byte', same ? 'VERIFIED' : 'REFUSED',
+    replay.ok ? `record ${replay.record.digest.slice(0, 16)} ${replay.record.digest === record.digest ? '=' : '≠'} ${record.digest.slice(0, 16)}; dossier ${replay.evidence.digest.slice(0, 16)} ${same ? '=' : '≠'} ${dossier.digest.slice(0, 16)}` : replay.reason);
+  const edited = JSON.parse(defText);
+  edited.steps = edited.steps.filter((st: { expect: { code: string | null } }) => st.expect.code !== 'SELF_APPROVAL');
+  const drift = replayDefinition(JSON.stringify(edited), CANONICAL_DEFINITION, { environment: 'LAB' });
+  const drifted = drift.ok && drift.evidence.digest !== dossier.digest;
+  say('Blocked: the same workflow without its refused self-approval does not reproduce this dossier', drifted ? 'BLOCKED' : 'REFUSED',
+    drift.ok ? `replay gives ${drift.evidence.publicationId} ${drift.evidence.digest.slice(0, 16)}, not ${dossier.digest.slice(0, 16)}: the gate would refuse it` : drift.reason);
 
   // 5: every way to publish it without the Platform Owner's approval, refused
   const shipped = readPublications(registry);
@@ -161,7 +190,15 @@ export function runPublicationDemonstration(stagingDir: string): DemoStep[] {
 
   // 6–8: the owner-review boundary, rehearsed; the artifact; v2 validation
   const staged = path.join(stagingDir, 'rehearsal');
-  const prepared = preparePublication(record, pub, { reference: REHEARSAL_REFERENCE, dir: staged, environment: 'LAB' });
+  const source = executionSource((p) => { try { return fs.readFileSync(path.join(REPO, p), 'utf8'); } catch { return null; } });
+  if ('reason' in source) { say('Source measured', 'REFUSED', source.reason); return steps; }
+  const prepared = preparePublication(record, pub, {
+    reference: REHEARSAL_REFERENCE, dir: staged, environment: 'LAB',
+    provenance: {
+      definition: { name: parsed.definition.name, path: CANONICAL_DEFINITION, digest: parsed.digest },
+      source: { revision: REHEARSAL_REVISION, digest: source.digest, files: source.files.length, packages: source.packages }, steps: parsed.definition.steps.length,
+    },
+  });
   if (prepared.status !== 'PREPARED') { say('Prepare for review', 'REFUSED', `${prepared.code}: ${prepared.message}`); return steps; }
   say('Owner-review boundary: prepared for a pull request, approved by nobody', 'DONE',
     `entry ${JSON.stringify(prepared.entry)}; it takes effect only when the Platform Owner merges the pull request it names, and ${REHEARSAL_REFERENCE} cannot exist`);

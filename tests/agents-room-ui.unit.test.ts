@@ -703,9 +703,45 @@ describe('approved LAB executions (AI-0.5): drawn only as the server verified th
     expect(all).not.toContain(PAYLOAD);
   });
 
+  it('draws what produced it: the definition, the commit and the source, and the rule that checks them; a rehearsal says it measured nothing', async () => {
+    const v = gallery();
+    const first = v.publications[0];
+    expect(first.provenance.source.revision).toBe('0'.repeat(40));
+    let h = (await open(v)).region('#ar-view');
+    expect(h).toContain('Provenance and reproduction');
+    expect(h).toContain('Rehearsal: no commit was measured');
+    expect(h).toContain('None (rehearsal)');
+    expect(h).not.toContain('Reproducible by deterministic replay');
+    // Nothing was measured, so nothing is shown as a figure: absent, never zero.
+    const prov = h.slice(h.indexOf('ar-wf-prov'));
+    expect(prov).toMatch(/Source files<\/div><div class="ar-kv-v">—</);
+    expect(prov).toMatch(/Operator steps replayed<\/div><div class="ar-kv-v">—</);
+    expect(prov).not.toContain(first.provenance.source.digest.slice(0, 16));
+    expect(prov).not.toContain('Definition reviewed in the repository'); // a rehearsal's definition is no file of the repository
+    expect(h).toContain(first.provenance.definition.path);
+    expect(h).toContain(first.provenance.statement);
+    // Provenance from a real commit is drawn as such: the commit, the source digest, the packages it locked.
+    const real = JSON.parse(JSON.stringify(v));
+    real.publications[0].provenance.source = { ...real.publications[0].provenance.source, revision: 'ab12'.repeat(10), digest: 'cd34'.repeat(16), files: 26, packages: [{ name: 'zod', version: '4.6.7' }] };
+    h = (await open(real)).region('#ar-view');
+    expect(h).toContain('Reproducible by deterministic replay');
+    expect(h).toMatch(/Source files<\/div><div class="ar-kv-v">26</);
+    expect(h).toContain('Definition reviewed in the repository');
+    expect(h).not.toContain('Rehearsal: no commit was measured');
+    expect(h).toContain('<code data-no-i18n>ab12ab12ab12</code>');
+    expect(h).toContain('<code data-no-i18n>cd34cd34cd34cd34</code>');
+    expect(h).toContain('<code data-no-i18n>zod@4.6.7</code>');
+    // A hostile definition name is text, never markup.
+    const hostile = JSON.parse(JSON.stringify(v));
+    hostile.publications[0].provenance.definition.name = '<img src=x onerror=alert(1)>';
+    h = (await open(hostile)).region('#ar-view');
+    expect(h).not.toContain('<img src=x');
+    expect(h).toContain('&lt;img src=x onerror=alert(1)&gt;');
+  });
+
   it('carries every sentence the server writes for a publication, and every title it carries, into the catalogue', () => {
     const v = gallery();
-    const texts = [v.notice, v.rule, ...v.checks.map((c: { detail: string }) => c.detail),
+    const texts = [v.notice, v.rule, ...v.checks.map((c: { detail: string }) => c.detail), ...v.publications.map((p: { provenance: { statement: string } }) => p.provenance.statement),
       ...v.publications.flatMap((p: Pub & { evidence: { operations: Array<{ title: string }> } }) => [p.evidence.plan.title, ...p.evidence.operations.map((o) => o.title)])]
       .map((t: string) => t.replace(/\d+/g, '%d'));
     expect(texts.filter((k: string) => !(k in en))).toEqual([]);
@@ -724,5 +760,7 @@ describe('approved LAB executions (AI-0.5): drawn only as the server verified th
     const h = room.region('#ar-view');
     expect(h).toContain(dict['Approved LAB execution']);
     expect(h).toContain(dict['Verification and publication']);
+    expect(h).toContain(dict['Provenance and reproduction']);
+    expect(h).toContain(dict['Rehearsal: no commit was measured']);
   });
 });

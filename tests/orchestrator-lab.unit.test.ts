@@ -490,11 +490,23 @@ describe('the lab stays out of production', () => {
       '../../src/platform/agents/trace-chain', '../../src/platform/agents/orchestration-evidence',
       // AI-0.5: the v2 contract, its verifier and the shared id rules, so the Lab prepares only what production accepts.
       '../../src/platform/agents/execution-evidence',
+      // Provenance: the record production requires beside a dossier; `module` lists Node's built-ins for the source walk.
+      '../../src/platform/agents/execution-provenance', 'module',
     ]);
+    // git, read-only, from the two command lines only: the rules themselves are given their git and never run it.
+    const cliOnly: Record<string, string[]> = { 'publish-cli.ts': ['child_process'], 'gate-cli.ts': ['child_process'] };
     for (const f of fs.readdirSync(LAB_DIR).filter((x) => x.endsWith('.ts'))) {
       const specs = [...fs.readFileSync(path.join(LAB_DIR, f), 'utf8').matchAll(/from '([^']+)'/g)].map((m) => m[1]).filter((s) => !s.startsWith('./'));
-      for (const s of specs) expect({ file: f, import: s, allowed: allowed.has(s) }).toEqual({ file: f, import: s, allowed: true });
+      for (const s of specs) expect({ file: f, import: s, allowed: allowed.has(s) || (cliOnly[f] ?? []).includes(s) }).toEqual({ file: f, import: s, allowed: true });
     }
+  });
+
+  it('the one network read in the Lab is the publication gate\'s, of the rules GitHub reports for main, from its command line', () => {
+    const calls = fs.readdirSync(LAB_DIR).filter((x) => x.endsWith('.ts')).filter((f) => /\bfetch\(|https?\.request\(|net\.connect\(/.test(fs.readFileSync(path.join(LAB_DIR, f), 'utf8')));
+    expect(calls).toEqual(['gate-cli.ts']);
+    const cli = fs.readFileSync(path.join(LAB_DIR, 'gate-cli.ts'), 'utf8');
+    expect([...cli.matchAll(/https:\/\/[^`'"\s]+/g)].map((m) => m[0])).toEqual(['https://api.github.com/repos/${PROVENANCE_REPOSITORY}/rules/branches/main']);
+    expect(cli).not.toMatch(/method:\s*'(POST|PUT|PATCH|DELETE)'/);
   });
 
   it('every scenario runs with the network refused', () => {

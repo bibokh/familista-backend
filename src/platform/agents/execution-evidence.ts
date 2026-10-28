@@ -46,6 +46,9 @@
 //               medical action was approved, every kill-switch refusal halted it
 //   synthetic   LAB references only, no address or real id, no health field
 //   identity    every agent and tool it names is one this server registers
+//   provenance  a provenance record beside it names the definition and the
+//               commit that produced it, and describes this dossier; the
+//               publication gate has replayed it (execution-provenance.ts)
 //   approval    the record lists it once, with this digest, for a pull request
 
 import * as fs from 'fs';
@@ -57,6 +60,7 @@ import {
   EvidenceFields, holdsRealLookingIds, OperationSchema, ORCHESTRATION_EVIDENCE_CONTRACT, RUN_OUTCOMES, TaskSchema,
   TASK_STATES, TRACE_TYPES, TraceEventSchema,
 } from './orchestration-evidence';
+import { provenanceFileFor, PROVENANCE_FILE, PROVENANCE_MAX_BYTES, PROVENANCE_STATEMENT, verifyProvenance, type ExecutionProvenance } from './execution-provenance';
 import type { AgentRegistry } from './registry';
 import { digestOf, ORCHESTRATION_CONTRACT, sha256, verifyChain, verifyChainFrom } from './trace-chain';
 
@@ -169,6 +173,7 @@ export const PUBLICATION_CHECKS = Object.freeze([
   { id: 'governance', detail: 'Every decision was an eligible role’s and never the submitter’s, and no medical action was approved.' },
   { id: 'synthetic', detail: 'Synthetic LAB data only: lab references, no address or real id, no health field.' },
   { id: 'identity', detail: 'Every agent and tool it names is registered on this server.' },
+  { id: 'provenance', detail: 'A provenance record names the reviewed definition and the commit on main that produced it, and describes this dossier. The publication gate must replay that definition and reproduce this dossier exactly before it is merged.' },
   { id: 'approval', detail: 'The approval record lists it once, with this digest, for a reviewed pull request.' },
 ] as const);
 
@@ -200,6 +205,8 @@ const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.
 const KNOWN_TOOLS = new Set(TOOLS.map((t) => t.key));
 /** How AI-0.4 writes an accepted decision: what, on which task, by which role and LAB person. */
 const DECIDED_BY = /^(approved|rejected) on "([a-z][a-z0-9-]{1,40})" by ([A-Z][A-Z0-9_]{0,40}) (lab-[a-z0-9][a-z0-9-]{0,40})$/;
+/** The same words opening any submitted decision, accepted or refused (", refused: …" follows a refusal). */
+const SUBMITTED_BY = /^(approved|rejected) on "([a-z][a-z0-9-]{1,40})" by ([A-Z][A-Z0-9_]{0,40}) (lab-[a-z0-9][a-z0-9-]{0,40})(?:, refused: |$)/;
 const COMMITS_TO = /^run ([0-9a-f]{64}):/;
 
 /** The version a document claims, when it claims one of this family's; null when it claims nothing recognisable. */
@@ -306,9 +313,18 @@ export function verifyExecutionEvidence(input: unknown, registry?: AgentRegistry
   const count = (type: string) => run.trace.filter((ev) => ev.type === type).length;
   if (accepted !== count('APPROVAL_DECIDED') || e.decisions.length - accepted !== count('APPROVAL_DECISION_REFUSED')) add('coherence: its decisions are not the ones its trace records');
   const submittedDecisions = log.filter((ev) => ev.type === 'DECISION_SUBMITTED');
+  // Each decision shown is the log's: the task, the verdict, and the role that made it, as the log words it.
   if (submittedDecisions.length !== e.decisions.length
-    || submittedDecisions.some((ev, i) => ev.taskId !== e.decisions[i].taskId || ev.code !== (e.decisions[i].accepted ? e.decisions[i].decision : 'REFUSED'))) {
+    || submittedDecisions.some((ev, i) => {
+      const d = e.decisions[i];
+      const by = SUBMITTED_BY.exec(ev.detail);
+      return ev.taskId !== d.taskId || ev.code !== (d.accepted ? d.decision : 'REFUSED') || !by || by[2] !== d.taskId || by[1].toUpperCase() !== d.decision || by[3] !== d.byRole;
+    })) {
     add('coherence: its decisions are not the ones its execution log records');
+  }
+  for (const t of run.tasks) {
+    const last = e.decisions.filter((d) => d.accepted && d.taskId === t.id).pop();
+    if ((t.approval?.decidedByRole ?? null) !== (last?.byRole ?? null)) add(`coherence: task ${t.id} shows a decider its decisions do not record`);
   }
   // The stop: an operator's cancellation or governance's halt. The trace always records it. The log records
   // it too when it came after submission; a halt while the submitted plan first ran (the kill switch between
@@ -438,7 +454,7 @@ export function verifyApprovalRecord(input: unknown, opts: { rehearsal?: boolean
 
 // ── the reader ───────────────────────────────────────────────────────────────
 
-export interface ApprovedPublication { entry: ApprovalEntry; evidence: ExecutionEvidence }
+export interface ApprovedPublication { entry: ApprovalEntry; evidence: ExecutionEvidence; provenance: ExecutionProvenance }
 
 export type PublicationsRead =
   | { state: 'VERIFIED'; recordDigest: string; publications: ApprovedPublication[]; unapproved: string[] }
@@ -457,12 +473,13 @@ function readJson(file: string, max: number): { json: unknown } | { reason: stri
   try { return { json: JSON.parse(fs.readFileSync(file, 'utf8')) }; } catch { return { reason: PUBLICATION_REASONS.notJson }; }
 }
 
-/** Dossier files beside the record that no entry approves. Listed, never read, never shown. */
+/** Dossier and provenance files beside the record that no entry approves. Listed, never read, never shown. */
 function unapprovedIn(dir: string, record: ApprovalRecord | null): string[] {
   let names: string[];
   try { names = fs.readdirSync(dir); } catch { return []; }
-  const approved = new Set((record?.publications ?? []).map((e) => e.dossier.file));
-  return names.filter((n) => PUBLICATION_FILE.test(n) && !approved.has(n)).map((n) => n.replace(/\.json$/, '')).sort();
+  const entries = record?.publications ?? [];
+  const approved = new Set([...entries.map((e) => e.dossier.file), ...entries.map((e) => provenanceFileFor(e.publicationId))]);
+  return names.filter((n) => (PUBLICATION_FILE.test(n) || PROVENANCE_FILE.test(n)) && !approved.has(n)).map((n) => n.replace(/\.json$/, '')).sort();
 }
 
 /** Every approved publication in this directory, each verified, or why none is shown. Nothing is read that no entry names. */
@@ -484,7 +501,12 @@ export function readPublications(registry: AgentRegistry, dir: string = PUBLICAT
     const ev = checked.evidence;
     if (ev.digest !== entry.dossier.digest) return { state: 'INVALID', reason: `${where}: its dossier is not the one approved (digest ${ev.digest.slice(0, 16)}, approved ${entry.dossier.digest.slice(0, 16)})`, unapproved };
     if (ev.publicationId !== entry.publicationId || ev.source.executionId !== entry.executionId) return { state: 'INVALID', reason: `${where}: its dossier is another publication's`, unapproved };
-    publications.push({ entry, evidence: ev });
+    const prov = readJson(path.join(dir, provenanceFileFor(entry.publicationId)), PROVENANCE_MAX_BYTES);
+    if (!prov) return { state: 'INVALID', reason: `${where}: no provenance record is beside its dossier, so nothing says what produced it`, unapproved };
+    if ('reason' in prov) return { state: 'INVALID', reason: `${where}: ${prov.reason}`, unapproved };
+    const traced = verifyProvenance(prov.json, ev, opts);
+    if (!traced.provenance) return { state: 'INVALID', reason: `${where}: ${traced.reasons.join('; ')}`, unapproved };
+    publications.push({ entry, evidence: ev, provenance: traced.provenance });
   }
   return { state: 'VERIFIED', recordDigest: digestOf(record), publications, unapproved };
 }
@@ -520,6 +542,7 @@ export interface PublicationsRoomView {
     registry: { evidence: string; current: string; matches: boolean };
     agents: Array<{ id: string; known: boolean; current: boolean }>;
     evidence: ExecutionEvidence;
+    provenance: ExecutionProvenance & { statement: string };
   }>;
 }
 
@@ -533,7 +556,7 @@ export function publicationsRoomView(registry: AgentRegistry, read: Publications
   const current = registry.digest();
   return {
     ...base, state: 'VERIFIED', reason: null, record: { digest: read.recordDigest, entries: read.publications.length },
-    publications: read.publications.map(({ entry, evidence }) => {
+    publications: read.publications.map(({ entry, evidence, provenance }) => {
       const named = new Map<string, string>();
       for (const t of evidence.run.tasks) if (t.agent) named.set(t.agent.id, t.agent.digest);
       const agents = [...named.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([id, digest]) => {
@@ -543,7 +566,7 @@ export function publicationsRoomView(registry: AgentRegistry, read: Publications
       return {
         publicationId: entry.publicationId, reference: entry.reference, dossierDigest: entry.dossier.digest,
         registry: { evidence: evidence.context.registryDigest, current, matches: evidence.context.registryDigest === current },
-        agents, evidence,
+        agents, evidence, provenance: { ...provenance, statement: PROVENANCE_STATEMENT },
       };
     }),
   };

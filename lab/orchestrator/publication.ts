@@ -9,10 +9,13 @@
 //               project it into a dossier — what was decided, never an input or
 //               an output — and check that with production's verifier. Writes
 //               nothing.
-//   prepare     the same, then write the dossier and an entry in the approval
-//               record into a publications directory, for the pull request
-//               named, and read the directory back exactly as production
-//               would. Commits nothing.
+//   prepare     the same, then write the dossier, its provenance record
+//               (execution-provenance.ts: the definition and the commit that
+//               produced it) and an entry in the approval record into a
+//               publications directory, for the pull request named, and read
+//               the directory back exactly as production would. Commits
+//               nothing. The publication gate replays the definition and
+//               must reproduce the dossier before that pull request can pass.
 //
 // There is no approve and no publish here, and no flag that names an approver:
 // approval is the Platform Owner merging the reviewed pull request, and nothing
@@ -28,6 +31,10 @@ import {
   executionEvidenceDigest, publicationIdFor, PUBLICATION_REFERENCE, PUBLICATIONS_DIR, readPublications, REHEARSAL_REFERENCE, verifyApprovalRecord,
   verifyExecutionEvidence, type ApprovalEntry, type ApprovalRecord, type ExecutionEvidence, type PublicationsRead,
 } from '../../src/platform/agents/execution-evidence';
+import {
+  EXECUTION_DEFINITION_CONTRACT, EXECUTION_PROVENANCE_CONTRACT, provenanceDigest, provenanceFileFor, PROVENANCE_REPOSITORY,
+  REHEARSAL_REVISION, REHEARSAL_SOURCE_DIGEST, type ExecutionProvenance,
+} from '../../src/platform/agents/execution-provenance';
 import { ORCHESTRATION_CONTRACT } from './contracts';
 import { securityContext, verifyExecution, type ExecutionRecord } from './execution';
 import type { OperationCatalog } from './operations';
@@ -115,7 +122,41 @@ export function executionPublicationCandidate(record: unknown, deps: Publication
 }
 
 const emptyRecord = (): ApprovalRecord => ({ contract: APPROVAL_RECORD_CONTRACT, rule: APPROVAL_RULE, publications: [] });
-const serialise = (v: unknown) => `${JSON.stringify(v, null, 2)}\n`;
+/** A publication file's exact text. The gate compares the replay's with the file's, byte for byte. */
+export const serialisePublicationFile = (v: unknown): string => `${JSON.stringify(v, null, 2)}\n`;
+const serialise = serialisePublicationFile;
+
+/** What produced a dossier, as the Lab measured it: the definition, the source, the steps it ran. */
+export interface ProvenanceClaim {
+  definition: { name: string; path: string; digest: string };
+  source: { revision: string; digest: string; files: number; packages: Array<{ name: string; version: string }> };
+  steps: number;
+}
+
+/** The provenance record of `evidence`, from what the Lab measured. Everything in it is re-derived by the publication gate. */
+export function buildProvenance(evidence: ExecutionEvidence, claim: ProvenanceClaim): ExecutionProvenance {
+  const body: Omit<ExecutionProvenance, 'digest'> = {
+    contract: EXECUTION_PROVENANCE_CONTRACT, publicationId: evidence.publicationId, executionId: evidence.source.executionId,
+    dossierDigest: evidence.digest, recordDigest: evidence.source.recordDigest,
+    definition: { contract: EXECUTION_DEFINITION_CONTRACT, name: claim.definition.name, path: claim.definition.path, digest: claim.definition.digest },
+    source: {
+      repository: PROVENANCE_REPOSITORY, revision: claim.source.revision, digest: claim.source.digest, files: claim.source.files,
+      packages: claim.source.packages.map((p) => ({ name: p.name, version: p.version })),
+    },
+    replay: { method: 'DETERMINISTIC_REPLAY', steps: claim.steps },
+  };
+  return { ...body, digest: provenanceDigest(body) };
+}
+
+/**
+ * A rehearsal's provenance: no commit and no source were measured, and it says so. The server refuses the
+ * rehearsal revision as it refuses the rehearsal reference, so this never stands as real provenance.
+ */
+export const rehearsalProvenance = (name: string, steps: number): ProvenanceClaim => ({
+  definition: { name, path: `lab/orchestrator/definitions/${name}.json`, digest: REHEARSAL_SOURCE_DIGEST },
+  source: { revision: REHEARSAL_REVISION, digest: REHEARSAL_SOURCE_DIGEST, files: 0, packages: [] },
+  steps,
+});
 
 function writeWhole(file: string, text: string): void {
   const tmp = `${file}.${process.pid}.tmp`;
@@ -131,7 +172,7 @@ function writeWhole(file: string, text: string): void {
  */
 export function preparePublication(
   record: unknown, deps: PublicationDeps,
-  opts: { reference: string; dir?: string; environment?: FamilistaEnvironment },
+  opts: { reference: string; provenance: ProvenanceClaim; dir?: string; environment?: FamilistaEnvironment },
 ): PrepareResult {
   const environment = opts.environment ?? currentEnvironment();
   if (environment !== 'LAB') return { status: 'REFUSED', code: 'ENVIRONMENT_NOT_LAB', message: `publications are prepared in the Lab only; this process is ${environment}` };
@@ -164,8 +205,9 @@ export function preparePublication(
   }
   const file = `${evidence.publicationId}.json`;
   const dossierFile = path.join(dir, file);
-  if (current.publications.some((e) => e.publicationId === evidence.publicationId) || fs.existsSync(dossierFile)) {
-    return { status: 'REFUSED', code: 'PUBLICATION_CONFLICT', message: `a dossier named ${file} is already beside the approval record` };
+  const provenanceFile = path.join(dir, provenanceFileFor(evidence.publicationId));
+  if (current.publications.some((e) => e.publicationId === evidence.publicationId) || fs.existsSync(dossierFile) || fs.existsSync(provenanceFile)) {
+    return { status: 'REFUSED', code: 'PUBLICATION_CONFLICT', message: `a dossier or provenance record for ${evidence.publicationId} is already beside the approval record` };
   }
 
   const entry: ApprovalEntry = {
@@ -175,14 +217,16 @@ export function preparePublication(
   const before = fs.existsSync(recordFile) ? fs.readFileSync(recordFile, 'utf8') : null;
   fs.mkdirSync(dir, { recursive: true });
   writeWhole(dossierFile, serialise(evidence));
+  writeWhole(provenanceFile, serialise(buildProvenance(evidence, opts.provenance)));
   writeWhole(recordFile, serialise({ ...current, publications: [...current.publications, entry] }));
 
-  // Read it back exactly as production will, and undo both writes if that refuses it.
+  // Read it back exactly as production will, and undo every write if that refuses it.
   const read = readPublications(deps.registry, dir, { rehearsal });
   if (read.state !== 'VERIFIED' || !read.publications.some((p) => p.entry.publicationId === entry.publicationId)) {
     fs.rmSync(dossierFile, { force: true });
+    fs.rmSync(provenanceFile, { force: true });
     if (before === null) fs.rmSync(recordFile, { force: true }); else writeWhole(recordFile, before);
     return { status: 'REFUSED', code: 'READ_BACK_FAILED', message: read.state === 'VERIFIED' ? 'production would not show it' : read.reason };
   }
-  return { status: 'PREPARED', entry, evidence, files: [dossierFile, recordFile], read, production: rehearsal ? readPublications(deps.registry, dir) : read };
+  return { status: 'PREPARED', entry, evidence, files: [dossierFile, provenanceFile, recordFile], read, production: rehearsal ? readPublications(deps.registry, dir) : read };
 }
