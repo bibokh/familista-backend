@@ -140,9 +140,18 @@ so it cannot edit the ruleset.
   - code-owner review;
   - at least one approval;
   - last-push approval;
-  - the `validate` check from GitHub Actions;
+  - stale approvals dismissed on push;
+  - all four CI checks, `validate` among them, from GitHub Actions;
+  - branches up to date before merging;
   - blocked force push and deletion;
   - a code owner of the publications other than the pull request's author.
+- That is exactly `docs/security/ruleset-25019943.proposed.json`.
+  [github-governance.md](github-governance.md) carries the full arrangement:
+  - the machine account;
+  - moving Claude's connection;
+  - environment-scoped secrets;
+  - the order to apply it in;
+  - the verification scenarios.
 - GitHub does not disclose bypass actors to the CI token. The gate reports
   that one as UNVERIFIED, so the owner confirms it in the ruleset page.
 

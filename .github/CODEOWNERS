@@ -4,6 +4,10 @@
 # touches a matching path. The security-critical paths are listed explicitly
 # so that, when a second maintainer joins, ownership can be split without
 # guessing which files matter. The last matching line wins.
+#
+# The automation account (docs/security/github-governance.md) is never a code
+# owner: its pull requests wait for the Platform Owner's review, and GitHub never
+# counts an author's approval of their own pull request.
 
 *                                   @bibokh
 
@@ -36,6 +40,30 @@
 # request that carries it; the verifier that decides what production shows.
 /src/platform/agents/published/     @bibokh
 /src/platform/agents/execution-evidence.ts @bibokh
+
+# Agent governance: the Agent Registry and its manifests, the tool registry,
+# the autonomy ceilings and the global kill switch, the environment that tells
+# the Lab from production, and the owner-only routes the Operations Room reads.
+/src/platform/agents/               @bibokh
+/src/platform/intelligence/         @bibokh
+/src/platform/environment.ts        @bibokh
+/src/routes/agents-room.routes.ts   @bibokh
+/src/contracts/                     @bibokh
+
+# Security documentation and the repository's own rules for its maintainers.
+/docs/security/                     @bibokh
+/SECURITY.md                        @bibokh
+/CLAUDE.md                          @bibokh
+/docs/BACKUP_AND_RESTORE.md         @bibokh
+
+# The gates CI runs: the audit gate and the browser proof.
+/scripts/npm-audit-gate.js          @bibokh
+/tools/components/                  @bibokh
+
+# Production deployment: the deploy and backup triggers, and the migration step
+# render-start.sh runs.
+/scripts/backup-trigger.js          @bibokh
+/scripts/db-migrate.js              @bibokh
 
 # Published LAB evidence, and what decides whether it is shown: the dossiers,
 # their provenance and the approval record; the server's verifiers; the
