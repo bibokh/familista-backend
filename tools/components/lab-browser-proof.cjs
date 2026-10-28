@@ -4042,14 +4042,16 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       const d = await wfDrawn(gal.page);
       const r = p.evidence.run;
       const text = await gal.page.evaluate(() => document.querySelector('.ar-wf-main').textContent.replace(/\s+/g, ' '));
-      const want = [p.reference, 'Verification and publication', 'Execution log', 'Approvals and governance', 'not an approver'];
+      // Its provenance: the definition it names, and — this being the Lab's rehearsal — that no commit was measured.
+      const want = [p.reference, 'Verification and publication', 'Execution log', 'Approvals and governance', 'not an approver',
+        'Provenance and reproduction', 'Rehearsal: no commit was measured', 'None (rehearsal)', p.provenance.definition.path, p.provenance.statement];
       if (r.stop) want.push(r.stop.outcome === 'HALTED' ? 'Halted by governance before it finished' : 'Cancelled by an operator before it finished');
       if (r.stop && r.stop.code === 'KILL_SWITCH') want.push('Kill switch');
       if (r.stop && r.stop.code === 'EXECUTION_LIMIT') want.push('Execution limit reached');
       if (p.evidence.log.some((e) => e.code === 'SELF_APPROVAL')) want.push('The submitter may not approve');
       if (p.evidence.log.some((e) => e.type === 'CANCEL_REFUSED')) want.push('Cancellation refused');
       const checks = await gal.page.evaluate(() => document.querySelectorAll('.ar-wf-checks li').length);
-      const missingText = want.filter((w) => !text.includes(w));
+      const missingText = want.filter((w) => !text.includes(w)).concat(text.includes('Reproducible by deterministic replay') ? ['a rehearsal drawn as reproducible'] : []);
       if (!sameJson(d.nodes, r.tasks.map((t) => t.id + ':' + PUB_KIND[t.state])) || !sameJson(d.edges, wantEdges(r)) || missingText.length || checks !== GALLERY.checks.length) {
         wrongPub.push({ pub: p.publicationId, outcome: r.outcome, nodes: d.nodes, missingText, checks });
       }
@@ -4058,7 +4060,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     const pubKinds = Object.keys(pubSig).sort();
     const galT = roomTraffic(gal.log);
     const galCsp = await arCsp(gal.page);
-    check('agents room publications states (SIMULATED approvals: the Lab\'s rehearsed gallery): every publication is listed above the LAB workflows and the first is drawn; each, chosen by a real click, draws its tasks as their states, its handoffs as recorded, its stop, its governance decisions, its execution log, its approval reference and every server check; and a cancelled task is drawn with an outline, a glyph and a colour of its own',
+    check('agents room publications states (SIMULATED approvals: the Lab\'s rehearsed gallery): every publication is listed above the LAB workflows and the first is drawn; each, chosen by a real click, draws its tasks as their states, its handoffs as recorded, its stop, its governance decisions, its execution log, its approval reference, every server check and its provenance, a rehearsal\'s drawn as measuring no commit and never as reproducible; and a cancelled task is drawn with an outline, a glyph and a colour of its own',
       sameJson(galIds, GALLERY.publications.map((p) => p.publicationId)) && galOn === 'x:' + GALLERY.publications[0].publicationId && wrongPub.length === 0
         && sameJson(pubKinds, ['approval', 'cancelled', 'done', 'failed', 'rejected', 'skipped']) && new Set(Object.values(pubSig)).size === pubKinds.length,
       { galIds: galIds.length, galOn, wrong: wrongPub, pubSig });

@@ -788,8 +788,10 @@
   };
   var CHECK_LABEL = {
     version: 'Contract version', shape: 'Shape', integrity: 'Integrity', trace: 'Run trace', log: 'Execution log', coherence: 'Coherence',
-    governance: 'Governance', synthetic: 'Synthetic data', identity: 'Identity', approval: 'Approval record',
+    governance: 'Governance', synthetic: 'Synthetic data', identity: 'Identity', provenance: 'Provenance', approval: 'Approval record',
   };
+  /** The commit a rehearsal names: none was measured, and the server refuses it outside the Lab's read-back. */
+  var REHEARSAL_REVISION = '0000000000000000000000000000000000000000';
 
   function wfRuns() { return (AR.wf && AR.wf.runs) || []; }
   function pubRuns() { return (AR.pub && AR.pub.runs) || []; }
@@ -1123,7 +1125,7 @@
         + keysOf(participants).sort().map(function (id) { return '<button class="ar-chip ar-chip--neutral ar-chip--sm ar-chip-btn" type="button" data-ar-agent="' + esc(id) + '">' + TX(agentTitle(id)) + '</button>'; }).join(' ') + '</div>' : '')
       + '<div class="ar-wf-split"><section class="ar-wf-detail" id="ar-wf-detail" aria-live="polite">' + (run.tasks.length ? taskDetailHtml(run) : '') + '</section>'
       + '<section class="ar-wf-trace" id="ar-wf-trace">' + traceHtml(run) + '</section></div>'
-      + (P ? '<div class="ar-wf-split"><section class="ar-wf-detail">' + governanceHtml(E) + '</section><section class="ar-wf-trace">' + logHtml(E) + '</section></div>' + verificationHtml(P) : '');
+      + (P ? '<div class="ar-wf-split"><section class="ar-wf-detail">' + governanceHtml(E) + '</section><section class="ar-wf-trace">' + logHtml(E) + '</section></div>' + verificationHtml(P) + provenanceHtml(P) : '');
   }
 
   // ── approved LAB executions (AI-0.5) ──────────────────────────────────────
@@ -1190,6 +1192,32 @@
       + kv('Submitted by (synthetic LAB operator, not an approver)', esc(label(ROLE_LABEL, E.operator.role)) + ' ' + code(E.operator.userId))
       + kv('Evidence contract', code(E.contract)) + '</div></div>'
       + '<p class="ar-wf-notice">' + TX(AR.pub.rule) + '</p></section>';
+  }
+  /**
+   * What produced it: the reviewed definition and the commit it ran at, and how that is checked. The room
+   * shows what the provenance record says and the rule that checks it; it claims no more than the rule.
+   */
+  function provenanceHtml(P) {
+    var V = P.provenance;
+    if (!V) return '';
+    var rehearsal = V.source.revision === REHEARSAL_REVISION;
+    var pkgs = V.source.packages.map(function (x) { return x.name + '@' + x.version; }).join(', ');
+    return '<section class="ar-wf-detail ar-wf-pub ar-wf-prov" aria-labelledby="ar-wf-prov-t"><h3 class="ar-wf-d-title" id="ar-wf-prov-t">' + esc(T('Provenance and reproduction')) + '</h3>'
+      + '<div class="ar-wf-strip" role="group" aria-label="' + esc(T('Provenance')) + '">'
+      + (rehearsal
+        ? chip('warn', T('Rehearsal: no commit was measured'), T('A rehearsal names no commit and no source. This server refuses it; it is drawn here only as a simulation.'))
+        : chip('ok', T('Reproducible by deterministic replay'), T('The AI-0.4 record holds no clock and no random value, so running the definition again at this source gives this dossier, byte for byte, or a difference.')))
+      + chip('none', T('Definition reviewed in the repository'), T('A file under lab/orchestrator/definitions: the synthetic request and every operator step, nothing else.'))
+      + '</div>'
+      + '<div class="ar-wf-pub-grid"><div class="ar-kvs">'
+      + kv('Definition', code(V.definition.name)) + kv('Definition file', code(V.definition.path)) + kv('Definition digest', code(short(V.definition.digest, 16)))
+      + kv('Operator steps replayed', esc(num(V.replay.steps)))
+      + '</div><div class="ar-kvs">'
+      + kv('Source commit', rehearsal ? esc(T('None (rehearsal)')) : code(short(V.source.revision, 12)))
+      + kv('Source digest', code(short(V.source.digest, 16))) + kv('Source files', esc(num(V.source.files)))
+      + kv('Packages', pkgs ? code(pkgs) : '—') + kv('Provenance digest', code(short(V.digest, 16))) + kv('Provenance contract', code(V.contract))
+      + '</div></div>'
+      + '<p class="ar-wf-notice">' + TX(V.statement) + '</p></section>';
   }
   /** A task chosen: its detail and the trace are redrawn, the canvas is not, so nothing on it moves. */
   function selectTask(host, id) {

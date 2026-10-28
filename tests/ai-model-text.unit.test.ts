@@ -313,7 +313,7 @@ describe('page wiring', () => {
   it('loads the renderer, same-origin and deferred, before app.js which calls it', () => {
     const html = read('public/index.html');
     const mt = html.indexOf('<script src="/ai-model-text.js?v=20261020-ai-safe-text" defer></script>');
-    const app = html.indexOf('<script src="/app.js?v=20261027-csp-handlers" defer></script>');
+    const app = html.indexOf('<script src="/app.js?v=20261028-provenance" defer></script>');
     expect(mt).toBeGreaterThan(-1);
     expect(app).toBeGreaterThan(mt);
   });

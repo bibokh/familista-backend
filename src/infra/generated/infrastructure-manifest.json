@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-27T21:15:00.692Z",
+  "generatedAt": "2026-10-28T00:10:06.552Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -1101,7 +1101,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 221 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 222 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1161,7 +1161,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "617 TypeScript modules under src/."
+      "note": "618 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1653,8 +1653,8 @@
     "serviceModules": 102,
     "middleware": 24,
     "fabricModules": 52,
-    "totalTypeScript": 617,
-    "testSuites": 221,
+    "totalTypeScript": 618,
+    "testSuites": 222,
     "migrations": 49,
     "prismaModels": 344,
     "prismaEnums": 209
@@ -1743,6 +1743,7 @@
           "i18n check (locales synchronized)",
           "API / frontend contract verification",
           "Test suite",
+          "Publication gate (replay, provenance, owner-approval enforcement)",
           "Backup restore drill (real PostgreSQL)",
           "Audit evidence append-only (real PostgreSQL)",
           "Row-level security pilot (real PostgreSQL)",
@@ -1754,8 +1755,7 @@
           "Setup Node 20",
           "Install deps",
           "Install the browser-proof tools (pinned, lockfile-verified, no install scripts)",
-          "Audit the browser-proof tools (blocking on high and critical)",
-          "Build the application"
+          "Audit the browser-proof tools (blocking on high and critical)"
         ],
         "services": [
           "postgres:16-alpine"

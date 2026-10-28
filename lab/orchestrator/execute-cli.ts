@@ -7,7 +7,12 @@
 //   FAMILISTA_ENV=LAB npm run lab:execute -- verify <execution-id>
 //   FAMILISTA_ENV=LAB npm run lab:execute -- list
 //   FAMILISTA_ENV=LAB npm run lab:execute -- kill-switch status | engage --reason <text> | release   --operator <lab-user> --role <ROLE>
+//   FAMILISTA_ENV=LAB npm run lab:execute -- run <lab/orchestrator/definitions/<name>.json>
 //   FAMILISTA_ENV=LAB npm run lab:execute -- demo
+//
+// `run` executes a definition (definition.ts): its request, then each step as
+// the commands above would take it, stopping at the first answer it does not
+// expect. It is the same execution a person typing those commands would make.
 //
 // The one way into controlled execution (execution.ts): a person at a LAB
 // terminal, naming themselves as an operator on the roster. There is no
@@ -25,14 +30,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { platformAgentRegistry } from '../../src/platform/agents/catalog';
 import { currentEnvironment } from '../../src/platform/environment';
-import { engageKillSwitch, killSwitchEngaged, killSwitchReason, releaseKillSwitch } from '../../src/platform/intelligence/agents';
+import { engageKillSwitch, killSwitchEngaged, killSwitchReason } from '../../src/platform/intelligence/agents';
 import {
-  cancelExecution, decideExecution, DEFAULT_EXECUTIONS_DIR, EXECUTION_LIMITS, FileExecutionStore, haltOpenExecutions,
+  cancelExecution, decideExecution, DEFAULT_EXECUTIONS_DIR, EXECUTION_LIMITS, FileExecutionStore,
   publicationCandidate, submitExecution, verifyExecution, type ExecutionDeps, type ExecutionRecord, type ExecutionResult,
 } from './execution';
+import { applyDefinition, engageLabKillSwitch, parseDefinition, releaseLabKillSwitch } from './definition';
 import { runDemonstration } from './execution-scenarios';
 import { labExecutionOperations } from './operations';
-import { authorizeOperator, LAB_OPERATORS } from './operators';
 
 const out = (s = '') => process.stdout.write(`${s}\n`);
 const fail = (s: string, code = 1): never => { process.stderr.write(`${s}\n`); process.exit(code); };
@@ -108,6 +113,27 @@ switch (command) {
     report(submitExecution(request, deps));
     break;
   }
+  case 'run': {
+    // A definition, run step by step through the commands above, into this store: a genuine LAB execution.
+    const file = positional[0];
+    if (!file) fail('usage: run <lab/orchestrator/definitions/<name>.json>');
+    const at = path.relative(path.join(__dirname, '..', '..'), path.resolve(file)).split(path.sep).join('/');
+    let text = '';
+    try { text = fs.readFileSync(file, 'utf8'); } catch { fail(`refused DEFINITION_UNKNOWN: ${file} cannot be read`, 2); }
+    const parsed = parseDefinition(text, at);
+    if ('reason' in parsed) fail(`refused DEFINITION_INVALID: ${parsed.reason}`, 2);
+    const def = parsed as Exclude<typeof parsed, { reason: string }>;
+    const r = applyDefinition(def.definition, deps, {
+      engaged: (reason) => { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(killFile, `${JSON.stringify({ engaged: true, reason })}\n`); },
+      released: () => { if (fs.existsSync(killFile)) fs.unlinkSync(killFile); },
+    });
+    for (const st of r.steps) out(`  ${String(st.n).padStart(2)}. ${st.action.padEnd(20)} ${st.status}${st.code ? ` ${st.code}` : ''}${st.status === st.expected.status && st.code === st.expected.code ? '' : `   expected ${st.expected.status}${st.expected.code ? ` ${st.expected.code}` : ''}`}`);
+    if (!r.ok) { out(`refused DEFINITION_NOT_AS_WRITTEN: ${r.reason}`); if (r.record) printRecord(r.record); process.exit(2); }
+    out(`ran ${at} (${def.digest.slice(0, 16)}) as written`);
+    printRecord(r.record);
+    process.exit(0);
+    break;
+  }
   case 'decide': {
     const [id, taskId, decision] = positional;
     const by = flag('by');
@@ -152,25 +178,22 @@ switch (command) {
     const action = positional[0];
     if (action === 'status') { out(killSwitchEngaged() ? `engaged: ${killSwitchReason()}` : 'released'); process.exit(0); }
     const who = operatorFlags();
-    if (!LAB_OPERATORS.some((o) => o.userId === who.userId && o.role === who.role)) fail(`refused OPERATOR_UNKNOWN: ${who.userId} (${who.role}) is not a LAB operator`, 2);
     if (action === 'engage') {
-      const reason = `${flag('reason') ?? 'engaged in the Lab'} (by ${who.userId})`;
+      const a = engageLabKillSwitch(who, flag('reason') ?? 'engaged in the Lab', deps);
+      if (a.status === 'REFUSED') fail(`refused ${a.code}: ${a.message}`, 2);
       fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(killFile, `${JSON.stringify({ engaged: true, reason })}\n`);
-      engageKillSwitch(reason);
-      const swept = haltOpenExecutions(deps);
-      out(`engaged: ${reason}`);
-      out(`halted ${swept.halted.length} execution(s) that had not settled${swept.halted.length ? `: ${swept.halted.join(', ')}` : ''}`);
-      if (swept.unreadable.length) out(`unreadable, left as they are: ${swept.unreadable.join(', ')}`);
+      fs.writeFileSync(killFile, `${JSON.stringify({ engaged: true, reason: a.message })}\n`);
+      out(`engaged: ${a.message}`);
+      out(`halted ${a.halted.length} execution(s) that had not settled${a.halted.length ? `: ${a.halted.join(', ')}` : ''}`);
+      if (a.unreadable.length) out(`unreadable, left as they are: ${a.unreadable.join(', ')}`);
       process.exit(0);
     }
     if (action === 'release') {
       // Only the Platform Owner's operator releases it, and releasing resumes nothing.
-      const denied = authorizeOperator(LAB_OPERATORS, who, 'CANCEL', { kind: 'PLATFORM' });
-      if (denied) fail(`refused ${denied.code}: only the Platform Owner's operator releases the kill switch (${denied.message})`, 2);
+      const a = releaseLabKillSwitch(who);
+      if (a.status === 'REFUSED') fail(`refused ${a.code}: ${a.message}`, 2);
       if (fs.existsSync(killFile)) fs.unlinkSync(killFile);
-      releaseKillSwitch();
-      out('released; halted executions stay halted: submit again to continue');
+      out(a.message);
       process.exit(0);
     }
     fail('usage: kill-switch status | engage --reason <text> | release   --operator <lab-user> --role <ROLE>');

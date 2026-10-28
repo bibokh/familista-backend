@@ -1,4 +1,4 @@
-# The Multi-Agent Orchestrator lab — AI-0.2, AI-0.3, AI-0.4
+# The Multi-Agent Orchestrator lab — AI-0.2 to AI-0.5
 
 The first slice of the orchestrator that will let Familista's agents work
 together under one set of rules. It lives in the Lab, next to the algorithm
@@ -232,6 +232,47 @@ reaching production:
 The demonstration's dossiers are reproducible from their scenarios
 (`publication-demo.ts`), byte for byte, and
 `tests/fixtures/agents/publications-room-view.json` is checked against them.
+
+## Trusted provenance and the publication gate
+
+The chains above prove consistency, not origin. A publication therefore also
+carries a provenance record (`src/platform/agents/execution-provenance.ts`):
+the reviewed definition it ran and the commit on main it ran at. CI does not
+believe it. It reproduces it.
+
+```
+FAMILISTA_ENV=LAB npm run lab:execute -- run lab/orchestrator/definitions/matchday-staff-notice.json
+FAMILISTA_ENV=LAB npm run lab:publish -- replay lab/orchestrator/definitions/matchday-staff-notice.json
+FAMILISTA_ENV=LAB npm run lab:publish -- prepare <execution-id> --definition lab/orchestrator/definitions/matchday-staff-notice.json --reference bibokh/familista-backend#<pr>
+FAMILISTA_ENV=LAB npm run lab:publication-gate                     # what CI runs, in the validate check
+```
+
+The pieces:
+
+- **A definition** (`definition.ts`, `definitions/`) holds the synthetic
+  request and every operator step, with the answer each step must get.
+  `lab:execute -- run` makes the operator's execution of it through the same
+  functions the other commands call.
+- **The replay** (`replay.ts`) runs the definition from nothing, in a store of
+  its own. The record holds no clock and no random value, so a replay is the
+  same record byte for byte, or a difference.
+- **`prepare`** requires the replay to reproduce the stored execution. It also
+  requires the working tree's execution source to be the commit it names.
+- **The source digest** (`source.ts`) covers every file the replay imports,
+  transitively, and every locked package version they load.
+- **The gate** (`publication-gate.ts`) runs for every publication a change adds
+  or alters:
+  - it re-checks the definition, at the head and at the commit;
+  - it requires that commit to be on main already;
+  - it checks the source digest at both;
+  - it replays the definition and compares the dossier and the provenance
+    record byte for byte;
+  - it requires the entry to name the pull request.
+- **Enforcement.** A real publication is also refused while the rules on main
+  do not enforce code-owner approval by someone other than the pull request's
+  author. Today they do not:
+  [docs/security/evidence-publication-enforcement.md](../../docs/security/evidence-publication-enforcement.md)
+  lists what was found and the exact settings needed.
 
 ## Adding an agent or a domain
 

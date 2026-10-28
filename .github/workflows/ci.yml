@@ -113,6 +113,24 @@ jobs:
       - name: Test suite
         run: npm test
 
+      # The publication gate (lab/orchestrator/publication-gate.ts). A LAB
+      # dossier is published only if CI reproduces it: every publication this
+      # change adds or alters is replayed from its reviewed definition, at a
+      # commit already on main, and must match byte for byte. A real
+      # publication is also refused unless the rules on main enforce code-owner
+      # approval by someone other than the author. It runs here, inside the
+      # validate check the ruleset requires, so it needs no new required
+      # check. It reads the rules with this job's read-only token, and fetches
+      # any commit it needs from origin.
+      - name: Publication gate (replay, provenance, owner-approval enforcement)
+        env:
+          FAMILISTA_ENV: LAB
+          GATE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          GATE_PR_NUMBER: ${{ github.event.pull_request.number }}
+          GATE_PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run lab:publication-gate
+
       # Cyber Defense, Step 10: a backup that has never been restored is a
       # hope, not a backup. The real pg_dump takes an encrypted, signed backup
       # of a freshly migrated and seeded database; the real pg_restore brings

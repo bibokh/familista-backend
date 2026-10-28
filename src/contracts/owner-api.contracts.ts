@@ -1514,7 +1514,7 @@ export const AgentsRoomPublicationsSchema = z.object({
   rule: z.string().min(1),
   record: z.object({ digest: Sha256.nullable(), entries: Count }).strict(),
   checks: z.array(z.object({ id: z.string().min(1), detail: z.string().min(1) }).strict()).min(1),
-  unapproved: z.array(z.string().regex(/^pub-[0-9a-f]{24}$/)),
+  unapproved: z.array(z.string().regex(/^pub-[0-9a-f]{24}(\.provenance)?$/)),
   publications: z.array(z.object({
     publicationId: z.string().regex(/^pub-[0-9a-f]{24}$/),
     reference: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+#[1-9]\d*$/),
@@ -1562,6 +1562,19 @@ export const AgentsRoomPublicationsSchema = z.object({
       }).strict(),
       log: z.array(PubChainEventSchema).min(1),
       digest: Sha256,
+    }).strict(),
+    provenance: z.object({
+      contract: z.literal('familista.evidence-provenance/v1'),
+      publicationId: z.string().regex(/^pub-[0-9a-f]{24}$/), executionId: z.string().regex(/^exec-[0-9a-f]{24}$/),
+      dossierDigest: Sha256, recordDigest: Sha256,
+      definition: z.object({ contract: z.literal('familista.lab-definition/v1'), name: z.string().min(1), path: z.string().regex(/^lab\/orchestrator\/definitions\/[a-z0-9-]+\.json$/), digest: Sha256 }).strict(),
+      source: z.object({
+        repository: z.string().min(1), revision: z.string().regex(/^[0-9a-f]{40}$/), digest: Sha256, files: Count,
+        packages: z.array(z.object({ name: z.string().min(1), version: z.string().min(1) }).strict()),
+      }).strict(),
+      replay: z.object({ method: z.literal('DETERMINISTIC_REPLAY'), steps: Count }).strict(),
+      digest: Sha256,
+      statement: z.string().min(1),
     }).strict(),
   }).strict()),
 }).strict();

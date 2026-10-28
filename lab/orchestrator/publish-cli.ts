@@ -1,11 +1,19 @@
 // Familista — preparing an approved LAB publication, from the command line (AI-0.5)
 // ─────────────────────────────────────────────────────────────────────────────
-//   FAMILISTA_ENV=LAB npm run lab:publish -- candidate <execution-id>
-//       Could this execution be published, and as what? Writes nothing.
-//   FAMILISTA_ENV=LAB npm run lab:publish -- prepare <execution-id> --reference bibokh/familista-backend#<pr>
-//       Write its dossier and an approval entry into src/platform/agents/published/
-//       for the pull request named, and read them back as production will.
-//       Commits nothing; the entry takes effect only when the Platform Owner
+//   FAMILISTA_ENV=LAB npm run lab:publish -- candidate <execution-id> [--definition <file>]
+//       Could this execution be published, and as what? With a definition, also
+//       whether replaying it from nothing reproduces this execution. Writes nothing.
+//   FAMILISTA_ENV=LAB npm run lab:publish -- replay <definition-file>
+//       Run a definition again from nothing and print the record and dossier
+//       digests it produces. Writes nothing.
+//   FAMILISTA_ENV=LAB npm run lab:publish -- prepare <execution-id> --definition <file> --reference bibokh/familista-backend#<pr> [--revision <commit>]
+//       Replay the definition and require it to reproduce this execution, byte
+//       for byte; measure the execution's source at the commit (HEAD by default)
+//       and require the working tree to be that source; then write the dossier,
+//       its provenance record and an approval entry into
+//       src/platform/agents/published/ for the pull request named, and read them
+//       back as production will. Commits nothing; the publication gate replays
+//       it again in CI, and the entry takes effect only when the Platform Owner
 //       merges that pull request.
 //   FAMILISTA_ENV=LAB npm run lab:publish -- verify
 //       Read the publications directory exactly as the server will.
@@ -26,6 +34,7 @@
 // Exit codes: 0 done, 2 refused (the refusal is printed), 1 could not run.
 
 import '../../src/config/zod'; // zod 4 with zod 3's messages, as the server has them, before anything validates
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { platformAgentRegistry } from '../../src/platform/agents/catalog';
@@ -33,8 +42,10 @@ import { currentEnvironment } from '../../src/platform/environment';
 import { readPublications, type PublicationsRead } from '../../src/platform/agents/execution-evidence';
 import { DEFAULT_EXECUTIONS_DIR, FileExecutionStore } from './execution';
 import { labExecutionOperations } from './operations';
-import { executionPublicationCandidate, preparePublication, PUBLICATIONS_DIR, REHEARSAL_REFERENCE, type PublicationDeps } from './publication';
+import { executionPublicationCandidate, preparePublication, PUBLICATIONS_DIR, rehearsalProvenance, REHEARSAL_REFERENCE, type PublicationDeps } from './publication';
 import { rehearsedRoomView, runPublicationDemonstration } from './publication-demo';
+import { replayDefinition, type ReplayResult } from './replay';
+import { executionSource } from './source';
 
 const out = (s = '') => process.stdout.write(`${s}\n`);
 const fail = (s: string, code = 1): never => { process.stderr.write(`${s}\n`); process.exit(code); };
@@ -69,6 +80,27 @@ function recordOf(id: string | undefined): unknown {
   return r;
 }
 
+const ROOT = path.join(__dirname, '..', '..');
+const repoPath = (file: string) => path.relative(ROOT, path.resolve(file)).split(path.sep).join('/');
+const git = (...a: string[]): string | null => {
+  try { return execFileSync('git', a, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 }); } catch { return null; }
+};
+
+/** Replay the definition at `file` and print what it gives; exit 2 if it does not run as written. */
+function replayOf(file: string | null | undefined): { replay: Extract<ReplayResult, { ok: true }>; at: string; text: string } {
+  if (!file) fail('refused DEFINITION_REQUIRED: --definition lab/orchestrator/definitions/<name>.json, the definition that produced it; only an execution its definition reproduces is published', 2);
+  const at = repoPath(file as string);
+  let text: string;
+  try { text = fs.readFileSync(path.join(ROOT, at), 'utf8'); } catch { return fail(`refused DEFINITION_UNKNOWN: ${at} cannot be read`, 2); }
+  const r = replayDefinition(text, at, deps);
+  if (!r.ok) fail(`refused NOT_REPRODUCIBLE: ${at} does not replay as written: ${r.reason}`, 2);
+  const ok = r as Extract<ReplayResult, { ok: true }>;
+  out(`replayed ${at} (${ok.definitionDigest.slice(0, 16)}) from nothing: ${ok.steps.map((st) => `${st.action} ${st.status}${st.code ? ` ${st.code}` : ''}`).join(', ')}`);
+  out(`  ${ok.record.executionId} ${ok.record.run.outcome}   record ${ok.record.digest}`);
+  out(`  ${ok.evidence.publicationId}   dossier ${ok.evidence.digest}`);
+  return { replay: ok, at, text };
+}
+
 function printRead(read: PublicationsRead, where: string): void {
   if (read.state !== 'VERIFIED') { out(`${where}: ${read.state} — ${read.reason}`); }
   else {
@@ -79,8 +111,20 @@ function printRead(read: PublicationsRead, where: string): void {
 }
 
 switch (command) {
+  case 'replay': {
+    replayOf(positional[0]);
+    out('  not published: nothing was written');
+    break;
+  }
   case 'candidate': {
-    const c = executionPublicationCandidate(recordOf(positional[0]), deps);
+    const definition = flag('definition');
+    const record = recordOf(positional[0]) as { digest?: string };
+    if (definition) {
+      const { replay } = replayOf(definition);
+      if (replay.record.digest !== record.digest) fail(`refused NOT_REPRODUCED: the replay gives record ${replay.record.digest.slice(0, 16)}; ${positional[0]} is ${String(record.digest).slice(0, 16)}`, 2);
+      out('  reproduced: the replay is this execution, byte for byte');
+    }
+    const c = executionPublicationCandidate(record, deps);
     if (!c.evidence) fail(`refused NOT_A_CANDIDATE:\n  ${c.reasons.join('\n  ')}`, 2);
     const e = c.evidence as NonNullable<typeof c.evidence>;
     out(`${e.publicationId}  candidate for ${e.source.executionId} (${e.run.outcome})`);
@@ -92,7 +136,25 @@ switch (command) {
   case 'prepare': {
     const reference = flag('reference');
     if (!reference) fail('refused REFERENCE_REQUIRED: --reference bibokh/familista-backend#<pull request> — the pull request that will carry this entry', 2);
-    const r = preparePublication(recordOf(positional[0]), deps, { reference: reference as string, dir: publicationsDir, environment });
+    const record = recordOf(positional[0]) as { digest?: string };
+    const { replay, at, text } = replayOf(flag('definition'));
+    if (replay.record.digest !== record.digest) fail(`refused NOT_REPRODUCED: the replay gives record ${replay.record.digest.slice(0, 16)}; ${positional[0]} is ${String(record.digest).slice(0, 16)}. Only an execution its definition reproduces is published.`, 2);
+    const revision = (git('rev-parse', flag('revision') ?? 'HEAD') ?? '').trim();
+    if (!/^[0-9a-f]{40}$/.test(revision)) fail('refused SOURCE_UNKNOWN: the commit could not be resolved', 2);
+    const tree = executionSource((p) => { try { return fs.readFileSync(path.join(ROOT, p), 'utf8'); } catch { return null; } });
+    const committed = executionSource((p) => git('show', `${revision}:${p}`));
+    if ('reason' in tree) fail(`refused SOURCE_UNKNOWN: ${tree.reason}`, 2);
+    if ('reason' in committed || committed.digest !== (tree as { digest: string }).digest) fail(`refused SOURCE_UNCOMMITTED: the working tree's execution source is not ${revision.slice(0, 12)}'s; commit it, merge it to main, and prepare at that commit`, 2);
+    if (git('show', `${revision}:${at}`) !== text) fail(`refused SOURCE_UNCOMMITTED: ${at} is not the file ${revision.slice(0, 12)} holds; the definition is reviewed and merged before it is published`, 2);
+    if (git('merge-base', '--is-ancestor', revision, 'origin/main') === null) out(`  note: ${revision.slice(0, 12)} is not on origin/main yet; the publication gate refuses provenance from code that is not merged`);
+    const source = tree as Exclude<typeof tree, { reason: string }>;
+    const r = preparePublication(record, deps, {
+      reference: reference as string, dir: publicationsDir, environment,
+      provenance: {
+        definition: { name: replay.definition.name, path: at, digest: replay.definitionDigest },
+        source: { revision, digest: source.digest, files: source.files.length, packages: source.packages }, steps: replay.definition.steps.length,
+      },
+    });
     if (r.status === 'REFUSED') fail(`refused ${r.code}: ${r.message}`, 2);
     if (r.status !== 'PREPARED') break;
     out(`PREPARED — NOT APPROVED: ${r.entry.publicationId} for ${r.entry.reference}`);
@@ -111,7 +173,7 @@ switch (command) {
     const dir = path.join(executionsDir, '.publication-rehearsal');
     fs.rmSync(dir, { recursive: true, force: true });
     try {
-      const r = preparePublication(recordOf(positional[0]), deps, { reference: REHEARSAL_REFERENCE, dir, environment });
+      const r = preparePublication(recordOf(positional[0]), deps, { reference: REHEARSAL_REFERENCE, dir, environment, provenance: rehearsalProvenance('rehearsal', 0) });
       if (r.status === 'REFUSED') fail(`refused ${r.code}: ${r.message}`, 2);
       if (r.status !== 'PREPARED') break;
       out(`REHEARSED — ${r.entry.publicationId}, for a pull request that cannot exist (${REHEARSAL_REFERENCE})`);
@@ -142,5 +204,5 @@ switch (command) {
     break;
   }
   default:
-    fail('usage: npm run lab:publish -- candidate <id> | prepare <id> --reference <owner/repo#pr> | verify | rehearse <id> | demo | gallery --out <file>');
+    fail('usage: npm run lab:publish -- candidate <id> [--definition <file>] | replay <definition> | prepare <id> --definition <file> --reference <owner/repo#pr> | verify | rehearse <id> | demo | gallery --out <file>');
 }

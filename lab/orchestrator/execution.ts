@@ -74,6 +74,8 @@ const REQUEST_ID = /^[a-z0-9][a-z0-9-]{7,63}$/;
 export const EXECUTION_ID = /^exec-[0-9a-f]{24}$/;
 
 const Person = z.object({ userId: z.string().regex(LAB_REF), role: z.string().min(1).max(40) }).strict();
+/** A LAB operator as a request, a cancellation or a kill-switch command names them. */
+export const ExecutionOperatorSchema = Person;
 
 export const ExecutionRequestSchema = z.object({
   contract: z.literal(EXECUTION_CONTRACT),

@@ -45,6 +45,7 @@
     "lab:orchestrator:evidence": "ts-node --transpile-only lab/orchestrator/evidence-cli.ts",
     "lab:execute": "ts-node --transpile-only lab/orchestrator/execute-cli.ts",
     "lab:publish": "ts-node --transpile-only lab/orchestrator/publish-cli.ts",
+    "lab:publication-gate": "ts-node --transpile-only lab/orchestrator/gate-cli.ts",
     "zod:baseline": "node tests/zod-baseline/collect.js --generate",
     "backup:keygen": "node dist/scripts/backup.js keygen",
     "backup:run": "node dist/scripts/backup.js run",
