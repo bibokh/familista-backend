@@ -15,6 +15,9 @@
  *    Workspace, and shows no club, person or record.
  * 5. Nothing is activated: no runtime path reads the registry, and the
  *    registry reaches no database, provider or network.
+ * 6. The runtime's behaviour for the ten running agents, against the baseline
+ *    recorded on main 86c1ca2 (tests/fixtures/agents/runtime-baseline.json):
+ *    profiles, identities, the action map, and 500 decisions.
  */
 
 import express from 'express';
@@ -51,6 +54,7 @@ import { PLATFORM_AGENT_MANIFESTS, platformAgentRegistry } from '../src/platform
 import { invariants, operationsRoomAgent, operationsRoomOverview } from '../src/platform/agents/operations-room.service';
 import agentsRoomRoutes from '../src/routes/agents-room.routes';
 import { SYNTHETIC_LAB_MANIFESTS, validSynthetic } from './fixtures/agents/synthetic-manifests';
+import { runtimeSnapshot, RUNNING_AGENTS, JOB_CASES } from './helpers/agent-runtime-baseline';
 
 const ROOT = path.join(__dirname, '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -302,5 +306,51 @@ describe('isolation', () => {
     };
     walk('src');
     expect(users).toEqual(['src/routes/agents-room.routes.ts']);
+  });
+});
+
+// ── 6. The runtime's behaviour, against the recorded baseline ──────────────
+// tests/fixtures/agents/runtime-baseline.json was recorded on main 86c1ca2,
+// from the hand-written egress profiles, before any runtime change: each
+// agent's profile and identity, and authorizeAgentJob's decision for 25 shapes
+// of job (analysis, every action by kind and by flag, a job with no club) with
+// the kill switch released and engaged — 500 decisions. However the profiles
+// are produced, every one of those answers must stay the same.
+describe('the running agents, against the recorded baseline', () => {
+  const BASELINE = JSON.parse(read('tests/fixtures/agents/runtime-baseline.json'));
+  const now = runtimeSnapshot();
+
+  it('covers ten agents, 25 shapes of job and both states of the kill switch: 500 decisions', () => {
+    expect(BASELINE.runtimeAgents).toEqual(RUNNING_AGENTS);
+    for (const state of ['killSwitchReleased', 'killSwitchEngaged']) {
+      for (const agent of RUNNING_AGENTS) expect(Object.keys(BASELINE.decisions[state][agent])).toEqual(JOB_CASES.map((c) => c.label));
+    }
+  });
+
+  it('lists the same running agents, in the same order', () => {
+    expect(now.runtimeAgents).toEqual(BASELINE.runtimeAgents);
+  });
+
+  it('gives every agent the same tools, in the same order, and the same data class', () => {
+    expect(now.profiles).toEqual(BASELINE.profiles);
+    for (const agent of RUNNING_AGENTS) expect([agent, Object.keys(now.profiles[agent])]).toEqual([agent, ['tools', 'dataClass']]);
+  });
+
+  it('maps every action to the same tool', () => {
+    expect(now.actionTools).toEqual(BASELINE.actionTools);
+  });
+
+  it('runs every job as the same identity', () => {
+    expect(now.identities).toEqual(BASELINE.identities);
+  });
+
+  it('reaches the same decision, with the same reason, for every job, with the kill switch released and engaged', () => {
+    for (const state of ['killSwitchReleased', 'killSwitchEngaged'] as const) {
+      for (const agent of RUNNING_AGENTS) {
+        for (const c of JOB_CASES) {
+          expect([state, agent, c.label, now.decisions[state][agent][c.label]]).toEqual([state, agent, c.label, BASELINE.decisions[state][agent][c.label]]);
+        }
+      }
+    }
   });
 });
