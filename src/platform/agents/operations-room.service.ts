@@ -11,9 +11,9 @@
 // egress profiles and the read policy), and that AI-0.1 activates nothing.
 // It changes nothing either: a manifest changes in a reviewed pull request.
 
-import type { AIAgent, UserRole } from '@prisma/client';
+import type { UserRole } from '@prisma/client';
 import { AutonomyLevel, killSwitchEngaged, tool } from '../intelligence/agents';
-import { AGENT_PROFILES } from '../intelligence/agent-jobs';
+import { AGENT_PROFILES, RUNTIME_AGENTS } from '../intelligence/agent-jobs';
 import { highest, type DataClass } from '../intelligence/data-classes';
 import { currentEnvironment, type FamilistaEnvironment } from '../environment';
 import { AI_READ_MATRIX, DECLARED_KINDS, type AIRecordClass } from '../../security/ai-read-policy';
@@ -31,7 +31,7 @@ export interface Invariant { id: string; holds: boolean; detail: string }
 
 export interface OperationsRoomOverview {
   environment: FamilistaEnvironment;
-  /** AI-0.1 starts no agent: the registry describes the ones that run. */
+  /** The registry starts no agent: it lets run only the ones the platform already runs. */
   activation: { newAgentsActive: 0; labRuntime: 'NOT_PRESENT' };
   killSwitch: { engaged: boolean };
   registry: {
@@ -68,12 +68,14 @@ function summary(a: RegisteredAgent): AgentSummary {
 /** Whether the registry still agrees with everything the platform enforces. Computed, never stored. */
 export function invariants(registry: AgentRegistry): Invariant[] {
   const agents = registry.list();
-  const runtime = Object.keys(AGENT_PROFILES) as AIAgent[];
+  // Every agent the runtime can be asked to run, not only the ones it profiles:
+  // the profiles come from the registry, so they would always look described.
+  const runtime = [...RUNTIME_AGENTS];
   const undescribed = runtime.filter((r) => !registry.forLegacyAgent(r));
   const profileDrift = runtime.filter((r) => {
     const m = registry.forLegacyAgent(r);
-    if (!m) return false;
     const p = AGENT_PROFILES[r];
+    if (!m || !p) return false;
     return !sameSet(m.tools, p.tools) || highest(m.data.reads) !== p.dataClass;
   });
   const outputDrift = runtime.filter((r) => {

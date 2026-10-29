@@ -7,9 +7,10 @@
 // the same manifests, in any order, have the same digest — the anchor the
 // Operations Room shows and an audit can compare.
 //
-// It starts nothing. Nothing that runs an agent (workers/ai-agent.worker.ts)
-// reads the registry in AI-0.1; it describes the agents that run and the ones
-// being designed, and refuses the ones that could not be allowed to.
+// It starts nothing. The runtime reads it once, through the catalog
+// (intelligence/agent-jobs.ts): a RUNNING manifest is what lets a runtime agent
+// run, and its tools are what it may call. The registry itself reaches no
+// worker, database or provider, and imports nothing that runs an agent.
 
 import { createHash } from 'crypto';
 import type { AIAgent } from '@prisma/client';

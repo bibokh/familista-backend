@@ -1,17 +1,21 @@
 // The platform's agents, as manifests
 // ─────────────────────────────────────────────────────────────────────────────
 // Global Multi-Agent Foundation, AI-0.1. The ten agents Familista runs today
-// (the AIAgent enum, executed by workers/ai-agent.worker.ts) described as
-// manifests and bound to their runtime agent. Each states exactly what the
-// platform already enforces for it — its tools and data class are its egress
-// profile (intelligence/agent-jobs.ts), its outputs the record kinds the read
-// policy declares for it (security/ai-read-policy.ts) —
-// and tests/agents-registry.unit.test.ts fails the moment one drifts from the
-// other. Describing them changes nothing about how they run.
+// (the AIAgent enum, executed by workers/ai-agent.worker.ts) as manifests bound
+// to their runtime agent. This is where an agent's permissions are written: the
+// runtime derives each agent's egress profile from its RUNNING manifest here —
+// its tools, and the highest data class it reads (intelligence/agent-jobs.ts) —
+// so changing a manifest changes what the agent may do, in a reviewed pull
+// request. Its outputs are the record kinds the read policy declares for it
+// (security/ai-read-policy.ts), and tests/agents-registry.unit.test.ts fails the
+// moment one drifts from the other. Section 6 of that file holds the ten agents
+// to the behaviour recorded before the runtime read this.
 //
 // A new agent — an education tutor, a commerce assistant, a vision analyst, a
 // platform operations agent — joins by adding its manifest here, in a reviewed
-// pull request, as DRAFT or LAB. Nothing in AI-0.1 executes a LAB agent.
+// pull request, as DRAFT or LAB. The runtime refuses every job for an agent
+// whose manifest is not RUNNING, and only an agent the platform already runs
+// can be RUNNING (manifest.ts), so no LAB agent is executed.
 
 import { AutonomyLevel } from '../intelligence/agents';
 import { AgentRegistry } from './registry';
