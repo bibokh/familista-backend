@@ -35,7 +35,7 @@
 //
 // The registry is imported, never the other way round: nothing the catalog or
 // the registry imports leads back to this file, so there is no import cycle
-// (tests/agent-runtime-registry.unit.test.ts).
+// (tests/agents-registry.unit.test.ts, section 7c).
 
 import { AIAgent } from '@prisma/client';
 import type { AIApprovalKind, Prisma } from '@prisma/client';

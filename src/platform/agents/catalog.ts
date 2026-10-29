@@ -8,8 +8,8 @@
 // so changing a manifest changes what the agent may do, in a reviewed pull
 // request. Its outputs are the record kinds the read policy declares for it
 // (security/ai-read-policy.ts), and tests/agents-registry.unit.test.ts fails the
-// moment one drifts from the other. tests/agent-runtime-baseline.unit.test.ts
-// holds the ten agents to the behaviour recorded before the runtime read this.
+// moment one drifts from the other. Section 6 of that file holds the ten agents
+// to the behaviour recorded before the runtime read this.
 //
 // A new agent — an education tutor, a commerce assistant, a vision analyst, a
 // platform operations agent — joins by adding its manifest here, in a reviewed
