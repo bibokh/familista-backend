@@ -18,6 +18,7 @@ import { listFlags, type FlagRule } from './innovation/flags';
 import { listExperiments, type ExperimentRecord } from './innovation/experiments';
 import { killSwitchEngaged, killSwitchReason, TOOLS } from './intelligence/agents';
 import { listModels } from './intelligence/gateway';
+import { readExecutionControl } from './intelligence/ai-ledger';
 import { currentEnvironment } from './environment';
 import { decide, listPacks, type PolicyRequest } from './governance/policy';
 import { RESOURCE_CLASSIFICATION } from './data-classification';
@@ -697,6 +698,12 @@ export async function controlSurface(actor: PlatformActor): Promise<ControlSurfa
 export interface IntelligenceSurface {
   environment: string;
   killSwitch: { engaged: boolean; reason: string | null };
+  /**
+   * The Platform Owner's AI EXECUTION switch for paid model calls
+   * (execution-gate.ts). `readable: false` means the switch could not be read,
+   * which the gateway treats as OFF.
+   */
+  aiExecution: { enabled: boolean; reason: string | null; changedAt: string | null; readable: boolean };
   tools: typeof TOOLS;
   models: ReturnType<typeof listModels>;
   /** Recorded agent work, when the platform has recorded any. */
@@ -720,9 +727,12 @@ export async function intelligenceSurface(actor: PlatformActor): Promise<Intelli
   } catch {
     unavailable = 'Agent job history is not readable in this deployment.';
   }
+  let aiExecution: IntelligenceSurface['aiExecution'] = { enabled: false, reason: null, changedAt: null, readable: false };
+  try { aiExecution = { ...(await readExecutionControl()), readable: true }; } catch { /* unreadable reads as OFF */ }
   return {
     environment: currentEnvironment(),
     killSwitch: { engaged: killSwitchEngaged(), reason: killSwitchReason() },
+    aiExecution,
     tools: TOOLS,
     models: listModels(),
     jobs,

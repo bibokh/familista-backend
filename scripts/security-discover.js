@@ -483,7 +483,12 @@ const gatewayCallSites = srcFiles.flatMap((f, i) => {
   return calls.map((body) => ({ file: f, declares: /^[\s\S]{0,1200}?dataClasses:/.test(body) }));
 });
 const completeBody = (() => { const i = gatewaySrc.indexOf('export async function complete('); return i < 0 ? '' : gatewaySrc.slice(i); })();
-const recorderCreate = (() => { const i = gatewaySrc.indexOf('aiEgressRecord.create('); return i < 0 ? '' : gatewaySrc.slice(i, gatewaySrc.indexOf('});', i)); })();
+// The record's columns are written by the ledger (ai-ledger.ts, rowData); it must never carry the text.
+const AI_LEDGER = cite('src/platform/intelligence/ai-ledger.ts');
+const ledgerSrc = stripComments(read(AI_LEDGER) || '');
+const recorderCreate = (() => { const i = ledgerSrc.indexOf('function rowData('); return i < 0 ? '' : ledgerSrc.slice(i, ledgerSrc.indexOf('\n}', i)); })();
+const AI_EXEC_GATE = cite('src/platform/intelligence/execution-gate.ts');
+const execGateSrc = stripComments(read(AI_EXEC_GATE) || '');
 const egressModel = (() => { const sch = read('prisma/schema.prisma') || ''; const i = sch.indexOf('model AiEgressRecord {'); return i < 0 ? '' : sch.slice(i, sch.indexOf('\n}', i)); })();
 const workerSrc = stripComments(read(cite('src/workers/ai-agent.worker.ts')) || '');
 const agentJobsSrc = stripComments(read(cite('src/platform/intelligence/agent-jobs.ts')) || '');
@@ -718,17 +723,44 @@ const controls = [
     /highest\(dataClasses\) === 'RESTRICTED' && !\(await clubAiPolicy\(clubId\)\)\.restrictedEgress/.test(completeBody)
       && /: \['RESTRICTED'\]/.test(completeBody)
       && /pseudo\.apply\(req\.prompt\)/.test(completeBody) && /pseudo\.apply\(req\.system\)/.test(completeBody)
-      && /dailyTokenBudget\(\)/.test(completeBody)
+      && /recorder\.reserve\(\{ \.\.\.base, pseudonymised \}, ask, policy\.limits\)/.test(completeBody)
+      && /s\.clubDayTokens \+ ask\.tokens > limits\.clubDailyTokens/.test(execGateSrc)
       && /req\.outputSchema\.parse\(/.test(completeBody)
       && gatewayCallSites.length >= AI_CALLERS.length && gatewayCallSites.every((c) => c.declares)
       ? 'PRESENT' : 'ABSENT', AI_GATEWAY,
     `RESTRICTED needs the club's opt-in; names are pseudonymised; a per-club daily budget; output validated. ${gatewayCallSites.length} call site(s), every one declaring its data classes.`),
   control('ai-call-audited',
-    completeBody.indexOf('recorder.start({ ...base, pseudonymised })') > 0
-      && completeBody.indexOf('recorder.start({ ...base, pseudonymised })') < completeBody.indexOf('provider.complete(')
-      && !/prompt|text|answer/.test(recorderCreate) && !/\b(prompt|response|answer)\b/.test(egressModel)
+    completeBody.indexOf('recorder.reserve({ ...base, pseudonymised }') > 0
+      && completeBody.indexOf('recorder.reserve({ ...base, pseudonymised }') < completeBody.indexOf('provider.complete(')
+      && recorderCreate.length > 0 && !/prompt|text|answer/.test(recorderCreate) && !/\b(prompt|response|answer)\b/.test(egressModel)
       ? 'PRESENT' : 'ABSENT', AI_GATEWAY,
     'An AiEgressRecord is written before the provider is called (no record, no call) and completed after; it never holds the prompt or the answer.'),
+  // AI cost control: paid model calls are denied unless the Platform Owner allows them, and budgeted atomically.
+  control('ai-execution-gate',
+    (() => {
+      const provider = stripComments(read(AI_PROVIDER) || '');
+      const reserve = (() => { const i = ledgerSrc.indexOf('async reserve('); return i < 0 ? '' : ledgerSrc.slice(i, ledgerSrc.indexOf('async finish(', i)); })();
+      const setControl = (() => { const i = ledgerSrc.indexOf('export async function setExecutionControl('); return i < 0 ? '' : ledgerSrc.slice(i, ledgerSrc.indexOf('\n}', i)); })();
+      const decideBody = (() => { const i = execGateSrc.indexOf('export function decide('); return i < 0 ? '' : execGateSrc.slice(i, execGateSrc.indexOf('\n}', i)); })();
+      const producers = ['src/controllers/ai-ops.controller.ts', 'src/intelligence/intelligence.service.ts', 'src/services/automation.service.ts'];
+      const app = stripComments(read('src/app.ts') || '');
+      return /export const AUTONOMOUS_AI_EXECUTION = false as const/.test(execGateSrc)
+        && completeBody.indexOf('originVerdict()') > 0
+        && completeBody.indexOf('originVerdict()') < completeBody.indexOf('recorder.reserve(')
+        && /refuse\('disabled'/.test(completeBody) && /refuse\('pricing'/.test(completeBody) && /refuse\('config'/.test(completeBody)
+        && /refuse\('request-limit'/.test(completeBody)
+        && decideBody.indexOf('if (!s.enabled)') > 0 && decideBody.indexOf('if (!s.enabled)') < decideBody.indexOf('inFlight')
+        && /pg_advisory_xact_lock/.test(ledgerSrc) && /await lock\(tx\)/.test(reserve) && /await lock\(tx\)/.test(setControl)
+        && /aiExecutionControl\.findUnique/.test(reserve) && /control\?\.enabled === true/.test(reserve)
+        && /platformAuditLog\.create/.test(setControl)
+        && (provider.match(/maxRetries: 0/g) || []).length >= 2 && /abort\.abort\(\)/.test(provider)
+        && /runAsAgentJob\(/.test(workerSrc)
+        && /runInBackgroundScope\(/.test(stripComments(read('src/infra/background-workers.ts') || ''))
+        && producers.every((f) => { const c = stripComments(read(f) || ''); const i = c.indexOf('assertMayCreateAgentWork()'); return i > 0 && i < c.indexOf('aIAgentJob.create(', i); })
+        && app.indexOf('aiRequestScope') > 0 && app.indexOf('aiRequestScope);') < app.indexOf('tenantGuard, routes')
+        && !/retry/i.test(stripComments(read('src/services/ai-llm.adapter.ts') || '').slice(stripComments(read('src/services/ai-llm.adapter.ts') || '').indexOf('export async function generateNarrative(')));
+    })() ? 'PRESENT' : 'ABSENT', AI_EXEC_GATE,
+    'Default deny: a model call needs an authorised origin (an API request or a person\'s queued agent job; never a timer or another agent), the Platform Owner\'s AI EXECUTION switch ON, valid limits and a configured price; its most possible usage is reserved against every budget under one advisory lock; no SDK or application retry; switch changes are audited in the same transaction.'),
   // ── Batch 5 · R8: agents, model registry, federated learning, training data ──
   control('recommendation-signed',
     (() => {

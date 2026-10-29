@@ -93,12 +93,14 @@ describe('read-only by construction', () => {
     expect(CODE).not.toMatch(/\b(XMLHttpRequest|sendBeacon|WebSocket|EventSource)\b/);
   });
 
-  it('asks for the registry, one manifest, the LAB evidence and the approved executions, and for nothing else', () => {
+  it('asks for the registry, one manifest, the LAB evidence, the approved executions and the AI cost record, and for nothing else', () => {
     const calls = [...CODE.matchAll(/\bapi\(('[^']*'(?: \+ encodeURIComponent\(id\))?|[a-z]+)\)/g)].map((m) => m[1]).filter((a) => a !== 'path');
     expect(CODE.match(/\bapi\(/g)).toHaveLength(calls.length + 1); // + its definition: no other call reaches the reader
-    expect(calls.sort()).toEqual(["'/system/agents'", "'/system/agents/' + encodeURIComponent(id)", "'/system/agents/orchestration'", "'/system/agents/publications'"].sort());
+    expect(calls.sort()).toEqual(["'/system/agents'", "'/system/agents/' + encodeURIComponent(id)", "'/system/agents/orchestration'", "'/system/agents/publications'", "'/system/agents/cost'"].sort());
     expect(CODE).not.toContain('kill-switch');
-    expect(CODE).not.toMatch(/data-ar-(kill|engage|activate|start|stop|run|approve|publish|prepare|merge)/);
+    // The AI EXECUTION switch is drawn, never moved: it is changed in SYSTEM → AI Agent Control.
+    expect(CODE).not.toContain('ai-execution');
+    expect(CODE).not.toMatch(/data-ar-(kill|engage|activate|start|stop|run|approve|publish|prepare|merge|enable|disable|switch)/);
   });
 
   it('draws the kill switch as a state only, as the registry endpoint reports it', () => {
@@ -108,7 +110,7 @@ describe('read-only by construction', () => {
 
   it('is covered by the owner API contract, in both directions', () => {
     const mine = OWNER_API_CONTRACTS.filter((c) => c.consumer === 'public/agents-room/agents-room.js').map((c) => c.endpoint);
-    expect(mine).toEqual(['/system/agents', '/system/agents/club.tactical', '/system/agents/orchestration', '/system/agents/publications']);
+    expect(mine).toEqual(['/system/agents', '/system/agents/club.tactical', '/system/agents/orchestration', '/system/agents/publications', '/system/agents/cost']);
   });
 });
 
@@ -127,7 +129,7 @@ type Room = {
  * `orch` answers /system/agents/orchestration and `pub` /system/agents/publications (by default what this build
  * ships: verified, and empty); `regions` gives the room the view and workflow regions it repaints in place.
  */
-type RoomOpts = { orch?: unknown; pub?: unknown; regions?: boolean; lang?: string };
+type RoomOpts = { orch?: unknown; pub?: unknown; cost?: unknown; regions?: boolean; lang?: string };
 
 function runRoom(overview: unknown, detail?: (id: string) => unknown, locale?: Record<string, string>, opts: RoomOpts = {}): Promise<Room> {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -163,6 +165,7 @@ function runRoom(overview: unknown, detail?: (id: string) => unknown, locale?: R
       const m = /\/system\/agents\/(.+)$/.exec(String(u));
       if (m && m[1] === 'orchestration') return reply(opts.orch ?? null);
       if (m && m[1] === 'publications') return reply(opts.pub === undefined ? JSON.parse(JSON.stringify(publicationsRoomView(platformAgentRegistry()))) : opts.pub);
+      if (m && m[1] === 'cost') return reply(opts.cost ?? null);
       return m ? reply(detail ? detail(decodeURIComponent(m[1])) : null) : reply(overview);
     },
     Intl, console, Promise, Object, Array, String, Number, Date, Math, JSON, isFinite, encodeURIComponent, decodeURIComponent,
@@ -362,7 +365,7 @@ describe('English, German and Arabic — one catalogue each, in step', () => {
   const en = dict('en'); const de = dict('de'); const ar = dict('ar');
   const slots = (s: string) => (s.match(/%d/g) || []).length;
   // Identifiers and words that are the same in the target language.
-  const SAME = new Set(['LAB', 'Agent', 'Analyst', 'Big Data', 'Governance', 'Manager', 'Scout', 'Scouting', 'Training', 'Version', 'Vision']);
+  const SAME = new Set(['LAB', 'Agent', 'Analyst', 'Big Data', 'Governance', 'Manager', 'Scout', 'Scouting', 'Training', 'Version', 'Vision', 'UTC']);
 
   it('has the same keys in all three, and English maps each key to itself', () => {
     expect(Object.keys(de).sort()).toEqual(Object.keys(en).sort());
@@ -397,7 +400,7 @@ describe('English, German and Arabic — one catalogue each, in step', () => {
   it('covers every label and meaning held in the room’s vocabulary maps', () => {
     const names = ['DOMAIN_LABEL', 'SCOPE_LABEL', 'SCOPE_MEANING', 'LIFECYCLE_LABEL', 'LIFECYCLE_MEANING', 'ENV_LABEL', 'CLASS_LABEL',
       'RECORD_CLASS_LABEL', 'RECORD_TYPE_LABEL', 'EFFECT_LABEL', 'AUTONOMY_LABEL', 'ROLE_LABEL', 'INVARIANT_LABEL',
-      'STATE_LABEL', 'STATE_MEANING', 'OUTCOME_LABEL', 'TRACE_LABEL', 'CODE_LABEL', 'LOG_LABEL', 'CHECK_LABEL'];
+      'STATE_LABEL', 'STATE_MEANING', 'OUTCOME_LABEL', 'TRACE_LABEL', 'CODE_LABEL', 'LOG_LABEL', 'CHECK_LABEL', 'REFUSAL_LABEL'];
     const values = names.flatMap((n) => [...objectLiteral(JS, n).matchAll(/:\s*'((?:[^'\\]|\\.)*)'/g)].map((x) => x[1].replace(/\\'/g, "'")));
     expect(values.length).toBeGreaterThan(70);
     expect(values.filter((v) => !(v in en))).toEqual([]);
@@ -762,5 +765,107 @@ describe('approved LAB executions (AI-0.5): drawn only as the server verified th
     expect(h).toContain(dict['Verification and publication']);
     expect(h).toContain(dict['Provenance and reproduction']);
     expect(h).toContain(dict['Rehearsal: no commit was measured']);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI cost control: drawn, never moved, in all three languages, hostile text as text.
+
+describe('the AI cost control view', () => {
+  const win = (o: Record<string, number> = {}) => ({
+    chargedTokens: 0, reportedTokensIn: 0, reportedTokensOut: 0, estimatedCostUsd: 0, reportedEstimatedCostUsd: 0, calls: 0, refused: 0, ...o,
+  });
+  const cost = (over: Record<string, unknown> = {}) => ({
+    basis: 'estimate',
+    execution: { enabled: false, reason: null, changedAt: null, readable: true },
+    killSwitch: { engaged: false, reason: null },
+    autonomous: false,
+    providerConfigured: true,
+    limits: { perRequestTokens: 32000, perWorkflowTokens: 100000, perAgentRunTokens: 50000, clubDailyTokens: 200000, dailyTokens: 200000, monthlyTokens: 2000000, dailyCostUsd: 2, monthlyCostUsd: 20, maxConcurrent: 2 },
+    configErrors: [],
+    models: [{ id: 'familista-default', providerModel: 'model-x', priced: false, inputPerMTokUsd: null, outputPerMTokUsd: null }],
+    usage: {
+      day: win({ chargedTokens: 180000, calls: 4, refused: 2, estimatedCostUsd: 0.0123 }), month: win({ chargedTokens: 400000, calls: 9, refused: 3 }),
+      remaining: { dayTokens: 20000, monthTokens: 1600000, dayCostUsd: 1.9877, monthCostUsd: 19.5 }, inFlight: 1,
+      byModel: [{ model: 'model-x', calls: 9, tokensIn: 300000, tokensOut: 100000, estimatedCostUsd: 2.4 }],
+      byAgent: [{ agent: 'TACTICAL', calls: 3, tokens: 1200, estimatedCostUsd: 0.01 }],
+      refusals: [{ reason: 'disabled', count: 2 }, { reason: 'daily-budget', count: 1 }, { reason: 'a-rule-added-later', count: 1 }],
+      budgetEvents: [{ at: '2026-10-28T09:00:00.000Z', reason: 'daily-budget' }],
+      overruns: 0,
+    },
+    ...over,
+  });
+  const open = async (c: unknown, locale?: Record<string, string>, lang?: string) => {
+    const room = await runRoom(real(), undefined, locale, { cost: c, regions: true, lang });
+    await room.click(on('[data-ar-view]', { 'data-ar-view': 'cost' }));
+    return room;
+  };
+
+  it('reads the cost record only when the view is opened, and once', async () => {
+    const room = await runRoom(real(), undefined, undefined, { cost: cost(), regions: true });
+    expect(room.calls).toEqual(['/system/agents']);
+    await room.click(on('[data-ar-view]', { 'data-ar-view': 'cost' }));
+    await room.click(on('[data-ar-view]', { 'data-ar-view': 'map' }));
+    await room.click(on('[data-ar-view]', { 'data-ar-view': 'cost' }));
+    expect(room.calls).toEqual(['/system/agents', '/system/agents/cost']);
+  });
+
+  it('draws the switch as a state, the counted usage against its limits, and says the figures are estimates', async () => {
+    const h = (await open(cost())).region('#ar-view');
+    expect(h).toContain('Off: every paid call is refused');
+    expect(h).toContain('Changed only in SYSTEM → AI Agent Control.');
+    expect(h).toContain('No setting turns it on.');
+    expect(h).toContain('180,000');
+    expect(h).toContain('ar-cost-meter is-near'); // 90% of the daily tokens: amber, as an edge of the meter only
+    expect(h).toContain('No price: never called');
+    expect(h).toContain('A model without a configured price is never called.');
+    expect(h).toContain('It is not the provider&#39;s invoice');
+    expect(h).toContain('Platform daily budget');
+    expect(h).toContain('A rule added later'); // a rule this file has no label for is humanised, not dropped
+    expect(h).not.toMatch(/data-ar-(enable|disable|switch)|ai-execution|method/);
+  });
+
+  it('an invalid setting is named, and an unreadable switch reads as off', async () => {
+    const h = (await open(cost({ configErrors: ['AI_MAX_CONCURRENT_REQUESTS'], execution: { enabled: false, reason: null, changedAt: null, readable: false } }))).region('#ar-view');
+    expect(h).toContain('Every paid call is refused until these settings are corrected:');
+    expect(h).toContain('AI_MAX_CONCURRENT_REQUESTS');
+    expect(h).toContain('Unreadable: treated as off');
+  });
+
+  it('with no usage yet, every panel says what is missing and what would fill it', async () => {
+    const c = cost();
+    (c.usage as any).byModel = []; (c.usage as any).byAgent = []; (c.usage as any).refusals = []; (c.usage as any).budgetEvents = [];
+    const h = (await open(c)).region('#ar-view');
+    for (const t of ['No paid AI call this month', 'No agent has made a paid call this month', 'Nothing has been refused this month', 'No budget limit has been reached']) expect(h).toContain(t);
+    const none = (await open(cost({ usage: null, unavailable: 'The AI usage record is not readable in this deployment.' }))).region('#ar-view');
+    expect(none).toContain('The AI usage record is not readable in this deployment.');
+  });
+
+  it('prints a hostile reason, model or agent name as text', async () => {
+    const c = cost({ execution: { enabled: true, reason: PAYLOAD, changedAt: null, readable: true } });
+    (c.usage as any).byModel[0].model = PAYLOAD; (c.usage as any).byAgent[0].agent = PAYLOAD;
+    const h = (await open(c)).region('#ar-view');
+    expect(h).not.toContain('<script>');
+    expect(h).not.toContain('<img');
+    expect(h).toContain('&lt;script&gt;');
+    expect(h).toContain('<span data-user-content>'); // the owner's own words are never translated
+  });
+
+  it('a failed read offers Try again and is not re-requested on its own', async () => {
+    const room = await runRoom(real(), undefined, undefined, { cost: { nope: true }, regions: true });
+    await room.click(on('[data-ar-view]', { 'data-ar-view': 'cost' }));
+    expect(room.region('#ar-view')).toContain('The AI cost record could not be read');
+    await room.click(on('[data-ar-view]', { 'data-ar-view': 'map' }));
+    await room.click(on('[data-ar-view]', { 'data-ar-view': 'cost' }));
+    expect(room.calls.filter((x) => x === '/system/agents/cost')).toHaveLength(1);
+  });
+
+  it.each(['de', 'ar'])('%s: the view asks the catalogue for nothing it does not hold', async (tag) => {
+    const dict = json(`public/agents-room/i18n/${tag}.json`) as Record<string, string>;
+    const room = await open(cost(), dict, tag);
+    expect(room.missing()).toEqual([]);
+    const h = room.region('#ar-view');
+    expect(h).toContain(dict['Off: every paid call is refused']);
+    expect(h).toContain(dict['Every cost here is an estimate from the configured prices and the token counts the provider reported. It is not the provider\'s invoice: the provider\'s billing is the record of what was charged.']);
   });
 });

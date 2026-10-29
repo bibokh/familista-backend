@@ -145,6 +145,15 @@ function refusalStatus(out: GatewayResult): AppError {
       ? new AppError('AI rate limit reached, please try again shortly', 429)
       : new AppError('AI service temporarily unavailable', 503);
     case 'invalid-output': return new AppError('AI analysis failed', 502);
+    case 'disabled':   return new AppError('AI analysis is switched off on this platform', 503);
+    case 'concurrency': return new AppError('AI is busy, please try again shortly', 429);
+    case 'request-limit': return new AppError('This analysis is larger than one AI request may be', 413);
+    case 'workflow-budget':
+    case 'agent-budget':
+    case 'daily-budget':
+    case 'monthly-budget': return new AppError('The platform\'s AI allowance is used up for now', 429);
+    case 'origin':
+    case 'autonomous': return new AppError('This AI request is not authorised', 403);
     default:           return new AppError('AI service not configured', 503);
   }
 }

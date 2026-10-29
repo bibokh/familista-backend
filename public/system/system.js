@@ -1224,6 +1224,32 @@
       + rows + '</section>' + capabilityTable('people');
   }
 
+  /**
+   * AI EXECUTION: ON or OFF — whether the platform may make paid model calls at
+   * all. The server enforces it on every call (the AI execution gate); this is
+   * only where the Platform Owner moves it, with a reason either way. Usage,
+   * budgets and prices are drawn in the AI Agents Operations Room.
+   */
+  function aiExecutionPanel(ax) {
+    ax = ax || { enabled: false, readable: false, reason: null };
+    var on = ax.readable && ax.enabled === true;
+    return '<section class="sy-panel"><div class="sy-panel-h"><h2>Paid AI execution</h2>'
+      + (on ? '<span class="sy-chip sy-chip--live">On</span>' : '<span class="sy-chip sy-chip--none">Off</span>') + '</div>'
+      + '<p class="sy-room-link-p">'
+      + (!ax.readable
+        ? '<span>The switch could not be read, so paid AI execution is treated as off.</span>'
+        : on
+          ? '<span>Paid model calls are allowed, within the configured budgets. Switching off refuses every new call at once; a call already sent finishes.</span>'
+          : '<span>Paid model calls are refused. AI features answer with their deterministic results or say that AI is switched off. Switching on allows calls within the configured budgets.</span>')
+      + (ax.reason ? ' <span>Reason recorded:</span> <span data-user-content>' + esc(ax.reason) + '</span>' : '')
+      + '</p>'
+      + (on
+        ? '<button class="sy-btn sy-btn--danger" type="button" data-sy-ai="off">Switch paid AI off</button>'
+        : '<button class="sy-btn" type="button" data-sy-ai="on"' + (ax.readable ? '' : ' disabled') + '>Switch paid AI on</button>')
+      + '<p class="sy-note"><span>Usage, budgets and prices are in the AI Agents Operations Room.</span></p>'
+      + '</section>';
+  }
+
   /** The way into the AI Agents Operations Room: a room of its own, read-only, beside this one. */
   function agentsRoomLink() {
     return '<section class="sy-panel sy-room-link"><div class="sy-panel-h"><h2>AI Agents Operations Room</h2>'
@@ -1238,7 +1264,7 @@
     if (!i) return moduleHeader('agents') + agentsRoomLink() + skeleton();
     var ks = i.killSwitch || {};
     var jobs = i.jobs;
-    return moduleHeader('agents') + agentsRoomLink()
+    return moduleHeader('agents') + agentsRoomLink() + aiExecutionPanel(i.aiExecution)
       + '<section class="sy-panel"><div class="sy-panel-h"><h2>Global AI action kill switch</h2>'
       + '<span class="sy-chip sy-chip--critical">CRITICAL</span></div>'
       + '<p style="margin:0 0 14px;font-size:12px;color:var(--sy-tx-2)">'
@@ -1782,6 +1808,23 @@
           method: 'POST', body: JSON.stringify({ engage: engage, reason: reason.trim() }),
         }).then(function (d) { SY.intelligence = d; paint(host); })
           .catch(function (e) { window.alert(e.message); kill.disabled = false; });
+        return;
+      }
+
+      var aiSwitch = ev.target.closest('[data-sy-ai]');
+      if (aiSwitch) {
+        ev.preventDefault();
+        var turnOn = aiSwitch.getAttribute('data-sy-ai') === 'on';
+        var why = (window.prompt(T(turnOn ? 'Why is paid AI execution being switched on?\n\nThe reason is recorded with the change.'
+          : 'Why is paid AI execution being switched off?\n\nThe reason is recorded with the change.')) || '').trim();
+        if (!why) return;
+        if (why.length < 3) { window.alert(T('Give a reason of at least 3 characters.')); return; }
+        if (turnOn && !confirmCritical(T('Switch paid AI execution on?\n\nModel calls will be made and charged by the provider, within the configured budgets.'))) return;
+        aiSwitch.disabled = true;
+        api('/system/agents/ai-execution', {
+          method: 'POST', body: JSON.stringify({ enabled: turnOn, reason: why }),
+        }).then(function (d) { SY.intelligence = d; paint(host); })
+          .catch(function (e) { window.alert(e.message); aiSwitch.disabled = false; });
         return;
       }
 

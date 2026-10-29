@@ -559,5 +559,19 @@
   "AI Agents Operations Room": "KI-Agenten-Operationsraum",
   "READ-ONLY": "NUR LESEN",
   "Every agent in the Agent Registry, by domain and scope: its manifest, what it may do and touch, who answers for it, and whether the registry still agrees with what runs.": "Jeder Agent im Agentenregister, nach Bereich und Geltungsbereich: sein Manifest, was er tun und berühren darf, wer für ihn verantwortlich ist und ob das Register noch mit dem übereinstimmt, was läuft.",
-  "Open the Operations Room": "Operationsraum öffnen"
+  "Open the Operations Room": "Operationsraum öffnen",
+  "Paid AI execution": "Kostenpflichtige KI-Ausführung",
+  "On": "Ein",
+  "Off": "Aus",
+  "The switch could not be read, so paid AI execution is treated as off.": "Der Schalter konnte nicht gelesen werden, daher gilt die kostenpflichtige KI-Ausführung als aus.",
+  "Paid model calls are allowed, within the configured budgets. Switching off refuses every new call at once; a call already sent finishes.": "Kostenpflichtige Modellaufrufe sind erlaubt, innerhalb der konfigurierten Budgets. Ausschalten lehnt sofort jeden neuen Aufruf ab; ein bereits gesendeter Aufruf läuft zu Ende.",
+  "Paid model calls are refused. AI features answer with their deterministic results or say that AI is switched off. Switching on allows calls within the configured budgets.": "Kostenpflichtige Modellaufrufe werden abgelehnt. KI-Funktionen antworten mit ihren deterministischen Ergebnissen oder melden, dass KI ausgeschaltet ist. Einschalten erlaubt Aufrufe innerhalb der konfigurierten Budgets.",
+  "Reason recorded:": "Gespeicherter Grund:",
+  "Switch paid AI off": "Kostenpflichtige KI ausschalten",
+  "Switch paid AI on": "Kostenpflichtige KI einschalten",
+  "Usage, budgets and prices are in the AI Agents Operations Room.": "Nutzung, Budgets und Preise stehen im Betriebsraum der KI-Agenten.",
+  "Why is paid AI execution being switched on?\n\nThe reason is recorded with the change.": "Warum wird die kostenpflichtige KI-Ausführung eingeschaltet?\n\nDer Grund wird mit der Änderung gespeichert.",
+  "Why is paid AI execution being switched off?\n\nThe reason is recorded with the change.": "Warum wird die kostenpflichtige KI-Ausführung ausgeschaltet?\n\nDer Grund wird mit der Änderung gespeichert.",
+  "Give a reason of at least 3 characters.": "Geben Sie einen Grund mit mindestens 3 Zeichen an.",
+  "Switch paid AI execution on?\n\nModel calls will be made and charged by the provider, within the configured budgets.": "Kostenpflichtige KI-Ausführung einschalten?\n\nModellaufrufe werden ausgeführt und vom Anbieter berechnet, innerhalb der konfigurierten Budgets."
 }

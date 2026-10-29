@@ -115,6 +115,7 @@
     "ai-single-egress",
     "ai-egress-classification",
     "ai-call-audited",
+    "ai-execution-gate",
     "ai-actions-gated",
     "model-artifact-signed",
     "federated-default-deny",

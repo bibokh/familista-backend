@@ -22,6 +22,7 @@
 
 import { holdLease, isSoleProcess, type LeaseHandle } from './leader';
 import { logger } from '../utils/logger';
+import { runInBackgroundScope } from '../platform/intelligence/execution-gate';
 
 import { startIntelBroadcaster, stopIntelBroadcaster } from '../live-intelligence/intel-broadcaster';
 import { startAIAgentWorker, stopAIAgentWorker } from '../workers/ai-agent.worker';
@@ -82,7 +83,9 @@ function startAll(): void {
   for (const w of OWNED) {
     // One failure must not stop the others coming up — the same guarantee
     // server.ts's `safeStart` gave.
-    try { w.start(); } catch (err) {
+    // Started inside a background origin, which every timer it sets inherits:
+    // the AI execution gate refuses a model call from one (execution-gate.ts).
+    try { runInBackgroundScope(w.label, w.start); } catch (err) {
       logger.error(`[workers] ${w.label} failed to start (swallowed)`, { err: (err as Error).message });
     }
   }

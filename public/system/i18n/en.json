@@ -558,5 +558,19 @@
   "AI Agents Operations Room": "AI Agents Operations Room",
   "READ-ONLY": "READ-ONLY",
   "Every agent in the Agent Registry, by domain and scope: its manifest, what it may do and touch, who answers for it, and whether the registry still agrees with what runs.": "Every agent in the Agent Registry, by domain and scope: its manifest, what it may do and touch, who answers for it, and whether the registry still agrees with what runs.",
-  "Open the Operations Room": "Open the Operations Room"
+  "Open the Operations Room": "Open the Operations Room",
+  "Paid AI execution": "Paid AI execution",
+  "On": "On",
+  "Off": "Off",
+  "The switch could not be read, so paid AI execution is treated as off.": "The switch could not be read, so paid AI execution is treated as off.",
+  "Paid model calls are allowed, within the configured budgets. Switching off refuses every new call at once; a call already sent finishes.": "Paid model calls are allowed, within the configured budgets. Switching off refuses every new call at once; a call already sent finishes.",
+  "Paid model calls are refused. AI features answer with their deterministic results or say that AI is switched off. Switching on allows calls within the configured budgets.": "Paid model calls are refused. AI features answer with their deterministic results or say that AI is switched off. Switching on allows calls within the configured budgets.",
+  "Reason recorded:": "Reason recorded:",
+  "Switch paid AI off": "Switch paid AI off",
+  "Switch paid AI on": "Switch paid AI on",
+  "Usage, budgets and prices are in the AI Agents Operations Room.": "Usage, budgets and prices are in the AI Agents Operations Room.",
+  "Why is paid AI execution being switched on?\n\nThe reason is recorded with the change.": "Why is paid AI execution being switched on?\n\nThe reason is recorded with the change.",
+  "Why is paid AI execution being switched off?\n\nThe reason is recorded with the change.": "Why is paid AI execution being switched off?\n\nThe reason is recorded with the change.",
+  "Give a reason of at least 3 characters.": "Give a reason of at least 3 characters.",
+  "Switch paid AI execution on?\n\nModel calls will be made and charged by the provider, within the configured budgets.": "Switch paid AI execution on?\n\nModel calls will be made and charged by the provider, within the configured budgets."
 }

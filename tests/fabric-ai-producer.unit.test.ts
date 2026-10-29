@@ -157,6 +157,8 @@ import * as automation from '../src/services/automation.service';
 import * as vision from '../src/services/vision-ingest.service';
 import { llmCall } from '../src/services/llm-adapter.service';
 import { config } from '../src/config';
+import { setEgressRecorder } from '../src/platform/intelligence/gateway';
+import { asUser, memoryLedger } from './helpers/ai-gate';
 
 let published: FamilistaEvent[] = [];
 
@@ -356,11 +358,17 @@ describe('every model call goes through one place', () => {
   // backend run before any test installs a key. Isolating the module instead
   // would re-evaluate the producer and its zod schemas, which the schema
   // registry correctly refuses as a redefinition of a shipped contract.
+  // A paid call needs the AI execution gate's consent: a signed-in person's
+  // request, execution switched ON and a price for the model. The gate itself
+  // is tested in tests/ai-execution-gate.*; here it simply lets the call through.
   const withKey = async (fn: () => Promise<unknown>) => {
     const original = config.anthropic.apiKey;
     (config.anthropic as Row).apiKey = SECRETS.apiKey;
-    try { return await fn(); } finally {
+    setEgressRecorder(memoryLedger({ enabled: true }));
+    process.env.AI_MODEL_PRICING = JSON.stringify({ [process.env.AI_LLM_MODEL || config.anthropic.model]: { inputPerMTokUsd: 3, outputPerMTokUsd: 15 } });
+    try { return await asUser(ACTOR, fn); } finally {
       (config.anthropic as Row).apiKey = original;
+      delete process.env.AI_MODEL_PRICING;
     }
   };
 
@@ -451,6 +459,8 @@ describe('every model call goes through one place', () => {
 
 describe('queueing an agent job', () => {
   const ACT = { userId: ACTOR, clubId: CLUB };
+  // AI work is created only from a signed-in person's request (execution-gate.ts).
+  const it = (name: string, fn: () => unknown) => globalThis.it(name, () => asUser(ACTOR, async () => { await fn(); }));
 
   it('publishes exactly one ai.request.created, after the row exists', async () => {
     const job = await automation.enqueueAgentJob(ACT as never, {
@@ -778,10 +788,11 @@ describe('when the fabric is broken', () => {
       async read() { return []; },
     } as EventTransport);
 
-    const job = await automation.enqueueAgentJob(
+    // Queued from a signed-in person's request, the only origin that may create AI work.
+    const job = await asUser(ACTOR, () => automation.enqueueAgentJob(
       { userId: ACTOR, clubId: CLUB } as never,
       { agent: 'TACTICAL' as never, kind: 'X', input: {} as never } as never,
-    );
+    ));
     state.ingests.push({
       id: 'ingest-9', videoAssetId: 'asset-9', stage: 'FUSED', status: 'RUNNING',
       progress: 0.4, inferenceProvider: 'stub-vision', error: null, notes: null,

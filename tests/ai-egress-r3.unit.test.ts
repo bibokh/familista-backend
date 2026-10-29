@@ -58,6 +58,12 @@ import { __resetClubAiPolicyCache } from '../src/platform/intelligence/club-ai-p
 import { FEATURE_CLASSES, FACTOR_CLASSES, classOf, filterFeatures, isMinor } from '../src/platform/intelligence/data-classes';
 import { analyzeWithAI, analyzePlayer } from '../src/services/ai.service';
 import { buildNarrativeMessage, type NarrativeRequest } from '../src/services/ai-llm.adapter';
+import { decide } from '../src/platform/intelligence/execution-gate';
+import { asUser, TEST_PRICING } from './helpers/ai-gate';
+
+// Every test here is a signed-in person's API request, the only origin the AI
+// execution gate lets spend; the gate itself is tested in ai-execution-gate.*.
+const it = (name: string, fn: () => unknown) => globalThis.it(name, () => asUser('u-1', async () => { await fn(); }));
 
 const ROOT = path.join(__dirname, '..');
 
@@ -74,8 +80,17 @@ function install(): void {
   registerModel({ id: DEFAULT_MODEL_ID, provider: 'anthropic', providerModel: 'test-model', purposes: Object.values(AI_PURPOSES) });
   setEgressRecorder({
     async start(r) { if (recorderDown) throw new Error('db down'); const id = `rec-${records.length + 1}`; records.push({ ...r, id }); return id; },
+    // The club has spent `spent` today; nothing else is counted here. Execution is ON.
+    async reserve(r, ask, limits) {
+      if (recorderDown) throw new Error('db down');
+      const v = decide({ enabled: true, dayTokens: 0, monthTokens: 0, dayCostMicros: 0, monthCostMicros: 0, clubDayTokens: spent, workflowTokens: 0, agentRunTokens: 0, inFlight: 0 }, ask, limits);
+      const id = `rec-${records.length + 1}`;
+      if (!v.ok) { records.push({ ...r, id, outcome: 'REFUSED', reason: v.refusal }); return { refused: v }; }
+      records.push({ ...r, id, outcome: 'STARTED', reservedTokens: ask.tokens, reservedCostMicros: ask.costMicros });
+      return { id };
+    },
     async finish(id, r) { const row = records.find((x) => x.id === id); if (row) row.finished = r; },
-    async spentToday() { if (recorderDown) throw new Error('db down'); return spent; },
+    async executionEnabled() { if (recorderDown) throw new Error('db down'); return true; },
   });
 }
 
@@ -84,9 +99,10 @@ beforeEach(() => {
   reply = 'Rest [P1] this week; [P2] is ready to start.';
   POLICIES.clear(); __resetClubAiPolicyCache();
   (config.anthropic as Row).apiKey = 'test-key-not-real';
+  process.env.AI_MODEL_PRICING = TEST_PRICING;
   install();
 });
-afterAll(() => { (config.anthropic as Row).apiKey = ''; resetGateway(); });
+afterAll(() => { (config.anthropic as Row).apiKey = ''; delete process.env.AI_MODEL_PRICING; resetGateway(); });
 
 const allOut = () => sent.map((r) => `${r.system ?? ''}\n${r.prompt}`).join('\n');
 

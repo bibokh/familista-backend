@@ -15,6 +15,7 @@ import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
 import { AIReader, accessTier, assertAIReader, assertMayAct, assertNotDeclaredKind, listConditions, presentJob, presentList } from '../security/ai-read-policy';
 import { publishAIRequestCreated } from '../fabric/producers/ai.producer';
+import { assertMayCreateAgentWork } from '../platform/intelligence/execution-gate';
 
 export interface AutomationActor {
   userId:     string;
@@ -157,6 +158,8 @@ export async function enqueueAgentJob(actor: AutomationActor, dto: EnqueueAgentJ
   if (!dto.kind || dto.kind.length > 80) throw new BadRequestError('kind must be 1..80 chars');
   // The input is the caller's; the job cannot pass as one the server assembled.
   assertNotDeclaredKind('job', dto.agent, dto.kind);
+  // Only a signed-in person's request creates AI work; never an agent or a timer.
+  assertMayCreateAgentWork();
   const job = await prisma.aIAgentJob.create({
     data: {
       clubId:      actor.clubId,

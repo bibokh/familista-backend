@@ -24,6 +24,7 @@ import { prisma }  from '../config/database';
 import { NotFoundError } from '../utils/errors';
 import { accessTier, assertAIReader, listConditions, presentJob, presentList, tierOf } from '../security/ai-read-policy';
 import { publishAIRequestCreated } from '../fabric/producers/ai.producer';
+import { assertMayCreateAgentWork } from '../platform/intelligence/execution-gate';
 
 export interface IntelligenceActor {
   userId: string;
@@ -453,6 +454,8 @@ async function _createJob(
   context:  unknown,
   entityId: string,
 ) {
+  // Only a signed-in person's request creates AI work; never an agent or a timer.
+  assertMayCreateAgentWork();
   const job = await prisma.aIAgentJob.create({
     data: {
       clubId: actor.clubId,

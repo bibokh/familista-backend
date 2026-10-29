@@ -34,6 +34,7 @@ import type {
   UpdateStepInput,
 } from '../utils/executive.validators';
 import type { ExecutiveActor } from '../types/executive.types';
+import { withWorkflow } from '../platform/intelligence/execution-gate';
 
 const TRANSITIONS: Record<ExecutiveWorkflowStatus, ReadonlyArray<ExecutiveWorkflowStatus>> = {
   DRAFT:             ['IN_REVIEW', 'CANCELLED'],
@@ -305,7 +306,8 @@ export async function runNextStep(
   });
 
   const stepParams = (next.params as Record<string, unknown>) ?? {};
-  const result = await executeStep(actor, next.engine, next.action, stepParams);
+  // Every model call a step makes counts against this workflow's AI budget (execution-gate.ts).
+  const result = await withWorkflow(workflowId, () => executeStep(actor, next.engine, next.action, stepParams));
 
   const finalStatus = result.ok
     ? (result.requiresHuman ? 'REQUIRES_HUMAN' : 'COMPLETED')

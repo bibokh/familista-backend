@@ -559,5 +559,19 @@
   "AI Agents Operations Room": "غرفة عمليات وكلاء الذكاء الاصطناعي",
   "READ-ONLY": "للقراءة فقط",
   "Every agent in the Agent Registry, by domain and scope: its manifest, what it may do and touch, who answers for it, and whether the registry still agrees with what runs.": "كل وكيل في سجل الوكلاء، حسب المجال والنطاق: بيانه، وما يجوز له فعله ولمسه، ومن المسؤول عنه، وما إذا كان السجل لا يزال يطابق ما يعمل فعلاً.",
-  "Open the Operations Room": "افتح غرفة العمليات"
+  "Open the Operations Room": "افتح غرفة العمليات",
+  "Paid AI execution": "التنفيذ المدفوع للذكاء الاصطناعي",
+  "On": "مُشغَّل",
+  "Off": "متوقف",
+  "The switch could not be read, so paid AI execution is treated as off.": "تعذّرت قراءة المفتاح، لذا يُعامَل التنفيذ المدفوع للذكاء الاصطناعي كمتوقف.",
+  "Paid model calls are allowed, within the configured budgets. Switching off refuses every new call at once; a call already sent finishes.": "طلبات النماذج المدفوعة مسموحة، ضمن الميزانيات المُهيّأة. الإيقاف يرفض كل طلب جديد فوراً؛ أما الطلب المُرسَل فيكتمل.",
+  "Paid model calls are refused. AI features answer with their deterministic results or say that AI is switched off. Switching on allows calls within the configured budgets.": "طلبات النماذج المدفوعة مرفوضة. تجيب ميزات الذكاء الاصطناعي بنتائجها الحتمية أو تُبلغ أن الذكاء الاصطناعي متوقف. التشغيل يسمح بالطلبات ضمن الميزانيات المُهيّأة.",
+  "Reason recorded:": "السبب المسجَّل:",
+  "Switch paid AI off": "إيقاف الذكاء الاصطناعي المدفوع",
+  "Switch paid AI on": "تشغيل الذكاء الاصطناعي المدفوع",
+  "Usage, budgets and prices are in the AI Agents Operations Room.": "الاستخدام والميزانيات والأسعار في غرفة عمليات وكلاء الذكاء الاصطناعي.",
+  "Why is paid AI execution being switched on?\n\nThe reason is recorded with the change.": "لماذا يُشغَّل التنفيذ المدفوع للذكاء الاصطناعي؟\n\nيُسجَّل السبب مع التغيير.",
+  "Why is paid AI execution being switched off?\n\nThe reason is recorded with the change.": "لماذا يُوقَف التنفيذ المدفوع للذكاء الاصطناعي؟\n\nيُسجَّل السبب مع التغيير.",
+  "Give a reason of at least 3 characters.": "اكتب سبباً من 3 أحرف على الأقل.",
+  "Switch paid AI execution on?\n\nModel calls will be made and charged by the provider, within the configured budgets.": "تشغيل التنفيذ المدفوع للذكاء الاصطناعي؟\n\nستُجرى طلبات للنماذج ويحتسبها المزوّد، ضمن الميزانيات المُهيّأة."
 }

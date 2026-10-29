@@ -11,13 +11,18 @@
      GET /system/agents            the registry: its digest and counts, the
                                    invariants the server computes, every agent
      GET /system/agents/:agentId   one manifest in full
+     GET /system/agents/cost       paid AI execution: the switch, the limits,
+                                   the prices and what the execution gate
+                                   counted — platform-wide, estimates only
 
    READ-ONLY
 
    Nothing here starts, stops, changes or activates an agent, and nothing here
    ever will: a manifest changes in a reviewed pull request, and the kill switch
    stays in SYSTEM → AI Agent Control. This room shows the switch's state, as the
-   registry endpoint reports it, and offers no way to move it.
+   registry endpoint reports it, and offers no way to move it. The same holds for
+   the AI EXECUTION switch for paid model calls: its state and what it has
+   counted are drawn here; it is moved only in SYSTEM → AI Agent Control.
 
    DISCOVERED, NOT LISTED
 
@@ -46,7 +51,7 @@
     detailError: {},
     open: null,            // the agent in the inspector, or null
     opener: null,          // where focus returns when the inspector closes
-    view: 'map',           // map | catalogue | workflows
+    view: 'map',           // map | catalogue | workflows | cost
     q: '', scope: 'all', domain: 'all', lifecycle: 'all',
     langOpen: false,
     refreshing: false,
@@ -56,6 +61,9 @@
     pub: null,             // GET /system/agents/publications: approved LAB executions, verified (AI-0.5)
     pubError: null,
     pubLoading: false,
+    cost: null,            // GET /system/agents/cost: paid AI execution, limits and counted usage
+    costError: null,
+    costLoading: false,
     run: null,             // the LAB workflow drawn: a v1 run's id, or 'x:' + a publication's id
     task: null,            // the task whose decisions are shown
     traceAll: true,        // the trace shows every event, or only the chosen task's
@@ -206,6 +214,15 @@
     'platform-agents-no-personal-data': 'Platform agents touch no personal data',
     'nothing-activated': 'Nothing new is activated',
   };
+  /** Why the execution gate refused a call. A rule this file does not know is drawn humanised. */
+  var REFUSAL_LABEL = {
+    disabled: 'Paid AI switched off', origin: 'No authorised origin', autonomous: 'Background or scheduled call',
+    config: 'Invalid limit or price setting', pricing: 'No price for the model', 'request-limit': 'Per-request limit',
+    concurrency: 'Too many calls at once', 'workflow-budget': 'Workflow budget', 'agent-budget': 'Agent run budget',
+    budget: 'Club daily budget', 'daily-budget': 'Platform daily budget', 'monthly-budget': 'Platform monthly budget',
+    restricted: 'Restricted data', audit: 'Usage record unavailable', 'no-model': 'No model configured',
+  };
+
   /** The data-class ladder, lowest first. A class this file does not know is placed after it. */
   var CLASS_ORDER = ['PUBLIC', 'INTERNAL', 'CONFIDENTIAL', 'RESTRICTED'];
 
@@ -422,8 +439,8 @@
         + ' aria-selected="' + (on ? 'true' : 'false') + '" aria-controls="ar-view" tabindex="' + (on ? '0' : '-1') + '">' + esc(T(text)) + '</button>';
     };
     return '<div class="ar-toolbar"><div class="ar-tabs" role="tablist" aria-label="' + esc(T('Views')) + '">'
-      + tab('map', 'Registry map') + tab('catalogue', 'Catalogue') + tab('workflows', 'LAB workflows') + '</div>'
-      + '<div class="ar-filters' + (AR.view === 'workflows' ? ' is-idle' : '') + '"' + (AR.view === 'workflows' ? ' aria-hidden="true"' : '') + '>'
+      + tab('map', 'Registry map') + tab('catalogue', 'Catalogue') + tab('workflows', 'LAB workflows') + tab('cost', 'AI cost control') + '</div>'
+      + '<div class="ar-filters' + (filtersIdle() ? ' is-idle' : '') + '"' + (filtersIdle() ? ' aria-hidden="true"' : '') + '>'
       + '<label class="ar-field ar-field--q"><span class="ar-sr">' + esc(T('Search agents')) + '</span>'
       + '<input class="ar-input" id="ar-q" type="search" autocomplete="off" spellcheck="false" value="' + esc(AR.q) + '" placeholder="' + esc(T('Search agents, ids, domains…')) + '"></label>'
       + select('ar-scope', 'Scope', 'All scopes', scopes(), SCOPE_LABEL, AR.scope)
@@ -432,8 +449,11 @@
       + '<span class="ar-count" id="ar-count" role="status">' + esc(countText()) + '</span>'
       + '</div></div>';
   }
+  /** The filters belong to the agents; on the workflows and the cost view they stand idle, in place, so the toolbar does not move. */
+  function filtersIdle() { return AR.view === 'workflows' || AR.view === 'cost'; }
   function countText() {
     if (AR.view === 'workflows') return AR.wf ? tf('LAB workflows: %d', wfRuns().length) : '';
+    if (AR.view === 'cost') return '';
     return tf('Showing %d of %d agents', filtered().length, agents().length);
   }
 
@@ -1245,6 +1265,148 @@
     Promise.all(reads).then(function () { pickRun(); if (AR.view === 'workflows') repaintView(host, false); });
   }
 
+  // ── AI cost control ───────────────────────────────────────────────────────
+  //
+  // Read-only. What the AI execution gate allows (the Platform Owner's switch,
+  // the limits, the prices) and what it has counted, platform-wide: no club is
+  // named here. Every cost is an ESTIMATE from configured prices and the
+  // provider's reported token counts, and the view says so; the provider's own
+  // billing is the record of what was charged. The switch is moved only in
+  // SYSTEM → AI Agent Control.
+
+  function loadCost() {
+    AR.costLoading = true;
+    return api('/system/agents/cost').then(function (d) {
+      var missing = missingFields(d, ['basis', 'execution', 'limits', 'models', 'configErrors']);
+      if (missing.length) { AR.cost = null; AR.costError = contractError('/system/agents/cost', missing); return; }
+      AR.cost = d;
+      AR.costError = null;
+    }).catch(function (e) { AR.cost = null; AR.costError = e.message; }).then(function () { AR.costLoading = false; });
+  }
+  /** Read once. A failed read waits for the owner's "Try again" or Refresh, so a broken reply is never re-requested in a loop. */
+  function openCost(host) {
+    if (AR.cost || AR.costLoading || AR.costError) return;
+    loadCost().then(function () { if (AR.view === 'cost') repaintView(host, false); });
+  }
+
+  /** An estimated amount in US dollars, localised; small amounts keep their cents' fractions. */
+  function usd(v) {
+    if (typeof v !== 'number' || !isFinite(v)) return '—';
+    try { return new Intl.NumberFormat(AR_LANG, { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: v !== 0 && Math.abs(v) < 1 ? 4 : 2 }).format(v); }
+    catch (_) { return '$' + v.toFixed(2); }
+  }
+  function utcTime(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    try { return d.toLocaleString(AR_LANG, { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' }) + ' UTC'; }
+    catch (_) { return iso; }
+  }
+  /** Used against its limit: a hairline track whose fill turns amber from 90%. */
+  function meter(used, limit) {
+    var pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 1000) / 10) : 0;
+    return '<svg class="ar-bar-track ar-cost-meter' + (pct >= 90 ? ' is-near' : '') + '" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true" focusable="false">'
+      + '<rect class="ar-bar-bg" width="100" height="4" rx="2"/><rect class="ar-bar-fill" width="' + pct + '" height="4" rx="2"/></svg>';
+  }
+
+  function costHtml() {
+    if (AR.costError && !AR.cost) {
+      return emptyState('The AI cost record could not be read', AR.costError,
+        '<button class="ar-btn ar-btn--sm" type="button" data-ar-cost-retry>' + esc(T('Try again')) + '</button>');
+    }
+    if (!AR.cost) return '<div class="ar-skel-map" role="status" aria-label="' + esc(T('Reading the AI cost record…')) + '"></div>';
+    var c = AR.cost, x = c.execution || {}, l = c.limits || {}, u = c.usage;
+    var cell = function (k, v, sub) {
+      return '<div class="ar-cell"><div class="ar-cell-k">' + esc(T(k)) + '</div><div class="ar-cell-v">' + v + '</div><div class="ar-cell-sub">' + (sub || '&nbsp;') + '</div></div>';
+    };
+    var state = !x.readable ? chip('warn', T('Unreadable: treated as off'), '', 'ar-chip--sm')
+      : x.enabled ? chip('ok', T('On: paid calls allowed within the budgets'), '', 'ar-chip--sm')
+        : chip('none', T('Off: every paid call is refused'), '', 'ar-chip--sm');
+    var rail = '<section class="ar-cost-rail" aria-label="' + esc(T('Paid AI execution')) + '">'
+      + cell('AI execution', state, x.reason ? '<span data-user-content>' + esc(x.reason) + '</span>' : esc(T('Changed only in SYSTEM → AI Agent Control.')))
+      + cell('Kill switch', chip(c.killSwitch && c.killSwitch.engaged ? 'warn' : 'none', c.killSwitch && c.killSwitch.engaged ? T('Engaged: autonomous actions stopped') : T('Not engaged'), '', 'ar-chip--sm'),
+        esc(T('Stops agent actions. Paid calls have their own switch.')))
+      + cell('Autonomous execution', chip('none', T('Not available'), '', 'ar-chip--sm'), esc(T('No setting turns it on.')))
+      + cell('Provider key', chip(c.providerConfigured ? 'neutral' : 'none', c.providerConfigured ? T('Configured') : T('Not configured'), '', 'ar-chip--sm'),
+        esc(T('Its value never leaves the server.')))
+      + cell('Calls in flight', '<span class="ar-big">' + esc(u ? num(u.inFlight) : '—') + '</span>', esc(tf('At most %d at once', l.maxConcurrent)))
+      + '</section>';
+
+    var notes = (c.configErrors && c.configErrors.length
+      ? '<div class="ar-cost-alert" role="alert"><strong>' + esc(T('Every paid call is refused until these settings are corrected:')) + '</strong> '
+        + c.configErrors.map(function (n) { return code(n); }).join(' ') + '</div>' : '')
+      + ((c.models || []).some(function (m) { return !m.priced; })
+        ? '<div class="ar-cost-alert" role="note"><strong>' + esc(T('A model without a configured price is never called.')) + '</strong> '
+          + esc(T('Prices are set in AI_MODEL_PRICING, in US dollars per million tokens.')) + '</div>' : '');
+
+    var windowPanel = function (title, w, tokenLimit, costLimit, remainingTokens, remainingCost) {
+      if (!w) return panel(title, emptyState('No usage is recorded', T(c.unavailable || 'The usage record could not be read.')));
+      return panel(title,
+        '<div class="ar-cost-figure"><div class="ar-kv-k">' + esc(T('Tokens counted')) + '</div>'
+          + '<div class="ar-cost-num"><span class="ar-big">' + esc(num(w.chargedTokens)) + '</span> <span class="ar-cell-sub">' + esc(tf('of %d', tokenLimit)) + '</span></div>' + meter(w.chargedTokens, tokenLimit) + '</div>'
+        + '<div class="ar-cost-figure"><div class="ar-kv-k">' + esc(T('Estimated cost')) + '</div>'
+          + '<div class="ar-cost-num"><span class="ar-big">' + esc(usd(w.estimatedCostUsd)) + '</span> <span class="ar-cell-sub">' + esc(T('of')) + ' ' + esc(usd(costLimit)) + '</span></div>' + meter(w.estimatedCostUsd, costLimit) + '</div>'
+        + kv('Remaining', esc(num(remainingTokens)) + ' · ' + esc(usd(remainingCost)))
+        + kv('Reported by the provider', esc(tf('%d input · %d output tokens', w.reportedTokensIn, w.reportedTokensOut)) + ' · ' + esc(usd(w.reportedEstimatedCostUsd)))
+        + kv('Calls', esc(num(w.calls)))
+        + kv('Refused', esc(num(w.refused))),
+        esc(T('UTC')));
+    };
+    var periods = '<div class="ar-cost-grid">'
+      + windowPanel('Today', u && u.day, l.dailyTokens, l.dailyCostUsd, u && u.remaining.dayTokens, u && u.remaining.dayCostUsd)
+      + windowPanel('This month', u && u.month, l.monthlyTokens, l.monthlyCostUsd, u && u.remaining.monthTokens, u && u.remaining.monthCostUsd)
+      + '</div>';
+
+    var th = function (t, cls) { return '<th scope="col"' + (cls ? ' class="' + cls + '"' : '') + '>' + esc(T(t)) + '</th>'; };
+    /** A figure cell that names itself when the table becomes cards on a phone. */
+    var td = function (l, v) { return '<td class="ar-num" data-l="' + esc(T(l)) + '">' + esc(v) + '</td>'; };
+    var byModel = u && u.byModel.length
+      ? '<div class="ar-table-wrap" role="region" tabindex="0" aria-label="' + esc(T('Usage by model this month')) + '"><table class="ar-table ar-table--cost"><caption class="ar-sr">' + esc(T('Usage by model this month')) + '</caption><thead><tr>'
+        + th('Model') + th('Calls', 'ar-num') + th('Input tokens', 'ar-num') + th('Output tokens', 'ar-num') + th('Estimated cost', 'ar-num') + '</tr></thead><tbody>'
+        + u.byModel.map(function (m) { return '<tr><td>' + code(m.model) + '</td>' + td('Calls', num(m.calls)) + td('Input tokens', num(m.tokensIn))
+          + td('Output tokens', num(m.tokensOut)) + td('Estimated cost', usd(m.estimatedCostUsd)) + '</tr>'; }).join('') + '</tbody></table></div>'
+      : emptyState('No paid AI call this month', T('A call appears here once the switch is on and a person asks for AI work.'));
+    var byAgent = u && u.byAgent.length
+      ? '<div class="ar-table-wrap" role="region" tabindex="0" aria-label="' + esc(T('Usage by agent this month')) + '"><table class="ar-table ar-table--cost"><caption class="ar-sr">' + esc(T('Usage by agent this month')) + '</caption><thead><tr>'
+        + th('Agent or engine') + th('Calls', 'ar-num') + th('Tokens counted', 'ar-num') + th('Estimated cost', 'ar-num') + '</tr></thead><tbody>'
+        + u.byAgent.map(function (a) { return '<tr><td>' + code(a.agent) + '</td>' + td('Calls', num(a.calls)) + td('Tokens counted', num(a.tokens))
+          + td('Estimated cost', usd(a.estimatedCostUsd)) + '</tr>'; }).join('') + '</tbody></table></div>'
+      : emptyState('No agent has made a paid call this month', T('Agent work is counted per job, against its own budget.'));
+    var usage = '<div class="ar-cost-grid">' + panel('Usage by model', byModel, esc(T('This month'))) + panel('Usage by agent', byAgent, esc(T('This month'))) + '</div>';
+
+    var refusals = u && u.refusals.length
+      ? bars(u.refusals.map(function (r) { return { label: label(REFUSAL_LABEL, r.reason), value: r.count }; }))
+      : emptyState('Nothing has been refused this month', T('A refused call is counted here with the rule that refused it.'));
+    var events = u && u.budgetEvents.length
+      ? '<ul class="ar-cost-events">' + u.budgetEvents.map(function (e) {
+        return '<li><span class="ar-cost-when">' + esc(utcTime(e.at)) + '</span>' + chip('warn', label(REFUSAL_LABEL, e.reason), '', 'ar-chip--xs') + '</li>'; }).join('') + '</ul>'
+      : emptyState('No budget limit has been reached', T('When a budget refuses a call, the time and the budget appear here.'));
+    var refused = '<div class="ar-cost-grid">' + panel('Refused requests', refusals, esc(T('This month')))
+      + panel('Budget-limit events', events, esc(u ? tf('Reservations exceeded by reported usage: %d', u.overruns) : '—')) + '</div>';
+
+    var lim = function (k, v) { return kv(k, esc(v)); };
+    var limits = panel('Limits', lim('Per request', tf('%d tokens', l.perRequestTokens)) + lim('Per workflow', tf('%d tokens', l.perWorkflowTokens))
+      + lim('Per agent run', tf('%d tokens', l.perAgentRunTokens)) + lim('Per club per day', tf('%d tokens', l.clubDailyTokens))
+      + lim('Platform per day', tf('%d tokens', l.dailyTokens) + ' · ' + usd(l.dailyCostUsd))
+      + lim('Platform per month', tf('%d tokens', l.monthlyTokens) + ' · ' + usd(l.monthlyCostUsd))
+      + lim('Concurrent calls', num(l.maxConcurrent)),
+      esc(T('Input and output tokens count together.')));
+    var prices = panel('Model prices',
+      (c.models || []).length
+        ? '<div class="ar-table-wrap" role="region" tabindex="0" aria-label="' + esc(T('Configured model prices')) + '"><table class="ar-table ar-table--cost"><caption class="ar-sr">' + esc(T('Configured model prices')) + '</caption><thead><tr>'
+          + th('Model') + th('Input, per million tokens', 'ar-num') + th('Output, per million tokens', 'ar-num') + '</tr></thead><tbody>'
+          + c.models.map(function (m) {
+            return '<tr><td>' + code(m.providerModel) + '</td>' + (m.priced
+              ? td('Input, per million tokens', usd(m.inputPerMTokUsd)) + td('Output, per million tokens', usd(m.outputPerMTokUsd))
+              : '<td colspan="2">' + chip('warn', T('No price: never called'), '', 'ar-chip--xs') + '</td>') + '</tr>';
+          }).join('') + '</tbody></table></div>'
+        : emptyState('No model is configured', T('With no model, every AI feature uses its deterministic result.')),
+      esc(T('US dollars')));
+    var config = '<div class="ar-cost-grid">' + limits + prices + '</div>';
+
+    var basis = '<p class="ar-foot-note">' + esc(T('Every cost here is an estimate from the configured prices and the token counts the provider reported. It is not the provider\'s invoice: the provider\'s billing is the record of what was charged.')) + '</p>';
+    return '<div class="ar-cost">' + rail + notes + periods + usage + refused + config + basis + '</div>';
+  }
+
   // ── paint ─────────────────────────────────────────────────────────────────
 
   function viewHtml() {
@@ -1254,6 +1416,7 @@
     }
     if (!AR.data) return '<div class="ar-skel-map" role="status" aria-label="' + esc(T('Reading the registry…')) + '"></div>';
     if (AR.view === 'workflows') return workflowsHtml();
+    if (AR.view === 'cost') return costHtml();
     return AR.view === 'catalogue' ? catalogueHtml() : mapViewHtml();
   }
 
@@ -1280,13 +1443,13 @@
     view.scrollTop = y;
     var count = host.querySelector('#ar-count');
     if (count) count.textContent = countText();
-    // The filters belong to the agents; on the workflows they stand idle, in place, so the toolbar does not move.
     var filters = host.querySelector('.ar-filters');
     if (filters) {
-      filters.classList.toggle('is-idle', AR.view === 'workflows');
-      if (AR.view === 'workflows') filters.setAttribute('aria-hidden', 'true'); else filters.removeAttribute('aria-hidden');
+      filters.classList.toggle('is-idle', filtersIdle());
+      if (filtersIdle()) filters.setAttribute('aria-hidden', 'true'); else filters.removeAttribute('aria-hidden');
     }
     if (AR.view === 'workflows') openWorkflows(host);
+    if (AR.view === 'cost') openCost(host);
     var tabs = host.querySelectorAll('[data-ar-view]');
     for (var i = 0; i < tabs.length; i++) {
       var on = tabs[i].getAttribute('data-ar-view') === AR.view;
@@ -1370,6 +1533,7 @@
     AR.detail = {}; AR.detailError = {};
     AR.wf = null; AR.wfError = null;
     AR.pub = null; AR.pubError = null;
+    AR.cost = null; AR.costError = null;
     var btn = host.querySelector('.ar-top [data-ar-refresh]');
     if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.textContent = T('Reading…'); }
     loadOverview().then(function () {
@@ -1378,6 +1542,7 @@
       AR.open = null;
       paint(host);
       if (AR.view === 'workflows') openWorkflows(host);
+      if (AR.view === 'cost') openCost(host);
       if (open && summaryOf(open)) openAgent(host, open, null);
     });
   }
@@ -1469,6 +1634,7 @@
         return;
       }
       if (t.closest('[data-ar-wf-retry]')) { AR.wfError = null; repaintView(host, false); openWorkflows(host); return; }
+      if (t.closest('[data-ar-cost-retry]')) { AR.costError = null; repaintView(host, false); return; }
       if (t.closest('[data-ar-pub-retry]')) { AR.pubError = null; repaintView(host, false); openWorkflows(host); return; }
       var dom = t.closest('[data-ar-domain], [data-ar-sector]');
       if (dom) {

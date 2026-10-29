@@ -22,20 +22,32 @@
 //                      a token ([P1], [P2] …) before anything leaves, and put
 //                      back in the answer, so the provider never sees a name
 //                      and the reader still does.
-//   3. budget          a per-club daily token budget (AI_CLUB_DAILY_TOKEN_BUDGET,
-//                      default 200 000), counted from the egress records.
-//   4. record          one AiEgressRecord row is written BEFORE the provider is
-//                      called (no record, no call) and completed after: caller,
-//                      purpose, classes, model, tokens, outcome. Never the
-//                      prompt and never the answer.
+//   3. execution gate  (execution-gate.ts) the call needs an authorised origin
+//                      and the Platform Owner's AI EXECUTION switch ON, and its
+//                      most possible usage is RESERVED against every budget —
+//                      per request, workflow, agent run, club day, platform day
+//                      and month, concurrent calls — atomically (ai-ledger.ts).
+//                      Default deny: no switch row, no price for the model, an
+//                      invalid limit or an unreadable ledger refuses the call.
+//   4. record          the reservation IS the AiEgressRecord row, written BEFORE
+//                      the provider is called (no record, no call) and settled
+//                      after to the provider-reported usage: caller, purpose,
+//                      classes, model, tokens, estimated cost, outcome. Never
+//                      the prompt and never the answer.
 //   5. untrusted       the answer is data, not instructions: control characters
 //                      are stripped, length is capped and, when the caller gives
 //                      a schema, it must parse and validate or it is refused.
 
 import type { ZodTypeAny } from 'zod';
+import { config } from '../../config';
 import { currentEnvironment } from '../environment';
 import { highest, type DataClass } from './data-classes';
 import { clubAiPolicy } from './club-ai-policy';
+import {
+  aiPolicyConfig, costMicros, inputTokenUpperBound, originVerdict,
+  type AiLimits, type BudgetRefusal, type GateRefusal, type ReservationAsk, type Verdict,
+} from './execution-gate';
+import { prismaAiLedger } from './ai-ledger';
 
 export type ProviderId = 'anthropic' | 'openai' | 'local' | 'none';
 
@@ -86,8 +98,8 @@ export interface GatewayResult {
   provider: ProviderId | null;
   /** Present when ok is false. A reason, never a stack trace. */
   refusedBecause?: string;
-  /** Which rule refused it, when one did. */
-  refusal?: 'no-model' | 'restricted' | 'budget' | 'audit' | 'provider' | 'invalid-output';
+  /** Which rule refused it, when one did. The execution gate's rules are execution-gate.ts's GateRefusal. */
+  refusal?: 'no-model' | 'restricted' | 'audit' | 'provider' | 'invalid-output' | GateRefusal;
   /** The validated answer, when an output schema was given. */
   data?: unknown;
   /** How many names were replaced before the call. */
@@ -124,7 +136,7 @@ export function resetGateway(): void {
   providers.clear();
   models.clear();
   usage.length = 0;
-  recorder = prismaRecorder;
+  recorder = prismaAiLedger;
 }
 
 /**
@@ -167,60 +179,28 @@ export interface EgressRecord {
   dataClasses: DataClass[]; pseudonymised: number;
   outcome: 'STARTED' | 'OK' | 'REFUSED' | 'FAILED' | 'INVALID_OUTPUT';
   reason?: string | null; tokensIn?: number | null; tokensOut?: number | null; durationMs?: number | null;
+  reservedTokens?: number | null; reservedCostMicros?: number | null; costMicros?: number | null;
+  workflowId?: string | null; agentRunId?: string | null; agent?: string | null; origin?: string | null;
 }
 
 export interface EgressRecorder {
-  /** Writes a record; returns its id. Throws when it cannot be written. */
+  /** Writes a record (a refusal made before any reservation); returns its id. Throws when it cannot be written. */
   start(r: EgressRecord): Promise<string>;
+  /**
+   * Atomically: reads the switch and the usage every budget counts, decides,
+   * and writes the STARTED record holding the reservation, or the REFUSED one.
+   * Throws when the ledger cannot be read or written.
+   */
+  reserve(r: EgressRecord, ask: ReservationAsk, limits: AiLimits, now?: Date): Promise<{ id: string } | { refused: Exclude<Verdict, { ok: true }> }>;
+  /** Settles a reserved call to its outcome and reported usage. */
   finish(id: string, r: Partial<EgressRecord>): Promise<void>;
-  /** Tokens spent today (UTC) for a club, or for platform calls when null. */
-  spentToday(clubId: string | null): Promise<number>;
+  /** The Platform Owner's switch as stored. Throws when it cannot be read; the gateway then refuses the call. */
+  executionEnabled(): Promise<boolean>;
 }
 
-const prismaRecorder: EgressRecorder = {
-  async start(r) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { prisma } = require('../../config/database') as typeof import('../../config/database');
-    const row = await prisma.aiEgressRecord.create({
-      data: {
-        caller: r.caller, purpose: r.purpose, clubId: r.clubId, model: r.model, provider: r.provider,
-        dataClasses: r.dataClasses, pseudonymised: r.pseudonymised, outcome: r.outcome, reason: r.reason ?? null,
-      },
-      select: { id: true },
-    });
-    return row.id;
-  },
-  async finish(id, r) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { prisma } = require('../../config/database') as typeof import('../../config/database');
-    await prisma.aiEgressRecord.update({
-      where: { id },
-      data: {
-        outcome: r.outcome, reason: r.reason ?? null,
-        tokensIn: r.tokensIn ?? null, tokensOut: r.tokensOut ?? null, durationMs: r.durationMs ?? null,
-      },
-    });
-  },
-  async spentToday(clubId) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { prisma } = require('../../config/database') as typeof import('../../config/database');
-    const since = new Date(); since.setUTCHours(0, 0, 0, 0);
-    const agg = await prisma.aiEgressRecord.aggregate({
-      where: { clubId, createdAt: { gte: since } },
-      _sum: { tokensIn: true, tokensOut: true },
-    });
-    return (agg._sum.tokensIn ?? 0) + (agg._sum.tokensOut ?? 0);
-  },
-};
-
-let recorder: EgressRecorder = prismaRecorder;
+let recorder: EgressRecorder = prismaAiLedger;
 /** Tests only: where egress records go. */
 export function setEgressRecorder(r: EgressRecorder): void { recorder = r; }
-
-export function dailyTokenBudget(): number {
-  const n = Number(process.env.AI_CLUB_DAILY_TOKEN_BUDGET);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 200_000;
-}
 
 // ── pseudonyms ──────────────────────────────────────────────────────────────
 
@@ -309,14 +289,30 @@ export async function complete(req: GatewayRequest): Promise<GatewayResult> {
   const started = Date.now();
   const clubId = req.clubId ?? null;
   const dataClasses: DataClass[] = req.dataClasses && req.dataClasses.length ? [...new Set(req.dataClasses)] : ['RESTRICTED'];
+  const origin = originVerdict();
   const base: EgressRecord = {
     caller: req.caller, purpose: req.purpose, clubId, model: model.id, provider: model.provider,
     dataClasses, pseudonymised: 0, outcome: 'STARTED',
+    ...(origin.ok ? { workflowId: origin.workflowId, agentRunId: origin.agentRunId, agent: origin.agent, origin: origin.origin } : {}),
   };
+  const refusedResult = (refusal: NonNullable<GatewayResult['refusal']>, reason: string): GatewayResult =>
+    ({ ok: false, text: null, model: model.id, provider: model.provider, refusedBecause: reason, refusal, environment });
   const refuse = async (refusal: NonNullable<GatewayResult['refusal']>, reason: string): Promise<GatewayResult> => {
     try { await recorder.start({ ...base, outcome: 'REFUSED', reason: refusal }); } catch { /* the refusal stands either way */ }
-    return { ok: false, text: null, model: model.id, provider: model.provider, refusedBecause: reason, refusal, environment };
+    return refusedResult(refusal, reason);
   };
+
+  // 0 · the execution gate: an authorised origin, the owner's switch, valid limits, a price
+  if (!origin.ok) return refuse(origin.refusal, origin.reason);
+  let enabled: boolean;
+  try { enabled = await recorder.executionEnabled(); } catch {
+    return refuse('audit', 'The AI execution switch cannot be read, so nothing is sent');
+  }
+  if (!enabled) return refuse('disabled', 'Paid AI execution is switched off by the Platform Owner');
+  const policy = aiPolicyConfig();
+  if (policy.errors.length) return refuse('config', `AI limits are misconfigured (${policy.errors.join(', ')}), so nothing is sent`);
+  const price = policy.pricing[model.providerModel];
+  if (!price) return refuse('pricing', 'No price is configured for this model, so its cost cannot be budgeted');
 
   // 1 · classification
   if (highest(dataClasses) === 'RESTRICTED' && !(await clubAiPolicy(clubId)).restrictedEgress) {
@@ -329,20 +325,44 @@ export async function complete(req: GatewayRequest): Promise<GatewayResult> {
   const system = req.system !== undefined ? pseudo.apply(req.system) : null;
   const pseudonymised = prompt.count + (system?.count ?? 0);
 
-  // 3 · budget
-  let spent: number;
-  try { spent = await recorder.spentToday(clubId); } catch { return refuse('audit', 'The AI usage record cannot be read, so nothing is sent'); }
-  if (spent >= dailyTokenBudget()) return refuse('budget', 'The daily AI budget for this club is used up');
-
-  // 4 · record, before anything leaves
-  let recordId: string;
-  try { recordId = await recorder.start({ ...base, pseudonymised }); } catch {
-    return { ok: false, text: null, model: model.id, provider: model.provider, refusedBecause: 'The AI call cannot be recorded, so it is not made', refusal: 'audit', environment };
+  // 3 · the most this call could use: the input's upper bound and the output cap the provider is held to
+  const maxOutputTokens = req.maxOutputTokens ?? config.anthropic.maxTokens;
+  // A cap that is not a positive whole number (a malformed setting reads as NaN) would compare false
+  // against every limit and pass them all: it is refused instead.
+  if (!Number.isInteger(maxOutputTokens) || maxOutputTokens <= 0) {
+    return refuse('config', 'The output cap of this call is not a positive whole number, so nothing is sent');
   }
-  const finish = (r: Partial<EgressRecord>) => recorder.finish(recordId, { ...r, durationMs: Date.now() - started }).catch(() => undefined);
+  const inputUpper = inputTokenUpperBound(prompt.text, system?.text);
+  const ask: ReservationAsk = {
+    tokens: inputUpper + maxOutputTokens,
+    costMicros: costMicros(inputUpper, maxOutputTokens, price),
+    workflowId: origin.workflowId,
+    agentRunId: origin.agentRunId,
+  };
+  if (ask.tokens > policy.limits.perRequestTokens) {
+    return refuse('request-limit', 'This request could use more tokens than one AI call is allowed');
+  }
+
+  // 4 · reserve and record, atomically, before anything leaves (no record, no call)
+  let recordId: string;
+  try {
+    const held = await recorder.reserve({ ...base, pseudonymised }, ask, policy.limits);
+    if ('refused' in held) return refusedResult(held.refused.refusal as BudgetRefusal, held.refused.reason);
+    recordId = held.id;
+  } catch {
+    return refusedResult('audit', 'The AI call cannot be recorded, so it is not made');
+  }
+  /** Settles to the provider's count when it gave one; otherwise the reservation stands as the charge. */
+  const finish = (r: Partial<EgressRecord>, used?: GatewayResult['usage']) => {
+    const reported = typeof used?.inputTokens === 'number' && typeof used?.outputTokens === 'number';
+    const tokens = reported
+      ? { tokensIn: used!.inputTokens!, tokensOut: used!.outputTokens!, costMicros: costMicros(used!.inputTokens!, used!.outputTokens!, price) }
+      : {};
+    return recorder.finish(recordId, { ...r, ...tokens, durationMs: Date.now() - started }).catch(() => undefined);
+  };
 
   const provider = providers.get(model.provider)!;
-  const outbound: GatewayRequest = { ...req, prompt: prompt.text, ...(system ? { system: system.text } : {}) };
+  const outbound: GatewayRequest = { ...req, prompt: prompt.text, maxOutputTokens, ...(system ? { system: system.text } : {}) };
   let out: { text: string; usage?: GatewayResult['usage'] };
   try {
     out = await provider.complete(outbound, model);
@@ -357,23 +377,22 @@ export async function complete(req: GatewayRequest): Promise<GatewayResult> {
     };
   }
   usage.push({ at: new Date().toISOString(), caller: req.caller, model: model.id, provider: model.provider, clubId });
-  const tokens = { tokensIn: out.usage?.inputTokens ?? null, tokensOut: out.usage?.outputTokens ?? null };
 
   // 5 · the answer is untrusted
   const cleaned = untrusted(out.text ?? '', req.maxOutputChars ?? 20_000);
   if (req.outputSchema) {
     let parsed: unknown;
     try { parsed = req.outputSchema.parse(parseJson(pseudo.restore(cleaned, { json: true }))); } catch {
-      await finish({ outcome: 'INVALID_OUTPUT', reason: 'schema', ...tokens });
+      await finish({ outcome: 'INVALID_OUTPUT', reason: 'schema' }, out.usage);
       return {
         ok: false, text: null, model: model.id, provider: model.provider, usage: out.usage,
         refusedBecause: 'The answer did not match the expected shape', refusal: 'invalid-output', pseudonymised, environment,
       };
     }
-    await finish({ outcome: 'OK', ...tokens });
+    await finish({ outcome: 'OK' }, out.usage);
     return { ok: true, text: cleaned, data: parsed, model: model.id, provider: model.provider, usage: out.usage, pseudonymised, environment };
   }
-  await finish({ outcome: 'OK', ...tokens });
+  await finish({ outcome: 'OK' }, out.usage);
   return { ok: true, text: pseudo.restore(cleaned), model: model.id, provider: model.provider, usage: out.usage, pseudonymised, environment };
 }
 

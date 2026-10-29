@@ -8,6 +8,7 @@ import * as system from '../platform/system.service';
 import { SYSTEM_MODULES } from '../platform/system-modules';
 import { describeAuthority, diagnosePlatformAuthority } from '../platform/access-levels';
 import { engageKillSwitch, releaseKillSwitch } from '../platform/intelligence/agents';
+import { setExecutionControl } from '../platform/intelligence/ai-ledger';
 import { defineFlag, listFlags, isEnabled, type FlagAudience } from '../platform/innovation/flags';
 import { decideExperiment, registerExperiment, listExperiments, type ExperimentStatus } from '../platform/innovation/experiments';
 import { currentEnvironment, type FamilistaEnvironment } from '../platform/environment';
@@ -414,6 +415,26 @@ export async function killSwitch(req: Request, res: Response, next: NextFunction
     });
     return sendSuccess(res, await system.intelligenceSurface(actor),
       engage ? 'Autonomous AI actions stopped' : 'Autonomous AI actions resumed');
+  } catch (err) { return next(err); }
+}
+
+/**
+ * AI EXECUTION: ON or OFF — whether the platform may make paid model calls at
+ * all (execution-gate.ts). The Platform Owner's alone, with a reason either
+ * way; the change and its PlatformAuditLog row are written in one transaction,
+ * under the lock every reservation takes, so no call is admitted after OFF.
+ */
+export async function aiExecution(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = actorOf(req);
+    await system.assertPlatformOwner(actor);
+    const body = (req.body ?? {}) as { enabled?: unknown; reason?: unknown };
+    if (typeof body.enabled !== 'boolean') throw new BadRequestError('Say whether paid AI execution is to be on (enabled: true) or off (enabled: false).');
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+    if (reason.length < 3 || reason.length > 500) throw new BadRequestError('Say why, in 3 to 500 characters: the reason is recorded with the change.');
+    await setExecutionControl({ enabled: body.enabled, reason, actorUserId: actor.userId });
+    return sendSuccess(res, await system.intelligenceSurface(actor),
+      body.enabled ? 'Paid AI execution switched on' : 'Paid AI execution switched off');
   } catch (err) { return next(err); }
 }
 

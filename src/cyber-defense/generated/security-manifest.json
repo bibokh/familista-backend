@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-27T18:22:27.034Z",
+  "generatedAt": "2026-10-28T18:58:18.385Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 56,
-    "handlers": 763,
+    "handlers": 765,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -121,47 +121,47 @@
       {
         "route": "GET /api/health",
         "file": "src/app.ts",
-        "line": 249
+        "line": 250
       },
       {
         "route": "GET /app/*",
         "file": "src/app.ts",
-        "line": 323
+        "line": 327
       },
       {
         "route": "GET /healthz",
         "file": "src/app.ts",
-        "line": 250
+        "line": 251
       },
       {
         "route": "GET /internal/backups/runs/:id",
         "file": "src/app.ts",
-        "line": 259
+        "line": 260
       },
       {
         "route": "GET /invite",
         "file": "src/app.ts",
-        "line": 313
+        "line": 317
       },
       {
         "route": "GET /invite/*",
         "file": "src/app.ts",
-        "line": 313
+        "line": 317
       },
       {
         "route": "GET /reset-password",
         "file": "src/app.ts",
-        "line": 303
+        "line": 307
       },
       {
         "route": "POST /internal/backups/run",
         "file": "src/app.ts",
-        "line": 258
+        "line": 259
       },
       {
         "route": "POST /internal/video/transcode-callback",
         "file": "src/app.ts",
-        "line": 170
+        "line": 171
       }
     ],
     "mounts": [
@@ -252,7 +252,7 @@
       {
         "path": "/system",
         "module": "system.routes",
-        "handlers": 33,
+        "handlers": 34,
         "public": 0,
         "routerWideAuth": true
       },
@@ -315,7 +315,7 @@
       {
         "path": "/system/agents",
         "module": "agents-room.routes",
-        "handlers": 4,
+        "handlers": 5,
         "public": 0,
         "routerWideAuth": true
       },
@@ -821,20 +821,20 @@
       }
     },
     "authorization": {
-      "handlers": 763,
+      "handlers": 765,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 96
+        "platform-owner": 98
       },
       "memberUnreviewed": [],
       "memberStale": [],
       "ownerRoomViolations": [],
       "byRouter": {
         "agents-room.routes": {
-          "platform-owner": 4
+          "platform-owner": 5
         },
         "ai-data-policy.routes": {
           "member": 1,
@@ -1025,7 +1025,7 @@
         },
         "system.routes": {
           "member": 1,
-          "platform-owner": 32
+          "platform-owner": 33
         },
         "tactical-ai.routes": {
           "member": 2
@@ -1357,6 +1357,7 @@
         "GET /staff-market/summary": "member",
         "GET /system/agents": "platform-owner",
         "GET /system/agents/:agentId": "platform-owner",
+        "GET /system/agents/cost": "platform-owner",
         "GET /system/agents/orchestration": "platform-owner",
         "GET /system/agents/publications": "platform-owner",
         "GET /system/algorithms": "platform-owner",
@@ -1751,6 +1752,7 @@
         "POST /staff-market/bootstrap": "scoped:requireMembership(HEAD_COACH)+requireClubWideManage",
         "POST /staff-market/external": "scoped:requireMembership(HEAD_COACH)+requireClubWideManage",
         "POST /staff-market/needs": "scoped:requireMembership(HEAD_COACH)+requireClubWideManage",
+        "POST /system/agents/ai-execution": "platform-owner",
         "POST /system/agents/kill-switch": "platform-owner",
         "POST /system/clubs": "platform-owner",
         "POST /system/clubs/:clubId/archive": "platform-owner",
@@ -2069,6 +2071,12 @@
       "note": "An AiEgressRecord is written before the provider is called (no record, no call) and completed after; it never holds the prompt or the answer."
     },
     {
+      "id": "ai-execution-gate",
+      "status": "PRESENT",
+      "evidence": "src/platform/intelligence/execution-gate.ts",
+      "note": "Default deny: a model call needs an authorised origin (an API request or a person's queued agent job; never a timer or another agent), the Platform Owner's AI EXECUTION switch ON, valid limits and a configured price; its most possible usage is reserved against every budget under one advisory lock; no SDK or application retry; switch changes are audited in the same transaction."
+    },
+    {
       "id": "recommendation-signed",
       "status": "PRESENT",
       "evidence": "src/security-n/signed-recommendations.service.ts",
@@ -2233,7 +2241,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "763 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 96 platform-owner; every member-level handler reviewed by name."
+      "note": "765 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 98 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2908,8 +2916,10 @@
       "src/platform/email/providers/smtp.ts",
       "src/platform/email/templates/security-alert.ts",
       "src/platform/intelligence/agent-jobs.ts",
+      "src/platform/intelligence/ai-ledger.ts",
       "src/platform/intelligence/anthropic-provider.ts",
       "src/platform/intelligence/data-classes.ts",
+      "src/platform/intelligence/execution-gate.ts",
       "src/platform/intelligence/gateway.ts",
       "src/platform/intelligence/training-data.ts",
       "src/realtime/market-ws.ts",
@@ -3022,7 +3032,7 @@
     ]
   },
   "counts": {
-    "controlsPresent": 78,
+    "controlsPresent": 79,
     "controlsPartial": 1,
     "controlsAbsent": 1,
     "cryptoUses": 10
