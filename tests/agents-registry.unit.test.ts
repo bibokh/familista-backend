@@ -13,11 +13,17 @@
  *    the same way in any order.
  * 4. The Operations Room is the platform owner's alone, outside every Club
  *    Workspace, and shows no club, person or record.
- * 5. Nothing is activated: no runtime path reads the registry, and the
- *    registry reaches no database, provider or network.
+ * 5. Isolation: the runtime reads the registry in one place (the agent job
+ *    profiles, intelligence/agent-jobs.ts), the Operations Room in the other,
+ *    and the registry itself reaches no database, provider, worker or network.
  * 6. The runtime's behaviour for the ten running agents, against the baseline
  *    recorded on main 86c1ca2 (tests/fixtures/agents/runtime-baseline.json):
  *    profiles, identities, the action map, and 500 decisions.
+ * 7. The registry is the runtime's single source of agent permissions: a
+ *    profile is a RUNNING manifest's tools and the highest class it reads; a
+ *    missing, DRAFT, LAB or RETIRED agent's jobs are refused; a registry that
+ *    does not validate refuses every job without crashing; no import cycle
+ *    runs through the runtime. (The real worker: ai-approval-requester.unit.)
  */
 
 import express from 'express';
@@ -45,10 +51,11 @@ jest.mock('../src/middleware/auth.middleware', () => ({
 }));
 
 import { AutonomyLevel } from '../src/platform/intelligence/agents';
-import { AGENT_PROFILES } from '../src/platform/intelligence/agent-jobs';
+import type { AIAgent } from '@prisma/client';
+import { AGENT_PROFILES, AGENT_REGISTRY_FAILURE, RUNTIME_AGENTS, deriveRuntimeProfiles, authorizeAgentJob } from '../src/platform/intelligence/agent-jobs';
 import { highest } from '../src/platform/intelligence/data-classes';
 import { AI_READ_MATRIX, DECLARED_KINDS } from '../src/security/ai-read-policy';
-import { AGENT_DOMAINS, AgentManifestError, validateManifest, outputClasses, type AgentManifest, type ManifestIssueCode } from '../src/platform/agents/manifest';
+import { AGENT_DOMAINS, AgentManifestError, validateManifest, outputClasses, type AgentLifecycle, type AgentManifest, type ManifestIssueCode } from '../src/platform/agents/manifest';
 import { AgentRegistry } from '../src/platform/agents/registry';
 import { PLATFORM_AGENT_MANIFESTS, platformAgentRegistry } from '../src/platform/agents/catalog';
 import { invariants, operationsRoomAgent, operationsRoomOverview } from '../src/platform/agents/operations-room.service';
@@ -281,7 +288,7 @@ describe('the AI Agents Operations Room', () => {
   });
 });
 
-// ── 5. Nothing is activated ─────────────────────────────────────────────────
+// ── 5. Isolation ────────────────────────────────────────────────────────────
 describe('isolation', () => {
   const MODULE = 'src/platform/agents';
   const files = fs.readdirSync(path.join(ROOT, MODULE)).filter((f) => f.endsWith('.ts')).map((f) => `${MODULE}/${f}`);
@@ -295,17 +302,22 @@ describe('isolation', () => {
     }
   });
 
-  it('nothing that runs an agent reads the registry: only the Operations Room does', () => {
+  it('the registry is read in two places only: the agent job profiles the worker enforces, and the Operations Room', () => {
     const users: string[] = [];
     const walk = (dir: string) => {
       for (const e of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
         const p = `${dir}/${e.name}`;
         if (e.isDirectory()) walk(p);
-        else if (p.endsWith('.ts') && !p.startsWith(MODULE) && /platform\/agents\//.test(read(p))) users.push(p);
+        else if (p.endsWith('.ts') && !p.startsWith(MODULE)) {
+          const specs = [...read(p).matchAll(/from '(\.{1,2}\/[^']+)'/g)].map((m) => path.join(path.dirname(p), m[1]));
+          if (specs.some((s) => s.startsWith(`${MODULE}/`))) users.push(p);
+        }
       }
     };
     walk('src');
-    expect(users).toEqual(['src/routes/agents-room.routes.ts']);
+    expect(users.sort()).toEqual(['src/platform/intelligence/agent-jobs.ts', 'src/routes/agents-room.routes.ts']);
+    // The runtime takes the catalog's registry and nothing else from the module.
+    expect([...read('src/platform/intelligence/agent-jobs.ts').matchAll(/from '(\.\.\/agents\/[^']+)'/g)].map((m) => m[1]).sort()).toEqual(['../agents/catalog', '../agents/registry']);
   });
 });
 
@@ -351,6 +363,218 @@ describe('the running agents, against the recorded baseline', () => {
           expect([state, agent, c.label, now.decisions[state][agent][c.label]]).toEqual([state, agent, c.label, BASELINE.decisions[state][agent][c.label]]);
         }
       }
+    }
+  });
+});
+
+// ── 7. The registry is the runtime's source of agent permissions ──────────
+const registryOf = (manifests: readonly AgentManifest[]) => {
+  const r = new AgentRegistry();
+  for (const m of manifests) r.register(m);
+  return r;
+};
+const withLifecycle = (agent: AIAgent, lifecycle: AgentLifecycle) =>
+  PLATFORM_AGENT_MANIFESTS.map((m) => (m.binding?.legacyAgent === agent ? { ...m, lifecycle } : m));
+const job = (agent: string, kind = 'MATCH_REVIEW', input: Row = {}) => ({ agent: agent as AIAgent, kind, input, clubId: 'club-1' });
+
+// ── 7a. derivation ───────────────────────────────────────────────────────────
+describe('runtime profiles come from the registry', () => {
+  it('the platform registry gives all ten runtime agents a profile, refuses none and has no failure', () => {
+    const rt = deriveRuntimeProfiles(platformAgentRegistry);
+    expect(Object.keys(rt.profiles)).toEqual(RUNTIME_AGENTS);
+    expect(rt.refused).toEqual({});
+    expect(rt.registryFailure).toBeNull();
+    expect(AGENT_REGISTRY_FAILURE).toBeNull();
+    expect(rt.profiles).toEqual(AGENT_PROFILES);
+  });
+
+  it('each profile is exactly its manifest: the same tools in the same order, and the highest class it reads', () => {
+    for (const agent of RUNTIME_AGENTS) {
+      const m = platformAgentRegistry().forLegacyAgent(agent)!;
+      expect([agent, AGENT_PROFILES[agent]!.tools]).toEqual([agent, m.tools]);
+      const order = ['PUBLIC', 'INTERNAL', 'CONFIDENTIAL', 'RESTRICTED'];
+      const top = [...m.data.reads].sort((a, b) => order.indexOf(b) - order.indexOf(a))[0];
+      expect([agent, AGENT_PROFILES[agent]!.dataClass]).toEqual([agent, top]);
+    }
+  });
+
+  it('the runtime profiles cannot be changed at run time', () => {
+    'use strict';
+    expect(Object.isFrozen(AGENT_PROFILES)).toBe(true);
+    for (const agent of RUNTIME_AGENTS) {
+      expect(Object.isFrozen(AGENT_PROFILES[agent])).toBe(true);
+      expect(Object.isFrozen(AGENT_PROFILES[agent]!.tools)).toBe(true);
+    }
+    expect(() => { (AGENT_PROFILES.COMMS!.tools as string[]).push('initiatePayment'); }).toThrow(TypeError);
+    expect(AGENT_PROFILES.COMMS!.tools).not.toContain('initiatePayment');
+  });
+
+  it('removing a tool from a manifest removes it from the runtime, and adding one adds it', () => {
+    const fewer = PLATFORM_AGENT_MANIFESTS.map((m) => (m.binding?.legacyAgent === 'TACTICAL' ? { ...m, tools: m.tools.filter((t) => t !== 'changeTacticsLive') } : m));
+    expect(deriveRuntimeProfiles(() => registryOf(fewer)).profiles.TACTICAL!.tools).not.toContain('changeTacticsLive');
+    const more = PLATFORM_AGENT_MANIFESTS.map((m) => (m.binding?.legacyAgent === 'TRAINING' ? { ...m, tools: [...m.tools, 'sendNotification'] } : m));
+    expect(deriveRuntimeProfiles(() => registryOf(more)).profiles.TRAINING!.tools).toContain('sendNotification');
+  });
+
+  it.each(['DRAFT', 'LAB', 'RETIRED'] as const)('a %s manifest bound to a runtime agent gives it no profile', (lifecycle) => {
+    const manifests = withLifecycle('TACTICAL', lifecycle);
+    expect(validateManifest(manifests.find((m) => m.binding?.legacyAgent === 'TACTICAL')!)).toEqual([]);
+    const rt = deriveRuntimeProfiles(() => registryOf(manifests));
+    expect(rt.profiles.TACTICAL).toBeUndefined();
+    expect(rt.refused.TACTICAL).toEqual({ code: 'NOT_RUNNING', reason: `The agent club.tactical is ${lifecycle} in the agent registry; only a RUNNING agent runs` });
+    expect(Object.keys(rt.profiles)).toEqual(RUNTIME_AGENTS.filter((a) => a !== 'TACTICAL'));
+    for (const a of RUNTIME_AGENTS.filter((x) => x !== 'TACTICAL')) expect(rt.profiles[a]).toEqual(AGENT_PROFILES[a]);
+  });
+
+  it('a runtime agent with no manifest gets no profile', () => {
+    const rt = deriveRuntimeProfiles(() => registryOf(PLATFORM_AGENT_MANIFESTS.filter((m) => m.binding?.legacyAgent !== 'COMMS')));
+    expect(rt.profiles.COMMS).toBeUndefined();
+    expect(rt.refused.COMMS).toEqual({ code: 'NOT_REGISTERED', reason: 'The agent COMMS has no manifest in the agent registry' });
+  });
+
+  it('LAB and DRAFT agents beside the running ones (synthetic manifests) add no runtime profile', () => {
+    const rt = deriveRuntimeProfiles(() => registryOf([...PLATFORM_AGENT_MANIFESTS, ...SYNTHETIC_LAB_MANIFESTS]));
+    expect(SYNTHETIC_LAB_MANIFESTS.every((m) => m.lifecycle !== 'RUNNING' && !m.binding)).toBe(true);
+    expect(rt.profiles).toEqual(AGENT_PROFILES);
+    expect(rt.refused).toEqual({});
+  });
+
+  it('a registry that cannot be built refuses every runtime agent, and deriving never throws', () => {
+    const rt = deriveRuntimeProfiles(() => { throw new AgentManifestError('club.tactical', [{ code: 'TOOL_PROTECTED', message: 'protected' }]); });
+    expect(rt.profiles).toEqual({});
+    expect(Object.keys(rt.refused)).toEqual(RUNTIME_AGENTS);
+    for (const a of RUNTIME_AGENTS) expect(rt.refused[a]).toEqual({ code: 'REGISTRY_INVALID', reason: 'The agent registry did not validate, so no agent runs' });
+    expect(rt.registryFailure).toBe('Agent manifest "club.tactical" is not valid: TOOL_PROTECTED');
+  });
+
+  it('(control) a registry that refuses a manifest is what the catalog would hit: register() throws, deriving does not', () => {
+    const bad = PLATFORM_AGENT_MANIFESTS.map((m) => (m.binding?.legacyAgent === 'COMMS' ? { ...m, tools: [...m.tools, 'deleteData'] } : m));
+    expect(() => registryOf(bad)).toThrow(AgentManifestError);
+    expect(deriveRuntimeProfiles(() => registryOf(bad)).registryFailure).toMatch(/club\.comms.*TOOL_PROTECTED/);
+  });
+});
+
+// ── 7b. enforcement and failing closed, through the module the worker imports
+/** agent-jobs.ts, loaded fresh against a catalog whose registry is the one given (or throws). */
+function runtimeWith(registry: () => AgentRegistry) {
+  const errors: Row[] = [];
+  let mod: typeof import('../src/platform/intelligence/agent-jobs') | undefined;
+  jest.isolateModules(() => {
+    jest.doMock('../src/config/database', () => ({ prisma: {}, basePrisma: {} }));
+    jest.doMock('../src/utils/logger', () => ({ logger: { error: (msg: string, meta: Row) => errors.push({ msg, meta }), warn: () => undefined, info: () => undefined, debug: () => undefined } }));
+    jest.doMock('../src/platform/agents/catalog', () => ({ ...jest.requireActual('../src/platform/agents/catalog'), platformAgentRegistry: registry }));
+    mod = require('../src/platform/intelligence/agent-jobs');
+  });
+  return { mod: mod!, errors };
+}
+
+describe('jobs for an agent that may not run are refused', () => {
+  it.each(['DRAFT', 'LAB', 'RETIRED'] as const)('every job of a %s agent is refused before the tool registry is asked, with the reason recorded', (lifecycle) => {
+    const reg = registryOf(withLifecycle('MEDICAL', lifecycle));
+    const { mod, errors } = runtimeWith(() => reg);
+    for (const [kind, input] of [['FATIGUE_SCAN', {}], ['MEDICAL_RECOMMENDATION_RTP', {}], ['ANALYSIS', { requiresApproval: true, approvalKind: 'OTHER' }]] as const) {
+      expect(mod.authorizeAgentJob(job('MEDICAL', kind, input))).toMatchObject({
+        allowed: false, requiresApproval: false, registry: 'NOT_RUNNING',
+        reason: `The agent club.medical is ${lifecycle} in the agent registry; only a RUNNING agent runs`,
+        dataClass: 'RESTRICTED',
+      });
+    }
+    expect(mod.agentIdentity('MEDICAL', 'club-1')).toMatchObject({ status: 'RETIRED', tools: [] });
+    // The other nine are untouched: the same decisions as the runtime the worker uses.
+    for (const a of RUNTIME_AGENTS.filter((x) => x !== 'MEDICAL')) {
+      for (const kind of ['MATCH_REVIEW', 'MASS_MESSAGE_PARENTS', 'PAYOUT_BONUS', 'DATA_PURGE']) {
+        expect([a, kind, mod.authorizeAgentJob(job(a, kind))]).toEqual([a, kind, authorizeAgentJob(job(a, kind))]);
+      }
+    }
+    expect(errors).toEqual([]);
+  });
+
+  it('a job for an agent with no manifest is refused, and so is one for an agent the platform does not know', () => {
+    const { mod } = runtimeWith(() => registryOf(PLATFORM_AGENT_MANIFESTS.filter((m) => m.binding?.legacyAgent !== 'COMMS')));
+    expect(mod.authorizeAgentJob(job('COMMS', 'WEEKLY_DIGEST'))).toMatchObject({ allowed: false, registry: 'NOT_REGISTERED', reason: 'The agent COMMS has no manifest in the agent registry', dataClass: 'RESTRICTED' });
+    expect(authorizeAgentJob(job('NOT_AN_AGENT'))).toMatchObject({ allowed: false, registry: 'NOT_REGISTERED', reason: 'The agent NOT_AN_AGENT has no manifest in the agent registry', dataClass: 'RESTRICTED' });
+  });
+
+  it('a job with no club is still refused for that first, whatever the agent', () => {
+    const { mod } = runtimeWith(() => registryOf(withLifecycle('TACTICAL', 'RETIRED')));
+    expect(mod.authorizeAgentJob({ ...job('TACTICAL'), clubId: '' })).toEqual(expect.objectContaining({ allowed: false, reason: 'An agent job must belong to a club' }));
+    expect(mod.authorizeAgentJob({ ...job('TACTICAL'), clubId: '' }).registry).toBeUndefined();
+  });
+
+  it('a registry that does not validate refuses every job of every agent, loads without throwing and logs once', () => {
+    const { mod, errors } = runtimeWith(() => { throw new AgentManifestError('club.comms', [{ code: 'TOOL_PROTECTED', message: 'protected' }]); });
+    expect(mod.AGENT_REGISTRY_FAILURE).toBe('Agent manifest "club.comms" is not valid: TOOL_PROTECTED');
+    expect(mod.AGENT_PROFILES).toEqual({});
+    for (const a of RUNTIME_AGENTS) {
+      for (const kind of ['MATCH_REVIEW', 'WEEKLY_DIGEST', 'MASS_MESSAGE_PARENTS', 'DATA_PURGE']) {
+        expect(mod.authorizeAgentJob(job(a, kind))).toMatchObject({ allowed: false, requiresApproval: false, registry: 'REGISTRY_INVALID', reason: 'The agent registry did not validate, so no agent runs', dataClass: 'RESTRICTED' });
+      }
+      expect(mod.agentIdentity(a, 'club-1')).toMatchObject({ status: 'RETIRED', tools: [] });
+    }
+    expect(errors).toEqual([{ msg: '[agents] the agent registry did not validate; every agent job will be refused', meta: { error: 'Agent manifest "club.comms" is not valid: TOOL_PROTECTED' } }]);
+  });
+
+  it('(control) the same loader with the platform registry runs every agent as before', () => {
+    const { mod, errors } = runtimeWith(platformAgentRegistry);
+    expect(mod.AGENT_PROFILES).toEqual(AGENT_PROFILES);
+    expect(mod.authorizeAgentJob(job('COMMS', 'WEEKLY_DIGEST'))).toMatchObject({ allowed: true });
+    expect(mod.authorizeAgentJob(job('COMMS', 'WEEKLY_DIGEST')).registry).toBeUndefined();
+    expect(errors).toEqual([]);
+  });
+});
+
+// ── 7c. structure ───────────────────────────────────────────────────────────
+describe('structure', () => {
+  /** The files a file imports by relative path, resolved under a root. */
+  const importsOf = (root: string, file: string): string[] => {
+    const src = fs.readFileSync(path.join(root, file), 'utf8');
+    const specs = [...src.matchAll(/(?:from|require\()\s*'(\.{1,2}\/[^']+)'/g)].map((m) => m[1]);
+    return specs.map((spec) => {
+      const base = path.join(path.dirname(file), spec);
+      return [`${base}.ts`, path.join(base, 'index.ts')].find((c) => fs.existsSync(path.join(root, c))) ?? null;
+    }).filter((p): p is string => p !== null);
+  };
+  /** Every file reachable from the given ones. */
+  const closure = (start: string[], root = ROOT): Set<string> => {
+    const seen = new Set<string>();
+    const stack = [...start];
+    while (stack.length) {
+      const f = stack.pop()!;
+      if (seen.has(f)) continue;
+      seen.add(f);
+      stack.push(...importsOf(root, f));
+    }
+    return seen;
+  };
+  /** Whether a file is reachable again from what it imports: an import cycle through it. */
+  const cyclesThrough = (file: string, root = ROOT) => closure(importsOf(root, file), root).has(file);
+  const RUNTIME = 'src/platform/intelligence/agent-jobs.ts';
+
+  it('no import cycle runs through the runtime: nothing it imports leads back to it', () => {
+    const direct = importsOf(ROOT, RUNTIME);
+    expect(direct).toEqual(expect.arrayContaining(['src/platform/agents/catalog.ts', 'src/platform/agents/registry.ts']));
+    expect(closure(direct).size).toBeGreaterThan(5);
+    expect(cyclesThrough(RUNTIME)).toBe(false);
+  });
+
+  it('the registry, its manifests and the catalog import nothing that runs an agent', () => {
+    const reachable = [...closure(['src/platform/agents/catalog.ts'])];
+    expect(reachable.filter((f) => f === RUNTIME || f.startsWith('src/workers/') || /gateway|provider|config\/database/.test(f))).toEqual([]);
+  });
+
+  it('(control) the walk follows imports into the runtime, and finds a cycle where one exists', () => {
+    expect(closure(['src/platform/agents/operations-room.service.ts']).has(RUNTIME)).toBe(true);
+    const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'fam-cycle-'));
+    try {
+      fs.mkdirSync(path.join(dir, 'a'));
+      fs.writeFileSync(path.join(dir, 'a', 'jobs.ts'), "import { reg } from '../b/catalog';\nexport const x = reg;\n");
+      fs.mkdirSync(path.join(dir, 'b'));
+      fs.writeFileSync(path.join(dir, 'b', 'catalog.ts'), "import { x } from '../a/jobs';\nexport const reg = 1; void x;\n");
+      expect(cyclesThrough('a/jobs.ts', dir)).toBe(true);
+      fs.writeFileSync(path.join(dir, 'b', 'catalog.ts'), 'export const reg = 1;\n');
+      expect(cyclesThrough('a/jobs.ts', dir)).toBe(false);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 });

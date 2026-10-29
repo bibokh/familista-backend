@@ -311,3 +311,73 @@ describe('the source', () => {
     expect(all).toEqual([...writers].sort());
   });
 });
+
+// The agent registry decides which agents run (src/platform/intelligence/agent-jobs.ts).
+// This file's in-memory database and worker harness run the real worker against a
+// registry in which four runtime agents may not run: TACTICAL is RETIRED, MEDICAL
+// is LAB, BIG_DATA is DRAFT and COMMS has no manifest. A fresh copy of the worker
+// and the runtime is loaded with that registry; everything else is this file's.
+describe('agents the registry does not run, through the real worker', () => {
+  it('refuses each of their jobs the way the worker refuses any unauthorised job, while a RUNNING agent’s job runs', async () => {
+    let worker!: typeof import('../src/workers/ai-agent.worker');
+    let runtime!: typeof import('../src/platform/intelligence/agent-jobs');
+    jest.isolateModules(() => {
+      jest.doMock('../src/platform/agents/catalog', () => {
+        const actual = jest.requireActual('../src/platform/agents/catalog');
+        const { AgentRegistry } = jest.requireActual('../src/platform/agents/registry');
+        const lifecycle: Record<string, string> = { TACTICAL: 'RETIRED', MEDICAL: 'LAB', BIG_DATA: 'DRAFT' };
+        const registry = new AgentRegistry();
+        for (const m of actual.PLATFORM_AGENT_MANIFESTS) {
+          if (m.binding.legacyAgent === 'COMMS') continue;
+          registry.register(lifecycle[m.binding.legacyAgent] ? { ...m, lifecycle: lifecycle[m.binding.legacyAgent] } : m);
+        }
+        return { ...actual, platformAgentRegistry: () => registry };
+      });
+      worker = require('../src/workers/ai-agent.worker');
+      runtime = require('../src/platform/intelligence/agent-jobs');
+    });
+    jest.dontMock('../src/platform/agents/catalog');
+    expect(Object.keys(runtime.AGENT_PROFILES).sort()).toEqual(['CLUB_MANAGER', 'DEVICE_MGMT', 'FINANCE', 'MATCH_OPS', 'SCOUTING', 'TRAINING']);
+
+    const seeded = {
+      TACTICAL: seedJob({ agent: 'TACTICAL', kind: 'MATCH_REVIEW', input: {}, triggeredBy: USERS.coach.id }),
+      MEDICAL:  seedJob({ agent: 'MEDICAL', kind: 'FATIGUE_SCAN', input: {}, triggeredBy: USERS.coach.id }),
+      BIG_DATA: seedJob({ agent: 'BIG_DATA', kind: 'WEEKLY_DIGEST', input: {}, triggeredBy: USERS.coach.id }),
+      COMMS:    seedJob({ agent: 'COMMS', kind: 'MASS_MESSAGE', triggeredBy: USERS.coach.id }),
+      TRAINING: seedJob({ agent: 'TRAINING', kind: 'WEEKLY_DIGEST', input: {}, triggeredBy: USERS.coach.id }),
+    };
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+    try {
+      worker.startAIAgentWorker();
+      await jest.advanceTimersByTimeAsync(4_000);
+    } finally {
+      await worker.stopAIAgentWorker();
+      jest.useRealTimers();
+    }
+
+    const refusedWith: Array<[keyof typeof seeded, string]> = [
+      ['TACTICAL', 'The agent club.tactical is RETIRED in the agent registry; only a RUNNING agent runs'],
+      ['MEDICAL', 'The agent club.medical is LAB in the agent registry; only a RUNNING agent runs'],
+      ['BIG_DATA', 'The agent club.big-data is DRAFT in the agent registry; only a RUNNING agent runs'],
+      ['COMMS', 'The agent COMMS has no manifest in the agent registry'],
+    ];
+    for (const [agent, reason] of refusedWith) {
+      // FAILED, with the reason written on the job: what the worker has always done with an unauthorised job.
+      expect([agent, job(seeded[agent].id).status, job(seeded[agent].id).error]).toEqual([agent, 'FAILED', `Not authorised: ${reason}`]);
+      expect(job(seeded[agent].id).finishedAt).toBeInstanceOf(Date);
+      expect(EXECUTED).not.toContain(seeded[agent].id);
+      expect(approvalFor(seeded[agent].id)).toEqual([]);
+    }
+    // One UNAUTHORIZED_AI_ATTEMPT each, as before: the job, its agent, the tool it asked for.
+    const events = EVENTS.filter((e) => e.kind === 'UNAUTHORIZED_AI_ATTEMPT');
+    expect(events.map((e) => [e.payload.agent, e.severity, e.clubId, e.payload.jobId, e.payload.tool]).sort()).toEqual([
+      ['BIG_DATA', 'WARN', C1, seeded.BIG_DATA.id, 'createReport'],
+      ['COMMS', 'WARN', C1, seeded.COMMS.id, 'sendNotification'],
+      ['MEDICAL', 'WARN', C1, seeded.MEDICAL.id, 'createReport'],
+      ['TACTICAL', 'WARN', C1, seeded.TACTICAL.id, 'createReport'],
+    ]);
+    // Control: the RUNNING agent's job in the same tick ran, unrefused.
+    expect(EXECUTED).toEqual([seeded.TRAINING.id]);
+    expect(job(seeded.TRAINING.id).status).not.toBe('FAILED');
+  });
+});
