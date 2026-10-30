@@ -70,6 +70,26 @@ export interface RuntimeProfiles {
   refused: Readonly<Partial<Record<AIAgent, { code: RegistryRefusal; reason: string }>>>;
   /** Set when the registry could not be built: then no agent runs. */
   registryFailure: string | null;
+  /** The digest of the registry the profiles came from, or null when it could not be built. */
+  digest: string | null;
+}
+
+/** The reason each registry refusal is written with: on the refused job, and so in the runtime monitor. */
+const REFUSAL_REASON = {
+  NOT_REGISTERED: (agent: string) => `The agent ${agent} has no manifest in the agent registry`,
+  NOT_RUNNING: (manifestId: string, lifecycle: string) => `The agent ${manifestId} is ${lifecycle} in the agent registry; only a RUNNING agent runs`,
+  REGISTRY_INVALID: () => 'The agent registry did not validate, so no agent runs',
+} as const;
+
+/**
+ * Which registry refusal a reason is, or null when it is none: how the runtime
+ * monitor counts the jobs the registry refused, from the reason this file wrote.
+ */
+export function registryRefusalCode(reason: string): RegistryRefusal | null {
+  if (reason === REFUSAL_REASON.REGISTRY_INVALID()) return 'REGISTRY_INVALID';
+  if (/^The agent \S+ has no manifest in the agent registry$/.test(reason)) return 'NOT_REGISTERED';
+  if (/^The agent \S+ is (DRAFT|LAB|RETIRED) in the agent registry; only a RUNNING agent runs$/.test(reason)) return 'NOT_RUNNING';
+  return null;
 }
 
 /**
@@ -81,21 +101,24 @@ export function deriveRuntimeProfiles(load: () => AgentRegistry): RuntimeProfile
   const profiles: Partial<Record<AIAgent, AgentProfile>> = {};
   const refused: Partial<Record<AIAgent, { code: RegistryRefusal; reason: string }>> = {};
   let registryFailure: string | null = null;
+  let digest: string | null = null;
   try {
     const registry = load();
     for (const agent of Object.values(AIAgent)) {
       const m = registry.forLegacyAgent(agent);
-      if (!m) refused[agent] = { code: 'NOT_REGISTERED', reason: `The agent ${agent} has no manifest in the agent registry` };
-      else if (m.lifecycle !== 'RUNNING') refused[agent] = { code: 'NOT_RUNNING', reason: `The agent ${m.id} is ${m.lifecycle} in the agent registry; only a RUNNING agent runs` };
+      if (!m) refused[agent] = { code: 'NOT_REGISTERED', reason: REFUSAL_REASON.NOT_REGISTERED(agent) };
+      else if (m.lifecycle !== 'RUNNING') refused[agent] = { code: 'NOT_RUNNING', reason: REFUSAL_REASON.NOT_RUNNING(m.id, m.lifecycle) };
       else profiles[agent] = { tools: [...m.tools], dataClass: highest(m.data.reads) };
     }
+    digest = registry.digest();
   } catch (err) {
     registryFailure = err instanceof Error ? err.message : String(err);
+    digest = null;
     for (const agent of Object.keys(profiles)) delete profiles[agent as AIAgent];
-    for (const agent of Object.values(AIAgent)) refused[agent] = { code: 'REGISTRY_INVALID', reason: 'The agent registry did not validate, so no agent runs' };
+    for (const agent of Object.values(AIAgent)) refused[agent] = { code: 'REGISTRY_INVALID', reason: REFUSAL_REASON.REGISTRY_INVALID() };
   }
   for (const p of Object.values(profiles)) { Object.freeze(p!.tools); Object.freeze(p); }
-  return Object.freeze({ profiles: Object.freeze(profiles), refused: Object.freeze(refused), registryFailure });
+  return Object.freeze({ profiles: Object.freeze(profiles), refused: Object.freeze(refused), registryFailure, digest });
 }
 
 const RUNTIME = deriveRuntimeProfiles(platformAgentRegistry);
@@ -111,6 +134,28 @@ export const AGENT_PROFILES: Readonly<Partial<Record<AIAgent, AgentProfile>>> = 
 
 /** Why the registry could not be built, or null. While it is set, every job is refused. */
 export const AGENT_REGISTRY_FAILURE: string | null = RUNTIME.registryFailure;
+
+export interface RuntimeRegistryState {
+  /** ENFORCED: the runtime took its profiles from a registry that validated. INVALID: it refuses every job. */
+  state: 'ENFORCED' | 'INVALID';
+  /** The digest of the registry the runtime enforces, to compare with the one the Operations Room shows. */
+  digest: string | null;
+  running: AIAgent[];
+  refused: Array<{ agent: AIAgent; code: RegistryRefusal }>;
+  /** Why the registry did not validate: manifest ids and rule codes, never data. */
+  failure: string | null;
+}
+
+/** What the runtime is enforcing, as this process loaded it. Read-only. */
+export function runtimeRegistryState(): RuntimeRegistryState {
+  return {
+    state: RUNTIME.registryFailure ? 'INVALID' : 'ENFORCED',
+    digest: RUNTIME.digest,
+    running: RUNTIME_AGENTS.filter((a) => AGENT_PROFILES[a]),
+    refused: RUNTIME_AGENTS.filter((a) => RUNTIME.refused[a]).map((a) => ({ agent: a, code: RUNTIME.refused[a]!.code })),
+    failure: RUNTIME.registryFailure,
+  };
+}
 
 export interface AgentJobDecision extends ToolDecision {
   /** The action the job asks for, or null for analysis. */
@@ -145,7 +190,7 @@ export function authorizeAgentJob(job: { agent: AIAgent; kind: string; input: Pr
     return { allowed: false, requiresApproval: false, reason: 'An agent job must belong to a club', actionKind, toolKey, dataClass };
   }
   if (!AGENT_PROFILES[job.agent]) {
-    const refusal = RUNTIME.refused[job.agent] ?? { code: 'NOT_REGISTERED' as const, reason: `The agent ${String(job.agent)} has no manifest in the agent registry` };
+    const refusal = RUNTIME.refused[job.agent] ?? { code: 'NOT_REGISTERED' as const, reason: REFUSAL_REASON.NOT_REGISTERED(String(job.agent)) };
     return { allowed: false, requiresApproval: false, reason: refusal.reason, registry: refusal.code, actionKind, toolKey, dataClass };
   }
   return { ...authorizeTool(agentIdentity(job.agent, job.clubId), toolKey), actionKind, toolKey, dataClass };

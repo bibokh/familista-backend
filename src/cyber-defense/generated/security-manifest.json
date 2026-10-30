@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-27T18:22:27.034Z",
+  "generatedAt": "2026-10-29T20:49:45.392Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 56,
-    "handlers": 763,
+    "handlers": 764,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -315,7 +315,7 @@
       {
         "path": "/system/agents",
         "module": "agents-room.routes",
-        "handlers": 4,
+        "handlers": 5,
         "public": 0,
         "routerWideAuth": true
       },
@@ -821,20 +821,20 @@
       }
     },
     "authorization": {
-      "handlers": 763,
+      "handlers": 764,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 96
+        "platform-owner": 97
       },
       "memberUnreviewed": [],
       "memberStale": [],
       "ownerRoomViolations": [],
       "byRouter": {
         "agents-room.routes": {
-          "platform-owner": 4
+          "platform-owner": 5
         },
         "ai-data-policy.routes": {
           "member": 1,
@@ -1359,6 +1359,7 @@
         "GET /system/agents/:agentId": "platform-owner",
         "GET /system/agents/orchestration": "platform-owner",
         "GET /system/agents/publications": "platform-owner",
+        "GET /system/agents/runtime": "platform-owner",
         "GET /system/algorithms": "platform-owner",
         "GET /system/algorithms/:key": "platform-owner",
         "GET /system/algorithms/:key/learning": "platform-owner",
@@ -2233,7 +2234,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "763 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 96 platform-owner; every member-level handler reviewed by name."
+      "note": "764 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 97 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2348,6 +2349,12 @@
       "status": "PRESENT",
       "evidence": "SECURITY.md",
       "note": "A private vulnerability-reporting channel, response targets and safe-harbour testing rules are published."
+    },
+    {
+      "id": "agent-runtime-totals-only",
+      "status": "PRESENT",
+      "evidence": "src/platform/intelligence/agent-runtime.ts",
+      "note": "The agent runtime monitor (GET /system/agents/runtime, owner-only) reads totals and nothing else: the job table only by agent and status, a failed job only by its agent and error kind, never a club, person, input or output, never an error text sent on; it writes nothing."
     },
     {
       "id": "architecture-fully-mapped",
@@ -3022,7 +3029,7 @@
     ]
   },
   "counts": {
-    "controlsPresent": 78,
+    "controlsPresent": 79,
     "controlsPartial": 1,
     "controlsAbsent": 1,
     "cryptoUses": 10

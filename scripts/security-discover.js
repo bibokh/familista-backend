@@ -559,6 +559,29 @@ const unsafeRawSql = allSrc.reduce((n, s) => n + (s.match(/\$(?:queryRawUnsafe|e
 
 const AUDIT_APPEND_ONLY_TABLES = ['SecurityAuditEvent', 'AIAudit', 'DeviceSecurityEvent', 'SecurityEvent', 'AiEgressRecord'];
 const control = (id, status, evidence, note) => ({ id, status, evidence, ...(note ? { note } : {}) });
+/**
+ * The agent runtime monitor reads totals and nothing else. Its source groups the job and approval
+ * tables by agent and status only, selects a failed job's agent and error (to tell its kind) and the
+ * oldest waiting job's time, writes nothing, and the contract it answers with carries no club,
+ * person or text field.
+ */
+function agentRuntimeTotalsOnly() {
+  const src = stripComments(read('src/platform/intelligence/agent-runtime.ts') || '');
+  if (!src) return false;
+  const selects = [...src.matchAll(/select:\s*\{([^}]*)\}/g)].map((m) => m[1].replace(/\s+/g, ''));
+  const groups = [...src.matchAll(/by:\s*\[([^\]]*)\]/g)].map((m) => m[1].replace(/[\s']/g, ''));
+  const contracts = read('src/contracts/owner-api.contracts.ts') || '';
+  const at = contracts.indexOf('export const AgentsRoomRuntimeSchema');
+  const schema = at < 0 ? '' : contracts.slice(at, contracts.indexOf('}).strict();\n', at) + 12);
+  const routes = stripComments(read('src/routes/agents-room.routes.ts') || '');
+  return selects.length === 2 && selects.includes('agent:true,error:true') && selects.includes('createdAt:true')
+    && groups.length >= 3 && groups.every((g) => g.split(',').every((k) => k === 'agent' || k === 'status'))
+    && !/\.(create|createMany|update|updateMany|upsert|delete|deleteMany)\(|\$executeRaw|\$queryRaw|\$transaction/.test(src)
+    && !/error:\s*j\.error|\.error\s*\}/.test(src.replace(/failureKind\(j\.error\)/g, ''))
+    && schema.length > 200 && !/clubId|teamId|triggeredBy|requesterId|input|output|error:/.test(schema)
+    && /router\.get\('\/runtime'/.test(routes) && !/router\.(post|put|patch|delete)\(/.test(routes);
+}
+
 const controls = [
   control('csp-script-self',
     /scriptSrc:\s*\[\s*"'self'"\s*\]/.test(appSrc) ? 'PRESENT' : 'ABSENT', APP,
@@ -1685,6 +1708,8 @@ controls.push(
     'Vision and clip worker callbacks are verified by HMAC-SHA256 over method, path, timestamp and the raw body (5-minute window, 32+ character secret, closed without one); jobs sent to a worker are signed the same way; signed webhooks bypass the global body parsers.'),
   control('security-policy-published', securityPolicyPublished() ? 'PRESENT' : 'ABSENT', 'SECURITY.md',
     'A private vulnerability-reporting channel, response targets and safe-harbour testing rules are published.'),
+  control('agent-runtime-totals-only', agentRuntimeTotalsOnly() ? 'PRESENT' : 'ABSENT', 'src/platform/intelligence/agent-runtime.ts',
+    'The agent runtime monitor (GET /system/agents/runtime, owner-only) reads totals and nothing else: the job table only by agent and status, a failed job only by its agent and error kind, never a club, person, input or output, never an error text sent on; it writes nothing.'),
 );
 
 const coverageMap = (() => { try { return JSON.parse(read(cite('src/cyber-defense/coverage-map.json')) || '{}'); } catch (_) { return {}; } })();

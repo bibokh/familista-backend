@@ -13,6 +13,9 @@
 //                                 records it writes and who may read them
 //   GET /system/agents/orchestration  (AI-0.3) the LAB orchestrator's published
 //                                 evidence, verified: synthetic runs, never live
+//   GET /system/agents/runtime    the agent runtime observed: whether it enforces
+//                                 the registry, and what each agent did in the last
+//                                 24 hours, as totals across every club
 //   GET /system/agents/publications   (AI-0.5) LAB executions the Platform Owner
 //                                 approved for publication (v2 evidence), verified
 //
@@ -20,12 +23,14 @@
 // (src/platform/agents/catalog.ts), never by a request; the kill switch stays
 // where it always was (POST /system/agents/kill-switch, system.routes.ts).
 // What travels: manifests and computed checks. No club, person or record.
+// The runtime's are totals across every club, and no job's input, output or error text.
 
 import { Router, type Request, type Response } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
 import { assertPlatformOwner } from '../platform/system.service';
 import { operationsRoomAgent, operationsRoomOverview } from '../platform/agents/operations-room.service';
 import { orchestrationRoomView } from '../platform/agents/orchestration-evidence';
+import { agentRuntimeView } from '../platform/intelligence/agent-runtime';
 import { publicationsRoomView } from '../platform/agents/execution-evidence';
 import { platformAgentRegistry } from '../platform/agents/catalog';
 import { NotFoundError } from '../utils/errors';
@@ -66,6 +71,16 @@ router.get('/orchestration', (_req: Request, res: Response, next) => {
 router.get('/publications', (_req: Request, res: Response, next) => {
   try {
     res.json({ success: true, data: publicationsRoomView(platformAgentRegistry()) });
+  } catch (err) { next(err); }
+});
+
+/**
+ * The agent runtime, observed (platform/intelligence/agent-runtime.ts): read from the job and approval
+ * tables, totals only, never a club's rows. It reads and runs nothing. Declared before /:agentId.
+ */
+router.get('/runtime', async (_req: Request, res: Response, next) => {
+  try {
+    res.json({ success: true, data: await agentRuntimeView() });
   } catch (err) { next(err); }
 });
 
