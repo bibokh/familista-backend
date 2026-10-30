@@ -48,6 +48,7 @@
 // so the two cannot drift apart silently.
 
 import { z } from 'zod';
+import { AIAgent } from '@prisma/client';
 import { CONFIG_VALUES } from '../cyber-defense/control-plane/registry';
 import {
   CandidateEntrySchema, LabMethodCheckSchema, LabRunStateSchema, LabSpecSchema,
@@ -1449,6 +1450,39 @@ export const AgentsRoomOverviewSchema = z.object({
   invariants: z.array(z.object({ id: z.string().min(1), holds: z.boolean(), detail: z.string().min(1) }).strict()),
   agents: z.array(AgentsRoomSummarySchema),
 }).strict();
+// The agent runtime the room draws beside the registry (platform/intelligence/agent-runtime.ts):
+// whether the runtime enforces the registry, and what its agents did in the last 24 hours, as totals
+// across every club. Agents are the runtime's own (the AIAgent enum); no club, person, job input,
+// output or error text is part of the shape, and a section the server could not read is null.
+const RuntimeAgentSchema = z.enum(Object.values(AIAgent) as [AIAgent, ...AIAgent[]]);
+const RegistryRefusalSchema = z.enum(['NOT_REGISTERED', 'NOT_RUNNING', 'REGISTRY_INVALID']);
+const RuntimeFailuresSchema = z.object({ registry: Count, authorization: Count, approval: Count, stalled: Count, execution: Count }).strict();
+export const AgentsRoomRuntimeSchema = z.object({
+  generatedAt: z.string().min(1),
+  windowHours: z.number().int().positive(),
+  registry: z.object({
+    state: z.enum(['ENFORCED', 'INVALID']), digest: Sha256.nullable(),
+    running: z.array(RuntimeAgentSchema),
+    refused: z.array(z.object({ agent: RuntimeAgentSchema, code: RegistryRefusalSchema }).strict()),
+    failure: z.string().min(1).nullable(),
+  }).strict(),
+  killSwitch: z.object({ engaged: z.boolean() }).strict(),
+  queue: z.object({
+    pending: Count, oldestPendingSeconds: Count.nullable(), running: Count, stalled: Count,
+    state: z.enum(['CLEAR', 'DRAINING', 'BACKLOG']),
+  }).strict().nullable(),
+  agents: z.array(z.object({
+    agent: RuntimeAgentSchema, runs: z.boolean(), refusedCode: RegistryRefusalSchema.nullable(),
+    queued: Count, succeeded: Count, failed: Count, cancelled: Count, inFlight: Count,
+    failures: RuntimeFailuresSchema, approvalsPending: Count, lastSucceededAt: z.string().min(1).nullable(),
+  }).strict()).nullable(),
+  totals: z.object({
+    queued: Count, succeeded: Count, failed: Count, cancelled: Count, inFlight: Count, approvalsPending: Count,
+    failures: RuntimeFailuresSchema,
+  }).strict().nullable(),
+  failureSample: z.object({ read: Count, limit: Count, complete: z.boolean() }).strict().nullable(),
+  unavailable: z.string().min(1).nullable(),
+}).strict();
 // AI-0.3: the LAB orchestration evidence the room draws, as the server verified it
 // (the orchestration evidence reader beside the Agent Registry). States, outcomes and trace event
 // types are closed sets the room styles by; agent ids, roles, domains and codes are
@@ -1848,6 +1882,11 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     reads: ['environment', 'activation', 'killSwitch', 'registry', 'invariants', 'agents'],
   },
   {
+    endpoint: '/system/agents/runtime', module: 'AI Agents Operations Room',
+    schema: AgentsRoomRuntimeSchema, consumer: 'public/agents-room/agents-room.js',
+    reads: ['windowHours', 'registry', 'killSwitch', 'queue', 'agents', 'totals', 'failureSample', 'unavailable'],
+  },
+  {
     endpoint: '/system/agents/club.tactical', module: 'AI Agents Operations Room',
     schema: AgentsRoomDetailSchema, consumer: 'public/agents-room/agents-room.js',
     reads: ['agent', 'autonomyCeiling', 'tools', 'outputs', 'issues'],
@@ -1957,6 +1996,9 @@ const _gEdge: Exact<z.infer<typeof GraphEdgeSchema>, GraphEdge> = true;
 const _gSource: Exact<z.infer<typeof GraphSourceSchema>, GraphSource> = true;
 void [_dsOverview, _dsTokens, _dsToken, _dsLayer, _dsPair, _dsSource];
 void [_gIndex, _gView, _gOne, _gSummary, _gNode, _gEdge, _gSource];
+import type { AgentRuntimeView } from '../platform/intelligence/agent-runtime';
+const _agentRuntime: Exact<z.infer<typeof AgentsRoomRuntimeSchema>, AgentRuntimeView> = true;
+void [_agentRuntime];
 const _cIndex: Exact<z.infer<typeof DesignSystemComponentsIndexSchema>, DesignSystemComponentsIndex> = true;
 const _cDetail: Exact<z.infer<typeof DesignSystemComponentDetailSchema>, DesignSystemComponentDetail> = true;
 const _cRecord: Exact<z.infer<typeof ComponentRecordSchema>, ComponentRecord> = true;

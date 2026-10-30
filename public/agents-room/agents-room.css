@@ -262,6 +262,47 @@ select.ar-input { min-width: 132px; cursor: pointer; }
 .ar-bar-track { display: block; width: 100%; height: 4px; margin-top: 4px; }
 .ar-bar-bg { fill: var(--fam-surface-tile-strong); }
 .ar-bar-fill { fill: var(--fam-status-neutral); }
+
+/* The Runtime panel: what the registry's agents did, counted by the server. Built
+   from the room's own pieces (the invariant list, key-value rows, bars, the mini
+   table). Its shape does not depend on what it reports: four checks, six totals, five
+   kinds, one note, one row per runtime agent, each line one line (cut with an ellipsis,
+   its whole text in its title), so the skeleton and every state are the same height. */
+.ar-rt .ar-inv { margin-bottom: var(--fam-space-3); }
+.ar-rt .ar-sub:first-of-type { margin-top: 0; }
+.ar-rt-fine { font-size: var(--fam-font-size-sm); margin-top: var(--fam-space-2); }
+.ar-rt-table { margin-top: var(--fam-space-1); table-layout: fixed; }
+.ar-rt-table thead th:first-child { width: 54%; }
+.ar-rt-table tbody th { text-align: start; font-weight: var(--fam-font-weight-semibold); padding: var(--fam-space-2) var(--fam-space-2) var(--fam-space-2) 0;
+  border-top: var(--fam-border-width-hairline) solid var(--fam-border-subtle); vertical-align: middle; height: 44px; text-transform: none; letter-spacing: 0; font-size: var(--fam-font-size-sm); color: var(--fam-text-primary); }
+#ar-root[dir="rtl"] .ar-rt-table tbody th { padding-inline: 0 var(--fam-space-2); }
+.ar-rt-agent { display: block; }
+.ar-rt-sub { display: block; font-size: var(--fam-font-size-2xs); font-weight: var(--fam-font-weight-regular); color: var(--fam-text-secondary); margin-top: 2px; }
+.ar-rt .ar-inv-b { flex: 1 1 auto; }
+/* The visually hidden "holds"/"fails" sits after a line that may be cut: the line is its
+   containing block, so it is clipped with the line and widens nothing around it. */
+.ar-rt .ar-inv-t { position: relative; }
+.ar-rt .ar-kv { flex-wrap: nowrap; }
+.ar-rt .ar-kv-k, .ar-rt .ar-bar-l > span:first-child { min-width: 0; }
+.ar-rt .ar-inv-t, .ar-rt .ar-kv-k, .ar-rt .ar-bar-l > span:first-child, .ar-rt-agent, .ar-rt-sub {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal;
+}
+/* A check's detail and the note under the kinds are two lines, always: a shorter one keeps
+   the second line empty, a longer one is cut at the end of the second. */
+.ar-rt .ar-inv-d, .ar-rt-fine {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; height: 2lh; overflow-wrap: anywhere;
+}
+.ar-rt-table td { height: 44px; }
+.ar-rt-table thead th { white-space: normal; overflow-wrap: anywhere; vertical-align: bottom; }
+/* A skeleton line is a line of text (a no-break space) with the bar drawn over it, so it
+   takes the line height of the text it stands in for, inside a flex row or not. */
+.ar-skel-line { position: relative; display: inline-block; vertical-align: baseline; width: 72%; color: transparent; }
+.ar-skel-line::before { content: ''; position: absolute; inset-inline: 0; top: 50%; height: 0.8em; transform: translateY(-50%); border-radius: var(--fam-radius-sm); background: var(--fam-surface-tile-strong); }
+.ar-skel-line--short { width: 44%; }
+.ar-skel-line--mid { width: 58%; }
+.ar-skel-line--num { width: 2.5em; }
+.ar-rt-skel .ar-inv-mark { background: var(--fam-surface-tile-strong); border-radius: 50%; }
 #ar-root[dir="rtl"] .ar-bar-track { transform: scaleX(-1); }
 
 /* ── the registry map ─────────────────────────────────────────────────── */

@@ -24,6 +24,7 @@ import { platformAgentRegistry } from '../src/platform/agents/catalog';
 import { OWNER_API_CONTRACTS } from '../src/contracts/owner-api.contracts';
 import { orchestrationRoomView, ORCHESTRATION_EVIDENCE_NOTICE } from '../src/platform/agents/orchestration-evidence';
 import { publicationsRoomView, APPROVAL_RULE, EXECUTION_EVIDENCE_NOTICE } from '../src/platform/agents/execution-evidence';
+import { RUNTIME_AGENTS, runtimeRegistryState } from '../src/platform/intelligence/agent-jobs';
 
 const ROOT = path.resolve(__dirname, '..');
 const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -96,7 +97,7 @@ describe('read-only by construction', () => {
   it('asks for the registry, one manifest, the LAB evidence and the approved executions, and for nothing else', () => {
     const calls = [...CODE.matchAll(/\bapi\(('[^']*'(?: \+ encodeURIComponent\(id\))?|[a-z]+)\)/g)].map((m) => m[1]).filter((a) => a !== 'path');
     expect(CODE.match(/\bapi\(/g)).toHaveLength(calls.length + 1); // + its definition: no other call reaches the reader
-    expect(calls.sort()).toEqual(["'/system/agents'", "'/system/agents/' + encodeURIComponent(id)", "'/system/agents/orchestration'", "'/system/agents/publications'"].sort());
+    expect(calls.sort()).toEqual(["'/system/agents'", "'/system/agents/' + encodeURIComponent(id)", "'/system/agents/orchestration'", "'/system/agents/publications'", "'/system/agents/runtime'"].sort());
     expect(CODE).not.toContain('kill-switch');
     expect(CODE).not.toMatch(/data-ar-(kill|engage|activate|start|stop|run|approve|publish|prepare|merge)/);
   });
@@ -108,7 +109,7 @@ describe('read-only by construction', () => {
 
   it('is covered by the owner API contract, in both directions', () => {
     const mine = OWNER_API_CONTRACTS.filter((c) => c.consumer === 'public/agents-room/agents-room.js').map((c) => c.endpoint);
-    expect(mine).toEqual(['/system/agents', '/system/agents/club.tactical', '/system/agents/orchestration', '/system/agents/publications']);
+    expect(mine).toEqual(['/system/agents', '/system/agents/runtime', '/system/agents/club.tactical', '/system/agents/orchestration', '/system/agents/publications']);
   });
 });
 
@@ -145,7 +146,7 @@ function runRoom(overview: unknown, detail?: (id: string) => unknown, locale?: R
     set innerHTML(v: string) { (painted[sel] = painted[sel] || []).push(v); }, get innerHTML() { const r = painted[sel]; return r ? r[r.length - 1] : ''; },
     setAttribute() {}, removeAttribute() {}, classList: { add() {}, remove() {}, toggle() {} }, scrollTop: 0, textContent: '',
   });
-  const REGIONS = ['#ar-view', '#ar-count', '#ar-wf-detail', '#ar-wf-trace'];
+  const REGIONS = ['#ar-view', '#ar-count', '#ar-wf-detail', '#ar-wf-trace', '#ar-rt'];
   const calls: string[] = [];
   const host: any = {
     set innerHTML(v: string) { html.push(v); }, get innerHTML() { return html[html.length - 1] || ''; },
@@ -161,6 +162,10 @@ function runRoom(overview: unknown, detail?: (id: string) => unknown, locale?: R
       if (String(u).includes('/i18n/')) return Promise.resolve({ ok: true, json: () => Promise.resolve(locale || {}) });
       calls.push(String(u).replace(/^.*\/system\//, '/system/'));
       const m = /\/system\/agents\/(.+)$/.exec(String(u));
+      if (m && m[1] === 'runtime') {
+        if (RT === 'HOLD') return new Promise(() => undefined);
+        return RT === 'FAIL' ? Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) }) : reply(RT === undefined ? rtView() : RT);
+      }
       if (m && m[1] === 'orchestration') return reply(opts.orch ?? null);
       if (m && m[1] === 'publications') return reply(opts.pub === undefined ? JSON.parse(JSON.stringify(publicationsRoomView(platformAgentRegistry()))) : opts.pub);
       return m ? reply(detail ? detail(decodeURIComponent(m[1])) : null) : reply(overview);
@@ -185,6 +190,19 @@ const on = (selector: string, attrs: Record<string, string>) => ({
   closest: (s: string) => (s.split(',').map((x) => x.trim()).includes(selector) ? { getAttribute: (k: string) => attrs[k] ?? null, closest: () => null, hasAttribute: (k: string) => k in attrs } : null),
 });
 const real = () => JSON.parse(JSON.stringify(operationsRoomOverview()));
+/** What GET /system/agents/runtime answers in a room under test: `RT` when a test sets it, a quiet day otherwise; 'FAIL' answers HTTP 500 and 'HOLD' never answers. */
+let RT: unknown;
+const zeroKinds = () => ({ registry: 0, authorization: 0, approval: 0, stalled: 0, execution: 0 });
+function rtView(over: Record<string, unknown> = {}) {
+  return JSON.parse(JSON.stringify({
+    generatedAt: '2026-10-29T12:00:00.000Z', windowHours: 24, registry: runtimeRegistryState(), killSwitch: { engaged: false },
+    queue: { pending: 0, oldestPendingSeconds: null, running: 0, stalled: 0, state: 'CLEAR' },
+    agents: RUNTIME_AGENTS.map((agent) => ({ agent, runs: true, refusedCode: null, queued: 0, succeeded: 0, failed: 0, cancelled: 0, inFlight: 0, failures: zeroKinds(), approvalsPending: 0, lastSucceededAt: null })),
+    totals: { queued: 0, succeeded: 0, failed: 0, cancelled: 0, inFlight: 0, approvalsPending: 0, failures: zeroKinds() },
+    failureSample: { read: 0, limit: 2000, complete: true }, unavailable: null,
+    ...over,
+  }));
+}
 const nodes = (h: string) => [...h.matchAll(/<g class="ar-node ar-node--[a-z]+[^"]*"[^>]*data-ar-agent="([^"]+)"/g)].map((m) => m[1]);
 const sectors = (h: string) => [...h.matchAll(/data-ar-sector="([^"]+)"/g)].map((m) => m[1]);
 
@@ -357,6 +375,148 @@ describe('safe by construction, and laid out as the owner rooms are', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+describe('the Runtime panel: what the registry’s agents actually did', () => {
+  afterEach(() => { RT = undefined; });
+  const busy = () => rtView({
+    queue: { pending: 3, oldestPendingSeconds: 125, running: 1, stalled: 0, state: 'DRAINING' },
+    agents: RUNTIME_AGENTS.map((agent) => ({
+      agent, runs: true, refusedCode: null, queued: agent === 'COMMS' ? 12 : 0, succeeded: agent === 'COMMS' ? 7 : 0,
+      failed: agent === 'COMMS' ? 3 : 0, cancelled: 0, inFlight: agent === 'COMMS' ? 2 : 0,
+      failures: agent === 'COMMS' ? { registry: 0, authorization: 1, approval: 1, stalled: 0, execution: 1 } : zeroKinds(),
+      approvalsPending: agent === 'COMMS' ? 2 : 0, lastSucceededAt: agent === 'COMMS' ? '2026-10-29T11:00:00.000Z' : null,
+    })),
+    totals: { queued: 12, succeeded: 7, failed: 3, cancelled: 0, inFlight: 2, approvalsPending: 2, failures: { registry: 0, authorization: 1, approval: 1, stalled: 0, execution: 1 } },
+    failureSample: { read: 3, limit: 2000, complete: true },
+  });
+  const panelOf = (h: string) => h.slice(h.indexOf('<div id="ar-rt">'), h.indexOf('</section></div>', h.indexOf('<div id="ar-rt">')) + 16);
+
+  it('reads the runtime beside the registry, after it, once', async () => {
+    const room = await runRoom(real());
+    expect(room.calls).toEqual(['/system/agents', '/system/agents/runtime']);
+  });
+
+  it('shows the registry the runtime enforces, the queue, the day’s totals, why jobs failed and each agent, titled by its manifest', async () => {
+    RT = busy();
+    const o = real();
+    const h = panelOf((await runRoom(o)).html());
+    expect(h).toContain('The runtime enforces this registry');
+    expect(h).toContain(o.registry.digest.slice(0, 16));
+    expect(h).toContain('All 10 runtime agents may run');
+    expect(h).toContain('Jobs waiting: 3');
+    expect(h).toContain('The oldest has waited 2 min');
+    expect(h).toContain('No job is stalled');
+    expect(h).toContain('Last 24 hours');
+    for (const [k, v] of [['Queued', '12'], ['Succeeded', '7'], ['Failed', '3'], ['Cancelled', '0'], ['Still in flight', '2'], ['Waiting on a person', '2']]) {
+      expect(h).toMatch(new RegExp(`<div class="ar-kv-k">${k}</div><div class="ar-kv-v">${v}</div>`));
+    }
+    for (const k of ['Refused by the registry', 'Refused before running', 'Approval rejected or expired', 'Stalled', 'Failed while running']) expect(h).toContain(k);
+    // One row per runtime agent, named by the manifest the registry binds to it.
+    const rows = [...h.matchAll(/<tr><th scope="row"><span class="ar-rt-agent"[^>]*>([^<]+)<\/span>/g)].map((m) => m[1]);
+    expect(rows).toEqual(RUNTIME_AGENTS.map((a) => o.agents.find((x: { runtimeAgent: string }) => x.runtimeAgent === a).title));
+    expect(h).toContain('Last success');
+    expect(h).toContain('No success in 30 days');
+  });
+
+  it('a measured zero is drawn as 0; a history the server could not read is said so, never drawn as 0', async () => {
+    RT = rtView();
+    const quiet = panelOf((await runRoom(real())).html());
+    expect(quiet).toContain('No job is waiting');
+    expect(quiet).toContain('Nothing has waited.');
+    expect(quiet).toContain('Nothing is running.');
+    // Every kind of failure is drawn, each with its measured 0.
+    expect([...quiet.matchAll(/<span class="ar-bar-n">([^<]*)<\/span>/g)].map((m) => m[1])).toEqual(['0', '0', '0', '0', '0']);
+    expect(quiet).toMatch(/<div class="ar-kv-k">Queued<\/div><div class="ar-kv-v">0<\/div>/);
+    RT = rtView({ queue: null, agents: null, totals: null, failureSample: null, unavailable: 'Agent job history is not readable in this deployment.' });
+    const unread = panelOf((await runRoom(real())).html());
+    expect(unread).toContain('The runtime enforces this registry');
+    expect(unread).toMatch(/ar-inv-i--crit[\s\S]*The queue could not be read[\s\S]*ar-inv-i--crit[\s\S]*Stalled jobs could not be read[\s\S]*Every figure below is unknown, not zero\./);
+    expect(unread).toContain('Failed jobs could not be read.');
+    // The same shape as a read day, and not one figure in it is a 0: each is —.
+    const figures = [
+      ...[...unread.matchAll(/<div class="ar-kv-v">([^<]*)<\/div>/g)].map((m) => m[1]),
+      ...[...unread.matchAll(/<span class="ar-bar-n">([^<]*)<\/span>/g)].map((m) => m[1]),
+      ...[...unread.matchAll(/<td class="ar-num">([^<]*)<\/td>/g)].map((m) => m[1]),
+    ];
+    expect(figures).toHaveLength(6 + 5 + 3 * RUNTIME_AGENTS.length);
+    expect(new Set(figures)).toEqual(new Set(['—']));
+  });
+
+  it('a backlog, a stalled job, a refused agent, an invalid or a different registry are failing checks', async () => {
+    RT = rtView({ queue: { pending: 9, oldestPendingSeconds: 900, running: 2, stalled: 1, state: 'BACKLOG' } });
+    const slow = panelOf((await runRoom(real())).html());
+    expect(slow).toMatch(/ar-inv-i--crit[\s\S]*Jobs waiting: 9[\s\S]*the queue is not draining/);
+    expect(slow).toMatch(/ar-inv-i--crit[\s\S]*Jobs stalled: 1/);
+    RT = rtView({ registry: { ...runtimeRegistryState(), refused: [{ agent: 'TACTICAL', code: 'NOT_RUNNING' }] } });
+    expect(panelOf((await runRoom(real())).html())).toMatch(/ar-inv-i--crit[\s\S]*Agents that may not run: 1[\s\S]*Not RUNNING in the registry/);
+    RT = rtView({ registry: { state: 'INVALID', digest: null, running: [], refused: [], failure: 'Agent manifest "club.x" is not valid: <img src=x onerror=alert(1)>' } });
+    const invalid = panelOf((await runRoom(real())).html());
+    expect(invalid).toMatch(/ar-inv-i--crit[\s\S]*The registry did not validate/);
+    expect(invalid).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(invalid).not.toContain('<img');
+    RT = rtView({ registry: { ...runtimeRegistryState(), digest: 'f'.repeat(64) } });
+    expect(panelOf((await runRoom(real())).html())).toMatch(/ar-inv-i--crit[\s\S]*The runtime enforces a different registry[\s\S]*ffffffffffffffff/);
+  });
+
+  it('a runtime that cannot be read leaves the room drawn and offers to try again; a reply missing its fields is a contract error', async () => {
+    RT = 'FAIL';
+    const down = await runRoom(real());
+    expect(nodes(down.html()).length).toBe(real().agents.length);
+    expect(panelOf(down.html())).toMatch(/The runtime could not be read[\s\S]*The platform answered HTTP 500\.[\s\S]*data-ar-rt-retry/);
+    RT = { windowHours: 24 };
+    expect(panelOf((await runRoom(real())).html())).toMatch(/CONTRACT ERROR · \/system\/agents\/runtime · the response did not carry: registry, queue, agents, totals, failureSample, unavailable/);
+  });
+
+  it('repaints only its own region when the runtime arrives or is retried', async () => {
+    RT = 'FAIL';
+    const room = await runRoom(real(), undefined, undefined, { regions: true });
+    RT = busy();
+    const before = room.paints('#ar-rt');
+    await room.click(on('[data-ar-rt-retry]', {}));
+    expect(room.paints('#ar-rt')).toBeGreaterThan(before);
+    expect(room.region('#ar-rt')).toContain('Jobs waiting: 3');
+    expect(room.calls.filter((c) => c === '/system/agents/runtime')).toHaveLength(2);
+    expect(room.calls.filter((c) => c === '/system/agents')).toHaveLength(1);
+  });
+
+  it('in German and Arabic every sentence it draws is translated, and its label maps are in all three catalogues', async () => {
+    RT = busy();
+    for (const tag of ['de', 'ar']) {
+      const room = await runRoom(real(), undefined, json(`public/agents-room/i18n/${tag}.json`) as Record<string, string>, { lang: tag });
+      expect([tag, room.missing()]).toEqual([tag, []]);
+    }
+    const en = json('public/agents-room/i18n/en.json') as Record<string, string>;
+    const values = ['FAILURE_LABEL', 'REFUSAL_LABEL_RT'].flatMap((n) => [...objectLiteral(JS, n).matchAll(/:\s*'((?:[^'\\]|\\.)*)'/g)].map((x) => x[1]));
+    expect(values).toHaveLength(8);
+    expect(values.filter((v) => !(v in en))).toEqual([]);
+  });
+
+  it('its skeleton has the shape of what it stands in for, so the panels below it do not move when it arrives', async () => {
+    const shape = (h: string) => ({
+      checks: (h.match(/<li class="ar-inv-i/g) || []).length,
+      totals: [...h.matchAll(/<div class="ar-kv-k">([^<]+)<\/div>/g)].map((m) => m[1]),
+      bars: (h.match(/<li class="ar-bar">/g) || []).length,
+      rows: (h.match(/<tr><th scope="row">/g) || []).length,
+      subs: [...h.matchAll(/<div class="ar-sub">([^<]+)<\/div>/g)].map((m) => m[1]),
+    });
+    RT = 'HOLD';
+    const waiting = panelOf((await runRoom(real())).html());
+    expect(waiting).toContain('ar-rt-skel');
+    for (const view of [rtView(), busy(), rtView({ queue: null, agents: null, totals: null, failureSample: null, unavailable: 'Agent job history is not readable in this deployment.' })]) {
+      RT = view;
+      expect(shape(waiting)).toEqual(shape(panelOf((await runRoom(real())).html())));
+    }
+    expect(shape(waiting)).toMatchObject({ checks: 4, bars: 5, rows: RUNTIME_AGENTS.length });
+  });
+
+  it('draws only what the server counted: it reads no club, no person, no job and offers no control', () => {
+    const start = JS.indexOf('function loadRuntime()');
+    const fn = JS.slice(start, JS.indexOf("+ totals + kinds + rtTable(rows);", start));
+    expect(fn.length).toBeGreaterThan(2000);
+    expect(fn).not.toMatch(/clubId|teamId|triggeredBy|\.input\b|\.output\b|\.error\b/);
+    expect(fn).not.toMatch(/data-ar-(kill|engage|activate|start|stop|run|approve|cancel|retry-job|requeue)/);
+  });
+});
+
 describe('English, German and Arabic — one catalogue each, in step', () => {
   const dict = (t: string) => json(`public/agents-room/i18n/${t}.json`) as Record<string, string>;
   const en = dict('en'); const de = dict('de'); const ar = dict('ar');
@@ -456,9 +616,9 @@ describe('LAB workflows (AI-0.3): what the LAB orchestrator decided, drawn only 
 
   it('reads the LAB evidence only when the workflows are opened', async () => {
     const room = await runRoom(real(), undefined, undefined, { orch: verified(), regions: true });
-    expect(room.calls).toEqual(['/system/agents']);
+    expect(room.calls).toEqual(['/system/agents', '/system/agents/runtime']);
     await room.click(on('[data-ar-view]', { 'data-ar-view': 'workflows' }));
-    expect(room.calls).toEqual(['/system/agents', '/system/agents/orchestration', '/system/agents/publications']);
+    expect(room.calls).toEqual(['/system/agents', '/system/agents/runtime', '/system/agents/orchestration', '/system/agents/publications']);
   });
 
   it('lists every published run, and draws every task of the first as a node and every dependency as an edge', async () => {

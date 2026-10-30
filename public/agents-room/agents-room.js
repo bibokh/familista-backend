@@ -29,7 +29,10 @@
    HONEST
 
    A lifecycle is what a manifest declares, never observed activity: the
-   registry reports no live state, no run count and no timing, so none is drawn.
+   registry reports no live state, no run count and no timing, so none is drawn
+   from it. The Runtime panel is the one place that shows what happened, and it
+   says so: GET /system/agents/runtime, totals across every club over the last
+   24 hours — never a club, a person, a job or its text.
    A measured zero is drawn as 0; what the registry does not send is drawn as "—".
 
    This room paints with the canonical --fam-* tokens (public/tokens/
@@ -44,6 +47,8 @@
     error: null,
     detail: {},            // agent id → GET /system/agents/:agentId
     detailError: {},
+    rt: null,              // GET /system/agents/runtime: what the runtime enforced and did, last 24 hours
+    rtError: null,
     open: null,            // the agent in the inspector, or null
     opener: null,          // where focus returns when the inspector closes
     view: 'map',           // map | catalogue | workflows
@@ -296,6 +301,190 @@
       AR.detail[id] = { agent: x.agent, autonomyCeiling: x.autonomyCeiling, tools: x.tools, outputs: x.outputs, issues: x.issues };
       delete AR.detailError[id];
     }).catch(function (e) { AR.detailError[id] = e.message; });
+  }
+
+  // ── the runtime: what the registry's agents actually did ──────────────────
+  //
+  // Read beside the registry, never before it: the room draws without it, and
+  // a runtime that cannot be read is said so in its own panel.
+
+  function loadRuntime() {
+    return api('/system/agents/runtime').then(function (d) {
+      var missing = missingFields(d, ['windowHours', 'registry']);
+      ['queue', 'agents', 'totals', 'failureSample', 'unavailable'].forEach(function (k) { if (!d || d[k] === undefined) missing.push(k); });
+      if (missing.length) { AR.rt = null; AR.rtError = contractError('/system/agents/runtime', missing); return; }
+      AR.rt = {
+        generatedAt: d.generatedAt, windowHours: d.windowHours, registry: d.registry, queue: d.queue, agents: d.agents,
+        totals: d.totals, failureSample: d.failureSample, unavailable: d.unavailable,
+      };
+      AR.rtError = null;
+    }).catch(function (e) { AR.rt = null; AR.rtError = e.message; });
+  }
+  /** Repaint the Runtime panel alone; with no panel on the page yet, the next paint draws it. */
+  function repaintRuntime(host) {
+    var box = host && host.querySelector('#ar-rt');
+    if (box) box.innerHTML = runtimePanelInner();
+  }
+
+  var FAILURE_LABEL = {
+    registry: 'Refused by the registry',
+    authorization: 'Refused before running',
+    approval: 'Approval rejected or expired',
+    stalled: 'Stalled',
+    execution: 'Failed while running',
+  };
+  var REFUSAL_LABEL_RT = {
+    NOT_REGISTERED: 'No manifest',
+    NOT_RUNNING: 'Not RUNNING in the registry',
+    REGISTRY_INVALID: 'The registry did not validate',
+  };
+  function rtWait(seconds) {
+    if (typeof seconds !== 'number') return '—';
+    if (seconds < 60) return tf('%d s', seconds);
+    if (seconds < 3600) return tf('%d min', Math.floor(seconds / 60));
+    return tf('%d h', Math.floor(seconds / 3600));
+  }
+  function rtWhen(iso) {
+    if (!iso) return '';
+    try { return new Date(iso).toLocaleString(AR_LANG, { dateStyle: 'short', timeStyle: 'short' }); } catch (_) { return String(iso); }
+  }
+  /** Markup built here from escaped pieces, as the text of a title attribute: the tags dropped, the escaping kept. */
+  function rtAttr(html) { return String(html).replace(/<[^>]*>/g, ''); }
+  // Each line of the panel is one line, cut with an ellipsis when it is longer, and its
+  // whole text is its title (a screen reader reads it whole), so the panel is the same
+  // height whatever it reports, in every language.
+  function rtStatus(ok, title, detail) {
+    return '<li class="ar-inv-i ar-inv-i--' + (ok ? 'ok' : 'crit') + '">'
+      + '<span class="ar-inv-mark" aria-hidden="true">' + (ok ? '✓' : '✕') + '</span>'
+      + '<div class="ar-inv-b"><div class="ar-inv-t" title="' + esc(title) + '">' + esc(title) + ' <span class="ar-sr">' + esc(ok ? T('holds') : T('fails')) + '</span></div>'
+      + '<div class="ar-inv-d" title="' + rtAttr(detail) + '">' + detail + '</div></div></li>';
+  }
+  /** How long before the runtime was read an agent last succeeded, in the reader's language. */
+  function rtAgo(iso, nowIso) {
+    var s = Math.max(0, Math.round((Date.parse(nowIso) - Date.parse(iso)) / 1000));
+    if (!isFinite(s)) return rtWhen(iso);
+    var unit = s < 3600 ? ['minute', Math.round(s / 60)] : s < 86400 ? ['hour', Math.round(s / 3600)] : ['day', Math.round(s / 86400)];
+    try { return new Intl.RelativeTimeFormat(AR_LANG, { numeric: 'auto', style: 'short' }).format(-unit[1], unit[0]); } catch (_) { return rtWhen(iso); }
+  }
+  /** The agent the registry binds to a runtime agent, for its title; the runtime's own token otherwise. */
+  function rtTitle(agent) {
+    var list = agents();
+    for (var i = 0; i < list.length; i++) if (list[i].runtimeAgent === agent) return TX(list[i].title);
+    return code(agent);
+  }
+
+  /** The runtime's own panel: the registry it enforces, the queue, and each agent's last 24 hours. */
+  function runtimePanelHtml() { return '<div id="ar-rt">' + runtimePanelInner() + '</div>'; }
+  function runtimePanelInner() {
+    var note = AR.rt ? esc(tf('Last %d hours', AR.rt.windowHours)) : '';
+    return panel('Runtime', runtimeBodyHtml(), note, 'ar-rt');
+  }
+  // The panel keeps one shape whatever the day held — four checks, each with its
+  // detail line; six totals; the five kinds of failure, a measured 0 drawn as 0;
+  // one row per runtime agent — and its skeleton is built from the same pieces, so
+  // nothing below it moves when the runtime arrives.
+  var RT_TOTALS = [['queued', 'Queued'], ['succeeded', 'Succeeded'], ['failed', 'Failed'], ['cancelled', 'Cancelled'], ['inFlight', 'Still in flight'], ['approvalsPending', 'Waiting on a person']];
+  function rtSkel(cls) { return '<span class="ar-skel-line' + (cls ? ' ar-skel-line--' + cls : '') + '" aria-hidden="true">&nbsp;</span>'; }
+  function rtRuntimeAgents() {
+    var n = 0, list = agents();
+    for (var i = 0; i < list.length; i++) if (list[i].runtimeAgent) n++;
+    return n;
+  }
+  function rtTable(rows) {
+    var th = function (x, cls) { return '<th scope="col"' + (cls ? ' class="' + cls + '"' : '') + '>' + esc(T(x)) + '</th>'; };
+    return '<div class="ar-sub">' + esc(T('By agent')) + '</div>'
+      + '<table class="ar-mini ar-rt-table"><caption class="ar-sr">' + esc(T('What each runtime agent did in the window')) + '</caption><thead><tr>'
+      + th('Agent') + th('Succeeded', 'ar-num') + th('Failed', 'ar-num') + th('Waiting on a person', 'ar-num') + '</tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+  function runtimeSkeletonHtml() {
+    var i, st = '', kv2 = '', bar = '', tr = '';
+    for (i = 0; i < 4; i++) st += '<li class="ar-inv-i"><span class="ar-inv-mark" aria-hidden="true"></span><div class="ar-inv-b"><div class="ar-inv-t">' + rtSkel() + '</div><div class="ar-inv-d">' + rtSkel('short') + '</div></div></li>';
+    for (i = 0; i < RT_TOTALS.length; i++) kv2 += '<div class="ar-kv"><div class="ar-kv-k">' + esc(T(RT_TOTALS[i][1])) + '</div><div class="ar-kv-v">' + rtSkel('num') + '</div></div>';
+    var kinds = Object.keys(FAILURE_LABEL);
+    for (i = 0; i < kinds.length; i++) {
+      bar += '<li class="ar-bar"><div class="ar-bar-l"><span>' + esc(T(FAILURE_LABEL[kinds[i]])) + '</span><span class="ar-bar-n">' + rtSkel('num') + '</span></div>'
+        + '<svg class="ar-bar-track" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect class="ar-bar-bg" width="100" height="4" rx="2"/></svg></li>';
+    }
+    for (i = 0; i < rtRuntimeAgents(); i++) {
+      tr += '<tr><th scope="row"><span class="ar-rt-agent">' + rtSkel() + '</span><span class="ar-rt-sub">' + rtSkel('short') + '</span></th>'
+        + '<td class="ar-num">' + rtSkel('num') + '</td><td class="ar-num">' + rtSkel('num') + '</td><td class="ar-num">' + rtSkel('num') + '</td></tr>';
+    }
+    return '<div class="ar-rt-skel" role="status" aria-busy="true" aria-label="' + esc(T('Reading the runtime…')) + '">'
+      + '<ul class="ar-inv">' + st + '</ul>'
+      + '<div class="ar-sub">' + esc(T('Jobs queued in the window')) + '</div>' + kv2
+      + '<div class="ar-sub">' + esc(T('Why jobs failed')) + '</div><ul class="ar-bars">' + bar + '</ul>'
+      + '<p class="ar-note ar-rt-fine">' + rtSkel() + '</p>'
+      + rtTable(tr) + '</div>';
+  }
+  function runtimeBodyHtml() {
+    if (AR.rtError && !AR.rt) {
+      return emptyState('The runtime could not be read', AR.rtError,
+        '<button class="ar-btn ar-btn--sm" type="button" data-ar-rt-retry>' + esc(T('Try again')) + '</button>');
+    }
+    if (!AR.rt) return runtimeSkeletonHtml();
+    var rt = AR.rt, reg = rt.registry || {};
+    var shown = AR.data && AR.data.registry ? AR.data.registry.digest : null;
+    var status = [];
+    if (reg.state === 'INVALID') {
+      status.push(rtStatus(false, T('The registry did not validate'), esc(T('The runtime refuses every job until it does.'))
+        + (reg.failure ? ' <bdi dir="ltr" data-no-i18n>' + esc(reg.failure) + '</bdi>' : '')));
+    } else if (shown && reg.digest && reg.digest !== shown) {
+      status.push(rtStatus(false, T('The runtime enforces a different registry'), esc(T('This page shows')) + ' ' + code(short(shown, 16))
+        + ' · ' + esc(T('the runtime enforces')) + ' ' + code(short(reg.digest, 16))));
+    } else {
+      status.push(rtStatus(true, T('The runtime enforces this registry'), code(short(reg.digest, 16))));
+    }
+    var refused = reg.refused || [];
+    status.push(refused.length
+      ? rtStatus(false, tf('Agents that may not run: %d', refused.length), refused.map(function (r) {
+        return rtTitle(r.agent) + ' · ' + esc(label(REFUSAL_LABEL_RT, r.code));
+      }).join(', '))
+      : rtStatus(true, tf('All %d runtime agents may run', (reg.running || []).length), esc(T('Each has a RUNNING manifest.'))));
+    var unread = !!rt.unavailable;
+    if (unread) {
+      status.push(rtStatus(false, T('The queue could not be read'), esc(T('Job history is not readable in this deployment.'))));
+      status.push(rtStatus(false, T('Stalled jobs could not be read'), esc(T('Every figure below is unknown, not zero.'))));
+    }
+    var q = rt.queue || {};
+    var waited = q.pending ? esc(T('The oldest has waited')) + ' ' + esc(rtWait(q.oldestPendingSeconds)) : esc(T('Nothing has waited.'));
+    if (!unread) status.push(q.state === 'BACKLOG'
+      ? rtStatus(false, tf('Jobs waiting: %d', q.pending), waited + ' · ' + esc(T('the queue is not draining')))
+      : rtStatus(true, q.pending ? tf('Jobs waiting: %d', q.pending) : T('No job is waiting'), waited));
+    var runningNow = q.running ? esc(tf('Running now: %d', q.running)) : esc(T('Nothing is running.'));
+    if (!unread) status.push(q.stalled
+      ? rtStatus(false, tf('Jobs stalled: %d', q.stalled), esc(T('Running for more than 10 minutes; the worker fails them on its next pass.')))
+      : rtStatus(true, T('No job is stalled'), runningNow));
+
+    var t = rt.totals || {};
+    var totals = '<div class="ar-sub">' + esc(T('Jobs queued in the window')) + '</div>'
+      + RT_TOTALS.map(function (x) { return kv(x[1], esc(num(t[x[0]]))); }).join('');
+
+    var fs = rt.failureSample || {};
+    var kinds = '<div class="ar-sub">' + esc(T('Why jobs failed')) + '</div>'
+      + bars(Object.keys(FAILURE_LABEL).map(function (k) { return { label: T(FAILURE_LABEL[k]), value: unread ? null : (t.failures && t.failures[k]) || 0 }; }))
+      + '<p class="ar-note ar-rt-fine">' + esc(unread ? T('Failed jobs could not be read.')
+        : fs.complete === false ? tf('The kinds describe the latest %d failed jobs.', fs.read)
+          : fs.read ? tf('Every failed job was read: %d.', fs.read) : T('No job failed in the window.')) + '</p>';
+
+    // Unread history still has one row per runtime agent the room knows, as the skeleton does.
+    var refusedOf = {};
+    refused.forEach(function (r) { refusedOf[r.agent] = r.code; });
+    var list = rt.agents || agents().filter(function (x) { return x.runtimeAgent; }).map(function (x) {
+      return { agent: x.runtimeAgent, runs: reg.state !== 'INVALID' && !refusedOf[x.runtimeAgent], refusedCode: refusedOf[x.runtimeAgent] || null };
+    });
+    var rows = list.map(function (a) {
+      var sub = !a.runs ? esc(label(REFUSAL_LABEL_RT, a.refusedCode || (reg.state === 'INVALID' ? 'REGISTRY_INVALID' : 'NOT_REGISTERED')))
+        : unread ? esc(T('Last success')) + ' —'
+          : a.lastSucceededAt ? esc(T('Last success')) + ' <time datetime="' + esc(a.lastSucceededAt) + '">' + esc(rtAgo(a.lastSucceededAt, rt.generatedAt)) + '</time>'
+            : esc(T('No success in 30 days'));
+      var name = rtTitle(a.agent);
+      return '<tr><th scope="row"><span class="ar-rt-agent" title="' + rtAttr(name) + '">' + name + '</span>'
+        + '<span class="ar-rt-sub" title="' + rtAttr(sub) + (a.lastSucceededAt && !unread ? ' · ' + esc(rtWhen(a.lastSucceededAt)) : '') + '">' + sub + '</span></th>'
+        + '<td class="ar-num">' + esc(num(a.succeeded)) + '</td><td class="ar-num">' + esc(num(a.failed)) + '</td>'
+        + '<td class="ar-num">' + esc(num(a.approvalsPending)) + '</td></tr>';
+    }).join('');
+
+    return '<ul class="ar-inv">' + status.join('') + '</ul>' + totals + kinds + rtTable(rows);
   }
 
   // ── what the registry holds, as this screen needs it ──────────────────────
@@ -641,10 +830,11 @@
       : emptyState('No invariant was reported', T('The registry endpoint returned no invariant to show.'));
     var scopeRows = scopes().map(function (s) { return { label: label(SCOPE_LABEL, s), value: tally('byScope', s) }; });
     var lcRows = lifecycles().map(function (l) { return { label: label(LIFECYCLE_LABEL, l), value: tally('byLifecycle', l) }; });
-    return panel('Governance', rows, esc(T('Computed by the server on every read')))
+    return runtimePanelHtml()
+      + panel('Governance', rows, esc(T('Computed by the server on every read')))
       + panel('Composition', '<div class="ar-sub">' + esc(T('By scope')) + '</div>' + bars(scopeRows)
         + '<div class="ar-sub">' + esc(T('By lifecycle')) + '</div>' + bars(lcRows))
-      + panel('What this room shows', '<p class="ar-note">' + esc(T('Manifests and checks the server computes, and nothing else: no club, no person, no record. Lifecycles are declared, not observed; the registry reports no live activity, so none is drawn. An agent or a domain added to the registry appears here without a change to this room.')) + '</p>');
+      + panel('What this room shows', '<p class="ar-note">' + esc(T('Manifests and checks the server computes, and the runtime\'s own totals: no club, no person, no record. Lifecycles are what the manifests declare; the Runtime panel is what the platform\'s agents did in the last 24 hours, counted across every club. An agent or a domain added to the registry appears here without a change to this room.')) + '</p>');
   }
 
   // ── one agent: its manifest, in full ──────────────────────────────────────
@@ -1368,6 +1558,7 @@
     if (AR.refreshing) return;
     AR.refreshing = true;
     AR.detail = {}; AR.detailError = {};
+    AR.rt = null; AR.rtError = null; loadRuntime().then(function () { repaintRuntime(host); });
     AR.wf = null; AR.wfError = null;
     AR.pub = null; AR.pubError = null;
     var btn = host.querySelector('.ar-top [data-ar-refresh]');
@@ -1439,6 +1630,7 @@
 
       if (t.closest('[data-ar-close]')) { closeAgent(host); return; }
       if (t.closest('[data-ar-refresh]')) { refresh(host); return; }
+      if (t.closest('[data-ar-rt-retry]')) { AR.rtError = null; repaintRuntime(host); loadRuntime().then(function () { repaintRuntime(host); }); return; }
       var retry = t.closest('[data-ar-retry]');
       if (retry) {
         var rid = retry.getAttribute('data-ar-retry');
@@ -1589,7 +1781,9 @@
     bind(host);
     setLocale(initialLocale()).then(function () {
       paint(host);
-      return loadOverview();
+      var registry = loadOverview();
+      loadRuntime().then(function () { repaintRuntime(host); });
+      return registry;
     }).then(function () { paint(host); });
   };
 
