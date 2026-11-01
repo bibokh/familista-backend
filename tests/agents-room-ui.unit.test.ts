@@ -73,14 +73,19 @@ describe('a room of its own, for the platform owner, outside every Club Workspac
     expect(APP).toContain("&& _arRoot && (_leaving !== 'pg-agents-room' || !_arRoot.__famDrawn)) {");
   });
 
-  it('is reached from SYSTEM → AI Agent Control, and is not a card on Owner Home', () => {
+  it('is reached from SYSTEM → AI Agent Control, and from the hub at the centre of Owner Control', () => {
     expect(SYSTEM_JS).toContain('data-sy-room="agents-room"');
     expect(SYSTEM_JS).toContain("return moduleHeader('agents') + agentsRoomLink()");
     expect(SYSTEM_JS).toContain("if (room) { ev.preventDefault(); try { navTo(room.getAttribute('data-sy-room')); } catch (_) {} return; }");
-    const home = APP.slice(APP.indexOf('function _ownerHomeForPlatformOwner('), APP.indexOf('function renderOwnerHome('));
+    // The Platform Owner's landing is a map with this room at its centre: one hub, one way in.
+    const home = APP.slice(APP.indexOf('function _ownerHomeForPlatformOwner('), APP.indexOf('function _ownerHomeForClubMember('));
     expect(home.length).toBeGreaterThan(1000);
-    expect(home).not.toContain('agents-room');
-    // The room comes back to SYSTEM, where it was opened from.
+    expect(home.match(/data-page="agents-room"/g)).toHaveLength(1);
+    expect(home).toContain('<button class="oh-hub" data-action="navTo" data-page="agents-room" type="button">');
+    // A club member's landing never offers it.
+    const member = APP.slice(APP.indexOf('function _ownerHomeForClubMember('), APP.indexOf('function renderOwnerHome('));
+    expect(member).not.toContain('agents-room');
+    // The room's own Back button still leads to SYSTEM, as it always has.
     expect(CODE).toContain("if (t.closest('[data-ar-back]')) { try { window.navTo('system'); } catch (_) {} return; }");
   });
 });
@@ -128,7 +133,7 @@ type Room = {
  * `orch` answers /system/agents/orchestration and `pub` /system/agents/publications (by default what this build
  * ships: verified, and empty); `regions` gives the room the view and workflow regions it repaints in place.
  */
-type RoomOpts = { orch?: unknown; pub?: unknown; regions?: boolean; lang?: string };
+type RoomOpts = { orch?: unknown; pub?: unknown; regions?: boolean; lang?: string; open?: string };
 
 function runRoom(overview: unknown, detail?: (id: string) => unknown, locale?: Record<string, string>, opts: RoomOpts = {}): Promise<Room> {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -174,7 +179,7 @@ function runRoom(overview: unknown, detail?: (id: string) => unknown, locale?: R
   };
   sandbox.window = sandbox;
   vm.runInNewContext(JS, sandbox);
-  sandbox.renderFamilistaAgentsRoom(host);
+  sandbox.renderFamilistaAgentsRoom(host, opts.open === undefined ? undefined : { open: opts.open });
   const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 30));
   return settle().then(() => ({
     html: () => html[html.length - 1] || '',
@@ -272,6 +277,22 @@ describe('it draws what the registry holds — every agent, every domain — and
     expect(h).toContain('1 of 8 invariants fail');
     expect(h).toContain('ar-inv-i--crit');
     expect(h).toContain('ar-core-ring--crit');
+  });
+
+  it('opens on one agent when the Owner Control map asks for it, and only on an agent its registry lists', async () => {
+    const room = await runRoom(real(), (id) => operationsRoomAgent(id), undefined, { open: 'club.medical' });
+    expect(room.insp()).toContain('id="ar-insp-title"');
+    expect(room.insp()).toContain('Injury-risk screening');
+    expect(room.calls).toContain('/system/agents/club.medical');
+    // Anything else is a request the room declines: nothing opens and nothing else is asked for.
+    for (const bad of ['club.nope', 'platform.medical', 'club.medical"] *', '<img src=x onerror=alert(1)>', '']) {
+      const other = await runRoom(real(), (id) => operationsRoomAgent(id), undefined, { open: bad });
+      expect([bad, other.insp()]).not.toEqual([bad, expect.stringContaining('ar-insp-title')]);
+      expect([bad, other.calls.filter((c) => !['/system/agents', '/system/agents/runtime'].includes(c))]).toEqual([bad, []]);
+    }
+    // Without the request it opens nothing, as before.
+    const plain = await runRoom(real(), (id) => operationsRoomAgent(id));
+    expect(plain.insp()).not.toContain('ar-insp-title');
   });
 
   it('opens one manifest in full: tools, data, outputs, who may read them, who answers for it', async () => {

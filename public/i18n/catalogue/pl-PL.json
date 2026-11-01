@@ -1599,5 +1599,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "AGENCI AI — CENTRUM OPERACYJNE",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "Każdy agent w rejestrze agentów: jego domena, zakres, cykl życia i uprawnienia",
+  "Reading the Agent Registry…": "Odczytywanie rejestru agentów…",
+  "Agents running: \u0000 of \u0000": "Aktywni agenci: \u0000 z \u0000",
+  "Agent Registry unreachable": "Rejestr agentów jest nieosiągalny",
+  "Registry invariants failing: \u0000": "Naruszone niezmienniki rejestru: \u0000",
+  "Kill switch engaged": "Wyłącznik awaryjny jest włączony",
+  "Open the Operations Room": "Otwórz centrum operacyjne",
+  "No agent registered": "Brak zarejestrowanego agenta",
+  "Club agents: \u0000": "Agenci klubu: \u0000",
+  "Club Manager": "Menedżer klubu",
+  "Tactical": "Taktyka",
+  "Finance": "Finanse",
+  "Match Operations": "Operacje meczowe",
+  "Communications": "Komunikacja",
+  "Device Management": "Zarządzanie urządzeniami",
+  "Big Data": "Big Data"
 }

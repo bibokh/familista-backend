@@ -1599,5 +1599,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "AI-AGENTER — KONTROLRUM",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "Alle agenter i agentregistret: domæne, omfang, livscyklus og tilladelser",
+  "Reading the Agent Registry…": "Læser agentregistret…",
+  "Agents running: \u0000 of \u0000": "Agenter i drift: \u0000 af \u0000",
+  "Agent Registry unreachable": "Agentregistret er utilgængeligt",
+  "Registry invariants failing: \u0000": "Registerinvarianter, der fejler: \u0000",
+  "Kill switch engaged": "Nødstop er aktiveret",
+  "Open the Operations Room": "Åbn kontrolrummet",
+  "No agent registered": "Ingen agent registreret",
+  "Club agents: \u0000": "Klubagenter: \u0000",
+  "Club Manager": "Klubmanager",
+  "Tactical": "Taktik",
+  "Finance": "Økonomi",
+  "Match Operations": "Kampdrift",
+  "Communications": "Kommunikation",
+  "Device Management": "Enhedsstyring",
+  "Big Data": "Big Data"
 }

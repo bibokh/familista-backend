@@ -1596,5 +1596,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "TÁC TỬ AI — PHÒNG ĐIỀU HÀNH",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "Mọi tác tử trong sổ đăng ký tác tử: lĩnh vực, phạm vi, vòng đời và quyền hạn",
+  "Reading the Agent Registry…": "Đang đọc sổ đăng ký tác tử…",
+  "Agents running: \u0000 of \u0000": "Tác tử đang chạy: \u0000 / \u0000",
+  "Agent Registry unreachable": "Không thể truy cập sổ đăng ký tác tử",
+  "Registry invariants failing: \u0000": "Bất biến của sổ đăng ký bị vi phạm: \u0000",
+  "Kill switch engaged": "Công tắc ngắt khẩn cấp đang bật",
+  "Open the Operations Room": "Mở phòng điều hành",
+  "No agent registered": "Không có tác tử nào được đăng ký",
+  "Club agents: \u0000": "Tác tử của câu lạc bộ: \u0000",
+  "Club Manager": "Quản lý câu lạc bộ",
+  "Tactical": "Chiến thuật",
+  "Finance": "Tài chính",
+  "Match Operations": "Vận hành trận đấu",
+  "Communications": "Truyền thông",
+  "Device Management": "Quản lý thiết bị",
+  "Big Data": "Dữ liệu lớn"
 }

@@ -2737,6 +2737,8 @@ function _loadDesignStudio(done) {
 // assertPlatformOwner on the server; this is convenience, not security. Its two
 // files are same-origin, which `script-src 'self'` and `style-src 'self'` allow.
 var _AR_ROOM = { state: 'idle', waiting: [] };
+// The agent the Owner Control map asked the Operations Room to open, until the room is drawn.
+var _famAgentsRoomOpen = null;
 function _loadAgentsRoom(done) {
   if (_AR_ROOM.state === 'ready') { done(true); return; }
   _AR_ROOM.waiting.push(done);
@@ -3125,7 +3127,10 @@ function navTo(page, el, _opts) {
     if (page === 'agents-room' && typeof window.renderFamilistaAgentsRoom === 'function'
         && _arRoot && (_leaving !== 'pg-agents-room' || !_arRoot.__famDrawn)) {
       _arRoot.__famDrawn = true;
-      window.renderFamilistaAgentsRoom(_arRoot);
+      // An agent asked for from the Owner Control map is handed over once, then forgotten.
+      var _arOpen = _famAgentsRoomOpen;
+      _famAgentsRoomOpen = null;
+      window.renderFamilistaAgentsRoom(_arRoot, _arOpen ? { open: _arOpen } : undefined);
     }
   } catch (_) {}
   try {
@@ -4163,6 +4168,217 @@ function _fillVaultStatus() {
     });
 }
 
+// ── OWNER CONTROL MIND MAP: the agents beside each room, and the lines ─────
+// The Agent Registry is the only source. Which rooms an agent stands beside is
+// read from the manifest's own scope and domain, never assigned here: a CLUB
+// agent works inside club workspaces, so it stands beside CLUBS; a PLATFORM
+// agent stands beside the room its domain names, where the platform has one.
+// A room with no such agent says "No agent registered" — an answer, not a
+// placeholder, and different from a registry that could not be read, which
+// draws nothing beside any room and says so on the hub.
+const _OH_AGENT_HOME = {
+  clubs:  function (a) { return a.scope === 'CLUB'; },
+  system: function (a) { return a.scope === 'PLATFORM' && a.domain === 'PLATFORM_OPERATIONS'; },
+  vision: function (a) { return a.scope === 'PLATFORM' && a.domain === 'VISION'; },
+};
+// One glyph per registry domain, so an agent is told apart by what it does.
+const _OH_AGENT_GLYPH = {
+  CLUB_OPERATIONS:     '<path d="M12 3l7 2.6v5.6c0 4.4-3 8.2-7 9.8-4-1.6-7-5.4-7-9.8V5.6L12 3z"/><path d="M9 11.5l2 2 4-4"/>',
+  TACTICS:             '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M7 8.5l3 3M10 8.5l-3 3"/><circle cx="16" cy="15" r="1.8"/><path d="M10.5 15h3.2"/>',
+  TRAINING:            '<path d="M12 4l5 15H7L12 4z"/><path d="M9.3 12.5h5.4M5 19h14"/>',
+  MATCH_OPERATIONS:    '<circle cx="12" cy="13" r="7"/><path d="M12 13V9.5M10 3h4M18 6.5l1.5-1.5"/>',
+  MEDICAL:             '<path d="M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z"/>',
+  SCOUTING:            '<circle cx="10.5" cy="10.5" r="5.5"/><path d="M15 15l5 5"/>',
+  FINANCE:             '<circle cx="12" cy="12" r="8"/><path d="M14.5 9.3c-.6-.8-1.5-1.3-2.6-1.3-1.6 0-2.7.8-2.7 2s1.1 1.7 2.7 2 2.8.9 2.8 2.1-1.2 2-2.8 2c-1.2 0-2.2-.5-2.8-1.3M12 6.5V8M12 16v1.5"/>',
+  COMMUNICATIONS:      '<path d="M5 5h14v10H10l-4 3.5V15H5z"/>',
+  DEVICES:             '<rect x="8" y="6" width="8" height="12" rx="2"/><path d="M10 6V3.5h4V6M10 18v2.5h4V18M12 10v2.5l1.5 1"/>',
+  DATA:                '<path d="M5 19v-8M10 19V6M15 19v-9M20 19V9"/>',
+  VISION:              '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/>',
+  PLATFORM_OPERATIONS: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+  _:                   '<circle cx="12" cy="12" r="4"/>',
+};
+const _OH_AGENT_NONE = '<span class="oh-agent-none" title="No agent registered"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M7 17L17 7"/></svg><span class="oh-agent-none-l">No agent registered</span></span>';
+
+/** One agent, as the registry declares it: its domain's glyph, its lifecycle as the outline, its title as its name. */
+function _ohAgentButton(a) {
+  const id = String(a.id || '');
+  const lc = String(a.lifecycle || '');
+  const glyph = _OH_AGENT_GLYPH[a.domain] || _OH_AGENT_GLYPH._;
+  return '<button class="oh-agent oh-agent--' + lc.toLowerCase().replace(/[^a-z]/g, '') + '" type="button"'
+    + ' data-action="openAgentInRoom" data-agent-id="' + _esc(id) + '" data-agent-lc="' + _esc(lc) + '">'
+    + '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + glyph + '</svg>'
+    + '<span class="oh-agent-name">' + _esc(a.title || id) + '</span></button>';
+}
+
+/**
+ * Ask the Agent Registry what it holds, and draw it on the map: the hub's
+ * status, and the agents beside each room.
+ *
+ * One read, after paint, of the endpoint the Operations Room itself reads
+ * (GET /system/agents, the Platform Owner's alone). Green says how many agents
+ * the registry runs; a failing invariant is red and an engaged kill switch is
+ * amber, because either matters more than a count. "Running" is the manifest's
+ * lifecycle, not a claim that anything is busy: the map shows no activity, task
+ * count or online state, because the registry records none.
+ */
+function _fillAgentsMap() {
+  const slot = document.getElementById('oh-agents-state');
+  if (!slot) return;
+  const base = (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG.API_BASE) ? FAM_CONFIG.API_BASE : '/api/v1';
+  let token = '';
+  try { token = (window.State && window.State.token) || localStorage.getItem('familista_token') || ''; } catch (_) {}
+  const write = (state, text) => {
+    const el = document.getElementById('oh-agents-state');
+    if (el) el.outerHTML = _vaultStatusHTML(state, text).replace('class="oh-card-state', 'id="oh-agents-state" class="oh-card-state');
+  };
+  const caption = (text) => {
+    const cap = document.getElementById('oh-agents-cap');
+    if (cap) { cap.setAttribute('data-oh-default', text); cap.classList.remove('is-agent'); cap.textContent = text; }
+  };
+  const unreadable = () => { write('bad', 'Agent Registry unreachable'); caption('Agent Registry unreachable'); };
+  fetch(base + '/system/agents', {
+    method: 'GET',
+    headers: token ? { Authorization: 'Bearer ' + token } : {},
+    credentials: 'include',
+  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+    .then(function (body) {
+      const d = (body && body.data) || {};
+      const agents = Array.isArray(d.agents) ? d.agents.filter(function (a) { return a && typeof a === 'object'; }) : null;
+      const invariants = Array.isArray(d.invariants) ? d.invariants : null;
+      if (!agents || !invariants || !d.registry || !d.killSwitch) return unreadable();
+      const failing = invariants.filter(function (i) { return !i || i.holds !== true; }).length;
+      const running = agents.filter(function (a) { return a.lifecycle === 'RUNNING'; }).length;
+      // Labels and numbers rather than inflected sentences, for the reason the
+      // other cards give: one catalogue entry then answers for every count.
+      if (failing > 0) write('bad', 'Registry invariants failing: ' + failing);
+      else if (d.killSwitch.engaged === true) write('warn', 'Kill switch engaged');
+      else write('ok', 'Agents running: ' + running + ' of ' + agents.length);
+      const map = document.getElementById('oh-map');
+      if (!map) return;
+      map.querySelectorAll('[data-oh-agents]').forEach(function (host) {
+        const k = host.getAttribute('data-oh-agents');
+        const home = _OH_AGENT_HOME[k];
+        const mine = home ? agents.filter(home) : [];
+        host.innerHTML = mine.length ? mine.map(_ohAgentButton).join('') : (k === 'clubs' ? '' : _OH_AGENT_NONE);
+        host.classList.add('is-read');
+      });
+      caption('Club agents: ' + agents.filter(_OH_AGENT_HOME.clubs).length);
+      _ohDrawLinks();
+    })
+    .catch(unreadable);
+}
+
+/**
+ * The lines from the hub to every room, drawn from where the cards actually
+ * are. An overlay that takes no part in layout: drawing it, redrawing it on a
+ * resize, or lighting one line moves nothing on the page. Hidden, and not
+ * drawn, where the map becomes a list (see the escape hatch in app.css).
+ */
+function _ohDrawLinks() {
+  const map = document.getElementById('oh-map');
+  const svg = document.getElementById('oh-links');
+  const hub = map && map.querySelector('.oh-hub');
+  if (!map || !svg || !hub) return;
+  if (getComputedStyle(svg).display === 'none') { svg.innerHTML = ''; return; }
+  const m = map.getBoundingClientRect();
+  const h = hub.getBoundingClientRect();
+  const W = Math.round(m.width), H = Math.round(m.height);
+  const r = (n) => Math.round(n * 10) / 10;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  const hubMid = h.left + h.width / 2;
+  let defs = '', lines = '';
+  map.querySelectorAll('[data-oh-node]').forEach(function (node) {
+    const k = node.getAttribute('data-oh-node');
+    const card = node.querySelector('.oh-card');
+    if (!card) return;
+    const c = card.getBoundingClientRect();
+    let x1, y1, x2, y2, d;
+    if (k === 'clubs') {
+      x1 = hubMid - m.left; y1 = h.bottom - m.top;
+      x2 = c.left + c.width / 2 - m.left; y2 = c.top - m.top;
+      const my = (y1 + y2) / 2;
+      d = 'M' + r(x1) + ',' + r(y1) + ' C' + r(x1) + ',' + r(my) + ' ' + r(x2) + ',' + r(my) + ' ' + r(x2) + ',' + r(y2);
+    } else {
+      // The card's inner edge, whichever side of the hub it stands on (and so in either reading direction).
+      const before = c.left + c.width / 2 < hubMid;
+      x2 = (before ? c.right : c.left) - m.left;
+      y2 = c.top + c.height / 2 - m.top;
+      x1 = (before ? h.left : h.right) - m.left;
+      y1 = Math.min(Math.max(y2, h.top - m.top + 28), h.bottom - m.top - 28);
+      const dx = (x2 - x1) / 2;
+      d = 'M' + r(x1) + ',' + r(y1) + ' C' + r(x1 + dx) + ',' + r(y1) + ' ' + r(x2 - dx) + ',' + r(y2) + ' ' + r(x2) + ',' + r(y2);
+    }
+    defs += '<linearGradient id="oh-g-' + k + '" gradientUnits="userSpaceOnUse" x1="' + r(x1) + '" y1="' + r(y1) + '" x2="' + r(x2) + '" y2="' + r(y2) + '">'
+      + '<stop offset="0" class="oh-stop-hub"/><stop offset="1" class="oh-stop oh-stop--' + k + '"/></linearGradient>';
+    lines += '<path class="oh-link oh-link--' + k + '" data-k="' + k + '" d="' + d + '" stroke="url(#oh-g-' + k + ')"/>'
+      + '<circle class="oh-link-end oh-link-end--' + k + '" cx="' + r(x2) + '" cy="' + r(y2) + '" r="3"/>';
+  });
+  svg.innerHTML = '<defs>' + defs + '</defs>' + lines;
+  svg.classList.add('is-drawn');
+  const hotNow = map.getAttribute('data-hot');
+  if (hotNow) _ohLight(map, hotNow);
+}
+
+/** Light the line of the room under the pointer or the focus (every line, for the hub). */
+function _ohLight(map, k) {
+  if (k) map.setAttribute('data-hot', k); else map.removeAttribute('data-hot');
+  map.querySelectorAll('.oh-link').forEach(function (p) {
+    p.classList.toggle('is-hot', !!k && (k === 'hub' || p.getAttribute('data-k') === k));
+  });
+}
+
+let _ohLinksObserver = null;
+/**
+ * The map's own behaviour: redraw the lines when anything on it changes size,
+ * light a room's line on hover and focus, and name the agent under the pointer
+ * or the focus. Every listener is on the map element, so it goes with the map
+ * when the page is redrawn; the one observer is disconnected before a new one
+ * is made and when the map has left the page.
+ */
+function _ohBindMap() {
+  const map = document.getElementById('oh-map');
+  if (!map) return;
+  if (_ohLinksObserver) { try { _ohLinksObserver.disconnect(); } catch (_) {} _ohLinksObserver = null; }
+  if (typeof ResizeObserver === 'function') {
+    let frame = 0;
+    const obs = new ResizeObserver(function () {
+      if (!document.body.contains(map)) { obs.disconnect(); if (_ohLinksObserver === obs) _ohLinksObserver = null; return; }
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(_ohDrawLinks);
+    });
+    obs.observe(map);
+    map.querySelectorAll('.oh-node, .oh-hub').forEach(function (n) { obs.observe(n); });
+    _ohLinksObserver = obs;
+  } else {
+    requestAnimationFrame(_ohDrawLinks);
+  }
+  const keyOf = (t) => {
+    const n = t && t.closest ? t.closest('[data-oh-node], .oh-hub') : null;
+    return !n ? null : (n.classList.contains('oh-hub') ? 'hub' : n.getAttribute('data-oh-node'));
+  };
+  const name = (t) => {
+    const cap = document.getElementById('oh-agents-cap');
+    if (!cap) return;
+    const a = t && t.closest ? t.closest('.oh-agent') : null;
+    if (a) {
+      const n = a.querySelector('.oh-agent-name');
+      cap.innerHTML = '<span>' + _esc(n ? n.textContent : '') + '</span> · <span class="oh-agents-lc" data-no-i18n>' + _esc(a.getAttribute('data-agent-lc') || '') + '</span>';
+      cap.classList.add('is-agent');
+    } else if (cap.classList.contains('is-agent')) {
+      cap.classList.remove('is-agent');
+      cap.textContent = cap.getAttribute('data-oh-default') || '';
+    }
+  };
+  map.addEventListener('pointerover', function (e) { _ohLight(map, keyOf(e.target)); name(e.target); });
+  map.addEventListener('pointerleave', function () { _ohLight(map, null); name(null); });
+  map.addEventListener('focusin', function (e) { _ohLight(map, keyOf(e.target)); name(e.target); });
+  map.addEventListener('focusout', function (e) {
+    if (!map.contains(e.relatedTarget)) { _ohLight(map, null); name(null); }
+  });
+}
+
 /**
  * The platform owner's landing: four products, and a choice between them.
  *
@@ -4181,28 +4397,70 @@ function _fillVaultStatus() {
 function _ownerHomeForPlatformOwner(user, club) {
   const clubs = _accessibleClubs();
   const clubCount = clubs.length || 1;
+  // THE OWNER CONTROL MIND MAP. The AI Agents Operations Room is the centre of
+  // the page and every room is a branch of it: the four that govern the
+  // platform (SYSTEM, CYBERSECURITY, ALGORITHMS, DESIGN SYSTEM CONTROL) on the
+  // inline-start side, the four that hold its data and evidence (DATA VAULT,
+  // INFRASTRUCTURE CITY, SOURCE CORE, FAMILISTA VISION) on the inline-end side,
+  // and CLUBS directly beneath the hub, because every agent the registry runs
+  // works inside a club. The cards are the cards they always were, word for
+  // word and door for door; only where they stand has changed. The markup order
+  // is the reading order: the hub, CLUBS, then each branch from the top.
+  // The agents beside each room and the lines to the hub are drawn after paint
+  // from the Agent Registry (see _fillAgentsMap and _ohDrawLinks), into slots
+  // that are already the right size, so nothing here moves when they arrive.
   return `
-    <div class="oh-wrap oh-wrap--core">
-      <div class="oh-hero">
-        <div class="oh-eyebrow">FAMILISTA · OWNER CONTROL</div>
-        <h1 class="oh-title"><span>${_esc(_greeting())}</span>${user.firstName ? ', <span data-user-content>' + _esc(user.firstName) + '</span>' : ''}</h1>
-        <div class="oh-sub">Where do you want to go today?</div>
-      </div>
-      <div class="oh-cards oh-cards--core">
-        <button class="oh-card oh-card--system" data-action="navTo" data-page="system" type="button">
+    <div class="oh-wrap oh-wrap--core oh-wrap--map">
+      <div class="oh-cards oh-cards--core" id="oh-map">
+        <svg class="oh-links" id="oh-links" aria-hidden="true" focusable="false"></svg>
+        <div class="oh-node oh-node--center">
+          <div class="oh-hero">
+            <div class="oh-eyebrow">FAMILISTA · OWNER CONTROL</div>
+            <h1 class="oh-title"><span>${_esc(_greeting())}</span>${user.firstName ? ', <span data-user-content>' + _esc(user.firstName) + '</span>' : ''}</h1>
+            <div class="oh-sub">Where do you want to go today?</div>
+          </div>
+          <div class="oh-hub-slot">
+            <button class="oh-hub" data-action="navTo" data-page="agents-room" type="button">
+              <span class="oh-hub-mark" aria-hidden="true"><svg viewBox="0 0 64 64" width="64" height="64" fill="none" focusable="false">
+                <circle cx="32" cy="32" r="29" stroke="currentColor" stroke-opacity=".22"/>
+                <circle cx="32" cy="32" r="20" stroke="currentColor" stroke-opacity=".5" stroke-width="1.2" stroke-dasharray="2 4"/>
+                <path d="M32 23V12M39.8 27.5l9.5-5.5M39.8 36.5l9.5 5.5M32 41v11M24.2 36.5l-9.5 5.5M24.2 27.5l-9.5-5.5" stroke="currentColor" stroke-opacity=".55" stroke-width="1.2"/>
+                <circle cx="32" cy="32" r="9" fill="currentColor" fill-opacity=".16" stroke="currentColor" stroke-width="1.6"/>
+                <circle cx="32" cy="32" r="3.4" fill="currentColor"/>
+                <g fill="currentColor"><circle cx="32" cy="10" r="2.4"/><circle cx="51" cy="21" r="2.4"/><circle cx="51" cy="43" r="2.4"/><circle cx="32" cy="54" r="2.4"/><circle cx="13" cy="43" r="2.4"/><circle cx="13" cy="21" r="2.4"/></g>
+              </svg></span>
+              <span class="oh-hub-title">AI AGENTS — OPERATIONS ROOM</span>
+              <span class="oh-hub-sub">Every agent in the Agent Registry: its domain, scope, lifecycle and permissions</span>
+              <span id="oh-agents-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading the Agent Registry…</span>
+              <span class="oh-hub-cta">Open the Operations Room <span aria-hidden="true">→</span></span>
+            </button>
+          </div>
+          <div class="oh-node oh-node--clubs" data-oh-node="clubs">
+            <div class="oh-agents oh-agents--row">
+              <div class="oh-agents-list" data-oh-agents="clubs"></div>
+              <div class="oh-agents-cap" id="oh-agents-cap">Reading the Agent Registry…</div>
+            </div>
+            <button class="oh-card oh-card--clubs" data-action="navTo" data-page="clubs" type="button">
+          <div class="oh-card-icon">🏟️</div>
+          <div class="oh-card-title">CLUBS</div>
+          <div class="oh-card-sub">Football Organizations, Teams, People &amp; Operations</div>
+          <div class="oh-card-list"><span>Pick a club workspace to enter — currently</span> <span data-user-content>${_esc(club.name || 'FC Familista')}</span></div>
+          <div class="oh-card-cta">Select a club <span>→</span></div>
+        </button>
+          </div>
+        </div>
+        <div class="oh-node oh-node--l" data-oh-node="system">
+          <button class="oh-card oh-card--system" data-action="navTo" data-page="system" type="button">
           <div class="oh-card-icon">⚙️</div>
           <div class="oh-card-title">SYSTEM</div>
           <div class="oh-card-sub">Platform Operations, Infrastructure, Intelligence &amp; Governance</div>
           <div class="oh-card-list">Command Center · Clubs · People &amp; Access · Intelligence · Governance · Innovation Lab · Security · Audit</div>
           <div class="oh-card-cta">Enter system area <span>→</span></div>
         </button>
-        <!-- CYBERSECURITY is the seventh room and sits between SYSTEM and
-             CLUBS, because it is what protects both — and everything the
-             five rooms below them describe. It is a peer, the same size as
-             every other card. Its status line is read from the security
-             evidence after paint and says what the evidence says, nothing
-             kinder. -->
-        <button class="oh-card oh-card--cyber" data-action="navTo" data-page="cybersecurity" type="button">
+          <span class="oh-agents oh-agents--edge" data-oh-agents="system"></span>
+        </div>
+        <div class="oh-node oh-node--l" data-oh-node="cyber">
+          <button class="oh-card oh-card--cyber" data-action="navTo" data-page="cybersecurity" type="button">
           <div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 40 40" width="40" height="40" fill="none" focusable="false">
             <path d="M20 4.5 7.5 9.4v9.8c0 7.6 5.3 14.4 12.5 16.8 7.2-2.4 12.5-9.2 12.5-16.8V9.4L20 4.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
             <circle cx="20" cy="17.6" r="3.4" stroke="currentColor" stroke-width="1.8"/>
@@ -4214,18 +4472,10 @@ function _ownerHomeForPlatformOwner(user, club) {
           <span id="oh-cyber-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading security evidence…</span>
           <div class="oh-card-cta">Enter Cybersecurity <span>→</span></div>
         </button>
-        <button class="oh-card oh-card--clubs" data-action="navTo" data-page="clubs" type="button">
-          <div class="oh-card-icon">🏟️</div>
-          <div class="oh-card-title">CLUBS</div>
-          <div class="oh-card-sub">Football Organizations, Teams, People &amp; Operations</div>
-          <div class="oh-card-list"><span>Pick a club workspace to enter — currently</span> <span data-user-content>${_esc(club.name || 'FC Familista')}</span></div>
-          <div class="oh-card-cta">Select a club <span>→</span></div>
-        </button>
-        <!-- ALGORITHMS is the eighth room and closes the top row: every
-             algorithm the platform runs, the loop it changes by, and the
-             human approval each runs under. A peer, the same size as every
-             other card; its status line is read after paint. -->
-        <button class="oh-card oh-card--algo" data-action="navTo" data-page="algorithms" type="button">
+          <span class="oh-agents oh-agents--edge" data-oh-agents="cyber"></span>
+        </div>
+        <div class="oh-node oh-node--l" data-oh-node="algo">
+          <button class="oh-card oh-card--algo" data-action="navTo" data-page="algorithms" type="button">
           <div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 40 40" width="40" height="40" fill="none" focusable="false">
             <path d="M20 6.5a13.5 13.5 0 1 1-12.1 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             <path d="M7.4 7.6v6.6h6.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -4238,7 +4488,23 @@ function _ownerHomeForPlatformOwner(user, club) {
           <span id="oh-algorithms-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading algorithm evidence…</span>
           <div class="oh-card-cta">Enter Algorithms <span>→</span></div>
         </button>
-        <button class="oh-card oh-card--vault" data-action="navTo" data-page="data-vault" type="button">
+          <span class="oh-agents oh-agents--edge" data-oh-agents="algo"></span>
+        </div>
+        <div class="oh-node oh-node--l" data-oh-node="ds">
+          <button class="oh-card oh-card--ds" data-action="navTo" data-page="design-system" type="button">
+          <div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>
+          </svg></div>
+          <div class="oh-card-title">DESIGN SYSTEM CONTROL</div>
+          <div class="oh-card-sub">Design Tokens, Contrast, Provenance &amp; Evidence</div>
+          <div class="oh-card-list">Overview · Design Tokens · Layers · Contrast · Provenance</div>
+          <span id="oh-design-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading design system evidence…</span>
+          <div class="oh-card-cta">Enter Design System <span>→</span></div>
+        </button>
+          <span class="oh-agents oh-agents--edge" data-oh-agents="ds"></span>
+        </div>
+        <div class="oh-node oh-node--r" data-oh-node="vault">
+          <button class="oh-card oh-card--vault" data-action="navTo" data-page="data-vault" type="button">
           <div class="oh-card-icon">⛁</div>
           <div class="oh-card-title">DATA VAULT</div>
           <div class="oh-card-sub">Historical Data, Archive, Replay &amp; Governance</div>
@@ -4246,7 +4512,10 @@ function _ownerHomeForPlatformOwner(user, club) {
           <span id="oh-vault-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Checking historical store…</span>
           <div class="oh-card-cta">Open the vault <span>→</span></div>
         </button>
-        <button class="oh-card oh-card--city" data-action="navTo" data-page="infrastructure-city" type="button">
+          <span class="oh-agents oh-agents--edge" data-oh-agents="vault"></span>
+        </div>
+        <div class="oh-node oh-node--r" data-oh-node="city">
+          <button class="oh-card oh-card--city" data-action="navTo" data-page="infrastructure-city" type="button">
           <div class="oh-card-icon">◈</div>
           <div class="oh-card-title">INFRASTRUCTURE CITY</div>
           <div class="oh-card-sub">Live Infrastructure, Technology, Health &amp; Architecture</div>
@@ -4254,12 +4523,10 @@ function _ownerHomeForPlatformOwner(user, club) {
           <span id="oh-city-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Checking infrastructure…</span>
           <div class="oh-card-cta">Enter the city <span>→</span></div>
         </button>
-        <!-- SOURCE CORE holds the middle column, with FAMILISTA VISION beneath
-             it: one room says where the platform's evidence CAME FROM and the
-             other says what that evidence SHOWS. The four rooms either side
-             each describe the platform itself. All six cards are the same size
-             — they are peers, and a bigger card would claim otherwise. -->
-        <button class="oh-card oh-card--core" data-action="navTo" data-page="source-core" type="button">
+          <span class="oh-agents oh-agents--edge" data-oh-agents="city"></span>
+        </div>
+        <div class="oh-node oh-node--r" data-oh-node="core">
+          <button class="oh-card oh-card--core" data-action="navTo" data-page="source-core" type="button">
           <div class="oh-card-icon">◉</div>
           <div class="oh-card-title">SOURCE CORE</div>
           <div class="oh-card-sub">Origins, Provenance, Lineage &amp; Dependency</div>
@@ -4267,13 +4534,10 @@ function _ownerHomeForPlatformOwner(user, club) {
           <span id="oh-core-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading source registry…</span>
           <div class="oh-card-cta">Enter the core <span>→</span></div>
         </button>
-        <!-- FAMILISTA VISION is the sixth room, and the only one whose subject
-             is a pitch. The other five each describe the PLATFORM — what it
-             operates, what it remembers, what it is built from, where its
-             inputs came from. This one describes what it can SEE, and it is the
-             first room whose evidence is measured off a football match rather
-             than recorded by the platform about itself. -->
-        <button class="oh-card oh-card--vision" data-action="navTo" data-page="familista-vision" type="button">
+          <span class="oh-agents oh-agents--edge" data-oh-agents="core"></span>
+        </div>
+        <div class="oh-node oh-node--r" data-oh-node="vision">
+          <button class="oh-card oh-card--vision" data-action="navTo" data-page="familista-vision" type="button">
           <!-- A reticle round an iris: the two halves of what this room does —
                it LOOKS at something, and it LOCKS ON to it. Drawn rather than
                set as a glyph because the glyph that was here (◉) is Source
@@ -4291,23 +4555,8 @@ function _ownerHomeForPlatformOwner(user, club) {
           <span id="oh-vision-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading Vision service…</span>
           <div class="oh-card-cta">Open Vision <span>→</span></div>
         </button>
-        <!-- DESIGN SYSTEM CONTROL is the ninth room and closes the third row:
-             what the design system declares and what the repository records
-             about it. A peer, the same size as every other card, opening the
-             existing #design-system room. It exists only inside this function,
-             which is built only for the platform owner (see renderOwnerHome),
-             so nobody else is ever offered it; its status line is read after
-             paint from the room's own overview endpoint. -->
-        <button class="oh-card oh-card--ds" data-action="navTo" data-page="design-system" type="button">
-          <div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-            <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>
-          </svg></div>
-          <div class="oh-card-title">DESIGN SYSTEM CONTROL</div>
-          <div class="oh-card-sub">Design Tokens, Contrast, Provenance &amp; Evidence</div>
-          <div class="oh-card-list">Overview · Design Tokens · Layers · Contrast · Provenance</div>
-          <span id="oh-design-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading design system evidence…</span>
-          <div class="oh-card-cta">Enter Design System <span>→</span></div>
-        </button>
+          <span class="oh-agents oh-agents--edge" data-oh-agents="vision"></span>
+        </div>
       </div>
       <div class="oh-footer">
         Familista · ${_esc((user.email || 'Owner') + '')} · ${clubCount} club${clubCount === 1 ? '' : 's'} in your network
@@ -4438,6 +4687,8 @@ function renderOwnerHome() {
       try { _fillCybersecurityStatus(); } catch (_) {}
       try { _fillAlgorithmsStatus(); } catch (_) {}
       try { _fillDesignSystemStatus(); } catch (_) {}
+      try { _fillAgentsMap(); } catch (_) {}
+      try { _ohBindMap(); } catch (_) {}
     }
   });
 }
@@ -50538,6 +50789,16 @@ async function tosBoardSnapshot() {
             try { navTo(_navPage, null); }
             catch (err) { try { console.error('[delegate] navTo failed:', err); } catch (_) {} }
           }
+          break;
+        }
+        // An agent on the Owner Control map: the Operations Room, opened on that
+        // agent's manifest. The id is only a request — the room opens it only
+        // if its own registry read names it, and the manifest is read through
+        // the room's owner-only endpoint like every other.
+        case 'openAgentInRoom': {
+          _famAgentsRoomOpen = el.dataset.agentId || null;
+          try { navTo('agents-room', null); }
+          catch (err) { try { console.error('[delegate] openAgentInRoom failed:', err); } catch (_) {} }
           break;
         }
         // ── Topbar context Back button — area-aware up-navigation
