@@ -203,11 +203,17 @@ describe('3 · the Platform Owner\'s alone', () => {
     expect(MEMBER).not.toMatch(/oh-hub|oh-agent|oh-map|agents-room|_fillAgentsMap|\/system\/agents/);
   });
 
-  it('keeps every listener on the map itself, and disconnects its one observer', () => {
+  it('keeps its listeners on the map itself, watches nothing, and adds one resize listener once for the page', () => {
     const bind = HELPERS.slice(HELPERS.indexOf('function _ohBindMap()'));
-    expect(bind).not.toMatch(/document\.addEventListener|window\.addEventListener/);
-    expect(bind).toContain('_ohLinksObserver.disconnect()');
-    expect(bind).toContain('if (!document.body.contains(map)) { obs.disconnect();');
+    // No observer of any kind: the platform keeps none in app.js, so none can loop (tests/performance-stability-pass).
+    expect(HELPERS).not.toMatch(/ResizeObserver|MutationObserver|IntersectionObserver/);
+    expect(bind).not.toMatch(/document\.addEventListener/);
+    expect(bind.match(/window\.addEventListener/g)).toHaveLength(1);
+    expect(bind).toContain("if (!_ohResizeBound) { _ohResizeBound = true; window.addEventListener('resize', _ohScheduleDraw, { passive: true }); }");
+    // A redraw is one frame however often it is asked for, and does nothing once the map has gone.
+    expect(HELPERS).toContain("if (document.getElementById('oh-map')) _ohDrawLinks();");
+    // A status written into a card, which can change its height, asks for one.
+    expect(APP).toMatch(/function _vaultStatusHTML\(state, text\) \{[\s\S]{0,300}if \(typeof _ohScheduleDraw === 'function'\) _ohScheduleDraw\(\);/);
   });
 });
 
@@ -256,8 +262,13 @@ describe('5 · nothing moves that the reader did not move', () => {
   });
 
   it('shows a focus ring on the hub and on every agent', () => {
-    expect(CSS).toContain('body.club-theme .oh-hub:focus-visible{ outline: 2px solid #fcd34d; outline-offset: 4px; }');
-    expect(CSS).toContain('body.club-theme .oh-agent:focus-visible{ outline: 2px solid #4ade80; outline-offset: 2px; }');
+    expect(CSS).toContain('body.club-theme .oh-hub:focus-visible{ outline: 2px solid var(--oh-amber); outline-offset: 4px; }');
+    expect(CSS).toContain('body.club-theme .oh-agent:focus-visible{ outline: 2px solid var(--pitch-400); outline-offset: 2px; }');
+    // Each of the map's colours is written once, on the map, and read everywhere else in it.
+    const map = CSS.slice(CSS.indexOf('/* THE OWNER CONTROL MIND MAP.'), CSS.indexOf("body.club-theme .oh-wrap--map .oh-title{ font-size: 26px; }"));
+    expect(map).toContain('--oh-amber: #fcd34d;');
+    const literals = (map.replace(/\/\*[\s\S]*?\*\//g, '').match(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\d[^)]*\)/g) || []);
+    expect(literals).toEqual(['#fcd34d', '#c7d2fe', '#e8a8ff', '#fbbf24', '#22d3ee', '#60a5fa', '#38bdf8', '#a78bfa']);
   });
 });
 

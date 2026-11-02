@@ -3908,6 +3908,9 @@ function _greeting() {
  * the fetch lands. There is no placeholder figure here and no invented health.
  */
 function _vaultStatusHTML(state, text) {
+  // The status is written into its card right after this returns; a longer one can wrap and change
+  // the card's height, so the Owner Control map's lines are redrawn on the next frame.
+  if (typeof _ohScheduleDraw === 'function') _ohScheduleDraw();
   return `<span class="oh-card-state oh-card-state--${state}"><span class="oh-card-dot"></span>${_esc(text)}</span>`;
 }
 
@@ -4329,31 +4332,35 @@ function _ohLight(map, k) {
   });
 }
 
-let _ohLinksObserver = null;
+let _ohDrawFrame = 0;
+let _ohResizeBound = false;
+/** Redraw the lines on the next frame, once however often it is asked for, and only while the map is on the page. */
+function _ohScheduleDraw() {
+  if (typeof requestAnimationFrame !== 'function') return;
+  if (_ohDrawFrame) cancelAnimationFrame(_ohDrawFrame);
+  _ohDrawFrame = requestAnimationFrame(function () {
+    _ohDrawFrame = 0;
+    if (document.getElementById('oh-map')) _ohDrawLinks();
+  });
+}
 /**
- * The map's own behaviour: redraw the lines when anything on it changes size,
- * light a room's line on hover and focus, and name the agent under the pointer
- * or the focus. Every listener is on the map element, so it goes with the map
- * when the page is redrawn; the one observer is disconnected before a new one
- * is made and when the map has left the page.
+ * The map's own behaviour: draw the lines, light a room's line on hover and
+ * focus, and name the agent under the pointer or the focus.
+ *
+ * The lines are redrawn on the events that can move a card, and on nothing
+ * else: the first frame, the fonts arriving, the registry arriving
+ * (_fillAgentsMap), a status line being written (_vaultStatusHTML) and the
+ * window changing size. No observer watches the page (the platform keeps
+ * none, so none can loop). The one resize listener is the page's for its
+ * lifetime, added once and idle while the map is away; every other listener
+ * is on the map element, so it goes with the map when the page is redrawn.
  */
 function _ohBindMap() {
   const map = document.getElementById('oh-map');
   if (!map) return;
-  if (_ohLinksObserver) { try { _ohLinksObserver.disconnect(); } catch (_) {} _ohLinksObserver = null; }
-  if (typeof ResizeObserver === 'function') {
-    let frame = 0;
-    const obs = new ResizeObserver(function () {
-      if (!document.body.contains(map)) { obs.disconnect(); if (_ohLinksObserver === obs) _ohLinksObserver = null; return; }
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(_ohDrawLinks);
-    });
-    obs.observe(map);
-    map.querySelectorAll('.oh-node, .oh-hub').forEach(function (n) { obs.observe(n); });
-    _ohLinksObserver = obs;
-  } else {
-    requestAnimationFrame(_ohDrawLinks);
-  }
+  _ohScheduleDraw();
+  try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(_ohScheduleDraw); } catch (_) {}
+  if (!_ohResizeBound) { _ohResizeBound = true; window.addEventListener('resize', _ohScheduleDraw, { passive: true }); }
   const keyOf = (t) => {
     const n = t && t.closest ? t.closest('[data-oh-node], .oh-hub') : null;
     return !n ? null : (n.classList.contains('oh-hub') ? 'hub' : n.getAttribute('data-oh-node'));
