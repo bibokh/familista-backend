@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-30T09:54:41.444Z",
+  "generatedAt": "2026-11-02T19:14:45.767Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -1278,28 +1278,10 @@
       "evidence": "src/middleware/rate-limit-redis.store.ts"
     },
     {
-      "from": "workflow-backup",
-      "to": "render-familista-backend",
-      "kind": "DEPLOYS",
-      "evidence": ".github/workflows/backup.yml; render.yaml autoDeploy"
-    },
-    {
-      "from": "workflow-ci",
-      "to": "render-familista-backend",
-      "kind": "DEPLOYS",
-      "evidence": ".github/workflows/ci.yml; render.yaml autoDeploy"
-    },
-    {
       "from": "workflow-deploy",
       "to": "render-familista-backend",
       "kind": "DEPLOYS",
-      "evidence": ".github/workflows/deploy.yml; render.yaml autoDeploy"
-    },
-    {
-      "from": "workflow-restore-drill",
-      "to": "render-familista-backend",
-      "kind": "DEPLOYS",
-      "evidence": ".github/workflows/restore-drill.yml; render.yaml autoDeploy"
+      "evidence": ".github/workflows/deploy.yml — POSTs the Render deploy hook from a GitHub secret; render.yaml sets autoDeploy: false"
     }
   ],
   "technologies": [
@@ -1628,12 +1610,6 @@
       "name": "Coverage Gate",
       "district": "testing",
       "reason": "jest.config.ts sets collectCoverage: false."
-    },
-    {
-      "id": "future-row-level-security",
-      "name": "Row-Level Security",
-      "district": "database",
-      "reason": "Enforced by PostgreSQL: fail-closed policies on 18 club tables (Cyber Defense R14, Stage 4)."
     },
     {
       "id": "future-ai-diagnostics",
@@ -2528,9 +2504,9 @@
   "counts": {
     "districts": 19,
     "components": 54,
-    "relationships": 17,
+    "relationships": 14,
     "technologies": 30,
-    "future": 7,
+    "future": 6,
     "dependencies": 41
   }
 }

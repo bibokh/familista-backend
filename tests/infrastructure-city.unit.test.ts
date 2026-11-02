@@ -889,3 +889,84 @@ describe('the platform owner reaches the city from the landing, and nobody else 
     expect(src).toMatch(/unmount|teardown|stopStream\(\)/);
   });
 });
+
+// ── Phase 0 — evidence corrections ───────────────────────────────────────────
+//
+// Three claims the manifest used to make without evidence, each now derived
+// from the repository and pinned here, with a negative control for each rule:
+//   D1  every workflow DEPLOYS the web service      → only one that calls the hook
+//   D2  Row-Level Security is a future zone         → it is enforced; not listed
+//   D3  every district is ACTIVE by default         → derived from its components
+
+describe('Phase 0 — the manifest claims only what the repository proves', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const ev = require('../scripts/lib/infrastructure-evidence') as {
+    withoutComments: (s: string) => string;
+    deploysViaRenderHook: (s: string) => boolean;
+    districtStatus: (states: string[], future: number) => string;
+  };
+  const manifest = JSON.parse(read(MANIFEST));
+  const WF = path.join(ROOT, '.github/workflows');
+  const hookStep = [
+    '      - name: Trigger',
+    '        env:',
+    '          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}',
+    '        run: |',
+    '          curl -fsS -X POST "$HOOK"',
+  ].join('\n');
+
+  it('D1: a workflow deploys only when it reads a Render deploy hook secret and POSTs to it', () => {
+    expect(ev.deploysViaRenderHook(hookStep)).toBe(true);
+    expect(ev.deploysViaRenderHook(hookStep.replace('"$HOOK"', '"${HOOK}"'))).toBe(true);
+    // negative controls
+    expect(ev.deploysViaRenderHook(hookStep.split('\n').map((l) => '# ' + l).join('\n'))).toBe(false); // only a comment
+    expect(ev.deploysViaRenderHook(hookStep.replace(/\n\s+curl[^\n]*/, ''))).toBe(false);              // reads, never calls
+    expect(ev.deploysViaRenderHook(hookStep.replace('"$HOOK"', '"$OTHER"'))).toBe(false);              // calls something else
+    expect(ev.deploysViaRenderHook(hookStep.replace('"$HOOK"', '"$HOOK_B"'))).toBe(false);             // a longer name is not the hook
+    expect(ev.deploysViaRenderHook(hookStep.replace('-X POST', '-X GET'))).toBe(false);                 // not a POST
+    expect(ev.deploysViaRenderHook('render.yaml autoDeploy: false')).toBe(false);
+  });
+
+  it('D1: of the real workflows, only deploy.yml calls the hook', () => {
+    const found = fs.readdirSync(WF).filter((f) => /\.ya?ml$/.test(f))
+      .filter((f) => ev.deploysViaRenderHook(fs.readFileSync(path.join(WF, f), 'utf8')));
+    expect(found).toEqual(['deploy.yml']);
+  });
+
+  it('D1: the manifest has exactly one DEPLOYS edge, from deploy.yml, citing the hook and not naming the secret', () => {
+    const deploys = manifest.relationships.filter((r: { kind: string }) => r.kind === 'DEPLOYS');
+    expect(deploys.map((r: { from: string; to: string }) => `${r.from}→${r.to}`)).toEqual(['workflow-deploy→render-familista-backend']);
+    expect(deploys[0].evidence).toMatch(/^\.github\/workflows\/deploy\.yml — POSTs the Render deploy hook/);
+    expect(deploys[0].evidence).not.toMatch(/RENDER_DEPLOY_HOOK_URL|https?:/);
+    const web = manifest.deployment.services.find((s: { type: string }) => s.type === 'web');
+    expect(web.autoDeploy).toBe(false);
+  });
+
+  it('D2: Row-Level Security is not listed as a future zone, and its authority says it is enforced', () => {
+    expect(manifest.future.map((f: { id: string }) => f.id)).not.toContain('future-row-level-security');
+    expect(JSON.stringify(manifest.future)).not.toMatch(/row-level security/i);
+    const security = JSON.parse(read(path.join(ROOT, 'src/cyber-defense/generated/security-manifest.json')));
+    expect(security.controls.find((c: { id: string }) => c.id === 'db-row-level-security')?.status).toBe('PRESENT');
+  });
+
+  it('D3: a district\'s status is derived from what landed in it, never defaulted', () => {
+    expect(ev.districtStatus(['ACTIVE', 'NOT_CONFIGURED'], 0)).toBe('ACTIVE');
+    expect(ev.districtStatus(['NOT_CONFIGURED'], 2)).toBe('NOT_CONFIGURED');
+    expect(ev.districtStatus([], 1)).toBe('FUTURE');
+    // negative controls: nothing is ever ACTIVE without an ACTIVE component
+    expect(ev.districtStatus([], 0)).toBe('UNKNOWN');
+    expect(ev.districtStatus(['NOT_CONFIGURED', 'UNKNOWN'], 0)).toBe('UNKNOWN');
+    for (const d of manifest.districts) {
+      const states = manifest.components.filter((c: { district: string }) => c.district === d.id).map((c: { status: string }) => c.status);
+      const plots = manifest.future.filter((f: { district: string }) => f.district === d.id).length;
+      expect(`${d.id}: ${d.status}`).toBe(`${d.id}: ${ev.districtStatus(states, plots)}`);
+    }
+    expect(codeOf(read(DISCOVER))).not.toMatch(/function district\([^)]*status\s*=/);
+  });
+
+  it('changes no deployment and no RLS enforcement: the generator only reads those files', () => {
+    const code = codeOf(read(DISCOVER)) + codeOf(read(path.join(ROOT, 'scripts/lib/infrastructure-evidence.js')));
+    expect(code).not.toMatch(/writeFileSync\([^)]*(render\.yaml|workflows|migrations|rls)/);
+    expect(code.match(/writeFileSync\(/g)!.length).toBe(1);
+  });
+});
