@@ -748,7 +748,11 @@ describe('nothing moves that the reader did not move', () => {
     expect(code).not.toMatch(/\son[a-z]+="/);
     expect(code).not.toMatch(/<style|<script/);
     const card = read('public/app.js');
-    const markup = card.slice(card.indexOf('<button class="oh-card oh-card--cyber"'), card.indexOf('<button class="oh-card oh-card--clubs"'));
+    // The card's own button, to its end (it no longer sits before CLUBS in the markup, and a slice
+    // that ended at CLUBS would now be empty and prove nothing).
+    const from = card.indexOf('<button class="oh-card oh-card--cyber"');
+    const markup = card.slice(from, card.indexOf('</button>', from));
+    expect(markup).toContain('<div class="oh-card-title">CYBERSECURITY</div>');
     expect(markup).not.toMatch(/style="/);
   });
 
@@ -883,13 +887,14 @@ describe('Cybersecurity is a top-level room, not a page inside another', () => {
     expect(member).not.toContain('cybersecurity');
   });
 
-  it('sits between SYSTEM and CLUBS on the landing, the same size as every other room', () => {
-    // Nine rooms in three equal columns; Cybersecurity keeps its place between
-    // SYSTEM and CLUBS on the top row.
-    expect(css).toContain('"system cyber  clubs"');
-    expect(css).toContain('body.club-theme .oh-cards--core .oh-card--cyber{  grid-area: cyber; }');
-    expect(css).toMatch(/\.oh-cards--core\{[^}]*grid-auto-rows:\s*1fr/);
-    expect(css).toContain('grid-template-areas: "system" "cyber" "clubs" "algo" "core" "vision" "vault" "city" "design";');
+  it('sits beside SYSTEM on the governance branch of the map, the same size as every other room', () => {
+    // The Owner Control map: Cybersecurity is the second governance room, directly beneath SYSTEM,
+    // what protects the platform beside what operates it; four equal rows per branch.
+    expect(css).toContain('"system center vault"');
+    expect(css).toContain('"cyber  center city"');
+    expect(css).toContain('body.club-theme .oh-node[data-oh-node="cyber"]{  grid-area: cyber; }');
+    expect(css).toContain('grid-template-rows: repeat(4, minmax(auto, 1fr));');
+    expect(css).toContain('grid-template-areas: "center" "system" "cyber" "algo" "design" "vault" "city" "core" "vision";');
   });
 
   it('says on its card what the evidence says, and only green when every boundary is covered', () => {

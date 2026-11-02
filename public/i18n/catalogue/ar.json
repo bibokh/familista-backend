@@ -1599,5 +1599,22 @@
   "Reading design system evidence…": "جارٍ قراءة أدلة نظام التصميم…",
   "Design tokens: \u0000 · new contrast failures: \u0000": "رموز التصميم: \u0000 · إخفاقات التباين الجديدة: \u0000",
   "Design System manifest not generated": "لم يُولَّد بيان نظام التصميم",
-  "Design System unreachable": "تعذّر الوصول إلى نظام التصميم"
+  "Design System unreachable": "تعذّر الوصول إلى نظام التصميم",
+  "AI AGENTS — OPERATIONS ROOM": "وكلاء الذكاء الاصطناعي — غرفة العمليات",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "كل وكيل في سجل الوكلاء: مجاله ونطاقه ودورة حياته وصلاحياته",
+  "Reading the Agent Registry…": "جارٍ قراءة سجل الوكلاء…",
+  "Agents running: \u0000 of \u0000": "الوكلاء العاملون: \u0000 من \u0000",
+  "Agent Registry unreachable": "تعذّر الوصول إلى سجل الوكلاء",
+  "Registry invariants failing: \u0000": "ثوابت السجل المخفقة: \u0000",
+  "Kill switch engaged": "مفتاح الإيقاف الطارئ مُفعَّل",
+  "Open the Operations Room": "افتح غرفة العمليات",
+  "No agent registered": "لا يوجد وكيل مسجّل",
+  "Club agents: \u0000": "وكلاء النادي: \u0000",
+  "Club Manager": "مدير النادي",
+  "Tactical": "التكتيك",
+  "Finance": "المالية",
+  "Match Operations": "عمليات المباراة",
+  "Communications": "الاتصالات",
+  "Device Management": "إدارة الأجهزة",
+  "Big Data": "البيانات الضخمة"
 }

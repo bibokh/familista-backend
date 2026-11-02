@@ -1599,5 +1599,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "АИ АГЕНТИ — ОПЕРАТИВНИ ЦЕНТАР",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "Сваки агент у регистру агената: домен, обухват, животни циклус и овлашћења",
+  "Reading the Agent Registry…": "Читање регистра агената…",
+  "Agents running: \u0000 of \u0000": "Агенти у раду: \u0000 од \u0000",
+  "Agent Registry unreachable": "Регистар агената је недоступан",
+  "Registry invariants failing: \u0000": "Прекршене инваријанте регистра: \u0000",
+  "Kill switch engaged": "Прекидач за хитно заустављање је укључен",
+  "Open the Operations Room": "Отвори оперативни центар",
+  "No agent registered": "Нема регистрованог агента",
+  "Club agents: \u0000": "Агенти клуба: \u0000",
+  "Club Manager": "Менаџер клуба",
+  "Tactical": "Тактика",
+  "Finance": "Финансије",
+  "Match Operations": "Утакмичне операције",
+  "Communications": "Комуникације",
+  "Device Management": "Управљање уређајима",
+  "Big Data": "Big Data"
 }

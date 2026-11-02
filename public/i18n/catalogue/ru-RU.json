@@ -1599,5 +1599,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "ИИ-АГЕНТЫ — ЦЕНТР УПРАВЛЕНИЯ",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "Каждый агент в реестре агентов: область, охват, жизненный цикл и права",
+  "Reading the Agent Registry…": "Чтение реестра агентов…",
+  "Agents running: \u0000 of \u0000": "Работающие агенты: \u0000 из \u0000",
+  "Agent Registry unreachable": "Реестр агентов недоступен",
+  "Registry invariants failing: \u0000": "Нарушенные инварианты реестра: \u0000",
+  "Kill switch engaged": "Аварийный выключатель включён",
+  "Open the Operations Room": "Открыть центр управления",
+  "No agent registered": "Нет зарегистрированного агента",
+  "Club agents: \u0000": "Агенты клуба: \u0000",
+  "Club Manager": "Управление клубом",
+  "Tactical": "Тактика",
+  "Finance": "Финансы",
+  "Match Operations": "Матчевые операции",
+  "Communications": "Коммуникации",
+  "Device Management": "Управление устройствами",
+  "Big Data": "Big Data"
 }

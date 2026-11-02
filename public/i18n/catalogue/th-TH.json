@@ -1596,5 +1596,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "เอเจนต์ AI — ห้องปฏิบัติการ",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "เอเจนต์ทุกตัวในทะเบียนเอเจนต์: โดเมน ขอบเขต วงจรชีวิต และสิทธิ์",
+  "Reading the Agent Registry…": "กำลังอ่านทะเบียนเอเจนต์…",
+  "Agents running: \u0000 of \u0000": "เอเจนต์ที่ทำงานอยู่: \u0000 จาก \u0000",
+  "Agent Registry unreachable": "ไม่สามารถเข้าถึงทะเบียนเอเจนต์",
+  "Registry invariants failing: \u0000": "ค่าคงที่ของทะเบียนที่ล้มเหลว: \u0000",
+  "Kill switch engaged": "สวิตช์หยุดฉุกเฉินทำงานอยู่",
+  "Open the Operations Room": "เปิดห้องปฏิบัติการ",
+  "No agent registered": "ไม่มีเอเจนต์ที่ลงทะเบียน",
+  "Club agents: \u0000": "เอเจนต์ของสโมสร: \u0000",
+  "Club Manager": "ผู้จัดการสโมสร",
+  "Tactical": "แท็กติก",
+  "Finance": "การเงิน",
+  "Match Operations": "ปฏิบัติการแข่งขัน",
+  "Communications": "การสื่อสาร",
+  "Device Management": "การจัดการอุปกรณ์",
+  "Big Data": "บิ๊กดาต้า"
 }

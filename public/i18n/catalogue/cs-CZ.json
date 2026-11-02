@@ -1599,5 +1599,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "AI AGENTI — ŘÍDICÍ MÍSTNOST",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "Každý agent v registru agentů: jeho oblast, rozsah, životní cyklus a oprávnění",
+  "Reading the Agent Registry…": "Načítání registru agentů…",
+  "Agents running: \u0000 of \u0000": "Spuštění agenti: \u0000 z \u0000",
+  "Agent Registry unreachable": "Registr agentů je nedostupný",
+  "Registry invariants failing: \u0000": "Porušené invarianty registru: \u0000",
+  "Kill switch engaged": "Nouzový vypínač je aktivní",
+  "Open the Operations Room": "Otevřít řídicí místnost",
+  "No agent registered": "Žádný registrovaný agent",
+  "Club agents: \u0000": "Agenti klubu: \u0000",
+  "Club Manager": "Manažer klubu",
+  "Tactical": "Taktika",
+  "Finance": "Finance",
+  "Match Operations": "Zápasový provoz",
+  "Communications": "Komunikace",
+  "Device Management": "Správa zařízení",
+  "Big Data": "Big Data"
 }

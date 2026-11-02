@@ -1599,5 +1599,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "YAPAY ZEKÂ AJANLARI — OPERASYON MERKEZİ",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "Ajan kaydındaki her ajan: alanı, kapsamı, yaşam döngüsü ve izinleri",
+  "Reading the Agent Registry…": "Ajan kaydı okunuyor…",
+  "Agents running: \u0000 of \u0000": "Çalışan ajanlar: \u0000 / \u0000",
+  "Agent Registry unreachable": "Ajan kaydına ulaşılamıyor",
+  "Registry invariants failing: \u0000": "İhlal edilen kayıt değişmezleri: \u0000",
+  "Kill switch engaged": "Acil durdurma anahtarı devrede",
+  "Open the Operations Room": "Operasyon merkezini aç",
+  "No agent registered": "Kayıtlı ajan yok",
+  "Club agents: \u0000": "Kulüp ajanları: \u0000",
+  "Club Manager": "Kulüp Yöneticisi",
+  "Tactical": "Taktik",
+  "Finance": "Finans",
+  "Match Operations": "Maç Operasyonları",
+  "Communications": "İletişim",
+  "Device Management": "Cihaz Yönetimi",
+  "Big Data": "Büyük Veri"
 }

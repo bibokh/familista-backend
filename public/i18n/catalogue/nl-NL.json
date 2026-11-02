@@ -1599,5 +1599,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "AI-AGENTEN — CONTROLEKAMER",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "Elke agent in het agentenregister: domein, reikwijdte, levenscyclus en rechten",
+  "Reading the Agent Registry…": "Agentenregister wordt gelezen…",
+  "Agents running: \u0000 of \u0000": "Actieve agenten: \u0000 van \u0000",
+  "Agent Registry unreachable": "Agentenregister onbereikbaar",
+  "Registry invariants failing: \u0000": "Geschonden registerinvarianten: \u0000",
+  "Kill switch engaged": "Noodstop ingeschakeld",
+  "Open the Operations Room": "Controlekamer openen",
+  "No agent registered": "Geen agent geregistreerd",
+  "Club agents: \u0000": "Clubagenten: \u0000",
+  "Club Manager": "Clubmanager",
+  "Tactical": "Tactiek",
+  "Finance": "Financiën",
+  "Match Operations": "Wedstrijdoperaties",
+  "Communications": "Communicatie",
+  "Device Management": "Apparaatbeheer",
+  "Big Data": "Big Data"
 }

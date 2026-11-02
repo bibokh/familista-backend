@@ -1596,5 +1596,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "AI 智能体 — 运营中心",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "智能体注册表中的每个智能体：其领域、范围、生命周期和权限",
+  "Reading the Agent Registry…": "正在读取智能体注册表…",
+  "Agents running: \u0000 of \u0000": "运行中的智能体: \u0000 / \u0000",
+  "Agent Registry unreachable": "无法访问智能体注册表",
+  "Registry invariants failing: \u0000": "未通过的注册表不变量: \u0000",
+  "Kill switch engaged": "紧急停止开关已启用",
+  "Open the Operations Room": "打开运营中心",
+  "No agent registered": "未注册智能体",
+  "Club agents: \u0000": "俱乐部智能体: \u0000",
+  "Club Manager": "俱乐部管理",
+  "Tactical": "战术",
+  "Finance": "财务",
+  "Match Operations": "比赛运营",
+  "Communications": "沟通",
+  "Device Management": "设备管理",
+  "Big Data": "大数据"
 }

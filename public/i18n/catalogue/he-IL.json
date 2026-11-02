@@ -1599,5 +1599,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "סוכני בינה מלאכותית — חדר המבצעים",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "כל סוכן במרשם הסוכנים: התחום, ההיקף, מחזור החיים וההרשאות שלו",
+  "Reading the Agent Registry…": "קורא את מרשם הסוכנים…",
+  "Agents running: \u0000 of \u0000": "סוכנים פעילים: \u0000 מתוך \u0000",
+  "Agent Registry unreachable": "אין גישה למרשם הסוכנים",
+  "Registry invariants failing: \u0000": "אינווריאנטים של המרשם שנכשלו: \u0000",
+  "Kill switch engaged": "מתג החירום מופעל",
+  "Open the Operations Room": "פתיחת חדר המבצעים",
+  "No agent registered": "לא רשום סוכן",
+  "Club agents: \u0000": "סוכני המועדון: \u0000",
+  "Club Manager": "מנהל המועדון",
+  "Tactical": "טקטיקה",
+  "Finance": "כספים",
+  "Match Operations": "תפעול משחקים",
+  "Communications": "תקשורת",
+  "Device Management": "ניהול מכשירים",
+  "Big Data": "ביג דאטה"
 }

@@ -1596,5 +1596,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "AI 代理 — 營運中心",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "代理註冊表中的每個代理：其領域、範圍、生命週期與權限",
+  "Reading the Agent Registry…": "正在讀取代理註冊表…",
+  "Agents running: \u0000 of \u0000": "執行中的代理: \u0000 / \u0000",
+  "Agent Registry unreachable": "無法存取代理註冊表",
+  "Registry invariants failing: \u0000": "未通過的註冊表不變量: \u0000",
+  "Kill switch engaged": "緊急停止開關已啟用",
+  "Open the Operations Room": "開啟營運中心",
+  "No agent registered": "未註冊代理",
+  "Club agents: \u0000": "俱樂部代理: \u0000",
+  "Club Manager": "俱樂部管理",
+  "Tactical": "戰術",
+  "Finance": "財務",
+  "Match Operations": "比賽營運",
+  "Communications": "溝通",
+  "Device Management": "裝置管理",
+  "Big Data": "大數據"
 }
