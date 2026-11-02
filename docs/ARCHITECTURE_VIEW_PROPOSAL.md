@@ -1,8 +1,8 @@
 # Familista Architecture View — Proposal
 
-Status: **DIRECTION APPROVED WITH REVISIONS (owner review, 2026-11-02). Nothing implemented.**
-Phase 0 waits for the owner's explicit authorisation. No code, route, migration or UI
-in the platform is changed by this document, and PR #146 is untouched.
+Status: **DIRECTION APPROVED WITH REVISIONS (owner reviews, 2026-11-02). Phase 0 authorised and
+implemented for review; nothing else implemented.** The Architecture View UI is not built.
+Phase 1 needs separate authorisation. PR #146 is untouched.
 
 Every count and path below was read from the repository at commit `83bb52e` (main) on
 2026-11-02. Where a figure comes from a generated manifest, the generator and its
@@ -23,6 +23,15 @@ recorded in §9.
 | 6 | Approved roadmap categories, subject to repository verification: Digital University, Global E-Commerce Marketplace, Club Merchandise Design and Manufacturing, Global Multi-Agent Expansion, Field Intelligence, AI Camera and Video Intelligence Expansion. Media Network is a candidate needing separate approval. Smart Ball is **not** an approved implementation objective. Roadmap concepts, research prototypes, partial implementations and production components must be distinguished. | §2.5 verifies each category against the repository; §3.3 adds stage and approval attributes; new discrepancy D9. |
 | 7 | Visual identity: a professional interactive engineering environment, not a dashboard and not a second Owner Control mind map; layers, real dependencies and flows, expandable systems, search and filtering, node inspection, zoom and pan, security and tenant boundaries, architectural history, modular expansion; aligned with Familista's identity. | §3.4 and §3.5 rewritten; §9 lists what the concept shows and what it does not yet. |
 | 8 | Next action: update this document, validate the concept in a real browser (desktop, mobile, Arabic RTL), provide screenshots and limitations. No production implementation, no change to PR #146, no merge, no deploy, no Phase 0 without authorisation. | Done in this revision; §9. |
+
+### Second review, 2026-11-02
+
+| # | Decision | Effect |
+|---|---|---|
+| 9 | **Runtime health.** A critical signal does not automatically mean Unavailable. Degraded: a monitored service is still available but has confirmed operational problems. Unavailable: reliable evidence confirms the service itself is unavailable. Not monitored: reliable monitoring evidence is missing or insufficient. Monitoring failure is never service failure; provenance is preserved and stale or missing telemetry is identified. | §3.3 B rewritten. |
+| 10 | **Smart Ball.** Remove the inaccurate classification "On the product roadmap"; Smart Ball is not an approved implementation objective. Preserve existing code, data models and historical references; delete nothing and introduce no Smart Ball development. Separate from Phase 0 unless the owner expands its scope. | D9 stays open and out of Phase 0; §10. |
+| 11 | **Phase 0 approved**: deployment relationships, the RLS classification, and district status metadata strictly where authoritative evidence supports a correction. Verify every correction against the repository; no change to deployment behaviour or RLS enforcement; no new infrastructure dependency; no change to PR #146; regenerate only the necessary manifests; run the relevant unit, security, infrastructure and CI checks; isolated PR; no merge or deploy without approval. | §7 Phase 0 implemented in its own PR. |
+| 12 | The 2D/2.5D concept is accepted as a **technical direction, not the final production UI**. Its readability limits, overlapping edges and inspector obstruction are addressed in the visualisation phases. No Architecture View UI in Phase 0. | §9 limitations carried into Phases 2–4. |
 
 ---
 
@@ -93,8 +102,8 @@ running; §3.3 keeps the two apart.
 | D8 | Source Core's header says the Fabric has eleven source domains; `source-registry.ts` declares ten statically. | as named |
 | D9 | The infrastructure manifest lists Smart Ball under `future` as "On the product roadmap"; the owner decided on 2026-11-02 that it is not an approved implementation objective. The Prisma schema and `edge-node.service.ts` also name a smart-ball device type (data model only). | `scripts/infrastructure-discover.js` future list; `prisma/schema.prisma`; owner decision |
 
-D1–D3 are Phase 0. D9 is **not** in Phase 0's approved scope; whether the manifest's
-wording changes is a separate owner decision (§10). Until then the view shows both claims.
+D1–D3 are Phase 0. D9's correction is decided (decision 10) but is **not** in Phase 0's
+scope; it waits for its own authorisation. Until then the view shows both claims.
 
 ### 2.4 Missing architectural information (gaps)
 
@@ -210,16 +219,19 @@ SYSTEM readiness and boundary coverage (`C` / `P` / `U`) stay visible as qualifi
 
 **B. Runtime health** (request time, never from the graph)
 
-| Runtime health | From `HealthState` |
-|---|---|
-| Healthy | `HEALTHY` |
-| Degraded | `WARNING`; and `CRITICAL` where the signal does not report the component unreachable (see §10) |
-| Unavailable | `CRITICAL` where the signal's own probe reports no answer (e.g. the database connectivity probe) |
-| Not monitored | `NOT_CONFIGURED`, `NOT_INSTRUMENTED`, `UNVERIFIED`, `UNKNOWN`, or no `healthKey`; the original reason is kept and shown |
+| Runtime health | Means (decision 9) | From `HealthState` |
+|---|---|---|
+| Healthy | a current measurement says the service is working | `HEALTHY` |
+| Degraded | the monitored service is still available but has confirmed operational problems | `WARNING`; `CRITICAL` whenever the signal's own measurement shows the service still answering (slow, failing requests, heap pressure) |
+| Unavailable | reliable evidence confirms the service itself is unavailable | `CRITICAL` only when the signal's own probe of that service got no answer (e.g. the database connectivity probe); requires an explicit reachability measurement on that signal |
+| Not monitored | reliable monitoring evidence is missing or insufficient | `NOT_CONFIGURED`, `NOT_INSTRUMENTED`, `UNVERIFIED`, `UNKNOWN`, no `healthKey`, or a stale or closed stream |
 
-Rules: a node is Healthy only with a measurement from the current stream; maturity never
-sets health; a stale or closed stream turns every node Not monitored, never "last known
-good".
+Rules: monitoring failure is never service failure — a probe that could not run, a
+measurement that came back unusable or a stream that stopped makes a node Not monitored,
+never Unavailable. A node is Healthy only with a measurement from the current stream, and
+maturity never sets health. Every state shows its provenance (signal key, evidence,
+measured at) and its age; a measurement older than the stream's cadence is labelled stale
+and counts as Not monitored, never "last known good".
 
 **C. Evidence**
 
@@ -353,7 +365,7 @@ lines need `<bdi>` isolation. Both get browser-proof checks.
 
 Every phase ends at a PR the owner approves. Nothing merges or deploys without it.
 
-### Phase 0 · Evidence corrections — dedicated PR, **awaiting authorisation**
+### Phase 0 · Evidence corrections — dedicated PR, **authorised 2026-11-02; implemented for review**
 
 Scope: D1, D2, D3 in `scripts/infrastructure-discover.js` only.
 
@@ -472,10 +484,9 @@ has not been checked.
 
 ## 10. Open decisions
 
-1. **`CRITICAL` → Unavailable or Degraded.** Recommended: Unavailable only where the
-   signal's own probe reports no answer, Degraded otherwise, with the original state shown.
-   This needs an explicit `reachable` measurement on the signals that probe.
-2. **D9 wording.** Whether the infrastructure manifest's Smart Ball entry should stop
-   saying "On the product roadmap". Outside Phase 0's approved scope.
-3. **Phase 0 start.** Waiting for explicit authorisation.
-4. **Owner Control map entry** after PR #146 merges, as a separate proposal.
+1. ~~`CRITICAL` → Unavailable or Degraded~~ — decided (decision 9, §3.3 B).
+2. **D9 correction.** Decided (decision 10); waiting for authorisation to run it as its own
+   change, outside Phase 0.
+3. ~~Phase 0 start~~ — authorised (decision 11); its PR waits for review.
+4. **Phase 1.** Needs separate authorisation.
+5. **Owner Control map entry** after PR #146 merges, as a separate proposal.
