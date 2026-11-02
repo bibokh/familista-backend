@@ -1596,5 +1596,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "AIエージェント — オペレーションルーム",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "エージェントレジストリのすべてのエージェント：ドメイン、スコープ、ライフサイクル、権限",
+  "Reading the Agent Registry…": "エージェントレジストリを読み込み中…",
+  "Agents running: \u0000 of \u0000": "稼働中のエージェント: \u0000 / \u0000",
+  "Agent Registry unreachable": "エージェントレジストリに接続できません",
+  "Registry invariants failing: \u0000": "違反しているレジストリ不変条件: \u0000",
+  "Kill switch engaged": "キルスイッチが作動中",
+  "Open the Operations Room": "オペレーションルームを開く",
+  "No agent registered": "登録されたエージェントはありません",
+  "Club agents: \u0000": "クラブのエージェント: \u0000",
+  "Club Manager": "クラブマネージャー",
+  "Tactical": "戦術",
+  "Finance": "財務",
+  "Match Operations": "試合運営",
+  "Communications": "コミュニケーション",
+  "Device Management": "デバイス管理",
+  "Big Data": "ビッグデータ"
 }

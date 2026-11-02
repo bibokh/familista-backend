@@ -7148,58 +7148,259 @@ body.club-theme .oh-cards--three{ grid-template-columns: repeat(3, 1fr); }
    four beneath. Every card is still exactly the same size; the pairing of
    SOURCE CORE beside FAMILISTA VISION (where evidence came from, what it says)
    holds the middle of the second row. */
-/* NINE ROOMS, NINE EQUAL CARDS.
-   DESIGN SYSTEM CONTROL joined as the ninth, and nine divide into three equal
-   rows of three, so the eight-track grid the eight needed is gone: three
-   columns, three rows, every card exactly the same size. The reading order is
-   the markup order — SYSTEM, CYBERSECURITY, CLUBS, then ALGORITHMS, DATA VAULT,
-   INFRASTRUCTURE CITY, then SOURCE CORE, FAMILISTA VISION and DESIGN SYSTEM
-   CONTROL — so a keyboard and a screen reader walk the grid in the order the
-   eye does. The platform's own rooms hold the top two rows; the three that
-   describe its evidence and its design hold the third.
-   The title DESIGN SYSTEM CONTROL fits one line in a three-column card from
-   1340px up. Below that the grid is two columns, as it was, with the ninth card
-   centred beneath the eight — the same width as every other card, never a band
-   across the row, because size is a claim about importance. */
-body.club-theme .oh-cards--core{
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: 1fr;
-  grid-template-areas:
-    "system cyber  clubs"
-    "algo   vault  city"
-    "core   vision design";
-}
-body.club-theme .oh-cards--core .oh-card--system{ grid-area: system; }
-body.club-theme .oh-cards--core .oh-card--cyber{  grid-area: cyber; }
-body.club-theme .oh-cards--core .oh-card--clubs{  grid-area: clubs; }
-body.club-theme .oh-cards--core .oh-card--algo{   grid-area: algo; }
-body.club-theme .oh-cards--core .oh-card--vault{  grid-area: vault; }
-body.club-theme .oh-cards--core .oh-card--city{   grid-area: city; }
-body.club-theme .oh-cards--core .oh-card--core{   grid-area: core; }
-body.club-theme .oh-cards--core .oh-card--vision{ grid-area: vision; }
-body.club-theme .oh-cards--core .oh-card--ds{     grid-area: design; }
-/* Two columns: SYSTEM and CLUBS, CYBERSECURITY and ALGORITHMS, the core and
-   VISION, VAULT and CITY — the pairs they have always had — and the ninth
-   centred beneath on the middle two of four tracks. */
-@media (max-width: 1339px){
-  body.club-theme .oh-cards--core{
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-areas:
-      "system system clubs  clubs"
-      "cyber  cyber  algo   algo "
-      "core   core   vision vision"
-      "vault  vault  city   city"
-      ".      design design .";
-  }
-}
-@media (max-width: 900px){
-  body.club-theme .oh-cards--core{
-    grid-template-columns: 1fr; max-width: 560px; margin-inline: auto;
-    grid-auto-rows: auto;
-    grid-template-areas: "system" "cyber" "clubs" "algo" "core" "vision" "vault" "city" "design";
-  }
-}
 body.club-theme .oh-wrap--core{ max-width: 1680px; }
+
+/* THE OWNER CONTROL MIND MAP.
+   The AI Agents Operations Room is the centre of the page and every room is a
+   branch of it. Three tracks: the four rooms that govern the platform on the
+   inline-start side (SYSTEM, CYBERSECURITY, ALGORITHMS, DESIGN SYSTEM CONTROL),
+   the four that hold its data and evidence on the inline-end side (DATA VAULT,
+   INFRASTRUCTURE CITY, SOURCE CORE, FAMILISTA VISION), and between them the
+   greeting, the hub and CLUBS — beneath the hub, because every agent the
+   registry runs works inside a club. The middle track is three rows, the outer
+   two equal, so the hub sits at the exact centre of the map. The eight branch
+   cards share four equal rows: peers, so the same size. In a right-to-left
+   language the grid mirrors itself and the lines follow the cards.
+   Nothing on the map is placed by script: the lines are an overlay drawn from
+   where the cards already are (_ohDrawLinks), and the agents arrive into slots
+   that already have their size, so loading the page moves nothing. */
+body.club-theme .oh-wrap--map{
+  /* The map's colours, each written once: the Operations Room's amber, and each room's own accent
+     (the ones app.css already names are read, not repeated). Every tint is mixed from these. */
+  --oh-amber: #fcd34d;
+  --oh-system: var(--royal-500); --oh-clubs: var(--pitch-400);
+  --oh-cyber: #c7d2fe; --oh-algo: #e8a8ff; --oh-ds: #fbbf24;
+  --oh-vault: #22d3ee; --oh-city: #60a5fa; --oh-core: #38bdf8; --oh-vision: #a78bfa;
+  max-width: 1760px; padding: 14px 24px 10px; gap: 6px;
+  background:
+    radial-gradient(520px 380px at 50% 50%, color-mix(in srgb, var(--oh-amber) 7%, transparent), transparent 70%),
+    radial-gradient(1300px 760px at 50% 50%, color-mix(in srgb, var(--oh-core) 4.5%, transparent), transparent 72%);
+}
+body.club-theme .oh-cards--core{
+  position: relative; flex: 1 1 auto;
+  grid-template-columns: minmax(0, 1fr) minmax(380px, 1.02fr) minmax(0, 1fr);
+  grid-template-rows: repeat(4, minmax(auto, 1fr));
+  grid-template-areas:
+    "system center vault"
+    "cyber  center city"
+    "algo   center core"
+    "design center vision";
+  column-gap: clamp(40px, 4.6vw, 76px); row-gap: 12px;
+}
+/* The canvas: a faint dot grid that fades out before the edges. */
+body.club-theme .oh-cards--core::before{
+  content: ''; position: absolute; inset: -14px -24px; z-index: 0; pointer-events: none;
+  background-image: radial-gradient(color-mix(in srgb, var(--t-secondary) 10%, transparent) 1px, transparent 1.3px);
+  background-size: 22px 22px;
+  /* A mask reads only alpha, so any opaque colour will do: the canvas's own. */
+  -webkit-mask-image: radial-gradient(ellipse 72% 72% at 50% 50%, var(--bg-canvas) 38%, transparent 100%);
+          mask-image: radial-gradient(ellipse 72% 72% at 50% 50%, var(--bg-canvas) 38%, transparent 100%);
+}
+body.club-theme .oh-node{ position: relative; z-index: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+body.club-theme .oh-node--center{ grid-area: center; display: grid; grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr); justify-items: center; }
+body.club-theme .oh-node[data-oh-node="system"]{ grid-area: system; }
+body.club-theme .oh-node[data-oh-node="cyber"]{  grid-area: cyber; }
+body.club-theme .oh-node[data-oh-node="algo"]{   grid-area: algo; }
+body.club-theme .oh-node[data-oh-node="ds"]{     grid-area: design; }
+body.club-theme .oh-node[data-oh-node="vault"]{  grid-area: vault; }
+body.club-theme .oh-node[data-oh-node="city"]{   grid-area: city; }
+body.club-theme .oh-node[data-oh-node="core"]{   grid-area: core; }
+body.club-theme .oh-node[data-oh-node="vision"]{ grid-area: vision; }
+
+/* The greeting, above the hub. */
+body.club-theme .oh-node--center .oh-hero{ align-self: center; padding-bottom: 8px; }
+body.club-theme .oh-wrap--map .oh-eyebrow{ margin-bottom: 8px; }
+body.club-theme .oh-wrap--map .oh-title{ font-size: 30px; }
+body.club-theme .oh-wrap--map .oh-sub{ margin-top: 6px; font-size: 14px; }
+
+/* The cards, compact and on glass. Each keeps its own accent, edge and icon;
+   only its size changes. The detail line is lifted to var(--t-secondary), which meets
+   4.5:1 on every card surface (the shared --t-tertiary does not). */
+body.club-theme .oh-cards--core .oh-card{
+  min-height: 0; flex: 1 1 auto;
+  padding: 14px 16px 12px; gap: 5px; border-radius: 16px;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+body.club-theme .oh-cards--core .oh-card::before{ height: 3px; }
+body.club-theme .oh-cards--core .oh-card-icon{
+  position: absolute; top: 14px; inset-inline-start: 16px;
+  width: 38px; height: 38px; border-radius: 11px; font-size: 19px;
+}
+body.club-theme .oh-cards--core .oh-card-icon svg{ width: 22px; height: 22px; }
+body.club-theme .oh-cards--core .oh-card-title{ font-size: 14px; letter-spacing: 0.1em; line-height: 1.25; margin-inline-start: 50px; }
+body.club-theme .oh-cards--core .oh-card-sub{ font-size: 12px; line-height: 1.35; margin-inline-start: 50px; min-height: 16px; }
+body.club-theme .oh-cards--core .oh-card-list{ font-size: 11.5px; line-height: 1.45; color: var(--t-secondary); margin-top: 3px; }
+/* A status that is waiting or has nothing to report is grey, and the same var(--t-secondary) — legible, never a verdict. */
+body.club-theme .oh-cards--core .oh-card-state--idle{ color: var(--t-secondary); }
+body.club-theme .oh-cards--core .oh-card-cta{ font-size: 12px; }
+body.club-theme .oh-cards--core .oh-card-cta span{ font-size: 15px; }
+/* The status line and the way in share the card's last row — the status where the eye starts,
+   the door at the far end — so a card is as short as its words allow and no shorter. A status
+   too long for the row wraps inside its own chip; nothing is cut. */
+body.club-theme .oh-cards--core .oh-card{
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto 1fr auto;
+  column-gap: 12px; row-gap: 5px;
+}
+body.club-theme .oh-cards--core .oh-card > *{ grid-column: 1 / -1; }
+/* The icon is positioned, not placed: with no grid placement its containing block is the card's
+   padding box, so it sits at the card's corner rather than inside the content area. */
+body.club-theme .oh-cards--core .oh-card > .oh-card-icon{ grid-column: auto; grid-row: auto; }
+body.club-theme .oh-cards--core .oh-card > .oh-card-list{ align-self: start; }
+body.club-theme .oh-cards--core .oh-card > .oh-card-state{ grid-column: 1; grid-row: 4; align-self: end; max-width: 100%; }
+body.club-theme .oh-cards--core .oh-card > .oh-card-cta{
+  grid-column: 2; grid-row: 4; align-self: end; justify-content: flex-end; gap: 8px;
+  margin-top: 0; padding: 0 0 4px; white-space: nowrap;
+}
+
+/* THE HUB: the Operations Room's own amber, the owner context's identity. A
+   halo behind it, a core mark, and the registry's state on its status line. */
+body.club-theme .oh-hub-slot{ position: relative; width: 100%; display: flex; justify-content: center; }
+body.club-theme .oh-hub-slot::before{
+  content: ''; position: absolute; left: 50%; top: 50%; width: 520px; height: 520px; border-radius: 50%;
+  transform: translate(-50%, -50%); pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--oh-amber) 10%, transparent) 0, color-mix(in srgb, var(--oh-amber) 3.5%, transparent) 34%, transparent 62%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oh-amber) 5%, transparent);
+}
+body.club-theme .oh-hub{
+  position: relative; z-index: 1; width: min(100%, 420px);
+  display: flex; flex-direction: column; align-items: center; gap: 7px; text-align: center;
+  padding: 20px 24px 18px; border-radius: 26px; cursor: pointer; color: var(--t-primary);
+  background:
+    radial-gradient(120% 80% at 50% -10%, color-mix(in srgb, var(--oh-amber) 16%, transparent), transparent 60%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-surface) 95%, transparent), color-mix(in srgb, var(--bg-canvas) 97%, transparent));
+  border: 1px solid color-mix(in srgb, var(--oh-amber) 42%, transparent);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--oh-amber) 5%, transparent), 0 0 64px -14px color-mix(in srgb, var(--oh-amber) 32%, transparent), 0 30px 70px -30px color-mix(in srgb, var(--bg-canvas) 70%, transparent), inset 0 1px 0 color-mix(in srgb, var(--t-primary) 6%, transparent);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  transition: box-shadow 200ms ease, border-color 200ms ease;
+}
+body.club-theme .oh-hub:hover,
+body.club-theme .oh-hub:focus-visible{
+  border-color: color-mix(in srgb, var(--oh-amber) 72%, transparent);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--oh-amber) 9%, transparent), 0 0 84px -10px color-mix(in srgb, var(--oh-amber) 46%, transparent), 0 30px 70px -30px color-mix(in srgb, var(--bg-canvas) 70%, transparent), inset 0 1px 0 color-mix(in srgb, var(--t-primary) 8%, transparent);
+}
+body.club-theme .oh-hub:focus-visible{ outline: 2px solid var(--oh-amber); outline-offset: 4px; }
+body.club-theme .oh-hub-mark{ display: block; width: 64px; height: 64px; color: var(--oh-amber); filter: drop-shadow(0 0 12px color-mix(in srgb, var(--oh-amber) 45%, transparent)); }
+body.club-theme .oh-hub-mark svg{ display: block; }
+body.club-theme .oh-hub-title{ display: block; font-size: 17px; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; line-height: 1.25; }
+body.club-theme .oh-hub-sub{ display: block; max-width: 340px; font-size: 12.5px; font-weight: 500; line-height: 1.4; color: var(--t-secondary); }
+body.club-theme .oh-hub .oh-card-state{ margin-top: 2px; }
+body.club-theme .oh-hub-cta{ display: inline-flex; align-items: center; gap: 8px; margin-top: 2px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.05em; color: var(--oh-amber); }
+
+/* CLUBS, under the hub, with the agents that work in clubs on the line between them. */
+body.club-theme .oh-node--clubs{ align-self: end; width: 100%; max-width: 440px; justify-content: flex-end; gap: 8px; }
+/* The agents sit on a glass capsule the line passes behind, so no line ever runs through a name. */
+body.club-theme .oh-agents--row{
+  position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 7px 12px 5px; border-radius: 18px;
+  background: color-mix(in srgb, var(--bg-canvas) 88%, transparent); border: 1px solid color-mix(in srgb, var(--pitch-400) 18%, transparent);
+  box-shadow: 0 10px 30px -18px color-mix(in srgb, var(--bg-canvas) 80%, transparent);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+body.club-theme .oh-agents-list{ display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; min-height: 34px; }
+body.club-theme .oh-agents-cap{
+  max-width: 100%; min-height: 16px; line-height: 16px; text-align: center;
+  font-size: 11px; letter-spacing: 0.04em; color: var(--t-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+body.club-theme .oh-agents-lc{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; letter-spacing: 0.06em; color: var(--t-primary); }
+
+/* An agent: its domain's glyph, its lifecycle as the outline — solid for
+   RUNNING, dashed for LAB and DRAFT, dotted and faded for RETIRED — and its
+   name, read out by a screen reader and shown on the caption when pointed at. */
+body.club-theme .oh-agent{
+  position: relative; width: 34px; height: 34px; padding: 0; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  color: color-mix(in srgb, var(--pitch-400) 50%, var(--t-primary));
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--pitch-400) 20%, transparent), color-mix(in srgb, var(--bg-canvas) 96%, transparent) 70%);
+  border: 1.5px solid color-mix(in srgb, var(--pitch-400) 65%, transparent);
+  box-shadow: 0 0 14px -4px color-mix(in srgb, var(--pitch-400) 55%, transparent);
+  transition: box-shadow 160ms ease, border-color 160ms ease;
+}
+body.club-theme .oh-agent:hover,
+body.club-theme .oh-agent:focus-visible{ border-color: var(--pitch-400); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pitch-400) 18%, transparent), 0 0 18px -2px color-mix(in srgb, var(--pitch-400) 80%, transparent); }
+body.club-theme .oh-agent:focus-visible{ outline: 2px solid var(--pitch-400); outline-offset: 2px; }
+body.club-theme .oh-agent--lab,
+body.club-theme .oh-agent--draft{ border-style: dashed; }
+body.club-theme .oh-agent--retired{ border-style: dotted; opacity: 0.5; }
+body.club-theme .oh-agent svg{ display: block; }
+body.club-theme .oh-agent-name,
+body.club-theme .oh-agent-none-l{
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* A room's agents stand on its line, at the card's edge that faces the hub. */
+body.club-theme .oh-agents--edge{ position: absolute; top: 50%; z-index: 2; transform: translateY(-50%); display: flex; flex-direction: column; gap: 6px; }
+body.club-theme .oh-node--l .oh-agents--edge{ inset-inline-end: -14px; }
+body.club-theme .oh-node--r .oh-agents--edge{ inset-inline-start: -14px; }
+body.club-theme .oh-agent-none{
+  width: 28px; height: 28px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--t-secondary); background: color-mix(in srgb, var(--bg-canvas) 94%, transparent); border: 1.5px dashed color-mix(in srgb, var(--t-secondary) 50%, transparent);
+}
+
+/* THE LINES. An overlay that takes no part in layout, one per room, from the
+   hub's amber into the room's own colour. Pointing at or focusing a room
+   lights its line and quiets the rest; the hub lights every line. */
+body.club-theme .oh-links{
+  position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0;
+  pointer-events: none; overflow: visible; opacity: 0; transition: opacity 400ms ease;
+}
+body.club-theme .oh-links.is-drawn{ opacity: 1; }
+body.club-theme .oh-link{ fill: none; stroke-width: 1.6; stroke-linecap: round; opacity: 0.55; transition: opacity 180ms ease, stroke-width 180ms ease; }
+body.club-theme .oh-cards--core[data-hot] .oh-link{ opacity: 0.16; }
+body.club-theme .oh-cards--core[data-hot] .oh-link.is-hot{ opacity: 1; stroke-width: 2.6; stroke-dasharray: 8 7; animation: oh-flow 1.1s linear infinite; }
+@keyframes oh-flow{ to{ stroke-dashoffset: -30; } }
+body.club-theme .oh-link-end{ opacity: 0.85; }
+body.club-theme .oh-stop-hub{ stop-color: var(--oh-amber); stop-opacity: 0.85; }
+body.club-theme .oh-stop--system{ stop-color: var(--oh-system); } body.club-theme .oh-link-end--system{ fill: var(--oh-system); }
+body.club-theme .oh-stop--cyber{ stop-color: var(--oh-cyber); } body.club-theme .oh-link-end--cyber{ fill: var(--oh-cyber); }
+body.club-theme .oh-stop--algo{  stop-color: var(--oh-algo); } body.club-theme .oh-link-end--algo{  fill: var(--oh-algo); }
+body.club-theme .oh-stop--ds{    stop-color: var(--oh-ds); } body.club-theme .oh-link-end--ds{    fill: var(--oh-ds); }
+body.club-theme .oh-stop--clubs{ stop-color: var(--oh-clubs); } body.club-theme .oh-link-end--clubs{ fill: var(--oh-clubs); }
+body.club-theme .oh-stop--vault{ stop-color: var(--oh-vault); } body.club-theme .oh-link-end--vault{ fill: var(--oh-vault); }
+body.club-theme .oh-stop--city{  stop-color: var(--oh-city); } body.club-theme .oh-link-end--city{  fill: var(--oh-city); }
+body.club-theme .oh-stop--core{  stop-color: var(--oh-core); } body.club-theme .oh-link-end--core{  fill: var(--oh-core); }
+body.club-theme .oh-stop--vision{ stop-color: var(--oh-vision); } body.club-theme .oh-link-end--vision{ fill: var(--oh-vision); }
+@media (prefers-reduced-motion: reduce){
+  body.club-theme .oh-links,
+  body.club-theme .oh-link{ transition: none; }
+  body.club-theme .oh-cards--core[data-hot] .oh-link.is-hot{ animation: none; stroke-dasharray: none; }
+}
+
+/* THE ESCAPE HATCH. Narrower than a laptop, or shorter than one, the map becomes
+   a page that scrolls: the hub and CLUBS first, then the two branches side by
+   side, then one column on a phone. Nothing is hidden; the lines go, and each
+   room says in words what its line said ("No agent registered"). */
+@media (max-width: 1180px), (max-height: 640px){
+  body.club-theme .oh-wrap--map{ padding: 20px 20px 16px; }
+  body.club-theme .oh-cards--core{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none; grid-auto-rows: auto;
+    grid-template-areas: "center center" "system vault" "cyber city" "algo core" "design vision";
+    column-gap: 16px; row-gap: 16px;
+  }
+  body.club-theme .oh-cards--core::before,
+  body.club-theme .oh-links,
+  body.club-theme .oh-hub-slot::before{ display: none; }
+  body.club-theme .oh-node--center{ grid-template-rows: none; gap: 18px; }
+  body.club-theme .oh-node--clubs{ max-width: 560px; }
+  body.club-theme .oh-agents--edge{ position: static; transform: none; flex-direction: row; align-items: center; margin-top: 8px; }
+  body.club-theme .oh-agent-none{ width: auto; height: auto; padding: 0 2px; border: 0; background: none; }
+  body.club-theme .oh-agent-none-l{
+    position: static; width: auto; height: auto; margin: 0 0 0 8px; overflow: visible; clip: auto;
+    font-size: 11px; color: var(--t-secondary);
+  }
+  body.club-theme #owner-home-content[dir="rtl"] .oh-agent-none-l,
+  html[dir="rtl"] body.club-theme .oh-agent-none-l{ margin: 0 8px 0 0; }
+}
+@media (max-width: 720px){
+  body.club-theme .oh-cards--core{
+    grid-template-columns: 1fr;
+    grid-template-areas: "center" "system" "cyber" "algo" "design" "vault" "city" "core" "vision";
+  }
+  body.club-theme .oh-wrap--map .oh-title{ font-size: 26px; }
+}
 
 /* The core's own accent. Cyan into blue, the same two hues the Source Core
    itself uses, and a raised card rather than a tinted one — elevation is what

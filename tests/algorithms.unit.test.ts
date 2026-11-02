@@ -407,12 +407,12 @@ describe('the eighth room in the shell', () => {
     expect(index).toContain('/algorithms/algorithms.css?v=');
   });
 
-  it('its card opens the second row, a peer the same size as every other', () => {
-    // Nine rooms, three equal columns: SYSTEM, CYBERSECURITY and CLUBS on top,
-    // then ALGORITHMS, DATA VAULT and INFRASTRUCTURE CITY.
-    expect(css).toContain('"system cyber  clubs"');
-    expect(css).toContain('"algo   vault  city"');
-    expect(css).toContain('body.club-theme .oh-cards--core .oh-card--algo{   grid-area: algo; }');
+  it('its card is a branch of the Owner Control map, a peer the same size as every other', () => {
+    // The map: the governance rooms down one side of the hub, the evidence rooms down the other.
+    // ALGORITHMS is the third governance room, level with SOURCE CORE across the hub.
+    expect(css).toContain('"algo   center core"');
+    expect(css).toContain('body.club-theme .oh-node[data-oh-node="algo"]{   grid-area: algo; }');
+    expect(css).toContain('grid-template-rows: repeat(4, minmax(auto, 1fr));');
     expect(app).toContain('<div class="oh-card-title">ALGORITHMS</div>');
     expect(app).toContain("fetch(base + '/system/algorithms'");
   });

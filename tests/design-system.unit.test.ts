@@ -382,11 +382,13 @@ describe('the room, wired into the application', () => {
   });
 
   it('keeps the eight existing cards, in their order, with their destinations; the ninth is Design System Control', () => {
-    const at = app_js.indexOf('<div class="oh-cards oh-cards--core">');
+    const at = app_js.indexOf('<div class="oh-cards oh-cards--core" id="oh-map">');
     expect(at).toBeGreaterThan(0);
-    const block = app_js.slice(at, at + 11000);
+    const block = app_js.slice(at, app_js.indexOf('<div class="oh-footer">', at));
     const cards = [...block.matchAll(/<button class="oh-card oh-card--([a-z]+)" data-action="navTo" data-page="([a-z-]+)"/g)].map((m) => `${m[1]}:${m[2]}`);
-    expect(cards).toEqual(['system:system', 'cyber:cybersecurity', 'clubs:clubs', 'algo:algorithms', 'vault:data-vault', 'city:infrastructure-city', 'core:source-core', 'vision:familista-vision', 'ds:design-system']);
+    // The same nine doors, now in the Owner Control map's reading order (CLUBS beneath the hub, then each branch).
+    expect(cards.slice().sort()).toEqual(['algo:algorithms', 'city:infrastructure-city', 'clubs:clubs', 'core:source-core', 'cyber:cybersecurity', 'ds:design-system', 'system:system', 'vault:data-vault', 'vision:familista-vision']);
+    expect(cards).toEqual(['clubs:clubs', 'system:system', 'cyber:cybersecurity', 'algo:algorithms', 'ds:design-system', 'vault:data-vault', 'city:infrastructure-city', 'core:source-core', 'vision:familista-vision']);
   });
 
   it('is reachable from the Owner Home card and from the #design-system link', () => {
@@ -713,9 +715,9 @@ describe('Owner Home: the ninth card, DESIGN SYSTEM CONTROL', () => {
     expect(appJs).toMatch(/if \(yes\) \{[\s\S]{0,700}_fillDesignSystemStatus\(\)/);
   });
 
-  it('is the last card in the markup, so the reading order is the grid order', () => {
+  it('closes the governance branch of the map, and the markup order is the reading order', () => {
     const order = [...platform.matchAll(/<button class="oh-card oh-card--(\w+)"/g)].map((m) => m[1]);
-    expect(order).toEqual(['system', 'cyber', 'clubs', 'algo', 'vault', 'city', 'core', 'vision', 'ds']);
+    expect(order).toEqual(['clubs', 'system', 'cyber', 'algo', 'ds', 'vault', 'city', 'core', 'vision']);
   });
 
   it('is a labelled, keyboard-reachable button: a real <button>, a decorative icon, a visible name', () => {
@@ -792,27 +794,27 @@ describe('Owner Home: the ninth card, DESIGN SYSTEM CONTROL', () => {
     });
   });
 
-  describe('the 3×3 grid', () => {
-    it('is three columns and three rows of equal cards, in reading order', () => {
-      expect(appCss).toMatch(/body\.club-theme \.oh-cards--core\{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);\s*grid-auto-rows: 1fr;\s*grid-template-areas:\s*"system cyber  clubs"\s*"algo   vault  city"\s*"core   vision design";\s*\}/);
-      expect(appCss).toContain('body.club-theme .oh-cards--core .oh-card--ds{     grid-area: design; }');
+  describe('the Owner Control map', () => {
+    it('stands the ninth card at the foot of the governance branch, a peer the size of every other', () => {
+      expect(appCss).toMatch(/body\.club-theme \.oh-cards--core\{[^}]*grid-template-rows: repeat\(4, minmax\(auto, 1fr\)\);\s*grid-template-areas:\s*"system center vault"\s*"cyber  center city"\s*"algo   center core"\s*"design center vision";/);
+      expect(appCss).toContain('body.club-theme .oh-node[data-oh-node="ds"]{     grid-area: design; }');
     });
 
-    it('is two columns from 1339px down, with the ninth centred at the width of every other card', () => {
-      const m = appCss.match(/@media \(max-width: 1339px\)\{\s*body\.club-theme \.oh-cards--core\{([\s\S]*?)\n  \}\n\}/);
+    it('is two columns below a laptop, the branches side by side, the ninth last on its side', () => {
+      const m = appCss.match(/@media \(max-width: 1180px\), \(max-height: 640px\)\{\s*body\.club-theme \.oh-wrap--map\{[^}]*\}\s*body\.club-theme \.oh-cards--core\{([\s\S]*?)\n  \}/);
       expect(m).not.toBeNull();
-      expect(m![1]).toContain('grid-template-columns: repeat(4, minmax(0, 1fr));');
-      expect(m![1]).toMatch(/"system system clubs  clubs"\s*"cyber  cyber  algo   algo "\s*"core   core   vision vision"\s*"vault  vault  city   city"\s*"\.      design design \."/);
+      expect(m![1]).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
+      expect(m![1]).toContain('grid-template-areas: "center center" "system vault" "cyber city" "algo core" "design vision";');
     });
 
-    it('is one column from 900px down, the ninth last, as it was', () => {
-      expect(appCss).toContain('grid-template-areas: "system" "cyber" "clubs" "algo" "core" "vision" "vault" "city" "design";');
-      expect(appCss).toMatch(/@media \(max-width: 900px\)\{\s*body\.club-theme \.oh-cards--core\{\s*grid-template-columns: 1fr; max-width: 560px; margin-inline: auto;\s*grid-auto-rows: auto;/);
+    it('is one column on a phone, in reading order', () => {
+      expect(appCss).toContain('grid-template-areas: "center" "system" "cyber" "algo" "design" "vault" "city" "core" "vision";');
     });
 
-    it('is the old eight-track grid no longer', () => {
+    it('is the old grids no longer', () => {
       expect(appCss).not.toContain('grid-template-columns: repeat(8, minmax(0, 1fr));');
-      expect(appCss).not.toMatch(/@media \(max-width: 1560px\)\{\s*body\.club-theme \.oh-cards--core/);
+      expect(appCss).not.toContain('"system cyber  clubs"');
+      expect(appCss).not.toMatch(/@media \(max-width: 1339px\)\{\s*body\.club-theme \.oh-cards--core/);
     });
 
     it('draws the ninth card’s identity as an edge, a hairline and a whisper of tint, in literal colours', () => {
@@ -859,12 +861,14 @@ describe('Owner Home: the ninth card, DESIGN SYSTEM CONTROL', () => {
 
   it('is shipped with fresh asset versions, so no browser mixes the old script with the new stylesheet', () => {
     const html = read('public/index.html');
-    // Model text is now drawn as nodes (public/ai-model-text.js) and its bold is styled by app.css,
-    // so the script and the stylesheet moved on together.
-    expect(html).toContain('/app.css?v=20261020-ai-safe-text');
+    // The Owner Control mind map is markup in app.js styled by app.css, so the two moved on together
+    // (as they did when model text began to be drawn as nodes styled by app.css).
+    expect(html).toContain('/app.css?v=20261101-owner-control-map');
+    expect(html).not.toContain('/app.css?v=20261020-ai-safe-text');
     // The AI Agents Operations Room's loader and entry moved app.js on again; app.css did not change.
     // Then the Chrome 156 CSP remediation (inline handlers moved to listeners) moved it on once more.
-    expect(html).toContain('/app.js?v=20261028-provenance');
+    expect(html).toContain('/app.js?v=20261101-owner-control-map');
+    expect(html).not.toContain('/app.js?v=20261028-provenance');
     expect(html).not.toContain('/app.js?v=20261022-agents-room');
     expect(html).not.toContain('/app.js?v=20261020-ai-safe-text');
     expect(html).not.toContain('/app.css?v=20261012-owner-home-ds');

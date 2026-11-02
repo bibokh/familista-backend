@@ -785,50 +785,35 @@ describe('the Platform Owner landing offers five rooms around one core', () => {
   const landing = app.slice(app.indexOf('function _ownerHomeForPlatformOwner'),
     app.indexOf('function _ownerHomeForClubMember'));
 
-  it('renders SYSTEM, CYBERSECURITY, CLUBS, ALGORITHMS, DATA VAULT, INFRASTRUCTURE CITY, SOURCE CORE, FAMILISTA VISION and DESIGN SYSTEM CONTROL in one card grid', () => {
+  it('renders SYSTEM, CYBERSECURITY, CLUBS, ALGORITHMS, DATA VAULT, INFRASTRUCTURE CITY, SOURCE CORE, FAMILISTA VISION and DESIGN SYSTEM CONTROL on one map', () => {
     for (const title of ['>SYSTEM<', '>CYBERSECURITY<', '>CLUBS<', '>ALGORITHMS<', '>DATA VAULT<', '>INFRASTRUCTURE CITY<', '>SOURCE CORE<', '>DESIGN SYSTEM CONTROL<']) {
       expect(landing).toContain(title);
     }
     const cards = [...landing.matchAll(/class="oh-card oh-card--(\w+)"/g)].map((m) => m[1]);
-    // FAMILISTA VISION joined as the sixth, appended. CYBERSECURITY joined as
-    // the seventh and is the one exception: it sits between SYSTEM and CLUBS
-    // on screen, so it sits there in the markup too — the order a keyboard and
-    // a screen reader walk is the order the top row reads. The six that were
-    // here keep their relative order. ALGORITHMS joined as the eighth and
-    // closes the top row after CLUBS, so it follows CLUBS in the markup too.
-    // DESIGN SYSTEM CONTROL joined as the ninth and is appended, closing the
-    // third row. In the three-column grid the markup order IS the reading order.
-    expect(cards).toEqual(['system', 'cyber', 'clubs', 'algo', 'vault', 'city', 'core', 'vision', 'ds']);
+    // The Owner Control map (see _ownerHomeForPlatformOwner and app.css): the AI Agents Operations
+    // Room at the centre, CLUBS beneath it, the four governance rooms on one side and the four
+    // evidence rooms on the other. The markup order is still the reading order — the hub, CLUBS,
+    // then each branch from the top — so a keyboard and a screen reader walk the map the way the eye
+    // does (tests/data-vault keeps that rule; the browser proof walks it with Tab).
+    expect(cards).toEqual(['clubs', 'system', 'cyber', 'algo', 'ds', 'vault', 'city', 'core', 'vision']);
   });
 
-  it('gives the rooms the same grid track, so none is subordinate', () => {
-    // The four original rooms occupy the two outer columns in two rows — the
-    // same track as each other. SOURCE CORE is not one of them and is placed
-    // SIX EQUAL CARDS, three columns by two rows. SOURCE CORE used to span the
-    // middle column across both rows and VISION to take a full-width band
-    // underneath, which made one card 713px tall with a void in it and pushed
-    // another below the fold. Size is a claim about importance and these six
-    // are peers, so the story is told with COLUMN instead: where the evidence
-    // came from sits directly above what the evidence says.
-    // SEVEN EQUAL CARDS on eight tracks, every card two tracks wide: three on
-    // the top row, centred, and four beneath. CYBERSECURITY sits between
-    // SYSTEM and CLUBS; SOURCE CORE and VISION hold the middle of the second.
-    // EIGHT with ALGORITHMS: it closes the top row, which now has four like
-    // the row beneath it, so the half-card inset is gone.
-    // NINE EQUAL CARDS in three columns and three rows (see the comment above
-    // the grid in app.css): no half-card inset, no band, every card one track.
-    expect(css).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));');
-    expect(css).toContain('"system cyber  clubs"');
-    expect(css).toContain('"algo   vault  city"');
-    expect(css).toContain('"core   vision design"');
-    expect(css).not.toContain('"system system cyber  cyber  clubs  clubs  algo   algo "');
-    for (const [k, v] of [['system', 'system'], ['cyber', 'cyber'], ['clubs', 'clubs'], ['algo', 'algo'], ['vault', 'vault'], ['city', 'city'], ['core', 'core'], ['vision', 'vision'], ['ds', 'design']]) {
-      expect(css).toContain(`body.club-theme .oh-cards--core .oh-card--${k}{`);
-      expect(css).toMatch(new RegExp(`\\.oh-card--${k}\\{\\s*grid-area: ${v}; \\}`));
+  it('gives the rooms the same track, so none is subordinate', () => {
+    // Eight branch rooms in four equal rows a side, the hub's column between them; CLUBS beneath the
+    // hub. Every branch card is one track: the same size as every other, because size is a claim
+    // about importance and these are peers.
+    expect(css).toContain('grid-template-columns: minmax(0, 1fr) minmax(380px, 1.02fr) minmax(0, 1fr);');
+    expect(css).toContain('grid-template-rows: repeat(4, minmax(auto, 1fr));');
+    expect(css).toContain('"system center vault"');
+    expect(css).toContain('"cyber  center city"');
+    expect(css).toContain('"algo   center core"');
+    expect(css).toContain('"design center vision"');
+    for (const [k, v] of [['system', 'system'], ['cyber', 'cyber'], ['algo', 'algo'], ['vault', 'vault'], ['city', 'city'], ['core', 'core'], ['vision', 'vision'], ['ds', 'design']]) {
+      expect(css).toMatch(new RegExp(`body\\.club-theme \\.oh-node\\[data-oh-node="${k}"\\]\\{\\s*grid-area: ${v}; \\}`));
     }
-    // Equal rows, so no card can grow taller than its peers.
-    expect(css).toMatch(/\.oh-cards--core\{[^}]*grid-auto-rows:\s*1fr/);
-    // The orphaned four-column rule is gone rather than left behind to rot.
+    expect(css).toContain('body.club-theme .oh-node--center{ grid-area: center;');
+    // The old grids are gone rather than left behind to rot.
+    expect(css).not.toContain('"system cyber  clubs"');
     expect(css).not.toContain('oh-cards--four');
   });
 

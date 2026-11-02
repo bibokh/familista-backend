@@ -1599,5 +1599,22 @@
   "Reading design system evidence…": "Design-System-Nachweise werden gelesen…",
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design-Tokens: \u0000 · neue Kontrast-Fehlschläge: \u0000",
   "Design System manifest not generated": "Design-System-Manifest nicht erzeugt",
-  "Design System unreachable": "Design-System nicht erreichbar"
+  "Design System unreachable": "Design-System nicht erreichbar",
+  "AI AGENTS — OPERATIONS ROOM": "KI-AGENTEN — OPERATIONSRAUM",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "Jeder Agent im Agentenregister: Bereich, Geltungsbereich, Lebenszyklus und Berechtigungen",
+  "Reading the Agent Registry…": "Agentenregister wird gelesen…",
+  "Agents running: \u0000 of \u0000": "Laufende Agenten: \u0000 von \u0000",
+  "Agent Registry unreachable": "Agentenregister nicht erreichbar",
+  "Registry invariants failing: \u0000": "Verletzte Registerinvarianten: \u0000",
+  "Kill switch engaged": "Not-Aus aktiviert",
+  "Open the Operations Room": "Operationsraum öffnen",
+  "No agent registered": "Kein Agent registriert",
+  "Club agents: \u0000": "Vereinsagenten: \u0000",
+  "Club Manager": "Vereinsmanager",
+  "Tactical": "Taktik",
+  "Finance": "Finanzen",
+  "Match Operations": "Spielbetrieb",
+  "Communications": "Kommunikation",
+  "Device Management": "Geräteverwaltung",
+  "Big Data": "Big Data"
 }

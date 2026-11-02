@@ -1599,5 +1599,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "AGENȚI IA — CENTRUL DE OPERAȚIUNI",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "Fiecare agent din registrul agenților: domeniul, sfera, ciclul de viață și permisiunile sale",
+  "Reading the Agent Registry…": "Se citește registrul agenților…",
+  "Agents running: \u0000 of \u0000": "Agenți activi: \u0000 din \u0000",
+  "Agent Registry unreachable": "Registrul agenților este inaccesibil",
+  "Registry invariants failing: \u0000": "Invarianți ai registrului încălcați: \u0000",
+  "Kill switch engaged": "Oprirea de urgență este activată",
+  "Open the Operations Room": "Deschide centrul de operațiuni",
+  "No agent registered": "Niciun agent înregistrat",
+  "Club agents: \u0000": "Agenții clubului: \u0000",
+  "Club Manager": "Managerul clubului",
+  "Tactical": "Tactică",
+  "Finance": "Finanțe",
+  "Match Operations": "Operațiuni de meci",
+  "Communications": "Comunicare",
+  "Device Management": "Gestionarea dispozitivelor",
+  "Big Data": "Big Data"
 }

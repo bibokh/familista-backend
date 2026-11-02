@@ -1774,17 +1774,25 @@
 
   // ── mount ─────────────────────────────────────────────────────────────────
 
-  window.renderFamilistaAgentsRoom = function (host) {
+  window.renderFamilistaAgentsRoom = function (host, opts) {
     // The navigation switch calls this with the root element; a call with none finds it.
     host = host || document.getElementById('ar-root');
     if (!host) return;
+    // `opts.open` names an agent to show on arrival (the Owner Control map's agents). It is
+    // a request: openAgent opens only an agent this registry read lists, and nothing else.
+    var open = opts && typeof opts.open === 'string' ? opts.open : null;
     bind(host);
     setLocale(initialLocale()).then(function () {
       paint(host);
       var registry = loadOverview();
       loadRuntime().then(function () { repaintRuntime(host); });
       return registry;
-    }).then(function () { paint(host); });
+    }).then(function () {
+      paint(host);
+      // Only an id the registry lists reaches the selector (manifest.ts validates <club|platform>.<lowercase-name>); closing the
+      // manifest gives the focus to that agent's node on the room's own map.
+      if (open && summaryOf(open)) openAgent(host, open, host.querySelector('[data-ar-agent="' + open + '"]'));
+    });
   };
 
   // Exposed for the test suite, which asserts the vocabulary rather than a render.

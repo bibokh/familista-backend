@@ -1596,5 +1596,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "AI 에이전트 — 운영실",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "에이전트 레지스트리의 모든 에이전트: 도메인, 범위, 수명 주기, 권한",
+  "Reading the Agent Registry…": "에이전트 레지스트리를 읽는 중…",
+  "Agents running: \u0000 of \u0000": "실행 중인 에이전트: \u0000 / \u0000",
+  "Agent Registry unreachable": "에이전트 레지스트리에 연결할 수 없음",
+  "Registry invariants failing: \u0000": "위반된 레지스트리 불변 조건: \u0000",
+  "Kill switch engaged": "킬 스위치 작동 중",
+  "Open the Operations Room": "운영실 열기",
+  "No agent registered": "등록된 에이전트 없음",
+  "Club agents: \u0000": "클럽 에이전트: \u0000",
+  "Club Manager": "클럽 매니저",
+  "Tactical": "전술",
+  "Finance": "재무",
+  "Match Operations": "경기 운영",
+  "Communications": "커뮤니케이션",
+  "Device Management": "기기 관리",
+  "Big Data": "빅데이터"
 }

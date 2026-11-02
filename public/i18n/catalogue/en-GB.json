@@ -1599,5 +1599,22 @@
   "🔍 Search": "🔍 Search",
   "🔔 Notifications": "🔔 Notifications",
   "🧑‍💼 STAFF": "🧑‍💼 STAFF",
-  "🩺 MEDICAL": "🩺 MEDICAL"
+  "🩺 MEDICAL": "🩺 MEDICAL",
+  "AI AGENTS — OPERATIONS ROOM": "AI AGENTS — OPERATIONS ROOM",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions",
+  "Reading the Agent Registry…": "Reading the Agent Registry…",
+  "Agents running: \u0000 of \u0000": "Agents running: \u0000 of \u0000",
+  "Agent Registry unreachable": "Agent Registry unreachable",
+  "Registry invariants failing: \u0000": "Registry invariants failing: \u0000",
+  "Kill switch engaged": "Kill switch engaged",
+  "Open the Operations Room": "Open the Operations Room",
+  "No agent registered": "No agent registered",
+  "Club agents: \u0000": "Club agents: \u0000",
+  "Club Manager": "Club Manager",
+  "Tactical": "Tactical",
+  "Finance": "Finance",
+  "Match Operations": "Match Operations",
+  "Communications": "Communications",
+  "Device Management": "Device Management",
+  "Big Data": "Big Data"
 }

@@ -1599,5 +1599,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "ΠΡΑΚΤΟΡΕΣ ΤΝ — ΑΙΘΟΥΣΑ ΕΠΙΧΕΙΡΗΣΕΩΝ",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "Κάθε πράκτορας στο μητρώο πρακτόρων: τομέας, εμβέλεια, κύκλος ζωής και δικαιώματα",
+  "Reading the Agent Registry…": "Ανάγνωση του μητρώου πρακτόρων…",
+  "Agents running: \u0000 of \u0000": "Πράκτορες σε λειτουργία: \u0000 από \u0000",
+  "Agent Registry unreachable": "Το μητρώο πρακτόρων δεν είναι προσβάσιμο",
+  "Registry invariants failing: \u0000": "Αμετάβλητες του μητρώου που αποτυγχάνουν: \u0000",
+  "Kill switch engaged": "Ο διακόπτης έκτακτης διακοπής είναι ενεργός",
+  "Open the Operations Room": "Άνοιγμα της αίθουσας επιχειρήσεων",
+  "No agent registered": "Δεν υπάρχει καταχωρισμένος πράκτορας",
+  "Club agents: \u0000": "Πράκτορες συλλόγου: \u0000",
+  "Club Manager": "Διαχειριστής συλλόγου",
+  "Tactical": "Τακτική",
+  "Finance": "Οικονομικά",
+  "Match Operations": "Λειτουργία αγώνων",
+  "Communications": "Επικοινωνία",
+  "Device Management": "Διαχείριση συσκευών",
+  "Big Data": "Big Data"
 }

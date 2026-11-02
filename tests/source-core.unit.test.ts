@@ -700,18 +700,16 @@ describe('SOURCE CORE is the middle of the landing, not the end of a row', () =>
     expect(app).toContain('<div class="oh-card-title">SOURCE CORE</div>');
   });
 
-  it('sits beside Vision at every width, in the order the grid is read', () => {
+  it('sits directly above Vision at every width, in the order the map is read', () => {
     expect(css).toContain('body.club-theme .oh-cards--core{');
-    // Three columns: the core and VISION share the third row, with DESIGN SYSTEM
-    // CONTROL beside them — said by adjacency rather than by size.
-    expect(css).toContain('"core   vision design"');
-    // Two columns: the core/vision pair stays together on its own row, with
-    // CYBERSECURITY and ALGORITHMS sharing the row above it.
-    expect(css).toContain('"system system clubs  clubs"');
-    expect(css).toContain('"cyber  cyber  algo   algo "');
-    expect(css).toContain('"core   core   vision vision"');
-    // One column: the core follows the top-row rooms, and Vision follows it.
-    expect(css).toContain('grid-template-areas: "system" "cyber" "clubs" "algo" "core" "vision" "vault" "city" "design";');
+    // The Owner Control map: the core is the third evidence room and FAMILISTA VISION the fourth,
+    // so where the evidence came from sits directly above what it shows — said by adjacency.
+    expect(css).toContain('"algo   center core"');
+    expect(css).toContain('"design center vision"');
+    // Two columns: the evidence rooms keep their column, the core still above Vision.
+    expect(css).toContain('"algo core" "design vision"');
+    // One column: the core, then Vision.
+    expect(css).toContain('"vault" "city" "core" "vision"');
   });
 
   it('carries a real summary or an honest absence, never a placeholder figure', () => {

@@ -1596,5 +1596,22 @@
   "Design tokens: \u0000 · new contrast failures: \u0000": "Design tokens: \u0000 · new contrast failures: \u0000",
   "Enter Design System": "Enter Design System",
   "Overview · Design Tokens · Layers · Contrast · Provenance": "Overview · Design Tokens · Layers · Contrast · Provenance",
-  "Reading design system evidence…": "Reading design system evidence…"
+  "Reading design system evidence…": "Reading design system evidence…",
+  "AI AGENTS — OPERATIONS ROOM": "AGEN AI — PUSAT OPERASI",
+  "Every agent in the Agent Registry: its domain, scope, lifecycle and permissions": "Setiap agen di registri agen: domain, cakupan, siklus hidup, dan izinnya",
+  "Reading the Agent Registry…": "Membaca registri agen…",
+  "Agents running: \u0000 of \u0000": "Agen berjalan: \u0000 dari \u0000",
+  "Agent Registry unreachable": "Registri agen tidak dapat dijangkau",
+  "Registry invariants failing: \u0000": "Invarian registri yang gagal: \u0000",
+  "Kill switch engaged": "Sakelar darurat aktif",
+  "Open the Operations Room": "Buka pusat operasi",
+  "No agent registered": "Tidak ada agen terdaftar",
+  "Club agents: \u0000": "Agen klub: \u0000",
+  "Club Manager": "Manajer Klub",
+  "Tactical": "Taktik",
+  "Finance": "Keuangan",
+  "Match Operations": "Operasional Pertandingan",
+  "Communications": "Komunikasi",
+  "Device Management": "Manajemen Perangkat",
+  "Big Data": "Big Data"
 }
