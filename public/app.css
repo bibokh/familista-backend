@@ -7272,6 +7272,7 @@ body.club-theme .oh-cards--core .oh-card{
 body.club-theme .oh-cards.oh-cards--core .oh-card{
   border: 1px solid color-mix(in srgb, currentColor 82%, transparent);
   background:
+    linear-gradient(180deg, color-mix(in srgb, var(--t-primary) 6%, transparent) 0, transparent 34%),
     radial-gradient(120% 95% at 0% 0%, color-mix(in srgb, currentColor 17%, transparent), transparent 52%),
     radial-gradient(70% 80% at 100% 55%, color-mix(in srgb, currentColor 13%, transparent), transparent 64%),
     linear-gradient(165deg, color-mix(in srgb, var(--bg-elevated) 82%, transparent), color-mix(in srgb, var(--bg-canvas) 94%, transparent));
@@ -7377,28 +7378,37 @@ body.club-theme .oh-cards--core .oh-card > .oh-card-title{ grid-row: 1; }
 body.club-theme .oh-cards--core .oh-card > .oh-card-sub{ grid-row: 2; }
 body.club-theme .oh-cards--core .oh-card > .oh-card-list{ grid-row: 3; }
 body.club-theme .oh-cards--core .oh-card > .oh-card-illus{
-  grid-row: 2 / span 2; justify-self: end; align-self: center;
-  width: clamp(112px, 38%, 214px); height: auto; aspect-ratio: 320 / 230; margin-inline-end: -8px;
+  grid-row: 1 / span 3; justify-self: end; align-self: center;
+  width: clamp(140px, 44%, 250px); height: auto; aspect-ratio: 576 / 414; margin-block: -12px -6px; margin-inline-end: -14px;
   pointer-events: none; user-select: none; -webkit-user-drag: none;
   transition: filter 200ms ease;
 }
+body.club-theme .oh-cards--core .oh-card > .oh-card-title,
 body.club-theme .oh-cards--core .oh-card > .oh-card-sub,
-body.club-theme .oh-cards--core .oh-card > .oh-card-list{ margin-inline-end: calc(clamp(112px, 38%, 214px) + 4px); }
+body.club-theme .oh-cards--core .oh-card > .oh-card-list{ margin-inline-end: calc(clamp(140px, 44%, 250px) - 8px); }
 /* CLUBS is the short card under the hub: a smaller picture, so it stays short. */
-body.club-theme .oh-cards--core .oh-card--clubs > .oh-card-illus{ width: clamp(96px, 30%, 160px); }
+body.club-theme .oh-cards--core .oh-card--clubs > .oh-card-illus{ width: clamp(120px, 36%, 200px); }
+body.club-theme .oh-cards--core .oh-card--clubs > .oh-card-title,
 body.club-theme .oh-cards--core .oh-card--clubs > .oh-card-sub,
-body.club-theme .oh-cards--core .oh-card--clubs > .oh-card-list{ margin-inline-end: calc(clamp(96px, 30%, 160px) + 4px); }
+body.club-theme .oh-cards--core .oh-card--clubs > .oh-card-list{ margin-inline-end: calc(clamp(120px, 36%, 200px) - 8px); }
 /* On a narrower desktop the picture takes the corner beside the title and the description,
    and the chips have the card's whole width beneath it: the same picture, the same words,
-   fewer lines. The gap beside the words is still the picture's own width. */
+   fewer lines. The gap beside the words is still the picture's own width. The card is a
+   little tighter too, so four of them stand in less height. */
 @media (max-width: 1599px){
-  body.club-theme .oh-cards--core .oh-card > .oh-card-illus{ grid-row: 1 / span 2; align-self: start; width: clamp(96px, 30%, 140px); margin-block-start: -4px; }
+  body.club-theme .oh-cards--core .oh-card{ padding: 12px 15px 10px; row-gap: 4px; }
+  body.club-theme .oh-cards--core .oh-card > .oh-card-illus{ grid-row: 1 / span 2; align-self: start; width: clamp(110px, 36%, 168px); margin-block: -10px 0; margin-inline-end: -12px; }
   body.club-theme .oh-cards--core .oh-card > .oh-card-title,
-  body.club-theme .oh-cards--core .oh-card > .oh-card-sub{ margin-inline-end: calc(clamp(96px, 30%, 140px) + 4px); }
+  body.club-theme .oh-cards--core .oh-card > .oh-card-sub{ margin-inline-end: calc(clamp(110px, 36%, 168px) - 6px); }
   body.club-theme .oh-cards--core .oh-card > .oh-card-list{ margin-inline-end: 0; }
-  body.club-theme .oh-cards--core .oh-card--clubs > .oh-card-illus{ width: clamp(96px, 28%, 140px); }
+  body.club-theme .oh-cards--core .oh-card--clubs > .oh-card-illus{ width: clamp(110px, 32%, 160px); }
   body.club-theme .oh-cards--core .oh-card--clubs > .oh-card-title,
-  body.club-theme .oh-cards--core .oh-card--clubs > .oh-card-sub{ margin-inline-end: calc(clamp(96px, 28%, 140px) + 4px); }
+  body.club-theme .oh-cards--core .oh-card--clubs > .oh-card-sub{ margin-inline-end: calc(clamp(110px, 32%, 160px) - 6px); }
+  body.club-theme .oh-chip{ line-height: 15px; }
+  /* The way in is the arrow alone, as on a lit control; its words stay in the button for a
+     screen reader, and the status beside it keeps the row to itself. */
+  body.club-theme .oh-cards--core .oh-card > .oh-card-cta{ font-size: 0; gap: 0; }
+  body.club-theme .oh-cards--core .oh-card > .oh-card-cta span{ font-size: 13px; }
 }
 body.club-theme .oh-cards--core .oh-card:hover > .oh-card-illus,
 body.club-theme .oh-cards--core .oh-card:focus-visible > .oh-card-illus{ filter: saturate(1.15) brightness(1.12); }
@@ -7455,7 +7465,13 @@ body.club-theme .oh-hub{
    rooms' colours on the rim, so each line's colour meets the hub where its room stands. */
 body.club-theme .oh-hub::before,
 body.club-theme .oh-hub::after{ content: ''; position: absolute; border-radius: 50%; pointer-events: none; }
-body.club-theme .oh-hub::before{ inset: 9px; border: 1px dashed color-mix(in srgb, var(--oh-amber) 30%, transparent); }
+body.club-theme .oh-hub::before{
+  inset: 7px; opacity: 0.85;
+  background: repeating-conic-gradient(color-mix(in srgb, var(--oh-amber) 60%, transparent) 0deg 1.2deg, transparent 1.2deg 7.5deg);
+  /* A mask reads only alpha: a band of ticks just inside the rim. */
+  -webkit-mask-image: radial-gradient(farthest-side, transparent calc(100% - 8px), var(--bg-canvas) calc(100% - 7px), var(--bg-canvas) calc(100% - 2px), transparent 100%);
+          mask-image: radial-gradient(farthest-side, transparent calc(100% - 8px), var(--bg-canvas) calc(100% - 7px), var(--bg-canvas) calc(100% - 2px), transparent 100%);
+}
 body.club-theme .oh-hub::after{
   inset: -6px; padding: 3px; opacity: 0.95;
   background: conic-gradient(var(--oh-amber) 0deg, var(--oh-vault) 40deg, var(--oh-city) 72deg, var(--oh-core) 108deg, var(--oh-vision) 140deg, var(--oh-clubs) 180deg, var(--oh-ds) 220deg, var(--oh-algo) 252deg, var(--oh-cyber) 288deg, var(--oh-system) 320deg, var(--oh-amber) 360deg);
@@ -7475,7 +7491,7 @@ body.club-theme .oh-hub:focus-visible{
     inset 0 2px 0 color-mix(in srgb, var(--t-primary) 16%, transparent);
 }
 body.club-theme .oh-hub:focus-visible{ outline: 2px solid var(--oh-amber); outline-offset: 4px; }
-body.club-theme .oh-hub-mark{ display: block; width: 52%; aspect-ratio: 320 / 230; margin-block: -6px -2px; }
+body.club-theme .oh-hub-mark{ display: block; width: 50%; aspect-ratio: 1; margin-block: -14px -8px; }
 body.club-theme .oh-hub-art{ display: block; width: 100%; height: 100%; pointer-events: none; user-select: none; -webkit-user-drag: none; }
 body.club-theme .oh-hub-title{ display: flex; flex-direction: column; align-items: center; gap: 1px; max-width: 86%; text-transform: uppercase; }
 body.club-theme .oh-split-src{
@@ -7491,7 +7507,7 @@ body.club-theme .oh-hub-cta{ display: inline-flex; align-items: center; gap: 7px
 /* On a narrower or shorter desktop the hub keeps its words inside its circle… */
 @media (max-width: 1599px), (max-height: 979px){
   body.club-theme .oh-hub{ gap: 3px; padding: 16px 20px; }
-  body.club-theme .oh-hub-mark{ width: 40%; margin-block: -4px -3px; }
+  body.club-theme .oh-hub-mark{ width: 36%; margin-block: -8px -5px; }
   body.club-theme .oh-hub-title-a{ font-size: 19px; }
   body.club-theme .oh-hub-sub{ max-width: 88%; font-size: 10px; line-height: 1.3; }
   body.club-theme .oh-hub-cta{ font-size: 10.5px; letter-spacing: 0; }
@@ -7503,7 +7519,7 @@ body.club-theme .oh-hub-cta{ display: inline-flex; align-items: center; gap: 7px
     position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
     overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
   }
-  body.club-theme .oh-hub-mark{ width: 38%; }
+  body.club-theme .oh-hub-mark{ width: 34%; }
 }
 
 /* THE ORBIT. The agents the registry runs, each where the selector says it stands: the
@@ -7513,110 +7529,120 @@ body.club-theme .oh-hub-cta{ display: inline-flex; align-items: center; gap: 7px
 body.club-theme .oh-orbit{ position: absolute; inset: 0; z-index: 2; pointer-events: none; display: block; min-height: 0; }
 body.club-theme .oh-orbit > .oh-agent{ position: absolute; transform: translate(-50%, -50%); pointer-events: auto; }
 html[dir="rtl"] body.club-theme .oh-orbit > .oh-agent{ transform: translate(50%, -50%); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(1){ inset-inline-start: 50.0%; top: 10.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(1) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(1){ inset-inline-start: 50.0%; top: 10.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(1) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
 body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(2){ inset-inline-start: 90.0%; top: 50.0%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(1){ inset-inline-start: 10.0%; top: 50.0%; }
-body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(3){ inset-inline-start: 50.0%; top: 10.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(3) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(3){ inset-inline-start: 50.0%; top: 10.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(3) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
 body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(2){ inset-inline-start: 84.6%; top: 70.0%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(1){ inset-inline-start: 15.4%; top: 70.0%; }
-body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(4){ inset-inline-start: 78.3%; top: 21.7%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(4) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(4){ inset-inline-start: 78.3%; top: 21.7%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(4) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
 body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(3){ inset-inline-start: 78.3%; top: 78.3%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(2){ inset-inline-start: 21.7%; top: 78.3%; }
-body.club-theme .oh-orbit > .oh-agent:nth-child(4):nth-last-child(1){ inset-inline-start: 21.7%; top: 21.7%; } body.club-theme .oh-orbit > .oh-agent:nth-child(4):nth-last-child(1) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(5){ inset-inline-start: 50.0%; top: 10.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(5) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(4){ inset-inline-start: 88.0%; top: 37.6%; } body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(4) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(4):nth-last-child(1){ inset-inline-start: 21.7%; top: 21.7%; } body.club-theme .oh-orbit > .oh-agent:nth-child(4):nth-last-child(1) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(5){ inset-inline-start: 50.0%; top: 10.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(5) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(4){ inset-inline-start: 88.0%; top: 37.6%; } body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(4) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
 body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(3){ inset-inline-start: 73.5%; top: 82.4%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(4):nth-last-child(2){ inset-inline-start: 26.5%; top: 82.4%; }
-body.club-theme .oh-orbit > .oh-agent:nth-child(5):nth-last-child(1){ inset-inline-start: 12.0%; top: 37.6%; } body.club-theme .oh-orbit > .oh-agent:nth-child(5):nth-last-child(1) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(6){ inset-inline-start: 70.0%; top: 15.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(6) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(5):nth-last-child(1){ inset-inline-start: 12.0%; top: 37.6%; } body.club-theme .oh-orbit > .oh-agent:nth-child(5):nth-last-child(1) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(6){ inset-inline-start: 70.0%; top: 15.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(6) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
 body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(5){ inset-inline-start: 90.0%; top: 50.0%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(4){ inset-inline-start: 70.0%; top: 84.6%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(4):nth-last-child(3){ inset-inline-start: 30.0%; top: 84.6%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(5):nth-last-child(2){ inset-inline-start: 10.0%; top: 50.0%; }
-body.club-theme .oh-orbit > .oh-agent:nth-child(6):nth-last-child(1){ inset-inline-start: 30.0%; top: 15.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(6):nth-last-child(1) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(7){ inset-inline-start: 50.0%; top: 10.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(7) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(6){ inset-inline-start: 81.3%; top: 25.1%; } body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(6) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(6):nth-last-child(1){ inset-inline-start: 30.0%; top: 15.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(6):nth-last-child(1) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(7){ inset-inline-start: 50.0%; top: 10.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(7) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(6){ inset-inline-start: 81.3%; top: 25.1%; } body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(6) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
 body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(5){ inset-inline-start: 89.0%; top: 58.9%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(4):nth-last-child(4){ inset-inline-start: 67.4%; top: 86.0%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(5):nth-last-child(3){ inset-inline-start: 32.6%; top: 86.0%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(6):nth-last-child(2){ inset-inline-start: 11.0%; top: 58.9%; }
-body.club-theme .oh-orbit > .oh-agent:nth-child(7):nth-last-child(1){ inset-inline-start: 18.7%; top: 25.1%; } body.club-theme .oh-orbit > .oh-agent:nth-child(7):nth-last-child(1) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(8){ inset-inline-start: 65.3%; top: 13.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(8) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(7){ inset-inline-start: 87.0%; top: 34.7%; } body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(7) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(7):nth-last-child(1){ inset-inline-start: 18.7%; top: 25.1%; } body.club-theme .oh-orbit > .oh-agent:nth-child(7):nth-last-child(1) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(8){ inset-inline-start: 65.3%; top: 13.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(8) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(7){ inset-inline-start: 87.0%; top: 34.7%; } body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(7) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
 body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(6){ inset-inline-start: 87.0%; top: 65.3%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(4):nth-last-child(5){ inset-inline-start: 65.3%; top: 87.0%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(5):nth-last-child(4){ inset-inline-start: 34.7%; top: 87.0%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(6):nth-last-child(3){ inset-inline-start: 13.0%; top: 65.3%; }
-body.club-theme .oh-orbit > .oh-agent:nth-child(7):nth-last-child(2){ inset-inline-start: 13.0%; top: 34.7%; } body.club-theme .oh-orbit > .oh-agent:nth-child(7):nth-last-child(2) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(8):nth-last-child(1){ inset-inline-start: 34.7%; top: 13.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(8):nth-last-child(1) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(9){ inset-inline-start: 50.0%; top: 10.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(9) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(8){ inset-inline-start: 75.7%; top: 19.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(8) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(7){ inset-inline-start: 89.4%; top: 43.1%; } body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(7) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(7):nth-last-child(2){ inset-inline-start: 13.0%; top: 34.7%; } body.club-theme .oh-orbit > .oh-agent:nth-child(7):nth-last-child(2) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(8):nth-last-child(1){ inset-inline-start: 34.7%; top: 13.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(8):nth-last-child(1) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(9){ inset-inline-start: 50.0%; top: 10.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(9) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(8){ inset-inline-start: 75.7%; top: 19.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(8) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(7){ inset-inline-start: 89.4%; top: 43.1%; } body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(7) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
 body.club-theme .oh-orbit > .oh-agent:nth-child(4):nth-last-child(6){ inset-inline-start: 84.6%; top: 70.0%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(5):nth-last-child(5){ inset-inline-start: 63.7%; top: 87.6%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(6):nth-last-child(4){ inset-inline-start: 36.3%; top: 87.6%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(7):nth-last-child(3){ inset-inline-start: 15.4%; top: 70.0%; }
-body.club-theme .oh-orbit > .oh-agent:nth-child(8):nth-last-child(2){ inset-inline-start: 10.6%; top: 43.1%; } body.club-theme .oh-orbit > .oh-agent:nth-child(8):nth-last-child(2) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(9):nth-last-child(1){ inset-inline-start: 24.3%; top: 19.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(9):nth-last-child(1) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(10){ inset-inline-start: 62.4%; top: 12.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(10) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(9){ inset-inline-start: 82.4%; top: 26.5%; } body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(9) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(8):nth-last-child(2){ inset-inline-start: 10.6%; top: 43.1%; } body.club-theme .oh-orbit > .oh-agent:nth-child(8):nth-last-child(2) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(9):nth-last-child(1){ inset-inline-start: 24.3%; top: 19.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(9):nth-last-child(1) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(10){ inset-inline-start: 62.4%; top: 12.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(10) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(9){ inset-inline-start: 82.4%; top: 26.5%; } body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(9) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
 body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(8){ inset-inline-start: 90.0%; top: 50.0%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(4):nth-last-child(7){ inset-inline-start: 82.4%; top: 73.5%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(5):nth-last-child(6){ inset-inline-start: 62.4%; top: 88.0%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(6):nth-last-child(5){ inset-inline-start: 37.6%; top: 88.0%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(7):nth-last-child(4){ inset-inline-start: 17.6%; top: 73.5%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(8):nth-last-child(3){ inset-inline-start: 10.0%; top: 50.0%; }
-body.club-theme .oh-orbit > .oh-agent:nth-child(9):nth-last-child(2){ inset-inline-start: 17.6%; top: 26.5%; } body.club-theme .oh-orbit > .oh-agent:nth-child(9):nth-last-child(2) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(10):nth-last-child(1){ inset-inline-start: 37.6%; top: 12.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(10):nth-last-child(1) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(11){ inset-inline-start: 50.0%; top: 10.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(11) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(10){ inset-inline-start: 71.6%; top: 16.3%; } body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(10) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(9){ inset-inline-start: 86.4%; top: 33.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(9) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(9):nth-last-child(2){ inset-inline-start: 17.6%; top: 26.5%; } body.club-theme .oh-orbit > .oh-agent:nth-child(9):nth-last-child(2) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(10):nth-last-child(1){ inset-inline-start: 37.6%; top: 12.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(10):nth-last-child(1) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(11){ inset-inline-start: 50.0%; top: 10.0%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(11) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(10){ inset-inline-start: 71.6%; top: 16.3%; } body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(10) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(9){ inset-inline-start: 86.4%; top: 33.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(9) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
 body.club-theme .oh-orbit > .oh-agent:nth-child(4):nth-last-child(8){ inset-inline-start: 89.6%; top: 55.7%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(5):nth-last-child(7){ inset-inline-start: 80.2%; top: 76.2%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(6):nth-last-child(6){ inset-inline-start: 61.3%; top: 88.4%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(7):nth-last-child(5){ inset-inline-start: 38.7%; top: 88.4%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(8):nth-last-child(4){ inset-inline-start: 19.8%; top: 76.2%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(9):nth-last-child(3){ inset-inline-start: 10.4%; top: 55.7%; }
-body.club-theme .oh-orbit > .oh-agent:nth-child(10):nth-last-child(2){ inset-inline-start: 13.6%; top: 33.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(10):nth-last-child(2) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(11):nth-last-child(1){ inset-inline-start: 28.4%; top: 16.3%; } body.club-theme .oh-orbit > .oh-agent:nth-child(11):nth-last-child(1) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(12){ inset-inline-start: 60.4%; top: 11.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(12) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(11){ inset-inline-start: 78.3%; top: 21.7%; } body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(11) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(10){ inset-inline-start: 88.6%; top: 39.6%; } body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(10) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(10):nth-last-child(2){ inset-inline-start: 13.6%; top: 33.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(10):nth-last-child(2) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(11):nth-last-child(1){ inset-inline-start: 28.4%; top: 16.3%; } body.club-theme .oh-orbit > .oh-agent:nth-child(11):nth-last-child(1) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(12){ inset-inline-start: 60.4%; top: 11.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(1):nth-last-child(12) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(11){ inset-inline-start: 78.3%; top: 21.7%; } body.club-theme .oh-orbit > .oh-agent:nth-child(2):nth-last-child(11) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(10){ inset-inline-start: 88.6%; top: 39.6%; } body.club-theme .oh-orbit > .oh-agent:nth-child(3):nth-last-child(10) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
 body.club-theme .oh-orbit > .oh-agent:nth-child(4):nth-last-child(9){ inset-inline-start: 88.6%; top: 60.4%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(5):nth-last-child(8){ inset-inline-start: 78.3%; top: 78.3%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(6):nth-last-child(7){ inset-inline-start: 60.4%; top: 88.6%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(7):nth-last-child(6){ inset-inline-start: 39.6%; top: 88.6%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(8):nth-last-child(5){ inset-inline-start: 21.7%; top: 78.3%; }
 body.club-theme .oh-orbit > .oh-agent:nth-child(9):nth-last-child(4){ inset-inline-start: 11.4%; top: 60.4%; }
-body.club-theme .oh-orbit > .oh-agent:nth-child(10):nth-last-child(3){ inset-inline-start: 11.4%; top: 39.6%; } body.club-theme .oh-orbit > .oh-agent:nth-child(10):nth-last-child(3) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(11):nth-last-child(2){ inset-inline-start: 21.7%; top: 21.7%; } body.club-theme .oh-orbit > .oh-agent:nth-child(11):nth-last-child(2) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
-body.club-theme .oh-orbit > .oh-agent:nth-child(12):nth-last-child(1){ inset-inline-start: 39.6%; top: 11.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(12):nth-last-child(1) .oh-agent-name{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(10):nth-last-child(3){ inset-inline-start: 11.4%; top: 39.6%; } body.club-theme .oh-orbit > .oh-agent:nth-child(10):nth-last-child(3) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(11):nth-last-child(2){ inset-inline-start: 21.7%; top: 21.7%; } body.club-theme .oh-orbit > .oh-agent:nth-child(11):nth-last-child(2) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
+body.club-theme .oh-orbit > .oh-agent:nth-child(12):nth-last-child(1){ inset-inline-start: 39.6%; top: 11.4%; } body.club-theme .oh-orbit > .oh-agent:nth-child(12):nth-last-child(1) .oh-agent-tag{ top: auto; bottom: calc(100% + 4px); }
 body.club-theme .oh-orbit:has(> .oh-agent:nth-child(13)) > .oh-agent{ position: static; transform: none; }
 body.club-theme .oh-orbit:has(> .oh-agent:nth-child(13)){ position: static; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 body.club-theme .oh-orbit .oh-agent-orb{
-  width: 40px; height: 40px;
-  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--pitch-400) 34%, transparent), color-mix(in srgb, var(--bg-canvas) 96%, transparent) 72%);
-  border: 1.5px solid color-mix(in srgb, var(--pitch-400) 80%, transparent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--bg-canvas) 75%, transparent), 0 0 18px -2px color-mix(in srgb, var(--pitch-400) 70%, transparent), inset 0 1px 0 color-mix(in srgb, var(--t-primary) 20%, transparent);
+  width: 46px; height: 46px; color: color-mix(in srgb, var(--pitch-400) 30%, var(--t-primary));
+  background: url(/owner-control/art/orb.webp) center / 112% no-repeat, radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--pitch-400) 30%, transparent), color-mix(in srgb, var(--bg-canvas) 96%, transparent) 72%);
+  border: 1px solid color-mix(in srgb, var(--pitch-400) 70%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--bg-canvas) 72%, transparent), 0 0 22px -2px color-mix(in srgb, var(--pitch-400) 75%, transparent);
 }
-body.club-theme .oh-orbit .oh-agent-orb svg{ width: 20px; height: 20px; }
-body.club-theme .oh-orbit .oh-agent-name{
+body.club-theme .oh-orbit .oh-agent-orb svg{ width: 21px; height: 21px; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--pitch-400) 80%, transparent)); }
+body.club-theme .oh-agent-tag{ display: contents; }
+body.club-theme .oh-agent-lcb{ display: none; }
+body.club-theme .oh-orbit .oh-agent-tag{
   position: absolute; top: calc(100% + 4px); left: 50%; transform: translateX(-50%);
-  width: max-content; max-width: 104px; height: auto; margin: 0; overflow: visible; clip: auto;
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  width: max-content; max-width: 108px; padding: 3px 7px; border-radius: 7px;
+  background: color-mix(in srgb, var(--bg-canvas) 84%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pitch-400) 26%, transparent);
+  box-shadow: 0 0 14px -6px color-mix(in srgb, var(--pitch-400) 60%, transparent);
+  transition: border-color 160ms ease;
+}
+body.club-theme .oh-orbit .oh-agent-name{
+  position: static; width: auto; height: auto; margin: 0; overflow: visible; clip: auto;
   white-space: normal; text-align: center; text-wrap: balance;
   font-size: 10.5px; font-weight: 700; line-height: 12px; letter-spacing: 0.01em; color: var(--t-primary);
-  padding: 2px 6px; border-radius: 6px; background: color-mix(in srgb, var(--bg-canvas) 82%, transparent);
-  border: 1px solid color-mix(in srgb, var(--pitch-400) 22%, transparent);
-  transition: border-color 160ms ease, color 160ms ease;
 }
-body.club-theme .oh-orbit .oh-agent:hover .oh-agent-name,
-body.club-theme .oh-orbit .oh-agent:focus-visible .oh-agent-name{ border-color: color-mix(in srgb, var(--pitch-400) 70%, transparent); }
+/* The registry's lifecycle for it, as the registry writes it: data, not a running light. */
+body.club-theme .oh-orbit .oh-agent-lcb{ display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8.5px; letter-spacing: 0.1em; line-height: 10px; color: var(--t-secondary); }
+body.club-theme .oh-orbit .oh-agent:hover .oh-agent-tag,
+body.club-theme .oh-orbit .oh-agent:focus-visible .oh-agent-tag{ border-color: color-mix(in srgb, var(--pitch-400) 70%, transparent); }
 
 /* On a narrow laptop the orbit stands a little further out, so no name touches the hub. */
 @media (max-width: 1439px){
   body.club-theme .oh-orbit{ inset: -3%; }
   body.club-theme .oh-hub-slot::after{ inset: 7.6%; }
   body.club-theme .oh-orbit .oh-agent-name{ font-size: 10px; }
+  body.club-theme .oh-orbit .oh-agent-orb{ width: 42px; height: 42px; }
 }
 
 /* CLUBS, under the hub, where the line from the hub comes down, with the registry's caption. */
@@ -7748,9 +7774,11 @@ body.club-theme .oh-stop--vision{ stop-color: var(--oh-vision); } body.club-them
     position: static; transform: none; flex-direction: row; gap: 6px; padding-block: 3px; padding-inline: 3px 10px; border-radius: 999px;
     background: color-mix(in srgb, var(--pitch-400) 5%, transparent); border: 1px solid color-mix(in srgb, var(--pitch-400) 20%, transparent);
   }
-  body.club-theme .oh-orbit .oh-agent-orb{ width: 26px; height: 26px; box-shadow: none; }
+  body.club-theme .oh-orbit .oh-agent-orb{ width: 26px; height: 26px; box-shadow: none; background-size: 112%; }
   body.club-theme .oh-orbit .oh-agent-orb svg{ width: 15px; height: 15px; }
-  body.club-theme .oh-orbit .oh-agent-name{ position: static; transform: none; width: auto; max-width: none; padding: 0; border: 0; background: none; white-space: nowrap; font-weight: 600; color: var(--t-secondary); }
+  body.club-theme .oh-orbit .oh-agent-tag{ position: static; transform: none; display: block; width: auto; max-width: none; padding: 0; border: 0; background: none; box-shadow: none; }
+  body.club-theme .oh-orbit .oh-agent-name{ white-space: nowrap; font-weight: 600; color: var(--t-secondary); }
+  body.club-theme .oh-orbit .oh-agent-lcb{ display: none; }
   body.club-theme .oh-agents--edge{ position: static; transform: none; flex-direction: row; align-items: center; margin-top: 8px; }
   body.club-theme .oh-agent-none{ width: auto; height: auto; padding: 0 2px; border: 0; background: none; }
   body.club-theme .oh-agent-none-l{

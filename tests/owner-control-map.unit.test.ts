@@ -315,42 +315,54 @@ describe('7 · the visual upgrade: pictures, icons, the round hub and its lines'
 
   it('gives every room its own illustration inside its card, decorative and the size it is drawn at', () => {
     for (const [k, file] of ROOMS) {
-      expect([k, cardOf(k)]).toEqual([k, expect.stringContaining(`<img class="oh-card-illus" src="/owner-control/illus/${file}.svg" alt="" width="320" height="230" decoding="async" draggable="false">`)]);
-      expect(fs.existsSync(path.join(ROOT, `public/owner-control/illus/${file}.svg`))).toBe(true);
+      expect([k, cardOf(k)]).toEqual([k, expect.stringContaining(`<img class="oh-card-illus" src="/owner-control/art/${file}.webp" alt="" width="576" height="414" decoding="async" draggable="false">`)]);
+      expect(fs.existsSync(path.join(ROOT, `public/owner-control/art/${file}.webp`))).toBe(true);
     }
     expect((LANDING.match(/class="oh-card-illus"/g) || []).length).toBe(9);
     // Nine different pictures: no two rooms share one.
-    expect(new Set(ROOMS.map(([, f]) => read(`public/owner-control/illus/${f}.svg`))).size).toBe(9);
+    expect(new Set(ROOMS.map(([, f]) => fs.readFileSync(path.join(ROOT, `public/owner-control/art/${f}.webp`)).toString('base64'))).size).toBe(9);
   });
 
-  // An illustration is served from our own origin as an <img>, so it can run nothing; it must also
-  // say nothing (no words to translate, no figure to mistake for a measurement) and fetch nothing.
-  const unsafe = (svg: string) => [
-    /<script/i.test(svg) && 'script', /\son[a-z]+\s*=/i.test(svg) && 'handler', /<text|<tspan/i.test(svg) && 'text',
-    /<(image|foreignObject|use|a)\b/i.test(svg) && 'external element', /(href|url)\s*[=(]\s*["']?(https?:|\/\/|data:)/i.test(svg) && 'external reference',
-    /@import|<style/i.test(svg) && 'stylesheet', !/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 320 230"/.test(svg) && 'frame',
-    // A budget, not a guess: the largest drawing is the honeycomb of the security field.
-    svg.length > 24000 && 'size',
-  ].filter(Boolean);
-  it('draws each picture as a safe, wordless, self-contained vector on one frame', () => {
-    for (const [, f] of [...ROOMS, ['hub', 'hub']]) expect([f, unsafe(read(`public/owner-control/illus/${f}.svg`))]).toEqual([f, []]);
-  });
-  it('is drawn from source: the generator reproduces every committed picture byte for byte', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { execFileSync } = require('child_process');
-    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'oh-illus-'));
-    execFileSync(process.execPath, [path.join(ROOT, 'scripts/owner-control-illustrations.js'), `--out=${tmp}`]);
-    for (const f of [...ROOMS.map(([, x]) => x), 'hub']) {
-      expect([f, fs.readFileSync(path.join(tmp, f + '.svg'), 'utf8') === read(`public/owner-control/illus/${f}.svg`)]).toEqual([f, true]);
+  // The pictures are 3D scenes (scripts/owner-control-scenes.js) rendered offline by
+  // scripts/owner-control-render.js into WebP: images, which can run nothing, served from our own
+  // origin. What is checked here is that they are what the manifest says, from the scenes it names.
+  const ART = path.join(ROOT, 'public/owner-control/art');
+  const MANIFEST = JSON.parse(read('public/owner-control/art/manifest.json'));
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const sha = (b: Buffer | string) => require('crypto').createHash('sha256').update(b).digest('hex');
+  /** A WebP's canvas size, from its own header (VP8X, VP8L or VP8). */
+  const webpSize = (b: Buffer) => {
+    if (b.toString('ascii', 0, 4) !== 'RIFF' || b.toString('ascii', 8, 12) !== 'WEBP') return null;
+    const kind = b.toString('ascii', 12, 16);
+    if (kind === 'VP8X') return [1 + b.readUIntLE(24, 3), 1 + b.readUIntLE(27, 3)];
+    if (kind === 'VP8L') { const n = b.readUInt32LE(21); return [1 + (n & 0x3fff), 1 + ((n >> 14) & 0x3fff)]; }
+    if (kind === 'VP8 ') return [b.readUInt16LE(26) & 0x3fff, b.readUInt16LE(28) & 0x3fff];
+    return null;
+  };
+  const NAMES = [...ROOMS.map(([, f]) => f), 'hub', 'orb'];
+  it('ships each picture as a real, small WebP of the size its manifest records', () => {
+    expect(Object.keys(MANIFEST.images).sort()).toEqual([...NAMES].sort());
+    expect(fs.readdirSync(ART).filter((f) => f !== 'manifest.json').sort()).toEqual(NAMES.map((n) => n + '.webp').sort());
+    for (const n of NAMES) {
+      const b = fs.readFileSync(path.join(ART, n + '.webp'));
+      const m = MANIFEST.images[n];
+      expect([n, webpSize(b)]).toEqual([n, [m.width, m.height]]);
+      expect([n, b.length, sha(b)]).toEqual([n, m.bytes, m.sha256]);
+      // A budget, not a guess: the heaviest room picture is the security field.
+      expect([n, b.length <= 90 * 1024]).toEqual([n, true]);
     }
-    expect(fs.readdirSync(path.join(ROOT, 'public/owner-control/illus')).sort()).toEqual(fs.readdirSync(tmp).sort());
   });
-  it('(control) the same check refuses a picture with a script, a word, a figure or a remote fetch', () => {
-    const ok = read('public/owner-control/illus/system.svg');
-    expect(unsafe(ok.replace('</svg>', '<script>alert(1)</script></svg>'))).toContain('script');
-    expect(unsafe(ok.replace('</svg>', '<text x="1" y="1">98%</text></svg>'))).toContain('text');
-    expect(unsafe(ok.replace('</svg>', '<image href="https://example.com/x.png"/></svg>'))).toContain('external element');
-    expect(unsafe(ok.replace('<svg ', '<svg onload="x()" '))).toContain('handler');
+  it('is rendered from the scenes the manifest names: a scene edited without rendering again fails here', () => {
+    expect(MANIFEST.scenes).toEqual({ file: 'scripts/owner-control-scenes.js', sha256: sha(read('scripts/owner-control-scenes.js')) });
+    expect(MANIFEST.renderer.babylon).toMatch(/^\d+\.\d+\.\d+$/);
+    // The scenes draw shapes, light and material only: no text, no figures, nothing fetched.
+    const scenes = read('scripts/owner-control-scenes.js').replace(/\/\/.*$/gm, '');
+    expect(scenes).not.toMatch(/fillText|strokeText|fetch\(|XMLHttpRequest|import\(|ImportMesh|SceneLoader|https?:\/\//);
+    // The renderer needs no network either: it loads the vendored Babylon.js and the scenes from disk.
+    expect(read('scripts/owner-control-render.js')).toContain("path.join(ROOT, 'public', 'vendor', 'babylon.js')");
+  });
+  it('(control) the same check notices a scene that changed by a single character', () => {
+    expect(sha(read('scripts/owner-control-scenes.js') + ' ')).not.toBe(MANIFEST.scenes.sha256);
   });
 
   it('draws every card icon and hides it from assistive technology: no emoji glyphs remain', () => {
@@ -365,7 +377,7 @@ describe('7 · the visual upgrade: pictures, icons, the round hub and its lines'
 
   it('places the picture in the grid beside the words, and keeps the words a gap of the picture\'s own width', () => {
     const map = CSS.slice(CSS.indexOf('/* THE OWNER CONTROL MIND MAP.'), CSS.indexOf('/* THE ESCAPE HATCH.'));
-    expect(map).toMatch(/\.oh-card > \.oh-card-illus\{\s*grid-row: 2 \/ span 2; justify-self: end; align-self: center;\s*width: (clamp\([^)]*\)); height: auto; aspect-ratio: 320 \/ 230;/);
+    expect(map).toMatch(/\.oh-card > \.oh-card-illus\{\s*grid-row: 1 \/ span 3; justify-self: end; align-self: center;\s*width: (clamp\([^)]*\)); height: auto; aspect-ratio: 576 \/ 414;/);
     for (const [title, sub, list] of [['title', 'sub', 'list']]) {
       expect(map).toContain(`body.club-theme .oh-cards--core .oh-card > .oh-card-${title}{ grid-row: 1; }`);
       expect(map).toContain(`body.club-theme .oh-cards--core .oh-card > .oh-card-${sub}{ grid-row: 2; }`);
@@ -374,10 +386,10 @@ describe('7 · the visual upgrade: pictures, icons, the round hub and its lines'
     // Every width the picture can take is the width the words beside it step aside by: beside the
     // description and the contents on a wide screen, beside the title and the description on a narrower one.
     const widths = [...map.matchAll(/oh-card-illus\{[^}]*?width: (clamp\([^)]*\))/g)].map((m) => m[1]);
-    const gaps = [...map.matchAll(/oh-card-(?:list|sub)\{ margin-inline-end: calc\((clamp\([^)]*\)) \+ \d+px\); \}/g)].map((m) => m[1]);
+    const gaps = [...map.matchAll(/oh-card-(?:list|sub)\{ margin-inline-end: calc\((clamp\([^)]*\)) [-+] \d+px\); \}/g)].map((m) => m[1]);
     expect(widths.length).toBe(4);
     expect(gaps).toEqual(widths);
-    const narrow = map.slice(map.indexOf('@media (max-width: 1599px){\n  body.club-theme .oh-cards--core .oh-card > .oh-card-illus'));
+    const narrow = map.slice(map.indexOf('@media (max-width: 1599px){\n  body.club-theme .oh-cards--core .oh-card{ padding'));
     expect(narrow).toMatch(/\.oh-card > \.oh-card-illus\{ grid-row: 1 \/ span 2;/);
     expect(narrow).toContain('body.club-theme .oh-cards--core .oh-card > .oh-card-list{ margin-inline-end: 0; }');
   });
@@ -398,7 +410,8 @@ describe('7 · the visual upgrade: pictures, icons, the round hub and its lines'
   it('makes the hub a circle, ringed in the rooms\' colours in the order they stand, mirrored in Arabic', () => {
     const hub = CSS.slice(CSS.indexOf('body.club-theme .oh-hub{'), CSS.indexOf('body.club-theme .oh-hub-mark{'));
     expect(hub).toMatch(/width: 56%; aspect-ratio: 1; border-radius: 50%;/);
-    const ring = (hub.match(/conic-gradient\(([^;]*)\);/) || [])[1] || '';
+    const after = hub.slice(hub.indexOf('body.club-theme .oh-hub::after{'));
+    const ring = (after.match(/ conic-gradient\(([^;]*)\);/) || [])[1] || '';
     expect([...ring.matchAll(/var\(--oh-([a-z]+)\)/g)].map((m) => m[1])).toEqual(['amber', 'vault', 'city', 'core', 'vision', 'clubs', 'ds', 'algo', 'cyber', 'system', 'amber']);
     expect(CSS).toContain('html[dir="rtl"] body.club-theme .oh-hub::after{ transform: scaleX(-1); }');
     // The aura behind it, in the same order and mirrored with it.
@@ -410,7 +423,9 @@ describe('7 · the visual upgrade: pictures, icons, the round hub and its lines'
     // An arrow points the way the page reads.
     expect(CSS).toMatch(/html\[dir="rtl"\] body\.club-theme \.oh-cards--core \.oh-card-cta span,\s*html\[dir="rtl"\] body\.club-theme \.oh-hub-cta span\{ transform: scaleX\(-1\); \}/);
     // Its picture is the Operations Room's own, decoration, hidden from assistive technology.
-    expect(LANDING).toContain('<span class="oh-hub-mark" aria-hidden="true"><img class="oh-hub-art" src="/owner-control/illus/hub.svg" alt="" width="320" height="230" decoding="async" draggable="false"></span>');
+    expect(LANDING).toContain('<span class="oh-hub-mark" aria-hidden="true"><img class="oh-hub-art" src="/owner-control/art/hub.webp" alt="" width="520" height="520" decoding="async" draggable="false"></span>');
+    // A dial of ticks inside its rim: drawn, still.
+    expect(CSS).toMatch(/body\.club-theme \.oh-hub::before\{\s*inset: 7px; opacity: 0\.85;\s*background: repeating-conic-gradient\(/);
   });
 
   // ── the connectors, drawn against a laid-out page ────────────────────────────
@@ -493,9 +508,13 @@ describe('7 · the visual upgrade: pictures, icons, the round hub and its lines'
   it('names every agent under the hub as the registry names it, and keeps the names beside a room for the caption', async () => {
     const r = await runFill(overview());
     expect(r.by.clubs).toContain('<span class="oh-agent-orb"><svg viewBox="0 0 24 24"');
-    expect(r.by.clubs).toContain('<span class="oh-agent-name">Device Management</span>');
-    // On the orbit every agent is named beside its orb; beside a room's card the name is for the caption.
-    expect(CSS).toMatch(/body\.club-theme \.oh-orbit \.oh-agent-name\{\s*position: absolute; top: calc\(100% \+ 4px\);/);
+    expect(r.by.clubs).toContain('<span class="oh-agent-tag"><span class="oh-agent-name">Device Management</span><span class="oh-agent-lcb" data-no-i18n>RUNNING</span></span>');
+    // On the orbit every agent is named beside its orb, with its lifecycle as the registry writes it
+    // (data, never translated, never a running light); beside a room's card the name is for the caption.
+    expect(CSS).toMatch(/body\.club-theme \.oh-orbit \.oh-agent-tag\{\s*position: absolute; top: calc\(100% \+ 4px\);/);
+    expect(CSS).toContain('body.club-theme .oh-agent-lcb{ display: none; }');
+    // Its orb is the rendered glass one, served from our own origin.
+    expect(CSS).toContain('background: url(/owner-control/art/orb.webp) center / 112% no-repeat,');
     expect(CSS).toMatch(/body\.club-theme \.oh-agent-name,\s*body\.club-theme \.oh-agent-none-l\{\s*position: absolute; width: 1px; height: 1px;/);
     // The orbit is the CLUB agents' host, a sibling of the hub's button, never inside it.
     expect(LANDING).toMatch(/<\/button>\s*<div class="oh-agents-list oh-orbit" data-oh-agents="clubs"><\/div>\s*<\/div>/);

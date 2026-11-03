@@ -1,0 +1,90 @@
+{
+  "note": "Rendered by scripts/owner-control-render.js from scripts/owner-control-scenes.js. Do not edit by hand.",
+  "scenes": {
+    "file": "scripts/owner-control-scenes.js",
+    "sha256": "63c3dbe9fdf39dcc3c4d185a9ff7c6ab922436f57c5c062315a75229df523611"
+  },
+  "renderer": {
+    "babylon": "7.54.3",
+    "webgl": "SwiftShader (headless Chromium)"
+  },
+  "images": {
+    "algo": {
+      "file": "algo.webp",
+      "width": 576,
+      "height": 414,
+      "bytes": 55482,
+      "sha256": "7e71a403024f8fe65b534a32335f46df7df861e41fb479f344ef2e7314e9ad9f"
+    },
+    "city": {
+      "file": "city.webp",
+      "width": 576,
+      "height": 414,
+      "bytes": 64564,
+      "sha256": "aca04f0a8a06e3fa03487fb831f6670df4de7d746771452dbd709f2085bcaa7f"
+    },
+    "clubs": {
+      "file": "clubs.webp",
+      "width": 576,
+      "height": 414,
+      "bytes": 36328,
+      "sha256": "1e44914ebfce967219e16154b5ed147172980624f8b7e44a3059ab2107e44ef8"
+    },
+    "core": {
+      "file": "core.webp",
+      "width": 576,
+      "height": 414,
+      "bytes": 55596,
+      "sha256": "667c15d3430e4aca8b998a71e53b5209b17e4f61edc6bec79ed79599ae0db559"
+    },
+    "cyber": {
+      "file": "cyber.webp",
+      "width": 576,
+      "height": 414,
+      "bytes": 67812,
+      "sha256": "79bb03913bca71e8a13508a6b1a143ae3cd7dcc0e6e82bcf0412536f350cf20e"
+    },
+    "design": {
+      "file": "design.webp",
+      "width": 576,
+      "height": 414,
+      "bytes": 47812,
+      "sha256": "bd4b27889a9a91b12e20e9449a16ffaf5491e301a941ccd582b8039b3665cc11"
+    },
+    "hub": {
+      "file": "hub.webp",
+      "width": 520,
+      "height": 520,
+      "bytes": 64650,
+      "sha256": "5ed6ec9720d4de0d9c4e61b179fb07578129dace4b45c3efba03287efcabe8d4"
+    },
+    "orb": {
+      "file": "orb.webp",
+      "width": 128,
+      "height": 128,
+      "bytes": 5248,
+      "sha256": "b301a888241806bd783d9cd4f1c7f97bc6dc56dc8f59c0db73ef94524927ab3c"
+    },
+    "system": {
+      "file": "system.webp",
+      "width": 576,
+      "height": 414,
+      "bytes": 50696,
+      "sha256": "abe12a6bdc550f335cd6bb5ca404869af1e6201f0295e209ad89d0005f37959c"
+    },
+    "vault": {
+      "file": "vault.webp",
+      "width": 576,
+      "height": 414,
+      "bytes": 57758,
+      "sha256": "020bb34dae3c129ea91f2a273f8e2691130e1c4a049251bbc63f630c948dda5d"
+    },
+    "vision": {
+      "file": "vision.webp",
+      "width": 576,
+      "height": 414,
+      "bytes": 43686,
+      "sha256": "faa402e0a3fb84e49689b83069b39252022c5d81a4fabc4df35b2b23f81f9a5f"
+    }
+  }
+}
