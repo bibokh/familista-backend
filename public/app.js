@@ -2087,7 +2087,7 @@ function _langSwitchTo(btn) {
         // and, between Arabic and the others, for the mirrored grid.
         I18N_APPLY.registerRepaint(function () {
           try { _langSwitchSync(); } catch (_) {}
-          try { if (document.getElementById('oh-map')) _ohScheduleDraw(); } catch (_) {}
+          try { if (document.getElementById('oh-map')) { _ohSplitPaint(); _ohScheduleDraw(); } } catch (_) {}
         });
         I18N_APPLY.boot();
       }
@@ -4340,10 +4340,14 @@ function _ohDrawLinks() {
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
   svg.setAttribute('width', W);
   svg.setAttribute('height', H);
-  const hubMid = h.left + h.width / 2;
-  // The hub is a circle (an ellipse only if its words outgrow it): every line leaves from its rim.
-  const cx = hubMid - m.left, cy = h.top + h.height / 2 - m.top;
-  const rx = h.width / 2, ry = h.height / 2;
+  // Every line leaves the rim of the ring round the hub — the orbit its agents stand on, when
+  // the map has one, or the hub itself — so no line ever runs through an agent or a word.
+  const slot = map.querySelector('.oh-hub-slot');
+  const s = slot ? slot.getBoundingClientRect() : h;
+  const ring = s.width >= h.width && s.height >= h.height && Math.abs(s.width - s.height) < 2 ? s : h;
+  const hubMid = ring.left + ring.width / 2;
+  const cx = hubMid - m.left, cy = ring.top + ring.height / 2 - m.top;
+  const rx = ring.width / 2, ry = ring.height / 2;
   let defs = '<filter id="oh-soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4"/></filter>', lines = '';
   map.querySelectorAll('[data-oh-node]').forEach(function (node) {
     const k = node.getAttribute('data-oh-node');
@@ -4374,6 +4378,15 @@ function _ohDrawLinks() {
       + '<circle class="oh-link-ring oh-link-ring--' + k + '" cx="' + r(x2) + '" cy="' + r(y2) + '" r="6.5"/>'
       + '<circle class="oh-link-end oh-link-end--' + k + '" cx="' + r(x2) + '" cy="' + r(y2) + '" r="3"/>';
   });
+  // A spoke from the hub's own rim to each agent on the orbit: the registry and what it holds.
+  const hcx = h.left + h.width / 2 - m.left, hcy = h.top + h.height / 2 - m.top, hr = h.width / 2;
+  map.querySelectorAll('.oh-orbit .oh-agent-orb').forEach(function (orb) {
+    const b = orb.getBoundingClientRect();
+    if (!(b.width > 0)) return;
+    const ox = b.left + b.width / 2 - m.left, oy = b.top + b.height / 2 - m.top;
+    const t = Math.atan2(oy - hcy, ox - hcx);
+    lines = '<path class="oh-spoke" d="M' + r(hcx + hr * Math.cos(t)) + ',' + r(hcy + hr * Math.sin(t)) + ' L' + r(ox - (b.width / 2) * Math.cos(t)) + ',' + r(oy - (b.height / 2) * Math.sin(t)) + '"/>' + lines;
+  });
   svg.innerHTML = '<defs>' + defs + '</defs>' + lines;
   svg.classList.add('is-drawn');
   const hotNow = map.getAttribute('data-hot');
@@ -4385,6 +4398,39 @@ function _ohLight(map, k) {
   if (k) map.setAttribute('data-hot', k); else map.removeAttribute('data-hot');
   map.querySelectorAll('.oh-link, .oh-link-glow').forEach(function (p) {
     p.classList.toggle('is-hot', !!k && (k === 'hub' || p.getAttribute('data-k') === k));
+  });
+}
+
+/**
+ * Draw what the catalogue has already translated, in pieces: each branch card's
+ * contents as chips, and the hub's title in its two parts. The whole translated
+ * line stays in the page (read by a screen reader and by the i18n tooling); the
+ * pieces are its visible form, so no piece needs a catalogue entry of its own and
+ * every language that translates the line translates its chips.
+ */
+function _ohSplitPaint() {
+  const map = document.getElementById('oh-map');
+  if (!map) return;
+  map.querySelectorAll('.oh-card-list[data-oh-chips]').forEach(function (list) {
+    const src = list.querySelector('.oh-chips-src'), host = list.querySelector('.oh-chips');
+    if (!src || !host) return;
+    host.innerHTML = String(src.textContent || '').split('·').map(function (x) { return x.trim(); }).filter(Boolean)
+      .map(function (x) { return '<span class="oh-chip"><span>' + _esc(x) + '</span></span>'; }).join('');
+  });
+  const title = map.querySelector('.oh-hub-title');
+  const src = title && title.querySelector('.oh-split-src');
+  const a = title && title.querySelector('.oh-hub-title-a'), b = title && title.querySelector('.oh-hub-title-b');
+  if (src && a && b) {
+    const parts = String(src.textContent || '').split(/\s+[—–]\s+/);
+    a.textContent = parts[0] || '';
+    b.textContent = parts.slice(1).join(' — ');
+  }
+  _ohScheduleDraw();
+}
+/** After the catalogue's own pass over newly drawn markup (one animation frame), in that same frame. */
+function _ohSplitSoon() {
+  Promise.resolve().then(function () {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(_ohSplitPaint); else _ohSplitPaint();
   });
 }
 
@@ -4415,6 +4461,7 @@ function _ohBindMap() {
   const map = document.getElementById('oh-map');
   if (!map) return;
   _ohScheduleDraw();
+  _ohSplitSoon();
   try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(_ohScheduleDraw); } catch (_) {}
   if (!_ohResizeBound) { _ohResizeBound = true; window.addEventListener('resize', _ohScheduleDraw, { passive: true }); }
   const keyOf = (t) => {
@@ -4484,30 +4531,21 @@ function _ownerHomeForPlatformOwner(user, club) {
           </div>
           <div class="oh-hub-slot">
             <button class="oh-hub" data-action="navTo" data-page="agents-room" type="button">
-              <span class="oh-hub-mark" aria-hidden="true"><svg viewBox="0 0 64 64" width="56" height="56" fill="none" focusable="false">
-                <circle cx="32" cy="32" r="30" stroke="currentColor" stroke-opacity=".2" stroke-dasharray="1.5 3.5"/>
-                <path d="M32 12V7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                <circle cx="32" cy="6" r="2.8" fill="currentColor"/>
-                <rect x="13" y="13" width="38" height="31" rx="11.5" fill="currentColor" fill-opacity=".14" stroke="currentColor" stroke-width="2"/>
-                <rect x="19" y="20" width="26" height="16" rx="8" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-opacity=".55" stroke-width="1.2"/>
-                <circle cx="26" cy="28" r="3" fill="currentColor"/><circle cx="38" cy="28" r="3" fill="currentColor"/>
-                <path d="M8.5 24.5v9M55.5 24.5v9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-                <path d="M24 44v4.5M40 44v4.5M20 52.5h24" stroke="currentColor" stroke-opacity=".55" stroke-width="2" stroke-linecap="round"/>
-              </svg></span>
-              <span class="oh-hub-title">AI AGENTS — OPERATIONS ROOM</span>
+              <span class="oh-hub-mark" aria-hidden="true"><img class="oh-hub-art" src="/owner-control/illus/hub.svg" alt="" width="320" height="230" decoding="async" draggable="false"></span>
+              <span class="oh-hub-title"><span class="oh-split-src">AI AGENTS — OPERATIONS ROOM</span><span class="oh-hub-title-a" data-no-i18n aria-hidden="true"></span><span class="oh-hub-title-b" data-no-i18n aria-hidden="true"></span></span>
               <span class="oh-hub-sub">Every agent in the Agent Registry: its domain, scope, lifecycle and permissions</span>
               <span id="oh-agents-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading the Agent Registry…</span>
               <span class="oh-hub-cta">Open the Operations Room <span aria-hidden="true">→</span></span>
             </button>
+            <div class="oh-agents-list oh-orbit" data-oh-agents="clubs"></div>
           </div>
           <div class="oh-node oh-node--clubs" data-oh-node="clubs">
             <div class="oh-agents oh-agents--row">
-              <div class="oh-agents-list" data-oh-agents="clubs"></div>
               <div class="oh-agents-cap" id="oh-agents-cap">Reading the Agent Registry…</div>
             </div>
             <button class="oh-card oh-card--clubs" data-action="navTo" data-page="clubs" type="button">
 <div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false"><ellipse cx="12" cy="8.6" rx="9" ry="3.6"/><path d="M3 8.6v6.2c0 2 4 3.6 9 3.6s9-1.6 9-3.6V8.6"/><path d="M8.6 8.6h6.8M12 7v3.2"/><path d="M7 12.8v3.4M12 13.4v3.6M17 12.8v3.4"/></svg></div>
-          <img class="oh-card-illus" src="/owner-control/illus/clubs.svg" alt="" width="220" height="160" decoding="async" draggable="false">
+          <img class="oh-card-illus" src="/owner-control/illus/clubs.svg" alt="" width="320" height="230" decoding="async" draggable="false">
           <div class="oh-card-title">CLUBS</div>
           <div class="oh-card-sub">Football Organizations, Teams, People &amp; Operations</div>
           <div class="oh-card-list"><span>Pick a club workspace to enter — currently</span> <span data-user-content>${_esc(club.name || 'FC Familista')}</span></div>
@@ -4518,10 +4556,10 @@ function _ownerHomeForPlatformOwner(user, club) {
         <div class="oh-node oh-node--l" data-oh-node="system">
           <button class="oh-card oh-card--system" data-action="navTo" data-page="system" type="button">
 <div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2.3"/><path d="M12 2.8v2.7M12 18.5v2.7M2.8 12h2.7M18.5 12h2.7M5.5 5.5l1.9 1.9M16.6 16.6l1.9 1.9M5.5 18.5l1.9-1.9M16.6 7.4l1.9-1.9" stroke-width="2.3"/></svg></div>
-          <img class="oh-card-illus" src="/owner-control/illus/system.svg" alt="" width="220" height="160" decoding="async" draggable="false">
+          <img class="oh-card-illus" src="/owner-control/illus/system.svg" alt="" width="320" height="230" decoding="async" draggable="false">
           <div class="oh-card-title">SYSTEM</div>
           <div class="oh-card-sub">Platform Operations, Infrastructure, Intelligence &amp; Governance</div>
-          <div class="oh-card-list">Command Center · Clubs · People &amp; Access · Intelligence · Governance · Innovation Lab · Security · Audit</div>
+          <div class="oh-card-list" data-oh-chips><span class="oh-chips-src">Command Center · Clubs · People &amp; Access · Intelligence · Governance · Innovation Lab · Security · Audit</span><span class="oh-chips" data-no-i18n aria-hidden="true"></span></div>
           <div class="oh-card-cta">Enter system area <span>→</span></div>
         </button>
           <span class="oh-agents oh-agents--edge" data-oh-agents="system"></span>
@@ -4533,10 +4571,10 @@ function _ownerHomeForPlatformOwner(user, club) {
             <circle cx="20" cy="17.6" r="3.4" stroke="currentColor" stroke-width="1.8"/>
             <path d="M20 21v5.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           </svg></div>
-          <img class="oh-card-illus" src="/owner-control/illus/cyber.svg" alt="" width="220" height="160" decoding="async" draggable="false">
+          <img class="oh-card-illus" src="/owner-control/illus/cyber.svg" alt="" width="320" height="230" decoding="async" draggable="false">
           <div class="oh-card-title">CYBERSECURITY</div>
           <div class="oh-card-sub">Security Posture, Protection, Evidence &amp; Monitoring</div>
-          <div class="oh-card-list">Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage &amp; Gaps · Events &amp; Alerts · Evidence</div>
+          <div class="oh-card-list" data-oh-chips><span class="oh-chips-src">Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage &amp; Gaps · Events &amp; Alerts · Evidence</span><span class="oh-chips" data-no-i18n aria-hidden="true"></span></div>
           <span id="oh-cyber-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading security evidence…</span>
           <div class="oh-card-cta">Enter Cybersecurity <span>→</span></div>
         </button>
@@ -4550,10 +4588,10 @@ function _ownerHomeForPlatformOwner(user, club) {
             <circle cx="20" cy="20" r="3.2" stroke="currentColor" stroke-width="1.8"/>
             <path d="M20 13.4v3.4M20 23.2v3.4M13.4 20h3.4M23.2 20h3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
           </svg></div>
-          <img class="oh-card-illus" src="/owner-control/illus/algo.svg" alt="" width="220" height="160" decoding="async" draggable="false">
+          <img class="oh-card-illus" src="/owner-control/illus/algo.svg" alt="" width="320" height="230" decoding="async" draggable="false">
           <div class="oh-card-title">ALGORITHMS</div>
           <div class="oh-card-sub">Registry, Intelligence Loop, Evaluation &amp; Human Approval</div>
-          <div class="oh-card-list">Overview · Registry · Intelligence Loop · Evaluation · Approvals &amp; Audit · Monitoring</div>
+          <div class="oh-card-list" data-oh-chips><span class="oh-chips-src">Overview · Registry · Intelligence Loop · Evaluation · Approvals &amp; Audit · Monitoring</span><span class="oh-chips" data-no-i18n aria-hidden="true"></span></div>
           <span id="oh-algorithms-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading algorithm evidence…</span>
           <div class="oh-card-cta">Enter Algorithms <span>→</span></div>
         </button>
@@ -4564,10 +4602,10 @@ function _ownerHomeForPlatformOwner(user, club) {
           <div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false">
             <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>
           </svg></div>
-          <img class="oh-card-illus" src="/owner-control/illus/design.svg" alt="" width="220" height="160" decoding="async" draggable="false">
+          <img class="oh-card-illus" src="/owner-control/illus/design.svg" alt="" width="320" height="230" decoding="async" draggable="false">
           <div class="oh-card-title">DESIGN SYSTEM CONTROL</div>
           <div class="oh-card-sub">Design Tokens, Contrast, Provenance &amp; Evidence</div>
-          <div class="oh-card-list">Overview · Design Tokens · Layers · Contrast · Provenance</div>
+          <div class="oh-card-list" data-oh-chips><span class="oh-chips-src">Overview · Design Tokens · Layers · Contrast · Provenance</span><span class="oh-chips" data-no-i18n aria-hidden="true"></span></div>
           <span id="oh-design-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading design system evidence…</span>
           <div class="oh-card-cta">Enter Design System <span>→</span></div>
         </button>
@@ -4576,10 +4614,10 @@ function _ownerHomeForPlatformOwner(user, club) {
         <div class="oh-node oh-node--r" data-oh-node="vault">
           <button class="oh-card oh-card--vault" data-action="navTo" data-page="data-vault" type="button">
 <div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false"><ellipse cx="12" cy="5.6" rx="7.5" ry="2.8"/><path d="M4.5 5.6v12.8c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8V5.6"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg></div>
-          <img class="oh-card-illus" src="/owner-control/illus/vault.svg" alt="" width="220" height="160" decoding="async" draggable="false">
+          <img class="oh-card-illus" src="/owner-control/illus/vault.svg" alt="" width="320" height="230" decoding="async" draggable="false">
           <div class="oh-card-title">DATA VAULT</div>
           <div class="oh-card-sub">Historical Data, Archive, Replay &amp; Governance</div>
-          <div class="oh-card-list">Historical Explorer · Timeline &amp; Replay · Club History · Entity History · Sources · Storage · Integrity · Retention</div>
+          <div class="oh-card-list" data-oh-chips><span class="oh-chips-src">Historical Explorer · Timeline &amp; Replay · Club History · Entity History · Sources · Storage · Integrity · Retention</span><span class="oh-chips" data-no-i18n aria-hidden="true"></span></div>
           <span id="oh-vault-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Checking historical store…</span>
           <div class="oh-card-cta">Open the vault <span>→</span></div>
         </button>
@@ -4588,10 +4626,10 @@ function _ownerHomeForPlatformOwner(user, club) {
         <div class="oh-node oh-node--r" data-oh-node="city">
           <button class="oh-card oh-card--city" data-action="navTo" data-page="infrastructure-city" type="button">
 <div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 21h18"/><rect x="4.5" y="10" width="5" height="11" rx="1"/><rect x="10.5" y="3.5" width="6" height="17.5" rx="1"/><path d="M16.5 8.5h3V21"/><path d="M12.8 7.5h1.4M12.8 11h1.4M12.8 14.5h1.4M6.4 13.5h1.2M6.4 17h1.2"/></svg></div>
-          <img class="oh-card-illus" src="/owner-control/illus/city.svg" alt="" width="220" height="160" decoding="async" draggable="false">
+          <img class="oh-card-illus" src="/owner-control/illus/city.svg" alt="" width="320" height="230" decoding="async" draggable="false">
           <div class="oh-card-title">INFRASTRUCTURE CITY</div>
           <div class="oh-card-sub">Live Infrastructure, Technology, Health &amp; Architecture</div>
-          <div class="oh-card-list">Districts · Technology Map · Topology · Alerts &amp; Incidents · Capacity · Change History · Detection Rules · Evidence</div>
+          <div class="oh-card-list" data-oh-chips><span class="oh-chips-src">Districts · Technology Map · Topology · Alerts &amp; Incidents · Capacity · Change History · Detection Rules · Evidence</span><span class="oh-chips" data-no-i18n aria-hidden="true"></span></div>
           <span id="oh-city-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Checking infrastructure…</span>
           <div class="oh-card-cta">Enter the city <span>→</span></div>
         </button>
@@ -4600,10 +4638,10 @@ function _ownerHomeForPlatformOwner(user, club) {
         <div class="oh-node oh-node--r" data-oh-node="core">
           <button class="oh-card oh-card--core" data-action="navTo" data-page="source-core" type="button">
 <div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="12" cy="12.5" r="3.2"/><circle cx="12" cy="12.5" r="7.6" stroke-opacity=".55" stroke-dasharray="2 2.6"/><circle cx="4" cy="5.5" r="1.7"/><circle cx="20" cy="5.5" r="1.7"/><circle cx="12" cy="21.4" r="1.7"/><path d="M5.3 6.6l4.2 3.6M18.7 6.6l-4.2 3.6M12 19.7v-4"/></svg></div>
-          <img class="oh-card-illus" src="/owner-control/illus/core.svg" alt="" width="220" height="160" decoding="async" draggable="false">
+          <img class="oh-card-illus" src="/owner-control/illus/core.svg" alt="" width="320" height="230" decoding="async" draggable="false">
           <div class="oh-card-title">SOURCE CORE</div>
           <div class="oh-card-sub">Origins, Provenance, Lineage &amp; Dependency</div>
-          <div class="oh-card-list">Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence</div>
+          <div class="oh-card-list" data-oh-chips><span class="oh-chips-src">Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence</span><span class="oh-chips" data-no-i18n aria-hidden="true"></span></div>
           <span id="oh-core-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading source registry…</span>
           <div class="oh-card-cta">Enter the core <span>→</span></div>
         </button>
@@ -4622,10 +4660,10 @@ function _ownerHomeForPlatformOwner(user, club) {
             <circle cx="20" cy="20" r="3" fill="currentColor"/>
             <path d="M20 11.6v-2.2M20 30.6v-2.2M11.6 20H9.4M30.6 20h-2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".6"/>
           </svg></div>
-          <img class="oh-card-illus" src="/owner-control/illus/vision.svg" alt="" width="220" height="160" decoding="async" draggable="false">
+          <img class="oh-card-illus" src="/owner-control/illus/vision.svg" alt="" width="320" height="230" decoding="async" draggable="false">
           <div class="oh-card-title">FAMILISTA VISION</div>
           <div class="oh-card-sub">Computer Vision, Tracking, Evidence &amp; Match Intelligence</div>
-          <div class="oh-card-list">Live Analysis · Player &amp; Ball Tracking · Pitch Calibration · Teams &amp; Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models</div>
+          <div class="oh-card-list" data-oh-chips><span class="oh-chips-src">Live Analysis · Player &amp; Ball Tracking · Pitch Calibration · Teams &amp; Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models</span><span class="oh-chips" data-no-i18n aria-hidden="true"></span></div>
           <span id="oh-vision-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading Vision service…</span>
           <div class="oh-card-cta">Open Vision <span>→</span></div>
         </button>

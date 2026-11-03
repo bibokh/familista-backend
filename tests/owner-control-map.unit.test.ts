@@ -88,7 +88,8 @@ describe('1 · the map: the hub at the centre, every room a branch of it, every 
   it('puts the AI Agents Operations Room at the centre, as a real button that opens the room', () => {
     expect(LANDING).toContain('<div class="oh-cards oh-cards--core" id="oh-map">');
     expect(LANDING).toContain('<button class="oh-hub" data-action="navTo" data-page="agents-room" type="button">');
-    expect(LANDING).toContain('<span class="oh-hub-title">AI AGENTS — OPERATIONS ROOM</span>');
+    // Its name, whole and in the catalogue, for a screen reader; drawn in two parts from the translated line.
+    expect(LANDING).toContain('<span class="oh-hub-title"><span class="oh-split-src">AI AGENTS — OPERATIONS ROOM</span><span class="oh-hub-title-a" data-no-i18n aria-hidden="true"></span><span class="oh-hub-title-b" data-no-i18n aria-hidden="true"></span></span>');
     expect(LANDING).toContain('<span id="oh-agents-state" class="oh-card-state oh-card-state--idle"><span class="oh-card-dot"></span>Reading the Agent Registry…</span>');
     expect(LANDING).toContain('<span class="oh-hub-mark" aria-hidden="true">');
     // The lines are decoration: hidden from assistive technology, never focusable.
@@ -314,7 +315,7 @@ describe('7 · the visual upgrade: pictures, icons, the round hub and its lines'
 
   it('gives every room its own illustration inside its card, decorative and the size it is drawn at', () => {
     for (const [k, file] of ROOMS) {
-      expect([k, cardOf(k)]).toEqual([k, expect.stringContaining(`<img class="oh-card-illus" src="/owner-control/illus/${file}.svg" alt="" width="220" height="160" decoding="async" draggable="false">`)]);
+      expect([k, cardOf(k)]).toEqual([k, expect.stringContaining(`<img class="oh-card-illus" src="/owner-control/illus/${file}.svg" alt="" width="320" height="230" decoding="async" draggable="false">`)]);
       expect(fs.existsSync(path.join(ROOT, `public/owner-control/illus/${file}.svg`))).toBe(true);
     }
     expect((LANDING.match(/class="oh-card-illus"/g) || []).length).toBe(9);
@@ -327,11 +328,22 @@ describe('7 · the visual upgrade: pictures, icons, the round hub and its lines'
   const unsafe = (svg: string) => [
     /<script/i.test(svg) && 'script', /\son[a-z]+\s*=/i.test(svg) && 'handler', /<text|<tspan/i.test(svg) && 'text',
     /<(image|foreignObject|use|a)\b/i.test(svg) && 'external element', /(href|url)\s*[=(]\s*["']?(https?:|\/\/|data:)/i.test(svg) && 'external reference',
-    /@import|<style/i.test(svg) && 'stylesheet', !/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 220 160"/.test(svg) && 'frame',
-    svg.length > 12000 && 'size',
+    /@import|<style/i.test(svg) && 'stylesheet', !/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 320 230"/.test(svg) && 'frame',
+    // A budget, not a guess: the largest drawing is the honeycomb of the security field.
+    svg.length > 24000 && 'size',
   ].filter(Boolean);
   it('draws each picture as a safe, wordless, self-contained vector on one frame', () => {
-    for (const [, f] of ROOMS) expect([f, unsafe(read(`public/owner-control/illus/${f}.svg`))]).toEqual([f, []]);
+    for (const [, f] of [...ROOMS, ['hub', 'hub']]) expect([f, unsafe(read(`public/owner-control/illus/${f}.svg`))]).toEqual([f, []]);
+  });
+  it('is drawn from source: the generator reproduces every committed picture byte for byte', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { execFileSync } = require('child_process');
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'oh-illus-'));
+    execFileSync(process.execPath, [path.join(ROOT, 'scripts/owner-control-illustrations.js'), `--out=${tmp}`]);
+    for (const f of [...ROOMS.map(([, x]) => x), 'hub']) {
+      expect([f, fs.readFileSync(path.join(tmp, f + '.svg'), 'utf8') === read(`public/owner-control/illus/${f}.svg`)]).toEqual([f, true]);
+    }
+    expect(fs.readdirSync(path.join(ROOT, 'public/owner-control/illus')).sort()).toEqual(fs.readdirSync(tmp).sort());
   });
   it('(control) the same check refuses a picture with a script, a word, a figure or a remote fetch', () => {
     const ok = read('public/owner-control/illus/system.svg');
@@ -353,35 +365,60 @@ describe('7 · the visual upgrade: pictures, icons, the round hub and its lines'
 
   it('places the picture in the grid beside the words, and keeps the words a gap of the picture\'s own width', () => {
     const map = CSS.slice(CSS.indexOf('/* THE OWNER CONTROL MIND MAP.'), CSS.indexOf('/* THE ESCAPE HATCH.'));
-    expect(map).toMatch(/\.oh-card > \.oh-card-illus\{\s*grid-row: 2 \/ span 2; justify-self: end; align-self: center;/);
+    expect(map).toMatch(/\.oh-card > \.oh-card-illus\{\s*grid-row: 2 \/ span 2; justify-self: end; align-self: center;\s*width: (clamp\([^)]*\)); height: auto; aspect-ratio: 320 \/ 230;/);
     for (const [title, sub, list] of [['title', 'sub', 'list']]) {
       expect(map).toContain(`body.club-theme .oh-cards--core .oh-card > .oh-card-${title}{ grid-row: 1; }`);
       expect(map).toContain(`body.club-theme .oh-cards--core .oh-card > .oh-card-${sub}{ grid-row: 2; }`);
       expect(map).toContain(`body.club-theme .oh-cards--core .oh-card > .oh-card-${list}{ grid-row: 3; }`);
     }
-    // Every width the picture can take is the width the words step aside by (default, CLUBS, large screens).
+    // Every width the picture can take is the width the words beside it step aside by: beside the
+    // description and the contents on a wide screen, beside the title and the description on a narrower one.
     const widths = [...map.matchAll(/oh-card-illus\{[^}]*?width: (clamp\([^)]*\))/g)].map((m) => m[1]);
-    const gaps = [...map.matchAll(/oh-card-list\{ margin-inline-end: calc\((clamp\([^)]*\)) \+ \d+px\); \}/g)].map((m) => m[1]);
-    expect(widths.length).toBe(3);
+    const gaps = [...map.matchAll(/oh-card-(?:list|sub)\{ margin-inline-end: calc\((clamp\([^)]*\)) \+ \d+px\); \}/g)].map((m) => m[1]);
+    expect(widths.length).toBe(4);
     expect(gaps).toEqual(widths);
+    const narrow = map.slice(map.indexOf('@media (max-width: 1599px){\n  body.club-theme .oh-cards--core .oh-card > .oh-card-illus'));
+    expect(narrow).toMatch(/\.oh-card > \.oh-card-illus\{ grid-row: 1 \/ span 2;/);
+    expect(narrow).toContain('body.club-theme .oh-cards--core .oh-card > .oh-card-list{ margin-inline-end: 0; }');
+  });
+
+  it('lights each card in its own room\'s colour, written once and read as currentColor, and changes no size on hover', () => {
+    const map = CSS.slice(CSS.indexOf('/* THE OWNER CONTROL MIND MAP.'), CSS.indexOf('/* THE ESCAPE HATCH.'));
+    for (const k of ['system', 'cyber', 'algo', 'ds', 'vault', 'city', 'core', 'vision', 'clubs']) {
+      expect(map).toMatch(new RegExp(`body\\.club-theme \\.oh-cards\\.oh-cards--core \\.oh-card--${k}\\{\\s*color: var\\(--oh-${k}\\); \\}`));
+    }
+    const skin = map.slice(map.indexOf('body.club-theme .oh-cards.oh-cards--core .oh-card{\n  border:'));
+    expect(skin).toMatch(/^body\.club-theme \.oh-cards\.oh-cards--core \.oh-card\{\s*border: 1px solid color-mix\(in srgb, currentColor 58%, transparent\);/);
+    // The icon's tile, the chips and the way in read the same colour; the words keep their own.
+    expect(map).toContain('body.club-theme .oh-cards.oh-cards--core .oh-card-icon{\n  color: inherit;');
+    expect(map).toContain('body.club-theme .oh-chip > span{ color: var(--t-secondary); }');
+    expect(map).toContain('body.club-theme .oh-cards.oh-cards--core .oh-card:focus-visible{ outline: 2px solid currentColor; outline-offset: 3px; }');
   });
 
   it('makes the hub a circle, ringed in the rooms\' colours in the order they stand, mirrored in Arabic', () => {
     const hub = CSS.slice(CSS.indexOf('body.club-theme .oh-hub{'), CSS.indexOf('body.club-theme .oh-hub-mark{'));
-    expect(hub).toMatch(/aspect-ratio: 1; border-radius: 50%;/);
+    expect(hub).toMatch(/width: 56%; aspect-ratio: 1; border-radius: 50%;/);
     const ring = (hub.match(/conic-gradient\(([^;]*)\);/) || [])[1] || '';
     expect([...ring.matchAll(/var\(--oh-([a-z]+)\)/g)].map((m) => m[1])).toEqual(['amber', 'vault', 'city', 'core', 'vision', 'clubs', 'ds', 'algo', 'cyber', 'system', 'amber']);
     expect(CSS).toContain('html[dir="rtl"] body.club-theme .oh-hub::after{ transform: scaleX(-1); }');
+    // The aura behind it, in the same order and mirrored with it.
+    const aura = CSS.slice(CSS.indexOf('body.club-theme .oh-hub-slot::before{'), CSS.indexOf('html[dir="rtl"] body.club-theme .oh-hub-slot::before'));
+    expect([...aura.matchAll(/var\(--oh-([a-z]+)\)/g)].map((m) => m[1])).toEqual(['amber', 'vault', 'city', 'core', 'vision', 'clubs', 'ds', 'algo', 'cyber', 'system', 'amber']);
+    expect(CSS).toContain('html[dir="rtl"] body.club-theme .oh-hub-slot::before{ transform: scaleX(-1); }');
+    // A fixed square: the agents arriving, or a language changing, moves nothing.
+    expect(CSS).toMatch(/body\.club-theme \.oh-hub-slot\{\s*position: relative; display: flex; align-items: center; justify-content: center;\s*width: min\(100%, 600px, 54vh\); aspect-ratio: 1;/);
     // An arrow points the way the page reads.
     expect(CSS).toMatch(/html\[dir="rtl"\] body\.club-theme \.oh-cards--core \.oh-card-cta span,\s*html\[dir="rtl"\] body\.club-theme \.oh-hub-cta span\{ transform: scaleX\(-1\); \}/);
-    // Its mark is drawn, and still hidden from assistive technology.
-    expect(LANDING).toMatch(/<span class="oh-hub-mark" aria-hidden="true"><svg viewBox="0 0 64 64"[^>]*focusable="false">/);
+    // Its picture is the Operations Room's own, decoration, hidden from assistive technology.
+    expect(LANDING).toContain('<span class="oh-hub-mark" aria-hidden="true"><img class="oh-hub-art" src="/owner-control/illus/hub.svg" alt="" width="320" height="230" decoding="async" draggable="false"></span>');
   });
 
   // ── the connectors, drawn against a laid-out page ────────────────────────────
   type Box = { left: number; top: number; width: number; height: number };
   const rect = (b: Box) => ({ ...b, right: b.left + b.width, bottom: b.top + b.height });
-  function draw(rtl: boolean, source = HELPERS, hubBox: Box = { left: 585, top: 277, width: 270, height: 270 }) {
+  const ORBIT: Box = { left: 477, top: 169, width: 486, height: 486 };
+  const ORBS: Box[] = Array.from({ length: 10 }, (_, i) => { const t = (18 + i * 36) * Math.PI / 180; return { left: 720 + 194 * Math.sin(t) - 20, top: 412 - 194 * Math.cos(t) - 20, width: 40, height: 40 }; });
+  function draw(rtl: boolean, source = HELPERS, hubBox: Box = { left: 585, top: 277, width: 270, height: 270 }, slotBox: Box | null = ORBIT) {
     const L = { left: 24, width: 414 }, R = { left: 993, width: 414 };
     const rows = [78, 278, 478, 678];
     type Col = { left: number; width: number };
@@ -390,17 +427,17 @@ describe('7 · the visual upgrade: pictures, icons, the round hub and its lines'
     for (const [k, [col, i]] of Object.entries(side)) cards[k] = { left: rtl ? (col === L ? R.left : L.left) : col.left, top: rows[i], width: col.width, height: 188 };
     const svg: any = { attrs: {} as Record<string, string>, html: '', setAttribute(k: string, v: string) { this.attrs[k] = v; }, set innerHTML(v: string) { this.html = v; }, classList: { add() {} } };
     const nodes = Object.keys(cards).map((k) => ({ getAttribute: () => k, querySelector: () => ({ getBoundingClientRect: () => rect(cards[k]) }) }));
-    const map = { getBoundingClientRect: () => rect({ left: 24, top: 78, width: 1383, height: 790 }), querySelector: (q: string) => (q === '.oh-hub' ? { getBoundingClientRect: () => rect(hubBox) } : null), querySelectorAll: (q: string) => (q === '[data-oh-node]' ? nodes : []), getAttribute: () => null };
+    const map = { getBoundingClientRect: () => rect({ left: 24, top: 78, width: 1383, height: 790 }), querySelector: (q: string) => (q === '.oh-hub' ? { getBoundingClientRect: () => rect(hubBox) } : q === '.oh-hub-slot' && slotBox ? { getBoundingClientRect: () => rect(slotBox) } : null), querySelectorAll: (q: string) => (q === '[data-oh-node]' ? nodes : q === '.oh-orbit .oh-agent-orb' && slotBox ? ORBS.map((b) => ({ getBoundingClientRect: () => rect(b) })) : []), getAttribute: () => null };
     const sandbox: any = { document: { getElementById: (id: string) => ({ 'oh-map': map, 'oh-links': svg } as any)[id] || null }, getComputedStyle: () => ({ display: 'block' }), _esc: esc, console };
     vm.runInNewContext(source + '\n_ohDrawLinks();', sandbox);
     return { html: svg.html as string, cards, m: { left: 24, top: 78 } };
   }
-  const audit = (r: ReturnType<typeof draw>) => {
+  const audit = (r: ReturnType<typeof draw>, R = 243) => {
     const cx = 585 + 135 - 24, cy = 277 + 135 - 78;
     return [...r.html.matchAll(/<path class="oh-link oh-link--([a-z]+)" data-k="\1" d="M([-\d.]+),([-\d.]+) C[^"]* ([-\d.]+),([-\d.]+)"/g)].map((m) => {
       const [k, x1, y1, x2, y2] = [m[1], +m[2], +m[3], +m[4], +m[5]];
       const c = rect(r.cards[k]);
-      const rim = Math.abs(Math.hypot(x1 - cx, y1 - cy) - 135) < 0.6;
+      const rim = Math.abs(Math.hypot(x1 - cx, y1 - cy) - R) < 0.6;
       const before = c.left + c.width / 2 < 585 + 135;
       const end = k === 'clubs'
         ? Math.abs(x2 - (c.left + c.width / 2 - 24)) < 0.6 && Math.abs(y2 - (c.top - 78)) < 0.6
@@ -410,7 +447,7 @@ describe('7 · the visual upgrade: pictures, icons, the round hub and its lines'
       return { k, rim, end, port, ringAt };
     });
   };
-  it('leaves the hub\'s rim for every room and lands on that card\'s edge, in either reading direction', () => {
+  it('leaves the orbit\'s outer ring for every room and lands on that card\'s edge, in either reading direction', () => {
     for (const rtl of [false, true]) {
       const a = audit(draw(rtl));
       expect(a.map((x) => x.k).sort()).toEqual(['algo', 'city', 'clubs', 'core', 'cyber', 'ds', 'system', 'vault', 'vision']);
@@ -419,6 +456,19 @@ describe('7 · the visual upgrade: pictures, icons, the round hub and its lines'
     // Under each line, its own soft glow: decoration, which the lighting of a room also reaches.
     expect(draw(false).html).toMatch(/<path class="oh-link-glow" data-k="system" d="M[^"]+" stroke="url\(#oh-g-system\)" filter="url\(#oh-soft\)"\/>/);
     expect(HELPERS).toContain("map.querySelectorAll('.oh-link, .oh-link-glow').forEach(function (p) {");
+    // Without an orbit (no slot, or one that is not a square round the hub) the lines leave the hub's own rim.
+    const bare = audit(draw(false, HELPERS, undefined, null), 135);
+    expect(bare.filter((x) => !(x.rim && x.end))).toEqual([]);
+  });
+  it('draws a spoke from the hub\'s rim to each agent on the orbit, ending at the agent\'s edge', () => {
+    const html = draw(false).html;
+    const spokes = [...html.matchAll(/<path class="oh-spoke" d="M([-\d.]+),([-\d.]+) L([-\d.]+),([-\d.]+)"\/>/g)].map((m) => m.slice(1).map(Number));
+    expect(spokes).toHaveLength(10);
+    const cx = 696, cy = 334;
+    for (const [x1, y1, x2, y2] of spokes) {
+      expect(Math.abs(Math.hypot(x1 - cx, y1 - cy) - 135)).toBeLessThan(0.6);
+      expect(Math.abs(Math.hypot(x2 - cx, y2 - cy) - (194 - 20))).toBeLessThan(0.8);
+    }
   });
   it('(control) the same check fails against lines that leave the hub\'s box instead of its rim', () => {
     const boxy = HELPERS.replace("x1 = cx + (before ? -1 : 1) * rx * Math.sqrt(Math.max(0, 1 - Math.pow((y1 - cy) / ry, 2)));", 'x1 = (before ? h.left : h.right) - m.left;');
@@ -428,25 +478,79 @@ describe('7 · the visual upgrade: pictures, icons, the round hub and its lines'
 
   it('draws nothing, and writes no NaN, while the map is in the page but not laid out', () => {
     // Another room is showing: the landing is still in the document, and a resize asks for a redraw.
-    const hidden = draw(false, HELPERS, { left: 0, top: 0, width: 0, height: 0 });
+    const zero = { left: 0, top: 0, width: 0, height: 0 };
+    const hidden = draw(false, HELPERS, zero, zero);
     expect(hidden.html).toBe('');
     expect(hidden.html).not.toMatch(/NaN/);
   });
   it('(control) without that guard the same redraw writes NaN into the page', () => {
     const unguarded = HELPERS.replace("if (!(h.width > 0 && h.height > 0 && m.width > 0)) { svg.innerHTML = ''; return; }", '');
     expect(unguarded).not.toBe(HELPERS);
-    expect(draw(false, unguarded, { left: 0, top: 0, width: 0, height: 0 }).html).toMatch(/NaN/);
+    const zero = { left: 0, top: 0, width: 0, height: 0 };
+    expect(draw(false, unguarded, zero, zero).html).toMatch(/NaN/);
   });
 
   it('names every agent under the hub as the registry names it, and keeps the names beside a room for the caption', async () => {
     const r = await runFill(overview());
     expect(r.by.clubs).toContain('<span class="oh-agent-orb"><svg viewBox="0 0 24 24"');
     expect(r.by.clubs).toContain('<span class="oh-agent-name">Device Management</span>');
-    // Shown under the hub, on one line each (never broken inside a word); hidden beside a room's card.
-    expect(CSS).toMatch(/body\.club-theme \.oh-agents--row \.oh-agent-name\{\s*position: static;[^}]*white-space: nowrap;/);
+    // On the orbit every agent is named beside its orb; beside a room's card the name is for the caption.
+    expect(CSS).toMatch(/body\.club-theme \.oh-orbit \.oh-agent-name\{\s*position: absolute; top: calc\(100% \+ 4px\);/);
     expect(CSS).toMatch(/body\.club-theme \.oh-agent-name,\s*body\.club-theme \.oh-agent-none-l\{\s*position: absolute; width: 1px; height: 1px;/);
-    // Three rows are held before the registry answers, so its arrival moves nothing.
-    expect(CSS).toContain('body.club-theme .oh-agents--row .oh-agents-list:not(.is-read){ min-height: 108px; }');
+    // The orbit is the CLUB agents' host, a sibling of the hub's button, never inside it.
+    expect(LANDING).toMatch(/<\/button>\s*<div class="oh-agents-list oh-orbit" data-oh-agents="clubs"><\/div>\s*<\/div>/);
+  });
+
+  // The orbit's places, read back out of the stylesheet.
+  const places = (n: number) => Array.from({ length: n }, (_, i) => {
+    const m = CSS.match(new RegExp(`\\.oh-orbit > \\.oh-agent:nth-child\\(${i + 1}\\):nth-last-child\\(${n - i}\\)\\{ inset-inline-start: ([\\d.]+)%; top: ([\\d.]+)%; \\}`));
+    return m ? [Number(m[1]), Number(m[2])] : null;
+  });
+  it('stands any number of agents up to twelve evenly on the orbit, by selector alone, and never at its foot', () => {
+    for (let n = 1; n <= 12; n++) {
+      const p = places(n);
+      expect([n, p.every(Boolean)]).toEqual([n, true]);
+      for (const [x, y] of p as number[][]) {
+        expect(Math.abs(Math.hypot(x - 50, y - 50) - 40)).toBeLessThan(0.15);
+        // The line to CLUBS runs straight down from the orbit's foot: no agent stands within 14° of it.
+        const deg = Math.atan2(x - 50, 50 - y) * 180 / Math.PI;
+        if (n > 1) expect([n, Math.abs(Math.abs(deg) - 180) > 14]).toEqual([n, true]);
+      }
+    }
+    // Thirteen or more fall back to a dock, rather than overlapping.
+    expect(CSS).toContain('body.club-theme .oh-orbit:has(> .oh-agent:nth-child(13)){ position: static;');
+    // Nothing places them by script.
+    expect(HELPERS + LANDING).not.toMatch(/\.style\.|setAttribute\('style'/);
+  });
+  it('(control) the same check fails against an orbit that stands an agent at its foot', () => {
+    const tenth = places(10).map((p) => p as number[]);
+    const shifted = tenth.map(([x, y]) => { const t = Math.atan2(x - 50, 50 - y) - 18 * Math.PI / 180; return [50 + 40 * Math.sin(t), 50 - 40 * Math.cos(t)]; });
+    expect(shifted.some(([x, y]) => Math.abs(Math.abs(Math.atan2(x - 50, 50 - y) * 180 / Math.PI) - 180) <= 14)).toBe(true);
+  });
+
+  // ── the chips and the hub's two-part name, drawn from what the catalogue already translated ──
+  function split(lines: string[], title: string) {
+    const hosts = lines.map(() => ({ html: '', set innerHTML(v: string) { this.html = v; } }));
+    const lists = lines.map((t, i) => ({ querySelector: (q: string) => (q === '.oh-chips-src' ? { textContent: t } : q === '.oh-chips' ? hosts[i] : null) }));
+    const a = { textContent: '' }, b = { textContent: '' };
+    const titleEl = { querySelector: (q: string) => (q === '.oh-split-src' ? { textContent: title } : q === '.oh-hub-title-a' ? a : q === '.oh-hub-title-b' ? b : null) };
+    const map = { querySelectorAll: (q: string) => (q === '.oh-card-list[data-oh-chips]' ? lists : []), querySelector: (q: string) => (q === '.oh-hub-title' ? titleEl : null) };
+    const sandbox: any = { document: { getElementById: (id: string) => (id === 'oh-map' ? map : null) }, _esc: esc, requestAnimationFrame: () => 0 };
+    vm.runInNewContext(HELPERS + '\n_ohSplitPaint();', sandbox);
+    return { chips: hosts.map((h) => [...h.html.matchAll(/<span class="oh-chip"><span>([^<]*)<\/span><\/span>/g)].map((m) => m[1])), raw: hosts.map((h) => h.html), a: a.textContent, b: b.textContent };
+  }
+  it('draws each card\'s contents as chips from the translated line, and the hub\'s name in its two parts', () => {
+    const r = split(['Übersicht · Register · Intelligenzkreislauf', 'مركز القيادة · الأندية'], 'KI-AGENTEN — OPERATIONSRAUM');
+    expect(r.chips).toEqual([['Übersicht', 'Register', 'Intelligenzkreislauf'], ['مركز القيادة', 'الأندية']]);
+    expect([r.a, r.b]).toEqual(['KI-AGENTEN', 'OPERATIONSRAUM']);
+    // What a catalogue says is escaped before it is drawn.
+    expect(split(['<img src=x onerror=alert(1)> · b'], 'a — b').raw[0]).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    // The pieces are never translated a second time, and only the whole line is read aloud.
+    for (const k of ['system', 'cyber', 'algo', 'ds', 'vault', 'city', 'core', 'vision']) {
+      expect(cardOf(k)).toMatch(/<div class="oh-card-list" data-oh-chips><span class="oh-chips-src">[^<]+<\/span><span class="oh-chips" data-no-i18n aria-hidden="true"><\/span><\/div>/);
+    }
+    // Drawn in the frame after the catalogue's own pass over new markup, and again on every change of language.
+    expect(HELPERS).toContain('if (typeof requestAnimationFrame === \'function\') requestAnimationFrame(_ohSplitPaint); else _ohSplitPaint();');
   });
 
   it('keeps two branches side by side on a tablet: the generic one-column rule further down cannot win', () => {
@@ -538,7 +642,7 @@ describe('8 · the language switch in the top bar', () => {
   });
 
   it('keeps its state and the map\'s lines right after any change of language, however it was made', () => {
-    expect(APP).toMatch(/I18N_APPLY\.registerRepaint\(function \(\) \{\s*try \{ _langSwitchSync\(\); \} catch \(_\) \{\}\s*try \{ if \(document\.getElementById\('oh-map'\)\) _ohScheduleDraw\(\); \} catch \(_\) \{\}\s*\}\);\s*I18N_APPLY\.boot\(\);/);
+    expect(APP).toMatch(/I18N_APPLY\.registerRepaint\(function \(\) \{\s*try \{ _langSwitchSync\(\); \} catch \(_\) \{\}\s*try \{ if \(document\.getElementById\('oh-map'\)\) \{ _ohSplitPaint\(\); _ohScheduleDraw\(\); \} \} catch \(_\) \{\}\s*\}\);\s*I18N_APPLY\.boot\(\);/);
   });
 
   it('marks the language in force with a hairline and a tint, never a filled block, and shows focus', () => {
