@@ -801,8 +801,9 @@ describe('the Platform Owner landing offers five rooms around one core', () => {
   it('gives the rooms the same track, so none is subordinate', () => {
     // Eight branch rooms in four equal rows a side, the hub's column between them; CLUBS beneath the
     // hub. Every branch card is one track: the same size as every other, because size is a claim
-    // about importance and these are peers.
-    expect(css).toContain('grid-template-columns: minmax(0, 1fr) minmax(380px, 1.02fr) minmax(0, 1fr);');
+    // about importance and these are peers. The hub's column is the wider one, because it holds the
+    // Operations Room and the orbit of agents round it; the two branch columns stay the same track.
+    expect(css).toContain('grid-template-columns: minmax(0, 1fr) minmax(400px, 1.2fr) minmax(0, 1fr);');
     expect(css).toContain('grid-template-rows: repeat(4, minmax(auto, 1fr));');
     expect(css).toContain('"system center vault"');
     expect(css).toContain('"cyber  center city"');

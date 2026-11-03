@@ -29,7 +29,7 @@
 <!-- Familista Design Core tokens: custom properties only, loaded before every other
      stylesheet. Nothing reads them yet (Stage 2b.1), so this changes no pixel. -->
 <link rel="stylesheet" href="/tokens/familista-tokens.css?v=20261012-tokens-3-1">
-<link rel="stylesheet" href="/app.css?v=20261101-owner-control-map">
+<link rel="stylesheet" href="/app.css?v=20261103-owner-visual">
 <!-- SYSTEM — the platform owner's command centre. Its own stylesheet, because
      SYSTEM and CLUBS are two products and a class defined for one must never
      reach the other. -->
@@ -343,6 +343,15 @@
           <select class="ctx-select" id="ctx-club"  data-change="onContextClubChange"></select>
           <span style="color:var(--tx-3);font-size:11px;">Â·</span>
           <select class="ctx-select" id="ctx-team"  data-change="onContextTeamChange"></select>
+        </div>
+        <!-- Owner Control · interface language. Hidden until /system/whoami says the
+             Platform Owner is signed in (app.js, _langSwitchShow), which also names each
+             button from the locale registry in its own language — so the group is never
+             translated, and the registry stays the only list of languages. -->
+        <div class="lang-switch" id="lang-switch" role="group" aria-label="Interface Language" data-i18n-aria="settings.interfaceLanguage" data-no-i18n hidden>
+          <button class="lang-switch-btn" type="button" data-action="setUiLocale" data-locale="ar" lang="ar" aria-pressed="false">AR</button>
+          <button class="lang-switch-btn" type="button" data-action="setUiLocale" data-locale="en-GB" lang="en" aria-pressed="false">EN</button>
+          <button class="lang-switch-btn" type="button" data-action="setUiLocale" data-locale="de-DE" lang="de" aria-pressed="false">DE</button>
         </div>
         <div class="status-chip chip-live"><div class="chip-dot chip-dot-live"></div><span id="gps-count">11 GPS Active</span></div>
         <div class="status-chip chip-ai"><div class="chip-dot chip-dot-ai"></div>ARIA Online</div>
@@ -1007,7 +1016,7 @@
 <script src="/algorithms/algorithms.js?v=20261004-algorithms" defer></script>
 <!-- Model text is drawn as nodes, never HTML. Before app.js, which calls it. -->
 <script src="/ai-model-text.js?v=20261020-ai-safe-text" defer></script>
-<script src="/app.js?v=20261101-owner-control-map" defer></script>
+<script src="/app.js?v=20261103-owner-visual" defer></script>
 <!-- Settings · Account · two-step sign-in (Cyber Defense, Step 6). After app.js: it reads _isPlatformOwner. -->
 <script src="/settings-mfa.js?v=20261002-admin-mfa" defer></script>
 <script src="/settings-ai-data.js?v=20261002-ai-data" defer></script>

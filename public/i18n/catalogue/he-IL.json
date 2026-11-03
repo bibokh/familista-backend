@@ -1616,5 +1616,8 @@
   "Match Operations": "תפעול משחקים",
   "Communications": "תקשורת",
   "Device Management": "ניהול מכשירים",
-  "Big Data": "ביג דאטה"
+  "Big Data": "ביג דאטה",
+  "No historical events yet": "אין עדיין אירועים היסטוריים",
+  "Vision engine reachable · no session store": "מנוע Vision זמין · אין מאגר סשנים",
+  "Clubs in your network: \u0000": "מועדונים ברשת שלכם: \u0000"
 }

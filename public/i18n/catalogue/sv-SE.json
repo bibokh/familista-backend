@@ -1616,5 +1616,8 @@
   "Match Operations": "Matchdrift",
   "Communications": "Kommunikation",
   "Device Management": "Enhetshantering",
-  "Big Data": "Big Data"
+  "Big Data": "Big Data",
+  "No historical events yet": "Inga historiska händelser ännu",
+  "Vision engine reachable · no session store": "Vision-motorn nåbar · inget sessionslager",
+  "Clubs in your network: \u0000": "Klubbar i ditt nätverk: \u0000"
 }

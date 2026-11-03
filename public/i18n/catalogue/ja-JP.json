@@ -1613,5 +1613,8 @@
   "Match Operations": "試合運営",
   "Communications": "コミュニケーション",
   "Device Management": "デバイス管理",
-  "Big Data": "ビッグデータ"
+  "Big Data": "ビッグデータ",
+  "No historical events yet": "履歴イベントはまだありません",
+  "Vision engine reachable · no session store": "Vision エンジンに接続可能 · セッションストアなし",
+  "Clubs in your network: \u0000": "ネットワーク内のクラブ: \u0000"
 }

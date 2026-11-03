@@ -1616,5 +1616,8 @@
   "Match Operations": "Operações de jogo",
   "Communications": "Comunicações",
   "Device Management": "Gestão de dispositivos",
-  "Big Data": "Big Data"
+  "Big Data": "Big Data",
+  "No historical events yet": "Nenhum evento histórico ainda",
+  "Vision engine reachable · no session store": "Mecanismo do Vision acessível · sem armazenamento de sessões",
+  "Clubs in your network: \u0000": "Clubes na sua rede: \u0000"
 }

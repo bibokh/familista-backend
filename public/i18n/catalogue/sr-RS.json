@@ -1616,5 +1616,8 @@
   "Match Operations": "Утакмичне операције",
   "Communications": "Комуникације",
   "Device Management": "Управљање уређајима",
-  "Big Data": "Big Data"
+  "Big Data": "Big Data",
+  "No historical events yet": "Још нема историјских догађаја",
+  "Vision engine reachable · no session store": "Vision механизам је доступан · нема складишта сесија",
+  "Clubs in your network: \u0000": "Клубови у вашој мрежи: \u0000"
 }

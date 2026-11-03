@@ -1613,5 +1613,8 @@
   "Match Operations": "Vận hành trận đấu",
   "Communications": "Truyền thông",
   "Device Management": "Quản lý thiết bị",
-  "Big Data": "Dữ liệu lớn"
+  "Big Data": "Dữ liệu lớn",
+  "No historical events yet": "Chưa có sự kiện lịch sử nào",
+  "Vision engine reachable · no session store": "Có thể kết nối công cụ Vision · không có kho phiên",
+  "Clubs in your network: \u0000": "Câu lạc bộ trong mạng lưới của bạn: \u0000"
 }

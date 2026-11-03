@@ -1567,10 +1567,10 @@
   "Sources in warning: \u0000": "Quellen mit Warnung: \u0000",
   "Sources mapped: \u0000 · not instrumented: \u0000": "Erfasste Quellen: \u0000 · nicht instrumentiert: \u0000",
   "FAMILISTA VISION": "FAMILISTA VISION",
-  "Open Vision": "Open Vision",
+  "Open Vision": "Vision öffnen",
   "Reading Vision service…": "Reading Vision service…",
-  "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Evidence & Match Intelligence",
-  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models",
+  "Computer Vision, Tracking, Evidence & Match Intelligence": "Computer Vision, Tracking, Nachweise & Spielanalyse",
+  "Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models": "Live-Analyse · Spieler- & Ballverfolgung · Feldkalibrierung · Teams & Rollen · Ereignisse · Taktik · Heatmaps · Zeitleiste · Quellen · Vision Hub · Modelle",
   "CYBERSECURITY": "CYBERSICHERHEIT",
   "Security Posture, Protection, Evidence & Monitoring": "Sicherheitslage, Schutz, Nachweise & Überwachung",
   "Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage & Gaps · Events & Alerts · Evidence": "Kommandozentrale · Sicherheitsdomänen · Sicherheit auf Zeilenebene · Sicherheitslebenszyklus · Abdeckung & Lücken · Ereignisse & Alarme · Nachweise",
@@ -1616,5 +1616,8 @@
   "Match Operations": "Spielbetrieb",
   "Communications": "Kommunikation",
   "Device Management": "Geräteverwaltung",
-  "Big Data": "Big Data"
+  "Big Data": "Big Data",
+  "No historical events yet": "Noch keine historischen Ereignisse",
+  "Vision engine reachable · no session store": "Vision-Engine erreichbar · kein Sitzungsspeicher",
+  "Clubs in your network: \u0000": "Vereine in Ihrem Netzwerk: \u0000"
 }
