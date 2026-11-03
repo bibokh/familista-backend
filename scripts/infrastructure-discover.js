@@ -40,6 +40,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { deploysViaRenderHook, districtStatus } = require('./lib/infrastructure-evidence');
 
 const ROOT = path.join(__dirname, '..');
 const OUT_DIR = path.join(ROOT, 'src', 'infra', 'generated');
@@ -111,8 +112,11 @@ const relationships = [];
 
 const UNKNOWN = 'UNKNOWN';
 
-function district(id, name, category, zone, priority, status = 'ACTIVE') {
-  districts.push({ id, name, category, zone, priority, status });
+// A district's status is not declared here: it is derived from the components
+// and future plots that land in it (section 11), so it cannot claim more than
+// the repository proves.
+function district(id, name, category, zone, priority) {
+  districts.push({ id, name, category, zone, priority });
 }
 
 /**
@@ -317,11 +321,15 @@ const envSummary = {
 // ── 5 · GitHub workflows — CI and deployment ─────────────────────────────────
 
 const workflows = [];
+// Workflows that can move a Render service, read from their own text (not from
+// render.yaml): the ones that POST the Render deploy hook.
+const renderHookWorkflows = new Set();
 try {
   const wfDir = path.join(ROOT, '.github', 'workflows');
   for (const f of fs.readdirSync(wfDir).filter((x) => /\.ya?ml$/.test(x))) {
     const raw = fs.readFileSync(path.join(wfDir, f), 'utf8');
     cite(`.github/workflows/${f}`);
+    if (deploysViaRenderHook(raw)) renderHookWorkflows.add(`.github/workflows/${f}`);
     workflows.push({
       file: `.github/workflows/${f}`,
       name: (raw.match(/^name:\s*(.+)$/m) || [])[1] || f,
@@ -922,10 +930,17 @@ relate('historical-store', 'history-api', 'SERVED_BY', 'src/routes/fabric.routes
 relate('data-vault-module', 'history-api', 'READS', 'public/data-vault/data-vault.js');
 relate('media-pipeline', 'object-store', 'WRITES_TO', 'src/services/video-hls.service.ts');
 relate('rate-limiting', 'redis', 'USES', 'src/middleware/rate-limit-redis.store.ts');
+// A workflow DEPLOYS the web service only when its own text calls the Render
+// deploy hook. render.yaml's `autoDeploy: false` is the reason that hook is the
+// only automatic path, not evidence that any workflow uses it.
 for (const wf of workflows) {
+  if (!renderHookWorkflows.has(wf.file)) continue;
   const id = `workflow-${path.basename(wf.file).replace(/\.ya?ml$/, '')}`;
   const web = renderServices.find((s) => s.type === 'web');
-  if (web) relate(id, `render-${web.name}`, 'DEPLOYS', `${wf.file}; render.yaml autoDeploy`);
+  if (web) {
+    relate(id, `render-${web.name}`, 'DEPLOYS', `${wf.file} — POSTs the Render deploy hook from a GitHub secret`
+      + (web.autoDeploy === false ? '; render.yaml sets autoDeploy: false' : ''));
+  }
 }
 
 // Keep only relationships whose BOTH ends actually exist. A road to a building
@@ -940,17 +955,30 @@ const future = [
   { id: 'future-archive-exporter', name: 'Archive Exporter', district: 'vault', reason: 'Contract only; exportArchiveBatch() throws.' },
   { id: 'future-lint',      name: 'Lint',                district: 'testing',   reason: 'No ESLint configuration exists in the repository.' },
   { id: 'future-coverage',  name: 'Coverage Gate',       district: 'testing',   reason: 'jest.config.ts sets collectCoverage: false.' },
-  { id: 'future-row-level-security', name: 'Row-Level Security', district: 'database', reason: 'Enforced by PostgreSQL: fail-closed policies on 18 club tables (Cyber Defense R14, Stage 4).' },
   { id: 'future-ai-diagnostics', name: 'AI Infrastructure Assistant', district: 'ai', reason: 'Reserved integration point. Not implemented.' },
   { id: 'future-smart-ball', name: 'Smart Ball', district: 'devices', reason: 'On the product roadmap. No firmware, ingest or model exists in this build.' },
 ].filter((f) => districts.some((d) => d.id === f.district));
+
+// Row-Level Security is not a future zone: it is enforced (see
+// docs/security/row-level-security.md). It is a security control, and its one
+// authority is scripts/security-discover.js (control `db-row-level-security`,
+// read from the migrations), shown in the Cybersecurity room — so it is not
+// listed here at all, rather than listed a second time.
 
 // Drop districts nothing landed in, so an empty district never implies a gap.
 const usedDistricts = new Set([
   ...components.map((c) => c.district),
   ...future.map((f) => f.district),
 ]);
-const liveDistricts = districts.filter((d) => usedDistricts.has(d.id));
+const liveDistricts = districts
+  .filter((d) => usedDistricts.has(d.id))
+  .map((d) => ({
+    ...d,
+    status: districtStatus(
+      components.filter((c) => c.district === d.id).map((c) => c.status),
+      future.filter((f) => f.district === d.id).length,
+    ),
+  }));
 
 // ── 12 · dependency inventory ────────────────────────────────────────────────
 

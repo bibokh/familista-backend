@@ -206,7 +206,10 @@ describe('the infrastructure manifest shows the layers it used to miss', () => {
     const ids = infra.future.map((f: { id: string }) => f.id);
     expect(ids).not.toContain('future-scouting');   // the Scouting module ships
     expect(ids).not.toContain('future-vuln-scan');  // npm audit blocks CI
-    expect(ids).toEqual(expect.arrayContaining(['future-row-level-security', 'future-smart-ball']));
+    // Row-Level Security is enforced (db-row-level-security is PRESENT above), so it
+    // is not a future zone; its authority is the security manifest, not this list.
+    expect(ids).not.toContain('future-row-level-security');
+    expect(ids).toContain('future-smart-ball');
   });
 });
 
