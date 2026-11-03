@@ -801,7 +801,8 @@ describe('Owner Home: the ninth card, DESIGN SYSTEM CONTROL', () => {
     });
 
     it('is two columns below a laptop, the branches side by side, the ninth last on its side', () => {
-      const m = appCss.match(/@media \(max-width: 1180px\), \(max-height: 640px\)\{\s*body\.club-theme \.oh-wrap--map\{[^}]*\}\s*body\.club-theme \.oh-cards--core\{([\s\S]*?)\n  \}/);
+      // .oh-cards.oh-cards--core: heavier than the club member landing's one-column .oh-cards rule at 900px, which follows it.
+      const m = appCss.match(/@media \(max-width: 1180px\), \(max-height: 640px\)\{\s*body\.club-theme \.oh-wrap--map\{[^}]*\}\s*(?:\/\*[\s\S]*?\*\/\s*)?body\.club-theme \.oh-cards\.oh-cards--core\{([\s\S]*?)\n  \}/);
       expect(m).not.toBeNull();
       expect(m![1]).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
       expect(m![1]).toContain('grid-template-areas: "center center" "system vault" "cyber city" "algo core" "design vision";');
@@ -863,11 +864,13 @@ describe('Owner Home: the ninth card, DESIGN SYSTEM CONTROL', () => {
     const html = read('public/index.html');
     // The Owner Control mind map is markup in app.js styled by app.css, so the two moved on together
     // (as they did when model text began to be drawn as nodes styled by app.css).
-    expect(html).toContain('/app.css?v=20261101-owner-control-map');
+    expect(html).toContain('/app.css?v=20261103-owner-visual');
+    expect(html).not.toContain('/app.css?v=20261101-owner-control-map');
     expect(html).not.toContain('/app.css?v=20261020-ai-safe-text');
     // The AI Agents Operations Room's loader and entry moved app.js on again; app.css did not change.
     // Then the Chrome 156 CSP remediation (inline handlers moved to listeners) moved it on once more.
-    expect(html).toContain('/app.js?v=20261101-owner-control-map');
+    expect(html).toContain('/app.js?v=20261103-owner-visual');
+    expect(html).not.toContain('/app.js?v=20261101-owner-control-map');
     expect(html).not.toContain('/app.js?v=20261028-provenance');
     expect(html).not.toContain('/app.js?v=20261022-agents-room');
     expect(html).not.toContain('/app.js?v=20261020-ai-safe-text');

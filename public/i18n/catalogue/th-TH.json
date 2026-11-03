@@ -1613,5 +1613,8 @@
   "Match Operations": "ปฏิบัติการแข่งขัน",
   "Communications": "การสื่อสาร",
   "Device Management": "การจัดการอุปกรณ์",
-  "Big Data": "บิ๊กดาต้า"
+  "Big Data": "บิ๊กดาต้า",
+  "No historical events yet": "ยังไม่มีเหตุการณ์ในประวัติ",
+  "Vision engine reachable · no session store": "เข้าถึงเอนจิน Vision ได้ · ไม่มีที่เก็บเซสชัน",
+  "Clubs in your network: \u0000": "สโมสรในเครือข่ายของคุณ: \u0000"
 }

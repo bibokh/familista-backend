@@ -2992,6 +2992,42 @@ body.club-theme .hdr-btn:hover{ background: var(--b-default) !important; color: 
   body.club-theme .status-chip{ display: none !important; }
 }
 
+/* Owner Control · the language switch. Three languages, each named in its own script's
+   letters; the one in force carries the owner context's amber as a hairline and a whisper of
+   tint, never a filled block. Hidden until the Platform Owner is confirmed (the hidden
+   attribute must win over the display below). Stays on a phone, where the chips go. */
+body.club-theme .lang-switch{
+  display: inline-flex; align-items: center; gap: 2px; padding: 3px; flex: none;
+  border-radius: var(--r-md); background: var(--bg-elevated); border: 1px solid var(--b-default);
+}
+body.club-theme .lang-switch[hidden]{ display: none; }
+body.club-theme .lang-switch-btn{
+  min-width: 34px; height: 28px; padding: 0 8px; border: 0; border-radius: 7px; cursor: pointer;
+  background: transparent; color: var(--t-secondary);
+  font-family: inherit; font-size: 11.5px; font-weight: 800; letter-spacing: 0.08em; line-height: 1;
+  transition: color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+body.club-theme .lang-switch-btn:hover{ color: var(--t-primary); background: color-mix(in srgb, var(--t-primary) 6%, transparent); }
+body.club-theme .lang-switch-btn[aria-pressed="true"]{
+  color: var(--gold-400); background: color-mix(in srgb, var(--gold-500) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold-500) 46%, transparent);
+}
+body.club-theme .lang-switch-btn:focus-visible{ outline: 2px solid var(--gold-400); outline-offset: 1px; }
+@media (max-width: 720px){
+  body.club-theme .lang-switch-btn{ min-width: 30px; height: 30px; padding: 0 6px; }
+}
+@media (max-width: 420px){
+  body.club-theme .lang-switch{ padding: 2px; gap: 1px; }
+  body.club-theme .lang-switch-btn{ min-width: 26px; padding: 0 4px; letter-spacing: 0.04em; }
+}
+/* On a tablet the switch takes the place of the two status chips (which a phone already
+   drops at 720px), so it never squeezes the page's name. Only where the switch is shown —
+   the Platform Owner's top bar; every other account's top bar is as it was. */
+@media (max-width: 1023px){
+  body.club-theme .header-actions:has(> .lang-switch:not([hidden])) > .status-chip{ display: none !important; }
+}
+@media (prefers-reduced-motion: reduce){ body.club-theme .lang-switch-btn{ transition: none; } }
+
 /* ── 4 · Sidebar ───────────────────────────────────────────────── */
 body.club-theme .sidebar{
   background: linear-gradient(180deg, #0E1424 0%, #0A0E1A 100%) !important;
@@ -7197,7 +7233,7 @@ body.club-theme .oh-cards--core::before{
           mask-image: radial-gradient(ellipse 72% 72% at 50% 50%, var(--bg-canvas) 38%, transparent 100%);
 }
 body.club-theme .oh-node{ position: relative; z-index: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-body.club-theme .oh-node--center{ grid-area: center; display: grid; grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr); justify-items: center; }
+body.club-theme .oh-node--center{ grid-area: center; display: grid; grid-template-rows: minmax(auto, 1fr) auto auto; justify-items: center; }
 body.club-theme .oh-node[data-oh-node="system"]{ grid-area: system; }
 body.club-theme .oh-node[data-oh-node="cyber"]{  grid-area: cyber; }
 body.club-theme .oh-node[data-oh-node="algo"]{   grid-area: algo; }
@@ -7218,7 +7254,7 @@ body.club-theme .oh-wrap--map .oh-sub{ margin-top: 6px; font-size: 14px; }
    4.5:1 on every card surface (the shared --t-tertiary does not). */
 body.club-theme .oh-cards--core .oh-card{
   min-height: 0; flex: 1 1 auto;
-  padding: 14px 16px 12px; gap: 5px; border-radius: 16px;
+  padding: 13px 16px 11px; gap: 5px; border-radius: 16px;
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
 }
 body.club-theme .oh-cards--core .oh-card::before{ height: 3px; }
@@ -7229,11 +7265,16 @@ body.club-theme .oh-cards--core .oh-card-icon{
 body.club-theme .oh-cards--core .oh-card-icon svg{ width: 22px; height: 22px; }
 body.club-theme .oh-cards--core .oh-card-title{ font-size: 14px; letter-spacing: 0.1em; line-height: 1.25; margin-inline-start: 50px; }
 body.club-theme .oh-cards--core .oh-card-sub{ font-size: 12px; line-height: 1.35; margin-inline-start: 50px; min-height: 16px; }
-body.club-theme .oh-cards--core .oh-card-list{ font-size: 11.5px; line-height: 1.45; color: var(--t-secondary); margin-top: 3px; }
+body.club-theme .oh-cards--core .oh-card-list{ font-size: 11px; line-height: 1.45; color: var(--t-secondary); margin-top: 2px; }
 /* A status that is waiting or has nothing to report is grey, and the same var(--t-secondary) — legible, never a verdict. */
 body.club-theme .oh-cards--core .oh-card-state--idle{ color: var(--t-secondary); }
 body.club-theme .oh-cards--core .oh-card-cta{ font-size: 12px; }
-body.club-theme .oh-cards--core .oh-card-cta span{ font-size: 15px; }
+body.club-theme .oh-cards--core .oh-card-cta span{
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 24px; height: 24px; border-radius: 50%; font-size: 13px; line-height: 1;
+  border: 1px solid color-mix(in srgb, currentColor 42%, transparent);
+  background: color-mix(in srgb, currentColor 9%, transparent);
+}
 /* The status line and the way in share the card's last row — the status where the eye starts,
    the door at the far end — so a card is as short as its words allow and no shorter. A status
    too long for the row wraps inside its own chip; nothing is cut. */
@@ -7252,6 +7293,39 @@ body.club-theme .oh-cards--core .oh-card > .oh-card-cta{
   margin-top: 0; padding: 0 0 4px; white-space: nowrap;
 }
 
+/* EACH ROOM'S OWN PICTURE. A drawing of what the room does (public/owner-control/illus,
+   vector, no text in it), standing at the card's inline-end across the rows of its
+   description and its contents, under the title. It is a grid item, not an overlay:
+   those two rows grow to hold it, so at no width can it sit on a word, the status or
+   the way in, and the words beside it keep a gap the same size as the picture. It is
+   decoration (alt=""), takes no pointer, and carries no figure of any kind. */
+body.club-theme .oh-cards--core .oh-card > .oh-card-title{ grid-row: 1; }
+body.club-theme .oh-cards--core .oh-card > .oh-card-sub{ grid-row: 2; }
+body.club-theme .oh-cards--core .oh-card > .oh-card-list{ grid-row: 3; }
+body.club-theme .oh-cards--core .oh-card > .oh-card-illus{
+  grid-row: 2 / span 2; justify-self: end; align-self: center;
+  width: clamp(84px, 27%, 150px); height: auto; aspect-ratio: 220 / 160; margin-inline-end: -6px;
+  pointer-events: none; user-select: none; -webkit-user-drag: none;
+  transition: filter 200ms ease;
+}
+body.club-theme .oh-cards--core .oh-card > .oh-card-sub,
+body.club-theme .oh-cards--core .oh-card > .oh-card-list{ margin-inline-end: calc(clamp(84px, 27%, 150px) + 4px); }
+/* CLUBS is the short card under the hub: a smaller picture, so it stays short. */
+body.club-theme .oh-cards--core .oh-card--clubs > .oh-card-illus{ width: clamp(80px, 23%, 116px); }
+body.club-theme .oh-cards--core .oh-card--clubs > .oh-card-sub,
+body.club-theme .oh-cards--core .oh-card--clubs > .oh-card-list{ margin-inline-end: calc(clamp(80px, 23%, 116px) + 6px); }
+/* On a large screen the cards have height to spare, and the picture takes some of it. */
+@media (min-width: 1600px) and (min-height: 960px){
+  body.club-theme .oh-cards--core .oh-card > .oh-card-illus{ width: clamp(84px, 33%, 176px); }
+  body.club-theme .oh-cards--core .oh-card > .oh-card-sub,
+  body.club-theme .oh-cards--core .oh-card > .oh-card-list{ margin-inline-end: calc(clamp(84px, 33%, 176px) + 4px); }
+}
+body.club-theme .oh-cards--core .oh-card:hover > .oh-card-illus,
+body.club-theme .oh-cards--core .oh-card:focus-visible > .oh-card-illus{ filter: saturate(1.12) brightness(1.08); }
+/* An arrow points the way the page reads. */
+html[dir="rtl"] body.club-theme .oh-cards--core .oh-card-cta span,
+html[dir="rtl"] body.club-theme .oh-hub-cta span{ transform: scaleX(-1); }
+
 /* THE HUB: the Operations Room's own amber, the owner context's identity. A
    halo behind it, a core mark, and the registry's state on its status line. */
 body.club-theme .oh-hub-slot{ position: relative; width: 100%; display: flex; justify-content: center; }
@@ -7262,32 +7336,49 @@ body.club-theme .oh-hub-slot::before{
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oh-amber) 5%, transparent);
 }
 body.club-theme .oh-hub{
-  position: relative; z-index: 1; width: min(100%, 420px);
-  display: flex; flex-direction: column; align-items: center; gap: 7px; text-align: center;
-  padding: 20px 24px 18px; border-radius: 26px; cursor: pointer; color: var(--t-primary);
+  position: relative; z-index: 1; flex: none;
+  width: clamp(240px, min(20vw, 30vh), 330px); aspect-ratio: 1; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; text-align: center;
+  padding: 22px 24px; cursor: pointer; color: var(--t-primary);
   background:
-    radial-gradient(120% 80% at 50% -10%, color-mix(in srgb, var(--oh-amber) 16%, transparent), transparent 60%),
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-surface) 95%, transparent), color-mix(in srgb, var(--bg-canvas) 97%, transparent));
+    radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--oh-amber) 15%, transparent), transparent 62%),
+    radial-gradient(70% 60% at 50% 100%, color-mix(in srgb, var(--oh-system) 10%, transparent), transparent 70%),
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--bg-surface) 96%, transparent), color-mix(in srgb, var(--bg-canvas) 98%, transparent));
   border: 1px solid color-mix(in srgb, var(--oh-amber) 42%, transparent);
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--oh-amber) 5%, transparent), 0 0 64px -14px color-mix(in srgb, var(--oh-amber) 32%, transparent), 0 30px 70px -30px color-mix(in srgb, var(--bg-canvas) 70%, transparent), inset 0 1px 0 color-mix(in srgb, var(--t-primary) 6%, transparent);
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--oh-amber) 4%, transparent), 0 0 70px -12px color-mix(in srgb, var(--oh-amber) 34%, transparent), 0 30px 70px -30px color-mix(in srgb, var(--bg-canvas) 70%, transparent), inset 0 1px 0 color-mix(in srgb, var(--t-primary) 7%, transparent), inset 0 0 40px -18px color-mix(in srgb, var(--oh-amber) 40%, transparent);
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
   transition: box-shadow 200ms ease, border-color 200ms ease;
 }
+/* Two rings, drawn and still: a dashed orbit, and the rooms' colours in the order the rooms
+   stand round the hub — Data Vault at the top of the inline-end side, CLUBS at the foot,
+   SYSTEM at the top of the inline-start side — so each line leaves the rim where its own
+   colour is. Mirrored with the page in a right-to-left language. */
+body.club-theme .oh-hub::before,
+body.club-theme .oh-hub::after{ content: ''; position: absolute; border-radius: 50%; pointer-events: none; }
+body.club-theme .oh-hub::before{ inset: -12px; border: 1px dashed color-mix(in srgb, var(--oh-amber) 26%, transparent); }
+body.club-theme .oh-hub::after{
+  inset: -4px; padding: 2px; opacity: 0.8;
+  background: conic-gradient(var(--oh-amber) 0deg, var(--oh-vault) 40deg, var(--oh-city) 72deg, var(--oh-core) 108deg, var(--oh-vision) 140deg, var(--oh-clubs) 180deg, var(--oh-ds) 220deg, var(--oh-algo) 252deg, var(--oh-cyber) 288deg, var(--oh-system) 320deg, var(--oh-amber) 360deg);
+  /* A mask reads only alpha: a 2px ring at the edge. */
+  -webkit-mask-image: radial-gradient(farthest-side, transparent calc(100% - 2.5px), var(--bg-canvas) calc(100% - 2px));
+          mask-image: radial-gradient(farthest-side, transparent calc(100% - 2.5px), var(--bg-canvas) calc(100% - 2px));
+}
+html[dir="rtl"] body.club-theme .oh-hub::after{ transform: scaleX(-1); }
 body.club-theme .oh-hub:hover,
 body.club-theme .oh-hub:focus-visible{
   border-color: color-mix(in srgb, var(--oh-amber) 72%, transparent);
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--oh-amber) 9%, transparent), 0 0 84px -10px color-mix(in srgb, var(--oh-amber) 46%, transparent), 0 30px 70px -30px color-mix(in srgb, var(--bg-canvas) 70%, transparent), inset 0 1px 0 color-mix(in srgb, var(--t-primary) 8%, transparent);
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--oh-amber) 8%, transparent), 0 0 90px -8px color-mix(in srgb, var(--oh-amber) 48%, transparent), 0 30px 70px -30px color-mix(in srgb, var(--bg-canvas) 70%, transparent), inset 0 1px 0 color-mix(in srgb, var(--t-primary) 9%, transparent), inset 0 0 46px -16px color-mix(in srgb, var(--oh-amber) 55%, transparent);
 }
 body.club-theme .oh-hub:focus-visible{ outline: 2px solid var(--oh-amber); outline-offset: 4px; }
-body.club-theme .oh-hub-mark{ display: block; width: 64px; height: 64px; color: var(--oh-amber); filter: drop-shadow(0 0 12px color-mix(in srgb, var(--oh-amber) 45%, transparent)); }
-body.club-theme .oh-hub-mark svg{ display: block; }
-body.club-theme .oh-hub-title{ display: block; font-size: 17px; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; line-height: 1.25; }
-body.club-theme .oh-hub-sub{ display: block; max-width: 340px; font-size: 12.5px; font-weight: 500; line-height: 1.4; color: var(--t-secondary); }
-body.club-theme .oh-hub .oh-card-state{ margin-top: 2px; }
-body.club-theme .oh-hub-cta{ display: inline-flex; align-items: center; gap: 8px; margin-top: 2px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.05em; color: var(--oh-amber); }
+body.club-theme .oh-hub-mark{ display: block; width: 46px; height: 46px; margin-bottom: 2px; color: var(--oh-amber); filter: drop-shadow(0 0 14px color-mix(in srgb, var(--oh-amber) 50%, transparent)); }
+body.club-theme .oh-hub-mark svg{ display: block; width: 100%; height: 100%; }
+body.club-theme .oh-hub-title{ display: block; max-width: 210px; text-wrap: balance; font-size: 14px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; line-height: 1.25; }
+body.club-theme .oh-hub-sub{ display: block; max-width: 208px; text-wrap: balance; font-size: 11px; font-weight: 500; line-height: 1.36; color: var(--t-secondary); }
+body.club-theme .oh-hub .oh-card-state{ margin-top: 2px; max-width: 100%; }
+body.club-theme .oh-hub-cta{ display: inline-flex; align-items: center; gap: 7px; margin-top: 1px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--oh-amber); }
 
 /* CLUBS, under the hub, with the agents that work in clubs on the line between them. */
-body.club-theme .oh-node--clubs{ align-self: end; width: 100%; max-width: 440px; justify-content: flex-end; gap: 8px; }
+body.club-theme .oh-node--clubs{ align-self: end; width: 100%; max-width: 440px; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 /* The agents sit on a glass capsule the line passes behind, so no line ever runs through a name. */
 body.club-theme .oh-agents--row{
   position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -7297,6 +7388,7 @@ body.club-theme .oh-agents--row{
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
 body.club-theme .oh-agents-list{ display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; min-height: 34px; }
+body.club-theme .oh-agents--row .oh-agents-list{ gap: 6px 5px; }
 body.club-theme .oh-agents-cap{
   max-width: 100%; min-height: 16px; line-height: 16px; text-align: center;
   font-size: 11px; letter-spacing: 0.04em; color: var(--t-secondary);
@@ -7308,26 +7400,52 @@ body.club-theme .oh-agents-lc{ font-family: ui-monospace, SFMono-Regular, Menlo,
    RUNNING, dashed for LAB and DRAFT, dotted and faded for RETIRED — and its
    name, read out by a screen reader and shown on the caption when pointed at. */
 body.club-theme .oh-agent{
-  position: relative; width: 34px; height: 34px; padding: 0; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  position: relative; min-width: 0; padding: 0; border: 0; border-radius: 12px; background: none;
+  display: inline-flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer;
   color: color-mix(in srgb, var(--pitch-400) 50%, var(--t-primary));
+}
+body.club-theme .oh-agent-orb{
+  width: 34px; height: 34px; flex: none; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
   background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--pitch-400) 20%, transparent), color-mix(in srgb, var(--bg-canvas) 96%, transparent) 70%);
   border: 1.5px solid color-mix(in srgb, var(--pitch-400) 65%, transparent);
   box-shadow: 0 0 14px -4px color-mix(in srgb, var(--pitch-400) 55%, transparent);
   transition: box-shadow 160ms ease, border-color 160ms ease;
 }
-body.club-theme .oh-agent:hover,
-body.club-theme .oh-agent:focus-visible{ border-color: var(--pitch-400); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pitch-400) 18%, transparent), 0 0 18px -2px color-mix(in srgb, var(--pitch-400) 80%, transparent); }
+body.club-theme .oh-agent:hover .oh-agent-orb,
+body.club-theme .oh-agent:focus-visible .oh-agent-orb{ border-color: var(--pitch-400); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pitch-400) 18%, transparent), 0 0 18px -2px color-mix(in srgb, var(--pitch-400) 80%, transparent); }
 body.club-theme .oh-agent:focus-visible{ outline: 2px solid var(--pitch-400); outline-offset: 2px; }
-body.club-theme .oh-agent--lab,
-body.club-theme .oh-agent--draft{ border-style: dashed; }
-body.club-theme .oh-agent--retired{ border-style: dotted; opacity: 0.5; }
+body.club-theme .oh-agent--lab .oh-agent-orb,
+body.club-theme .oh-agent--draft .oh-agent-orb{ border-style: dashed; }
+body.club-theme .oh-agent--retired .oh-agent-orb{ border-style: dotted; }
+body.club-theme .oh-agent--retired{ opacity: 0.5; }
 body.club-theme .oh-agent svg{ display: block; }
 body.club-theme .oh-agent-name,
 body.club-theme .oh-agent-none-l{
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
 }
+/* Under the hub every agent is named, as the registry names it: a pill each, its orb and
+   its name on one line, so no name is ever broken inside a word. Three rows are held
+   before the registry answers, so its arrival moves nothing. */
+body.club-theme .oh-agents--row .oh-agents-list:not(.is-read){ min-height: 108px; }
+body.club-theme .oh-agents--row .oh-agent{
+  flex-direction: row; gap: 6px; padding-block: 3px; padding-inline: 3px 10px; border-radius: 999px;
+  background: color-mix(in srgb, var(--pitch-400) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pitch-400) 20%, transparent);
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+body.club-theme .oh-agents--row .oh-agent-orb{ width: 26px; height: 26px; }
+body.club-theme .oh-agents--row .oh-agent-orb svg{ width: 15px; height: 15px; }
+body.club-theme .oh-agents--row .oh-agent-name{
+  position: static; width: auto; height: auto; margin: 0; overflow: visible; clip: auto; white-space: nowrap;
+  font-size: 10.5px; font-weight: 600; line-height: 16px; letter-spacing: 0; color: var(--t-secondary);
+  transition: color 160ms ease;
+}
+body.club-theme .oh-agents--row .oh-agent:hover,
+body.club-theme .oh-agents--row .oh-agent:focus-visible{ border-color: color-mix(in srgb, var(--pitch-400) 55%, transparent); background: color-mix(in srgb, var(--pitch-400) 10%, transparent); }
+body.club-theme .oh-agents--row .oh-agent:hover .oh-agent-name,
+body.club-theme .oh-agents--row .oh-agent:focus-visible .oh-agent-name{ color: var(--t-primary); }
 
 /* A room's agents stand on its line, at the card's edge that faces the hub. */
 body.club-theme .oh-agents--edge{ position: absolute; top: 50%; z-index: 2; transform: translateY(-50%); display: flex; flex-direction: column; gap: 6px; }
@@ -7351,7 +7469,17 @@ body.club-theme .oh-link{ fill: none; stroke-width: 1.6; stroke-linecap: round; 
 body.club-theme .oh-cards--core[data-hot] .oh-link{ opacity: 0.16; }
 body.club-theme .oh-cards--core[data-hot] .oh-link.is-hot{ opacity: 1; stroke-width: 2.6; stroke-dasharray: 8 7; animation: oh-flow 1.1s linear infinite; }
 @keyframes oh-flow{ to{ stroke-dashoffset: -30; } }
-body.club-theme .oh-link-end{ opacity: 0.85; }
+body.club-theme .oh-link-glow{ fill: none; stroke-width: 5; stroke-linecap: round; opacity: 0.22; transition: opacity 180ms ease; }
+body.club-theme .oh-cards--core[data-hot] .oh-link-glow{ opacity: 0.06; }
+body.club-theme .oh-cards--core[data-hot] .oh-link-glow.is-hot{ opacity: 0.5; }
+body.club-theme .oh-link-end{ opacity: 0.9; }
+body.club-theme .oh-link-port{ opacity: 0.95; }
+body.club-theme .oh-link-ring{ fill: color-mix(in srgb, var(--bg-canvas) 70%, transparent); stroke-width: 1.2; opacity: 0.7; }
+body.club-theme .oh-link-ring--system{ stroke: var(--oh-system); } body.club-theme .oh-link-ring--cyber{ stroke: var(--oh-cyber); }
+body.club-theme .oh-link-ring--algo{ stroke: var(--oh-algo); }     body.club-theme .oh-link-ring--ds{ stroke: var(--oh-ds); }
+body.club-theme .oh-link-ring--clubs{ stroke: var(--oh-clubs); }   body.club-theme .oh-link-ring--vault{ stroke: var(--oh-vault); }
+body.club-theme .oh-link-ring--city{ stroke: var(--oh-city); }     body.club-theme .oh-link-ring--core{ stroke: var(--oh-core); }
+body.club-theme .oh-link-ring--vision{ stroke: var(--oh-vision); }
 body.club-theme .oh-stop-hub{ stop-color: var(--oh-amber); stop-opacity: 0.85; }
 body.club-theme .oh-stop--system{ stop-color: var(--oh-system); } body.club-theme .oh-link-end--system{ fill: var(--oh-system); }
 body.club-theme .oh-stop--cyber{ stop-color: var(--oh-cyber); } body.club-theme .oh-link-end--cyber{ fill: var(--oh-cyber); }
@@ -7366,6 +7494,10 @@ body.club-theme .oh-stop--vision{ stop-color: var(--oh-vision); } body.club-them
   body.club-theme .oh-links,
   body.club-theme .oh-link{ transition: none; }
   body.club-theme .oh-cards--core[data-hot] .oh-link.is-hot{ animation: none; stroke-dasharray: none; }
+  body.club-theme .oh-link-glow,
+  body.club-theme .oh-hub,
+  body.club-theme .oh-agent-orb,
+  body.club-theme .oh-cards--core .oh-card > .oh-card-illus{ transition: none; }
 }
 
 /* THE ESCAPE HATCH. Narrower than a laptop, or shorter than one, the map becomes
@@ -7374,7 +7506,10 @@ body.club-theme .oh-stop--vision{ stop-color: var(--oh-vision); } body.club-them
    room says in words what its line said ("No agent registered"). */
 @media (max-width: 1180px), (max-height: 640px){
   body.club-theme .oh-wrap--map{ padding: 20px 20px 16px; }
-  body.club-theme .oh-cards--core{
+  /* .oh-cards.oh-cards--core, not .oh-cards--core: the club member's landing makes every
+     .oh-cards one column at 900px further down this sheet, and at equal weight that rule
+     won here too — leaving two named columns on one track, so the branches overlapped. */
+  body.club-theme .oh-cards.oh-cards--core{
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: none; grid-auto-rows: auto;
     grid-template-areas: "center center" "system vault" "cyber city" "algo core" "design vision";
@@ -7385,6 +7520,7 @@ body.club-theme .oh-stop--vision{ stop-color: var(--oh-vision); } body.club-them
   body.club-theme .oh-hub-slot::before{ display: none; }
   body.club-theme .oh-node--center{ grid-template-rows: none; gap: 18px; }
   body.club-theme .oh-node--clubs{ max-width: 560px; }
+  body.club-theme .oh-hub{ width: clamp(268px, 34vw, 300px); padding-inline: 24px; }
   body.club-theme .oh-agents--edge{ position: static; transform: none; flex-direction: row; align-items: center; margin-top: 8px; }
   body.club-theme .oh-agent-none{ width: auto; height: auto; padding: 0 2px; border: 0; background: none; }
   body.club-theme .oh-agent-none-l{
@@ -7395,7 +7531,7 @@ body.club-theme .oh-stop--vision{ stop-color: var(--oh-vision); } body.club-them
   html[dir="rtl"] body.club-theme .oh-agent-none-l{ margin: 0 8px 0 0; }
 }
 @media (max-width: 720px){
-  body.club-theme .oh-cards--core{
+  body.club-theme .oh-cards.oh-cards--core{
     grid-template-columns: 1fr;
     grid-template-areas: "center" "system" "cyber" "algo" "design" "vault" "city" "core" "vision";
   }

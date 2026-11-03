@@ -2035,6 +2035,45 @@ function buildWorkspaceSidebar() {
       + '</div>';
   }).join('');
 }
+// ── OWNER CONTROL · the language switch in the top bar ──────────────────────
+// Arabic, English and German, one press each, for the Platform Owner. It is the
+// Settings page's own switch behind three buttons — I18N_APPLY.change applies
+// the language at once (direction included), caches it for the next first
+// paint and saves it to the account — so there is still exactly one way the
+// interface changes language. Nothing is unmounted: the page, the open room and
+// the reader's place on it stay where they are. The group is hidden until
+// /system/whoami has said yes (_isPlatformOwner), and each button names its
+// language in that language, which is why the group is never translated.
+function _langSwitchSync() {
+  const g = document.getElementById('lang-switch');
+  if (!g) return;
+  const now = (window.I18N && typeof I18N.locale === 'function') ? I18N.locale() : '';
+  g.querySelectorAll('[data-locale]').forEach(function (b) {
+    b.setAttribute('aria-pressed', b.getAttribute('data-locale') === now ? 'true' : 'false');
+  });
+}
+/** Reveal the switch, naming each button from the registry: its code, then its language's own name. */
+function _langSwitchShow() {
+  const g = document.getElementById('lang-switch');
+  if (!g) return;
+  const known = (window.I18N && typeof I18N.locales === 'function') ? I18N.locales() : [];
+  g.querySelectorAll('[data-locale]').forEach(function (b) {
+    const entry = known.filter(function (l) { return l && l.tag === b.getAttribute('data-locale'); })[0];
+    if (!entry) { b.hidden = true; return; }
+    b.setAttribute('title', entry.label);
+    b.setAttribute('aria-label', b.textContent.trim() + ' · ' + entry.label);
+  });
+  g.hidden = false;
+  _langSwitchSync();
+}
+/** One of the switch's own buttons was pressed: put its language in force, unless it already is. */
+function _langSwitchTo(btn) {
+  const tag = btn && btn.getAttribute('data-locale');
+  if (!tag || !btn.closest('#lang-switch') || !window.I18N_APPLY) return;
+  if (window.I18N && typeof I18N.locale === 'function' && I18N.locale() === tag) return;
+  I18N_APPLY.change(tag).then(_langSwitchSync, _langSwitchSync);
+}
+
 (function () {
   function _boot() {
     try { buildWorkspaceSidebar(); } catch (_) {}
@@ -2043,6 +2082,13 @@ function buildWorkspaceSidebar() {
     try {
       if (window.I18N_APPLY) {
         I18N_APPLY.registerRepaint(function () { try { buildWorkspaceSidebar(); } catch (_) {} });
+        // The top bar's switch says which language is in force, however it was
+        // changed, and the Owner Control map redraws its lines for the new words
+        // and, between Arabic and the others, for the mirrored grid.
+        I18N_APPLY.registerRepaint(function () {
+          try { _langSwitchSync(); } catch (_) {}
+          try { if (document.getElementById('oh-map')) _ohScheduleDraw(); } catch (_) {}
+        });
         I18N_APPLY.boot();
       }
     } catch (_) {}
@@ -3697,7 +3743,8 @@ function _isPlatformOwner() {
     credentials: 'include',
   }).then(r => (r.ok ? r.json() : null))
     .then(b => !!(b && b.data && b.data.isPlatformOwner))
-    .catch(() => false);
+    .catch(() => false)
+    .then(function (yes) { if (yes) { try { _langSwitchShow(); } catch (_) {} } return yes; });
   return _platformAuthority;
 }
 
@@ -4209,7 +4256,7 @@ function _ohAgentButton(a) {
   const glyph = _OH_AGENT_GLYPH[a.domain] || _OH_AGENT_GLYPH._;
   return '<button class="oh-agent oh-agent--' + lc.toLowerCase().replace(/[^a-z]/g, '') + '" type="button"'
     + ' data-action="openAgentInRoom" data-agent-id="' + _esc(id) + '" data-agent-lc="' + _esc(lc) + '">'
-    + '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + glyph + '</svg>'
+    + '<span class="oh-agent-orb"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + glyph + '</svg></span>'
     + '<span class="oh-agent-name">' + _esc(a.title || id) + '</span></button>';
 }
 
@@ -4285,13 +4332,19 @@ function _ohDrawLinks() {
   if (getComputedStyle(svg).display === 'none') { svg.innerHTML = ''; return; }
   const m = map.getBoundingClientRect();
   const h = hub.getBoundingClientRect();
+  // A map that is in the page but not laid out (another room is showing) has nothing to draw:
+  // the next draw, when it is shown again, has real sizes. A hub of no size has no rim to leave.
+  if (!(h.width > 0 && h.height > 0 && m.width > 0)) { svg.innerHTML = ''; return; }
   const W = Math.round(m.width), H = Math.round(m.height);
   const r = (n) => Math.round(n * 10) / 10;
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
   svg.setAttribute('width', W);
   svg.setAttribute('height', H);
   const hubMid = h.left + h.width / 2;
-  let defs = '', lines = '';
+  // The hub is a circle (an ellipse only if its words outgrow it): every line leaves from its rim.
+  const cx = hubMid - m.left, cy = h.top + h.height / 2 - m.top;
+  const rx = h.width / 2, ry = h.height / 2;
+  let defs = '<filter id="oh-soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4"/></filter>', lines = '';
   map.querySelectorAll('[data-oh-node]').forEach(function (node) {
     const k = node.getAttribute('data-oh-node');
     const card = node.querySelector('.oh-card');
@@ -4299,7 +4352,7 @@ function _ohDrawLinks() {
     const c = card.getBoundingClientRect();
     let x1, y1, x2, y2, d;
     if (k === 'clubs') {
-      x1 = hubMid - m.left; y1 = h.bottom - m.top;
+      x1 = cx; y1 = cy + ry;
       x2 = c.left + c.width / 2 - m.left; y2 = c.top - m.top;
       const my = (y1 + y2) / 2;
       d = 'M' + r(x1) + ',' + r(y1) + ' C' + r(x1) + ',' + r(my) + ' ' + r(x2) + ',' + r(my) + ' ' + r(x2) + ',' + r(y2);
@@ -4308,14 +4361,17 @@ function _ohDrawLinks() {
       const before = c.left + c.width / 2 < hubMid;
       x2 = (before ? c.right : c.left) - m.left;
       y2 = c.top + c.height / 2 - m.top;
-      x1 = (before ? h.left : h.right) - m.left;
-      y1 = Math.min(Math.max(y2, h.top - m.top + 28), h.bottom - m.top - 28);
+      y1 = Math.min(Math.max(y2, cy - ry * 0.78), cy + ry * 0.78);
+      x1 = cx + (before ? -1 : 1) * rx * Math.sqrt(Math.max(0, 1 - Math.pow((y1 - cy) / ry, 2)));
       const dx = (x2 - x1) / 2;
       d = 'M' + r(x1) + ',' + r(y1) + ' C' + r(x1 + dx) + ',' + r(y1) + ' ' + r(x2 - dx) + ',' + r(y2) + ' ' + r(x2) + ',' + r(y2);
     }
     defs += '<linearGradient id="oh-g-' + k + '" gradientUnits="userSpaceOnUse" x1="' + r(x1) + '" y1="' + r(y1) + '" x2="' + r(x2) + '" y2="' + r(y2) + '">'
       + '<stop offset="0" class="oh-stop-hub"/><stop offset="1" class="oh-stop oh-stop--' + k + '"/></linearGradient>';
-    lines += '<path class="oh-link oh-link--' + k + '" data-k="' + k + '" d="' + d + '" stroke="url(#oh-g-' + k + ')"/>'
+    lines += '<path class="oh-link-glow" data-k="' + k + '" d="' + d + '" stroke="url(#oh-g-' + k + ')" filter="url(#oh-soft)"/>'
+      + '<path class="oh-link oh-link--' + k + '" data-k="' + k + '" d="' + d + '" stroke="url(#oh-g-' + k + ')"/>'
+      + '<circle class="oh-link-port oh-link-end--' + k + '" cx="' + r(x1) + '" cy="' + r(y1) + '" r="2.6"/>'
+      + '<circle class="oh-link-ring oh-link-ring--' + k + '" cx="' + r(x2) + '" cy="' + r(y2) + '" r="6.5"/>'
       + '<circle class="oh-link-end oh-link-end--' + k + '" cx="' + r(x2) + '" cy="' + r(y2) + '" r="3"/>';
   });
   svg.innerHTML = '<defs>' + defs + '</defs>' + lines;
@@ -4327,7 +4383,7 @@ function _ohDrawLinks() {
 /** Light the line of the room under the pointer or the focus (every line, for the hub). */
 function _ohLight(map, k) {
   if (k) map.setAttribute('data-hot', k); else map.removeAttribute('data-hot');
-  map.querySelectorAll('.oh-link').forEach(function (p) {
+  map.querySelectorAll('.oh-link, .oh-link-glow').forEach(function (p) {
     p.classList.toggle('is-hot', !!k && (k === 'hub' || p.getAttribute('data-k') === k));
   });
 }
@@ -4428,13 +4484,15 @@ function _ownerHomeForPlatformOwner(user, club) {
           </div>
           <div class="oh-hub-slot">
             <button class="oh-hub" data-action="navTo" data-page="agents-room" type="button">
-              <span class="oh-hub-mark" aria-hidden="true"><svg viewBox="0 0 64 64" width="64" height="64" fill="none" focusable="false">
-                <circle cx="32" cy="32" r="29" stroke="currentColor" stroke-opacity=".22"/>
-                <circle cx="32" cy="32" r="20" stroke="currentColor" stroke-opacity=".5" stroke-width="1.2" stroke-dasharray="2 4"/>
-                <path d="M32 23V12M39.8 27.5l9.5-5.5M39.8 36.5l9.5 5.5M32 41v11M24.2 36.5l-9.5 5.5M24.2 27.5l-9.5-5.5" stroke="currentColor" stroke-opacity=".55" stroke-width="1.2"/>
-                <circle cx="32" cy="32" r="9" fill="currentColor" fill-opacity=".16" stroke="currentColor" stroke-width="1.6"/>
-                <circle cx="32" cy="32" r="3.4" fill="currentColor"/>
-                <g fill="currentColor"><circle cx="32" cy="10" r="2.4"/><circle cx="51" cy="21" r="2.4"/><circle cx="51" cy="43" r="2.4"/><circle cx="32" cy="54" r="2.4"/><circle cx="13" cy="43" r="2.4"/><circle cx="13" cy="21" r="2.4"/></g>
+              <span class="oh-hub-mark" aria-hidden="true"><svg viewBox="0 0 64 64" width="56" height="56" fill="none" focusable="false">
+                <circle cx="32" cy="32" r="30" stroke="currentColor" stroke-opacity=".2" stroke-dasharray="1.5 3.5"/>
+                <path d="M32 12V7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="32" cy="6" r="2.8" fill="currentColor"/>
+                <rect x="13" y="13" width="38" height="31" rx="11.5" fill="currentColor" fill-opacity=".14" stroke="currentColor" stroke-width="2"/>
+                <rect x="19" y="20" width="26" height="16" rx="8" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-opacity=".55" stroke-width="1.2"/>
+                <circle cx="26" cy="28" r="3" fill="currentColor"/><circle cx="38" cy="28" r="3" fill="currentColor"/>
+                <path d="M8.5 24.5v9M55.5 24.5v9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                <path d="M24 44v4.5M40 44v4.5M20 52.5h24" stroke="currentColor" stroke-opacity=".55" stroke-width="2" stroke-linecap="round"/>
               </svg></span>
               <span class="oh-hub-title">AI AGENTS — OPERATIONS ROOM</span>
               <span class="oh-hub-sub">Every agent in the Agent Registry: its domain, scope, lifecycle and permissions</span>
@@ -4448,7 +4506,8 @@ function _ownerHomeForPlatformOwner(user, club) {
               <div class="oh-agents-cap" id="oh-agents-cap">Reading the Agent Registry…</div>
             </div>
             <button class="oh-card oh-card--clubs" data-action="navTo" data-page="clubs" type="button">
-          <div class="oh-card-icon">🏟️</div>
+<div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false"><ellipse cx="12" cy="8.6" rx="9" ry="3.6"/><path d="M3 8.6v6.2c0 2 4 3.6 9 3.6s9-1.6 9-3.6V8.6"/><path d="M8.6 8.6h6.8M12 7v3.2"/><path d="M7 12.8v3.4M12 13.4v3.6M17 12.8v3.4"/></svg></div>
+          <img class="oh-card-illus" src="/owner-control/illus/clubs.svg" alt="" width="220" height="160" decoding="async" draggable="false">
           <div class="oh-card-title">CLUBS</div>
           <div class="oh-card-sub">Football Organizations, Teams, People &amp; Operations</div>
           <div class="oh-card-list"><span>Pick a club workspace to enter — currently</span> <span data-user-content>${_esc(club.name || 'FC Familista')}</span></div>
@@ -4458,7 +4517,8 @@ function _ownerHomeForPlatformOwner(user, club) {
         </div>
         <div class="oh-node oh-node--l" data-oh-node="system">
           <button class="oh-card oh-card--system" data-action="navTo" data-page="system" type="button">
-          <div class="oh-card-icon">⚙️</div>
+<div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2.3"/><path d="M12 2.8v2.7M12 18.5v2.7M2.8 12h2.7M18.5 12h2.7M5.5 5.5l1.9 1.9M16.6 16.6l1.9 1.9M5.5 18.5l1.9-1.9M16.6 7.4l1.9-1.9" stroke-width="2.3"/></svg></div>
+          <img class="oh-card-illus" src="/owner-control/illus/system.svg" alt="" width="220" height="160" decoding="async" draggable="false">
           <div class="oh-card-title">SYSTEM</div>
           <div class="oh-card-sub">Platform Operations, Infrastructure, Intelligence &amp; Governance</div>
           <div class="oh-card-list">Command Center · Clubs · People &amp; Access · Intelligence · Governance · Innovation Lab · Security · Audit</div>
@@ -4473,6 +4533,7 @@ function _ownerHomeForPlatformOwner(user, club) {
             <circle cx="20" cy="17.6" r="3.4" stroke="currentColor" stroke-width="1.8"/>
             <path d="M20 21v5.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           </svg></div>
+          <img class="oh-card-illus" src="/owner-control/illus/cyber.svg" alt="" width="220" height="160" decoding="async" draggable="false">
           <div class="oh-card-title">CYBERSECURITY</div>
           <div class="oh-card-sub">Security Posture, Protection, Evidence &amp; Monitoring</div>
           <div class="oh-card-list">Command Center · Security Domains · Row-Level Security · Security Lifecycle · Coverage &amp; Gaps · Events &amp; Alerts · Evidence</div>
@@ -4489,6 +4550,7 @@ function _ownerHomeForPlatformOwner(user, club) {
             <circle cx="20" cy="20" r="3.2" stroke="currentColor" stroke-width="1.8"/>
             <path d="M20 13.4v3.4M20 23.2v3.4M13.4 20h3.4M23.2 20h3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
           </svg></div>
+          <img class="oh-card-illus" src="/owner-control/illus/algo.svg" alt="" width="220" height="160" decoding="async" draggable="false">
           <div class="oh-card-title">ALGORITHMS</div>
           <div class="oh-card-sub">Registry, Intelligence Loop, Evaluation &amp; Human Approval</div>
           <div class="oh-card-list">Overview · Registry · Intelligence Loop · Evaluation · Approvals &amp; Audit · Monitoring</div>
@@ -4502,6 +4564,7 @@ function _ownerHomeForPlatformOwner(user, club) {
           <div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false">
             <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>
           </svg></div>
+          <img class="oh-card-illus" src="/owner-control/illus/design.svg" alt="" width="220" height="160" decoding="async" draggable="false">
           <div class="oh-card-title">DESIGN SYSTEM CONTROL</div>
           <div class="oh-card-sub">Design Tokens, Contrast, Provenance &amp; Evidence</div>
           <div class="oh-card-list">Overview · Design Tokens · Layers · Contrast · Provenance</div>
@@ -4512,7 +4575,8 @@ function _ownerHomeForPlatformOwner(user, club) {
         </div>
         <div class="oh-node oh-node--r" data-oh-node="vault">
           <button class="oh-card oh-card--vault" data-action="navTo" data-page="data-vault" type="button">
-          <div class="oh-card-icon">⛁</div>
+<div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false"><ellipse cx="12" cy="5.6" rx="7.5" ry="2.8"/><path d="M4.5 5.6v12.8c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8V5.6"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg></div>
+          <img class="oh-card-illus" src="/owner-control/illus/vault.svg" alt="" width="220" height="160" decoding="async" draggable="false">
           <div class="oh-card-title">DATA VAULT</div>
           <div class="oh-card-sub">Historical Data, Archive, Replay &amp; Governance</div>
           <div class="oh-card-list">Historical Explorer · Timeline &amp; Replay · Club History · Entity History · Sources · Storage · Integrity · Retention</div>
@@ -4523,7 +4587,8 @@ function _ownerHomeForPlatformOwner(user, club) {
         </div>
         <div class="oh-node oh-node--r" data-oh-node="city">
           <button class="oh-card oh-card--city" data-action="navTo" data-page="infrastructure-city" type="button">
-          <div class="oh-card-icon">◈</div>
+<div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 21h18"/><rect x="4.5" y="10" width="5" height="11" rx="1"/><rect x="10.5" y="3.5" width="6" height="17.5" rx="1"/><path d="M16.5 8.5h3V21"/><path d="M12.8 7.5h1.4M12.8 11h1.4M12.8 14.5h1.4M6.4 13.5h1.2M6.4 17h1.2"/></svg></div>
+          <img class="oh-card-illus" src="/owner-control/illus/city.svg" alt="" width="220" height="160" decoding="async" draggable="false">
           <div class="oh-card-title">INFRASTRUCTURE CITY</div>
           <div class="oh-card-sub">Live Infrastructure, Technology, Health &amp; Architecture</div>
           <div class="oh-card-list">Districts · Technology Map · Topology · Alerts &amp; Incidents · Capacity · Change History · Detection Rules · Evidence</div>
@@ -4534,7 +4599,8 @@ function _ownerHomeForPlatformOwner(user, club) {
         </div>
         <div class="oh-node oh-node--r" data-oh-node="core">
           <button class="oh-card oh-card--core" data-action="navTo" data-page="source-core" type="button">
-          <div class="oh-card-icon">◉</div>
+<div class="oh-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="12" cy="12.5" r="3.2"/><circle cx="12" cy="12.5" r="7.6" stroke-opacity=".55" stroke-dasharray="2 2.6"/><circle cx="4" cy="5.5" r="1.7"/><circle cx="20" cy="5.5" r="1.7"/><circle cx="12" cy="21.4" r="1.7"/><path d="M5.3 6.6l4.2 3.6M18.7 6.6l-4.2 3.6M12 19.7v-4"/></svg></div>
+          <img class="oh-card-illus" src="/owner-control/illus/core.svg" alt="" width="220" height="160" decoding="async" draggable="false">
           <div class="oh-card-title">SOURCE CORE</div>
           <div class="oh-card-sub">Origins, Provenance, Lineage &amp; Dependency</div>
           <div class="oh-card-list">Source Flow · Internal Sources · External Sources · Technology Origins · Unregistered Intake · Future Sources · Data Lineage · Evidence</div>
@@ -4556,6 +4622,7 @@ function _ownerHomeForPlatformOwner(user, club) {
             <circle cx="20" cy="20" r="3" fill="currentColor"/>
             <path d="M20 11.6v-2.2M20 30.6v-2.2M11.6 20H9.4M30.6 20h-2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".6"/>
           </svg></div>
+          <img class="oh-card-illus" src="/owner-control/illus/vision.svg" alt="" width="220" height="160" decoding="async" draggable="false">
           <div class="oh-card-title">FAMILISTA VISION</div>
           <div class="oh-card-sub">Computer Vision, Tracking, Evidence &amp; Match Intelligence</div>
           <div class="oh-card-list">Live Analysis · Player &amp; Ball Tracking · Pitch Calibration · Teams &amp; Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models</div>
@@ -4566,7 +4633,7 @@ function _ownerHomeForPlatformOwner(user, club) {
         </div>
       </div>
       <div class="oh-footer">
-        Familista · ${_esc((user.email || 'Owner') + '')} · ${clubCount} club${clubCount === 1 ? '' : 's'} in your network
+        <span data-no-i18n>Familista</span> · <span data-user-content>${_esc((user.email || 'Owner') + '')}</span> · <span>Clubs in your network: ${clubCount}</span>
       </div>
     </div>
   `;
@@ -50802,6 +50869,8 @@ async function tosBoardSnapshot() {
         // agent's manifest. The id is only a request — the room opens it only
         // if its own registry read names it, and the manifest is read through
         // the room's owner-only endpoint like every other.
+        // The top bar's language switch (Platform Owner): one of its three languages.
+        case 'setUiLocale': _langSwitchTo(el); break;
         case 'openAgentInRoom': {
           _famAgentsRoomOpen = el.dataset.agentId || null;
           try { navTo('agents-room', null); }

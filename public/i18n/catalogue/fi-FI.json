@@ -1616,5 +1616,8 @@
   "Match Operations": "Otteluoperaatiot",
   "Communications": "Viestintä",
   "Device Management": "Laitehallinta",
-  "Big Data": "Big Data"
+  "Big Data": "Big Data",
+  "No historical events yet": "Ei vielä historiallisia tapahtumia",
+  "Vision engine reachable · no session store": "Vision-moottori tavoitettavissa · ei istuntovarastoa",
+  "Clubs in your network: \u0000": "Seurat verkostossasi: \u0000"
 }

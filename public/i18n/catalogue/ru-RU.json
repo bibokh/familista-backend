@@ -1616,5 +1616,8 @@
   "Match Operations": "Матчевые операции",
   "Communications": "Коммуникации",
   "Device Management": "Управление устройствами",
-  "Big Data": "Big Data"
+  "Big Data": "Big Data",
+  "No historical events yet": "Исторических событий пока нет",
+  "Vision engine reachable · no session store": "Движок Vision доступен · нет хранилища сессий",
+  "Clubs in your network: \u0000": "Клубы в вашей сети: \u0000"
 }

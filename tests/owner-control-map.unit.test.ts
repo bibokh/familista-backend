@@ -17,6 +17,14 @@
  *      hover changes no geometry, reduced motion stops the line, and the map
  *      becomes a scrolling list where it no longer fits.
  *   6. Every string the map can draw is in every locale's catalogue.
+ *   7. The visual upgrade: every room's own illustration (a safe, wordless,
+ *      figure-free vector), drawn icons instead of emoji, a circular hub whose
+ *      ring carries the rooms' colours, connectors that leave the hub's rim and
+ *      land on their card's edge, named agents under the hub, and a tablet grid
+ *      that a later generic rule can no longer collapse.
+ *   8. The language switch in the top bar: AR, EN and DE, the Platform Owner's
+ *      alone, named from the locale registry, applied through the one
+ *      existing path (I18N_APPLY.change), and redrawing the map after a change.
  * The real-browser checks of the same behaviour (geometry, Tab order, hover,
  * the room opening on an agent, loading and failure states, the club account)
  * are recorded in the pull request.
@@ -296,5 +304,268 @@ describe('6 · translated in every locale the platform ships', () => {
   it('draws the count lines as a label and a number, so one entry answers every count', () => {
     expect(HELPERS).toContain("write('ok', 'Agents running: ' + running + ' of ' + agents.length);");
     expect(HELPERS).toContain("caption('Club agents: ' + agents.filter(_OH_AGENT_HOME.clubs).length);");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('7 · the visual upgrade: pictures, icons, the round hub and its lines', () => {
+  const ROOMS: [string, string][] = [['clubs', 'clubs'], ['system', 'system'], ['cyber', 'cyber'], ['algo', 'algo'], ['ds', 'design'], ['vault', 'vault'], ['city', 'city'], ['core', 'core'], ['vision', 'vision']];
+  const cardOf = (k: string) => { const at = LANDING.indexOf(`<button class="oh-card oh-card--${k}"`); return LANDING.slice(at, LANDING.indexOf('</button>', at)); };
+
+  it('gives every room its own illustration inside its card, decorative and the size it is drawn at', () => {
+    for (const [k, file] of ROOMS) {
+      expect([k, cardOf(k)]).toEqual([k, expect.stringContaining(`<img class="oh-card-illus" src="/owner-control/illus/${file}.svg" alt="" width="220" height="160" decoding="async" draggable="false">`)]);
+      expect(fs.existsSync(path.join(ROOT, `public/owner-control/illus/${file}.svg`))).toBe(true);
+    }
+    expect((LANDING.match(/class="oh-card-illus"/g) || []).length).toBe(9);
+    // Nine different pictures: no two rooms share one.
+    expect(new Set(ROOMS.map(([, f]) => read(`public/owner-control/illus/${f}.svg`))).size).toBe(9);
+  });
+
+  // An illustration is served from our own origin as an <img>, so it can run nothing; it must also
+  // say nothing (no words to translate, no figure to mistake for a measurement) and fetch nothing.
+  const unsafe = (svg: string) => [
+    /<script/i.test(svg) && 'script', /\son[a-z]+\s*=/i.test(svg) && 'handler', /<text|<tspan/i.test(svg) && 'text',
+    /<(image|foreignObject|use|a)\b/i.test(svg) && 'external element', /(href|url)\s*[=(]\s*["']?(https?:|\/\/|data:)/i.test(svg) && 'external reference',
+    /@import|<style/i.test(svg) && 'stylesheet', !/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 220 160"/.test(svg) && 'frame',
+    svg.length > 12000 && 'size',
+  ].filter(Boolean);
+  it('draws each picture as a safe, wordless, self-contained vector on one frame', () => {
+    for (const [, f] of ROOMS) expect([f, unsafe(read(`public/owner-control/illus/${f}.svg`))]).toEqual([f, []]);
+  });
+  it('(control) the same check refuses a picture with a script, a word, a figure or a remote fetch', () => {
+    const ok = read('public/owner-control/illus/system.svg');
+    expect(unsafe(ok.replace('</svg>', '<script>alert(1)</script></svg>'))).toContain('script');
+    expect(unsafe(ok.replace('</svg>', '<text x="1" y="1">98%</text></svg>'))).toContain('text');
+    expect(unsafe(ok.replace('</svg>', '<image href="https://example.com/x.png"/></svg>'))).toContain('external element');
+    expect(unsafe(ok.replace('<svg ', '<svg onload="x()" '))).toContain('handler');
+  });
+
+  it('draws every card icon and hides it from assistive technology: no emoji glyphs remain', () => {
+    const icons = [...LANDING.matchAll(/<div class="oh-card-icon"[^>]*>([\s\S]*?)<\/div>/g)];
+    expect(icons).toHaveLength(9);
+    for (const m of icons) {
+      expect(m[0]).toMatch(/^<div class="oh-card-icon" aria-hidden="true"><svg /);
+    }
+    // The glyphs the cards used to carry (an emoji stadium and gear, ⛁ ◈ ◉) — in the icons, not in the comments that recall them.
+    expect(icons.map((m) => m[1]).join('')).not.toMatch(/[\u{1F300}-\u{1FAFF}\u2699\u26C1\u25C8\u25C9]/u);
+  });
+
+  it('places the picture in the grid beside the words, and keeps the words a gap of the picture\'s own width', () => {
+    const map = CSS.slice(CSS.indexOf('/* THE OWNER CONTROL MIND MAP.'), CSS.indexOf('/* THE ESCAPE HATCH.'));
+    expect(map).toMatch(/\.oh-card > \.oh-card-illus\{\s*grid-row: 2 \/ span 2; justify-self: end; align-self: center;/);
+    for (const [title, sub, list] of [['title', 'sub', 'list']]) {
+      expect(map).toContain(`body.club-theme .oh-cards--core .oh-card > .oh-card-${title}{ grid-row: 1; }`);
+      expect(map).toContain(`body.club-theme .oh-cards--core .oh-card > .oh-card-${sub}{ grid-row: 2; }`);
+      expect(map).toContain(`body.club-theme .oh-cards--core .oh-card > .oh-card-${list}{ grid-row: 3; }`);
+    }
+    // Every width the picture can take is the width the words step aside by (default, CLUBS, large screens).
+    const widths = [...map.matchAll(/oh-card-illus\{[^}]*?width: (clamp\([^)]*\))/g)].map((m) => m[1]);
+    const gaps = [...map.matchAll(/oh-card-list\{ margin-inline-end: calc\((clamp\([^)]*\)) \+ \d+px\); \}/g)].map((m) => m[1]);
+    expect(widths.length).toBe(3);
+    expect(gaps).toEqual(widths);
+  });
+
+  it('makes the hub a circle, ringed in the rooms\' colours in the order they stand, mirrored in Arabic', () => {
+    const hub = CSS.slice(CSS.indexOf('body.club-theme .oh-hub{'), CSS.indexOf('body.club-theme .oh-hub-mark{'));
+    expect(hub).toMatch(/aspect-ratio: 1; border-radius: 50%;/);
+    const ring = (hub.match(/conic-gradient\(([^;]*)\);/) || [])[1] || '';
+    expect([...ring.matchAll(/var\(--oh-([a-z]+)\)/g)].map((m) => m[1])).toEqual(['amber', 'vault', 'city', 'core', 'vision', 'clubs', 'ds', 'algo', 'cyber', 'system', 'amber']);
+    expect(CSS).toContain('html[dir="rtl"] body.club-theme .oh-hub::after{ transform: scaleX(-1); }');
+    // An arrow points the way the page reads.
+    expect(CSS).toMatch(/html\[dir="rtl"\] body\.club-theme \.oh-cards--core \.oh-card-cta span,\s*html\[dir="rtl"\] body\.club-theme \.oh-hub-cta span\{ transform: scaleX\(-1\); \}/);
+    // Its mark is drawn, and still hidden from assistive technology.
+    expect(LANDING).toMatch(/<span class="oh-hub-mark" aria-hidden="true"><svg viewBox="0 0 64 64"[^>]*focusable="false">/);
+  });
+
+  // ── the connectors, drawn against a laid-out page ────────────────────────────
+  type Box = { left: number; top: number; width: number; height: number };
+  const rect = (b: Box) => ({ ...b, right: b.left + b.width, bottom: b.top + b.height });
+  function draw(rtl: boolean, source = HELPERS, hubBox: Box = { left: 585, top: 277, width: 270, height: 270 }) {
+    const L = { left: 24, width: 414 }, R = { left: 993, width: 414 };
+    const rows = [78, 278, 478, 678];
+    type Col = { left: number; width: number };
+    const side: Record<string, [Col, number]> = { system: [L, 0], cyber: [L, 1], algo: [L, 2], ds: [L, 3], vault: [R, 0], city: [R, 1], core: [R, 2], vision: [R, 3] };
+    const cards: Record<string, Box> = { clubs: { left: 504, top: 721, width: 423, height: 146 } };
+    for (const [k, [col, i]] of Object.entries(side)) cards[k] = { left: rtl ? (col === L ? R.left : L.left) : col.left, top: rows[i], width: col.width, height: 188 };
+    const svg: any = { attrs: {} as Record<string, string>, html: '', setAttribute(k: string, v: string) { this.attrs[k] = v; }, set innerHTML(v: string) { this.html = v; }, classList: { add() {} } };
+    const nodes = Object.keys(cards).map((k) => ({ getAttribute: () => k, querySelector: () => ({ getBoundingClientRect: () => rect(cards[k]) }) }));
+    const map = { getBoundingClientRect: () => rect({ left: 24, top: 78, width: 1383, height: 790 }), querySelector: (q: string) => (q === '.oh-hub' ? { getBoundingClientRect: () => rect(hubBox) } : null), querySelectorAll: (q: string) => (q === '[data-oh-node]' ? nodes : []), getAttribute: () => null };
+    const sandbox: any = { document: { getElementById: (id: string) => ({ 'oh-map': map, 'oh-links': svg } as any)[id] || null }, getComputedStyle: () => ({ display: 'block' }), _esc: esc, console };
+    vm.runInNewContext(source + '\n_ohDrawLinks();', sandbox);
+    return { html: svg.html as string, cards, m: { left: 24, top: 78 } };
+  }
+  const audit = (r: ReturnType<typeof draw>) => {
+    const cx = 585 + 135 - 24, cy = 277 + 135 - 78;
+    return [...r.html.matchAll(/<path class="oh-link oh-link--([a-z]+)" data-k="\1" d="M([-\d.]+),([-\d.]+) C[^"]* ([-\d.]+),([-\d.]+)"/g)].map((m) => {
+      const [k, x1, y1, x2, y2] = [m[1], +m[2], +m[3], +m[4], +m[5]];
+      const c = rect(r.cards[k]);
+      const rim = Math.abs(Math.hypot(x1 - cx, y1 - cy) - 135) < 0.6;
+      const before = c.left + c.width / 2 < 585 + 135;
+      const end = k === 'clubs'
+        ? Math.abs(x2 - (c.left + c.width / 2 - 24)) < 0.6 && Math.abs(y2 - (c.top - 78)) < 0.6
+        : Math.abs(x2 - ((before ? c.right : c.left) - 24)) < 0.6 && Math.abs(y2 - (c.top + c.height / 2 - 78)) < 0.6;
+      const port = r.html.includes(`<circle class="oh-link-port oh-link-end--${k}" cx="${x1}" cy="${y1}"`);
+      const ringAt = r.html.includes(`<circle class="oh-link-ring oh-link-ring--${k}" cx="${x2}" cy="${y2}"`);
+      return { k, rim, end, port, ringAt };
+    });
+  };
+  it('leaves the hub\'s rim for every room and lands on that card\'s edge, in either reading direction', () => {
+    for (const rtl of [false, true]) {
+      const a = audit(draw(rtl));
+      expect(a.map((x) => x.k).sort()).toEqual(['algo', 'city', 'clubs', 'core', 'cyber', 'ds', 'system', 'vault', 'vision']);
+      expect([rtl, a.filter((x) => !(x.rim && x.end && x.port && x.ringAt))]).toEqual([rtl, []]);
+    }
+    // Under each line, its own soft glow: decoration, which the lighting of a room also reaches.
+    expect(draw(false).html).toMatch(/<path class="oh-link-glow" data-k="system" d="M[^"]+" stroke="url\(#oh-g-system\)" filter="url\(#oh-soft\)"\/>/);
+    expect(HELPERS).toContain("map.querySelectorAll('.oh-link, .oh-link-glow').forEach(function (p) {");
+  });
+  it('(control) the same check fails against lines that leave the hub\'s box instead of its rim', () => {
+    const boxy = HELPERS.replace("x1 = cx + (before ? -1 : 1) * rx * Math.sqrt(Math.max(0, 1 - Math.pow((y1 - cy) / ry, 2)));", 'x1 = (before ? h.left : h.right) - m.left;');
+    expect(boxy).not.toBe(HELPERS);
+    expect(audit(draw(false, boxy)).some((x) => !x.rim)).toBe(true);
+  });
+
+  it('draws nothing, and writes no NaN, while the map is in the page but not laid out', () => {
+    // Another room is showing: the landing is still in the document, and a resize asks for a redraw.
+    const hidden = draw(false, HELPERS, { left: 0, top: 0, width: 0, height: 0 });
+    expect(hidden.html).toBe('');
+    expect(hidden.html).not.toMatch(/NaN/);
+  });
+  it('(control) without that guard the same redraw writes NaN into the page', () => {
+    const unguarded = HELPERS.replace("if (!(h.width > 0 && h.height > 0 && m.width > 0)) { svg.innerHTML = ''; return; }", '');
+    expect(unguarded).not.toBe(HELPERS);
+    expect(draw(false, unguarded, { left: 0, top: 0, width: 0, height: 0 }).html).toMatch(/NaN/);
+  });
+
+  it('names every agent under the hub as the registry names it, and keeps the names beside a room for the caption', async () => {
+    const r = await runFill(overview());
+    expect(r.by.clubs).toContain('<span class="oh-agent-orb"><svg viewBox="0 0 24 24"');
+    expect(r.by.clubs).toContain('<span class="oh-agent-name">Device Management</span>');
+    // Shown under the hub, on one line each (never broken inside a word); hidden beside a room's card.
+    expect(CSS).toMatch(/body\.club-theme \.oh-agents--row \.oh-agent-name\{\s*position: static;[^}]*white-space: nowrap;/);
+    expect(CSS).toMatch(/body\.club-theme \.oh-agent-name,\s*body\.club-theme \.oh-agent-none-l\{\s*position: absolute; width: 1px; height: 1px;/);
+    // Three rows are held before the registry answers, so its arrival moves nothing.
+    expect(CSS).toContain('body.club-theme .oh-agents--row .oh-agents-list:not(.is-read){ min-height: 108px; }');
+  });
+
+  it('keeps two branches side by side on a tablet: the generic one-column rule further down cannot win', () => {
+    const generic = CSS.indexOf('@media (max-width: 900px){ body.club-theme .oh-cards{ grid-template-columns: 1fr; } }');
+    const hatch = CSS.indexOf('@media (max-width: 1180px), (max-height: 640px){');
+    expect(generic).toBeGreaterThan(hatch);
+    const two = CSS.slice(hatch, CSS.indexOf('/* The core\'s own accent.'));
+    // .oh-cards.oh-cards--core outweighs .oh-cards, whichever comes later.
+    expect(two).toMatch(/body\.club-theme \.oh-cards\.oh-cards--core\{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+    expect(two).toMatch(/@media \(max-width: 720px\)\{\s*body\.club-theme \.oh-cards\.oh-cards--core\{\s*grid-template-columns: 1fr;/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('8 · the language switch in the top bar', () => {
+  const HTML = read('public/index.html');
+  const group = HTML.slice(HTML.indexOf('<div class="lang-switch"'), HTML.indexOf('</div>', HTML.indexOf('<div class="lang-switch"')) + 6);
+  const SWITCH = APP.slice(APP.indexOf('// ── OWNER CONTROL · the language switch in the top bar'), APP.indexOf('(function () {\n  function _boot() {\n    try { buildWorkspaceSidebar(); }'));
+  const CFG = read('public/i18n/config.js');
+
+  it('is a labelled group of three real buttons, hidden until shown, and never translated', () => {
+    expect(group).toMatch(/^<div class="lang-switch" id="lang-switch" role="group" aria-label="Interface Language" data-i18n-aria="settings\.interfaceLanguage" data-no-i18n hidden>/);
+    const buttons = [...group.matchAll(/<button class="lang-switch-btn" type="button" data-action="setUiLocale" data-locale="([^"]+)" lang="([a-z]+)" aria-pressed="false">([A-Z]{2})<\/button>/g)].map((m) => `${m[1]}/${m[2]}/${m[3]}`);
+    expect(buttons).toEqual(['ar/ar/AR', 'en-GB/en/EN', 'de-DE/de/DE']);
+    // No handler, no style, and no language list of its own: the names come from the registry.
+    expect(group).not.toMatch(/\son[a-z]+=|style=|title=|العربية|Deutsch|English/);
+  });
+
+  it('offers only languages the registry declares, with the direction the registry gives them', () => {
+    for (const [tag, dir] of [['ar', 'rtl'], ['en-GB', 'ltr'], ['de-DE', 'ltr']]) {
+      expect(CFG).toMatch(new RegExp(`\\{ tag: '${tag}',\\s*label: '[^']+',\\s*dir: '${dir}' \\}`));
+    }
+    expect(SWITCH).not.toMatch(/\[\s*'ar'|'de-DE'|'en-GB'/);
+  });
+
+  function sandbox(now = 'en-GB', registry = [{ tag: 'ar', label: 'العربية' }, { tag: 'en-GB', label: 'English (UK)' }, { tag: 'de-DE', label: 'Deutsch' }]) {
+    const changes: string[] = [];
+    const mk = (tag: string, code: string) => ({ attrs: { 'data-locale': tag } as Record<string, string>, textContent: code, hidden: false,
+      getAttribute(k: string) { return this.attrs[k] ?? null; }, setAttribute(k: string, v: string) { this.attrs[k] = v; }, closest: (q: string) => (q === '#lang-switch' ? {} : null) });
+    const btns = [mk('ar', 'AR'), mk('en-GB', 'EN'), mk('de-DE', 'DE')];
+    const g = { hidden: true, querySelectorAll: () => btns };
+    const sb: any = {
+      window: {}, document: { getElementById: (id: string) => (id === 'lang-switch' ? g : null) },
+      I18N: { locale: () => now, locales: () => registry },
+      I18N_APPLY: { change: (t: string) => { changes.push(t); now = t; return Promise.resolve({ locale: t, saved: true }); } },
+    };
+    sb.window.I18N = sb.I18N; sb.window.I18N_APPLY = sb.I18N_APPLY;
+    vm.runInNewContext(SWITCH + '\nthis.show = _langSwitchShow; this.to = _langSwitchTo;', sb);
+    return { sb, g, btns, changes };
+  }
+
+  it('is revealed for the owner with each button named from the registry, and says which language is in force', () => {
+    const { sb, g, btns } = sandbox('de-DE');
+    sb.show();
+    expect(g.hidden).toBe(false);
+    expect(btns.map((b) => b.attrs['aria-label'])).toEqual(['AR · العربية', 'EN · English (UK)', 'DE · Deutsch']);
+    expect(btns.map((b) => b.attrs.title)).toEqual(['العربية', 'English (UK)', 'Deutsch']);
+    expect(btns.map((b) => b.attrs['aria-pressed'])).toEqual(['false', 'false', 'true']);
+  });
+
+  it('(control) a button for a language the registry does not declare is not offered', () => {
+    const { sb, btns } = sandbox('en-GB', [{ tag: 'en-GB', label: 'English (UK)' }, { tag: 'de-DE', label: 'Deutsch' }]);
+    sb.show();
+    expect(btns.map((b) => b.hidden)).toEqual([true, false, false]);
+  });
+
+  it('changes language only through I18N_APPLY.change, once, and not to the language already in force', async () => {
+    const { sb, btns, changes } = sandbox('en-GB');
+    sb.to(btns[2]); sb.to(btns[2]);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(changes).toEqual(['de-DE']);
+    sb.to(btns[0]);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(changes).toEqual(['de-DE', 'ar']);
+    expect(btns.map((b) => b.attrs['aria-pressed'])).toEqual(['true', 'false', 'false']);
+    // A button that is not the switch's own changes nothing.
+    sb.to({ getAttribute: () => 'de-DE', closest: () => null });
+    expect(changes).toEqual(['de-DE', 'ar']);
+    // One path: the switch never caches, sets a direction or loads a locale itself.
+    expect(SWITCH).not.toMatch(/localStorage|\.dir\b|setLocale\(|\.cache\(|fetch\(/);
+  });
+
+  it('is shown only once /system/whoami says yes, and is the delegated action every button uses', () => {
+    expect(APP).toContain(".catch(() => false)\n    .then(function (yes) { if (yes) { try { _langSwitchShow(); } catch (_) {} } return yes; });");
+    expect(APP).toContain("case 'setUiLocale': _langSwitchTo(el); break;");
+    expect(CSS).toContain('body.club-theme .lang-switch[hidden]{ display: none; }');
+    // The club member's landing shows none of it.
+    expect(MEMBER).not.toMatch(/lang-switch|_langSwitch/);
+  });
+
+  it('keeps its state and the map\'s lines right after any change of language, however it was made', () => {
+    expect(APP).toMatch(/I18N_APPLY\.registerRepaint\(function \(\) \{\s*try \{ _langSwitchSync\(\); \} catch \(_\) \{\}\s*try \{ if \(document\.getElementById\('oh-map'\)\) _ohScheduleDraw\(\); \} catch \(_\) \{\}\s*\}\);\s*I18N_APPLY\.boot\(\);/);
+  });
+
+  it('marks the language in force with a hairline and a tint, never a filled block, and shows focus', () => {
+    expect(CSS).toMatch(/\.lang-switch-btn\[aria-pressed="true"\]\{\s*color: var\(--gold-400\); background: color-mix\(in srgb, var\(--gold-500\) 13%, transparent\);\s*box-shadow: inset 0 0 0 1px/);
+    expect(CSS).toContain('body.club-theme .lang-switch-btn:focus-visible{ outline: 2px solid var(--gold-400); outline-offset: 1px; }');
+    // On a tablet it takes the status chips' place, and only where it is shown.
+    expect(CSS).toContain('body.club-theme .header-actions:has(> .lang-switch:not([hidden])) > .status-chip{ display: none !important; }');
+  });
+
+  it('has the strings this change draws in every catalogue, translated, and the Vision card in Arabic and German', () => {
+    const tags = fs.readdirSync(path.join(ROOT, 'public/i18n/catalogue')).filter((f) => /^[a-z]{2}(-[A-Z]{2})?\.json$/.test(f)).map((f) => f.slice(0, -5)).filter((t) => t !== 'en-US');
+    const NEW = ['No historical events yet', 'Vision engine reachable · no session store', 'Clubs in your network: \u0000'];
+    for (const tag of tags) {
+      const cat = JSON.parse(read(`public/i18n/catalogue/${tag}.json`)) as Record<string, string>;
+      for (const k of NEW) {
+        expect([tag, k, typeof cat[k]]).toEqual([tag, k, 'string']);
+        expect([tag, k, (cat[k].match(/\u0000/g) || []).length]).toEqual([tag, k, (k.match(/\u0000/g) || []).length]);
+        if (!/^en/.test(tag)) expect([tag, k, cat[k] === k]).toEqual([tag, k, false]);
+      }
+    }
+    for (const tag of ['ar', 'de-DE']) {
+      const cat = JSON.parse(read(`public/i18n/catalogue/${tag}.json`)) as Record<string, string>;
+      for (const k of ['Computer Vision, Tracking, Evidence & Match Intelligence', 'Open Vision', 'Live Analysis · Player & Ball Tracking · Pitch Calibration · Teams & Roles · Events · Tactical · Heatmaps · Timeline · Sources · Vision Hub · Models']) {
+        expect([tag, k, cat[k] === k]).toEqual([tag, k, false]);
+      }
+    }
+    // The footer keeps the account's address out of every key: it is the user's, marked so.
+    expect(LANDING).toContain("<span data-no-i18n>Familista</span> · <span data-user-content>${_esc((user.email || 'Owner') + '')}</span> · <span>Clubs in your network: ${clubCount}</span>");
   });
 });

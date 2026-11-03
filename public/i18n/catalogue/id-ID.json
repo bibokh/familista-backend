@@ -1613,5 +1613,8 @@
   "Match Operations": "Operasional Pertandingan",
   "Communications": "Komunikasi",
   "Device Management": "Manajemen Perangkat",
-  "Big Data": "Big Data"
+  "Big Data": "Big Data",
+  "No historical events yet": "Belum ada peristiwa historis",
+  "Vision engine reachable · no session store": "Mesin Vision dapat dijangkau · tanpa penyimpanan sesi",
+  "Clubs in your network: \u0000": "Klub dalam jaringan Anda: \u0000"
 }
