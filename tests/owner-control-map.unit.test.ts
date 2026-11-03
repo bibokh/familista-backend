@@ -388,7 +388,7 @@ describe('7 · the visual upgrade: pictures, icons, the round hub and its lines'
       expect(map).toMatch(new RegExp(`body\\.club-theme \\.oh-cards\\.oh-cards--core \\.oh-card--${k}\\{\\s*color: var\\(--oh-${k}\\); \\}`));
     }
     const skin = map.slice(map.indexOf('body.club-theme .oh-cards.oh-cards--core .oh-card{\n  border:'));
-    expect(skin).toMatch(/^body\.club-theme \.oh-cards\.oh-cards--core \.oh-card\{\s*border: 1px solid color-mix\(in srgb, currentColor 58%, transparent\);/);
+    expect(skin).toMatch(/^body\.club-theme \.oh-cards\.oh-cards--core \.oh-card\{\s*border: 1px solid color-mix\(in srgb, currentColor 82%, transparent\);/);
     // The icon's tile, the chips and the way in read the same colour; the words keep their own.
     expect(map).toContain('body.club-theme .oh-cards.oh-cards--core .oh-card-icon{\n  color: inherit;');
     expect(map).toContain('body.club-theme .oh-chip > span{ color: var(--t-secondary); }');

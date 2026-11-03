@@ -7270,16 +7270,17 @@ body.club-theme .oh-cards--core .oh-card{
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
 }
 body.club-theme .oh-cards.oh-cards--core .oh-card{
-  border: 1px solid color-mix(in srgb, currentColor 58%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 82%, transparent);
   background:
-    radial-gradient(120% 95% at 0% 0%, color-mix(in srgb, currentColor 15%, transparent), transparent 52%),
+    radial-gradient(120% 95% at 0% 0%, color-mix(in srgb, currentColor 17%, transparent), transparent 52%),
     radial-gradient(70% 80% at 100% 55%, color-mix(in srgb, currentColor 13%, transparent), transparent 64%),
     linear-gradient(165deg, color-mix(in srgb, var(--bg-elevated) 82%, transparent), color-mix(in srgb, var(--bg-canvas) 94%, transparent));
   box-shadow:
-    0 0 0 1px color-mix(in srgb, currentColor 10%, transparent),
-    0 0 26px -6px color-mix(in srgb, currentColor 52%, transparent),
-    inset 0 0 32px -14px color-mix(in srgb, currentColor 62%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--t-primary) 10%, transparent),
+    0 0 0 1px color-mix(in srgb, currentColor 16%, transparent),
+    0 0 6px 0 color-mix(in srgb, currentColor 45%, transparent),
+    0 0 30px -4px color-mix(in srgb, currentColor 58%, transparent),
+    inset 0 0 36px -12px color-mix(in srgb, currentColor 66%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--t-primary) 12%, transparent),
     0 22px 44px -26px color-mix(in srgb, var(--bg-canvas) 95%, transparent);
   transition: box-shadow 200ms ease, border-color 200ms ease;
 }
@@ -7291,10 +7292,11 @@ body.club-theme .oh-cards.oh-cards--core .oh-card::before{
 body.club-theme .oh-cards.oh-cards--core .oh-card--vision::after{ display: none; }
 body.club-theme .oh-cards.oh-cards--core .oh-card:hover,
 body.club-theme .oh-cards.oh-cards--core .oh-card:focus-visible{
-  border-color: color-mix(in srgb, currentColor 88%, transparent);
+  border-color: currentColor;
   box-shadow:
-    0 0 0 1px color-mix(in srgb, currentColor 24%, transparent),
-    0 0 38px -4px color-mix(in srgb, currentColor 72%, transparent),
+    0 0 0 1px color-mix(in srgb, currentColor 28%, transparent),
+    0 0 8px 0 color-mix(in srgb, currentColor 60%, transparent),
+    0 0 44px -2px color-mix(in srgb, currentColor 74%, transparent),
     inset 0 0 44px -12px color-mix(in srgb, currentColor 72%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--t-primary) 14%, transparent),
     0 26px 50px -24px color-mix(in srgb, var(--bg-canvas) 95%, transparent);
@@ -7418,7 +7420,7 @@ body.club-theme .oh-hub-slot{
 body.club-theme .oh-hub-slot::before,
 body.club-theme .oh-hub-slot::after{ content: ''; position: absolute; border-radius: 50%; pointer-events: none; }
 body.club-theme .oh-hub-slot::before{
-  inset: calc(22% - 10px); opacity: 0.6; filter: blur(16px);
+  inset: calc(22% - 12px); opacity: 0.85; filter: blur(18px);
   background: conic-gradient(var(--oh-amber) 0deg, var(--oh-vault) 40deg, var(--oh-city) 72deg, var(--oh-core) 108deg, var(--oh-vision) 140deg, var(--oh-clubs) 180deg, var(--oh-ds) 220deg, var(--oh-algo) 252deg, var(--oh-cyber) 288deg, var(--oh-system) 320deg, var(--oh-amber) 360deg);
 }
 html[dir="rtl"] body.club-theme .oh-hub-slot::before{ transform: scaleX(-1); }
@@ -7439,11 +7441,11 @@ body.club-theme .oh-hub{
     radial-gradient(80% 60% at 50% 8%, color-mix(in srgb, var(--oh-amber) 20%, transparent), transparent 62%),
     radial-gradient(70% 55% at 50% 100%, color-mix(in srgb, var(--oh-core) 16%, transparent), transparent 70%),
     radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--bg-surface) 96%, transparent), color-mix(in srgb, var(--bg-canvas) 99%, transparent) 72%);
-  border: 2px solid color-mix(in srgb, var(--oh-amber) 62%, transparent);
+  border: 2px solid color-mix(in srgb, var(--oh-amber) 80%, transparent);
   box-shadow:
     0 0 0 6px color-mix(in srgb, var(--bg-canvas) 70%, transparent),
-    0 0 0 7px color-mix(in srgb, var(--oh-amber) 30%, transparent),
-    0 0 60px -6px color-mix(in srgb, var(--oh-amber) 50%, transparent),
+    0 0 0 7px color-mix(in srgb, var(--oh-amber) 40%, transparent),
+    0 0 70px -4px color-mix(in srgb, var(--oh-amber) 58%, transparent),
     inset 0 0 50px -16px color-mix(in srgb, var(--oh-amber) 55%, transparent),
     inset 0 2px 0 color-mix(in srgb, var(--t-primary) 12%, transparent);
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
@@ -7682,12 +7684,12 @@ body.club-theme .oh-links{
   pointer-events: none; overflow: visible; opacity: 0; transition: opacity 400ms ease;
 }
 body.club-theme .oh-links.is-drawn{ opacity: 1; }
-body.club-theme .oh-link{ fill: none; stroke-width: 2; stroke-linecap: round; opacity: 0.8; transition: opacity 180ms ease, stroke-width 180ms ease; }
+body.club-theme .oh-link{ fill: none; stroke-width: 2.4; stroke-linecap: round; opacity: 0.95; transition: opacity 180ms ease, stroke-width 180ms ease; }
 body.club-theme .oh-cards--core[data-hot] .oh-link{ opacity: 0.16; }
 body.club-theme .oh-cards--core[data-hot] .oh-link.is-hot{ opacity: 1; stroke-width: 2.6; stroke-dasharray: 8 7; animation: oh-flow 1.1s linear infinite; }
 @keyframes oh-flow{ to{ stroke-dashoffset: -30; } }
-body.club-theme .oh-link-glow{ fill: none; stroke-width: 7; stroke-linecap: round; opacity: 0.38; transition: opacity 180ms ease; }
-body.club-theme .oh-spoke{ fill: none; stroke: var(--oh-clubs); stroke-width: 1.2; stroke-opacity: 0.35; stroke-dasharray: 2 4; }
+body.club-theme .oh-link-glow{ fill: none; stroke-width: 9; stroke-linecap: round; opacity: 0.5; transition: opacity 180ms ease; }
+body.club-theme .oh-spoke{ fill: none; stroke: var(--oh-clubs); stroke-width: 1.4; stroke-opacity: 0.55; }
 body.club-theme .oh-cards--core[data-hot] .oh-link-glow{ opacity: 0.06; }
 body.club-theme .oh-cards--core[data-hot] .oh-link-glow.is-hot{ opacity: 0.5; }
 body.club-theme .oh-link-end{ opacity: 0.9; }
