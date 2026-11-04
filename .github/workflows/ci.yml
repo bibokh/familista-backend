@@ -308,6 +308,16 @@ jobs:
   # `min` is a floor on how many proofs must have passed, so a typo in a section list
   # cannot turn a shard into an empty, green run.
   #
+  # The Neural Digital Twin (#neural-twin) is proved in the same two jobs by
+  # tools/components/twin-browser-proof.cjs, so its checks sit inside the required checks
+  # and none runs twice. The isolation shard runs T2: the layout without a collision at 20
+  # and at all 921 nodes, every drawn line mapped back to the served graph (a fabricated
+  # one caught), selection highlighting, the path and its control, Back, intensity, motion.
+  # The accessibility shard runs T1 (exploring, camera, filters, keyboard, languages and
+  # directions, three sizes; owner only: a coach is answered 403 and never loads the room,
+  # no session 401, the owner 200) and T3 (axe in English and Arabic, with its control).
+  # `twin_floor` is each shard's floor for the twin, checked the way `min` is.
+  #
   # Tools: tools/components/package.json pins playwright-core and axe-core exactly, with a
   # lockfile; `npm ci --ignore-scripts` verifies their integrity hashes. Neither is a
   # production dependency and neither downloads a browser: Chrome comes from the runner
@@ -315,7 +325,7 @@ jobs:
   browser-proof:
     name: browser proof (${{ matrix.shard }})
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -324,10 +334,14 @@ jobs:
             sections: '1,2,2b,3,4,5,8,9,10,11,12,13,14,15,16'
             axe: ''
             min: '297'
+            twin: 'T2'
+            twin_floor: '32'
           - shard: accessibility and focus
             sections: '6,7,13a,14a,16a'
             axe: '--axe'
             min: '84'
+            twin: 'T1,T3'
+            twin_floor: '44'
 
     env:
       NODE_ENV:           test
@@ -337,6 +351,8 @@ jobs:
       PROOF_SECTIONS:     ${{ matrix.sections }}
       PROOF_AXE:          ${{ matrix.axe }}
       PROOF_MIN:          ${{ matrix.min }}
+      TWIN_SECTIONS:      ${{ matrix.twin }}
+      TWIN_FLOOR:         ${{ matrix.twin_floor }}
 
     steps:
       - name: Checkout
@@ -396,6 +412,24 @@ jobs:
           passed="$(printf '%s' "$line" | sed -E 's/^SUMMARY ([0-9]+) passed.*/\1/')"
           printf '%s' "$line" | grep -Eq ', 0 failed, 0 skipped$'
           test "$passed" -ge "$PROOF_MIN"
+
+      - name: Neural Digital Twin browser proof
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/twin-proof"
+          mkdir -p "$out"
+          args=()
+          if [ -n "$PROOF_AXE" ]; then args+=("$PROOF_AXE"); fi
+          PROOF_ONLY="$TWIN_SECTIONS" node tools/components/twin-browser-proof.cjs "$out" "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/twin-proof.log" | grep -v '^{"'
+
+      - name: The Neural Digital Twin proof must have run, in full, with nothing failed or skipped
+        run: |
+          set -euo pipefail
+          line="$(grep -E '^SUMMARY ' "$RUNNER_TEMP/twin-proof.log" | tail -n 1)"
+          echo "$line"
+          passed="$(printf '%s' "$line" | sed -E 's/^SUMMARY ([0-9]+) passed.*/\1/')"
+          printf '%s' "$line" | grep -Eq ', 0 failed, 0 skipped$'
+          test "$passed" -ge "$TWIN_FLOOR"
 
       # M3/S3.2: the performance budget report, in the job summary. Timing is report-only (an OVER is shown, never a red
       # build); a missing or invalid official measurement fails this step. It runs after the proof's own pass/fail step, and

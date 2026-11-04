@@ -48,6 +48,9 @@
 // so the two cannot drift apart silently.
 
 import { z } from 'zod';
+import {
+  AUTHORITIES as TWIN_AUTHORITIES, EDGE_KINDS as TWIN_EDGE_KINDS, MATURITIES as TWIN_MATURITIES, NODE_KINDS as TWIN_NODE_KINDS,
+} from '../platform/neural-twin/model';
 import { AIAgent } from '@prisma/client';
 import { CONFIG_VALUES } from '../cyber-defense/control-plane/registry';
 import {
@@ -1433,6 +1436,30 @@ export const DesignSystemPreviewDetailSchema = z.object({
 const Sha256 = z.string().regex(/^[0-9a-f]{64}$/);
 const AgentScopeSchema = z.enum(['CLUB', 'PLATFORM']);
 const AgentLifecycleSchema = z.enum(['DRAFT', 'LAB', 'RUNNING', 'RETIRED']);
+// ── Familista Neural Digital Twin (src/platform/neural-twin/model.ts) ──
+const TwinEvidenceSchema = z.object({
+  a: z.enum(TWIN_AUTHORITIES), p: z.string().min(1), l: z.number().int().min(1).optional(), n: z.string().min(1).optional(),
+}).strict();
+const TwinFactSchema = z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]);
+const TwinNodeSchema = z.object({
+  id: z.string().min(1), kind: z.enum(TWIN_NODE_KINDS), label: z.string().min(1), parent: z.string().min(1).nullable(),
+  maturity: z.enum(TWIN_MATURITIES), summary: z.string().min(1).optional(), facts: z.record(z.string(), TwinFactSchema).optional(),
+  evidence: z.array(TwinEvidenceSchema).min(1), unknown: z.array(z.string().min(1)).optional(), room: z.string().min(1).optional(),
+}).strict();
+const TwinEdgeSchema = z.object({
+  from: z.string().min(1), to: z.string().min(1), kind: z.enum(TWIN_EDGE_KINDS), sub: z.string().min(1).optional(),
+  weight: z.number().int().min(1), evidence: z.array(TwinEvidenceSchema).min(1),
+}).strict();
+export const NeuralTwinGraphSchema = z.object({
+  schemaVersion: z.literal(1),
+  provenance: z.array(z.object({ authority: z.enum(TWIN_AUTHORITIES), path: z.string().min(1), sha256: Sha256 }).strict()).min(1),
+  counts: z.object({ nodes: z.record(z.string(), Count), edges: z.record(z.string(), Count) }).strict(),
+  nodes: z.array(TwinNodeSchema).min(1),
+  edges: z.array(TwinEdgeSchema),
+  discrepancies: z.array(z.object({ id: z.string().min(1), subject: z.string().min(1), detail: z.string().min(1), evidence: z.array(TwinEvidenceSchema) }).strict()),
+  commit: z.string().min(1).nullable(),
+}).strict();
+
 export const AgentsRoomSummarySchema = z.object({
   id: z.string().min(1), version: z.string().min(1), title: z.string().min(1), domain: z.string().min(1),
   scope: AgentScopeSchema, lifecycle: AgentLifecycleSchema, autonomyCeiling: z.string().min(1),
@@ -1875,6 +1902,12 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     reads: ['state', 'reason', 'sources', 'component'],
   },
 
+  // ── Familista Neural Digital Twin ──
+  {
+    endpoint: '/system/neural-twin', module: 'Neural Digital Twin',
+    schema: NeuralTwinGraphSchema, consumer: 'public/neural-twin/neural-twin.js',
+    reads: ['schemaVersion', 'provenance', 'counts', 'nodes', 'edges', 'discrepancies', 'commit'],
+  },
   // ── The AI Agents Operations Room ──
   {
     endpoint: '/system/agents', module: 'AI Agents Operations Room',

@@ -2828,6 +2828,55 @@ function _loadAgentsRoom(done) {
   }).catch(function () { finish(false); });
 }
 
+// FAMILISTA NEURAL DIGITAL TWIN — the platform's architecture as an explorable
+// graph, loaded on demand like the other owner rooms and only for a reader whom
+// /system/whoami names the platform owner. The room loads the vendored Babylon.js
+// itself when it opens. The server guards its endpoints (assertPlatformOwner);
+// this check is convenience, so a non-owner never downloads the room.
+var _NT_ROOM = { state: 'idle', waiting: [] };
+function _loadNeuralTwin(done) {
+  if (_NT_ROOM.state === 'ready') { done(true); return; }
+  _NT_ROOM.waiting.push(done);
+  if (_NT_ROOM.state === 'loading') return;
+  _NT_ROOM.state = 'loading';
+  function finish(ok) {
+    _NT_ROOM.state = ok ? 'ready' : 'idle';
+    var list = _NT_ROOM.waiting.splice(0);
+    for (var i = 0; i < list.length; i++) { try { list[i](ok); } catch (_) {} }
+  }
+  var ask;
+  try {
+    ask = _isPlatformOwner().then(function (yes) {
+      if (yes) return true;
+      _platformAuthority = null;
+      return _isPlatformOwner();
+    });
+  } catch (_) {
+    _NT_ROOM.state = 'idle';
+    _NT_ROOM.waiting.length = 0;
+    return;
+  }
+  ask.then(function (yes) {
+    if (!yes) { finish(false); return; }
+    var v = '20261104-neural-twin-2';
+    var pending = 3, failed = false;
+    function one(ok) { if (!ok) failed = true; if (--pending === 0) finish(!failed); }
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/neural-twin/neural-twin.css?v=' + v;
+    link.onload = function () { one(true); };
+    link.onerror = function () { one(false); };
+    document.head.appendChild(link);
+    ['/neural-twin/neural-twin-layout.js', '/neural-twin/neural-twin.js'].forEach(function (src) {
+      var script = document.createElement('script');
+      script.src = src + '?v=' + v;
+      script.onload = function () { one(true); };
+      script.onerror = function () { one(false); };
+      document.head.appendChild(script);
+    });
+  }).catch(function () { finish(false); });
+}
+
 // ── NAVIGATION ──
 function navTo(page, el, _opts) {
   _opts = _opts || {};
@@ -2857,6 +2906,14 @@ function navTo(page, el, _opts) {
   if (page === 'agents-room' && !(_AR_ROOM && _AR_ROOM.state === 'ready')) {
     if (!_AR_ROOM) return;
     _loadAgentsRoom(function (ok) {
+      try { navTo(ok ? page : 'owner-home', ok ? el : null, _opts); } catch (_) {}
+    });
+    return;
+  }
+  // Familista Neural Digital Twin: the same, for its own assets.
+  if (page === 'neural-twin' && !(_NT_ROOM && _NT_ROOM.state === 'ready')) {
+    if (!_NT_ROOM) return;
+    _loadNeuralTwin(function (ok) {
       try { navTo(ok ? page : 'owner-home', ok ? el : null, _opts); } catch (_) {}
     });
     return;
@@ -2963,6 +3020,13 @@ function navTo(page, el, _opts) {
     if (_wasAgents && page !== 'agents-room' && typeof window.teardownFamilistaAgentsRoom === 'function') {
       window.teardownFamilistaAgentsRoom();
     }
+    // FAMILISTA NEURAL DIGITAL TWIN takes the shell the same way; leaving it stops
+    // its render loop and releases the WebGL context.
+    var _wasTwin = document.body.classList.contains('nt-twin-open');
+    document.body.classList.toggle('nt-twin-open', page === 'neural-twin');
+    if (_wasTwin && page !== 'neural-twin' && typeof window.teardownFamilistaNeuralTwin === 'function') {
+      window.teardownFamilistaNeuralTwin();
+    }
     // ENTERING IS NOT SYMMETRICAL WITH LEAVING, AND THAT WAS A BUG.
     //
     // Leaving released the module's held session; nothing re-hydrated it on the
@@ -3047,6 +3111,11 @@ function navTo(page, el, _opts) {
     // reader whom /system/whoami names the platform owner. Read-only: both of its
     // endpoints are GETs guarded by assertPlatformOwner on the server.
     'agents-room': 1,
+    // FAMILISTA NEURAL DIGITAL TWIN — the platform's real architecture as an
+    // explorable 3D graph, composed at build time from the repository's own
+    // authorities. Reached by #neural-twin. Owner-only and read-only: both of its
+    // endpoints are GETs guarded by assertPlatformOwner on the server.
+    'neural-twin': 1,
     // PLATFORM (8)
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
@@ -3179,6 +3248,15 @@ function navTo(page, el, _opts) {
       window.renderFamilistaAgentsRoom(_arRoot, _arOpen ? { open: _arOpen } : undefined);
     }
   } catch (_) {}
+  // The Neural Digital Twin reads no club data either: drawn on entry, by the same rule.
+  try {
+    var _ntRoot = document.getElementById('nt-root');
+    if (page === 'neural-twin' && typeof window.renderFamilistaNeuralTwin === 'function'
+        && _ntRoot && (_leaving !== 'pg-neural-twin' || !_ntRoot.__famDrawn)) {
+      _ntRoot.__famDrawn = true;
+      window.renderFamilistaNeuralTwin(_ntRoot);
+    }
+  } catch (_) {}
   try {
     if (typeof _famNeedsClubData === 'function' && _famNeedsClubData(page)
         && State.context && State.context.clubId) _famEnsureClubData();
@@ -3193,7 +3271,7 @@ function navTo(page, el, _opts) {
 
   const titles = {
     // ── Owner Control ──
-    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'source-core':'Source Core', 'familista-vision':'Familista Vision', 'cybersecurity':'Cybersecurity', 'algorithms':'Algorithms', 'design-system':'Design System', 'design-studio':'Design Studio', 'agents-room':'AI Agents Operations Room',
+    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'neural-twin':'Neural Digital Twin', 'source-core':'Source Core', 'familista-vision':'Familista Vision', 'cybersecurity':'Cybersecurity', 'algorithms':'Algorithms', 'design-system':'Design System', 'design-studio':'Design Studio', 'agents-room':'AI Agents Operations Room',
     // ── Club Workspace ──
     'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League', 'match-center':'Match Center', 'people-access':'People & Access',
     // ── Platform (Phase B labels) ──
@@ -3471,6 +3549,7 @@ function _buildPageTemplateMap() {
     'design-system':               renderDesignSystemHTML,
     'design-studio':               renderDesignStudioHTML,
     'agents-room':                 renderAgentsRoomHTML,
+    'neural-twin':                 renderNeuralTwinHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
@@ -29343,6 +29422,15 @@ function renderDesignStudioHTML() {
 // and in the owner context of the design tokens. Not in _EAGER_PAGES.
 function renderAgentsRoomHTML() {
   return `<div class="page" id="pg-agents-room" data-no-i18n data-fam-context="owner"><div id="ar-root"></div></div>`;
+}
+
+// FAMILISTA NEURAL DIGITAL TWIN — the platform owner's architecture graph,
+// outside every Club Workspace and independent of Owner Control. Its interface
+// lives in public/neural-twin/neural-twin.js with its own English, German and
+// Arabic catalogue under /neural-twin/i18n/, behind the same `data-no-i18n`
+// boundary, in the owner context of the design tokens. Not in _EAGER_PAGES.
+function renderNeuralTwinHTML() {
+  return `<div class="page" id="pg-neural-twin" data-no-i18n data-fam-context="owner"><div id="nt-root"></div></div>`;
 }
 
 // FAMILISTA VISION — what the platform can SEE: computer-vision evidence from

@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-29T20:49:45.392Z",
+  "generatedAt": "2026-11-04T14:31:44.732Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
     "version": "1.0.0"
   },
   "apiSurface": {
-    "mountedRouters": 56,
-    "handlers": 764,
+    "mountedRouters": 57,
+    "handlers": 765,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -316,6 +316,13 @@
         "path": "/system/agents",
         "module": "agents-room.routes",
         "handlers": 5,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/system/neural-twin",
+        "module": "neural-twin.routes",
+        "handlers": 1,
         "public": 0,
         "routerWideAuth": true
       },
@@ -821,13 +828,13 @@
       }
     },
     "authorization": {
-      "handlers": 764,
+      "handlers": 765,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 97
+        "platform-owner": 98
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -950,6 +957,9 @@
         "membership.routes": {
           "member": 1,
           "roles": 7
+        },
+        "neural-twin.routes": {
+          "platform-owner": 1
         },
         "neuro.routes": {
           "public": 1,
@@ -1414,6 +1424,7 @@
         "GET /system/innovation": "platform-owner",
         "GET /system/intelligence": "platform-owner",
         "GET /system/modules": "platform-owner",
+        "GET /system/neural-twin": "platform-owner",
         "GET /system/overview": "platform-owner",
         "GET /system/people": "platform-owner",
         "GET /system/security": "platform-owner",
@@ -1821,10 +1832,10 @@
   },
   "architecture": {
     "components": {
-      "routers": 56,
+      "routers": 57,
       "srcDomains": 78,
       "prismaSections": 65,
-      "packages": 28,
+      "packages": 29,
       "outboundCallSites": 5,
       "realtimeEndpoints": 7,
       "leasedWorkers": 9,
@@ -2145,7 +2156,7 @@
       "id": "ci-secret-scanning",
       "status": "PRESENT",
       "evidence": ".github/workflows/ci.yml",
-      "note": "Full-history gitleaks scan, pinned and checksum-verified, blocking, with the default rules plus the repository's own for PostgreSQL connection strings, Neon passwords and committed environment files; 25 reviewed finding(s) baselined."
+      "note": "Full-history gitleaks scan, pinned and checksum-verified, blocking, with the default rules plus the repository's own for PostgreSQL connection strings, Neon passwords and committed environment files; 26 reviewed finding(s) baselined."
     },
     {
       "id": "ci-no-expression-injection",
@@ -2234,13 +2245,13 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "764 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 97 platform-owner; every member-level handler reviewed by name."
+      "note": "765 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 98 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "10 platform-owner room(s) mounted where pinned, every handler in them owner-only."
+      "note": "11 platform-owner room(s) mounted where pinned, every handler in them owner-only."
     },
     {
       "id": "worker-callback-authenticated",
@@ -2360,7 +2371,7 @@
       "id": "architecture-fully-mapped",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "375 discovered component(s) across 12 kinds, each declared against the 40 trust-boundary rows; a covered row's controls are all present."
+      "note": "377 discovered component(s) across 12 kinds, each declared against the 40 trust-boundary rows; a covered row's controls are all present."
     },
     {
       "id": "coverage-ratchet",
@@ -2737,6 +2748,7 @@
         "src/platform/agents/trace-chain.ts",
         "src/platform/email/service.ts",
         "src/platform/innovation/flags.ts",
+        "src/platform/neural-twin/compose.ts",
         "src/player-lifecycle/player-lifecycle.service.ts",
         "src/security-n/signed-recommendations.service.ts",
         "src/security/audit-chain.service.ts",
@@ -2956,6 +2968,7 @@
       "src/routes/match-center.routes.ts",
       "src/routes/match.routes.ts",
       "src/routes/membership.routes.ts",
+      "src/routes/neural-twin.routes.ts",
       "src/routes/neuro.routes.ts",
       "src/routes/observability.routes.ts",
       "src/routes/owner-trace.routes.ts",

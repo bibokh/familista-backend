@@ -215,3 +215,34 @@ The listener count does not walk the whole document: listing listeners there mak
 inline `onerror` attributes, which the page's policy refuses, so the measurement would raise violations of its own.
 The 32 KB budget is about ten times the largest growth measured over twelve warm passes (3.2 KB); a Lab that kept every
 specimen it drew measured 66 KB and 222 detached nodes over the same three passes, and is one of section 13's controls.
+
+## The Neural Digital Twin's browser proof
+
+`twin-browser-proof.cjs` proves the owner's architecture room (`#neural-twin`) in a real Chrome with WebGL. It uses the same
+pinned tools and the runner's own Chrome, and runs on the compiled application with only the database stubbed:
+
+```
+npm run build
+npm ci --ignore-scripts --prefix tools/components
+CHROMIUM=$(command -v google-chrome) node tools/components/twin-browser-proof.cjs <output-dir> [--axe]
+```
+
+It has three sections, chosen with `PROOF_ONLY`:
+
+- **T1**: exploring the room (explorer, search, inspector evidence, pointer pick and enter, camera, filters, keyboard). Also
+  idle rendering, teardown and return; German and Arabic with right-to-left; 768 px and 390 px. The platform owner only: a
+  club coach is answered 403 and never fetches the room, its layout or Babylon; no session is answered 401; the owner is
+  answered 200 (the control).
+- **T2**: the layout with no collision and every child inside its parent, at 20 nodes and at all 921. Every drawn line is
+  mapped back to the served graph, and a fabricated one is caught. No two labels overlap. Also selection highlighting with
+  an arrowhead per line, the path and its no-route control, Back to the exact camera, Selection only and the intensity
+  slider, the unfold move and reduced motion, and translated zone names.
+- **T3** (with `--axe`): axe (WCAG 2.2 A/AA) in English and Arabic, with a selection open. A nameless button added inside the
+  room must be reported, as the control.
+
+It runs inside the two required `browser-proof` jobs of `.github/workflows/ci.yml`:
+- T2 runs in the isolation shard.
+- T1 and T3 run in the accessibility shard.
+
+Each shard checks the twin's `SUMMARY` line for 0 failed and 0 skipped, and against its own floor (`twin_floor`).
+`tests/neural-twin.unit.test.ts` pins that wiring.

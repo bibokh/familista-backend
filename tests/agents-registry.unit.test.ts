@@ -302,7 +302,7 @@ describe('isolation', () => {
     }
   });
 
-  it('the registry is read in two places only: the agent job profiles the worker enforces, and the Operations Room', () => {
+  it('the registry is read in three places only: the agent job profiles the worker enforces, the Operations Room, and the Neural Digital Twin\'s composer', () => {
     const users: string[] = [];
     const walk = (dir: string) => {
       for (const e of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
@@ -315,7 +315,11 @@ describe('isolation', () => {
       }
     };
     walk('src');
-    expect(users.sort()).toEqual(['src/platform/intelligence/agent-jobs.ts', 'src/routes/agents-room.routes.ts']);
+    // The twin's composer reads the catalog at build time to describe each agent (its manifest, its tools) in the
+    // architecture graph; like the Operations Room it runs nothing and holds no registry of its own.
+    expect(users.sort()).toEqual(['src/platform/intelligence/agent-jobs.ts', 'src/platform/neural-twin/compose.ts', 'src/routes/agents-room.routes.ts']);
+    expect([...read('src/platform/neural-twin/compose.ts').matchAll(/from '(\.\.\/agents\/[^']+)'/g)].map((m) => m[1])).toEqual(['../agents/catalog']);
+    expect(read('src/platform/neural-twin/compose.ts')).not.toMatch(/platformAgentRegistry|authorizeAgentJob|AgentRegistry/);
     // The runtime takes the catalog's registry and nothing else from the module.
     expect([...read('src/platform/intelligence/agent-jobs.ts').matchAll(/from '(\.\.\/agents\/[^']+)'/g)].map((m) => m[1]).sort()).toEqual(['../agents/catalog', '../agents/registry']);
   });
