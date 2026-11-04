@@ -1,0 +1,336 @@
+/**
+ * tests/neural-twin.unit.test.ts
+ *
+ * Familista Neural Digital Twin, Phase 1: the graph, its API and its room.
+ *
+ *   1. The composer is deterministic and its graph keeps every invariant, with
+ *      negative controls showing each invariant can fail.
+ *   2. The graph exposes nothing it must not (addresses, hosts, credentials,
+ *      environment variable names, e-mail addresses), with negative controls.
+ *   3. Accuracy, checked independently of the composer: every authority's items
+ *      appear as it states them, and sampled import and data edges are re-read
+ *      from the source line they cite (a fabricated edge is caught).
+ *   4. The API is owner-only on the server: anonymous 401, a club account 403,
+ *      the owner 200, never cached, and the body keeps its contract.
+ *   5. The room keeps the owner-room rules: its own catalogue in three languages,
+ *      no inline style or handler, tokens only, the escape hatch, the vendored
+ *      Babylon.js only, and the shell's wiring.
+ */
+import fs from 'fs';
+import path from 'path';
+
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://u:p@localhost:5432/db';
+process.env.DIRECT_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET ?? 'a'.repeat(48);
+process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET ?? 'b'.repeat(48);
+
+const OWNER = {
+  id: 'u-owner', email: 'owner@familista.test', role: 'SUPER_ADMIN', clubId: null, isActive: true,
+  currentClubId: null, currentTeamId: null, tokenVersion: 0, platformAdmin: { isActive: true },
+};
+const MEMBER = {
+  id: 'u-member', email: 'coach@club.test', role: 'COACH', clubId: 'c1', isActive: true,
+  currentClubId: 'c1', currentTeamId: null, tokenVersion: 0, platformAdmin: null,
+};
+let CURRENT: typeof OWNER | typeof MEMBER = OWNER;
+
+jest.mock('../src/config/database', () => ({
+  prisma: new Proxy({}, {
+    get: (_t, k: string) => {
+      if (k === '$queryRaw' || k === '$executeRaw') return async () => [{ ok: 1 }];
+      if (k === '$transaction') return async (fns: unknown) => (Array.isArray(fns) ? [] : (fns as (tx: unknown) => unknown)({}));
+      if (k === '$connect' || k === '$disconnect') return async () => {};
+      if (k === 'user') return { findFirst: async () => CURRENT, findUnique: async () => CURRENT, count: async () => 1 };
+      return new Proxy({}, { get: (_x, op: string) => async () => (op === 'count' ? 0 : op === 'findFirst' || op === 'findUnique' ? null : []) });
+    },
+  }),
+}));
+
+import { composeTwin, TWIN_PATHS } from '../src/platform/neural-twin/compose';
+import { twinExposureProblems, twinGraphProblems, type TwinGraph } from '../src/platform/neural-twin/model';
+import { resetTwinGraphCache } from '../src/platform/neural-twin/store';
+import { PLATFORM_AGENT_MANIFESTS } from '../src/platform/agents/catalog';
+import { SYSTEM_MODULES } from '../src/platform/system-modules';
+import { NeuralTwinGraphSchema } from '../src/contracts/owner-api.contracts';
+import { signToken } from '../src/security/jwt-tokens';
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const request = require('supertest');
+
+const ROOT = path.join(__dirname, '..');
+const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+const exists = (p: string) => fs.existsSync(path.join(ROOT, p));
+const json = (p: string) => JSON.parse(read(p));
+const G: TwinGraph = composeTwin(ROOT);
+const byId = new Map(G.nodes.map((n) => [n.id, n]));
+const clone = (): TwinGraph => JSON.parse(JSON.stringify(G));
+
+describe('1. the composer: deterministic, and every invariant holds', () => {
+  it('composes the same graph twice, byte for byte', () => {
+    expect(JSON.stringify(composeTwin(ROOT))).toBe(JSON.stringify(G));
+  });
+
+  it('keeps every invariant, and every evidence path exists in the repository', () => {
+    expect(twinGraphProblems(G, exists)).toEqual([]);
+  });
+
+  it('holds every kind of architecture the task names', () => {
+    for (const k of ['system', 'component', 'module', 'file', 'api', 'model', 'agent', 'boundary']) expect(G.counts.nodes[k]).toBeGreaterThan(0);
+    for (const k of ['IMPORTS', 'DATA', 'DEPENDS_ON', 'INFRA', 'IMPLEMENTED_BY', 'IN_BOUNDARY', 'USES_TOOLS']) expect(G.counts.edges[k]).toBeGreaterThan(0);
+    expect(G.nodes.length).toBe(Object.values(G.counts.nodes).reduce((a, b) => a + b, 0));
+    expect(G.edges.length).toBe(Object.values(G.counts.edges).reduce((a, b) => a + b, 0));
+  });
+
+  it.each([
+    ['a duplicate id', (g: TwinGraph) => { g.nodes.push({ ...g.nodes[1] }); }, /duplicate node id/],
+    ['an edge to a node that does not exist', (g: TwinGraph) => { g.edges.push({ ...g.edges[0], to: 'file:src/nowhere.ts' }); }, /edge to a missing node/],
+    ['a node whose parent does not exist', (g: TwinGraph) => { g.nodes.find((n) => n.kind === 'file')!.parent = 'module:nowhere'; }, /parent module:nowhere does not exist/],
+    ['a node with no evidence', (g: TwinGraph) => { g.nodes.find((n) => n.kind === 'api')!.evidence = []; }, /no evidence/],
+    ['an edge with no evidence', (g: TwinGraph) => { g.edges[0].evidence = []; }, /has no evidence/],
+    ['IMPLEMENTED on a composer rule alone', (g: TwinGraph) => { const n = g.nodes.find((x) => x.kind === 'module')!; n.evidence = [{ a: 'composer-rule', p: 'src' }]; }, /IMPLEMENTED without evidence from an authority/],
+    ['a planned node citing code as its own', (g: TwinGraph) => { g.nodes.find((n) => n.kind === 'planned')!.evidence.push({ a: 'repository', p: 'src/app.ts' }); }, /planned node cites code/],
+    ['an evidence path outside the repository', (g: TwinGraph) => { g.nodes[0].evidence[0].p = '/etc/passwd'; }, /not a repository path/],
+    ['an evidence path that is a URL', (g: TwinGraph) => { g.nodes[0].evidence[0].p = 'https:x'; }, /not a repository path/],
+    ['an evidence path that does not exist', (g: TwinGraph) => { g.nodes[0].evidence[0].p = 'src/does-not-exist.ts'; }, /does not exist/],
+    ['a parent chain that loops', (g: TwinGraph) => { const s = g.nodes.find((n) => n.id === 'system:devices')!; s.parent = 'module:vision'; }, /a system nests under nothing|loops/],
+  ])('negative control: %s is refused', (_name, mutate, msg) => {
+    const g = clone();
+    mutate(g);
+    expect(twinGraphProblems(g, exists).join('\n')).toMatch(msg);
+  });
+});
+
+describe('2. exposure: the graph carries no address, host, credential, environment name or e-mail', () => {
+  const envNames = Object.keys(json(TWIN_PATHS.coverage).components.envVars);
+  it('passes the exposure scan over everything the API sends', () => {
+    expect(envNames.length).toBeGreaterThan(20);
+    expect(twinExposureProblems(JSON.stringify(G), envNames)).toEqual([]);
+  });
+  it('carries no field the composer does not allow-list (no provider, region, version or runtime of a component)', () => {
+    for (const n of G.nodes.filter((x) => x.kind === 'component')) {
+      for (const k of ['provider', 'region', 'version', 'runtime']) expect(n.facts && k in n.facts).toBeFalsy();
+    }
+  });
+  it.each([
+    ['a URL', 'https://familista-backend.example/x'],
+    ['a hosted address', 'familista-backend.onrender.com'],
+    ['an IP address', '10.0.0.12'],
+    ['an e-mail address', 'owner@familista.test'],
+    ['a secret-shaped value', 'sk_live_0123456789abcdef'],
+    ['an environment variable name', 'DATABASE_URL'],
+  ])('negative control: %s is caught', (_name, value) => {
+    const g = clone();
+    g.nodes[0].summary = 'leak: ' + value;
+    expect(twinExposureProblems(JSON.stringify(g), envNames).length).toBeGreaterThan(0);
+  });
+});
+
+describe('3. accuracy, checked against the authorities and the source, not against the composer', () => {
+  const infra = json(TWIN_PATHS.infra), sec = json(TWIN_PATHS.security), cov = json(TWIN_PATHS.coverage);
+
+  it('every district is a system and every component sits in its district', () => {
+    for (const d of infra.districts) expect(byId.get('system:' + d.id)?.label).toBe(d.name);
+    for (const c of infra.components) expect(byId.get('component:' + c.id)?.parent).toBe('system:' + c.district);
+    for (const f of infra.future) expect(byId.get('planned:' + f.id)?.maturity).toBe('PLANNED');
+  });
+
+  it('every mounted router is an API node with its mount and handler count from the security manifest', () => {
+    for (const m of sec.apiSurface.mounts) {
+      const n = byId.get('api:' + m.module);
+      expect(n?.facts?.mount).toBe('/api/v1' + m.path);
+      expect(n?.facts?.handlers).toBe(m.handlers);
+    }
+    expect(G.counts.nodes.api).toBe(sec.apiSurface.mounts.length);
+  });
+
+  it('every registry agent is an agent node with its own tools, and every SYSTEM module keeps its readiness', () => {
+    for (const a of PLATFORM_AGENT_MANIFESTS) expect(byId.get('agent:' + a.id)?.facts?.tools).toEqual([...a.tools]);
+    expect(G.counts.nodes.agent).toBe(PLATFORM_AGENT_MANIFESTS.length);
+    for (const m of SYSTEM_MODULES) expect(byId.get('sysmodule:' + m.key)?.facts?.readiness).toBe(m.readiness);
+  });
+
+  it('every trust boundary is a node with the coverage the map records', () => {
+    for (const [row, b] of Object.entries(cov.boundaries as Record<string, { coverage: string }>)) expect(byId.get('boundary:' + row)?.facts?.coverage).toBe(b.coverage);
+  });
+
+  // An import edge is re-read from the line it cites: the line must import a path that resolves to the target file.
+  const resolveSpec = (from: string, spec: string) => {
+    const base = spec.startsWith('@/') ? 'src/' + spec.slice(2) : path.posix.normalize(path.posix.join(path.posix.dirname(from), spec));
+    return [base + '.ts', base + '/index.ts', base].find((c) => exists(c) && c.endsWith('.ts')) || null;
+  };
+  const fileOf = (id: string) => (id.startsWith('file:') ? id.slice(5) : id.startsWith('api:') ? 'src/routes/' + id.slice(4) + '.ts' : null);
+  const importHolds = (e: { from: string; to: string; evidence: Array<{ p: string; l?: number }> }) => {
+    const ev = e.evidence[0];
+    const line = read(ev.p).split('\n')[(ev.l || 1) - 1] || '';
+    const specs = [...line.matchAll(/(?:from\s+|require\(\s*|import\(\s*|import\s+)['"]([^'"]+)['"]/g)].map((m) => m[1]);
+    return specs.some((s) => resolveSpec(ev.p, s) === fileOf(e.to));
+  };
+  it('sampled import edges are real: the cited line imports the target', () => {
+    const imports = G.edges.filter((e) => e.kind === 'IMPORTS');
+    const sample = imports.filter((_e, i) => i % Math.ceil(imports.length / 40) === 0);
+    expect(sample.length).toBeGreaterThanOrEqual(35);
+    const wrong = sample.filter((e) => !importHolds(e)).map((e) => e.from + ' -> ' + e.to + ' @ ' + e.evidence[0].p + ':' + e.evidence[0].l);
+    expect(wrong).toEqual([]);
+  });
+  it('negative control: a fabricated import edge is caught by the same check', () => {
+    const real = G.edges.find((e) => e.kind === 'IMPORTS' && e.from.startsWith('file:') && e.to.startsWith('file:'))!;
+    expect(importHolds(real)).toBe(true);
+    expect(importHolds({ ...real, to: 'file:src/app.ts' })).toBe(false);
+  });
+
+  it('sampled data edges are real: the cited line calls a Prisma model of the target section', () => {
+    const schema = read(TWIN_PATHS.schema);
+    const data = G.edges.filter((e) => e.kind === 'DATA');
+    const sample = data.filter((_e, i) => i % Math.ceil(data.length / 30) === 0);
+    const wrong = sample.filter((e) => {
+      const models = (byId.get(e.to)!.facts!.models as string[]).map((m) => m.charAt(0).toLowerCase() + m.slice(1));
+      const ev = e.evidence[0];
+      const line = read(ev.p).split('\n')[(ev.l || 1) - 1] || '';
+      return !models.some((d) => new RegExp('\\.\\s*' + d + '\\s*\\.').test(line)) || !models.every((m) => new RegExp('^model ' + m.charAt(0).toUpperCase() + m.slice(1) + '\\b', 'm').test(schema));
+    }).map((e) => e.from + ' -> ' + e.to);
+    expect(wrong).toEqual([]);
+  });
+
+  it('the Vision walk-through: src/vision sits in Devices & Edge because camera-ingest is implemented there, and opens to its real files', () => {
+    const vision = byId.get('module:vision')!;
+    expect(vision.parent).toBe('system:devices');
+    expect(vision.evidence.some((e) => /camera-ingest/.test(e.n || ''))).toBe(true);
+    const files = G.nodes.filter((n) => n.parent === 'module:vision').map((n) => n.id.replace('file:', '')).sort();
+    const onDisk = fs.readdirSync(path.join(ROOT, 'src/vision')).filter((f) => f.endsWith('.ts')).map((f) => 'src/vision/' + f).sort();
+    expect(files).toEqual(onDisk);
+    expect(G.edges.some((e) => e.from === 'component:camera-ingest' && e.to === 'file:src/vision/vision-ingest.service.ts' && e.kind === 'IMPLEMENTED_BY')).toBe(true);
+  });
+
+  it('a module is placed in a system only where a component points into it; the rest are in "No district evidence", not guessed', () => {
+    const inside = (m: string) => infra.components.some((c: { repositoryPath: string | null }) => {
+      const p = (c.repositoryPath || '').replace(/\/$/, '');
+      return p === 'src/' + m || p.startsWith('src/' + m + '/');
+    });
+    for (const n of G.nodes.filter((x) => x.kind === 'module' && x.id !== 'module:src-root')) {
+      const m = n.id.slice('module:'.length);
+      expect({ m, unplaced: n.parent === 'system:unplaced' }).toEqual({ m, unplaced: !inside(m) });
+    }
+  });
+
+  it('records where the authorities disagree instead of choosing (the route-mount count, D5)', () => {
+    const d = G.discrepancies.find((x) => x.id === 'route-mounts');
+    expect(d?.detail).toMatch(/security manifest mounts \d+ routers; the infrastructure manifest lists \d+ mounts/);
+  });
+});
+
+describe('4. the API: owner-only on the server, never cached, and the body keeps its contract', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { createApp } = require('../src/app');
+  const app = createApp();
+  const token = (u: typeof OWNER | typeof MEMBER) => signToken('access', { sub: u.id, role: u.role }, { expiresIn: '10m' });
+  beforeEach(() => { CURRENT = OWNER; resetTwinGraphCache(); });
+
+  it('refuses a request without a session (401)', async () => {
+    const res = await request(app).get('/api/v1/system/neural-twin');
+    expect(res.status).toBe(401);
+    expect(JSON.stringify(res.body)).not.toMatch(/"nodes"/);
+  });
+  it('refuses a club account (403), and sends no part of the graph', async () => {
+    CURRENT = MEMBER;
+    const res = await request(app).get('/api/v1/system/neural-twin').set('Authorization', 'Bearer ' + token(MEMBER));
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(res.body)).not.toMatch(/"nodes"|"edges"|module:|file:src/);
+  });
+  it('serves the owner the graph, uncached, and the body matches its contract and the composer', async () => {
+    const res = await request(app).get('/api/v1/system/neural-twin').set('Authorization', 'Bearer ' + token(OWNER));
+    expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(NeuralTwinGraphSchema.safeParse(res.body.data).success).toBe(true);
+    expect(res.body.data.nodes.length).toBe(G.nodes.length);
+    expect(res.body.data.edges.length).toBe(G.edges.length);
+  });
+  it('is read-only: no other verb is routed', async () => {
+    for (const verb of ['post', 'put', 'patch', 'delete'] as const) {
+      const res = await request(app)[verb]('/api/v1/system/neural-twin').set('Authorization', 'Bearer ' + token(OWNER));
+      expect([404, 405]).toContain(res.status);
+    }
+  });
+  it('is pinned owner-only in the posture policy, in the coverage map and in the control plane', () => {
+    expect(json(TWIN_PATHS.posture).ownerRooms['neural-twin.routes']).toEqual({ mount: '/system/neural-twin' });
+    expect(json(TWIN_PATHS.coverage).components.routers['neural-twin.routes']).toEqual([4, 5, 6, 7]);
+    expect(read('src/cyber-defense/control-plane/registry.ts')).toMatch(/routers: \['infrastructure\.routes', 'neural-twin\.routes'\]/);
+    expect(read('src/routes/neural-twin.routes.ts')).toMatch(/router\.use\(authenticate\);[\s\S]*assertPlatformOwner[\s\S]*no-store/);
+  });
+  it('is built with the release: the build composes the graph after tsc, and production never loads the compiler', () => {
+    expect(JSON.parse(read('package.json')).scripts.build).toMatch(/&& tsc && node scripts\/copy-runtime-assets\.js && node scripts\/neural-twin-build\.js( &&|$)/);
+    const store = read('src/platform/neural-twin/store.ts');
+    expect(store).toMatch(/process\.env\.NODE_ENV !== 'production'[\s\S]*require\('\.\/compose'\)/);
+    expect(store).not.toMatch(/^import .*['"]\.\/compose['"]/m);
+    expect(read('src/routes/neural-twin.routes.ts')).not.toMatch(/from ['"][^'"]*\/compose['"]|require\(['"][^'"]*\/compose['"]/);
+  });
+});
+
+describe('5. the room keeps the owner-room rules', () => {
+  const JS = read('public/neural-twin/neural-twin.js');
+  const CSS = read('public/neural-twin/neural-twin.css');
+  const APP = read('public/app.js');
+  const cat = (l: string) => json('public/neural-twin/i18n/' + l + '.json') as Record<string, string>;
+  const keysAsked = () => {
+    const keys = new Set<string>();
+    for (const m of JS.matchAll(/\b(?:T|tf)\('((?:[^'\\]|\\.)*)'/g)) keys.add(m[1].replace(/\\'/g, "'"));
+    for (const m of JS.matchAll(/\b(?:name|plural|out|inc):\s*'((?:[^'\\]|\\.)*)'/g)) keys.add(m[1].replace(/\\'/g, "'"));
+    for (const block of ['MATURITY', 'AUTHORITY', 'FACTS', 'ROOMS']) {
+      const b = JS.slice(JS.indexOf('var ' + block + ' = {'));
+      for (const m of b.slice(0, b.indexOf('};')).matchAll(/:\s*'((?:[^'\\]|\\.)*)'/g)) keys.add(m[1].replace(/\\'/g, "'"));
+    }
+    keys.delete('');
+    return keys;
+  };
+
+  it('has one catalogue per language with the same keys, English as itself, and every %d kept', () => {
+    const en = cat('en'), de = cat('de'), ar = cat('ar');
+    expect(Object.keys(de).sort()).toEqual(Object.keys(en).sort());
+    expect(Object.keys(ar).sort()).toEqual(Object.keys(en).sort());
+    for (const k of Object.keys(en)) {
+      expect(en[k]).toBe(k);
+      expect((de[k].match(/%d/g) || []).length).toBe((k.match(/%d/g) || []).length);
+      expect((ar[k].match(/%d/g) || []).length).toBe((k.match(/%d/g) || []).length);
+      expect(de[k]).not.toBe('');
+      expect(ar[k]).not.toBe('');
+    }
+  });
+  it('every string the room or the composer can show is in the catalogue', () => {
+    const en = cat('en');
+    const missing = [...keysAsked()].filter((k) => !(k in en));
+    expect(missing).toEqual([]);
+    const composer = read('src/platform/neural-twin/compose.ts');
+    const sentences = G.nodes.flatMap((n) => n.unknown || []).concat(G.nodes.filter((n) => n.id === 'system:unplaced').map((n) => n.summary!));
+    for (const s of new Set(sentences)) { expect(en[s]).toBe(s); expect(composer.includes(s.replace(/'/g, "\\'")) || composer.includes(s)).toBe(true); }
+  });
+  it('writes no inline style, no inline handler, and loads nothing from outside the application', () => {
+    expect(JS).not.toMatch(/style="/);
+    expect(JS).not.toMatch(/\son[a-z]+="/);
+    expect(JS).not.toMatch(/https?:\/\//);
+    expect(JS).not.toMatch(/\beval\(|new Function\(/);
+    expect(JS).toMatch(/s\.src = '\/vendor\/babylon\.js'/);
+  });
+  it('reads the design tokens and declares none of its own, with no raw colour', () => {
+    expect(CSS).not.toMatch(/^\s*--[a-z0-9-]+\s*:/m);
+    expect(CSS.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/);
+    expect(CSS).toMatch(/@media \(max-width: 980px\), \(max-height: 620px\)/);
+    expect(CSS).toMatch(/scrollbar-gutter: stable/);
+  });
+  it('reads only tokens that exist (in its stylesheet and in the scene\'s colours), and is a declared consumer of them', () => {
+    const declared = new Set([...read('public/tokens/familista-tokens.css').matchAll(/(--fam-[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
+    const used = [...CSS.matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1]);
+    const scene = [...JS.matchAll(/tok: '(--[a-z0-9-]+)'|tokenRGB\('(--[a-z0-9-]+)'\)/g)].map((m) => m[1] || m[2]);
+    expect(used.length).toBeGreaterThan(60);
+    expect(scene.length).toBeGreaterThan(10);
+    expect([...used, ...scene].filter((v) => !v.startsWith('--fam-') || !declared.has(v))).toEqual([]);
+    expect(read('tools/tokens/scripts/verify.mjs')).toContain("'public/neural-twin/'];");
+    expect(read('tools/tokens/lib/production.mjs')).toContain("files: ['public/neural-twin/neural-twin.css']");
+  });
+  it('is wired into the shell like the other owner rooms, outside every Club Workspace', () => {
+    expect(APP).toMatch(/'neural-twin': 1,/);
+    expect(APP).toMatch(/function _loadNeuralTwin\(done\)[\s\S]*?_isPlatformOwner\(\)/);
+    expect(APP).toMatch(/document\.body\.classList\.toggle\('nt-twin-open', page === 'neural-twin'\)[\s\S]*?window\.teardownFamilistaNeuralTwin\(\)/);
+    expect(APP).toMatch(/<div class="page" id="pg-neural-twin" data-no-i18n data-fam-context="owner"><div id="nt-root"><\/div><\/div>/);
+    expect(APP).not.toMatch(/data-page="neural-twin"/);   // no card or link on Owner Control: Phase 1 does not change it
+  });
+});

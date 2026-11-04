@@ -27,6 +27,8 @@ const SURFACES = [
   { id: 'studio', label: 'Familista Design Studio, loaded on demand by the main app', files: ['public/design-studio/studio.css', 'public/design-studio/studio-frame.css'] },
   // The AI Agents Operations Room: an owner room the main app loads on demand (public/app.js, _loadAgentsRoom).
   { id: 'agents-room', label: 'The AI Agents Operations Room, loaded on demand by the main app', files: ['public/agents-room/agents-room.css'] },
+  // Familista Neural Digital Twin: an owner room the main app loads on demand (public/app.js, _loadNeuralTwin).
+  { id: 'neural-twin', label: 'Familista Neural Digital Twin, loaded on demand by the main app', files: ['public/neural-twin/neural-twin.css'] },
 ];
 
 const rel = (p) => relative(REPO_ROOT, p).split('\\').join('/');

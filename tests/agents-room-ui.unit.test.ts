@@ -363,7 +363,7 @@ describe('safe by construction, and laid out as the owner rooms are', () => {
     expect(used.length).toBeGreaterThan(100);
     expect(used.filter((v) => !v.startsWith('--fam-') || !declared.has(v))).toEqual([]);
     expect(CSS.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/(^|[;{\s])--[a-z0-9-]+\s*:/);
-    expect(read('tools/tokens/scripts/verify.mjs')).toContain("const CONSUMERS = ['public/design-system/', 'public/design-studio/', 'public/agents-room/'];");
+    expect(read('tools/tokens/scripts/verify.mjs')).toContain("const CONSUMERS = ['public/design-system/', 'public/design-studio/', 'public/agents-room/', 'public/neural-twin/'];");
     expect(read('tools/tokens/lib/production.mjs')).toContain("files: ['public/agents-room/agents-room.css']");
   });
 

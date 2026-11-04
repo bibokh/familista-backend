@@ -109,13 +109,13 @@ describe('the authorization inventory (posture)', () => {
     expect(a.memberStale).toEqual([]);
   });
 
-  it('the ten owner rooms are pinned, and every handler in them is owner-only (whoami excepted, with a reason)', () => {
+  it('the eleven owner rooms are pinned, and every handler in them is owner-only (whoami excepted, with a reason)', () => {
     // The Cybersecurity Command Center joined as the seventh and Algorithms as
     // the eighth: two reads each, all the platform owner's, no write. Design System
     // Control joined as the ninth, and the AI Agents Operations Room as the tenth,
-    // on the same terms.
+    // on the same terms. Familista Neural Digital Twin joined as the eleventh: one read, the platform owner's, no write.
     expect(Object.keys(policy.ownerRooms).sort()).toEqual(
-      ['agents-room.routes', 'algorithms.routes', 'cybersecurity.routes', 'data-pulse.routes', 'design-system.routes', 'fabric.routes', 'infrastructure.routes', 'owner-trace.routes', 'sources.routes', 'system.routes']);
+      ['agents-room.routes', 'algorithms.routes', 'cybersecurity.routes', 'data-pulse.routes', 'design-system.routes', 'fabric.routes', 'infrastructure.routes', 'neural-twin.routes', 'owner-trace.routes', 'sources.routes', 'system.routes']);
     expect(a.ownerRoomViolations).toEqual([]);
     const sys = Object.entries(a.perHandler).filter(([r]) => / \/system(\/|$)/.test(r));
     expect(sys.length).toBeGreaterThan(60);

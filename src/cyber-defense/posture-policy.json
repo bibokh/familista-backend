@@ -833,6 +833,9 @@
     },
     "agents-room.routes": {
       "mount": "/system/agents"
+    },
+    "neural-twin.routes": {
+      "mount": "/system/neural-twin"
     }
   },
   "authorizationMemberHandlers": {

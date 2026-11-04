@@ -20,6 +20,7 @@ import cybersecurityRoutes from './cybersecurity.routes';
 import algorithmsRoutes from './algorithms.routes';
 import designSystemRoutes from './design-system.routes';
 import agentsRoomRoutes from './agents-room.routes';
+import neuralTwinRoutes from './neural-twin.routes';
 import telemetryRoutes from './telemetry.routes';
 import contextRoutes    from './context.routes';
 // Phase B — Match Intelligence + Hardware Sessions + Automation
@@ -129,6 +130,8 @@ router.use('/system/design-system', designSystemRoutes);
 // answers for it and whether the registry agrees with what runs; it starts,
 // stops and changes none of them.
 router.use('/system/agents', agentsRoomRoutes);
+// Familista Neural Digital Twin: the platform's architecture as an explorable graph. Owner-only, read-only.
+router.use('/system/neural-twin', neuralTwinRoutes);
 // Product-usage ingestion. Deliberately not '/analytics' — that is a club's own
 // football analytics, and the two must never be confused for one another.
 router.use('/telemetry',   telemetryRoutes);

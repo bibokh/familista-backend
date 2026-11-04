@@ -91,9 +91,11 @@ function walk(dir, acc = []) {
 // Stage 3.1: the Owner-only Design System Control room was the first consumer of
 // the canonical tokens; Familista Design Studio (Slice 1a), the owner's design
 // tool, is the second; the AI Agents Operations Room, an owner room built on the
-// tokens from its first line, is the third. Everything else in production still reads none.
-const CONSUMERS = ['public/design-system/', 'public/design-studio/', 'public/agents-room/'];
-check('unread: nothing production serves, except the token file, the Design System Control room, Familista Design Studio and the AI Agents Operations Room, references the --fam- namespace', () => {
+// tokens from its first line, is the third; Familista Neural Digital Twin, an owner room built the same way
+// (its 3D scene reads its colours from these tokens at run time), is the fourth. Everything else in production
+// still reads none.
+const CONSUMERS = ['public/design-system/', 'public/design-studio/', 'public/agents-room/', 'public/neural-twin/'];
+check('unread: nothing production serves, except the token file, the Design System Control room, Familista Design Studio, the AI Agents Operations Room and Familista Neural Digital Twin, references the --fam- namespace', () => {
   const bad = [];
   const own = join(REPO_ROOT, PUBLISHED_TOKENS);
   for (const f of walk(join(REPO_ROOT, 'public'))) {
