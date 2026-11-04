@@ -2127,6 +2127,13 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
         reads.length === 1 && mounts(page) > mk0 && kept === keep && answers, { overviewReads: reads.length, mounts: [mk0, mounts(page)], keep, kept, answers });
     }
     {
+      // The Refresh above dropped every fixture the Lab had read, and `selects` answers as soon as the selection is set, before
+      // that component's fixtures have been read again. What this compares is the reader's settled view, so it is taken once the
+      // selection has its fixture, the Lab's own signal (as the section's set-up waits for); taken earlier it was a load still in
+      // progress, and the comparison failed whenever that read was slower than the step (before.fixture null, the live region
+      // still announcing the load).
+      const settledSel = await page.waitForFunction(() => { const m = window.__familistaLabMetrics(); return !!(m.selected && m.fixture); }, null, { timeout: 15000 }).then(() => true, () => false);
+      if (!settledSel) fail('room language: the selection never settled (it has no fixture) before the language switch, so there is no view to compare', await view(page));
       const before = await view(page);
       const mk0 = mounts(page);
       const pick = async (l) => { await page.click('[data-ds-langs]'); await page.click(`[data-ds-lang="${l}"]`); await page.waitForFunction((x) => document.getElementById('ds-root').getAttribute('lang') === x && document.querySelector('#lab-specimen .lab-col'), l, { timeout: 15000 }); await page.waitForTimeout(600); };
