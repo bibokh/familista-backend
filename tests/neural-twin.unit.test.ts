@@ -276,7 +276,7 @@ describe('5. the room keeps the owner-room rules', () => {
     const keys = new Set<string>();
     for (const m of JS.matchAll(/\b(?:T|tf)\('((?:[^'\\]|\\.)*)'/g)) keys.add(m[1].replace(/\\'/g, "'"));
     for (const m of JS.matchAll(/\b(?:name|plural|out|inc):\s*'((?:[^'\\]|\\.)*)'/g)) keys.add(m[1].replace(/\\'/g, "'"));
-    for (const block of ['MATURITY', 'AUTHORITY', 'FACTS', 'ROOMS']) {
+    for (const block of ['MATURITY', 'AUTHORITY', 'FACTS', 'ROOMS', 'ZONE_NAMES']) {
       const b = JS.slice(JS.indexOf('var ' + block + ' = {'));
       for (const m of b.slice(0, b.indexOf('};')).matchAll(/:\s*'((?:[^'\\]|\\.)*)'/g)) keys.add(m[1].replace(/\\'/g, "'"));
     }
@@ -333,5 +333,164 @@ describe('5. the room keeps the owner-room rules', () => {
     expect(APP).toMatch(/document\.body\.classList\.toggle\('nt-twin-open', page === 'neural-twin'\)[\s\S]*?window\.teardownFamilistaNeuralTwin\(\)/);
     expect(APP).toMatch(/<div class="page" id="pg-neural-twin" data-no-i18n data-fam-context="owner"><div id="nt-root"><\/div><\/div>/);
     expect(APP).not.toMatch(/data-page="neural-twin"/);   // no card or link on Owner Control: Phase 1 does not change it
+  });
+});
+
+describe('6. the layout: position says nesting, and nothing overlaps', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const Lay = require('../public/neural-twin/neural-twin-layout.js');
+  const ROOM = read('public/neural-twin/neural-twin.js');
+  const SIZE: Record<string, number> = {};
+  for (const m of ROOM.matchAll(/^\s{4}(\w+):\s*\{ name: [^\n]*?size: ([\d.]+)/gm)) SIZE[m[1]] = Number(m[2]);
+  const OPEN_SYSTEM = Number((ROOM.match(/var OPEN_SYSTEM = ([\d.]+);/) || [])[1]);
+  const kids = new Map<string, string[]>();
+  for (const n of G.nodes) if (n.parent) kids.set(n.parent, [...(kids.get(n.parent) || []), n.id]);
+  const systemsSorted = G.nodes.filter((n) => n.kind === 'system').sort((a, b) => (a.label < b.label ? -1 : 1));
+  const zoneOf = (id: string) => String((byId.get(id)!.facts as Record<string, unknown> | undefined)?.zone ?? '');
+  const MODES: Record<string, (id: string) => boolean> = {
+    closed: () => false,
+    'systems open': (id) => byId.get(id)!.kind === 'system',
+    'everything open': (id) => (kids.get(id) || []).length > 0,
+  };
+  const run = (open: (id: string) => boolean) => Lay.layout({
+    roots: systemsSorted.map((s) => ({ id: s.id, zone: zoneOf(s.id) })),
+    kids: (id: string) => kids.get(id) || [],
+    open,
+    body: (id: string) => SIZE[byId.get(id)!.kind] * (open(id) && (kids.get(id) || []).length ? OPEN_SYSTEM : 1),
+  });
+  const flat = (p: number[]) => [p[0], p[2]];
+  const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  /** Every pair of siblings whose footprints overlap. */
+  const overlaps = (pos: Record<string, number[]>, bubble: Record<string, number>) => {
+    const groups = new Map<string, string[]>();
+    for (const id of Object.keys(pos)) { const p = byId.get(id)!.parent || '(root)'; groups.set(p, [...(groups.get(p) || []), id]); }
+    const bad: string[] = [];
+    for (const ids of groups.values()) for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+      if (dist(flat(pos[ids[i]]), flat(pos[ids[j]])) < bubble[ids[i]] + bubble[ids[j]] - 1e-6) bad.push(ids[i] + ' × ' + ids[j]);
+    }
+    return bad;
+  };
+
+  it('reads every kind\'s size from the room, so the test lays out what the room draws', () => {
+    expect(Object.keys(SIZE).sort()).toEqual(['agent', 'api', 'boundary', 'component', 'file', 'model', 'module', 'planned', 'sysmodule', 'system']);
+    expect(OPEN_SYSTEM).toBeGreaterThan(0);
+  });
+
+  it('packs circles without overlap, outside the hole, the same way every time', () => {
+    const circles = Array.from({ length: 140 }, (_, i) => ({ id: 'c' + i, r: 0.5 + ((i * 37) % 11) / 4 }));
+    const a = Lay.pack(circles, 3), b = Lay.pack(circles, 3);
+    expect(a).toEqual(b);
+    for (let i = 0; i < circles.length; i++) {
+      expect(Math.hypot(a['c' + i][0], a['c' + i][1])).toBeGreaterThanOrEqual(3 + circles[i].r - 1e-6);
+      for (let j = i + 1; j < circles.length; j++) expect(dist(a['c' + i], a['c' + j])).toBeGreaterThanOrEqual(circles[i].r + circles[j].r - 1e-6);
+    }
+  });
+
+  for (const [mode, open] of Object.entries(MODES)) {
+    it(`${mode}: no two siblings overlap, everything sits on its parent's platform, and the zones keep apart`, () => {
+      const t0 = Date.now();
+      const L = run(open);
+      expect(Date.now() - t0).toBeLessThan(1500);
+      expect(run(open)).toEqual(L);                                    // deterministic
+      expect(overlaps(L.pos, L.bubble)).toEqual([]);
+      // what is shown: the systems, and the children of every open node, all of them placed
+      const expected = new Set<string>();
+      const walk = (id: string) => { expected.add(id); if (open(id)) (kids.get(id) || []).forEach(walk); };
+      systemsSorted.forEach((s) => walk(s.id));
+      expect(Object.keys(L.pos).sort()).toEqual([...expected].sort());
+      // containment: a child's whole footprint is inside its parent's footprint
+      for (const id of Object.keys(L.pos)) {
+        const p = byId.get(id)!.parent;
+        if (!p) continue;
+        expect(dist(flat(L.pos[id]), flat(L.pos[p])) + L.bubble[id]).toBeLessThanOrEqual(L.bubble[p] + 1e-6);
+        expect(L.pos[id][1]).toBeGreaterThan(L.pos[p][1]);           // each level floats above the one it sits on
+      }
+      // zones: no two touch; unclassified systems stand clear of every zone by the declared gap
+      for (let i = 0; i < L.zones.length; i++) for (let j = i + 1; j < L.zones.length; j++) {
+        const a = L.zones[i], b = L.zones[j], gap = a.unplaced || b.unplaced ? Lay.SPACE.unplacedGap : Lay.SPACE.zoneGap;
+        expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThanOrEqual(a.r + b.r + gap - 1e-6);
+      }
+      // each system sits inside its own zone's boundary
+      for (const s of systemsSorted) {
+        const z = L.zones.find((x: { zone: string }) => x.zone === (['centre', 'north', 'east', 'south', 'west'].includes(zoneOf(s.id)) ? zoneOf(s.id) : ''));
+        expect(dist(flat(L.pos[s.id]), [z.x, z.z]) + L.bubble[s.id]).toBeLessThanOrEqual(z.r + 1e-6);
+      }
+    });
+  }
+
+  it('keeps the manifest\'s compass, and puts what has no district evidence apart, marked as such', () => {
+    const L = run(MODES['systems open']);
+    const at = (z: string) => L.zones.find((x: { zone: string }) => x.zone === z);
+    expect(at('north').z).toBeGreaterThan(at('centre').z);
+    expect(at('south').z).toBeLessThan(at('centre').z);
+    expect(at('east').x).toBeGreaterThan(at('centre').x);
+    expect(at('west').x).toBeLessThan(at('centre').x);
+    const un = L.zones.filter((z: { unplaced: boolean }) => z.unplaced);
+    expect(un.map((z: { zone: string }) => z.zone)).toEqual(['']);
+    expect(dist(flat(L.pos['system:unplaced']), [un[0].x, un[0].z])).toBeLessThan(un[0].r);
+    // and the overview is compact: the whole closed map fits in a circle a fraction of the old 120-unit ring
+    expect(run(MODES.closed).extent).toBeLessThan(80);
+  });
+
+  it('lifts edges without inventing one: every drawn line is made of real edges, and they add up', () => {
+    for (const open of Object.values(MODES)) {
+      const visible: Record<string, boolean> = {};
+      const walk = (id: string) => { visible[id] = true; if (open(id)) (kids.get(id) || []).forEach(walk); };
+      systemsSorted.forEach((s) => walk(s.id));
+      const parentOf = (id: string) => byId.get(id)?.parent || null;
+      const lifted = Lay.lift(G.edges, visible, parentOf, (k: string) => k !== 'IN_BOUNDARY');
+      const rep = (id: string) => { let c: string | null = id; while (c && !visible[c]) c = parentOf(c); return c; };
+      const real = new Map<string, number>();
+      for (const e of G.edges) {
+        if (e.kind === 'IN_BOUNDARY') continue;
+        const a = rep(e.from), b = rep(e.to);
+        if (a && b && a !== b) real.set(a + '|' + b + '|' + e.kind, (real.get(a + '|' + b + '|' + e.kind) || 0) + 1);
+      }
+      expect(lifted.length).toBe(real.size);
+      for (const l of lifted) {
+        expect(l.from).not.toBe(l.to);
+        expect(visible[l.from] && visible[l.to]).toBe(true);
+        expect(real.get(l.from + '|' + l.to + '|' + l.kind)).toBe(l.n);   // the count is the real edges it stands for
+      }
+      // negative control: a fabricated line is caught by the same mapping
+      expect(real.get('system:frontend|system:testing|DEPENDS_ON')).toBeUndefined();
+    }
+  });
+
+  it('finds the fewest hops along the edges\' own direction, and says when it had to read them backwards', () => {
+    const lifted = [
+      { from: 'a', to: 'b', kind: 'IMPORTS', weight: 1, n: 1 }, { from: 'b', to: 'c', kind: 'IMPORTS', weight: 1, n: 1 },
+      { from: 'a', to: 'c', kind: 'DATA', weight: 1, n: 1 }, { from: 'c', to: 'd', kind: 'IMPORTS', weight: 1, n: 1 }, { from: 'x', to: 'y', kind: 'IMPORTS', weight: 1, n: 1 },
+    ];
+    expect(Lay.shortestPath(lifted, 'a', 'd')).toEqual({ nodes: ['a', 'c', 'd'], edges: [2, 3], reversed: false });
+    expect(Lay.shortestPath(lifted, 'd', 'a')).toEqual({ nodes: ['a', 'c', 'd'], edges: [2, 3], reversed: true });
+    expect(Lay.shortestPath(lifted, 'a', 'y')).toBeNull();               // no path is reported as none, never a guess
+    expect(Lay.shortestPath(lifted, 'a', 'a')).toBeNull();
+  });
+
+  it('keeps labels apart: no two kept boxes overlap, and the more important label wins', () => {
+    const boxes = Array.from({ length: 400 }, (_, i) => ({ id: 'l' + i, x: (i * 53) % 900, y: (i * 29) % 500, w: 60 + (i % 5) * 20, h: 18, pri: i % 7 }));
+    const keep = Lay.declutter(boxes, 3);
+    const kept = boxes.filter((b) => keep[b.id]);
+    expect(kept.length).toBeGreaterThan(20);
+    for (let i = 0; i < kept.length; i++) for (let j = i + 1; j < kept.length; j++) {
+      const a = kept[i], b = kept[j];
+      expect(a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h).toBe(false);
+    }
+    const two = Lay.declutter([{ id: 'low', x: 0, y: 0, w: 100, h: 20, pri: 5 }, { id: 'high', x: 10, y: 5, w: 100, h: 20, pri: 0 }], 0);
+    expect(two).toEqual({ high: true });
+    expect(Lay.declutter(boxes, 3)).toEqual(keep);
+  });
+
+  it('is pure, and the room loads it before itself', () => {
+    const src = read('public/neural-twin/neural-twin-layout.js');
+    expect(src).not.toMatch(/\bdocument\b|\blocalStorage\b|Math\.random|Date\.now|performance\.now|fetch\(/);
+    expect(read('public/app.js')).toMatch(/\['\/neural-twin\/neural-twin-layout\.js', '\/neural-twin\/neural-twin\.js'\]/);
+    expect(ROOM).toMatch(/window\.FamilistaTwinLayout/);
+    // one line builder in the room; relationship lines are built only from the lifted edges (the rest are
+    // platform and zone boundaries and the selection's ring), and no other kind of line exists
+    expect(ROOM.match(/CreateGreasedLine\(/g)).toHaveLength(1);
+    expect(ROOM).not.toMatch(/CreateLineSystem|CreateLines\(|CreateDashedLines/);
+    expect(ROOM).toMatch(/var e = S\.lifted\[i\]; \(groups\[e\.kind\]/);
   });
 });

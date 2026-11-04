@@ -2858,8 +2858,8 @@ function _loadNeuralTwin(done) {
   }
   ask.then(function (yes) {
     if (!yes) { finish(false); return; }
-    var v = '20261104-neural-twin-1';
-    var pending = 2, failed = false;
+    var v = '20261104-neural-twin-2';
+    var pending = 3, failed = false;
     function one(ok) { if (!ok) failed = true; if (--pending === 0) finish(!failed); }
     var link = document.createElement('link');
     link.rel = 'stylesheet';
@@ -2867,11 +2867,13 @@ function _loadNeuralTwin(done) {
     link.onload = function () { one(true); };
     link.onerror = function () { one(false); };
     document.head.appendChild(link);
-    var script = document.createElement('script');
-    script.src = '/neural-twin/neural-twin.js?v=' + v;
-    script.onload = function () { one(true); };
-    script.onerror = function () { one(false); };
-    document.head.appendChild(script);
+    ['/neural-twin/neural-twin-layout.js', '/neural-twin/neural-twin.js'].forEach(function (src) {
+      var script = document.createElement('script');
+      script.src = src + '?v=' + v;
+      script.onload = function () { one(true); };
+      script.onerror = function () { one(false); };
+      document.head.appendChild(script);
+    });
   }).catch(function () { finish(false); });
 }
 

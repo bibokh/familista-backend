@@ -102,9 +102,25 @@
   var ROOMS = {
     'infrastructure-city': 'Open in Infrastructure City', cybersecurity: 'Open in Cybersecurity', 'agents-room': 'Open in the AI Agents Operations Room', system: 'Open in SYSTEM',
   };
-  // Where each zone of the infrastructure manifest sits on the floor of the scene.
-  var ZONES = { centre: [0, 0, 0], north: [0, 10, -120], south: [0, -10, 120], east: [120, 0, 0], west: [-120, 0, 0] };
-  var UNZONED = [104, -8, 104];
+  // The infrastructure manifest's zones, named for the reader. Where they sit is the layout's work.
+  var ZONE_NAMES = { centre: 'Centre zone', north: 'North zone', east: 'East zone', south: 'South zone', west: 'West zone' };
+  /** How each relationship is drawn, so no two kinds look alike even without colour: the arc's height over its
+   *  length, its width in pixels, and its dash (on, off) in scene units, or none. */
+  var EDGE_STYLE = {
+    IMPORTS:        { lift: 0.10, px: 1.4, dash: null },
+    DATA:           { lift: 0.15, px: 1.5, dash: [1.1, 0.7] },
+    DEPENDS_ON:     { lift: 0.21, px: 2.2, dash: null },
+    INFRA:          { lift: 0.25, px: 1.8, dash: [0.45, 0.55] },
+    IMPLEMENTED_BY: { lift: 0.04, px: 1.3, dash: null },
+    USES_TOOLS:     { lift: 0.17, px: 1.7, dash: [1.6, 0.6] },
+    IN_BOUNDARY:    { lift: 0.07, px: 1.2, dash: [0.35, 0.75] },
+  };
+  var EDGE_BUDGET = 2400;      // lines drawn at once before the weakest give way; the selection's own are always drawn
+  var HIGHLIGHT_BUDGET = 600;
+  var FILE_LOD = 170;          // past this distance a source file is too small to see, and is not drawn
+  var OPEN_SYSTEM = 0.55;      // an open node's own body shrinks to make room for its platform
+  var VIEW = { alpha: -Math.PI / 2, beta: 0.96 };
+  function L() { return window.FamilistaTwinLayout; }
 
   // ── state ─────────────────────────────────────────────────────────────────
   function fresh() {
@@ -112,8 +128,11 @@
       root: null, state: 'idle', error: null, graph: null, commit: null,
       byId: {}, kids: {}, out: {}, inc: {}, depth: {},
       sel: null, expanded: {}, kinds: {}, edges: {}, system: '', q: '', showAll: {},
-      pos: {}, visible: {}, lifted: [], labels: [],
-      gl: { engine: null, scene: null, camera: null, meshes: {}, mats: {}, lines: [], hiLines: null, anim: null, dirty: true, ok: false, failed: false, reason: '', awakeUntil: 0, frames: 0 },
+      pos: {}, visible: {}, lifted: [], labels: [], labelSize: {}, labelPri: {}, labelsShown: 0,
+      layout: null, layoutMs: null, near: {}, selSet: {}, path: null, pathTo: null, history: [], drawn: [], cut: 0, ambientTotal: 0, hiCount: { out: 0, inc: 0, path: 0 },
+      intensity: 1, focusOnly: false, edgeRaf: 0,
+      gl: { engine: null, scene: null, camera: null, meshes: {}, mats: {}, templates: {}, edgeMeshes: [], hiMeshes: [], arrows: [], platforms: [], glow: null, glowing: [], inst: null,
+        layoutKey: '', anim: null, tween: null, dirty: true, ok: false, failed: false, reason: '', awakeUntil: 0, frames: 0 },
       cleanup: [], firstFrameMs: null, t0: 0, babylonMs: null,
     };
   }
@@ -168,52 +187,32 @@
     }
     systems().forEach(function (s) { if (!S.system || S.system === s.id) walk(s.id); });
     S.visible = vis;
-    // an edge is drawn between the nearest shown ancestor-or-self of each end
-    var rep = {};
-    function repOf(id) {
-      if (rep[id] !== undefined) return rep[id];
-      var r = null, cur = id;
-      while (cur) { if (vis[cur]) { r = cur; break; } cur = S.byId[cur] && S.byId[cur].parent; }
-      rep[id] = r; return r;
-    }
-    var agg = {};
-    S.graph.edges.forEach(function (e) {
-      if (!S.edges[e.kind]) return;
-      var a = repOf(e.from), b = repOf(e.to);
-      if (!a || !b || a === b) return;
-      var key = a + '\u0000' + b + '\u0000' + e.kind;
-      var x = agg[key] || (agg[key] = { from: a, to: b, kind: e.kind, weight: 0, n: 0 });
-      x.weight += e.weight; x.n += 1;
+    // an edge is drawn between the nearest shown ancestor-or-self of each end, and only then
+    S.lifted = L().lift(S.graph.edges, vis, function (id) { return S.byId[id] && S.byId[id].parent; }, function (k) { return !!S.edges[k]; });
+    S.path = S.sel && S.pathTo && vis[S.sel] && vis[S.pathTo] ? L().shortestPath(S.lifted, S.sel, S.pathTo) : null;
+    // the selection is the node and whatever of it is open on screen: an open module's relationships are its files'
+    S.selSet = {};
+    if (S.sel && vis[S.sel]) Object.keys(subtree(S.sel)).forEach(function (id) { if (vis[id]) S.selSet[id] = true; });
+    S.hiCount = { out: 0, inc: 0, inside: 0, path: S.path ? S.path.edges.length : 0 };
+    S.lifted.forEach(function (e) {
+      var a = S.selSet[e.from], b = S.selSet[e.to];
+      if (a && b) S.hiCount.inside++; else if (a) S.hiCount.out++; else if (b) S.hiCount.inc++;
     });
-    S.lifted = Object.keys(agg).sort().map(function (k) { return agg[k]; });
   }
 
   // ── layout: deterministic, from the manifest's zones and the graph's own nesting ──
+  function bodyOf(id) { var n = S.byId[id], s = KINDS[n.kind].size; return S.expanded[id] && (S.kids[id] || []).length ? s * OPEN_SYSTEM : s; }
   function layout() {
-    var pos = {};
-    var byZone = {};
-    systems().forEach(function (s) { var z = (s.facts && s.facts.zone) || ''; (byZone[z] = byZone[z] || []).push(s.id); });
-    Object.keys(byZone).forEach(function (z) {
-      var list = byZone[z].sort(), anchor = ZONES[z] || UNZONED, r = list.length > 1 ? 18 + list.length * 5 : 0;
-      list.forEach(function (id, i) {
-        var a = (i / list.length) * Math.PI * 2 + (z === 'centre' ? Math.PI / 8 : 0);
-        pos[id] = [anchor[0] + Math.cos(a) * r, anchor[1] + (i % 2 ? 4 : -4) * (list.length > 1 ? 1 : 0), anchor[2] + Math.sin(a) * r];
-      });
+    var t = performance.now();
+    var roots = systems().filter(function (s) { return S.visible[s.id]; }).map(function (s) { return { id: s.id, zone: (s.facts && s.facts.zone) || '' }; });
+    S.layout = L().layout({
+      roots: roots,
+      kids: function (id) { return (S.kids[id] || []).filter(function (k) { return S.visible[k]; }); },
+      open: function (id) { return !!S.expanded[id]; },
+      body: bodyOf,
     });
-    // children on a sphere around their parent, in a fixed order, whatever is filtered
-    function place(id) {
-      var kids = S.kids[id] || [];
-      if (!kids.length) return;
-      var c = pos[id], n = kids.length, depth = S.depth[id];
-      var R = depth === 0 ? 7 + 2.1 * Math.sqrt(n) : 2.6 + 1.05 * Math.sqrt(n);
-      kids.forEach(function (k, i) {
-        var y = 1 - (2 * (i + 0.5)) / n, rr = Math.sqrt(Math.max(0, 1 - y * y)), th = i * 2.399963;
-        pos[k] = [c[0] + R * rr * Math.cos(th), c[1] + R * y * 0.8, c[2] + R * rr * Math.sin(th)];
-        if (S.expanded[k]) place(k);
-      });
-    }
-    systems().forEach(function (s) { if (S.expanded[s.id]) place(s.id); });
-    S.pos = pos;
+    S.pos = S.layout.pos;
+    S.layoutMs = Math.round((performance.now() - t) * 10) / 10;
   }
 
   // ── colours from the design tokens, never written here ────────────────────
@@ -255,19 +254,29 @@
     var scene = new B.Scene(engine);
     var bg = tokenRGB('--fam-surface-sunken');
     scene.clearColor = new B.Color4(bg[0], bg[1], bg[2], 1);
-    var cam = new B.ArcRotateCamera('nt-cam', -Math.PI / 2.6, Math.PI / 3.1, 330, new B.Vector3(0, 0, 0), scene);
-    cam.lowerRadiusLimit = 4; cam.upperRadiusLimit = 620; cam.wheelDeltaPercentage = 0.012; cam.panningSensibility = 60;
-    cam.inertia = reduceMotion ? 0 : 0.82; cam.panningInertia = reduceMotion ? 0 : 0.82; cam.minZ = 0.5; cam.maxZ = 4000;
+    scene.skipPointerMovePicking = true;   // nothing answers a hover: picking runs on a tap only
+    // depth: what is far fades into the room's own background
+    scene.fogMode = B.Scene.FOGMODE_EXP2; scene.fogColor = new B.Color3(bg[0], bg[1], bg[2]); scene.fogDensity = 0.0011;
+    var cam = new B.ArcRotateCamera('nt-cam', VIEW.alpha, VIEW.beta, 160, new B.Vector3(0, 0, 0), scene);
+    cam.lowerRadiusLimit = 3; cam.upperRadiusLimit = 1600; cam.lowerBetaLimit = 0.08; cam.upperBetaLimit = 1.48;
+    cam.wheelDeltaPercentage = 0.012; cam.pinchDeltaPercentage = 0.004; cam.panningSensibility = 60;
+    cam.inertia = reduceMotion ? 0 : 0.82; cam.panningInertia = reduceMotion ? 0 : 0.82; cam.minZ = 0.3; cam.maxZ = 8000;
     cam.attachControl(canvas, true);
     var hemi = new B.HemisphericLight('nt-sky', new B.Vector3(0.2, 1, 0.1), scene);
-    hemi.intensity = 0.9; hemi.groundColor = new B.Color3(0.12, 0.13, 0.18);
-    var key = new B.DirectionalLight('nt-key', new B.Vector3(-0.4, -1, 0.3), scene); key.intensity = 0.5;
+    hemi.intensity = 0.85; hemi.groundColor = new B.Color3(bg[0], bg[1], bg[2]);
+    var key = new B.DirectionalLight('nt-key', new B.Vector3(-0.4, -1, 0.3), scene); key.intensity = 0.45;
+    // the glow is kept for the selection and what it touches; with nothing selected it is off
+    gl.glow = new B.GlowLayer('nt-glow', scene, { mainTextureRatio: 0.5, blurKernelSize: 22 });
+    gl.glow.intensity = 0.4; gl.glow.isEnabled = false;
+    gl.inst = new B.SceneInstrumentation(scene); gl.inst.captureFrameTime = true;
     gl.engine = engine; gl.scene = scene; gl.camera = cam; gl.ok = true;
     scene.onPointerObservable.add(function (pi) {
-      if (pi.type !== B.PointerEventTypes.POINTERTAP && pi.type !== B.PointerEventTypes.POINTERDOUBLETAP) return;
+      var PT = B.PointerEventTypes;
+      if (pi.type !== PT.POINTERTAP && pi.type !== PT.POINTERDOUBLETAP) return;
       var pick = pi.pickInfo, m = pick && pick.hit ? pick.pickedMesh : null, id = m && m.metadata && m.metadata.ntId;
       if (!id) return;
-      if (pi.type === B.PointerEventTypes.POINTERDOUBLETAP) { enter(id); return; }
+      if (pi.type === PT.POINTERDOUBLETAP) { enter(id); return; }
+      if (pi.event && pi.event.shiftKey && S.sel && S.sel !== id) { tracePath(id); return; }
       select(id, { focus: false, reveal: false });
     });
     cam.onViewMatrixChangedObservable.add(function () { gl.dirty = true; });
@@ -277,9 +286,10 @@
     });
     engine.runRenderLoop(function () {
       // Nothing on this map is live, so an idle scene is not drawn again: frames run while the reader
-      // moves the camera, while it settles, and after a change, then stop.
-      if (document.hidden || (!gl.anim && performance.now() > gl.awakeUntil)) return;
+      // moves the camera, while it settles, while a change unfolds, and then stop.
+      if (document.hidden || (!gl.anim && !gl.tween && performance.now() > gl.awakeUntil)) return;
       stepAnimation();
+      stepTween();
       scene.render();
       gl.frames++;
       if (gl.dirty) { placeLabels(); gl.dirty = false; }
@@ -296,180 +306,488 @@
 
   /** Keep drawing for a moment: the camera's inertia settles inside it. */
   function wake() { S.gl.awakeUntil = performance.now() + 1600; }
+  function disposeAll(list) { (list || []).forEach(function (m) { try { m.dispose(); } catch (_) {} }); }
+  /** A token's colour taken toward the background by k: how strongly something is drawn, without blending. */
+  function toward(c, k) {
+    var b = tokenRGB('--fam-surface-sunken'), f = Math.max(0, k);
+    return new window.BABYLON.Color3(Math.min(1, b[0] + (c[0] - b[0]) * f), Math.min(1, b[1] + (c[1] - b[1]) * f), Math.min(1, b[2] + (c[2] - b[2]) * f));
+  }
+  var LOOK = { hi: 1.0, near: 0.92, normal: 0.66, dim: 0.22 };
   function material(kind, look, maturity) {
     var B = window.BABYLON, gl = S.gl;
     var wire = maturity === 'PLANNED' || maturity === 'UNVERIFIED', partial = maturity === 'PARTIAL';
     var key = kind + '|' + look + '|' + (wire ? 'w' : partial ? 'p' : 's');
     if (gl.mats[key]) return gl.mats[key];
-    var c = tokenRGB(KINDS[kind].tok), m = new B.StandardMaterial('nt-m-' + key, gl.scene);
-    var k = look === 'hi' ? 1.0 : look === 'dim' ? 0.35 : 0.72;
-    m.diffuseColor = new B.Color3(c[0] * 0.55, c[1] * 0.55, c[2] * 0.55);
-    m.emissiveColor = new B.Color3(c[0] * k, c[1] * k, c[2] * k);
-    m.specularColor = new B.Color3(0.15, 0.15, 0.15);
+    var c = tokenRGB(KINDS[kind].tok), k = LOOK[look], m = new B.StandardMaterial('nt-m-' + key, gl.scene);
+    m.diffuseColor = new B.Color3(c[0] * 0.3, c[1] * 0.3, c[2] * 0.3);
+    m.emissiveColor = new B.Color3(c[0] * k * 0.62, c[1] * k * 0.62, c[2] * k * 0.62);
+    m.specularColor = new B.Color3(0.3, 0.3, 0.3); m.specularPower = 64;
+    if (!wire && look !== 'dim') {
+      // a lit rim: the edge of each body glows in its own colour, its face stays darker
+      var f = new B.FresnelParameters();
+      f.bias = 0.18; f.power = 2.2;
+      f.leftColor = new B.Color3(Math.min(1, c[0] * k * 1.3), Math.min(1, c[1] * k * 1.3), Math.min(1, c[2] * k * 1.3));
+      f.rightColor = new B.Color3(c[0] * k * 0.5, c[1] * k * 0.5, c[2] * k * 0.5);
+      m.emissiveFresnelParameters = f;
+    }
     m.wireframe = wire;
-    m.alpha = look === 'dim' ? 0.16 : partial ? 0.62 : 1;
+    m.alpha = look === 'dim' ? (partial ? 0.1 : 0.16) : partial ? 0.62 : 1;
     m.freeze();
     gl.mats[key] = m;
     return m;
   }
-  function meshFor(id) {
+  /** One body per kind, built once; each node is a copy that shares its geometry. */
+  function template(kind) {
     var gl = S.gl, B = window.BABYLON;
+    if (gl.templates[kind]) return gl.templates[kind];
+    var kd = KINDS[kind], s = kd.size, m;
+    if (kd.shape === 'ico') m = B.MeshBuilder.CreateIcoSphere('nt-t-' + kind, { radius: s, subdivisions: 2 }, gl.scene);
+    else if (kd.shape === 'box') m = B.MeshBuilder.CreateBox('nt-t-' + kind, { size: s * 1.4 }, gl.scene);
+    else if (kd.shape === 'octa') m = B.MeshBuilder.CreatePolyhedron('nt-t-' + kind, { type: 1, size: s }, gl.scene);
+    else if (kd.shape === 'cyl') m = B.MeshBuilder.CreateCylinder('nt-t-' + kind, { height: s * 1.5, diameter: s * 1.6, tessellation: 20 }, gl.scene);
+    else if (kd.shape === 'capsule') m = B.MeshBuilder.CreateCapsule('nt-t-' + kind, { height: s * 2.2, radius: s * 0.55, tessellation: 14, subdivisions: 2 }, gl.scene);
+    else if (kd.shape === 'torus') m = B.MeshBuilder.CreateTorus('nt-t-' + kind, { diameter: s * 2, thickness: s * 0.45, tessellation: 28 }, gl.scene);
+    else m = B.MeshBuilder.CreateSphere('nt-t-' + kind, { diameter: s * 2, segments: kind === 'file' ? 8 : 14 }, gl.scene);
+    m.isPickable = false; m.setEnabled(false);
+    gl.templates[kind] = m;
+    return m;
+  }
+  function meshFor(id) {
+    var gl = S.gl;
     if (gl.meshes[id]) return gl.meshes[id];
-    var n = S.byId[id], kd = KINDS[n.kind], s = kd.size, m;
-    if (kd.shape === 'ico') m = B.MeshBuilder.CreateIcoSphere('n', { radius: s, subdivisions: 2 }, gl.scene);
-    else if (kd.shape === 'box') m = B.MeshBuilder.CreateBox('n', { size: s * 1.4 }, gl.scene);
-    else if (kd.shape === 'octa') m = B.MeshBuilder.CreatePolyhedron('n', { type: 1, size: s }, gl.scene);
-    else if (kd.shape === 'cyl') m = B.MeshBuilder.CreateCylinder('n', { height: s * 1.5, diameter: s * 1.6, tessellation: 18 }, gl.scene);
-    else if (kd.shape === 'capsule') m = B.MeshBuilder.CreateCapsule('n', { height: s * 2.2, radius: s * 0.55, tessellation: 12, subdivisions: 2 }, gl.scene);
-    else if (kd.shape === 'torus') m = B.MeshBuilder.CreateTorus('n', { diameter: s * 2, thickness: s * 0.45, tessellation: 24 }, gl.scene);
-    else m = B.MeshBuilder.CreateSphere('n', { diameter: s * 2, segments: 10 }, gl.scene);
+    var n = S.byId[id], m = template(n.kind).clone('nt-n', null, true);
     m.metadata = { ntId: id };
     m.isPickable = true;
+    // a source file is a speck from far away: past this distance it is not drawn, and its label is not shown
+    if (n.kind === 'file') m.addLODLevel(FILE_LOD, null);
     gl.meshes[id] = m;
     return m;
   }
+  /** Where a node is drawn now (mid-way through a move, the body's own position). */
+  function nodePoint(id) {
+    var m = S.gl.meshes[id];
+    if (m && m.isEnabled()) return [m.position.x, m.position.y, m.position.z];
+    return S.pos[id] || null;
+  }
+  function drawnRadius(id) { return bodyOf(id) * (id === S.sel ? 1.3 : 1) * 1.08; }
 
-  /** Bring the scene in line with what is visible, selected and filtered. Called after every change the reader makes. */
-  function paintScene() {
-    var gl = S.gl, B = window.BABYLON;
+  /** Bring the scene in line with what is visible, selected and filtered. Nodes that moved slide to their new place. */
+  function paintScene(prevPos) {
+    var gl = S.gl;
     if (!gl.ok) return;
-    var near = neighbours();
+    S.near = neighbours();
+    var focus = !!(S.sel && S.visible[S.sel]) || !!S.path, moves = [], unfold = 0;
     for (var id in gl.meshes) if (!S.visible[id]) gl.meshes[id].setEnabled(false);
     Object.keys(S.visible).forEach(function (id) {
       var m = meshFor(id), n = S.byId[id], p = S.pos[id];
       if (!p) { m.setEnabled(false); return; }
+      var from = null;
+      if (prevPos && !reduceMotion) {
+        if (m.isEnabled() && prevPos[id]) from = [m.position.x, m.position.y, m.position.z];
+        else { var a = ancestors(id).reverse(); for (var i = 0; i < a.length && !from; i++) if (prevPos[a[i]]) { from = prevPos[a[i]]; unfold++; } }
+      }
       m.setEnabled(true);
-      m.position.set(p[0], p[1], p[2]);
-      var look = !S.sel ? 'normal' : id === S.sel ? 'hi' : near[id] ? 'normal' : 'dim';
-      var scale = n.kind === 'system' && S.expanded[id] ? 0.45 : 1;
-      if (id === S.sel) scale *= 1.35;
+      if (from && (Math.abs(from[0] - p[0]) + Math.abs(from[1] - p[1]) + Math.abs(from[2] - p[2])) > 0.01) {
+        moves.push({ m: m, from: from, to: p });
+        m.position.set(from[0], from[1], from[2]);
+      } else m.position.set(p[0], p[1], p[2]);
+      var look = !focus ? 'normal' : id === S.sel ? 'hi' : S.near[id] ? 'near' : 'dim';
+      var scale = (S.expanded[id] && (S.kids[id] || []).length ? OPEN_SYSTEM : 1) * (id === S.sel ? 1.3 : 1);
       m.scaling.set(scale, scale, scale);
       m.material = material(n.kind, look, n.maturity);
     });
-    // edges: one line system per relationship kind, and the selection's own edges brighter
-    gl.lines.forEach(function (l) { l.dispose(); }); gl.lines = [];
-    if (gl.hiLines) { gl.hiLines.dispose(); gl.hiLines = null; }
-    var groups = {}, hi = [], hiCols = [];
-    S.lifted.forEach(function (e) {
-      var a = S.pos[e.from], b = S.pos[e.to];
-      if (!a || !b) return;
-      var on = S.sel && (e.from === S.sel || e.to === S.sel);
-      var c = tokenRGB(EDGES[e.kind].tok);
-      var seg = [new B.Vector3(a[0], a[1], a[2]), new B.Vector3(b[0], b[1], b[2])];
-      if (on) { hi.push(seg); hiCols.push([new B.Color4(c[0], c[1], c[2], 1), new B.Color4(c[0], c[1], c[2], 1)]); return; }
-      var g = groups[e.kind] || (groups[e.kind] = { lines: [], colors: [] });
-      var alpha = S.sel ? 0.06 : Math.min(0.55, 0.16 + Math.log2(1 + e.weight) * 0.06);
-      g.lines.push(seg); g.colors.push([new B.Color4(c[0], c[1], c[2], alpha), new B.Color4(c[0], c[1], c[2], alpha)]);
-    });
-    Object.keys(groups).forEach(function (k) {
-      var l = B.MeshBuilder.CreateLineSystem('nt-e-' + k, { lines: groups[k].lines, colors: groups[k].colors, useVertexAlpha: true }, gl.scene);
-      l.isPickable = false; l.alphaIndex = 1; gl.lines.push(l);
-    });
-    if (hi.length) {
-      gl.hiLines = B.MeshBuilder.CreateLineSystem('nt-e-hi', { lines: hi, colors: hiCols, useVertexAlpha: true }, gl.scene);
-      gl.hiLines.isPickable = false; gl.hiLines.alphaIndex = 2;
-    }
+    var key = Object.keys(S.visible).sort().join('|') + '#' + Object.keys(S.expanded).filter(function (k) { return S.expanded[k]; }).sort().join('|');
+    if (key !== gl.layoutKey) { gl.layoutKey = key; paintPlatforms(); }
+    if (moves.length) {
+      // lines are drawn again once the nodes have arrived: a line between two moving ends would be wrong mid-way
+      disposeAll(gl.edgeMeshes); disposeAll(gl.hiMeshes); disposeAll(gl.arrows);
+      gl.edgeMeshes = []; gl.hiMeshes = []; gl.arrows = [];
+      gl.tween = { moves: moves, t0: performance.now(), ms: 460 };
+    } else { gl.tween = null; paintEdges(); }
+    gl.lastMove = { nodes: moves.length, unfold: unfold, ms: moves.length ? 460 : 0 };
     gl.dirty = true;
     wake();
   }
+  function stepTween() {
+    var gl = S.gl, tw = gl.tween;
+    if (!tw) return;
+    var t = Math.min(1, (performance.now() - tw.t0) / tw.ms), k = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    tw.moves.forEach(function (mv) {
+      mv.m.position.set(mv.from[0] + (mv.to[0] - mv.from[0]) * k, mv.from[1] + (mv.to[1] - mv.from[1]) * k, mv.from[2] + (mv.to[2] - mv.from[2]) * k);
+    });
+    gl.dirty = true;
+    if (t >= 1) { gl.tween = null; paintEdges(); }
+  }
 
-  /** The nodes joined to the selection by a drawn edge. */
+  // ── platforms and zones: the nesting, drawn as floors and boundaries ──────
+  function circle(x, y, z, r) {
+    var n = Math.max(48, Math.min(160, Math.round(r * 5))), out = [];
+    for (var i = 0; i <= n; i++) { var a = (i / n) * Math.PI * 2; out.push(x + Math.cos(a) * r, y, z + Math.sin(a) * r); }
+    return out;
+  }
+  function platformMat(kind) {
+    var gl = S.gl, B = window.BABYLON, key = 'pf|' + kind;
+    if (gl.mats[key]) return gl.mats[key];
+    var c = tokenRGB(KINDS[kind].tok), m = new B.StandardMaterial('nt-' + key, gl.scene);
+    m.disableLighting = true; m.backFaceCulling = false;
+    m.diffuseColor = new B.Color3(0, 0, 0); m.specularColor = new B.Color3(0, 0, 0);
+    m.emissiveColor = toward(c, 0.16); m.alpha = 0.55;
+    m.freeze();
+    gl.mats[key] = m;
+    return m;
+  }
+  function paintPlatforms() {
+    var gl = S.gl, B = window.BABYLON, lay = S.layout;
+    disposeAll(gl.platforms); gl.platforms = [];
+    if (!gl.ok || !lay) return;
+    var rings = { lines: [], cols: [] }, zones = { lines: [], cols: [] }, unplaced = { lines: [], cols: [] };
+    lay.platforms.forEach(function (p) {
+      var n = S.byId[p.id], c = tokenRGB(KINDS[n.kind].tok);
+      var disc = B.MeshBuilder.CreateDisc('nt-pf', { radius: p.r, tessellation: 96 }, gl.scene);
+      disc.rotation.x = Math.PI / 2; disc.position.set(p.x, p.y - 0.55, p.z);
+      disc.isPickable = false; disc.material = platformMat(n.kind);
+      gl.platforms.push(disc);
+      var ring = circle(p.x, p.y - 0.52, p.z, p.r), col = toward(c, 0.55);
+      rings.lines.push(ring); for (var i = 0; i < ring.length; i += 3) rings.cols.push(col);
+    });
+    lay.zones.forEach(function (z) {
+      var pts = circle(z.x, -0.8, z.z, z.r), into = z.unplaced ? unplaced : zones;
+      var col = z.unplaced ? toward(tokenRGB('--fam-status-unverified'), 0.8) : toward(tokenRGB('--fam-text-tertiary'), 0.55);
+      dashes(pts, z.unplaced ? 2.2 : 3.2, z.unplaced ? 1.6 : 2.2).forEach(function (piece) {
+        into.lines.push(piece); for (var i = 0; i < piece.length; i += 3) into.cols.push(col);
+      });
+    });
+    [[rings, 1.4], [zones, 1.2], [unplaced, 1.8]].forEach(function (g, i) {
+      var m = lineMesh('nt-ring-' + i, g[0].lines, g[0].cols, g[1]);
+      if (m) gl.platforms.push(m);
+    });
+  }
+
+  // ── relationships: lifted arcs, brighter toward the end they point to ────
+  /** GreasedLine units per CSS pixel. With sizeAttenuation on, its width is a constant on screen (about 2.5 units
+   *  to a device pixel, measured), so a line is as wide near the camera as far from it. */
+  function pxUnit() {
+    var gl = S.gl, c = S.root.querySelector('#nt-canvas'), w = gl.engine.getRenderWidth();
+    return (w / ((c && c.clientWidth) || w)) * 2.5;
+  }
+  function lineMesh(name, lines, cols, px) {
+    if (!lines.length) return null;
+    var m = window.BABYLON.CreateGreasedLine(name, { points: lines }, { materialType: 2, width: px * pxUnit(), useColors: true, colors: cols, colorDistribution: 0, sizeAttenuation: true }, S.gl.scene);
+    m.isPickable = false;
+    return m;
+  }
+  /** A relationship's curve, from the surface of one body to the surface of the other, as a flat list of points. */
+  function arc(a, b, lift, ra, rb) {
+    var dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+    var h = Math.min(70, 0.4 + lift * d), t0 = Math.min(0.45, ra / d), t1 = Math.max(0.55, 1 - rb / d);
+    var seg = Math.max(6, Math.min(28, Math.round(d / 2.2))), out = [];
+    for (var i = 0; i <= seg; i++) {
+      var t = t0 + (t1 - t0) * (i / seg);
+      out.push(a[0] + dx * t, a[1] + dy * t + 4 * h * t * (1 - t), a[2] + dz * t);
+    }
+    return out;
+  }
+  /** A curve cut into dashes [on] long with [off] between, each a curve of its own. */
+  function dashes(pts, on, off) {
+    // the distance left in the current dash or gap is carried along, never recomputed from a running total,
+    // so rounding can neither stall the walk nor drift the pattern
+    var out = [], drawing = true, left = on, cur = [pts[0], pts[1], pts[2]];
+    for (var i = 0; i + 5 < pts.length; i += 3) {
+      var ax = pts[i], ay = pts[i + 1], az = pts[i + 2], dx = pts[i + 3] - ax, dy = pts[i + 4] - ay, dz = pts[i + 5] - az;
+      var len = Math.sqrt(dx * dx + dy * dy + dz * dz), s = 0;
+      while (len - s > 1e-9) {
+        var step = Math.min(left, len - s);
+        s += step; left -= step;
+        var f = s / len, x = ax + dx * f, y = ay + dy * f, z = az + dz * f;
+        if (drawing && cur) cur.push(x, y, z);
+        if (left <= 1e-9) {
+          if (drawing) { if (cur && cur.length >= 6) out.push(cur); cur = null; }
+          else cur = [x, y, z];
+          drawing = !drawing; left = drawing ? on : off;
+        }
+      }
+    }
+    if (cur && cur.length >= 6) out.push(cur);
+    return out;
+  }
+  function arrowTemplate(kind) {
+    var gl = S.gl, B = window.BABYLON, key = 'arrow|' + kind;
+    if (gl.templates[key]) return gl.templates[key];
+    var m = B.MeshBuilder.CreateCylinder('nt-' + key, { height: 1.6, diameterTop: 0, diameterBottom: 0.85, tessellation: 14 }, gl.scene);
+    var mat = new B.StandardMaterial('nt-m-' + key, gl.scene), c = tokenRGB(EDGES[kind].tok);
+    mat.disableLighting = true; mat.emissiveColor = new B.Color3(c[0], c[1], c[2]); mat.freeze();
+    m.material = mat; m.isPickable = false; m.setEnabled(false);
+    gl.templates[key] = m;
+    return m;
+  }
+  /** The head of a highlighted relationship: a cone at the end it points to, along the curve. */
+  function arrowAt(pts, kind) {
+    var B = window.BABYLON, n = pts.length;
+    var ex = pts[n - 3], ey = pts[n - 2], ez = pts[n - 1], dx = ex - pts[n - 6], dy = ey - pts[n - 5], dz = ez - pts[n - 4];
+    var l = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1, cx = ex - pts[0], cy = ey - pts[1], cz = ez - pts[2];
+    var s = Math.max(0.25, Math.min(0.85, Math.sqrt(cx * cx + cy * cy + cz * cz) * 0.022));
+    var dir = new B.Vector3(dx / l, dy / l, dz / l), m = arrowTemplate(kind).clone('nt-a', null, true);
+    m.setEnabled(true); m.isPickable = false;
+    m.scaling.set(s, s, s);
+    m.rotationQuaternion = new B.Quaternion();
+    B.Quaternion.FromUnitVectorsToRef(B.Vector3.Up(), dir, m.rotationQuaternion);
+    m.position.set(ex - dir.x * s * 0.8, ey - dir.y * s * 0.8, ez - dir.z * s * 0.8);
+    S.gl.arrows.push(m);
+  }
+  /** Draw the relationships: every line is a lifted graph edge, and nothing else is drawn as one. */
+  function paintEdges() {
+    var gl = S.gl;
+    if (!gl.ok) return;
+    disposeAll(gl.edgeMeshes); disposeAll(gl.hiMeshes); disposeAll(gl.arrows);
+    gl.edgeMeshes = []; gl.hiMeshes = []; gl.arrows = [];
+    var sel = S.sel && S.visible[S.sel] ? S.sel : null, onPath = {};
+    if (S.path) S.path.edges.forEach(function (i) { onPath[i] = true; });
+    var amb = [], hi = [];
+    S.lifted.forEach(function (e, i) { if (onPath[i] || (sel && (S.selSet[e.from] || S.selSet[e.to]))) hi.push(i); else amb.push(i); });
+    var byWeight = function (a, b) { return S.lifted[b].weight - S.lifted[a].weight || a - b; };
+    if (hi.length > HIGHLIGHT_BUDGET) hi = hi.slice().sort(function (a, b) { return (onPath[b] ? 1 : 0) - (onPath[a] ? 1 : 0) || byWeight(a, b); }).slice(0, HIGHLIGHT_BUDGET).sort(function (a, b) { return a - b; });
+    var focus = !!(sel || S.path), showAmb = S.intensity > 0 && !(S.focusOnly && focus);
+    S.cut = 0; S.ambientTotal = amb.length;
+    if (!showAmb) amb = [];
+    else if (amb.length > EDGE_BUDGET) { var keep = amb.slice().sort(byWeight).slice(0, EDGE_BUDGET); S.cut = amb.length - keep.length; amb = keep.sort(function (a, b) { return a - b; }); }
+    buildEdges(amb, false, S.intensity * (focus ? 0.3 : 1));
+    buildEdges(hi, true, Math.max(0.85, Math.min(1.2, S.intensity + 0.4)));
+    if (sel) {
+      // the selection's own ring, on the floor under it
+      var p = nodePoint(sel), col = toward(tokenRGB('--fam-focus-ring'), 1), ring = circle(p[0], p[1] - drawnRadius(sel) * 0.9, p[2], drawnRadius(sel) * 1.7), cols = [];
+      for (var i = 0; i < ring.length; i += 3) cols.push(col);
+      var rm = lineMesh('nt-sel-ring', [ring], cols, 2.2);
+      if (rm) gl.hiMeshes.push(rm);
+    }
+    S.drawn = amb.concat(hi).sort(function (a, b) { return a - b; });
+    var glowing = [];
+    if (focus) Object.keys(S.near).concat(sel ? [sel] : []).forEach(function (id) { var m = gl.meshes[id]; if (m && S.visible[id] && glowing.length < 160) glowing.push(m); });
+    setGlow(glowing);
+    paintStageNote();
+    gl.dirty = true;
+    wake();
+  }
+  function buildEdges(list, strong, k) {
+    var groups = {};
+    list.forEach(function (i) { var e = S.lifted[i]; (groups[e.kind] = groups[e.kind] || []).push(e); });
+    EDGE_ORDER.forEach(function (kind) {
+      var es = groups[kind];
+      if (!es) return;
+      var st = EDGE_STYLE[kind], c = tokenRGB(EDGES[kind].tok), lines = [], cols = [];
+      es.forEach(function (e) {
+        var a = nodePoint(e.from), b = nodePoint(e.to);
+        if (!a || !b) return;
+        var pts = arc(a, b, st.lift, drawnRadius(e.from), drawnRadius(e.to));
+        var ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], ab2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2] || 1, len = Math.sqrt(ab2);
+        var wk = strong ? 1 : Math.min(1, 0.5 + 0.14 * Math.log(1 + e.weight) / Math.LN2), base = strong ? 0.45 : 0.24;
+        var pieces = st.dash ? dashes(pts, st.dash[0] * Math.max(1, len / 14), st.dash[1] * Math.max(1, len / 14)) : [pts];
+        pieces.forEach(function (piece) {
+          lines.push(piece);
+          for (var j = 0; j < piece.length; j += 3) {
+            var t = ((piece[j] - a[0]) * ab[0] + (piece[j + 1] - a[1]) * ab[1] + (piece[j + 2] - a[2]) * ab[2]) / ab2;
+            cols.push(toward(c, k * wk * (base + (1 - base) * Math.max(0, Math.min(1, t)))));
+          }
+        });
+        if (strong) arrowAt(pts, kind);
+      });
+      var m = lineMesh('nt-e-' + kind + (strong ? '-hi' : ''), lines, cols, st.px * (strong ? 1.9 : 1));
+      if (m) (strong ? S.gl.hiMeshes : S.gl.edgeMeshes).push(m);
+    });
+  }
+  function setGlow(meshes) {
+    var gl = S.gl;
+    if (!gl.glow) return;
+    (gl.glowing || []).forEach(function (m) { try { gl.glow.removeIncludedOnlyMesh(m); } catch (_) {} });
+    gl.glowing = meshes;
+    meshes.forEach(function (m) { gl.glow.addIncludedOnlyMesh(m); });
+    // an empty list would make every mesh glow, so no list means no glow
+    gl.glow.isEnabled = meshes.length > 0;
+  }
+
+  /** The nodes joined to the selection by a drawn edge, its ancestors and children, and the path's nodes. */
   function neighbours() {
     var out = {};
+    if (S.path) S.path.nodes.forEach(function (id) { out[id] = true; });
     if (!S.sel) return out;
-    S.lifted.forEach(function (e) { if (e.from === S.sel) out[e.to] = true; if (e.to === S.sel) out[e.from] = true; });
+    S.lifted.forEach(function (e) {
+      var a = S.selSet[e.from], b = S.selSet[e.to];
+      if (a && !b) out[e.to] = true;
+      if (b && !a) out[e.from] = true;
+    });
+    Object.keys(S.selSet).forEach(function (id) { out[id] = true; });
     ancestors(S.sel).forEach(function (a) { out[a] = true; });
     (S.kids[S.sel] || []).forEach(function (k) { out[k] = true; });
+    delete out[S.sel];
     return out;
   }
 
-  // ── labels: names over the scene, as text the page can read and translate around ──
-  function labelSet() {
-    var ids = {}, near = neighbours(), count = 0;
+  // ── labels: names over the scene, kept apart so none covers another ─────
+  function labelCandidates() {
+    var out = {}, focus = !!(S.sel && S.visible[S.sel]) || !!S.path;
     Object.keys(S.visible).forEach(function (id) {
-      var n = S.byId[id];
-      if (n.kind === 'system') { ids[id] = 1; return; }
-      var p = n.parent, sibs = (S.kids[p] || []).filter(function (k) { return S.visible[k]; }).length;
-      if (S.expanded[p] && sibs <= 24 && S.depth[id] <= 1) ids[id] = 1;
+      var n = S.byId[id], pri = n.kind === 'system' ? 3 : S.expanded[id] && (S.kids[id] || []).length ? 4 : 5 + S.depth[id];
+      if (focus && !S.near[id] && id !== S.sel) pri += 10;
+      out[id] = pri;
     });
-    if (S.sel && S.visible[S.sel]) {
-      ids[S.sel] = 2;
-      Object.keys(near).forEach(function (id) { if (S.visible[id] && count < 28) { ids[id] = ids[id] || 1; count++; } });
-    }
-    return ids;
+    Object.keys(S.near).forEach(function (id) { if (S.visible[id]) out[id] = S.path && S.path.nodes.indexOf(id) >= 0 ? 1 : 2; });
+    if (S.sel && S.visible[S.sel]) out[S.sel] = 0;
+    return out;
   }
   function paintLabels() {
-    var host = S.root.querySelector('#nt-labels');
+    var host = S.root && S.root.querySelector('#nt-labels');
     if (!host) return;
-    var want = labelSet(), html = '';
+    var want = labelCandidates(), html = '', focus = !!(S.sel && S.visible[S.sel]) || !!S.path;
+    S.labelPri = want;
     Object.keys(want).forEach(function (id) {
-      var n = S.byId[id];
-      html += '<span class="nt-label nt-label--' + n.kind + (want[id] === 2 ? ' is-sel' : '') + '" data-nt-label="' + esc(id) + '">' + data(n.label) + '</span>';
+      var n = S.byId[id], cls = id === S.sel ? ' is-sel' : S.near[id] ? ' is-near' : focus ? ' is-dim' : '';
+      html += '<span class="nt-label nt-label--' + n.kind + cls + '" data-nt-label="' + esc(id) + '">' + data(n.label) + '</span>';
+    });
+    ((S.layout && S.layout.zones) || []).forEach(function (z) {
+      if (!z.unplaced && ZONE_NAMES[z.zone]) html += '<span class="nt-label nt-label--zone" data-nt-zone="' + esc(z.zone) + '">' + esc(T(ZONE_NAMES[z.zone])) + '</span>';
     });
     host.innerHTML = html;
-    S.labels = [].slice.call(host.querySelectorAll('[data-nt-label]'));
+    S.labels = [].slice.call(host.querySelectorAll('.nt-label'));
+    // measured once, while every label is laid out, so the declutter never reads the page while the camera moves
+    S.labelSize = {};
+    S.labels.forEach(function (el) { S.labelSize[labelKey(el)] = [el.offsetWidth, el.offsetHeight]; });
+    S.labels.forEach(function (el) { el.hidden = true; });
     S.gl.dirty = true;
   }
+  function labelKey(el) { var z = el.getAttribute('data-nt-zone'); return z != null ? 'zone:' + z : el.getAttribute('data-nt-label'); }
   function placeLabels() {
     var gl = S.gl, B = window.BABYLON;
     if (!gl.ok || !S.labels.length) return;
-    var w = gl.engine.getRenderWidth(), h = gl.engine.getRenderHeight();
-    var scale = (S.root.querySelector('#nt-canvas').clientWidth || w) / w;
-    var tm = gl.scene.getTransformMatrix(), vp = gl.camera.viewport.toGlobal(w, h), id = B.Matrix.Identity();
+    var cv = S.root.querySelector('#nt-canvas'), w = gl.engine.getRenderWidth(), h = gl.engine.getRenderHeight();
+    var cw = cv.clientWidth || w, ch = cv.clientHeight || h, scale = cw / w;
+    var tm = gl.scene.getTransformMatrix(), vp = gl.camera.viewport.toGlobal(w, h), I = B.Matrix.Identity(), v = new B.Vector3(0, 0, 0), eye = gl.camera.position;
+    var boxes = [], at = {}, zones = {};
+    ((S.layout && S.layout.zones) || []).forEach(function (z) { zones[z.zone] = z; });
     S.labels.forEach(function (el) {
-      var p = S.pos[el.getAttribute('data-nt-label')];
-      if (!p) { el.hidden = true; return; }
-      var v = B.Vector3.Project(new B.Vector3(p[0], p[1], p[2]), id, tm, vp);
-      if (v.z < 0 || v.z > 1 || v.x < -40 || v.y < -20 || v.x > w + 40 || v.y > h + 20) { el.hidden = true; return; }
-      el.hidden = false;
-      el.style.transform = 'translate(' + Math.round(v.x * scale) + 'px,' + Math.round(v.y * scale) + 'px)';
+      var k = labelKey(el), p = null, pri;
+      if (k.indexOf('zone:') === 0) { var z = zones[k.slice(5)]; if (z) p = [z.x, -0.8, z.z + z.r]; pri = 3.5; }
+      else {
+        var m = gl.meshes[k];
+        if (m && m.isEnabled()) p = [m.position.x, m.position.y, m.position.z];
+        pri = S.labelPri[k];
+        if (p && S.byId[k].kind === 'file' && k !== S.sel && !S.near[k] && B.Vector3.Distance(eye, m.position) > FILE_LOD) p = null;
+      }
+      if (!p) return;
+      v.set(p[0], p[1], p[2]);
+      var s = B.Vector3.Project(v, I, tm, vp);
+      if (s.z < 0 || s.z > 1) return;
+      var x = s.x * scale, y = s.y * scale, sz = S.labelSize[k] || [80, 18];
+      if (x < 0 || x > cw || y < 0 || y > ch + sz[1]) return;
+      // a label near the edge slides inward rather than being cut by it
+      x = Math.max(sz[0] / 2 + 4, Math.min(cw - sz[0] / 2 - 4, x));
+      boxes.push({ id: k, x: x - sz[0] / 2, y: y - sz[1] - 12, w: sz[0], h: sz[1], pri: pri + s.z * 0.5 });
+      at[k] = [x, y];
     });
+    var keep = L().declutter(boxes, 3), shown = 0;
+    S.labels.forEach(function (el) {
+      var k = labelKey(el);
+      if (!keep[k]) { el.hidden = true; return; }
+      el.hidden = false; shown++;
+      el.style.transform = 'translate(' + Math.round(at[k][0]) + 'px,' + Math.round(at[k][1]) + 'px)';
+    });
+    S.labelsShown = shown;
   }
 
-  // ── camera: focus and enter ───────────────────────────────────────────────
-  function focusOn(id) {
-    var gl = S.gl, B = window.BABYLON, p = S.pos[id];
-    if (!gl.ok || !p) return;
-    var n = S.byId[id], kids = (S.kids[id] || []).length;
-    var radius = n.kind === 'system' ? (S.expanded[id] ? 34 + 3.4 * Math.sqrt(kids) : 46) : S.expanded[id] ? 14 + 2.2 * Math.sqrt(kids) : 18;
-    var to = { target: new B.Vector3(p[0], p[1], p[2]), radius: radius };
+  // ── camera: framing, flights, and the way back ───────────────────────────
+  function fitRadius(r) {
+    var gl = S.gl, cam = gl.camera, w = gl.engine.getRenderWidth(), h = gl.engine.getRenderHeight();
+    var half = Math.min(cam.fov / 2, Math.atan(Math.tan(cam.fov / 2) * (w / Math.max(1, h))));
+    return Math.max(4, (r / Math.sin(half)) * 1.02);
+  }
+  /** The whole map, from the south, looking north. */
+  function overviewView() {
+    var zs = (S.layout && S.layout.zones) || [], x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    zs.forEach(function (z) { x0 = Math.min(x0, z.x - z.r); x1 = Math.max(x1, z.x + z.r); z0 = Math.min(z0, z.z - z.r); z1 = Math.max(z1, z.z + z.r); });
+    if (!zs.length) { x0 = z0 = -20; x1 = z1 = 20; }
+    var R = Math.max(x1 - x0, z1 - z0) / 2, e = S.gl.engine, tall = e.getRenderHeight() > e.getRenderWidth();
+    // seen at an angle the floor is shorter than it is wide, so a wide screen can come closer than a tall one
+    return { t: [(x0 + x1) / 2, 0, (z0 + z1) / 2], a: VIEW.alpha, b: VIEW.beta, r: fitRadius(R) * (tall ? 1.0 : 0.86) };
+  }
+  /** The view that frames one node: an open one with everything on its platform; a closed one with every node it is
+   *  joined to by a drawn relationship, so the lines the selection lights up end on screen. */
+  function viewFor(id) {
+    var p = S.pos[id], cam = S.gl.camera, bub = (S.layout && S.layout.bubble) || {};
+    if (!p) return null;
+    if (S.expanded[id] && (S.kids[id] || []).length) return { t: [p[0], p[1], p[2]], a: cam.alpha, b: cam.beta, r: fitRadius(bub[id] || 10) * 0.86 };
+    var x0 = p[0] - 6, x1 = p[0] + 6, z0 = p[2] - 6, z1 = p[2] + 6;
+    S.lifted.forEach(function (e) {
+      var o = e.from === id ? e.to : e.to === id ? e.from : null, q = o && S.pos[o];
+      if (q) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); z0 = Math.min(z0, q[2]); z1 = Math.max(z1, q[2]); }
+    });
+    var R = Math.max(x1 - x0, z1 - z0) / 2 + 3;
+    return { t: [(x0 + x1) / 2, p[1], (z0 + z1) / 2], a: cam.alpha, b: cam.beta, r: fitRadius(R) * 0.9 };
+  }
+  function cameraNow() {
+    var c = S.gl.camera;
+    return c ? { t: [c.target.x, c.target.y, c.target.z], a: c.alpha, b: c.beta, r: c.radius } : null;
+  }
+  function applyView(v) {
+    var cam = S.gl.camera, B = window.BABYLON;
+    cam.inertialAlphaOffset = cam.inertialBetaOffset = cam.inertialRadiusOffset = 0;
+    cam.setTarget(new B.Vector3(v.t[0], v.t[1], v.t[2]), false, false, true);
+    cam.alpha = v.a; cam.beta = v.b; cam.radius = v.r;
+    S.gl.dirty = true;
+  }
+  function flyTo(v) {
+    var gl = S.gl;
+    if (!gl.ok || !v) return;
     wake();
-    if (reduceMotion) { gl.camera.setTarget(to.target, false, false, true); gl.camera.radius = to.radius; gl.dirty = true; return; }
-    gl.anim = { from: { target: gl.camera.target.clone(), radius: gl.camera.radius }, to: to, t0: performance.now(), ms: 520 };
+    if (reduceMotion) { gl.anim = null; applyView(v); return; }
+    var from = cameraNow(), da = v.a - from.a;
+    while (da > Math.PI) da -= 2 * Math.PI;
+    while (da < -Math.PI) da += 2 * Math.PI;
+    gl.camera.inertialAlphaOffset = gl.camera.inertialBetaOffset = gl.camera.inertialRadiusOffset = 0;
+    gl.anim = { from: from, to: { t: v.t, a: from.a + da, b: v.b, r: v.r }, t0: performance.now(), ms: 560 };
   }
   function stepAnimation() {
     var gl = S.gl, a = gl.anim;
     if (!a) return;
     var t = Math.min(1, (performance.now() - a.t0) / a.ms), k = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-    gl.camera.setTarget(window.BABYLON.Vector3.Lerp(a.from.target, a.to.target, k), false, false, true);
-    gl.camera.radius = a.from.radius + (a.to.radius - a.from.radius) * k;
-    gl.dirty = true;
+    var f = a.from, to = a.to, lerp = function (x, y) { return x + (y - x) * k; };
+    applyView({ t: [lerp(f.t[0], to.t[0]), lerp(f.t[1], to.t[1]), lerp(f.t[2], to.t[2])], a: lerp(f.a, to.a), b: lerp(f.b, to.b), r: lerp(f.r, to.r) });
     if (t >= 1) gl.anim = null;
   }
-  function resetView() {
-    var gl = S.gl;
-    if (!gl.ok) return;
-    gl.anim = null;
-    gl.camera.setTarget(new window.BABYLON.Vector3(0, 0, 0), false, false, true);
-    wake();
-    gl.camera.alpha = -Math.PI / 2.6; gl.camera.beta = Math.PI / 3.1; gl.camera.radius = 330;
-    gl.dirty = true;
+  function focusOn(id) { flyTo(viewFor(id)); }
+  function resetView() { flyTo(overviewView()); }
+  /** Where the reader is, kept before a move into the map, so Back returns to exactly here. */
+  function pushHistory() {
+    var ex = {};
+    Object.keys(S.expanded).forEach(function (k) { if (S.expanded[k]) ex[k] = true; });
+    S.history.push({ sel: S.sel, pathTo: S.pathTo, system: S.system, expanded: ex, cam: S.gl.ok ? cameraNow() : null });
+    if (S.history.length > 40) S.history.shift();
+  }
+  function back() {
+    var h = S.history.pop();
+    if (!h) return;
+    S.sel = h.sel; S.pathTo = h.pathTo; S.system = h.system; S.expanded = h.expanded; S.showAll = {};
+    refresh({ view: h.cam });
+    announce(T('Back to the previous view'));
   }
 
   // ── what the reader does ──────────────────────────────────────────────────
   function refresh(opts) {
-    computeVisible(); layout(); paintScene(); paintLabels();
-    paintExplorer(); paintInspector();
-    if (opts && opts.focus && S.sel) focusOn(S.sel);
+    opts = opts || {};
+    var prev = S.pos;
+    computeVisible(); layout(); paintScene(prev); paintLabels();
+    paintExplorer(); paintInspector(); paintTools();
+    if (opts.focus && S.sel) focusOn(S.sel);
+    else if (opts.view) flyTo(opts.view);
+    else if (opts.overview) resetView();
   }
   function select(id, opts) {
     opts = opts || {};
     if (!S.byId[id]) return;
+    var focus = opts.focus !== false;
+    if (focus && S.gl.ok) pushHistory();
     if (opts.reveal !== false) ancestors(id).forEach(function (a) { S.expanded[a] = true; });
     if (S.system && systemOf(id) !== S.system) S.system = '';
     if (!S.kinds[S.byId[id].kind]) S.kinds[S.byId[id].kind] = true;
-    S.sel = id; S.showAll = {};
-    refresh({ focus: opts.focus !== false });
+    S.sel = id; S.pathTo = null; S.showAll = {};
+    refresh({ focus: focus });
     announce(T(KINDS[S.byId[id].kind].name) + ': ' + S.byId[id].label);
   }
   function toggle(id, open) {
@@ -478,14 +796,36 @@
     if (!S.expanded[id]) Object.keys(S.expanded).forEach(function (x) { if (ancestors(x).indexOf(id) >= 0) delete S.expanded[x]; });
     refresh();
   }
-  /** Entering a node: select it, open it and bring the camera into its cluster. */
+  /** Entering a node: keep where the reader was, then select it, open it and bring the camera onto its platform. */
   function enter(id) {
     if (!S.byId[id]) return;
+    if (S.gl.ok) pushHistory();
     ancestors(id).forEach(function (a) { S.expanded[a] = true; });
     if ((S.kids[id] || []).length) S.expanded[id] = true;
-    S.sel = id; S.showAll = {};
+    S.sel = id; S.pathTo = null; S.showAll = {};
     refresh({ focus: true });
     announce(T(KINDS[S.byId[id].kind].name) + ': ' + S.byId[id].label);
+  }
+  /** The fewest drawn relationships between the selection and another node, highlighted in the scene. */
+  function tracePath(id) {
+    if (!S.sel || !S.byId[id] || id === S.sel) return;
+    ancestors(id).forEach(function (a) { S.expanded[a] = true; });
+    S.pathTo = id;
+    refresh();
+    announce(S.path ? tf('Path: %d steps', S.path.edges.length) : T('No directed path between these two at this level.'));
+  }
+  function paintTools() {
+    if (!S.root) return;
+    var b = S.root.querySelector('[data-nt-action="history-back"]');
+    if (b) b.disabled = !S.history.length;
+    var f = S.root.querySelector('[data-nt-action="focus-only"]');
+    if (f) f.setAttribute('aria-pressed', String(!!S.focusOnly));
+  }
+  function paintStageNote() {
+    var el = S.root && S.root.querySelector('#nt-stagenote');
+    if (!el) return;
+    if (S.cut > 0) { el.hidden = false; el.textContent = tf('Drawing the %d strongest of %d relationships at this level. Select a node to see every one of its own.', S.ambientTotal - S.cut, S.ambientTotal); }
+    else { el.hidden = true; el.textContent = ''; }
   }
   function announce(msg) { var l = S.root && S.root.querySelector('#nt-live'); if (l) l.textContent = msg; }
 
@@ -517,13 +857,21 @@
       + '<div class="nt-labels" id="nt-labels" aria-hidden="true"></div>'
       + '<div class="nt-glmsg" id="nt-glmsg" hidden></div>'
       + '<div class="nt-tools" role="toolbar" aria-label="' + esc(T('View')) + '">'
+      + '<button type="button" class="nt-tool nt-tool--wide nt-tool--back" data-nt-action="history-back" aria-keyshortcuts="Backspace" aria-label="' + esc(T('Back to the previous view')) + '"' + (S.history.length ? '' : ' disabled') + '><span aria-hidden="true">←</span> ' + esc(T('Back')) + '</button>'
       + '<button type="button" class="nt-tool" data-nt-action="zoom-in" aria-label="' + esc(T('Zoom in')) + '">+</button>'
       + '<button type="button" class="nt-tool" data-nt-action="zoom-out" aria-label="' + esc(T('Zoom out')) + '">−</button>'
       + '<button type="button" class="nt-tool nt-tool--wide" data-nt-action="reset">' + esc(T('Reset view')) + '</button>'
       + '<button type="button" class="nt-tool nt-tool--wide" data-nt-action="expand-all">' + esc(T('Open all systems')) + '</button>'
       + '<button type="button" class="nt-tool nt-tool--wide" data-nt-action="collapse-all">' + esc(T('Close all')) + '</button>'
       + '</div>'
-      + '<div class="nt-legend" id="nt-legend"></div>'
+      + '<div class="nt-edgectl" role="group" aria-label="' + esc(T('Connections')) + '">'
+      + '<label class="nt-edgectl-l" for="nt-intensity">' + esc(T('Connections')) + '</label>'
+      + '<input id="nt-intensity" class="nt-range" type="range" min="0" max="100" step="5" value="' + Math.round(S.intensity * 60) + '" aria-describedby="nt-intensity-d">'
+      + '<span class="nt-sr" id="nt-intensity-d">' + esc(T('How strongly the relationships not touching the selection are drawn.')) + '</span>'
+      + '<button type="button" class="nt-tool nt-tool--wide" data-nt-action="focus-only" aria-pressed="' + !!S.focusOnly + '">' + esc(T('Selection only')) + '</button>'
+      + '</div>'
+      + '<p class="nt-stagenote" id="nt-stagenote" role="status" hidden></p>'
+      + '<details class="nt-legend" id="nt-legend" open></details>'
       + '</section>'
       + '<aside class="nt-inspector" id="nt-inspector" aria-label="' + esc(T('Inspector')) + '"></aside>'
       + '</div>'
@@ -604,6 +952,8 @@
       + (kids.length ? '<button type="button" class="nt-btn" data-nt-toggle="' + esc(n.id) + '" aria-expanded="' + !!S.expanded[n.id] + '">' + esc(S.expanded[n.id] ? tf('Close (%d inside)', kids.length) : tf('Open (%d inside)', kids.length)) + '</button>' : '')
       + (n.room && ROOMS[n.room] ? '<button type="button" class="nt-btn nt-btn--link" data-nt-room="' + esc(n.room) + '">' + esc(T(ROOMS[n.room])) + ' <span aria-hidden="true">→</span></button>' : '')
       + '<button type="button" class="nt-btn nt-btn--ghost" data-nt-action="clear">' + esc(T('Clear selection')) + '</button></div>';
+    if (S.visible[n.id]) h += '<p class="nt-note nt-note--top">' + esc(tf('%d incoming and %d outgoing relationships drawn at this level.', S.hiCount.inc, S.hiCount.out)) + ' ' + esc(T('Shift-click another node to trace the shortest path to it.')) + '</p>';
+    h += pathHtml();
     if (n.summary) h += section(T('Responsibility'), '<p class="nt-p">' + prose(n.summary) + '</p>');
     h += section(T('Classification'), '<dl class="nt-dl"><dt>' + esc(T('Maturity')) + '</dt><dd>' + esc(T(MATURITY[n.maturity])) + '</dd>'
       + '<dt>' + esc(T('Runtime health')) + '</dt><dd>' + esc(T('Not monitored in this view (Phase 1 shows structure only).')) + '</dd>' + factsHtml(n.facts) + '</dl>');
@@ -617,6 +967,19 @@
       + commitNote());
     if (n.unknown && n.unknown.length) h += section(T('Not known'), '<ul class="nt-unknown">' + n.unknown.map(function (u) { return '<li>' + prose(u) + '</li>'; }).join('') + '</ul>');
     box.innerHTML = h;
+  }
+  function pathHtml() {
+    if (!S.pathTo || !S.byId[S.pathTo]) return '';
+    var body;
+    if (!S.path) body = '<p class="nt-empty">' + esc(T('No directed path between these two at this level.')) + '</p>';
+    else {
+      body = (S.path.reversed ? '<p class="nt-note nt-note--top">' + esc(T('No path runs from the selection to that node; this one runs from that node to the selection.')) + '</p>' : '')
+        + '<ol class="nt-path">' + S.path.nodes.map(function (id, i) {
+          var e = i ? S.lifted[S.path.edges[i - 1]] : null;
+          return '<li>' + (e ? '<span class="nt-path-e nt-e-' + e.kind + '"><span class="nt-swatch" aria-hidden="true"></span>' + esc(T(EDGES[e.kind].name)) + '</span>' : '') + linkItemInner(id) + '</li>';
+        }).join('') + '</ol>';
+    }
+    return section(S.path ? tf('Path (%d steps)', S.path.edges.length) : T('Path'), body + '<button type="button" class="nt-btn nt-btn--ghost" data-nt-action="clear-path">' + esc(T('Clear path')) + '</button>');
   }
   function commitNote() {
     return '<p class="nt-note">' + esc(T('Composed when this release was built.')) + (S.commit ? ' ' + esc(T('Commit')) + ' <code dir="ltr">' + esc(S.commit.slice(0, 7)) + '</code>' : '') + '</p>';
@@ -633,10 +996,11 @@
       return '<dt>' + esc(T(FACTS[k] || k)) + '</dt><dd>' + shown + '</dd>';
     }).join('');
   }
-  function linkItem(id) {
+  function linkItemInner(id) {
     var n = S.byId[id];
-    return '<li><button type="button" class="nt-link" data-nt-select="' + esc(id) + '">' + glyph(n.kind) + '<span class="nt-row-l">' + data(n.label) + '</span><span class="nt-row-k">' + esc(T(KINDS[n.kind].name)) + '</span></button></li>';
+    return '<button type="button" class="nt-link" data-nt-select="' + esc(id) + '">' + glyph(n.kind) + '<span class="nt-row-l">' + data(n.label) + '</span><span class="nt-row-k">' + esc(T(KINDS[n.kind].name)) + '</span></button>';
   }
+  function linkItem(id) { return '<li>' + linkItemInner(id) + '</li>'; }
   function evidenceItem(e) {
     var where = e.p + (e.l ? ':' + e.l : '');
     return '<li><span class="nt-ev-a">' + esc(T(AUTHORITY[e.a] || e.a)) + '</span><code dir="ltr">' + esc(where) + '</code>' + (e.n ? '<span class="nt-ev-n">' + prose(e.n) + '</span>' : '') + '</li>';
@@ -717,8 +1081,11 @@
   function paintLegend() {
     var el = S.root.querySelector('#nt-legend');
     if (!el) return;
-    el.innerHTML = '<div class="nt-legend-t">' + esc(T('Legend')) + '</div><ul>' + KIND_ORDER.map(function (k) { return '<li>' + glyph(k) + '<span>' + esc(T(KINDS[k].name)) + '</span></li>'; }).join('') + '</ul>'
-      + '<p class="nt-legend-m">' + esc(T('Solid: implemented · translucent: partial · wireframe: planned or unverified')) + '</p>';
+    el.innerHTML = '<summary class="nt-legend-t">' + esc(T('Legend')) + '</summary>'
+      + '<ul>' + KIND_ORDER.map(function (k) { return '<li>' + glyph(k) + '<span>' + esc(T(KINDS[k].name)) + '</span></li>'; }).join('') + '</ul>'
+      + '<ul class="nt-legend-e">' + EDGE_ORDER.map(function (k) { return '<li class="nt-e-' + k + '"><span class="nt-swatch" aria-hidden="true"></span><span>' + esc(T(EDGES[k].name)) + '</span></li>'; }).join('') + '</ul>'
+      + '<p class="nt-legend-m">' + esc(T('Solid: implemented · translucent: partial · wireframe: planned or unverified')) + '</p>'
+      + '<p class="nt-legend-m">' + esc(T('Position shows nesting only. Each line is a recorded relationship, brightening toward the end it points to.')) + '</p>';
   }
 
   // ── events, delegated from the room's root ────────────────────────────────
@@ -726,8 +1093,17 @@
     var t = ev.target && ev.target.closest ? ev.target : null;
     if (!t) return;
     var q;
-    if ((q = t.closest('[data-nt-select]'))) { select(q.getAttribute('data-nt-select')); return; }
-    if ((q = t.closest('[data-nt-toggle]'))) { toggle(q.getAttribute('data-nt-toggle')); return; }
+    if ((q = t.closest('[data-nt-select]'))) {
+      var sid = q.getAttribute('data-nt-select');
+      if (ev.shiftKey && S.sel && sid !== S.sel) tracePath(sid); else select(sid);
+      return;
+    }
+    if ((q = t.closest('[data-nt-toggle]'))) {
+      // opening a node from the inspector is a move into it; from the outline it only unfolds the list
+      var tid = q.getAttribute('data-nt-toggle');
+      if (q.closest('.nt-inspector') && !S.expanded[tid]) enter(tid); else toggle(tid);
+      return;
+    }
     if ((q = t.closest('[data-nt-kind]'))) { var k = q.getAttribute('data-nt-kind'); S.kinds[k] = !S.kinds[k]; refresh(); return; }
     if ((q = t.closest('[data-nt-edge]'))) { var e = q.getAttribute('data-nt-edge'); S.edges[e] = !S.edges[e]; refresh(); return; }
     if ((q = t.closest('[data-nt-more]'))) { S.showAll[q.getAttribute('data-nt-more')] = true; paintInspector(); return; }
@@ -736,31 +1112,44 @@
     if ((q = t.closest('[data-nt-action]'))) {
       var a = q.getAttribute('data-nt-action'), gl = S.gl;
       if (a === 'back') { try { window.navTo('owner-home', null); } catch (_) {} }
+      else if (a === 'history-back') back();
+      else if (a === 'focus-only') { S.focusOnly = !S.focusOnly; paintTools(); paintEdges(); }
+      else if (a === 'clear-path') { S.pathTo = null; refresh(); }
       else if (a === 'reload') { S.graph = null; load(); }
       else if (a === 'retry') { load(); }
       else if (a === 'zoom-in' && gl.ok) { gl.anim = null; wake(); gl.camera.radius = Math.max(gl.camera.lowerRadiusLimit, gl.camera.radius * 0.8); }
       else if (a === 'zoom-out' && gl.ok) { gl.anim = null; wake(); gl.camera.radius = Math.min(gl.camera.upperRadiusLimit, gl.camera.radius * 1.25); }
       else if (a === 'reset') resetView();
       else if (a === 'focus' && S.sel) focusOn(S.sel);
-      else if (a === 'clear') { S.sel = null; refresh(); }
-      else if (a === 'expand-all') { systems().forEach(function (s) { S.expanded[s.id] = true; }); refresh(); }
-      else if (a === 'collapse-all') { S.expanded = {}; refresh(); }
+      else if (a === 'clear') { S.sel = null; S.pathTo = null; refresh(); }
+      else if (a === 'expand-all') { if (gl.ok) pushHistory(); systems().forEach(function (s) { S.expanded[s.id] = true; }); refresh({ overview: true }); }
+      else if (a === 'collapse-all') { if (gl.ok) pushHistory(); S.expanded = {}; refresh({ overview: true }); }
     }
   }
   function onInput(ev) {
     if (ev.target && ev.target.id === 'nt-q') { S.q = ev.target.value; paintExplorer(); }
+    if (ev.target && ev.target.id === 'nt-intensity') {
+      S.intensity = Math.max(0, Math.min(100, Number(ev.target.value) || 0)) / 60;
+      if (!S.edgeRaf) S.edgeRaf = requestAnimationFrame(function () { S.edgeRaf = 0; paintEdges(); });
+    }
   }
   function onChange(ev) {
     if (ev.target && ev.target.id === 'nt-system') {
       S.system = ev.target.value;
-      if (S.system) { S.expanded[S.system] = true; S.sel = S.system; }
-      refresh({ focus: !!S.system });
-      if (!S.system) resetView();
+      if (S.gl.ok) pushHistory();
+      if (S.system) { S.expanded[S.system] = true; S.sel = S.system; S.pathTo = null; }
+      refresh(S.system ? { focus: true } : { overview: true });
     }
   }
   function onKey(ev) {
-    if (ev.key === 'Escape' && S.sel && !(ev.target && ev.target.id === 'nt-q')) { S.sel = null; refresh(); }
-    if (ev.key === 'Enter' && ev.target && ev.target.id === 'nt-canvas' && S.sel) enter(S.sel);
+    var t = ev.target, typing = !!(t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable));
+    if (!S.root || !S.graph) return;
+    if (ev.key === 'Escape' && !typing) { if (S.pathTo) { S.pathTo = null; refresh(); } else if (S.sel) { S.sel = null; refresh(); } return; }
+    var row = t && t.closest ? t.closest('[data-nt-select]') : null;
+    if (ev.key === 'Enter' && ev.shiftKey && row && S.sel) { ev.preventDefault(); tracePath(row.getAttribute('data-nt-select')); return; }
+    if (ev.key === 'Enter' && t && t.id === 'nt-canvas' && S.sel) { enter(S.sel); return; }
+    var backKey = (ev.key === 'Backspace' && !typing) || (ev.altKey && ev.key === (NT_DIR === 'rtl' ? 'ArrowRight' : 'ArrowLeft'));
+    if (backKey && S.history.length) { ev.preventDefault(); back(); }
   }
   function openRoom(room) {
     try {
@@ -786,7 +1175,7 @@
       var top = root.querySelector('.nt-top'), tmp = document.createElement('div');
       tmp.innerHTML = shellHtml();
       top.parentNode.replaceChild(tmp.querySelector('.nt-top'), top);
-      ['.nt-search', '.nt-tools'].forEach(function (sel) { var a = root.querySelector(sel), b = tmp.querySelector(sel); if (a && b) a.parentNode.replaceChild(b, a); });
+      ['.nt-search', '.nt-tools', '.nt-edgectl'].forEach(function (sel) { var a = root.querySelector(sel), b = tmp.querySelector(sel); if (a && b) a.parentNode.replaceChild(b, a); });
       ['.nt-explorer', '.nt-stage', '.nt-inspector'].forEach(function (sel) { var a = root.querySelector(sel), b = tmp.querySelector(sel); if (a && b) a.setAttribute('aria-label', b.getAttribute('aria-label')); });
       var cv = root.querySelector('#nt-canvas'), cvNew = tmp.querySelector('#nt-canvas');
       cv.setAttribute('aria-label', cvNew.getAttribute('aria-label'));
@@ -819,7 +1208,7 @@
       S.state = 'ready';
       paintAll();
       if (!S.gl.ok && ok) {
-        try { startScene(); paintScene(); paintLabels(); }
+        try { startScene(); paintScene(); paintLabels(); applyView(overviewView()); }
         catch (e) { S.gl.failed = true; S.gl.ok = false; S.gl.reason = T('The 3D view could not start on this device. The explorer and the inspector show the same graph.'); paintAll(); }
       } else if (!ok && !S.gl.ok) {
         S.gl.failed = true;
@@ -852,8 +1241,8 @@
     S.cleanup.splice(0).forEach(function (f) { try { f(); } catch (_) {} });
     if (S.root) { S.root.innerHTML = ''; S.root.classList.remove('nt-root'); }
     probe = null; colourCache = {};
-    var keep = { kinds: S.kinds, edges: S.edges };
-    S = fresh(); S.kinds = keep.kinds; S.edges = keep.edges;
+    var keep = { kinds: S.kinds, edges: S.edges, intensity: S.intensity, focusOnly: S.focusOnly };
+    S = fresh(); S.kinds = keep.kinds; S.edges = keep.edges; S.intensity = keep.intensity; S.focusOnly = keep.focusOnly;
   };
   /** What the tests and the browser proof read: the room's own state, never the page's. */
   window.__familistaTwinMetrics = function () {
@@ -865,7 +1254,22 @@
       enabledMeshes: Object.keys(gl.meshes).filter(function (k) { return gl.meshes[k].isEnabled(); }).length,
       fps: gl.engine ? Math.round(gl.engine.getFps()) : null, frames: gl.frames, firstFrameMs: S.firstFrameMs, babylonMs: S.babylonMs,
       kinds: Object.keys(S.kinds).filter(function (k) { return S.kinds[k]; }).sort(), edgeKinds: Object.keys(S.edges).filter(function (k) { return S.edges[k]; }).sort(),
+      layoutMs: S.layoutMs, extent: S.layout ? Math.round(S.layout.extent) : null, platforms: S.layout ? S.layout.platforms.length : 0, zones: S.layout ? S.layout.zones.map(function (z) { return z.zone || 'unplaced'; }) : [],
+      drawnEdges: S.drawn.length, cut: S.cut, highlighted: { out: S.hiCount.out, inc: S.hiCount.inc, inside: S.hiCount.inside, path: S.hiCount.path }, near: Object.keys(S.near).length,
+      path: S.path ? { nodes: S.path.nodes.slice(), reversed: S.path.reversed } : null, pathTo: S.pathTo, history: S.history.length,
+      labelsShown: S.labelsShown, intensity: S.intensity, focusOnly: S.focusOnly, glow: !!(gl.glow && gl.glow.isEnabled), arrows: gl.arrows.length,
+      drawCalls: gl.inst ? gl.inst.drawCallsCounter.current : null, frameMs: gl.inst ? Math.round(gl.inst.frameTimeCounter.average * 100) / 100 : null,
+      activeMeshes: gl.scene ? gl.scene.getActiveMeshes().length : null, moving: !!(gl.anim || gl.tween), lastMove: gl.lastMove || null,
+      camera: gl.ok ? cameraNow() : null,
     };
+  };
+  /** The relationships on screen, each a lifted graph edge: the browser proof maps every one back to the graph. */
+  window.__familistaTwinDrawn = function () {
+    return S.drawn.map(function (i) { var e = S.lifted[i]; return { from: e.from, to: e.to, kind: e.kind, n: e.n }; });
+  };
+  /** Each visible node's position and footprint, for the layout checks in the browser proof. */
+  window.__familistaTwinLayout = function () {
+    return S.layout ? { pos: S.layout.pos, bubble: S.layout.bubble, zones: S.layout.zones, platforms: S.layout.platforms } : null;
   };
   /** The scene position of a node on screen, for the browser proof's pointer tests. */
   window.__familistaTwinScreenOf = function (id) {

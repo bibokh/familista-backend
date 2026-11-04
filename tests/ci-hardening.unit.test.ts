@@ -160,13 +160,14 @@ describe('the secret scan', () => {
       'tests/db-migrate-resilience.unit.test.ts',
       'tests/fabric-gap-closure.unit.test.ts',
       'tests/fabric-system-producer.unit.test.ts',
+      'tests/neural-twin.unit.test.ts',
       'tests/owner-trace-panel.unit.test.ts',
       'tests/secrets-by-reference.unit.test.ts',
     ]);
     const parsed = entries.map((e) => /^([0-9a-f]{40}):([^:]+):([a-z0-9-]+):(\d+)$/.exec(e));
     expect(parsed.every(Boolean)).toBe(true);
     const files = parsed.map((m) => m![2]);
-    expect(files.filter((f) => fixtures.has(f))).toHaveLength(17);
+    expect(files.filter((f) => fixtures.has(f))).toHaveLength(18);
     // The exposed `.evn` credential, and nothing else: its eight findings, from
     // the two commits that carried the file, and the file no longer exists.
     expect(entries.filter((e) => e.includes(':.evn:')).sort()).toEqual([
@@ -179,7 +180,7 @@ describe('the secret scan', () => {
       'efb8c0a20c33b380b11100d78ae16a0b1291b90f:.evn:neon-password:11',
       'efb8c0a20c33b380b11100d78ae16a0b1291b90f:.evn:postgres-connection-string:11',
     ]);
-    expect(entries).toHaveLength(25);
+    expect(entries).toHaveLength(26);
     expect(fs.existsSync(path.join(ROOT, '.evn'))).toBe(false);
   });
 });
