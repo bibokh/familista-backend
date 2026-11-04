@@ -2220,8 +2220,51 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       await pc.close();
     }
 
+    // a press that spans the landing of the previous selection's fixtures (CI run 913: the ten split clicks above lost one,
+    // {"lost":["lg-chip"]}). Selecting a component the Lab has not read yet draws it at once and reads its fixtures; when they
+    // land the Lab draws again. That second draw rebuilt the rail, which replaced every button in it, and a press that began on
+    // a button since replaced is not a click to the browser (the element it began on is gone by the release). So a reader who
+    // pressed the next item while the previous item's fixtures were on their way lost the click; the trial above hit that only
+    // when the network happened to answer mid-press. Here each answer is held for 80 ms, so every press spans the landing of the
+    // one before: the race, made certain rather than left to chance. Ten items, each read for the first time, the trial's own
+    // press (down, a club-data change, 150 ms, up), and the button under the press is checked to still be in the document.
+    // The control serves lab.js rebuilding the rail on every draw and requires the same ten presses to lose clicks.
+    {
+      const HOLD_MS = 80;
+      const heldPresses = async (labPatch) => {
+        const { ctx: hc, page: hp, log: hl } = await open({ width: 1440, height: 900 }, 'en', labPatch);
+        try {
+          await hp.route(/\/api\/v1\/system\/design-system\/components\/preview\?id=/, async (route) => { await new Promise((r) => setTimeout(r, HOLD_MS)); await route.continue(); });
+          await openLab(hp, SETTLE);
+          const ids = await hp.evaluate(() => { const sel = window.__familistaLabMetrics().selected; return [...document.querySelectorAll('#lab-rail-body .lab-item:not(.is-na)')].map((b) => b.getAttribute('data-lab-id')).filter((id) => id !== sel).slice(0, 11); });
+          if (ids.length < 11) throw new Error('fewer than eleven previewable components (' + ids.length + '), so ten first-time presses cannot be made');
+          await hp.click(`[data-lab-id="${ids[0]}"]`); await selects(hp, ids[0]);
+          const lost = [], replaced = [];
+          for (let i = 1; i <= 10; i++) {
+            const b = await hp.evaluate((t) => { const e = document.querySelector(`[data-lab-id="${t}"]`); e.scrollIntoView({ block: 'nearest' }); window.__heldPress = e; const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, width: r.width, height: r.height }; }, ids[i]);
+            await hp.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+            await hp.mouse.down();
+            await hp.evaluate(() => window._famDataChanged());
+            await hp.waitForTimeout(150);
+            if (await hp.evaluate(() => !document.contains(window.__heldPress))) replaced.push(ids[i]);
+            await hp.mouse.up();
+            if (!(await selects(hp, ids[i]))) lost.push(ids[i]);
+          }
+          return { lost, replaced, trials: 10, holdMs: HOLD_MS, errors: labErrors(hl).length };
+        } finally { await hc.close(); }
+      };
+      const held = await heldPresses(null);
+      check('room data change: ten presses on items the Lab has not read yet, each begun before the previous item\'s fixtures land (held ' + HOLD_MS + ' ms) and released after, all land, and the button under each press is never replaced',
+        held.lost.length === 0 && held.replaced.length === 0 && held.errors === 0, held);
+      await control('room data change (control): the rail rebuilt on every draw', async () => {
+        const c = await heldPresses((src) => src.replace("if (railDrawn.el !== rail || railDrawn.html !== html) { rail.innerHTML = html; railDrawn = { el: rail, html: html }; }", 'rail.innerHTML = html;'));
+        check('room data change (control): with the rail rebuilt on every draw, the same ten held presses lose clicks and replace the pressed button, so the proof above can see a lost click',
+          c.lost.length > 0 && c.replaced.length > 0, c);
+      });
+    }
+
     // controls
-    const RESTORE_REGISTRY = (src) => src.replace("  'algorithms':                  ['renderFamilistaAlgorithms'],\n", "  'algorithms':                  ['renderFamilistaAlgorithms'],\n  'design-system':               ['renderFamilistaDesignSystem'],\n");
+    const RESTORE_REGISTRY =(src) => src.replace("  'algorithms':                  ['renderFamilistaAlgorithms'],\n", "  'algorithms':                  ['renderFamilistaAlgorithms'],\n  'design-system':               ['renderFamilistaDesignSystem'],\n");
     const NO_ENTRY_HOOK = (src) => src.replace("if (page === 'design-system' && typeof window.renderFamilistaDesignSystem === 'function'", "if (false && typeof window.renderFamilistaDesignSystem === 'function'");
     const NO_DOM_GUARD = (src) => src.replace("(_leaving !== 'pg-design-system' || !_dsRoot.__famDrawn)", "_leaving !== 'pg-design-system'");
     const NO_UNBIND = (src) => src.replace('    unbind();\n    R.host = host;', '    R.host = host;');

@@ -261,11 +261,19 @@
     return html || '<div class="lab-none">' + K.emptyState('No component matches', T('Clear the search.')) + '</div>';
   }
 
+  // The rail is rebuilt only when what it shows has changed. Its markup comes from the components, the search, the open
+  // groups, the selection and the language, and a component's fixtures landing changes none of them; yet that landing
+  // redrew the rail (select → loadDetail → go). Rebuilding swaps every button, and a press that began on a button that has
+  // since been swapped is not a click to the browser (the element it started on is gone by the release), so the reader's
+  // click on the next item was lost whenever the previous item's fixtures landed while it was held. `railDrawn` is the
+  // markup this element was last given; the same markup again leaves the buttons, the press and the focus where they are.
+  var railDrawn = { el: null, html: null };
   function drawRail() {
     var rail = document.getElementById('lab-rail-body');
     if (!rail) return;
     var keep = document.activeElement && rail.contains(document.activeElement) ? (document.activeElement.getAttribute('data-lab-id') || document.activeElement.getAttribute('data-lab-grp')) : null;
-    rail.innerHTML = railHtml();
+    var html = railHtml();
+    if (railDrawn.el !== rail || railDrawn.html !== html) { rail.innerHTML = html; railDrawn = { el: rail, html: html }; }
     setRove(keep);
     syncNav();
     if (keep) { var again = rail.querySelector('[data-lab-id="' + cssq(keep) + '"], [data-lab-grp="' + cssq(keep) + '"]'); if (again) again.focus(); }
@@ -1310,6 +1318,7 @@
     if (R.raSay) { window.cancelAnimationFrame(R.raSay); R.raSay = 0; }
     stopObserving();
     R.root = null; R.host = null;
+    railDrawn = { el: null, html: null };
   }
   /** Forget everything read from the server (the room's Refresh). */
   function reset() { unbind(); stopObserving(); var keep = { dir: S.dir, zoom: S.zoom, fit: S.fit, width: S.width, compare: S.compare }; S = fresh(); S.dir = keep.dir; S.zoom = keep.zoom; S.fit = keep.fit; S.width = keep.width; S.compare = keep.compare; }
