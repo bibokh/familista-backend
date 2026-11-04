@@ -82,6 +82,22 @@ jobs:
       - name: TypeScript build
         run: npm run build
 
+      # Type-checks src, tests and lab in one tsc pass. Jest no longer does it:
+      # ts-jest transpiles file by file (tsconfig.test.json, isolatedModules),
+      # because checking inside Jest rebuilt the whole program, Prisma's generated
+      # client types included, for every file it loaded, and with a cold cache a
+      # test importing the app ran past Node's 2 GB default heap. This step is
+      # where that check now lives; isolatedModules also makes tsc reject
+      # anything per-file transpilation could get wrong.
+      #
+      # The pass holds about 2.0 GB live on every run (it does not depend on a
+      # cache), which is too close to the 2 GB default, so this step alone gets
+      # a 4 GB heap. No other step's limit changes.
+      - name: Type-check (src, tests, lab)
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npm run typecheck
+
       - name: Boot probe (verify route registration)
         run: node scripts/boot-probe.js
 
