@@ -799,7 +799,7 @@
     ancestors(id).forEach(function (a) { S.expanded[a] = true; });
     S.pathTo = id;
     refresh();
-    announce(S.path ? tf('Path: %d steps', S.path.edges.length) : T('No directed path between these two at this level.'));
+    announce(!S.path ? T('No directed path between these two at this level.') : S.path.edges.length === 1 ? T('Path: 1 step') : tf('Path: %d steps', S.path.edges.length));
   }
   function paintTools() {
     if (!S.root) return;
@@ -966,7 +966,7 @@
           return '<li>' + (e ? '<span class="nt-path-e nt-e-' + e.kind + '"><span class="nt-swatch" aria-hidden="true"></span>' + esc(T(EDGES[e.kind].name)) + '</span>' : '') + linkItemInner(id) + '</li>';
         }).join('') + '</ol>';
     }
-    return section(S.path ? tf('Path (%d steps)', S.path.edges.length) : T('Path'), body + '<button type="button" class="nt-btn nt-btn--ghost" data-nt-action="clear-path">' + esc(T('Clear path')) + '</button>');
+    return section(!S.path ? T('Path') : S.path.edges.length === 1 ? T('Path (1 step)') : tf('Path (%d steps)', S.path.edges.length), body + '<button type="button" class="nt-btn nt-btn--ghost" data-nt-action="clear-path">' + esc(T('Clear path')) + '</button>');
   }
   function commitNote() {
     return '<p class="nt-note">' + esc(T('Composed when this release was built.')) + (S.commit ? ' ' + esc(T('Commit')) + ' <code dir="ltr">' + esc(S.commit.slice(0, 7)) + '</code>' : '') + '</p>';
