@@ -1619,5 +1619,6 @@
   "Big Data": "Büyük Veri",
   "No historical events yet": "Henüz geçmiş olay yok",
   "Vision engine reachable · no session store": "Vision motoruna erişilebiliyor · oturum deposu yok",
-  "Clubs in your network: \u0000": "Ağınızdaki kulüpler: \u0000"
+  "Clubs in your network: \u0000": "Ağınızdaki kulüpler: \u0000",
+  "Request cancelled": "İstek iptal edildi"
 }

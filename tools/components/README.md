@@ -233,6 +233,8 @@ It has three sections, chosen with `PROOF_ONLY`:
   idle rendering, teardown and return; German and Arabic with right-to-left; 768 px and 390 px. The platform owner only: a
   club coach is answered 403 and never fetches the room, its layout or Babylon; no session is answered 401; the owner is
   answered 200 (the control).
+  A deep link at 400 ms API latency must raise no false "Connection timeout": the startup re-route cancels reads, and a
+  cancellation is not a timeout. The control holds one read past the 20 s timeout and requires the banner.
 - **T2**: the layout with no collision and every child inside its parent, at 20 nodes and at all 921. Every drawn line is
   mapped back to the served graph, and a fabricated one is caught. No two labels overlap. Also selection highlighting with
   an arrowhead per line, the path and its no-route control, Back to the exact camera, Selection only and the intensity
