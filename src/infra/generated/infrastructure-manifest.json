@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-02T20:30:32.902Z",
+  "generatedAt": "2026-11-04T00:06:46.786Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -1715,6 +1715,7 @@
           "Prisma generate",
           "Prisma migrate deploy",
           "TypeScript build",
+          "Type-check (src, tests, lab)",
           "Boot probe (verify route registration)",
           "i18n check (locales synchronized)",
           "API / frontend contract verification",
@@ -1730,8 +1731,7 @@
           "Checkout",
           "Setup Node 20",
           "Install deps",
-          "Install the browser-proof tools (pinned, lockfile-verified, no install scripts)",
-          "Audit the browser-proof tools (blocking on high and critical)"
+          "Install the browser-proof tools (pinned, lockfile-verified, no install scripts)"
         ],
         "services": [
           "postgres:16-alpine"

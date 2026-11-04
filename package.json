@@ -54,7 +54,8 @@
     "i18n:audit": "node scripts/i18n-audit.js",
     "test": "jest",
     "start:server": "node dist/server.js",
-    "contract:check": "jest tests/api-contract.unit.test.ts"
+    "contract:check": "jest tests/api-contract.unit.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
