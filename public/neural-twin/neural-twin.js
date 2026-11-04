@@ -131,7 +131,7 @@
       pos: {}, visible: {}, lifted: [], labels: [], labelSize: {}, labelPri: {}, labelsShown: 0,
       layout: null, layoutMs: null, near: {}, selSet: {}, path: null, pathTo: null, history: [], drawn: [], cut: 0, ambientTotal: 0, hiCount: { out: 0, inc: 0, path: 0 },
       intensity: 1, focusOnly: false, edgeRaf: 0,
-      gl: { engine: null, scene: null, camera: null, meshes: {}, mats: {}, templates: {}, edgeMeshes: [], hiMeshes: [], arrows: [], platforms: [], glow: null, glowing: [], inst: null,
+      gl: { engine: null, scene: null, camera: null, meshes: {}, mats: {}, templates: {}, edgeMeshes: [], hiMeshes: [], arrows: [], platforms: [], inst: null,
         layoutKey: '', anim: null, tween: null, dirty: true, ok: false, failed: false, reason: '', awakeUntil: 0, frames: 0 },
       cleanup: [], firstFrameMs: null, t0: 0, babylonMs: null,
     };
@@ -255,8 +255,8 @@
     var bg = tokenRGB('--fam-surface-sunken');
     scene.clearColor = new B.Color4(bg[0], bg[1], bg[2], 1);
     scene.skipPointerMovePicking = true;   // nothing answers a hover: picking runs on a tap only
-    // depth: what is far fades into the room's own background
-    scene.fogMode = B.Scene.FOGMODE_EXP2; scene.fogColor = new B.Color3(bg[0], bg[1], bg[2]); scene.fogDensity = 0.0011;
+    // No fog, no glow layer and no translucent floors: measured on a software renderer they cost more than half
+    // of every frame, and the selection already stands out by its own light, its ring and its arrowheads.
     var cam = new B.ArcRotateCamera('nt-cam', VIEW.alpha, VIEW.beta, 160, new B.Vector3(0, 0, 0), scene);
     cam.lowerRadiusLimit = 3; cam.upperRadiusLimit = 1600; cam.lowerBetaLimit = 0.08; cam.upperBetaLimit = 1.48;
     cam.wheelDeltaPercentage = 0.012; cam.pinchDeltaPercentage = 0.004; cam.panningSensibility = 60;
@@ -265,9 +265,6 @@
     var hemi = new B.HemisphericLight('nt-sky', new B.Vector3(0.2, 1, 0.1), scene);
     hemi.intensity = 0.85; hemi.groundColor = new B.Color3(bg[0], bg[1], bg[2]);
     var key = new B.DirectionalLight('nt-key', new B.Vector3(-0.4, -1, 0.3), scene); key.intensity = 0.45;
-    // the glow is kept for the selection and what it touches; with nothing selected it is off
-    gl.glow = new B.GlowLayer('nt-glow', scene, { mainTextureRatio: 0.5, blurKernelSize: 22 });
-    gl.glow.intensity = 0.4; gl.glow.isEnabled = false;
     gl.inst = new B.SceneInstrumentation(scene); gl.inst.captureFrameTime = true;
     gl.engine = engine; gl.scene = scene; gl.camera = cam; gl.ok = true;
     scene.onPointerObservable.add(function (pi) {
@@ -431,7 +428,7 @@
     var c = tokenRGB(KINDS[kind].tok), m = new B.StandardMaterial('nt-' + key, gl.scene);
     m.disableLighting = true; m.backFaceCulling = false;
     m.diffuseColor = new B.Color3(0, 0, 0); m.specularColor = new B.Color3(0, 0, 0);
-    m.emissiveColor = toward(c, 0.16); m.alpha = 0.55;
+    m.emissiveColor = toward(c, 0.1); m.alpha = 1;
     m.freeze();
     gl.mats[key] = m;
     return m;
@@ -560,9 +557,6 @@
       if (rm) gl.hiMeshes.push(rm);
     }
     S.drawn = amb.concat(hi).sort(function (a, b) { return a - b; });
-    var glowing = [];
-    if (focus) Object.keys(S.near).concat(sel ? [sel] : []).forEach(function (id) { var m = gl.meshes[id]; if (m && S.visible[id] && glowing.length < 160) glowing.push(m); });
-    setGlow(glowing);
     paintStageNote();
     gl.dirty = true;
     wake();
@@ -594,16 +588,6 @@
       if (m) (strong ? S.gl.hiMeshes : S.gl.edgeMeshes).push(m);
     });
   }
-  function setGlow(meshes) {
-    var gl = S.gl;
-    if (!gl.glow) return;
-    (gl.glowing || []).forEach(function (m) { try { gl.glow.removeIncludedOnlyMesh(m); } catch (_) {} });
-    gl.glowing = meshes;
-    meshes.forEach(function (m) { gl.glow.addIncludedOnlyMesh(m); });
-    // an empty list would make every mesh glow, so no list means no glow
-    gl.glow.isEnabled = meshes.length > 0;
-  }
-
   /** The nodes joined to the selection by a drawn edge, its ancestors and children, and the path's nodes. */
   function neighbours() {
     var out = {};
@@ -683,11 +667,14 @@
       at[k] = [x, y];
     });
     var keep = L().declutter(boxes, 3), shown = 0;
+    // the page is written only where a label appears, disappears or moves: a moving camera touches what changed
     S.labels.forEach(function (el) {
       var k = labelKey(el);
-      if (!keep[k]) { el.hidden = true; return; }
-      el.hidden = false; shown++;
-      el.style.transform = 'translate(' + Math.round(at[k][0]) + 'px,' + Math.round(at[k][1]) + 'px)';
+      if (!keep[k]) { if (!el.hidden) el.hidden = true; return; }
+      shown++;
+      if (el.hidden) el.hidden = false;
+      var t = 'translate(' + Math.round(at[k][0]) + 'px,' + Math.round(at[k][1]) + 'px)';
+      if (el.__ntT !== t) { el.__ntT = t; el.style.transform = t; }
     });
     S.labelsShown = shown;
   }
@@ -1257,7 +1244,7 @@
       layoutMs: S.layoutMs, extent: S.layout ? Math.round(S.layout.extent) : null, platforms: S.layout ? S.layout.platforms.length : 0, zones: S.layout ? S.layout.zones.map(function (z) { return z.zone || 'unplaced'; }) : [],
       drawnEdges: S.drawn.length, cut: S.cut, highlighted: { out: S.hiCount.out, inc: S.hiCount.inc, inside: S.hiCount.inside, path: S.hiCount.path }, near: Object.keys(S.near).length,
       path: S.path ? { nodes: S.path.nodes.slice(), reversed: S.path.reversed } : null, pathTo: S.pathTo, history: S.history.length,
-      labelsShown: S.labelsShown, intensity: S.intensity, focusOnly: S.focusOnly, glow: !!(gl.glow && gl.glow.isEnabled), arrows: gl.arrows.length,
+      labelsShown: S.labelsShown, intensity: S.intensity, focusOnly: S.focusOnly, arrows: gl.arrows.length,
       drawCalls: gl.inst ? gl.inst.drawCallsCounter.current : null, frameMs: gl.inst ? Math.round(gl.inst.frameTimeCounter.average * 100) / 100 : null,
       activeMeshes: gl.scene ? gl.scene.getActiveMeshes().length : null, moving: !!(gl.anim || gl.tween), lastMove: gl.lastMove || null,
       camera: gl.ok ? cameraNow() : null,
