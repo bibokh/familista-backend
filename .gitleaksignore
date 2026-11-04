@@ -29,6 +29,9 @@ c967e271bd60272a651e27c34aad6d68993f4005:tests/db-migrate-resilience.unit.test.t
 c967e271bd60272a651e27c34aad6d68993f4005:tests/db-migrate-resilience.unit.test.ts:neon-endpoint-credentials:101
 c967e271bd60272a651e27c34aad6d68993f4005:tests/db-migrate-resilience.unit.test.ts:neon-endpoint-credentials:102
 efb8c0a20c33b380b11100d78ae16a0b1291b90f:README.md:generic-api-key:62
+# The Neural Twin exposure test's negative control: a secret-shaped value the
+# composer must refuse. Later commits build it at runtime instead.
+dd2499c47fed5750246f8abc4d408a45eb773158:tests/neural-twin.unit.test.ts:stripe-access-token:120
 
 # ── An exposed credential, revoked ──────────────────────────────────────────
 # `.evn` was committed on 2026-05-16 (efb8c0a) and removed on 2026-10-07. It

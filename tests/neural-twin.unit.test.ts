@@ -117,7 +117,8 @@ describe('2. exposure: the graph carries no address, host, credential, environme
     ['a hosted address', 'familista-backend.onrender.com'],
     ['an IP address', '10.0.0.12'],
     ['an e-mail address', 'owner@familista.test'],
-    ['a secret-shaped value', 'sk_live_0123456789abcdef'],
+    // Assembled at runtime so the repository never holds a secret-shaped literal.
+    ['a secret-shaped value', ['sk', 'live', '0123456789abcdef'].join('_')],
     ['an environment variable name', 'DATABASE_URL'],
   ])('negative control: %s is caught', (_name, value) => {
     const g = clone();
