@@ -118,6 +118,7 @@
   var EDGE_BUDGET = 2400;      // lines drawn at once before the weakest give way; the selection's own are always drawn
   var HIGHLIGHT_BUDGET = 600;
   var FILE_LOD = 170;          // past this distance a source file is too small to see, and is not drawn
+  var LOD_FAR = [150, 130];    // camera distance at which every body takes its coarse geometry, and takes the fine one back (hysteresis)
   var OPEN_SYSTEM = 0.55;      // an open node's own body shrinks to make room for its platform
   var VIEW = { alpha: -Math.PI / 2, beta: 0.96 };
   function L() { return window.FamilistaTwinLayout; }
@@ -132,6 +133,7 @@
       layout: null, layoutMs: null, near: {}, selSet: {}, path: null, pathTo: null, history: [], drawn: [], cut: 0, ambientTotal: 0, hiCount: { out: 0, inc: 0, path: 0 },
       intensity: 1, focusOnly: false, edgeRaf: 0,
       gl: { engine: null, scene: null, camera: null, meshes: {}, mats: {}, templates: {}, edgeMeshes: [], hiMeshes: [], arrows: [], platforms: [], inst: null,
+        far: false, cw: 0, ch: 0,
         layoutKey: '', anim: null, tween: null, dirty: true, ok: false, failed: false, reason: '', awakeUntil: 0, frames: 0 },
       cleanup: [], firstFrameMs: null, t0: 0, babylonMs: null,
     };
@@ -287,12 +289,16 @@
       if (document.hidden || (!gl.anim && !gl.tween && performance.now() > gl.awakeUntil)) return;
       stepAnimation();
       stepTween();
+      chooseDetail();
       scene.render();
       gl.frames++;
       if (gl.dirty) { placeLabels(); gl.dirty = false; }
       if (S.firstFrameMs == null) S.firstFrameMs = Math.round(performance.now() - S.t0);
     });
-    var onResize = function () { engine.resize(); gl.dirty = true; wake(); };
+    // the canvas size is kept from the last resize: read every frame, it forced a style and layout pass each time (measured)
+    var measure = function () { gl.cw = canvas.clientWidth; gl.ch = canvas.clientHeight; };
+    var onResize = function () { engine.resize(); measure(); gl.dirty = true; wake(); };
+    measure();
     window.addEventListener('resize', onResize);
     S.cleanup.push(function () { window.removeEventListener('resize', onResize); });
     if (typeof ResizeObserver === 'function') {
@@ -333,32 +339,45 @@
     gl.mats[key] = m;
     return m;
   }
-  /** One body per kind, built once; each node is a copy that shares its geometry. */
-  function template(kind) {
-    var gl = S.gl, B = window.BABYLON;
-    if (gl.templates[kind]) return gl.templates[kind];
-    var kd = KINDS[kind], s = kd.size, m;
-    if (kd.shape === 'ico') m = B.MeshBuilder.CreateIcoSphere('nt-t-' + kind, { radius: s, subdivisions: 2 }, gl.scene);
-    else if (kd.shape === 'box') m = B.MeshBuilder.CreateBox('nt-t-' + kind, { size: s * 1.4 }, gl.scene);
-    else if (kd.shape === 'octa') m = B.MeshBuilder.CreatePolyhedron('nt-t-' + kind, { type: 1, size: s }, gl.scene);
-    else if (kd.shape === 'cyl') m = B.MeshBuilder.CreateCylinder('nt-t-' + kind, { height: s * 1.5, diameter: s * 1.6, tessellation: 20 }, gl.scene);
-    else if (kd.shape === 'capsule') m = B.MeshBuilder.CreateCapsule('nt-t-' + kind, { height: s * 2.2, radius: s * 0.55, tessellation: 14, subdivisions: 2 }, gl.scene);
-    else if (kd.shape === 'torus') m = B.MeshBuilder.CreateTorus('nt-t-' + kind, { diameter: s * 2, thickness: s * 0.45, tessellation: 28 }, gl.scene);
-    else m = B.MeshBuilder.CreateSphere('nt-t-' + kind, { diameter: s * 2, segments: kind === 'file' ? 8 : 14 }, gl.scene);
+  /** Each kind's body at two levels of detail, built once and never drawn itself; every node is a copy that shares
+   *  its geometry. Shading the bodies' vertices was the largest single cost of a frame (measured: 89,671 vertices for
+   *  the 209 bodies of the open systems), so the fine bodies are lighter than before and far views use coarse ones. */
+  function template(kind, coarse) {
+    var gl = S.gl, B = window.BABYLON, key = kind + (coarse ? '|lo' : '|hi');
+    if (gl.templates[key]) return gl.templates[key];
+    var kd = KINDS[kind], s = kd.size, m, name = 'nt-t-' + key;
+    if (kd.shape === 'ico') m = B.MeshBuilder.CreateIcoSphere(name, { radius: s, subdivisions: coarse ? 1 : 2 }, gl.scene);
+    else if (kd.shape === 'box') m = B.MeshBuilder.CreateBox(name, { size: s * 1.4 }, gl.scene);
+    else if (kd.shape === 'octa') m = B.MeshBuilder.CreatePolyhedron(name, { type: 1, size: s }, gl.scene);
+    else if (kd.shape === 'cyl') m = B.MeshBuilder.CreateCylinder(name, { height: s * 1.5, diameter: s * 1.6, tessellation: coarse ? 10 : 16 }, gl.scene);
+    else if (kd.shape === 'capsule') m = B.MeshBuilder.CreateCapsule(name, { height: s * 2.2, radius: s * 0.55, tessellation: coarse ? 8 : 12, subdivisions: 1, capSubdivisions: coarse ? 3 : 5 }, gl.scene);
+    else if (kd.shape === 'torus') m = B.MeshBuilder.CreateTorus(name, { diameter: s * 2, thickness: s * 0.45, tessellation: coarse ? 12 : 20 }, gl.scene);
+    else m = B.MeshBuilder.CreateSphere(name, { diameter: s * 2, segments: kind === 'file' ? (coarse ? 3 : 6) : (coarse ? 5 : 9) }, gl.scene);
     m.isPickable = false; m.setEnabled(false);
-    gl.templates[kind] = m;
+    gl.templates[key] = m;
     return m;
   }
   function meshFor(id) {
     var gl = S.gl;
     if (gl.meshes[id]) return gl.meshes[id];
-    var n = S.byId[id], m = template(n.kind).clone('nt-n', null, true);
-    m.metadata = { ntId: id };
+    var n = S.byId[id], m = template(n.kind, gl.far).clone('nt-n', null, true);
+    m.metadata = { ntId: id, kind: n.kind };
     m.isPickable = true;
     // a source file is a speck from far away: past this distance it is not drawn, and its label is not shown
     if (n.kind === 'file') m.addLODLevel(FILE_LOD, null);
     gl.meshes[id] = m;
     return m;
+  }
+  /** Coarse bodies past one camera distance, fine ones again inside a shorter one, so the switch never flickers.
+   *  A switch hands each body its kind's other shared geometry; nothing is created. */
+  function chooseDetail() {
+    var gl = S.gl, r = gl.camera.radius, far = gl.far ? r > LOD_FAR[1] : r > LOD_FAR[0];
+    if (far === gl.far) return;
+    gl.far = far;
+    for (var id in gl.meshes) {
+      var m = gl.meshes[id], t = template(m.metadata.kind, far);
+      if (t.geometry) t.geometry.applyToMesh(m);
+    }
   }
   /** Where a node is drawn now (mid-way through a move, the body's own position). */
   function nodePoint(id) {
@@ -440,7 +459,7 @@
     var rings = { lines: [], cols: [] }, zones = { lines: [], cols: [] }, unplaced = { lines: [], cols: [] };
     lay.platforms.forEach(function (p) {
       var n = S.byId[p.id], c = tokenRGB(KINDS[n.kind].tok);
-      var disc = B.MeshBuilder.CreateDisc('nt-pf', { radius: p.r, tessellation: 96 }, gl.scene);
+      var disc = B.MeshBuilder.CreateDisc('nt-pf', { radius: p.r, tessellation: 64 }, gl.scene);
       disc.rotation.x = Math.PI / 2; disc.position.set(p.x, p.y - 0.55, p.z);
       disc.isPickable = false; disc.material = platformMat(n.kind);
       gl.platforms.push(disc);
@@ -474,10 +493,11 @@
     return m;
   }
   /** A relationship's curve, from the surface of one body to the surface of the other, as a flat list of points. */
-  function arc(a, b, lift, ra, rb) {
+  function arc(a, b, lift, ra, rb, fine) {
     var dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
     var h = Math.min(70, 0.4 + lift * d), t0 = Math.min(0.45, ra / d), t1 = Math.max(0.55, 1 - rb / d);
-    var seg = Math.max(6, Math.min(28, Math.round(d / 2.2))), out = [];
+    // a shallow parabola reads as a curve with few points; the many unselected lines get fewer, the selection's keep more
+    var seg = fine ? Math.max(6, Math.min(24, Math.round(d / 2.5))) : Math.max(5, Math.min(12, Math.round(d / 5))), out = [];
     for (var i = 0; i <= seg; i++) {
       var t = t0 + (t1 - t0) * (i / seg);
       out.push(a[0] + dx * t, a[1] + dy * t + 4 * h * t * (1 - t), a[2] + dz * t);
@@ -571,7 +591,7 @@
       es.forEach(function (e) {
         var a = nodePoint(e.from), b = nodePoint(e.to);
         if (!a || !b) return;
-        var pts = arc(a, b, st.lift, drawnRadius(e.from), drawnRadius(e.to));
+        var pts = arc(a, b, st.lift, drawnRadius(e.from), drawnRadius(e.to), strong);
         var ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], ab2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2] || 1, len = Math.sqrt(ab2);
         var wk = strong ? 1 : Math.min(1, 0.5 + 0.14 * Math.log(1 + e.weight) / Math.LN2), base = strong ? 0.45 : 0.24;
         var pieces = st.dash ? dashes(pts, st.dash[0] * Math.max(1, len / 14), st.dash[1] * Math.max(1, len / 14)) : [pts];
@@ -641,8 +661,8 @@
   function placeLabels() {
     var gl = S.gl, B = window.BABYLON;
     if (!gl.ok || !S.labels.length) return;
-    var cv = S.root.querySelector('#nt-canvas'), w = gl.engine.getRenderWidth(), h = gl.engine.getRenderHeight();
-    var cw = cv.clientWidth || w, ch = cv.clientHeight || h, scale = cw / w;
+    var w = gl.engine.getRenderWidth(), h = gl.engine.getRenderHeight();
+    var cw = gl.cw || w, ch = gl.ch || h, scale = cw / w;
     var tm = gl.scene.getTransformMatrix(), vp = gl.camera.viewport.toGlobal(w, h), I = B.Matrix.Identity(), v = new B.Vector3(0, 0, 0), eye = gl.camera.position;
     var boxes = [], at = {}, zones = {};
     ((S.layout && S.layout.zones) || []).forEach(function (z) { zones[z.zone] = z; });
@@ -860,7 +880,7 @@
       + '<p class="nt-stagenote" id="nt-stagenote" role="status" hidden></p>'
       + '<details class="nt-legend" id="nt-legend" open></details>'
       + '</section>'
-      + '<aside class="nt-inspector" id="nt-inspector" aria-label="' + esc(T('Inspector')) + '"></aside>'
+      + '<aside class="nt-inspector" id="nt-inspector" tabindex="0" aria-label="' + esc(T('Inspector')) + '"></aside>'
       + '</div>'
       + '<div class="nt-sr" id="nt-live" aria-live="polite"></div>'
       + '</div>';
@@ -1237,7 +1257,8 @@
     return {
       state: S.state, lang: NT_LANG, dir: NT_DIR, nodes: S.graph ? S.graph.nodes.length : 0, edges: S.graph ? S.graph.edges.length : 0,
       visible: Object.keys(S.visible).length, lifted: S.lifted.length, selected: S.sel, expanded: Object.keys(S.expanded).filter(function (k) { return S.expanded[k]; }).sort(),
-      system: S.system, labels: S.labels.length, webgl: !!gl.ok, glFailed: !!gl.failed, meshes: Object.keys(gl.meshes).length,
+      system: S.system, labels: S.labels.length, webgl: !!gl.ok, glFailed: !!gl.failed, meshes: Object.keys(gl.meshes).length, coarse: !!gl.far,
+      vertices: Object.keys(gl.meshes).reduce(function (n, k) { return n + (gl.meshes[k].isEnabled() ? gl.meshes[k].getTotalVertices() : 0); }, 0),
       enabledMeshes: Object.keys(gl.meshes).filter(function (k) { return gl.meshes[k].isEnabled(); }).length,
       fps: gl.engine ? Math.round(gl.engine.getFps()) : null, frames: gl.frames, firstFrameMs: S.firstFrameMs, babylonMs: S.babylonMs,
       kinds: Object.keys(S.kinds).filter(function (k) { return S.kinds[k]; }).sort(), edgeKinds: Object.keys(S.edges).filter(function (k) { return S.edges[k]; }).sort(),

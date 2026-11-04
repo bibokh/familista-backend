@@ -101,7 +101,7 @@ body.nt-twin-open { overflow: hidden; }
   width: 100%; min-height: 34px; padding: 0 var(--fam-space-3); border-radius: var(--fam-radius-md);
   border: var(--fam-border-width-hairline) solid var(--fam-border-default); background: var(--fam-surface-tile); color: var(--fam-text-primary); font: inherit; font-size: var(--fam-font-size-sm);
 }
-:is(.nt-back, .nt-btn, .nt-lang, .nt-input, .nt-chip, .nt-row, .nt-twist, .nt-link, .nt-crumb, .nt-more, .nt-tool, .nt-range, .nt-legend-t):focus-visible,
+:is(.nt-back, .nt-btn, .nt-lang, .nt-input, .nt-chip, .nt-row, .nt-twist, .nt-link, .nt-crumb, .nt-more, .nt-tool, .nt-range, .nt-legend-t, .nt-inspector):focus-visible,
 .nt-canvas:focus-visible { outline: var(--fam-border-width-strong) solid var(--fam-focus-ring); outline-offset: 2px; }
 .nt-canvas:focus-visible { outline-offset: -3px; }
 
@@ -114,7 +114,7 @@ body.nt-twin-open { overflow: hidden; }
 .nt-explorer { border-inline-end: var(--fam-border-width-hairline) solid var(--fam-border-default); display: flex; flex-direction: column; gap: var(--fam-space-3); }
 .nt-inspector { border-inline-start: var(--fam-border-width-hairline) solid var(--fam-border-default); }
 
-.nt-flabel { font-size: var(--fam-font-size-2xs); font-weight: var(--fam-font-weight-extrabold); letter-spacing: var(--fam-font-tracking-widest); text-transform: uppercase; color: var(--fam-text-tertiary); margin-top: var(--fam-space-2); }
+.nt-flabel { font-size: var(--fam-font-size-2xs); font-weight: var(--fam-font-weight-extrabold); letter-spacing: var(--fam-font-tracking-widest); text-transform: uppercase; color: var(--fam-text-secondary); margin-top: var(--fam-space-2); }
 .nt-filters { display: flex; flex-direction: column; gap: var(--fam-space-2); }
 .nt-chips { display: flex; flex-wrap: wrap; gap: var(--fam-space-1); }
 .nt-chip {
@@ -122,16 +122,16 @@ body.nt-twin-open { overflow: hidden; }
   border-radius: var(--fam-radius-full); border: var(--fam-border-width-hairline) solid var(--fam-border-default);
   background: var(--fam-surface-tile); color: var(--fam-text-primary); font: inherit; font-size: var(--fam-font-size-xs); cursor: pointer;
 }
-.nt-chip[aria-pressed="false"] { color: var(--fam-text-tertiary); background: none; border-style: dashed; }
+.nt-chip[aria-pressed="false"] { color: var(--fam-text-secondary); background: none; border-style: dashed; }
 .nt-chip[aria-pressed="false"] .nt-glyph, .nt-chip[aria-pressed="false"] .nt-swatch { opacity: .4; }
-.nt-chip-n { color: var(--fam-text-tertiary); font-variant-numeric: tabular-nums; }
+.nt-chip-n { color: var(--fam-text-secondary); font-variant-numeric: tabular-nums; }
 
 /* the outline */
 .nt-tree { flex: 1 1 auto; min-height: 120px; }
 .nt-ul .nt-ul { margin-inline-start: var(--fam-space-4); border-inline-start: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
 .nt-rowwrap { display: flex; align-items: center; gap: 2px; }
 .nt-twist {
-  flex: 0 0 auto; width: 22px; height: 26px; display: grid; place-items: center; border: 0; background: none; color: var(--fam-text-tertiary);
+  flex: 0 0 auto; width: 22px; height: 26px; display: grid; place-items: center; border: 0; background: none; color: var(--fam-text-secondary);
   cursor: pointer; border-radius: var(--fam-radius-sm); font-size: var(--fam-font-size-xs);
 }
 .nt-twist--none { cursor: default; }
@@ -144,7 +144,7 @@ body.nt-twin-open { overflow: hidden; }
 .nt-row:hover, .nt-link:hover { background: var(--fam-surface-tile); }
 .nt-row.is-sel { border-color: var(--fam-module-accent); background: var(--fam-surface-tile); }
 .nt-row-l { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nt-row-n, .nt-row-k { flex: 0 0 auto; font-size: var(--fam-font-size-2xs); color: var(--fam-text-tertiary); font-variant-numeric: tabular-nums; }
+.nt-row-n, .nt-row-k { flex: 0 0 auto; font-size: var(--fam-font-size-2xs); color: var(--fam-text-secondary); font-variant-numeric: tabular-nums; }
 .nt-results { display: flex; flex-direction: column; gap: 2px; }
 .nt-empty { color: var(--fam-text-secondary); font-size: var(--fam-font-size-sm); }
 
@@ -184,7 +184,7 @@ body.nt-twin-open { overflow: hidden; }
 .nt-label--system { font-size: var(--fam-font-size-xs); font-weight: var(--fam-font-weight-extrabold); color: var(--fam-module-accent); border-color: var(--fam-border-strong); }
 .nt-label--file { max-width: 160px; font-weight: var(--fam-font-weight-regular); color: var(--fam-text-secondary); }
 .nt-label--zone {
-  background: none; border-color: transparent; color: var(--fam-text-tertiary); font-size: var(--fam-font-size-2xs);
+  background: none; border-color: transparent; color: var(--fam-text-secondary); font-size: var(--fam-font-size-2xs);
   font-weight: var(--fam-font-weight-extrabold); letter-spacing: var(--fam-font-tracking-widest); text-transform: uppercase;
 }
 .nt-label.is-sel { border-color: var(--fam-focus-ring); color: var(--fam-text-primary); box-shadow: var(--fam-glow-focus); }
@@ -227,7 +227,7 @@ body.nt-twin-open { overflow: hidden; }
 .nt-legend-e { margin-top: 6px !important; padding-top: 6px !important; border-top: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
 .nt-legend-t { font-weight: var(--fam-font-weight-extrabold); letter-spacing: var(--fam-font-tracking-wide); text-transform: uppercase; cursor: pointer; border-radius: var(--fam-radius-sm); }
 .nt-legend[open] .nt-legend-t { margin-bottom: 4px; }
-.nt-legend-m { margin-top: 4px !important; color: var(--fam-text-tertiary); }
+.nt-legend-m { margin-top: 4px !important; color: var(--fam-text-secondary); }
 .nt-glmsg {
   position: absolute; inset-block-start: 50%; inset-inline: var(--fam-space-6); translate: 0 -50%; text-align: center;
   padding: var(--fam-space-4); border-radius: var(--fam-radius-lg); border: var(--fam-border-width-hairline) dashed var(--fam-border-strong);
@@ -235,6 +235,8 @@ body.nt-twin-open { overflow: hidden; }
 }
 
 /* ── the inspector ──────────────────────────────────────────────────────── */
+/* Small text here is --fam-text-secondary, never tertiary: on these panels tertiary measured 3.2 to 4.1 : 1, under
+   WCAG AA's 4.5 (axe, tools/components/twin-browser-proof.cjs T3). The inspector is focusable because it scrolls. */
 .nt-insp-h { display: flex; flex-direction: column; gap: var(--fam-space-2); padding-bottom: var(--fam-space-3); border-bottom: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
 .nt-insp-kind { display: flex; align-items: center; gap: var(--fam-space-2); font-size: var(--fam-font-size-xs); font-weight: var(--fam-font-weight-bold); color: var(--fam-text-secondary); text-transform: uppercase; letter-spacing: var(--fam-font-tracking-wide); }
 .nt-insp-t { font-size: var(--fam-font-size-xl); font-weight: var(--fam-font-weight-extrabold); overflow-wrap: anywhere; }
@@ -249,9 +251,9 @@ body.nt-twin-open { overflow: hidden; }
 .nt-root[dir="rtl"] .nt-crumb-sep { display: inline-block; transform: scaleX(-1); }
 .nt-insp-actions { display: flex; flex-wrap: wrap; gap: var(--fam-space-2); padding: var(--fam-space-3) 0; }
 .nt-sec { padding: var(--fam-space-3) 0; border-top: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
-.nt-sec-t { font-size: var(--fam-font-size-2xs); font-weight: var(--fam-font-weight-extrabold); letter-spacing: var(--fam-font-tracking-widest); text-transform: uppercase; color: var(--fam-text-tertiary); margin-bottom: var(--fam-space-2) !important; }
+.nt-sec-t { font-size: var(--fam-font-size-2xs); font-weight: var(--fam-font-weight-extrabold); letter-spacing: var(--fam-font-tracking-widest); text-transform: uppercase; color: var(--fam-text-secondary); margin-bottom: var(--fam-space-2) !important; }
 .nt-p { font-size: var(--fam-font-size-sm); color: var(--fam-text-primary); line-height: var(--fam-font-line-height-normal); }
-.nt-note { margin-top: var(--fam-space-2) !important; font-size: var(--fam-font-size-xs); color: var(--fam-text-tertiary); }
+.nt-note { margin-top: var(--fam-space-2) !important; font-size: var(--fam-font-size-xs); color: var(--fam-text-secondary); }
 .nt-dl { display: grid; grid-template-columns: minmax(0, 42%) minmax(0, 1fr); gap: 6px var(--fam-space-3); margin: 0; font-size: var(--fam-font-size-xs); }
 .nt-dl dt { color: var(--fam-text-secondary); }
 .nt-dl dd { margin: 0; color: var(--fam-text-primary); overflow-wrap: anywhere; }
@@ -261,14 +263,14 @@ body.nt-twin-open { overflow: hidden; }
 .nt-links li { display: flex; flex-direction: column; }
 .nt-path { margin: 0 0 var(--fam-space-2); padding: 0; list-style: none; display: flex; flex-direction: column; }
 .nt-path li { display: flex; flex-direction: column; gap: 2px; }
-.nt-path-e { display: flex; align-items: center; gap: var(--fam-space-2); padding-inline-start: 30px; font-size: var(--fam-font-size-2xs); color: var(--fam-text-tertiary); }
-.nt-ev-inline { padding-inline-start: 30px; font-size: var(--fam-font-size-2xs) !important; color: var(--fam-text-tertiary) !important; }
+.nt-path-e { display: flex; align-items: center; gap: var(--fam-space-2); padding-inline-start: 30px; font-size: var(--fam-font-size-2xs); color: var(--fam-text-secondary); }
+.nt-ev-inline { padding-inline-start: 30px; font-size: var(--fam-font-size-2xs) !important; color: var(--fam-text-secondary) !important; }
 .nt-more { margin-top: 2px; border: 0; background: none; padding: 2px var(--fam-space-2); color: var(--fam-module-accent); font: inherit; font-size: var(--fam-font-size-xs); cursor: pointer; border-radius: var(--fam-radius-sm); }
 .nt-ev { display: flex; flex-direction: column; gap: var(--fam-space-2); }
 .nt-ev li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--fam-space-2); font-size: var(--fam-font-size-xs); }
 .nt-ev-a { font-weight: var(--fam-font-weight-bold); color: var(--fam-text-primary); }
 .nt-ev-n { flex-basis: 100%; color: var(--fam-text-secondary); }
-.nt-sha { color: var(--fam-text-tertiary) !important; }
+.nt-sha { color: var(--fam-text-secondary) !important; }
 .nt-unknown { display: flex; flex-direction: column; gap: var(--fam-space-2); }
 .nt-unknown li { padding-inline-start: var(--fam-space-3); border-inline-start: var(--fam-border-width-strong) dotted var(--fam-border-strong); font-size: var(--fam-font-size-xs); color: var(--fam-text-secondary); }
 .nt-tally { display: flex; flex-direction: column; gap: 4px; }

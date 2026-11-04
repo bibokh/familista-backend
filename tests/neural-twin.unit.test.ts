@@ -494,3 +494,39 @@ describe('6. the layout: position says nesting, and nothing overlaps', () => {
     expect(ROOM).toMatch(/var e = S\.lifted\[i\]; \(groups\[e\.kind\]/);
   });
 });
+
+describe('7. the twin\'s browser proof runs inside the required CI jobs, and cannot pass empty', () => {
+  const CI = read('.github/workflows/ci.yml');
+  const PROOF = read('tools/components/twin-browser-proof.cjs');
+  const job = CI.slice(CI.indexOf('  browser-proof:'), CI.indexOf('  secret-scan:'));
+  const code = job.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
+
+  it('is a tool beside the Lab proof, with the same pinned tools, and pairs its proofs with negative controls', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    expect(require('child_process').spawnSync(process.execPath, ['--check', path.join(ROOT, 'tools/components/twin-browser-proof.cjs')]).status).toBe(0);
+    expect(PROOF).toContain("require(process.env.PLAYWRIGHT_CORE || 'playwright-core')");
+    expect(PROOF).toContain("tools/components/node_modules/axe-core/axe.min.js");
+    for (const claim of ['a fabricated one is caught', 'twin path (control)', 'twin owner only (control)', 'twin owner only: a club coach is answered 403', 'without a session the graph is answered 401', 'twin accessibility (control)', 'no two shown labels overlap', 'no two of the 921 nodes collide'])
+      expect(PROOF).toContain(claim);
+    expect(PROOF).toMatch(/console\.log\(`SUMMARY \$\{[^`]+\} passed, \$\{failed\} failed, \$\{[^`]+\} skipped`\)/);
+  });
+
+  it('runs in both required browser-proof shards, every section once, with a floor, and nothing in it can fail quietly', () => {
+    expect([...code.matchAll(/^ {10}- shard: (.+)$/gm)].map((m) => m[1])).toEqual(['isolation', 'accessibility and focus']);
+    const twin = [...code.matchAll(/twin:\s*'([^']+)'/g)].map((m) => m[1].split(',')).flat().sort();
+    expect(twin).toEqual(['T1', 'T2', 'T3']);
+    const floors = [...code.matchAll(/twin_floor:\s*'(\d+)'/g)].map((m) => Number(m[1]));
+    expect(floors.length).toBe(2);
+    expect(floors.every((n) => n >= 30)).toBe(true);
+    expect(code).toContain('PROOF_ONLY="$TWIN_SECTIONS" node tools/components/twin-browser-proof.cjs "$out" "${args[@]}"');
+    expect(code).toContain('TWIN_FLOOR:         ${{ matrix.twin_floor }}');
+    const gate = code.slice(code.indexOf('- name: The Neural Digital Twin proof must have run'));
+    expect(gate).toContain("grep -Eq ', 0 failed, 0 skipped$'");
+    expect(gate).toMatch(/test "\$passed" -ge "\$TWIN_FLOOR"/);
+    expect(code).not.toMatch(/continue-on-error|\|\|\s*true|playwright install|secrets\./);
+    // inside the required jobs: ci.yml still has exactly its three jobs, and the twin's steps come before the report step
+    expect([...CI.slice(CI.indexOf('\njobs:')).matchAll(/^  ([a-z-]+):\s*$/gm)].map((m) => m[1])).toEqual(['validate', 'browser-proof', 'secret-scan']);
+    expect(code.indexOf('- name: Neural Digital Twin browser proof')).toBeLessThan(code.indexOf('- name: Performance budget report'));
+    expect(code.indexOf('- name: The proof must have run, in full')).toBeLessThan(code.indexOf('- name: Neural Digital Twin browser proof'));
+  });
+});
