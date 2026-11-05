@@ -2876,7 +2876,7 @@ function _loadNeuralTwin(done) {
   }
   ask.then(function (yes) {
     if (!yes) { finish(false); return; }
-    var v = '20261104-neural-twin-2';
+    var v = '20261105-neural-twin-3';
     var pending = 3, failed = false;
     function one(ok) { if (!ok) failed = true; if (--pending === 0) finish(!failed); }
     var link = document.createElement('link');
@@ -2893,6 +2893,115 @@ function _loadNeuralTwin(done) {
       document.head.appendChild(script);
     });
   }).catch(function () { finish(false); });
+}
+
+// ── PLATFORM OWNER NAVIGATION ───────────────────────────────────────────────
+// The Platform Owner's two permanent destinations outside every Club Workspace:
+// the Neural Digital Twin and System Updates. One list, drawn in three places —
+// Owner Control's top bar, and the head of each of the two rooms (which take the
+// whole screen, top bar included) — so the reader always sees which one is open.
+// Nothing is drawn until /system/whoami has said the reader is the Platform
+// Owner (_isPlatformOwner), and the top bar's copy is hidden inside a Club
+// Workspace. Convenience, not security: both rooms' endpoints are guarded by
+// assertPlatformOwner on the server.
+var OWNER_NAV = [
+  { page: 'neural-twin', label: 'Neural Digital Twin',
+    icon: '<circle cx="10" cy="4.2" r="2.1"/><circle cx="4.2" cy="15.2" r="2.1"/><circle cx="15.8" cy="15.2" r="2.1"/><path d="M9 6.1 5.2 13.3M11 6.1l3.8 7.2M6.3 15.2h7.4"/>' },
+  { page: 'system-updates', label: 'System Updates',
+    icon: '<path d="M16.4 8.6A6.6 6.6 0 0 0 4.6 6.2"/><path d="M3.6 11.4a6.6 6.6 0 0 0 11.8 2.4"/><path d="M4.4 2.8v3.6H8"/><path d="M15.6 17.2v-3.6H12"/>' },
+];
+/** One destination's glyph, drawn in the current colour; decorative, so hidden from assistive technology. */
+function famOwnerNavIcon(page, cls) {
+  var it = OWNER_NAV.filter(function (i) { return i.page === page; })[0];
+  if (!it) return '';
+  return '<svg class="' + (cls || 'owner-nav-ico') + '" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + it.icon + '</svg>';
+}
+/**
+ * The buttons for one surface. `active` is the page open now (it carries
+ * aria-current="page"); `T` words the labels (each room passes its own
+ * catalogue; the top bar's English is translated by the catalogue pass); `p`
+ * prefixes the classes, so each surface styles them with its own tokens.
+ */
+function famOwnerNav(active, T, p) {
+  T = typeof T === 'function' ? T : function (x) { return x; };
+  p = p || 'owner-nav';
+  return OWNER_NAV.map(function (it) {
+    var on = it.page === active, label = _esc(T(it.label));
+    return '<button type="button" class="' + p + '-btn' + (on ? ' is-active' : '') + '" data-action="navTo" data-page="' + it.page + '" data-owner-nav="' + it.page + '"'
+      + (on ? ' aria-current="page"' : '') + ' title="' + label + '">'
+      + famOwnerNavIcon(it.page, p + '-ico') + '<span class="' + p + '-label">' + label + '</span></button>';
+  }).join('');
+}
+window.famOwnerNav = famOwnerNav;
+window.famOwnerNavIcon = famOwnerNavIcon;
+/** Mark the page open now in the shell's copies (the top bar's, and the phone header's). */
+function _ownerNavSync(page) {
+  page = page || String((document.querySelector('.page.active') || {}).id || '').replace(/^pg-/, '');
+  document.querySelectorAll('.owner-nav [data-owner-nav]').forEach(function (b) {
+    var on = b.getAttribute('data-owner-nav') === page;
+    b.classList.toggle('is-active', on);
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+}
+/** Draw and reveal the shell's copies, once the Platform Owner is confirmed. CSS shows one per width. */
+function _ownerNavShow() {
+  document.querySelectorAll('.owner-nav').forEach(function (g) {
+    if (!g.querySelector('[data-owner-nav]')) g.innerHTML = famOwnerNav(null, null, 'owner-nav');
+    g.hidden = false;
+  });
+  _ownerNavSync();
+}
+
+// A room loaded on demand: its stylesheet and scripts, once, and only for a
+// reader whom /system/whoami names the Platform Owner. `room` holds the state.
+function _famLoadOwnerRoom(room, v, css, scripts, done) {
+  if (room.state === 'ready') { done(true); return; }
+  room.waiting.push(done);
+  if (room.state === 'loading') return;
+  room.state = 'loading';
+  function finish(ok) {
+    room.state = ok ? 'ready' : 'idle';
+    var list = room.waiting.splice(0);
+    for (var i = 0; i < list.length; i++) { try { list[i](ok); } catch (_) {} }
+  }
+  var ask;
+  try {
+    ask = _isPlatformOwner().then(function (yes) {
+      if (yes) return true;
+      _platformAuthority = null;
+      return _isPlatformOwner();
+    });
+  } catch (_) {
+    room.state = 'idle';
+    room.waiting.length = 0;
+    return;
+  }
+  ask.then(function (yes) {
+    if (!yes) { finish(false); return; }
+    var pending = 1 + scripts.length, failed = false;
+    function one(ok) { if (!ok) failed = true; if (--pending === 0) finish(!failed); }
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = css + '?v=' + v;
+    link.onload = function () { one(true); };
+    link.onerror = function () { one(false); };
+    document.head.appendChild(link);
+    scripts.forEach(function (src) {
+      var script = document.createElement('script');
+      script.src = src + '?v=' + v;
+      script.async = false;   // in the order given
+      script.onload = function () { one(true); };
+      script.onerror = function () { one(false); };
+      document.head.appendChild(script);
+    });
+  }).catch(function () { finish(false); });
+}
+
+// FAMILISTA SYSTEM UPDATES — what the platform is running, how a change reaches
+// production, what changed, and what waits for the Platform Owner. Read-only.
+var _SU_ROOM = { state: 'idle', waiting: [] };
+function _loadSystemUpdates(done) {
+  _famLoadOwnerRoom(_SU_ROOM, '20261105-system-updates-1', '/system-updates/system-updates.css', ['/system-updates/system-updates.js'], done);
 }
 
 // ── NAVIGATION ──
@@ -2932,6 +3041,14 @@ function navTo(page, el, _opts) {
   if (page === 'neural-twin' && !(_NT_ROOM && _NT_ROOM.state === 'ready')) {
     if (!_NT_ROOM) return;
     _loadNeuralTwin(function (ok) {
+      try { navTo(ok ? page : 'owner-home', ok ? el : null, _opts); } catch (_) {}
+    });
+    return;
+  }
+  // Familista System Updates: the same.
+  if (page === 'system-updates' && !(_SU_ROOM && _SU_ROOM.state === 'ready')) {
+    if (!_SU_ROOM) return;
+    _loadSystemUpdates(function (ok) {
       try { navTo(ok ? page : 'owner-home', ok ? el : null, _opts); } catch (_) {}
     });
     return;
@@ -3045,6 +3162,12 @@ function navTo(page, el, _opts) {
     if (_wasTwin && page !== 'neural-twin' && typeof window.teardownFamilistaNeuralTwin === 'function') {
       window.teardownFamilistaNeuralTwin();
     }
+    // FAMILISTA SYSTEM UPDATES takes the shell the same way.
+    var _wasUpdates = document.body.classList.contains('su-room-open');
+    document.body.classList.toggle('su-room-open', page === 'system-updates');
+    if (_wasUpdates && page !== 'system-updates' && typeof window.teardownFamilistaSystemUpdates === 'function') {
+      window.teardownFamilistaSystemUpdates();
+    }
     // ENTERING IS NOT SYMMETRICAL WITH LEAVING, AND THAT WAS A BUG.
     //
     // Leaving released the module's held session; nothing re-hydrated it on the
@@ -3134,6 +3257,11 @@ function navTo(page, el, _opts) {
     // authorities. Reached by #neural-twin. Owner-only and read-only: both of its
     // endpoints are GETs guarded by assertPlatformOwner on the server.
     'neural-twin': 1,
+    // FAMILISTA SYSTEM UPDATES — what is running, how a change reaches production
+    // and what waits for the owner. Reached from the Platform Owner navigation.
+    // Owner-only and read-only: its one endpoint is a GET guarded by
+    // assertPlatformOwner on the server.
+    'system-updates': 1,
     // PLATFORM (8)
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
@@ -3275,6 +3403,15 @@ function navTo(page, el, _opts) {
       window.renderFamilistaNeuralTwin(_ntRoot);
     }
   } catch (_) {}
+  // System Updates reads no club data either. It is read afresh on every entry from another page.
+  try {
+    var _suRoot = document.getElementById('su-root');
+    if (page === 'system-updates' && typeof window.renderFamilistaSystemUpdates === 'function'
+        && _suRoot && (_leaving !== 'pg-system-updates' || !_suRoot.__famDrawn)) {
+      _suRoot.__famDrawn = true;
+      window.renderFamilistaSystemUpdates(_suRoot);
+    }
+  } catch (_) {}
   try {
     if (typeof _famNeedsClubData === 'function' && _famNeedsClubData(page)
         && State.context && State.context.clubId) _famEnsureClubData();
@@ -3289,7 +3426,7 @@ function navTo(page, el, _opts) {
 
   const titles = {
     // ── Owner Control ──
-    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'neural-twin':'Neural Digital Twin', 'source-core':'Source Core', 'familista-vision':'Familista Vision', 'cybersecurity':'Cybersecurity', 'algorithms':'Algorithms', 'design-system':'Design System', 'design-studio':'Design Studio', 'agents-room':'AI Agents Operations Room',
+    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'neural-twin':'Neural Digital Twin', 'system-updates':'System Updates', 'source-core':'Source Core', 'familista-vision':'Familista Vision', 'cybersecurity':'Cybersecurity', 'algorithms':'Algorithms', 'design-system':'Design System', 'design-studio':'Design Studio', 'agents-room':'AI Agents Operations Room',
     // ── Club Workspace ──
     'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League', 'match-center':'Match Center', 'people-access':'People & Access',
     // ── Platform (Phase B labels) ──
@@ -3313,6 +3450,8 @@ function navTo(page, el, _opts) {
   try { _setArea(_areaForPage(page)); } catch (_) {}
   // ── Topbar context Back button — label tracks the current area.
   try { _updateTopbarBack(page); } catch (_) {}
+  // ── Platform Owner navigation — the open destination carries aria-current.
+  try { _ownerNavSync(page); } catch (_) {}
   // ── Browser back/forward — push a hash-based history entry per nav.
   // Skip when this navigation is itself replaying a popstate event.
   if (!_opts.fromPopState && typeof window !== 'undefined' && window.history && typeof window.history.pushState === 'function') {
@@ -3568,6 +3707,7 @@ function _buildPageTemplateMap() {
     'design-studio':               renderDesignStudioHTML,
     'agents-room':                 renderAgentsRoomHTML,
     'neural-twin':                 renderNeuralTwinHTML,
+    'system-updates':              renderSystemUpdatesHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
@@ -3841,7 +3981,7 @@ function _isPlatformOwner() {
   }).then(r => (r.ok ? r.json() : null))
     .then(b => !!(b && b.data && b.data.isPlatformOwner))
     .catch(() => false)
-    .then(function (yes) { if (yes) { try { _langSwitchShow(); } catch (_) {} } return yes; });
+    .then(function (yes) { if (yes) { try { _langSwitchShow(); } catch (_) {} try { _ownerNavShow(); } catch (_) {} } return yes; });
   return _platformAuthority;
 }
 
@@ -29449,6 +29589,15 @@ function renderAgentsRoomHTML() {
 // boundary, in the owner context of the design tokens. Not in _EAGER_PAGES.
 function renderNeuralTwinHTML() {
   return `<div class="page" id="pg-neural-twin" data-no-i18n data-fam-context="owner"><div id="nt-root"></div></div>`;
+}
+
+// FAMILISTA SYSTEM UPDATES — the platform owner's view of what is running and what
+// waits for them, outside every Club Workspace. Its interface lives in
+// public/system-updates/system-updates.js with its own English, German and Arabic
+// catalogue under /system-updates/i18n/, behind the same `data-no-i18n`
+// boundary, in the owner context of the design tokens. Not in _EAGER_PAGES.
+function renderSystemUpdatesHTML() {
+  return `<div class="page" id="pg-system-updates" data-no-i18n data-fam-context="owner"><div id="su-root"></div></div>`;
 }
 
 // FAMILISTA VISION — what the platform can SEE: computer-vision evidence from

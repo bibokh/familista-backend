@@ -1620,5 +1620,8 @@
   "No historical events yet": "Δεν υπάρχουν ακόμη ιστορικά συμβάντα",
   "Vision engine reachable · no session store": "Η μηχανή Vision είναι προσβάσιμη · χωρίς αποθήκη συνεδριών",
   "Clubs in your network: \u0000": "Σύλλογοι στο δίκτυό σας: \u0000",
-  "Request cancelled": "Το αίτημα ακυρώθηκε"
+  "Request cancelled": "Το αίτημα ακυρώθηκε",
+  "Neural Digital Twin": "Νευρωνικό ψηφιακό δίδυμο",
+  "System Updates": "Ενημερώσεις συστήματος",
+  "Platform owner": "Κάτοχος πλατφόρμας"
 }

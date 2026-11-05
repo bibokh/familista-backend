@@ -1620,5 +1620,8 @@
   "No historical events yet": "Још нема историјских догађаја",
   "Vision engine reachable · no session store": "Vision механизам је доступан · нема складишта сесија",
   "Clubs in your network: \u0000": "Клубови у вашој мрежи: \u0000",
-  "Request cancelled": "Zahtev je otkazan"
+  "Request cancelled": "Zahtev je otkazan",
+  "Neural Digital Twin": "Neuronski digitalni blizanac",
+  "System Updates": "Ažuriranja sistema",
+  "Platform owner": "Vlasnik platforme"
 }

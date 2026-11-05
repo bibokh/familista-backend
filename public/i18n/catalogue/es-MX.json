@@ -1620,5 +1620,8 @@
   "No historical events yet": "Aún no hay eventos históricos",
   "Vision engine reachable · no session store": "Motor de Vision accesible · sin almacén de sesiones",
   "Clubs in your network: \u0000": "Clubes en tu red: \u0000",
-  "Request cancelled": "Solicitud cancelada"
+  "Request cancelled": "Solicitud cancelada",
+  "Neural Digital Twin": "Gemelo digital neuronal",
+  "System Updates": "Actualizaciones del sistema",
+  "Platform owner": "Propietario de la plataforma"
 }

@@ -227,7 +227,7 @@ npm ci --ignore-scripts --prefix tools/components
 CHROMIUM=$(command -v google-chrome) node tools/components/twin-browser-proof.cjs <output-dir> [--axe]
 ```
 
-It has three sections, chosen with `PROOF_ONLY`:
+It has four sections, chosen with `PROOF_ONLY`:
 
 - **T1**: exploring the room (explorer, search, inspector evidence, pointer pick and enter, camera, filters, keyboard). Also
   idle rendering, teardown and return; German and Arabic with right-to-left; 768 px and 390 px. The platform owner only: a
@@ -235,16 +235,29 @@ It has three sections, chosen with `PROOF_ONLY`:
   answered 200 (the control).
   A deep link at 400 ms API latency must raise no false "Connection timeout": the startup re-route cancels reads, and a
   cancellation is not a timeout. The control holds one read past the 20 s timeout and requires the banner.
-- **T2**: the layout with no collision and every child inside its parent, at 20 nodes and at all 921. Every drawn line is
+- **T2**: the layout with no collision and every child inside its parent, at 20 nodes and at every node of the graph the
+  build wrote (compared with `dist/platform/neural-twin/generated/neural-graph.json`, and never fewer than Phase 1's 921
+  nodes and 3,656 edges). Every drawn line is
   mapped back to the served graph, and a fabricated one is caught. No two labels overlap. Also selection highlighting with
   an arrowhead per line, the path and its no-route control, Back to the exact camera, Selection only and the intensity
   slider, the unfold move and reduced motion, and translated zone names.
 - **T3** (with `--axe`): axe (WCAG 2.2 A/AA) in English and Arabic, with a selection open. A nameless button added inside the
   room must be reported, as the control.
+- **T4**: the Platform Owner navigation and System Updates. The two destinations sit in Owner Control's top bar (the phone
+  header at 768 px and below), named, inside the bar; revealing them moves nothing. Each opens its room, which marks itself
+  the open destination, and the round trip runs System Updates → twin (by keyboard) → System Updates → Owner Control. The
+  navigation never shows in a Club Workspace (the home area is the control). System Updates shows the release record the
+  build wrote: every deployment fact with its file and line, every recorded commit; off Render the deployed commit and branch
+  read "Unknown"; CI, the host and pull requests read "Not connected". Refresh moves nothing. A club coach sees no owner
+  navigation, loads none of the room and is answered 403; no session 401; the owner 200 (the control). German and Arabic
+  (right to left) with no English sentence of the room's catalogue left on screen (data, such as commit messages, excepted;
+  the English room is the control). A tablet keeps icons with their names, a phone keeps the page's name unsqueezed, and the
+  room is one column on a phone. With `--axe`: the room and the top bar's navigation in English and Arabic, with a nameless
+  button as the control.
 
 It runs inside the two required `browser-proof` jobs of `.github/workflows/ci.yml`:
 - T2 runs in the isolation shard.
-- T1 and T3 run in the accessibility shard.
+- T1, T3 and T4 run in the accessibility shard.
 
 Each shard checks the twin's `SUMMARY` line for 0 failed and 0 skipped, and against its own floor (`twin_floor`).
 `tests/neural-twin.unit.test.ts` pins that wiring.

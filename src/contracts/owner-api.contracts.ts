@@ -51,6 +51,7 @@ import { z } from 'zod';
 import {
   AUTHORITIES as TWIN_AUTHORITIES, EDGE_KINDS as TWIN_EDGE_KINDS, MATURITIES as TWIN_MATURITIES, NODE_KINDS as TWIN_NODE_KINDS,
 } from '../platform/neural-twin/model';
+import { DEPLOY_FACTS, UPDATE_REASONS } from '../platform/system-updates/model';
 import { AIAgent } from '@prisma/client';
 import { CONFIG_VALUES } from '../cyber-defense/control-plane/registry';
 import {
@@ -1460,6 +1461,48 @@ export const NeuralTwinGraphSchema = z.object({
   commit: z.string().min(1).nullable(),
 }).strict();
 
+// ── Familista System Updates (src/platform/system-updates/model.ts) ──
+const Sha40 = z.string().regex(/^[0-9a-f]{40}$/);
+const IsoTime = z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'an ISO 8601 time');
+const UpdateReasonSchema = z.enum(UPDATE_REASONS);
+const UpdatesConnectionSchema = z.object({ state: z.literal('NOT_CONNECTED'), reason: UpdateReasonSchema }).strict();
+const UpdatesApprovalSchema = z.object({
+  state: z.enum(['AVAILABLE', 'UNAVAILABLE']), awaiting: Count.nullable(), total: Count.nullable(), reason: UpdateReasonSchema.nullable(),
+}).strict();
+const UpdatesHistorySchema = z.union([
+  z.object({
+    state: z.literal('RECORDED'), shallow: z.boolean().nullable(),
+    items: z.array(z.object({ sha: Sha40, date: IsoTime, subject: z.string().max(200), pr: z.number().int().positive().nullable() }).strict()),
+  }).strict(),
+  z.object({ state: z.literal('UNAVAILABLE'), reason: z.literal('NO_REPOSITORY_HISTORY') }).strict(),
+  z.object({ state: z.literal('UNAVAILABLE'), reason: z.literal('NO_BUILD_RECORD') }).strict(),
+]);
+const UpdatesDeployPathSchema = z.union([
+  z.object({
+    state: z.literal('RECORDED'),
+    facts: z.array(z.object({ fact: z.enum(DEPLOY_FACTS), evidence: z.object({ path: z.string().min(1), line: z.number().int().min(1) }).strict() }).strict()),
+    files: z.array(z.object({ path: z.string().min(1), sha256: Sha256 }).strict()),
+  }).strict(),
+  z.object({ state: z.literal('UNAVAILABLE'), reason: z.literal('NO_DEPLOY_CONFIGURATION') }).strict(),
+  z.object({ state: z.literal('UNAVAILABLE'), reason: z.literal('NO_BUILD_RECORD') }).strict(),
+]);
+export const SystemUpdatesViewSchema = z.object({
+  schemaVersion: z.literal(1),
+  measuredAt: IsoTime,
+  mode: z.literal('READ_ONLY'),
+  running: z.object({
+    commit: Sha40.nullable(), builtCommit: Sha40.nullable(), branch: z.string().min(1).nullable(), onRender: z.boolean(),
+    environment: z.string().min(1), builtAt: IsoTime.nullable(), startedAt: IsoTime, node: z.string().min(1),
+    tag: z.string().min(1).nullable(), record: z.enum(['PRESENT', 'ABSENT']), reason: UpdateReasonSchema.nullable(),
+  }).strict(),
+  deployPath: UpdatesDeployPathSchema,
+  ci: UpdatesConnectionSchema,
+  provider: UpdatesConnectionSchema,
+  changes: UpdatesHistorySchema,
+  approvals: z.object({ algorithms: UpdatesApprovalSchema, candidates: UpdatesApprovalSchema, code: UpdatesConnectionSchema }).strict(),
+  repository: z.string().regex(/^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/).nullable(),
+}).strict();
+
 export const AgentsRoomSummarySchema = z.object({
   id: z.string().min(1), version: z.string().min(1), title: z.string().min(1), domain: z.string().min(1),
   scope: AgentScopeSchema, lifecycle: AgentLifecycleSchema, autonomyCeiling: z.string().min(1),
@@ -1908,6 +1951,12 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     schema: NeuralTwinGraphSchema, consumer: 'public/neural-twin/neural-twin.js',
     reads: ['schemaVersion', 'provenance', 'counts', 'nodes', 'edges', 'discrepancies', 'commit'],
   },
+  // ── Familista System Updates ──
+  {
+    endpoint: '/system/updates', module: 'System Updates',
+    schema: SystemUpdatesViewSchema, consumer: 'public/system-updates/system-updates.js',
+    reads: ['measuredAt', 'mode', 'running', 'deployPath', 'ci', 'provider', 'changes', 'approvals', 'repository'],
+  },
   // ── The AI Agents Operations Room ──
   {
     endpoint: '/system/agents', module: 'AI Agents Operations Room',
@@ -2047,3 +2096,6 @@ void [_pIndex, _pDetail, _pComponent, _pFixture];
 void [_component, _district, _relationship, _technology, _signal, _incident, _rule,
   _source, _control, _stage, _impact,
   _ccOverview, _ccDomain, _ccDetail, _ccArea, _ccStage, _ccRls, _ccEvents, _ccPosture];
+import type { SystemUpdatesView } from '../platform/system-updates/model';
+const _systemUpdates: Exact<z.infer<typeof SystemUpdatesViewSchema>, SystemUpdatesView> = true;
+void _systemUpdates;

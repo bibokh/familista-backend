@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-04T20:44:41.946Z",
+  "generatedAt": "2026-11-05T10:24:50.647Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -282,7 +282,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "src/routes/index.ts",
-      "sourceEvidence": "src/routes/index.ts — 56 mounted routers",
+      "sourceEvidence": "src/routes/index.ts — 57 mounted routers",
       "dependencies": [
         "platform-core"
       ],
@@ -1101,7 +1101,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 227 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 228 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1161,7 +1161,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "623 TypeScript modules under src/."
+      "note": "627 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1625,12 +1625,12 @@
     }
   ],
   "surface": {
-    "routeModules": 66,
+    "routeModules": 67,
     "serviceModules": 102,
     "middleware": 24,
     "fabricModules": 52,
-    "totalTypeScript": 623,
-    "testSuites": 227,
+    "totalTypeScript": 627,
+    "testSuites": 228,
     "migrations": 49,
     "prismaModels": 344,
     "prismaEnums": 209
@@ -1928,6 +1928,13 @@
       "path": "/system/neural-twin",
       "router": "neuralTwinRoutes",
       "file": "src/routes/neural-twin.routes.ts",
+      "writes": 0,
+      "reads": 1
+    },
+    {
+      "path": "/system/updates",
+      "router": "systemUpdatesRoutes",
+      "file": "src/routes/system-updates.routes.ts",
       "writes": 0,
       "reads": 1
     },

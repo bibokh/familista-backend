@@ -23,8 +23,8 @@
    "id": "surface-loads",
    "path": "tools/tokens/lib/production.mjs",
    "label": "The stylesheets each production page loads (its link tags, the built assets and the on-demand list)",
-   "sha256": "12b60160508f83ccab3e2ef58d361b128ea4cae0fb5484faa302a45aa2af3f0a",
-   "bytes": 3272,
+   "sha256": "e5e92c721ecbeac8d13a6a76d0fa6f87dca60296d6073f8ea7615967fe9c4230",
+   "bytes": 3456,
    "basis": "derived"
   }
  ],
@@ -1432,25 +1432,25 @@
     "A stylesheet that two pages load is drawn once, with an edge to each."
    ],
    "columns": [
-    {"id":"stylesheet","label":"Stylesheets","x":40,"y":40,"w":188,"count":32},
-    {"id":"surface","label":"Production surfaces","x":396,"y":40,"w":188,"count":8}
+    {"id":"stylesheet","label":"Stylesheets","x":40,"y":40,"w":188,"count":33},
+    {"id":"surface","label":"Production surfaces","x":396,"y":40,"w":188,"count":9}
    ],
    "parked": null,
    "layout": {
     "strategy": "layered",
     "width": 624,
-    "height": 1200,
+    "height": 1242,
     "nodeW": 188,
     "nodeH": 22
    },
    "stats": {
-    "nodes": 40,
-    "edges": 32,
+    "nodes": 42,
+    "edges": 33,
     "isolated": 0,
-    "nodesByKind": {"stylesheet":32,"surface":8},
-    "edgesByKind": {"loaded-by":32},
-    "nodesByEvidence": {"MEASURED":40},
-    "edgesByEvidence": {"MEASURED":24,"RECORDED":8}
+    "nodesByKind": {"stylesheet":33,"surface":9},
+    "edgesByKind": {"loaded-by":33},
+    "nodesByEvidence": {"MEASURED":42},
+    "edgesByEvidence": {"MEASURED":24,"RECORDED":9}
    },
    "nodes": [
     {"id":"css:public/tokens/familista-tokens.css","kind":"stylesheet","label":"tokens/familista-tokens.css","group":"tokens","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/tokens/familista-tokens.css"},"props":{"customProperties":279,"canonicalTokenCss":true},"w":188,"h":22,"isolated":false,"x":40,"y":74},
@@ -1485,14 +1485,16 @@
     {"id":"css:public/design-studio/studio-frame.css","kind":"stylesheet","label":"design-studio/studio-frame.css","group":"design-studio","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/design-studio/studio-frame.css"},"props":{"customProperties":0,"canonicalTokenCss":false},"w":188,"h":22,"isolated":false,"x":40,"y":1054},
     {"id":"css:public/agents-room/agents-room.css","kind":"stylesheet","label":"agents-room/agents-room.css","group":"agents-room","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/agents-room/agents-room.css"},"props":{"customProperties":0,"canonicalTokenCss":false},"w":188,"h":22,"isolated":false,"x":40,"y":1096},
     {"id":"css:public/neural-twin/neural-twin.css","kind":"stylesheet","label":"neural-twin/neural-twin.css","group":"neural-twin","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/neural-twin/neural-twin.css"},"props":{"customProperties":0,"canonicalTokenCss":false},"w":188,"h":22,"isolated":false,"x":40,"y":1138},
-    {"id":"surface:main","kind":"surface","label":"Familista app (index.html)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/index.html"},"props":{"how":"link","listedIn":"public/index.html","stylesheets":9},"w":188,"h":22,"isolated":false,"x":396,"y":508},
-    {"id":"surface:admin","kind":"surface","label":"Admin console (familista-admin.html)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/familista-admin.html"},"props":{"how":"link","listedIn":"public/familista-admin.html","stylesheets":1},"w":188,"h":22,"isolated":false,"x":396,"y":536},
-    {"id":"surface:invite","kind":"surface","label":"Invitation page (invite/index.html)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/invite/index.html"},"props":{"how":"link","listedIn":"public/invite/index.html","stylesheets":1},"w":188,"h":22,"isolated":false,"x":396,"y":564},
-    {"id":"surface:react","kind":"surface","label":"React SPA at /app (built assets)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/app/assets"},"props":{"how":"directory","listedIn":"public/app/assets","stylesheets":13},"w":188,"h":22,"isolated":false,"x":396,"y":592},
-    {"id":"surface:lazy","kind":"surface","label":"Rooms loaded on demand by the main app","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs"},"props":{"how":"declared","listedIn":"tools/tokens/lib/production.mjs","stylesheets":4},"w":188,"h":22,"isolated":false,"x":396,"y":620},
-    {"id":"surface:studio","kind":"surface","label":"Familista Design Studio, loaded on demand by the main app","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs"},"props":{"how":"declared","listedIn":"tools/tokens/lib/production.mjs","stylesheets":2},"w":188,"h":22,"isolated":false,"x":396,"y":648},
-    {"id":"surface:agents-room","kind":"surface","label":"The AI Agents Operations Room, loaded on demand by the main app","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs"},"props":{"how":"declared","listedIn":"tools/tokens/lib/production.mjs","stylesheets":1},"w":188,"h":22,"isolated":false,"x":396,"y":676},
-    {"id":"surface:neural-twin","kind":"surface","label":"Familista Neural Digital Twin, loaded on demand by the main app","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs"},"props":{"how":"declared","listedIn":"tools/tokens/lib/production.mjs","stylesheets":1},"w":188,"h":22,"isolated":false,"x":396,"y":704}
+    {"id":"css:public/system-updates/system-updates.css","kind":"stylesheet","label":"system-updates/system-updates.css","group":"system-updates","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/system-updates/system-updates.css"},"props":{"customProperties":0,"canonicalTokenCss":false},"w":188,"h":22,"isolated":false,"x":40,"y":1180},
+    {"id":"surface:main","kind":"surface","label":"Familista app (index.html)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/index.html"},"props":{"how":"link","listedIn":"public/index.html","stylesheets":9},"w":188,"h":22,"isolated":false,"x":396,"y":515},
+    {"id":"surface:admin","kind":"surface","label":"Admin console (familista-admin.html)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/familista-admin.html"},"props":{"how":"link","listedIn":"public/familista-admin.html","stylesheets":1},"w":188,"h":22,"isolated":false,"x":396,"y":543},
+    {"id":"surface:invite","kind":"surface","label":"Invitation page (invite/index.html)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/invite/index.html"},"props":{"how":"link","listedIn":"public/invite/index.html","stylesheets":1},"w":188,"h":22,"isolated":false,"x":396,"y":571},
+    {"id":"surface:react","kind":"surface","label":"React SPA at /app (built assets)","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/app/assets"},"props":{"how":"directory","listedIn":"public/app/assets","stylesheets":13},"w":188,"h":22,"isolated":false,"x":396,"y":599},
+    {"id":"surface:lazy","kind":"surface","label":"Rooms loaded on demand by the main app","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs"},"props":{"how":"declared","listedIn":"tools/tokens/lib/production.mjs","stylesheets":4},"w":188,"h":22,"isolated":false,"x":396,"y":627},
+    {"id":"surface:studio","kind":"surface","label":"Familista Design Studio, loaded on demand by the main app","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs"},"props":{"how":"declared","listedIn":"tools/tokens/lib/production.mjs","stylesheets":2},"w":188,"h":22,"isolated":false,"x":396,"y":655},
+    {"id":"surface:agents-room","kind":"surface","label":"The AI Agents Operations Room, loaded on demand by the main app","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs"},"props":{"how":"declared","listedIn":"tools/tokens/lib/production.mjs","stylesheets":1},"w":188,"h":22,"isolated":false,"x":396,"y":683},
+    {"id":"surface:neural-twin","kind":"surface","label":"Familista Neural Digital Twin, loaded on demand by the main app","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs"},"props":{"how":"declared","listedIn":"tools/tokens/lib/production.mjs","stylesheets":1},"w":188,"h":22,"isolated":false,"x":396,"y":711},
+    {"id":"surface:system-updates","kind":"surface","label":"Familista System Updates, loaded on demand by the main app","group":"surface","evidence":"MEASURED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs"},"props":{"how":"declared","listedIn":"tools/tokens/lib/production.mjs","stylesheets":1},"w":188,"h":22,"isolated":false,"x":396,"y":739}
    ],
    "edges": [
     {"id":"css:public/tokens/familista-tokens.css > surface:main : loaded-by","kind":"loaded-by","from":"css:public/tokens/familista-tokens.css","to":"surface:main","evidence":"MEASURED","source":{"id":"surface-loads","locator":"public/index.html → public/tokens/familista-tokens.css"},"count":1,"props":{"loadOrder":1,"how":"link"}},
@@ -1526,7 +1528,8 @@
     {"id":"css:public/design-studio/studio.css > surface:studio : loaded-by","kind":"loaded-by","from":"css:public/design-studio/studio.css","to":"surface:studio","evidence":"RECORDED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs → public/design-studio/studio.css"},"count":1,"props":{"loadOrder":1,"how":"declared"}},
     {"id":"css:public/design-studio/studio-frame.css > surface:studio : loaded-by","kind":"loaded-by","from":"css:public/design-studio/studio-frame.css","to":"surface:studio","evidence":"RECORDED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs → public/design-studio/studio-frame.css"},"count":1,"props":{"loadOrder":2,"how":"declared"}},
     {"id":"css:public/agents-room/agents-room.css > surface:agents-room : loaded-by","kind":"loaded-by","from":"css:public/agents-room/agents-room.css","to":"surface:agents-room","evidence":"RECORDED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs → public/agents-room/agents-room.css"},"count":1,"props":{"loadOrder":1,"how":"declared"}},
-    {"id":"css:public/neural-twin/neural-twin.css > surface:neural-twin : loaded-by","kind":"loaded-by","from":"css:public/neural-twin/neural-twin.css","to":"surface:neural-twin","evidence":"RECORDED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs → public/neural-twin/neural-twin.css"},"count":1,"props":{"loadOrder":1,"how":"declared"}}
+    {"id":"css:public/neural-twin/neural-twin.css > surface:neural-twin : loaded-by","kind":"loaded-by","from":"css:public/neural-twin/neural-twin.css","to":"surface:neural-twin","evidence":"RECORDED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs → public/neural-twin/neural-twin.css"},"count":1,"props":{"loadOrder":1,"how":"declared"}},
+    {"id":"css:public/system-updates/system-updates.css > surface:system-updates : loaded-by","kind":"loaded-by","from":"css:public/system-updates/system-updates.css","to":"surface:system-updates","evidence":"RECORDED","source":{"id":"surface-loads","locator":"tools/tokens/lib/production.mjs → public/system-updates/system-updates.css"},"count":1,"props":{"loadOrder":1,"how":"declared"}}
    ]
   }
  ]

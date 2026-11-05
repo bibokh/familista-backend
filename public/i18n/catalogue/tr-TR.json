@@ -1620,5 +1620,8 @@
   "No historical events yet": "Henüz geçmiş olay yok",
   "Vision engine reachable · no session store": "Vision motoruna erişilebiliyor · oturum deposu yok",
   "Clubs in your network: \u0000": "Ağınızdaki kulüpler: \u0000",
-  "Request cancelled": "İstek iptal edildi"
+  "Request cancelled": "İstek iptal edildi",
+  "Neural Digital Twin": "Nöral Dijital İkiz",
+  "System Updates": "Sistem Güncellemeleri",
+  "Platform owner": "Platform sahibi"
 }

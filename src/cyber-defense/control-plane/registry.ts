@@ -241,7 +241,7 @@ export const PLATFORM_AREAS: readonly AreaDecl[] = [
   { id: 'cameras', title: 'Cameras', group: 'VISION_DEVICES', routers: ['vision.routes', 'familista-vision.routes'], rows: [22] },
   { id: 'devices', title: 'Sensors & devices', group: 'VISION_DEVICES', routers: ['device-session.routes', 'device-infra.routes', 'provisioning.routes', 'telemetry.routes', 'edge.routes'], rows: [23, 24] },
   // ── operations ──
-  { id: 'infrastructure', title: 'Infrastructure & services', group: 'OPERATIONS', routers: ['infrastructure.routes', 'neural-twin.routes'], rows: [19, 30, 33] },
+  { id: 'infrastructure', title: 'Infrastructure & services', group: 'OPERATIONS', routers: ['infrastructure.routes', 'neural-twin.routes', 'system-updates.routes'], rows: [19, 30, 33] },
   { id: 'backups', title: 'Backups & disaster recovery', group: 'OPERATIONS', routers: ['phase-o.routes'], rows: [31, 32] },
   { id: 'secrets', title: 'Secrets', group: 'OPERATIONS', routers: [], rows: [28], note: 'Held in the hosting provider and CI, never in the repository.' },
   { id: 'audit-trails', title: 'Audit trails', group: 'OPERATIONS', routers: ['security.routes'], rows: [35] },

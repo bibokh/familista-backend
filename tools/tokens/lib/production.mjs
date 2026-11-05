@@ -29,6 +29,8 @@ const SURFACES = [
   { id: 'agents-room', label: 'The AI Agents Operations Room, loaded on demand by the main app', files: ['public/agents-room/agents-room.css'] },
   // Familista Neural Digital Twin: an owner room the main app loads on demand (public/app.js, _loadNeuralTwin).
   { id: 'neural-twin', label: 'Familista Neural Digital Twin, loaded on demand by the main app', files: ['public/neural-twin/neural-twin.css'] },
+  // Familista System Updates: an owner room the main app loads on demand (public/app.js, _loadSystemUpdates).
+  { id: 'system-updates', label: 'Familista System Updates, loaded on demand by the main app', files: ['public/system-updates/system-updates.css'] },
 ];
 
 const rel = (p) => relative(REPO_ROOT, p).split('\\').join('/');

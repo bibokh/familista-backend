@@ -1617,5 +1617,8 @@
   "No historical events yet": "아직 기록된 이벤트가 없습니다",
   "Vision engine reachable · no session store": "Vision 엔진 연결 가능 · 세션 저장소 없음",
   "Clubs in your network: \u0000": "네트워크의 클럽: \u0000",
-  "Request cancelled": "요청이 취소되었습니다"
+  "Request cancelled": "요청이 취소되었습니다",
+  "Neural Digital Twin": "뉴럴 디지털 트윈",
+  "System Updates": "시스템 업데이트",
+  "Platform owner": "플랫폼 소유자"
 }
