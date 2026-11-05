@@ -340,8 +340,10 @@ class ApiError extends Error {
     // hook that sees all of them. The CODE travels — NETWORK, AUTH, SERVER,
     // VALIDATION — and the message does not: a server message can quote a value
     // the caller sent, and a classification cannot.
+    // A cancellation (ABORTED) is the client's own decision, not a failure of
+    // the API, so it is not reported as one.
     try {
-      if (window.FamTelemetry) window.FamTelemetry.error(this.code);
+      if (window.FamTelemetry && this.code !== 'ABORTED') window.FamTelemetry.error(this.code);
     } catch (_) {}
   }
 }
@@ -350,12 +352,25 @@ function mapApiError(err, ctx) {
   // Already an ApiError → pass through
   if (err instanceof ApiError) return err;
 
-  // AbortError (timeout)
+  // An AbortError has two causes, and they are different answers. Our own
+  // timer (withTimeout, which marks its error `timedOut`) means the server took
+  // too long: a TIMEOUT. Anything else aborted the request on purpose, which in
+  // this client is navigation abandoning what the screen being left was waiting
+  // on (newGeneration). That is a cancellation: the server was never slow, so it
+  // must not say "Connection timeout", raise the backend banner or mark the
+  // backend unhealthy.
   if (err && err.name === 'AbortError') {
+    if (err.timedOut) {
+      return new ApiError({
+        code: 'TIMEOUT', status: 0, url: ctx.url, cause: err,
+        message: 'Request timed out',
+        userMessage: 'Connection timeout. The server is taking too long to respond.',
+      });
+    }
     return new ApiError({
-      code: 'TIMEOUT', status: 0, url: ctx.url, cause: err,
-      message: 'Request timed out',
-      userMessage: 'Connection timeout. The server is taking too long to respond.',
+      code: 'ABORTED', status: 0, url: ctx.url, cause: err,
+      message: 'Request cancelled',
+      userMessage: 'Request cancelled',
     });
   }
   // Native fetch failure → network/CORS/DNS
@@ -412,6 +427,7 @@ const FamilistaAPI = (function () {
       const t = setTimeout(() => {
         try { controller && controller.abort(); } catch (_) {}
         const e = new Error('AbortError'); e.name = 'AbortError';
+        e.timedOut = true;   // the timer's abort, told apart from a navigation's (mapApiError)
         reject(e);
       }, ms);
       promise.then(
@@ -596,7 +612,9 @@ const FamilistaAPI = (function () {
           if (ok) return attemptRequest(method, url, Object.assign({}, opts, { _refreshed: true }));
         }
 
-        const isRetryable = retryable.indexOf(err.status) !== -1 || err.code === 'NETWORK' || err.code === 'TIMEOUT';
+        // ABORTED is retried exactly as it was when it was misreported as a TIMEOUT, so
+        // no reader that relied on that loses its data; it just no longer raises the alarm.
+        const isRetryable = retryable.indexOf(err.status) !== -1 || err.code === 'NETWORK' || err.code === 'TIMEOUT' || err.code === 'ABORTED';
         // One retry for a 429, never more: the second refusal is an answer.
         if (err.status === 429) {
           if (sawRateLimit) throw err;
@@ -604,7 +622,7 @@ const FamilistaAPI = (function () {
         }
         if (!isRetryable || attempt >= maxAttempts) throw err;
 
-        // Cold-start banner on first failure
+        // Cold-start banner on first failure (never for a cancellation: nothing was slow)
         if (err.code === 'NETWORK' || err.code === 'TIMEOUT' || err.status >= 502) {
           State.backendHealthy = false;
           BackendHealth.notifyOffline(err);

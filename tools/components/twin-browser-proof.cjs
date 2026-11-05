@@ -95,6 +95,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     page.on('pageerror', (e) => log.errors.push('pageerror: ' + e.message));
     page.on('console', (m) => { if (m.type() === 'error') (NOTICE.test(m.text()) ? log.notices : log.errors).push(m.text().slice(0, 200)); });
     page.on('request', (r) => log.requests.push(new URL(r.url()).pathname));
+    if (opts.before) await opts.before(ctx, page);
     await page.goto(BASE + '/#neural-twin', { waitUntil: 'load' });
     if (opts.wait !== false) {
       await page.waitForFunction(() => window.__familistaTwinMetrics && window.__familistaTwinMetrics().state === 'ready' && window.__familistaTwinMetrics().webgl, null, { timeout: 60000 });
@@ -306,6 +307,26 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       const lo = await labelOverlaps(page);
       check('twin ' + w + 'x' + hgt + ' ' + loc + ': no page error, no room CSP violation, no two labels overlapping', log.errors.length === 0 && (await roomCsp(page)) === 0 && lo.bad.length === 0, { errors: log.errors.slice(0, 2), bad: lo.bad.slice(0, 2) });
       await ctx.close();
+    }
+
+    // A deep link under real latency. Startup lands on Owner Home over the route and the deep-link repair navigates
+    // back; that navigation abandons startup's reads still in flight (/me/context, /teams). A cancellation is not a
+    // timeout: no "Connection timeout" banner, the backend not marked down. The control holds one read past the
+    // client's 20 s timeout and requires the banner, so a client that stopped warning altogether would fail here.
+    {
+      const banner = (pg) => pg.evaluate(() => { const b = document.getElementById('backend-banner'); return b && b.classList.contains('show') ? (b.querySelector('.msg') || b).textContent : null; });
+      const slow = (ms, only) => async (ctx) => ctx.route(only || /\/api\/v1\/(?!system\/neural-twin|health)/, async (r) => { await new Promise((x) => setTimeout(x, ms)); try { await r.continue(); } catch (_) { /* the page went away */ } });
+      const lag = await open({ width: 1440, height: 900 }, 'en-GB', { before: slow(400) });
+      await lag.page.waitForTimeout(5000);
+      const st = await lag.page.evaluate(() => ({ healthy: window.State && window.State.backendHealthy, twin: window.__familistaTwinMetrics().state }));
+      const b1 = await banner(lag.page);
+      check('twin deep link at 400 ms API latency: the startup re-route raises no false "Connection timeout", and the backend stays healthy', b1 === null && st.healthy === true && st.twin === 'ready' && lag.log.errors.length === 0, { banner: b1, state: st, errors: lag.log.errors.slice(0, 2) });
+      await lag.ctx.close();
+      const hung = await open({ width: 1440, height: 900 }, 'en-GB', { before: slow(26000, /\/api\/v1\/teams\b/) });
+      await hung.page.waitForFunction(() => { const b = document.getElementById('backend-banner'); return !!(b && b.classList.contains('show')); }, null, { timeout: 30000 }).catch(() => {});
+      const b2 = await banner(hung.page);
+      check('twin deep link (control): a read the server does not answer within the 20 s timeout still raises the timeout banner', /Connection timeout/.test(b2 || ''), { banner: b2 });
+      await hung.ctx.close();
     }
 
     // the platform owner only: a club session is refused by the server and never loads the room's code

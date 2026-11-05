@@ -1616,5 +1616,6 @@
   "Big Data": "ビッグデータ",
   "No historical events yet": "履歴イベントはまだありません",
   "Vision engine reachable · no session store": "Vision エンジンに接続可能 · セッションストアなし",
-  "Clubs in your network: \u0000": "ネットワーク内のクラブ: \u0000"
+  "Clubs in your network: \u0000": "ネットワーク内のクラブ: \u0000",
+  "Request cancelled": "リクエストはキャンセルされました"
 }

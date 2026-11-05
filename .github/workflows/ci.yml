@@ -341,7 +341,7 @@ jobs:
             axe: '--axe'
             min: '84'
             twin: 'T1,T3'
-            twin_floor: '44'
+            twin_floor: '46'
 
     env:
       NODE_ENV:           test

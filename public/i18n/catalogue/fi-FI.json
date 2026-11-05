@@ -1619,5 +1619,6 @@
   "Big Data": "Big Data",
   "No historical events yet": "Ei vielä historiallisia tapahtumia",
   "Vision engine reachable · no session store": "Vision-moottori tavoitettavissa · ei istuntovarastoa",
-  "Clubs in your network: \u0000": "Seurat verkostossasi: \u0000"
+  "Clubs in your network: \u0000": "Seurat verkostossasi: \u0000",
+  "Request cancelled": "Pyyntö peruutettu"
 }
