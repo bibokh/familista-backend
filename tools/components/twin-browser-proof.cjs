@@ -706,9 +706,17 @@ const PHASE1 = { nodes: 921, edges: 3656 };
       await page.waitForFunction(() => { const n = document.getElementById('owner-nav-compact'); return n && !n.hidden && n.querySelectorAll('[data-owner-nav]').length === 2; }, null, { timeout: 30000 });
       await page.waitForTimeout(500);
       const c = await navState(page, '#owner-nav-compact'), t = await navState(page, '#owner-nav');
-      const title = await page.evaluate(() => { const e = document.getElementById('page-title'); return { text: e.textContent.trim(), clipped: e.scrollWidth > e.clientWidth + 1 }; });
-      check('owner nav on a phone: the phone header holds it, at least 24px a target, the top bar\'s copy steps aside, and the page\'s name is not squeezed',
-        c.shown && !t.shown && c.sizes.length === 2 && c.sizes.every(([w, h]) => w >= 24 && h >= 24) && !title.clipped && (await overflowX(page)) <= 0, { c, t, title });
+      // The page's name keeps exactly the room it has without the navigation: its box is measured with the phone copy
+      // shown and hidden. (Whether the name fits at all depends on the font the browser has; that is not this change's.)
+      const title = await page.evaluate(() => {
+        const e = document.getElementById('page-title'), n = document.getElementById('owner-nav-compact'), m = document.getElementById('mobile-header');
+        const read = () => ({ w: Math.round(e.getBoundingClientRect().width * 10) / 10, clipped: e.scrollWidth > e.clientWidth + 1 });
+        const withNav = read(); n.hidden = true; const without = read(); n.hidden = false;
+        return { text: e.textContent.trim(), withNav, without, headerOverflow: m.scrollWidth - m.clientWidth };
+      });
+      check('owner nav on a phone: the phone header holds it, at least 24px a target, the top bar\'s copy steps aside, and the page\'s name keeps the room it has without it',
+        c.shown && !t.shown && c.sizes.length === 2 && c.sizes.every(([w, h]) => w >= 24 && h >= 24)
+          && title.withNav.w === title.without.w && title.withNav.clipped === title.without.clipped && title.headerOverflow <= 0 && (await overflowX(page)) <= 0, { c, t, title });
       await shot(page, 'owner-nav-phone');
       await page.click('#owner-nav-compact [data-owner-nav="system-updates"]');
       await roomReady(page);
