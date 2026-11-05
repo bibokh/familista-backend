@@ -92,6 +92,27 @@ describe('a navigation that abandons a read is not a timeout', () => {
     expect(c.map(new TypeError('Failed to fetch'), { url: '/x' }).code).toBe('NETWORK');
   });
 
+  // Every other failure is reported exactly as before: the same code, message, attempts, banner and health mark.
+  // (Measured identical against main's app.js for each of these before the fix; only the navigation abort changed.)
+  const reply = (status: number, body: object = {}) => () => Promise.resolve({ ok: false, status, text: async () => JSON.stringify(body) });
+  it.each([
+    ['a network failure', () => Promise.reject(new TypeError('Failed to fetch')), 'NETWORK', 'Backend waking up… Please retry in a few seconds.', 3, true],
+    ['HTTP 503', reply(503, { message: 'down' }), 'SERVER', 'Server unavailable. The backend may be restarting — please retry in 30s.', 3, true],
+    ['HTTP 504', reply(504), 'TIMEOUT', 'Connection timeout. Please retry.', 3, true],
+    ['HTTP 500', reply(500, { message: 'boom' }), 'SERVER', 'Server error. Please retry shortly.', 1, false],
+    ['HTTP 401, the refresh refused', reply(401, { message: 'No token provided' }), 'AUTH', 'No token provided', 2, false],
+    ['HTTP 403', reply(403, { message: 'Forbidden' }), 'FORBIDDEN', 'Forbidden', 1, false],
+    ['HTTP 404', reply(404), 'NOT_FOUND', 'The requested resource was not found.', 1, false],
+  ] as const)('%s is still reported as it was', async (_n, f, code, msg, attempts, banner) => {
+    const c = load(f as unknown as Fetch);
+    await expect(c.api.get('/x')).rejects.toMatchObject({ code, userMessage: msg });
+    expect(c.calls.length).toBe(attempts);
+    expect(c.banner.length > 0).toBe(banner);
+    if (banner) expect([...new Set(c.banner)]).toEqual([msg]);
+    expect(c.State.backendHealthy).toBe(!banner);
+    expect(c.telemetry).toContain(code);
+  });
+
   it('keeps the timeouts and the retry policy it had: nothing was changed to hide the warning', () => {
     expect(APP).toMatch(/REQUEST_TIMEOUT_MS:\s+20000,/);
     expect(APP).toMatch(/COLD_START_TIMEOUT_MS:\s+60000,/);
