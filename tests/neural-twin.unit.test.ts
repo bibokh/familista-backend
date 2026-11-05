@@ -255,7 +255,7 @@ describe('4. the API: owner-only on the server, never cached, and the body keeps
   it('is pinned owner-only in the posture policy, in the coverage map and in the control plane', () => {
     expect(json(TWIN_PATHS.posture).ownerRooms['neural-twin.routes']).toEqual({ mount: '/system/neural-twin' });
     expect(json(TWIN_PATHS.coverage).components.routers['neural-twin.routes']).toEqual([4, 5, 6, 7]);
-    expect(read('src/cyber-defense/control-plane/registry.ts')).toMatch(/routers: \['infrastructure\.routes', 'neural-twin\.routes'\]/);
+    expect(read('src/cyber-defense/control-plane/registry.ts')).toMatch(/routers: \['infrastructure\.routes', 'neural-twin\.routes'(, '[a-z-]+\.routes')*\]/);
     expect(read('src/routes/neural-twin.routes.ts')).toMatch(/router\.use\(authenticate\);[\s\S]*assertPlatformOwner[\s\S]*no-store/);
   });
   it('is built with the release: the build composes the graph after tsc, and production never loads the compiler', () => {
@@ -324,7 +324,7 @@ describe('5. the room keeps the owner-room rules', () => {
     expect(used.length).toBeGreaterThan(60);
     expect(scene.length).toBeGreaterThan(10);
     expect([...used, ...scene].filter((v) => !v.startsWith('--fam-') || !declared.has(v))).toEqual([]);
-    expect(read('tools/tokens/scripts/verify.mjs')).toContain("'public/neural-twin/'];");
+    expect(read('tools/tokens/scripts/verify.mjs')).toMatch(/const CONSUMERS = \[[^\]]*'public\/neural-twin\/'[^\]]*\];/);
     expect(read('tools/tokens/lib/production.mjs')).toContain("files: ['public/neural-twin/neural-twin.css']");
   });
   it('is wired into the shell like the other owner rooms, outside every Club Workspace', () => {
@@ -332,7 +332,9 @@ describe('5. the room keeps the owner-room rules', () => {
     expect(APP).toMatch(/function _loadNeuralTwin\(done\)[\s\S]*?_isPlatformOwner\(\)/);
     expect(APP).toMatch(/document\.body\.classList\.toggle\('nt-twin-open', page === 'neural-twin'\)[\s\S]*?window\.teardownFamilistaNeuralTwin\(\)/);
     expect(APP).toMatch(/<div class="page" id="pg-neural-twin" data-no-i18n data-fam-context="owner"><div id="nt-root"><\/div><\/div>/);
-    expect(APP).not.toMatch(/data-page="neural-twin"/);   // no card or link on Owner Control: Phase 1 does not change it
+    expect(APP).not.toMatch(/data-page="neural-twin"/);   // no card on Owner Control's map: its layout is unchanged
+    // reached from the Platform Owner navigation, the one list the top bar and both owner rooms draw
+    expect(APP).toMatch(/var OWNER_NAV = \[\s*\{ page: 'neural-twin', label: 'Neural Digital Twin',/);
   });
 });
 
@@ -506,7 +508,7 @@ describe('7. the twin\'s browser proof runs inside the required CI jobs, and can
     expect(require('child_process').spawnSync(process.execPath, ['--check', path.join(ROOT, 'tools/components/twin-browser-proof.cjs')]).status).toBe(0);
     expect(PROOF).toContain("require(process.env.PLAYWRIGHT_CORE || 'playwright-core')");
     expect(PROOF).toContain("tools/components/node_modules/axe-core/axe.min.js");
-    for (const claim of ['a fabricated one is caught', 'twin path (control)', 'twin owner only (control)', 'twin owner only: a club coach is answered 403', 'without a session the graph is answered 401', 'twin accessibility (control)', 'no two shown labels overlap', 'no two of the 921 nodes collide'])
+    for (const claim of ['a fabricated one is caught', 'twin path (control)', 'twin owner only (control)', 'twin owner only: a club coach is answered 403', 'without a session the graph is answered 401', 'twin accessibility (control)', 'no two shown labels overlap', 'no two nodes of the graph collide', 'no smaller than the Phase 1 graph of 921 and 3,656'])
       expect(PROOF).toContain(claim);
     expect(PROOF).toMatch(/console\.log\(`SUMMARY \$\{[^`]+\} passed, \$\{failed\} failed, \$\{[^`]+\} skipped`\)/);
   });
@@ -514,7 +516,7 @@ describe('7. the twin\'s browser proof runs inside the required CI jobs, and can
   it('runs in both required browser-proof shards, every section once, with a floor, and nothing in it can fail quietly', () => {
     expect([...code.matchAll(/^ {10}- shard: (.+)$/gm)].map((m) => m[1])).toEqual(['isolation', 'accessibility and focus']);
     const twin = [...code.matchAll(/twin:\s*'([^']+)'/g)].map((m) => m[1].split(',')).flat().sort();
-    expect(twin).toEqual(['T1', 'T2', 'T3']);
+    expect(twin).toEqual(['T1', 'T2', 'T3', 'T4']);
     const floors = [...code.matchAll(/twin_floor:\s*'(\d+)'/g)].map((m) => Number(m[1]));
     expect(floors.length).toBe(2);
     expect(floors.every((n) => n >= 30)).toBe(true);

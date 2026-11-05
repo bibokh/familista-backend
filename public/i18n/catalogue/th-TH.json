@@ -1617,5 +1617,8 @@
   "No historical events yet": "ยังไม่มีเหตุการณ์ในประวัติ",
   "Vision engine reachable · no session store": "เข้าถึงเอนจิน Vision ได้ · ไม่มีที่เก็บเซสชัน",
   "Clubs in your network: \u0000": "สโมสรในเครือข่ายของคุณ: \u0000",
-  "Request cancelled": "คำขอถูกยกเลิก"
+  "Request cancelled": "คำขอถูกยกเลิก",
+  "Neural Digital Twin": "ดิจิทัลทวินแบบนิวรัล",
+  "System Updates": "การอัปเดตระบบ",
+  "Platform owner": "เจ้าของแพลตฟอร์ม"
 }

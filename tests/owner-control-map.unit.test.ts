@@ -653,7 +653,8 @@ describe('8 · the language switch in the top bar', () => {
   });
 
   it('is shown only once /system/whoami says yes, and is the delegated action every button uses', () => {
-    expect(APP).toContain(".catch(() => false)\n    .then(function (yes) { if (yes) { try { _langSwitchShow(); } catch (_) {} } return yes; });");
+    // the same answer, and only it, also reveals the Platform Owner navigation (the Neural Digital Twin, System Updates)
+    expect(APP).toContain(".catch(() => false)\n    .then(function (yes) { if (yes) { try { _langSwitchShow(); } catch (_) {} try { _ownerNavShow(); } catch (_) {} } return yes; });");
     expect(APP).toContain("case 'setUiLocale': _langSwitchTo(el); break;");
     expect(CSS).toContain('body.club-theme .lang-switch[hidden]{ display: none; }');
     // The club member's landing shows none of it.

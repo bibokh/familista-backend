@@ -66,6 +66,9 @@
     Familista
   </div>
   <div style="display:flex;gap:6px;align-items:center;">
+    <!-- Platform Owner navigation on a phone: the same list as the top bar's (app.js, OWNER_NAV), in
+         the row that has room for it, so the page's name in the top bar is never squeezed. -->
+    <nav class="owner-nav owner-nav--compact" id="owner-nav-compact" aria-label="Platform owner" hidden></nav>
     <div class="status-chip chip-live" style="font-size:10px;padding:3px 7px;"><div class="chip-dot chip-dot-live"></div>LIVE</div>
   </div>
 </div>
@@ -348,6 +351,11 @@
              Platform Owner is signed in (app.js, _langSwitchShow), which also names each
              button from the locale registry in its own language — so the group is never
              translated, and the registry stays the only list of languages. -->
+        <!-- Platform Owner navigation: the Neural Digital Twin and System Updates. Drawn and
+             revealed by app.js (_ownerNavShow) on the same /system/whoami answer as the
+             language switch, from the one list (OWNER_NAV) the two rooms also draw. Hidden
+             inside a Club Workspace. -->
+        <nav class="owner-nav" id="owner-nav" aria-label="Platform owner" hidden></nav>
         <div class="lang-switch" id="lang-switch" role="group" aria-label="Interface Language" data-i18n-aria="settings.interfaceLanguage" data-no-i18n hidden>
           <button class="lang-switch-btn" type="button" data-action="setUiLocale" data-locale="ar" lang="ar" aria-pressed="false">AR</button>
           <button class="lang-switch-btn" type="button" data-action="setUiLocale" data-locale="en-GB" lang="en" aria-pressed="false">EN</button>

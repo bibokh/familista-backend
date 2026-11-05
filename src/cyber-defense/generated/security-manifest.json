@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-04T14:31:44.732Z",
+  "generatedAt": "2026-11-05T10:24:50.576Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
     "version": "1.0.0"
   },
   "apiSurface": {
-    "mountedRouters": 57,
-    "handlers": 765,
+    "mountedRouters": 58,
+    "handlers": 766,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -322,6 +322,13 @@
       {
         "path": "/system/neural-twin",
         "module": "neural-twin.routes",
+        "handlers": 1,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/system/updates",
+        "module": "system-updates.routes",
         "handlers": 1,
         "public": 0,
         "routerWideAuth": true
@@ -828,13 +835,13 @@
       }
     },
     "authorization": {
-      "handlers": 765,
+      "handlers": 766,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 98
+        "platform-owner": 99
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -1032,6 +1039,9 @@
         "staff-market.routes": {
           "member": 11,
           "scoped": 15
+        },
+        "system-updates.routes": {
+          "platform-owner": 1
         },
         "system.routes": {
           "member": 1,
@@ -1438,6 +1448,7 @@
         "GET /system/trace/recent": "platform-owner",
         "GET /system/trace/status": "platform-owner",
         "GET /system/trace/stream": "platform-owner",
+        "GET /system/updates": "platform-owner",
         "GET /system/whoami": "member",
         "GET /tactical-ai/matches/:matchId": "member",
         "GET /tactical-ai/teams/:teamId": "member",
@@ -1832,7 +1843,7 @@
   },
   "architecture": {
     "components": {
-      "routers": 57,
+      "routers": 58,
       "srcDomains": 78,
       "prismaSections": 65,
       "packages": 29,
@@ -2245,13 +2256,13 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "765 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 98 platform-owner; every member-level handler reviewed by name."
+      "note": "766 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 99 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "11 platform-owner room(s) mounted where pinned, every handler in them owner-only."
+      "note": "12 platform-owner room(s) mounted where pinned, every handler in them owner-only."
     },
     {
       "id": "worker-callback-authenticated",
@@ -2371,7 +2382,7 @@
       "id": "architecture-fully-mapped",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "377 discovered component(s) across 12 kinds, each declared against the 40 trust-boundary rows; a covered row's controls are all present."
+      "note": "378 discovered component(s) across 12 kinds, each declared against the 40 trust-boundary rows; a covered row's controls are all present."
     },
     {
       "id": "coverage-ratchet",
@@ -2749,6 +2760,7 @@
         "src/platform/email/service.ts",
         "src/platform/innovation/flags.ts",
         "src/platform/neural-twin/compose.ts",
+        "src/platform/system-updates/release-record.ts",
         "src/player-lifecycle/player-lifecycle.service.ts",
         "src/security-n/signed-recommendations.service.ts",
         "src/security/audit-chain.service.ts",
@@ -2987,6 +2999,7 @@
       "src/routes/sources.routes.ts",
       "src/routes/spatial.routes.ts",
       "src/routes/staff-market.routes.ts",
+      "src/routes/system-updates.routes.ts",
       "src/routes/system.routes.ts",
       "src/routes/tactical-ai.routes.ts",
       "src/routes/team.routes.ts",

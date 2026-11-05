@@ -1620,5 +1620,8 @@
   "No historical events yet": "Inga historiska händelser ännu",
   "Vision engine reachable · no session store": "Vision-motorn nåbar · inget sessionslager",
   "Clubs in your network: \u0000": "Klubbar i ditt nätverk: \u0000",
-  "Request cancelled": "Begäran avbröts"
+  "Request cancelled": "Begäran avbröts",
+  "Neural Digital Twin": "Neural digital tvilling",
+  "System Updates": "Systemuppdateringar",
+  "Platform owner": "Plattformsägare"
 }

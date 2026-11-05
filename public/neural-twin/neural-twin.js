@@ -837,13 +837,18 @@
   function announce(msg) { var l = S.root && S.root.querySelector('#nt-live'); if (l) l.textContent = msg; }
 
   // ── the shell ─────────────────────────────────────────────────────────────
+  /** The Platform Owner navigation (public/app.js, OWNER_NAV), this room marked as the open one, in this room's words. */
+  function ownerNav() {
+    if (typeof window.famOwnerNav !== 'function') return '';
+    return '<nav class="nt-ownernav" aria-label="' + esc(T('Platform owner')) + '">' + window.famOwnerNav('neural-twin', T, 'nt-ownernav') + '</nav>';
+  }
   function shellHtml() {
     var langs = NT_LOCALES.map(function (l) {
       return '<button type="button" class="nt-lang' + (l[0] === NT_LANG ? ' is-on' : '') + '" data-nt-lang="' + l[0] + '" lang="' + l[0] + '" aria-pressed="' + (l[0] === NT_LANG) + '">' + l[0].toUpperCase() + '</button>';
     }).join('');
     return '<div class="nt-shell">'
       + '<header class="nt-top">'
-      + '<div class="nt-top-l"><button type="button" class="nt-back" data-nt-action="back"><span aria-hidden="true">←</span> ' + esc(T('Owner Control')) + '</button>'
+      + '<div class="nt-top-l"><div class="nt-rail"><button type="button" class="nt-back" data-nt-action="back"><span aria-hidden="true">←</span> ' + esc(T('Owner Control')) + '</button>' + ownerNav() + '</div>'
       + '<div class="nt-brand"><span class="nt-mark" aria-hidden="true">' + markSvg() + '</span><div class="nt-brand-t">'
       + '<div class="nt-eyebrow">' + esc(T('Familista · Platform owner')) + '</div>'
       + '<h1 class="nt-title">' + esc(T('Neural Digital Twin')) + '</h1>'

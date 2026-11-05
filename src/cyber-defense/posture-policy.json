@@ -836,6 +836,9 @@
     },
     "neural-twin.routes": {
       "mount": "/system/neural-twin"
+    },
+    "system-updates.routes": {
+      "mount": "/system/updates"
     }
   },
   "authorizationMemberHandlers": {

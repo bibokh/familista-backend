@@ -69,6 +69,18 @@ body.nt-twin-open { overflow: hidden; }
 }
 .nt-back:hover { color: var(--fam-module-accent); }
 .nt-root[dir="rtl"] .nt-back span[aria-hidden] { display: inline-block; transform: scaleX(-1); }
+/* the Platform Owner navigation (public/app.js, OWNER_NAV): this room's entry is the open one */
+.nt-rail { display: flex; align-items: center; flex-wrap: wrap; gap: var(--fam-space-2) var(--fam-space-4); min-width: 0; }
+.nt-rail .nt-back { align-self: center; }
+.nt-ownernav { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--fam-radius-md); border: var(--fam-border-width-hairline) solid var(--fam-border-default); background: var(--fam-surface-tile); }
+.nt-ownernav-btn {
+  position: relative; display: inline-flex; align-items: center; gap: var(--fam-space-2); height: 26px; padding: 0 var(--fam-space-2);
+  border: var(--fam-border-width-hairline) solid transparent; border-radius: var(--fam-radius-sm); background: none; cursor: pointer;
+  color: var(--fam-text-secondary); font: inherit; font-size: var(--fam-font-size-xs); font-weight: var(--fam-font-weight-bold); white-space: nowrap;
+}
+.nt-ownernav-ico { width: 14px; height: 14px; flex: 0 0 auto; }
+.nt-ownernav-btn:hover { color: var(--fam-text-primary); }
+.nt-ownernav-btn[aria-current="page"] { color: var(--fam-module-accent); border-color: var(--fam-module-accent); background: var(--fam-surface-tile-strong); }
 .nt-brand { display: flex; align-items: center; gap: var(--fam-space-3); min-width: 0; }
 .nt-mark {
   width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border-radius: var(--fam-radius-lg);
@@ -101,7 +113,7 @@ body.nt-twin-open { overflow: hidden; }
   width: 100%; min-height: 34px; padding: 0 var(--fam-space-3); border-radius: var(--fam-radius-md);
   border: var(--fam-border-width-hairline) solid var(--fam-border-default); background: var(--fam-surface-tile); color: var(--fam-text-primary); font: inherit; font-size: var(--fam-font-size-sm);
 }
-:is(.nt-back, .nt-btn, .nt-lang, .nt-input, .nt-chip, .nt-row, .nt-twist, .nt-link, .nt-crumb, .nt-more, .nt-tool, .nt-range, .nt-legend-t, .nt-inspector):focus-visible,
+:is(.nt-back, .nt-ownernav-btn, .nt-btn, .nt-lang, .nt-input, .nt-chip, .nt-row, .nt-twist, .nt-link, .nt-crumb, .nt-more, .nt-tool, .nt-range, .nt-legend-t, .nt-inspector):focus-visible,
 .nt-canvas:focus-visible { outline: var(--fam-border-width-strong) solid var(--fam-focus-ring); outline-offset: 2px; }
 .nt-canvas:focus-visible { outline-offset: -3px; }
 
@@ -305,6 +317,8 @@ body.nt-twin-open { overflow: hidden; }
 }
 @media (max-width: 560px) {
   .nt-sub { display: none; }
+  .nt-ownernav-btn { width: 30px; padding: 0; justify-content: center; }
+  .nt-ownernav-label { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .nt-tool--wide { font-size: var(--fam-font-size-2xs); padding: 0 6px; }
   .nt-stage { height: 56vh; min-height: 300px; }
 }

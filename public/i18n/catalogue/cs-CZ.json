@@ -1620,5 +1620,8 @@
   "No historical events yet": "Zatím žádné historické události",
   "Vision engine reachable · no session store": "Modul Vision je dostupný · bez úložiště relací",
   "Clubs in your network: \u0000": "Kluby ve vaší síti: \u0000",
-  "Request cancelled": "Požadavek zrušen"
+  "Request cancelled": "Požadavek zrušen",
+  "Neural Digital Twin": "Neuronové digitální dvojče",
+  "System Updates": "Aktualizace systému",
+  "Platform owner": "Vlastník platformy"
 }

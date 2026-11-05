@@ -311,11 +311,15 @@ jobs:
   # The Neural Digital Twin (#neural-twin) is proved in the same two jobs by
   # tools/components/twin-browser-proof.cjs, so its checks sit inside the required checks
   # and none runs twice. The isolation shard runs T2: the layout without a collision at 20
-  # and at all 921 nodes, every drawn line mapped back to the served graph (a fabricated
-  # one caught), selection highlighting, the path and its control, Back, intensity, motion.
+  # and at every node of the graph the build wrote (never fewer than Phase 1's 921), every
+  # drawn line mapped back to the served graph (a fabricated one caught), selection highlighting, the path and its control, Back, intensity, motion.
   # The accessibility shard runs T1 (exploring, camera, filters, keyboard, languages and
   # directions, three sizes; owner only: a coach is answered 403 and never loads the room,
-  # no session 401, the owner 200) and T3 (axe in English and Arabic, with its control).
+  # no session 401, the owner 200), T3 (axe in English and Arabic, with its control) and T4:
+  # the Platform Owner navigation (Owner Control's top bar, the phone header, and the head of
+  # both rooms, marking the open one; never in a Club Workspace) and System Updates (what it
+  # shows is the build record's, unknown said as unknown, owner only: coach 403, no session
+  # 401; German and Arabic with no English left; tablet and phone; axe with its control).
   # `twin_floor` is each shard's floor for the twin, checked the way `min` is.
   #
   # Tools: tools/components/package.json pins playwright-core and axe-core exactly, with a
@@ -340,8 +344,8 @@ jobs:
             sections: '6,7,13a,14a,16a'
             axe: '--axe'
             min: '84'
-            twin: 'T1,T3'
-            twin_floor: '46'
+            twin: 'T1,T3,T4'
+            twin_floor: '70'
 
     env:
       NODE_ENV:           test

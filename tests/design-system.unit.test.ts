@@ -440,7 +440,7 @@ describe('the room reads the canonical tokens and declares none of its own', () 
 
   it('is one of two consumers: the token verifier allows --fam- under public/design-system/ and Familista Design Studio\'s public/design-studio/, and nowhere else', () => {
     const v = read('tools/tokens/scripts/verify.mjs');
-    expect(v).toContain("const CONSUMERS = ['public/design-system/', 'public/design-studio/', 'public/agents-room/', 'public/neural-twin/'];");
+    expect(v).toContain("const CONSUMERS = ['public/design-system/', 'public/design-studio/', 'public/agents-room/', 'public/neural-twin/', 'public/system-updates/'];");
     expect(json('tools/tokens/targets/web.json').version).toBe(/tokens\.css\?v=([^"]+)"/.exec(read('public/index.html'))![1]);
   });
 });

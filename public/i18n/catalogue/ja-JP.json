@@ -1617,5 +1617,8 @@
   "No historical events yet": "履歴イベントはまだありません",
   "Vision engine reachable · no session store": "Vision エンジンに接続可能 · セッションストアなし",
   "Clubs in your network: \u0000": "ネットワーク内のクラブ: \u0000",
-  "Request cancelled": "リクエストはキャンセルされました"
+  "Request cancelled": "リクエストはキャンセルされました",
+  "Neural Digital Twin": "ニューラル・デジタルツイン",
+  "System Updates": "システム更新",
+  "Platform owner": "プラットフォーム所有者"
 }

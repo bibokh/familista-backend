@@ -1620,5 +1620,8 @@
   "No historical events yet": "لا توجد أحداث تاريخية بعد",
   "Vision engine reachable · no session store": "محرك الرؤية متاح · لا يوجد مخزن جلسات",
   "Clubs in your network: \u0000": "الأندية في شبكتك: \u0000",
-  "Request cancelled": "تم إلغاء الطلب"
+  "Request cancelled": "تم إلغاء الطلب",
+  "Neural Digital Twin": "التوأم الرقمي العصبي",
+  "System Updates": "تحديثات النظام",
+  "Platform owner": "مالك المنصة"
 }
