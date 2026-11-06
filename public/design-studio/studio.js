@@ -40,13 +40,14 @@
   var LIMITS = C.LIMITS;
   var STORE_KEY = 'familista_design_studio_document';
   var STORE_UNREADABLE = 'familista_design_studio_document_unreadable';
-  var LOCALE_KEY = 'familista_design_studio_locale';
   var DRAG_THRESHOLD = 3;
   var SVG = 'http://www.w3.org/2000/svg';
 
   // ── language ──────────────────────────────────────────────────────────────
 
-  var LOCALES = [['en', 'English', 'ltr'], ['de', 'Deutsch', 'ltr'], ['ar', 'العربية', 'rtl']];
+  // Familista's official languages, from the locale registry (public/i18n/i18n.js, roomLocales):
+  // [code, label, dir, tag], in the switch's order. This room holds no list of its own.
+  var LOCALES = window.I18N && typeof window.I18N.roomLocales === 'function' ? window.I18N.roomLocales() : [['en', 'English (UK)', 'ltr', 'en-GB']];
   var DICT = {};
   var LANG = 'en';
   var DIR = 'ltr';
@@ -56,19 +57,24 @@
     for (var i = 0; i < LOCALES.length; i++) if (LOCALES[i][0] === tag) return LOCALES[i];
     return LOCALES[0];
   }
+  /** The platform's language when it is an official one (public/i18n/i18n.js, roomLocale), else English. */
   function initialLocale() {
-    try { var v = localStorage.getItem(LOCALE_KEY); if (v && localeOf(v)[0] === v) return v; } catch (_) {}
-    return 'en';
+    return window.I18N && typeof window.I18N.roomLocale === 'function' ? window.I18N.roomLocale() : 'en';
   }
   function setLocale(tag) {
     var l = localeOf(tag);
     LANG = l[0]; DIR = l[2];
-    try { localStorage.setItem(LOCALE_KEY, LANG); } catch (_) {}
     if (LANG === 'en') { DICT = {}; return Promise.resolve(); }
     return fetch('/design-studio/i18n/' + LANG + '.json')
       .then(function (r) { return r.ok ? r.json() : {}; })
       .then(function (d) { DICT = d && typeof d === 'object' ? d : {}; })
       .catch(function () { DICT = {}; });
+  }
+  /** This room's own switch: the room changes language, and the platform follows (public/i18n/i18n.js, roomChoose). */
+  function chooseSetLocale(code) {
+    var ready = setLocale(code);
+    if (window.I18N && typeof window.I18N.roomChoose === 'function') window.I18N.roomChoose(localeOf(code)[0]);
+    return ready;
   }
   /** One string. A missing key falls through to English, never to a key path. */
   function T(text) {
@@ -1069,7 +1075,7 @@
   function switchLanguage(tag) {
     saveNow(false);
     var keep = S;
-    setLocale(tag).then(function () {
+    chooseSetLocale(tag).then(function () {
       if (S !== keep) return;
       unbind();
       build();

@@ -2054,7 +2054,7 @@ function buildWorkspaceSidebar() {
   }).join('');
 }
 // ── OWNER CONTROL · the language switch in the top bar ──────────────────────
-// Arabic, English and German, one press each, for the Platform Owner. It is the
+// Familista's official languages, one press each, for the Platform Owner. It is the
 // Settings page's own switch behind three buttons — I18N_APPLY.change applies
 // the language at once (direction included), caches it for the next first
 // paint and saves it to the account — so there is still exactly one way the
@@ -2070,17 +2070,24 @@ function _langSwitchSync() {
     b.setAttribute('aria-pressed', b.getAttribute('data-locale') === now ? 'true' : 'false');
   });
 }
-/** Reveal the switch, naming each button from the registry: its code, then its language's own name. */
+/**
+ * Reveal the switch: one button per official language, in the registry's order
+ * (`official: n`), each showing its code and named in its own language. Drawn
+ * once; with no official language declared there is nothing to offer, and the
+ * group stays hidden.
+ */
 function _langSwitchShow() {
   const g = document.getElementById('lang-switch');
   if (!g) return;
-  const known = (window.I18N && typeof I18N.locales === 'function') ? I18N.locales() : [];
-  g.querySelectorAll('[data-locale]').forEach(function (b) {
-    const entry = known.filter(function (l) { return l && l.tag === b.getAttribute('data-locale'); })[0];
-    if (!entry) { b.hidden = true; return; }
-    b.setAttribute('title', entry.label);
-    b.setAttribute('aria-label', b.textContent.trim() + ' · ' + entry.label);
-  });
+  const official = (window.I18N && typeof I18N.officialLocales === 'function') ? I18N.officialLocales() : [];
+  if (!g.querySelector('[data-locale]')) {
+    g.innerHTML = official.map(function (l) {
+      const code = String(l.tag).split('-')[0];
+      return '<button class="lang-switch-btn" type="button" data-action="setUiLocale" data-locale="' + _esc(l.tag) + '" lang="' + _esc(code) + '"'
+        + ' title="' + _esc(l.label) + '" aria-label="' + _esc(code.toUpperCase() + ' · ' + l.label) + '" aria-pressed="false">' + _esc(code.toUpperCase()) + '</button>';
+    }).join('');
+  }
+  if (!g.querySelector('[data-locale]')) return;
   g.hidden = false;
   _langSwitchSync();
 }

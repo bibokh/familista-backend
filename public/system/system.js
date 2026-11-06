@@ -78,7 +78,9 @@
   // run of digits becomes a %d slot so "3 clubs without a president" and
   // "17 clubs without a president" are one entry. A key with no translation
   // falls through to the English, which is a gap rather than a break.
-  var SY_LOCALES = [['en', 'English', 'ltr'], ['de', 'Deutsch', 'ltr'], ['ar', 'العربية', 'rtl']];
+  // Familista's official languages, from the locale registry (public/i18n/i18n.js, roomLocales):
+  // [code, label, dir, tag], in the switch's order. This room holds no list of its own.
+  var SY_LOCALES = window.I18N && typeof window.I18N.roomLocales === 'function' ? window.I18N.roomLocales() : [['en', 'English (UK)', 'ltr', 'en-GB']];
   var SY_DICT = {};
   var SY_LANG = 'en';
   var SY_DIR = 'ltr';
@@ -88,14 +90,9 @@
     return SY_LOCALES[0];
   }
 
+  /** The platform's language when it is an official one (public/i18n/i18n.js, roomLocale), else English. */
   function storedSystemLocale() {
-    var tag = '';
-    try { tag = localStorage.getItem('familista_system_locale') || ''; } catch (_) {}
-    if (tag && localeOf(tag)[0] === tag) return tag;
-    // No stored choice: honour the browser only when it asks for one of ours.
-    var nav = '';
-    try { nav = (navigator.language || '').slice(0, 2).toLowerCase(); } catch (_) {}
-    return (nav === 'de' || nav === 'ar') ? nav : 'en';
+    return window.I18N && typeof window.I18N.roomLocale === 'function' ? window.I18N.roomLocale() : 'en';
   }
 
   /** The dictionary, fetched once per language and kept for the session. */
@@ -113,8 +110,13 @@
     var loc = localeOf(tag);
     SY_LANG = loc[0];
     SY_DIR = loc[2];
-    try { localStorage.setItem('familista_system_locale', SY_LANG); } catch (_) {}
     return loadSystemDict(SY_LANG);
+  }
+  /** This room's own switch: the room changes language, and the platform follows (public/i18n/i18n.js, roomChoose). */
+  function chooseSetSystemLocale(code) {
+    var ready = setSystemLocale(code);
+    if (window.I18N && typeof window.I18N.roomChoose === 'function') window.I18N.roomChoose(localeOf(code)[0]);
+    return ready;
   }
 
   /** One string, translated. Used for text JavaScript speaks — prompts, alerts. */
@@ -1750,7 +1752,7 @@
       if (lang) {
         ev.preventDefault();
         SY.langOpen = false;
-        var ready = setSystemLocale(lang.getAttribute('data-sy-lang'));
+        var ready = chooseSetSystemLocale(lang.getAttribute('data-sy-lang'));
         paint(host);
         // The catalogue is fetched once per language, and the paint above
         // happens while that request is still in flight. Repainting when it

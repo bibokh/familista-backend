@@ -6,18 +6,21 @@
 //
 // Loaded as a plain script before app.js, so there is no build step and no
 // module system to introduce. FAMILISTA_I18N_CONFIG is the only global it adds.
+//
+// `official: n` marks Familista's official languages and their place in the
+// language switch, exactly as the server registry does.
 
 (function (root) {
   var LOCALES = [
-    { tag: 'en-GB', label: 'English (UK)',      dir: 'ltr' },
+    { tag: 'en-GB', label: 'English (UK)',      dir: 'ltr', official: 1 },
     { tag: 'en-US', label: 'English (US)',      dir: 'ltr' },
-    { tag: 'de-DE', label: 'Deutsch',           dir: 'ltr' },
+    { tag: 'de-DE', label: 'Deutsch',           dir: 'ltr', official: 2 },
     { tag: 'it-IT', label: 'Italiano',          dir: 'ltr' },
-    { tag: 'es-ES', label: 'Español (ES)',      dir: 'ltr' },
+    { tag: 'es-ES', label: 'Español (ES)',      dir: 'ltr', official: 5 },
     { tag: 'es-MX', label: 'Español (MX)',      dir: 'ltr' },
     { tag: 'pt-PT', label: 'Português (PT)',    dir: 'ltr' },
     { tag: 'pt-BR', label: 'Português (BR)',    dir: 'ltr' },
-    { tag: 'fr-FR', label: 'Français',          dir: 'ltr' },
+    { tag: 'fr-FR', label: 'Français',          dir: 'ltr', official: 4 },
     { tag: 'sr-RS', label: 'Srpski',            dir: 'ltr' },
     { tag: 'zh-CN', label: '简体中文',            dir: 'ltr' },
     { tag: 'zh-TW', label: '繁體中文',            dir: 'ltr' },
@@ -36,7 +39,7 @@
     { tag: 'sv-SE', label: 'Svenska',           dir: 'ltr' },
     { tag: 'tr-TR', label: 'Türkçe',            dir: 'ltr' },
     { tag: 'vi-VN', label: 'Tiếng Việt',        dir: 'ltr' },
-    { tag: 'ar',    label: 'العربية',            dir: 'rtl' },
+    { tag: 'ar',    label: 'العربية',            dir: 'rtl', official: 3 },
     { tag: 'id-ID', label: 'Bahasa Indonesia',  dir: 'ltr' },
     { tag: 'ms-MY', label: 'Bahasa Melayu',     dir: 'ltr' },
     { tag: 'th-TH', label: 'ไทย',                dir: 'ltr' },

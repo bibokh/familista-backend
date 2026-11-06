@@ -20,7 +20,9 @@
   'use strict';
 
   // ── language ──────────────────────────────────────────────────────────────
-  var SU_LOCALES = [['en', 'English', 'ltr', 'en-GB'], ['de', 'Deutsch', 'ltr', 'de-DE'], ['ar', 'العربية', 'rtl', 'ar']];
+  // Familista's official languages, from the locale registry (public/i18n/i18n.js, roomLocales):
+  // [code, label, dir, tag], in the switch's order. This room holds no list of its own.
+  var SU_LOCALES = window.I18N && typeof window.I18N.roomLocales === 'function' ? window.I18N.roomLocales() : [['en', 'English (UK)', 'ltr', 'en-GB']];
   var DICT = {}, LANG = 'en', DIR = 'ltr';
   function localeOf(tag) {
     var t = String(tag || '').toLowerCase();

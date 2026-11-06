@@ -348,19 +348,11 @@
           <select class="ctx-select" id="ctx-team"  data-change="onContextTeamChange"></select>
         </div>
         <!-- Owner Control · interface language. Hidden until /system/whoami says the
-             Platform Owner is signed in (app.js, _langSwitchShow), which also names each
-             button from the locale registry in its own language — so the group is never
-             translated, and the registry stays the only list of languages. -->
-        <!-- Platform Owner navigation: the Neural Digital Twin and System Updates. Drawn and
-             revealed by app.js (_ownerNavShow) on the same /system/whoami answer as the
-             language switch, from the one list (OWNER_NAV) the two rooms also draw. Hidden
-             inside a Club Workspace. -->
-        <nav class="owner-nav" id="owner-nav" aria-label="Platform owner" hidden></nav>
-        <div class="lang-switch" id="lang-switch" role="group" aria-label="Interface Language" data-i18n-aria="settings.interfaceLanguage" data-no-i18n hidden>
-          <button class="lang-switch-btn" type="button" data-action="setUiLocale" data-locale="ar" lang="ar" aria-pressed="false">AR</button>
-          <button class="lang-switch-btn" type="button" data-action="setUiLocale" data-locale="en-GB" lang="en" aria-pressed="false">EN</button>
-          <button class="lang-switch-btn" type="button" data-action="setUiLocale" data-locale="de-DE" lang="de" aria-pressed="false">DE</button>
-        </div>
+             Platform Owner is signed in (app.js, _langSwitchShow), which draws one button
+             per official language from the locale registry (`official: n`, in that order)
+             and names each in its own language — so the group is never translated, and the
+             registry stays the only list of languages. -->
+        <div class="lang-switch" id="lang-switch" role="group" aria-label="Interface Language" data-i18n-aria="settings.interfaceLanguage" data-no-i18n hidden></div>
         <div class="status-chip chip-live"><div class="chip-dot chip-dot-live"></div><span id="gps-count">11 GPS Active</span></div>
         <div class="status-chip chip-ai"><div class="chip-dot chip-dot-ai"></div>ARIA Online</div>
         <button class="hdr-btn notif" id="hdr-notif" data-tf-notif-open aria-label="Notifications">

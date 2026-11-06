@@ -72,7 +72,9 @@
   // root, the boundary every owner room keeps. Ids, digests, tool keys, record
   // kinds and enum tokens are identifiers and are never translated.
 
-  var AR_LOCALES = [['en', 'English', 'ltr'], ['de', 'Deutsch', 'ltr'], ['ar', 'العربية', 'rtl']];
+  // Familista's official languages, from the locale registry (public/i18n/i18n.js, roomLocales):
+  // [code, label, dir, tag], in the switch's order. This room holds no list of its own.
+  var AR_LOCALES = window.I18N && typeof window.I18N.roomLocales === 'function' ? window.I18N.roomLocales() : [['en', 'English (UK)', 'ltr', 'en-GB']];
   var AR_DICT = {};
   var AR_LANG = 'en';
   var AR_DIR = 'ltr';
@@ -81,12 +83,9 @@
     for (var i = 0; i < AR_LOCALES.length; i++) if (AR_LOCALES[i][0] === tag) return AR_LOCALES[i];
     return AR_LOCALES[0];
   }
+  /** The platform's language when it is an official one (public/i18n/i18n.js, roomLocale), else English. */
   function initialLocale() {
-    try {
-      var v = localStorage.getItem('familista_agents_room_locale');
-      if (v && localeOf(v)[0] === v) return v;
-    } catch (_) {}
-    return 'en';
+    return window.I18N && typeof window.I18N.roomLocale === 'function' ? window.I18N.roomLocale() : 'en';
   }
   function loadDict(tag) {
     if (tag === 'en') { AR_DICT = {}; return Promise.resolve(); }
@@ -98,8 +97,13 @@
   function setLocale(tag) {
     var l = localeOf(tag);
     AR_LANG = l[0]; AR_DIR = l[2];
-    try { localStorage.setItem('familista_agents_room_locale', AR_LANG); } catch (_) {}
     return loadDict(AR_LANG);
+  }
+  /** This room's own switch: the room changes language, and the platform follows (public/i18n/i18n.js, roomChoose). */
+  function chooseSetLocale(code) {
+    var ready = setLocale(code);
+    if (window.I18N && typeof window.I18N.roomChoose === 'function') window.I18N.roomChoose(localeOf(code)[0]);
+    return ready;
   }
   function hasKey(k) { return Object.prototype.hasOwnProperty.call(AR_DICT, k); }
 
@@ -1612,7 +1616,7 @@
       var lang = t.closest('[data-ar-lang]');
       if (lang) {
         AR.langOpen = false;
-        setLocale(lang.getAttribute('data-ar-lang')).then(function () {
+        chooseSetLocale(lang.getAttribute('data-ar-lang')).then(function () {
           var view = host.querySelector('#ar-view');
           var y = view ? view.scrollTop : 0;
           var open = AR.open;

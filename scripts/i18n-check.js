@@ -29,6 +29,9 @@
 //                  moment it is written, before anybody switches language.
 //   5 · catalogue  Every locale's catalogue must answer every entry the English
 //                  one has, allowing for languages with a single plural form.
+//   7 · rooms      Every owner room ships a catalogue for every official
+//                  language (`official: n` in the registry) with the same keys
+//                  as its English one and every placeholder kept.
 //   6 · backlog    The number of displayable source strings with no catalogue
 //                  entry may not grow. This does not demand the pre-existing
 //                  backlog be cleared; it demands a new feature not add to it.
@@ -80,9 +83,9 @@ const readText = (p) => fs.readFileSync(p, 'utf8');
 // Both halves are written in the same shape, so one expression reads both. If
 // the shape of either file changes, this returns nothing and check 1 fails
 // loudly rather than passing on an empty list.
-const LOCALE_RE = /\{\s*tag:\s*'([^']+)',\s*label:\s*'([^']+)',\s*dir:\s*'(ltr|rtl)'\s*\}/g;
+const LOCALE_RE = /\{\s*tag:\s*'([^']+)',\s*label:\s*'([^']+)',\s*dir:\s*'(ltr|rtl)'(?:,\s*official:\s*(\d+))?\s*\}/g;
 const parseRegistry = (text) =>
-  [...text.matchAll(LOCALE_RE)].map((m) => ({ tag: m[1], label: m[2], dir: m[3] }));
+  [...text.matchAll(LOCALE_RE)].map((m) => ({ tag: m[1], label: m[2], dir: m[3], official: m[4] ? Number(m[4]) : null }));
 
 const server = parseRegistry(readText(SERVER_REGISTRY));
 const client = parseRegistry(readText(CLIENT_REGISTRY));
@@ -96,7 +99,7 @@ if (server.length !== client.length) {
 for (let i = 0; i < Math.max(server.length, client.length); i++) {
   const a = server[i];
   const b = client[i];
-  const one = (x) => (x ? `${x.tag}/${x.label}/${x.dir}` : '—');
+  const one = (x) => (x ? `${x.tag}/${x.label}/${x.dir}${x.official ? '/official ' + x.official : ''}` : '—');
   if (one(a) !== one(b)) {
     fail('registry', `entry ${i + 1} differs: server ${one(a)}, client ${one(b)}`);
   }
@@ -110,7 +113,17 @@ if (!serverDefault || serverDefault !== clientDefault) {
 
 const TAGS = server.map((l) => l.tag);
 const BASE = serverDefault || 'en-GB';
-say(`Familista i18n check\n\n  registry  ${path.relative(ROOT, SERVER_REGISTRY)} → ${TAGS.length} locales, base ${BASE}`);
+// The official languages: offered by every switch, and demanded of every owner room (check 7).
+const OFFICIAL = server.filter((l) => l.official).sort((a, b) => a.official - b.official);
+if (OFFICIAL.length) {
+  const places = OFFICIAL.map((l) => l.official);
+  if (places.some((n, i) => n !== i + 1)) {
+    fail('registry', `the official languages must be numbered 1..${OFFICIAL.length} with no gap or repeat, found ${places.join(', ')}`);
+  }
+  if (!OFFICIAL.some((l) => l.tag === BASE)) fail('registry', `the base locale ${BASE} must be one of the official languages`);
+}
+say(`Familista i18n check\n\n  registry  ${path.relative(ROOT, SERVER_REGISTRY)} → ${TAGS.length} locales, base ${BASE}` +
+  (OFFICIAL.length ? `, official ${OFFICIAL.map((l) => l.tag).join(' ')}` : ''));
 
 // ── files, and whether they are well formed ──────────────────────────────────
 // A file that will not parse is reported once, and the locale is then skipped
@@ -287,6 +300,56 @@ if (fs.existsSync(PENDING)) {
   } catch (e) {
     fail('files', `${path.relative(ROOT, PENDING)} is not valid JSON — ${e.message}`);
   }
+}
+
+// ── the owner rooms, in every official language ──────────────────────────────
+// Each owner room carries its own catalogue (public/<room>/i18n/<code>.json, the
+// code being the language subtag) behind the same data-no-i18n boundary, and
+// offers exactly the official languages. So a room is complete only when it
+// ships one file per official language with the same keys as its English one,
+// English as itself, nothing empty, and every placeholder (%d, {name}) kept.
+// Rooms are found, not listed: a new room is checked the moment it exists.
+const ROOM_PLACEHOLDER = /%[ds]|\{[A-Za-z_][\w]*\}/g;
+const placeholders = (v) => (String(v).match(ROOM_PLACEHOLDER) || []).sort().join(' ');
+// The same placeholders, with one allowance: a counted noun ("%d case") may be
+// written without its number where the language says "one" in words (Arabic
+// "حالة واحدة"). A named placeholder is never dropped, and none is ever added.
+const samePlaceholders = (key, value) => placeholders(key) === placeholders(value)
+  || (/^%d [^%{}]+$/.test(key) && placeholders(value) === '');
+const rooms = fs.readdirSync(path.join(ROOT, 'public'), { withFileTypes: true })
+  .filter((d) => d.isDirectory() && d.name !== 'i18n' && fs.existsSync(path.join(ROOT, 'public', d.name, 'i18n', 'en.json')))
+  .map((d) => d.name).sort();
+if (OFFICIAL.length && rooms.length) {
+  const codes = OFFICIAL.map((l) => l.tag.toLowerCase().split('-')[0]);
+  let keys = 0;
+  const sameAsEnglish = [];
+  for (const room of rooms) {
+    const dir = path.join('public', room, 'i18n');
+    let en;
+    try { en = JSON.parse(readText(path.join(ROOT, dir, 'en.json'))); } catch (e) { fail('rooms', `${dir}/en.json does not parse — ${e.message}`); continue; }
+    const enKeys = Object.keys(en);
+    keys += enKeys.length;
+    const notSelf = enKeys.filter((k) => en[k] !== k);
+    if (notSelf.length) fail('rooms', `${dir}/en.json: English must be its own key, ${notSelf.length} entr(ies) are not — ${notSelf.slice(0, 3).join(' | ')}`);
+    for (const code of codes.filter((c) => c !== 'en')) {
+      const file = path.join(dir, code + '.json');
+      if (!fs.existsSync(path.join(ROOT, file))) { fail('rooms', `${file} is missing — every owner room ships every official language`); continue; }
+      let cat;
+      try { cat = JSON.parse(readText(path.join(ROOT, file))); } catch (e) { fail('rooms', `${file} does not parse — ${e.message}`); continue; }
+      const missing = enKeys.filter((k) => !(k in cat));
+      const extra = Object.keys(cat).filter((k) => !(k in en));
+      const empty = enKeys.filter((k) => k in cat && (typeof cat[k] !== 'string' || !cat[k].trim()));
+      const broken = enKeys.filter((k) => typeof cat[k] === 'string' && cat[k].trim() && !samePlaceholders(k, cat[k]));
+      if (missing.length) fail('rooms', `${file}: ${missing.length} entr(ies) missing — ${missing.slice(0, 3).join(' | ')}`);
+      if (extra.length) fail('rooms', `${file}: ${extra.length} entr(ies) the English catalogue does not have — ${extra.slice(0, 3).join(' | ')}`);
+      if (empty.length) fail('rooms', `${file}: ${empty.length} empty entr(ies) — ${empty.slice(0, 3).join(' | ')}`);
+      if (broken.length) fail('rooms', `${file}: ${broken.length} entr(ies) with different placeholders — ${broken.slice(0, 3).join(' | ')}`);
+      const same = enKeys.filter((k) => cat[k] === k && /[a-z]{3}/i.test(k)).length;
+      if (same) sameAsEnglish.push(`${room}/${code}:${same}`);
+    }
+  }
+  say(`  rooms     ${rooms.length} owner room(s) × ${codes.length} official languages, ${keys} entries per language`);
+  if (sameAsEnglish.length) notes.push(`owner-room entries written the same as in English (product names, codes and terms that do not change are expected here; anything else is a gap): ${sameAsEnglish.join(', ')}`);
 }
 
 // ── the hardcoded-string ratchet ─────────────────────────────────────────────
