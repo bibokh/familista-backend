@@ -3281,7 +3281,10 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
   border-color: rgba(var(--ac),.4);
   box-shadow: 0 34px 84px rgba(0,0,0,.66), 0 0 0 1px rgba(var(--ac),.32), 0 18px 50px rgba(var(--ac),.18), inset 0 1px 0 rgba(255,255,255,.1);
 }
-.sqf-head{ display: flex; align-items: center; gap: 14px; position: relative; }
+/* The head wraps only when a translation needs it: the title column is never narrower than its longest
+   word, so a long word (French "Composition", Russian "Стартовый") keeps itself whole and the pill steps
+   down to its own line, at the end, instead. English fits on one line exactly as before. */
+.sqf-head{ display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; position: relative; }
 .sqf-icon{
   width: 50px;
   height: 50px;
@@ -3296,19 +3299,21 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
   box-shadow: 0 8px 22px rgba(var(--ac),.28), inset 0 1px 0 rgba(255,255,255,.2);
 }
 .sqf-icon svg{ width: 25px; height: 25px; display: block; }
-.sqf-titles{ flex: 1; min-width: 0; }
+.sqf-titles{ flex: 1 1 0; min-width: min-content; }
 /* 1.05 is tight enough to clip the ascenders and descenders of scripts that
    need more room than Latin — Cyrillic and Greek here, Thai and Arabic
    elsewhere. 1.15 is invisible in English and stops the clipping. */
 /* Two things translation asks of this title that English never did. 1.05 is
    tight enough to clip the ascenders of Cyrillic and Greek, so it is 1.15 —
-   invisible in English. And a single long word (Russian "Стартовый") is
-   wider than the column it sits in, so it is allowed to break rather than
-   spill over the pill beside it. */
+   invisible in English. And a single long word is wider than the column it
+   would share with the pill: the head wraps instead (above), and a word breaks
+   only if it is wider than the whole card — break-word, not anywhere, so the
+   word's own width still sets the column's minimum. */
 .sqf-title{ font-size: 20px; font-weight: 700; color: #f5f8fc; letter-spacing: -.4px;
-  line-height: 1.15; overflow-wrap: anywhere; }
+  line-height: 1.15; overflow-wrap: break-word; }
 .sqf-sub{ font-size: 12.5px; color: #828ea5; margin-top: 3px; }
 .sqf-pill{
+  margin-inline-start: auto;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: .02em;

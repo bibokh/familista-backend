@@ -308,6 +308,11 @@ describe('RTL flips the interface and not the football', () => {
     // label wraps, and a single word wider than its column.
     const CSS = read('public/app.css');
     expect(CSS).toMatch(/\.tf-btn\{[\s\S]{0,600}white-space:nowrap/);
-    expect(CSS).toMatch(/\.sqf-title\{[\s\S]{0,200}overflow-wrap: anywhere/);
+    // A long word keeps itself whole: the head wraps, the title column is never
+    // narrower than its longest word, and the pill steps down to the end.
+    expect(CSS).toContain('.sqf-head{ display: flex; flex-wrap: wrap;');
+    expect(CSS).toContain('.sqf-titles{ flex: 1 1 0; min-width: min-content; }');
+    expect(CSS).toMatch(/\.sqf-title\{[\s\S]{0,200}overflow-wrap: break-word/);
+    expect(CSS).toMatch(/\.sqf-pill\{\s*margin-inline-start: auto;/);
   });
 });

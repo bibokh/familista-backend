@@ -1640,5 +1640,19 @@
   "Welcome to Familista": "Welcome to Familista",
   "ELEVATED RISK": "ELEVATED RISK",
   "CLEAN": "CLEAN",
-  "ATTENTION": "ATTENTION"
+  "ATTENTION": "ATTENTION",
+  "FOS Admin Center · \u0000/\u0000 tenants active. \u0000 user(s) across \u0000 role classes and \u0000 permissions. Security STEADY (\u0000/\u0000). \u0000 admin action(s) queued for review.": "FOS Admin Center · \u0000/\u0000 tenants active. \u0000 user(s) across \u0000 role classes and \u0000 permissions. Security STEADY (\u0000/\u0000). \u0000 admin action(s) queued for review.",
+  "FOS Admin Center · \u0000/\u0000 tenants active. \u0000 user(s) across \u0000 role classes and \u0000 permissions. Security ELEVATED RISK (\u0000/\u0000). \u0000 admin action(s) queued for review.": "FOS Admin Center · \u0000/\u0000 tenants active. \u0000 user(s) across \u0000 role classes and \u0000 permissions. Security ELEVATED RISK (\u0000/\u0000). \u0000 admin action(s) queued for review.",
+  "Manager": "Manager",
+  "Analyst": "Analyst",
+  "Platform Owner · President": "Platform Owner · President",
+  "Platform Owner · Club administrator": "Platform Owner · Club administrator",
+  "Platform Owner · Manager": "Platform Owner · Manager",
+  "Platform Owner · Head coach": "Platform Owner · Head coach",
+  "Platform Owner · Assistant coach": "Platform Owner · Assistant coach",
+  "Platform Owner · Analyst": "Platform Owner · Analyst",
+  "Platform Owner · Scout": "Platform Owner · Scout",
+  "Platform Owner · Medical staff": "Platform Owner · Medical staff",
+  "Platform Owner · Parent": "Platform Owner · Parent",
+  "Platform Owner · Player": "Platform Owner · Player"
 }

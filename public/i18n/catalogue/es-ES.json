@@ -1643,5 +1643,19 @@
   "Welcome to Familista": "Te damos la bienvenida a Familista",
   "ELEVATED RISK": "RIESGO ELEVADO",
   "CLEAN": "SIN FALLOS",
-  "ATTENTION": "ATENCIÓN"
+  "ATTENTION": "ATENCIÓN",
+  "FOS Admin Center · \u0000/\u0000 tenants active. \u0000 user(s) across \u0000 role classes and \u0000 permissions. Security STEADY (\u0000/\u0000). \u0000 admin action(s) queued for review.": "FOS Centro de administración · \u0000/\u0000 inquilinos activos. \u0000 usuario(s) en \u0000 clases de rol y \u0000 permisos. Seguridad ESTABLE (\u0000/\u0000). \u0000 acción(es) de administración en espera de revisión.",
+  "FOS Admin Center · \u0000/\u0000 tenants active. \u0000 user(s) across \u0000 role classes and \u0000 permissions. Security ELEVATED RISK (\u0000/\u0000). \u0000 admin action(s) queued for review.": "FOS Centro de administración · \u0000/\u0000 inquilinos activos. \u0000 usuario(s) en \u0000 clases de rol y \u0000 permisos. Seguridad: RIESGO ELEVADO (\u0000/\u0000). \u0000 acción(es) de administración en espera de revisión.",
+  "Manager": "Mánager",
+  "Analyst": "Analista",
+  "Platform Owner · President": "Propietario de la plataforma · Presidente",
+  "Platform Owner · Club administrator": "Propietario de la plataforma · Administrador del club",
+  "Platform Owner · Manager": "Propietario de la plataforma · Mánager",
+  "Platform Owner · Head coach": "Propietario de la plataforma · Entrenador principal",
+  "Platform Owner · Assistant coach": "Propietario de la plataforma · Entrenador asistente",
+  "Platform Owner · Analyst": "Propietario de la plataforma · Analista",
+  "Platform Owner · Scout": "Propietario de la plataforma · Ojeador",
+  "Platform Owner · Medical staff": "Propietario de la plataforma · Personal médico",
+  "Platform Owner · Parent": "Propietario de la plataforma · Padre/madre",
+  "Platform Owner · Player": "Propietario de la plataforma · Jugador"
 }

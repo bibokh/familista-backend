@@ -1643,5 +1643,19 @@
   "Welcome to Familista": "Willkommen bei Familista",
   "ELEVATED RISK": "ERHÖHTES RISIKO",
   "CLEAN": "SAUBER",
-  "ATTENTION": "HANDLUNGSBEDARF"
+  "ATTENTION": "HANDLUNGSBEDARF",
+  "FOS Admin Center · \u0000/\u0000 tenants active. \u0000 user(s) across \u0000 role classes and \u0000 permissions. Security STEADY (\u0000/\u0000). \u0000 admin action(s) queued for review.": "FOS Admin-Zentrale · \u0000/\u0000 Mandanten aktiv. \u0000 Benutzer über \u0000 Rollenklassen und \u0000 Berechtigungen. Sicherheit STABIL (\u0000/\u0000). \u0000 Admin-Aktion(en) zur Prüfung eingereiht.",
+  "FOS Admin Center · \u0000/\u0000 tenants active. \u0000 user(s) across \u0000 role classes and \u0000 permissions. Security ELEVATED RISK (\u0000/\u0000). \u0000 admin action(s) queued for review.": "FOS Admin-Zentrale · \u0000/\u0000 Mandanten aktiv. \u0000 Benutzer über \u0000 Rollenklassen und \u0000 Berechtigungen. Sicherheit ERHÖHTES RISIKO (\u0000/\u0000). \u0000 Admin-Aktion(en) zur Prüfung eingereiht.",
+  "Manager": "Manager",
+  "Analyst": "Analyst",
+  "Platform Owner · President": "Plattforminhaber · Präsident",
+  "Platform Owner · Club administrator": "Plattforminhaber · Vereinsadministrator",
+  "Platform Owner · Manager": "Plattforminhaber · Manager",
+  "Platform Owner · Head coach": "Plattforminhaber · Cheftrainer",
+  "Platform Owner · Assistant coach": "Plattforminhaber · Co-Trainer",
+  "Platform Owner · Analyst": "Plattforminhaber · Analyst",
+  "Platform Owner · Scout": "Plattforminhaber · Scout",
+  "Platform Owner · Medical staff": "Plattforminhaber · Medizinisches Personal",
+  "Platform Owner · Parent": "Plattforminhaber · Elternteil",
+  "Platform Owner · Player": "Plattforminhaber · Spieler"
 }

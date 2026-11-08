@@ -1643,5 +1643,19 @@
   "Welcome to Familista": "مرحبًا بك في فاميليستا",
   "ELEVATED RISK": "مخاطر مرتفعة",
   "CLEAN": "سليم",
-  "ATTENTION": "يتطلب الانتباه"
+  "ATTENTION": "يتطلب الانتباه",
+  "FOS Admin Center · \u0000/\u0000 tenants active. \u0000 user(s) across \u0000 role classes and \u0000 permissions. Security STEADY (\u0000/\u0000). \u0000 admin action(s) queued for review.": "مركز إدارة FOS · \u0000/\u0000 مستأجر نشط. \u0000 مستخدم عبر \u0000 فئات أدوار و\u0000 صلاحية. الأمان مستقر (\u0000/\u0000). \u0000 إجراء إداري في انتظار المراجعة.",
+  "FOS Admin Center · \u0000/\u0000 tenants active. \u0000 user(s) across \u0000 role classes and \u0000 permissions. Security ELEVATED RISK (\u0000/\u0000). \u0000 admin action(s) queued for review.": "مركز إدارة FOS · \u0000/\u0000 مستأجر نشط. \u0000 مستخدم عبر \u0000 فئات أدوار و\u0000 صلاحية. الأمان: مخاطر مرتفعة (\u0000/\u0000). \u0000 إجراء إداري في انتظار المراجعة.",
+  "Manager": "المدير",
+  "Analyst": "محلل",
+  "Platform Owner · President": "مالك المنصة · الرئيس",
+  "Platform Owner · Club administrator": "مالك المنصة · مسؤول النادي",
+  "Platform Owner · Manager": "مالك المنصة · المدير",
+  "Platform Owner · Head coach": "مالك المنصة · المدرب الأول",
+  "Platform Owner · Assistant coach": "مالك المنصة · المدرب المساعد",
+  "Platform Owner · Analyst": "مالك المنصة · محلل",
+  "Platform Owner · Scout": "مالك المنصة · كشاف",
+  "Platform Owner · Medical staff": "مالك المنصة · الطاقم الطبي",
+  "Platform Owner · Parent": "مالك المنصة · ولي أمر",
+  "Platform Owner · Player": "مالك المنصة · لاعب"
 }

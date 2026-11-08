@@ -111,8 +111,10 @@
     // the club's. Skipped whole, so the attribute pass leaves it alone too.
     '.lg-crest', '.mcx-side-crest', '.mcx-opp-crest', '.fl-mg-crest',
     '.team-club-badge', '.hf-name', '.mcx-side-name', '.mcx-opp-name', '.sqcc-tm-id b',
-    // The signed-in person, and the product's own name and version.
-    '.user-name', '.user-email', '#user-name', '#user-email', '.user-av',
+    // The signed-in person, and the product's own name and version. The line under
+    // the name (#user-email) is not skipped: it holds the person's role in words
+    // (app.js, _paintUserRole), which is interface text, never an address.
+    '.user-name', '#user-name', '.user-av',
     '.brand-name', '.brand-version', '.logo-text',
   ].join(',');
 
