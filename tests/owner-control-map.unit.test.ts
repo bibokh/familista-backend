@@ -617,27 +617,31 @@ describe('8 · the language switch in the top bar', () => {
       closest: (q: string) => (q === '#lang-switch' ? {} : null) });
     let drawn = '';
     let draws = 0;
+    const toggles: any[] = [];
+    let listened = 0;
     const g: any = { hidden: true,
       set innerHTML(v: string) {
         drawn = v; draws += 1; btns.length = 0;
         for (const m of v.matchAll(/<button ([^>]*)>([^<]*)<\/button>/g)) {
           const attrs: Record<string, string> = {};
           for (const a of m[1].matchAll(/([\w-]+)="([^"]*)"/g)) attrs[a[1]] = a[2];
-          btns.push(mk(attrs, m[2]));
+          (attrs['data-locale'] ? btns : toggles).push(mk(attrs, m[2]));
         }
       },
       get innerHTML() { return drawn; },
-      querySelector: (q: string) => (q === '[data-locale]' ? btns[0] || null : null),
-      querySelectorAll: () => btns };
+      querySelector: (q: string) => (q === '[data-locale]' ? btns[0] || null : q === '.lang-switch-toggle' ? toggles[0] || null
+        : q === '[data-locale][aria-pressed="true"]' ? btns.find((b) => b.attrs['aria-pressed'] === 'true') || null : null),
+      querySelectorAll: () => btns, classList: { contains: () => false, add() {}, remove() {} } };
     const I18N = officialOverride ? { ...platform.I18N, officialLocales: () => officialOverride } : platform.I18N;
     const sb: any = {
-      window: {}, document: { getElementById: (id: string) => (id === 'lang-switch' ? g : null) }, String,
+      window: { addEventListener: () => { listened++; } }, String, Math,
+      document: { getElementById: (id: string) => (id === 'lang-switch' ? g : null), addEventListener: () => { listened++; }, documentElement: { getAttribute: () => 'ltr' } },
       I18N,
       I18N_APPLY: { change: (t: string) => { changes.push(t); return platform.I18N.setLocale(t).then(() => ({ locale: t, saved: true })); } },
     };
     sb.window.I18N = sb.I18N; sb.window.I18N_APPLY = sb.I18N_APPLY;
     vm.runInNewContext(ESC + '\n' + SWITCH + '\nthis.show = _langSwitchShow; this.to = _langSwitchTo;', sb);
-    return { sb, g, btns, changes, draws: () => draws };
+    return { sb, g, btns, toggles, changes, draws: () => draws, listened: () => listened };
   }
 
   it('is revealed for the owner with one button per official language, each named in its own language, and says which is in force', async () => {
@@ -654,10 +658,30 @@ describe('8 · the language switch in the top bar', () => {
     expect(btns.every((b) => b.attrs.type === 'button' && b.attrs['data-action'] === 'setUiLocale' && b.attrs.class === 'lang-switch-btn')).toBe(true);
   });
 
-  it('is drawn once, however often it is shown', async () => {
-    const { sb, draws } = await sandbox('fr-FR');
+  it('is drawn once, however often it is shown, and listens for Escape and a press outside once', async () => {
+    const { sb, draws, listened } = await sandbox('fr-FR');
     sb.show(); sb.show(); sb.show();
     expect(draws()).toBe(1);
+    expect(listened()).toBe(4);
+  });
+
+  it('on a phone, one button stands for the row: it shows the language in force, named in that language, and says whether it is open', async () => {
+    const { sb, toggles } = await sandbox('ar');
+    sb.show();
+    expect(toggles).toHaveLength(1);
+    const t = toggles[0];
+    expect(t.attrs).toMatchObject({ class: 'lang-switch-toggle', type: 'button', 'data-action': 'toggleLangSwitch', 'aria-expanded': 'false', 'aria-controls': 'lang-switch-menu' });
+    expect(t.textContent).toBe('AR');
+    expect(t.attrs.lang).toBe('ar');
+    expect(t.attrs['aria-label']).toBe('AR · العربية');
+    // The floating row opens, places itself from the button's box and moves the focus in; Escape returns it.
+    expect(APP).toContain("case 'toggleLangSwitch': _langSwitchToggle(); break;");
+    const toggleFn = APP.slice(APP.indexOf('function _langSwitchToggle()'), APP.indexOf('function _langSwitchClose('));
+    expect(toggleFn).toMatch(/getBoundingClientRect\(\)[\s\S]*setProperty\('top'[\s\S]*aria-expanded', 'true'[\s\S]*\.focus\(\)/);
+    expect(APP).toMatch(/e\.key === 'Escape'[\s\S]{0,160}_langSwitchClose\(true\)/);
+    // It floats and fades on opacity and transform only, and wider screens never show the button.
+    expect(CSS).toContain('body.club-theme .lang-switch-toggle{ display: none; }');
+    expect(CSS).toMatch(/@media \(max-width: 560px\)\{[\s\S]*\.lang-switch-menu\{[^}]*position: fixed;[^}]*opacity: 0; transform: translateY\(-4px\)/);
   });
 
   it('(control) a language the registry does not mark official is not offered, and with none the group stays hidden', async () => {

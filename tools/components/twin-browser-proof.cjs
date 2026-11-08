@@ -16,7 +16,8 @@
 //
 //   PROOF_ONLY        run only these sections: T1 (exploring, languages, sizes, owner only), T2 (layout, relationships,
 //                     path, Back, intensity, the full graph), T3 (axe, with --axe), T4 (the Platform Owner navigation
-//                     and System Updates; its axe pass with --axe). All of them by default.
+//                     and System Updates; its axe pass with --axe), T5 (the official languages: the switch, keyboard,
+//                     persistence, direction, rooms following, every width; its axe pass with --axe). All by default.
 //   CHROMIUM, PLAYWRIGHT_CORE, AXE_CORE   as for lab-browser-proof.cjs
 //
 // Every line is PASS, FAIL or SKIP; the last is `SUMMARY n passed, n failed, n skipped`, and the exit code is 1 if
@@ -35,6 +36,11 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const ROOT = path.resolve(__dirname, '..', '..');
+// The official languages, from the client registry (public/i18n/config.js) — the proof keeps no list of its own.
+const OFFICIAL = [...fs.readFileSync(path.join(ROOT, 'public/i18n/config.js'), 'utf8').matchAll(/\{ tag: '([^']+)',\s*label: '[^']+',\s*dir: '(ltr|rtl)', official: (\d+) \}/g)]
+  .sort((a, b) => Number(a[3]) - Number(b[3])).map((m) => ({ tag: m[1], code: m[1].toLowerCase().split('-')[0], dir: m[2] }));
+/** A room's word in a language, read from the room's own catalogue: what the page must show. */
+const roomWord = (room, code, en) => JSON.parse(fs.readFileSync(path.join(ROOT, 'public', room, 'i18n', code + '.json'), 'utf8'))[en];
 const OUT = process.argv[2];
 const WANT_AXE = process.argv.includes('--axe');
 const want = (n) => !process.env.PROOF_ONLY || process.env.PROOF_ONLY.split(',').includes(n);
@@ -282,12 +288,13 @@ const PHASE1 = { nodes: 921, edges: 3656 };
       await ctx.close();
     }
 
-    for (const loc of ['ar', 'de-DE']) {
+    // Every official language but English: the room follows the platform's, in the registry's direction, in its own words.
+    for (const [loc, code, dir] of OFFICIAL.filter((l) => l.code !== 'en').map((l) => [l.tag, l.code, l.dir])) {
       const { ctx, page, log } = await open({ width: 1920, height: 1080 }, loc);
       const m = await M(page);
       const info = await page.evaluate(() => ({ dir: document.getElementById('nt-root').getAttribute('dir'), title: document.querySelector('.nt-title').textContent, sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
-      const wantL = loc === 'ar' ? { dir: 'rtl', title: 'التوأم الرقمي العصبي' } : { dir: 'ltr', title: 'Neuronaler Digitaler Zwilling' };
-      check('twin ' + loc + ': the room follows the platform language (' + wantL.dir + ') and is translated', m.lang === (loc === 'ar' ? 'ar' : 'de') && info.dir === wantL.dir && info.title === wantL.title && info.sw <= info.cw, info);
+      const wantL = { dir, title: roomWord('neural-twin', code, 'Neural Digital Twin') };
+      check('twin ' + loc + ': the room follows the platform language (' + wantL.dir + ') and is translated', m.lang === code && info.dir === wantL.dir && info.title === wantL.title && wantL.title !== 'Neural Digital Twin' && info.sw <= info.cw, info);
       await page.fill('#nt-q', 'src/vision');
       await page.click('#nt-tree [data-nt-select="module:vision"]');
       await page.fill('#nt-q', '');
@@ -651,9 +658,13 @@ const PHASE1 = { nodes: 921, edges: 3656 };
       check('without a session /system/updates is answered 401', anon === 401, anon);
     }
 
-    // C. in German and Arabic: the top bar's words come from the platform catalogue, the room's from its own; Arabic is right to left
-    for (const [loc, want] of [['de-DE', { twin: 'Neuronaler Digitaler Zwilling', updates: 'Systemaktualisierungen', label: 'Plattformeigentümer', dir: 'ltr', head: 'Läuft jetzt' }],
-      ['ar', { twin: 'التوأم الرقمي العصبي', updates: 'تحديثات النظام', label: 'مالك المنصة', dir: 'rtl', head: 'قيد التشغيل الآن' }]]) {
+    // C. in every official language but English: the top bar's words come from the platform catalogue, the room's from its
+    // own; Arabic is right to left. German and Arabic are spelled out here; French and Spanish are read from their files.
+    const SPELLED = { 'de-DE': { twin: 'Neuronaler Digitaler Zwilling', updates: 'Systemaktualisierungen', label: 'Plattformeigentümer', dir: 'ltr', head: 'Läuft jetzt' },
+      ar: { twin: 'التوأم الرقمي العصبي', updates: 'تحديثات النظام', label: 'مالك المنصة', dir: 'rtl', head: 'قيد التشغيل الآن' } };
+    const fromFiles = (l) => ({ twin: roomWord('system-updates', l.code, 'Neural Digital Twin'), updates: roomWord('system-updates', l.code, 'System Updates'),
+      label: roomWord('system-updates', l.code, 'Platform owner'), dir: l.dir, head: roomWord('system-updates', l.code, 'Running now') });
+    for (const [loc, want] of OFFICIAL.filter((l) => l.code !== 'en').map((l) => [l.tag, SPELLED[l.tag] || fromFiles(l)])) {
       const { ctx, page, log } = await open({ width: 1440, height: 900 }, loc, { hash: '/#owner-home', wait: false });
       await ownerHome(page);
       await page.waitForFunction((w) => [...document.querySelectorAll('#owner-nav [data-owner-nav]')].map((b) => b.textContent.trim()).join('|') === w, want.twin + '|' + want.updates, { timeout: 15000 }).catch(() => {});
@@ -752,6 +763,199 @@ const PHASE1 = { nodes: 921, edges: 3656 };
             await page.evaluate(() => { const b = document.createElement('button'); b.className = 'su-btn'; document.querySelector('.su-top-r').appendChild(b); });
             const broken = (await runAxe(page, '#pg-system-updates')).map((v) => v.id);
             check('system updates accessibility (control): a button with no name inside the room is reported by the same axe run', broken.includes('button-name'), broken);
+          }
+          await ctx.close();
+        }
+      }
+    }
+  }
+
+  // ══ T5. the official languages: the top bar's switch, in every one of them ═════════════════════════════════════════
+  // One button per official language, in the registry's order, each named in its own language; pressed with the mouse,
+  // Enter or Space; the page changes language in place (no reload: a marker set on the window survives), keeps it across
+  // navigation and a reload, turns right to left for Arabic and back, and the rooms follow it — including when a room's own
+  // button is the one pressed. At every width from a desktop to a phone the five buttons fit, inside the top bar, with no
+  // sideways scroll. Screenshots of Owner Control, the twin and System Updates are taken in French and Spanish.
+  if (want('T5')) {
+    const CAT = (tag) => JSON.parse(fs.readFileSync(path.join(ROOT, 'public/i18n/catalogue', tag + '.json'), 'utf8'));
+    const LABEL = Object.fromEntries([...fs.readFileSync(path.join(ROOT, 'public/i18n/config.js'), 'utf8').matchAll(/\{ tag: '([^']+)',\s*label: '([^']+)'/g)].map((m) => [m[1], m[2]]));
+    const ownerHome = (pg) => pg.waitForFunction(() => { const g = document.getElementById('lang-switch'); return g && !g.hidden && g.querySelectorAll('[data-locale]').length > 0; }, null, { timeout: 30000 });
+    const sw = (pg) => pg.evaluate(() => {
+      const g = document.getElementById('lang-switch');
+      const b = [...g.querySelectorAll('[data-locale]')];
+      const vis = (e) => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden'; };
+      return { shown: vis(g), codes: b.map((x) => x.textContent.trim()), tags: b.map((x) => x.getAttribute('data-locale')), langs: b.map((x) => x.getAttribute('lang')),
+        names: b.map((x) => x.getAttribute('aria-label')), pressed: b.filter((x) => x.getAttribute('aria-pressed') === 'true').map((x) => x.getAttribute('data-locale')),
+        html: { lang: document.documentElement.getAttribute('lang'), dir: document.documentElement.getAttribute('dir') }, stored: localStorage.getItem('familista.locale'),
+        marker: window.__t5marker === 1, focus: document.activeElement && document.activeElement.getAttribute('data-locale') };
+    });
+    const ownerNames = (pg) => pg.evaluate(() => [...document.querySelectorAll('#owner-nav [data-owner-nav]')].map((b) => b.textContent.trim()).join('|'));
+    const inForce = (pg, tag) => pg.waitForFunction((t) => document.documentElement.getAttribute('lang') === t, tag, { timeout: 15000 }).then(() => true, () => false);
+    const OFF = OFFICIAL.map((l) => l.tag);
+    const fr = OFFICIAL.find((l) => l.code === 'fr'), es = OFFICIAL.find((l) => l.code === 'es'), ar = OFFICIAL.find((l) => l.code === 'ar');
+
+    {
+      const { ctx, page, log } = await open({ width: 1440, height: 900 }, 'en-GB', { hash: '/#owner-home', wait: false });
+      await ownerHome(page);
+      await page.evaluate(() => { window.__t5marker = 1; });
+      let st = await sw(page);
+      check('languages: the top bar offers one button per official language, in the registry\'s order, each named in its own language',
+        st.shown && st.tags.join() === OFF.join() && st.codes.join() === OFFICIAL.map((l) => l.code.toUpperCase()).join()
+          && st.langs.join() === OFFICIAL.map((l) => l.code).join() && st.names.join('|') === OFFICIAL.map((l) => l.code.toUpperCase() + ' · ' + LABEL[l.tag]).join('|')
+          && st.pressed.join() === 'en-GB', st);
+
+      // the keyboard: Tab reaches the button, Enter presses it, the focus stays where the reader is
+      await page.focus('#lang-switch [data-locale="' + fr.tag + '"]');
+      await page.keyboard.press('Enter');
+      const frOn = await inForce(page, fr.tag);
+      await page.waitForTimeout(500);
+      st = await sw(page);
+      const frWords = CAT(fr.tag);
+      const names = await ownerNames(page);
+      check('languages: Enter on FR puts French in force in place — no reload, left to right, the choice remembered, the focus kept, the top bar in French',
+        frOn && st.marker && st.html.dir === 'ltr' && st.pressed.join() === fr.tag && st.stored === fr.tag && st.focus === fr.tag
+          && names === frWords['Neural Digital Twin'] + '|' + frWords['System Updates'] && log.errors.length === 0, { st, names });
+      await shot(page, 'languages-owner-control-fr');
+
+      // across navigation, and across a reload
+      await page.evaluate(() => window.navTo('clubs', null));
+      await page.waitForTimeout(800);
+      await page.evaluate(() => window.navTo('owner-home', null));
+      await ownerHome(page);
+      st = await sw(page);
+      check('languages: French stays in force through Clubs and back to Owner Control, without a reload', st.marker && st.html.lang === fr.tag && st.pressed.join() === fr.tag, st);
+      await page.reload({ waitUntil: 'load' });
+      await ownerHome(page);
+      const reloaded = await inForce(page, fr.tag);
+      st = await sw(page);
+      check('languages: and after a reload the page opens in French, its button pressed', reloaded && st.html.lang === fr.tag && st.pressed.join() === fr.tag, st);
+
+      // Arabic turns the page right to left; Space on ES turns it back
+      await page.click('#lang-switch [data-locale="' + ar.tag + '"]');
+      const arOn = await inForce(page, ar.tag);
+      st = await sw(page);
+      const arOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      check('languages: AR turns the page right to left, the switch still in the registry\'s order, nothing sideways', arOn && st.html.dir === 'rtl' && st.tags.join() === OFF.join() && arOverflow <= 0, { st, arOverflow });
+      await page.focus('#lang-switch [data-locale="' + es.tag + '"]');
+      await page.keyboard.press('Space');
+      const esOn = await inForce(page, es.tag);
+      await page.waitForTimeout(500);
+      st = await sw(page);
+      const esWords = CAT(es.tag);
+      check('languages: Space on ES puts Spanish in force, left to right again, the top bar in Spanish',
+        esOn && st.html.dir === 'ltr' && st.pressed.join() === es.tag && (await ownerNames(page)) === esWords['Neural Digital Twin'] + '|' + esWords['System Updates'], st);
+      await shot(page, 'languages-owner-control-es');
+
+      // the rooms follow the platform, and a room's own button moves the platform
+      await page.click('#owner-nav [data-owner-nav="system-updates"]');
+      await page.waitForFunction(() => window.__familistaUpdatesMetrics && window.__familistaUpdatesMetrics().state === 'ready', null, { timeout: 30000 });
+      await page.waitForTimeout(400);
+      let room = await page.evaluate(() => { const r = document.getElementById('su-root'); return { lang: r.getAttribute('lang'), dir: r.getAttribute('dir'), title: r.querySelector('.su-title').textContent.trim() }; });
+      check('languages: System Updates opens in the platform\'s Spanish', room.lang === 'es' && room.dir === 'ltr' && room.title === roomWord('system-updates', 'es', 'System Updates'), room);
+      await shot(page, 'languages-system-updates-es');
+      await page.click('[data-su-lang="fr"]');
+      const moved = await inForce(page, fr.tag);
+      await page.waitForTimeout(400);
+      room = await page.evaluate(() => { const r = document.getElementById('su-root'); return { lang: r.getAttribute('lang'), title: r.querySelector('.su-title').textContent.trim(), stored: localStorage.getItem('familista.locale') }; });
+      check('languages: the room\'s own FR moves the platform to French, and the room follows', moved && room.lang === 'fr' && room.stored === fr.tag && room.title === roomWord('system-updates', 'fr', 'System Updates'), room);
+      await shot(page, 'languages-system-updates-fr');
+      await page.evaluate(() => window.navTo('owner-home', null));
+      await ownerHome(page);
+      st = await sw(page);
+      check('languages: back on Owner Control the top bar says French is in force', st.pressed.join() === fr.tag && st.html.lang === fr.tag, st);
+      check('languages: no page error through every change', log.errors.length === 0, log.errors.slice(0, 3));
+      await ctx.close();
+    }
+
+    // the twin, in French and Spanish
+    for (const l of [fr, es]) {
+      const { ctx, page, log } = await open({ width: 1440, height: 900 }, l.tag);
+      const m = await M(page);
+      const title = await page.evaluate(() => document.querySelector('.nt-title').textContent.trim());
+      check('languages: the Neural Digital Twin opens in ' + l.tag, m.lang === l.code && title === roomWord('neural-twin', l.code, 'Neural Digital Twin') && log.errors.length === 0, { lang: m.lang, title });
+      await shot(page, 'languages-neural-twin-' + l.code);
+      await ctx.close();
+    }
+
+    // every width: the five buttons fit, inside the top bar, large enough to press, with no sideways scroll
+    for (const [w, h, mobile] of [[1440, 900, false], [1280, 800, false], [1024, 768, false], [768, 1024, true], [390, 844, true]]) {
+      for (const l of [fr, ar]) {
+        const { ctx, page, log } = await open({ width: w, height: h }, l.tag, { hash: '/#owner-home', wait: false, mobile, dpr: mobile ? 2 : 1 });
+        await ownerHome(page);
+        await page.waitForTimeout(500);
+        const measure = () => page.evaluate(() => {
+          const g = document.getElementById('lang-switch'), bar = document.querySelector('header.topbar');
+          const gb = g.getBoundingClientRect(), hb = bar.getBoundingClientRect();
+          const vis = (e) => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.5; };
+          const all = [...g.querySelectorAll('[data-locale]')];
+          const btns = all.filter(vis).map((b) => b.getBoundingClientRect());
+          const t = g.querySelector('.lang-switch-toggle');
+          const title = document.querySelector('.topbar-brand') || document.querySelector('header.topbar h1');
+          return { n: btns.length, inView: btns.every((r) => r.left >= 0 && r.right <= innerWidth + 0.5 && r.top >= 0 && r.bottom <= innerHeight && r.width >= 24 && r.height >= 24),
+            inBar: gb.top >= hb.top - 0.5 && gb.bottom <= hb.bottom + 0.5, overlap: btns.some((r, i) => btns.some((q, j) => j > i && r.left < q.right - 0.5 && q.left < r.right - 0.5 && r.top < q.bottom - 0.5 && q.top < r.bottom - 0.5)),
+            pageX: document.documentElement.scrollWidth - document.documentElement.clientWidth, barX: bar.scrollWidth - bar.clientWidth,
+            toggle: t && vis(t) ? { text: t.textContent, expanded: t.getAttribute('aria-expanded') } : null,
+            menu: (() => { const m = g.querySelector('.lang-switch-menu'); if (!m) return null; const cs = getComputedStyle(m); return { open: g.classList.contains('is-open'), opacity: cs.opacity, visibility: cs.visibility, position: cs.position }; })(),
+            focus: document.activeElement && (document.activeElement.getAttribute('data-locale') || document.activeElement.className),
+            boxes: JSON.stringify([bar, title, document.getElementById('pages-container')].map((e) => { if (!e) return null; const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; })) };
+        });
+        const fit = await measure();
+        if (w > 560) {
+          check('languages ' + w + '×' + h + ' ' + l.tag + ': five buttons in view, at least 24px, none overlapping, inside the top bar, no sideways scroll',
+            fit.n === OFFICIAL.length && !fit.toggle && fit.inView && fit.inBar && !fit.overlap && fit.pageX <= 0 && fit.barX <= 0 && log.errors.length === 0, fit);
+        } else {
+          // the phone: one button, showing the language in force, which opens the five as a floating row
+          const titleRoom = await page.evaluate(() => { const e = document.querySelector('.topbar-brand'); const g = document.getElementById('lang-switch'); const a = e ? e.getBoundingClientRect().width : 0; g.hidden = true; const b = e ? e.getBoundingClientRect().width : 0; g.hidden = false; return { shown: Math.round(a), hidden: Math.round(b) }; });
+          check('languages ' + w + '×' + h + ' ' + l.tag + ': on a phone one button stands for the row, showing the language in force, and leaves the page\'s name its room',
+            fit.n === 0 && fit.toggle && fit.toggle.text === l.code.toUpperCase() && fit.toggle.expanded === 'false' && fit.inBar && fit.pageX <= 0 && fit.barX <= 0 && titleRoom.shown >= titleRoom.hidden - 64, { fit, titleRoom });
+          await shot(page, 'languages-phone-' + l.code);
+          const menuIs = (shown) => page.waitForFunction((want) => { const m = document.querySelector('#lang-switch .lang-switch-menu'); const cs = m && getComputedStyle(m); return !!cs && (want ? cs.visibility === 'visible' && Number(cs.opacity) === 1 : cs.visibility === 'hidden'); }, shown, { timeout: 3000 }).then(() => true, () => false);
+          await page.focus('#lang-switch .lang-switch-toggle');
+          await page.keyboard.press('Enter');
+          await menuIs(true);
+          const open = await measure();
+          check('languages ' + w + '×' + h + ' ' + l.tag + ': Enter opens the five in a floating row, in view, at least 24px, none overlapping, the focus on the language in force — and nothing beneath moves',
+            open.n === OFFICIAL.length && open.inView && !open.overlap && open.toggle.expanded === 'true' && open.focus === l.tag && open.boxes === fit.boxes && open.pageX <= 0, { open, before: fit.boxes });
+          await shot(page, 'languages-phone-open-' + l.code);
+          await page.keyboard.press('Escape');
+          const closed = await menuIs(false);
+          const shut = await measure();
+          check('languages ' + w + '×' + h + ' ' + l.tag + ': Escape closes it and gives the focus back to its button', closed && shut.n === 0 && shut.toggle.expanded === 'false' && /lang-switch-toggle/.test(shut.focus || ''), shut);
+          if (l === fr) {
+            await page.click('#lang-switch .lang-switch-toggle');
+            await menuIs(true);
+            await page.click('#lang-switch [data-locale="' + es.tag + '"]');
+            const esPhone = await inForce(page, es.tag);
+            await menuIs(false);
+            const after = await measure();
+            check('languages ' + w + '×' + h + ': choosing ES in the floating row puts Spanish in force and closes the row', esPhone && after.n === 0 && after.toggle && after.toggle.text === 'ES' && after.toggle.expanded === 'false', after);
+          }
+        }
+        await ctx.close();
+      }
+    }
+
+    // accessibility: axe on the switch in French and Arabic, with a control
+    if (WANT_AXE) {
+      const axePath = process.env.AXE_CORE || path.join(ROOT, 'tools/components/node_modules/axe-core/axe.min.js');
+      if (!fs.existsSync(axePath)) skip('languages accessibility: axe on the switch', 'axe-core is not installed (' + axePath + ')');
+      else {
+        const src = fs.readFileSync(axePath, 'utf8');
+        const runAxe = (pg) => pg.evaluate(async (src) => {
+          if (!window.axe) (0, eval)(src);        // eslint-disable-line no-eval -- this script's own tool, never the page's code
+          const r = await window.axe.run({ include: ['#lang-switch'] }, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] }, resultTypes: ['violations'] });
+          return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.slice(0, 3).map((n) => n.target.join(' ')) }));
+        }, src);
+        for (const l of [fr, ar]) {
+          const { ctx, page } = await open({ width: 1440, height: 900 }, l.tag, { hash: '/#owner-home', wait: false });
+          await ownerHome(page);
+          await page.waitForTimeout(400);
+          const v = await runAxe(page);
+          check('languages accessibility ' + l.tag + ': 0 axe violations (WCAG 2.2 A/AA) on the switch', v.length === 0, v);
+          if (l === fr) {
+            await page.evaluate(() => { const b = document.querySelector('#lang-switch [data-locale]'); b.textContent = ''; b.removeAttribute('aria-label'); b.removeAttribute('title'); });
+            const broken = (await runAxe(page)).map((x) => x.id);
+            check('languages accessibility (control): a switch button stripped of its name is reported by the same run', broken.includes('button-name'), broken);
           }
           await ctx.close();
         }

@@ -54,6 +54,16 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const ROOT = path.resolve(__dirname, '..', '..');
+// A room follows the platform's language, so a proof that opens a room in German
+// sets the platform to German: the room code ('de') becomes the registry's tag
+// ('de-DE'), read from the client registry rather than from a list kept here.
+const OFFICIAL_TAGS = (() => {
+  const cfg = fs.readFileSync(path.join(ROOT, 'public/i18n/config.js'), 'utf8');
+  const out = {};
+  for (const m of cfg.matchAll(/\{ tag: '([^']+)',[^}]*official: \d+ \}/g)) out[m[1].toLowerCase().split('-')[0]] = m[1];
+  return out;
+})();
+const platformTag = (code) => (code ? OFFICIAL_TAGS[String(code).toLowerCase()] || null : null);
 const OUT = process.argv[2];
 const WANT_AXE = process.argv.includes('--axe');
 // PROOF_ONLY=2b,3 runs only those numbered sections (all of them by default).
@@ -148,10 +158,10 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
         set(fn) { render = typeof fn !== 'function' ? fn : function () { window.__proofRenders++; window.__proofRenderAt = performance.now(); return fn.apply(this, arguments); }; } });
     });
     await ctx.addInitScript((l) => {
-      try { if (l) localStorage.setItem('familista_design_system_locale', l); } catch (_) { /* private mode */ }
+      try { if (l) localStorage.setItem('familista.locale', l); } catch (_) { /* private mode */ }
       window.__csp = [];
       document.addEventListener('securitypolicyviolation', (e) => window.__csp.push({ d: e.violatedDirective, uri: String(e.blockedURI).slice(0, 80), inLab: !!(e.target && e.target.closest && e.target.closest('.lab')), src: String(e.sourceFile || '').replace(location.origin, '').slice(0, 80) }));
-    }, locale || null);
+    }, platformTag(locale));
     const page = await ctx.newPage();
     // `errors` holds every page error and every console error that is not a network or CSP notice. Those two notices
     // are kept too, in `notices` with the URL they name, never dropped: a notice that names a Lab file is a Lab error.
@@ -2678,10 +2688,10 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       try {
         if (pre && !sessionStorage.getItem('__stSeeded')) {
           sessionStorage.setItem('__stSeeded', '1');
-          if (pre.locale) localStorage.setItem('familista_design_studio_locale', pre.locale);
+          if (pre.locale) localStorage.setItem('familista.locale', pre.locale);
         }
       } catch (_) { /* private mode */ }
-    }, { locale: opts.locale || null });
+    }, { locale: platformTag(opts.locale) });
     const page = await ctx.newPage();
     const log = { errors: [], notices: [], requests: [], sandbox: 0 };
     page.on('pageerror', (e) => log.errors.push('pageerror: ' + e.message));
@@ -3547,10 +3557,10 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       try {
         if (pre && !sessionStorage.getItem('__arSeeded')) {
           sessionStorage.setItem('__arSeeded', '1');
-          if (pre.locale) localStorage.setItem('familista_agents_room_locale', pre.locale);
+          if (pre.locale) localStorage.setItem('familista.locale', pre.locale);
         }
       } catch (_) { /* private mode */ }
-    }, { locale: opts.locale || null });
+    }, { locale: platformTag(opts.locale) });
     const page = await ctx.newPage();
     const log = { errors: [], notices: [], requests: [] };
     page.on('pageerror', (e) => log.errors.push('pageerror: ' + e.message));

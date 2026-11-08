@@ -2069,6 +2069,14 @@ function _langSwitchSync() {
   g.querySelectorAll('[data-locale]').forEach(function (b) {
     b.setAttribute('aria-pressed', b.getAttribute('data-locale') === now ? 'true' : 'false');
   });
+  // The phone's single button shows the language in force, named in that language.
+  const toggle = g.querySelector('.lang-switch-toggle');
+  const on = g.querySelector('[data-locale][aria-pressed="true"]');
+  if (toggle && on) {
+    toggle.textContent = on.textContent;
+    toggle.setAttribute('lang', on.getAttribute('lang') || '');
+    toggle.setAttribute('aria-label', on.getAttribute('aria-label') || on.textContent);
+  }
 }
 /**
  * Reveal the switch: one button per official language, in the registry's order
@@ -2080,12 +2088,18 @@ function _langSwitchShow() {
   const g = document.getElementById('lang-switch');
   if (!g) return;
   const official = (window.I18N && typeof I18N.officialLocales === 'function') ? I18N.officialLocales() : [];
-  if (!g.querySelector('[data-locale]')) {
-    g.innerHTML = official.map(function (l) {
-      const code = String(l.tag).split('-')[0];
-      return '<button class="lang-switch-btn" type="button" data-action="setUiLocale" data-locale="' + _esc(l.tag) + '" lang="' + _esc(code) + '"'
-        + ' title="' + _esc(l.label) + '" aria-label="' + _esc(code.toUpperCase() + ' · ' + l.label) + '" aria-pressed="false">' + _esc(code.toUpperCase()) + '</button>';
-    }).join('');
+  if (!g.querySelector('[data-locale]') && official.length) {
+    // On a phone the row would squeeze the page's name, so one button stands for it there and opens the
+    // same buttons as a floating row; wider screens never show that button (app.css).
+    g.innerHTML = '<button class="lang-switch-toggle" type="button" data-action="toggleLangSwitch" aria-expanded="false" aria-controls="lang-switch-menu"></button>'
+      + '<div class="lang-switch-menu" id="lang-switch-menu">'
+      + official.map(function (l) {
+        const code = String(l.tag).split('-')[0];
+        return '<button class="lang-switch-btn" type="button" data-action="setUiLocale" data-locale="' + _esc(l.tag) + '" lang="' + _esc(code) + '"'
+          + ' title="' + _esc(l.label) + '" aria-label="' + _esc(code.toUpperCase() + ' · ' + l.label) + '" aria-pressed="false">' + _esc(code.toUpperCase()) + '</button>';
+      }).join('')
+      + '</div>';
+    _langSwitchListen();
   }
   if (!g.querySelector('[data-locale]')) return;
   g.hidden = false;
@@ -2095,8 +2109,53 @@ function _langSwitchShow() {
 function _langSwitchTo(btn) {
   const tag = btn && btn.getAttribute('data-locale');
   if (!tag || !btn.closest('#lang-switch') || !window.I18N_APPLY) return;
+  _langSwitchClose(false);
   if (window.I18N && typeof I18N.locale === 'function' && I18N.locale() === tag) return;
   I18N_APPLY.change(tag).then(_langSwitchSync, _langSwitchSync);
+}
+/**
+ * The phone's button: open or close the floating row. It floats (position: fixed, placed under the button
+ * from its own box), so opening it moves nothing on the page, and it opens with the focus on the language
+ * in force, as a menu does.
+ */
+function _langSwitchToggle() {
+  const g = document.getElementById('lang-switch');
+  if (!g) return;
+  if (g.classList.contains('is-open')) { _langSwitchClose(true); return; }
+  const toggle = g.querySelector('.lang-switch-toggle');
+  const menu = g.querySelector('.lang-switch-menu');
+  if (!toggle || !menu) return;
+  const r = toggle.getBoundingClientRect();
+  const rtl = document.documentElement.getAttribute('dir') === 'rtl';
+  menu.style.setProperty('top', Math.round(r.bottom + 6) + 'px');
+  menu.style.setProperty(rtl ? 'left' : 'right', Math.max(8, Math.round(rtl ? r.left : window.innerWidth - r.right)) + 'px');
+  menu.style.removeProperty(rtl ? 'right' : 'left');
+  g.classList.add('is-open');
+  toggle.setAttribute('aria-expanded', 'true');
+  const on = menu.querySelector('[aria-pressed="true"]') || menu.querySelector('[data-locale]');
+  if (on) on.focus();
+}
+/** Close the floating row, returning the focus to its button when the reader closed it from the keyboard. */
+function _langSwitchClose(refocus) {
+  const g = document.getElementById('lang-switch');
+  if (!g || !g.classList.contains('is-open')) return;
+  g.classList.remove('is-open');
+  const toggle = g.querySelector('.lang-switch-toggle');
+  if (toggle) {
+    toggle.setAttribute('aria-expanded', 'false');
+    if (refocus) toggle.focus();
+  }
+}
+/** Escape, a press outside, a resize or a scroll closes the floating row; attached once, with the buttons. */
+function _langSwitchListen() {
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && document.getElementById('lang-switch') && document.getElementById('lang-switch').classList.contains('is-open')) _langSwitchClose(true);
+  });
+  document.addEventListener('pointerdown', function (e) {
+    if (!e.target || !e.target.closest || !e.target.closest('#lang-switch')) _langSwitchClose(false);
+  });
+  window.addEventListener('resize', function () { _langSwitchClose(false); });
+  window.addEventListener('scroll', function () { _langSwitchClose(false); }, true);
 }
 
 (function () {
@@ -51169,8 +51228,10 @@ async function tosBoardSnapshot() {
         // agent's manifest. The id is only a request — the room opens it only
         // if its own registry read names it, and the manifest is read through
         // the room's owner-only endpoint like every other.
-        // The top bar's language switch (Platform Owner): one of its three languages.
+        // The top bar's language switch (Platform Owner): one of the official languages,
+        // and, on a phone, the one button that opens them.
         case 'setUiLocale': _langSwitchTo(el); break;
+        case 'toggleLangSwitch': _langSwitchToggle(); break;
         case 'openAgentInRoom': {
           _famAgentsRoomOpen = el.dataset.agentId || null;
           try { navTo('agents-room', null); }
