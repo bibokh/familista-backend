@@ -3038,7 +3038,7 @@ body.club-theme .lang-switch-menu{ display: contents; }
   body.club-theme .lang-switch-menu{
     display: inline-flex; gap: 2px; padding: 3px; position: fixed; z-index: 1200;
     border-radius: var(--r-md); background: var(--bg-elevated); border: 1px solid var(--b-default);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+    box-shadow: var(--sh-2);
     opacity: 0; transform: translateY(-4px); visibility: hidden; pointer-events: none;
     transition: opacity 150ms ease, transform 150ms ease, visibility 0s linear 150ms;
   }
