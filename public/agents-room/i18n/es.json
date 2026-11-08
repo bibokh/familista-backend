@@ -143,7 +143,7 @@
   "Manifest digest": "Resumen del manifiesto",
   "Manifests agree with the egress profiles": "Los manifiestos coinciden con los perfiles de salida",
   "Manifests and checks the server computes, and the runtime's own totals: no club, no person, no record. Lifecycles are what the manifests declare; the Runtime panel is what the platform's agents did in the last 24 hours, counted across every club. An agent or a domain added to the registry appears here without a change to this room.": "Manifiestos y comprobaciones que calcula el servidor, y los totales propios del runtime: ningún club, ninguna persona, ningún registro. Los ciclos de vida son los que declaran los manifiestos; el panel Runtime muestra lo que hicieron los agentes de la plataforma en las últimas 24 horas, contando todos los clubes. Un agente o un dominio añadido al registro aparece aquí sin cambiar esta sala.",
-  "Runtime": "Runtime",
+  "Runtime": "Entorno de ejecución",
   "Last %d hours": "Últimas %d horas",
   "Reading the runtime…": "Leyendo el runtime…",
   "The runtime could not be read": "No se pudo leer el runtime",

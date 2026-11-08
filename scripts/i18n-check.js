@@ -32,6 +32,9 @@
 //   7 · rooms      Every owner room ships a catalogue for every official
 //                  language (`official: n` in the registry) with the same keys
 //                  as its English one and every placeholder kept.
+//   8 · official   An official language carries no English placeholder, and
+//                  nothing in it reads exactly as English unless that entry is
+//                  reviewed in scripts/i18n-same-as-english.json.
 //   6 · backlog    The number of displayable source strings with no catalogue
 //                  entry may not grow. This does not demand the pre-existing
 //                  backlog be cleared; it demands a new feature not add to it.
@@ -326,10 +329,32 @@ const samePlaceholders = (key, value) => placeholders(key) === placeholders(valu
 const rooms = fs.readdirSync(path.join(ROOT, 'public'), { withFileTypes: true })
   .filter((d) => d.isDirectory() && d.name !== 'i18n' && fs.existsSync(path.join(ROOT, 'public', d.name, 'i18n', 'en.json')))
   .map((d) => d.name).sort();
+// ── written the same as English, in an official language ─────────────────────
+// Some entries are right as English: product names, words a language spells the
+// same, units and tokens. Each one is listed, reviewed, in
+// scripts/i18n-same-as-english.json; any other entry an official language writes
+// exactly as English is an untranslated string passing as a translation, and
+// fails here. A listed entry that has since been translated is only a note.
+const SAME_FILE = path.join(ROOT, 'scripts/i18n-same-as-english.json');
+let reviewedSame = { rooms: {}, catalogue: {} };
+if (fs.existsSync(SAME_FILE)) {
+  try { reviewedSame = JSON.parse(readText(SAME_FILE)); } catch (e) { fail('files', `${path.relative(ROOT, SAME_FILE)} is not valid JSON — ${e.message}`); }
+}
+const looksWorded = (k) => /[a-z]{3}/i.test(k);
+const staleSame = [];
+/** Entries of `cat` written as their English key and not reviewed under `where`. */
+function unreviewedSame(group, where, cat, keys) {
+  // The catalogue writes a digit run as a slot; the reviewed list, like a room, writes it as %d.
+  const toKey = (k) => (group === 'catalogue' ? k.split('%d').join(SLOT) : k);
+  const listed = new Set(((reviewedSame[group] || {})[where] || []).map(toKey));
+  const same = keys.filter((k) => cat[k] === k && looksWorded(k));
+  for (const k of listed) if (!same.includes(k)) staleSame.push(`${where}: ${k.split(SLOT).join('%d')}`);
+  return same.filter((k) => !listed.has(k));
+}
+
 if (OFFICIAL.length && rooms.length) {
   const codes = OFFICIAL.map((l) => l.tag.toLowerCase().split('-')[0]);
   let keys = 0;
-  const sameAsEnglish = [];
   for (const room of rooms) {
     const dir = path.join('public', room, 'i18n');
     let en;
@@ -351,13 +376,28 @@ if (OFFICIAL.length && rooms.length) {
       if (extra.length) fail('rooms', `${file}: ${extra.length} entr(ies) the English catalogue does not have — ${extra.slice(0, 3).join(' | ')}`);
       if (empty.length) fail('rooms', `${file}: ${empty.length} empty entr(ies) — ${empty.slice(0, 3).join(' | ')}`);
       if (broken.length) fail('rooms', `${file}: ${broken.length} entr(ies) with different placeholders — ${broken.slice(0, 3).join(' | ')}`);
-      const same = enKeys.filter((k) => cat[k] === k && /[a-z]{3}/i.test(k)).length;
-      if (same) sameAsEnglish.push(`${room}/${code}:${same}`);
+      const unreviewed = unreviewedSame('rooms', `${room}/${code}`, cat, enKeys);
+      if (unreviewed.length) fail('rooms', `${file}: ${unreviewed.length} entr(ies) still read as English — ${unreviewed.slice(0, 4).join(' | ')} (translate them, or review and list them in ${path.relative(ROOT, SAME_FILE)})`);
     }
   }
   say(`  rooms     ${rooms.length} owner room(s) × ${codes.length} official languages, ${keys} entries per language`);
-  if (sameAsEnglish.length) notes.push(`owner-room entries written the same as in English (product names, codes and terms that do not change are expected here; anything else is a gap): ${sameAsEnglish.join(', ')}`);
 }
+
+if (OFFICIAL.length && baseCatalogue) {
+  const baseKeys = Object.keys(baseCatalogue);
+  for (const l of OFFICIAL.filter((x) => x.tag !== BASE)) {
+    const file = path.join(ROOT, 'public/i18n/catalogue', `${l.tag}.json`);
+    if (!fs.existsSync(file)) continue;
+    let cat;
+    try { cat = JSON.parse(readText(file)); } catch (_) { continue; }
+    const unreviewed = unreviewedSame('catalogue', l.tag, cat, baseKeys);
+    if (unreviewed.length) {
+      const show = unreviewed.slice(0, 4).map((k) => k.split(SLOT).join('%d')).join(' | ');
+      fail('catalogue', `${l.tag} is an official language and ${unreviewed.length} entr(ies) still read as English — ${show} (translate them, or review and list them in ${path.relative(ROOT, SAME_FILE)})`);
+    }
+  }
+}
+if (staleSame.length) notes.push(`${staleSame.length} reviewed same-as-English entr(ies) are now translated or gone — remove them from ${path.relative(ROOT, SAME_FILE)}: ${staleSame.slice(0, 4).join(' · ')}`);
 
 // ── the hardcoded-string ratchet ─────────────────────────────────────────────
 let backlog = null;

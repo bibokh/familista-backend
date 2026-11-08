@@ -25,6 +25,7 @@ import { OWNER_API_CONTRACTS } from '../src/contracts/owner-api.contracts';
 import { orchestrationRoomView, ORCHESTRATION_EVIDENCE_NOTICE } from '../src/platform/agents/orchestration-evidence';
 import { publicationsRoomView, APPROVAL_RULE, EXECUTION_EVIDENCE_NOTICE } from '../src/platform/agents/execution-evidence';
 import { RUNTIME_AGENTS, runtimeRegistryState } from '../src/platform/intelligence/agent-jobs';
+import { officialRoomLocales, platformI18n } from './helpers/platform-i18n';
 
 const ROOT = path.resolve(__dirname, '..');
 const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -135,9 +136,11 @@ type Room = {
  */
 type RoomOpts = { orch?: unknown; pub?: unknown; regions?: boolean; lang?: string; open?: string };
 
-function runRoom(overview: unknown, detail?: (id: string) => unknown, locale?: Record<string, string>, opts: RoomOpts = {}): Promise<Room> {
+async function runRoom(overview: unknown, detail?: (id: string) => unknown, locale?: Record<string, string>, opts: RoomOpts = {}): Promise<Room> {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const vm = require('vm');
+  // The room follows the platform language, so the platform is set to it — the real runtime, not a stand-in.
+  const platform = await platformI18n(opts.lang || (locale ? 'de' : null));
   const html: string[] = [];
   const inspHtml: string[] = [];
   const listeners: Record<string, (e: unknown) => void> = {};
@@ -162,7 +165,7 @@ function runRoom(overview: unknown, detail?: (id: string) => unknown, locale?: R
   const reply = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ success: true, data: body }) });
   const sandbox: any = {
     document: { getElementById: () => host },
-    localStorage: { getItem: () => opts.lang || (locale ? 'de' : null), setItem: () => {} },
+    I18N: platform.I18N,
     fetch: (u: string) => {
       if (String(u).includes('/i18n/')) return Promise.resolve({ ok: true, json: () => Promise.resolve(locale || {}) });
       calls.push(String(u).replace(/^.*\/system\//, '/system/'));
@@ -549,8 +552,11 @@ describe('English, German and Arabic — one catalogue each, in step', () => {
     expect(Object.keys(de).sort()).toEqual(Object.keys(en).sort());
     expect(Object.keys(ar).sort()).toEqual(Object.keys(en).sort());
     for (const [k, v] of Object.entries(en)) expect(v).toBe(k);
-    expect(fs.readdirSync(path.join(ROOT, 'public/agents-room/i18n')).sort()).toEqual(['ar.json', 'de.json', 'en.json']);
-    expect(JS).toContain("var AR_LOCALES = [['en', 'English', 'ltr'], ['de', 'Deutsch', 'ltr'], ['ar', 'العربية', 'rtl']];");
+    // One catalogue per official language, and the room's list is the registry's — never a list of its own.
+    expect(fs.readdirSync(path.join(ROOT, 'public/agents-room/i18n')).sort())
+      .toEqual(officialRoomLocales().map((l) => `${l[0]}.json`).sort());
+    expect(JS).toContain('var AR_LOCALES = window.I18N && typeof window.I18N.roomLocales === \'function\' ? window.I18N.roomLocales()');
+    expect(JS).not.toMatch(/AR_LOCALES = \[\['en'/);
   });
 
   it('translates every key: no blank, no English left behind, every %d slot kept, Arabic in Arabic script', () => {
