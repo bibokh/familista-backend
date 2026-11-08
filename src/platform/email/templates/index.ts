@@ -1,10 +1,11 @@
-// Invitation emails — three languages, one design, no secrets
+// Invitation emails — the official languages, one design, no secrets
 // ─────────────────────────────────────────────────────────────────────────────
-// Familista's product speaks 31 languages. Its transactional email speaks
-// three, deliberately: English, German and Arabic, the same set SYSTEM uses.
-// A template is a piece of engineering with a layout and a right-to-left
-// variant, not a catalogue entry, and thirty-one of them is thirty-one things
-// to keep correct.
+// Familista's interface reads every locale in the registry. Its transactional
+// email speaks the official languages only, deliberately — the set the
+// registry (src/i18n/locales.ts) marks `official`, the same set every owner
+// room speaks. A template is a piece of engineering with a layout and a
+// right-to-left variant, not a catalogue entry, so each one here is written
+// and reviewed, and a test fails when an official language has no copy.
 //
 // What is never in one of these:
 //
@@ -17,9 +18,16 @@
 // the body. It is not in the subject, not in the plain-text preamble, and it
 // exists in this process only long enough to be rendered.
 
-export type EmailLocale = 'en' | 'de' | 'ar';
+import { OFFICIAL_LOCALES, localeDir } from '../../../i18n/locales';
 
-export const EMAIL_LOCALES: EmailLocale[] = ['en', 'de', 'ar'];
+/** The language subtag of an official locale — the key the copy below is written under. */
+export type EmailLocale = 'en' | 'de' | 'ar' | 'fr' | 'es';
+
+const subtagOf = (tag: string): string => tag.toLowerCase().split(/[-_]/)[0];
+
+/** The registry tag an email is dated and directed by — "de" → "de-DE". */
+const officialTag = (locale: EmailLocale): string =>
+  OFFICIAL_LOCALES.find((l) => subtagOf(l.tag) === locale)?.tag ?? 'en-GB';
 
 /**
  * Which language to write in.
@@ -42,7 +50,7 @@ export function resolveEmailLocale(...candidates: Array<string | null | undefine
   return 'en';
 }
 
-export const isRtl = (locale: EmailLocale): boolean => locale === 'ar';
+export const isRtl = (locale: EmailLocale): boolean => localeDir(officialTag(locale)) === 'rtl';
 
 export interface InvitationEmailContext {
   /** The person's name when the inviter gave one; the address is never the name. */
@@ -82,7 +90,7 @@ const esc = (v: unknown): string =>
 const dateFor = (locale: EmailLocale, at: Date): string => {
   try {
     return new Intl.DateTimeFormat(
-      locale === 'de' ? 'de-DE' : locale === 'ar' ? 'ar' : 'en-GB',
+      officialTag(locale),
       { dateStyle: 'long', timeStyle: 'short', timeZone: 'UTC' },
     ).format(at) + ' UTC';
   } catch {
@@ -186,7 +194,61 @@ const COPY: Record<EmailLocale, Copy> = {
     footer: 'فاميليستا — كرة القدم تجمع العالم',
     noPassword: 'لن ترسل لك فاميليستا كلمة مرور عبر البريد أبداً، ولن تطلبها منك في رد.',
   },
+  fr: {
+    subjectPresident: (club) => `Invitation à diriger ${club} sur Familista`,
+    subjectStaff: (club) => `Invitation à rejoindre ${club} sur Familista`,
+    subjectResent: (club) => `Votre invitation à rejoindre ${club} sur Familista`,
+    greeting: (name) => (name ? `Bonjour ${name},` : 'Bonjour,'),
+    invitedPresident: (club, inviter) =>
+      `${inviter ? `${inviter} vous invite` : 'Vous recevez une invitation'} à présider <strong>${club}</strong> sur Familista.`,
+    invitedStaff: (club, role, inviter) =>
+      `${inviter ? `${inviter} vous invite` : 'Vous recevez une invitation'} à rejoindre <strong>${club}</strong> sur Familista en tant que <strong>${role}</strong>.`,
+    resentNotice: 'Ceci est un nouveau lien. Tout lien d’invitation précédent pour cette adresse ne fonctionne plus.',
+    ownAccount: 'Vous vous connecterez avec votre propre compte Familista et choisirez votre propre mot de passe. Personne au club, ni chez Familista, ne peut le voir.',
+    cta: 'Accepter l’invitation',
+    fallbackIntro: 'Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :',
+    expires: (when) => `Cette invitation expire le ${when} et ne peut être utilisée qu’une seule fois.`,
+    ignore: 'Si vous n’attendiez pas ce message, vous pouvez l’ignorer. Rien ne se passe tant que vous n’acceptez pas.',
+    roleLine: (role) => `Rôle : ${role}`,
+    clubLine: (club) => `Club : ${club}`,
+    accessLine: (access) => `Accès : ${access}`,
+    accessWholeClub: 'Tout le club',
+    footer: 'Familista — le football relie le monde',
+    noPassword: 'Familista ne vous enverra jamais de mot de passe par e-mail et ne vous en demandera jamais en réponse.',
+  },
+  es: {
+    subjectPresident: (club) => `Te han invitado a dirigir ${club} en Familista`,
+    subjectStaff: (club) => `Te han invitado a unirte a ${club} en Familista`,
+    subjectResent: (club) => `Tu invitación a ${club} en Familista`,
+    greeting: (name) => (name ? `Hola, ${name}:` : 'Hola:'),
+    invitedPresident: (club, inviter) =>
+      `${inviter ? `${inviter} te ha invitado` : 'Te han invitado'} a presidir <strong>${club}</strong> en Familista.`,
+    invitedStaff: (club, role, inviter) =>
+      `${inviter ? `${inviter} te ha invitado` : 'Te han invitado'} a unirte a <strong>${club}</strong> en Familista como <strong>${role}</strong>.`,
+    resentNotice: 'Este es un enlace nuevo. Cualquier enlace de invitación anterior para esta dirección ha dejado de funcionar.',
+    ownAccount: 'Iniciarás sesión con tu propia cuenta de Familista y elegirás tu propia contraseña. Nadie del club, ni nadie de Familista, puede verla.',
+    cta: 'Aceptar la invitación',
+    fallbackIntro: 'Si el botón no funciona, copia esta dirección en tu navegador:',
+    expires: (when) => `Esta invitación caduca el ${when} y solo puede usarse una vez.`,
+    ignore: 'Si no esperabas este mensaje, puedes ignorarlo. No ocurre nada hasta que aceptes.',
+    roleLine: (role) => `Función: ${role}`,
+    clubLine: (club) => `Club: ${club}`,
+    accessLine: (access) => `Acceso: ${access}`,
+    accessWholeClub: 'Todo el club',
+    footer: 'Familista — el fútbol une el mundo',
+    noPassword: 'Familista nunca te enviará una contraseña por correo electrónico ni te la pedirá en una respuesta.',
+  },
 };
+
+/**
+ * The languages this file writes, in the registry's order: every official
+ * language that has copy above. The list is the registry's, not a third one —
+ * a test fails when an official language is added without its copy, rather
+ * than letting it fall through to English unnoticed.
+ */
+export const EMAIL_LOCALES: EmailLocale[] = OFFICIAL_LOCALES
+  .map((l) => subtagOf(l.tag))
+  .filter((code): code is EmailLocale => Object.prototype.hasOwnProperty.call(COPY, code));
 
 /**
  * The shell every Familista email is drawn in.
