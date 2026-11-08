@@ -294,6 +294,13 @@ if (fs.existsSync(PENDING)) {
     const pending = JSON.parse(readText(PENDING));
     const entries = Object.entries(pending.locales || {}).filter(([, v]) => v && v.length);
     const count = entries.reduce((n, [, v]) => n + v.length, 0);
+    // An official language is one Familista promises in full, so a placeholder
+    // there is a screen that reads English to a user who chose otherwise. It is
+    // tolerated, and reported, only in the languages that are not official.
+    const officialPending = entries.filter(([t]) => OFFICIAL.some((l) => l.tag === t));
+    for (const [t, v] of officialPending) {
+      fail('catalogue', `${t} is an official language and still has ${v.length} English placeholder record(s) in ${path.relative(ROOT, PENDING)} — translate them and remove the record`);
+    }
     if (count) {
       notes.push(`${count} placeholder(s) across ${entries.length} locale(s) are English standing in for a translation (${entries.map(([t, v]) => `${t}:${v.length}`).join(', ')}) — see ${path.relative(ROOT, PENDING)}`);
     }
