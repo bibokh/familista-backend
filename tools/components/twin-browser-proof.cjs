@@ -867,6 +867,37 @@ const PHASE1 = { nodes: 921, edges: 3656 };
       await ctx.close();
     }
 
+    // every official language in turn, through the switch: direction, pressed state, the stored choice and the top bar's
+    // words follow each press; then each one survives a reload on its own
+    {
+      const { ctx, page, log } = await open({ width: 1440, height: 900 }, 'en-GB', { hash: '/#owner-home', wait: false });
+      await ownerHome(page);
+      await page.evaluate(() => { window.__t5marker = 1; });
+      const seen = [];
+      for (const l of [...OFFICIAL.slice(1), OFFICIAL[0]]) {
+        await page.click('#lang-switch [data-locale="' + l.tag + '"]');
+        const on = await inForce(page, l.tag);
+        await page.waitForTimeout(400);
+        const st = await sw(page);
+        const words = CAT(l.tag);
+        const want = l.code === 'en' ? 'Neural Digital Twin|System Updates' : words['Neural Digital Twin'] + '|' + words['System Updates'];
+        const names = await ownerNames(page);
+        seen.push({ tag: l.tag, ok: on && st.marker && st.html.dir === l.dir && st.pressed.join() === l.tag && st.stored === l.tag && names === want, dir: st.html.dir, names });
+      }
+      check('languages: each official language in turn through the switch — in force in place, its direction, its button pressed, remembered, the top bar in its words',
+        seen.length === OFFICIAL.length && seen.every((x) => x.ok) && log.errors.length === 0, seen);
+      for (const l of OFFICIAL) {
+        await page.evaluate((t) => window.I18N_APPLY.change(t), l.tag);
+        await inForce(page, l.tag);
+        await page.reload({ waitUntil: 'load' });
+        await ownerHome(page);
+        const back = await inForce(page, l.tag);
+        const st = await sw(page);
+        check('languages: ' + l.tag + ' survives a reload — the page opens in it, ' + l.dir + ', its button pressed', back && st.html.dir === l.dir && st.pressed.join() === l.tag, { html: st.html, pressed: st.pressed });
+      }
+      await ctx.close();
+    }
+
     // the twin, in French and Spanish
     for (const l of [fr, es]) {
       const { ctx, page, log } = await open({ width: 1440, height: 900 }, l.tag);

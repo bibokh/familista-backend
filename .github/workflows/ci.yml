@@ -319,7 +319,12 @@ jobs:
   # the Platform Owner navigation (Owner Control's top bar, the phone header, and the head of
   # both rooms, marking the open one; never in a Club Workspace) and System Updates (what it
   # shows is the build record's, unknown said as unknown, owner only: coach 403, no session
-  # 401; German and Arabic with no English left; tablet and phone; axe with its control).
+  # 401; German, Arabic, French and Spanish with no English left; tablet and phone; axe with
+  # its control), and T5: the official languages — the top bar's switch in registry order,
+  # each language in turn and after a reload, Enter/Space/Escape, no reload on a change,
+  # right to left for Arabic, the rooms following the platform and moving it, every width
+  # from 1440 to a phone (inline row, then a floating row that moves nothing), axe with its
+  # control.
   # `twin_floor` is each shard's floor for the twin, checked the way `min` is.
   #
   # Tools: tools/components/package.json pins playwright-core and axe-core exactly, with a
@@ -344,8 +349,8 @@ jobs:
             sections: '6,7,13a,14a,16a'
             axe: '--axe'
             min: '84'
-            twin: 'T1,T3,T4'
-            twin_floor: '70'
+            twin: 'T1,T3,T4,T5'
+            twin_floor: '114'
 
     env:
       NODE_ENV:           test
