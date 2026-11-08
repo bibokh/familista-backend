@@ -31,6 +31,7 @@
  */
 import fs from 'fs';
 import path from 'path';
+import { officialRoomLocales, platformI18n } from './helpers/platform-i18n';
 
 const ROOT = path.join(__dirname, '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -590,64 +591,101 @@ describe('8 · the language switch in the top bar', () => {
   const SWITCH = APP.slice(APP.indexOf('// ── OWNER CONTROL · the language switch in the top bar'), APP.indexOf('(function () {\n  function _boot() {\n    try { buildWorkspaceSidebar(); }'));
   const CFG = read('public/i18n/config.js');
 
-  it('is a labelled group of three real buttons, hidden until shown, and never translated', () => {
-    expect(group).toMatch(/^<div class="lang-switch" id="lang-switch" role="group" aria-label="Interface Language" data-i18n-aria="settings\.interfaceLanguage" data-no-i18n hidden>/);
-    const buttons = [...group.matchAll(/<button class="lang-switch-btn" type="button" data-action="setUiLocale" data-locale="([^"]+)" lang="([a-z]+)" aria-pressed="false">([A-Z]{2})<\/button>/g)].map((m) => `${m[1]}/${m[2]}/${m[3]}`);
-    expect(buttons).toEqual(['ar/ar/AR', 'en-GB/en/EN', 'de-DE/de/DE']);
-    // No handler, no style, and no language list of its own: the names come from the registry.
-    expect(group).not.toMatch(/\son[a-z]+=|style=|title=|العربية|Deutsch|English/);
+  it('is a labelled, empty group, hidden until shown, and never translated', () => {
+    expect(group).toBe('<div class="lang-switch" id="lang-switch" role="group" aria-label="Interface Language" data-i18n-aria="settings.interfaceLanguage" data-no-i18n hidden></div>');
+    // No button, handler, style or language list of its own: every button is drawn from the registry.
+    expect(group).not.toMatch(/<button|\son[a-z]+=|style=|title=|العربية|Deutsch|English|Français|Español/);
   });
 
-  it('offers only languages the registry declares, with the direction the registry gives them', () => {
-    for (const [tag, dir] of [['ar', 'rtl'], ['en-GB', 'ltr'], ['de-DE', 'ltr']]) {
-      expect(CFG).toMatch(new RegExp(`\\{ tag: '${tag}',\\s*label: '[^']+',\\s*dir: '${dir}' \\}`));
-    }
-    expect(SWITCH).not.toMatch(/\[\s*'ar'|'de-DE'|'en-GB'/);
+  it('offers exactly the official languages, in the registry’s order, with the direction the registry gives them', () => {
+    const official = [...CFG.matchAll(/\{ tag: '([^']+)',\s*label: '[^']+',\s*dir: '(ltr|rtl)', official: (\d+) \}/g)]
+      .sort((a, b) => Number(a[3]) - Number(b[3])).map((m) => `${m[1]}:${m[2]}`);
+    expect(official).toEqual(['en-GB:ltr', 'de-DE:ltr', 'ar:rtl', 'fr-FR:ltr', 'es-ES:ltr']);
+    expect(officialRoomLocales().map((l) => `${l[3]}:${l[2]}`)).toEqual(official);
+    // The switch names no language itself.
+    expect(SWITCH).not.toMatch(/\[\s*'ar'|'de-DE'|'en-GB'|'fr-FR'|'es-ES'/);
   });
 
-  function sandbox(now = 'en-GB', registry = [{ tag: 'ar', label: 'العربية' }, { tag: 'en-GB', label: 'English (UK)' }, { tag: 'de-DE', label: 'Deutsch' }]) {
+  const ESC = APP.slice(APP.indexOf('function _esc(s) {'), APP.indexOf('}', APP.indexOf('function _esc(s) {')) + 1);
+  /** The switch, run against the real config.js and i18n.js, in a group that parses what is drawn into it. */
+  async function sandbox(now = 'en-GB', officialOverride?: Array<{ tag: string; label: string }>) {
+    const platform = await platformI18n(now);
     const changes: string[] = [];
-    const mk = (tag: string, code: string) => ({ attrs: { 'data-locale': tag } as Record<string, string>, textContent: code, hidden: false,
-      getAttribute(k: string) { return this.attrs[k] ?? null; }, setAttribute(k: string, v: string) { this.attrs[k] = v; }, closest: (q: string) => (q === '#lang-switch' ? {} : null) });
-    const btns = [mk('ar', 'AR'), mk('en-GB', 'EN'), mk('de-DE', 'DE')];
-    const g = { hidden: true, querySelectorAll: () => btns };
+    const btns: any[] = [];
+    const mk = (attrs: Record<string, string>, text: string) => ({ attrs, textContent: text,
+      getAttribute(k: string) { return this.attrs[k] ?? null; }, setAttribute(k: string, v: string) { this.attrs[k] = v; },
+      closest: (q: string) => (q === '#lang-switch' ? {} : null) });
+    let drawn = '';
+    let draws = 0;
+    const g: any = { hidden: true,
+      set innerHTML(v: string) {
+        drawn = v; draws += 1; btns.length = 0;
+        for (const m of v.matchAll(/<button ([^>]*)>([^<]*)<\/button>/g)) {
+          const attrs: Record<string, string> = {};
+          for (const a of m[1].matchAll(/([\w-]+)="([^"]*)"/g)) attrs[a[1]] = a[2];
+          btns.push(mk(attrs, m[2]));
+        }
+      },
+      get innerHTML() { return drawn; },
+      querySelector: (q: string) => (q === '[data-locale]' ? btns[0] || null : null),
+      querySelectorAll: () => btns };
+    const I18N = officialOverride ? { ...platform.I18N, officialLocales: () => officialOverride } : platform.I18N;
     const sb: any = {
-      window: {}, document: { getElementById: (id: string) => (id === 'lang-switch' ? g : null) },
-      I18N: { locale: () => now, locales: () => registry },
-      I18N_APPLY: { change: (t: string) => { changes.push(t); now = t; return Promise.resolve({ locale: t, saved: true }); } },
+      window: {}, document: { getElementById: (id: string) => (id === 'lang-switch' ? g : null) }, String,
+      I18N,
+      I18N_APPLY: { change: (t: string) => { changes.push(t); return platform.I18N.setLocale(t).then(() => ({ locale: t, saved: true })); } },
     };
     sb.window.I18N = sb.I18N; sb.window.I18N_APPLY = sb.I18N_APPLY;
-    vm.runInNewContext(SWITCH + '\nthis.show = _langSwitchShow; this.to = _langSwitchTo;', sb);
-    return { sb, g, btns, changes };
+    vm.runInNewContext(ESC + '\n' + SWITCH + '\nthis.show = _langSwitchShow; this.to = _langSwitchTo;', sb);
+    return { sb, g, btns, changes, draws: () => draws };
   }
 
-  it('is revealed for the owner with each button named from the registry, and says which language is in force', () => {
-    const { sb, g, btns } = sandbox('de-DE');
+  it('is revealed for the owner with one button per official language, each named in its own language, and says which is in force', async () => {
+    const { sb, g, btns } = await sandbox('de-DE');
     sb.show();
     expect(g.hidden).toBe(false);
-    expect(btns.map((b) => b.attrs['aria-label'])).toEqual(['AR · العربية', 'EN · English (UK)', 'DE · Deutsch']);
-    expect(btns.map((b) => b.attrs.title)).toEqual(['العربية', 'English (UK)', 'Deutsch']);
-    expect(btns.map((b) => b.attrs['aria-pressed'])).toEqual(['false', 'false', 'true']);
+    expect(btns.map((b) => b.textContent)).toEqual(['EN', 'DE', 'AR', 'FR', 'ES']);
+    expect(btns.map((b) => b.attrs['data-locale'])).toEqual(['en-GB', 'de-DE', 'ar', 'fr-FR', 'es-ES']);
+    expect(btns.map((b) => b.attrs.lang)).toEqual(['en', 'de', 'ar', 'fr', 'es']);
+    expect(btns.map((b) => b.attrs['aria-label'])).toEqual(['EN · English (UK)', 'DE · Deutsch', 'AR · العربية', 'FR · Français', 'ES · Español (ES)']);
+    expect(btns.map((b) => b.attrs.title)).toEqual(['English (UK)', 'Deutsch', 'العربية', 'Français', 'Español (ES)']);
+    expect(btns.map((b) => b.attrs['aria-pressed'])).toEqual(['false', 'true', 'false', 'false', 'false']);
+    // Real buttons, reached by Tab and pressed with Enter or Space, through the one delegated action.
+    expect(btns.every((b) => b.attrs.type === 'button' && b.attrs['data-action'] === 'setUiLocale' && b.attrs.class === 'lang-switch-btn')).toBe(true);
   });
 
-  it('(control) a button for a language the registry does not declare is not offered', () => {
-    const { sb, btns } = sandbox('en-GB', [{ tag: 'en-GB', label: 'English (UK)' }, { tag: 'de-DE', label: 'Deutsch' }]);
-    sb.show();
-    expect(btns.map((b) => b.hidden)).toEqual([true, false, false]);
+  it('is drawn once, however often it is shown', async () => {
+    const { sb, draws } = await sandbox('fr-FR');
+    sb.show(); sb.show(); sb.show();
+    expect(draws()).toBe(1);
+  });
+
+  it('(control) a language the registry does not mark official is not offered, and with none the group stays hidden', async () => {
+    const two = await sandbox('en-GB', [{ tag: 'en-GB', label: 'English (UK)' }, { tag: 'de-DE', label: 'Deutsch' }]);
+    two.sb.show();
+    expect(two.btns.map((b) => b.attrs['data-locale'])).toEqual(['en-GB', 'de-DE']);
+    const none = await sandbox('en-GB', []);
+    none.sb.show();
+    expect(none.g.hidden).toBe(true);
+    expect(none.btns).toEqual([]);
   });
 
   it('changes language only through I18N_APPLY.change, once, and not to the language already in force', async () => {
-    const { sb, btns, changes } = sandbox('en-GB');
-    sb.to(btns[2]); sb.to(btns[2]);
+    const { sb, btns, changes } = await sandbox('en-GB');
+    sb.show();
+    const by = (tag: string) => btns.find((b) => b.attrs['data-locale'] === tag);
+    sb.to(by('fr-FR')); await new Promise((r) => setTimeout(r, 0)); sb.to(by('fr-FR'));
     await new Promise((r) => setTimeout(r, 0));
-    expect(changes).toEqual(['de-DE']);
-    sb.to(btns[0]);
+    expect(changes).toEqual(['fr-FR']);
+    sb.to(by('ar'));
     await new Promise((r) => setTimeout(r, 0));
-    expect(changes).toEqual(['de-DE', 'ar']);
-    expect(btns.map((b) => b.attrs['aria-pressed'])).toEqual(['true', 'false', 'false']);
+    sb.to(by('es-ES'));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(changes).toEqual(['fr-FR', 'ar', 'es-ES']);
+    expect(btns.map((b) => b.attrs['aria-pressed'])).toEqual(['false', 'false', 'false', 'false', 'true']);
     // A button that is not the switch's own changes nothing.
     sb.to({ getAttribute: () => 'de-DE', closest: () => null });
-    expect(changes).toEqual(['de-DE', 'ar']);
+    expect(changes).toEqual(['fr-FR', 'ar', 'es-ES']);
     // One path: the switch never caches, sets a direction or loads a locale itself.
     expect(SWITCH).not.toMatch(/localStorage|\.dir\b|setLocale\(|\.cache\(|fetch\(/);
   });

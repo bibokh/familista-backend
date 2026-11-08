@@ -40,7 +40,7 @@ export function officialRoomLocales(): Array<[string, string, 'ltr' | 'rtl', str
  * matched to its official language. Anything else leaves the platform on its
  * base language, as the shell would.
  */
-export async function platformI18n(lang?: string | null): Promise<PlatformI18n> {
+export async function platformI18n(lang?: string | null, opts: { apply?: boolean } = {}): Promise<PlatformI18n> {
   const chosen: string[] = [];
   const ctx: any = {
     console, Promise, Object, Array, String, Number, Date, Math, JSON, Intl,
@@ -51,9 +51,12 @@ export async function platformI18n(lang?: string | null): Promise<PlatformI18n> 
   ctx.window = ctx;
   vm.runInNewContext(read('public/i18n/config.js'), ctx);
   vm.runInNewContext(read('public/i18n/i18n.js'), ctx);
-  ctx.I18N_APPLY = {
-    change: (tag: string) => { chosen.push(tag); return ctx.I18N.setLocale(tag); },
-  };
+  // The shell's one path for a change of language; `apply: false` leaves it out, as a page without the shell would.
+  if (opts.apply !== false) {
+    ctx.I18N_APPLY = {
+      change: (tag: string) => { chosen.push(tag); return ctx.I18N.setLocale(tag); },
+    };
+  }
   if (lang) {
     const code = String(lang).toLowerCase().split('-')[0];
     const hit = (ctx.I18N.roomLocales() as string[][]).find((l) => l[0] === code || l[3].toLowerCase() === String(lang).toLowerCase());

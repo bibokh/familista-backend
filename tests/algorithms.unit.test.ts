@@ -18,6 +18,7 @@
  * strings are translated, and Cybersecurity covers it.
  */
 
+import { i18nBeyondRoomApi, officialCodes, officialRoomLocales } from './helpers/platform-i18n';
 import fs from 'fs';
 import path from 'path';
 import { ALGORITHMS, ALGORITHM_DOMAINS, algorithmOf } from '../src/algorithms/registry';
@@ -448,7 +449,7 @@ describe('the eighth room in the shell', () => {
   });
 });
 
-describe('the room speaks English, German and Arabic — every string it can show', () => {
+describe('the room speaks the official languages — every string it can show', () => {
   const en = json('public/algorithms/i18n/en.json');
   const de = json('public/algorithms/i18n/de.json');
   const ar = json('public/algorithms/i18n/ar.json');
@@ -543,12 +544,15 @@ describe('the room speaks English, German and Arabic — every string it can sho
     expect(missing).toEqual([]);
   });
 
-  it('carries the same keys in all three languages, each translated with its slots intact', () => {
+  it('carries the same keys in every official language, each translated with its slots intact', () => {
+    const langs = officialCodes().filter((c) => c !== 'en').map((c) => [c, json(`public/algorithms/i18n/${c}.json`)] as const);
+    expect(langs.map(([c]) => c)).toEqual(['de', 'ar', 'fr', 'es']);
     expect(Object.keys(de).sort()).toEqual(Object.keys(en).sort());
     expect(Object.keys(ar).sort()).toEqual(Object.keys(en).sort());
+    for (const [, d] of langs) expect(Object.keys(d).sort()).toEqual(Object.keys(en).sort());
     for (const k of Object.keys(en)) {
       expect(`${k}: ${en[k] === k}`).toBe(`${k}: true`);
-      for (const [tag, d] of [['de', de], ['ar', ar]] as const) {
+      for (const [tag, d] of langs) {
         expect(`${tag} ${k}: ${(d[k].match(/%d/g) || []).length}`).toBe(`${tag} ${k}: ${(k.match(/%d/g) || []).length}`);
       }
     }
@@ -556,7 +560,10 @@ describe('the room speaks English, German and Arabic — every string it can sho
 
   it('sets the page direction from the language, so Arabic reads right to left', () => {
     const js = read('public/algorithms/algorithms.js');
-    expect(js).toContain("['ar', 'العربية', 'rtl']");
+    // The languages and their directions are the registry's, read through the platform.
+    expect(js).toContain("var AL_LOCALES = window.I18N && typeof window.I18N.roomLocales === 'function' ? window.I18N.roomLocales()");
+    expect(officialRoomLocales().find((l) => l[0] === 'ar')?.[2]).toBe('rtl');
+    expect(i18nBeyondRoomApi(js)).toEqual([]);
     expect(js).toContain("host.setAttribute('dir', AL_DIR);");
   });
 });

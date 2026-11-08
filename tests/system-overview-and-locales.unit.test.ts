@@ -22,6 +22,7 @@
  * clubs.
  */
 
+import { i18nBeyondRoomApi, officialCodes } from './helpers/platform-i18n';
 import fs from 'fs';
 import path from 'path';
 
@@ -315,10 +316,27 @@ const LOCALE_DIR = path.join(ROOT, 'public/system/i18n');
 const loadLocale = (tag: string) =>
   JSON.parse(fs.readFileSync(path.join(LOCALE_DIR, `${tag}.json`), 'utf8')) as Record<string, string>;
 
-describe('SYSTEM speaks three languages, and only three', () => {
-  it('ships exactly English, German and Arabic', () => {
-    expect(fs.readdirSync(LOCALE_DIR).sort()).toEqual(['ar.json', 'de.json', 'en.json']);
-    expect(SYS_JS).toContain("var SY_LOCALES = [['en', 'English', 'ltr'], ['de', 'Deutsch', 'ltr'], ['ar', 'العربية', 'rtl']];");
+describe('SYSTEM speaks the official languages, and only those', () => {
+  it('ships exactly one catalogue per official language, from the registry’s list', () => {
+    expect(fs.readdirSync(LOCALE_DIR).sort()).toEqual(officialCodes().map((c) => `${c}.json`).sort());
+    expect(SYS_JS).toContain("var SY_LOCALES = window.I18N && typeof window.I18N.roomLocales === 'function' ? window.I18N.roomLocales()");
+    expect(SYS_JS).not.toMatch(/SY_LOCALES = \[\['en'/);
+  });
+
+  it('French and Spanish are complete, and what reads as English in them was reviewed', () => {
+    const en = loadLocale('en');
+    const reviewed = JSON.parse(read('scripts/i18n-same-as-english.json')) as { rooms: Record<string, string[]> };
+    for (const tag of ['fr', 'es']) {
+      const dict = loadLocale(tag);
+      const missing = Object.keys(en).filter((k) => !dict[k] || !dict[k].trim());
+      expect(`${tag}:${missing.join(', ')}`).toBe(`${tag}:`);
+      const listed = new Set(reviewed.rooms[`system/${tag}`] || []);
+      const untranslated = Object.keys(en).filter((k) => dict[k] === k && /[a-z]{3}/i.test(k) && !listed.has(k));
+      expect(`${tag}:${untranslated.join(' | ')}`).toBe(`${tag}:`);
+      // The state chips a person reads first are words in every language.
+      expect(dict['ACTIVE']).not.toBe('ACTIVE');
+      expect(dict['RUNNING']).not.toBe('RUNNING');
+    }
   });
 
   it('and every one of them is complete', () => {
@@ -359,12 +377,16 @@ describe('SYSTEM speaks three languages, and only three', () => {
     expect(SYS_CSS).toContain('inset-inline-end');
   });
 
-  it('lets the platform owner switch language, and remembers the choice', () => {
+  it('lets the platform owner switch language, and the choice is the platform’s, remembered by the shell', () => {
     expect(SYS_JS).toContain('data-sy-lang=');
-    expect(SYS_JS).toContain("localStorage.setItem('familista_system_locale'");
-    expect(SYS_JS).toContain("localStorage.getItem('familista_system_locale')");
-    // The switch repaints SYSTEM only.
-    expect(SYS_JS).toMatch(/setSystemLocale\(lang\.getAttribute\('data-sy-lang'\)\);\s*\n\s*paint\(host\);/);
+    // SYSTEM keeps no language of its own: it starts in the platform's and a
+    // press moves the platform's, which the shell stores under familista.locale.
+    expect(SYS_JS).not.toMatch(/familista_system_locale/);
+    expect(SYS_JS).toContain("return window.I18N && typeof window.I18N.roomLocale === 'function' ? window.I18N.roomLocale() : 'en';");
+    expect(SYS_JS).toContain("window.I18N.roomChoose(localeOf(code)[0]);");
+    expect(i18nBeyondRoomApi(SYS_JS)).toEqual([]);
+    // The switch repaints SYSTEM at once, without waiting for the platform.
+    expect(SYS_JS).toMatch(/var ready = chooseSetSystemLocale\(lang\.getAttribute\('data-sy-lang'\)\);\s*\n\s*paint\(host\);/);
   });
 });
 

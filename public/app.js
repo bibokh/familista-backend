@@ -2055,7 +2055,7 @@ function buildWorkspaceSidebar() {
 }
 // ── OWNER CONTROL · the language switch in the top bar ──────────────────────
 // Familista's official languages, one press each, for the Platform Owner. It is the
-// Settings page's own switch behind three buttons — I18N_APPLY.change applies
+// Settings page's own switch, one button per language — I18N_APPLY.change applies
 // the language at once (direction included), caches it for the next first
 // paint and saves it to the account — so there is still exactly one way the
 // interface changes language. Nothing is unmounted: the page, the open room and
