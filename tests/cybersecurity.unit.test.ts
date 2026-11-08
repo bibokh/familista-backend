@@ -33,6 +33,7 @@
  *     a stable layout, an escape hatch, and every string it shows catalogued.
  */
 
+import { i18nBeyondRoomApi, officialCodes, officialRoomLocales } from './helpers/platform-i18n';
 import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
@@ -762,18 +763,24 @@ describe('nothing moves that the reader did not move', () => {
   });
 });
 
-describe('the Command Center speaks English, German and Arabic — and only those', () => {
+describe('the Command Center speaks the official languages — and only those', () => {
   const en = JSON.parse(read(`${I18N}/en.json`));
   const de = JSON.parse(read(`${I18N}/de.json`));
   const ar = JSON.parse(read(`${I18N}/ar.json`));
   const code = codeOf(read(CS_JS));
 
-  it('ships exactly three catalogues, key for key', () => {
-    expect(fs.readdirSync(path.join(ROOT, I18N)).sort()).toEqual(['ar.json', 'de.json', 'en.json']);
+  it('ships exactly one catalogue per official language, key for key', () => {
+    expect(fs.readdirSync(path.join(ROOT, I18N)).sort()).toEqual(officialCodes().map((c) => `${c}.json`).sort());
     const keys = Object.keys(en).sort();
     expect(keys.length).toBeGreaterThan(400);
-    expect(Object.keys(de).sort()).toEqual(keys);
-    expect(Object.keys(ar).sort()).toEqual(keys);
+    for (const c of officialCodes().filter((x) => x !== 'en')) {
+      const cat = JSON.parse(read(`${I18N}/${c}.json`));
+      expect(Object.keys(cat).sort()).toEqual(keys);
+      for (const k of keys) {
+        expect(`${c} ${k}: ${(cat[k].match(/%d/g) || []).length}`).toBe(`${c} ${k}: ${(k.match(/%d/g) || []).length}`);
+        expect(`${c} ${k}: ${(cat[k].match(/%s/g) || []).length}`).toBe(`${c} ${k}: ${(k.match(/%s/g) || []).length}`);
+      }
+    }
     for (const k of keys) expect(en[k]).toBe(k);
   });
 
@@ -831,7 +838,10 @@ describe('the Command Center speaks English, German and Arabic — and only thos
   });
 
   it('sets the direction from the locale, and lays the shell out for RTL', () => {
-    expect(code).toContain("[['en', 'English', 'ltr'], ['de', 'Deutsch', 'ltr'], ['ar', 'العربية', 'rtl']]");
+    // The languages and their directions are the registry's; Arabic is the right-to-left one.
+    expect(code).toContain("var CS_LOCALES = window.I18N && typeof window.I18N.roomLocales === 'function' ? window.I18N.roomLocales()");
+    expect(officialRoomLocales().filter((l) => l[2] === 'rtl').map((l) => l[0])).toEqual(['ar']);
+    expect(i18nBeyondRoomApi(code)).toEqual([]);
     expect(code).toContain("host.setAttribute('dir', CS_DIR)");
     expect(code).toContain('CS_DIR = l[2]');
     const css = read(CS_CSS);

@@ -61,3 +61,25 @@ export async function platformI18n(lang?: string | null): Promise<PlatformI18n> 
   }
   return { I18N: ctx.I18N, chosen };
 }
+
+/** The room codes of the official languages, in the registry's order: ['en', 'de', …]. */
+export function officialCodes(): string[] {
+  return officialRoomLocales().map((l) => l[0]);
+}
+
+/**
+ * Every line of a room's source that touches the platform's language runtime
+ * other than to follow it.
+ *
+ * A room may read the official list (roomLocales), the language in force
+ * (roomLocale, locale) and, from its own switch, ask the platform to change
+ * (roomChoose, or I18N_APPLY.change — the shell's one path). It may not load the
+ * platform's bundles or catalogues, set the language behind the shell's back, or
+ * keep a language of its own in storage. Empty means it only follows.
+ */
+export function i18nBeyondRoomApi(src: string): string[] {
+  const allowed = /\bwindow\.I18N(?:_APPLY)?\b(?:\.(?:roomLocales|roomLocale|roomChoose|locale|change)\b)?/g;
+  const lines = src.split('\n').filter((line) => /\bI18N\b|\/i18n\/(?:locales|catalogue)\/|familista\.locale|setItem\([^)]*locale/i.test(line));
+  return lines.filter((line) => /\/i18n\/(?:locales|catalogue)\/|familista\.locale|setItem\([^)]*locale|\.setLocale\(/i.test(line)
+    || /\bI18N\b/.test(line.replace(allowed, ''))).map((l) => l.trim());
+}
