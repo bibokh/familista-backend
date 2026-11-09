@@ -445,6 +445,8 @@ describe('ci.yml: the PostgreSQL client matches the service it restores into', (
     if (!/BACKUP_DRILL_REQUIRED:\s*'1'/.test(drill)) problems.push('the drill is no longer required');
     if (!drill.includes('npx jest --runInBand --ci tests/backup-restore-drill.integration.test.ts')) problems.push('the drill no longer runs its test');
     if (/continue-on-error|\|\|\s*true/.test(pin + drill)) problems.push('a failure here would be ignored');
+    // A package source added for the client is trusted only through the PostgreSQL project's published key.
+    if (pin.includes('apt.postgresql.org') && !/grep -Fx B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8/.test(pin)) problems.push('the PostgreSQL apt key is not checked against its fingerprint');
     return problems;
   }
 
@@ -458,5 +460,6 @@ describe('ci.yml: the PostgreSQL client matches the service it restores into', (
     expect(clientWiringProblems(ci.replace('- name: PostgreSQL 16 client', '- name: Something else'))).toContain('no step installs the PostgreSQL 16 client');
     expect(clientWiringProblems(ci.replace("BACKUP_DRILL_REQUIRED: '1'", "BACKUP_DRILL_REQUIRED: '0'"))).toContain('the drill is no longer required');
     expect(clientWiringProblems(ci.replace('echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"', 'true'))).toContain('the pinned client is not put on PATH for the rest of the job');
+    expect(clientWiringProblems(ci.replace('grep -Fx B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8', 'cat'))).toContain('the PostgreSQL apt key is not checked against its fingerprint');
   });
 });

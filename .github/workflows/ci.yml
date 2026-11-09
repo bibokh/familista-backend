@@ -151,14 +151,27 @@ jobs:
       # or psql: the major version of the service above (postgres:16), as in
       # production. The runner image's own client can be newer, and a newer
       # pg_dump writes settings an older server refuses on restore (pg_dump 18:
-      # `SET transaction_timeout`, unknown to PostgreSQL 16). Installed from the
-      # PostgreSQL apt repository the runner image already trusts, put first on
-      # PATH for the rest of the job, and proven by version before any step runs.
+      # `SET transaction_timeout`, unknown to PostgreSQL 16). The runner's own
+      # package sources carry only its default major, so the PostgreSQL project's
+      # apt repository is added — its signing key checked against the published
+      # fingerprint first, so a different key fails here — then the client is
+      # installed, put first on PATH for the rest of the job, and proven by version.
       - name: PostgreSQL 16 client (the service's major version)
         run: |
           set -euo pipefail
-          sudo apt-get install -y -qq postgresql-client-16 \
-            || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-16; }
+          if ! apt-cache show postgresql-client-16 > /dev/null 2>&1; then
+            key="$RUNNER_TEMP/apt.postgresql.org.asc"
+            curl -fsSL --retry 3 https://www.postgresql.org/media/keys/ACCC4CF8.asc -o "$key"
+            gpg --show-keys --with-colons "$key" \
+              | awk -F: '$1 == "fpr" && !seen { print $10; seen = 1 }' \
+              | grep -Fx B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8 > /dev/null
+            sudo install -D -m 0644 "$key" /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+            . /etc/os-release
+            echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+              | sudo tee /etc/apt/sources.list.d/pgdg-ci.list > /dev/null
+            sudo apt-get update -qq
+          fi
+          sudo apt-get install -y -qq --no-install-recommends postgresql-client-16
           for bin in pg_dump pg_restore psql; do
             "/usr/lib/postgresql/16/bin/$bin" --version | grep -E "^$bin \(PostgreSQL\) 16\." > /dev/null
           done
