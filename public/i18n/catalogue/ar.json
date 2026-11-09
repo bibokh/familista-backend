@@ -1725,5 +1725,9 @@
   "Some fields are invalid.": "بعض الحقول غير صالحة.",
   "Too many requests. Slow down and retry shortly.": "طلبات كثيرة جدًا. يرجى الانتظار قليلًا ثم المحاولة مرة أخرى.",
   "Server unavailable. The backend may be restarting — please retry in \u0000s.": "الخادم غير متاح. ربما تجري إعادة تشغيله — يرجى المحاولة مرة أخرى بعد \u0000 ثانية.",
-  "Server error. Please retry shortly.": "خطأ في الخادم. يرجى المحاولة مرة أخرى بعد قليل."
+  "Server error. Please retry shortly.": "خطأ في الخادم. يرجى المحاولة مرة أخرى بعد قليل.",
+  "Back to Players": "العودة إلى اللاعبين",
+  "Back to squad": "العودة إلى الفريق",
+  "Previous": "السابق",
+  "Next": "التالي"
 }

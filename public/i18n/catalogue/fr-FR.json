@@ -1725,5 +1725,9 @@
   "Some fields are invalid.": "Certains champs sont invalides.",
   "Too many requests. Slow down and retry shortly.": "Trop de requêtes. Patientez un instant avant de réessayer.",
   "Server unavailable. The backend may be restarting — please retry in \u0000s.": "Serveur indisponible. Il est peut-être en cours de redémarrage — veuillez réessayer dans \u0000 secondes.",
-  "Server error. Please retry shortly.": "Erreur du serveur. Veuillez réessayer dans un instant."
+  "Server error. Please retry shortly.": "Erreur du serveur. Veuillez réessayer dans un instant.",
+  "Back to Players": "Retour aux joueurs",
+  "Back to squad": "Retour à l'effectif",
+  "Previous": "Précédent",
+  "Next": "Suivant"
 }
