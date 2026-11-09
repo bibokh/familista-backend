@@ -3,6 +3,8 @@
    ============================================================ */
 :root {
   --green:     #16A34A;
+  --green-700: #15803D;   /* the primary action's fill: white on it 5.02:1 (--green gives 3.30:1); = the club theme's --pitch-700 */
+  --green-800: #166534;   /* its hover: 7.13:1; = --pitch-800. Declared here so the sign-in screen has them before app.js runs */
   --green-l:   #22C55E;
   --green-bg:  rgba(22,163,74,.09);
   --green-bd:  rgba(22,163,74,.22);
@@ -92,16 +94,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
 #login-mfa-code{font-family:var(--mono);letter-spacing:.14em;direction:ltr;text-align:left;}
 .login-btn{
   width:100%;padding:10px;border-radius:var(--radius);
-  background:#15803D;color:#fff;border:none;
+  background:var(--green-700);color:#fff;border:none;
   font-family:var(--font);font-size:14px;font-weight:600;
   cursor:pointer;transition:all var(--trans);
 }
 /* The primary action's white label needs 4.5:1 (WCAG 2.2 AA). --green (#16A34A) gives 3.30:1, so the fill is the
-   next step of the same green: #15803D 5.02:1, hover #166534 7.13:1, pressed #14532D 9.11:1. --green itself is
-   unchanged — bars, toggles and status fills keep it. The keyboard ring is --green, 2px outside the button:
-   5.7:1 against the dark card and 3.3:1 against the light one (3:1 needed). The same holds for .btn-primary. */
-.login-btn:hover{background:#166534;transform:translateY(-1px);}
-.login-btn:active{background:#14532D;}
+   next steps of the same green (:root, the club theme's --pitch-700 and --pitch-800): --green-700 5.02:1, hover
+   --green-800 7.13:1, pressed that fill at 88% brightness (label and fill together) 6.4:1. --green itself is
+   unchanged — bars, toggles and status fills keep it. The keyboard ring is --green, 2px outside the button: 5.7:1
+   against the dark card and 3.3:1 against the light one (3:1 needed). The same holds for .btn-primary. */
+.login-btn:hover{background:var(--green-800);transform:translateY(-1px);}
+.login-btn:active{background:var(--green-800);filter:brightness(.88);}
 .login-btn:focus-visible{outline:2px solid var(--green);outline-offset:2px;}
 .login-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;}
 .login-error{
@@ -377,9 +380,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
   font-family:var(--font);font-size:13px;font-weight:600;
   border:none;cursor:pointer;transition:all var(--trans);white-space:nowrap;
 }
-.btn-primary{background:#15803D;color:#fff;box-shadow:0 1px 3px rgba(22,163,74,.3);}
-.btn-primary:hover{background:#166534;transform:translateY(-1px);}
-.btn-primary:active{background:#14532D;}
+.btn-primary{background:var(--green-700);color:#fff;box-shadow:0 1px 3px rgba(22,163,74,.3);}
+.btn-primary:hover{background:var(--green-800);transform:translateY(-1px);}
+.btn-primary:active{background:var(--green-800);filter:brightness(.88);}
 .btn-primary:focus-visible{outline:2px solid var(--green);outline-offset:2px;}
 .btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none;}
 .btn-outline{background:none;color:var(--tx-2);border:1px solid var(--bd);}
@@ -1096,11 +1099,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
 
 /* ── PREMIUM BUTTONS ── */
 .btn-primary {
-  background: linear-gradient(135deg, #15803D, #166534);
+  background: linear-gradient(135deg, var(--green-700), var(--green-800));
   box-shadow: 0 1px 3px rgba(22,163,74,.3), 0 0 0 1px rgba(22,163,74,.15);
 }
 .btn-primary:hover {
-  background: linear-gradient(135deg, #166534, #14532D);
+  background: var(--green-800);
   box-shadow: 0 4px 12px rgba(22,163,74,.4), 0 0 0 1px rgba(22,163,74,.2);
 }
 

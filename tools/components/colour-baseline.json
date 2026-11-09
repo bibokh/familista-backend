@@ -7,7 +7,7 @@
       "public/app.css": 5
     },
     "button": {
-      "public/app.css": 12
+      "public/app.css": 7
     },
     "card": {
       "public/app.css": 6
@@ -86,7 +86,7 @@
     }
   },
   "files": {
-    "public/app.css": 7132,
+    "public/app.css": 7128,
     "public/design-system/design-system.css": 0
   }
 }

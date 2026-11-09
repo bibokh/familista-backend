@@ -38,18 +38,37 @@ export function contrast(a: string, b: string): number {
   return Math.round(((x + 0.05) / (y + 0.05)) * 100) / 100;
 }
 
-/** Every fill a stylesheet gives a selector, in any state: [selector, hex] for each colour in a background declaration. */
-export function fills(css: string, cls: string): Array<[string, string]> {
-  const out: Array<[string, string]> = [];
+/** The stylesheet's own custom properties, first definition of each (the club theme's --pitch-* scale, :root's --green). */
+const customProps = (css: string): Record<string, string> => {
+  const out: Record<string, string> = {};
+  for (const m of css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(--[\w-]+)\s*:\s*([^;{}]+);/g)) if (!(m[1] in out)) out[m[1]] = m[2].trim();
+  return out;
+};
+/** A value with every var() replaced by its definition, or by its fallback when the property is not defined. */
+const resolveVars = (v: string, props: Record<string, string>, depth = 0): string => {
+  if (depth > 8) return v;
+  const next = v.replace(/var\(\s*(--[\w-]+)\s*(?:,\s*((?:[^()]|\([^()]*\))*))?\)/g, (_m, name, fb) => (props[name] ?? fb ?? ''));
+  return next === v ? v : resolveVars(next, props, depth + 1);
+};
+/** Every fill a stylesheet gives a selector, in any state: [selector, hex, brightness] for each colour its background resolves to. */
+export function fills(css: string, cls: string): Array<[string, string, number]> {
+  const out: Array<[string, string, number]> = [];
+  const props = customProps(css);
   const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
   for (const m of body.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
     const sels = m[1].split(',').map((x) => x.trim()).filter((x) => new RegExp('(^|\\s)\\.' + cls + '(?![\\w-])').test(x));
     if (!sels.length) continue;
+    const bright = Number(((m[2].match(/filter\s*:\s*brightness\(([\d.]+)\)/) || [])[1]) || 1);
     for (const d of m[2].matchAll(/background(?:-color)?\s*:\s*([^;]+)/g)) {
-      for (const hex of d[1].match(/#[0-9a-fA-F]{6}\b/g) || []) out.push([sels.join(', '), hex.toUpperCase()]);
+      for (const hex of resolveVars(d[1], props).match(/#[0-9a-fA-F]{6}\b/g) || []) out.push([sels.join(', '), hex.toUpperCase(), bright]);
     }
   }
   return out;
+}
+/** A white label on a fill, both dimmed by the rule's brightness filter. */
+export function labelContrast(hex: string, bright = 1): number {
+  const dim = (h: string) => '#' + [0, 2, 4].map((i) => Math.round(parseInt(h.replace('#', '').slice(i, i + 2), 16) * bright).toString(16).padStart(2, '0')).join('');
+  return contrast(dim('#FFFFFF'), dim(hex));
 }
 
 // ── back arrows in code ───────────────────────────────────────────────────────
@@ -181,14 +200,19 @@ describe('the green primary action can be read and reached', () => {
     for (const cls of ['login-btn', 'btn-primary']) {
       const f = fills(CSS, cls);
       expect(f.length).toBeGreaterThanOrEqual(3);
-      for (const [sel, hex] of f) expect([sel, hex, contrast(WHITE, hex) >= 4.5]).toEqual([sel, hex, true]);
+      for (const [sel, hex, b] of f) expect([sel, hex, b, labelContrast(hex, b) >= 4.5]).toEqual([sel, hex, b, true]);
       expect(CSS).toMatch(new RegExp('\\.' + cls + '[^{]*\\{[^}]*color:\\s*#fff'));
+      // the fills are named once on :root, so the sign-in screen has them before app.js adds the club theme
+      expect(CSS).toContain('.' + cls + ':active{background:var(--green-800);filter:brightness(.88);}');
     }
-    expect(contrast(WHITE, '#15803D')).toBe(5.02);
-    expect(contrast(WHITE, '#166534')).toBe(7.13);
-    expect(contrast(WHITE, '#14532D')).toBe(9.11);
-    expect(CSS).toContain('.login-btn:active{background:#14532D;}');
-    expect(CSS).toContain('.btn-primary:active{background:#14532D;}');
+    const props = customProps(CSS);
+    expect([props['--green-700'], props['--green-800']]).toEqual(['#15803D', '#166534']);
+    expect([props['--pitch-700'], props['--pitch-800']]).toEqual(['#15803D', '#166534']);
+    const root = CSS.slice(CSS.indexOf(':root {'), CSS.indexOf('}', CSS.indexOf(':root {')));
+    expect(root).toMatch(/^:root \{[\s\S]*--green-700: #15803D;[\s\S]*--green-800: #166534;/);
+    expect(labelContrast('#15803D')).toBe(5.02);
+    expect(labelContrast('#166534')).toBe(7.13);
+    expect(labelContrast('#166534', 0.88)).toBe(6.37);
   });
 
   it('the shared green is left as it was: bars, toggles and status fills keep it', () => {
@@ -231,9 +255,11 @@ describe('the checks, watched working', () => {
 
   it('(control) the green this replaces is caught: 3.30:1, in a rule or a gradient', () => {
     expect(contrast(WHITE, '#16A34A')).toBe(3.3);
-    const old = '.login-btn{background:var(--green);color:#fff;}\n.btn-primary {\n  background: linear-gradient(135deg, #16A34A, #15803D);\n}';
-    const bad = fills(old.replace('var(--green)', '#16A34A'), 'login-btn').concat(fills(old, 'btn-primary')).filter(([, h]) => contrast(WHITE, h) < 4.5);
+    const old = ':root{ --green: #16A34A; }\n.login-btn{background:var(--green);color:#fff;}\n.btn-primary {\n  background: linear-gradient(135deg, #16A34A, #15803D);\n}';
+    const bad = fills(old, 'login-btn').concat(fills(old, 'btn-primary')).filter(([, h, b]) => labelContrast(h, b) < 4.5);
     expect(bad.map(([, h]) => h)).toEqual(['#16A34A', '#16A34A']);
+    // a property that is not defined is no colour at all: the check does not count it as a pass
+    expect(fills('.login-btn{background:var(--nowhere);}', 'login-btn')).toEqual([]);
     expect(fills('.sq-btn-primary{ background:#f4b740; }', 'btn-primary')).toEqual([]);
   });
 });

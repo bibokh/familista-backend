@@ -35,8 +35,8 @@
    "id": "legacy-map",
    "path": "tools/tokens/legacy-map.json",
    "label": "Every custom property production declares, mapped to a token",
-   "sha256": "a053c6aeccfab9b401d3954ee1ec840cce8bed8185c4214a1152e1a44011d854",
-   "bytes": 340506
+   "sha256": "8189582b215309a8847c0d09438cc46c95571d37a770a2ae090de8af74b47260",
+   "bytes": 341304
   },
   {
    "id": "contrast-baseline",
@@ -114,7 +114,7 @@
   "legacyMap": {
    "declarations": {
     "state": "MEASURED",
-    "value": 730,
+    "value": 732,
     "source": "legacy-map"
    },
    "byStatus": {
@@ -124,7 +124,7 @@
      "dead-overridden": 53,
      "dead-redeclared": 20,
      "diverges": 262,
-     "equal": 210,
+     "equal": 212,
      "light-theme": 25,
      "no-canonical-role": 15,
      "separate-surface": 95

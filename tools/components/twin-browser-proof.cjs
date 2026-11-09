@@ -1037,6 +1037,11 @@ const PHASE1 = { nodes: 921, edges: 3656 };
       return { id: a.id || null, cls: a.className || null, auth: a.getAttribute('data-show-auth'), visible: a.matches(':focus-visible'),
         outline: cs.outlineStyle + ' ' + cs.outlineWidth + ' ' + cs.outlineColor };
     });
+    // Every transition on an element (the focused one when `sel` is null) has run: what is read is what stays on screen.
+    const settled = (pg, sel) => pg.waitForFunction((sel) => {
+      const e = sel ? document.querySelector(sel) : document.activeElement;
+      return !!e && e.getAnimations().every((a) => a.playState !== 'running' && a.playState !== 'pending');
+    }, sel, { timeout: 5000, polling: 50 }).then(() => pg.waitForTimeout(50), () => {});
     const ringOk = (f) => !!f && f.visible && /^solid (2|3)px rgb\(22, 163, 74\)$/.test(f.outline);
     const tabTo = async (pg, match, max) => {
       const seen = [];
@@ -1044,12 +1049,8 @@ const PHASE1 = { nodes: 921, edges: 3656 };
         await pg.keyboard.press('Tab');
         const f = await focusInfo(pg);
         seen.push(f ? (f.id || f.auth || String(f.cls).split(' ')[0]) : 'body');
-        // The button eases its outline in (transition: all .15s): measured once two readings 150 ms apart agree.
-        if (f && match(f)) {
-          let prev = f, cur = f;
-          for (let k = 0; k < 20; k++) { await pg.waitForTimeout(150); cur = await focusInfo(pg); if (cur && prev && cur.outline === prev.outline) break; prev = cur; }
-          return { f: cur, seen };
-        }
+        // The button eases its outline in (transition: all .15s): measured once the element's own transitions have finished.
+        if (f && match(f)) { await settled(pg, null); return { f: await focusInfo(pg), seen }; }
       }
       return { f: null, seen };
     };
@@ -1067,6 +1068,7 @@ const PHASE1 = { nodes: 921, edges: 3656 };
         // the sign-in screen, as a visitor
         {
           const { ctx, page, log } = await signedOut(vp, l.tag);
+          await settled(page, '#login-btn');
           const c = await contrastOf(page, '#login-btn');
           check('back & contrast ' + at + ': the sign-in button\'s label reaches 4.5:1 (' + (c && c.min) + ':1)', !!c && c.min >= 4.5, c);
           let ok = true; const detail = {};
@@ -1150,7 +1152,7 @@ const PHASE1 = { nodes: 921, edges: 3656 };
         const a = await pointing(o.page, '.cp-back');
         check('back & contrast (control): without the right-to-left rule, the same measurement sees Arabic "back" pointing left', !!a && a.points === 'left', a);
         await o.ctx.close();
-        const oldGreen = css.replace('background:#15803D;color:#fff;border:none;', 'background:var(--green);color:#fff;border:none;');
+        const oldGreen = css.replace('background:var(--green-700);color:#fff;border:none;', 'background:var(--green);color:#fff;border:none;');
         if (oldGreen === css) throw new Error('T6 control: the sign-in button fill was not found in app.css');
         o = await signedOut(WIDTHS[0], 'en-GB', serve(oldGreen, 'text/css', '/app.css'));
         const c = await contrastOf(o.page, '#login-btn');
