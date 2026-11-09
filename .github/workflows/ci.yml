@@ -383,8 +383,8 @@ jobs:
             sections: '6,7,13a,14a,16a'
             axe: '--axe'
             min: '84'
-            twin: 'T1,T3,T4,T5'
-            twin_floor: '114'
+            twin: 'T1,T3,T4,T5,T6'
+            twin_floor: '183'
 
     env:
       NODE_ENV:           test

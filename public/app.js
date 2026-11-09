@@ -5174,7 +5174,7 @@ function renderClubs() {
   el.innerHTML = `
     <div class="cp-wrap">
       <div class="cp-hero">
-        ${ownerChrome ? '<button class="cp-back" data-action="navTo" data-page="owner-home" type="button">← Owner Home</button>' : ''}
+        ${ownerChrome ? '<button class="cp-back" data-action="navTo" data-page="owner-home" type="button">' + _dirArrow() + ' Owner Home</button>' : ''}
         <h1 class="cp-title">Clubs</h1>
         <div class="cp-sub">${ownerChrome ? 'Pick a club workspace to enter' : 'The clubs you work with'}</div>
       </div>
@@ -18058,7 +18058,7 @@ function _mccHeadHtml() {
   return '<header class="mcc-head' + (scoped ? ' mcc-head--scoped' : '') + '">'
     + '<div class="mcc-head-top">'
     + (scoped ? '' : '  <button class="mcx-back" type="button" data-action="navTo" data-page="club-home">'
-        + _lgIcon('back') + '<span>Club Workspace</span></button>')
+        + _dirArrow(_lgIcon('back')) + '<span>Club Workspace</span></button>')
     + '  <div class="mcc-title-wrap">'
     + '    <div class="mcc-eyebrow"' + (scoped ? ' data-user-content' : '') + '>'
     + (scoped ? _esc(teamName) : 'First Team') + '</div>'
@@ -18402,7 +18402,7 @@ function _mcWorkspaceHtml() {
 
     var ident = '<div class="mcx-head-id">'
       + '  <button class="mcx-back" type="button" data-action="mccClose">'
-      + _lgIcon('back') + '<span>' + (_MCC.returnTo && _MCC.returnTo.page === 'familista-league'
+      + _dirArrow(_lgIcon('back')) + '<span>' + (_MCC.returnTo && _MCC.returnTo.page === 'familista-league'
           ? 'Back to Familista League' : 'Back to the calendar') + '</span></button>'
       + '  <div class="mcx-eyebrow">'
       + (ctx ? '<span data-user-content>' + _esc(ctx.name) + '</span>' : 'Match')
@@ -40881,7 +40881,7 @@ function _renderAnalyticsPlayers(el) {
       : '<div style="color:var(--tx-3);font-size:12px;margin-bottom:10px;">No injury history</div>';
 
     el.innerHTML = `
-      <button class="btn btn-ghost btn-sm" style="margin-bottom:14px;" onclick="_analyticsPlayerId=null;_analyticsPlayerData=null;renderAnalyticsPage();">← Back to Players</button>
+      <button class="btn btn-ghost btn-sm" style="margin-bottom:14px;" onclick="_analyticsPlayerId=null;_analyticsPlayerData=null;renderAnalyticsPage();">${_dirArrow()} Back to Players</button>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div>
           <div class="card" style="padding:16px;margin-bottom:12px;">
@@ -42672,7 +42672,7 @@ function _pcRenderDetail(el, p) {
   }).filter(Boolean);
 
   el.innerHTML = `
-    <button type="button" class="pc-back-btn" data-action="pcBackToList">← Back to squad</button>
+    <button type="button" class="pc-back-btn" data-action="pcBackToList">${_dirArrow()} Back to squad</button>
     <div class="pc-detail">
       <div class="pc-detail-head">
         <div class="pc-avatar pc-detail-avatar" style="background:${grad};">
@@ -43246,7 +43246,7 @@ function renderTrainingDetailPanel(s, el) {
 
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-      <button class="btn btn-outline btn-sm" data-action="trainingBack">← Back</button>
+      <button class="btn btn-outline btn-sm" data-action="trainingBack">${_dirArrow()} Back</button>
       <div style="flex:1;font-size:14px;font-weight:700;color:var(--tx);">${_esc(s.title)}</div>
       ${canEdit ? `<button class="btn btn-outline btn-sm" data-action="editTraining" data-id="${_esc(s.id)}">Edit</button>` : ''}
       ${canDel  ? `<button class="btn btn-danger  btn-sm" data-action="deleteTraining" data-id="${_esc(s.id)}">Delete</button>` : ''}
@@ -43917,7 +43917,7 @@ async function _renderPlayerMedProfile(playerId, el) {
 
     el.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-        <button class="btn btn-outline btn-sm" onclick="_medProfileId=null;renderMedicalPage();">← Players</button>
+        <button class="btn btn-outline btn-sm" onclick="_medProfileId=null;renderMedicalPage();">${_dirArrow()} Players</button>
         <div style="flex:1;font-size:14px;font-weight:700;color:var(--tx);">${_esc(player.firstName)} ${_esc(player.lastName)}</div>
         <span class="badge ${rs.badge}">${rs.label}</span>
       </div>
@@ -44370,7 +44370,7 @@ function _renderPerfHistory(el) {
   if (snapshots.length === 0) {
     el.innerHTML =
       `<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-        <button class="btn btn-ghost btn-sm" onclick="_perfHistoryId=null;renderPerformancePage();">← Back</button>
+        <button class="btn btn-ghost btn-sm" onclick="_perfHistoryId=null;renderPerformancePage();">${_dirArrow()} Back</button>
         <div style="font-size:15px;font-weight:700;color:var(--tx);">${player.firstName} ${player.lastName}</div>
       </div>` +
       emptyHTML('No snapshots yet', 'Record attributes to start tracking performance history.');
@@ -44379,7 +44379,7 @@ function _renderPerfHistory(el) {
 
   el.innerHTML =
     `<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-      <button class="btn btn-ghost btn-sm" onclick="_perfHistoryId=null;renderPerformancePage();">← Back</button>
+      <button class="btn btn-ghost btn-sm" onclick="_perfHistoryId=null;renderPerformancePage();">${_dirArrow()} Back</button>
       <div style="font-size:15px;font-weight:700;color:var(--tx);">${player.firstName} ${player.lastName} — Performance History</div>
     </div>` +
     `<div style="display:flex;flex-direction:column;gap:10px;">` +
@@ -44956,7 +44956,7 @@ function _renderScoutDetailView(el, p) {
   var nextStage = NEXT_STAGE_MAP[p.status];
 
   el.innerHTML = '<div style="margin-bottom:14px;display:flex;align-items:center;gap:8px;">'
-    + '<button class="btn btn-ghost btn-sm" data-action="scoutTab" data-tab="prospects">← Back</button>'
+    + '<button class="btn btn-ghost btn-sm" data-action="scoutTab" data-tab="prospects">' + _dirArrow() + ' Back</button>'
     + '<span style="color:var(--tx-3);">/</span>'
     + '<span style="font-size:13px;font-weight:600;color:var(--tx);">' + p.playerName + '</span>'
     + '<span style="margin-left:auto;display:flex;gap:6px;">'
@@ -51364,7 +51364,17 @@ function renderVideoIntelligenceHTML() {
 // ── Shared "Back" button (Training Centre + Video Intelligence): returns to the
 // previous internal page via browser history; falls back to the club Home page
 // when there is no prior internal page. Consistent Familista styling.
-function _famBackBtn() { return '<button class="fam-back" type="button" aria-label="Back"><span class="fam-back-ic">←</span>Back</button>'; }
+// ── A navigation arrow that follows the reading direction ─────────────────────
+// A control that goes back (or forward: a pager, the next round) writes its arrow
+// once, as a left-to-right reader sees it; app.css (.fam-dir-ic) mirrors it in a
+// right-to-left language, so "back" points the way that reader came, and a change
+// of language turns it in place, with no re-render. `glyph` is a character or an
+// icon's markup (default ←). Navigation only: an arrow that means data flow,
+// movement on the pitch, time, a sequence or a key is written as plain text and
+// keeps its direction in every language (tests/rtl-navigation-a11y.unit.test.ts).
+function _dirArrow(glyph) { return '<span class="fam-dir-ic" aria-hidden="true">' + (glyph == null ? '←' : glyph) + '</span>'; }
+try { if (typeof window !== 'undefined') window.famDirArrow = _dirArrow; } catch (_) {}
+function _famBackBtn() { return '<button class="fam-back" type="button" aria-label="Back"><span class="fam-back-ic fam-dir-ic" aria-hidden="true">←</span>Back</button>'; }
 function _famGoBack() {
   var before = (document.querySelector('.page.active') || {}).id; var went = false;
   try { window.history.back(); went = true; } catch (e) {}
@@ -52184,7 +52194,7 @@ function renderAcademyTeamPage() {
   var locked = !_acCanSeeInside(id);
   el.innerHTML =
     '<div class="at-head" style="--acc:' + c.accent + '">'
-      + '<button class="at-back" type="button" data-at-back>← ' + t('academy.backToAcademy') + '</button>'
+      + '<button class="at-back" type="button" data-at-back>' + _dirArrow() + ' ' + t('academy.backToAcademy') + '</button>'
       + '<div class="at-head-id">'
         + '<span class="at-head-crest">' + _viEscSafe(c.label.replace(/U/g, '').split('–')[0]) + '</span>'
         + '<div class="at-head-txt"><span class="at-head-kicker">' + _teamClubBadgeHtml() + 'ACADEMY</span>'
@@ -58839,9 +58849,9 @@ function _tfDiscPagerHtml() {
   var pages = Math.max(1, Math.ceil((d.total || 0) / (d.limit || 25)));
   var cur = d.page || 1;
   return '<div class="tf-disc-pager">'
-    + '<button type="button" class="tf-btn tf-btn--sm" data-tf-dpage="' + (cur - 1) + '"' + (cur <= 1 ? ' disabled' : '') + '>‹ PREVIOUS</button>'
+    + '<button type="button" class="tf-btn tf-btn--sm" data-tf-dpage="' + (cur - 1) + '"' + (cur <= 1 ? ' disabled' : '') + '>' + _dirArrow('‹') + ' PREVIOUS</button>'
     + '<span>' + (d.total || 0) + ' player' + ((d.total || 0) === 1 ? '' : 's') + ' · page ' + cur + ' of ' + pages + '</span>'
-    + '<button type="button" class="tf-btn tf-btn--sm" data-tf-dpage="' + (cur + 1) + '"' + (cur >= pages ? ' disabled' : '') + '>NEXT ›</button>'
+    + '<button type="button" class="tf-btn tf-btn--sm" data-tf-dpage="' + (cur + 1) + '"' + (cur >= pages ? ' disabled' : '') + '>NEXT ' + _dirArrow('›') + '</button>'
     + '</div>';
 }
 
@@ -63781,7 +63791,7 @@ function _coKind(k) {
 }
 
 function _coBackHtml(label, to) {
-  return '<button type="button" class="co-back" data-co-back="' + to + '">← ' + _coEsc(label) + '</button>';
+  return '<button type="button" class="co-back" data-co-back="' + to + '">' + _dirArrow() + ' ' + _coEsc(label) + '</button>';
 }
 
 // ── the staff identity card ──────────────────────────────────────────────────
@@ -68966,11 +68976,11 @@ function _flMatchesHtml() {
 
   var nav = '<div class="fl-rnav">'
     + '<button class="fl-rnav-btn" type="button"' + (prev == null ? ' disabled' : ' data-action="flRound" data-round="' + prev + '"') + '>'
-    +   '<span aria-hidden="true">←</span> ' + (prev == null ? 'Round' : 'Round ' + prev)
+    +   _dirArrow('←') + ' ' + (prev == null ? 'Round' : 'Round ' + prev)
     + '</button>'
     + '<div class="fl-rnav-now">ROUND ' + (m.round == null ? '—' : m.round) + '</div>'
     + '<button class="fl-rnav-btn" type="button"' + (next == null ? ' disabled' : ' data-action="flRound" data-round="' + next + '"') + '>'
-    +   (next == null ? 'Round' : 'Round ' + next) + ' <span aria-hidden="true">→</span>'
+    +   (next == null ? 'Round' : 'Round ' + next) + ' ' + _dirArrow('→')
     + '</button>'
     + '</div>';
 

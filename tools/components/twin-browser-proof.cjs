@@ -17,7 +17,10 @@
 //   PROOF_ONLY        run only these sections: T1 (exploring, languages, sizes, owner only), T2 (layout, relationships,
 //                     path, Back, intensity, the full graph), T3 (axe, with --axe), T4 (the Platform Owner navigation
 //                     and System Updates; its axe pass with --axe), T5 (the official languages: the switch, keyboard,
-//                     persistence, direction, rooms following, every width; its axe pass with --axe). All by default.
+//                     persistence, direction, rooms following, every width; its axe pass with --axe), T6 (back points back
+//                     and the primary action can be read and reached: the arrow's drawn direction, the button contrast, the
+//                     Tab order and the focus ring, desktop and phone, every official language; its axe pass with --axe).
+//                     All by default.
 //   CHROMIUM, PLAYWRIGHT_CORE, AXE_CORE   as for lab-browser-proof.cjs
 //
 // Every line is PASS, FAIL or SKIP; the last is `SUMMARY n passed, n failed, n skipped`, and the exit code is 1 if
@@ -988,6 +991,205 @@ const PHASE1 = { nodes: 921, edges: 3656 };
             const broken = (await runAxe(page)).map((x) => x.id);
             check('languages accessibility (control): a switch button stripped of its name is reported by the same run', broken.includes('button-name'), broken);
           }
+          await ctx.close();
+        }
+      }
+    }
+  }
+
+  // T6 — back points back, and the primary action can be read and reached, in every official language, on a desktop and a
+  // phone. The arrow is measured as drawn (its glyph's direction times the horizontal scale of everything between it and the
+  // control), the contrast from the computed colours, the ring from the computed outline while the keyboard has the focus.
+  if (want('T6')) {
+    const WIDTHS = [{ width: 1440, height: 900, name: 'desktop' }, { width: 390, height: 844, name: 'phone', mobile: true }];
+    const pointing = (pg, sel) => pg.evaluate((sel) => {
+      const el = [...document.querySelectorAll(sel)].find((e) => e.getClientRects().length > 0);
+      if (!el) return null;
+      const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let n, ch = null;
+      while ((n = w.nextNode())) { const m = n.data.match(/[←‹«→›»]/); if (m) { ch = m[0]; break; } }
+      // an arrow drawn as an icon (the top bar's back button) is drawn pointing left
+      const icon = ch ? null : el.querySelector('svg.fam-dir-ic');
+      if (!ch && !icon) return { text: el.textContent.trim(), points: 'none' };
+      let sx = icon || /[←‹«]/.test(ch) ? -1 : 1;
+      for (let e = icon || n.parentElement; e && e !== el.parentElement; e = e.parentElement) {
+        const t = getComputedStyle(e).transform;
+        if (t && t !== 'none' && parseFloat(t.slice(t.indexOf('(') + 1)) < 0) sx = -sx;
+      }
+      return { text: el.textContent.trim().replace(/\s+/g, ' ').slice(0, 60), points: sx < 0 ? 'left' : 'right' };
+    }, sel);
+    // The WCAG contrast of an element's label against each colour its background is painted with.
+    const contrastOf = (pg, sel) => pg.evaluate((sel) => {
+      const el = typeof sel === 'string' ? document.querySelector(sel) : null;
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      const rgb = (s) => (s.match(/rgba?\(([^)]+)\)/g) || []).map((x) => x.replace(/rgba?\(|\)/g, '').split(',').map(Number)).filter((a) => a.length < 4 || a[3] > 0);
+      const lum = (c) => { const v = c.slice(0, 3).map((x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
+      const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return Math.round(((x + 0.05) / (y + 0.05)) * 100) / 100; };
+      const fg = rgb(cs.color)[0];
+      const bgs = cs.backgroundImage && cs.backgroundImage !== 'none' ? rgb(cs.backgroundImage) : rgb(cs.backgroundColor);
+      return { fg: cs.color, bg: cs.backgroundImage !== 'none' ? cs.backgroundImage : cs.backgroundColor, min: Math.min(...bgs.map((b) => ratio(fg, b))) };
+    }, sel);
+    const focusInfo = (pg) => pg.evaluate(() => {
+      const a = document.activeElement;
+      if (!a || a === document.body) return null;
+      const cs = getComputedStyle(a);
+      return { id: a.id || null, cls: a.className || null, auth: a.getAttribute('data-show-auth'), visible: a.matches(':focus-visible'),
+        outline: cs.outlineStyle + ' ' + cs.outlineWidth + ' ' + cs.outlineColor };
+    });
+    const ringOk = (f) => !!f && f.visible && /^solid (2|3)px rgb\(22, 163, 74\)$/.test(f.outline);
+    const tabTo = async (pg, match, max) => {
+      const seen = [];
+      for (let i = 0; i < (max || 14); i++) {
+        await pg.keyboard.press('Tab');
+        const f = await focusInfo(pg);
+        seen.push(f ? (f.id || f.auth || String(f.cls).split(' ')[0]) : 'body');
+        // The button eases its outline in (transition: all .15s): measured once two readings 150 ms apart agree.
+        if (f && match(f)) {
+          let prev = f, cur = f;
+          for (let k = 0; k < 20; k++) { await pg.waitForTimeout(150); cur = await focusInfo(pg); if (cur && prev && cur.outline === prev.outline) break; prev = cur; }
+          return { f: cur, seen };
+        }
+      }
+      return { f: null, seen };
+    };
+    const view = (pg) => pg.evaluate(() => { const v = document.querySelector('[data-auth-view].auth-active'); return v ? v.dataset.authView : null; });
+    const overflow = (pg) => pg.evaluate(() => document.scrollingElement.scrollWidth - window.innerWidth);
+    const signedOut = (vp, tag, before) => open(vp, tag, { as: 'nobody', hash: '/', wait: false, mobile: vp.mobile, before })
+      .then(async (o) => { await o.page.waitForSelector('#login-btn', { timeout: 30000 }); await o.page.waitForFunction((t) => document.documentElement.lang === t, tag, { timeout: 15000 }); await o.page.waitForTimeout(400); return o; });
+    const asOwner = (vp, tag, hash, sel, before) => open(vp, tag, { hash, wait: false, mobile: vp.mobile, before })
+      .then(async (o) => { await o.page.waitForSelector(sel, { timeout: 30000 }); await o.page.waitForFunction((t) => document.documentElement.lang === t, tag, { timeout: 15000 }); await o.page.waitForTimeout(500); return o; });
+
+    for (const l of OFFICIAL) {
+      const back = l.dir === 'rtl' ? 'right' : 'left';
+      for (const vp of WIDTHS) {
+        const at = l.tag + ' ' + vp.name;
+        // the sign-in screen, as a visitor
+        {
+          const { ctx, page, log } = await signedOut(vp, l.tag);
+          const c = await contrastOf(page, '#login-btn');
+          check('back & contrast ' + at + ': the sign-in button\'s label reaches 4.5:1 (' + (c && c.min) + ':1)', !!c && c.min >= 4.5, c);
+          let ok = true; const detail = {};
+          if (vp.name === 'desktop') {
+            await page.evaluate(() => { document.activeElement && document.activeElement.blur && document.activeElement.blur(); window.scrollTo(0, 0); });
+            const toBtn = await tabTo(page, (f) => f.id === 'login-btn');
+            const toForgot = await tabTo(page, (f) => f.auth === 'forgot', 4);
+            detail.order = toBtn.seen.concat(toForgot.seen); detail.ring = toBtn.f && toBtn.f.outline;
+            ok = ringOk(toBtn.f) && ringOk(toForgot.f) && detail.order.indexOf('login-email') >= 0 && detail.order.indexOf('login-email') < detail.order.indexOf('login-password')
+              && detail.order.indexOf('login-password') < detail.order.indexOf('login-btn');
+            check('back & contrast ' + at + ': Tab reaches email, password, the button and "forgotten password" in that order, each with a 2px green ring', ok, detail);
+            const hash0 = await page.evaluate(() => location.hash);
+            await page.keyboard.press('Enter');
+            await page.waitForTimeout(400);
+            const toBack = await tabTo(page, (f) => f.auth === 'login', 6);
+            const arrow = await pointing(page, '[data-auth-view="forgot"] a.auth-link[data-show-auth="login"]');
+            await page.keyboard.press('Enter');
+            await page.waitForTimeout(400);
+            const after = { forgotOpened: true, back: arrow, ring: toBack.f && toBack.f.outline, view: await view(page), hash: await page.evaluate(() => location.hash) };
+            check('back & contrast ' + at + ': Enter opens "forgotten password"; its back link points ' + back + ', has the ring, and Enter returns to sign-in without changing the address',
+              !!arrow && arrow.points === back && ringOk(toBack.f) && after.view === 'login' && after.hash === hash0, after);
+          } else {
+            await page.click('[data-show-auth="forgot"]');
+            await page.waitForTimeout(400);
+            const arrow = await pointing(page, '[data-auth-view="forgot"] a.auth-link[data-show-auth="login"]');
+            const over = await overflow(page);
+            const btn = await page.evaluate(() => { const r = document.getElementById('fp-btn').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), innerWidth]; });
+            check('back & contrast ' + at + ': the back link points ' + back + ', nothing scrolls sideways, the button fits the screen', !!arrow && arrow.points === back && over <= 0 && btn[0] >= 0 && btn[1] <= btn[2], { arrow, over, btn });
+          }
+          if (log.errors.length) fail('back & contrast ' + at + ': page errors on the sign-in screen', log.errors);
+          await ctx.close();
+        }
+        // Owner Control → Clubs: the back button to Owner Home
+        {
+          const { ctx, page, log } = await asOwner(vp, l.tag, '/#clubs', '.cp-back');
+          const arrow = await pointing(page, '.cp-back');
+          const over = await overflow(page);
+          const r = await page.evaluate(() => { const b = document.querySelector('.cp-back').getBoundingClientRect(); return [Math.round(b.left), Math.round(b.right), innerWidth]; });
+          // it sits where reading starts: the left half to a left-to-right reader, the right half to a right-to-left one
+          const startSide = l.dir === 'rtl' ? (r[0] + r[1]) / 2 > r[2] / 2 : (r[0] + r[1]) / 2 < r[2] / 2;
+          check('back & contrast ' + at + ': Clubs → "' + (arrow && arrow.text) + '" points ' + back + ', sits on the screen at the side reading starts', !!arrow && arrow.points === back && r[0] >= 0 && r[1] <= r[2] && over <= 0 && startSide, { arrow, r, over });
+          // the club workspace pages' shared back button (Training, Academy), drawn by the application's own _famBackBtn()
+          // on this page: the same markup and the same stylesheet, without a club's data
+          await page.evaluate(() => { const h = document.createElement('div'); h.id = 't6-fam'; h.style.cssText = 'position:relative;height:56px'; h.innerHTML = window._famBackBtn(); document.querySelector('#main-content, main, .content, body').prepend(h); });
+          const fam = await pointing(page, '#t6-fam .fam-back');
+          const fr = await page.evaluate(() => { const b = document.querySelector('#t6-fam .fam-back').getBoundingClientRect(), h = document.getElementById('t6-fam').getBoundingClientRect(); return [Math.round(b.left - h.left), Math.round(h.right - b.right)]; });
+          const famStart = l.dir === 'rtl' ? fr[1] < fr[0] : fr[0] < fr[1];
+          check('back & contrast ' + at + ': the club pages\' back button (_famBackBtn) points ' + back + ' and sits at the side reading starts', !!fam && fam.points === back && famStart, { fam, gaps: fr });
+          // the club top bar's back button, which the shell shows on club pages only (body.area-home hides it): shown here, in
+          // place, to be measured, then hidden again
+          const area = await page.evaluate(() => { const had = document.body.classList.contains('area-home'); document.body.classList.remove('area-home'); document.getElementById('topbar-back').style.display = 'inline-flex'; return had; });
+          const top = await pointing(page, '#topbar-back');
+          await page.evaluate((had) => { if (had) document.body.classList.add('area-home'); document.getElementById('topbar-back').style.display = 'none'; }, area);
+          check('back & contrast ' + at + ': the club top bar\'s back button points ' + back, !!top && top.points === back, top);
+          if (vp.name === 'desktop') {
+            // the primary button wherever the platform draws one: measured at rest and under the pointer
+            await page.evaluate(() => { const b = document.createElement('button'); b.className = 'btn btn-primary'; b.id = 't6-primary'; b.textContent = 'Save'; b.style.cssText = 'position:fixed;top:4px;left:4px;z-index:99999'; document.body.appendChild(b); });
+            const rest = await contrastOf(page, '#t6-primary');
+            await page.hover('#t6-primary');
+            await page.waitForTimeout(300);
+            const hover = await contrastOf(page, '#t6-primary');
+            check('back & contrast ' + at + ': .btn-primary\'s label reaches 4.5:1 on every colour of its fill, at rest and under the pointer (' + (rest && rest.min) + ' / ' + (hover && hover.min) + ')',
+              !!rest && !!hover && rest.min >= 4.5 && hover.min >= 4.5, { rest, hover });
+          }
+          if (log.errors.length) fail('back & contrast ' + at + ': page errors as the platform owner', log.errors);
+          await ctx.close();
+        }
+      }
+    }
+
+    // controls: each measurement is shown to see the fault it guards against
+    {
+      const ar = OFFICIAL.find((x) => x.dir === 'rtl');
+      if (!ar) skip('back & contrast (control)', 'no right-to-left official language in the registry');
+      else {
+        const css = fs.readFileSync(path.join(ROOT, 'public/app.css'), 'utf8');
+        const serve = (body, type, pathname) => async (ctx) => ctx.route((u) => new URL(u).pathname === pathname, (r) => r.fulfill({ contentType: type, body }));
+        const noRule = css.replace('.fam-dir-ic:dir(rtl){ transform:scaleX(-1); }', '');
+        if (noRule === css) throw new Error('T6 control: the mirroring rule was not found in app.css');
+        let o = await asOwner(WIDTHS[0], ar.tag, '/#clubs', '.cp-back', serve(noRule, 'text/css', '/app.css'));
+        const a = await pointing(o.page, '.cp-back');
+        check('back & contrast (control): without the right-to-left rule, the same measurement sees Arabic "back" pointing left', !!a && a.points === 'left', a);
+        await o.ctx.close();
+        const oldGreen = css.replace('background:#15803D;color:#fff;border:none;', 'background:var(--green);color:#fff;border:none;');
+        if (oldGreen === css) throw new Error('T6 control: the sign-in button fill was not found in app.css');
+        o = await signedOut(WIDTHS[0], 'en-GB', serve(oldGreen, 'text/css', '/app.css'));
+        const c = await contrastOf(o.page, '#login-btn');
+        check('back & contrast (control): with the old fill (--green), the same measurement reads ' + (c && c.min) + ':1, below 4.5', !!c && c.min < 4.5, c);
+        if (WANT_AXE) {
+          const axePath = process.env.AXE_CORE || path.join(ROOT, 'tools/components/node_modules/axe-core/axe.min.js');
+          const v = await o.page.evaluate(async (src) => { if (!window.axe) (0, eval)(src); const r = await window.axe.run({ include: ['#login-screen'] }, { runOnly: { type: 'rule', values: ['color-contrast'] } }); return r.violations.map((x) => x.id); }, fs.readFileSync(axePath, 'utf8')); // eslint-disable-line no-eval
+          check('back & contrast accessibility (control): axe reports the old fill as color-contrast', v.includes('color-contrast'), v);
+        }
+        await o.ctx.close();
+        const html = (await (await fetch(BASE + '/')).text());
+        const noHref = html.replace('<a class="auth-link" href="#" data-show-auth="forgot">', '<a class="auth-link" data-show-auth="forgot">');
+        if (noHref === html) throw new Error('T6 control: the forgotten-password link was not found in index.html');
+        o = await signedOut(WIDTHS[0], 'en-GB', serve(noHref, 'text/html; charset=utf-8', '/'));
+        await o.page.evaluate(() => { document.activeElement && document.activeElement.blur && document.activeElement.blur(); });
+        const reach = await tabTo(o.page, (f) => f.auth === 'forgot', 10);
+        check('back & contrast (control): a link without href is never reached by Tab — the same walk passes it by', reach.f === null, reach.seen);
+        await o.ctx.close();
+      }
+    }
+
+    // axe on the sign-in and forgotten-password screens, every official language: nothing at WCAG 2.2 A/AA, contrast included
+    if (WANT_AXE) {
+      const axePath = process.env.AXE_CORE || path.join(ROOT, 'tools/components/node_modules/axe-core/axe.min.js');
+      if (!fs.existsSync(axePath)) skip('back & contrast accessibility: axe on the sign-in screens', 'axe-core is not installed (' + axePath + ')');
+      else {
+        const src = fs.readFileSync(axePath, 'utf8');
+        for (const l of OFFICIAL) {
+          const { ctx, page } = await signedOut(WIDTHS[0], l.tag);
+          const run = () => page.evaluate(async (src) => {
+            if (!window.axe) (0, eval)(src); // eslint-disable-line no-eval -- this script's own tool, never the page's code
+            const r = await window.axe.run({ include: ['#login-screen'] }, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] }, resultTypes: ['violations'] });
+            return r.violations.map((v) => ({ id: v.id, nodes: v.nodes.slice(0, 3).map((n) => n.target.join(' ')) }));
+          }, src);
+          const signIn = await run();
+          await page.click('[data-show-auth="forgot"]');
+          await page.waitForTimeout(400);
+          const forgot = await run();
+          check('back & contrast accessibility ' + l.tag + ': 0 axe violations (WCAG 2.2 A/AA) on sign-in and on "forgotten password"', signIn.length === 0 && forgot.length === 0, { signIn, forgot });
           await ctx.close();
         }
       }

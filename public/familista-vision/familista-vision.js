@@ -543,7 +543,7 @@
       // be hunted for is how a workspace starts to feel like a trap.
       + '<button class="vx-back" type="button" data-vx-platform="' + esc(PLATFORM_HOME) + '"'
       + ' title="Leave Familista Vision and return to the platform">'
-      + '<span class="vx-back-i" aria-hidden="true">' + ico('arrow') + '</span>'
+      + '<span class="vx-back-i fam-dir-ic" aria-hidden="true">' + ico('arrow') + '</span>'
       + '<span class="vx-back-l">Platform</span></button>'
 
       + '<span class="vx-top-sep" aria-hidden="true"></span>'

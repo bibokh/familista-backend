@@ -1722,5 +1722,9 @@
   "Some fields are invalid.": "Some fields are invalid.",
   "Too many requests. Slow down and retry shortly.": "Too many requests. Slow down and retry shortly.",
   "Server unavailable. The backend may be restarting — please retry in \u0000s.": "Server unavailable. The backend may be restarting — please retry in \u0000s.",
-  "Server error. Please retry shortly.": "Server error. Please retry shortly."
+  "Server error. Please retry shortly.": "Server error. Please retry shortly.",
+  "Back to Players": "Back to Players",
+  "Back to squad": "Back to squad",
+  "Previous": "Previous",
+  "Next": "Next"
 }

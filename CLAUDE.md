@@ -49,6 +49,13 @@ would fill it. No placeholder numbers, ever.
 **Stay on one screen.** Prefer an internal tab, a floating panel or a
 contextual overlay to a page that has to be navigated away from and back to.
 
+**Back points back in every language.** A control that goes back (or pages
+forward) writes its arrow once, in `<span class="fam-dir-ic" aria-hidden="true">←</span>`
+— `_dirArrow()` in `app.js`, `window.famDirArrow` from a module — and the
+stylesheet mirrors it right to left. An arrow that means data flow, movement on
+the pitch, time or a key is plain text and keeps its direction.
+`tests/rtl-navigation-a11y.unit.test.ts` holds the line.
+
 **Responsive and translated, in the same commit.** Every workspace carries an
 escape hatch (`max-width:980px`, `max-height:620px`) that returns the page to
 normal scrolling rather than crushing panels, and every new string goes through

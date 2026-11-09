@@ -206,10 +206,10 @@ describe('a back arrow points back', () => {
   });
 
   it('the sign-in screens write ← in English, and the code-owned back link carries no arrow', () => {
-    const links = HTML.match(/<a class="auth-link" data-show-auth="login">[^<]*<\/a>/g) || [];
+    const links = HTML.match(/<a class="auth-link" href="#" data-show-auth="login">[^<]*<\/a>/g) || [];
     expect(links.length).toBe(3);
     for (const a of links) expect(a).toContain('>← Back to sign in<');
-    expect(HTML).toContain('<a class="auth-link" data-show-auth="login" data-i18n="auth.mfa.back"></a>');
+    expect(HTML).toContain('<a class="auth-link" href="#" data-show-auth="login" data-i18n="auth.mfa.back"></a>');
     for (const l of OFFICIAL) {
       const b = json(`public/i18n/locales/${l.tag}.json`);
       expect([l.tag, /[←→]/.test(b.auth.mfa.back)]).toEqual([l.tag, false]);
