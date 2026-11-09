@@ -147,6 +147,23 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: npm run lab:publication-gate
 
+      # The PostgreSQL client for every step below that runs pg_dump, pg_restore
+      # or psql: the major version of the service above (postgres:16), as in
+      # production. The runner image's own client can be newer, and a newer
+      # pg_dump writes settings an older server refuses on restore (pg_dump 18:
+      # `SET transaction_timeout`, unknown to PostgreSQL 16). Installed from the
+      # PostgreSQL apt repository the runner image already trusts, put first on
+      # PATH for the rest of the job, and proven by version before any step runs.
+      - name: PostgreSQL 16 client (the service's major version)
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq postgresql-client-16 \
+            || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-16; }
+          for bin in pg_dump pg_restore psql; do
+            "/usr/lib/postgresql/16/bin/$bin" --version | grep -E "^$bin \(PostgreSQL\) 16\." > /dev/null
+          done
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
+
       # Cyber Defense, Step 10: a backup that has never been restored is a
       # hope, not a backup. The real pg_dump takes an encrypted, signed backup
       # of a freshly migrated and seeded database; the real pg_restore brings
@@ -157,7 +174,11 @@ jobs:
           BACKUP_DRILL_DATABASE_URL: postgresql://familista_ci:familista_ci_pw@localhost:5432/postgres
           BACKUP_DRILL_REQUIRED: '1'
         run: |
+          set -euo pipefail
           pg_dump --version
+          for bin in pg_dump pg_restore psql; do
+            "$bin" --version | grep -E "^$bin \(PostgreSQL\) 16\." > /dev/null
+          done
           npx jest --runInBand --ci tests/backup-restore-drill.integration.test.ts
 
       # Cyber Defense, Batch 6 (R9): the audit evidence is append-only in the

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-08T19:56:51.456Z",
+  "generatedAt": "2026-11-09T08:43:09.683Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -1721,6 +1721,7 @@
           "API / frontend contract verification",
           "Test suite",
           "Publication gate (replay, provenance, owner-approval enforcement)",
+          "PostgreSQL 16 client (the service's major version)",
           "Backup restore drill (real PostgreSQL)",
           "Audit evidence append-only (real PostgreSQL)",
           "Row-level security pilot (real PostgreSQL)",
@@ -1730,8 +1731,7 @@
           "Audit (blocking on high and critical)",
           "Checkout",
           "Setup Node 20",
-          "Install deps",
-          "Install the browser-proof tools (pinned, lockfile-verified, no install scripts)"
+          "Install deps"
         ],
         "services": [
           "postgres:16-alpine"
