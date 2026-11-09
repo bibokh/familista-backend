@@ -114,8 +114,10 @@ const until = async (p, f, ms = 30000) => {
 };
 
 (async () => {
+  // The machine's own Chrome when CHROMIUM names it; otherwise the browser this
+  // Playwright installed. A fixed path breaks the walk on every other machine.
   const br = await chromium.launch({
-    executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+    executablePath: process.env.CHROMIUM || undefined,
     args: ['--no-sandbox'],
   });
   const p = await br.newPage({ viewport: { width: 1600, height: 1000 } });

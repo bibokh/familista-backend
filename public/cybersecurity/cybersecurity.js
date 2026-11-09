@@ -102,7 +102,9 @@
   // it is shown as recorded, marked `lang="en"`, under a caption that says so.
   // Translating an audit record is how its meaning drifts.
 
-  var CS_LOCALES = [['en', 'English', 'ltr'], ['de', 'Deutsch', 'ltr'], ['ar', 'العربية', 'rtl']];
+  // Familista's official languages, from the locale registry (public/i18n/i18n.js, roomLocales):
+  // [code, label, dir, tag], in the switch's order. This room holds no list of its own.
+  var CS_LOCALES = window.I18N && typeof window.I18N.roomLocales === 'function' ? window.I18N.roomLocales() : [['en', 'English (UK)', 'ltr', 'en-GB']];
   var CS_DICT = {};
   var CS_LANG = 'en';
   var CS_DIR = 'ltr';
@@ -111,12 +113,9 @@
     for (var i = 0; i < CS_LOCALES.length; i++) if (CS_LOCALES[i][0] === tag) return CS_LOCALES[i];
     return CS_LOCALES[0];
   }
+  /** The platform's language when it is an official one (public/i18n/i18n.js, roomLocale), else English. */
   function initialLocale() {
-    try {
-      var v = localStorage.getItem('familista_cybersecurity_locale');
-      if (v && localeOf(v)[0] === v) return v;
-    } catch (_) {}
-    return 'en';
+    return window.I18N && typeof window.I18N.roomLocale === 'function' ? window.I18N.roomLocale() : 'en';
   }
   function loadDict(tag) {
     if (tag === 'en') { CS_DICT = {}; return Promise.resolve(); }
@@ -128,8 +127,13 @@
   function setLocale(tag) {
     var l = localeOf(tag);
     CS_LANG = l[0]; CS_DIR = l[2];
-    try { localStorage.setItem('familista_cybersecurity_locale', CS_LANG); } catch (_) {}
     return loadDict(CS_LANG);
+  }
+  /** This room's own switch: the room changes language, and the platform follows (public/i18n/i18n.js, roomChoose). */
+  function chooseSetLocale(code) {
+    var ready = setLocale(code);
+    if (window.I18N && typeof window.I18N.roomChoose === 'function') window.I18N.roomChoose(localeOf(code)[0]);
+    return ready;
   }
 
   /** One string. A digit run becomes %d; a missing key falls through to English. */
@@ -1525,7 +1529,7 @@
       var lang = t.closest('[data-cs-lang]');
       if (lang) {
         CS.langOpen = false;
-        setLocale(lang.getAttribute('data-cs-lang')).then(function () {
+        chooseSetLocale(lang.getAttribute('data-cs-lang')).then(function () {
           var body = host.querySelector('#cs-body');
           var y = body ? body.scrollTop : 0;
           paint(host);

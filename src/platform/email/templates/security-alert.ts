@@ -1,7 +1,8 @@
 // Security alert and daily digest emails — to the platform operator (R6)
 // ─────────────────────────────────────────────────────────────────────────────
-// The same three languages as every Familista transactional email (English,
-// German, Arabic, right-to-left for Arabic), and the same rules:
+// The same official languages as every Familista transactional email (see
+// templates/index.ts — right-to-left where the registry says so), and the same
+// rules:
 //
 //   · nothing sensitive in the subject — it shows on a lock screen. The
 //     subject says an alert exists, never what it is about.
@@ -9,11 +10,14 @@
 //     club id, no email address, no event payload: the operator opens the
 //     owner security view to see the rows, behind their own sign-in.
 
-export type AlertLocale = 'en' | 'de' | 'ar';
+import { EMAIL_LOCALES, isRtl, type EmailLocale } from './index';
+
+/** The operator's language: one of the official languages the email templates write. */
+export type AlertLocale = EmailLocale;
 
 export function resolveAlertLocale(tag: string | null | undefined): AlertLocale {
   const primary = String(tag ?? '').toLowerCase().split(/[-_]/)[0];
-  return primary === 'de' || primary === 'ar' ? primary : 'en';
+  return (EMAIL_LOCALES as string[]).includes(primary) ? (primary as AlertLocale) : 'en';
 }
 
 export interface AlertLine {
@@ -112,14 +116,60 @@ const COPY: Record<AlertLocale, Copy> = {
       'backup-stale': 'لا توجد نسخة احتياطية ناجحة خلال آخر 36 ساعة',
     },
   },
+  fr: {
+    alertSubject: 'Alerte de sécurité Familista',
+    digestSubject: 'Synthèse de sécurité Familista',
+    alertHeading: 'Des signaux de sécurité requièrent votre attention',
+    digestHeading: 'Synthèse de sécurité des dernières 24 heures',
+    alertIntro: (m) => `Nouveaux signaux au cours des ${m} dernières minutes :`,
+    digestIntro: 'Signaux de sécurité enregistrés, par type :',
+    held: (n) => `${n} de plus retenus pour éviter des e-mails répétés`,
+    backup: (h) => (h === null ? 'Aucune sauvegarde réussie n’est enregistrée.' : `Dernière sauvegarde réussie : il y a ${h} heures.`),
+    nothing: 'Aucun signal de sécurité n’a été enregistré.',
+    open: 'Ouvrez la vue de sécurité dans Familista, connecté en tant que propriétaire de la plateforme, pour voir le détail.',
+    footer: 'Envoyé à l’adresse définie dans SECURITY_ALERT_EMAIL. Cet e-mail ne contient aucune donnée personnelle, adresse ou identifiant.',
+    rules: {
+      'critical-event': 'Événements de sécurité critiques',
+      'tenant-mismatch': 'Tentatives d’accès aux données d’un autre club',
+      'audit-chain-broken': 'Échec de la vérification de la chaîne d’audit',
+      'login-locked': 'Comptes verrouillés après des échecs de connexion répétés',
+      'refresh-token-reuse': 'Un jeton d’actualisation a été réutilisé (session possiblement volée)',
+      'brute-force': 'Tentatives de connexion qui déclencheraient le verrouillage',
+      'backup-failed': 'Une sauvegarde planifiée a échoué',
+      'backup-stale': 'Aucune sauvegarde réussie au cours des 36 dernières heures',
+    },
+  },
+  es: {
+    alertSubject: 'Alerta de seguridad de Familista',
+    digestSubject: 'Resumen de seguridad de Familista',
+    alertHeading: 'Hay señales de seguridad que requieren tu atención',
+    digestHeading: 'Resumen de seguridad de las últimas 24 horas',
+    alertIntro: (m) => `Nuevas señales en los últimos ${m} minutos:`,
+    digestIntro: 'Señales de seguridad registradas por tipo:',
+    held: (n) => `${n} más retenidas para evitar correos repetidos`,
+    backup: (h) => (h === null ? 'No hay ninguna copia de seguridad correcta registrada.' : `Última copia de seguridad correcta: hace ${h} horas.`),
+    nothing: 'No se registró ninguna señal de seguridad.',
+    open: 'Abre la vista de seguridad en Familista, con la sesión iniciada como propietario de la plataforma, para ver los detalles.',
+    footer: 'Enviado a la dirección configurada en SECURITY_ALERT_EMAIL. Este correo no incluye datos personales, direcciones ni identificadores.',
+    rules: {
+      'critical-event': 'Eventos de seguridad críticos',
+      'tenant-mismatch': 'Intentos de acceder a los datos de otro club',
+      'audit-chain-broken': 'Falló la verificación de la cadena de auditoría',
+      'login-locked': 'Cuentas bloqueadas tras inicios de sesión fallidos repetidos',
+      'refresh-token-reuse': 'Se reutilizó un token de actualización (posible sesión robada)',
+      'brute-force': 'Intentos de inicio de sesión que activarían el bloqueo',
+      'backup-failed': 'Falló una copia de seguridad programada',
+      'backup-stale': 'Ninguna copia de seguridad correcta en las últimas 36 horas',
+    },
+  },
 };
 
 const esc = (v: unknown): string =>
   String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
 function shell(locale: AlertLocale, title: string, body: string): string {
-  const dir = locale === 'ar' ? 'rtl' : 'ltr';
-  const align = locale === 'ar' ? 'right' : 'left';
+  const dir = isRtl(locale) ? 'rtl' : 'ltr';
+  const align = isRtl(locale) ? 'right' : 'left';
   return `<!doctype html>
 <html lang="${locale}" dir="${dir}">
 <head><meta charset="utf-8"><title>${esc(title)}</title></head>
@@ -143,7 +193,7 @@ export function renderSecurityAlert(locale: AlertLocale, lines: AlertLine[], win
     const held = l.suppressed > 0 ? ` — ${c.held(l.suppressed)}` : '';
     return { html: `<li style="margin:4px 0"><strong>${esc(l.count)}</strong> × ${esc(ruleLabel(locale, l.rule))}${esc(held)}</li>`, text: `- ${l.count} × ${ruleLabel(locale, l.rule)}${held}` };
   });
-  const body = `<p>${esc(c.alertIntro(windowMinutes))}</p><ul style="padding-${locale === 'ar' ? 'right' : 'left'}:20px">${rows.map((r) => r.html).join('')}</ul><p>${esc(c.open)}</p>`;
+  const body = `<p>${esc(c.alertIntro(windowMinutes))}</p><ul style="padding-${isRtl(locale) ? 'right' : 'left'}:20px">${rows.map((r) => r.html).join('')}</ul><p>${esc(c.open)}</p>`;
   const text = [c.alertHeading, '', c.alertIntro(windowMinutes), ...rows.map((r) => r.text), '', c.open, '', c.footer].join('\n');
   return { subject: c.alertSubject, html: shell(locale, c.alertHeading, body), text, locale };
 }
@@ -152,7 +202,7 @@ export function renderSecurityDigest(locale: AlertLocale, lines: DigestLine[], h
   const c = COPY[locale];
   const nonZero = lines.filter((l) => l.count > 0);
   const list = nonZero.length
-    ? `<ul style="padding-${locale === 'ar' ? 'right' : 'left'}:20px">${nonZero.map((l) => `<li style="margin:4px 0"><strong>${esc(l.count)}</strong> × ${esc(ruleLabel(locale, l.rule))}</li>`).join('')}</ul>`
+    ? `<ul style="padding-${isRtl(locale) ? 'right' : 'left'}:20px">${nonZero.map((l) => `<li style="margin:4px 0"><strong>${esc(l.count)}</strong> × ${esc(ruleLabel(locale, l.rule))}</li>`).join('')}</ul>`
     : `<p>${esc(c.nothing)}</p>`;
   const body = `<p>${esc(c.digestIntro)}</p>${list}<p>${esc(c.backup(hoursSinceBackup))}</p><p>${esc(c.open)}</p>`;
   const text = [c.digestHeading, '', c.digestIntro, ...(nonZero.length ? nonZero.map((l) => `- ${l.count} × ${ruleLabel(locale, l.rule)}`) : [c.nothing]), '', c.backup(hoursSinceBackup), '', c.open, '', c.footer].join('\n');

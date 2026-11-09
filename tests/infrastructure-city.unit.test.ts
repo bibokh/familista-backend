@@ -35,6 +35,7 @@
  * only for the one path it happened to walk.
  */
 
+import { i18nBeyondRoomApi, officialCodes } from './helpers/platform-i18n';
 import fs from 'fs';
 import path from 'path';
 
@@ -664,19 +665,33 @@ describe('the Infrastructure City interface', () => {
 
 // ── localisation ─────────────────────────────────────────────────────────────
 
-describe('the Infrastructure City speaks English, German and Arabic — and only those', () => {
+describe('the Infrastructure City speaks the official languages — and only those', () => {
   const en = JSON.parse(read(path.join(I18N_DIR, 'en.json')));
   const de = JSON.parse(read(path.join(I18N_DIR, 'de.json')));
   const ar = JSON.parse(read(path.join(I18N_DIR, 'ar.json')));
   const src = read(CITY_JS);
   const code = codeOf(src);
 
-  it('ships exactly three catalogues', () => {
-    expect(fs.readdirSync(I18N_DIR).sort()).toEqual(['ar.json', 'de.json', 'en.json']);
+  it('ships exactly one catalogue per official language', () => {
+    expect(fs.readdirSync(I18N_DIR).sort()).toEqual(officialCodes().map((c) => `${c}.json`).sort());
   });
 
-  it('declares the three locales and their directions', () => {
-    expect(code).toContain("[['en', 'English', 'ltr'], ['de', 'Deutsch', 'ltr'], ['ar', 'العربية', 'rtl']]");
+  it('reads the official languages and their directions from the registry, and follows the platform’s language', () => {
+    expect(code).toContain("var IC_LOCALES = window.I18N && typeof window.I18N.roomLocales === 'function' ? window.I18N.roomLocales()");
+    expect(code).not.toMatch(/IC_LOCALES = \[\['en'/);
+    expect(i18nBeyondRoomApi(code)).toEqual([]);
+  });
+
+  it('has an entry in every official language for every English key, every placeholder kept', () => {
+    for (const c of officialCodes().filter((x) => x !== 'en')) {
+      const cat = JSON.parse(read(path.join(I18N_DIR, `${c}.json`)));
+      expect(Object.keys(cat).sort()).toEqual(Object.keys(en).sort());
+      for (const k of Object.keys(en)) {
+        expect(`${c} ${k}: ${String(cat[k]).trim().length > 0}`).toBe(`${c} ${k}: true`);
+        const ph = (s: string) => (s.match(/%[ds]/g) || []).join('');
+        if (!/^%d [^%]+$/.test(k)) expect(`${c} ${k}: ${ph(cat[k])}`).toBe(`${c} ${k}: ${ph(k)}`);
+      }
+    }
   });
 
   it('has a German and an Arabic entry for every English key', () => {

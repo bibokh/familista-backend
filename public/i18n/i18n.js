@@ -240,6 +240,36 @@
     } catch (_) { return String(value); }
   }
 
+  // ── the official languages ─────────────────────────────────────────────────
+  // The registry marks Familista's official languages (`official: n`, their place
+  // in the switch). Every owner room offers exactly these, reads its own
+  // catalogue for each (/<room>/i18n/<code>.json, where <code> is the language
+  // subtag), and follows the platform: it opens in the platform's language when
+  // that is an official one, and its own switch changes the platform's language.
+  // So the rooms hold no list of languages and no language of their own, and a
+  // language made official in the registry reaches every room at once.
+  function officialLocales() {
+    return LOCALES.filter(function (l) { return l && l.official; })
+      .slice().sort(function (a, b) { return a.official - b.official; });
+  }
+  function codeOf(tag) { return String(tag || '').toLowerCase().split('-')[0]; }
+  /** [code, label, dir, tag] for each official language: the shape every owner room reads. */
+  function roomLocales() {
+    var list = officialLocales().map(function (l) { return [codeOf(l.tag), l.label, l.dir, l.tag]; });
+    return list.length ? list : [['en', 'English (UK)', 'ltr', 'en-GB']];
+  }
+  /** The room language for the platform's: the official language with the same language subtag, else English. */
+  function roomLocale() {
+    var code = codeOf(current);
+    return roomLocales().some(function (l) { return l[0] === code; }) ? code : 'en';
+  }
+  /** A room's own switch was pressed: the platform's language follows, through the one path that changes it. */
+  function roomChoose(code) {
+    var hit = roomLocales().filter(function (l) { return l[0] === code; })[0];
+    if (!hit || hit[3] === current || !root.I18N_APPLY || typeof root.I18N_APPLY.change !== 'function') return Promise.resolve(null);
+    return Promise.resolve(root.I18N_APPLY.change(hit[3])).catch(function () { return null; });
+  }
+
   root.I18N = {
     t: t,
     setLocale: setLocale,
@@ -249,6 +279,10 @@
     dir: function () { return dirOf(current); },
     isRTL: function () { return dirOf(current) === 'rtl'; },
     locales: function () { return LOCALES.slice(); },
+    officialLocales: officialLocales,
+    roomLocales: roomLocales,
+    roomLocale: roomLocale,
+    roomChoose: roomChoose,
     isSupported: isSupported,
     canonical: canonical,
     fromBrowser: fromBrowser,

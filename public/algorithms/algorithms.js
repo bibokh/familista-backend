@@ -136,7 +136,9 @@
   // the club product's locale files. Registry keys, versions, file paths,
   // symbols and fingerprints are identifiers and are never translated.
 
-  var AL_LOCALES = [['en', 'English', 'ltr'], ['de', 'Deutsch', 'ltr'], ['ar', 'العربية', 'rtl']];
+  // Familista's official languages, from the locale registry (public/i18n/i18n.js, roomLocales):
+  // [code, label, dir, tag], in the switch's order. This room holds no list of its own.
+  var AL_LOCALES = window.I18N && typeof window.I18N.roomLocales === 'function' ? window.I18N.roomLocales() : [['en', 'English (UK)', 'ltr', 'en-GB']];
   var AL_DICT = {};
   var AL_LANG = 'en';
   var AL_DIR = 'ltr';
@@ -145,12 +147,9 @@
     for (var i = 0; i < AL_LOCALES.length; i++) if (AL_LOCALES[i][0] === tag) return AL_LOCALES[i];
     return AL_LOCALES[0];
   }
+  /** The platform's language when it is an official one (public/i18n/i18n.js, roomLocale), else English. */
   function initialLocale() {
-    try {
-      var v = localStorage.getItem('familista_algorithms_locale');
-      if (v && localeOf(v)[0] === v) return v;
-    } catch (_) {}
-    return 'en';
+    return window.I18N && typeof window.I18N.roomLocale === 'function' ? window.I18N.roomLocale() : 'en';
   }
   function loadDict(tag) {
     if (tag === 'en') { AL_DICT = {}; return Promise.resolve(); }
@@ -162,8 +161,13 @@
   function setLocale(tag) {
     var l = localeOf(tag);
     AL_LANG = l[0]; AL_DIR = l[2];
-    try { localStorage.setItem('familista_algorithms_locale', AL_LANG); } catch (_) {}
     return loadDict(AL_LANG);
+  }
+  /** This room's own switch: the room changes language, and the platform follows (public/i18n/i18n.js, roomChoose). */
+  function chooseSetLocale(code) {
+    var ready = setLocale(code);
+    if (window.I18N && typeof window.I18N.roomChoose === 'function') window.I18N.roomChoose(localeOf(code)[0]);
+    return ready;
   }
 
   /** One string. A missing key falls through to English, never to a key path. */
@@ -2156,7 +2160,7 @@
       var lang = t.closest('[data-al-lang]');
       if (lang) {
         AL.langOpen = false;
-        setLocale(lang.getAttribute('data-al-lang')).then(function () {
+        chooseSetLocale(lang.getAttribute('data-al-lang')).then(function () {
           var body = host.querySelector('#al-body');
           var y = body ? body.scrollTop : 0;
           paint(host);

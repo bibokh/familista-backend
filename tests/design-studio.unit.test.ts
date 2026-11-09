@@ -14,6 +14,7 @@
  */
 import fs from 'fs';
 import path from 'path';
+import { i18nBeyondRoomApi, officialCodes } from './helpers/platform-i18n';
 
 const ROOT = path.resolve(__dirname, '..');
 const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -385,12 +386,14 @@ describe('the editor is safe by construction', () => {
     expect(code).not.toMatch(/\.textContent = [^;]*\+ *['"`]</);
   });
 
-  it('talks to nothing: one fetch, for its own catalogue; no XHR, socket, beacon or form; three storage keys of its own', () => {
+  it('talks to nothing: one fetch, for its own catalogue; no XHR, socket, beacon or form; two storage keys of its own, the language being the platform’s', () => {
     expect((code.match(/\bfetch\(/g) || []).length).toBe(1);
     expect(code).toContain("fetch('/design-studio/i18n/' + LANG + '.json')");
     expect(code).not.toMatch(/XMLHttpRequest|WebSocket|EventSource|sendBeacon|\.submit\(|postMessage/);
     const keys = [...code.matchAll(/(?:get|set)Item\(([A-Z_]+|'[^']+')/g)].map((m) => m[1]);
-    expect([...new Set(keys)].sort()).toEqual(['LOCALE_KEY', 'STORE_KEY', 'STORE_UNREADABLE']);
+    expect([...new Set(keys)].sort()).toEqual(['STORE_KEY', 'STORE_UNREADABLE']);
+    // The studio keeps no language of its own: it follows the platform's, which the shell stores.
+    expect(code).not.toMatch(/LOCALE_KEY|familista_design_studio_locale/);
     expect(code).toContain("var STORE_KEY = 'familista_design_studio_document';");
   });
 
@@ -476,7 +479,7 @@ describe('wiring: a separate product, for the platform owner only, asking the se
   });
 });
 
-describe('English, German and Arabic — one catalogue each, in step', () => {
+describe('the official languages — one catalogue each, in step', () => {
   const dict = (t: string) => JSON.parse(read(`public/design-studio/i18n/${t}.json`)) as Record<string, string>;
   const en = dict('en'); const de = dict('de'); const ar = dict('ar');
   const slots = (s: string) => (s.match(/%[ds]/g) || []).join('');
@@ -515,10 +518,16 @@ describe('English, German and Arabic — one catalogue each, in step', () => {
     expect(Object.keys(en).filter((k) => !keys.includes(k))).toEqual([]);
   });
 
-  it('is limited to English, German and Arabic, right to left for Arabic, behind the page\'s own boundary, and leaves the platform\'s catalogues alone', () => {
-    expect(STUDIO).toContain("var LOCALES = [['en', 'English', 'ltr'], ['de', 'Deutsch', 'ltr'], ['ar', 'العربية', 'rtl']];");
-    expect(fs.readdirSync(path.join(ROOT, 'public/design-studio/i18n')).sort()).toEqual(['ar.json', 'de.json', 'en.json']);
-    expect(STUDIO).not.toMatch(/\bI18N\b|\/i18n\/locales|\/i18n\/catalogue|familista\.locale/);
+  it('speaks exactly the official languages, right to left where the registry says, behind the page\'s own boundary, following the platform\'s language and leaving its catalogues alone', () => {
+    expect(STUDIO).toContain("var LOCALES = window.I18N && typeof window.I18N.roomLocales === 'function' ? window.I18N.roomLocales()");
+    expect(STUDIO).not.toMatch(/var LOCALES = \[\['en'/);
+    expect(fs.readdirSync(path.join(ROOT, 'public/design-studio/i18n')).sort()).toEqual(officialCodes().map((c) => `${c}.json`).sort());
+    expect(i18nBeyondRoomApi(STUDIO)).toEqual([]);
+    for (const c of officialCodes().filter((x) => x !== 'en')) {
+      const d = JSON.parse(fs.readFileSync(path.join(ROOT, `public/design-studio/i18n/${c}.json`), 'utf8')) as Record<string, string>;
+      const en = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/design-studio/i18n/en.json'), 'utf8')) as Record<string, string>;
+      expect(Object.keys(d).sort()).toEqual(Object.keys(en).sort());
+    }
     expect(STUDIO).toMatch(/Object\.prototype\.hasOwnProperty\.call\(DICT, s\) \? DICT\[s\] : s/);
     expect(STUDIO).toContain("dir: 'ltr' }, [E.world, E.overlay, E.empty, E.textEdit]);");
   });

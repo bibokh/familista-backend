@@ -94,7 +94,9 @@
   // page root — the same boundary SYSTEM, the Data Vault and Infrastructure
   // City keep, so these strings never enter the club product's locale files.
 
-  var SC_LOCALES = [['en', 'English', 'ltr'], ['de', 'Deutsch', 'ltr'], ['ar', 'العربية', 'rtl']];
+  // Familista's official languages, from the locale registry (public/i18n/i18n.js, roomLocales):
+  // [code, label, dir, tag], in the switch's order. This room holds no list of its own.
+  var SC_LOCALES = window.I18N && typeof window.I18N.roomLocales === 'function' ? window.I18N.roomLocales() : [['en', 'English (UK)', 'ltr', 'en-GB']];
   var SC_DICT = {};
   var SC_LANG = 'en';
   var SC_DIR = 'ltr';
@@ -103,12 +105,9 @@
     for (var i = 0; i < SC_LOCALES.length; i++) if (SC_LOCALES[i][0] === tag) return SC_LOCALES[i];
     return SC_LOCALES[0];
   }
+  /** The platform's language when it is an official one (public/i18n/i18n.js, roomLocale), else English. */
   function initialLocale() {
-    try {
-      var v = localStorage.getItem('familista_sourcecore_locale');
-      if (v && localeOf(v)[0] === v) return v;
-    } catch (_) {}
-    return 'en';
+    return window.I18N && typeof window.I18N.roomLocale === 'function' ? window.I18N.roomLocale() : 'en';
   }
   function loadDict(tag) {
     if (tag === 'en') { SC_DICT = {}; return Promise.resolve(); }
@@ -120,8 +119,13 @@
   function setLocale(tag) {
     var l = localeOf(tag);
     SC_LANG = l[0]; SC_DIR = l[2];
-    try { localStorage.setItem('familista_sourcecore_locale', SC_LANG); } catch (_) {}
     return loadDict(SC_LANG);
+  }
+  /** This room's own switch: the room changes language, and the platform follows (public/i18n/i18n.js, roomChoose). */
+  function chooseSetLocale(code) {
+    var ready = setLocale(code);
+    if (window.I18N && typeof window.I18N.roomChoose === 'function') window.I18N.roomChoose(localeOf(code)[0]);
+    return ready;
   }
 
   /** One string. A digit run becomes %d; a missing key falls through to English. */
@@ -853,7 +857,7 @@
       var lang = t.closest('[data-sc-lang]');
       if (lang) {
         SC.langOpen = false;
-        setLocale(lang.getAttribute('data-sc-lang')).then(function () { paint(host); });
+        chooseSetLocale(lang.getAttribute('data-sc-lang')).then(function () { paint(host); });
         return;
       }
 

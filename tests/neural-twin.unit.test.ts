@@ -516,7 +516,11 @@ describe('7. the twin\'s browser proof runs inside the required CI jobs, and can
   it('runs in both required browser-proof shards, every section once, with a floor, and nothing in it can fail quietly', () => {
     expect([...code.matchAll(/^ {10}- shard: (.+)$/gm)].map((m) => m[1])).toEqual(['isolation', 'accessibility and focus']);
     const twin = [...code.matchAll(/twin:\s*'([^']+)'/g)].map((m) => m[1].split(',')).flat().sort();
-    expect(twin).toEqual(['T1', 'T2', 'T3', 'T4']);
+    expect(twin).toEqual(['T1', 'T2', 'T3', 'T4', 'T5']);
+    // T5 proves the official languages and pairs its axe pass with a control, like every other section.
+    expect(PROOF).toContain("if (want('T5')) {");
+    expect(PROOF).toContain('languages accessibility (control)');
+    expect(PROOF).toContain('each official language in turn through the switch');
     const floors = [...code.matchAll(/twin_floor:\s*'(\d+)'/g)].map((m) => Number(m[1]));
     expect(floors.length).toBe(2);
     expect(floors.every((n) => n >= 30)).toBe(true);

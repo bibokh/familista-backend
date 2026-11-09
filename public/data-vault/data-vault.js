@@ -144,7 +144,9 @@
   // never enter the club product's locale files and the two passes can never
   // translate the same node. The mechanism is the house one: the English on
   // screen IS the key, and a run of digits becomes a %d slot.
-  var DV_LOCALES = [['en', 'English', 'ltr'], ['de', 'Deutsch', 'ltr'], ['ar', 'العربية', 'rtl']];
+  // Familista's official languages, from the locale registry (public/i18n/i18n.js, roomLocales):
+  // [code, label, dir, tag], in the switch's order. This room holds no list of its own.
+  var DV_LOCALES = window.I18N && typeof window.I18N.roomLocales === 'function' ? window.I18N.roomLocales() : [['en', 'English (UK)', 'ltr', 'en-GB']];
   var DV_DICT = {};
   var DV_LANG = 'en';
   var DV_DIR = 'ltr';
@@ -161,13 +163,9 @@
    * German has said which language they read, and asking them again in the next
    * room would be the interface forgetting something it was told.
    */
+  /** The platform's language when it is an official one (public/i18n/i18n.js, roomLocale), else English. */
   function storedLocale() {
-    try {
-      var v = localStorage.getItem('familista_system_locale')
-        || localStorage.getItem('familista_datavault_locale');
-      if (v && localeOf(v)[0] === v) return v;
-    } catch (_) {}
-    return 'en';
+    return window.I18N && typeof window.I18N.roomLocale === 'function' ? window.I18N.roomLocale() : 'en';
   }
 
   function loadDict(tag) {
@@ -182,8 +180,13 @@
     var l = localeOf(tag);
     DV_LANG = l[0];
     DV_DIR = l[2];
-    try { localStorage.setItem('familista_datavault_locale', DV_LANG); } catch (_) {}
     return loadDict(DV_LANG);
+  }
+  /** This room's own switch: the room changes language, and the platform follows (public/i18n/i18n.js, roomChoose). */
+  function chooseSetLocale(code) {
+    var ready = setLocale(code);
+    if (window.I18N && typeof window.I18N.roomChoose === 'function') window.I18N.roomChoose(localeOf(code)[0]);
+    return ready;
   }
 
   /**
@@ -1566,7 +1569,7 @@
       var lang = t.closest('[data-dv-lang]');
       if (lang) {
         DV.langOpen = false;
-        setLocale(lang.getAttribute('data-dv-lang')).then(function () { paint(host); });
+        chooseSetLocale(lang.getAttribute('data-dv-lang')).then(function () { paint(host); });
         return;
       }
 

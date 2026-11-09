@@ -56,6 +56,24 @@ const ROLE_LABELS: Record<EmailLocale, Partial<Record<MembershipRole, string>>> 
     TECHNICAL_COACH: 'المدرب الفني', TACTICAL_COACH: 'المدرب التكتيكي',
     YOUTH_COACH: 'مدرب الأكاديمية', PERFORMANCE_COACH: 'مدرب الأداء',
   },
+  fr: {
+    CLUB_OWNER: 'Président', CLUB_ADMIN: 'Administrateur du club', HEAD_COACH: 'Entraîneur principal',
+    ASSISTANT_COACH: 'Entraîneur adjoint', ANALYST: 'Analyste', SCOUT: 'Recruteur',
+    MEDICAL_STAFF: 'Personnel médical', PHYSIO: 'Kinésithérapeute', PARENT: 'Parent', PLAYER: 'Joueur',
+    FINANCE_MANAGER: 'Responsable financier',
+    GOALKEEPING_COACH: 'Entraîneur des gardiens', FITNESS_COACH: 'Préparateur physique',
+    TECHNICAL_COACH: 'Entraîneur technique', TACTICAL_COACH: 'Entraîneur tactique',
+    YOUTH_COACH: 'Entraîneur de l’académie', PERFORMANCE_COACH: 'Entraîneur de la performance',
+  },
+  es: {
+    CLUB_OWNER: 'Presidente', CLUB_ADMIN: 'Administrador del club', HEAD_COACH: 'Entrenador principal',
+    ASSISTANT_COACH: 'Segundo entrenador', ANALYST: 'Analista', SCOUT: 'Ojeador',
+    MEDICAL_STAFF: 'Personal médico', PHYSIO: 'Fisioterapeuta', PARENT: 'Padre o madre', PLAYER: 'Jugador',
+    FINANCE_MANAGER: 'Responsable financiero',
+    GOALKEEPING_COACH: 'Entrenador de porteros', FITNESS_COACH: 'Preparador físico',
+    TECHNICAL_COACH: 'Entrenador técnico', TACTICAL_COACH: 'Entrenador táctico',
+    YOUTH_COACH: 'Entrenador de cantera', PERFORMANCE_COACH: 'Entrenador de rendimiento',
+  },
 };
 
 function roleLabel(role: MembershipRole, locale: EmailLocale): string {

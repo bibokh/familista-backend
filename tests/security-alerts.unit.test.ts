@@ -248,7 +248,7 @@ describe('the dispatcher', () => {
 describe('what the email says', () => {
   const lines = [{ rule: 'tenant-mismatch', count: 3, suppressed: 2 }, { rule: 'refresh-token-reuse', count: 1, suppressed: 0 }];
 
-  it.each(['en', 'de', 'ar'] as const)('%s: a generic subject, counts and rule names only', (l) => {
+  it.each(['en', 'de', 'ar', 'fr', 'es'] as const)('%s: a generic subject, counts and rule names only', (l) => {
     const a = renderSecurityAlert(l, lines, 15);
     const d = renderSecurityDigest(l, [{ rule: 'login-locked', count: 4 }, { rule: 'backup-failed', count: 0 }], 20);
     for (const m of [a, d]) {
@@ -265,11 +265,24 @@ describe('what the email says', () => {
     expect(a.html).not.toContain('<script>');
   });
 
-  it('falls back to English for an unknown locale', () => {
+  it('speaks the official languages and falls back to English for any other', () => {
     expect(resolveAlertLocale('de-AT')).toBe('de');
     expect(resolveAlertLocale('ar_EG')).toBe('ar');
-    expect(resolveAlertLocale('fr')).toBe('en');
+    expect(resolveAlertLocale('fr-CA')).toBe('fr');
+    expect(resolveAlertLocale('es-MX')).toBe('es');
+    // Not official, so no template exists: English, never a half-rendered mail.
+    expect(resolveAlertLocale('it-IT')).toBe('en');
+    expect(resolveAlertLocale('pt')).toBe('en');
     expect(resolveAlertLocale(undefined)).toBe('en');
+  });
+
+  it.each(['fr', 'es'] as const)('%s: every rule has its own words, none left in English', (l) => {
+    const d = renderSecurityDigest(l, ALERT_RULE_IDS.map((rule) => ({ rule, count: 1 })), null);
+    const en = renderSecurityDigest('en', ALERT_RULE_IDS.map((rule) => ({ rule, count: 1 })), null);
+    for (const line of en.text.split('\n').filter((x) => x.startsWith('- '))) {
+      expect(d.text).not.toContain(line);
+    }
+    expect(d.subject).not.toBe(en.subject);
   });
 });
 

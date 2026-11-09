@@ -16,18 +16,26 @@ export interface LocaleDef {
   /** The language's own name for itself — never translated. */
   label: string;
   dir: 'ltr' | 'rtl';
+  /**
+   * Set on Familista's official languages only: its place in the language
+   * switch (1 first). An official language is offered by the switch in the top
+   * bar and in every owner room, and every owner room must ship a complete
+   * catalogue for it (scripts/i18n-check.js enforces that). Making a language
+   * official is this one field, here and in the client mirror.
+   */
+  official?: number;
 }
 
 export const LOCALES: LocaleDef[] = [
-  { tag: 'en-GB', label: 'English (UK)',      dir: 'ltr' },
+  { tag: 'en-GB', label: 'English (UK)',      dir: 'ltr', official: 1 },
   { tag: 'en-US', label: 'English (US)',      dir: 'ltr' },
-  { tag: 'de-DE', label: 'Deutsch',           dir: 'ltr' },
+  { tag: 'de-DE', label: 'Deutsch',           dir: 'ltr', official: 2 },
   { tag: 'it-IT', label: 'Italiano',          dir: 'ltr' },
-  { tag: 'es-ES', label: 'Español (ES)',      dir: 'ltr' },
+  { tag: 'es-ES', label: 'Español (ES)',      dir: 'ltr', official: 5 },
   { tag: 'es-MX', label: 'Español (MX)',      dir: 'ltr' },
   { tag: 'pt-PT', label: 'Português (PT)',    dir: 'ltr' },
   { tag: 'pt-BR', label: 'Português (BR)',    dir: 'ltr' },
-  { tag: 'fr-FR', label: 'Français',          dir: 'ltr' },
+  { tag: 'fr-FR', label: 'Français',          dir: 'ltr', official: 4 },
   { tag: 'sr-RS', label: 'Srpski',            dir: 'ltr' },
   { tag: 'zh-CN', label: '简体中文',            dir: 'ltr' },
   { tag: 'zh-TW', label: '繁體中文',            dir: 'ltr' },
@@ -46,13 +54,21 @@ export const LOCALES: LocaleDef[] = [
   { tag: 'sv-SE', label: 'Svenska',           dir: 'ltr' },
   { tag: 'tr-TR', label: 'Türkçe',            dir: 'ltr' },
   { tag: 'vi-VN', label: 'Tiếng Việt',        dir: 'ltr' },
-  { tag: 'ar',    label: 'العربية',            dir: 'rtl' },
+  { tag: 'ar',    label: 'العربية',            dir: 'rtl', official: 3 },
   { tag: 'id-ID', label: 'Bahasa Indonesia',  dir: 'ltr' },
   { tag: 'ms-MY', label: 'Bahasa Melayu',     dir: 'ltr' },
   { tag: 'th-TH', label: 'ไทย',                dir: 'ltr' },
 ];
 
 export const DEFAULT_LOCALE = 'en-GB';
+
+/** Familista's official languages, in the order the switch shows them. */
+export const OFFICIAL_LOCALES: LocaleDef[] = LOCALES.filter((l) => l.official).sort((a, b) => (a.official ?? 0) - (b.official ?? 0));
+
+/** Is this tag one of the official languages? */
+export function isOfficialLocale(tag: unknown): boolean {
+  return typeof tag === 'string' && OFFICIAL_LOCALES.some((l) => l.tag.toLowerCase() === tag.toLowerCase());
+}
 
 const BY_TAG = new Map(LOCALES.map((l) => [l.tag.toLowerCase(), l]));
 

@@ -54,6 +54,7 @@ import { signToken } from '../src/security/jwt-tokens';
 import { forgetIdentity } from '../src/middleware/auth.middleware';
 import { resetDesignSystemCache } from '../src/design-system/design-system.service';
 import { DesignSystemOverviewSchema, DesignSystemTokensSchema } from '../src/contracts/owner-api.contracts';
+import { i18nBeyondRoomApi, officialCodes, officialRoomLocales } from './helpers/platform-i18n';
 
 const ROOT = path.join(__dirname, '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -615,7 +616,7 @@ describe('responsive, stable layout and accessibility, as the product pins them'
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe('English, German and Arabic — one catalogue each, in step', () => {
+describe('the official languages — one catalogue each, in step', () => {
   const dict = (t: string) => json(`public/design-system/i18n/${t}.json`) as Record<string, string>;
   const en = dict('en'); const de = dict('de'); const ar = dict('ar');
   const js = read('public/design-system/design-system.js');
@@ -683,15 +684,28 @@ describe('English, German and Arabic — one catalogue each, in step', () => {
     expect(en).toHaveProperty(['The design-system manifest is not schema 1.']);
   });
 
-  it('is limited to English, German and Arabic, with Arabic right-to-left, behind the page’s own boundary', () => {
-    expect(js).toContain("var DS_LOCALES = [['en', 'English', 'ltr'], ['de', 'Deutsch', 'ltr'], ['ar', 'العربية', 'rtl']]");
+  it('speaks exactly the official languages — the registry’s list, Arabic right-to-left — behind the page’s own boundary', () => {
+    expect(js).toContain("var DS_LOCALES = window.I18N && typeof window.I18N.roomLocales === 'function' ? window.I18N.roomLocales()");
+    expect(js).not.toMatch(/DS_LOCALES = \[\['en'/);
     expect(read('public/app.js')).toContain('id="pg-design-system" data-no-i18n');
-    expect(fs.readdirSync(path.join(ROOT, 'public/design-system/i18n')).sort()).toEqual(['ar.json', 'de.json', 'en.json']);
+    expect(fs.readdirSync(path.join(ROOT, 'public/design-system/i18n')).sort()).toEqual(officialCodes().map((c) => `${c}.json`).sort());
+    expect(officialRoomLocales().map((l) => `${l[0]}:${l[2]}`)).toEqual(['en:ltr', 'de:ltr', 'ar:rtl', 'fr:ltr', 'es:ltr']);
   });
 
-  it('leaves the platform’s language registry, bundles and validation alone', () => {
-    expect(js).not.toMatch(/\bI18N\b|\/i18n\/locales|\/i18n\/catalogue|familista\.locale/);
-    for (const t of ['en-GB', 'de-DE', 'ar']) expect(read('src/i18n/locales.ts')).toContain(`'${t}'`);
+  it('follows the platform’s language and leaves its registry, bundles and validation alone', () => {
+    expect(i18nBeyondRoomApi(js)).toEqual([]);
+    for (const l of officialRoomLocales()) expect(read('src/i18n/locales.ts')).toContain(`'${l[3]}'`);
+  });
+
+  it('every official language has the same keys and keeps every %d slot', () => {
+    for (const c of officialCodes().filter((x) => x !== 'en')) {
+      const d = dict(c);
+      expect(Object.keys(d).sort()).toEqual(Object.keys(en).sort());
+      for (const k of Object.keys(en)) {
+        expect(d[k].trim().length).toBeGreaterThan(0);
+        if (!/^%d (rule|variant|case|fixture|element|node)$/.test(k)) expect(`${c} ${k} → ${slots(d[k])}`).toBe(`${c} ${k} → ${slots(k)}`);
+      }
+    }
   });
 
   it('falls back to English, never to a key path or undefined', () => {

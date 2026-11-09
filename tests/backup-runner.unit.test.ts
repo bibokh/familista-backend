@@ -413,3 +413,53 @@ describe('command line', () => {
     expect(last().error).toMatch(/usage/);
   });
 });
+
+// ── CI restores with the client of its own server's major version ────────────
+// The drill and the row-level-security pilot in ci.yml run the real pg_dump,
+// pg_restore and psql against the job's PostgreSQL service. A client newer than
+// the server writes settings the server refuses on restore (pg_dump 18 writes
+// `SET transaction_timeout`, which PostgreSQL 16 does not know), so the job pins
+// the client to the service's major version, before the first step that uses it,
+// and the drill proves the version it got. Read from the workflow itself.
+describe('ci.yml: the PostgreSQL client matches the service it restores into', () => {
+  const CI_PATH = path.join(__dirname, '..', '.github', 'workflows', 'ci.yml');
+
+  /** What is wrong with a workflow's PostgreSQL client wiring; empty when it is right. */
+  function clientWiringProblems(ci: string): string[] {
+    const problems: string[] = [];
+    const service = /image:\s*postgres:(\d+)(?:[-.][\w.-]*)?\s*$/m.exec(ci);
+    if (!service) return ['no postgres service image with a major version'];
+    const major = service[1];
+    const pinStep = ci.indexOf(`- name: PostgreSQL ${major} client`);
+    const firstDbStep = ci.indexOf('- name: Backup restore drill (real PostgreSQL)');
+    const rlsStep = ci.indexOf('- name: Row-level security pilot (real PostgreSQL)');
+    if (pinStep < 0) problems.push(`no step installs the PostgreSQL ${major} client`);
+    if (firstDbStep < 0) problems.push('the backup restore drill step is gone');
+    if (pinStep >= 0 && firstDbStep >= 0 && pinStep > firstDbStep) problems.push('the client is pinned after the drill runs');
+    if (pinStep >= 0 && rlsStep >= 0 && pinStep > rlsStep) problems.push('the client is pinned after the RLS pilot runs');
+    const pin = pinStep >= 0 ? ci.slice(pinStep, ci.indexOf('- name:', pinStep + 7)) : '';
+    if (!pin.includes(`postgresql-client-${major}`)) problems.push(`the pin step does not install postgresql-client-${major}`);
+    if (!pin.includes(`echo "/usr/lib/postgresql/${major}/bin" >> "$GITHUB_PATH"`)) problems.push('the pinned client is not put on PATH for the rest of the job');
+    const drill = firstDbStep >= 0 ? ci.slice(firstDbStep, ci.indexOf('- name:', firstDbStep + 7)) : '';
+    if (!new RegExp(`\\(PostgreSQL\\\\\\) ${major}\\\\\\.`).test(drill)) problems.push(`the drill does not prove its client is ${major}`);
+    if (!/BACKUP_DRILL_REQUIRED:\s*'1'/.test(drill)) problems.push('the drill is no longer required');
+    if (!drill.includes('npx jest --runInBand --ci tests/backup-restore-drill.integration.test.ts')) problems.push('the drill no longer runs its test');
+    if (/continue-on-error|\|\|\s*true/.test(pin + drill)) problems.push('a failure here would be ignored');
+    // A package source added for the client is trusted only through the PostgreSQL project's published key.
+    if (pin.includes('apt.postgresql.org') && !/grep -Fx B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8/.test(pin)) problems.push('the PostgreSQL apt key is not checked against its fingerprint');
+    return problems;
+  }
+
+  it('pins the client to the service major, before the first step that uses it, and the drill proves it', () => {
+    expect(clientWiringProblems(fs.readFileSync(CI_PATH, 'utf8'))).toEqual([]);
+  });
+
+  it('(control) a service on another major, a missing pin and a softened drill are each reported', () => {
+    const ci = fs.readFileSync(CI_PATH, 'utf8');
+    expect(clientWiringProblems(ci.replace('image: postgres:16-alpine', 'image: postgres:17-alpine')).length).toBeGreaterThan(0);
+    expect(clientWiringProblems(ci.replace('- name: PostgreSQL 16 client', '- name: Something else'))).toContain('no step installs the PostgreSQL 16 client');
+    expect(clientWiringProblems(ci.replace("BACKUP_DRILL_REQUIRED: '1'", "BACKUP_DRILL_REQUIRED: '0'"))).toContain('the drill is no longer required');
+    expect(clientWiringProblems(ci.replace('echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"', 'true'))).toContain('the pinned client is not put on PATH for the rest of the job');
+    expect(clientWiringProblems(ci.replace('grep -Fx B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8', 'cat'))).toContain('the PostgreSQL apt key is not checked against its fingerprint');
+  });
+});

@@ -130,6 +130,7 @@ import {
   setEmailProvider, sendEmail, emailConfiguration, emailMetrics, resetEmailMetrics, recipientRef, selectProvider,
 } from '../src/platform/email/service';
 import { renderInvitationEmail, resolveEmailLocale, isRtl, EMAIL_LOCALES } from '../src/platform/email/templates';
+import { OFFICIAL_LOCALES } from '../src/i18n/locales';
 import { UnconfiguredProvider } from '../src/platform/email/providers/unconfigured';
 import { classifyHttpStatus, RETRYABLE, type EmailMessage, type EmailProvider } from '../src/platform/email/types';
 
@@ -486,8 +487,30 @@ describe('three languages, and Arabic reads right to left', () => {
     expiresAt: new Date('2026-09-15T10:00:00Z'),
   };
 
-  it('ships exactly English, German and Arabic', () => {
-    expect(EMAIL_LOCALES).toEqual(['en', 'de', 'ar']);
+  it('ships exactly the official languages, in the registry order', () => {
+    // The registry's list, not a second one: an official language added there
+    // without copy in the templates fails here rather than mailing English.
+    expect(EMAIL_LOCALES).toEqual(OFFICIAL_LOCALES.map((l) => l.tag.toLowerCase().split('-')[0]));
+    expect(EMAIL_LOCALES).toEqual(['en', 'de', 'ar', 'fr', 'es']);
+  });
+
+  it.each([
+    ['fr', 'Président', /Invitation à diriger HARTA BERLIN/, 'Accepter l’invitation', /novembre|septembre/],
+    ['es', 'Presidente', /invitado a dirigir HARTA BERLIN/, 'Aceptar la invitación', /septiembre/],
+  ] as const)('renders %s, left to right, with a local date', (locale, role, subject, cta, month) => {
+    const mail = renderInvitationEmail('PRESIDENT', { ...ctx, locale, roleLabel: role });
+    expect(mail.subject).toMatch(subject);
+    expect(mail.html).toContain(`lang="${locale}"`);
+    expect(mail.html).toContain('dir="ltr"');
+    expect(isRtl(locale)).toBe(false);
+    expect(mail.html).toContain(cta);
+    expect(mail.text).toContain(cta);
+    expect(mail.text).toMatch(month);
+    // Nothing of the English copy survives into the translated mail.
+    const en = renderInvitationEmail('PRESIDENT', { ...ctx, locale: 'en' });
+    for (const line of en.text.split('\n').filter((x) => x.length > 20 && !x.includes(ctx.acceptUrl) && !x.includes('HARTA'))) {
+      expect(mail.text).not.toContain(line);
+    }
   });
 
   it('renders English', () => {
@@ -528,6 +551,8 @@ describe('three languages, and Arabic reads right to left', () => {
     // A language Familista's email does not speak falls through to English
     // rather than rendering a template that does not exist.
     expect(resolveEmailLocale('ja-JP', 'pt-BR')).toBe('en');
+    expect(resolveEmailLocale('fr-BE', 'de')).toBe('fr');
+    expect(resolveEmailLocale(null, 'es-AR')).toBe('es');
   });
 
   it('escapes what a club typed into its own name', () => {
@@ -541,7 +566,9 @@ describe('three languages, and Arabic reads right to left', () => {
     // Thirty-one of them would be thirty-one things to keep correct.
     const catalogue = JSON.parse(read('public/system/i18n/en.json')) as Record<string, string>;
     expect(catalogue['You have been invited to lead %d on Familista']).toBeUndefined();
-    expect(fs.readdirSync(path.join(ROOT, 'public/system/i18n')).sort()).toEqual(['ar.json', 'de.json', 'en.json']);
+    // SYSTEM carries one file per official language and nothing else.
+    expect(fs.readdirSync(path.join(ROOT, 'public/system/i18n')).sort())
+      .toEqual(OFFICIAL_LOCALES.map((l) => `${l.tag.toLowerCase().split('-')[0]}.json`).sort());
   });
 });
 
