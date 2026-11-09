@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -79,7 +79,7 @@
 <div id="login-screen">
   <div class="login-box">
 
-    <!-- â”€â”€ Shared brand header â”€â”€ -->
+    <!-- ── Shared brand header ── -->
     <div class="login-logo">
       <div class="login-logo-icon">
         <svg width="18" height="18" viewBox="0 0 22 22" fill="none">
@@ -95,13 +95,13 @@
       </div>
     </div>
 
-    <!-- â”€â”€ VIEW: sign-in (default) â”€â”€ -->
+    <!-- ── VIEW: sign-in (default) ── -->
     <div data-auth-view="login" class="auth-active">
       <div class="login-error" id="login-error">Invalid email or password</div>
       <label class="login-label">Email</label>
       <input class="login-input" id="login-email" type="email" placeholder="you@club.com" autocomplete="username">
       <label class="login-label">Password</label>
-      <input class="login-input" id="login-password" type="password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" autocomplete="current-password">
+      <input class="login-input" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password">
       <button class="login-btn" id="login-btn" data-action="doLogin">Sign In</button>
       <div class="auth-link-center" style="margin-top:12px;">
         <a class="auth-link" data-show-auth="forgot">Forgot your password?</a>
@@ -140,7 +140,7 @@
       <button class="login-btn" id="mfa-setup-done" data-action="famMfaSetupDone" data-i18n="auth.mfaSetup.done"></button>
     </div>
 
-    <!-- â”€â”€ VIEW: forgot-password (enter email) â”€â”€ -->
+    <!-- ── VIEW: forgot-password (enter email) ── -->
     <div data-auth-view="forgot">
       <div class="auth-title">Reset your password</div>
       <div class="auth-sub">Enter your account email and we'll send you a reset link. It expires in 1 hour.</div>
@@ -149,44 +149,44 @@
       <input class="login-input" id="fp-email" type="email" placeholder="you@club.com">
       <button class="login-btn" id="fp-btn" data-action="doForgotPassword">Send Reset Link</button>
       <div class="auth-link-center">
-        <a class="auth-link" data-show-auth="login">â† Back to sign in</a>
+        <a class="auth-link" data-show-auth="login">← Back to sign in</a>
       </div>
     </div>
 
-    <!-- â”€â”€ VIEW: forgot-sent (email dispatched) â”€â”€ -->
+    <!-- ── VIEW: forgot-sent (email dispatched) ── -->
     <div data-auth-view="forgot-sent">
       <div class="auth-checking-wrap">
-        <div class="auth-icon-lg">ðŸ“§</div>
+        <div class="auth-icon-lg">📧</div>
         <div class="auth-title">Check your inbox</div>
         <div class="auth-sub" style="margin-top:8px;">If that email is registered you'll receive a reset link shortly. Check your spam folder if it doesn't arrive.</div>
       </div>
       <div class="auth-link-center">
-        <a class="auth-link" data-show-auth="login">â† Back to sign in</a>
+        <a class="auth-link" data-show-auth="login">← Back to sign in</a>
       </div>
     </div>
 
-    <!-- â”€â”€ VIEW: reset-checking (validating token) â”€â”€ -->
+    <!-- ── VIEW: reset-checking (validating token) ── -->
     <div data-auth-view="reset-checking">
       <div class="auth-checking-wrap">
         <div class="auth-checking-spinner"></div>
-        <div class="auth-checking-txt">Verifying your reset linkâ€¦</div>
+        <div class="auth-checking-txt">Verifying your reset link…</div>
       </div>
     </div>
 
-    <!-- â”€â”€ VIEW: reset-invalid (expired / used / bad token) â”€â”€ -->
+    <!-- ── VIEW: reset-invalid (expired / used / bad token) ── -->
     <div data-auth-view="reset-invalid">
       <div class="auth-checking-wrap">
-        <div class="auth-icon-lg">âš ï¸</div>
+        <div class="auth-icon-lg">⚠️</div>
         <div class="auth-title">Link expired or invalid</div>
         <div class="auth-sub" id="ri-message" style="margin-top:8px;">This reset link has expired or has already been used. Request a new one below.</div>
       </div>
       <button class="login-btn" data-show-auth="forgot">Request a New Link</button>
       <div class="auth-link-center">
-        <a class="auth-link" data-show-auth="login">â† Back to sign in</a>
+        <a class="auth-link" data-show-auth="login">← Back to sign in</a>
       </div>
     </div>
 
-    <!-- â”€â”€ VIEW: reset (set new password) â”€â”€ -->
+    <!-- ── VIEW: reset (set new password) ── -->
     <div data-auth-view="reset">
       <div class="auth-title">Set new password</div>
       <div class="auth-sub">Choose a strong password with at least 8 characters.</div>
@@ -199,10 +199,10 @@
       <button class="login-btn" id="rp-btn" data-action="doResetPassword">Set New Password</button>
     </div>
 
-    <!-- â”€â”€ VIEW: reset-success â”€â”€ -->
+    <!-- ── VIEW: reset-success ── -->
     <div data-auth-view="reset-success">
       <div class="auth-checking-wrap">
-        <div class="auth-icon-lg">âœ…</div>
+        <div class="auth-icon-lg">✅</div>
         <div class="auth-title">Password updated</div>
         <div class="auth-sub" style="margin-top:8px;">Your password has been changed successfully. Sign in with your new credentials.</div>
       </div>
@@ -228,17 +228,17 @@
       </div>
       <div class="brand-text">
         <div class="brand-name">Familista</div>
-        <div class="brand-version">v5.0 Â· Production</div>
+        <div class="brand-version">v5.0 · Production</div>
       </div>
-      <button class="brand-collapse">â—€</button>
+      <button class="brand-collapse">◀</button>
     </div>
 
     <div class="club-card" data-nav="club">
       <div class="club-row">
-        <div class="club-emblem">ðŸ”´</div>
+        <div class="club-emblem">🔴</div>
         <div>
           <div class="club-name" id="nav-club-name">Familista HSR</div>
-          <div class="club-meta" id="nav-club-meta">Berlin Â· Level 33</div>
+          <div class="club-meta" id="nav-club-meta">Berlin · Level 33</div>
         </div>
       </div>
     </div>
@@ -308,8 +308,8 @@
         <div class="user-email" id="user-email">Manager</div>
       </div>
       <div class="sidebar-footer-actions">
-        <button class="footer-btn" data-action="toggleTheme" title="Toggle theme" data-i18n-title="common.toggleTheme">â˜€ï¸</button>
-        <button class="footer-btn" data-action="doLogout" title="Logout" data-i18n-title="common.logout">âŽ‹</button>
+        <button class="footer-btn" data-action="toggleTheme" title="Toggle theme" data-i18n-title="common.toggleTheme">☀️</button>
+        <button class="footer-btn" data-action="doLogout" title="Logout" data-i18n-title="common.logout">⎋</button>
       </div>
     </div>
   </aside>
@@ -344,7 +344,7 @@
         <!-- Phase A: tenant context switcher (Club + Team) -->
         <div class="ctx-switcher" id="ctx-switcher" style="display:none;">
           <select class="ctx-select" id="ctx-club"  data-change="onContextClubChange"></select>
-          <span style="color:var(--tx-3);font-size:11px;">Â·</span>
+          <span style="color:var(--tx-3);font-size:11px;">·</span>
           <select class="ctx-select" id="ctx-team"  data-change="onContextTeamChange"></select>
         </div>
         <!-- Owner Control · interface language. Hidden until /system/whoami says the
@@ -381,7 +381,7 @@
       <div style="display:flex;gap:8px;align-items:center;">
         <button class="btn btn-outline btn-xs"  id="player-modal-edit-btn"   data-action="openEditPlayerModal" style="display:none;">Edit</button>
         <button class="btn btn-danger  btn-xs"  id="player-modal-delete-btn" data-action="confirmDeletePlayer" style="display:none;">Delete</button>
-        <button class="modal-close" data-close-modal="player-modal">âœ•</button>
+        <button class="modal-close" data-close-modal="player-modal">✕</button>
       </div>
     </div>
     <div class="modal-body">
@@ -401,7 +401,7 @@
   <div class="modal" style="max-width:640px;">
     <div class="modal-hdr">
       <div class="modal-title" id="player-edit-title">Add Player</div>
-      <button class="modal-close" data-action="playerEditCancel">âœ•</button>
+      <button class="modal-close" data-action="playerEditCancel">✕</button>
     </div>
     <div class="modal-body" style="padding:18px;">
       <form id="player-edit-form" autocomplete="off">
@@ -422,19 +422,19 @@
           <div>
             <label class="login-label">Position</label>
             <select class="login-input" id="pe-position" required>
-              <option value="">Chooseâ€¦</option>
-              <option value="GK">GK Â· Goalkeeper</option>
-              <option value="DC">DC Â· Centre back</option>
-              <option value="DL">DL Â· Left back</option>
-              <option value="DR">DR Â· Right back</option>
-              <option value="DMC">DMC Â· Defensive mid</option>
-              <option value="MC">MC Â· Central mid</option>
-              <option value="ML">ML Â· Left mid</option>
-              <option value="MR">MR Â· Right mid</option>
-              <option value="AMC">AMC Â· Attacking mid</option>
-              <option value="AML">AML Â· Left wing</option>
-              <option value="AMR">AMR Â· Right wing</option>
-              <option value="ST">ST Â· Striker</option>
+              <option value="">Choose…</option>
+              <option value="GK">GK · Goalkeeper</option>
+              <option value="DC">DC · Centre back</option>
+              <option value="DL">DL · Left back</option>
+              <option value="DR">DR · Right back</option>
+              <option value="DMC">DMC · Defensive mid</option>
+              <option value="MC">MC · Central mid</option>
+              <option value="ML">ML · Left mid</option>
+              <option value="MR">MR · Right mid</option>
+              <option value="AMC">AMC · Attacking mid</option>
+              <option value="AML">AML · Left wing</option>
+              <option value="AMR">AMR · Right wing</option>
+              <option value="ST">ST · Striker</option>
             </select>
           </div>
           <div>
@@ -443,7 +443,7 @@
           </div>
           <div>
             <label class="login-label">Flag (emoji)</label>
-            <input class="login-input" id="pe-flag" placeholder="ðŸ‡©ðŸ‡ª" required maxlength="16" />
+            <input class="login-input" id="pe-flag" placeholder="🇩🇪" required maxlength="16" />
           </div>
           <div>
             <label class="login-label">Date of Birth</label>
@@ -466,19 +466,19 @@
             <input class="login-input" id="pe-weight" type="number" min="50" max="130" required />
           </div>
           <div>
-            <label class="login-label">Overall (40â€“140)</label>
+            <label class="login-label">Overall (40–140)</label>
             <input class="login-input" id="pe-overall" type="number" min="40" max="140" />
           </div>
           <div>
-            <label class="login-label">Potential (40â€“140)</label>
+            <label class="login-label">Potential (40–140)</label>
             <input class="login-input" id="pe-potential" type="number" min="40" max="140" />
           </div>
           <div>
-            <label class="login-label">Market Value (â‚¬)</label>
+            <label class="login-label">Market Value (€)</label>
             <input class="login-input" id="pe-mvalue" type="number" min="0" step="1000" />
           </div>
           <div>
-            <label class="login-label">Weekly Wage (â‚¬)</label>
+            <label class="login-label">Weekly Wage (€)</label>
             <input class="login-input" id="pe-wage" type="number" min="0" step="100" />
           </div>
           <div style="grid-column:1/-1;">
@@ -487,7 +487,7 @@
           </div>
         </div>
 
-        <!-- â”€â”€ Phase 2: Contact + status (always visible) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+        <!-- ── Phase 2: Contact + status (always visible) ─────────────── -->
         <div style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--bd-2);">
           <div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Contact &amp; Status</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;">
@@ -541,7 +541,7 @@
             <div style="grid-column:1/-1;">
               <label class="login-label">Team</label>
               <select class="login-input" id="pe-team">
-                <option value="">â€” Unassigned â€”</option>
+                <option value="">— Unassigned —</option>
               </select>
             </div>
             <div style="grid-column:1/-1;">
@@ -566,7 +566,7 @@
   <div class="modal" style="max-width:680px;">
     <div class="modal-hdr">
       <div class="modal-title">Edit Club</div>
-      <button class="modal-close" data-action="clubEditCancel">âœ•</button>
+      <button class="modal-close" data-action="clubEditCancel">✕</button>
     </div>
     <div class="modal-body" style="padding:18px;">
       <form id="club-edit-form" autocomplete="off">
@@ -575,7 +575,7 @@
           <div><label class="login-label">Club Name</label><input class="login-input" id="ce-name" maxlength="120" required /></div>
         </div>
 
-        <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--bd-2);font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Branding (https:// logo Â· #RRGGBB colors)</div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--bd-2);font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Branding (https:// logo · #RRGGBB colors)</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;">
           <div style="grid-column:1/-1;"><label class="login-label">Logo URL</label><input class="login-input" id="ce-logoUrl" type="url" placeholder="https://" maxlength="2048" /></div>
           <div><label class="login-label">Primary Color</label><input class="login-input" id="ce-primaryColor" placeholder="#16A34A" maxlength="9" /></div>
@@ -599,25 +599,25 @@
     <div class="modal-hdr">
       <div class="modal-title" id="match-modal-title">Match</div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <span id="match-modal-live-chip" class="badge badge-red" style="display:none;animation:badgePulse 1.4s ease infinite;font-size:9px;">â— LIVE</span>
+        <span id="match-modal-live-chip" class="badge badge-red" style="display:none;animation:badgePulse 1.4s ease infinite;font-size:9px;">● LIVE</span>
         <span id="match-modal-status"    style="font-size:11.5px;color:var(--tx-3);"></span>
-        <button class="modal-close" data-action="closeMatchModal">âœ•</button>
+        <button class="modal-close" data-action="closeMatchModal">✕</button>
       </div>
     </div>
     <div class="modal-body" style="display:flex;flex-direction:column;">
       <!-- Scoreboard -->
       <div style="padding:18px 22px;border-bottom:1px solid var(--bd);background:var(--bg-2);">
         <div style="display:flex;align-items:center;gap:18px;">
-          <div style="flex:1;text-align:right;font-size:16px;font-weight:700;" id="match-modal-home">â€”</div>
-          <div style="font-size:34px;font-weight:800;font-family:var(--mono);letter-spacing:-1px;color:var(--tx);" id="match-modal-score">â€” : â€”</div>
-          <div style="flex:1;font-size:16px;font-weight:700;" id="match-modal-away">â€”</div>
+          <div style="flex:1;text-align:right;font-size:16px;font-weight:700;" id="match-modal-home">—</div>
+          <div style="font-size:34px;font-weight:800;font-family:var(--mono);letter-spacing:-1px;color:var(--tx);" id="match-modal-score">— : —</div>
+          <div style="flex:1;font-size:16px;font-weight:700;" id="match-modal-away">—</div>
         </div>
         <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px;font-size:11px;color:var(--tx-3);">
-          <span id="match-modal-comp">â€”</span>
-          <span>Â·</span>
-          <span id="match-modal-when">â€”</span>
-          <span>Â·</span>
-          <span id="match-modal-venue">â€”</span>
+          <span id="match-modal-comp">—</span>
+          <span>·</span>
+          <span id="match-modal-when">—</span>
+          <span>·</span>
+          <span id="match-modal-venue">—</span>
         </div>
       </div>
 
@@ -648,7 +648,7 @@
   <div class="modal" style="max-width:580px;">
     <div class="modal-hdr">
       <div class="modal-title" id="training-edit-title">New Training Session</div>
-      <button class="modal-close" data-close-modal="training-edit-modal">âœ•</button>
+      <button class="modal-close" data-close-modal="training-edit-modal">✕</button>
     </div>
     <div class="modal-body">
       <form id="training-edit-form" data-form-submit="trainingModalSubmit" autocomplete="off" novalidate>
@@ -684,7 +684,7 @@
 
         <div style="margin-bottom:14px;">
           <label class="login-label">Notes / Objectives</label>
-          <textarea class="login-input" id="ts-description" rows="3" maxlength="4000" style="resize:vertical;" placeholder="Session objectives, coaching notesâ€¦"></textarea>
+          <textarea class="login-input" id="ts-description" rows="3" maxlength="4000" style="resize:vertical;" placeholder="Session objectives, coaching notes…"></textarea>
         </div>
 
         <div style="margin-bottom:14px;">
@@ -710,7 +710,7 @@
   <div class="modal" style="max-width:560px;">
     <div class="modal-hdr">
       <div class="modal-title" id="match-edit-title">Schedule Match</div>
-      <button class="modal-close" data-close-modal="match-edit-modal">âœ•</button>
+      <button class="modal-close" data-close-modal="match-edit-modal">✕</button>
     </div>
     <div class="modal-body">
       <form id="match-edit-form" data-form-submit="submitMatchForm" autocomplete="off" novalidate>
@@ -777,7 +777,7 @@
 
         <div style="margin-bottom:14px;">
           <label class="login-label">Opposition notes</label>
-          <textarea class="login-input" id="me-opponent-notes" rows="3" maxlength="4000" style="resize:vertical;" placeholder="Scouting notes, weaknesses, set-piecesâ€¦"></textarea>
+          <textarea class="login-input" id="me-opponent-notes" rows="3" maxlength="4000" style="resize:vertical;" placeholder="Scouting notes, weaknesses, set-pieces…"></textarea>
         </div>
 
         <div id="me-error" style="margin-top:4px;padding:9px 12px;border-radius:var(--radius);background:var(--red-bg);border:1px solid rgba(220,38,38,.25);color:#FCA5A5;font-size:12.5px;display:none;"></div>
@@ -791,12 +791,12 @@
   </div>
 </div>
 
-<!-- â”€â”€ Injury Edit Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<!-- ── Injury Edit Modal ────────────────────────────────────────────────── -->
 <div class="modal-bg" id="injury-edit-modal">
   <div class="modal-box" style="max-width:500px;">
     <div class="modal-header">
       <div class="modal-title" id="injury-edit-title">Record Injury</div>
-      <button class="modal-close" data-close-modal="injury-edit-modal">âœ•</button>
+      <button class="modal-close" data-close-modal="injury-edit-modal">✕</button>
     </div>
     <div class="modal-body">
       <form id="injury-edit-form" data-form-submit="submitInjuryForm" autocomplete="off" novalidate>
@@ -823,7 +823,7 @@
           <div>
             <label class="form-label">Injury Type</label>
             <select id="inj-type" class="login-input" style="width:100%;">
-              <option value="">Select typeâ€¦</option>
+              <option value="">Select type…</option>
               <option value="MUSCLE_STRAIN">Muscle Strain</option>
               <option value="LIGAMENT_SPRAIN">Ligament Sprain</option>
               <option value="FRACTURE">Fracture</option>
@@ -869,13 +869,13 @@
         <div style="margin-bottom:12px;">
           <label class="form-label">Recurrence?</label>
           <select id="inj-recur" class="login-input" style="width:100%;">
-            <option value="false">No â€” new injury</option>
-            <option value="true">Yes â€” recurrence</option>
+            <option value="false">No — new injury</option>
+            <option value="true">Yes — recurrence</option>
           </select>
         </div>
         <div style="margin-bottom:16px;">
           <label class="form-label">Clinical Notes</label>
-          <textarea class="login-input" id="inj-notes" rows="3" maxlength="4000" style="resize:vertical;" placeholder="Treatment plan, physio notes, contextâ€¦"></textarea>
+          <textarea class="login-input" id="inj-notes" rows="3" maxlength="4000" style="resize:vertical;" placeholder="Treatment plan, physio notes, context…"></textarea>
         </div>
         <div id="inj-error" style="margin-top:4px;padding:9px 12px;border-radius:var(--radius);background:var(--red-bg);border:1px solid rgba(220,38,38,.25);color:#FCA5A5;font-size:12.5px;display:none;"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
@@ -891,60 +891,60 @@
   <div class="modal" style="max-width:520px;">
     <div class="modal-header">
       <div class="modal-title" id="perf-modal-title">Record Performance Attributes</div>
-      <button class="modal-close" data-close-modal="perf-modal">âœ•</button>
+      <button class="modal-close" data-close-modal="perf-modal">✕</button>
     </div>
     <form id="perf-form" data-form-submit="submitPerfForm" style="padding:20px;">
       <input type="hidden" id="pf-player-id">
       <div style="margin-bottom:14px;">
         <label style="font-size:12px;font-weight:600;color:var(--tx-2);display:block;margin-bottom:4px;">Player</label>
         <select id="pf-player-select" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--tx);font-size:13px;">
-          <option value="">â€” Select player â€”</option>
+          <option value="">— Select player —</option>
         </select>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
         <div>
-          <label style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:3px;">Speed (1â€“130)</label>
-          <input type="number" id="pf-speed" min="1" max="130" placeholder="â€”" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
+          <label style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:3px;">Speed (1–130)</label>
+          <input type="number" id="pf-speed" min="1" max="130" placeholder="—" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
         </div>
         <div>
           <label style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:3px;">Agility</label>
-          <input type="number" id="pf-agility" min="1" max="130" placeholder="â€”" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
+          <input type="number" id="pf-agility" min="1" max="130" placeholder="—" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
         </div>
         <div>
           <label style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:3px;">Stamina</label>
-          <input type="number" id="pf-stamina" min="1" max="130" placeholder="â€”" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
+          <input type="number" id="pf-stamina" min="1" max="130" placeholder="—" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
         </div>
         <div>
           <label style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:3px;">Strength</label>
-          <input type="number" id="pf-strength" min="1" max="130" placeholder="â€”" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
+          <input type="number" id="pf-strength" min="1" max="130" placeholder="—" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
         </div>
         <div>
           <label style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:3px;">Balance</label>
-          <input type="number" id="pf-balance" min="1" max="130" placeholder="â€”" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
+          <input type="number" id="pf-balance" min="1" max="130" placeholder="—" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
         </div>
         <div>
           <label style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:3px;">Reaction</label>
-          <input type="number" id="pf-reaction" min="1" max="130" placeholder="â€”" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
+          <input type="number" id="pf-reaction" min="1" max="130" placeholder="—" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
         </div>
         <div>
           <label style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:3px;">Technique</label>
-          <input type="number" id="pf-technique" min="1" max="130" placeholder="â€”" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
+          <input type="number" id="pf-technique" min="1" max="130" placeholder="—" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
         </div>
         <div>
           <label style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:3px;">Passing</label>
-          <input type="number" id="pf-passing" min="1" max="130" placeholder="â€”" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
+          <input type="number" id="pf-passing" min="1" max="130" placeholder="—" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
         </div>
         <div>
           <label style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:3px;">Shooting</label>
-          <input type="number" id="pf-shooting" min="1" max="130" placeholder="â€”" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
+          <input type="number" id="pf-shooting" min="1" max="130" placeholder="—" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
         </div>
         <div>
           <label style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:3px;">Defending</label>
-          <input type="number" id="pf-defending" min="1" max="130" placeholder="â€”" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
+          <input type="number" id="pf-defending" min="1" max="130" placeholder="—" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
         </div>
         <div>
           <label style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:3px;">Overall Rating</label>
-          <input type="number" id="pf-overall" min="40" max="99" placeholder="â€”" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
+          <input type="number" id="pf-overall" min="40" max="99" placeholder="—" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--tx);font-size:13px;">
         </div>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:4px;">
