@@ -361,6 +361,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
 }
 .card.hover:hover{border-color:var(--bd-2);}
 .card.clickable{cursor:pointer;}
+/* A card that opens something is a button to the keyboard too (role="button", tabindex="0"): its ring is the one the
+   primary action uses. */
+.card[role="button"]:focus-visible{outline:2px solid var(--green);outline-offset:2px;}
 .card.clickable:hover{border-color:var(--bd-2);transform:translateY(-1px);box-shadow:var(--shadow-lg);}
 .card-header{padding:14px 16px 0;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
 .card-title{font-size:14px;font-weight:600;color:var(--tx);letter-spacing:-.2px;}

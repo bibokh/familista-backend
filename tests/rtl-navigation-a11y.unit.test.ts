@@ -123,10 +123,10 @@ describe('a back arrow follows the reading direction', () => {
     // Each control the audit found now uses it: Owner Control, Club Workspaces, Academy, Competition, Transfers, Match Centre.
     for (const s of [
       `type="button">' + _dirArrow() + ' Owner Home</button>`,
-      `renderAnalyticsPage();">\${_dirArrow()} Back to Players</button>`,
+      `data-action="analyticsBackToList">\${_dirArrow()} Back to Players</button>`,
       `data-action="pcBackToList">\${_dirArrow()} Back to squad</button>`,
       `data-action="trainingBack">\${_dirArrow()} Back</button>`,
-      `renderMedicalPage();">\${_dirArrow()} Players</button>`,
+      `data-action="medBackToList">\${_dirArrow()} Players</button>`,
       `data-tab="prospects">' + _dirArrow() + ' Back</button>`,
       `<span class="fam-back-ic fam-dir-ic" aria-hidden="true">←</span>Back</button>`,
       `data-at-back>' + _dirArrow() + ' ' + t('academy.backToAcademy')`,
@@ -135,7 +135,7 @@ describe('a back arrow follows the reading direction', () => {
       `_dirArrow('←') + ' ' + (prev == null`, `'Round ' + next) + ' ' + _dirArrow('→')`,
       `_dirArrow(_lgIcon('back')) + '<span>Club Workspace</span>`, `_dirArrow(_lgIcon('back')) + '<span>' + (_MCC.returnTo`,
     ]) expect([s, APP.includes(s)]).toEqual([s, true]);
-    expect((APP.match(/renderPerformancePage\(\);">\$\{_dirArrow\(\)\} Back<\/button>/g) || []).length).toBe(2);
+    expect((APP.match(/data-action="perfBackToList">\$\{_dirArrow\(\)\} Back<\/button>/g) || []).length).toBe(2);
     expect(read('public/familista-vision/familista-vision.js')).toContain(`'<span class="vx-back-i fam-dir-ic" aria-hidden="true">' + ico('arrow') + '</span>'`);
     // A back button pinned to a corner sits where reading starts: left to left-to-right readers, right to right-to-left ones.
     expect(CSS).toContain('body.club-theme .cp-back{\n  position: absolute; inset-inline-start: 0; top: 0;');

@@ -40646,10 +40646,10 @@ function renderAnalyticsHTML() {
       </div>
       <div style="margin-left:auto;">
         <div class="filter-group" id="analytics-tabs">
-          <button class="filter-btn active" onclick="setAnalyticsTab('dashboard',this)">Dashboard</button>
-          <button class="filter-btn"        onclick="setAnalyticsTab('players',this)">Players</button>
-          <button class="filter-btn"        onclick="setAnalyticsTab('team',this)">Team</button>
-          <button class="filter-btn"        onclick="setAnalyticsTab('risks',this)">Risk Alerts</button>
+          <button class="filter-btn active" type="button" data-action="analyticsTab" data-tab="dashboard">Dashboard</button>
+          <button class="filter-btn"        type="button" data-action="analyticsTab" data-tab="players">Players</button>
+          <button class="filter-btn"        type="button" data-action="analyticsTab" data-tab="team">Team</button>
+          <button class="filter-btn"        type="button" data-action="analyticsTab" data-tab="risks">Risk Alerts</button>
         </div>
       </div>
     </div>
@@ -40881,7 +40881,7 @@ function _renderAnalyticsPlayers(el) {
       : '<div style="color:var(--tx-3);font-size:12px;margin-bottom:10px;">No injury history</div>';
 
     el.innerHTML = `
-      <button class="btn btn-ghost btn-sm" style="margin-bottom:14px;" onclick="_analyticsPlayerId=null;_analyticsPlayerData=null;renderAnalyticsPage();">${_dirArrow()} Back to Players</button>
+      <button class="btn btn-ghost btn-sm" style="margin-bottom:14px;" type="button" data-action="analyticsBackToList">${_dirArrow()} Back to Players</button>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div>
           <div class="card" style="padding:16px;margin-bottom:12px;">
@@ -40926,7 +40926,7 @@ function _renderAnalyticsPlayers(el) {
       ${rd.map(p => {
         const rc = p.readinessScore >= 75 ? 'var(--green-l)' : p.readinessScore >= 55 ? 'var(--amber)' : 'var(--red)';
         const fc = p.fitnessScore  >= 70  ? 'var(--green-l)' : p.fitnessScore  >= 50  ? 'var(--amber)' : 'var(--red)';
-        return `<div class="card" style="padding:14px;cursor:pointer;" onclick="openPlayerAnalytics('${p.playerId}')">
+        return `<div class="card" style="padding:14px;cursor:pointer;" role="button" tabindex="0" data-action="analyticsOpenPlayer" data-id="${_esc(p.playerId)}">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <div>
               <div style="font-size:13px;font-weight:700;color:var(--tx);">${p.firstName} ${p.lastName}</div>
@@ -40952,6 +40952,10 @@ function _renderAnalyticsPlayers(el) {
       }).join('')}
     </div>`;
 }
+
+// Back to the player list. The player view is a state of this page, not a route: it is left the way it was
+// entered, by clearing the state and drawing the page again (no history entry, as before).
+function analyticsBackToList() { _analyticsPlayerId = null; _analyticsPlayerData = null; renderAnalyticsPage(); }
 
 async function openPlayerAnalytics(playerId) {
   _analyticsPlayerId = playerId;
@@ -43621,6 +43625,9 @@ const READINESS_STATUSES = [
 const _MedData = { injuries: [], readiness: null, _loading: false };
 let _medTab = 'dashboard';
 let _medProfileId = null;
+// A player's medical profile is a state of the Medical page, opened from the player list and left back to it.
+function medOpenProfile(id) { _medProfileId = id; _renderMedPlayers(document.getElementById('medical-content')); }
+function medBackToList() { _medProfileId = null; renderMedicalPage(); }
 
 function renderMedicalHTML() {
   return `<div class="page" id="pg-medical">
@@ -43632,9 +43639,9 @@ function renderMedicalHTML() {
       </div>
       <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
         <div class="filter-group" id="medical-tabs">
-          <button class="filter-btn active" onclick="setMedicalTab('dashboard',this)">Dashboard</button>
-          <button class="filter-btn"        onclick="setMedicalTab('injuries',this)">Injuries</button>
-          <button class="filter-btn"        onclick="setMedicalTab('players',this)">Players</button>
+          <button class="filter-btn active" type="button" data-action="medicalTab" data-tab="dashboard">Dashboard</button>
+          <button class="filter-btn"        type="button" data-action="medicalTab" data-tab="injuries">Injuries</button>
+          <button class="filter-btn"        type="button" data-action="medicalTab" data-tab="players">Players</button>
         </div>
         <button class="btn btn-primary btn-sm" id="med-record-btn" onclick="openRecordInjuryModal()">+ Record Injury</button>
       </div>
@@ -43888,7 +43895,7 @@ async function _renderMedPlayers(el) {
     const rdStatus = p.medicalStatus || (p.isInjured ? 'INJURED' : 'FIT');
     const rs = READINESS_STATUSES.find(r => r.key === rdStatus) || READINESS_STATUSES[3];
     const condBg = condBarBg(p.condition);
-    return `<div class="card" style="padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;" onclick="_medProfileId='${_esc(p.id)}';_renderMedPlayers(document.getElementById('medical-content'))">
+    return `<div class="card" style="padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;" role="button" tabindex="0" data-action="medOpenProfile" data-id="${_esc(p.id)}">
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:700;color:var(--tx);">#${p.number} ${_esc(p.firstName)} ${_esc(p.lastName)}</div>
         <div style="font-size:11px;color:var(--tx-3);margin-top:2px;">${p.position || '—'}</div>
@@ -43917,7 +43924,7 @@ async function _renderPlayerMedProfile(playerId, el) {
 
     el.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-        <button class="btn btn-outline btn-sm" onclick="_medProfileId=null;renderMedicalPage();">${_dirArrow()} Players</button>
+        <button class="btn btn-outline btn-sm" type="button" data-action="medBackToList">${_dirArrow()} Players</button>
         <div style="flex:1;font-size:14px;font-weight:700;color:var(--tx);">${_esc(player.firstName)} ${_esc(player.lastName)}</div>
         <span class="badge ${rs.badge}">${rs.label}</span>
       </div>
@@ -44215,7 +44222,7 @@ function _attrRatingColor(v) {
 function _renderPerfDashboard(el) {
   const squad = _perfSquad;
   if (!squad.length) {
-    el.innerHTML = emptyHTML('No players found', 'Record performance attributes to populate the dashboard.');
+    el.innerHTML = _lgEmpty('No players found', 'Record performance attributes to populate the dashboard.');
     return;
   }
 
@@ -44273,7 +44280,7 @@ function _renderPerfDashboard(el) {
             <div style="font-size:11px;color:var(--tx-3);">${p.position || '—'} · #${p.number}</div>
           </div>
           <div style="font-size:16px;font-weight:700;color:${_attrRatingColor(p.overallRating)};">${p.overallRating || '—'}</div>
-          <button class="btn btn-ghost btn-xs" onclick="openPerfHistory('${p.id}')">History</button>
+          <button class="btn btn-ghost btn-xs" type="button" data-action="perfOpenHistory" data-id="${_esc(p.id)}">History</button>
         </div>`
       ).join('')}
     </div>` +
@@ -44300,7 +44307,7 @@ function _renderPerfDashboard(el) {
 function _renderPerfProfiles(el) {
   const squad = _perfSquad;
   if (!squad.length) {
-    el.innerHTML = emptyHTML('No players found', 'Add players to your squad first.');
+    el.innerHTML = _lgEmpty('No players found', 'Add players to your squad first.');
     return;
   }
 
@@ -44337,7 +44344,7 @@ function _renderPerfProfiles(el) {
         }
         <div style="display:flex;gap:6px;margin-top:10px;">
           ${canEdit ? `<button class="btn btn-primary btn-xs" onclick="openRecordPerfModal('${p.id}')">+ Record</button>` : ''}
-          <button class="btn btn-ghost btn-xs" onclick="openPerfHistory('${p.id}')">History</button>
+          <button class="btn btn-ghost btn-xs" type="button" data-action="perfOpenHistory" data-id="${_esc(p.id)}">History</button>
           <button class="btn btn-ghost btn-xs" onclick="setPerfCompare('${p.id}')">Compare</button>
         </div>
       </div>`;
@@ -44354,7 +44361,7 @@ function _renderPerfHistory(el) {
       `<div style="font-size:13px;color:var(--tx-2);margin-bottom:14px;">Select a player to view their attribute history:</div>` +
       `<div style="display:flex;flex-wrap:wrap;gap:8px;">` +
       squad.map(p =>
-        `<button class="btn btn-outline btn-sm" onclick="openPerfHistory('${p.id}')">
+        `<button class="btn btn-outline btn-sm" type="button" data-action="perfOpenHistory" data-id="${_esc(p.id)}">
           ${p.firstName} ${p.lastName} <span style="color:var(--tx-3);font-size:10px;">#${p.number}</span>
         </button>`
       ).join('') +
@@ -44370,16 +44377,16 @@ function _renderPerfHistory(el) {
   if (snapshots.length === 0) {
     el.innerHTML =
       `<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-        <button class="btn btn-ghost btn-sm" onclick="_perfHistoryId=null;renderPerformancePage();">${_dirArrow()} Back</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-action="perfBackToList">${_dirArrow()} Back</button>
         <div style="font-size:15px;font-weight:700;color:var(--tx);">${player.firstName} ${player.lastName}</div>
       </div>` +
-      emptyHTML('No snapshots yet', 'Record attributes to start tracking performance history.');
+      _lgEmpty('No snapshots yet', 'Record attributes to start tracking performance history.');
     return;
   }
 
   el.innerHTML =
     `<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-      <button class="btn btn-ghost btn-sm" onclick="_perfHistoryId=null;renderPerformancePage();">${_dirArrow()} Back</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-action="perfBackToList">${_dirArrow()} Back</button>
       <div style="font-size:15px;font-weight:700;color:var(--tx);">${player.firstName} ${player.lastName} — Performance History</div>
     </div>` +
     `<div style="display:flex;flex-direction:column;gap:10px;">` +
@@ -44485,6 +44492,9 @@ async function loadPerformanceData() {
     _perfLoading = false;
   }
 }
+
+// Back from a player's history to the page it was opened from (a state of this page, not a route).
+function perfBackToList() { _perfHistoryId = null; renderPerformancePage(); }
 
 async function openPerfHistory(playerId) {
   _perfTab = 'history';
@@ -51210,6 +51220,15 @@ async function tosBoardSnapshot() {
         case 'aiCoachTogglePlan':  aiCoachTogglePlan();                                                    break;
         case 'pcSelectPlayer':     pcSelectPlayer(el.dataset.id);                                          break;
         case 'pcBackToList':       pcBackToList();                                                         break;
+        // ── Analytics, Medical, Performance: the tabs that list players, and a player's view, opened and left ──
+        case 'analyticsTab':       setAnalyticsTab(el.dataset.tab, el);                                    break;
+        case 'medicalTab':         setMedicalTab(el.dataset.tab, el);                                      break;
+        case 'analyticsOpenPlayer': openPlayerAnalytics(el.dataset.id);                                    break;
+        case 'analyticsBackToList': analyticsBackToList();                                                 break;
+        case 'medOpenProfile':     medOpenProfile(el.dataset.id);                                          break;
+        case 'medBackToList':      medBackToList();                                                        break;
+        case 'perfOpenHistory':    openPerfHistory(el.dataset.id);                                         break;
+        case 'perfBackToList':     perfBackToList();                                                       break;
         case 'pcUploadPhoto':      pcUploadPhoto(el.dataset.id);                                           break;
         // ── Tactical AI ──────────────────────────────────────────────────────────
         case 'taiTab':          taiSwitchTab(el.dataset.tab);                                              break;
@@ -51291,6 +51310,18 @@ async function tosBoardSnapshot() {
   });
 
   // ── Change delegation ───────────────────────────────────────────────────────
+  // ── Keyboard: an element that is a button only by role answers Enter and Space like one ──
+  // A native <button> already does (its click reaches the delegation above). A card drawn as
+  // <div role="button" tabindex="0" data-action="…"> does not, so the key is turned into the same
+  // click — one listener on the document, whatever is drawn or redrawn below it.
+  document.addEventListener('keydown', function delegateKey(e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var t = e.target;
+    if (!t || !t.getAttribute || t.tagName === 'BUTTON' || t.tagName === 'A' || t.getAttribute('role') !== 'button' || !t.getAttribute('data-action')) return;
+    e.preventDefault();
+    t.click();
+  });
+
   document.addEventListener('change', function delegateChange(e) {
     const el = e.target.closest('[data-change]');
     if (!el) return;

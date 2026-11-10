@@ -41,10 +41,12 @@ const INLINE_HANDLER = /<[a-zA-Z][^<>]*?\son[a-z]+\s*=\s*\\?["']/g;
 const count = (src: string) => (src.match(INLINE_HANDLER) || []).length;
 
 /**
- * app.js's legacy inline handlers on the day the Chrome 156 remediation removed the three the browser proof meets.
+ * app.js's legacy inline handlers on the day the Chrome 156 remediation removed the three the browser proof meets (145),
+ * less the sixteen the Analytics, Medical and Performance player views were rewired from: their back buttons, the
+ * controls that open them and the Analytics and Medical tabs that list the players (tests/player-views-delegation.unit.test.ts).
  * The number may only go down: wire new behaviour with addEventListener or the delegated listeners, never as an attribute.
  */
-const APP_INLINE_HANDLER_CEILING = 145;
+const APP_INLINE_HANDLER_CEILING = 129;
 
 function walk(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
