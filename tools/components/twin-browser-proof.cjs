@@ -1214,7 +1214,19 @@ const PHASE1 = { nodes: 921, edges: 3656 };
     const READINESS = PLAYERS.map((p) => ({ playerId: p.id, firstName: p.firstName, lastName: p.lastName, number: p.number, position: p.position, overallRating: p.overallRating,
       readinessScore: 82, fitnessScore: 80, formScore: 76, developmentScore: 70, acwr: 1.1, condition: 'GOOD', isHighRisk: false, isInjured: false }));
     const json = (body) => ({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: body }) });
+    // Each inline-handler report, with the element it was made for. The page keeps other inline handlers outside what
+    // T7 exercises (tracked by tests/csp-inline-handlers.unit.test.ts), and a browser may report one as soon as it is
+    // drawn, not only when it runs; so a report counts against T7 when its element lies in a region T7 exercises.
+    const T7_REGIONS = '#perf-content,#analytics-content,#medical-content,#analytics-tabs,#medical-tabs';
     const fixtures = async (ctx) => {
+      await ctx.addInitScript((regions) => {
+        window.__t7csp = [];
+        document.addEventListener('securitypolicyviolation', (e) => {
+          if (e.violatedDirective !== 'script-src-attr') return;
+          const t = e.target, el = t && t.nodeType === 1 ? t : null;
+          window.__t7csp.push({ mine: !!(el && el.closest(regions)), what: el ? el.outerHTML.slice(0, 90) : String(t && t.nodeName) });
+        });
+      }, T7_REGIONS);
       await ctx.route(/\/api\/v1\/analytics\/player\/([^/?]+)/, (r) => { const p = PLAYERS.find((x) => r.request().url().includes(x.id)) || PLAYERS[0];
         return r.fulfill(json({ player: p, radarData: { speed: 80, shooting: 74, passing: 77, technique: 72, defending: 60, stamina: 79, agility: 78, strength: 66 }, matchPerfTrend: [], attendanceRate: 92, injuryImpact: { totalInjuries: 0, totalDaysAbsent: 0, activeInjury: false } })); });
       // shaped as getPlayerMedicalProfile returns it (src/workload/workload-science.service.ts): workload is an object or null
@@ -1248,7 +1260,10 @@ const PHASE1 = { nodes: 921, edges: 3656 };
     const until = (pg, sel, on, ms) => pg.waitForFunction(([sel, on]) => [...document.querySelectorAll(sel)].some((e) => e.getClientRects().length > 0) === on, [sel, on], { timeout: ms || 8000 }).then(() => true, () => false);
     // A locator, not a handle: the page may be drawn again under the pointer, and a locator finds the element anew.
     const press = async (pg, phone, sel) => { const loc = pg.locator(sel).first(); if (phone) await loc.tap({ timeout: 10000 }); else await loc.click({ timeout: 10000 }); return true; };
-    const cspAttr = (pg) => pg.evaluate(() => (window.__csp || []).filter((c) => /script-src-attr/.test(c.d)).length);
+    const cspAttr = (pg) => pg.evaluate(() => { const all = window.__t7csp || []; const mine = all.filter((r) => r.mine);
+      return { mine: mine.length, mineWhat: mine.slice(0, 3).map((r) => r.what), elsewhere: all.length - mine.length, elsewhereWhat: all.filter((r) => !r.mine).slice(0, 6).map((r) => r.what) }; });
+    // The browser's console copy of an inline-handler report is counted, with its element, by cspAttr; any other console error stays an error.
+    const errorsOf = (log) => log.errors.filter((m) => !/inline event handler violates the following Content Security Policy directive 'script-src-attr/.test(m));
     const arrowOf = (pg, sel) => pg.evaluate((sel) => {
       const b = [...document.querySelectorAll(sel)].find((e) => e.getClientRects().length > 0); const ic = b && b.querySelector('.fam-dir-ic'); if (!ic) return null;
       const m = getComputedStyle(ic).transform; const flipped = !!m && m !== 'none' && parseFloat(m.slice(m.indexOf('(') + 1)) < 0;
@@ -1297,8 +1312,8 @@ const PHASE1 = { nodes: 921, edges: 3656 };
               !!reached && reached.visible && reached.ring !== 'none' && kOpen && kClose && sOpen && sClose, { reached, kOpen, kClose, sOpen, sClose });
           }
         }
-        const reports = await cspAttr(page);
-        check(`player views ${at}: no inline-handler CSP report, no page error`, reports === 0 && log.errors.length === 0, { reports, errors: log.errors });
+        const reports = await cspAttr(page), errors = errorsOf(log);
+        check(`player views ${at}: no inline-handler CSP report from the tabs, cards or Back buttons; no page error`, reports.mine === 0 && errors.length === 0, { reports, errors });
         if (!phone && (l.dir === 'rtl' || l.tag === 'en-GB')) { await mount(page, 'performance'); await press(page, false, SCREENS[0].opener); await until(page, SCREENS[0].back, true, 10000); await shot(page, 'player-views-performance-' + l.tag); }
         await ctx.close();
       }
@@ -1314,7 +1329,8 @@ const PHASE1 = { nodes: 921, edges: 3656 };
       await mount(o.page, 'performance'); await press(o.page, false, SCREENS[0].opener); await until(o.page, '#perf-content [onclick^="_perfHistoryId=null"]', true, 10000);
       await press(o.page, false, '#perf-content [onclick^="_perfHistoryId=null"]'); await o.page.waitForTimeout(800);
       const stuck = await shown(o.page, '#perf-content [onclick^="_perfHistoryId=null"]'), refused = await cspAttr(o.page);
-      check('player views (control): the old inline Back handler, put back, does nothing under the CSP and is reported', stuck && refused > 0, { stuck, refused });
+      const named = refused.mineWhat.some((w) => w.includes('onclick="_perfHistoryId=null'));
+      check('player views (control): the old inline Back handler, put back, does nothing under the CSP and is reported', stuck && refused.mine > 0 && named, { stuck, refused });
       await o.ctx.close();
       const noKeys = app.replace(/document\.addEventListener\('keydown', function delegateKey\(e\) \{[\s\S]*?\n  \}\);/, '');
       if (noKeys === app) throw new Error('T7 control: the key delegate was not found in app.js');
