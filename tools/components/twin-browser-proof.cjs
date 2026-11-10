@@ -21,7 +21,10 @@
 //                     and the primary action can be read and reached: the arrow's drawn direction, the button contrast, the
 //                     Tab order and the focus ring, desktop and phone, every official language; its axe pass with --axe),
 //                     T7 (the Analytics, Medical and Performance player views: tabs, player cards and Back through the
-//                     delegation under the CSP, by mouse, touch and keyboard, repeatedly, every official language).
+//                     delegation under the CSP, by mouse, touch and keyboard, repeatedly, every official language),
+//                     T8 (the twin's Phase 2: impact checked against the served graph with an independent search, the
+//                     evidence chains, highlight and isolate, the status lens, the 3D view by keyboard, timings, every
+//                     official language on desktop and phone; its axe pass with --axe).
 //                     All by default.
 //   CHROMIUM, PLAYWRIGHT_CORE, AXE_CORE   as for lab-browser-proof.cjs
 //
@@ -1340,6 +1343,169 @@ const PHASE1 = { nodes: 921, edges: 3656 };
       const opened = await until(o.page, SCREENS[2].back, true, 3000);
       check('player views (control): without the key delegate, Enter on a player card opens nothing', !opened, { opened });
       await o.ctx.close();
+    }
+  }
+
+  // T8 — Phase 2: architecture intelligence. The impact of a node (what depends on it, what it depends on), each answer
+  // with the chain of evidence that reached it; highlight and isolate in the scene; the status lens; the 3D view by
+  // keyboard. Every answer the room shows is checked against the served graph with a search written here, not the room's.
+  if (want('T8')) {
+    const ORIGIN = 'file:src/platform/neural-twin/model.ts', ROUTER = 'api:neural-twin.routes';
+    const DEPK = ['IMPORTS', 'DATA', 'DEPENDS_ON', 'INFRA', 'IMPLEMENTED_BY', 'USES_TOOLS'];
+    const served = (pg) => pg.evaluate(async () => (await (await fetch('/api/v1/system/neural-twin', { credentials: 'include' })).json()).data);
+    const kidsOf = (g) => { const k = {}; g.nodes.forEach((n) => { if (n.parent) (k[n.parent] = k[n.parent] || []).push(n.id); }); return k; };
+    const subtreeOf = (g, id) => { const k = kidsOf(g), out = [], st = [id]; while (st.length) { const x = st.pop(); out.push(x); st.push(...(k[x] || [])); } return out; };
+    // the fewest steps to every node, level by level over every edge: independent of the room's search
+    const steps = (g, origins, dir, depth) => {
+      const start = new Set(origins), dist = {}; let front = new Set(origins), d = 0;
+      while (front.size && (!depth || d < depth)) {
+        d += 1; const next = new Set();
+        for (const e of g.edges) { if (!DEPK.includes(e.kind)) continue; const a = dir === 'up' ? e.to : e.from, b = dir === 'up' ? e.from : e.to; if (front.has(a) && !start.has(b) && dist[b] === undefined) { dist[b] = d; next.add(b); } }
+        front = next;
+      }
+      return dist;
+    };
+    const sameSteps = (room, ind) => { const a = Object.keys(room.reached).sort(), b = Object.keys(ind).sort(); return a.length === b.length && a.every((x, i) => x === b[i] && room.reached[x].depth === ind[x]); };
+    const impactOf = (pg) => pg.evaluate(() => window.__familistaTwinImpact());
+    const chainShown = (pg, id) => pg.evaluate((id) => {
+      const li = [...document.querySelectorAll('#nt-impact [data-nt-why]')].find((b) => b.getAttribute('data-nt-why') === id);
+      const ol = li && li.closest('li').querySelector('.nt-chain');
+      return ol ? { nodes: [...ol.querySelectorAll(':scope > li > .nt-link')].map((b) => b.getAttribute('data-nt-select')), ev: [...ol.querySelectorAll('.nt-ev-inline')].map((c) => c.textContent) } : null;
+    }, id);
+    // a shown chain is valid when each consecutive pair is joined by a followed graph edge whose evidence is the one shown
+    const chainOk = (g, ch, dir) => !!ch && ch.nodes.length >= 2 && ch.nodes.slice(1).every((to, i) => {
+      const from = ch.nodes[i];
+      const e = g.edges.find((x) => DEPK.includes(x.kind) && (dir === 'up' ? x.to === from && x.from === to : x.from === from && x.to === to));
+      return !!e && ch.ev[i] === e.evidence[0].p + (e.evidence[0].l ? ':' + e.evidence[0].l : '');
+    });
+    const pick = async (pg, id, q) => { await pg.fill('#nt-q', q); await pg.click('#nt-tree [data-nt-select="' + id + '"]'); await settle(pg); };
+    const AXE_SRC = WANT_AXE ? fs.readFileSync(process.env.AXE_CORE || path.join(ROOT, 'tools/components/node_modules/axe-core/axe.min.js'), 'utf8') : '';
+
+    {
+      const { ctx, page, log } = await open({ width: 1440, height: 900 }, 'en-GB');
+      const g = await served(page);
+      await pick(page, ORIGIN, 'model.ts');
+      let r = await impactOf(page);
+      const ind3 = steps(g, [ORIGIN], 'up', 3);
+      check('impact: what depends on a file, 3 steps — the room\'s answer is the served graph\'s, node for node and step for step (an independent search agrees)',
+        !!r && r.dir === 'up' && r.depth === 3 && r.ids.length > 0 && sameSteps(r, ind3), { reached: r && r.ids.length, independent: Object.keys(ind3).length });
+      const groups = await page.evaluate(() => [...document.querySelectorAll('#nt-impact [data-nt-impact-kind]')].map((el) => [el.getAttribute('data-nt-impact-kind'), Number((el.querySelector('.nt-chip-n') || {}).textContent)]));
+      check('impact: the panel lists every node reached, grouped by kind, API routers first', groups.reduce((n, x) => n + x[1], 0) === r.ids.length && groups[0][0] === 'api', groups);
+      await page.click('#nt-impact [data-nt-why="' + ROUTER + '"]');
+      const ch = await chainShown(page, ROUTER);
+      const ownerBadge = await page.evaluate((id) => { const b = [...document.querySelectorAll('#nt-impact [data-nt-why]')].find((x) => x.getAttribute('data-nt-why') === id); return !!(b && b.closest('li').querySelector('.nt-badge--owner')); }, ROUTER);
+      check('impact: "Why" shows the chain from the file to the owner-only router, every hop a real edge with the evidence it cites', chainOk(g, ch, 'up') && ch.nodes[0] === ORIGIN && ch.nodes[ch.nodes.length - 1] === ROUTER && ownerBadge, { ch, ownerBadge });
+      // (control) the same check catches a chain with a hop the graph does not have
+      const forged = ch ? { nodes: [ch.nodes[0], 'file:src/server.ts', ...ch.nodes.slice(2)], ev: ch.ev } : null;
+      check('impact (control): a chain with a fabricated hop fails the same check', !chainOk(g, forged, 'up'), forged);
+
+      // keyboard: the controls are buttons; Enter and Space work, and focus stays on the control that was used
+      const STORE = 'file:src/platform/neural-twin/store.ts';
+      await pick(page, STORE, 'store.ts');
+      await page.focus('#nt-impact [data-nt-impact-dir="down"]'); await page.keyboard.press('Enter'); await settle(page);
+      const kb1 = await page.evaluate(() => ({ pressed: document.querySelector('#nt-impact [data-nt-impact-dir="down"]').getAttribute('aria-pressed'), focused: document.activeElement && document.activeElement.getAttribute('data-nt-impact-dir'), ring: getComputedStyle(document.activeElement).outlineStyle }));
+      await page.focus('#nt-impact [data-nt-impact-depth="0"]'); await page.keyboard.press(' '); await settle(page);
+      r = await impactOf(page);
+      const indAllDown = steps(g, [STORE], 'down', 0);
+      check('impact by keyboard: Enter turns it to "what it depends on", Space takes every step; focus stays on the control, with its ring; the answer matches, and holds what store.ts imports, never what imports it',
+        kb1.pressed === 'true' && kb1.focused === 'down' && kb1.ring !== 'none' && r.dir === 'down' && r.depth === 0 && !r.limited && r.ids.length > 10 && sameSteps(r, indAllDown) && r.ids.includes(ORIGIN) && !r.ids.includes(ROUTER), { kb1, reached: r.ids.length, limited: r.limited });
+      await pick(page, ORIGIN, 'model.ts');
+
+      // highlight, then isolate: what the scene shows is the impact and nothing else
+      await page.click('#nt-impact [data-nt-impact-dir="up"]'); await page.click('#nt-impact [data-nt-impact-depth="3"]'); await settle(page);
+      const before = (await M(page)).expanded;
+      await page.click('#nt-impact [data-nt-impact-scene="highlight"]'); await settle(page);
+      let m = await M(page), ig = await integrity(page);
+      check('impact highlighted: what it reached is marked in the scene and its chains are drawn as highlighted lines, each a real edge', m.impact.scene === 'highlight' && m.impact.near > 0 && m.impact.lines > 0 && ig.badCount === 0 && ig.caught, { impact: m.impact, ig: { bad: ig.badCount, drawn: ig.drawn } });
+      const t0 = Date.now();
+      await page.click('#nt-impact [data-nt-impact-scene="isolate"]'); await settle(page);
+      const isoMs = Date.now() - t0;
+      m = await M(page);
+      r = await impactOf(page);
+      const keep = new Set(); const parent = {}; g.nodes.forEach((n) => { parent[n.id] = n.parent; });
+      const markUp = (id) => { let c = id; while (c) { keep.add(c); c = parent[c]; } };
+      subtreeOf(g, ORIGIN).forEach(markUp); r.ids.forEach(markUp);
+      const shownIds = Object.keys((await page.evaluate(() => window.__familistaTwinLayout())).pos);
+      check(`impact isolated: the scene holds the file, what depends on it and what contains them, and nothing else; every node reached is itself drawn (${shownIds.length} shown)`,
+        shownIds.length > 0 && shownIds.every((id) => keep.has(id)) && r.ids.every((id) => shownIds.includes(id)) && shownIds.includes(ORIGIN), { shown: shownIds.length, keep: keep.size, outside: shownIds.filter((id) => !keep.has(id)).slice(0, 4) });
+      const lc = await layoutCheck(page);
+      check('impact isolated: no two nodes collide, and each sits inside its parent', lc.badCount === 0 && lc.outside.length === 0, lc);
+      await shot(page, 'p2-isolate-en-GB');
+      await page.click('#nt-impact [data-nt-impact-scene="off"]'); await settle(page);
+      m = await M(page);
+      check('impact: leaving isolation gives the reader back the systems and modules they had open', JSON.stringify(m.expanded) === JSON.stringify(before), { before, after: m.expanded });
+
+      // the status lens: a status switched off is not drawn; switched on, it is again
+      const unreached = g.nodes.find((n) => n.facts && n.facts.reachableFromEntry === false && !n.facts.dormantRouter && n.kind === 'file');
+      await pick(page, unreached.id, unreached.label);
+      const shownBefore = Object.keys((await page.evaluate(() => window.__familistaTwinLayout())).pos).includes(unreached.id);
+      const statusText = await page.evaluate(() => (document.querySelector('#nt-inspector .nt-dl .nt-status') || {}).textContent);
+      await page.click('[data-nt-status="unreached"]'); await settle(page);
+      const shownOff = Object.keys((await page.evaluate(() => window.__familistaTwinLayout())).pos).includes(unreached.id);
+      await page.click('[data-nt-status="unreached"]'); await settle(page);
+      const shownOn = Object.keys((await page.evaluate(() => window.__familistaTwinLayout())).pos).includes(unreached.id);
+      check('status: a file nothing reaches is marked "Not reached"; switching that status off hides it, on shows it again', shownBefore && statusText === 'Not reached' && !shownOff && shownOn, { id: unreached.id, statusText, shownBefore, shownOff, shownOn });
+      const tally = await page.evaluate(async () => { const m = window.__familistaTwinMetrics(); return m.statuses; });
+      check('status: all six statuses are switched on again, and none is "experimental" or "deprecated"', JSON.stringify(tally) === JSON.stringify(['dormant', 'implemented', 'partial', 'planned', 'unreached', 'unverified']), tally);
+
+      // the 3D view by keyboard: arrows turn and tilt, + zooms, Home returns to the overview
+      await page.focus('#nt-canvas');
+      const c0 = (await M(page)).camera;
+      await page.keyboard.press('ArrowLeft'); await page.keyboard.press('ArrowUp'); await page.keyboard.press('+');
+      const c1 = (await M(page)).camera;
+      check('the 3D view by keyboard: the left arrow turns it, the up arrow tilts it, + zooms in', Math.abs((c0.a - c1.a) - Math.PI / 24) < 1e-6 && c1.b < c0.b && c1.r < c0.r, { c0, c1 });
+
+      // timings, on a software renderer: the largest impact in the graph, and isolating it
+      await pick(page, 'file:src/utils/errors.ts', 'errors.ts');
+      await page.click('#nt-impact [data-nt-impact-depth="0"]'); await settle(page);
+      m = await M(page);
+      const big = await impactOf(page);
+      check(`performance: the impact of src/utils/errors.ts, every step (${big.ids.length} nodes), computed in ${m.impact.ms} ms (budget 50 ms)`, m.impact.ms != null && m.impact.ms <= 50 && big.ids.length > 100, m.impact);
+      check(`performance: isolating an impact and redrawing the scene took ${isoMs} ms (budget 3000 ms on a software renderer)`, isoMs <= 3000, { isoMs });
+      check('impact: no page error and no CSP violation from the room through every step', log.errors.length === 0 && (await roomCsp(page)) === 0, log.errors.slice(0, 3));
+      if (WANT_AXE) {
+        await pick(page, ORIGIN, 'model.ts');
+        await page.click('#nt-impact [data-nt-why="' + ROUTER + '"]');
+        const v = await page.evaluate(async (src) => { if (!window.axe) (0, eval)(src); const res = await window.axe.run(document.getElementById('nt-inspector'), { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] }, resultTypes: ['violations'] }); return res.violations.map((x) => x.id + ' ×' + x.nodes.length); }, AXE_SRC);
+        check('impact accessibility: 0 axe violations (WCAG 2.2 A/AA) in the inspector with the impact and a chain open', v.length === 0, v);
+      }
+      await ctx.close();
+    }
+
+    // (control) the panel reads the graph: remove the edge that reached the router, and the router is no longer at step 2
+    {
+      const tamper = async (ctx) => {
+        await ctx.route(/\/api\/v1\/system\/neural-twin$/, async (route) => {
+          const res = await route.fetch(); const body = await res.json();
+          body.data.edges = body.data.edges.filter((e) => !(e.kind === 'IMPORTS' && e.from === ROUTER && e.to === 'file:src/platform/neural-twin/store.ts'));
+          route.fulfill({ response: res, body: JSON.stringify(body) });
+        });
+      };
+      const { ctx, page } = await open({ width: 1440, height: 900 }, 'en-GB', { before: tamper });
+      await pick(page, ORIGIN, 'model.ts');
+      const r = await impactOf(page);
+      check('impact (control): with the store → router import removed from the served graph, the router is not reached at step 2', !(r.reached[ROUTER] && r.reached[ROUTER].depth === 2), { router: r.reached[ROUTER] || null });
+      await ctx.close();
+    }
+
+    // every official language, desktop and phone: the panel in the reader's language and direction, nothing off-screen
+    for (const l of OFFICIAL) {
+      const cat = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/neural-twin/i18n/' + l.tag.slice(0, 2) + '.json'), 'utf8'));
+      for (const vp of [{ width: 1440, height: 900, name: 'desktop' }, { width: 390, height: 844, name: 'phone', mobile: true }]) {
+        const { ctx, page, log } = await open({ width: vp.width, height: vp.height }, l.tag, { mobile: vp.mobile });
+        await pick(page, ORIGIN, 'model.ts');
+        await page.click('#nt-impact [data-nt-why="' + ROUTER + '"]');
+        const st = await page.evaluate(() => {
+          const sec = document.getElementById('nt-impact'), title = document.getElementById('nt-impact-t');
+          const segs = [...sec.querySelectorAll('.nt-seg')].map((x) => x.getBoundingClientRect()), vw = innerWidth;
+          return { dir: document.documentElement.dir || getComputedStyle(sec).direction, cssDir: getComputedStyle(sec).direction, title: title && title.textContent, why: (sec.querySelector('[data-nt-why]') || {}).textContent,
+            over: document.scrollingElement.scrollWidth - vw, segsInside: segs.every((b) => b.left >= -1 && b.right <= vw + 1), evLtr: [...sec.querySelectorAll('.nt-chain code')].every((c) => c.getAttribute('dir') === 'ltr') };
+        });
+        check(`impact ${l.tag} ${vp.name}: the panel speaks the reader's language ("${st.title}"), runs ${l.dir}, its controls fit, nothing scrolls sideways, paths stay left to right`,
+          st.title === cat['Impact'] && st.why === cat['Why'] && st.cssDir === l.dir && st.segsInside && st.over <= 0 && st.evLtr && log.errors.length === 0, st);
+        if (l.tag === 'ar' || l.tag === 'en-GB') await shot(page, 'p2-impact-' + l.tag + '-' + vp.name);
+        await ctx.close();
+      }
     }
   }
 

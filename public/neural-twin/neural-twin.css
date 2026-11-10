@@ -113,7 +113,7 @@ body.nt-twin-open { overflow: hidden; }
   width: 100%; min-height: 34px; padding: 0 var(--fam-space-3); border-radius: var(--fam-radius-md);
   border: var(--fam-border-width-hairline) solid var(--fam-border-default); background: var(--fam-surface-tile); color: var(--fam-text-primary); font: inherit; font-size: var(--fam-font-size-sm);
 }
-:is(.nt-back, .nt-ownernav-btn, .nt-btn, .nt-lang, .nt-input, .nt-chip, .nt-row, .nt-twist, .nt-link, .nt-crumb, .nt-more, .nt-tool, .nt-range, .nt-legend-t, .nt-inspector):focus-visible,
+:is(.nt-back, .nt-ownernav-btn, .nt-btn, .nt-lang, .nt-input, .nt-chip, .nt-row, .nt-twist, .nt-link, .nt-crumb, .nt-more, .nt-tool, .nt-range, .nt-legend-t, .nt-inspector, .nt-seg button, .nt-why):focus-visible,
 .nt-canvas:focus-visible { outline: var(--fam-border-width-strong) solid var(--fam-focus-ring); outline-offset: 2px; }
 .nt-canvas:focus-visible { outline-offset: -3px; }
 
@@ -297,6 +297,41 @@ body.nt-twin-open { overflow: hidden; }
 .nt-skel span:nth-child(3) { height: 120px; }
 
 /* ── the escape hatch: small or short screens scroll as a page ──────────── */
+/* ── Phase 2: impact, status and access ─────────────────────────────────────
+   The impact panel's controls are segmented groups of plain buttons (aria-pressed); a status is a word with a mark,
+   never a colour alone; "implemented" stays neutral, because built is not the same as running. */
+.nt-impctl { display: flex; flex-direction: column; gap: var(--fam-space-2); margin-bottom: var(--fam-space-3); }
+.nt-impctl-r { display: flex; flex-wrap: wrap; align-items: center; gap: var(--fam-space-1) var(--fam-space-2); }
+.nt-impctl-l { min-width: 84px; font-size: var(--fam-font-size-2xs); color: var(--fam-text-secondary); }
+.nt-seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); border-radius: var(--fam-radius-full); }
+.nt-seg button { min-height: 26px; border: 0; background: none; padding: 0 var(--fam-space-2); border-radius: var(--fam-radius-full); color: var(--fam-text-secondary); font: inherit; font-size: var(--fam-font-size-xs); cursor: pointer; }
+.nt-seg button:hover { color: var(--fam-text-primary); }
+.nt-seg button[aria-pressed="true"] { background: var(--fam-surface-tile-strong); color: var(--fam-text-primary); font-weight: var(--fam-font-weight-semibold); }
+.nt-imp-g { margin-top: var(--fam-space-3); }
+.nt-imp-g .nt-conn-h { display: flex; align-items: center; gap: var(--fam-space-2); font-size: var(--fam-font-size-xs); font-weight: var(--fam-font-weight-semibold); color: var(--fam-text-primary); }
+.nt-imp-g .nt-conn-h .nt-chip-n { margin-inline-start: auto; }
+.nt-imp-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--fam-space-2); }
+.nt-imp-row { flex-wrap: nowrap; }
+.nt-imp-row .nt-link { flex: 1 1 auto; min-width: 0; }
+.nt-imp-meta { display: flex; flex-wrap: wrap; gap: 4px; padding-inline-start: 30px; margin-bottom: 4px; }
+.nt-step, .nt-badge, .nt-status { display: inline-flex; align-items: center; gap: 4px; padding: 0 var(--fam-space-2); border-radius: var(--fam-radius-full); border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); color: var(--fam-text-secondary); font-size: var(--fam-font-size-2xs); white-space: nowrap; }
+.nt-badges { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.nt-badge--owner { border-color: var(--fam-module-accent); color: var(--fam-text-primary); }
+.nt-badge--public { border-style: dashed; }
+.nt-status::before, .nt-status-dot { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: var(--fam-radius-full); background: var(--fam-text-secondary); flex: none; }
+.nt-status-dot { margin-inline-end: 2px; }
+.nt-status--partial::before, .nt-status-dot.nt-status--partial { background: var(--fam-status-warning); }
+.nt-status--unreached::before, .nt-status-dot.nt-status--unreached { background: var(--fam-status-info); }
+.nt-status--dormant::before, .nt-status-dot.nt-status--dormant { background: var(--fam-status-neutral); }
+.nt-status--planned::before, .nt-status-dot.nt-status--planned, .nt-status--unverified::before, .nt-status-dot.nt-status--unverified { background: none; border: var(--fam-border-width-hairline) dashed var(--fam-status-unverified); }
+.nt-dl dd .nt-status { margin-inline-end: var(--fam-space-1); }
+.nt-def { display: block; margin-top: 2px; color: var(--fam-text-secondary); font-size: var(--fam-font-size-2xs); line-height: 1.45; }
+.nt-tally--status li { flex-wrap: wrap; }
+.nt-tally--status .nt-def { flex-basis: 100%; }
+.nt-why { flex: none; min-height: 24px; border: 0; background: none; padding: 0 var(--fam-space-2); color: var(--fam-module-accent); font: inherit; font-size: var(--fam-font-size-2xs); cursor: pointer; border-radius: var(--fam-radius-sm); }
+.nt-why[aria-expanded="true"] { color: var(--fam-text-primary); }
+.nt-chain { margin: var(--fam-space-1) 0 var(--fam-space-2); padding-inline-start: var(--fam-space-3); border-inline-start: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
+
 @media (max-width: 1279px) {
   .nt-work { grid-template-columns: 260px minmax(0, 1fr) 330px; }
   .nt-stats { display: none; }
@@ -321,6 +356,7 @@ body.nt-twin-open { overflow: hidden; }
   .nt-ownernav-label { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .nt-tool--wide { font-size: var(--fam-font-size-2xs); padding: 0 6px; }
   .nt-stage { height: 56vh; min-height: 300px; }
+  .nt-impctl-l { min-width: 0; flex-basis: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   #pg-neural-twin * { transition: none !important; animation: none !important; }

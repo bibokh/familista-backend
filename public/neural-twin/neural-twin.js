@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   FAMILISTA — NEURAL DIGITAL TWIN (Phase 1)
+   FAMILISTA — NEURAL DIGITAL TWIN (Phase 1, with Phase 2's architecture intelligence)
 
    The platform's real architecture as an explorable network, for the Platform
    Owner only. It reads one graph (GET /system/neural-twin, composed at build
@@ -13,6 +13,13 @@
    (/vendor/babylon.js, loaded on demand). The explorer beside it is the same
    graph as an outline, which is also the keyboard and screen-reader path, and
    the whole room still works when WebGL does not.
+
+   Phase 2 asks questions of the same graph (neural-twin-intel.js, pure): what a
+   node depends on and what depends on it, step by step, each answer with the
+   chain of evidence that reached it; the scene highlights or isolates that set;
+   and every node carries the status its own authority records. It adds no fact:
+   a relationship the graph does not hold is not in any answer, and the room says
+   which kinds of relationship that leaves out.
 
    Loaded on demand by public/app.js for the platform owner only, behind the
    same data-no-i18n boundary as every owner room, with its own English, German
@@ -101,6 +108,18 @@
     group: 'Group', readiness: 'Readiness', row: 'Coverage map row', flow: 'Flow', trustBoundary: 'Trust boundary', dataClass: 'Data class',
     boundaryType: 'Boundary type', coverage: 'Coverage', controls: 'Controls', modules: 'Modules',
   };
+  /** A node's status, as its own authority records it (neural-twin-intel.js, statusOf): the name and what it means. */
+  var STATUS = {
+    implemented: { name: 'Implemented', def: 'Its authority records it as built. That does not say it is running.' },
+    partial: { name: 'Partial', def: 'Its authority records it as partly built, not configured or partly covered.' },
+    unreached: { name: 'Not reached', def: 'No import chain from the server or a start-up script reaches it. It may be loaded another way, or not be used.' },
+    dormant: { name: 'Dormant router', def: 'A router module the security manifest records as mounted nowhere.' },
+    planned: { name: 'Planned', def: 'Listed as future work in the infrastructure manifest. Nothing is built.' },
+    unverified: { name: 'Unverified', def: 'No authority places or confirms it.' },
+  };
+  /** The order the impact panel lists what it reached: what a reader acts on first. */
+  var IMPACT_ORDER = ['api', 'agent', 'component', 'sysmodule', 'module', 'file', 'model', 'boundary', 'planned', 'system'];
+  var IMPACT_DEPTHS = [1, 2, 3, 0];
   var ROOMS = {
     'infrastructure-city': 'Open in Infrastructure City', cybersecurity: 'Open in Cybersecurity', 'agents-room': 'Open in the AI Agents Operations Room', system: 'Open in SYSTEM',
   };
@@ -124,6 +143,7 @@
   var OPEN_SYSTEM = 0.55;      // an open node's own body shrinks to make room for its platform
   var VIEW = { alpha: -Math.PI / 2, beta: 0.96 };
   function L() { return window.FamilistaTwinLayout; }
+  function I() { return window.FamilistaTwinIntel; }
 
   // ── state ─────────────────────────────────────────────────────────────────
   function fresh() {
@@ -134,6 +154,8 @@
       pos: {}, visible: {}, lifted: [], labels: [], labelSize: {}, labelPri: {}, labelsShown: 0,
       layout: null, layoutMs: null, near: {}, selSet: {}, path: null, pathTo: null, history: [], drawn: [], cut: 0, ambientTotal: 0, hiCount: { out: 0, inc: 0, path: 0 },
       intensity: 1, focusOnly: false, edgeRaf: 0,
+      status: {}, statuses: {}, keep: null, impactNear: {}, impactLifted: {},
+      impact: { dir: 'up', depth: 3, scene: 'off', key: '', result: null, ms: null, why: {} },
       gl: { engine: null, scene: null, camera: null, meshes: {}, mats: {}, templates: {}, edgeMeshes: [], hiMeshes: [], arrows: [], platforms: [], inst: null,
         far: false, cw: 0, ch: 0,
         layoutKey: '', anim: null, tween: null, dirty: true, ok: false, failed: false, reason: '', awakeUntil: 0, frames: 0 },
@@ -143,6 +165,7 @@
   var S = fresh();
   for (var k in KINDS) S.kinds[k] = true;
   for (var e in EDGES) S.edges[e] = e !== 'IN_BOUNDARY';
+  for (var st in STATUS) S.statuses[st] = true;
   var reduceMotion = false;
   try { reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
 
@@ -175,17 +198,57 @@
     for (var p in S.kids) S.kids[p].sort(order);
     g.edges.forEach(function (e) { (S.out[e.from] = S.out[e.from] || []).push(e); (S.inc[e.to] = S.inc[e.to] || []).push(e); });
     g.nodes.forEach(function (n) { var d = 0, q = n.parent; while (q) { d++; q = S.byId[q] && S.byId[q].parent; } S.depth[n.id] = d; });
+    S.status = {};
+    g.nodes.forEach(function (n) { S.status[n.id] = I().statusOf(n); });
+    S.impact.key = ''; S.impact.result = null;
   }
   function ancestors(id) { var out = [], p = S.byId[id] && S.byId[id].parent; while (p) { out.unshift(p); p = S.byId[p] && S.byId[p].parent; } return out; }
   function systemOf(id) { var a = ancestors(id); return a.length ? a[0] : id; }
   function systems() { return (S.graph ? S.graph.nodes : []).filter(function (n) { return n.kind === 'system'; }).sort(function (a, b) { return a.label < b.label ? -1 : 1; }); }
 
   // ── what is on screen: expanded subtrees, filters, and edges lifted to what is shown ──
+  /** The impact of the selection, computed again only when the selection, the direction, the depth or the relationships change. */
+  function computeImpact() {
+    var im = S.impact;
+    if (!S.sel || !S.byId[S.sel]) { im.result = null; im.key = ''; return; }
+    var kinds = I().DEPENDENCY_KINDS.filter(function (k) { return !!S.edges[k]; });
+    var key = S.sel + '|' + im.dir + '|' + im.depth + '|' + kinds.join(',');
+    if (key === im.key && im.result) return;
+    var t = performance.now();
+    im.result = I().impact(S.graph, Object.keys(subtree(S.sel)), { dir: im.dir, depth: im.depth, kinds: kinds });
+    im.ms = Math.round((performance.now() - t) * 100) / 100;
+    im.key = key; im.why = {};
+  }
+  /** Isolating keeps the selection, what its impact reached, and the systems and modules they sit in; nothing else. */
+  function keepSet() {
+    var r = S.impact.result;
+    if (S.impact.scene !== 'isolate' || !r) return null;
+    var keep = {};
+    function mark(id) { if (keep[id]) return; keep[id] = true; ancestors(id).forEach(function (a) { keep[a] = true; }); }
+    Object.keys(subtree(S.sel)).forEach(mark);
+    r.ids.forEach(mark);
+    return keep;
+  }
+  /** Isolating opens the systems and modules that hold what the impact reached, so the nodes themselves are drawn;
+   *  the reader's own open and closed state comes back when isolation ends. */
+  function reopenIsolated() { var r = S.impact.result; if (r) r.ids.concat([S.sel]).forEach(function (id) { ancestors(id).forEach(function (a) { S.expanded[a] = true; }); }); }
+  function isolateOpen() {
+    var r = S.impact.result;
+    if (!r) return;
+    S.impact.saved = {};
+    Object.keys(S.expanded).forEach(function (k) { S.impact.saved[k] = S.expanded[k]; });
+    r.ids.concat([S.sel]).forEach(function (id) { ancestors(id).forEach(function (a) { S.expanded[a] = true; }); });
+  }
+  /** The nearest node on screen that holds `id`, or null. */
+  function shownAs(id) { var c = id; while (c && !S.visible[c]) c = S.byId[c] && S.byId[c].parent; return c || null; }
   function computeVisible() {
     var vis = {};
+    computeImpact();
+    S.keep = keepSet();
     function walk(id) {
       var n = S.byId[id];
-      if (!S.kinds[n.kind] && n.kind !== 'system') return;
+      if (n.kind !== 'system' && (!S.kinds[n.kind] || !S.statuses[S.status[id]])) return;
+      if (S.keep && !S.keep[id]) return;
       vis[id] = true;
       if (S.expanded[id]) (S.kids[id] || []).forEach(walk);
     }
@@ -198,6 +261,18 @@
     S.selSet = {};
     if (S.sel && vis[S.sel]) Object.keys(subtree(S.sel)).forEach(function (id) { if (vis[id]) S.selSet[id] = true; });
     S.hiCount = { out: 0, inc: 0, inside: 0, path: S.path ? S.path.edges.length : 0 };
+    // the impact in the scene: what it reached, as drawn at this level, and the lines its chains run along
+    S.impactNear = {}; S.impactLifted = {};
+    var r = S.impact.result;
+    if (r && S.impact.scene !== 'off') {
+      var keys = {};
+      r.ids.forEach(function (id) {
+        var at = shownAs(id); if (at) S.impactNear[at] = true;
+        var e = S.graph.edges[r.reached[id].via], a = shownAs(e.from), b = shownAs(e.to);
+        if (a && b && a !== b) keys[a + '\u0000' + b + '\u0000' + e.kind] = true;
+      });
+      S.lifted.forEach(function (e, i) { if (keys[e.from + '\u0000' + e.to + '\u0000' + e.kind]) S.impactLifted[i] = true; });
+    }
     S.lifted.forEach(function (e) {
       var a = S.selSet[e.from], b = S.selSet[e.to];
       if (a && b) S.hiCount.inside++; else if (a) S.hiCount.out++; else if (b) S.hiCount.inc++;
@@ -265,6 +340,8 @@
     cam.lowerRadiusLimit = 3; cam.upperRadiusLimit = 1600; cam.lowerBetaLimit = 0.08; cam.upperBetaLimit = 1.48;
     cam.wheelDeltaPercentage = 0.012; cam.pinchDeltaPercentage = 0.004; cam.panningSensibility = 60;
     cam.inertia = reduceMotion ? 0 : 0.82; cam.panningInertia = reduceMotion ? 0 : 0.82; cam.minZ = 0.3; cam.maxZ = 8000;
+    // the keyboard is the room's own (cameraKey): one step per key, the same in every language, not Babylon's inertial one
+    try { cam.inputs.removeByType('ArcRotateCameraKeyboardMoveInput'); } catch (_) {}
     cam.attachControl(canvas, true);
     var hemi = new B.HemisphericLight('nt-sky', new B.Vector3(0.2, 1, 0.1), scene);
     hemi.intensity = 0.85; hemi.groundColor = new B.Color3(bg[0], bg[1], bg[2]);
@@ -562,9 +639,9 @@
     var sel = S.sel && S.visible[S.sel] ? S.sel : null, onPath = {};
     if (S.path) S.path.edges.forEach(function (i) { onPath[i] = true; });
     var amb = [], hi = [];
-    S.lifted.forEach(function (e, i) { if (onPath[i] || (sel && (S.selSet[e.from] || S.selSet[e.to]))) hi.push(i); else amb.push(i); });
+    S.lifted.forEach(function (e, i) { if (onPath[i] || S.impactLifted[i] || (sel && (S.selSet[e.from] || S.selSet[e.to]))) hi.push(i); else amb.push(i); });
     var byWeight = function (a, b) { return S.lifted[b].weight - S.lifted[a].weight || a - b; };
-    if (hi.length > HIGHLIGHT_BUDGET) hi = hi.slice().sort(function (a, b) { return (onPath[b] ? 1 : 0) - (onPath[a] ? 1 : 0) || byWeight(a, b); }).slice(0, HIGHLIGHT_BUDGET).sort(function (a, b) { return a - b; });
+    if (hi.length > HIGHLIGHT_BUDGET) hi = hi.slice().sort(function (a, b) { return (onPath[b] ? 1 : 0) - (onPath[a] ? 1 : 0) || (S.impactLifted[b] ? 1 : 0) - (S.impactLifted[a] ? 1 : 0) || byWeight(a, b); }).slice(0, HIGHLIGHT_BUDGET).sort(function (a, b) { return a - b; });
     var focus = !!(sel || S.path), showAmb = S.intensity > 0 && !(S.focusOnly && focus);
     S.cut = 0; S.ambientTotal = amb.length;
     if (!showAmb) amb = [];
@@ -623,6 +700,7 @@
     Object.keys(S.selSet).forEach(function (id) { out[id] = true; });
     ancestors(S.sel).forEach(function (a) { out[a] = true; });
     (S.kids[S.sel] || []).forEach(function (k) { out[k] = true; });
+    Object.keys(S.impactNear).forEach(function (id) { out[id] = true; });
     delete out[S.sel];
     return out;
   }
@@ -796,6 +874,7 @@
     if (S.system && systemOf(id) !== S.system) S.system = '';
     if (!S.kinds[S.byId[id].kind]) S.kinds[S.byId[id].kind] = true;
     S.sel = id; S.pathTo = null; S.showAll = {};
+    if (S.impact.scene === 'isolate') { computeImpact(); reopenIsolated(); }
     refresh({ focus: focus });
     announce(T(KINDS[S.byId[id].kind].name) + ': ' + S.byId[id].label);
   }
@@ -837,6 +916,8 @@
     else { el.hidden = true; el.textContent = ''; }
   }
   function announce(msg) { var l = S.root && S.root.querySelector('#nt-live'); if (l) l.textContent = msg; }
+  /** After the inspector is drawn again, keyboard focus goes back to the control that was used, not to the page. */
+  function focusBack(sel) { var el = S.root && S.root.querySelector('#nt-inspector ' + sel); if (el && el.focus) { try { el.focus({ preventScroll: true }); } catch (_) { el.focus(); } } }
 
   // ── the shell ─────────────────────────────────────────────────────────────
   /** The Platform Owner navigation (public/app.js, OWNER_NAV), this room marked as the open one, in this room's words. */
@@ -867,7 +948,7 @@
       + '<div class="nt-tree" id="nt-tree"></div>'
       + '</aside>'
       + '<section class="nt-stage" aria-label="' + esc(T('3D architecture view')) + '">'
-      + '<canvas id="nt-canvas" class="nt-canvas" tabindex="0" aria-label="' + esc(T('3D view of the architecture graph. Drag to rotate, right-drag to pan, scroll to zoom. The explorer lists the same graph.')) + '"></canvas>'
+      + '<canvas id="nt-canvas" class="nt-canvas" tabindex="0" aria-label="' + esc(T('3D view of the architecture graph. Drag or use the arrow keys to rotate, right-drag to pan, scroll or + and − to zoom, Home for the overview. The explorer lists the same graph.')) + '"></canvas>'
       + '<div class="nt-labels" id="nt-labels" aria-hidden="true"></div>'
       + '<div class="nt-glmsg" id="nt-glmsg" hidden></div>'
       + '<div class="nt-tools" role="toolbar" aria-label="' + esc(T('View')) + '">'
@@ -922,6 +1003,10 @@
       + '<div class="nt-flabel">' + esc(T('Show')) + '</div><div class="nt-chips">' + KIND_ORDER.filter(function (k) { return k !== 'system'; }).map(function (k) {
         return '<button type="button" class="nt-chip" data-nt-kind="' + k + '" aria-pressed="' + !!S.kinds[k] + '">' + glyph(k) + '<span>' + esc(T(KINDS[k].plural)) + '</span><span class="nt-chip-n">' + num(counts.nodes[k] || 0) + '</span></button>';
       }).join('') + '</div>'
+      + '<div class="nt-flabel">' + esc(T('Status')) + '</div><div class="nt-chips">' + I().STATUS_ORDER.map(function (st) {
+        var n = 0; for (var id in S.status) if (S.status[id] === st) n++;
+        return '<button type="button" class="nt-chip nt-chip--status" data-nt-status="' + st + '" aria-pressed="' + !!S.statuses[st] + '"><span class="nt-status-dot nt-status--' + st + '" aria-hidden="true"></span><span>' + esc(T(STATUS[st].name)) + '</span><span class="nt-chip-n">' + num(n) + '</span></button>';
+      }).join('') + '</div>'
       + '<div class="nt-flabel">' + esc(T('Relationships')) + '</div><div class="nt-chips">' + EDGE_ORDER.map(function (k) {
         return '<button type="button" class="nt-chip nt-chip--edge nt-e-' + k + '" data-nt-edge="' + k + '" aria-pressed="' + !!S.edges[k] + '"><span class="nt-swatch" aria-hidden="true"></span><span>' + esc(T(EDGES[k].name)) + '</span><span class="nt-chip-n">' + num(counts.edges[k] || 0) + '</span></button>';
       }).join('') + '</div>';
@@ -970,8 +1055,11 @@
     h += pathHtml();
     if (n.summary) h += section(T('Responsibility'), '<p class="nt-p">' + prose(n.summary) + '</p>');
     h += section(T('Classification'), '<dl class="nt-dl"><dt>' + esc(T('Maturity')) + '</dt><dd>' + esc(T(MATURITY[n.maturity])) + '</dd>'
+      + '<dt>' + esc(T('Status')) + '</dt><dd>' + statusHtml(S.status[n.id]) + '</dd>'
+      + (I().accessOf(n) ? '<dt>' + esc(T('Access')) + '</dt><dd>' + accessHtml(I().accessOf(n)) + '</dd>' : '')
       + '<dt>' + esc(T('Runtime health')) + '</dt><dd>' + esc(T('Not monitored in this view (Phase 1 shows structure only).')) + '</dd>' + factsHtml(n.facts) + '</dl>');
     h += section(T('Connections'), connectionsHtml(n));
+    h += impactHtml(n);
     if (kids.length) {
       var shown = S.showAll['kids'] ? kids : kids.slice(0, 12);
       h += section(tf('Inside (%d)', kids.length), '<ul class="nt-links">' + shown.map(linkItem).join('') + '</ul>'
@@ -1068,6 +1156,70 @@
         + (g.edges.length > list.length ? '<button type="button" class="nt-more" data-nt-more="' + esc(g.key) + '">' + esc(tf('Show all %d', g.edges.length)) + '</button>' : '') + '</div>';
     }).join('') + note;
   }
+  function statusHtml(st) {
+    var d = STATUS[st];
+    return d ? '<span class="nt-status nt-status--' + st + '">' + esc(T(d.name)) + '</span><span class="nt-def">' + esc(T(d.def)) + '</span>' : '—';
+  }
+  /** An API router's access, as the security manifest records it: owner only, club-scoped handlers, public handlers. */
+  function accessHtml(a) {
+    var out = [];
+    if (a.owner) out.push('<span class="nt-badge nt-badge--owner">' + esc(T('Owner only')) + '</span>');
+    if (a.clubGuarded) out.push('<span class="nt-badge">' + esc(tf('Club-scoped: %d handlers', a.clubGuarded)) + '</span>');
+    if (a.publicHandlers) out.push('<span class="nt-badge nt-badge--public">' + esc(tf('Public: %d handlers', a.publicHandlers)) + '</span>');
+    if (!out.length) out.push('<span class="nt-badge">' + esc(a.signIn ? T('Signed in') : T('Per handler')) + '</span>');
+    return '<span class="nt-badges">' + out.join('') + '</span>';
+  }
+  function seg(label, attr, options, current) {
+    return '<div class="nt-impctl-r"><span class="nt-impctl-l" id="nt-seg-' + attr + '">' + esc(label) + '</span><div class="nt-seg" role="group" aria-labelledby="nt-seg-' + attr + '">'
+      + options.map(function (o) { return '<button type="button" data-nt-' + attr + '="' + o[0] + '" aria-pressed="' + (String(o[0]) === String(current)) + '">' + esc(o[1]) + '</button>'; }).join('') + '</div></div>';
+  }
+  /** What the selection depends on, or what depends on it, step by step, each with the chain of evidence that reached it. */
+  function impactHtml(n) {
+    var im = S.impact, r = im.result;
+    if (!r) return '';
+    var up = im.dir === 'up';
+    var h = '<div class="nt-impctl">'
+      + seg(T('Direction'), 'impact-dir', [['up', T('What depends on it')], ['down', T('What it depends on')]], im.dir)
+      + seg(T('Steps'), 'impact-depth', IMPACT_DEPTHS.map(function (d) { return [d, d ? num(d) : T('All')]; }), im.depth)
+      + seg(T('In the scene'), 'impact-scene', [['off', T('Off')], ['highlight', T('Highlight')], ['isolate', T('Isolate')]], im.scene)
+      + '</div>';
+    if (!r.ids.length) h += '<p class="nt-empty">' + esc(up ? T('Nothing depends on it along these relationships.') : T('It depends on nothing along these relationships.')) + '</p>';
+    else {
+      h += '<p class="nt-note nt-note--top" id="nt-impact-sum">' + esc(r.steps === 1 ? tf('%d reached in 1 step.', r.ids.length) : tf('%d reached in %d steps.', r.ids.length, r.steps))
+        + (r.limited ? ' ' + esc(T('More lies beyond this many steps.')) : '') + '</p>';
+      var groups = {};
+      r.ids.forEach(function (id) { var k = S.byId[id].kind; (groups[k] = groups[k] || []).push(id); });
+      IMPACT_ORDER.forEach(function (k) {
+        var ids = groups[k];
+        if (!ids) return;
+        var key = 'impact:' + k, list = S.showAll[key] ? ids : ids.slice(0, 8);
+        h += '<div class="nt-imp-g" data-nt-impact-kind="' + k + '"><div class="nt-conn-h">' + glyph(k) + '<span>' + esc(T(KINDS[k].plural)) + '</span><span class="nt-chip-n">' + num(ids.length) + '</span></div><ul class="nt-links">'
+          + list.map(function (id) { return impactRow(id, r); }).join('') + '</ul>'
+          + (ids.length > list.length ? '<button type="button" class="nt-more" data-nt-more="' + esc(key) + '">' + esc(tf('Show all %d', ids.length)) + '</button>' : '') + '</div>';
+      });
+    }
+    h += '<p class="nt-note">' + esc(T('Static evidence only: imports (type-only imports included), Prisma call sites, dependencies and relationships in the manifests, and agent tools. A call resolved at run time (a dynamic path, an HTTP request, a queue or configuration) is not in the graph, so it is not here.')) + '</p>';
+    if ((S.kids[n.id] || []).length) h += '<p class="nt-note">' + esc(T('Counted from everything inside it; relationships between its own parts are not followed.')) + '</p>';
+    return '<section class="nt-sec" id="nt-impact" aria-labelledby="nt-impact-t"><h3 class="nt-sec-t" id="nt-impact-t">' + esc(T('Impact')) + '</h3>' + h + '</section>';
+  }
+  function impactRow(id, r) {
+    var n = S.byId[id], open = !!S.impact.why[id], a = I().accessOf(n);
+    var row = '<li><div class="nt-imp-row"><button type="button" class="nt-link" data-nt-select="' + esc(id) + '">' + glyph(n.kind) + '<span class="nt-row-l">' + data(n.label) + '</span></button>'
+      + '<button type="button" class="nt-why" data-nt-why="' + esc(id) + '" aria-expanded="' + open + '">' + esc(T('Why')) + '</button></div>'
+      + '<div class="nt-imp-meta"><span class="nt-step">' + esc(tf('Step %d', r.reached[id].depth)) + '</span>'
+      + (S.status[id] !== 'implemented' ? '<span class="nt-status nt-status--' + S.status[id] + '">' + esc(T(STATUS[S.status[id]].name)) + '</span>' : '')
+      + (a ? accessHtml(a) : '') + '</div>';
+    if (open) {
+      var hops = I().chain(S.graph, r, id), up = r.dir === 'up';
+      var first = S.graph.edges[hops[0]], start = up ? first.to : first.from;
+      row += '<ol class="nt-path nt-chain">' + '<li>' + linkItemInner(start) + '</li>' + hops.map(function (i) {
+        var e = S.graph.edges[i], to = up ? e.from : e.to, ev = e.evidence[0];
+        return '<li><span class="nt-path-e nt-e-' + e.kind + '"><span class="nt-swatch" aria-hidden="true"></span>' + esc(T(up ? EDGES[e.kind].inc : EDGES[e.kind].out)) + (e.sub ? ' · ' + subName(e.sub) : '') + '</span>'
+          + linkItemInner(to) + (ev ? '<code class="nt-ev-inline" dir="ltr">' + esc(ev.p + (ev.l ? ':' + ev.l : '')) + '</code>' : '') + '</li>';
+      }).join('') + '</ol>';
+    }
+    return row + '</li>';
+  }
   function subName(sub) {
     var m = { READS: 'reads', WRITES: 'writes', READS_WRITES: 'reads and writes' };
     return esc(T(m[sub] || sub));
@@ -1082,8 +1234,25 @@
       + '<p class="nt-p">' + esc(T('Choose a system in the scene or in the explorer to enter it. Every node and every line carries the evidence it came from; nothing here is measured at run time.')) + '</p></div>'
       + section(T('What the graph holds'), '<ul class="nt-tally">' + kinds + '</ul>')
       + section(T('Relationships'), '<ul class="nt-tally">' + edges + '</ul>')
+      + section(T('Status'), statusTally())
+      + section(T('API access'), accessTally())
       + section(T('Where the authorities disagree'), disc)
       + section(T('Composed from'), prov + commitNote());
+  }
+  function statusTally() {
+    var c = {};
+    S.graph.nodes.forEach(function (n) { c[S.status[n.id]] = (c[S.status[n.id]] || 0) + 1; });
+    return '<ul class="nt-tally nt-tally--status">' + I().STATUS_ORDER.map(function (st) {
+      return '<li><span class="nt-status nt-status--' + st + '">' + esc(T(STATUS[st].name)) + '</span><span class="nt-chip-n">' + num(c[st] || 0) + '</span><span class="nt-def">' + esc(T(STATUS[st].def)) + '</span></li>';
+    }).join('') + '</ul><p class="nt-note">' + esc(T('No authority in the repository records a component as experimental or deprecated, so no node is shown as either. A file that nothing reaches is said to be not reached, not called dead.')) + '</p>';
+  }
+  function accessTally() {
+    var apis = S.graph.nodes.filter(function (n) { return n.kind === 'api'; }).map(function (n) { return I().accessOf(n); });
+    var owner = apis.filter(function (a) { return a.owner; }).length, club = apis.filter(function (a) { return a.clubGuarded > 0; }).length, pub = apis.filter(function (a) { return a.publicHandlers > 0; }).length;
+    return '<ul class="nt-tally"><li><span class="nt-badge nt-badge--owner">' + esc(T('Owner only')) + '</span><span class="nt-chip-n">' + num(owner) + '</span></li>'
+      + '<li><span class="nt-badge">' + esc(T('With club-scoped handlers')) + '</span><span class="nt-chip-n">' + num(club) + '</span></li>'
+      + '<li><span class="nt-badge nt-badge--public">' + esc(T('With public handlers')) + '</span><span class="nt-chip-n">' + num(pub) + '</span></li></ul>'
+      + '<p class="nt-note">' + esc(tf('Of %d API routers, from the security manifest and the posture policy.', apis.length)) + '</p>';
   }
   function paintStats() {
     var el = S.root.querySelector('#nt-stats');
@@ -1121,6 +1290,20 @@
     if ((q = t.closest('[data-nt-kind]'))) { var k = q.getAttribute('data-nt-kind'); S.kinds[k] = !S.kinds[k]; refresh(); return; }
     if ((q = t.closest('[data-nt-edge]'))) { var e = q.getAttribute('data-nt-edge'); S.edges[e] = !S.edges[e]; refresh(); return; }
     if ((q = t.closest('[data-nt-more]'))) { S.showAll[q.getAttribute('data-nt-more')] = true; paintInspector(); return; }
+    if ((q = t.closest('[data-nt-status]'))) { var st = q.getAttribute('data-nt-status'); S.statuses[st] = !S.statuses[st]; refresh(); return; }
+    if ((q = t.closest('[data-nt-why]'))) { var w = q.getAttribute('data-nt-why'); S.impact.why[w] = !S.impact.why[w]; paintInspector(); focusBack('[data-nt-why="' + w + '"]'); return; }
+    if ((q = t.closest('[data-nt-impact-dir]'))) { S.impact.dir = q.getAttribute('data-nt-impact-dir') === 'down' ? 'down' : 'up'; S.showAll = {}; refresh(); focusBack('[data-nt-impact-dir="' + S.impact.dir + '"]'); return; }
+    if ((q = t.closest('[data-nt-impact-depth]'))) { S.impact.depth = Math.max(0, Number(q.getAttribute('data-nt-impact-depth')) || 0); refresh(); focusBack('[data-nt-impact-depth="' + S.impact.depth + '"]'); return; }
+    if ((q = t.closest('[data-nt-impact-scene]'))) {
+      var sc = q.getAttribute('data-nt-impact-scene'), was = S.impact.scene;
+      S.impact.scene = sc === 'isolate' || sc === 'highlight' ? sc : 'off';
+      if (S.impact.scene === 'isolate' && was !== 'isolate') isolateOpen();
+      else if (S.impact.scene !== 'isolate' && was === 'isolate' && S.impact.saved) { S.expanded = S.impact.saved; S.impact.saved = null; }
+      refresh(S.impact.scene === 'isolate' ? { overview: true } : {});
+      focusBack('[data-nt-impact-scene="' + S.impact.scene + '"]');
+      announce(S.impact.scene === 'isolate' ? tf('Isolated: %d nodes shown.', Object.keys(S.visible).length) : S.impact.scene === 'highlight' ? T('Impact highlighted in the scene.') : T('Impact no longer shown in the scene.'));
+      return;
+    }
     if ((q = t.closest('[data-nt-room]'))) { openRoom(q.getAttribute('data-nt-room')); return; }
     if ((q = t.closest('[data-nt-lang]'))) { changeLang(q.getAttribute('data-nt-lang')); return; }
     if ((q = t.closest('[data-nt-action]'))) {
@@ -1162,8 +1345,26 @@
     var row = t && t.closest ? t.closest('[data-nt-select]') : null;
     if (ev.key === 'Enter' && ev.shiftKey && row && S.sel) { ev.preventDefault(); tracePath(row.getAttribute('data-nt-select')); return; }
     if (ev.key === 'Enter' && t && t.id === 'nt-canvas' && S.sel) { enter(S.sel); return; }
+    if (t && t.id === 'nt-canvas' && !ev.altKey && !ev.ctrlKey && !ev.metaKey && cameraKey(ev.key)) { ev.preventDefault(); return; }
     var backKey = (ev.key === 'Backspace' && !typing) || (ev.altKey && ev.key === (NT_DIR === 'rtl' ? 'ArrowRight' : 'ArrowLeft'));
     if (backKey && S.history.length) { ev.preventDefault(); back(); }
+  }
+  /** The 3D view by keyboard: arrows turn and tilt it, + and − zoom, Home goes back to the overview. Space, not the
+   *  reading direction: the left arrow turns the view the same way in every language. */
+  function cameraKey(key) {
+    var gl = S.gl;
+    if (!gl.ok) return false;
+    var c = gl.camera, turn = Math.PI / 24, tilt = 0.08;
+    if (key === 'ArrowLeft') c.alpha -= turn;
+    else if (key === 'ArrowRight') c.alpha += turn;
+    else if (key === 'ArrowUp') c.beta = Math.max(c.lowerBetaLimit || 0.05, c.beta - tilt);
+    else if (key === 'ArrowDown') c.beta = Math.min(c.upperBetaLimit || 1.5, c.beta + tilt);
+    else if (key === '+' || key === '=') c.radius = Math.max(c.lowerRadiusLimit, c.radius * 0.8);
+    else if (key === '-' || key === '_') c.radius = Math.min(c.upperRadiusLimit, c.radius * 1.25);
+    else if (key === 'Home') { resetView(); return true; }
+    else return false;
+    gl.anim = null; gl.dirty = true; wake();
+    return true;
   }
   function openRoom(room) {
     try {
@@ -1276,7 +1477,14 @@
       drawCalls: gl.inst ? gl.inst.drawCallsCounter.current : null, frameMs: gl.inst ? Math.round(gl.inst.frameTimeCounter.average * 100) / 100 : null,
       activeMeshes: gl.scene ? gl.scene.getActiveMeshes().length : null, moving: !!(gl.anim || gl.tween), lastMove: gl.lastMove || null,
       camera: gl.ok ? cameraNow() : null,
+      impact: S.impact.result ? { dir: S.impact.dir, depth: S.impact.depth, scene: S.impact.scene, reached: S.impact.result.ids.length, steps: S.impact.result.steps, limited: S.impact.result.limited, ms: S.impact.ms, near: Object.keys(S.impactNear).length, lines: Object.keys(S.impactLifted).length } : null,
+      statuses: Object.keys(S.statuses).filter(function (k) { return S.statuses[k]; }).sort(), isolated: S.keep ? Object.keys(S.keep).length : null,
     };
+  };
+  /** The selection's impact as the room computed it: what it reached, each at its step and by which graph edge. */
+  window.__familistaTwinImpact = function () {
+    var r = S.impact.result;
+    return r ? { origin: S.sel, dir: r.dir, depth: r.depth, kinds: r.kinds.slice(), ids: r.ids.slice(), reached: JSON.parse(JSON.stringify(r.reached)), limited: r.limited } : null;
   };
   /** The relationships on screen, each a lifted graph edge: the browser proof maps every one back to the graph. */
   window.__familistaTwinDrawn = function () {
