@@ -276,7 +276,7 @@ describe('5. the room keeps the owner-room rules', () => {
     const keys = new Set<string>();
     for (const m of JS.matchAll(/\b(?:T|tf)\('((?:[^'\\]|\\.)*)'/g)) keys.add(m[1].replace(/\\'/g, "'"));
     for (const m of JS.matchAll(/\b(?:name|plural|out|inc):\s*'((?:[^'\\]|\\.)*)'/g)) keys.add(m[1].replace(/\\'/g, "'"));
-    for (const block of ['MATURITY', 'AUTHORITY', 'FACTS', 'ROOMS', 'ZONE_NAMES']) {
+    for (const block of ['MATURITY', 'AUTHORITY', 'FACTS', 'ROOMS', 'ZONE_NAMES', 'STATUS']) {
       const b = JS.slice(JS.indexOf('var ' + block + ' = {'));
       for (const m of b.slice(0, b.indexOf('};')).matchAll(/:\s*'((?:[^'\\]|\\.)*)'/g)) keys.add(m[1].replace(/\\'/g, "'"));
     }
@@ -487,7 +487,7 @@ describe('6. the layout: position says nesting, and nothing overlaps', () => {
   it('is pure, and the room loads it before itself', () => {
     const src = read('public/neural-twin/neural-twin-layout.js');
     expect(src).not.toMatch(/\bdocument\b|\blocalStorage\b|Math\.random|Date\.now|performance\.now|fetch\(/);
-    expect(read('public/app.js')).toMatch(/\['\/neural-twin\/neural-twin-layout\.js', '\/neural-twin\/neural-twin\.js'\]/);
+    expect(read('public/app.js')).toMatch(/\['\/neural-twin\/neural-twin-layout\.js', '\/neural-twin\/neural-twin-intel\.js', '\/neural-twin\/neural-twin\.js'\]/);
     expect(ROOM).toMatch(/window\.FamilistaTwinLayout/);
     // one line builder in the room; relationship lines are built only from the lifted edges (the rest are
     // platform and zone boundaries and the selection's ring), and no other kind of line exists
@@ -516,7 +516,7 @@ describe('7. the twin\'s browser proof runs inside the required CI jobs, and can
   it('runs in both required browser-proof shards, every section once, with a floor, and nothing in it can fail quietly', () => {
     expect([...code.matchAll(/^ {10}- shard: (.+)$/gm)].map((m) => m[1])).toEqual(['isolation', 'accessibility and focus']);
     const twin = [...code.matchAll(/twin:\s*'([^']+)'/g)].map((m) => m[1].split(',')).flat().sort();
-    expect(twin).toEqual(['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']);
+    expect(twin).toEqual(['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8']);
     // T5 proves the official languages and pairs its axe pass with a control, like every other section.
     expect(PROOF).toContain("if (want('T5')) {");
     expect(PROOF).toContain('languages accessibility (control)');
@@ -528,6 +528,9 @@ describe('7. the twin\'s browser proof runs inside the required CI jobs, and can
     // T7 proves the player views' tabs, cards and Back go through the delegation, with controls that put the old wiring back.
     expect(PROOF).toContain("if (want('T7')) {");
     for (const control of ['the old inline Back handler, put back, does nothing under the CSP and is reported', 'without the key delegate, Enter on a player card opens nothing']) expect(PROOF).toContain(control);
+    // T8 proves Phase 2's impact, isolation and status against the served graph with its own search, with controls that tamper with the graph or forge a chain.
+    expect(PROOF).toContain("if (want('T8')) {");
+    for (const control of ['a chain with a fabricated hop fails the same check', 'with the store → router import removed from the served graph, the router is not reached at step 2']) expect(PROOF).toContain(control);
     const floors = [...code.matchAll(/twin_floor:\s*'(\d+)'/g)].map((m) => Number(m[1]));
     expect(floors.length).toBe(2);
     expect(floors.every((n) => n >= 30)).toBe(true);
