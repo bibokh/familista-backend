@@ -516,7 +516,7 @@ describe('7. the twin\'s browser proof runs inside the required CI jobs, and can
   it('runs in both required browser-proof shards, every section once, with a floor, and nothing in it can fail quietly', () => {
     expect([...code.matchAll(/^ {10}- shard: (.+)$/gm)].map((m) => m[1])).toEqual(['isolation', 'accessibility and focus']);
     const twin = [...code.matchAll(/twin:\s*'([^']+)'/g)].map((m) => m[1].split(',')).flat().sort();
-    expect(twin).toEqual(['T1', 'T2', 'T3', 'T4', 'T5', 'T6']);
+    expect(twin).toEqual(['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']);
     // T5 proves the official languages and pairs its axe pass with a control, like every other section.
     expect(PROOF).toContain("if (want('T5')) {");
     expect(PROOF).toContain('languages accessibility (control)');
@@ -525,6 +525,9 @@ describe('7. the twin\'s browser proof runs inside the required CI jobs, and can
     expect(PROOF).toContain("if (want('T6')) {");
     for (const control of ['without the right-to-left rule, the same measurement sees Arabic "back" pointing left', 'with the old fill (--green), the same measurement reads',
       'axe reports the old fill as color-contrast', 'a link without href is never reached by Tab']) expect(PROOF).toContain(control);
+    // T7 proves the player views' tabs, cards and Back go through the delegation, with controls that put the old wiring back.
+    expect(PROOF).toContain("if (want('T7')) {");
+    for (const control of ['the old inline Back handler, put back, does nothing under the CSP and is reported', 'without the key delegate, Enter on a player card opens nothing']) expect(PROOF).toContain(control);
     const floors = [...code.matchAll(/twin_floor:\s*'(\d+)'/g)].map((m) => Number(m[1]));
     expect(floors.length).toBe(2);
     expect(floors.every((n) => n >= 30)).toBe(true);

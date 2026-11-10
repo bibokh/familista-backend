@@ -19,7 +19,9 @@
 //                     and System Updates; its axe pass with --axe), T5 (the official languages: the switch, keyboard,
 //                     persistence, direction, rooms following, every width; its axe pass with --axe), T6 (back points back
 //                     and the primary action can be read and reached: the arrow's drawn direction, the button contrast, the
-//                     Tab order and the focus ring, desktop and phone, every official language; its axe pass with --axe).
+//                     Tab order and the focus ring, desktop and phone, every official language; its axe pass with --axe),
+//                     T7 (the Analytics, Medical and Performance player views: tabs, player cards and Back through the
+//                     delegation under the CSP, by mouse, touch and keyboard, repeatedly, every official language).
 //                     All by default.
 //   CHROMIUM, PLAYWRIGHT_CORE, AXE_CORE   as for lab-browser-proof.cjs
 //
@@ -1195,6 +1197,149 @@ const PHASE1 = { nodes: 921, edges: 3656 };
           await ctx.close();
         }
       }
+    }
+  }
+
+  // T7 — the Analytics, Medical and Performance player views: their tabs, player cards and back buttons, which were inline
+  // handlers the CSP refused, now go through the delegation. Each screen's own template is mounted directly (navTo's
+  // separation guard keeps these legacy screens off its allow-list, as its comment says internal callers do), its list is
+  // seeded from fixtures shaped like the API's (/players/performance/squad), and the one request its player view makes is
+  // answered from a fixture. Everything else is real: the page, the server's CSP, the clicks, keys and taps.
+  if (want('T7')) {
+    const PLAYERS = [
+      { id: 't7-p1', firstName: 'Alex', lastName: 'Rowe', number: 9, position: 'ST', overallRating: 118 },
+      { id: 't7-p2', firstName: 'Sami', lastName: 'Haddad', number: 4, position: 'CB', overallRating: 112 },
+      { id: 't7-p3', firstName: 'Lena', lastName: 'Voss', number: 8, position: 'CM', overallRating: 121 },
+    ].map((p) => ({ ...p, avatar: null, isInjured: false, condition: 88, attributes: { id: p.id + '-a', playerId: p.id, recordedAt: '2026-11-01T10:00:00.000Z', speed: 120, agility: 118, stamina: 115, strength: 100, balance: 110, reaction: null, technique: null, passing: 117, shooting: 112, defending: 98 } }));
+    const READINESS = PLAYERS.map((p) => ({ playerId: p.id, firstName: p.firstName, lastName: p.lastName, number: p.number, position: p.position, overallRating: p.overallRating,
+      readinessScore: 82, fitnessScore: 80, formScore: 76, developmentScore: 70, acwr: 1.1, condition: 'GOOD', isHighRisk: false, isInjured: false }));
+    const json = (body) => ({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: body }) });
+    // Each inline-handler report, with the element it was made for. The page keeps other inline handlers outside what
+    // T7 exercises (tracked by tests/csp-inline-handlers.unit.test.ts), and a browser may report one as soon as it is
+    // drawn, not only when it runs; so a report counts against T7 when its element lies in a region T7 exercises.
+    const T7_REGIONS = '#perf-content,#analytics-content,#medical-content,#analytics-tabs,#medical-tabs';
+    const fixtures = async (ctx) => {
+      await ctx.addInitScript((regions) => {
+        window.__t7csp = [];
+        document.addEventListener('securitypolicyviolation', (e) => {
+          if (e.violatedDirective !== 'script-src-attr') return;
+          const t = e.target, el = t && t.nodeType === 1 ? t : null;
+          window.__t7csp.push({ mine: !!(el && el.closest(regions)), what: el ? el.outerHTML.slice(0, 90) : String(t && t.nodeName) });
+        });
+      }, T7_REGIONS);
+      await ctx.route(/\/api\/v1\/analytics\/player\/([^/?]+)/, (r) => { const p = PLAYERS.find((x) => r.request().url().includes(x.id)) || PLAYERS[0];
+        return r.fulfill(json({ player: p, radarData: { speed: 80, shooting: 74, passing: 77, technique: 72, defending: 60, stamina: 79, agility: 78, strength: 66 }, matchPerfTrend: [], attendanceRate: 92, injuryImpact: { totalInjuries: 0, totalDaysAbsent: 0, activeInjury: false } })); });
+      // shaped as getPlayerMedicalProfile returns it (src/workload/workload-science.service.ts): workload is an object or null
+      await ctx.route(/\/api\/v1\/phase-q\/workload\/players\/([^/?]+)\/medical/, (r) => { const p = PLAYERS.find((x) => r.request().url().includes(x.id)) || PLAYERS[0];
+        return r.fulfill(json({ player: { id: p.id, firstName: p.firstName, lastName: p.lastName, medicalStatus: 'FIT', isInjured: false, condition: p.condition }, injuries: [], workload: { acwr: 1.1, isHighRisk: false, injuryRiskScore: 18 } })); });
+      await ctx.route(/\/api\/v1\/players\/([^/?]+)\/attributes/, (r) => r.fulfill(json([])));
+    };
+    const SCREENS = [
+      { name: 'Performance', page: 'performance', render: 'renderPerformancePage', tab: null,
+        opener: '#perf-content [data-action="perfOpenHistory"]', back: '#perf-content [data-action="perfBackToList"]' },
+      { name: 'Analytics', page: 'analytics', render: 'renderAnalyticsPage', tab: '#analytics-tabs [data-action="analyticsTab"][data-tab="players"]',
+        opener: '#analytics-content [data-action="analyticsOpenPlayer"]', back: '#analytics-content [data-action="analyticsBackToList"]' },
+      { name: 'Medical', page: 'medical', render: 'renderMedicalPage', tab: '#medical-tabs [data-action="medicalTab"][data-tab="players"]',
+        opener: '#medical-content [data-action="medOpenProfile"]', back: '#medical-content [data-action="medBackToList"]' },
+    ];
+    const mount = (pg, page) => pg.evaluate(([page, players, readiness]) => {
+      // The screen's own template, in a host of its own: as a `.page` the shell's own page switching (which keeps Owner
+      // Home the active page) would hide it again; out of that set, nothing but the screen's own code draws it.
+      const tpl = { analytics: renderAnalyticsHTML, medical: renderMedicalHTML, performance: renderPerformanceHTML }[page];
+      let el = document.getElementById('pg-' + page);
+      if (!el) {
+        const host = document.createElement('div'); host.id = 't7-host-' + page; host.style.cssText = 'position:fixed;inset:0;z-index:99990;overflow:auto;background:var(--bg)';
+        host.innerHTML = tpl(); document.body.appendChild(host); el = document.getElementById('pg-' + page); el.classList.remove('page');
+      }
+      document.querySelectorAll('[id^="t7-host-"]').forEach((h) => { h.style.display = h.id === 't7-host-' + page ? 'block' : 'none'; });
+      if (page === 'performance') { _perfSquad = players; _perfTab = 'dashboard'; _perfHistoryId = null; renderPerformancePage(); }
+      if (page === 'analytics') { _analyticsReadiness = readiness; _analyticsTab = 'dashboard'; _analyticsPlayerId = null; renderAnalyticsPage(); }
+      if (page === 'medical') { State.players = players; _MedData.injuries = []; _medTab = 'dashboard'; _medProfileId = null; renderMedicalPage(); }
+    }, [page, PLAYERS, READINESS]);
+    const shown = (pg, sel) => pg.evaluate((sel) => [...document.querySelectorAll(sel)].some((e) => e.getClientRects().length > 0), sel);
+    const until = (pg, sel, on, ms) => pg.waitForFunction(([sel, on]) => [...document.querySelectorAll(sel)].some((e) => e.getClientRects().length > 0) === on, [sel, on], { timeout: ms || 8000 }).then(() => true, () => false);
+    // A locator, not a handle: the page may be drawn again under the pointer, and a locator finds the element anew.
+    const press = async (pg, phone, sel) => { const loc = pg.locator(sel).first(); if (phone) await loc.tap({ timeout: 10000 }); else await loc.click({ timeout: 10000 }); return true; };
+    const cspAttr = (pg) => pg.evaluate(() => { const all = window.__t7csp || []; const mine = all.filter((r) => r.mine);
+      return { mine: mine.length, mineWhat: mine.slice(0, 3).map((r) => r.what), elsewhere: all.length - mine.length, elsewhereWhat: all.filter((r) => !r.mine).slice(0, 6).map((r) => r.what) }; });
+    // The browser's console copy of an inline-handler report is counted, with its element, by cspAttr; any other console error stays an error.
+    const errorsOf = (log) => log.errors.filter((m) => !/inline event handler violates the following Content Security Policy directive 'script-src-attr/.test(m));
+    const arrowOf = (pg, sel) => pg.evaluate((sel) => {
+      const b = [...document.querySelectorAll(sel)].find((e) => e.getClientRects().length > 0); const ic = b && b.querySelector('.fam-dir-ic'); if (!ic) return null;
+      const m = getComputedStyle(ic).transform; const flipped = !!m && m !== 'none' && parseFloat(m.slice(m.indexOf('(') + 1)) < 0;
+      return (ic.textContent.trim() === '←') !== flipped ? 'left' : 'right';
+    }, sel);
+    const asOwnerShell = (vp, tag, before) => open(vp, tag, { hash: '/#owner-home', wait: false, mobile: vp.mobile, before })
+      .then(async (o) => { await o.page.waitForSelector('#pages-container', { timeout: 30000 }); await o.page.waitForFunction((t) => document.documentElement.lang === t, tag, { timeout: 15000 }); await o.page.waitForTimeout(600); return o; });
+    const WIDTHS = [{ width: 1440, height: 900, name: 'desktop' }, { width: 390, height: 844, name: 'phone', mobile: true }];
+
+    for (const l of OFFICIAL) {
+      const backDir = l.dir === 'rtl' ? 'right' : 'left';
+      for (const vp of WIDTHS) {
+        const at = l.tag + ' ' + vp.name, phone = !!vp.mobile;
+        const { ctx, page, log } = await asOwnerShell(vp, l.tag, fixtures);
+        for (const s of SCREENS) {
+          await mount(page, s.page);
+          let listed = true;
+          if (s.tab) { await press(page, phone, s.tab); listed = await until(page, s.opener, true, 6000); }
+          // three round trips: each Back draws the page once and adds no history entry; the arrow points back
+          const h0 = await page.evaluate(() => history.length);
+          await page.evaluate((fn) => { const f = window[fn]; window.__renders = 0; window[fn] = function () { window.__renders++; return f.apply(this, arguments); }; }, s.render);
+          const per = [];
+          let arrow = null;
+          for (let i = 0; i < 3 && listed; i++) {
+            await press(page, phone, s.opener);
+            if (!(await until(page, s.back, true, 10000))) { per.push('no view'); break; }
+            if (i === 0) arrow = await arrowOf(page, s.back);
+            const r0 = await page.evaluate(() => window.__renders);
+            await press(page, phone, s.back);
+            per.push(await page.evaluate((r0) => window.__renders - r0, r0));
+            await until(page, s.back, false, 8000);
+          }
+          const h1 = await page.evaluate(() => history.length);
+          check(`player views ${at}: ${s.name}${s.tab ? ' — the Players tab lists,' : ''} a player opens and Back returns, three times, one redraw each [${per}], no history entry; Back points ${backDir}`,
+            listed && per.length === 3 && per.every((n) => n === 1) && h1 === h0 && arrow === backDir, { listed, per, h0, h1, arrow });
+          if (!phone) {
+            // the keyboard: Tab reaches the opener (with the ring); Enter opens, Enter on Back closes; Space both ways
+            await page.evaluate(() => { const h = [...document.querySelectorAll('[id^="t7-host-"]')].find((x) => x.style.display !== 'none'); const a = h.querySelector('.filter-btn.active') || h; if (!a.hasAttribute('tabindex') && a.tagName !== 'BUTTON') a.setAttribute('tabindex', '-1'); a.focus(); });
+            let reached = null;
+            for (let i = 0; i < 40; i++) { await page.keyboard.press('Tab'); reached = await page.evaluate((sel) => { const a = document.activeElement; return a && a.matches(sel) ? { visible: a.matches(':focus-visible'), ring: getComputedStyle(a).outlineStyle } : null; }, s.opener); if (reached) break; }
+            await page.keyboard.press('Enter'); const kOpen = await until(page, s.back, true, 10000);
+            await page.focus(s.back); await page.keyboard.press('Enter'); const kClose = await until(page, s.back, false, 8000);
+            await page.focus(s.opener); await page.keyboard.press(' '); const sOpen = await until(page, s.back, true, 10000);
+            await page.focus(s.back); await page.keyboard.press(' '); const sClose = await until(page, s.back, false, 8000);
+            check(`player views ${at}: ${s.name} by keyboard — Tab reaches the opener with a visible ring; Enter opens, Enter on Back closes; Space both ways`,
+              !!reached && reached.visible && reached.ring !== 'none' && kOpen && kClose && sOpen && sClose, { reached, kOpen, kClose, sOpen, sClose });
+          }
+        }
+        const reports = await cspAttr(page), errors = errorsOf(log);
+        check(`player views ${at}: no inline-handler CSP report from the tabs, cards or Back buttons; no page error`, reports.mine === 0 && errors.length === 0, { reports, errors });
+        if (!phone && (l.dir === 'rtl' || l.tag === 'en-GB')) { await mount(page, 'performance'); await press(page, false, SCREENS[0].opener); await until(page, SCREENS[0].back, true, 10000); await shot(page, 'player-views-performance-' + l.tag); }
+        await ctx.close();
+      }
+    }
+
+    // controls: put back what was removed, and the same measurements see it fail
+    {
+      const app = fs.readFileSync(path.join(ROOT, 'public/app.js'), 'utf8');
+      const serve = (body) => async (ctx) => { await fixtures(ctx); await ctx.route(/\/app\.js(\?|$)/, (r) => r.fulfill({ contentType: 'application/javascript', body })); };
+      const inline = app.replace('type="button" data-action="perfBackToList">${_dirArrow()} Back</button>', 'onclick="_perfHistoryId=null;renderPerformancePage();">${_dirArrow()} Back</button>');
+      if (inline === app) throw new Error('T7 control: the Performance back button was not found in app.js');
+      let o = await asOwnerShell(WIDTHS[0], 'en-GB', serve(inline));
+      await mount(o.page, 'performance'); await press(o.page, false, SCREENS[0].opener); await until(o.page, '#perf-content [onclick^="_perfHistoryId=null"]', true, 10000);
+      await press(o.page, false, '#perf-content [onclick^="_perfHistoryId=null"]'); await o.page.waitForTimeout(800);
+      const stuck = await shown(o.page, '#perf-content [onclick^="_perfHistoryId=null"]'), refused = await cspAttr(o.page);
+      const named = refused.mineWhat.some((w) => w.includes('onclick="_perfHistoryId=null'));
+      check('player views (control): the old inline Back handler, put back, does nothing under the CSP and is reported', stuck && refused.mine > 0 && named, { stuck, refused });
+      await o.ctx.close();
+      const noKeys = app.replace(/document\.addEventListener\('keydown', function delegateKey\(e\) \{[\s\S]*?\n  \}\);/, '');
+      if (noKeys === app) throw new Error('T7 control: the key delegate was not found in app.js');
+      o = await asOwnerShell(WIDTHS[0], 'en-GB', serve(noKeys));
+      await mount(o.page, 'medical'); await press(o.page, false, SCREENS[2].tab); await until(o.page, SCREENS[2].opener, true, 6000);
+      await o.page.focus(SCREENS[2].opener); await o.page.keyboard.press('Enter');
+      const opened = await until(o.page, SCREENS[2].back, true, 3000);
+      check('player views (control): without the key delegate, Enter on a player card opens nothing', !opened, { opened });
+      await o.ctx.close();
     }
   }
 

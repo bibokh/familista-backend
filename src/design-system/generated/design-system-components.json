@@ -31,7 +31,7 @@
    "id": "production-slices",
    "path": "public",
    "label": "The slices of production source each component owns (render function and CSS rules)",
-   "sha256": "87886addfb006fdfd4e57d0df7e01f03621452af88683c437f0338870212f747",
+   "sha256": "fb1ddb0270b3c0007f29ee21cbde552a6528d94e64f6df0c43ca38a757ce6c5b",
    "bytes": 6049,
    "basis": "derived"
   }
@@ -1244,18 +1244,18 @@
    "depth": "full",
    "source": {
     "js": null,
-    "css": [{"file":"public/app.css","rules":16,"sha256":"2ff9494b1a13e4d480f9a80b89ca917e86bbb5d40e1e205d0688ea7acaf7e249","bytes":2543}],
+    "css": [{"file":"public/app.css","rules":17,"sha256":"dc70e2a8a0c2d940caf82df898d4dfa261bc9a015823b7b3342209f52aeb1dff","bytes":2631}],
     "presence": []
    },
    "styling": {
-    "selectors": [".card",".card-header",".card-sub",".card-title",".card.clickable",".card.clickable:hover",".card.clickable:hover, .match-row:hover, .login-btn:hover, .btn-primary:hover, [class*=\"-tile\"]:hover, [class*=\"-shield\"]:hover, [class*=\"-node\"]:hover, [class*=\"-kpi\"]:hover, [class*=\"-row\"]:hover",".card.hover:hover","body.fos-neural-theme .card, body.fos-neural-theme .fos-holo-card, body.fos-neural-theme [class*=\"-card\"]","body.fos-neural-theme .card, body.fos-neural-theme .modal","body.fos-neural-theme .card, body.fos-neural-theme .modal, body.fos-neural-theme .fos-holo-card, body.fos-neural-theme [class*=\"-card\"]","body:has(.modal-bg.open) .card, body:has(.modal-bg.open) .pc, body:has(.modal-bg.open) .player-card, body:has(.modal-bg.open) .q-card, body:has(.modal-bg.open) .quantum-card","body:has(.sq-plm.is-open) .card, body:has(.sq-plm.is-open) .pc, body:has(.sq-plm.is-open) .player-card, body:has(.tf-modal) .card, body:has(.tf-modal) .pc, body:has(.tf-modal) .player-card"],
-    "selectorsTotal": 13,
-    "rules": 16,
-    "states": [":hover"],
+    "selectors": [".card",".card-header",".card-sub",".card-title",".card.clickable",".card.clickable:hover",".card.clickable:hover, .match-row:hover, .login-btn:hover, .btn-primary:hover, [class*=\"-tile\"]:hover, [class*=\"-shield\"]:hover, [class*=\"-node\"]:hover, [class*=\"-kpi\"]:hover, [class*=\"-row\"]:hover",".card.hover:hover",".card[role=\"button\"]:focus-visible","body.fos-neural-theme .card, body.fos-neural-theme .fos-holo-card, body.fos-neural-theme [class*=\"-card\"]","body.fos-neural-theme .card, body.fos-neural-theme .modal","body.fos-neural-theme .card, body.fos-neural-theme .modal, body.fos-neural-theme .fos-holo-card, body.fos-neural-theme [class*=\"-card\"]","body:has(.modal-bg.open) .card, body:has(.modal-bg.open) .pc, body:has(.modal-bg.open) .player-card, body:has(.modal-bg.open) .q-card, body:has(.modal-bg.open) .quantum-card","body:has(.sq-plm.is-open) .card, body:has(.sq-plm.is-open) .pc, body:has(.sq-plm.is-open) .player-card, body:has(.tf-modal) .card, body:has(.tf-modal) .pc, body:has(.tf-modal) .player-card"],
+    "selectorsTotal": 14,
+    "rules": 17,
+    "states": [":focus-visible",":hover"],
     "mediaQueries": [],
-    "customProperties": ["--bd","--bd-2","--card","--fos-glass","--fos-glass-bd","--radius-lg","--shadow","--shadow-lg","--trans","--tx","--tx-3"],
-    "customPropertiesTotal": 11,
-    "focusVisible": false,
+    "customProperties": ["--bd","--bd-2","--card","--fos-glass","--fos-glass-bd","--green","--radius-lg","--shadow","--shadow-lg","--trans","--tx","--tx-3"],
+    "customPropertiesTotal": 12,
+    "focusVisible": true,
     "rtl": false,
     "reducedMotion": false
    },
@@ -1267,7 +1267,7 @@
    "variants": [],
    "stories": null,
    "accessibility": {
-    "facts": []
+    "facts": [{"id":"focus-visible","label":"A rule styles :focus-visible.","evidence":"MEASURED","where":"stylesheet"}]
    },
    "dependencies": {
     "calls": [],
@@ -1285,7 +1285,7 @@
     "source": "MEASURED",
     "variants": "NONE",
     "stories": "NONE",
-    "accessibility": "NONE",
+    "accessibility": "MEASURED",
     "dependencies": "MEASURED"
    }
   },
