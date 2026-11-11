@@ -2,7 +2,7 @@
  * Familista Design Core — design tokens (generated; do not edit).
  * Source: tools/tokens/familista.tokens.json (W3C DTCG format).
  * Build:  node tools/tokens/scripts/build.mjs
- * Source SHA-256: 9b5e8c0c998fcdf77200bba4088ed3d1f1c5734226047b9b06310179cafac038
+ * Source SHA-256: fae92bd9af89dfea246b878585aef3e6cc3cc2b2396bc35d572054339cc97c28
  * Declares only --fam-* custom properties. Nothing in production reads them yet.
  */
 
@@ -54,6 +54,7 @@
   --fam-ref-indigo-200: #b8c4ff;
   --fam-ref-indigo-300: #a5b4fc;
   --fam-ref-violet-400: #a78bfa;
+  --fam-ref-violet-500: #8b5cf6;
   --fam-ref-orchid-300: #e8a8ff;
   --fam-ref-red-400: #f87171;
   --fam-ref-red-500: #ef4444;
@@ -393,6 +394,13 @@
 [data-fam-module="coaches"],
 #pg-coaches {
   --fam-module-accent: var(--fam-ref-sky-400);
+}
+
+/* module: product-design — Owner: Familista Design Studio */
+[data-fam-module="product-design"],
+#pg-product-design {
+  --fam-module-accent: var(--fam-ref-violet-500);
+  --fam-module-accent-2: var(--fam-ref-blue-500);
 }
 
 /* theme: light — Reserved */

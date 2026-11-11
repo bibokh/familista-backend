@@ -1,8 +1,9 @@
 # Familista Design Studio — Architecture and Product Design Proposal (DS-0)
 
-Status: **PROPOSAL. Awaiting the owner's technical implementation approval. Nothing is implemented.**
-No application code, migration, route, dependency, credential or deployment was changed to produce
-this document. The visual design is approved (owner, 2026-11-10); the architecture below is not.
+Status: **DIRECTION PROVISIONALLY ACCEPTED (owner, 2026-11-10). D1, D5, D6 and L1 approved; DS-1a — and
+only DS-1a — authorised and implemented for review (§0). Nothing beyond DS-1a is approved; nothing is merged
+or deployed.** The original DS-0 text below is kept as proposed; three statements in it were inaccurate and
+are corrected in place, each marked *Corrected (final DS-0 review)*.
 
 Read from the repository at `20df5fd` on 2026-11-10. `HEAD` equals the approved baseline: zero commits
 after it, so there are no subsequent changes to report. Every claim about existing code cites the file
@@ -16,11 +17,15 @@ against one fixed file (§3.7).
 
 ## 0. Decision record
 
-Empty until the owner reviews. Decisions requested are listed in §14.
-
-| # | Decision | Effect |
+| # | Decision (owner) | Effect |
 |---|---|---|
-| — | — | — |
+| — | Overall direction **provisionally accepted for further review**: one shared design engine, three independently authorised contexts, integration with existing infrastructure and governance, incremental delivery, the approved visual reference preserved. Not an authorisation to implement beyond DS-1a. | — |
+| D1 | **Naming.** The new product is **Familista Design Studio**. The existing Owner-only interface design tool *may* be displayed as Interface Studio; every existing technical identifier, route, storage key, document format, export, test and compatibility is preserved. | DS-1a uses its own identifiers (`#product-design`, `public/product-design/`, `familista.product-design`, its own storage key). The optional relabel was **not** made in DS-1a: it would change the existing tool's code, its five catalogues and three pinned test assertions, which the preservation rule forbids; it remains available as a separate, isolated change. |
+| D5 | **Visual design.** The approved image is the visual authority: dark navy, purple/blue accents, professional editing panels, central product visualisation; module accent colours kept technically separate from status colours; no redesign. | A module accent of its own (`--fam-module-accent` = violet-500, `-2` = blue-500) bound to `[data-fam-module="product-design"]`, distinct from `--fam-status-unverified` (violet-400). "Continue to order" is an unavailable control in DS-1a and is drawn in the room's neutral disabled style, not green. |
+| D6 | **Arabic layout.** Proper RTL; navigation, panels and controls mirror where appropriate; the garment and the physical meaning of its surfaces are never mirrored. | Chrome follows the reading direction; the canvas is `dir="ltr"`; sleeves are named for the wearer's side; the workflow (a pipeline) reads left to right with unmirrored arrows, as the approved image shows. |
+| L1 | **Official languages** confirmed: English, German, Arabic, French, Spanish, through the existing localisation infrastructure. | The room ships a catalogue for each (checked by `npm run i18n:check`); its navigation label is in every platform locale. |
+| — | **DS-1a authorised** (2026-11-10), within §13 and the final DS-0 review's boundaries; no backend, database, authentication, authorisation, tenant-isolation, CSP, production-configuration, AI-governance, Neural Digital Twin, Interface Studio, manufacturer, payment or dependency change. | Implemented on `claude/kind-bell-inkoyy` for review; not merged, not deployed. DS-1b, DS-1c and later phases are not started. |
+| D9 | Seller of record, liability, tax and payment architecture: **pending business and legal approval; not authorised.** | Nothing in DS-1a names a seller or shows a price. |
 
 ---
 
@@ -67,7 +72,7 @@ existing Express + Prisma + PostgreSQL monolith, not a service beside it. It con
   adds no second copy of any.
 
 **Recommended first increment (§13):** DS-1a — the canonical document, its core, the approved
-editor layout and a working 2D jersey editor, for the Platform Owner only, behind a flag, with no
+editor layout and a working 2D jersey editor, for the Platform Owner only, with no
 migration, no route and no new dependency. Every control the image shows that cannot yet work is
 present, disabled and says why.
 
@@ -84,7 +89,7 @@ Status vocabulary: **Implemented** (verified in source and covered by tests), **
 |---|---|---|---|---|---|---|
 | 1 | Backend framework | Implemented | `package.json` (Express 4, Prisma 5, zod 4, ioredis, ws); `src/app.ts` | Everything | The working profile says NestJS; the repository is Express. | Build on Express. No framework change. |
 | 2 | Frontend | Implemented | `public/app.js` (69,706 lines, vanilla SPA); owner rooms lazy-loaded behind `/system/whoami` (`public/app.js:2841-2960`); React client at `/app` (`src/app.ts:317-325`, `client/`) | Room pattern: separate files, own CSS, own i18n, lazy load, teardown | React client has no design or commerce pages | New module under `public/product-design/`, loaded like the rooms (D2). |
-| 3 | Existing "Design Studio" | Implemented (Slice 1a) | `public/design-studio/studio-core.js:1-30` (format `familista.studio.document` v1: frames, rects, text bound to UI tokens); `studio.js:1-35` (owner-only, localStorage, asks the server for nothing); `tests/design-studio.unit.test.ts` | Proven patterns: pure UMD core, closed-shape validation, reversible ops, history, camera and hit-test geometry, CSP-safe DOM rendering | It is a UI-layout tool. It cannot represent a garment, a print area, a unit, an asset, a supplier. | Do not extend its document. Reuse its kernel functions (history, camera, geometry) by extraction in DS-1 (D3). |
+| 3 | Existing "Design Studio" | Implemented (Slice 1a) | `public/design-studio/studio-core.js:1-30` (format `familista.studio.document` v1: frames, rects, text bound to UI tokens); `studio.js:1-35` (owner-only, localStorage, asks the server for nothing); `tests/design-studio.unit.test.ts` | Proven patterns: pure UMD core, closed-shape validation, reversible ops, history, camera and hit-test geometry, CSP-safe DOM rendering | It is a UI-layout tool. It cannot represent a garment, a print area, a unit, an asset, a supplier. | Do not extend its document, and do not touch it. *Corrected (final DS-0 review):* its geometry rounds every coordinate to whole pixels (`studio-core.js:122` `round`, `:468` `worldDelta`), while a garment needs 0.1 mm, so its functions cannot be shared without changing them. DS-1a reuses the pattern, not the code (D3). |
 | 4 | Design System | Implemented | `public/design-system/*`, `src/design-system/*` (generated manifest, graph, components), `public/tokens/familista-tokens.css` | Tokens, components, module accent mechanism (`familista-tokens.css:355-395`) | No product/commerce components | Reuse tokens; add one module accent block (D5). |
 | 5 | Authentication | Implemented | `src/middleware/auth.middleware.ts` (JWT, token version, cross-process identity invalidation); `src/auth-prod/*` (MFA, sessions) | All | **Self-registration closed** (`src/controllers/auth.controller.ts:77-95`); invited accounts only (`src/services/auth.service.ts:100-125`) | Unchanged until DS-ID. |
 | 6 | Access levels | Implemented | `src/platform/access-levels.ts:1-30` (PLATFORM_OWNER, CLUB_OWNER, CLUB_STAFF, VIEWER) | Context resolution | No PERSONAL principal | DS-ID adds one, deliberately narrow. |
@@ -357,10 +362,12 @@ what is submitted (§8.4).
 | Polotno SDK | Commercial | Full editor, has a Gelato integration | Paid, external model, licence lock-in |
 | Supplier-embedded editors (e.g. Printful's embedded designer) | Vendor terms | Fast POD start | Iframe (`frame-src 'none'` change), ties the design to one supplier — contradicts supplier neutrality |
 
-Reuse from the existing studio core: `createHistory`/`commit`/`undo`/`redo`, camera
-(`toScreen`, `toWorld`, `zoomAt`, `panBy`, `clampZoom`), `hitTest`, `resize`, `band`. Proposed:
-extract them into a shared kernel used by both studios, with the existing studio's 560-line test
-file passing unchanged (D3).
+Reuse from the existing studio core: the *pattern* — a pure UMD core, closed-shape validation,
+reversible operations with an undo history, camera and hit-test geometry. *Corrected (final DS-0
+review):* this section first proposed extracting the existing core's functions into a shared kernel.
+They round to whole pixels and the product document needs 0.1 mm, so sharing them would mean
+changing the Interface Studio. DS-1a writes its own millimetre core and leaves the Interface Studio
+byte-for-byte unchanged; a shared kernel is reconsidered only if measured duplication justifies it (D3).
 
 ### 5.4 3D preview
 
@@ -477,6 +484,11 @@ under `src/` (files and TypeScript imports), its mounted routers (security manif
 section, its agent manifests (DRAFT/LAB), a `SYSTEM_MODULES` entry, and coverage-map trust-boundary
 rows for the supplier webhook and payment boundaries. Supplier relationships appear as *declared*
 (static) edges; nothing claims runtime observation of a supplier.
+
+*Corrected (final DS-0 review):* the composer reads `src/`, never `public/`
+(`src/platform/neural-twin/compose.ts:1-25`). DS-1a is frontend-only, so it is **not** visible in the
+Twin — exactly like the existing owner rooms (Interface Studio, Design System Control, the Twin's own
+room). Visibility begins with DS-1b, when the Studio has server code, routes and a Prisma section.
 
 ---
 
@@ -707,7 +719,7 @@ Free and already-present first. Prices are not quoted: none were verified for th
 
 | Need | Recommendation | Already in repo | Licence | Cost driver |
 |---|---|---|---|---|
-| 2D editor | Own SVG renderer + extracted studio kernel | Kernel functions yes | — | Engineering time |
+| 2D editor | Own SVG renderer and millimetre core (the existing studio's pattern, not its code) | Pattern yes | — | Engineering time |
 | 3D preview | Babylon.js 7.54.3 | Yes | Apache-2.0 | Garment models (commission/licence); 6.8 MB bandwidth per 3D session (cache) |
 | Storage | Fabric object store → S3-compatible bucket (e.g. Cloudflare R2, EU jurisdiction option) | Port + `@aws-sdk/client-s3` yes | — | Storage GB-month, operations; egress (R2 advertises none — verify) |
 | DB | PostgreSQL (existing) | Yes | — | Plan size as rows grow |
@@ -730,13 +742,15 @@ engine.
 
 ## 12. Implementation roadmap (Deliverable L)
 
-Each phase is behind a feature flag, merged only with owner approval, deployed only by the existing
+Each phase with a server part is behind a feature flag (*corrected:* the flag service is server-side,
+`src/platform/innovation/flags.ts`; DS-1a has no server part and is reached only through the owner
+check every owner room uses, which is convenience and not a security boundary), merged only with owner approval, deployed only by the existing
 gated workflow.
 
 | Phase | Objective | Depends on | Scope | Visible result | Tests / acceptance | Main risks | Cost drivers |
 |---|---|---|---|---|---|---|---|
 | DS-0 | This document | — | Research, design | — | Owner review | — | Time |
-| **DS-1a** | Engine foundation | D1–D3, D5, D6 | Document v1, core, kernel extraction, SVG 2D editor, one jersey template (repo data), shaded preview, approved layout shell with truthful disabled controls, local draft + JSON export, i18n | Owner edits a jersey for real | Core unit tests incl. negative controls; existing studio tests unchanged; layout-stability tests; i18n check; region/palette script; keyboard path | Template art quality | Silhouette/shade art |
+| **DS-1a** | Engine foundation | D1–D3, D5, D6 | Document v1, millimetre core (no change to the existing studio), SVG 2D editor, one jersey template (repo data), shaded preview, approved layout shell with truthful disabled controls, local draft + JSON export, i18n | Owner edits a jersey for real | Core unit tests incl. negative controls; existing studio tests unchanged; layout-stability tests; i18n check; region/palette script; keyboard path | Template art quality | Silhouette/shade art |
 | DS-1b | Persistence | DS-1a, migration approval | `DesignProject/Draft/Version`, owner-guarded routes, autosave with revisions, versions panel, owner asset upload (sanitised SVG, PNG) on current storage, audit | Designs survive devices | Route tests, conflict (409) tests, sanitizer corpus, contract check | Disk capacity (F4) | None new |
 | DS-1c | 3D preview | DS-1a, garment model (D4) | Babylon loader, UV atlas, 360° | 3D toggle live | FPS/time budgets measured | Model sourcing | Model commission/licence |
 | DS-S | Object storage | Provider decision (D8) | Configure port, migrate assets, signed reads, backup coverage | — | Restore drill includes media | Provider lock-in | Storage/ops fees |
@@ -772,7 +786,8 @@ dependency.
 - 2D editor: select, move, resize, rotate, align, snap, grid and safe-zone overlays; layers with
   visibility, lock, reorder, rename, duplicate, delete; base colours, palette, procedural patterns
   (stripes, gradients, geometric); text and number/name placeholder layers with OFL fonts and Arabic
-  text; SVG import of a sanitised file kept *local to the draft* (no upload).
+  text. *As authorised:* the DS-1a scope did not include artwork import, so SVG import was not built;
+  the Image tool is present, unavailable, and says it needs secure server storage (DS-1b).
 - Views: Front, Back, Left, Right; shaded 2.5D preview.
 - Draft autosaved in the browser; export/import of the validated JSON file.
 - Approved layout R1–R15, responsive rules, RTL mirroring, keyboard path, catalogue/room strings in
@@ -790,8 +805,8 @@ from §8.5); integration card (true state per line).
 **Not in DS-1a**: migrations, routes, uploads, server storage, payments, suppliers, AI, 3D.
 
 **Acceptance**: core tests with negative controls (invalid documents refused, out-of-area layers
-flagged, undo restores byte-identical documents); the existing studio's tests pass unchanged after
-kernel extraction; layout-stability and RTL navigation tests; `npm run i18n:check`; typecheck; build;
+flagged, undo restores byte-identical documents); the existing studio byte-for-byte unchanged and its
+tests passing (*corrected:* no kernel extraction in DS-1a); layout-stability and RTL navigation tests; `npm run i18n:check`; typecheck; build;
 the region/palette comparison report and the review sheet at five widths in `en-GB` and `ar`;
 manual keyboard-only walkthrough recorded.
 
@@ -803,7 +818,7 @@ manual keyboard-only walkthrough recorded.
 |---|---|---|
 | D1 | Naming. The existing owner tool is "Design Studio"; the image's owner context is "Design System Control", close to the existing "Design System" room. | Keep "Design Studio" for this product (as approved). Rename the existing UI-frame tool to "Interface Studio" (UI label only). Name the owner context "Design Studio Control". Technical module `product-design`. |
 | D2 | Frontend stack | Vanilla lazy-loaded module following the owner-room pattern; not React (`client/` has no design or commerce surface and would split the design system). |
-| D3 | 2D engine and kernel | Own SVG renderer; extract the existing studio's history/camera/geometry into a shared kernel with its tests unchanged. |
+| D3 | 2D engine and kernel | Own SVG renderer. *Corrected:* no shared kernel in DS-1a — the existing studio's geometry is whole-pixel and stays untouched; reconsider only on measured duplication. |
 | D4 | 3D garment models | Babylon reuse confirmed; approve sourcing route (commission vs licensed library) and budget before DS-1c. |
 | D5 | Colour conflicts | Module accent in an indigo-violet distinct from `status-unverified`, with unverified chips always labelled; "Continue to order" in the module accent rather than green (green kept for validation results). Alternative: approve green as a documented commerce exception. |
 | D6 | Arabic layout | Mirror the chrome (sidebar, library, inspector) in RTL; never mirror the garment or its views. |

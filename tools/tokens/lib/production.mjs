@@ -31,6 +31,9 @@ const SURFACES = [
   { id: 'neural-twin', label: 'Familista Neural Digital Twin, loaded on demand by the main app', files: ['public/neural-twin/neural-twin.css'] },
   // Familista System Updates: an owner room the main app loads on demand (public/app.js, _loadSystemUpdates).
   { id: 'system-updates', label: 'Familista System Updates, loaded on demand by the main app', files: ['public/system-updates/system-updates.css'] },
+  // Familista Design Studio (DS-1a): the product designer, an owner room the main app loads on demand
+  // (public/app.js, _loadProductDesign). Not the Interface Studio above (public/design-studio/).
+  { id: 'product-design', label: 'Familista Design Studio (DS-1a product designer), loaded on demand by the main app', files: ['public/product-design/product-design.css'] },
 ];
 
 const rel = (p) => relative(REPO_ROOT, p).split('\\').join('/');

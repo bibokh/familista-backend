@@ -441,7 +441,7 @@ describe('the room reads the canonical tokens and declares none of its own', () 
 
   it('is one of two consumers: the token verifier allows --fam- under public/design-system/ and Familista Design Studio\'s public/design-studio/, and nowhere else', () => {
     const v = read('tools/tokens/scripts/verify.mjs');
-    expect(v).toContain("const CONSUMERS = ['public/design-system/', 'public/design-studio/', 'public/agents-room/', 'public/neural-twin/', 'public/system-updates/'];");
+    expect(v).toContain("const CONSUMERS = ['public/design-system/', 'public/design-studio/', 'public/agents-room/', 'public/neural-twin/', 'public/system-updates/', 'public/product-design/'];");
     expect(json('tools/tokens/targets/web.json').version).toBe(/tokens\.css\?v=([^"]+)"/.exec(read('public/index.html'))![1]);
   });
 });
@@ -551,7 +551,7 @@ describe('the room escapes whatever the manifest says (run for real, in a sandbo
     expect(out).toContain('id="ds-rows"');
     expect(out).toContain('ds-table--tokens');
     // A measured zero is drawn as 0 (the reserved Theme layer), and an absent commit as an em dash.
-    expect(out).toMatch(/<bdi dir="ltr">0 \/ 259<\/bdi>/);
+    expect(out).toMatch(/<bdi dir="ltr">0 \/ 262<\/bdi>/);
     expect(out).toMatch(/ds-foot-at"[^>]*>—<\/span>/);
   });
 });

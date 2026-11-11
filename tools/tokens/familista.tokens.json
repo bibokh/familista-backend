@@ -788,6 +788,22 @@
               "source": "--ic-unver, --sc-unver"
             }
           }
+        },
+        "500": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.545098,
+              0.360784,
+              0.964706
+            ],
+            "hex": "#8b5cf6"
+          },
+          "$extensions": {
+            "com.familista": {
+              "note": "Familista Design Studio module accent (DS-1a). A module identity colour, kept apart from status.unverified (violet.400)."
+            }
+          }
         }
       },
       "orchid": {
@@ -2698,6 +2714,15 @@
       "$description": "Club: Coaches",
       "accent": {
         "$value": "{ref.color.sky.400}"
+      }
+    },
+    "product-design": {
+      "$description": "Owner: Familista Design Studio",
+      "accent": {
+        "$value": "{ref.color.violet.500}"
+      },
+      "accent-2": {
+        "$value": "{ref.color.blue.500}"
       }
     }
   },

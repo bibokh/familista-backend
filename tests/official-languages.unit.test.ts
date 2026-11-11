@@ -90,7 +90,7 @@ describe('the runtime gives every room the same list, and one way to change lang
   it('no room keeps a language of its own, and every room reads the one list', () => {
     const rooms = fs.readdirSync(path.join(ROOT, 'public'), { withFileTypes: true })
       .filter((d) => d.isDirectory() && fs.existsSync(path.join(ROOT, 'public', d.name, 'i18n', 'en.json'))).map((d) => d.name);
-    expect(rooms.length).toBe(11);
+    expect(rooms.length).toBe(12);
     for (const room of rooms) {
       const files = fs.readdirSync(path.join(ROOT, 'public', room)).filter((f) => f.endsWith('.js'));
       const src = files.map((f) => read(`public/${room}/${f}`)).join('\n');
@@ -235,7 +235,7 @@ describe('the real repository', () => {
   it('passes rules 7 and 8 for every room and every official language', () => {
     const r = spawnSync(process.execPath, [CHECK, '--fast'], { encoding: 'utf8' });
     expect(`${r.status}\n${r.stderr}`).toBe('0\n');
-    expect(r.stdout).toMatch(/rooms {5}11 owner room\(s\) × 5 official languages/);
+    expect(r.stdout).toMatch(/rooms {5}12 owner room\(s\) × 5 official languages/);
   });
 
   it('records no English placeholder for any official language', () => {

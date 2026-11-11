@@ -145,7 +145,7 @@ function surfaceColors(view, name) {
 export function contrastPairs(tree) {
   const { tokens } = validate(tree);
   const layers = overrideLayers(tree, tokens).filter((l) => l.layer === 'module');
-  const ownerModules = new Set(['system', 'data-vault', 'infrastructure-city', 'source-core', 'vision', 'cybersecurity', 'algorithms']);
+  const ownerModules = new Set(['system', 'data-vault', 'infrastructure-city', 'source-core', 'vision', 'cybersecurity', 'algorithms', 'product-design']);
   const out = [];
   const measure = (ctx, mod, view, fg, bgs, role) => {
     const c = rgbaOf(resolveValue(view, view.get(fg).value));

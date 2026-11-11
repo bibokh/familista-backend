@@ -1,0 +1,135 @@
+{
+  "format": "familista.product-template",
+  "version": 1,
+  "key": "football-jersey.classic-v",
+  "templateVersion": 1,
+  "name": "Match shirt",
+  "category": "match-kits",
+  "referenceSize": "M",
+  "surfaces": [
+    {
+      "id": "front",
+      "label": "Front",
+      "width": 540,
+      "height": 760,
+      "outline": [[185, 12], [48, 44], [14, 258, 64, 200], [30, 740], [510, 740, 270, 752], [526, 258], [492, 44, 476, 200], [355, 12], [270, 122]],
+      "safe": [[178, 36], [270, 151], [362, 36], [478, 62], [474, 170], [486, 226], [506, 276], [492, 722], [48, 722], [34, 276], [54, 226], [66, 170], [62, 62]]
+    },
+    {
+      "id": "back",
+      "label": "Back",
+      "width": 540,
+      "height": 760,
+      "outline": [[185, 12], [48, 44], [14, 258, 64, 200], [30, 740], [510, 740, 270, 752], [526, 258], [492, 44, 476, 200], [355, 12], [185, 12, 270, 44]],
+      "safe": [[180, 40], [270, 52], [360, 40], [478, 62], [474, 170], [486, 226], [506, 276], [492, 722], [48, 722], [34, 276], [54, 226], [66, 170], [62, 62]]
+    },
+    {
+      "id": "sleeve-right",
+      "label": "Right sleeve",
+      "width": 420,
+      "height": 260,
+      "outline": [[0, 128], [420, 128, 210, -40], [392, 250], [28, 250]],
+      "safe": [[24, 134], [110, 80], [210, 62], [310, 80], [396, 134], [374, 232], [46, 232]]
+    },
+    {
+      "id": "sleeve-left",
+      "label": "Left sleeve",
+      "width": 420,
+      "height": 260,
+      "outline": [[0, 128], [420, 128, 210, -40], [392, 250], [28, 250]],
+      "safe": [[24, 134], [110, 80], [210, 62], [310, 80], [396, 134], [374, 232], [46, 232]]
+    }
+  ],
+  "views": [
+    {
+      "id": "front",
+      "label": "Front",
+      "surface": "front",
+      "viewBox": [-125, -12, 790, 778],
+      "context": [
+        { "surface": "sleeve-right", "outline": [[48, 44], [-110, 148, -30, 60], [-56, 312], [14, 258], [48, 44, 64, 200]], "cuff": [[-110, 148], [-56, 312]] },
+        { "surface": "sleeve-left", "outline": [[492, 44], [650, 148, 570, 60], [596, 312], [526, 258], [492, 44, 476, 200]], "cuff": [[650, 148], [596, 312]] }
+      ],
+      "collar": [[185, 12], [270, 122], [355, 12]],
+      "inner": [[185, 12], [270, 122], [355, 12]]
+    },
+    {
+      "id": "back",
+      "label": "Back",
+      "surface": "back",
+      "viewBox": [-125, -12, 790, 778],
+      "context": [
+        { "surface": "sleeve-left", "outline": [[48, 44], [-110, 148, -30, 60], [-56, 312], [14, 258], [48, 44, 64, 200]], "cuff": [[-110, 148], [-56, 312]] },
+        { "surface": "sleeve-right", "outline": [[492, 44], [650, 148, 570, 60], [596, 312], [526, 258], [492, 44, 476, 200]], "cuff": [[650, 148], [596, 312]] }
+      ],
+      "collar": [[355, 12], [185, 12, 270, 44]]
+    },
+    {
+      "id": "sleeve-right",
+      "label": "Right side",
+      "surface": "sleeve-right",
+      "viewBox": [-40, -50, 500, 340],
+      "cuff": [[28, 250], [392, 250]]
+    },
+    {
+      "id": "sleeve-left",
+      "label": "Left side",
+      "surface": "sleeve-left",
+      "viewBox": [-40, -50, 500, 340],
+      "cuff": [[28, 250], [392, 250]]
+    }
+  ],
+  "rules": {
+    "minTextHeight": 8
+  },
+  "reference": {
+    "method": "Sublimation, all-over print",
+    "fabric": "Polyester, 140 g/m²",
+    "fits": [
+      { "id": "men", "label": "Men", "sizes": ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"] },
+      { "id": "women", "label": "Women", "sizes": ["XS", "S", "M", "L", "XL", "2XL", "3XL"] },
+      { "id": "youth", "label": "Youth", "sizes": ["116", "128", "140", "152", "164"] },
+      { "id": "kids", "label": "Kids", "sizes": ["92", "98", "104", "110"] }
+    ]
+  },
+  "start": {
+    "palette": [
+      { "id": "c1", "label": "Navy", "srgb": "#0b1f5b" },
+      { "id": "c2", "label": "Royal blue", "srgb": "#1f4fd6" },
+      { "id": "c3", "label": "Gold", "srgb": "#d8ad3c" },
+      { "id": "c4", "label": "White", "srgb": "#f4f6fa" }
+    ],
+    "parts": { "collar": "c3", "cuffs": "c3" },
+    "surfaces": {
+      "front": {
+        "base": "c1",
+        "layers": [
+          { "id": "l1", "type": "pattern", "name": "Pattern", "visible": true, "locked": false, "pattern": "diagonal", "color": "c2", "scale": 84, "angle": 35, "opacity": 70 },
+          { "id": "l2", "type": "text", "name": "Brand mark", "visible": true, "locked": false, "text": "F", "font": "sans-black", "color": "c3", "outline": null, "x": 166, "y": 196, "w": 44, "h": 52, "r": 0, "w0": 44, "h0": 52 },
+          { "id": "l3", "type": "shape", "name": "Club crest", "visible": true, "locked": false, "shape": "shield", "color": "c4", "outline": "c3", "x": 376, "y": 200, "w": 64, "h": 76, "r": 0, "w0": 64, "h0": 76 },
+          { "id": "l4", "type": "text", "name": "Sponsor", "visible": true, "locked": false, "text": "Familista", "font": "sans-black", "color": "c4", "outline": null, "x": 270, "y": 330, "w": 320, "h": 66, "r": 0, "w0": 320, "h0": 66 }
+        ]
+      },
+      "back": {
+        "base": "c1",
+        "layers": [
+          { "id": "l5", "type": "pattern", "name": "Pattern", "visible": true, "locked": false, "pattern": "diagonal", "color": "c2", "scale": 84, "angle": 35, "opacity": 70 },
+          { "id": "l6", "type": "roster", "name": "Player name", "visible": true, "locked": false, "field": "name", "font": "sans-black", "color": "c4", "outline": null, "x": 270, "y": 150, "w": 300, "h": 46, "r": 0, "w0": 300, "h0": 46 },
+          { "id": "l7", "type": "roster", "name": "Player number", "visible": true, "locked": false, "field": "number", "font": "sans-black", "color": "c4", "outline": "c3", "x": 270, "y": 330, "w": 200, "h": 220, "r": 0, "w0": 200, "h0": 220 }
+        ]
+      },
+      "sleeve-right": {
+        "base": "c1",
+        "layers": [
+          { "id": "l8", "type": "pattern", "name": "Pattern", "visible": true, "locked": false, "pattern": "diagonal", "color": "c2", "scale": 84, "angle": 35, "opacity": 70 }
+        ]
+      },
+      "sleeve-left": {
+        "base": "c1",
+        "layers": [
+          { "id": "l9", "type": "pattern", "name": "Pattern", "visible": true, "locked": false, "pattern": "diagonal", "color": "c2", "scale": 84, "angle": 35, "opacity": 70 }
+        ]
+      }
+    }
+  }
+}

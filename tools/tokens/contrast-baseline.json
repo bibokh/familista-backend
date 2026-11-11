@@ -2453,6 +2453,50 @@
    "ratio": 9.39,
    "required": 3,
    "pass": true
+  },
+  {
+   "id": "owner/product-design module.accent on surface.canvas",
+   "context": "owner",
+   "module": "product-design",
+   "fg": "module.accent",
+   "bg": "surface.canvas",
+   "role": "ui",
+   "ratio": 4.73,
+   "required": 3,
+   "pass": true
+  },
+  {
+   "id": "owner/product-design module.accent on surface.base",
+   "context": "owner",
+   "module": "product-design",
+   "fg": "module.accent",
+   "bg": "surface.base",
+   "role": "ui",
+   "ratio": 4.42,
+   "required": 3,
+   "pass": true
+  },
+  {
+   "id": "owner/product-design module.accent-2 on surface.canvas",
+   "context": "owner",
+   "module": "product-design",
+   "fg": "module.accent-2",
+   "bg": "surface.canvas",
+   "role": "ui",
+   "ratio": 5.45,
+   "required": 3,
+   "pass": true
+  },
+  {
+   "id": "owner/product-design module.accent-2 on surface.base",
+   "context": "owner",
+   "module": "product-design",
+   "fg": "module.accent-2",
+   "bg": "surface.base",
+   "role": "ui",
+   "ratio": 5.09,
+   "required": 3,
+   "pass": true
   }
  ]
 }
