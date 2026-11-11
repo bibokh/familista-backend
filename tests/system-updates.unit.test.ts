@@ -344,10 +344,11 @@ describe('5. the Platform Owner navigation: one list, owner-only, marking the op
   vm.runInContext(code + '\n;this.__nav = famOwnerNav; this.__list = OWNER_NAV;', sandbox);
   const nav = sandbox.__nav as (a: string | null, T?: (s: string) => string, p?: string) => string;
 
-  it('holds exactly the two destinations, in order, each an owner room the shell knows', () => {
-    expect((sandbox.__list as Array<{ page: string; label: string }>).map((i) => [i.page, i.label])).toEqual([['neural-twin', 'Neural Digital Twin'], ['system-updates', 'System Updates']]);
+  it('holds exactly the three destinations, in order, each an owner room the shell knows', () => {
+    expect((sandbox.__list as Array<{ page: string; label: string }>).map((i) => [i.page, i.label])).toEqual([['neural-twin', 'Neural Digital Twin'], ['system-updates', 'System Updates'], ['product-design', 'Design Studio']]);
     expect(APP).toMatch(/'neural-twin': 1,/);
     expect(APP).toMatch(/'system-updates': 1,/);
+    expect(APP).toMatch(/'product-design': 1,/);
   });
   it('marks only the open room with aria-current="page", and every button keeps its name', () => {
     const html = nav('system-updates', undefined, 'su-ownernav');

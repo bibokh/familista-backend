@@ -49,6 +49,12 @@ const OFFICIAL = [...fs.readFileSync(path.join(ROOT, 'public/i18n/config.js'), '
   .sort((a, b) => Number(a[3]) - Number(b[3])).map((m) => ({ tag: m[1], code: m[1].toLowerCase().split('-')[0], dir: m[2] }));
 /** A room's word in a language, read from the room's own catalogue: what the page must show. */
 const roomWord = (room, code, en) => JSON.parse(fs.readFileSync(path.join(ROOT, 'public', room, 'i18n', code + '.json'), 'utf8'))[en];
+/** The platform catalogue's word in a language (public/i18n/catalogue): what the top bar must show. */
+const platformWord = (tag, en) => JSON.parse(fs.readFileSync(path.join(ROOT, 'public/i18n/catalogue', tag + '.json'), 'utf8'))[en];
+/** The Platform Owner's destinations, in the order public/app.js (OWNER_NAV) draws them, in the English the shell writes. */
+const OWNER_DESTS = ['Neural Digital Twin', 'System Updates', 'Design Studio'];
+/** Those destinations as the navigation names them, in a language's words (a catalogue), or in English without one. */
+const ownerIn = (words) => OWNER_DESTS.map((d) => (words ? words[d] : d)).join('|');
 const OUT = process.argv[2];
 const WANT_AXE = process.argv.includes('--axe');
 const want = (n) => !process.env.PROOF_ONLY || process.env.PROOF_ONLY.split(',').includes(n);
@@ -563,8 +569,8 @@ const PHASE1 = { nodes: 921, edges: 3656 };
   }
 
   // ══ T4. the Platform Owner navigation, and System Updates beside the twin ═══════════════════════════════════════════
-  // Two permanent destinations outside every Club Workspace, drawn from one list (public/app.js, OWNER_NAV) in Owner
-  // Control's top bar (the phone header beneath 769px) and at the head of both rooms, each marking the open room.
+  // Three permanent destinations outside every Club Workspace, drawn from one list (public/app.js, OWNER_NAV) in Owner
+  // Control's top bar (the phone header beneath 769px) and at the head of each room, each marking the open room.
   // System Updates shows only what the server read; this proves the room against the release record the build wrote.
   if (want('T4')) {
     const RECORD = JSON.parse(fs.readFileSync(path.join(ROOT, 'dist/platform/system-updates/generated/release-record.json'), 'utf8'));
@@ -580,7 +586,7 @@ const PHASE1 = { nodes: 921, edges: 3656 };
     }, sel);
     const overflowX = (pg) => pg.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     const box = (pg, sel) => pg.evaluate((sel) => { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; }, sel);
-    const ownerHome = (pg) => pg.waitForFunction(() => { const n = document.getElementById('owner-nav'); return n && !n.hidden && n.querySelectorAll('[data-owner-nav]').length === 2; }, null, { timeout: 30000 });
+    const ownerHome = (pg) => pg.waitForFunction((k) => { const n = document.getElementById('owner-nav'); return n && !n.hidden && n.querySelectorAll('[data-owner-nav]').length === k; }, OWNER_DESTS.length, { timeout: 30000 });
 
     // A. Owner Control's top bar, the room, the round trip through both rooms, and back
     {
@@ -589,7 +595,7 @@ const PHASE1 = { nodes: 921, edges: 3656 };
       await page.waitForTimeout(600);
       let n = await navState(page, '#owner-nav');
       const fits = await page.evaluate(() => { const h = document.querySelector('header.topbar'), nv = document.getElementById('owner-nav'), a = h.getBoundingClientRect(), b = nv.getBoundingClientRect(); return { inside: b.top >= a.top && b.bottom <= a.bottom && b.right <= a.right, headerOverflow: h.scrollWidth - h.clientWidth }; });
-      check('owner nav: Owner Control\'s top bar holds the two destinations, named, none current, inside the bar', n.shown && n.names.join('|') === 'Neural Digital Twin|System Updates' && n.current.length === 0 && n.label === 'Platform owner' && fits.inside && fits.headerOverflow <= 0, { n, fits });
+      check('owner nav: Owner Control\'s top bar holds the three destinations, named, none current, inside the bar', n.shown && n.names.join('|') === ownerIn() && n.current.length === 0 && n.label === 'Platform owner' && fits.inside && fits.headerOverflow <= 0, { n, fits });
       // revealing it moves nothing: the page's name and the page beneath keep their place with the group hidden or shown
       const place = () => Promise.all([box(page, '.topbar-brand'), box(page, '#pages-container'), box(page, 'header.topbar')]);
       const shownAt = await place();
@@ -627,7 +633,7 @@ const PHASE1 = { nodes: 921, edges: 3656 };
       await twinReady(page);
       n = await navState(page, '.nt-ownernav');
       const twin = await page.evaluate(() => ({ active: (document.querySelector('.page.active') || {}).id, updatesOpen: document.body.classList.contains('su-room-open') }));
-      check('owner nav: from System Updates to the twin by keyboard, and the twin marks itself the open destination', twin.active === 'pg-neural-twin' && !twin.updatesOpen && n.shown && n.current.join() === 'neural-twin' && n.names.join('|') === 'Neural Digital Twin|System Updates', { twin, n });
+      check('owner nav: from System Updates to the twin by keyboard, and the twin marks itself the open destination', twin.active === 'pg-neural-twin' && !twin.updatesOpen && n.shown && n.current.join() === 'neural-twin' && n.names.join('|') === ownerIn(), { twin, n });
       await page.click('.nt-ownernav [data-owner-nav="system-updates"]');
       await roomReady(page);
       n = await navState(page, '.su-ownernav');
@@ -668,14 +674,16 @@ const PHASE1 = { nodes: 921, edges: 3656 };
 
     // C. in every official language but English: the top bar's words come from the platform catalogue, the room's from its
     // own; Arabic is right to left. German and Arabic are spelled out here; French and Spanish are read from their files.
-    const SPELLED = { 'de-DE': { twin: 'Neuronaler Digitaler Zwilling', updates: 'Systemaktualisierungen', label: 'Plattformeigentümer', dir: 'ltr', head: 'Läuft jetzt' },
-      ar: { twin: 'التوأم الرقمي العصبي', updates: 'تحديثات النظام', label: 'مالك المنصة', dir: 'rtl', head: 'قيد التشغيل الآن' } };
+    // Design Studio is a product name and is kept as written in every language (the platform catalogue says so).
+    const SPELLED = { 'de-DE': { twin: 'Neuronaler Digitaler Zwilling', updates: 'Systemaktualisierungen', design: 'Design Studio', label: 'Plattformeigentümer', dir: 'ltr', head: 'Läuft jetzt' },
+      ar: { twin: 'التوأم الرقمي العصبي', updates: 'تحديثات النظام', design: 'Design Studio', label: 'مالك المنصة', dir: 'rtl', head: 'قيد التشغيل الآن' } };
     const fromFiles = (l) => ({ twin: roomWord('system-updates', l.code, 'Neural Digital Twin'), updates: roomWord('system-updates', l.code, 'System Updates'),
-      label: roomWord('system-updates', l.code, 'Platform owner'), dir: l.dir, head: roomWord('system-updates', l.code, 'Running now') });
+      design: platformWord(l.tag, 'Design Studio'), label: roomWord('system-updates', l.code, 'Platform owner'), dir: l.dir, head: roomWord('system-updates', l.code, 'Running now') });
     for (const [loc, want] of OFFICIAL.filter((l) => l.code !== 'en').map((l) => [l.tag, SPELLED[l.tag] || fromFiles(l)])) {
       const { ctx, page, log } = await open({ width: 1440, height: 900 }, loc, { hash: '/#owner-home', wait: false });
+      const names = [want.twin, want.updates, want.design].join('|');
       await ownerHome(page);
-      await page.waitForFunction((w) => [...document.querySelectorAll('#owner-nav [data-owner-nav]')].map((b) => b.textContent.trim()).join('|') === w, want.twin + '|' + want.updates, { timeout: 15000 }).catch(() => {});
+      await page.waitForFunction((w) => [...document.querySelectorAll('#owner-nav [data-owner-nav]')].map((b) => b.textContent.trim()).join('|') === w, names, { timeout: 15000 }).catch(() => {});
       const top = await navState(page, '#owner-nav');
       await page.click('#owner-nav [data-owner-nav="system-updates"]');
       await roomReady(page);
@@ -694,8 +702,8 @@ const PHASE1 = { nodes: 921, edges: 3656 };
         return Object.keys(en).filter((k) => k.split(' ').length >= 3 && !/%d/.test(k) && text.includes(k));
       });
       check('owner nav and system updates in ' + loc + ': the top bar, the room and its navigation speak the language' + (loc === 'ar' ? ', right to left' : '') + ', with no English sentence left',
-        top.names.join('|') === want.twin + '|' + want.updates && top.label === want.label && room.dir === want.dir && room.title === want.updates && room.head === want.head
-          && room.nav.join('|') === want.twin + '|' + want.updates && room.navLabel === want.label && english.length === 0 && log.errors.length === 0,
+        top.names.join('|') === names && top.label === want.label && room.dir === want.dir && room.title === want.updates && room.head === want.head
+          && room.nav.join('|') === names && room.navLabel === want.label && english.length === 0 && log.errors.length === 0,
         { top: top.names, label: top.label, room, english: english.slice(0, 4), errors: log.errors.slice(0, 2) });
       if (loc === 'ar') {
         await shot(page, 'system-updates-ar');
@@ -722,7 +730,7 @@ const PHASE1 = { nodes: 921, edges: 3656 };
     }
     {
       const { ctx, page } = await open({ width: 390, height: 844 }, 'en-GB', { hash: '/#owner-home', wait: false, mobile: true });
-      await page.waitForFunction(() => { const n = document.getElementById('owner-nav-compact'); return n && !n.hidden && n.querySelectorAll('[data-owner-nav]').length === 2; }, null, { timeout: 30000 });
+      await page.waitForFunction((k) => { const n = document.getElementById('owner-nav-compact'); return n && !n.hidden && n.querySelectorAll('[data-owner-nav]').length === k; }, OWNER_DESTS.length, { timeout: 30000 });
       await page.waitForTimeout(500);
       const c = await navState(page, '#owner-nav-compact'), t = await navState(page, '#owner-nav');
       // The page's name keeps exactly the room it has without the navigation: its box is measured with the phone copy
@@ -734,7 +742,7 @@ const PHASE1 = { nodes: 921, edges: 3656 };
         return { text: e.textContent.trim(), withNav, without, headerOverflow: m.scrollWidth - m.clientWidth };
       });
       check('owner nav on a phone: the phone header holds it, at least 24px a target, the top bar\'s copy steps aside, and the page\'s name keeps the room it has without it',
-        c.shown && !t.shown && c.sizes.length === 2 && c.sizes.every(([w, h]) => w >= 24 && h >= 24)
+        c.shown && !t.shown && c.sizes.length === OWNER_DESTS.length && c.sizes.every(([w, h]) => w >= 24 && h >= 24)
           && title.withNav.w === title.without.w && title.withNav.clipped === title.without.clipped && title.headerOverflow <= 0 && (await overflowX(page)) <= 0, { c, t, title });
       await shot(page, 'owner-nav-phone');
       await page.click('#owner-nav-compact [data-owner-nav="system-updates"]');
@@ -822,7 +830,7 @@ const PHASE1 = { nodes: 921, edges: 3656 };
       const names = await ownerNames(page);
       check('languages: Enter on FR puts French in force in place — no reload, left to right, the choice remembered, the focus kept, the top bar in French',
         frOn && st.marker && st.html.dir === 'ltr' && st.pressed.join() === fr.tag && st.stored === fr.tag && st.focus === fr.tag
-          && names === frWords['Neural Digital Twin'] + '|' + frWords['System Updates'] && log.errors.length === 0, { st, names });
+          && names === ownerIn(frWords) && log.errors.length === 0, { st, names });
       await shot(page, 'languages-owner-control-fr');
 
       // across navigation, and across a reload
@@ -851,7 +859,7 @@ const PHASE1 = { nodes: 921, edges: 3656 };
       st = await sw(page);
       const esWords = CAT(es.tag);
       check('languages: Space on ES puts Spanish in force, left to right again, the top bar in Spanish',
-        esOn && st.html.dir === 'ltr' && st.pressed.join() === es.tag && (await ownerNames(page)) === esWords['Neural Digital Twin'] + '|' + esWords['System Updates'], st);
+        esOn && st.html.dir === 'ltr' && st.pressed.join() === es.tag && (await ownerNames(page)) === ownerIn(esWords), st);
       await shot(page, 'languages-owner-control-es');
 
       // the rooms follow the platform, and a room's own button moves the platform
@@ -888,7 +896,7 @@ const PHASE1 = { nodes: 921, edges: 3656 };
         await page.waitForTimeout(400);
         const st = await sw(page);
         const words = CAT(l.tag);
-        const want = l.code === 'en' ? 'Neural Digital Twin|System Updates' : words['Neural Digital Twin'] + '|' + words['System Updates'];
+        const want = l.code === 'en' ? ownerIn() : ownerIn(words);
         const names = await ownerNames(page);
         seen.push({ tag: l.tag, ok: on && st.marker && st.html.dir === l.dir && st.pressed.join() === l.tag && st.stored === l.tag && names === want, dir: st.html.dir, names });
       }

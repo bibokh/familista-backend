@@ -2962,10 +2962,10 @@ function _loadNeuralTwin(done) {
 }
 
 // ── PLATFORM OWNER NAVIGATION ───────────────────────────────────────────────
-// The Platform Owner's two permanent destinations outside every Club Workspace:
-// the Neural Digital Twin and System Updates. One list, drawn in three places —
-// Owner Control's top bar, and the head of each of the two rooms (which take the
-// whole screen, top bar included) — so the reader always sees which one is open.
+// The Platform Owner's permanent destinations outside every Club Workspace: the
+// Neural Digital Twin, System Updates and Familista Design Studio. One list, drawn
+// in Owner Control's top bar and in the head of each of those rooms (which take
+// the whole screen, top bar included) — so the reader always sees which one is open.
 // Nothing is drawn until /system/whoami has said the reader is the Platform
 // Owner (_isPlatformOwner), and the top bar's copy is hidden inside a Club
 // Workspace. Convenience, not security: both rooms' endpoints are guarded by
@@ -2975,6 +2975,8 @@ var OWNER_NAV = [
     icon: '<circle cx="10" cy="4.2" r="2.1"/><circle cx="4.2" cy="15.2" r="2.1"/><circle cx="15.8" cy="15.2" r="2.1"/><path d="M9 6.1 5.2 13.3M11 6.1l3.8 7.2M6.3 15.2h7.4"/>' },
   { page: 'system-updates', label: 'System Updates',
     icon: '<path d="M16.4 8.6A6.6 6.6 0 0 0 4.6 6.2"/><path d="M3.6 11.4a6.6 6.6 0 0 0 11.8 2.4"/><path d="M4.4 2.8v3.6H8"/><path d="M15.6 17.2v-3.6H12"/>' },
+  { page: 'product-design', label: 'Design Studio',
+    icon: '<path d="M7 2.6 3 4.9l1.6 3.9 2.3-.8v9.2h6.2V8l2.3.8L17 4.9l-4-2.3c-.4 1.3-1.6 2.1-3 2.1S7.4 3.9 7 2.6z"/>' },
 ];
 /** One destination's glyph, drawn in the current colour; decorative, so hidden from assistive technology. */
 function famOwnerNavIcon(page, cls) {
@@ -3070,6 +3072,17 @@ function _loadSystemUpdates(done) {
   _famLoadOwnerRoom(_SU_ROOM, '20261105-system-updates-1', '/system-updates/system-updates.css', ['/system-updates/system-updates.js'], done);
 }
 
+// FAMILISTA DESIGN STUDIO (DS-1a) — the product designer: one football-jersey
+// template, edited in millimetres, drafts kept in this browser only. Loaded the
+// same way and for the same reader. The /system/whoami check is convenience, NOT
+// a security boundary: the room has no endpoint and sends nothing to the server.
+// Its core runs before the editor (the order given). Not the Interface Studio
+// above (#design-studio), which is left exactly as it is.
+var _PD_ROOM = { state: 'idle', waiting: [] };
+function _loadProductDesign(done) {
+  _famLoadOwnerRoom(_PD_ROOM, '20261110-product-design-1a', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/product-design.js'], done);
+}
+
 // ── NAVIGATION ──
 function navTo(page, el, _opts) {
   _opts = _opts || {};
@@ -3115,6 +3128,14 @@ function navTo(page, el, _opts) {
   if (page === 'system-updates' && !(_SU_ROOM && _SU_ROOM.state === 'ready')) {
     if (!_SU_ROOM) return;
     _loadSystemUpdates(function (ok) {
+      try { navTo(ok ? page : 'owner-home', ok ? el : null, _opts); } catch (_) {}
+    });
+    return;
+  }
+  // Familista Design Studio: the same.
+  if (page === 'product-design' && !(_PD_ROOM && _PD_ROOM.state === 'ready')) {
+    if (!_PD_ROOM) return;
+    _loadProductDesign(function (ok) {
       try { navTo(ok ? page : 'owner-home', ok ? el : null, _opts); } catch (_) {}
     });
     return;
@@ -3234,6 +3255,13 @@ function navTo(page, el, _opts) {
     if (_wasUpdates && page !== 'system-updates' && typeof window.teardownFamilistaSystemUpdates === 'function') {
       window.teardownFamilistaSystemUpdates();
     }
+    // FAMILISTA DESIGN STUDIO takes the shell the same way. Its teardown saves the
+    // open draft in this browser and removes every listener the editor added.
+    var _wasProduct = document.body.classList.contains('pd-studio-open');
+    document.body.classList.toggle('pd-studio-open', page === 'product-design');
+    if (_wasProduct && page !== 'product-design' && typeof window.teardownFamilistaProductDesign === 'function') {
+      window.teardownFamilistaProductDesign();
+    }
     // ENTERING IS NOT SYMMETRICAL WITH LEAVING, AND THAT WAS A BUG.
     //
     // Leaving released the module's held session; nothing re-hydrated it on the
@@ -3328,6 +3356,10 @@ function navTo(page, el, _opts) {
     // Owner-only and read-only: its one endpoint is a GET guarded by
     // assertPlatformOwner on the server.
     'system-updates': 1,
+    // FAMILISTA DESIGN STUDIO (DS-1a) — the product designer, reached from the
+    // Platform Owner navigation. Owner-only on screen; it has no endpoint at all,
+    // and its drafts stay in the owner's browser.
+    'product-design': 1,
     // PLATFORM (8)
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
@@ -3478,6 +3510,15 @@ function navTo(page, el, _opts) {
       window.renderFamilistaSystemUpdates(_suRoot);
     }
   } catch (_) {}
+  // Familista Design Studio reads no club data either: drawn on entry, by the same rule.
+  try {
+    var _pdRoot = document.getElementById('pd-root');
+    if (page === 'product-design' && typeof window.renderFamilistaProductDesign === 'function'
+        && _pdRoot && (_leaving !== 'pg-product-design' || !_pdRoot.__famDrawn)) {
+      _pdRoot.__famDrawn = true;
+      window.renderFamilistaProductDesign(_pdRoot);
+    }
+  } catch (_) {}
   try {
     if (typeof _famNeedsClubData === 'function' && _famNeedsClubData(page)
         && State.context && State.context.clubId) _famEnsureClubData();
@@ -3492,7 +3533,7 @@ function navTo(page, el, _opts) {
 
   const titles = {
     // ── Owner Control ──
-    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'neural-twin':'Neural Digital Twin', 'system-updates':'System Updates', 'source-core':'Source Core', 'familista-vision':'Familista Vision', 'cybersecurity':'Cybersecurity', 'algorithms':'Algorithms', 'design-system':'Design System', 'design-studio':'Design Studio', 'agents-room':'AI Agents Operations Room',
+    'owner-home':'Owner Control', clubs:'Clubs', 'data-vault':'Data Vault', 'infrastructure-city':'Infrastructure City', 'neural-twin':'Neural Digital Twin', 'system-updates':'System Updates', 'source-core':'Source Core', 'familista-vision':'Familista Vision', 'cybersecurity':'Cybersecurity', 'algorithms':'Algorithms', 'design-system':'Design System', 'design-studio':'Design Studio', 'agents-room':'AI Agents Operations Room', 'product-design':'Design Studio',
     // ── Club Workspace ──
     'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League', 'match-center':'Match Center', 'people-access':'People & Access',
     // ── Platform (Phase B labels) ──
@@ -3774,6 +3815,7 @@ function _buildPageTemplateMap() {
     'agents-room':                 renderAgentsRoomHTML,
     'neural-twin':                 renderNeuralTwinHTML,
     'system-updates':              renderSystemUpdatesHTML,
+    'product-design':              renderProductDesignHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
@@ -29664,6 +29706,15 @@ function renderNeuralTwinHTML() {
 // boundary, in the owner context of the design tokens. Not in _EAGER_PAGES.
 function renderSystemUpdatesHTML() {
   return `<div class="page" id="pg-system-updates" data-no-i18n data-fam-context="owner"><div id="su-root"></div></div>`;
+}
+
+// FAMILISTA DESIGN STUDIO (DS-1a) — the product designer, outside every Club
+// Workspace. Its interface lives in public/product-design/ with its own catalogue
+// for every official language under /product-design/i18n/, behind the same
+// `data-no-i18n` boundary, in the owner context and its own module accent.
+// Not in _EAGER_PAGES.
+function renderProductDesignHTML() {
+  return `<div class="page" id="pg-product-design" data-no-i18n data-fam-context="owner" data-fam-module="product-design"><div id="pd-root"></div></div>`;
 }
 
 // FAMILISTA VISION — what the platform can SEE: computer-vision evidence from

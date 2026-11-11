@@ -1,0 +1,24 @@
+{
+  "reference": "approved-reference-2026-11-10.webp",
+  "sha256": "5d0c567210a66641dd74829e4947db82dafbd5fb261ae62da8b6f238cc07bed4",
+  "viewport": [1672, 941],
+  "tolerance": { "px": 16, "percent": 2 },
+  "note": "Regions R1–R15 of the approved Familista Design Studio reference, measured by hand on the 1672 × 941 image (docs/DESIGN_STUDIO_ARCHITECTURE_PROPOSAL.md §3.1). Approximate by nature: a region matches when each edge is within the tolerance (the larger of 16 px and 2 % of its dimension). Boxes are [x, y, width, height] in CSS pixels at device scale 1, left to right; in a right-to-left language the chrome mirrors and x is read from the right edge.",
+  "regions": {
+    "R1":  { "name": "Top bar",                 "box": [0, 0, 1672, 62] },
+    "R2":  { "name": "Owner sidebar",           "box": [0, 62, 200, 718] },
+    "R3":  { "name": "Header and contexts",     "box": [205, 70, 1455, 80] },
+    "R4":  { "name": "Library",                 "box": [215, 160, 280, 535] },
+    "R5":  { "name": "Tool strip",              "box": [505, 205, 44, 310] },
+    "R6":  { "name": "Canvas toolbar",          "box": [505, 163, 520, 32] },
+    "R7":  { "name": "Canvas",                  "box": [555, 205, 385, 428] },
+    "R8":  { "name": "View rail",               "box": [948, 205, 74, 428] },
+    "R9":  { "name": "Pattern strip",           "box": [505, 642, 520, 50] },
+    "R10": { "name": "Inspector",               "box": [1035, 160, 292, 535] },
+    "R11": { "name": "Product column",          "box": [1338, 160, 322, 535] },
+    "R12": { "name": "Action bar",              "box": [215, 705, 1445, 65] },
+    "R13": { "name": "Workflow",                "box": [10, 790, 848, 140] },
+    "R14": { "name": "Familista integration",   "box": [872, 790, 363, 140] },
+    "R15": { "name": "Factories and suppliers", "box": [1248, 790, 412, 140] }
+  }
+}

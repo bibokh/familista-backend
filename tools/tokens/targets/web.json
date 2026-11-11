@@ -4,7 +4,7 @@
   "root": ":root",
   "output": "dist/familista-tokens.css",
   "publish": "../../public/tokens/familista-tokens.css",
-  "version": "20261012-tokens-3-1",
+  "version": "20261110-tokens-3-2",
   "selectors": {
     "context": {
       "club": ["[data-fam-context=\"club\"]"],
@@ -30,7 +30,8 @@
       "algorithms": ["[data-fam-module=\"algorithms\"]", "#pg-algorithms"],
       "transfers": ["[data-fam-module=\"transfers\"]", "#pg-transfers"],
       "coach-market": ["[data-fam-module=\"coach-market\"]", "#pg-coach-market"],
-      "coaches": ["[data-fam-module=\"coaches\"]", "#pg-coaches"]
+      "coaches": ["[data-fam-module=\"coaches\"]", "#pg-coaches"],
+      "product-design": ["[data-fam-module=\"product-design\"]", "#pg-product-design"]
     },
     "theme": {
       "light": ["[data-theme=\"light\"]"],

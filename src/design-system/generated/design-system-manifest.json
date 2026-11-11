@@ -7,29 +7,29 @@
    "id": "tokens",
    "path": "tools/tokens/familista.tokens.json",
    "label": "The canonical token source (W3C DTCG)",
-   "sha256": "9b5e8c0c998fcdf77200bba4088ed3d1f1c5734226047b9b06310179cafac038",
-   "bytes": 62327
+   "sha256": "fae92bd9af89dfea246b878585aef3e6cc3cc2b2396bc35d572054339cc97c28",
+   "bytes": 63022
   },
   {
    "id": "web-target",
    "path": "tools/tokens/targets/web.json",
    "label": "The web binding: prefix, selectors, version",
-   "sha256": "cf07224bcd92b53213e61bb82aaa4889f82ecf8420f9243a74d847be4d4af5f4",
-   "bytes": 2383
+   "sha256": "e723cf399acd1d947fec50ea31d6e257b1f1843d0293b9ca97e8132ac07b36f6",
+   "bytes": 2471
   },
   {
    "id": "token-css",
    "path": "tools/tokens/dist/familista-tokens.css",
    "label": "Generated token CSS (dist)",
-   "sha256": "66d1c2ccbf2eb0d64a4181efba84c07ced791b49237bb09ae7f670f5eaa8077c",
-   "bytes": 14614
+   "sha256": "ce7e86e045ad06d6c9532a54aed7d3f46242b0474bba1a5eef22eee1ebdb7491",
+   "bytes": 14871
   },
   {
    "id": "token-css-published",
    "path": "public/tokens/familista-tokens.css",
    "label": "The copy production serves",
-   "sha256": "66d1c2ccbf2eb0d64a4181efba84c07ced791b49237bb09ae7f670f5eaa8077c",
-   "bytes": 14614
+   "sha256": "ce7e86e045ad06d6c9532a54aed7d3f46242b0474bba1a5eef22eee1ebdb7491",
+   "bytes": 14871
   },
   {
    "id": "legacy-map",
@@ -42,15 +42,15 @@
    "id": "contrast-baseline",
    "path": "tools/tokens/contrast-baseline.json",
    "label": "Contrast failures recorded at Stage 2a",
-   "sha256": "b7e8aef97654253f2109a3d20540bb73708330bbd30abe61991795a708e85fd4",
-   "bytes": 51672
+   "sha256": "c93de2ef14500352806e4d407870a5bf44aaa633ed20ebcc731734ae370eee0f",
+   "bytes": 52672
   }
  ],
  "overview": {
   "tokens": {
    "total": {
     "state": "MEASURED",
-    "value": 259,
+    "value": 262,
     "source": "tokens"
    },
    "byLayer": {
@@ -60,8 +60,8 @@
      "dir": 1,
      "lang": 5,
      "media": 3,
-     "module": 19,
-     "ref": 66,
+     "module": 21,
+     "ref": 67,
      "semantic": 151
     },
     "source": "tokens"
@@ -69,7 +69,7 @@
    "byType": {
     "state": "MEASURED",
     "value": {
-     "color": 154,
+     "color": 157,
      "cubicBezier": 2,
      "dimension": 63,
      "duration": 6,
@@ -84,15 +84,15 @@
   },
   "css": {
    "prefix": "fam",
-   "version": "20261012-tokens-3-1",
+   "version": "20261110-tokens-3-2",
    "declarations": {
     "state": "MEASURED",
-    "value": 279,
+    "value": 282,
     "source": "token-css"
    },
    "bytes": {
     "state": "MEASURED",
-    "value": 14614,
+    "value": 14871,
     "source": "token-css"
    },
    "publishedIdentical": {
@@ -108,7 +108,7 @@
   },
   "modules": {
    "state": "MEASURED",
-   "value": 10,
+   "value": 11,
    "source": "tokens"
   },
   "legacyMap": {
@@ -143,7 +143,7 @@
   "contrast": {
    "pairs": {
     "state": "MEASURED",
-    "value": 220,
+    "value": 224,
     "source": "tokens"
    },
    "byRole": {
@@ -151,7 +151,7 @@
     "value": {
      "exempt": 20,
      "text": 60,
-     "ui": 140
+     "ui": 144
     },
     "source": "tokens"
    },
@@ -395,6 +395,19 @@
    "selectors": [
     "#pg-coaches",
     "[data-fam-module=\"coaches\"]"
+   ],
+   "media": null
+  },
+  {
+   "layer": "module",
+   "variant": "product-design",
+   "base": "semantic.module",
+   "isDefault": false,
+   "description": "Owner: Familista Design Studio",
+   "tokenCount": 2,
+   "selectors": [
+    "#pg-product-design",
+    "[data-fam-module=\"product-design\"]"
    ],
    "media": null
   },
@@ -965,6 +978,17 @@
    "aliasOf": null,
    "description": null,
    "source": "--ic-unver, --sc-unver"
+  },
+  {
+   "path": "ref.color.violet.500",
+   "cssName": "--fam-ref-violet-500",
+   "layer": "ref",
+   "type": "color",
+   "declared": "#8b5cf6",
+   "resolved": "#8b5cf6",
+   "aliasOf": null,
+   "description": null,
+   "source": null
   },
   {
    "path": "ref.color.orchid.300",
@@ -3207,6 +3231,28 @@
    "declared": "var(--fam-ref-sky-400)",
    "resolved": "#38bdf8",
    "aliasOf": "ref.color.sky.400",
+   "description": null,
+   "source": null
+  },
+  {
+   "path": "module.product-design.accent",
+   "cssName": "--fam-module-accent",
+   "layer": "module",
+   "type": "color",
+   "declared": "var(--fam-ref-violet-500)",
+   "resolved": "#8b5cf6",
+   "aliasOf": "ref.color.violet.500",
+   "description": null,
+   "source": null
+  },
+  {
+   "path": "module.product-design.accent-2",
+   "cssName": "--fam-module-accent-2",
+   "layer": "module",
+   "type": "color",
+   "declared": "var(--fam-ref-blue-500)",
+   "resolved": "#3b82f6",
+   "aliasOf": "ref.color.blue.500",
    "description": null,
    "source": null
   },
@@ -5947,6 +5993,54 @@
    "bg": "surface.base",
    "role": "ui",
    "ratio": 9.39,
+   "required": 3,
+   "pass": true,
+   "baseline": false
+  },
+  {
+   "id": "owner/product-design module.accent on surface.canvas",
+   "context": "owner",
+   "module": "product-design",
+   "fg": "module.accent",
+   "bg": "surface.canvas",
+   "role": "ui",
+   "ratio": 4.73,
+   "required": 3,
+   "pass": true,
+   "baseline": false
+  },
+  {
+   "id": "owner/product-design module.accent on surface.base",
+   "context": "owner",
+   "module": "product-design",
+   "fg": "module.accent",
+   "bg": "surface.base",
+   "role": "ui",
+   "ratio": 4.42,
+   "required": 3,
+   "pass": true,
+   "baseline": false
+  },
+  {
+   "id": "owner/product-design module.accent-2 on surface.canvas",
+   "context": "owner",
+   "module": "product-design",
+   "fg": "module.accent-2",
+   "bg": "surface.canvas",
+   "role": "ui",
+   "ratio": 5.45,
+   "required": 3,
+   "pass": true,
+   "baseline": false
+  },
+  {
+   "id": "owner/product-design module.accent-2 on surface.base",
+   "context": "owner",
+   "module": "product-design",
+   "fg": "module.accent-2",
+   "bg": "surface.base",
+   "role": "ui",
+   "ratio": 5.09,
    "required": 3,
    "pass": true,
    "baseline": false
