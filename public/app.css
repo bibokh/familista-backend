@@ -3071,8 +3071,8 @@ body.club-theme .lang-switch-menu{ display: contents; }
   body.club-theme .header-actions:has(> .lang-switch:not([hidden])) > .status-chip{ display: none !important; }
 }
 @media (prefers-reduced-motion: reduce){ body.club-theme .lang-switch-btn{ transition: none; } }
-/* Platform Owner navigation · the Neural Digital Twin and System Updates, beside the language
-   switch and built like it: one hairline group, each destination an icon and its name. The open
+/* Platform Owner navigation · the Neural Digital Twin, System Updates and the Design Studio, beside
+   the language switch and built like it: one hairline group, each destination an icon and its name. The open
    one carries the owner context's amber as a hairline and a whisper of tint (aria-current), never
    a filled block. Drawn only for the confirmed Platform Owner (the hidden attribute must win over
    the display below), and never inside a Club Workspace. Labels give way to icons before they
@@ -3102,7 +3102,9 @@ body.club-theme .owner-nav-btn:focus-visible{ outline: 2px solid var(--gold-400)
    and below) beneath it, so neither squeezes the page's name. */
 @media (min-width: 769px){ body.club-theme .owner-nav--compact{ display: none; } }
 @media (max-width: 768px){ body.club-theme .header-actions > .owner-nav{ display: none; } }
-@media (max-width: 1099px){
+/* Three named destinations take 400–535px of the bar, and in every official language they leave
+   the page's name its full width only from 1600px (measured); beneath that each is its icon. */
+@media (max-width: 1599px){
   body.club-theme .owner-nav-btn{ width: 34px; padding: 0; justify-content: center; }
   body.club-theme .owner-nav-label{
     position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
