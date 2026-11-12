@@ -1,9 +1,10 @@
 # Familista Design Studio — Architecture and Product Design Proposal (DS-0)
 
-Status: **DIRECTION PROVISIONALLY ACCEPTED (owner, 2026-11-10). D1, D5, D6 and L1 approved; DS-1a — and
-only DS-1a — authorised and implemented for review (§0). Nothing beyond DS-1a is approved; nothing is merged
-or deployed.** The original DS-0 text below is kept as proposed; three statements in it were inaccurate and
-are corrected in place, each marked *Corrected (final DS-0 review)*.
+Status: **DIRECTION PROVISIONALLY ACCEPTED (owner, 2026-11-10). D1, D5, D6 and L1 approved. DS-1a merged
+and deployed (`4a9ca3c`, 2026-11-11). DS-1b — and only DS-1b — authorised (2026-11-11) and implemented for
+review (§15); not merged, not deployed, no production migration run.** The original DS-0 text below is kept
+as proposed; three statements in it were inaccurate and are corrected in place, each marked *Corrected
+(final DS-0 review)*. Where DS-1b was built differently from what DS-0 proposed, §15 says how and why.
 
 Read from the repository at `20df5fd` on 2026-11-10. `HEAD` equals the approved baseline: zero commits
 after it, so there are no subsequent changes to report. Every claim about existing code cites the file
@@ -25,7 +26,9 @@ against one fixed file (§3.7).
 | D6 | **Arabic layout.** Proper RTL; navigation, panels and controls mirror where appropriate; the garment and the physical meaning of its surfaces are never mirrored. | Chrome follows the reading direction; the canvas is `dir="ltr"`; sleeves are named for the wearer's side; the workflow (a pipeline) reads left to right with unmirrored arrows, as the approved image shows. |
 | L1 | **Official languages** confirmed: English, German, Arabic, French, Spanish, through the existing localisation infrastructure. | The room ships a catalogue for each (checked by `npm run i18n:check`); its navigation label is in every platform locale. |
 | — | **DS-1a authorised** (2026-11-10), within §13 and the final DS-0 review's boundaries; no backend, database, authentication, authorisation, tenant-isolation, CSP, production-configuration, AI-governance, Neural Digital Twin, Interface Studio, manufacturer, payment or dependency change. | Implemented on `claude/kind-bell-inkoyy` for review; not merged, not deployed. DS-1b, DS-1c and later phases are not started. |
-| D9 | Seller of record, liability, tax and payment architecture: **pending business and legal approval; not authorised.** | Nothing in DS-1a names a seller or shows a price. |
+| — | **DS-1a merged and deployed** (owner approval, 2026-11-11): `main` `4a9ca3c`, live on Render after CI and the gated deploy. | — |
+| — | **DS-1b authorised** (2026-11-11): secure server persistence, immutable revisions with restore, revision-based conflict prevention, Platform Owner-only on the server, audit, migration of browser drafts, Save / Projects / Versions in the editor; the ownership model for Club and Creator designs designed but not activated. Schema and migrations on the development branch only; no production migration without separate approval; no artwork upload until protected storage and recovery exist. | Implemented for review (§15). DS-1c, DS-ID, DS-2, DS-3 and manufacturing are not started. |
+| D9 | Seller of record, liability, tax and payment architecture: **pending business and legal approval; not authorised.** | Nothing in DS-1a or DS-1b names a seller or shows a price. |
 
 ---
 
@@ -835,6 +838,75 @@ manual keyboard-only walkthrough recorded.
 | D17 | Audit without a club | `PlatformAuditLog` for platform and personal actions; revisit a per-user hash chain if required. |
 | D18 | CSP | No change through DS-6 (redirect Checkout, proxied uploads, server-only WASM). |
 | D19 | Reference image | Keep `docs/design-studio/approved-reference-2026-11-10.webp` as the fixed visual baseline. |
+
+---
+
+## 15. DS-1b — secure server persistence, as built
+
+**What it is.** The Platform Owner's designs are saved in PostgreSQL as projects with immutable revisions. The draft in
+the editor is still kept in the browser after every change, exactly as in DS-1a; *Save design* keeps it on the server as
+the next revision of its project (the first save creates the project). Everything is behind the server's own platform
+owner check; the browser's room check remains a convenience.
+
+| Part | Where | What it does |
+|---|---|---|
+| Data | `prisma/schema.prisma` section "Design Studio"; migration `20261111100000_design_studio_persistence` | `DesignProject` (ownership, template, `headRevision`, origin, archive) and `DesignRevision` (number, kind, `restoredFrom`, canonical document as JSONB, SHA-256 of its canonical text, size, format version, author). |
+| Validation | `src/platform/product-design/core.ts` | The server validates with the editor's own `pd-core.js` and template: one validator, so the server stores nothing the editor cannot open. |
+| Service | `src/platform/product-design/service.ts` | Create, open, list, save, list revisions, read a revision, restore, archive / return. Every query is scoped to `ownerKind = PLATFORM`; every change writes its `PlatformAuditLog` entry in the same transaction. |
+| Routes | `src/routes/product-design.routes.ts`, mounted at `/system/product-design` | `authenticate` + `assertPlatformOwner` before any handler, `no-store`, zod for the envelope, 409 with the head on a stale save, 400 with the core's codes on an invalid document. |
+| Editor | `public/product-design/pd-server.js`, `product-design.js` | Save, Projects and Versions are functional: saving, loading, error and conflict states; the DS-1a draft becomes a project on its first save; JSON export / import unchanged. |
+
+**Ownership, designed for later contexts and not activated.** Every project carries `ownerKind` (`PLATFORM`, `CLUB`,
+`PERSONAL`), `clubId?` and `ownerUserId?`, with a CHECK that exactly the right owner is set (§6.1). A second CHECK,
+`DesignProject_context_active`, admits `PLATFORM` rows only: the database itself refuses a Club or Creator design
+until the phase that activates that context drops it in the same migration that adds the context's foreign key and its
+row-level security policy (§10.3). The service's own scope is a second, independent wall: with the CHECK removed by
+hand, a `CLUB` row is still invisible to every route (proven on real PostgreSQL).
+
+**Immutability, in the database.** A trigger refuses `UPDATE`, `TRUNCATE` and any `DELETE` of a revision except the
+cascade of a deleted project (the one way a whole design can still be erased, for data-subject requests later). A
+second trigger refuses any update of a project that changes its owner, origin, creator or creation time, or moves the
+head anywhere but forward by one. A restore copies an old revision into a new one; the head never moves back.
+
+**Conflicts.** A save names the revision it was based on; one conditional update moves the head from that number to the
+next, so of any number of saves racing from one base exactly one lands (eight racing in the integration test). A stale
+save is refused with the head it lost to and writes nothing; the editor says so and offers *Save mine as version N+1*
+(which adds a revision and overwrites nothing), *Open version N*, or *Export mine*. A retried save whose document is
+already the next revision is answered as saved instead of as a conflict.
+
+**Where DS-1b departs from DS-0, and why.**
+
+- *No `DesignDraft` table.* DS-0 proposed a mutable server draft beside immutable versions. The editor already keeps
+  the working draft in the browser after every change; a second, mutable copy on the server would be the only mutable
+  design state and would need its own concurrency and retention rules. Every server save is therefore an immutable
+  revision, and the revision number is the concurrency token.
+- *`DesignRevision`, not `DesignVersion`.* The authorisation speaks of revisions; the screen still calls them versions.
+- *Audit category `ASSET`, not a new one.* A new `PlatformAuditCategory` value would change the Audit Center's filter
+  list and its validators (unrelated modules). Entries are `design.*` actions on resource type `DesignProject`, with
+  numbers and a hash, never the document.
+- *No foreign keys to `Club` or `User` yet.* They belong to the phases that activate those owners, with their deletion
+  semantics and row-level security; until then the activation CHECK makes them unnecessary.
+
+**Backups and recovery — what is and is not covered.**
+
+- *Design documents and revisions: covered.* They are ordinary rows in the one PostgreSQL database the backup dumps
+  whole (`src/security/backup/backup-runner.ts`: `pg_dump --format=custom`, no table filter; encrypted, signed,
+  off-site per `docs/BACKUP_AND_RESTORE.md`). The integration test runs the backup's own `pg_dump` arguments and
+  `pg_restore` into an empty database and finds every project and revision with the same SHA-256, and the
+  immutability triggers restored with them.
+- *Binary artwork: not stored, and not covered.* DS-1b stores no files. The only media storage the platform has is
+  the 10 GB disk mounted at `/var/data` (`render.yaml`, `familista-uploads`); this review found no verified backup of
+  it, so none is claimed. Artwork upload therefore stays unavailable and says it waits for protected media storage
+  with verified backups (§5.6, decision D8).
+
+**Migration and deployment.** The migration only adds three enums, two tables, their indexes, CHECKs, two functions
+and three triggers; it alters no existing table. It is applied by `prisma migrate deploy`, which the production start
+script runs (`scripts/render-start.sh`): **merging DS-1b and letting the gated deploy run applies this migration to
+production.** Rolling the application back is safe (older code never reads these tables); there is no automatic down
+migration, and removing the tables would delete saved designs, so a database rollback is a deliberate manual step.
+
+**Not in DS-1b.** Artwork upload, server-rendered previews, 3D (DS-1c), personal accounts (DS-ID), the catalogue
+(DS-2), Club Design Studio (DS-3), manufacturing, quotations and payments.
 
 ---
 

@@ -835,6 +835,12 @@
         10,
         11
       ],
+      "product-design.routes": [
+        4,
+        5,
+        6,
+        7
+      ],
       "provisioning.routes": [
         4,
         5,
@@ -1287,6 +1293,11 @@
       "Decisions — immutable audit-grade records": [
         18,
         35
+      ],
+      "Design Studio": [
+        7,
+        18,
+        31
       ],
       "Executive RBAC — strategic roles, parallel to PlatformAdmin (operator roles)": [
         6,

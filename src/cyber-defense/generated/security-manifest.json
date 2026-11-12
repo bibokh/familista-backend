@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-05T10:24:50.576Z",
+  "generatedAt": "2026-11-12T08:58:54.586Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
     "version": "1.0.0"
   },
   "apiSurface": {
-    "mountedRouters": 58,
-    "handlers": 766,
+    "mountedRouters": 59,
+    "handlers": 775,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -334,6 +334,13 @@
         "routerWideAuth": true
       },
       {
+        "path": "/system/product-design",
+        "module": "product-design.routes",
+        "handlers": 9,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
         "path": "/telemetry",
         "module": "telemetry.routes",
         "handlers": 1,
@@ -599,9 +606,9 @@
       "src/services/vision-realtime.service.ts"
     ],
     "tenancy": {
-      "idParameters": 350,
+      "idParameters": 359,
       "guarded": 136,
-      "exempt": 214,
+      "exempt": 223,
       "unguarded": [],
       "staleExemptions": [],
       "routerWideTenantGuardMounts": [],
@@ -772,6 +779,11 @@
           "exempt": 1,
           "unguarded": 0
         },
+        "product-design.routes": {
+          "guarded": 0,
+          "exempt": 9,
+          "unguarded": 0
+        },
         "provisioning.routes": {
           "guarded": 0,
           "exempt": 5,
@@ -835,13 +847,13 @@
       }
     },
     "authorization": {
-      "handlers": 766,
+      "handlers": 775,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 236,
-        "platform-owner": 99
+        "platform-owner": 108
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -1014,6 +1026,9 @@
         "predictive.routes": {
           "member": 1,
           "roles": 1
+        },
+        "product-design.routes": {
+          "platform-owner": 9
         },
         "provisioning.routes": {
           "roles": 7,
@@ -1437,6 +1452,10 @@
         "GET /system/neural-twin": "platform-owner",
         "GET /system/overview": "platform-owner",
         "GET /system/people": "platform-owner",
+        "GET /system/product-design/projects": "platform-owner",
+        "GET /system/product-design/projects/:id": "platform-owner",
+        "GET /system/product-design/projects/:id/revisions": "platform-owner",
+        "GET /system/product-design/projects/:id/revisions/:number": "platform-owner",
         "GET /system/security": "platform-owner",
         "GET /system/signals": "platform-owner",
         "GET /system/sources": "platform-owner",
@@ -1787,6 +1806,11 @@
         "POST /system/experiments/:id/decide": "platform-owner",
         "POST /system/flags/:key": "platform-owner",
         "POST /system/infrastructure/incidents/:id/acknowledge": "platform-owner",
+        "POST /system/product-design/projects": "platform-owner",
+        "POST /system/product-design/projects/:id/archive": "platform-owner",
+        "POST /system/product-design/projects/:id/revisions": "platform-owner",
+        "POST /system/product-design/projects/:id/revisions/:number/restore": "platform-owner",
+        "POST /system/product-design/projects/:id/unarchive": "platform-owner",
         "POST /system/trace/client": "platform-owner",
         "POST /system/trace/disable": "platform-owner",
         "POST /system/trace/enable": "platform-owner",
@@ -1843,9 +1867,9 @@
   },
   "architecture": {
     "components": {
-      "routers": 58,
+      "routers": 59,
       "srcDomains": 78,
-      "prismaSections": 65,
+      "prismaSections": 66,
       "packages": 29,
       "outboundCallSites": 5,
       "realtimeEndpoints": 7,
@@ -2032,7 +2056,7 @@
       "id": "tenant-guard",
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
-      "note": "136 of 350 route id parameter(s) checked against the caller's club before the handler; 214 exempted by name with a reason; 0 unguarded."
+      "note": "136 of 359 route id parameter(s) checked against the caller's club before the handler; 223 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "franchise-club-attach-authorised",
@@ -2256,7 +2280,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "766 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 99 platform-owner; every member-level handler reviewed by name."
+      "note": "775 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 108 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2382,7 +2406,7 @@
       "id": "architecture-fully-mapped",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "378 discovered component(s) across 12 kinds, each declared against the 40 trust-boundary rows; a covered row's controls are all present."
+      "note": "380 discovered component(s) across 12 kinds, each declared against the 40 trust-boundary rows; a covered row's controls are all present."
     },
     {
       "id": "coverage-ratchet",
@@ -2760,6 +2784,7 @@
         "src/platform/email/service.ts",
         "src/platform/innovation/flags.ts",
         "src/platform/neural-twin/compose.ts",
+        "src/platform/product-design/core.ts",
         "src/platform/system-updates/release-record.ts",
         "src/player-lifecycle/player-lifecycle.service.ts",
         "src/security-n/signed-recommendations.service.ts",
@@ -2992,6 +3017,7 @@
       "src/routes/phase-q.routes.ts",
       "src/routes/player.routes.ts",
       "src/routes/predictive.routes.ts",
+      "src/routes/product-design.routes.ts",
       "src/routes/provisioning.routes.ts",
       "src/routes/realtime.routes.ts",
       "src/routes/scouting.routes.ts",

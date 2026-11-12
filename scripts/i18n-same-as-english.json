@@ -483,7 +483,9 @@
       "Shorts",
       "Sponsor",
       "Sweatshirt",
-      "Text"
+      "Text",
+      "Version %d",
+      "Version %d · %s"
     ],
     "product-design/fr": [
       "Chevron",
@@ -500,7 +502,9 @@
       "Rotation",
       "Sponsor",
       "T-shirt",
-      "Versions"
+      "Versions",
+      "Version %d",
+      "Version %d · %s"
     ],
     "product-design/es": [
       "Club",

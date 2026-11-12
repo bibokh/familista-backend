@@ -187,7 +187,10 @@ describe('3. accuracy, checked against the authorities and the source, not again
     const wrong = sample.filter((e) => {
       const models = (byId.get(e.to)!.facts!.models as string[]).map((m) => m.charAt(0).toLowerCase() + m.slice(1));
       const ev = e.evidence[0];
-      const line = read(ev.p).split('\n')[(ev.l || 1) - 1] || '';
+      // The cited line and the one after it: a call chain is often broken after the model, as in
+      // `await prisma.franchiseViolation` ⏎ `.count(...)`, and the call is still on the line cited.
+      const lines = read(ev.p).split('\n');
+      const line = (lines[(ev.l || 1) - 1] || '') + (lines[ev.l || 1] || '');
       return !models.some((d) => new RegExp('\\.\\s*' + d + '\\s*\\.').test(line)) || !models.every((m) => new RegExp('^model ' + m.charAt(0).toUpperCase() + m.slice(1) + '\\b', 'm').test(schema));
     }).map((e) => e.from + ' -> ' + e.to);
     expect(wrong).toEqual([]);

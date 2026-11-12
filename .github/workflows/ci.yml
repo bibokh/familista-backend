@@ -247,6 +247,20 @@ jobs:
           AI_READ_DB_REQUIRED: '1'
         run: npx jest --runInBand --ci tests/ai-read-authorization.integration.test.ts
 
+      # Design Studio, DS-1b: saved designs, on a freshly migrated database owned
+      # by a role that is not a superuser. Only the platform owner reaches the
+      # routes (a club admin, a coach and a deactivated platform admin are
+      # refused, and write nothing); revisions are immutable in the database; a
+      # stale save is refused with 409 and of eight racing saves exactly one
+      # lands; a CLUB project forced in by hand stays invisible; every change is
+      # audited once; and the backup's own pg_dump with pg_restore brings every
+      # design back with the same hashes. Needs the PostgreSQL 16 client above.
+      - name: Design Studio persistence (real PostgreSQL)
+        env:
+          PRODUCT_DESIGN_DB_DATABASE_URL: postgresql://familista_ci:familista_ci_pw@localhost:5432/postgres
+          PRODUCT_DESIGN_DB_REQUIRED: '1'
+        run: npx jest --runInBand --ci tests/product-design-persistence.integration.test.ts
+
       # Blocking since Cyber Defense Step 9: a dependency with a known HIGH or
       # CRITICAL advisory stops the change from merging. Moderate and low are
       # still printed. If the advisory service cannot be reached the step

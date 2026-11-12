@@ -3072,15 +3072,17 @@ function _loadSystemUpdates(done) {
   _famLoadOwnerRoom(_SU_ROOM, '20261105-system-updates-1', '/system-updates/system-updates.css', ['/system-updates/system-updates.js'], done);
 }
 
-// FAMILISTA DESIGN STUDIO (DS-1a) — the product designer: one football-jersey
-// template, edited in millimetres, drafts kept in this browser only. Loaded the
-// same way and for the same reader. The /system/whoami check is convenience, NOT
-// a security boundary: the room has no endpoint and sends nothing to the server.
-// Its core runs before the editor (the order given). Not the Interface Studio
-// above (#design-studio), which is left exactly as it is.
+// FAMILISTA DESIGN STUDIO (DS-1a, DS-1b) — the product designer: one football-
+// jersey template, edited in millimetres; the draft is kept in this browser and
+// saved designs, with their versions, on the server. Loaded the same way and for
+// the same reader. The /system/whoami check is convenience, NOT a security
+// boundary: every design route checks the platform owner on the server
+// (src/routes/product-design.routes.ts). Its core runs first, then its server
+// client, then the editor (the order given). Not the Interface Studio above
+// (#design-studio), which is left exactly as it is.
 var _PD_ROOM = { state: 'idle', waiting: [] };
 function _loadProductDesign(done) {
-  _famLoadOwnerRoom(_PD_ROOM, '20261110-product-design-1a', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/product-design.js'], done);
+  _famLoadOwnerRoom(_PD_ROOM, '20261112-product-design-1b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/product-design.js'], done);
 }
 
 // ── NAVIGATION ──
@@ -3356,9 +3358,9 @@ function navTo(page, el, _opts) {
     // Owner-only and read-only: its one endpoint is a GET guarded by
     // assertPlatformOwner on the server.
     'system-updates': 1,
-    // FAMILISTA DESIGN STUDIO (DS-1a) — the product designer, reached from the
-    // Platform Owner navigation. Owner-only on screen; it has no endpoint at all,
-    // and its drafts stay in the owner's browser.
+    // FAMILISTA DESIGN STUDIO (DS-1a, DS-1b) — the product designer, reached from
+    // the Platform Owner navigation. Owner-only on screen, and its design routes
+    // are guarded by assertPlatformOwner on the server.
     'product-design': 1,
     // PLATFORM (8)
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
