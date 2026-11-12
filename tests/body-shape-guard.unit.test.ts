@@ -156,10 +156,10 @@ describe('in the application', () => {
   it('a form body past the urlencoded parser\'s own limit is refused by that parser, before any route or auth', async () => {
     const res = await request(app).post('/api/v1/training/sessions').set('content-type', 'application/x-www-form-urlencoded')
       .send(Array.from({ length: 1500 }, (_, i) => `a=${i}`).join('&'));
-    // The parser refuses it (413 parameters.too.many); the application's error handler currently answers that as 500,
-    // a status mapping outside this change. Either way no route and no schema sees it: auth would have said 401.
-    expect(res.status).toBeGreaterThanOrEqual(413);
-    expect(res.status).not.toBe(401);
+    // The parser refuses it (parameters.too.many) and the error handler answers that refusal with its own status
+    // (middleware/body-parser-refusal.ts). No route and no schema sees it: auth would have said 401.
+    expect(res.status).toBe(413);
+    expect(res.body).toEqual({ success: false, message: 'Request body has too many parameters' });
   });
 
   it('is mounted after both body parsers and before the first route, the edge limiter and auth', () => {

@@ -19,6 +19,7 @@
 import { randomUUID } from 'crypto';
 import type { ErrorRequestHandler, Request, RequestHandler } from 'express';
 import { logger } from '../utils/logger';
+import { bodyParserRefusal } from './body-parser-refusal';
 
 declare global {
   namespace Express {
@@ -109,23 +110,28 @@ export const errorReporter: ErrorRequestHandler = (err, req, _res, next) => {
     ? Date.now() - (req as Request & { t0: number }).t0
     : 0;
   const u = (req as Request & { user?: { id?: string; clubId?: string } }).user;
+  // A body the parsers refused is the client's fault, not the server's: warn,
+  // with the fixed message — the parser's own can quote the body it failed on
+  // (middleware/body-parser-refusal.ts) — and no stack, which is body-parser's.
+  const refusal = bodyParserRefusal(err);
   const frame = {
     requestId: (req as Request & { requestId?: string }).requestId,
     method:    req.method,
     path:      req.originalUrl.split('?')[0],
-    status:    e?.status ?? e?.statusCode ?? 500,
+    status:    refusal?.status ?? e?.status ?? e?.statusCode ?? 500,
     latencyMs,
     actorId:   u?.id,
     clubId:    u?.clubId,
     ip:        ipOf(req),
     err: {
       name:    e?.name,
-      message: e?.message ?? 'unknown',
-      stack:   e?.stack,
-      code:    e?.code,
+      message: refusal ? refusal.message : e?.message ?? 'unknown',
+      stack:   refusal ? undefined : e?.stack,
+      code:    refusal ? refusal.type : e?.code,
     },
   };
-  logger.error('http.error', frame);
+  if (refusal) logger.warn('http.error', frame);
+  else logger.error('http.error', frame);
   for (const sub of _subscribers) {
     try { sub(frame); } catch (_) { /* never let a subscriber poison the report path */ }
   }

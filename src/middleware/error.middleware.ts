@@ -4,6 +4,7 @@ import { ZodError } from 'zod';
 import { AppError } from '../utils/errors';
 import { logger } from '../utils/logger';
 import { config } from '../config';
+import { bodyParserRefusal } from './body-parser-refusal';
 
 export function errorHandler(
   err: Error,
@@ -42,6 +43,27 @@ export function errorHandler(
         message: e.message,
       })),
     });
+    return;
+  }
+
+  // ── a body the parsers would not read ───────────────────────────────────
+  // express.json refuses a body past its 2 MB limit (413, 'entity.too.large')
+  // or one that is not JSON (400, 'entity.parse.failed'). Falling through to the
+  // catch-all answered 500 and logged a client's request as a server fault. The
+  // fixed message only, and none of the body: the parser's own message can quote
+  // it (middleware/body-parser-refusal.ts). Sizes are counts, never content.
+  const refusal = bodyParserRefusal(err);
+  if (refusal) {
+    const { limit, length } = err as { limit?: unknown; length?: unknown };
+    logger.warn('Request body refused', {
+      type: refusal.type,
+      statusCode: refusal.status,
+      path: req.path,
+      method: req.method,
+      ...(typeof limit === 'number' && { limit }),
+      ...(typeof length === 'number' && { length }),
+    });
+    res.status(refusal.status).json({ success: false, message: refusal.message });
     return;
   }
 
