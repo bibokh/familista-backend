@@ -38,7 +38,7 @@
 
   var C = window.FamilistaProductDesignCore;
   var LIMITS = C.LIMITS;
-  var VERSION = '20261112-product-design-1b';
+  var VERSION = '20261112-product-design-1c';
   var TEMPLATE_URL = '/product-design/templates/football-jersey.json?v=' + VERSION;
   var STORE_KEY = 'familista_product_design_draft_v1';
   var STORE_UNREADABLE = 'familista_product_design_draft_v1_unreadable';
@@ -185,6 +185,9 @@
     close: 'M6 6l12 12M18 6L6 18',
     globe: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z',
     rotate: 'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7',
+    sun: 'M12 3V1.5M12 22.5V21M3 12H1.5M22.5 12H21M5.6 5.6L4.5 4.5M19.5 19.5l-1.1-1.1M5.6 18.4l-1.1 1.1M19.5 4.5l-1.1 1.1M12 16.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z',
+    zoomIn: 'M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM20 20l-4.8-4.8M10.5 8v5M8 10.5h5',
+    compare: 'M4 5h6v14H4zM14 5h6v14h-6zM12 3v18',
     gkShirt: 'M8 3L3 6l1 13 3-.5V10M16 3l5 3-1 13-3-.5V10M8 3c.5 1.6 2 2.6 4 2.6S15.5 4.6 16 3M7 10v11h10V10',
     shorts: 'M5 4h14l1 15-6 1-2-8-2 8-6-1z',
     socks: 'M9 3h6v10l4 4a2.5 2.5 0 0 1-3.5 3.5L9 15z',
@@ -217,8 +220,8 @@
     templates: L('More templates arrive with the product catalogue (DS-2).'),
     product: L('This product arrives with the product catalogue (DS-2).'),
     image: L('Uploading artwork waits for protected media storage with verified backups (planned).'),
-    '3d': L('Real 3D rendering is planned (DS-1c) and needs a garment 3D model.'),
-    '360': L('The 360° view arrives with real 3D rendering (DS-1c).'),
+    '3d': L('3D needs WebGL, which this browser or device does not provide. The 2.5D preview shows the same design.'),
+    '360': L('The 360° turntable needs 3D, which needs WebGL in this browser.'),
     capture: L('Image export arrives with production proofs (DS-5).'),
     proof: L('Production proofs arrive with the manufacturing sandbox (DS-5).'),
     order: L('Ordering is not available yet (DS-6).'),
@@ -243,7 +246,7 @@
       open: { 'match-kits': true }, listeners: [], saveTimer: 0, thumbTimer: 0, saveState: 'saved', savedAt: null,
       drag: null, space: false, merge: null, el: {}, nodes: {}, findings: [], announced: 0,
       metrics: { mounts: 0, commits: 0, renders: 0, layerPaints: 0, renderMs: [], editMs: [], lastSaveBytes: 0 },
-      srv: serverFresh(),
+      srv: serverFresh(), v3: fresh3d(),
     };
   }
   function listen(target, type, fn, opts) {
@@ -349,6 +352,8 @@
   function setLink(link) {
     S.srv.link = link;
     if (link) P.writeLink(link); else P.clearLink();
+    if (S.v3.compare && (!link || link.projectId !== S.v3.compare.projectId)) compareWith(0, true);
+    if (S.el.bar3d) sync3d();
   }
   /** True when the editor holds something the server does not: changes since the linked revision, or an unsaved design that is not blank. */
   function isUnsaved() {
@@ -730,6 +735,7 @@
           h('div', { class: 'pd-dock-btns' }, [
             v.number === newest ? chip(T('Newest'), 'muted') : null,
             v.number === link.revision ? chip(T('In the editor'), 'accent') : null,
+            can3d() ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'compare-version', 'data-pd-n': String(v.number), 'aria-label': tf('Compare version %d in 3D', v.number), title: tf('Compare version %d in 3D', v.number) }, [icon('compare', 14)]) : null,
             v.number !== newest ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'restore', 'data-pd-n': String(v.number), 'aria-label': tf('Restore version %d', v.number) }, [h('span', { text: T('Restore') })]) : null,
           ]),
         ]));
@@ -774,6 +780,7 @@
       case 'archive': setArchived(t.getAttribute('data-pd-id'), true); return true;
       case 'unarchive': setArchived(t.getAttribute('data-pd-id'), false); return true;
       case 'restore': { var n = Number(t.getAttribute('data-pd-n')); replacing('restore', n, function () { restoreVersion(n); }); return true; }
+      case 'compare-version': compareFromDock(Number(t.getAttribute('data-pd-n'))); return true;
       case 'confirm-save': { var c = sv.confirm; if (c) serverSave(null, function () { sv.confirm = null; c.run(); }); return true; }
       case 'confirm-go': { var c2 = sv.confirm; sv.confirm = null; if (c2) c2.run(); renderDock(); return true; }
       case 'confirm-cancel': sv.confirm = null; renderDock(); return true;
@@ -826,6 +833,7 @@
     var t0 = window.performance && performance.now ? performance.now() : 0;
     var f = layerId && C.findLayer(S.doc, layerId);
     if (f && S.nodes[layerId] && f.surface.id === viewOf(S.view).surface) repaintLayer(layerId); else renderCanvas();
+    if (S.v3.ctl) { S.v3.ctl.invalidate(f ? [f.surface.id] : null); syncTrims3d(); }
     if (t0) { S.metrics.editMs.push(performance.now() - t0); if (S.metrics.editMs.length > 100) S.metrics.editMs.shift(); }
     renderLayers();
     syncProps();
@@ -887,11 +895,15 @@
   // Lettering is measured on an offscreen canvas, with the same font stack the SVG draws in: measuring the drawn text
   // instead (getComputedTextLength) forces the browser to lay out the whole page, on every repaint.
   var MEASURE = null, FAMILY = {};
+  /** The font stack a lettering style draws in, read from the design tokens once per build. */
+  function familyOf(f) {
+    if (!FAMILY[f[2]]) FAMILY[f[2]] = (S && S.host ? getComputedStyle(S.host).getPropertyValue(f[2]).trim() : '') || 'sans-serif';
+    return FAMILY[f[2]];
+  }
   function textWidth(text, f, size) {
     if (!MEASURE) { try { MEASURE = document.createElement('canvas').getContext('2d'); } catch (_) { MEASURE = null; } }
     if (!MEASURE) return 0;
-    if (!FAMILY[f[2]]) FAMILY[f[2]] = (S && S.host ? getComputedStyle(S.host).getPropertyValue(f[2]).trim() : '') || 'sans-serif';
-    MEASURE.font = f[1] + ' 100px ' + FAMILY[f[2]];
+    MEASURE.font = f[1] + ' 100px ' + familyOf(f);
     return MEASURE.measureText(text).width * size / 100;
   }
   var RTL_SCRIPT = /[֐-ࣿיִ-﷿ﹰ-﻿]/;
@@ -1105,11 +1117,13 @@
 
   function renderCanvas() {
     if (!S || !S.el.canvas) return;
+    // In 3D the garment is the picture; the 2.5D drawing beneath it is kept only until the garment is ready.
+    if (S.mode === '3d' && S.el.svg && S.v3.state === 'ready') { S.el.canvas.setAttribute('data-mode', '3d'); syncCanvasLabel(); return; }
     var t0 = (window.performance && performance.now) ? performance.now() : 0;
     var c = drawSize();
     if (!S.cam || S.autoFit) fitView(c);
     S.nodes = {};
-    var svg = garment(S.view, { prefix: 'pdm', nodes: S.nodes, shaded: S.mode === '2.5d', guides: S.mode === '2d', cls: 'pd-svg' });
+    var svg = garment(S.view, { prefix: 'pdm', nodes: S.nodes, shaded: S.mode !== '2d', guides: S.mode === '2d', cls: 'pd-svg' });
     svg.setAttribute('viewBox', C.viewBoxOf(S.cam, c.w, c.h).join(' '));
     svg.setAttribute('preserveAspectRatio', 'none');
     S.el.selection = s('g', { class: 'pd-sel' });
@@ -1165,7 +1179,8 @@
   }
   function syncCanvasLabel() {
     var n = selectedLayer(), v = viewOf(S.view);
-    S.el.canvas.setAttribute('aria-label', n ? tf('Design canvas, %s. Selected: %s.', T(v.label), n.name) : tf('Design canvas, %s.', T(v.label)));
+    if (S.mode === '3d') S.el.canvas.setAttribute('aria-label', n ? tf('3D preview, %s. Selected: %s.', T(v.label), n.name) : tf('3D preview, %s.', T(v.label)));
+    else S.el.canvas.setAttribute('aria-label', n ? tf('Design canvas, %s. Selected: %s.', T(v.label), n.name) : tf('Design canvas, %s.', T(v.label)));
   }
 
   // ── thumbnails: the view rail, the kit preview, the product card ──────────
@@ -1191,20 +1206,24 @@
   // ── selection, views, camera ──────────────────────────────────────────────
 
   function select(sel, announce) {
+    var before = surfaceOfSelection();
     S.sel = sel;
     S.merge = null;
+    if (S.v3.ctl) S.v3.ctl.invalidate([before, surfaceOfSelection()].filter(function (x, i, a) { return x && a.indexOf(x) === i; }));
     renderSelection();
     renderLayers();
     buildProps();
     syncCanvasLabel();
+    if (S.el.bar3d) sync3d();
     if (announce) {
       var n = selectedLayer();
       say(n ? tf('Selected %s.', n.name) : sel && sel.kind === 'base' ? T('Selected the shirt base colour.') : T('Nothing selected.'));
     }
   }
   function setView(id) {
-    if (id === S.view) return;
+    if (id === S.view) { if (S.mode === '3d') reset3d(); return; }
     S.view = id;
+    if (S.v3.ctl) { S.v3.ctl.preset(id); S.v3.turntable = false; sync3d(); }
     var n = selectedLayer();
     if (n && C.findLayer(S.doc, n.id).surface.id !== viewOf(id).surface) S.sel = null;
     S.autoFit = true;
@@ -1328,6 +1347,7 @@
   // ── pointer input on the canvas ───────────────────────────────────────────
 
   function onPointerDown(ev) {
+    if (S.mode === '3d') { if (S.el.host3d && S.el.host3d.contains(ev.target)) S.el.canvas.focus({ preventScroll: true }); return; }
     if (ev.button !== 0 && ev.button !== 1) return;
     S.el.canvas.focus({ preventScroll: true });
     var p = pointerWorld(ev), handle = ev.target && ev.target.getAttribute ? ev.target.getAttribute('data-pd-handle') : null;
@@ -1380,7 +1400,13 @@
     try { S.el.canvas.releasePointerCapture(ev.pointerId); } catch (_) {}
     showSnap([], null);
     if (!d || !d.moved || d.kind === 'pan') return;
-    var n = C.findLayer(S.doc, d.id).layer, ops = [], inv = [];
+    recordDrag(d);
+  }
+  /** A finished drag, 2D or 3D: the values it reached become one undo step. */
+  function recordDrag(d) {
+    var f = C.findLayer(S.doc, d.id);
+    if (!f) return;
+    var n = f.layer, ops = [], inv = [];
     ['x', 'y', 'w', 'h', 'r'].forEach(function (k) {
       if (n[k] !== d.start[k]) {
         ops.push({ op: 'set', target: { kind: 'layer', id: n.id }, key: k, value: n[k] });
@@ -1401,6 +1427,7 @@
     (list || []).forEach(function (gd) { if (gd.axis === 'x') g.appendChild(s('line', { x1: gd.at, y1: -20, x2: gd.at, y2: ts.height + 20, class: 'pd-snap-line', 'vector-effect': 'non-scaling-stroke' })); });
   }
   function onWheel(ev) {
+    if (S.mode === '3d') return;
     ev.preventDefault();
     var c = canvasSize(), at = { x: ev.clientX - c.left, y: ev.clientY - c.top };
     if (ev.ctrlKey || ev.metaKey) zoomBy(Math.exp(-ev.deltaY * 0.0022), at);
@@ -1419,6 +1446,7 @@
     if (k === 'Escape' && S.panel) { setPanel(null); return; }
     if (ev.target !== S.el.canvas) return;
     var n = selectedLayer(), step = ev.shiftKey ? 10 : 1;
+    if (S.mode === '3d' && S.v3.ctl && key3d(ev, n)) return;
     if (k === ' ') { S.space = true; ev.preventDefault(); return; }
     if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowUp' || k === 'ArrowDown') {
       if (!n) return;
@@ -1439,6 +1467,397 @@
     else if (k === '0') { ev.preventDefault(); fitView(); applyCamera(); }
   }
   function onKeyUp(ev) { if (ev.key === ' ') S.space = false; }
+
+  // ── the 3D view (DS-1c) ───────────────────────────────────────────────────
+  //
+  // pd-3d.js draws the garment with the platform's Babylon.js; this side paints
+  // it. Each surface's artwork is drawn by the same layerNode the 2D canvas uses,
+  // in the surface's own millimetres, and what a pointer does on the garment
+  // comes back as the same operations, the same snapping and the same undo
+  // history. One document drives 2D, 3D and every saved version.
+
+  var D3 = window.FamilistaProductDesign3D || null;
+  var G3 = window.FamilistaProductDesignGarment || null;
+  var LIGHT_LABEL = { studio: L('Studio'), daylight: L('Daylight'), stadium: L('Stadium') };
+  var FABRIC_LABEL = { smooth: L('Smooth polyester (simulated)'), mesh: L('Mesh knit (simulated)') };
+  var FABRIC_SHORT = { smooth: L('Smooth'), mesh: L('Mesh') };
+  var QUALITY_LABEL = { high: L('High'), balanced: L('Balanced'), low: L('Low') };
+  var SIM_NOTE = L('A procedural prototype of the garment, drawn from the template’s flat panels. Fabric, light and colour are simulated on a screen: this is not a colour proof, a production pattern or manufacturing approval.');
+  var FAIL_3D = {
+    webgl: L('3D could not start: this browser or device does not provide WebGL. The 2.5D preview shows the same design.'),
+    babylon: L('3D could not start: the 3D engine could not be loaded. Check the connection and choose 3D again.'),
+    engine: L('3D could not start on this device. The 2.5D preview shows the same design.'),
+    texture: L('The 3D view could not draw the design on this device, so it was closed. The 2.5D preview shows the same design.'),
+  };
+
+  function fresh3d() {
+    // A phone, or a device with little memory, starts at the lighter quality; the reader can change it.
+    var coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches), mem = navigator.deviceMemory;
+    return { ctl: null, state: 'off', token: 0, quality: coarse || (mem && mem <= 4) ? 'low' : 'balanced', lighting: 'studio', fabric: 'smooth',
+      check: false, turntable: false, compare: null, pendingCompare: 0, drag: null, failed: '', trims: '' };
+  }
+  function can3d() { return !!(D3 && G3 && D3.webglAvailable()); }
+  /** A control that needs 3D: live where WebGL is, otherwise unavailable and saying why. */
+  function live3d(el, reasonKey) { return can3d() ? el : planned(el, reasonKey); }
+  function surfaceOfSelection() {
+    var f = S.sel && S.sel.kind === 'layer' ? C.findLayer(S.doc, S.sel.id) : null;
+    return f ? f.surface.id : null;
+  }
+  function viewForSurface(id) {
+    for (var i = 0; i < TEMPLATE.views.length; i++) if (TEMPLATE.views[i].surface === id) return TEMPLATE.views[i].id;
+    return S.view;
+  }
+  function trimColours() { return { collar: colour(S.doc.parts.collar), cuffs: colour(S.doc.parts.cuffs) }; }
+  /** Run fn with another document in the editor's place, synchronously: how a saved version is drawn without opening it. */
+  function withDoc(doc, fn) {
+    var keep = S.doc;
+    S.doc = doc;
+    try { return fn(); } finally { S.doc = keep; }
+  }
+
+  // The overlay colours, from the design tokens: an image of SVG sees none of the page's styles.
+  var INK = null;
+  function tokenHex(tok, fallback) {
+    var probe = h('span', { class: 'pd-probe', 'aria-hidden': 'true' });
+    S.host.appendChild(probe);
+    probe.style.color = 'var(' + tok + ')';
+    var c = getComputedStyle(probe).color || '', m, v = null;
+    S.host.removeChild(probe);
+    if ((m = c.match(/^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/))) v = [Number(m[1]), Number(m[2]), Number(m[3])];
+    else if ((m = c.match(/^color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/))) v = [Number(m[1]) * 255, Number(m[2]) * 255, Number(m[3]) * 255];
+    if (!v) return fallback;
+    return '#' + v.map(function (x) { var y = Math.max(0, Math.min(255, Math.round(x))).toString(16); return y.length < 2 ? '0' + y : y; }).join('');
+  }
+  function ink() {
+    if (!INK) INK = {
+      focus: tokenHex('--fam-focus-ring', '#8fb2ff'), safe: tokenHex('--fam-module-accent', '#7c5cff'), print: tokenHex('--fam-text-primary', '#eef1fa'),
+      critical: tokenHex('--fam-status-critical', '#ef4444'), warning: tokenHex('--fam-status-warning', '#f59e0b'), seam: tokenHex('--fam-text-tertiary', '#9aa4c4'),
+    };
+    return INK;
+  }
+
+  /**
+   * One surface's artwork for the garment, w × h pixels: what the 2D canvas draws
+   * on it, without the 2D view's shading or neighbouring sleeves. With `overlay`,
+   * the selection and, when asked for, the print check and the grid.
+   */
+  function texture3d(surfaceId, w, hgt, overlay) {
+    var ts = tSurface(surfaceId), surf = C.findSurface(S.doc, surfaceId), prefix = 'pd3s-' + surfaceId;
+    var defs = s('defs'), outline = C.outlinePath(ts.outline), base = colour(surf.base);
+    var svg = s('svg', { xmlns: SVG, width: w, height: hgt, viewBox: '0 0 ' + ts.width + ' ' + ts.height, preserveAspectRatio: 'none' }, [defs]);
+    defs.appendChild(s('clipPath', { id: prefix + '-clip' }, [s('path', { d: outline })]));
+    // A hairline of the base colour beyond the outline keeps the garment's edge whole where the artwork is sampled.
+    svg.appendChild(s('path', { d: outline, fill: base, stroke: base, 'stroke-width': '1.6', 'stroke-linejoin': 'round' }));
+    var bounds = { x: 0, y: 0, w: ts.width, h: ts.height };
+    var body = s('g', { 'clip-path': 'url(#' + prefix + '-clip)' }, [s('rect', { x: -60, y: -60, width: ts.width + 120, height: ts.height + 120, fill: base })]);
+    surf.layers.forEach(function (n) {
+      var node = layerNode(defs, prefix, n, bounds), t = node.querySelector('text');
+      // Written out in full: the token the 2D canvas uses means nothing inside an image.
+      if (t) { t.style.removeProperty('font-family'); t.setAttribute('font-family', familyOf(FONT[n.font] || FONT['sans-black'])); }
+      body.appendChild(node);
+    });
+    TEMPLATE.views.forEach(function (v) {
+      if (v.surface !== surfaceId) return;
+      if (v.cuff) body.appendChild(s('line', { x1: v.cuff[0][0], y1: v.cuff[0][1], x2: v.cuff[1][0], y2: v.cuff[1][1], stroke: colour(S.doc.parts.cuffs), 'stroke-width': '28' }));
+      if (v.collar) body.appendChild(s('path', { d: C.outlinePath(v.collar).replace(/ Z$/, ''), fill: 'none', stroke: colour(S.doc.parts.collar), 'stroke-width': '16', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    });
+    svg.appendChild(body);
+    if (overlay) svg.appendChild(overlay3d(surfaceId, ts));
+    return new XMLSerializer().serializeToString(svg);
+  }
+  function boxOutline(n, stroke, width, dash) {
+    return s('rect', { x: -n.w / 2 - 2, y: -n.h / 2 - 2, width: n.w + 4, height: n.h + 4, rx: 1.5, transform: 'translate(' + n.x + ' ' + n.y + ') rotate(' + n.r + ')',
+      fill: 'none', stroke: stroke, 'stroke-width': width, 'stroke-dasharray': dash || null });
+  }
+  /** What is drawn on the artwork but never printed: the grid, the print check and the selection. */
+  function overlay3d(surfaceId, ts) {
+    var g = s('g', { fill: 'none' }), c = ink();
+    if (S.grid) {
+      for (var x = 10; x < ts.width; x += 10) g.appendChild(s('line', { x1: x, y1: 0, x2: x, y2: ts.height, stroke: c.print, 'stroke-opacity': x % 50 ? '0.14' : '0.3', 'stroke-width': x % 50 ? '0.45' : '0.8' }));
+      for (var y = 10; y < ts.height; y += 10) g.appendChild(s('line', { x1: 0, y1: y, x2: ts.width, y2: y, stroke: c.print, 'stroke-opacity': y % 50 ? '0.14' : '0.3', 'stroke-width': y % 50 ? '0.45' : '0.8' }));
+    }
+    if (S.v3.check) {
+      // Drawn to be read on the whole garment, not only close up: a light outline and a light dashed safe zone over a dark edge.
+      g.appendChild(s('path', { d: C.outlinePath(ts.outline), stroke: c.print, 'stroke-opacity': '0.85', 'stroke-width': '2.4' }));
+      var safe = ts.safe.map(function (p) { return p.join(','); }).join(' ');
+      g.appendChild(s('polygon', { points: safe, stroke: '#000000', 'stroke-opacity': '0.35', 'stroke-width': '3.6' }));
+      g.appendChild(s('polygon', { points: safe, stroke: c.print, 'stroke-width': '2.2', 'stroke-dasharray': '9 6' }));
+      // The same deterministic check the Product panel lists: outside the printable area, across the safe zone, lettering too small.
+      C.checkDesign(S.doc, TEMPLATE).forEach(function (f) {
+        if (f.surface !== surfaceId) return;
+        var n = C.findLayer(S.doc, f.layer);
+        if (n) g.appendChild(boxOutline(n.layer, f.severity === 'blocker' ? c.critical : c.warning, 3.2, '8 4'));
+      });
+    }
+    var sel = selectedLayer();
+    if (sel && isBox(sel) && sel.visible && surfaceOfSelection() === surfaceId) g.appendChild(boxOutline(sel, c.focus, 1.6, sel.locked ? '4 3' : null));
+    return g;
+  }
+
+  // ── opening, closing, failing ────────────────────────────────────────────
+  function setMode(mode) {
+    if (mode === S.mode) return;
+    if (mode === '3d' && !can3d()) { say(T(REASON['3d'])); return; }
+    S.mode = mode;
+    S.v3.failed = '';
+    syncModes();
+    if (mode === '3d') open3d();
+    else { close3d(); renderCanvas(); syncViews(); say(mode === '2d' ? T('Flat panels, with the printable area and safe zone') : T('Shaded preview')); }
+  }
+  function syncModes() {
+    var ms = S.el.modes ? S.el.modes.querySelectorAll('[data-pd-mode]') : [];
+    for (var i = 0; i < ms.length; i++) if (ms[i].getAttribute('aria-disabled') !== 'true') ms[i].setAttribute('aria-pressed', ms[i].getAttribute('data-pd-mode') === S.mode ? 'true' : 'false');
+    var guides = S.host.querySelector('[data-pd-act="guides"]');
+    if (guides) {
+      guides.setAttribute('aria-pressed', (S.mode === '3d' ? S.v3.check : S.guides) ? 'true' : 'false');
+      guides.setAttribute('title', S.mode === '3d' ? T('Print check: printable area, safe zone, seams and findings') : T('Printable area and safe zone'));
+    }
+    S.el.canvas.setAttribute('data-mode', S.mode);
+    syncCanvasLabel();
+    sync3d();
+  }
+  function open3d() {
+    var v = S.v3, token = ++v.token, mine = S, first = true, started = Date.now();
+    v.state = 'loading';
+    sync3d();
+    D3.open(S.el.host3d, {
+      template: TEMPLATE, quality: v.quality, colours: trimColours(), seam: ink().seam, font: familyOf(FONT['sans-bold']), dir: DIR,
+      texture: function (id, w, hgt) { return texture3d(id, w, hgt, true); },
+      onPick: pick3d, onDrag: drag3d, onDrop: drop3d,
+      onError: function (code) { if (S === mine && v.token === token) fail3d(code); },
+    }).then(function (ctl) {
+      if (S !== mine || v.token !== token || S.mode !== '3d') { if (ctl && ctl.dispose) ctl.dispose(); return; }
+      if (!ctl || ctl.error) { fail3d(ctl ? ctl.error : 'engine'); return; }
+      v.ctl = ctl;
+      v.trims = JSON.stringify(trimColours());
+      ctl.setLighting(v.lighting);
+      ctl.setFabric(v.fabric);
+      ctl.setCheck(v.check);
+      ctl.preset(S.view, true);
+      if (v.turntable) v.turntable = ctl.setTurntable(true);
+      // The garment is shown once its artwork is painted, not before: until then the 2.5D drawing stays.
+      (function ready() {
+        if (S !== mine || v.token !== token || !v.ctl) return;
+        if (v.ctl.pending() && first) {
+          if (Date.now() - started > 15000) { fail3d('texture'); return; }
+          window.requestAnimationFrame(ready);
+          return;
+        }
+        first = false;
+        v.state = 'ready';
+        sync3d();
+        renderCanvas();
+        say(T('3D view ready. Drag to turn the garment, pinch or use the wheel to zoom, and drag an element to move it.'));
+        if (v.pendingCompare) { var n = v.pendingCompare; v.pendingCompare = 0; compareWith(n); }
+      }());
+    });
+  }
+  function close3d() {
+    if (!S || !S.v3) return;
+    var v = S.v3;
+    v.token++;
+    if (v.ctl) { v.ctl.dispose(); v.ctl = null; }
+    v.state = 'off';
+    v.drag = null;
+    v.compare = null;
+    v.pendingCompare = 0;
+    if (S.el.canvas) sync3d();
+  }
+  function fail3d(code) {
+    close3d();
+    S.v3.failed = FAIL_3D[code] ? code : 'engine';
+    S.mode = '2.5d';
+    syncModes();
+    renderCanvas();
+    syncViews();
+    say(T(FAIL_3D[S.v3.failed]));
+  }
+
+  // ── the garment, as the reader handles it ─────────────────────────────────
+  function pick3d(surfaceId, mm) {
+    S.el.canvas.focus({ preventScroll: true });
+    // A press beside an element turns the garment and keeps the selection; Escape or the list clears it.
+    if (!surfaceId) return false;
+    var hit = C.hitTest(C.findSurface(S.doc, surfaceId), mm);
+    if (!hit) return false;
+    if (viewOf(S.view).surface !== surfaceId) { S.view = viewForSurface(surfaceId); renderLayers(); syncViews(); }
+    if (!S.sel || S.sel.id !== hit) select({ kind: 'layer', id: hit }, true);
+    var n = selectedLayer();
+    if (!n) return false;
+    S.v3.drag = { kind: 'move', id: n.id, surface: surfaceId, start: C.clone(n), p0: { x: mm.x, y: mm.y }, moved: false };
+    return true;
+  }
+  function drag3d(surfaceId, mm) {
+    var d = S.v3.drag;
+    if (!d || d.surface !== surfaceId || !C.findLayer(S.doc, d.id)) return;
+    var ts = tSurface(surfaceId);
+    // The same move, snapping and grid as on the flat panel: a millimetre here is a millimetre there.
+    var m = C.moveBox(d.start, mm.x - d.p0.x, mm.y - d.p0.y, { centerX: ts.width / 2, threshold: 4, grid: S.grid ? 5 : 0 });
+    d.moved = true;
+    C.applyOp(S.doc, { op: 'set', target: { kind: 'layer', id: d.id }, key: 'x', value: m.x });
+    C.applyOp(S.doc, { op: 'set', target: { kind: 'layer', id: d.id }, key: 'y', value: m.y });
+    if (S.v3.ctl) S.v3.ctl.invalidate([surfaceId]);
+    syncProps();
+  }
+  function drop3d(moved) {
+    var d = S.v3.drag;
+    S.v3.drag = null;
+    if (d && moved) recordDrag(d);
+  }
+  function key3d(ev, n) {
+    var k = ev.key, ctl = S.v3.ctl, step = ev.shiftKey ? 0.3 : 0.1;
+    if (!n && (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowUp' || k === 'ArrowDown')) {
+      ev.preventDefault();
+      ctl.orbit(k === 'ArrowLeft' ? step : k === 'ArrowRight' ? -step : 0, k === 'ArrowUp' ? -step : k === 'ArrowDown' ? step : 0);
+      if (S.v3.turntable) { S.v3.turntable = false; sync3d(); }
+      return true;
+    }
+    if (k === '+' || k === '=') { ev.preventDefault(); ctl.zoom(0.88); return true; }
+    if (k === '-' || k === '_') { ev.preventDefault(); ctl.zoom(1 / 0.88); return true; }
+    if (k === '0') { ev.preventDefault(); reset3d(); return true; }
+    if (/^[1-9]$/.test(k) && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+      var v = TEMPLATE.views[Number(k) - 1];
+      if (v) { ev.preventDefault(); setView(v.id); return true; }
+    }
+    return false;
+  }
+  function reset3d() {
+    if (!S.v3.ctl) return;
+    S.v3.ctl.preset(S.view);
+    S.v3.turntable = false;
+    sync3d();
+    say(tf('Showing %s.', T(viewOf(S.view).label)));
+  }
+  function toggleTurntable() {
+    var v = S.v3;
+    if (S.mode !== '3d') { v.turntable = true; setMode('3d'); return; }
+    if (!v.ctl) return;
+    var want = !v.turntable;
+    v.turntable = v.ctl.setTurntable(want);
+    sync3d();
+    say(v.turntable ? T('Turning the garment. Press 360° again to stop.') : want ? T('The turntable stays still because this device asks for reduced motion.') : T('Turning stopped.'));
+  }
+  function closeUp() {
+    var n = selectedLayer();
+    if (!S.v3.ctl || !n || !isBox(n)) { say(T('Select an element on the garment to look at it close up.')); return; }
+    S.v3.ctl.focus(surfaceOfSelection(), n.x, n.y);
+    S.v3.turntable = false;
+    sync3d();
+    say(tf('Close-up on %s.', n.name));
+  }
+  function setCheck3d(on) {
+    S.v3.check = on;
+    if (S.v3.ctl) { S.v3.ctl.setCheck(on); S.v3.ctl.invalidate(); }
+    syncModes();
+    say(on ? T('Print check shown: the printable area, the safe zone, the seams and every finding. It is a check against the template, not manufacturing approval.') : T('Print check hidden.'));
+  }
+  function syncTrims3d() {
+    var key = JSON.stringify(trimColours());
+    if (S.v3.ctl && key !== S.v3.trims) { S.v3.trims = key; S.v3.ctl.setColours(trimColours()); }
+  }
+  /** Light, fabric and quality are short lists: a press moves to the next, and says which it is. */
+  function cycle3d(what) {
+    var v = S.v3, ctl = v.ctl;
+    function next(list, cur) { return list[(list.indexOf(cur) + 1) % list.length]; }
+    if (what === 'light') { v.lighting = next(D3.LIGHTS, v.lighting); if (ctl) ctl.setLighting(v.lighting); say(tf('Light: %s. Colours on a screen are a simulation, not the printed colour.', T(LIGHT_LABEL[v.lighting]))); }
+    else if (what === 'fabric') { v.fabric = next(D3.FABRICS, v.fabric); if (ctl) ctl.setFabric(v.fabric); say(tf('Fabric: %s.', T(FABRIC_LABEL[v.fabric]))); }
+    else if (what === 'quality') {
+      v.quality = next(D3.QUALITY, v.quality);
+      if (ctl && ctl.setQuality(v.quality)) { v.compare = null; ctl.setCheck(v.check); }
+      say(tf('Quality: %s.', T(QUALITY_LABEL[v.quality])));
+    }
+    sync3d();
+  }
+
+  // ── comparing with a saved version, which is read and never changed ───────
+  /** The 3D bar's compare button: stop comparing, or open the Versions panel, where each version can be compared. */
+  function compareButton(t) {
+    if (S.v3.compare) { compareWith(0); return; }
+    openDock('versions', t);
+  }
+  /** Compare in 3D from the Versions panel: in 3D at once, otherwise once 3D is ready. */
+  function compareFromDock(number) {
+    closeDock();
+    if (S.mode === '3d' && S.v3.ctl) { compareWith(number); return; }
+    if (!can3d()) { say(T(REASON['3d'])); return; }
+    S.v3.pendingCompare = number;
+    setMode('3d');
+  }
+  function compareWith(number, quiet) {
+    var v = S.v3, link = S.srv.link, mine = S;
+    if (!number) {
+      var was = v.compare;
+      v.compare = null;
+      if (v.ctl && was) v.ctl.setCompare(null);
+      sync3d();
+      if (was && !quiet) say(T('Comparison closed.'));
+      return;
+    }
+    if (!link || !v.ctl) return;
+    v.compare = { number: number, projectId: link.projectId, state: 'loading' };
+    sync3d();
+    P.api.getRevision(link.projectId, number).then(function (r) {
+      if (S !== mine || !v.ctl || !v.compare || v.compare.number !== number) return;
+      var doc = null;
+      try { doc = r.ok && r.data && r.data.revision ? C.validateDocument(r.data.revision.document, TEMPLATE) : null; } catch (_) { doc = null; }
+      if (!doc) { v.compare = null; sync3d(); say(r.ok ? T('This saved design cannot be opened by this version of the Design Studio.') : tf('That version could not be opened: %s', serverProblem(r))); return; }
+      v.compare = { number: number, projectId: link.projectId, state: 'ready' };
+      v.ctl.setCompare(function (id, w, hgt) { return withDoc(doc, function () { return texture3d(id, w, hgt, false); }); },
+        withDoc(doc, trimColours), { current: T('This design'), other: tf('Version %d', number) });
+      v.turntable = false;
+      sync3d();
+      say(tf('Comparing with version %d, on the right. The saved version is not changed.', number));
+    });
+  }
+
+  // ── the 3D chrome: drawn once with the canvas, kept in step by sync3d ─────
+  function cycleBtn(what, ic) {
+    return btn({ class: 'pd3-cycle', 'data-pd-act': 'cycle-' + what }, [icon(ic, 14), h('span', { class: 'pd3-cycle-value' })]);
+  }
+  function chrome3d(E) {
+    E.host3d = h('div', { class: 'pd3-host' });
+    E.sim3d = h('p', { class: 'pd3-sim', title: T(SIM_NOTE) }, [icon('info', 13), h('span', { text: T('Visual simulation') })]);
+    E.status3d = h('p', { class: 'pd3-status', role: 'status' });
+    E.bar3d = h('div', { class: 'pd3-bar', role: 'toolbar', 'aria-label': T('3D view'), dir: DIR }, [
+      cycleBtn('light', 'sun'), cycleBtn('fabric', 'shirt'), cycleBtn('quality', 'gear'),
+      h('span', { class: 'pd3-sep', 'aria-hidden': 'true' }),
+      btn({ class: 'pd-icbtn pd3-btn', 'data-pd-act': 'closeup', 'aria-label': T('Close-up on the selection'), title: T('Close-up on the selection'), 'data-pd-why': T('Select an element on the garment to look at it close up.') }, [icon('zoomIn')]),
+      btn({ class: 'pd-icbtn pd3-btn', 'data-pd-act': 'compare3d', 'aria-pressed': 'false', 'data-pd-why': T('Save the design to compare it with its saved versions.') }, [icon('compare')]),
+    ]);
+    [E.host3d, E.sim3d, E.status3d, E.bar3d].forEach(function (el) { E.canvas.appendChild(el); });
+  }
+  function sync3d() {
+    var E = S.el, v = S.v3;
+    if (!E.canvas || !E.bar3d) return;
+    E.canvas.setAttribute('data-3d', S.mode === '3d' ? v.state : 'off');
+    E.status3d.textContent = S.mode !== '3d' ? '' : v.state === 'loading' ? T('Preparing the 3D view…')
+      : v.compare && v.compare.state === 'loading' ? tf('Opening version %d…', v.compare.number) : '';
+    E.help.textContent = S.mode === '3d'
+      ? T('3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom, and drag an element to move it across its surface, in millimetres. Arrow keys turn the garment when nothing is selected and move the selection when something is; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.') + ' ' + T(SIM_NOTE)
+      : T('Design canvas. Click an element to select it, drag to move it, drag its handles to resize or rotate it; drag the empty canvas to pan, Control and the wheel to zoom. Arrow keys move the selection 1 mm, Shift and an arrow 10 mm; comma and full stop rotate it; Tab moves to the next element; Delete removes it; Escape clears the selection.');
+    [['light', L('Light'), LIGHT_LABEL[v.lighting], LIGHT_LABEL[v.lighting]], ['fabric', L('Fabric (simulated)'), FABRIC_SHORT[v.fabric], FABRIC_LABEL[v.fabric]],
+      ['quality', L('Quality'), QUALITY_LABEL[v.quality], QUALITY_LABEL[v.quality]]].forEach(function (c) {
+      var el = E.bar3d.querySelector('[data-pd-act="cycle-' + c[0] + '"]');
+      if (!el) return;
+      el.querySelector('.pd3-cycle-value').textContent = T(c[2]);
+      var said = tf('%s: %s. Press to change.', T(c[1]), T(c[3]));
+      el.setAttribute('aria-label', said);
+      el.setAttribute('title', said);
+    });
+    var turn = S.host.querySelector('[data-pd-act="turntable"]');
+    if (turn && turn.getAttribute('aria-disabled') !== 'true') turn.setAttribute('aria-pressed', S.mode === '3d' && v.turntable ? 'true' : 'false');
+    var close = E.bar3d.querySelector('[data-pd-act="closeup"]'), n = selectedLayer();
+    if (close) close.setAttribute('aria-disabled', n && isBox(n) ? 'false' : 'true');
+    var cmp = E.bar3d.querySelector('[data-pd-act="compare3d"]');
+    if (cmp) {
+      var on = !!v.compare, label = on ? tf('Stop comparing with version %d', v.compare.number) : T('Compare with a saved version');
+      cmp.setAttribute('aria-pressed', on ? 'true' : 'false');
+      cmp.setAttribute('aria-disabled', S.srv.link || on ? 'false' : 'true');
+      cmp.setAttribute('aria-label', label);
+      cmp.setAttribute('title', label);
+    }
+    if (E.canvasNote) E.canvasNote.textContent = v.failed ? T(FAIL_3D[v.failed]) : S.mode !== '3d' && viewOf(S.view).context ? T('Sleeves show their colour and pattern here; artwork on a sleeve is edited in its side view.') : '';
+  }
 
   // ── panels: drawers and sheets on smaller screens ─────────────────────────
 
@@ -1618,7 +2037,7 @@
     E.modes = h('div', { class: 'pd-seg', role: 'group', 'aria-label': T('View mode') }, [
       btn({ class: 'pd-seg-btn', 'data-pd-mode': '2d', 'aria-pressed': S.mode === '2d' ? 'true' : 'false', title: T('Flat panels, with the printable area and safe zone'), text: '2D' }),
       btn({ class: 'pd-seg-btn', 'data-pd-mode': '2.5d', 'aria-pressed': S.mode === '2.5d' ? 'true' : 'false', title: T('Shaded preview'), text: '2.5D' }),
-      planned(btn({ class: 'pd-seg-btn', 'data-pd-mode': '3d', 'aria-pressed': 'false', text: '3D' }), '3d'),
+      live3d(btn({ class: 'pd-seg-btn', 'data-pd-mode': '3d', 'aria-pressed': S.mode === '3d' ? 'true' : 'false', title: T('3D garment, a visual simulation'), text: '3D' }), '3d'),
     ]);
     E.zoom = h('span', { class: 'pd-zoom', 'aria-live': 'off' });
     var bar = h('div', { class: 'pd-bar', 'data-ds-region': 'R6', role: 'toolbar', 'aria-label': T('Canvas') }, [
@@ -1637,13 +2056,14 @@
     E.canvas = h('div', { class: 'pd-canvas', 'data-ds-region': 'R7', tabindex: '0', role: 'application', 'aria-roledescription': T('design canvas'), 'aria-describedby': 'pd-help', dir: 'ltr' });
     E.canvasNote = h('p', { class: 'pd-canvas-note' });
     E.canvas.appendChild(E.canvasNote);
+    chrome3d(E);
     var views = h('nav', { class: 'pd-views', 'data-ds-region': 'R8', 'aria-label': T('Views') });
     TEMPLATE.views.forEach(function (v) {
       views.appendChild(btn({ class: 'pd-view', 'data-pd-view': v.id, 'aria-pressed': v.id === S.view ? 'true' : 'false' }, [
         h('span', { class: 'pd-view-thumb', 'data-pd-thumb': v.id }), h('span', { class: 'pd-view-label', text: T(v.label) }),
       ]));
     });
-    views.appendChild(planned(btn({ class: 'pd-view pd-view--360' }, [h('span', { class: 'pd-view-thumb' }, [icon('rotate', 26)]), h('span', { class: 'pd-view-label', text: '360°' })]), '360'));
+    views.appendChild(live3d(btn({ class: 'pd-view pd-view--360', 'data-pd-act': 'turntable', 'aria-pressed': 'false', title: T('Turn the garment all the way round') }, [h('span', { class: 'pd-view-thumb' }, [icon('rotate', 26)]), h('span', { class: 'pd-view-label', text: '360°' })]), '360'));
     E.views = views;
     var strip = h('div', { class: 'pd-strip', role: 'list' });
     C.PATTERNS.forEach(function (p) {
@@ -2114,8 +2534,10 @@
 
   function build() {
     var host = S.host, E = S.el;
+    close3d();
     unbind();
     FAMILY = {};
+    INK = null;
     clear(host);
     host.setAttribute('lang', LANG);
     host.setAttribute('dir', DIR);
@@ -2145,8 +2567,10 @@
     renderDock();
     syncDockTriggers();
     renderThumbs();
+    sync3d();
+    if (S.mode === '3d') { if (can3d()) open3d(); else { S.mode = '2.5d'; syncModes(); renderCanvas(); } }
     var mine = S;
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (S === mine) { FAMILY = {}; renderCanvas(); scheduleThumbs(); } });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (S === mine) { FAMILY = {}; renderCanvas(); scheduleThumbs(); if (S.v3.ctl) S.v3.ctl.invalidate(); } });
   }
   function syncName() {
     if (S.el.docName && S.el.docName !== document.activeElement) S.el.docName.value = S.doc.name;
@@ -2156,8 +2580,7 @@
   function syncViews() {
     var bs = S.host.querySelectorAll('[data-pd-view]');
     for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-pressed', bs[i].getAttribute('data-pd-view') === S.view ? 'true' : 'false');
-    var note = S.el.canvasNote;
-    if (note) note.textContent = viewOf(S.view).context ? T('Sleeves show their colour and pattern here; artwork on a sleeve is edited in its side view.') : '';
+    sync3d();
   }
 
   // ── events ────────────────────────────────────────────────────────────────
@@ -2208,7 +2631,7 @@
     if ((a = t.getAttribute('data-pd-act')) && onDockAction(a, t)) return;
     if ((a = t.getAttribute('data-pd-lang'))) { chooseSetLocale(a).then(function () { if (S) build(); }); return; }
     if ((a = t.getAttribute('data-pd-view'))) { setView(a); return; }
-    if ((a = t.getAttribute('data-pd-mode'))) { S.mode = a; renderCanvas(); var ms = S.el.modes.querySelectorAll('[data-pd-mode]'); for (var i = 0; i < ms.length; i++) if (ms[i].getAttribute('aria-disabled') !== 'true') ms[i].setAttribute('aria-pressed', ms[i].getAttribute('data-pd-mode') === a ? 'true' : 'false'); say(a === '2d' ? T('Flat panels, with the printable area and safe zone') : T('Shaded preview')); return; }
+    if ((a = t.getAttribute('data-pd-mode'))) { setMode(a); return; }
     if ((a = t.getAttribute('data-pd-libtab'))) { S.libTab = a; var lib = buildLib(); S.el.lib.parentNode.replaceChild(lib, S.el.lib); S.el.lib = lib; renderThumbs(); lib.querySelector('[data-pd-libtab="' + a + '"]').focus(); return; }
     if ((a = t.getAttribute('data-pd-insptab'))) { S.inspTab = a; var tabs = S.el.insp.querySelectorAll('[data-pd-insptab]'); for (var j = 0; j < tabs.length; j++) tabs[j].setAttribute('aria-selected', tabs[j].getAttribute('data-pd-insptab') === a ? 'true' : 'false'); fillInsp(); renderCheck(); return; }
     if ((a = t.getAttribute('data-pd-acc'))) { S.open[a] = !S.open[a]; t.setAttribute('aria-expanded', S.open[a] ? 'true' : 'false'); var p = t.nextSibling; if (p) { if (S.open[a]) p.removeAttribute('hidden'); else p.setAttribute('hidden', ''); } return; }
@@ -2226,9 +2649,15 @@
     switch (t.getAttribute('data-pd-act')) {
       case 'undo': undoRedo('undo'); return;
       case 'redo': undoRedo('redo'); return;
-      case 'grid': S.grid = !S.grid; t.setAttribute('aria-pressed', S.grid ? 'true' : 'false'); renderCanvas(); return;
-      case 'guides': S.guides = !S.guides; t.setAttribute('aria-pressed', S.guides ? 'true' : 'false'); renderCanvas(); return;
-      case 'fit': fitView(); applyCamera(); return;
+      case 'grid': S.grid = !S.grid; t.setAttribute('aria-pressed', S.grid ? 'true' : 'false'); renderCanvas(); if (S.v3.ctl) S.v3.ctl.invalidate(); return;
+      case 'guides': if (S.mode === '3d') { setCheck3d(!S.v3.check); return; } S.guides = !S.guides; t.setAttribute('aria-pressed', S.guides ? 'true' : 'false'); renderCanvas(); return;
+      case 'fit': if (S.mode === '3d') { reset3d(); return; } fitView(); applyCamera(); return;
+      case 'turntable': toggleTurntable(); return;
+      case 'closeup': closeUp(); return;
+      case 'compare3d': compareButton(t); return;
+      case 'cycle-light': cycle3d('light'); return;
+      case 'cycle-fabric': cycle3d('fabric'); return;
+      case 'cycle-quality': cycle3d('quality'); return;
       case 'focus': S.focus = !S.focus; S.el.shell.setAttribute('data-focus', S.focus ? 'true' : 'false'); t.setAttribute('aria-pressed', S.focus ? 'true' : 'false'); return;
       case 'select': S.el.canvas.focus({ preventScroll: true }); return;
       case 'add-text': addElement('text'); return;
@@ -2449,6 +2878,7 @@
   window.teardownFamilistaProductDesign = function () {
     if (!S) return;
     if (S.doc && S.saveTimer) saveNow(false);
+    close3d();
     unbind();
     clearTimeout(S.saveTimer);
     clearTimeout(S.thumbTimer);
@@ -2472,6 +2902,12 @@
       server: { state: S.srv.state, busy: S.srv.busy, linked: !!S.srv.link, projectId: S.srv.link ? S.srv.link.projectId : null, revision: S.srv.link ? S.srv.link.revision : null,
         conflict: S.srv.conflict, dockOpen: S.srv.open, tab: S.srv.tab, list: S.srv.listState, versions: S.srv.revState, origin: S.srv.origin },
       camera: S.cam ? { cx: S.cam.cx, cy: S.cam.cy, z: S.cam.z } : null,
+      three: { state: S.v3.state, failed: S.v3.failed, quality: S.v3.quality, lighting: S.v3.lighting, fabric: S.v3.fabric, check: S.v3.check, turntable: S.v3.turntable,
+        compare: S.v3.compare, versions: Array.isArray(S.v3.versions) ? S.v3.versions.length : S.v3.versions, engine: S.v3.ctl ? S.v3.ctl.metrics() : null },
     };
+  };
+  /** Where a point of a surface appears in the 3D view, in CSS pixels of the canvas: for the browser proof. It changes nothing. */
+  window.__familistaProductDesignProject = function (surface, x, y) {
+    return S && S.v3.ctl ? S.v3.ctl.project(surface, x, y) : null;
   };
 })();

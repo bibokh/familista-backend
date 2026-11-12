@@ -87,9 +87,10 @@ describe('the Interface Studio is preserved', () => {
 });
 
 describe('wiring: an owner room of its own, its design routes guarded on the server', () => {
-  it('app.js loads it on demand behind the platform-owner check, its core, then its server client, then its editor, under one version that the room also uses', () => {
-    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261112-product-design-1b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/product-design.js'], done);");
-    expect(JS).toContain("var VERSION = '20261112-product-design-1b';");
+  it('app.js loads it on demand behind the platform-owner check, its core, its server client, its garment and 3D view, then its editor, under one version that the room also uses', () => {
+    // DS-1c adds the garment geometry and the 3D view before the editor; Babylon itself is loaded only when 3D is chosen (pd-3d.js).
+    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261112-product-design-1c', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done);");
+    expect(JS).toContain("var VERSION = '20261112-product-design-1c';");
     expect(APP).toContain("if (page === 'product-design' && !(_PD_ROOM && _PD_ROOM.state === 'ready')) {");
     expect(APP).toMatch(/_loadProductDesign\(function \(ok\) \{\s*try \{ navTo\(ok \? page : 'owner-home', ok \? el : null, _opts\); \} catch \(_\) \{\}/);
   });
@@ -206,7 +207,8 @@ describe('the room is safe by construction', () => {
 });
 
 describe('it says what it is, and what it is not yet', () => {
-  const REASONS = [...CODE.matchAll(/^\s+'?([a-z0-9-]+)'?: L\('([^']+)'\),$/gm)].map((m) => [m[1], m[2]] as const);
+  const REASON_BLOCK = CODE.slice(CODE.indexOf('var REASON = {'), CODE.indexOf('};', CODE.indexOf('var REASON = {')));
+  const REASONS = [...REASON_BLOCK.matchAll(/^\s+'?([a-z0-9-]+)'?: L\('([^']+)'\),$/gm)].map((m) => [m[1], m[2]] as const);
   const REASON_KEYS = new Set(REASONS.map((r) => r[0]));
 
   it('every unavailable control names a reason that exists, and every reason is in the room’s catalogue', () => {
@@ -217,7 +219,7 @@ describe('it says what it is, and what it is not yet', () => {
       const definedQuoted = new RegExp(`^\\s+'${k}': L\\(`, 'm').test(CODE) ? 1 : 0;
       expect([k, quoted - definedQuoted >= 1]).toEqual([k, true]);
     }
-    for (const use of ["planned(image, 'image')", "planned(capture, 'capture')", "'aria-pressed': 'false', text: '3D' }), '3d')", "]), '360'))", "]), 'proof')", "]), 'order')",
+    for (const use of ["planned(image, 'image')", "planned(capture, 'capture')", "text: '3D' }), '3d')", "]), '360'))", "function live3d(el, reasonKey) { return can3d() ? el : planned(el, reasonKey); }", "]), 'proof')", "]), 'order')",
       "if (t[0] === 'templates') planned(b, 'templates');", "if (!it.live) { planned(b, 'product');", "if (!active) { planned(b, key);", "planned(sel, reason);", ": it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)"]) {
       expect([use, CODE.includes(use)]).toEqual([use, true]);
     }

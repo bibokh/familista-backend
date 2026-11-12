@@ -910,6 +910,90 @@ migration, and removing the tables would delete saved designs, so a database rol
 
 ---
 
+## 16. DS-1c — the 3D garment view, as built
+
+**What it is.** The Design Studio's 3D mode: the design on a three-dimensional jersey that turns, zooms and can be
+edited by pointer, in the same room and from the same document as the 2D and 2.5D views. It is a **visual simulation
+of a procedural prototype**. The form is built from the template's own flat panels, not from a measured garment or a
+production pattern. Fabric, light and colour are simulated on a screen; the view is not a colour proof and not
+manufacturing approval. The room says so on the canvas ("Visual simulation"), in the canvas's description, and in
+every light and fabric announcement.
+
+| Part | Where | What it does |
+|---|---|---|
+| Garment geometry | `public/product-design/pd-garment.js` (pure, no DOM, no WebGL) | Builds the jersey from the template's surfaces. Every vertex's texture coordinate is its flat position (u = x / width, v = 1 − y / height). Below the shoulders each body row wraps a half-ellipse by arc length, so millimetres across the panel are millimetres around the body. Front and back meet at the side seams and along the shoulders (the top of each panel's convex hull). Each sleeve is a cone whose circumference is its flat width, closed on its underarm seam. Also builds collar and cuff lines, seam lines, camera presets and outward normals. |
+| 3D view | `public/product-design/pd-3d.js` | Babylon.js 7.54.3, the build the platform already vendors (`public/vendor/babylon.js`, Apache-2.0, loaded only when 3D is chosen). PBR fabric with sheen; a smooth or mesh knit (a normal map, one hole every 3.2 mm); studio, daylight or stadium lighting; collar and cuff tubes; a contact shadow. Draws only when something changed, and lowers its resolution while the garment moves on a slow GPU, never at rest. Disposes everything on close. |
+| Editor | `public/product-design/product-design.js` (§ "the 3D view (DS-1c)") | Paints each surface from the same `layerNode` drawing the 2D canvas uses, as SVG, into a texture. A pick on the garment selects the element under it (`C.hitTest` on the surface's millimetres). A drag moves it with the same `C.moveBox`, snapping and grid as the flat panel, and is recorded as one undo step. Also: view presets, the 360° turntable, keyboard camera, close-up on the selection, print check, light, fabric and quality, and comparison with a saved version. |
+| Server client | `public/product-design/pd-server.js` | One read-only addition: `getRevision` (the existing `GET /projects/:id/revisions/:number`), for the comparison. No route, schema or migration changed. |
+
+**One document drives every view.** The 3D garment holds no design of its own. Its textures are the 2D drawing, so an
+edit made in either view is the same operation on the same document, and undo, the local draft, saving and
+versions are unchanged. A drag of 60 mm across the 3D garment moves the element 60 mm on the flat panel (proven in a
+browser, ± 3 mm). Comparing with a saved version reads it with one `GET`, validates it with the core, and draws it
+beside the design; it is never put into the editor and nothing is written.
+
+**Where DS-1c departs from DS-0, and why.**
+
+- *No garment model file.* DS-0 (§5.4) planned a licensed glTF garment model and disabled 3D until one existed. No
+  licensed garment model is in the repository; `player.glb` is a humanoid. Buying one needs the Owner's approval.
+  DS-1c instead builds a procedural prototype from the template's own panels. This makes the texture coordinates
+  exactly the panels' millimetres, which a sourced model would have to be re-mapped to achieve. It is labelled a
+  prototype everywhere it is shown. A measured garment model remains a sourcing task (§14).
+- *3D on touch devices* is opt-in, as planned. A touch device starts at the low quality level, and the reader can change it.
+- *Light, fabric and quality are cycle buttons*, not menus. The canvas at the approved reference size is about 370 px
+  wide, and three menus plus the other controls did not fit in one row. The full name of each option is spoken and
+  shown as a tooltip.
+- *Comparison starts from the Versions panel* (a compare button on each version), so the canvas needs no version list of its own.
+
+**Verified.**
+
+| Evidence | Result |
+|---|---|
+| `tests/product-design-garment.unit.test.ts` | 39 tests on the real template. Exact UV equals flat position. Row isometry (≤ 0.2 % error) and sleeve circumference. Closed side, shoulder and underarm seams (< 1e-9 m). No flare at the hem or cuffs. Not mirrored under any preset. Outward normals and close-ups. Deterministic. Negative controls for the arc-length wrap and for mirroring. |
+| `tests/product-design-3d.unit.test.ts` | 13 tests. Loads only the vendored script; no network, no `eval`, no inline style; no words of its own; every blob URL revoked; every listener, frame and object released on dispose; reduced motion honoured; the comparison only reads. |
+| DS-1a/DS-1b suites, full Jest suite, typecheck, `i18n:check`, build | Pass (232 suites; 7 821 tests; 8 database-gated suites skipped without a database). |
+| DS-1b persistence on real PostgreSQL | 24 / 24. |
+| Browser proof, real application on real PostgreSQL, production CSP (`tools/components/product-design-browser-proof.cjs`, P16 in `product-design-3d-proof.cjs`) | 139 / 139, of which 33 are P16. 3D is loaded only when chosen; no CSP violation and no page error from the room. Hiding the crest on the 3D garment changes the pixels where the geometry puts it, and not at its mirror image (negative control). The drag matches in millimetres, with exact undo. Presets, keyboard and close-up work. Print check, light, fabric and quality work. Comparison writes nothing. The engine is disposed on leaving 3D and on leaving the room. Without WebGL, or without the engine, the room says why and stays on 2.5D. Nothing around the canvas moves when 3D opens. Arabic mirrors the controls and not the garment. axe finds no WCAG 2.2 A/AA violation in 3D (English, Arabic). |
+
+**Performance, measured on this machine, not claimed.** Headless Chromium renders WebGL and composites the page in
+software (SwiftShader), so these figures are a slow baseline, not a real graphics card. A control measures this
+machine's own floor: a plain 2D canvas of the same size, redrawn every frame, in the same page.
+
+| | Desktop 1672 × 941, balanced | Phone 390 × 844, CPU slowed 4×, low |
+|---|---|---|
+| 3D ready after it is chosen | ≈ 1.2 s | ≈ 2.5 s |
+| Turntable, median frame interval | ≈ 53–63 ms | ≈ 30 ms |
+| Plain-canvas floor (control) | 33.3 ms | 16.7 ms |
+| Scene CPU time per frame (median) | ≈ 1 ms | ≈ 4 ms |
+| Repainting one surface's artwork (median) | ≈ 100–180 ms | ≈ 260–410 ms |
+
+The first frame budget (≤ 50 ms turntable on desktop) was not met under software rendering. The budget in the proof is
+≤ 66.7 ms and no more than two 60 Hz frames over the measured floor. Real devices with graphics hardware have not been
+measured. Repainting a surface's artwork (SVG rasterised into a texture) is the slowest step, so a 3D drag updates at
+roughly 5–10 frames a second here.
+
+**Implemented and deferred.**
+
+| Asked for | DS-1c |
+|---|---|
+| True 3D jersey; 360° orbit; front, back, left, right; zoom, rotate, reset | Implemented (procedural prototype) |
+| Front, back and sleeve mapping; synchronised 2D/3D editing; real-time updates | Implemented. Updates are as fast as the artwork can be repainted (above). |
+| PBR fabric; lighting environments; seams, collar, sleeves; text orientation | Implemented |
+| Desktop and mobile; 2D/2.5D fallback without WebGL | Implemented |
+| Precision placement and inspection in 3D | Drag in millimetres with the flat panel's snapping and grid; 10 mm grid on the garment; close-up. Resizing and rotating stay on the flat panel. |
+| Material preview (smooth, mesh), labelled as simulation | Implemented |
+| Animated camera presets and close-ups | Implemented (instant under reduced motion) |
+| Studio, daylight, stadium; no claim of exact colour | Implemented |
+| Revision comparison without changing saved versions | Implemented: side by side, read only |
+| Deterministic risk visualisation (safe zones, seams) | Implemented: printable area, safe zone, seam lines and every design-check finding on the garment; "not manufacturing approval" |
+| Performance: texture updates, quality levels, cleanup, loading and error states, measured | Implemented and measured (above) |
+| Measured garment model, graded sizes, fabric physics, production files | **Deferred.** A licensed or measured model needs sourcing and approval; production files are DS-5. |
+| Artwork flowing across seams; resizing or rotating on the 3D garment | Deferred |
+
+**Confidential research.** The Owner's brief also asked for research into manufacturing-related innovation candidates
+and a prior-art review. That work was delivered to the Owner privately. It is not in this repository, and nothing in
+DS-1c implements it.
+
 ## N. Risks and gaps (Deliverable N)
 
 | Risk / gap | Severity | Mitigation |
