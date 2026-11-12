@@ -10953,3 +10953,98 @@ model AlgorithmTelemetryBucket {
   @@unique([algorithmKey, version, fingerprint, source, bucketStart])
   @@index([bucketStart])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Design Studio
+// ─────────────────────────────────────────────────────────────────────────────
+// Product designs saved on the server (DS-1b): a project, and the immutable
+// revisions of its canonical document, `familista.product-design` v1, the format
+// public/product-design/pd-core.js defines and the server validates with that
+// same file. Written only by src/platform/product-design/, behind the platform
+// owner's guard.
+//
+// OWNERSHIP IS EXPLICIT ON EVERY PROJECT. `ownerKind` is PLATFORM (the Platform
+// Owner's own designs), CLUB (a club's, Club Design Studio, DS-3) or PERSONAL
+// (a personal account's, Creator Studio, DS-4 after DS-ID). A CHECK holds the
+// shape: PLATFORM has neither a club nor a user, CLUB has a club only, PERSONAL
+// a user only. A second CHECK admits PLATFORM rows alone, so a context that has
+// not been activated cannot hold a row even if code tried; the phase that
+// activates CLUB or PERSONAL drops it in the same migration that adds that
+// context's foreign key and row-level security policy.
+//
+// REVISIONS ARE IMMUTABLE IN THE DATABASE ITSELF. A trigger refuses UPDATE and
+// TRUNCATE on DesignRevision, and DELETE unless the project it belongs to is
+// gone (the cascade of a deleted project, the only way a revision can leave).
+// A restore copies an old revision into a new one; it never moves the head
+// back. The project's `headRevision` is the concurrency token: a save names the
+// revision it was based on and is refused (409) if another landed first, and a
+// trigger refuses any update that would lower it or change who owns the project.
+//
+// Covered by the database backup as it is (pg_dump of the whole database); the
+// document lives in the row, there is no file anywhere else to back up.
+
+enum DesignOwnerKind {
+  PLATFORM
+  CLUB
+  PERSONAL
+}
+
+/// Where a project's first revision came from.
+enum DesignOrigin {
+  EDITOR
+  FILE_IMPORT
+  BROWSER_DRAFT
+}
+
+enum DesignRevisionKind {
+  CREATE
+  SAVE
+  RESTORE
+}
+
+/// One design: who owns it, which template it is drawn on, and its newest revision.
+model DesignProject {
+  id              String          @id @default(uuid())
+  ownerKind       DesignOwnerKind @default(PLATFORM)
+  clubId          String?
+  ownerUserId     String?
+  /// The design's name, as its newest revision's document names it.
+  name            String
+  templateKey     String
+  templateVersion Int
+  /// The newest revision's number: the concurrency token every save names.
+  headRevision    Int
+  origin          DesignOrigin
+  createdById     String
+  archivedAt      DateTime?       @db.Timestamptz(3)
+  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime        @default(now()) @updatedAt @db.Timestamptz(3)
+
+  revisions DesignRevision[]
+
+  @@index([ownerKind, archivedAt, updatedAt])
+  @@index([clubId])
+  @@index([ownerUserId])
+}
+
+/// One saved state of a design's document. Never changed once written.
+model DesignRevision {
+  id            String             @id @default(uuid())
+  projectId     String
+  project       DesignProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// 1, 2, 3… within the project.
+  number        Int
+  kind          DesignRevisionKind
+  /// For a RESTORE, the revision it copies.
+  restoredFrom  Int?
+  /// The canonical document, as pd-core.js's validateDocument returns it.
+  document      Json
+  /// SHA-256 of the canonical serialisation (pd-core.js serializeDocument).
+  sha256        String
+  bytes         Int
+  formatVersion Int
+  authorUserId  String
+  createdAt     DateTime           @default(now()) @db.Timestamptz(3)
+
+  @@unique([projectId, number])
+}

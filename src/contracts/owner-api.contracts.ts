@@ -1701,6 +1701,19 @@ export const AgentsRoomDetailSchema = z.object({
 
 // ── the registry ─────────────────────────────────────────────────────────────
 
+// ── Familista Design Studio (DS-1b): the saved designs list ──
+// What GET /system/product-design/projects answers. Dates are the service's Date
+// objects as JSON writes them, ISO text, so the schema is pinned to the wire and
+// not to the service's TypeScript type.
+const DesignProjectSchema = z.object({
+  id: z.string().guid(), name: z.string().min(1).max(120), templateKey: z.string().min(1), templateVersion: z.number().int().min(1),
+  headRevision: z.number().int().min(1), origin: z.enum(['EDITOR', 'FILE_IMPORT', 'BROWSER_DRAFT']),
+  archivedAt: IsoTime.nullable(), createdAt: IsoTime, updatedAt: IsoTime,
+}).strict();
+export const DesignProjectListSchema = z.object({
+  projects: z.array(DesignProjectSchema), limit: z.number().int().min(1), truncated: z.boolean(),
+}).strict();
+
 export interface ApiContract {
   /** The path under /api/v1, exactly as the frontend calls it. */
   endpoint: string;
@@ -1956,6 +1969,12 @@ export const OWNER_API_CONTRACTS: ApiContract[] = [
     endpoint: '/system/updates', module: 'System Updates',
     schema: SystemUpdatesViewSchema, consumer: 'public/system-updates/system-updates.js',
     reads: ['measuredAt', 'mode', 'running', 'deployPath', 'ci', 'provider', 'changes', 'approvals', 'repository'],
+  },
+  // ── Familista Design Studio ──
+  {
+    endpoint: '/system/product-design/projects', module: 'Design Studio',
+    schema: DesignProjectListSchema, consumer: 'public/product-design/product-design.js',
+    reads: ['projects', 'truncated', 'limit'],
   },
   // ── The AI Agents Operations Room ──
   {

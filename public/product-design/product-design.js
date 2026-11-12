@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   FAMILISTA DESIGN STUDIO — DS-1a — the editor
+   FAMILISTA DESIGN STUDIO — DS-1a, DS-1b — the editor
 
    The Platform Owner's product designer: one football-jersey template, edited
    in millimetres on its real surfaces (front, back and both sleeves), drawn as
@@ -10,14 +10,16 @@
 
    Loaded on demand by public/app.js for a reader whom GET /system/whoami names
    the Platform Owner — the same check as every owner room. That check is a
-   convenience and NOT a security boundary: this room has no endpoint, sends
-   nothing and reads nothing from the server but its own static files. Drafts
-   are kept in this browser only (localStorage) and moved by JSON export and
-   import; the room says so on screen, always.
+   convenience and NOT a security boundary: the server checks the platform owner
+   on every design route (src/routes/product-design.routes.ts). The draft in the
+   editor is kept in this browser (localStorage) after every change, as in DS-1a;
+   Save design keeps it on the server as a new version of its project (DS-1b),
+   through pd-server.js, the only file of this room that talks to the API. JSON
+   export and import work as before.
 
    Everything this phase cannot do yet is on screen, unavailable, and says why:
-   3D, server versions, uploads, the Club and Creator contexts, the catalogue,
-   quotations, production proofs, ordering and every supplier.
+   3D, artwork uploads, the Club and Creator contexts, the catalogue, quotations,
+   production proofs, ordering and every supplier.
 
    HOW IT DRAWS
 
@@ -36,7 +38,7 @@
 
   var C = window.FamilistaProductDesignCore;
   var LIMITS = C.LIMITS;
-  var VERSION = '20261110-product-design-1a';
+  var VERSION = '20261112-product-design-1b';
   var TEMPLATE_URL = '/product-design/templates/football-jersey.json?v=' + VERSION;
   var STORE_KEY = 'familista_product_design_draft_v1';
   var STORE_UNREADABLE = 'familista_product_design_draft_v1_unreadable';
@@ -159,6 +161,7 @@
     chevron: 'M6 9l6 6 6-6',
     save: 'M5 3h11l5 5v13H5zM8 3v6h8M8 21v-7h8v7',
     versions: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 2',
+    folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
     import: 'M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4',
     export: 'M12 3v12M7 10l5 5 5-5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4',
     cart: 'M3 4h2l2.4 11h10.2l2-8H6.2M10 20h.01M17 20h.01',
@@ -213,11 +216,10 @@
     'context-creator': L('Creator Studio is planned (DS-4) and needs personal accounts first (DS-ID).'),
     templates: L('More templates arrive with the product catalogue (DS-2).'),
     product: L('This product arrives with the product catalogue (DS-2).'),
-    image: L('Uploading artwork needs secure server storage (DS-1b).'),
+    image: L('Uploading artwork waits for protected media storage with verified backups (planned).'),
     '3d': L('Real 3D rendering is planned (DS-1c) and needs a garment 3D model.'),
     '360': L('The 360° view arrives with real 3D rendering (DS-1c).'),
     capture: L('Image export arrives with production proofs (DS-5).'),
-    versions: L('Saved versions arrive with secure server persistence (DS-1b).'),
     proof: L('Production proofs arrive with the manufacturing sandbox (DS-5).'),
     order: L('Ordering is not available yet (DS-6).'),
     method: L('Production methods come from a connected supplier (DS-5). This is the template’s reference.'),
@@ -241,6 +243,7 @@
       open: { 'match-kits': true }, listeners: [], saveTimer: 0, thumbTimer: 0, saveState: 'saved', savedAt: null,
       drag: null, space: false, merge: null, el: {}, nodes: {}, findings: [], announced: 0,
       metrics: { mounts: 0, commits: 0, renders: 0, layerPaints: 0, renderMs: [], editMs: [], lastSaveBytes: 0 },
+      srv: serverFresh(),
     };
   }
   function listen(target, type, fn, opts) {
@@ -271,7 +274,7 @@
   }
   function isBox(n) { return n && C.BOX_TYPES.indexOf(n.type) !== -1; }
 
-  // ── storage: this browser only ────────────────────────────────────────────
+  // ── the draft, in this browser ────────────────────────────────────────────
 
   function loadStored() {
     var raw = null;
@@ -288,13 +291,15 @@
     ['Pattern', 'Brand mark', 'Club crest', 'Sponsor', 'Player name', 'Player number', 'Navy', 'Royal blue', 'Gold', 'White'].forEach(function (k) { names[k] = T(k); });
     return C.createDocument(TEMPLATE, T('Home kit design'), names);
   }
+  /** The local draft's state: saved, pending, unavailable or too-large. What the screen says combines it with the server's. */
   function setSaveState(state) {
     if (!S) return;
     S.saveState = state;
-    var el = S.el.saveState;
-    if (!el) return;
-    el.setAttribute('data-state', state);
-    el.title = el.textContent = state === 'saved' ? (S.savedAt ? tf('Saved in this browser at %s', S.savedAt) : T('Saved in this browser'))
+    showSaveState();
+  }
+  function localStateText() {
+    var state = S.saveState;
+    return state === 'saved' ? (S.savedAt ? tf('Saved in this browser at %s', S.savedAt) : T('Saved in this browser'))
       : state === 'pending' ? T('Saving in this browser…')
       : state === 'unavailable' ? T('Not saved: this browser’s storage is unavailable')
       : T('Not saved: the draft is larger than this browser keeps');
@@ -316,8 +321,466 @@
     try { window.localStorage.setItem(STORE_KEY, text); }
     catch (_) { setSaveState('unavailable'); if (announce) say(T('Not saved: this browser’s storage is unavailable')); return; }
     try { S.savedAt = new Date().toLocaleTimeString(LANG, { hour: '2-digit', minute: '2-digit' }); } catch (_) { S.savedAt = null; }
-    setSaveState('saved');
+    S.saveState = 'saved';
+    syncServerState(text);
     if (announce) say(T('Saved in this browser only. Export the file to keep a copy elsewhere.'));
+  }
+  // ── saved on the Familista server (DS-1b) ─────────────────────────────────
+  //
+  // The draft in the editor is still kept in this browser after every change,
+  // exactly as before. "Save design" also keeps it on the Familista server as a
+  // new revision of its project; the first save creates the project, so a draft
+  // DS-1a left in this browser becomes a saved design the moment it is saved,
+  // and the draft itself is never moved or deleted. The server decides who may
+  // save. A save never overwrites anything: one based on an older revision is
+  // refused, and this room asks what to do. pd-server.js is the only file that
+  // talks to the server.
+
+  var P = window.FamilistaProductDesignServer;
+
+  function serverFresh() {
+    return {
+      link: null, state: 'local', busy: false, error: '', conflict: null, origin: 'EDITOR', notice: '',
+      open: false, tab: 'projects', filter: 'active', list: null, listState: 'idle', listError: '',
+      revs: null, revState: 'idle', revError: '', confirm: null, trigger: null, seq: 0,
+    };
+  }
+  function docText() { return C.serializeDocument(S.doc); }
+  function setLink(link) {
+    S.srv.link = link;
+    if (link) P.writeLink(link); else P.clearLink();
+  }
+  /** True when the editor holds something the server does not: changes since the linked revision, or an unsaved design that is not blank. */
+  function isUnsaved() {
+    var fp = P.fingerprint(docText());
+    if (S.srv.link) return fp !== S.srv.link.fp;
+    return fp !== P.fingerprint(C.serializeDocument(newDocument()));
+  }
+  /** Saved or unsaved, from the text the local save just wrote; a conflict or an error stays until the next save or open. */
+  function syncServerState(text) {
+    var sv = S.srv;
+    if (!sv.busy && sv.state !== 'conflict' && sv.state !== 'error') {
+      sv.state = !sv.link ? 'local' : P.fingerprint(text || docText()) === sv.link.fp ? 'saved' : 'dirty';
+    }
+    showSaveState();
+  }
+  function showSaveState() {
+    var el = S && S.el.saveState;
+    if (!el) return;
+    var sv = S.srv, state, text;
+    if (sv.busy) { state = 'busy'; text = T('Saving to Familista…'); }
+    else if (sv.state === 'conflict' && sv.conflict) { state = 'conflict'; text = tf('A newer version (%d) is on the server', sv.conflict.head); }
+    else if (sv.state === 'error') { state = 'error'; text = T('Not saved'); }
+    else if (S.saveState === 'unavailable' || S.saveState === 'too-large') { state = S.saveState; text = localStateText(); }
+    else if (sv.state === 'saved') { state = 'saved'; text = tf('Saved · version %d', sv.link.revision); }
+    else if (sv.state === 'dirty') { state = 'dirty'; text = T('Unsaved changes'); }
+    else { state = 'local'; text = T('Not on the Familista server yet'); }
+    el.setAttribute('data-state', state);
+    el.textContent = text;
+    el.title = text + (S.saveState === 'saved' || S.saveState === 'pending' ? ' — ' + localStateText() : '');
+    // The line beneath says where the design is kept; when a save failed it says why instead, in full.
+    var line = S.el.localLine, note = S.el.local;
+    if (line && note) {
+      if (state === 'error') { line.setAttribute('data-state', 'error'); note.textContent = tf('Not saved: %s', sv.error); }
+      else { line.removeAttribute('data-state'); note.textContent = T('Saved on the Familista server · draft kept in this browser'); }
+    }
+  }
+  /** What went wrong, as the end of a sentence that begins "Not saved: ". */
+  function serverProblem(r) {
+    if (r.status === 0) return T('the Familista server could not be reached. The draft is kept in this browser.');
+    if (r.status === 401) return T('the session has ended. Sign in again, then save.');
+    if (r.status === 403) return T('only the platform owner can save designs on the server.');
+    if (r.code === 'DESIGN_PROJECT_ARCHIVED') return T('this design is archived. Return it to the list in Projects to save it.');
+    if (r.code === 'DESIGN_DOCUMENT_INVALID') return T('the server refused the design as invalid.');
+    if (r.status === 404) return T('this design is no longer on the server.');
+    if (r.status === 429) return T('too many requests. Wait a moment and save again.');
+    return tf('the server answered HTTP %d.', r.status);
+  }
+
+  /** Save the editor's design on the server: a new project, or the next revision on `base` (default: the linked one). */
+  function serverSave(base, after) {
+    if (!S || !S.doc) return;
+    var sv = S.srv;
+    if (sv.busy) { say(T('Saving to Familista…')); return; }
+    saveNow(false);
+    var mine = S, link = sv.link, text = docText(), fp = P.fingerprint(text);
+    var on = link ? (base || link.revision) : 0;
+    sv.busy = true;
+    showSaveState();
+    var req = link ? P.api.saveRevision(link.projectId, on, S.doc) : P.api.createProject(S.doc, sv.origin);
+    req.then(function (r) {
+      if (S !== mine) return;
+      sv.busy = false;
+      if (r.ok && r.data && r.data.project && r.data.revision) {
+        setLink({ projectId: r.data.project.id, revision: r.data.revision.number, fp: fp });
+        sv.state = 'saved'; sv.conflict = null; sv.error = ''; sv.origin = 'EDITOR'; sv.notice = ''; sv.confirm = null;
+        syncServerState();
+        say(r.data.replayed ? tf('Already saved as version %d.', r.data.revision.number) : tf('Saved on the Familista server as version %d.', r.data.revision.number));
+        sv.revs = null;
+        renderDock();
+        if (sv.open) loadDockTab();
+        if (after) after();
+        return;
+      }
+      if (r.status === 409 && r.code === 'DESIGN_REVISION_CONFLICT' && link) {
+        sv.state = 'conflict';
+        sv.conflict = { head: (r.data && r.data.headRevision) || 0, base: on };
+        showSaveState();
+        openDock('versions');
+        say(tf('Not saved: a newer version (%d) is on the server. Nothing was overwritten.', sv.conflict.head));
+        return;
+      }
+      sv.state = 'error';
+      sv.error = serverProblem(r);
+      if (r.status === 404 && link) { setLink(null); sv.notice = T('This design is no longer on the server. Save design keeps it as a new design.'); }
+      showSaveState();
+      renderDock();
+      say(tf('Not saved: %s', sv.error));
+    });
+  }
+
+  /** Put a saved document into the editor: a fresh undo history, the local draft rewritten, the link set. */
+  function loadServerDoc(project, revision) {
+    var doc;
+    try { doc = C.validateDocument(revision.document, TEMPLATE); }
+    catch (e) { say(T('This saved design cannot be opened by this version of the Design Studio.')); return false; }
+    S.doc = doc;
+    S.hist = C.createHistory();
+    S.sel = null;
+    S.merge = null;
+    var sv = S.srv;
+    setLink({ projectId: project.id, revision: revision.number, fp: P.fingerprint(C.serializeDocument(doc)) });
+    sv.state = 'saved'; sv.conflict = null; sv.error = ''; sv.notice = project.archivedAt ? T('This design is archived. Return it to the list in Projects to save it.') : '';
+    sv.origin = 'EDITOR'; sv.revs = null; sv.confirm = null;
+    changed();
+    buildProps();
+    saveNow();
+    return true;
+  }
+  function openProject(id) {
+    var mine = S, sv = S.srv;
+    sv.busy = true; showSaveState();
+    P.api.openProject(id).then(function (r) {
+      if (S !== mine) return;
+      sv.busy = false;
+      if (r.ok && r.data && r.data.project && r.data.revision) {
+        if (loadServerDoc(r.data.project, r.data.revision)) {
+          say(tf('Opened %s, version %d.', r.data.project.name, r.data.revision.number));
+          closeDock();
+        }
+        return;
+      }
+      sv.listError = serverProblem(r);
+      showSaveState();
+      renderDock();
+      say(tf('Not opened: %s', sv.listError));
+    });
+  }
+  function startNew() {
+    S.doc = newDocument();
+    S.hist = C.createHistory();
+    S.sel = null;
+    S.merge = null;
+    setLink(null);
+    var sv = S.srv;
+    sv.state = 'local'; sv.conflict = null; sv.error = ''; sv.notice = ''; sv.origin = 'EDITOR'; sv.revs = null; sv.confirm = null;
+    changed();
+    buildProps();
+    saveNow();
+    say(T('A new design was started. Save design keeps it on the Familista server.'));
+    renderDock();
+  }
+  function restoreVersion(number) {
+    var mine = S, sv = S.srv, link = sv.link;
+    if (!link) return;
+    sv.busy = true; showSaveState();
+    P.api.restoreRevision(link.projectId, number, link.revision).then(function (r) {
+      if (S !== mine) return;
+      if (r.ok && r.data && r.data.revision) {
+        var made = r.data.revision.number;
+        return P.api.openProject(link.projectId).then(function (o) {
+          if (S !== mine) return;
+          sv.busy = false;
+          if (o.ok && o.data && loadServerDoc(o.data.project, o.data.revision)) say(tf('Version %d was restored as version %d.', number, made));
+          else { sv.state = 'error'; sv.error = serverProblem(o); showSaveState(); }
+          renderDock();
+          loadDockTab();
+        });
+      }
+      sv.busy = false;
+      if (r.status === 409 && r.code === 'DESIGN_REVISION_CONFLICT') {
+        sv.state = 'conflict'; sv.conflict = { head: (r.data && r.data.headRevision) || 0, base: link.revision };
+      } else { sv.state = 'error'; sv.error = serverProblem(r); }
+      showSaveState();
+      renderDock();
+      say(sv.state === 'conflict' ? tf('Not restored: a newer version (%d) is on the server.', sv.conflict.head) : tf('Not restored: %s', sv.error));
+    });
+  }
+  function setArchived(id, archived) {
+    var mine = S, sv = S.srv;
+    (archived ? P.api.archive(id) : P.api.unarchive(id)).then(function (r) {
+      if (S !== mine) return;
+      if (r.ok) {
+        say(archived ? T('The design was archived. Its versions are kept.') : T('The design is back in the list.'));
+        if (sv.link && sv.link.projectId === id) { sv.notice = archived ? T('This design is archived. Return it to the list in Projects to save it.') : ''; if (!archived && sv.error) { sv.state = 'dirty'; sv.error = ''; syncServerState(); } }
+        loadProjects();
+        return;
+      }
+      sv.listError = serverProblem(r);
+      renderDock();
+      say(tf('Not changed: %s', sv.listError));
+    });
+  }
+  /** Run an action that replaces the editor's design, asking first when that would lose unsaved changes. */
+  function replacing(kind, arg, run) {
+    if (!isUnsaved()) { run(); return; }
+    S.srv.confirm = { kind: kind, arg: arg, run: run };
+    renderDock();
+    var first = S.el.dock && S.el.dock.querySelector('.pd-dock-confirm button');
+    if (first) first.focus();
+  }
+
+  /** On opening the room: is the linked design still there, and is the editor based on its newest revision? */
+  function checkLink() {
+    var mine = S, sv = S.srv, link = sv.link;
+    if (!link) return;
+    P.api.openProject(link.projectId).then(function (r) {
+      if (S !== mine || sv.link !== link) return;
+      if (r.status === 404) { setLink(null); sv.notice = T('This design is no longer on the server. Save design keeps it as a new design.'); syncServerState(); renderDock(); return; }
+      if (!r.ok || !r.data || !r.data.project) return;
+      if (r.data.project.archivedAt) sv.notice = T('This design is archived. Return it to the list in Projects to save it.');
+      if (r.data.project.headRevision > link.revision) {
+        sv.state = 'conflict';
+        sv.conflict = { head: r.data.project.headRevision, base: link.revision };
+      }
+      showSaveState();
+      renderDock();
+    });
+  }
+
+  // ── the saved-designs panel: projects and versions ────────────────────────
+  //
+  // A floating panel (position: fixed, opacity and transform only), so opening
+  // it moves nothing beneath it. Its body scrolls inside itself. Every list has
+  // a loading state the size of its rows, an empty state that says what would
+  // fill it, and an error state that says what failed and offers to try again.
+
+  function openDock(tab, trigger) {
+    var sv = S.srv, d = S.el.dock;
+    if (!d) return;
+    if (tab) sv.tab = tab;
+    // Focus goes back where it came from: the button pressed, or, when the room opened the panel itself (a conflict), its own button.
+    if (trigger) sv.trigger = trigger;
+    else if (!sv.open) sv.trigger = S.host.querySelector('.pd-actions [data-pd-dock="' + sv.tab + '"]');
+    sv.open = true;
+    d.setAttribute('data-open', 'true');
+    syncDockTriggers();
+    renderDock();
+    loadDockTab();
+    var t = d.querySelector('[data-pd-docktab="' + sv.tab + '"]');
+    if (t) t.focus({ preventScroll: true });
+  }
+  function closeDock() {
+    var sv = S.srv, d = S.el.dock;
+    if (!d || !sv.open) return;
+    sv.open = false;
+    sv.confirm = null;
+    d.setAttribute('data-open', 'false');
+    syncDockTriggers();
+    var back = sv.trigger && S.host.contains(sv.trigger) ? sv.trigger : null;
+    sv.trigger = null;
+    if (back) back.focus({ preventScroll: true });
+  }
+  function syncDockTriggers() {
+    var bs = S.host.querySelectorAll('[data-pd-dock]');
+    for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-expanded', S.srv.open && bs[i].getAttribute('data-pd-dock') === S.srv.tab ? 'true' : 'false');
+  }
+  function loadDockTab() { if (S.srv.tab === 'projects') loadProjects(); else loadVersions(); }
+  function loadProjects() {
+    var mine = S, sv = S.srv, seq = ++sv.seq;
+    sv.listState = 'loading'; sv.listError = '';
+    renderDock();
+    P.api.listProjects(sv.filter).then(function (r) {
+      if (S !== mine || seq !== sv.seq) return;
+      if (r.ok && r.data && Array.isArray(r.data.projects)) { sv.list = { projects: r.data.projects, truncated: !!r.data.truncated, limit: r.data.limit, filter: sv.filter }; sv.listState = 'ready'; }
+      else { sv.listState = 'error'; sv.listError = serverProblem(r); }
+      renderDock();
+    });
+  }
+  function loadVersions() {
+    var mine = S, sv = S.srv, link = sv.link, seq = ++sv.seq;
+    if (!link) { sv.revState = 'idle'; renderDock(); return; }
+    sv.revState = 'loading'; sv.revError = '';
+    renderDock();
+    P.api.listRevisions(link.projectId).then(function (r) {
+      if (S !== mine || seq !== sv.seq) return;
+      if (r.ok && r.data && Array.isArray(r.data.revisions)) { sv.revs = { projectId: link.projectId, revisions: r.data.revisions, truncated: !!r.data.truncated, limit: r.data.limit, head: r.data.project ? r.data.project.headRevision : null }; sv.revState = 'ready'; }
+      else { sv.revState = 'error'; sv.revError = serverProblem(r); }
+      renderDock();
+    });
+  }
+  function when(iso) {
+    try { return new Intl.DateTimeFormat(LANG, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso)); } catch (_) { return String(iso).slice(0, 16); }
+  }
+  function skeleton(n) {
+    var ul = h('ul', { class: 'pd-dock-list', role: 'list', 'aria-hidden': 'true' });
+    for (var i = 0; i < n; i++) ul.appendChild(h('li', { class: 'pd-dock-row is-skeleton' }, [h('span', { class: 'pd-dock-bar' }), h('span', { class: 'pd-dock-bar is-short' })]));
+    return ul;
+  }
+  function failed(message, act) {
+    return h('div', { class: 'pd-dock-state', role: 'alert' }, [
+      h('p', { class: 'pd-empty', text: message }),
+      btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': act }, [h('span', { text: T('Try again') })]),
+    ]);
+  }
+  function confirmBlock() {
+    var c = S.srv.confirm;
+    if (!c) return null;
+    return h('div', { class: 'pd-dock-alert pd-dock-confirm', role: 'alert' }, [
+      h('strong', { text: T('The design in the editor has unsaved changes.') }),
+      h('p', { class: 'pd-note', text: T('Save it first, or continue and replace it in the editor. Export keeps a copy as a file.') }),
+      h('div', { class: 'pd-dock-btns' }, [
+        btn({ class: 'pd-btn pd-btn--ghost pd-btn--accent', 'data-pd-act': 'confirm-save' }, [h('span', { text: T('Save first') })]),
+        btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'confirm-go' }, [h('span', { text: T('Replace it') })]),
+        btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'confirm-cancel' }, [h('span', { text: T('Cancel') })]),
+      ]),
+    ]);
+  }
+  function conflictBlock() {
+    var sv = S.srv, c = sv.conflict;
+    if (sv.state !== 'conflict' || !c || !sv.link) return null;
+    return h('div', { class: 'pd-dock-alert pd-dock-conflict', role: 'alert' }, [
+      h('strong', { text: tf('A newer version (%d) is on the server', c.head) }),
+      h('p', { class: 'pd-note', text: tf('The design in the editor is based on version %d. It has not been saved, and nothing was overwritten.', c.base) }),
+      h('div', { class: 'pd-dock-btns' }, [
+        btn({ class: 'pd-btn pd-btn--ghost pd-btn--accent', 'data-pd-act': 'conflict-keep' }, [h('span', { text: tf('Save mine as version %d', c.head + 1) })]),
+        btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'conflict-open' }, [h('span', { text: tf('Open version %d', c.head) })]),
+        btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'export' }, [h('span', { text: T('Export mine') })]),
+      ]),
+    ]);
+  }
+  function projectsBody() {
+    var sv = S.srv, link = sv.link, body = [];
+    var current = h('div', { class: 'pd-dock-current' }, [
+      h('div', { class: 'pd-dock-text' }, [
+        h('span', { class: 'pd-dock-kicker', text: T('In the editor') }),
+        h('strong', { class: 'pd-dock-name', 'data-user-content': '', text: S.doc.name }),
+        h('span', { class: 'pd-note', text: link ? (sv.state === 'saved' ? tf('Saved · version %d', link.revision) : tf('Unsaved changes since version %d', link.revision)) : T('Not on the Familista server yet') }),
+      ]),
+      h('div', { class: 'pd-dock-btns' }, [
+        !link || sv.state !== 'saved' ? btn({ class: 'pd-btn pd-btn--ghost pd-btn--accent', 'data-pd-act': 'save' }, [icon('save', 14), h('span', { text: T('Save design') })]) : null,
+        btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'new-design' }, [icon('plus', 14), h('span', { text: T('New design') })]),
+      ]),
+    ]);
+    body.push(current);
+    var filter = h('div', { class: 'pd-seg', role: 'group', 'aria-label': T('Show') }, [
+      btn({ class: 'pd-seg-btn', 'data-pd-filter': 'active', 'aria-pressed': sv.filter === 'active' ? 'true' : 'false', text: T('Active') }),
+      btn({ class: 'pd-seg-btn', 'data-pd-filter': 'archived', 'aria-pressed': sv.filter === 'archived' ? 'true' : 'false', text: T('Archived') }),
+    ]);
+    body.push(h('div', { class: 'pd-dock-bar-row' }, [h('h3', { class: 'pd-dock-h', text: T('Saved designs') }), filter]));
+    if (sv.listState === 'loading' && !(sv.list && sv.list.filter === sv.filter)) body.push(skeleton(4));
+    else if (sv.listState === 'error') body.push(failed(tf('The saved designs could not be loaded: %s', sv.listError), 'dock-retry'));
+    else if (sv.list && sv.list.filter === sv.filter) {
+      var rows = sv.list.projects;
+      if (!rows.length) body.push(h('p', { class: 'pd-empty', text: sv.filter === 'archived' ? T('No archived designs. An archived design keeps all its versions and can be returned to the list.') : T('No saved designs yet. Save design keeps the design in the editor on the Familista server.') }));
+      else {
+        var ul = h('ul', { class: 'pd-dock-list', role: 'list' });
+        rows.forEach(function (p) {
+          var here = link && link.projectId === p.id;
+          ul.appendChild(h('li', { class: 'pd-dock-row' + (here ? ' is-current' : '') }, [
+            h('div', { class: 'pd-dock-text' }, [
+              h('strong', { class: 'pd-dock-name', 'data-user-content': '', text: p.name }),
+              h('span', { class: 'pd-note', text: tf('Version %d · %s', p.headRevision, when(p.updatedAt)) }),
+            ]),
+            h('div', { class: 'pd-dock-btns' }, [
+              here ? chip(T('In the editor'), 'accent') : sv.filter === 'active' ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'open-project', 'data-pd-id': p.id, 'aria-label': tf('Open %s', p.name) }, [h('span', { text: T('Open') })]) : null,
+              sv.filter === 'archived'
+                ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'unarchive', 'data-pd-id': p.id, 'aria-label': tf('Return %s to the list', p.name) }, [h('span', { text: T('Return to list') })])
+                : btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'archive', 'data-pd-id': p.id, 'aria-label': tf('Archive %s', p.name) }, [h('span', { text: T('Archive') })]),
+            ]),
+          ]));
+        });
+        body.push(ul);
+        if (sv.list.truncated) body.push(h('p', { class: 'pd-note', text: tf('Showing the %d most recent.', sv.list.limit) }));
+      }
+    }
+    return body;
+  }
+  function versionsBody() {
+    var sv = S.srv, link = sv.link, body = [];
+    if (!link) {
+      body.push(h('p', { class: 'pd-empty', text: T('Versions appear once this design is saved on the Familista server.') }));
+      body.push(btn({ class: 'pd-btn pd-btn--ghost pd-btn--accent', 'data-pd-act': 'save' }, [icon('save', 14), h('span', { text: T('Save design') })]));
+      return body;
+    }
+    body.push(h('p', { class: 'pd-note' }, [h('span', { 'data-user-content': '', text: S.doc.name }), h('span', { text: ' · ' + tf('version %d in the editor', link.revision) })]));
+    body.push(h('p', { class: 'pd-note', text: T('Restoring copies an earlier version into a new one. No version is ever changed or removed.') }));
+    if (sv.revState === 'loading' && !(sv.revs && sv.revs.projectId === link.projectId)) body.push(skeleton(5));
+    else if (sv.revState === 'error') body.push(failed(tf('The versions could not be loaded: %s', sv.revError), 'dock-retry'));
+    else if (sv.revs && sv.revs.projectId === link.projectId) {
+      var ul = h('ul', { class: 'pd-dock-list', role: 'list' });
+      var newest = sv.revs.revisions.length ? sv.revs.revisions[0].number : 0;
+      sv.revs.revisions.forEach(function (v) {
+        var kind = v.kind === 'CREATE' ? T('Created') : v.kind === 'RESTORE' ? tf('Restored from version %d', v.restoredFrom) : T('Saved');
+        ul.appendChild(h('li', { class: 'pd-dock-row' + (v.number === link.revision ? ' is-current' : '') }, [
+          h('div', { class: 'pd-dock-text' }, [
+            h('strong', { class: 'pd-dock-name', text: tf('Version %d', v.number) }),
+            h('span', { class: 'pd-note', text: kind + ' · ' + when(v.createdAt) }),
+          ]),
+          h('div', { class: 'pd-dock-btns' }, [
+            v.number === newest ? chip(T('Newest'), 'muted') : null,
+            v.number === link.revision ? chip(T('In the editor'), 'accent') : null,
+            v.number !== newest ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'restore', 'data-pd-n': String(v.number), 'aria-label': tf('Restore version %d', v.number) }, [h('span', { text: T('Restore') })]) : null,
+          ]),
+        ]));
+      });
+      body.push(ul);
+      if (sv.revs.truncated) body.push(h('p', { class: 'pd-note', text: tf('Showing the %d most recent.', sv.revs.limit) }));
+    }
+    return body;
+  }
+  function renderDock() {
+    var d = S && S.el.dock;
+    if (!d) return;
+    var sv = S.srv, keep = d.querySelector('.pd-dock-body');
+    var scroll = keep ? keep.scrollTop : 0;
+    clear(d);
+    var tabs = h('div', { class: 'pd-tabs', role: 'tablist', 'aria-label': T('Saved designs') });
+    [['projects', L('Projects')], ['versions', L('Versions')]].forEach(function (t) {
+      tabs.appendChild(btn({ class: 'pd-tab', role: 'tab', id: 'pd-docktab-' + t[0], 'data-pd-docktab': t[0], 'aria-controls': 'pd-dock-body', 'aria-selected': sv.tab === t[0] ? 'true' : 'false', tabindex: sv.tab === t[0] ? '0' : '-1', text: T(t[1]) }));
+    });
+    var notice = sv.notice ? h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: sv.notice })]) : null;
+    var body = h('div', { class: 'pd-dock-body', id: 'pd-dock-body', role: 'tabpanel', 'aria-labelledby': 'pd-docktab-' + sv.tab, tabindex: '0' },
+      [conflictBlock(), confirmBlock(), notice].concat(sv.tab === 'projects' ? projectsBody() : versionsBody()));
+    append(d, [
+      h('div', { class: 'pd-dock-head' }, [
+        h('h2', { class: 'pd-h2', id: 'pd-dock-title' }, [icon('folder', 16), h('span', { text: T('Saved designs') })]),
+        btn({ class: 'pd-icbtn', 'data-pd-act': 'close-dock', 'aria-label': T('Close') }, [icon('close')]),
+      ]),
+      tabs, body,
+    ]);
+    body.scrollTop = scroll;
+  }
+  function onDockAction(act, t) {
+    var sv = S.srv;
+    switch (act) {
+      case 'projects': case 'versions':
+        if (sv.open && sv.tab === act) closeDock(); else openDock(act, t);
+        return true;
+      case 'close-dock': closeDock(); return true;
+      case 'dock-retry': loadDockTab(); return true;
+      case 'new-design': replacing('new', null, startNew); return true;
+      case 'open-project': { var id = t.getAttribute('data-pd-id'); replacing('open', id, function () { openProject(id); }); return true; }
+      case 'archive': setArchived(t.getAttribute('data-pd-id'), true); return true;
+      case 'unarchive': setArchived(t.getAttribute('data-pd-id'), false); return true;
+      case 'restore': { var n = Number(t.getAttribute('data-pd-n')); replacing('restore', n, function () { restoreVersion(n); }); return true; }
+      case 'confirm-save': { var c = sv.confirm; if (c) serverSave(null, function () { sv.confirm = null; c.run(); }); return true; }
+      case 'confirm-go': { var c2 = sv.confirm; sv.confirm = null; if (c2) c2.run(); renderDock(); return true; }
+      case 'confirm-cancel': sv.confirm = null; renderDock(); return true;
+      case 'conflict-keep': if (sv.conflict) { var head = sv.conflict.head; sv.state = 'dirty'; serverSave(head); } return true;
+      case 'conflict-open': if (sv.link) { var pid = sv.link.projectId; sv.state = 'dirty'; sv.conflict = null; openProject(pid); } return true;
+      default: return false;
+    }
   }
 
   // ── changing the document ─────────────────────────────────────────────────
@@ -951,7 +1414,8 @@
     var mod = ev.ctrlKey || ev.metaKey, k = ev.key;
     if (mod && (k === 'z' || k === 'Z') && !typing(ev.target)) { ev.preventDefault(); undoRedo(ev.shiftKey ? 'redo' : 'undo'); return; }
     if (mod && (k === 'y' || k === 'Y') && !typing(ev.target)) { ev.preventDefault(); undoRedo('redo'); return; }
-    if (mod && (k === 's' || k === 'S')) { ev.preventDefault(); saveNow(true); return; }
+    if (mod && (k === 's' || k === 'S')) { ev.preventDefault(); serverSave(); return; }
+    if (k === 'Escape' && S.srv.open) { ev.preventDefault(); closeDock(); return; }
     if (k === 'Escape' && S.panel) { setPanel(null); return; }
     if (ev.target !== S.el.canvas) return;
     var n = selectedLayer(), step = ev.shiftKey ? 10 : 1;
@@ -1548,12 +2012,14 @@
     E.docName.value = S.doc.name;
     E.saveState = h('span', { class: 'pd-savestate', role: 'status' });
     E.file = h('input', { class: 'pd-sr', type: 'file', accept: '.json,application/json', tabindex: '-1', 'aria-hidden': 'true' });
-    var versions = planned(btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'versions' }, [icon('versions', 16), h('span', { text: T('Versions') })]), 'versions');
+    var projects = btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'projects', 'data-pd-dock': 'projects', 'aria-controls': 'pd-dock', 'aria-expanded': 'false' }, [icon('folder', 16), h('span', { text: T('Projects') })]);
+    var versions = btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'versions', 'data-pd-dock': 'versions', 'aria-controls': 'pd-dock', 'aria-expanded': 'false' }, [icon('versions', 16), h('span', { text: T('Versions') })]);
     var proof = planned(btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'proof' }, [icon('eye', 16), h('span', { text: T('Production preview') })]), 'proof');
     var order = planned(btn({ class: 'pd-btn pd-btn--order', 'data-pd-act': 'order' }, [icon('cart', 18), h('span', { text: T('Continue to order') })]), 'order');
     var bar = h('footer', { class: 'pd-actions', 'data-ds-region': 'R12' }, [
       h('div', { class: 'pd-actions-start' }, [
         btn({ class: 'pd-btn pd-btn--primary', 'data-pd-act': 'save', 'aria-keyshortcuts': 'Control+S' }, [icon('save', 16), h('span', { text: T('Save design') })]),
+        projects,
         versions,
         h('div', { class: 'pd-file', role: 'group', 'aria-label': T('File') }, [
           btn({ class: 'pd-icbtn', 'data-pd-act': 'import', 'aria-label': T('Import a design file'), title: T('Import a design file') }, [icon('import')]),
@@ -1563,7 +2029,7 @@
       ]),
       h('div', { class: 'pd-actions-mid' }, [
         h('div', { class: 'pd-namefield' }, [h('span', { class: 'pd-namefield-ic', 'aria-hidden': 'true' }, [icon('pencil', 14)]), E.docName, E.saveState]),
-        h('p', { class: 'pd-local' }, [icon('info', 14), h('span', { text: T('Drafts are saved only in this browser') })]),
+        (E.localLine = h('p', { class: 'pd-local' }, [icon('info', 14), (E.local = h('span', { text: T('Saved on the Familista server · draft kept in this browser') }))])),
       ]),
       h('div', { class: 'pd-cost' }, [
         h('span', { class: 'pd-cost-label', text: T('Estimated cost') }),
@@ -1588,9 +2054,9 @@
   var STATE_LABEL = { available: L('Available'), planned: L('Planned'), 'not-connected': L('Not connected') };
   var INTEGRATION = [
     { ok: true, label: L('Part of Owner Control, in the Platform Owner navigation') },
-    { ok: true, label: L('Holds no club or personal data: drafts stay in this browser') },
+    { ok: true, label: L('Holds no club or personal data: platform designs only') },
     { ok: false, label: L('Supervised by AI agents'), state: L('Planned, DS-8') },
-    { ok: false, label: L('Visible in the Neural Digital Twin'), state: L('Planned, DS-1b') },
+    { ok: true, label: L('Visible in the Neural Digital Twin') },
   ];
   var SUPPLIERS = [
     { name: 'Printful', state: L('Under evaluation') },
@@ -1663,6 +2129,7 @@
       h('main', { class: 'pd-main' }, [buildHead(), h('div', { class: 'pd-work' }, [E.lib, editor, E.insp, E.prod]), buildActions()]),
       buildFoot(), buildTabbar(),
       h('div', { class: 'pd-scrim', 'data-pd-act': 'close-panel', 'aria-hidden': 'true' }),
+      (E.dock = h('section', { class: 'pd-dock', id: 'pd-dock', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'pd-dock-title', 'data-open': S.srv.open ? 'true' : 'false' })),
       E.live,
     ]);
     host.appendChild(E.shell);
@@ -1674,6 +2141,9 @@
     syncName();
     syncViews();
     setSaveState(S.saveState);
+    syncServerState();
+    renderDock();
+    syncDockTriggers();
     renderThumbs();
     var mine = S;
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (S === mine) { FAMILY = {}; renderCanvas(); scheduleThumbs(); } });
@@ -1733,6 +2203,9 @@
       return;
     }
     var a;
+    if ((a = t.getAttribute('data-pd-docktab'))) { if (S.srv.tab !== a) { S.srv.tab = a; S.srv.confirm = null; syncDockTriggers(); renderDock(); loadDockTab(); } var tb = S.el.dock.querySelector('[data-pd-docktab="' + a + '"]'); if (tb) tb.focus(); return; }
+    if ((a = t.getAttribute('data-pd-filter'))) { if (S.srv.filter !== a) { S.srv.filter = a; loadProjects(); } return; }
+    if ((a = t.getAttribute('data-pd-act')) && onDockAction(a, t)) return;
     if ((a = t.getAttribute('data-pd-lang'))) { chooseSetLocale(a).then(function () { if (S) build(); }); return; }
     if ((a = t.getAttribute('data-pd-view'))) { setView(a); return; }
     if ((a = t.getAttribute('data-pd-mode'))) { S.mode = a; renderCanvas(); var ms = S.el.modes.querySelectorAll('[data-pd-mode]'); for (var i = 0; i < ms.length; i++) if (ms[i].getAttribute('aria-disabled') !== 'true') ms[i].setAttribute('aria-pressed', ms[i].getAttribute('data-pd-mode') === a ? 'true' : 'false'); say(a === '2d' ? T('Flat panels, with the printable area and safe zone') : T('Shaded preview')); return; }
@@ -1773,7 +2246,7 @@
       case 'align-v': alignSel('v'); return;
       case 'reset-box': { var n = selectedLayer(); if (n && !n.locked) batch([['w', n.w0], ['h', n.h0], ['r', 0]].map(function (kv) { return { op: 'set', target: { kind: 'layer', id: n.id }, key: kv[0], value: kv[1] }; }), T('Reset')); return; }
       case 'add-colour': addColour(); return;
-      case 'save': saveNow(true); return;
+      case 'save': serverSave(); return;
       case 'import': S.el.file.value = ''; S.el.file.click(); return;
       case 'export': exportFile(); return;
       case 'close-panel': setPanel(null); return;
@@ -1916,10 +2389,13 @@
         S.hist = C.createHistory();
         S.sel = null;
         S.merge = null;
+        setLink(null);
+        S.srv.state = 'local'; S.srv.conflict = null; S.srv.error = ''; S.srv.notice = ''; S.srv.origin = 'FILE_IMPORT'; S.srv.revs = null;
         changed();
         buildProps();
         saveNow();
-        say(tf('Imported %s. The undo history starts again from here.', doc.name));
+        renderDock();
+        say(tf('Imported %s. The undo history starts again from here.', doc.name) + ' ' + T('Save design keeps it on the Familista server as a new design.'));
       } catch (e) {
         say(tf('Not imported: %s', problemText(e)));
       }
@@ -1951,13 +2427,17 @@
       var stored = loadStored();
       S.doc = stored.doc;
       S.saveState = stored.note === 'unavailable' ? 'unavailable' : 'saved';
+      S.srv.link = P.readLink();
+      // A draft DS-1a kept in this browser, not yet on the server: its first save is recorded as coming from it.
+      if (!S.srv.link && stored.note === 'restored') S.srv.origin = 'BROWSER_DRAFT';
       S.metrics.mounts++;
       build();
+      checkLink();
       host.removeAttribute('aria-busy');
       if (stored.note === 'restored') say(tf('Opened %s, saved in this browser.', S.doc.name));
       else if (stored.note === 'unreadable') say(T('The draft saved in this browser could not be read, so a new design was started. The unreadable copy was kept aside.'));
       else if (stored.note === 'unavailable') say(T('Not saved: this browser’s storage is unavailable'));
-      else say(T('A new design was started. Drafts are saved only in this browser.'));
+      else say(T('A new design was started. Save design keeps it on the Familista server.'));
     }).catch(function () {
       if (S !== mine) return;
       host.removeAttribute('aria-busy');
@@ -1989,6 +2469,8 @@
       view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
       layers: S.doc.surfaces.map(function (x) { return x.layers.length; }), findings: S.findings.length,
       saveState: S.saveState, lastSaveBytes: S.metrics.lastSaveBytes, announced: S.announced, lang: LANG, dir: DIR,
+      server: { state: S.srv.state, busy: S.srv.busy, linked: !!S.srv.link, projectId: S.srv.link ? S.srv.link.projectId : null, revision: S.srv.link ? S.srv.link.revision : null,
+        conflict: S.srv.conflict, dockOpen: S.srv.open, tab: S.srv.tab, list: S.srv.listState, versions: S.srv.revState, origin: S.srv.origin },
       camera: S.cam ? { cx: S.cam.cx, cy: S.cam.cy, z: S.cam.z } : null,
     };
   };

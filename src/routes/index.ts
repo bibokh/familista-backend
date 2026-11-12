@@ -22,6 +22,7 @@ import designSystemRoutes from './design-system.routes';
 import agentsRoomRoutes from './agents-room.routes';
 import neuralTwinRoutes from './neural-twin.routes';
 import systemUpdatesRoutes from './system-updates.routes';
+import productDesignRoutes from './product-design.routes';
 import telemetryRoutes from './telemetry.routes';
 import contextRoutes    from './context.routes';
 // Phase B — Match Intelligence + Hardware Sessions + Automation
@@ -135,6 +136,8 @@ router.use('/system/agents', agentsRoomRoutes);
 router.use('/system/neural-twin', neuralTwinRoutes);
 // Familista System Updates: what is running, how a change reaches production, what waits for the owner. Owner-only, read-only.
 router.use('/system/updates', systemUpdatesRoutes);
+// Familista Design Studio: the platform owner's saved designs and their revisions. Owner-only, enforced on the server.
+router.use('/system/product-design', productDesignRoutes);
 // Product-usage ingestion. Deliberately not '/analytics' — that is a club's own
 // football analytics, and the two must never be confused for one another.
 router.use('/telemetry',   telemetryRoutes);

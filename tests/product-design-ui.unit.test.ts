@@ -86,17 +86,18 @@ describe('the Interface Studio is preserved', () => {
   });
 });
 
-describe('wiring: an owner room of its own, asking the server for nothing', () => {
-  it('app.js loads it on demand behind the platform-owner check, its core before its editor, under one version that the room also uses', () => {
-    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261110-product-design-1a', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/product-design.js'], done);");
-    expect(JS).toContain("var VERSION = '20261110-product-design-1a';");
+describe('wiring: an owner room of its own, its design routes guarded on the server', () => {
+  it('app.js loads it on demand behind the platform-owner check, its core, then its server client, then its editor, under one version that the room also uses', () => {
+    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261112-product-design-1b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/product-design.js'], done);");
+    expect(JS).toContain("var VERSION = '20261112-product-design-1b';");
     expect(APP).toContain("if (page === 'product-design' && !(_PD_ROOM && _PD_ROOM.state === 'ready')) {");
     expect(APP).toMatch(/_loadProductDesign\(function \(ok\) \{\s*try \{ navTo\(ok \? page : 'owner-home', ok \? el : null, _opts\); \} catch \(_\) \{\}/);
   });
 
   it('says plainly that the client check is convenience and not a security boundary', () => {
-    expect(APP).toContain('The /system/whoami check is convenience, NOT');
-    expect(APP).toContain('a security boundary: the room has no endpoint and sends nothing to the server.');
+    expect(APP).toContain('The /system/whoami check is convenience, NOT a security');
+    expect(APP).toContain('boundary: every design route checks the platform owner on the server');
+    expect(APP).not.toContain('the room has no endpoint and sends nothing to the server');
     expect(JS).toContain('That check is a');
     expect(JS).toContain('convenience and NOT a security boundary');
   });
@@ -127,9 +128,19 @@ describe('wiring: an owner room of its own, asking the server for nothing', () =
     expect(JS).toContain("nav.innerHTML = window.famOwnerNav('product-design', T, 'pd-ownernav');");
   });
 
-  it('adds no route, permission or CSP change: no TypeScript under src/ knows it, and the policy is the one it was', () => {
+  it('its server side is exactly the DS-1b files, mounted once behind the owner guard, and the CSP is the one it was', () => {
     const ts = (d: string): string[] => fs.readdirSync(path.join(ROOT, d), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? ts(path.join(d, e.name)) : /\.ts$/.test(e.name) ? [path.join(d, e.name)] : []));
-    expect(ts('src').filter((f) => /product-design|ProductDesign|pd-core/.test(read(f)))).toEqual([]);
+    expect(ts('src').filter((f) => /product-design|ProductDesign|pd-core/.test(read(f))).sort()).toEqual([
+      'src/contracts/owner-api.contracts.ts', 'src/cyber-defense/control-plane/registry.ts',
+      'src/platform/product-design/core.ts', 'src/routes/index.ts', 'src/routes/product-design.routes.ts',
+    ]);
+    expect(fs.readdirSync(path.join(ROOT, 'src/platform/product-design')).sort()).toEqual(['core.ts', 'service.ts']);
+    expect(read('src/routes/index.ts').match(/product-design/g)).toHaveLength(2);
+    expect(read('src/routes/index.ts')).toContain("router.use('/system/product-design', productDesignRoutes);");
+    const routes = read('src/routes/product-design.routes.ts');
+    expect(routes).toContain('router.use(authenticate);');
+    expect(routes).toContain('await assertPlatformOwner({ userId: u?.id ?? \'\', clubId: u?.clubId ?? null, role: u?.role });');
+    expect(routes.indexOf('assertPlatformOwner(')).toBeLessThan(routes.indexOf("router.get('/projects'"));
     const app = read('src/app.ts');
     expect(app).toContain(`scriptSrc:   ["'self'"],`);
     expect(app).toContain(`styleSrc:    ["'self'", 'https://fonts.googleapis.com'],`);
@@ -199,14 +210,14 @@ describe('it says what it is, and what it is not yet', () => {
   const REASON_KEYS = new Set(REASONS.map((r) => r[0]));
 
   it('every unavailable control names a reason that exists, and every reason is in the room’s catalogue', () => {
-    expect([...REASON_KEYS].sort()).toEqual(['360', '3d', 'capture', 'context-club', 'context-creator', 'fabric', 'image', 'method', 'order', 'orders', 'payments', 'product', 'proof', 'store', 'suppliers', 'templates', 'versions']);
+    expect([...REASON_KEYS].sort()).toEqual(['360', '3d', 'capture', 'context-club', 'context-creator', 'fabric', 'image', 'method', 'order', 'orders', 'payments', 'product', 'proof', 'store', 'suppliers', 'templates']);
     // Each reason is defined once and used at least once: by planned(…, 'key'), a context, a read-only field or a side entry.
     for (const k of REASON_KEYS) {
       const quoted = (CODE.match(new RegExp(`'${k}'`, 'g')) || []).length;
       const definedQuoted = new RegExp(`^\\s+'${k}': L\\(`, 'm').test(CODE) ? 1 : 0;
       expect([k, quoted - definedQuoted >= 1]).toEqual([k, true]);
     }
-    for (const use of ["planned(image, 'image')", "planned(capture, 'capture')", "'aria-pressed': 'false', text: '3D' }), '3d')", "]), '360'))", "]), 'versions')", "]), 'proof')", "]), 'order')",
+    for (const use of ["planned(image, 'image')", "planned(capture, 'capture')", "'aria-pressed': 'false', text: '3D' }), '3d')", "]), '360'))", "]), 'proof')", "]), 'order')",
       "if (t[0] === 'templates') planned(b, 'templates');", "if (!it.live) { planned(b, 'product');", "if (!active) { planned(b, key);", "planned(sel, reason);", ": it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)"]) {
       expect([use, CODE.includes(use)]).toEqual([use, true]);
     }
@@ -230,9 +241,12 @@ describe('it says what it is, and what it is not yet', () => {
     expect(CODE).not.toMatch(/L\('(Connected|Operational|Sandbox connected|Production connected)'\)/);
   });
 
-  it('says on screen, always, that drafts live in this browser only', () => {
-    expect(CODE).toContain("h('span', { text: T('Drafts are saved only in this browser') })");
-    expect(CODE).toContain("L('Holds no club or personal data: drafts stay in this browser')");
+  it('says on screen, always, where a design is kept: saved designs on the server, the draft in this browser', () => {
+    expect(CODE).toContain("h('span', { text: T('Saved on the Familista server · draft kept in this browser') })");
+    expect(CODE).toContain("L('Holds no club or personal data: platform designs only')");
+    expect(CODE).not.toContain('Drafts are saved only in this browser');
+    // Artwork upload stays unavailable, and says it waits for protected media storage, not for this phase.
+    expect(CODE).toContain("image: L('Uploading artwork waits for protected media storage with verified backups (planned).'),");
   });
 
   it('a pipeline that advances reads left to right in every language, and its arrows keep their direction', () => {
@@ -287,7 +301,7 @@ describe('the official languages', () => {
   it('writes no visible English outside the catalogue: the only literal texts are the brand, the mode names and symbols', () => {
     const noIcons = CODE.slice(0, CODE.indexOf('var ICONS = {')) + CODE.slice(CODE.indexOf('function icon(name, size)'));
     const texts = [...noIcons.matchAll(/text: '([^']*)'/g)].map((m) => m[1]);
-    expect([...new Set(texts)].sort()).toEqual(['2.5D', '2D', '360°', '3D', 'Familista', 'Familista Design Studio', '—', '→'].sort());
+    expect([...new Set(texts)].sort()).toEqual(['2.5D', '2D', '360°', '3D', 'Familista', 'Familista Design Studio', '—', '→', ' · '].sort());
   });
 
   it('the product names stay as the approved reference shows them, in every language', () => {
