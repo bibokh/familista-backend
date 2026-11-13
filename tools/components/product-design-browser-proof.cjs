@@ -1,4 +1,4 @@
-// Familista — Design Studio (DS-1a, DS-1b): browser proofs.
+// Familista — Design Studio (DS-1a, DS-1b, DS-1c): browser proofs. DS-1c's 3D view is P16, in product-design-3d-proof.cjs.
 //
 // What Jest cannot see, proven in a real Chromium against the REAL compiled application served by the REAL app on a
 // REAL PostgreSQL (DS-1b gave the room a backend, so nothing is stubbed): a database freshly migrated, owned by a role
@@ -40,6 +40,8 @@ fs.mkdirSync(OUT, { recursive: true });
 const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
 const REGIONS = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/design-studio/reference-regions.json'), 'utf8'));
 const REFERENCE = path.join(ROOT, 'docs/design-studio', REGIONS.reference);
+// PROOF_ONLY=P16 runs only the DS-1c 3D sections (P16); unset, everything runs.
+const want = (n) => !process.env.PROOF_ONLY || process.env.PROOF_ONLY.split(',').includes(n);
 const roomWord = (code, en) => JSON.parse(fs.readFileSync(path.join(ROOT, 'public/product-design/i18n', code + '.json'), 'utf8'))[en];
 
 const OWNER = { id: 'u-owner', email: 'owner@familista.test', role: 'SUPER_ADMIN' };
@@ -127,9 +129,12 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
   const shot = (pg, name) => pg.screenshot({ path: path.join(OUT, 'pd-' + name + '.png') });
   const draft = (pg) => pg.evaluate(() => localStorage.getItem('familista_product_design_draft_v1'));
   const live = (pg) => pg.evaluate(() => (document.querySelector('#pd-root .pd-sr[role="status"]') || {}).textContent || '');
+  async function proof3d() { await require('./product-design-3d-proof.cjs')({ open, M, shot, live, boxOf, check, pass, fail, OUT, ROOT, BASE, db, roomWord }); }
   const boxOf = (pg, sel) => pg.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; }, sel);
 
   try {
+    ds1: { // eslint-disable-line no-labels -- PROOF_ONLY=P16 skips the DS-1a and DS-1b sections without reindenting them
+    if (!want('DS1')) break ds1; // eslint-disable-line no-labels
     // ── P1 the owner opens it, under the production CSP, and it asks the server for nothing until a design is saved ─
     // The app shell writes inline style attributes that the policy refuses (pre-existing, outside every room): measured
     // on another owner room in this same session, the Design Studio may add none, and none may come from inside it.
@@ -139,7 +144,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     const { ctx, page, log } = await open({ width: 1672, height: 941 }, 'en-GB');
     const readyMs = Date.now() - t0;
     const roomRequests = log.requests.filter((r) => /product-design/.test(r.path));
-    check('P1 the Platform Owner opens the Design Studio; it loads exactly its own five static files, by GET, and calls no API', JSON.stringify(roomRequests.map((r) => r.method + ' ' + r.path).sort()) === JSON.stringify(['GET /product-design/pd-core.js', 'GET /product-design/pd-server.js', 'GET /product-design/product-design.css', 'GET /product-design/product-design.js', 'GET /product-design/templates/football-jersey.json']), roomRequests.map((r) => r.path));
+    check('P1 the Platform Owner opens the Design Studio; it loads exactly its own seven static files (DS-1c: the garment and the 3D view, not the 3D engine), by GET, and calls no API', JSON.stringify(roomRequests.map((r) => r.method + ' ' + r.path).sort()) === JSON.stringify(['GET /product-design/pd-3d.js', 'GET /product-design/pd-core.js', 'GET /product-design/pd-garment.js', 'GET /product-design/pd-server.js', 'GET /product-design/product-design.css', 'GET /product-design/product-design.js', 'GET /product-design/templates/football-jersey.json']), roomRequests.map((r) => r.path));
     await page.waitForTimeout(3500);
     const csp = await page.evaluate(() => window.__csp);
     const inRoom = csp.filter((c) => c.inRoom || /product-design/.test(c.src + c.uri));
@@ -266,7 +271,8 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     check('P5 an Interface Studio file (or any other) is refused and changes nothing', JSON.parse(await draft(page)).name === 'Imported kit' && /Not imported/.test(await live(page)), await live(page));
 
     // ── P6 every unavailable control says why when it is used, and changes nothing ───────────────────────────────────
-    for (const [sel, reason] of [['[data-pd-mode="3d"]', '3D'], ['[data-pd-act="order"]', 'Ordering'], ['[data-pd-act="image"]', 'Uploading artwork'], ['[data-pd-act="proof"]', 'Production proofs']]) {
+    // DS-1c made 3D live where WebGL is (its unavailable state, without WebGL, is proven in P16); image export is still planned.
+    for (const [sel, reason] of [['[data-pd-act="capture"]', 'Image export'], ['[data-pd-act="order"]', 'Ordering'], ['[data-pd-act="image"]', 'Uploading artwork'], ['[data-pd-act="proof"]', 'Production proofs']]) {
       const sBefore = await draft(page);
       // aria-disabled, not disabled: a person can still press it and hear why (Playwright needs `force` to do the same).
       await page.click('#pd-root ' + sel, { force: true });
@@ -631,6 +637,8 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       check('P12 a full repaint (switching views) ≤ 50 ms (median, warm)', full.renderMsMedian <= 50, { median: full.renderMsMedian, max: full.renderMsMax, renders: full.renders });
       await c7.close();
     }
+    } // ds1
+    if (want('P16')) await proof3d();
   } catch (e) {
     fail('proof crashed', String(e && e.stack || e).slice(0, 1200));
   } finally {

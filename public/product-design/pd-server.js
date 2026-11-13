@@ -64,6 +64,8 @@
     openProject: function (projectId) { return call('GET', '/projects/' + id(projectId)); },
     saveRevision: function (projectId, baseRevision, document) { return call('POST', '/projects/' + id(projectId) + '/revisions', { baseRevision: baseRevision, document: document }); },
     listRevisions: function (projectId) { return call('GET', '/projects/' + id(projectId) + '/revisions'); },
+    // Read only: one saved version with its document, for the 3D comparison (DS-1c). Nothing is written.
+    getRevision: function (projectId, number) { return call('GET', '/projects/' + id(projectId) + '/revisions/' + Number(number)); },
     restoreRevision: function (projectId, number, baseRevision) { return call('POST', '/projects/' + id(projectId) + '/revisions/' + Number(number) + '/restore', { baseRevision: baseRevision }); },
     archive: function (projectId) { return call('POST', '/projects/' + id(projectId) + '/archive', {}); },
     unarchive: function (projectId) { return call('POST', '/projects/' + id(projectId) + '/unarchive', {}); },

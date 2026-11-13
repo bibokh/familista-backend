@@ -75,11 +75,12 @@ describe('what it may call', () => {
     const id = '11111111-1111-4111-8111-111111111111';
     await P.api.listProjects('active'); await P.api.createProject({}, 'EDITOR'); await P.api.openProject(id);
     await P.api.saveRevision(id, 1, {}); await P.api.listRevisions(id); await P.api.restoreRevision(id, 2, 5);
-    await P.api.archive(id); await P.api.unarchive(id);
-    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/product-design', '').replace(/\?.*$/, '').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/')}`).sort();
-    expect([...new Set(used)].sort()).toEqual(served.filter((r) => r !== 'GET /projects/:id/revisions/:number'));
-    // Control: the one route the room does not call is the single-revision read, kept for the API and its tests.
-    expect(served).toContain('GET /projects/:id/revisions/:number');
+    await P.api.archive(id); await P.api.unarchive(id); await P.api.getRevision(id, 3);
+    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/product-design', '').replace(/\?.*$/, '').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
+    // DS-1c: the room now calls every route, the single-version read included (the 3D comparison, read only).
+    expect([...new Set(used)].sort()).toEqual(served);
+    expect(calls[calls.length - 1].init).toMatchObject({ method: 'GET' });
+    expect(calls[calls.length - 1].init.body).toBeUndefined();
   });
 
   it('names only an origin the server accepts, and refuses to send any other', async () => {
