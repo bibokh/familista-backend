@@ -950,34 +950,52 @@ beside the design; it is never put into the editor and nothing is written.
 | Evidence | Result |
 |---|---|
 | `tests/product-design-garment.unit.test.ts` | 39 tests on the real template. Exact UV equals flat position. Row isometry (≤ 0.2 % error) and sleeve circumference. Closed side, shoulder and underarm seams (< 1e-9 m). No flare at the hem or cuffs. Not mirrored under any preset. Outward normals and close-ups. Deterministic. Negative controls for the arc-length wrap and for mirroring. |
-| `tests/product-design-3d.unit.test.ts` | 13 tests. Loads only the vendored script; no network, no `eval`, no inline style; no words of its own; every blob URL revoked; every listener, frame and object released on dispose; reduced motion honoured; the comparison only reads. |
+| `tests/product-design-3d.unit.test.ts` | 14 tests. Loads only the vendored script; no network, no `eval`, no inline style; no words of its own; every blob URL revoked; every listener, frame and object released on dispose; reduced motion honoured; the comparison only reads; a drag composites without drawing SVG and uploads only what changed. |
 | DS-1a/DS-1b suites, full Jest suite, typecheck, `i18n:check`, build | Pass (232 suites; 7 821 tests; 8 database-gated suites skipped without a database). |
 | DS-1b persistence on real PostgreSQL | 24 / 24. |
-| Browser proof, real application on real PostgreSQL, production CSP (`tools/components/product-design-browser-proof.cjs`, P16 in `product-design-3d-proof.cjs`) | 139 / 139, of which 33 are P16. 3D is loaded only when chosen; no CSP violation and no page error from the room. Hiding the crest on the 3D garment changes the pixels where the geometry puts it, and not at its mirror image (negative control). The drag matches in millimetres, with exact undo. Presets, keyboard and close-up work. Print check, light, fabric and quality work. Comparison writes nothing. The engine is disposed on leaving 3D and on leaving the room. Without WebGL, or without the engine, the room says why and stays on 2.5D. Nothing around the canvas moves when 3D opens. Arabic mirrors the controls and not the garment. axe finds no WCAG 2.2 A/AA violation in 3D (English, Arabic). |
+| Browser proof, real application on real PostgreSQL, production CSP (`tools/components/product-design-browser-proof.cjs`, P16 in `product-design-3d-proof.cjs`) | 46 P16 checks, with the DS-1a and DS-1b sections. 3D is loaded only when chosen; no CSP violation and no page error from the room. Hiding the crest on the 3D garment changes the pixels where the geometry puts it, and not at its mirror image (negative control). The drag matches in millimetres, with exact undo. In the middle of a drag the garment shows the element where it now is, and not where it was; the full artwork returns on release. Presets, keyboard and close-up work. Print check, light, fabric and quality work. The compared garment shows the saved version's artwork, and comparison writes nothing. The engine is disposed on leaving 3D and on leaving the room. Without WebGL, or without the engine, the room says why and stays on 2.5D. Nothing around the canvas moves when 3D opens. The 3D controls are translated, fit and are not clipped in all five languages. Arabic mirrors the controls and not the garment. axe finds no WCAG 2.2 A/AA violation in 3D in any of the five languages. |
 
 **Performance, measured on this machine, not claimed.** Headless Chromium renders WebGL and composites the page in
-software (SwiftShader), so these figures are a slow baseline, not a real graphics card. A control measures this
-machine's own floor: a plain 2D canvas of the same size, redrawn every frame, in the same page.
+software (SwiftShader), so these figures are a slow baseline, not a real graphics card. Two controls measure this
+machine's own floor: a plain 2D canvas of the same size redrawn every frame, and the pointer rate over an idle part of
+the page.
 
 | | Desktop 1672 × 941, balanced | Phone 390 × 844, CPU slowed 4×, low |
 |---|---|---|
-| 3D ready after it is chosen | ≈ 1.2 s | ≈ 2.5 s |
+| 3D ready after it is chosen | ≈ 1.1–1.7 s | ≈ 2.3–2.5 s |
 | Turntable, median frame interval | ≈ 53–63 ms | ≈ 30 ms |
 | Plain-canvas floor (control) | 33.3 ms | 16.7 ms |
-| Scene CPU time per frame (median) | ≈ 1 ms | ≈ 4 ms |
-| Repainting one surface's artwork (median) | ≈ 100–180 ms | ≈ 260–410 ms |
+| Scene CPU time per frame (median) | ≈ 1 ms | ≈ 3–4 ms |
+| Pointer moves handled per second: idle area (control) / orbiting the garment / dragging an element on it | ≈ 29 / ≈ 30 / ≈ 6 | — |
+
+**The drag, investigated.** A 3D drag handled about 5 pointer moves a second here, while orbiting kept up with the
+pointer (about 30). Each cause was measured in turn, and the safe ones were removed:
+
+- **Per move, the whole surface was redrawn from SVG** (≈ 50 ms). Now the layers under and over the dragged element
+  are rasterised once when the drag starts. Each move composites the element at its new place (≈ 6 ms) and uploads
+  only the rectangle it left and entered: about 70 000 pixels instead of about 410 000 at balanced quality. The
+  full-resolution artwork is painted again on release. A browser check samples the pixels in the middle of a drag.
+- **The draft texture has no mipmap chain**, and the canvas is measured once per drag rather than on every move.
+- **A drag lowers the resolution like a camera motion**; the first frame at rest is full resolution.
+
+None of these changed the drag rate in this environment. A Chrome trace shows why. About two thirds of the main
+thread's time during a drag is spent waiting on the GPU process (`GLES2::ReadPixels`, `CommandBufferHelper::Finish`),
+which runs WebGL in software and reads the canvas back for software compositing. The same wait does not appear when
+orbiting, and the reason for that difference was not established. Readback for software compositing does not happen
+on a device that composites on the GPU. **Whether the drag is fluid on real graphics hardware has not been measured.**
+The proof keeps a regression floor (≥ 4 drag updates a second here), not a quality target.
 
 The first frame budget (≤ 50 ms turntable on desktop) was not met under software rendering. The budget in the proof is
-≤ 66.7 ms and no more than two 60 Hz frames over the measured floor. Real devices with graphics hardware have not been
-measured. Repainting a surface's artwork (SVG rasterised into a texture) is the slowest step, so a 3D drag updates at
-roughly 5–10 frames a second here.
+≤ 66.7 ms and no more than two 60 Hz frames over the measured floor. To measure a real device, follow
+`docs/design-studio/DS-1c-real-device-performance.md`. It uses only the room's read-only metrics and proposes targets
+for those measurements to confirm or refute.
 
 **Implemented and deferred.**
 
 | Asked for | DS-1c |
 |---|---|
 | True 3D jersey; 360° orbit; front, back, left, right; zoom, rotate, reset | Implemented (procedural prototype) |
-| Front, back and sleeve mapping; synchronised 2D/3D editing; real-time updates | Implemented. Updates are as fast as the artwork can be repainted (above). |
+| Front, back and sleeve mapping; synchronised 2D/3D editing; real-time updates | Implemented. Measured rates and the remaining drag limitation are above. |
 | PBR fabric; lighting environments; seams, collar, sleeves; text orientation | Implemented |
 | Desktop and mobile; 2D/2.5D fallback without WebGL | Implemented |
 | Precision placement and inspection in 3D | Drag in millimetres with the flat panel's snapping and grid; 10 mm grid on the garment; close-up. Resizing and rotating stay on the flat panel. |

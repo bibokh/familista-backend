@@ -71,6 +71,24 @@ describe('what the 3D view may load and do', () => {
     expect(CODE).toContain('if (instant || reduced) {');
   });
 
+  it('a drag composites the element between parts drawn once, uploads only the rectangle it changed, and ends at full resolution', () => {
+    // Parts are rasterised once per drag; a move draws no SVG and decodes no image.
+    expect(CODE).toContain('function prepareParts(d) {');
+    expect(CODE).toContain('opts.dragParts(d.surface, dr.px[0], dr.px[1])');
+    const comp = CODE.slice(CODE.indexOf('function composite(p, parts) {'), CODE.indexOf('function paint(id) {'));
+    expect(comp).not.toMatch(/loadSvg|drawSvg|new Image|createObjectURL|opts\.texture/);
+    // Only the union of where the element was and where it is is redrawn and uploaded, at the flipped row the texture stores it.
+    expect(comp).toContain('ctx.clip();');
+    expect(comp).toContain('engine.updateTextureData(it, new Uint8Array(data.buffer, data.byteOffset, data.byteLength), rect[0], H - rect[1] - rh, rw, rh, 0, 0, false);');
+    // The draft has no mipmap chain; the release asks for the full artwork again.
+    expect(CODE).toContain("new B.DynamicTexture('pd3-draft-' + p.mesh.name, { width: px[0], height: px[1] }, scene, false, B.Texture.BILINEAR_SAMPLINGMODE)");
+    expect(CODE).toContain('if (panels[d.surface] && panels[d.surface].draft) invalidate([d.surface]);');
+    // The canvas is measured once per drag, not on every move.
+    const move = CODE.slice(CODE.indexOf('function onDragMove(e) {'), CODE.indexOf('function onDragEnd(e) {'));
+    expect(move).not.toContain('getBoundingClientRect');
+    expect(move).toContain('local(e, d.rect)');
+  });
+
   it('keeps the orbit it is given when the camera’s target moves (Babylon would recompute it from the old position)', () => {
     const calls = [...CODE.matchAll(/camera\.setTarget\(([^;]+)\);/g)].map((m) => m[1]);
     expect(calls.length).toBeGreaterThanOrEqual(2);
@@ -103,10 +121,14 @@ describe('how the editor uses it', () => {
   });
 
   it('the garment’s artwork is the 2D canvas’s own drawing, with the lettering’s font written out for an image', () => {
-    const tex = EDITOR.slice(EDITOR.indexOf('function texture3d(surfaceId, w, hgt, overlay) {'), EDITOR.indexOf('function boxOutline('));
-    expect(tex).toContain('layerNode(defs, prefix, n, bounds)');
+    const tex = EDITOR.slice(EDITOR.indexOf('function fontFor(node, n) {'), EDITOR.indexOf('function boxOutline('));
+    expect(tex.length).toBeGreaterThan(1000);
+    expect(tex).toContain('body.appendChild(fontFor(layerNode(defs, prefix, n, bounds), n));');
     expect(tex).toContain("t.setAttribute('font-family', familyOf(FONT[n.font] || FONT['sans-black']))");
     expect(tex).toContain('new XMLSerializer().serializeToString(svg)');
+    // A drag's parts are the same drawing split at the dragged element: under it, the element alone, over it.
+    expect(tex).toContain("below: texture3d(surfaceId, w, hgt, false, { id: n.id, part: 'below' }),");
+    expect(tex).toContain("above: texture3d(surfaceId, w, hgt, true, { id: n.id, part: 'above' }),");
   });
 
   it('closes the 3D view whenever the room is rebuilt or torn down', () => {

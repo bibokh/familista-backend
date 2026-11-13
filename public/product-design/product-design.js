@@ -1541,36 +1541,72 @@
    * on it, without the 2D view's shading or neighbouring sleeves. With `overlay`,
    * the selection and, when asked for, the print check and the grid.
    */
-  function texture3d(surfaceId, w, hgt, overlay) {
-    var ts = tSurface(surfaceId), surf = C.findSurface(S.doc, surfaceId), prefix = 'pd3s-' + surfaceId;
+  /** Written out in full: the token the 2D canvas uses for lettering means nothing inside an image. */
+  function fontFor(node, n) {
+    var t = node.querySelector('text');
+    if (t) { t.style.removeProperty('font-family'); t.setAttribute('font-family', familyOf(FONT[n.font] || FONT['sans-black'])); }
+    return node;
+  }
+  /**
+   * One surface's artwork for the garment, w × h pixels: what the 2D canvas draws on it, without the 2D view's
+   * shading or neighbouring sleeves. With `overlay`, the selection and, when asked for, the print check and the grid.
+   * With `split` ({ id, part: 'below' | 'above' }), only the layers under, or over, the element being dragged:
+   * the parts a drag composites around that element without drawing the whole surface on every move.
+   */
+  function texture3d(surfaceId, w, hgt, overlay, split) {
+    var ts = tSurface(surfaceId), surf = C.findSurface(S.doc, surfaceId), prefix = 'pd3s-' + surfaceId + (split ? '-' + split.part : '');
     var defs = s('defs'), outline = C.outlinePath(ts.outline), base = colour(surf.base);
     var svg = s('svg', { xmlns: SVG, width: w, height: hgt, viewBox: '0 0 ' + ts.width + ' ' + ts.height, preserveAspectRatio: 'none' }, [defs]);
     defs.appendChild(s('clipPath', { id: prefix + '-clip' }, [s('path', { d: outline })]));
+    var cut = -1;
+    if (split) surf.layers.forEach(function (n, i) { if (n.id === split.id) cut = i; });
+    var under = !split || split.part === 'below', over = !split || split.part === 'above';
     // A hairline of the base colour beyond the outline keeps the garment's edge whole where the artwork is sampled.
-    svg.appendChild(s('path', { d: outline, fill: base, stroke: base, 'stroke-width': '1.6', 'stroke-linejoin': 'round' }));
+    if (under) svg.appendChild(s('path', { d: outline, fill: base, stroke: base, 'stroke-width': '1.6', 'stroke-linejoin': 'round' }));
     var bounds = { x: 0, y: 0, w: ts.width, h: ts.height };
-    var body = s('g', { 'clip-path': 'url(#' + prefix + '-clip)' }, [s('rect', { x: -60, y: -60, width: ts.width + 120, height: ts.height + 120, fill: base })]);
-    surf.layers.forEach(function (n) {
-      var node = layerNode(defs, prefix, n, bounds), t = node.querySelector('text');
-      // Written out in full: the token the 2D canvas uses means nothing inside an image.
-      if (t) { t.style.removeProperty('font-family'); t.setAttribute('font-family', familyOf(FONT[n.font] || FONT['sans-black'])); }
-      body.appendChild(node);
+    var body = s('g', { 'clip-path': 'url(#' + prefix + '-clip)' }, under ? [s('rect', { x: -60, y: -60, width: ts.width + 120, height: ts.height + 120, fill: base })] : []);
+    surf.layers.forEach(function (n, i) {
+      if (split && (split.part === 'below' ? i >= cut : i <= cut)) return;
+      body.appendChild(fontFor(layerNode(defs, prefix, n, bounds), n));
     });
-    TEMPLATE.views.forEach(function (v) {
-      if (v.surface !== surfaceId) return;
-      if (v.cuff) body.appendChild(s('line', { x1: v.cuff[0][0], y1: v.cuff[0][1], x2: v.cuff[1][0], y2: v.cuff[1][1], stroke: colour(S.doc.parts.cuffs), 'stroke-width': '28' }));
-      if (v.collar) body.appendChild(s('path', { d: C.outlinePath(v.collar).replace(/ Z$/, ''), fill: 'none', stroke: colour(S.doc.parts.collar), 'stroke-width': '16', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
-    });
+    if (over) {
+      TEMPLATE.views.forEach(function (v) {
+        if (v.surface !== surfaceId) return;
+        if (v.cuff) body.appendChild(s('line', { x1: v.cuff[0][0], y1: v.cuff[0][1], x2: v.cuff[1][0], y2: v.cuff[1][1], stroke: colour(S.doc.parts.cuffs), 'stroke-width': '28' }));
+        if (v.collar) body.appendChild(s('path', { d: C.outlinePath(v.collar).replace(/ Z$/, ''), fill: 'none', stroke: colour(S.doc.parts.collar), 'stroke-width': '16', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+      });
+    }
     svg.appendChild(body);
-    if (overlay) svg.appendChild(overlay3d(surfaceId, ts));
+    if (overlay && over) svg.appendChild(overlay3d(surfaceId, ts, split ? split.id : null));
     return new XMLSerializer().serializeToString(svg);
+  }
+  /**
+   * What a drag on the garment composites on every move, drawn once when it starts: the layers under the element,
+   * the element alone (centred, unrotated), the layers and overlays over it, the surface's outline (the element is
+   * clipped to it, as on the flat panel) and the element's current place in millimetres.
+   */
+  function dragParts3d(surfaceId, w, hgt) {
+    var d = S.v3.drag, f = d && d.surface === surfaceId ? C.findLayer(S.doc, d.id) : null;
+    if (!f) return null;
+    var n = f.layer, pad = Math.max(n.w, n.h) * 0.12, ts = tSurface(surfaceId), kx = w / ts.width, ky = hgt / ts.height;
+    var ew = n.w + 2 * pad, eh = n.h + 2 * pad, defs = s('defs');
+    var g = fontFor(layerNode(defs, 'pd3e-' + n.id, n, { x: 0, y: 0, w: ts.width, h: ts.height }), n);
+    g.removeAttribute('transform');
+    var el = s('svg', { xmlns: SVG, width: Math.max(2, Math.round(ew * kx)), height: Math.max(2, Math.round(eh * ky)), viewBox: [-ew / 2, -eh / 2, ew, eh].join(' '), preserveAspectRatio: 'none' }, [defs, g]);
+    return {
+      below: texture3d(surfaceId, w, hgt, false, { id: n.id, part: 'below' }),
+      above: texture3d(surfaceId, w, hgt, true, { id: n.id, part: 'above' }),
+      element: { svg: new XMLSerializer().serializeToString(el), w: ew, h: eh },
+      clip: C.outlinePath(ts.outline), select: ink().focus,
+      pose: function () { var l = C.findLayer(S.doc, n.id); return l ? { x: l.layer.x, y: l.layer.y, r: l.layer.r, w: l.layer.w, h: l.layer.h } : null; },
+    };
   }
   function boxOutline(n, stroke, width, dash) {
     return s('rect', { x: -n.w / 2 - 2, y: -n.h / 2 - 2, width: n.w + 4, height: n.h + 4, rx: 1.5, transform: 'translate(' + n.x + ' ' + n.y + ') rotate(' + n.r + ')',
       fill: 'none', stroke: stroke, 'stroke-width': width, 'stroke-dasharray': dash || null });
   }
   /** What is drawn on the artwork but never printed: the grid, the print check and the selection. */
-  function overlay3d(surfaceId, ts) {
+  function overlay3d(surfaceId, ts, skipId) {
     var g = s('g', { fill: 'none' }), c = ink();
     if (S.grid) {
       for (var x = 10; x < ts.width; x += 10) g.appendChild(s('line', { x1: x, y1: 0, x2: x, y2: ts.height, stroke: c.print, 'stroke-opacity': x % 50 ? '0.14' : '0.3', 'stroke-width': x % 50 ? '0.45' : '0.8' }));
@@ -1584,13 +1620,13 @@
       g.appendChild(s('polygon', { points: safe, stroke: c.print, 'stroke-width': '2.2', 'stroke-dasharray': '9 6' }));
       // The same deterministic check the Product panel lists: outside the printable area, across the safe zone, lettering too small.
       C.checkDesign(S.doc, TEMPLATE).forEach(function (f) {
-        if (f.surface !== surfaceId) return;
+        if (f.surface !== surfaceId || f.layer === skipId) return;
         var n = C.findLayer(S.doc, f.layer);
         if (n) g.appendChild(boxOutline(n.layer, f.severity === 'blocker' ? c.critical : c.warning, 3.2, '8 4'));
       });
     }
     var sel = selectedLayer();
-    if (sel && isBox(sel) && sel.visible && surfaceOfSelection() === surfaceId) g.appendChild(boxOutline(sel, c.focus, 1.6, sel.locked ? '4 3' : null));
+    if (sel && sel.id !== skipId && isBox(sel) && sel.visible && surfaceOfSelection() === surfaceId) g.appendChild(boxOutline(sel, c.focus, 1.6, sel.locked ? '4 3' : null));
     return g;
   }
 
@@ -1623,7 +1659,7 @@
     D3.open(S.el.host3d, {
       template: TEMPLATE, quality: v.quality, colours: trimColours(), seam: ink().seam, font: familyOf(FONT['sans-bold']), dir: DIR,
       texture: function (id, w, hgt) { return texture3d(id, w, hgt, true); },
-      onPick: pick3d, onDrag: drag3d, onDrop: drop3d,
+      onPick: pick3d, onDrag: drag3d, onDrop: drop3d, dragParts: dragParts3d,
       onError: function (code) { if (S === mine && v.token === token) fail3d(code); },
     }).then(function (ctl) {
       if (S !== mine || v.token !== token || S.mode !== '3d') { if (ctl && ctl.dispose) ctl.dispose(); return; }
@@ -1840,9 +1876,9 @@
       var el = E.bar3d.querySelector('[data-pd-act="cycle-' + c[0] + '"]');
       if (!el) return;
       el.querySelector('.pd3-cycle-value').textContent = T(c[2]);
-      var said = tf('%s: %s. Press to change.', T(c[1]), T(c[3]));
-      el.setAttribute('aria-label', said);
-      el.setAttribute('title', said);
+      // The accessible name carries the word the button shows (WCAG 2.5.3); the full name is the tooltip, and is spoken on change.
+      el.setAttribute('aria-label', tf('%s: %s. Press to change.', T(c[1]), T(c[2])));
+      el.setAttribute('title', tf('%s: %s. Press to change.', T(c[1]), T(c[3])));
     });
     var turn = S.host.querySelector('[data-pd-act="turntable"]');
     if (turn && turn.getAttribute('aria-disabled') !== 'true') turn.setAttribute('aria-pressed', S.mode === '3d' && v.turntable ? 'true' : 'false');
@@ -2907,7 +2943,7 @@
     };
   };
   /** Where a point of a surface appears in the 3D view, in CSS pixels of the canvas: for the browser proof. It changes nothing. */
-  window.__familistaProductDesignProject = function (surface, x, y) {
-    return S && S.v3.ctl ? S.v3.ctl.project(surface, x, y) : null;
+  window.__familistaProductDesignProject = function (surface, x, y, which) {
+    return S && S.v3.ctl ? S.v3.ctl.project(surface, x, y, which) : null;
   };
 })();

@@ -105,7 +105,7 @@
     var state = {
       quality: QUALITY[opts.quality] ? opts.quality : 'balanced', lighting: 'studio', fabric: 'smooth', check: false, turntable: false,
       preset: 'front', disposed: false, dirty: 3, raf: 0, want: {}, painting: {}, urls: [], drag: null, anim: null, compare: null,
-      builds: 0, renders: 0, frameMs: [], intervals: [], lastFrame: 0, textureMs: [], paints: 0, failed: null,
+      builds: 0, renders: 0, frameMs: [], intervals: [], lastFrame: 0, textureMs: [], draftMs: [], paints: 0, drafts: 0, composites: 0, uploadPx: 0, failed: null,
       // While the garment moves, the canvas may draw fewer pixels to keep the motion fluid; at rest it draws them all.
       boost: 1, moving: false, recent: [], still: 0,
     };
@@ -355,39 +355,148 @@
     }
 
     // ── textures: the editor's own drawing, painted onto each panel ─────────
-    function drawSvg(text, target, px, done) {
-      var url = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
+    /** An SVG text as a decoded image, through a blob URL that is revoked as soon as the image has loaded or failed. */
+    function loadSvg(text, done) {
+      var url = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' })), img = new Image();
       state.urls.push(url);
-      var img = new Image();
       function finish(ok) {
         URL.revokeObjectURL(url);
         state.urls = state.urls.filter(function (u) { return u !== url; });
-        done(ok);
+        done(ok && !state.disposed ? img : null);
       }
-      img.onload = function () {
-        if (state.disposed) { finish(false); return; }
+      img.onload = function () { finish(true); };
+      img.onerror = function () { finish(false); };
+      img.src = url;
+    }
+    function drawSvg(text, target, px, done) {
+      loadSvg(text, function (img) {
+        if (!img) { done(false); return; }
         try {
           var ctx = target.getContext();
           ctx.clearRect(0, 0, px[0], px[1]);
           ctx.drawImage(img, 0, 0, px[0], px[1]);
           target.update(true);
-          finish(true);
-        } catch (_) { finish(false); }
-      };
-      img.onerror = function () { finish(false); };
-      img.src = url;
+          done(true);
+        } catch (_) { done(false); }
+      });
+    }
+    /**
+     * While an element is dragged, its surface is painted into a draft texture at half the linear resolution (a
+     * quarter of the pixels to raster and upload); the full-resolution artwork is painted once more on release and
+     * shown when it is ready, so the garment is never left showing the draft.
+     */
+    function draftOf(p) {
+      if (!p.draft) {
+        var px = [Math.max(8, Math.round(p.px[0] / 2)), Math.max(8, Math.round(p.px[1] / 2))];
+        // No mipmap chain: a draft is shown only while the element moves, and building one on every move is GPU work
+        // a slow device waits for. The mipmapped full-resolution artwork returns on release.
+        var tex = new B.DynamicTexture('pd3-draft-' + p.mesh.name, { width: px[0], height: px[1] }, scene, false, B.Texture.BILINEAR_SAMPLINGMODE);
+        tex.hasAlpha = true;
+        tex.wrapU = tex.wrapV = B.Texture.CLAMP_ADDRESSMODE;
+        p.draft = { tex: tex, px: px };
+      }
+      return p.draft;
+    }
+    /**
+     * The parts of a drag, once loaded: each move then composites the element at its new place between the layers
+     * under and over it, clipped to the surface's outline, with no SVG drawn or decoded on the move.
+     */
+    function prepareParts(d) {
+      var p = panels[d.surface];
+      if (!p || !opts.dragParts) return;
+      var dr = draftOf(p), parts = null;
+      try { parts = opts.dragParts(d.surface, dr.px[0], dr.px[1]); } catch (_) { parts = null; }
+      if (!parts) return;
+      var imgs = {}, left = 3;
+      [['below', parts.below], ['above', parts.above], ['element', parts.element.svg]].forEach(function (pair) {
+        loadSvg(pair[1], function (img) {
+          imgs[pair[0]] = img;
+          if (--left || state.drag !== d || !imgs.below || !imgs.above || !imgs.element) return;
+          d.parts = { below: imgs.below, above: imgs.above, element: imgs.element, size: parts.element, clip: new Path2D(parts.clip), select: parts.select, pose: parts.pose };
+          invalidate([d.surface]);
+        });
+      });
+    }
+    /** The element's footprint on the draft, in pixels: its box with room for lettering strokes and the selection outline. */
+    function footprint(pose, size, kx, ky, W, H) {
+      var hx = Math.max(size.w / 2, pose.w / 2 + 3), hy = Math.max(size.h / 2, pose.h / 2 + 3), a = pose.r * Math.PI / 180;
+      var c = Math.abs(Math.cos(a)), sn = Math.abs(Math.sin(a)), ex = c * hx + sn * hy, ey = sn * hx + c * hy;
+      var x0 = Math.max(0, Math.floor((pose.x - ex) * kx) - 3), y0 = Math.max(0, Math.floor((pose.y - ey) * ky) - 3);
+      var x1 = Math.min(W, Math.ceil((pose.x + ex) * kx) + 3), y1 = Math.min(H, Math.ceil((pose.y + ey) * ky) + 3);
+      return x1 > x0 && y1 > y0 ? [x0, y0, x1, y1] : null;
+    }
+    /**
+     * Composite the element at its place between the layers under and over it. The first composite of a drag draws
+     * and uploads the whole draft; each later one redraws and uploads only the rectangle the element left and entered.
+     */
+    function composite(p, parts) {
+      var pose = parts.pose();
+      if (!pose) return false;
+      var dr = draftOf(p), W = dr.px[0], H = dr.px[1], kx = W / p.size.w, ky = H / p.size.h, e = parts.size, ctx = dr.tex.getContext();
+      var now1 = footprint(pose, e, kx, ky, W, H), last = parts.lastRect, rect = null;
+      if (last && now1) rect = [Math.min(last[0], now1[0]), Math.min(last[1], now1[1]), Math.max(last[2], now1[2]), Math.max(last[3], now1[3])];
+      ctx.save();
+      if (rect) { ctx.beginPath(); ctx.rect(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1]); ctx.clip(); ctx.clearRect(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1]); }
+      else ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(parts.below, 0, 0, W, H);
+      ctx.save();
+      ctx.scale(kx, ky);
+      ctx.clip(parts.clip);
+      ctx.translate(pose.x, pose.y);
+      ctx.rotate(pose.r * Math.PI / 180);
+      ctx.drawImage(parts.element, -e.w / 2, -e.h / 2, e.w, e.h);
+      ctx.restore();
+      ctx.drawImage(parts.above, 0, 0, W, H);
+      ctx.save();
+      ctx.scale(kx, ky);
+      ctx.translate(pose.x, pose.y);
+      ctx.rotate(pose.r * Math.PI / 180);
+      ctx.strokeStyle = parts.select;
+      ctx.lineWidth = 1.6;
+      ctx.strokeRect(-pose.w / 2 - 2, -pose.h / 2 - 2, pose.w + 4, pose.h + 4);
+      ctx.restore();
+      ctx.restore();
+      var it = dr.tex.getInternalTexture();
+      if (rect && it && engine.updateTextureData) {
+        var rw = rect[2] - rect[0], rh = rect[3] - rect[1], data = ctx.getImageData(rect[0], rect[1], rw, rh).data;
+        // The draft is stored flipped (its canvas's top row is the texture's last), as DynamicTexture.update(true) stores it.
+        engine.updateTextureData(it, new Uint8Array(data.buffer, data.byteOffset, data.byteLength), rect[0], H - rect[1] - rh, rw, rh, 0, 0, false);
+        state.uploadPx += rw * rh;
+      } else {
+        dr.tex.update(true);
+        state.uploadPx += W * H;
+      }
+      parts.lastRect = now1;
+      return true;
     }
     function paint(id) {
-      var p = panels[id], t = now(), text;
+      var p = panels[id], t = now(), text, drafting = !!(state.drag && state.drag.surface === id);
+      if (drafting && state.drag.parts) {
+        var ok = false;
+        try { ok = composite(p, state.drag.parts); } catch (_) { ok = false; }
+        if (ok) {
+          // Assigned once per drag: setting a material's texture marks it for re-validation on every frame it is set.
+          if (p.mesh.material.albedoTexture !== draftOf(p).tex) p.mesh.material.albedoTexture = draftOf(p).tex;
+          state.paints++;
+          state.composites++;
+          push(state.draftMs, now() - t, 60);
+          dirty();
+          return;
+        }
+      }
+      var target = drafting ? draftOf(p) : { tex: p.tex, px: p.px };
       state.painting[id] = true;
-      try { text = opts.texture(id, p.px[0], p.px[1]); } catch (_) { text = null; }
+      try { text = opts.texture(id, target.px[0], target.px[1]); } catch (_) { text = null; }
       if (!text) { state.painting[id] = false; fail('texture'); return; }
-      drawSvg(text, p.tex, p.px, function (ok) {
+      drawSvg(text, target.tex, target.px, function (ok) {
         state.painting[id] = false;
         if (state.disposed) return;
         if (!ok) { fail('texture'); return; }
+        if (panels[id] !== p) return;
+        if (p.mesh.material.albedoTexture !== target.tex) p.mesh.material.albedoTexture = target.tex;
         state.paints++;
-        push(state.textureMs, now() - t, 60);
+        if (drafting) state.drafts++;
+        push(drafting ? state.draftMs : state.textureMs, now() - t, 60);
         dirty();
         if (state.want[id]) schedule();
       });
@@ -505,7 +614,13 @@
       if (!QUALITY[name] || name === state.quality) return false;
       state.quality = name;
       clearCompare();
-      Object.keys(panels).forEach(function (k) { panels[k].mesh.dispose(false, true); });
+      Object.keys(panels).forEach(function (k) {
+        var p = panels[k];
+        p.mesh.material.albedoTexture = null;
+        if (p.draft) p.draft.tex.dispose();
+        p.tex.dispose();
+        p.mesh.dispose(false, true);
+      });
       disposeAll(trims);
       seamLines.forEach(function (l) { l.dispose(); });
       if (ground) ground.dispose(false, true);
@@ -555,11 +670,12 @@
       var surface = hit.pickedMesh.metadata.surface, size = panels[surface].size;
       return { surface: surface, mesh: hit.pickedMesh, mm: { x: uv.x * size.w, y: (1 - uv.y) * size.h } };
     }
-    function local(e) { var r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+    // The canvas's place is measured once per drag, not on every move (each measure forces a layout).
+    function local(e, r) { return { x: e.clientX - r.left, y: e.clientY - r.top }; }
     function onDragMove(e) {
       var d = state.drag;
       if (!d || e.pointerId !== d.id) return;
-      var p = local(e);
+      var p = local(e, d.rect);
       if (!d.moved && Math.abs(p.x - d.x) + Math.abs(p.y - d.y) < 3) return;
       d.moved = true;
       var h = pickAt(p.x, p.y, d.mesh);
@@ -572,7 +688,7 @@
       window.removeEventListener('pointermove', onDragMove);
       window.removeEventListener('pointerup', onDragEnd);
       window.removeEventListener('pointercancel', onDragEnd);
-      if (!state.disposed) camera.attachControl(canvas, false);
+      if (!state.disposed) { camera.attachControl(canvas, false); if (panels[d.surface] && panels[d.surface].draft) invalidate([d.surface]); }
       if (opts.onDrop) opts.onDrop(d.moved);
     }
     // A press is read from Babylon's pick; the drag it starts follows the DOM pointer to its release, wherever that is.
@@ -582,7 +698,8 @@
       var hit = pickAt(scene.pointerX, scene.pointerY);
       if (!hit) { opts.onPick(null, null); return; }
       if (opts.onPick(hit.surface, hit.mm)) {
-        state.drag = { id: e.pointerId, surface: hit.surface, mesh: hit.mesh, moved: false, x: scene.pointerX, y: scene.pointerY };
+        state.drag = { id: e.pointerId, surface: hit.surface, mesh: hit.mesh, moved: false, x: scene.pointerX, y: scene.pointerY, rect: canvas.getBoundingClientRect(), parts: null };
+        prepareParts(state.drag);
         camera.detachControl();
         window.addEventListener('pointermove', onDragMove);
         window.addEventListener('pointerup', onDragEnd);
@@ -591,11 +708,14 @@
     }, B.PointerEventTypes.POINTERDOWN);
     camera.onViewMatrixChangedObservable.add(function () { dirty(); });
 
-    /** Where a point of a surface, in its millimetres, appears on the canvas, in CSS pixels, and whether it faces the camera. */
-    function project(surface, x, y) {
+    /**
+     * Where a point of a surface, in its millimetres, appears on the canvas, in CSS pixels, and whether it faces the
+     * camera; `which` 'compare' asks for the compared version's garment, while one is shown.
+     */
+    function project(surface, x, y, which) {
       var at = garment && garment.mappers[surface];
-      if (!at) return null;
-      var p = at(x, y), o = root.position, v = new B.Vector3(p[0] + o.x, p[1] + o.y, p[2] + o.z);
+      if (!at || (which === 'compare' && !state.compare)) return null;
+      var p = at(x, y), o = which === 'compare' ? new B.Vector3(COMPARE_OFFSET, 0, 0) : root.position, v = new B.Vector3(p[0] + o.x, p[1] + o.y, p[2] + o.z);
       var vp = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
       var s = B.Vector3.Project(v, B.Matrix.Identity(), scene.getTransformMatrix(), vp), k = engine.getHardwareScalingLevel();
       var n = G.outward(at, x, y), e = camera.position;
@@ -625,7 +745,9 @@
         if (t >= 1) state.anim = null;
         state.dirty = Math.max(state.dirty, 1);
       }
-      var moving = !!(camera.inertialAlphaOffset || camera.inertialBetaOffset || camera.inertialRadiusOffset || state.anim || state.turntable || state.drag);
+      // Motion lowers the resolution where frames come slowly: the camera turning, or an element being dragged (its
+      // surface is a draft meanwhile). The first frame at rest is drawn at full resolution with the full artwork.
+      var moving = !!(camera.inertialAlphaOffset || camera.inertialBetaOffset || camera.inertialRadiusOffset || state.anim || state.turntable || (state.drag && state.drag.moved));
       if (!state.dirty && !moving) { adapt(false); state.lastFrame = 0; return; }
       if (state.dirty) state.dirty--;
       var f0 = now();
@@ -674,7 +796,8 @@
           meshes: scene.meshes.length, materials: scene.materials.length, textures: scene.textures.length, vertices: scene.getTotalVertices(),
           renders: state.renders, frameMsMedian: median(state.frameMs), frameMsP95: p95(state.frameMs),
           intervalMsMedian: median(iv), intervalMsP95: p95(iv), intervals: iv.length, lastIntervals: iv.slice(-45).map(function (x) { return Math.round(x * 10) / 10; }),
-          paints: state.paints, pending: pending(), textureMsMedian: median(state.textureMs), textureMsMax: state.textureMs.length ? Math.max.apply(null, state.textureMs) : null,
+          showingDraft: Object.keys(panels).some(function (k) { return panels[k].mesh.material.albedoTexture !== panels[k].tex; }),
+          paints: state.paints, drafts: state.drafts, composites: state.composites, uploadPx: state.uploadPx, draftMsMedian: median(state.draftMs), pending: pending(), textureMsMedian: median(state.textureMs), textureMsMax: state.textureMs.length ? Math.max.apply(null, state.textureMs) : null,
           texturePx: Object.keys(panels).map(function (k) { return [k, panels[k].px[0], panels[k].px[1]]; }),
           camera: { alpha: camera.alpha, beta: camera.beta, radius: camera.radius }, scaling: engine.getHardwareScalingLevel(), motionScale: state.boost, moving: state.moving,
           webgl: engine.webGLVersion, objectUrls: state.urls.length,

@@ -28,8 +28,18 @@ module.exports = async function p16(H) {
     return m && ((m.three.state === 'ready' && m.three.engine && !m.three.engine.pending) || m.three.failed);
   }, null, { timeout: t || 90000 });
   const painted = (pg) => pg.waitForFunction(() => { const e = window.__familistaProductDesignMetrics().three.engine; return e && !e.pending; }, null, { timeout: 30000 });
-  const proj = (pg, s, x, y) => pg.evaluate((a) => window.__familistaProductDesignProject(a[0], a[1], a[2]), [s, x, y]);
-  const canvasAt = async (pg, s, x, y) => { const b = await boxOf(pg, '#pd-root .pd-canvas'), p = await proj(pg, s, x, y); return { x: b.x + p.x, y: b.y + p.y, facing: p.facing }; };
+  const proj = (pg, s, x, y, which) => pg.evaluate((a) => window.__familistaProductDesignProject(a[0], a[1], a[2], a[3]), [s, x, y, which || null]);
+  const canvasAt = async (pg, s, x, y, which) => { const b = await boxOf(pg, '#pd-root .pd-canvas'), p = await proj(pg, s, x, y, which); return { x: b.x + p.x, y: b.y + p.y, facing: p.facing }; };
+  /** A pointer gesture of 40 moves, 25 ms apart; how many moves a second the page took. */
+  const gesture = async (pg, from, to, down) => {
+    await pg.mouse.move(from.x, from.y);
+    if (down) await pg.mouse.down();
+    const t0 = Date.now();
+    for (let i = 1; i <= 40; i++) { await pg.mouse.move(from.x + (to.x - from.x) * i / 40, from.y + (to.y - from.y) * i / 40); await pg.waitForTimeout(25); }
+    const ms = Date.now() - t0;
+    if (down) await pg.mouse.up();
+    return Math.round(40 / (ms / 1000) * 10) / 10;
+  };
   const csp = (pg) => pg.evaluate(() => (window.__csp || []).filter((c) => c.inRoom || /product-design|vendor\/babylon/.test(c.src + c.uri)));
   const engines = (pg) => pg.evaluate(() => (window.BABYLON && window.BABYLON.EngineStore ? window.BABYLON.EngineStore.Instances.length : 0));
   const angle = (a) => { const t = 2 * Math.PI; return ((a % t) + t) % t; };
@@ -138,6 +148,30 @@ module.exports = async function p16(H) {
     await page.waitForTimeout(400);
   }
 
+  // ── c2. while a drag lasts ─────────────────────────────────────────────────────────────────────────────────
+  // While a drag lasts, the surface is a composited draft. It shows the element where it now is and not where it was,
+  // and the full-resolution artwork is back once the element is released.
+  {
+    const c0 = await canvasAt(page, 'front', 376, 200), c1 = await canvasAt(page, 'front', 326, 200);
+    const e0 = (await three(page)).engine;
+    await page.mouse.move(c0.x, c0.y);
+    await page.mouse.down();
+    for (let i = 1; i <= 15; i++) { await page.mouse.move(c0.x + (c1.x - c0.x) * i / 15, c0.y); await page.waitForTimeout(40); }
+    await page.waitForTimeout(500);
+    const mid = await three(page), px = await pixels(page, [await canvasAt(page, 'front', 326, 200), await canvasAt(page, 'front', 376, 200)]);
+    await shot(page, '3d-mid-drag');
+    await page.mouse.up();
+    await painted(page);
+    await page.waitForTimeout(300);
+    const after = await three(page);
+    const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    check('P16 mid-drag, the garment shows the crest where it now is (white) and not where it was; composited, not redrawn',
+      mid.engine.showingDraft && mid.engine.composites > e0.composites && lum(px[0]) > 200 && lum(px[1]) < 120, { atNewPlace: px[0].map(Math.round), atOldPlace: px[1].map(Math.round), composites: mid.engine.composites - e0.composites });
+    check('P16 on release the full-resolution artwork replaces the draft', !after.engine.showingDraft && !after.engine.pending, { showingDraft: after.engine.showingDraft });
+    await page.keyboard.press('Control+z');
+    await painted(page);
+  }
+
   // ── d. presets, keyboard camera, close-up ────────────────────────────────────────────────────────────────────
   {
     const want = { back: Math.PI / 2, 'sleeve-right': Math.PI, 'sleeve-left': 0, front: 3 * Math.PI / 2 };
@@ -211,7 +245,7 @@ module.exports = async function p16(H) {
     await shot(page, '3d-mesh');
     await page.click('#pd-root [data-pd-act="cycle-fabric"]');
     check('P16 light (studio, daylight, stadium) and fabric (smooth, mesh) change the simulation and say it is one',
-      JSON.stringify(seen) === JSON.stringify(['daylight', 'stadium', 'studio']) && fab === 'mesh' && /simulated/.test(await page.getAttribute('#pd-root [data-pd-act="cycle-fabric"]', 'aria-label')), { seen, fab });
+      JSON.stringify(seen) === JSON.stringify(['daylight', 'stadium', 'studio']) && fab === 'mesh' && /simulated/.test(await page.getAttribute('#pd-root [data-pd-act="cycle-fabric"]', 'aria-label')) && /polyester \(simulated\)/.test(await page.getAttribute('#pd-root [data-pd-act="cycle-fabric"]', 'title')), { seen, fab });
     const q = {}, start = (await three(page)).engine.quality;
     for (let i = 0; i < 3; i++) {
       await page.click('#pd-root [data-pd-act="cycle-quality"]');
@@ -246,6 +280,15 @@ module.exports = async function p16(H) {
     await page.waitForTimeout(900);
     const c = await three(page);
     await shot(page, '3d-compare');
+    // The compared garment is version 1: its crest where version 1 had it. This design's crest was moved 100 mm down.
+    {
+      // Sampled where version 1 had its crest: white on the compared garment, and not on this design, whose crest moved down.
+      const v1Crest = await canvasAt(page, 'front', 376, 200, 'compare'), nowOld = await canvasAt(page, 'front', 376, 200);
+      const px = await pixels(page, [v1Crest, nowOld]);
+      const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+      check('P16 the compared garment, on the right, shows the saved version’s crest where it was saved; this design does not, since its crest moved',
+        lum(px[0]) > 180 && lum(px[1]) < 150 && v1Crest.x > nowOld.x, { px: px.map((c) => c.map(Math.round)), v1x: Math.round(v1Crest.x), nowx: Math.round(nowOld.x) });
+    }
     const writes = log.requests.slice(req0).filter((r) => r.method !== 'GET');
     check('P16 comparing shows saved version 1 beside the design, reading it with one GET and writing nothing',
       c.engine.compare && c.compare.number === 1 && c.engine.meshes > meshes0 && writes.length === 0 && JSON.stringify(await rows()) === JSON.stringify(r0) &&
@@ -282,6 +325,20 @@ module.exports = async function p16(H) {
 
   // ── g. turntable and timings, desktop ────────────────────────────────────────────────────────────────────────
   {
+    // Pointer throughput: hovering an idle region is this machine's input floor; orbiting must keep up with it.
+    const foot = await boxOf(page, '#pd-root .pd-foot'), cv = await boxOf(page, '#pd-root .pd-canvas');
+    perf.pointer = { idleHoverMovesPerSecond: await gesture(page, { x: foot.x + 20, y: foot.y + 20 }, { x: foot.x + 320, y: foot.y + 20 }, false) };
+    perf.pointer.orbitMovesPerSecond = await gesture(page, { x: cv.x + 30, y: cv.y + 210 }, { x: cv.x + 220, y: cv.y + 210 }, true);
+    await page.click('#pd-root [data-pd-view="front"]');
+    await page.waitForTimeout(900);
+    const da = await canvasAt(page, 'front', 260, 330), db2 = await canvasAt(page, 'front', 320, 330);
+    perf.pointer.drag3dMovesPerSecond = await gesture(page, da, db2, true);
+    await painted(page);
+    await page.keyboard.press('Control+z');
+    await painted(page);
+    check('P16 orbiting with the pointer keeps up with this machine’s input: ≥ 80 % of the idle-hover rate', perf.pointer.orbitMovesPerSecond >= 0.8 * perf.pointer.idleHoverMovesPerSecond, perf.pointer);
+    // A regression floor, not a quality target: on this machine a 3D drag is GPU-bound in software rendering (see §16).
+    check('P16 a 3D drag, measured: ≥ 4 updates a second on this machine (software rendering; real hardware not measured)', perf.pointer.drag3dMovesPerSecond >= 4, perf.pointer);
     perf.desktopFloor = await floor(page);
     const r0 = (await three(page)).engine.renders;
     await page.click('#pd-root [data-pd-act="turntable"]');
@@ -348,11 +405,26 @@ module.exports = async function p16(H) {
   }
 
   // ── k. Arabic: the controls mirror, the garment does not; axe in 3D ──────────────────────────────────────────
-  for (const loc of ['en-GB', 'ar']) {
+  const ROOM_CODE = { 'en-GB': 'en', 'de-DE': 'de', 'fr-FR': 'fr', 'es-ES': 'es', ar: 'ar' };
+  for (const loc of ['en-GB', 'de-DE', 'fr-FR', 'es-ES', 'ar']) {
     const { ctx: c4, page: p4, log: l4 } = await open({ width: 1672, height: 941 }, loc);
     await p4.click('#pd-root [data-pd-mode="3d"]');
     await ready3d(p4);
     await p4.waitForTimeout(600);
+    {
+      // Every official language: the 3D bar and its labels fit inside the canvas, in one row, nothing clipped.
+      const fit = await p4.evaluate(() => {
+        const cv = document.querySelector('#pd-root .pd-canvas').getBoundingClientRect(), bar = document.querySelector('#pd-root .pd3-bar'), b = bar.getBoundingClientRect();
+        const sim = document.querySelector('#pd-root .pd3-sim').getBoundingClientRect();
+        const clipped = [...bar.querySelectorAll('button')].filter((x) => x.scrollWidth > x.clientWidth + 1).length;
+        return { inside: b.left >= cv.left && b.right <= cv.right && b.bottom <= cv.bottom && sim.right <= cv.right, oneRow: b.height < 44, overflow: bar.scrollWidth > bar.clientWidth + 1, clipped, labels: [...bar.querySelectorAll('.pd3-cycle-value')].map((x) => x.textContent) };
+      });
+      // And they speak the language: each label is the room catalogue's word for it.
+      const want = ['Studio', 'Smooth', 'Balanced'].map((en) => H.roomWord(ROOM_CODE[loc], en));
+      check(`P16 ${loc}: the 3D controls are in the language, fit the canvas in one row, nothing clipped or scrolled`,
+        JSON.stringify(fit.labels) === JSON.stringify(want) && fit.inside && fit.oneRow && !fit.overflow && fit.clipped === 0 && l4.errors.length === 0, { fit, want });
+      await shot(p4, '3d-' + loc);
+    }
     if (loc === 'ar') {
       const l = await proj(p4, 'front', 180, 330), r = await proj(p4, 'front', 240, 330);
       check('P16 Arabic: the 3D controls follow the reading direction and the garment is not mirrored', (await p4.getAttribute('#pd-root .pd3-bar', 'dir')) === 'rtl' && r.x > l.x && l4.errors.length === 0, { l: l.x, r: r.x });
