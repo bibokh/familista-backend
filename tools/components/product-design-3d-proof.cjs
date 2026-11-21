@@ -380,7 +380,8 @@ module.exports = async function p16(H) {
   // ── g. turntable and timings, desktop ────────────────────────────────────────────────────────────────────────
   {
     // What is asserted is what the reader sees, judged by the engine: the camera follows the whole of the pointer's travel
-    // (Babylon adds 1/sensibility per pixel and inertia carries it on, so the turn is travel / sensibility / (1 - inertia)),
+    // (Babylon adds 1/sensibility per pixel and inertia carries it on, so the turn is travel / sensibility / (1 - inertia);
+    // Babylon drops an inertial step under 0.001 rad, so both gestures move 4–5 px a step, as a hand does, not a crawl),
     // and the engine draws the orbit within the turntable's frame budget. The synthetic pointer's moves a second are kept
     // for information only: each move waits for the page to acknowledge it, so while the view draws that rate measures the
     // compositor, not the 3D view. (It was the criterion here until it passed on a build whose orbit drew nothing.)
@@ -393,7 +394,7 @@ module.exports = async function p16(H) {
       await page.waitForTimeout(1400);
       const c1 = await cam(page), expected = (to.x - from.x) / c0.sens / (1 - c0.inertia);
       return { syntheticMovesPerSecond: movesPerSecond, frames: e.renders - r0, intervalMsMedian: ts.median, intervalMsP95: ts.p95,
-        turnedRad: +(c0.alpha - c1.alpha).toFixed(3), expectedRad: +expected.toFixed(3), follows: Math.abs(c0.alpha - c1.alpha - expected) <= 0.15 * expected };
+        turnedRad: +(c0.alpha - c1.alpha).toFixed(3), expectedRad: +expected.toFixed(3), follows: Math.abs(c0.alpha - c1.alpha - expected) <= 0.15 * Math.abs(expected) };
     };
     const foot = await boxOf(page, '#pd-root .pd-foot'), cv = await boxOf(page, '#pd-root .pd-canvas');
     perf.pointer = { idleHoverMovesPerSecond: await gesture(page, { x: foot.x + 20, y: foot.y + 20 }, { x: foot.x + 320, y: foot.y + 20 }, false) };
@@ -403,9 +404,9 @@ module.exports = async function p16(H) {
     await page.click('#pd-root [data-pd-view="front"]');
     await page.waitForTimeout(900);
     // A drag that starts on an element of the garment turns the camera too, exactly as one beside it, and moves nothing.
-    const da = await canvasAt(page, 'front', 260, 330), db2 = await canvasAt(page, 'front', 320, 330);
+    const da = await canvasAt(page, 'front', 260, 330);
     const before = await docText();
-    perf.pointer.onGarment = await orbit(da, db2);
+    perf.pointer.onGarment = await orbit(da, { x: Math.max(cv.x + 10, da.x - 160), y: da.y });
     const unchanged = (await docText()) === before;
     await page.click('#pd-root [data-pd-view="front"]');
     await page.waitForTimeout(900);
