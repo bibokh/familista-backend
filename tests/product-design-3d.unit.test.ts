@@ -62,6 +62,7 @@ describe('what the 3D view may load and do', () => {
     expect(CODE).toContain('engine.canvasTabIndex = -1;');
     expect(CODE).toContain("canvas.setAttribute('aria-hidden', 'true');");
     expect(CODE).toContain("camera.inputs.removeByType('ArcRotateCameraKeyboardMoveInput');");
+    expect(CODE).toContain('camera.useInputToRestoreState = false;');
     expect(CODE).toContain('if (!state.dirty && !moving) { adapt(false); state.lastFrame = 0; return; }');
   });
 
@@ -93,6 +94,41 @@ describe('what the 3D view may load and do', () => {
     const calls = [...CODE.matchAll(/camera\.setTarget\(([^;]+)\);/g)].map((m) => m[1]);
     expect(calls.length).toBeGreaterThanOrEqual(2);
     for (const c of calls) expect([c, /, false, false, true$/.test(c)]).toEqual([c, true]);
+  });
+});
+
+describe('direct manipulation on the 3D garment is switched off, and kept', () => {
+  it('one constant, false, not reachable from the interface; while it is false the 3D view gets no pick or drag handler', () => {
+    expect((EDITOR.match(/var DIRECT_3D_EDIT = (true|false);/g) || [])).toEqual(['var DIRECT_3D_EDIT = false;']);
+    expect(EDITOR).toContain('onPick: DIRECT_3D_EDIT ? pick3d : null, onDrag: DIRECT_3D_EDIT ? drag3d : null, onDrop: DIRECT_3D_EDIT ? drop3d : null, dragParts: DIRECT_3D_EDIT ? dragParts3d : null,');
+    // Nothing else may hand the 3D view a handler, or change the switch at run time.
+    expect((EDITOR.match(/onPick:/g) || []).length).toBe(1);
+    expect(EDITOR).not.toMatch(/DIRECT_3D_EDIT\s*=(?!=)[^;]*;[\s\S]*DIRECT_3D_EDIT\s*=(?!=)/);
+    expect(EDITOR).not.toMatch(/localStorage[^;]*DIRECT_3D_EDIT|location[^;]*DIRECT_3D_EDIT|DIRECT_3D_EDIT[^;]*(localStorage|location|dataset|getAttribute)/);
+  });
+  it('without a pick handler the 3D view does not even cast a ray on a press: the camera keeps the pointer', () => {
+    const obs = CODE.slice(CODE.indexOf('scene.onPointerObservable.add(function (pi) {'), CODE.indexOf('}, B.PointerEventTypes.POINTERDOWN);'));
+    expect(obs.indexOf("if (e.button !== 0 || !opts.onPick || state.drag) return;")).toBeGreaterThan(-1);
+    expect(obs.indexOf("if (e.button !== 0 || !opts.onPick || state.drag) return;")).toBeLessThan(obs.indexOf('pickAt('));
+  });
+  it('the editing foundation is kept, intact and tested: pick, drag, drop and the drag parts are still in the editor', () => {
+    for (const fn of ['function pick3d(surfaceId, mm) {', 'function drag3d(surfaceId, mm) {', 'function drop3d(moved) {', 'function dragParts3d(surfaceId, w, hgt) {', 'function recordDrag(d) {']) {
+      expect([fn, EDITOR.includes(fn)]).toEqual([fn, true]);
+    }
+  });
+  it('the words the reader sees match the switch: selecting and moving happen in the Layers list and in 2D', () => {
+    expect(EDITOR).toContain("T('Select an element in the Layers list to look at it close up.')");
+    expect(EDITOR).toContain("T('3D view ready. Drag to turn the garment, pinch or use the wheel to zoom. Select and move elements in the Layers list or in 2D; the garment follows every change.')");
+  });
+  it('editing never lowers the resolution; only camera motion may, and a draft is drawn at full resolution', () => {
+    const line = CODE.slice(CODE.indexOf('var moving = !!('), CODE.indexOf(');', CODE.indexOf('var moving = !!(')));
+    expect(line).not.toContain('state.drag');
+    expect(CODE).toContain('var px = [p.px[0], p.px[1]];');
+  });
+  it('every preset is framed for the canvas, and a camera the reader moved is never moved back by a resize', () => {
+    expect(CODE).toContain('return G.frame(p, aspect(), camera.fov);');
+    expect(CODE).toContain('if (camera.inertialAlphaOffset || camera.inertialBetaOffset || camera.inertialRadiusOffset) state.preset = null;');
+    expect(CODE).toContain('if (state.preset && !state.anim && !state.turntable && garment) { var p = framed(state.preset); if (p) goTo(p, true); }');
   });
 });
 

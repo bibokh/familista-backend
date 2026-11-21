@@ -426,5 +426,8 @@
   "Save the design to compare it with its saved versions.": "Guarda el diseño para compararlo con sus versiones guardadas.",
   "Fabric (simulated)": "Tejido (simulado)",
   "%s: %s. Press to change.": "%s: %s. Pulsa para cambiar.",
-  "Stop comparing with version %d": "Dejar de comparar con la versión %d"
+  "Stop comparing with version %d": "Dejar de comparar con la versión %d",
+  "3D view ready. Drag to turn the garment, pinch or use the wheel to zoom. Select and move elements in the Layers list or in 2D; the garment follows every change.": "Vista 3D lista. Arrastra para girar la prenda y pellizca o usa la rueda para hacer zoom. Selecciona y mueve los elementos en la lista de capas o en 2D; la prenda sigue cada cambio.",
+  "Select an element in the Layers list to look at it close up.": "Selecciona un elemento en la lista de capas para verlo de cerca.",
+  "3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.": "Vista 3D del diseño. Arrastra la prenda para girarla y pellizca o usa la rueda para hacer zoom. Selecciona un elemento en la lista de capas o en 2D; en este lienzo las flechas lo mueven 1 mm, Mayús y una flecha 10 mm, y la prenda sigue cada cambio. Sin nada seleccionado, las flechas giran la prenda; más y menos hacen zoom; 0 vuelve a la vista actual; del 1 al 4 muestran el frente, la espalda, el lado derecho y el izquierdo."
 }

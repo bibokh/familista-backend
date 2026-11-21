@@ -291,6 +291,9 @@
     camera.fov = 0.6;
     // The editor drives the keyboard (its canvas keeps the focus); Babylon's own keys would answer twice.
     camera.inputs.removeByType('ArcRotateCameraKeyboardMoveInput');
+    // Babylon restores the camera's starting state on a double tap; that state predates the framing and any resize, and
+    // the room has its own reset (0, Fit). A double click turns nothing back.
+    camera.useInputToRestoreState = false;
     camera.attachControl(canvas, false);
     var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
@@ -309,12 +312,26 @@
       }
       dirty();
     }
-    function preset(name, instant) {
+    function aspect() { var h = engine.getRenderHeight(); return h ? engine.getRenderWidth() / h : 1; }
+    /**
+     * A preset placed for this canvas: its distance fitted to the garment (or, in a comparison, to both garments and
+     * their labels) and to the canvas's shape, so the garment fills the view on a tall canvas and a wide one alike.
+     */
+    function framed(name) {
       var p = garment.presets[name];
+      if (!p) return null;
+      if (state.compare) {
+        var w = garment.presets.front.fit;
+        return G.frame({ alpha: p.alpha, beta: p.beta, target: [0, 0, 0] }, aspect(), camera.fov, { hw: COMPARE_OFFSET + w.hw, hh: w.hh + 0.1, hd: w.hd, fill: 0.92 });
+      }
+      return G.frame(p, aspect(), camera.fov);
+    }
+    function preset(name, instant) {
+      var p = framed(name);
       if (!p) return false;
       setTurntable(false);
       state.preset = name;
-      goTo(state.compare ? { alpha: p.alpha, beta: p.beta, radius: G.PRESETS.front.radius + 1.1 } : p, instant);
+      goTo(p, instant);
       return true;
     }
     /** A close-up: face a point of a surface, given in its millimetres, from outside. */
@@ -387,7 +404,8 @@
      */
     function draftOf(p) {
       if (!p.draft) {
-        var px = [Math.max(8, Math.round(p.px[0] / 2)), Math.max(8, Math.round(p.px[1] / 2))];
+        // Full resolution: only the rectangle an element changes is uploaded per move, so the draft need not be coarser.
+        var px = [p.px[0], p.px[1]];
         // No mipmap chain: a draft is shown only while the element moves, and building one on every move is GPU work
         // a slow device waits for. The mipmapped full-resolution artwork returns on release.
         var tex = new B.DynamicTexture('pd3-draft-' + p.mesh.name, { width: px[0], height: px[1] }, scene, false, B.Texture.BILINEAR_SAMPLINGMODE);
@@ -590,7 +608,7 @@
       state.compare = { nodes: nodes };
       setTurntable(false);
       state.preset = 'front';
-      goTo({ alpha: G.PRESETS.front.alpha, beta: G.PRESETS.front.beta, radius: G.PRESETS.front.radius + 1.1 });
+      goTo(framed('front'));
       return true;
     }
 
@@ -725,9 +743,12 @@
 
     // ── drawing: only when something changed ────────────────────────────────
     function dirty() { state.dirty = Math.max(state.dirty, 2); }
-    /** The field of view holds on the canvas's narrower side, so the whole garment fits a tall canvas and a wide one alike. */
+    /**
+     * When the canvas changes shape, a camera still resting at a preset is placed again for the new shape. A camera the
+     * reader has moved is left exactly where they put it.
+     */
     function fit() {
-      camera.fovMode = engine.getRenderWidth() < engine.getRenderHeight() ? B.Camera.FOVMODE_HORIZONTAL_FIXED : B.Camera.FOVMODE_VERTICAL_FIXED;
+      if (state.preset && !state.anim && !state.turntable && garment) { var p = framed(state.preset); if (p) goTo(p, true); }
       dirty();
     }
     var observer = null;
@@ -736,6 +757,7 @@
       observer.observe(host);
     }
     function frame() {
+      if (camera.inertialAlphaOffset || camera.inertialBetaOffset || camera.inertialRadiusOffset) state.preset = null;
       if (state.anim) {
         var a = state.anim, t = Math.min(1, (now() - a.t0) / a.dur), e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
         camera.alpha = a.from.a + (a.to.a - a.from.a) * e;
@@ -745,9 +767,9 @@
         if (t >= 1) state.anim = null;
         state.dirty = Math.max(state.dirty, 1);
       }
-      // Motion lowers the resolution where frames come slowly: the camera turning, or an element being dragged (its
-      // surface is a draft meanwhile). The first frame at rest is drawn at full resolution with the full artwork.
-      var moving = !!(camera.inertialAlphaOffset || camera.inertialBetaOffset || camera.inertialRadiusOffset || state.anim || state.turntable || (state.drag && state.drag.moved));
+      // Only camera motion lowers the resolution, where frames come slowly. Editing never does: an edit is drawn at full
+      // resolution, so what the reader is placing stays sharp (measured: lowering it during a drag gained nothing).
+      var moving = !!(camera.inertialAlphaOffset || camera.inertialBetaOffset || camera.inertialRadiusOffset || state.anim || state.turntable);
       if (!state.dirty && !moving) { adapt(false); state.lastFrame = 0; return; }
       if (state.dirty) state.dirty--;
       var f0 = now();
@@ -763,7 +785,8 @@
 
     build();
     scaling();
-    fit();
+    camera.fovMode = B.Camera.FOVMODE_VERTICAL_FIXED;
+    preset('front', true);
     setLighting('studio');
     invalidate();
     var readyMs = now() - t0;
@@ -799,7 +822,7 @@
           showingDraft: Object.keys(panels).some(function (k) { return panels[k].mesh.material.albedoTexture !== panels[k].tex; }),
           paints: state.paints, drafts: state.drafts, composites: state.composites, uploadPx: state.uploadPx, draftMsMedian: median(state.draftMs), pending: pending(), textureMsMedian: median(state.textureMs), textureMsMax: state.textureMs.length ? Math.max.apply(null, state.textureMs) : null,
           texturePx: Object.keys(panels).map(function (k) { return [k, panels[k].px[0], panels[k].px[1]]; }),
-          camera: { alpha: camera.alpha, beta: camera.beta, radius: camera.radius }, scaling: engine.getHardwareScalingLevel(), motionScale: state.boost, moving: state.moving,
+          camera: { alpha: camera.alpha, beta: camera.beta, radius: camera.radius }, aspect: aspect(), fov: camera.fov, scaling: engine.getHardwareScalingLevel(), motionScale: state.boost, moving: state.moving,
           webgl: engine.webGLVersion, objectUrls: state.urls.length,
         };
       },

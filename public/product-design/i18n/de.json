@@ -426,5 +426,8 @@
   "Save the design to compare it with its saved versions.": "Speichern Sie das Design, um es mit seinen gespeicherten Versionen zu vergleichen.",
   "Fabric (simulated)": "Stoff (simuliert)",
   "%s: %s. Press to change.": "%s: %s. Zum Ändern drücken.",
-  "Stop comparing with version %d": "Vergleich mit Version %d beenden"
+  "Stop comparing with version %d": "Vergleich mit Version %d beenden",
+  "3D view ready. Drag to turn the garment, pinch or use the wheel to zoom. Select and move elements in the Layers list or in 2D; the garment follows every change.": "3D-Ansicht bereit. Ziehen Sie, um das Kleidungsstück zu drehen, und zoomen Sie mit zwei Fingern oder dem Mausrad. Elemente wählen und verschieben Sie in der Ebenenliste oder in 2D; das Kleidungsstück folgt jeder Änderung.",
+  "Select an element in the Layers list to look at it close up.": "Wählen Sie ein Element in der Ebenenliste aus, um es aus der Nähe zu betrachten.",
+  "3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.": "3D-Ansicht des Designs. Ziehen Sie das Kleidungsstück, um es zu drehen, und zoomen Sie mit zwei Fingern oder dem Mausrad. Wählen Sie ein Element in der Ebenenliste oder in 2D aus; auf dieser Fläche verschieben die Pfeiltasten es dann um 1 mm, Umschalt und ein Pfeil um 10 mm, und das Kleidungsstück folgt jeder Änderung. Ist nichts ausgewählt, drehen die Pfeiltasten das Kleidungsstück; Plus und Minus zoomen; 0 kehrt zur aktuellen Ansicht zurück; 1 bis 4 zeigen Vorderseite, Rückseite, rechte und linke Seite."
 }

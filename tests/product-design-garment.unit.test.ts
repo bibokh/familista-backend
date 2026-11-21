@@ -306,6 +306,52 @@ describe('the cameras', () => {
   });
 });
 
+describe('framing: each preset is placed for the canvas it is shown in', () => {
+  const FOV = 0.6; // pd-3d.js: a vertical field of view of 0.6 rad
+  /** Where the eye of a framed preset sees a point: normalised device coordinates (−1…1 on each axis of the canvas). */
+  function ndc(p: Row, aspect: number, v: V3): [number, number] {
+    const eye: V3 = G.eye(p), t: V3 = p.target, f = sub(t, eye), fl = Math.sqrt(dot(f, f)), fw: V3 = [f[0] / fl, f[1] / fl, f[2] / fl];
+    const right: V3 = G.screenRight(p), up: V3 = [fw[1] * right[2] - fw[2] * right[1], fw[2] * right[0] - fw[0] * right[2], fw[0] * right[1] - fw[1] * right[0]];
+    const d = sub(v, eye), z = dot(d, fw), tv = Math.tan(FOV / 2);
+    return [dot(d, right) / (z * tv * aspect), Math.abs(dot(d, up)) / (z * tv)];
+  }
+  function corners(b: Row): V3[] {
+    const out: V3[] = [];
+    for (const x of [b.min[0], b.max[0]]) for (const y of [b.min[1], b.max[1]]) for (const z of [b.min[2], b.max[2]]) out.push([x, y, z]);
+    return out;
+  }
+  // The approved reference canvas (376 × 433), a phone (306 × 445), a square one and a wide one.
+  it.each([376 / 433, 306 / 445, 1, 1.8])('front and back, at aspect %f: the whole garment is in view and fills ≥ 75 %% of the limiting side', (aspect) => {
+    for (const k of ['front', 'back']) {
+      const p = G.frame(g.presets[k], aspect, FOV);
+      const pts = corners(g.bounds).map((v) => ndc(p, aspect, v));
+      const maxX = Math.max(...pts.map((q) => Math.abs(q[0]))), maxY = Math.max(...pts.map((q) => Math.abs(q[1])));
+      expect([k, aspect, maxX <= 1 && maxY <= 1]).toEqual([k, aspect, true]);
+      expect([k, aspect, Math.max(maxX, maxY) >= 0.75]).toEqual([k, aspect, true]);
+    }
+  });
+  it.each([376 / 433, 306 / 445, 1.8])('each side, at aspect %f: its whole sleeve is in view', (aspect) => {
+    for (const id of ['sleeve-right', 'sleeve-left']) {
+      const p = G.frame(g.presets[id], aspect, FOV), m = panel(id).mesh;
+      let worst = 0;
+      for (let i = 0; i < m.positions.length; i += 3) {
+        const q = ndc(p, aspect, [m.positions[i], m.positions[i + 1], m.positions[i + 2]]);
+        worst = Math.max(worst, Math.abs(q[0]), Math.abs(q[1]));
+      }
+      expect([id, aspect, worst <= 1]).toEqual([id, aspect, true]);
+    }
+  });
+  it('a taller canvas moves the camera back, a wider one does not need to; the close-up keeps its own distance', () => {
+    const tall = G.frame(g.presets.front, 0.6, FOV).radius, ref = G.frame(g.presets.front, 376 / 433, FOV).radius, wide = G.frame(g.presets.front, 1.8, FOV).radius;
+    expect(tall).toBeGreaterThan(ref);
+    expect(wide).toBeLessThanOrEqual(ref + 1e-9);
+    expect(G.frame(g.presets.collar, 0.6, FOV)).toBe(g.presets.collar);
+    // Negative control: a preset framed for a wide canvas, shown on a tall one, cuts the sleeves off.
+    const wrong = G.frame(g.presets.front, 1.8, FOV);
+    expect(Math.max(...corners(g.bounds).map((v) => Math.abs(ndc(wrong, 0.6, v)[0])))).toBeGreaterThan(1);
+  });
+});
+
 describe('determinism and density', () => {
   it('builds the same garment twice, to the bit', () => {
     const again = G.build(T);

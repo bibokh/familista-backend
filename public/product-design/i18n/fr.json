@@ -426,5 +426,8 @@
   "Save the design to compare it with its saved versions.": "Enregistrez le design pour le comparer à ses versions enregistrées.",
   "Fabric (simulated)": "Tissu (simulé)",
   "%s: %s. Press to change.": "%s : %s. Appuyez pour changer.",
-  "Stop comparing with version %d": "Arrêter la comparaison avec la version %d"
+  "Stop comparing with version %d": "Arrêter la comparaison avec la version %d",
+  "3D view ready. Drag to turn the garment, pinch or use the wheel to zoom. Select and move elements in the Layers list or in 2D; the garment follows every change.": "Vue 3D prête. Faites glisser pour tourner le vêtement, pincez ou utilisez la molette pour zoomer. Sélectionnez et déplacez les éléments dans la liste des calques ou en 2D ; le vêtement suit chaque modification.",
+  "Select an element in the Layers list to look at it close up.": "Sélectionnez un élément dans la liste des calques pour le voir de près.",
+  "3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.": "Vue 3D du design. Faites glisser le vêtement pour le tourner, pincez ou utilisez la molette pour zoomer. Sélectionnez un élément dans la liste des calques ou en 2D ; sur ce canevas, les flèches le déplacent alors de 1 mm, Maj et une flèche de 10 mm, et le vêtement suit chaque modification. Quand rien n’est sélectionné, les flèches tournent le vêtement ; plus et moins zooment ; 0 revient à la vue actuelle ; 1 à 4 montrent le devant, le dos, le côté droit et le côté gauche."
 }

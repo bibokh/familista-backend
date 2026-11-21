@@ -926,10 +926,18 @@ every light and fabric announcement.
 | Editor | `public/product-design/product-design.js` (§ "the 3D view (DS-1c)") | Paints each surface from the same `layerNode` drawing the 2D canvas uses, as SVG, into a texture. A pick on the garment selects the element under it (`C.hitTest` on the surface's millimetres). A drag moves it with the same `C.moveBox`, snapping and grid as the flat panel, and is recorded as one undo step. Also: view presets, the 360° turntable, keyboard camera, close-up on the selection, print check, light, fabric and quality, and comparison with a saved version. |
 | Server client | `public/product-design/pd-server.js` | One read-only addition: `getRevision` (the existing `GET /projects/:id/revisions/:number`), for the comparison. No route, schema or migration changed. |
 
+**Direct manipulation on the garment is switched off (Owner's decision, 21 November 2026).** Elements are selected
+in the Layers list or on the 2D canvas and moved there or with the arrow keys; the garment follows every change. On
+the garment itself the pointer only turns the camera: a press selects nothing and a drag moves nothing. The
+implementation (selecting and dragging on the garment, and the drag compositing that draws it) is kept in the
+repository, tested and inactive behind one constant, `DIRECT_3D_EDIT` in `product-design.js`. While that constant is
+false the 3D view is opened without any pick or drag handler, and nothing in the interface can change it. It is a
+temporary engineering precaution, pending review; it is not a statement that any option is cleared.
+
 **One document drives every view.** The 3D garment holds no design of its own. Its textures are the 2D drawing, so an
 edit made in either view is the same operation on the same document, and undo, the local draft, saving and
-versions are unchanged. A drag of 60 mm across the 3D garment moves the element 60 mm on the flat panel (proven in a
-browser, ± 3 mm). Comparing with a saved version reads it with one `GET`, validates it with the core, and draws it
+versions are unchanged. With direct manipulation switched on, a drag of 60 mm across the 3D garment moved the
+element 60 mm on the flat panel (proven in a browser, ± 3 mm, before it was switched off). Comparing with a saved version reads it with one `GET`, validates it with the core, and draws it
 beside the design; it is never put into the editor and nothing is written.
 
 **Where DS-1c departs from DS-0, and why.**
@@ -968,7 +976,17 @@ the page.
 | Scene CPU time per frame (median) | ≈ 1 ms | ≈ 3–4 ms |
 | Pointer moves handled per second: idle area (control) / orbiting the garment / dragging an element on it | ≈ 29 / ≈ 30 / ≈ 6 | — |
 
-**The drag, investigated.** A 3D drag handled about 5 pointer moves a second here, while orbiting kept up with the
+**Framing and sharpness (21 November 2026).** Every preset is now placed for the canvas it is shown in: a pure
+function (`frame` in `pd-garment.js`) fits the camera's distance to the garment's size and the canvas's shape. The
+whole garment stays in view and fills 70–95 % of the limiting side, on the approved reference canvas and on a phone
+(unit-tested by projection at four canvas shapes, with a negative control, and checked in the browser). A camera
+resting at a preset is re-placed when the canvas changes shape; a camera the reader has turned is never moved. Editing
+never lowers the resolution: only camera motion may. A side-by-side test showed the blur seen in the middle of a drag
+came from that, not from the draft texture, and that removing it cost no measurable speed here. These are visual
+changes; no performance improvement is claimed for them.
+
+**The drag, investigated (measured while direct manipulation was on; kept as evidence).** A 3D drag handled about 5
+pointer moves a second here, while orbiting kept up with the
 pointer (about 30). Each cause was measured in turn, and the safe ones were removed:
 
 - **Per move, the whole surface was redrawn from SVG** (≈ 50 ms). Now the layers under and over the dragged element
@@ -987,7 +1005,9 @@ The proof keeps a regression floor (≥ 4 drag updates a second here), not a qua
 
 The first frame budget (≤ 50 ms turntable on desktop) was not met under software rendering. The budget in the proof is
 ≤ 66.7 ms and no more than two 60 Hz frames over the measured floor. To measure a real device, follow
-`docs/design-studio/DS-1c-real-device-performance.md`. It uses only the room's read-only metrics and proposes targets
+`docs/design-studio/DS-1c-real-device-performance.md`. Its first version timed the browser's animation frames,
+which say nothing about a view that draws only on change (it reported 60 fps for an orbit the engine drew at
+15–30 fps). It now counts the engine's own frames and repaints, and records why the method changed. It uses only the room's read-only metrics and proposes targets
 for those measurements to confirm or refute.
 
 **Implemented and deferred.**
@@ -998,7 +1018,7 @@ for those measurements to confirm or refute.
 | Front, back and sleeve mapping; synchronised 2D/3D editing; real-time updates | Implemented. Measured rates and the remaining drag limitation are above. |
 | PBR fabric; lighting environments; seams, collar, sleeves; text orientation | Implemented |
 | Desktop and mobile; 2D/2.5D fallback without WebGL | Implemented |
-| Precision placement and inspection in 3D | Drag in millimetres with the flat panel's snapping and grid; 10 mm grid on the garment; close-up. Resizing and rotating stay on the flat panel. |
+| Precision placement and inspection in 3D | Placement in millimetres on the flat panel, or with the arrow keys while watching the garment; a 10 mm grid on the garment; close-up on the selection. Direct manipulation on the garment is built and switched off (see above). |
 | Material preview (smooth, mesh), labelled as simulation | Implemented |
 | Animated camera presets and close-ups | Implemented (instant under reduced motion) |
 | Studio, daylight, stadium; no claim of exact colour | Implemented |

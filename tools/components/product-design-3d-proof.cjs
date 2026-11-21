@@ -30,6 +30,18 @@ module.exports = async function p16(H) {
   const painted = (pg) => pg.waitForFunction(() => { const e = window.__familistaProductDesignMetrics().three.engine; return e && !e.pending; }, null, { timeout: 30000 });
   const proj = (pg, s, x, y, which) => pg.evaluate((a) => window.__familistaProductDesignProject(a[0], a[1], a[2], a[3]), [s, x, y, which || null]);
   const canvasAt = async (pg, s, x, y, which) => { const b = await boxOf(pg, '#pd-root .pd-canvas'), p = await proj(pg, s, x, y, which); return { x: b.x + p.x, y: b.y + p.y, facing: p.facing }; };
+  /**
+   * How the front view frames the garment on this canvas: its extremes (the neck's corner, the hem, the two cuffs)
+   * projected; the share of the canvas's height and width they span, and whether all of them are inside it.
+   */
+  async function framing(pg) {
+    const b = await boxOf(pg, '#pd-root .pd-canvas');
+    const pts = [await proj(pg, 'front', 185, 12), await proj(pg, 'front', 270, 746), await proj(pg, 'sleeve-right', 210, 250), await proj(pg, 'sleeve-left', 210, 250)];
+    const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
+    const inside = pts.every((q) => q.x >= 0 && q.x <= b.w && q.y >= 0 && q.y <= b.h);
+    const fillW = (Math.max(...xs) - Math.min(...xs)) / b.w, fillH = (Math.max(...ys) - Math.min(...ys)) / b.h;
+    return { inside, fillW: +fillW.toFixed(3), fillH: +fillH.toFixed(3), fill: +Math.max(fillW, fillH).toFixed(3), canvas: [b.w, b.h] };
+  }
   /** A pointer gesture of 40 moves, 25 ms apart; how many moves a second the page took. */
   const gesture = async (pg, from, to, down) => {
     await pg.mouse.move(from.x, from.y);
@@ -96,6 +108,32 @@ module.exports = async function p16(H) {
   check('P16 the canvas keeps the focus and names the 3D view; the WebGL canvas is hidden from assistive technology',
     /^3D preview, Front\./.test(await page.getAttribute('#pd-root .pd-canvas', 'aria-label')) && (await page.getAttribute('#pd-root .pd3-canvas', 'aria-hidden')) === 'true' && (await page.getAttribute('#pd-root .pd3-canvas', 'tabindex')) === '-1');
   await shot(page, '3d-front');
+  perf.framingDesktop = await framing(page);
+  check('P16 framing: the front view keeps the whole garment in the canvas and fills 70–95 % of its limiting side', perf.framingDesktop.inside && perf.framingDesktop.fill >= 0.7 && perf.framingDesktop.fill <= 0.95, perf.framingDesktop);
+  {
+    // A canvas that changes shape re-frames a camera resting at a preset, and never moves one the reader turned.
+    const r0 = (await three(page)).engine.camera.radius;
+    await page.setViewportSize({ width: 1300, height: 941 });
+    await page.waitForTimeout(900);
+    const atPreset = (await three(page)).engine, fit1 = await framing(page);
+    await page.setViewportSize({ width: 1672, height: 941 });
+    await page.waitForTimeout(900);
+    await page.focus('#pd-root .pd-canvas');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('ArrowLeft');
+    await page.waitForTimeout(400);
+    const turned = (await three(page)).engine.camera;
+    await page.setViewportSize({ width: 1300, height: 941 });
+    await page.waitForTimeout(900);
+    const kept = (await three(page)).engine.camera;
+    await page.setViewportSize({ width: 1672, height: 941 });
+    await page.waitForTimeout(900);
+    check('P16 framing: a resized canvas re-frames a camera resting at a preset (the garment still whole and filling the view); a camera the reader turned stays where it was',
+      atPreset.preset === 'front' && fit1.inside && fit1.fill >= 0.7 && near(kept.alpha, turned.alpha, 1e-6) && near(kept.radius, turned.radius, 1e-6),
+      { r0, atPreset: atPreset.camera.radius, fit1, turned: turned.radius, kept: kept.radius });
+    await page.click('#pd-root [data-pd-view="front"]');
+    await page.waitForTimeout(900);
+  }
 
   // ── b. the artwork lands where the geometry says, unmirrored ───────────────────────────────────────────────────
   {
@@ -113,63 +151,81 @@ module.exports = async function p16(H) {
     await painted(page);
   }
 
-  // ── c. a drag on the garment is a move in millimetres on the flat panel, one undo step ────────────────────────
+  // ── c. direct manipulation on the garment is switched off: a press or a drag there changes no design ───────────
+  // By the Owner's decision (DIRECT_3D_EDIT = false), elements are selected in the Layers list or in 2D. On the garment
+  // the pointer only turns the camera: the design, its history and the server are untouched.
+  const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  const docText = () => page.evaluate(() => localStorage.getItem('familista_product_design_draft_v1'));
+  const layerOf = async (id) => JSON.parse(await docText()).surfaces[0].layers.find((l) => l.id === id);
   {
-    const docOf = () => page.evaluate(() => JSON.parse(localStorage.getItem('familista_product_design_draft_v1')));
+    await page.focus('#pd-root .pd-canvas');
+    await page.keyboard.press('Escape');
     await page.waitForTimeout(1400); // the draft is written 1.2 s after a change
-    const x0 = (await docOf()).surfaces[0].layers.find((l) => l.id === 'l4').x;
-    const a = await canvasAt(page, 'front', 230, 330), b = await canvasAt(page, 'front', 290, 330);
-    const u0 = (await M(page)).undo;
+    const before = await docText(), m0 = await M(page), e0 = (await three(page)).engine, req0 = log.requests.length;
+    const a = await canvasAt(page, 'front', 376, 200), b = { x: a.x - 160, y: a.y }; // starts on the crest, 160 px long: enough to turn the camera
+    await page.mouse.click(a.x, a.y);
+    await page.waitForTimeout(300);
+    const afterPress = await M(page);
     await page.mouse.move(a.x, a.y);
     await page.mouse.down();
-    for (let i = 1; i <= 12; i++) { await page.mouse.move(a.x + (b.x - a.x) * i / 12, a.y + (b.y - a.y) * i / 12); await page.waitForTimeout(25); }
+    for (let i = 1; i <= 15; i++) { await page.mouse.move(a.x + (b.x - a.x) * i / 15, a.y); await page.waitForTimeout(30); }
     await page.mouse.up();
+    await page.waitForTimeout(1600);
+    const m1 = await M(page), e1 = (await three(page)).engine;
+    check('P16 a press on an element of the 3D garment selects nothing: direct 3D manipulation is switched off', !afterPress.selected && !m1.selected, { afterPress: afterPress.selected, after: m1.selected });
+    check('P16 a drag across an element of the 3D garment changes nothing: same document, same history, nothing drawn as an edit, nothing written; the camera turns instead',
+      (await docText()) === before && m1.undo === m0.undo && m1.redo === m0.redo && e1.composites === e0.composites && e1.drafts === e0.drafts && !e1.showingDraft &&
+      Math.abs(e1.camera.alpha - e0.camera.alpha) > 0.05 && log.requests.slice(req0).every((r) => r.method === 'GET'),
+      { undo: [m0.undo, m1.undo], composites: [e0.composites, e1.composites], alpha: [e0.camera.alpha, e1.camera.alpha] });
+    await page.click('#pd-root [data-pd-view="front"]');
+    await page.waitForTimeout(900);
     await painted(page);
-    await page.waitForTimeout(1400);
-    const m1 = await M(page), x1 = (await docOf()).surfaces[0].layers.find((l) => l.id === 'l4').x;
-    check('P16 pressing an element on the 3D garment selects it, as on the flat panel', m1.selected && m1.selected.id === 'l4', m1.selected);
-    check('P16 dragging it 60 mm across the 3D garment moves it 60 mm on the flat panel (± 3 mm), as one undo step', near(x1 - x0, 60, 3) && m1.undo === u0 + 1, { x0, x1, moved: x1 - x0, undo: [u0, m1.undo] });
-    perf.dragTextureMsMedian = m1.three.engine.textureMsMedian;
-    await page.keyboard.press('Control+z');
-    await page.waitForTimeout(1400);
-    const x2 = (await docOf()).surfaces[0].layers.find((l) => l.id === 'l4').x;
-    check('P16 undo returns it exactly', x2 === x0, { x2, x0 });
-    await page.keyboard.press('Control+Shift+z');
-    await page.waitForTimeout(300);
-    // 2D and 3D are one document: the flat panel shows the move made on the garment.
-    await page.click('#pd-root [data-pd-mode="2d"]');
-    await page.waitForTimeout(300);
-    const tr = await page.getAttribute('#pd-root .pd-svg [data-pd-node="l4"]', 'transform');
-    check('P16 the flat 2D panel shows the move made in 3D, and leaving 3D disposes its engine and its canvas',
-      tr.startsWith('translate(' + x1 + ' ') && (await page.$$('#pd-root .pd3-canvas')).length === 0 && (await engines(page)) === 0 && (await three(page)).state === 'off', { tr, engines: await engines(page) });
-    await page.keyboard.press('Control+z');
-    await page.click('#pd-root [data-pd-mode="3d"]');
-    await ready3d(page);
-    await page.waitForTimeout(400);
   }
 
-  // ── c2. while a drag lasts ─────────────────────────────────────────────────────────────────────────────────
-  // While a drag lasts, the surface is a composited draft. It shows the element where it now is and not where it was,
-  // and the full-resolution artwork is back once the element is released.
+  // ── c2. editing in the Layers list, with the keyboard and in 2D: the garment follows every change ─────────────
   {
-    const c0 = await canvasAt(page, 'front', 376, 200), c1 = await canvasAt(page, 'front', 326, 200);
-    const e0 = (await three(page)).engine;
-    await page.mouse.move(c0.x, c0.y);
-    await page.mouse.down();
-    for (let i = 1; i <= 15; i++) { await page.mouse.move(c0.x + (c1.x - c0.x) * i / 15, c0.y); await page.waitForTimeout(40); }
-    await page.waitForTimeout(500);
-    const mid = await three(page), px = await pixels(page, [await canvasAt(page, 'front', 326, 200), await canvasAt(page, 'front', 376, 200)]);
-    await shot(page, '3d-mid-drag');
-    await page.mouse.up();
+    const l0 = await layerOf('l3');
+    await page.click('#pd-root [data-pd-select="l3"]'); // selected in the Layers list
+    await page.focus('#pd-root .pd-canvas');
+    const e0 = (await three(page)).engine, t0 = Date.now();
+    for (let i = 0; i < 5; i++) await page.keyboard.press('Shift+ArrowLeft'); // 10 mm a press: 50 mm to the left
     await painted(page);
-    await page.waitForTimeout(300);
-    const after = await three(page);
-    const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-    check('P16 mid-drag, the garment shows the crest where it now is (white) and not where it was; composited, not redrawn',
-      mid.engine.showingDraft && mid.engine.composites > e0.composites && lum(px[0]) > 200 && lum(px[1]) < 120, { atNewPlace: px[0].map(Math.round), atOldPlace: px[1].map(Math.round), composites: mid.engine.composites - e0.composites });
-    check('P16 on release the full-resolution artwork replaces the draft', !after.engine.showingDraft && !after.engine.pending, { showingDraft: after.engine.showingDraft });
-    await page.keyboard.press('Control+z');
+    const msToPainted = Date.now() - t0;
+    await page.waitForTimeout(1400);
+    const l1 = await layerOf('l3'), e1 = (await three(page)).engine;
+    const px = await pixels(page, [await canvasAt(page, 'front', 326, 200), await canvasAt(page, 'front', 376, 200)]);
+    perf.keyboardEdit = { presses: 5, paints: e1.paints - e0.paints, msToPainted, scaling: e1.scaling };
+    check('P16 moving the crest from the Layers list with the keyboard redraws the garment at once: it shows where the crest now is, not where it was',
+      (await M(page)).selected.id === 'l3' && l1.x === l0.x - 50 && l1.y === l0.y && e1.paints > e0.paints && lum(px[0]) > 200 && lum(px[1]) < 120 && !e1.pending,
+      { x: [l0.x, l1.x], atNewPlace: px[0].map(Math.round), atOldPlace: px[1].map(Math.round), ...perf.keyboardEdit });
+    check('P16 an edit is drawn at full resolution: the canvas is not coarsened while editing', e1.scaling === 1 && !e1.moving, { scaling: e1.scaling });
+    await shot(page, '3d-keyboard-edit');
+    // The flat panel shows the same move, and leaving 3D disposes its engine.
+    await page.click('#pd-root [data-pd-mode="2d"]');
+    await page.waitForTimeout(400);
+    const tr = await page.getAttribute('#pd-root .pd-svg [data-pd-node="l3"]', 'transform');
+    check('P16 the flat 2D panel shows the move made while watching 3D, and leaving 3D disposes its engine and its canvas',
+      tr.startsWith('translate(' + l1.x + ' ' + l1.y + ')') && (await page.$$('#pd-root .pd3-canvas')).length === 0 && (await engines(page)) === 0 && (await three(page)).state === 'off', { tr, engines: await engines(page) });
+    // An edit made in 2D is on the garment when 3D opens again: the crest moved 100 mm up on the flat panel.
+    const node = await page.evaluate(() => { const r = document.querySelector('#pd-root .pd-svg [data-pd-node="l3"]').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+    await page.mouse.click(node.x, node.y);
+    await page.focus('#pd-root .pd-canvas');
+    for (let i = 0; i < 10; i++) await page.keyboard.press('Shift+ArrowUp');
+    await page.waitForTimeout(1400);
+    const l2 = await layerOf('l3');
+    await page.click('#pd-root [data-pd-mode="3d"]');
+    await ready3d(page);
+    await page.waitForTimeout(600);
+    const px2 = await pixels(page, [await canvasAt(page, 'front', l2.x, l2.y), await canvasAt(page, 'front', l2.x, l1.y)]);
+    check('P16 an edit made on the flat 2D panel is on the garment when 3D opens again (the crest 100 mm higher, gone from where it was)',
+      l2.y === l1.y - 100 && lum(px2[0]) > 200 && lum(px2[1]) < 120, { y: [l1.y, l2.y], atNewPlace: px2[0].map(Math.round), atOldPlace: px2[1].map(Math.round) });
+    // Put the crest back: fifteen undo steps (each keyboard move is one), then the document is what it was.
+    await page.focus('#pd-root .pd-canvas');
+    for (let i = 0; i < 15; i++) await page.keyboard.press('Control+z');
+    await page.waitForTimeout(1400);
     await painted(page);
+    const l3 = await layerOf('l3');
+    check('P16 undo returns the crest exactly, step by step, and the garment follows', l3.x === l0.x && l3.y === l0.y && !(await three(page)).engine.pending, { start: [l0.x, l0.y], end: [l3.x, l3.y] });
   }
 
   // ── d. presets, keyboard camera, close-up ────────────────────────────────────────────────────────────────────
@@ -211,8 +267,7 @@ module.exports = async function p16(H) {
       near(a1 - a0, 0.3, 0.001) && k2.preset === 'back' && (await M(page)).view === 'back', { turned: a1 - a0, preset: k2.preset });
     await page.keyboard.press('1');
     await page.waitForTimeout(800);
-    const crest = await canvasAt(page, 'front', 376, 200);
-    await page.mouse.click(crest.x, crest.y);
+    await page.click('#pd-root [data-pd-select="l3"]'); // the Layers list
     await page.waitForTimeout(200);
     await page.click('#pd-root [data-pd-act="closeup"]');
     await page.waitForTimeout(800);
@@ -265,8 +320,7 @@ module.exports = async function p16(H) {
     const saved = (n) => page.waitForFunction((k) => { const s = window.__familistaProductDesignMetrics().server; return s.state === 'saved' && s.revision === k; }, n, { timeout: 20000 });
     await page.click('#pd-root .pd-actions [data-pd-act="save"]');
     await saved(1);
-    const crest = await canvasAt(page, 'front', 376, 200);
-    await page.mouse.click(crest.x, crest.y);
+    await page.click('#pd-root [data-pd-select="l3"]'); // the Layers list
     await page.focus('#pd-root .pd-canvas');
     for (let i = 0; i < 10; i++) await page.keyboard.press('Shift+ArrowDown');
     await page.click('#pd-root .pd-actions [data-pd-act="save"]');
@@ -331,14 +385,15 @@ module.exports = async function p16(H) {
     perf.pointer.orbitMovesPerSecond = await gesture(page, { x: cv.x + 30, y: cv.y + 210 }, { x: cv.x + 220, y: cv.y + 210 }, true);
     await page.click('#pd-root [data-pd-view="front"]');
     await page.waitForTimeout(900);
+    // A drag that starts on an element of the garment turns the camera too, at the same rate as one beside it.
     const da = await canvasAt(page, 'front', 260, 330), db2 = await canvasAt(page, 'front', 320, 330);
-    perf.pointer.drag3dMovesPerSecond = await gesture(page, da, db2, true);
-    await painted(page);
-    await page.keyboard.press('Control+z');
-    await painted(page);
-    check('P16 orbiting with the pointer keeps up with this machine’s input: ≥ 80 % of the idle-hover rate', perf.pointer.orbitMovesPerSecond >= 0.8 * perf.pointer.idleHoverMovesPerSecond, perf.pointer);
-    // A regression floor, not a quality target: on this machine a 3D drag is GPU-bound in software rendering (see §16).
-    check('P16 a 3D drag, measured: ≥ 4 updates a second on this machine (software rendering; real hardware not measured)', perf.pointer.drag3dMovesPerSecond >= 4, perf.pointer);
+    const before = await docText();
+    perf.pointer.dragOnGarmentMovesPerSecond = await gesture(page, da, db2, true);
+    await page.waitForTimeout(1400);
+    check('P16 orbiting with the pointer keeps up with this machine’s input (≥ 80 % of the idle-hover rate), starting beside the garment or on it, and the design is unchanged',
+      perf.pointer.orbitMovesPerSecond >= 0.8 * perf.pointer.idleHoverMovesPerSecond && perf.pointer.dragOnGarmentMovesPerSecond >= 0.8 * perf.pointer.idleHoverMovesPerSecond && (await docText()) === before, perf.pointer);
+    await page.click('#pd-root [data-pd-view="front"]');
+    await page.waitForTimeout(900);
     perf.desktopFloor = await floor(page);
     const r0 = (await three(page)).engine.renders;
     await page.click('#pd-root [data-pd-act="turntable"]');
@@ -464,6 +519,11 @@ module.exports = async function p16(H) {
       readyMs <= 8000 && perf.mobile.turntableIntervalMsMedian <= Math.min(66.7, perf.mobileFloor.medianMs + 33.3) && l5.errors.length === 0, perf.mobile);
     await p5.waitForTimeout(400);
     await shot(p5, '3d-phone');
+    // Measured at the front view: the turntable above left the garment turned.
+    await p5.tap('#pd-root [data-pd-view="front"]');
+    await p5.waitForTimeout(1200);
+    perf.framingPhone = await framing(p5);
+    check('P16 framing on a phone: the front view keeps the whole garment in the canvas and fills 70–95 % of its limiting side', perf.framingPhone.inside && perf.framingPhone.fill >= 0.7 && perf.framingPhone.fill <= 0.95, perf.framingPhone);
     await c5.close();
   }
   console.log('P16 performance ' + JSON.stringify(perf));

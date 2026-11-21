@@ -296,7 +296,7 @@
       landmarks: { front: { tip: lf.tip, armpit: lf.armpit, top: lf.top, hem: lf.hem, corner: lf.corner }, back: { tip: lb.tip, armpit: lb.armpit, top: lb.top, hem: lb.hem, corner: lb.corner } },
       shoulders: { front: mf.top, back: mb.top },
       presets: presets({ 'sleeve-right': mR.at((mR.extent(mR.bottom)[0] + mR.extent(mR.bottom)[1]) / 2, (sr.outline[0][1] + mR.bottom) / 2),
-        'sleeve-left': mL.at((mL.extent(mL.bottom)[0] + mL.extent(mL.bottom)[1]) / 2, (sl.outline[0][1] + mL.bottom) / 2) }),
+        'sleeve-left': mL.at((mL.extent(mL.bottom)[0] + mL.extent(mL.bottom)[1]) / 2, (sl.outline[0][1] + mL.bottom) / 2) }, panels),
       trims: trims(template, mappers),
       seams: seams(template, mappers),
       sleeves: { 'sleeve-right': { axis: mR.axis, outside: mR.outside, across: mR.across, origin: mR.origin }, 'sleeve-left': { axis: mL.axis, outside: mL.outside, across: mL.across, origin: mL.origin } },
@@ -358,14 +358,39 @@
   /**
    * The presets for a built garment: the front, the back and the collar look at its centre; each side looks at the
    * middle of the outside of its sleeve, from outside and a little above, so the sleeve's artwork is read face on.
+   * Each preset but the collar's close-up also carries `fit`: the half-extents of what it must show, so that `frame`
+   * can choose its distance for any canvas.
    */
-  function presets(sleeveCentres) {
-    var out = {};
+  function presets(sleeveCentres, panels) {
+    var b = bounds(panels), out = {};
+    var whole = { hw: (b.max[0] - b.min[0]) / 2, hh: (b.max[1] - b.min[1]) / 2, hd: (b.max[2] - b.min[2]) / 2, fill: 0.86 };
     Object.keys(PRESETS).forEach(function (k) {
-      var p = PRESETS[k], c = sleeveCentres[k];
-      out[k] = { alpha: p.alpha, beta: p.beta, radius: p.radius, target: c ? c.slice() : [0, 0, 0] };
+      var p = PRESETS[k], c = sleeveCentres[k], fit = null;
+      if (k === 'front' || k === 'back') fit = whole;
+      else if (c) {
+        // A side frames its own sleeve: the sphere round the sleeve's centre that holds every one of its vertices.
+        var m = panels.filter(function (x) { return x.surface === k; })[0].mesh, r = 0;
+        for (var i = 0; i < m.positions.length; i += 3) r = Math.max(r, Math.sqrt(Math.pow(m.positions[i] - c[0], 2) + Math.pow(m.positions[i + 1] - c[1], 2) + Math.pow(m.positions[i + 2] - c[2], 2)));
+        fit = { hw: r, hh: r, hd: r, fill: 0.8 };
+      }
+      out[k] = { alpha: p.alpha, beta: p.beta, radius: p.radius, target: c ? c.slice() : k === 'collar' ? [0, 0, 0] : b.center.slice(), fit: fit };
     });
     return out;
+  }
+  /**
+   * The distance at which a box of half-extents hw (across the view), hh (up) and hd (towards the camera) is seen whole,
+   * its larger relative side filling `fill` of the canvas: its nearest face, at distance r − hd, must hold hh within
+   * the vertical half-angle and hw within the horizontal one. `fov` is vertical; `aspect` is width / height.
+   */
+  function fitRadius(fit, fov, aspect) {
+    var tv = Math.tan(fov / 2), th = tv * aspect;
+    return Math.max(fit.hh / (tv * fit.fill), fit.hw / (th * fit.fill)) + fit.hd;
+  }
+  /** A preset placed for a canvas: its distance fitted to what it shows, or as it is when it has nothing to fit. */
+  function frame(p, aspect, fov, fit) {
+    var f = fit || p.fit;
+    if (!f || !(aspect > 0) || !(fov > 0)) return p;
+    return { alpha: p.alpha, beta: p.beta, radius: fitRadius(f, fov, aspect), target: (p.target || [0, 0, 0]).slice(), fit: f };
   }
   function eye(p, target) {
     target = target || p.target || [0, 0, 0];
@@ -392,6 +417,6 @@
   return Object.freeze({
     MM: MM, DEPTH: DEPTH, SLEEVE_DEG: SLEEVE_DEG, PRESETS: PRESETS,
     build: build, flatten: flatten, rowExtent: rowExtent, thetaAt: thetaAt, arcTotal: ARC.total,
-    outward: outward, eye: eye, screenRight: screenRight, facing: facing,
+    outward: outward, eye: eye, screenRight: screenRight, facing: facing, frame: frame, fitRadius: fitRadius,
   });
 }));

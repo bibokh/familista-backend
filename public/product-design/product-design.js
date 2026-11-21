@@ -1477,6 +1477,14 @@
   // history. One document drives 2D, 3D and every saved version.
 
   var D3 = window.FamilistaProductDesign3D || null;
+  /**
+   * Direct manipulation on the 3D garment (selecting and moving an element with the pointer on the garment) is
+   * switched off by the Owner's decision, pending review. Elements are selected in the Layers list or on the 2D canvas
+   * and moved there or with the arrow keys, and the garment follows every change. The implementation (pick3d, drag3d,
+   * drop3d, dragParts3d and the 3D view's drag compositing) is kept and tested, inactive: this constant is its only
+   * switch, it is not reachable from the interface, and while it is false the 3D view is given no pick or drag handler.
+   */
+  var DIRECT_3D_EDIT = false;
   var G3 = window.FamilistaProductDesignGarment || null;
   var LIGHT_LABEL = { studio: L('Studio'), daylight: L('Daylight'), stadium: L('Stadium') };
   var FABRIC_LABEL = { smooth: L('Smooth polyester (simulated)'), mesh: L('Mesh knit (simulated)') };
@@ -1659,7 +1667,7 @@
     D3.open(S.el.host3d, {
       template: TEMPLATE, quality: v.quality, colours: trimColours(), seam: ink().seam, font: familyOf(FONT['sans-bold']), dir: DIR,
       texture: function (id, w, hgt) { return texture3d(id, w, hgt, true); },
-      onPick: pick3d, onDrag: drag3d, onDrop: drop3d, dragParts: dragParts3d,
+      onPick: DIRECT_3D_EDIT ? pick3d : null, onDrag: DIRECT_3D_EDIT ? drag3d : null, onDrop: DIRECT_3D_EDIT ? drop3d : null, dragParts: DIRECT_3D_EDIT ? dragParts3d : null,
       onError: function (code) { if (S === mine && v.token === token) fail3d(code); },
     }).then(function (ctl) {
       if (S !== mine || v.token !== token || S.mode !== '3d') { if (ctl && ctl.dispose) ctl.dispose(); return; }
@@ -1683,7 +1691,8 @@
         v.state = 'ready';
         sync3d();
         renderCanvas();
-        say(T('3D view ready. Drag to turn the garment, pinch or use the wheel to zoom, and drag an element to move it.'));
+        say(DIRECT_3D_EDIT ? T('3D view ready. Drag to turn the garment, pinch or use the wheel to zoom, and drag an element to move it.')
+          : T('3D view ready. Drag to turn the garment, pinch or use the wheel to zoom. Select and move elements in the Layers list or in 2D; the garment follows every change.'));
         if (v.pendingCompare) { var n = v.pendingCompare; v.pendingCompare = 0; compareWith(n); }
       }());
     });
@@ -1775,7 +1784,7 @@
   }
   function closeUp() {
     var n = selectedLayer();
-    if (!S.v3.ctl || !n || !isBox(n)) { say(T('Select an element on the garment to look at it close up.')); return; }
+    if (!S.v3.ctl || !n || !isBox(n)) { say(DIRECT_3D_EDIT ? T('Select an element on the garment to look at it close up.') : T('Select an element in the Layers list to look at it close up.')); return; }
     S.v3.ctl.focus(surfaceOfSelection(), n.x, n.y);
     S.v3.turntable = false;
     sync3d();
@@ -1857,7 +1866,7 @@
     E.bar3d = h('div', { class: 'pd3-bar', role: 'toolbar', 'aria-label': T('3D view'), dir: DIR }, [
       cycleBtn('light', 'sun'), cycleBtn('fabric', 'shirt'), cycleBtn('quality', 'gear'),
       h('span', { class: 'pd3-sep', 'aria-hidden': 'true' }),
-      btn({ class: 'pd-icbtn pd3-btn', 'data-pd-act': 'closeup', 'aria-label': T('Close-up on the selection'), title: T('Close-up on the selection'), 'data-pd-why': T('Select an element on the garment to look at it close up.') }, [icon('zoomIn')]),
+      btn({ class: 'pd-icbtn pd3-btn', 'data-pd-act': 'closeup', 'aria-label': T('Close-up on the selection'), title: T('Close-up on the selection'), 'data-pd-why': DIRECT_3D_EDIT ? T('Select an element on the garment to look at it close up.') : T('Select an element in the Layers list to look at it close up.') }, [icon('zoomIn')]),
       btn({ class: 'pd-icbtn pd3-btn', 'data-pd-act': 'compare3d', 'aria-pressed': 'false', 'data-pd-why': T('Save the design to compare it with its saved versions.') }, [icon('compare')]),
     ]);
     [E.host3d, E.sim3d, E.status3d, E.bar3d].forEach(function (el) { E.canvas.appendChild(el); });
@@ -1869,7 +1878,7 @@
     E.status3d.textContent = S.mode !== '3d' ? '' : v.state === 'loading' ? T('Preparing the 3D view…')
       : v.compare && v.compare.state === 'loading' ? tf('Opening version %d…', v.compare.number) : '';
     E.help.textContent = S.mode === '3d'
-      ? T('3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom, and drag an element to move it across its surface, in millimetres. Arrow keys turn the garment when nothing is selected and move the selection when something is; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.') + ' ' + T(SIM_NOTE)
+      ? (DIRECT_3D_EDIT ? T('3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom, and drag an element to move it across its surface, in millimetres. Arrow keys turn the garment when nothing is selected and move the selection when something is; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.') : T('3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.')) + ' ' + T(SIM_NOTE)
       : T('Design canvas. Click an element to select it, drag to move it, drag its handles to resize or rotate it; drag the empty canvas to pan, Control and the wheel to zoom. Arrow keys move the selection 1 mm, Shift and an arrow 10 mm; comma and full stop rotate it; Tab moves to the next element; Delete removes it; Escape clears the selection.');
     [['light', L('Light'), LIGHT_LABEL[v.lighting], LIGHT_LABEL[v.lighting]], ['fabric', L('Fabric (simulated)'), FABRIC_SHORT[v.fabric], FABRIC_LABEL[v.fabric]],
       ['quality', L('Quality'), QUALITY_LABEL[v.quality], QUALITY_LABEL[v.quality]]].forEach(function (c) {

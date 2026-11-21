@@ -426,5 +426,8 @@
   "Save the design to compare it with its saved versions.": "Save the design to compare it with its saved versions.",
   "Fabric (simulated)": "Fabric (simulated)",
   "%s: %s. Press to change.": "%s: %s. Press to change.",
-  "Stop comparing with version %d": "Stop comparing with version %d"
+  "Stop comparing with version %d": "Stop comparing with version %d",
+  "3D view ready. Drag to turn the garment, pinch or use the wheel to zoom. Select and move elements in the Layers list or in 2D; the garment follows every change.": "3D view ready. Drag to turn the garment, pinch or use the wheel to zoom. Select and move elements in the Layers list or in 2D; the garment follows every change.",
+  "Select an element in the Layers list to look at it close up.": "Select an element in the Layers list to look at it close up.",
+  "3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.": "3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side."
 }
