@@ -431,10 +431,13 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
 
     // ── P15 DS-1b: saved on the server — the DS-1a draft, saves, a conflict, versions, projects, failures ────────────
     {
-      const rows = async () => ({
-        projects: await db.designProject.count(), revisions: await db.designRevision.count(),
-        audit: await db.platformAuditLog.count({ where: { action: { startsWith: 'design.' } } }),
-      });
+      // One statement, so one snapshot: a save still committing from an earlier section (P14 does not wait for its own)
+      // then lands wholly before or wholly after it, a revision and its audit record together, and the deltas stay exact.
+      const rows = async () => {
+        const [r] = await db.$queryRaw`SELECT (SELECT count(*) FROM "DesignProject")::int AS projects, (SELECT count(*) FROM "DesignRevision")::int AS revisions,
+          (SELECT count(*) FROM "PlatformAuditLog" WHERE action LIKE 'design.%')::int AS audit`;
+        return { projects: r.projects, revisions: r.revisions, audit: r.audit };
+      };
       const S = (pg) => pg.evaluate(() => window.__familistaProductDesignMetrics().server);
       const stateText = (pg) => pg.evaluate(() => document.querySelector('#pd-root .pd-savestate').textContent);
       const idle = (pg) => pg.waitForFunction(() => !window.__familistaProductDesignMetrics().server.busy, null, { timeout: 15000 });
