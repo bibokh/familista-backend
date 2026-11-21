@@ -957,11 +957,11 @@ beside the design; it is never put into the editor and nothing is written.
 
 | Evidence | Result |
 |---|---|
-| `tests/product-design-garment.unit.test.ts` | 39 tests on the real template. Exact UV equals flat position. Row isometry (≤ 0.2 % error) and sleeve circumference. Closed side, shoulder and underarm seams (< 1e-9 m). No flare at the hem or cuffs. Not mirrored under any preset. Outward normals and close-ups. Deterministic. Negative controls for the arc-length wrap and for mirroring. |
-| `tests/product-design-3d.unit.test.ts` | 14 tests. Loads only the vendored script; no network, no `eval`, no inline style; no words of its own; every blob URL revoked; every listener, frame and object released on dispose; reduced motion honoured; the comparison only reads; a drag composites without drawing SVG and uploads only what changed. |
+| `tests/product-design-garment.unit.test.ts` | 47 tests on the real template. Exact UV equals flat position. Row isometry (≤ 0.2 % error) and sleeve circumference. Closed side, shoulder and underarm seams (< 1e-9 m). No flare at the hem or cuffs. Not mirrored under any preset. Outward normals and close-ups. Deterministic. Negative controls for the arc-length wrap and for mirroring. Every preset framed for the canvas at four canvas shapes, with a negative control. |
+| `tests/product-design-3d.unit.test.ts` | 21 tests. Loads only the vendored script; no network, no `eval`, no inline style; no words of its own; every blob URL revoked; every listener, frame and object released on dispose; reduced motion honoured; the comparison only reads. Direct manipulation on the garment is off behind one constant that nothing can change at run time, and the code it would use is kept; editing never lowers the resolution; a press on the 3D canvas never takes the keyboard focus mid-press. |
 | DS-1a/DS-1b suites, full Jest suite, typecheck, `i18n:check`, build | Pass (232 suites; 7 821 tests; 8 database-gated suites skipped without a database). |
 | DS-1b persistence on real PostgreSQL | 24 / 24. |
-| Browser proof, real application on real PostgreSQL, production CSP (`tools/components/product-design-browser-proof.cjs`, P16 in `product-design-3d-proof.cjs`) | 46 P16 checks, with the DS-1a and DS-1b sections. 3D is loaded only when chosen; no CSP violation and no page error from the room. Hiding the crest on the 3D garment changes the pixels where the geometry puts it, and not at its mirror image (negative control). The drag matches in millimetres, with exact undo. In the middle of a drag the garment shows the element where it now is, and not where it was; the full artwork returns on release. Presets, keyboard and close-up work. Print check, light, fabric and quality work. The compared garment shows the saved version's artwork, and comparison writes nothing. The engine is disposed on leaving 3D and on leaving the room. Without WebGL, or without the engine, the room says why and stays on 2.5D. Nothing around the canvas moves when 3D opens. The 3D controls are translated, fit and are not clipped in all five languages. Arabic mirrors the controls and not the garment. axe finds no WCAG 2.2 A/AA violation in 3D in any of the five languages. |
+| Browser proof, real application on real PostgreSQL, production CSP (`tools/components/product-design-browser-proof.cjs`, P16 in `product-design-3d-proof.cjs`) | 50 P16 checks, with the DS-1a and DS-1b sections. 3D is loaded only when chosen; no CSP violation and no page error from the room. Hiding the crest on the 3D garment changes the pixels where the geometry puts it, and not at its mirror image (negative control). A press on an element of the garment selects nothing, and a drag across one changes nothing: same document, same history, nothing written. An element moved from the Layers list with the keyboard is on the garment at once, at full resolution; an edit on the flat panel is on the garment when 3D opens again; undo returns it exactly. A drag on the canvas, beside the garment or starting on an element, turns the camera by the whole of the pointer's travel, drawn within the turntable's frame budget. Every preset is framed for the canvas, on a desktop and a phone, and after a resize. Presets, keyboard and close-up work. Print check, light, fabric and quality work. The compared garment shows the saved version's artwork, and comparison writes nothing. The engine is disposed on leaving 3D and on leaving the room. Without WebGL, or without the engine, the room says why and stays on 2.5D. Nothing around the canvas moves when 3D opens. The 3D controls are translated, fit and are not clipped in all five languages. Arabic mirrors the controls and not the garment. axe finds no WCAG 2.2 A/AA violation in 3D in any of the five languages. |
 
 **Performance, measured on this machine, not claimed.** Headless Chromium renders WebGL and composites the page in
 software (SwiftShader), so these figures are a slow baseline, not a real graphics card. Two controls measure this
@@ -971,10 +971,22 @@ the page.
 | | Desktop 1672 × 941, balanced | Phone 390 × 844, CPU slowed 4×, low |
 |---|---|---|
 | 3D ready after it is chosen | ≈ 1.1–1.7 s | ≈ 2.3–2.5 s |
-| Turntable, median frame interval | ≈ 53–63 ms | ≈ 30 ms |
-| Plain-canvas floor (control) | 33.3 ms | 16.7 ms |
+| Turntable, median frame interval | ≈ 53–65 ms | ≈ 30–36 ms |
+| Plain-canvas floor (control) | 33.3–50 ms (it varies with the host) | 16.7 ms |
 | Scene CPU time per frame (median) | ≈ 1 ms | ≈ 3–4 ms |
-| Pointer moves handled per second: idle area (control) / orbiting the garment / dragging an element on it | ≈ 29 / ≈ 30 / ≈ 6 | — |
+| Orbit with the pointer, median 3D frame interval (the engine's): beside the garment / starting on an element | ≈ 59–62 / ≈ 58–63 ms | — |
+| Synthetic pointer moves a second, for information only: idle area / orbiting | ≈ 29 / ≈ 5 | — |
+
+**A defect found and fixed (21 November 2026): a drag on the canvas did not turn the garment.** A press on the 3D
+canvas handed the keyboard focus to the editor canvas in the middle of the press. Babylon reads its canvas losing the
+focus as the pointer leaving, so the camera ignored the drag. In headless Chromium a 190-pixel drag left the camera
+where it was, on this branch and on the build first offered for review (`ed993d3`); the cause has been there since 3D
+was added. It was reproduced with a mouse; a touch drag takes the same path but was not reproduced separately. The
+wheel, the keyboard, the presets and the turntable did not depend on it. The proof had counted pointer moves during the orbit without checking that the camera turned, and the count passed
+because nothing was drawn. The focus is now handed over when the press ends. The proof asserts what the reader sees,
+judged by the engine: the camera turns by the whole of the pointer's travel (1.89 rad for 1.90 rad expected), and the
+engine draws the orbit within the turntable's frame budget. Whether real browsers behave the same way has not been
+checked on a device; the mechanism, a blur in the middle of a press, is not specific to headless Chromium.
 
 **Framing and sharpness (21 November 2026).** Every preset is now placed for the canvas it is shown in: a pure
 function (`frame` in `pd-garment.js`) fits the camera's distance to the garment's size and the canvas's shape. The
@@ -986,8 +998,11 @@ came from that, not from the draft texture, and that removing it cost no measura
 changes; no performance improvement is claimed for them.
 
 **The drag, investigated (measured while direct manipulation was on; kept as evidence).** A 3D drag handled about 5
-pointer moves a second here, while orbiting kept up with the
-pointer (about 30). Each cause was measured in turn, and the safe ones were removed:
+synthetic pointer moves a second here. It was compared with an orbit that handled about 30, but that orbit drew
+nothing (see the defect above). Fixed, the orbit handles about 5 too, while the engine draws it at the turntable's
+cadence: a synthetic pointer waits for the page to acknowledge each move, and a page composited in software
+acknowledges slowly while it draws, so the rate measures the compositor rather than the 3D view. The drag's own frame
+cadence was not measured while it was switched on. Each cause was measured in turn, and the safe ones were removed:
 
 - **Per move, the whole surface was redrawn from SVG** (≈ 50 ms). Now the layers under and over the dragged element
   are rasterised once when the drag starts. Each move composites the element at its new place (≈ 6 ms) and uploads
@@ -998,16 +1013,16 @@ pointer (about 30). Each cause was measured in turn, and the safe ones were remo
 
 None of these changed the drag rate in this environment. A Chrome trace shows why. About two thirds of the main
 thread's time during a drag is spent waiting on the GPU process (`GLES2::ReadPixels`, `CommandBufferHelper::Finish`),
-which runs WebGL in software and reads the canvas back for software compositing. The same wait does not appear when
-orbiting, and the reason for that difference was not established. Readback for software compositing does not happen
+which runs WebGL in software and reads the canvas back for software compositing. The same wait did not appear when
+orbiting because, as found later, that orbit drew nothing. Readback for software compositing does not happen
 on a device that composites on the GPU. **Whether the drag is fluid on real graphics hardware has not been measured.**
 The proof keeps a regression floor (≥ 4 drag updates a second here), not a quality target.
 
 The first frame budget (≤ 50 ms turntable on desktop) was not met under software rendering. The budget in the proof is
 ≤ 66.7 ms and no more than two 60 Hz frames over the measured floor. To measure a real device, follow
 `docs/design-studio/DS-1c-real-device-performance.md`. Its first version timed the browser's animation frames,
-which say nothing about a view that draws only on change (it reported 60 fps for an orbit the engine drew at
-15–30 fps). It now counts the engine's own frames and repaints, and records why the method changed. It uses only the room's read-only metrics and proposes targets
+which say nothing about a view that draws only on change (it reported 60 fps for an orbit that, it later turned out, drew no 3D frame at
+all). It now counts the engine's own frames and repaints, and records why the method changed. It uses only the room's read-only metrics and proposes targets
 for those measurements to confirm or refute.
 
 **Implemented and deferred.**

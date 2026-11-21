@@ -87,13 +87,40 @@ the drag's redraws.*
 ## Why the method changed
 
 The first version of this procedure (commit `ed993d3`) timed the browser's animation frames and reported their
-median as the frame rate. Running it in headless Chromium showed the flaw. During an orbit it reported 16.7 ms (60
-frames a second) at every quality level, while the engine's own count showed the garment drawn only about 15–30 times
-a second. The view draws only when something changes, so the page's cadence says nothing about the 3D view's.
+median as the frame rate. Run in headless Chromium on 13 November 2026, it reported, at the low, balanced and high
+quality levels in turn:
 
-The version above counts the engine's frames and repaints instead. The figures recorded elsewhere for DS-1c (in
-`docs/DESIGN_STUDIO_ARCHITECTURE_PROPOSAL.md` §16 and in the browser proof) came from the engine's own metrics and are
-unaffected.
+| Step | Low | Balanced | High |
+|---|---|---|---|
+| Turntable | 49.9 ms (20 fps) | 66.6 ms (15 fps) | 66.7 ms (15 fps) |
+| Orbit | 16.7 ms (59.9 fps) | 16.7 ms (59.9 fps) | 16.7 ms (59.9 fps) |
+| Drag | 50 ms (20 fps) | 66.7 ms (15 fps) | 66.7 ms (15 fps) |
+| Rest | 16.7 ms (59.9 fps) | 16.7 ms (59.9 fps) | 16.7 ms (59.9 fps) |
+
+These are kept as recorded. They describe the page, not the 3D view, which draws only when something changes: the
+orbit's figure is the same as at rest. On 21 November it was found that this orbit drew no 3D frame at all. A defect,
+since fixed, stopped a drag on the canvas from turning the camera (see §16 of
+`docs/DESIGN_STUDIO_ARCHITECTURE_PROPOSAL.md`). The run's own record agrees: during the orbit the resolution stayed at
+its resting level, which it leaves as soon as the camera moves. A frame rate the page reports whether or not the garment
+is drawn cannot measure the garment.
+
+The version above counts the engine's own frames and repaints. Run in the same environment on 21 November, after the
+fix, it gave:
+
+| Step: 3D frames a second, and their median interval | Low | Balanced | High |
+|---|---|---|---|
+| Turntable | 19.2 (50 ms) | 15.6 (66.6 ms) | 12.8 (83.3 ms) |
+| Orbit | 19.0 (50 ms) | 17.0 (50.1 ms) | 12.1 (83.3 ms) |
+| Edit: arrow keys pressed a second, and artwork repaints a second | 6.8 and 4.7 | 4.0 and 2.9 | 4.2 and 2.4 |
+| Rest: 3D frames in 3 s | 0 | 0 | 1, with no repaint (its cause was not established) |
+
+While the garment is drawn, the page ticks with it; at rest the page ticks at 16.7 ms while the garment draws nothing,
+which is the difference the first version could not see. These are software-rendering figures, not a device, so they
+are not compared with the targets above. They also show a limit to measure on a device: an arrow-key edit repaints the
+whole surface at full resolution, so here one repaint covers one or two presses.
+
+The engine-based figures in §16 and in the browser proof are unaffected. The orbit's pointer rate, which was not one of
+them, is corrected there.
 
 ## If something fails
 
