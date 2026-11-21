@@ -1018,6 +1018,24 @@ orbiting because, as found later, that orbit drew nothing. Readback for software
 on a device that composites on the GPU. **Whether the drag is fluid on real graphics hardware has not been measured.**
 The proof keeps a regression floor (≥ 4 drag updates a second here), not a quality target.
 
+**Editing, measured (21 November 2026).** An arrow-key edit made while watching the garment repaints the one
+surface it changed, from the same artwork the flat panel draws, at full resolution. Timed stage by stage over six
+single presses at each quality (medians), from the key to the frame that shows the edit:
+
+| Quality (front texture) | Key to paint start | SVG decode | Upload | Upload to frame | Key to frame |
+|---|---|---|---|---|---|
+| Low (648 × 912) | 5 ms | 62 ms | 15 ms | 16 ms | 88 ms |
+| Balanced (1080 × 1520) | 67 ms | 12 ms | 30 ms | 31 ms | 119 ms |
+| High (1620 × 2280) | 65 ms | 9 ms | 54 ms | 55 ms | 136 ms |
+
+Pressed continuously, the newest edit wins and the garment is repainted 2.4–4.7 times a second here (the real-device
+procedure). The one stage that grows with quality is the upload of the whole texture. Uploading only the rectangle an
+edit changed is what the switched-off drag does, so it is not used while direct manipulation is off; a lower texture
+resolution would cost sharpness. No change was made, and none is claimed. Defaults stay as they are: low on a touch
+device or one that reports 4 GB of memory or less, balanced otherwise, high only when chosen. Whether a desktop that renders in software (as here) should start
+at low is a decision for the Owner; it would read the browser's renderer name, which is a fingerprinting surface, and is
+not implemented.
+
 The first frame budget (≤ 50 ms turntable on desktop) was not met under software rendering. The budget in the proof is
 ≤ 66.7 ms and no more than two 60 Hz frames over the measured floor. To measure a real device, follow
 `docs/design-studio/DS-1c-real-device-performance.md`. Its first version timed the browser's animation frames,
