@@ -514,6 +514,21 @@ jobs:
           printf '%s' "$line" | grep -Eq ', 0 failed, 0 skipped$'
           test "$passed" -ge "$TWIN_FLOOR"
 
+      # The room is laid out for Inter, the font production loads from Google Fonts. The proof blocks Google Fonts, so it
+      # needs Inter installed, as it is on the machines the layout checks were measured on. Without it the browser falls
+      # back to a wider font, and German, French and Spanish labels overflow by 2-22 px: reproduced, and reported to the
+      # Owner as a finding of its own, not hidden here. Installed after the Lab and twin proofs, so they are unaffected;
+      # the step fails if Inter is not then available.
+      - name: Install Inter, the font production loads, for the Design Studio proof
+        if: matrix.shard == 'isolation'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends fonts-inter
+          families="$(fc-list ':family=Inter' family)"
+          echo "$families"
+          test -n "$families"
+
       - name: Design Studio browser proof (real PostgreSQL, production CSP; timing report-only)
         id: design
         if: matrix.shard == 'isolation'
