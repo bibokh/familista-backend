@@ -17,9 +17,17 @@
 //   PLAYWRIGHT_CORE   the Playwright module to load (default: playwright-core; a session with `playwright` installed may
 //                     pass PLAYWRIGHT_CORE=playwright)
 //   CHROMIUM          a Chrome or Chromium binary (default: the module's own)
+//   PROOF_TIMING      `gate` (the default) or `report`. The proof's timing budgets (time to a room, to 3D, frame intervals)
+//                     are checks of their own kind. By default they gate like every other check. With `report`, which
+//                     CI uses because its runners render WebGL in software on shared machines, each is printed as
+//                     `BUDGET MET` or `BUDGET OVER` outside the pass/fail count, followed by a `TIMING n met, n over`
+//                     line after SUMMARY. A budget whose measurement is missing or not a finite number is a FAIL in
+//                     either mode: a measurement that was not taken is not a pass. Thresholds are the same in both.
+//                     Hardware performance is accepted on real devices
+//                     (docs/design-studio/DS-1c-real-device-performance.md), not by this proof.
 //
-// Every line is PASS, FAIL or SKIP; the last is `SUMMARY n passed, n failed, n skipped`, and the exit code is 1 if
-// anything failed. Checks that could pass whatever the room did are paired with a negative control: a club coach is
+// Every line is PASS, FAIL or SKIP (and, with PROOF_TIMING=report, BUDGET); the last is `SUMMARY n passed, n failed,
+// n skipped`, and the exit code is 1 if anything failed. Checks that could pass whatever the room did are paired with a negative control: a club coach is
 // refused where the owner is served, and a design moved off the printable area is reported where the starting one is not.
 // It also writes the screenshots and a side-by-side review sheet against the approved reference to <output-dir>.
 process.env.NODE_ENV = 'production';
@@ -88,6 +96,17 @@ const results = [];
 const pass = (name, detail) => { results.push('PASS'); console.log('PASS ' + name + (detail !== undefined ? ' :: ' + JSON.stringify(detail).slice(0, 600) : '')); };
 const fail = (name, detail) => { results.push('FAIL'); console.log('FAIL ' + name + (detail !== undefined ? ' :: ' + JSON.stringify(detail).slice(0, 900) : '')); };
 const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail));
+const TIMING = process.env.PROOF_TIMING || 'gate';
+if (TIMING !== 'gate' && TIMING !== 'report') { console.error('PROOF_TIMING must be gate or report'); process.exit(2); }
+const timings = [];
+/** A timing budget: `values` are the measurements it judges, every one of which must have been taken. */
+const budget = (name, values, ok, detail) => {
+  const missing = Object.keys(values).filter((k) => !(typeof values[k] === 'number' && Number.isFinite(values[k]) && values[k] >= 0));
+  if (missing.length) return fail(name + ' — not measured: ' + missing.join(', '), detail);
+  if (TIMING === 'gate') return check(name, ok, detail);
+  timings.push(ok ? 'MET' : 'OVER');
+  console.log('BUDGET ' + (ok ? 'MET ' : 'OVER ') + name + (detail !== undefined ? ' :: ' + JSON.stringify(detail).slice(0, 600) : ''));
+};
 
 (async () => {
   try { await prepareDatabase(); } catch (e) { console.log('FAIL the proof database could not be prepared :: ' + String(e && e.message || e).slice(0, 600)); await dropDatabase(); process.exit(1); }
@@ -129,7 +148,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
   const shot = (pg, name) => pg.screenshot({ path: path.join(OUT, 'pd-' + name + '.png') });
   const draft = (pg) => pg.evaluate(() => localStorage.getItem('familista_product_design_draft_v1'));
   const live = (pg) => pg.evaluate(() => (document.querySelector('#pd-root .pd-sr[role="status"]') || {}).textContent || '');
-  async function proof3d() { await require('./product-design-3d-proof.cjs')({ open, M, shot, live, boxOf, check, pass, fail, OUT, ROOT, BASE, db, roomWord }); }
+  async function proof3d() { await require('./product-design-3d-proof.cjs')({ open, M, shot, live, boxOf, check, budget, pass, fail, OUT, ROOT, BASE, db, roomWord }); }
   const boxOf = (pg, sel) => pg.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; }, sel);
 
   try {
@@ -624,7 +643,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     }
 
     // ── P12 timings, measured, not claimed ───────────────────────────────────────────────────────────────────────────
-    check('P12 time to an editable room ≤ 2.5 s on this machine (navigation to ready, served locally)', readyMs <= 2500, { readyMs });
+    budget('P12 time to an editable room ≤ 2.5 s on this machine (navigation to ready, served locally)', { readyMs }, readyMs <= 2500, { readyMs });
     {
       // Warm: twenty keyboard edits in an open room, each a committed change and a full repaint of the canvas.
       const { ctx: c7, page: p7 } = await open({ width: 1672, height: 941 }, 'en-GB');
@@ -633,11 +652,12 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       const e0 = (await M(p7)).edits;
       for (let i = 0; i < 20; i++) { await p7.keyboard.press('ArrowRight'); await p7.waitForTimeout(30); }
       const m7 = await M(p7);
-      check('P12 a committed edit updates the canvas in ≤ 16 ms (median of 20 keyboard edits, warm)', m7.edits - e0 >= 20 && m7.editMsMedian <= 16, { median: m7.editMsMedian, p95: m7.editMsP95, edits: m7.edits - e0, layerPaints: m7.layerPaints });
+      check('P12 twenty keyboard edits in an open room are each committed and repainted', m7.edits - e0 >= 20, { edits: m7.edits - e0, layerPaints: m7.layerPaints });
+      budget('P12 a committed edit updates the canvas in ≤ 16 ms (median of 20 keyboard edits, warm)', { median: m7.editMsMedian }, m7.editMsMedian <= 16, { median: m7.editMsMedian, p95: m7.editMsP95, edits: m7.edits - e0, layerPaints: m7.layerPaints });
       await p7.click('#pd-root [data-pd-view="back"]');
       for (let i = 0; i < 6; i++) { await p7.click('#pd-root [data-pd-view="' + (i % 2 ? 'back' : 'front') + '"]'); await p7.waitForTimeout(60); }
       const full = await M(p7);
-      check('P12 a full repaint (switching views) ≤ 50 ms (median, warm)', full.renderMsMedian <= 50, { median: full.renderMsMedian, max: full.renderMsMax, renders: full.renders });
+      budget('P12 a full repaint (switching views) ≤ 50 ms (median, warm)', { median: full.renderMsMedian }, full.renderMsMedian <= 50, { median: full.renderMsMedian, max: full.renderMsMax, renders: full.renders });
       await c7.close();
     }
     } // ds1
@@ -650,6 +670,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     await dropDatabase();
     const n = (s) => results.filter((r) => r === s).length;
     console.log(`SUMMARY ${n('PASS')} passed, ${n('FAIL')} failed, 0 skipped`);
+    if (TIMING === 'report') console.log(`TIMING ${timings.filter((x) => x === 'MET').length} met, ${timings.filter((x) => x === 'OVER').length} over (report-only: PROOF_TIMING=report)`);
     process.exit(n('FAIL') ? 1 : 0);
   }
 })();

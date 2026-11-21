@@ -21,7 +21,7 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = async function p16(H) {
-  const { open, M, shot, live, boxOf, check, fail, OUT, ROOT, db } = H;
+  const { open, M, shot, live, boxOf, check, budget, fail, OUT, ROOT, db } = H;
   const three = async (pg) => (await M(pg)).three;
   const ready3d = (pg, t) => pg.waitForFunction(() => {
     const m = window.__familistaProductDesignMetrics();
@@ -412,9 +412,12 @@ module.exports = async function p16(H) {
     await page.waitForTimeout(900);
     perf.desktopFloor = await floor(page);
     const orbitBudget = Math.min(66.7, perf.desktopFloor.medianMs + 33.3);
-    check('P16 orbiting with the pointer, beside the garment or starting on an element of it: the camera follows the pointer’s travel, the engine draws it within the turntable’s frame budget (median interval ≤ 66.7 ms and ≤ the plain-canvas floor + 33.3 ms), and the design is unchanged',
-      perf.pointer.beside.follows && perf.pointer.onGarment.follows && perf.pointer.beside.intervalMsMedian <= orbitBudget && perf.pointer.onGarment.intervalMsMedian <= orbitBudget && unchanged,
-      Object.assign({ plain2dCanvasFloorMs: perf.desktopFloor.medianMs, unchanged }, perf.pointer));
+    check('P16 orbiting with the pointer, beside the garment or starting on an element of it: the camera follows the pointer’s travel, and the design is unchanged',
+      perf.pointer.beside.follows && perf.pointer.onGarment.follows && unchanged, Object.assign({ unchanged }, perf.pointer));
+    budget('P16 orbiting with the pointer: the engine draws it within the turntable’s frame budget (median interval ≤ 66.7 ms and ≤ the plain-canvas floor + 33.3 ms), beside the garment and starting on an element',
+      { beside: perf.pointer.beside.intervalMsMedian, onGarment: perf.pointer.onGarment.intervalMsMedian, floor: perf.desktopFloor.medianMs },
+      perf.pointer.beside.intervalMsMedian <= orbitBudget && perf.pointer.onGarment.intervalMsMedian <= orbitBudget,
+      { plain2dCanvasFloorMs: perf.desktopFloor.medianMs, beside: perf.pointer.beside.intervalMsMedian, onGarment: perf.pointer.onGarment.intervalMsMedian });
     const r0 = (await three(page)).engine.renders;
     await page.click('#pd-root [data-pd-act="turntable"]');
     await page.waitForTimeout(3000);
@@ -433,7 +436,8 @@ module.exports = async function p16(H) {
     // The budget: at least 15 frames a second, and at most two 60 Hz frame periods over what this machine needs for a
     // plain canvas of the same size in the same page. A first target of 50 ms was not met here (software rendering of a
     // 1672 × 941 page); real graphics hardware has not been measured by this proof.
-    check('P16 desktop, measured: 3D ready ≤ 4 s after it is chosen; turntable median frame interval ≤ 66.7 ms and ≤ the plain-canvas floor + 33.3 ms',
+    budget('P16 desktop, measured: 3D ready ≤ 4 s after it is chosen; turntable median frame interval ≤ 66.7 ms and ≤ the plain-canvas floor + 33.3 ms',
+      { readyMs: perf.desktop.readyMs, turntable: perf.desktop.turntableIntervalMsMedian, floor: perf.desktopFloor.medianMs },
       perf.desktop.readyMs <= 4000 && perf.desktop.turntableIntervalMsMedian <= Math.min(66.7, perf.desktopFloor.medianMs + 33.3), perf.desktop);
   }
   check('P16 no CSP violation and no page error, after everything above', (await csp(page)).length === 0 && log.errors.length === 0, { csp: await csp(page), errors: log.errors });
@@ -535,8 +539,10 @@ module.exports = async function p16(H) {
     perf.mobile = { readyMs, quality: e1.quality, turntableIntervalMsMedian: mt[Math.floor(mt.length / 2)], turntableIntervalMsP95: mt[Math.floor(mt.length * 0.95)], plain2dCanvasFloorMs: perf.mobileFloor.medianMs, intervalMsMedian: e1.intervalMsMedian, intervalMsP95: e1.intervalMsP95, frameCpuMsMedian: e1.frameMsMedian, textureMsMedian: e0.textureMsMedian, texturePx: e0.texturePx[0], frames3s: e1.renders - e0.renders, motionScale: e1.motionScale };
     const bar = await boxOf(p5, '#pd-root .pd3-bar'), cv = await boxOf(p5, '#pd-root .pd-canvas');
     check('P16 phone: a touch device starts at the low quality, and the 3D controls fit inside the canvas', e1.quality === 'low' && bar.x >= cv.x && bar.x + bar.w <= cv.x + cv.w && (await p5.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)), { bar, cv });
-    check('P16 phone, CPU slowed 4×, measured: 3D ready ≤ 8 s; turntable median frame interval ≤ 66.7 ms and ≤ the plain-canvas floor + 33.3 ms',
-      readyMs <= 8000 && perf.mobile.turntableIntervalMsMedian <= Math.min(66.7, perf.mobileFloor.medianMs + 33.3) && l5.errors.length === 0, perf.mobile);
+    check('P16 phone, CPU slowed 4×: no page error while 3D opens and turns', l5.errors.length === 0, { errors: l5.errors });
+    budget('P16 phone, CPU slowed 4×, measured: 3D ready ≤ 8 s; turntable median frame interval ≤ 66.7 ms and ≤ the plain-canvas floor + 33.3 ms',
+      { readyMs, turntable: perf.mobile.turntableIntervalMsMedian, floor: perf.mobileFloor.medianMs },
+      readyMs <= 8000 && perf.mobile.turntableIntervalMsMedian <= Math.min(66.7, perf.mobileFloor.medianMs + 33.3), perf.mobile);
     await p5.waitForTimeout(400);
     await shot(p5, '3d-phone');
     // Measured at the front view: the turntable above left the garment turned.

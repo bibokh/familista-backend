@@ -375,6 +375,16 @@ jobs:
   # control.
   # `twin_floor` is each shard's floor for the twin, checked the way `min` is.
   #
+  # Familista Design Studio (DS-1a, DS-1b and DS-1c's 3D view) is proved in the isolation shard by
+  # tools/components/product-design-browser-proof.cjs: the compiled application as a Platform Owner, on a real PostgreSQL
+  # (the service below; the proof creates its own role and database, migrates them and drops them), under the production
+  # CSP, in this runner's Chrome with software WebGL. Its functional checks gate the job like every other proof here, with
+  # a floor so it cannot pass empty. Its six timing budgets (time to a room and to 3D, edit and repaint times, frame
+  # intervals) run with the same thresholds as everywhere else but are report-only here (PROOF_TIMING=report): a shared
+  # runner renders WebGL in software, and on one machine the same code measured 58-72 ms against a 66.7 ms budget from
+  # run to run. Each budget is printed as BUDGET MET or OVER in the job summary, and a budget that was not measured fails
+  # the job. Hardware performance is accepted on real devices (docs/design-studio/DS-1c-real-device-performance.md).
+  #
   # Tools: tools/components/package.json pins playwright-core and axe-core exactly, with a
   # lockfile; `npm ci --ignore-scripts` verifies their integrity hashes. Neither is a
   # production dependency and neither downloads a browser: Chrome comes from the runner
@@ -382,7 +392,7 @@ jobs:
   browser-proof:
     name: browser proof (${{ matrix.shard }})
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 55
     strategy:
       fail-fast: false
       matrix:
@@ -399,6 +409,22 @@ jobs:
             min: '84'
             twin: 'T1,T3,T4,T5,T6,T7,T8'
             twin_floor: '267'
+
+    # Only the Design Studio proof uses it (the Lab and the twin stub their data); it is the validate job's PostgreSQL 16.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: familista_ci
+          POSTGRES_USER: familista_ci
+          POSTGRES_PASSWORD: familista_ci_pw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U familista_ci -d familista_ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     env:
       NODE_ENV:           test
@@ -487,6 +513,49 @@ jobs:
           passed="$(printf '%s' "$line" | sed -E 's/^SUMMARY ([0-9]+) passed.*/\1/')"
           printf '%s' "$line" | grep -Eq ', 0 failed, 0 skipped$'
           test "$passed" -ge "$TWIN_FLOOR"
+
+      - name: Design Studio browser proof (real PostgreSQL, production CSP; timing report-only)
+        id: design
+        if: matrix.shard == 'isolation'
+        env:
+          PRODUCT_DESIGN_DB_DATABASE_URL: postgresql://familista_ci:familista_ci_pw@localhost:5432/postgres
+          PROOF_TIMING: report
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/design-proof"
+          mkdir -p "$out"
+          node tools/components/product-design-browser-proof.cjs "$out" 2>&1 | tee "$RUNNER_TEMP/design-proof.log" | grep -v '^{"'
+
+      - name: The Design Studio proof must have run, in full, with no functional check failed or skipped
+        if: matrix.shard == 'isolation'
+        env:
+          DESIGN_FLOOR: '153'
+        run: |
+          set -euo pipefail
+          line="$(grep -E '^SUMMARY ' "$RUNNER_TEMP/design-proof.log" | tail -n 1)"
+          echo "$line"
+          passed="$(printf '%s' "$line" | sed -E 's/^SUMMARY ([0-9]+) passed.*/\1/')"
+          printf '%s' "$line" | grep -Eq ', 0 failed, 0 skipped$'
+          test "$passed" -ge "$DESIGN_FLOOR"
+
+      # Report-only, and it says so: every budget is listed MET or OVER in the job summary, an OVER never fails the job, and
+      # fewer than six measured budgets does. It runs whenever the proof ran, even when its functional gate failed.
+      - name: Design Studio timing budgets (report-only; every budget must have been measured)
+        if: always() && matrix.shard == 'isolation' && steps.design.outcome != 'skipped'
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/design-proof.log"
+          line="$(grep -E '^TIMING [0-9]+ met, [0-9]+ over ' "$log" | tail -n 1)"
+          met="$(printf '%s' "$line" | sed -E 's/^TIMING ([0-9]+) met.*/\1/')"
+          over="$(printf '%s' "$line" | sed -E 's/^TIMING [0-9]+ met, ([0-9]+) over.*/\1/')"
+          {
+            echo "### Design Studio timing budgets (software WebGL on a shared runner; report-only)"
+            echo ""
+            echo "$line"
+            echo ""
+            grep -E '^BUDGET (MET|OVER) ' "$log" | sed -E 's/ :: .*//; s/^BUDGET /- /'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$((met + over))" -eq 6
 
       # M3/S3.2: the performance budget report, in the job summary. Timing is report-only (an OVER is shown, never a red
       # build); a missing or invalid official measurement fails this step. It runs after the proof's own pass/fail step, and
