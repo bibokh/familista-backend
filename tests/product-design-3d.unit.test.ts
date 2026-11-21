@@ -125,6 +125,12 @@ describe('direct manipulation on the 3D garment is switched off, and kept', () =
     expect(line).not.toContain('state.drag');
     expect(CODE).toContain('var px = [p.px[0], p.px[1]];');
   });
+  it('a press on the 3D canvas never takes the keyboard focus mid-press (Babylon would read it as the pointer leaving); it is handed back on release', () => {
+    expect(EDITOR).toContain("if (S.mode === '3d') { if (S.el.host3d && S.el.host3d.contains(ev.target)) S.v3.refocus = true; return; }");
+    expect(EDITOR).toContain('if (S.v3.refocus) { S.v3.refocus = false; S.el.canvas.focus({ preventScroll: true }); }');
+    const pick = EDITOR.slice(EDITOR.indexOf('function pick3d(surfaceId, mm) {'), EDITOR.indexOf('function drag3d(surfaceId, mm) {'));
+    expect(pick).not.toContain('.focus(');
+  });
   it('every preset is framed for the canvas, and a camera the reader moved is never moved back by a resize', () => {
     expect(CODE).toContain('return G.frame(p, aspect(), camera.fov);');
     expect(CODE).toContain('if (camera.inertialAlphaOffset || camera.inertialBetaOffset || camera.inertialRadiusOffset) state.preset = null;');

@@ -379,22 +379,41 @@ module.exports = async function p16(H) {
 
   // ── g. turntable and timings, desktop ────────────────────────────────────────────────────────────────────────
   {
-    // Pointer throughput: hovering an idle region is this machine's input floor; orbiting must keep up with it.
+    // What is asserted is what the reader sees, judged by the engine: the camera follows the whole of the pointer's travel
+    // (Babylon adds 1/sensibility per pixel and inertia carries it on, so the turn is travel / sensibility / (1 - inertia)),
+    // and the engine draws the orbit within the turntable's frame budget. The synthetic pointer's moves a second are kept
+    // for information only: each move waits for the page to acknowledge it, so while the view draws that rate measures the
+    // compositor, not the 3D view. (It was the criterion here until it passed on a build whose orbit drew nothing.)
+    const cam = (pg) => pg.evaluate(() => { const all = window.BABYLON.EngineStore.Instances, k = all[all.length - 1].scenes[0].activeCamera;
+      return { alpha: k.alpha, sens: k.inputs.attached.pointers.angularSensibilityX, inertia: k.inertia }; });
+    const orbit = async (from, to) => {
+      const c0 = await cam(page), r0 = (await three(page)).engine.renders;
+      const movesPerSecond = await gesture(page, from, to, true);
+      const e = (await three(page)).engine, ts = tailStats(e.lastIntervals);
+      await page.waitForTimeout(1400);
+      const c1 = await cam(page), expected = (to.x - from.x) / c0.sens / (1 - c0.inertia);
+      return { syntheticMovesPerSecond: movesPerSecond, frames: e.renders - r0, intervalMsMedian: ts.median, intervalMsP95: ts.p95,
+        turnedRad: +(c0.alpha - c1.alpha).toFixed(3), expectedRad: +expected.toFixed(3), follows: Math.abs(c0.alpha - c1.alpha - expected) <= 0.15 * expected };
+    };
     const foot = await boxOf(page, '#pd-root .pd-foot'), cv = await boxOf(page, '#pd-root .pd-canvas');
     perf.pointer = { idleHoverMovesPerSecond: await gesture(page, { x: foot.x + 20, y: foot.y + 20 }, { x: foot.x + 320, y: foot.y + 20 }, false) };
-    perf.pointer.orbitMovesPerSecond = await gesture(page, { x: cv.x + 30, y: cv.y + 210 }, { x: cv.x + 220, y: cv.y + 210 }, true);
+    perf.pointer.beside = await orbit({ x: cv.x + 30, y: cv.y + 210 }, { x: cv.x + 220, y: cv.y + 210 });
+    check('P16 dragging on the canvas turns the garment: the camera follows the whole of the pointer’s travel (± 15 %), and the editor canvas has the keyboard afterwards',
+      perf.pointer.beside.follows && (await page.evaluate(() => document.activeElement === document.querySelector('#pd-root .pd-canvas'))), perf.pointer);
     await page.click('#pd-root [data-pd-view="front"]');
     await page.waitForTimeout(900);
-    // A drag that starts on an element of the garment turns the camera too, at the same rate as one beside it.
+    // A drag that starts on an element of the garment turns the camera too, exactly as one beside it, and moves nothing.
     const da = await canvasAt(page, 'front', 260, 330), db2 = await canvasAt(page, 'front', 320, 330);
     const before = await docText();
-    perf.pointer.dragOnGarmentMovesPerSecond = await gesture(page, da, db2, true);
-    await page.waitForTimeout(1400);
-    check('P16 orbiting with the pointer keeps up with this machine’s input (≥ 80 % of the idle-hover rate), starting beside the garment or on it, and the design is unchanged',
-      perf.pointer.orbitMovesPerSecond >= 0.8 * perf.pointer.idleHoverMovesPerSecond && perf.pointer.dragOnGarmentMovesPerSecond >= 0.8 * perf.pointer.idleHoverMovesPerSecond && (await docText()) === before, perf.pointer);
+    perf.pointer.onGarment = await orbit(da, db2);
+    const unchanged = (await docText()) === before;
     await page.click('#pd-root [data-pd-view="front"]');
     await page.waitForTimeout(900);
     perf.desktopFloor = await floor(page);
+    const orbitBudget = Math.min(66.7, perf.desktopFloor.medianMs + 33.3);
+    check('P16 orbiting with the pointer, beside the garment or starting on an element of it: the camera follows the pointer’s travel, the engine draws it within the turntable’s frame budget (median interval ≤ 66.7 ms and ≤ the plain-canvas floor + 33.3 ms), and the design is unchanged',
+      perf.pointer.beside.follows && perf.pointer.onGarment.follows && perf.pointer.beside.intervalMsMedian <= orbitBudget && perf.pointer.onGarment.intervalMsMedian <= orbitBudget && unchanged,
+      Object.assign({ plain2dCanvasFloorMs: perf.desktopFloor.medianMs, unchanged }, perf.pointer));
     const r0 = (await three(page)).engine.renders;
     await page.click('#pd-root [data-pd-act="turntable"]');
     await page.waitForTimeout(3000);

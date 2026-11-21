@@ -1347,7 +1347,9 @@
   // ── pointer input on the canvas ───────────────────────────────────────────
 
   function onPointerDown(ev) {
-    if (S.mode === '3d') { if (S.el.host3d && S.el.host3d.contains(ev.target)) S.el.canvas.focus({ preventScroll: true }); return; }
+    // In 3D the press belongs to the camera. Taking the keyboard focus now would blur the 3D canvas mid-press, which
+    // Babylon reads as the pointer leaving, and the garment would not turn; the editor canvas gets the focus on release.
+    if (S.mode === '3d') { if (S.el.host3d && S.el.host3d.contains(ev.target)) S.v3.refocus = true; return; }
     if (ev.button !== 0 && ev.button !== 1) return;
     S.el.canvas.focus({ preventScroll: true });
     var p = pointerWorld(ev), handle = ev.target && ev.target.getAttribute ? ev.target.getAttribute('data-pd-handle') : null;
@@ -1395,6 +1397,7 @@
     syncProps();
   }
   function onPointerUp(ev) {
+    if (S.v3.refocus) { S.v3.refocus = false; S.el.canvas.focus({ preventScroll: true }); }
     var d = S.drag;
     S.drag = null;
     try { S.el.canvas.releasePointerCapture(ev.pointerId); } catch (_) {}
@@ -1502,7 +1505,7 @@
     // A phone, or a device with little memory, starts at the lighter quality; the reader can change it.
     var coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches), mem = navigator.deviceMemory;
     return { ctl: null, state: 'off', token: 0, quality: coarse || (mem && mem <= 4) ? 'low' : 'balanced', lighting: 'studio', fabric: 'smooth',
-      check: false, turntable: false, compare: null, pendingCompare: 0, drag: null, failed: '', trims: '' };
+      check: false, turntable: false, compare: null, pendingCompare: 0, drag: null, failed: '', trims: '', refocus: false };
   }
   function can3d() { return !!(D3 && G3 && D3.webglAvailable()); }
   /** A control that needs 3D: live where WebGL is, otherwise unavailable and saying why. */
@@ -1720,7 +1723,7 @@
 
   // ── the garment, as the reader handles it ─────────────────────────────────
   function pick3d(surfaceId, mm) {
-    S.el.canvas.focus({ preventScroll: true });
+    // The editor canvas takes the keyboard focus when the press ends (onPointerUp), not now: see onPointerDown.
     // A press beside an element turns the garment and keeps the selection; Escape or the list clears it.
     if (!surfaceId) return false;
     var hit = C.hitTest(C.findSurface(S.doc, surfaceId), mm);
