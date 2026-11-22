@@ -112,6 +112,29 @@ module.exports = async function p17(H) {
       !!pid && saved.server.state === 'saved' && (await docText(page)) === savedDoc && !!row && row.templateKey === KEY['gk-shirt'],
       { pid, state: saved.server.state, templateKey: row && row.templateKey });
 
+    // ── comparing versions of a long-sleeve garment: the two garments stand apart ──────────────────────────────────
+    await page.click('#pd-root [data-pd-mode="3d"]');
+    await page.waitForFunction(() => { const t = window.__familistaProductDesignMetrics().three; return t.state === 'ready' && t.engine && !t.engine.pending; }, null, { timeout: 90000 });
+    await page.click('#pd-root [data-pd-act="compare3d"]');
+    await page.waitForSelector('#pd-root [data-pd-act="compare-version"][data-pd-n="1"]', { timeout: 15000 });
+    await page.click('#pd-root [data-pd-act="compare-version"][data-pd-n="1"]');
+    await page.waitForFunction(() => { const t = window.__familistaProductDesignMetrics().three; return !!t.compare && t.compare.state === 'ready'; }, null, { timeout: 30000 });
+    await page.waitForTimeout(800);
+    const span = await page.evaluate(() => {
+      const P = window.__familistaProductDesignProject;
+      // The hem's and the shoulders' corners and both cuffs, on each garment: where they fall across the canvas.
+      const pts = [['front', 30, 740], ['front', 510, 740], ['front', 48, 44], ['front', 492, 44],
+        ['sleeve-right', 110, 660], ['sleeve-right', 310, 660], ['sleeve-left', 110, 660], ['sleeve-left', 310, 660]];
+      const xs = (which) => pts.map((q) => P(q[0], q[1], q[2], which)).filter(Boolean).map((r) => r.x);
+      const a = xs(null), b = xs('compare');
+      return { points: [a.length, b.length], current: [Math.min(...a), Math.max(...a)], compared: [Math.min(...b), Math.max(...b)] };
+    });
+    check('P17 comparing versions of a goalkeeper shirt (long sleeves): the two garments stand apart on the canvas, sleeves included',
+      span.points[0] === 8 && span.points[1] === 8 && (span.current[1] < span.compared[0] || span.compared[1] < span.current[0]), span);
+    await page.click('#pd-root [data-pd-act="compare3d"]');
+    await page.click('#pd-root [data-pd-mode="2.5d"]');
+    await page.waitForTimeout(400);
+
     // ── an exported design is imported on its own garment ──────────────────────────────────────────────────────────
     await choose(page, 'training-top', 'go');
     await onTemplate(page, KEY['training-top']);

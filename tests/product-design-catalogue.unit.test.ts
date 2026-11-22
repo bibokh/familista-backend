@@ -99,6 +99,30 @@ describe('the server', () => {
   });
 });
 
+describe('comparing versions in 3D', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const G = require(path.join(ROOT, 'public/product-design/pd-garment.js'));
+  const D3 = fs.readFileSync(path.join(ROOT, 'public/product-design/pd-3d.js'), 'utf8');
+  const halfWidth = (file: string) => { const b = G.build(C.validateTemplate(read(path.join(DIR, file)))).bounds; return (b.max[0] - b.min[0]) / 2; };
+  /** pd-3d.js's own rule for how far from the middle each garment of a comparison stands. */
+  const offset = (hw: number) => Math.max(0.36, hw + 0.05);
+
+  it('stands each garment far enough out that the two never overlap, long sleeves included', () => {
+    expect(D3).toContain('function compareOffset() { var b = garment.bounds; return Math.max(COMPARE_OFFSET, (b.max[0] - b.min[0]) / 2 + 0.05); }');
+    expect(D3).not.toMatch(/position\.x = -?COMPARE_OFFSET;/);
+    for (const e of ENTRIES) {
+      const hw = halfWidth(e.file);
+      // The gap between the two garments' facing edges is 2 × (offset − half-width).
+      expect([e.product, 2 * (offset(hw) - hw) >= 0.1]).toEqual([e.product, true]);
+    }
+  });
+
+  it('negative control: at the old fixed 0.36 m two long-sleeve garments stood through each other; the match shirt keeps 0.36 m', () => {
+    expect(0.36 - halfWidth('goalkeeper-shirt.json')).toBeLessThan(0);
+    expect(offset(halfWidth('football-jersey.json'))).toBe(0.36);
+  });
+});
+
 describe('the editor’s catalogue', () => {
   it('lists every released product, reads availability from the registry, and marks nothing available by hand', () => {
     for (const e of ENTRIES) expect(EDITOR).toContain(`{ id: '${e.product}', label: L(`);

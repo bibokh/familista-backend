@@ -317,12 +317,17 @@
      * A preset placed for this canvas: its distance fitted to the garment (or, in a comparison, to both garments and
      * their labels) and to the canvas's shape, so the garment fills the view on a tall canvas and a wide one alike.
      */
+    /**
+     * How far from the middle each garment of a comparison stands: never closer than the reviewed 0.36 m, and far enough
+     * that two garments of this width (long sleeves reach further out) stand apart rather than through each other.
+     */
+    function compareOffset() { var b = garment.bounds; return Math.max(COMPARE_OFFSET, (b.max[0] - b.min[0]) / 2 + 0.05); }
     function framed(name) {
       var p = garment.presets[name];
       if (!p) return null;
       if (state.compare) {
         var w = garment.presets.front.fit;
-        return G.frame({ alpha: p.alpha, beta: p.beta, target: [0, 0, 0] }, aspect(), camera.fov, { hw: COMPARE_OFFSET + w.hw, hh: w.hh + 0.1, hd: w.hd, fill: 0.92 });
+        return G.frame({ alpha: p.alpha, beta: p.beta, target: [0, 0, 0] }, aspect(), camera.fov, { hw: compareOffset() + w.hw, hh: w.hh + 0.1, hd: w.hd, fill: 0.92 });
       }
       return G.frame(p, aspect(), camera.fov);
     }
@@ -597,13 +602,14 @@
         if (text) drawSvg(text, st.tex, st.px, function () { dirty(); });
       });
       nodes = nodes.concat(trimMeshes(other, colours, 'pd3-cmp'));
-      root.position.x = -COMPARE_OFFSET;
-      other.position.x = COMPARE_OFFSET;
-      ground.scaling.x = 2.4;
+      var off = compareOffset();
+      root.position.x = -off;
+      other.position.x = off;
+      ground.scaling.x = 2.4 * off / COMPARE_OFFSET;
       var top = garment.bounds.max[1] + 0.08;
       var a = label(labels.current, 'pd3-label-current'), b = label(labels.other, 'pd3-label-other');
-      a.position.set(-COMPARE_OFFSET, top, 0);
-      b.position.set(COMPARE_OFFSET, top, 0);
+      a.position.set(-off, top, 0);
+      b.position.set(off, top, 0);
       nodes.push(a, b);
       state.compare = { nodes: nodes };
       setTurntable(false);
@@ -733,7 +739,7 @@
     function project(surface, x, y, which) {
       var at = garment && garment.mappers[surface];
       if (!at || (which === 'compare' && !state.compare)) return null;
-      var p = at(x, y), o = which === 'compare' ? new B.Vector3(COMPARE_OFFSET, 0, 0) : root.position, v = new B.Vector3(p[0] + o.x, p[1] + o.y, p[2] + o.z);
+      var p = at(x, y), o = which === 'compare' ? new B.Vector3(compareOffset(), 0, 0) : root.position, v = new B.Vector3(p[0] + o.x, p[1] + o.y, p[2] + o.z);
       var vp = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
       var s = B.Vector3.Project(v, B.Matrix.Identity(), scene.getTransformMatrix(), vp), k = engine.getHardwareScalingLevel();
       var n = G.outward(at, x, y), e = camera.position;
