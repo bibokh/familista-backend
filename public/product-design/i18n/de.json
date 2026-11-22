@@ -167,7 +167,6 @@
   "Nothing to report against the template’s rules.": "Nach den Regeln der Vorlage gibt es nichts zu melden.",
   "Nothing to undo.": "Nichts rückgängig zu machen.",
   "Number placeholder. Real numbers come from a team roster (planned, DS-3); the design keeps no player data.": "Platzhalter für die Nummer. Echte Nummern kommen aus einem Mannschaftskader (geplant, DS-3); das Design speichert keine Spielerdaten.",
-  "One template is available in this phase. The full catalogue arrives in DS-2.": "In dieser Phase ist eine Vorlage verfügbar. Der vollständige Katalog kommt in DS-2.",
   "Opacity": "Deckkraft",
   "Opened %s, saved in this browser.": "%s geöffnet, in diesem Browser gespeichert.",
   "Order": "Reihenfolge",
@@ -273,7 +272,6 @@
   "That change is not allowed.": "Diese Änderung ist nicht erlaubt.",
   "The Global Store is planned (DS-7).": "Der globale Shop ist geplant (DS-7).",
   "The design is for a template this studio does not have.": "Das Design gehört zu einer Vorlage, die dieses Studio nicht hat.",
-  "The design is placed on size %s. Grading to other sizes arrives with the catalogue (DS-2).": "Das Design ist auf Größe %s platziert. Die Gradierung auf andere Größen kommt mit dem Katalog (DS-2).",
   "The design’s reference size": "Die Referenzgröße des Designs",
   "The draft saved in this browser could not be read, so a new design was started. The unreadable copy was kept aside.": "Der in diesem Browser gespeicherte Entwurf war nicht lesbar, daher wurde ein neues Design begonnen. Die unlesbare Kopie wurde beiseitegelegt.",
   "The file is larger than 512 KB.": "Die Datei ist größer als 512 KB.",
@@ -429,5 +427,10 @@
   "Stop comparing with version %d": "Vergleich mit Version %d beenden",
   "3D view ready. Drag to turn the garment, pinch or use the wheel to zoom. Select and move elements in the Layers list or in 2D; the garment follows every change.": "3D-Ansicht bereit. Ziehen Sie, um das Kleidungsstück zu drehen, und zoomen Sie mit zwei Fingern oder dem Mausrad. Elemente wählen und verschieben Sie in der Ebenenliste oder in 2D; das Kleidungsstück folgt jeder Änderung.",
   "Select an element in the Layers list to look at it close up.": "Wählen Sie ein Element in der Ebenenliste aus, um es aus der Nähe zu betrachten.",
-  "3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.": "3D-Ansicht des Designs. Ziehen Sie das Kleidungsstück, um es zu drehen, und zoomen Sie mit zwei Fingern oder dem Mausrad. Wählen Sie ein Element in der Ebenenliste oder in 2D aus; auf dieser Fläche verschieben die Pfeiltasten es dann um 1 mm, Umschalt und ein Pfeil um 10 mm, und das Kleidungsstück folgt jeder Änderung. Ist nichts ausgewählt, drehen die Pfeiltasten das Kleidungsstück; Plus und Minus zoomen; 0 kehrt zur aktuellen Ansicht zurück; 1 bis 4 zeigen Vorderseite, Rückseite, rechte und linke Seite."
+  "3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.": "3D-Ansicht des Designs. Ziehen Sie das Kleidungsstück, um es zu drehen, und zoomen Sie mit zwei Fingern oder dem Mausrad. Wählen Sie ein Element in der Ebenenliste oder in 2D aus; auf dieser Fläche verschieben die Pfeiltasten es dann um 1 mm, Umschalt und ein Pfeil um 10 mm, und das Kleidungsstück folgt jeder Änderung. Ist nichts ausgewählt, drehen die Pfeiltasten das Kleidungsstück; Plus und Minus zoomen; 0 kehrt zur aktuellen Ansicht zurück; 1 bis 4 zeigen Vorderseite, Rückseite, rechte und linke Seite.",
+  "Black": "Schwarz",
+  "Green": "Grün",
+  "Products marked Planned are not available yet: they arrive when they can be designed and previewed in full.": "Als „Geplant“ markierte Produkte sind noch nicht verfügbar: Sie kommen, sobald sie vollständig gestaltet und in der Vorschau gezeigt werden können.",
+  "Sky blue": "Himmelblau",
+  "The design is placed on size %s. Grading to other sizes is not available yet.": "Das Design ist auf Größe %s platziert. Die Gradierung auf andere Größen ist noch nicht verfügbar."
 }

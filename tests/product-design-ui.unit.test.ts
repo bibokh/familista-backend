@@ -89,8 +89,8 @@ describe('the Interface Studio is preserved', () => {
 describe('wiring: an owner room of its own, its design routes guarded on the server', () => {
   it('app.js loads it on demand behind the platform-owner check, its core, its server client, its garment and 3D view, then its editor, under one version that the room also uses', () => {
     // DS-1c adds the garment geometry and the 3D view before the editor; Babylon itself is loaded only when 3D is chosen (pd-3d.js).
-    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261112-product-design-1c', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done);");
-    expect(JS).toContain("var VERSION = '20261112-product-design-1c';");
+    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261122-product-design-m1a', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done);");
+    expect(JS).toContain("var VERSION = '20261122-product-design-m1a';");
     expect(APP).toContain("if (page === 'product-design' && !(_PD_ROOM && _PD_ROOM.state === 'ready')) {");
     expect(APP).toMatch(/_loadProductDesign\(function \(ok\) \{\s*try \{ navTo\(ok \? page : 'owner-home', ok \? el : null, _opts\); \} catch \(_\) \{\}/);
   });
@@ -171,10 +171,13 @@ describe('the room is safe by construction', () => {
     for (const m of CODE.matchAll(/style\.setProperty\('([a-z-]+)'/g)) expect(m[1]).toBe('font-family');
   });
 
-  it('talks to nothing but its own static files: its template and its catalogue; no API, socket, beacon or form', () => {
+  it('talks to nothing but its own static files: its template registry, its templates and its catalogue; no API, socket, beacon or form', () => {
     const fetches = [...CODE.matchAll(/fetch\(([^)]*)\)/g)].map((m) => m[1].trim());
-    expect(fetches).toEqual(["'/product-design/i18n/' + LANG + '.json?v=' + VERSION", 'TEMPLATE_URL']);
-    expect(JS).toContain("var TEMPLATE_URL = '/product-design/templates/football-jersey.json?v=' + VERSION;");
+    expect(fetches).toEqual(["'/product-design/i18n/' + LANG + '.json?v=' + VERSION", 'INDEX_URL', "TEMPLATE_DIR + e.file + '?v=' + VERSION"]);
+    expect(JS).toContain("var TEMPLATE_DIR = '/product-design/templates/';");
+    expect(JS).toContain("var INDEX_URL = TEMPLATE_DIR + 'index.json?v=' + VERSION;");
+    // Only a file the registry names, and only a plain name: no path, no other directory.
+    expect(JS).toContain("/^[a-z0-9-]+\\.json$/.test(e.file)");
     expect(CODE).not.toMatch(/XMLHttpRequest|WebSocket|EventSource|sendBeacon|\/api\/|\.submit\(|<form/);
   });
 
@@ -220,7 +223,7 @@ describe('it says what it is, and what it is not yet', () => {
       expect([k, quoted - definedQuoted >= 1]).toEqual([k, true]);
     }
     for (const use of ["planned(image, 'image')", "planned(capture, 'capture')", "text: '3D' }), '3d')", "]), '360'))", "function live3d(el, reasonKey) { return can3d() ? el : planned(el, reasonKey); }", "]), 'proof')", "]), 'order')",
-      "if (t[0] === 'templates') planned(b, 'templates');", "if (!it.live) { planned(b, 'product');", "if (!active) { planned(b, key);", "planned(sel, reason);", ": it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)"]) {
+      "if (t[0] === 'templates') planned(b, 'templates');", "if (!e) { planned(b, 'product');", "if (!active) { planned(b, key);", "planned(sel, reason);", ": it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)"]) {
       expect([use, CODE.includes(use)]).toEqual([use, true]);
     }
     for (const [, text] of REASONS) expect([text, EN[text]]).toEqual([text, text]);
@@ -268,12 +271,17 @@ describe('it says what it is, and what it is not yet', () => {
 describe('the official languages', () => {
   const literals = new Set<string>();
   for (const m of JS.matchAll(/\b(?:T|tf|L)\('((?:[^'\\]|\\.)*)'/g)) literals.add(m[1]);
-  TEMPLATE.surfaces.forEach((s: { label: string }) => literals.add(s.label));
-  TEMPLATE.views.forEach((v: { label: string }) => literals.add(v.label));
-  literals.add(TEMPLATE.reference.method); literals.add(TEMPLATE.reference.fabric);
-  TEMPLATE.reference.fits.forEach((f: { label: string }) => literals.add(f.label));
-  TEMPLATE.start.palette.forEach((p: { label: string }) => literals.add(p.label));
-  Object.values(TEMPLATE.start.surfaces as Record<string, { layers: Array<{ name: string }> }>).forEach((s) => s.layers.forEach((l) => literals.add(l.name)));
+  // Every released garment's own words: the room shows whichever template is open.
+  const TEMPLATES = json('public/product-design/templates/index.json').templates.map((e: { file: string }) => json(`public/product-design/templates/${e.file}`));
+  for (const t of TEMPLATES) {
+    literals.add(t.name);
+    t.surfaces.forEach((s: { label: string }) => literals.add(s.label));
+    t.views.forEach((v: { label: string }) => literals.add(v.label));
+    literals.add(t.reference.method); literals.add(t.reference.fabric);
+    t.reference.fits.forEach((f: { label: string }) => literals.add(f.label));
+    t.start.palette.forEach((p: { label: string }) => literals.add(p.label));
+    Object.values(t.start.surfaces as Record<string, { layers: Array<{ name: string }> }>).forEach((s) => s.layers.forEach((l) => literals.add(l.name)));
+  }
   // The shared Platform Owner navigation is drawn in the room's head and worded by the room's catalogue: every label of it.
   const navBlock = APP.slice(APP.indexOf('var OWNER_NAV = ['), APP.indexOf('];', APP.indexOf('var OWNER_NAV = [')));
   const NAV_LABELS = [...navBlock.matchAll(/label: '([^']+)'/g)].map((m) => m[1]);

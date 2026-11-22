@@ -167,7 +167,6 @@
   "Nothing to report against the template’s rules.": "Rien à signaler selon les règles du modèle.",
   "Nothing to undo.": "Rien à annuler.",
   "Number placeholder. Real numbers come from a team roster (planned, DS-3); the design keeps no player data.": "Emplacement du numéro. Les vrais numéros viendront d’une liste d’équipe (prévu, DS-3) ; le design ne conserve aucune donnée de joueur.",
-  "One template is available in this phase. The full catalogue arrives in DS-2.": "Un seul modèle est disponible dans cette phase. Le catalogue complet arrivera en DS-2.",
   "Opacity": "Opacité",
   "Opened %s, saved in this browser.": "%s ouvert, enregistré dans ce navigateur.",
   "Order": "Ordre",
@@ -273,7 +272,6 @@
   "That change is not allowed.": "Cette modification n’est pas autorisée.",
   "The Global Store is planned (DS-7).": "La boutique mondiale est prévue (DS-7).",
   "The design is for a template this studio does not have.": "Le design utilise un modèle que ce studio ne possède pas.",
-  "The design is placed on size %s. Grading to other sizes arrives with the catalogue (DS-2).": "Le design est placé sur la taille %s. La gradation vers les autres tailles arrivera avec le catalogue (DS-2).",
   "The design’s reference size": "La taille de référence du design",
   "The draft saved in this browser could not be read, so a new design was started. The unreadable copy was kept aside.": "Le brouillon enregistré dans ce navigateur était illisible ; un nouveau design a donc été commencé. La copie illisible a été mise de côté.",
   "The file is larger than 512 KB.": "Le fichier dépasse 512 Ko.",
@@ -429,5 +427,10 @@
   "Stop comparing with version %d": "Arrêter la comparaison avec la version %d",
   "3D view ready. Drag to turn the garment, pinch or use the wheel to zoom. Select and move elements in the Layers list or in 2D; the garment follows every change.": "Vue 3D prête. Faites glisser pour tourner le vêtement, pincez ou utilisez la molette pour zoomer. Sélectionnez et déplacez les éléments dans la liste des calques ou en 2D ; le vêtement suit chaque modification.",
   "Select an element in the Layers list to look at it close up.": "Sélectionnez un élément dans la liste des calques pour le voir de près.",
-  "3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.": "Vue 3D du design. Faites glisser le vêtement pour le tourner, pincez ou utilisez la molette pour zoomer. Sélectionnez un élément dans la liste des calques ou en 2D ; sur ce canevas, les flèches le déplacent alors de 1 mm, Maj et une flèche de 10 mm, et le vêtement suit chaque modification. Quand rien n’est sélectionné, les flèches tournent le vêtement ; plus et moins zooment ; 0 revient à la vue actuelle ; 1 à 4 montrent le devant, le dos, le côté droit et le côté gauche."
+  "3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.": "Vue 3D du design. Faites glisser le vêtement pour le tourner, pincez ou utilisez la molette pour zoomer. Sélectionnez un élément dans la liste des calques ou en 2D ; sur ce canevas, les flèches le déplacent alors de 1 mm, Maj et une flèche de 10 mm, et le vêtement suit chaque modification. Quand rien n’est sélectionné, les flèches tournent le vêtement ; plus et moins zooment ; 0 revient à la vue actuelle ; 1 à 4 montrent le devant, le dos, le côté droit et le côté gauche.",
+  "Black": "Noir",
+  "Green": "Vert",
+  "Products marked Planned are not available yet: they arrive when they can be designed and previewed in full.": "Les produits marqués « Prévu » ne sont pas encore disponibles : ils arriveront dès qu’ils pourront être entièrement conçus et prévisualisés.",
+  "Sky blue": "Bleu ciel",
+  "The design is placed on size %s. Grading to other sizes is not available yet.": "Le design est placé sur la taille %s. La gradation vers les autres tailles n’est pas encore disponible."
 }

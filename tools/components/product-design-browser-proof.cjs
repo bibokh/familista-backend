@@ -48,7 +48,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
 const REGIONS = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/design-studio/reference-regions.json'), 'utf8'));
 const REFERENCE = path.join(ROOT, 'docs/design-studio', REGIONS.reference);
-// PROOF_ONLY=P16 runs only the DS-1c 3D sections (P16); unset, everything runs.
+// PROOF_ONLY=P16 runs only the DS-1c 3D sections (P16), PROOF_ONLY=P17 only the catalogue (M1a); unset, everything runs.
 const want = (n) => !process.env.PROOF_ONLY || process.env.PROOF_ONLY.split(',').includes(n);
 const roomWord = (code, en) => JSON.parse(fs.readFileSync(path.join(ROOT, 'public/product-design/i18n', code + '.json'), 'utf8'))[en];
 
@@ -149,6 +149,7 @@ const budget = (name, values, ok, detail) => {
   const draft = (pg) => pg.evaluate(() => localStorage.getItem('familista_product_design_draft_v1'));
   const live = (pg) => pg.evaluate(() => (document.querySelector('#pd-root .pd-sr[role="status"]') || {}).textContent || '');
   async function proof3d() { await require('./product-design-3d-proof.cjs')({ open, M, shot, live, boxOf, check, budget, pass, fail, OUT, ROOT, BASE, db, roomWord }); }
+  async function proofCatalogue() { await require('./product-design-catalogue-proof.cjs')({ open, M, check, fail, OUT, ROOT, db }); }
   const boxOf = (pg, sel) => pg.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; }, sel);
 
   try {
@@ -163,7 +164,7 @@ const budget = (name, values, ok, detail) => {
     const { ctx, page, log } = await open({ width: 1672, height: 941 }, 'en-GB');
     const readyMs = Date.now() - t0;
     const roomRequests = log.requests.filter((r) => /product-design/.test(r.path));
-    check('P1 the Platform Owner opens the Design Studio; it loads exactly its own seven static files (DS-1c: the garment and the 3D view, not the 3D engine), by GET, and calls no API', JSON.stringify(roomRequests.map((r) => r.method + ' ' + r.path).sort()) === JSON.stringify(['GET /product-design/pd-3d.js', 'GET /product-design/pd-core.js', 'GET /product-design/pd-garment.js', 'GET /product-design/pd-server.js', 'GET /product-design/product-design.css', 'GET /product-design/product-design.js', 'GET /product-design/templates/football-jersey.json']), roomRequests.map((r) => r.path));
+    check('P1 the Platform Owner opens the Design Studio; it loads exactly its own eight static files (M1a: the garment registry and the open garment’s template; not the 3D engine), by GET, and calls no API', JSON.stringify(roomRequests.map((r) => r.method + ' ' + r.path).sort()) === JSON.stringify(['GET /product-design/pd-3d.js', 'GET /product-design/pd-core.js', 'GET /product-design/pd-garment.js', 'GET /product-design/pd-server.js', 'GET /product-design/product-design.css', 'GET /product-design/product-design.js', 'GET /product-design/templates/football-jersey.json', 'GET /product-design/templates/index.json']), roomRequests.map((r) => r.path));
     await page.waitForTimeout(3500);
     const csp = await page.evaluate(() => window.__csp);
     const inRoom = csp.filter((c) => c.inRoom || /product-design/.test(c.src + c.uri));
@@ -672,6 +673,7 @@ const budget = (name, values, ok, detail) => {
     }
     } // ds1
     if (want('P16')) await proof3d();
+    if (want('P17')) await proofCatalogue();
   } catch (e) {
     fail('proof crashed', String(e && e.stack || e).slice(0, 1200));
   } finally {

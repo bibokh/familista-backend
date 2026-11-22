@@ -41,7 +41,18 @@ interface PdCore {
 }
 
 const PUBLIC_DIR = path.join(__dirname, '..', '..', '..', 'public', 'product-design');
-const TEMPLATE_FILES = ['football-jersey.json'];
+/**
+ * The released garments, as the editor lists them: one registry for both, so the server accepts a design for exactly
+ * the templates the editor offers, and a template the editor has never seen cannot be saved.
+ */
+function templateFiles(): string[] {
+  const index = JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, 'templates', 'index.json'), 'utf8')) as { format?: string; templates?: Array<{ file?: unknown }> };
+  if (index.format !== 'familista.product-template-index' || !Array.isArray(index.templates)) throw new Error('product-design: templates/index.json is not a template index');
+  return index.templates.map((e) => {
+    if (typeof e.file !== 'string' || !/^[a-z0-9-]+\.json$/.test(e.file)) throw new Error('product-design: templates/index.json names a file it may not');
+    return e.file;
+  });
+}
 
 let loaded: { core: PdCore; templates: Map<string, ProductTemplate> } | null = null;
 
@@ -51,7 +62,7 @@ function load(): { core: PdCore; templates: Map<string, ProductTemplate> } {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const core = require(path.join(PUBLIC_DIR, 'pd-core.js')) as PdCore;
   const templates = new Map<string, ProductTemplate>();
-  for (const file of TEMPLATE_FILES) {
+  for (const file of templateFiles()) {
     const t = core.validateTemplate(JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, 'templates', file), 'utf8')));
     templates.set(`${t.key}@${t.templateVersion}`, t);
   }

@@ -355,6 +355,8 @@
     'sleeve-left': { alpha: 0, beta: 1.15, radius: 0.85 },
     collar: { alpha: -Math.PI / 2, beta: 1.12, radius: 0.85 },
   };
+  /** pd-3d.js's vertical field of view, in radians: a preset's default distance is chosen for it. */
+  var DEFAULT_FOV = 0.6;
   /**
    * The presets for a built garment: the front, the back and the collar look at its centre; each side looks at the
    * middle of the outside of its sleeve, from outside and a little above, so the sleeve's artwork is read face on.
@@ -373,7 +375,10 @@
         for (var i = 0; i < m.positions.length; i += 3) r = Math.max(r, Math.sqrt(Math.pow(m.positions[i] - c[0], 2) + Math.pow(m.positions[i + 1] - c[1], 2) + Math.pow(m.positions[i + 2] - c[2], 2)));
         fit = { hw: r, hh: r, hd: r, fill: 0.8 };
       }
-      out[k] = { alpha: p.alpha, beta: p.beta, radius: p.radius, target: c ? c.slice() : k === 'collar' ? [0, 0, 0] : b.center.slice(), fit: fit };
+      // The default distance (used only when no canvas shape is known; pd-3d.js frames for the real canvas) shows what
+      // the preset frames on a square canvas, and is never closer than the reviewed static distance.
+      var radius = fit ? Math.max(p.radius, fitRadius(fit, DEFAULT_FOV, 1)) : p.radius;
+      out[k] = { alpha: p.alpha, beta: p.beta, radius: radius, target: c ? c.slice() : k === 'collar' ? [0, 0, 0] : b.center.slice(), fit: fit };
     });
     return out;
   }

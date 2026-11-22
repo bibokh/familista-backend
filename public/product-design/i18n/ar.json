@@ -167,7 +167,6 @@
   "Nothing to report against the template’s rules.": "لا ملاحظات وفق قواعد القالب.",
   "Nothing to undo.": "لا شيء للتراجع عنه.",
   "Number placeholder. Real numbers come from a team roster (planned, DS-3); the design keeps no player data.": "عنصر نائب للرقم. تأتي الأرقام الحقيقية من قائمة الفريق (مخطط، DS-3)؛ ولا يحتفظ التصميم بأي بيانات لاعبين.",
-  "One template is available in this phase. The full catalogue arrives in DS-2.": "يتوفر قالب واحد في هذه المرحلة. يأتي الكتالوج الكامل في DS-2.",
   "Opacity": "العتامة",
   "Opened %s, saved in this browser.": "تم فتح %s المحفوظ في هذا المتصفح.",
   "Order": "الترتيب",
@@ -273,7 +272,6 @@
   "That change is not allowed.": "هذا التغيير غير مسموح.",
   "The Global Store is planned (DS-7).": "المتجر العالمي مخطط له (DS-7).",
   "The design is for a template this studio does not have.": "التصميم لقالب غير موجود في هذا الاستوديو.",
-  "The design is placed on size %s. Grading to other sizes arrives with the catalogue (DS-2).": "التصميم موضوع على المقاس %s. يأتي التدريج إلى المقاسات الأخرى مع الكتالوج (DS-2).",
   "The design’s reference size": "المقاس المرجعي للتصميم",
   "The draft saved in this browser could not be read, so a new design was started. The unreadable copy was kept aside.": "تعذرت قراءة المسودة المحفوظة في هذا المتصفح، لذلك بدأ تصميم جديد. وتم الاحتفاظ بالنسخة غير المقروءة جانبًا.",
   "The file is larger than 512 KB.": "الملف أكبر من 512 كيلوبايت.",
@@ -429,5 +427,10 @@
   "Stop comparing with version %d": "إيقاف المقارنة مع الإصدار %d",
   "3D view ready. Drag to turn the garment, pinch or use the wheel to zoom. Select and move elements in the Layers list or in 2D; the garment follows every change.": "العرض ثلاثي الأبعاد جاهز. اسحب لتدوير القطعة، واستخدم إصبعين أو عجلة الفأرة للتكبير. حدّد العناصر وحرّكها في قائمة الطبقات أو في العرض ثنائي الأبعاد؛ وتتبع القطعة كل تغيير.",
   "Select an element in the Layers list to look at it close up.": "حدّد عنصرًا في قائمة الطبقات لرؤيته عن قرب.",
-  "3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.": "عرض ثلاثي الأبعاد للتصميم. اسحب القطعة لتدويرها، واستخدم إصبعين أو عجلة الفأرة للتكبير. حدّد عنصرًا في قائمة الطبقات أو في العرض ثنائي الأبعاد؛ على هذه اللوحة تحرّكه مفاتيح الأسهم بعد ذلك 1 مم، وShift مع سهم 10 مم، وتتبع القطعة كل تغيير. عندما لا يكون شيء محددًا تدير مفاتيح الأسهم القطعة؛ زائد وناقص للتكبير والتصغير؛ 0 يعيد العرض الحالي؛ من 1 إلى 4 تعرض الأمام والخلف والجانب الأيمن والأيسر."
+  "3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.": "عرض ثلاثي الأبعاد للتصميم. اسحب القطعة لتدويرها، واستخدم إصبعين أو عجلة الفأرة للتكبير. حدّد عنصرًا في قائمة الطبقات أو في العرض ثنائي الأبعاد؛ على هذه اللوحة تحرّكه مفاتيح الأسهم بعد ذلك 1 مم، وShift مع سهم 10 مم، وتتبع القطعة كل تغيير. عندما لا يكون شيء محددًا تدير مفاتيح الأسهم القطعة؛ زائد وناقص للتكبير والتصغير؛ 0 يعيد العرض الحالي؛ من 1 إلى 4 تعرض الأمام والخلف والجانب الأيمن والأيسر.",
+  "Black": "أسود",
+  "Green": "أخضر",
+  "Products marked Planned are not available yet: they arrive when they can be designed and previewed in full.": "المنتجات الموسومة بـ«مُخطَّط» غير متاحة بعد: ستتوفر عندما يمكن تصميمها ومعاينتها بالكامل.",
+  "Sky blue": "أزرق سماوي",
+  "The design is placed on size %s. Grading to other sizes is not available yet.": "التصميم موضوع على المقاس %s. التدريج إلى المقاسات الأخرى غير متاح بعد."
 }

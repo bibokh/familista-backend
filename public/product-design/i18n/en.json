@@ -167,7 +167,6 @@
   "Nothing to report against the template’s rules.": "Nothing to report against the template’s rules.",
   "Nothing to undo.": "Nothing to undo.",
   "Number placeholder. Real numbers come from a team roster (planned, DS-3); the design keeps no player data.": "Number placeholder. Real numbers come from a team roster (planned, DS-3); the design keeps no player data.",
-  "One template is available in this phase. The full catalogue arrives in DS-2.": "One template is available in this phase. The full catalogue arrives in DS-2.",
   "Opacity": "Opacity",
   "Opened %s, saved in this browser.": "Opened %s, saved in this browser.",
   "Order": "Order",
@@ -273,7 +272,6 @@
   "That change is not allowed.": "That change is not allowed.",
   "The Global Store is planned (DS-7).": "The Global Store is planned (DS-7).",
   "The design is for a template this studio does not have.": "The design is for a template this studio does not have.",
-  "The design is placed on size %s. Grading to other sizes arrives with the catalogue (DS-2).": "The design is placed on size %s. Grading to other sizes arrives with the catalogue (DS-2).",
   "The design’s reference size": "The design’s reference size",
   "The draft saved in this browser could not be read, so a new design was started. The unreadable copy was kept aside.": "The draft saved in this browser could not be read, so a new design was started. The unreadable copy was kept aside.",
   "The file is larger than 512 KB.": "The file is larger than 512 KB.",
@@ -429,5 +427,10 @@
   "Stop comparing with version %d": "Stop comparing with version %d",
   "3D view ready. Drag to turn the garment, pinch or use the wheel to zoom. Select and move elements in the Layers list or in 2D; the garment follows every change.": "3D view ready. Drag to turn the garment, pinch or use the wheel to zoom. Select and move elements in the Layers list or in 2D; the garment follows every change.",
   "Select an element in the Layers list to look at it close up.": "Select an element in the Layers list to look at it close up.",
-  "3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.": "3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side."
+  "3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.": "3D view of the design. Drag the garment to turn it, pinch or use the wheel to zoom. Select an element in the Layers list or in 2D; on this canvas the arrow keys then move it 1 mm, Shift and an arrow 10 mm, and the garment follows every change. With nothing selected the arrow keys turn the garment; plus and minus zoom; 0 returns to the current view; 1 to 4 show the front, the back, the right and the left side.",
+  "Black": "Black",
+  "Green": "Green",
+  "Products marked Planned are not available yet: they arrive when they can be designed and previewed in full.": "Products marked Planned are not available yet: they arrive when they can be designed and previewed in full.",
+  "Sky blue": "Sky blue",
+  "The design is placed on size %s. Grading to other sizes is not available yet.": "The design is placed on size %s. Grading to other sizes is not available yet."
 }

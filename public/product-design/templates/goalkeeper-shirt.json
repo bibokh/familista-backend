@@ -1,0 +1,844 @@
+{
+  "format": "familista.product-template",
+  "version": 1,
+  "key": "goalkeeper-shirt.long-sleeve-v",
+  "templateVersion": 1,
+  "name": "Goalkeeper shirt",
+  "category": "match-kits",
+  "referenceSize": "M",
+  "surfaces": [
+    {
+      "id": "front",
+      "label": "Front",
+      "width": 540,
+      "height": 760,
+      "outline": [
+        [
+          185,
+          12
+        ],
+        [
+          48,
+          44
+        ],
+        [
+          14,
+          258,
+          64,
+          200
+        ],
+        [
+          30,
+          740
+        ],
+        [
+          510,
+          740,
+          270,
+          752
+        ],
+        [
+          526,
+          258
+        ],
+        [
+          492,
+          44,
+          476,
+          200
+        ],
+        [
+          355,
+          12
+        ],
+        [
+          270,
+          122
+        ]
+      ],
+      "safe": [
+        [
+          178,
+          36
+        ],
+        [
+          270,
+          151
+        ],
+        [
+          362,
+          36
+        ],
+        [
+          478,
+          62
+        ],
+        [
+          474,
+          170
+        ],
+        [
+          486,
+          226
+        ],
+        [
+          506,
+          276
+        ],
+        [
+          492,
+          722
+        ],
+        [
+          48,
+          722
+        ],
+        [
+          34,
+          276
+        ],
+        [
+          54,
+          226
+        ],
+        [
+          66,
+          170
+        ],
+        [
+          62,
+          62
+        ]
+      ]
+    },
+    {
+      "id": "back",
+      "label": "Back",
+      "width": 540,
+      "height": 760,
+      "outline": [
+        [
+          185,
+          12
+        ],
+        [
+          48,
+          44
+        ],
+        [
+          14,
+          258,
+          64,
+          200
+        ],
+        [
+          30,
+          740
+        ],
+        [
+          510,
+          740,
+          270,
+          752
+        ],
+        [
+          526,
+          258
+        ],
+        [
+          492,
+          44,
+          476,
+          200
+        ],
+        [
+          355,
+          12
+        ],
+        [
+          185,
+          12,
+          270,
+          44
+        ]
+      ],
+      "safe": [
+        [
+          180,
+          40
+        ],
+        [
+          270,
+          52
+        ],
+        [
+          360,
+          40
+        ],
+        [
+          478,
+          62
+        ],
+        [
+          474,
+          170
+        ],
+        [
+          486,
+          226
+        ],
+        [
+          506,
+          276
+        ],
+        [
+          492,
+          722
+        ],
+        [
+          48,
+          722
+        ],
+        [
+          34,
+          276
+        ],
+        [
+          54,
+          226
+        ],
+        [
+          66,
+          170
+        ],
+        [
+          62,
+          62
+        ]
+      ]
+    },
+    {
+      "id": "sleeve-right",
+      "label": "Right sleeve",
+      "width": 420,
+      "height": 680,
+      "outline": [
+        [
+          0,
+          128
+        ],
+        [
+          420,
+          128,
+          210,
+          -40
+        ],
+        [
+          310,
+          660
+        ],
+        [
+          110,
+          660
+        ]
+      ],
+      "safe": [
+        [
+          24,
+          134
+        ],
+        [
+          110,
+          80
+        ],
+        [
+          210,
+          62
+        ],
+        [
+          310,
+          80
+        ],
+        [
+          396,
+          134
+        ],
+        [
+          300,
+          644
+        ],
+        [
+          120,
+          644
+        ]
+      ]
+    },
+    {
+      "id": "sleeve-left",
+      "label": "Left sleeve",
+      "width": 420,
+      "height": 680,
+      "outline": [
+        [
+          0,
+          128
+        ],
+        [
+          420,
+          128,
+          210,
+          -40
+        ],
+        [
+          310,
+          660
+        ],
+        [
+          110,
+          660
+        ]
+      ],
+      "safe": [
+        [
+          24,
+          134
+        ],
+        [
+          110,
+          80
+        ],
+        [
+          210,
+          62
+        ],
+        [
+          310,
+          80
+        ],
+        [
+          396,
+          134
+        ],
+        [
+          300,
+          644
+        ],
+        [
+          120,
+          644
+        ]
+      ]
+    }
+  ],
+  "views": [
+    {
+      "id": "front",
+      "label": "Front",
+      "surface": "front",
+      "viewBox": [
+        -125,
+        -12,
+        790,
+        778
+      ],
+      "context": [
+        {
+          "surface": "sleeve-right",
+          "outline": [
+            [
+              48,
+              44
+            ],
+            [
+              -84,
+              636,
+              -38,
+              130
+            ],
+            [
+              -10,
+              676
+            ],
+            [
+              14,
+              258
+            ],
+            [
+              48,
+              44,
+              64,
+              200
+            ]
+          ],
+          "cuff": [
+            [
+              -84,
+              636
+            ],
+            [
+              -10,
+              676
+            ]
+          ]
+        },
+        {
+          "surface": "sleeve-left",
+          "outline": [
+            [
+              492,
+              44
+            ],
+            [
+              624,
+              636,
+              578,
+              130
+            ],
+            [
+              550,
+              676
+            ],
+            [
+              526,
+              258
+            ],
+            [
+              492,
+              44,
+              476,
+              200
+            ]
+          ],
+          "cuff": [
+            [
+              624,
+              636
+            ],
+            [
+              550,
+              676
+            ]
+          ]
+        }
+      ],
+      "collar": [
+        [
+          185,
+          12
+        ],
+        [
+          270,
+          122
+        ],
+        [
+          355,
+          12
+        ]
+      ],
+      "inner": [
+        [
+          185,
+          12
+        ],
+        [
+          270,
+          122
+        ],
+        [
+          355,
+          12
+        ]
+      ]
+    },
+    {
+      "id": "back",
+      "label": "Back",
+      "surface": "back",
+      "viewBox": [
+        -125,
+        -12,
+        790,
+        778
+      ],
+      "context": [
+        {
+          "surface": "sleeve-left",
+          "outline": [
+            [
+              48,
+              44
+            ],
+            [
+              -84,
+              636,
+              -38,
+              130
+            ],
+            [
+              -10,
+              676
+            ],
+            [
+              14,
+              258
+            ],
+            [
+              48,
+              44,
+              64,
+              200
+            ]
+          ],
+          "cuff": [
+            [
+              -84,
+              636
+            ],
+            [
+              -10,
+              676
+            ]
+          ]
+        },
+        {
+          "surface": "sleeve-right",
+          "outline": [
+            [
+              492,
+              44
+            ],
+            [
+              624,
+              636,
+              578,
+              130
+            ],
+            [
+              550,
+              676
+            ],
+            [
+              526,
+              258
+            ],
+            [
+              492,
+              44,
+              476,
+              200
+            ]
+          ],
+          "cuff": [
+            [
+              624,
+              636
+            ],
+            [
+              550,
+              676
+            ]
+          ]
+        }
+      ],
+      "collar": [
+        [
+          355,
+          12
+        ],
+        [
+          185,
+          12,
+          270,
+          44
+        ]
+      ]
+    },
+    {
+      "id": "sleeve-right",
+      "label": "Right side",
+      "surface": "sleeve-right",
+      "viewBox": [
+        -40,
+        -50,
+        500,
+        760
+      ],
+      "cuff": [
+        [
+          110,
+          660
+        ],
+        [
+          310,
+          660
+        ]
+      ]
+    },
+    {
+      "id": "sleeve-left",
+      "label": "Left side",
+      "surface": "sleeve-left",
+      "viewBox": [
+        -40,
+        -50,
+        500,
+        760
+      ],
+      "cuff": [
+        [
+          110,
+          660
+        ],
+        [
+          310,
+          660
+        ]
+      ]
+    }
+  ],
+  "rules": {
+    "minTextHeight": 8
+  },
+  "reference": {
+    "method": "Sublimation, all-over print",
+    "fabric": "Polyester, 140 g/m²",
+    "fits": [
+      {
+        "id": "men",
+        "label": "Men",
+        "sizes": [
+          "XS",
+          "S",
+          "M",
+          "L",
+          "XL",
+          "2XL",
+          "3XL",
+          "4XL",
+          "5XL"
+        ]
+      },
+      {
+        "id": "women",
+        "label": "Women",
+        "sizes": [
+          "XS",
+          "S",
+          "M",
+          "L",
+          "XL",
+          "2XL",
+          "3XL"
+        ]
+      },
+      {
+        "id": "youth",
+        "label": "Youth",
+        "sizes": [
+          "116",
+          "128",
+          "140",
+          "152",
+          "164"
+        ]
+      },
+      {
+        "id": "kids",
+        "label": "Kids",
+        "sizes": [
+          "92",
+          "98",
+          "104",
+          "110"
+        ]
+      }
+    ]
+  },
+  "start": {
+    "palette": [
+      {
+        "id": "c1",
+        "label": "Green",
+        "srgb": "#1f7a3a"
+      },
+      {
+        "id": "c2",
+        "label": "Black",
+        "srgb": "#111418"
+      },
+      {
+        "id": "c3",
+        "label": "White",
+        "srgb": "#f4f6fa"
+      },
+      {
+        "id": "c4",
+        "label": "Gold",
+        "srgb": "#d8ad3c"
+      }
+    ],
+    "parts": {
+      "collar": "c2",
+      "cuffs": "c2"
+    },
+    "surfaces": {
+      "front": {
+        "base": "c1",
+        "layers": [
+          {
+            "visible": true,
+            "locked": false,
+            "id": "l1",
+            "type": "pattern",
+            "name": "Pattern",
+            "pattern": "chevron",
+            "color": "c2",
+            "scale": 120,
+            "angle": 0,
+            "opacity": 35
+          },
+          {
+            "visible": true,
+            "locked": false,
+            "id": "l2",
+            "type": "text",
+            "name": "Brand mark",
+            "text": "F",
+            "font": "sans-black",
+            "color": "c4",
+            "outline": null,
+            "x": 166,
+            "y": 196,
+            "w": 44,
+            "h": 52,
+            "r": 0,
+            "w0": 44,
+            "h0": 52
+          },
+          {
+            "visible": true,
+            "locked": false,
+            "id": "l3",
+            "type": "shape",
+            "name": "Club crest",
+            "shape": "shield",
+            "color": "c3",
+            "outline": "c4",
+            "x": 376,
+            "y": 200,
+            "w": 64,
+            "h": 76,
+            "r": 0,
+            "w0": 64,
+            "h0": 76
+          },
+          {
+            "visible": true,
+            "locked": false,
+            "id": "l4",
+            "type": "text",
+            "name": "Sponsor",
+            "text": "Familista",
+            "font": "sans-black",
+            "color": "c3",
+            "outline": null,
+            "x": 270,
+            "y": 330,
+            "w": 320,
+            "h": 66,
+            "r": 0,
+            "w0": 320,
+            "h0": 66
+          }
+        ]
+      },
+      "back": {
+        "base": "c1",
+        "layers": [
+          {
+            "visible": true,
+            "locked": false,
+            "id": "l5",
+            "type": "pattern",
+            "name": "Pattern",
+            "pattern": "chevron",
+            "color": "c2",
+            "scale": 120,
+            "angle": 0,
+            "opacity": 35
+          },
+          {
+            "visible": true,
+            "locked": false,
+            "id": "l6",
+            "type": "roster",
+            "name": "Player name",
+            "field": "name",
+            "font": "sans-black",
+            "color": "c3",
+            "outline": null,
+            "x": 270,
+            "y": 150,
+            "w": 300,
+            "h": 46,
+            "r": 0,
+            "w0": 300,
+            "h0": 46
+          },
+          {
+            "visible": true,
+            "locked": false,
+            "id": "l7",
+            "type": "roster",
+            "name": "Player number",
+            "field": "number",
+            "font": "sans-black",
+            "color": "c3",
+            "outline": "c2",
+            "x": 270,
+            "y": 330,
+            "w": 200,
+            "h": 220,
+            "r": 0,
+            "w0": 200,
+            "h0": 220
+          }
+        ]
+      },
+      "sleeve-right": {
+        "base": "c1",
+        "layers": [
+          {
+            "visible": true,
+            "locked": false,
+            "id": "l8",
+            "type": "pattern",
+            "name": "Pattern",
+            "pattern": "chevron",
+            "color": "c2",
+            "scale": 120,
+            "angle": 0,
+            "opacity": 35
+          }
+        ]
+      },
+      "sleeve-left": {
+        "base": "c1",
+        "layers": [
+          {
+            "visible": true,
+            "locked": false,
+            "id": "l9",
+            "type": "pattern",
+            "name": "Pattern",
+            "pattern": "chevron",
+            "color": "c2",
+            "scale": 120,
+            "angle": 0,
+            "opacity": 35
+          }
+        ]
+      }
+    }
+  }
+}

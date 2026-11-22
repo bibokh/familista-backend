@@ -38,8 +38,11 @@
 
   var C = window.FamilistaProductDesignCore;
   var LIMITS = C.LIMITS;
-  var VERSION = '20261112-product-design-1c';
-  var TEMPLATE_URL = '/product-design/templates/football-jersey.json?v=' + VERSION;
+  var VERSION = '20261122-product-design-m1a';
+  // The released garments: templates/index.json names each one's reviewed template file; the server reads the same index.
+  var TEMPLATE_DIR = '/product-design/templates/';
+  var INDEX_URL = TEMPLATE_DIR + 'index.json?v=' + VERSION;
+  var JERSEY_KEY = 'football-jersey.classic-v';
   var STORE_KEY = 'familista_product_design_draft_v1';
   var STORE_UNREADABLE = 'familista_product_design_draft_v1_unreadable';
   var SVG = 'http://www.w3.org/2000/svg';
@@ -237,7 +240,7 @@
 
   var S = null;
   var TEMPLATE = null;
-  var TEMPLATE_LOADING = null;
+  var INDEX = null, INDEX_LOADING = null, TEMPLATES = {}, TEMPLATE_LOADS = {};
 
   function fresh(host) {
     return {
@@ -291,8 +294,8 @@
   }
   function newDocument() {
     var names = {};
-    ['Pattern', 'Brand mark', 'Club crest', 'Sponsor', 'Player name', 'Player number', 'Navy', 'Royal blue', 'Gold', 'White'].forEach(function (k) { names[k] = T(k); });
-    return C.createDocument(TEMPLATE, T('Home kit design'), names);
+    ['Pattern', 'Brand mark', 'Club crest', 'Sponsor', 'Player name', 'Player number', 'Navy', 'Royal blue', 'Gold', 'White', 'Green', 'Black', 'Sky blue'].forEach(function (k) { names[k] = T(k); });
+    return C.createDocument(TEMPLATE, TEMPLATE.key === JERSEY_KEY ? T('Home kit design') : T(TEMPLATE.name), names);
   }
   /** The local draft's state: saved, pending, unavailable or too-large. What the screen says combines it with the server's. */
   function setSaveState(state) {
@@ -469,10 +472,14 @@
       if (S !== mine) return;
       sv.busy = false;
       if (r.ok && r.data && r.data.project && r.data.revision) {
-        if (loadServerDoc(r.data.project, r.data.revision)) {
+        var opened = function () {
+          if (!loadServerDoc(r.data.project, r.data.revision)) return false;
           say(tf('Opened %s, version %d.', r.data.project.name, r.data.revision.number));
           closeDock();
-        }
+          return true;
+        };
+        var key = r.data.revision.document && r.data.revision.document.template && r.data.revision.document.template.key;
+        if (typeof key === 'string' && key !== TEMPLATE.key && entryFor(key)) switchTemplate(key, opened); else opened();
         return;
       }
       sv.listError = serverProblem(r);
@@ -2003,7 +2010,7 @@
 
   var CATALOGUE = [
     { id: 'match-kits', label: L('Match kits'), icon: 'shirt', items: [
-      { id: 'match-shirt', label: L('Match shirt'), icon: 'shirt', live: true },
+      { id: 'match-shirt', label: L('Match shirt'), icon: 'shirt' },
       { id: 'gk-shirt', label: L('Goalkeeper shirt'), icon: 'gkShirt' },
       { id: 'shorts', label: L('Shorts'), icon: 'shorts' },
       { id: 'socks', label: L('Socks'), icon: 'socks' },
@@ -2041,17 +2048,18 @@
         var panel = h('div', { class: 'pd-acc-panel', hidden: !open });
         var cards = h('ul', { class: 'pd-cards', role: 'list' });
         group.items.forEach(function (it) {
-          var b = btn({ class: 'pd-card' + (it.live ? ' is-current' : ''), 'aria-current': it.live ? 'true' : null }, [
-            h('span', { class: 'pd-card-art' }, it.live ? [h('span', { class: 'pd-card-thumb', 'data-pd-thumb': 'front' })] : [icon(it.icon, 34)]),
+          var e = entryForProduct(it.id), current = !!e && e.key === TEMPLATE.key;
+          var b = btn({ class: 'pd-card' + (current ? ' is-current' : ''), 'aria-current': current ? 'true' : null, 'data-pd-tile': it.id, 'data-pd-product': e && !current ? it.id : null }, [
+            h('span', { class: 'pd-card-art' }, current ? [h('span', { class: 'pd-card-thumb', 'data-pd-thumb': 'front' })] : [icon(it.icon, 34)]),
             h('span', { class: 'pd-card-label', text: T(it.label) }),
           ]);
-          if (!it.live) { planned(b, 'product'); b.appendChild(chip(T('Planned'), 'muted')); }
+          if (!e) { planned(b, 'product'); b.appendChild(chip(T('Planned'), 'muted')); }
           cards.appendChild(h('li', null, [b]));
         });
         panel.appendChild(cards);
         append(body, [head, panel]);
       });
-      body.appendChild(h('p', { class: 'pd-note', text: T('One template is available in this phase. The full catalogue arrives in DS-2.') }));
+      body.appendChild(h('p', { class: 'pd-note', text: T('Products marked Planned are not available yet: they arrive when they can be designed and previewed in full.') }));
     }
     return h('section', { class: 'pd-lib', 'data-ds-region': 'R4', 'aria-label': T('Library') }, [
       h('div', { class: 'pd-sheet-head' }, [h('strong', { text: T('Library') }), btn({ class: 'pd-icbtn', 'data-pd-act': 'close-panel', 'aria-label': T('Close') }, [icon('close')])]),
@@ -2424,7 +2432,7 @@
       sizes.appendChild(h('li', { class: 'pd-size' + (ref ? ' is-ref' : ''), title: ref ? T('The design’s reference size') : null, text: z }));
     });
     var out = h('div', { class: 'pd-sizes-panel' }, [tabs, sizes, h('p', { class: 'pd-note', text: full ? T('Reference sizes, not purchasable. Sizes and measurements come from a supplier’s product data (DS-5).') : T('Reference sizes, not purchasable') })]);
-    if (full) out.appendChild(h('p', { class: 'pd-note', text: tf('The design is placed on size %s. Grading to other sizes arrives with the catalogue (DS-2).', TEMPLATE.referenceSize) }));
+    if (full) out.appendChild(h('p', { class: 'pd-note', text: tf('The design is placed on size %s. Grading to other sizes is not available yet.', TEMPLATE.referenceSize) }));
     return out;
   }
 
@@ -2680,6 +2688,7 @@
     if ((a = t.getAttribute('data-pd-lang'))) { chooseSetLocale(a).then(function () { if (S) build(); }); return; }
     if ((a = t.getAttribute('data-pd-view'))) { setView(a); return; }
     if ((a = t.getAttribute('data-pd-mode'))) { setMode(a); return; }
+    if ((a = t.getAttribute('data-pd-product'))) { selectProduct(a); return; }
     if ((a = t.getAttribute('data-pd-libtab'))) { S.libTab = a; var lib = buildLib(); S.el.lib.parentNode.replaceChild(lib, S.el.lib); S.el.lib = lib; renderThumbs(); lib.querySelector('[data-pd-libtab="' + a + '"]').focus(); return; }
     if ((a = t.getAttribute('data-pd-insptab'))) { S.inspTab = a; var tabs = S.el.insp.querySelectorAll('[data-pd-insptab]'); for (var j = 0; j < tabs.length; j++) tabs[j].setAttribute('aria-selected', tabs[j].getAttribute('data-pd-insptab') === a ? 'true' : 'false'); fillInsp(); renderCheck(); return; }
     if ((a = t.getAttribute('data-pd-acc'))) { S.open[a] = !S.open[a]; t.setAttribute('aria-expanded', S.open[a] ? 'true' : 'false'); var p = t.nextSibling; if (p) { if (S.open[a]) p.removeAttribute('hidden'); else p.setAttribute('hidden', ''); } return; }
@@ -2860,35 +2869,108 @@
     var mine = S;
     file.text().then(function (text) {
       if (S !== mine) return;
-      try {
-        var doc = C.parseDocument(text, TEMPLATE);
-        S.doc = doc;
-        S.hist = C.createHistory();
-        S.sel = null;
-        S.merge = null;
-        setLink(null);
-        S.srv.state = 'local'; S.srv.conflict = null; S.srv.error = ''; S.srv.notice = ''; S.srv.origin = 'FILE_IMPORT'; S.srv.revs = null;
-        changed();
-        buildProps();
-        saveNow();
-        renderDock();
-        say(tf('Imported %s. The undo history starts again from here.', doc.name) + ' ' + T('Save design keeps it on the Familista server as a new design.'));
-      } catch (e) {
-        say(tf('Not imported: %s', problemText(e)));
-      }
+      var key = null;
+      try { var peek = JSON.parse(text); key = peek && peek.template && peek.template.key; } catch (_) { key = null; }
+      if (typeof key === 'string' && key !== TEMPLATE.key && entryFor(key)) { switchTemplate(key, function () { return importText(text); }); return; }
+      importText(text);
     }).catch(function () { if (S) say(tf('Not imported: %s', T('The file is not a design file.'))); });
+  }
+  /** Put an imported design file in the editor, on the current template. False when the file is refused. */
+  function importText(text) {
+    try {
+      var doc = C.parseDocument(text, TEMPLATE);
+      S.doc = doc;
+      S.hist = C.createHistory();
+      S.sel = null;
+      S.merge = null;
+      setLink(null);
+      S.srv.state = 'local'; S.srv.conflict = null; S.srv.error = ''; S.srv.notice = ''; S.srv.origin = 'FILE_IMPORT'; S.srv.revs = null;
+      changed();
+      buildProps();
+      saveNow();
+      renderDock();
+      say(tf('Imported %s. The undo history starts again from here.', doc.name) + ' ' + T('Save design keeps it on the Familista server as a new design.'));
+      return true;
+    } catch (e) {
+      say(tf('Not imported: %s', problemText(e)));
+      return false;
+    }
   }
 
   // ── entry points ──────────────────────────────────────────────────────────
 
-  function loadTemplate() {
-    if (TEMPLATE) return Promise.resolve(TEMPLATE);
-    if (!TEMPLATE_LOADING) {
-      TEMPLATE_LOADING = fetch(TEMPLATE_URL).then(function (r) { if (!r.ok) throw new Error('template'); return r.json(); })
-        .then(function (t) { TEMPLATE = C.validateTemplate(t); return TEMPLATE; })
-        .catch(function (e) { TEMPLATE_LOADING = null; throw e; });
+  /** The registry of released garments, fetched once. */
+  function loadIndex() {
+    if (INDEX) return Promise.resolve(INDEX);
+    if (!INDEX_LOADING) {
+      INDEX_LOADING = fetch(INDEX_URL).then(function (r) { if (!r.ok) throw new Error('index'); return r.json(); })
+        .then(function (x) {
+          if (!x || x.format !== 'familista.product-template-index' || !Array.isArray(x.templates)) throw new Error('index');
+          INDEX = x.templates.filter(function (e) { return e && typeof e.product === 'string' && typeof e.key === 'string' && /^[a-z0-9-]+\.json$/.test(e.file); });
+          if (!entryFor(JERSEY_KEY)) throw new Error('index');
+          return INDEX;
+        })
+        .catch(function (e) { INDEX_LOADING = null; throw e; });
     }
-    return TEMPLATE_LOADING;
+    return INDEX_LOADING;
+  }
+  function entryFor(key) { for (var i = 0; INDEX && i < INDEX.length; i++) if (INDEX[i].key === key) return INDEX[i]; return null; }
+  function entryForProduct(id) { for (var i = 0; INDEX && i < INDEX.length; i++) if (INDEX[i].product === id) return INDEX[i]; return null; }
+  /** A released garment's template, fetched and checked once; it must be the one the registry names. */
+  function templateFor(key) {
+    if (TEMPLATES[key]) return Promise.resolve(TEMPLATES[key]);
+    var e = entryFor(key);
+    if (!e) return Promise.reject(new Error('template'));
+    if (!TEMPLATE_LOADS[key]) {
+      TEMPLATE_LOADS[key] = fetch(TEMPLATE_DIR + e.file + '?v=' + VERSION).then(function (r) { if (!r.ok) throw new Error('template'); return r.json(); })
+        .then(function (t) { var v = C.validateTemplate(t); if (v.key !== key) throw new Error('template'); TEMPLATES[key] = v; return v; })
+        .catch(function (err) { TEMPLATE_LOADS[key] = null; throw err; });
+    }
+    return TEMPLATE_LOADS[key];
+  }
+  /** The garment the room opens on: the draft's, when this browser keeps one of a released garment; otherwise the match shirt. */
+  function draftTemplateKey() {
+    var raw = null;
+    try { raw = window.localStorage.getItem(STORE_KEY); } catch (_) { return JERSEY_KEY; }
+    try { var d = raw && JSON.parse(raw), k = d && d.template && d.template.key; if (typeof k === 'string' && entryFor(k)) return k; } catch (_) { /* not a draft this registry knows */ }
+    return JERSEY_KEY;
+  }
+  function loadTemplate() {
+    return loadIndex().then(function () { return templateFor(draftTemplateKey()); }).then(function (t) { TEMPLATE = t; return t; });
+  }
+  /** Start a new design on another released garment, behind the same unsaved-change guard as a new design. */
+  function selectProduct(id) {
+    var e = entryForProduct(id);
+    if (!e || !TEMPLATE || e.key === TEMPLATE.key) return;
+    if (isUnsaved()) openDock('projects');
+    replacing('product', id, function () { switchTemplate(e.key, startNew); });
+  }
+  /**
+   * Put the editor on another garment and run `then`, which puts a document of that garment in place and returns false
+   * when it could not (the editor then stays on the garment it was on). The 3D view is built for one garment, so it is
+   * closed and opened again; the panels that read the template are rebuilt, and nothing else moves.
+   */
+  function switchTemplate(key, then) {
+    var mine = S;
+    return templateFor(key).then(function (t) {
+      if (S !== mine) return;
+      var was3d = S.mode === '3d', prev = TEMPLATE;
+      if (was3d) close3d();
+      TEMPLATE = t;
+      if (then() === false) TEMPLATE = prev;
+      rebuildTemplatePanels();
+      if (was3d) open3d();
+    }, function () { if (S === mine) say(T('The product template could not be loaded. Check the connection and open the Design Studio again.')); });
+  }
+  function rebuildTemplatePanels() {
+    var E = S.el, hadFocus = E.lib && E.lib.contains(document.activeElement);
+    var lib = buildLib(); E.lib.parentNode.replaceChild(lib, E.lib); E.lib = lib;
+    var prod = buildProduct(); E.prod.parentNode.replaceChild(prod, E.prod); E.prod = prod;
+    renderCanvas();
+    renderCheck();
+    syncViews();
+    renderThumbs();
+    if (hadFocus) { var cur = lib.querySelector('.pd-card.is-current'); if (cur) cur.focus({ preventScroll: true }); }
   }
 
   window.renderFamilistaProductDesign = function (host) {
@@ -2944,6 +3026,7 @@
       mounts: S.metrics.mounts, commits: S.metrics.commits, renders: S.metrics.renders, layerPaints: S.metrics.layerPaints,
       renderMsMedian: ms.length ? ms[Math.floor(ms.length / 2)] : null, renderMsMax: ms.length ? ms[ms.length - 1] : null,
       edits: S.metrics.editMs.length, editMsMedian: ed.length ? ed[Math.floor(ed.length / 2)] : null, editMsP95: ed.length ? ed[Math.floor(ed.length * 0.95)] : null,
+      template: TEMPLATE ? TEMPLATE.key : null, products: INDEX ? INDEX.map(function (e) { return e.product; }) : [],
       view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
       layers: S.doc.surfaces.map(function (x) { return x.layers.length; }), findings: S.findings.length,
       saveState: S.saveState, lastSaveBytes: S.metrics.lastSaveBytes, announced: S.announced, lang: LANG, dir: DIR,
