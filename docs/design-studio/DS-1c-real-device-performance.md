@@ -15,6 +15,24 @@ Android phone:
 It reads the room's own read-only metrics (`window.__familistaProductDesignMetrics()`): the engine's count of frames
 drawn and of artwork repaints. The edits it asks for are undone at the end, and nothing is written to the server.
 
+## Status: a post-release validation requirement
+
+**Owner decision, 22 November 2026.** For the initial, Owner-only release of DS-1c, the Owner accepted the
+documented variability of software-rendered performance. That acceptance is not legal clearance, and it does not
+approve unrestricted commercial use.
+
+No measurement has been made on physical graphics hardware or on a phone. None was reachable from the environment
+that built this release, and no such figure is reported anywhere in the repository. This procedure therefore remains
+a requirement after release. It must be completed before the 3D view is offered beyond the Platform Owner or used
+commercially:
+
+1. A Windows PC with a graphics card: Parts A to D below, at the three quality levels.
+2. An Android phone, through the same server: Parts B to D.
+3. The results compared with the proposed targets below, which the Owner then confirms or changes.
+
+iOS is not covered: it needs a Mac or an approved test environment. Nothing in the procedure lowers or replaces the
+browser proof's own budgets.
+
 ## What runs where
 
 | Part | Where | Why |

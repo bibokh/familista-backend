@@ -1043,6 +1043,16 @@ which say nothing about a view that draws only on change (it reported 60 fps for
 all). It now counts the engine's own frames and repaints, and records why the method changed. It uses only the room's read-only metrics and proposes targets
 for those measurements to confirm or refute.
 
+**Release acceptance (Owner decision, 22 November 2026).** The Design Studio browser proof now runs in CI, in the
+required browser-proof job, on a real PostgreSQL under the production CSP. Its functional checks gate the job, and
+its six timing budgets are reported there without gating; the thresholds are unchanged and gate everywhere else. The
+room was also made free of clipping when Inter cannot load, in every official language and desktop width. For the
+initial, Owner-only release, the Owner accepted the documented variability of software-rendered performance. This is
+not legal clearance, and it does not approve unrestricted commercial use. Measurement on physical graphics hardware and
+on an Android phone has not been done. It is a post-release validation requirement, set out in
+`docs/design-studio/DS-1c-real-device-performance.md`, to be met before the 3D view is offered beyond the Platform
+Owner or used commercially.
+
 **Implemented and deferred.**
 
 | Asked for | DS-1c |
