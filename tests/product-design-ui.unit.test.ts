@@ -89,8 +89,8 @@ describe('the Interface Studio is preserved', () => {
 describe('wiring: an owner room of its own, its design routes guarded on the server', () => {
   it('app.js loads it on demand behind the platform-owner check, its core, its server client, its garment and 3D view, then its editor, under one version that the room also uses', () => {
     // DS-1c adds the garment geometry and the 3D view before the editor; Babylon itself is loaded only when 3D is chosen (pd-3d.js).
-    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261122-product-design-m1a', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done);");
-    expect(JS).toContain("var VERSION = '20261122-product-design-m1a';");
+    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261122-product-design-m1b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done);");
+    expect(JS).toContain("var VERSION = '20261122-product-design-m1b';");
     expect(APP).toContain("if (page === 'product-design' && !(_PD_ROOM && _PD_ROOM.state === 'ready')) {");
     expect(APP).toMatch(/_loadProductDesign\(function \(ok\) \{\s*try \{ navTo\(ok \? page : 'owner-home', ok \? el : null, _opts\); \} catch \(_\) \{\}/);
   });
@@ -277,6 +277,7 @@ describe('the official languages', () => {
     literals.add(t.name);
     t.surfaces.forEach((s: { label: string }) => literals.add(s.label));
     t.views.forEach((v: { label: string }) => literals.add(v.label));
+    if (t.partNames) Object.values(t.partNames as Record<string, string>).forEach((n) => literals.add(n));
     literals.add(t.reference.method); literals.add(t.reference.fabric);
     t.reference.fits.forEach((f: { label: string }) => literals.add(f.label));
     t.start.palette.forEach((p: { label: string }) => literals.add(p.label));

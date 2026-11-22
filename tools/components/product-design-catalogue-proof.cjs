@@ -17,6 +17,7 @@ module.exports = async function p17(H) {
   const KEY = Object.fromEntries(INDEX.map((e) => [e.product, e.key]));
   const NAME = Object.fromEntries(INDEX.map((e) => [e.product, JSON.parse(fs.readFileSync(path.join(ROOT, 'public/product-design/templates', e.file), 'utf8')).name]));
   const RELEASED = INDEX.map((e) => e.product);
+  const TEMPLATE = Object.fromEntries(INDEX.map((e) => [e.product, JSON.parse(fs.readFileSync(path.join(ROOT, 'public/product-design/templates', e.file), 'utf8'))]));
 
   const tiles = (pg) => pg.$$eval('#pd-root .pd-card', (bs) => bs.map((b) => ({
     id: b.getAttribute('data-pd-tile'), selectable: b.hasAttribute('data-pd-product'), current: b.getAttribute('aria-current') === 'true',
@@ -74,22 +75,38 @@ module.exports = async function p17(H) {
 
     // ── each released garment ──────────────────────────────────────────────────────────────────────────────────────
     const seen = {};
-    for (const product of ['gk-shirt', 'training-top', 't-shirt', 'match-shirt']) {
+    // Every released garment, the match shirt last, so the room ends where it started.
+    for (const product of RELEASED.filter((p) => p !== 'match-shirt').concat('match-shirt')) {
       await choose(page, product, 'go');
       await onTemplate(page, KEY[product]);
       await page.waitForTimeout(300);
       const m = await M(page);
+      // What the room shows of the garment itself: its own views, its own trim names, its patches on the canvas.
+      await page.click('#pd-root [data-pd-insptab="colour"]');
+      const own = await page.evaluate(() => ({
+        views: [...document.querySelectorAll('#pd-root [data-pd-view]')].map((b) => [b.getAttribute('data-pd-view'), b.querySelector('.pd-view-label').textContent.trim()]),
+        trims: [...document.querySelectorAll('#pd-root .pd-swatches[role="group"]')].map((g) => g.getAttribute('aria-label')).filter((l) => l !== 'Design palette'),
+        patches: document.querySelectorAll('#pd-root .pd-canvas [data-pd-patch]').length, view: window.__familistaProductDesignMetrics().view,
+      }));
+      await page.click('#pd-root [data-pd-insptab="design"]');
+      if (product === 'socks' || product === 'shorts') await page.screenshot({ path: path.join(OUT, 'p17-' + product + '-2d.png') });
       await page.click('#pd-root [data-pd-mode="3d"]');
       await page.waitForFunction(() => { const t = window.__familistaProductDesignMetrics().three; return (t.state === 'ready' && t.engine && !t.engine.pending) || !!t.failed; }, null, { timeout: 90000 });
       const e = (await M(page)).three;
+      if (product === 'socks' || product === 'shorts') { await page.waitForTimeout(600); await page.screenshot({ path: path.join(OUT, 'p17-' + product + '-3d.png') }); }
       seen[product] = { template: m.template, name: await page.inputValue('#pd-root .pd-docname'), findings: m.findings, three: e.state, vertices: e.engine && e.engine.vertices,
-        current: (await tiles(page)).filter((t) => t.current).map((t) => t.id).join() };
+        current: (await tiles(page)).filter((t) => t.current).map((t) => t.id).join(), own };
       await page.click('#pd-root [data-pd-mode="2.5d"]');
       await page.waitForTimeout(300);
     }
     check('P17 each released garment opens with its own starter design (no finding), is the current tile, and paints in 3D',
       RELEASED.every((p) => seen[p].template === KEY[p] && seen[p].findings === 0 && seen[p].three === 'ready' && seen[p].current === p && seen[p].vertices > 0)
         && seen['gk-shirt'].name === NAME['gk-shirt'] && seen['match-shirt'].name === 'Home kit design', seen);
+    const tp = (p) => TEMPLATE[p];
+    check('P17 each garment shows its own views, opens on its first, names its own trims, and draws its trim patches',
+      RELEASED.every((p) => JSON.stringify(seen[p].own.views) === JSON.stringify(tp(p).views.map((v) => [v.id, v.label])) && seen[p].own.view === tp(p).views[0].id
+        && JSON.stringify(seen[p].own.trims) === JSON.stringify(tp(p).partNames ? [tp(p).partNames.collar, tp(p).partNames.cuffs] : ['Collar', 'Cuffs'])
+        && seen[p].own.patches === (tp(p).views[0].patches || []).length), Object.fromEntries(RELEASED.map((p) => [p, seen[p].own])));
     check('P17 the long-sleeve garments are built with their long sleeves: more of the garment than the short-sleeve ones',
       seen['gk-shirt'].vertices > seen['match-shirt'].vertices && seen['training-top'].vertices > seen['t-shirt'].vertices, seen);
 
@@ -174,6 +191,7 @@ module.exports = async function p17(H) {
     const name = await de.inputValue('#pd-root .pd-docname');
     check('P17 de-DE: the released garments, the catalogue note and a new design’s name are in German',
       labels['gk-shirt'] === 'Torwarttrikot' && labels['training-top'] === 'Trainingsoberteil' && labels['t-shirt'] === 'T-Shirt'
+        && labels.shorts === 'Shorts' && labels['gk-shorts'] === 'Torwartshorts' && labels.socks === 'Stutzen'
         && /^Als „Geplant“ markierte Produkte/.test(note) && name === 'Torwarttrikot', { labels, note, name });
   } finally {
     await c2.close();

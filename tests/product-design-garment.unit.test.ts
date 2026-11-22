@@ -2,7 +2,7 @@
  * Design Studio, DS-1c — the garment geometry, public/product-design/pd-garment.js.
  *
  * The 3D view is only as honest as this mapping, so its promises are pinned on
- * every released garment's real template (the registry, templates/index.json),
+ * every released top's real template (the registry, templates/index.json),
  * rather than on a picture:
  *   · a vertex's texture coordinate is its flat position, exactly, so the
  *     artwork the 2D editor draws is the artwork the garment shows;
@@ -27,7 +27,9 @@ const C = require(path.join(ROOT, 'public/product-design/pd-core.js'));
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const INDEX = require(path.join(ROOT, 'public/product-design/templates/index.json'));
-const FILES: string[] = INDEX.templates.map((e: { file: string }) => e.file);
+// Tops: the templates the body-and-sleeves builder makes. Legwear has its own promises, in product-design-legwear.unit.test.ts.
+const FILES: string[] = INDEX.templates.map((e: { file: string }) => e.file)
+  .filter((f: string) => (require(path.join(ROOT, 'public/product-design/templates', f)).form || 'top') === 'top'); // eslint-disable-line @typescript-eslint/no-var-requires
 
 type V3 = [number, number, number];
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any

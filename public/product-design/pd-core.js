@@ -20,7 +20,7 @@
      { format: 'familista.product-design', version: 1, name,
        template: { key, version },
        palette:  [{ id, label, srgb }],
-       parts:    { collar, cuffs },                 palette ids
+       parts:    { collar, cuffs },                 palette ids: the template's two trim colours (its partNames)
        surfaces: [{ id, base, layers: [layer] }] }  one per template surface, in order
 
      layer    { id, type, name, visible, locked, ... }
@@ -82,6 +82,8 @@
   var LAYER_TYPES = Object.freeze(['pattern', 'text', 'roster', 'shape']);
   var BOX_TYPES = Object.freeze(['text', 'roster', 'shape']);
   var PARTS = Object.freeze(['collar', 'cuffs']);
+  /** The garment forms the 3D builder knows; a template that names none is a top. */
+  var FORMS = Object.freeze(['top', 'shorts', 'socks']);
 
   var COMMON_KEYS = ['id', 'type', 'name', 'visible', 'locked'];
   var BOX_KEYS = ['x', 'y', 'w', 'h', 'r', 'w0', 'h0'];
@@ -182,13 +184,26 @@
       if (!validOutline(s.outline)) throw PDError('template-outline', p);
       if (!validatePolygonList(s.safe)) throw PDError('template-safe', p);
       if (!finite(s.width) || !finite(s.height) || s.width <= 0 || s.height <= 0) throw PDError('template-size', p);
+      // A sock face names the centre of its ankle's bend; nothing else does.
+      if (s.ankle !== undefined && !(Array.isArray(s.ankle) && s.ankle.length === 2 && finite(s.ankle[0]) && finite(s.ankle[1]))) throw PDError('template-ankle', p);
     });
+    if (t.form !== undefined && !has(FORMS, t.form)) throw PDError('template-form');
+    // What the two trim colours are called on this garment (a top's collar and cuffs; shorts' waistband and leg hems).
+    if (t.partNames !== undefined && !(isObject(t.partNames) && Object.keys(t.partNames).length === PARTS.length &&
+      PARTS.every(function (k) { return goodName(t.partNames[k], LIMITS.label); }))) throw PDError('template-part-names');
     if (!Array.isArray(t.views) || !t.views.length) throw PDError('template-views');
+    var viewIds = {};
     t.views.forEach(function (v, i) {
       var p = 'views[' + i + ']';
-      if (!isObject(v) || !ids[v.surface] || !Array.isArray(v.viewBox) || v.viewBox.length !== 4) throw PDError('template-view', p);
+      if (!isObject(v) || !ID_RE.test(v.id) || viewIds[v.id] || !ids[v.surface] || !Array.isArray(v.viewBox) || v.viewBox.length !== 4) throw PDError('template-view', p);
+      viewIds[v.id] = 1;
       (v.context || []).forEach(function (c, j) {
         if (!ids[c.surface] || !validOutline(c.outline)) throw PDError('template-context', p + '.context[' + j + ']');
+      });
+      // A patch is an area of the surface printed in a trim colour: a waistband, a hem, a sock's heel and toe.
+      if (v.patches !== undefined && !Array.isArray(v.patches)) throw PDError('template-patch', p);
+      (v.patches || []).forEach(function (q, j) {
+        if (!isObject(q) || !has(PARTS, q.part) || !validOutline(q.outline)) throw PDError('template-patch', p + '.patches[' + j + ']');
       });
     });
     if (!isObject(t.rules) || !finite(t.rules.minTextHeight)) throw PDError('template-rules');
@@ -712,7 +727,7 @@
   return Object.freeze({
     FORMAT: FORMAT, VERSION: VERSION, TEMPLATE_FORMAT: TEMPLATE_FORMAT, LIMITS: LIMITS, ZOOM: ZOOM,
     PATTERNS: PATTERNS, SHAPES: SHAPES, FONTS: FONTS, ROSTER_FIELDS: ROSTER_FIELDS, LAYER_TYPES: LAYER_TYPES,
-    BOX_TYPES: BOX_TYPES, PARTS: PARTS, KEYS: KEYS, SETTABLE: SETTABLE,
+    BOX_TYPES: BOX_TYPES, PARTS: PARTS, FORMS: FORMS, KEYS: KEYS, SETTABLE: SETTABLE,
     PDError: PDError, byteLength: byteLength, clone: clone, mm: mm, normAngle: normAngle,
     validateTemplate: validateTemplate, templateSurface: templateSurface,
     validateDocument: validateDocument, parseDocument: parseDocument, serializeDocument: serializeDocument,

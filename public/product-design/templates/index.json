@@ -21,6 +21,21 @@
       "product": "t-shirt",
       "file": "t-shirt.json",
       "key": "t-shirt.crew"
+    },
+    {
+      "product": "shorts",
+      "file": "shorts.json",
+      "key": "shorts.classic"
+    },
+    {
+      "product": "gk-shorts",
+      "file": "gk-shorts.json",
+      "key": "gk-shorts.classic"
+    },
+    {
+      "product": "socks",
+      "file": "socks.json",
+      "key": "socks.football"
     }
   ]
 }

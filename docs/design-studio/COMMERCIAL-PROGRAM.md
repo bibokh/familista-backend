@@ -61,7 +61,7 @@ and nothing labelled available that does not work. Production stays as it is unt
 | Milestone | State |
 |---|---|
 | **M1a: catalogue foundation, tops** | Delivered on its branch, awaiting review. A template registry is read by both the editor and the server. Garments switch behind the unsaved-change guard, and saved or imported designs open on their own garment. Released: match shirt, **goalkeeper shirt** (V-neck, long sleeves), **training top** (crew neck, long sleeves), **T-shirt** (crew neck). Every geometry promise of the 3D builder is tested on each of them. |
-| M1b: shorts and socks | Next: a leg/tube builder in `pd-garment.js` |
+| **M1b: shorts and socks** | Delivered on its branch, awaiting review. `pd-garment.js` builds three forms behind one interface: tops, **shorts** (a hip section that divides into two leg tubes over the rise) and **socks** (the pressed-flat tube as sublimation prints it: an outer and an inner face meeting along the shin and calf, a leg, an ankle bend and a foot, the toe closed). Every section of both is wrapped by arc length, and the seams meet to within 0.01 mm. Released: **shorts**, **goalkeeper shorts** (40 mm longer leg), **socks**. A template now names its trim colours (waistband and leg hems; top band, heel and toe) and draws trim **patches**, which the 3D view shows through the same texture. |
 | M1c: jackets, hoodies, tracksuits, polo | After M1b. The polo stays Planned until its collar and placket can be modelled, rather than being shown as a crew-neck shirt. |
 | M2–M8 | Not started |
 

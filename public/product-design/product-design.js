@@ -38,7 +38,7 @@
 
   var C = window.FamilistaProductDesignCore;
   var LIMITS = C.LIMITS;
-  var VERSION = '20261122-product-design-m1a';
+  var VERSION = '20261122-product-design-m1b';
   // The released garments: templates/index.json names each one's reviewed template file; the server reads the same index.
   var TEMPLATE_DIR = '/product-design/templates/';
   var INDEX_URL = TEMPLATE_DIR + 'index.json?v=' + VERSION;
@@ -294,7 +294,7 @@
   }
   function newDocument() {
     var names = {};
-    ['Pattern', 'Brand mark', 'Club crest', 'Sponsor', 'Player name', 'Player number', 'Navy', 'Royal blue', 'Gold', 'White', 'Green', 'Black', 'Sky blue'].forEach(function (k) { names[k] = T(k); });
+    ['Pattern', 'Brand mark', 'Club crest', 'Sponsor', 'Player name', 'Player number', 'Band', 'Navy', 'Royal blue', 'Gold', 'White', 'Green', 'Black', 'Sky blue'].forEach(function (k) { names[k] = T(k); });
     return C.createDocument(TEMPLATE, TEMPLATE.key === JERSEY_KEY ? T('Home kit design') : T(TEMPLATE.name), names);
   }
   /** The local draft's state: saved, pending, unavailable or too-large. What the screen says combines it with the server's. */
@@ -1055,6 +1055,7 @@
       body.appendChild(node);
     });
     if (view.cuff) body.appendChild(s('line', { x1: view.cuff[0][0], y1: view.cuff[0][1], x2: view.cuff[1][0], y2: view.cuff[1][1], stroke: colour(S.doc.parts.cuffs), 'stroke-width': '28' }));
+    patches(body, view);
     root.appendChild(body);
     if (view.inner) root.appendChild(s('path', { d: C.outlinePath(view.inner), fill: shade(colour(surf.base), 0.45) }));
     if (view.collar) {
@@ -1067,6 +1068,11 @@
     svg.appendChild(root);
     if (o.guides) svg.appendChild(guides(ts));
     return svg;
+  }
+
+  /** A view's patches, the areas printed in a trim colour (a waistband, leg hems, a sock's top band, heel and toe), over the artwork. */
+  function patches(g, view) {
+    (view.patches || []).forEach(function (q) { g.appendChild(s('path', { d: C.outlinePath(q.outline), fill: colour(S.doc.parts[q.part]), 'data-pd-patch': q.part })); });
   }
 
   /** The 2.5D shading: light across the cloth, the folds a shirt makes, and its edges turning away. */
@@ -1224,7 +1230,7 @@
     if (S.el.bar3d) sync3d();
     if (announce) {
       var n = selectedLayer();
-      say(n ? tf('Selected %s.', n.name) : sel && sel.kind === 'base' ? T('Selected the shirt base colour.') : T('Nothing selected.'));
+      say(n ? tf('Selected %s.', n.name) : sel && sel.kind === 'base' ? T('Selected the base colour.') : T('Nothing selected.'));
     }
   }
   function setView(id) {
@@ -1591,6 +1597,7 @@
       TEMPLATE.views.forEach(function (v) {
         if (v.surface !== surfaceId) return;
         if (v.cuff) body.appendChild(s('line', { x1: v.cuff[0][0], y1: v.cuff[0][1], x2: v.cuff[1][0], y2: v.cuff[1][1], stroke: colour(S.doc.parts.cuffs), 'stroke-width': '28' }));
+        patches(body, v);
         if (v.collar) body.appendChild(s('path', { d: C.outlinePath(v.collar).replace(/ Z$/, ''), fill: 'none', stroke: colour(S.doc.parts.collar), 'stroke-width': '16', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
       });
     }
@@ -2013,6 +2020,7 @@
       { id: 'match-shirt', label: L('Match shirt'), icon: 'shirt' },
       { id: 'gk-shirt', label: L('Goalkeeper shirt'), icon: 'gkShirt' },
       { id: 'shorts', label: L('Shorts'), icon: 'shorts' },
+      { id: 'gk-shorts', label: L('Goalkeeper shorts'), icon: 'shorts' },
       { id: 'socks', label: L('Socks'), icon: 'socks' },
       { id: 'training-top', label: L('Training top'), icon: 'gkShirt' },
       { id: 'jacket', label: L('Jacket'), icon: 'jacket' },
@@ -2050,7 +2058,7 @@
         group.items.forEach(function (it) {
           var e = entryForProduct(it.id), current = !!e && e.key === TEMPLATE.key;
           var b = btn({ class: 'pd-card' + (current ? ' is-current' : ''), 'aria-current': current ? 'true' : null, 'data-pd-tile': it.id, 'data-pd-product': e && !current ? it.id : null }, [
-            h('span', { class: 'pd-card-art' }, current ? [h('span', { class: 'pd-card-thumb', 'data-pd-thumb': 'front' })] : [icon(it.icon, 34)]),
+            h('span', { class: 'pd-card-art' }, current ? [h('span', { class: 'pd-card-thumb', 'data-pd-thumb': homeView() })] : [icon(it.icon, 34)]),
             h('span', { class: 'pd-card-label', text: T(it.label) }),
           ]);
           if (!e) { planned(b, 'product'); b.appendChild(chip(T('Planned'), 'muted')); }
@@ -2113,14 +2121,7 @@
     E.canvasNote = h('p', { class: 'pd-canvas-note' });
     E.canvas.appendChild(E.canvasNote);
     chrome3d(E);
-    var views = h('nav', { class: 'pd-views', 'data-ds-region': 'R8', 'aria-label': T('Views') });
-    TEMPLATE.views.forEach(function (v) {
-      views.appendChild(btn({ class: 'pd-view', 'data-pd-view': v.id, 'aria-pressed': v.id === S.view ? 'true' : 'false' }, [
-        h('span', { class: 'pd-view-thumb', 'data-pd-thumb': v.id }), h('span', { class: 'pd-view-label', text: T(v.label) }),
-      ]));
-    });
-    views.appendChild(live3d(btn({ class: 'pd-view pd-view--360', 'data-pd-act': 'turntable', 'aria-pressed': 'false', title: T('Turn the garment all the way round') }, [h('span', { class: 'pd-view-thumb' }, [icon('rotate', 26)]), h('span', { class: 'pd-view-label', text: '360°' })]), '360'));
-    E.views = views;
+    E.views = buildViews();
     var strip = h('div', { class: 'pd-strip', role: 'list' });
     C.PATTERNS.forEach(function (p) {
       strip.appendChild(h('div', { role: 'listitem' }, [btn({ class: 'pd-swatch', 'data-pd-pattern': p, title: T(PATTERN_LABEL[p]), 'aria-label': T(PATTERN_LABEL[p]) }, [patternSwatch(p)])]));
@@ -2131,7 +2132,7 @@
       strip,
       btn({ class: 'pd-icbtn pd-strip-nav', 'data-pd-act': 'strip-next', 'aria-label': T('Next patterns') }, [dirArrow('›')]),
     ]);
-    return h('div', { class: 'pd-editor' }, [bar, tools, h('div', { class: 'pd-stage' }, [E.canvas, views]), patterns, E.help]);
+    return h('div', { class: 'pd-editor' }, [bar, tools, h('div', { class: 'pd-stage' }, [E.canvas, E.views]), patterns, E.help]);
   }
   /** A small picture of a pattern, in the design's first two colours. */
   var SWATCH_N = 0;
@@ -2198,7 +2199,7 @@
     ul.appendChild(h('li', { class: 'pd-layer pd-layer--base' + (baseOn ? ' is-selected' : '') }, [
       h('span', { class: 'pd-layer-grip', 'aria-hidden': 'true' }),
       h('span', { class: 'pd-layer-thumb', 'aria-hidden': 'true' }, [colourDot(surf.base)]),
-      btn({ class: 'pd-layer-name', 'data-pd-select': ':base', 'aria-pressed': baseOn ? 'true' : 'false' }, [h('span', { text: T('Shirt base colour') })]),
+      btn({ class: 'pd-layer-name', 'data-pd-select': ':base', 'aria-pressed': baseOn ? 'true' : 'false' }, [h('span', { text: T('Base colour') })]),
     ]));
   }
   function colourDot(id) {
@@ -2231,7 +2232,7 @@
       append(box, [h('p', { class: 'pd-prop-title', text: tf('Base colour of the %s', T(tSurface(surf.id).label)) }), swatchPicker('base', surf.base, false)]);
       return;
     }
-    if (!n) { box.appendChild(h('p', { class: 'pd-empty', text: T('Select an element on the shirt or in the list.') })); return; }
+    if (!n) { box.appendChild(h('p', { class: 'pd-empty', text: T('Select an element on the garment or in the list.') })); return; }
     var nameIn = h('input', { class: 'pd-input pd-prop-name', type: 'text', maxlength: String(LIMITS.name), 'data-pd-field': 'name', 'aria-label': T('Element name'), 'data-user-content': '' });
     nameIn.value = n.name;
     box.appendChild(h('div', { class: 'pd-prop-head' }, [
@@ -2342,14 +2343,16 @@
     append(wrap, [
       h('h2', { class: 'pd-h2', text: T('Design palette') }), list, add,
       h('h2', { class: 'pd-h2', text: T('Trims') }),
-      h('p', { class: 'pd-prop-sub', text: T('Collar') }), partPicker('collar'),
-      h('p', { class: 'pd-prop-sub', text: T('Cuffs') }), partPicker('cuffs'),
+      h('p', { class: 'pd-prop-sub', text: partName('collar') }), partPicker('collar'),
+      h('p', { class: 'pd-prop-sub', text: partName('cuffs') }), partPicker('cuffs'),
       h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: T('Colours on screen are sRGB previews. The printed colour depends on the fabric and the process; physical samples settle it.') })]),
     ]);
     return wrap;
   }
+  /** What a trim colour is called on this garment: a top's collar and cuffs, shorts' waistband and leg hems. */
+  function partName(part) { var n = TEMPLATE.partNames; return n ? T(n[part]) : part === 'collar' ? T('Collar') : T('Cuffs'); }
   function partPicker(part) {
-    var wrap = h('div', { class: 'pd-swatches', role: 'group', 'aria-label': T(part === 'collar' ? 'Collar' : 'Cuffs') });
+    var wrap = h('div', { class: 'pd-swatches', role: 'group', 'aria-label': partName(part) });
     S.doc.palette.forEach(function (c) {
       wrap.appendChild(btn({ class: 'pd-sw', 'data-pd-part': part, 'data-pd-colour': c.id, 'aria-pressed': S.doc.parts[part] === c.id ? 'true' : 'false', 'aria-label': c.label, title: c.label }, [colourDot(c.id)]));
     });
@@ -2391,7 +2394,7 @@
   function findingText(f) {
     var l = C.findLayer(S.doc, f.layer), name = l ? l.layer.name : '', where = T(tSurface(f.surface).label);
     if (f.code === 'outside-print-area') return tf('%s is outside the printable area of the %s.', name, where);
-    if (f.code === 'crosses-safe-zone') return tf('%s crosses the safe zone of the %s: seams, collar or cuffs may cut it.', name, where);
+    if (f.code === 'crosses-safe-zone') return tf('%s crosses the safe zone of the %s: seams or trims may cut it.', name, where);
     return tf('%s is lower than the template’s %d mm minimum for lettering.', name, TEMPLATE.rules.minTextHeight);
   }
   function renderCheck() {
@@ -2448,7 +2451,7 @@
         h('h2', { class: 'pd-h2' }, [icon('shirt', 16), h('span', { text: T('Kit preview') })]),
         h('div', { class: 'pd-kit' }, [
           h('figure', { class: 'pd-kit-item pd-kit-item--planned' }, [h('span', { class: 'pd-kit-art' }, [icon('shirt', 40)]), h('figcaption', { text: T('Away kit') }), chip(T('Planned'), 'muted')]),
-          h('figure', { class: 'pd-kit-item is-current' }, [h('span', { class: 'pd-kit-art', 'data-pd-thumb': 'front' }), h('figcaption', { class: 'pd-kit-name', 'data-user-content': '', 'data-pd-docname': '' })]),
+          h('figure', { class: 'pd-kit-item is-current' }, [h('span', { class: 'pd-kit-art', 'data-pd-thumb': homeView() }), h('figcaption', { class: 'pd-kit-name', 'data-user-content': '', 'data-pd-docname': '' })]),
           h('figure', { class: 'pd-kit-item pd-kit-item--planned' }, [h('span', { class: 'pd-kit-art' }, [icon('gkShirt', 40)]), h('figcaption', { text: T('Goalkeeper kit') }), chip(T('Planned'), 'muted')]),
         ]),
       ]),
@@ -2700,7 +2703,7 @@
     if ((a = t.getAttribute('data-pd-vis'))) { var f = C.findLayer(S.doc, a); if (f) { setLayer(a, 'visible', !f.layer.visible, f.layer.visible ? T('Hide') : T('Show')); say(f.layer.visible ? tf('%s shown.', f.layer.name) : tf('%s hidden: it is not printed.', f.layer.name)); } return; }
     if ((a = t.getAttribute('data-pd-lock'))) { var g = C.findLayer(S.doc, a); if (g) { setLayer(a, 'locked', !g.layer.locked, g.layer.locked ? T('Unlock') : T('Lock')); buildProps(); say(g.layer.locked ? tf('%s locked.', g.layer.name) : tf('%s unlocked.', g.layer.name)); } return; }
     if ((a = t.getAttribute('data-pd-goto'))) { setView(t.getAttribute('data-pd-goto-view')); select({ kind: 'layer', id: a }, true); S.el.canvas.focus({ preventScroll: true }); return; }
-    if ((a = t.getAttribute('data-pd-part'))) { commitOp({ op: 'set', target: { kind: 'part', id: a }, key: 'color', value: t.getAttribute('data-pd-colour') }, a === 'collar' ? T('Collar') : T('Cuffs')); return; }
+    if ((a = t.getAttribute('data-pd-part'))) { commitOp({ op: 'set', target: { kind: 'part', id: a }, key: 'color', value: t.getAttribute('data-pd-colour') }, partName(a)); return; }
     if ((a = t.getAttribute('data-pd-swatch-remove'))) { var sw = C.findSwatch(S.doc, a); if (commitOp({ op: 'paletteRemove', id: a }, T('Remove colour'))) say(tf('Removed %s.', sw.swatch.label)); return; }
     if ((a = t.getAttribute('data-pd-colour'))) { applyColour(t.getAttribute('data-pd-field'), a); return; }
     switch (t.getAttribute('data-pd-act')) {
@@ -2954,17 +2957,32 @@
     var mine = S;
     return templateFor(key).then(function (t) {
       if (S !== mine) return;
-      var was3d = S.mode === '3d', prev = TEMPLATE;
+      var was3d = S.mode === '3d', prev = TEMPLATE, prevView = S.view;
       if (was3d) close3d();
       TEMPLATE = t;
-      if (then() === false) TEMPLATE = prev;
+      S.view = homeView();
+      if (then() === false) { TEMPLATE = prev; S.view = prevView; }
       rebuildTemplatePanels();
       if (was3d) open3d();
     }, function () { if (S === mine) say(T('The product template could not be loaded. Check the connection and open the Design Studio again.')); });
   }
+  /** The garment's views, then the 360° turn: one button each. */
+  function buildViews() {
+    var views = h('nav', { class: 'pd-views', 'data-ds-region': 'R8', 'aria-label': T('Views') });
+    TEMPLATE.views.forEach(function (v) {
+      views.appendChild(btn({ class: 'pd-view', 'data-pd-view': v.id, 'aria-pressed': v.id === S.view ? 'true' : 'false' }, [
+        h('span', { class: 'pd-view-thumb', 'data-pd-thumb': v.id }), h('span', { class: 'pd-view-label', text: T(v.label) }),
+      ]));
+    });
+    views.appendChild(live3d(btn({ class: 'pd-view pd-view--360', 'data-pd-act': 'turntable', 'aria-pressed': 'false', title: T('Turn the garment all the way round') }, [h('span', { class: 'pd-view-thumb' }, [icon('rotate', 26)]), h('span', { class: 'pd-view-label', text: '360°' })]), '360'));
+    return views;
+  }
+  /** The view the garment opens on: its first. */
+  function homeView() { return TEMPLATE.views[0].id; }
   function rebuildTemplatePanels() {
     var E = S.el, hadFocus = E.lib && E.lib.contains(document.activeElement);
     var lib = buildLib(); E.lib.parentNode.replaceChild(lib, E.lib); E.lib = lib;
+    var views = buildViews(); E.views.parentNode.replaceChild(views, E.views); E.views = views;
     var prod = buildProduct(); E.prod.parentNode.replaceChild(prod, E.prod); E.prod = prod;
     renderCanvas();
     renderCheck();
@@ -2983,6 +3001,7 @@
     host.appendChild(h('div', { class: 'pd-shell pd-shell--loading' }, [h('div', { class: 'pd-loading', role: 'status', text: 'Familista Design Studio' })]));
     Promise.all([setLocale(initialLocale()), loadTemplate()]).then(function () {
       if (S !== mine) return;
+      S.view = homeView();
       var stored = loadStored();
       S.doc = stored.doc;
       S.saveState = stored.note === 'unavailable' ? 'unavailable' : 'saved';
