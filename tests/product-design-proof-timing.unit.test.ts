@@ -101,7 +101,7 @@ describe('CI runs the Design Studio proof inside the required browser-proof job'
     const gate = step('The Design Studio proof must have run, in full, with no functional check failed or skipped');
     expect(gate).toContain("grep -Eq ', 0 failed, 0 skipped$'");
     expect(gate).toMatch(/test "\$passed" -ge "\$DESIGN_FLOOR"/);
-    expect(Number(/DESIGN_FLOOR: '(\d+)'/.exec(gate)![1])).toBeGreaterThanOrEqual(153);
+    expect(Number(/DESIGN_FLOOR: '(\d+)'/.exec(gate)![1])).toBeGreaterThanOrEqual(163);
   });
 
   it('reports every budget in the job summary, fails if any was not measured, and runs even when the functional gate failed', () => {

@@ -544,7 +544,7 @@ jobs:
       - name: The Design Studio proof must have run, in full, with no functional check failed or skipped
         if: matrix.shard == 'isolation'
         env:
-          DESIGN_FLOOR: '153'
+          DESIGN_FLOOR: '163'
         run: |
           set -euo pipefail
           line="$(grep -E '^SUMMARY ' "$RUNNER_TEMP/design-proof.log" | tail -n 1)"
