@@ -485,7 +485,9 @@
       "Sweatshirt",
       "Text",
       "Version %d",
-      "Version %d · %s"
+      "Version %d · %s",
+      "Mesh",
+      "Studio"
     ],
     "product-design/fr": [
       "Chevron",
@@ -504,7 +506,8 @@
       "T-shirt",
       "Versions",
       "Version %d",
-      "Version %d · %s"
+      "Version %d · %s",
+      "Studio"
     ],
     "product-design/es": [
       "Club",

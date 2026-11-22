@@ -3082,7 +3082,7 @@ function _loadSystemUpdates(done) {
 // (#design-studio), which is left exactly as it is.
 var _PD_ROOM = { state: 'idle', waiting: [] };
 function _loadProductDesign(done) {
-  _famLoadOwnerRoom(_PD_ROOM, '20261112-product-design-1b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/product-design.js'], done);
+  _famLoadOwnerRoom(_PD_ROOM, '20261112-product-design-1c', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done);
 }
 
 // ── NAVIGATION ──

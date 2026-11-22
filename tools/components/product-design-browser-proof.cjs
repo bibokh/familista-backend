@@ -1,4 +1,4 @@
-// Familista — Design Studio (DS-1a, DS-1b): browser proofs.
+// Familista — Design Studio (DS-1a, DS-1b, DS-1c): browser proofs. DS-1c's 3D view is P16, in product-design-3d-proof.cjs.
 //
 // What Jest cannot see, proven in a real Chromium against the REAL compiled application served by the REAL app on a
 // REAL PostgreSQL (DS-1b gave the room a backend, so nothing is stubbed): a database freshly migrated, owned by a role
@@ -17,9 +17,17 @@
 //   PLAYWRIGHT_CORE   the Playwright module to load (default: playwright-core; a session with `playwright` installed may
 //                     pass PLAYWRIGHT_CORE=playwright)
 //   CHROMIUM          a Chrome or Chromium binary (default: the module's own)
+//   PROOF_TIMING      `gate` (the default) or `report`. The proof's timing budgets (time to a room, to 3D, frame intervals)
+//                     are checks of their own kind. By default they gate like every other check. With `report`, which
+//                     CI uses because its runners render WebGL in software on shared machines, each is printed as
+//                     `BUDGET MET` or `BUDGET OVER` outside the pass/fail count, followed by a `TIMING n met, n over`
+//                     line after SUMMARY. A budget whose measurement is missing or not a finite number is a FAIL in
+//                     either mode: a measurement that was not taken is not a pass. Thresholds are the same in both.
+//                     Hardware performance is accepted on real devices
+//                     (docs/design-studio/DS-1c-real-device-performance.md), not by this proof.
 //
-// Every line is PASS, FAIL or SKIP; the last is `SUMMARY n passed, n failed, n skipped`, and the exit code is 1 if
-// anything failed. Checks that could pass whatever the room did are paired with a negative control: a club coach is
+// Every line is PASS, FAIL or SKIP (and, with PROOF_TIMING=report, BUDGET); the last is `SUMMARY n passed, n failed,
+// n skipped`, and the exit code is 1 if anything failed. Checks that could pass whatever the room did are paired with a negative control: a club coach is
 // refused where the owner is served, and a design moved off the printable area is reported where the starting one is not.
 // It also writes the screenshots and a side-by-side review sheet against the approved reference to <output-dir>.
 process.env.NODE_ENV = 'production';
@@ -40,6 +48,8 @@ fs.mkdirSync(OUT, { recursive: true });
 const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
 const REGIONS = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/design-studio/reference-regions.json'), 'utf8'));
 const REFERENCE = path.join(ROOT, 'docs/design-studio', REGIONS.reference);
+// PROOF_ONLY=P16 runs only the DS-1c 3D sections (P16); unset, everything runs.
+const want = (n) => !process.env.PROOF_ONLY || process.env.PROOF_ONLY.split(',').includes(n);
 const roomWord = (code, en) => JSON.parse(fs.readFileSync(path.join(ROOT, 'public/product-design/i18n', code + '.json'), 'utf8'))[en];
 
 const OWNER = { id: 'u-owner', email: 'owner@familista.test', role: 'SUPER_ADMIN' };
@@ -86,6 +96,17 @@ const results = [];
 const pass = (name, detail) => { results.push('PASS'); console.log('PASS ' + name + (detail !== undefined ? ' :: ' + JSON.stringify(detail).slice(0, 600) : '')); };
 const fail = (name, detail) => { results.push('FAIL'); console.log('FAIL ' + name + (detail !== undefined ? ' :: ' + JSON.stringify(detail).slice(0, 900) : '')); };
 const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail));
+const TIMING = process.env.PROOF_TIMING || 'gate';
+if (TIMING !== 'gate' && TIMING !== 'report') { console.error('PROOF_TIMING must be gate or report'); process.exit(2); }
+const timings = [];
+/** A timing budget: `values` are the measurements it judges, every one of which must have been taken. */
+const budget = (name, values, ok, detail) => {
+  const missing = Object.keys(values).filter((k) => !(typeof values[k] === 'number' && Number.isFinite(values[k]) && values[k] >= 0));
+  if (missing.length) return fail(name + ' — not measured: ' + missing.join(', '), detail);
+  if (TIMING === 'gate') return check(name, ok, detail);
+  timings.push(ok ? 'MET' : 'OVER');
+  console.log('BUDGET ' + (ok ? 'MET ' : 'OVER ') + name + (detail !== undefined ? ' :: ' + JSON.stringify(detail).slice(0, 600) : ''));
+};
 
 (async () => {
   try { await prepareDatabase(); } catch (e) { console.log('FAIL the proof database could not be prepared :: ' + String(e && e.message || e).slice(0, 600)); await dropDatabase(); process.exit(1); }
@@ -127,9 +148,12 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
   const shot = (pg, name) => pg.screenshot({ path: path.join(OUT, 'pd-' + name + '.png') });
   const draft = (pg) => pg.evaluate(() => localStorage.getItem('familista_product_design_draft_v1'));
   const live = (pg) => pg.evaluate(() => (document.querySelector('#pd-root .pd-sr[role="status"]') || {}).textContent || '');
+  async function proof3d() { await require('./product-design-3d-proof.cjs')({ open, M, shot, live, boxOf, check, budget, pass, fail, OUT, ROOT, BASE, db, roomWord }); }
   const boxOf = (pg, sel) => pg.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; }, sel);
 
   try {
+    ds1: { // eslint-disable-line no-labels -- PROOF_ONLY=P16 skips the DS-1a and DS-1b sections without reindenting them
+    if (!want('DS1')) break ds1; // eslint-disable-line no-labels
     // ── P1 the owner opens it, under the production CSP, and it asks the server for nothing until a design is saved ─
     // The app shell writes inline style attributes that the policy refuses (pre-existing, outside every room): measured
     // on another owner room in this same session, the Design Studio may add none, and none may come from inside it.
@@ -139,7 +163,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     const { ctx, page, log } = await open({ width: 1672, height: 941 }, 'en-GB');
     const readyMs = Date.now() - t0;
     const roomRequests = log.requests.filter((r) => /product-design/.test(r.path));
-    check('P1 the Platform Owner opens the Design Studio; it loads exactly its own five static files, by GET, and calls no API', JSON.stringify(roomRequests.map((r) => r.method + ' ' + r.path).sort()) === JSON.stringify(['GET /product-design/pd-core.js', 'GET /product-design/pd-server.js', 'GET /product-design/product-design.css', 'GET /product-design/product-design.js', 'GET /product-design/templates/football-jersey.json']), roomRequests.map((r) => r.path));
+    check('P1 the Platform Owner opens the Design Studio; it loads exactly its own seven static files (DS-1c: the garment and the 3D view, not the 3D engine), by GET, and calls no API', JSON.stringify(roomRequests.map((r) => r.method + ' ' + r.path).sort()) === JSON.stringify(['GET /product-design/pd-3d.js', 'GET /product-design/pd-core.js', 'GET /product-design/pd-garment.js', 'GET /product-design/pd-server.js', 'GET /product-design/product-design.css', 'GET /product-design/product-design.js', 'GET /product-design/templates/football-jersey.json']), roomRequests.map((r) => r.path));
     await page.waitForTimeout(3500);
     const csp = await page.evaluate(() => window.__csp);
     const inRoom = csp.filter((c) => c.inRoom || /product-design/.test(c.src + c.uri));
@@ -181,6 +205,16 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
         }
         const foot = document.querySelector('#pd-root .pd-foot');
         if (foot.scrollWidth > foot.clientWidth + 1 && (foot.getAttribute('tabindex') !== '0' || !foot.getAttribute('aria-label'))) bad.push('the scrolling bottom strip cannot be reached by keyboard');
+        // A card must not hide a line by squeezing it rather than overflowing: every part of each bottom card is whole,
+        // and inside the card (the suppliers' note was once squeezed to a few pixels, which the measurement above missed).
+        for (const card of q('.pd-foot-card')) {
+          const cr = card.getBoundingClientRect();
+          for (const k of card.children) {
+            if (!k.getClientRects().length) continue;
+            const kr = k.getBoundingClientRect();
+            if (kr.bottom > cr.bottom + 1 || k.scrollHeight > k.clientHeight + 1) bad.push('squeezed in ' + card.className.split(' ')[1] + ': ' + (k.getAttribute('class') || k.tagName).split(' ')[0] + ' ' + Math.round(kr.height) + '/' + k.scrollHeight + ' ' + (k.textContent || '').trim().slice(0, 16));
+          }
+        }
         return bad;
       });
       check(`P2 ${w} ${loc}: nothing overflows its panel (product column, header, action bar, bottom cards, steps, tabs, sidebar)`, over.length === 0, over);
@@ -266,7 +300,8 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     check('P5 an Interface Studio file (or any other) is refused and changes nothing', JSON.parse(await draft(page)).name === 'Imported kit' && /Not imported/.test(await live(page)), await live(page));
 
     // ── P6 every unavailable control says why when it is used, and changes nothing ───────────────────────────────────
-    for (const [sel, reason] of [['[data-pd-mode="3d"]', '3D'], ['[data-pd-act="order"]', 'Ordering'], ['[data-pd-act="image"]', 'Uploading artwork'], ['[data-pd-act="proof"]', 'Production proofs']]) {
+    // DS-1c made 3D live where WebGL is (its unavailable state, without WebGL, is proven in P16); image export is still planned.
+    for (const [sel, reason] of [['[data-pd-act="capture"]', 'Image export'], ['[data-pd-act="order"]', 'Ordering'], ['[data-pd-act="image"]', 'Uploading artwork'], ['[data-pd-act="proof"]', 'Production proofs']]) {
       const sBefore = await draft(page);
       // aria-disabled, not disabled: a person can still press it and hear why (Playwright needs `force` to do the same).
       await page.click('#pd-root ' + sel, { force: true });
@@ -425,10 +460,13 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
 
     // ── P15 DS-1b: saved on the server — the DS-1a draft, saves, a conflict, versions, projects, failures ────────────
     {
-      const rows = async () => ({
-        projects: await db.designProject.count(), revisions: await db.designRevision.count(),
-        audit: await db.platformAuditLog.count({ where: { action: { startsWith: 'design.' } } }),
-      });
+      // One statement, so one snapshot: a save still committing from an earlier section (P14 does not wait for its own)
+      // then lands wholly before or wholly after it, a revision and its audit record together, and the deltas stay exact.
+      const rows = async () => {
+        const [r] = await db.$queryRaw`SELECT (SELECT count(*) FROM "DesignProject")::int AS projects, (SELECT count(*) FROM "DesignRevision")::int AS revisions,
+          (SELECT count(*) FROM "PlatformAuditLog" WHERE action LIKE 'design.%')::int AS audit`;
+        return { projects: r.projects, revisions: r.revisions, audit: r.audit };
+      };
       const S = (pg) => pg.evaluate(() => window.__familistaProductDesignMetrics().server);
       const stateText = (pg) => pg.evaluate(() => document.querySelector('#pd-root .pd-savestate').textContent);
       const idle = (pg) => pg.waitForFunction(() => !window.__familistaProductDesignMetrics().server.busy, null, { timeout: 15000 });
@@ -615,7 +653,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     }
 
     // ── P12 timings, measured, not claimed ───────────────────────────────────────────────────────────────────────────
-    check('P12 time to an editable room ≤ 2.5 s on this machine (navigation to ready, served locally)', readyMs <= 2500, { readyMs });
+    budget('P12 time to an editable room ≤ 2.5 s on this machine (navigation to ready, served locally)', { readyMs }, readyMs <= 2500, { readyMs });
     {
       // Warm: twenty keyboard edits in an open room, each a committed change and a full repaint of the canvas.
       const { ctx: c7, page: p7 } = await open({ width: 1672, height: 941 }, 'en-GB');
@@ -624,13 +662,16 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
       const e0 = (await M(p7)).edits;
       for (let i = 0; i < 20; i++) { await p7.keyboard.press('ArrowRight'); await p7.waitForTimeout(30); }
       const m7 = await M(p7);
-      check('P12 a committed edit updates the canvas in ≤ 16 ms (median of 20 keyboard edits, warm)', m7.edits - e0 >= 20 && m7.editMsMedian <= 16, { median: m7.editMsMedian, p95: m7.editMsP95, edits: m7.edits - e0, layerPaints: m7.layerPaints });
+      check('P12 twenty keyboard edits in an open room are each committed and repainted', m7.edits - e0 >= 20, { edits: m7.edits - e0, layerPaints: m7.layerPaints });
+      budget('P12 a committed edit updates the canvas in ≤ 16 ms (median of 20 keyboard edits, warm)', { median: m7.editMsMedian }, m7.editMsMedian <= 16, { median: m7.editMsMedian, p95: m7.editMsP95, edits: m7.edits - e0, layerPaints: m7.layerPaints });
       await p7.click('#pd-root [data-pd-view="back"]');
       for (let i = 0; i < 6; i++) { await p7.click('#pd-root [data-pd-view="' + (i % 2 ? 'back' : 'front') + '"]'); await p7.waitForTimeout(60); }
       const full = await M(p7);
-      check('P12 a full repaint (switching views) ≤ 50 ms (median, warm)', full.renderMsMedian <= 50, { median: full.renderMsMedian, max: full.renderMsMax, renders: full.renders });
+      budget('P12 a full repaint (switching views) ≤ 50 ms (median, warm)', { median: full.renderMsMedian }, full.renderMsMedian <= 50, { median: full.renderMsMedian, max: full.renderMsMax, renders: full.renders });
       await c7.close();
     }
+    } // ds1
+    if (want('P16')) await proof3d();
   } catch (e) {
     fail('proof crashed', String(e && e.stack || e).slice(0, 1200));
   } finally {
@@ -639,6 +680,7 @@ const check = (name, ok, detail) => (ok ? pass(name, detail) : fail(name, detail
     await dropDatabase();
     const n = (s) => results.filter((r) => r === s).length;
     console.log(`SUMMARY ${n('PASS')} passed, ${n('FAIL')} failed, 0 skipped`);
+    if (TIMING === 'report') console.log(`TIMING ${timings.filter((x) => x === 'MET').length} met, ${timings.filter((x) => x === 'OVER').length} over (report-only: PROOF_TIMING=report)`);
     process.exit(n('FAIL') ? 1 : 0);
   }
 })();
