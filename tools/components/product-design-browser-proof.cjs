@@ -205,6 +205,16 @@ const budget = (name, values, ok, detail) => {
         }
         const foot = document.querySelector('#pd-root .pd-foot');
         if (foot.scrollWidth > foot.clientWidth + 1 && (foot.getAttribute('tabindex') !== '0' || !foot.getAttribute('aria-label'))) bad.push('the scrolling bottom strip cannot be reached by keyboard');
+        // A card must not hide a line by squeezing it rather than overflowing: every part of each bottom card is whole,
+        // and inside the card (the suppliers' note was once squeezed to a few pixels, which the measurement above missed).
+        for (const card of q('.pd-foot-card')) {
+          const cr = card.getBoundingClientRect();
+          for (const k of card.children) {
+            if (!k.getClientRects().length) continue;
+            const kr = k.getBoundingClientRect();
+            if (kr.bottom > cr.bottom + 1 || k.scrollHeight > k.clientHeight + 1) bad.push('squeezed in ' + card.className.split(' ')[1] + ': ' + (k.getAttribute('class') || k.tagName).split(' ')[0] + ' ' + Math.round(kr.height) + '/' + k.scrollHeight + ' ' + (k.textContent || '').trim().slice(0, 16));
+          }
+        }
         return bad;
       });
       check(`P2 ${w} ${loc}: nothing overflows its panel (product column, header, action bar, bottom cards, steps, tabs, sidebar)`, over.length === 0, over);

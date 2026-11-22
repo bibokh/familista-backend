@@ -173,9 +173,9 @@ body.pd-studio-open { overflow: hidden; }
 .pd-work { display: grid; grid-template-columns: 280px minmax(0, 1fr) 290px 322px; gap: 10px; padding-inline-start: 10px; min-height: 0; }
 
 /* ── tabs, chips, buttons, inputs ──────────────────────────────────────── */
-.pd-tabs { display: flex; gap: 4px; padding: var(--fam-space-2); border-bottom: var(--fam-border-width-hairline) solid var(--fam-border-subtle); flex: none; }
+.pd-tabs { display: flex; gap: 2px; padding: var(--fam-space-2); border-bottom: var(--fam-border-width-hairline) solid var(--fam-border-subtle); flex: none; }
 .pd-tab {
-  flex: 1 1 auto; min-width: 0; height: 32px; padding-inline: 6px; border: var(--fam-border-width-hairline) solid transparent; border-radius: var(--fam-radius-md);
+  flex: 1 1 auto; min-width: 0; height: 32px; padding-inline: 4px; border: var(--fam-border-width-hairline) solid transparent; border-radius: var(--fam-radius-md);
   background: none; cursor: pointer; color: var(--fam-text-secondary); font-size: var(--fam-font-size-md); font-weight: var(--fam-font-weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .pd-tab:hover { color: var(--fam-text-primary); }
@@ -421,7 +421,9 @@ body.pd-studio-open { overflow: hidden; }
 .pd-finding[data-severity="blocker"] .pd-ic { color: var(--fam-status-critical); }
 
 /* ── R11 the product column ────────────────────────────────────────────── */
-.pd-prod { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
+.pd-prod { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
+/* A little air kept back, so a hint that takes a second line in a wider font still fits the column. */
+.pd-prod .pd-card-panel { padding-block: 6px; }
 .pd-card-panel { display: flex; flex-direction: column; gap: 4px; padding: 8px var(--fam-space-3); flex: none; }
 .pd-kit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1fr); gap: 6px; align-items: end; }
 .pd-kit-item { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
@@ -446,8 +448,8 @@ body.pd-studio-open { overflow: hidden; }
 .pd-checkline[data-state="blocker"] { color: var(--fam-status-critical); }
 
 /* ── R12 the action bar ────────────────────────────────────────────────── */
-.pd-actions { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: var(--fam-space-3); padding-inline: var(--fam-space-3); margin-inline-start: 10px; }
-.pd-actions .pd-btn { padding-inline: var(--fam-space-4); }
+.pd-actions { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: var(--fam-space-2); padding-inline: var(--fam-space-3); margin-inline-start: 10px; }
+.pd-actions .pd-btn { padding-inline: var(--fam-space-3); }
 .pd-actions-start, .pd-actions-end { display: flex; align-items: center; gap: var(--fam-space-2); }
 .pd-file { display: inline-flex; gap: 2px; }
 .pd-actions-mid { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -489,11 +491,13 @@ body.pd-studio-open { overflow: hidden; }
 .pd-integ-ic { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: var(--fam-radius-full); color: var(--fam-text-tertiary); border: var(--fam-border-width-hairline) solid var(--fam-border-strong); }
 .pd-integ[data-ok="true"] { color: var(--fam-text-primary); }
 .pd-integ[data-ok="true"] .pd-integ-ic { color: var(--fam-status-success); border-color: var(--fam-status-success); }
-.pd-sup-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; flex: 0 0 auto; }
-.pd-sup { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 6px 4px; min-height: 56px; min-width: 0; border-radius: var(--fam-radius-lg); border: var(--fam-border-width-hairline) solid var(--fam-border-default); background: var(--fam-surface-tile); text-align: center; }
+/* The fourth tile is a category with a long name; it gets the width it needs so it wraps in two or three lines, not five. */
+.pd-sup-card { padding-block: 6px; gap: 4px; }
+.pd-sup-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.5fr); gap: 4px; flex: 0 0 auto; }
+.pd-sup { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px 3px; min-height: 0; min-width: 0; border-radius: var(--fam-radius-lg); border: var(--fam-border-width-hairline) solid var(--fam-border-default); background: var(--fam-surface-tile); text-align: center; }
 .pd-sup-name { font-size: var(--fam-font-size-md); font-weight: var(--fam-font-weight-bold); line-height: var(--fam-font-line-height-tight); max-width: 100%; overflow-wrap: break-word; hyphens: auto; }
 .pd-sup:last-child .pd-sup-name { font-size: var(--fam-font-size-sm); }
-.pd-sup-card .pd-note { font-size: var(--fam-font-size-xs); line-height: var(--fam-font-line-height-tight); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pd-sup-card .pd-note { flex: none; font-size: var(--fam-font-size-xs); line-height: var(--fam-font-line-height-tight); }
 .pd-sup .pd-chip { height: auto; min-height: 15px; padding: 2px 5px; white-space: normal; text-align: center; line-height: var(--fam-font-line-height-tight); text-transform: none; letter-spacing: 0; }
 
 /* ── focus mode: the canvas alone ──────────────────────────────────────── */
