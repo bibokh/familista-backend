@@ -129,13 +129,26 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
     expect(JS).toContain("nav.innerHTML = window.famOwnerNav('product-design', T, 'pd-ownernav');");
   });
 
-  it('its server side is exactly the DS-1b files, mounted once behind the owner guard, and the CSP is the one it was', () => {
+  it('its server side is exactly the DS-1b files and M2’s club mount, each behind its guard, and the CSP is the one it was', () => {
     const ts = (d: string): string[] => fs.readdirSync(path.join(ROOT, d), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? ts(path.join(d, e.name)) : /\.ts$/.test(e.name) ? [path.join(d, e.name)] : []));
     expect(ts('src').filter((f) => /product-design|ProductDesign|pd-core/.test(read(f))).sort()).toEqual([
       'src/contracts/owner-api.contracts.ts', 'src/cyber-defense/control-plane/registry.ts',
-      'src/platform/product-design/core.ts', 'src/routes/index.ts', 'src/routes/product-design.routes.ts',
+      'src/platform/product-design/core.ts', 'src/platform/product-design/http.ts', 'src/routes/club-design.routes.ts',
+      'src/routes/index.ts', 'src/routes/product-design.routes.ts',
     ]);
-    expect(fs.readdirSync(path.join(ROOT, 'src/platform/product-design')).sort()).toEqual(['core.ts', 'service.ts']);
+    expect(fs.readdirSync(path.join(ROOT, 'src/platform/product-design')).sort()).toEqual(['core.ts', 'http.ts', 'service.ts']);
+    // M2: a club's designs have their own mount, behind authenticate, the club roles that design kits, the club's
+    // entitlement, and an ownership check of every project id, all before any handler.
+    expect(read('src/routes/index.ts')).toContain("router.use('/club-design', clubDesignRoutes);");
+    const club = read('src/routes/club-design.routes.ts');
+    const order = ['router.use(authenticate);', 'router.use(authorize(UserRole.CLUB_ADMIN, UserRole.MANAGER));',
+      'isFeatureEnabled(clubId, CLUB_DESIGN_FEATURE)', 'setDesignScope(res, clubScope(clubId));', "router.get('/projects', listDesigns);"];
+    order.forEach((x) => expect(club).toContain(x));
+    order.slice(1).forEach((x, i) => expect(club.indexOf(order[i])).toBeLessThan(club.indexOf(x)));
+    const idRoutes = [...club.matchAll(/^router\.(get|post)\('([^']*:id[^']*)', (.*)\);$/gm)];
+    expect(idRoutes).toHaveLength(7);
+    idRoutes.forEach((m) => expect(m[3]).toMatch(/^tenantParam\('designProject'\), \w+$/));
+    expect(read('src/middleware/tenant-guard.middleware.ts')).toContain("designProject:            (id: string): Promise<Owner> => prisma.designProject.findUnique({ where: { id }, select: { clubId: true } }),");
     expect(read('src/routes/index.ts').match(/product-design/g)).toHaveLength(2);
     expect(read('src/routes/index.ts')).toContain("router.use('/system/product-design', productDesignRoutes);");
     const routes = read('src/routes/product-design.routes.ts');

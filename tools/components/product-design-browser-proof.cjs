@@ -31,6 +31,10 @@
 // refused where the owner is served, and a design moved off the printable area is reported where the starting one is not.
 // It also writes the screenshots and a side-by-side review sheet against the approved reference to <output-dir>.
 process.env.NODE_ENV = 'production';
+// As production runs (docs/security/row-level-security.md, Stage 3 and 4): the application sends its database context on
+// every protected-table query. The Design Studio's tables are under row-level security (20261122200000), so without it
+// the room would read no design at all.
+process.env.DB_RLS_CONTEXT = 'on';
 process.env.PORT = '47934';
 process.env.JWT_ACCESS_SECRET = 'a'.repeat(48);
 process.env.JWT_REFRESH_SECRET = 'b'.repeat(48);
@@ -65,7 +69,7 @@ const TAG = randomBytes(4).toString('hex');
 const DBROLE = `fam_pdp_${TAG}`, DBPASS = `pw_${randomBytes(12).toString('hex')}`, DBNAME = `fam_pdp_${TAG}`;
 function urlFor(name, user, pass) { const u = new URL(ADMIN_URL); u.pathname = '/' + name; if (user) { u.username = user; u.password = pass || ''; } return u.toString(); }
 const DB_URL = urlFor(DBNAME, DBROLE, DBPASS);
-let admin = null, db = null, signToken = null;
+let admin = null, db = null, dbBase = null, signToken = null;
 async function prepareDatabase() {
   const { PrismaClient } = require(path.join(ROOT, 'node_modules/@prisma/client'));
   admin = new PrismaClient({ datasources: { db: { url: ADMIN_URL } } });
@@ -73,8 +77,15 @@ async function prepareDatabase() {
   await admin.$executeRawUnsafe(`CREATE DATABASE "${DBNAME}" OWNER "${DBROLE}"`);
   const m = spawnSync('npx', ['prisma', 'migrate', 'deploy', '--schema=prisma/schema.prisma'], { cwd: ROOT, env: { ...process.env, DATABASE_URL: DB_URL, DIRECT_URL: DB_URL }, encoding: 'utf8', timeout: 240000 });
   if (m.status !== 0) throw new Error('prisma migrate deploy failed: ' + m.stderr);
-  db = new PrismaClient({ datasources: { db: { url: DB_URL } } });
-  await db.$transaction(async (tx) => {
+  dbBase = new PrismaClient({ datasources: { db: { url: DB_URL } } });
+  // The proof's own look at the database (counts, rows, the audit) runs on the named system path, as backups and the restore
+  // drill read it: the Design Studio's tables are under row-level security, and with no context the database shows nothing.
+  // The application under test is untouched by this: it sends its own request's context (DB_RLS_CONTEXT=on, above).
+  db = dbBase.$extends({ query: { async $allOperations({ args, query }) {
+    const [, result] = await dbBase.$transaction([dbBase.$executeRaw`SELECT set_config('familista.rls_mode', 'system', true)`, query(args)]);
+    return result;
+  } } });
+  await dbBase.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('familista.rls_mode', 'system', true)`;
     await tx.club.create({ data: { id: 'club-1', name: 'Home FC', city: 'X' } });
     for (const u of [OWNER, COACH]) await tx.user.create({ data: { id: u.id, clubId: 'club-1', email: u.email, passwordHash: 'x', firstName: u === OWNER ? 'Owner' : 'Coach', lastName: 'Proof', role: u.role } });
@@ -85,7 +96,7 @@ async function prepareDatabase() {
   signToken = require(path.join(ROOT, 'dist/security/jwt-tokens')).signToken;
 }
 async function dropDatabase() {
-  try { if (db) await db.$disconnect(); } catch (_) { /* already gone */ }
+  try { if (dbBase) await dbBase.$disconnect(); } catch (_) { /* already gone */ }
   try { await require(path.join(ROOT, 'dist/config/database')).prisma.$disconnect(); } catch (_) { /* never connected */ }
   if (!admin) return;
   try { await admin.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${DBNAME}" WITH (FORCE)`); await admin.$executeRawUnsafe(`DROP ROLE IF EXISTS "${DBROLE}"`); } catch (_) { /* reported by the server's own log */ }

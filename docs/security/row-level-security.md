@@ -35,6 +35,14 @@ them across clubs, so each is isolated both ways (`FOR ALL`, `USING` and
 | Club operations | `ClubCalendarEntry` |
 | Staff market (the club's private notes) | `StaffClubNote` |
 
+Design Studio (`20261122200000_design_studio_club_projects`, after Stage 4, so
+enforced from the migration on): `DesignProject` is isolated by its own
+`clubId` both ways, as `VideoAsset` is — a club's design is its club's alone,
+and a platform design has no club, so only the named system path reaches it
+(the platform owner's requests run there). `DesignRevision` follows its
+project's club, looked up by primary key, as `PlayerInjury` follows its
+player's. Every path to them is an authenticated request; no worker reads them.
+
 The AI agent worker runs each job's deterministic handler in that job's own
 club context (`runInClubContext(job.clubId, …)`), not on a system path: the
 finance agent reads `OperationsPayment` as the club it works for.

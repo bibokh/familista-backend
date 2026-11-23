@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-12T08:58:54.586Z",
+  "generatedAt": "2026-11-23T10:23:05.735Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
     "version": "1.0.0"
   },
   "apiSurface": {
-    "mountedRouters": 59,
-    "handlers": 775,
+    "mountedRouters": 60,
+    "handlers": 784,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -341,6 +341,13 @@
         "routerWideAuth": true
       },
       {
+        "path": "/club-design",
+        "module": "club-design.routes",
+        "handlers": 9,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
         "path": "/telemetry",
         "module": "telemetry.routes",
         "handlers": 1,
@@ -606,9 +613,9 @@
       "src/services/vision-realtime.service.ts"
     ],
     "tenancy": {
-      "idParameters": 359,
-      "guarded": 136,
-      "exempt": 223,
+      "idParameters": 368,
+      "guarded": 143,
+      "exempt": 225,
       "unguarded": [],
       "staleExemptions": [],
       "routerWideTenantGuardMounts": [],
@@ -652,6 +659,11 @@
         "billing-j.routes": {
           "guarded": 0,
           "exempt": 1,
+          "unguarded": 0
+        },
+        "club-design.routes": {
+          "guarded": 7,
+          "exempt": 2,
           "unguarded": 0
         },
         "club.routes": {
@@ -847,12 +859,12 @@
       }
     },
     "authorization": {
-      "handlers": 775,
+      "handlers": 784,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
-        "roles": 236,
+        "roles": 245,
         "platform-owner": 108
       },
       "memberUnreviewed": [],
@@ -899,6 +911,9 @@
         },
         "club-admin.routes": {
           "member": 3
+        },
+        "club-design.routes": {
+          "roles": 9
         },
         "club.routes": {
           "platform-owner": 1,
@@ -1157,6 +1172,10 @@
         "GET /club-admin/audit-log": "member",
         "GET /club-admin/data-quality": "member",
         "GET /club-admin/system-health": "member",
+        "GET /club-design/projects": "roles:CLUB_ADMIN,MANAGER",
+        "GET /club-design/projects/:id": "roles:CLUB_ADMIN,MANAGER",
+        "GET /club-design/projects/:id/revisions": "roles:CLUB_ADMIN,MANAGER",
+        "GET /club-design/projects/:id/revisions/:number": "roles:CLUB_ADMIN,MANAGER",
         "GET /clubs/:clubId": "scoped:ensureClubAccess",
         "GET /clubs/current": "member",
         "GET /coaches/clubs": "member",
@@ -1576,6 +1595,11 @@
         "POST /billing/checkout": "member",
         "POST /billing/portal": "member",
         "POST /billing/webhook": "public",
+        "POST /club-design/projects": "roles:CLUB_ADMIN,MANAGER",
+        "POST /club-design/projects/:id/archive": "roles:CLUB_ADMIN,MANAGER",
+        "POST /club-design/projects/:id/revisions": "roles:CLUB_ADMIN,MANAGER",
+        "POST /club-design/projects/:id/revisions/:number/restore": "roles:CLUB_ADMIN,MANAGER",
+        "POST /club-design/projects/:id/unarchive": "roles:CLUB_ADMIN,MANAGER",
         "POST /clubs": "platform-owner",
         "POST /coaches/demo-staff": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
         "POST /coaches/staff": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
@@ -1867,7 +1891,7 @@
   },
   "architecture": {
     "components": {
-      "routers": 59,
+      "routers": 60,
       "srcDomains": 78,
       "prismaSections": 66,
       "packages": 29,
@@ -2056,7 +2080,7 @@
       "id": "tenant-guard",
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
-      "note": "136 of 359 route id parameter(s) checked against the caller's club before the handler; 223 exempted by name with a reason; 0 unguarded."
+      "note": "143 of 368 route id parameter(s) checked against the caller's club before the handler; 225 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "franchise-club-attach-authorised",
@@ -2161,7 +2185,7 @@
       "id": "db-row-level-security",
       "status": "PRESENT",
       "evidence": "prisma/migrations",
-      "note": "Enforced by PostgreSQL on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote (20261006100000_rls_enforce, guarded: every table forced with its policy). The service's DB_RLS_CONTEXT and the database's switch and catalogue are verified live by the Cybersecurity control plane."
+      "note": "Enforced by PostgreSQL on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote, DesignProject, DesignRevision (20261006100000_rls_enforce, guarded: every table forced with its policy). The service's DB_RLS_CONTEXT and the database's switch and catalogue are verified live by the Cybersecurity control plane."
     },
     {
       "id": "db-audit-append-only",
@@ -2280,7 +2304,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "775 handler(s) classified: 21 public, 350 member, 60 scoped, 236 roles, 108 platform-owner; every member-level handler reviewed by name."
+      "note": "784 handler(s) classified: 21 public, 350 member, 60 scoped, 245 roles, 108 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2340,7 +2364,7 @@
       "id": "db-rls-pilot",
       "status": "PRESENT",
       "evidence": "prisma/migrations/20261004100000_rls_pilot/migration.sql",
-      "note": "Row-level security policies on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote (forced, fail closed without a context), the request's club carried to PostgreSQL per transaction, backups read under the named system context, all proven on real PostgreSQL in CI. Table list is a ratchet in posture-policy.json."
+      "note": "Row-level security policies on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote, DesignProject, DesignRevision (forced, fail closed without a context), the request's club carried to PostgreSQL per transaction, backups read under the named system context, all proven on real PostgreSQL in CI. Table list is a ratchet in posture-policy.json."
     },
     {
       "id": "db-rls-system-paths-reviewed",
@@ -2406,7 +2430,7 @@
       "id": "architecture-fully-mapped",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "380 discovered component(s) across 12 kinds, each declared against the 40 trust-boundary rows; a covered row's controls are all present."
+      "note": "381 discovered component(s) across 12 kinds, each declared against the 40 trust-boundary rows; a covered row's controls are all present."
     },
     {
       "id": "coverage-ratchet",
@@ -2984,6 +3008,7 @@
       "src/routes/billing-j.routes.ts",
       "src/routes/billing.routes.ts",
       "src/routes/club-admin.routes.ts",
+      "src/routes/club-design.routes.ts",
       "src/routes/club.routes.ts",
       "src/routes/coaches.routes.ts",
       "src/routes/context.routes.ts",

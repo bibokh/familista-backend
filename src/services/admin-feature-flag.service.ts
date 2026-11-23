@@ -65,6 +65,15 @@ const BUILTIN_FLAGS: ReadonlyArray<Omit<UpsertFeatureFlagInput, 'description'> &
     isInternal: false,
   },
   {
+    // Off for every club and every plan: the platform owner releases it to a club (an override) or a plan.
+    key: 'club_design_studio',
+    name: 'Club Design Studio',
+    description: 'A club’s administrators and managers design the club’s kits and save them in the club’s own workspace.',
+    defaultEnabled: false,
+    enabledForPlans: [],
+    isInternal: false,
+  },
+  {
     key: 'impersonation',
     name: 'Operator impersonation',
     description: 'Allow platform admins to impersonate users in this org.',

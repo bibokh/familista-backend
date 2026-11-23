@@ -40,8 +40,9 @@ export type RlsContextMode = 'off' | 'observe' | 'on';
 
 /**
  * The tables under row-level security, by Prisma model name: the pilot's four
- * (20261004100000_rls_pilot) and the club-private tables added after it
- * (20261005100000_rls_club_private_tables). Extended table by table; the
+ * (20261004100000_rls_pilot), the club-private tables added after it
+ * (20261005100000_rls_club_private_tables) and the Design Studio's projects and
+ * revisions (20261122200000_design_studio_club_projects). Extended table by table; the
  * posture check holds this list and the migrations to each other.
  */
 export const RLS_PILOT_MODELS: ReadonlySet<string> = new Set([
@@ -49,6 +50,7 @@ export const RLS_PILOT_MODELS: ReadonlySet<string> = new Set([
   'BiochemicalSignal', 'HydrationEstimate', 'StressIndex', 'NeuromuscularLoad', 'TendonRiskEstimate',
   'PlayerGuardianLink', 'PlayerContractRecord', 'PlayerEvaluationRecord', 'PlayerOnboardingStep',
   'TrainingAttendanceRecord', 'MatchAttendanceRecord', 'OperationsPayment', 'ClubCalendarEntry', 'StaffClubNote',
+  'DesignProject', 'DesignRevision',
 ]);
 
 const store = new AsyncLocalStorage<Held>();

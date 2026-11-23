@@ -88,7 +88,8 @@ describe('what it may call', () => {
     await P.api.createProject({}, 'BROWSER_DRAFT');
     await P.api.createProject({}, 'SOMETHING_ELSE');
     expect(calls.map((c) => JSON.parse(c.init.body).origin)).toEqual(['BROWSER_DRAFT', 'EDITOR']);
-    expect(ROUTES).toContain("origin: z.enum(['EDITOR', 'FILE_IMPORT', 'BROWSER_DRAFT'])");
+    // The schema is the handlers' own, shared by the platform's mount and a club's (src/platform/product-design/http.ts).
+    expect(fs.readFileSync(path.join(ROOT, 'src/platform/product-design/http.ts'), 'utf8')).toContain("origin: z.enum(['EDITOR', 'FILE_IMPORT', 'BROWSER_DRAFT'])");
   });
 });
 

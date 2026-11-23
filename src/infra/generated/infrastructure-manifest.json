@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-22T19:45:57.018Z",
+  "generatedAt": "2026-11-23T10:24:07.743Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -282,7 +282,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "src/routes/index.ts",
-      "sourceEvidence": "src/routes/index.ts — 58 mounted routers",
+      "sourceEvidence": "src/routes/index.ts — 59 mounted routers",
       "dependencies": [
         "platform-core"
       ],
@@ -324,7 +324,7 @@
       "sourceEvidence": "prisma/schema.prisma — datasource provider",
       "dependencies": [],
       "healthKey": "database",
-      "note": "346 models, 212 enums, 50 migrations."
+      "note": "346 models, 212 enums, 51 migrations."
     },
     {
       "id": "prisma-orm",
@@ -1101,7 +1101,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 242 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 243 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1161,7 +1161,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "630 TypeScript modules under src/."
+      "note": "632 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1625,13 +1625,13 @@
     }
   ],
   "surface": {
-    "routeModules": 68,
+    "routeModules": 69,
     "serviceModules": 102,
     "middleware": 24,
     "fabricModules": 52,
-    "totalTypeScript": 630,
-    "testSuites": 242,
-    "migrations": 50,
+    "totalTypeScript": 632,
+    "testSuites": 243,
+    "migrations": 51,
     "prismaModels": 346,
     "prismaEnums": 212
   },
@@ -1639,8 +1639,8 @@
     "provider": "postgresql",
     "models": 346,
     "enums": 212,
-    "migrations": 50,
-    "latestMigration": "20261111100000_design_studio_persistence"
+    "migrations": 51,
+    "latestMigration": "20261122200000_design_studio_club_projects"
   },
   "typescript": {
     "target": "ES2020",
@@ -1943,6 +1943,13 @@
       "path": "/system/product-design",
       "router": "productDesignRoutes",
       "file": "src/routes/product-design.routes.ts",
+      "writes": 5,
+      "reads": 4
+    },
+    {
+      "path": "/club-design",
+      "router": "clubDesignRoutes",
+      "file": "src/routes/club-design.routes.ts",
       "writes": 5,
       "reads": 4
     },

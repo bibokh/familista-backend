@@ -62,8 +62,10 @@ and nothing labelled available that does not work. Production stays as it is unt
 |---|---|
 | **M1a: catalogue foundation, tops** | Delivered on its branch, awaiting review. A template registry is read by both the editor and the server. Garments switch behind the unsaved-change guard, and saved or imported designs open on their own garment. Released: match shirt, **goalkeeper shirt** (V-neck, long sleeves), **training top** (crew neck, long sleeves), **T-shirt** (crew neck). Every geometry promise of the 3D builder is tested on each of them. |
 | **M1b: shorts and socks** | Delivered on its branch, awaiting review. `pd-garment.js` builds three forms behind one interface: tops, **shorts** (a hip section that divides into two leg tubes over the rise) and **socks** (the pressed-flat tube as sublimation prints it: an outer and an inner face meeting along the shin and calf, a leg, an ankle bend and a foot, the toe closed). Every section of both is wrapped by arc length, and the seams meet to within 0.01 mm. Released: **shorts**, **goalkeeper shorts** (40 mm longer leg), **socks**. A template now names its trim colours (waistband and leg hems; top band, heel and toe) and draws trim **patches**, which the 3D view shows through the same texture. |
-| M1c: jackets, hoodies, tracksuits, polo | After M1b. The polo stays Planned until its collar and placket can be modelled, rather than being shown as a crew-neck shirt. |
-| M2–M8 | Not started |
+| **M2a: club design projects, on the server** | Delivered on its branch, awaiting review. Not yet visible to clubs: the room's club entry is M2b. A club's administrators and managers save, version, restore and archive the club's own designs at `/api/v1/club-design`, behind `authorize(CLUB_ADMIN, MANAGER)`, the club's entitlement `club_design_studio` (off for every club and plan until the Owner releases it) and `tenantParam('designProject')` on every project id. The service carries the scope on every query; underneath, both design tables are under row-level security, so the database itself returns and accepts a club's own rows only. Changes are audited with the club. |
+| M2b: the Club Design Studio in the club workspace; brand kit; secure logo upload | Next |
+| M1c: jackets, hoodies, tracksuits, polo | Deferred until after M4, by the order below. They need new 3D topology (hood, zip, collar and placket); the commercial workflow is the critical path. They stay Planned, and are not shown as working products. |
+| M3–M8 | Not started |
 
 ## 4. Prerequisites only the Owner can provide
 

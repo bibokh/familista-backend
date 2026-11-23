@@ -801,7 +801,7 @@
     },
     "product-design.routes :id": {
       "basis": "platform-only",
-      "reason": "The Design Studio's routes are behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts). A project id names a PLATFORM-owned design, not a club row: src/platform/product-design/service.ts reads and writes only ownerKind PLATFORM, and the database admits no other owner until the phase that activates Club Design Studio (DS-3) or Creator Studio (DS-4) adds that context's own guard and row-level security. Proven with a CLUB row forced in by hand: 404 on every route (tests/product-design-persistence.integration.test.ts).",
+      "reason": "The platform owner's Design Studio routes are behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts). A project id names a PLATFORM-owned design, which has no club: src/platform/product-design/service.ts reaches only the PLATFORM scope on these routes, and row-level security admits a club-less project only on the system path. A club's designs are reached only through /club-design, behind tenantParam('designProject').",
       "routes": [
         "GET /system/product-design/projects/:id",
         "POST /system/product-design/projects/:id/revisions",
@@ -818,6 +818,14 @@
       "routes": [
         "GET /system/product-design/projects/:id/revisions/:number",
         "POST /system/product-design/projects/:id/revisions/:number/restore"
+      ]
+    },
+    "club-design.routes :number": {
+      "basis": "not-an-identifier",
+      "reason": "A revision number within one design (1, 2, 3\u2026), not a row id: it is read only together with that design's id, which tenantParam('designProject') has checked against the caller's club on the same route, under the service's CLUB scope and the DesignRevision row-level security policy.",
+      "routes": [
+        "GET /club-design/projects/:id/revisions/:number",
+        "POST /club-design/projects/:id/revisions/:number/restore"
       ]
     }
   },
@@ -1324,7 +1332,9 @@
     "MatchAttendanceRecord",
     "OperationsPayment",
     "ClubCalendarEntry",
-    "StaffClubNote"
+    "StaffClubNote",
+    "DesignProject",
+    "DesignRevision"
   ],
   "rlsSystemPaths": {
     "platform-owner": "A platform owner acts across clubs by role (authenticate); the owner rooms are pinned separately (owner-rooms-pinned).",

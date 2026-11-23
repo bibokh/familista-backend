@@ -1,5 +1,5 @@
 /**
- * Design Studio, DS-1b — saved designs, on real PostgreSQL.
+ * Design Studio, DS-1b and M2 — saved designs, the platform's and a club's, on real PostgreSQL.
  *
  * Driven through the real application (authenticate, assertPlatformOwner, the
  * routes, the service, Prisma) against a freshly migrated database owned by a
@@ -19,9 +19,18 @@
  *                 exactly one lands; a retried save answers the revision it
  *                 already made; a restore copies an old revision into a new one
  *                 and never changes a stored revision.
- *   OWNERSHIP     the database admits PLATFORM projects alone, and with that
- *                 gate removed by hand a CLUB project is still invisible to
- *                 every route (the service's own scope, defence in depth).
+ *   OWNERSHIP     the database admits PLATFORM and CLUB projects (not PERSONAL
+ *                 yet); a CLUB project is invisible to every platform route, and
+ *                 the platform's to every club route (the service's own scope).
+ *   CLUBS         the club routes serve a club's administrators and managers,
+ *                 only while the club is entitled; a club reaches its own
+ *                 designs and no other club's, by list or by id; its changes
+ *                 are audited with its club.
+ *   ROW SECURITY  both tables are forced under row-level security with the
+ *                 pilot's fail-closed club policy: in a club's context the
+ *                 database itself returns and accepts that club's rows only, and
+ *                 nothing without a context. The application runs with
+ *                 DB_RLS_CONTEXT=on, as production does.
  *   IMMUTABILITY  UPDATE, DELETE and TRUNCATE of a revision are refused by the
  *                 database; a project's owner cannot change and its head cannot
  *                 move back; deleting a project still removes its revisions.
@@ -57,6 +66,7 @@ const PASSWORD = `pw_${randomBytes(12).toString('hex')}`;
 const DB = `fam_pd_${tag}`;
 const RESTORED = `fam_pd_restored_${tag}`;
 const API = '/api/v1/system/product-design';
+const CLUB_API = '/api/v1/club-design';
 const ROOT = path.join(__dirname, '..');
 
 function urlFor(database: string, user?: string, password?: string): string {
@@ -75,11 +85,14 @@ const doc = (name: string) => C.createDocument(TEMPLATE, name);
 const sha = (d: unknown) => createHash('sha256').update(C.serializeDocument(d), 'utf8').digest('hex');
 
 const C1 = `club-pd-${tag}`;
+const C2 = `club-pd2-${tag}`;
 const USERS = {
   owner: { id: `pd-owner-${tag}`, role: 'SUPER_ADMIN', clubId: C1 },
   clubAdmin: { id: `pd-admin-${tag}`, role: 'CLUB_ADMIN', clubId: C1 },
   coach: { id: `pd-coach-${tag}`, role: 'COACH', clubId: C1 },
   formerAdmin: { id: `pd-former-${tag}`, role: 'CLUB_ADMIN', clubId: C1 },
+  manager: { id: `pd-manager-${tag}`, role: 'MANAGER', clubId: C1 },
+  otherAdmin: { id: `pd-admin2-${tag}`, role: 'CLUB_ADMIN', clubId: C2 },
 } as const;
 type Who = keyof typeof USERS;
 
@@ -102,6 +115,11 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
     return {
       get: (url: string) => withAuth(request(app).get(API + url)),
       post: (url: string, body: Row = {}) => withAuth(request(app).post(API + url)).send(body),
+      /** The same session on the club routes. */
+      club: {
+        get: (url: string) => withAuth(request(app).get(CLUB_API + url)),
+        post: (url: string, body: Row = {}) => withAuth(request(app).post(CLUB_API + url)).send(body),
+      },
     };
   };
   const owner = {
@@ -109,12 +127,21 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
     post: (url: string, body: Row = {}) => as('owner').post(url, body),
   };
 
+  /** The test's own look at the tables: on the named system path, as backups and the restore drill read them. */
+  const sys = <T = Row[]>(sql: string, ...params: unknown[]): Promise<T> => asSystem((tx) => tx.$queryRawUnsafe<T>(sql, ...params));
+  const sysExec = (sql: string, ...params: unknown[]): Promise<number> => asSystem((tx) => tx.$executeRawUnsafe(sql, ...params));
+  /** The same statement in one club's context, as the application sends it. */
+  const inClub = <T>(clubId: string, fn: (tx: PrismaClient) => Promise<T>): Promise<T> =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('familista.rls_mode', 'club', true), set_config('familista.club_id', ${clubId}, true)`;
+      return fn(tx as unknown as PrismaClient);
+    });
   const designRows = async () => ({
-    projects: Number((await db.$queryRawUnsafe<Row[]>('SELECT count(*)::int AS n FROM "DesignProject"'))[0].n),
-    revisions: Number((await db.$queryRawUnsafe<Row[]>('SELECT count(*)::int AS n FROM "DesignRevision"'))[0].n),
-    audit: Number((await db.$queryRawUnsafe<Row[]>(`SELECT count(*)::int AS n FROM "PlatformAuditLog" WHERE "action" LIKE 'design.%'`))[0].n),
+    projects: Number((await sys('SELECT count(*)::int AS n FROM "DesignProject"'))[0].n),
+    revisions: Number((await sys('SELECT count(*)::int AS n FROM "DesignRevision"'))[0].n),
+    audit: Number((await sys(`SELECT count(*)::int AS n FROM "PlatformAuditLog" WHERE "action" LIKE 'design.%'`))[0].n),
   });
-  const revisionsOf = (projectId: string) => db.$queryRawUnsafe<Row[]>(
+  const revisionsOf = (projectId: string) => sys(
     'SELECT "number", "kind"::text AS kind, "restoredFrom", "sha256", "bytes", "document" FROM "DesignRevision" WHERE "projectId" = $1 ORDER BY "number"', projectId);
 
   beforeAll(async () => {
@@ -129,6 +156,10 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
     db = new PrismaClient({ datasources: { db: { url } } });
     await asSystem(async (tx) => {
       await tx.club.create({ data: { id: C1, name: 'Home FC', city: 'X' } });
+      await tx.club.create({ data: { id: C2, name: 'Away FC', city: 'Y' } });
+      // The Club Design Studio as shipped: off for every club and plan; Home FC has it by the platform owner's override.
+      await tx.featureFlag.create({ data: { key: 'club_design_studio', name: 'Club Design Studio', defaultEnabled: false, enabledForPlans: [] } });
+      await tx.organizationLimits.create({ data: { clubId: C1, featuresEnabled: ['club_design_studio'] } });
       for (const u of Object.values(USERS)) {
         await tx.user.create({ data: { id: u.id, clubId: u.clubId, email: `${u.id}@test.invalid`, passwordHash: 'x', firstName: 'T', lastName: u.id, role: u.role } });
       }
@@ -136,6 +167,8 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
     });
     process.env.DATABASE_URL = url;
     process.env.DIRECT_URL = url;
+    // As production runs: the application sends its database context on every protected-table query.
+    process.env.DB_RLS_CONTEXT = 'on';
     /* eslint-disable @typescript-eslint/no-var-requires */
     signToken = require('../src/security/jwt-tokens').signToken;
     app = require('../src/app').createApp();
@@ -150,7 +183,7 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
     await admin?.$disconnect();
   });
 
-  it('the migration made the two tables, their guards and no row-level security', async () => {
+  it('the migrations made the two tables and their guards, and hold both to row-level security', async () => {
     const checks = await db.$queryRawUnsafe<Row[]>(
       `SELECT conname FROM pg_constraint WHERE contype = 'c' AND conrelid IN ('"DesignProject"'::regclass, '"DesignRevision"'::regclass) ORDER BY conname`);
     expect(checks.map((c) => c.conname)).toEqual([
@@ -159,8 +192,17 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
     const triggers = await db.$queryRawUnsafe<Row[]>(
       `SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid IN ('"DesignProject"'::regclass, '"DesignRevision"'::regclass) ORDER BY tgname`);
     expect(triggers.map((t) => t.tgname)).toEqual(['DesignProject_guard', 'DesignRevision_immutable', 'DesignRevision_no_truncate']);
-    const rls = await db.$queryRawUnsafe<Row[]>(`SELECT relname, relrowsecurity FROM pg_class WHERE relname IN ('DesignProject', 'DesignRevision') ORDER BY relname`);
-    expect(rls).toEqual([{ relname: 'DesignProject', relrowsecurity: false }, { relname: 'DesignRevision', relrowsecurity: false }]);
+    const rls = await db.$queryRawUnsafe<Row[]>(`SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname IN ('DesignProject', 'DesignRevision') ORDER BY relname`);
+    expect(rls).toEqual(['DesignProject', 'DesignRevision'].map((relname) => ({ relname, relrowsecurity: true, relforcerowsecurity: true })));
+    const policies = await db.$queryRawUnsafe<Row[]>(
+      `SELECT tablename, policyname, cmd, permissive, qual, with_check FROM pg_policies WHERE tablename IN ('DesignProject', 'DesignRevision') ORDER BY tablename`);
+    expect(policies.map((q) => [q.tablename, q.policyname, q.cmd, q.permissive])).toEqual([
+      ['DesignProject', 'DesignProject_club_isolation', 'ALL', 'PERMISSIVE'], ['DesignRevision', 'DesignRevision_club_isolation', 'ALL', 'PERMISSIVE']]);
+    expect(policies[0].qual).toBe('familista_rls_club_ok("clubId")');
+    expect(policies[0].with_check).toBe('familista_rls_club_ok("clubId")');
+    for (const q of [policies[1].qual, policies[1].with_check]) expect(q).toMatch(/^familista_rls_club_ok\(\( SELECT p\."clubId"/);
+    const [{ enforced }] = await db.$queryRawUnsafe<Row[]>('SELECT public.familista_rls_enforced() AS enforced');
+    expect(enforced).toBe(true);
   });
 
   describe('access: the platform owner alone, refused before anything is written', () => {
@@ -241,9 +283,9 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
       const [row] = await revisionsOf(id);
       expect(sha(row.document)).toBe(row.sha256);
       expect(row.bytes).toBe(Buffer.byteLength(C.serializeDocument(first), 'utf8'));
-      const audit = await db.$queryRawUnsafe<Row[]>(`SELECT "action", "category"::text AS category, "userId", "resourceType", "resourceId", "metadata" FROM "PlatformAuditLog" WHERE "resourceId" = $1`, id);
+      const audit = await sys(`SELECT "action", "category"::text AS category, "userId", "clubId", "resourceType", "resourceId", "metadata" FROM "PlatformAuditLog" WHERE "resourceId" = $1`, id);
       expect(audit).toHaveLength(1);
-      expect(audit[0]).toMatchObject({ action: 'design.project.created', category: 'ASSET', userId: USERS.owner.id, resourceType: 'DesignProject' });
+      expect(audit[0]).toMatchObject({ action: 'design.project.created', category: 'ASSET', userId: USERS.owner.id, clubId: null, resourceType: 'DesignProject' });
       expect(audit[0].metadata).toMatchObject({ revision: 1, origin: 'BROWSER_DRAFT', sha256: sha(first) });
       expect(JSON.stringify(audit[0].metadata)).not.toContain('Home kit');
     });
@@ -335,53 +377,142 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
   });
 
   describe('ownership and immutability, in the database itself', () => {
-    it('admits PLATFORM projects alone; with that gate removed by hand, a CLUB project is still invisible to every route', async () => {
-      await expect(db.$executeRawUnsafe(
-        `INSERT INTO "DesignProject" ("id","ownerKind","clubId","name","templateKey","templateVersion","headRevision","origin","createdById") VALUES ('club-p','CLUB',$1,'Club kit','${TEMPLATE.key}',1,1,'EDITOR','x')`, C1,
-      )).rejects.toThrow(/DesignProject_context_active/);
-      await db.$executeRawUnsafe('ALTER TABLE "DesignProject" DROP CONSTRAINT "DesignProject_context_active"');
-      try {
-        const clubId = '11111111-1111-4111-8111-111111111111';
-        await db.$executeRawUnsafe(
-          `INSERT INTO "DesignProject" ("id","ownerKind","clubId","name","templateKey","templateVersion","headRevision","origin","createdById") VALUES ($1,'CLUB',$2,'Club kit','${TEMPLATE.key}',1,1,'EDITOR','x')`, clubId, C1);
-        await db.$executeRawUnsafe(
-          `INSERT INTO "DesignRevision" ("id","projectId","number","kind","document","sha256","bytes","formatVersion","authorUserId") VALUES ('club-r1',$1,1,'CREATE',$2::jsonb,$3,10,1,'x')`,
-          clubId, JSON.stringify(doc('Club kit')), sha(doc('Club kit')));
-        expect((await owner.get('/projects')).body.data.projects.map((p: Row) => p.id)).not.toContain(clubId);
-        expect((await owner.get('/projects?state=archived')).body.data.projects.map((p: Row) => p.id)).not.toContain(clubId);
-        for (const [verb, url, body] of [
-          ['get', `/projects/${clubId}`], ['get', `/projects/${clubId}/revisions`], ['get', `/projects/${clubId}/revisions/1`],
-          ['post', `/projects/${clubId}/revisions`, { baseRevision: 1, document: doc('Taken') }],
-          ['post', `/projects/${clubId}/revisions/1/restore`, { baseRevision: 1 }],
-          ['post', `/projects/${clubId}/archive`],
-        ] as Array<[string, string, Row?]>) {
-          const r = verb === 'get' ? await owner.get(url) : await owner.post(url, body);
-          expect({ url, status: r.status }).toEqual({ url, status: 404 });
-        }
-        const [p] = await db.$queryRawUnsafe<Row[]>('SELECT "headRevision", "archivedAt" FROM "DesignProject" WHERE "id" = $1', clubId);
-        expect(p).toEqual({ headRevision: 1, archivedAt: null });
-        await db.$executeRawUnsafe('DELETE FROM "DesignProject" WHERE "id" = $1', clubId);
-      } finally {
-        await db.$executeRawUnsafe(`ALTER TABLE "DesignProject" ADD CONSTRAINT "DesignProject_context_active" CHECK ("ownerKind" = 'PLATFORM')`);
+    it('admits PLATFORM and CLUB projects, not PERSONAL yet; a CLUB project is invisible to every platform route', async () => {
+      const insert = (id: string, kind: string, clubId: string | null, userId: string | null) => sysExec(
+        `INSERT INTO "DesignProject" ("id","ownerKind","clubId","ownerUserId","name","templateKey","templateVersion","headRevision","origin","createdById") VALUES ($1,$2::"DesignOwnerKind",$3,$4,'Kit','${TEMPLATE.key}',1,1,'EDITOR','x')`,
+        id, kind, clubId, userId);
+      await expect(insert('22222222-2222-4222-8222-222222222222', 'PERSONAL', null, USERS.coach.id)).rejects.toThrow(/DesignProject_context_active/);
+      await expect(insert('33333333-3333-4333-8333-333333333333', 'CLUB', null, null)).rejects.toThrow(/DesignProject_owner_shape/);
+      const clubId = '11111111-1111-4111-8111-111111111111';
+      await insert(clubId, 'CLUB', C1, null);
+      await sysExec(
+        `INSERT INTO "DesignRevision" ("id","projectId","number","kind","document","sha256","bytes","formatVersion","authorUserId") VALUES ('club-r1',$1,1,'CREATE',$2::jsonb,$3,10,1,'x')`,
+        clubId, JSON.stringify(doc('Club kit')), sha(doc('Club kit')));
+      expect((await owner.get('/projects')).body.data.projects.map((p: Row) => p.id)).not.toContain(clubId);
+      expect((await owner.get('/projects?state=archived')).body.data.projects.map((p: Row) => p.id)).not.toContain(clubId);
+      for (const [verb, url, body] of [
+        ['get', `/projects/${clubId}`], ['get', `/projects/${clubId}/revisions`], ['get', `/projects/${clubId}/revisions/1`],
+        ['post', `/projects/${clubId}/revisions`, { baseRevision: 1, document: doc('Taken') }],
+        ['post', `/projects/${clubId}/revisions/1/restore`, { baseRevision: 1 }],
+        ['post', `/projects/${clubId}/archive`],
+      ] as Array<[string, string, Row?]>) {
+        const r = verb === 'get' ? await owner.get(url) : await owner.post(url, body);
+        expect({ url, status: r.status }).toEqual({ url, status: 404 });
       }
+      const [p] = await sys('SELECT "headRevision", "archivedAt" FROM "DesignProject" WHERE "id" = $1', clubId);
+      expect(p).toEqual({ headRevision: 1, archivedAt: null });
+      await sysExec('DELETE FROM "DesignProject" WHERE "id" = $1', clubId);
     });
 
-    it('refuses UPDATE, DELETE and TRUNCATE of a revision, an owner change and a head moved back or skipped', async () => {
-      const [r] = await db.$queryRawUnsafe<Row[]>('SELECT "id", "projectId" FROM "DesignRevision" ORDER BY "createdAt" LIMIT 1');
-      await expect(db.$executeRawUnsafe('UPDATE "DesignRevision" SET "bytes" = "bytes" + 1 WHERE "id" = $1', r.id)).rejects.toThrow(/never changed/);
-      await expect(db.$executeRawUnsafe('DELETE FROM "DesignRevision" WHERE "id" = $1', r.id)).rejects.toThrow(/never changed/);
-      await expect(db.$executeRawUnsafe('TRUNCATE "DesignRevision"')).rejects.toThrow(/never changed/);
-      await expect(db.$executeRawUnsafe(`UPDATE "DesignProject" SET "createdById" = 'someone' WHERE "id" = $1`, r.projectId)).rejects.toThrow(/refused/);
-      await expect(db.$executeRawUnsafe('UPDATE "DesignProject" SET "headRevision" = "headRevision" - 1 WHERE "id" = $1', r.projectId)).rejects.toThrow(/refused/);
-      await expect(db.$executeRawUnsafe('UPDATE "DesignProject" SET "headRevision" = "headRevision" + 2 WHERE "id" = $1', r.projectId)).rejects.toThrow(/refused/);
+    it('refuses UPDATE, DELETE and TRUNCATE of a revision, an owner change and a head moved back or skipped — on the system path itself', async () => {
+      const [r] = await sys('SELECT "id", "projectId" FROM "DesignRevision" ORDER BY "createdAt" LIMIT 1');
+      await expect(sysExec('UPDATE "DesignRevision" SET "bytes" = "bytes" + 1 WHERE "id" = $1', r.id)).rejects.toThrow(/never changed/);
+      await expect(sysExec('DELETE FROM "DesignRevision" WHERE "id" = $1', r.id)).rejects.toThrow(/never changed/);
+      await expect(sysExec('TRUNCATE "DesignRevision"')).rejects.toThrow(/never changed/);
+      await expect(sysExec(`UPDATE "DesignProject" SET "createdById" = 'someone' WHERE "id" = $1`, r.projectId)).rejects.toThrow(/refused/);
+      await expect(sysExec('UPDATE "DesignProject" SET "headRevision" = "headRevision" - 1 WHERE "id" = $1', r.projectId)).rejects.toThrow(/refused/);
+      await expect(sysExec('UPDATE "DesignProject" SET "headRevision" = "headRevision" + 2 WHERE "id" = $1', r.projectId)).rejects.toThrow(/refused/);
+      // and without a database context the same statements reach nothing at all: fail closed
+      expect(await db.$executeRawUnsafe('UPDATE "DesignProject" SET "name" = "name" WHERE "id" = $1', r.projectId)).toBe(0);
+      expect(await db.$queryRawUnsafe<Row[]>('SELECT "id" FROM "DesignRevision"')).toEqual([]);
     });
 
     it('deleting a whole project still removes its revisions (the cascade is the one way out)', async () => {
       const made = await owner.post('/projects', { document: doc('Disposable'), origin: 'EDITOR' });
       const pid = made.body.data.project.id;
       await owner.post(`/projects/${pid}/revisions`, { baseRevision: 1, document: doc('Disposable 2') });
-      await db.$executeRawUnsafe('DELETE FROM "DesignProject" WHERE "id" = $1', pid);
+      await sysExec('DELETE FROM "DesignProject" WHERE "id" = $1', pid);
       expect(await revisionsOf(pid)).toEqual([]);
+    });
+  });
+
+  describe('clubs: the Club Design Studio', () => {
+    const someId = '00000000-0000-4000-8000-000000000000';
+    let homeProject = '';
+
+    it('serves a club’s administrators and managers alone, and only while the club is entitled — refusing before anything is written', async () => {
+      const before = await designRows();
+      expect((await as(null).club.get('/projects')).status).toBe(401);
+      // A coach is refused by the platform's role guard (authorize), an administrator of a club not entitled by the entitlement.
+      for (const [who, code] of [['coach', undefined], ['otherAdmin', 'DESIGN_STUDIO_NOT_ENABLED']] as const) {
+        for (const r of [await as(who).club.get('/projects'), await as(who).club.post('/projects', { document: doc('Not yours'), origin: 'EDITOR' }),
+          await as(who).club.get(`/projects/${someId}`)]) {
+          expect({ who, status: r.status, code: r.body.code }).toEqual({ who, status: 403, code });
+        }
+      }
+      // The platform owner works on the platform's routes, not inside a club's studio.
+      expect((await as('owner').club.get('/projects')).status).toBe(403);
+      expect(await designRows()).toEqual(before);
+    });
+
+    it('a club administrator creates, saves, restores and archives the club’s own design, audited with the club', async () => {
+      const made = await as('clubAdmin').club.post('/projects', { document: doc('Home FC 2027 home'), origin: 'EDITOR' });
+      expect(made.status).toBe(201);
+      homeProject = made.body.data.project.id;
+      const saved = await as('manager').club.post(`/projects/${homeProject}/revisions`, { baseRevision: 1, document: doc('Home FC 2027 home, v2') });
+      expect(saved.status).toBe(201);
+      expect((await as('manager').club.post(`/projects/${homeProject}/revisions/1/restore`, { baseRevision: 2 })).status).toBe(201);
+      expect((await as('clubAdmin').club.get(`/projects/${homeProject}/revisions`)).body.data.revisions.map((r: Row) => r.number)).toEqual([3, 2, 1]);
+      expect((await as('clubAdmin').club.get('/projects')).body.data.projects.map((p: Row) => p.id)).toEqual([homeProject]);
+      const [row] = await sys('SELECT "ownerKind"::text AS kind, "clubId", "ownerUserId", "headRevision" FROM "DesignProject" WHERE "id" = $1', homeProject);
+      expect(row).toEqual({ kind: 'CLUB', clubId: C1, ownerUserId: null, headRevision: 3 });
+      const audit = await sys('SELECT "action", "clubId", "userId" FROM "PlatformAuditLog" WHERE "resourceId" = $1 ORDER BY "createdAt"', homeProject);
+      expect(audit).toEqual([
+        { action: 'design.project.created', clubId: C1, userId: USERS.clubAdmin.id },
+        { action: 'design.revision.saved', clubId: C1, userId: USERS.manager.id },
+        { action: 'design.revision.restored', clubId: C1, userId: USERS.manager.id },
+      ]);
+    });
+
+    it('a club reaches no design but its own: not the platform’s, not another club’s, by list or by id', async () => {
+      const platform = (await owner.get('/projects')).body.data.projects.map((p: Row) => p.id);
+      expect(platform.length).toBeGreaterThan(0);
+      expect(platform).not.toContain(homeProject);
+      expect((await as('clubAdmin').club.get('/projects')).body.data.projects.map((p: Row) => p.id)).not.toContain(platform[0]);
+      expect((await as('clubAdmin').club.get(`/projects/${platform[0]}`)).status).toBe(404);
+      expect((await owner.get(`/projects/${homeProject}`)).status).toBe(404);
+      // Away FC, entitled now, still sees nothing of Home FC's.
+      await sysExec(`INSERT INTO "OrganizationLimits" ("id","clubId","featuresEnabled","updatedAt") VALUES ($1,$2,ARRAY['club_design_studio'],now())`, `ol-${tag}`, C2);
+      const before = await designRows();
+      expect((await as('otherAdmin').club.get('/projects')).body.data.projects).toEqual([]);
+      for (const [verb, url, body] of [
+        ['get', `/projects/${homeProject}`], ['get', `/projects/${homeProject}/revisions`], ['get', `/projects/${homeProject}/revisions/1`],
+        ['post', `/projects/${homeProject}/revisions`, { baseRevision: 3, document: doc('Taken') }],
+        ['post', `/projects/${homeProject}/revisions/1/restore`, { baseRevision: 3 }],
+        ['post', `/projects/${homeProject}/archive`],
+      ] as Array<[string, string, Row?]>) {
+        const r = verb === 'get' ? await as('otherAdmin').club.get(url) : await as('otherAdmin').club.post(url, body);
+        expect({ url, status: r.status }).toEqual({ url, status: 404 });
+      }
+      expect(await designRows()).toEqual(before);
+    });
+
+    it('row-level security: the database itself gives a club its own designs and revisions only, and accepts no write into another club’s', async () => {
+      const count = (clubId: string, table: string) => inClub(clubId, (tx) => tx.$queryRawUnsafe<Row[]>(`SELECT count(*)::int AS n FROM "${table}" WHERE "${table === 'DesignProject' ? 'id' : 'projectId'}" = $1`, homeProject)).then((r) => r[0].n);
+      expect([await count(C1, 'DesignProject'), await count(C1, 'DesignRevision')]).toEqual([1, 3]);
+      expect([await count(C2, 'DesignProject'), await count(C2, 'DesignRevision')]).toEqual([0, 0]);
+      // A club sees none of the platform's designs (they have no club: the system path alone reaches them).
+      expect(await inClub(C1, (tx) => tx.$queryRawUnsafe<Row[]>(`SELECT count(*)::int AS n FROM "DesignProject" WHERE "ownerKind" = 'PLATFORM'`)).then((r) => r[0].n)).toBe(0);
+      // Away FC can neither change Home FC's project nor add a revision to it, nor create a project in Home FC's name.
+      expect(await inClub(C2, (tx) => tx.$executeRawUnsafe('UPDATE "DesignProject" SET "name" = $2 WHERE "id" = $1', homeProject, 'Taken'))).toBe(0);
+      await expect(inClub(C2, (tx) => tx.$executeRawUnsafe(
+        `INSERT INTO "DesignRevision" ("id","projectId","number","kind","document","sha256","bytes","formatVersion","authorUserId") VALUES ('x-r4',$1,4,'SAVE','{}'::jsonb,'x',2,1,'x')`, homeProject)))
+        .rejects.toThrow(/row-level security/);
+      await expect(inClub(C2, (tx) => tx.$executeRawUnsafe(
+        `INSERT INTO "DesignProject" ("id","ownerKind","clubId","name","templateKey","templateVersion","headRevision","origin","createdById") VALUES ('44444444-4444-4444-8444-444444444444','CLUB',$1,'Taken','${TEMPLATE.key}',1,1,'EDITOR','x')`, C1)))
+        .rejects.toThrow(/row-level security/);
+      const [p] = await sys('SELECT "name", "headRevision" FROM "DesignProject" WHERE "id" = $1', homeProject);
+      expect(p).toEqual({ name: 'Home FC 2027 home', headRevision: 3 });
+    });
+
+    it('negative control: with FORCE removed by hand, the tables’ owner (the application’s role) reads across clubs — so the checks above see the database’s enforcement', async () => {
+      await db.$executeRawUnsafe('ALTER TABLE "DesignProject" NO FORCE ROW LEVEL SECURITY');
+      try {
+        expect(await inClub(C2, (tx) => tx.$queryRawUnsafe<Row[]>('SELECT count(*)::int AS n FROM "DesignProject" WHERE "id" = $1', homeProject)).then((r) => r[0].n)).toBe(1);
+      } finally {
+        await db.$executeRawUnsafe('ALTER TABLE "DesignProject" FORCE ROW LEVEL SECURITY');
+      }
+      expect(await inClub(C2, (tx) => tx.$queryRawUnsafe<Row[]>('SELECT count(*)::int AS n FROM "DesignProject" WHERE "id" = $1', homeProject)).then((r) => r[0].n)).toBe(0);
     });
   });
 
@@ -391,7 +522,9 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
     const file = path.join(dir, 'dump');
     try {
       const out = fs.openSync(file, 'w');
-      const dump = spawnSync('pg_dump', pgDumpArgs(urlFor(DB, ROLE, PASSWORD)), { stdio: ['ignore', out, 'pipe'], encoding: 'utf8', timeout: 120_000 });
+      // The backup's own system path (PGOPTIONS), without which a dump of tables under row-level security holds none of their rows.
+      const { BACKUP_PG_OPTIONS } = require('../src/security/backup/backup-config'); // eslint-disable-line @typescript-eslint/no-var-requires
+      const dump = spawnSync('pg_dump', pgDumpArgs(urlFor(DB, ROLE, PASSWORD)), { stdio: ['ignore', out, 'pipe'], encoding: 'utf8', timeout: 120_000, env: { ...process.env, PGOPTIONS: BACKUP_PG_OPTIONS } });
       fs.closeSync(out);
       if (dump.status !== 0) throw new Error(`pg_dump failed: ${dump.stderr}`);
       await admin.$executeRawUnsafe(`CREATE DATABASE "${RESTORED}" OWNER "${ROLE}"`);
@@ -402,13 +535,20 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
     const back = new PrismaClient({ datasources: { db: { url: urlFor(RESTORED, ROLE, PASSWORD) } } });
     try {
       const q = 'SELECT p."id", p."headRevision", r."number", r."sha256", r."document" FROM "DesignProject" p JOIN "DesignRevision" r ON r."projectId" = p."id" ORDER BY p."id", r."number"';
-      const original = await db.$queryRawUnsafe<Row[]>(q);
-      const restored = await back.$queryRawUnsafe<Row[]>(q);
+      const original = await sys(q);
+      const backSys = <T>(fn: (tx: PrismaClient) => Promise<T>) => back.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT set_config('familista.rls_mode', 'system', true)`;
+        return fn(tx as unknown as PrismaClient);
+      });
+      const restored = await backSys((tx) => tx.$queryRawUnsafe<Row[]>(q));
       expect(original.length).toBe((await designRows()).revisions);
       expect(original.length).toBeGreaterThanOrEqual(5);
       expect(restored).toEqual(original);
       for (const row of restored) expect(sha(row.document)).toBe(row.sha256);
-      await expect(back.$executeRawUnsafe('UPDATE "DesignRevision" SET "bytes" = "bytes" + 1')).rejects.toThrow(/never changed/);
+      await expect(backSys((tx) => tx.$executeRawUnsafe('UPDATE "DesignRevision" SET "bytes" = "bytes" + 1'))).rejects.toThrow(/never changed/);
+      // and the restored copy holds the same row-level security
+      expect(await back.$queryRawUnsafe<Row[]>(`SELECT relname FROM pg_class WHERE relname IN ('DesignProject','DesignRevision') AND relrowsecurity AND relforcerowsecurity ORDER BY relname`))
+        .toEqual([{ relname: 'DesignProject' }, { relname: 'DesignRevision' }]);
     } finally { await back.$disconnect(); }
   }, 300_000);
 });
