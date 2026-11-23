@@ -43,7 +43,7 @@
   function create(ctx) {
     var R = ctx.roster, api = ctx.api, h = ctx.h, btn = ctx.btn, icon = ctx.icon, T = ctx.T, tf = ctx.tf;
     var st = {
-      open: false, view: 'list', trigger: null, seq: 0, busy: false, note: '', delimiter: ',',
+      open: false, view: 'list', tab: 'rosters', trigger: null, seq: 0, busy: false, note: '', delimiter: ',',
       list: { state: 'idle', rosters: [], archived: false, error: '' },
       cur: null,       // { id, version, name, rows, dirty, state }
       pending: null,   // { kind: 'csv' | 'squad', label, result }
@@ -53,6 +53,17 @@
     };
     var el = h('section', { class: 'pd-team', id: 'pd-team', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'pd-team-title', 'data-open': 'false' });
     var file = h('input', { class: 'pd-sr', type: 'file', accept: '.csv,text/csv', tabindex: '-1', 'aria-hidden': 'true', 'data-pd-team-file': '' });
+    // M3b: the club's collections, the panel's second tab (pd-collections.js), when the room loaded it.
+    var CO = ctx.collections ? ctx.collections.create({
+      h: h, btn: btn, icon: icon, T: T, tf: tf, api: api, roster: R, el: el, date: ctx.date,
+      render: function () { render(); },
+      note: function (text) { st.note = text; var n = el.querySelector('[data-pd-team-status]'); if (n) n.textContent = text; },
+      show: function (view) { st.view = view; st.note = ''; render(); },
+      confirm: function (text, go, run) { st.confirm = { text: text, go: go, run: run }; render(); },
+      download: function (text, name) { download(text, name); },
+      delimiter: function () { return st.delimiter; },
+      currentProject: ctx.currentProject, openDesign: ctx.openDesign, productLabel: ctx.productLabel,
+    }) : null;
 
     // ── rows: what the inputs hold, and what they amount to ────────────────
     function toRow(e) {
@@ -94,7 +105,7 @@
     function open(trigger) {
       st.open = true; st.trigger = trigger || null;
       el.setAttribute('data-open', 'true');
-      if (st.view === 'list' && (st.list.state === 'idle' || st.list.state === 'error')) loadList();
+      if (st.view === 'list' && st.tab === 'rosters' && (st.list.state === 'idle' || st.list.state === 'error')) loadList();
       render();
       ctx.onToggle(true);
       var first = el.querySelector('[data-pd-team-focus]') || el.querySelector('button');
@@ -120,13 +131,14 @@
       });
     }
     function guard(text, run) {
-      if (st.cur && st.cur.dirty) { st.confirm = { text: text, run: run }; render(); return; }
+      if ((st.view === 'roster' && st.cur && st.cur.dirty) || (st.view === 'collection' && CO && CO.dirty())) { st.confirm = { text: text, run: run }; render(); return; }
       run();
     }
     function toList() {
+      var from = st.view;
       st.view = 'list'; st.cur = null; st.pending = null; st.conflict = null; st.confirm = null; st.note = '';
       if (st.preview !== null) { st.preview = null; pushPreview(); }
-      loadList();
+      if (from === 'collection' && CO) { CO.leave(); CO.loadList(); } else loadList();
     }
     function startNew() {
       st.cur = { id: null, version: 0, name: T('Team roster'), rows: [toRow(R.blankEntry())], dirty: true, state: 'ready' };
@@ -267,13 +279,15 @@
       var active = document.activeElement && el.contains(document.activeElement) ? document.activeElement : null;
       var focusKey = active ? (active.getAttribute('data-pd-team-row') !== null ? 'r' + active.getAttribute('data-pd-team-row') + ':' + active.getAttribute('data-pd-team-col') : active.getAttribute('data-pd-team-key')) : null;
       while (el.firstChild) el.removeChild(el.firstChild);
-      var roster = st.view === 'roster' && st.cur;
+      var roster = st.view === 'roster' && st.cur, collection = st.view === 'collection' && CO;
       var head = h('div', { class: 'pd-dock-head pd-team-head' }, [
-        roster ? btn({ class: 'pd-btn pd-btn--ghost pd-team-back', 'data-pd-act': 'team-back', 'data-pd-team-key': 'back', 'data-pd-team-focus': '' }, [ctx.dirArrow('←'), h('span', { text: T('Rosters') })]) : null,
-        h('h2', { class: 'pd-h2', id: 'pd-team-title' }, [icon('people', 16), h('span', { text: roster ? T('Team roster') : T('Team rosters') })]),
+        roster || collection ? btn({ class: 'pd-btn pd-btn--ghost pd-team-back', 'data-pd-act': 'team-back', 'data-pd-team-key': 'back', 'data-pd-team-focus': '' },
+          [ctx.dirArrow('←'), h('span', { text: collection ? T('Collections') : T('Rosters') })]) : null,
+        h('h2', { class: 'pd-h2', id: 'pd-team-title' }, [icon('people', 16), h('span', { text: collection ? T('Collection') : roster ? T('Team roster') : T('Team') })]),
         btn({ class: 'pd-icbtn', 'data-pd-act': 'team-close', 'data-pd-team-key': 'close', 'aria-label': T('Close') }, [icon('close')]),
       ]);
-      var body = h('div', { class: 'pd-dock-body pd-team-body', tabindex: '0' }, [confirmBlock(), conflictBlock()].concat(roster ? rosterBody() : listBody()));
+      var body = h('div', { class: 'pd-dock-body pd-team-body', tabindex: '0' }, [confirmBlock(), conflictBlock()]
+        .concat(roster ? rosterBody() : collection ? CO.editorBody() : [tabsBlock()].concat(st.tab === 'collections' && CO ? CO.listBody() : listBody())));
       var status = h('p', { class: 'pd-note pd-team-status', role: 'status', 'aria-live': 'polite', 'data-pd-team-status': '', text: st.note });
       el.appendChild(head); el.appendChild(body); el.appendChild(status); el.appendChild(file);
       body.scrollTop = scroll;
@@ -302,6 +316,13 @@
           btn({ class: 'pd-btn pd-btn--primary', 'data-pd-act': 'team-conflict-keep' }, [h('span', { text: T('Save mine over it') })]),
         ]),
       ]);
+    }
+    /** The panel's two lists: the club's rosters, and its collections (M3b). */
+    function tabsBlock() {
+      if (!CO) return null;
+      return h('div', { class: 'pd-tabs pd-team-tabs', role: 'tablist', 'aria-label': T('Team') }, [['rosters', L('Rosters')], ['collections', L('Collections')]].map(function (t) {
+        return btn({ class: 'pd-tab', role: 'tab', 'data-pd-act': 'team-tab-' + t[0], 'data-pd-team-key': 'tab-' + t[0], 'aria-selected': st.tab === t[0] ? 'true' : 'false', tabindex: st.tab === t[0] ? '0' : '-1', text: T(t[1]) });
+      }));
     }
     function listBody() {
       var L0 = st.list, out = [];
@@ -484,10 +505,13 @@
 
     // ── events ──────────────────────────────────────────────────────────────
     function onAction(act, t) {
+      if (CO && act.indexOf('col-') === 0) return CO.onAction(act, t);
       if (act.indexOf('team-') !== 0) return false;
       var c = st.cur, i = Number(t.getAttribute('data-pd-row'));
       switch (act) {
         case 'team-close': close(); return true;
+        case 'team-tab-rosters': if (st.tab !== 'rosters') { st.tab = 'rosters'; st.note = ''; loadList(); } return true;
+        case 'team-tab-collections': if (st.tab !== 'collections' && CO) { st.tab = 'collections'; st.note = ''; CO.loadList(); } return true;
         case 'team-retry': loadList(); return true;
         case 'team-filter-active': if (st.list.archived) { st.list.archived = false; loadList(); } return true;
         case 'team-filter-archived': if (!st.list.archived) { st.list.archived = true; loadList(); } return true;
@@ -500,7 +524,7 @@
           st.confirm = { text: tf('Delete %s for good? Its names, numbers and sizes are erased and cannot be recovered.', t.getAttribute('data-pd-name')), go: T('Delete for good'), run: function () { erase(id); } };
           render(); return true;
         }
-        case 'team-back': guard(T('Leave this roster? Its unsaved changes are lost.'), toList); return true;
+        case 'team-back': guard(st.view === 'collection' ? T('Leave this collection? Its unsaved changes are lost.') : T('Leave this roster? Its unsaved changes are lost.'), toList); return true;
         case 'team-confirm-cancel': st.confirm = null; render(); return true;
         case 'team-confirm-go': { var k = st.confirm; st.confirm = null; if (k) k.run(); else render(); return true; }
         case 'team-conflict-open': if (c && c.id) openRoster(c.id); return true;
@@ -530,6 +554,7 @@
     function onInput(ev) {
       var t = ev.target, c = st.cur;
       if (!t || !el.contains(t)) return false;
+      if (st.view === 'collection' && CO && CO.onInput(ev)) return true;
       if (t.hasAttribute('data-pd-team-rname')) { if (c) { c.name = t.value; c.dirty = true; refresh(); } return true; }
       if (t.hasAttribute('data-pd-team-delim')) { st.delimiter = t.value === ';' ? ';' : ','; return true; }
       var row = t.getAttribute('data-pd-team-row'), col = t.getAttribute('data-pd-team-col');
@@ -567,7 +592,9 @@
     }
     /** Ctrl+S inside the panel saves the roster, not the design. */
     function onSaveKey(ev) {
-      if (!st.open || !st.cur || st.view !== 'roster' || !el.contains(ev.target)) return false;
+      if (!st.open || !el.contains(ev.target)) return false;
+      if (st.view === 'collection' && CO) { CO.save(); return true; }
+      if (!st.cur || st.view !== 'roster') return false;
       save(); return true;
     }
 
@@ -579,7 +606,8 @@
       stopPreview: function () { if (st.preview !== null) { st.preview = null; pushPreview(); render(); } },
       metrics: function () {
         return { open: st.open, view: st.view, list: st.list.state, rosters: st.list.rosters.length, rows: st.cur ? st.cur.rows.length : 0,
-          dirty: !!(st.cur && st.cur.dirty), preview: st.preview, pending: st.pending ? st.pending.kind : null, conflict: !!st.conflict };
+          dirty: !!(st.cur && st.cur.dirty), preview: st.preview, pending: st.pending ? st.pending.kind : null, conflict: !!st.conflict,
+          tab: st.tab, collections: CO ? CO.metrics() : null };
       },
     };
   }

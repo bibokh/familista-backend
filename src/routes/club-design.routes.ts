@@ -20,7 +20,8 @@
  *
  * The project routes and their handlers are the platform owner's (product-design.routes.ts;
  * src/platform/product-design/http.ts): only the gate and the scope differ. The brand-kit routes are the club's own
- * (src/platform/product-design/brand-http.ts, M2c), and so are its team rosters (roster-http.ts, M3).
+ * (src/platform/product-design/brand-http.ts, M2c), and so are its team rosters (roster-http.ts, M3a) and its collections
+ * (collection-http.ts, M3b).
  */
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { UserRole } from '@prisma/client';
@@ -38,6 +39,10 @@ import {
 import {
   archiveTeamRoster, createTeamRoster, deleteTeamRoster, listTeamRosters, openTeamRoster, readSquadNames, saveTeamRoster, unarchiveTeamRoster,
 } from '../platform/product-design/roster-http';
+import {
+  archiveDesignCollection, createDesignCollection, deleteDesignCollection, listDesignCollections, openDesignCollection, readOrderSheet,
+  saveDesignCollection, unarchiveDesignCollection,
+} from '../platform/product-design/collection-http';
 
 const router = Router();
 router.use(authenticate);
@@ -85,5 +90,17 @@ router.post('/rosters/:rosterId/archive', tenantParam('designRoster', 'rosterId'
 router.post('/rosters/:rosterId/unarchive', tenantParam('designRoster', 'rosterId'), unarchiveTeamRoster);
 router.delete('/rosters/:rosterId', tenantParam('designRoster', 'rosterId'), deleteTeamRoster);
 router.get('/squad-names', readSquadNames);
+
+// The club's collections (M3b): its designs gathered as one kit, and the order sheet a roster makes of it. A collection
+// id is checked against the caller's club before its handler runs; the designs and the roster it names are checked by
+// the service, and held to the club by the database (composite keys and a trigger).
+router.get('/collections', listDesignCollections);
+router.post('/collections', createDesignCollection);
+router.get('/collections/:collectionId', tenantParam('designCollection', 'collectionId'), openDesignCollection);
+router.put('/collections/:collectionId', tenantParam('designCollection', 'collectionId'), saveDesignCollection);
+router.post('/collections/:collectionId/archive', tenantParam('designCollection', 'collectionId'), archiveDesignCollection);
+router.post('/collections/:collectionId/unarchive', tenantParam('designCollection', 'collectionId'), unarchiveDesignCollection);
+router.delete('/collections/:collectionId', tenantParam('designCollection', 'collectionId'), deleteDesignCollection);
+router.get('/collections/:collectionId/order-sheet', tenantParam('designCollection', 'collectionId'), readOrderSheet);
 
 export default router;

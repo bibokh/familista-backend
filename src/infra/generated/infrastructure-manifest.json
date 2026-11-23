@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-23T21:35:34.413Z",
+  "generatedAt": "2026-11-23T21:52:24.491Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -324,7 +324,7 @@
       "sourceEvidence": "prisma/schema.prisma — datasource provider",
       "dependencies": [],
       "healthKey": "database",
-      "note": "349 models, 213 enums, 53 migrations."
+      "note": "351 models, 214 enums, 54 migrations."
     },
     {
       "id": "prisma-orm",
@@ -1161,7 +1161,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "639 TypeScript modules under src/."
+      "note": "641 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1629,18 +1629,18 @@
     "serviceModules": 102,
     "middleware": 24,
     "fabricModules": 52,
-    "totalTypeScript": 639,
+    "totalTypeScript": 641,
     "testSuites": 246,
-    "migrations": 53,
-    "prismaModels": 349,
-    "prismaEnums": 213
+    "migrations": 54,
+    "prismaModels": 351,
+    "prismaEnums": 214
   },
   "database": {
     "provider": "postgresql",
-    "models": 349,
-    "enums": 213,
-    "migrations": 53,
-    "latestMigration": "20261123200000_design_studio_team_rosters"
+    "models": 351,
+    "enums": 214,
+    "migrations": 54,
+    "latestMigration": "20261123210000_design_studio_collections"
   },
   "typescript": {
     "target": "ES2020",
@@ -1950,8 +1950,8 @@
       "path": "/club-design",
       "router": "clubDesignRoutes",
       "file": "src/routes/club-design.routes.ts",
-      "writes": 14,
-      "reads": 9
+      "writes": 19,
+      "reads": 12
     },
     {
       "path": "/telemetry",

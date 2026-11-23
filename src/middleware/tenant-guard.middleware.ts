@@ -261,6 +261,8 @@ export const TENANT_RESOURCES = {
   designBrandAsset:         (id: string): Promise<Owner> => prisma.designBrandAsset.findUnique({ where: { id }, select: { clubId: true } }),
   // A team roster of a club's Design Studio (M3).
   designRoster:             (id: string): Promise<Owner> => prisma.designRoster.findUnique({ where: { id }, select: { clubId: true } }),
+  // A collection of a club's Design Studio (M3b).
+  designCollection:         (id: string): Promise<Owner> => prisma.designCollection.findUnique({ where: { id }, select: { clubId: true } }),
 } as const;
 
 export type TenantResource = keyof typeof TENANT_RESOURCES;

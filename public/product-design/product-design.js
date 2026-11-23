@@ -828,13 +828,23 @@
   /** What the Team panel is handed: the room's own builders, words and server client. It fetches and styles nothing itself. */
   function teamContext() {
     return {
-      roster: window.FamilistaProductDesignRoster, api: P.api, host: S.host, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say, dirArrow: dirArrow, date: when, percent: percent,
+      roster: window.FamilistaProductDesignRoster, collections: window.FamilistaProductDesignCollections || null, api: P.api, host: S.host, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say, dirArrow: dirArrow, date: when, percent: percent,
       onPreview: setPreview, nameFit: nameFit,
+      // M3b: the saved design on screen, opening one (behind the unsaved-change guard), and a design's product name.
+      currentProject: function () { var l = S.srv.link; return l ? { id: l.projectId, name: S.doc.name, templateKey: S.doc.template.key } : null; },
+      openDesign: function (id) { replacing('open', id, function () { openProject(id); }); },
+      productLabel: productLabel,
       onToggle: function () { syncTeamTriggers(); },
     };
   }
   function percent(f) {
     try { return new Intl.NumberFormat(LANG, { style: 'percent', maximumFractionDigits: 0 }).format(f); } catch (_) { return Math.round(f * 100) + '%'; }
+  }
+  /** The catalogue's name for the product a template makes, in the room's language. */
+  function productLabel(key) {
+    var e = INDEX && INDEX.filter(function (x) { return x.key === key; })[0], label = null;
+    if (e) CATALOGUE.forEach(function (g) { g.items.forEach(function (it) { if (it.id === e.product) label = it.label; }); });
+    return label ? T(label) : T('A garment no longer offered');
   }
   function syncTeamTriggers() {
     var bs = S.host.querySelectorAll('[data-pd-act="team"]');

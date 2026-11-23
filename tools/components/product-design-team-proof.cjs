@@ -202,7 +202,77 @@ module.exports = async function p19(H) {
       sheet.left >= 0 && sheet.right <= sheet.vw && sheet.bottom <= sheet.vh && sheet.top >= 0 && sheet.scrolls && !sheet.pageOverflow, sheet);
   } finally { await c3.close(); }
 
+  // ── M3b: a collection of the club's designs, and its order sheet ────────────────────────────────────────────────────
+  let collectionId = null;
+  const { ctx: c5, page: co, log: coLog } = await open({ width: 1672, height: 941 }, 'en-GB', { as: 'clubAdmin', hash: '/#club-design', wait: false });
+  try {
+    await ready(co);
+    // The design on screen, saved; and the club's shorts, saved by another session.
+    await co.click('#pd-club-root [data-pd-act="save"]');
+    await co.waitForFunction(() => { const s = window.__familistaProductDesignMetrics().server; return s.state === 'saved' && !s.busy && s.linked; }, null, { timeout: 30000 });
+    const C = require(path.join(ROOT, 'public/product-design/pd-core.js'));
+    const shortsTpl = C.validateTemplate(JSON.parse(fs.readFileSync(path.join(ROOT, 'public/product-design/templates/shorts.json'), 'utf8')));
+    const made = await fetch(BASE + '/api/v1/club-design/projects', { method: 'POST', headers: { Authorization: 'Bearer ' + TOKENS.clubAdmin, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ document: C.createDocument(shortsTpl, 'Home shorts 26/27'), origin: 'EDITOR' }) }).then((r) => r.json());
+    const shortsId = made && made.data && made.data.project.id;
+
+    const before = await rects(co);
+    await co.click('#pd-club-root [data-pd-act="team"]');
+    await waitList(co);
+    await co.click(panel + ' [data-pd-act="team-tab-collections"]');
+    await co.waitForFunction(() => { const c = window.__familistaProductDesignMetrics().team.collections; return c && c.list === 'ready'; }, null, { timeout: 15000 });
+    const empty = await co.evaluate((sel) => (document.querySelector(sel + ' .pd-empty') || {}).textContent || '', panel);
+    const after = await rects(co);
+    check('P19 the Collections tab opens in the same panel, moving nothing, and with none yet says what one is for',
+      JSON.stringify(before) === JSON.stringify(after) && /No collections yet/.test(empty), { empty });
+
+    await co.click(panel + ' [data-pd-act="col-new"]');
+    await co.waitForFunction((id) => !!document.querySelector('#pd-club-root .pd-team [data-pd-col-pick] option[value="' + id + '"]'), shortsId, { timeout: 15000 });
+    await co.selectOption(panel + ' [data-pd-col-pick]', shortsId);
+    await co.click(panel + ' [data-pd-act="col-add"]');
+    await co.fill(panel + ' [data-pd-col-field="name"]', 'Home kit');
+    await co.fill(panel + ' [data-pd-col-field="season"]', '2026/27');
+    const rosterRow = await db.designRoster.findFirst({ where: { name: 'First team 2026/27' }, select: { id: true } });
+    await co.waitForFunction(() => document.querySelectorAll('#pd-club-root .pd-team [data-pd-col-field="rosterId"] option').length > 1, null, { timeout: 15000 });
+    await co.selectOption(panel + ' [data-pd-col-field="rosterId"]', rosterRow.id);
+    await co.click(panel + ' [data-pd-act="col-save"]');
+    await co.waitForFunction(() => { const c = window.__familistaProductDesignMetrics().team.collections; return c && !c.dirty && c.sheet === 'ready'; }, null, { timeout: 20000 });
+    const row = await db.designCollection.findFirst({ where: { name: 'Home kit' }, select: { id: true, clubId: true, season: true, rosterId: true, items: { orderBy: { position: 'asc' }, select: { projectId: true, role: true } } } });
+    collectionId = row && row.id;
+    const linked = (await M(co)).server.projectId;
+    check('P19 a collection gathers the design on screen and a saved one, for a roster, saved in the club’s own rows',
+      !!row && row.clubId === 'club-1' && row.season === '2026/27' && row.rosterId === rosterRow.id
+        && JSON.stringify(row.items.map((i) => i.projectId)) === JSON.stringify([linked, shortsId]) && row.items.every((i) => i.role === 'HOME'), row);
+
+    const sheet = await co.evaluate((sel) => [...document.querySelectorAll(sel + ' .pd-col-sheet tbody tr')].map((tr) => [...tr.children].map((c) => c.textContent.trim())), panel);
+    await co.screenshot({ path: path.join(OUT, 'p19-collection.png') });
+    check('P19 its order sheet counts the roster’s sets per size for each garment, and names the sets with no size',
+      sheet.length === 2 && /Top/.test(sheet[0][1]) && sheet[0][2] === 'M × 2 · XL × 1 · without a size: 3' && /Shorts/.test(sheet[1][1]) && sheet[1][2] === 'M × 2 · L × 1 · without a size: 3', sheet);
+
+    const [dl] = await Promise.all([co.waitForEvent('download', { timeout: 15000 }), co.click(panel + ' [data-pd-act="col-export"]')]);
+    const text = fs.readFileSync(await dl.path(), 'utf8');
+    const lines = text.replace(/^\uFEFF/, '').trim().split('\r\n');
+    check('P19 the order sheet exports as a spreadsheet: one line per garment and size, the unsized counted apart',
+      text.charCodeAt(0) === 0xfeff && lines[0] === 'design,role,garment,size,sets' && lines.length === 7
+        && lines.includes('Home shorts 26/27,home,shorts,L,1') && lines.includes('Home shorts 26/27,home,shorts,,3') && /order-sheet\.csv$/.test(dl.suggestedFilename()),
+      { file: dl.suggestedFilename(), lines });
+
+    // Opening a design from the collection brings it onto the canvas.
+    await co.click(panel + ' [data-pd-act="col-open-design"][data-pd-id="' + shortsId + '"]');
+    await co.waitForFunction(() => window.__familistaProductDesignMetrics().template === 'shorts.classic', null, { timeout: 30000 });
+    check('P19 a design opens from its collection onto the canvas', (await M(co)).server.projectId === shortsId, { template: (await M(co)).template });
+    if (fs.existsSync(axePath)) {
+      const isOpen = await co.evaluate((sel) => document.querySelector(sel).getAttribute('data-open') === 'true', panel);
+      if (!isOpen) await co.click('#pd-club-root [data-pd-act="team"]');
+      const v = await runAxe(co);
+      check('P19 en-GB: axe finds no WCAG 2.2 A/AA violation with a collection open', v.length === 0, v);
+    }
+    check('P19 no CSP violation and no page error with collections', (await csp(co)).length === 0 && coLog.errors.length === 0, { csp: await csp(co), errors: coLog.errors });
+  } finally { await c5.close(); }
+
   // ── another club reaches none of it ─────────────────────────────────────────────────────────────────────────────────
   const r = await fetch(BASE + '/api/v1/club-design/rosters/' + rosterId, { headers: { Authorization: 'Bearer ' + TOKENS.otherAdmin, Accept: 'application/json' } });
   check('P19 another club’s administrator is refused the roster by the server (negative control)', r.status === 403 || r.status === 404, { status: r.status });
+  const rc = await fetch(BASE + '/api/v1/club-design/collections/' + collectionId + '/order-sheet', { headers: { Authorization: 'Bearer ' + TOKENS.otherAdmin, Accept: 'application/json' } });
+  check('P19 another club’s administrator is refused the collection’s order sheet by the server (negative control)', !!collectionId && (rc.status === 403 || rc.status === 404), { status: rc.status });
 };

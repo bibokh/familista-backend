@@ -609,6 +609,17 @@ body.pd-studio-open { overflow: hidden; }
 .pd-team-sum dt { color: var(--fam-text-secondary); }
 .pd-team-sum dd { margin: 0; font-variant-numeric: tabular-nums; text-align: start; }
 .pd-team-save { justify-content: space-between; }
+/* Collections (M3b): a kit's designs, and the order sheet a roster makes of it. */
+.pd-team-tabs { flex: none; }
+.pd-col-fields { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--fam-space-2); }
+.pd-col-roster { grid-column: 1 / -1; }
+.pd-col-item .pd-dock-btns { flex-wrap: nowrap; }
+.pd-col-role { width: auto; min-width: 112px; height: 32px; }
+.pd-col-sheet-block { display: flex; flex-direction: column; gap: var(--fam-space-2); }
+.pd-col-sheet th[scope="row"] { font-weight: var(--fam-font-weight-semibold); white-space: normal; }
+.pd-col-sheet td { font-variant-numeric: tabular-nums; }
+.pd-col-unsized { color: var(--fam-status-warning); }
+
 /* What the garment shows while a roster row is previewed: over the canvas, so it moves nothing. */
 .pd-preview-tag {
   position: absolute; inset-block-start: var(--fam-space-2); inset-inline-start: var(--fam-space-2); z-index: 3;
@@ -698,6 +709,9 @@ body.pd-studio-open { overflow: hidden; }
   .pd-dock { inset-inline: 0; inset-block-start: auto; inset-block-end: 56px; width: auto; max-height: 72vh; border-radius: var(--fam-radius-panel) var(--fam-radius-panel) 0 0; transform: translateY(16px); }
   .pd-team { inset-inline: 0; inset-block-start: auto; inset-block-end: 56px; width: auto; max-height: 80vh; border-radius: var(--fam-radius-panel) var(--fam-radius-panel) 0 0; transform: translateY(16px); }
   .pd-team-scroll { max-height: 40vh; }
+  .pd-col-fields { grid-template-columns: minmax(0, 1fr); }
+  .pd-col-item { flex-wrap: wrap; }
+  .pd-col-item .pd-dock-btns { flex-wrap: wrap; }
   .pd-actions { display: flex; flex-wrap: wrap; gap: var(--fam-space-3); padding: var(--fam-space-3); margin: 0; }
   .pd-actions-mid { order: -1; width: 100%; }
   .pd-cost { display: grid; text-align: start; }

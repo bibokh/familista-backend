@@ -28,7 +28,7 @@ export interface DesignDocument {
   surfaces: unknown[];
 }
 
-interface ProductTemplate { key: string; templateVersion: number }
+interface ProductTemplate { key: string; templateVersion: number; form?: string }
 
 interface PdCore {
   FORMAT: string;
@@ -68,6 +68,16 @@ function load(): { core: PdCore; templates: Map<string, ProductTemplate> } {
   }
   loaded = { core, templates };
   return loaded;
+}
+
+/**
+ * The garment form a released template builds (top, shorts or socks; a template that names none is a top), or null for a
+ * template the registry does not hold. What a collection's order sheet counts its sizes by (M3b).
+ */
+export function templateForm(key: string, version: number): 'top' | 'shorts' | 'socks' | null {
+  const t = load().templates.get(`${key}@${version}`);
+  if (!t) return null;
+  return t.form === 'shorts' || t.form === 'socks' ? t.form : 'top';
 }
 
 /** The core's limits (bytes, name length), for the routes' own envelope checks. */

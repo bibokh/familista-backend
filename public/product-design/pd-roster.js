@@ -255,14 +255,19 @@
     if (s.indexOf(delim) !== -1 || /["\r\n]/.test(s) || /^\s|\s$/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
     return s;
   }
-  /** The entries as a CSV file's text: BOM, header, CRLF. `delimiter` is ',' (default), ';' or a tab. */
-  function toCsv(entries, opts) {
+  /**
+   * Any table as a CSV file's text: BOM, the header, one line per row, CRLF, every cell made safe. `delimiter` is ','
+   * (default), ';' or a tab. What a roster exports, and a collection's order sheet (M3b).
+   */
+  function toTable(header, rows, opts) {
     var delim = opts && (opts.delimiter === ';' || opts.delimiter === '\t') ? opts.delimiter : ',';
-    var lines = [COLUMNS.join(delim)];
-    (entries || []).forEach(function (e) {
-      lines.push(COLUMNS.map(function (c) { return csvCell(e[c], delim); }).join(delim));
-    });
+    var lines = [header.map(function (c) { return csvCell(c, delim); }).join(delim)];
+    (rows || []).forEach(function (r) { lines.push(r.map(function (c) { return csvCell(c, delim); }).join(delim)); });
     return '\uFEFF' + lines.join('\r\n') + '\r\n';
+  }
+  /** The entries as a CSV file's text, in the roster's own columns. */
+  function toCsv(entries, opts) {
+    return toTable(COLUMNS, (entries || []).map(function (e) { return COLUMNS.map(function (c) { return e[c]; }); }), opts);
   }
   /** A file name for a roster's export: its name, made safe, and .csv. */
   function csvFileName(name) {
@@ -297,7 +302,7 @@
   return Object.freeze({
     LIMITS: LIMITS, FORMS: FORMS, SIZES: SIZES, COLUMNS: COLUMNS,
     validateEntries: validateEntries, validateRosterName: validateRosterName, readEntry: readEntry, normaliseSize: normaliseSize,
-    parseCsv: parseCsv, toCsv: toCsv, csvFileName: csvFileName, detectDelimiter: detectDelimiter,
+    parseCsv: parseCsv, toCsv: toCsv, toTable: toTable, csvFileName: csvFileName, detectDelimiter: detectDelimiter,
     summary: summary, duplicateNumbers: duplicateNumbers, blankEntry: blankEntry, byteLength: byteLength,
   });
 });

@@ -112,6 +112,19 @@
       api.unarchiveRoster = function (rosterId) { return call('POST', '/rosters/' + id(rosterId) + '/unarchive', {}); };
       api.deleteRoster = function (rosterId) { return call('DELETE', '/rosters/' + id(rosterId)); };
       api.squadNames = function () { return call('GET', '/squad-names'); };
+      // The club's collections (M3b): its designs as one kit, and the order sheet a roster makes of it.
+      api.listCollections = function (state) { return call('GET', '/collections?state=' + (state === 'archived' ? 'archived' : 'active')); };
+      api.createCollection = function (c) { return call('POST', '/collections', { name: c.name, season: c.season, rosterId: c.rosterId, items: c.items }); };
+      api.openCollection = function (collectionId) { return call('GET', '/collections/' + id(collectionId)); };
+      api.saveCollection = function (collectionId, version, c) {
+        return call('PUT', '/collections/' + id(collectionId), { name: c.name, season: c.season, rosterId: c.rosterId, items: c.items, version: version });
+      };
+      api.archiveCollection = function (collectionId) { return call('POST', '/collections/' + id(collectionId) + '/archive', {}); };
+      api.unarchiveCollection = function (collectionId) { return call('POST', '/collections/' + id(collectionId) + '/unarchive', {}); };
+      api.deleteCollection = function (collectionId) { return call('DELETE', '/collections/' + id(collectionId)); };
+      api.orderSheet = function (collectionId, rosterId) {
+        return call('GET', '/collections/' + id(collectionId) + '/order-sheet' + (rosterId ? '?rosterId=' + id(rosterId) : ''));
+      };
     }
 
     /** The saved design the editor's draft belongs to, or null. A malformed record is ignored, never trusted. */

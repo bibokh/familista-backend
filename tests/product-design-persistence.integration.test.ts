@@ -773,6 +773,137 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
         expect((await as('otherAdmin').club.get('/squad-names')).body.data.players).toEqual([{ name: 'Away', number: 7 }]);
       });
     });
+
+    describe('collections (M3b)', () => {
+      const SHORTS = C.validateTemplate(JSON.parse(fs.readFileSync(path.join(ROOT, 'public/product-design/templates/shorts.json'), 'utf8')));
+      const E = (over: Row = {}) => ({ name: 'SMITH', number: 9, top: 'M', shorts: 'L', socks: '39-42', qty: 1, ...over });
+      const collectionRows = async () => ({
+        collections: Number((await sys('SELECT count(*)::int AS n FROM "DesignCollection"'))[0].n),
+        items: Number((await sys('SELECT count(*)::int AS n FROM "DesignCollectionItem"'))[0].n),
+      });
+      let shirt = '', shorts = '', away = '', roster = '', awayRoster = '', kit = '';
+
+      beforeAll(async () => {
+        await sysExec(`INSERT INTO "OrganizationLimits" ("id","clubId","featuresEnabled","updatedAt") SELECT $1,$2,ARRAY['club_design_studio'],now()
+          WHERE NOT EXISTS (SELECT 1 FROM "OrganizationLimits" WHERE "clubId" = $2)`, `ol-${tag}`, C2);
+        shirt = (await as('clubAdmin').club.post('/projects', { document: doc('Home shirt 26/27'), origin: 'EDITOR' })).body.data.project.id;
+        shorts = (await as('clubAdmin').club.post('/projects', { document: C.createDocument(SHORTS, 'Home shorts 26/27'), origin: 'EDITOR' })).body.data.project.id;
+        away = (await as('otherAdmin').club.post('/projects', { document: doc('Away FC shirt'), origin: 'EDITOR' })).body.data.project.id;
+        roster = (await as('clubAdmin').club.post('/rosters', { name: 'First team', entries: [E(), E({ name: 'JONES', top: 'L', shorts: 'L', qty: 2 }), E({ name: 'KEEPER', top: null, shorts: 'XL' })] })).body.data.roster.id;
+        awayRoster = (await as('otherAdmin').club.post('/rosters', { name: 'Away squad', entries: [E({ name: 'AWAY' })] })).body.data.roster.id;
+        expect([shirt, shorts, away, roster, awayRoster].every(Boolean)).toBe(true);
+      });
+
+      it('the migration made both tables, their checks, the roster trigger and their row-level security', async () => {
+        const rls = await db.$queryRawUnsafe<Row[]>(`SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname IN ('DesignCollection', 'DesignCollectionItem') ORDER BY relname`);
+        expect(rls).toEqual(['DesignCollection', 'DesignCollectionItem'].map((relname) => ({ relname, relrowsecurity: true, relforcerowsecurity: true })));
+        const pol = await db.$queryRawUnsafe<Row[]>(`SELECT tablename, qual, with_check FROM pg_policies WHERE tablename IN ('DesignCollection', 'DesignCollectionItem') ORDER BY tablename`);
+        expect(pol.map((q) => [q.tablename, q.qual, q.with_check])).toEqual(['DesignCollection', 'DesignCollectionItem'].map((t) => [t, 'familista_rls_club_ok("clubId")', 'familista_rls_club_ok("clubId")']));
+        const trig = await db.$queryRawUnsafe<Row[]>(`SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = '"DesignCollection"'::regclass`);
+        expect(trig.map((t) => t.tgname)).toEqual(['DesignCollection_roster_club']);
+      });
+
+      it('creates a collection of the club’s own designs and roster, each design with its garment form; audited in counts', async () => {
+        const r = await as('manager').club.post('/collections', { name: ' Home kit ', season: '2026/27', rosterId: roster, items: [{ projectId: shirt, role: 'HOME' }, { projectId: shorts, role: 'HOME' }] });
+        expect(r.status).toBe(201);
+        kit = r.body.data.collection.id;
+        expect(r.body.data.collection).toMatchObject({ name: 'Home kit', season: '2026/27', rosterId: roster, version: 1 });
+        expect(r.body.data.collection.items.map((i: Row) => [i.projectId, i.role, i.position, i.form, i.name])).toEqual([
+          [shirt, 'HOME', 0, 'top', 'Home shirt 26/27'], [shorts, 'HOME', 1, 'shorts', 'Home shorts 26/27']]);
+        const list = (await as('clubAdmin').club.get('/collections')).body.data.collections;
+        expect(list.map((c: Row) => [c.id, c.items])).toEqual([[kit, 2]]);
+        const [a] = await sys(`SELECT "action", "clubId", "metadata" FROM "PlatformAuditLog" WHERE "resourceId" = $1`, kit);
+        expect([a.action, a.clubId, a.metadata.designs, a.metadata.roster]).toEqual(['design.collection.created', C1, 2, true]);
+        expect(JSON.stringify(a)).not.toMatch(/Home shirt|Home kit|SMITH/);
+      });
+
+      it('refuses another club’s design or roster, a design twice, too many, or an unknown role — writing nothing', async () => {
+        const before = await collectionRows();
+        const refused: Array<[Row, number, string | undefined, string | undefined]> = [
+          [{ name: 'X', items: [{ projectId: away, role: 'HOME' }] }, 400, 'unknown-design', 'items[0].projectId'],
+          [{ name: 'X', rosterId: awayRoster, items: [] }, 400, 'unknown-roster', 'rosterId'],
+          [{ name: 'X', items: [{ projectId: shirt, role: 'HOME' }, { projectId: shirt, role: 'AWAY' }] }, 400, 'duplicate-design', 'items[1].projectId'],
+          [{ name: 'X', items: Array.from({ length: 13 }, () => ({ projectId: shirt, role: 'HOME' })) }, 400, 'too-many-designs', 'items'],
+          [{ name: '   ', items: [] }, 400, 'bad-collection-name', 'name'],
+          [{ name: 'X', season: 'S'.repeat(21), items: [] }, 400, 'bad-season', 'season'],
+        ];
+        for (const [body, status, reason, at] of refused) {
+          const x = await as('clubAdmin').club.post('/collections', body);
+          expect([x.status, x.body.code, x.body.reason, x.body.path]).toEqual([status, 'COLLECTION_INVALID', reason, at]);
+        }
+        expect((await as('clubAdmin').club.post('/collections', { name: 'X', items: [{ projectId: shirt, role: 'PLAYER' }] })).status).toBe(400);
+        expect((await as('clubAdmin').club.post('/collections', { name: 'X', items: [], clubId: C2 })).status).toBe(400);
+        expect(await collectionRows()).toEqual(before);
+      });
+
+      it('the order sheet: the roster’s sets per size for each design’s garment form, by the editor’s own rule', async () => {
+        const r = await as('clubAdmin').club.get(`/collections/${kit}/order-sheet`);
+        expect(r.status).toBe(200);
+        expect(r.body.data.sheet.roster).toMatchObject({ id: roster, entries: 3, sets: 4 });
+        expect(r.body.data.sheet.garments.map((g: Row) => [g.form, g.sizes, g.unsized, g.sets])).toEqual([
+          ['top', [{ size: 'M', sets: 1 }, { size: 'L', sets: 2 }], 1, 4],
+          ['shorts', [{ size: 'L', sets: 3 }, { size: 'XL', sets: 1 }], 0, 4],
+        ]);
+        // another club's roster cannot be asked for, by id
+        expect((await as('clubAdmin').club.get(`/collections/${kit}/order-sheet?rosterId=${awayRoster}`)).status).toBe(404);
+      });
+
+      it('saves on its version; a stale save is refused and writes nothing; of four racing saves one lands', async () => {
+        const ok = await as('clubAdmin').club.put(`/collections/${kit}`, { name: 'Home kit', season: '2026/27', rosterId: roster, items: [{ projectId: shorts, role: 'HOME' }, { projectId: shirt, role: 'HOME' }], version: 1 });
+        expect([ok.status, ok.body.data.collection.version, ok.body.data.collection.items.map((i: Row) => i.projectId)]).toEqual([200, 2, [shorts, shirt]]);
+        const stale = await as('manager').club.put(`/collections/${kit}`, { name: 'Lost', items: [], version: 1 });
+        expect([stale.status, stale.body.code, stale.body.data.version]).toEqual([409, 'COLLECTION_CONFLICT', 2]);
+        const race = await Promise.all(Array.from({ length: 4 }, (_, i) => as('clubAdmin').club.put(`/collections/${kit}`, { name: `Home kit ${i}`, rosterId: roster, items: [{ projectId: shirt, role: 'HOME' }], version: 2 })));
+        expect(race.map((x) => x.status).sort()).toEqual([200, 409, 409, 409]);
+        const [row] = await sys('SELECT "version" FROM "DesignCollection" WHERE "id" = $1', kit);
+        expect(row.version).toBe(3);
+        expect(Number((await sys('SELECT count(*)::int AS n FROM "DesignCollectionItem" WHERE "collectionId" = $1', kit))[0].n)).toBe(1);
+      });
+
+      it('a club reaches no collection but its own, by every verb', async () => {
+        const before = await collectionRows();
+        expect((await as('otherAdmin').club.get('/collections')).body.data.collections.map((c: Row) => c.id)).not.toContain(kit);
+        for (const r of [await as('otherAdmin').club.get(`/collections/${kit}`), await as('otherAdmin').club.get(`/collections/${kit}/order-sheet`),
+          await as('otherAdmin').club.put(`/collections/${kit}`, { name: 'Taken', items: [{ projectId: away, role: 'HOME' }], version: 3 }),
+          await as('otherAdmin').club.post(`/collections/${kit}/archive`), await as('otherAdmin').club.del(`/collections/${kit}`)]) {
+          expect(r.status).toBe(404);
+        }
+        expect(await collectionRows()).toEqual(before);
+      });
+
+      it('the database holds every item and roster to one club: row-level security, the composite keys and the trigger, on the system path too', async () => {
+        const seen = await inClub(C2, (tx) => tx.designCollection.findMany({ select: { clubId: true } }));
+        expect(seen.every((c) => c.clubId === C2)).toBe(true);
+        expect(await inClub(C2, (tx) => tx.designCollectionItem.count({ where: { collectionId: kit } }))).toBe(0);
+        // An item gathering another club's design into this club's collection: the composite key refuses it.
+        await expect(sysExec(`INSERT INTO "DesignCollectionItem" ("id","clubId","collectionId","projectId","role","position") VALUES ($1,$2,$3,$4,'AWAY',5)`,
+          '99999999-9999-4999-8999-999999999991', C1, kit, away)).rejects.toThrow(/DesignCollectionItem_projectId_clubId_fkey/);
+        // The same item claiming the other club: the collection is not that club's.
+        await expect(sysExec(`INSERT INTO "DesignCollectionItem" ("id","clubId","collectionId","projectId","role","position") VALUES ($1,$2,$3,$4,'AWAY',5)`,
+          '99999999-9999-4999-8999-999999999992', C2, kit, away)).rejects.toThrow(/DesignCollectionItem_collectionId_clubId_fkey/);
+        // Another club's roster, named on the system path: the trigger refuses it.
+        await expect(sysExec(`UPDATE "DesignCollection" SET "rosterId" = $1 WHERE "id" = $2`, awayRoster, kit)).rejects.toThrow(/DesignCollection_roster_club/);
+        // and in a club's own context, row-level security refuses the write outright
+        await expect(inClub(C2, (tx) => tx.designCollection.create({ data: { clubId: C1, name: 'Planted', createdById: USERS.otherAdmin.id, updatedById: USERS.otherAdmin.id } })))
+          .rejects.toThrow(/row-level security/);
+      });
+
+      it('deleting the roster clears it from the collection; archiving refuses saves; deleting removes the gathering, never the designs', async () => {
+        expect((await as('clubAdmin').club.post(`/rosters/${roster}/archive`)).status).toBe(200);
+        expect((await as('clubAdmin').club.del(`/rosters/${roster}`)).status).toBe(200);
+        expect((await as('clubAdmin').club.get(`/collections/${kit}`)).body.data.collection.rosterId).toBeNull();
+        expect((await as('clubAdmin').club.get(`/collections/${kit}/order-sheet`)).body.data.sheet.roster).toBeNull();
+        expect((await as('clubAdmin').club.del(`/collections/${kit}`)).body.code).toBe('COLLECTION_ARCHIVED');
+        expect((await as('clubAdmin').club.post(`/collections/${kit}/archive`)).status).toBe(200);
+        const late = await as('clubAdmin').club.put(`/collections/${kit}`, { name: 'Late', items: [], version: 3 });
+        expect([late.status, late.body.code]).toEqual([409, 'COLLECTION_ARCHIVED']);
+        expect((await as('manager').club.del(`/collections/${kit}`)).status).toBe(200);
+        expect(await collectionRows()).toMatchObject({ items: 0 });
+        expect((await as('clubAdmin').club.get(`/projects/${shirt}`)).status).toBe(200);
+        const actions = (await sys(`SELECT "action" FROM "PlatformAuditLog" WHERE "resourceId" = $1 ORDER BY "createdAt"`, kit)).map((a) => a.action);
+        expect(actions).toEqual(['design.collection.created', 'design.collection.saved', 'design.collection.saved', 'design.collection.archived', 'design.collection.deleted']);
+      });
+    });
   });
 
   it('recovery: the backup\'s own pg_dump arguments and pg_restore bring back every design with the same hashes, and its guards', async () => {

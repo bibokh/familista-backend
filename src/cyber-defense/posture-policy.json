@@ -1337,7 +1337,9 @@
     "DesignRevision",
     "DesignBrandKit",
     "DesignBrandAsset",
-    "DesignRoster"
+    "DesignRoster",
+    "DesignCollection",
+    "DesignCollectionItem"
   ],
   "rlsSystemPaths": {
     "platform-owner": "A platform owner acts across clubs by role (authenticate); the owner rooms are pinned separately (owner-rooms-pinned).",

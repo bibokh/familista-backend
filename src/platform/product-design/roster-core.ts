@@ -17,10 +17,19 @@ export interface RosterEntry {
   qty: number;
 }
 
+/** Sets per size for each form, weighted by quantity, and the sets with no size given (pd-roster.js summary). */
+export interface RosterSummary {
+  entries: number;
+  sets: number;
+  sizes: Record<'top' | 'shorts' | 'socks', Array<{ size: string; sets: number }>>;
+  unsized: Record<'top' | 'shorts' | 'socks', number>;
+}
+
 interface PdRoster {
   LIMITS: { entries: number; name: number; rosterName: number; qty: number; number: number; csvBytes: number };
   validateEntries(input: unknown): RosterEntry[];
   validateRosterName(input: unknown): string;
+  summary(entries: RosterEntry[]): RosterSummary;
 }
 
 const FILE = path.join(__dirname, '..', '..', '..', 'public', 'product-design', 'pd-roster.js');
@@ -56,5 +65,7 @@ function checked<T>(work: () => T): T {
 export function rosterLimits(): PdRoster['LIMITS'] { return core().LIMITS; }
 /** The entries as kept. Throws RosterInvalidError. */
 export function validateRosterEntries(input: unknown): RosterEntry[] { return checked(() => core().validateEntries(input)); }
+/** What a roster amounts to, by the editor's own rule. */
+export function rosterSummary(entries: RosterEntry[]): RosterSummary { return core().summary(entries); }
 /** The roster's name as kept. Throws RosterInvalidError. */
 export function validateRosterName(input: unknown): string { return checked(() => core().validateRosterName(input)); }
