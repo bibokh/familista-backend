@@ -241,6 +241,7 @@
     templates: L('More templates arrive with the product catalogue (DS-2).'),
     product: L('This product arrives with the product catalogue (DS-2).'),
     image: L('Uploading artwork waits for protected media storage with verified backups (planned).'),
+    'image-club': L('Placing a logo on the garment is the next step. The club’s logos are uploaded in the library’s Brand tab.'),
     '3d': L('3D needs WebGL, which this browser or device does not provide. The 2.5D preview shows the same design.'),
     '360': L('The 360° turntable needs 3D, which needs WebGL in this browser.'),
     capture: L('Image export arrives with production proofs (DS-5).'),
@@ -268,6 +269,8 @@
       drag: null, space: false, merge: null, el: {}, nodes: {}, findings: [], announced: 0,
       metrics: { mounts: 0, commits: 0, renders: 0, layerPaints: 0, renderMs: [], editMs: [], lastSaveBytes: 0 },
       srv: serverFresh(), v3: fresh3d(),
+      // M2c: the club's brand kit, loaded when its tab first opens. `urls` holds each logo's image as a blob: URL.
+      brand: { state: 'idle', kit: null, urls: {}, busy: false, note: '' },
     };
   }
   function listen(target, type, fn, opts) {
@@ -2074,13 +2077,17 @@
   ];
   function buildLib() {
     var tabs = h('div', { class: 'pd-tabs', role: 'tablist', 'aria-label': T('Library') });
-    [['products', L('Products')], ['templates', L('Templates')], ['elements', L('Elements')]].forEach(function (t) {
+    // In a club the library also holds the club's brand kit (M2c); templates stay the platform's, planned.
+    (clubWorkspace() ? [['products', L('Products')], ['elements', L('Elements')], ['brand', L('Brand')]]
+      : [['products', L('Products')], ['templates', L('Templates')], ['elements', L('Elements')]]).forEach(function (t) {
       var b = btn({ class: 'pd-tab', role: 'tab', 'data-pd-libtab': t[0], 'aria-selected': S.libTab === t[0] ? 'true' : 'false', text: T(t[1]) });
       if (t[0] === 'templates') planned(b, 'templates');
       tabs.appendChild(b);
     });
     var body = h('div', { class: 'pd-lib-body', role: 'tabpanel' });
-    if (S.libTab === 'elements') {
+    if (S.libTab === 'brand' && clubWorkspace()) {
+      body.appendChild(brandPanel());
+    } else if (S.libTab === 'elements') {
       var grid = h('div', { class: 'pd-elements' });
       ELEMENTS.forEach(function (e) { grid.appendChild(btn({ class: 'pd-element', 'data-pd-add': e.kind }, [icon(e.icon, 20), h('span', { text: T(e.label) })])); });
       append(body, [h('p', { class: 'pd-note', text: T('Adds the element to the surface on screen.') }), grid]);
@@ -2112,6 +2119,156 @@
     ]);
   }
 
+  // ── the club's brand kit (M2c) ─────────────────────────────────────────────
+  //
+  // Its logos and its colours, in the club's own workspace. A logo is uploaded as the file's own bytes; the server keeps
+  // only the PNG it re-encodes from them, and this panel shows that PNG, fetched as bytes into a blob: URL. Nothing
+  // here decides what is accepted: the server does, and says why when it refuses.
+  var BRAND_KINDS = [['CREST', L('Crest')], ['SPONSOR', L('Sponsor')], ['MARK', L('Mark')]];
+  var BRAND_REFUSED = {
+    'unsupported-type': L('The image was refused: it is not a PNG or JPEG file.'),
+    'too-large': L('The image was refused: it is larger than 5 MB.'),
+    'too-small': L('The image was refused: it is too small to print (under 16 px a side).'),
+    'too-many-pixels': L('The image was refused: it is too large to decode (over 25 megapixels).'),
+    unreadable: L('The image was refused: it could not be read.'),
+    animated: L('The image was refused: animated images are not accepted.'),
+    empty: L('The image was refused: the file is empty.'),
+  };
+  function brandRefresh() {
+    if (!S || !S.el.lib || S.libTab !== 'brand') return;
+    var lib = buildLib(); S.el.lib.parentNode.replaceChild(lib, S.el.lib); S.el.lib = lib;
+  }
+  function loadBrand() {
+    var B = S.brand, mine = S;
+    if (!P.api.brandKit) return;
+    B.state = 'loading';
+    P.api.brandKit('active').then(function (r) {
+      if (S !== mine) return;
+      if (!r.ok) { B.state = 'error'; B.note = T('The brand kit could not be loaded. Check the connection and try again.'); brandRefresh(); return; }
+      B.kit = r.data; B.state = 'ready';
+      brandRefresh();
+      (r.data.assets || []).forEach(function (a) {
+        if (B.urls[a.id]) return;
+        P.api.brandAssetImage(a.id).then(function (img) {
+          if (S !== mine || !img.ok || !img.blob) return;
+          B.urls[a.id] = URL.createObjectURL(img.blob);
+          var el = S.host.querySelector('[data-pd-brand-img="' + a.id + '"]');
+          if (el) el.setAttribute('src', B.urls[a.id]);
+        });
+      });
+    });
+  }
+  function brandPanel() {
+    var B = S.brand, kit = B.kit;
+    if (B.state === 'idle') loadBrand();
+    var wrap = h('div', { class: 'pd-brand' });
+    // Upload: the kind and the name, then the file.
+    var kind = h('select', { class: 'pd-input', 'data-pd-brand-kind': '', 'aria-label': T('Kind') });
+    BRAND_KINDS.forEach(function (k) { kind.appendChild(h('option', { value: k[0], text: T(k[1]) })); });
+    var name = h('input', { class: 'pd-input', type: 'text', maxlength: '80', 'data-pd-brand-name': '', 'data-user-content': '', placeholder: T('Logo name'), 'aria-label': T('Logo name') });
+    var file = h('input', { type: 'file', accept: 'image/png,image/jpeg', class: 'pd-sr', tabindex: '-1', 'aria-hidden': 'true', 'data-pd-brand-file': '' });
+    var up = btn({ class: 'pd-btn pd-btn--primary', 'data-pd-act': 'brand-upload', 'aria-disabled': B.busy ? 'true' : null, 'data-pd-why': B.busy ? T('Uploading…') : null }, [icon('plus', 14), h('span', { text: B.busy ? T('Uploading…') : T('Upload logo') })]);
+    append(wrap, [
+      h('h3', { class: 'pd-prop-sub', text: T('Logos') }),
+      h('div', { class: 'pd-brand-up' }, [kind, name, up, file]),
+      h('p', { class: 'pd-note', text: T('Every logo is re-encoded by the server as a clean PNG: nothing else in the file is kept.') }),
+      h('p', { class: 'pd-note pd-brand-status', role: 'status', 'aria-live': 'polite', 'data-pd-brand-status': '', text: B.note }),
+    ]);
+    // The logos.
+    if (B.state === 'loading' || B.state === 'idle') {
+      wrap.appendChild(h('ul', { class: 'pd-cards pd-brand-grid', 'aria-busy': 'true' }, [0, 1, 2].map(function () { return h('li', null, [h('span', { class: 'pd-card pd-card--skeleton' })]); })));
+    } else if (B.state === 'ready') {
+      var assets = kit.assets || [];
+      wrap.appendChild(h('p', { class: 'pd-note', text: tf('%d of %d logos', assets.length, kit.limits.assets) }));
+      if (!assets.length) wrap.appendChild(h('p', { class: 'pd-empty', text: T('No logos yet. Upload the club’s crest or a sponsor’s logo: PNG or JPEG, at least 16 px a side.') }));
+      else {
+        var grid = h('ul', { class: 'pd-cards pd-brand-grid', role: 'list' });
+        assets.forEach(function (a) {
+          var label = BRAND_KINDS.filter(function (k) { return k[0] === a.kind; })[0];
+          grid.appendChild(h('li', { class: 'pd-brand-item' }, [
+            h('figure', { class: 'pd-card pd-brand-card' }, [
+              h('span', { class: 'pd-card-art' }, [h('img', { class: 'pd-brand-img', alt: '', 'data-pd-brand-img': a.id, src: B.urls[a.id] || null, width: String(Math.min(a.width, 64)), height: String(Math.min(a.height, 64)) })]),
+              h('figcaption', { class: 'pd-card-label', 'data-user-content': '', text: a.name }),
+              chip(T(label ? label[1] : 'Mark'), 'muted'),
+            ]),
+            btn({ class: 'pd-icbtn pd-brand-archive', 'data-pd-act': 'brand-archive', 'data-pd-asset': a.id, 'aria-label': tf('Archive %s', a.name), title: tf('Archive %s', a.name) }, [icon('trash', 14)]),
+          ]));
+        });
+        wrap.appendChild(grid);
+      }
+      // The club's colours: added to this design's palette, or replaced by it.
+      wrap.appendChild(h('h3', { class: 'pd-prop-sub', text: T('Club colours') }));
+      var colours = kit.colours || [];
+      if (!colours.length) wrap.appendChild(h('p', { class: 'pd-empty', text: T('No club colours yet. Save this design’s palette as the club’s colours.') }));
+      else {
+        var sw = h('div', { class: 'pd-swatches', role: 'group', 'aria-label': T('Club colours') });
+        colours.forEach(function (c, i) {
+          var dot = s('svg', { viewBox: '0 0 20 20', width: '20', height: '20', 'aria-hidden': 'true', focusable: 'false' });
+          dot.appendChild(s('rect', { x: 1, y: 1, width: 18, height: 18, rx: 4, fill: c.srgb, class: 'pd-dot' }));
+          var inPalette = S.doc.palette.some(function (p) { return p.srgb === c.srgb; });
+          sw.appendChild(btn({ class: 'pd-sw', 'data-pd-act': 'brand-add-colour', 'data-pd-brand-colour': String(i), 'aria-disabled': inPalette ? 'true' : null,
+            'data-pd-why': inPalette ? tf('%s is already in the design palette', c.label) : null,
+            'aria-label': inPalette ? tf('%s is already in the design palette', c.label) : tf('Add %s to the design palette', c.label), title: c.label }, [dot]));
+        });
+        wrap.appendChild(sw);
+      }
+      wrap.appendChild(btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'brand-save-colours' }, [h('span', { text: T('Save this design’s palette as the club’s colours') })]));
+    } else {
+      wrap.appendChild(h('p', { class: 'pd-empty', text: T('The brand kit could not be loaded. Check the connection and try again.') }));
+    }
+    return wrap;
+  }
+  function brandSay(text) { S.brand.note = text; var el = S.host.querySelector('[data-pd-brand-status]'); if (el) el.textContent = text; }
+  function brandUpload(f) {
+    var B = S.brand, mine = S;
+    if (!f || B.busy || !P.api.uploadBrandAsset) return;
+    var kindEl = S.host.querySelector('[data-pd-brand-kind]'), nameEl = S.host.querySelector('[data-pd-brand-name]');
+    var name = ((nameEl && nameEl.value) || String(f.name || '').replace(/\.[^.]+$/, '') || T('Logo')).trim().slice(0, 80);
+    B.busy = true; brandSay(T('Uploading…'));
+    P.api.uploadBrandAsset(kindEl ? kindEl.value : 'CREST', name, f).then(function (r) {
+      if (S !== mine) return;
+      B.busy = false;
+      if (r.ok) { B.note = T('Logo added.'); B.state = 'idle'; brandRefresh(); return; }
+      B.note = r.code === 'BRAND_IMAGE_REFUSED' && BRAND_REFUSED[r.reason] ? T(BRAND_REFUSED[r.reason])
+        : r.code === 'BRAND_KIT_FULL' ? T('The brand kit is full: archive a logo first.')
+          : r.status === 0 ? T('Not uploaded: the server could not be reached.') : T('The logo could not be uploaded.');
+      brandRefresh();
+    });
+  }
+  function brandArchive(id) {
+    var B = S.brand, mine = S;
+    if (B.busy || !id) return;
+    B.busy = true;
+    P.api.archiveBrandAsset(id).then(function (r) {
+      if (S !== mine) return;
+      B.busy = false;
+      if (r.ok) { if (B.urls[id]) { URL.revokeObjectURL(B.urls[id]); delete B.urls[id]; } B.note = T('Logo archived.'); B.state = 'idle'; }
+      else B.note = T('The logo could not be archived.');
+      brandRefresh();
+    });
+  }
+  function brandAddColour(i) {
+    var c = S.brand.kit && S.brand.kit.colours[i];
+    if (!c || S.doc.palette.length >= LIMITS.palette || S.doc.palette.some(function (p) { return p.srgb === c.srgb; })) return;
+    var id = C.nextId(S.doc, 'c');
+    if (commitOp({ op: 'paletteInsert', index: S.doc.palette.length, swatch: { id: id, label: c.label.slice(0, LIMITS.label), srgb: c.srgb } }, T('Add colour'))) {
+      brandSay(tf('%s was added to the design palette.', c.label));
+      brandRefresh();
+    }
+  }
+  function brandSaveColours() {
+    var B = S.brand, mine = S;
+    if (B.busy) return;
+    B.busy = true;
+    var colours = S.doc.palette.map(function (p) { return { label: p.label, srgb: p.srgb }; });
+    P.api.saveBrandColours(colours).then(function (r) {
+      if (S !== mine) return;
+      B.busy = false;
+      if (r.ok) { B.kit.colours = r.data.colours; B.note = T('Club colours saved.'); } else B.note = T('The club colours could not be saved.');
+      brandRefresh();
+    });
+  }
+
   var PATTERN_LABEL = {
     diagonal: L('Diagonal stripes'), vertical: L('Vertical stripes'), hoops: L('Hoops'), pinstripe: L('Pinstripes'),
     gradient: L('Gradient'), chevron: L('Chevrons'), sash: L('Sash'), halftone: L('Halftone'),
@@ -2125,7 +2282,7 @@
       return btn({ class: 'pd-tool', 'data-pd-act': act, 'aria-label': T(label) + (key ? ' (' + key + ')' : ''), title: T(label) + (key ? ' (' + key + ')' : ''), 'aria-keyshortcuts': key || null }, [icon(ic, 20)]);
     }
     var image = tool('image', 'image', L('Image'));
-    planned(image, 'image');
+    planned(image, clubWorkspace() ? 'image-club' : 'image');
     var tools = h('div', { class: 'pd-tools', 'data-ds-region': 'R5', role: 'toolbar', 'aria-orientation': 'vertical', 'aria-label': T('Tools') }, [
       tool('select', 'select', L('Select'), 'V'), tool('add-text', 'text', L('Text'), 'T'), image, tool('add-shape', 'shape', L('Shape'), 'S'),
       tool('patterns', 'pattern', L('Patterns'), 'P'), tool('layers', 'layers', L('Layers'), 'L'), tool('elements', 'components', L('Elements')),
@@ -2777,6 +2934,10 @@
       case 'align-v': alignSel('v'); return;
       case 'reset-box': { var n = selectedLayer(); if (n && !n.locked) batch([['w', n.w0], ['h', n.h0], ['r', 0]].map(function (kv) { return { op: 'set', target: { kind: 'layer', id: n.id }, key: kv[0], value: kv[1] }; }), T('Reset')); return; }
       case 'add-colour': addColour(); return;
+      case 'brand-upload': if (!S.brand.busy) { var bf = S.host.querySelector('[data-pd-brand-file]'); if (bf) { bf.value = ''; bf.click(); } } return;
+      case 'brand-archive': brandArchive(t.getAttribute('data-pd-asset')); return;
+      case 'brand-add-colour': brandAddColour(Number(t.getAttribute('data-pd-brand-colour'))); return;
+      case 'brand-save-colours': brandSaveColours(); return;
       case 'save': serverSave(); return;
       case 'import': S.el.file.value = ''; S.el.file.click(); return;
       case 'export': exportFile(); return;
@@ -2833,6 +2994,7 @@
   }
   function onChange(ev) {
     var t = ev.target, field = t.getAttribute('data-pd-field');
+    if (t.hasAttribute('data-pd-brand-file')) { brandUpload(t.files && t.files[0]); return; }
     if (t.tagName === 'SELECT' && field) { var n = selectedLayer(); if (n) { setLayer(n.id, field, t.value, T(field === 'font' ? 'Font' : field === 'shape' ? 'Shape' : 'Pattern')); renderLayers(); } return; }
     if (field && (t.type === 'range' || t.type === 'number')) { fieldValue(t, field, false); S.merge = null; return; }
     if (t === S.el.docName || field === 'name' || field === 'text' || t.hasAttribute('data-pd-swatch') || t.hasAttribute('data-pd-swatch-label')) {
@@ -3078,6 +3240,7 @@
   window.teardownFamilistaProductDesign = function () {
     if (!S) return;
     if (S.doc && S.saveTimer) saveNow(false);
+    Object.keys(S.brand.urls).forEach(function (k) { try { URL.revokeObjectURL(S.brand.urls[k]); } catch (_) { /* already released */ } });
     close3d();
     unbind();
     clearTimeout(S.saveTimer);
@@ -3097,7 +3260,7 @@
       renderMsMedian: ms.length ? ms[Math.floor(ms.length / 2)] : null, renderMsMax: ms.length ? ms[ms.length - 1] : null,
       edits: S.metrics.editMs.length, editMsMedian: ed.length ? ed[Math.floor(ed.length / 2)] : null, editMsP95: ed.length ? ed[Math.floor(ed.length * 0.95)] : null,
       template: TEMPLATE ? TEMPLATE.key : null, products: INDEX ? INDEX.map(function (e) { return e.product; }) : [],
-      workspace: WS.kind, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
+      workspace: WS.kind, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
       layers: S.doc.surfaces.map(function (x) { return x.layers.length; }), findings: S.findings.length,
       saveState: S.saveState, lastSaveBytes: S.metrics.lastSaveBytes, announced: S.announced, lang: LANG, dir: DIR,
       server: { state: S.srv.state, busy: S.srv.busy, linked: !!S.srv.link, projectId: S.srv.link ? S.srv.link.projectId : null, revision: S.srv.link ? S.srv.link.revision : null,

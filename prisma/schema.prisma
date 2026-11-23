@@ -271,8 +271,10 @@ model Club {
   // ── Club Home Dashboard ──
   announcements Announcement[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  /// The Club Design Studio's brand kit (M2c): the club's colours and logos.
+  designBrandKit DesignBrandKit?
 
   @@index([stripeCustomerId])
   @@index([franchiseUnitId])
@@ -11047,4 +11049,52 @@ model DesignRevision {
   createdAt     DateTime           @default(now()) @db.Timestamptz(3)
 
   @@unique([projectId, number])
+}
+
+/// What a brand-kit image is for: the club's crest, a sponsor's logo, or another mark.
+enum DesignBrandAssetKind {
+  CREST
+  SPONSOR
+  MARK
+}
+
+/// A club's brand kit for the Design Studio (M2c): its named colours. One per club, created on first use.
+/// Under row-level security (20261123100000): a club's kit is its club's alone.
+model DesignBrandKit {
+  id          String   @id @default(uuid())
+  clubId      String   @unique
+  club        Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  /// [{ label, srgb }]: at most 24, each label at most 40 characters, each colour #rrggbb.
+  colours     Json     @default("[]")
+  updatedById String
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+
+  assets DesignBrandAsset[]
+
+  /// An asset names its kit and its club together, so the database holds an asset to its kit's club.
+  @@unique([id, clubId])
+}
+
+/// One image of a club's brand kit. Its bytes are never what was uploaded: the server decodes the upload and
+/// re-encodes it as a PNG (at most 1024 px a side, no metadata), and keeps that, with its SHA-256. Kept here rather
+/// than in object storage so it is backed up, restored and held by row-level security with the rest of the club's data.
+model DesignBrandAsset {
+  id          String               @id @default(uuid())
+  clubId      String
+  kitId       String
+  kit         DesignBrandKit       @relation(fields: [kitId, clubId], references: [id, clubId], onDelete: Cascade)
+  kind        DesignBrandAssetKind
+  name        String
+  png         Bytes
+  width       Int
+  height      Int
+  bytes       Int
+  sha256      String
+  createdById String
+  archivedAt  DateTime?            @db.Timestamptz(3)
+  createdAt   DateTime             @default(now()) @db.Timestamptz(3)
+
+  @@index([clubId, archivedAt, createdAt])
+  @@index([kitId])
 }

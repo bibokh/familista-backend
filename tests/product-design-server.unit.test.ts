@@ -33,7 +33,7 @@ function load(opts: { token?: string; storage?: Row | null; fetch?: (url: string
     localStorage: storage,
     fetch: (url: string, init: Row) => {
       calls.push({ url, init });
-      return opts.fetch ? opts.fetch(url, init) : Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ success: true, data: { ok: 1 } }) });
+      return opts.fetch ? opts.fetch(url, init) : Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ success: true, data: { ok: 1 } }), blob: () => Promise.resolve('') });
     },
   };
   if (opts.token) win.State = { token: opts.token };
@@ -53,7 +53,9 @@ describe('what it may call', () => {
     expect(CODE).toContain("var CLUB_BASE = '/club-design';");
     expect(CODE).not.toMatch(/XMLHttpRequest|WebSocket|EventSource|sendBeacon|\.submit\(|<form|document\.|innerHTML|eval\(/);
     const verbs = [...CODE.matchAll(/call\('([A-Z]+)'/g)].map((m) => m[1]);
-    expect([...new Set(verbs)].sort()).toEqual(['GET', 'POST']);
+    // PUT is a club's brand colours alone (M2c).
+    expect([...new Set(verbs)].sort()).toEqual(['GET', 'POST', 'PUT']);
+    expect([...CODE.matchAll(/call\('PUT', '([^']+)'/g)].map((m) => m[1])).toEqual(['/brand-kit/colours']);
   });
 
   it('sends JSON with the session as every owner room does, never cached', async () => {
@@ -99,14 +101,17 @@ describe('in a club (M2): the club’s own routes, and a record of its own', () 
   const id = '11111111-1111-4111-8111-111111111111';
 
   it('calls the club mount, every path a route it serves with its verb, and names no club in any request', async () => {
-    const served = [...CLUB_ROUTES.matchAll(/router\.(get|post)\('([^']+)'/g)].map((m) => `${m[1].toUpperCase()} ${m[2]}`).sort();
+    const served = [...CLUB_ROUTES.matchAll(/router\.(get|post|put)\('([^']+)'/g)].map((m) => `${m[1].toUpperCase()} ${m[2]}`).sort();
     const { P, calls } = load({ token: 'tkn' });
     const C = P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' });
     await C.api.listProjects('active'); await C.api.createProject({}, 'EDITOR'); await C.api.openProject(id);
     await C.api.saveRevision(id, 1, {}); await C.api.listRevisions(id); await C.api.restoreRevision(id, 2, 5);
     await C.api.archive(id); await C.api.unarchive(id); await C.api.getRevision(id, 3);
+    // M2c: the brand kit, every route of it.
+    await C.api.brandKit('active'); await C.api.saveBrandColours([]); await C.api.uploadBrandAsset('CREST', 'Home crest', { type: 'image/png' });
+    await C.api.brandAssetImage(id); await C.api.archiveBrandAsset(id); await C.api.unarchiveBrandAsset(id);
     expect(calls.every((c) => c.url.startsWith('/api/v1/club-design/'))).toBe(true);
-    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/club-design', '').replace(/\?.*$/, '').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
+    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/club-design', '').replace(/\?.*$/, '').replace(`/assets/${id}`, '/assets/:assetId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
     expect([...new Set(used)].sort()).toEqual(served);
     expect(calls.some((c) => c.url.includes('club-1') || String(c.init.body || '').includes('club-1'))).toBe(false);
     expect(calls[0].init.headers).toMatchObject({ Authorization: 'Bearer tkn' });
@@ -125,6 +130,25 @@ describe('in a club (M2): the club’s own routes, and a record of its own', () 
     expect(A.readLink()).not.toBeNull();
   });
 
+  it('sends a logo as its own bytes with its image type, reads an image as bytes, and offers the brand kit to clubs alone', async () => {
+    const { P, calls } = load({ token: 'tkn', fetch: (url: string) => Promise.resolve(url.endsWith('/image')
+      ? { ok: true, status: 200, blob: () => Promise.resolve('PNG-BYTES'), json: () => Promise.reject(new Error('not json')) }
+      : { ok: true, status: 201, json: () => Promise.resolve({ success: true, data: { asset: { id } } }) }) });
+    const C = P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' });
+    const file = { type: 'image/jpeg', name: 'crest.jpg' };
+    await C.api.uploadBrandAsset('CREST', 'Home & Away / crest', file);
+    expect(calls[0].url).toBe('/api/v1/club-design/brand-kit/assets?kind=CREST&name=Home%20%26%20Away%20%2F%20crest');
+    expect(calls[0].init.body).toBe(file);
+    expect(calls[0].init.headers['Content-Type']).toBe('image/jpeg');
+    await C.api.uploadBrandAsset('CREST', 'x', { type: 'image/svg+xml' });
+    expect(calls[1].init.headers['Content-Type']).toBe('application/octet-stream'); // never an SVG type, whatever the file says
+    const img = await C.api.brandAssetImage(id);
+    expect(img).toMatchObject({ ok: true, blob: 'PNG-BYTES' });
+    expect(calls[2].init.headers.Accept).toBe('image/png');
+    expect(P.api.brandKit).toBeUndefined();
+    expect(P.api.uploadBrandAsset).toBeUndefined();
+  });
+
   it('refuses a workspace it does not know, rather than guess one', () => {
     const { P } = load();
     for (const w of [{ kind: 'CLUB' }, { kind: 'CLUB', clubId: '' }, { kind: 'CLUB', clubId: '../system' }, { kind: 'CLUB', clubId: 'a b' }, { kind: 'PERSONAL', userId: 'u' }]) {
@@ -137,7 +161,7 @@ describe('it never throws: a failure is an answer', () => {
   it('a conflict carries its code and the head it lost to', async () => {
     const { P } = load({ fetch: () => Promise.resolve({ ok: false, status: 409, json: () => Promise.resolve({ success: false, code: 'DESIGN_REVISION_CONFLICT', message: 'm', data: { headRevision: 7 } }) }) });
     const r = await P.api.saveRevision('11111111-1111-4111-8111-111111111111', 6, {});
-    expect(r).toEqual({ ok: false, status: 409, code: 'DESIGN_REVISION_CONFLICT', data: { headRevision: 7 }, message: 'm', errors: [] });
+    expect(r).toEqual({ ok: false, status: 409, code: 'DESIGN_REVISION_CONFLICT', data: { headRevision: 7 }, message: 'm', errors: [], reason: null });
   });
   it('an unreachable server answers status 0 and NETWORK', async () => {
     const { P } = load({ fetch: () => Promise.reject(new TypeError('Failed to fetch')) });

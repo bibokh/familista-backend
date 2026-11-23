@@ -74,6 +74,41 @@ module.exports = async function p18(H) {
       ownerList.status === 200 && !ownerList.body.data.projects.some((p) => p.id === srv.projectId)
         && clubList.status === 200 && clubList.body.data.projects.map((p) => p.id).join() === srv.projectId,
       { owner: ownerList.status, club: clubList.status, clubIds: clubList.body.data && clubList.body.data.projects.map((p) => p.id) });
+    // ── the club's brand kit (M2c) ──────────────────────────────────────────────────────────────────────────────────
+    const sharp = require('sharp');
+    const fs = require('fs');
+    const logo = path.join(OUT, 'p18-crest.png');
+    fs.writeFileSync(logo, Buffer.concat([await sharp({ create: { width: 600, height: 700, channels: 4, background: { r: 31, g: 79, b: 214, alpha: 1 } } }).png().toBuffer(), Buffer.from('appended-marker')]));
+    const svg = path.join(OUT, 'p18-evil.svg');
+    fs.writeFileSync(svg, '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(1)</script></svg>');
+    await page.click('#pd-club-root [data-pd-libtab="brand"]');
+    await page.waitForFunction(() => window.__familistaProductDesignMetrics().brand.state === 'ready', null, { timeout: 30000 });
+    const empty = await page.evaluate(() => (document.querySelector('#pd-club-root .pd-brand .pd-empty') || {}).textContent || '');
+    await page.fill('#pd-club-root [data-pd-brand-name]', 'Home crest');
+    await page.setInputFiles('#pd-club-root [data-pd-brand-file]', logo);
+    await page.waitForFunction(() => { const b = window.__familistaProductDesignMetrics().brand; return b.state === 'ready' && b.assets === 1 && !b.busy; }, null, { timeout: 30000 });
+    await page.waitForFunction(() => { const i = document.querySelector('#pd-club-root [data-pd-brand-img]'); return !!i && i.complete && i.naturalWidth > 0; }, null, { timeout: 30000 });
+    const tile = await page.evaluate(() => {
+      const i = document.querySelector('#pd-club-root [data-pd-brand-img]');
+      return { name: (document.querySelector('#pd-club-root .pd-brand-card figcaption') || {}).textContent, src: i.getAttribute('src').slice(0, 5), natural: [i.naturalWidth, i.naturalHeight],
+        status: (document.querySelector('#pd-club-root [data-pd-brand-status]') || {}).textContent };
+    });
+    const kept = await db.designBrandAsset.findFirst({ where: { clubId: 'club-1' }, select: { width: true, height: true, png: true } });
+    check('P18 a club’s logo uploads into its brand kit, kept and shown only as the server’s re-encoded PNG',
+      /No logos yet/.test(empty) && tile.name === 'Home crest' && tile.src === 'blob:' && tile.natural[0] === 600 && tile.natural[1] === 700 && tile.status === 'Logo added.'
+        && !!kept && kept.width === 600 && !Buffer.from(kept.png).includes(Buffer.from('appended-marker')), { empty, tile, kept: kept && { w: kept.width, h: kept.height } });
+    await page.setInputFiles('#pd-club-root [data-pd-brand-file]', svg);
+    await page.waitForFunction(() => /refused/.test((document.querySelector('#pd-club-root [data-pd-brand-status]') || {}).textContent || ''), null, { timeout: 30000 });
+    const refusal = await page.evaluate(() => ({ status: document.querySelector('#pd-club-root [data-pd-brand-status]').textContent, assets: window.__familistaProductDesignMetrics().brand.assets }));
+    check('P18 an SVG is refused, in the room’s own words, and the kit keeps only the one logo (negative control)',
+      refusal.status === 'The image was refused: it is not a PNG or JPEG file.' && refusal.assets === 1 && (await db.designBrandAsset.count({ where: { clubId: 'club-1' } })) === 1, refusal);
+    await page.click('#pd-club-root [data-pd-act="brand-save-colours"]');
+    await page.waitForFunction(() => window.__familistaProductDesignMetrics().brand.colours > 0, null, { timeout: 30000 });
+    const kit = await db.designBrandKit.findUnique({ where: { clubId: 'club-1' }, select: { colours: true } });
+    const palette = (await M(page)).palette;
+    check('P18 the design’s palette is saved as the club’s colours, in the club’s kit', Array.isArray(kit && kit.colours) && kit.colours.length > 0
+      && (palette === undefined || kit.colours.length === palette), { colours: kit && kit.colours.length, palette });
+    await page.screenshot({ path: path.join(OUT, 'p18-brand-kit.png') });
     check('P18 no CSP violation and no page error in the club’s room', (await csp(page)).length === 0 && log.errors.length === 0, { csp: await csp(page), errors: log.errors });
   } finally {
     await ctx.close();

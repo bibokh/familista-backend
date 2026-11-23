@@ -30,9 +30,13 @@ and nothing labelled available that does not work. Production stays as it is unt
    security and audit apply unchanged. `User.clubId` stays required; no existing club changes.
 3. **Designs follow their workspace.** CLUB and PERSONAL design projects are enabled by migration with row-level
    security keyed on the workspace, reusing DS-1b's service, revisions and audit.
-4. **Uploads are re-encoded, never trusted.** Raster logos are decoded and re-encoded server-side (size, dimension
-   and type limits); SVG is accepted only after sanitisation to a safe subset. Files are stored as `MediaAsset` in the
-   owner's workspace and served by signed URL.
+4. **Uploads are re-encoded, never trusted.** A logo is identified by its own bytes (PNG or JPEG only), decoded by
+   libvips (`sharp`, open source, pinned to a release with no known advisory) under byte, pixel and frame limits, and
+   re-encoded from its pixels as a new PNG with no metadata; only that PNG is kept and served (`nosniff`, its own
+   sandboxing CSP). SVG is refused until a sanitiser to a safe subset is chosen. *Revised in M2c:* the PNG is kept in
+   PostgreSQL (at most 1024 px a side, 50 per club), not as a `MediaAsset` in object storage: a deployment without
+   object storage configured falls back to an in-memory store, which would lose uploads on restart, whereas the
+   database is backed up, restored and held by row-level security with the rest of the club's data.
 5. **The manufacturing workflow is a state machine with an audit trail:** design → technical specification → request
    for quotation → supplier quote → customer approval → order → production → shipped → delivered, with cancellation
    and refusal at each step. Every transition is one audited transaction and notifies the parties.
@@ -64,7 +68,8 @@ and nothing labelled available that does not work. Production stays as it is unt
 | **M1b: shorts and socks** | Delivered on its branch, awaiting review. `pd-garment.js` builds three forms behind one interface: tops, **shorts** (a hip section that divides into two leg tubes over the rise) and **socks** (the pressed-flat tube as sublimation prints it: an outer and an inner face meeting along the shin and calf, a leg, an ankle bend and a foot, the toe closed). Every section of both is wrapped by arc length, and the seams meet to within 0.01 mm. Released: **shorts**, **goalkeeper shorts** (40 mm longer leg), **socks**. A template now names its trim colours (waistband and leg hems; top band, heel and toe) and draws trim **patches**, which the 3D view shows through the same texture. |
 | **M2a: club design projects, on the server** | Delivered on its branch, awaiting review. A club's administrators and managers save, version, restore and archive the club's own designs at `/api/v1/club-design`, behind `authorize(CLUB_ADMIN, MANAGER)`, the club's entitlement `club_design_studio` (off for every club and plan until the Owner releases it) and `tenantParam('designProject')` on every project id. The service carries the scope on every query; underneath, both design tables are under row-level security, so the database itself returns and accepts a club's own rows only. Changes are audited with the club. |
 | **M2b: the Club Design Studio in the club workspace** | Delivered on its branch, awaiting review. The session's capability `canDesignClubKits` mirrors the club routes (role and entitlement; pinned against them on real PostgreSQL), and the club's sidebar offers the Design Studio only then. The same room opens in the club's workspace: the club's name and the role, club navigation, the club's studio current and the platform's not offered, the club's own panels, and the draft and saved-design record kept per club in the browser. Saves go to the club's routes only. Five languages. Browser proof P18. Off for every club until the Owner enables `club_design_studio` for a club or a plan. |
-| M2c: brand kit; secure logo upload | Next |
+| **M2c-1: the club's brand kit** | Delivered on its branch, awaiting review. A club keeps its colours and up to 50 logos (crest, sponsor, mark) in `DesignBrandKit` and `DesignBrandAsset`, both under row-level security, an asset held to its kit's club by a composite key and to the PNG signature and size limits by a CHECK. Uploads pass the pipeline above (`brand-image.ts`). The routes sit behind the club gate, with `tenantParam('designBrandAsset')` on every logo id, and every change is audited with the club. In the room, the library's Brand tab uploads, lists and archives logos and saves or applies the club's colours, in five languages. |
+| M2c-2: logos on the garment | Next: an image layer in the design document, drawn in 2D, 2.5D and 3D, with a print-resolution check, and the server verifying that every logo a design names is its club's |
 | M1c: jackets, hoodies, tracksuits, polo | Deferred until after M4, by the order below. They need new 3D topology (hood, zip, collar and placket); the commercial workflow is the critical path. They stay Planned, and are not shown as working products. |
 | M3–M8 | Not started |
 

@@ -42,6 +42,9 @@ and a platform design has no club, so only the named system path reaches it
 (the platform owner's requests run there). `DesignRevision` follows its
 project's club, looked up by primary key, as `PlayerInjury` follows its
 player's. Every path to them is an authenticated request; no worker reads them.
+The club's brand kit (`20261123100000_design_studio_brand_kit`) adds
+`DesignBrandKit` and `DesignBrandAsset`, each isolated by its own `clubId` both
+ways; an asset's club is also held to its kit's by a composite foreign key.
 
 The AI agent worker runs each job's deterministic handler in that job's own
 club context (`runInClubContext(job.clubId, …)`), not on a system path: the

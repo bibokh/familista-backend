@@ -49,22 +49,30 @@
   /** A client for one workspace's routes and its own record of the saved design the draft belongs to. */
   function client(base, linkKey) {
     /**
-     * One call. Always resolves, never rejects: { ok, status, code, data, message, errors }.
-     * status 0 and code 'NETWORK' when the server could not be reached at all.
+     * One call. Always resolves, never rejects: { ok, status, code, data, message, errors } (and `reason` when the
+     * server gives one). status 0 and code 'NETWORK' when the server could not be reached at all. `opts.raw` sends a
+     * file's bytes as they are, with their image type (a brand-kit logo); `opts.blob` reads the answer as bytes (its
+     * image) into `blob`, never as anything to run.
      */
-    function call(method, path, body) {
-      var headers = { Accept: 'application/json' };
+    function call(method, path, body, opts) {
+      opts = opts || {};
+      var headers = { Accept: opts.blob ? 'image/png' : 'application/json' };
       var t = token();
       if (t) headers.Authorization = 'Bearer ' + t;
       var init = { method: method, headers: headers, credentials: 'include', cache: 'no-store' };
-      if (body !== undefined) { headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body); }
+      if (opts.raw) { headers['Content-Type'] = /^image\/(png|jpeg)$/.test(opts.raw.type) ? opts.raw.type : 'application/octet-stream'; init.body = opts.raw; }
+      else if (body !== undefined) { headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body); }
       return root.fetch(apiBase() + base + path, init).then(function (r) {
+        if (opts.blob && r.ok) {
+          return r.blob().then(function (b) { return { ok: true, status: r.status, code: null, data: null, blob: b, message: '', errors: [] }; },
+            function () { return { ok: false, status: r.status, code: 'NETWORK', data: null, message: '', errors: [] }; });
+        }
         return r.json().catch(function () { return {}; }).then(function (b) {
           b = b && typeof b === 'object' ? b : {};
           return {
             ok: r.ok && b.success !== false, status: r.status, code: typeof b.code === 'string' ? b.code : null,
             data: b.data === undefined ? null : b.data, message: typeof b.message === 'string' ? b.message : '',
-            errors: Array.isArray(b.errors) ? b.errors : [],
+            errors: Array.isArray(b.errors) ? b.errors : [], reason: typeof b.reason === 'string' ? b.reason : null,
           };
         });
       }, function () {
@@ -85,6 +93,17 @@
       archive: function (projectId) { return call('POST', '/projects/' + id(projectId) + '/archive', {}); },
       unarchive: function (projectId) { return call('POST', '/projects/' + id(projectId) + '/unarchive', {}); },
     };
+    // A club's brand kit (M2c): only a club's client has one; the platform's routes serve none.
+    if (base === CLUB_BASE) {
+      api.brandKit = function (state) { return call('GET', '/brand-kit?state=' + (state === 'archived' ? 'archived' : 'active')); };
+      api.saveBrandColours = function (colours) { return call('PUT', '/brand-kit/colours', { colours: colours }); };
+      api.uploadBrandAsset = function (kind, name, file) {
+        return call('POST', '/brand-kit/assets?kind=' + encodeURIComponent(String(kind)) + '&name=' + encodeURIComponent(String(name)), undefined, { raw: file });
+      };
+      api.brandAssetImage = function (assetId) { return call('GET', '/brand-kit/assets/' + id(assetId) + '/image', undefined, { blob: true }); };
+      api.archiveBrandAsset = function (assetId) { return call('POST', '/brand-kit/assets/' + id(assetId) + '/archive', {}); };
+      api.unarchiveBrandAsset = function (assetId) { return call('POST', '/brand-kit/assets/' + id(assetId) + '/unarchive', {}); };
+    }
 
     /** The saved design the editor's draft belongs to, or null. A malformed record is ignored, never trusted. */
     function readLink() {

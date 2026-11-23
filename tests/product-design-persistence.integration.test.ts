@@ -121,6 +121,9 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
       club: {
         get: (url: string) => withAuth(request(app).get(CLUB_API + url)),
         post: (url: string, body: Row = {}) => withAuth(request(app).post(CLUB_API + url)).send(body),
+        put: (url: string, body: Row = {}) => withAuth(request(app).put(CLUB_API + url)).send(body),
+        /** Raw bytes, as the room uploads a logo. */
+        upload: (url: string, bytes: Buffer, type: string) => withAuth(request(app).post(CLUB_API + url)).set('Content-Type', type).send(bytes),
       },
     };
   };
@@ -185,7 +188,7 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
     await admin?.$disconnect();
   });
 
-  it('the migrations made the two tables and their guards, and hold both to row-level security', async () => {
+  it('the migrations made the design tables and their guards, and hold them to row-level security', async () => {
     const checks = await db.$queryRawUnsafe<Row[]>(
       `SELECT conname FROM pg_constraint WHERE contype = 'c' AND conrelid IN ('"DesignProject"'::regclass, '"DesignRevision"'::regclass) ORDER BY conname`);
     expect(checks.map((c) => c.conname)).toEqual([
@@ -525,6 +528,87 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
         await db.$executeRawUnsafe('ALTER TABLE "DesignProject" FORCE ROW LEVEL SECURITY');
       }
       expect(await inClub(C2, (tx) => tx.$queryRawUnsafe<Row[]>('SELECT count(*)::int AS n FROM "DesignProject" WHERE "id" = $1', homeProject)).then((r) => r[0].n)).toBe(0);
+    });
+
+    describe('the brand kit (M2c)', () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const sharp = require('sharp');
+      const image = (w: number, h: number, fmt: 'png' | 'jpeg') => sharp({ create: { width: w, height: h, channels: 3, background: '#1f4fd6' } })[fmt]().toBuffer() as Promise<Buffer>;
+      let crest = '';
+
+      it('keeps a club’s colours, refusing malformed ones and writing nothing for them', async () => {
+        expect((await as('clubAdmin').club.get('/brand-kit')).body.data).toMatchObject({ colours: [], assets: [] });
+        const ok = await as('manager').club.put('/brand-kit/colours', { colours: [{ label: ' Home blue ', srgb: '#1F4FD6' }, { label: 'Gold', srgb: '#d8ad3c' }] });
+        expect(ok.status).toBe(200);
+        expect(ok.body.data.colours).toEqual([{ label: 'Home blue', srgb: '#1f4fd6' }, { label: 'Gold', srgb: '#d8ad3c' }]);
+        const before = await sys('SELECT "colours" FROM "DesignBrandKit" WHERE "clubId" = $1', C1);
+        for (const bad of [[{ label: 'x', srgb: 'red' }], [{ label: '', srgb: '#000000' }], Array.from({ length: 25 }, (_, i) => ({ label: `c${i}`, srgb: '#000000' })), [{ label: 'x', srgb: '#000000', extra: 1 }]]) {
+          const r = await as('clubAdmin').club.put('/brand-kit/colours', { colours: bad });
+          expect([r.status, r.body.code]).toEqual([400, 'BRAND_COLOURS_INVALID']);
+        }
+        expect(await sys('SELECT "colours" FROM "DesignBrandKit" WHERE "clubId" = $1', C1)).toEqual(before);
+      });
+
+      it('keeps a logo only as the PNG the server re-encoded: never the uploaded bytes', async () => {
+        const upload = Buffer.concat([await image(1600, 800, 'jpeg'), Buffer.from('<script>appended-marker</script>')]);
+        const r = await as('clubAdmin').club.upload('/brand-kit/assets?kind=CREST&name=Home%20crest', upload, 'image/jpeg');
+        expect(r.status).toBe(201);
+        crest = r.body.data.asset.id;
+        expect(r.body.data.asset).toMatchObject({ kind: 'CREST', name: 'Home crest', width: 1024, height: 512 });
+        const img = await as('clubAdmin').club.get(`/brand-kit/assets/${crest}/image`).buffer(true).parse((res, cb) => { const b: Buffer[] = []; res.on('data', (c: Buffer) => b.push(c)); res.on('end', () => cb(null, Buffer.concat(b))); });
+        expect(img.status).toBe(200);
+        expect(img.headers['content-type']).toBe('image/png');
+        expect(img.headers['x-content-type-options']).toBe('nosniff');
+        expect(img.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
+        const served = img.body as Buffer;
+        expect(served.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+        expect(served.includes(Buffer.from('appended-marker'))).toBe(false);
+        const [row] = await sys('SELECT "sha256", "bytes", "clubId" FROM "DesignBrandAsset" WHERE "id" = $1', crest);
+        expect(row).toEqual({ sha256: createHash('sha256').update(served).digest('hex'), bytes: served.length, clubId: C1 });
+        const [audit] = await sys(`SELECT "action", "clubId", "metadata" FROM "PlatformAuditLog" WHERE "resourceId" = $1`, crest);
+        expect(audit).toMatchObject({ action: 'design.brand.asset.added', clubId: C1, metadata: { kind: 'CREST', width: 1024, height: 512 } });
+      });
+
+      it('refuses SVG, a renamed text file, an oversized upload and a bad name — writing nothing', async () => {
+        const before = Number((await sys('SELECT count(*)::int AS n FROM "DesignBrandAsset"'))[0].n);
+        const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+        for (const [bytes, type, reason, status] of [[svg, 'image/png', 'unsupported-type', 415], [Buffer.from('plain text'), 'application/octet-stream', 'unsupported-type', 415]] as Array<[Buffer, string, string, number]>) {
+          const r = await as('clubAdmin').club.upload('/brand-kit/assets?kind=MARK&name=x', bytes, type);
+          expect([r.status, r.body.code, r.body.reason]).toEqual([status, 'BRAND_IMAGE_REFUSED', reason]);
+        }
+        expect((await as('clubAdmin').club.upload('/brand-kit/assets?kind=MARK&name=x', Buffer.alloc(6 * 1024 * 1024, 1), 'image/png')).status).toBe(413);
+        expect((await as('clubAdmin').club.upload('/brand-kit/assets?kind=LOGO&name=x', await image(64, 64, 'png'), 'image/png')).status).toBe(400);
+        expect((await as('clubAdmin').club.upload('/brand-kit/assets?kind=MARK&name=', await image(64, 64, 'png'), 'image/png')).status).toBe(400);
+        expect(Number((await sys('SELECT count(*)::int AS n FROM "DesignBrandAsset"'))[0].n)).toBe(before);
+      });
+
+      it('is the club’s alone: refused to a coach, invisible to another club by list and by id, and held so by the database', async () => {
+        expect((await as('coach').club.get('/brand-kit')).status).toBe(403);
+        expect((await as('otherAdmin').club.get('/brand-kit')).body.data.assets).toEqual([]);
+        expect((await as('otherAdmin').club.get(`/brand-kit/assets/${crest}/image`)).status).toBe(404);
+        expect((await as('otherAdmin').club.post(`/brand-kit/assets/${crest}/archive`)).status).toBe(404);
+        expect(await inClub(C2, (tx) => tx.$queryRawUnsafe<Row[]>('SELECT count(*)::int AS n FROM "DesignBrandAsset" WHERE "id" = $1', crest)).then((r) => r[0].n)).toBe(0);
+        expect(await inClub(C1, (tx) => tx.$queryRawUnsafe<Row[]>('SELECT count(*)::int AS n FROM "DesignBrandAsset" WHERE "id" = $1', crest)).then((r) => r[0].n)).toBe(1);
+        await expect(inClub(C2, (tx) => tx.$executeRawUnsafe(`UPDATE "DesignBrandKit" SET "colours" = '[]'::jsonb WHERE "clubId" = $1`, C1)).then((n) => n)).resolves.toBe(0);
+      });
+
+      it('the database refuses an asset that is not a PNG, or whose club is not its kit’s — on the system path too', async () => {
+        const [kit] = await sys('SELECT "id" FROM "DesignBrandKit" WHERE "clubId" = $1', C1);
+        await expect(sysExec(`INSERT INTO "DesignBrandAsset" ("id","clubId","kitId","kind","name","png","width","height","bytes","sha256","createdById") VALUES ($1,$2,$3,'MARK','x',$4,1,1,9,$5,'x')`,
+          '55555555-5555-4555-8555-555555555555', C1, kit.id, Buffer.from('GIF89a...'), 'a'.repeat(64))).rejects.toThrow(/DesignBrandAsset_shape/);
+        await expect(sysExec(`INSERT INTO "DesignBrandAsset" ("id","clubId","kitId","kind","name","png","width","height","bytes","sha256","createdById") VALUES ($1,$2,$3,'MARK','x',$4,1,1,16,$5,'x')`,
+          '66666666-6666-4666-8666-666666666666', C2, kit.id, Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.alloc(8)]), 'a'.repeat(64))).rejects.toThrow(/DesignBrandAsset_kitId_clubId_fkey/);
+      });
+
+      it('archives a logo out of the kit, still serving it to the club, and returns it', async () => {
+        expect((await as('manager').club.post(`/brand-kit/assets/${crest}/archive`)).status).toBe(200);
+        expect((await as('clubAdmin').club.get('/brand-kit')).body.data.assets.map((a: Row) => a.id)).not.toContain(crest);
+        expect((await as('clubAdmin').club.get('/brand-kit?state=archived')).body.data.assets.map((a: Row) => a.id)).toEqual([crest]);
+        expect((await as('clubAdmin').club.get(`/brand-kit/assets/${crest}/image`)).status).toBe(200);
+        expect((await as('manager').club.post(`/brand-kit/assets/${crest}/unarchive`)).status).toBe(200);
+        expect((await sys(`SELECT "action" FROM "PlatformAuditLog" WHERE "resourceId" = $1 ORDER BY "createdAt"`, crest)).map((a) => a.action))
+          .toEqual(['design.brand.asset.added', 'design.brand.asset.archived', 'design.brand.asset.unarchived']);
+      });
     });
   });
 

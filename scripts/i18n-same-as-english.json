@@ -487,7 +487,9 @@
       "Version %d",
       "Version %d · %s",
       "Mesh",
-      "Studio"
+      "Studio",
+      "Logo",
+      "Logos"
     ],
     "product-design/fr": [
       "Chevron",
@@ -507,7 +509,9 @@
       "Versions",
       "Version %d",
       "Version %d · %s",
-      "Studio"
+      "Studio",
+      "Logo",
+      "Logos"
     ],
     "product-design/es": [
       "Club",

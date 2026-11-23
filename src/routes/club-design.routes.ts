@@ -18,8 +18,9 @@
  * (20261122200000_design_studio_club_projects). Never cached; a cross-site request is
  * refused by the CORS origin allowlist (app.ts) before it gets here.
  *
- * The routes and their handlers are the platform owner's (product-design.routes.ts;
- * src/platform/product-design/http.ts): only the gate and the scope differ.
+ * The project routes and their handlers are the platform owner's (product-design.routes.ts;
+ * src/platform/product-design/http.ts): only the gate and the scope differ. The brand-kit routes are the club's own
+ * (src/platform/product-design/brand-http.ts, M2c).
  */
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { UserRole } from '@prisma/client';
@@ -31,6 +32,9 @@ import {
   archiveDesign, createDesign, listDesignRevisions, listDesigns, openDesign, openDesignRevision, restoreDesignRevision,
   saveDesign, setDesignScope, unarchiveDesign,
 } from '../platform/product-design/http';
+import {
+  archiveBrandAsset, brandAssetImage, rawBrandImage, readBrandKit, saveBrandColours, unarchiveBrandAsset, uploadBrandAsset,
+} from '../platform/product-design/brand-http';
 
 const router = Router();
 router.use(authenticate);
@@ -58,5 +62,14 @@ router.get('/projects/:id/revisions/:number', tenantParam('designProject'), open
 router.post('/projects/:id/revisions/:number/restore', tenantParam('designProject'), restoreDesignRevision);
 router.post('/projects/:id/archive', tenantParam('designProject'), archiveDesign);
 router.post('/projects/:id/unarchive', tenantParam('designProject'), unarchiveDesign);
+
+// The club's brand kit (M2c): its colours and its logos. An upload is raw image bytes, at most UPLOAD_LIMITS.bytes,
+// read by this route alone; what is kept is the PNG the server re-encodes from it (brand-image.ts).
+router.get('/brand-kit', readBrandKit);
+router.put('/brand-kit/colours', saveBrandColours);
+router.post('/brand-kit/assets', rawBrandImage, uploadBrandAsset);
+router.get('/brand-kit/assets/:assetId/image', tenantParam('designBrandAsset', 'assetId'), brandAssetImage);
+router.post('/brand-kit/assets/:assetId/archive', tenantParam('designBrandAsset', 'assetId'), archiveBrandAsset);
+router.post('/brand-kit/assets/:assetId/unarchive', tenantParam('designBrandAsset', 'assetId'), unarchiveBrandAsset);
 
 export default router;

@@ -4,7 +4,7 @@
   "description": "Familista Football Intelligence Platform — Backend API",
   "main": "dist/server.js",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.9.0"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"
@@ -78,6 +78,7 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.12.1",
     "prisma": "^5.10.0",
+    "sharp": "0.35.5",
     "stripe": "^14.18.0",
     "winston": "^3.11.0",
     "ws": "^8.16.0",
