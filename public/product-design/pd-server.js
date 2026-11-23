@@ -103,6 +103,15 @@
       api.brandAssetImage = function (assetId) { return call('GET', '/brand-kit/assets/' + id(assetId) + '/image', undefined, { blob: true }); };
       api.archiveBrandAsset = function (assetId) { return call('POST', '/brand-kit/assets/' + id(assetId) + '/archive', {}); };
       api.unarchiveBrandAsset = function (assetId) { return call('POST', '/brand-kit/assets/' + id(assetId) + '/unarchive', {}); };
+      // The club's team rosters (M3) and its squad's names, to start one from.
+      api.listRosters = function (state) { return call('GET', '/rosters?state=' + (state === 'archived' ? 'archived' : 'active')); };
+      api.createRoster = function (name, entries) { return call('POST', '/rosters', { name: name, entries: entries || [] }); };
+      api.openRoster = function (rosterId) { return call('GET', '/rosters/' + id(rosterId)); };
+      api.saveRoster = function (rosterId, version, name, entries) { return call('PUT', '/rosters/' + id(rosterId), { name: name, entries: entries, version: version }); };
+      api.archiveRoster = function (rosterId) { return call('POST', '/rosters/' + id(rosterId) + '/archive', {}); };
+      api.unarchiveRoster = function (rosterId) { return call('POST', '/rosters/' + id(rosterId) + '/unarchive', {}); };
+      api.deleteRoster = function (rosterId) { return call('DELETE', '/rosters/' + id(rosterId)); };
+      api.squadNames = function () { return call('GET', '/squad-names'); };
     }
 
     /** The saved design the editor's draft belongs to, or null. A malformed record is ignored, never trusted. */

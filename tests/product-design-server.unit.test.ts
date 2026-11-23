@@ -53,9 +53,10 @@ describe('what it may call', () => {
     expect(CODE).toContain("var CLUB_BASE = '/club-design';");
     expect(CODE).not.toMatch(/XMLHttpRequest|WebSocket|EventSource|sendBeacon|\.submit\(|<form|document\.|innerHTML|eval\(/);
     const verbs = [...CODE.matchAll(/call\('([A-Z]+)'/g)].map((m) => m[1]);
-    // PUT is a club's brand colours alone (M2c).
-    expect([...new Set(verbs)].sort()).toEqual(['GET', 'POST', 'PUT']);
-    expect([...CODE.matchAll(/call\('PUT', '([^']+)'/g)].map((m) => m[1])).toEqual(['/brand-kit/colours']);
+    // PUT is a club's brand colours (M2c) and a roster's save (M3); DELETE is a roster's erasure, and nothing else.
+    expect([...new Set(verbs)].sort()).toEqual(['DELETE', 'GET', 'POST', 'PUT']);
+    expect([...CODE.matchAll(/call\('PUT', '([^']+)'/g)].map((m) => m[1])).toEqual(['/brand-kit/colours', '/rosters/']);
+    expect([...CODE.matchAll(/call\('DELETE', '([^']+)'/g)].map((m) => m[1])).toEqual(['/rosters/']);
   });
 
   it('sends JSON with the session as every owner room does, never cached', async () => {
@@ -101,7 +102,7 @@ describe('in a club (M2): the club’s own routes, and a record of its own', () 
   const id = '11111111-1111-4111-8111-111111111111';
 
   it('calls the club mount, every path a route it serves with its verb, and names no club in any request', async () => {
-    const served = [...CLUB_ROUTES.matchAll(/router\.(get|post|put)\('([^']+)'/g)].map((m) => `${m[1].toUpperCase()} ${m[2]}`).sort();
+    const served = [...CLUB_ROUTES.matchAll(/router\.(get|post|put|delete)\('([^']+)'/g)].map((m) => `${m[1].toUpperCase()} ${m[2]}`).sort();
     const { P, calls } = load({ token: 'tkn' });
     const C = P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' });
     await C.api.listProjects('active'); await C.api.createProject({}, 'EDITOR'); await C.api.openProject(id);
@@ -110,8 +111,12 @@ describe('in a club (M2): the club’s own routes, and a record of its own', () 
     // M2c: the brand kit, every route of it.
     await C.api.brandKit('active'); await C.api.saveBrandColours([]); await C.api.uploadBrandAsset('CREST', 'Home crest', { type: 'image/png' });
     await C.api.brandAssetImage(id); await C.api.archiveBrandAsset(id); await C.api.unarchiveBrandAsset(id);
+    // M3: the team rosters and the squad's names, every route of them.
+    await C.api.listRosters('active'); await C.api.createRoster('First team', []); await C.api.openRoster(id);
+    await C.api.saveRoster(id, 3, 'First team', []); await C.api.archiveRoster(id); await C.api.unarchiveRoster(id);
+    await C.api.deleteRoster(id); await C.api.squadNames();
     expect(calls.every((c) => c.url.startsWith('/api/v1/club-design/'))).toBe(true);
-    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/club-design', '').replace(/\?.*$/, '').replace(`/assets/${id}`, '/assets/:assetId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
+    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/club-design', '').replace(/\?.*$/, '').replace(`/assets/${id}`, '/assets/:assetId').replace(`/rosters/${id}`, '/rosters/:rosterId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
     expect([...new Set(used)].sort()).toEqual(served);
     expect(calls.some((c) => c.url.includes('club-1') || String(c.init.body || '').includes('club-1'))).toBe(false);
     expect(calls[0].init.headers).toMatchObject({ Authorization: 'Bearer tkn' });

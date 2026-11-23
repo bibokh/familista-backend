@@ -489,7 +489,9 @@
       "Mesh",
       "Studio",
       "Logo",
-      "Logos"
+      "Logos",
+      "Name",
+      "Team"
     ],
     "product-design/fr": [
       "Chevron",
@@ -511,7 +513,8 @@
       "Version %d · %s",
       "Studio",
       "Logo",
-      "Logos"
+      "Logos",
+      "Actions"
     ],
     "product-design/es": [
       "Club",

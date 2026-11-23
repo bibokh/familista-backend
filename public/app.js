@@ -3104,11 +3104,11 @@ var _PD_ROOM = { state: 'idle', waiting: [] };
 // boundary: every club design route checks the role, the entitlement and each project's club on the server
 // (src/routes/club-design.routes.ts), and the database holds each club to its own rows.
 function _loadClubDesign(done) {
-  _famLoadRoom(_PD_ROOM, '20261123-product-design-m2b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done,
+  _famLoadRoom(_PD_ROOM, '20261123-product-design-m3a', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-team.js', '/product-design/product-design.js'], done,
     function () { return _access('canDesignClubKits'); });
 }
 function _loadProductDesign(done) {
-  _famLoadOwnerRoom(_PD_ROOM, '20261123-product-design-m2b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done);
+  _famLoadOwnerRoom(_PD_ROOM, '20261123-product-design-m3a', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done);
 }
 
 // ── NAVIGATION ──

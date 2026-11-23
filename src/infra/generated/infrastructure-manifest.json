@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-23T20:46:19.466Z",
+  "generatedAt": "2026-11-23T21:35:34.413Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -324,7 +324,7 @@
       "sourceEvidence": "prisma/schema.prisma — datasource provider",
       "dependencies": [],
       "healthKey": "database",
-      "note": "348 models, 213 enums, 52 migrations."
+      "note": "349 models, 213 enums, 53 migrations."
     },
     {
       "id": "prisma-orm",
@@ -1101,7 +1101,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 245 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 246 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1161,7 +1161,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "635 TypeScript modules under src/."
+      "note": "639 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1629,18 +1629,18 @@
     "serviceModules": 102,
     "middleware": 24,
     "fabricModules": 52,
-    "totalTypeScript": 635,
-    "testSuites": 245,
-    "migrations": 52,
-    "prismaModels": 348,
+    "totalTypeScript": 639,
+    "testSuites": 246,
+    "migrations": 53,
+    "prismaModels": 349,
     "prismaEnums": 213
   },
   "database": {
     "provider": "postgresql",
-    "models": 348,
+    "models": 349,
     "enums": 213,
-    "migrations": 52,
-    "latestMigration": "20261123100000_design_studio_brand_kit"
+    "migrations": 53,
+    "latestMigration": "20261123200000_design_studio_team_rosters"
   },
   "typescript": {
     "target": "ES2020",
@@ -1950,8 +1950,8 @@
       "path": "/club-design",
       "router": "clubDesignRoutes",
       "file": "src/routes/club-design.routes.ts",
-      "writes": 9,
-      "reads": 6
+      "writes": 14,
+      "reads": 9
     },
     {
       "path": "/telemetry",

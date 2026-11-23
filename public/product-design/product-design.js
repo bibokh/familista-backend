@@ -38,7 +38,7 @@
 
   var C = window.FamilistaProductDesignCore;
   var LIMITS = C.LIMITS;
-  var VERSION = '20261123-product-design-m2b';
+  var VERSION = '20261123-product-design-m3a';
   // The released garments: templates/index.json names each one's reviewed template file; the server reads the same index.
   var TEMPLATE_DIR = '/product-design/templates/';
   var INDEX_URL = TEMPLATE_DIR + 'index.json?v=' + VERSION;
@@ -272,6 +272,8 @@
       brand: { state: 'idle', kit: null, urls: {}, busy: false, note: '' },
       // M2c-2: the logos image layers show, by brand asset id: { state: loading | ready | missing, data: data: URL }.
       images: {},
+      // M3: the Team panel, made once per opening of the room, and the roster entry the garment previews ({ name, number }).
+      team: null, preview: null,
     };
   }
   function listen(target, type, fn, opts) {
@@ -603,6 +605,7 @@
   function openDock(tab, trigger) {
     var sv = S.srv, d = S.el.dock;
     if (!d) return;
+    if (S.team && S.team.isOpen()) S.team.close();
     if (tab) sv.tab = tab;
     // Focus goes back where it came from: the button pressed, or, when the room opened the panel itself (a conflict), its own button.
     if (trigger) sv.trigger = trigger;
@@ -818,6 +821,68 @@
       case 'conflict-open': if (sv.link) { var pid = sv.link.projectId; sv.state = 'dirty'; sv.conflict = null; openProject(pid); } return true;
       default: return false;
     }
+  }
+
+  // ── the Team panel (M3): the club's rosters, and a row previewed on the garment ──
+
+  /** What the Team panel is handed: the room's own builders, words and server client. It fetches and styles nothing itself. */
+  function teamContext() {
+    return {
+      roster: window.FamilistaProductDesignRoster, api: P.api, host: S.host, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say, dirArrow: dirArrow, date: when, percent: percent,
+      onPreview: setPreview, nameFit: nameFit,
+      onToggle: function () { syncTeamTriggers(); },
+    };
+  }
+  function percent(f) {
+    try { return new Intl.NumberFormat(LANG, { style: 'percent', maximumFractionDigits: 0 }).format(f); } catch (_) { return Math.round(f * 100) + '%'; }
+  }
+  function syncTeamTriggers() {
+    var bs = S.host.querySelectorAll('[data-pd-act="team"]');
+    for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-expanded', S.team && S.team.isOpen() ? 'true' : 'false');
+  }
+  function onTeamAction(act, t) {
+    if (!S.team) return false;
+    if (act === 'team') {
+      if (S.team.isOpen()) S.team.close();
+      else { if (S.srv.open) closeDock(); S.team.open(t); }
+      return true;
+    }
+    if (act === 'team-stop-preview') { S.team.stopPreview(); return true; }
+    return S.team.onAction(act, t);
+  }
+  /** Show a roster row's name and number on the garment, or the placeholders again: the canvas, the views and 3D alike. */
+  function setPreview(entry) {
+    var was = S.preview;
+    S.preview = entry ? { name: String(entry.name || ''), number: entry.number === null || entry.number === undefined ? null : Number(entry.number) } : null;
+    if (JSON.stringify(was) === JSON.stringify(S.preview)) return;
+    renderCanvas();
+    scheduleThumbs();
+    if (S.v3.ctl) S.v3.ctl.invalidate();
+    syncPreviewTag();
+    if (!was !== !S.preview) say(S.preview ? T('Previewing a roster row on the garment. The design itself is unchanged.') : T('Preview stopped: the garment shows the placeholders again.'));
+  }
+  function syncPreviewTag() {
+    var E = S.el, p = S.preview;
+    if (!E.previewTag) return;
+    if (!p) { E.previewTag.setAttribute('hidden', ''); return; }
+    E.previewText.textContent = [p.name, p.number === null ? '' : String(p.number)].filter(Boolean).join(' · ') || T('A row with no name or number');
+    E.previewTag.removeAttribute('hidden');
+  }
+  /**
+   * How far a name is condensed to fit the design's name boxes, as kit lettering is: the narrowest box's width over the
+   * name's natural width (1 when it fits). Null when the design has no visible name box.
+   */
+  function nameFit(name) {
+    var worst = null;
+    S.doc.surfaces.forEach(function (surf) {
+      surf.layers.forEach(function (n) {
+        if (n.type !== 'roster' || n.field !== 'name' || !n.visible) return;
+        var f = FONT[n.font] || FONT['sans-black'], natural = textWidth(name, f, n.h * 0.82);
+        var r = natural > 0 ? Math.min(1, n.w / natural) : 1;
+        if (worst === null || r < worst) worst = r;
+      });
+    });
+    return worst;
   }
 
   // ── changing the document ─────────────────────────────────────────────────
@@ -1047,7 +1112,7 @@
       g.appendChild(s('path', { d: shapePath(n.shape, n.w, n.h), fill: colour(n.color), stroke: n.outline ? colour(n.outline) : null, 'stroke-width': n.outline ? sw : null, 'stroke-linejoin': 'round' }));
       return g;
     }
-    var text = n.type === 'roster' ? (n.field === 'number' ? '10' : T('NAME')) : n.text;
+    var text = n.type === 'roster' ? rosterText(n) : n.text;
     var f = FONT[n.font] || FONT['sans-black'], size = n.h * 0.82;
     // Lettering is fitted into its box the way kit lettering is: condensed, never overflowing.
     var fit = textWidth(text, f, size) > n.w;
@@ -1058,6 +1123,16 @@
     t.textContent = text;
     g.appendChild(t);
     return g;
+  }
+
+  /**
+   * What a roster layer shows: the placeholder, or, while a roster row is previewed (M3), that row's name and number as
+   * they would print, an empty field printing nothing. The design keeps the placeholder either way.
+   */
+  function rosterText(n) {
+    var p = S && S.preview;
+    if (n.field === 'number') return p ? (p.number === null ? '' : String(p.number)) : '10';
+    return p ? p.name : T('NAME');
   }
 
   /** A darker step of a design colour, for the inside of the collar. */
@@ -1513,7 +1588,8 @@
     var mod = ev.ctrlKey || ev.metaKey, k = ev.key;
     if (mod && (k === 'z' || k === 'Z') && !typing(ev.target)) { ev.preventDefault(); undoRedo(ev.shiftKey ? 'redo' : 'undo'); return; }
     if (mod && (k === 'y' || k === 'Y') && !typing(ev.target)) { ev.preventDefault(); undoRedo('redo'); return; }
-    if (mod && (k === 's' || k === 'S')) { ev.preventDefault(); serverSave(); return; }
+    if (mod && (k === 's' || k === 'S')) { ev.preventDefault(); if (S.team && S.team.onSaveKey(ev)) return; serverSave(); return; }
+    if (k === 'Escape' && S.team && S.team.isOpen()) { ev.preventDefault(); S.team.close(); return; }
     if (k === 'Escape' && S.srv.open) { ev.preventDefault(); closeDock(); return; }
     if (k === 'Escape' && S.panel) { setPanel(null); return; }
     if (ev.target !== S.el.canvas) return;
@@ -2376,7 +2452,12 @@
       strip,
       btn({ class: 'pd-icbtn pd-strip-nav', 'data-pd-act': 'strip-next', 'aria-label': T('Next patterns') }, [dirArrow('›')]),
     ]);
-    return h('div', { class: 'pd-editor' }, [bar, tools, h('div', { class: 'pd-stage' }, [E.canvas, E.views]), patterns, E.help]);
+    E.previewTag = h('div', { class: 'pd-preview-tag', role: 'status', hidden: true }, [
+      icon('people', 14), (E.previewText = h('strong', { 'data-user-content': '', dir: 'auto' })),
+      btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'team-stop-preview' }, [h('span', { text: T('Stop preview') })]),
+    ]);
+    // Beside the canvas, not in it: the canvas captures the pointer for dragging, and the tag's button must take a click.
+    return h('div', { class: 'pd-editor' }, [bar, tools, h('div', { class: 'pd-stage' }, [E.canvas, E.views, E.previewTag]), patterns, E.help]);
   }
   /** A small picture of a pattern, in the design's first two colours. */
   var SWATCH_N = 0;
@@ -2491,9 +2572,13 @@
       tIn.value = n.text;
       box.appendChild(row(T('Text'), tIn));
     }
-    if (n.type === 'roster') box.appendChild(h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: n.field === 'number'
-      ? T('Number placeholder. Real numbers come from a team roster (planned, DS-3); the design keeps no player data.')
-      : T('Name placeholder. Real names come from a team roster (planned, DS-3); the design keeps no player data.') })]));
+    if (n.type === 'roster') box.appendChild(h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: S.team
+      ? (n.field === 'number'
+        ? T('Number placeholder. The numbers come from the club’s team rosters: open Team to preview one on the garment. The design keeps no player data.')
+        : T('Name placeholder. The names come from the club’s team rosters: open Team to preview one on the garment. The design keeps no player data.'))
+      : (n.field === 'number'
+        ? T('Number placeholder. Real numbers come from a club’s team roster; the design keeps no player data.')
+        : T('Name placeholder. Real names come from a club’s team roster; the design keeps no player data.')) })]));
     if (n.type === 'shape') box.appendChild(row(T('Shape'), selectField('shape', C.SHAPES, SHAPE_LABEL, n.shape)));
     if (n.type === 'text' || n.type === 'roster') box.appendChild(row(T('Font'), selectField('font', C.FONTS, FONT_LABEL, n.font)));
     if (n.type === 'pattern') {
@@ -2749,6 +2834,7 @@
     E.file = h('input', { class: 'pd-sr', type: 'file', accept: '.json,application/json', tabindex: '-1', 'aria-hidden': 'true' });
     var projects = btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'projects', 'data-pd-dock': 'projects', 'aria-controls': 'pd-dock', 'aria-expanded': 'false' }, [icon('folder', 16), h('span', { text: T('Projects') })]);
     var versions = btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'versions', 'data-pd-dock': 'versions', 'aria-controls': 'pd-dock', 'aria-expanded': 'false' }, [icon('versions', 16), h('span', { text: T('Versions') })]);
+    var team = S.team ? btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'team', 'aria-controls': 'pd-team', 'aria-expanded': S.team.isOpen() ? 'true' : 'false' }, [icon('people', 16), h('span', { text: T('Team') })]) : null;
     var proof = planned(btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'proof' }, [icon('eye', 16), h('span', { text: T('Production preview') })]), 'proof');
     var order = planned(btn({ class: 'pd-btn pd-btn--order', 'data-pd-act': 'order' }, [icon('cart', 18), h('span', { text: T('Continue to order') })]), 'order');
     var bar = h('footer', { class: 'pd-actions', 'data-ds-region': 'R12' }, [
@@ -2756,6 +2842,7 @@
         btn({ class: 'pd-btn pd-btn--primary', 'data-pd-act': 'save', 'aria-keyshortcuts': 'Control+S' }, [icon('save', 16), h('span', { text: T('Save design') })]),
         projects,
         versions,
+        team,
         h('div', { class: 'pd-file', role: 'group', 'aria-label': T('File') }, [
           btn({ class: 'pd-icbtn', 'data-pd-act': 'import', 'aria-label': T('Import a design file'), title: T('Import a design file') }, [icon('import')]),
           btn({ class: 'pd-icbtn', 'data-pd-act': 'export', 'aria-label': T('Export the design file'), title: T('Export the design file') }, [icon('export')]),
@@ -2778,7 +2865,8 @@
 
   var FLOW = [
     { icon: 'shirt', label: L('Product design'), state: 'available' },
-    { icon: 'ruler', label: L('Sizes & quantity'), state: 'planned' },
+    // In a club, its team rosters hold the sizes and sets (M3); ordering them is still planned.
+    { icon: 'ruler', label: L('Sizes & quantity'), state: 'planned', club: 'available' },
     { icon: 'calc', label: L('Price'), state: 'planned' },
     { icon: 'card', label: L('Secure payment'), state: 'planned' },
     { icon: 'factory', label: L('Send to factory'), state: 'not-connected' },
@@ -2809,10 +2897,11 @@
     var steps = h('ol', { class: 'pd-flow-steps', dir: 'ltr' });
     FLOW.forEach(function (f, i) {
       if (i) steps.appendChild(h('li', { class: 'pd-flow-arrow', 'aria-hidden': 'true', text: '→' }));
-      steps.appendChild(h('li', { class: 'pd-flow-step', 'data-state': f.state }, [
+      var fs = clubWorkspace() && f.club ? f.club : f.state;
+      steps.appendChild(h('li', { class: 'pd-flow-step', 'data-state': fs }, [
         h('span', { class: 'pd-flow-ic' }, [icon(f.icon, 22)]),
         h('span', { class: 'pd-flow-label', dir: 'auto', text: T(f.label) }),
-        h('span', { class: 'pd-flow-state', dir: 'auto', text: T(STATE_LABEL[f.state]) }),
+        h('span', { class: 'pd-flow-state', dir: 'auto', text: T(STATE_LABEL[fs]) }),
       ]));
     });
     var integ = h('ul', { class: 'pd-integ-list', role: 'list' });
@@ -2862,6 +2951,11 @@
     host.setAttribute('lang', LANG);
     host.setAttribute('dir', DIR);
     E.live = h('div', { class: 'pd-sr', role: 'status', 'aria-live': 'polite' });
+    // M3: the Team panel, in a club's workspace only. Its two scripts are loaded by the club's room alone (app.js), and
+    // looked up here rather than when this file runs, so a room loaded without them simply has no Team panel.
+    if (!S.team && clubWorkspace() && P.api.listRosters && window.FamilistaProductDesignRoster && window.FamilistaProductDesignTeam) {
+      S.team = window.FamilistaProductDesignTeam.create(teamContext());
+    }
     E.lib = buildLib();
     var editor = buildEditor();
     E.insp = buildInsp();
@@ -2872,6 +2966,7 @@
       buildFoot(), buildTabbar(),
       h('div', { class: 'pd-scrim', 'data-pd-act': 'close-panel', 'aria-hidden': 'true' }),
       (E.dock = h('section', { class: 'pd-dock', id: 'pd-dock', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'pd-dock-title', 'data-open': S.srv.open ? 'true' : 'false' })),
+      S.team ? S.team.el : null,
       E.live,
     ]);
     host.appendChild(E.shell);
@@ -2886,6 +2981,8 @@
     syncServerState();
     renderDock();
     syncDockTriggers();
+    if (S.team) S.team.repaint();
+    syncPreviewTag();
     renderThumbs();
     sync3d();
     if (S.mode === '3d') { if (can3d()) open3d(); else { S.mode = '2.5d'; syncModes(); renderCanvas(); } }
@@ -2949,6 +3046,7 @@
     if ((a = t.getAttribute('data-pd-docktab'))) { if (S.srv.tab !== a) { S.srv.tab = a; S.srv.confirm = null; syncDockTriggers(); renderDock(); loadDockTab(); } var tb = S.el.dock.querySelector('[data-pd-docktab="' + a + '"]'); if (tb) tb.focus(); return; }
     if ((a = t.getAttribute('data-pd-filter'))) { if (S.srv.filter !== a) { S.srv.filter = a; loadProjects(); } return; }
     if ((a = t.getAttribute('data-pd-act')) && onDockAction(a, t)) return;
+    if (a && onTeamAction(a, t)) return;
     if ((a = t.getAttribute('data-pd-lang'))) { chooseSetLocale(a).then(function () { if (S) build(); }); return; }
     if ((a = t.getAttribute('data-pd-view'))) { setView(a); return; }
     if ((a = t.getAttribute('data-pd-mode'))) { setMode(a); return; }
@@ -3040,6 +3138,7 @@
   /** A typed or dragged value: committed live, one undo step per field while the reader keeps editing it. */
   function onInput(ev) {
     var t = ev.target;
+    if (S.team && S.team.onInput(ev)) return;
     if (t === S.el.docName) { if (t.value.trim()) commitOp({ op: 'set', target: { kind: 'doc' }, key: 'name', value: t.value.slice(0, LIMITS.name) }, T('Design name'), 'doc-name'); return; }
     var sid = t.getAttribute('data-pd-swatch');
     if (sid) { commitOp({ op: 'set', target: { kind: 'swatch', id: sid }, key: 'srgb', value: String(t.value).toLowerCase() }, T('Colour'), 'swatch-' + sid); refreshColourRow(t, sid); return; }
@@ -3059,6 +3158,7 @@
   }
   function onChange(ev) {
     var t = ev.target, field = t.getAttribute('data-pd-field');
+    if (S.team && S.team.onChange(ev)) return;
     if (t.hasAttribute('data-pd-brand-file')) { brandUpload(t.files && t.files[0]); return; }
     if (t.tagName === 'SELECT' && field) { var n = selectedLayer(); if (n) { setLayer(n.id, field, t.value, T(field === 'font' ? 'Font' : field === 'shape' ? 'Shape' : 'Pattern')); renderLayers(); } return; }
     if (field && (t.type === 'range' || t.type === 'number')) { fieldValue(t, field, false); S.merge = null; return; }
@@ -3325,7 +3425,7 @@
       renderMsMedian: ms.length ? ms[Math.floor(ms.length / 2)] : null, renderMsMax: ms.length ? ms[ms.length - 1] : null,
       edits: S.metrics.editMs.length, editMsMedian: ed.length ? ed[Math.floor(ed.length / 2)] : null, editMsP95: ed.length ? ed[Math.floor(ed.length * 0.95)] : null,
       template: TEMPLATE ? TEMPLATE.key : null, products: INDEX ? INDEX.map(function (e) { return e.product; }) : [],
-      workspace: WS.kind, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
+      workspace: WS.kind, team: S.team ? S.team.metrics() : null, preview: S.preview, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
       layers: S.doc.surfaces.map(function (x) { return x.layers.length; }), findings: S.findings.length,
       saveState: S.saveState, lastSaveBytes: S.metrics.lastSaveBytes, announced: S.announced, lang: LANG, dir: DIR,
       server: { state: S.srv.state, busy: S.srv.busy, linked: !!S.srv.link, projectId: S.srv.link ? S.srv.link.projectId : null, revision: S.srv.link ? S.srv.link.revision : null,

@@ -20,7 +20,7 @@
  *
  * The project routes and their handlers are the platform owner's (product-design.routes.ts;
  * src/platform/product-design/http.ts): only the gate and the scope differ. The brand-kit routes are the club's own
- * (src/platform/product-design/brand-http.ts, M2c).
+ * (src/platform/product-design/brand-http.ts, M2c), and so are its team rosters (roster-http.ts, M3).
  */
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { UserRole } from '@prisma/client';
@@ -35,6 +35,9 @@ import {
 import {
   archiveBrandAsset, brandAssetImage, rawBrandImage, readBrandKit, saveBrandColours, unarchiveBrandAsset, uploadBrandAsset,
 } from '../platform/product-design/brand-http';
+import {
+  archiveTeamRoster, createTeamRoster, deleteTeamRoster, listTeamRosters, openTeamRoster, readSquadNames, saveTeamRoster, unarchiveTeamRoster,
+} from '../platform/product-design/roster-http';
 
 const router = Router();
 router.use(authenticate);
@@ -71,5 +74,16 @@ router.post('/brand-kit/assets', rawBrandImage, uploadBrandAsset);
 router.get('/brand-kit/assets/:assetId/image', tenantParam('designBrandAsset', 'assetId'), brandAssetImage);
 router.post('/brand-kit/assets/:assetId/archive', tenantParam('designBrandAsset', 'assetId'), archiveBrandAsset);
 router.post('/brand-kit/assets/:assetId/unarchive', tenantParam('designBrandAsset', 'assetId'), unarchiveBrandAsset);
+
+// The club's team rosters (M3): the names, numbers and sizes its kits are made for. A roster id is checked against the
+// caller's club before its handler runs. The squad's names are the club's own active players, surname and number only.
+router.get('/rosters', listTeamRosters);
+router.post('/rosters', createTeamRoster);
+router.get('/rosters/:rosterId', tenantParam('designRoster', 'rosterId'), openTeamRoster);
+router.put('/rosters/:rosterId', tenantParam('designRoster', 'rosterId'), saveTeamRoster);
+router.post('/rosters/:rosterId/archive', tenantParam('designRoster', 'rosterId'), archiveTeamRoster);
+router.post('/rosters/:rosterId/unarchive', tenantParam('designRoster', 'rosterId'), unarchiveTeamRoster);
+router.delete('/rosters/:rosterId', tenantParam('designRoster', 'rosterId'), deleteTeamRoster);
+router.get('/squad-names', readSquadNames);
 
 export default router;

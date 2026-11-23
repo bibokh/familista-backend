@@ -35,6 +35,9 @@ const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'
 const APP = read('public/app.js');
 const JS = read('public/product-design/product-design.js');
 const CODE = strip(JS);
+// M3: the Team panel is the room's own module; its words are the room's catalogue's, and it holds the room's rules.
+const TEAM = read('public/product-design/pd-team.js');
+const TEAM_CODE = strip(TEAM);
 const CORE = read('public/product-design/pd-core.js');
 const CSS = read('public/product-design/product-design.css');
 const CSS_CODE = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -89,8 +92,8 @@ describe('the Interface Studio is preserved', () => {
 describe('wiring: an owner room of its own, its design routes guarded on the server', () => {
   it('app.js loads it on demand behind the platform-owner check, its core, its server client, its garment and 3D view, then its editor, under one version that the room also uses', () => {
     // DS-1c adds the garment geometry and the 3D view before the editor; Babylon itself is loaded only when 3D is chosen (pd-3d.js).
-    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261123-product-design-m2b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done);");
-    expect(JS).toContain("var VERSION = '20261123-product-design-m2b';");
+    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261123-product-design-m3a', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done);");
+    expect(JS).toContain("var VERSION = '20261123-product-design-m3a';");
     expect(APP).toContain("if (page === 'product-design' && !(_PD_ROOM && _PD_ROOM.state === 'ready')) {");
     expect(APP).toMatch(/_loadProductDesign\(function \(ok\) \{\s*try \{ navTo\(ok \? page : 'owner-home', ok \? el : null, _opts\); \} catch \(_\) \{\}/);
     // The owner rooms keep their platform-owner check; the same asset loader serves the club's room behind its capability.
@@ -99,7 +102,7 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
   });
 
   it('M2b: opens in a club’s workspace for whoever its capability names, the same files under the same version, and falls back to the club’s home', () => {
-    expect(APP).toContain("_famLoadRoom(_PD_ROOM, '20261123-product-design-m2b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done,\n    function () { return _access('canDesignClubKits'); });");
+    expect(APP).toContain("_famLoadRoom(_PD_ROOM, '20261123-product-design-m3a', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-team.js', '/product-design/product-design.js'], done,\n    function () { return _access('canDesignClubKits'); });");
     expect(APP).toContain("if (!_access('canDesignClubKits')) { try { navTo('club-home', null, _opts); } catch (_) {} return; }");
     expect(APP).toMatch(/_loadClubDesign\(function \(ok\) \{\s*try \{ navTo\(ok \? page : 'club-home', ok \? el : null, _opts\); \} catch \(_\) \{\}/);
     const nav = APP.slice(APP.indexOf('var CLUB_NAV_ITEMS = ['), APP.indexOf('];', APP.indexOf('var CLUB_NAV_ITEMS = [')));
@@ -152,11 +155,15 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
     const ts = (d: string): string[] => fs.readdirSync(path.join(ROOT, d), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? ts(path.join(d, e.name)) : /\.ts$/.test(e.name) ? [path.join(d, e.name)] : []));
     expect(ts('src').filter((f) => /product-design|ProductDesign|pd-core/.test(read(f))).sort()).toEqual([
       'src/contracts/owner-api.contracts.ts', 'src/cyber-defense/control-plane/registry.ts',
-      'src/platform/product-design/core.ts', 'src/platform/product-design/http.ts', 'src/routes/club-design.routes.ts',
+      'src/platform/product-design/core.ts', 'src/platform/product-design/http.ts',
+      // M3: the server's copy of the roster core reads public/product-design/pd-roster.js, as core.ts reads pd-core.js.
+      'src/platform/product-design/roster-core.ts', 'src/routes/club-design.routes.ts',
       'src/routes/index.ts', 'src/routes/product-design.routes.ts', 'src/services/context.service.ts',
     ]);
-    // M2c: the club's brand kit: its image pipeline, its service and its handlers.
-    expect(fs.readdirSync(path.join(ROOT, 'src/platform/product-design')).sort()).toEqual(['brand-http.ts', 'brand-image.ts', 'brand-kit.service.ts', 'core.ts', 'http.ts', 'service.ts']);
+    // M2c: the club's brand kit: its image pipeline, its service and its handlers. M3: the team rosters' core, service and
+    // handlers, and the audit entry both write.
+    expect(fs.readdirSync(path.join(ROOT, 'src/platform/product-design')).sort()).toEqual(['brand-http.ts', 'brand-image.ts', 'brand-kit.service.ts',
+      'club-audit.ts', 'core.ts', 'http.ts', 'roster-core.ts', 'roster-http.ts', 'roster.service.ts', 'service.ts']);
     // M2: a club's designs have their own mount, behind authenticate, the club roles that design kits, the club's
     // entitlement, and an ownership check of every project id, all before any handler.
     expect(read('src/routes/index.ts')).toContain("router.use('/club-design', clubDesignRoutes);");
@@ -200,7 +207,9 @@ describe('the room is safe by construction', () => {
   });
 
   it('writes styles only through the stylesheet and the CSSOM: no style attribute, no cssText, no style key handed to the builders', () => {
-    expect(CODE).not.toMatch(/setAttribute\(\s*['"]style['"]|\.cssText|\bstyle\s*:\s*['"{]/);
+    // The one `style:` key in the room is Intl's percent format (the Team panel's fit check), never a builder's attribute.
+    const noIntl = CODE.replace("new Intl.NumberFormat(LANG, { style: 'percent', maximumFractionDigits: 0 })", '');
+    expect(noIntl).not.toMatch(/setAttribute\(\s*['"]style['"]|\.cssText|\bstyle\s*:\s*['"{]/);
     for (const m of CODE.matchAll(/style\.setProperty\('([a-z-]+)'/g)) expect(m[1]).toBe('font-family');
   });
 
@@ -303,7 +312,7 @@ describe('it says what it is, and what it is not yet', () => {
 
 describe('the official languages', () => {
   const literals = new Set<string>();
-  for (const m of JS.matchAll(/\b(?:T|tf|L)\('((?:[^'\\]|\\.)*)'/g)) literals.add(m[1]);
+  for (const m of (JS + TEAM).matchAll(/\b(?:T|tf|L)\('((?:[^'\\]|\\.)*)'/g)) literals.add(m[1]);
   // Every released garment's own words: the room shows whichever template is open.
   const TEMPLATES = json('public/product-design/templates/index.json').templates.map((e: { file: string }) => json(`public/product-design/templates/${e.file}`));
   for (const t of TEMPLATES) {
@@ -342,6 +351,29 @@ describe('the official languages', () => {
         expect([code, k, (v.match(/%[ds]/g) || []).join('')]).toEqual([code, k, (k.match(/%[ds]/g) || []).join('')]);
       }
     }
+  });
+
+  it('the Team panel (M3) fetches, stores and styles nothing itself, and writes no visible English outside the catalogue', () => {
+    expect(TEAM_CODE).not.toMatch(/fetch\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon|localStorage|sessionStorage|\/api\/|<form|\.submit\(/);
+    expect(TEAM_CODE).not.toMatch(/setAttribute\(\s*['"]style['"]|\.cssText|\bstyle\s*:|\.style\./);
+    expect(TEAM_CODE).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
+    const texts = [...TEAM_CODE.matchAll(/text: '([^']*)'/g)].map((m) => m[1]);
+    expect([...new Set(texts)].sort()).toEqual(['#', '—'].sort());
+    // Its server calls are the club client's own (pd-server.js), and its back arrow is the room's mirrored one.
+    for (const call of ['listRosters', 'openRoster', 'createRoster', 'saveRoster', 'archiveRoster', 'unarchiveRoster', 'deleteRoster', 'squadNames']) expect(TEAM_CODE).toContain(`api.${call}(`);
+    expect(TEAM_CODE).toContain("ctx.dirArrow('←')");
+    // A spreadsheet is decoded as UTF-8 or refused, never guessed.
+    expect(TEAM_CODE).toContain("new TextDecoder('utf-8', { fatal: true })");
+  });
+
+  it('the Team panel is a floating panel: fixed, animated on opacity and transform, its body scrolling inside itself', () => {
+    const rule = CSS_CODE.match(/\n\.pd-team \{[^}]*\}/);
+    expect(rule && rule[0]).toMatch(/position: fixed/);
+    expect(rule && rule[0]).toMatch(/transition: opacity [^;]*transform [^;]*visibility/);
+    expect(CSS_CODE).toMatch(/\.pd-team-scroll \{[^}]*overflow: auto;[^}]*scrollbar-gutter: stable/);
+    expect(CSS_CODE).toMatch(/\.pd-preview-tag \{[^}]*position: absolute/);
+    // Only in a club's workspace: the room makes it when the club client has rosters.
+    expect(JS).toContain("if (!S.team && clubWorkspace() && P.api.listRosters && window.FamilistaProductDesignRoster && window.FamilistaProductDesignTeam) {");
   });
 
   it('writes no visible English outside the catalogue: the only literal texts are the brand, the mode names and symbols', () => {

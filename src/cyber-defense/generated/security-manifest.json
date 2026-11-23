@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-23T20:46:19.287Z",
+  "generatedAt": "2026-11-23T21:04:50.023Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 60,
-    "handlers": 790,
+    "handlers": 798,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -343,7 +343,7 @@
       {
         "path": "/club-design",
         "module": "club-design.routes",
-        "handlers": 15,
+        "handlers": 23,
         "public": 0,
         "routerWideAuth": true
       },
@@ -613,8 +613,8 @@
       "src/services/vision-realtime.service.ts"
     ],
     "tenancy": {
-      "idParameters": 371,
-      "guarded": 146,
+      "idParameters": 376,
+      "guarded": 151,
       "exempt": 225,
       "unguarded": [],
       "staleExemptions": [],
@@ -662,7 +662,7 @@
           "unguarded": 0
         },
         "club-design.routes": {
-          "guarded": 10,
+          "guarded": 15,
           "exempt": 2,
           "unguarded": 0
         },
@@ -859,12 +859,12 @@
       }
     },
     "authorization": {
-      "handlers": 790,
+      "handlers": 798,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
-        "roles": 251,
+        "roles": 259,
         "platform-owner": 108
       },
       "memberUnreviewed": [],
@@ -913,7 +913,7 @@
           "member": 3
         },
         "club-design.routes": {
-          "roles": 15
+          "roles": 23
         },
         "club.routes": {
           "platform-owner": 1,
@@ -1103,6 +1103,7 @@
       },
       "perHandler": {
         "DELETE /automation/tasks/:id": "roles:CLUB_ADMIN",
+        "DELETE /club-design/rosters/:rosterId": "roles:CLUB_ADMIN,MANAGER",
         "DELETE /coaches/demo-staff": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
         "DELETE /coaches/staff/:staffUserId/achievements/:trophyId": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
         "DELETE /coaches/staff/:staffUserId/career/:entryId": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
@@ -1178,6 +1179,9 @@
         "GET /club-design/projects/:id": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/projects/:id/revisions": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/projects/:id/revisions/:number": "roles:CLUB_ADMIN,MANAGER",
+        "GET /club-design/rosters": "roles:CLUB_ADMIN,MANAGER",
+        "GET /club-design/rosters/:rosterId": "roles:CLUB_ADMIN,MANAGER",
+        "GET /club-design/squad-names": "roles:CLUB_ADMIN,MANAGER",
         "GET /clubs/:clubId": "scoped:ensureClubAccess",
         "GET /clubs/current": "member",
         "GET /coaches/clubs": "member",
@@ -1605,6 +1609,9 @@
         "POST /club-design/projects/:id/revisions": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/projects/:id/revisions/:number/restore": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/projects/:id/unarchive": "roles:CLUB_ADMIN,MANAGER",
+        "POST /club-design/rosters": "roles:CLUB_ADMIN,MANAGER",
+        "POST /club-design/rosters/:rosterId/archive": "roles:CLUB_ADMIN,MANAGER",
+        "POST /club-design/rosters/:rosterId/unarchive": "roles:CLUB_ADMIN,MANAGER",
         "POST /clubs": "platform-owner",
         "POST /coaches/demo-staff": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
         "POST /coaches/staff": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
@@ -1878,6 +1885,7 @@
         "PUT /auth/change-password": "member",
         "PUT /automation/tasks/:id": "roles:CLUB_ADMIN,HEAD_COACH",
         "PUT /club-design/brand-kit/colours": "roles:CLUB_ADMIN,MANAGER",
+        "PUT /club-design/rosters/:rosterId": "roles:CLUB_ADMIN,MANAGER",
         "PUT /coaches/staff/:staffUserId/achievements": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
         "PUT /coaches/staff/:staffUserId/career": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
         "PUT /matches/:id": "roles:CLUB_ADMIN,HEAD_COACH,ANALYST",
@@ -2086,7 +2094,7 @@
       "id": "tenant-guard",
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
-      "note": "146 of 371 route id parameter(s) checked against the caller's club before the handler; 225 exempted by name with a reason; 0 unguarded."
+      "note": "151 of 376 route id parameter(s) checked against the caller's club before the handler; 225 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "franchise-club-attach-authorised",
@@ -2191,7 +2199,7 @@
       "id": "db-row-level-security",
       "status": "PRESENT",
       "evidence": "prisma/migrations",
-      "note": "Enforced by PostgreSQL on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote, DesignProject, DesignRevision, DesignBrandKit, DesignBrandAsset (20261006100000_rls_enforce, guarded: every table forced with its policy). The service's DB_RLS_CONTEXT and the database's switch and catalogue are verified live by the Cybersecurity control plane."
+      "note": "Enforced by PostgreSQL on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote, DesignProject, DesignRevision, DesignBrandKit, DesignBrandAsset, DesignRoster (20261006100000_rls_enforce, guarded: every table forced with its policy). The service's DB_RLS_CONTEXT and the database's switch and catalogue are verified live by the Cybersecurity control plane."
     },
     {
       "id": "db-audit-append-only",
@@ -2310,7 +2318,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "790 handler(s) classified: 21 public, 350 member, 60 scoped, 251 roles, 108 platform-owner; every member-level handler reviewed by name."
+      "note": "798 handler(s) classified: 21 public, 350 member, 60 scoped, 259 roles, 108 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2370,7 +2378,7 @@
       "id": "db-rls-pilot",
       "status": "PRESENT",
       "evidence": "prisma/migrations/20261004100000_rls_pilot/migration.sql",
-      "note": "Row-level security policies on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote, DesignProject, DesignRevision, DesignBrandKit, DesignBrandAsset (forced, fail closed without a context), the request's club carried to PostgreSQL per transaction, backups read under the named system context, all proven on real PostgreSQL in CI. Table list is a ratchet in posture-policy.json."
+      "note": "Row-level security policies on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote, DesignProject, DesignRevision, DesignBrandKit, DesignBrandAsset, DesignRoster (forced, fail closed without a context), the request's club carried to PostgreSQL per transaction, backups read under the named system context, all proven on real PostgreSQL in CI. Table list is a ratchet in posture-policy.json."
     },
     {
       "id": "db-rls-system-paths-reviewed",

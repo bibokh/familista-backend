@@ -122,6 +122,7 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
         get: (url: string) => withAuth(request(app).get(CLUB_API + url)),
         post: (url: string, body: Row = {}) => withAuth(request(app).post(CLUB_API + url)).send(body),
         put: (url: string, body: Row = {}) => withAuth(request(app).put(CLUB_API + url)).send(body),
+        del: (url: string) => withAuth(request(app).delete(CLUB_API + url)),
         /** Raw bytes, as the room uploads a logo. */
         upload: (url: string, bytes: Buffer, type: string) => withAuth(request(app).post(CLUB_API + url)).set('Content-Type', type).send(bytes),
       },
@@ -639,6 +640,137 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
         expect([r.status, r.body.errors.map((e: Row) => e.code)]).toEqual([400, ['unknown-brand-asset']]);
         const after = await designRows();
         expect({ projects: after.projects - before.projects, revisions: after.revisions - before.revisions }).toEqual({ projects: 1, revisions: 1 });
+      });
+    });
+
+    describe('team rosters (M3)', () => {
+      const E = (over: Row = {}) => ({ name: 'SMITH', number: 9, top: 'M', shorts: 'L', socks: '39-42', qty: 1, ...over });
+      const rosterRows = async () => Number((await sys('SELECT count(*)::int AS n FROM "DesignRoster"'))[0].n);
+      const rosterOf = async (id: string) => (await sys('SELECT "name", "entries", "entryCount", "version", "archivedAt" FROM "DesignRoster" WHERE "id" = $1', id))[0];
+      let home = '';
+      // Away FC is entitled too, so what it cannot reach is held by the tenancy checks, not the entitlement.
+      beforeAll(async () => {
+        await sysExec(`INSERT INTO "OrganizationLimits" ("id","clubId","featuresEnabled","updatedAt") SELECT $1,$2,ARRAY['club_design_studio'],now()
+          WHERE NOT EXISTS (SELECT 1 FROM "OrganizationLimits" WHERE "clubId" = $2)`, `ol-${tag}`, C2);
+      });
+
+      it('the migration made the table, its shape check and its row-level security', async () => {
+        const [t] = await db.$queryRawUnsafe<Row[]>(`SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = 'DesignRoster'`);
+        expect(t).toEqual({ relrowsecurity: true, relforcerowsecurity: true });
+        const [pol] = await db.$queryRawUnsafe<Row[]>(`SELECT policyname, cmd, qual, with_check FROM pg_policies WHERE tablename = 'DesignRoster'`);
+        expect(pol).toEqual({ policyname: 'DesignRoster_club_isolation', cmd: 'ALL', qual: 'familista_rls_club_ok("clubId")', with_check: 'familista_rls_club_ok("clubId")' });
+        const checks = await db.$queryRawUnsafe<Row[]>(`SELECT conname FROM pg_constraint WHERE contype = 'c' AND conrelid = '"DesignRoster"'::regclass`);
+        expect(checks.map((c) => c.conname)).toEqual(['DesignRoster_shape']);
+      });
+
+      it('serves a club’s administrators and managers alone, refusing before anything is written', async () => {
+        const before = await rosterRows();
+        expect((await as(null).club.get('/rosters')).status).toBe(401);
+        for (const r of [await as('coach').club.get('/rosters'), await as('coach').club.post('/rosters', { name: 'Coach list', entries: [E()] }),
+          await as('coach').club.get('/squad-names'), await as('owner').club.get('/rosters')]) expect(r.status).toBe(403);
+        expect(await rosterRows()).toBe(before);
+      });
+
+      it('creates and opens a roster with the editor core’s checks, refusing what the core refuses and writing nothing for it', async () => {
+        const r = await as('clubAdmin').club.post('/rosters', { name: '  First team  2026/27 ', entries: [E(), E({ name: 'MÜLLER', number: 4, top: 'XL', qty: 2 }), E({ name: '', number: 1, top: null, shorts: null, socks: null })] });
+        expect(r.status).toBe(201);
+        home = r.body.data.roster.id;
+        expect(r.body.data.roster).toMatchObject({ name: 'First team 2026/27', entryCount: 3, version: 1, archivedAt: null });
+        expect((await as('manager').club.get(`/rosters/${home}`)).body.data.roster.entries).toEqual(r.body.data.roster.entries);
+        expect(await rosterOf(home)).toMatchObject({ entryCount: 3, version: 1 });
+        const before = await rosterRows();
+        const refused: Array<[Row, string, string]> = [
+          [{ name: 'X', entries: [E({ number: 100 })] }, 'bad-number', 'entries[0].number'],
+          [{ name: 'X', entries: [E({ name: '=HYPERLINK("x")' })] }, 'bad-name', 'entries[0].name'],
+          [{ name: 'X', entries: [E({ name: 'A'.repeat(21) })] }, 'name-too-long', 'entries[0].name'],
+          [{ name: 'X', entries: [{ ...E(), email: 'a@b.c' }] }, 'bad-entry', 'entries[0]'],
+          [{ name: 'X', entries: [E({ top: 'XXL' })] }, 'bad-size', 'entries[0].top'],
+          [{ name: 'X', entries: Array.from({ length: 151 }, () => E()) }, 'too-many-entries', 'entries'],
+          [{ name: '   ', entries: [] }, 'bad-roster-name', 'name'],
+        ];
+        for (const [body, reason, at] of refused) {
+          const x = await as('clubAdmin').club.post('/rosters', body);
+          expect([x.status, x.body.code, x.body.reason, x.body.path]).toEqual([400, 'ROSTER_INVALID', reason, at]);
+        }
+        expect((await as('clubAdmin').club.post('/rosters', { name: 'X', entries: [], clubId: C2 })).status).toBe(400); // no request names a club
+        expect(await rosterRows()).toBe(before);
+      });
+
+      it('saves on its version; a save on a stale one is refused with the version it lost to and writes nothing; of six racing saves one lands', async () => {
+        const ok = await as('manager').club.put(`/rosters/${home}`, { name: 'First team 2026/27', entries: [E(), E({ name: 'JONES', number: 10 })], version: 1 });
+        expect([ok.status, ok.body.data.roster.version, ok.body.data.roster.entryCount]).toEqual([200, 2, 2]);
+        const stale = await as('clubAdmin').club.put(`/rosters/${home}`, { name: 'Overwrite', entries: [], version: 1 });
+        expect([stale.status, stale.body.code, stale.body.data.version]).toEqual([409, 'ROSTER_CONFLICT', 2]);
+        expect(await rosterOf(home)).toMatchObject({ name: 'First team 2026/27', entryCount: 2, version: 2 });
+        const race = await Promise.all(Array.from({ length: 6 }, (_, i) => as('clubAdmin').club.put(`/rosters/${home}`, { name: 'First team 2026/27', entries: [E({ number: 20 + i })], version: 2 })));
+        expect(race.map((x) => x.status).sort()).toEqual([200, 409, 409, 409, 409, 409]);
+        expect(await rosterOf(home)).toMatchObject({ entryCount: 1, version: 3 });
+      });
+
+      it('audits every change with the club, in counts: never a name, a number or a size', async () => {
+        const rows = await sys(`SELECT "action", "clubId", "metadata", "message" FROM "PlatformAuditLog" WHERE "resourceType" = 'DesignRoster' AND "resourceId" = $1 ORDER BY "createdAt"`, home);
+        expect(rows.map((a) => a.action)).toEqual(['design.roster.created', 'design.roster.saved', 'design.roster.saved']);
+        expect(rows.every((a) => a.clubId === C1)).toBe(true);
+        expect(rows[0].metadata).toMatchObject({ entries: 3, sets: 4 });
+        const text = JSON.stringify(rows);
+        for (const word of ['SMITH', 'MÜLLER', 'JONES', '39-42']) expect(text).not.toContain(word);
+      });
+
+      it('a club reaches no roster but its own: by list, by id, by every verb', async () => {
+        const away = await as('otherAdmin').club.post('/rosters', { name: 'Away squad', entries: [E({ name: 'AWAY' })] });
+        expect(away.status).toBe(201);
+        expect((await as('otherAdmin').club.get('/rosters')).body.data.rosters.map((x: Row) => x.id)).toEqual([away.body.data.roster.id]);
+        expect((await as('clubAdmin').club.get('/rosters')).body.data.rosters.map((x: Row) => x.id)).not.toContain(away.body.data.roster.id);
+        const before = await rosterOf(home);
+        for (const r of [await as('otherAdmin').club.get(`/rosters/${home}`), await as('otherAdmin').club.put(`/rosters/${home}`, { name: 'Taken', entries: [], version: 3 }),
+          await as('otherAdmin').club.post(`/rosters/${home}/archive`), await as('otherAdmin').club.post(`/rosters/${home}/unarchive`), await as('otherAdmin').club.del(`/rosters/${home}`)]) {
+          expect(r.status).toBe(404);
+        }
+        expect(await rosterOf(home)).toEqual(before);
+      });
+
+      it('row-level security: the database itself gives a club its own rosters only, and accepts no write into another club’s', async () => {
+        const seen = await inClub(C2, (tx) => tx.designRoster.findMany({ select: { clubId: true } }));
+        expect(seen.length).toBeGreaterThan(0);
+        expect(seen.every((x) => x.clubId === C2)).toBe(true);
+        expect(await inClub(C2, (tx) => tx.designRoster.updateMany({ where: { id: home }, data: { name: 'Taken' } }))).toEqual({ count: 0 });
+        await expect(inClub(C2, (tx) => tx.designRoster.create({ data: { clubId: C1, name: 'Planted', createdById: USERS.otherAdmin.id, updatedById: USERS.otherAdmin.id } })))
+          .rejects.toThrow(/row-level security/);
+        // and the shape is the database's own rule, on the system path too
+        await expect(sysExec(`INSERT INTO "DesignRoster" ("id","clubId","name","entries","entryCount","createdById","updatedById","updatedAt") VALUES ($1,$2,'x','[{}]'::jsonb,0,'u','u',now())`,
+          '88888888-8888-4888-8888-888888888888', C1)).rejects.toThrow(/DesignRoster_shape/);
+      });
+
+      it('archives a roster, refuses to save it while archived, deletes only an archived one, and then for good', async () => {
+        expect((await as('clubAdmin').club.del(`/rosters/${home}`)).body.code).toBe('ROSTER_ARCHIVED');
+        expect((await as('clubAdmin').club.post(`/rosters/${home}/archive`)).status).toBe(200);
+        expect((await as('clubAdmin').club.get('/rosters')).body.data.rosters.map((x: Row) => x.id)).not.toContain(home);
+        expect((await as('clubAdmin').club.get('/rosters?state=archived')).body.data.rosters.map((x: Row) => x.id)).toEqual([home]);
+        const save = await as('clubAdmin').club.put(`/rosters/${home}`, { name: 'Late', entries: [], version: 3 });
+        expect([save.status, save.body.code]).toEqual([409, 'ROSTER_ARCHIVED']);
+        expect((await as('manager').club.del(`/rosters/${home}`)).status).toBe(200);
+        expect(await rosterOf(home)).toBeUndefined();
+        expect((await as('clubAdmin').club.get(`/rosters/${home}`)).status).toBe(404);
+        const actions = (await sys(`SELECT "action" FROM "PlatformAuditLog" WHERE "resourceId" = $1 ORDER BY "createdAt"`, home)).map((a) => a.action);
+        expect(actions.slice(-2)).toEqual(['design.roster.archived', 'design.roster.deleted']);
+      });
+
+      it('the squad’s names: the club’s own active players, surname and number only', async () => {
+        const player = (id: string, clubId: string, lastName: string, number: number, isActive = true) => ({
+          id: `${id}-${tag}`, clubId, firstName: 'First', lastName, number, isActive, position: 'MC' as const, nationality: 'X', flag: 'x',
+          dateOfBirth: new Date('2008-04-01'), height: 170, weight: 60, parentName: 'A parent',
+        });
+        await asSystem(async (tx) => {
+          for (const p of [player('p1', C1, 'Smith', 9), player('p2', C1, 'Ødegaard', 8), player('p3', C1, 'Gone', 5, false), player('p4', C1, 'Big', 120), player('p5', C2, 'Away', 7)]) {
+            await tx.player.create({ data: p });
+          }
+        });
+        const r = await as('manager').club.get('/squad-names');
+        expect(r.status).toBe(200);
+        expect(r.headers['cache-control']).toBe('no-store');
+        expect(r.body.data.players).toEqual([{ name: 'Ødegaard', number: 8 }, { name: 'Smith', number: 9 }, { name: 'Big', number: null }]);
+        expect(JSON.stringify(r.body)).not.toMatch(/2008|parent|First/);
+        expect((await as('otherAdmin').club.get('/squad-names')).body.data.players).toEqual([{ name: 'Away', number: 7 }]);
       });
     });
   });

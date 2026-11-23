@@ -53,7 +53,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
 const REGIONS = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/design-studio/reference-regions.json'), 'utf8'));
 const REFERENCE = path.join(ROOT, 'docs/design-studio', REGIONS.reference);
 // PROOF_ONLY=P16 runs only the DS-1c 3D sections (P16), PROOF_ONLY=P17 only the catalogue (M1), PROOF_ONLY=P18 only the Club Design
-// Studio (M2); unset, everything runs.
+// Studio (M2), PROOF_ONLY=P19 only the Team panel (M3); unset, everything runs.
 const want = (n) => !process.env.PROOF_ONLY || process.env.PROOF_ONLY.split(',').includes(n);
 const roomWord = (code, en) => JSON.parse(fs.readFileSync(path.join(ROOT, 'public/product-design/i18n', code + '.json'), 'utf8'))[en];
 
@@ -98,6 +98,10 @@ async function prepareDatabase() {
     for (const u of [CLUB_ADMIN, OTHER_ADMIN]) await tx.user.create({ data: { id: u.id, clubId: u.clubId || 'club-1', email: u.email, passwordHash: 'x', firstName: 'Admin', lastName: 'Proof', role: u.role } });
     await tx.featureFlag.create({ data: { key: 'club_design_studio', name: 'Club Design Studio', defaultEnabled: false, enabledForPlans: [] } });
     await tx.organizationLimits.create({ data: { clubId: 'club-1', featuresEnabled: ['club_design_studio'] } });
+    // M3 (P19): Home FC's squad: three active players, one who has left, one whose surname cannot be printed; and Away FC's.
+    const player = (id, clubId, lastName, number, isActive) => ({ id, clubId, firstName: 'Proof', lastName, number, isActive, position: 'MC', nationality: 'X', flag: 'x', dateOfBirth: new Date('2008-04-01'), height: 170, weight: 60 });
+    for (const p of [player('pl-1', 'club-1', 'Smith', 9, true), player('pl-2', 'club-1', 'Okafor', 4, true), player('pl-3', 'club-1', 'Ødegaard', 8, true),
+      player('pl-4', 'club-1', 'Left', 3, false), player('pl-5', 'club-1', 'Silva 2', 11, true), player('pl-6', 'club-2', 'Away', 7, true)]) await tx.player.create({ data: p });
   });
   // The application reads its database URL when it is first required, so it is required only now.
   process.env.DATABASE_URL = DB_URL;
@@ -172,6 +176,7 @@ const budget = (name, values, ok, detail) => {
   async function proof3d() { await require('./product-design-3d-proof.cjs')({ open, M, shot, live, boxOf, check, budget, pass, fail, OUT, ROOT, BASE, db, roomWord }); }
   async function proofCatalogue() { await require('./product-design-catalogue-proof.cjs')({ open, M, check, fail, OUT, ROOT, db }); }
   async function proofClub() { await require('./product-design-club-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofTeam() { await require('./product-design-team-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   const boxOf = (pg, sel) => pg.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; }, sel);
 
   try {
@@ -702,6 +707,7 @@ const budget = (name, values, ok, detail) => {
     if (want('P16')) await proof3d();
     if (want('P17')) await proofCatalogue();
     if (want('P18')) await proofClub();
+    if (want('P19')) await proofTeam();
   } catch (e) {
     fail('proof crashed', String(e && e.stack || e).slice(0, 1200));
   } finally {

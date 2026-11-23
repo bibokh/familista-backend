@@ -8,10 +8,10 @@
  * Logos are kept only as the PNG brand-image.ts made from the upload. Every change writes its PlatformAuditLog entry,
  * with the club, in the same transaction: sizes and hashes, never the image.
  */
-import { DesignBrandAssetKind, PlatformAuditCategory, Prisma } from '@prisma/client';
+import { DesignBrandAssetKind, Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { ConflictError, NotFoundError } from '../../utils/errors';
-import { currentEnvironment } from '../environment';
+import { clubAudit } from './club-audit';
 import { normaliseBrandImage } from './brand-image';
 import type { DesignActor } from './service';
 
@@ -50,15 +50,8 @@ export function validColours(input: unknown): BrandColour[] | null {
   return out;
 }
 
-async function audit(tx: Prisma.TransactionClient, clubId: string, actor: DesignActor, action: string, resourceId: string, metadata: Record<string, unknown>, message: string) {
-  await tx.platformAuditLog.create({
-    data: {
-      adminId: null, userId: actor.userId, clubId, action, category: PlatformAuditCategory.ASSET,
-      resourceType: 'DesignBrandKit', resourceId, ipAddress: actor.ipAddress ?? undefined, userAgent: actor.userAgent ?? undefined,
-      metadata: { ...metadata, environment: currentEnvironment(), correlationId: actor.correlationId ?? null } as Prisma.InputJsonValue,
-      message,
-    },
-  });
+function audit(tx: Prisma.TransactionClient, clubId: string, actor: DesignActor, action: string, resourceId: string, metadata: Record<string, unknown>, message: string) {
+  return clubAudit(tx, clubId, actor, { action, resourceType: 'DesignBrandKit', resourceId, metadata, message });
 }
 
 async function kitOf(tx: Prisma.TransactionClient, clubId: string, actor: DesignActor) {

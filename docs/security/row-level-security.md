@@ -45,6 +45,9 @@ player's. Every path to them is an authenticated request; no worker reads them.
 The club's brand kit (`20261123100000_design_studio_brand_kit`) adds
 `DesignBrandKit` and `DesignBrandAsset`, each isolated by its own `clubId` both
 ways; an asset's club is also held to its kit's by a composite foreign key.
+The club's team rosters (`20261123200000_design_studio_team_rosters`) add
+`DesignRoster`, isolated by its own `clubId` both ways. Its entries are names of
+people (the name to print, a number, sizes); the audit log records counts only.
 
 The AI agent worker runs each job's deterministic handler in that job's own
 club context (`runInClubContext(job.clubId, …)`), not on a system path: the
