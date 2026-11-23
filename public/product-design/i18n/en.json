@@ -481,5 +481,9 @@
   "%s was added to the design palette.": "%s was added to the design palette.",
   "Club colours saved.": "Club colours saved.",
   "The club colours could not be saved.": "The club colours could not be saved.",
-  "Placing a logo on the garment is the next step. The club’s logos are uploaded in the library’s Brand tab.": "Placing a logo on the garment is the next step. The club’s logos are uploaded in the library’s Brand tab."
+  "Place": "Place",
+  "Place %s on the garment": "Place %s on the garment",
+  "Printed at about %d dpi at this size.": "Printed at about %d dpi at this size.",
+  "Printed at about %d dpi at this size: below %d dpi it may look soft. Make it smaller or upload a larger image.": "Printed at about %d dpi at this size: below %d dpi it may look soft. Make it smaller or upload a larger image.",
+  "%s is printed at about %d dpi on the %s: below %d dpi it may look soft.": "%s is printed at about %d dpi on the %s: below %d dpi it may look soft."
 }

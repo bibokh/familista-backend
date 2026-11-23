@@ -28,6 +28,7 @@
        text     text, font, color, outline, x, y, w, h, r, w0, h0          a box
        roster   field (name | number), font, color, outline, x, y, w, h, r, w0, h0
        shape    shape, color, outline, x, y, w, h, r, w0, h0
+       image    asset, px, x, y, w, h, r, w0, h0                            a logo of the club's brand kit (M2c)
 
    A box is its centre (x, y), its size (w, h) and its rotation r in whole degrees,
    in millimetres on the surface's own coordinates at the template's reference
@@ -79,8 +80,11 @@
   var SHAPES = Object.freeze(['shield', 'circle', 'star', 'band', 'chevron', 'diamond']);
   var FONTS = Object.freeze(['sans-black', 'sans-bold', 'mono-bold']);
   var ROSTER_FIELDS = Object.freeze(['name', 'number']);
-  var LAYER_TYPES = Object.freeze(['pattern', 'text', 'roster', 'shape']);
-  var BOX_TYPES = Object.freeze(['text', 'roster', 'shape']);
+  var LAYER_TYPES = Object.freeze(['pattern', 'text', 'roster', 'shape', 'image']);
+  var BOX_TYPES = Object.freeze(['text', 'roster', 'shape', 'image']);
+  /** The print resolution below which an image layer is reported: dots per inch at the size it is placed. */
+  var MIN_PRINT_DPI = 150;
+  var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   var PARTS = Object.freeze(['collar', 'cuffs']);
   /** The garment forms the 3D builder knows; a template that names none is a top. */
   var FORMS = Object.freeze(['top', 'shorts', 'socks']);
@@ -96,6 +100,9 @@
     text: Object.freeze(COMMON_KEYS.concat(['text', 'font', 'color', 'outline'], BOX_KEYS)),
     roster: Object.freeze(COMMON_KEYS.concat(['field', 'font', 'color', 'outline'], BOX_KEYS)),
     shape: Object.freeze(COMMON_KEYS.concat(['shape', 'color', 'outline'], BOX_KEYS)),
+    // A logo: the brand-kit asset it shows (its id; the server checks it is the design's club's) and that PNG's pixel
+    // size, which the print-resolution check reads. Which logo it is never changes: another logo is another layer.
+    image: Object.freeze(COMMON_KEYS.concat(['asset', 'px'], BOX_KEYS)),
   });
   // What a `set` operation may change, per target. Ids, types and a roster's field never change.
   var SETTABLE = Object.freeze({
@@ -107,6 +114,7 @@
     text: Object.freeze(['name', 'visible', 'locked', 'text', 'font', 'color', 'outline'].concat(BOX_KEYS)),
     roster: Object.freeze(['name', 'visible', 'locked', 'font', 'color', 'outline'].concat(BOX_KEYS)),
     shape: Object.freeze(['name', 'visible', 'locked', 'shape', 'color', 'outline'].concat(BOX_KEYS)),
+    image: Object.freeze(['name', 'visible', 'locked'].concat(BOX_KEYS)),
   });
 
   var ID_RE = /^[a-z][a-z0-9-]{0,63}$/;
@@ -237,6 +245,8 @@
       case 'shape': return has(SHAPES, v) ? null : 'bad-shape';
       case 'font': return has(FONTS, v) ? null : 'bad-font';
       case 'field': return has(ROSTER_FIELDS, v) ? null : 'bad-field';
+      case 'asset': return typeof v === 'string' && UUID_RE.test(v) ? null : 'bad-asset';
+      case 'px': return Array.isArray(v) && v.length === 2 && isWhole(v[0], 1, 4096) && isWhole(v[1], 1, 4096) ? null : 'bad-number';
       case 'color': return colors[v] ? null : 'bad-color-ref';
       case 'outline': return v === null || colors[v] ? null : 'bad-color-ref';
       case 'text': return typeof v === 'string' && v.trim().length > 0 && v.length <= LIMITS.text && !CONTROL.test(v) ? null : 'bad-text';
@@ -681,6 +691,11 @@
   // zone (seams, collar, cuffs) is a warning; lettering shorter than the
   // template's minimum is a warning. Hidden layers are not printed.
 
+  /** The print resolution of an image layer at its placed size: the lower of its two axes, in whole dots per inch. */
+  function imageDpi(n) {
+    // px × 25.4 / mm, not px / (mm / 25.4): the second rounds 600 px over 60 mm to 253.99…, one dot short of the truth.
+    return Math.floor(Math.min(n.px[0] * 25.4 / n.w, n.px[1] * 25.4 / n.h) + 1e-9);
+  }
   function checkDesign(doc, template) {
     var out = [];
     doc.surfaces.forEach(function (s) {
@@ -692,6 +707,10 @@
         if (!boxInPolygon(n, print)) out.push({ severity: 'blocker', code: 'outside-print-area', surface: s.id, layer: n.id });
         else if (!boxInPolygon(n, safeZone)) out.push({ severity: 'warning', code: 'crosses-safe-zone', surface: s.id, layer: n.id });
         if ((n.type === 'text' || n.type === 'roster') && n.h < template.rules.minTextHeight) out.push({ severity: 'warning', code: 'text-too-small', surface: s.id, layer: n.id });
+        if (n.type === 'image') {
+          var dpi = imageDpi(n);
+          if (dpi < MIN_PRINT_DPI) out.push({ severity: 'warning', code: 'low-resolution', surface: s.id, layer: n.id, dpi: dpi });
+        }
       });
     });
     return out;
@@ -727,7 +746,7 @@
   return Object.freeze({
     FORMAT: FORMAT, VERSION: VERSION, TEMPLATE_FORMAT: TEMPLATE_FORMAT, LIMITS: LIMITS, ZOOM: ZOOM,
     PATTERNS: PATTERNS, SHAPES: SHAPES, FONTS: FONTS, ROSTER_FIELDS: ROSTER_FIELDS, LAYER_TYPES: LAYER_TYPES,
-    BOX_TYPES: BOX_TYPES, PARTS: PARTS, FORMS: FORMS, KEYS: KEYS, SETTABLE: SETTABLE,
+    BOX_TYPES: BOX_TYPES, PARTS: PARTS, FORMS: FORMS, KEYS: KEYS, SETTABLE: SETTABLE, MIN_PRINT_DPI: MIN_PRINT_DPI, imageDpi: imageDpi,
     PDError: PDError, byteLength: byteLength, clone: clone, mm: mm, normAngle: normAngle,
     validateTemplate: validateTemplate, templateSurface: templateSurface,
     validateDocument: validateDocument, parseDocument: parseDocument, serializeDocument: serializeDocument,

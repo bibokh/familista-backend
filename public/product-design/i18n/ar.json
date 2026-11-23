@@ -481,5 +481,9 @@
   "%s was added to the design palette.": "أُضيف %s إلى لوحة ألوان التصميم.",
   "Club colours saved.": "حُفظت ألوان النادي.",
   "The club colours could not be saved.": "تعذّر حفظ ألوان النادي.",
-  "Placing a logo on the garment is the next step. The club’s logos are uploaded in the library’s Brand tab.": "وضع الشعار على قطعة الملابس هو الخطوة التالية. تُرفع شعارات النادي في تبويب «الهوية» في المكتبة."
+  "Place": "ضع",
+  "Place %s on the garment": "ضع %s على قطعة الملابس",
+  "Printed at about %d dpi at this size.": "يُطبع بنحو %d نقطة في البوصة بهذا الحجم.",
+  "Printed at about %d dpi at this size: below %d dpi it may look soft. Make it smaller or upload a larger image.": "يُطبع بنحو %d نقطة في البوصة بهذا الحجم: تحت %d نقطة في البوصة قد يبدو غير حاد. صغّره أو ارفع صورة أكبر.",
+  "%s is printed at about %d dpi on the %s: below %d dpi it may look soft.": "يُطبع %s بنحو %d نقطة في البوصة على %s: تحت %d نقطة في البوصة قد يبدو غير حاد."
 }

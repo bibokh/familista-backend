@@ -109,6 +109,31 @@ module.exports = async function p18(H) {
     check('P18 the design’s palette is saved as the club’s colours, in the club’s kit', Array.isArray(kit && kit.colours) && kit.colours.length > 0
       && (palette === undefined || kit.colours.length === palette), { colours: kit && kit.colours.length, palette });
     await page.screenshot({ path: path.join(OUT, 'p18-brand-kit.png') });
+
+    // ── M2c-2: the logo on the garment, in 2D and in 3D, saved in the club's workspace ──────────────────────────────
+    await page.click('#pd-club-root [data-pd-act="brand-place"]');
+    await page.waitForFunction(() => !!document.querySelector('#pd-club-root .pd-canvas image[href^="data:image/png"]'), null, { timeout: 30000 });
+    const placed = await page.evaluate(() => {
+      const m = window.__familistaProductDesignMetrics(), i = document.querySelector('#pd-club-root .pd-canvas image[href^="data:image/png"]');
+      return { selected: m.selected, w: Number(i.getAttribute('width')), h: Number(i.getAttribute('height')), dpi: (document.querySelector('#pd-club-root [data-pd-dpi]') || {}).getAttribute && document.querySelector('#pd-club-root [data-pd-dpi]').getAttribute('data-pd-dpi') };
+    });
+    await page.click('#pd-club-root [data-pd-act="save"]');
+    await page.waitForFunction(() => { const s = window.__familistaProductDesignMetrics().server; return s.state === 'saved' && !s.busy; }, null, { timeout: 30000 });
+    const head = await db.designProject.findUnique({ where: { id: (await M(page)).server.projectId }, select: { headRevision: true, clubId: true } });
+    const rev = head && await db.designRevision.findUnique({ where: { projectId_number: { projectId: (await M(page)).server.projectId, number: head.headRevision } }, select: { document: true } });
+    const logoLayer = rev && rev.document.surfaces.flatMap((sf) => sf.layers).find((l) => l.type === 'image');
+    const crestRow = await db.designBrandAsset.findFirst({ where: { clubId: 'club-1', name: 'Home crest' }, select: { id: true, width: true, height: true } });
+    check('P18 a logo is placed on the garment from the brand kit, drawn from its PNG, and saved in the club’s design naming the club’s own logo',
+      !!placed.selected && placed.w > 0 && Math.abs(placed.h / placed.w - 700 / 600) < 0.01 && Number(placed.dpi) >= 150
+        && !!logoLayer && !!crestRow && logoLayer.asset === crestRow.id && logoLayer.px[0] === crestRow.width && logoLayer.px[1] === crestRow.height && head.clubId === 'club-1',
+      { placed, layer: logoLayer && { asset: logoLayer.asset === (crestRow && crestRow.id), px: logoLayer.px }, head });
+    await page.click('#pd-club-root [data-pd-mode="3d"]');
+    await page.waitForFunction(() => { const t = window.__familistaProductDesignMetrics().three; return (t.state === 'ready' && t.engine && !t.engine.pending) || !!t.failed; }, null, { timeout: 90000 });
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: path.join(OUT, 'p18-logo-3d.png') });
+    const three = (await M(page)).three;
+    check('P18 the garment with its logo opens in 3D', three.state === 'ready' && !three.failed, { state: three.state, failed: three.failed });
+    await page.click('#pd-club-root [data-pd-mode="2.5d"]');
     check('P18 no CSP violation and no page error in the club’s room', (await csp(page)).length === 0 && log.errors.length === 0, { csp: await csp(page), errors: log.errors });
   } finally {
     await ctx.close();

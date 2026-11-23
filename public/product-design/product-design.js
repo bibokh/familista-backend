@@ -241,7 +241,6 @@
     templates: L('More templates arrive with the product catalogue (DS-2).'),
     product: L('This product arrives with the product catalogue (DS-2).'),
     image: L('Uploading artwork waits for protected media storage with verified backups (planned).'),
-    'image-club': L('Placing a logo on the garment is the next step. The club’s logos are uploaded in the library’s Brand tab.'),
     '3d': L('3D needs WebGL, which this browser or device does not provide. The 2.5D preview shows the same design.'),
     '360': L('The 360° turntable needs 3D, which needs WebGL in this browser.'),
     capture: L('Image export arrives with production proofs (DS-5).'),
@@ -271,6 +270,8 @@
       srv: serverFresh(), v3: fresh3d(),
       // M2c: the club's brand kit, loaded when its tab first opens. `urls` holds each logo's image as a blob: URL.
       brand: { state: 'idle', kit: null, urls: {}, busy: false, note: '' },
+      // M2c-2: the logos image layers show, by brand asset id: { state: loading | ready | missing, data: data: URL }.
+      images: {},
     };
   }
   function listen(target, type, fn, opts) {
@@ -993,6 +994,31 @@
   }
 
   /** One layer, drawn in its surface's millimetres. `sample` words a roster placeholder. */
+  /**
+   * A logo's PNG as a data: URL for the layers that show it, fetched once from the club's brand kit (the bytes the
+   * server re-encoded); null until it has loaded, or when this workspace has no brand kit or the logo is not its club's.
+   */
+  function imageData(assetId) {
+    var im = S.images[assetId];
+    if (im) return im.state === 'ready' ? im.data : null;
+    S.images[assetId] = { state: 'loading', data: null };
+    if (!P.api.brandAssetImage) { S.images[assetId].state = 'missing'; return null; }
+    var mine = S;
+    P.api.brandAssetImage(assetId).then(function (r) {
+      if (S !== mine) return;
+      if (!r.ok || !r.blob) { S.images[assetId].state = 'missing'; return; }
+      var fr = new FileReader();
+      fr.onload = function () {
+        if (S !== mine) return;
+        S.images[assetId] = { state: 'ready', data: String(fr.result) };
+        renderCanvas(); scheduleThumbs();
+        if (S.v3.ctl) S.v3.ctl.invalidate();
+      };
+      fr.onerror = function () { if (S === mine) S.images[assetId].state = 'missing'; };
+      fr.readAsDataURL(r.blob);
+    });
+    return null;
+  }
   function layerNode(defs, prefix, n, bounds) {
     var g = s('g', { 'data-pd-node': n.id });
     if (!n.visible) g.setAttribute('visibility', 'hidden');
@@ -1008,6 +1034,14 @@
       return g;
     }
     g.setAttribute('transform', 'translate(' + n.x + ' ' + n.y + ') rotate(' + n.r + ')');
+    if (n.type === 'image') {
+      // A logo: its PNG as a data: URL, the one form that also survives into the 3D view's texture. Until it has loaded,
+      // or where it cannot be shown (another workspace's file), its place is drawn as a dashed outline.
+      var src = imageData(n.asset);
+      if (src) g.appendChild(s('image', { href: src, x: -n.w / 2, y: -n.h / 2, width: n.w, height: n.h, preserveAspectRatio: 'xMidYMid meet' }));
+      else g.appendChild(s('rect', { x: -n.w / 2, y: -n.h / 2, width: n.w, height: n.h, fill: 'none', stroke: '#9aa4b2', 'stroke-width': Math.max(1, Math.min(n.w, n.h) * 0.02), 'stroke-dasharray': '6 4', 'data-pd-image-pending': n.asset }));
+      return g;
+    }
     if (n.type === 'shape') {
       var sw = Math.max(1, Math.min(n.w, n.h) * 0.05);
       g.appendChild(s('path', { d: shapePath(n.shape, n.w, n.h), fill: colour(n.color), stroke: n.outline ? colour(n.outline) : null, 'stroke-width': n.outline ? sw : null, 'stroke-linejoin': 'round' }));
@@ -2192,6 +2226,7 @@
               chip(T(label ? label[1] : 'Mark'), 'muted'),
             ]),
             btn({ class: 'pd-icbtn pd-brand-archive', 'data-pd-act': 'brand-archive', 'data-pd-asset': a.id, 'aria-label': tf('Archive %s', a.name), title: tf('Archive %s', a.name) }, [icon('trash', 14)]),
+            btn({ class: 'pd-btn pd-btn--ghost pd-brand-place', 'data-pd-act': 'brand-place', 'data-pd-asset': a.id, 'aria-label': tf('Place %s on the garment', a.name) }, [icon('plus', 12), h('span', { text: T('Place') })]),
           ]));
         });
         wrap.appendChild(grid);
@@ -2247,6 +2282,21 @@
       brandRefresh();
     });
   }
+  /** Place a logo on the surface on screen: centred in its safe zone, at most 80 mm wide and 100 mm tall, its proportions kept. */
+  function brandPlace(id) {
+    var a = S.brand.kit && S.brand.kit.assets.filter(function (x) { return x.id === id; })[0];
+    if (!a) return;
+    var surf = surfaceOfView(), ts = tSurface(surf.id), b = polygonBox(ts.safe), small = ts.width < 500 ? 0.45 : 1;
+    var w = 80 * small, hh = w * a.height / a.width;
+    if (hh > 100 * small) { hh = 100 * small; w = hh * a.width / a.height; }
+    w = C.mm(Math.max(LIMITS.minSize, w)); hh = C.mm(Math.max(LIMITS.minSize, hh));
+    var layer = { id: C.nextId(S.doc, 'l'), type: 'image', name: a.name.slice(0, LIMITS.name), visible: true, locked: false, asset: a.id, px: [a.width, a.height],
+      x: C.mm(b.x + b.w / 2), y: C.mm(b.y + b.h * (ts.width < 500 ? 0.5 : 0.36)), w: w, h: hh, r: 0, w0: w, h0: hh };
+    if (commitOp({ op: 'insert', surface: surf.id, index: surf.layers.length, layer: layer }, T('Add element'))) {
+      select({ kind: 'layer', id: layer.id });
+      say(tf('Added %s to the %s.', layer.name, T(ts.label)));
+    }
+  }
   function brandAddColour(i) {
     var c = S.brand.kit && S.brand.kit.colours[i];
     if (!c || S.doc.palette.length >= LIMITS.palette || S.doc.palette.some(function (p) { return p.srgb === c.srgb; })) return;
@@ -2282,7 +2332,7 @@
       return btn({ class: 'pd-tool', 'data-pd-act': act, 'aria-label': T(label) + (key ? ' (' + key + ')' : ''), title: T(label) + (key ? ' (' + key + ')' : ''), 'aria-keyshortcuts': key || null }, [icon(ic, 20)]);
     }
     var image = tool('image', 'image', L('Image'));
-    planned(image, clubWorkspace() ? 'image-club' : 'image');
+    if (!clubWorkspace()) planned(image, 'image');
     var tools = h('div', { class: 'pd-tools', 'data-ds-region': 'R5', role: 'toolbar', 'aria-orientation': 'vertical', 'aria-label': T('Tools') }, [
       tool('select', 'select', L('Select'), 'V'), tool('add-text', 'text', L('Text'), 'T'), image, tool('add-shape', 'shape', L('Shape'), 'S'),
       tool('patterns', 'pattern', L('Patterns'), 'P'), tool('layers', 'layers', L('Layers'), 'L'), tool('elements', 'components', L('Elements')),
@@ -2403,6 +2453,7 @@
   }
   function layerThumb(n) {
     if (n.type === 'pattern') return patternSwatch(n.pattern);
+    if (n.type === 'image') return icon('image', 18);
     if (n.type === 'shape') {
       var svg = s('svg', { viewBox: '-12 -12 24 24', width: '20', height: '20', 'aria-hidden': 'true', focusable: 'false' });
       svg.appendChild(s('path', { d: shapePath(n.shape, 20, 20), fill: colour(n.color), stroke: n.outline ? colour(n.outline) : null, 'stroke-width': n.outline ? 1.5 : null }));
@@ -2451,11 +2502,21 @@
       box.appendChild(sliderRow('angle', T('Angle'), -179, 180, 1, '°'));
       box.appendChild(sliderRow('opacity', T('Opacity'), 5, 100, 1, '%'));
     }
-    box.appendChild(h('p', { class: 'pd-prop-sub', text: T('Colour') }));
-    box.appendChild(swatchPicker('color', n.color, false));
+    if (n.type === 'image') {
+      // A logo keeps its own colours; what the reader needs is whether it will print sharply at this size.
+      var dpi = C.imageDpi(n), low = dpi < C.MIN_PRINT_DPI;
+      box.appendChild(h('p', { class: 'pd-note' + (low ? ' pd-note--warn' : ' pd-note--info'), 'data-pd-dpi': String(dpi) }, [icon(low ? 'info' : 'check', 14),
+        h('span', { text: low ? tf('Printed at about %d dpi at this size: below %d dpi it may look soft. Make it smaller or upload a larger image.', dpi, C.MIN_PRINT_DPI)
+          : tf('Printed at about %d dpi at this size.', dpi) })]));
+    } else {
+      box.appendChild(h('p', { class: 'pd-prop-sub', text: T('Colour') }));
+      box.appendChild(swatchPicker('color', n.color, false));
+    }
     if (n.type !== 'pattern') {
-      box.appendChild(h('p', { class: 'pd-prop-sub', text: T('Outline') }));
-      box.appendChild(swatchPicker('outline', n.outline, true));
+      if (n.type !== 'image') {
+        box.appendChild(h('p', { class: 'pd-prop-sub', text: T('Outline') }));
+        box.appendChild(swatchPicker('outline', n.outline, true));
+      }
       box.appendChild(h('div', { class: 'pd-prop-tools', role: 'group', 'aria-label': T('Alignment') }, [
         btn({ class: 'pd-icbtn', 'data-pd-act': 'align-h', 'aria-label': T('Centre on the surface, left to right'), title: T('Centre on the surface, left to right') }, [icon('alignH')]),
         btn({ class: 'pd-icbtn', 'data-pd-act': 'align-v', 'aria-label': T('Centre in the safe zone, top to bottom'), title: T('Centre in the safe zone, top to bottom') }, [icon('alignV')]),
@@ -2589,6 +2650,7 @@
     var l = C.findLayer(S.doc, f.layer), name = l ? l.layer.name : '', where = T(tSurface(f.surface).label);
     if (f.code === 'outside-print-area') return tf('%s is outside the printable area of the %s.', name, where);
     if (f.code === 'crosses-safe-zone') return tf('%s crosses the safe zone of the %s: seams or trims may cut it.', name, where);
+    if (f.code === 'low-resolution') return tf('%s is printed at about %d dpi on the %s: below %d dpi it may look soft.', name, f.dpi, where, C.MIN_PRINT_DPI);
     return tf('%s is lower than the template’s %d mm minimum for lettering.', name, TEMPLATE.rules.minTextHeight);
   }
   function renderCheck() {
@@ -2924,6 +2986,8 @@
       case 'patterns': { var first = S.el.strip.querySelector('button'); if (first) first.focus(); return; }
       case 'layers': if (S.inspTab !== 'design') { S.inspTab = 'design'; fillInsp(); } setPanel(window.matchMedia && window.matchMedia('(max-width: 980px)').matches ? 'inspector' : S.panel); var row1 = S.el.layers && S.el.layers.querySelector('button'); if (row1) row1.focus(); return;
       case 'elements': S.libTab = 'elements'; var lib2 = buildLib(); S.el.lib.parentNode.replaceChild(lib2, S.el.lib); S.el.lib = lib2; setPanel(window.matchMedia && window.matchMedia('(max-width: 1279px)').matches ? 'library' : S.panel); return;
+      // In a club, the image tool opens the club's logos (the Brand tab), where a logo is placed on the garment.
+      case 'image': if (!clubWorkspace()) return; S.libTab = 'brand'; var lib4 = buildLib(); S.el.lib.parentNode.replaceChild(lib4, S.el.lib); S.el.lib = lib4; setPanel(window.matchMedia && window.matchMedia('(max-width: 1279px)').matches ? 'library' : S.panel); return;
       case 'strip-prev': S.el.strip.scrollBy({ left: (DIR === 'rtl' ? 1 : -1) * 140, behavior: 'smooth' }); return;
       case 'strip-next': S.el.strip.scrollBy({ left: (DIR === 'rtl' ? -1 : 1) * 140, behavior: 'smooth' }); return;
       case 'duplicate': duplicateSel(); return;
@@ -2936,6 +3000,7 @@
       case 'add-colour': addColour(); return;
       case 'brand-upload': if (!S.brand.busy) { var bf = S.host.querySelector('[data-pd-brand-file]'); if (bf) { bf.value = ''; bf.click(); } } return;
       case 'brand-archive': brandArchive(t.getAttribute('data-pd-asset')); return;
+      case 'brand-place': brandPlace(t.getAttribute('data-pd-asset')); return;
       case 'brand-add-colour': brandAddColour(Number(t.getAttribute('data-pd-brand-colour'))); return;
       case 'brand-save-colours': brandSaveColours(); return;
       case 'save': serverSave(); return;

@@ -248,14 +248,14 @@ describe('it says what it is, and what it is not yet', () => {
   const REASON_KEYS = new Set(REASONS.map((r) => r[0]));
 
   it('every unavailable control names a reason that exists, and every reason is in the room’s catalogue', () => {
-    expect([...REASON_KEYS].sort()).toEqual(['360', '3d', 'capture', 'context-club', 'context-creator', 'fabric', 'image', 'image-club', 'method', 'order', 'orders', 'payments', 'product', 'proof', 'store', 'suppliers', 'templates']);
+    expect([...REASON_KEYS].sort()).toEqual(['360', '3d', 'capture', 'context-club', 'context-creator', 'fabric', 'image', 'method', 'order', 'orders', 'payments', 'product', 'proof', 'store', 'suppliers', 'templates']);
     // Each reason is defined once and used at least once: by planned(…, 'key'), a context, a read-only field or a side entry.
     for (const k of REASON_KEYS) {
       const quoted = (CODE.match(new RegExp(`'${k}'`, 'g')) || []).length;
       const definedQuoted = new RegExp(`^\\s+'${k}': L\\(`, 'm').test(CODE) ? 1 : 0;
       expect([k, quoted - definedQuoted >= 1]).toEqual([k, true]);
     }
-    for (const use of ["planned(image, clubWorkspace() ? 'image-club' : 'image')", "planned(capture, 'capture')", "text: '3D' }), '3d')", "]), '360'))", "function live3d(el, reasonKey) { return can3d() ? el : planned(el, reasonKey); }", "]), 'proof')", "]), 'order')",
+    for (const use of ["if (!clubWorkspace()) planned(image, 'image');", "planned(capture, 'capture')", "text: '3D' }), '3d')", "]), '360'))", "function live3d(el, reasonKey) { return can3d() ? el : planned(el, reasonKey); }", "]), 'proof')", "]), 'order')",
       "if (t[0] === 'templates') planned(b, 'templates');", "if (!e) { planned(b, 'product');", "if (!active) { planned(b, key);", "planned(sel, reason);", ": it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)"]) {
       expect([use, CODE.includes(use)]).toEqual([use, true]);
     }
@@ -331,13 +331,15 @@ describe('the official languages', () => {
     expect(Object.keys(EN).filter((k) => !literals.has(k))).toEqual([]);
   });
 
-  it('every official language has the same keys, keeps every %s and %d, and is not empty', () => {
+  it('every official language has the same keys, keeps every %s and %d in their order, and is not empty', () => {
     for (const code of OFFICIAL) {
       const cat = json(`public/product-design/i18n/${code}.json`) as Record<string, string>;
       expect([code, Object.keys(cat).sort()]).toEqual([code, Object.keys(EN).sort()]);
       for (const [k, v] of Object.entries(cat)) {
         expect(v.trim().length).toBeGreaterThan(0);
-        expect([code, k, (v.match(/%[ds]/g) || []).sort().join('')]).toEqual([code, k, (k.match(/%[ds]/g) || []).sort().join('')]);
+        // In the English order, not merely the same set: tf() fills the slots in order, so a swapped %s and %d would print
+        // a surface's name where a number belongs.
+        expect([code, k, (v.match(/%[ds]/g) || []).join('')]).toEqual([code, k, (k.match(/%[ds]/g) || []).join('')]);
       }
     }
   });

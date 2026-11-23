@@ -481,5 +481,9 @@
   "%s was added to the design palette.": "%s wurde zur Designpalette hinzugefügt.",
   "Club colours saved.": "Vereinsfarben gespeichert.",
   "The club colours could not be saved.": "Die Vereinsfarben konnten nicht gespeichert werden.",
-  "Placing a logo on the garment is the next step. The club’s logos are uploaded in the library’s Brand tab.": "Das Platzieren eines Logos auf dem Kleidungsstück ist der nächste Schritt. Die Logos des Vereins werden im Reiter „Marke“ der Bibliothek hochgeladen."
+  "Place": "Platzieren",
+  "Place %s on the garment": "%s auf dem Kleidungsstück platzieren",
+  "Printed at about %d dpi at this size.": "Bei dieser Größe mit etwa %d dpi gedruckt.",
+  "Printed at about %d dpi at this size: below %d dpi it may look soft. Make it smaller or upload a larger image.": "Bei dieser Größe mit etwa %d dpi gedruckt: Unter %d dpi kann es unscharf wirken. Verkleinern Sie es oder laden Sie ein größeres Bild hoch.",
+  "%s is printed at about %d dpi on the %s: below %d dpi it may look soft.": "%s wird mit etwa %d dpi auf der Fläche %s gedruckt: Unter %d dpi kann es unscharf wirken."
 }

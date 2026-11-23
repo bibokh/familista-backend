@@ -609,6 +609,37 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
         expect((await sys(`SELECT "action" FROM "PlatformAuditLog" WHERE "resourceId" = $1 ORDER BY "createdAt"`, crest)).map((a) => a.action))
           .toEqual(['design.brand.asset.added', 'design.brand.asset.archived', 'design.brand.asset.unarchived']);
       });
+
+      it('a design may name its own club’s logo at its kept size — never another club’s, a wrong size, or any logo on the platform’s designs (M2c-2)', async () => {
+        const withLogo = (name: string, asset: string, px: [number, number]) => {
+          const d = doc(name) as Row;
+          d.surfaces[0].layers.push({ id: 'logo', type: 'image', name: 'Home crest', visible: true, locked: false, asset, px, x: 270, y: 220, w: 60, h: 30, r: 0, w0: 60, h0: 30 });
+          return d;
+        };
+        const ok = await as('clubAdmin').club.post('/projects', { document: withLogo('Crest kit', crest, [1024, 512]), origin: 'EDITOR' });
+        expect(ok.status).toBe(201);
+        const [rev] = await sys(`SELECT "document" FROM "DesignRevision" WHERE "projectId" = $1`, ok.body.data.project.id);
+        expect(rev.document.surfaces[0].layers.find((l: Row) => l.id === 'logo')).toMatchObject({ type: 'image', asset: crest, px: [1024, 512] });
+        const before = await designRows();
+        const refused: Array<[string, Row, string]> = [
+          ['otherAdmin', withLogo('Taken crest', crest, [1024, 512]), 'unknown-brand-asset'],
+          ['clubAdmin', withLogo('Wrong size', crest, [512, 256]), 'brand-asset-size'],
+          ['clubAdmin', withLogo('No such logo', '77777777-7777-4777-8777-777777777777', [10, 10]), 'unknown-brand-asset'],
+        ];
+        for (const [who, d, code] of refused) {
+          const r = await as(who as Who).club.post('/projects', { document: d, origin: 'EDITOR' });
+          expect([who, r.status, r.body.code, (r.body.errors || []).map((e: Row) => e.code)]).toEqual([who, 400, 'DESIGN_DOCUMENT_INVALID', [code]]);
+        }
+        const platform = await owner.post('/projects', { document: withLogo('Platform with a logo', crest, [1024, 512]), origin: 'EDITOR' });
+        expect([platform.status, platform.body.errors.map((e: Row) => e.code)]).toEqual([400, ['image-not-allowed']]);
+        // and a save of an existing club design is held to the same rule
+        const save = await as('otherAdmin').club.post('/projects', { document: doc('Away kit'), origin: 'EDITOR' });
+        const away = save.body.data.project.id;
+        const r = await as('otherAdmin').club.post(`/projects/${away}/revisions`, { baseRevision: 1, document: withLogo('Away kit', crest, [1024, 512]) });
+        expect([r.status, r.body.errors.map((e: Row) => e.code)]).toEqual([400, ['unknown-brand-asset']]);
+        const after = await designRows();
+        expect({ projects: after.projects - before.projects, revisions: after.revisions - before.revisions }).toEqual({ projects: 1, revisions: 1 });
+      });
     });
   });
 

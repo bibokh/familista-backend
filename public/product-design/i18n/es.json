@@ -481,5 +481,9 @@
   "%s was added to the design palette.": "%s se añadió a la paleta del diseño.",
   "Club colours saved.": "Colores del club guardados.",
   "The club colours could not be saved.": "No se pudieron guardar los colores del club.",
-  "Placing a logo on the garment is the next step. The club’s logos are uploaded in the library’s Brand tab.": "Colocar un logotipo en la prenda es el siguiente paso. Los logotipos del club se suben en la pestaña Marca de la biblioteca."
+  "Place": "Colocar",
+  "Place %s on the garment": "Colocar %s en la prenda",
+  "Printed at about %d dpi at this size.": "Se imprime a unos %d ppp con este tamaño.",
+  "Printed at about %d dpi at this size: below %d dpi it may look soft. Make it smaller or upload a larger image.": "Se imprime a unos %d ppp con este tamaño: por debajo de %d ppp puede verse borroso. Redúzcalo o suba una imagen más grande.",
+  "%s is printed at about %d dpi on the %s: below %d dpi it may look soft.": "%s se imprime a unos %d ppp en la superficie %s: por debajo de %d ppp puede verse borroso."
 }

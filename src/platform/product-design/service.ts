@@ -22,7 +22,7 @@ import { DesignOrigin, DesignOwnerKind, DesignRevisionKind, PlatformAuditCategor
 import { prisma } from '../../config/database';
 import { ConflictError, NotFoundError } from '../../utils/errors';
 import { currentEnvironment } from '../environment';
-import { formatVersion, validateDesignDocument, type DesignDocument } from './core';
+import { DesignDocumentError, formatVersion, validateDesignDocument, type CoreProblem, type DesignDocument } from './core';
 
 /** Who is acting, as the routes resolved it. */
 export interface DesignActor {
@@ -127,6 +127,30 @@ async function audit(tx: Tx, scope: DesignScope, actor: DesignActor, action: str
   });
 }
 
+/**
+ * Every logo a design names (an image layer, M2c): none on the platform's designs, which have no brand kit; on a club's,
+ * the club's own logos alone (archived ones too: an older design may still show one), at the pixel size the kit keeps
+ * them. A design naming another club's logo, or one that does not exist, is refused like any invalid document. Asked in
+ * the request's database context, so row-level security answers the same question underneath.
+ */
+async function assertBrandAssets(db: Tx | typeof prisma, scope: DesignScope, document: DesignDocument): Promise<void> {
+  const refs: Array<{ asset: string; px: [number, number]; path: string }> = [];
+  (document.surfaces as Array<{ layers: Array<{ type: string; asset?: string; px?: [number, number] }> }>).forEach((s, i) => s.layers.forEach((l, j) => {
+    if (l.type === 'image' && typeof l.asset === 'string' && Array.isArray(l.px)) refs.push({ asset: l.asset, px: l.px, path: `surfaces[${i}].layers[${j}]` });
+  }));
+  if (!refs.length) return;
+  if (scope.kind !== 'CLUB') throw new DesignDocumentError(refs.map((r) => ({ code: 'image-not-allowed', path: r.path })));
+  const rows = await db.designBrandAsset.findMany({ where: { id: { in: [...new Set(refs.map((r) => r.asset))] }, clubId: scope.clubId }, select: { id: true, width: true, height: true } });
+  const kept = new Map(rows.map((r) => [r.id, r]));
+  const problems: CoreProblem[] = [];
+  for (const r of refs) {
+    const row = kept.get(r.asset);
+    if (!row) problems.push({ code: 'unknown-brand-asset', path: `${r.path}.asset` });
+    else if (row.width !== r.px[0] || row.height !== r.px[1]) problems.push({ code: 'brand-asset-size', path: `${r.path}.px` });
+  }
+  if (problems.length) throw new DesignDocumentError(problems);
+}
+
 async function projectOrNotFound(db: Tx | typeof prisma, scope: DesignScope, id: string): Promise<DesignProjectView> {
   const project = await db.designProject.findFirst({ where: { id, ...owned(scope) }, select: PROJECT_SELECT });
   if (!project) throw new NotFoundError('Design project');
@@ -147,6 +171,7 @@ export async function listProjects(scope: DesignScope, state: 'active' | 'archiv
 /** A new project, its document as revision 1. */
 export async function createProject(scope: DesignScope, actor: DesignActor, input: { document: unknown; origin: DesignOrigin }): Promise<{ project: DesignProjectView; revision: DesignRevisionMeta }> {
   const v = validateDesignDocument(input.document);
+  await assertBrandAssets(prisma, scope, v.document);
   return prisma.$transaction(async (tx) => {
     const project = await tx.designProject.create({
       data: {
@@ -224,6 +249,7 @@ async function advance(
 /** Save a document as the project's next revision, if `baseRevision` is still the newest. */
 export async function saveRevision(scope: DesignScope, actor: DesignActor, id: string, input: { baseRevision: number; document: unknown }) {
   const v = validateDesignDocument(input.document);
+  await assertBrandAssets(prisma, scope, v.document);
   return advance(scope, actor, id, input.baseRevision, { ...v, kind: DesignRevisionKind.SAVE, restoredFrom: null },
     'design.revision.saved', 'A Design Studio revision was saved');
 }
@@ -237,6 +263,7 @@ export async function restoreRevision(scope: DesignScope, actor: DesignActor, id
   if (!source) throw new NotFoundError('Design revision');
   // Stored documents were valid when saved; validating again keeps a restore to what the editor can open now.
   const v = validateDesignDocument(source.document);
+  await assertBrandAssets(prisma, scope, v.document);
   return advance(scope, actor, id, input.baseRevision, { ...v, kind: DesignRevisionKind.RESTORE, restoredFrom: number },
     'design.revision.restored', `A Design Studio revision was restored from revision ${number}`);
 }
