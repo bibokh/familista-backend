@@ -475,9 +475,14 @@ const budget = (name, values, ok, detail) => {
       await p9.evaluate(() => { location.hash = '#product-design'; });
       await p9.waitForFunction(() => window.__familistaProductDesignMetrics && window.__familistaProductDesignMetrics(), null, { timeout: 30000 });
       await p9.click('#pd-root [data-pd-act="save"]');
+      // Read once the save has landed, so what is kept is read whole: the draft and the record of the saved design it
+      // belongs to (pd-server.js, since DS-1b). Reading before it had landed raced the server.
+      await p9.waitForFunction(() => { const s = window.__familistaProductDesignMetrics().server; return s.state === 'saved' && s.linked && !s.busy; }, null, { timeout: 30000 });
       const after = await p9.evaluate(() => ({ is: localStorage.getItem('familista_design_studio_document'), keys: Object.keys(localStorage).filter((k) => /design/.test(k)).sort() }));
-      const allowed = ['familista_design_studio_document', 'familista_design_studio_document_unreadable', 'familista_product_design_draft_v1', 'familista_product_design_draft_v1_unreadable'];
-      check('P14 each studio keeps its own draft: the Design Studio writes its own key and leaves the Interface Studio’s byte for byte', after.is === isBefore && after.keys.includes('familista_product_design_draft_v1') && after.keys.every((k) => allowed.includes(k)), after.keys);
+      const allowed = ['familista_design_studio_document', 'familista_design_studio_document_unreadable', 'familista_product_design_draft_v1', 'familista_product_design_draft_v1_unreadable',
+        'familista_product_design_link_v1'];
+      check('P14 each studio keeps its own draft: the Design Studio writes its own keys (its draft, and once saved its link) and leaves the Interface Studio’s byte for byte',
+        after.is === isBefore && after.keys.includes('familista_product_design_draft_v1') && after.keys.includes('familista_product_design_link_v1') && after.keys.every((k) => allowed.includes(k)), after.keys);
       await c9.close();
     }
 

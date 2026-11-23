@@ -9,10 +9,10 @@
  *     the size is capped at 1024 px a side without enlarging;
  *   · limits: empty, over 5 MB, a decompression bomb over 25 megapixels (a small file), and a logo under 16 px a side.
  */
-import sharp from 'sharp';
+import sharp, { type Sharp } from 'sharp';
 import { BrandImageError, normaliseBrandImage, OUTPUT_MAX_SIDE, sniff, UPLOAD_LIMITS } from '../src/platform/product-design/brand-image';
 
-const solid = (w: number, h: number, format: 'png' | 'jpeg', extra?: (s: sharp.Sharp) => sharp.Sharp) => {
+const solid = (w: number, h: number, format: 'png' | 'jpeg', extra?: (s: Sharp) => Sharp) => {
   let s = sharp({ create: { width: w, height: h, channels: 3, background: { r: 200, g: 30, b: 40 } } });
   if (extra) s = extra(s);
   return (format === 'png' ? s.png() : s.jpeg({ quality: 90 })).toBuffer();
