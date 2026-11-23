@@ -52,7 +52,7 @@
   "Close": "Schließen",
   "Club": "Verein",
   "Club Design Studio": "Club Design Studio",
-  "Club Design Studio is planned (DS-3): club designs, branding approval and team orders.": "Club Design Studio ist geplant (DS-3): Vereinsdesigns, Freigabe des Vereinsbrandings und Mannschaftsbestellungen.",
+  "The Club Design Studio opens in a club’s own workspace, for the clubs the platform owner has enabled.": "Das Club Design Studio öffnet sich im eigenen Arbeitsbereich eines Vereins, für die Vereine, die der Plattformbetreiber freigeschaltet hat.",
   "Club crest": "Vereinswappen",
   "Clubs": "Vereine",
   "Collar": "Kragen",
@@ -438,5 +438,13 @@
   "Top band": "Oberer Rand",
   "Heel and toe": "Ferse und Spitze",
   "Outer side": "Außenseite",
-  "Inner side": "Innenseite"
+  "Inner side": "Innenseite",
+  "The Design Studio could not open this workspace.": "Das Design Studio konnte diesen Arbeitsbereich nicht öffnen.",
+  "Club manager": "Vereinsmanager",
+  "Club administrator": "Vereinsadministrator",
+  "Club home": "Vereinsstartseite",
+  "Club navigation": "Vereinsnavigation",
+  "Club designs, saved in the club’s workspace": "Vereinsdesigns, gespeichert im Arbeitsbereich des Vereins",
+  "Part of your club’s workspace": "Teil des Arbeitsbereichs Ihres Vereins",
+  "Holds this club’s designs only: no other club can see them": "Enthält nur die Designs dieses Vereins: Kein anderer Verein kann sie sehen"
 }

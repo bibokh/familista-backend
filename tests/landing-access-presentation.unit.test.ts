@@ -67,6 +67,9 @@ const db: Row = {
   platformAdmin: {
     findUnique: async ({ where }: Row) => state.platformAdmins.find((a) => a.userId === where.userId) ?? null,
   },
+  // The Club Design Studio's entitlement (canDesignClubKits): no club override and no flag row, as shipped.
+  organizationLimits: { findUnique: async () => null },
+  featureFlag: { findUnique: async () => null },
   $transaction: async (fn: any) => (typeof fn === 'function' ? fn(db) : Promise.all(fn)),
 };
 

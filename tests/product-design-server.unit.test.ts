@@ -48,8 +48,9 @@ function load(opts: { token?: string; storage?: Row | null; fetch?: (url: string
 describe('what it may call', () => {
   it('has one fetch, to the API base plus the design routes, and no other transport', () => {
     expect((CODE.match(/fetch\(/g) || []).length).toBe(1);
-    expect(CODE).toContain("root.fetch(apiBase() + BASE + path, init)");
+    expect(CODE).toContain("root.fetch(apiBase() + base + path, init)");
     expect(CODE).toContain("var BASE = '/system/product-design';");
+    expect(CODE).toContain("var CLUB_BASE = '/club-design';");
     expect(CODE).not.toMatch(/XMLHttpRequest|WebSocket|EventSource|sendBeacon|\.submit\(|<form|document\.|innerHTML|eval\(/);
     const verbs = [...CODE.matchAll(/call\('([A-Z]+)'/g)].map((m) => m[1]);
     expect([...new Set(verbs)].sort()).toEqual(['GET', 'POST']);
@@ -90,6 +91,45 @@ describe('what it may call', () => {
     expect(calls.map((c) => JSON.parse(c.init.body).origin)).toEqual(['BROWSER_DRAFT', 'EDITOR']);
     // The schema is the handlers' own, shared by the platform's mount and a club's (src/platform/product-design/http.ts).
     expect(fs.readFileSync(path.join(ROOT, 'src/platform/product-design/http.ts'), 'utf8')).toContain("origin: z.enum(['EDITOR', 'FILE_IMPORT', 'BROWSER_DRAFT'])");
+  });
+});
+
+describe('in a club (M2): the club’s own routes, and a record of its own', () => {
+  const CLUB_ROUTES = fs.readFileSync(path.join(ROOT, 'src/routes/club-design.routes.ts'), 'utf8');
+  const id = '11111111-1111-4111-8111-111111111111';
+
+  it('calls the club mount, every path a route it serves with its verb, and names no club in any request', async () => {
+    const served = [...CLUB_ROUTES.matchAll(/router\.(get|post)\('([^']+)'/g)].map((m) => `${m[1].toUpperCase()} ${m[2]}`).sort();
+    const { P, calls } = load({ token: 'tkn' });
+    const C = P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' });
+    await C.api.listProjects('active'); await C.api.createProject({}, 'EDITOR'); await C.api.openProject(id);
+    await C.api.saveRevision(id, 1, {}); await C.api.listRevisions(id); await C.api.restoreRevision(id, 2, 5);
+    await C.api.archive(id); await C.api.unarchive(id); await C.api.getRevision(id, 3);
+    expect(calls.every((c) => c.url.startsWith('/api/v1/club-design/'))).toBe(true);
+    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/club-design', '').replace(/\?.*$/, '').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
+    expect([...new Set(used)].sort()).toEqual(served);
+    expect(calls.some((c) => c.url.includes('club-1') || String(c.init.body || '').includes('club-1'))).toBe(false);
+    expect(calls[0].init.headers).toMatchObject({ Authorization: 'Bearer tkn' });
+  });
+
+  it('keeps each workspace’s record apart: the platform’s, this club’s and another club’s never overwrite each other', () => {
+    const { P } = load();
+    const A = P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' }), B = P.forWorkspace({ kind: 'CLUB', clubId: 'club-2' });
+    expect(new Set([P.LINK_KEY, A.LINK_KEY, B.LINK_KEY]).size).toBe(3);
+    expect(P.forWorkspace({ kind: 'PLATFORM' })).toBe(P.forWorkspace(null));
+    A.writeLink({ projectId: id, revision: 2, fp: '0123abcd' });
+    expect(A.readLink()).toEqual({ projectId: id, revision: 2, fp: '0123abcd' });
+    expect(B.readLink()).toBeNull();
+    expect(P.readLink()).toBeNull();
+    B.clearLink();
+    expect(A.readLink()).not.toBeNull();
+  });
+
+  it('refuses a workspace it does not know, rather than guess one', () => {
+    const { P } = load();
+    for (const w of [{ kind: 'CLUB' }, { kind: 'CLUB', clubId: '' }, { kind: 'CLUB', clubId: '../system' }, { kind: 'CLUB', clubId: 'a b' }, { kind: 'PERSONAL', userId: 'u' }]) {
+      expect([w, P.forWorkspace(w)]).toEqual([w, null]);
+    }
   });
 });
 

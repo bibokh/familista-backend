@@ -89,10 +89,28 @@ describe('the Interface Studio is preserved', () => {
 describe('wiring: an owner room of its own, its design routes guarded on the server', () => {
   it('app.js loads it on demand behind the platform-owner check, its core, its server client, its garment and 3D view, then its editor, under one version that the room also uses', () => {
     // DS-1c adds the garment geometry and the 3D view before the editor; Babylon itself is loaded only when 3D is chosen (pd-3d.js).
-    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261122-product-design-m1b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done);");
-    expect(JS).toContain("var VERSION = '20261122-product-design-m1b';");
+    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261123-product-design-m2b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done);");
+    expect(JS).toContain("var VERSION = '20261123-product-design-m2b';");
     expect(APP).toContain("if (page === 'product-design' && !(_PD_ROOM && _PD_ROOM.state === 'ready')) {");
     expect(APP).toMatch(/_loadProductDesign\(function \(ok\) \{\s*try \{ navTo\(ok \? page : 'owner-home', ok \? el : null, _opts\); \} catch \(_\) \{\}/);
+    // The owner rooms keep their platform-owner check; the same asset loader serves the club's room behind its capability.
+    expect(APP).toMatch(/function _famLoadOwnerRoom\(room, v, css, scripts, done\) \{\s*_famLoadRoom\(room, v, css, scripts, done, function \(\) \{\s*return _isPlatformOwner\(\)/);
+    expect(APP).toContain('ask = Promise.resolve(allowed());');
+  });
+
+  it('M2b: opens in a club’s workspace for whoever its capability names, the same files under the same version, and falls back to the club’s home', () => {
+    expect(APP).toContain("_famLoadRoom(_PD_ROOM, '20261123-product-design-m2b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done,\n    function () { return _access('canDesignClubKits'); });");
+    expect(APP).toContain("if (!_access('canDesignClubKits')) { try { navTo('club-home', null, _opts); } catch (_) {} return; }");
+    expect(APP).toMatch(/_loadClubDesign\(function \(ok\) \{\s*try \{ navTo\(ok \? page : 'club-home', ok \? el : null, _opts\); \} catch \(_\) \{\}/);
+    const nav = APP.slice(APP.indexOf('var CLUB_NAV_ITEMS = ['), APP.indexOf('];', APP.indexOf('var CLUB_NAV_ITEMS = [')));
+    expect(nav).toMatch(/slug:\s+'club-design',[\s\S]*?requires: 'canDesignClubKits',/);
+    expect(/var _ALLOWED_PAGES = \{([\s\S]*?)\};/.exec(APP)![1]).toMatch(/'club-design': 1,/);
+    expect(APP).toContain('return `<div class="page" id="pg-club-design" data-no-i18n data-fam-module="club-design"><div id="pd-club-root" class="pd-host"></div></div>`;');
+    expect(APP).toContain("'club-design':                 renderClubDesignHTML,");
+    // The workspace passed is the session's open club; the room keys what it keeps by it, and the server serves the session's own.
+    expect(APP).toContain("kind: 'CLUB', clubId: String(_ctx.clubId),");
+    expect(JS).toContain("STORE_KEY = ws.kind === 'CLUB' ? STORE_BASE + '_club_' + ws.clubId : STORE_BASE;");
+    expect(JS).toContain('WS = ws; P = client;');
   });
 
   it('says plainly that the client check is convenience and not a security boundary', () => {
@@ -108,8 +126,9 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
     expect(allow).toMatch(/'product-design': 1,/);
     expect(APP).toContain("'product-design':              renderProductDesignHTML,");
     expect(APP).toContain('return `<div class="page" id="pg-product-design" data-no-i18n data-fam-context="owner" data-fam-module="product-design"><div id="pd-root"></div></div>`;');
-    expect(APP).toContain("document.body.classList.toggle('pd-studio-open', page === 'product-design');");
-    expect(APP).toContain("if (_wasProduct && page !== 'product-design' && typeof window.teardownFamilistaProductDesign === 'function') {");
+    expect(APP).toContain("var _isProduct = page === 'product-design' || page === 'club-design';");
+    expect(APP).toContain("document.body.classList.toggle('pd-studio-open', _isProduct);");
+    expect(APP).toContain("if (_wasProduct && 'pg-' + page !== _leaving && typeof window.teardownFamilistaProductDesign === 'function') {");
     expect(APP).toContain("&& _pdRoot && (_leaving !== 'pg-product-design' || !_pdRoot.__famDrawn)) {");
     expect(APP).toContain("'product-design':'Design Studio',");
     expect(read('public/index.html')).not.toContain('/product-design/');
@@ -134,7 +153,7 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
     expect(ts('src').filter((f) => /product-design|ProductDesign|pd-core/.test(read(f))).sort()).toEqual([
       'src/contracts/owner-api.contracts.ts', 'src/cyber-defense/control-plane/registry.ts',
       'src/platform/product-design/core.ts', 'src/platform/product-design/http.ts', 'src/routes/club-design.routes.ts',
-      'src/routes/index.ts', 'src/routes/product-design.routes.ts',
+      'src/routes/index.ts', 'src/routes/product-design.routes.ts', 'src/services/context.service.ts',
     ]);
     expect(fs.readdirSync(path.join(ROOT, 'src/platform/product-design')).sort()).toEqual(['core.ts', 'http.ts', 'service.ts']);
     // M2: a club's designs have their own mount, behind authenticate, the club roles that design kits, the club's

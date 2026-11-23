@@ -35,7 +35,7 @@ body.pd-studio-open .app { display: block !important; }
 body.pd-studio-open .main { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; }
 body.pd-studio-open { overflow: hidden; }
 
-#pg-product-design {
+:is(#pg-product-design, #pg-club-design) {
   background:
     radial-gradient(1100px 620px at 58% 34%, color-mix(in srgb, var(--fam-module-accent) 12%, transparent), transparent 70%),
     radial-gradient(900px 520px at 12% 92%, color-mix(in srgb, var(--fam-module-accent-2) 9%, transparent), transparent 70%),
@@ -45,20 +45,20 @@ body.pd-studio-open { overflow: hidden; }
   font-size: var(--fam-font-size-base);
   line-height: var(--fam-font-line-height-snug);
 }
-#pg-product-design *, #pg-product-design *::before, #pg-product-design *::after { box-sizing: border-box; }
-#pd-root:lang(ar) { font-family: var(--fam-font-family-arabic); }
-#pg-product-design [hidden] { display: none !important; }
-#pg-product-design button { font: inherit; color: inherit; }
-#pg-product-design h1, #pg-product-design h2, #pg-product-design p, #pg-product-design ul, #pg-product-design ol, #pg-product-design figure { margin: 0; }
-#pg-product-design ul, #pg-product-design ol { padding: 0; list-style: none; }
+:is(#pg-product-design, #pg-club-design) *, :is(#pg-product-design, #pg-club-design) *::before, :is(#pg-product-design, #pg-club-design) *::after { box-sizing: border-box; }
+:is(#pd-root, #pd-club-root):lang(ar) { font-family: var(--fam-font-family-arabic); }
+:is(#pg-product-design, #pg-club-design) [hidden] { display: none !important; }
+:is(#pg-product-design, #pg-club-design) button { font: inherit; color: inherit; }
+:is(#pg-product-design, #pg-club-design) h1, :is(#pg-product-design, #pg-club-design) h2, :is(#pg-product-design, #pg-club-design) p, :is(#pg-product-design, #pg-club-design) ul, :is(#pg-product-design, #pg-club-design) ol, :is(#pg-product-design, #pg-club-design) figure { margin: 0; }
+:is(#pg-product-design, #pg-club-design) ul, :is(#pg-product-design, #pg-club-design) ol { padding: 0; list-style: none; }
 .pd-sr {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
-#pg-product-design :is(button, input, select, [tabindex]):focus-visible {
+:is(#pg-product-design, #pg-club-design) :is(button, input, select, [tabindex]):focus-visible {
   outline: 2px solid var(--fam-focus-ring); outline-offset: 2px; box-shadow: var(--fam-glow-focus);
 }
-#pg-product-design [aria-disabled="true"] { cursor: not-allowed; }
+:is(#pg-product-design, #pg-club-design) [aria-disabled="true"] { cursor: not-allowed; }
 
 /* ── the shell: R1 top, R2 side, main, the bottom cards ────────────────── */
 .pd-shell {
@@ -640,5 +640,5 @@ body.pd-studio-open { overflow: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #pg-product-design *, #pg-product-design *::before, #pg-product-design *::after { transition: none !important; scroll-behavior: auto !important; }
+  :is(#pg-product-design, #pg-club-design) *, :is(#pg-product-design, #pg-club-design) *::before, :is(#pg-product-design, #pg-club-design) *::after { transition: none !important; scroll-behavior: auto !important; }
 }

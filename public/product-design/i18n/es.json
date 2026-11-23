@@ -52,7 +52,7 @@
   "Close": "Cerrar",
   "Club": "Club",
   "Club Design Studio": "Club Design Studio",
-  "Club Design Studio is planned (DS-3): club designs, branding approval and team orders.": "Club Design Studio está previsto (DS-3): diseños del club, aprobación de la identidad de marca y pedidos de equipo.",
+  "The Club Design Studio opens in a club’s own workspace, for the clubs the platform owner has enabled.": "El Club Design Studio se abre en el espacio de trabajo propio de un club, para los clubes que el propietario de la plataforma ha habilitado.",
   "Club crest": "Escudo del club",
   "Clubs": "Clubes",
   "Collar": "Cuello",
@@ -438,5 +438,13 @@
   "Top band": "Banda superior",
   "Heel and toe": "Talón y puntera",
   "Outer side": "Lado exterior",
-  "Inner side": "Lado interior"
+  "Inner side": "Lado interior",
+  "The Design Studio could not open this workspace.": "El Design Studio no pudo abrir este espacio de trabajo.",
+  "Club manager": "Mánager del club",
+  "Club administrator": "Administrador del club",
+  "Club home": "Inicio del club",
+  "Club navigation": "Navegación del club",
+  "Club designs, saved in the club’s workspace": "Diseños del club, guardados en el espacio de trabajo del club",
+  "Part of your club’s workspace": "Parte del espacio de trabajo de su club",
+  "Holds this club’s designs only: no other club can see them": "Contiene solo los diseños de este club: ningún otro club puede verlos"
 }

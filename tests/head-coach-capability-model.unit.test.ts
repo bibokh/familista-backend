@@ -111,6 +111,9 @@ const db: Row = {
   membershipAuditLog: { create: async ({ data }: Row) => { state.audits.push(data); return data; } },
   refreshToken: { deleteMany: async () => ({ count: 0 }) },
   securityEvent: { create: async () => ({}) },
+  // The Club Design Studio's entitlement (canDesignClubKits): no club override and no flag row, as shipped.
+  organizationLimits: { findUnique: async () => null },
+  featureFlag: { findUnique: async () => null },
   $transaction: async (fn: any) => (typeof fn === 'function' ? fn(db) : Promise.all(fn)),
 };
 

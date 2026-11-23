@@ -52,7 +52,7 @@
   "Close": "إغلاق",
   "Club": "نادي",
   "Club Design Studio": "Club Design Studio",
-  "Club Design Studio is planned (DS-3): club designs, branding approval and team orders.": "Club Design Studio مُخطَّط (DS-3): تصاميم الأندية، واعتماد الهوية البصرية، وطلبات الفرق.",
+  "The Club Design Studio opens in a club’s own workspace, for the clubs the platform owner has enabled.": "يُفتح Club Design Studio في مساحة العمل الخاصة بالنادي، للأندية التي فعّلها مالك المنصة.",
   "Club crest": "شعار النادي",
   "Clubs": "الأندية",
   "Collar": "الياقة",
@@ -438,5 +438,13 @@
   "Top band": "الشريط العلوي",
   "Heel and toe": "الكعب والمقدمة",
   "Outer side": "الجانب الخارجي",
-  "Inner side": "الجانب الداخلي"
+  "Inner side": "الجانب الداخلي",
+  "The Design Studio could not open this workspace.": "تعذّر على Design Studio فتح مساحة العمل هذه.",
+  "Club manager": "مدير النادي",
+  "Club administrator": "مسؤول النادي",
+  "Club home": "الصفحة الرئيسية للنادي",
+  "Club navigation": "تنقل النادي",
+  "Club designs, saved in the club’s workspace": "تصاميم النادي، محفوظة في مساحة عمل النادي",
+  "Part of your club’s workspace": "جزء من مساحة عمل ناديك",
+  "Holds this club’s designs only: no other club can see them": "يحتفظ بتصاميم هذا النادي فقط: لا يمكن لأي نادٍ آخر رؤيتها"
 }

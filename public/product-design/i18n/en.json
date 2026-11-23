@@ -52,7 +52,7 @@
   "Close": "Close",
   "Club": "Club",
   "Club Design Studio": "Club Design Studio",
-  "Club Design Studio is planned (DS-3): club designs, branding approval and team orders.": "Club Design Studio is planned (DS-3): club designs, branding approval and team orders.",
+  "The Club Design Studio opens in a club’s own workspace, for the clubs the platform owner has enabled.": "The Club Design Studio opens in a club’s own workspace, for the clubs the platform owner has enabled.",
   "Club crest": "Club crest",
   "Clubs": "Clubs",
   "Collar": "Collar",
@@ -438,5 +438,13 @@
   "Top band": "Top band",
   "Heel and toe": "Heel and toe",
   "Outer side": "Outer side",
-  "Inner side": "Inner side"
+  "Inner side": "Inner side",
+  "The Design Studio could not open this workspace.": "The Design Studio could not open this workspace.",
+  "Club manager": "Club manager",
+  "Club administrator": "Club administrator",
+  "Club home": "Club home",
+  "Club navigation": "Club navigation",
+  "Club designs, saved in the club’s workspace": "Club designs, saved in the club’s workspace",
+  "Part of your club’s workspace": "Part of your club’s workspace",
+  "Holds this club’s designs only: no other club can see them": "Holds this club’s designs only: no other club can see them"
 }

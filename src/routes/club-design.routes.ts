@@ -26,14 +26,11 @@ import { UserRole } from '@prisma/client';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { tenantParam } from '../middleware/tenant-guard.middleware';
 import { isFeatureEnabled } from '../services/admin-organization.service';
-import { clubScope } from '../platform/product-design/service';
+import { CLUB_DESIGN_FEATURE, clubScope } from '../platform/product-design/service';
 import {
   archiveDesign, createDesign, listDesignRevisions, listDesigns, openDesign, openDesignRevision, restoreDesignRevision,
   saveDesign, setDesignScope, unarchiveDesign,
 } from '../platform/product-design/http';
-
-/** The entitlement that opens the Club Design Studio to a club. */
-export const CLUB_DESIGN_FEATURE = 'club_design_studio';
 
 const router = Router();
 router.use(authenticate);

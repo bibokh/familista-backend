@@ -115,6 +115,8 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
     return {
       get: (url: string) => withAuth(request(app).get(API + url)),
       post: (url: string, body: Row = {}) => withAuth(request(app).post(API + url)).send(body),
+      /** The same session on any other route. */
+      raw: (url: string) => withAuth(request(app).get(url)),
       /** The same session on the club routes. */
       club: {
         get: (url: string) => withAuth(request(app).get(CLUB_API + url)),
@@ -443,6 +445,16 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
       // The platform owner works on the platform's routes, not inside a club's studio.
       expect((await as('owner').club.get('/projects')).status).toBe(403);
       expect(await designRows()).toEqual(before);
+    });
+
+    it('the session says what the routes do: canDesignClubKits for an entitled club’s administrator and manager, and nobody else', async () => {
+      const cap = async (who: Who) => {
+        const r = await as(who).raw('/api/v1/me/context');
+        expect({ who, status: r.status }).toEqual({ who, status: 200 });
+        return r.body.data.effectiveAccess.canDesignClubKits;
+      };
+      expect({ clubAdmin: await cap('clubAdmin'), manager: await cap('manager'), coach: await cap('coach'), owner: await cap('owner'), otherAdmin: await cap('otherAdmin') })
+        .toEqual({ clubAdmin: true, manager: true, coach: false, owner: false, otherAdmin: false });
     });
 
     it('a club administrator creates, saves, restores and archives the club’s own design, audited with the club', async () => {

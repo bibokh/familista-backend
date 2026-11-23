@@ -38,13 +38,31 @@
 
   var C = window.FamilistaProductDesignCore;
   var LIMITS = C.LIMITS;
-  var VERSION = '20261122-product-design-m1b';
+  var VERSION = '20261123-product-design-m2b';
   // The released garments: templates/index.json names each one's reviewed template file; the server reads the same index.
   var TEMPLATE_DIR = '/product-design/templates/';
   var INDEX_URL = TEMPLATE_DIR + 'index.json?v=' + VERSION;
   var JERSEY_KEY = 'football-jersey.classic-v';
   var STORE_KEY = 'familista_product_design_draft_v1';
   var STORE_UNREADABLE = 'familista_product_design_draft_v1_unreadable';
+  var STORE_BASE = STORE_KEY;
+  /**
+   * The workspace the room is open in (M2b): the platform's own, or a club's — { kind: 'CLUB', clubId, clubName, role },
+   * as app.js passes it from the session. Set once at mount, before anything reads it. A club keeps its draft and its
+   * saved-design record under keys of its own, so one browser used for two workspaces never mixes them; the club only
+   * names what this browser keeps: the server serves the session's own club, whatever the page says.
+   */
+  var WS = { kind: 'PLATFORM' };
+  function clubWorkspace() { return WS.kind === 'CLUB'; }
+  function workspaceOf(opts) {
+    var w = opts && opts.workspace;
+    if (!w) return { kind: 'PLATFORM' };
+    if (w.kind === 'CLUB' && typeof w.clubId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(w.clubId)) {
+      return Object.freeze({ kind: 'CLUB', clubId: w.clubId, clubName: typeof w.clubName === 'string' ? w.clubName.slice(0, 120) : '',
+        role: w.role === 'MANAGER' || w.role === 'CLUB_ADMIN' ? w.role : '' });
+    }
+    return null;
+  }
   var SVG = 'http://www.w3.org/2000/svg';
   var DRAG_THRESHOLD = 3;
 
@@ -218,7 +236,7 @@
   // is pressed — never a handler that pretends.
 
   var REASON = {
-    'context-club': L('Club Design Studio is planned (DS-3): club designs, branding approval and team orders.'),
+    'context-club': L('The Club Design Studio opens in a club’s own workspace, for the clubs the platform owner has enabled.'),
     'context-creator': L('Creator Studio is planned (DS-4) and needs personal accounts first (DS-ID).'),
     templates: L('More templates arrive with the product catalogue (DS-2).'),
     product: L('This product arrives with the product catalogue (DS-2).'),
@@ -342,7 +360,8 @@
   // refused, and this room asks what to do. pd-server.js is the only file that
   // talks to the server.
 
-  var P = window.FamilistaProductDesignServer;
+  var SERVER = window.FamilistaProductDesignServer;
+  var P = SERVER;
 
   function serverFresh() {
     return {
@@ -1948,19 +1967,22 @@
     LOCALES.forEach(function (l) {
       langs.appendChild(btn({ class: 'pd-lang', 'data-pd-lang': l[0], lang: l[0], 'aria-pressed': l[0] === LANG ? 'true' : 'false', title: l[1], text: l[0].toUpperCase() }));
     });
-    var nav = h('nav', { class: 'pd-ownernav', 'aria-label': T('Platform owner') });
-    // The shared Platform Owner navigation: built and escaped by app.js for every owner room.
-    if (typeof window.famOwnerNav === 'function') nav.innerHTML = window.famOwnerNav('product-design', T, 'pd-ownernav');
+    // The shared Platform Owner navigation: built and escaped by app.js for every owner room. In a club there is none.
+    var nav = clubWorkspace() ? h('div', { class: 'pd-ownernav', 'aria-hidden': 'true' }) : h('nav', { class: 'pd-ownernav', 'aria-label': T('Platform owner') });
+    if (!clubWorkspace() && typeof window.famOwnerNav === 'function') nav.innerHTML = window.famOwnerNav('product-design', T, 'pd-ownernav');
+    // Who is designing: the platform owner, or the club (its name is the club's own, never translated) and the role.
+    var who = clubWorkspace()
+      ? h('span', { class: 'pd-owner' }, [h('span', { class: 'pd-owner-av', 'aria-hidden': 'true' }, [icon('shield', 14)]),
+        h('span', { class: 'pd-owner-club', 'data-user-content': '', text: WS.clubName }),
+        h('span', { class: 'pd-owner-role', text: WS.role === 'MANAGER' ? T('Club manager') : T('Club administrator') })])
+      : h('span', { class: 'pd-owner' }, [h('span', { class: 'pd-owner-av', 'aria-hidden': 'true' }, [icon('crown', 14)]), h('span', { text: T('Platform Owner') })]);
     return h('header', { class: 'pd-top', 'data-ds-region': 'R1' }, [
       h('div', { class: 'pd-brand' }, [
         h('img', { class: 'pd-brand-mark', src: '/familista-icon.svg', alt: '', width: '34', height: '34', decoding: 'async' }),
         h('span', { class: 'pd-brand-text' }, [h('strong', { text: 'Familista' }), h('span', { text: T('Design Studio') })]),
       ]),
       nav,
-      h('div', { class: 'pd-top-end' }, [
-        langs,
-        h('span', { class: 'pd-owner' }, [h('span', { class: 'pd-owner-av', 'aria-hidden': 'true' }, [icon('crown', 14)]), h('span', { text: T('Platform Owner') })]),
-      ]),
+      h('div', { class: 'pd-top-end' }, [langs, who]),
     ]);
   }
 
@@ -1975,10 +1997,19 @@
     { reason: 'suppliers', icon: 'factory', label: L('Factories & suppliers') },
     { reason: 'payments', icon: 'card', label: L('Payments') },
   ];
+  /** In a club: back to the club's home, and the studio; commerce stays planned, as on the platform. */
+  var SIDE_CLUB = [
+    { page: 'club-home', icon: 'home', label: L('Club home') },
+    { page: 'club-design', icon: 'shirt', label: L('Design Studio'), current: true },
+    { reason: 'store', icon: 'store', label: L('Global Store') },
+    { reason: 'orders', icon: 'box', label: L('Orders') },
+    { reason: 'suppliers', icon: 'factory', label: L('Factories & suppliers') },
+    { reason: 'payments', icon: 'card', label: L('Payments') },
+  ];
   function buildSide() {
     var list = h('ul', { class: 'pd-side-list', role: 'list' });
     var plannedShown = false;
-    SIDE.forEach(function (it) {
+    (clubWorkspace() ? SIDE_CLUB : SIDE).forEach(function (it) {
       if (it.reason && !plannedShown) { plannedShown = true; list.appendChild(h('li', { class: 'pd-side-group', text: T('Planned') })); }
       var b = it.current ? btn({ class: 'pd-side-btn is-current', 'aria-current': 'page' })
         : it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)
@@ -1986,7 +2017,7 @@
       append(b, [icon(it.icon, 18), h('span', { class: 'pd-side-label', text: T(it.label) })]);
       list.appendChild(h('li', null, [b]));
     });
-    return h('nav', { class: 'pd-side', 'data-ds-region': 'R2', 'aria-label': T('Owner navigation') }, [list]);
+    return h('nav', { class: 'pd-side', 'data-ds-region': 'R2', 'aria-label': clubWorkspace() ? T('Club navigation') : T('Owner navigation') }, [list]);
   }
 
   function buildHead() {
@@ -2003,14 +2034,20 @@
         h('span', { class: 'pd-title-ic', 'aria-hidden': 'true' }, [icon('shirt', 30)]),
         h('div', null, [h('h1', { text: T('Design Studio') }), h('p', { text: T('Professional sportswear design, measured in millimetres') })]),
       ]),
-      h('div', { class: 'pd-ctxs', role: 'group', 'aria-label': T('Design context') }, [
+      // In a club, the club's studio is the one open and the platform's is not offered; the creator's stays planned.
+      h('div', { class: 'pd-ctxs', role: 'group', 'aria-label': T('Design context') }, clubWorkspace() ? [
+        ctx('context-club', 'shield', L('Club'), L('Club Design Studio'), true),
+        ctx('context-creator', 'people', L('Individuals & public'), L('Creator Studio'), false),
+      ] : [
         ctx('context-club', 'shield', L('Club'), L('Club Design Studio'), false),
         ctx('context-creator', 'people', L('Individuals & public'), L('Creator Studio'), false),
         ctx('platform', 'crown', L('Platform'), L('Design Studio Control'), true),
       ]),
       h('div', { class: 'pd-ctxcard' }, [
         h('img', { class: 'pd-ctxcard-mark', src: '/familista-icon.svg', alt: '', width: '40', height: '40', decoding: 'async' }),
-        h('span', { class: 'pd-ctxcard-text' }, [h('strong', { text: T('Familista Platform') }), h('span', { text: T('Platform drafts, in this browser') })]),
+        h('span', { class: 'pd-ctxcard-text' }, clubWorkspace()
+          ? [h('strong', { 'data-user-content': '', text: WS.clubName }), h('span', { text: T('Club designs, saved in the club’s workspace') })]
+          : [h('strong', { text: T('Familista Platform') }), h('span', { text: T('Platform drafts, in this browser') })]),
       ]),
     ]);
   }
@@ -2537,6 +2574,11 @@
     { ok: false, label: L('Supervised by AI agents'), state: L('Planned, DS-8') },
     { ok: true, label: L('Visible in the Neural Digital Twin') },
   ];
+  var INTEGRATION_CLUB = [
+    { ok: true, label: L('Part of your club’s workspace') },
+    { ok: true, label: L('Holds this club’s designs only: no other club can see them') },
+    { ok: false, label: L('Supervised by AI agents'), state: L('Planned, DS-8') },
+  ];
   var SUPPLIERS = [
     { name: 'Printful', state: L('Under evaluation') },
     { name: 'Printify', state: L('Under evaluation') },
@@ -2555,7 +2597,7 @@
       ]));
     });
     var integ = h('ul', { class: 'pd-integ-list', role: 'list' });
-    INTEGRATION.forEach(function (it) {
+    (clubWorkspace() ? INTEGRATION_CLUB : INTEGRATION).forEach(function (it) {
       integ.appendChild(h('li', { class: 'pd-integ', 'data-ok': it.ok ? 'true' : 'false' }, [
         h('span', { class: 'pd-integ-ic' }, [icon(it.ok ? 'check' : 'info', 15)]),
         h('span', null, [T(it.label), it.state ? ' ' : null, it.state ? chip(T(it.state), 'muted') : null]),
@@ -2991,9 +3033,18 @@
     if (hadFocus) { var cur = lib.querySelector('.pd-card.is-current'); if (cur) cur.focus({ preventScroll: true }); }
   }
 
-  window.renderFamilistaProductDesign = function (host) {
+  window.renderFamilistaProductDesign = function (host, opts) {
     if (!host) return;
     if (S) window.teardownFamilistaProductDesign();
+    var ws = workspaceOf(opts), client = ws && SERVER.forWorkspace(ws);
+    if (!ws || !client) {
+      clear(host);
+      host.appendChild(h('div', { class: 'pd-shell pd-shell--loading' }, [h('p', { class: 'pd-loading', role: 'alert', text: T('The Design Studio could not open this workspace.') })]));
+      return;
+    }
+    WS = ws; P = client;
+    STORE_KEY = ws.kind === 'CLUB' ? STORE_BASE + '_club_' + ws.clubId : STORE_BASE;
+    STORE_UNREADABLE = STORE_KEY + '_unreadable';
     S = fresh(host);
     var mine = S;
     host.setAttribute('aria-busy', 'true');
@@ -3046,7 +3097,7 @@
       renderMsMedian: ms.length ? ms[Math.floor(ms.length / 2)] : null, renderMsMax: ms.length ? ms[ms.length - 1] : null,
       edits: S.metrics.editMs.length, editMsMedian: ed.length ? ed[Math.floor(ed.length / 2)] : null, editMsP95: ed.length ? ed[Math.floor(ed.length * 0.95)] : null,
       template: TEMPLATE ? TEMPLATE.key : null, products: INDEX ? INDEX.map(function (e) { return e.product; }) : [],
-      view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
+      workspace: WS.kind, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
       layers: S.doc.surfaces.map(function (x) { return x.layers.length; }), findings: S.findings.length,
       saveState: S.saveState, lastSaveBytes: S.metrics.lastSaveBytes, announced: S.announced, lang: LANG, dir: DIR,
       server: { state: S.srv.state, busy: S.srv.busy, linked: !!S.srv.link, projectId: S.srv.link ? S.srv.link.projectId : null, revision: S.srv.link ? S.srv.link.revision : null,

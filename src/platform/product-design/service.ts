@@ -18,7 +18,7 @@
  * so a change without its record cannot exist. The record holds numbers and a
  * hash, never the document.
  */
-import { DesignOrigin, DesignOwnerKind, DesignRevisionKind, PlatformAuditCategory, Prisma } from '@prisma/client';
+import { DesignOrigin, DesignOwnerKind, DesignRevisionKind, PlatformAuditCategory, Prisma, UserRole } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { ConflictError, NotFoundError } from '../../utils/errors';
 import { currentEnvironment } from '../environment';
@@ -61,6 +61,14 @@ export interface DesignRevisionView extends DesignRevisionMeta {
 export const PROJECT_LIST_LIMIT = 200;
 /** At most this many revisions in one list, newest first. */
 export const REVISION_LIST_LIMIT = 500;
+
+/** The entitlement that opens the Club Design Studio to a club: off for every club and plan until the platform owner releases it. */
+export const CLUB_DESIGN_FEATURE = 'club_design_studio';
+/**
+ * The account roles that design a club's kits. The club routes ask exactly this (authorize, in
+ * src/routes/club-design.routes.ts) and the session's capability `canDesignClubKits` mirrors it; a test holds them together.
+ */
+export const CLUB_DESIGN_ROLES: readonly UserRole[] = Object.freeze([UserRole.CLUB_ADMIN, UserRole.MANAGER]);
 
 /** Whose designs an operation reaches: the platform's own, or one club's. PERSONAL arrives with the Creator Studio. */
 export type DesignScope = { readonly kind: 'PLATFORM' } | { readonly kind: 'CLUB'; readonly clubId: string };
