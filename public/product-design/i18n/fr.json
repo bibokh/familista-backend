@@ -890,5 +890,15 @@
   "Print or save as PDF": "Imprimer ou enregistrer en PDF",
   "Designs: %d · prepared %s": "Designs : %d · préparé le %s",
   "Familista Design Studio": "Familista Design Studio",
-  "Colours on screen and in print are approximate.": "Les couleurs à l’écran et à l’impression sont approximatives."
+  "Colours on screen and in print are approximate.": "Les couleurs à l’écran et à l’impression sont approximatives.",
+  "Colourways": "Coloris",
+  "Away and third strips from this design: its colours exchanged, or one replaced by a club colour.": "Tenues extérieur et third à partir de ce design : ses couleurs échangées, ou l’une remplacée par une couleur du club.",
+  "Suggest colourways": "Proposer des coloris",
+  "No colourway keeps every name, number and mark readable with these colours. Add a lighter or darker colour to the palette or to the club colours.": "Aucun coloris ne garde chaque nom, numéro et marque lisibles avec ces couleurs. Ajoutez une couleur plus claire ou plus foncée à la palette ou aux couleurs du club.",
+  "Lettering %s:1": "Lettrage %s:1",
+  "Every colourway keeps names, numbers and marks at a contrast of 3:1 or more against what they sit on. Applying one is a single step to undo.": "Chaque coloris garde noms, numéros et marques à un contraste d’au moins 3:1 avec leur fond. Appliquer un coloris s’annule en une seule étape.",
+  "Colourway": "Coloris",
+  "Colourway applied. Undo brings the previous colours back.": "Coloris appliqué. Annuler rétablit les couleurs précédentes.",
+  "Apply colourway %d:": "Appliquer le coloris %d :",
+  "Reading the club colours…": "Lecture des couleurs du club…"
 }

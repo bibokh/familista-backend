@@ -890,5 +890,15 @@
   "Print or save as PDF": "Drucken oder als PDF speichern",
   "Designs: %d · prepared %s": "Designs: %d · erstellt %s",
   "Familista Design Studio": "Familista Design Studio",
-  "Colours on screen and in print are approximate.": "Farben auf dem Bildschirm und im Druck sind Näherungswerte."
+  "Colours on screen and in print are approximate.": "Farben auf dem Bildschirm und im Druck sind Näherungswerte.",
+  "Colourways": "Farbvarianten",
+  "Away and third strips from this design: its colours exchanged, or one replaced by a club colour.": "Auswärts- und Ausweichtrikots aus diesem Design: seine Farben vertauscht oder eine durch eine Vereinsfarbe ersetzt.",
+  "Suggest colourways": "Farbvarianten vorschlagen",
+  "No colourway keeps every name, number and mark readable with these colours. Add a lighter or darker colour to the palette or to the club colours.": "Mit diesen Farben bleibt in keiner Variante jeder Name, jede Nummer und jedes Zeichen lesbar. Fügen Sie der Palette oder den Vereinsfarben eine hellere oder dunklere Farbe hinzu.",
+  "Lettering %s:1": "Beschriftung %s:1",
+  "Every colourway keeps names, numbers and marks at a contrast of 3:1 or more against what they sit on. Applying one is a single step to undo.": "Jede Farbvariante hält Namen, Nummern und Zeichen bei einem Kontrast von mindestens 3:1 zu ihrem Untergrund. Das Anwenden lässt sich in einem Schritt rückgängig machen.",
+  "Colourway": "Farbvariante",
+  "Colourway applied. Undo brings the previous colours back.": "Farbvariante angewendet. Rückgängig stellt die vorherigen Farben wieder her.",
+  "Apply colourway %d:": "Farbvariante %d anwenden:",
+  "Reading the club colours…": "Die Vereinsfarben werden gelesen…"
 }

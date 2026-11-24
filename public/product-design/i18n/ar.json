@@ -890,5 +890,15 @@
   "Print or save as PDF": "طباعة أو حفظ بتنسيق PDF",
   "Designs: %d · prepared %s": "التصاميم: %d · أُعدّ في %s",
   "Familista Design Studio": "Familista Design Studio",
-  "Colours on screen and in print are approximate.": "الألوان على الشاشة وفي الطباعة تقريبية."
+  "Colours on screen and in print are approximate.": "الألوان على الشاشة وفي الطباعة تقريبية.",
+  "Colourways": "تشكيلات الألوان",
+  "Away and third strips from this design: its colours exchanged, or one replaced by a club colour.": "أطقم خارج الأرض والطقم الثالث من هذا التصميم: تُبادَل ألوانه، أو يُستبدل أحدها بلون من ألوان النادي.",
+  "Suggest colourways": "اقتراح تشكيلات ألوان",
+  "No colourway keeps every name, number and mark readable with these colours. Add a lighter or darker colour to the palette or to the club colours.": "لا تُبقي أي تشكيلة كل الأسماء والأرقام والعلامات مقروءة بهذه الألوان. أضف لونًا أفتح أو أغمق إلى اللوحة أو إلى ألوان النادي.",
+  "Lettering %s:1": "الكتابة %s:1",
+  "Every colourway keeps names, numbers and marks at a contrast of 3:1 or more against what they sit on. Applying one is a single step to undo.": "تُبقي كل تشكيلة الأسماء والأرقام والعلامات بتباين 3:1 أو أكثر مع ما تقع عليه. ويُتراجع عن تطبيقها بخطوة واحدة.",
+  "Colourway": "تشكيلة ألوان",
+  "Colourway applied. Undo brings the previous colours back.": "طُبّقت التشكيلة. يعيد التراجع الألوان السابقة.",
+  "Apply colourway %d:": "تطبيق التشكيلة %d:",
+  "Reading the club colours…": "جارٍ قراءة ألوان النادي…"
 }

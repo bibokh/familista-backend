@@ -281,6 +281,8 @@
       images: {},
       // M3: the Team panel, made once per opening of the room, and the roster entry the garment previews ({ name, number }).
       team: null, review: null, present: null, preview: null,
+      // M7c: the colourway suggestions, once asked for; kept while the palette and its use stay the same.
+      cways: { open: false, key: '', list: [] },
       // M4: the Platform Owner's manufacturing console, in the platform's room only.
       mfg: null,
     };
@@ -2352,9 +2354,10 @@
     B.state = 'loading';
     P.api.brandKit('active').then(function (r) {
       if (S !== mine) return;
-      if (!r.ok) { B.state = 'error'; B.note = T('The brand kit could not be loaded. Check the connection and try again.'); brandRefresh(); return; }
+      if (!r.ok) { B.state = 'error'; B.note = T('The brand kit could not be loaded. Check the connection and try again.'); brandRefresh(); cwaysRefresh(); return; }
       B.kit = r.data; B.state = 'ready';
       brandRefresh();
+      cwaysRefresh();
       (r.data.assets || []).forEach(function (a) {
         if (B.urls[a.id]) return;
         P.api.brandAssetImage(a.id).then(function (img) {
@@ -2781,12 +2784,80 @@
     if (S.doc.palette.length >= LIMITS.palette) { add.setAttribute('aria-disabled', 'true'); add.setAttribute('data-pd-why', tf('A design holds at most %d colours.', LIMITS.palette)); }
     append(wrap, [
       h('h2', { class: 'pd-h2', text: T('Design palette') }), list, add,
+      colourwaysBlock(),
       h('h2', { class: 'pd-h2', text: T('Trims') }),
       h('p', { class: 'pd-prop-sub', text: partName('collar') }), partPicker('collar'),
       h('p', { class: 'pd-prop-sub', text: partName('cuffs') }), partPicker('cuffs'),
       h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: T('Colours on screen are sRGB previews. The printed colour depends on the fabric and the process; physical samples settle it.') })]),
     ]);
     return wrap;
+  }
+  /**
+   * M7c: colourways, the design recoloured from its own colours and the club's. Computed only when asked for, and again
+   * only when the palette or what uses it changes; each drawn by the editor's own renderer, as the garment's home view.
+   */
+  function colourways() {
+    var extra = S.brand.kit && S.brand.kit.colours ? S.brand.kit.colours : [];
+    var key = JSON.stringify([S.doc.palette, S.doc.parts, S.doc.surfaces.map(function (x) { return [x.base, x.layers.map(function (n) { return [n.type, n.visible, n.color, n.outline, n.opacity]; })]; }), extra]);
+    if (S.cways.key !== key) { S.cways.key = key; S.cways.list = C.colourways(S.doc, extra, 6); }
+    return S.cways.list;
+  }
+  /** M7c: the club's colours arrived (or could not): colourways open in the Colour tab are drawn again with them. */
+  function cwaysRefresh() { if (S && S.cways.open && S.inspTab === 'colour' && S.el.inspBody) fillInsp(); }
+  function colourwaysBlock() {
+    var box = h('section', { class: 'pd-cways', 'aria-labelledby': 'pd-cways-h' }, [h('h2', { class: 'pd-h2', id: 'pd-cways-h', text: T('Colourways') })]);
+    if (!S.cways.open) {
+      box.appendChild(h('p', { class: 'pd-note', text: T('Away and third strips from this design: its colours exchanged, or one replaced by a club colour.') }));
+      box.appendChild(btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'colourways' }, [icon('pattern', 14), h('span', { text: T('Suggest colourways') })]));
+      return box;
+    }
+    // In a club, its colours take part: read first, when nothing has read them yet.
+    var B = S.brand;
+    if (part('brandKit') && P.api.brandKit && (B.state === 'idle' || B.state === 'loading')) {
+      if (B.state === 'idle') loadBrand();
+      box.appendChild(h('p', { class: 'pd-note', role: 'status', text: T('Reading the club colours…') }));
+      return box;
+    }
+    var list = colourways();
+    if (!list.length) { box.appendChild(h('p', { class: 'pd-empty', text: T('No colourway keeps every name, number and mark readable with these colours. Add a lighter or darker colour to the palette or to the club colours.') })); return box; }
+    var grid = h('div', { class: 'pd-cways-grid', role: 'group', 'aria-label': T('Colourways') });
+    // Each is named by its base and its accent (the main surface's pattern, or its lettering), so no two read alike.
+    var main = S.doc.surfaces[0], mainBase = main.base;
+    var accentLayer = main.layers.filter(function (n) { return n.visible && n.type === 'pattern'; })[0] || main.layers.filter(function (n) { return n.visible && (n.type === 'text' || n.type === 'roster'); })[0];
+    var accentId = accentLayer ? accentLayer.color : null;
+    list.forEach(function (v, i) {
+      var next = C.clone(S.doc); next.palette = v.palette;
+      var base = v.palette.filter(function (x) { return x.id === mainBase; })[0];
+      var accent = accentId && accentId !== mainBase ? v.palette.filter(function (x) { return x.id === accentId; })[0] : null;
+      var ratio = v.lettering === null ? '' : tf('Lettering %s:1', fixed1(v.lettering));
+      // Named by what it shows, after what it does: the visible words are the name's own, in the same order.
+      append(grid, [btn({ class: 'pd-cway', 'data-pd-act': 'apply-colourway', 'data-pd-i': String(i) }, [
+        h('span', { class: 'pd-sr', text: tf('Apply colourway %d:', i + 1) }),
+        drawDesign(next, TEMPLATE, homeView(), 'pdcw' + i),
+        h('span', { class: 'pd-cway-cap' }, [h('span', { class: 'pd-cway-name', 'data-user-content': '', text: accent ? base.label + ' · ' + accent.label : base.label }), ratio ? h('span', { class: 'pd-cway-ratio', text: ratio }) : null]),
+      ])]);
+    });
+    box.appendChild(grid);
+    box.appendChild(h('p', { class: 'pd-note', text: T('Every colourway keeps names, numbers and marks at a contrast of 3:1 or more against what they sit on. Applying one is a single step to undo.') }));
+    return box;
+  }
+  function fixed1(n) { try { return new Intl.NumberFormat(LANG, { maximumFractionDigits: 1, minimumFractionDigits: 1 }).format(n); } catch (_) { return n.toFixed(1); } }
+  function applyColourway(i) {
+    var v = S.cways.list[i];
+    if (!v) return;
+    var ops = [];
+    v.palette.forEach(function (x) {
+      var cur = C.findSwatch(S.doc, x.id).swatch;
+      if (cur.srgb.toLowerCase() !== x.srgb) ops.push({ op: 'set', target: { kind: 'swatch', id: x.id }, key: 'srgb', value: x.srgb });
+      if (cur.label !== x.label) ops.push({ op: 'set', target: { kind: 'swatch', id: x.id }, key: 'label', value: x.label });
+    });
+    if (!ops.length) return;
+    if (commitOp({ op: 'batch', ops: ops }, T('Colourway'))) {
+      fillInsp();
+      var first = S.el.inspBody.querySelector('[data-pd-act="apply-colourway"]');
+      if (first) first.focus({ preventScroll: true });
+      say(T('Colourway applied. Undo brings the previous colours back.'));
+    }
   }
   /** What a trim colour is called on this garment: a top's collar and cuffs, shorts' waistband and leg hems. */
   function partName(part) { var n = TEMPLATE.partNames; return n ? T(n[part]) : part === 'collar' ? T('Collar') : T('Cuffs'); }
@@ -3211,6 +3282,8 @@
       case 'align-v': alignSel('v'); return;
       case 'reset-box': { var n = selectedLayer(); if (n && !n.locked) batch([['w', n.w0], ['h', n.h0], ['r', 0]].map(function (kv) { return { op: 'set', target: { kind: 'layer', id: n.id }, key: kv[0], value: kv[1] }; }), T('Reset')); return; }
       case 'add-colour': addColour(); return;
+      case 'colourways': S.cways.open = true; fillInsp(); var cw = S.el.inspBody.querySelector('[data-pd-act="apply-colourway"]') || S.el.inspBody.querySelector('#pd-cways-h'); if (cw && cw.focus) cw.focus({ preventScroll: false }); return;
+      case 'apply-colourway': applyColourway(Number(t.getAttribute('data-pd-i'))); return;
       case 'brand-upload': if (!S.brand.busy) { var bf = S.host.querySelector('[data-pd-brand-file]'); if (bf) { bf.value = ''; bf.click(); } } return;
       case 'brand-archive': brandArchive(t.getAttribute('data-pd-asset')); return;
       case 'brand-place': brandPlace(t.getAttribute('data-pd-asset')); return;
