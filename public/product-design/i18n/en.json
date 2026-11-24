@@ -837,5 +837,6 @@
   "What you checked before verifying it (registration, samples, a visit): at least 10 characters.": "What you checked before verifying it (registration, samples, a visit): at least 10 characters.",
   "Why: a note kept in the audit history.": "Why: a note kept in the audit history.",
   "The status could not be changed.": "The status could not be changed.",
-  "Not sent: the server could not be reached.": "Not sent: the server could not be reached."
+  "Not sent: the server could not be reached.": "Not sent: the server could not be reached.",
+  "Not included in your club’s plan. The platform owner decides what each plan includes.": "Not included in your club’s plan. The platform owner decides what each plan includes."
 }

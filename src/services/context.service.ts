@@ -18,6 +18,7 @@ import { forgetIdentity } from '../middleware/auth.middleware';
 import { publishUserContextSwitched } from '../fabric/producers/users.producer';
 import { isFeatureEnabled } from './admin-organization.service';
 import { CLUB_DESIGN_FEATURE, CLUB_DESIGN_ROLES } from '../platform/product-design/service';
+import { designParts, NO_PARTS } from '../platform/product-design/entitlements';
 
 /**
  * How many clubs a platform owner's club picker offers.
@@ -268,6 +269,8 @@ export async function getContext(userId: string) {
   const requestClubId = user.currentClubId ?? user.clubId;
   const canDesignClubKits = !!currentClubId && currentClubId === requestClubId && CLUB_DESIGN_ROLES.includes(user.role)
     && await isFeatureEnabled(currentClubId, CLUB_DESIGN_FEATURE);
+  // M7a: the parts of the studio the club's plan includes, mirroring each part's gate on the club routes.
+  const clubDesignParts = canDesignClubKits ? await designParts(currentClubId!) : { ...NO_PARTS };
 
   const scopedTeams = (!scope.unrestricted && scope.teamIds.length)
     ? await prisma.team.findMany({
@@ -382,6 +385,8 @@ export async function getContext(userId: string) {
        * src/routes/club-design.routes.ts — a CLUB_ADMIN or MANAGER account, in a club the platform owner has entitled.
        */
       canDesignClubKits,
+      /** M7a: within it, what the club's plan includes: team kit (rosters, collections), brand kit, manufacturing. */
+      clubDesignParts,
 
       /**
        * Adding to and removing from the club's watchlist, on both markets.

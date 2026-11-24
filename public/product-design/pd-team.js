@@ -64,7 +64,7 @@
       delimiter: function () { return st.delimiter; },
       currentProject: ctx.currentProject, openDesign: ctx.openDesign, productLabel: ctx.productLabel,
       // M4: a request for quotation sent from a collection's order sheet opens in the Requests tab.
-      openRequest: function (id) { st.tab = 'requests'; if (RQ) RQ.open(id); },
+      openRequest: ctx.requests ? function (id) { st.tab = 'requests'; if (RQ) RQ.open(id); } : null,
     }) : null;
     // M4: the club's requests for quotation, the panel's third tab (pd-requests.js), when the room loaded it.
     var RQ = ctx.requests ? ctx.requests.create({

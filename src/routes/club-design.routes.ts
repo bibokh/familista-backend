@@ -29,6 +29,7 @@ import { authenticate, authorize } from '../middleware/auth.middleware';
 import { tenantParam } from '../middleware/tenant-guard.middleware';
 import { isFeatureEnabled } from '../services/admin-organization.service';
 import { CLUB_DESIGN_FEATURE, clubScope } from '../platform/product-design/service';
+import { designPartEnabled, DESIGN_PARTS, type DesignPart } from '../platform/product-design/entitlements';
 import {
   archiveDesign, createDesign, listDesignRevisions, listDesigns, openDesign, openDesignRevision, restoreDesignRevision,
   saveDesign, setDesignScope, unarchiveDesign,
@@ -65,6 +66,23 @@ router.use(async (req: Request, res: Response, next: NextFunction) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * A part of the studio the club's plan must include (M7a): refused with 403 DESIGN_FEATURE_NOT_ENABLED and the part's
+ * key, before its handler runs. The club is the session's, as above.
+ */
+function requirePart(part: DesignPart) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!(await designPartEnabled(req.user?.clubId ?? '', part))) {
+        res.status(403).json({ success: false, code: 'DESIGN_FEATURE_NOT_ENABLED', feature: DESIGN_PARTS[part], message: 'This part of the Club Design Studio is not included in the club’s plan' });
+        return;
+      }
+      next();
+    } catch (err) { next(err); }
+  };
+}
+const teamKit = requirePart('teamKit'), brandKit = requirePart('brandKit'), manufacturing = requirePart('manufacturing');
+
 router.get('/projects', listDesigns);
 router.post('/projects', createDesign);
 router.get('/projects/:id', tenantParam('designProject'), openDesign);
@@ -77,45 +95,45 @@ router.post('/projects/:id/unarchive', tenantParam('designProject'), unarchiveDe
 
 // The club's brand kit (M2c): its colours and its logos. An upload is raw image bytes, at most UPLOAD_LIMITS.bytes,
 // read by this route alone; what is kept is the PNG the server re-encodes from it (brand-image.ts).
-router.get('/brand-kit', readBrandKit);
-router.put('/brand-kit/colours', saveBrandColours);
-router.post('/brand-kit/assets', rawBrandImage, uploadBrandAsset);
-router.get('/brand-kit/assets/:assetId/image', tenantParam('designBrandAsset', 'assetId'), brandAssetImage);
-router.post('/brand-kit/assets/:assetId/archive', tenantParam('designBrandAsset', 'assetId'), archiveBrandAsset);
-router.post('/brand-kit/assets/:assetId/unarchive', tenantParam('designBrandAsset', 'assetId'), unarchiveBrandAsset);
+router.get('/brand-kit', brandKit, readBrandKit);
+router.put('/brand-kit/colours', brandKit, saveBrandColours);
+router.post('/brand-kit/assets', brandKit, rawBrandImage, uploadBrandAsset);
+router.get('/brand-kit/assets/:assetId/image', brandKit, tenantParam('designBrandAsset', 'assetId'), brandAssetImage);
+router.post('/brand-kit/assets/:assetId/archive', brandKit, tenantParam('designBrandAsset', 'assetId'), archiveBrandAsset);
+router.post('/brand-kit/assets/:assetId/unarchive', brandKit, tenantParam('designBrandAsset', 'assetId'), unarchiveBrandAsset);
 
 // The club's team rosters (M3): the names, numbers and sizes its kits are made for. A roster id is checked against the
 // caller's club before its handler runs. The squad's names are the club's own active players, surname and number only.
-router.get('/rosters', listTeamRosters);
-router.post('/rosters', createTeamRoster);
-router.get('/rosters/:rosterId', tenantParam('designRoster', 'rosterId'), openTeamRoster);
-router.put('/rosters/:rosterId', tenantParam('designRoster', 'rosterId'), saveTeamRoster);
-router.post('/rosters/:rosterId/archive', tenantParam('designRoster', 'rosterId'), archiveTeamRoster);
-router.post('/rosters/:rosterId/unarchive', tenantParam('designRoster', 'rosterId'), unarchiveTeamRoster);
-router.delete('/rosters/:rosterId', tenantParam('designRoster', 'rosterId'), deleteTeamRoster);
-router.get('/squad-names', readSquadNames);
+router.get('/rosters', teamKit, listTeamRosters);
+router.post('/rosters', teamKit, createTeamRoster);
+router.get('/rosters/:rosterId', teamKit, tenantParam('designRoster', 'rosterId'), openTeamRoster);
+router.put('/rosters/:rosterId', teamKit, tenantParam('designRoster', 'rosterId'), saveTeamRoster);
+router.post('/rosters/:rosterId/archive', teamKit, tenantParam('designRoster', 'rosterId'), archiveTeamRoster);
+router.post('/rosters/:rosterId/unarchive', teamKit, tenantParam('designRoster', 'rosterId'), unarchiveTeamRoster);
+router.delete('/rosters/:rosterId', teamKit, tenantParam('designRoster', 'rosterId'), deleteTeamRoster);
+router.get('/squad-names', teamKit, readSquadNames);
 
 // The club's collections (M3b): its designs gathered as one kit, and the order sheet a roster makes of it. A collection
 // id is checked against the caller's club before its handler runs; the designs and the roster it names are checked by
 // the service, and held to the club by the database (composite keys and a trigger).
-router.get('/collections', listDesignCollections);
-router.post('/collections', createDesignCollection);
-router.get('/collections/:collectionId', tenantParam('designCollection', 'collectionId'), openDesignCollection);
-router.put('/collections/:collectionId', tenantParam('designCollection', 'collectionId'), saveDesignCollection);
-router.post('/collections/:collectionId/archive', tenantParam('designCollection', 'collectionId'), archiveDesignCollection);
-router.post('/collections/:collectionId/unarchive', tenantParam('designCollection', 'collectionId'), unarchiveDesignCollection);
-router.delete('/collections/:collectionId', tenantParam('designCollection', 'collectionId'), deleteDesignCollection);
-router.get('/collections/:collectionId/order-sheet', tenantParam('designCollection', 'collectionId'), readOrderSheet);
+router.get('/collections', teamKit, listDesignCollections);
+router.post('/collections', teamKit, createDesignCollection);
+router.get('/collections/:collectionId', teamKit, tenantParam('designCollection', 'collectionId'), openDesignCollection);
+router.put('/collections/:collectionId', teamKit, tenantParam('designCollection', 'collectionId'), saveDesignCollection);
+router.post('/collections/:collectionId/archive', teamKit, tenantParam('designCollection', 'collectionId'), archiveDesignCollection);
+router.post('/collections/:collectionId/unarchive', teamKit, tenantParam('designCollection', 'collectionId'), unarchiveDesignCollection);
+router.delete('/collections/:collectionId', teamKit, tenantParam('designCollection', 'collectionId'), deleteDesignCollection);
+router.get('/collections/:collectionId/order-sheet', teamKit, tenantParam('designCollection', 'collectionId'), readOrderSheet);
 
 // Manufacturing (M4), owner-brokered: the club's requests for quotation. A request is submitted from one of the club's
 // collections; a request id and a quotation id are each checked against the caller's club before the handler runs. The
 // club reads only quotations the Platform Owner published, and moves a request only by the club's own steps.
-router.post('/collections/:collectionId/requests', tenantParam('designCollection', 'collectionId'), submitManufacturingRequest);
-router.get('/requests', listManufacturingRequests);
-router.get('/requests/:requestId', tenantParam('manufacturingRequest', 'requestId'), openManufacturingRequest);
-router.post('/requests/:requestId/cancel', tenantParam('manufacturingRequest', 'requestId'), cancelManufacturingRequest);
-router.post('/requests/:requestId/decline', tenantParam('manufacturingRequest', 'requestId'), declineManufacturingQuotes);
-router.post('/requests/:requestId/delivered', tenantParam('manufacturingRequest', 'requestId'), confirmManufacturingDelivery);
-router.post('/requests/:requestId/quotes/:quoteId/accept', tenantParam('manufacturingRequest', 'requestId'), tenantParam('manufacturingQuote', 'quoteId'), acceptManufacturingQuote);
+router.post('/collections/:collectionId/requests', manufacturing, tenantParam('designCollection', 'collectionId'), submitManufacturingRequest);
+router.get('/requests', manufacturing, listManufacturingRequests);
+router.get('/requests/:requestId', manufacturing, tenantParam('manufacturingRequest', 'requestId'), openManufacturingRequest);
+router.post('/requests/:requestId/cancel', manufacturing, tenantParam('manufacturingRequest', 'requestId'), cancelManufacturingRequest);
+router.post('/requests/:requestId/decline', manufacturing, tenantParam('manufacturingRequest', 'requestId'), declineManufacturingQuotes);
+router.post('/requests/:requestId/delivered', manufacturing, tenantParam('manufacturingRequest', 'requestId'), confirmManufacturingDelivery);
+router.post('/requests/:requestId/quotes/:quoteId/accept', manufacturing, tenantParam('manufacturingRequest', 'requestId'), tenantParam('manufacturingQuote', 'quoteId'), acceptManufacturingQuote);
 
 export default router;

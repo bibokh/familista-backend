@@ -837,5 +837,6 @@
   "What you checked before verifying it (registration, samples, a visit): at least 10 characters.": "Lo que comprobó antes de verificarlo (registro, muestras, una visita): al menos 10 caracteres.",
   "Why: a note kept in the audit history.": "Por qué: una nota que queda en el historial de auditoría.",
   "The status could not be changed.": "No se pudo cambiar el estado.",
-  "Not sent: the server could not be reached.": "No enviada: no se pudo contactar con el servidor."
+  "Not sent: the server could not be reached.": "No enviada: no se pudo contactar con el servidor.",
+  "Not included in your club’s plan. The platform owner decides what each plan includes.": "No incluido en el plan de su club. El propietario de la plataforma decide qué incluye cada plan."
 }

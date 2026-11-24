@@ -73,6 +73,32 @@ const BUILTIN_FLAGS: ReadonlyArray<Omit<UpsertFeatureFlagInput, 'description'> &
     enabledForPlans: [],
     isInternal: false,
   },
+  // M7a: the parts of the Club Design Studio, each restrictable by plan. On by default inside the studio (which stays the
+  // gate), so they change nothing until the platform owner restricts one; no price is attached to any of them.
+  {
+    key: 'club_design_team_kit',
+    name: 'Club Design Studio: team kit',
+    description: 'Team rosters (names, numbers, sizes), collections and their order sheet, inside the Club Design Studio.',
+    defaultEnabled: true,
+    enabledForPlans: [],
+    isInternal: false,
+  },
+  {
+    key: 'club_design_brand_kit',
+    name: 'Club Design Studio: brand kit',
+    description: 'The club’s colours and logos, and logos on its garments, inside the Club Design Studio.',
+    defaultEnabled: true,
+    enabledForPlans: [],
+    isInternal: false,
+  },
+  {
+    key: 'club_design_manufacturing',
+    name: 'Club Design Studio: manufacturing requests',
+    description: 'Requests for quotation through Familista from a collection, and the order to delivery.',
+    defaultEnabled: true,
+    enabledForPlans: [],
+    isInternal: false,
+  },
   {
     key: 'impersonation',
     name: 'Operator impersonation',

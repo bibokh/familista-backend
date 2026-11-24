@@ -904,6 +904,52 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
         expect(actions).toEqual(['design.collection.created', 'design.collection.saved', 'design.collection.saved', 'design.collection.archived', 'design.collection.deleted']);
       });
     });
+
+    describe('what the club’s plan includes (M7a)', () => {
+      const parts = async (who: Who) => (await as(who).raw('/api/v1/me/context')).body.data.effectiveAccess.clubDesignParts;
+      const someId = '00000000-0000-4000-8000-000000000000';
+      const refusedFor = async (who: Who, url: string, verb: 'get' | 'post' = 'get') => {
+        const r = verb === 'get' ? await as(who).club.get(url) : await as(who).club.post(url, {});
+        return r.status === 403 && r.body.code === 'DESIGN_FEATURE_NOT_ENABLED' ? r.body.feature : r.status;
+      };
+
+      it('by default every part is included where the studio is: the parts change nothing until the Owner restricts one', async () => {
+        for (const url of ['/rosters', '/brand-kit', '/requests', '/collections']) expect([url, (await as('manager').club.get(url)).status]).toEqual([url, 200]);
+        expect(await parts('manager')).toEqual({ teamKit: true, brandKit: true, manufacturing: true });
+        expect(await parts('coach')).toEqual({ teamKit: false, brandKit: false, manufacturing: false });
+      });
+
+      it('restricted to a plan: refused before anything is written for a club on another plan, served to one on it', async () => {
+        await sysExec(`INSERT INTO "FeatureFlag" ("id","key","name","defaultEnabled","enabledForPlans","updatedAt") VALUES ($1,'club_design_manufacturing','Manufacturing',false,ARRAY['PRO']::"SubscriptionPlan"[],now())`, `ff-mf-${tag}`);
+        const before = Number((await sys('SELECT count(*)::int AS n FROM "ManufacturingRequest"'))[0].n);
+        expect(await refusedFor('clubAdmin', '/requests')).toBe('club_design_manufacturing');
+        expect(await refusedFor('clubAdmin', `/collections/${someId}/requests`, 'post')).toBe('club_design_manufacturing');
+        expect(Number((await sys('SELECT count(*)::int AS n FROM "ManufacturingRequest"'))[0].n)).toBe(before);
+        expect((await as('clubAdmin').club.get('/rosters')).status).toBe(200); // the other parts are untouched
+        expect(await parts('clubAdmin')).toEqual({ teamKit: true, brandKit: true, manufacturing: false });
+        await sysExec(`UPDATE "Club" SET "plan" = 'PRO' WHERE "id" = $1`, C2);
+        expect((await as('otherAdmin').club.get('/requests')).status).toBe(200);
+        expect(await parts('otherAdmin')).toMatchObject({ manufacturing: true });
+      });
+
+      it('a club override wins over the plan, either way; the studio itself stays the gate', async () => {
+        await sysExec(`UPDATE "OrganizationLimits" SET "featuresEnabled" = array_append("featuresEnabled", 'club_design_manufacturing'),
+          "featuresDisabled" = array_append("featuresDisabled", 'club_design_brand_kit') WHERE "clubId" = $1`, C1);
+        expect((await as('clubAdmin').club.get('/requests')).status).toBe(200);
+        expect(await refusedFor('clubAdmin', '/brand-kit')).toBe('club_design_brand_kit');
+        expect(await parts('clubAdmin')).toEqual({ teamKit: true, brandKit: false, manufacturing: true });
+        // The studio switched off for a club: every route says so, whatever its parts.
+        await sysExec(`UPDATE "OrganizationLimits" SET "featuresDisabled" = array_append("featuresDisabled", 'club_design_studio') WHERE "clubId" = $1`, C2);
+        for (const url of ['/rosters', '/requests', '/brand-kit']) expect([url, (await as('otherAdmin').club.get(url)).body.code]).toEqual([url, 'DESIGN_STUDIO_NOT_ENABLED']);
+        expect(await parts('otherAdmin')).toEqual({ teamKit: false, brandKit: false, manufacturing: false });
+        // and back as it was, for the tests after these
+        await sysExec(`UPDATE "OrganizationLimits" SET "featuresEnabled" = array_remove("featuresEnabled", 'club_design_manufacturing'),
+          "featuresDisabled" = array_remove(array_remove("featuresDisabled", 'club_design_brand_kit'), 'club_design_studio') WHERE "clubId" IN ($1, $2)`, C1, C2);
+        await sysExec(`DELETE FROM "FeatureFlag" WHERE "key" = 'club_design_manufacturing'`);
+        await sysExec(`UPDATE "Club" SET "plan" = 'BASIC' WHERE "id" = $1`, C2);
+        expect(await parts('clubAdmin')).toEqual({ teamKit: true, brandKit: true, manufacturing: true });
+      });
+    });
   });
 
   it('recovery: the backup\'s own pg_dump arguments and pg_restore bring back every design with the same hashes, and its guards', async () => {

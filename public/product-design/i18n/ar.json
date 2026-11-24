@@ -837,5 +837,6 @@
   "What you checked before verifying it (registration, samples, a visit): at least 10 characters.": "ما تحققت منه قبل توثيقه (التسجيل، العينات، زيارة): 10 أحرف على الأقل.",
   "Why: a note kept in the audit history.": "السبب: ملاحظة تُحفظ في سجل التدقيق.",
   "The status could not be changed.": "تعذر تغيير الحالة.",
-  "Not sent: the server could not be reached.": "لم يُرسل: تعذر الوصول إلى الخادم."
+  "Not sent: the server could not be reached.": "لم يُرسل: تعذر الوصول إلى الخادم.",
+  "Not included in your club’s plan. The platform owner decides what each plan includes.": "غير مشمول في خطة ناديك. يحدد مالك المنصة ما تتضمنه كل خطة."
 }

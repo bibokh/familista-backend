@@ -54,12 +54,18 @@
    */
   var WS = { kind: 'PLATFORM' };
   function clubWorkspace() { return WS.kind === 'CLUB'; }
+  /** Whether the club's plan includes a part of the studio (M7a): teamKit, brandKit or manufacturing. */
+  function part(name) { return WS.kind === 'CLUB' && !!WS.parts && WS.parts[name] === true; }
   function workspaceOf(opts) {
     var w = opts && opts.workspace;
     if (!w) return { kind: 'PLATFORM' };
     if (w.kind === 'CLUB' && typeof w.clubId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(w.clubId)) {
+      // M7a: what the club's plan includes, as the session says (the server enforces it; this only offers it). Missing is
+      // taken as included, so an older shell never hides a part the server would serve.
+      var p = w.parts && typeof w.parts === 'object' ? w.parts : {};
       return Object.freeze({ kind: 'CLUB', clubId: w.clubId, clubName: typeof w.clubName === 'string' ? w.clubName.slice(0, 120) : '',
-        role: w.role === 'MANAGER' || w.role === 'CLUB_ADMIN' ? w.role : '' });
+        role: w.role === 'MANAGER' || w.role === 'CLUB_ADMIN' ? w.role : '',
+        parts: Object.freeze({ teamKit: p.teamKit !== false, brandKit: p.brandKit !== false, manufacturing: p.manufacturing !== false }) });
     }
     return null;
   }
@@ -250,6 +256,7 @@
     fabric: L('Fabrics come from a connected supplier (DS-5). This is the template’s reference.'),
     store: L('The Global Store is planned (DS-7).'),
     'suppliers-club': L('Familista works with verified suppliers for your club: ask for a quotation from a collection’s order sheet.'),
+    'not-in-plan': L('Not included in your club’s plan. The platform owner decides what each plan includes.'),
     payments: L('Payments are planned (DS-6), after business and legal approval.'),
   };
 
@@ -831,7 +838,7 @@
   function teamContext() {
     return {
       roster: window.FamilistaProductDesignRoster, collections: window.FamilistaProductDesignCollections || null,
-      requests: window.FamilistaProductDesignRequests || null, lang: function () { return LANG; }, api: P.api, host: S.host, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say, dirArrow: dirArrow, date: when, percent: percent,
+      requests: part('manufacturing') ? window.FamilistaProductDesignRequests || null : null, lang: function () { return LANG; }, api: P.api, host: S.host, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say, dirArrow: dirArrow, date: when, percent: percent,
       onPreview: setPreview, nameFit: nameFit,
       // M3b: the saved design on screen, opening one (behind the unsaved-change guard), and a design's product name.
       currentProject: function () { var l = S.srv.link; return l ? { id: l.projectId, name: S.doc.name, templateKey: S.doc.template.key } : null; },
@@ -2163,6 +2170,7 @@
     (clubWorkspace() ? SIDE_CLUB : SIDE).forEach(function (it) {
       if (it.reason && !plannedShown) { plannedShown = true; list.appendChild(h('li', { class: 'pd-side-group', text: T('Planned') })); }
       var b = it.current ? btn({ class: 'pd-side-btn is-current', 'aria-current': 'page' })
+        : it.act === 'team-requests' && !(part('teamKit') && part('manufacturing')) ? planned(btn({ class: 'pd-side-btn is-planned' }), 'not-in-plan')
         : it.act ? btn({ class: 'pd-side-btn', 'data-pd-act': it.act, 'data-pd-tab': it.tab || null, 'aria-controls': it.act === 'mfg' ? 'pd-mfg' : 'pd-team', 'aria-expanded': 'false' })
         : it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)
         : btn({ class: 'pd-side-btn', 'data-action': 'navTo', 'data-page': it.page });
@@ -2231,10 +2239,11 @@
       : [['products', L('Products')], ['templates', L('Templates')], ['elements', L('Elements')]]).forEach(function (t) {
       var b = btn({ class: 'pd-tab', role: 'tab', 'data-pd-libtab': t[0], 'aria-selected': S.libTab === t[0] ? 'true' : 'false', text: T(t[1]) });
       if (t[0] === 'templates') planned(b, 'templates');
+      if (t[0] === 'brand' && !part('brandKit')) planned(b, 'not-in-plan');
       tabs.appendChild(b);
     });
     var body = h('div', { class: 'pd-lib-body', role: 'tabpanel' });
-    if (S.libTab === 'brand' && clubWorkspace()) {
+    if (S.libTab === 'brand' && part('brandKit')) {
       body.appendChild(brandPanel());
     } else if (S.libTab === 'elements') {
       var grid = h('div', { class: 'pd-elements' });
@@ -2448,6 +2457,7 @@
     }
     var image = tool('image', 'image', L('Image'));
     if (!clubWorkspace()) planned(image, 'image');
+    else if (!part('brandKit')) planned(image, 'not-in-plan');
     var tools = h('div', { class: 'pd-tools', 'data-ds-region': 'R5', role: 'toolbar', 'aria-orientation': 'vertical', 'aria-label': T('Tools') }, [
       tool('select', 'select', L('Select'), 'V'), tool('add-text', 'text', L('Text'), 'T'), image, tool('add-shape', 'shape', L('Shape'), 'S'),
       tool('patterns', 'pattern', L('Patterns'), 'P'), tool('layers', 'layers', L('Layers'), 'L'), tool('elements', 'components', L('Elements')),
@@ -2994,7 +3004,7 @@
     E.live = h('div', { class: 'pd-sr', role: 'status', 'aria-live': 'polite' });
     // M3: the Team panel, in a club's workspace only. Its two scripts are loaded by the club's room alone (app.js), and
     // looked up here rather than when this file runs, so a room loaded without them simply has no Team panel.
-    if (!S.team && clubWorkspace() && P.api.listRosters && window.FamilistaProductDesignRoster && window.FamilistaProductDesignTeam) {
+    if (!S.team && part('teamKit') && P.api.listRosters && window.FamilistaProductDesignRoster && window.FamilistaProductDesignTeam) {
       S.team = window.FamilistaProductDesignTeam.create(teamContext());
     }
     // M4: the manufacturing console, in the platform's room only; its scripts are loaded by the owner's room alone.
@@ -3133,7 +3143,7 @@
       case 'layers': if (S.inspTab !== 'design') { S.inspTab = 'design'; fillInsp(); } setPanel(window.matchMedia && window.matchMedia('(max-width: 980px)').matches ? 'inspector' : S.panel); var row1 = S.el.layers && S.el.layers.querySelector('button'); if (row1) row1.focus(); return;
       case 'elements': S.libTab = 'elements'; var lib2 = buildLib(); S.el.lib.parentNode.replaceChild(lib2, S.el.lib); S.el.lib = lib2; setPanel(window.matchMedia && window.matchMedia('(max-width: 1279px)').matches ? 'library' : S.panel); return;
       // In a club, the image tool opens the club's logos (the Brand tab), where a logo is placed on the garment.
-      case 'image': if (!clubWorkspace()) return; S.libTab = 'brand'; var lib4 = buildLib(); S.el.lib.parentNode.replaceChild(lib4, S.el.lib); S.el.lib = lib4; setPanel(window.matchMedia && window.matchMedia('(max-width: 1279px)').matches ? 'library' : S.panel); return;
+      case 'image': if (!part('brandKit')) return; S.libTab = 'brand'; var lib4 = buildLib(); S.el.lib.parentNode.replaceChild(lib4, S.el.lib); S.el.lib = lib4; setPanel(window.matchMedia && window.matchMedia('(max-width: 1279px)').matches ? 'library' : S.panel); return;
       case 'strip-prev': S.el.strip.scrollBy({ left: (DIR === 'rtl' ? 1 : -1) * 140, behavior: 'smooth' }); return;
       case 'strip-next': S.el.strip.scrollBy({ left: (DIR === 'rtl' ? -1 : 1) * 140, behavior: 'smooth' }); return;
       case 'duplicate': duplicateSel(); return;

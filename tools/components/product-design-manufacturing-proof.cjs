@@ -237,4 +237,24 @@ module.exports = async function p20(H) {
       check('P20 ar: axe finds no WCAG 2.2 A/AA violation in the club’s request', v.length === 0, v);
     }
   } finally { await ar.ctx.close(); }
+
+  // ── M7a: manufacturing restricted to another plan; the club is told why, and the server refuses ─────────────────
+  await db.featureFlag.create({ data: { key: 'club_design_manufacturing', name: 'Club Design Studio: manufacturing requests', defaultEnabled: false, enabledForPlans: ['PRO'] } });
+  const gated = await open({ width: 1672, height: 941 }, 'en-GB', { as: 'clubAdmin', hash: '/#club-design', wait: false });
+  try {
+    await gated.page.waitForFunction(() => { const m = window.__familistaProductDesignMetrics && window.__familistaProductDesignMetrics(); return !!m && !!m.team; }, null, { timeout: 60000 });
+    await gated.page.click('#pd-club-root [data-pd-act="team"]');
+    await gated.page.waitForFunction(() => window.__familistaProductDesignMetrics().team.list === 'ready', null, { timeout: 15000 });
+    const view = await gated.page.evaluate(() => {
+      const orders = [...document.querySelectorAll('#pd-club-root .pd-side .pd-side-btn')].filter((b) => b.getAttribute('data-pd-reason') === 'not-in-plan');
+      return { ordersPlanned: orders.length, requestsTab: !!document.querySelector('#pd-club-root .pd-team [data-pd-act="team-tab-requests"]'),
+        collectionsTab: !!document.querySelector('#pd-club-root .pd-team [data-pd-act="team-tab-collections"]') };
+    });
+    const r = await call('clubAdmin', 'GET', '/api/v1/club-design/requests');
+    check('P20 M7a: with manufacturing restricted to another plan, the club is not offered Orders or Requests (and is told why), the server refuses it, and the rest of the studio stays',
+      view.ordersPlanned === 1 && !view.requestsTab && view.collectionsTab && r.status === 403 && r.body.code === 'DESIGN_FEATURE_NOT_ENABLED' && r.body.feature === 'club_design_manufacturing', { view, status: r.status, code: r.body.code });
+  } finally {
+    await gated.ctx.close();
+    await db.featureFlag.delete({ where: { key: 'club_design_manufacturing' } });
+  }
 };

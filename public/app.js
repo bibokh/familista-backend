@@ -3572,6 +3572,8 @@ function navTo(page, el, _opts) {
         kind: 'CLUB', clubId: String(_ctx.clubId),
         clubName: (_club && _club.name) || '',
         role: String((window.State.user && State.user.role) || ''),
+        // M7a: the parts of the studio the club's plan includes, as the session says (the server enforces them).
+        parts: (_ctx.effectiveAccess && _ctx.effectiveAccess.clubDesignParts) || null,
       } });
     }
   } catch (_) {}

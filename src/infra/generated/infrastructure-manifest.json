@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-24T09:51:52.911Z",
+  "generatedAt": "2026-11-24T10:10:42.376Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -1161,7 +1161,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "649 TypeScript modules under src/."
+      "note": "650 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1629,7 +1629,7 @@
     "serviceModules": 102,
     "middleware": 24,
     "fabricModules": 52,
-    "totalTypeScript": 649,
+    "totalTypeScript": 650,
     "testSuites": 248,
     "migrations": 55,
     "prismaModels": 355,

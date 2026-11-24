@@ -837,5 +837,6 @@
   "What you checked before verifying it (registration, samples, a visit): at least 10 characters.": "Was Sie vor der Prüfung kontrolliert haben (Registrierung, Muster, ein Besuch): mindestens 10 Zeichen.",
   "Why: a note kept in the audit history.": "Warum: eine Notiz, die im Prüfprotokoll bleibt.",
   "The status could not be changed.": "Der Status konnte nicht geändert werden.",
-  "Not sent: the server could not be reached.": "Nicht gesendet: Der Server ist nicht erreichbar."
+  "Not sent: the server could not be reached.": "Nicht gesendet: Der Server ist nicht erreichbar.",
+  "Not included in your club’s plan. The platform owner decides what each plan includes.": "Nicht im Tarif Ihres Vereins enthalten. Der Plattformbetreiber legt fest, was jeder Tarif enthält."
 }
