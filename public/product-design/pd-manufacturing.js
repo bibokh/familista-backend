@@ -105,6 +105,8 @@
       fit: null,       // M7d: how each verified supplier fits it: { id, state, data }
       rel: { state: 'idle', data: null, cur: null, busy: false }, // M8a: the clubs and what is released to each
       ret: { state: 'idle', data: null, draft: {}, result: null, busy: false }, // P1: retention rules
+      // P3: the Creator Studio's accounts and the invitations that open them; a new code is shown once, here.
+      cr: { state: 'idle', creators: [], invites: [], total: 0, busy: false, code: null, draft: { email: '', note: '', maxUses: '1', days: '14' } },
       sup: null,       // the supplier open: { id|null, fields, version, status }
       ask: null,       // a note asked for a step: { label, hint, min, run }
       quote: null,     // the quotation form: { supplierId, currency, amount, leadTimeDays, validUntil, supplierReference, evidence }
@@ -207,6 +209,7 @@
       if (st.tab === 'suppliers' && st.suppliers.state !== 'ready') loadSuppliers();
       if (st.tab === 'releases' && st.rel.state !== 'ready') loadReleases();
       if (st.tab === 'privacy' && st.ret.state !== 'ready') loadRetention();
+      if (st.tab === 'creators' && st.cr.state !== 'ready') loadCreators();
       render();
       ctx.onToggle(true);
       var first = el.querySelector('[role="tab"][aria-selected="true"]') || el.querySelector('button');
@@ -264,7 +267,7 @@
       if (st.view === 'request') kids = kids.concat(requestBody());
       else if (st.view === 'supplier') kids = kids.concat(supplierBody());
       else if (st.view === 'club') kids = kids.concat(clubBody());
-      else kids = kids.concat([tabs()], st.tab === 'suppliers' ? suppliersList() : st.tab === 'releases' ? releasesList() : st.tab === 'privacy' ? privacyList() : requestsList());
+      else kids = kids.concat([tabs()], st.tab === 'suppliers' ? suppliersList() : st.tab === 'releases' ? releasesList() : st.tab === 'creators' ? creatorsList() : st.tab === 'privacy' ? privacyList() : requestsList());
       var body = h('div', { class: 'pd-dock-body pd-team-body', tabindex: '0' }, kids);
       el.appendChild(head); el.appendChild(body);
       el.appendChild(h('p', { class: 'pd-note pd-team-status', role: 'status', 'aria-live': 'polite', 'data-pd-mfg-status': '', text: st.note }));
@@ -272,10 +275,84 @@
       if (active) { var back = el.querySelector('[data-pd-mfg-key="' + active + '"]'); if (back) back.focus({ preventScroll: true }); }
     }
     function tabs() {
-      return h('div', { class: 'pd-tabs pd-team-tabs', role: 'tablist', 'aria-label': T('Manufacturing') }, [['requests', L('Requests')], ['suppliers', L('Suppliers')]].concat(ctx.rollout ? [['releases', L('Club releases')], ['privacy', L('Privacy')]] : []).map(function (t) {
+      return h('div', { class: 'pd-tabs pd-team-tabs', role: 'tablist', 'aria-label': T('Manufacturing') }, [['requests', L('Requests')], ['suppliers', L('Suppliers')]].concat(ctx.rollout ? [['releases', L('Club releases')], ['creators', L('Creators')], ['privacy', L('Privacy')]] : []).map(function (t) {
         return btn({ class: 'pd-tab', role: 'tab', 'data-pd-act': 'mfg-tab-' + t[0], 'data-pd-mfg-key': 'tab-' + t[0], 'aria-selected': st.tab === t[0] ? 'true' : 'false', tabindex: st.tab === t[0] ? '0' : '-1', text: T(t[1]) });
       }));
     }
+    // ── P3: the Creator Studio's accounts and invitations ────────────────
+    var INVITE_STATE = { open: L('Open'), used: L('Used'), expired: L('Expired'), revoked: L('Revoked') };
+    var CREATOR_STATE = { ACTIVE: L('Active'), SUSPENDED: L('Suspended'), DELETED: L('Deleted') };
+    function loadCreators() {
+      if (!ctx.rollout || !ctx.rollout.creators) return;
+      st.cr.state = 'loading'; render();
+      Promise.all([ctx.rollout.creators(), ctx.rollout.creatorInvites()]).then(function (rs) {
+        if (rs[0].ok && rs[1].ok && rs[0].data && rs[1].data) { st.cr.creators = rs[0].data.creators; st.cr.total = rs[0].data.total; st.cr.invites = rs[1].data.invites; st.cr.state = 'ready'; }
+        else st.cr.state = 'error';
+        render();
+      });
+    }
+    function creatorsList() {
+      var C = st.cr, out = [h('p', { class: 'pd-note', text: T('The Creator Studio opens by invitation only. A code opens one account (or as many as you allow) until it expires; only its fingerprint is kept.') })];
+      if (C.state === 'loading' || C.state === 'idle') { out.push(skeleton(3)); return out; }
+      if (C.state === 'error') { out.push(h('div', { class: 'pd-dock-state', role: 'alert' }, [h('p', { class: 'pd-empty', text: T('The creators could not be loaded.') }), btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-cr-retry', 'data-pd-mfg-key': 'cr-retry' }, [h('span', { text: T('Try again') })])])); return out; }
+      var d = C.draft;
+      function inp(k, type, label, attrs) { var a = { class: 'pd-input', type: type, 'data-pd-mfg-cr': k, 'data-pd-mfg-key': 'cr-' + k, 'aria-label': label }; for (var x in attrs || {}) a[x] = attrs[x]; var i = h('input', a); i.value = d[k]; return i; }
+      out.push(h('section', { class: 'pd-rel-row', 'aria-label': T('Invite a creator') }, [
+        h('h3', { class: 'pd-dock-h', text: T('Invite a creator') }),
+        h('div', { class: 'pd-cr-form' }, [
+          h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-dock-kicker', text: T('Email address (optional)') }), inp('email', 'email', T('Email address (optional)'), { dir: 'ltr', autocomplete: 'off' })]),
+          h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-dock-kicker', text: T('Note for yourself (optional)') }), inp('note', 'text', T('Note for yourself (optional)'), { maxlength: '200', dir: 'auto' })]),
+          h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-dock-kicker', text: T('Accounts it opens') }), inp('maxUses', 'number', T('Accounts it opens'), { min: '1', max: '1000', step: '1', inputmode: 'numeric', disabled: d.email ? '' : null })]),
+          h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-dock-kicker', text: T('Valid for (days)') }), inp('days', 'number', T('Valid for (days)'), { min: '1', max: '90', step: '1', inputmode: 'numeric' })]),
+        ]),
+        h('p', { class: 'pd-note', text: T('With an address, the code opens one account for that address only.') }),
+        btn({ class: 'pd-btn pd-btn--primary', 'data-pd-act': 'mfg-cr-invite', 'data-pd-mfg-key': 'cr-invite', 'aria-disabled': C.busy ? 'true' : null }, [h('span', { text: T('Create the invitation') })]),
+        C.code ? h('div', { class: 'pd-cr-code', role: 'status', 'data-pd-cr-code': '' }, [
+          h('p', { class: 'pd-dock-kicker', text: T('Invitation code: shown once') }),
+          h('p', { class: 'pd-cr-code-text', dir: 'ltr', 'data-user-content': '', text: C.code }),
+          h('p', { class: 'pd-note', text: T('Send it to the person yourself. Familista keeps only its fingerprint, so it cannot be shown again.') }),
+          btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-cr-copy', 'data-pd-mfg-key': 'cr-copy' }, [icon('duplicate', 14), h('span', { text: T('Copy the code') })]),
+        ]) : null,
+      ]));
+      out.push(h('h3', { class: 'pd-dock-h', text: T('Invitations') }));
+      if (!C.invites.length) out.push(h('p', { class: 'pd-empty', text: T('No invitations yet.') }));
+      else out.push(h('ul', { class: 'pd-dock-list', role: 'list' }, C.invites.map(function (i) {
+        return h('li', { class: 'pd-dock-row', 'data-pd-cr-invite': i.id }, [
+          h('span', { class: 'pd-dock-main' }, [
+            h('span', { class: 'pd-dock-name', 'data-user-content': '', dir: 'auto', text: i.email || i.note || T('Open invitation') }),
+            h('span', { class: 'pd-dock-kicker', text: tf('%d of %d used · until %s', i.uses, i.maxUses, day(i.expiresAt, ctx.lang())) })]),
+          h('span', { class: 'pd-chip' + (i.state === 'open' ? '' : ' pd-chip--muted'), 'data-state': i.state, text: T(INVITE_STATE[i.state] || i.state) }),
+          i.state === 'open' ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-cr-revoke', 'data-pd-id': i.id, 'data-pd-mfg-key': 'cr-revoke-' + i.id }, [h('span', { text: T('Revoke') })]) : null,
+        ]);
+      })));
+      out.push(h('h3', { class: 'pd-dock-h', text: tf('Creators: %d', C.total) }));
+      if (!C.creators.length) out.push(h('p', { class: 'pd-empty', text: T('No creator account yet. An account opens when someone uses an invitation.') }));
+      else out.push(h('ul', { class: 'pd-dock-list', role: 'list' }, C.creators.map(function (c) {
+        var acts = [];
+        if (c.status === 'ACTIVE' && !c.emailVerified) acts.push(btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-cr-verify', 'data-pd-id': c.id, 'data-pd-mfg-key': 'cr-verify-' + c.id }, [h('span', { text: T('Confirm the address') })]));
+        if (c.status === 'ACTIVE') acts.push(btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-cr-suspend', 'data-pd-id': c.id, 'data-pd-mfg-key': 'cr-suspend-' + c.id }, [h('span', { text: T('Suspend') })]));
+        if (c.status === 'SUSPENDED') acts.push(btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-cr-reinstate', 'data-pd-id': c.id, 'data-pd-mfg-key': 'cr-reinstate-' + c.id }, [h('span', { text: T('Reinstate') })]));
+        return h('li', { class: 'pd-dock-row', 'data-pd-cr-creator': c.id }, [
+          h('span', { class: 'pd-dock-main' }, [
+            h('span', { class: 'pd-dock-name', 'data-user-content': '', dir: 'auto', text: c.displayName || T('Deleted account') }),
+            h('span', { class: 'pd-dock-kicker' }, [c.email ? h('span', { 'data-user-content': '', dir: 'ltr', text: c.email }) : null, c.email ? ' · ' : null, h('span', { text: c.emailVerified ? T('Address confirmed') : T('Address not confirmed') })])]),
+          h('span', { class: 'pd-chip' + (c.status === 'ACTIVE' ? '' : ' pd-chip--muted'), 'data-state': c.status, text: T(CREATOR_STATE[c.status] || c.status) }),
+          acts.length ? h('span', { class: 'pd-dock-btns' }, acts) : null,
+        ]);
+      })));
+      return out;
+    }
+    function creatorStep(kind, id) {
+      var label = kind === 'verify' ? T('Confirm the address') : kind === 'suspend' ? T('Suspend') : T('Reinstate');
+      var hint = kind === 'verify' ? T('How you know the address is theirs (for the audit log).') : kind === 'suspend' ? T('Why the account is suspended (for the audit log). Every session ends at once.') : T('Why the account is reinstated (for the audit log).');
+      askNote(label, hint, function (note) {
+        if (note.length < 5) { say(T('Write at least a few words.')); return; }
+        var call = kind === 'verify' ? ctx.rollout.verifyCreatorEmail : kind === 'suspend' ? ctx.rollout.suspendCreator : ctx.rollout.reinstateCreator;
+        st.ask = null; st.cr.busy = true; render();
+        call(id, note).then(function (r) { st.cr.busy = false; say(r.ok ? tf('%s: done.', label) : refusal(r, L('The change could not be made.'))); loadCreators(); });
+      });
+    }
+
     // ── P1: retention of the personal data the studio keeps ───────────────
     function loadRetention() {
       if (!ctx.rollout || !ctx.rollout.retention) return;
@@ -425,6 +502,13 @@
         ]),
       ]);
     }
+    /** P3: who asked: a club (its name), or a creator (their name, and that they are one). A deleted creator has no name. */
+    function requesterName(r) { var q = r.requester || { kind: 'club', name: r.club && r.club.name }; return q.name || T('Deleted account'); }
+    function requester(r) {
+      var q = r.requester || { kind: 'club', name: r.club && r.club.name };
+      var name = h('span', { 'data-user-content': '', dir: 'auto', text: requesterName(r) });
+      return q.kind === 'creator' ? h('span', null, [name, ' ', h('span', { class: 'pd-chip pd-chip--muted', 'data-requester': 'creator', text: T('Creator') })]) : name;
+    }
     function skeleton(n) { return h('ul', { class: 'pd-dock-list', 'aria-busy': 'true' }, Array.from({ length: n }, function () { return h('li', { class: 'pd-dock-row is-skeleton' }, [h('span', { class: 'pd-dock-bar' }), h('span', { class: 'pd-dock-bar is-short' })]); })); }
     function requestsList() {
       var Rq = st.requests, out = [];
@@ -440,11 +524,11 @@
       items.forEach(function (r) {
         list.appendChild(h('li', { class: 'pd-dock-row' }, [
           h('div', { class: 'pd-dock-text' }, [
-            h('span', { class: 'pd-dock-name' }, [h('span', { 'data-user-content': '', text: r.club.name }), ' · ', h('span', { 'data-user-content': '', text: r.collection.name })]),
+            h('span', { class: 'pd-dock-name' }, [requester(r), ' · ', h('span', { 'data-user-content': '', text: r.collection.name })]),
             h('span', { class: 'pd-dock-kicker', text: tf('Sets: %d · updated %s', r.sets, ctx.date(r.updatedAt)) }),
           ]),
           h('div', { class: 'pd-dock-btns' }, [chip(T(STATUS[r.status]), !FINAL[r.status]),
-            btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'mfg-open-request', 'data-pd-id': r.id, 'aria-label': tf('Open the request of %s', r.club.name) }, [h('span', { text: T('Open') })])]),
+            btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'mfg-open-request', 'data-pd-id': r.id, 'aria-label': tf('Open the request of %s', requesterName(r)) }, [h('span', { text: T('Open') })])]),
         ]));
       });
       out.push(list);
@@ -457,7 +541,7 @@
       var r = c.data, spec = r.spec, out = [];
       out.push(h('div', { class: 'pd-req-head' }, [
         h('div', { class: 'pd-dock-text' }, [
-          h('span', { class: 'pd-dock-name' }, [h('span', { 'data-user-content': '', text: r.club.name }), ' · ', h('span', { 'data-user-content': '', text: spec.collection.name + (spec.collection.season ? ' · ' + spec.collection.season : '') })]),
+          h('span', { class: 'pd-dock-name' }, [requester(r), ' · ', h('span', { 'data-user-content': '', text: spec.collection.name + (spec.collection.season ? ' · ' + spec.collection.season : '') })]),
           h('span', { class: 'pd-dock-kicker' }, [T('For the roster'), ' ', h('span', { 'data-user-content': '', text: spec.roster.name }), ' · ', tf('sets %d', spec.sets),
             r.neededBy ? ' · ' + tf('needed by %s', day(r.neededBy, lang)) : '']),
         ]),
@@ -644,6 +728,32 @@
         case 'mfg-rel-retry': loadReleases(); return true;
         case 'mfg-tab-privacy': if (st.tab !== 'privacy' && ctx.rollout) { st.tab = 'privacy'; loadRetention(); ctx.onToggle(true); } return true;
         case 'mfg-ret-retry': loadRetention(); return true;
+        case 'mfg-tab-creators': if (st.tab !== 'creators' && ctx.rollout) { st.tab = 'creators'; loadCreators(); ctx.onToggle(true); } return true;
+        case 'mfg-cr-retry': loadCreators(); return true;
+        case 'mfg-cr-invite': {
+          if (st.cr.busy) return true;
+          var dr = st.cr.draft; st.cr.busy = true; st.cr.code = null; render();
+          ctx.rollout.createCreatorInvite({ email: dr.email.trim() || null, note: dr.note.trim() || null, maxUses: dr.email.trim() ? 1 : Number(dr.maxUses), days: Number(dr.days) }).then(function (r) {
+            st.cr.busy = false;
+            if (r.ok && r.data) { st.cr.code = r.data.code; st.cr.draft = { email: '', note: '', maxUses: '1', days: '14' }; say(T('Invitation created. Copy the code now: it is shown once.')); loadCreators(); return; }
+            say(r.code === 'CREATOR_INVALID' ? T('Check the address, the number of accounts (1–1000) and the days (1–90).') : refusal(r, L('The invitation could not be created.'))); render();
+          });
+          return true;
+        }
+        case 'mfg-cr-copy': {
+          var code = st.cr.code;
+          if (code && navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(function () { say(T('Code copied.')); }, function () { say(T('Select the code and copy it.')); });
+          else say(T('Select the code and copy it.'));
+          return true;
+        }
+        case 'mfg-cr-revoke': {
+          st.cr.busy = true; render();
+          ctx.rollout.revokeCreatorInvite(id).then(function (r) { st.cr.busy = false; say(r.ok ? T('Invitation revoked.') : refusal(r, L('The invitation could not be revoked.'))); loadCreators(); });
+          return true;
+        }
+        case 'mfg-cr-verify': creatorStep('verify', id); return true;
+        case 'mfg-cr-suspend': creatorStep('suspend', id); return true;
+        case 'mfg-cr-reinstate': creatorStep('reinstate', id); return true;
         case 'mfg-ret-save': retentionSet(t.getAttribute('data-pd-id'), false); return true;
         case 'mfg-ret-clear': retentionSet(t.getAttribute('data-pd-id'), true); return true;
         case 'mfg-ret-preview': retentionRun(true); return true;
@@ -737,6 +847,8 @@
         return true;
       }
       if (t.hasAttribute('data-pd-mfg-note') && st.ask) { st.ask.value = t.value; return true; }
+      k = t.getAttribute('data-pd-mfg-cr');
+      if (k) { var had = !!st.cr.draft.email; st.cr.draft[k] = t.value; if (k === 'email' && had !== !!t.value) render(); return true; }
       k = t.getAttribute('data-pd-ret-days');
       if (k) { st.ret.draft[k] = t.value; return true; }
       k = t.getAttribute('data-pd-rel-key');
@@ -751,7 +863,8 @@
       metrics: function () {
         return { open: st.open, tab: st.tab, view: st.view, requests: st.requests.items.length, suppliers: st.suppliers.items.length,
           status: st.cur && st.cur.data ? st.cur.data.status : null, quotes: st.cur && st.cur.data ? st.cur.data.quotes.length : 0,
-          fit: st.fit ? st.fit.state : null, releases: st.rel.state, releaseBusy: st.rel.busy };
+          fit: st.fit ? st.fit.state : null, releases: st.rel.state, releaseBusy: st.rel.busy,
+          creators: st.cr.state, creatorCount: st.cr.creators.length, invites: st.cr.invites.length, inviteCode: !!st.cr.code, creatorBusy: st.cr.busy };
       },
     };
   }

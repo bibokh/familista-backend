@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-24T20:09:42.562Z",
+  "generatedAt": "2026-11-24T20:41:57.377Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 63,
-    "handlers": 903,
+    "handlers": 908,
     "publicHandlers": 29,
     "publicRoutes": [
       {
@@ -166,7 +166,17 @@
       {
         "route": "GET /app/*",
         "file": "src/app.ts",
-        "line": 323
+        "line": 330
+      },
+      {
+        "route": "GET /creator",
+        "file": "src/app.ts",
+        "line": 320
+      },
+      {
+        "route": "GET /creator/",
+        "file": "src/app.ts",
+        "line": 320
       },
       {
         "route": "GET /healthz",
@@ -376,7 +386,7 @@
       {
         "path": "/system/product-design",
         "module": "product-design.routes",
-        "handlers": 18,
+        "handlers": 21,
         "public": 0,
         "routerWideAuth": true
       },
@@ -404,7 +414,7 @@
       {
         "path": "/creator",
         "module": "creator.routes",
-        "handlers": 46,
+        "handlers": 48,
         "public": 0,
         "routerWideAuth": true
       },
@@ -674,9 +684,9 @@
       "src/services/vision-realtime.service.ts"
     ],
     "tenancy": {
-      "idParameters": 457,
+      "idParameters": 460,
       "guarded": 206,
-      "exempt": 251,
+      "exempt": 254,
       "unguarded": [],
       "staleExemptions": [],
       "routerWideTenantGuardMounts": [],
@@ -864,7 +874,7 @@
         },
         "product-design.routes": {
           "guarded": 0,
-          "exempt": 11,
+          "exempt": 14,
           "unguarded": 0
         },
         "provisioning.routes": {
@@ -930,14 +940,14 @@
       }
     },
     "authorization": {
-      "handlers": 903,
+      "handlers": 908,
       "byKind": {
         "public": 29,
         "member": 350,
         "scoped": 60,
         "roles": 280,
-        "platform-owner": 138,
-        "creator": 46
+        "platform-owner": 141,
+        "creator": 48
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -1004,7 +1014,7 @@
           "public": 8
         },
         "creator.routes": {
-          "creator": 46
+          "creator": 48
         },
         "cybersecurity.routes": {
           "platform-owner": 2
@@ -1124,7 +1134,7 @@
           "roles": 1
         },
         "product-design.routes": {
-          "platform-owner": 18
+          "platform-owner": 21
         },
         "provisioning.routes": {
           "roles": 7,
@@ -1286,6 +1296,7 @@
         "GET /creator/collections/:collectionId": "creator",
         "GET /creator/collections/:collectionId/order-sheet": "creator",
         "GET /creator/me": "creator",
+        "GET /creator/me/export": "creator",
         "GET /creator/projects": "creator",
         "GET /creator/projects/:id": "creator",
         "GET /creator/projects/:id/review": "creator",
@@ -1762,6 +1773,7 @@
         "POST /creator/collections/:collectionId/archive": "creator",
         "POST /creator/collections/:collectionId/requests": "creator",
         "POST /creator/collections/:collectionId/unarchive": "creator",
+        "POST /creator/me/delete": "creator",
         "POST /creator/me/password": "creator",
         "POST /creator/me/verification": "creator",
         "POST /creator/projects": "creator",
@@ -2018,6 +2030,9 @@
         "POST /system/manufacturing/requests/:requestId/shipped": "platform-owner",
         "POST /system/manufacturing/suppliers": "platform-owner",
         "POST /system/manufacturing/suppliers/:supplierId/status": "platform-owner",
+        "POST /system/product-design/creators/:creatorId/reinstate": "platform-owner",
+        "POST /system/product-design/creators/:creatorId/suspend": "platform-owner",
+        "POST /system/product-design/creators/:creatorId/verify-email": "platform-owner",
         "POST /system/product-design/creators/invites": "platform-owner",
         "POST /system/product-design/creators/invites/:inviteId/revoke": "platform-owner",
         "POST /system/product-design/privacy/retention/apply": "platform-owner",
@@ -2280,7 +2295,7 @@
       "id": "tenant-guard",
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
-      "note": "206 of 457 route id parameter(s) checked against the caller's club before the handler; 251 exempted by name with a reason; 0 unguarded."
+      "note": "206 of 460 route id parameter(s) checked against the caller's club before the handler; 254 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "franchise-club-attach-authorised",
@@ -2504,7 +2519,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "903 handler(s) classified: 29 public, 350 member, 60 scoped, 280 roles, 138 platform-owner, 46 creator; every member- and creator-level handler reviewed by name."
+      "note": "908 handler(s) classified: 29 public, 350 member, 60 scoped, 280 roles, 141 platform-owner, 48 creator; every member- and creator-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",

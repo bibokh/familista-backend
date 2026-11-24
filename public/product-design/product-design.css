@@ -35,7 +35,7 @@ body.pd-studio-open .app { display: block !important; }
 body.pd-studio-open .main { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; }
 body.pd-studio-open { overflow: hidden; }
 
-:is(#pg-product-design, #pg-club-design) {
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) {
   background:
     radial-gradient(1100px 620px at 58% 34%, color-mix(in srgb, var(--fam-module-accent) 12%, transparent), transparent 70%),
     radial-gradient(900px 520px at 12% 92%, color-mix(in srgb, var(--fam-module-accent-2) 9%, transparent), transparent 70%),
@@ -45,20 +45,20 @@ body.pd-studio-open { overflow: hidden; }
   font-size: var(--fam-font-size-base);
   line-height: var(--fam-font-line-height-snug);
 }
-:is(#pg-product-design, #pg-club-design) *, :is(#pg-product-design, #pg-club-design) *::before, :is(#pg-product-design, #pg-club-design) *::after { box-sizing: border-box; }
-:is(#pd-root, #pd-club-root):lang(ar) { font-family: var(--fam-font-family-arabic); }
-:is(#pg-product-design, #pg-club-design) [hidden] { display: none !important; }
-:is(#pg-product-design, #pg-club-design) button { font: inherit; color: inherit; }
-:is(#pg-product-design, #pg-club-design) h1, :is(#pg-product-design, #pg-club-design) h2, :is(#pg-product-design, #pg-club-design) p, :is(#pg-product-design, #pg-club-design) ul, :is(#pg-product-design, #pg-club-design) ol, :is(#pg-product-design, #pg-club-design) figure { margin: 0; }
-:is(#pg-product-design, #pg-club-design) ul, :is(#pg-product-design, #pg-club-design) ol { padding: 0; list-style: none; }
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) *, :is(#pg-product-design, #pg-club-design, #pg-creator-design) *::before, :is(#pg-product-design, #pg-club-design, #pg-creator-design) *::after { box-sizing: border-box; }
+:is(#pd-root, #pd-club-root, #pd-creator-root):lang(ar) { font-family: var(--fam-font-family-arabic); }
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) [hidden] { display: none !important; }
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) button { font: inherit; color: inherit; }
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) h1, :is(#pg-product-design, #pg-club-design, #pg-creator-design) h2, :is(#pg-product-design, #pg-club-design, #pg-creator-design) p, :is(#pg-product-design, #pg-club-design, #pg-creator-design) ul, :is(#pg-product-design, #pg-club-design, #pg-creator-design) ol, :is(#pg-product-design, #pg-club-design, #pg-creator-design) figure { margin: 0; }
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) ul, :is(#pg-product-design, #pg-club-design, #pg-creator-design) ol { padding: 0; list-style: none; }
 .pd-sr {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
-:is(#pg-product-design, #pg-club-design) :is(button, input, select, [tabindex]):focus-visible {
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) :is(button, input, select, [tabindex]):focus-visible {
   outline: 2px solid var(--fam-focus-ring); outline-offset: 2px; box-shadow: var(--fam-glow-focus);
 }
-:is(#pg-product-design, #pg-club-design) [aria-disabled="true"] { cursor: not-allowed; }
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) [aria-disabled="true"] { cursor: not-allowed; }
 
 /* ── the shell: R1 top, R2 side, main, the bottom cards ────────────────── */
 .pd-shell {
@@ -242,8 +242,9 @@ body.pd-studio-open { overflow: hidden; }
 .pd-acc-chev { display: inline-flex; color: var(--fam-text-tertiary); transition: transform var(--fam-duration-base) var(--fam-easing-standard); }
 .pd-acc[aria-expanded="true"] .pd-acc-chev { transform: rotate(180deg); }
 .pd-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-/* the club's brand kit (M2c): the upload row, the logos as cards, and their archive control */
-.pd-brand { display: flex; flex-direction: column; gap: var(--fam-space-2); }
+/* the brand kit (M2c; a creator's too, P3): the upload row, the logos as cards, and their archive control. Its own class:
+   sharing .pd-brand with the top bar's brand stacked the mark above the name and clipped it in the 62 px bar. */
+.pd-brandkit { display: flex; flex-direction: column; gap: var(--fam-space-2); }
 .pd-brand-up { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr); gap: 6px; }
 .pd-brand-up .pd-btn { grid-column: 1 / -1; justify-content: center; }
 .pd-brand-status:empty { display: none; }
@@ -251,8 +252,8 @@ body.pd-studio-open { overflow: hidden; }
 .pd-brand-item { position: relative; }
 .pd-brand-card { margin: 0; gap: 4px; }
 .pd-brand-img { display: block; max-width: 100%; max-height: 52px; width: auto; height: auto; object-fit: contain; }
-.pd-brand .pd-brand-card .pd-chip { position: static; inset: auto; transform: none; align-self: center; }
-.pd-brand > .pd-btn { width: 100%; justify-content: center; white-space: normal; height: auto; min-height: 32px; padding-block: 6px; text-align: center; line-height: 1.25; }
+.pd-brandkit .pd-brand-card .pd-chip { position: static; inset: auto; transform: none; align-self: center; }
+.pd-brandkit > .pd-btn { width: 100%; justify-content: center; white-space: normal; height: auto; min-height: 32px; padding-block: 6px; text-align: center; line-height: 1.25; }
 .pd-brand-archive { position: absolute; inset-block-start: 4px; inset-inline-end: 4px; opacity: 0; transition: opacity 120ms ease; }
 .pd-brand-item:hover .pd-brand-archive, .pd-brand-archive:focus-visible { opacity: 1; }
 @media (hover: none) { .pd-brand-archive { opacity: 1; } }
@@ -871,5 +872,59 @@ body.pd-studio-open { overflow: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :is(#pg-product-design, #pg-club-design) *, :is(#pg-product-design, #pg-club-design) *::before, :is(#pg-product-design, #pg-club-design) *::after { transition: none !important; scroll-behavior: auto !important; }
+  :is(#pg-product-design, #pg-club-design, #pg-creator-design) *, :is(#pg-product-design, #pg-club-design, #pg-creator-design) *::before, :is(#pg-product-design, #pg-club-design, #pg-creator-design) *::after { transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* ── P3: the Creator Studio's own page (public/creator/index.html): the studio is the whole document there, so the page
+   takes the room's canvas, and the paging arrow takes its direction (app.css gives it in the platform's workspace). */
+html:has(#pg-creator-design), html:has(#pg-creator-design) body { margin: 0; padding: 0; background: var(--fam-surface-canvas); }
+#pg-creator-design { min-height: 100vh; min-height: 100dvh; }
+#pg-creator-design .fam-dir-ic { display: inline-block; }
+#pg-creator-design .fam-dir-ic:dir(rtl) { transform: scaleX(-1); }
+
+/* ── P3: the Creator Studio's way in, and its account panel ───────────────
+   The gate is one card on the room's own canvas: sign in, open an account, reset a password. Switching between them
+   repaints the card alone; the aside beside it never moves. Under 980 px wide the two stack and the page scrolls. */
+.pd-gate { min-height: 100vh; min-height: 100dvh; display: grid; grid-template-rows: 62px minmax(0, 1fr); }
+.pd-gate-top {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--fam-space-4);
+  padding-inline: var(--fam-space-5); border-block-end: 1px solid var(--fam-border-subtle);
+  background: color-mix(in srgb, var(--fam-surface-raised) 72%, transparent); backdrop-filter: blur(14px);
+}
+.pd-gate-main {
+  /* Anchored at the top, not centred: a message appearing below the form grows the card downwards and moves nothing. */
+  display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 360px); justify-content: center; align-content: start; align-items: start;
+  gap: var(--fam-space-6); padding: clamp(24px, 8vh, 96px) var(--fam-space-5) var(--fam-space-6);
+}
+.pd-gate-card, .pd-gate-aside {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--fam-surface-raised) 92%, transparent), color-mix(in srgb, var(--fam-surface-panel) 96%, transparent));
+  border: 1px solid var(--fam-border-subtle); border-radius: var(--fam-radius-lg); backdrop-filter: blur(14px);
+  padding: var(--fam-space-5); display: flex; flex-direction: column; gap: var(--fam-space-3);
+}
+.pd-gate-card { min-height: 560px; }
+.pd-gate-title { font-size: var(--fam-font-size-xl); font-weight: var(--fam-font-weight-bold); line-height: var(--fam-font-line-height-tight); }
+.pd-gate-tabs { margin-block-end: var(--fam-space-1); }
+.pd-gate-form { display: flex; flex-direction: column; gap: var(--fam-space-3); }
+.pd-gate-label { font-size: var(--fam-font-size-sm); color: var(--fam-text-secondary); font-weight: var(--fam-font-weight-medium); }
+.pd-gate-form .pd-input { width: 100%; min-height: 40px; }
+.pd-gate-submit { justify-content: center; min-height: 42px; }
+.pd-gate-error { color: var(--fam-status-critical); min-height: 1.4em; }
+.pd-gate-error:empty, .pd-gate-status:empty { visibility: hidden; }
+.pd-gate-status { color: var(--fam-text-secondary); min-height: 1.4em; }
+.pd-gate-list { display: flex; flex-direction: column; gap: var(--fam-space-3); }
+.pd-gate-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--fam-space-2); align-items: start; }
+.pd-gate-list li > .pd-ic { color: var(--fam-module-accent); margin-block-start: 2px; }
+.pd-gate-list li > span { display: flex; flex-direction: column; gap: 2px; }
+.pd-gate-list strong { font-weight: var(--fam-font-weight-semibold); }
+.pd-gate-list li > span > span { color: var(--fam-text-secondary); font-size: var(--fam-font-size-sm); }
+@media (max-width: 980px) {
+  .pd-gate-main { grid-template-columns: minmax(0, 1fr); align-content: start; }
+  .pd-gate-card { min-height: 0; }
+}
+.pd-acct { z-index: 45; }
+.pd-acct-card { padding: var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); border: 1px solid var(--fam-border-subtle); display: flex; flex-direction: column; gap: 4px; }
+.pd-acct-name { font-size: var(--fam-font-size-lg); font-weight: var(--fam-font-weight-semibold); }
+.pd-acct-mail { color: var(--fam-text-secondary); font-size: var(--fam-font-size-sm); overflow-wrap: anywhere; }
+.pd-acct-block { display: flex; flex-direction: column; gap: var(--fam-space-2); padding-block: var(--fam-space-3); border-block-start: 1px solid var(--fam-border-subtle); }
+.pd-acct-block:first-child { border-block-start: 0; }
+.pd-acct .pd-team-field .pd-input, .pd-acct select.pd-input { width: 100%; }

@@ -83,7 +83,7 @@ module.exports = async function p18(H) {
     fs.writeFileSync(svg, '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(1)</script></svg>');
     await page.click('#pd-club-root [data-pd-libtab="brand"]');
     await page.waitForFunction(() => window.__familistaProductDesignMetrics().brand.state === 'ready', null, { timeout: 30000 });
-    const empty = await page.evaluate(() => (document.querySelector('#pd-club-root .pd-brand .pd-empty') || {}).textContent || '');
+    const empty = await page.evaluate(() => (document.querySelector('#pd-club-root .pd-brandkit .pd-empty') || {}).textContent || '');
     await page.fill('#pd-club-root [data-pd-brand-name]', 'Home crest');
     await page.setInputFiles('#pd-club-root [data-pd-brand-file]', logo);
     await page.waitForFunction(() => { const b = window.__familistaProductDesignMetrics().brand; return b.state === 'ready' && b.assets === 1 && !b.busy; }, null, { timeout: 30000 });

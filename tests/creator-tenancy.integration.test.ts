@@ -102,6 +102,9 @@ suite('Creator Studio tenancy (P2), on real PostgreSQL', () => {
       for (const u of Object.values(USERS)) await tx.user.create({ data: { id: u.id, clubId: u.clubId, email: `${u.id}@test.invalid`, passwordHash: 'x', firstName: 'T', lastName: u.id, role: u.role } });
     });
     process.env.DATABASE_URL = url; process.env.DIRECT_URL = url; process.env.DB_RLS_CONTEXT = 'on';
+    // This suite makes more than ten credential calls for one address on purpose; the per-account auth limit that would
+    // stop the eleventh is the platform's own, unchanged, and tested where it is defined.
+    process.env.RATE_ACCOUNT_CAPACITY = '200';
     /* eslint-disable @typescript-eslint/no-var-requires */
     signToken = require('../src/security/jwt-tokens').signToken;
     require('../src/platform/email/service').setEmailProvider({
@@ -140,7 +143,7 @@ suite('Creator Studio tenancy (P2), on real PostgreSQL', () => {
   });
 
   it('opens an account only with the Owner’s invitation; keeps only hashes; confirms the age; refuses a weak password', async () => {
-    expect((await request(app).get(`${CR}/auth/terms`)).body.data).toEqual({ signup: 'invitation', minimumAge: 18 });
+    expect((await request(app).get(`${CR}/auth/terms`)).body.data).toEqual({ signup: 'invitation', minimumAge: 18, email: true });
     expect((await signUp('FAM-NONE-NONE-NONE-NONE', 'a@example.com')).body).toMatchObject({ code: 'CREATOR_INVITE_REFUSED', reason: 'invalid' });
     const bound = await invite({ email: 'Alex@Example.com', note: 'first creator' });
     expect(bound.code).toMatch(/^FAM-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
@@ -317,5 +320,63 @@ suite('Creator Studio tenancy (P2), on real PostgreSQL', () => {
     expect((await request(app).post(`${CR}/auth/refresh`).set('Cookie', `creator_refresh=${A.refresh}`)).status).toBe(401);
     expect((await request(app).post(`${CR}/auth/login`).send({ email: 'alex@example.com', password: PW })).status).toBe(401);
     expect((await request(app).post(`${CR}/auth/login`).send({ email: 'alex@example.com', password: 'a brand new passphrase' })).status).toBe(200);
+  });
+
+  it('the Owner suspends and reinstates an account, and confirms an address by hand, each with a note in the audit', async () => {
+    expect((await owner().post(`${OWNER}/creators/${B.id}/suspend`, { note: 'no' })).body.code).toBe('CREATOR_INVALID');
+    expect((await owner().post(`${OWNER}/creators/${B.id}/suspend`, { note: 'abuse report checked' })).body.data).toEqual({ status: 'SUSPENDED' });
+    expect((await bearer(B.auth).get(`${CR}/me`)).status).toBe(401);
+    expect((await request(app).post(`${CR}/auth/login`).send({ email: 'r1@example.com', password: PW })).status).toBeGreaterThanOrEqual(401);
+    expect((await owner().post(`${OWNER}/creators/${B.id}/reinstate`, { note: 'report resolved' })).body.data).toEqual({ status: 'ACTIVE' });
+    const [b] = await sys(`SELECT "email" FROM "CreatorAccount" WHERE "id" = $1`, B.id);
+    const back = await request(app).post(`${CR}/auth/login`).send({ email: b.email, password: PW });
+    expect(back.status).toBe(200);
+    B.auth = `Bearer ${back.body.data.accessToken}`;
+    expect(back.body.data.creator.emailVerified).toBe(false);
+    expect((await owner().post(`${OWNER}/creators/${B.id}/verify-email`, { note: 'confirmed by phone call' })).body.data.creator.emailVerified).toBe(true);
+    // a club user is not the Owner
+    expect((await club().post(`${OWNER}/creators/${B.id}/suspend`, { note: 'not mine to do' })).status).toBe(403);
+    const audit = await sys(`SELECT "action", "metadata"->>'note' AS note FROM "PlatformAuditLog" WHERE "creatorId" = $1 AND "action" LIKE 'creator.%' ORDER BY "createdAt"`, B.id);
+    expect(audit.map((a) => [a.action, a.note])).toEqual(expect.arrayContaining([['creator.account.suspended', 'abuse report checked'], ['creator.account.reinstated', 'report resolved'], ['creator.email.verified-by-owner', 'confirmed by phone call']]));
+  });
+
+  it('a creator downloads a copy of all their data, and deletes the account: refused while an order is with its maker', async () => {
+    const signedIn = await request(app).post(`${CR}/auth/login`).send({ email: 'alex@example.com', password: 'a brand new passphrase' });
+    const auth = `Bearer ${signedIn.body.data.accessToken}`;
+    const ex = await bearer(auth).get(`${CR}/me/export`);
+    expect(ex.headers['content-disposition']).toMatch(/attachment; filename="familista-creator-export-/);
+    const e = ex.body.data.export;
+    expect([e.format, e.account.email, e.designs.map((d: Row) => d.id), e.rosters.map((r: Row) => r.id), e.collections.map((c: Row) => c.id)])
+      .toEqual(['familista.creator-export', 'alex@example.com', [aProject], [aRoster], [aCollection]]);
+    expect(e.designs[0].revision.document.name).toBe('Alex shirt');
+    expect(e.requests).toHaveLength(1);
+    expect(e.requests[0].names).toEqual([{ position: 0, name: 'KID', state: 'KEPT' }]);
+    expect(e.brandKit.colours).toEqual([{ label: 'Sky', srgb: '#3b82f6' }]);
+    // nothing of B's or the club's
+    expect(JSON.stringify(e)).not.toContain(clubProject);
+    const reqId = e.requests[0].id;
+    // an order with its maker holds the account
+    await sysExec(`UPDATE "ManufacturingRequest" SET "status" = 'ORDERED' WHERE "id" = $1`, reqId);
+    const held = await bearer(auth).post(`${CR}/me/delete`, { password: 'a brand new passphrase' });
+    expect([held.status, held.body.code, held.body.data]).toEqual([409, 'CREATOR_DELETION_REFUSED', { orders: 1 }]);
+    await sysExec(`UPDATE "ManufacturingRequest" SET "status" = 'SUBMITTED' WHERE "id" = $1`, reqId);
+    expect((await bearer(auth).post(`${CR}/me/delete`, { password: 'wrong password!!' })).status).toBe(401);
+    const gone = await bearer(auth).post(`${CR}/me/delete`, { password: 'a brand new passphrase' });
+    expect(gone.body.data).toEqual({ deleted: true, cancelled: 1, namesErased: 1, designs: 1 });
+    const [acc] = await sys(`SELECT "status"::text AS s, "email", "passwordHash", "displayName", "deletedAt" IS NOT NULL AS d FROM "CreatorAccount" WHERE "id" = $1`, A.id);
+    expect(acc).toEqual({ s: 'DELETED', email: `deleted+${A.id}@invalid`, passwordHash: null, displayName: null, d: true });
+    for (const t of ['DesignProject', 'DesignRoster', 'DesignCollection', 'DesignBrandKit', 'CreatorSession', 'CreatorEmailToken']) {
+      expect([t, (await sys(`SELECT count(*)::int AS n FROM "${t}" WHERE "creatorId" = $1`, A.id))[0].n]).toEqual([t, 0]);
+    }
+    // the request stays, cancelled and nameless, as the record of what was asked
+    expect(await sys(`SELECT "status"::text AS s FROM "ManufacturingRequest" WHERE "id" = $1`, reqId)).toEqual([{ s: 'CANCELLED' }]);
+    expect(await sys(`SELECT "name", "state"::text AS state FROM "ManufacturingRequestPerson" WHERE "requestId" = $1`, reqId)).toEqual([{ name: null, state: 'ERASED' }]);
+    expect((await bearer(auth).get(`${CR}/me`)).status).toBe(401);
+    expect((await request(app).post(`${CR}/auth/login`).send({ email: 'alex@example.com', password: 'a brand new passphrase' })).status).toBe(401);
+    const seen = (await owner().get(`/api/v1/system/manufacturing/requests`)).body.data.requests.find((x: Row) => x.id === reqId);
+    expect(seen.requester).toEqual({ kind: 'creator', id: A.id, name: null });
+    const [audit] = await sys(`SELECT "metadata" FROM "PlatformAuditLog" WHERE "action" = 'creator.account.deleted' AND "creatorId" = $1`, A.id);
+    expect(audit.metadata).toMatchObject({ designs: 1, cancelled: 1, namesErased: 1 });
+    expect(JSON.stringify(audit.metadata)).not.toContain('alex@example.com');
   });
 });

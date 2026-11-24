@@ -342,7 +342,8 @@
       // P1: a roster with minors. Their names go only with a club administrator's attestation of a guardian's consent.
       var sheetRoster = st.sheet.state === 'ready' && st.sheet.data ? st.sheet.data.roster : null, minors = null;
       if (sheetRoster && sheetRoster.minors) {
-        var admin = shell.role && shell.role() === 'CLUB_ADMIN';
+        // A creator attests for their own roster; in a club, its administrator does.
+        var admin = shell.role && (shell.role() === 'CLUB_ADMIN' || shell.role() === 'CREATOR');
         var consent = h('input', { type: 'checkbox', 'data-pd-col-ask': 'minorsConsent', 'data-pd-team-key': 'col-ask-consent' });
         consent.checked = st.ask.minorsConsent === true;
         minors = h('div', { class: 'pd-col-minors', role: 'group', 'aria-label': T('Players under 18') }, [
@@ -387,6 +388,8 @@
         if (r.ok && r.data && r.data.request) { st.ask = null; shell.note(T('Request sent to Familista.')); shell.openRequest(r.data.request.id); return; }
         if (r.code === 'REQUEST_INCOMPLETE' || r.code === 'REQUEST_LIMIT') shell.note(T(INCOMPLETE[r.reason] || L('The request cannot be sent as it is.')));
         else if (r.code === 'QUOTE_INVALID') shell.note(T('Choose a date from tomorrow on, or none.'));
+        // P3: a creator's request needs a confirmed address, so Familista can answer it.
+        else if (r.code === 'CREATOR_EMAIL_UNVERIFIED') shell.note(T('Confirm your email address first: Account sends the link again.'));
         else shell.note(r.status === 0 ? T('Not sent: the server could not be reached.') : T('The request could not be sent.'));
         shell.render();
       });

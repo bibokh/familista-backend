@@ -40,7 +40,8 @@
       ask: null,       // { note } while a club administrator writes what to change
     };
 
-    function admin() { return shell.role() === 'CLUB_ADMIN'; }
+    /** Who decides on a version: a club's administrator, or the creator on their own designs (P3). */
+    function admin() { return shell.role() === 'CLUB_ADMIN' || shell.role() === 'CREATOR'; }
     function problem(r) {
       if (r.status === 0) return T('The server could not be reached.');
       if (r.code === 'REVIEW_INVALID' && INVALID[r.reason]) return T(INVALID[r.reason]);

@@ -55,7 +55,9 @@ describe('what it may call', () => {
     const verbs = [...CODE.matchAll(/call\('([A-Z]+)'/g)].map((m) => m[1]);
     // PUT is a club's brand colours (M2c), a roster's save (M3a) and a collection's (M3b); DELETE erases a roster or a
     // collection, and nothing else.
-    expect([...new Set(verbs)].sort()).toEqual(['DELETE', 'GET', 'POST', 'PUT']);
+    expect([...new Set(verbs)].sort()).toEqual(['DELETE', 'GET', 'PATCH', 'POST', 'PUT']);
+    // P3: PATCH is a creator's own profile, and nothing else.
+    expect([...CODE.matchAll(/call\('PATCH', '([^']+)'/g)].map((m) => m[1])).toEqual(['/me']);
     // M4: the Platform Owner's console saves a supplier (PUT) and discards a draft quotation (DELETE).
     expect([...CODE.matchAll(/call\('PUT', '([^']+)'/g)].map((m) => m[1])).toEqual(['/privacy/retention', '/rollout/', '/brand-kit/colours', '/rosters/', '/collections/', '/suppliers/']);
     expect([...CODE.matchAll(/call\('DELETE', '([^']+)'/g)].map((m) => m[1])).toEqual(['/rosters/', '/collections/', '/requests/']);
@@ -87,10 +89,11 @@ describe('what it may call', () => {
     await P.api.retention(); await P.api.setRetention('DesignReviewComment', 30); await P.api.applyRetention(true);
     // P2: the Creator Studio's accounts and the invitations that are the only way in.
     await P.api.creators(); await P.api.creatorInvites(); await P.api.createCreatorInvite({ email: 'a@example.com' }); await P.api.revokeCreatorInvite(id);
+    await P.api.verifyCreatorEmail(id, 'met in person'); await P.api.suspendCreator(id, 'abuse report'); await P.api.reinstateCreator(id, 'resolved');
     expect((await P.api.setRollout('../x', { studio: 'on' })).code).toBe('BAD_CLUB');
     expect(P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' }).api.rollout).toBeUndefined();
     await P.api.archive(id); await P.api.unarchive(id); await P.api.getRevision(id, 3);
-    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/product-design', '').replace(/\?.*$/, '').replace('/rollout/club-1', '/rollout/:clubId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number').replace(/\/invites\/:id\//, '/invites/:inviteId/')}`).sort();
+    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/product-design', '').replace(/\?.*$/, '').replace('/rollout/club-1', '/rollout/:clubId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number').replace(/\/invites\/:id\//, '/invites/:inviteId/').replace(/\/creators\/:id\//, '/creators/:creatorId/')}`).sort();
     // DS-1c: the room now calls every route, the single-version read included (the 3D comparison, read only).
     expect([...new Set(used)].sort()).toEqual(served);
     expect(calls[calls.length - 1].init).toMatchObject({ method: 'GET' });

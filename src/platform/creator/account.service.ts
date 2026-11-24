@@ -377,3 +377,41 @@ export async function listCreators(): Promise<{ creators: Array<{ id: string; di
   ]);
   return { creators: rows.map((r) => ({ id: r.id, displayName: r.displayName, email: r.status === CreatorStatus.DELETED ? null : r.email, status: r.status, emailVerified: !!r.emailVerifiedAt, createdAt: r.createdAt, lastLoginAt: r.lastLoginAt })), total };
 }
+
+/**
+ * The Owner confirms a creator's address by hand (with a note of how), for when the platform cannot send email: the
+ * Owner issued the invitation and reached the person by some other means. Recorded with the note.
+ */
+export async function ownerVerifyEmail(actor: { userId: string }, id: string, noteIn: string, ctx: Ctx): Promise<{ creator: CreatorView }> {
+  const note = String(noteIn ?? '').normalize('NFC').trim();
+  if (Array.from(note).length < 5 || Array.from(note).length > 300 || CONTROL.test(note)) throw new CreatorInputError('bad-note', 'note');
+  return prisma.$transaction(async (tx) => {
+    const n = await tx.creatorAccount.updateMany({ where: { id, status: CreatorStatus.ACTIVE, emailVerifiedAt: null }, data: { emailVerifiedAt: new Date() } });
+    const r = await tx.creatorAccount.findUnique({ where: { id }, select: ROW });
+    if (!r) throw new NotFoundError('Creator account');
+    if (n.count === 1) {
+      const admin = await tx.platformAdmin.findUnique({ where: { userId: actor.userId }, select: { id: true } });
+      await creatorAudit(tx, id, ctx, { action: 'creator.email.verified-by-owner', resourceId: id, userId: actor.userId, adminId: admin?.id ?? null, metadata: { note }, message: 'The Platform Owner confirmed a creator’s address' });
+    }
+    return { creator: viewOf(r) };
+  });
+}
+
+/** The Owner suspends a creator account (every session ends at once) or reinstates it. A deleted account is neither. */
+export async function ownerSetStatus(actor: { userId: string }, id: string, status: 'SUSPENDED' | 'ACTIVE', noteIn: string, ctx: Ctx): Promise<{ status: CreatorStatus }> {
+  const note = String(noteIn ?? '').normalize('NFC').trim();
+  if (Array.from(note).length < 5 || Array.from(note).length > 300 || CONTROL.test(note)) throw new CreatorInputError('bad-note', 'note');
+  return prisma.$transaction(async (tx) => {
+    const from = status === 'SUSPENDED' ? CreatorStatus.ACTIVE : CreatorStatus.SUSPENDED;
+    const n = await tx.creatorAccount.updateMany({ where: { id, status: from }, data: { status, tokenVersion: { increment: 1 } } });
+    const r = await tx.creatorAccount.findUnique({ where: { id }, select: { status: true } });
+    if (!r) throw new NotFoundError('Creator account');
+    if (n.count === 1) {
+      if (status === 'SUSPENDED') await tx.creatorSession.updateMany({ where: { creatorId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+      const admin = await tx.platformAdmin.findUnique({ where: { userId: actor.userId }, select: { id: true } });
+      await creatorAudit(tx, id, ctx, { action: status === 'SUSPENDED' ? 'creator.account.suspended' : 'creator.account.reinstated', resourceId: id, userId: actor.userId, adminId: admin?.id ?? null,
+        metadata: { note }, message: status === 'SUSPENDED' ? 'The Platform Owner suspended a creator account' : 'The Platform Owner reinstated a creator account' });
+    }
+    return { status: r.status };
+  });
+}

@@ -37,7 +37,9 @@ import {
 } from '../platform/product-design/http';
 import { changeRollout, readRollout } from '../platform/product-design/rollout-http';
 import { ownerApplyRetention, ownerReadRetention, ownerSetRetention } from '../platform/privacy/privacy-http';
-import { ownerCreateCreatorInvite, ownerListCreatorInvites, ownerListCreators, ownerRevokeCreatorInvite } from '../platform/creator/http';
+import {
+  ownerCreateCreatorInvite, ownerListCreatorInvites, ownerListCreators, ownerReinstateCreator, ownerRevokeCreatorInvite, ownerSuspendCreator, ownerVerifyCreatorEmail,
+} from '../platform/creator/http';
 
 const router = Router();
 router.use(authenticate);
@@ -65,6 +67,9 @@ router.get('/creators', ownerListCreators);
 router.get('/creators/invites', ownerListCreatorInvites);
 router.post('/creators/invites', ownerCreateCreatorInvite);
 router.post('/creators/invites/:inviteId/revoke', ownerRevokeCreatorInvite);
+router.post('/creators/:creatorId/verify-email', ownerVerifyCreatorEmail);
+router.post('/creators/:creatorId/suspend', ownerSuspendCreator);
+router.post('/creators/:creatorId/reinstate', ownerReinstateCreator);
 router.post('/projects', createDesign);
 router.get('/projects/:id', openDesign);
 router.post('/projects/:id/revisions', saveDesign);

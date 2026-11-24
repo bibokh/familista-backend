@@ -452,7 +452,8 @@
       out.push(h('div', { class: 'pd-team-tools', role: 'group', 'aria-label': T('Roster') }, [
         btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'team-add-row', 'data-pd-team-key': 'add' }, [icon('plus', 14), h('span', { text: T('Add a row') })]),
         btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'team-import', 'data-pd-team-key': 'import' }, [icon('import', 14), h('span', { text: T('Import a spreadsheet') })]),
-        btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'team-squad', 'data-pd-team-key': 'squad', 'aria-disabled': st.busy ? 'true' : null, 'data-pd-why': st.busy ? T('Reading the squad…') : null }, [icon('people', 14), h('span', { text: T('Start from the squad') })]),
+        // A club starts a roster from its squad; a creator has no squad (P3).
+        api.squadNames ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'team-squad', 'data-pd-team-key': 'squad', 'aria-disabled': st.busy ? 'true' : null, 'data-pd-why': st.busy ? T('Reading the squad…') : null }, [icon('people', 14), h('span', { text: T('Start from the squad') })]) : null,
         btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'team-export', 'data-pd-team-key': 'export' }, [icon('export', 14), h('span', { text: T('Export') })]),
         delim,
         btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'team-template', 'data-pd-team-key': 'template' }, [h('span', { text: T('Blank template') })]),

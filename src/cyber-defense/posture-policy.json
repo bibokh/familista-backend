@@ -41,7 +41,9 @@
     "GET /reset-password": "Serves the static password-reset page shell.",
     "POST /internal/backups/run": "Scheduled backup trigger for .github/workflows/backup.yml. No session by design: authenticated by HMAC-SHA256 (BACKUP_TRIGGER_SECRET) over method, path and timestamp, 5-minute window, constant-time; closed when the secret is unset; takes no body or query; rate-limited; one run at a time; none within 12 hours of a success.",
     "GET /internal/backups/runs/:id": "Status of one scheduled backup run, same HMAC authentication and rate limit; answers only id, state, start and finish times and ok.",
-    "POST /internal/video/transcode-callback": "Transcode result from an external transcode worker (R1a). No session by design, and no user token opens it: authenticated by HMAC-SHA256 (VIDEO_WORKER_CALLBACK_SECRET) over method, path, timestamp and the raw body, 5-minute window, constant-time; closed when the secret is unset; rate-limited; strict body schema; the service refuses any storage key outside the asset's own club folder. The in-process transcode worker calls the service directly and never uses this route."
+    "POST /internal/video/transcode-callback": "Transcode result from an external transcode worker (R1a). No session by design, and no user token opens it: authenticated by HMAC-SHA256 (VIDEO_WORKER_CALLBACK_SECRET) over method, path, timestamp and the raw body, 5-minute window, constant-time; closed when the secret is unset; rate-limited; strict body schema; the service refuses any storage key outside the asset's own club folder. The in-process transcode worker calls the service directly and never uses this route.",
+    "GET /creator": "The Creator Studio\u2019s page (P3): a static document with no data in it; it loads the Design Studio room, which asks the creator routes who is signed in (behind authenticateCreator) and shows the sign-in gate otherwise. The fragment of an emailed link never reaches the server.",
+    "GET /creator/": "The Creator Studio\u2019s page (P3): a static document with no data in it; it loads the Design Studio room, which asks the creator routes who is signed in (behind authenticateCreator) and shows the sign-in gate otherwise. The fragment of an emailed link never reaches the server."
   },
   "dormantRouteModules": {
     "admin-dashboard.routes": "Not mounted. Must not be mounted without a security review.",
@@ -903,6 +905,15 @@
         "GET /creator/projects/:id/revisions/:number",
         "POST /creator/projects/:id/revisions/:number/restore"
       ]
+    },
+    "product-design.routes :creatorId": {
+      "basis": "platform-only",
+      "reason": "A creator account belongs to no club: it is reached by id only on the Platform Owner's routes, behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts), to confirm its address by hand, suspend or reinstate it; src/platform/creator/account.service.ts audits each with the Owner's note.",
+      "routes": [
+        "POST /system/product-design/creators/:creatorId/reinstate",
+        "POST /system/product-design/creators/:creatorId/suspend",
+        "POST /system/product-design/creators/:creatorId/verify-email"
+      ]
     }
   },
   "ownerRooms": {
@@ -1024,6 +1035,7 @@
       "GET /creator/collections/:collectionId",
       "GET /creator/collections/:collectionId/order-sheet",
       "GET /creator/me",
+      "GET /creator/me/export",
       "GET /creator/projects",
       "GET /creator/projects/:id",
       "GET /creator/projects/:id/review",
@@ -1041,6 +1053,7 @@
       "POST /creator/collections/:collectionId/archive",
       "POST /creator/collections/:collectionId/requests",
       "POST /creator/collections/:collectionId/unarchive",
+      "POST /creator/me/delete",
       "POST /creator/me/password",
       "POST /creator/me/verification",
       "POST /creator/projects",

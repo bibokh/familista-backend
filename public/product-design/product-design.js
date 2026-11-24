@@ -54,8 +54,12 @@
    */
   var WS = { kind: 'PLATFORM' };
   function clubWorkspace() { return WS.kind === 'CLUB'; }
-  /** Whether the club's plan includes a part of the studio (M7a): teamKit, brandKit, manufacturing or reviews (M7b). */
-  function part(name) { return WS.kind === 'CLUB' && !!WS.parts && WS.parts[name] === true; }
+  /** P3: a creator's own workspace (the Creator Studio): a tenant like a club, with the creator as its only member. */
+  function personal() { return WS.kind === 'PERSONAL'; }
+  /** A club's or a creator's workspace: one that keeps its own designs, brand kit, rosters, collections and requests. */
+  function tenantWorkspace() { return WS.kind === 'CLUB' || WS.kind === 'PERSONAL'; }
+  /** Whether the workspace's plan includes a part of the studio (M7a): teamKit, brandKit, manufacturing or reviews (M7b). */
+  function part(name) { return tenantWorkspace() && !!WS.parts && WS.parts[name] === true; }
   function workspaceOf(opts) {
     var w = opts && opts.workspace;
     if (!w) return { kind: 'PLATFORM' };
@@ -67,13 +71,70 @@
         role: w.role === 'MANAGER' || w.role === 'CLUB_ADMIN' ? w.role : '',
         parts: Object.freeze({ teamKit: p.teamKit !== false, brandKit: p.brandKit !== false, manufacturing: p.manufacturing !== false, reviews: p.reviews !== false }) });
     }
+    // P3: a creator's workspace. Who the creator is comes from the server once signed in (identify), never from the page.
+    if (w.kind === 'PERSONAL') return { kind: 'PERSONAL', creatorId: '', displayName: '', email: '', emailVerified: false, locale: 'en-GB', role: 'CREATOR',
+      parts: Object.freeze({ teamKit: true, brandKit: true, manufacturing: true, reviews: true }) };
     return null;
+  }
+  /** P3: the signed-in creator, as the server answered: the workspace takes its id, name and address state. */
+  function identify(c) {
+    if (!c || typeof c.id !== 'string') return false;
+    WS = Object.freeze({ kind: 'PERSONAL', creatorId: c.id, displayName: String(c.displayName || '').slice(0, 60), email: String(c.email || ''),
+      emailVerified: c.emailVerified === true, locale: String(c.locale || 'en-GB'), role: 'CREATOR', parts: WS.parts });
+    return true;
   }
   var SVG = 'http://www.w3.org/2000/svg';
   var DRAG_THRESHOLD = 3;
 
   /** A label written in a constant table: returned as it is, translated where it is drawn. */
   function L(s) { return s; }
+  /**
+   * P3: what a club's words become in a creator's own workspace. The panels are the club's own; a creator never reads
+   * "the club" about their own designs. One table, applied where every word is translated (T), so no panel forks.
+   */
+  var PERSONAL_WORDS = {
+    'No logos yet. Upload the club’s crest or a sponsor’s logo: PNG or JPEG, at least 16 px a side.': L('No logos yet. Upload your crest or a sponsor’s logo: PNG or JPEG, at least 16 px a side.'),
+    'Club colours': L('Brand colours'),
+    'No club colours yet. Save this design’s palette as the club’s colours.': L('No brand colours yet. Save this design’s palette as your brand colours.'),
+    'Save this design’s palette as the club’s colours': L('Save this design’s palette as your brand colours'),
+    'Club colours saved.': L('Brand colours saved.'),
+    'The club colours could not be saved.': L('The brand colours could not be saved.'),
+    'Reading the club colours…': L('Reading the brand colours…'),
+    'Number placeholder. The numbers come from the club’s team rosters: open Team to preview one on the garment. The design keeps no player data.':
+      L('Number placeholder. The numbers come from your team rosters: open Team to preview one on the garment. The design keeps no player data.'),
+    'Name placeholder. The names come from the club’s team rosters: open Team to preview one on the garment. The design keeps no player data.':
+      L('Name placeholder. The names come from your team rosters: open Team to preview one on the garment. The design keeps no player data.'),
+    'A club keeps at most %d rosters: archive one first.': L('A workspace keeps at most %d rosters: archive one first.'),
+    'No team rosters yet. A roster holds the names, numbers and sizes a kit is made for: start one, import a spreadsheet or begin from the squad.':
+      L('No team rosters yet. A roster holds the names, numbers and sizes a kit is made for: start one or import a spreadsheet.'),
+    'Rosters hold names of people: only this club’s administrators and managers see them, and a design never keeps them.':
+      L('Rosters hold names of people: only you see them, and a design never keeps them.'),
+    'No entries yet. Add a row, import a spreadsheet or start from the squad.': L('No entries yet. Add a row or import a spreadsheet.'),
+    'A design in the collection is not one of this club’s saved designs. Remove it and save again.': L('A design in the collection is not one of your saved designs. Remove it and save again.'),
+    'The roster chosen is not one of this club’s. Choose another.': L('The roster chosen is not one of yours. Choose another.'),
+    'A club keeps at most %d collections: archive one first.': L('A workspace keeps at most %d collections: archive one first.'),
+    'No collections yet. A collection gathers the club’s saved designs as one kit, a season’s home kit for instance, and counts a roster’s sizes for each.':
+      L('No collections yet. A collection gathers your saved designs as one kit, a season’s home kit for instance, and counts a roster’s sizes for each.'),
+    'No designs yet. Add the club’s saved designs below: the shirt, the shorts and the socks of one kit.': L('No designs yet. Add your saved designs below: the shirt, the shorts and the socks of one kit.'),
+    'Familista works with verified suppliers for your club: ask for a quotation from a collection’s order sheet.': L('Familista works with verified suppliers for you: ask for a quotation from a collection’s order sheet.'),
+    'The club has too many open requests: close one first.': L('You have too many open requests: close one first.'),
+    'Cancelled by the club': L('Cancelled by you'),
+    'Your club': L('You'),
+    'Not included in your club’s plan. The platform owner decides what each plan includes.': L('Not included in your plan. The platform owner decides what each plan includes.'),
+    '%d of %d designs are approved by a club administrator. You can still ask for a quotation; approve them in Review first if they should be final.':
+      L('%d of %d designs are approved. You can still ask for a quotation; approve them in Review first if they should be final.'),
+    'The club’s review of this version': L('Your review of this version'),
+    'Design reviews are not included in your club’s plan.': L('Design reviews are not included in your plan.'),
+    'A club administrator approves a version or asks for changes to it. Comments help them decide.': L('Approve a version, or note the changes it needs. Comments help you decide.'),
+    'Away and third strips from this design: its colours exchanged, or one replaced by a club colour.': L('Away and third strips from this design: its colours exchanged, or one replaced by a brand colour.'),
+    'No colourway keeps every name, number and mark readable with these colours. Add a lighter or darker colour to the palette or to the club colours.':
+      L('No colourway keeps every name, number and mark readable with these colours. Add a lighter or darker colour to the palette or to the brand colours.'),
+    'Their names go with a quotation request only if a club administrator confirms a parent or guardian consented; otherwise numbers and sizes go without names.':
+      L('Their names go with a quotation request only if you confirm a parent or guardian consented; otherwise numbers and sizes go without names.'),
+    'This roster includes players under 18. Without a guardian’s consent their names stay with the club: the request carries numbers and sizes only.':
+      L('This roster includes players under 18. Without a guardian’s consent their names stay with you: the request carries numbers and sizes only.'),
+    'Includes players under 18: a club administrator confirmed a guardian’s consent.': L('Includes players under 18: you confirmed a guardian’s consent.'),
+  };
 
   // ── language ──────────────────────────────────────────────────────────────
 
@@ -109,6 +170,7 @@
   /** One string. A missing key falls through to English, never to a key path. */
   function T(text) {
     var s = String(text == null ? '' : text);
+    if (WS.kind === 'PERSONAL' && Object.prototype.hasOwnProperty.call(PERSONAL_WORDS, s)) s = PERSONAL_WORDS[s];
     if (!s || LANG === 'en') return s;
     return Object.prototype.hasOwnProperty.call(DICT, s) ? DICT[s] : s;
   }
@@ -244,7 +306,7 @@
 
   var REASON = {
     'context-club': L('The Club Design Studio opens in a club’s own workspace, for the clubs the platform owner has enabled.'),
-    'context-creator': L('Creator Studio is planned (DS-4) and needs personal accounts first (DS-ID).'),
+    'context-creator': L('The Creator Studio is a personal workspace of its own: it opens at /creator, with a creator account the Platform Owner invited.'),
     templates: L('More templates arrive with the product catalogue (DS-2).'),
     product: L('This product arrives with the product catalogue (DS-2).'),
     image: L('Uploading artwork waits for protected media storage with verified backups (planned).'),
@@ -919,6 +981,31 @@
     }
     return S.mfg.onAction(act, t);
   }
+  /** P3: what the account panel is handed: the room's builders and words, the creator's client, and the account. */
+  function acctContext() {
+    return {
+      api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, dirArrow: dirArrow, date: when, host: S.host,
+      me: function () { return { displayName: WS.displayName, email: WS.email, emailVerified: WS.emailVerified, locale: WS.locale }; },
+      setMe: function (c) {
+        identify({ id: WS.creatorId, displayName: c.displayName, email: c.email, emailVerified: c.emailVerified, locale: c.locale });
+        var o = S.el.shell && S.el.shell.querySelector('.pd-owner-club'); if (o) o.textContent = WS.displayName;
+        var k = S.el.shell && S.el.shell.querySelector('.pd-ctxcard-text strong'); if (k) k.textContent = WS.displayName;
+      },
+      languages: LOCALES,
+      signOut: function () { creatorSignOut(false); },
+      onDeleted: function () { creatorSignOut(true); },
+      onToggle: function () { syncAcctTriggers(); },
+    };
+  }
+  function syncAcctTriggers() {
+    var bs = S.host.querySelectorAll('[data-pd-act="acct"]');
+    for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-expanded', S.acct && S.acct.isOpen() ? 'true' : 'false');
+  }
+  function onAcctAction(act, t) {
+    if (!S.acct || act.indexOf('acct') !== 0) return false;
+    if (act === 'acct' && !S.acct.isOpen()) { if (S.srv.open) closeDock(); if (S.team && S.team.isOpen()) S.team.close(); }
+    return S.acct.onAction(act, t);
+  }
   function syncTeamTriggers() {
     var bs = S.host.querySelectorAll('[data-pd-act="team"]');
     for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-expanded', S.team && S.team.isOpen() ? 'true' : 'false');
@@ -927,7 +1014,7 @@
     if (!S.team) return false;
     if (act === 'team') {
       if (S.team.isOpen()) S.team.close();
-      else { if (S.srv.open) closeDock(); if (S.mfg && S.mfg.isOpen()) S.mfg.close(); S.team.open(t); }
+      else { if (S.srv.open) closeDock(); if (S.mfg && S.mfg.isOpen()) S.mfg.close(); if (S.acct && S.acct.isOpen()) S.acct.close(); S.team.open(t); }
       return true;
     }
     if (act === 'team-stop-preview') { S.team.stopPreview(); return true; }
@@ -1678,6 +1765,7 @@
     if (mod && (k === 's' || k === 'S')) { ev.preventDefault(); if (S.team && S.team.onSaveKey(ev)) return; serverSave(); return; }
     if (k === 'Escape' && S.team && S.team.isOpen()) { ev.preventDefault(); S.team.close(); return; }
     if (k === 'Escape' && S.mfg && S.mfg.isOpen()) { ev.preventDefault(); S.mfg.close(); return; }
+    if (k === 'Escape' && S.acct && S.acct.isOpen()) { ev.preventDefault(); S.acct.close(); return; }
     if (k === 'Escape' && S.srv.open) { ev.preventDefault(); closeDock(); return; }
     if (k === 'Escape' && S.panel) { setPanel(null); return; }
     if (ev.target !== S.el.canvas) return;
@@ -2172,25 +2260,33 @@
       : h('span', { class: 'pd-chip pd-chip--muted pd-rv-chip', 'data-decision': 'none', text: T('Not reviewed') });
   }
 
+  /** The brand, as the top bar draws it: the mark, Familista, and the studio's name beneath. */
+  function brandMark(subtitle) {
+    return h('div', { class: 'pd-brand' }, [
+      h('img', { class: 'pd-brand-mark', src: '/familista-icon.svg', alt: '', width: '34', height: '34', decoding: 'async' }),
+      h('span', { class: 'pd-brand-text' }, [h('strong', { text: 'Familista' }), h('span', { text: subtitle })]),
+    ]);
+  }
   function buildTop() {
     var langs = h('div', { class: 'pd-langs', role: 'group', 'aria-label': T('Language') });
     LOCALES.forEach(function (l) {
       langs.appendChild(btn({ class: 'pd-lang', 'data-pd-lang': l[0], lang: l[0], 'aria-pressed': l[0] === LANG ? 'true' : 'false', title: l[1], text: l[0].toUpperCase() }));
     });
     // The shared Platform Owner navigation: built and escaped by app.js for every owner room. In a club there is none.
-    var nav = clubWorkspace() ? h('div', { class: 'pd-ownernav', 'aria-hidden': 'true' }) : h('nav', { class: 'pd-ownernav', 'aria-label': T('Platform owner') });
-    if (!clubWorkspace() && typeof window.famOwnerNav === 'function') nav.innerHTML = window.famOwnerNav('product-design', T, 'pd-ownernav');
+    var nav = tenantWorkspace() ? h('div', { class: 'pd-ownernav', 'aria-hidden': 'true' }) : h('nav', { class: 'pd-ownernav', 'aria-label': T('Platform owner') });
+    if (!tenantWorkspace() && typeof window.famOwnerNav === 'function') nav.innerHTML = window.famOwnerNav('product-design', T, 'pd-ownernav');
     // Who is designing: the platform owner, or the club (its name is the club's own, never translated) and the role.
-    var who = clubWorkspace()
+    var who = personal()
+      ? h('span', { class: 'pd-owner' }, [h('span', { class: 'pd-owner-av', 'aria-hidden': 'true' }, [icon('people', 14)]),
+        h('span', { class: 'pd-owner-club', 'data-user-content': '', dir: 'auto', text: WS.displayName }),
+        h('span', { class: 'pd-owner-role', text: T('Creator') })])
+      : clubWorkspace()
       ? h('span', { class: 'pd-owner' }, [h('span', { class: 'pd-owner-av', 'aria-hidden': 'true' }, [icon('shield', 14)]),
         h('span', { class: 'pd-owner-club', 'data-user-content': '', text: WS.clubName }),
         h('span', { class: 'pd-owner-role', text: WS.role === 'MANAGER' ? T('Club manager') : T('Club administrator') })])
       : h('span', { class: 'pd-owner' }, [h('span', { class: 'pd-owner-av', 'aria-hidden': 'true' }, [icon('crown', 14)]), h('span', { text: T('Platform Owner') })]);
     return h('header', { class: 'pd-top', 'data-ds-region': 'R1' }, [
-      h('div', { class: 'pd-brand' }, [
-        h('img', { class: 'pd-brand-mark', src: '/familista-icon.svg', alt: '', width: '34', height: '34', decoding: 'async' }),
-        h('span', { class: 'pd-brand-text' }, [h('strong', { text: 'Familista' }), h('span', { text: T('Design Studio') })]),
-      ]),
+      brandMark(T('Design Studio')),
       nav,
       h('div', { class: 'pd-top-end' }, [langs, who]),
     ]);
@@ -2220,20 +2316,28 @@
     { reason: 'suppliers-club', icon: 'factory', label: L('Factories & suppliers') },
     { reason: 'payments', icon: 'card', label: L('Payments') },
   ];
+  /** P3: in a creator's workspace: the studio, the creator's requests and account; commerce stays planned. */
+  var SIDE_PERSONAL = [
+    { page: 'creator', icon: 'shirt', label: L('Design Studio'), current: true },
+    { act: 'team-requests', icon: 'box', label: L('Orders') },
+    { act: 'acct', icon: 'people', label: L('Account') },
+    { reason: 'store', icon: 'store', label: L('Global Store') },
+    { reason: 'payments', icon: 'card', label: L('Payments') },
+  ];
   function buildSide() {
     var list = h('ul', { class: 'pd-side-list', role: 'list' });
     var plannedShown = false;
-    (clubWorkspace() ? SIDE_CLUB : SIDE).forEach(function (it) {
+    (personal() ? SIDE_PERSONAL : clubWorkspace() ? SIDE_CLUB : SIDE).forEach(function (it) {
       if (it.reason && !plannedShown) { plannedShown = true; list.appendChild(h('li', { class: 'pd-side-group', text: T('Planned') })); }
       var b = it.current ? btn({ class: 'pd-side-btn is-current', 'aria-current': 'page' })
         : it.act === 'team-requests' && !(part('teamKit') && part('manufacturing')) ? planned(btn({ class: 'pd-side-btn is-planned' }), 'not-in-plan')
-        : it.act ? btn({ class: 'pd-side-btn', 'data-pd-act': it.act, 'data-pd-tab': it.tab || null, 'aria-controls': it.act === 'mfg' ? 'pd-mfg' : 'pd-team', 'aria-expanded': 'false' })
+        : it.act ? btn({ class: 'pd-side-btn', 'data-pd-act': it.act, 'data-pd-tab': it.tab || null, 'aria-controls': it.act === 'mfg' ? 'pd-mfg' : it.act === 'acct' ? 'pd-acct' : 'pd-team', 'aria-expanded': 'false' })
         : it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)
         : btn({ class: 'pd-side-btn', 'data-action': 'navTo', 'data-page': it.page });
       append(b, [icon(it.icon, 18), h('span', { class: 'pd-side-label', text: T(it.label) })]);
       list.appendChild(h('li', null, [b]));
     });
-    return h('nav', { class: 'pd-side', 'data-ds-region': 'R2', 'aria-label': clubWorkspace() ? T('Club navigation') : T('Owner navigation') }, [list]);
+    return h('nav', { class: 'pd-side', 'data-ds-region': 'R2', 'aria-label': personal() ? T('Creator navigation') : clubWorkspace() ? T('Club navigation') : T('Owner navigation') }, [list]);
   }
 
   function buildHead() {
@@ -2251,7 +2355,10 @@
         h('div', null, [h('h1', { text: T('Design Studio') }), h('p', { text: T('Professional sportswear design, measured in millimetres') })]),
       ]),
       // In a club, the club's studio is the one open and the platform's is not offered; the creator's stays planned.
-      h('div', { class: 'pd-ctxs', role: 'group', 'aria-label': T('Design context') }, clubWorkspace() ? [
+      // P3: a creator's studio is the creator's alone: no club is offered, and the platform's is the Owner's.
+      h('div', { class: 'pd-ctxs', role: 'group', 'aria-label': T('Design context') }, personal() ? [
+        ctx('context-creator', 'people', L('Individuals & public'), L('Creator Studio'), true),
+      ] : clubWorkspace() ? [
         ctx('context-club', 'shield', L('Club'), L('Club Design Studio'), true),
         ctx('context-creator', 'people', L('Individuals & public'), L('Creator Studio'), false),
       ] : [
@@ -2261,7 +2368,9 @@
       ]),
       h('div', { class: 'pd-ctxcard' }, [
         h('img', { class: 'pd-ctxcard-mark', src: '/familista-icon.svg', alt: '', width: '40', height: '40', decoding: 'async' }),
-        h('span', { class: 'pd-ctxcard-text' }, clubWorkspace()
+        h('span', { class: 'pd-ctxcard-text' }, personal()
+          ? [h('strong', { 'data-user-content': '', dir: 'auto', text: WS.displayName }), h('span', { text: T('Your designs, saved in your personal workspace') })]
+          : clubWorkspace()
           ? [h('strong', { 'data-user-content': '', text: WS.clubName }), h('span', { text: T('Club designs, saved in the club’s workspace') })]
           : [h('strong', { text: T('Familista Platform') }), h('span', { text: T('Platform drafts, in this browser') })]),
       ]),
@@ -2291,7 +2400,7 @@
   function buildLib() {
     var tabs = h('div', { class: 'pd-tabs', role: 'tablist', 'aria-label': T('Library') });
     // In a club the library also holds the club's brand kit (M2c); templates stay the platform's, planned.
-    (clubWorkspace() ? [['products', L('Products')], ['elements', L('Elements')], ['brand', L('Brand')]]
+    (tenantWorkspace() ? [['products', L('Products')], ['elements', L('Elements')], ['brand', L('Brand')]]
       : [['products', L('Products')], ['templates', L('Templates')], ['elements', L('Elements')]]).forEach(function (t) {
       var b = btn({ class: 'pd-tab', role: 'tab', 'data-pd-libtab': t[0], 'aria-selected': S.libTab === t[0] ? 'true' : 'false', text: T(t[1]) });
       if (t[0] === 'templates') planned(b, 'templates');
@@ -2376,7 +2485,7 @@
   function brandPanel() {
     var B = S.brand, kit = B.kit;
     if (B.state === 'idle') loadBrand();
-    var wrap = h('div', { class: 'pd-brand' });
+    var wrap = h('div', { class: 'pd-brandkit' });
     // Upload: the kind and the name, then the file.
     var kind = h('select', { class: 'pd-input', 'data-pd-brand-kind': '', 'aria-label': T('Kind') });
     BRAND_KINDS.forEach(function (k) { kind.appendChild(h('option', { value: k[0], text: T(k[1]) })); });
@@ -2513,7 +2622,7 @@
       return btn({ class: 'pd-tool', 'data-pd-act': act, 'aria-label': T(label) + (key ? ' (' + key + ')' : ''), title: T(label) + (key ? ' (' + key + ')' : ''), 'aria-keyshortcuts': key || null }, [icon(ic, 20)]);
     }
     var image = tool('image', 'image', L('Image'));
-    if (!clubWorkspace()) planned(image, 'image');
+    if (!tenantWorkspace()) planned(image, 'image');
     else if (!part('brandKit')) planned(image, 'not-in-plan');
     var tools = h('div', { class: 'pd-tools', 'data-ds-region': 'R5', role: 'toolbar', 'aria-orientation': 'vertical', 'aria-label': T('Tools') }, [
       tool('select', 'select', L('Select'), 'V'), tool('add-text', 'text', L('Text'), 'T'), image, tool('add-shape', 'shape', L('Shape'), 'S'),
@@ -3064,6 +3173,11 @@
     { ok: true, label: L('Holds this club’s designs only: no other club can see them') },
     { ok: false, label: L('Supervised by AI agents'), state: L('Planned, DS-8') },
   ];
+  var INTEGRATION_PERSONAL = [
+    { ok: true, label: L('Your personal workspace, on your own account') },
+    { ok: true, label: L('Holds your designs only: no club and no other creator can see them') },
+    { ok: false, label: L('Supervised by AI agents'), state: L('Planned, DS-8') },
+  ];
   var SUPPLIERS = [
     { name: 'Printful', state: L('Under evaluation') },
     { name: 'Printify', state: L('Under evaluation') },
@@ -3075,7 +3189,7 @@
     var steps = h('ol', { class: 'pd-flow-steps', dir: 'ltr' });
     FLOW.forEach(function (f, i) {
       if (i) steps.appendChild(h('li', { class: 'pd-flow-arrow', 'aria-hidden': 'true', text: '→' }));
-      var fs = clubWorkspace() && f.club ? f.club : f.state;
+      var fs = tenantWorkspace() && f.club ? f.club : f.state;
       steps.appendChild(h('li', { class: 'pd-flow-step', 'data-state': fs }, [
         h('span', { class: 'pd-flow-ic' }, [icon(f.icon, 22)]),
         h('span', { class: 'pd-flow-label', dir: 'auto', text: T(f.label) }),
@@ -3083,7 +3197,7 @@
       ]));
     });
     var integ = h('ul', { class: 'pd-integ-list', role: 'list' });
-    (clubWorkspace() ? INTEGRATION_CLUB : INTEGRATION).forEach(function (it) {
+    (personal() ? INTEGRATION_PERSONAL : clubWorkspace() ? INTEGRATION_CLUB : INTEGRATION).forEach(function (it) {
       integ.appendChild(h('li', { class: 'pd-integ', 'data-ok': it.ok ? 'true' : 'false' }, [
         h('span', { class: 'pd-integ-ic' }, [icon(it.ok ? 'check' : 'info', 15)]),
         h('span', null, [T(it.label), it.state ? ' ' : null, it.state ? chip(T(it.state), 'muted') : null]),
@@ -3138,8 +3252,10 @@
     }
     // M7b: a design's review, in a club's workspace when its plan includes reviews; its script is the club room's alone.
     if (!S.review && part('reviews') && P.api.readReview && window.FamilistaProductDesignReview) S.review = window.FamilistaProductDesignReview.create(reviewContext());
+    // P3: a creator's account panel, in the creator's own workspace only.
+    if (!S.acct && personal() && P.api.me && window.FamilistaProductDesignCreator) S.acct = window.FamilistaProductDesignCreator.account(acctContext());
     // M4: the manufacturing console, in the platform's room only; its scripts are loaded by the owner's room alone.
-    if (!S.mfg && !clubWorkspace() && SERVER.manufacturing && window.FamilistaProductDesignManufacturing && window.FamilistaProductDesignRoster) {
+    if (!S.mfg && !tenantWorkspace() && SERVER.manufacturing && window.FamilistaProductDesignManufacturing && window.FamilistaProductDesignRoster) {
       S.mfg = window.FamilistaProductDesignManufacturing.create(mfgContext());
     }
     E.lib = buildLib();
@@ -3154,6 +3270,7 @@
       (E.dock = h('section', { class: 'pd-dock', id: 'pd-dock', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'pd-dock-title', 'data-open': S.srv.open ? 'true' : 'false' })),
       S.team ? S.team.el : null,
       S.mfg ? S.mfg.el : null,
+      S.acct ? S.acct.el : null,
       S.present ? S.present.el : null,
       E.live,
     ]);
@@ -3171,6 +3288,7 @@
     syncDockTriggers();
     if (S.team) S.team.repaint();
     if (S.mfg) S.mfg.repaint();
+    if (S.acct) S.acct.repaint();
     syncPreviewTag();
     renderThumbs();
     sync3d();
@@ -3237,6 +3355,7 @@
     if ((a = t.getAttribute('data-pd-act')) && onDockAction(a, t)) return;
     if (a && onTeamAction(a, t)) return;
     if (a && onMfgAction(a, t)) return;
+    if (a && onAcctAction(a, t)) return;
     if ((a = t.getAttribute('data-pd-lang'))) { chooseSetLocale(a).then(function () { if (S) build(); }); return; }
     if ((a = t.getAttribute('data-pd-view'))) { setView(a); return; }
     if ((a = t.getAttribute('data-pd-mode'))) { setMode(a); return; }
@@ -3332,6 +3451,7 @@
     var t = ev.target;
     if (S.team && S.team.onInput(ev)) return;
     if (S.mfg && S.mfg.onInput(ev)) return;
+    if (S.acct && S.acct.onInput(ev)) return;
     if (S.review && S.review.onInput(ev)) return;
     if (t === S.el.docName) { if (t.value.trim()) commitOp({ op: 'set', target: { kind: 'doc' }, key: 'name', value: t.value.slice(0, LIMITS.name) }, T('Design name'), 'doc-name'); return; }
     var sid = t.getAttribute('data-pd-swatch');
@@ -3354,6 +3474,7 @@
     var t = ev.target, field = t.getAttribute('data-pd-field');
     if (S.team && S.team.onChange(ev)) return;
     if (S.mfg && S.mfg.onChange(ev)) return;
+    if (S.acct && S.acct.onChange(ev)) return;
     if (S.review && S.review.onInput(ev)) return;
     if (t.hasAttribute('data-pd-brand-file')) { brandUpload(t.files && t.files[0]); return; }
     if (t.tagName === 'SELECT' && field) { var n = selectedLayer(); if (n) { setLayer(n.id, field, t.value, T(field === 'font' ? 'Font' : field === 'shape' ? 'Shape' : 'Pattern')); renderLayers(); } return; }
@@ -3559,14 +3680,21 @@
   window.renderFamilistaProductDesign = function (host, opts) {
     if (!host) return;
     if (S) window.teardownFamilistaProductDesign();
-    var ws = workspaceOf(opts), client = ws && SERVER.forWorkspace(ws);
-    if (!ws || !client) {
-      clear(host);
-      host.appendChild(h('div', { class: 'pd-shell pd-shell--loading' }, [h('p', { class: 'pd-loading', role: 'alert', text: T('The Design Studio could not open this workspace.') })]));
-      return;
-    }
+    GATE_SEQ++; GATE = null;
+    var ws = workspaceOf(opts);
+    // P3: a creator's workspace opens only once the server says who is signed in; before that, the gate.
+    if (ws && ws.kind === 'PERSONAL') { WS = ws; openPersonal(host, opts || {}); return; }
+    var client = ws && SERVER.forWorkspace(ws);
+    if (!ws || !client) { unopenable(host); return; }
     WS = ws; P = client;
-    STORE_KEY = ws.kind === 'CLUB' ? STORE_BASE + '_club_' + ws.clubId : STORE_BASE;
+    mountRoom(host, null);
+  };
+  function unopenable(host) {
+    clear(host);
+    host.appendChild(h('div', { class: 'pd-shell pd-shell--loading' }, [h('p', { class: 'pd-loading', role: 'alert', text: T('The Design Studio could not open this workspace.') })]));
+  }
+  function mountRoom(host, verification) {
+    STORE_KEY = WS.kind === 'CLUB' ? STORE_BASE + '_club_' + WS.clubId : WS.kind === 'PERSONAL' ? STORE_BASE + '_creator_' + WS.creatorId : STORE_BASE;
     STORE_UNREADABLE = STORE_KEY + '_unreadable';
     S = fresh(host);
     var mine = S;
@@ -3586,7 +3714,10 @@
       build();
       checkLink();
       host.removeAttribute('aria-busy');
-      if (stored.note === 'restored') say(tf('Opened %s, saved in this browser.', S.doc.name));
+      // P3: a new creator's address: whether its confirmation link could be sent, said once, on arrival.
+      if (verification && verification.sent === false) say(verification.configured ? T('Your account is open. The confirmation email could not be sent: Account sends it again.') : T('Your account is open. This platform cannot send email yet, so your address is not confirmed.'));
+      else if (verification) say(T('Your account is open. A link to confirm your address is on its way.'));
+      else if (stored.note === 'restored') say(tf('Opened %s, saved in this browser.', S.doc.name));
       else if (stored.note === 'unreadable') say(T('The draft saved in this browser could not be read, so a new design was started. The unreadable copy was kept aside.'));
       else if (stored.note === 'unavailable') say(T('Not saved: this browser’s storage is unavailable'));
       else say(T('A new design was started. Save design keeps it on the Familista server.'));
@@ -3596,10 +3727,74 @@
       clear(host);
       host.appendChild(h('div', { class: 'pd-shell pd-shell--loading' }, [h('p', { class: 'pd-loading', role: 'alert', text: T('The product template could not be loaded. Check the connection and open the Design Studio again.') })]));
     });
-  };
+  }
+
+  // ── P3: the Creator Studio's way in ───────────────────────────────────────
+
+  var GATE = null, GATE_SEQ = 0;
+  /** Who is signed in, if anyone; the studio when someone is, the gate when nobody is (or a link from an email is open). */
+  function openPersonal(host, opts) {
+    var seq = ++GATE_SEQ, links = { verify: opts.links && opts.links.verify || null, reset: opts.links && opts.links.reset || null };
+    clear(host);
+    host.setAttribute('aria-busy', 'true');
+    host.appendChild(h('div', { class: 'pd-shell pd-shell--loading' }, [h('div', { class: 'pd-loading', role: 'status', text: 'Familista Creator Studio' })]));
+    setLocale(initialLocale()).then(function () {
+      if (seq !== GATE_SEQ) return null;
+      if (links.verify || links.reset) return { ok: false };
+      return SERVER.creatorMe();
+    }).then(function (r) {
+      if (seq !== GATE_SEQ || !r) return;
+      host.removeAttribute('aria-busy');
+      if (r.ok && r.data && identify(r.data.creator)) enterStudio(host, null);
+      else showGate(host, links, opts.deleted === true);
+    });
+  }
+  /** The gate's language switch: the room's own buttons; the gate hands a press back to onLang. */
+  function gateLangs() {
+    var langs = h('div', { class: 'pd-langs', role: 'group', 'aria-label': T('Language') });
+    LOCALES.forEach(function (l) {
+      langs.appendChild(btn({ class: 'pd-lang', 'data-pd-lang': l[0], lang: l[0], 'aria-pressed': l[0] === LANG ? 'true' : 'false', title: l[1], text: l[0].toUpperCase(), 'data-pd-gate-key': 'lang-' + l[0] }));
+    });
+    return langs;
+  }
+  function showGate(host, links, deleted) {
+    var mod = window.FamilistaProductDesignCreator;
+    if (!mod) { unopenable(host); return; }
+    clear(host);
+    host.setAttribute('lang', LANG);
+    host.setAttribute('dir', DIR);
+    GATE = mod.gate({
+      h: h, btn: btn, icon: icon, T: T, tf: tf, dirArrow: dirArrow, auth: SERVER.creator(), links: links, deleted: deleted, brand: brandMark,
+      langs: gateLangs,
+      onLang: function (code) { chooseSetLocale(code).then(function () { if (!GATE) return; host.setAttribute('lang', LANG); host.setAttribute('dir', DIR); GATE.repaint(); }); },
+      locale: function () { return localeOf(LANG)[3] || 'en-GB'; },
+      onSignedIn: function (c, verification) { if (identify(c)) { GATE = null; enterStudio(host, verification || null); } },
+    });
+    host.appendChild(GATE.el);
+    GATE.start();
+  }
+  function enterStudio(host, verification) {
+    P = SERVER.forWorkspace(WS);
+    if (!P) { unopenable(host); return; }
+    mountRoom(host, verification);
+  }
+  /** Sign out (or the account was just deleted): the studio closes, this browser forgets the account's draft, the gate opens. */
+  function creatorSignOut(deleted) {
+    var host = S.host, link = P;
+    SERVER.creator().logout().then(function () {
+      if (deleted) {
+        try { window.localStorage.removeItem(STORE_KEY); window.localStorage.removeItem(STORE_UNREADABLE); } catch (_) { /* storage unavailable: nothing kept */ }
+        if (link && link.clearLink) link.clearLink();
+      }
+      if (S) { clearTimeout(S.saveTimer); S.saveTimer = 0; }
+      window.teardownFamilistaProductDesign();
+      WS = workspaceOf({ workspace: { kind: 'PERSONAL' } });
+      showGate(host, {}, deleted);
+    });
+  }
 
   window.teardownFamilistaProductDesign = function () {
-    if (!S) return;
+    if (!S) { if (GATE) { var gh = GATE.el.parentNode; GATE_SEQ++; GATE = null; if (gh) clear(gh); } return; }
     if (S.doc && S.saveTimer) saveNow(false);
     Object.keys(S.brand.urls).forEach(function (k) { try { URL.revokeObjectURL(S.brand.urls[k]); } catch (_) { /* already released */ } });
     close3d();
@@ -3612,6 +3807,9 @@
   };
 
   /** Read-only figures for the browser proof: counts, timings and editor state. It changes nothing. */
+  /** P3: the Creator Studio's gate, for the browser proof: its view and state. It changes nothing. */
+  window.__familistaCreatorGateMetrics = function () { return GATE ? GATE.metrics() : null; };
+
   window.__familistaProductDesignMetrics = function () {
     if (!S || !S.doc) return null;
     var ms = S.metrics.renderMs.slice().sort(function (a, b) { return a - b; });
@@ -3621,7 +3819,7 @@
       renderMsMedian: ms.length ? ms[Math.floor(ms.length / 2)] : null, renderMsMax: ms.length ? ms[ms.length - 1] : null,
       edits: S.metrics.editMs.length, editMsMedian: ed.length ? ed[Math.floor(ed.length / 2)] : null, editMsP95: ed.length ? ed[Math.floor(ed.length * 0.95)] : null,
       template: TEMPLATE ? TEMPLATE.key : null, products: INDEX ? INDEX.map(function (e) { return e.product; }) : [],
-      workspace: WS.kind, team: S.team ? S.team.metrics() : null, mfg: S.mfg ? S.mfg.metrics() : null, review: S.review ? S.review.metrics() : null, present: S.present ? S.present.metrics() : null, preview: S.preview, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
+      workspace: WS.kind, acct: S.acct ? S.acct.metrics() : null, team: S.team ? S.team.metrics() : null, mfg: S.mfg ? S.mfg.metrics() : null, review: S.review ? S.review.metrics() : null, present: S.present ? S.present.metrics() : null, preview: S.preview, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
       layers: S.doc.surfaces.map(function (x) { return x.layers.length; }), findings: S.findings.length,
       saveState: S.saveState, lastSaveBytes: S.metrics.lastSaveBytes, announced: S.announced, lang: LANG, dir: DIR,
       server: { state: S.srv.state, busy: S.srv.busy, linked: !!S.srv.link, projectId: S.srv.link ? S.srv.link.projectId : null, revision: S.srv.link ? S.srv.link.revision : null,

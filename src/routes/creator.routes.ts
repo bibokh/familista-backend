@@ -14,7 +14,7 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { authenticateCreator } from '../platform/creator/authenticate';
 import { creatorOwns, requireVerifiedEmail } from '../platform/creator/guard';
-import { creatorChangePassword, creatorMe, creatorResendVerification, creatorUpdateProfile } from '../platform/creator/http';
+import { creatorChangePassword, creatorDeleteAccount, creatorExport, creatorMe, creatorResendVerification, creatorUpdateProfile } from '../platform/creator/http';
 import {
   archiveDesign, createDesign, listDesignRevisions, listDesigns, openDesign, openDesignRevision, restoreDesignRevision, saveDesign, unarchiveDesign,
 } from '../platform/product-design/http';
@@ -50,6 +50,9 @@ router.get('/me', creatorMe);
 router.patch('/me', creatorUpdateProfile);
 router.post('/me/password', creatorChangePassword);
 router.post('/me/verification', creatorResendVerification);
+// The account's own data: a copy of all of it, and deleting the account (with the password).
+router.get('/me/export', creatorExport);
+router.post('/me/delete', creatorDeleteAccount);
 
 // The creator's designs and their versions.
 router.get('/projects', listDesigns);

@@ -31,6 +31,9 @@
   var CLUB_BASE = '/club-design';
   // M4: the Platform Owner's manufacturing console (owner-brokered). The server refuses it to anyone else.
   var MFG_BASE = '/system/manufacturing';
+  // P3: a creator's own workspace (Creator Studio). Its session is the creator's cookie alone: a club's token is never sent.
+  var CREATOR_BASE = '/creator';
+  var CREATOR_AUTH = '/creator/auth';
   var CLUB_ID = /^[A-Za-z0-9_-]{1,64}$/;
   var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   var ORIGINS = ['EDITOR', 'FILE_IMPORT', 'BROWSER_DRAFT'];
@@ -50,6 +53,7 @@
 
   /** A client for one workspace's routes and its own record of the saved design the draft belongs to. */
   function client(base, linkKey) {
+    var creator = base === CREATOR_BASE || base === CREATOR_AUTH;
     /**
      * One call. Always resolves, never rejects: { ok, status, code, data, message, errors } (and `reason` when the
      * server gives one). status 0 and code 'NETWORK' when the server could not be reached at all. `opts.raw` sends a
@@ -59,7 +63,7 @@
     function call(method, path, body, opts) {
       opts = opts || {};
       var headers = { Accept: opts.blob ? 'image/png' : 'application/json' };
-      var t = token();
+      var t = creator ? '' : token();
       if (t) headers.Authorization = 'Bearer ' + t;
       var init = { method: method, headers: headers, credentials: 'include', cache: 'no-store' };
       if (opts.raw) { headers['Content-Type'] = /^image\/(png|jpeg)$/.test(opts.raw.type) ? opts.raw.type : 'application/octet-stream'; init.body = opts.raw; }
@@ -83,6 +87,18 @@
     }
     function id(projectId) { return encodeURIComponent(String(projectId)); }
 
+    // P3: a creator's access token lives fifteen minutes; on a 401 the session is renewed once (the refresh cookie) and
+    // the call made again. The sign-in calls themselves are never retried.
+    if (base === CREATOR_BASE) {
+      var once = call, renewing = null;
+      call = function (method, path, body, opts) {
+        return once(method, path, body, opts).then(function (r) {
+          if (r.status !== 401) return r;
+          renewing = renewing || renew().then(function (x) { renewing = null; return x; });
+          return renewing.then(function (ok) { return ok ? once(method, path, body, opts) : r; });
+        });
+      };
+    }
     var api = {
       listProjects: function (state) { return call('GET', '/projects?state=' + (state === 'archived' ? 'archived' : 'active')); },
       createProject: function (document, origin) { return call('POST', '/projects', { document: document, origin: ORIGINS.indexOf(origin) !== -1 ? origin : 'EDITOR' }); },
@@ -111,13 +127,17 @@
         return call('POST', '/creators/invites', { email: o.email ? String(o.email) : null, note: o.note ? String(o.note) : null, maxUses: Number(o.maxUses) || 1, days: Number(o.days) || 14 });
       };
       api.revokeCreatorInvite = function (inviteId) { return call('POST', '/creators/invites/' + id(inviteId) + '/revoke', {}); };
+      // P3: the Owner's hand on an account: an address confirmed by other means, a suspension, a reinstatement; each with a note.
+      api.verifyCreatorEmail = function (creatorId, note) { return call('POST', '/creators/' + id(creatorId) + '/verify-email', { note: String(note || '') }); };
+      api.suspendCreator = function (creatorId, note) { return call('POST', '/creators/' + id(creatorId) + '/suspend', { note: String(note || '') }); };
+      api.reinstateCreator = function (creatorId, note) { return call('POST', '/creators/' + id(creatorId) + '/reinstate', { note: String(note || '') }); };
       api.setRollout = function (clubId, changes) {
         if (!CLUB_ID.test(String(clubId))) return Promise.resolve({ ok: false, status: 0, code: 'BAD_CLUB', data: null, message: '', errors: [] });
         return call('PUT', '/rollout/' + encodeURIComponent(clubId), changes);
       };
     }
-    // A club's brand kit (M2c): only a club's client has one; the platform's routes serve none.
-    if (base === CLUB_BASE) {
+    // A club's brand kit (M2c), and a creator's (P3): the platform's routes serve none.
+    if (base === CLUB_BASE || base === CREATOR_BASE) {
       api.brandKit = function (state) { return call('GET', '/brand-kit?state=' + (state === 'archived' ? 'archived' : 'active')); };
       api.saveBrandColours = function (colours) { return call('PUT', '/brand-kit/colours', { colours: colours }); };
       api.uploadBrandAsset = function (kind, name, file) {
@@ -138,7 +158,8 @@
       api.archiveRoster = function (rosterId) { return call('POST', '/rosters/' + id(rosterId) + '/archive', {}); };
       api.unarchiveRoster = function (rosterId) { return call('POST', '/rosters/' + id(rosterId) + '/unarchive', {}); };
       api.deleteRoster = function (rosterId) { return call('DELETE', '/rosters/' + id(rosterId)); };
-      api.squadNames = function () { return call('GET', '/squad-names'); };
+      // A club's squad: a creator has no players to start a roster from.
+      if (base === CLUB_BASE) api.squadNames = function () { return call('GET', '/squad-names'); };
       // The club's collections (M3b): its designs as one kit, and the order sheet a roster makes of it.
       api.listCollections = function (state) { return call('GET', '/collections?state=' + (state === 'archived' ? 'archived' : 'active')); };
       api.createCollection = function (c) { return call('POST', '/collections', { name: c.name, season: c.season, rosterId: c.rosterId, items: c.items }); };
@@ -162,7 +183,7 @@
       api.declineQuotes = function (requestId, note) { return call('POST', '/requests/' + id(requestId) + '/decline', { note: note || null }); };
       api.confirmDelivery = function (requestId, note) { return call('POST', '/requests/' + id(requestId) + '/delivered', { note: note || null }); };
       // P1: a club administrator erases a person's name from the club's design data; previewed unless confirmed.
-      api.erasePerson = function (name, confirm) { return call('POST', '/privacy/erase-person', { name: String(name || ''), confirm: confirm === true }); };
+      if (base === CLUB_BASE) api.erasePerson = function (name, confirm) { return call('POST', '/privacy/erase-person', { name: String(name || ''), confirm: confirm === true }); };
       api.acceptQuote = function (requestId, quoteId) { return call('POST', '/requests/' + id(requestId) + '/quotes/' + id(quoteId) + '/accept', {}); };
       // Reviews (M7b): comments on a saved version, and a club administrator's decision on the newest one.
       api.readReview = function (projectId) { return call('GET', '/projects/' + id(projectId) + '/review'); };
@@ -170,6 +191,32 @@
       api.resolveComment = function (projectId, commentId) { return call('POST', '/projects/' + id(projectId) + '/comments/' + id(commentId) + '/resolve', {}); };
       api.reopenComment = function (projectId, commentId) { return call('POST', '/projects/' + id(projectId) + '/comments/' + id(commentId) + '/reopen', {}); };
       api.decideOnDesign = function (projectId, d) { return call('POST', '/projects/' + id(projectId) + '/decisions', { revision: d.revision, decision: d.decision, note: d.note || null }); };
+    }
+
+    // P3: a creator's account, in the creator's own workspace: the profile, the password, the address, the data.
+    if (base === CREATOR_BASE) {
+      api.me = function () { return call('GET', '/me'); };
+      api.updateProfile = function (p) { var b = {}; if (p.displayName !== undefined) b.displayName = String(p.displayName); if (p.locale !== undefined) b.locale = String(p.locale); return call('PATCH', '/me', b); };
+      api.changePassword = function (currentPassword, newPassword) { return call('POST', '/me/password', { currentPassword: String(currentPassword || ''), newPassword: String(newPassword || '') }); };
+      api.resendVerification = function () { return call('POST', '/me/verification', {}); };
+      api.exportData = function () { return call('GET', '/me/export'); };
+      api.deleteAccount = function (password) { return call('POST', '/me/delete', { password: String(password || '') }); };
+    }
+    // P3: the way into a creator's account, before any session. Never retried, never carrying a club's token.
+    if (base === CREATOR_AUTH) {
+      api = {
+        terms: function () { return call('GET', '/terms'); },
+        register: function (r) {
+          return call('POST', '/register', { inviteCode: String(r.inviteCode || ''), email: String(r.email || ''), password: String(r.password || ''),
+            displayName: String(r.displayName || ''), locale: r.locale ? String(r.locale) : undefined, ageConfirmed: r.ageConfirmed === true });
+        },
+        login: function (email, password) { return call('POST', '/login', { email: String(email || ''), password: String(password || '') }); },
+        refresh: function () { return call('POST', '/refresh', {}); },
+        logout: function () { return call('POST', '/logout', {}); },
+        verifyEmail: function (t) { return call('POST', '/verify-email', { token: String(t || '') }); },
+        forgotPassword: function (email) { return call('POST', '/forgot-password', { email: String(email || '') }); },
+        resetPassword: function (t, password) { return call('POST', '/reset-password', { token: String(t || ''), password: String(password || '') }); },
+      };
     }
 
     // The Platform Owner's manufacturing console (M4): suppliers, every club's requests, quotations and order steps.
@@ -227,6 +274,13 @@
     return Object.freeze({ BASE: base, LINK_KEY: linkKey, ORIGINS: ORIGINS, api: api, fingerprint: fingerprint, readLink: readLink, writeLink: writeLink, clearLink: clearLink });
   }
 
+  var creatorAuth = null;
+  /** P3: the creator's sign-in client, made once. */
+  function creator() { if (!creatorAuth) creatorAuth = client(CREATOR_AUTH, LINK_KEY + '_creator_auth').api; return creatorAuth; }
+  /** Renew the creator's session with its refresh cookie: true when a new access cookie came back. */
+  function renew() { return creator().refresh().then(function (r) { return !!r.ok; }); }
+  /** P3: who is signed in to the Creator Studio, if anyone (the session renewed once when it has lapsed). */
+  function creatorMe() { return client(CREATOR_BASE, LINK_KEY + '_creator_probe').api.me(); }
   var platform = client(BASE, LINK_KEY);
   /**
    * The client of the workspace the room is open in: { kind: 'PLATFORM' }, or { kind: 'CLUB', clubId } — the club the
@@ -236,6 +290,8 @@
   function forWorkspace(w) {
     if (!w || w.kind === 'PLATFORM') return platform;
     if (w.kind === 'CLUB' && typeof w.clubId === 'string' && CLUB_ID.test(w.clubId)) return client(CLUB_BASE, LINK_KEY + '_club_' + w.clubId);
+    // P3: a creator's own workspace; the id only names the record kept in this browser, the server serves the session's.
+    if (w.kind === 'PERSONAL' && typeof w.creatorId === 'string' && UUID.test(w.creatorId)) return client(CREATOR_BASE, LINK_KEY + '_creator_' + w.creatorId);
     return null;
   }
   var mfg = null;
@@ -243,5 +299,6 @@
   function manufacturing() { if (!mfg) mfg = client(MFG_BASE, LINK_KEY + '_manufacturing').api; return mfg; }
   return Object.freeze({ BASE: platform.BASE, LINK_KEY: platform.LINK_KEY, ORIGINS: ORIGINS, api: platform.api, fingerprint: fingerprint,
     readLink: platform.readLink, writeLink: platform.writeLink, clearLink: platform.clearLink, CLUB_BASE: CLUB_BASE, forWorkspace: forWorkspace,
+    CREATOR_BASE: CREATOR_BASE, creator: creator, creatorMe: creatorMe,
     MFG_BASE: MFG_BASE, manufacturing: manufacturing });
 }));

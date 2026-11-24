@@ -314,6 +314,13 @@ export function createApp(): express.Application {
     res.sendFile(path.join(publicDir, 'invite', 'index.html'));
   });
 
+  // The Creator Studio (P3): a creator's own workspace, apart from every club. Its own small document, like the
+  // invitation page: the person has no club session, and the links its emails carry (/creator#verify=…, #reset=…) must
+  // reach the page, not the 404 handler. The fragment never reaches the server.
+  app.get(['/creator', '/creator/'], (_req, res) => {
+    res.sendFile(path.join(publicDir, 'creator', 'index.html'));
+  });
+
   // ── React SPA (Phase R) — serve built assets + SPA fallback
   // Client build writes to public/app/ (vite.config.ts outDir: '../public/app')
   const spaDir = path.join(__dirname, '..', 'public', 'app');

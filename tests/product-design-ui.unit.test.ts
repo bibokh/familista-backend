@@ -37,7 +37,9 @@ const JS = read('public/product-design/product-design.js');
 const CODE = strip(JS);
 // M3: the Team panel is the room's own module; its words are the room's catalogue's, and it holds the room's rules.
 const TEAM = read('public/product-design/pd-team.js') + read('public/product-design/pd-collections.js') + read('public/product-design/pd-requests.js')
-  + read('public/product-design/pd-manufacturing.js') + read('public/product-design/pd-review.js') + read('public/product-design/pd-present.js');
+  + read('public/product-design/pd-manufacturing.js') + read('public/product-design/pd-review.js') + read('public/product-design/pd-present.js')
+  // P3: the Creator Studio's gate and account panel are the room's own module too.
+  + read('public/product-design/pd-creator.js');
 const TEAM_CODE = strip(TEAM);
 const CORE = read('public/product-design/pd-core.js');
 const CSS = read('public/product-design/product-design.css');
@@ -113,7 +115,7 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
     expect(APP).toContain("'club-design':                 renderClubDesignHTML,");
     // The workspace passed is the session's open club; the room keys what it keeps by it, and the server serves the session's own.
     expect(APP).toContain("kind: 'CLUB', clubId: String(_ctx.clubId),");
-    expect(JS).toContain("STORE_KEY = ws.kind === 'CLUB' ? STORE_BASE + '_club_' + ws.clubId : STORE_BASE;");
+    expect(JS).toContain("STORE_KEY = WS.kind === 'CLUB' ? STORE_BASE + '_club_' + WS.clubId : WS.kind === 'PERSONAL' ? STORE_BASE + '_creator_' + WS.creatorId : STORE_BASE;");
     expect(JS).toContain('WS = ws; P = client;');
   });
 
@@ -157,7 +159,7 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
     expect(ts('src').filter((f) => /product-design|ProductDesign|pd-core/.test(read(f))).sort()).toEqual([
       'src/contracts/owner-api.contracts.ts', 'src/cyber-defense/control-plane/registry.ts',
       // P2: a creator's session leaves a PERSONAL design scope, and the creator's own mount uses the studio's handlers.
-      'src/platform/creator/authenticate.ts',
+      'src/platform/creator/authenticate.ts', 'src/platform/creator/privacy.service.ts',
       // M4: manufacturing builds on the Design Studio's collections, rosters, revisions and actor (src/platform/manufacturing).
       'src/platform/manufacturing/club-http.ts', 'src/platform/manufacturing/owner-http.ts', 'src/platform/manufacturing/request.service.ts',
       'src/platform/manufacturing/supplier.service.ts',
@@ -281,7 +283,7 @@ describe('it says what it is, and what it is not yet', () => {
       const definedQuoted = new RegExp(`^\\s+'${k}': L\\(`, 'm').test(CODE) ? 1 : 0;
       expect([k, quoted - definedQuoted >= 1]).toEqual([k, true]);
     }
-    for (const use of ["if (!clubWorkspace()) planned(image, 'image');", "planned(capture, 'capture')", "text: '3D' }), '3d')", "]), '360'))", "function live3d(el, reasonKey) { return can3d() ? el : planned(el, reasonKey); }", "]), 'proof')", "]), 'order')",
+    for (const use of ["if (!tenantWorkspace()) planned(image, 'image');", "planned(capture, 'capture')", "text: '3D' }), '3d')", "]), '360'))", "function live3d(el, reasonKey) { return can3d() ? el : planned(el, reasonKey); }", "]), 'proof')", "]), 'order')",
       "if (t[0] === 'templates') planned(b, 'templates');", "if (!e) { planned(b, 'product');", "if (!active) { planned(b, key);", "planned(sel, reason);", ": it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)"]) {
       expect([use, CODE.includes(use)]).toEqual([use, true]);
     }
@@ -404,7 +406,8 @@ describe('the official languages', () => {
     const texts = [...noIcons.matchAll(/text: '([^']*)'/g)].map((m) => m[1]);
     // ' ' joins a button's visible verb to the item's name, kept for assistive technology alone (a label that matches its
     // visible text in every language).
-    expect([...new Set(texts)].sort()).toEqual(['2.5D', '2D', '360°', '3D', 'Familista', 'Familista Design Studio', '—', '→', ' · ', ' '].sort());
+    // P3: the Creator Studio's loading line is its product name, like the Design Studio's.
+    expect([...new Set(texts)].sort()).toEqual(['2.5D', '2D', '360°', '3D', 'Familista', 'Familista Creator Studio', 'Familista Design Studio', '—', '→', ' · ', ' '].sort());
   });
 
   it('the product names stay as the approved reference shows them, in every language', () => {
