@@ -4,6 +4,8 @@
  * resolved from the session (`res.locals.designScope`); a handler reached without a club scope refuses, never serves.
  */
 import type { Request, RequestHandler, Response } from 'express';
+import { designActorOf as actorOf, tenantOfRes } from './scope-http';
+import type { Tenant } from '../tenancy/tenant';
 import { DesignCollectionRole } from '@prisma/client';
 import { z } from 'zod';
 import {
@@ -25,18 +27,9 @@ const SaveBody = z.object({ ...Fields, version: z.number().int().min(1).max(1_00
 const ListQuery = z.object({ state: z.enum(['active', 'archived']).default('active') }).strict();
 const SheetQuery = z.object({ rosterId: Id.optional() }).strict();
 
-function clubOf(res: Response): string {
-  const s = res.locals.designScope as DesignScope | undefined;
-  if (!s || s.kind !== 'CLUB') throw new Error('A collection route was reached without a club scope');
-  return s.clubId;
-}
-function actorOf(req: Request): DesignActor {
-  const ua = req.headers['user-agent'];
-  return { userId: req.user?.id ?? '', ipAddress: req.ip ?? null, userAgent: typeof ua === 'string' ? ua.slice(0, 400) : null, correlationId: req.requestId ?? null };
-}
-function handler(work: (req: Request, res: Response, clubId: string) => Promise<void>): RequestHandler {
+function handler(work: (req: Request, res: Response, tenant: Tenant) => Promise<void>): RequestHandler {
   return async (req, res, next) => {
-    try { await work(req, res, clubOf(res)); } catch (err) {
+    try { await work(req, res, tenantOfRes(res)); } catch (err) {
       if (err instanceof CollectionInvalidError) {
         res.status(400).json({ success: false, code: 'COLLECTION_INVALID', reason: err.code, path: err.path, message: `The collection was refused: ${err.message}` });
         return;
@@ -48,30 +41,30 @@ function handler(work: (req: Request, res: Response, clubId: string) => Promise<
   };
 }
 
-export const listDesignCollections = handler(async (req, res, clubId) => {
+export const listDesignCollections = handler(async (req, res, tenant) => {
   const { state } = ListQuery.parse(req.query);
-  res.json({ success: true, data: await listCollections(clubId, { archived: state === 'archived' }) });
+  res.json({ success: true, data: await listCollections(tenant, { archived: state === 'archived' }) });
 });
-export const createDesignCollection = handler(async (req, res, clubId) => {
-  res.status(201).json({ success: true, data: await createCollection(clubId, actorOf(req), CreateBody.parse(req.body)) });
+export const createDesignCollection = handler(async (req, res, tenant) => {
+  res.status(201).json({ success: true, data: await createCollection(tenant, actorOf(req), CreateBody.parse(req.body)) });
 });
-export const openDesignCollection = handler(async (req, res, clubId) => {
-  res.json({ success: true, data: await getCollection(clubId, Id.parse(req.params.collectionId)) });
+export const openDesignCollection = handler(async (req, res, tenant) => {
+  res.json({ success: true, data: await getCollection(tenant, Id.parse(req.params.collectionId)) });
 });
-export const saveDesignCollection = handler(async (req, res, clubId) => {
+export const saveDesignCollection = handler(async (req, res, tenant) => {
   const id = Id.parse(req.params.collectionId);
-  res.json({ success: true, data: await saveCollection(clubId, actorOf(req), id, SaveBody.parse(req.body)) });
+  res.json({ success: true, data: await saveCollection(tenant, actorOf(req), id, SaveBody.parse(req.body)) });
 });
-export const archiveDesignCollection = handler(async (req, res, clubId) => {
-  res.json({ success: true, data: await setCollectionArchived(clubId, actorOf(req), Id.parse(req.params.collectionId), true) });
+export const archiveDesignCollection = handler(async (req, res, tenant) => {
+  res.json({ success: true, data: await setCollectionArchived(tenant, actorOf(req), Id.parse(req.params.collectionId), true) });
 });
-export const unarchiveDesignCollection = handler(async (req, res, clubId) => {
-  res.json({ success: true, data: await setCollectionArchived(clubId, actorOf(req), Id.parse(req.params.collectionId), false) });
+export const unarchiveDesignCollection = handler(async (req, res, tenant) => {
+  res.json({ success: true, data: await setCollectionArchived(tenant, actorOf(req), Id.parse(req.params.collectionId), false) });
 });
-export const deleteDesignCollection = handler(async (req, res, clubId) => {
-  res.json({ success: true, data: await deleteCollection(clubId, actorOf(req), Id.parse(req.params.collectionId)) });
+export const deleteDesignCollection = handler(async (req, res, tenant) => {
+  res.json({ success: true, data: await deleteCollection(tenant, actorOf(req), Id.parse(req.params.collectionId)) });
 });
-export const readOrderSheet = handler(async (req, res, clubId) => {
+export const readOrderSheet = handler(async (req, res, tenant) => {
   const { rosterId } = SheetQuery.parse(req.query);
-  res.json({ success: true, data: await orderSheet(clubId, Id.parse(req.params.collectionId), rosterId) });
+  res.json({ success: true, data: await orderSheet(tenant, Id.parse(req.params.collectionId), rosterId) });
 });

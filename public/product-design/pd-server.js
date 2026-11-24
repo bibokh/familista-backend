@@ -103,6 +103,14 @@
       api.setRetention = function (kind, days) { return call('PUT', '/privacy/retention', { kind: String(kind), days: days === null ? null : Number(days) }); };
       api.applyRetention = function (dryRun) { return call('POST', '/privacy/retention/apply', { dryRun: dryRun !== false }); };
       api.rollout = function () { return call('GET', '/rollout'); };
+      // P2: the Creator Studio's accounts. An invitation's code comes back once, from the call that issues it.
+      api.creators = function () { return call('GET', '/creators'); };
+      api.creatorInvites = function () { return call('GET', '/creators/invites'); };
+      api.createCreatorInvite = function (opts) {
+        var o = opts || {};
+        return call('POST', '/creators/invites', { email: o.email ? String(o.email) : null, note: o.note ? String(o.note) : null, maxUses: Number(o.maxUses) || 1, days: Number(o.days) || 14 });
+      };
+      api.revokeCreatorInvite = function (inviteId) { return call('POST', '/creators/invites/' + id(inviteId) + '/revoke', {}); };
       api.setRollout = function (clubId, changes) {
         if (!CLUB_ID.test(String(clubId))) return Promise.resolve({ ok: false, status: 0, code: 'BAD_CLUB', data: null, message: '', errors: [] });
         return call('PUT', '/rollout/' + encodeURIComponent(clubId), changes);

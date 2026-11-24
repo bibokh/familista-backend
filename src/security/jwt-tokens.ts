@@ -36,7 +36,7 @@ import { createHash } from 'crypto';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
 
-export type TokenKind = 'access' | 'refresh' | 'device' | 'ws-ticket';
+export type TokenKind = 'access' | 'refresh' | 'device' | 'ws-ticket' | 'creator';
 
 export const JWT_ALGORITHM = 'HS256' as const;
 export const ISSUER = process.env.JWT_ISSUER || 'familista';
@@ -45,6 +45,8 @@ export const AUDIENCE: Record<TokenKind, string> = {
   refresh: 'familista-refresh',
   device: 'familista-device',
   'ws-ticket': 'familista-ws',
+  // A creator's session (Creator Studio, P2): never a club user's, so a club token is refused as one and the reverse.
+  creator: 'familista-creator',
 };
 
 /**
@@ -116,7 +118,8 @@ export function verifyToken<T = jwt.JwtPayload>(kind: TokenKind, token: string, 
     }
 
     // ── legacy: minted before this build (no kid) ─────────────────────────
-    if (kind === 'ws-ticket') throw new TokenRejected('invalid');
+    // Kinds born after the cut-over were never minted without a kid: nothing legacy can be one of them.
+    if (kind === 'ws-ticket' || kind === 'creator') throw new TokenRejected('invalid');
     const payload = jwt.verify(token, keys[0].secret, { algorithms: [JWT_ALGORITHM], ...clock }) as jwt.JwtPayload & { kind?: string };
     if (payload.iss !== undefined || payload.aud !== undefined) throw new TokenRejected('invalid');
     if (typeof payload.iat !== 'number' || payload.iat * 1000 >= LEGACY_ISSUED_BEFORE) throw new TokenRejected('legacy-closed');

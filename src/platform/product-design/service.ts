@@ -23,6 +23,7 @@ import { prisma } from '../../config/database';
 import { ConflictError, NotFoundError } from '../../utils/errors';
 import { currentEnvironment } from '../environment';
 import { DesignDocumentError, formatVersion, validateDesignDocument, type CoreProblem, type DesignDocument } from './core';
+import { clubTenant, creatorTenant, tenantWhere, type Tenant } from '../tenancy/tenant';
 
 /** Who is acting, as the routes resolved it. */
 export interface DesignActor {
@@ -70,18 +71,31 @@ export const CLUB_DESIGN_FEATURE = 'club_design_studio';
  */
 export const CLUB_DESIGN_ROLES: readonly UserRole[] = Object.freeze([UserRole.CLUB_ADMIN, UserRole.MANAGER]);
 
-/** Whose designs an operation reaches: the platform's own, or one club's. PERSONAL arrives with the Creator Studio. */
-export type DesignScope = { readonly kind: 'PLATFORM' } | { readonly kind: 'CLUB'; readonly clubId: string };
+/** Whose designs an operation reaches: the platform's own, one club's, or one creator's (PERSONAL, Creator Studio P2). */
+export type DesignScope =
+  | { readonly kind: 'PLATFORM' }
+  | { readonly kind: 'CLUB'; readonly clubId: string }
+  | { readonly kind: 'PERSONAL'; readonly creatorId: string };
 export const PLATFORM_SCOPE: DesignScope = Object.freeze({ kind: 'PLATFORM' as const });
 export function clubScope(clubId: string): DesignScope {
   if (typeof clubId !== 'string' || !clubId) throw new Error('A club scope needs the club');
   return Object.freeze({ kind: 'CLUB' as const, clubId });
 }
+export function personalScope(creatorId: string): DesignScope {
+  if (typeof creatorId !== 'string' || !creatorId) throw new Error('A personal scope needs the creator');
+  return Object.freeze({ kind: 'PERSONAL' as const, creatorId });
+}
+/** The tenant of a club's or a creator's scope. The platform's own designs have none, and asking for one is a defect. */
+export function tenantOfScope(scope: DesignScope | undefined): Tenant {
+  if (scope?.kind === 'CLUB') return clubTenant(scope.clubId);
+  if (scope?.kind === 'PERSONAL') return creatorTenant(scope.creatorId);
+  throw new Error('This route was reached without a club or creator scope');
+}
 /** The scope as a filter: every query below carries it. */
 function owned(scope: DesignScope) {
-  return scope.kind === 'PLATFORM'
-    ? { ownerKind: DesignOwnerKind.PLATFORM, clubId: null }
-    : { ownerKind: DesignOwnerKind.CLUB, clubId: scope.clubId };
+  if (scope.kind === 'PLATFORM') return { ownerKind: DesignOwnerKind.PLATFORM, clubId: null, creatorId: null };
+  if (scope.kind === 'CLUB') return { ownerKind: DesignOwnerKind.CLUB, clubId: scope.clubId, creatorId: null };
+  return { ownerKind: DesignOwnerKind.PERSONAL, clubId: null, creatorId: scope.creatorId };
 }
 
 const PROJECT_SELECT = {
@@ -113,8 +127,9 @@ async function audit(tx: Tx, scope: DesignScope, actor: DesignActor, action: str
   await tx.platformAuditLog.create({
     data: {
       adminId: admin?.id ?? null,
-      userId: actor.userId,
+      userId: scope.kind === 'PERSONAL' ? null : actor.userId,
       clubId: scope.kind === 'CLUB' ? scope.clubId : null,
+      creatorId: scope.kind === 'PERSONAL' ? scope.creatorId : null,
       action,
       category: PlatformAuditCategory.ASSET,
       resourceType: 'DesignProject',
@@ -128,8 +143,8 @@ async function audit(tx: Tx, scope: DesignScope, actor: DesignActor, action: str
 }
 
 /**
- * Every logo a design names (an image layer, M2c): none on the platform's designs, which have no brand kit; on a club's,
- * the club's own logos alone (archived ones too: an older design may still show one), at the pixel size the kit keeps
+ * Every logo a design names (an image layer, M2c): none on the platform's designs, which have no brand kit; on a club's
+ * or a creator's, that owner's own logos alone (archived ones too: an older design may still show one), at the pixel size the kit keeps
  * them. A design naming another club's logo, or one that does not exist, is refused like any invalid document. Asked in
  * the request's database context, so row-level security answers the same question underneath.
  */
@@ -139,8 +154,8 @@ async function assertBrandAssets(db: Tx | typeof prisma, scope: DesignScope, doc
     if (l.type === 'image' && typeof l.asset === 'string' && Array.isArray(l.px)) refs.push({ asset: l.asset, px: l.px, path: `surfaces[${i}].layers[${j}]` });
   }));
   if (!refs.length) return;
-  if (scope.kind !== 'CLUB') throw new DesignDocumentError(refs.map((r) => ({ code: 'image-not-allowed', path: r.path })));
-  const rows = await db.designBrandAsset.findMany({ where: { id: { in: [...new Set(refs.map((r) => r.asset))] }, clubId: scope.clubId }, select: { id: true, width: true, height: true } });
+  if (scope.kind === 'PLATFORM') throw new DesignDocumentError(refs.map((r) => ({ code: 'image-not-allowed', path: r.path })));
+  const rows = await db.designBrandAsset.findMany({ where: { id: { in: [...new Set(refs.map((r) => r.asset))] }, ...tenantWhere(tenantOfScope(scope)) }, select: { id: true, width: true, height: true } });
   const kept = new Map(rows.map((r) => [r.id, r]));
   const problems: CoreProblem[] = [];
   for (const r of refs) {

@@ -37,6 +37,7 @@ import {
 } from '../platform/product-design/http';
 import { changeRollout, readRollout } from '../platform/product-design/rollout-http';
 import { ownerApplyRetention, ownerReadRetention, ownerSetRetention } from '../platform/privacy/privacy-http';
+import { ownerCreateCreatorInvite, ownerListCreatorInvites, ownerListCreators, ownerRevokeCreatorInvite } from '../platform/creator/http';
 
 const router = Router();
 router.use(authenticate);
@@ -59,6 +60,11 @@ router.put('/rollout/:clubId', changeRollout);
 router.get('/privacy/retention', ownerReadRetention);
 router.put('/privacy/retention', ownerSetRetention);
 router.post('/privacy/retention/apply', ownerApplyRetention);
+// The Creator Studio's accounts (P2): invitations are the only way in, and they are the Owner's to issue.
+router.get('/creators', ownerListCreators);
+router.get('/creators/invites', ownerListCreatorInvites);
+router.post('/creators/invites', ownerCreateCreatorInvite);
+router.post('/creators/invites/:inviteId/revoke', ownerRevokeCreatorInvite);
 router.post('/projects', createDesign);
 router.get('/projects/:id', openDesign);
 router.post('/projects/:id/revisions', saveDesign);

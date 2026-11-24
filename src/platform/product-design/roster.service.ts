@@ -15,7 +15,8 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { ConflictError, NotFoundError } from '../../utils/errors';
-import { clubAudit } from './club-audit';
+import { tenantAudit } from './club-audit';
+import { ownerColumns, tenantWhere, type Tenant } from '../tenancy/tenant';
 import { validateRosterEntries, validateRosterName, type RosterEntry, youthEntries } from './roster-core';
 import type { DesignActor } from './service';
 
@@ -50,90 +51,90 @@ function view(row: { entries: Prisma.JsonValue; includesMinors: boolean } & Omit
   return { ...row, entries, youthEntries: youth, minors: row.includesMinors || youth > 0 };
 }
 const sets = (entries: RosterEntry[]) => entries.reduce((n, e) => n + e.qty, 0);
-function audit(tx: Prisma.TransactionClient, clubId: string, actor: DesignActor, action: string, id: string, metadata: Record<string, unknown>, message: string) {
-  return clubAudit(tx, clubId, actor, { action, resourceType: 'DesignRoster', resourceId: id, metadata, message });
+function audit(tx: Prisma.TransactionClient, tenant: Tenant, actor: DesignActor, action: string, id: string, metadata: Record<string, unknown>, message: string) {
+  return tenantAudit(tx, tenant, actor, { action, resourceType: 'DesignRoster', resourceId: id, metadata, message });
 }
 
 /** The club's rosters, most recently changed first: active ones, or archived ones when asked. */
-export async function listRosters(clubId: string, opts: { archived?: boolean } = {}): Promise<{ rosters: RosterSummaryView[]; limit: number }> {
+export async function listRosters(tenant: Tenant, opts: { archived?: boolean } = {}): Promise<{ rosters: RosterSummaryView[]; limit: number }> {
   const rosters = await prisma.designRoster.findMany({
-    where: { clubId, archivedAt: opts.archived ? { not: null } : null },
+    where: { ...tenantWhere(tenant), archivedAt: opts.archived ? { not: null } : null },
     orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }], take: ACTIVE_ROSTER_LIMIT * 2, select: SUMMARY_SELECT,
   });
   return { rosters, limit: ACTIVE_ROSTER_LIMIT };
 }
 
 /** One of the club's rosters, with its entries. */
-export async function getRoster(clubId: string, id: string): Promise<{ roster: RosterView }> {
-  const row = await prisma.designRoster.findFirst({ where: { id, clubId }, select: FULL_SELECT });
+export async function getRoster(tenant: Tenant, id: string): Promise<{ roster: RosterView }> {
+  const row = await prisma.designRoster.findFirst({ where: { id, ...tenantWhere(tenant) }, select: FULL_SELECT });
   if (!row) throw new NotFoundError('Roster');
   return { roster: view(row) };
 }
 
 /** A new roster, with the entries given (none is fine). */
-export async function createRoster(clubId: string, actor: DesignActor, input: { name: unknown; entries: unknown; includesMinors?: boolean }): Promise<{ roster: RosterView }> {
+export async function createRoster(tenant: Tenant, actor: DesignActor, input: { name: unknown; entries: unknown; includesMinors?: boolean }): Promise<{ roster: RosterView }> {
   const name = validateRosterName(input.name);
   const entries = validateRosterEntries(input.entries);
   return prisma.$transaction(async (tx) => {
-    if ((await tx.designRoster.count({ where: { clubId, archivedAt: null } })) >= ACTIVE_ROSTER_LIMIT) {
+    if ((await tx.designRoster.count({ where: { ...tenantWhere(tenant), archivedAt: null } })) >= ACTIVE_ROSTER_LIMIT) {
       throw new RosterRefusedError('ROSTER_LIMIT', `A club keeps at most ${ACTIVE_ROSTER_LIMIT} rosters; archive one first`);
     }
     const row = await tx.designRoster.create({
-      data: { clubId, name, entries: entries as unknown as Prisma.InputJsonValue, entryCount: entries.length, includesMinors: input.includesMinors === true, createdById: actor.userId, updatedById: actor.userId },
+      data: { ...tenantWhere(tenant), name, entries: entries as unknown as Prisma.InputJsonValue, entryCount: entries.length, includesMinors: input.includesMinors === true, createdById: actor.userId, updatedById: actor.userId },
       select: FULL_SELECT,
     });
-    await audit(tx, clubId, actor, 'design.roster.created', row.id, { entries: entries.length, sets: sets(entries) }, 'A team roster was created');
+    await audit(tx, tenant, actor, 'design.roster.created', row.id, { entries: entries.length, sets: sets(entries) }, 'A team roster was created');
     return { roster: view(row) };
   });
 }
 
 /** Replace a roster's name and entries, if it is still at the version the save was based on. */
-export async function saveRoster(clubId: string, actor: DesignActor, id: string, input: { name: unknown; entries: unknown; version: number; includesMinors?: boolean }): Promise<{ roster: RosterView }> {
+export async function saveRoster(tenant: Tenant, actor: DesignActor, id: string, input: { name: unknown; entries: unknown; version: number; includesMinors?: boolean }): Promise<{ roster: RosterView }> {
   const name = validateRosterName(input.name);
   const entries = validateRosterEntries(input.entries);
   return prisma.$transaction(async (tx) => {
-    const current = await tx.designRoster.findFirst({ where: { id, clubId }, select: { version: true, archivedAt: true, entryCount: true } });
+    const current = await tx.designRoster.findFirst({ where: { id, ...tenantWhere(tenant) }, select: { version: true, archivedAt: true, entryCount: true } });
     if (!current) throw new NotFoundError('Roster');
     if (current.archivedAt) throw new RosterRefusedError('ROSTER_ARCHIVED', 'This roster is archived; return it to the list before saving it');
     // The version is part of the write's own condition, so two saves racing on one version cannot both succeed.
     const moved = await tx.designRoster.updateMany({
-      where: { id, clubId, version: input.version, archivedAt: null },
+      where: { id, ...tenantWhere(tenant), version: input.version, archivedAt: null },
       data: { name, entries: entries as unknown as Prisma.InputJsonValue, entryCount: entries.length, version: { increment: 1 }, updatedById: actor.userId,
         ...(typeof input.includesMinors === 'boolean' ? { includesMinors: input.includesMinors } : {}) },
     });
     if (moved.count !== 1) throw new RosterConflictError(current.version);
-    const row = await tx.designRoster.findFirstOrThrow({ where: { id, clubId }, select: FULL_SELECT });
-    await audit(tx, clubId, actor, 'design.roster.saved', id,
+    const row = await tx.designRoster.findFirstOrThrow({ where: { id, ...tenantWhere(tenant) }, select: FULL_SELECT });
+    await audit(tx, tenant, actor, 'design.roster.saved', id,
       { entries: entries.length, sets: sets(entries), previousEntries: current.entryCount, version: row.version }, 'A team roster was saved');
     return { roster: view(row) };
   });
 }
 
 /** Archive a roster, or return it to the list. Its entries are kept either way. */
-export async function setRosterArchived(clubId: string, actor: DesignActor, id: string, archived: boolean): Promise<{ roster: RosterSummaryView }> {
+export async function setRosterArchived(tenant: Tenant, actor: DesignActor, id: string, archived: boolean): Promise<{ roster: RosterSummaryView }> {
   return prisma.$transaction(async (tx) => {
-    const current = await tx.designRoster.findFirst({ where: { id, clubId }, select: SUMMARY_SELECT });
+    const current = await tx.designRoster.findFirst({ where: { id, ...tenantWhere(tenant) }, select: SUMMARY_SELECT });
     if (!current) throw new NotFoundError('Roster');
     if (!!current.archivedAt === archived) return { roster: current };
-    if (!archived && (await tx.designRoster.count({ where: { clubId, archivedAt: null } })) >= ACTIVE_ROSTER_LIMIT) {
+    if (!archived && (await tx.designRoster.count({ where: { ...tenantWhere(tenant), archivedAt: null } })) >= ACTIVE_ROSTER_LIMIT) {
       throw new RosterRefusedError('ROSTER_LIMIT', `A club keeps at most ${ACTIVE_ROSTER_LIMIT} rosters; archive one first`);
     }
-    await tx.designRoster.updateMany({ where: { id, clubId }, data: { archivedAt: archived ? new Date() : null } });
-    const roster = await tx.designRoster.findFirstOrThrow({ where: { id, clubId }, select: SUMMARY_SELECT });
-    await audit(tx, clubId, actor, archived ? 'design.roster.archived' : 'design.roster.unarchived', id, { entries: roster.entryCount },
+    await tx.designRoster.updateMany({ where: { id, ...tenantWhere(tenant) }, data: { archivedAt: archived ? new Date() : null } });
+    const roster = await tx.designRoster.findFirstOrThrow({ where: { id, ...tenantWhere(tenant) }, select: SUMMARY_SELECT });
+    await audit(tx, tenant, actor, archived ? 'design.roster.archived' : 'design.roster.unarchived', id, { entries: roster.entryCount },
       archived ? 'A team roster was archived' : 'A team roster was returned to the list');
     return { roster };
   });
 }
 
 /** Erase a roster: its entries are names of people, and a club may remove them for good. Archived first, so a slip cannot. */
-export async function deleteRoster(clubId: string, actor: DesignActor, id: string): Promise<{ deleted: true }> {
+export async function deleteRoster(tenant: Tenant, actor: DesignActor, id: string): Promise<{ deleted: true }> {
   return prisma.$transaction(async (tx) => {
-    const current = await tx.designRoster.findFirst({ where: { id, clubId }, select: { archivedAt: true, entryCount: true } });
+    const current = await tx.designRoster.findFirst({ where: { id, ...tenantWhere(tenant) }, select: { archivedAt: true, entryCount: true } });
     if (!current) throw new NotFoundError('Roster');
     if (!current.archivedAt) throw new RosterRefusedError('ROSTER_ARCHIVED', 'Archive this roster before deleting it');
-    await tx.designRoster.deleteMany({ where: { id, clubId } });
-    await audit(tx, clubId, actor, 'design.roster.deleted', id, { entries: current.entryCount }, 'A team roster was deleted');
+    await tx.designRoster.deleteMany({ where: { id, ...tenantWhere(tenant) } });
+    await audit(tx, tenant, actor, 'design.roster.deleted', id, { entries: current.entryCount }, 'A team roster was deleted');
     return { deleted: true };
   });
 }
@@ -143,9 +144,9 @@ export async function deleteRoster(clubId: string, actor: DesignActor, id: strin
  * their record. In number order. The editor reads them through the same import as a spreadsheet, so a surname the
  * roster cannot print is shown as a problem to fix, never stored as it is.
  */
-export async function squadNames(clubId: string): Promise<{ players: Array<{ name: string; number: number | null }> }> {
+export async function squadNames(tenant: Tenant): Promise<{ players: Array<{ name: string; number: number | null }> }> {
   const rows = await prisma.player.findMany({
-    where: { clubId, isActive: true }, orderBy: [{ number: 'asc' }, { lastName: 'asc' }, { id: 'asc' }],
+    where: { ...tenantWhere(tenant), isActive: true }, orderBy: [{ number: 'asc' }, { lastName: 'asc' }, { id: 'asc' }],
     take: 150, select: { lastName: true, number: true },
   });
   return { players: rows.map((p) => ({ name: p.lastName, number: Number.isInteger(p.number) && p.number >= 0 && p.number <= 99 ? p.number : null })) };

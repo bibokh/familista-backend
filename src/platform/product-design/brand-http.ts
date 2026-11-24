@@ -4,6 +4,8 @@
  * resolved from the session (`res.locals.designScope`); a handler reached without a club scope refuses, never serves.
  */
 import express, { type Request, type RequestHandler, type Response } from 'express';
+import { designActorOf as actorOf, tenantOfRes } from './scope-http';
+import type { Tenant } from '../tenancy/tenant';
 import { DesignBrandAssetKind } from '@prisma/client';
 import { z } from 'zod';
 import { BrandImageError, UPLOAD_LIMITS } from './brand-image';
@@ -14,18 +16,9 @@ const AssetId = z.string().guid();
 const AddQuery = z.object({ kind: z.enum([DesignBrandAssetKind.CREST, DesignBrandAssetKind.SPONSOR, DesignBrandAssetKind.MARK]), name: z.string().trim().min(1).max(80).regex(/^[^\u0000-\u001F\u007F]+$/) }).strict();
 const KitQuery = z.object({ state: z.enum(['active', 'archived']).default('active') }).strict();
 
-function clubOf(res: Response): string {
-  const s = res.locals.designScope as DesignScope | undefined;
-  if (!s || s.kind !== 'CLUB') throw new Error('A brand-kit route was reached without a club scope');
-  return s.clubId;
-}
-function actorOf(req: Request): DesignActor {
-  const ua = req.headers['user-agent'];
-  return { userId: req.user?.id ?? '', ipAddress: req.ip ?? null, userAgent: typeof ua === 'string' ? ua.slice(0, 400) : null, correlationId: req.requestId ?? null };
-}
-function handler(work: (req: Request, res: Response, clubId: string) => Promise<void>): RequestHandler {
+function handler(work: (req: Request, res: Response, tenant: Tenant) => Promise<void>): RequestHandler {
   return async (req, res, next) => {
-    try { await work(req, res, clubOf(res)); } catch (err) {
+    try { await work(req, res, tenantOfRes(res)); } catch (err) {
       if (err instanceof BrandImageError) {
         res.status(err.code === 'too-large' ? 413 : err.code === 'unsupported-type' ? 415 : 400)
           .json({ success: false, code: 'BRAND_IMAGE_REFUSED', reason: err.code, message: err.message });
@@ -54,23 +47,23 @@ export const rawBrandImage: RequestHandler = (req, res, next) => {
   });
 };
 
-export const readBrandKit = handler(async (req, res, clubId) => {
+export const readBrandKit = handler(async (req, res, tenant) => {
   const { state } = KitQuery.parse(req.query);
-  res.json({ success: true, data: await getBrandKit(clubId, { archived: state === 'archived' }) });
+  res.json({ success: true, data: await getBrandKit(tenant, { archived: state === 'archived' }) });
 });
-export const saveBrandColours = handler(async (req, res, clubId) => {
+export const saveBrandColours = handler(async (req, res, tenant) => {
   const body = z.object({ colours: z.unknown() }).strict().parse(req.body);
   const colours = validColours(body.colours);
   if (!colours) { res.status(400).json({ success: false, code: 'BRAND_COLOURS_INVALID', message: 'At most 24 colours, each a label of 1–40 characters and a #rrggbb colour' }); return; }
-  res.json({ success: true, data: await setBrandColours(clubId, actorOf(req), colours) });
+  res.json({ success: true, data: await setBrandColours(tenant, actorOf(req), colours) });
 });
-export const uploadBrandAsset = handler(async (req, res, clubId) => {
+export const uploadBrandAsset = handler(async (req, res, tenant) => {
   const q = AddQuery.parse(req.query);
   const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
-  res.status(201).json({ success: true, data: await addBrandAsset(clubId, actorOf(req), { kind: q.kind, name: q.name, body }) });
+  res.status(201).json({ success: true, data: await addBrandAsset(tenant, actorOf(req), { kind: q.kind, name: q.name, body }) });
 });
-export const brandAssetImage = handler(async (req, res, clubId) => {
-  const img = await getBrandAssetImage(clubId, AssetId.parse(req.params.assetId));
+export const brandAssetImage = handler(async (req, res, tenant) => {
+  const img = await getBrandAssetImage(tenant, AssetId.parse(req.params.assetId));
   // Only ever the PNG the server made; never sniffed as anything else, never run as a document.
   res.setHeader('Content-Type', 'image/png');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -79,9 +72,9 @@ export const brandAssetImage = handler(async (req, res, clubId) => {
   res.setHeader('ETag', `"${img.sha256}"`);
   res.status(200).end(img.png);
 });
-export const archiveBrandAsset = handler(async (req, res, clubId) => {
-  res.json({ success: true, data: await setBrandAssetArchived(clubId, actorOf(req), AssetId.parse(req.params.assetId), true) });
+export const archiveBrandAsset = handler(async (req, res, tenant) => {
+  res.json({ success: true, data: await setBrandAssetArchived(tenant, actorOf(req), AssetId.parse(req.params.assetId), true) });
 });
-export const unarchiveBrandAsset = handler(async (req, res, clubId) => {
-  res.json({ success: true, data: await setBrandAssetArchived(clubId, actorOf(req), AssetId.parse(req.params.assetId), false) });
+export const unarchiveBrandAsset = handler(async (req, res, tenant) => {
+  res.json({ success: true, data: await setBrandAssetArchived(tenant, actorOf(req), AssetId.parse(req.params.assetId), false) });
 });

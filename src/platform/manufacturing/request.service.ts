@@ -17,7 +17,8 @@
 import { ManufacturingActorKind, ManufacturingPersonState, ManufacturingQuoteStatus as Q, ManufacturingRequestStatus as S, ManufacturingSupplierStatus, Prisma, UserRole } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { ConflictError, ForbiddenError, NotFoundError } from '../../utils/errors';
-import { clubAudit } from '../product-design/club-audit';
+import { tenantAudit } from '../product-design/club-audit';
+import { ownerColumns, tenantWhere, type Tenant } from '../tenancy/tenant';
 import { templateForm } from '../product-design/core';
 import { rosterCsv, rosterCsvFileName, rosterSummary, validateRosterEntries, youthEntries } from '../product-design/roster-core';
 import type { DesignActor } from '../product-design/service';
@@ -96,9 +97,9 @@ const CLUB_QUOTE_SELECT = {
 // ── the club's side ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** Build the frozen specification from a collection and a roster of the club's, or say what is missing. */
-async function buildSpec(tx: Prisma.TransactionClient, clubId: string, collectionId: string, rosterIdIn: string | null): Promise<{ spec: RequestSpec; names: string[]; minors: boolean }> {
+async function buildSpec(tx: Prisma.TransactionClient, tenant: Tenant, collectionId: string, rosterIdIn: string | null): Promise<{ spec: RequestSpec; names: string[]; minors: boolean }> {
   const coll = await tx.designCollection.findFirst({
-    where: { id: collectionId, clubId },
+    where: { id: collectionId, ...tenantWhere(tenant) },
     select: { id: true, name: true, season: true, rosterId: true, archivedAt: true,
       items: { orderBy: { position: 'asc' }, select: { projectId: true, role: true, project: { select: { name: true, templateKey: true, templateVersion: true, headRevision: true } } } } },
   });
@@ -108,14 +109,14 @@ async function buildSpec(tx: Prisma.TransactionClient, clubId: string, collectio
   if (!coll.items.length) throw refuse('no-designs', 'This collection has no designs');
   const rosterId = rosterIdIn ?? coll.rosterId;
   if (!rosterId) throw refuse('no-roster', 'Choose the roster the kit is made for');
-  const roster = await tx.designRoster.findFirst({ where: { id: rosterId, clubId }, select: { id: true, name: true, version: true, entries: true, archivedAt: true, includesMinors: true } });
+  const roster = await tx.designRoster.findFirst({ where: { id: rosterId, ...tenantWhere(tenant) }, select: { id: true, name: true, version: true, entries: true, archivedAt: true, includesMinors: true } });
   if (!roster) throw new NotFoundError('Roster');
   if (roster.archivedAt) throw refuse('roster-archived', 'This roster is archived');
   const entries = validateRosterEntries(roster.entries);
   const sum = rosterSummary(entries);
   if (!sum.sets) throw refuse('empty-roster', 'The roster has no entries');
   const garments: SpecGarment[] = [];
-  const approvals = await approvalsFor(tx, clubId, coll.items.map((i) => ({ projectId: i.projectId, revision: i.project.headRevision })));
+  const approvals = await approvalsFor(tx, tenant, coll.items.map((i) => ({ projectId: i.projectId, revision: i.project.headRevision })));
   for (const item of coll.items) {
     const form = templateForm(item.project.templateKey, item.project.templateVersion);
     if (!form) throw refuse('not-released', 'A design is not of a released garment');
@@ -142,46 +143,48 @@ async function peopleOf(tx: Prisma.TransactionClient, r: { id: string; minors: b
   return { kept: n('KEPT'), withheld: n('WITHHELD'), erased: n('ERASED'), minors: r.minors, minorsConsent: !!r.minorsConsentAt };
 }
 
-async function event(tx: Prisma.TransactionClient, r: { id: string; clubId: string }, action: Action, from: S | null, to: S, kind: ManufacturingActorKind, actor: DesignActor, note: string | null) {
-  await tx.manufacturingRequestEvent.create({ data: { clubId: r.clubId, requestId: r.id, action, fromStatus: from, toStatus: to, actorKind: kind, actorUserId: actor.userId, note } });
+type Owned = { id: string; clubId: string | null; creatorId: string | null };
+async function event(tx: Prisma.TransactionClient, r: Owned, action: Action, from: S | null, to: S, kind: ManufacturingActorKind, actor: DesignActor, note: string | null) {
+  await tx.manufacturingRequestEvent.create({ data: { clubId: r.clubId, creatorId: r.creatorId, requestId: r.id, action, fromStatus: from, toStatus: to, actorKind: kind, actorUserId: actor.userId, note } });
 }
 
 /** Submit a request for quotation from one of the club's collections. */
-export async function submitRequest(clubId: string, actor: DesignActor & { role?: UserRole }, input: { collectionId: string; rosterId: string | null; note: string | null; neededBy: string | null; minorsConsent?: boolean }) {
+export async function submitRequest(tenant: Tenant, actor: DesignActor & { role?: UserRole }, input: { collectionId: string; rosterId: string | null; note: string | null; neededBy: string | null; minorsConsent?: boolean }) {
   const note = noteOf(input.note);
   const neededBy = input.neededBy ? dateOnly(input.neededBy) : null;
   if (input.neededBy && (!neededBy || neededBy < today())) throw new QuoteInvalidError('bad-date', 'neededBy');
   return prisma.$transaction(async (tx) => {
-    const open = await tx.manufacturingRequest.count({ where: { clubId, status: { notIn: [...FINAL] } } });
+    const open = await tx.manufacturingRequest.count({ where: { ...tenantWhere(tenant), status: { notIn: [...FINAL] } } });
     if (open >= OPEN_REQUEST_LIMIT) throw new RequestRefusedError('REQUEST_LIMIT', 'too-many-open', `A club has at most ${OPEN_REQUEST_LIMIT} open requests`);
-    const { spec, names, minors } = await buildSpec(tx, clubId, input.collectionId, input.rosterId);
+    const { spec, names, minors } = await buildSpec(tx, tenant, input.collectionId, input.rosterId);
     // P1: a minor's name is kept only when a club administrator attests a guardian's consent; otherwise it is never stored.
     const consent = minors && input.minorsConsent === true;
-    if (consent && actor.role !== UserRole.CLUB_ADMIN) throw new ForbiddenError('Only a club administrator attests a guardian’s consent');
+    // A club's attestation is its administrator's; a creator (an adult, by the sign-up's age confirmation) attests their own.
+    if (consent && tenant.kind === 'club' && actor.role !== UserRole.CLUB_ADMIN) throw new ForbiddenError('Only a club administrator attests a guardian’s consent');
     const req = await tx.manufacturingRequest.create({
-      data: { clubId, collectionId: spec.collection.id, spec: spec as unknown as Prisma.InputJsonValue, setsTotal: spec.sets, clubNote: note, neededBy, createdById: actor.userId,
+      data: { ...tenantWhere(tenant), collectionId: spec.collection.id, spec: spec as unknown as Prisma.InputJsonValue, setsTotal: spec.sets, clubNote: note, neededBy, createdById: actor.userId,
         minors, ...(consent ? { minorsConsentAt: new Date(), minorsConsentById: actor.userId } : {}) },
-      select: { id: true, clubId: true },
+      select: { id: true, clubId: true, creatorId: true },
     });
     await tx.manufacturingRequestPerson.createMany({
-      data: names.map((name, position) => (minors && !consent) || !name ? { clubId, requestId: req.id, position, name: null, state: ManufacturingPersonState.WITHHELD }
-        : { clubId, requestId: req.id, position, name, state: ManufacturingPersonState.KEPT }),
+      data: names.map((name, position) => (minors && !consent) || !name ? { ...tenantWhere(tenant), requestId: req.id, position, name: null, state: ManufacturingPersonState.WITHHELD }
+        : { ...tenantWhere(tenant), requestId: req.id, position, name, state: ManufacturingPersonState.KEPT }),
     });
     await event(tx, req, 'submit', null, S.SUBMITTED, 'CLUB', actor, note);
-    await clubAudit(tx, clubId, actor, { action: 'manufacturing.request.submitted', resourceType: 'ManufacturingRequest', resourceId: req.id,
+    await tenantAudit(tx, tenant, actor, { action: 'manufacturing.request.submitted', resourceType: 'ManufacturingRequest', resourceId: req.id,
       metadata: { garments: spec.garments.length, sets: spec.sets, entries: spec.entries.length, minors, minorsConsent: consent }, message: 'A request for quotation was submitted' });
-    return getClubRequestTx(tx, clubId, req.id);
+    return getClubRequestTx(tx, tenant, req.id);
   });
 }
 
-export async function listClubRequests(clubId: string) {
-  const rows = await prisma.manufacturingRequest.findMany({ where: { clubId }, orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }], take: 200, select: SUMMARY });
+export async function listClubRequests(tenant: Tenant) {
+  const rows = await prisma.manufacturingRequest.findMany({ where: { ...tenantWhere(tenant) }, orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }], take: 200, select: SUMMARY });
   return { requests: rows.map(summaryView) };
 }
 
-async function getClubRequestTx(tx: Prisma.TransactionClient, clubId: string, id: string) {
+async function getClubRequestTx(tx: Prisma.TransactionClient, tenant: Tenant, id: string) {
   const r = await tx.manufacturingRequest.findFirst({
-    where: { id, clubId },
+    where: { id, ...tenantWhere(tenant) },
     select: { ...SUMMARY, clubNote: true, acceptedQuoteId: true, minors: true, minorsConsentAt: true,
       events: { orderBy: { createdAt: 'asc' }, select: EVENT_SELECT },
       quotes: { where: { status: { in: [Q.PUBLISHED, Q.ACCEPTED, Q.SUPERSEDED] } }, orderBy: { publishedAt: 'asc' }, select: CLUB_QUOTE_SELECT } },
@@ -189,10 +192,10 @@ async function getClubRequestTx(tx: Prisma.TransactionClient, clubId: string, id
   if (!r) throw new NotFoundError('Request');
   return { request: { ...summaryView(r), spec: r.spec, clubNote: r.clubNote, acceptedQuoteId: r.acceptedQuoteId, events: r.events, quotes: r.quotes, people: await peopleOf(tx, r) } };
 }
-export async function getClubRequest(clubId: string, id: string) { return getClubRequestTx(prisma, clubId, id); }
+export async function getClubRequest(tenant: Tenant, id: string) { return getClubRequestTx(prisma, tenant, id); }
 
 /** Move a request one step, conditional on the status it starts from. Returns the status it now has. */
-async function move(tx: Prisma.TransactionClient, r: { id: string; clubId: string; status: S }, action: Action, kind: ManufacturingActorKind, actor: DesignActor, note: string | null, to?: S) {
+async function move(tx: Prisma.TransactionClient, r: Owned & { status: S }, action: Action, kind: ManufacturingActorKind, actor: DesignActor, note: string | null, to?: S) {
   const s = step(action, kind, r.status, note);
   if ('refused' in s) throw new RequestStepError(s.refused, r.status);
   const next = to ?? (s.to === 'same' ? r.status : s.to);
@@ -203,49 +206,57 @@ async function move(tx: Prisma.TransactionClient, r: { id: string; clubId: strin
 }
 
 /** The club's own steps: cancel, decline every quotation, or confirm delivery. */
-export async function clubStep(clubId: string, actor: DesignActor, id: string, action: 'cancel' | 'decline' | 'deliver', noteIn: string | null) {
+export async function clubStep(tenant: Tenant, actor: DesignActor, id: string, action: 'cancel' | 'decline' | 'deliver', noteIn: string | null) {
   const note = noteOf(noteIn);
   return prisma.$transaction(async (tx) => {
-    const r = await tx.manufacturingRequest.findFirst({ where: { id, clubId }, select: { id: true, clubId: true, status: true } });
+    const r = await tx.manufacturingRequest.findFirst({ where: { id, ...tenantWhere(tenant) }, select: { id: true, clubId: true, creatorId: true, status: true } });
     if (!r) throw new NotFoundError('Request');
     const to = await move(tx, r, action, 'CLUB', actor, note);
-    if (action === 'cancel' || action === 'decline') await tx.manufacturingQuote.updateMany({ where: { requestId: id, clubId, status: Q.PUBLISHED }, data: { status: Q.SUPERSEDED } });
-    await clubAudit(tx, clubId, actor, { action: `manufacturing.request.${action}`, resourceType: 'ManufacturingRequest', resourceId: id, metadata: { from: r.status, to }, message: `The club took the step ${action}` });
-    return getClubRequestTx(tx, clubId, id);
+    if (action === 'cancel' || action === 'decline') await tx.manufacturingQuote.updateMany({ where: { requestId: id, ...tenantWhere(tenant), status: Q.PUBLISHED }, data: { status: Q.SUPERSEDED } });
+    await tenantAudit(tx, tenant, actor, { action: `manufacturing.request.${action}`, resourceType: 'ManufacturingRequest', resourceId: id, metadata: { from: r.status, to }, message: `The club took the step ${action}` });
+    return getClubRequestTx(tx, tenant, id);
   });
 }
 
 /** Accept one published, still valid quotation: the others are superseded. Nothing is charged. */
-export async function acceptQuote(clubId: string, actor: DesignActor, id: string, quoteId: string) {
+export async function acceptQuote(tenant: Tenant, actor: DesignActor, id: string, quoteId: string) {
   return prisma.$transaction(async (tx) => {
     // The request's row is locked first (FOR UPDATE), so two acceptances of one request take turns: the second waits for
     // the first to commit and then reads the request as it now is. Without the lock, under READ COMMITTED, the second
     // could read the request before the first committed (still QUOTED, so allowed) and its quotation after (already set
     // aside), and answer 'not found' where the truth is the conflict. Row-level security applies to the locking read too.
-    const locked = await tx.$queryRaw<Array<{ id: string; clubId: string; status: S }>>`
-      SELECT "id", "clubId", "status"::text AS "status" FROM "ManufacturingRequest" WHERE "id" = ${id} AND "clubId" = ${clubId} FOR UPDATE`;
+    const own = tenant.kind === 'club' ? Prisma.sql`"clubId" = ${tenant.clubId}` : Prisma.sql`"creatorId" = ${tenant.creatorId}`;
+    const locked = await tx.$queryRaw<Array<Owned & { status: S }>>`
+      SELECT "id", "clubId", "creatorId", "status"::text AS "status" FROM "ManufacturingRequest" WHERE "id" = ${id} AND ${own} FOR UPDATE`;
     const r = locked[0];
     if (!r) throw new NotFoundError('Request');
     // The workflow first: once a request has left QUOTED (accepted, declined, cancelled), any acceptance is the conflict it
     // is, whichever quotation it names, never a 'not found' for a quotation that was set aside meanwhile.
     const allowed = step('accept', 'CLUB', r.status, null);
     if ('refused' in allowed) throw new RequestStepError(allowed.refused, r.status);
-    const q = await tx.manufacturingQuote.findFirst({ where: { id: quoteId, requestId: id, clubId }, select: { status: true, validUntil: true, totalMinor: true, currency: true, supplier: { select: { status: true } } } });
+    const q = await tx.manufacturingQuote.findFirst({ where: { id: quoteId, requestId: id, ...tenantWhere(tenant) }, select: { status: true, validUntil: true, totalMinor: true, currency: true, supplier: { select: { status: true } } } });
     if (!q || q.status !== Q.PUBLISHED) throw new NotFoundError('Quotation');
     if (q.validUntil < today()) throw new RequestStepError('quote-expired', r.status);
     // A supplier suspended since it quoted cannot be accepted (the database refuses it too).
     if (q.supplier.status !== ManufacturingSupplierStatus.VERIFIED) throw new RequestStepError('supplier-not-verified', r.status);
     await move(tx, r, 'accept', 'CLUB', actor, null);
-    await tx.manufacturingQuote.updateMany({ where: { requestId: id, clubId, status: Q.PUBLISHED, id: { not: quoteId } }, data: { status: Q.SUPERSEDED } });
+    await tx.manufacturingQuote.updateMany({ where: { requestId: id, ...tenantWhere(tenant), status: Q.PUBLISHED, id: { not: quoteId } }, data: { status: Q.SUPERSEDED } });
     await tx.manufacturingQuote.update({ where: { id: quoteId }, data: { status: Q.ACCEPTED } });
     await tx.manufacturingRequest.update({ where: { id }, data: { acceptedQuoteId: quoteId } });
-    await clubAudit(tx, clubId, actor, { action: 'manufacturing.quote.accepted', resourceType: 'ManufacturingRequest', resourceId: id,
+    await tenantAudit(tx, tenant, actor, { action: 'manufacturing.quote.accepted', resourceType: 'ManufacturingRequest', resourceId: id,
       metadata: { quoteId, currency: q.currency, totalMinor: q.totalMinor }, message: 'The club accepted a quotation' });
-    return getClubRequestTx(tx, clubId, id);
+    return getClubRequestTx(tx, tenant, id);
   });
 }
 
 // ── the Platform Owner's side ───────────────────────────────────────────────────────────────────────────────────────
+
+/** Who asked: a club or a creator (P2). A deleted creator's account keeps no name: null. */
+const REQUESTER_SELECT = { clubId: true, creatorId: true, club: { select: { name: true } }, creator: { select: { displayName: true } } } as const;
+function requesterView(r: { clubId: string | null; creatorId: string | null; club: { name: string } | null; creator: { displayName: string | null } | null }) {
+  const requester = r.clubId ? { kind: 'club' as const, id: r.clubId, name: r.club?.name ?? null } : { kind: 'creator' as const, id: r.creatorId as string, name: r.creator?.displayName ?? null };
+  return { requester, club: r.clubId ? { id: r.clubId, name: r.club?.name ?? null } : null };
+}
 
 const OWNER_QUOTE_SELECT = {
   id: true, status: true, currency: true, totalMinor: true, lines: true, leadTimeDays: true, validUntil: true, supplierReference: true, evidence: true,
@@ -256,9 +267,9 @@ const OWNER_QUOTE_SELECT = {
 export async function listAllRequests(status?: S) {
   const rows = await prisma.manufacturingRequest.findMany({
     where: status ? { status } : {}, orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }], take: 300,
-    select: { ...SUMMARY, clubId: true, club: { select: { name: true } } },
+    select: { ...SUMMARY, ...REQUESTER_SELECT },
   });
-  return { requests: rows.map((r) => ({ ...summaryView(r), club: { id: r.clubId, name: r.club.name } })) };
+  return { requests: rows.map((r) => ({ ...summaryView(r), ...requesterView(r) })) };
 }
 
 export async function getRequest(id: string) { return getRequestTx(prisma, id); }
@@ -285,12 +296,12 @@ export async function requestFit(id: string) {
 async function getRequestTx(tx: Prisma.TransactionClient, id: string) {
   const r = await tx.manufacturingRequest.findUnique({
     where: { id },
-    select: { ...SUMMARY, clubId: true, clubNote: true, acceptedQuoteId: true, club: { select: { name: true } }, minors: true, minorsConsentAt: true,
+    select: { ...SUMMARY, ...REQUESTER_SELECT, clubNote: true, acceptedQuoteId: true, minors: true, minorsConsentAt: true,
       events: { orderBy: { createdAt: 'asc' }, select: EVENT_SELECT },
       quotes: { orderBy: { createdAt: 'asc' }, select: OWNER_QUOTE_SELECT } },
   });
   if (!r) throw new NotFoundError('Request');
-  return { request: { ...summaryView(r), club: { id: r.clubId, name: r.club.name }, spec: r.spec, clubNote: r.clubNote, acceptedQuoteId: r.acceptedQuoteId, events: r.events, quotes: r.quotes,
+  return { request: { ...summaryView(r), ...requesterView(r), spec: r.spec, clubNote: r.clubNote, acceptedQuoteId: r.acceptedQuoteId, events: r.events, quotes: r.quotes,
     people: await peopleOf(tx, r) } };
 }
 
@@ -298,7 +309,7 @@ async function getRequestTx(tx: Prisma.TransactionClient, id: string) {
 export async function ownerStep(actor: DesignActor, id: string, action: 'review' | 'refuse' | 'order' | 'produce' | 'ship' | 'deliver', noteIn: string | null) {
   const note = noteOf(noteIn);
   return prisma.$transaction(async (tx) => {
-    const r = await tx.manufacturingRequest.findUnique({ where: { id }, select: { id: true, clubId: true, status: true } });
+    const r = await tx.manufacturingRequest.findUnique({ where: { id }, select: { id: true, clubId: true, creatorId: true, status: true } });
     if (!r) throw new NotFoundError('Request');
     const to = await move(tx, r, action, 'OWNER', actor, note);
     await ownerAudit(tx, actor, { action: `manufacturing.request.${action}`, resourceType: 'ManufacturingRequest', resourceId: id, clubId: r.clubId,
@@ -330,7 +341,7 @@ function cleanQuote(input: QuoteInput, spec: RequestSpec): QuoteInput & { validD
 /** Record a quotation a verified supplier gave, as a draft only the Owner sees. */
 export async function recordQuote(actor: DesignActor, id: string, input: QuoteInput) {
   return prisma.$transaction(async (tx) => {
-    const r = await tx.manufacturingRequest.findUnique({ where: { id }, select: { id: true, clubId: true, status: true, spec: true } });
+    const r = await tx.manufacturingRequest.findUnique({ where: { id }, select: { id: true, clubId: true, creatorId: true, status: true, spec: true } });
     if (!r) throw new NotFoundError('Request');
     if (r.status !== S.IN_REVIEW && r.status !== S.QUOTED) throw new RequestStepError('wrong-status', r.status);
     const q = cleanQuote(input, r.spec as unknown as RequestSpec);
@@ -351,7 +362,7 @@ export async function recordQuote(actor: DesignActor, id: string, input: QuoteIn
 /** Publish a draft quotation to the club. The request becomes QUOTED. */
 export async function publishQuote(actor: DesignActor, id: string, quoteId: string) {
   return prisma.$transaction(async (tx) => {
-    const r = await tx.manufacturingRequest.findUnique({ where: { id }, select: { id: true, clubId: true, status: true } });
+    const r = await tx.manufacturingRequest.findUnique({ where: { id }, select: { id: true, clubId: true, creatorId: true, status: true } });
     if (!r) throw new NotFoundError('Request');
     const q = await tx.manufacturingQuote.findFirst({ where: { id: quoteId, requestId: id }, select: { status: true, validUntil: true, supplier: { select: { status: true } } } });
     if (!q || q.status !== Q.DRAFT) throw new NotFoundError('Draft quotation');
@@ -368,7 +379,7 @@ export async function publishQuote(actor: DesignActor, id: string, quoteId: stri
 export async function withdrawQuote(actor: DesignActor, id: string, quoteId: string, noteIn: string) {
   const note = noteOf(noteIn);
   return prisma.$transaction(async (tx) => {
-    const r = await tx.manufacturingRequest.findUnique({ where: { id }, select: { id: true, clubId: true, status: true } });
+    const r = await tx.manufacturingRequest.findUnique({ where: { id }, select: { id: true, clubId: true, creatorId: true, status: true } });
     if (!r) throw new NotFoundError('Request');
     const q = await tx.manufacturingQuote.findFirst({ where: { id: quoteId, requestId: id }, select: { status: true } });
     if (!q || q.status !== Q.PUBLISHED) throw new NotFoundError('Published quotation');
@@ -421,7 +432,7 @@ export class SheetRefusedError extends ConflictError {
  */
 export async function productionSheet(actor: DesignActor, id: string) {
   return prisma.$transaction(async (tx) => {
-    const r = await tx.manufacturingRequest.findUnique({ where: { id }, select: { id: true, clubId: true, status: true, spec: true, acceptedQuoteId: true, club: { select: { name: true } } } });
+    const r = await tx.manufacturingRequest.findUnique({ where: { id }, select: { id: true, status: true, spec: true, acceptedQuoteId: true, ...REQUESTER_SELECT } });
     if (!r) throw new NotFoundError('Request');
     if (!SHEET_STATES.has(r.status) || !r.acceptedQuoteId) throw new SheetRefusedError(r.status);
     const quote = await tx.manufacturingQuote.findUnique({ where: { id: r.acceptedQuoteId }, select: { supplierId: true, supplier: { select: { name: true } } } });
@@ -433,7 +444,7 @@ export async function productionSheet(actor: DesignActor, id: string) {
     const kept = persons.filter((p) => p.state === ManufacturingPersonState.KEPT).length;
     await ownerAudit(tx, actor, { action: 'manufacturing.sheet.exported', resourceType: 'ManufacturingRequest', resourceId: id, clubId: r.clubId,
       metadata: { supplierId: quote.supplierId, entries: rows.length, names: kept }, message: 'A production sheet was exported for the order’s supplier' });
-    return { sheet: { csv: rosterCsv(rows), fileName: rosterCsvFileName(`${r.club.name} ${spec.collection.name} production sheet`), entries: rows.length, names: kept,
+    return { sheet: { csv: rosterCsv(rows), fileName: rosterCsvFileName(`${requesterView(r).requester.name ?? 'Familista'} ${spec.collection.name} production sheet`), entries: rows.length, names: kept,
       supplier: { id: quote.supplierId, name: quote.supplier.name } } };
   });
 }
@@ -443,7 +454,7 @@ export async function eraseRequestNames(actor: DesignActor, id: string, noteIn: 
   const note = noteOf(noteIn);
   if (!note) throw new RequestStepError('note-required', null);
   return prisma.$transaction(async (tx) => {
-    const r = await tx.manufacturingRequest.findUnique({ where: { id }, select: { id: true, clubId: true, status: true } });
+    const r = await tx.manufacturingRequest.findUnique({ where: { id }, select: { id: true, clubId: true, creatorId: true, status: true } });
     if (!r) throw new NotFoundError('Request');
     if (!FINAL.has(r.status)) throw new RequestStepError('not-closed', r.status);
     const n = await tx.manufacturingRequestPerson.updateMany({ where: { requestId: id, state: ManufacturingPersonState.KEPT }, data: { state: ManufacturingPersonState.ERASED, name: null, erasedAt: new Date() } });

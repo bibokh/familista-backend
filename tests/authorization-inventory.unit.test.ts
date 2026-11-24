@@ -96,7 +96,11 @@ describe('the authorization inventory (posture)', () => {
   it('classifies every mounted handler', () => {
     expect(a.handlers).toBe(manifest.apiSurface.handlers);
     expect(Object.keys(a.perHandler)).toHaveLength(a.handlers);
-    for (const kind of Object.values(a.perHandler) as string[]) expect(kind).toMatch(/^(public|platform-owner|member|roles:.+|scoped:.+)$/);
+    for (const kind of Object.values(a.perHandler) as string[]) expect(kind).toMatch(/^(public|platform-owner|member|creator|roles:.+|scoped:.+)$/);
+    // P2: a creator handler is one behind authenticateCreator, and those are the creator mount's alone.
+    const creator = Object.entries(a.perHandler as Record<string, string>).filter(([, k]) => k === 'creator').map(([r]) => r);
+    expect(creator.length).toBeGreaterThan(0);
+    for (const r of creator) expect(r.split(' ')[1].startsWith('/creator/') && !r.split(' ')[1].startsWith('/creator/auth')).toBe(true);
   });
 
   it('public handlers are exactly the reviewed public routes', () => {

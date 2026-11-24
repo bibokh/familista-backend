@@ -1,7 +1,7 @@
 // The Prisma client that tells PostgreSQL who is asking (Cyber Defense, R14)
 // ─────────────────────────────────────────────────────────────────────────────
 // Wraps the one PrismaClient so that every query on a pilot table runs in a
-// transaction that first sets `familista.rls_mode` / `familista.club_id`
+// transaction that first sets `familista.rls_mode` / `familista.club_id` / `familista.creator_id`
 // (transaction-local: nothing leaks to the next user of the pooled
 // connection). Queries on any other table pass through untouched.
 //
@@ -21,7 +21,7 @@ export type MissingContextReporter = (model: string, operation: string) => void;
 
 function settingsQuery(client: PrismaClient) {
   const s = dbSettings(currentDbContext());
-  return client.$executeRaw`SELECT set_config('familista.rls_mode', ${s.mode}, true), set_config('familista.club_id', ${s.clubId}, true)`;
+  return client.$executeRaw`SELECT set_config('familista.rls_mode', ${s.mode}, true), set_config('familista.club_id', ${s.clubId}, true), set_config('familista.creator_id', ${s.creatorId}, true)`;
 }
 
 /**

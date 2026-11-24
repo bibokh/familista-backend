@@ -156,6 +156,8 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
     const ts = (d: string): string[] => fs.readdirSync(path.join(ROOT, d), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? ts(path.join(d, e.name)) : /\.ts$/.test(e.name) ? [path.join(d, e.name)] : []));
     expect(ts('src').filter((f) => /product-design|ProductDesign|pd-core/.test(read(f))).sort()).toEqual([
       'src/contracts/owner-api.contracts.ts', 'src/cyber-defense/control-plane/registry.ts',
+      // P2: a creator's session leaves a PERSONAL design scope, and the creator's own mount uses the studio's handlers.
+      'src/platform/creator/authenticate.ts',
       // M4: manufacturing builds on the Design Studio's collections, rosters, revisions and actor (src/platform/manufacturing).
       'src/platform/manufacturing/club-http.ts', 'src/platform/manufacturing/owner-http.ts', 'src/platform/manufacturing/request.service.ts',
       'src/platform/manufacturing/supplier.service.ts',
@@ -166,13 +168,13 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
       'src/platform/product-design/rollout-http.ts', 'src/platform/product-design/rollout.service.ts',
       // M3: the server's copy of the roster core reads public/product-design/pd-roster.js, as core.ts reads pd-core.js.
       'src/platform/product-design/roster-core.ts', 'src/routes/club-design.routes.ts',
-      'src/routes/index.ts', 'src/routes/product-design.routes.ts', 'src/services/context.service.ts',
+      'src/routes/creator.routes.ts', 'src/routes/index.ts', 'src/routes/product-design.routes.ts', 'src/services/context.service.ts',
     ]);
     // M2c: the club's brand kit: its image pipeline, its service and its handlers. M3: the team rosters' core, service and
     // handlers, and the audit entry both write. M7b: a design's review, its service and handlers.
     expect(fs.readdirSync(path.join(ROOT, 'src/platform/product-design')).sort()).toEqual(['brand-http.ts', 'brand-image.ts', 'brand-kit.service.ts',
       'club-audit.ts', 'collection-http.ts', 'collection.service.ts', 'core.ts', 'entitlements.ts', 'http.ts', 'review-http.ts', 'review.service.ts', 'rollout-http.ts', 'rollout.service.ts', 'roster-core.ts', 'roster-http.ts',
-      'roster.service.ts', 'service.ts']);
+      'roster.service.ts', 'scope-http.ts', 'service.ts']);
     // M2: a club's designs have their own mount, behind authenticate, the club roles that design kits, the club's
     // entitlement, and an ownership check of every project id, all before any handler.
     expect(read('src/routes/index.ts')).toContain("router.use('/club-design', clubDesignRoutes);");
@@ -188,7 +190,8 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
     expect(idRoutes.filter((m) => /^tenantParam\('designProject'\), \w+$/.test(m[3]))).toHaveLength(7);
     expect(idRoutes.filter((m) => /^reviews, tenantParam\('designProject'\), (tenantParam\('designReviewComment', 'commentId'\), )?\w+$/.test(m[3]))).toHaveLength(5);
     idRoutes.filter((m) => m[2].includes(':commentId')).forEach((m) => expect(m[3]).toContain("tenantParam('designReviewComment', 'commentId')"));
-    expect(read('src/middleware/tenant-guard.middleware.ts')).toContain("designProject:            (id: string): Promise<Owner> => prisma.designProject.findUnique({ where: { id }, select: { clubId: true } }),");
+    // P2: a creator's design is answered with an owner no club is, so a club naming it is a tenant mismatch.
+    expect(read('src/middleware/tenant-guard.middleware.ts')).toContain("designProject:            (id: string): Promise<Owner> => designOwner(prisma.designProject.findUnique({ where: { id }, select: { clubId: true, creatorId: true } })),");
     expect(read('src/routes/index.ts').match(/product-design/g)).toHaveLength(2);
     expect(read('src/routes/index.ts')).toContain("router.use('/system/product-design', productDesignRoutes);");
     const routes = read('src/routes/product-design.routes.ts');

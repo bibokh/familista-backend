@@ -204,6 +204,7 @@ export const PLATFORM_AREAS: readonly AreaDecl[] = [
   { id: 'clubs', title: 'Clubs & club workspaces', group: 'PLATFORM', routers: ['club.routes', 'club-admin.routes', 'home.routes', 'team.routes', 'player.routes', 'training.routes', 'analytics.routes', 'club-design.routes'], rows: [5] },
   { id: 'users-roles', title: 'Users, roles & permissions', group: 'PLATFORM', routers: ['membership.routes', 'invitation.routes', 'context.routes'], rows: [6] },
   { id: 'auth-sessions', title: 'Authentication, MFA & sessions', group: 'PLATFORM', routers: ['auth.routes'], rows: [2, 3, 8] },
+  { id: 'creator-studio', title: 'Creator accounts & personal workspaces', group: 'PLATFORM', routers: ['creator-auth.routes', 'creator.routes'], rows: [2, 3, 5, 6] },
   // ── football operations ──
   { id: 'transfers', title: 'Transfers', group: 'FOOTBALL', routers: ['transfer-market.routes', 'scouting.routes'], rows: [] },
   { id: 'coach-market', title: 'Coach Market', group: 'FOOTBALL', routers: ['staff-market.routes', 'coaches.routes'], rows: [] },

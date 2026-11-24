@@ -204,10 +204,11 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
     const policies = await db.$queryRawUnsafe<Row[]>(
       `SELECT tablename, policyname, cmd, permissive, qual, with_check FROM pg_policies WHERE tablename IN ('DesignProject', 'DesignRevision') ORDER BY tablename`);
     expect(policies.map((q) => [q.tablename, q.policyname, q.cmd, q.permissive])).toEqual([
-      ['DesignProject', 'DesignProject_club_isolation', 'ALL', 'PERMISSIVE'], ['DesignRevision', 'DesignRevision_club_isolation', 'ALL', 'PERMISSIVE']]);
-    expect(policies[0].qual).toBe('familista_rls_club_ok("clubId")');
-    expect(policies[0].with_check).toBe('familista_rls_club_ok("clubId")');
-    for (const q of [policies[1].qual, policies[1].with_check]) expect(q).toMatch(/^familista_rls_club_ok\(\( SELECT p\."clubId"/);
+      ['DesignProject', 'DesignProject_tenant_isolation', 'ALL', 'PERMISSIVE'], ['DesignRevision', 'DesignRevision_tenant_isolation', 'ALL', 'PERMISSIVE']]);
+    // P2: a project's owner is a club or a creator; its revisions follow the project's.
+    expect(policies[0].qual).toBe('familista_rls_owner_ok("clubId", "creatorId")');
+    expect(policies[0].with_check).toBe('familista_rls_owner_ok("clubId", "creatorId")');
+    for (const q of [policies[1].qual, policies[1].with_check]) expect(q).toMatch(/familista_rls_owner_ok\(p\."clubId", p\."creatorId"\)/);
     const [{ enforced }] = await db.$queryRawUnsafe<Row[]>('SELECT public.familista_rls_enforced() AS enforced');
     expect(enforced).toBe(true);
   });
@@ -384,11 +385,13 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
   });
 
   describe('ownership and immutability, in the database itself', () => {
-    it('admits PLATFORM and CLUB projects, not PERSONAL yet; a CLUB project is invisible to every platform route', async () => {
+    it('admits each kind of project in its own shape only (a PERSONAL one is a creator’s, P2); a CLUB project is invisible to every platform route', async () => {
       const insert = (id: string, kind: string, clubId: string | null, userId: string | null) => sysExec(
         `INSERT INTO "DesignProject" ("id","ownerKind","clubId","ownerUserId","name","templateKey","templateVersion","headRevision","origin","createdById") VALUES ($1,$2::"DesignOwnerKind",$3,$4,'Kit','${TEMPLATE.key}',1,1,'EDITOR','x')`,
         id, kind, clubId, userId);
-      await expect(insert('22222222-2222-4222-8222-222222222222', 'PERSONAL', null, USERS.coach.id)).rejects.toThrow(/DesignProject_context_active/);
+      // A personal project is owned by a creator account, never by a club user and never with a club.
+      await expect(insert('22222222-2222-4222-8222-222222222222', 'PERSONAL', null, USERS.coach.id)).rejects.toThrow(/DesignProject_owner_shape/);
+      await expect(insert('22222222-2222-4222-8222-222222222223', 'PERSONAL', C1, null)).rejects.toThrow(/DesignProject_owner_shape/);
       await expect(insert('33333333-3333-4333-8333-333333333333', 'CLUB', null, null)).rejects.toThrow(/DesignProject_owner_shape/);
       const clubId = '11111111-1111-4111-8111-111111111111';
       await insert(clubId, 'CLUB', C1, null);
@@ -659,9 +662,9 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
         const [t] = await db.$queryRawUnsafe<Row[]>(`SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = 'DesignRoster'`);
         expect(t).toEqual({ relrowsecurity: true, relforcerowsecurity: true });
         const [pol] = await db.$queryRawUnsafe<Row[]>(`SELECT policyname, cmd, qual, with_check FROM pg_policies WHERE tablename = 'DesignRoster'`);
-        expect(pol).toEqual({ policyname: 'DesignRoster_club_isolation', cmd: 'ALL', qual: 'familista_rls_club_ok("clubId")', with_check: 'familista_rls_club_ok("clubId")' });
-        const checks = await db.$queryRawUnsafe<Row[]>(`SELECT conname FROM pg_constraint WHERE contype = 'c' AND conrelid = '"DesignRoster"'::regclass`);
-        expect(checks.map((c) => c.conname)).toEqual(['DesignRoster_shape']);
+        expect(pol).toEqual({ policyname: 'DesignRoster_tenant_isolation', cmd: 'ALL', qual: 'familista_rls_owner_ok("clubId", "creatorId")', with_check: 'familista_rls_owner_ok("clubId", "creatorId")' });
+        const checks = await db.$queryRawUnsafe<Row[]>(`SELECT conname FROM pg_constraint WHERE contype = 'c' AND conrelid = '"DesignRoster"'::regclass ORDER BY conname`);
+        expect(checks.map((c) => c.conname)).toEqual(['DesignRoster_one_owner', 'DesignRoster_shape']);
       });
 
       it('serves a club’s administrators and managers alone, refusing before anything is written', async () => {
@@ -799,7 +802,7 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
         const rls = await db.$queryRawUnsafe<Row[]>(`SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname IN ('DesignCollection', 'DesignCollectionItem') ORDER BY relname`);
         expect(rls).toEqual(['DesignCollection', 'DesignCollectionItem'].map((relname) => ({ relname, relrowsecurity: true, relforcerowsecurity: true })));
         const pol = await db.$queryRawUnsafe<Row[]>(`SELECT tablename, qual, with_check FROM pg_policies WHERE tablename IN ('DesignCollection', 'DesignCollectionItem') ORDER BY tablename`);
-        expect(pol.map((q) => [q.tablename, q.qual, q.with_check])).toEqual(['DesignCollection', 'DesignCollectionItem'].map((t) => [t, 'familista_rls_club_ok("clubId")', 'familista_rls_club_ok("clubId")']));
+        expect(pol.map((q) => [q.tablename, q.qual, q.with_check])).toEqual(['DesignCollection', 'DesignCollectionItem'].map((t) => [t, 'familista_rls_owner_ok("clubId", "creatorId")', 'familista_rls_owner_ok("clubId", "creatorId")']));
         const trig = await db.$queryRawUnsafe<Row[]>(`SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = '"DesignCollection"'::regclass`);
         expect(trig.map((t) => t.tgname)).toEqual(['DesignCollection_roster_club']);
       });

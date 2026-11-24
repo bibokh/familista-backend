@@ -17,7 +17,8 @@
 import { DesignCollectionRole, Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { ConflictError, NotFoundError } from '../../utils/errors';
-import { clubAudit } from './club-audit';
+import { tenantAudit } from './club-audit';
+import { ownerColumns, tenantWhere, type Tenant } from '../tenancy/tenant';
 import { templateForm } from './core';
 import { rosterSummary, validateRosterEntries, type RosterSummary, youthEntries } from './roster-core';
 import { approvalsFor, type ApprovalState } from './review.service';
@@ -64,9 +65,9 @@ const FULL_SELECT = {
 };
 type FullRow = Prisma.DesignCollectionGetPayload<{ select: typeof FULL_SELECT }>;
 
-async function view(tx: Prisma.TransactionClient, clubId: string, row: FullRow): Promise<CollectionView> {
+async function view(tx: Prisma.TransactionClient, tenant: Tenant, row: FullRow): Promise<CollectionView> {
   const { items, ...rest } = row;
-  const approvals = await approvalsFor(tx, clubId, items.map((i) => ({ projectId: i.projectId, revision: i.project.headRevision })));
+  const approvals = await approvalsFor(tx, tenant, items.map((i) => ({ projectId: i.projectId, revision: i.project.headRevision })));
   return {
     ...rest,
     items: items.map((i) => ({
@@ -80,8 +81,8 @@ function summary(row: Prisma.DesignCollectionGetPayload<{ select: typeof SUMMARY
   const { _count, ...rest } = row;
   return { ...rest, items: _count.items };
 }
-function audit(tx: Prisma.TransactionClient, clubId: string, actor: DesignActor, action: string, id: string, metadata: Record<string, unknown>, message: string) {
-  return clubAudit(tx, clubId, actor, { action, resourceType: 'DesignCollection', resourceId: id, metadata, message });
+function audit(tx: Prisma.TransactionClient, tenant: Tenant, actor: DesignActor, action: string, id: string, metadata: Record<string, unknown>, message: string) {
+  return tenantAudit(tx, tenant, actor, { action, resourceType: 'DesignCollection', resourceId: id, metadata, message });
 }
 
 /** The name and season as kept: NFC, trimmed, inner spaces single; the season empty is none. */
@@ -101,101 +102,101 @@ function clean(input: CollectionInput): CollectionInput {
 }
 
 /** Every design and the roster a collection names are this club's: asked with the club, under the request's context. */
-async function checkReferences(tx: Prisma.TransactionClient, clubId: string, input: CollectionInput): Promise<void> {
+async function checkReferences(tx: Prisma.TransactionClient, tenant: Tenant, input: CollectionInput): Promise<void> {
   if (input.items.length) {
-    const found = await tx.designProject.findMany({ where: { clubId, id: { in: input.items.map((i) => i.projectId) } }, select: { id: true } });
+    const found = await tx.designProject.findMany({ where: { ...tenantWhere(tenant), id: { in: input.items.map((i) => i.projectId) } }, select: { id: true } });
     const ids = new Set(found.map((p) => p.id));
     const missing = input.items.findIndex((i) => !ids.has(i.projectId));
     if (missing !== -1) throw new CollectionInvalidError('unknown-design', `items[${missing}].projectId`);
   }
-  if (input.rosterId && !(await tx.designRoster.findFirst({ where: { id: input.rosterId, clubId }, select: { id: true } }))) {
+  if (input.rosterId && !(await tx.designRoster.findFirst({ where: { id: input.rosterId, ...tenantWhere(tenant) }, select: { id: true } }))) {
     throw new CollectionInvalidError('unknown-roster', 'rosterId');
   }
 }
-async function writeItems(tx: Prisma.TransactionClient, clubId: string, collectionId: string, items: CollectionInput['items']): Promise<void> {
-  await tx.designCollectionItem.deleteMany({ where: { collectionId, clubId } });
-  if (items.length) await tx.designCollectionItem.createMany({ data: items.map((i, position) => ({ clubId, collectionId, projectId: i.projectId, role: i.role, position })) });
+async function writeItems(tx: Prisma.TransactionClient, tenant: Tenant, collectionId: string, items: CollectionInput['items']): Promise<void> {
+  await tx.designCollectionItem.deleteMany({ where: { collectionId, ...tenantWhere(tenant) } });
+  if (items.length) await tx.designCollectionItem.createMany({ data: items.map((i, position) => ({ ...tenantWhere(tenant), collectionId, projectId: i.projectId, role: i.role, position })) });
 }
 
 /** The club's collections, most recently changed first: active ones, or archived ones when asked. */
-export async function listCollections(clubId: string, opts: { archived?: boolean } = {}): Promise<{ collections: CollectionSummaryView[]; limit: number }> {
+export async function listCollections(tenant: Tenant, opts: { archived?: boolean } = {}): Promise<{ collections: CollectionSummaryView[]; limit: number }> {
   const rows = await prisma.designCollection.findMany({
-    where: { clubId, archivedAt: opts.archived ? { not: null } : null },
+    where: { ...tenantWhere(tenant), archivedAt: opts.archived ? { not: null } : null },
     orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }], take: ACTIVE_COLLECTION_LIMIT * 2, select: SUMMARY_SELECT,
   });
   return { collections: rows.map(summary), limit: ACTIVE_COLLECTION_LIMIT };
 }
 
 /** One of the club's collections, with its designs in order. */
-export async function getCollection(clubId: string, id: string): Promise<{ collection: CollectionView }> {
-  const row = await prisma.designCollection.findFirst({ where: { id, clubId }, select: FULL_SELECT });
+export async function getCollection(tenant: Tenant, id: string): Promise<{ collection: CollectionView }> {
+  const row = await prisma.designCollection.findFirst({ where: { id, ...tenantWhere(tenant) }, select: FULL_SELECT });
   if (!row) throw new NotFoundError('Collection');
-  return { collection: await view(prisma, clubId, row) };
+  return { collection: await view(prisma, tenant, row) };
 }
 
 /** A new collection. */
-export async function createCollection(clubId: string, actor: DesignActor, raw: CollectionInput): Promise<{ collection: CollectionView }> {
+export async function createCollection(tenant: Tenant, actor: DesignActor, raw: CollectionInput): Promise<{ collection: CollectionView }> {
   const input = clean(raw);
   return prisma.$transaction(async (tx) => {
-    if ((await tx.designCollection.count({ where: { clubId, archivedAt: null } })) >= ACTIVE_COLLECTION_LIMIT) {
+    if ((await tx.designCollection.count({ where: { ...tenantWhere(tenant), archivedAt: null } })) >= ACTIVE_COLLECTION_LIMIT) {
       throw new CollectionRefusedError('COLLECTION_LIMIT', `A club keeps at most ${ACTIVE_COLLECTION_LIMIT} collections; archive one first`);
     }
-    await checkReferences(tx, clubId, input);
+    await checkReferences(tx, tenant, input);
     const created = await tx.designCollection.create({
-      data: { clubId, name: input.name, season: input.season, rosterId: input.rosterId, createdById: actor.userId, updatedById: actor.userId }, select: { id: true },
+      data: { ...tenantWhere(tenant), name: input.name, season: input.season, rosterId: input.rosterId, createdById: actor.userId, updatedById: actor.userId }, select: { id: true },
     });
-    await writeItems(tx, clubId, created.id, input.items);
-    await audit(tx, clubId, actor, 'design.collection.created', created.id, { designs: input.items.length, roster: !!input.rosterId }, 'A design collection was created');
-    return { collection: await view(tx, clubId, await tx.designCollection.findFirstOrThrow({ where: { id: created.id, clubId }, select: FULL_SELECT })) };
+    await writeItems(tx, tenant, created.id, input.items);
+    await audit(tx, tenant, actor, 'design.collection.created', created.id, { designs: input.items.length, roster: !!input.rosterId }, 'A design collection was created');
+    return { collection: await view(tx, tenant, await tx.designCollection.findFirstOrThrow({ where: { id: created.id, ...tenantWhere(tenant) }, select: FULL_SELECT })) };
   });
 }
 
 /** Replace a collection's name, season, roster and designs, if it is still at the version the save was based on. */
-export async function saveCollection(clubId: string, actor: DesignActor, id: string, raw: CollectionInput & { version: number }): Promise<{ collection: CollectionView }> {
+export async function saveCollection(tenant: Tenant, actor: DesignActor, id: string, raw: CollectionInput & { version: number }): Promise<{ collection: CollectionView }> {
   const input = clean(raw);
   return prisma.$transaction(async (tx) => {
-    const current = await tx.designCollection.findFirst({ where: { id, clubId }, select: { version: true, archivedAt: true } });
+    const current = await tx.designCollection.findFirst({ where: { id, ...tenantWhere(tenant) }, select: { version: true, archivedAt: true } });
     if (!current) throw new NotFoundError('Collection');
     if (current.archivedAt) throw new CollectionRefusedError('COLLECTION_ARCHIVED', 'This collection is archived; return it to the list before saving it');
-    await checkReferences(tx, clubId, input);
+    await checkReferences(tx, tenant, input);
     // The version is part of the write's own condition, so two saves racing on one version cannot both succeed.
     const moved = await tx.designCollection.updateMany({
-      where: { id, clubId, version: raw.version, archivedAt: null },
+      where: { id, ...tenantWhere(tenant), version: raw.version, archivedAt: null },
       data: { name: input.name, season: input.season, rosterId: input.rosterId, version: { increment: 1 }, updatedById: actor.userId },
     });
     if (moved.count !== 1) throw new CollectionConflictError(current.version);
-    await writeItems(tx, clubId, id, input.items);
-    const row = await tx.designCollection.findFirstOrThrow({ where: { id, clubId }, select: FULL_SELECT });
-    await audit(tx, clubId, actor, 'design.collection.saved', id, { designs: input.items.length, roster: !!input.rosterId, version: row.version }, 'A design collection was saved');
-    return { collection: await view(tx, clubId, row) };
+    await writeItems(tx, tenant, id, input.items);
+    const row = await tx.designCollection.findFirstOrThrow({ where: { id, ...tenantWhere(tenant) }, select: FULL_SELECT });
+    await audit(tx, tenant, actor, 'design.collection.saved', id, { designs: input.items.length, roster: !!input.rosterId, version: row.version }, 'A design collection was saved');
+    return { collection: await view(tx, tenant, row) };
   });
 }
 
 /** Archive a collection, or return it to the list. Its designs stay where they are either way. */
-export async function setCollectionArchived(clubId: string, actor: DesignActor, id: string, archived: boolean): Promise<{ collection: CollectionSummaryView }> {
+export async function setCollectionArchived(tenant: Tenant, actor: DesignActor, id: string, archived: boolean): Promise<{ collection: CollectionSummaryView }> {
   return prisma.$transaction(async (tx) => {
-    const current = await tx.designCollection.findFirst({ where: { id, clubId }, select: SUMMARY_SELECT });
+    const current = await tx.designCollection.findFirst({ where: { id, ...tenantWhere(tenant) }, select: SUMMARY_SELECT });
     if (!current) throw new NotFoundError('Collection');
     if (!!current.archivedAt === archived) return { collection: summary(current) };
-    if (!archived && (await tx.designCollection.count({ where: { clubId, archivedAt: null } })) >= ACTIVE_COLLECTION_LIMIT) {
+    if (!archived && (await tx.designCollection.count({ where: { ...tenantWhere(tenant), archivedAt: null } })) >= ACTIVE_COLLECTION_LIMIT) {
       throw new CollectionRefusedError('COLLECTION_LIMIT', `A club keeps at most ${ACTIVE_COLLECTION_LIMIT} collections; archive one first`);
     }
-    await tx.designCollection.updateMany({ where: { id, clubId }, data: { archivedAt: archived ? new Date() : null } });
-    const row = await tx.designCollection.findFirstOrThrow({ where: { id, clubId }, select: SUMMARY_SELECT });
-    await audit(tx, clubId, actor, archived ? 'design.collection.archived' : 'design.collection.unarchived', id, { designs: row._count.items },
+    await tx.designCollection.updateMany({ where: { id, ...tenantWhere(tenant) }, data: { archivedAt: archived ? new Date() : null } });
+    const row = await tx.designCollection.findFirstOrThrow({ where: { id, ...tenantWhere(tenant) }, select: SUMMARY_SELECT });
+    await audit(tx, tenant, actor, archived ? 'design.collection.archived' : 'design.collection.unarchived', id, { designs: row._count.items },
       archived ? 'A design collection was archived' : 'A design collection was returned to the list');
     return { collection: summary(row) };
   });
 }
 
 /** Delete a collection, archived first. Its designs are not touched: only the gathering goes. */
-export async function deleteCollection(clubId: string, actor: DesignActor, id: string): Promise<{ deleted: true }> {
+export async function deleteCollection(tenant: Tenant, actor: DesignActor, id: string): Promise<{ deleted: true }> {
   return prisma.$transaction(async (tx) => {
-    const current = await tx.designCollection.findFirst({ where: { id, clubId }, select: { archivedAt: true, _count: { select: { items: true } } } });
+    const current = await tx.designCollection.findFirst({ where: { id, ...tenantWhere(tenant) }, select: { archivedAt: true, _count: { select: { items: true } } } });
     if (!current) throw new NotFoundError('Collection');
     if (!current.archivedAt) throw new CollectionRefusedError('COLLECTION_ARCHIVED', 'Archive this collection before deleting it');
-    await tx.designCollection.deleteMany({ where: { id, clubId } });
-    await audit(tx, clubId, actor, 'design.collection.deleted', id, { designs: current._count.items }, 'A design collection was deleted');
+    await tx.designCollection.deleteMany({ where: { id, ...tenantWhere(tenant) } });
+    await audit(tx, tenant, actor, 'design.collection.deleted', id, { designs: current._count.items }, 'A design collection was deleted');
     return { deleted: true };
   });
 }
@@ -211,13 +212,13 @@ export interface OrderSheet {
  * What a roster asks of a collection: for each design, the sets per size of its garment form. The roster is the one asked
  * for, or else the collection's own; with neither, every design is listed with no sizes. Writes nothing.
  */
-export async function orderSheet(clubId: string, id: string, rosterId?: string): Promise<{ sheet: OrderSheet }> {
-  const { collection } = await getCollection(clubId, id);
+export async function orderSheet(tenant: Tenant, id: string, rosterId?: string): Promise<{ sheet: OrderSheet }> {
+  const { collection } = await getCollection(tenant, id);
   const rid = rosterId ?? collection.rosterId;
   let roster: OrderSheet['roster'] = null;
   let sum: RosterSummary | null = null;
   if (rid) {
-    const row = await prisma.designRoster.findFirst({ where: { id: rid, clubId }, select: { id: true, name: true, version: true, entries: true, includesMinors: true } });
+    const row = await prisma.designRoster.findFirst({ where: { id: rid, ...tenantWhere(tenant) }, select: { id: true, name: true, version: true, entries: true, includesMinors: true } });
     if (!row) throw new NotFoundError('Roster');
     const entries = validateRosterEntries(row.entries);
     sum = rosterSummary(entries);

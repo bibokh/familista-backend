@@ -9,7 +9,8 @@
 import { ManufacturingPersonState, ManufacturingRequestStatus as S, Prisma, UserRole } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { ForbiddenError } from '../../utils/errors';
-import { clubAudit } from '../product-design/club-audit';
+import { tenantAudit } from '../product-design/club-audit';
+import { clubTenant } from '../tenancy/tenant';
 import { validateRosterEntries } from '../product-design/roster-core';
 import type { DesignActor } from '../product-design/service';
 
@@ -57,7 +58,7 @@ export async function erasePerson(clubId: string, actor: DesignActor & { role?: 
         data: { state: ManufacturingPersonState.ERASED, name: null, erasedAt: new Date() },
       });
     }
-    await clubAudit(tx, clubId, actor, { action: 'privacy.person.erased', resourceType: 'Club', resourceId: clubId,
+    await tenantAudit(tx, clubTenant(clubId), actor, { action: 'privacy.person.erased', resourceType: 'Club', resourceId: clubId,
       metadata: { ...count }, message: 'A person’s name was erased from the club’s design data' });
     return { erased: count };
   });

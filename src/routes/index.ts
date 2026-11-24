@@ -25,6 +25,8 @@ import systemUpdatesRoutes from './system-updates.routes';
 import productDesignRoutes from './product-design.routes';
 import manufacturingRoutes from './manufacturing.routes';
 import clubDesignRoutes from './club-design.routes';
+import creatorAuthRoutes from './creator-auth.routes';
+import creatorRoutes from './creator.routes';
 import telemetryRoutes from './telemetry.routes';
 import contextRoutes    from './context.routes';
 // Phase B — Match Intelligence + Hardware Sessions + Automation
@@ -142,6 +144,9 @@ router.use('/system/updates', systemUpdatesRoutes);
 router.use('/system/product-design', productDesignRoutes);
 router.use('/system/manufacturing', manufacturingRoutes);
 router.use('/club-design', clubDesignRoutes);
+// The creator's way in first: /creator/auth is public, everything else under /creator needs a creator session.
+router.use('/creator/auth', creatorAuthRoutes);
+router.use('/creator', creatorRoutes);
 // Product-usage ingestion. Deliberately not '/analytics' — that is a club's own
 // football analytics, and the two must never be confused for one another.
 router.use('/telemetry',   telemetryRoutes);

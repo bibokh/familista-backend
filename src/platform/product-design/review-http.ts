@@ -4,6 +4,8 @@
  * the one the gate resolved from the session; a handler reached without a club scope refuses, never serves.
  */
 import type { Request, RequestHandler, Response } from 'express';
+import { designActorOf as actorOf, tenantOfRes } from './scope-http';
+import type { Tenant } from '../tenancy/tenant';
 import { DesignReviewDecision, UserRole } from '@prisma/client';
 import { z } from 'zod';
 import { addComment, decide, getReview, setCommentResolved, ReviewInvalidError, ReviewStaleError } from './review.service';
@@ -17,18 +19,9 @@ const DecisionBody = z.object({
   note: z.string().max(4000).nullable().default(null),
 }).strict();
 
-function clubOf(res: Response): string {
-  const s = res.locals.designScope as DesignScope | undefined;
-  if (!s || s.kind !== 'CLUB') throw new Error('A review route was reached without a club scope');
-  return s.clubId;
-}
-function actorOf(req: Request): DesignActor & { role: UserRole } {
-  const ua = req.headers['user-agent'];
-  return { userId: req.user?.id ?? '', role: req.user?.role as UserRole, ipAddress: req.ip ?? null, userAgent: typeof ua === 'string' ? ua.slice(0, 400) : null, correlationId: req.requestId ?? null };
-}
-function handler(work: (req: Request, res: Response, clubId: string) => Promise<void>): RequestHandler {
+function handler(work: (req: Request, res: Response, tenant: Tenant) => Promise<void>): RequestHandler {
   return async (req, res, next) => {
-    try { await work(req, res, clubOf(res)); } catch (err) {
+    try { await work(req, res, tenantOfRes(res)); } catch (err) {
       if (err instanceof ReviewInvalidError) { res.status(400).json({ success: false, code: 'REVIEW_INVALID', reason: err.code, path: err.path, message: err.message }); return; }
       if (err instanceof ReviewStaleError) { res.status(409).json({ success: false, code: err.code, data: { headRevision: err.headRevision }, message: err.message }); return; }
       next(err);
@@ -36,15 +29,15 @@ function handler(work: (req: Request, res: Response, clubId: string) => Promise<
   };
 }
 
-export const readDesignReview = handler(async (req, res, clubId) => { res.json({ success: true, data: await getReview(clubId, Id.parse(req.params.id)) }); });
-export const commentOnDesign = handler(async (req, res, clubId) => {
-  res.status(201).json({ success: true, data: await addComment(clubId, actorOf(req), Id.parse(req.params.id), CommentBody.parse(req.body)) });
+export const readDesignReview = handler(async (req, res, tenant) => { res.json({ success: true, data: await getReview(tenant, Id.parse(req.params.id)) }); });
+export const commentOnDesign = handler(async (req, res, tenant) => {
+  res.status(201).json({ success: true, data: await addComment(tenant, actorOf(req), Id.parse(req.params.id), CommentBody.parse(req.body)) });
 });
-const resolveTo = (resolved: boolean) => handler(async (req, res, clubId) => {
-  res.json({ success: true, data: await setCommentResolved(clubId, actorOf(req), Id.parse(req.params.id), Id.parse(req.params.commentId), resolved) });
+const resolveTo = (resolved: boolean) => handler(async (req, res, tenant) => {
+  res.json({ success: true, data: await setCommentResolved(tenant, actorOf(req), Id.parse(req.params.id), Id.parse(req.params.commentId), resolved) });
 });
 export const resolveDesignComment = resolveTo(true);
 export const reopenDesignComment = resolveTo(false);
-export const decideOnDesign = handler(async (req, res, clubId) => {
-  res.status(201).json({ success: true, data: await decide(clubId, actorOf(req), Id.parse(req.params.id), DecisionBody.parse(req.body)) });
+export const decideOnDesign = handler(async (req, res, tenant) => {
+  res.status(201).json({ success: true, data: await decide(tenant, actorOf(req), Id.parse(req.params.id), DecisionBody.parse(req.body)) });
 });

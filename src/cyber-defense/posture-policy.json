@@ -22,7 +22,15 @@
     "POST /neuro/streams/:id/event-batch": "Edge camera ingest: HMAC over the batch verified with the camera credential, nonce replay-checked (device-nonce service).",
     "POST /vision/cameras/:id/frame": "Edge camera ingest: HMAC over ts.nonce.sha256(detections) verified with the camera credential.",
     "GET /phase-q/video/shared/:shareToken": "A shared clip link: the 192-bit random share token in the path is the credential, and the service refuses an unknown or expired token. Returns that one clip only.",
-    "GET /matches/:id/live": "Live match stream (SSE). Not anonymous: EventSource cannot send headers, so the handler verifies a user JWT from ?token= itself and checks the match's club. Known weaknesses tracked elsewhere: the token travels in the URL (websocket-token-outside-url) and session revocation is not checked on realtime channels (remediation R1c)."
+    "GET /matches/:id/live": "Live match stream (SSE). Not anonymous: EventSource cannot send headers, so the handler verifies a user JWT from ?token= itself and checks the match's club. Known weaknesses tracked elsewhere: the token travels in the URL (websocket-token-outside-url) and session revocation is not checked on realtime channels (remediation R1c).",
+    "GET /creator/auth/terms": "Creator Studio (P2): what a sign-up page shows before anyone has an account: sign-up is by invitation, and the minimum age to confirm. No account, invitation or person is read.",
+    "POST /creator/auth/register": "Creator Studio (P2): opens a creator account only with a valid Platform Owner invitation (hash compared, single use taken conditionally, address-bound when the Owner bound it); without one, 403 CREATOR_INVITE_REFUSED. Tighter auth rate limit per account and per failing address.",
+    "POST /creator/auth/login": "Creator Studio (P2): credential exchange for a creator token (its own audience, never a club session). Lockout checked before the password, every outcome recorded, a missing account takes as long as a wrong password; tighter auth rate limit.",
+    "POST /creator/auth/refresh": "Creator Studio (P2): exchanges the HttpOnly refresh cookie (path /api/v1/creator/auth) for a rotated one; the token is opaque, stored as a hash, single use; a replaced token presented again ends its whole family.",
+    "POST /creator/auth/logout": "Creator Studio (P2): ends the session the refresh cookie names (its family) and clears the cookies; an unknown token changes nothing.",
+    "POST /creator/auth/verify-email": "Creator Studio (P2): claims a one-time, expiring address-confirmation link (stored as a hash); it can only mark that link\u2019s own account verified.",
+    "POST /creator/auth/forgot-password": "Creator Studio (P2): always 202 whether or not the address has an account (no enumeration); sends a one-hour reset link through the EmailService only to an active account. Tighter auth rate limit per account.",
+    "POST /creator/auth/reset-password": "Creator Studio (P2): claims a one-time, one-hour reset link (hash) and sets a new password in one transaction; every session of that account ends. Tighter auth rate limit."
   },
   "appLevelRoutes": {
     "GET /api/health": "Liveness probe for the load balancer; returns no data.",
@@ -880,6 +888,21 @@
       "routes": [
         "GET /system/manufacturing/requests/:requestId/designs/:projectId"
       ]
+    },
+    "product-design.routes :inviteId": {
+      "basis": "platform-only",
+      "reason": "A creator invitation belongs to no club: it is the Platform Owner's, issued and revoked only on these routes behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts); src/platform/creator/account.service.ts reaches it by id on the Owner's path alone.",
+      "routes": [
+        "POST /system/product-design/creators/invites/:inviteId/revoke"
+      ]
+    },
+    "creator.routes :number": {
+      "basis": "not-an-identifier",
+      "reason": "A revision number within one design (1, 2, 3...), not a row id: it is read only together with that design's id, which router.param('id', creatorOwns('designProject')) checks against the signed-in creator first, under the same PERSONAL scope.",
+      "routes": [
+        "GET /creator/projects/:id/revisions/:number",
+        "POST /creator/projects/:id/revisions/:number/restore"
+      ]
     }
   },
   "ownerRooms": {
@@ -991,6 +1014,54 @@
       "GET /me/settings",
       "PATCH /me/settings",
       "POST /me/context"
+    ],
+    "creator.routes": [
+      "DELETE /creator/collections/:collectionId",
+      "DELETE /creator/rosters/:rosterId",
+      "GET /creator/brand-kit",
+      "GET /creator/brand-kit/assets/:assetId/image",
+      "GET /creator/collections",
+      "GET /creator/collections/:collectionId",
+      "GET /creator/collections/:collectionId/order-sheet",
+      "GET /creator/me",
+      "GET /creator/projects",
+      "GET /creator/projects/:id",
+      "GET /creator/projects/:id/review",
+      "GET /creator/projects/:id/revisions",
+      "GET /creator/projects/:id/revisions/:number",
+      "GET /creator/requests",
+      "GET /creator/requests/:requestId",
+      "GET /creator/rosters",
+      "GET /creator/rosters/:rosterId",
+      "PATCH /creator/me",
+      "POST /creator/brand-kit/assets",
+      "POST /creator/brand-kit/assets/:assetId/archive",
+      "POST /creator/brand-kit/assets/:assetId/unarchive",
+      "POST /creator/collections",
+      "POST /creator/collections/:collectionId/archive",
+      "POST /creator/collections/:collectionId/requests",
+      "POST /creator/collections/:collectionId/unarchive",
+      "POST /creator/me/password",
+      "POST /creator/me/verification",
+      "POST /creator/projects",
+      "POST /creator/projects/:id/archive",
+      "POST /creator/projects/:id/comments",
+      "POST /creator/projects/:id/comments/:commentId/reopen",
+      "POST /creator/projects/:id/comments/:commentId/resolve",
+      "POST /creator/projects/:id/decisions",
+      "POST /creator/projects/:id/revisions",
+      "POST /creator/projects/:id/revisions/:number/restore",
+      "POST /creator/projects/:id/unarchive",
+      "POST /creator/requests/:requestId/cancel",
+      "POST /creator/requests/:requestId/decline",
+      "POST /creator/requests/:requestId/delivered",
+      "POST /creator/requests/:requestId/quotes/:quoteId/accept",
+      "POST /creator/rosters",
+      "POST /creator/rosters/:rosterId/archive",
+      "POST /creator/rosters/:rosterId/unarchive",
+      "PUT /creator/brand-kit/colours",
+      "PUT /creator/collections/:collectionId",
+      "PUT /creator/rosters/:rosterId"
     ],
     "device-infra.routes": [
       "GET /device-infra/devices",
@@ -1404,6 +1475,10 @@
     "platform-owner": "A platform owner acts across clubs by role (authenticate); the owner rooms are pinned separately (owner-rooms-pinned).",
     "transfer-settlement": "An accepted offer, a purchase or a settled auction moves a player from one club to another; authorization is checked before the move.",
     "staff-market-move": "A completed staff move ends a membership at one club and starts it at another; both clubs agreed before it runs.",
-    "video-transcode": "The transcode worker and its callback belong to no club; keys are confined to the asset (worker-callback-authenticated)."
+    "video-transcode": "The transcode worker and its callback belong to no club; keys are confined to the asset (worker-callback-authenticated).",
+    "creator-signup": "Opening a creator account reads and consumes an invitation, which belongs to no club and no creator yet; it writes only the new CreatorAccount, its first session and its audit entry.",
+    "creator-signin": "Signing in a creator finds the account by its address before any session exists; it reads CreatorAccount and writes a CreatorSession only, no Design Studio or club row.",
+    "creator-session": "Refreshing, ending and checking a creator session reads CreatorAccount and CreatorSession by the presented token or the token\u2019s subject, never a club\u2019s row or another creator\u2019s Design Studio row.",
+    "creator-account": "A creator\u2019s own account changes (profile, password, email links) on CreatorAccount, CreatorSession and CreatorEmailToken, by the signed-in creator\u2019s id or a one-time link\u2019s hash."
   }
 }

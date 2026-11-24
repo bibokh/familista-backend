@@ -13,7 +13,8 @@
 import { DesignReviewDecision, Prisma, UserRole } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { ConflictError, ForbiddenError, NotFoundError } from '../../utils/errors';
-import { clubAudit } from './club-audit';
+import { tenantAudit } from './club-audit';
+import { ownerColumns, tenantWhere, type Tenant } from '../tenancy/tenant';
 import { templateSurfaces } from './core';
 import type { DesignActor } from './service';
 
@@ -40,18 +41,18 @@ function text(v: string | null | undefined, at: string, required: boolean): stri
   if (Array.from(s).length > 1000 || CONTROL.test(s)) throw new ReviewInvalidError('bad-text', at);
   return s;
 }
-async function projectOf(tx: Prisma.TransactionClient, clubId: string, projectId: string) {
-  const p = await tx.designProject.findFirst({ where: { id: projectId, clubId }, select: { id: true, headRevision: true, templateKey: true, templateVersion: true } });
+async function projectOf(tx: Prisma.TransactionClient, tenant: Tenant, projectId: string) {
+  const p = await tx.designProject.findFirst({ where: { id: projectId, ...tenantWhere(tenant) }, select: { id: true, headRevision: true, templateKey: true, templateVersion: true } });
   if (!p) throw new NotFoundError('Design');
   return p;
 }
 
 /** The current decision of each (design, revision) asked for: the newest, or none. Asked in the caller's context. */
-export async function approvalsFor(tx: Prisma.TransactionClient, clubId: string, wanted: Array<{ projectId: string; revision: number }>): Promise<Map<string, ApprovalState>> {
+export async function approvalsFor(tx: Prisma.TransactionClient, tenant: Tenant, wanted: Array<{ projectId: string; revision: number }>): Promise<Map<string, ApprovalState>> {
   const out = new Map<string, ApprovalState>();
   if (!wanted.length) return out;
   const rows = await tx.designApproval.findMany({
-    where: { clubId, OR: wanted.map((w) => ({ projectId: w.projectId, revision: w.revision })) },
+    where: { ...tenantWhere(tenant), OR: wanted.map((w) => ({ projectId: w.projectId, revision: w.revision })) },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { projectId: true, revision: true, decision: true, createdAt: true },
   });
   for (const r of rows) {
@@ -62,23 +63,25 @@ export async function approvalsFor(tx: Prisma.TransactionClient, clubId: string,
 }
 
 /** A design's review: its newest version and that version's current decision, every comment, every decision. */
-export async function getReview(clubId: string, projectId: string) {
-  const p = await projectOf(prisma, clubId, projectId);
+export async function getReview(tenant: Tenant, projectId: string) {
+  const p = await projectOf(prisma, tenant, projectId);
   const [comments, decisions] = await Promise.all([
     prisma.designReviewComment.findMany({
-      where: { clubId, projectId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: COMMENT_LIMIT,
+      where: { ...tenantWhere(tenant), projectId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: COMMENT_LIMIT,
       select: { id: true, revision: true, surface: true, body: true, authorId: true, createdAt: true, resolvedAt: true },
     }),
     prisma.designApproval.findMany({
-      where: { clubId, projectId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 100,
+      where: { ...tenantWhere(tenant), projectId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 100,
       select: { id: true, revision: true, decision: true, note: true, decidedById: true, createdAt: true },
     }),
   ]);
-  const people = await prisma.user.findMany({
-    where: { id: { in: [...new Set([...comments.map((c) => c.authorId), ...decisions.map((d) => d.decidedById)])] }, clubId },
-    select: { id: true, firstName: true, lastName: true },
-  });
-  const name = new Map(people.map((u) => [u.id, `${u.firstName} ${u.lastName}`.trim()]));
+  const ids = [...new Set([...comments.map((c) => c.authorId), ...decisions.map((d) => d.decidedById)])];
+  // A club's reviewers are its own users; a creator's are creators (the owner, and P4's collaborators), by display name.
+  const name = new Map<string, string>(tenant.kind === 'club'
+    ? (await prisma.user.findMany({ where: { id: { in: ids }, clubId: tenant.clubId }, select: { id: true, firstName: true, lastName: true } }))
+      .map((u) => [u.id, `${u.firstName} ${u.lastName}`.trim()])
+    : (await prisma.creatorAccount.findMany({ where: { id: { in: ids } }, select: { id: true, displayName: true } }))
+      .filter((c) => c.displayName).map((c) => [c.id, c.displayName as string]));
   const current = decisions.find((d) => d.revision === p.headRevision) ?? null;
   return {
     review: {
@@ -91,28 +94,28 @@ export async function getReview(clubId: string, projectId: string) {
 }
 
 /** A comment on one saved version, on the whole garment or one of its template's surfaces. */
-export async function addComment(clubId: string, actor: DesignActor, projectId: string, input: { revision: number; surface: string | null; body: string }) {
+export async function addComment(tenant: Tenant, actor: DesignActor, projectId: string, input: { revision: number; surface: string | null; body: string }) {
   const body = text(input.body, 'body', true) as string;
   return prisma.$transaction(async (tx) => {
-    const p = await projectOf(tx, clubId, projectId);
+    const p = await projectOf(tx, tenant, projectId);
     if (!Number.isInteger(input.revision) || input.revision < 1 || input.revision > p.headRevision) throw new ReviewInvalidError('unknown-revision', 'revision');
     if (input.surface !== null && !(templateSurfaces(p.templateKey, p.templateVersion) ?? []).includes(input.surface)) throw new ReviewInvalidError('unknown-surface', 'surface');
-    if ((await tx.designReviewComment.count({ where: { clubId, projectId } })) >= COMMENT_LIMIT) throw new ReviewInvalidError('too-many-comments', 'body');
-    const c = await tx.designReviewComment.create({ data: { clubId, projectId, revision: input.revision, surface: input.surface, body, authorId: actor.userId }, select: { id: true } });
-    await clubAudit(tx, clubId, actor, { action: 'design.review.commented', resourceType: 'DesignProject', resourceId: projectId,
+    if ((await tx.designReviewComment.count({ where: { ...tenantWhere(tenant), projectId } })) >= COMMENT_LIMIT) throw new ReviewInvalidError('too-many-comments', 'body');
+    const c = await tx.designReviewComment.create({ data: { ...tenantWhere(tenant), projectId, revision: input.revision, surface: input.surface, body, authorId: actor.userId }, select: { id: true } });
+    await tenantAudit(tx, tenant, actor, { action: 'design.review.commented', resourceType: 'DesignProject', resourceId: projectId,
       metadata: { commentId: c.id, revision: input.revision, surface: input.surface }, message: 'A design was commented on' });
     return { commentId: c.id };
   });
 }
 
 /** Resolve a comment, or open it again. */
-export async function setCommentResolved(clubId: string, actor: DesignActor, projectId: string, commentId: string, resolved: boolean) {
+export async function setCommentResolved(tenant: Tenant, actor: DesignActor, projectId: string, commentId: string, resolved: boolean) {
   return prisma.$transaction(async (tx) => {
-    const c = await tx.designReviewComment.findFirst({ where: { id: commentId, projectId, clubId }, select: { resolvedAt: true } });
+    const c = await tx.designReviewComment.findFirst({ where: { id: commentId, projectId, ...tenantWhere(tenant) }, select: { resolvedAt: true } });
     if (!c) throw new NotFoundError('Comment');
     if (!!c.resolvedAt !== resolved) {
-      await tx.designReviewComment.updateMany({ where: { id: commentId, clubId }, data: resolved ? { resolvedAt: new Date(), resolvedById: actor.userId } : { resolvedAt: null, resolvedById: null } });
-      await clubAudit(tx, clubId, actor, { action: resolved ? 'design.review.resolved' : 'design.review.reopened', resourceType: 'DesignProject', resourceId: projectId,
+      await tx.designReviewComment.updateMany({ where: { id: commentId, ...tenantWhere(tenant) }, data: resolved ? { resolvedAt: new Date(), resolvedById: actor.userId } : { resolvedAt: null, resolvedById: null } });
+      await tenantAudit(tx, tenant, actor, { action: resolved ? 'design.review.resolved' : 'design.review.reopened', resourceType: 'DesignProject', resourceId: projectId,
         metadata: { commentId }, message: resolved ? 'A design comment was resolved' : 'A design comment was reopened' });
     }
     return { commentId, resolved };
@@ -123,16 +126,17 @@ export async function setCommentResolved(clubId: string, actor: DesignActor, pro
  * A club administrator's decision on the design's newest version: approved, or changes requested (with what to change).
  * A manager is refused; a decision on an older version is refused with the newest one's number.
  */
-export async function decide(clubId: string, actor: DesignActor & { role: UserRole }, projectId: string, input: { revision: number; decision: DesignReviewDecision; note: string | null }) {
-  if (actor.role !== UserRole.CLUB_ADMIN) throw new ForbiddenError('Only a club administrator approves a design or requests changes to it');
+export async function decide(tenant: Tenant, actor: DesignActor & { role?: UserRole }, projectId: string, input: { revision: number; decision: DesignReviewDecision; note: string | null }) {
+  // A club's decision is its administrator's; a creator decides on their own designs.
+  if (tenant.kind === 'club' && actor.role !== UserRole.CLUB_ADMIN) throw new ForbiddenError('Only a club administrator approves a design or requests changes to it');
   const note = text(input.note, 'note', input.decision === DesignReviewDecision.CHANGES_REQUESTED);
   return prisma.$transaction(async (tx) => {
-    const p = await projectOf(tx, clubId, projectId);
+    const p = await projectOf(tx, tenant, projectId);
     if (input.revision !== p.headRevision) throw new ReviewStaleError(p.headRevision);
     const rev = await tx.designRevision.findUnique({ where: { projectId_number: { projectId, number: p.headRevision } }, select: { sha256: true } });
     if (!rev) throw new NotFoundError('Design revision');
-    await tx.designApproval.create({ data: { clubId, projectId, revision: p.headRevision, sha256: rev.sha256, decision: input.decision, note, decidedById: actor.userId } });
-    await clubAudit(tx, clubId, actor, {
+    await tx.designApproval.create({ data: { ...tenantWhere(tenant), projectId, revision: p.headRevision, sha256: rev.sha256, decision: input.decision, note, decidedById: actor.userId } });
+    await tenantAudit(tx, tenant, actor, {
       action: input.decision === DesignReviewDecision.APPROVED ? 'design.review.approved' : 'design.review.changes-requested', resourceType: 'DesignProject', resourceId: projectId,
       metadata: { revision: p.headRevision, sha256: rev.sha256 }, message: input.decision === DesignReviewDecision.APPROVED ? 'A design version was approved' : 'Changes to a design version were requested',
     });

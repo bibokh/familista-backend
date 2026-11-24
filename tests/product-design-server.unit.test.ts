@@ -85,10 +85,12 @@ describe('what it may call', () => {
     await P.api.rollout(); await P.api.setRollout('club-1', { studio: 'on' });
     // P1: the retention rules, none set by default.
     await P.api.retention(); await P.api.setRetention('DesignReviewComment', 30); await P.api.applyRetention(true);
+    // P2: the Creator Studio's accounts and the invitations that are the only way in.
+    await P.api.creators(); await P.api.creatorInvites(); await P.api.createCreatorInvite({ email: 'a@example.com' }); await P.api.revokeCreatorInvite(id);
     expect((await P.api.setRollout('../x', { studio: 'on' })).code).toBe('BAD_CLUB');
     expect(P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' }).api.rollout).toBeUndefined();
     await P.api.archive(id); await P.api.unarchive(id); await P.api.getRevision(id, 3);
-    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/product-design', '').replace(/\?.*$/, '').replace('/rollout/club-1', '/rollout/:clubId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
+    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/product-design', '').replace(/\?.*$/, '').replace('/rollout/club-1', '/rollout/:clubId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number').replace(/\/invites\/:id\//, '/invites/:inviteId/')}`).sort();
     // DS-1c: the room now calls every route, the single-version read included (the 3D comparison, read only).
     expect([...new Set(used)].sort()).toEqual(served);
     expect(calls[calls.length - 1].init).toMatchObject({ method: 'GET' });

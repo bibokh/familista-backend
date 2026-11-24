@@ -83,7 +83,7 @@ export async function applyRetention(actor: DesignActor, dryRun: boolean, now: D
     results.push({ kind: r.kind, days: r.days, cutoff: cutoff.toISOString(), affected });
   }
   if (!dryRun) {
-    await prisma.$transaction((tx) => ownerAudit(tx, actor, { action: 'privacy.retention.applied', resourceType: 'DataRetentionPolicy', resourceId: 'design-studio',
+    await prisma.$transaction((tx) => ownerAudit(tx, actor, { action: 'privacy.retention.applied', resourceType: 'DataRetentionPolicy', resourceId: 'product-design',
       metadata: { results }, message: 'Design Studio retention rules were applied' }));
   }
   return { dryRun, results };

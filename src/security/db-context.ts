@@ -7,6 +7,8 @@
 // transaction-local settings before each query on a pilot table:
 //
 //   club     a signed-in request inside one club (set by `authenticate`)
+//   creator  a signed-in creator's request (Creator Studio, P2; set by `authenticateCreator`): it reaches that creator's
+//            own Design Studio and manufacturing rows and no club's — familista_rls_club_ok admits no creator at all
 //   system   an explicit, named path that acts across clubs: the platform
 //            owner, a background worker, sign-in before a club is known,
 //            a transfer that moves a player between clubs. Every use names
@@ -32,6 +34,7 @@ import { AsyncLocalStorage } from 'async_hooks';
 
 export type DbContext =
   | { mode: 'club'; clubId: string | null; userId?: string | null }
+  | { mode: 'creator'; creatorId: string }
   | { mode: 'system'; reason: string };
 
 type Held = DbContext & { inTransaction?: boolean };
@@ -86,6 +89,12 @@ export function runInClubContext<T>(clubId: string | null | undefined, userId: s
   return store.run({ mode: 'club', clubId: clubId ?? null, userId: userId ?? null }, fn);
 }
 
+/** Run `fn` as a signed-in creator's request: that creator's own rows, and nothing of any club's. */
+export function runInCreatorContext<T>(creatorId: string, fn: () => T): T {
+  if (typeof creatorId !== 'string' || !creatorId) throw new Error('runInCreatorContext needs the creator');
+  return store.run({ mode: 'creator', creatorId }, fn);
+}
+
 /**
  * Run `fn` across clubs, on purpose. The reason is required, short and
  * literal, so every path that steps outside a club can be found and reviewed.
@@ -100,9 +109,10 @@ export function runInTransaction<T>(ctx: Held | undefined, fn: () => T): T {
   return store.run({ ...(ctx ?? { mode: 'club', clubId: null }), inTransaction: true } as Held, fn);
 }
 
-/** The two settings PostgreSQL reads, for the context (or for none). */
-export function dbSettings(ctx: DbContext | undefined): { mode: string; clubId: string } {
-  if (!ctx) return { mode: '', clubId: '' };
-  if (ctx.mode === 'system') return { mode: 'system', clubId: '' };
-  return { mode: 'club', clubId: ctx.clubId ?? '' };
+/** The settings PostgreSQL reads, for the context (or for none). Every one is always set, so none leaks from before. */
+export function dbSettings(ctx: DbContext | undefined): { mode: string; clubId: string; creatorId: string } {
+  if (!ctx) return { mode: '', clubId: '', creatorId: '' };
+  if (ctx.mode === 'system') return { mode: 'system', clubId: '', creatorId: '' };
+  if (ctx.mode === 'creator') return { mode: 'creator', clubId: '', creatorId: ctx.creatorId };
+  return { mode: 'club', clubId: ctx.clubId ?? '', creatorId: '' };
 }

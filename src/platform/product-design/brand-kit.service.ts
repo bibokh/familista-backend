@@ -11,7 +11,8 @@
 import { DesignBrandAssetKind, Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { ConflictError, NotFoundError } from '../../utils/errors';
-import { clubAudit } from './club-audit';
+import { tenantAudit } from './club-audit';
+import { ownerColumns, tenantWhere, type Tenant } from '../tenancy/tenant';
 import { normaliseBrandImage } from './brand-image';
 import type { DesignActor } from './service';
 
@@ -50,49 +51,49 @@ export function validColours(input: unknown): BrandColour[] | null {
   return out;
 }
 
-function audit(tx: Prisma.TransactionClient, clubId: string, actor: DesignActor, action: string, resourceId: string, metadata: Record<string, unknown>, message: string) {
-  return clubAudit(tx, clubId, actor, { action, resourceType: 'DesignBrandKit', resourceId, metadata, message });
+function audit(tx: Prisma.TransactionClient, tenant: Tenant, actor: DesignActor, action: string, resourceId: string, metadata: Record<string, unknown>, message: string) {
+  return tenantAudit(tx, tenant, actor, { action, resourceType: 'DesignBrandKit', resourceId, metadata, message });
 }
 
-async function kitOf(tx: Prisma.TransactionClient, clubId: string, actor: DesignActor) {
-  return tx.designBrandKit.upsert({ where: { clubId }, create: { clubId, updatedById: actor.userId }, update: {}, select: { id: true } });
+async function kitOf(tx: Prisma.TransactionClient, tenant: Tenant, actor: DesignActor) {
+  return tx.designBrandKit.upsert({ where: { ...tenantWhere(tenant) }, create: { ...tenantWhere(tenant), updatedById: actor.userId }, update: {}, select: { id: true } });
 }
 
 /** The club's kit: its colours and its logos (newest first; archived ones only when asked). */
-export async function getBrandKit(clubId: string, opts: { archived?: boolean } = {}): Promise<{ colours: BrandColour[]; assets: BrandAssetView[]; limits: { assets: number; colours: number } }> {
-  const kit = await prisma.designBrandKit.findUnique({ where: { clubId }, select: { colours: true } });
+export async function getBrandKit(tenant: Tenant, opts: { archived?: boolean } = {}): Promise<{ colours: BrandColour[]; assets: BrandAssetView[]; limits: { assets: number; colours: number } }> {
+  const kit = await prisma.designBrandKit.findUnique({ where: { ...tenantWhere(tenant) }, select: { colours: true } });
   const assets = await prisma.designBrandAsset.findMany({
-    where: { clubId, archivedAt: opts.archived ? { not: null } : null },
+    where: { ...tenantWhere(tenant), archivedAt: opts.archived ? { not: null } : null },
     orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], take: ACTIVE_ASSET_LIMIT * 2, select: ASSET_SELECT,
   });
   return { colours: (validColours(kit?.colours) ?? []), assets, limits: { assets: ACTIVE_ASSET_LIMIT, colours: COLOUR_LIMIT } };
 }
 
 /** Replace the kit's colours. */
-export async function setBrandColours(clubId: string, actor: DesignActor, colours: BrandColour[]): Promise<{ colours: BrandColour[] }> {
+export async function setBrandColours(tenant: Tenant, actor: DesignActor, colours: BrandColour[]): Promise<{ colours: BrandColour[] }> {
   return prisma.$transaction(async (tx) => {
-    const kit = await kitOf(tx, clubId, actor);
+    const kit = await kitOf(tx, tenant, actor);
     await tx.designBrandKit.update({ where: { id: kit.id }, data: { colours: colours as unknown as Prisma.InputJsonValue, updatedById: actor.userId } });
-    await audit(tx, clubId, actor, 'design.brand.colours.saved', kit.id, { colours: colours.length }, 'The club’s brand colours were saved');
+    await audit(tx, tenant, actor, 'design.brand.colours.saved', kit.id, { colours: colours.length }, 'The club’s brand colours were saved');
     return { colours };
   });
 }
 
 /** Add a logo: the upload is made safe first (brand-image.ts), and only the result is kept. */
-export async function addBrandAsset(clubId: string, actor: DesignActor, input: { kind: DesignBrandAssetKind; name: string; body: Buffer }): Promise<{ asset: BrandAssetView }> {
+export async function addBrandAsset(tenant: Tenant, actor: DesignActor, input: { kind: DesignBrandAssetKind; name: string; body: Buffer }): Promise<{ asset: BrandAssetView }> {
   const image = await normaliseBrandImage(input.body);
   return prisma.$transaction(async (tx) => {
-    const kit = await kitOf(tx, clubId, actor);
-    const active = await tx.designBrandAsset.count({ where: { clubId, archivedAt: null } });
+    const kit = await kitOf(tx, tenant, actor);
+    const active = await tx.designBrandAsset.count({ where: { ...tenantWhere(tenant), archivedAt: null } });
     if (active >= ACTIVE_ASSET_LIMIT) throw new BrandKitError('BRAND_KIT_FULL', `A brand kit holds at most ${ACTIVE_ASSET_LIMIT} logos; archive one first`);
     const asset = await tx.designBrandAsset.create({
       data: {
-        clubId, kitId: kit.id, kind: input.kind, name: input.name, png: image.png, width: image.width, height: image.height,
+        ...tenantWhere(tenant), kitId: kit.id, kind: input.kind, name: input.name, png: image.png, width: image.width, height: image.height,
         bytes: image.bytes, sha256: image.sha256, createdById: actor.userId,
       },
       select: ASSET_SELECT,
     });
-    await audit(tx, clubId, actor, 'design.brand.asset.added', asset.id,
+    await audit(tx, tenant, actor, 'design.brand.asset.added', asset.id,
       { kind: input.kind, width: image.width, height: image.height, bytes: image.bytes, sha256: image.sha256, uploadBytes: input.body.length },
       'A logo was added to the club’s brand kit');
     return { asset };
@@ -100,24 +101,24 @@ export async function addBrandAsset(clubId: string, actor: DesignActor, input: {
 }
 
 /** The stored PNG of one of the club's logos (archived ones too: a saved design may still show it). */
-export async function getBrandAssetImage(clubId: string, id: string): Promise<{ png: Buffer; sha256: string }> {
-  const row = await prisma.designBrandAsset.findFirst({ where: { id, clubId }, select: { png: true, sha256: true } });
+export async function getBrandAssetImage(tenant: Tenant, id: string): Promise<{ png: Buffer; sha256: string }> {
+  const row = await prisma.designBrandAsset.findFirst({ where: { id, ...tenantWhere(tenant) }, select: { png: true, sha256: true } });
   if (!row) throw new NotFoundError('Brand asset');
   return { png: Buffer.from(row.png), sha256: row.sha256 };
 }
 
 /** Archive a logo, or return it to the kit. Its bytes are kept either way. */
-export async function setBrandAssetArchived(clubId: string, actor: DesignActor, id: string, archived: boolean): Promise<{ asset: BrandAssetView }> {
+export async function setBrandAssetArchived(tenant: Tenant, actor: DesignActor, id: string, archived: boolean): Promise<{ asset: BrandAssetView }> {
   return prisma.$transaction(async (tx) => {
-    const current = await tx.designBrandAsset.findFirst({ where: { id, clubId }, select: ASSET_SELECT });
+    const current = await tx.designBrandAsset.findFirst({ where: { id, ...tenantWhere(tenant) }, select: ASSET_SELECT });
     if (!current) throw new NotFoundError('Brand asset');
     if (!!current.archivedAt === archived) return { asset: current };
-    if (!archived && (await tx.designBrandAsset.count({ where: { clubId, archivedAt: null } })) >= ACTIVE_ASSET_LIMIT) {
+    if (!archived && (await tx.designBrandAsset.count({ where: { ...tenantWhere(tenant), archivedAt: null } })) >= ACTIVE_ASSET_LIMIT) {
       throw new BrandKitError('BRAND_KIT_FULL', `A brand kit holds at most ${ACTIVE_ASSET_LIMIT} logos; archive one first`);
     }
-    await tx.designBrandAsset.updateMany({ where: { id, clubId }, data: { archivedAt: archived ? new Date() : null } });
-    const asset = await tx.designBrandAsset.findFirstOrThrow({ where: { id, clubId }, select: ASSET_SELECT });
-    await audit(tx, clubId, actor, archived ? 'design.brand.asset.archived' : 'design.brand.asset.unarchived', id, { kind: asset.kind },
+    await tx.designBrandAsset.updateMany({ where: { id, ...tenantWhere(tenant) }, data: { archivedAt: archived ? new Date() : null } });
+    const asset = await tx.designBrandAsset.findFirstOrThrow({ where: { id, ...tenantWhere(tenant) }, select: ASSET_SELECT });
+    await audit(tx, tenant, actor, archived ? 'design.brand.asset.archived' : 'design.brand.asset.unarchived', id, { kind: asset.kind },
       archived ? 'A logo was archived from the club’s brand kit' : 'A logo was returned to the club’s brand kit');
     return { asset };
   });

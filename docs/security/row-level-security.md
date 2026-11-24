@@ -88,12 +88,21 @@ migrations.
 
 ## How it works
 
-PostgreSQL reads two transaction-local settings:
+PostgreSQL reads three transaction-local settings:
 
 | Setting | Values |
 |---|---|
-| `familista.rls_mode` | `club` — a request inside one club; `system` — an explicit, named path that acts across clubs |
+| `familista.rls_mode` | `club` — a request inside one club; `creator` — a signed-in creator's request (Creator Studio, P2); `system` — an explicit, named path that acts across clubs |
 | `familista.club_id` | the club, in `club` mode |
+| `familista.creator_id` | the creator, in `creator` mode |
+
+The Design Studio and manufacturing tables have two possible owners, a club or a creator (`20261125100000_creator_tenancy`):
+every row has exactly one (`<Table>_one_owner`, or `DesignProject_owner_shape` by its kind), each child names its parent
+and that parent's owner with one composite key per kind of owner, and their policies use
+`familista_rls_owner_ok("clubId", "creatorId")`: a club session reaches its club's rows, a creator session its own rows,
+the system path everything, and nothing else anything. A creator session reaches no club-only table at all:
+`familista_rls_club_ok` admits `club` and `system` alone. The policies were altered in place (`ALTER POLICY`), never
+dropped, so no table was ever without one.
 
 Anything else — no mode, an unknown mode, `club` without a club — sees nothing
 and writes nothing. That is the fail-closed default.
@@ -110,7 +119,10 @@ The application sets them (`src/security/db-context.ts`, `src/security/rls-clien
   with a literal reason. Each reason is reviewed by name in
   `posture-policy.json` (`rlsSystemPaths`); an unreviewed one fails CI. Today:
   `platform-owner`, `transfer-settlement`, `staff-market-move`,
-  `video-transcode`. An accepted invitation writes its membership in the
+  `video-transcode`, and the Creator Studio's account paths `creator-signup`,
+  `creator-signin`, `creator-session`, `creator-account` (they touch the creator
+  account tables only, never a Design Studio or club row).
+- `authenticateCreator` runs a creator's request in that creator's context. An accepted invitation writes its membership in the
   inviting club's own context, not a system one.
 - Backups, restores and their checks read under the system context
   (`PGOPTIONS` in `backup-config.ts`; `pg_dump --enable-row-security`).

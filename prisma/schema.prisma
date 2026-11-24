@@ -5968,9 +5968,11 @@ model PlatformAuditLog {
   adminId String?
   admin   PlatformAdmin? @relation(fields: [adminId], references: [id], onDelete: SetNull)
 
-  userId String?
-  clubId String?
-  club   Club?   @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  userId    String?
+  clubId    String?
+  club      Club?   @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  /// A creator's own action (Creator Studio, P2): never recorded as a club user's.
+  creatorId String?
 
   action       String
   category     PlatformAuditCategory
@@ -5988,6 +5990,7 @@ model PlatformAuditLog {
 
   @@index([adminId])
   @@index([clubId])
+  @@index([creatorId])
   @@index([action])
   @@index([category])
   @@index([result])
@@ -11013,6 +11016,8 @@ model DesignProject {
   ownerKind       DesignOwnerKind @default(PLATFORM)
   clubId          String?
   ownerUserId     String?
+  /// The creator who owns a PERSONAL project (CreatorAccount, P2), held by an SQL foreign key.
+  creatorId       String?
   /// The design's name, as its newest revision's document names it.
   name            String
   templateKey     String
@@ -11032,9 +11037,11 @@ model DesignProject {
 
   /// A collection's item names a project and its club together (M3b), so the database holds an item to its club's projects.
   @@unique([id, clubId])
+  @@unique([id, creatorId])
   @@index([ownerKind, archivedAt, updatedAt])
   @@index([clubId])
   @@index([ownerUserId])
+  @@index([creatorId])
 }
 
 /// One saved state of a design's document. Never changed once written.
@@ -11070,8 +11077,10 @@ enum DesignBrandAssetKind {
 /// Under row-level security (20261123100000): a club's kit is its club's alone.
 model DesignBrandKit {
   id          String   @id @default(uuid())
-  clubId      String   @unique
-  club        Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  clubId      String?  @unique
+  club        Club?    @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId   String?
   /// [{ label, srgb }]: at most 24, each label at most 40 characters, each colour #rrggbb.
   colours     Json     @default("[]")
   updatedById String
@@ -11082,6 +11091,8 @@ model DesignBrandKit {
 
   /// An asset names its kit and its club together, so the database holds an asset to its kit's club.
   @@unique([id, clubId])
+  @@unique([id, creatorId])
+  @@unique([creatorId])
 }
 
 /// One image of a club's brand kit. Its bytes are never what was uploaded: the server decodes the upload and
@@ -11089,9 +11100,11 @@ model DesignBrandKit {
 /// than in object storage so it is backed up, restored and held by row-level security with the rest of the club's data.
 model DesignBrandAsset {
   id          String               @id @default(uuid())
-  clubId      String
+  clubId      String?
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId   String?
   kitId       String
-  kit         DesignBrandKit       @relation(fields: [kitId, clubId], references: [id, clubId], onDelete: Cascade)
+  kit         DesignBrandKit       @relation(fields: [kitId], references: [id], onDelete: Cascade)
   kind        DesignBrandAssetKind
   name        String
   png         Bytes
@@ -11105,6 +11118,7 @@ model DesignBrandAsset {
 
   @@index([clubId, archivedAt, createdAt])
   @@index([kitId])
+  @@index([creatorId, archivedAt, createdAt])
 }
 
 /// A club's team roster for the Design Studio (M3): the names, numbers and sizes a kit is made for. The design keeps
@@ -11114,8 +11128,10 @@ model DesignBrandAsset {
 /// Under row-level security (20261123200000): a club's rosters are its club's alone.
 model DesignRoster {
   id             String    @id @default(uuid())
-  clubId         String
-  club           Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  clubId         String?
+  club           Club?     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId      String?
   name           String
   entries        Json      @default("[]")
   entryCount     Int       @default(0)
@@ -11131,7 +11147,9 @@ model DesignRoster {
   collections DesignCollection[]
 
   @@unique([id, clubId])
+  @@unique([id, creatorId])
   @@index([clubId, archivedAt, updatedAt])
+  @@index([creatorId, archivedAt, updatedAt])
 }
 
 /// What a design is in a collection: the kit it belongs to.
@@ -11149,8 +11167,10 @@ enum DesignCollectionRole {
 /// A roster it names is its own club's (a trigger holds it, on the system path too); deleting the roster clears it.
 model DesignCollection {
   id          String        @id @default(uuid())
-  clubId      String
-  club        Club          @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  clubId      String?
+  club        Club?         @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId   String?
   name        String
   /// A label the club chooses, such as 2026/27; at most 20 characters.
   season      String?
@@ -11168,19 +11188,23 @@ model DesignCollection {
 
   /// An item names its collection and its club together.
   @@unique([id, clubId])
+  @@unique([id, creatorId])
   @@index([clubId, archivedAt, updatedAt])
   @@index([rosterId])
+  @@index([creatorId, archivedAt, updatedAt])
 }
 
 /// One design of a collection, in its place. It names its collection and its project each with the club, so the
 /// database holds both to one club; deleting either deletes the item.
 model DesignCollectionItem {
   id           String               @id @default(uuid())
-  clubId       String
+  clubId       String?
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId    String?
   collectionId String
-  collection   DesignCollection     @relation(fields: [collectionId, clubId], references: [id, clubId], onDelete: Cascade)
+  collection   DesignCollection     @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   projectId    String
-  project      DesignProject        @relation(fields: [projectId, clubId], references: [id, clubId], onDelete: Cascade)
+  project      DesignProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   role         DesignCollectionRole
   position     Int
 
@@ -11188,6 +11212,7 @@ model DesignCollectionItem {
   @@unique([collectionId, projectId])
   @@index([clubId])
   @@index([projectId])
+  @@index([creatorId])
 }
 
 // ── Manufacturing (M4): owner-brokered quotations and orders ─────────────────
@@ -11272,8 +11297,11 @@ model ManufacturingSupplier {
 /// hash) and a roster's names, numbers and sizes, as submitted. Under row-level security (20261123220000).
 model ManufacturingRequest {
   id                String                     @id @default(uuid())
-  clubId            String
-  club              Club                       @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  clubId            String?
+  club              Club?                      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId         String?
+  creator           CreatorAccount?            @relation(fields: [creatorId], references: [id], onDelete: Restrict)
   collectionId      String?
   collection        DesignCollection?          @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   status            ManufacturingRequestStatus @default(SUBMITTED)
@@ -11297,18 +11325,22 @@ model ManufacturingRequest {
   persons ManufacturingRequestPerson[]
 
   @@unique([id, clubId])
+  @@unique([id, creatorId])
   @@index([clubId, status, updatedAt])
   @@index([status, updatedAt])
   @@index([collectionId])
+  @@index([creatorId, status, updatedAt])
 }
 
 /// P1: a person's name for one entry of a request, apart from the frozen specification so it can be erased. A kept
 /// name can only be erased (a trigger holds it); a withheld one was never kept (minors without an attested consent).
 model ManufacturingRequestPerson {
   id        String                   @id @default(uuid())
-  clubId    String
+  clubId    String?
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId String?
   requestId String
-  request   ManufacturingRequest     @relation(fields: [requestId, clubId], references: [id, clubId], onDelete: Cascade)
+  request   ManufacturingRequest     @relation(fields: [requestId], references: [id], onDelete: Cascade)
   position  Int
   name      String?
   state     ManufacturingPersonState @default(KEPT)
@@ -11317,6 +11349,7 @@ model ManufacturingRequestPerson {
 
   @@unique([requestId, position])
   @@index([clubId])
+  @@index([creatorId])
 }
 
 enum ManufacturingPersonState {
@@ -11328,9 +11361,11 @@ enum ManufacturingPersonState {
 /// One step of a request's history. Never changed or removed (a trigger holds it).
 model ManufacturingRequestEvent {
   id          String                      @id @default(uuid())
-  clubId      String
+  clubId      String?
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId   String?
   requestId   String
-  request     ManufacturingRequest        @relation(fields: [requestId, clubId], references: [id, clubId], onDelete: Cascade)
+  request     ManufacturingRequest        @relation(fields: [requestId], references: [id], onDelete: Cascade)
   action      String
   fromStatus  ManufacturingRequestStatus?
   toStatus    ManufacturingRequestStatus
@@ -11341,15 +11376,18 @@ model ManufacturingRequestEvent {
 
   @@index([requestId, createdAt])
   @@index([clubId])
+  @@index([creatorId])
 }
 
 /// A quotation a real supplier gave for a request, recorded by the Platform Owner with the supplier's own reference and
 /// how it was received. Amounts are integers in the currency's minor unit. Nothing is charged.
 model ManufacturingQuote {
   id                String                   @id @default(uuid())
-  clubId            String
+  clubId            String?
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId         String?
   requestId         String
-  request           ManufacturingRequest     @relation(fields: [requestId, clubId], references: [id, clubId], onDelete: Cascade)
+  request           ManufacturingRequest     @relation(fields: [requestId], references: [id], onDelete: Cascade)
   supplierId        String
   supplier          ManufacturingSupplier    @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   status            ManufacturingQuoteStatus @default(DRAFT)
@@ -11371,6 +11409,7 @@ model ManufacturingQuote {
   @@index([requestId])
   @@index([supplierId])
   @@index([clubId])
+  @@index([creatorId])
 }
 
 // ── Design reviews and approvals (M7b) ──────────────────────────────────────
@@ -11385,9 +11424,11 @@ enum DesignReviewDecision {
 /// row-level security (20261124100000); held to its club's design by a composite key.
 model DesignReviewComment {
   id           String        @id @default(uuid())
-  clubId       String
+  clubId       String?
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId    String?
   projectId    String
-  project      DesignProject @relation(fields: [projectId, clubId], references: [id, clubId], onDelete: Cascade)
+  project      DesignProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   /// The revision number it was made on.
   revision     Int
   /// A surface id of the design's template, or null for the whole garment.
@@ -11400,15 +11441,18 @@ model DesignReviewComment {
 
   @@index([projectId, revision, createdAt])
   @@index([clubId])
+  @@index([creatorId])
 }
 
 /// A club administrator's decision on one saved version, pinned to its revision and its SHA-256: approving a version
 /// says nothing about the next one. Never changed or removed (a trigger holds it); the newest for a revision is current.
 model DesignApproval {
   id          String               @id @default(uuid())
-  clubId      String
+  clubId      String?
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId   String?
   projectId   String
-  project     DesignProject        @relation(fields: [projectId, clubId], references: [id, clubId], onDelete: Cascade)
+  project     DesignProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   revision    Int
   sha256      String
   decision    DesignReviewDecision
@@ -11418,4 +11462,95 @@ model DesignApproval {
 
   @@index([projectId, revision, createdAt])
   @@index([clubId])
+  @@index([creatorId])
+}
+
+// ── Creator Studio (P2): personal creator accounts, independent of any club ─────────────────────────────────────────
+
+enum CreatorStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum CreatorEmailPurpose {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+/// A code the Platform Owner issues to let one person (or a few) open a creator account. Only its hash is kept.
+model CreatorInvite {
+  id          String           @id @default(uuid())
+  codeHash    String           @unique
+  /// When set, the code opens an account for this address only (lower case).
+  email       String?
+  note        String?
+  maxUses     Int              @default(1)
+  uses        Int              @default(0)
+  expiresAt   DateTime         @db.Timestamptz(3)
+  revokedAt   DateTime?        @db.Timestamptz(3)
+  createdById String
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  accounts    CreatorAccount[]
+
+  @@index([createdAt])
+}
+
+/// A person who designs on their own account. Not a User: a User always belongs to a club. Never hard-deleted: a deletion
+/// scrubs the account to a tombstone, so nothing that names it is left naming nothing.
+model CreatorAccount {
+  id                    String                 @id @default(uuid())
+  /// Lower case. A deleted account keeps a tombstone address (deleted+<id>@invalid), never the person's.
+  email                 String                 @unique
+  passwordHash          String?
+  displayName           String?
+  locale                String                 @default("en-GB")
+  status                CreatorStatus          @default(ACTIVE)
+  /// Raised to end every session at once (password change, suspension, deletion).
+  tokenVersion          Int                    @default(0)
+  emailVerifiedAt       DateTime?              @db.Timestamptz(3)
+  /// The person confirmed they are at least `ageConfirmedMinimum` years old; no date of birth is kept.
+  ageConfirmedAt        DateTime               @db.Timestamptz(3)
+  ageConfirmedMinimum   Int
+  inviteId              String?
+  invite                CreatorInvite?         @relation(fields: [inviteId], references: [id], onDelete: SetNull)
+  lastLoginAt           DateTime?              @db.Timestamptz(3)
+  createdAt             DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime               @default(now()) @updatedAt @db.Timestamptz(3)
+  deletedAt             DateTime?              @db.Timestamptz(3)
+  sessions              CreatorSession[]
+  emailTokens           CreatorEmailToken[]
+  manufacturingRequests ManufacturingRequest[]
+
+  @@index([status, createdAt])
+}
+
+/// One signed-in device: the hash of its opaque refresh token. Each refresh replaces the row within its family; a
+/// replaced token presented again revokes the whole family.
+model CreatorSession {
+  id        String         @id @default(uuid())
+  creatorId String
+  creator   CreatorAccount @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  familyId  String
+  tokenHash String         @unique
+  expiresAt DateTime       @db.Timestamptz(3)
+  revokedAt DateTime?      @db.Timestamptz(3)
+  createdAt DateTime       @default(now()) @db.Timestamptz(3)
+
+  @@index([creatorId])
+  @@index([familyId])
+}
+
+/// A one-time link sent by email (address verification, password reset). Only its hash is kept.
+model CreatorEmailToken {
+  id        String              @id @default(uuid())
+  creatorId String
+  creator   CreatorAccount      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  purpose   CreatorEmailPurpose
+  tokenHash String              @unique
+  expiresAt DateTime            @db.Timestamptz(3)
+  usedAt    DateTime?           @db.Timestamptz(3)
+  createdAt DateTime            @default(now()) @db.Timestamptz(3)
+
+  @@index([creatorId, purpose])
 }

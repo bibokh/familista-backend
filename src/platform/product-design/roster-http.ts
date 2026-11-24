@@ -5,6 +5,8 @@
  * Rosters carry names of people, so every answer is `no-store` (set by the gate) and nothing here logs an entry.
  */
 import type { Request, RequestHandler, Response } from 'express';
+import { designActorOf as actorOf, tenantOfRes } from './scope-http';
+import type { Tenant } from '../tenancy/tenant';
 import { z } from 'zod';
 import { RosterInvalidError } from './roster-core';
 import {
@@ -17,18 +19,9 @@ const ListQuery = z.object({ state: z.enum(['active', 'archived']).default('acti
 const CreateBody = z.object({ name: z.unknown(), entries: z.unknown().default([]), includesMinors: z.boolean().optional() }).strict();
 const SaveBody = z.object({ name: z.unknown(), entries: z.unknown(), version: z.number().int().min(1).max(1_000_000), includesMinors: z.boolean().optional() }).strict();
 
-function clubOf(res: Response): string {
-  const s = res.locals.designScope as DesignScope | undefined;
-  if (!s || s.kind !== 'CLUB') throw new Error('A roster route was reached without a club scope');
-  return s.clubId;
-}
-function actorOf(req: Request): DesignActor {
-  const ua = req.headers['user-agent'];
-  return { userId: req.user?.id ?? '', ipAddress: req.ip ?? null, userAgent: typeof ua === 'string' ? ua.slice(0, 400) : null, correlationId: req.requestId ?? null };
-}
-function handler(work: (req: Request, res: Response, clubId: string) => Promise<void>): RequestHandler {
+function handler(work: (req: Request, res: Response, tenant: Tenant) => Promise<void>): RequestHandler {
   return async (req, res, next) => {
-    try { await work(req, res, clubOf(res)); } catch (err) {
+    try { await work(req, res, tenantOfRes(res)); } catch (err) {
       if (err instanceof RosterInvalidError) {
         res.status(400).json({ success: false, code: 'ROSTER_INVALID', reason: err.code, path: err.path, message: `The roster was refused: ${err.message}` });
         return;
@@ -40,31 +33,31 @@ function handler(work: (req: Request, res: Response, clubId: string) => Promise<
   };
 }
 
-export const listTeamRosters = handler(async (req, res, clubId) => {
+export const listTeamRosters = handler(async (req, res, tenant) => {
   const { state } = ListQuery.parse(req.query);
-  res.json({ success: true, data: await listRosters(clubId, { archived: state === 'archived' }) });
+  res.json({ success: true, data: await listRosters(tenant, { archived: state === 'archived' }) });
 });
-export const createTeamRoster = handler(async (req, res, clubId) => {
+export const createTeamRoster = handler(async (req, res, tenant) => {
   const body = CreateBody.parse(req.body);
-  res.status(201).json({ success: true, data: await createRoster(clubId, actorOf(req), body) });
+  res.status(201).json({ success: true, data: await createRoster(tenant, actorOf(req), body) });
 });
-export const openTeamRoster = handler(async (req, res, clubId) => {
-  res.json({ success: true, data: await getRoster(clubId, RosterId.parse(req.params.rosterId)) });
+export const openTeamRoster = handler(async (req, res, tenant) => {
+  res.json({ success: true, data: await getRoster(tenant, RosterId.parse(req.params.rosterId)) });
 });
-export const saveTeamRoster = handler(async (req, res, clubId) => {
+export const saveTeamRoster = handler(async (req, res, tenant) => {
   const id = RosterId.parse(req.params.rosterId);
   const body = SaveBody.parse(req.body);
-  res.json({ success: true, data: await saveRoster(clubId, actorOf(req), id, body) });
+  res.json({ success: true, data: await saveRoster(tenant, actorOf(req), id, body) });
 });
-export const archiveTeamRoster = handler(async (req, res, clubId) => {
-  res.json({ success: true, data: await setRosterArchived(clubId, actorOf(req), RosterId.parse(req.params.rosterId), true) });
+export const archiveTeamRoster = handler(async (req, res, tenant) => {
+  res.json({ success: true, data: await setRosterArchived(tenant, actorOf(req), RosterId.parse(req.params.rosterId), true) });
 });
-export const unarchiveTeamRoster = handler(async (req, res, clubId) => {
-  res.json({ success: true, data: await setRosterArchived(clubId, actorOf(req), RosterId.parse(req.params.rosterId), false) });
+export const unarchiveTeamRoster = handler(async (req, res, tenant) => {
+  res.json({ success: true, data: await setRosterArchived(tenant, actorOf(req), RosterId.parse(req.params.rosterId), false) });
 });
-export const deleteTeamRoster = handler(async (req, res, clubId) => {
-  res.json({ success: true, data: await deleteRoster(clubId, actorOf(req), RosterId.parse(req.params.rosterId)) });
+export const deleteTeamRoster = handler(async (req, res, tenant) => {
+  res.json({ success: true, data: await deleteRoster(tenant, actorOf(req), RosterId.parse(req.params.rosterId)) });
 });
-export const readSquadNames = handler(async (_req, res, clubId) => {
-  res.json({ success: true, data: await squadNames(clubId) });
+export const readSquadNames = handler(async (_req, res, tenant) => {
+  res.json({ success: true, data: await squadNames(tenant) });
 });

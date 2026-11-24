@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-24T19:07:14.241Z",
+  "generatedAt": "2026-11-24T20:09:42.562Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
     "version": "1.0.0"
   },
   "apiSurface": {
-    "mountedRouters": 61,
-    "handlers": 845,
-    "publicHandlers": 21,
+    "mountedRouters": 63,
+    "handlers": 903,
+    "publicHandlers": 29,
     "publicRoutes": [
       {
         "route": "GET /auth/reset-password/:token/validate",
@@ -19,6 +19,11 @@
       {
         "route": "GET /billing/plans",
         "file": "src/routes/billing.routes.ts",
+        "line": 16
+      },
+      {
+        "route": "GET /creator/auth/terms",
+        "file": "src/routes/creator-auth.routes.ts",
         "line": 16
       },
       {
@@ -75,6 +80,41 @@
         "route": "POST /billing/webhook",
         "file": "src/routes/billing.routes.ts",
         "line": 9
+      },
+      {
+        "route": "POST /creator/auth/forgot-password",
+        "file": "src/routes/creator-auth.routes.ts",
+        "line": 22
+      },
+      {
+        "route": "POST /creator/auth/login",
+        "file": "src/routes/creator-auth.routes.ts",
+        "line": 18
+      },
+      {
+        "route": "POST /creator/auth/logout",
+        "file": "src/routes/creator-auth.routes.ts",
+        "line": 20
+      },
+      {
+        "route": "POST /creator/auth/refresh",
+        "file": "src/routes/creator-auth.routes.ts",
+        "line": 19
+      },
+      {
+        "route": "POST /creator/auth/register",
+        "file": "src/routes/creator-auth.routes.ts",
+        "line": 17
+      },
+      {
+        "route": "POST /creator/auth/reset-password",
+        "file": "src/routes/creator-auth.routes.ts",
+        "line": 23
+      },
+      {
+        "route": "POST /creator/auth/verify-email",
+        "file": "src/routes/creator-auth.routes.ts",
+        "line": 21
       },
       {
         "route": "POST /device-infra/devices/by-serial/:serial/activate",
@@ -336,7 +376,7 @@
       {
         "path": "/system/product-design",
         "module": "product-design.routes",
-        "handlers": 14,
+        "handlers": 18,
         "public": 0,
         "routerWideAuth": true
       },
@@ -351,6 +391,20 @@
         "path": "/club-design",
         "module": "club-design.routes",
         "handlers": 44,
+        "public": 0,
+        "routerWideAuth": true
+      },
+      {
+        "path": "/creator/auth",
+        "module": "creator-auth.routes",
+        "handlers": 8,
+        "public": 8,
+        "routerWideAuth": false
+      },
+      {
+        "path": "/creator",
+        "module": "creator.routes",
+        "handlers": 46,
         "public": 0,
         "routerWideAuth": true
       },
@@ -620,9 +674,9 @@
       "src/services/vision-realtime.service.ts"
     ],
     "tenancy": {
-      "idParameters": 419,
-      "guarded": 171,
-      "exempt": 248,
+      "idParameters": 457,
+      "guarded": 206,
+      "exempt": 251,
       "unguarded": [],
       "staleExemptions": [],
       "routerWideTenantGuardMounts": [],
@@ -681,6 +735,11 @@
         "coaches.routes": {
           "guarded": 1,
           "exempt": 9,
+          "unguarded": 0
+        },
+        "creator.routes": {
+          "guarded": 35,
+          "exempt": 2,
           "unguarded": 0
         },
         "cybersecurity.routes": {
@@ -805,7 +864,7 @@
         },
         "product-design.routes": {
           "guarded": 0,
-          "exempt": 10,
+          "exempt": 11,
           "unguarded": 0
         },
         "provisioning.routes": {
@@ -871,13 +930,14 @@
       }
     },
     "authorization": {
-      "handlers": 845,
+      "handlers": 903,
       "byKind": {
-        "public": 21,
+        "public": 29,
         "member": 350,
         "scoped": 60,
         "roles": 280,
-        "platform-owner": 134
+        "platform-owner": 138,
+        "creator": 46
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -939,6 +999,12 @@
         },
         "context.routes": {
           "member": 5
+        },
+        "creator-auth.routes": {
+          "public": 8
+        },
+        "creator.routes": {
+          "creator": 46
         },
         "cybersecurity.routes": {
           "platform-owner": 2
@@ -1058,7 +1124,7 @@
           "roles": 1
         },
         "product-design.routes": {
-          "platform-owner": 14
+          "platform-owner": 18
         },
         "provisioning.routes": {
           "roles": 7,
@@ -1123,6 +1189,8 @@
         "DELETE /coaches/demo-staff": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
         "DELETE /coaches/staff/:staffUserId/achievements/:trophyId": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
         "DELETE /coaches/staff/:staffUserId/career/:entryId": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
+        "DELETE /creator/collections/:collectionId": "creator",
+        "DELETE /creator/rosters/:rosterId": "creator",
         "DELETE /familista-league/manage/participants/:teamId": "roles:SUPER_ADMIN",
         "DELETE /invitations/:id": "roles:CLUB_ADMIN,SUPER_ADMIN",
         "DELETE /matches/:id": "roles:CLUB_ADMIN",
@@ -1211,6 +1279,22 @@
         "GET /coaches/clubs/:clubId/teams": "member",
         "GET /coaches/directory": "member",
         "GET /coaches/teams/:teamId/staff": "member",
+        "GET /creator/auth/terms": "public",
+        "GET /creator/brand-kit": "creator",
+        "GET /creator/brand-kit/assets/:assetId/image": "creator",
+        "GET /creator/collections": "creator",
+        "GET /creator/collections/:collectionId": "creator",
+        "GET /creator/collections/:collectionId/order-sheet": "creator",
+        "GET /creator/me": "creator",
+        "GET /creator/projects": "creator",
+        "GET /creator/projects/:id": "creator",
+        "GET /creator/projects/:id/review": "creator",
+        "GET /creator/projects/:id/revisions": "creator",
+        "GET /creator/projects/:id/revisions/:number": "creator",
+        "GET /creator/requests": "creator",
+        "GET /creator/requests/:requestId": "creator",
+        "GET /creator/rosters": "creator",
+        "GET /creator/rosters/:rosterId": "creator",
         "GET /device-infra/devices": "member",
         "GET /device-infra/devices/:id": "member",
         "GET /device-infra/devices/:id/calibration": "member",
@@ -1506,6 +1590,8 @@
         "GET /system/neural-twin": "platform-owner",
         "GET /system/overview": "platform-owner",
         "GET /system/people": "platform-owner",
+        "GET /system/product-design/creators": "platform-owner",
+        "GET /system/product-design/creators/invites": "platform-owner",
         "GET /system/product-design/privacy/retention": "platform-owner",
         "GET /system/product-design/projects": "platform-owner",
         "GET /system/product-design/projects/:id": "platform-owner",
@@ -1567,6 +1653,7 @@
         "GET /vision/sports": "member",
         "PATCH /automation/tasks/:id": "roles:CLUB_ADMIN,HEAD_COACH",
         "PATCH /clubs/:clubId": "roles:CLUB_ADMIN,SUPER_ADMIN",
+        "PATCH /creator/me": "creator",
         "PATCH /familista-league/manage/fixtures/:fixtureId": "roles:SUPER_ADMIN",
         "PATCH /matches/:id": "roles:CLUB_ADMIN,HEAD_COACH,ANALYST",
         "PATCH /matches/:id/annotations/:annotationId": "roles:CLUB_ADMIN,HEAD_COACH,ASSISTANT_COACH,ANALYST",
@@ -1661,6 +1748,38 @@
         "POST /coaches/staff": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
         "POST /coaches/staff/:staffUserId/move": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
         "POST /coaches/staff/:staffUserId/release": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
+        "POST /creator/auth/forgot-password": "public",
+        "POST /creator/auth/login": "public",
+        "POST /creator/auth/logout": "public",
+        "POST /creator/auth/refresh": "public",
+        "POST /creator/auth/register": "public",
+        "POST /creator/auth/reset-password": "public",
+        "POST /creator/auth/verify-email": "public",
+        "POST /creator/brand-kit/assets": "creator",
+        "POST /creator/brand-kit/assets/:assetId/archive": "creator",
+        "POST /creator/brand-kit/assets/:assetId/unarchive": "creator",
+        "POST /creator/collections": "creator",
+        "POST /creator/collections/:collectionId/archive": "creator",
+        "POST /creator/collections/:collectionId/requests": "creator",
+        "POST /creator/collections/:collectionId/unarchive": "creator",
+        "POST /creator/me/password": "creator",
+        "POST /creator/me/verification": "creator",
+        "POST /creator/projects": "creator",
+        "POST /creator/projects/:id/archive": "creator",
+        "POST /creator/projects/:id/comments": "creator",
+        "POST /creator/projects/:id/comments/:commentId/reopen": "creator",
+        "POST /creator/projects/:id/comments/:commentId/resolve": "creator",
+        "POST /creator/projects/:id/decisions": "creator",
+        "POST /creator/projects/:id/revisions": "creator",
+        "POST /creator/projects/:id/revisions/:number/restore": "creator",
+        "POST /creator/projects/:id/unarchive": "creator",
+        "POST /creator/requests/:requestId/cancel": "creator",
+        "POST /creator/requests/:requestId/decline": "creator",
+        "POST /creator/requests/:requestId/delivered": "creator",
+        "POST /creator/requests/:requestId/quotes/:quoteId/accept": "creator",
+        "POST /creator/rosters": "creator",
+        "POST /creator/rosters/:rosterId/archive": "creator",
+        "POST /creator/rosters/:rosterId/unarchive": "creator",
         "POST /device-infra/devices": "roles:CLUB_ADMIN,HEAD_COACH",
         "POST /device-infra/devices/:id/calibration": "roles:CLUB_ADMIN,HEAD_COACH,ANALYST,MEDICAL_STAFF",
         "POST /device-infra/devices/:id/retire": "roles:CLUB_ADMIN,HEAD_COACH",
@@ -1899,6 +2018,8 @@
         "POST /system/manufacturing/requests/:requestId/shipped": "platform-owner",
         "POST /system/manufacturing/suppliers": "platform-owner",
         "POST /system/manufacturing/suppliers/:supplierId/status": "platform-owner",
+        "POST /system/product-design/creators/invites": "platform-owner",
+        "POST /system/product-design/creators/invites/:inviteId/revoke": "platform-owner",
         "POST /system/product-design/privacy/retention/apply": "platform-owner",
         "POST /system/product-design/projects": "platform-owner",
         "POST /system/product-design/projects/:id/archive": "platform-owner",
@@ -1947,6 +2068,9 @@
         "PUT /club-design/rosters/:rosterId": "roles:CLUB_ADMIN,MANAGER",
         "PUT /coaches/staff/:staffUserId/achievements": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
         "PUT /coaches/staff/:staffUserId/career": "scoped:requireMembership(CLUB_ADMIN)+requireClubWideManage",
+        "PUT /creator/brand-kit/colours": "creator",
+        "PUT /creator/collections/:collectionId": "creator",
+        "PUT /creator/rosters/:rosterId": "creator",
         "PUT /matches/:id": "roles:CLUB_ADMIN,HEAD_COACH,ANALYST",
         "PUT /matches/:id/lineups": "roles:CLUB_ADMIN,HEAD_COACH,ASSISTANT_COACH,ANALYST",
         "PUT /phase-q/transfer/contracts/:playerId": "member",
@@ -1967,7 +2091,7 @@
   },
   "architecture": {
     "components": {
-      "routers": 61,
+      "routers": 63,
       "srcDomains": 78,
       "prismaSections": 66,
       "packages": 29,
@@ -2102,7 +2226,7 @@
       "id": "login-lockout",
       "status": "PRESENT",
       "evidence": "src/security/login-attempt.service.ts",
-      "note": "Enforced in loginUser() before the password is checked; 1 caller(s) outside the lockout service."
+      "note": "Enforced in loginUser() before the password is checked; 2 caller(s) outside the lockout service."
     },
     {
       "id": "login-lockout-shadow",
@@ -2156,7 +2280,7 @@
       "id": "tenant-guard",
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
-      "note": "171 of 419 route id parameter(s) checked against the caller's club before the handler; 248 exempted by name with a reason; 0 unguarded."
+      "note": "206 of 457 route id parameter(s) checked against the caller's club before the handler; 251 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "franchise-club-attach-authorised",
@@ -2190,7 +2314,7 @@
       "id": "security-event-log",
       "status": "PRESENT",
       "evidence": "src/security/security-event.service.ts",
-      "note": "22 call site(s) record security events."
+      "note": "24 call site(s) record security events."
     },
     {
       "id": "ai-action-approval-gate",
@@ -2380,7 +2504,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "845 handler(s) classified: 21 public, 350 member, 60 scoped, 280 roles, 134 platform-owner; every member-level handler reviewed by name."
+      "note": "903 handler(s) classified: 29 public, 350 member, 60 scoped, 280 roles, 138 platform-owner, 46 creator; every member- and creator-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2446,7 +2570,7 @@
       "id": "db-rls-system-paths-reviewed",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "4 named path(s) act across clubs (platform-owner, staff-market-move, transfer-settlement, video-transcode); each is reviewed by name."
+      "note": "8 named path(s) act across clubs (creator-account, creator-session, creator-signin, creator-signup, platform-owner, staff-market-move, transfer-settlement, video-transcode); each is reviewed by name."
     },
     {
       "id": "storage-key-club-prefixed",
@@ -2506,7 +2630,7 @@
       "id": "architecture-fully-mapped",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/coverage-map.json",
-      "note": "382 discovered component(s) across 12 kinds, each declared against the 40 trust-boundary rows; a covered row's controls are all present."
+      "note": "384 discovered component(s) across 12 kinds, each declared against the 40 trust-boundary rows; a covered row's controls are all present."
     },
     {
       "id": "coverage-ratchet",
@@ -2881,6 +3005,7 @@
         "src/notifications/notifications.service.ts",
         "src/platform/agents/registry.ts",
         "src/platform/agents/trace-chain.ts",
+        "src/platform/creator/account.service.ts",
         "src/platform/email/service.ts",
         "src/platform/innovation/flags.ts",
         "src/platform/neural-twin/compose.ts",
@@ -3089,6 +3214,8 @@
       "src/routes/club.routes.ts",
       "src/routes/coaches.routes.ts",
       "src/routes/context.routes.ts",
+      "src/routes/creator-auth.routes.ts",
+      "src/routes/creator.routes.ts",
       "src/routes/cybersecurity.routes.ts",
       "src/routes/data-pulse.routes.ts",
       "src/routes/design-system.routes.ts",

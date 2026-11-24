@@ -9,6 +9,7 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { z } from 'zod';
 import { DesignDocumentError } from './core';
+import { designActorOf } from './scope-http';
 import {
   createProject, getProject, getRevision, listProjects, listRevisions, restoreRevision, saveRevision, setArchived,
   DesignRevisionConflictError, type DesignActor, type DesignScope,
@@ -26,18 +27,13 @@ const RestoreBody = z.object({ baseRevision: BaseRevision }).strict();
 export function setDesignScope(res: Response, scope: DesignScope): void { res.locals.designScope = scope; }
 function scopeOf(res: Response): DesignScope {
   const s = res.locals.designScope as DesignScope | undefined;
-  if (!s || (s.kind !== 'PLATFORM' && s.kind !== 'CLUB')) throw new Error('A design route was reached without a scope');
+  if (!s || (s.kind !== 'PLATFORM' && s.kind !== 'CLUB' && s.kind !== 'PERSONAL')) throw new Error('A design route was reached without a scope');
   return s;
 }
 
 function actorOf(req: Request): DesignActor {
-  const ua = req.headers['user-agent'];
-  return {
-    userId: req.user?.id ?? '',
-    ipAddress: req.ip ?? null,
-    userAgent: typeof ua === 'string' ? ua.slice(0, 400) : null,
-    correlationId: req.requestId ?? null,
-  };
+  const { role: _role, ...actor } = designActorOf(req); // eslint-disable-line @typescript-eslint/no-unused-vars
+  return actor;
 }
 
 /** The refusals the room's client acts on, each with what it needs to act. */
