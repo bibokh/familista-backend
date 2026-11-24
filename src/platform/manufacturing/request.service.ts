@@ -193,7 +193,13 @@ export async function clubStep(clubId: string, actor: DesignActor, id: string, a
 /** Accept one published, still valid quotation: the others are superseded. Nothing is charged. */
 export async function acceptQuote(clubId: string, actor: DesignActor, id: string, quoteId: string) {
   return prisma.$transaction(async (tx) => {
-    const r = await tx.manufacturingRequest.findFirst({ where: { id, clubId }, select: { id: true, clubId: true, status: true } });
+    // The request's row is locked first (FOR UPDATE), so two acceptances of one request take turns: the second waits for
+    // the first to commit and then reads the request as it now is. Without the lock, under READ COMMITTED, the second
+    // could read the request before the first committed (still QUOTED, so allowed) and its quotation after (already set
+    // aside), and answer 'not found' where the truth is the conflict. Row-level security applies to the locking read too.
+    const locked = await tx.$queryRaw<Array<{ id: string; clubId: string; status: S }>>`
+      SELECT "id", "clubId", "status"::text AS "status" FROM "ManufacturingRequest" WHERE "id" = ${id} AND "clubId" = ${clubId} FOR UPDATE`;
+    const r = locked[0];
     if (!r) throw new NotFoundError('Request');
     // The workflow first: once a request has left QUOTED (accepted, declined, cancelled), any acceptance is the conflict it
     // is, whichever quotation it names, never a 'not found' for a quotation that was set aside meanwhile.

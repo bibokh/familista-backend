@@ -302,4 +302,24 @@ suite('Manufacturing (owner-brokered), on real PostgreSQL', () => {
     const list = (await as('owner').get(`${OWNER}/requests`)).body.data.requests;
     expect(list.map((x: Row) => [x.club.name, x.status]).sort()).toEqual([['Home FC', 'CANCELLED'], ['Home FC', 'DELIVERED'], ['Home FC', 'REFUSED']]);
   });
+  it('repeated races: every losing acceptance is the conflict it is, never a not-found, whatever the timing', async () => {
+    // The race above, many times over: a loser that read the request before the winner committed, and its quotation
+    // after, once answered 404 (seen in CI). Each round is a fresh request with two published quotations.
+    // Its own verified supplier: the shared one was suspended by the test before.
+    const own = (await as('owner').post(`${OWNER}/suppliers`, { name: 'Factory R (test record)', country: 'ES', forms: ['top', 'shorts'], methods: ['SUBLIMATION'] })).body.data.supplier.id;
+    expect((await as('owner').post(`${OWNER}/suppliers/${own}/status`, { status: 'VERIFIED', note: 'Business registration checked (test record)' })).status).toBe(200);
+    const base = { supplierId: own, currency: 'EUR', totalMinor: 50000, lines: [], leadTimeDays: 20, validUntil: inDays(10), supplierReference: 'Q-R', evidence: 'Quotation PDF received by e-mail' };
+    const seen: number[][] = [];
+    for (let i = 0; i < 15; i++) {
+      const r = (await as('admin').post(`${CLUB}/collections/${kit}/requests`, {})).body.data.request.id;
+      await as('owner').post(`${OWNER}/requests/${r}/review`);
+      const q1 = (await as('owner').post(`${OWNER}/requests/${r}/quotes`, base)).body.data.request.quotes[0].id;
+      const q2 = (await as('owner').post(`${OWNER}/requests/${r}/quotes`, { ...base, totalMinor: 60000 })).body.data.request.quotes[1].id;
+      await as('owner').post(`${OWNER}/requests/${r}/quotes/${q1}/publish`);
+      await as('owner').post(`${OWNER}/requests/${r}/quotes/${q2}/publish`);
+      const race = await Promise.all([as('admin').post(`${CLUB}/requests/${r}/quotes/${q1}/accept`), as('manager').post(`${CLUB}/requests/${r}/quotes/${q2}/accept`)]);
+      seen.push(race.map((x) => x.status).sort());
+    }
+    expect(seen.filter((x) => x.join() !== '200,409')).toEqual([]);
+  });
 });
