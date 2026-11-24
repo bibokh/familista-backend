@@ -7,7 +7,7 @@ import { ManufacturingRequestStatus, ManufacturingSupplierStatus } from '@prisma
 import { z } from 'zod';
 import type { DesignActor } from '../product-design/service';
 import { refusals } from './errors';
-import { discardDraft, getRequest, listAllRequests, ownerStep, publishQuote, recordQuote, requestFit, specDesign, withdrawQuote } from './request.service';
+import { discardDraft, eraseRequestNames, getRequest, listAllRequests, ownerStep, productionSheet, publishQuote, recordQuote, requestFit, specDesign, withdrawQuote } from './request.service';
 import { createSupplier, getSupplier, listSuppliers, setSupplierStatus, updateSupplier } from './supplier.service';
 
 const Id = z.string().guid();
@@ -66,4 +66,10 @@ export const ownerWithdrawQuote = handler(async (req, res) => {
 });
 export const ownerDiscardDraft = handler(async (req, res) => { res.json({ success: true, data: await discardDraft(actorOf(req), Id.parse(req.params.requestId), Id.parse(req.params.quoteId)) }); });
 export const ownerRequestFit = handler(async (req, res) => { res.json({ success: true, data: await requestFit(Id.parse(req.params.requestId)) }); });
-export const ownerSpecDesign = handler(async (req, res) => { res.json({ success: true, data: await specDesign(Id.parse(req.params.requestId), Id.parse(req.params.projectId)) }); });
+export const ownerSpecDesign = handler(async (req, res) => { res.json({ success: true, data: await specDesign(actorOf(req), Id.parse(req.params.requestId), Id.parse(req.params.projectId)) }); });
+// P1: the production sheet, once the order is confirmed with its supplier; a closed request's names, erased.
+export const ownerProductionSheet = handler(async (req, res) => { res.json({ success: true, data: await productionSheet(actorOf(req), Id.parse(req.params.requestId)) }); });
+export const ownerEraseNames = handler(async (req, res) => {
+  const { note } = WithdrawBody.parse(req.body ?? {});
+  res.json({ success: true, data: await eraseRequestNames(actorOf(req), Id.parse(req.params.requestId), note) });
+});

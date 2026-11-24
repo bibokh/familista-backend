@@ -30,6 +30,9 @@ interface PdRoster {
   validateEntries(input: unknown): RosterEntry[];
   validateRosterName(input: unknown): string;
   summary(entries: RosterEntry[]): RosterSummary;
+  youthEntries(entries: Array<Pick<RosterEntry, 'top' | 'shorts'>>): number;
+  toCsv(entries: Array<Omit<RosterEntry, 'name'> & { name: string }>, opts?: { delimiter?: string }): string;
+  csvFileName(name: string): string;
 }
 
 const FILE = path.join(__dirname, '..', '..', '..', 'public', 'product-design', 'pd-roster.js');
@@ -69,3 +72,9 @@ export function validateRosterEntries(input: unknown): RosterEntry[] { return ch
 export function rosterSummary(entries: RosterEntry[]): RosterSummary { return core().summary(entries); }
 /** The roster's name as kept. Throws RosterInvalidError. */
 export function validateRosterName(input: unknown): string { return checked(() => core().validateRosterName(input)); }
+
+/** P1: how many entries are in a children's size (pd-roster.js youthEntries): any marks the roster as including minors. */
+export function youthEntries(entries: Array<Pick<RosterEntry, 'top' | 'shorts'>>): number { return core().youthEntries(entries); }
+/** The roster's CSV, by the editor's own writer: the production sheet a supplier receives. */
+export function rosterCsv(entries: Array<Omit<RosterEntry, 'name'> & { name: string }>): string { return core().toCsv(entries, { delimiter: ',' }); }
+export function rosterCsvFileName(name: string): string { return core().csvFileName(name); }

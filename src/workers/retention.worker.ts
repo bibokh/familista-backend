@@ -22,6 +22,7 @@
 import { prisma } from '../config/database';
 import { logger } from '../utils/logger';
 import { logSecurityEvent } from '../security/security-event.service';
+import { SWEEP as DESIGN_SWEEP } from '../platform/privacy/retention.service';
 
 const TICK_MS    = parseInt(process.env.RETENTION_TICK_MS    ?? `${60 * 60_000}`, 10); // 1h
 const BATCH_SIZE = parseInt(process.env.RETENTION_BATCH_SIZE ?? '5000',           10);
@@ -177,6 +178,10 @@ const SWEEPERS: Record<string, Sweeper> = {
     const res = await prisma.userNotification.deleteMany({ where: { id: { in: rows.map((r) => r.id) } } });
     return res.count;
   },
+  // P1, the Design Studio's personal data (src/platform/privacy/retention.service.ts): a closed request's names are
+  // erased (its entries stay), resolved review comments deleted. Global rules only: the studio sets no club-specific ones.
+  ManufacturingRequestPerson: async ({ clubId, cutoff, limit }) => (clubId ? 0 : DESIGN_SWEEP.ManufacturingRequestPerson(cutoff, limit, false)),
+  DesignReviewComment: async ({ clubId, cutoff, limit }) => (clubId ? 0 : DESIGN_SWEEP.DesignReviewComment(cutoff, limit, false)),
 };
 
 // SecurityAuditEvent is intentionally NOT in SWEEPERS — see header.

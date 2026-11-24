@@ -4,6 +4,7 @@
  * session; a handler reached without a club scope refuses, never serves.
  */
 import type { Request, RequestHandler, Response } from 'express';
+import { UserRole } from '@prisma/client';
 import { z } from 'zod';
 import type { DesignActor, DesignScope } from '../product-design/service';
 import { refusals } from './errors';
@@ -11,7 +12,7 @@ import { acceptQuote, clubStep, getClubRequest, listClubRequests, submitRequest 
 
 const Id = z.string().guid();
 const Note = z.string().max(4000).nullable().default(null);
-const SubmitBody = z.object({ rosterId: Id.nullable().default(null), note: Note, neededBy: z.string().max(10).nullable().default(null) }).strict();
+const SubmitBody = z.object({ rosterId: Id.nullable().default(null), note: Note, neededBy: z.string().max(10).nullable().default(null), minorsConsent: z.boolean().default(false) }).strict();
 const StepBody = z.object({ note: Note }).strict();
 
 function clubOf(res: Response): string {
@@ -19,9 +20,9 @@ function clubOf(res: Response): string {
   if (!s || s.kind !== 'CLUB') throw new Error('A manufacturing route was reached without a club scope');
   return s.clubId;
 }
-function actorOf(req: Request): DesignActor {
+function actorOf(req: Request): DesignActor & { role?: UserRole } {
   const ua = req.headers['user-agent'];
-  return { userId: req.user?.id ?? '', ipAddress: req.ip ?? null, userAgent: typeof ua === 'string' ? ua.slice(0, 400) : null, correlationId: req.requestId ?? null };
+  return { userId: req.user?.id ?? '', role: req.user?.role as UserRole | undefined, ipAddress: req.ip ?? null, userAgent: typeof ua === 'string' ? ua.slice(0, 400) : null, correlationId: req.requestId ?? null };
 }
 function handler(work: (req: Request, res: Response, clubId: string) => Promise<void>): RequestHandler {
   return async (req, res, next) => { try { await work(req, res, clubOf(res)); } catch (err) { refusals(err, res, next); } };

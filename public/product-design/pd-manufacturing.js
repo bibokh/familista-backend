@@ -42,6 +42,11 @@
   var REL_KEYS = [['studio', L('Club Design Studio')], ['teamKit', L('Team kit: rosters, collections and the order sheet')], ['brandKit', L('Brand kit: colours and logos')],
     ['manufacturing', L('Requests for quotation and orders')], ['reviews', L('Design reviews and approvals')]];
   var REL_TO = [['on', L('On for this club')], ['default', L('As the plan says')], ['off', L('Off for this club')]];
+  // P1: the kinds of personal data the studio keeps, and what a retention rule does to each.
+  var RETAIN = {
+    ManufacturingRequestPerson: [L('Names in closed quotation requests'), L('Erased once the period has passed since the request was closed. Numbers, sizes and sets stay.')],
+    DesignReviewComment: [L('Resolved review comments'), L('Deleted once the period has passed since they were resolved.')],
+  };
   // M7d: how a verified supplier fits a request, from what was recorded about it.
   var FIT = { fits: L('Fits'), incomplete: L('Not everything recorded'), 'does-not-fit': L('Does not fit') };
   var METHOD = { SUBLIMATION: L('Sublimation'), SCREEN_PRINT: L('Screen print'), EMBROIDERY: L('Embroidery'), HEAT_TRANSFER: L('Heat transfer') };
@@ -99,6 +104,7 @@
       cur: null,       // the request open: { id, state, data }
       fit: null,       // M7d: how each verified supplier fits it: { id, state, data }
       rel: { state: 'idle', data: null, cur: null, busy: false }, // M8a: the clubs and what is released to each
+      ret: { state: 'idle', data: null, draft: {}, result: null, busy: false }, // P1: retention rules
       sup: null,       // the supplier open: { id|null, fields, version, status }
       ask: null,       // a note asked for a step: { label, hint, min, run }
       quote: null,     // the quotation form: { supplierId, currency, amount, leadTimeDays, validUntil, supplierReference, evidence }
@@ -200,6 +206,7 @@
       if (st.tab === 'requests' && st.requests.state !== 'ready') loadRequests();
       if (st.tab === 'suppliers' && st.suppliers.state !== 'ready') loadSuppliers();
       if (st.tab === 'releases' && st.rel.state !== 'ready') loadReleases();
+      if (st.tab === 'privacy' && st.ret.state !== 'ready') loadRetention();
       render();
       ctx.onToggle(true);
       var first = el.querySelector('[role="tab"][aria-selected="true"]') || el.querySelector('button');
@@ -221,9 +228,15 @@
       setTimeout(function () { URL.revokeObjectURL(url); }, 0);
       ctx.say(tf('Exported %s.', name));
     }
+    /** P1: the production sheet is built on the server, once the order is confirmed with its supplier, and recorded. */
     function productionSheet() {
-      var r = st.cur.data, spec = r.spec;
-      download(R.toCsv(spec.entries, { delimiter: ',' }), R.csvFileName(r.club.name + ' ' + spec.collection.name + ' production sheet'), 'text/csv;charset=utf-8');
+      if (st.busy) return;
+      st.busy = true; say(T('Sending…'));
+      api.productionSheet(st.cur.data.id).then(function (x) {
+        st.busy = false;
+        if (x.ok && x.data && x.data.sheet) { download(x.data.sheet.csv, x.data.sheet.fileName, 'text/csv;charset=utf-8'); return; }
+        say(x.code === 'SHEET_NOT_AVAILABLE' ? T('The production sheet is available once the order is confirmed with the supplier.') : T('The production sheet could not be made.'));
+      });
     }
     function designFile(projectId) {
       var r = st.cur.data;
@@ -251,7 +264,7 @@
       if (st.view === 'request') kids = kids.concat(requestBody());
       else if (st.view === 'supplier') kids = kids.concat(supplierBody());
       else if (st.view === 'club') kids = kids.concat(clubBody());
-      else kids = kids.concat([tabs()], st.tab === 'suppliers' ? suppliersList() : st.tab === 'releases' ? releasesList() : requestsList());
+      else kids = kids.concat([tabs()], st.tab === 'suppliers' ? suppliersList() : st.tab === 'releases' ? releasesList() : st.tab === 'privacy' ? privacyList() : requestsList());
       var body = h('div', { class: 'pd-dock-body pd-team-body', tabindex: '0' }, kids);
       el.appendChild(head); el.appendChild(body);
       el.appendChild(h('p', { class: 'pd-note pd-team-status', role: 'status', 'aria-live': 'polite', 'data-pd-mfg-status': '', text: st.note }));
@@ -259,10 +272,81 @@
       if (active) { var back = el.querySelector('[data-pd-mfg-key="' + active + '"]'); if (back) back.focus({ preventScroll: true }); }
     }
     function tabs() {
-      return h('div', { class: 'pd-tabs pd-team-tabs', role: 'tablist', 'aria-label': T('Manufacturing') }, [['requests', L('Requests')], ['suppliers', L('Suppliers')]].concat(ctx.rollout ? [['releases', L('Club releases')]] : []).map(function (t) {
+      return h('div', { class: 'pd-tabs pd-team-tabs', role: 'tablist', 'aria-label': T('Manufacturing') }, [['requests', L('Requests')], ['suppliers', L('Suppliers')]].concat(ctx.rollout ? [['releases', L('Club releases')], ['privacy', L('Privacy')]] : []).map(function (t) {
         return btn({ class: 'pd-tab', role: 'tab', 'data-pd-act': 'mfg-tab-' + t[0], 'data-pd-mfg-key': 'tab-' + t[0], 'aria-selected': st.tab === t[0] ? 'true' : 'false', tabindex: st.tab === t[0] ? '0' : '-1', text: T(t[1]) });
       }));
     }
+    // ── P1: retention of the personal data the studio keeps ───────────────
+    function loadRetention() {
+      if (!ctx.rollout || !ctx.rollout.retention) return;
+      st.ret.state = 'loading'; render();
+      ctx.rollout.retention().then(function (r) {
+        st.ret.state = r.ok && r.data ? 'ready' : 'error'; st.ret.data = r.ok ? r.data : null;
+        if (st.ret.data) st.ret.data.rules.forEach(function (x) { st.ret.draft[x.kind] = x.days === null ? '' : String(x.days); });
+        render();
+      });
+    }
+    function privacyList() {
+      var Rt = st.ret, out = [h('p', { class: 'pd-note', text: T('How long the studio keeps the personal data it holds. No period is set until you set one, and nothing is erased until then.') })];
+      if (Rt.state === 'loading' || Rt.state === 'idle') { out.push(skeleton(2)); return out; }
+      if (Rt.state === 'error') { out.push(h('div', { class: 'pd-dock-state', role: 'alert' }, [h('p', { class: 'pd-empty', text: T('The retention rules could not be loaded.') }), btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-ret-retry', 'data-pd-mfg-key': 'ret-retry' }, [h('span', { text: T('Try again') })])])); return out; }
+      Rt.data.rules.forEach(function (x) {
+        var meta = RETAIN[x.kind] || [x.kind, ''];
+        var days = h('input', { class: 'pd-input pd-ret-days', type: 'number', min: '1', max: String(Rt.data.maxDays), step: '1', inputmode: 'numeric', 'data-pd-ret-days': x.kind, 'data-pd-mfg-key': 'ret-' + x.kind, 'aria-label': tf('Days to keep: %s', T(meta[0])) });
+        days.value = Rt.draft[x.kind] || '';
+        out.push(h('section', { class: 'pd-rel-row', 'data-pd-ret': x.kind }, [
+          h('div', { class: 'pd-rel-head' }, [h('h3', { class: 'pd-dock-h', text: T(meta[0]) }),
+            h('span', { class: 'pd-chip pd-rel-chip', 'data-included': x.days === null ? 'false' : 'true', text: x.days === null ? T('Not set') : tf('After %d days', x.days) })]),
+          h('p', { class: 'pd-note', text: T(meta[1]) }),
+          h('div', { class: 'pd-dock-btns pd-ret-set' }, [
+            h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-dock-kicker', text: T('Days to keep') }), days]),
+            btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'mfg-ret-save', 'data-pd-id': x.kind, 'data-pd-mfg-key': 'ret-save-' + x.kind, 'aria-disabled': Rt.busy ? 'true' : null }, [h('span', { text: T('Set') })]),
+            x.days === null ? null : btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-ret-clear', 'data-pd-id': x.kind, 'data-pd-mfg-key': 'ret-clear-' + x.kind }, [h('span', { text: T('Clear') })]),
+          ]),
+        ]));
+      });
+      var any = Rt.data.rules.some(function (x) { return x.days !== null; });
+      out.push(h('div', { class: 'pd-team-tools' }, [
+        btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'mfg-ret-preview', 'data-pd-mfg-key': 'ret-preview', 'aria-disabled': !any || Rt.busy ? 'true' : null }, [h('span', { text: T('Preview') })]),
+        btn({ class: 'pd-btn pd-btn--primary', 'data-pd-act': 'mfg-ret-apply', 'data-pd-mfg-key': 'ret-apply', 'aria-disabled': !any || Rt.busy || !Rt.result || !Rt.result.dryRun ? 'true' : null,
+          'data-pd-why': !Rt.result || !Rt.result.dryRun ? T('Preview first.') : null }, [h('span', { text: T('Apply now') })]),
+      ]));
+      if (Rt.result) {
+        var lines = Rt.result.results.map(function (r) {
+          var what = T((RETAIN[r.kind] || [r.kind])[0]), before = day(r.cutoff, ctx.lang());
+          return Rt.result.dryRun ? tf('%s: %d would be erased (before %s).', what, r.affected, before) : tf('%s: %d erased (before %s).', what, r.affected, before);
+        });
+        out.push(h('div', { role: 'status', 'data-pd-ret-result': Rt.result.dryRun ? 'preview' : 'applied' }, [h('ul', { class: 'pd-ret-result' }, lines.map(function (l) { return h('li', { text: l }); }))]));
+      }
+      out.push(h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: Rt.data.automatic ? T('The platform also applies these rules automatically, every hour.')
+        : T('Rules apply when you apply them here: the platform’s automatic retention is not switched on.') })]));
+      return out;
+    }
+    function retentionSet(kind, clear) {
+      var Rt = st.ret;
+      if (Rt.busy) return;
+      var days = clear ? null : Number(Rt.draft[kind]);
+      if (!clear && (!Number.isInteger(days) || days < 1 || days > Rt.data.maxDays)) { say(tf('A period is 1 to %d days.', Rt.data.maxDays)); return; }
+      Rt.busy = true; say(T('Saving…'));
+      ctx.rollout.setRetention(kind, days).then(function (r) {
+        Rt.busy = false; Rt.result = null;
+        if (r.ok && r.data) { Rt.data = r.data; say(clear ? T('The rule was cleared.') : T('The rule was set.')); }
+        else say(T('The rule was not saved.'));
+        render();
+      });
+    }
+    function retentionRun(dryRun) {
+      var Rt = st.ret;
+      if (Rt.busy) return;
+      Rt.busy = true; say(T('Sending…'));
+      ctx.rollout.applyRetention(dryRun).then(function (r) {
+        Rt.busy = false;
+        if (r.ok && r.data) { Rt.result = r.data; say(dryRun ? T('Preview ready.') : T('The rules were applied.')); }
+        else say(T('The rules could not be applied.'));
+        render();
+      });
+    }
+
     // ── M8a: club releases ────────────────────────────────────────────────
     function loadReleases() {
       if (!ctx.rollout) return;
@@ -286,7 +370,7 @@
             h('span', { class: 'pd-dock-name', 'data-user-content': '', text: c.name }),
             h('span', { class: 'pd-dock-kicker' }, [T('Plan'), ' ', h('bdi', { 'data-user-content': '', text: c.plan }), ' · ', c.effective.studio ? T('Studio released') : T('Studio not released')]),
           ]),
-          h('div', { class: 'pd-dock-btns' }, [btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'mfg-rel-open', 'data-pd-id': c.id, 'data-pd-mfg-key': 'rel-' + c.id, 'aria-label': tf('Manage %s', c.name) }, [h('span', { text: T('Manage') })])]),
+          h('div', { class: 'pd-dock-btns' }, [btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'mfg-rel-open', 'data-pd-id': c.id, 'data-pd-mfg-key': 'rel-' + c.id }, [h('span', { text: T('Manage') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + c.name })])]),
         ]));
       });
       out.push(ul);
@@ -398,10 +482,16 @@
       });
       g.appendChild(gb);
       out.push(h('div', { class: 'pd-team-scroll pd-col-sheet-wrap', role: 'region', 'aria-label': T('Designs'), tabindex: '0' }, [g]));
+      // P1: the people's names, kept apart; the production sheet only once the order is confirmed with its supplier.
+      if (r.people) out.push(h('p', { class: 'pd-note', 'data-pd-mfg-people': '', text: tf('Names: %d kept · %d withheld · %d erased.', r.people.kept, r.people.withheld, r.people.erased)
+        + (r.people.minors ? ' ' + (r.people.minorsConsent ? T('Includes players under 18: a club administrator confirmed a guardian’s consent.') : T('Includes players under 18: their names were not sent.')) : '') }));
+      var ordered = r.status === 'ORDERED' || r.status === 'IN_PRODUCTION' || r.status === 'SHIPPED' || r.status === 'DELIVERED';
       out.push(h('div', { class: 'pd-team-tools' }, [
-        btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-sheet', 'data-pd-mfg-key': 'sheet' }, [icon('export', 14), h('span', { text: tf('Export the production sheet (%d entries)', spec.entries.length) })]),
+        ordered ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-sheet', 'data-pd-mfg-key': 'sheet' }, [icon('export', 14), h('span', { text: tf('Export the production sheet (%d entries)', spec.entries.length) })]) : null,
+        FINAL[r.status] && r.people && r.people.kept ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-erase-names', 'data-pd-mfg-key': 'erase-names' }, [icon('trash', 14), h('span', { text: T('Erase the names') })]) : null,
       ]));
-      out.push(h('p', { class: 'pd-note', text: T('The production sheet holds people’s names: share it only with the supplier making this order.') }));
+      out.push(h('p', { class: 'pd-note', text: ordered ? T('The production sheet holds people’s names: share it only with the supplier making this order. Each export is recorded.')
+        : T('The production sheet is available once the order is confirmed with the supplier.') }));
       // M7d: while it is being sourced, how each verified supplier fits it.
       if (r.status === 'SUBMITTED' || r.status === 'IN_REVIEW' || r.status === 'QUOTED') out = out.concat(fitBlock(lang));
       // Quotations.
@@ -483,7 +573,7 @@
             h('span', { class: 'pd-dock-kicker', text: [region(s.country, ctx.lang())].concat(s.forms.map(function (f) { return T(FORM[f]); }), s.methods.map(function (m) { return T(METHOD[m]); })).join(' · ') }),
           ]),
           h('div', { class: 'pd-dock-btns' }, [chip(T(SSTATUS[s.status]), s.status === 'VERIFIED'),
-            btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'mfg-open-supplier', 'data-pd-id': s.id, 'aria-label': tf('Open %s', s.name) }, [h('span', { text: T('Open') })])]),
+            btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'mfg-open-supplier', 'data-pd-id': s.id }, [h('span', { text: T('Open') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + s.name })])]),
         ]));
       });
       out.push(list);
@@ -552,6 +642,12 @@
         case 'mfg-tab-suppliers': if (st.tab !== 'suppliers') { st.tab = 'suppliers'; loadSuppliers(); ctx.onToggle(true); } return true;
         case 'mfg-tab-releases': if (st.tab !== 'releases' && ctx.rollout) { st.tab = 'releases'; loadReleases(); ctx.onToggle(true); } return true;
         case 'mfg-rel-retry': loadReleases(); return true;
+        case 'mfg-tab-privacy': if (st.tab !== 'privacy' && ctx.rollout) { st.tab = 'privacy'; loadRetention(); ctx.onToggle(true); } return true;
+        case 'mfg-ret-retry': loadRetention(); return true;
+        case 'mfg-ret-save': retentionSet(t.getAttribute('data-pd-id'), false); return true;
+        case 'mfg-ret-clear': retentionSet(t.getAttribute('data-pd-id'), true); return true;
+        case 'mfg-ret-preview': retentionRun(true); return true;
+        case 'mfg-ret-apply': if (st.ret.result && st.ret.result.dryRun) retentionRun(false); return true;
         case 'mfg-rel-open': st.rel.cur = t.getAttribute('data-pd-id'); st.view = 'club'; st.note = ''; render(); { var f = el.querySelector('[data-pd-rel-key="studio"]:checked'); if (f) f.focus({ preventScroll: true }); } return true;
         case 'mfg-filter-open': st.filter = 'open'; render(); return true;
         case 'mfg-filter-all': st.filter = 'all'; render(); return true;
@@ -591,6 +687,11 @@
           });
           return true;
         case 'mfg-sheet': productionSheet(); return true;
+        case 'mfg-erase-names':
+          askNote(T('Erase the names'), T('The names are erased for good; numbers, sizes and sets stay. Say why, for the record, without naming anyone.'), function (note) {
+            run(function () { return api.eraseNames(st.cur.data.id, note); }, T('The names were erased.'), L('The names could not be erased.'));
+          });
+          return true;
         case 'mfg-design': designFile(id); return true;
         case 'mfg-supplier-new':
           st.view = 'supplier'; st.sup = { id: null, version: 0, status: 'PROSPECT', fields: { name: '', country: '', city: '', website: '', contactEmail: '', forms: [], methods: [], minOrderSets: null, leadTimeDays: null } };
@@ -636,6 +737,8 @@
         return true;
       }
       if (t.hasAttribute('data-pd-mfg-note') && st.ask) { st.ask.value = t.value; return true; }
+      k = t.getAttribute('data-pd-ret-days');
+      if (k) { st.ret.draft[k] = t.value; return true; }
       k = t.getAttribute('data-pd-rel-key');
       if (k && t.checked && ev.type === 'change') { setRelease(k, t.value); return true; }
       return true;

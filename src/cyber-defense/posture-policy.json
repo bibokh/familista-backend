@@ -850,6 +850,8 @@
       "routes": [
         "GET /system/manufacturing/requests/:requestId",
         "GET /system/manufacturing/requests/:requestId/fit",
+        "POST /system/manufacturing/requests/:requestId/production-sheet",
+        "POST /system/manufacturing/requests/:requestId/erase-names",
         "POST /system/manufacturing/requests/:requestId/review",
         "POST /system/manufacturing/requests/:requestId/refuse",
         "POST /system/manufacturing/requests/:requestId/quotes",
@@ -1395,7 +1397,8 @@
     "ManufacturingRequestEvent",
     "ManufacturingQuote",
     "DesignReviewComment",
-    "DesignApproval"
+    "DesignApproval",
+    "ManufacturingRequestPerson"
   ],
   "rlsSystemPaths": {
     "platform-owner": "A platform owner acts across clubs by role (authenticate); the owner rooms are pinned separately (owner-rooms-pinned).",

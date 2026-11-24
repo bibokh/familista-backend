@@ -57,7 +57,7 @@ describe('what it may call', () => {
     // collection, and nothing else.
     expect([...new Set(verbs)].sort()).toEqual(['DELETE', 'GET', 'POST', 'PUT']);
     // M4: the Platform Owner's console saves a supplier (PUT) and discards a draft quotation (DELETE).
-    expect([...CODE.matchAll(/call\('PUT', '([^']+)'/g)].map((m) => m[1])).toEqual(['/rollout/', '/brand-kit/colours', '/rosters/', '/collections/', '/suppliers/']);
+    expect([...CODE.matchAll(/call\('PUT', '([^']+)'/g)].map((m) => m[1])).toEqual(['/privacy/retention', '/rollout/', '/brand-kit/colours', '/rosters/', '/collections/', '/suppliers/']);
     expect([...CODE.matchAll(/call\('DELETE', '([^']+)'/g)].map((m) => m[1])).toEqual(['/rosters/', '/collections/', '/requests/']);
   });
 
@@ -83,6 +83,8 @@ describe('what it may call', () => {
     await P.api.saveRevision(id, 1, {}); await P.api.listRevisions(id); await P.api.restoreRevision(id, 2, 5);
     // M8a: the Owner's rollout control, on the platform's client alone; a club id that is not one is never sent.
     await P.api.rollout(); await P.api.setRollout('club-1', { studio: 'on' });
+    // P1: the retention rules, none set by default.
+    await P.api.retention(); await P.api.setRetention('DesignReviewComment', 30); await P.api.applyRetention(true);
     expect((await P.api.setRollout('../x', { studio: 'on' })).code).toBe('BAD_CLUB');
     expect(P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' }).api.rollout).toBeUndefined();
     await P.api.archive(id); await P.api.unarchive(id); await P.api.getRevision(id, 3);
@@ -121,6 +123,8 @@ describe('in a club (M2): the club’s own routes, and a record of its own', () 
     await C.api.listRosters('active'); await C.api.createRoster('First team', []); await C.api.openRoster(id);
     await C.api.saveRoster(id, 3, 'First team', []); await C.api.archiveRoster(id); await C.api.unarchiveRoster(id);
     await C.api.deleteRoster(id); await C.api.squadNames();
+    // P1: a club administrator erases a person's name (previewed unless confirmed).
+    await C.api.erasePerson('A Name', false);
     // M3b: the collections and their order sheet, every route of them.
     const kit = { name: 'Home kit', season: null, rosterId: null, items: [] };
     await C.api.listCollections('active'); await C.api.createCollection(kit); await C.api.openCollection(id);
@@ -151,6 +155,7 @@ describe('in a club (M2): the club’s own routes, and a record of its own', () 
     for (const step of ['review', 'refuse', 'order', 'produce', 'ship', 'deliver']) await M.step(id, step, 'note');
     expect(await M.step(id, 'pay', 'note')).toMatchObject({ ok: false, code: 'BAD_STEP' }); // a step the server has no route for is never sent
     await M.recordQuote(id, {}); await M.publishQuote(id, id); await M.withdrawQuote(id, id, 'why'); await M.discardDraft(id, id); await M.specDesign(id, id); await M.requestFit(id);
+    await M.productionSheet(id); await M.eraseNames(id, 'closed');
     expect(calls.every((c) => c.url.startsWith('/api/v1/system/manufacturing/'))).toBe(true);
     const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/manufacturing', '').replace(/\?.*$/, '')
       .replace(`/quotes/${id}`, '/quotes/:quoteId').replace(`/designs/${id}`, '/designs/:projectId').replace(`/requests/${id}`, '/requests/:requestId').replace(`/suppliers/${id}`, '/suppliers/:supplierId')}`);

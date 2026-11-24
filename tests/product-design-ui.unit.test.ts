@@ -159,6 +159,8 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
       // M4: manufacturing builds on the Design Studio's collections, rosters, revisions and actor (src/platform/manufacturing).
       'src/platform/manufacturing/club-http.ts', 'src/platform/manufacturing/owner-http.ts', 'src/platform/manufacturing/request.service.ts',
       'src/platform/manufacturing/supplier.service.ts',
+      // P1: the studio's privacy controls: erasing a person's name, and retention of the data it keeps.
+      'src/platform/privacy/erasure.service.ts', 'src/platform/privacy/privacy-http.ts', 'src/platform/privacy/retention.service.ts',
       'src/platform/product-design/core.ts', 'src/platform/product-design/http.ts',
       // M8a: the Owner's rollout control releases the Club Design Studio to clubs.
       'src/platform/product-design/rollout-http.ts', 'src/platform/product-design/rollout.service.ts',
@@ -372,7 +374,7 @@ describe('the official languages', () => {
       .not.toMatch(/setAttribute\(\s*['"]style['"]|\.cssText|\bstyle\s*:|\.style\./);
     expect(TEAM_CODE).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
     const texts = [...TEAM_CODE.matchAll(/text: '([^']*)'/g)].map((m) => m[1]);
-    expect([...new Set(texts)].sort()).toEqual(['#', '—', ' · '].sort());
+    expect([...new Set(texts)].sort()).toEqual(['#', '—', ' · ', ' '].sort());
     // Its server calls are the club client's own (pd-server.js), and its back arrow is the room's mirrored one.
     for (const call of ['listRosters', 'openRoster', 'createRoster', 'saveRoster', 'archiveRoster', 'unarchiveRoster', 'deleteRoster', 'squadNames',
       'listCollections', 'openCollection', 'createCollection', 'saveCollection', 'archiveCollection', 'unarchiveCollection', 'deleteCollection', 'orderSheet', 'listProjects']) {
@@ -397,7 +399,9 @@ describe('the official languages', () => {
   it('writes no visible English outside the catalogue: the only literal texts are the brand, the mode names and symbols', () => {
     const noIcons = CODE.slice(0, CODE.indexOf('var ICONS = {')) + CODE.slice(CODE.indexOf('function icon(name, size)'));
     const texts = [...noIcons.matchAll(/text: '([^']*)'/g)].map((m) => m[1]);
-    expect([...new Set(texts)].sort()).toEqual(['2.5D', '2D', '360°', '3D', 'Familista', 'Familista Design Studio', '—', '→', ' · '].sort());
+    // ' ' joins a button's visible verb to the item's name, kept for assistive technology alone (a label that matches its
+    // visible text in every language).
+    expect([...new Set(texts)].sort()).toEqual(['2.5D', '2D', '360°', '3D', 'Familista', 'Familista Design Studio', '—', '→', ' · ', ' '].sort());
   });
 
   it('the product names stay as the approved reference shows them, in every language', () => {

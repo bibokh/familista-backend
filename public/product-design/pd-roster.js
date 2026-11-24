@@ -299,7 +299,17 @@
   }
   function blankEntry() { return { name: '', number: null, top: null, shorts: null, socks: null, qty: 1 }; }
 
+  /**
+   * P1: the entries in a children's size (a top or shorts by height, 116 to 164 cm), which mark a roster as including
+   * minors whatever the club says. Sock sizes are not counted: the smaller ones are adults' too.
+   */
+  var YOUTH = Object.freeze(['116', '128', '140', '152', '164']);
+  function youthEntries(entries) {
+    return entries.filter(function (e) { return YOUTH.indexOf(e.top) !== -1 || YOUTH.indexOf(e.shorts) !== -1; }).length;
+  }
+
   return Object.freeze({
+    YOUTH: YOUTH, youthEntries: youthEntries,
     LIMITS: LIMITS, FORMS: FORMS, SIZES: SIZES, COLUMNS: COLUMNS,
     validateEntries: validateEntries, validateRosterName: validateRosterName, readEntry: readEntry, normaliseSize: normaliseSize,
     parseCsv: parseCsv, toCsv: toCsv, toTable: toTable, csvFileName: csvFileName, detectDelimiter: detectDelimiter,

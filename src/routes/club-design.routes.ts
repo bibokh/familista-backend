@@ -49,6 +49,7 @@ import {
   openManufacturingRequest, submitManufacturingRequest,
 } from '../platform/manufacturing/club-http';
 import { commentOnDesign, decideOnDesign, readDesignReview, reopenDesignComment, resolveDesignComment } from '../platform/product-design/review-http';
+import { clubErasePerson } from '../platform/privacy/privacy-http';
 
 const router = Router();
 router.use(authenticate);
@@ -121,6 +122,9 @@ router.post('/rosters/:rosterId/archive', teamKit, tenantParam('designRoster', '
 router.post('/rosters/:rosterId/unarchive', teamKit, tenantParam('designRoster', 'rosterId'), unarchiveTeamRoster);
 router.delete('/rosters/:rosterId', teamKit, tenantParam('designRoster', 'rosterId'), deleteTeamRoster);
 router.get('/squad-names', teamKit, readSquadNames);
+// P1: a club administrator erases a person's name from the club's design data (previewed first; the service refuses
+// anyone else). Not a part of the plan: wherever the studio is, its data can be erased.
+router.post('/privacy/erase-person', clubErasePerson);
 
 // The club's collections (M3b): its designs gathered as one kit, and the order sheet a roster makes of it. A collection
 // id is checked against the caller's club before its handler runs; the designs and the roster it names are checked by

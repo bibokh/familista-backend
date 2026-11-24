@@ -55,7 +55,8 @@ const REFERENCE = path.join(ROOT, 'docs/design-studio', REGIONS.reference);
 // PROOF_ONLY=P16 runs only the DS-1c 3D sections (P16), PROOF_ONLY=P17 only the catalogue (M1), PROOF_ONLY=P18 only the Club Design
 // Studio (M2), PROOF_ONLY=P19 only the Team panel (M3), PROOF_ONLY=P20 only manufacturing (M4), PROOF_ONLY=P21 only a design's
 // review (M7b), PROOF_ONLY=P22 only a collection's presentation sheet (M7b-2),
-// PROOF_ONLY=P23 only colourways (M7c), PROOF_ONLY=P24 only the Owner's club releases (M8a); unset, everything runs.
+// PROOF_ONLY=P23 only colourways (M7c), PROOF_ONLY=P24 only the Owner's club releases (M8a), PROOF_ONLY=P25 only the
+// privacy foundation (P1); unset, everything runs.
 const want = (n) => !process.env.PROOF_ONLY || process.env.PROOF_ONLY.split(',').includes(n);
 const roomWord = (code, en) => JSON.parse(fs.readFileSync(path.join(ROOT, 'public/product-design/i18n', code + '.json'), 'utf8'))[en];
 
@@ -188,6 +189,7 @@ const budget = (name, values, ok, detail) => {
   async function proofPresent() { await require('./product-design-present-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   async function proofColourways() { await require('./product-design-colourway-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   async function proofRollout() { await require('./product-design-rollout-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofPrivacy() { await require('./product-design-privacy-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   const boxOf = (pg, sel) => pg.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; }, sel);
 
   try {
@@ -724,6 +726,7 @@ const budget = (name, values, ok, detail) => {
     if (want('P22')) await proofPresent();
     if (want('P23')) await proofColourways();
     if (want('P24')) await proofRollout();
+    if (want('P25')) await proofPrivacy();
   } catch (e) {
     fail('proof crashed', String(e && e.stack || e).slice(0, 1200));
   } finally {

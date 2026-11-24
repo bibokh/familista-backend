@@ -22,6 +22,7 @@
  *   POST /projects/:id/archive | /unarchive        archive a project, or return it to the list
  *   GET  /rollout                                  M8a: which clubs the Club Design Studio and its parts are released to
  *   PUT  /rollout/:clubId                          set a club's release: { studio?, teamKit?, brandKit?, manufacturing?, reviews? }
+ *   GET|PUT /privacy/retention, POST …/apply       P1: retention rules for the studio's personal data (none set by default)
  *
  * Documents are validated by the editor's own core (src/platform/product-design/core.ts);
  * a refused document answers 400 DESIGN_DOCUMENT_INVALID with the core's codes and paths.
@@ -35,6 +36,7 @@ import {
   saveDesign, setDesignScope, unarchiveDesign,
 } from '../platform/product-design/http';
 import { changeRollout, readRollout } from '../platform/product-design/rollout-http';
+import { ownerApplyRetention, ownerReadRetention, ownerSetRetention } from '../platform/privacy/privacy-http';
 
 const router = Router();
 router.use(authenticate);
@@ -53,6 +55,10 @@ router.get('/projects', listDesigns);
 // M8a: the Owner releases the Club Design Studio, and each of its parts, to the clubs invited to it.
 router.get('/rollout', readRollout);
 router.put('/rollout/:clubId', changeRollout);
+// P1: the retention of the personal data the studio keeps; none is set until the Owner sets it.
+router.get('/privacy/retention', ownerReadRetention);
+router.put('/privacy/retention', ownerSetRetention);
+router.post('/privacy/retention/apply', ownerApplyRetention);
 router.post('/projects', createDesign);
 router.get('/projects/:id', openDesign);
 router.post('/projects/:id/revisions', saveDesign);

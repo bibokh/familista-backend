@@ -11113,18 +11113,20 @@ model DesignBrandAsset {
 /// each { name, number, top, shorts, socks, qty } and nothing else. `version` is the concurrency token every save names.
 /// Under row-level security (20261123200000): a club's rosters are its club's alone.
 model DesignRoster {
-  id          String    @id @default(uuid())
-  clubId      String
-  club        Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  name        String
-  entries     Json      @default("[]")
-  entryCount  Int       @default(0)
-  version     Int       @default(1)
-  createdById String
-  updatedById String
-  archivedAt  DateTime? @db.Timestamptz(3)
-  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
-  updatedAt   DateTime  @default(now()) @updatedAt @db.Timestamptz(3)
+  id             String    @id @default(uuid())
+  clubId         String
+  club           Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  name           String
+  entries        Json      @default("[]")
+  entryCount     Int       @default(0)
+  version        Int       @default(1)
+  createdById    String
+  updatedById    String
+  /// P1: the club marks a roster that includes minors; a youth size marks it too, whatever this says.
+  includesMinors Boolean   @default(false)
+  archivedAt     DateTime? @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @default(now()) @updatedAt @db.Timestamptz(3)
 
   collections DesignCollection[]
 
@@ -11269,30 +11271,58 @@ model ManufacturingSupplier {
 /// A club's request for quotation (M4): a frozen specification of a collection's designs (each at its saved revision and
 /// hash) and a roster's names, numbers and sizes, as submitted. Under row-level security (20261123220000).
 model ManufacturingRequest {
-  id              String                     @id @default(uuid())
-  clubId          String
-  club            Club                       @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  collectionId    String?
-  collection      DesignCollection?          @relation(fields: [collectionId], references: [id], onDelete: SetNull)
-  status          ManufacturingRequestStatus @default(SUBMITTED)
-  version         Int                        @default(1)
+  id                String                     @id @default(uuid())
+  clubId            String
+  club              Club                       @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  collectionId      String?
+  collection        DesignCollection?          @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  status            ManufacturingRequestStatus @default(SUBMITTED)
+  version           Int                        @default(1)
   /// The specification as submitted; never changed afterwards (a trigger holds it).
-  spec            Json
-  setsTotal       Int
-  clubNote        String?
-  neededBy        DateTime?                  @db.Date
-  acceptedQuoteId String?                    @unique
-  createdById     String
-  createdAt       DateTime                   @default(now()) @db.Timestamptz(3)
-  updatedAt       DateTime                   @default(now()) @updatedAt @db.Timestamptz(3)
+  spec              Json
+  setsTotal         Int
+  clubNote          String?
+  neededBy          DateTime?                  @db.Date
+  acceptedQuoteId   String?                    @unique
+  /// P1: the roster included minors (marked so, or a youth size); their names are kept only with an attested consent.
+  minors            Boolean                    @default(false)
+  minorsConsentAt   DateTime?                  @db.Timestamptz(3)
+  minorsConsentById String?
+  createdById       String
+  createdAt         DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                   @default(now()) @updatedAt @db.Timestamptz(3)
 
-  events ManufacturingRequestEvent[]
-  quotes ManufacturingQuote[]
+  events  ManufacturingRequestEvent[]
+  quotes  ManufacturingQuote[]
+  persons ManufacturingRequestPerson[]
 
   @@unique([id, clubId])
   @@index([clubId, status, updatedAt])
   @@index([status, updatedAt])
   @@index([collectionId])
+}
+
+/// P1: a person's name for one entry of a request, apart from the frozen specification so it can be erased. A kept
+/// name can only be erased (a trigger holds it); a withheld one was never kept (minors without an attested consent).
+model ManufacturingRequestPerson {
+  id        String                   @id @default(uuid())
+  clubId    String
+  requestId String
+  request   ManufacturingRequest     @relation(fields: [requestId, clubId], references: [id, clubId], onDelete: Cascade)
+  position  Int
+  name      String?
+  state     ManufacturingPersonState @default(KEPT)
+  erasedAt  DateTime?                @db.Timestamptz(3)
+  createdAt DateTime                 @default(now()) @db.Timestamptz(3)
+
+  @@unique([requestId, position])
+  @@index([clubId])
+}
+
+enum ManufacturingPersonState {
+  KEPT
+  WITHHELD
+  ERASED
 }
 
 /// One step of a request's history. Never changed or removed (a trigger holds it).

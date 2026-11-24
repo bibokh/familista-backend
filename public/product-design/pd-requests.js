@@ -135,6 +135,9 @@
         ]),
         statusChip(r.status),
       ]));
+      // P1: what became of the people's names: kept apart from the frozen specification, withheld or erased.
+      if (r.people) out.push(h('p', { class: 'pd-note', 'data-pd-req-people': '', text: tf('Names: %d kept · %d withheld · %d erased.', r.people.kept, r.people.withheld, r.people.erased)
+        + (r.people.minors ? ' ' + (r.people.minorsConsent ? T('Includes players under 18: a club administrator confirmed a guardian’s consent.') : T('Includes players under 18: their names were not sent.')) : '') }));
       // What the club asked for.
       var table = h('table', { class: 'pd-team-table pd-col-sheet' }, [h('thead', null, [h('tr', null, [
         h('th', { scope: 'col', text: T('Design') }), h('th', { scope: 'col', text: T('Garment') }), h('th', { scope: 'col', text: T('Sizes and sets') }),

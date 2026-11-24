@@ -16,17 +16,21 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { ConflictError, NotFoundError } from '../../utils/errors';
 import { clubAudit } from './club-audit';
-import { validateRosterEntries, validateRosterName, type RosterEntry } from './roster-core';
+import { validateRosterEntries, validateRosterName, type RosterEntry, youthEntries } from './roster-core';
 import type { DesignActor } from './service';
 
 /** At most this many rosters in a club at once (archived ones do not count). */
 export const ACTIVE_ROSTER_LIMIT = 100;
 
 export interface RosterSummaryView { id: string; name: string; entryCount: number; version: number; archivedAt: Date | null; updatedAt: Date }
-export interface RosterView extends RosterSummaryView { entries: RosterEntry[]; createdAt: Date }
+export interface RosterView extends RosterSummaryView {
+  entries: RosterEntry[]; createdAt: Date;
+  /** P1: what the club says (includesMinors), the entries in a children's size, and so whether it counts as including minors. */
+  includesMinors: boolean; youthEntries: number; minors: boolean;
+}
 
 const SUMMARY_SELECT = { id: true, name: true, entryCount: true, version: true, archivedAt: true, updatedAt: true } as const;
-const FULL_SELECT = { ...SUMMARY_SELECT, entries: true, createdAt: true } as const;
+const FULL_SELECT = { ...SUMMARY_SELECT, entries: true, createdAt: true, includesMinors: true } as const;
 
 /** A change the roster cannot take as asked. */
 export class RosterRefusedError extends ConflictError {
@@ -40,9 +44,10 @@ export class RosterConflictError extends ConflictError {
   constructor(version: number) { super(`This roster has a newer version (${version}) than the one this save was based on`); this.version = version; }
 }
 
-function view(row: { entries: Prisma.JsonValue } & Omit<RosterView, 'entries'>): RosterView {
+function view(row: { entries: Prisma.JsonValue; includesMinors: boolean } & Omit<RosterView, 'entries' | 'includesMinors' | 'youthEntries' | 'minors'>): RosterView {
   // What was stored passed the core; reading it through the core again means a row changed underneath is refused, not shown.
-  return { ...row, entries: validateRosterEntries(row.entries) };
+  const entries = validateRosterEntries(row.entries), youth = youthEntries(entries);
+  return { ...row, entries, youthEntries: youth, minors: row.includesMinors || youth > 0 };
 }
 const sets = (entries: RosterEntry[]) => entries.reduce((n, e) => n + e.qty, 0);
 function audit(tx: Prisma.TransactionClient, clubId: string, actor: DesignActor, action: string, id: string, metadata: Record<string, unknown>, message: string) {
@@ -66,7 +71,7 @@ export async function getRoster(clubId: string, id: string): Promise<{ roster: R
 }
 
 /** A new roster, with the entries given (none is fine). */
-export async function createRoster(clubId: string, actor: DesignActor, input: { name: unknown; entries: unknown }): Promise<{ roster: RosterView }> {
+export async function createRoster(clubId: string, actor: DesignActor, input: { name: unknown; entries: unknown; includesMinors?: boolean }): Promise<{ roster: RosterView }> {
   const name = validateRosterName(input.name);
   const entries = validateRosterEntries(input.entries);
   return prisma.$transaction(async (tx) => {
@@ -74,7 +79,7 @@ export async function createRoster(clubId: string, actor: DesignActor, input: { 
       throw new RosterRefusedError('ROSTER_LIMIT', `A club keeps at most ${ACTIVE_ROSTER_LIMIT} rosters; archive one first`);
     }
     const row = await tx.designRoster.create({
-      data: { clubId, name, entries: entries as unknown as Prisma.InputJsonValue, entryCount: entries.length, createdById: actor.userId, updatedById: actor.userId },
+      data: { clubId, name, entries: entries as unknown as Prisma.InputJsonValue, entryCount: entries.length, includesMinors: input.includesMinors === true, createdById: actor.userId, updatedById: actor.userId },
       select: FULL_SELECT,
     });
     await audit(tx, clubId, actor, 'design.roster.created', row.id, { entries: entries.length, sets: sets(entries) }, 'A team roster was created');
@@ -83,7 +88,7 @@ export async function createRoster(clubId: string, actor: DesignActor, input: { 
 }
 
 /** Replace a roster's name and entries, if it is still at the version the save was based on. */
-export async function saveRoster(clubId: string, actor: DesignActor, id: string, input: { name: unknown; entries: unknown; version: number }): Promise<{ roster: RosterView }> {
+export async function saveRoster(clubId: string, actor: DesignActor, id: string, input: { name: unknown; entries: unknown; version: number; includesMinors?: boolean }): Promise<{ roster: RosterView }> {
   const name = validateRosterName(input.name);
   const entries = validateRosterEntries(input.entries);
   return prisma.$transaction(async (tx) => {
@@ -93,7 +98,8 @@ export async function saveRoster(clubId: string, actor: DesignActor, id: string,
     // The version is part of the write's own condition, so two saves racing on one version cannot both succeed.
     const moved = await tx.designRoster.updateMany({
       where: { id, clubId, version: input.version, archivedAt: null },
-      data: { name, entries: entries as unknown as Prisma.InputJsonValue, entryCount: entries.length, version: { increment: 1 }, updatedById: actor.userId },
+      data: { name, entries: entries as unknown as Prisma.InputJsonValue, entryCount: entries.length, version: { increment: 1 }, updatedById: actor.userId,
+        ...(typeof input.includesMinors === 'boolean' ? { includesMinors: input.includesMinors } : {}) },
     });
     if (moved.count !== 1) throw new RosterConflictError(current.version);
     const row = await tx.designRoster.findFirstOrThrow({ where: { id, clubId }, select: FULL_SELECT });

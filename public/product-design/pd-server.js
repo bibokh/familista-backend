@@ -98,6 +98,10 @@
     // M8a: the Platform Owner's rollout control: which clubs the Club Design Studio and its parts are released to. Only
     // the platform's client has it; the server refuses it to anyone but the Owner.
     if (base === BASE) {
+      // P1: the retention of the personal data the studio keeps; none is set until the Owner sets it.
+      api.retention = function () { return call('GET', '/privacy/retention'); };
+      api.setRetention = function (kind, days) { return call('PUT', '/privacy/retention', { kind: String(kind), days: days === null ? null : Number(days) }); };
+      api.applyRetention = function (dryRun) { return call('POST', '/privacy/retention/apply', { dryRun: dryRun !== false }); };
       api.rollout = function () { return call('GET', '/rollout'); };
       api.setRollout = function (clubId, changes) {
         if (!CLUB_ID.test(String(clubId))) return Promise.resolve({ ok: false, status: 0, code: 'BAD_CLUB', data: null, message: '', errors: [] });
@@ -116,9 +120,13 @@
       api.unarchiveBrandAsset = function (assetId) { return call('POST', '/brand-kit/assets/' + id(assetId) + '/unarchive', {}); };
       // The club's team rosters (M3) and its squad's names, to start one from.
       api.listRosters = function (state) { return call('GET', '/rosters?state=' + (state === 'archived' ? 'archived' : 'active')); };
-      api.createRoster = function (name, entries) { return call('POST', '/rosters', { name: name, entries: entries || [] }); };
+      api.createRoster = function (name, entries, includesMinors) { return call('POST', '/rosters', { name: name, entries: entries || [], includesMinors: includesMinors === true }); };
       api.openRoster = function (rosterId) { return call('GET', '/rosters/' + id(rosterId)); };
-      api.saveRoster = function (rosterId, version, name, entries) { return call('PUT', '/rosters/' + id(rosterId), { name: name, entries: entries, version: version }); };
+      api.saveRoster = function (rosterId, version, name, entries, includesMinors) {
+        var body = { name: name, entries: entries, version: version };
+        if (typeof includesMinors === 'boolean') body.includesMinors = includesMinors;
+        return call('PUT', '/rosters/' + id(rosterId), body);
+      };
       api.archiveRoster = function (rosterId) { return call('POST', '/rosters/' + id(rosterId) + '/archive', {}); };
       api.unarchiveRoster = function (rosterId) { return call('POST', '/rosters/' + id(rosterId) + '/unarchive', {}); };
       api.deleteRoster = function (rosterId) { return call('DELETE', '/rosters/' + id(rosterId)); };
@@ -138,13 +146,15 @@
       };
       // Manufacturing (M4, owner-brokered): the club's requests for quotation, the quotations published to it, its steps.
       api.submitRequest = function (collectionId, r) {
-        return call('POST', '/collections/' + id(collectionId) + '/requests', { rosterId: r.rosterId || null, note: r.note || null, neededBy: r.neededBy || null });
+        return call('POST', '/collections/' + id(collectionId) + '/requests', { rosterId: r.rosterId || null, note: r.note || null, neededBy: r.neededBy || null, minorsConsent: r.minorsConsent === true });
       };
       api.listRequests = function () { return call('GET', '/requests'); };
       api.openRequest = function (requestId) { return call('GET', '/requests/' + id(requestId)); };
       api.cancelRequest = function (requestId, note) { return call('POST', '/requests/' + id(requestId) + '/cancel', { note: note || null }); };
       api.declineQuotes = function (requestId, note) { return call('POST', '/requests/' + id(requestId) + '/decline', { note: note || null }); };
       api.confirmDelivery = function (requestId, note) { return call('POST', '/requests/' + id(requestId) + '/delivered', { note: note || null }); };
+      // P1: a club administrator erases a person's name from the club's design data; previewed unless confirmed.
+      api.erasePerson = function (name, confirm) { return call('POST', '/privacy/erase-person', { name: String(name || ''), confirm: confirm === true }); };
       api.acceptQuote = function (requestId, quoteId) { return call('POST', '/requests/' + id(requestId) + '/quotes/' + id(quoteId) + '/accept', {}); };
       // Reviews (M7b): comments on a saved version, and a club administrator's decision on the newest one.
       api.readReview = function (projectId) { return call('GET', '/projects/' + id(projectId) + '/review'); };
@@ -176,6 +186,9 @@
         specDesign: function (requestId, projectId) { return call('GET', '/requests/' + id(requestId) + '/designs/' + id(projectId)); },
         // M7d: how each verified supplier fits the request, from what was recorded about it.
         requestFit: function (requestId) { return call('GET', '/requests/' + id(requestId) + '/fit'); },
+        // P1: the production sheet, once the order is confirmed with its supplier; a closed request's names, erased.
+        productionSheet: function (requestId) { return call('POST', '/requests/' + id(requestId) + '/production-sheet', {}); },
+        eraseNames: function (requestId, note) { return call('POST', '/requests/' + id(requestId) + '/erase-names', { note: String(note || '') }); },
       };
     }
 

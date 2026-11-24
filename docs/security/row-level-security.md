@@ -68,6 +68,13 @@ design's club by a composite key onto `DesignProject(id, clubId)`. A decision is
 append-only: `DesignApproval_immutable` refuses UPDATE and DELETE and
 `DesignApproval_no_truncate` refuses TRUNCATE, on the system path too.
 
+The privacy foundation (`20261124200000_privacy_foundation`, P1) adds
+`ManufacturingRequestPerson`: the names of a request's entries, kept apart from
+its frozen specification, isolated by its own `clubId` both ways and held to
+its request's club by a composite key. `ManufacturingRequestPerson_erase_only`
+lets a kept name only become erased, and refuses DELETE and TRUNCATE except with
+the request itself.
+
 The AI agent worker runs each job's deterministic handler in that job's own
 club context (`runInClubContext(job.clubId, …)`), not on a system path: the
 finance agent reads `OperationsPayment` as the club it works for.

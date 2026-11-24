@@ -39,7 +39,8 @@ module.exports = async function p20(H) {
   const E = (o) => Object.assign({ name: 'SMITH', number: 9, top: 'M', shorts: 'L', socks: '39-42', qty: 1 }, o || {});
   const shirt = (await call('clubAdmin', 'POST', '/api/v1/club-design/projects', { document: C.createDocument(tpl('football-jersey.json'), 'P20 home shirt'), origin: 'EDITOR' })).body.data.project.id;
   const shorts = (await call('clubAdmin', 'POST', '/api/v1/club-design/projects', { document: C.createDocument(tpl('shorts.json'), 'P20 home shorts'), origin: 'EDITOR' })).body.data.project.id;
-  const roster = (await call('clubAdmin', 'POST', '/api/v1/club-design/rosters', { name: 'P20 first team', entries: [E(), E({ name: 'JONES', number: 4, top: 'L', qty: 2 }), E({ name: 'ARAB', number: 10, top: 'S', shorts: 'S' })] })).body.data.roster.id;
+  const rosterEntries = [E(), E({ name: 'JONES', number: 4, top: 'L', qty: 2 }), E({ name: 'ARAB', number: 10, top: 'S', shorts: 'S' })];
+  const roster = (await call('clubAdmin', 'POST', '/api/v1/club-design/rosters', { name: 'P20 first team', entries: rosterEntries })).body.data.roster.id;
   const kit = (await call('clubAdmin', 'POST', '/api/v1/club-design/collections', { name: 'P20 home kit', season: '2026/27', rosterId: roster, items: [{ projectId: shirt, role: 'HOME' }, { projectId: shorts, role: 'HOME' }] })).body.data.collection.id;
   if (!shirt || !shorts || !roster || !kit) { fail('P20 the club’s kit could not be prepared', { shirt, shorts, roster, kit }); return; }
 
@@ -205,9 +206,12 @@ module.exports = async function p20(H) {
     await op.$eval(OWNP + ' [data-pd-act="mfg-design"][data-pd-id="' + shirt + '"]', (b) => b.scrollIntoView({ block: 'center', inline: 'center' }));
     const [design] = await Promise.all([op.waitForEvent('download', { timeout: 15000 }), op.click(OWNP + ' [data-pd-act="mfg-design"][data-pd-id="' + shirt + '"]')]);
     const doc = JSON.parse(fs.readFileSync(await design.path(), 'utf8'));
-    check('P20 the Owner exports the production sheet (the roster as frozen) and a design exactly as submitted',
-      sheetRows.problems.length === 0 && JSON.stringify(sheetRows.entries) === JSON.stringify(R.validateEntries(req.spec.entries)) && doc.name === 'P20 home shirt' && doc.format === 'familista.product-design',
-      { entries: sheetRows.entries.length, file: design.suggestedFilename() });
+    // P1: the sheet is the server's, from the frozen entries and the names kept apart; every export is recorded.
+    const exported = await db.platformAuditLog.findMany({ where: { resourceId: req.id, action: { in: ['manufacturing.sheet.exported', 'manufacturing.design.exported'] } }, select: { action: true, metadata: true } });
+    check('P20 the Owner exports the production sheet (the roster as submitted) and a design exactly as submitted, each export recorded',
+      sheetRows.problems.length === 0 && JSON.stringify(sheetRows.entries) === JSON.stringify(R.validateEntries(rosterEntries)) && doc.name === 'P20 home shirt' && doc.format === 'familista.product-design'
+      && exported.some((x) => x.action === 'manufacturing.sheet.exported' && x.metadata.entries === 3) && exported.some((x) => x.action === 'manufacturing.design.exported'),
+      { entries: sheetRows.entries.length, file: design.suggestedFilename(), exported: exported.map((x) => x.action) });
 
     // ── 8. the console is the Owner's alone; another club reaches none of it ───────────────────────────────────────
     const asClub = await call('clubAdmin', 'GET', '/api/v1/system/manufacturing/requests');

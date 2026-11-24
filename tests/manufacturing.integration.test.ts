@@ -126,11 +126,13 @@ suite('Manufacturing (owner-brokered), on real PostgreSQL', () => {
       { relname: 'ManufacturingQuote', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'ManufacturingRequest', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'ManufacturingRequestEvent', relrowsecurity: true, relforcerowsecurity: true },
+      { relname: 'ManufacturingRequestPerson', relrowsecurity: true, relforcerowsecurity: true },
       // platform data with no club: reached only on the Owner's routes
       { relname: 'ManufacturingSupplier', relrowsecurity: false, relforcerowsecurity: false },
     ]);
     const trig = await db.$queryRawUnsafe<Row[]>(`SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid::regclass::text LIKE '"Manufacturing%' ORDER BY tgname`);
-    expect(trig.map((t) => t.tgname)).toEqual(['ManufacturingQuote_guard', 'ManufacturingRequestEvent_immutable', 'ManufacturingRequestEvent_no_truncate', 'ManufacturingRequest_guard']);
+    expect(trig.map((t) => t.tgname)).toEqual(['ManufacturingQuote_guard', 'ManufacturingRequestEvent_immutable', 'ManufacturingRequestEvent_no_truncate',
+      'ManufacturingRequestPerson_erase_only', 'ManufacturingRequestPerson_no_truncate', 'ManufacturingRequest_guard']);
   });
 
   it('access: the club’s routes for an entitled club’s administrators and managers; the console for the Platform Owner alone', async () => {
@@ -189,6 +191,18 @@ suite('Manufacturing (owner-brokered), on real PostgreSQL', () => {
     expect([r.body.data.request.status, r.body.data.request.sets, spec.garments.map((g: Row) => [g.form, g.revision, g.sha256.length])]).toEqual(['SUBMITTED', 3, [['top', 1, 64], ['shorts', 1, 64]]]);
     expect(spec.garments[0].sizes).toEqual([{ size: 'M', sets: 1 }, { size: 'L', sets: 2 }]);
     expect(spec.garments.map((g: Row) => g.approval && g.approval.decision)).toEqual(['APPROVED', null]);
+    // P1: the frozen specification keeps no name: each entry's position, number, sizes and sets; the names are kept apart.
+    expect(spec.entries).toEqual([{ position: 0, number: 9, top: 'M', shorts: 'L', socks: '39-42', qty: 1 }, { position: 1, number: 4, top: 'L', shorts: 'L', socks: '39-42', qty: 2 }]);
+    expect(JSON.stringify(spec)).not.toMatch(/SMITH|JONES/);
+    expect(r.body.data.request.people).toEqual({ kept: 2, withheld: 0, erased: 0, minors: false, minorsConsent: false });
+    expect((await sys(`SELECT "position", "name", "state" FROM "ManufacturingRequestPerson" WHERE "requestId" = $1 ORDER BY "position"`, req))
+      .map((x) => [x.position, x.name, x.state])).toEqual([[0, 'SMITH', 'KEPT'], [1, 'JONES', 'KEPT']]);
+    // a name can only be erased: never changed, never removed with its row, on the system path too
+    await expect(sysExec(`UPDATE "ManufacturingRequestPerson" SET "name" = 'OTHER' WHERE "requestId" = $1`, req)).rejects.toThrow(/ManufacturingRequestPerson_erase_only/);
+    await expect(sysExec(`DELETE FROM "ManufacturingRequestPerson" WHERE "requestId" = $1`, req)).rejects.toThrow(/ManufacturingRequestPerson_erase_only/);
+    // the production sheet does not leave before the order is confirmed with its supplier
+    const early = await as('owner').post(`${OWNER}/requests/${req}/production-sheet`);
+    expect([early.status, early.body.code]).toEqual([409, 'SHEET_NOT_AVAILABLE']);
     const seen = (await as('owner').get(`${OWNER}/requests/${req}`)).body.data.request.spec.garments;
     // frozen with the specification: the decision as it stood when the club asked, for the version it asked for
     expect(seen.map((g: Row) => g.approval && [g.approval.decision, typeof g.approval.at, g.revision])).toEqual([['APPROVED', 'string', 1], null]);
@@ -316,6 +330,83 @@ suite('Manufacturing (owner-brokered), on real PostgreSQL', () => {
     const list = (await as('owner').get(`${OWNER}/requests`)).body.data.requests;
     expect(list.map((x: Row) => [x.club.name, x.status]).sort()).toEqual([['Home FC', 'CANCELLED'], ['Home FC', 'DELIVERED'], ['Home FC', 'REFUSED']]);
   });
+  it('P1: the production sheet leaves once the order is with its supplier: built on the server from the names still kept, and recorded', async () => {
+    expect((await as('admin').post(`${OWNER}/requests/${req}/production-sheet`)).status).toBe(403);
+    const r = await as('owner').post(`${OWNER}/requests/${req}/production-sheet`);
+    expect(r.status).toBe(200);
+    const sheet = r.body.data.sheet;
+    expect([sheet.entries, sheet.names, sheet.supplier.id]).toEqual([2, 2, verified]);
+    expect(sheet.csv.split('\r\n').slice(0, 3)).toEqual(['\uFEFFname,number,top,shorts,socks,qty', 'SMITH,9,M,L,39-42,1', 'JONES,4,L,L,39-42,2']);
+    const [a] = await sys(`SELECT "metadata" FROM "PlatformAuditLog" WHERE "resourceId" = $1 AND "action" = 'manufacturing.sheet.exported'`, req);
+    expect(a.metadata).toMatchObject({ supplierId: verified, entries: 2, names: 2 });
+  });
+
+  it('P1: minors: a child’s size or the club’s mark; their names are kept only with a club administrator’s attested consent', async () => {
+    const kids = (await as('admin').post(`${CLUB}/rosters`, { name: 'Under 12', entries: [E({ name: 'KID', number: 7, top: '140', shorts: '140' })] })).body.data.roster;
+    expect([kids.youthEntries, kids.minors, kids.includesMinors]).toEqual([1, true, false]);
+    const marked = (await as('admin').post(`${CLUB}/rosters`, { name: 'Youth adults', includesMinors: true, entries: [E({ name: 'TEEN', number: 8 })] })).body.data.roster;
+    expect([marked.youthEntries, marked.minors]).toEqual([0, true]);
+    const ask = (who: Who, rosterId: string, minorsConsent: boolean) => as(who).post(`${CLUB}/collections/${kit}/requests`, { rosterId, minorsConsent });
+    const none = await ask('admin', kids.id, false);
+    expect(none.body.data.request.people).toEqual({ kept: 0, withheld: 1, erased: 0, minors: true, minorsConsent: false });
+    expect(await sys(`SELECT "name", "state" FROM "ManufacturingRequestPerson" WHERE "requestId" = $1`, none.body.data.request.id)).toEqual([{ name: null, state: 'WITHHELD' }]);
+    expect((await ask('manager', kids.id, true)).status).toBe(403); // only a club administrator attests
+    const yes = await ask('admin', kids.id, true);
+    expect(yes.body.data.request.people).toEqual({ kept: 1, withheld: 0, erased: 0, minors: true, minorsConsent: true });
+    const teen = await ask('manager', marked.id, false);
+    expect(teen.body.data.request.people).toMatchObject({ withheld: 1, minors: true });
+    // an open request's names are not the Owner's to erase
+    const open = await as('owner').post(`${OWNER}/requests/${yes.body.data.request.id}/erase-names`, { note: 'Asked by the club' });
+    expect([open.status, open.body.reason]).toEqual([409, 'not-closed']);
+  });
+
+  it('P1: a club administrator erases a person’s name: previewed, then from every roster and every request not with a supplier', async () => {
+    expect((await as('manager').post(`${CLUB}/privacy/erase-person`, { name: 'KID' })).status).toBe(403);
+    expect((await as('admin').post(`${CLUB}/privacy/erase-person`, { name: '  ' })).status).toBe(400);
+    const preview = await as('admin').post(`${CLUB}/privacy/erase-person`, { name: ' kid ' });
+    expect(preview.body.data.preview).toEqual({ rosters: 1, rosterEntries: 1, requestNames: 1, withSupplier: 0 });
+    expect(await sys(`SELECT count(*)::int AS n FROM "ManufacturingRequestPerson" WHERE "name" = 'KID'`)).toEqual([{ n: 1 }]); // a preview changes nothing
+    const done = await as('admin').post(`${CLUB}/privacy/erase-person`, { name: 'Kid', confirm: true });
+    expect(done.body.data.erased).toEqual({ rosters: 1, rosterEntries: 1, requestNames: 1, withSupplier: 0 });
+    expect(await sys(`SELECT count(*)::int AS n FROM "ManufacturingRequestPerson" WHERE "name" = 'KID'`)).toEqual([{ n: 0 }]);
+    const [ro] = await sys(`SELECT "entryCount", "version" FROM "DesignRoster" WHERE "name" = 'Under 12' AND "clubId" = $1`, C1);
+    expect(ro).toEqual({ entryCount: 0, version: 2 });
+    const audit = await sys(`SELECT "metadata" FROM "PlatformAuditLog" WHERE "action" = 'privacy.person.erased' AND "clubId" = $1`, C1);
+    expect(audit.length).toBe(1);
+    expect(JSON.stringify(audit)).not.toMatch(/KID/i); // counts, never the name
+  });
+
+  it('P1: the Owner erases a closed request’s names for good, with a reason; numbers and sizes stay on the sheet', async () => {
+    expect((await as('owner').post(`${OWNER}/requests/${req}/erase-names`, {})).status).toBe(400);
+    const r = await as('owner').post(`${OWNER}/requests/${req}/erase-names`, { note: 'Club asked after delivery' });
+    expect(r.body.data.request.people).toEqual({ kept: 0, withheld: 0, erased: 2, minors: false, minorsConsent: false });
+    const sheet = (await as('owner').post(`${OWNER}/requests/${req}/production-sheet`)).body.data.sheet;
+    expect(sheet.csv.split('\r\n').slice(1, 3)).toEqual([',9,M,L,39-42,1', ',4,L,L,39-42,2']);
+    const [a] = await sys(`SELECT "metadata" FROM "PlatformAuditLog" WHERE "resourceId" = $1 AND "action" = 'manufacturing.names.erased'`, req);
+    expect(a.metadata).toMatchObject({ erased: 2 });
+  });
+
+  it('P1: retention rules: none until the Owner sets one; previewed, applied, recorded, cleared', async () => {
+    const R = '/api/v1/system/product-design/privacy/retention';
+    const start = (await as('owner').get(R)).body.data;
+    expect([start.rules.map((x: Row) => [x.kind, x.days]), start.automatic]).toEqual([[['ManufacturingRequestPerson', null], ['DesignReviewComment', null]], false]);
+    expect((await as('admin').get(R)).status).toBe(403);
+    for (const body of [{ kind: 'Club', days: 30 }, { kind: 'DesignReviewComment', days: 0 }, { kind: 'DesignReviewComment', days: 99999 }]) expect((await as('owner').put(R, body)).status).toBe(400);
+    // a closed request, its names kept, closed 40 days ago
+    const r = (await as('admin').post(`${CLUB}/collections/${kit}/requests`, {})).body.data.request.id;
+    await as('admin').post(`${CLUB}/requests/${r}/cancel`, { note: 'Changed our mind' });
+    await sysExec(`UPDATE "ManufacturingRequest" SET "updatedAt" = now() - interval '40 days' WHERE "id" = $1`, r);
+    expect((await as('owner').put(R, { kind: 'ManufacturingRequestPerson', days: 30 })).body.data.rules[0].days).toBe(30);
+    const preview = (await as('owner').post(`${R}/apply`, { dryRun: true })).body.data;
+    expect([preview.dryRun, preview.results.map((x: Row) => [x.kind, x.affected])]).toEqual([true, [['ManufacturingRequestPerson', 2]]]);
+    expect(await sys(`SELECT count(*)::int AS n FROM "ManufacturingRequestPerson" WHERE "requestId" = $1 AND "state" = 'KEPT'`, r)).toEqual([{ n: 2 }]);
+    const applied = (await as('owner').post(`${R}/apply`, { dryRun: false })).body.data;
+    expect(applied.results.map((x: Row) => [x.kind, x.affected])).toEqual([['ManufacturingRequestPerson', 2]]);
+    expect(await sys(`SELECT count(*)::int AS n FROM "ManufacturingRequestPerson" WHERE "requestId" = $1 AND "state" = 'ERASED'`, r)).toEqual([{ n: 2 }]);
+    expect((await sys(`SELECT count(*)::int AS n FROM "PlatformAuditLog" WHERE "action" IN ('privacy.retention.set', 'privacy.retention.applied')`))[0].n).toBe(2);
+    expect((await as('owner').put(R, { kind: 'ManufacturingRequestPerson', days: null })).body.data.rules[0].days).toBeNull();
+  });
+
   it('repeated races: every losing acceptance is the conflict it is, never a not-found, whatever the timing', async () => {
     // The race above, many times over: a loser that read the request before the winner committed, and its quotation
     // after, once answered 404 (seen in CI). Each round is a fresh request with two published quotations.

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-24T14:38:59.883Z",
+  "generatedAt": "2026-11-24T19:07:14.241Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 61,
-    "handlers": 839,
+    "handlers": 845,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -336,21 +336,21 @@
       {
         "path": "/system/product-design",
         "module": "product-design.routes",
-        "handlers": 11,
+        "handlers": 14,
         "public": 0,
         "routerWideAuth": true
       },
       {
         "path": "/system/manufacturing",
         "module": "manufacturing.routes",
-        "handlers": 19,
+        "handlers": 21,
         "public": 0,
         "routerWideAuth": true
       },
       {
         "path": "/club-design",
         "module": "club-design.routes",
-        "handlers": 43,
+        "handlers": 44,
         "public": 0,
         "routerWideAuth": true
       },
@@ -620,9 +620,9 @@
       "src/services/vision-realtime.service.ts"
     ],
     "tenancy": {
-      "idParameters": 417,
+      "idParameters": 419,
       "guarded": 171,
-      "exempt": 246,
+      "exempt": 248,
       "unguarded": [],
       "staleExemptions": [],
       "routerWideTenantGuardMounts": [],
@@ -735,7 +735,7 @@
         },
         "manufacturing.routes": {
           "guarded": 0,
-          "exempt": 20,
+          "exempt": 22,
           "unguarded": 0
         },
         "match-center.routes": {
@@ -871,13 +871,13 @@
       }
     },
     "authorization": {
-      "handlers": 839,
+      "handlers": 845,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
-        "roles": 279,
-        "platform-owner": 129
+        "roles": 280,
+        "platform-owner": 134
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -925,7 +925,7 @@
           "member": 3
         },
         "club-design.routes": {
-          "roles": 43
+          "roles": 44
         },
         "club.routes": {
           "platform-owner": 1,
@@ -993,7 +993,7 @@
           "roles": 4
         },
         "manufacturing.routes": {
-          "platform-owner": 19
+          "platform-owner": 21
         },
         "match-center.routes": {
           "member": 7
@@ -1058,7 +1058,7 @@
           "roles": 1
         },
         "product-design.routes": {
-          "platform-owner": 11
+          "platform-owner": 14
         },
         "provisioning.routes": {
           "roles": 7,
@@ -1506,6 +1506,7 @@
         "GET /system/neural-twin": "platform-owner",
         "GET /system/overview": "platform-owner",
         "GET /system/people": "platform-owner",
+        "GET /system/product-design/privacy/retention": "platform-owner",
         "GET /system/product-design/projects": "platform-owner",
         "GET /system/product-design/projects/:id": "platform-owner",
         "GET /system/product-design/projects/:id/revisions": "platform-owner",
@@ -1638,6 +1639,7 @@
         "POST /club-design/collections/:collectionId/archive": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/collections/:collectionId/requests": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/collections/:collectionId/unarchive": "roles:CLUB_ADMIN,MANAGER",
+        "POST /club-design/privacy/erase-person": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/projects": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/projects/:id/archive": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/projects/:id/comments": "roles:CLUB_ADMIN,MANAGER",
@@ -1885,8 +1887,10 @@
         "POST /system/flags/:key": "platform-owner",
         "POST /system/infrastructure/incidents/:id/acknowledge": "platform-owner",
         "POST /system/manufacturing/requests/:requestId/delivered": "platform-owner",
+        "POST /system/manufacturing/requests/:requestId/erase-names": "platform-owner",
         "POST /system/manufacturing/requests/:requestId/order": "platform-owner",
         "POST /system/manufacturing/requests/:requestId/production": "platform-owner",
+        "POST /system/manufacturing/requests/:requestId/production-sheet": "platform-owner",
         "POST /system/manufacturing/requests/:requestId/quotes": "platform-owner",
         "POST /system/manufacturing/requests/:requestId/quotes/:quoteId/publish": "platform-owner",
         "POST /system/manufacturing/requests/:requestId/quotes/:quoteId/withdraw": "platform-owner",
@@ -1895,6 +1899,7 @@
         "POST /system/manufacturing/requests/:requestId/shipped": "platform-owner",
         "POST /system/manufacturing/suppliers": "platform-owner",
         "POST /system/manufacturing/suppliers/:supplierId/status": "platform-owner",
+        "POST /system/product-design/privacy/retention/apply": "platform-owner",
         "POST /system/product-design/projects": "platform-owner",
         "POST /system/product-design/projects/:id/archive": "platform-owner",
         "POST /system/product-design/projects/:id/revisions": "platform-owner",
@@ -1951,6 +1956,7 @@
         "PUT /staff-market/notes/:staffUserId": "scoped:requireMembership(HEAD_COACH)+requireClubWideManage",
         "PUT /staff-market/shortlist/:staffUserId": "scoped:requireActingClubMembership(HEAD_COACH)",
         "PUT /system/manufacturing/suppliers/:supplierId": "platform-owner",
+        "PUT /system/product-design/privacy/retention": "platform-owner",
         "PUT /system/product-design/rollout/:clubId": "platform-owner",
         "PUT /teams/:id": "roles:CLUB_ADMIN,HEAD_COACH",
         "PUT /training/:id": "roles:CLUB_ADMIN,HEAD_COACH",
@@ -2150,7 +2156,7 @@
       "id": "tenant-guard",
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
-      "note": "171 of 417 route id parameter(s) checked against the caller's club before the handler; 246 exempted by name with a reason; 0 unguarded."
+      "note": "171 of 419 route id parameter(s) checked against the caller's club before the handler; 248 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "franchise-club-attach-authorised",
@@ -2255,7 +2261,7 @@
       "id": "db-row-level-security",
       "status": "PRESENT",
       "evidence": "prisma/migrations",
-      "note": "Enforced by PostgreSQL on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote, DesignProject, DesignRevision, DesignBrandKit, DesignBrandAsset, DesignRoster, DesignCollection, DesignCollectionItem, ManufacturingRequest, ManufacturingRequestEvent, ManufacturingQuote, DesignReviewComment, DesignApproval (20261006100000_rls_enforce, guarded: every table forced with its policy). The service's DB_RLS_CONTEXT and the database's switch and catalogue are verified live by the Cybersecurity control plane."
+      "note": "Enforced by PostgreSQL on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote, DesignProject, DesignRevision, DesignBrandKit, DesignBrandAsset, DesignRoster, DesignCollection, DesignCollectionItem, ManufacturingRequest, ManufacturingRequestEvent, ManufacturingQuote, DesignReviewComment, DesignApproval, ManufacturingRequestPerson (20261006100000_rls_enforce, guarded: every table forced with its policy). The service's DB_RLS_CONTEXT and the database's switch and catalogue are verified live by the Cybersecurity control plane."
     },
     {
       "id": "db-audit-append-only",
@@ -2374,7 +2380,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "839 handler(s) classified: 21 public, 350 member, 60 scoped, 279 roles, 129 platform-owner; every member-level handler reviewed by name."
+      "note": "845 handler(s) classified: 21 public, 350 member, 60 scoped, 280 roles, 134 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2434,7 +2440,7 @@
       "id": "db-rls-pilot",
       "status": "PRESENT",
       "evidence": "prisma/migrations/20261004100000_rls_pilot/migration.sql",
-      "note": "Row-level security policies on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote, DesignProject, DesignRevision, DesignBrandKit, DesignBrandAsset, DesignRoster, DesignCollection, DesignCollectionItem, ManufacturingRequest, ManufacturingRequestEvent, ManufacturingQuote, DesignReviewComment, DesignApproval (forced, fail closed without a context), the request's club carried to PostgreSQL per transaction, backups read under the named system context, all proven on real PostgreSQL in CI. Table list is a ratchet in posture-policy.json."
+      "note": "Row-level security policies on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote, DesignProject, DesignRevision, DesignBrandKit, DesignBrandAsset, DesignRoster, DesignCollection, DesignCollectionItem, ManufacturingRequest, ManufacturingRequestEvent, ManufacturingQuote, DesignReviewComment, DesignApproval, ManufacturingRequestPerson (forced, fail closed without a context), the request's club carried to PostgreSQL per transaction, backups read under the named system context, all proven on real PostgreSQL in CI. Table list is a ratchet in posture-policy.json."
     },
     {
       "id": "db-rls-system-paths-reviewed",

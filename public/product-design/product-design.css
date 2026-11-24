@@ -544,7 +544,8 @@ body.pd-studio-open { overflow: hidden; }
 .pd-dock-current { display: flex; align-items: center; justify-content: space-between; gap: var(--fam-space-3); padding: var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-sunken); border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
 .pd-dock-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .pd-dock-kicker { color: var(--fam-text-secondary); font-size: var(--fam-font-size-xs); font-weight: var(--fam-font-weight-bold); }
-.pd-dock .pd-note { color: var(--fam-text-secondary); }
+/* Every floating panel's notes read at secondary contrast: they sit on its sunken rows and alerts, where tertiary fails AA. */
+.pd-dock .pd-note, .pd-team .pd-note { color: var(--fam-text-secondary); }
 .pd-dock-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fam-font-size-md); font-weight: var(--fam-font-weight-semibold); }
 .pd-dock-btns { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--fam-space-2); flex: none; }
 .pd-dock-bar-row { display: flex; align-items: center; justify-content: space-between; gap: var(--fam-space-2); }
@@ -776,6 +777,15 @@ body.pd-studio-open { overflow: hidden; }
 .pd-rel-opt input { accent-color: var(--fam-module-accent); margin: 0; }
 .pd-rel-chip[data-included="true"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-status-success) 60%, transparent); }
 .pd-rel-chip[data-included="false"] { color: var(--fam-text-secondary); }
+
+/* P1 — privacy: the roster's minors setting, a name's erasure, the Owner's retention rules. */
+.pd-team-check { display: flex; align-items: flex-start; gap: var(--fam-space-2); font-size: var(--fam-font-size-sm); cursor: pointer; }
+.pd-team-check input { margin-block-start: 3px; accent-color: var(--fam-module-accent); }
+.pd-team-minors, .pd-col-minors { display: flex; flex-direction: column; gap: var(--fam-space-2); }
+.pd-team-erase { display: flex; flex-direction: column; gap: var(--fam-space-2); }
+.pd-ret-set { justify-content: flex-start; align-items: flex-end; }
+.pd-ret-days { width: 120px; }
+.pd-ret-result { margin: 0; padding-inline-start: var(--fam-space-4); color: var(--fam-text-secondary); font-size: var(--fam-font-size-sm); }
 
 /* M7d — supplier fit: a met criterion is plain, an unmet one is a result (red), one not recorded is secondary. */
 .pd-fit-table td[data-met="false"] { color: var(--fam-status-critical); }

@@ -50,6 +50,7 @@
       confirm: null,   // { text, go, run }
       conflict: null,  // { version }
       preview: null,   // index into cur.rows
+      erase: null,     // P1: { name, state: 'idle'|'busy', preview: counts|null, done: counts|null } while a club administrator erases a name
     };
     var el = h('section', { class: 'pd-team', id: 'pd-team', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'pd-team-title', 'data-open': 'false' });
     var file = h('input', { class: 'pd-sr', type: 'file', accept: '.csv,text/csv', tabindex: '-1', 'aria-hidden': 'true', 'data-pd-team-file': '' });
@@ -62,7 +63,7 @@
       confirm: function (text, go, run) { st.confirm = { text: text, go: go, run: run }; render(); },
       download: function (text, name) { download(text, name); },
       delimiter: function () { return st.delimiter; },
-      currentProject: ctx.currentProject, openDesign: ctx.openDesign, productLabel: ctx.productLabel, approvalChip: ctx.approvalChip || null, present: ctx.present || null,
+      currentProject: ctx.currentProject, openDesign: ctx.openDesign, productLabel: ctx.productLabel, approvalChip: ctx.approvalChip || null, present: ctx.present || null, role: ctx.role || null,
       // M4: a request for quotation sent from a collection's order sheet opens in the Requests tab.
       openRequest: ctx.requests ? function (id) { st.tab = 'requests'; if (RQ) RQ.open(id); } : null,
     }) : null;
@@ -151,7 +152,7 @@
       if (from === 'collection' && CO) { CO.leave(); CO.loadList(); } else if (from === 'request' && RQ) { RQ.leave(); RQ.loadList(); } else loadList();
     }
     function startNew() {
-      st.cur = { id: null, version: 0, name: T('Team roster'), rows: [toRow(R.blankEntry())], dirty: true, state: 'ready' };
+      st.cur = { id: null, version: 0, name: T('Team roster'), rows: [toRow(R.blankEntry())], dirty: true, state: 'ready', includesMinors: false };
       st.view = 'roster'; st.pending = null; st.conflict = null; st.note = '';
       if (st.preview !== null) { st.preview = null; pushPreview(); }
       render(); focusField(0, 'name');
@@ -165,7 +166,7 @@
         if (seq !== st.seq || !st.cur) return;
         if (!r.ok || !r.data || !r.data.roster) { st.cur.state = 'error'; render(); return; }
         var ro = r.data.roster;
-        st.cur = { id: ro.id, version: ro.version, name: ro.name, rows: ro.entries.map(toRow), dirty: false, state: 'ready', archived: !!ro.archivedAt };
+        st.cur = { id: ro.id, version: ro.version, name: ro.name, rows: ro.entries.map(toRow), dirty: false, state: 'ready', archived: !!ro.archivedAt, includesMinors: !!ro.includesMinors };
         render();
       });
     }
@@ -198,7 +199,7 @@
       var name = String(c.name).replace(/\s+/g, ' ').trim();
       if (!name) { st.note = T('Give the roster a name before saving it.'); render(); var n = el.querySelector('[data-pd-team-rname]'); if (n) n.focus(); return; }
       st.busy = true; st.note = T('Saving…'); render();
-      var call = c.id ? api.saveRoster(c.id, overVersion || c.version, name, read.entries) : api.createRoster(name, read.entries);
+      var call = c.id ? api.saveRoster(c.id, overVersion || c.version, name, read.entries, !!c.includesMinors) : api.createRoster(name, read.entries, !!c.includesMinors);
       call.then(function (r) {
         st.busy = false;
         if (st.cur !== c) return;
@@ -363,10 +364,10 @@
               h('span', { class: 'pd-dock-kicker', text: tf('Entries: %d · saved %s', ro.entryCount, ctx.date(ro.updatedAt)) }),
             ]),
             h('div', { class: 'pd-dock-btns' }, L0.archived ? [
-              btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'team-unarchive', 'data-pd-id': ro.id, 'aria-label': tf('Return %s to the list', ro.name) }, [h('span', { text: T('Return') })]),
-              btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'team-delete', 'data-pd-id': ro.id, 'data-pd-name': ro.name, 'aria-label': tf('Delete %s for good', ro.name) }, [icon('trash', 14), h('span', { text: T('Delete') })]),
+              btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'team-unarchive', 'data-pd-id': ro.id }, [h('span', { text: T('Return') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + ro.name })]),
+              btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'team-delete', 'data-pd-id': ro.id, 'data-pd-name': ro.name }, [icon('trash', 14), h('span', { text: T('Delete') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + ro.name })]),
             ] : [
-              btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'team-open', 'data-pd-id': ro.id, 'aria-label': tf('Open %s', ro.name) }, [h('span', { text: T('Open') })]),
+              btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'team-open', 'data-pd-id': ro.id }, [h('span', { text: T('Open') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + ro.name })]),
               btn({ class: 'pd-icbtn', 'data-pd-act': 'team-archive', 'data-pd-id': ro.id, 'aria-label': tf('Archive %s', ro.name), title: tf('Archive %s', ro.name) }, [icon('trash', 14)]),
             ]),
           ]));
@@ -374,7 +375,42 @@
         out.push(list);
       }
       out.push(h('p', { class: 'pd-note', text: T('Rosters hold names of people: only this club’s administrators and managers see them, and a design never keeps them.') }));
+      if (!L0.archived && ctx.role && ctx.role() === 'CLUB_ADMIN') out.push(eraseBlock());
       return out;
+    }
+    /** P1: a club administrator erases one person's name from the club's design data: previewed, then confirmed. */
+    function eraseBlock() {
+      var e = st.erase;
+      if (!e) return h('div', { class: 'pd-team-tools' }, [btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'team-erase', 'data-pd-team-key': 'erase' }, [icon('trash', 14), h('span', { text: T('Erase a person’s name') })])]);
+      var nameIn = h('input', { class: 'pd-input', type: 'text', maxlength: '40', 'data-pd-team-erase-name': '', 'data-pd-team-key': 'erase-name', 'data-user-content': '', dir: 'auto', 'aria-label': T('Name, as it appears in the roster') });
+      nameIn.value = e.name;
+      var p = e.preview, d = e.done;
+      return h('section', { class: 'pd-dock-alert pd-team-erase', 'aria-labelledby': 'pd-team-erase-h' }, [
+        h('h3', { class: 'pd-dock-h', id: 'pd-team-erase-h', text: T('Erase a person’s name') }),
+        h('p', { class: 'pd-note', text: T('Removes the name from every roster of the club and from its quotation requests. Numbers and sizes stay. An order already with its supplier keeps the name until it is closed.') }),
+        h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-dock-kicker', text: T('Name, as it appears in the roster') }), nameIn]),
+        p ? h('p', { class: 'pd-note', role: 'status', 'data-pd-team-erase-preview': '', text: tf('Found in %d rosters (%d entries) and %d quotation requests.', p.rosters, p.rosterEntries, p.requestNames)
+          + (p.withSupplier ? ' ' + tf('%d more are in orders already with their supplier.', p.withSupplier) : '') }) : null,
+        d ? h('p', { class: 'pd-note', role: 'status', 'data-pd-team-erase-done': '', text: tf('Erased from %d roster entries and %d quotation requests.', d.rosterEntries, d.requestNames) }) : null,
+        h('div', { class: 'pd-dock-btns' }, [
+          btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'team-erase-cancel', 'data-pd-team-key': 'erase-cancel' }, [h('span', { text: d ? T('Close') : T('Cancel') })]),
+          d ? null : p ? btn({ class: 'pd-btn pd-btn--primary', 'data-pd-act': 'team-erase-confirm', 'data-pd-team-key': 'erase-confirm', 'aria-disabled': e.state === 'busy' || !(p.rosterEntries + p.requestNames) ? 'true' : null }, [h('span', { text: T('Erase for good') })])
+            : btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'team-erase-preview', 'data-pd-team-key': 'erase-preview', 'aria-disabled': e.state === 'busy' ? 'true' : null }, [h('span', { text: T('Find it') })]),
+        ]),
+      ]);
+    }
+    function eraseRun(confirm) {
+      var e = st.erase;
+      if (!e || e.state === 'busy' || !e.name.trim()) return;
+      if (confirm && (!e.preview || !(e.preview.rosterEntries + e.preview.requestNames))) return;
+      e.state = 'busy'; render();
+      api.erasePerson(e.name, confirm).then(function (r) {
+        e.state = 'idle';
+        if (r.ok && r.data && r.data.preview) e.preview = r.data.preview;
+        else if (r.ok && r.data && r.data.erased) { e.done = r.data.erased; e.preview = null; e.name = ''; ctx.say(T('The name was erased.')); loadList(); }
+        else ctx.say(r.status === 400 ? T('Give the name as it appears in the roster.') : T('The name could not be erased.'));
+        render();
+      });
     }
     function sizeSelect(form, value, i) {
       var sel = h('select', { class: 'pd-input pd-team-in', 'data-pd-team-row': String(i), 'data-pd-team-col': form, 'aria-label': tf('%s size, row %d', T(COLUMN[form]), i + 1) });
@@ -399,6 +435,16 @@
       var nameIn = h('input', { class: 'pd-input', type: 'text', maxlength: String(R.LIMITS.rosterName), 'data-pd-team-rname': '', 'data-pd-team-key': 'rname', 'data-user-content': '', dir: 'auto', 'aria-label': T('Roster name') });
       nameIn.value = c.name;
       out.push(h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-dock-kicker', text: T('Roster name') }), nameIn]));
+      // P1: minors. The club says so, and a child's size says so whatever the club says.
+      var minorsIn = h('input', { type: 'checkbox', 'data-pd-team-minors': '', 'data-pd-team-key': 'minors' });
+      minorsIn.checked = !!c.includesMinors;
+      var youth = R.youthEntries(read.entries);
+      out.push(h('div', { class: 'pd-team-minors' }, [
+        h('label', { class: 'pd-team-check' }, [minorsIn, h('span', { text: T('This roster includes players under 18') })]),
+        c.includesMinors || youth ? h('p', { class: 'pd-note pd-note--info', 'data-pd-team-minors-note': '' }, [icon('info', 14), h('span', { text: youth && !c.includesMinors
+          ? tf('%d entries are in a children’s size, so this roster counts as including minors.', youth) + ' ' + T('Their names go with a quotation request only if a club administrator confirms a parent or guardian consented; otherwise numbers and sizes go without names.')
+          : T('Their names go with a quotation request only if a club administrator confirms a parent or guardian consented; otherwise numbers and sizes go without names.') })]) : null,
+      ]));
       var delim = h('select', { class: 'pd-input pd-team-delim', 'data-pd-team-delim': '', 'data-pd-team-key': 'delim', 'aria-label': T('Separator for the exported file') }, [
         h('option', { value: ',', text: T('Comma') }), h('option', { value: ';', text: T('Semicolon (spreadsheets in many European languages)') }),
       ]);
@@ -523,6 +569,10 @@
       var c = st.cur, i = Number(t.getAttribute('data-pd-row'));
       switch (act) {
         case 'team-close': close(); return true;
+        case 'team-erase': st.erase = { name: '', state: 'idle', preview: null, done: null }; render(); { var en = el.querySelector('[data-pd-team-erase-name]'); if (en) en.focus(); } return true;
+        case 'team-erase-cancel': st.erase = null; render(); return true;
+        case 'team-erase-preview': eraseRun(false); return true;
+        case 'team-erase-confirm': eraseRun(true); return true;
         case 'team-tab-rosters': if (st.tab !== 'rosters') { st.tab = 'rosters'; st.note = ''; loadList(); } return true;
         case 'team-tab-collections': if (st.tab !== 'collections' && CO) { st.tab = 'collections'; st.note = ''; CO.loadList(); } return true;
         case 'team-tab-requests': if (st.tab !== 'requests' && RQ) { st.tab = 'requests'; st.note = ''; RQ.loadList(); } return true;
@@ -570,6 +620,8 @@
       if (!t || !el.contains(t)) return false;
       if (st.view === 'collection' && CO && CO.onInput(ev)) return true;
       if (t.hasAttribute('data-pd-team-rname')) { if (c) { c.name = t.value; c.dirty = true; refresh(); } return true; }
+      if (t.hasAttribute('data-pd-team-minors')) { if (c && ev.type === 'change') { c.includesMinors = !!t.checked; c.dirty = true; render(); } return true; }
+      if (t.hasAttribute('data-pd-team-erase-name')) { if (st.erase) { st.erase.name = t.value; st.erase.preview = null; } return true; }
       if (t.hasAttribute('data-pd-team-delim')) { st.delimiter = t.value === ';' ? ';' : ','; return true; }
       var row = t.getAttribute('data-pd-team-row'), col = t.getAttribute('data-pd-team-col');
       if (row === null || !c || !c.rows[Number(row)]) return true;

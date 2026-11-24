@@ -14,12 +14,12 @@
  * Nothing here moves money or contacts anyone: an accepted quotation is not a payment, and an order is the Owner's record
  * of one confirmed outside the platform.
  */
-import { ManufacturingActorKind, ManufacturingQuoteStatus as Q, ManufacturingRequestStatus as S, ManufacturingSupplierStatus, Prisma } from '@prisma/client';
+import { ManufacturingActorKind, ManufacturingPersonState, ManufacturingQuoteStatus as Q, ManufacturingRequestStatus as S, ManufacturingSupplierStatus, Prisma, UserRole } from '@prisma/client';
 import { prisma } from '../../config/database';
-import { ConflictError, NotFoundError } from '../../utils/errors';
+import { ConflictError, ForbiddenError, NotFoundError } from '../../utils/errors';
 import { clubAudit } from '../product-design/club-audit';
 import { templateForm } from '../product-design/core';
-import { rosterSummary, validateRosterEntries, type RosterEntry } from '../product-design/roster-core';
+import { rosterCsv, rosterCsvFileName, rosterSummary, validateRosterEntries, youthEntries } from '../product-design/roster-core';
 import type { DesignActor } from '../product-design/service';
 import { approvalsFor } from '../product-design/review.service';
 import { isCurrency, isMinor } from './money';
@@ -40,8 +40,12 @@ export interface RequestSpec {
   format: 'familista.manufacturing-spec'; version: 1;
   collection: { id: string; name: string; season: string | null };
   roster: { id: string; name: string; version: number };
-  garments: SpecGarment[]; entries: RosterEntry[]; sets: number;
+  garments: SpecGarment[]; entries: SpecEntry[]; sets: number;
 }
+/** P1: one roster entry as the specification freezes it: everything but the person's name, which is kept apart. */
+export interface SpecEntry { position: number; number: number | null; top: string | null; shorts: string | null; socks: string | null; qty: number }
+/** P1: what became of the names of a request's entries. */
+export interface PeopleView { kept: number; withheld: number; erased: number; minors: boolean; minorsConsent: boolean }
 export interface QuoteInput {
   supplierId: string; currency: string; totalMinor: number; lines: Array<{ projectId: string; unitMinor: number; sets: number }>;
   leadTimeDays: number; validUntil: string; supplierReference: string; evidence: string;
@@ -92,7 +96,7 @@ const CLUB_QUOTE_SELECT = {
 // ── the club's side ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** Build the frozen specification from a collection and a roster of the club's, or say what is missing. */
-async function buildSpec(tx: Prisma.TransactionClient, clubId: string, collectionId: string, rosterIdIn: string | null): Promise<RequestSpec> {
+async function buildSpec(tx: Prisma.TransactionClient, clubId: string, collectionId: string, rosterIdIn: string | null): Promise<{ spec: RequestSpec; names: string[]; minors: boolean }> {
   const coll = await tx.designCollection.findFirst({
     where: { id: collectionId, clubId },
     select: { id: true, name: true, season: true, rosterId: true, archivedAt: true,
@@ -104,7 +108,7 @@ async function buildSpec(tx: Prisma.TransactionClient, clubId: string, collectio
   if (!coll.items.length) throw refuse('no-designs', 'This collection has no designs');
   const rosterId = rosterIdIn ?? coll.rosterId;
   if (!rosterId) throw refuse('no-roster', 'Choose the roster the kit is made for');
-  const roster = await tx.designRoster.findFirst({ where: { id: rosterId, clubId }, select: { id: true, name: true, version: true, entries: true, archivedAt: true } });
+  const roster = await tx.designRoster.findFirst({ where: { id: rosterId, clubId }, select: { id: true, name: true, version: true, entries: true, archivedAt: true, includesMinors: true } });
   if (!roster) throw new NotFoundError('Roster');
   if (roster.archivedAt) throw refuse('roster-archived', 'This roster is archived');
   const entries = validateRosterEntries(roster.entries);
@@ -122,8 +126,20 @@ async function buildSpec(tx: Prisma.TransactionClient, clubId: string, collectio
       form, revision: item.project.headRevision, sha256: head.sha256, sizes: sum.sizes[form], sets: sum.sets,
       approval: ((a) => (a ? { decision: a.decision, at: a.at.toISOString() } : null))(approvals.get(`${item.projectId}@${item.project.headRevision}`)) });
   }
-  return { format: 'familista.manufacturing-spec', version: 1, collection: { id: coll.id, name: coll.name, season: coll.season },
-    roster: { id: roster.id, name: roster.name, version: roster.version }, garments, entries, sets: sum.sets };
+  // The names stay out of the frozen specification (P1): they are kept apart, where they can be erased.
+  const specEntries: SpecEntry[] = entries.map((e, position) => ({ position, number: e.number, top: e.top, shorts: e.shorts, socks: e.socks, qty: e.qty }));
+  return {
+    spec: { format: 'familista.manufacturing-spec', version: 1, collection: { id: coll.id, name: coll.name, season: coll.season },
+      roster: { id: roster.id, name: roster.name, version: roster.version }, garments, entries: specEntries, sets: sum.sets },
+    names: entries.map((e) => e.name), minors: roster.includesMinors || youthEntries(entries) > 0,
+  };
+}
+
+/** P1: how many of a request's names are kept, withheld and erased. */
+async function peopleOf(tx: Prisma.TransactionClient, r: { id: string; minors: boolean; minorsConsentAt: Date | null }): Promise<PeopleView> {
+  const rows = await tx.manufacturingRequestPerson.groupBy({ by: ['state'], where: { requestId: r.id }, _count: { _all: true } });
+  const n = (k: 'KEPT' | 'WITHHELD' | 'ERASED') => rows.find((x) => x.state === k)?._count._all ?? 0;
+  return { kept: n('KEPT'), withheld: n('WITHHELD'), erased: n('ERASED'), minors: r.minors, minorsConsent: !!r.minorsConsentAt };
 }
 
 async function event(tx: Prisma.TransactionClient, r: { id: string; clubId: string }, action: Action, from: S | null, to: S, kind: ManufacturingActorKind, actor: DesignActor, note: string | null) {
@@ -131,21 +147,29 @@ async function event(tx: Prisma.TransactionClient, r: { id: string; clubId: stri
 }
 
 /** Submit a request for quotation from one of the club's collections. */
-export async function submitRequest(clubId: string, actor: DesignActor, input: { collectionId: string; rosterId: string | null; note: string | null; neededBy: string | null }) {
+export async function submitRequest(clubId: string, actor: DesignActor & { role?: UserRole }, input: { collectionId: string; rosterId: string | null; note: string | null; neededBy: string | null; minorsConsent?: boolean }) {
   const note = noteOf(input.note);
   const neededBy = input.neededBy ? dateOnly(input.neededBy) : null;
   if (input.neededBy && (!neededBy || neededBy < today())) throw new QuoteInvalidError('bad-date', 'neededBy');
   return prisma.$transaction(async (tx) => {
     const open = await tx.manufacturingRequest.count({ where: { clubId, status: { notIn: [...FINAL] } } });
     if (open >= OPEN_REQUEST_LIMIT) throw new RequestRefusedError('REQUEST_LIMIT', 'too-many-open', `A club has at most ${OPEN_REQUEST_LIMIT} open requests`);
-    const spec = await buildSpec(tx, clubId, input.collectionId, input.rosterId);
+    const { spec, names, minors } = await buildSpec(tx, clubId, input.collectionId, input.rosterId);
+    // P1: a minor's name is kept only when a club administrator attests a guardian's consent; otherwise it is never stored.
+    const consent = minors && input.minorsConsent === true;
+    if (consent && actor.role !== UserRole.CLUB_ADMIN) throw new ForbiddenError('Only a club administrator attests a guardian’s consent');
     const req = await tx.manufacturingRequest.create({
-      data: { clubId, collectionId: spec.collection.id, spec: spec as unknown as Prisma.InputJsonValue, setsTotal: spec.sets, clubNote: note, neededBy, createdById: actor.userId },
+      data: { clubId, collectionId: spec.collection.id, spec: spec as unknown as Prisma.InputJsonValue, setsTotal: spec.sets, clubNote: note, neededBy, createdById: actor.userId,
+        minors, ...(consent ? { minorsConsentAt: new Date(), minorsConsentById: actor.userId } : {}) },
       select: { id: true, clubId: true },
+    });
+    await tx.manufacturingRequestPerson.createMany({
+      data: names.map((name, position) => (minors && !consent) || !name ? { clubId, requestId: req.id, position, name: null, state: ManufacturingPersonState.WITHHELD }
+        : { clubId, requestId: req.id, position, name, state: ManufacturingPersonState.KEPT }),
     });
     await event(tx, req, 'submit', null, S.SUBMITTED, 'CLUB', actor, note);
     await clubAudit(tx, clubId, actor, { action: 'manufacturing.request.submitted', resourceType: 'ManufacturingRequest', resourceId: req.id,
-      metadata: { garments: spec.garments.length, sets: spec.sets, entries: spec.entries.length }, message: 'A request for quotation was submitted' });
+      metadata: { garments: spec.garments.length, sets: spec.sets, entries: spec.entries.length, minors, minorsConsent: consent }, message: 'A request for quotation was submitted' });
     return getClubRequestTx(tx, clubId, req.id);
   });
 }
@@ -158,12 +182,12 @@ export async function listClubRequests(clubId: string) {
 async function getClubRequestTx(tx: Prisma.TransactionClient, clubId: string, id: string) {
   const r = await tx.manufacturingRequest.findFirst({
     where: { id, clubId },
-    select: { ...SUMMARY, clubNote: true, acceptedQuoteId: true,
+    select: { ...SUMMARY, clubNote: true, acceptedQuoteId: true, minors: true, minorsConsentAt: true,
       events: { orderBy: { createdAt: 'asc' }, select: EVENT_SELECT },
       quotes: { where: { status: { in: [Q.PUBLISHED, Q.ACCEPTED, Q.SUPERSEDED] } }, orderBy: { publishedAt: 'asc' }, select: CLUB_QUOTE_SELECT } },
   });
   if (!r) throw new NotFoundError('Request');
-  return { request: { ...summaryView(r), spec: r.spec, clubNote: r.clubNote, acceptedQuoteId: r.acceptedQuoteId, events: r.events, quotes: r.quotes } };
+  return { request: { ...summaryView(r), spec: r.spec, clubNote: r.clubNote, acceptedQuoteId: r.acceptedQuoteId, events: r.events, quotes: r.quotes, people: await peopleOf(tx, r) } };
 }
 export async function getClubRequest(clubId: string, id: string) { return getClubRequestTx(prisma, clubId, id); }
 
@@ -261,12 +285,13 @@ export async function requestFit(id: string) {
 async function getRequestTx(tx: Prisma.TransactionClient, id: string) {
   const r = await tx.manufacturingRequest.findUnique({
     where: { id },
-    select: { ...SUMMARY, clubId: true, clubNote: true, acceptedQuoteId: true, club: { select: { name: true } },
+    select: { ...SUMMARY, clubId: true, clubNote: true, acceptedQuoteId: true, club: { select: { name: true } }, minors: true, minorsConsentAt: true,
       events: { orderBy: { createdAt: 'asc' }, select: EVENT_SELECT },
       quotes: { orderBy: { createdAt: 'asc' }, select: OWNER_QUOTE_SELECT } },
   });
   if (!r) throw new NotFoundError('Request');
-  return { request: { ...summaryView(r), club: { id: r.clubId, name: r.club.name }, spec: r.spec, clubNote: r.clubNote, acceptedQuoteId: r.acceptedQuoteId, events: r.events, quotes: r.quotes } };
+  return { request: { ...summaryView(r), club: { id: r.clubId, name: r.club.name }, spec: r.spec, clubNote: r.clubNote, acceptedQuoteId: r.acceptedQuoteId, events: r.events, quotes: r.quotes,
+    people: await peopleOf(tx, r) } };
 }
 
 /** The Owner's steps that need nothing but a note: review, refuse, order, production, shipping, delivery. */
@@ -367,12 +392,63 @@ export async function discardDraft(actor: DesignActor, id: string, quoteId: stri
 }
 
 /** A design as the request froze it: the document of the revision the specification names, for production. */
-export async function specDesign(id: string, projectId: string) {
-  const r = await prisma.manufacturingRequest.findUnique({ where: { id }, select: { spec: true } });
+export async function specDesign(actor: DesignActor, id: string, projectId: string) {
+  const r = await prisma.manufacturingRequest.findUnique({ where: { id }, select: { spec: true, clubId: true } });
   if (!r) throw new NotFoundError('Request');
   const g = (r.spec as unknown as RequestSpec).garments.find((x) => x.projectId === projectId);
   if (!g) throw new NotFoundError('Design');
   const rev = await prisma.designRevision.findUnique({ where: { projectId_number: { projectId, number: g.revision } }, select: { document: true, sha256: true } });
   if (!rev || rev.sha256 !== g.sha256) throw new NotFoundError('Design revision');
+  // A design leaves the platform only through here, and is recorded when it does (it holds no person's data).
+  await prisma.$transaction((tx) => ownerAudit(tx, actor, { action: 'manufacturing.design.exported', resourceType: 'ManufacturingRequest', resourceId: id, clubId: r.clubId,
+    metadata: { projectId, revision: g.revision, sha256: rev.sha256 }, message: 'A design was exported as the request froze it' }));
   return { design: { projectId, revision: g.revision, sha256: rev.sha256, document: rev.document } };
+}
+
+/** P1: the states in which an order is confirmed with its supplier, the only time the production sheet may leave. */
+const SHEET_STATES: ReadonlySet<S> = new Set([S.ORDERED, S.IN_PRODUCTION, S.SHIPPED, S.DELIVERED]);
+/** A production sheet asked for before the order is confirmed with its supplier. */
+export class SheetRefusedError extends ConflictError {
+  readonly code = 'SHEET_NOT_AVAILABLE';
+  readonly status: S;
+  constructor(status: S) { super('The production sheet is available once the order is confirmed with the supplier'); this.status = status; }
+}
+
+/**
+ * P1: the production sheet, for the supplier of the accepted quotation, built on the server from the frozen entries and
+ * the names still kept. Only once the order is confirmed with that supplier; every export is recorded with it. A withheld
+ * or erased name is an empty name: the number and sizes are what the supplier needs.
+ */
+export async function productionSheet(actor: DesignActor, id: string) {
+  return prisma.$transaction(async (tx) => {
+    const r = await tx.manufacturingRequest.findUnique({ where: { id }, select: { id: true, clubId: true, status: true, spec: true, acceptedQuoteId: true, club: { select: { name: true } } } });
+    if (!r) throw new NotFoundError('Request');
+    if (!SHEET_STATES.has(r.status) || !r.acceptedQuoteId) throw new SheetRefusedError(r.status);
+    const quote = await tx.manufacturingQuote.findUnique({ where: { id: r.acceptedQuoteId }, select: { supplierId: true, supplier: { select: { name: true } } } });
+    if (!quote) throw new SheetRefusedError(r.status);
+    const spec = r.spec as unknown as RequestSpec;
+    const persons = await tx.manufacturingRequestPerson.findMany({ where: { requestId: id }, select: { position: true, name: true, state: true } });
+    const nameAt = new Map(persons.map((p) => [p.position, p.name ?? '']));
+    const rows = spec.entries.map((e) => ({ name: nameAt.get(e.position) ?? '', number: e.number, top: e.top, shorts: e.shorts, socks: e.socks, qty: e.qty }));
+    const kept = persons.filter((p) => p.state === ManufacturingPersonState.KEPT).length;
+    await ownerAudit(tx, actor, { action: 'manufacturing.sheet.exported', resourceType: 'ManufacturingRequest', resourceId: id, clubId: r.clubId,
+      metadata: { supplierId: quote.supplierId, entries: rows.length, names: kept }, message: 'A production sheet was exported for the order’s supplier' });
+    return { sheet: { csv: rosterCsv(rows), fileName: rosterCsvFileName(`${r.club.name} ${spec.collection.name} production sheet`), entries: rows.length, names: kept,
+      supplier: { id: quote.supplierId, name: quote.supplier.name } } };
+  });
+}
+
+/** P1: a closed request's kept names, erased for good; the entries' numbers, sizes and sets stay. */
+export async function eraseRequestNames(actor: DesignActor, id: string, noteIn: string) {
+  const note = noteOf(noteIn);
+  if (!note) throw new RequestStepError('note-required', null);
+  return prisma.$transaction(async (tx) => {
+    const r = await tx.manufacturingRequest.findUnique({ where: { id }, select: { id: true, clubId: true, status: true } });
+    if (!r) throw new NotFoundError('Request');
+    if (!FINAL.has(r.status)) throw new RequestStepError('not-closed', r.status);
+    const n = await tx.manufacturingRequestPerson.updateMany({ where: { requestId: id, state: ManufacturingPersonState.KEPT }, data: { state: ManufacturingPersonState.ERASED, name: null, erasedAt: new Date() } });
+    await ownerAudit(tx, actor, { action: 'manufacturing.names.erased', resourceType: 'ManufacturingRequest', resourceId: id, clubId: r.clubId,
+      metadata: { erased: n.count, note }, message: 'The names of a closed request were erased' });
+    return getRequestTx(tx, id);
+  });
 }

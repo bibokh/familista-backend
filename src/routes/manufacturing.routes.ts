@@ -20,7 +20,7 @@ import { assertPlatformOwner } from '../platform/system.service';
 import {
   ownerConfirmOrder, ownerCreateSupplier, ownerDiscardDraft, ownerListRequests, ownerListSuppliers, ownerOpenRequest, ownerOpenSupplier,
   ownerPublishQuote, ownerRecordDelivery, ownerRecordQuote, ownerRecordShipping, ownerRefuseRequest, ownerReviewRequest, ownerSaveSupplier,
-  ownerRequestFit, ownerSetSupplierStatus, ownerSpecDesign, ownerStartProduction, ownerWithdrawQuote,
+  ownerEraseNames, ownerProductionSheet, ownerRequestFit, ownerSetSupplierStatus, ownerSpecDesign, ownerStartProduction, ownerWithdrawQuote,
 } from '../platform/manufacturing/owner-http';
 
 const router = Router();
@@ -55,5 +55,9 @@ router.post('/requests/:requestId/delivered', ownerRecordDelivery);
 router.get('/requests/:requestId/designs/:projectId', ownerSpecDesign);
 // M7d: how each verified supplier fits the request, from what was recorded about it.
 router.get('/requests/:requestId/fit', ownerRequestFit);
+// P1: the production sheet leaves only once the order is confirmed with its supplier, and is recorded when it does;
+// a closed request's names can be erased.
+router.post('/requests/:requestId/production-sheet', ownerProductionSheet);
+router.post('/requests/:requestId/erase-names', ownerEraseNames);
 
 export default router;

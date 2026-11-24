@@ -201,10 +201,10 @@
               h('span', { class: 'pd-dock-kicker', text: tf('Designs: %d · saved %s', c.items, shell.date(c.updatedAt)) }),
             ]),
             h('div', { class: 'pd-dock-btns' }, Lst.archived ? [
-              btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'col-unarchive', 'data-pd-id': c.id, 'aria-label': tf('Return %s to the list', c.name) }, [h('span', { text: T('Return') })]),
-              btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'col-delete', 'data-pd-id': c.id, 'data-pd-name': c.name, 'aria-label': tf('Delete %s', c.name) }, [icon('trash', 14), h('span', { text: T('Delete') })]),
+              btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'col-unarchive', 'data-pd-id': c.id }, [h('span', { text: T('Return') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + c.name })]),
+              btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'col-delete', 'data-pd-id': c.id, 'data-pd-name': c.name }, [icon('trash', 14), h('span', { text: T('Delete') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + c.name })]),
             ] : [
-              btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'col-open', 'data-pd-id': c.id, 'aria-label': tf('Open %s', c.name) }, [h('span', { text: T('Open') })]),
+              btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'col-open', 'data-pd-id': c.id }, [h('span', { text: T('Open') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + c.name })]),
               btn({ class: 'pd-icbtn', 'data-pd-act': 'col-archive', 'data-pd-id': c.id, 'aria-label': tf('Archive %s', c.name), title: tf('Archive %s', c.name) }, [icon('trash', 14)]),
             ]),
           ]));
@@ -260,7 +260,7 @@
             ]),
             h('div', { class: 'pd-dock-btns' }, [
               role,
-              btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'col-open-design', 'data-pd-id': it.projectId, 'aria-label': tf('Open %s', it.name) }, [h('span', { text: T('Open') })]),
+              btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'col-open-design', 'data-pd-id': it.projectId }, [h('span', { text: T('Open') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + it.name })]),
               btn({ class: 'pd-icbtn', 'data-pd-act': 'col-remove', 'data-pd-row': String(i), 'data-pd-team-key': 'col-rm-' + i, 'aria-label': tf('Remove %s from the collection', it.name), title: T('Remove from the collection') }, [icon('close', 14)]),
             ]),
           ]));
@@ -339,6 +339,18 @@
       var min = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
       var date = h('input', { class: 'pd-input', type: 'date', min: min, 'data-pd-col-ask': 'neededBy', 'data-pd-team-key': 'col-ask-date', 'aria-label': T('Needed by (optional)') });
       date.value = st.ask.neededBy;
+      // P1: a roster with minors. Their names go only with a club administrator's attestation of a guardian's consent.
+      var sheetRoster = st.sheet.state === 'ready' && st.sheet.data ? st.sheet.data.roster : null, minors = null;
+      if (sheetRoster && sheetRoster.minors) {
+        var admin = shell.role && shell.role() === 'CLUB_ADMIN';
+        var consent = h('input', { type: 'checkbox', 'data-pd-col-ask': 'minorsConsent', 'data-pd-team-key': 'col-ask-consent' });
+        consent.checked = st.ask.minorsConsent === true;
+        minors = h('div', { class: 'pd-col-minors', role: 'group', 'aria-label': T('Players under 18') }, [
+          h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: T('This roster includes players under 18. Without a guardian’s consent their names stay with the club: the request carries numbers and sizes only.') })]),
+          admin ? h('label', { class: 'pd-team-check' }, [consent, h('span', { text: T('A parent or guardian of each player under 18 has consented to their name being printed and shared with the maker of this order.') })])
+            : h('p', { class: 'pd-note', text: T('Only a club administrator can confirm that consent.') }),
+        ]);
+      }
       // M7b: asking before every design is approved is allowed, and said.
       var items = st.cur ? st.cur.items : [], approved = items.filter(function (it) { return it.approval && it.approval.decision === 'APPROVED'; }).length;
       var unreviewed = shell.approvalChip && items.length && approved < items.length
@@ -349,6 +361,7 @@
         unreviewed,
         h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-dock-kicker', text: T('A note for Familista (optional)') }), note]),
         h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-dock-kicker', text: T('Needed by (optional)') }), date]),
+        minors,
         h('div', { class: 'pd-dock-btns' }, [
           btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'col-ask-cancel', 'data-pd-team-key': 'col-ask-cancel' }, [h('span', { text: T('Cancel') })]),
           btn({ class: 'pd-btn pd-btn--primary', 'data-pd-act': 'col-ask-send', 'data-pd-team-key': 'col-ask-send', 'aria-disabled': st.busy ? 'true' : null, 'data-pd-why': st.busy ? T('Sending…') : null }, [h('span', { text: T('Send the request') })]),
@@ -369,7 +382,7 @@
       var c = st.cur;
       if (!c || !c.id || st.busy || !st.ask) return;
       st.busy = true; shell.note(T('Sending…'));
-      api.submitRequest(c.id, { rosterId: c.rosterId || null, note: st.ask.note.trim() || null, neededBy: st.ask.neededBy || null }).then(function (r) {
+      api.submitRequest(c.id, { rosterId: c.rosterId || null, note: st.ask.note.trim() || null, neededBy: st.ask.neededBy || null, minorsConsent: st.ask.minorsConsent === true }).then(function (r) {
         st.busy = false;
         if (r.ok && r.data && r.data.request) { st.ask = null; shell.note(T('Request sent to Familista.')); shell.openRequest(r.data.request.id); return; }
         if (r.code === 'REQUEST_INCOMPLETE' || r.code === 'REQUEST_LIMIT') shell.note(T(INCOMPLETE[r.reason] || L('The request cannot be sent as it is.')));
@@ -432,7 +445,7 @@
       }
       if (r !== null && c.items[Number(r)]) { c.items[Number(r)].role = t.value; touch(); shell.render(); return true; }
       var ask = t.getAttribute('data-pd-col-ask');
-      if (ask && st.ask) { st.ask[ask] = t.value; return true; }
+      if (ask && st.ask) { st.ask[ask] = t.type === 'checkbox' ? !!t.checked : t.value; return true; }
       return t.hasAttribute('data-pd-col-pick');
     }
 

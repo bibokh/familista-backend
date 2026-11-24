@@ -53,7 +53,7 @@ export const RLS_PILOT_MODELS: ReadonlySet<string> = new Set([
   'PlayerGuardianLink', 'PlayerContractRecord', 'PlayerEvaluationRecord', 'PlayerOnboardingStep',
   'TrainingAttendanceRecord', 'MatchAttendanceRecord', 'OperationsPayment', 'ClubCalendarEntry', 'StaffClubNote',
   'DesignProject', 'DesignRevision', 'DesignBrandKit', 'DesignBrandAsset', 'DesignRoster', 'DesignCollection', 'DesignCollectionItem',
-  'ManufacturingRequest', 'ManufacturingRequestEvent', 'ManufacturingQuote', 'DesignReviewComment', 'DesignApproval',
+  'ManufacturingRequest', 'ManufacturingRequestEvent', 'ManufacturingQuote', 'DesignReviewComment', 'DesignApproval', 'ManufacturingRequestPerson',
 ]);
 
 const store = new AsyncLocalStorage<Held>();

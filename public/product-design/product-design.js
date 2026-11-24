@@ -745,10 +745,10 @@
               h('span', { class: 'pd-note', text: tf('Version %d · %s', p.headRevision, when(p.updatedAt)) }),
             ]),
             h('div', { class: 'pd-dock-btns' }, [
-              here ? chip(T('In the editor'), 'accent') : sv.filter === 'active' ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'open-project', 'data-pd-id': p.id, 'aria-label': tf('Open %s', p.name) }, [h('span', { text: T('Open') })]) : null,
+              here ? chip(T('In the editor'), 'accent') : sv.filter === 'active' ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'open-project', 'data-pd-id': p.id }, [h('span', { text: T('Open') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + p.name })]) : null,
               sv.filter === 'archived'
-                ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'unarchive', 'data-pd-id': p.id, 'aria-label': tf('Return %s to the list', p.name) }, [h('span', { text: T('Return to list') })])
-                : btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'archive', 'data-pd-id': p.id, 'aria-label': tf('Archive %s', p.name) }, [h('span', { text: T('Archive') })]),
+                ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'unarchive', 'data-pd-id': p.id }, [h('span', { text: T('Return to list') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + p.name })])
+                : btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'archive', 'data-pd-id': p.id }, [h('span', { text: T('Archive') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + p.name })]),
             ]),
           ]));
         });
@@ -847,7 +847,7 @@
     return {
       roster: window.FamilistaProductDesignRoster, collections: window.FamilistaProductDesignCollections || null,
       requests: part('manufacturing') ? window.FamilistaProductDesignRequests || null : null, lang: function () { return LANG; }, api: P.api, host: S.host, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say, dirArrow: dirArrow, date: when, percent: percent,
-      onPreview: setPreview, nameFit: nameFit,
+      onPreview: setPreview, nameFit: nameFit, role: function () { return WS.role; },
       // M7b: where the club's plan includes reviews, each design's decision beside it in collections and requests.
       approvalChip: part('reviews') ? approvalChip : null,
       // M7b-2: a saved collection's presentation sheet, over the room.

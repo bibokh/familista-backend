@@ -19,7 +19,7 @@ import { prisma } from '../../config/database';
 import { ConflictError, NotFoundError } from '../../utils/errors';
 import { clubAudit } from './club-audit';
 import { templateForm } from './core';
-import { rosterSummary, validateRosterEntries, type RosterSummary } from './roster-core';
+import { rosterSummary, validateRosterEntries, type RosterSummary, youthEntries } from './roster-core';
 import { approvalsFor, type ApprovalState } from './review.service';
 import type { DesignActor } from './service';
 
@@ -202,7 +202,8 @@ export async function deleteCollection(clubId: string, actor: DesignActor, id: s
 
 export interface OrderSheet {
   collection: { id: string; name: string; season: string | null; version: number };
-  roster: { id: string; name: string; version: number; entries: number; sets: number } | null;
+  /** P1: minors, as the request would count them (the club's mark, or a child's size). */
+  roster: { id: string; name: string; version: number; entries: number; sets: number; minors: boolean } | null;
   garments: Array<{ projectId: string; name: string; role: DesignCollectionRole; form: 'top' | 'shorts' | 'socks' | null; sizes: Array<{ size: string; sets: number }>; unsized: number; sets: number }>;
 }
 
@@ -216,10 +217,11 @@ export async function orderSheet(clubId: string, id: string, rosterId?: string):
   let roster: OrderSheet['roster'] = null;
   let sum: RosterSummary | null = null;
   if (rid) {
-    const row = await prisma.designRoster.findFirst({ where: { id: rid, clubId }, select: { id: true, name: true, version: true, entries: true } });
+    const row = await prisma.designRoster.findFirst({ where: { id: rid, clubId }, select: { id: true, name: true, version: true, entries: true, includesMinors: true } });
     if (!row) throw new NotFoundError('Roster');
-    sum = rosterSummary(validateRosterEntries(row.entries));
-    roster = { id: row.id, name: row.name, version: row.version, entries: sum.entries, sets: sum.sets };
+    const entries = validateRosterEntries(row.entries);
+    sum = rosterSummary(entries);
+    roster = { id: row.id, name: row.name, version: row.version, entries: sum.entries, sets: sum.sets, minors: row.includesMinors || youthEntries(entries) > 0 };
   }
   return {
     sheet: {

@@ -21,7 +21,8 @@
 | Team rosters: names to print, numbers, sizes, sets | `DesignRoster` | **Yes**: players' names; sizes may reveal age group (youth sizes) | The club | Deletable by the club once archived |
 | Collections and their order sheets | `DesignCollection`, `DesignCollectionItem` | Through the roster | The club | Deletable by the club |
 | Review comments and approvals | `DesignReviewComment`, `DesignApproval` | Staff names (author, approver); comment text | The club | Approvals are **append-only** (the database refuses changes) |
-| Requests for quotation: a **frozen specification** with the roster's entries | `ManufacturingRequest.spec` | **Yes**: the roster as submitted | The club; the Owner (to broker); the supplier receives the production sheet from the Owner | **Never changed** (database trigger); no deletion path |
+| Requests for quotation: a **frozen specification** of the roster's entries (numbers, sizes, sets) | `ManufacturingRequest.spec` | No: names are kept apart (below) | The club; the Owner (to broker) | Never changed (database trigger) |
+| The names of a request's entries | `ManufacturingRequestPerson` | **Yes** | The club; the Owner; the supplier only in the production sheet, which the Owner can export only once the order is confirmed with that supplier (each export audited) | Erasable: by the Owner for a closed request, by a club administrator per person, or by a retention rule the Owner sets |
 | Quotations and the order history | `ManufacturingQuote`, `ManufacturingRequestEvent` | Supplier contacts; staff notes | The club (published quotations only); the Owner | Append-only history |
 | Supplier records | `ManufacturingSupplier` | Contact e-mail of a person at the supplier | The Owner only | Until removed by the Owner [policy to set] |
 | Audit log of design and manufacturing actions | `PlatformAuditLog` | Who did what; **never** a comment's text, a name, a number or a size | Platform administrators | [retention to set] |
@@ -38,13 +39,15 @@ Squad names imported from the platform's player records are surname and number o
 
 ## 4. Gaps before launch (decisions and engineering, not wording)
 
-1. **Erasure.** There is no path to erase or anonymise a person's name from a frozen request specification, an archived
-   design, or an append-only history. Decide the retention period for each, and build erasure or anonymisation that
-   keeps the record's integrity (for example, replacing names in a closed request's specification after delivery plus
-   [N] months).
-2. **Children.** Rosters can hold youth players' names and sizes. Confirm the lawful basis the club relies on, and
-   whether parental consent or a separate notice is required in the clubs' jurisdictions.
-3. **Retention periods** for every row above, and for audit logs and backups.
+1. **Erasure (mechanism built, P1).** Names are kept apart from frozen specifications and can be erased (Owner per
+   closed request; club administrator per person; retention rules). Still to decide: how a data subject's request reaches
+   the club or Familista, the response time, and whether names in orders already with a supplier are erased on closure
+   automatically.
+2. **Children (mechanism built, P1).** A roster with a child's size, or marked so, keeps no names in a request unless a
+   club administrator attests a guardian's consent; the attestation is recorded. Still to decide: the lawful basis, the
+   age threshold per jurisdiction (18 is used), and the consent's form.
+3. **Retention periods (controls built, P1).** The Owner sets them; none is set. Still to decide: the periods themselves,
+   for every row above, and for audit logs and backups; and whether the platform's retention worker is switched on.
 4. **Supplier transfers.** A data processing agreement with each supplier that receives a production sheet, and the
    transfer mechanism for suppliers abroad.
 5. **Notice to players.** Clubs need a short text telling players that their name and size are used to make kit and

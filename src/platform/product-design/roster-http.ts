@@ -14,8 +14,8 @@ import type { DesignActor, DesignScope } from './service';
 
 const RosterId = z.string().guid();
 const ListQuery = z.object({ state: z.enum(['active', 'archived']).default('active') }).strict();
-const CreateBody = z.object({ name: z.unknown(), entries: z.unknown().default([]) }).strict();
-const SaveBody = z.object({ name: z.unknown(), entries: z.unknown(), version: z.number().int().min(1).max(1_000_000) }).strict();
+const CreateBody = z.object({ name: z.unknown(), entries: z.unknown().default([]), includesMinors: z.boolean().optional() }).strict();
+const SaveBody = z.object({ name: z.unknown(), entries: z.unknown(), version: z.number().int().min(1).max(1_000_000), includesMinors: z.boolean().optional() }).strict();
 
 function clubOf(res: Response): string {
   const s = res.locals.designScope as DesignScope | undefined;
